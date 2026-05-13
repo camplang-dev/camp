@@ -1,0 +1,127 @@
+BNF format description:
+	- rules are referenced by surrounding the name with angle brackets
+	- terminal rules are UPPERCASE and non-terminals are lower-snake-case
+	- the "-list" suffix on a rule name is a special suffix that means "comma-delimited" list
+	- a * or ? indicates that the previous term is zero-or-more or optional
+	- square brackets means the sequence within them is optional (but the whole sequence needs to match)
+	- round brackets are used to group sequences
+	- | means either
+	- literals are unquoted, or single-quoted if they're punctuation chars signficant to the BNF
+
+expression:
+	<lambda-expression> | <range-expression> | <assignment-expression> [',' <assignment-expression-list>]
+
+assignment-expression:
+	<conditional-expression> [<assignment-operator> <expression>]
+
+conditional-expression:
+	<binary-expression> ['?' <expression> : <expression>]
+
+range-expression:
+	<assignment-expression>? '..' <assignment-expression>?
+
+binary-expression:
+	<unary-expression> (<binary-operator> <unary-expression>)*
+
+unary-expression:
+	(<prefix-operator> | await | postpone | throw | within '(' <expression> ')')* <postfix-expression> [finally delete]
+
+postfix-expression:
+	<primary-expression> <postfix-part>*
+
+postfix-part:
+	'(' <argument-list>? ')'
+	'[' <argument-list>? ']'
+	'.' <IDENT>
+	'.' '[' <argument-list>? ']'
+	'<' <type-list> '>'
+	++ | --
+
+primary-expression:
+	<literal>
+	<qualified-name>
+	this
+	default
+	'(' <expression> ')'
+	'(' <grouped-expression-item-list>? ')'
+	'[' <expression-list>? ']'
+	<initializer-list>
+	<cast-expression>
+	<construction-expression>
+	<sizeof-expression>
+	<vtableof-expression>
+
+literal:
+	<NUMBER> | <STRING> | true | false | null
+
+qualified-name:
+	<qualifier>* <IDENT>
+
+cast-expression:
+	'(' <type> ')' <unary-expression>
+	'(' <cast-keyword> ')' <unary-expression>
+
+cast-keyword:
+	params | struct | class | delegate | fn | once | iter | async
+
+sizeof-expression:
+	sizeof '(' <type> ')'
+
+vtableof-expression:
+	vtableof '(' <type> ')'
+
+construction-expression:
+	[within '(' <expression> ')'] (init | new) [<type>] '(' <argument-list>? ')' [<initializer-list>]
+	[within '(' <expression> ')'] (init | new) <type> '[' <expression>? ']' [<initializer-list>]
+
+initializer-list:
+	'{' <initializer-item-list>? '}'
+
+initializer-item:
+	<initializer-assignment>
+	<expression>
+
+initializer-assignment:
+	<initializer-target> = <expression>
+
+initializer-target:
+	('.' (<IDENT> | '[' <argument-list>? ']'))+
+
+lambda-expression:
+	<lambda-parameter> => <lambda-body>
+	'(' <lambda-parameter-list>? ')' => <lambda-body>
+
+lambda-parameter:
+	<IDENT>
+	<parameter>
+
+lambda-body:
+	<expression>
+	<method-body>
+
+grouped-expression-item:
+	[<IDENT> :] <expression>
+
+argument:
+	[<IDENT> :] <expression>
+	out <expression>
+	catch [auto] <IDENT>
+	catch <expression>
+	within <expression>
+
+assignment-operator:
+	= | += | -= | *= | /= | %= | &= | '|=' | ^= | <<= | >>=
+
+binary-operator:
+	'||' | && | '|'
+	'??'
+	^ | &
+	== | !=
+	'<' | <= | '>' | >=
+	<< | >>
+	+ | -
+	* | / | %
+	..
+
+prefix-operator:
+	+ | - | ! | ~ | & | * | ++ | -- | ^

@@ -1,0 +1,111 @@
+BNF format description:
+	- rules are referenced by surrounding the name with angle brackets
+	- terminal rules are UPPERCASE and non-terminals are lower-snake-case
+	- the "-list" suffix on a rule name is a special suffix that means "comma-delimited" list
+	- a * or ? indicates that the previous term is zero-or-more or optional
+	- square brackets means the sequence within them is optional (but the whole sequence needs to match)
+	- round brackets are used to group sequences
+	- | means either
+	- literals are unquoted, or single-quoted if they're punctuation chars signficant to the BNF
+
+compilation-unit:
+	(<import-export-declaration> | <declaration>)*
+
+import-export-declaration:
+	using <qualified-namespace> ([as <IDENT>] | '{' <IDENT-list> '}') ;
+	export as <qualified-namespace> ;
+
+qualified-namespace:
+	<qualifier>* <IDENT>
+
+qualifier:
+	<IDENT> '::'
+
+type-declaration:
+	<attribute>* <type-declaration-declarator>* (struct|class|interface|params|enum|newtype) <type>? <IDENT> ['<' <generic-parameter-list> '>'] ['(' <parameter-list> ')'] [: <underlying-type-list>] (; | <type-declaration-scope>)
+
+attribute:
+	<AT-IDENT> ['(' <expression-list> ')']
+
+type-declaration-declarator:
+	export | virtual | sealed | abstract | fixed | escaped
+
+generic-parameter:
+	<IDENT> [: [implements] <type>]
+
+type-declaration-scope:
+	'{' ([<enum-value-list> [; <declaration>*]] | <declaration>*) '}'
+
+enum-value:
+	<IDENT> [= <expression>]
+
+declaration:
+	<type-declaration> | <member-declaration>
+
+member-declaration:
+	<attribute>* <member-declarator>* <type>? <member-qualifier>* [~] <IDENT> ['<' <generic-parameter-list> '>'] ['(' <parameter-list> ')'] (; | <method-body> | <assignment>)
+
+member-qualifier:
+	<type> '::'
+
+member-declarator:
+	export | extern | static | virtual | override | sealed | abstract | async
+
+parameter:
+	[within] <parameter-declarator>* <type> <IDENT>? [= <expression>]
+	within <IDENT>
+	<type-declarator>* this
+	sizeof '(' <type> ')'
+	vtableof '(' <type> ')'
+
+parameter-declarator:
+	<attribute>* [in | out | thrown]
+
+type:
+	(fn|delegate|async|once) <type> '(' <parameter-list> ')'
+	<attribute> <type>
+	<type> '[' ']'
+	<type> '?'
+	<type> '*'
+	<type> '<' <type-list> '>'
+	[struct|class] iter <type>
+	params '(' <type> ')'
+	struct '(' <type> ')'
+	thrown '(' <type> ')'
+	<type-declarator> <type>
+	<qualifier>* <IDENT>
+
+type-declarator:
+	const
+	volatile
+	escaped
+	scoped ['(' <IDENT-list> ')']
+	unscoped ['(' <IDENT-list> ')']
+
+assignment:
+	= <expression> ;
+
+method-body:
+	'{' <statement>* '}'
+	'=>' <expression> ;
+
+statement:
+	<statement-keyword> ['(' <statement-condition> ')'] (<statement> | '{' <statement>* '}')
+	case <expression> :
+	default :
+	<declaration-statement> ;
+	<expression> ;
+	;
+
+declaration-target:
+	<type> <IDENT>
+	auto (<IDENT> | '(' <IDENT-list> ')')
+
+declaration-statement:
+	<declaration-target> <assignment>?
+
+statement-keyword:
+	if | do | while | for | else | yield | return | continue | break | switch | within | try | catch | finally | async | foreach | delete
+
+statement-condition:
+	(<declaration-target> in <expression>) | <declaration-statement>? (; <expression>?)*
