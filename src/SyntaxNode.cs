@@ -2,22 +2,22 @@ using System.Collections.Generic;
 
 namespace Camp.Compiler;
 
-public abstract class Syntax
+public abstract class SyntaxNode
 {
 }
 
-public class CompilationUnitSyntax : Syntax
+public class CompilationUnitSyntax : SyntaxNode
 {
 	public List<CompilationUnitItemSyntax>? Items { get; set; }
 }
 
-public class CompilationUnitItemSyntax : Syntax
+public class CompilationUnitItemSyntax : SyntaxNode
 {
 	public ImportExportDeclarationSyntax? ImportExportDeclaration { get; set; }
 	public DeclarationSyntax? Declaration { get; set; }
 }
 
-public abstract class ImportExportDeclarationSyntax : Syntax
+public abstract class ImportExportDeclarationSyntax : SyntaxNode
 {
 	public Token? Keyword { get; set; }
 }
@@ -40,19 +40,19 @@ public class ExportImportExportDeclarationSyntax : ImportExportDeclarationSyntax
 	public Token? SemicolonToken { get; set; }
 }
 
-public class QualifiedNamespaceSyntax : Syntax
+public class QualifiedNamespaceSyntax : SyntaxNode
 {
 	public List<QualifierSyntax>? Qualifiers { get; set; }
 	public Token? Identifier { get; set; }
 }
 
-public class QualifierSyntax : Syntax
+public class QualifierSyntax : SyntaxNode
 {
 	public Token? Identifier { get; set; }
 	public TokenRange? ColonColonToken { get; set; }
 }
 
-public class TypeDeclarationSyntax : Syntax
+public class TypeDeclarationSyntax : SyntaxNode
 {
 	public List<AttributeSyntax>? Attributes { get; set; }
 	public List<TypeDeclarationDeclaratorSyntax>? Declarators { get; set; }
@@ -67,7 +67,7 @@ public class TypeDeclarationSyntax : Syntax
 	public TypeDeclarationScopeSyntax? Scope { get; set; }
 }
 
-public class AttributeSyntax : Syntax
+public class AttributeSyntax : SyntaxNode
 {
 	public Token? AttributeIdentifier { get; set; }
 	public Token? OpenParenToken { get; set; }
@@ -75,12 +75,12 @@ public class AttributeSyntax : Syntax
 	public Token? CloseParenToken { get; set; }
 }
 
-public class TypeDeclarationDeclaratorSyntax : Syntax
+public class TypeDeclarationDeclaratorSyntax : SyntaxNode
 {
 	public Token? Keyword { get; set; }
 }
 
-public class GenericParameterSyntax : Syntax
+public class GenericParameterSyntax : SyntaxNode
 {
 	public Token? Identifier { get; set; }
 	public Token? ColonToken { get; set; }
@@ -88,7 +88,7 @@ public class GenericParameterSyntax : Syntax
 	public TypeSyntax? Type { get; set; }
 }
 
-public class TypeDeclarationScopeSyntax : Syntax
+public class TypeDeclarationScopeSyntax : SyntaxNode
 {
 	public Token? OpenBraceToken { get; set; }
 	public EnumValueListSyntax? EnumValueList { get; set; }
@@ -97,13 +97,13 @@ public class TypeDeclarationScopeSyntax : Syntax
 	public Token? CloseBraceToken { get; set; }
 }
 
-public class DeclarationSyntax : Syntax
+public class DeclarationSyntax : SyntaxNode
 {
 	public TypeDeclarationSyntax? TypeDeclaration { get; set; }
 	public MemberDeclarationSyntax? MemberDeclaration { get; set; }
 }
 
-public class MemberDeclarationSyntax : Syntax
+public class MemberDeclarationSyntax : SyntaxNode
 {
 	public List<AttributeSyntax>? Attributes { get; set; }
 	public List<MemberDeclaratorSyntax>? Declarators { get; set; }
@@ -117,12 +117,12 @@ public class MemberDeclarationSyntax : Syntax
 	public AssignmentSyntax? Assignment { get; set; }
 }
 
-public class MemberDeclaratorSyntax : Syntax
+public class MemberDeclaratorSyntax : SyntaxNode
 {
 	public Token? Keyword { get; set; }
 }
 
-public abstract class ParameterSyntax : Syntax
+public abstract class ParameterSyntax : SyntaxNode
 {
 }
 
@@ -166,13 +166,13 @@ public class VTableOfParameterSyntax : ParameterSyntax
 	public Token? CloseParenToken { get; set; }
 }
 
-public class ParameterDeclaratorSyntax : Syntax
+public class ParameterDeclaratorSyntax : SyntaxNode
 {
 	public List<AttributeSyntax>? Attributes { get; set; }
 	public Token? Keyword { get; set; }
 }
 
-public abstract class TypeSyntax : Syntax
+public abstract class TypeSyntax : SyntaxNode
 {
 }
 
@@ -259,7 +259,7 @@ public class QualifiedNameTypeSyntax : TypeSyntax
 	public Token? Identifier { get; set; }
 }
 
-public class TypeDeclaratorSyntax : Syntax
+public class TypeDeclaratorSyntax : SyntaxNode
 {
 	public Token? Keyword { get; set; }
 	public Token? OpenParenToken { get; set; }
@@ -267,14 +267,14 @@ public class TypeDeclaratorSyntax : Syntax
 	public Token? CloseParenToken { get; set; }
 }
 
-public class AssignmentSyntax : Syntax
+public class AssignmentSyntax : SyntaxNode
 {
 	public Token? EqualsToken { get; set; }
 	public ExpressionSyntax? Expression { get; set; }
 	public Token? SemicolonToken { get; set; }
 }
 
-public abstract class MethodBodySyntax : Syntax
+public abstract class MethodBodySyntax : SyntaxNode
 {
 }
 
@@ -292,7 +292,7 @@ public class ExpressionMethodBodySyntax : MethodBodySyntax
 	public Token? SemicolonToken { get; set; }
 }
 
-public abstract class StatementSyntax : Syntax
+public abstract class StatementSyntax : SyntaxNode
 {
 }
 
@@ -338,7 +338,7 @@ public class EmptyStatementSyntax : StatementSyntax
 	public Token? SemicolonToken { get; set; }
 }
 
-public class DeclarationTargetSyntax : Syntax
+public class DeclarationTargetSyntax : SyntaxNode
 {
 	public TypeSyntax? Type { get; set; }
 	public Token? Identifier { get; set; }
@@ -350,13 +350,13 @@ public class DeclarationTargetSyntax : Syntax
 	public Token? CloseParenToken { get; set; }
 }
 
-public class DeclarationStatementSyntax : Syntax
+public class DeclarationStatementSyntax : SyntaxNode
 {
 	public DeclarationTargetSyntax? Target { get; set; }
 	public AssignmentSyntax? Assignment { get; set; }
 }
 
-public abstract class StatementConditionSyntax : Syntax
+public abstract class StatementConditionSyntax : SyntaxNode
 {
 }
 
@@ -373,19 +373,19 @@ public class ClauseStatementConditionSyntax : StatementConditionSyntax
 	public List<StatementConditionClauseSyntax>? Clauses { get; set; }
 }
 
-public class StatementConditionClauseSyntax : Syntax
+public class StatementConditionClauseSyntax : SyntaxNode
 {
 	public Token? SemicolonToken { get; set; }
 	public ExpressionSyntax? Expression { get; set; }
 }
 
-public class IdentListSyntax : Syntax
+public class IdentListSyntax : SyntaxNode
 {
 	public List<Token>? Identifiers { get; set; }
 	public List<Token>? Commas { get; set; }
 }
 
-public class GenericParameterListSyntax : Syntax
+public class GenericParameterListSyntax : SyntaxNode
 {
 	public Token? LessThanToken { get; set; }
 	public List<GenericParameterSyntax>? Parameters { get; set; }
@@ -393,19 +393,19 @@ public class GenericParameterListSyntax : Syntax
 	public Token? GreaterThanToken { get; set; }
 }
 
-public class UnderlyingTypeListSyntax : Syntax
+public class UnderlyingTypeListSyntax : SyntaxNode
 {
 	public List<TypeSyntax>? Types { get; set; }
 	public List<Token>? Commas { get; set; }
 }
 
-public class EnumValueListSyntax : Syntax
+public class EnumValueListSyntax : SyntaxNode
 {
 	public List<EnumValueSyntax>? Values { get; set; }
 	public List<Token>? Commas { get; set; }
 }
 
-public class ParameterListSyntax : Syntax
+public class ParameterListSyntax : SyntaxNode
 {
 	public Token? OpenParenToken { get; set; }
 	public List<ParameterSyntax>? Parameters { get; set; }
@@ -413,25 +413,25 @@ public class ParameterListSyntax : Syntax
 	public Token? CloseParenToken { get; set; }
 }
 
-public class TypeListSyntax : Syntax
+public class TypeListSyntax : SyntaxNode
 {
 	public List<TypeSyntax>? Types { get; set; }
 	public List<Token>? Commas { get; set; }
 }
 
-public class ExpressionListSyntax : Syntax
+public class ExpressionListSyntax : SyntaxNode
 {
 	public List<ExpressionSyntax>? Expressions { get; set; }
 	public List<Token>? Commas { get; set; }
 }
 
-public class AssignmentExpressionListSyntax : Syntax
+public class AssignmentExpressionListSyntax : SyntaxNode
 {
 	public List<ExpressionSyntax>? Expressions { get; set; }
 	public List<Token>? Commas { get; set; }
 }
 
-public abstract class ExpressionSyntax : Syntax
+public abstract class ExpressionSyntax : SyntaxNode
 {
 }
 
@@ -470,7 +470,7 @@ public class BinaryExpressionSyntax : ExpressionSyntax
 	public List<BinaryExpressionPartSyntax>? Parts { get; set; }
 }
 
-public class BinaryExpressionPartSyntax : Syntax
+public class BinaryExpressionPartSyntax : SyntaxNode
 {
 	public BinaryOperatorSyntax? Operator { get; set; }
 	public ExpressionSyntax? Expression { get; set; }
@@ -484,7 +484,7 @@ public class UnaryExpressionSyntax : ExpressionSyntax
 	public Token? DeleteKeyword { get; set; }
 }
 
-public class UnaryPrefixSyntax : Syntax
+public class UnaryPrefixSyntax : SyntaxNode
 {
 	public TokenRange? OperatorOrKeyword { get; set; }
 	public Token? OpenParenToken { get; set; }
@@ -498,7 +498,7 @@ public class PostfixExpressionSyntax : ExpressionSyntax
 	public List<PostfixPartSyntax>? Parts { get; set; }
 }
 
-public abstract class PostfixPartSyntax : Syntax
+public abstract class PostfixPartSyntax : SyntaxNode
 {
 }
 
@@ -639,19 +639,19 @@ public class InitializerListSyntax : PrimaryExpressionSyntax
 	public Token? CloseBraceToken { get; set; }
 }
 
-public class InitializerItemSyntax : Syntax
+public class InitializerItemSyntax : SyntaxNode
 {
 	public InitializerTargetSyntax? Target { get; set; }
 	public Token? EqualsToken { get; set; }
 	public ExpressionSyntax? Expression { get; set; }
 }
 
-public class InitializerTargetSyntax : Syntax
+public class InitializerTargetSyntax : SyntaxNode
 {
 	public List<InitializerTargetPartSyntax>? Parts { get; set; }
 }
 
-public class InitializerTargetPartSyntax : Syntax
+public class InitializerTargetPartSyntax : SyntaxNode
 {
 	public Token? DotToken { get; set; }
 	public Token? Identifier { get; set; }
@@ -670,26 +670,26 @@ public class LambdaExpressionSyntax : ExpressionSyntax
 	public LambdaBodySyntax? Body { get; set; }
 }
 
-public class LambdaParameterSyntax : Syntax
+public class LambdaParameterSyntax : SyntaxNode
 {
 	public Token? Identifier { get; set; }
 	public ParameterSyntax? Parameter { get; set; }
 }
 
-public class LambdaBodySyntax : Syntax
+public class LambdaBodySyntax : SyntaxNode
 {
 	public ExpressionSyntax? Expression { get; set; }
 	public MethodBodySyntax? MethodBody { get; set; }
 }
 
-public class GroupedExpressionItemSyntax : Syntax
+public class GroupedExpressionItemSyntax : SyntaxNode
 {
 	public Token? Identifier { get; set; }
 	public Token? ColonToken { get; set; }
 	public ExpressionSyntax? Expression { get; set; }
 }
 
-public class ArgumentSyntax : Syntax
+public class ArgumentSyntax : SyntaxNode
 {
 	public Token? Identifier { get; set; }
 	public Token? ColonToken { get; set; }
@@ -700,41 +700,41 @@ public class ArgumentSyntax : Syntax
 	public ExpressionSyntax? Expression { get; set; }
 }
 
-public class AssignmentOperatorSyntax : Syntax
+public class AssignmentOperatorSyntax : SyntaxNode
 {
 	public TokenRange? Operator { get; set; }
 }
 
-public class BinaryOperatorSyntax : Syntax
+public class BinaryOperatorSyntax : SyntaxNode
 {
 	public TokenRange? Operator { get; set; }
 }
 
-public class GroupedExpressionItemListSyntax : Syntax
+public class GroupedExpressionItemListSyntax : SyntaxNode
 {
 	public List<GroupedExpressionItemSyntax>? Items { get; set; }
 	public List<Token>? Commas { get; set; }
 }
 
-public class InitializerItemListSyntax : Syntax
+public class InitializerItemListSyntax : SyntaxNode
 {
 	public List<InitializerItemSyntax>? Items { get; set; }
 	public List<Token>? Commas { get; set; }
 }
 
-public class LambdaParameterListSyntax : Syntax
+public class LambdaParameterListSyntax : SyntaxNode
 {
 	public List<LambdaParameterSyntax>? Parameters { get; set; }
 	public List<Token>? Commas { get; set; }
 }
 
-public class ArgumentListSyntax : Syntax
+public class ArgumentListSyntax : SyntaxNode
 {
 	public List<ArgumentSyntax>? Arguments { get; set; }
 	public List<Token>? Commas { get; set; }
 }
 
-public class EnumValueSyntax : Syntax
+public class EnumValueSyntax : SyntaxNode
 {
 	public Token? Identifier { get; set; }
 	public Token? EqualsToken { get; set; }

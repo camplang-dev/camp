@@ -204,7 +204,7 @@ static void ResetColor()
 		Console.ResetColor();
 }
 
-static XElement SerializeSyntax(Syntax syntax, string? elementName = null)
+static XElement SerializeSyntax(SyntaxNode syntax, string? elementName = null)
 {
 	Type type = syntax.GetType();
 	string typeName = GetXmlName(type.Name);
@@ -231,7 +231,7 @@ static XElement SerializeSyntax(Syntax syntax, string? elementName = null)
 		{
 			element.Add(SerializeList(property.Name, items));
 		}
-		else if (value is Syntax childSyntax)
+		else if (value is SyntaxNode childSyntax)
 		{
 			element.Add(SerializeSyntax(childSyntax, property.Name));
 		}
@@ -255,7 +255,7 @@ static XElement SerializeList(string name, IEnumerable items)
 
 		switch (item)
 		{
-			case Syntax syntax:
+			case SyntaxNode syntax:
 				element.Add(SerializeSyntax(syntax));
 				break;
 
