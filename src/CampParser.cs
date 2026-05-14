@@ -776,7 +776,7 @@ public sealed class CampParser
 	{
 		KeywordStatementSyntax syntax = new()
 		{
-			Keyword = new StatementKeywordSyntax { Keyword = Take() }
+			Keyword = Take()
 		};
 
 		if (Is("("))

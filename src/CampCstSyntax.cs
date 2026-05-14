@@ -298,7 +298,7 @@ public abstract class StatementSyntax : Syntax
 
 public class KeywordStatementSyntax : StatementSyntax
 {
-	public StatementKeywordSyntax? Keyword { get; set; }
+	public Token? Keyword { get; set; }
 	public Token? OpenParenToken { get; set; }
 	public StatementConditionSyntax? Condition { get; set; }
 	public Token? CloseParenToken { get; set; }
@@ -354,11 +354,6 @@ public class DeclarationStatementSyntax : Syntax
 {
 	public DeclarationTargetSyntax? Target { get; set; }
 	public AssignmentSyntax? Assignment { get; set; }
-}
-
-public class StatementKeywordSyntax : Syntax
-{
-	public Token? Keyword { get; set; }
 }
 
 public abstract class StatementConditionSyntax : Syntax
