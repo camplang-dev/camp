@@ -1,1 +1,0 @@
-scoped T[] const T[]::slice<T: any>(@range nuint index = 0, nuint count = ^0, sizeof(T));

@@ -68,7 +68,7 @@ sizeof-expression:
 	sizeof '(' <type> ')'
 
 vtableof-expression:
-	vtableof '(' <type> ')'
+	vtableof '(' <type> : <type> ')'
 
 construction-expression:
 	[within '(' <expression> ')'] (init | new) [<type>] '(' <argument-list>? ')' [<initializer-list>]

@@ -295,7 +295,6 @@ public sealed class CampParser
 		else
 			index = typeStart;
 
-		syntax.Qualifiers = ParseMemberQualifiers();
 		syntax.TildeToken = TakeIf("~");
 		syntax.Identifier = ExpectIdentifier();
 
@@ -325,38 +324,8 @@ public sealed class CampParser
 
 	bool LooksLikeMemberName()
 	{
-		int start = index;
-		int diagnosticStart = diagnostics.Count;
-		ParseMemberQualifiers();
 		bool result = Is("~") || IsIdentifier();
-		index = start;
-		diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
 		return result;
-	}
-
-	List<MemberQualifierSyntax>? ParseMemberQualifiers()
-	{
-		List<MemberQualifierSyntax> qualifiers = [];
-
-		while (TryParseMemberQualifier() is MemberQualifierSyntax qualifier)
-			qualifiers.Add(qualifier);
-
-		return qualifiers.Count == 0 ? null : qualifiers;
-	}
-
-	MemberQualifierSyntax? TryParseMemberQualifier()
-	{
-		int start = index;
-		int diagnosticStart = diagnostics.Count;
-		TypeSyntax? type = ParseType(stopBeforeMemberQualifier: true);
-		TokenRange? colonColon = TakeOperator("::");
-
-		if (type is not null && colonColon is not null)
-			return new MemberQualifierSyntax { Type = type, ColonColonToken = colonColon };
-
-		index = start;
-		diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
-		return null;
 	}
 
 	List<QualifierSyntax>? ParseQualifiers()
@@ -465,9 +434,9 @@ public sealed class CampParser
 		return syntax;
 	}
 
-	TypeSyntax? ParseType(bool stopBeforeMemberQualifier = false)
+	TypeSyntax? ParseType()
 	{
-		TypeSyntax? type = ParseTypePrefix(stopBeforeMemberQualifier);
+		TypeSyntax? type = ParseTypePrefix();
 		if (type is null)
 			return null;
 
@@ -501,10 +470,10 @@ public sealed class CampParser
 		}
 	}
 
-	TypeSyntax? ParseTypePrefix(bool stopBeforeMemberQualifier = false)
+	TypeSyntax? ParseTypePrefix()
 	{
 		if (IsClass(TokenClass.AttributeIdentifier))
-			return new AttributedTypeSyntax { Attribute = ParseAttribute(), Type = ParseType(stopBeforeMemberQualifier) };
+			return new AttributedTypeSyntax { Attribute = ParseAttribute(), Type = ParseType() };
 
 		if (IsAny("fn", "delegate", "async", "once"))
 			return new CallableTypeSyntax
@@ -515,10 +484,10 @@ public sealed class CampParser
 			};
 
 		if ((Is("struct") || Is("class")) && PeekValue(1) == "iter")
-			return new IterTypeSyntax { StorageKeyword = Take(), IterKeyword = Expect("iter"), ElementType = ParseType(stopBeforeMemberQualifier) };
+			return new IterTypeSyntax { StorageKeyword = Take(), IterKeyword = Expect("iter"), ElementType = ParseType() };
 
 		if (Is("iter"))
-			return new IterTypeSyntax { IterKeyword = Take(), ElementType = ParseType(stopBeforeMemberQualifier) };
+			return new IterTypeSyntax { IterKeyword = Take(), ElementType = ParseType() };
 
 		if (Is("params"))
 			return ParseWrappedType<ParamsTypeSyntax>("params", (syntax, keyword, open, type, close) =>
@@ -548,9 +517,9 @@ public sealed class CampParser
 			});
 
 		if (IsAny(TypeDeclaratorKeywords))
-			return new DeclaratorTypeSyntax { Declarator = ParseTypeDeclarator(), Type = ParseType(stopBeforeMemberQualifier) };
+			return new DeclaratorTypeSyntax { Declarator = ParseTypeDeclarator(), Type = ParseType() };
 
-		return ParseQualifiedNameType(stopBeforeMemberQualifier);
+		return ParseQualifiedNameType();
 	}
 
 	T ParseWrappedType<T>(string keywordValue, Action<T, Token?, Token?, TypeSyntax?, Token?> assign)
@@ -587,11 +556,8 @@ public sealed class CampParser
 		return syntax;
 	}
 
-	QualifiedNameTypeSyntax? ParseQualifiedNameType(bool stopBeforeMemberQualifier = false)
+	QualifiedNameTypeSyntax? ParseQualifiedNameType()
 	{
-		if (stopBeforeMemberQualifier)
-			return ParseMemberQualifierNameType();
-
 		QualifiedNameTypeSyntax syntax = new()
 		{
 			Qualifiers = ParseQualifiers(),
@@ -602,34 +568,6 @@ public sealed class CampParser
 			return null;
 
 		return syntax;
-	}
-
-	QualifiedNameTypeSyntax? ParseMemberQualifierNameType()
-	{
-		List<QualifierSyntax> qualifiers = [];
-		Token? identifier = null;
-
-		while (IsIdentifier())
-		{
-			identifier = TakeIdentifier();
-
-			if (IsOperator("::") && IsNamespaceQualifierInMemberType())
-			{
-				qualifiers.Add(new QualifierSyntax { Identifier = identifier, ColonColonToken = TakeOperator("::") });
-				continue;
-			}
-
-			break;
-		}
-
-		if (identifier is null)
-			return null;
-
-		return new QualifiedNameTypeSyntax
-		{
-			Qualifiers = qualifiers.Count == 0 ? null : qualifiers,
-			Identifier = identifier
-		};
 	}
 
 	TypeDeclaratorSyntax? ParseTypeDeclarator()
@@ -680,12 +618,14 @@ public sealed class CampParser
 				VTableOfKeyword = Take(),
 				OpenParenToken = Expect("("),
 				Type = ParseType(),
+				ColonToken = Expect(":"),
+				InterfaceType = ParseType(),
 				CloseParenToken = Expect(")")
 			};
 
 		int start = index;
 		Token? within = TakeIf("within");
-		if (within is not null && IsIdentifier() && IsAny(PeekValue(1), ",", ")"))
+		if (within is not null && IsIdentifier() && ValueIsAny(PeekValue(1), ",", ")"))
 			return new WithinParameterSyntax { WithinKeyword = within, Identifier = TakeIdentifier() };
 		index = start;
 
@@ -722,7 +662,7 @@ public sealed class CampParser
 		if (syntax.Type is null)
 			return null;
 
-		if (IsIdentifier() && !IsAny(PeekValue(1), ",", ")", "="))
+		if (IsIdentifier() && !ValueIsAny(PeekValue(1), ",", ")", "="))
 			syntax.Identifier = TakeIdentifier();
 		else if (IsIdentifier())
 			syntax.Identifier = TakeIdentifier();
@@ -1238,7 +1178,15 @@ public sealed class CampParser
 			return new SizeOfExpressionSyntax { SizeOfKeyword = Take(), OpenParenToken = Expect("("), Type = ParseType(), CloseParenToken = Expect(")") };
 
 		if (Is("vtableof"))
-			return new VTableOfExpressionSyntax { VTableOfKeyword = Take(), OpenParenToken = Expect("("), Type = ParseType(), CloseParenToken = Expect(")") };
+			return new VTableOfExpressionSyntax
+			{
+				VTableOfKeyword = Take(),
+				OpenParenToken = Expect("("),
+				Type = ParseType(),
+				ColonToken = Expect(":"),
+				InterfaceType = ParseType(),
+				CloseParenToken = Expect(")")
+			};
 
 		if (Is("within") || Is("init") || Is("new"))
 			return TryParseConstructionExpression();
@@ -1497,6 +1445,7 @@ public sealed class CampParser
 	LambdaExpressionSyntax? TryParseLambdaExpression()
 	{
 		int start = index;
+		int diagnosticStart = diagnostics.Count;
 
 		if (IsIdentifier() && OperatorAfterOffset(1, "=>") is TokenRange singleArrow)
 		{
@@ -1523,6 +1472,7 @@ public sealed class CampParser
 		if (!IsOperator("=>"))
 		{
 			index = start;
+			diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
 			return null;
 		}
 
@@ -1533,7 +1483,7 @@ public sealed class CampParser
 
 	LambdaParameterSyntax? ParseLambdaParameter()
 	{
-		if (IsIdentifier() && IsAny(PeekValue(1), ",", ")"))
+		if (IsIdentifier() && ValueIsAny(PeekValue(1), ",", ")"))
 			return new LambdaParameterSyntax { Identifier = TakeIdentifier() };
 
 		ParameterSyntax? parameter = ParseParameter();
@@ -1721,10 +1671,10 @@ public sealed class CampParser
 
 	bool IsAny(params string[] values)
 	{
-		return IsAny(Current?.Value, values);
+		return ValueIsAny(Current?.Value, values);
 	}
 
-	static bool IsAny(string? value, params string[] values)
+	static bool ValueIsAny(string? value, params string[] values)
 	{
 		foreach (string candidate in values)
 		{
@@ -1803,92 +1753,6 @@ public sealed class CampParser
 
 		i = SkipTrivia(i);
 		return MatchOperatorAt(i, op);
-	}
-
-	bool IsNamespaceQualifierInMemberType()
-	{
-		SkipTrivia();
-
-		if (MatchOperatorAt(index, "::") is null)
-			return false;
-
-		int i = SkipTrivia(index + 2);
-
-		if (i >= tokens.Count || tokens[i].Class != TokenClass.Identifier)
-			return false;
-
-		i++;
-		SkipTypeSuffixes(ref i);
-		i = SkipTrivia(i);
-		return MatchOperatorAt(i, "::") is not null;
-	}
-
-	void SkipTypeSuffixes(ref int i)
-	{
-		while (true)
-		{
-			i = SkipTrivia(i);
-
-			if (i >= tokens.Count)
-				return;
-
-			if (tokens[i].Value == "[" && SkipTrivia(i + 1) < tokens.Count && tokens[SkipTrivia(i + 1)].Value == "]")
-			{
-				i = SkipTrivia(i + 1) + 1;
-				continue;
-			}
-
-			if (tokens[i].Value is "?" or "*")
-			{
-				i++;
-				continue;
-			}
-
-			if (tokens[i].Value == "<")
-			{
-				if (!TrySkipBalancedAngleList(ref i))
-					return;
-
-				continue;
-			}
-
-			return;
-		}
-	}
-
-	bool TrySkipBalancedAngleList(ref int i)
-	{
-		int depth = 0;
-
-		while (i < tokens.Count)
-		{
-			i = SkipTrivia(i);
-
-			if (i >= tokens.Count)
-				return false;
-
-			if (tokens[i].Value == "<")
-			{
-				depth++;
-				i++;
-				continue;
-			}
-
-			if (tokens[i].Value == ">")
-			{
-				depth--;
-				i++;
-
-				if (depth == 0)
-					return true;
-
-				continue;
-			}
-
-			i++;
-		}
-
-		return false;
 	}
 
 	TokenRange? MatchOperatorAt(int start, string op)

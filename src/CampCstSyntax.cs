@@ -108,7 +108,6 @@ public class MemberDeclarationSyntax : Syntax
 	public List<AttributeSyntax>? Attributes { get; set; }
 	public List<MemberDeclaratorSyntax>? Declarators { get; set; }
 	public TypeSyntax? Type { get; set; }
-	public List<MemberQualifierSyntax>? Qualifiers { get; set; }
 	public Token? TildeToken { get; set; }
 	public Token? Identifier { get; set; }
 	public GenericParameterListSyntax? GenericParameterList { get; set; }
@@ -121,12 +120,6 @@ public class MemberDeclarationSyntax : Syntax
 public class MemberDeclaratorSyntax : Syntax
 {
 	public Token? Keyword { get; set; }
-}
-
-public class MemberQualifierSyntax : Syntax
-{
-	public TypeSyntax? Type { get; set; }
-	public TokenRange? ColonColonToken { get; set; }
 }
 
 public abstract class ParameterSyntax : Syntax
@@ -168,6 +161,8 @@ public class VTableOfParameterSyntax : ParameterSyntax
 	public Token? VTableOfKeyword { get; set; }
 	public Token? OpenParenToken { get; set; }
 	public TypeSyntax? Type { get; set; }
+	public Token? ColonToken { get; set; }
+	public TypeSyntax? InterfaceType { get; set; }
 	public Token? CloseParenToken { get; set; }
 }
 
@@ -637,6 +632,8 @@ public class VTableOfExpressionSyntax : PrimaryExpressionSyntax
 	public Token? VTableOfKeyword { get; set; }
 	public Token? OpenParenToken { get; set; }
 	public TypeSyntax? Type { get; set; }
+	public Token? ColonToken { get; set; }
+	public TypeSyntax? InterfaceType { get; set; }
 	public Token? CloseParenToken { get; set; }
 }
 

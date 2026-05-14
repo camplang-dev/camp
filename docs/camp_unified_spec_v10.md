@@ -1618,9 +1618,9 @@ The current array API direction reinforces the grouped interpretation:
 Examples from the current API direction:
 
 ```camp
-scoped T[] const T[]::slice<T: any>(@range nuint index = 0, nuint count = ^0, sizeof(T));
-scoped T* T[]::addressOf<T: any>(@index nuint index, sizeof(T));
-T[] const T[]::copy<T: any>(within allocator, sizeof(T));
+scoped T[] slice<T: any>(const T[] this, @range nuint index = 0, nuint count = ^0, sizeof(T));
+scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
+T[] copy<T: any>(const T[] this, within allocator, sizeof(T));
 ```
 
 Copy-producing array APIs are valid only when the element operation is valid for the substituted type. They do not copy fixed struct or class elements by value.
@@ -1955,8 +1955,8 @@ The parameter name `unit` is intentional.
 For example, on `StringView`:
 
 ```camp
-uchar const StringView::getChar(@index nuint unit);
-nuint const StringView::getCharUnits(@index nuint unit);
+uchar getChar(const StringView this, @index nuint unit);
+nuint getCharUnits(const StringView this, @index nuint unit);
 ```
 
 These let the caller decode Unicode code points from a code-unit indexed string view while keeping the indexing contract explicit.
@@ -1968,10 +1968,10 @@ Borrowing operations return view types. Copy-producing operations advertise thei
 Examples from the current API direction:
 
 ```camp
-StringView const StringView::trim();
-String const StringView::uppercaseCopy(within allocator);
-String const StringView::lowercaseCopy(within allocator);
-String const StringView::toStringCopy(within allocator);
+StringView trim(const StringView this);
+String uppercaseCopy(const StringView this, within allocator);
+String lowercaseCopy(const StringView this, within allocator);
+String toStringCopy(const StringView this, within allocator);
 ```
 
 That naming helps the reader answer two questions immediately:
@@ -2038,11 +2038,11 @@ That means:
 Representative examples from the current API direction include:
 
 ```camp
-StringView const StringView::trim();
-StringView const StringView::slice(@range nuint index = 0, nuint count = ^0);
-uchar const StringView::getChar(@index nuint unit);
-String const StringView::uppercaseCopy(within allocator);
-String const StringView::toStringCopy(within allocator);
+StringView trim(const StringView this);
+StringView slice(const StringView this, @range nuint index = 0, nuint count = ^0);
+uchar getChar(const StringView this, @index nuint unit);
+String uppercaseCopy(const StringView this, within allocator);
+String toStringCopy(const StringView this, within allocator);
 ```
 
 This keeps the string model aligned with the rest of Camp: small core rules, explicit ownership, and ordinary ABI-visible calls.
@@ -3089,14 +3089,9 @@ This means Camp code inside the defining module may know a class’s full field 
 
 ### 2.2.2 Methods
 
-A method is an ordinary function associated with a type.
+A method is an ordinary function associated with a receiver type.
 
-Camp supports both:
-
-- declaration inside the type body
-- declaration outside the type body using `TypeName::methodName`
-
-Example inside a type:
+A method may be declared inside the type body. In that case, the receiver type is supplied by the enclosing type declaration.
 
 ```camp
 struct Accumulator
@@ -3110,7 +3105,7 @@ struct Accumulator
 }
 ```
 
-Example outside a type:
+A method may also be declared outside the type body by declaring an ordinary function whose first parameter is named exactly `this`.
 
 ```camp
 struct Counter
@@ -3118,30 +3113,66 @@ struct Counter
 	int value;
 }
 
-void Counter::increment()
+void increment(Counter* this)
 {
 	this.value += 1;
 }
 ```
 
-Both forms produce a method-like callable surface.
+The `this` parameter is the receiver. It is not a modifier and it does not have another source-level name.
+
+A type is complete at the end of its declaration. Fields, constructors, destructors, interface methods, and `abstract`, `virtual`, `override`, and `sealed` methods must be declared in the type body. Methods declared outside the type body are ordinary receiver methods; they do not affect layout, vtable order, or interface conformance.
 
 ### 2.2.3 Method-like invocation
 
-Functions declared with `TypeName::methodName` syntax gain method-style invocation.
+A function whose first parameter is named `this` gains method-style invocation when the method symbol is visible without namespace qualification.
 
 ```camp
 Counter c = { .value = 0 };
 c.increment();
 ```
 
-Conceptually, that lowers like an ordinary C-style receiver-first function:
+Conceptually, that lowers like an ordinary receiver-first function:
 
 ```c
 void Counter_increment(struct Counter* this);
 ```
 
-The exact helper spelling is not the point. The point is that Camp does not require a hidden runtime object model to support method syntax. Methods are ordinary ABI-visible functions with receiver conventions.
+The exact helper spelling is part of the source and ABI surface. Camp does not require a hidden runtime object model to support method syntax. Methods are ordinary ABI-visible functions with receiver conventions.
+
+A receiver method that must be named with namespace qualification is called by its qualified symbol name, not by receiver syntax.
+
+```camp
+MyModule::CustomerArray_processOrders(customers);
+```
+
+The symbol of an instance method is the type name of its `this` parameter, followed by `_`, followed by the method name. In-scope and out-of-scope declarations use the same rule.
+
+```camp
+// Symbol: Point_distanceFromOrigin
+double distanceFromOrigin(in Point this);
+
+// Symbol: CustomerArray_processOrders
+void processOrders(Customer*[] this);
+
+// Symbol: Customer_processIfSpecified
+void processIfSpecified(Customer*? this);
+```
+
+When the `this` parameter contains an array type, `Array` is added to the type-name portion of the symbol. Other declarators are not significant for this purpose. Generic receiver types contribute no type name.
+
+```camp
+// Symbol: addItems
+void addItems<T: any>(in T this, nuint count);
+
+// Symbol: Array_indexOf
+nint indexOf<T: any>(const T[] this, in T match, sizeof(T));
+
+// Symbol: ArrayArray_find
+nint find<T: any>(const T[][] this, in T match, sizeof(T));
+```
+
+Symbol names share one module namespace. If two declarations would produce the same symbol name, the program is invalid. User declarations also may not collide with compiler-generated helper symbols.
 
 ### 2.2.4 `this`
 
@@ -3166,33 +3197,44 @@ The important semantic difference is still the underlying type category:
 - modifying a struct method receiver modifies that struct value
 - modifying a class method receiver modifies that class instance
 
-The receiver may also be spelled explicitly as the first parameter of an instance member, constructor, or destructor:
+An in-scope instance method may spell the receiver explicitly as the first parameter, but it may not declare an explicit receiver type or transport mechanism:
 
 ```camp
 void appendChild(escaped this, Widget* child)
-Widget(const this, UiTree* tree)
-void paint(scoped this)
+void paint(const this)
+void detach(unscoped this)
 ```
 
-Rules:
+Rules for in-scope explicit receivers:
 
-- the explicit receiver parameter must be named exactly `this`
+- the receiver parameter must be named exactly `this`
 - it appears first
 - it has no explicit type because the receiver type is implied
-- it may carry qualifiers such as `const`, `scoped`, or `escaped`
-- `escaped` and `scoped` may not appear together on the same explicit receiver
+- it may carry only `const`, `unscoped`, or `escaped`
 
 If `this` is omitted, the receiver still exists implicitly. Lifetime defaults for the implicit receiver are defined in the lifetime chapter.
 
+An out-of-scope receiver method must declare a fully specified receiver type:
+
+```camp
+void reset(Meter* this)
+bool isOrigin(in Point this)
+void inspect(const Point this)
+void inspectPtr(const Point* this)
+```
+
+An out-of-scope `this` parameter may use the ordinary parameter surface for its type and transport, except that it may not be `out` or `thrown`.
+
 ### 2.2.5 Static methods
 
-A method may also be static.
+A method may also be static when declared inside a type body.
 
 Static methods:
 
 - are associated with the type
 - do not have an instance receiver
-- may still use method syntax on the type name
+- may be accessed through type-name dot syntax
+- also have a canonical symbol name
 
 Example:
 
@@ -3203,11 +3245,16 @@ class FileHandle
 }
 
 auto file = FileHandle.open(path);
+auto same = FileHandle_open(path);
 ```
 
 A static method may not declare an explicit `this` parameter.
 
 Static methods are still ordinary functions at the ABI level. They simply do not carry `this`.
+
+A static method's symbol is the declaring type name, followed by `_`, followed by the method name. A static method declared out of scope is written directly using that canonical symbol name.
+
+When an expression begins with `TypeName.`, or with a namespace-qualified type name followed by `.`, the type name must resolve to a known type. Static lookup then includes visible no-receiver functions whose symbols begin with `TypeName_`; the member name is the portion after the underscore.
 
 ### 2.2.6 Constructors: unified surface syntax
 
@@ -4031,7 +4078,7 @@ This is the ordinary ergonomic surface.
 
 Interface conformance is nominal only.
 
-A type implements an interface because it explicitly declares that interface in its declaration. Structural similarity is not enough.
+A type implements an interface because it explicitly declares that interface in its declaration. Structural similarity is not enough. Required interface members are declared in the type body.
 
 ```camp
 interface ICalculator
@@ -4069,7 +4116,7 @@ Camp keeps the v1 interface model simple: every declared entry is required.
 
 That means:
 
-- missing required members are a compile error
+- missing required members in the type body are a compile error
 - conformance does not silently fill in null entries
 - inherited interface entries remain required
 - constructor and destructor entries, when declared, are also required
@@ -4086,7 +4133,7 @@ That means:
 - changing receiver lifetime requirements changes the callable contract
 - an implementation that does not match the interface method's lifetime annotations does not implement that member
 
-This applies equally to an explicit `this` parameter and to ordinary annotated parameters.
+This applies equally to an in-scope explicit `this` parameter and to ordinary annotated parameters.
 
 ### 2.4.9 Interface inheritance
 
@@ -4700,7 +4747,7 @@ The same surface works for both values and pointers.
 
 ### 3.4.2 Static members
 
-A static member is accessed through the type name:
+A static member is accessed through type-name dot syntax when the type name is visible.
 
 ```camp
 Theme.Default
@@ -4708,7 +4755,15 @@ Console.writeLine("hello")
 FileHandle.openRead(path)
 ```
 
-Whether the target is actually a property rewrite or an ordinary method call is resolved by the normal binding rules.
+The canonical symbol name is also in scope when visible:
+
+```camp
+Theme_Default
+Console_writeLine("hello")
+FileHandle_openRead(path)
+```
+
+For static methods declared outside the type body, the declaration uses the canonical symbol name. The compiler recognizes visible no-receiver symbols with a `TypeName_` prefix as candidates for `TypeName.` static lookup. Namespace qualification may qualify the type name before the `.`.
 
 ### 3.4.3 Named grouped components
 
@@ -5320,8 +5375,8 @@ This allows:
 Examples:
 
 ```camp
-scoped T* T[]::addressOf<T: any>(@index nuint index, sizeof(T));
-uchar const StringView::getChar(@index nuint unit);
+scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
+uchar getChar(const StringView this, @index nuint unit);
 ```
 
 Call-site examples:
@@ -5348,8 +5403,8 @@ This enables two call styles for a slice-like method:
 Examples:
 
 ```camp
-scoped T[] const T[]::slice<T: any>(@range nuint index = 0, nuint count = ^0, sizeof(T));
-scoped StringView const StringView::slice(@range nuint index = 0, nuint count = ^0);
+scoped T[] slice<T: any>(const T[] this, @range nuint index = 0, nuint count = ^0, sizeof(T));
+scoped StringView slice(const StringView this, @range nuint index = 0, nuint count = ^0);
 ```
 
 Call-site examples:
@@ -5572,7 +5627,7 @@ For return values, bare `scoped` means the result points to caller-context. From
 Example:
 
 ```camp
-scoped Player* Roster::choose(Player* a, Player* b)
+scoped Player* choose(Roster this, Player* a, Player* b)
 {
 	return setting ? a : b;
 }
@@ -5741,8 +5796,8 @@ export abstract class Allocator
 Generic helpers are layered on top:
 
 ```camp
-export T* Allocator::alloc<T: any>(nuint len = 1, sizeof(T), thrown MemoryError);
-export T* Allocator::realloc<T: any>(T* ptr, nuint newLen, sizeof(T), thrown MemoryError);
+export T* alloc<T: any>(Allocator* this, nuint len = 1, sizeof(T), thrown MemoryError);
+export T* realloc<T: any>(Allocator* this, T* ptr, nuint newLen, sizeof(T), thrown MemoryError);
 ```
 
 The generic surface uses element counts, not byte counts.
@@ -6203,7 +6258,7 @@ This section defines the larger control-flow and modularity features that build 
 
 ## 5.1 Modules, Export, and Namespaces
 
-Camp keeps its module surface deliberately small.
+Camp keeps its module surface deliberately small. Each Camp source file is a self-contained module.
 
 - symbols are private by default
 - exported declarations form the public ABI surface
@@ -6214,7 +6269,7 @@ The goal is to make visibility explicit in source and keep generated public and 
 
 ### 5.1.1 Default visibility
 
-A declaration is internal to its defining compilation unit unless it is marked `export`.
+A declaration is internal to its defining source file unless it is marked `export`.
 
 ```camp
 struct Point
@@ -6223,7 +6278,7 @@ struct Point
 	int y;
 }
 
-bool Point::isOrigin()
+bool isOrigin(in Point this)
 {
 	return this.x == 0 && this.y == 0;
 }
@@ -6240,7 +6295,7 @@ export struct Point
 	int y;
 }
 
-export bool Point::isOrigin()
+export bool isOrigin(in Point this)
 {
 	return this.x == 0 && this.y == 0;
 }
@@ -6264,6 +6319,14 @@ That means `export` affects more than ordinary visibility. It also affects what 
 
 For example, an exported struct remains layout-visible in the public header, while an exported class remains opaque. Those type-specific consequences were defined earlier. The important point here is that `export` is the switch that places a declaration on the public boundary at all.
 
+An exported declaration may also name a metadata output:
+
+```camp
+export("api") void process(StringView value);
+```
+
+The declaration is still exported normally. In addition, its definition is emitted to the named metadata file. That metadata can be transformed into a C header or another external declaration surface as a separate compilation step.
+
 ### 5.1.3 Exporting members of otherwise non-exported types
 
 A member may be exported even when its enclosing type is not exported.
@@ -6276,7 +6339,7 @@ class Counter
 	int value;
 }
 
-export void Counter::increment()
+export void increment(Counter* this)
 {
 	this.value++;
 }
@@ -6327,12 +6390,34 @@ Std::Console.writeLine("hello");
 
 Symbols not listed remain accessible by qualified name.
 
+When a selected symbol names a type, the type name and method symbols with that type-name prefix are imported. For example:
+
+```camp
+using MyModule { Order, Invoice };
+```
+
+imports `Order`, `Invoice`, `Order_*`, and `Invoice_*`. Other symbols exported from `MyModule` still require namespace qualification.
+
+A method that requires namespace qualification may not be invoked using receiver syntax. It must be called by its qualified symbol name:
+
+```camp
+MyModule::CustomerArray_processOrders(customers);
+```
+
+Array receiver prefixes are imported using their generated receiver-name form:
+
+```camp
+using MyModule { CustomerArray, Array };
+```
+
+Here `CustomerArray` imports methods with a `Customer[]` receiver, and `Array` imports methods with a generic `T[]` receiver.
+
 A typical pattern is:
 
 ```camp
 export as Std;
 
-export static void printLine(StringView text)
+export void printLine(StringView text)
 {
 	Console.writeLine(text);
 }
@@ -6348,7 +6433,23 @@ printLine("hello");
 
 This keeps naming light in ordinary code without requiring a runtime namespace mechanism.
 
-### 5.1.6 Public versus private generated views
+### 5.1.6 Foreign definitions
+
+`extern` declares a symbol whose implementation is supplied outside Camp and linked with the current library.
+
+```camp
+extern void nativeInit();
+```
+
+`extern("library")` declares a symbol supplied by a dynamic library with the given name.
+
+```camp
+extern("kernel32") nuint RtlMoveMemory(const void* src, void* dst, nuint len);
+```
+
+An `extern` function, method, or variable is implemented outside Camp. An `extern` `class`, `struct`, `params`, or `newtype` declaration describes a type whose member implementations are supplied outside Camp.
+
+### 5.1.7 Public versus private generated views
 
 Camp’s visibility rules are reflected in two generated surfaces:
 
@@ -6362,7 +6463,7 @@ This distinction was introduced earlier for data structures. At the module level
 
 This gives Camp a direct source-level replacement for the traditional C pattern of manually splitting declarations across headers and implementation files.
 
-### 5.1.7 Foreign import direction in v1
+### 5.1.8 Foreign import direction in v1
 
 Camp keeps foreign-import convenience intentionally modest in v1. The current direction is that parsing C headers and generating Camp declarations is primarily a tooling concern rather than a large built-in language subsystem.
 
@@ -6547,7 +6648,7 @@ A plain function returning `iter T` lowers as an ordinary function returning an 
 For a generated iterator type `Y` yielding `T`, the basic protocol is:
 
 ```camp
-bool Y::next(Y* this, T* current);
+bool next(Y* this, T* current);
 ```
 
 Where:
@@ -6559,7 +6660,7 @@ Where:
 If the iterator may fail, the error output appears after `current` as a `thrown` parameter:
 
 ```camp
-bool Y::next(Y* this, T* current, thrown E);
+bool next(Y* this, T* current, thrown E);
 ```
 
 As elsewhere in Camp, the default value of the error type means success.
@@ -6573,7 +6674,7 @@ That means `T* current` expands componentwise after substitution.
 Conceptually, if `T` expands into `F1, F2, ...`, then:
 
 ```camp
-bool Y::next(Y* this, F1* current1, F2* current2, ...);
+bool next(Y* this, F1* current1, F2* current2, ...);
 ```
 
 This is not an iterator-specific exception. It is the same grouped-value rule used elsewhere in the language.
@@ -6901,7 +7002,7 @@ When exported, async functions are designed to be callable from C through their 
 Conceptually:
 
 ```camp
-export async int Calculator::addAsync(int x, int y, thrown CalcError)
+export async int addAsync(Calculator* this, int x, int y, thrown CalcError)
 {
 	return x + y;
 }
@@ -7514,7 +7615,7 @@ class RefHolder<T: implements IRef>
 {
 	T* value;
 
-	RefHolder(T* value, vtableof(T::IRef))
+	RefHolder(T* value, vtableof(T: IRef))
 	{
 		this.value = value;
 	}
@@ -7728,7 +7829,7 @@ In particular:
 - container rules still apply after substitution
 - there is no generic-only exception for delegates, arrays, or interfaces involving `T`
 
-## 6.3 `sizeof(T)` and `vtableof(T)`
+## 6.3 `sizeof(T)` and `vtableof(T: Interface)`
 
 Camp does not hide runtime generic support behind metadata objects. When generic code needs type-size or interface-vtable information at runtime, it requests those values explicitly.
 
@@ -7756,12 +7857,12 @@ For `T: any`, `sizeof(T)` is the size of the concrete substituted type’s mater
 
 This is why `sizeof(T)` composes naturally with the rule that erased `T*` means `struct(T)*` for materialized storage.
 
-### 6.3.2 `vtableof(T::IFoo)`
+### 6.3.2 `vtableof(T: IFoo)`
 
 A generic method or generic class constructor may request the non-fixup interface vtable for a constrained type.
 
 ```camp
-void retainTwice<T: implements IRef>(T* value, vtableof(T::IRef))
+void retainTwice<T: implements IRef>(T* value, vtableof(T: IRef))
 {
 	value.retain();
 	value.retain();
@@ -7787,7 +7888,7 @@ Generic code is therefore explicit about what runtime support it needs.
 
 ### 6.3.4 Placement rules
 
-Both `sizeof(T)` and `vtableof(T::IFoo)` may refer to type parameters declared on:
+Both `sizeof(T)` and `vtableof(T: IFoo)` may refer to type parameters declared on:
 
 - the current method
 - the containing generic type
@@ -7796,7 +7897,7 @@ Constructors do not declare their own generic parameter lists, but they may refe
 
 ### 6.3.5 Storing these values for later use
 
-When `sizeof(T)` or `vtableof(T::IFoo)` is requested in a generic class constructor, the compiler may retain the supplied value in hidden instance state for later instance-method use.
+When `sizeof(T)` or `vtableof(T: IFoo)` is requested in a generic class constructor, the compiler may retain the supplied value in hidden instance state for later instance-method use.
 
 That means a generic class may receive the capability once during construction and then use it later without repeating the full explicit parameter list on every method.
 
@@ -7805,7 +7906,7 @@ class RefHolder<T: implements IRef>
 {
 	T* value;
 
-	RefHolder(T* value, vtableof(T::IRef))
+	RefHolder(T* value, vtableof(T: IRef))
 	{
 		this.value = value;
 	}
@@ -7868,7 +7969,7 @@ class RefHolder<T: implements IRef>
 {
 	T* value;
 
-	RefHolder(T* value, vtableof(T::IRef))
+	RefHolder(T* value, vtableof(T: IRef))
 	{
 		this.value = value;
 		this.value.retain();
@@ -7912,7 +8013,7 @@ This is allowed under the ordinary erased generic model. Generic interface metho
 When generic code wants to dispatch through an interface contract, it requests the needed vtable explicitly and then uses the ordinary member syntax on the constrained concrete type.
 
 ```camp
-void retainTwice<T: implements IRef>(T* value, vtableof(T::IRef))
+void retainTwice<T: implements IRef>(T* value, vtableof(T: IRef))
 {
 	value.retain();
 	value.retain();
@@ -7922,7 +8023,7 @@ void retainTwice<T: implements IRef>(T* value, vtableof(T::IRef))
 This expresses two distinct facts:
 
 - `implements IRef` gives nominal capability
-- `vtableof(T::IRef)` supplies the runtime interface information needed by the erased generic body
+- `vtableof(T: IRef)` supplies the runtime interface information needed by the erased generic body
 
 ### 6.4.5 Struct and class implementations remain distinct
 
@@ -7972,7 +8073,7 @@ class LineWriter<T: implements ITextBuilder>
 {
 	T* builder;
 
-	LineWriter(vtableof(T::ITextBuilder), within allocator)
+	LineWriter(vtableof(T: ITextBuilder), within allocator)
 	{
 		this.builder = new T();
 	}
@@ -7997,7 +8098,7 @@ class LineWriter<T: implements ITextBuilder>
 
 Important points:
 
-- the constructor requests `vtableof(T::ITextBuilder)` explicitly
+- the constructor requests `vtableof(T: ITextBuilder)` explicitly
 - `new T()` is valid here because the interface contract supplies constructor capability
 - `delete this.builder` is valid here because the interface contract supplies destructor capability
 - the allocator is supplied through the active `within` context or explicitly by the caller
@@ -8122,27 +8223,27 @@ The core generic array methods are:
 
 ```camp
 // Search and comparison.
-nint const T[]::indexOf<T: any>(in T match, sizeof(T));
-nint const T[]::indexOfAny<T: any>(const T[] matches, sizeof(T));
-nint const T[]::lastIndexOf<T: any>(in T match, sizeof(T));
-nint const T[]::lastIndexOfAny<T: any>(const T[] matches, sizeof(T));
-bool const T[]::contentsEqualTo<T: any>(const T[] other, sizeof(T));
+nint indexOf<T: any>(const T[] this, in T match, sizeof(T));
+nint indexOfAny<T: any>(const T[] this, const T[] matches, sizeof(T));
+nint lastIndexOf<T: any>(const T[] this, in T match, sizeof(T));
+nint lastIndexOfAny<T: any>(const T[] this, const T[] matches, sizeof(T));
+bool contentsEqualTo<T: any>(const T[] this, const T[] other, sizeof(T));
 
 // In-place mutation.
-scoped T[] T[]::fill<T: any>(in T value, sizeof(T));
-scoped T[] T[]::overwrite<T: any>(const T[] source, sizeof(T));
-scoped T[] T[]::update<T: any>(delegate T(in T element) updater, sizeof(T));
-scoped T[] T[]::sort<T: any>(delegate int(in T a, in T b) comparer, sizeof(T));
-scoped T[] T[]::reverse<T: any>(sizeof(T));
+scoped T[] fill<T: any>(T[] this, in T value, sizeof(T));
+scoped T[] overwrite<T: any>(T[] this, const T[] source, sizeof(T));
+scoped T[] update<T: any>(T[] this, delegate T(in T element) updater, sizeof(T));
+scoped T[] sort<T: any>(T[] this, delegate int(in T a, in T b) comparer, sizeof(T));
+scoped T[] reverse<T: any>(T[] this, sizeof(T));
 
 // Borrowing operations.
-scoped T[] const T[]::slice<T: any>(@range nuint index = 0, nuint count = ^0, sizeof(T));
-scoped T* T[]::addressOf<T: any>(@index nuint index, sizeof(T));
+scoped T[] slice<T: any>(const T[] this, @range nuint index = 0, nuint count = ^0, sizeof(T));
+scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
 
 // Allocating operations.
-T[] const T[]::copy<T: any>(within allocator, sizeof(T));
-TResult[] const T[]::mapCopy<T: any, TResult: any>(delegate TResult(in T element) mapper, sizeof(T), within allocator);
-T[] const T[]::filterCopy<T: any>(delegate bool(in T element) predicate, within allocator, sizeof(T));
+T[] copy<T: any>(const T[] this, within allocator, sizeof(T));
+TResult[] mapCopy<T: any, TResult: any>(const T[] this, delegate TResult(in T element) mapper, sizeof(T), within allocator);
+T[] filterCopy<T: any>(const T[] this, delegate bool(in T element) predicate, within allocator, sizeof(T));
 ```
 
 These methods are intentionally small and conventional. Camp does not try to make arrays into a deep collection hierarchy.
@@ -8185,7 +8286,7 @@ Arrays support ordinary element indexing syntax through `addressOf()`.
 That means this library declaration:
 
 ```camp
-scoped T* T[]::addressOf<T: any>(@index nuint index, sizeof(T));
+scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
 ```
 
 supports code such as:
@@ -8367,20 +8468,20 @@ The common methods are conceptually duplicated across the UTF-8, UTF-16, and ASC
 ##### Searching and comparison
 
 ```camp
-nint const StringView::indexOf(const StringView match, bool caseInsensitive = false);
-nint const StringView::indexOfChar(uchar match, bool caseInsensitive = false);
-nint const StringView::indexOfAnyChar(const uchar[] matches, bool caseInsensitive = false);
+nint indexOf(const StringView this, const StringView match, bool caseInsensitive = false);
+nint indexOfChar(const StringView this, uchar match, bool caseInsensitive = false);
+nint indexOfAnyChar(const StringView this, const uchar[] matches, bool caseInsensitive = false);
 
-nint const StringView::lastIndexOf(const StringView match, bool caseInsensitive = false);
-nint const StringView::lastIndexOfChar(uchar match, bool caseInsensitive = false);
-nint const StringView::lastIndexOfAnyChar(const uchar[] matches, bool caseInsensitive = false);
+nint lastIndexOf(const StringView this, const StringView match, bool caseInsensitive = false);
+nint lastIndexOfChar(const StringView this, uchar match, bool caseInsensitive = false);
+nint lastIndexOfAnyChar(const StringView this, const uchar[] matches, bool caseInsensitive = false);
 
-bool const StringView::startsWith(const StringView match, bool caseInsensitive = false);
-bool const StringView::startsWithChar(uchar match, bool caseInsensitive = false);
-bool const StringView::endsWith(const StringView match, bool caseInsensitive = false);
-bool const StringView::endsWithChar(uchar match, bool caseInsensitive = false);
+bool startsWith(const StringView this, const StringView match, bool caseInsensitive = false);
+bool startsWithChar(const StringView this, uchar match, bool caseInsensitive = false);
+bool endsWith(const StringView this, const StringView match, bool caseInsensitive = false);
+bool endsWithChar(const StringView this, uchar match, bool caseInsensitive = false);
 
-nint const StringView::compareTo(const StringView other, bool caseInsensitive = false);
+nint compareTo(const StringView this, const StringView other, bool caseInsensitive = false);
 ```
 
 These methods operate on code-unit sequences. Case-insensitive behavior is part of the individual method contract rather than a separate comparer framework.
@@ -8388,10 +8489,10 @@ These methods operate on code-unit sequences. Case-insensitive behavior is part 
 ##### Unicode-aware access
 
 ```camp
-struct iter uchar const StringView::chars();
-nuint const StringView::countChars();
-uchar const StringView::getChar(@index nuint unit);
-nuint const StringView::getCharUnits(@index nuint unit);
+struct iter uchar chars(const StringView this);
+nuint countChars(const StringView this);
+uchar getChar(const StringView this, @index nuint unit);
+nuint getCharUnits(const StringView this, @index nuint unit);
 ```
 
 Typical usage:
@@ -8411,10 +8512,10 @@ Property syntax keeps unit-based indexing readable without exposing raw `address
 ##### Borrowing transformations
 
 ```camp
-StringView const StringView::trim();
-StringView const StringView::trimStart();
-StringView const StringView::trimEnd();
-scoped StringView const StringView::slice(@range nuint index = 0, nuint count = ^0);
+StringView trim(const StringView this);
+StringView trimStart(const StringView this);
+StringView trimEnd(const StringView this);
+scoped StringView slice(const StringView this, @range nuint index = 0, nuint count = ^0);
 ```
 
 These operations return borrowed views rather than allocating new storage.
@@ -8427,13 +8528,13 @@ StringView stem = line.slice(..^1);
 ##### Copy-producing transformations
 
 ```camp
-String const StringView::uppercaseCopy(within allocator);
-String const StringView::lowercaseCopy(within allocator);
+String uppercaseCopy(const StringView this, within allocator);
+String lowercaseCopy(const StringView this, within allocator);
 
-static String StringView::concatCopy(const StringView[] strings, within allocator);
-static String StringView::joinCopy(const StringView separator, const StringView[] strings, within allocator);
+String StringView_concatCopy(const StringView[] strings, within allocator);
+String StringView_joinCopy(const StringView separator, const StringView[] strings, within allocator);
 
-(scoped StringView)[] const StringView::splitCopy(const StringView separator, within allocator);
+(scoped StringView)[] splitCopy(const StringView this, const StringView separator, within allocator);
 ```
 
 The naming is intentional:
@@ -8449,7 +8550,7 @@ within(tempArena)
 {
 	auto words = sentence.splitCopy(" ") finally delete;
 	auto loud = sentence.uppercaseCopy() finally delete;
-	auto combined = StringView.joinCopy(", ", words) finally delete;
+	auto combined = StringView_joinCopy(", ", words) finally delete;
 }
 ```
 
@@ -8462,31 +8563,31 @@ Each string family also has a few type-specific helpers.
 ##### UTF-8 family
 
 ```camp
-String const StringView::toStringCopy(within allocator);
-WString const StringView::convertToWStringCopy(within allocator);
-AString const StringView::convertToAStringCopy(within allocator);
-scoped char[] const StringView::asArray();
-scoped AStringView const StringView::assumeAStringView();
+String toStringCopy(const StringView this, within allocator);
+WString convertToWStringCopy(const StringView this, within allocator);
+AString convertToAStringCopy(const StringView this, within allocator);
+scoped char[] asArray(const StringView this);
+scoped AStringView assumeAStringView(const StringView this);
 ```
 
 ##### UTF-16 family
 
 ```camp
-WString const WStringView::toWStringCopy(within allocator);
-String const WStringView::convertToStringCopy(within allocator);
-AString const WStringView::convertToAStringCopy(within allocator);
-scoped wchar[] const WStringView::asArray();
+WString toWStringCopy(const WStringView this, within allocator);
+String convertToStringCopy(const WStringView this, within allocator);
+AString convertToAStringCopy(const WStringView this, within allocator);
+scoped wchar[] asArray(const WStringView this);
 ```
 
 ##### ASCII family
 
 ```camp
-AString const AStringView::toAStringCopy(within allocator);
-String const AStringView::convertToStringCopy(within allocator);
-WString const AStringView::convertToWStringCopy(within allocator);
-scoped achar[] const AStringView::asArray();
-void AStringView::makeUppercase();
-void AStringView::makeLowercase();
+AString toAStringCopy(const AStringView this, within allocator);
+String convertToStringCopy(const AStringView this, within allocator);
+WString convertToWStringCopy(const AStringView this, within allocator);
+scoped achar[] asArray(const AStringView this);
+void makeUppercase(AStringView this);
+void makeLowercase(AStringView this);
 ```
 
 The ASCII in-place case operations intentionally return `void`, so mutating an `AStringView` does not suggest that a new owning string was created.
@@ -8496,9 +8597,9 @@ The ASCII in-place case operations intentionally return `void`, so mutating an `
 The standard library also provides direct view reinterpretation from raw character arrays:
 
 ```camp
-StringView const char[]::asView();
-WStringView const wchar[]::asView();
-AStringView const achar[]::asView();
+StringView asView(const char[] this);
+WStringView asView(const wchar[] this);
+AStringView asView(const achar[] this);
 ```
 
 These helpers are especially useful when interoperating with lower-level APIs:
@@ -8632,23 +8733,23 @@ The standard library can expose readers and writers for common in-memory types.
 For byte arrays:
 
 ```camp
-export ByteReader byte[]::reader();
-export AsyncByteReader byte[]::asyncReader();
-export ByteWriter byte[]::writer();
-export AsyncByteWriter byte[]::asyncWriter();
+export ByteReader reader(byte[] this);
+export AsyncByteReader asyncReader(byte[] this);
+export ByteWriter writer(byte[] this);
+export AsyncByteWriter asyncWriter(byte[] this);
 ```
 
 For string views:
 
 ```camp
-export CharReader StringView::reader();
-export AsyncCharReader StringView::asyncReader();
+export CharReader reader(StringView this);
+export AsyncCharReader asyncReader(StringView this);
 
-export WCharReader WStringView::reader();
-export AsyncWCharReader WStringView::asyncReader();
+export WCharReader reader(WStringView this);
+export AsyncWCharReader asyncReader(WStringView this);
 
-export ACharReader AStringView::reader();
-export AsyncACharReader AStringView::asyncReader();
+export ACharReader reader(AStringView this);
+export AsyncACharReader asyncReader(AStringView this);
 ```
 
 These are useful for:
@@ -8748,7 +8849,7 @@ export class Console
 
 This means:
 
-- `Console.Reader` and `Console.Writer` are `char`-based
+- `Console.getReader()` and `Console.getWriter()` are `char`-based
 - text helpers live directly on `Console`
 - error output is a separate writer surface
 
@@ -8759,27 +8860,27 @@ Byte streams can be adapted into text streams with ordinary getter-style methods
 Reader adapters:
 
 ```camp
-export CharReader ByteReader::getCharReader();
-export AsyncCharReader AsyncByteReader::getCharReader();
+export CharReader getCharReader(ByteReader this);
+export AsyncCharReader getCharReader(AsyncByteReader this);
 
-export WCharReader ByteReader::getWCharReader();
-export AsyncWCharReader AsyncByteReader::getWCharReader();
+export WCharReader getWCharReader(ByteReader this);
+export AsyncWCharReader getWCharReader(AsyncByteReader this);
 
-export ACharReader ByteReader::getACharReader();
-export AsyncACharReader AsyncByteReader::getACharReader();
+export ACharReader getACharReader(ByteReader this);
+export AsyncACharReader getACharReader(AsyncByteReader this);
 ```
 
 Writer adapters:
 
 ```camp
-export CharWriter ByteWriter::getCharWriter();
-export AsyncCharWriter AsyncByteWriter::getCharWriter();
+export CharWriter getCharWriter(ByteWriter this);
+export AsyncCharWriter getCharWriter(AsyncByteWriter this);
 
-export WCharWriter ByteWriter::getWCharWriter();
-export AsyncWCharWriter AsyncByteWriter::getWCharWriter();
+export WCharWriter getWCharWriter(ByteWriter this);
+export AsyncWCharWriter getWCharWriter(AsyncByteWriter this);
 
-export ACharWriter ByteWriter::getACharWriter();
-export AsyncACharWriter AsyncByteWriter::getACharWriter();
+export ACharWriter getACharWriter(ByteWriter this);
+export AsyncACharWriter getACharWriter(AsyncByteWriter this);
 ```
 
 These are intended to work naturally with property syntax:
@@ -8798,8 +8899,8 @@ The helper layer keeps common I/O code compact.
 #### Byte helpers
 
 ```camp
-export thrown(IoError) ByteWriter::writeAll(const byte[] value);
-export async void AsyncByteWriter::writeAllAsync(const byte[] value, thrown IoError);
+export thrown(IoError) writeAll(ByteWriter this, const byte[] value);
+export async void writeAllAsync(AsyncByteWriter this, const byte[] value, thrown IoError);
 ```
 
 #### Text-writing helpers
@@ -8807,20 +8908,20 @@ export async void AsyncByteWriter::writeAllAsync(const byte[] value, thrown IoEr
 UTF-8 forms:
 
 ```camp
-export thrown(IoError) CharWriter::writeChar(uchar value);
-export thrown(IoError) CharWriter::writeString(StringView value);
-export thrown(IoError) CharWriter::writeLine(StringView value = default);
+export thrown(IoError) writeChar(CharWriter this, uchar value);
+export thrown(IoError) writeString(CharWriter this, StringView value);
+export thrown(IoError) writeLine(CharWriter this, StringView value = default);
 
-export thrown(IoError) CharWriter::writeBool(bool value);
-export thrown(IoError) CharWriter::writeInt(int value);
-export thrown(IoError) CharWriter::writeLong(long value);
-export thrown(IoError) CharWriter::writeUInt(uint value);
-export thrown(IoError) CharWriter::writeULong(ulong value);
-export thrown(IoError) CharWriter::writeFloat(float value);
-export thrown(IoError) CharWriter::writeDouble(double value);
+export thrown(IoError) writeBool(CharWriter this, bool value);
+export thrown(IoError) writeInt(CharWriter this, int value);
+export thrown(IoError) writeLong(CharWriter this, long value);
+export thrown(IoError) writeUInt(CharWriter this, uint value);
+export thrown(IoError) writeULong(CharWriter this, ulong value);
+export thrown(IoError) writeFloat(CharWriter this, float value);
+export thrown(IoError) writeDouble(CharWriter this, double value);
 
-export async void AsyncCharWriter::writeStringAsync(StringView value, thrown IoError);
-export async void AsyncCharWriter::writeLineAsync(StringView value = default, thrown IoError);
+export async void writeStringAsync(AsyncCharWriter this, StringView value, thrown IoError);
+export async void writeLineAsync(AsyncCharWriter this, StringView value = default, thrown IoError);
 ```
 
 Equivalent `WChar*` and `AChar*` helper families exist for UTF-16 and ASCII/system-code-page streams.
@@ -8830,14 +8931,14 @@ Equivalent `WChar*` and `AChar*` helper families exist for UTF-16 and ASCII/syst
 UTF-8 forms:
 
 ```camp
-export String CharReader::readAllCopy(within allocator, thrown IoError);
-export async String AsyncCharReader::readAllCopyAsync(within allocator, thrown IoError);
+export String readAllCopy(CharReader this, within allocator, thrown IoError);
+export async String readAllCopyAsync(AsyncCharReader this, within allocator, thrown IoError);
 
-export iter nuint CharReader::readLines(char[] buffer, thrown IoError);
-export async iter nuint AsyncCharReader::readLinesAsync(char[] buffer, thrown IoError);
+export iter nuint readLines(CharReader this, char[] buffer, thrown IoError);
+export async iter nuint readLinesAsync(AsyncCharReader this, char[] buffer, thrown IoError);
 
-export iter StringView CharReader::iterateLines(char[] buffer, thrown IoError);
-export async iter StringView? AsyncCharReader::iterateLinesAsync(char[] buffer, thrown IoError);
+export iter StringView iterateLines(CharReader this, char[] buffer, thrown IoError);
+export async iter StringView? iterateLinesAsync(AsyncCharReader this, char[] buffer, thrown IoError);
 ```
 
 Equivalent `WChar*` and `AChar*` reading helper families exist for UTF-16 and ASCII/system-code-page streams.
@@ -8960,7 +9061,7 @@ void repl()
 {
 	char[] lineBuffer = init char[256];
 
-	foreach (StringView line in Console.Reader.iterateLines(lineBuffer))
+	foreach (StringView line in Console.getReader().iterateLines(lineBuffer))
 	{
 		if (line == "quit")
 			break;

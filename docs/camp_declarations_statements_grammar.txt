@@ -43,10 +43,7 @@ declaration:
 	<type-declaration> | <member-declaration>
 
 member-declaration:
-	<attribute>* <member-declarator>* <type>? <member-qualifier>* [~] <IDENT> ['<' <generic-parameter-list> '>'] ['(' <parameter-list> ')'] (; | <method-body> | <assignment>)
-
-member-qualifier:
-	<type> '::'
+	<attribute>* <member-declarator>* <type>? [~] <IDENT> ['<' <generic-parameter-list> '>'] ['(' <parameter-list> ')'] (; | <method-body> | <assignment>)
 
 member-declarator:
 	export | extern | static | virtual | override | sealed | abstract | async
@@ -56,7 +53,7 @@ parameter:
 	within <IDENT>
 	<type-declarator>* this
 	sizeof '(' <type> ')'
-	vtableof '(' <type> ')'
+	vtableof '(' <type> : <type> ')'
 
 parameter-declarator:
 	<attribute>* [in | out | thrown]
