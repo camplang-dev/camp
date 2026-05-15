@@ -103,7 +103,7 @@ public sealed class BindableNodeBuilder
 		{
 			if (IsMethodDeclaration(syntax.MemberDeclaration))
 			{
-				if (BuildFunctionDefinition(syntax.MemberDeclaration, isGlobal: true) is FunctionDefinition function)
+					if (BuildFunctionDefinition(syntax.MemberDeclaration, isGlobal: true, allowVirtual: false) is FunctionDefinition function)
 					module.Definitions.Add(function);
 			}
 			else if (BuildVariableDefinition(syntax.MemberDeclaration, isGlobal: true) is VariableDefinition variable)
@@ -119,12 +119,28 @@ public sealed class BindableNodeBuilder
 
 	Definition? BuildTypeDefinition(TypeDeclarationSyntax syntax)
 	{
-		if (syntax.Keyword?.Value != "struct")
+		switch (syntax.Keyword?.Value)
 		{
-			Report(syntax.Keyword?.Range, "Only struct type declarations are supported by this binder pass.");
-			return null;
-		}
+			case "struct":
+				return BuildStructDefinition(syntax);
 
+			case "enum":
+				return BuildEnumDefinition(syntax);
+
+			case "newtype":
+				return BuildNewtypeDefinition(syntax);
+
+			case "params":
+				return BuildParamsDefinition(syntax);
+
+			default:
+				Report(syntax.Keyword?.Range, $"'{syntax.Keyword?.Value}' type declarations are not supported by this binder pass.");
+				return null;
+		}
+	}
+
+	StructDefinition BuildStructDefinition(TypeDeclarationSyntax syntax)
+	{
 		StructDefinition definition = new()
 		{
 			SourceSyntax = syntax,
@@ -161,7 +177,7 @@ public sealed class BindableNodeBuilder
 			{
 				if (IsMethodDeclaration(child.MemberDeclaration))
 				{
-					if (BuildFunctionDefinition(child.MemberDeclaration, isGlobal: false) is FunctionDefinition function)
+					if (BuildFunctionDefinition(child.MemberDeclaration, isGlobal: false, allowVirtual: false) is FunctionDefinition function)
 						definition.Functions.Add(function);
 				}
 				else if (BuildFieldDefinition(child.MemberDeclaration) is FieldDefinition field)
@@ -182,9 +198,188 @@ public sealed class BindableNodeBuilder
 		return definition;
 	}
 
+	EnumDefinition BuildEnumDefinition(TypeDeclarationSyntax syntax)
+	{
+		EnumDefinition definition = new()
+		{
+			SourceSyntax = syntax,
+			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Enum declaration is missing a name."),
+			Symbol = syntax.Identifier?.Value ?? ""
+		};
+
+		ApplyDefinitionAttributes(definition, syntax.Attributes);
+		ApplyNonStructTypeDeclarators(definition, syntax.Declarators, "enum");
+
+		if (syntax.Type is not null)
+			Report(syntax.Type, "Enum declarations may not have a leading type.");
+
+		if (syntax.GenericParameterList is not null)
+			Report(syntax.GenericParameterList, "Enum declarations may not have generic parameters.");
+
+		if (syntax.ParameterList is not null)
+			Report(syntax.ParameterList, "Enum declarations may not have a parameter list.");
+
+		definition.UnderlyingType = BuildOptionalSingleUnderlyingType(syntax.UnderlyingTypeList, "Enum declarations may only have one underlying type.");
+
+		if (syntax.Scope is null)
+		{
+			if (syntax.SemicolonToken is null)
+				Report(syntax, "Enum declaration is missing a body or semicolon.");
+
+			return definition;
+		}
+
+		foreach (EnumValueSyntax valueSyntax in syntax.Scope.EnumValueList?.Values ?? [])
+			definition.Values.Add(BuildEnumValueDefinition(valueSyntax, definition.Name));
+
+		AddMethodOnlyScope(definition.Functions, syntax.Scope, "enum");
+		return definition;
+	}
+
+	VariableDefinition BuildEnumValueDefinition(EnumValueSyntax syntax, string enumName)
+	{
+		VariableDefinition definition = new()
+		{
+			SourceSyntax = syntax,
+			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Enum value is missing a name."),
+			Symbol = syntax.Identifier?.Value ?? "",
+			Type = new NamedTypeReference { SourceSyntax = syntax, Name = enumName }
+		};
+
+		if (syntax.Expression is not null)
+			definition.InitialValue = BuildLiteralExpression(syntax.Expression, "Enum value initializer");
+
+		return definition;
+	}
+
+	NewtypeDefinition BuildNewtypeDefinition(TypeDeclarationSyntax syntax)
+	{
+		NewtypeDefinition definition = new()
+		{
+			SourceSyntax = syntax,
+			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Newtype declaration is missing a name."),
+			Symbol = syntax.Identifier?.Value ?? ""
+		};
+
+		ApplyDefinitionAttributes(definition, syntax.Attributes);
+		ApplyNonStructTypeDeclarators(definition, syntax.Declarators, "newtype");
+		AddGenericParameters(definition.GenericParameters, syntax.GenericParameterList);
+
+		if (syntax.Type is null)
+		{
+			definition.UnderlyingType = BuildRequiredSingleUnderlyingType(syntax.UnderlyingTypeList, syntax, "Value newtype declaration is missing an underlying type.");
+
+			if (syntax.ParameterList is not null)
+				Report(syntax.ParameterList, "Value newtype declarations may not have a parameter list.");
+
+			if (definition.UnderlyingType is not null && !IsValidValueNewtypeUnderlying(definition.UnderlyingType))
+				Report((SyntaxNode?)syntax.UnderlyingTypeList ?? syntax, "Value newtype underlying type must be numeric or pointer-like.");
+		}
+		else
+		{
+			if (syntax.UnderlyingTypeList is not null)
+				Report(syntax.UnderlyingTypeList, "Callable newtype declarations may not also specify an underlying type list.");
+
+			if (syntax.Type is not CallableTypeSyntax and not IterTypeSyntax)
+				Report(syntax.Type, "Callable newtype declarations must use a callable or iter type form before the name.");
+
+			definition.IteratorKind = syntax.Type is IterTypeSyntax ? GetIteratorKind(syntax.Type) : IteratorKind.None;
+			definition.UnderlyingType = BuildTypeReference(syntax.Type, allowIteratorStorage: true);
+			AddParameters(definition.Parameters, syntax.ParameterList);
+		}
+
+		if (syntax.Scope is not null)
+			AddMethodOnlyScope(definition.Functions, syntax.Scope, "newtype");
+
+		return definition;
+	}
+
+	ParamsDefinition BuildParamsDefinition(TypeDeclarationSyntax syntax)
+	{
+		ParamsDefinition definition = new()
+		{
+			SourceSyntax = syntax,
+			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Params declaration is missing a name."),
+			Symbol = syntax.Identifier?.Value ?? ""
+		};
+
+		ApplyDefinitionAttributes(definition, syntax.Attributes);
+		ApplyNonStructTypeDeclarators(definition, syntax.Declarators, "params");
+		AddGenericParameters(definition.GenericParameters, syntax.GenericParameterList);
+
+		if (syntax.Type is not null)
+			Report(syntax.Type, "Params declarations may not have a leading type.");
+
+		if (syntax.ParameterList is null && syntax.UnderlyingTypeList is null)
+			Report(syntax, "Params declarations must have a component parameter list or an underlying grouped type.");
+
+		AddParameters(definition.Components, syntax.ParameterList);
+		definition.UnderlyingType = BuildOptionalSingleUnderlyingType(syntax.UnderlyingTypeList, "Params declarations may only have one underlying type.");
+
+		if (syntax.ParameterList is not null && syntax.UnderlyingTypeList is not null)
+			Report(syntax.UnderlyingTypeList, "Params declarations cannot combine a component parameter list with an underlying grouped type.");
+
+		if (syntax.Scope is not null)
+			AddMethodOnlyScope(definition.Functions, syntax.Scope, "params");
+
+		return definition;
+	}
+
 	static bool IsMethodDeclaration(MemberDeclarationSyntax syntax)
 	{
 		return syntax.ParameterList is not null || syntax.MethodBody is not null || syntax.TildeToken is not null;
+	}
+
+	void AddMethodOnlyScope(List<FunctionDefinition> functions, TypeDeclarationScopeSyntax scope, string typeKind)
+	{
+		foreach (DeclarationSyntax child in scope.Declarations ?? [])
+		{
+			if (child.MemberDeclaration is not null)
+			{
+				if (IsMethodDeclaration(child.MemberDeclaration))
+				{
+					if (BuildFunctionDefinition(child.MemberDeclaration, isGlobal: false, allowVirtual: false) is FunctionDefinition function)
+						functions.Add(function);
+				}
+				else
+				{
+					Report(child.MemberDeclaration, $"{typeKind} declarations may not contain fields.");
+				}
+			}
+			else if (child.TypeDeclaration is not null)
+			{
+				Report(child.TypeDeclaration, $"Nested type declarations are not supported in {typeKind} declarations by this binder pass.");
+			}
+			else
+			{
+				Report(child, $"{typeKind} member declaration is empty.");
+			}
+		}
+	}
+
+	TypeReference? BuildOptionalSingleUnderlyingType(UnderlyingTypeListSyntax? syntax, string tooManyMessage)
+	{
+		if (syntax?.Types is null || syntax.Types.Count == 0)
+			return null;
+
+		if (syntax.Types.Count > 1)
+			Report(syntax, tooManyMessage);
+
+		return BuildTypeReference(syntax.Types[0]);
+	}
+
+	TypeReference? BuildRequiredSingleUnderlyingType(UnderlyingTypeListSyntax? syntax, SyntaxNode owner, string missingMessage)
+	{
+		if (syntax?.Types is null || syntax.Types.Count == 0)
+		{
+			Report(owner, missingMessage);
+			return null;
+		}
+
+		if (syntax.Types.Count > 1)
+			Report(syntax, "Declaration may only have one underlying type.");
+
+		return BuildTypeReference(syntax.Types[0]);
 	}
 
 	VariableDefinition? BuildVariableDefinition(MemberDeclarationSyntax syntax, bool isGlobal)
@@ -255,7 +450,7 @@ public sealed class BindableNodeBuilder
 		return definition;
 	}
 
-	FunctionDefinition? BuildFunctionDefinition(MemberDeclarationSyntax syntax, bool isGlobal)
+	FunctionDefinition? BuildFunctionDefinition(MemberDeclarationSyntax syntax, bool isGlobal, bool allowVirtual)
 	{
 		if (syntax.Assignment is not null)
 			Report(syntax.Assignment, "Methods may not have variable-style initializers.");
@@ -270,7 +465,7 @@ public sealed class BindableNodeBuilder
 		};
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
-		ApplyFunctionDeclarators(definition, syntax.Declarators, isGlobal);
+		ApplyFunctionDeclarators(definition, syntax.Declarators, isGlobal, allowVirtual);
 		AddGenericParameters(definition.GenericParameters, syntax.GenericParameterList);
 
 		if (syntax.TildeToken is not null)
@@ -332,7 +527,7 @@ public sealed class BindableNodeBuilder
 				return new ExpressionFunctionBody
 				{
 					SourceSyntax = expressionBody,
-					Expression = BuildLiteralExpression(expressionBody.Expression, "Expression method body")
+					Expression = BuildBasicExpression(expressionBody.Expression, "Expression method body")
 				};
 
 			default:
@@ -393,6 +588,31 @@ public sealed class BindableNodeBuilder
 
 				default:
 					Report(declarator, "Unknown struct declarator.");
+					break;
+			}
+		}
+	}
+
+	void ApplyNonStructTypeDeclarators(TypeDefinition definition, List<TypeDeclarationDeclaratorSyntax>? declarators, string typeKind)
+	{
+		foreach (TypeDeclarationDeclaratorSyntax declarator in declarators ?? [])
+		{
+			switch (declarator.Keyword?.Value)
+			{
+				case "export":
+					definition.Export = SetNullableArgument(definition.Export, "", declarator, "export");
+					break;
+
+				case "virtual":
+				case "abstract":
+				case "sealed":
+				case "fixed":
+				case "escaped":
+					Report(declarator, $"'{declarator.Keyword.Value.Value}' is not a valid {typeKind} declarator.");
+					break;
+
+				default:
+					Report(declarator, $"Unknown {typeKind} declarator.");
 					break;
 			}
 		}
@@ -459,7 +679,7 @@ public sealed class BindableNodeBuilder
 		}
 	}
 
-	void ApplyFunctionDeclarators(FunctionDefinition definition, List<MemberDeclaratorSyntax>? declarators, bool isGlobal)
+	void ApplyFunctionDeclarators(FunctionDefinition definition, List<MemberDeclaratorSyntax>? declarators, bool isGlobal, bool allowVirtual)
 	{
 		foreach (MemberDeclaratorSyntax declarator in declarators ?? [])
 		{
@@ -481,19 +701,31 @@ public sealed class BindableNodeBuilder
 					break;
 
 				case "virtual":
-					SetFunctionModifier(definition, FunctionModifier.Virtual, declarator, "virtual");
+					if (allowVirtual)
+						SetFunctionModifier(definition, FunctionModifier.Virtual, declarator, "virtual");
+					else
+						Report(declarator, "'virtual' is not valid on this method declaration.");
 					break;
 
 				case "override":
-					SetFunctionModifier(definition, FunctionModifier.Override, declarator, "override");
+					if (allowVirtual)
+						SetFunctionModifier(definition, FunctionModifier.Override, declarator, "override");
+					else
+						Report(declarator, "'override' is not valid on this method declaration.");
 					break;
 
 				case "sealed":
-					SetFunctionModifier(definition, FunctionModifier.Sealed, declarator, "sealed");
+					if (allowVirtual)
+						SetFunctionModifier(definition, FunctionModifier.Sealed, declarator, "sealed");
+					else
+						Report(declarator, "'sealed' is not valid on this method declaration.");
 					break;
 
 				case "abstract":
-					SetFunctionModifier(definition, FunctionModifier.Abstract, declarator, "abstract");
+					if (allowVirtual)
+						SetFunctionModifier(definition, FunctionModifier.Abstract, declarator, "abstract");
+					else
+						Report(declarator, "'abstract' is not valid on this method declaration.");
 					break;
 
 				case "async":
@@ -532,6 +764,12 @@ public sealed class BindableNodeBuilder
 
 			target.Add(parameter);
 		}
+	}
+
+	void AddParameters(List<ParameterDefinition> target, ParameterListSyntax? syntax)
+	{
+		foreach (ParameterSyntax parameter in syntax?.Parameters ?? [])
+			target.Add(BuildParameterDefinition(parameter));
 	}
 
 	void AddTypeList(List<TypeReference> target, UnderlyingTypeListSyntax? syntax)
@@ -877,6 +1115,40 @@ public sealed class BindableNodeBuilder
 		};
 	}
 
+	Expression? BuildBasicExpression(ExpressionSyntax? syntax, string context)
+	{
+		if (syntax is null)
+		{
+			Report((TokenRange?)null, $"{context} is missing an expression.");
+			return null;
+		}
+
+		if (syntax is LiteralExpressionSyntax)
+			return BuildLiteralExpression(syntax, context);
+
+		if (syntax is QualifiedNameExpressionSyntax nameSyntax)
+		{
+			NamedExpression expression = new()
+			{
+				SourceSyntax = nameSyntax,
+				Name = GetRequiredIdentifier(nameSyntax.Identifier, nameSyntax, $"{context} name is missing an identifier.")
+			};
+
+			foreach (QualifierSyntax qualifier in nameSyntax.Qualifiers ?? [])
+			{
+				if (qualifier.Identifier is null)
+					Report(qualifier, "Expression qualifier is missing an identifier.");
+				else
+					expression.Qualifiers.Add(qualifier.Identifier.Value.Value);
+			}
+
+			return expression;
+		}
+
+		Report(syntax, $"{context} must be a literal or named expression in this binder pass.");
+		return null;
+	}
+
 	void AddAnchors(List<string> anchors, IdentListSyntax? syntax)
 	{
 		foreach (Token identifier in syntax?.Identifiers ?? [])
@@ -892,6 +1164,21 @@ public sealed class BindableNodeBuilder
 	static bool IsVoid(TypeReference? type)
 	{
 		return type is PrimitiveTypeReference { Type: PrimitiveType.Void };
+	}
+
+	static bool IsValidValueNewtypeUnderlying(TypeReference type)
+	{
+		return type switch
+		{
+			PrimitiveTypeReference { Type: PrimitiveType.Byte or PrimitiveType.SByte or PrimitiveType.UShort or PrimitiveType.Short or PrimitiveType.UInt or PrimitiveType.Int or PrimitiveType.ULong or PrimitiveType.Long or PrimitiveType.NUInt or PrimitiveType.NInt or PrimitiveType.Float or PrimitiveType.Double or PrimitiveType.Char or PrimitiveType.WChar or PrimitiveType.AChar or PrimitiveType.UChar } => true,
+			PointerTypeReference => true,
+			ConstTypeReference { Type: not null } constType => IsValidValueNewtypeUnderlying(constType.Type),
+			VolatileTypeReference { Type: not null } volatileType => IsValidValueNewtypeUnderlying(volatileType.Type),
+			EscapedTypeReference { Type: not null } escapedType => IsValidValueNewtypeUnderlying(escapedType.Type),
+			ScopedTypeReference { Type: not null } scopedType => IsValidValueNewtypeUnderlying(scopedType.Type),
+			UnscopedTypeReference { Type: not null } unscopedType => IsValidValueNewtypeUnderlying(unscopedType.Type),
+			_ => false
+		};
 	}
 
 	static bool TryGetPrimitiveType(string name, out PrimitiveType type)

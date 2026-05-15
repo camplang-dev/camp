@@ -62,17 +62,22 @@ public class EnumDefinition : TypeDefinition
 {
 	public TypeReference? UnderlyingType { get; set; }
 	public List<VariableDefinition> Values { get; } = [];
+	public List<FunctionDefinition> Functions { get; } = [];
 }
 
 public class NewtypeDefinition : TypeDefinition
 {
+	public IteratorKind IteratorKind { get; set; }
 	public TypeReference? UnderlyingType { get; set; }
 	public List<ParameterDefinition> Parameters { get; } = [];
+	public List<FunctionDefinition> Functions { get; } = [];
 }
 
 public class ParamsDefinition : TypeDefinition
 {
+	public TypeReference? UnderlyingType { get; set; }
 	public List<ParameterDefinition> Components { get; } = [];
+	public List<FunctionDefinition> Functions { get; } = [];
 }
 
 public class GenericParameter : BindableNode
