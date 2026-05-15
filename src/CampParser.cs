@@ -12,7 +12,7 @@ public sealed class CampParser
 	static readonly string[] MemberDeclarators = ["export", "extern", "static", "virtual", "override", "sealed", "abstract", "async"];
 	static readonly string[] ParameterDeclaratorKeywords = ["in", "out", "thrown"];
 	static readonly string[] TypeDeclaratorKeywords = ["const", "volatile", "escaped", "scoped", "unscoped"];
-	static readonly string[] StatementKeywords = ["if", "do", "while", "for", "else", "yield", "return", "continue", "break", "switch", "within", "try", "catch", "finally", "async", "foreach", "delete"];
+	static readonly string[] StatementKeywords = ["if", "do", "while", "for", "else", "yield", "return", "continue", "break", "switch", "within", "try", "catch", "finally", "foreach", "delete"];
 
 	readonly TokenSequence tokens;
 	readonly List<ParseDiagnostic> diagnostics = [];
@@ -783,7 +783,9 @@ public sealed class CampParser
 		{
 			syntax.OpenParenToken = Take();
 			if (!Is(")"))
-				syntax.Condition = ParseStatementCondition();
+				syntax.Condition = syntax.Keyword?.Value == "catch"
+					? ParseCatchStatementCondition()
+					: ParseStatementCondition();
 			syntax.CloseParenToken = Expect(")");
 		}
 
@@ -807,6 +809,22 @@ public sealed class CampParser
 		}
 
 		return syntax;
+	}
+
+	StatementConditionSyntax? ParseCatchStatementCondition()
+	{
+		DeclarationTargetSyntax? target = ParseDeclarationTarget();
+		if (target is null)
+		{
+			Report(Current, "Expected catch target.");
+			return null;
+		}
+
+		return new ClauseStatementConditionSyntax
+		{
+			DeclarationStatement = new DeclarationStatementSyntax { Target = target },
+			Clauses = []
+		};
 	}
 
 	StatementConditionSyntax? ParseStatementCondition()
@@ -1545,7 +1563,7 @@ public sealed class CampParser
 			syntax.WithinKeyword = Take();
 		}
 
-		syntax.Expression = ParseExpression();
+		syntax.Expression = ParseExpressionItem();
 		return syntax.Expression is null && syntax.Identifier is null && syntax.CatchKeyword is null ? null : syntax;
 	}
 

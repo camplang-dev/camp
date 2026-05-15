@@ -96,11 +96,16 @@ public class CastExpression : Expression
 public class ConstructionExpression : Expression
 {
 	public ConstructionKind Kind { get; set; }
-	public Expression? Allocator { get; set; }
 	public TypeReference? Type { get; set; }
 	public List<ArgumentExpression> Arguments { get; } = [];
 	public Expression? ElementCount { get; set; }
 	public InitializerExpression? Initializer { get; set; }
+}
+
+public class WithinExpression : Expression
+{
+	public Expression? Context { get; set; }
+	public Expression? Expression { get; set; }
 }
 
 public class SizeOfExpression : Expression

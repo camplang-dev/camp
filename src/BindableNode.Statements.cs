@@ -121,11 +121,6 @@ public class WithinStatement : Statement
 	public Statement? Body { get; set; }
 }
 
-public class AsyncStatement : Statement
-{
-	public Statement? Body { get; set; }
-}
-
 public class DeclarationTarget : BindableNode
 {
 	public TypeReference? Type { get; set; }

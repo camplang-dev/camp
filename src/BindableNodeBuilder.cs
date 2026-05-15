@@ -12,7 +12,7 @@ public sealed class BindResult(Module Module, IReadOnlyList<BindDiagnostic> Diag
 	public bool Success => Diagnostics.Count == 0;
 }
 
-public sealed class BindableNodeBuilder
+public sealed partial class BindableNodeBuilder
 {
 	readonly List<BindDiagnostic> diagnostics = [];
 
@@ -370,7 +370,7 @@ public sealed class BindableNodeBuilder
 		};
 
 		if (syntax.Expression is not null)
-			definition.InitialValue = BuildLiteralExpression(syntax.Expression, "Enum value initializer");
+			definition.InitialValue = BuildExpression(syntax.Expression, "Enum value initializer");
 
 		return definition;
 	}
@@ -534,7 +534,7 @@ public sealed class BindableNodeBuilder
 			Report(syntax.Type, "Variables may not have type void.");
 
 		if (syntax.Assignment is not null)
-			definition.InitialValue = BuildLiteralExpression(syntax.Assignment.Expression, "Variable initializer");
+			definition.InitialValue = BuildExpression(syntax.Assignment.Expression, "Variable initializer");
 
 		return definition;
 	}
@@ -568,7 +568,7 @@ public sealed class BindableNodeBuilder
 			Report(syntax.Type, "Fields may not have type void.");
 
 		if (syntax.Assignment is not null)
-			definition.InitialValue = BuildLiteralExpression(syntax.Assignment.Expression, "Field initializer");
+			definition.InitialValue = BuildExpression(syntax.Assignment.Expression, "Field initializer");
 
 		return definition;
 	}
@@ -658,16 +658,13 @@ public sealed class BindableNodeBuilder
 		switch (syntax)
 		{
 			case BlockMethodBodySyntax block:
-				if (block.Statements is { Count: > 0 })
-					Report(block, "Only empty method bodies are supported by this binder pass.");
-
-				return new BlockFunctionBody { SourceSyntax = block };
+				return BuildBlockFunctionBody(block);
 
 			case ExpressionMethodBodySyntax expressionBody:
 				return new ExpressionFunctionBody
 				{
 					SourceSyntax = expressionBody,
-					Expression = BuildBasicExpression(expressionBody.Expression, "Expression method body")
+					Expression = BuildExpression(expressionBody.Expression, "Expression method body")
 				};
 
 			default:
@@ -793,7 +790,7 @@ public sealed class BindableNodeBuilder
 			attribute.Arguments.Add(new ArgumentExpression
 			{
 				SourceSyntax = expression,
-				Value = BuildLiteralExpression(expression, "Attribute argument")
+				Value = BuildExpression(expression, "Attribute argument")
 			});
 		}
 
@@ -1320,7 +1317,7 @@ public sealed class BindableNodeBuilder
 					Name = value.Identifier?.Value ?? "",
 					Symbol = value.Identifier?.Value ?? "",
 					Type = value.Type is null ? MissingType(value, "Parameter is missing a type.") : BuildTypeReference(value.Type),
-					DefaultValue = value.DefaultValue is null ? null : BuildLiteralExpression(value.DefaultValue, "Parameter default value")
+					DefaultValue = value.DefaultValue is null ? null : BuildExpression(value.DefaultValue, "Parameter default value")
 				};
 
 				if (value.WithinKeyword is not null)
@@ -1400,78 +1397,6 @@ public sealed class BindableNodeBuilder
 				Report(syntax, "Unknown parameter declarator.");
 				break;
 		}
-	}
-
-	Expression? BuildLiteralExpression(ExpressionSyntax? syntax, string context)
-	{
-		if (syntax is null)
-		{
-			Report((TokenRange?)null, $"{context} is missing an expression.");
-			return null;
-		}
-
-		if (syntax is not LiteralExpressionSyntax literalSyntax || literalSyntax.Literal is null)
-		{
-			Report(syntax, $"{context} must be a literal expression in this binder pass.");
-			return null;
-		}
-
-		Token literal = literalSyntax.Literal.Value;
-		return new LiteralExpression
-		{
-			SourceSyntax = literalSyntax,
-			Kind = literal.Class switch
-			{
-				TokenClass.Number => LiteralKind.Number,
-				TokenClass.String => LiteralKind.String,
-				_ when literal.Value == "true" => LiteralKind.True,
-				_ when literal.Value == "false" => LiteralKind.False,
-				_ when literal.Value == "null" => LiteralKind.Null,
-				_ => LiteralKind.String
-			},
-			Text = literal.Value,
-			Value = literal.Value switch
-			{
-				"true" => true,
-				"false" => false,
-				"null" => null,
-				_ => literal.Value
-			}
-		};
-	}
-
-	Expression? BuildBasicExpression(ExpressionSyntax? syntax, string context)
-	{
-		if (syntax is null)
-		{
-			Report((TokenRange?)null, $"{context} is missing an expression.");
-			return null;
-		}
-
-		if (syntax is LiteralExpressionSyntax)
-			return BuildLiteralExpression(syntax, context);
-
-		if (syntax is QualifiedNameExpressionSyntax nameSyntax)
-		{
-			NamedExpression expression = new()
-			{
-				SourceSyntax = nameSyntax,
-				Name = GetRequiredIdentifier(nameSyntax.Identifier, nameSyntax, $"{context} name is missing an identifier.")
-			};
-
-			foreach (QualifierSyntax qualifier in nameSyntax.Qualifiers ?? [])
-			{
-				if (qualifier.Identifier is null)
-					Report(qualifier, "Expression qualifier is missing an identifier.");
-				else
-					expression.Qualifiers.Add(qualifier.Identifier.Value.Value);
-			}
-
-			return expression;
-		}
-
-		Report(syntax, $"{context} must be a literal or named expression in this binder pass.");
-		return null;
 	}
 
 	void AddAnchors(List<string> anchors, IdentListSyntax? syntax)
