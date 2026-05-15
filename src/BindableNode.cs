@@ -49,6 +49,7 @@ public class StructDefinition : TypeDefinition
 	public StructModifier Modifier { get; set; }
 	public List<TypeReference> BaseTypes { get; } = [];
 	public List<FieldDefinition> Fields { get; } = [];
+	public List<FunctionDefinition> Functions { get; } = [];
 }
 
 public class InterfaceDefinition : TypeDefinition
@@ -157,6 +158,18 @@ public class NamedTypeReference : TypeReference
 {
 	public List<string> Qualifiers { get; } = [];
 	public string Name { get; set; } = "";
+	public List<TypeReference> TypeArguments { get; } = [];
+}
+
+public class AttributedTypeReference : TypeReference
+{
+	public AttributeConstructor? Attribute { get; set; }
+	public TypeReference? Type { get; set; }
+}
+
+public class GenericTypeReference : TypeReference
+{
+	public TypeReference? Type { get; set; }
 	public List<TypeReference> TypeArguments { get; } = [];
 }
 

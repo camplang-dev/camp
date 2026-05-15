@@ -24,22 +24,29 @@ Option<bool> syntaxOption = new("--syntax")
 	Description = "Parse and print the syntax tree as XML."
 };
 
+Option<bool> bindOption = new("--bind")
+{
+	Description = "Parse and print the bindable tree as XML."
+};
+
 RootCommand rootCommand = new("Camp compiler");
 rootCommand.Arguments.Add(fileArgument);
 rootCommand.Options.Add(tokensOption);
 rootCommand.Options.Add(syntaxOption);
+rootCommand.Options.Add(bindOption);
 rootCommand.SetAction(parseResult =>
 {
 	string? filename = parseResult.GetValue(fileArgument);
 	bool printTokens = parseResult.GetValue(tokensOption);
 	bool printSyntax = parseResult.GetValue(syntaxOption);
+	bool printBind = parseResult.GetValue(bindOption);
 
-	return Run(filename, printTokens, printSyntax);
+	return Run(filename, printTokens, printSyntax, printBind);
 });
 
 return rootCommand.Parse(args).Invoke();
 
-static int Run(string? filename, bool printTokens, bool printSyntax)
+static int Run(string? filename, bool printTokens, bool printSyntax, bool printBind)
 {
 	if (string.IsNullOrWhiteSpace(filename))
 	{
@@ -47,9 +54,9 @@ static int Run(string? filename, bool printTokens, bool printSyntax)
 		return 1;
 	}
 
-	if (printTokens && printSyntax)
+	if (SelectedModeCount(printTokens, printSyntax, printBind) > 1)
 	{
-		Console.Error.WriteLine("Specify only one output mode: --tokens or --syntax.");
+		Console.Error.WriteLine("Specify only one output mode: --tokens, --syntax, or --bind.");
 		return 1;
 	}
 
@@ -67,8 +74,24 @@ static int Run(string? filename, bool printTokens, bool printSyntax)
 	if (printSyntax)
 		return PrintSyntaxXml(filename, tokens);
 
+	if (printBind)
+		return PrintBindXml(filename, tokens);
+
 	PrintColoredSource(tokens);
 	return 0;
+}
+
+static int SelectedModeCount(params bool[] modes)
+{
+	int count = 0;
+
+	foreach (bool mode in modes)
+	{
+		if (mode)
+			count++;
+	}
+
+	return count;
 }
 
 static bool TryReadInput(string filename, out string text)
@@ -116,7 +139,49 @@ static int PrintSyntaxXml(string filename, TokenSequence tokens)
 	return 0;
 }
 
+static int PrintBindXml(string filename, TokenSequence tokens)
+{
+	CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> parseDiagnostics);
+
+	if (parseDiagnostics.Count > 0)
+	{
+		foreach (ParseDiagnostic diagnostic in parseDiagnostics)
+			PrintDiagnostic(filename, diagnostic);
+
+		return 1;
+	}
+
+	Camp.Compiler.Module module = BindableNodeBuilder.Build(syntax, out IReadOnlyList<BindDiagnostic> bindDiagnostics);
+
+	if (bindDiagnostics.Count > 0)
+	{
+		foreach (BindDiagnostic diagnostic in bindDiagnostics)
+			PrintBindDiagnostic(filename, diagnostic);
+
+		return 1;
+	}
+
+	XDocument document = new(new XDeclaration("1.0", "utf-8", null), SerializeBindableNode(module));
+	XmlWriterSettings settings = new()
+	{
+		Indent = true,
+		OmitXmlDeclaration = false
+	};
+
+	using XmlWriter writer = XmlWriter.Create(Console.Out, settings);
+	document.Save(writer);
+	return 0;
+}
+
 static void PrintDiagnostic(string filename, ParseDiagnostic diagnostic)
+{
+	if (diagnostic.Range is TokenRange range)
+		Console.Error.WriteLine($"{filename}({range.StartLineNumber},{range.StartColumn}): error: {diagnostic.Message}");
+	else
+		Console.Error.WriteLine($"{filename}: error: {diagnostic.Message}");
+}
+
+static void PrintBindDiagnostic(string filename, BindDiagnostic diagnostic)
 {
 	if (diagnostic.Range is TokenRange range)
 		Console.Error.WriteLine($"{filename}({range.StartLineNumber},{range.StartColumn}): error: {diagnostic.Message}");
@@ -277,6 +342,77 @@ static XElement SerializeList(string name, IEnumerable items)
 	}
 
 	return element;
+}
+
+static XElement SerializeBindableNode(BindableNode node, string? elementName = null)
+{
+	Type type = node.GetType();
+	string typeName = GetXmlName(type.Name);
+	XElement element = new(elementName ?? typeName);
+
+	if (elementName is not null && elementName != typeName)
+		element.SetAttributeValue("Type", typeName);
+
+	foreach (PropertyInfo property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+	{
+		if (property.Name == nameof(BindableNode.SourceSyntax))
+			continue;
+
+		object? value = property.GetValue(node);
+		if (value is null)
+			continue;
+
+		if (IsListType(property.PropertyType) && value is IEnumerable items)
+		{
+			XElement? list = SerializeBindableList(property.Name, items);
+			if (list is not null)
+				element.Add(list);
+		}
+		else if (value is BindableNode childNode)
+		{
+			element.Add(SerializeBindableNode(childNode, property.Name));
+		}
+		else if (property.Name == "Modifier" && IsDefaultEnumValue(value))
+		{
+			continue;
+		}
+		else if (value is false)
+		{
+			continue;
+		}
+		else
+		{
+			element.SetAttributeValue(property.Name, Convert.ToString(value, CultureInfo.InvariantCulture));
+		}
+	}
+
+	return element;
+}
+
+static XElement? SerializeBindableList(string name, IEnumerable items)
+{
+	XElement element = new(name);
+	bool hasItems = false;
+
+	foreach (object? item in items)
+	{
+		if (item is null)
+			continue;
+
+		hasItems = true;
+
+		if (item is BindableNode node)
+			element.Add(SerializeBindableNode(node));
+		else
+			element.Add(new XElement("Value", Convert.ToString(item, CultureInfo.InvariantCulture)));
+	}
+
+	return hasItems ? element : null;
+}
+
+static bool IsDefaultEnumValue(object value)
+{
+	return value.GetType().IsEnum && Convert.ToInt64(value, CultureInfo.InvariantCulture) == 0;
 }
 
 static bool IsListType(Type type)
