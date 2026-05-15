@@ -124,6 +124,12 @@ public sealed class BindableNodeBuilder
 			case "struct":
 				return BuildStructDefinition(syntax);
 
+			case "class":
+				return BuildClassDefinition(syntax);
+
+			case "interface":
+				return BuildInterfaceDefinition(syntax);
+
 			case "enum":
 				return BuildEnumDefinition(syntax);
 
@@ -177,7 +183,7 @@ public sealed class BindableNodeBuilder
 			{
 				if (IsMethodDeclaration(child.MemberDeclaration))
 				{
-					if (BuildFunctionDefinition(child.MemberDeclaration, isGlobal: false, allowVirtual: false) is FunctionDefinition function)
+					if (BuildFunctionDefinition(child.MemberDeclaration, isGlobal: false, allowVirtual: false, containingTypeName: definition.Name) is FunctionDefinition function)
 						definition.Functions.Add(function);
 				}
 				else if (BuildFieldDefinition(child.MemberDeclaration) is FieldDefinition field)
@@ -192,6 +198,123 @@ public sealed class BindableNodeBuilder
 			else
 			{
 				Report(child, "Struct member declaration is empty.");
+			}
+		}
+
+		return definition;
+	}
+
+	ClassDefinition BuildClassDefinition(TypeDeclarationSyntax syntax)
+	{
+		ClassDefinition definition = new()
+		{
+			SourceSyntax = syntax,
+			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Class declaration is missing a name."),
+			Symbol = syntax.Identifier?.Value ?? ""
+		};
+
+		ApplyDefinitionAttributes(definition, syntax.Attributes);
+		ApplyClassDeclarators(definition, syntax.Declarators);
+
+		if (syntax.Type is not null)
+			Report(syntax.Type, "Class declarations may not have a leading type.");
+
+		AddGenericParameters(definition.GenericParameters, syntax.GenericParameterList);
+		AddTypeList(definition.BaseTypes, syntax.UnderlyingTypeList);
+
+		if (syntax.ParameterList is not null)
+			Report(syntax.ParameterList, "Class declarations may not have a parameter list.");
+
+		if (syntax.Scope is null)
+		{
+			if (syntax.SemicolonToken is null)
+				Report(syntax, "Class declaration is missing a body or semicolon.");
+
+			return definition;
+		}
+
+		if (syntax.Scope.EnumValueList is not null)
+			Report(syntax.Scope.EnumValueList, "Class bodies may not contain enum values.");
+
+		foreach (DeclarationSyntax child in syntax.Scope.Declarations ?? [])
+		{
+			if (child.MemberDeclaration is not null)
+			{
+				if (IsMethodDeclaration(child.MemberDeclaration))
+				{
+					if (BuildFunctionDefinition(child.MemberDeclaration, isGlobal: false, allowVirtual: true, containingTypeName: definition.Name) is FunctionDefinition function)
+						definition.Functions.Add(function);
+				}
+				else if (BuildFieldDefinition(child.MemberDeclaration) is FieldDefinition field)
+				{
+					definition.Fields.Add(field);
+				}
+			}
+			else if (child.TypeDeclaration is not null)
+			{
+				Report(child.TypeDeclaration, "Nested type declarations are not supported in classes by this binder pass.");
+			}
+			else
+			{
+				Report(child, "Class member declaration is empty.");
+			}
+		}
+
+		return definition;
+	}
+
+	InterfaceDefinition BuildInterfaceDefinition(TypeDeclarationSyntax syntax)
+	{
+		InterfaceDefinition definition = new()
+		{
+			SourceSyntax = syntax,
+			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Interface declaration is missing a name."),
+			Symbol = syntax.Identifier?.Value ?? ""
+		};
+
+		ApplyDefinitionAttributes(definition, syntax.Attributes);
+		ApplyNonStructTypeDeclarators(definition, syntax.Declarators, "interface");
+
+		if (syntax.Type is not null)
+			Report(syntax.Type, "Interface declarations may not have a leading type.");
+
+		AddGenericParameters(definition.GenericParameters, syntax.GenericParameterList);
+		AddTypeList(definition.BaseTypes, syntax.UnderlyingTypeList);
+
+		if (syntax.ParameterList is not null)
+			Report(syntax.ParameterList, "Interface declarations may not have a parameter list.");
+
+		if (syntax.Scope is null)
+		{
+			if (syntax.SemicolonToken is null)
+				Report(syntax, "Interface declaration is missing a body or semicolon.");
+
+			return definition;
+		}
+
+		if (syntax.Scope.EnumValueList is not null)
+			Report(syntax.Scope.EnumValueList, "Interface bodies may not contain enum values.");
+
+		foreach (DeclarationSyntax child in syntax.Scope.Declarations ?? [])
+		{
+			if (child.MemberDeclaration is not null)
+			{
+				if (!IsMethodDeclaration(child.MemberDeclaration))
+				{
+					Report(child.MemberDeclaration, "Interface declarations may not contain fields.");
+				}
+				else if (BuildInterfaceFunctionDefinition(child.MemberDeclaration, definition.Name) is FunctionDefinition function)
+				{
+					definition.Functions.Add(function);
+				}
+			}
+			else if (child.TypeDeclaration is not null)
+			{
+				Report(child.TypeDeclaration, "Nested type declarations are not supported in interfaces by this binder pass.");
+			}
+			else
+			{
+				Report(child, "Interface member declaration is empty.");
 			}
 		}
 
@@ -450,30 +573,44 @@ public sealed class BindableNodeBuilder
 		return definition;
 	}
 
-	FunctionDefinition? BuildFunctionDefinition(MemberDeclarationSyntax syntax, bool isGlobal, bool allowVirtual)
+	FunctionDefinition? BuildFunctionDefinition(
+		MemberDeclarationSyntax syntax,
+		bool isGlobal,
+		bool allowVirtual,
+		string? containingTypeName = null,
+		bool isInterface = false,
+		bool allowBodylessWithoutExtern = false)
 	{
 		if (syntax.Assignment is not null)
 			Report(syntax.Assignment, "Methods may not have variable-style initializers.");
 
+		bool isDestructor = syntax.TildeToken is not null;
+		bool isConstructor = !isDestructor && syntax.Type is null;
+		bool isLifecycleMember = isConstructor || isDestructor;
+
 		FunctionDefinition definition = new()
 		{
 			SourceSyntax = syntax,
-			Name = syntax.TildeToken is null
+			Name = !isDestructor
 				? GetRequiredIdentifier(syntax.Identifier, syntax, "Method declaration is missing a name.")
 				: "~" + GetRequiredIdentifier(syntax.Identifier, syntax, "Destructor declaration is missing a name."),
 			Symbol = syntax.Identifier?.Value ?? ""
 		};
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
-		ApplyFunctionDeclarators(definition, syntax.Declarators, isGlobal, allowVirtual);
+		ApplyFunctionDeclarators(definition, syntax.Declarators, isGlobal, allowVirtual, onlyExport: isLifecycleMember);
 		AddGenericParameters(definition.GenericParameters, syntax.GenericParameterList);
 
-		if (syntax.TildeToken is not null)
+		if (isDestructor)
 		{
 			SetFunctionModifier(definition, FunctionModifier.Destructor, syntax, "destructor");
 
 			if (syntax.Type is not null)
 				Report(syntax.Type, "Destructor declarations may not have a return type.");
+		}
+		else if (isConstructor)
+		{
+			SetFunctionModifier(definition, FunctionModifier.Constructor, syntax, "constructor");
 		}
 		else if (syntax.Type is null)
 		{
@@ -493,9 +630,12 @@ public sealed class BindableNodeBuilder
 				definition.Parameters.Add(BuildParameterDefinition(parameter));
 		}
 
+		if (isLifecycleMember)
+			ValidateLifecycleMember(definition, syntax, containingTypeName, isInterface, isConstructor);
+
 		if (syntax.SemicolonToken is not null)
 		{
-			if (definition.Extern is null)
+			if (definition.Extern is null && !allowBodylessWithoutExtern)
 				Report(syntax.SemicolonToken.Value.Range, "Method declarations without a body must be extern.");
 		}
 		else if (syntax.MethodBody is null)
@@ -534,6 +674,101 @@ public sealed class BindableNodeBuilder
 				Report(syntax, "Unsupported method body syntax.");
 				return null;
 		}
+	}
+
+	void ValidateLifecycleMember(
+		FunctionDefinition definition,
+		MemberDeclarationSyntax syntax,
+		string? containingTypeName,
+		bool isInterface,
+		bool isConstructor)
+	{
+		string memberKind = isConstructor ? "Constructors" : "Destructors";
+		string expectedName = containingTypeName ?? "";
+		string actualName = syntax.Identifier?.Value ?? "";
+
+		if (containingTypeName is null)
+			Report(syntax, $"{memberKind} can only be declared in class, struct, or interface declarations.");
+		else if (actualName != expectedName)
+			Report(syntax.Identifier?.Range ?? GetRange(syntax), $"{memberKind[..^1]} name must match containing type '{expectedName}'.");
+
+		if (definition.GenericParameters.Count > 0)
+			Report((SyntaxNode?)syntax.GenericParameterList ?? syntax, $"{memberKind} may not have generic parameters.");
+
+		if (isConstructor)
+		{
+			if (definition.ReturnType is not null)
+				Report((SyntaxNode?)syntax.Type ?? syntax, "Constructors may not have a return type.");
+
+			if (isInterface)
+				ValidateInterfaceConstructorParameters(definition, syntax);
+		}
+		else
+		{
+			ValidateDestructorParameters(definition, syntax, isInterface);
+		}
+	}
+
+	void ValidateDestructorParameters(FunctionDefinition definition, MemberDeclarationSyntax syntax, bool isInterface)
+	{
+		if (definition.Parameters.Count > 1)
+		{
+			Report((SyntaxNode?)syntax.ParameterList ?? syntax, "Destructors may only declare a single optional within parameter.");
+			return;
+		}
+
+		if (definition.Parameters.Count == 0)
+		{
+			if (isInterface)
+				Report((SyntaxNode?)syntax.ParameterList ?? syntax, "Interface destructors must declare a within parameter.");
+
+			return;
+		}
+
+		if (!IsWithinParameter(definition.Parameters[0]))
+			Report(definition.Parameters[0].SourceSyntax ?? syntax, "Destructor parameter must be a within parameter.");
+	}
+
+	void ValidateInterfaceConstructorParameters(FunctionDefinition definition, MemberDeclarationSyntax syntax)
+	{
+		if (definition.Parameters.Count == 0)
+		{
+			Report((SyntaxNode?)syntax.ParameterList ?? syntax, "Interface constructors must declare a within parameter.");
+			return;
+		}
+
+		ParameterDefinition last = definition.Parameters[^1];
+		if (!IsWithinParameter(last))
+			Report(last.SourceSyntax ?? syntax, "Interface constructor's last parameter must be a within parameter.");
+	}
+
+	static bool IsWithinParameter(ParameterDefinition parameter)
+	{
+		return parameter is WithinParameterDefinition || parameter.Modifier == ParameterModifier.Within;
+	}
+
+	FunctionDefinition? BuildInterfaceFunctionDefinition(MemberDeclarationSyntax syntax, string containingTypeName)
+	{
+		FunctionDefinition? definition = BuildFunctionDefinition(
+			syntax,
+			isGlobal: false,
+			allowVirtual: false,
+			containingTypeName: containingTypeName,
+			isInterface: true,
+			allowBodylessWithoutExtern: true);
+		if (definition is null)
+			return null;
+
+		if (syntax.SemicolonToken is null)
+			Report((SyntaxNode?)syntax.MethodBody ?? syntax, "Interface methods may not have bodies.");
+
+		if (definition.Modifier == FunctionModifier.Static)
+			Report(syntax, "Interface methods may not be static.");
+
+		if (definition.Extern is not null)
+			Report(syntax, "Interface methods may not be extern.");
+
+		return definition;
 	}
 
 	void ApplyDefinitionAttributes(Definition definition, List<AttributeSyntax>? attributes)
@@ -591,6 +826,54 @@ public sealed class BindableNodeBuilder
 					break;
 			}
 		}
+	}
+
+	void ApplyClassDeclarators(ClassDefinition definition, List<TypeDeclarationDeclaratorSyntax>? declarators)
+	{
+		foreach (TypeDeclarationDeclaratorSyntax declarator in declarators ?? [])
+		{
+			switch (declarator.Keyword?.Value)
+			{
+				case "export":
+					definition.Export = SetNullableArgument(definition.Export, "", declarator, "export");
+					break;
+
+				case "virtual":
+					SetClassModifier(definition, ClassModifier.Virtual, declarator, "virtual");
+					break;
+
+				case "abstract":
+					SetClassModifier(definition, ClassModifier.Abstract, declarator, "abstract");
+					break;
+
+				case "sealed":
+					SetClassModifier(definition, ClassModifier.Sealed, declarator, "sealed");
+					break;
+
+				case "escaped":
+					if (definition.IsEscaped)
+						Report(declarator, "Duplicate 'escaped' declarator.");
+
+					definition.IsEscaped = true;
+					break;
+
+				case "fixed":
+					Report(declarator, "'fixed' is not a valid class declarator.");
+					break;
+
+				default:
+					Report(declarator, "Unknown class declarator.");
+					break;
+			}
+		}
+	}
+
+	void SetClassModifier(ClassDefinition definition, ClassModifier modifier, SyntaxNode syntax, string name)
+	{
+		if (definition.Modifier != ClassModifier.None)
+			Report(syntax, $"'{name}' cannot be combined with '{definition.Modifier}' on a class.");
+		else
+			definition.Modifier = modifier;
 	}
 
 	void ApplyNonStructTypeDeclarators(TypeDefinition definition, List<TypeDeclarationDeclaratorSyntax>? declarators, string typeKind)
@@ -679,7 +962,7 @@ public sealed class BindableNodeBuilder
 		}
 	}
 
-	void ApplyFunctionDeclarators(FunctionDefinition definition, List<MemberDeclaratorSyntax>? declarators, bool isGlobal, bool allowVirtual)
+	void ApplyFunctionDeclarators(FunctionDefinition definition, List<MemberDeclaratorSyntax>? declarators, bool isGlobal, bool allowVirtual, bool onlyExport)
 	{
 		foreach (MemberDeclaratorSyntax declarator in declarators ?? [])
 		{
@@ -690,10 +973,22 @@ public sealed class BindableNodeBuilder
 					break;
 
 				case "extern":
+					if (onlyExport)
+					{
+						Report(declarator, "'extern' is not valid on constructors or destructors.");
+						break;
+					}
+
 					definition.Extern = SetNullableArgument(definition.Extern, "", declarator, "extern");
 					break;
 
 				case "static":
+					if (onlyExport)
+					{
+						Report(declarator, "'static' is not valid on constructors or destructors.");
+						break;
+					}
+
 					if (isGlobal)
 						Report(declarator, "'static' is not valid on a global method.");
 					else
@@ -701,6 +996,12 @@ public sealed class BindableNodeBuilder
 					break;
 
 				case "virtual":
+					if (onlyExport)
+					{
+						Report(declarator, "'virtual' is not valid on constructors or destructors.");
+						break;
+					}
+
 					if (allowVirtual)
 						SetFunctionModifier(definition, FunctionModifier.Virtual, declarator, "virtual");
 					else
@@ -708,6 +1009,12 @@ public sealed class BindableNodeBuilder
 					break;
 
 				case "override":
+					if (onlyExport)
+					{
+						Report(declarator, "'override' is not valid on constructors or destructors.");
+						break;
+					}
+
 					if (allowVirtual)
 						SetFunctionModifier(definition, FunctionModifier.Override, declarator, "override");
 					else
@@ -715,6 +1022,12 @@ public sealed class BindableNodeBuilder
 					break;
 
 				case "sealed":
+					if (onlyExport)
+					{
+						Report(declarator, "'sealed' is not valid on constructors or destructors.");
+						break;
+					}
+
 					if (allowVirtual)
 						SetFunctionModifier(definition, FunctionModifier.Sealed, declarator, "sealed");
 					else
@@ -722,6 +1035,12 @@ public sealed class BindableNodeBuilder
 					break;
 
 				case "abstract":
+					if (onlyExport)
+					{
+						Report(declarator, "'abstract' is not valid on constructors or destructors.");
+						break;
+					}
+
 					if (allowVirtual)
 						SetFunctionModifier(definition, FunctionModifier.Abstract, declarator, "abstract");
 					else
@@ -729,6 +1048,12 @@ public sealed class BindableNodeBuilder
 					break;
 
 				case "async":
+					if (onlyExport)
+					{
+						Report(declarator, "'async' is not valid on constructors or destructors.");
+						break;
+					}
+
 					if (definition.IsAsync)
 						Report(declarator, "Duplicate 'async' declarator.");
 

@@ -42,6 +42,7 @@ public class ClassDefinition : TypeDefinition
 	public bool IsEscaped { get; set; }
 	public List<TypeReference> BaseTypes { get; } = [];
 	public List<FieldDefinition> Fields { get; } = [];
+	public List<FunctionDefinition> Functions { get; } = [];
 }
 
 public class StructDefinition : TypeDefinition
