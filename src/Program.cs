@@ -29,24 +29,31 @@ Option<bool> bindOption = new("--bind")
 	Description = "Parse and print the bindable tree as XML."
 };
 
+Option<bool> analysisOption = new("--analysis")
+{
+	Description = "Parse, bind, analyze, and print the analyzed bindable tree as XML."
+};
+
 RootCommand rootCommand = new("Camp compiler");
 rootCommand.Arguments.Add(fileArgument);
 rootCommand.Options.Add(tokensOption);
 rootCommand.Options.Add(syntaxOption);
 rootCommand.Options.Add(bindOption);
+rootCommand.Options.Add(analysisOption);
 rootCommand.SetAction(parseResult =>
 {
 	string? filename = parseResult.GetValue(fileArgument);
 	bool printTokens = parseResult.GetValue(tokensOption);
 	bool printSyntax = parseResult.GetValue(syntaxOption);
 	bool printBind = parseResult.GetValue(bindOption);
+	bool printAnalysis = parseResult.GetValue(analysisOption);
 
-	return Run(filename, printTokens, printSyntax, printBind);
+	return Run(filename, printTokens, printSyntax, printBind, printAnalysis);
 });
 
 return rootCommand.Parse(args).Invoke();
 
-static int Run(string? filename, bool printTokens, bool printSyntax, bool printBind)
+static int Run(string? filename, bool printTokens, bool printSyntax, bool printBind, bool printAnalysis)
 {
 	if (string.IsNullOrWhiteSpace(filename))
 	{
@@ -54,9 +61,9 @@ static int Run(string? filename, bool printTokens, bool printSyntax, bool printB
 		return 1;
 	}
 
-	if (SelectedModeCount(printTokens, printSyntax, printBind) > 1)
+	if (SelectedModeCount(printTokens, printSyntax, printBind, printAnalysis) > 1)
 	{
-		Console.Error.WriteLine("Specify only one output mode: --tokens, --syntax, or --bind.");
+		Console.Error.WriteLine("Specify only one output mode: --tokens, --syntax, --bind, or --analysis.");
 		return 1;
 	}
 
@@ -76,6 +83,9 @@ static int Run(string? filename, bool printTokens, bool printSyntax, bool printB
 
 	if (printBind)
 		return PrintBindXml(filename, tokens);
+
+	if (printAnalysis)
+		return PrintAnalysisXml(filename, tokens);
 
 	PrintColoredSource(tokens);
 	return 0;
@@ -173,6 +183,50 @@ static int PrintBindXml(string filename, TokenSequence tokens)
 	return 0;
 }
 
+static int PrintAnalysisXml(string filename, TokenSequence tokens)
+{
+	CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> parseDiagnostics);
+
+	if (parseDiagnostics.Count > 0)
+	{
+		foreach (ParseDiagnostic diagnostic in parseDiagnostics)
+			PrintDiagnostic(filename, diagnostic);
+
+		return 1;
+	}
+
+	Camp.Compiler.Module module = BindableNodeBuilder.Build(syntax, out IReadOnlyList<BindDiagnostic> bindDiagnostics);
+
+	if (bindDiagnostics.Count > 0)
+	{
+		foreach (BindDiagnostic diagnostic in bindDiagnostics)
+			PrintBindDiagnostic(filename, diagnostic);
+
+		return 1;
+	}
+
+	AnalysisResult result = BindableNodeAnalyzer.Analyze(module);
+
+	if (result.Diagnostics.Count > 0)
+	{
+		foreach (AnalysisDiagnostic diagnostic in result.Diagnostics)
+			PrintAnalysisDiagnostic(filename, diagnostic);
+
+		return 1;
+	}
+
+	XDocument document = new(new XDeclaration("1.0", "utf-8", null), SerializeBindableNode(result.Module));
+	XmlWriterSettings settings = new()
+	{
+		Indent = true,
+		OmitXmlDeclaration = false
+	};
+
+	using XmlWriter writer = XmlWriter.Create(Console.Out, settings);
+	document.Save(writer);
+	return 0;
+}
+
 static void PrintDiagnostic(string filename, ParseDiagnostic diagnostic)
 {
 	if (diagnostic.Range is TokenRange range)
@@ -182,6 +236,14 @@ static void PrintDiagnostic(string filename, ParseDiagnostic diagnostic)
 }
 
 static void PrintBindDiagnostic(string filename, BindDiagnostic diagnostic)
+{
+	if (diagnostic.Range is TokenRange range)
+		Console.Error.WriteLine($"{filename}({range.StartLineNumber},{range.StartColumn}): error: {diagnostic.Message}");
+	else
+		Console.Error.WriteLine($"{filename}: error: {diagnostic.Message}");
+}
+
+static void PrintAnalysisDiagnostic(string filename, AnalysisDiagnostic diagnostic)
 {
 	if (diagnostic.Range is TokenRange range)
 		Console.Error.WriteLine($"{filename}({range.StartLineNumber},{range.StartColumn}): error: {diagnostic.Message}");
@@ -372,7 +434,7 @@ static XElement SerializeBindableNode(BindableNode node, string? elementName = n
 		{
 			element.Add(SerializeBindableNode(childNode, property.Name));
 		}
-		else if (property.Name == "Modifier" && IsDefaultEnumValue(value))
+		else if ((property.Name == "Modifier" || property.Name == "IteratorKind") && IsDefaultEnumValue(value))
 		{
 			continue;
 		}

@@ -1,0 +1,2072 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+
+namespace Camp.Compiler;
+
+public sealed partial class BindableNodeAnalyzer
+{
+	readonly Dictionary<Expression, bool> expressionConstants = [];
+	readonly Dictionary<CallExpression, FunctionDefinition> callTargets = [];
+
+	void AnalyzeMethodBody(FunctionDefinition function, AnalysisScope typeAndMethodScope, TypeDefinition? containingType)
+	{
+		if (function.Body is null)
+			return;
+
+		BodyScope scope = new(null, function, containingType);
+		scope.CurrentFunctionReturnType = function.ResolvedType ?? ErrorType;
+		scope.CurrentIteratorElementType = function.IteratorKind == IteratorKind.None ? null : GetIteratorElementType(function.ReturnType);
+
+		if (containingType is not null)
+			AddTypeMembersToScope(scope, containingType);
+
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (!string.IsNullOrWhiteSpace(parameter.Name))
+				scope.Symbols[parameter.Name] = new BodySymbol(parameter.Name, parameter.ResolvedType ?? ErrorType, parameter);
+		}
+
+		BodyAnalyzeFunctionBody(function.Body, scope, typeAndMethodScope);
+		FlowAnalyzeFunctionBody(function, scope);
+	}
+
+	void AnalyzeConstantExpression(Expression? expression, AnalysisScope typeScope, string context)
+	{
+		if (expression is null)
+			return;
+
+		BodyScope scope = new(null, new FunctionDefinition { Name = "#constant", ResolvedType = ErrorType }, containingType: null);
+		BodyAnalyzeExpression(expression, scope, typeScope);
+		if (!IsConstant(expression))
+			Report(GetRange(expression.SourceSyntax), $"{context} must be a constant expression.");
+	}
+
+	void BodyAnalyzeFunctionBody(FunctionBody body, BodyScope scope, AnalysisScope typeScope)
+	{
+		body.ResolvedType = "void";
+
+		switch (body)
+		{
+			case BlockFunctionBody block:
+				BodyAnalyzeBlock(block.Statements, scope, typeScope);
+				break;
+
+			case ExpressionFunctionBody expressionBody:
+			{
+				string expressionType = BodyAnalyzeExpression(expressionBody.Expression, scope, typeScope, scope.CurrentFunctionReturnType);
+				expressionBody.ResolvedType = expressionType;
+				CheckAssignable(scope.CurrentFunctionReturnType, expressionType, expressionBody.Expression?.SourceSyntax, "Return expression");
+				break;
+			}
+		}
+	}
+
+	void BodyAnalyzeBlock(List<Statement> statements, BodyScope scope, AnalysisScope typeScope)
+	{
+		BodyScope blockScope = new(scope, scope.CurrentFunction, scope.ContainingType)
+		{
+			CurrentFunctionReturnType = scope.CurrentFunctionReturnType,
+			CurrentIteratorElementType = scope.CurrentIteratorElementType
+		};
+
+		foreach (Statement statement in statements)
+			BodyAnalyzeStatement(statement, blockScope, typeScope);
+	}
+
+	void BodyAnalyzeStatement(Statement statement, BodyScope scope, AnalysisScope typeScope)
+	{
+		statement.ResolvedType = "void";
+
+		switch (statement)
+		{
+			case BlockStatement block:
+				BodyAnalyzeBlock(block.Statements, scope, typeScope);
+				break;
+
+			case EmptyStatement:
+			case BreakStatement:
+			case ContinueStatement:
+			case DefaultStatement:
+				break;
+
+			case ExpressionStatement expression:
+				BodyAnalyzeExpression(expression.Expression, scope, typeScope);
+				break;
+
+			case DeclarationStatement declaration:
+				BodyAnalyzeDeclarationStatement(declaration, scope, typeScope);
+				break;
+
+			case IfStatement ifStatement:
+				RequireExpressionType("bool", BodyAnalyzeExpression(ifStatement.Condition, scope, typeScope), ifStatement.Condition?.SourceSyntax, "If condition");
+				BodyAnalyzeOptionalStatement(ifStatement.Body, scope, typeScope);
+				BodyAnalyzeOptionalStatement(ifStatement.ElseBody, scope, typeScope);
+				break;
+
+			case WhileStatement whileStatement:
+				RequireExpressionType("bool", BodyAnalyzeExpression(whileStatement.Condition, scope, typeScope), whileStatement.Condition?.SourceSyntax, "While condition");
+				BodyAnalyzeOptionalStatement(whileStatement.Body, scope, typeScope);
+				break;
+
+			case DoWhileStatement doWhile:
+				BodyAnalyzeOptionalStatement(doWhile.Body, scope, typeScope);
+				RequireExpressionType("bool", BodyAnalyzeExpression(doWhile.Condition, scope, typeScope), doWhile.Condition?.SourceSyntax, "Do-while condition");
+				break;
+
+			case ForStatement forStatement:
+				BodyAnalyzeForCondition(forStatement.Condition, scope, typeScope);
+				BodyAnalyzeOptionalStatement(forStatement.Body, scope, typeScope);
+				break;
+
+			case ForeachStatement foreachStatement:
+				BodyAnalyzeForeachStatement(foreachStatement, scope, typeScope);
+				break;
+
+			case SwitchStatement switchStatement:
+				BodyAnalyzeSwitchStatement(switchStatement, scope, typeScope);
+				break;
+
+			case CaseStatement caseStatement:
+				BodyAnalyzeExpression(caseStatement.Expression, scope, typeScope);
+				if (!IsConstant(caseStatement.Expression))
+					Report(GetRange(caseStatement.SourceSyntax), "Switch case expressions must be constant.");
+				break;
+
+			case ReturnStatement returnStatement:
+			{
+				string returnType = returnStatement.Expression is null ? "void" : BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope, scope.CurrentFunctionReturnType);
+				CheckAssignable(scope.CurrentFunctionReturnType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
+				break;
+			}
+
+			case YieldStatement yieldStatement:
+			{
+				string expected = scope.CurrentIteratorElementType ?? ErrorType;
+				if (scope.CurrentIteratorElementType is null)
+					Report(GetRange(yieldStatement.SourceSyntax), "Yield statements may only appear in iterator functions.");
+				string yieldedType = BodyAnalyzeExpression(yieldStatement.Expression, scope, typeScope, expected);
+				CheckAssignable(expected, yieldedType, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, "Yield expression");
+				break;
+			}
+
+			case DeleteStatement deleteStatement:
+				BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
+				break;
+
+			case TryStatement tryStatement:
+				BodyAnalyzeOptionalStatement(tryStatement.Body, scope, typeScope);
+				foreach (CatchStatement catchStatement in tryStatement.Catches)
+					BodyAnalyzeStatement(catchStatement, scope, typeScope);
+				BodyAnalyzeOptionalStatement(tryStatement.Finally, scope, typeScope);
+				break;
+
+			case CatchStatement catchStatement:
+				BodyAnalyzeDeclarationTarget(catchStatement.Target, scope, typeScope, targetType: ErrorType);
+				BodyAnalyzeOptionalStatement(catchStatement.Body, scope, typeScope);
+				break;
+
+			case FinallyStatement finallyStatement:
+				BodyAnalyzeOptionalStatement(finallyStatement.Body, scope, typeScope);
+				break;
+
+			case WithinStatement withinStatement:
+				BodyAnalyzeExpression(withinStatement.Allocator, scope, typeScope);
+				BodyAnalyzeOptionalStatement(withinStatement.Body, scope, typeScope);
+				break;
+		}
+	}
+
+	void BodyAnalyzeOptionalStatement(Statement? statement, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (statement is not null)
+			BodyAnalyzeStatement(statement, scope, typeScope);
+	}
+
+	void BodyAnalyzeDeclarationStatement(DeclarationStatement declaration, BodyScope scope, AnalysisScope typeScope)
+	{
+		AnalyzeOptionalType(declaration.Target.Type, typeScope);
+		string targetType = declaration.Target.Type is AutoTypeReference or null
+			? TargetType
+			: declaration.Target.Type.ResolvedType ?? ErrorType;
+		string initialType = declaration.InitialValue is null ? TargetType : BodyAnalyzeExpression(declaration.InitialValue, scope, typeScope, targetType);
+		BodyAnalyzeDeclarationTarget(declaration.Target, scope, typeScope, initialType);
+
+		if (declaration.InitialValue is not null)
+			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+	}
+
+	void BodyAnalyzeDeclarationTarget(DeclarationTarget target, BodyScope scope, AnalysisScope typeScope, string targetType)
+	{
+		AnalyzeOptionalType(target.Type, typeScope);
+
+		if (target.Type is AutoTypeReference)
+			target.ResolvedType = targetType == TargetType ? ErrorType : targetType;
+		else
+			target.ResolvedType = target.Type?.ResolvedType ?? ErrorType;
+
+		foreach (string name in target.Names)
+		{
+			if (string.IsNullOrWhiteSpace(name))
+				continue;
+
+			if (scope.Symbols.ContainsKey(name))
+				Report(GetDeclarationTargetNameRange(target.SourceSyntax, name), $"Symbol '{name}' is already declared in this scope.");
+			else
+				scope.Symbols[name] = new BodySymbol(name, target.ResolvedType ?? ErrorType, target);
+		}
+	}
+
+	void BodyAnalyzeForCondition(ForStatementCondition condition, BodyScope scope, AnalysisScope typeScope)
+	{
+		condition.ResolvedType = "bool";
+		if (condition.Declaration is not null)
+			BodyAnalyzeStatement(condition.Declaration, scope, typeScope);
+
+		for (int i = 0; i < condition.Clauses.Count; i++)
+		{
+			Expression? clause = condition.Clauses[i];
+			string clauseType = BodyAnalyzeExpression(clause, scope, typeScope);
+			if (i == 1 && clause is not null)
+				RequireExpressionType("bool", clauseType, clause.SourceSyntax, "For condition");
+		}
+	}
+
+	void BodyAnalyzeForeachStatement(ForeachStatement statement, BodyScope scope, AnalysisScope typeScope)
+	{
+		string sourceType = BodyAnalyzeExpression(statement.Source, scope, typeScope);
+		string elementType = GetForeachElementType(sourceType, statement.IsAwaited, statement.Source?.SourceSyntax);
+		BodyAnalyzeDeclarationTarget(statement.Target, scope, typeScope, elementType);
+		BodyAnalyzeOptionalStatement(statement.Body, scope, typeScope);
+	}
+
+	void BodyAnalyzeSwitchStatement(SwitchStatement statement, BodyScope scope, AnalysisScope typeScope)
+	{
+		string switchType = BodyAnalyzeExpression(statement.Expression, scope, typeScope);
+		if (!IsSwitchableType(switchType))
+			Report(GetRange(statement.Expression?.SourceSyntax ?? statement.SourceSyntax), "Switch expression type must be numeric, an enum, or a newtype with numeric underlying type.");
+
+		foreach (Statement child in statement.Statements)
+		{
+			BodyAnalyzeStatement(child, scope, typeScope);
+			if (child is CaseStatement caseStatement)
+			{
+				string caseType = caseStatement.Expression?.ResolvedType ?? ErrorType;
+				if (!CanImplicitlyConvert(caseType, switchType))
+					Report(GetRange(caseStatement.Expression?.SourceSyntax ?? caseStatement.SourceSyntax), $"Switch case type '{caseType}' is not compatible with switch type '{switchType}'.");
+			}
+		}
+	}
+
+	string BodyAnalyzeExpression(Expression? expression, BodyScope scope, AnalysisScope typeScope, string? targetType = null)
+	{
+		if (expression is null)
+			return ErrorType;
+
+		string type = expression switch
+		{
+			LiteralExpression literal => BodyAnalyzeLiteralExpression(literal, targetType),
+			NamedExpression named => BodyAnalyzeNamedExpression(named, scope),
+			VariableReferenceExpression variable => variable.Variable?.ResolvedType ?? ErrorType,
+			MethodReferenceExpression method => BodyAnalyzeMethodReference(method),
+			TypeReferenceExpression typeReference => typeReference.Type?.ResolvedType ?? ErrorType,
+			ThisExpression thisExpression => BodyAnalyzeThisExpression(thisExpression, scope),
+			DefaultExpression defaultExpression => BodyAnalyzeDefaultExpression(defaultExpression, typeScope, targetType),
+			GroupedExpression grouped => BodyAnalyzeGroupedExpression(grouped, scope, typeScope),
+			ArrayExpression array => BodyAnalyzeArrayExpression(array, scope, typeScope, targetType),
+			InitializerExpression initializer => BodyAnalyzeInitializerExpression(initializer, scope, typeScope),
+			ParenthesizedExpression parenthesized => BodyAnalyzeExpression(parenthesized.Expression, scope, typeScope, targetType),
+			CastExpression cast => BodyAnalyzeCastExpression(cast, scope, typeScope),
+			ConstructionExpression construction => BodyAnalyzeConstructionExpression(construction, scope, typeScope),
+			WithinExpression within => BodyAnalyzeWithinExpression(within, scope, typeScope, targetType),
+			SizeOfExpression sizeOf => BodyAnalyzeSizeOfExpression(sizeOf, typeScope),
+			VTableOfExpression vtableOf => BodyAnalyzeVTableOfExpression(vtableOf, typeScope),
+			LambdaExpression lambda => BodyAnalyzeLambdaExpression(lambda, scope, typeScope, targetType),
+			ArgumentExpression argument => BodyAnalyzeArgumentExpression(argument, scope, typeScope, targetType),
+			CallExpression call => BodyAnalyzeCallExpression(call, scope, typeScope, targetType),
+			IndexExpression index => BodyAnalyzeIndexExpression(index, scope, typeScope),
+			MemberExpression member => BodyAnalyzeMemberExpression(member, scope, typeScope),
+			NamelessIndexerExpression indexer => BodyAnalyzeIndexExpression(indexer.Target, indexer.Arguments, scope, typeScope),
+			UnaryExpression unary => BodyAnalyzeUnaryExpression(unary, scope, typeScope, targetType),
+			PostfixUpdateExpression postfix => BodyAnalyzePostfixUpdateExpression(postfix, scope, typeScope),
+			FinallyDeleteExpression finallyDelete => BodyAnalyzeExpression(finallyDelete.Expression, scope, typeScope),
+			BinaryExpression binary => BodyAnalyzeBinaryExpression(binary, scope, typeScope),
+			AssignmentExpression assignment => BodyAnalyzeAssignmentExpression(assignment, scope, typeScope),
+			ConditionalExpression conditional => BodyAnalyzeConditionalExpression(conditional, scope, typeScope, targetType),
+			RangeExpression range => BodyAnalyzeRangeExpression(range, scope, typeScope),
+			_ => ErrorType
+		};
+
+		expression.ResolvedType = type;
+		return type;
+	}
+
+	string BodyAnalyzeLiteralExpression(LiteralExpression literal, string? targetType)
+	{
+		expressionConstants[literal] = true;
+		return literal.Kind switch
+		{
+			LiteralKind.True or LiteralKind.False => "bool",
+			LiteralKind.Null => "#NULL",
+			LiteralKind.String when IsCharPointerType(targetType) => targetType!,
+			LiteralKind.String => "StringView",
+			LiteralKind.Number => GetNumberLiteralType(literal.Text, targetType),
+			_ => ErrorType
+		};
+	}
+
+	string BodyAnalyzeNamedExpression(NamedExpression named, BodyScope scope)
+	{
+		if (named.Qualifiers.Count > 0)
+		{
+			string qualifiedName = string.Join("::", named.Qualifiers) + "::" + named.Name;
+			Report(GetRange(named.SourceSyntax), $"Symbol '{qualifiedName}' could not be found.");
+			return ErrorType;
+		}
+
+		if (scope.TryLookup(named.Name, out BodySymbol symbol))
+		{
+			named.ResolvedType = symbol.Type;
+			expressionConstants[named] = symbol.IsConstant;
+			return symbol.Type;
+		}
+
+		if (LookupGlobalVariable(named.Name) is VariableDefinition variable)
+		{
+			string type = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
+			named.ResolvedType = type;
+			expressionConstants[named] = IsConstantVariable(variable);
+			return type;
+		}
+
+		List<FunctionDefinition> functions = LookupFunctions(named.Name, scope);
+		if (functions.Count > 0)
+			return functions.Count == 1 ? BuildFunctionValueType(functions[0], IsInstanceFunction(functions[0])) : ReportMultipleCandidates(named.SourceSyntax, named.Name);
+
+		if (typeDefinitions.TryGetValue(named.Name, out TypeDefinition? typeDefinition))
+			return typeDefinition.ResolvedType ?? typeDefinition.Name;
+
+		Report(GetRange(named.SourceSyntax), $"Symbol '{named.Name}' could not be found.");
+		return ErrorType;
+	}
+
+	string BodyAnalyzeMethodReference(MethodReferenceExpression method)
+	{
+		if (method.Candidates.Count == 0)
+			return ErrorType;
+
+		if (method.Candidates.Count > 1)
+		{
+			Report(GetRange(method.SourceSyntax), "Multiple member candidates found.");
+			return ErrorType;
+		}
+
+		return BuildFunctionValueType(method.Candidates[0], IsInstanceFunction(method.Candidates[0]));
+	}
+
+	string BodyAnalyzeThisExpression(ThisExpression expression, BodyScope scope)
+	{
+		if (scope.ContainingType is null)
+		{
+			Report(GetRange(expression.SourceSyntax), "'this' is not available in this context.");
+			return ErrorType;
+		}
+
+		return scope.ContainingType.Name;
+	}
+
+	string BodyAnalyzeDefaultExpression(DefaultExpression expression, AnalysisScope typeScope, string? targetType)
+	{
+		if (expression.Type is not null)
+		{
+			AnalyzeType(expression.Type, typeScope);
+			expressionConstants[expression] = true;
+			return expression.Type.ResolvedType ?? ErrorType;
+		}
+
+		expressionConstants[expression] = true;
+		return targetType ?? TargetType;
+	}
+
+	string BodyAnalyzeGroupedExpression(GroupedExpression grouped, BodyScope scope, AnalysisScope typeScope)
+	{
+		List<string> itemTypes = [];
+		foreach (GroupedExpressionItem item in grouped.Items)
+		{
+			string itemType = BodyAnalyzeExpression(item.Expression, scope, typeScope);
+			item.ResolvedType = itemType;
+			itemTypes.Add(item.Name is null ? itemType : $"{item.Name}: {itemType}");
+		}
+
+		return $"({string.Join(", ", itemTypes)})";
+	}
+
+	string BodyAnalyzeArrayExpression(ArrayExpression array, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	{
+		string? elementTarget = TryGetArrayElementType(targetType);
+		List<string> elementTypes = [];
+		foreach (Expression element in array.Elements)
+			elementTypes.Add(BodyAnalyzeExpression(element, scope, typeScope, elementTarget));
+
+		string elementType = elementTarget ?? BestType(elementTypes);
+		foreach (string actual in elementTypes)
+			CheckAssignable(elementType, actual, array.SourceSyntax, "Array element");
+
+		return $"{elementType}[]";
+	}
+
+	string BodyAnalyzeInitializerExpression(InitializerExpression initializer, BodyScope scope, AnalysisScope typeScope)
+	{
+		foreach (InitializerItem item in initializer.Items)
+		{
+			if (item.Target is not null)
+				BodyAnalyzeInitializerTarget(item.Target, scope, typeScope);
+			item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope);
+		}
+
+		return TargetType;
+	}
+
+	void BodyAnalyzeInitializerTarget(InitializerTarget target, BodyScope scope, AnalysisScope typeScope)
+	{
+		target.ResolvedType = TargetType;
+		foreach (InitializerTargetPart part in target.Parts)
+		{
+			part.ResolvedType = TargetType;
+			foreach (ArgumentExpression argument in part.Arguments)
+				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
+		}
+	}
+
+	string BodyAnalyzeCastExpression(CastExpression cast, BodyScope scope, AnalysisScope typeScope)
+	{
+		string sourceType = BodyAnalyzeExpression(cast.Expression, scope, typeScope);
+		if (cast.Type is not null)
+			AnalyzeType(cast.Type, typeScope);
+
+		string targetType = cast.Type?.ResolvedType ?? ErrorType;
+		if (!CanExplicitlyConvert(sourceType, targetType))
+			Report(GetRange(cast.SourceSyntax), $"Invalid cast from '{sourceType}' to '{targetType}'.");
+
+		expressionConstants[cast] = IsConstant(cast.Expression);
+		return targetType;
+	}
+
+	string BodyAnalyzeConstructionExpression(ConstructionExpression construction, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (construction.Type is not null)
+			AnalyzeType(construction.Type, typeScope);
+
+		string targetType = construction.Type?.ResolvedType ?? TargetType;
+		FunctionDefinition? constructor = LookupConstructor(targetType, construction.Arguments.Count);
+		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? [], scope, typeScope);
+		BodyAnalyzeExpression(construction.ElementCount, scope, typeScope, "nuint");
+		if (construction.Initializer is not null)
+			BodyAnalyzeInitializerExpression(construction.Initializer, scope, typeScope);
+		return construction.Kind == ConstructionKind.New ? $"{targetType}*" : targetType;
+	}
+
+	string BodyAnalyzeWithinExpression(WithinExpression within, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	{
+		BodyAnalyzeExpression(within.Context, scope, typeScope);
+		return BodyAnalyzeExpression(within.Expression, scope, typeScope, targetType);
+	}
+
+	string BodyAnalyzeSizeOfExpression(SizeOfExpression sizeOf, AnalysisScope typeScope)
+	{
+		if (sizeOf.Type is not null)
+			AnalyzeType(sizeOf.Type, typeScope);
+		return "nuint";
+	}
+
+	string BodyAnalyzeVTableOfExpression(VTableOfExpression vtableOf, AnalysisScope typeScope)
+	{
+		if (vtableOf.Type is not null)
+			AnalyzeType(vtableOf.Type, typeScope);
+		if (vtableOf.InterfaceType is not null)
+			AnalyzeType(vtableOf.InterfaceType, typeScope);
+		return VTableType;
+	}
+
+	string BodyAnalyzeLambdaExpression(LambdaExpression lambda, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	{
+		CallableShape? targetShape = TryGetCallableShape(targetType, out CallableShape callableTarget) ? callableTarget : null;
+		BodyScope lambdaScope = new(scope, scope.CurrentFunction, scope.ContainingType)
+		{
+			CurrentFunctionReturnType = targetShape?.ReturnType ?? TargetType,
+			CurrentIteratorElementType = null
+		};
+
+		if (targetShape is CallableShape shape && shape.Parameters.Count != lambda.Parameters.Count)
+			Report(GetRange(lambda.SourceSyntax), $"Lambda parameter count '{lambda.Parameters.Count.ToString(CultureInfo.InvariantCulture)}' does not match target callable parameter count '{shape.Parameters.Count.ToString(CultureInfo.InvariantCulture)}'.");
+
+		for (int i = 0; i < lambda.Parameters.Count; i++)
+		{
+			LambdaParameter parameter = lambda.Parameters[i];
+			if (parameter.Parameter is not null)
+				AnalyzeParameterDefinition(parameter.Parameter, typeScope);
+
+			string parameterType = parameter.Parameter?.ResolvedType
+				?? (targetShape is CallableShape target && i < target.Parameters.Count ? target.Parameters[i] : TargetType);
+			parameter.ResolvedType = parameterType;
+
+			if (targetShape is CallableShape expected && i < expected.Parameters.Count && parameterType != TargetType && parameterType != expected.Parameters[i])
+				Report(GetRange(parameter.SourceSyntax), $"Lambda parameter type '{parameterType}' does not match target parameter type '{expected.Parameters[i]}'.");
+
+			string? parameterName = GetLambdaParameterSymbolName(parameter);
+			if (!string.IsNullOrWhiteSpace(parameterName))
+				lambdaScope.Symbols[parameterName] = new BodySymbol(parameterName, parameter.ResolvedType, parameter);
+		}
+
+		string returnType = "void";
+		if (lambda.Body is ExpressionFunctionBody expressionBody)
+		{
+			string? returnTarget = targetShape?.ReturnType;
+			returnType = BodyAnalyzeExpression(expressionBody.Expression, lambdaScope, typeScope, returnTarget);
+			expressionBody.ResolvedType = returnType;
+			if (returnTarget is not null)
+				CheckAssignable(returnTarget, returnType, expressionBody.Expression?.SourceSyntax, "Lambda return expression");
+		}
+		else if (lambda.Body is BlockFunctionBody block)
+		{
+			BodyAnalyzeBlock(block.Statements, lambdaScope, typeScope);
+			block.ResolvedType = "void";
+		}
+
+		List<string> parameterTypes = [];
+		foreach (LambdaParameter parameter in lambda.Parameters)
+			parameterTypes.Add(parameter.ResolvedType ?? ErrorType);
+
+		string inferredType = BuildCallableType("fn", targetShape?.ReturnType ?? returnType, parameterTypes);
+		if (targetType is not null && TryGetCallableShape(targetType, out CallableShape expectedShape) && CallableShapesCompatible(new CallableShape("fn", returnType, parameterTypes), expectedShape))
+			return targetType;
+
+		return inferredType;
+	}
+
+	string BodyAnalyzeArgumentExpression(ArgumentExpression argument, BodyScope scope, AnalysisScope typeScope, string? targetType = null)
+	{
+		if (argument.Type is not null)
+			AnalyzeType(argument.Type, typeScope);
+
+		string valueType = BodyAnalyzeExpression(argument.Value, scope, typeScope, argument.Type?.ResolvedType ?? targetType);
+		argument.ResolvedType = argument.Type?.ResolvedType ?? valueType;
+		return argument.ResolvedType;
+	}
+
+	string BodyAnalyzeCallExpression(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	{
+		foreach (TypeReference argument in call.TypeArguments)
+			AnalyzeType(argument, typeScope);
+
+		FunctionDefinition? function = ResolveCallTarget(call.Target, scope, typeScope);
+		if (function is not null)
+			callTargets[call] = function;
+		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope);
+
+		string returnType = function?.ResolvedType ?? ErrorType;
+		if (targetType is not null)
+			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
+		return returnType;
+	}
+
+	FunctionDefinition? ResolveCallTarget(Expression? target, BodyScope scope, AnalysisScope typeScope)
+	{
+		switch (target)
+		{
+			case NamedExpression named:
+			{
+				List<FunctionDefinition> functions = LookupFunctions(named.Name, scope);
+				if (functions.Count == 1)
+				{
+					BodyAnalyzeExpression(named, scope, typeScope);
+					return functions[0];
+				}
+				if (functions.Count > 1)
+					Report(GetRange(named.SourceSyntax), $"Multiple candidates found for call target '{named.Name}'.");
+				else
+					BodyAnalyzeNamedExpression(named, scope);
+				return null;
+			}
+
+			case MemberExpression member:
+			{
+				string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
+				List<FunctionDefinition> functions = LookupMemberFunctions(targetType, member.Name);
+				if (functions.Count == 1)
+				{
+					member.ResolvedType = functions[0].ResolvedType ?? ErrorType;
+					return functions[0];
+				}
+				if (functions.Count > 1)
+					Report(GetRange(member.SourceSyntax), $"Multiple candidates found for member call '{member.Name}'.");
+				else
+					Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' could not be found on type '{targetType}'.");
+				return null;
+			}
+
+			default:
+				BodyAnalyzeExpression(target, scope, typeScope);
+				return null;
+		}
+	}
+
+	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope)
+	{
+		for (int i = 0; i < arguments.Count; i++)
+		{
+			string expected = i < parameters.Count ? parameters[i].ResolvedType ?? ErrorType : null!;
+			string actual = BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, expected);
+			if (i < parameters.Count)
+				CheckAssignable(expected, actual, arguments[i].SourceSyntax, "Argument");
+		}
+
+		if (parameters.Count > 0 && arguments.Count < CountRequiredParameters(parameters))
+			Report(GetRange(arguments.Count > 0 ? arguments[^1].SourceSyntax : null), "Call is missing required arguments.");
+	}
+
+	string BodyAnalyzeIndexExpression(IndexExpression index, BodyScope scope, AnalysisScope typeScope)
+	{
+		return BodyAnalyzeIndexExpression(index.Target, index.Arguments, scope, typeScope);
+	}
+
+	string BodyAnalyzeIndexExpression(Expression? target, List<ArgumentExpression> arguments, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (target is MemberExpression member && TryAnalyzePropertyIndexer(member, arguments, scope, typeScope, out string propertyType))
+			return propertyType;
+
+		string targetType = BodyAnalyzeExpression(target, scope, typeScope);
+		foreach (ArgumentExpression argument in arguments)
+			BodyAnalyzeArgumentExpression(argument, scope, typeScope, "nuint");
+
+		if (TryGetArrayElementType(targetType) is string elementType)
+			return elementType;
+
+		Report(GetRange(target?.SourceSyntax), $"Type '{targetType}' is not indexable.");
+		return ErrorType;
+	}
+
+	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope)
+	{
+		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
+		List<BodySymbol> members = LookupMemberSymbols(targetType, member.Name);
+		if (members.Count == 0)
+		{
+			Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' could not be found on type '{targetType}'.");
+			return ErrorType;
+		}
+
+		if (members.Count > 1)
+			return ReportMultipleCandidates(member.SourceSyntax, member.Name);
+
+		expressionConstants[member] = members[0].IsConstant;
+		return members[0].Type;
+	}
+
+	string BodyAnalyzeUnaryExpression(UnaryExpression unary, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	{
+		string operandType = BodyAnalyzeExpression(unary.Operand, scope, typeScope, targetType);
+		if (unary.Context is not null)
+			BodyAnalyzeExpression(unary.Context, scope, typeScope);
+
+		expressionConstants[unary] = IsConstant(unary.Operand);
+		switch (unary.Operator)
+		{
+			case UnaryOperator.LogicalNot:
+				RequireExpressionType("bool", operandType, unary.Operand?.SourceSyntax, "Logical not operand");
+				return "bool";
+
+			case UnaryOperator.Await:
+				if (!IsAwaitable(unary.Operand, scope, typeScope))
+					Report(GetRange(unary.SourceSyntax), "Await target is not awaitable.");
+				return GetAwaitedType(unary.Operand, scope, typeScope);
+
+			case UnaryOperator.AddressOf:
+				return $"{operandType}*";
+
+			case UnaryOperator.PointerDereference:
+				return TryGetPointerElementType(operandType) ?? ErrorType;
+
+			case UnaryOperator.Plus:
+			case UnaryOperator.Minus:
+			case UnaryOperator.BitwiseNot:
+				if (!IsNumericType(operandType))
+					Report(GetRange(unary.Operand?.SourceSyntax), $"Unary operator requires a numeric operand, not '{operandType}'.");
+				return PromoteInteger(operandType);
+
+			default:
+				return operandType;
+		}
+	}
+
+	string BodyAnalyzePostfixUpdateExpression(PostfixUpdateExpression postfix, BodyScope scope, AnalysisScope typeScope)
+	{
+		string operandType = BodyAnalyzeExpression(postfix.Expression, scope, typeScope);
+		if (!IsNumericType(operandType))
+			Report(GetRange(postfix.Expression?.SourceSyntax), $"Update operator requires a numeric operand, not '{operandType}'.");
+		return operandType;
+	}
+
+	string BodyAnalyzeBinaryExpression(BinaryExpression binary, BodyScope scope, AnalysisScope typeScope)
+	{
+		string left = BodyAnalyzeExpression(binary.Left, scope, typeScope);
+		string right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
+		expressionConstants[binary] = IsConstant(binary.Left) && IsConstant(binary.Right);
+
+		return binary.Operator switch
+		{
+			BinaryOperator.LogicalOr or BinaryOperator.LogicalAnd => AnalyzeBooleanBinary(binary, left, right),
+			BinaryOperator.Equal or BinaryOperator.NotEqual or BinaryOperator.LessThan or BinaryOperator.LessThanOrEqual or BinaryOperator.GreaterThan or BinaryOperator.GreaterThanOrEqual => AnalyzeComparisonBinary(binary, left, right),
+			BinaryOperator.BitwiseOr or BinaryOperator.BitwiseXor or BinaryOperator.BitwiseAnd or BinaryOperator.LeftShift or BinaryOperator.RightShift => AnalyzeIntegralBinary(binary, left, right),
+			BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply or BinaryOperator.Divide or BinaryOperator.Modulo => AnalyzeArithmeticBinary(binary, left, right),
+			BinaryOperator.NullCoalescing => left,
+			_ => ErrorType
+		};
+	}
+
+	string BodyAnalyzeAssignmentExpression(AssignmentExpression assignment, BodyScope scope, AnalysisScope typeScope)
+	{
+		string targetType = BodyAnalyzeExpression(assignment.Target, scope, typeScope);
+		string valueType = BodyAnalyzeExpression(assignment.Value, scope, typeScope, targetType);
+		CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
+		return targetType;
+	}
+
+	string BodyAnalyzeConditionalExpression(ConditionalExpression conditional, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	{
+		string conditionType = BodyAnalyzeExpression(conditional.Condition, scope, typeScope);
+		RequireExpressionType("bool", conditionType, conditional.Condition?.SourceSyntax, "Conditional expression condition");
+		string trueType = BodyAnalyzeExpression(conditional.WhenTrue, scope, typeScope, targetType);
+		string falseType = BodyAnalyzeExpression(conditional.WhenFalse, scope, typeScope, targetType);
+		expressionConstants[conditional] = IsConstant(conditional.Condition) && IsConstant(conditional.WhenTrue) && IsConstant(conditional.WhenFalse);
+		return targetType ?? BestType([trueType, falseType]);
+	}
+
+	string BodyAnalyzeRangeExpression(RangeExpression range, BodyScope scope, AnalysisScope typeScope)
+	{
+		BodyAnalyzeExpression(range.Start, scope, typeScope, "nuint");
+		BodyAnalyzeExpression(range.End, scope, typeScope, "nuint");
+		expressionConstants[range] = false;
+		return RangeType;
+	}
+
+	string AnalyzeBooleanBinary(BinaryExpression binary, string left, string right)
+	{
+		RequireExpressionType("bool", left, binary.Left?.SourceSyntax, "Logical operator left operand");
+		RequireExpressionType("bool", right, binary.Right?.SourceSyntax, "Logical operator right operand");
+		return "bool";
+	}
+
+	string AnalyzeComparisonBinary(BinaryExpression binary, string left, string right)
+	{
+		if (!CanImplicitlyConvert(left, right) && !CanImplicitlyConvert(right, left))
+			Report(GetRange(binary.SourceSyntax), $"Cannot compare '{left}' and '{right}'.");
+		return "bool";
+	}
+
+	string AnalyzeIntegralBinary(BinaryExpression binary, string left, string right)
+	{
+		if (!IsIntegralType(left) || !IsIntegralType(right))
+			Report(GetRange(binary.SourceSyntax), $"Bitwise operators require integral operands, not '{left}' and '{right}'.");
+		return UsualArithmeticConversion(left, right);
+	}
+
+	string AnalyzeArithmeticBinary(BinaryExpression binary, string left, string right)
+	{
+		if (!IsNumericType(left) || !IsNumericType(right))
+			Report(GetRange(binary.SourceSyntax), $"Arithmetic operators require numeric operands, not '{left}' and '{right}'.");
+		return UsualArithmeticConversion(left, right);
+	}
+
+	void RequireExpressionType(string expected, string actual, SyntaxNode? syntax, string context)
+	{
+		if (!CanImplicitlyConvert(actual, expected))
+			Report(GetRange(syntax), $"{context} must be '{expected}', not '{actual}'.");
+	}
+
+	void CheckAssignable(string expected, string actual, SyntaxNode? syntax, string context)
+	{
+		if (expected == ErrorType || actual == ErrorType || expected == TargetType || actual == TargetType)
+			return;
+
+		if (!CanImplicitlyConvert(actual, expected))
+			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
+	}
+
+	bool CanImplicitlyConvert(string source, string target)
+	{
+		if (source == target || source == ErrorType || target == ErrorType || target == TargetType)
+			return true;
+
+		if (source == "#NULL" && (target.EndsWith("*", StringComparison.Ordinal) || target.EndsWith("?", StringComparison.Ordinal)))
+			return true;
+
+		if (TryGetCallableShape(source, out CallableShape sourceCallable) && TryGetCallableShape(target, out CallableShape targetCallable))
+			return CallableShapesCompatible(sourceCallable, targetCallable);
+
+		if (IsNewtypeOrEnumBoundary(source, target))
+			return false;
+
+		return IsNumericType(source) && IsNumericType(target) && NumericRank(source) <= NumericRank(target);
+	}
+
+	bool CanExplicitlyConvert(string source, string target)
+	{
+		if (CanImplicitlyConvert(source, target))
+			return true;
+
+		if (TryGetNewtypeUnderlyingType(source, out string? sourceUnderlying))
+			return sourceUnderlying == target;
+
+		if (TryGetNewtypeUnderlyingType(target, out string? targetUnderlying))
+			return targetUnderlying == source;
+
+		if (IsNumericType(source) && IsNumericType(target))
+			return true;
+
+		return source.EndsWith("*", StringComparison.Ordinal) && target.EndsWith("*", StringComparison.Ordinal);
+	}
+
+	bool IsNewtypeOrEnumBoundary(string source, string target)
+	{
+		return TryGetUnderlyingNumericType(source, out _) || TryGetUnderlyingNumericType(target, out _);
+	}
+
+	string GetForeachElementType(string sourceType, bool isAwaited, SyntaxNode? syntax)
+	{
+		if (TryGetArrayElementType(sourceType) is string arrayElement)
+			return isAwaited ? ReportType(syntax, "await foreach requires an async iter source, not an array.") : arrayElement;
+
+		if (sourceType.StartsWith("iter ", StringComparison.Ordinal))
+			return isAwaited ? ReportType(syntax, "await foreach requires an async iter source, not an iter source.") : sourceType["iter ".Length..];
+
+		if (sourceType.StartsWith("async iter ", StringComparison.Ordinal))
+			return sourceType["async iter ".Length..];
+
+		Report(GetRange(syntax), $"Foreach source type '{sourceType}' is not iterable.");
+		return ErrorType;
+	}
+
+	bool IsAwaitable(Expression? expression, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (expression is CallExpression call && ResolveCallTarget(call.Target, scope, typeScope) is FunctionDefinition function)
+			return function.IsAsync || HasAwaitableCallback(function.Parameters);
+
+		string type = expression?.ResolvedType ?? ErrorType;
+		return type.StartsWith("async ", StringComparison.Ordinal);
+	}
+
+	string GetAwaitedType(Expression? expression, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (expression is CallExpression call && ResolveCallTarget(call.Target, scope, typeScope) is FunctionDefinition function)
+			return function.ResolvedType == "void" ? "void" : function.ResolvedType ?? ErrorType;
+
+		string type = expression?.ResolvedType ?? ErrorType;
+		return type.StartsWith("async ", StringComparison.Ordinal) ? type["async ".Length..] : ErrorType;
+	}
+
+	static bool HasAwaitableCallback(List<ParameterDefinition> parameters)
+	{
+		return parameters is [.., ParameterDefinition last] && last.Type is CallableTypeReference { ReturnType: PrimitiveTypeReference { Type: PrimitiveType.Void } };
+	}
+
+	bool IsSwitchableType(string type)
+	{
+		return IsNumericType(type) || IsEnumType(type) || TryGetUnderlyingNumericType(type, out _);
+	}
+
+	bool IsConstant(Expression? expression)
+	{
+		return expression is not null && expressionConstants.TryGetValue(expression, out bool isConstant) && isConstant;
+	}
+
+	void AddTypeMembersToScope(BodyScope scope, TypeDefinition type)
+	{
+		switch (type)
+		{
+			case ClassDefinition classDefinition:
+				foreach (FieldDefinition field in classDefinition.Fields)
+					scope.MemberSymbols[field.Name] = new BodySymbol(field.Name, field.ResolvedType ?? ErrorType, field);
+				break;
+
+			case StructDefinition structDefinition:
+				foreach (FieldDefinition field in structDefinition.Fields)
+					scope.MemberSymbols[field.Name] = new BodySymbol(field.Name, field.ResolvedType ?? ErrorType, field);
+				break;
+		}
+	}
+
+	List<FunctionDefinition> LookupFunctions(string name, BodyScope scope)
+	{
+		List<FunctionDefinition> functions = [];
+		if (scope.ContainingType is not null)
+			functions.AddRange(LookupTypeFunctions(scope.ContainingType, name));
+
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is FunctionDefinition function && function.Name == name)
+				functions.Add(function);
+		}
+
+		return functions;
+	}
+
+	VariableDefinition? LookupGlobalVariable(string name)
+	{
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is VariableDefinition variable && variable.Name == name)
+				return variable;
+		}
+
+		return null;
+	}
+
+	List<FunctionDefinition> LookupTypeFunctions(TypeDefinition type, string name)
+	{
+		List<FunctionDefinition> functions = [];
+		IEnumerable<FunctionDefinition> candidates = type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Functions,
+			StructDefinition structDefinition => structDefinition.Functions,
+			InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions,
+			EnumDefinition enumDefinition => enumDefinition.Functions,
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Functions,
+			ParamsDefinition paramsDefinition => paramsDefinition.Functions,
+			_ => []
+		};
+
+		foreach (FunctionDefinition function in candidates)
+		{
+			if (function.Name == name)
+				functions.Add(function);
+		}
+
+		return functions;
+	}
+
+	List<FunctionDefinition> LookupMemberFunctions(string targetType, string name)
+	{
+		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
+			return [];
+
+		return LookupTypeFunctions(type, name);
+	}
+
+	List<BodySymbol> LookupMemberSymbols(string targetType, string name)
+	{
+		List<BodySymbol> members = [];
+		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
+			return members;
+
+		switch (type)
+		{
+			case ClassDefinition classDefinition:
+				foreach (FieldDefinition field in classDefinition.Fields)
+				{
+					if (field.Name == name)
+						members.Add(new BodySymbol(name, field.ResolvedType ?? ErrorType, field));
+				}
+				break;
+
+			case StructDefinition structDefinition:
+				foreach (FieldDefinition field in structDefinition.Fields)
+				{
+					if (field.Name == name)
+						members.Add(new BodySymbol(name, field.ResolvedType ?? ErrorType, field));
+				}
+				break;
+
+			case EnumDefinition enumDefinition:
+				foreach (VariableDefinition value in enumDefinition.Values)
+				{
+					if (value.Name == name)
+						members.Add(new BodySymbol(name, value.ResolvedType ?? enumDefinition.Name, value, IsConstant: true));
+				}
+				break;
+
+			case ParamsDefinition paramsDefinition:
+				foreach (ParameterDefinition component in paramsDefinition.Components)
+				{
+					if (component.Name == name)
+						members.Add(new BodySymbol(name, component.ResolvedType ?? ErrorType, component));
+				}
+				break;
+		}
+
+		foreach (FunctionDefinition function in LookupTypeFunctions(type, name))
+			members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
+
+		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name))
+		{
+			if (getter.Parameters.Count == 0)
+				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+		}
+
+		return members;
+	}
+
+	bool TryAnalyzePropertyIndexer(MemberExpression member, List<ArgumentExpression> arguments, BodyScope scope, AnalysisScope typeScope, out string propertyType)
+	{
+		propertyType = ErrorType;
+		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
+		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
+			return false;
+
+		List<FunctionDefinition> getters = LookupTypeFunctions(type, "get" + member.Name);
+		foreach (FunctionDefinition getter in getters)
+		{
+			if (CountRequiredParameters(getter.Parameters) <= arguments.Count)
+			{
+				AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope);
+				member.ResolvedType = getter.ResolvedType ?? ErrorType;
+				propertyType = member.ResolvedType;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	FunctionDefinition? LookupConstructor(string targetType, int argumentCount)
+	{
+		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
+			return null;
+
+		IEnumerable<FunctionDefinition> functions = type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Functions,
+			StructDefinition structDefinition => structDefinition.Functions,
+			_ => []
+		};
+
+		foreach (FunctionDefinition function in functions)
+		{
+			if (function.Modifier == FunctionModifier.Constructor && CountRequiredParameters(function.Parameters) <= argumentCount)
+				return function;
+		}
+
+		return null;
+	}
+
+	TypeDefinition? FindContainingType(FunctionDefinition function)
+	{
+		foreach (TypeDefinition type in typeDefinitions.Values)
+		{
+			foreach (FunctionDefinition candidate in GetTypeFunctions(type))
+			{
+				if (ReferenceEquals(candidate, function))
+					return type;
+			}
+		}
+
+		return null;
+	}
+
+	static IEnumerable<FunctionDefinition> GetTypeFunctions(TypeDefinition type)
+	{
+		return type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Functions,
+			StructDefinition structDefinition => structDefinition.Functions,
+			InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions,
+			EnumDefinition enumDefinition => enumDefinition.Functions,
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Functions,
+			ParamsDefinition paramsDefinition => paramsDefinition.Functions,
+			_ => []
+		};
+	}
+
+	static int CountRequiredParameters(List<ParameterDefinition> parameters)
+	{
+		int count = 0;
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter.DefaultValue is null
+				&& parameter.Modifier is not ParameterModifier.Out and not ParameterModifier.Thrown
+				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+				count++;
+		}
+		return count;
+	}
+
+	string ReportMultipleCandidates(SyntaxNode? syntax, string name)
+	{
+		Report(GetRange(syntax), $"Multiple member candidates found for '{name}'.");
+		return ErrorType;
+	}
+
+	string ReportType(SyntaxNode? syntax, string message)
+	{
+		Report(GetRange(syntax), message);
+		return ErrorType;
+	}
+
+	static string? TryGetArrayElementType(string? type)
+	{
+		return type is not null && type.EndsWith("[]", StringComparison.Ordinal) ? type[..^2] : null;
+	}
+
+	static string? TryGetPointerElementType(string? type)
+	{
+		return type is not null && type.EndsWith("*", StringComparison.Ordinal) ? type[..^1] : null;
+	}
+
+	string? GetIteratorElementType(TypeReference? type)
+	{
+		if (type is IterTypeReference { ElementType: not null } iter)
+			return iter.ElementType.ResolvedType;
+
+		string? resolved = type?.ResolvedType;
+		return resolved is not null && resolved.StartsWith("iter ", StringComparison.Ordinal) ? resolved["iter ".Length..] : null;
+	}
+
+	string BestType(List<string> types)
+	{
+		if (types.Count == 0)
+			return ErrorType;
+
+		string best = types[0];
+		foreach (string type in types)
+		{
+			if (CanImplicitlyConvert(best, type))
+				best = type;
+			else if (!CanImplicitlyConvert(type, best))
+				return ErrorType;
+		}
+
+		return best;
+	}
+
+	static string GetNumberLiteralType(string text, string? targetType)
+	{
+		if (targetType is not null && IsNumericTypeName(targetType))
+			return targetType;
+
+		return text.Contains('.', StringComparison.Ordinal) ? "double" : "int";
+	}
+
+	static string PromoteInteger(string type)
+	{
+		return type is "byte" or "sbyte" or "ushort" or "short" or "char" or "wchar" or "achar" or "uchar"
+			? "int"
+			: type;
+	}
+
+	static string UsualArithmeticConversion(string left, string right)
+	{
+		left = PromoteInteger(left);
+		right = PromoteInteger(right);
+		return NumericRank(left) >= NumericRank(right) ? left : right;
+	}
+
+	static bool IsNumericTypeName(string type)
+	{
+		return IsIntegralTypeName(type) || type is "float" or "double";
+	}
+
+	bool IsNumericType(string type)
+	{
+		return IsNumericTypeName(type) || TryGetUnderlyingNumericType(type, out _);
+	}
+
+	bool IsIntegralType(string type)
+	{
+		return IsIntegralTypeName(type) || IsEnumType(type) || TryGetUnderlyingNumericType(type, out string? underlying) && underlying is not null && IsIntegralTypeName(underlying);
+	}
+
+	static bool IsIntegralTypeName(string type)
+	{
+		return type is "byte" or "sbyte" or "ushort" or "short" or "uint" or "int" or "ulong" or "long" or "nuint" or "nint" or "char" or "wchar" or "achar" or "uchar";
+	}
+
+	static int NumericRank(string type)
+	{
+		return type switch
+		{
+			"byte" or "sbyte" => 1,
+			"ushort" or "short" or "char" or "wchar" or "achar" or "uchar" => 2,
+			"uint" or "int" => 3,
+			"nuint" or "nint" => 4,
+			"ulong" or "long" => 5,
+			"float" => 6,
+			"double" => 7,
+			_ => 100
+		};
+	}
+
+	bool IsEnumType(string type)
+	{
+		return typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition) && definition is EnumDefinition;
+	}
+
+	bool TryGetUnderlyingNumericType(string type, out string? underlying)
+	{
+		underlying = null;
+		if (!typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition))
+			return false;
+
+		TypeReference? underlyingType = definition switch
+		{
+			EnumDefinition enumDefinition => enumDefinition.UnderlyingType ?? new PrimitiveTypeReference { Type = PrimitiveType.Int },
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.UnderlyingType,
+			_ => null
+		};
+
+		underlying = underlyingType?.ResolvedType;
+		if (underlying is null && underlyingType is PrimitiveTypeReference primitive)
+			underlying = GetPrimitiveTypeName(primitive.Type);
+		return underlying is not null && IsNumericTypeName(underlying);
+	}
+
+	bool TryGetNewtypeUnderlyingType(string type, out string? underlying)
+	{
+		underlying = null;
+		if (!typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition) || definition is not NewtypeDefinition newtypeDefinition)
+			return false;
+
+		underlying = newtypeDefinition.UnderlyingType?.ResolvedType;
+		if (underlying is null && newtypeDefinition.UnderlyingType is PrimitiveTypeReference primitive)
+			underlying = GetPrimitiveTypeName(primitive.Type);
+
+		return underlying is not null;
+	}
+
+	static bool IsConstantVariable(VariableDefinition variable)
+	{
+		return IsConstType(variable.Type) || variable.Type?.ResolvedType?.StartsWith("const ", StringComparison.Ordinal) == true;
+	}
+
+	static bool IsConstType(TypeReference? type)
+	{
+		return type switch
+		{
+			ConstTypeReference => true,
+			AttributedTypeReference attributed => IsConstType(attributed.Type),
+			_ => false
+		};
+	}
+
+	static bool IsCharPointerType(string? type)
+	{
+		return type is "char*" or "const char*";
+	}
+
+	string BuildFunctionValueType(FunctionDefinition function, bool isInstance)
+	{
+		string kind = isInstance ? "delegate" : "fn";
+		List<string> parameters = [];
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+				continue;
+
+			parameters.Add(parameter.ResolvedType ?? ErrorType);
+		}
+
+		return $"{kind} {function.ResolvedType ?? ErrorType}({string.Join(", ", parameters)})";
+	}
+
+	void FlowAnalyzeFunctionBody(FunctionDefinition function, BodyScope bodyScope)
+	{
+		if (function.Body is null)
+			return;
+
+		FlowState state = new(function, bodyScope);
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (string.IsNullOrWhiteSpace(parameter.Name))
+				continue;
+
+			bool isAssigned = parameter.Modifier != ParameterModifier.Out;
+			state.Declare(parameter.Name, isAssigned);
+		}
+
+		FlowAnalyzeFunctionBody(function.Body, state);
+
+		if (state.Reachable)
+		{
+			if (FunctionRequiresReturn(function))
+				Report(GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Function '{function.Name}' does not return a value on all paths.");
+
+			CheckOutParametersAssigned(function, state, function.Body.SourceSyntax ?? function.SourceSyntax);
+		}
+	}
+
+	void FlowAnalyzeFunctionBody(FunctionBody body, FlowState state)
+	{
+		switch (body)
+		{
+			case BlockFunctionBody block:
+				FlowAnalyzeStatements(block.Statements, state);
+				break;
+
+			case ExpressionFunctionBody expressionBody:
+				FlowAnalyzeExpression(expressionBody.Expression, state);
+				CheckOutParametersAssigned(state.Function, state, expressionBody.SourceSyntax);
+				state.Reachable = false;
+				break;
+		}
+	}
+
+	void FlowAnalyzeStatements(List<Statement> statements, FlowState state)
+	{
+		foreach (Statement statement in statements)
+		{
+			if (!state.Reachable)
+				break;
+
+			FlowAnalyzeStatement(statement, state);
+		}
+	}
+
+	void FlowAnalyzeStatement(Statement statement, FlowState state)
+	{
+		switch (statement)
+		{
+			case BlockStatement block:
+				FlowAnalyzeStatements(block.Statements, state);
+				break;
+
+			case EmptyStatement:
+			case BreakStatement:
+			case ContinueStatement:
+			case DefaultStatement:
+				break;
+
+			case ExpressionStatement expression:
+				FlowAnalyzeExpression(expression.Expression, state);
+				break;
+
+			case DeclarationStatement declaration:
+				FlowAnalyzeDeclarationStatement(declaration, state);
+				break;
+
+			case IfStatement ifStatement:
+				FlowAnalyzeExpression(ifStatement.Condition, state);
+				FlowAnalyzeBranchingStatement(ifStatement.Body, ifStatement.ElseBody, state);
+				break;
+
+			case WhileStatement whileStatement:
+				FlowAnalyzeExpression(whileStatement.Condition, state);
+				FlowAnalyzeOptionalStatement(whileStatement.Body, state.Clone());
+				break;
+
+			case DoWhileStatement doWhile:
+			{
+				FlowState bodyState = state.Clone();
+				FlowAnalyzeOptionalStatement(doWhile.Body, bodyState);
+				if (bodyState.Reachable)
+					FlowAnalyzeExpression(doWhile.Condition, bodyState);
+				break;
+			}
+
+			case ForStatement forStatement:
+				if (forStatement.Condition.Declaration is not null)
+					FlowAnalyzeDeclarationStatement(forStatement.Condition.Declaration, state);
+				foreach (Expression? clause in forStatement.Condition.Clauses)
+					FlowAnalyzeExpression(clause, state);
+				FlowAnalyzeOptionalStatement(forStatement.Body, state.Clone());
+				break;
+
+			case ForeachStatement foreachStatement:
+				FlowAnalyzeExpression(foreachStatement.Source, state);
+				DeclareTargets(foreachStatement.Target, state, assigned: true);
+				FlowAnalyzeOptionalStatement(foreachStatement.Body, state.Clone());
+				break;
+
+			case SwitchStatement switchStatement:
+				FlowAnalyzeExpression(switchStatement.Expression, state);
+				FlowAnalyzeSwitchStatement(switchStatement, state);
+				break;
+
+			case CaseStatement caseStatement:
+				FlowAnalyzeExpression(caseStatement.Expression, state);
+				break;
+
+			case ReturnStatement returnStatement:
+				FlowAnalyzeExpression(returnStatement.Expression, state);
+				CheckOutParametersAssigned(state.Function, state, returnStatement.SourceSyntax);
+				state.Reachable = false;
+				break;
+
+			case YieldStatement yieldStatement:
+				FlowAnalyzeExpression(yieldStatement.Expression, state);
+				break;
+
+			case DeleteStatement deleteStatement:
+				FlowAnalyzeExpression(deleteStatement.Expression, state);
+				break;
+
+			case TryStatement tryStatement:
+				FlowAnalyzeTryStatement(tryStatement, state);
+				break;
+
+			case CatchStatement catchStatement:
+				DeclareTargets(catchStatement.Target, state, assigned: true);
+				FlowAnalyzeOptionalStatement(catchStatement.Body, state);
+				break;
+
+			case FinallyStatement finallyStatement:
+				FlowAnalyzeOptionalStatement(finallyStatement.Body, state);
+				break;
+
+			case WithinStatement withinStatement:
+				FlowAnalyzeExpression(withinStatement.Allocator, state);
+				FlowAnalyzeOptionalStatement(withinStatement.Body, state);
+				break;
+		}
+	}
+
+	void FlowAnalyzeBranchingStatement(Statement? trueStatement, Statement? falseStatement, FlowState state)
+	{
+		FlowState trueState = state.Clone();
+		FlowAnalyzeOptionalStatement(trueStatement, trueState);
+
+		FlowState falseState = state.Clone();
+		FlowAnalyzeOptionalStatement(falseStatement, falseState);
+
+		state.MergeBranches(trueState, falseState);
+	}
+
+	void FlowAnalyzeSwitchStatement(SwitchStatement switchStatement, FlowState state)
+	{
+		bool hasDefault = false;
+		List<FlowState> branchStates = [];
+		List<Statement> currentStatements = [];
+
+		foreach (Statement child in switchStatement.Statements)
+		{
+			if (child is CaseStatement or DefaultStatement)
+			{
+				if (currentStatements.Count > 0)
+				{
+					FlowState branch = state.Clone();
+					FlowAnalyzeStatements(currentStatements, branch);
+					branchStates.Add(branch);
+					currentStatements.Clear();
+				}
+
+				if (child is CaseStatement caseStatement)
+					FlowAnalyzeExpression(caseStatement.Expression, state);
+				else
+					hasDefault = true;
+			}
+			else
+			{
+				currentStatements.Add(child);
+			}
+		}
+
+		if (currentStatements.Count > 0)
+		{
+			FlowState branch = state.Clone();
+			FlowAnalyzeStatements(currentStatements, branch);
+			branchStates.Add(branch);
+		}
+
+		if (!hasDefault)
+			branchStates.Add(state.Clone());
+
+		state.MergeBranches(branchStates);
+	}
+
+	void FlowAnalyzeTryStatement(TryStatement tryStatement, FlowState state)
+	{
+		List<string> catchTypes = [];
+		foreach (CatchStatement catchStatement in tryStatement.Catches)
+		{
+			string? catchType = catchStatement.Target.ResolvedType;
+			if (catchType is not null && catchType != ErrorType)
+				catchTypes.Add(catchType);
+		}
+
+		FlowState tryState = state.Clone();
+		tryState.Handlers.AddRange(catchTypes);
+		FlowAnalyzeOptionalStatement(tryStatement.Body, tryState);
+
+		List<FlowState> branches = [tryState];
+		foreach (CatchStatement catchStatement in tryStatement.Catches)
+		{
+			FlowState catchState = state.Clone();
+			DeclareTargets(catchStatement.Target, catchState, assigned: true);
+			FlowAnalyzeOptionalStatement(catchStatement.Body, catchState);
+			branches.Add(catchState);
+		}
+
+		state.MergeBranches(branches);
+
+		if (tryStatement.Finally is not null)
+			FlowAnalyzeStatement(tryStatement.Finally, state);
+	}
+
+	void FlowAnalyzeOptionalStatement(Statement? statement, FlowState state)
+	{
+		if (statement is not null && state.Reachable)
+			FlowAnalyzeStatement(statement, state);
+	}
+
+	void FlowAnalyzeDeclarationStatement(DeclarationStatement declaration, FlowState state)
+	{
+		if (declaration.InitialValue is not null)
+			FlowAnalyzeExpression(declaration.InitialValue, state);
+
+		DeclareTargets(declaration.Target, state, declaration.InitialValue is not null);
+	}
+
+	void DeclareTargets(DeclarationTarget target, FlowState state, bool assigned)
+	{
+		foreach (string name in target.Names)
+		{
+			if (!string.IsNullOrWhiteSpace(name))
+				state.Declare(name, assigned);
+		}
+	}
+
+	void FlowAnalyzeExpression(Expression? expression, FlowState state)
+	{
+		if (expression is null || !state.Reachable)
+			return;
+
+		switch (expression)
+		{
+			case LiteralExpression:
+			case TypeReferenceExpression:
+			case ThisExpression:
+			case DefaultExpression:
+			case MethodReferenceExpression:
+			case VariableReferenceExpression:
+				break;
+
+			case NamedExpression named:
+				CheckVariableRead(named, state);
+				break;
+
+			case GroupedExpression grouped:
+				foreach (GroupedExpressionItem item in grouped.Items)
+					FlowAnalyzeExpression(item.Expression, state);
+				break;
+
+			case ArrayExpression array:
+				foreach (Expression element in array.Elements)
+					FlowAnalyzeExpression(element, state);
+				break;
+
+			case InitializerExpression initializer:
+				foreach (InitializerItem item in initializer.Items)
+					FlowAnalyzeExpression(item.Expression, state);
+				break;
+
+			case ParenthesizedExpression parenthesized:
+				FlowAnalyzeExpression(parenthesized.Expression, state);
+				break;
+
+			case CastExpression cast:
+				FlowAnalyzeExpression(cast.Expression, state);
+				break;
+
+			case ConstructionExpression construction:
+				FlowAnalyzeArguments(construction.Arguments, state);
+				FlowAnalyzeExpression(construction.ElementCount, state);
+				if (construction.Initializer is not null)
+					FlowAnalyzeExpression(construction.Initializer, state);
+				break;
+
+			case WithinExpression within:
+				FlowAnalyzeExpression(within.Context, state);
+				FlowAnalyzeExpression(within.Expression, state);
+				break;
+
+			case LambdaExpression:
+				break;
+
+			case ArgumentExpression argument:
+				FlowAnalyzeArgument(argument, state);
+				break;
+
+			case CallExpression call:
+				FlowAnalyzeCallExpression(call, state);
+				break;
+
+			case IndexExpression index:
+				FlowAnalyzeExpression(index.Target, state);
+				FlowAnalyzeArguments(index.Arguments, state);
+				break;
+
+			case MemberExpression member:
+				FlowAnalyzeExpression(member.Target, state);
+				break;
+
+			case NamelessIndexerExpression indexer:
+				FlowAnalyzeExpression(indexer.Target, state);
+				FlowAnalyzeArguments(indexer.Arguments, state);
+				break;
+
+			case UnaryExpression unary:
+				FlowAnalyzeUnaryExpression(unary, state);
+				break;
+
+			case PostfixUpdateExpression postfix:
+				FlowAnalyzeExpression(postfix.Expression, state);
+				AssignExpressionTarget(postfix.Expression, state);
+				break;
+
+			case FinallyDeleteExpression finallyDelete:
+				FlowAnalyzeExpression(finallyDelete.Expression, state);
+				break;
+
+			case BinaryExpression binary:
+				FlowAnalyzeExpression(binary.Left, state);
+				FlowAnalyzeExpression(binary.Right, state);
+				break;
+
+			case AssignmentExpression assignment:
+				FlowAnalyzeAssignmentExpression(assignment, state);
+				break;
+
+			case ConditionalExpression conditional:
+				FlowAnalyzeExpression(conditional.Condition, state);
+				FlowState trueState = state.Clone();
+				FlowAnalyzeExpression(conditional.WhenTrue, trueState);
+				FlowState falseState = state.Clone();
+				FlowAnalyzeExpression(conditional.WhenFalse, falseState);
+				state.MergeBranches(trueState, falseState);
+				break;
+
+			case RangeExpression range:
+				FlowAnalyzeExpression(range.Start, state);
+				FlowAnalyzeExpression(range.End, state);
+				break;
+		}
+	}
+
+	void FlowAnalyzeUnaryExpression(UnaryExpression unary, FlowState state)
+	{
+		FlowAnalyzeExpression(unary.Context, state);
+		FlowAnalyzeExpression(unary.Operand, state);
+
+		if (unary.Operator == UnaryOperator.Throw)
+		{
+			string thrownType = unary.Operand?.ResolvedType ?? ErrorType;
+			HandleThrownValue(thrownType, unary.SourceSyntax, state);
+			state.Reachable = false;
+		}
+	}
+
+	void FlowAnalyzeAssignmentExpression(AssignmentExpression assignment, FlowState state)
+	{
+		if (assignment.Operator != AssignmentOperator.Assign)
+			FlowAnalyzeExpression(assignment.Target, state);
+
+		FlowAnalyzeExpression(assignment.Value, state);
+		AssignExpressionTarget(assignment.Target, state);
+	}
+
+	void FlowAnalyzeCallExpression(CallExpression call, FlowState state)
+	{
+		FlowAnalyzeExpression(call.Target, state);
+		FlowAnalyzeArguments(call.Arguments, state);
+
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function))
+			return;
+
+		string? thrownType = GetFunctionThrownType(function);
+		if (thrownType is null)
+			return;
+
+		bool hasCatchArgument = false;
+		foreach (ArgumentExpression argument in call.Arguments)
+		{
+			if (argument.Modifier == ArgumentModifier.Catch)
+			{
+				hasCatchArgument = true;
+				break;
+			}
+		}
+
+		if (!hasCatchArgument)
+			HandleThrownValue(thrownType, call.SourceSyntax, state, exitsCurrentPath: false);
+	}
+
+	void FlowAnalyzeArguments(List<ArgumentExpression> arguments, FlowState state)
+	{
+		foreach (ArgumentExpression argument in arguments)
+			FlowAnalyzeArgument(argument, state);
+
+		foreach (ArgumentExpression argument in arguments)
+		{
+			if (argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch)
+				AssignExpressionTarget(argument.Value, state);
+		}
+	}
+
+	void FlowAnalyzeArgument(ArgumentExpression argument, FlowState state)
+	{
+		if (argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch)
+			return;
+
+		FlowAnalyzeExpression(argument.Value, state);
+	}
+
+	void AssignExpressionTarget(Expression? target, FlowState state)
+	{
+		switch (target)
+		{
+			case NamedExpression named when !string.IsNullOrWhiteSpace(named.Name):
+				state.Assign(named.Name);
+				break;
+
+			case ParenthesizedExpression parenthesized:
+				AssignExpressionTarget(parenthesized.Expression, state);
+				break;
+
+			case GroupedExpression grouped:
+				foreach (GroupedExpressionItem item in grouped.Items)
+					AssignExpressionTarget(item.Expression, state);
+				break;
+
+			case MemberExpression member:
+				FlowAnalyzeExpression(member.Target, state);
+				break;
+
+			case IndexExpression index:
+				FlowAnalyzeExpression(index.Target, state);
+				FlowAnalyzeArguments(index.Arguments, state);
+				break;
+		}
+	}
+
+	void CheckVariableRead(NamedExpression named, FlowState state)
+	{
+		if (!state.IsDeclared(named.Name) || state.IsAssigned(named.Name))
+			return;
+
+		Report(GetRange(named.SourceSyntax), $"Variable '{named.Name}' must be assigned before it is read.");
+	}
+
+	void CheckOutParametersAssigned(FunctionDefinition function, FlowState state, SyntaxNode? syntax)
+	{
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter.Modifier != ParameterModifier.Out || string.IsNullOrWhiteSpace(parameter.Name))
+				continue;
+
+			if (!state.IsAssigned(parameter.Name))
+				Report(GetRange(syntax ?? parameter.SourceSyntax), $"Out parameter '{parameter.Name}' must be assigned before returning.");
+		}
+	}
+
+	void HandleThrownValue(string thrownType, SyntaxNode? syntax, FlowState state, bool exitsCurrentPath = true)
+	{
+		if (thrownType == ErrorType)
+			return;
+
+		foreach (string handlerType in state.Handlers)
+		{
+			if (CanImplicitlyConvert(thrownType, handlerType))
+				return;
+		}
+
+		string? functionThrownType = GetFunctionThrownType(state.Function);
+		if (functionThrownType is not null && CanImplicitlyConvert(thrownType, functionThrownType))
+			return;
+
+		Report(GetRange(syntax), $"Thrown value of type '{thrownType}' must be caught or rethrown by a compatible thrown result.");
+		if (exitsCurrentPath)
+			state.Reachable = false;
+	}
+
+	bool FunctionRequiresReturn(FunctionDefinition function)
+	{
+		string returnType = function.ResolvedType ?? ErrorType;
+		return returnType != "void" && !returnType.StartsWith("thrown(", StringComparison.Ordinal);
+	}
+
+	string? GetFunctionThrownType(FunctionDefinition function)
+	{
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter.Modifier == ParameterModifier.Thrown)
+				return parameter.ResolvedType ?? ErrorType;
+		}
+
+		string? returnType = function.ReturnType?.ResolvedType;
+		if (returnType is not null && returnType.StartsWith("thrown(", StringComparison.Ordinal) && returnType.EndsWith(")", StringComparison.Ordinal))
+			return returnType["thrown(".Length..^1];
+
+		return null;
+	}
+
+	sealed class FlowState
+	{
+		readonly HashSet<string> declared;
+		readonly HashSet<string> assigned;
+
+		public FlowState(FunctionDefinition function, BodyScope bodyScope)
+		{
+			Function = function;
+			BodyScope = bodyScope;
+			declared = [];
+			assigned = [];
+		}
+
+		FlowState(FunctionDefinition function, BodyScope bodyScope, HashSet<string> declared, HashSet<string> assigned, bool reachable, List<string> handlers)
+		{
+			Function = function;
+			BodyScope = bodyScope;
+			this.declared = declared;
+			this.assigned = assigned;
+			Reachable = reachable;
+			Handlers = handlers;
+		}
+
+		public FunctionDefinition Function { get; }
+		public BodyScope BodyScope { get; }
+		public bool Reachable { get; set; } = true;
+		public List<string> Handlers { get; } = [];
+
+		public void Declare(string name, bool isAssigned)
+		{
+			declared.Add(name);
+			if (isAssigned)
+				assigned.Add(name);
+			else
+				assigned.Remove(name);
+		}
+
+		public void Assign(string name)
+		{
+			if (declared.Contains(name))
+				assigned.Add(name);
+		}
+
+		public bool IsDeclared(string name)
+		{
+			return declared.Contains(name);
+		}
+
+		public bool IsAssigned(string name)
+		{
+			return assigned.Contains(name);
+		}
+
+		public FlowState Clone()
+		{
+			return new FlowState(Function, BodyScope, [.. declared], [.. assigned], Reachable, [.. Handlers]);
+		}
+
+		public void MergeBranches(FlowState first, FlowState second)
+		{
+			MergeBranches([first, second]);
+		}
+
+		public void MergeBranches(List<FlowState> branches)
+		{
+			Reachable = false;
+			declared.Clear();
+			assigned.Clear();
+
+			bool firstReachable = true;
+			foreach (FlowState branch in branches)
+			{
+				if (!branch.Reachable)
+					continue;
+
+				if (firstReachable)
+				{
+					foreach (string name in branch.declared)
+						declared.Add(name);
+					foreach (string name in branch.assigned)
+						assigned.Add(name);
+					firstReachable = false;
+				}
+				else
+				{
+					declared.IntersectWith(branch.declared);
+					assigned.IntersectWith(branch.assigned);
+				}
+
+				Reachable = true;
+			}
+		}
+	}
+
+	static string BuildCallableType(string kind, string returnType, List<string> parameters)
+	{
+		return $"{kind} {returnType}({string.Join(", ", parameters)})";
+	}
+
+	bool TryGetCallableShape(string? type, out CallableShape shape)
+	{
+		shape = default;
+		if (type is null)
+			return false;
+
+		if (TryParseCallableShape(type, out shape))
+			return true;
+
+		if (typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition)
+			&& definition is NewtypeDefinition { UnderlyingType: { ResolvedType: string underlyingType } } newtypeDefinition
+			&& TryParseCallableShape(underlyingType, out shape))
+		{
+			if (newtypeDefinition.Parameters.Count > 0)
+				shape = new CallableShape(shape.Kind, shape.ReturnType, [.. GetParameterTypeNames(newtypeDefinition.Parameters)]);
+			return true;
+		}
+
+		return false;
+	}
+
+	static bool TryParseCallableShape(string type, out CallableShape shape)
+	{
+		shape = default;
+		string kind;
+		string remainder;
+		if (type.StartsWith("fn ", StringComparison.Ordinal))
+		{
+			kind = "fn";
+			remainder = type["fn ".Length..];
+		}
+		else if (type.StartsWith("delegate ", StringComparison.Ordinal))
+		{
+			kind = "delegate";
+			remainder = type["delegate ".Length..];
+		}
+		else if (type.StartsWith("async ", StringComparison.Ordinal))
+		{
+			kind = "async";
+			remainder = type["async ".Length..];
+		}
+		else if (type.StartsWith("once ", StringComparison.Ordinal))
+		{
+			kind = "once";
+			remainder = type["once ".Length..];
+		}
+		else
+		{
+			return false;
+		}
+
+		int open = remainder.IndexOf('(', StringComparison.Ordinal);
+		int close = remainder.LastIndexOf(')');
+		if (open < 0 || close < open)
+			return false;
+
+		string returnType = remainder[..open].Trim();
+		string parametersText = remainder[(open + 1)..close].Trim();
+		shape = new CallableShape(kind, returnType, SplitCallableParameterTypes(parametersText));
+		return true;
+	}
+
+	static List<string> SplitCallableParameterTypes(string parametersText)
+	{
+		List<string> parameters = [];
+		if (string.IsNullOrWhiteSpace(parametersText))
+			return parameters;
+
+		int start = 0;
+		int depth = 0;
+		for (int i = 0; i < parametersText.Length; i++)
+		{
+			char c = parametersText[i];
+			if (c is '(' or '<' or '[')
+				depth++;
+			else if (c is ')' or '>' or ']')
+				depth--;
+			else if (c == ',' && depth == 0)
+			{
+				parameters.Add(parametersText[start..i].Trim());
+				start = i + 1;
+			}
+		}
+
+		parameters.Add(parametersText[start..].Trim());
+		return parameters;
+	}
+
+	static bool CallableShapesCompatible(CallableShape source, CallableShape target)
+	{
+		if (source.Parameters.Count != target.Parameters.Count)
+			return false;
+
+		for (int i = 0; i < source.Parameters.Count; i++)
+		{
+			if (source.Parameters[i] != target.Parameters[i])
+				return false;
+		}
+
+		return source.ReturnType == target.ReturnType;
+	}
+
+	static string? GetLambdaParameterSymbolName(LambdaParameter parameter)
+	{
+		return parameter.Name ?? parameter.Parameter?.Name;
+	}
+
+	readonly struct CallableShape
+	{
+		public CallableShape(string kind, string returnType, List<string> parameters)
+		{
+			Kind = kind;
+			ReturnType = returnType;
+			Parameters = parameters;
+		}
+
+		public string Kind { get; }
+		public string ReturnType { get; }
+		public List<string> Parameters { get; }
+	}
+
+	bool IsInstanceFunction(FunctionDefinition function)
+	{
+		return function.Modifier != FunctionModifier.Static
+			&& function.Modifier != FunctionModifier.Constructor
+			&& function.Modifier != FunctionModifier.Destructor
+			&& FindContainingType(function) is not null;
+	}
+
+	static string BaseTypeName(string type)
+	{
+		int genericStart = type.IndexOf('<', StringComparison.Ordinal);
+		if (genericStart >= 0)
+			type = type[..genericStart];
+
+		while (type.EndsWith("*", StringComparison.Ordinal) || type.EndsWith("[]", StringComparison.Ordinal) || type.EndsWith("?", StringComparison.Ordinal))
+		{
+			if (type.EndsWith("[]", StringComparison.Ordinal))
+				type = type[..^2];
+			else
+				type = type[..^1];
+		}
+
+		return type;
+	}
+
+	sealed class BodyScope(BodyScope? parent, FunctionDefinition currentFunction, TypeDefinition? containingType)
+	{
+		public BodyScope? Parent { get; } = parent;
+		public FunctionDefinition CurrentFunction { get; } = currentFunction;
+		public TypeDefinition? ContainingType { get; } = containingType;
+		public string CurrentFunctionReturnType { get; set; } = ErrorType;
+		public string? CurrentIteratorElementType { get; set; }
+		public Dictionary<string, BodySymbol> Symbols { get; } = new(StringComparer.Ordinal);
+		public Dictionary<string, BodySymbol> MemberSymbols { get; } = new(StringComparer.Ordinal);
+
+		public bool TryLookup(string name, out BodySymbol symbol)
+		{
+			if (Symbols.TryGetValue(name, out symbol) || MemberSymbols.TryGetValue(name, out symbol))
+				return true;
+
+			if (Parent is not null)
+				return Parent.TryLookup(name, out symbol);
+
+			symbol = default;
+			return false;
+		}
+	}
+
+	readonly record struct BodySymbol(string Name, string Type, BindableNode Node, bool IsConstant = false)
+	{
+		public bool IsConstant { get; } = IsConstant || Node is VariableDefinition variable && IsConstantVariable(variable) || Node is FieldDefinition { Modifier: FieldModifier.Static };
+	}
+}

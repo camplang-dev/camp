@@ -6,6 +6,7 @@ namespace Camp.Compiler;
 public abstract class BindableNode
 {
 	public SyntaxNode? SourceSyntax { get; set; }
+	public string? ResolvedType { get; set; }
 }
 
 public class Module : BindableNode

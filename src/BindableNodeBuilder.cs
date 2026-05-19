@@ -635,7 +635,7 @@ public sealed partial class BindableNodeBuilder
 
 		if (syntax.SemicolonToken is not null)
 		{
-			if (definition.Extern is null && !allowBodylessWithoutExtern)
+			if (definition.Extern is null && definition.Modifier != FunctionModifier.Abstract && !allowBodylessWithoutExtern)
 				Report(syntax.SemicolonToken.Value.Range, "Method declarations without a body must be extern.");
 		}
 		else if (syntax.MethodBody is null)

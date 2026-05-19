@@ -18,3 +18,5 @@ obj/
 *.tmp
 *.temp
 
+# Temporary files
+tmp/

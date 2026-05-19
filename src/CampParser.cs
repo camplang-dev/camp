@@ -779,7 +779,7 @@ public sealed class CampParser
 			Keyword = Take()
 		};
 
-		if (Is("("))
+		if (KeywordAllowsParenthesizedCondition(syntax.Keyword?.Value) && Is("("))
 		{
 			syntax.OpenParenToken = Take();
 			if (!Is(")"))
@@ -809,6 +809,11 @@ public sealed class CampParser
 		}
 
 		return syntax;
+	}
+
+	static bool KeywordAllowsParenthesizedCondition(string? keyword)
+	{
+		return keyword is "if" or "while" or "do" or "for" or "switch" or "within" or "catch" or "foreach";
 	}
 
 	StatementConditionSyntax? ParseCatchStatementCondition()
