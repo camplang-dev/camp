@@ -158,6 +158,14 @@ public class MemberExpression : Expression
 	public string Name { get; set; } = "";
 }
 
+public class MemberReferenceExpression : Expression
+{
+	public Expression? Target { get; set; }
+	public string Name { get; set; } = "";
+	public BindableNode? Member { get; set; }
+	public List<FunctionDefinition> Candidates { get; } = [];
+}
+
 public class NamelessIndexerExpression : Expression
 {
 	public Expression? Target { get; set; }

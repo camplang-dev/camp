@@ -286,6 +286,7 @@ public sealed partial class BindableNodeAnalyzer
 			CallExpression call => BodyAnalyzeCallExpression(call, scope, typeScope, targetType),
 			IndexExpression index => BodyAnalyzeIndexExpression(index, scope, typeScope),
 			MemberExpression member => BodyAnalyzeMemberExpression(member, scope, typeScope),
+			MemberReferenceExpression member => member.ResolvedType ?? ErrorType,
 			NamelessIndexerExpression indexer => BodyAnalyzeIndexExpression(indexer.Target, indexer.Arguments, scope, typeScope),
 			UnaryExpression unary => BodyAnalyzeUnaryExpression(unary, scope, typeScope, targetType),
 			PostfixUpdateExpression postfix => BodyAnalyzePostfixUpdateExpression(postfix, scope, typeScope),
@@ -328,6 +329,12 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			named.ResolvedType = symbol.Type;
 			expressionConstants[named] = symbol.IsConstant;
+			expressionRewrites[named] = new VariableReferenceExpression
+			{
+				SourceSyntax = named.SourceSyntax,
+				Variable = symbol.Node,
+				ResolvedType = symbol.Type
+			};
 			return symbol.Type;
 		}
 
@@ -336,15 +343,49 @@ public sealed partial class BindableNodeAnalyzer
 			string type = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
 			named.ResolvedType = type;
 			expressionConstants[named] = IsConstantVariable(variable);
+			expressionRewrites[named] = new VariableReferenceExpression
+			{
+				SourceSyntax = named.SourceSyntax,
+				Variable = variable,
+				ResolvedType = type
+			};
 			return type;
 		}
 
 		List<FunctionDefinition> functions = LookupFunctions(named.Name, scope);
 		if (functions.Count > 0)
-			return functions.Count == 1 ? BuildFunctionValueType(functions[0], IsInstanceFunction(functions[0])) : ReportMultipleCandidates(named.SourceSyntax, named.Name);
+		{
+			if (functions.Count > 1)
+				return ReportMultipleCandidates(named.SourceSyntax, named.Name);
+
+			MethodReferenceExpression method = new()
+			{
+				SourceSyntax = named.SourceSyntax,
+				ResolvedType = BuildFunctionValueType(functions[0], IsInstanceFunction(functions[0]))
+			};
+			method.Candidates.Add(functions[0]);
+			expressionRewrites[named] = method;
+			return method.ResolvedType;
+		}
 
 		if (typeDefinitions.TryGetValue(named.Name, out TypeDefinition? typeDefinition))
-			return typeDefinition.ResolvedType ?? typeDefinition.Name;
+		{
+			TypeDefinitionReference typeReference = new()
+			{
+				SourceSyntax = named.SourceSyntax,
+				Name = typeDefinition.Name,
+				Definition = typeDefinition,
+				ResolvedType = typeDefinition.ResolvedType ?? typeDefinition.Name
+			};
+			TypeReferenceExpression expression = new()
+			{
+				SourceSyntax = named.SourceSyntax,
+				Type = typeReference,
+				ResolvedType = typeReference.ResolvedType
+			};
+			expressionRewrites[named] = expression;
+			return expression.ResolvedType;
+		}
 
 		Report(GetRange(named.SourceSyntax), $"Symbol '{named.Name}' could not be found.");
 		return ErrorType;
@@ -596,6 +637,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (functions.Count == 1)
 				{
 					member.ResolvedType = functions[0].ResolvedType ?? ErrorType;
+					expressionRewrites[member] = CreateMemberReference(member, member.Target, BuildFunctionValueType(functions[0], isInstance: true), functions[0]);
 					return functions[0];
 				}
 				if (functions.Count > 1)
@@ -660,6 +702,7 @@ public sealed partial class BindableNodeAnalyzer
 			return ReportMultipleCandidates(member.SourceSyntax, member.Name);
 
 		expressionConstants[member] = members[0].IsConstant;
+		expressionRewrites[member] = CreateMemberReference(member, member.Target, members[0].Type, members[0].Node);
 		return members[0].Type;
 	}
 
@@ -1020,6 +1063,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope);
 				member.ResolvedType = getter.ResolvedType ?? ErrorType;
+				expressionRewrites[member] = CreateMemberReference(member, member.Target, member.ResolvedType, getter);
 				propertyType = member.ResolvedType;
 				return true;
 			}
@@ -1265,6 +1309,21 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return $"{kind} {function.ResolvedType ?? ErrorType}({string.Join(", ", parameters)})";
+	}
+
+	MemberReferenceExpression CreateMemberReference(MemberExpression member, Expression? target, string type, BindableNode node)
+	{
+		MemberReferenceExpression reference = new()
+		{
+			SourceSyntax = member.SourceSyntax,
+			Target = target,
+			Name = member.Name,
+			Member = node,
+			ResolvedType = type
+		};
+		if (node is FunctionDefinition function)
+			reference.Candidates.Add(function);
+		return reference;
 	}
 
 	void FlowAnalyzeFunctionBody(FunctionDefinition function, BodyScope bodyScope)
@@ -1597,6 +1656,10 @@ public sealed partial class BindableNodeAnalyzer
 				FlowAnalyzeExpression(member.Target, state);
 				break;
 
+			case MemberReferenceExpression member:
+				FlowAnalyzeExpression(member.Target, state);
+				break;
+
 			case NamelessIndexerExpression indexer:
 				FlowAnalyzeExpression(indexer.Target, state);
 				FlowAnalyzeArguments(indexer.Arguments, state);
@@ -1726,6 +1789,10 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case MemberExpression member:
+				FlowAnalyzeExpression(member.Target, state);
+				break;
+
+			case MemberReferenceExpression member:
 				FlowAnalyzeExpression(member.Target, state);
 				break;
 

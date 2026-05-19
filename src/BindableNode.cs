@@ -168,6 +168,19 @@ public class NamedTypeReference : TypeReference
 	public List<TypeReference> TypeArguments { get; } = [];
 }
 
+public class TypeDefinitionReference : TypeReference
+{
+	public string Name { get; set; } = "";
+	public TypeDefinition? Definition { get; set; }
+	public List<TypeReference> TypeArguments { get; } = [];
+}
+
+public class GenericParameterTypeReference : TypeReference
+{
+	public string Name { get; set; } = "";
+	public GenericParameter? Parameter { get; set; }
+}
+
 public class AttributedTypeReference : TypeReference
 {
 	public AttributeConstructor? Attribute { get; set; }

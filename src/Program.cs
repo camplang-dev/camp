@@ -424,7 +424,11 @@ static XElement SerializeBindableNode(BindableNode node, string? elementName = n
 		if (value is null)
 			continue;
 
-		if (IsListType(property.PropertyType) && value is IEnumerable items)
+		if (IsSemanticReferenceProperty(property))
+		{
+			SerializeSemanticReference(element, property.Name, value);
+		}
+		else if (IsListType(property.PropertyType) && value is IEnumerable items)
 		{
 			XElement? list = SerializeBindableList(property.Name, items);
 			if (list is not null)
@@ -449,6 +453,56 @@ static XElement SerializeBindableNode(BindableNode node, string? elementName = n
 	}
 
 	return element;
+}
+
+static bool IsSemanticReferenceProperty(PropertyInfo property)
+{
+	return property.DeclaringType == typeof(VariableReferenceExpression) && property.Name == nameof(VariableReferenceExpression.Variable)
+		|| property.DeclaringType == typeof(TypeDefinitionReference) && property.Name == nameof(TypeDefinitionReference.Definition)
+		|| property.DeclaringType == typeof(GenericParameterTypeReference) && property.Name == nameof(GenericParameterTypeReference.Parameter)
+		|| property.DeclaringType == typeof(MethodReferenceExpression) && property.Name == nameof(MethodReferenceExpression.Candidates)
+		|| property.DeclaringType == typeof(MemberReferenceExpression) && property.Name == nameof(MemberReferenceExpression.Member)
+		|| property.DeclaringType == typeof(MemberReferenceExpression) && property.Name == nameof(MemberReferenceExpression.Candidates);
+}
+
+static void SerializeSemanticReference(XElement element, string name, object value)
+{
+	switch (value)
+	{
+		case Definition definition:
+			element.SetAttributeValue(name, definition.Name);
+			break;
+
+		case GenericParameter parameter:
+			element.SetAttributeValue(name, parameter.Name);
+			break;
+
+		case BindableNode node:
+			element.SetAttributeValue(name, GetSemanticReferenceName(node));
+			break;
+
+		case IEnumerable<FunctionDefinition> functions:
+		{
+			XElement candidates = new(name);
+			foreach (FunctionDefinition function in functions)
+				candidates.Add(new XElement("Function", new XAttribute("Name", function.Name), new XAttribute("ResolvedType", function.ResolvedType ?? "")));
+			if (candidates.HasElements)
+				element.Add(candidates);
+			break;
+		}
+	}
+}
+
+static string GetSemanticReferenceName(BindableNode node)
+{
+	return node switch
+	{
+		ParameterDefinition parameter => parameter.Name,
+		Definition definition => definition.Name,
+		DeclarationTarget target => string.Join(", ", target.Names),
+		LambdaParameter parameter => parameter.Name ?? parameter.Parameter?.Name ?? "",
+		_ => node.GetType().Name
+	};
 }
 
 static XElement? SerializeBindableList(string name, IEnumerable items)
