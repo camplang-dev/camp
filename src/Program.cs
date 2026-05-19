@@ -31,7 +31,12 @@ Option<bool> bindOption = new("--bind")
 
 Option<bool> rewriteOption = new("--rewrite")
 {
-	Description = "Parse, bind, analyze, rewrite, and print the rewritten bindable tree as XML."
+	Description = "Parse, bind, analyze, rewrite, and print the rewritten bindable tree as Camp code."
+};
+
+Option<bool> xmlOption = new("--xml")
+{
+	Description = "Print the rewritten bindable tree as XML when used with --rewrite."
 };
 
 RootCommand rootCommand = new("Camp compiler");
@@ -40,6 +45,7 @@ rootCommand.Options.Add(tokensOption);
 rootCommand.Options.Add(syntaxOption);
 rootCommand.Options.Add(bindOption);
 rootCommand.Options.Add(rewriteOption);
+rootCommand.Options.Add(xmlOption);
 rootCommand.SetAction(parseResult =>
 {
 	string? filename = parseResult.GetValue(fileArgument);
@@ -47,17 +53,24 @@ rootCommand.SetAction(parseResult =>
 	bool printSyntax = parseResult.GetValue(syntaxOption);
 	bool printBind = parseResult.GetValue(bindOption);
 	bool printRewrite = parseResult.GetValue(rewriteOption);
+	bool printXml = parseResult.GetValue(xmlOption);
 
-	return Run(filename, printTokens, printSyntax, printBind, printRewrite);
+	return Run(filename, printTokens, printSyntax, printBind, printRewrite, printXml);
 });
 
 return rootCommand.Parse(args).Invoke();
 
-static int Run(string? filename, bool printTokens, bool printSyntax, bool printBind, bool printRewrite)
+static int Run(string? filename, bool printTokens, bool printSyntax, bool printBind, bool printRewrite, bool printXml)
 {
 	if (string.IsNullOrWhiteSpace(filename))
 	{
 		Console.Error.WriteLine("A filename is required.");
+		return 1;
+	}
+
+	if (printXml && !printRewrite)
+	{
+		Console.Error.WriteLine("--xml can only be used with --rewrite.");
 		return 1;
 	}
 
@@ -85,7 +98,7 @@ static int Run(string? filename, bool printTokens, bool printSyntax, bool printB
 		return PrintBindXml(filename, tokens);
 
 	if (printRewrite)
-		return PrintRewriteXml(filename, tokens);
+		return PrintRewrite(filename, tokens, printXml);
 
 	PrintColoredSource(tokens);
 	return 0;
@@ -183,7 +196,7 @@ static int PrintBindXml(string filename, TokenSequence tokens)
 	return 0;
 }
 
-static int PrintRewriteXml(string filename, TokenSequence tokens)
+static int PrintRewrite(string filename, TokenSequence tokens, bool printXml)
 {
 	CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> parseDiagnostics);
 
@@ -215,15 +228,23 @@ static int PrintRewriteXml(string filename, TokenSequence tokens)
 		return 1;
 	}
 
-	XDocument document = new(new XDeclaration("1.0", "utf-8", null), SerializeBindableNode(rewrite.Module));
-	XmlWriterSettings settings = new()
+	if (printXml)
 	{
-		Indent = true,
-		OmitXmlDeclaration = false
-	};
+		XDocument document = new(new XDeclaration("1.0", "utf-8", null), SerializeBindableNode(rewrite.Module));
+		XmlWriterSettings settings = new()
+		{
+			Indent = true,
+			OmitXmlDeclaration = false
+		};
 
-	using XmlWriter writer = XmlWriter.Create(Console.Out, settings);
-	document.Save(writer);
+		using XmlWriter writer = XmlWriter.Create(Console.Out, settings);
+		document.Save(writer);
+	}
+	else
+	{
+		BindableNodeCodeSerializer.Serialize(rewrite.Module, Console.Out);
+	}
+
 	return 0;
 }
 
