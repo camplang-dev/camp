@@ -102,6 +102,10 @@ public class ConstructionExpression : Expression
 	public InitializerExpression? Initializer { get; set; }
 }
 
+public class CurrentAllocatorExpression : Expression
+{
+}
+
 public class WithinExpression : Expression
 {
 	public Expression? Context { get; set; }

@@ -505,6 +505,8 @@ public sealed partial class BindableNodeAnalyzer
 		BodyAnalyzeExpression(construction.ElementCount, scope, typeScope, "nuint");
 		if (construction.Initializer is not null)
 			BodyAnalyzeInitializerExpression(construction.Initializer, scope, typeScope);
+		if (construction.ElementCount is not null)
+			return $"{targetType}[]";
 		return construction.Kind == ConstructionKind.New ? $"{targetType}*" : targetType;
 	}
 

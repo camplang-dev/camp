@@ -181,6 +181,10 @@ public class GenericParameterTypeReference : TypeReference
 	public GenericParameter? Parameter { get; set; }
 }
 
+public class AllocatorTypeReference : TypeReference
+{
+}
+
 public class AttributedTypeReference : TypeReference
 {
 	public AttributeConstructor? Attribute { get; set; }

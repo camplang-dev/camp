@@ -29,9 +29,9 @@ Option<bool> bindOption = new("--bind")
 	Description = "Parse and print the bindable tree as XML."
 };
 
-Option<bool> analysisOption = new("--analysis")
+Option<bool> rewriteOption = new("--rewrite")
 {
-	Description = "Parse, bind, analyze, and print the analyzed bindable tree as XML."
+	Description = "Parse, bind, analyze, rewrite, and print the rewritten bindable tree as XML."
 };
 
 RootCommand rootCommand = new("Camp compiler");
@@ -39,21 +39,21 @@ rootCommand.Arguments.Add(fileArgument);
 rootCommand.Options.Add(tokensOption);
 rootCommand.Options.Add(syntaxOption);
 rootCommand.Options.Add(bindOption);
-rootCommand.Options.Add(analysisOption);
+rootCommand.Options.Add(rewriteOption);
 rootCommand.SetAction(parseResult =>
 {
 	string? filename = parseResult.GetValue(fileArgument);
 	bool printTokens = parseResult.GetValue(tokensOption);
 	bool printSyntax = parseResult.GetValue(syntaxOption);
 	bool printBind = parseResult.GetValue(bindOption);
-	bool printAnalysis = parseResult.GetValue(analysisOption);
+	bool printRewrite = parseResult.GetValue(rewriteOption);
 
-	return Run(filename, printTokens, printSyntax, printBind, printAnalysis);
+	return Run(filename, printTokens, printSyntax, printBind, printRewrite);
 });
 
 return rootCommand.Parse(args).Invoke();
 
-static int Run(string? filename, bool printTokens, bool printSyntax, bool printBind, bool printAnalysis)
+static int Run(string? filename, bool printTokens, bool printSyntax, bool printBind, bool printRewrite)
 {
 	if (string.IsNullOrWhiteSpace(filename))
 	{
@@ -61,9 +61,9 @@ static int Run(string? filename, bool printTokens, bool printSyntax, bool printB
 		return 1;
 	}
 
-	if (SelectedModeCount(printTokens, printSyntax, printBind, printAnalysis) > 1)
+	if (SelectedModeCount(printTokens, printSyntax, printBind, printRewrite) > 1)
 	{
-		Console.Error.WriteLine("Specify only one output mode: --tokens, --syntax, --bind, or --analysis.");
+		Console.Error.WriteLine("Specify only one output mode: --tokens, --syntax, --bind, or --rewrite.");
 		return 1;
 	}
 
@@ -84,8 +84,8 @@ static int Run(string? filename, bool printTokens, bool printSyntax, bool printB
 	if (printBind)
 		return PrintBindXml(filename, tokens);
 
-	if (printAnalysis)
-		return PrintAnalysisXml(filename, tokens);
+	if (printRewrite)
+		return PrintRewriteXml(filename, tokens);
 
 	PrintColoredSource(tokens);
 	return 0;
@@ -183,7 +183,7 @@ static int PrintBindXml(string filename, TokenSequence tokens)
 	return 0;
 }
 
-static int PrintAnalysisXml(string filename, TokenSequence tokens)
+static int PrintRewriteXml(string filename, TokenSequence tokens)
 {
 	CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> parseDiagnostics);
 
@@ -205,17 +205,17 @@ static int PrintAnalysisXml(string filename, TokenSequence tokens)
 		return 1;
 	}
 
-	AnalysisResult result = BindableNodeAnalyzer.Analyze(module);
+	AnalysisResult rewrite = BindableNodeAnalyzer.AnalyzeAndRewrite(module);
 
-	if (result.Diagnostics.Count > 0)
+	if (rewrite.Diagnostics.Count > 0)
 	{
-		foreach (AnalysisDiagnostic diagnostic in result.Diagnostics)
+		foreach (AnalysisDiagnostic diagnostic in rewrite.Diagnostics)
 			PrintAnalysisDiagnostic(filename, diagnostic);
 
 		return 1;
 	}
 
-	XDocument document = new(new XDeclaration("1.0", "utf-8", null), SerializeBindableNode(result.Module));
+	XDocument document = new(new XDeclaration("1.0", "utf-8", null), SerializeBindableNode(rewrite.Module));
 	XmlWriterSettings settings = new()
 	{
 		Indent = true,
