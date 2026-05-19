@@ -15,7 +15,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		BodyScope scope = new(null, function, containingType);
-		scope.CurrentFunctionReturnType = function.ResolvedType ?? ErrorType;
+		scope.CurrentFunctionReturnType = IsLifecycleFunction(function) ? "void" : function.ResolvedType ?? ErrorType;
 		scope.CurrentIteratorElementType = function.IteratorKind == IteratorKind.None ? null : GetIteratorElementType(function.ReturnType);
 
 		if (containingType is not null)
@@ -28,6 +28,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		BodyAnalyzeFunctionBody(function.Body, scope, typeAndMethodScope);
+		ValidateBaseConstructorInvocation(function, containingType);
 		FlowAnalyzeFunctionBody(function, scope);
 	}
 
@@ -600,7 +601,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (TypeReference argument in call.TypeArguments)
 			AnalyzeType(argument, typeScope);
 
-		FunctionDefinition? function = ResolveCallTarget(call.Target, scope, typeScope);
+		FunctionDefinition? function = ResolveCallTarget(call.Target, scope, typeScope, call.Arguments.Count);
 		if (function is not null)
 			callTargets[call] = function;
 		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope);
@@ -611,12 +612,15 @@ public sealed partial class BindableNodeAnalyzer
 		return returnType;
 	}
 
-	FunctionDefinition? ResolveCallTarget(Expression? target, BodyScope scope, AnalysisScope typeScope)
+	FunctionDefinition? ResolveCallTarget(Expression? target, BodyScope scope, AnalysisScope typeScope, int argumentCount = 0)
 	{
 		switch (target)
 		{
 			case NamedExpression named:
 			{
+				if (named.Qualifiers.Count == 0 && named.Name == "base")
+					return ResolveBaseConstructorCall(named, scope, argumentCount);
+
 				List<FunctionDefinition> functions = LookupFunctions(named.Name, scope);
 				if (functions.Count == 1)
 				{
@@ -665,6 +669,394 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (parameters.Count > 0 && arguments.Count < CountRequiredParameters(parameters))
 			Report(GetRange(arguments.Count > 0 ? arguments[^1].SourceSyntax : null), "Call is missing required arguments.");
+		if (parameters.Count > 0 && arguments.Count > CountCallableParameters(parameters))
+			Report(GetRange(arguments[^1].SourceSyntax), "Call has too many arguments.");
+	}
+
+	void ValidateBaseConstructorInvocation(FunctionDefinition function, TypeDefinition? containingType)
+	{
+		if (function.Modifier != FunctionModifier.Constructor || function.Body is null)
+			return;
+
+		Expression? firstAction = GetFirstConstructorAction(function.Body);
+		CallExpression? firstBaseCall = firstAction is CallExpression firstCall && IsBaseConstructorCall(firstCall) ? firstCall : null;
+		bool hasBaseCall = false;
+
+		foreach (CallExpression baseCall in EnumerateBaseConstructorCalls(function.Body))
+		{
+			hasBaseCall = true;
+			if (!ReferenceEquals(baseCall, firstBaseCall))
+				Report(GetRange(baseCall.Target?.SourceSyntax ?? baseCall.SourceSyntax), "base(...) must be the first constructor action and may not be conditional or delayed.");
+		}
+
+		if (containingType is not ClassDefinition containingClass)
+			return;
+
+		ClassDefinition? baseClass = GetDirectBaseClass(containingClass);
+		if (baseClass is null || hasBaseCall || HasAccessibleParameterlessConstructor(baseClass))
+			return;
+
+		Report(GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Constructor for class '{containingClass.Name}' must invoke a base constructor because base class '{baseClass.Name}' has no accessible parameterless constructor.");
+	}
+
+	static Expression? GetFirstConstructorAction(FunctionBody body)
+	{
+		if (body is not BlockFunctionBody block)
+			return null;
+
+		foreach (Statement statement in block.Statements)
+		{
+			if (statement is EmptyStatement)
+				continue;
+
+			return statement is ExpressionStatement expressionStatement ? expressionStatement.Expression : null;
+		}
+
+		return null;
+	}
+
+	static bool IsBaseConstructorCall(CallExpression call)
+	{
+		return call.Target is NamedExpression { Qualifiers: { Count: 0 }, Name: "base" };
+	}
+
+	static IEnumerable<CallExpression> EnumerateBaseConstructorCalls(FunctionBody body)
+	{
+		switch (body)
+		{
+			case BlockFunctionBody block:
+				foreach (Statement statement in block.Statements)
+				{
+					foreach (CallExpression call in EnumerateBaseConstructorCalls(statement))
+						yield return call;
+				}
+				break;
+
+			case ExpressionFunctionBody expression:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(expression.Expression))
+					yield return call;
+				break;
+		}
+	}
+
+	static IEnumerable<CallExpression> EnumerateBaseConstructorCalls(Statement? statement)
+	{
+		switch (statement)
+		{
+			case null:
+			case EmptyStatement:
+			case BreakStatement:
+			case ContinueStatement:
+			case DefaultStatement:
+				yield break;
+
+			case BlockStatement block:
+				foreach (Statement child in block.Statements)
+				{
+					foreach (CallExpression call in EnumerateBaseConstructorCalls(child))
+						yield return call;
+				}
+				yield break;
+
+			case ExpressionStatement expression:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(expression.Expression))
+					yield return call;
+				yield break;
+
+			case DeclarationStatement declaration:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(declaration.InitialValue))
+					yield return call;
+				yield break;
+
+			case IfStatement ifStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(ifStatement.Condition))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(ifStatement.Body))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(ifStatement.ElseBody))
+					yield return call;
+				yield break;
+
+			case WhileStatement whileStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(whileStatement.Condition))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(whileStatement.Body))
+					yield return call;
+				yield break;
+
+			case DoWhileStatement doWhile:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(doWhile.Body))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(doWhile.Condition))
+					yield return call;
+				yield break;
+
+			case ForStatement forStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(forStatement.Condition.Declaration))
+					yield return call;
+				foreach (Expression? clause in forStatement.Condition.Clauses)
+				{
+					foreach (CallExpression call in EnumerateBaseConstructorCalls(clause))
+						yield return call;
+				}
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(forStatement.Body))
+					yield return call;
+				yield break;
+
+			case ForeachStatement foreachStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(foreachStatement.Source))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(foreachStatement.Body))
+					yield return call;
+				yield break;
+
+			case SwitchStatement switchStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(switchStatement.Expression))
+					yield return call;
+				foreach (Statement child in switchStatement.Statements)
+				{
+					foreach (CallExpression call in EnumerateBaseConstructorCalls(child))
+						yield return call;
+				}
+				yield break;
+
+			case CaseStatement caseStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(caseStatement.Expression))
+					yield return call;
+				yield break;
+
+			case ReturnStatement returnStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(returnStatement.Expression))
+					yield return call;
+				yield break;
+
+			case YieldStatement yieldStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(yieldStatement.Expression))
+					yield return call;
+				yield break;
+
+			case DeleteStatement deleteStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(deleteStatement.Expression))
+					yield return call;
+				yield break;
+
+			case TryStatement tryStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(tryStatement.Body))
+					yield return call;
+				foreach (CatchStatement catchStatement in tryStatement.Catches)
+				{
+					foreach (CallExpression call in EnumerateBaseConstructorCalls(catchStatement))
+						yield return call;
+				}
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(tryStatement.Finally))
+					yield return call;
+				yield break;
+
+			case CatchStatement catchStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(catchStatement.Body))
+					yield return call;
+				yield break;
+
+			case FinallyStatement finallyStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(finallyStatement.Body))
+					yield return call;
+				yield break;
+
+			case WithinStatement withinStatement:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(withinStatement.Allocator))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(withinStatement.Body))
+					yield return call;
+				yield break;
+		}
+	}
+
+	static IEnumerable<CallExpression> EnumerateBaseConstructorCalls(Expression? expression)
+	{
+		switch (expression)
+		{
+			case null:
+				yield break;
+
+			case CallExpression call:
+				if (IsBaseConstructorCall(call))
+					yield return call;
+				foreach (ArgumentExpression argument in call.Arguments)
+				{
+					foreach (CallExpression child in EnumerateBaseConstructorCalls(argument))
+						yield return child;
+				}
+				yield break;
+
+			case ArgumentExpression argument:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(argument.Value))
+					yield return call;
+				yield break;
+
+			case GroupedExpression grouped:
+				foreach (GroupedExpressionItem item in grouped.Items)
+				{
+					foreach (CallExpression call in EnumerateBaseConstructorCalls(item.Expression))
+						yield return call;
+				}
+				yield break;
+
+			case ArrayExpression array:
+				foreach (Expression element in array.Elements)
+				{
+					foreach (CallExpression call in EnumerateBaseConstructorCalls(element))
+						yield return call;
+				}
+				yield break;
+
+			case InitializerExpression initializer:
+				foreach (InitializerItem item in initializer.Items)
+				{
+					foreach (CallExpression call in EnumerateBaseConstructorCalls(item.Expression))
+						yield return call;
+				}
+				yield break;
+
+			case ParenthesizedExpression parenthesized:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(parenthesized.Expression))
+					yield return call;
+				yield break;
+
+			case CastExpression cast:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(cast.Expression))
+					yield return call;
+				yield break;
+
+			case ConstructionExpression construction:
+				foreach (ArgumentExpression argument in construction.Arguments)
+				{
+					foreach (CallExpression call in EnumerateBaseConstructorCalls(argument))
+						yield return call;
+				}
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(construction.ElementCount))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(construction.Initializer))
+					yield return call;
+				yield break;
+
+			case WithinExpression within:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(within.Context))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(within.Expression))
+					yield return call;
+				yield break;
+
+			case LambdaExpression:
+				yield break;
+
+			case IndexExpression index:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(index.Target))
+					yield return call;
+				foreach (ArgumentExpression argument in index.Arguments)
+				{
+					foreach (CallExpression call in EnumerateBaseConstructorCalls(argument))
+						yield return call;
+				}
+				yield break;
+
+			case MemberExpression member:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(member.Target))
+					yield return call;
+				yield break;
+
+			case NamelessIndexerExpression nameless:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(nameless.Target))
+					yield return call;
+				foreach (ArgumentExpression argument in nameless.Arguments)
+				{
+					foreach (CallExpression call in EnumerateBaseConstructorCalls(argument))
+						yield return call;
+				}
+				yield break;
+
+			case UnaryExpression unary:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(unary.Context))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(unary.Operand))
+					yield return call;
+				yield break;
+
+			case PostfixUpdateExpression postfix:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(postfix.Expression))
+					yield return call;
+				yield break;
+
+			case FinallyDeleteExpression finallyDelete:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(finallyDelete.Expression))
+					yield return call;
+				yield break;
+
+			case BinaryExpression binary:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(binary.Left))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(binary.Right))
+					yield return call;
+				yield break;
+
+			case AssignmentExpression assignment:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(assignment.Target))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(assignment.Value))
+					yield return call;
+				yield break;
+
+			case ConditionalExpression conditional:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(conditional.Condition))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(conditional.WhenTrue))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(conditional.WhenFalse))
+					yield return call;
+				yield break;
+
+			case RangeExpression range:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(range.Start))
+					yield return call;
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(range.End))
+					yield return call;
+				yield break;
+		}
+	}
+
+	FunctionDefinition? ResolveBaseConstructorCall(NamedExpression target, BodyScope scope, int argumentCount)
+	{
+		if (scope.CurrentFunction.Modifier != FunctionModifier.Constructor || scope.ContainingType is not ClassDefinition containingClass)
+		{
+			Report(GetRange(target.SourceSyntax), "base(...) is valid only in a class constructor.");
+			target.ResolvedType = ErrorType;
+			return null;
+		}
+
+		ClassDefinition? baseClass = GetDirectBaseClass(containingClass);
+		if (baseClass is null)
+		{
+			Report(GetRange(target.SourceSyntax), $"Class '{containingClass.Name}' does not have a base class constructor to invoke.");
+			target.ResolvedType = ErrorType;
+			return null;
+		}
+
+		FunctionDefinition? constructor = LookupConstructor(baseClass.Name, argumentCount);
+		if (constructor is null)
+		{
+			Report(GetRange(target.SourceSyntax), $"No accessible constructor on base class '{baseClass.Name}' accepts {argumentCount.ToString(CultureInfo.InvariantCulture)} argument(s).");
+			target.ResolvedType = ErrorType;
+			return null;
+		}
+
+		target.ResolvedType = constructor.ResolvedType ?? "void";
+		MethodReferenceExpression reference = new()
+		{
+			SourceSyntax = target.SourceSyntax,
+			ResolvedType = target.ResolvedType
+		};
+		reference.Candidates.Add(constructor);
+		expressionRewrites[target] = reference;
+		return constructor;
 	}
 
 	string BodyAnalyzeIndexExpression(IndexExpression index, BodyScope scope, AnalysisScope typeScope)
@@ -678,6 +1070,9 @@ public sealed partial class BindableNodeAnalyzer
 			return propertyType;
 
 		string targetType = BodyAnalyzeExpression(target, scope, typeScope);
+		if (targetType == ErrorType)
+			return ErrorType;
+
 		foreach (ArgumentExpression argument in arguments)
 			BodyAnalyzeArgumentExpression(argument, scope, typeScope, "nuint");
 
@@ -694,6 +1089,12 @@ public sealed partial class BindableNodeAnalyzer
 		List<BodySymbol> members = LookupMemberSymbols(targetType, member.Name);
 		if (members.Count == 0)
 		{
+			if (GetTypeDefinition(targetType) is TypeDefinition type && LookupPropertySetters(type, member.Name).Count > 0)
+			{
+				Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not readable on type '{targetType}'.");
+				return ErrorType;
+			}
+
 			Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' could not be found on type '{targetType}'.");
 			return ErrorType;
 		}
@@ -769,10 +1170,30 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeAssignmentExpression(AssignmentExpression assignment, BodyScope scope, AnalysisScope typeScope)
 	{
+		if (TryAnalyzePropertyAssignment(assignment, scope, typeScope, out string propertyType))
+			return propertyType;
+
 		string targetType = BodyAnalyzeExpression(assignment.Target, scope, typeScope);
 		string valueType = BodyAnalyzeExpression(assignment.Value, scope, typeScope, targetType);
 		CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
 		return targetType;
+	}
+
+	bool TryAnalyzePropertyAssignment(AssignmentExpression assignment, BodyScope scope, AnalysisScope typeScope, out string propertyType)
+	{
+		propertyType = ErrorType;
+
+		switch (assignment.Target)
+		{
+			case MemberExpression member:
+				return TryAnalyzePropertySetter(member, [], assignment.Value, scope, typeScope, out propertyType);
+
+			case IndexExpression { Target: MemberExpression member } index:
+				return TryAnalyzePropertySetter(member, index.Arguments, assignment.Value, scope, typeScope, out propertyType);
+
+			default:
+				return false;
+		}
 	}
 
 	string BodyAnalyzeConditionalExpression(ConditionalExpression conditional, BodyScope scope, AnalysisScope typeScope, string? targetType)
@@ -1053,11 +1474,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		propertyType = ErrorType;
 		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
-		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
+		if (GetTypeDefinition(targetType) is not TypeDefinition type)
 			return false;
 
-		List<FunctionDefinition> getters = LookupTypeFunctions(type, "get" + member.Name);
-		foreach (FunctionDefinition getter in getters)
+		foreach (FunctionDefinition getter in LookupPropertyGetters(type, member.Name))
 		{
 			if (CountRequiredParameters(getter.Parameters) <= arguments.Count)
 			{
@@ -1069,7 +1489,63 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
+		if (LookupPropertySetters(type, member.Name).Count > 0)
+		{
+			Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not readable on type '{targetType}'.");
+			foreach (ArgumentExpression argument in arguments)
+				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
+			return true;
+		}
+
 		return false;
+	}
+
+	bool TryAnalyzePropertySetter(MemberExpression member, List<ArgumentExpression> arguments, Expression? value, BodyScope scope, AnalysisScope typeScope, out string propertyType)
+	{
+		propertyType = ErrorType;
+		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
+		if (GetTypeDefinition(targetType) is not TypeDefinition type)
+			return false;
+
+		List<FunctionDefinition> setters = LookupPropertySetters(type, member.Name);
+		foreach (FunctionDefinition setter in setters)
+		{
+			if (setter.Parameters.Count == 0)
+				continue;
+
+			int valueParameterIndex = setter.Parameters.Count - 1;
+			int setterArgumentCount = setter.Parameters.Count - 1;
+			if (CountRequiredParametersForPropertySetter(setter.Parameters) > arguments.Count)
+				continue;
+			if (setterArgumentCount != arguments.Count)
+				continue;
+
+			for (int i = 0; i < arguments.Count; i++)
+			{
+				string expected = setter.Parameters[i].ResolvedType ?? ErrorType;
+				string actual = BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, expected);
+				CheckAssignable(expected, actual, arguments[i].SourceSyntax, "Argument");
+			}
+
+			string expectedValueType = setter.Parameters[valueParameterIndex].ResolvedType ?? ErrorType;
+			string actualValueType = BodyAnalyzeExpression(value, scope, typeScope, expectedValueType);
+			CheckAssignable(expectedValueType, actualValueType, value?.SourceSyntax, "Assignment");
+
+			member.ResolvedType = expectedValueType;
+			expressionRewrites[member] = CreateMemberReference(member, member.Target, expectedValueType, setter);
+			propertyType = expectedValueType;
+			return true;
+		}
+
+		if (setters.Count == 0 && LookupPropertyGetters(type, member.Name).Count == 0)
+			return false;
+
+		Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not writable on type '{targetType}'.");
+		if (value is not null)
+			BodyAnalyzeExpression(value, scope, typeScope);
+		foreach (ArgumentExpression argument in arguments)
+			BodyAnalyzeArgumentExpression(argument, scope, typeScope);
+		return true;
 	}
 
 	FunctionDefinition? LookupConstructor(string targetType, int argumentCount)
@@ -1086,11 +1562,38 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (FunctionDefinition function in functions)
 		{
-			if (function.Modifier == FunctionModifier.Constructor && CountRequiredParameters(function.Parameters) <= argumentCount)
+			if (function.Modifier == FunctionModifier.Constructor && CanCallWithArgumentCount(function.Parameters, argumentCount))
 				return function;
 		}
 
 		return null;
+	}
+
+	ClassDefinition? GetDirectBaseClass(TypeDefinition definition)
+	{
+		foreach (TypeDefinition baseType in GetDirectBaseClasses(definition))
+		{
+			if (baseType is ClassDefinition baseClass)
+				return baseClass;
+		}
+
+		return null;
+	}
+
+	bool HasAccessibleParameterlessConstructor(ClassDefinition definition)
+	{
+		bool hasConstructor = false;
+		foreach (FunctionDefinition function in definition.Functions)
+		{
+			if (function.Modifier != FunctionModifier.Constructor)
+				continue;
+
+			hasConstructor = true;
+			if (CountRequiredParameters(function.Parameters) == 0)
+				return true;
+		}
+
+		return !hasConstructor;
 	}
 
 	TypeDefinition? FindContainingType(FunctionDefinition function)
@@ -1132,6 +1635,56 @@ public sealed partial class BindableNodeAnalyzer
 				count++;
 		}
 		return count;
+	}
+
+	static int CountCallableParameters(List<ParameterDefinition> parameters)
+	{
+		int count = 0;
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter.Modifier is not ParameterModifier.Out and not ParameterModifier.Thrown
+				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+				count++;
+		}
+		return count;
+	}
+
+	static bool CanCallWithArgumentCount(List<ParameterDefinition> parameters, int argumentCount)
+	{
+		return CountRequiredParameters(parameters) <= argumentCount && argumentCount <= CountCallableParameters(parameters);
+	}
+
+	static int CountRequiredParametersForPropertySetter(List<ParameterDefinition> parameters)
+	{
+		if (parameters.Count == 0)
+			return 0;
+
+		int count = 0;
+		for (int i = 0; i < parameters.Count - 1; i++)
+		{
+			ParameterDefinition parameter = parameters[i];
+			if (parameter.DefaultValue is null
+				&& parameter.Modifier is not ParameterModifier.Out and not ParameterModifier.Thrown
+				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+				count++;
+		}
+
+		return count;
+	}
+
+	List<FunctionDefinition> LookupPropertyGetters(TypeDefinition type, string name)
+	{
+		return LookupTypeFunctions(type, "get" + name);
+	}
+
+	List<FunctionDefinition> LookupPropertySetters(TypeDefinition type, string name)
+	{
+		return LookupTypeFunctions(type, "set" + name);
+	}
+
+	TypeDefinition? GetTypeDefinition(string typeName)
+	{
+		return typeDefinitions.TryGetValue(BaseTypeName(typeName), out TypeDefinition? type) ? type : null;
 	}
 
 	string ReportMultipleCandidates(SyntaxNode? syntax, string name)
@@ -1845,8 +2398,16 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool FunctionRequiresReturn(FunctionDefinition function)
 	{
+		if (IsLifecycleFunction(function))
+			return false;
+
 		string returnType = function.ResolvedType ?? ErrorType;
 		return returnType != "void" && !returnType.StartsWith("thrown(", StringComparison.Ordinal);
+	}
+
+	static bool IsLifecycleFunction(FunctionDefinition function)
+	{
+		return function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor;
 	}
 
 	string? GetFunctionThrownType(FunctionDefinition function)
