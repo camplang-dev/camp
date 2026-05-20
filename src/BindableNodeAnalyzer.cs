@@ -157,6 +157,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FieldDefinition field in definition.Fields)
 			AnalyzeFieldDefinition(field, scope);
 
+		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
 	}
@@ -172,6 +173,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FieldDefinition field in definition.Fields)
 			AnalyzeFieldDefinition(field, scope);
 
+		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
 	}
@@ -184,6 +186,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeTypeList(definition.BaseTypes, scope);
 		RegisterBaseTypes(definition, definition.BaseTypes);
 
+		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
 	}
@@ -198,6 +201,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (VariableDefinition value in definition.Values)
 			AnalyzeVariableDefinition(value, scope);
 
+		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
 	}
@@ -212,6 +216,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in definition.Parameters)
 			AnalyzeParameterDefinition(parameter, scope);
 
+		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
 	}
@@ -226,8 +231,23 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition component in definition.Components)
 			AnalyzeParameterDefinition(component, scope);
 
+		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
+	}
+
+	void ValidateDuplicateMethodNames(List<FunctionDefinition> functions)
+	{
+		HashSet<string> names = new(StringComparer.Ordinal);
+		foreach (FunctionDefinition function in functions)
+		{
+			string name = function.Name;
+			if (string.IsNullOrWhiteSpace(name))
+				continue;
+
+			if (!names.Add(name))
+				Report(GetNameRange(function), $"Duplicate method name '{name}'.");
+		}
 	}
 
 	AnalysisScope CreateTypeScope(TypeDefinition definition, AnalysisScope parentScope)
@@ -474,6 +494,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (named.Name == "<missing>")
 			return MissingTypeName;
+
+		if (named.Qualifiers.Count == 0 && named.Name == "Allocator")
+			return "Allocator";
 
 		Report(GetRange(named.SourceSyntax), $"Unknown type '{sourceName}'.");
 		return $"{UnresolvedType}({sourceName})";

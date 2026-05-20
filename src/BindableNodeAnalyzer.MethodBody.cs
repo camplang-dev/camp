@@ -300,6 +300,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeNamedExpression(NamedExpression named, BodyScope scope)
 	{
+		if (named.Qualifiers.Count == 1 && named.Qualifiers[0] == "Std" && named.Name == "defaultAllocator")
+		{
+			named.ResolvedType = "Allocator*";
+			return named.ResolvedType;
+		}
+
+		if (named.Qualifiers.Count == 0 && named.Name == "_" && named.ResolvedType is not null)
+			return named.ResolvedType;
+
 		if (named.Qualifiers.Count > 0)
 		{
 			string qualifiedName = string.Join("::", named.Qualifiers) + "::" + named.Name;
@@ -669,7 +678,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateBaseConstructorInvocation(FunctionDefinition function, TypeDefinition? containingType)
 	{
-		if (function.Modifier != FunctionModifier.Constructor || function.Body is null)
+		if (!IsConstructorLikeFunction(function) || function.Body is null)
 			return;
 
 		Expression? firstAction = GetFirstConstructorAction(function.Body);
@@ -1006,7 +1015,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition? ResolveBaseConstructorCall(NamedExpression target, BodyScope scope, int argumentCount)
 	{
-		if (scope.CurrentFunction.Modifier != FunctionModifier.Constructor || scope.ContainingType is not ClassDefinition containingClass)
+		if (!IsConstructorLikeFunction(scope.CurrentFunction) || scope.ContainingType is not ClassDefinition containingClass)
 		{
 			Report(GetRange(target.SourceSyntax), "base(...) is valid only in a class constructor.");
 			target.ResolvedType = ErrorType;
@@ -2399,7 +2408,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsLifecycleFunction(FunctionDefinition function)
 	{
-		return function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor;
+		return function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor
+			|| function.Name is InitNewMethodName or DeleteMethodName;
+	}
+
+	static bool IsConstructorLikeFunction(FunctionDefinition function)
+	{
+		return function.Modifier == FunctionModifier.Constructor || function.Name == InitNewMethodName;
 	}
 
 	string? GetFunctionThrownType(FunctionDefinition function)

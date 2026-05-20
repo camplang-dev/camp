@@ -5,8 +5,6 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
-	readonly Dictionary<FunctionDefinition, FunctionDefinition> initNewMethods = [];
-	readonly Dictionary<FunctionDefinition, FunctionDefinition> deleteMethods = [];
 	readonly FunctionDefinition allocatorAllocMethod = CreateAllocatorAllocMethod();
 	readonly FunctionDefinition allocatorFreeMethod = CreateAllocatorFreeMethod();
 	const string InitNewMethodName = "op_initnew";
@@ -21,6 +19,7 @@ public sealed partial class BindableNodeAnalyzer
 		ArgumentNullException.ThrowIfNull(module);
 
 		BindableNodeAnalyzer analyzer = new();
+		analyzer.GenerateLifecycleMethods(module);
 		analyzer.AnalyzeModule(module);
 		analyzer.FillMissingResolvedTypes(module);
 		if (analyzer.diagnostics.Count == 0)
@@ -34,10 +33,13 @@ public sealed partial class BindableNodeAnalyzer
 	void RewriteModule(Module module)
 	{
 		foreach (Definition definition in module.Definitions)
-			GenerateLifecycleMethods(definition);
-
-		foreach (Definition definition in module.Definitions)
 			RewriteDefinition(definition);
+	}
+
+	void GenerateLifecycleMethods(Module module)
+	{
+		foreach (Definition definition in module.Definitions)
+			GenerateLifecycleMethods(definition);
 	}
 
 	void GenerateLifecycleMethods(Definition definition)
@@ -65,7 +67,6 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					FunctionDefinition initNew = CreateInitNewMethod(type, function);
 					FunctionDefinition create = CreateCreateMethod(type, function, initNew);
-					initNewMethods[function] = initNew;
 					generated.Add(initNew);
 					generated.Add(create);
 					function.Body = null;
@@ -76,7 +77,6 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					FunctionDefinition opDelete = CreateDeleteMethod(type, function);
 					FunctionDefinition destroy = CreateDestroyMethod(type, function, opDelete);
-					deleteMethods[function] = opDelete;
 					generated.Add(opDelete);
 					generated.Add(destroy);
 					function.Body = null;
@@ -92,6 +92,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		FunctionDefinition method = new()
 		{
+			SourceSyntax = constructor.SourceSyntax,
 			Name = InitNewMethodName,
 			Symbol = $"{type.Name}_{InitNewMethodName}",
 			Export = constructor.Export,
@@ -110,6 +111,7 @@ public sealed partial class BindableNodeAnalyzer
 		TypeReference typeReference = TypeReferenceFor(type);
 		FunctionDefinition method = new()
 		{
+			SourceSyntax = constructor.SourceSyntax,
 			Name = CreateMethodName,
 			Symbol = $"{type.Name}_{CreateMethodName}",
 			Export = constructor.Export,
@@ -161,6 +163,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		FunctionDefinition method = new()
 		{
+			SourceSyntax = destructor.SourceSyntax,
 			Name = DeleteMethodName,
 			Symbol = $"{type.Name}_op_delete",
 			Export = destructor.Export,
@@ -190,6 +193,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		FunctionDefinition method = new()
 		{
+			SourceSyntax = destructor.SourceSyntax,
 			Name = DestroyMethodName,
 			Symbol = $"{type.Name}_{DestroyMethodName}",
 			Export = destructor.Export,
@@ -306,8 +310,10 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case DeclarationStatement declaration:
+				if (TryRewriteNewDeclaration(declaration, out List<Statement>? newStatements))
+					return CreateBlock(newStatements);
 				if (TryRewriteInitDeclaration(declaration, out List<Statement>? statements))
-					return new BlockStatement { Statements = { statements[0], statements[1] }, ResolvedType = "void" };
+					return CreateBlock(statements);
 				declaration.InitialValue = LowerExpression(declaration.InitialValue);
 				break;
 
@@ -404,7 +410,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		for (int i = 0; i < statements.Count; i++)
 		{
-			if (statements[i] is DeclarationStatement declaration && TryRewriteInitDeclaration(declaration, out List<Statement>? rewritten))
+			if (statements[i] is DeclarationStatement declaration && (TryRewriteNewDeclaration(declaration, out List<Statement>? rewritten) || TryRewriteInitDeclaration(declaration, out rewritten)))
 			{
 				statements.RemoveAt(i);
 				statements.InsertRange(i, rewritten);
@@ -414,6 +420,59 @@ public sealed partial class BindableNodeAnalyzer
 
 			statements[i] = RewriteStatement(statements[i]);
 		}
+	}
+
+	static BlockStatement CreateBlock(List<Statement> statements)
+	{
+		BlockStatement block = new() { ResolvedType = "void" };
+		block.Statements.AddRange(statements);
+		return block;
+	}
+
+	bool TryRewriteNewDeclaration(DeclarationStatement declaration, out List<Statement> statements)
+	{
+		statements = [];
+		if (declaration.InitialValue is not ConstructionExpression { Kind: ConstructionKind.New } construction || declaration.Target.Names.Count != 1)
+			return false;
+
+		for (int i = 0; i < construction.Arguments.Count; i++)
+			construction.Arguments[i] = LowerArgument(construction.Arguments[i]);
+		construction.ElementCount = LowerExpression(construction.ElementCount);
+		LowerInitializer(construction.Initializer);
+
+		if (construction.ElementCount is not null || construction.Type is null)
+			return false;
+
+		string typeName = construction.Type.ResolvedType ?? BaseConstructedType(construction.ResolvedType);
+		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
+			return false;
+
+		FunctionDefinition? initNew = FindInitNewMethod(definition, construction.Arguments.Count);
+		declaration.InitialValue = CreateAllocCall(TypeReferenceFor(definition), declaration.SourceSyntax);
+		statements.Add(declaration);
+
+		if (initNew is null)
+			return true;
+
+		Expression target = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? $"{typeName}*");
+		statements.Add(new IfStatement
+		{
+			SourceSyntax = construction.SourceSyntax,
+			ResolvedType = "void",
+			Condition = new BinaryExpression
+			{
+				Left = target,
+				Operator = BinaryOperator.NotEqual,
+				Right = new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "#NULL" },
+				ResolvedType = "bool"
+			},
+			Body = new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = CreateInitNewCall(target, initNew, construction.Arguments, construction.SourceSyntax)
+			}
+		});
+		return true;
 	}
 
 	bool TryRewriteInitDeclaration(DeclarationStatement declaration, out List<Statement> statements)
@@ -579,32 +638,54 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
 			return construction;
 
-		FunctionDefinition? constructor = FindConstructor(definition, construction.Arguments.Count);
 		return construction.Kind switch
 		{
-			ConstructionKind.New => CreateCreateCall(definition, constructor, construction.Arguments, construction.SourceSyntax, construction.ResolvedType),
-				ConstructionKind.Init => (Expression?)CreateInitCallForConstruction(construction, target: null) ?? construction,
+			ConstructionKind.New => CreateNewExpression(definition, construction.Arguments, construction.SourceSyntax, construction.ResolvedType),
+			ConstructionKind.Init => (Expression?)CreateInitCallForConstruction(construction, target: null) ?? construction,
 			_ => construction
 		};
 	}
 
-	Expression CreateCreateCall(TypeDefinition type, FunctionDefinition? constructor, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
+	Expression CreateNewExpression(TypeDefinition type, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
 	{
-		FunctionDefinition? create = constructor is null ? null : FindGeneratedCreate(type, constructor);
-		if (create is null)
-			return CreateAllocCall(TypeReferenceFor(type), syntax);
+		TypeReference typeReference = TypeReferenceFor(type);
+		FunctionDefinition? initNew = FindInitNewMethod(type, arguments.Count);
+		if (initNew is null)
+			return CreateAllocCall(typeReference, syntax);
 
-		CallExpression call = new()
+		string localName = NewGeneratedLocalName("created");
+		NamedExpression localReference = new()
+		{
+			Name = localName,
+			ResolvedType = resolvedType ?? $"{type.Name}*"
+		};
+		GroupedExpression grouped = new()
 		{
 			SourceSyntax = syntax,
-			ResolvedType = resolvedType ?? $"{type.Name}*",
-			Target = CreateMethodReference(create, create.ResolvedType ?? $"{type.Name}*")
+			ResolvedType = resolvedType ?? $"{type.Name}*"
 		};
-		foreach (ArgumentExpression argument in arguments)
-			call.Arguments.Add(argument);
-		if (HasWithinParameter(create))
-			call.Arguments.Add(new ArgumentExpression { Value = CurrentAllocator(), ResolvedType = AllocatorType });
-		return call;
+		grouped.Items.Add(new GroupedExpressionItem
+		{
+			Expression = new AssignmentExpression
+			{
+				Target = localReference,
+				Operator = AssignmentOperator.Assign,
+				Value = CreateAllocCall(typeReference, syntax),
+				ResolvedType = resolvedType ?? $"{type.Name}*"
+			},
+			ResolvedType = resolvedType ?? $"{type.Name}*"
+		});
+		grouped.Items.Add(new GroupedExpressionItem
+		{
+			Expression = CreateInitNewCall(localReference, initNew, arguments, syntax),
+			ResolvedType = "void"
+		});
+		grouped.Items.Add(new GroupedExpressionItem
+		{
+			Expression = localReference,
+			ResolvedType = resolvedType ?? $"{type.Name}*"
+		});
+		return grouped;
 	}
 
 	CallExpression? CreateInitCallForConstruction(ConstructionExpression construction, Expression? target)
@@ -613,8 +694,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
 			return null;
 
-		FunctionDefinition? constructor = FindConstructor(definition, construction.Arguments.Count);
-		if (constructor is null || !initNewMethods.TryGetValue(constructor, out FunctionDefinition? initNew))
+		FunctionDefinition? initNew = FindInitNewMethod(definition, construction.Arguments.Count);
+		if (initNew is null)
 			return null;
 
 		return CreateInitNewCall(target, initNew, construction.Arguments, construction.SourceSyntax);
@@ -628,14 +709,10 @@ public sealed partial class BindableNodeAnalyzer
 		bool isPointer = elementType is not null;
 		bool isArray = TryGetArrayElementType(targetType) is not null;
 		string deletedType = isPointer ? elementType ?? ErrorType : targetType;
-		FunctionDefinition? destructor = FindDestructor(deletedType);
+		FunctionDefinition? opDelete = FindDeleteMethod(deletedType);
 
-		if (!isPointer && !isArray && destructor is null)
+		if (!isPointer && !isArray && opDelete is null)
 			Report(target?.SourceSyntax, $"delete requires a pointer or a type with a destructor, not '{targetType}'.");
-
-		FunctionDefinition? opDelete = null;
-		if (destructor is not null && deleteMethods.TryGetValue(destructor, out FunctionDefinition? generatedDelete))
-			opDelete = generatedDelete;
 		if (target is null)
 			return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" };
 
@@ -791,17 +868,6 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	FunctionDefinition? FindGeneratedCreate(TypeDefinition type, FunctionDefinition constructor)
-	{
-		foreach (FunctionDefinition function in GetFunctions(type))
-		{
-			if (function.Name == CreateMethodName && function.Export == constructor.Export && CallableByArgumentCount(function.Parameters, CountCallableParameters(constructor.Parameters)))
-				return function;
-		}
-
-		return null;
-	}
-
 	static MethodReferenceExpression CreateMethodReference(FunctionDefinition function, string type)
 	{
 		MethodReferenceExpression reference = new()
@@ -841,25 +907,25 @@ public sealed partial class BindableNodeAnalyzer
 		return name;
 	}
 
-	FunctionDefinition? FindConstructor(TypeDefinition type, int argumentCount)
+	FunctionDefinition? FindInitNewMethod(TypeDefinition type, int argumentCount)
 	{
 		foreach (FunctionDefinition function in GetFunctions(type))
 		{
-			if (function.Modifier == FunctionModifier.Constructor && CallableByArgumentCount(function.Parameters, argumentCount))
+			if (function.Name == InitNewMethodName && CallableByArgumentCount(function.Parameters, argumentCount))
 				return function;
 		}
 
 		return null;
 	}
 
-	FunctionDefinition? FindDestructor(string typeName)
+	FunctionDefinition? FindDeleteMethod(string typeName)
 	{
 		if (!typeDefinitions.TryGetValue(typeName, out TypeDefinition? type))
 			return null;
 
 		foreach (FunctionDefinition function in GetFunctions(type))
 		{
-			if (function.Modifier == FunctionModifier.Destructor)
+			if (function.Name == DeleteMethodName)
 				return function;
 		}
 
