@@ -352,6 +352,19 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		switch (type)
 		{
+			case TypeDefinitionReference definition:
+				AnalyzeTypeList(definition.TypeArguments, scope);
+				type.ResolvedType = AddTypeArguments(definition.Name, definition.TypeArguments);
+				break;
+
+			case GenericParameterTypeReference genericParameter:
+				type.ResolvedType = genericParameter.Name;
+				break;
+
+			case AllocatorTypeReference:
+				type.ResolvedType = AllocatorType;
+				break;
+
 			case NamedTypeReference named:
 				foreach (TypeReference argument in named.TypeArguments)
 					AnalyzeType(argument, scope);

@@ -530,7 +530,7 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case MethodReferenceExpression method:
-				writer.Write(method.Candidates.Count == 1 ? method.Candidates[0].Name : "/* method */");
+				writer.Write(method.Candidates.Count == 1 ? GetFunctionReferenceName(method.Candidates[0]) : "/* method */");
 				break;
 
 			case TypeReferenceExpression type:
@@ -1074,9 +1074,8 @@ public sealed class BindableNodeCodeSerializer
 	{
 		for (int i = 0; i < target.Parts.Count; i++)
 		{
-			if (i > 0)
-				writer.Write(".");
 			InitializerTargetPart part = target.Parts[i];
+			writer.Write(".");
 			writer.Write(part.Name);
 			if (part.Arguments.Count > 0)
 				WriteDelimited("[", "]", part.Arguments, WriteArgument);
@@ -1231,6 +1230,11 @@ public sealed class BindableNodeCodeSerializer
 			LambdaParameter parameter => parameter.Name ?? parameter.Parameter?.Name ?? "/* lambda */",
 			_ => "/* node */"
 		};
+	}
+
+	static string GetFunctionReferenceName(FunctionDefinition function)
+	{
+		return string.IsNullOrWhiteSpace(function.Symbol) ? function.Name : function.Symbol;
 	}
 
 	string GetGeneratedName(BindableNode node, string name)

@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace Camp.Compiler;
 
@@ -7,6 +9,10 @@ public sealed partial class BindableNodeAnalyzer
 {
 	readonly FunctionDefinition allocatorAllocMethod = CreateAllocatorAllocMethod();
 	readonly FunctionDefinition allocatorFreeMethod = CreateAllocatorFreeMethod();
+	readonly Dictionary<ClassDefinition, List<InterfaceImplementationLowering>> classInterfaceLowerings = [];
+	readonly Dictionary<FunctionDefinition, InterfaceThunkLowering> interfaceThunkLowerings = [];
+	readonly Dictionary<InterfaceDefinition, StructDefinition> loweredInterfaceStructs = [];
+	readonly List<Definition> generatedInterfaceDefinitions = [];
 	const string InitNewMethodName = "op_initnew";
 	const string CreateMethodName = "create";
 	const string DeleteMethodName = "op_delete";
@@ -20,6 +26,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		BindableNodeAnalyzer analyzer = new();
 		analyzer.GenerateLifecycleMethods(module);
+		analyzer.GenerateInterfaceDeclarations(module);
 		analyzer.AnalyzeModule(module);
 		analyzer.FillMissingResolvedTypes(module);
 		if (analyzer.diagnostics.Count == 0)
@@ -32,8 +39,724 @@ public sealed partial class BindableNodeAnalyzer
 
 	void RewriteModule(Module module)
 	{
+		CompleteInterfaceDeclarations(module);
 		foreach (Definition definition in module.Definitions)
 			RewriteDefinition(definition);
+		LowerSourceInterfaceTypes(module);
+		RefreshLoweredResolvedTypes(module);
+		LowerInterfaceDefinitions(module);
+	}
+
+	void GenerateInterfaceDeclarations(Module module)
+	{
+		Dictionary<string, InterfaceDefinition> interfaces = [];
+		foreach (Definition definition in module.Definitions)
+		{
+			if (definition is InterfaceDefinition interfaceDefinition && !string.IsNullOrWhiteSpace(interfaceDefinition.Name))
+				interfaces[interfaceDefinition.Name] = interfaceDefinition;
+		}
+
+		foreach (Definition definition in module.Definitions.ToArray())
+		{
+			if (definition is ClassDefinition classDefinition)
+				GenerateClassInterfaceDeclarations(module, classDefinition, interfaces);
+		}
+	}
+
+	void GenerateClassInterfaceDeclarations(Module module, ClassDefinition classDefinition, Dictionary<string, InterfaceDefinition> interfaces)
+	{
+		List<InterfaceImplementationLowering> implementations = [];
+		int interfaceIndex = 0;
+		foreach (TypeReference baseType in classDefinition.BaseTypes)
+		{
+			if (!TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
+				continue;
+
+			FieldDefinition field = new()
+			{
+				Name = InterfaceFieldName(interfaceDefinition),
+				Symbol = InterfaceFieldName(interfaceDefinition),
+				Type = PointerTo(InterfaceType(interfaceDefinition)),
+				ResolvedType = $"{interfaceDefinition.Name}*"
+			};
+			classDefinition.Fields.Insert(interfaceIndex, field);
+
+			VariableDefinition vtable = new()
+			{
+				Name = InterfaceVTableName(classDefinition, interfaceDefinition),
+				Symbol = InterfaceVTableName(classDefinition, interfaceDefinition),
+				Type = InterfaceType(interfaceDefinition),
+				ResolvedType = interfaceDefinition.Name
+			};
+			module.Definitions.Add(vtable);
+			generatedInterfaceDefinitions.Add(vtable);
+
+			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, DirectEntries: interfaceIndex == 0);
+			implementations.Add(lowering);
+			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
+			interfaceIndex++;
+		}
+
+		if (implementations.Count > 0)
+		{
+			EnsureInterfaceInitNewMethod(classDefinition);
+			classInterfaceLowerings[classDefinition] = implementations;
+		}
+	}
+
+	void EnsureInterfaceInitNewMethod(ClassDefinition classDefinition)
+	{
+		foreach (FunctionDefinition function in classDefinition.Functions)
+		{
+			if (function.Name == InitNewMethodName || function.Modifier == FunctionModifier.Constructor)
+				return;
+		}
+
+		classDefinition.Functions.Add(new FunctionDefinition
+		{
+			Name = InitNewMethodName,
+			Symbol = $"{classDefinition.Name}_{InitNewMethodName}",
+			ReturnType = VoidType(),
+			ResolvedType = "void",
+			Body = new BlockStatement { ResolvedType = "void" }
+		});
+	}
+
+	void GenerateInterfaceThunks(Module module, InterfaceImplementationLowering lowering, InterfaceDefinition interfaceDefinition, Dictionary<string, InterfaceDefinition> interfaces)
+	{
+		foreach (InterfaceDefinition implementedInterface in GetInterfaceAndBaseInterfaces(interfaceDefinition, interfaces))
+		{
+			foreach (FunctionDefinition member in implementedInterface.Functions)
+			{
+				if (lowering.DirectEntries)
+					continue;
+
+				FunctionDefinition thunk = CreateInterfaceThunkDeclaration(lowering, implementedInterface, member);
+				module.Definitions.Add(thunk);
+				generatedInterfaceDefinitions.Add(thunk);
+				interfaceThunkLowerings[thunk] = new InterfaceThunkLowering(lowering, implementedInterface, member);
+			}
+		}
+	}
+
+	FunctionDefinition CreateInterfaceThunkDeclaration(InterfaceImplementationLowering lowering, InterfaceDefinition entryInterface, FunctionDefinition member)
+	{
+		FunctionDefinition thunk = new()
+		{
+			Name = InterfaceThunkName(lowering.Class, entryInterface, member),
+			Symbol = InterfaceThunkName(lowering.Class, entryInterface, member),
+			ReturnType = CloneType(member.ReturnType) ?? VoidType(),
+			ResolvedType = GetInterfaceEntryReturnType(member, lowering.Class)
+		};
+		thunk.Parameters.Add(new ParameterDefinition
+		{
+			Name = "ctx",
+			Symbol = "ctx",
+			Type = InterfaceInstanceType(entryInterface),
+			ResolvedType = $"{entryInterface.Name}**"
+		});
+		foreach (ParameterDefinition parameter in member.Parameters)
+		{
+			if (parameter is ThisParameterDefinition)
+				continue;
+			thunk.Parameters.Add(CloneParameter(parameter));
+		}
+		return thunk;
+	}
+
+	void CompleteInterfaceDeclarations(Module module)
+	{
+		foreach ((ClassDefinition classDefinition, List<InterfaceImplementationLowering> lowerings) in classInterfaceLowerings)
+		{
+			foreach (InterfaceImplementationLowering lowering in lowerings)
+				lowering.VTable.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface);
+
+			for (int i = lowerings.Count - 1; i >= 0; i--)
+				InsertInterfaceVTableInitialization(classDefinition, lowerings[i]);
+		}
+
+		foreach ((FunctionDefinition thunk, InterfaceThunkLowering lowering) in interfaceThunkLowerings)
+			thunk.Body = CreateInterfaceThunkBody(thunk, lowering);
+	}
+
+	void LowerInterfaceDefinitions(Module module)
+	{
+		for (int i = 0; i < module.Definitions.Count; i++)
+		{
+			if (module.Definitions[i] is InterfaceDefinition interfaceDefinition)
+				module.Definitions[i] = LowerInterfaceDefinition(interfaceDefinition);
+			else if (module.Definitions[i] is ClassDefinition classDefinition)
+				RemoveLoweredInterfaceBaseTypes(classDefinition);
+		}
+	}
+
+	void LowerSourceInterfaceTypes(BindableNode node)
+	{
+		foreach (PropertyInfo property in node.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+		{
+			if (property.Name == nameof(BindableNode.SourceSyntax) || property.Name == nameof(BindableNode.ResolvedType) || IsSemanticReferenceProperty(property))
+				continue;
+
+			object? value = property.GetValue(node);
+			if (value is null)
+				continue;
+
+			if (value is TypeReference type)
+			{
+				TypeReference lowered = LowerSourceInterfaceType(type);
+				if (!ReferenceEquals(lowered, type) && property.CanWrite)
+					property.SetValue(node, lowered);
+				LowerSourceInterfaceTypes(lowered);
+			}
+			else if (value is IList list)
+			{
+				LowerSourceInterfaceTypes(list);
+			}
+			else if (value is BindableNode child)
+			{
+				LowerSourceInterfaceTypes(child);
+			}
+		}
+
+		SyncResolvedTypeFromLoweredType(node);
+	}
+
+	void LowerSourceInterfaceTypes(IList list)
+	{
+		for (int i = 0; i < list.Count; i++)
+		{
+			object? item = list[i];
+			if (item is TypeReference type)
+			{
+				TypeReference lowered = LowerSourceInterfaceType(type);
+				if (!ReferenceEquals(lowered, type))
+					list[i] = lowered;
+				LowerSourceInterfaceTypes(lowered);
+			}
+			else if (item is BindableNode child)
+			{
+				LowerSourceInterfaceTypes(child);
+			}
+		}
+	}
+
+	TypeReference LowerSourceInterfaceType(TypeReference type)
+	{
+		if (type is PointerTypeReference pointer
+			&& (pointer.SourceSyntax is not null || pointer.ElementType?.SourceSyntax is not null)
+			&& TryGetInterfaceDefinition(pointer.ElementType ?? pointer, out InterfaceDefinition? interfaceDefinition)
+			&& interfaceDefinition is not null)
+		{
+			TypeReference lowered = PointerTo(PointerTo(InterfaceType(interfaceDefinition)));
+			lowered.SourceSyntax = type.SourceSyntax;
+			lowered.ResolvedType = $"{interfaceDefinition.Name}**";
+			return lowered;
+		}
+
+		return type;
+	}
+
+	static void SyncResolvedTypeFromLoweredType(BindableNode node)
+	{
+		switch (node)
+		{
+			case ParameterDefinition parameter when parameter.Type is not null:
+				parameter.ResolvedType = parameter.Type.ResolvedType;
+				break;
+
+			case FieldDefinition field when field.Type is not null:
+				field.ResolvedType = field.Type.ResolvedType;
+				break;
+
+			case VariableDefinition variable when variable.Type is not null:
+				variable.ResolvedType = variable.Type.ResolvedType;
+				break;
+
+			case DeclarationTarget target when target.Type is not null && target.Type is not AutoTypeReference:
+				target.ResolvedType = target.Type.ResolvedType;
+				break;
+		}
+	}
+
+	void RefreshLoweredResolvedTypes(BindableNode node)
+	{
+		foreach (PropertyInfo property in node.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+		{
+			if (property.Name == nameof(BindableNode.SourceSyntax) || property.Name == nameof(BindableNode.ResolvedType) || IsSemanticReferenceProperty(property))
+				continue;
+
+			object? value = property.GetValue(node);
+			if (value is BindableNode child)
+				RefreshLoweredResolvedTypes(child);
+			else if (value is IList list)
+			{
+				foreach (object? item in list)
+				{
+					if (item is BindableNode childItem)
+						RefreshLoweredResolvedTypes(childItem);
+				}
+			}
+		}
+
+		SyncResolvedTypeFromLoweredType(node);
+		switch (node)
+		{
+			case VariableReferenceExpression variable:
+				variable.ResolvedType = variable.Variable?.ResolvedType ?? variable.ResolvedType;
+				break;
+
+			case MethodReferenceExpression method when method.Candidates.Count == 1:
+				bool isInstance = IsInstanceFunction(method.Candidates[0]);
+				if (!isInstance || NeedsResolvedTypeRefresh(method.ResolvedType))
+					method.ResolvedType = BuildFunctionValueType(method.Candidates[0], isInstance);
+				break;
+
+			case MemberReferenceExpression { Member: FunctionDefinition function } member:
+				member.ResolvedType = function.ResolvedType ?? member.ResolvedType;
+				break;
+
+			case CallExpression call:
+				call.ResolvedType = GetLoweredCallReturnType(call) ?? call.ResolvedType;
+				break;
+		}
+	}
+
+	static bool NeedsResolvedTypeRefresh(string? resolvedType)
+	{
+		return string.IsNullOrWhiteSpace(resolvedType)
+			|| resolvedType.Contains(ErrorType, StringComparison.Ordinal)
+			|| resolvedType.Contains(UnresolvedType, StringComparison.Ordinal);
+	}
+
+	string? GetLoweredCallReturnType(CallExpression call)
+	{
+		FunctionDefinition? function = call.Target switch
+		{
+			MemberReferenceExpression { Member: FunctionDefinition memberFunction } => memberFunction,
+			MethodReferenceExpression { Candidates.Count: 1 } method => method.Candidates[0],
+			_ => null
+		};
+		if (function is null)
+			return null;
+
+		return SubstituteGenericReturnType(function.ResolvedType, call.TypeArguments);
+	}
+
+	void RemoveLoweredInterfaceBaseTypes(ClassDefinition classDefinition)
+	{
+		for (int i = classDefinition.BaseTypes.Count - 1; i >= 0; i--)
+		{
+			if (TryGetInterfaceDefinition(classDefinition.BaseTypes[i], out _))
+				classDefinition.BaseTypes.RemoveAt(i);
+		}
+	}
+
+	StructDefinition LowerInterfaceDefinition(InterfaceDefinition definition)
+	{
+		if (loweredInterfaceStructs.TryGetValue(definition, out StructDefinition? existing))
+			return existing;
+
+		StructDefinition lowered = new()
+		{
+			SourceSyntax = definition.SourceSyntax,
+			Name = definition.Name,
+			Symbol = definition.Symbol,
+			Export = definition.Export,
+			Extern = definition.Extern,
+			ResolvedType = definition.ResolvedType ?? definition.Name
+		};
+		foreach (GenericParameter parameter in definition.GenericParameters)
+			lowered.GenericParameters.Add(parameter);
+
+		foreach (TypeReference baseType in definition.BaseTypes)
+		{
+			if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? baseInterface) && baseInterface is not null)
+			{
+				lowered.Fields.Add(new FieldDefinition
+				{
+					Name = baseInterface.Name,
+					Symbol = baseInterface.Name,
+					Type = InterfaceType(baseInterface),
+					ResolvedType = baseInterface.Name
+				});
+			}
+		}
+
+		foreach (FunctionDefinition member in definition.Functions)
+			lowered.Fields.Add(CreateInterfaceVTableEntryField(definition, member));
+
+		loweredInterfaceStructs[definition] = lowered;
+		return lowered;
+	}
+
+	FieldDefinition CreateInterfaceVTableEntryField(InterfaceDefinition owner, FunctionDefinition member)
+	{
+		CallableTypeReference callable = new()
+		{
+			Kind = CallableKind.Function,
+			ReturnType = CreateInterfaceEntryReturnType(member, owner),
+			ResolvedType = BuildInterfaceEntryCallableType(owner, member)
+		};
+		if (member.Modifier != FunctionModifier.Constructor)
+			callable.Parameters.Add(new ParameterDefinition
+			{
+				Name = "ctx",
+				Symbol = "ctx",
+				Type = InterfaceInstanceType(owner),
+				ResolvedType = $"{owner.Name}**"
+			});
+		foreach (ParameterDefinition parameter in member.Parameters)
+		{
+			if (parameter is ThisParameterDefinition)
+				continue;
+			callable.Parameters.Add(CloneParameter(parameter));
+		}
+		return new FieldDefinition
+		{
+			Name = GetInterfaceEntryName(member),
+			Symbol = GetInterfaceEntryName(member),
+			Type = callable,
+			ResolvedType = callable.ResolvedType
+		};
+	}
+
+	InitializerExpression CreateInterfaceVTableInitializer(InterfaceImplementationLowering lowering, InterfaceDefinition interfaceDefinition)
+	{
+		InitializerExpression initializer = new()
+		{
+			ResolvedType = interfaceDefinition.Name
+		};
+		foreach (TypeReference baseType in interfaceDefinition.BaseTypes)
+		{
+			if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? baseInterface) && baseInterface is not null)
+			{
+				initializer.Items.Add(new InitializerItem
+				{
+					Target = InitializerTargetFor(baseInterface.Name),
+					Expression = CreateInterfaceVTableInitializer(lowering, baseInterface),
+					ResolvedType = baseInterface.Name
+				});
+			}
+		}
+
+		foreach (FunctionDefinition member in interfaceDefinition.Functions)
+		{
+			initializer.Items.Add(new InitializerItem
+			{
+				Target = InitializerTargetFor(GetInterfaceEntryName(member)),
+				Expression = CreateInterfaceVTableEntryReference(lowering, interfaceDefinition, member),
+				ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
+			});
+		}
+		return initializer;
+	}
+
+	Expression CreateInterfaceVTableEntryReference(InterfaceImplementationLowering lowering, InterfaceDefinition interfaceDefinition, FunctionDefinition member)
+	{
+		if (lowering.DirectEntries && FindImplementationMethod(lowering.Class, member) is FunctionDefinition implementation)
+		{
+			EnsureImplementationMethodSymbol(lowering.Class, implementation);
+			MethodReferenceExpression reference = new()
+			{
+				ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
+			};
+			reference.Candidates.Add(implementation);
+			return reference;
+		}
+
+		MethodReferenceExpression thunk = new()
+		{
+			ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
+		};
+		if (TryFindGeneratedFunction(InterfaceThunkName(lowering.Class, interfaceDefinition, member), out FunctionDefinition? thunkFunction) && thunkFunction is not null)
+			thunk.Candidates.Add(thunkFunction);
+		return thunk;
+	}
+
+	BlockStatement CreateInterfaceThunkBody(FunctionDefinition thunk, InterfaceThunkLowering lowering)
+	{
+		BlockStatement body = new()
+		{
+			ResolvedType = "void"
+		};
+		ParameterDefinition ctx = thunk.Parameters[0];
+		DeclarationStatement instance = CreateGeneratedLocal("instance", $"{lowering.Implementation.Class.Name}*", PointerTo(InterfaceType(lowering.Implementation.Class)), CreateInterfaceInstanceFixup(lowering, ctx));
+		instance.Target.Names.Clear();
+		instance.Target.Names.Add("instance");
+		body.Statements.Add(instance);
+
+		CallExpression call = new()
+		{
+			ResolvedType = GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Class),
+			Target = new MemberReferenceExpression
+			{
+				Target = CreateVariableReference(instance.Target, instance.Target.ResolvedType ?? $"{lowering.Implementation.Class.Name}*"),
+				Name = GetImplementationMethodName(lowering.Member),
+				Member = FindImplementationMethod(lowering.Implementation.Class, lowering.Member),
+				ResolvedType = GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Class)
+			}
+		};
+		foreach (ParameterDefinition parameter in thunk.Parameters)
+		{
+			if (parameter == ctx)
+				continue;
+			call.Arguments.Add(new ArgumentExpression
+			{
+				Value = CreateVariableReference(parameter, parameter.ResolvedType ?? ErrorType),
+				ResolvedType = parameter.ResolvedType ?? ErrorType
+			});
+		}
+
+		if (call.ResolvedType == "void")
+			body.Statements.Add(new ExpressionStatement { Expression = call, ResolvedType = "void" });
+		else
+			body.Statements.Add(new ReturnStatement { Expression = call, ResolvedType = "void" });
+		return body;
+	}
+
+	Expression CreateInterfaceInstanceFixup(InterfaceThunkLowering lowering, ParameterDefinition ctx)
+	{
+		return new CastExpression
+		{
+			Type = PointerTo(InterfaceType(lowering.Implementation.Class)),
+			Kind = CastKind.Type,
+			ResolvedType = $"{lowering.Implementation.Class.Name}*",
+			Expression = new BinaryExpression
+			{
+				Left = new CastExpression
+				{
+					Type = PointerTo(new PrimitiveTypeReference { Type = PrimitiveType.Byte, ResolvedType = "byte" }),
+					Kind = CastKind.Type,
+					ResolvedType = "byte*",
+					Expression = CreateVariableReference(ctx, ctx.ResolvedType ?? $"{lowering.EntryInterface.Name}**")
+				},
+				Operator = BinaryOperator.Subtract,
+				Right = new CallExpression
+				{
+					Target = new NamedExpression { Name = "offsetof", ResolvedType = "fn nuint()" },
+					ResolvedType = "nuint",
+					Arguments =
+					{
+						new ArgumentExpression
+						{
+							Value = new MemberExpression
+							{
+								Target = new TypeReferenceExpression { Type = InterfaceType(lowering.Implementation.Class), ResolvedType = lowering.Implementation.Class.Name },
+								Name = lowering.Implementation.Field.Name,
+								ResolvedType = lowering.Implementation.Field.ResolvedType
+							},
+							ResolvedType = "nuint"
+						}
+					}
+				},
+				ResolvedType = "byte*"
+			}
+		};
+	}
+
+	void InsertInterfaceVTableInitialization(ClassDefinition classDefinition, InterfaceImplementationLowering lowering)
+	{
+		foreach (FunctionDefinition function in classDefinition.Functions)
+		{
+			if (function.Name != InitNewMethodName || function.Body is null)
+				continue;
+
+			function.Body.Statements.Insert(0, new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					Target = new MemberReferenceExpression
+					{
+						Target = new ThisExpression { ResolvedType = classDefinition.Name },
+						Name = lowering.Field.Name,
+						Member = lowering.Field,
+						ResolvedType = lowering.Field.ResolvedType
+					},
+					Operator = AssignmentOperator.Assign,
+					Value = new UnaryExpression
+					{
+						Operator = UnaryOperator.AddressOf,
+						Operand = new NamedExpression
+						{
+							Name = lowering.VTable.Name,
+							ResolvedType = lowering.VTable.ResolvedType
+						},
+						ResolvedType = lowering.Field.ResolvedType
+					},
+					ResolvedType = lowering.Field.ResolvedType
+				}
+			});
+		}
+	}
+
+	bool TryGetDirectInterface(TypeReference type, Dictionary<string, InterfaceDefinition> interfaces, out InterfaceDefinition? interfaceDefinition)
+	{
+		string? name = type switch
+		{
+			NamedTypeReference named when named.Qualifiers.Count == 0 => named.Name,
+			TypeDefinitionReference { Definition: InterfaceDefinition definition } => definition.Name,
+			_ => null
+		};
+		if (name is not null && interfaces.TryGetValue(name, out interfaceDefinition))
+			return true;
+
+		interfaceDefinition = null;
+		return false;
+	}
+
+	bool TryGetInterfaceDefinition(TypeReference type, out InterfaceDefinition? interfaceDefinition)
+	{
+		if (type is TypeDefinitionReference { Definition: InterfaceDefinition definition })
+		{
+			interfaceDefinition = definition;
+			return true;
+		}
+		if (type is NamedTypeReference named && typeDefinitions.TryGetValue(named.Name, out TypeDefinition? typeDefinition) && typeDefinition is InterfaceDefinition namedInterface)
+		{
+			interfaceDefinition = namedInterface;
+			return true;
+		}
+
+		interfaceDefinition = null;
+		return false;
+	}
+
+	IEnumerable<InterfaceDefinition> GetInterfaceAndBaseInterfaces(InterfaceDefinition definition, Dictionary<string, InterfaceDefinition> interfaces)
+	{
+		HashSet<InterfaceDefinition> seen = [];
+		foreach (InterfaceDefinition baseInterface in GetBaseInterfacesForGeneration(definition, interfaces, seen))
+			yield return baseInterface;
+		if (seen.Add(definition))
+			yield return definition;
+	}
+
+	IEnumerable<InterfaceDefinition> GetBaseInterfacesForGeneration(InterfaceDefinition definition, Dictionary<string, InterfaceDefinition> interfaces, HashSet<InterfaceDefinition> seen)
+	{
+		foreach (TypeReference baseType in definition.BaseTypes)
+		{
+			if (!TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? baseInterface) || baseInterface is null || !seen.Add(baseInterface))
+				continue;
+
+			foreach (InterfaceDefinition inherited in GetBaseInterfacesForGeneration(baseInterface, interfaces, seen))
+				yield return inherited;
+			yield return baseInterface;
+		}
+	}
+
+	FunctionDefinition? FindImplementationMethod(ClassDefinition classDefinition, FunctionDefinition interfaceMember)
+	{
+		string name = GetImplementationMethodName(interfaceMember);
+		foreach (FunctionDefinition function in classDefinition.Functions)
+		{
+			if (function.Name == name)
+				return function;
+		}
+		return null;
+	}
+
+	static void EnsureImplementationMethodSymbol(TypeDefinition type, FunctionDefinition function)
+	{
+		if (string.IsNullOrWhiteSpace(function.Symbol) || function.Symbol == function.Name)
+			function.Symbol = type.Name + "_" + function.Name.TrimStart('~');
+	}
+
+	static string GetImplementationMethodName(FunctionDefinition member)
+	{
+		return member.Modifier switch
+		{
+			FunctionModifier.Constructor => CreateMethodName,
+			FunctionModifier.Destructor => DestroyMethodName,
+			_ => member.Name
+		};
+	}
+
+	static string GetInterfaceEntryName(FunctionDefinition member)
+	{
+		return member.Modifier switch
+		{
+			FunctionModifier.Constructor => CreateMethodName,
+			FunctionModifier.Destructor => DestroyMethodName,
+			_ => member.Name
+		};
+	}
+
+	static string GetInterfaceEntryReturnType(FunctionDefinition member, TypeDefinition implementation)
+	{
+		return member.Modifier == FunctionModifier.Constructor ? $"{implementation.Name}*" : member.ResolvedType ?? member.ReturnType?.ResolvedType ?? ErrorType;
+	}
+
+	TypeReference CreateInterfaceEntryReturnType(FunctionDefinition member, InterfaceDefinition owner)
+	{
+		if (member.Modifier == FunctionModifier.Constructor)
+			return PointerTo(new AnyTypeReference { ResolvedType = "any" });
+		return CloneType(member.ReturnType) ?? VoidType();
+	}
+
+	static string BuildInterfaceEntryCallableType(InterfaceDefinition owner, FunctionDefinition member)
+	{
+		List<string> parameters = [];
+		if (member.Modifier != FunctionModifier.Constructor)
+			parameters.Add($"{owner.Name}**");
+		foreach (ParameterDefinition parameter in member.Parameters)
+		{
+			if (parameter is ThisParameterDefinition)
+				continue;
+			parameters.Add(parameter.ResolvedType ?? ErrorType);
+		}
+		string returnType = member.Modifier == FunctionModifier.Constructor ? "any*" : member.ResolvedType ?? ErrorType;
+		return $"fn {returnType}({string.Join(", ", parameters)})";
+	}
+
+	static string InterfaceFieldName(InterfaceDefinition interfaceDefinition)
+	{
+		return "_vt_" + interfaceDefinition.Name;
+	}
+
+	static string InterfaceVTableName(TypeDefinition type, InterfaceDefinition interfaceDefinition)
+	{
+		return type.Name + "_" + interfaceDefinition.Name;
+	}
+
+	static string InterfaceThunkName(TypeDefinition type, InterfaceDefinition interfaceDefinition, FunctionDefinition member)
+	{
+		return type.Name + "_" + interfaceDefinition.Name + "_" + GetInterfaceEntryName(member);
+	}
+
+	static InitializerTarget InitializerTargetFor(string name)
+	{
+		InitializerTarget target = new() { ResolvedType = TargetType };
+		target.Parts.Add(new InitializerTargetPart { Name = name, ResolvedType = TargetType });
+		return target;
+	}
+
+	bool TryFindGeneratedFunction(string name, out FunctionDefinition? function)
+	{
+		function = null;
+		foreach (Definition definition in generatedInterfaceDefinitions)
+		{
+			if (definition is FunctionDefinition candidate && candidate.Name == name)
+			{
+				function = candidate;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	static TypeReference InterfaceType(TypeDefinition type)
+	{
+		return new TypeDefinitionReference
+		{
+			Name = type.Name,
+			Definition = type,
+			ResolvedType = type.Name
+		};
+	}
+
+	static TypeReference InterfaceInstanceType(InterfaceDefinition interfaceDefinition)
+	{
+		return PointerTo(PointerTo(InterfaceType(interfaceDefinition)));
 	}
 
 	void GenerateLifecycleMethods(Module module)
@@ -315,6 +1038,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (TryRewriteInitDeclaration(declaration, out List<Statement>? statements))
 					return CreateBlock(statements);
 				declaration.InitialValue = LowerExpression(declaration.InitialValue);
+				declaration.InitialValue = LowerInterfaceConversion(declaration.Target.Type, declaration.InitialValue);
 				break;
 
 			case IfStatement ifStatement:
@@ -554,6 +1278,8 @@ public sealed partial class BindableNodeAnalyzer
 				call.Target = LowerExpression(call.Target);
 				for (int i = 0; i < call.Arguments.Count; i++)
 					call.Arguments[i] = LowerArgument(call.Arguments[i]);
+				LowerCallArgumentConversions(call);
+				LowerInterfaceCall(call);
 				break;
 
 			case IndexExpression index:
@@ -612,6 +1338,119 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return expression;
+	}
+
+	void LowerInterfaceCall(CallExpression call)
+	{
+		if (call.Target is not MemberReferenceExpression { Target: not null, Member: FunctionDefinition function } member)
+			return;
+		if (FindContainingType(function) is not InterfaceDefinition)
+			return;
+		if (function.Modifier == FunctionModifier.Constructor)
+			return;
+
+		Expression context = member.Target;
+		call.Arguments.Insert(0, new ArgumentExpression
+		{
+			Value = context,
+			ResolvedType = context.ResolvedType
+		});
+	}
+
+	void LowerCallArgumentConversions(CallExpression call)
+	{
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function))
+			return;
+
+		List<ParameterDefinition> parameters = GetCallableParameters(function.Parameters);
+		for (int i = 0; i < call.Arguments.Count && i < parameters.Count; i++)
+		{
+			if (parameters[i].Modifier == ParameterModifier.Out)
+				continue;
+			call.Arguments[i].Value = LowerInterfaceConversion(parameters[i].Type, call.Arguments[i].Value);
+			call.Arguments[i].ResolvedType = call.Arguments[i].Value?.ResolvedType ?? call.Arguments[i].ResolvedType;
+		}
+	}
+
+	Expression? LowerInterfaceConversion(TypeReference? targetType, Expression? value)
+	{
+		if (targetType is not PointerTypeReference targetPointer || value is null)
+			return value;
+		if (!TryGetInterfaceDefinition(targetPointer.ElementType ?? targetPointer, out InterfaceDefinition? targetInterface) || targetInterface is null)
+			return value;
+
+		string sourceType = value.ResolvedType ?? "";
+		if (TryGetPointerElementType(sourceType) is string className
+			&& typeDefinitions.TryGetValue(BaseTypeName(className), out TypeDefinition? typeDefinition)
+			&& typeDefinition is ClassDefinition classDefinition
+			&& TryFindInterfaceLowering(classDefinition, targetInterface, out InterfaceImplementationLowering? lowering)
+			&& lowering is not null)
+		{
+			return AddressOfInterfaceField(value, lowering.Field);
+		}
+
+		if (TryGetPointerElementType(sourceType) is string sourceInterfaceName
+			&& typeDefinitions.TryGetValue(BaseTypeName(sourceInterfaceName), out TypeDefinition? sourceDefinition)
+			&& sourceDefinition is InterfaceDefinition sourceInterface
+			&& InterfaceContainsBase(sourceInterface, targetInterface))
+		{
+			return new CastExpression
+			{
+				Type = PointerTo(PointerTo(InterfaceType(targetInterface))),
+				Kind = CastKind.Type,
+				Expression = value,
+				ResolvedType = $"{targetInterface.Name}**"
+			};
+		}
+
+		return value;
+	}
+
+	Expression AddressOfInterfaceField(Expression instance, FieldDefinition field)
+	{
+		return new UnaryExpression
+		{
+			Operator = UnaryOperator.AddressOf,
+			Operand = new MemberReferenceExpression
+			{
+				Target = instance,
+				Name = field.Name,
+				Member = field,
+				ResolvedType = field.ResolvedType
+			},
+			ResolvedType = $"{field.ResolvedType}*"
+		};
+	}
+
+	bool TryFindInterfaceLowering(ClassDefinition classDefinition, InterfaceDefinition targetInterface, out InterfaceImplementationLowering? lowering)
+	{
+		lowering = null;
+		if (!classInterfaceLowerings.TryGetValue(classDefinition, out List<InterfaceImplementationLowering>? lowerings))
+			return false;
+
+		foreach (InterfaceImplementationLowering candidate in lowerings)
+		{
+			if (ReferenceEquals(candidate.Interface, targetInterface) || InterfaceContainsBase(candidate.Interface, targetInterface))
+			{
+				lowering = candidate;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool InterfaceContainsBase(InterfaceDefinition source, InterfaceDefinition target)
+	{
+		if (ReferenceEquals(source, target))
+			return true;
+		foreach (TypeReference baseType in source.BaseTypes)
+		{
+			if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? baseInterface)
+				&& baseInterface is not null
+				&& InterfaceContainsBase(baseInterface, target))
+				return true;
+		}
+		return false;
 	}
 
 	ArgumentExpression LowerArgument(ArgumentExpression argument)
@@ -708,10 +1547,13 @@ public sealed partial class BindableNodeAnalyzer
 		string? elementType = TryGetPointerElementType(targetType);
 		bool isPointer = elementType is not null;
 		bool isArray = TryGetArrayElementType(targetType) is not null;
+		bool isThisPointer = target is ThisExpression
+			&& typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? thisType)
+			&& thisType is ClassDefinition;
 		string deletedType = isPointer ? elementType ?? ErrorType : targetType;
 		FunctionDefinition? opDelete = FindDeleteMethod(deletedType);
 
-		if (!isPointer && !isArray && opDelete is null)
+		if (!isPointer && !isThisPointer && !isArray && opDelete is null)
 			Report(target?.SourceSyntax, $"delete requires a pointer or a type with a destructor, not '{targetType}'.");
 		if (target is null)
 			return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" };
@@ -719,7 +1561,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (isArray)
 			return CreateFreeCall(CreateArrayElementsAccess(target));
 
-		return CreateDeleteExpression(target, opDelete, isPointer);
+		return CreateDeleteExpression(target, opDelete, isPointer || isThisPointer);
 	}
 
 	CallExpression CreateAllocCall(TypeReference type, SyntaxNode? syntax)
@@ -1275,6 +2117,10 @@ public sealed partial class BindableNodeAnalyzer
 		method.Parameters.Add(new ParameterDefinition { Name = "ptr", Symbol = "ptr", ResolvedType = "escaped void*" });
 		return method;
 	}
+
+	sealed record InterfaceImplementationLowering(ClassDefinition Class, InterfaceDefinition Interface, FieldDefinition Field, VariableDefinition VTable, bool DirectEntries);
+
+	sealed record InterfaceThunkLowering(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member);
 }
 
 static class BindableNodeAnalyzerRewriteParameterExtensions

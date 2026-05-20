@@ -598,13 +598,40 @@ public sealed partial class BindableNodeAnalyzer
 
 		FunctionDefinition? function = ResolveCallTarget(call.Target, scope, typeScope, call.Arguments.Count);
 		if (function is not null)
+		{
+			EnsureFunctionSignatureAnalyzed(function, typeScope);
 			callTargets[call] = function;
-		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope);
+		}
+		if (IsGeneratedAllocatorCall(function))
+		{
+			foreach (ArgumentExpression argument in call.Arguments)
+				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
+		}
+		else
+		{
+			AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope);
+		}
 
-		string returnType = function?.ResolvedType ?? ErrorType;
+		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments);
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
 		return returnType;
+	}
+
+	bool IsGeneratedAllocatorCall(FunctionDefinition? function)
+	{
+		return ReferenceEquals(function, allocatorAllocMethod) || ReferenceEquals(function, allocatorFreeMethod);
+	}
+
+	static string SubstituteGenericReturnType(string? returnType, List<TypeReference> typeArguments)
+	{
+		if (returnType is null)
+			return ErrorType;
+		if (typeArguments.Count == 0)
+			return returnType;
+
+		string firstType = typeArguments[0].ResolvedType ?? ErrorType;
+		return returnType.Replace("T", firstType, StringComparison.Ordinal);
 	}
 
 	FunctionDefinition? ResolveCallTarget(Expression? target, BodyScope scope, AnalysisScope typeScope, int argumentCount = 0)
@@ -619,6 +646,7 @@ public sealed partial class BindableNodeAnalyzer
 				List<FunctionDefinition> functions = LookupFunctions(named.Name, scope);
 				if (functions.Count == 1)
 				{
+					EnsureFunctionSignatureAnalyzed(functions[0], typeScope);
 					BodyAnalyzeExpression(named, scope, typeScope);
 					return functions[0];
 				}
@@ -646,6 +674,17 @@ public sealed partial class BindableNodeAnalyzer
 				return null;
 			}
 
+			case MemberReferenceExpression { Member: FunctionDefinition function } member:
+				EnsureFunctionSignatureAnalyzed(function, typeScope);
+				member.ResolvedType = function.ResolvedType ?? ErrorType;
+				BodyAnalyzeExpression(member.Target, scope, typeScope);
+				return function;
+
+			case MethodReferenceExpression method when method.Candidates.Count == 1:
+				EnsureFunctionSignatureAnalyzed(method.Candidates[0], typeScope);
+				method.ResolvedType = BuildFunctionValueType(method.Candidates[0], IsInstanceFunction(method.Candidates[0]));
+				return method.Candidates[0];
+
 			default:
 				BodyAnalyzeExpression(target, scope, typeScope);
 				return null;
@@ -655,10 +694,15 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope)
 	{
 		List<ParameterDefinition> callableParameters = GetCallableParameters(parameters);
+		if (arguments.Count > callableParameters.Count)
+			AddExplicitHiddenParameters(parameters, callableParameters);
 		for (int i = 0; i < arguments.Count; i++)
 		{
 			ParameterDefinition? parameter = i < callableParameters.Count ? callableParameters[i] : null;
-			string expected = parameter?.ResolvedType ?? null!;
+			if (parameter is not null && parameter.ResolvedType is null)
+				AnalyzeParameterDefinition(parameter, typeScope);
+
+			string expected = parameter?.ResolvedType ?? ErrorType;
 			string actual = BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, expected);
 			if (parameter is not null)
 			{
@@ -672,8 +716,34 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (parameters.Count > 0 && arguments.Count < CountRequiredParameters(parameters))
 			Report(GetRange(arguments.Count > 0 ? arguments[^1].SourceSyntax : null), "Call is missing required arguments.");
-		if (parameters.Count > 0 && arguments.Count > CountCallableParameters(parameters))
+		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
 			Report(GetRange(arguments[^1].SourceSyntax), "Call has too many arguments.");
+	}
+
+	static void AddExplicitHiddenParameters(List<ParameterDefinition> parameters, List<ParameterDefinition> callableParameters)
+	{
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition)
+				callableParameters.Add(parameter);
+		}
+	}
+
+	void EnsureFunctionSignatureAnalyzed(FunctionDefinition function, AnalysisScope scope)
+	{
+		if (function.ResolvedType is null)
+			function.ResolvedType = function.Modifier switch
+			{
+				FunctionModifier.Constructor => FindContainingType(function)?.Name ?? ConstructorType,
+				FunctionModifier.Destructor => "void",
+				_ => AnalyzeOptionalType(function.ReturnType, scope) ?? ErrorType
+			};
+
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter.ResolvedType is null)
+				AnalyzeParameterDefinition(parameter, scope);
+		}
 	}
 
 	void ValidateBaseConstructorInvocation(FunctionDefinition function, TypeDefinition? containingType)
@@ -1255,13 +1325,67 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == "#NULL" && (target.EndsWith("*", StringComparison.Ordinal) || target.EndsWith("?", StringComparison.Ordinal)))
 			return true;
 
+		if (source == AllocatorType && target == "Allocator*")
+			return true;
+
 		if (TryGetCallableShape(source, out CallableShape sourceCallable) && TryGetCallableShape(target, out CallableShape targetCallable))
 			return CallableShapesCompatible(sourceCallable, targetCallable);
+
+		if (IsClassToInterfaceConversion(source, target) || IsInterfaceUpcast(source, target))
+			return true;
 
 		if (IsNewtypeOrEnumBoundary(source, target))
 			return false;
 
 		return IsNumericType(source) && IsNumericType(target) && NumericRank(source) <= NumericRank(target);
+	}
+
+	bool IsClassToInterfaceConversion(string source, string target)
+	{
+		string? sourceElement = TryGetPointerElementType(source);
+		string? targetElement = TryGetPointerElementType(target);
+		if (sourceElement is null || targetElement is null)
+			return false;
+
+		return typeDefinitions.TryGetValue(BaseTypeName(sourceElement), out TypeDefinition? sourceType)
+			&& sourceType is ClassDefinition classDefinition
+			&& typeDefinitions.TryGetValue(BaseTypeName(targetElement), out TypeDefinition? targetType)
+			&& targetType is InterfaceDefinition interfaceDefinition
+			&& ClassImplementsInterface(classDefinition, interfaceDefinition);
+	}
+
+	bool IsInterfaceUpcast(string source, string target)
+	{
+		string? sourceElement = TryGetPointerElementType(source);
+		string? targetElement = TryGetPointerElementType(target);
+		if (sourceElement is null || targetElement is null)
+			return false;
+
+		return typeDefinitions.TryGetValue(BaseTypeName(sourceElement), out TypeDefinition? sourceType)
+			&& sourceType is InterfaceDefinition sourceInterface
+			&& typeDefinitions.TryGetValue(BaseTypeName(targetElement), out TypeDefinition? targetType)
+			&& targetType is InterfaceDefinition targetInterface
+			&& InterfaceInheritsFrom(sourceInterface, targetInterface);
+	}
+
+	bool ClassImplementsInterface(ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)
+	{
+		foreach (InterfaceDefinition implemented in GetImplementedInterfaces(classDefinition))
+		{
+			if (ReferenceEquals(implemented, interfaceDefinition))
+				return true;
+		}
+		return false;
+	}
+
+	bool InterfaceInheritsFrom(InterfaceDefinition source, InterfaceDefinition target)
+	{
+		foreach (InterfaceDefinition baseInterface in GetBaseInterfaces(source))
+		{
+			if (ReferenceEquals(baseInterface, target))
+				return true;
+		}
+		return false;
 	}
 
 	bool CanExplicitlyConvert(string source, string target)
@@ -1401,6 +1525,19 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<FunctionDefinition> LookupMemberFunctions(string targetType, string name)
 	{
+		if (TryGetPointerElementType(targetType) is string interfaceElement
+			&& typeDefinitions.TryGetValue(BaseTypeName(interfaceElement), out TypeDefinition? interfaceType)
+			&& interfaceType is InterfaceDefinition interfaceDefinition)
+		{
+			List<FunctionDefinition> functions = [];
+			foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
+			{
+				if (GetSignatureName(function) == name || function.Name == name)
+					functions.Add(function);
+			}
+			return functions;
+		}
+
 		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
 			return [];
 
@@ -1410,6 +1547,18 @@ public sealed partial class BindableNodeAnalyzer
 	List<BodySymbol> LookupMemberSymbols(string targetType, string name)
 	{
 		List<BodySymbol> members = [];
+		if (TryGetPointerElementType(targetType) is string interfaceElement
+			&& typeDefinitions.TryGetValue(BaseTypeName(interfaceElement), out TypeDefinition? interfaceType)
+			&& interfaceType is InterfaceDefinition interfaceDefinition)
+		{
+			foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
+			{
+				if (GetSignatureName(function) == name || function.Name == name)
+					members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
+			}
+			return members;
+		}
+
 		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
 			return members;
 
@@ -1620,8 +1769,8 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in parameters)
 		{
 			if (parameter.DefaultValue is null
-				&& parameter.Modifier is not ParameterModifier.Thrown
-				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+				&& parameter.Modifier is not ParameterModifier.Thrown and not ParameterModifier.Within
+				&& parameter is not ThisParameterDefinition and not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
 				count++;
 		}
 		return count;
@@ -1632,8 +1781,8 @@ public sealed partial class BindableNodeAnalyzer
 		int count = 0;
 		foreach (ParameterDefinition parameter in parameters)
 		{
-			if (parameter.Modifier is not ParameterModifier.Thrown
-				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+			if (parameter.Modifier is not ParameterModifier.Thrown and not ParameterModifier.Within
+				&& parameter is not ThisParameterDefinition and not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
 				count++;
 		}
 		return count;
@@ -1649,8 +1798,8 @@ public sealed partial class BindableNodeAnalyzer
 		List<ParameterDefinition> callable = [];
 		foreach (ParameterDefinition parameter in parameters)
 		{
-			if (parameter.Modifier is ParameterModifier.Thrown
-				|| parameter is WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+			if (parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
+				|| parameter is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
 				continue;
 
 			callable.Add(parameter);
