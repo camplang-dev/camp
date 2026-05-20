@@ -9,6 +9,10 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<FunctionDefinition, FunctionDefinition> deleteMethods = [];
 	readonly FunctionDefinition allocatorAllocMethod = CreateAllocatorAllocMethod();
 	readonly FunctionDefinition allocatorFreeMethod = CreateAllocatorFreeMethod();
+	const string InitNewMethodName = "op_initnew";
+	const string CreateMethodName = "create";
+	const string DeleteMethodName = "op_delete";
+	const string DestroyMethodName = "destroy";
 	Expression? currentAllocatorOverride;
 	int generatedLocalIndex;
 
@@ -88,8 +92,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		FunctionDefinition method = new()
 		{
-			Name = $"{type.Name}_op_initnew",
-			Symbol = $"{type.Name}_op_initnew",
+			Name = InitNewMethodName,
+			Symbol = $"{type.Name}_{InitNewMethodName}",
 			Export = constructor.Export,
 			ReturnType = VoidType(),
 			ResolvedType = "void",
@@ -106,8 +110,8 @@ public sealed partial class BindableNodeAnalyzer
 		TypeReference typeReference = TypeReferenceFor(type);
 		FunctionDefinition method = new()
 		{
-			Name = $"{type.Name}_create",
-			Symbol = $"{type.Name}_create",
+			Name = CreateMethodName,
+			Symbol = $"{type.Name}_{CreateMethodName}",
 			Export = constructor.Export,
 			Modifier = FunctionModifier.Static,
 			ReturnType = PointerTo(CloneType(typeReference)!),
@@ -157,8 +161,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		FunctionDefinition method = new()
 		{
-			Name = $"{type.Name}_op_delete",
-			Symbol = $"{type.Name}_op_delete",
+			Name = DeleteMethodName,
+			Symbol = $"{type.Name}_{DeleteMethodName}",
 			Export = destructor.Export,
 			ReturnType = VoidType(),
 			ResolvedType = "void",
@@ -186,8 +190,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		FunctionDefinition method = new()
 		{
-			Name = $"{type.Name}_destroy",
-			Symbol = $"{type.Name}_destroy",
+			Name = DestroyMethodName,
+			Symbol = $"{type.Name}_{DestroyMethodName}",
 			Export = destructor.Export,
 			ReturnType = VoidType(),
 			ResolvedType = "void"
@@ -800,10 +804,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition? FindGeneratedCreate(TypeDefinition type, FunctionDefinition constructor)
 	{
-		string name = $"{type.Name}_create";
 		foreach (FunctionDefinition function in GetFunctions(type))
 		{
-			if (function.Name == name && function.Export == constructor.Export && CallableByArgumentCount(function.Parameters, CountCallableParameters(constructor.Parameters)))
+			if (function.Name == CreateMethodName && function.Export == constructor.Export && CallableByArgumentCount(function.Parameters, CountCallableParameters(constructor.Parameters)))
 				return function;
 		}
 
@@ -984,11 +987,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression? GetFunctionAllocatorForBody(FunctionDefinition function)
 	{
-		if (function.Name.EndsWith("op_delete", StringComparison.Ordinal) && GetWithinParameter(function) is ParameterDefinition deleteAllocator)
+		if (function.Name == DeleteMethodName && GetWithinParameter(function) is ParameterDefinition deleteAllocator)
 			return CreateVariableReference(deleteAllocator, deleteAllocator.ResolvedType ?? "Allocator*");
-		if (function.Name.EndsWith("op_initnew", StringComparison.Ordinal) && GetWithinParameter(function) is not null)
+		if (function.Name == InitNewMethodName && GetWithinParameter(function) is not null)
 			return CreateResolvedAllocatorReference();
-		if (function.Name.EndsWith("op_initnew", StringComparison.Ordinal) || function.Name.EndsWith("op_delete", StringComparison.Ordinal))
+		if (function.Name == InitNewMethodName || function.Name == DeleteMethodName)
 			return StdDefaultAllocator();
 		return null;
 	}
