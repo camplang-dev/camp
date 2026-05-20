@@ -1141,7 +1141,10 @@ public sealed class BindableNodeCodeSerializer
 			WriteType(argument.Type);
 			writer.Write(" ");
 		}
-		WriteExpression(argument.Value);
+		if (argument.Target is not null)
+			WriteDeclarationTarget(argument.Target);
+		else
+			WriteExpression(argument.Value);
 	}
 
 	void WriteUnaryExpression(UnaryExpression unary)

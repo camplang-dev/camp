@@ -140,6 +140,7 @@ public class ArgumentExpression : Expression
 	public string? Name { get; set; }
 	public ArgumentModifier Modifier { get; set; }
 	public TypeReference? Type { get; set; }
+	public DeclarationTarget? Target { get; set; }
 	public Expression? Value { get; set; }
 }
 

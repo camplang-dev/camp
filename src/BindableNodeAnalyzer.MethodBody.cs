@@ -567,6 +567,16 @@ public sealed partial class BindableNodeAnalyzer
 		if (argument.Type is not null)
 			AnalyzeType(argument.Type, typeScope);
 
+		if (argument.Target is not null)
+		{
+			if (argument.Modifier != ArgumentModifier.Out)
+				Report(GetRange(argument.SourceSyntax), "Argument declarations may only be used with 'out'.");
+
+			BodyAnalyzeDeclarationTarget(argument.Target, scope, typeScope, targetType ?? TargetType);
+			argument.ResolvedType = argument.Target.ResolvedType ?? ErrorType;
+			return argument.ResolvedType;
+		}
+
 		string valueType = BodyAnalyzeExpression(argument.Value, scope, typeScope, argument.Type?.ResolvedType ?? targetType);
 		argument.ResolvedType = argument.Type?.ResolvedType ?? valueType;
 		return argument.ResolvedType;
@@ -635,12 +645,20 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope)
 	{
+		List<ParameterDefinition> callableParameters = GetCallableParameters(parameters);
 		for (int i = 0; i < arguments.Count; i++)
 		{
-			string expected = i < parameters.Count ? parameters[i].ResolvedType ?? ErrorType : null!;
+			ParameterDefinition? parameter = i < callableParameters.Count ? callableParameters[i] : null;
+			string expected = parameter?.ResolvedType ?? null!;
 			string actual = BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, expected);
-			if (i < parameters.Count)
+			if (parameter is not null)
+			{
+				if (parameter.Modifier == ParameterModifier.Out && arguments[i].Modifier != ArgumentModifier.Out)
+					Report(GetRange(arguments[i].SourceSyntax), "Out parameters require an 'out' argument.");
+				if (parameter.Modifier != ParameterModifier.Out && arguments[i].Modifier == ArgumentModifier.Out)
+					Report(GetRange(arguments[i].SourceSyntax), "Only out parameters may use an 'out' argument.");
 				CheckAssignable(expected, actual, arguments[i].SourceSyntax, "Argument");
+			}
 		}
 
 		if (parameters.Count > 0 && arguments.Count < CountRequiredParameters(parameters))
@@ -1593,7 +1611,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in parameters)
 		{
 			if (parameter.DefaultValue is null
-				&& parameter.Modifier is not ParameterModifier.Out and not ParameterModifier.Thrown
+				&& parameter.Modifier is not ParameterModifier.Thrown
 				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
 				count++;
 		}
@@ -1605,7 +1623,7 @@ public sealed partial class BindableNodeAnalyzer
 		int count = 0;
 		foreach (ParameterDefinition parameter in parameters)
 		{
-			if (parameter.Modifier is not ParameterModifier.Out and not ParameterModifier.Thrown
+			if (parameter.Modifier is not ParameterModifier.Thrown
 				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
 				count++;
 		}
@@ -1615,6 +1633,20 @@ public sealed partial class BindableNodeAnalyzer
 	static bool CanCallWithArgumentCount(List<ParameterDefinition> parameters, int argumentCount)
 	{
 		return CountRequiredParameters(parameters) <= argumentCount && argumentCount <= CountCallableParameters(parameters);
+	}
+
+	static List<ParameterDefinition> GetCallableParameters(List<ParameterDefinition> parameters)
+	{
+		List<ParameterDefinition> callable = [];
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter.Modifier is ParameterModifier.Thrown
+				|| parameter is WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+				continue;
+
+			callable.Add(parameter);
+		}
+		return callable;
 	}
 
 	static int CountRequiredParametersForPropertySetter(List<ParameterDefinition> parameters)
@@ -2269,14 +2301,16 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ArgumentExpression argument in arguments)
 		{
-			if (argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch)
+			if (argument.Target is not null)
+				DeclareTargets(argument.Target, state, assigned: true);
+			else if (argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch)
 				AssignExpressionTarget(argument.Value, state);
 		}
 	}
 
 	void FlowAnalyzeArgument(ArgumentExpression argument, FlowState state)
 	{
-		if (argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch)
+		if (argument.Target is not null || argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch)
 			return;
 
 		FlowAnalyzeExpression(argument.Value, state);

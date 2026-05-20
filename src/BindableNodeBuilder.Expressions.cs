@@ -515,6 +515,13 @@ public sealed partial class BindableNodeBuilder
 		if (syntax.CatchKeyword is not null && syntax.AutoKeyword is not null)
 			expression.Type = new AutoTypeReference { SourceSyntax = syntax };
 
+		if (syntax.DeclarationTarget is not null)
+		{
+			expression.Target = new DeclarationTarget { SourceSyntax = syntax.DeclarationTarget };
+			BuildDeclarationTarget(expression.Target, syntax.DeclarationTarget, $"{context} argument declaration");
+			return expression;
+		}
+
 		expression.Value = BuildExpression(syntax.Expression, context);
 		return expression;
 	}

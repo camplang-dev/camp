@@ -704,6 +704,7 @@ public class ArgumentSyntax : SyntaxNode
 	public Token? CatchKeyword { get; set; }
 	public Token? AutoKeyword { get; set; }
 	public Token? WithinKeyword { get; set; }
+	public DeclarationTargetSyntax? DeclarationTarget { get; set; }
 	public ExpressionSyntax? Expression { get; set; }
 }
 

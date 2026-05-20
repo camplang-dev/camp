@@ -1559,8 +1559,10 @@ public sealed partial class BindableNodeAnalyzer
 			case ArgumentExpression argument:
 				if (argument.Type is not null)
 					AnalyzeType(argument.Type, scope);
+				if (argument.Target is not null)
+					AnalyzeDeclarationTarget(argument.Target, scope);
 				AnalyzeOptionalExpression(argument.Value, scope);
-				expression.ResolvedType = argument.Type?.ResolvedType ?? argument.Value?.ResolvedType ?? UnresolvedType;
+				expression.ResolvedType = argument.Type?.ResolvedType ?? argument.Target?.ResolvedType ?? argument.Value?.ResolvedType ?? UnresolvedType;
 				break;
 
 			case CallExpression call:

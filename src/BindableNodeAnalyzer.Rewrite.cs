@@ -899,7 +899,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsHiddenParameter(ParameterDefinition parameter)
 	{
-		return parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within
+		return parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
 			|| parameter is WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition;
 	}
 

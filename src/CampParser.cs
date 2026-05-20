@@ -1569,6 +1569,9 @@ public sealed class CampParser
 		else if (Is("out"))
 		{
 			syntax.OutKeyword = Take();
+			syntax.DeclarationTarget = ParseDeclarationTarget();
+			if (syntax.DeclarationTarget is not null)
+				return syntax;
 		}
 		else if (Is("catch"))
 		{
