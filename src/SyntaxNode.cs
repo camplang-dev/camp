@@ -296,6 +296,13 @@ public abstract class StatementSyntax : SyntaxNode
 {
 }
 
+public class BlockStatementSyntax : StatementSyntax
+{
+	public Token? OpenBraceToken { get; set; }
+	public List<StatementSyntax>? Statements { get; set; }
+	public Token? CloseBraceToken { get; set; }
+}
+
 public class KeywordStatementSyntax : StatementSyntax
 {
 	public Token? Keyword { get; set; }

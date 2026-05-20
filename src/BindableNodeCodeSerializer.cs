@@ -324,18 +324,12 @@ public sealed class BindableNodeCodeSerializer
 
 		switch (definition.Body)
 		{
-			case BlockFunctionBody block:
+			case BlockStatement block:
 				WriteLineBlock(() =>
 				{
 					foreach (Statement statement in block.Statements)
 						WriteStatement(statement);
 				});
-				break;
-
-			case ExpressionFunctionBody expression:
-				writer.Write(" => ");
-				WriteExpression(expression.Expression);
-				writer.WriteLine(";");
 				break;
 		}
 	}
@@ -1119,10 +1113,7 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write(" => ");
 		switch (lambda.Body)
 		{
-			case ExpressionFunctionBody expression:
-				WriteExpression(expression.Expression);
-				break;
-			case BlockFunctionBody block:
+			case BlockStatement block:
 				writer.WriteLine();
 				WriteIndent();
 				WriteLineBlock(() =>

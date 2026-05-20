@@ -303,14 +303,21 @@ public sealed partial class BindableNodeBuilder
 		return expression;
 	}
 
-	FunctionBody? BuildLambdaBody(LambdaBodySyntax syntax, string context)
+	BlockStatement? BuildLambdaBody(LambdaBodySyntax syntax, string context)
 	{
 		if (syntax.Expression is not null)
 		{
-			return new ExpressionFunctionBody
+			return new BlockStatement
 			{
 				SourceSyntax = syntax,
-				Expression = BuildExpression(syntax.Expression, $"{context} lambda body")
+				Statements =
+				{
+					new ReturnStatement
+					{
+						SourceSyntax = syntax,
+						Expression = BuildExpression(syntax.Expression, $"{context} lambda body")
+					}
+				}
 			};
 		}
 

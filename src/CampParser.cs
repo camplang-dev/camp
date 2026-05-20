@@ -750,6 +750,9 @@ public sealed class CampParser
 		if (Is(";"))
 			return new EmptyStatementSyntax { SemicolonToken = Take() };
 
+		if (Is("{"))
+			return ParseBlockStatement();
+
 		if (Is("case"))
 			return new CaseStatementSyntax { CaseKeyword = Take(), Expression = ParseExpression(), ColonToken = Expect(":") };
 
@@ -770,6 +773,21 @@ public sealed class CampParser
 			return new ExpressionStatementSyntax { Expression = expression, SemicolonToken = Expect(";") };
 
 		return null;
+	}
+
+	BlockStatementSyntax ParseBlockStatement()
+	{
+		BlockStatementSyntax syntax = new()
+		{
+			OpenBraceToken = Expect("{"),
+			Statements = []
+		};
+
+		while (!AtEnd && !Is("}"))
+			syntax.Statements.Add(ParseStatementOrSkipped());
+
+		syntax.CloseBraceToken = Expect("}");
+		return syntax;
 	}
 
 	KeywordStatementSyntax ParseKeywordStatement()

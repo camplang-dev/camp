@@ -2,9 +2,9 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeBuilder
 {
-	BlockFunctionBody BuildBlockFunctionBody(BlockMethodBodySyntax syntax)
+	BlockStatement BuildBlockFunctionBody(BlockMethodBodySyntax syntax)
 	{
-		BlockFunctionBody body = new() { SourceSyntax = syntax };
+		BlockStatement body = new() { SourceSyntax = syntax };
 		AddStatements(body.Statements, syntax.Statements);
 		return body;
 	}
@@ -15,6 +15,9 @@ public sealed partial class BindableNodeBuilder
 		{
 			case EmptyStatementSyntax empty:
 				return new EmptyStatement { SourceSyntax = empty };
+
+			case BlockStatementSyntax block:
+				return BuildBlockStatement(block);
 
 			case ExpressionStatementSyntax expression:
 				return new ExpressionStatement
@@ -43,6 +46,13 @@ public sealed partial class BindableNodeBuilder
 				Report(syntax, "Unsupported statement syntax.");
 				return new EmptyStatement { SourceSyntax = syntax };
 		}
+	}
+
+	BlockStatement BuildBlockStatement(BlockStatementSyntax syntax)
+	{
+		BlockStatement block = new() { SourceSyntax = syntax };
+		AddStatements(block.Statements, syntax.Statements);
+		return block;
 	}
 
 	void AddStatements(System.Collections.Generic.List<Statement> target, System.Collections.Generic.List<StatementSyntax>? syntaxList)

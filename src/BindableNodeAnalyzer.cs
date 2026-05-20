@@ -1335,24 +1335,14 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeExpression(argument, new AnalysisScope());
 	}
 
-	void AnalyzeOptionalFunctionBody(FunctionBody? body, AnalysisScope scope)
+	void AnalyzeOptionalFunctionBody(BlockStatement? body, AnalysisScope scope)
 	{
 		if (body is null)
 			return;
 
 		body.ResolvedType = "void";
-		switch (body)
-		{
-			case BlockFunctionBody block:
-				foreach (Statement statement in block.Statements)
-					AnalyzeStatement(statement, scope);
-				break;
-
-			case ExpressionFunctionBody expressionBody:
-				AnalyzeOptionalExpression(expressionBody.Expression, scope);
-				expressionBody.ResolvedType = expressionBody.Expression?.ResolvedType ?? ErrorType;
-				break;
-		}
+		foreach (Statement statement in body.Statements)
+			AnalyzeStatement(statement, scope);
 	}
 
 	void AnalyzeStatement(Statement statement, AnalysisScope scope)

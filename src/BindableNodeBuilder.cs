@@ -653,7 +653,7 @@ public sealed partial class BindableNodeBuilder
 		return definition;
 	}
 
-	FunctionBody? BuildFunctionBody(MethodBodySyntax syntax)
+	BlockStatement? BuildFunctionBody(MethodBodySyntax syntax)
 	{
 		switch (syntax)
 		{
@@ -661,10 +661,17 @@ public sealed partial class BindableNodeBuilder
 				return BuildBlockFunctionBody(block);
 
 			case ExpressionMethodBodySyntax expressionBody:
-				return new ExpressionFunctionBody
+				return new BlockStatement
 				{
 					SourceSyntax = expressionBody,
-					Expression = BuildExpression(expressionBody.Expression, "Expression method body")
+					Statements =
+					{
+						new ReturnStatement
+						{
+							SourceSyntax = expressionBody,
+							Expression = BuildExpression(expressionBody.Expression, "Expression method body")
+						}
+					}
 				};
 
 			default:

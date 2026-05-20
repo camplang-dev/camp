@@ -100,7 +100,7 @@ public sealed partial class BindableNodeAnalyzer
 			Body = constructor.Body
 		};
 		CopyParameters(constructor.Parameters, method.Parameters);
-		if (HasWithinParameter(method) && method.Body is BlockFunctionBody block)
+		if (HasWithinParameter(method) && method.Body is BlockStatement block)
 			block.Statements.Insert(0, CreateResolvedAllocatorLocal(GetWithinParameter(method)));
 		return method;
 	}
@@ -121,11 +121,11 @@ public sealed partial class BindableNodeAnalyzer
 		bool createWithAllocator = HasWithinParameter(method) || HasCreateWithAllocatorAttribute(type);
 		if (createWithAllocator && !HasWithinParameter(method))
 			method.Parameters.Add(CreateAllocatorParameter());
-		method.Body = new BlockFunctionBody
+		method.Body = new BlockStatement
 		{
 			ResolvedType = "void"
 		};
-		BlockFunctionBody body = (BlockFunctionBody)method.Body;
+		BlockStatement body = method.Body;
 		ParameterDefinition? allocatorParameter = GetAllocatorParameter(method);
 		if (createWithAllocator)
 			body.Statements.Add(CreateResolvedAllocatorLocal(allocatorParameter));
@@ -162,7 +162,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition method = new()
 		{
 			Name = DeleteMethodName,
-			Symbol = $"{type.Name}_{DeleteMethodName}",
+			Symbol = $"{type.Name}_op_delete",
 			Export = destructor.Export,
 			ReturnType = VoidType(),
 			ResolvedType = "void",
@@ -199,11 +199,11 @@ public sealed partial class BindableNodeAnalyzer
 		bool destroyWithAllocator = HasWithinParameter(destructor) || HasCreateWithAllocatorAttribute(type);
 		if (destroyWithAllocator)
 			method.Parameters.Add(CreateAllocatorParameter());
-		method.Body = new BlockFunctionBody
+		method.Body = new BlockStatement
 		{
 			ResolvedType = "void"
 		};
-		BlockFunctionBody body = (BlockFunctionBody)method.Body;
+		BlockStatement body = method.Body;
 		body.Statements.Add(new ExpressionStatement
 		{
 			ResolvedType = "void",
@@ -284,24 +284,13 @@ public sealed partial class BindableNodeAnalyzer
 		currentAllocatorOverride = previousAllocator;
 	}
 
-	FunctionBody? RewriteFunctionBody(FunctionBody? body)
+	BlockStatement? RewriteFunctionBody(BlockStatement? body)
 	{
-		switch (body)
-		{
-			case null:
-				return null;
+		if (body is null)
+			return null;
 
-			case BlockFunctionBody block:
-				RewriteStatementList(block.Statements);
-				return block;
-
-			case ExpressionFunctionBody expression:
-				expression.Expression = LowerExpression(expression.Expression);
-				return expression;
-
-			default:
-				return body;
-		}
+		RewriteStatementList(body.Statements);
+		return body;
 	}
 
 	Statement RewriteStatement(Statement statement)

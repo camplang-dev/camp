@@ -126,7 +126,7 @@ public class VTableOfExpression : Expression
 public class LambdaExpression : Expression
 {
 	public List<LambdaParameter> Parameters { get; } = [];
-	public FunctionBody? Body { get; set; }
+	public BlockStatement? Body { get; set; }
 }
 
 public class LambdaParameter : BindableNode

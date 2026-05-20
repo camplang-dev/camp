@@ -103,7 +103,7 @@ public class FunctionDefinition : Definition
 	public TypeReference? ReturnType { get; set; }
 	public List<GenericParameter> GenericParameters { get; } = [];
 	public List<ParameterDefinition> Parameters { get; } = [];
-	public FunctionBody? Body { get; set; }
+	public BlockStatement? Body { get; set; }
 }
 
 public class ParameterDefinition : Definition
@@ -141,20 +141,6 @@ public class AttributeConstructor : BindableNode
 {
 	public string Name { get; set; } = "";
 	public List<ArgumentExpression> Arguments { get; } = [];
-}
-
-public abstract class FunctionBody : BindableNode
-{
-}
-
-public class BlockFunctionBody : FunctionBody
-{
-	public List<Statement> Statements { get; } = [];
-}
-
-public class ExpressionFunctionBody : FunctionBody
-{
-	public Expression? Expression { get; set; }
 }
 
 public abstract class TypeReference : BindableNode

@@ -27,7 +27,8 @@ public sealed partial class BindableNodeAnalyzer
 				scope.Symbols[parameter.Name] = new BodySymbol(parameter.Name, parameter.ResolvedType ?? ErrorType, parameter);
 		}
 
-		BodyAnalyzeFunctionBody(function.Body, scope, typeAndMethodScope);
+		function.Body.ResolvedType = "void";
+		BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
 		ValidateBaseConstructorInvocation(function, containingType);
 		FlowAnalyzeFunctionBody(function, scope);
 	}
@@ -41,26 +42,6 @@ public sealed partial class BindableNodeAnalyzer
 		BodyAnalyzeExpression(expression, scope, typeScope);
 		if (!IsConstant(expression))
 			Report(GetRange(expression.SourceSyntax), $"{context} must be a constant expression.");
-	}
-
-	void BodyAnalyzeFunctionBody(FunctionBody body, BodyScope scope, AnalysisScope typeScope)
-	{
-		body.ResolvedType = "void";
-
-		switch (body)
-		{
-			case BlockFunctionBody block:
-				BodyAnalyzeBlock(block.Statements, scope, typeScope);
-				break;
-
-			case ExpressionFunctionBody expressionBody:
-			{
-				string expressionType = BodyAnalyzeExpression(expressionBody.Expression, scope, typeScope, scope.CurrentFunctionReturnType);
-				expressionBody.ResolvedType = expressionType;
-				CheckAssignable(scope.CurrentFunctionReturnType, expressionType, expressionBody.Expression?.SourceSyntax, "Return expression");
-				break;
-			}
-		}
 	}
 
 	void BodyAnalyzeBlock(List<Statement> statements, BodyScope scope, AnalysisScope typeScope)
@@ -563,18 +544,11 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		string returnType = "void";
-		if (lambda.Body is ExpressionFunctionBody expressionBody)
-		{
-			string? returnTarget = targetShape?.ReturnType;
-			returnType = BodyAnalyzeExpression(expressionBody.Expression, lambdaScope, typeScope, returnTarget);
-			expressionBody.ResolvedType = returnType;
-			if (returnTarget is not null)
-				CheckAssignable(returnTarget, returnType, expressionBody.Expression?.SourceSyntax, "Lambda return expression");
-		}
-		else if (lambda.Body is BlockFunctionBody block)
+		if (lambda.Body is BlockStatement block)
 		{
 			BodyAnalyzeBlock(block.Statements, lambdaScope, typeScope);
 			block.ResolvedType = "void";
+			returnType = InferBlockReturnType(block, targetShape?.ReturnType);
 		}
 
 		List<string> parameterTypes = [];
@@ -701,12 +675,9 @@ public sealed partial class BindableNodeAnalyzer
 		Report(GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Constructor for class '{containingClass.Name}' must invoke a base constructor because base class '{baseClass.Name}' has no accessible parameterless constructor.");
 	}
 
-	static Expression? GetFirstConstructorAction(FunctionBody body)
+	static Expression? GetFirstConstructorAction(BlockStatement body)
 	{
-		if (body is not BlockFunctionBody block)
-			return null;
-
-		foreach (Statement statement in block.Statements)
+		foreach (Statement statement in body.Statements)
 		{
 			if (statement is EmptyStatement)
 				continue;
@@ -722,22 +693,12 @@ public sealed partial class BindableNodeAnalyzer
 		return call.Target is NamedExpression { Qualifiers: { Count: 0 }, Name: "base" };
 	}
 
-	static IEnumerable<CallExpression> EnumerateBaseConstructorCalls(FunctionBody body)
+	static IEnumerable<CallExpression> EnumerateBaseConstructorCalls(BlockStatement body)
 	{
-		switch (body)
+		foreach (Statement statement in body.Statements)
 		{
-			case BlockFunctionBody block:
-				foreach (Statement statement in block.Statements)
-				{
-					foreach (CallExpression call in EnumerateBaseConstructorCalls(statement))
-						yield return call;
-				}
-				break;
-
-			case ExpressionFunctionBody expression:
-				foreach (CallExpression call in EnumerateBaseConstructorCalls(expression.Expression))
-					yield return call;
-				break;
+			foreach (CallExpression call in EnumerateBaseConstructorCalls(statement))
+				yield return call;
 		}
 	}
 
@@ -1896,7 +1857,7 @@ public sealed partial class BindableNodeAnalyzer
 			state.Declare(parameter.Name, isAssigned);
 		}
 
-		FlowAnalyzeFunctionBody(function.Body, state);
+		FlowAnalyzeStatements(function.Body.Statements, state);
 
 		if (state.Reachable)
 		{
@@ -1907,20 +1868,15 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	void FlowAnalyzeFunctionBody(FunctionBody body, FlowState state)
+	static string InferBlockReturnType(BlockStatement block, string? targetReturnType)
 	{
-		switch (body)
+		foreach (Statement statement in block.Statements)
 		{
-			case BlockFunctionBody block:
-				FlowAnalyzeStatements(block.Statements, state);
-				break;
-
-			case ExpressionFunctionBody expressionBody:
-				FlowAnalyzeExpression(expressionBody.Expression, state);
-				CheckOutParametersAssigned(state.Function, state, expressionBody.SourceSyntax);
-				state.Reachable = false;
-				break;
+			if (statement is ReturnStatement returnStatement)
+				return returnStatement.Expression?.ResolvedType ?? "void";
 		}
+
+		return targetReturnType ?? "void";
 	}
 
 	void FlowAnalyzeStatements(List<Statement> statements, FlowState state)
