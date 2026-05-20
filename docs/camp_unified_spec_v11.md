@@ -469,13 +469,13 @@ A context-carrying callable can represent:
 
 A plain `fn` does not carry that context.
 
-That is why interface vtable entries are modeled conceptually with `fn` targets that take an explicit context parameter:
+That is why interface vtable entries are modeled conceptually with `fn` targets that take an explicit interface-instance slot parameter:
 
 ```camp
-struct IRefVTable<U>
+struct IRef
 {
-	@mustinit fn void(U* ctx) retain;
-	@mustinit fn void(U* ctx) release;
+	@mustinit fn void(IRef** ctx) retain;
+	@mustinit fn void(IRef** ctx) release;
 }
 ```
 
@@ -3698,7 +3698,7 @@ The public header contains the surface visible across the C ABI.
 The private header contains full type details and internal helper surfaces used within the defining module.
 
 - full class layout appears here
-- hidden `_vt` and `_vt_InterfaceName` fields appear here
+- hidden `_vt` and `_vt_InterfaceName` fields appear here with their concrete vtable-pointer types
 - internal construction and destruction helpers appear here
 - non-exported structs, including fixed structs, appear here with full layout
 
@@ -3981,13 +3981,11 @@ Within a Camp module, the compiler has the full private-header layout and helper
 
 ## 2.4 Interfaces
 
-Interfaces in Camp are explicit ABI-visible contracts. They are not hidden runtime objects, they are not just structural method matching, and they are not delegate-like grouped `(context, call)` values.
+Interfaces in Camp are explicit ABI-visible contracts. They are not hidden runtime objects, they are not structural method matching, and they are not delegate-like grouped `(context, call)` values.
 
-They form their own representation category.
+An interface declaration defines a nominal vtable shape. Ordinary interface values are represented by pointers to interface-instance slots.
 
 ### 2.4.1 What an interface is
-
-An interface declaration defines a nominal vtable shape.
 
 ```camp
 interface IRef
@@ -3997,24 +3995,40 @@ interface IRef
 }
 ```
 
-The important design choice is that Camp distinguishes two related interface forms:
+Camp distinguishes two related source forms:
 
 - `IFoo`
 - `IFoo*`
 
+The distinction exposes the underlying calling convention without requiring ordinary code to spell the lowered form.
+
 ### 2.4.2 Bare `IFoo` versus `IFoo*`
 
-| Form | Meaning |
+| Source form | Meaning |
 |---|---|
 | `IFoo` | pointer to the interface vtable |
-| `IFoo*` | pointer to an interface-instance slot whose stored pointer acts as the context |
+| `IFoo*` | pointer to an interface-instance slot whose stored pointer is the interface vtable |
 
 Most ordinary code uses `IFoo*`.
 
-- `IFoo` is the explicit vtable form
-- `IFoo*` is the ordinary callable interface-instance form
+The lowered storage model is:
 
-This keeps the representation simple while still exposing the real calling convention.
+```camp
+struct IFoo
+{
+	// vtable entries
+}
+```
+
+So the common lowered shapes are:
+
+| Lowered form | Meaning |
+|---|---|
+| `IFoo` | vtable storage object |
+| `IFoo*` | pointer to a vtable object |
+| `IFoo**` | pointer to a stored vtable-pointer slot; this is the ordinary interface-instance pointer |
+
+At the source level, bare `IFoo` corresponds to the vtable pointer form. Source `IFoo*` corresponds to the interface-instance pointer form.
 
 ### 2.4.3 Conceptual lowering model
 
@@ -4028,43 +4042,79 @@ interface IRef
 }
 ```
 
-Camp conceptually lowers the interface to a vtable whose entries take an explicit context parameter first.
+Camp conceptually lowers the interface vtable to:
+
+```camp
+struct IRef
+{
+	fn void(IRef** ctx) retain;
+	fn void(IRef** ctx) release;
+}
+```
+
+Each vtable entry is a plain function pointer. Its first parameter is the interface-instance slot pointer.
+
+That slot pointer is the context. It points at storage containing the vtable pointer being used for the call.
+
+### 2.4.4 Interface inheritance lowering
+
+Interface inheritance is flattened into the derived vtable shape.
+
+```camp
+interface Readable
+{
+	nuint read(byte[] buffer);
+	bool getEndOfFile();
+}
+
+interface Seekable: Readable
+{
+	void seek(nuint position);
+	nuint getPosition();
+}
+```
 
 Conceptually:
 
 ```camp
-struct IRefVTable<U>
+struct Readable
 {
-	@mustinit fn void(U* ctx) retain;
-	@mustinit fn void(U* ctx) release;
+	fn nuint(Readable** ctx, byte[] buffer) read;
+	fn bool(Readable** ctx) getEndOfFile;
+}
+
+struct Seekable
+{
+	Readable Readable;
+
+	fn void(Seekable** ctx, nuint position) seek;
+	fn nuint(Seekable** ctx) getPosition;
 }
 ```
 
-The exact generated spelling is less important than the rule:
+The inherited interface sub-vtable appears first when it is the leading base contract. In that case, upcasting from `Seekable*` to `Readable*` may be a no-op at the interface-slot address. Other inherited layouts may require an adjusted interface conversion.
 
-- each interface entry is a function pointer
-- the function pointer receives context first
-- `IFoo*` method syntax supplies that context automatically
+Diamond inheritance does not duplicate the same base contract repeatedly.
 
-### 2.4.4 Calling through bare `IFoo`
+### 2.4.5 Calling through bare `IFoo`
 
-Calling a method on bare `IFoo` requires supplying context explicitly.
+Calling a method on bare `IFoo` requires supplying an interface-instance slot explicitly.
 
 Conceptually:
 
 ```camp
 IRef vt = SomeType_IRef;
-SomeType* obj = ...;
+IRef* value = ...;
 
-vt.retain(obj);
-vt.release(obj);
+vt.retain(value);
+vt.release(value);
 ```
 
-This form is useful when code wants to traffic in the vtable itself.
+In lowered terms, `value` is an `IRef**`: a pointer to a stored vtable-pointer slot.
 
-### 2.4.5 Calling through `IFoo*`
+### 2.4.6 Calling through `IFoo*`
 
-Calling a method on `IFoo*` inserts context automatically.
+Calling a method on `IFoo*` supplies the interface-instance slot automatically.
 
 ```camp
 IRef* value = obj;
@@ -4072,9 +4122,9 @@ value.retain();
 value.release();
 ```
 
-This is the ordinary ergonomic surface.
+Conceptually, that is equivalent to calling the vtable entry with the interface-instance slot as the first argument.
 
-### 2.4.6 Nominal conformance
+### 2.4.7 Nominal conformance
 
 Interface conformance is nominal only.
 
@@ -4110,7 +4160,7 @@ class ExtraCalculator: ICalculator
 
 Camp does not infer implementation merely because method names and signatures happen to line up.
 
-### 2.4.7 Every declared interface entry is required in v1
+### 2.4.8 Every declared interface entry is required in v1
 
 Camp keeps the v1 interface model simple: every declared entry is required.
 
@@ -4123,7 +4173,7 @@ That means:
 
 Optional-entry designs were considered, but v1 does not use them.
 
-### 2.4.8 Lifetime annotations are part of interface method contracts
+### 2.4.9 Lifetime annotations are part of interface method contracts
 
 Receiver lifetime annotations and ordinary parameter lifetime annotations are part of an interface method's contract.
 
@@ -4135,7 +4185,7 @@ That means:
 
 This applies equally to an in-scope explicit `this` parameter and to ordinary annotated parameters.
 
-### 2.4.9 Interface inheritance
+### 2.4.10 Interface inheritance
 
 Interfaces may inherit from other interfaces.
 
@@ -4169,26 +4219,30 @@ Camp treats interface inheritance as nominal and conceptually flattened:
 
 This keeps the interface layout predictable.
 
-### 2.4.10 Interface casting and ambiguity
+### 2.4.11 Interface casting and ambiguity
 
 Upcasting to a base interface is allowed.
 
 Depending on the layout involved, it may be:
 
-- a no-op
+- a no-op at the interface-slot address
 - or an adjusted interface conversion
 
 Downcasting is never implicit. Camp does not provide a general safe runtime downcast for interfaces. Any such cast is explicit and unsafe.
 
 If inherited method names would make an interface call ambiguous, the call must be disambiguated with an explicit cast. Camp does not silently choose one inherited method set.
 
-### 2.4.11 Class implementation of interfaces
+### 2.4.12 Class implementation of interfaces
 
 When a class implements an interface, the compiler adds one hidden field per **declared** implemented interface:
 
 - `_vt_InterfaceName`
 
-That hidden field stores the fixup vtable pointer for the class/interface pair.
+That hidden field stores a pointer to the vtable object for the class/interface pair. In lowered form, a field for `IFoo` has the shape:
+
+```camp
+IFoo* _vt_IFoo;
+```
 
 Layout rules:
 
@@ -4197,16 +4251,13 @@ Layout rules:
 - interface fields appear in declared interface order
 - a class does not get separate hidden fields for every inherited base interface automatically
 
-For each implemented interface, the compiler also generates a standalone non-fixup vtable object:
+For each declared implemented interface, the compiler generates a standalone vtable object:
 
 - `TypeName_InterfaceName`
 
-That vtable may point either:
+The compiler also assigns the hidden interface fields during typed construction, before user constructor body execution.
 
-- directly to concrete implementations
-- or to virtual-dispatch invoker thunks when the implementing methods are virtual
-
-### 2.4.12 Class-to-interface conversion
+### 2.4.13 Class-to-interface conversion
 
 A class instance converts naturally to an interface-instance pointer.
 
@@ -4217,14 +4268,166 @@ ICalculator* iface = calc;
 int sum = iface.add(4, 6);
 ```
 
-No heap boxing is introduced. The resulting interface pointer refers to the class’s stored interface-specific vtable-pointer field.
+No heap boxing is introduced. The resulting interface pointer refers to the class's stored interface-specific vtable-pointer field.
 
-Calls through `IFoo*` may use fixup thunks that:
+If the implementing interface field is at offset zero in the object layout, vtable entries may call concrete methods directly using a compatible receiver shape. Otherwise, the vtable entry uses a fixup thunk.
 
-1. recover the class instance pointer from the interface field address
-2. invoke the real implementation path
+A fixup thunk:
 
-### 2.4.13 Virtual overrides and inherited interface implementation
+1. receives the interface-instance slot pointer
+2. recovers the class instance pointer from the slot address
+3. invokes the real implementation path
+
+The recovery is equivalent to subtracting the offset of the relevant `_vt_InterfaceName` field from the slot address.
+
+### 2.4.14 Manual lowering example
+
+This example shows the shape beneath the interface feature.
+
+```camp
+interface Readable
+{
+	nuint read(byte[] buffer);
+	bool getEndOfFile();
+}
+
+interface Seekable: Readable
+{
+	void seek(nuint position);
+	nuint getPosition();
+}
+
+interface NamedResource
+{
+	StringView getName();
+	void rename(StringView name);
+}
+
+class MemoryDocument: Seekable, NamedResource
+{
+	String name;
+	byte[] data;
+	nuint position;
+
+	nuint read(byte[] buffer) { ... }
+	bool getEndOfFile() { ... }
+	void seek(nuint position) { ... }
+	nuint getPosition() { ... }
+	StringView getName() { ... }
+	void rename(StringView name) { ... }
+}
+```
+
+A representative lowered form is:
+
+```camp
+struct Readable
+{
+	fn nuint(Readable** ctx, byte[] buffer) read;
+	fn bool(Readable** ctx) getEndOfFile;
+}
+
+struct Seekable
+{
+	Readable Readable;
+
+	fn void(Seekable** ctx, nuint position) seek;
+	fn nuint(Seekable** ctx) getPosition;
+}
+
+struct NamedResource
+{
+	fn StringView(NamedResource** ctx) getName;
+	fn void(NamedResource** ctx, StringView name) rename;
+}
+
+class MemoryDocument
+{
+	Seekable* _vt_Seekable;
+	NamedResource* _vt_NamedResource;
+
+	String name;
+	byte[] data;
+	nuint position;
+
+	MemoryDocument(StringView name, byte[] data)
+	{
+		this._vt_Seekable = &MemoryDocument_Seekable;
+		this._vt_NamedResource = &MemoryDocument_NamedResource;
+
+		this.name = name.toStringCopy();
+		this.data = data;
+		this.position = 0;
+	}
+
+	~MemoryDocument()
+	{
+		delete this.name;
+	}
+
+	// ordinary method implementations
+}
+```
+
+The first declared interface can use direct vtable entries when its slot is at offset zero:
+
+```camp
+Seekable MemoryDocument_Seekable =
+{
+	.Readable =
+	{
+		.read = (fn nuint(Readable** ctx, byte[] buffer))MemoryDocument_read,
+		.getEndOfFile = (fn bool(Readable** ctx))MemoryDocument_getEndOfFile,
+	},
+
+	.seek = (fn void(Seekable** ctx, nuint position))MemoryDocument_seek,
+	.getPosition = (fn nuint(Seekable** ctx))MemoryDocument_getPosition,
+};
+```
+
+A later declared interface uses fixup entries:
+
+```camp
+NamedResource MemoryDocument_NamedResource =
+{
+	.getName = MemoryDocument_NamedResource_getName,
+	.rename = MemoryDocument_NamedResource_rename,
+};
+
+StringView MemoryDocument_NamedResource_getName(NamedResource** ctx)
+{
+	MemoryDocument* instance =
+		(MemoryDocument*)(((byte*)ctx) - offsetof(MemoryDocument._vt_NamedResource));
+
+	return instance.getName();
+}
+
+void MemoryDocument_NamedResource_rename(NamedResource** ctx, StringView name)
+{
+	MemoryDocument* instance =
+		(MemoryDocument*)(((byte*)ctx) - offsetof(MemoryDocument._vt_NamedResource));
+
+	instance.rename(name);
+}
+```
+
+An interface value is the address of the stored vtable-pointer field:
+
+```camp
+MemoryDocument document = init MemoryDocument("notes.txt", bytes) finally delete;
+
+Seekable** seekable = &document._vt_Seekable;
+Readable** readable = (Readable**)&document._vt_Seekable;
+NamedResource** named = &document._vt_NamedResource;
+
+seekable.seek(seekable, 0);
+readable.read(readable, buffer);
+named.rename(named, "archive-notes.txt");
+```
+
+Ordinary source code uses the sugared interface forms instead of these lowered `**` forms.
+
+### 2.4.15 Virtual overrides and inherited interface implementation
 
 If a base class implements an interface and derived classes are meant to customize that behavior, the intended pattern is:
 
@@ -4234,7 +4437,7 @@ If a base class implements an interface and derived classes are meant to customi
 
 Re-implementing an already-implemented interface again in a derived class is discouraged.
 
-### 2.4.14 Struct implementation of interfaces
+### 2.4.16 Struct implementation of interfaces
 
 Structs do not gain hidden interface fields.
 
@@ -4245,7 +4448,7 @@ An indirect interface pointer is compiler-created adapter storage. It is not a t
 - first a vtable pointer
 - then a pointer to the original struct value
 
-The resulting interface pointer points at the adapter’s vtable-pointer slot. Calls through that pointer use a fixup vtable whose entries use the stored pointer-to-data as the implementation receiver.
+The resulting interface pointer points at the adapter's vtable-pointer slot. Calls through that pointer use a fixup vtable whose entries use the stored pointer-to-data as the implementation receiver.
 
 Example:
 
@@ -4277,9 +4480,9 @@ This design preserves pointer identity for explicit pointer-based interface use:
 - there is no copied struct value
 - there is no hidden heap boxing
 
-### 2.4.15 Scoped-only automatic struct conversion and escaped interfaces
+### 2.4.17 Scoped-only automatic struct conversion and escaped interfaces
 
-Automatic struct-to-interface conversion is allowed only where the indirect interface pointer’s adapter storage remains valid for the duration of the use.
+Automatic struct-to-interface conversion is allowed only where the indirect interface pointer's adapter storage remains valid for the duration of the use.
 
 Typical valid cases:
 
@@ -4294,7 +4497,7 @@ The adapter is scoped stack storage. It does not implicitly satisfy escaped inte
 
 For an `escaped interface`, automatic struct-to-interface conversion is forbidden because that automatic conversion path uses scoped adapter storage.
 
-### 2.4.16 Interface constructors and destructors
+### 2.4.18 Interface constructors and destructors
 
 Interfaces may declare constructor and destructor requirements as part of the contract.
 
@@ -4329,7 +4532,7 @@ An interface destructor lowers to a vtable entry conceptually named `destroy`.
 
 Rules:
 
-- it receives the implementing context pointer
+- it receives the implementing interface-instance slot pointer
 - it must explicitly declare `within allocator` as its last parameter
 - the instance itself may be deallocated after destruction completes
 
@@ -4341,7 +4544,7 @@ An interface constructor entry does not make the interface type itself directly 
 new ICounterStore()
 ```
 
-### 2.4.17 Generic interfaces and generic interface methods
+### 2.4.19 Generic interfaces and generic interface methods
 
 Interfaces themselves may be generic, and interface methods may also be generic.
 
@@ -4359,15 +4562,15 @@ interface ITransformer
 }
 ```
 
-These are ordinary ABI-visible interface surfaces. The generic rules are defined later; the important point here is that interfaces are not excluded from the normal language surface.
+These are ordinary ABI-visible interface surfaces. Generic substitution affects the declared parameter and result types. It does not change the basic interface-instance representation: vtable entries still receive the interface-instance slot pointer as their first parameter.
 
-### 2.4.18 Exported interface implementation relationships
+### 2.4.20 Exported interface implementation relationships
 
 Interfaces are part of the ABI surface in their own right. They are not opaque in the same way classes are opaque.
 
 If a struct or class exports an interface implementation relationship, the compiler may expose the appropriate public projection surface for that relationship.
 
-For classes, that public story is tied to the exported non-fixup vtable object for the implementation pair.
+For classes, that public story is tied to the exported vtable object for the implementation pair.
 
 Conceptually:
 
@@ -4377,7 +4580,9 @@ may become part of the exported ABI surface.
 
 Exported class opacity still remains in force. Hidden `_vt_InterfaceName` fields are private-header details, not public class layout.
 
-### 2.4.19 Interface cost model
+If outside code cannot see the implementing class layout, it cannot form the interface-instance pointer by taking the address of the hidden field. A module may expose an explicit projection helper when that conversion needs to cross the public ABI.
+
+### 2.4.21 Interface cost model
 
 | Case | Cost |
 |---|---|
@@ -4389,17 +4594,19 @@ Exported class opacity still remains in force. Hidden `_vt_InterfaceName` fields
 
 There is no hidden runtime registry, hidden metadata lookup, or heap boxing requirement for ordinary class-backed interface calls.
 
-### 2.4.20 Mental model
+### 2.4.22 Mental model
 
 The right mental model is simple:
 
 - an interface declaration defines a nominal vtable shape
 - bare `IFoo` is a vtable pointer
-- `IFoo*` is the ordinary callable interface-instance form
+- source `IFoo*` is the ordinary callable interface-instance form
+- lowered interface-instance pointers have the shape `IFoo**`
 - class implementations store hidden interface-specific vtable-pointer fields
 - struct implementations use scoped indirect interface pointer adapters
 
-That model is explicit, ABI-visible, and consistent with the rest of Camp’s design.
+That model is explicit, ABI-visible, and consistent with the rest of Camp's design.
+
 # 3. Statements and Expressions
 
 This section defines the executable core of Camp: the statements that control evaluation, the ordinary operators used in expressions, the rules for member and property access, grouped multi-value results, and the syntax used for iteration, slicing, and cleanup.
@@ -7993,7 +8200,7 @@ interface IComparer<T: any>
 }
 ```
 
-A generic interface is just another generic declaration category. Its entries remain part of the ordinary ABI-visible interface surface.
+A generic interface is just another generic declaration category. Generic substitution affects the declared entry signatures, but the interface-instance representation remains the ordinary vtable-pointer-slot model.
 
 ### 6.4.3 Generic interface methods
 
@@ -8006,7 +8213,7 @@ interface ITransformer
 }
 ```
 
-This is allowed under the ordinary erased generic model. Generic interface methods are part of the normal language surface.
+This is allowed under the ordinary erased generic model. Generic method parameters affect the method's ordinary parameters and results; they do not add type-specific context parameters to the interface slot.
 
 ### 6.4.4 Interface-constrained generic dispatch
 
