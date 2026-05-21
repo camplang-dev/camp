@@ -10,14 +10,17 @@ public sealed partial class BindableNodeAnalyzer
 	readonly FunctionDefinition allocatorAllocMethod = CreateAllocatorAllocMethod();
 	readonly FunctionDefinition allocatorFreeMethod = CreateAllocatorFreeMethod();
 	readonly Dictionary<ClassDefinition, List<InterfaceImplementationLowering>> classInterfaceLowerings = [];
+	readonly Dictionary<StructDefinition, List<InterfaceImplementationLowering>> structInterfaceLowerings = [];
 	readonly Dictionary<FunctionDefinition, InterfaceThunkLowering> interfaceThunkLowerings = [];
 	readonly Dictionary<InterfaceDefinition, StructDefinition> loweredInterfaceStructs = [];
+	readonly Dictionary<InterfaceDefinition, StructDefinition> interfaceIndirectStructs = [];
 	readonly List<Definition> generatedInterfaceDefinitions = [];
 	const string InitNewMethodName = "op_initnew";
 	const string CreateMethodName = "create";
 	const string DeleteMethodName = "op_delete";
 	const string DestroyMethodName = "destroy";
 	Expression? currentAllocatorOverride;
+	List<Statement>? currentStatementPrefix;
 	int generatedLocalIndex;
 
 	public static AnalysisResult AnalyzeAndRewrite(Module module)
@@ -60,6 +63,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (definition is ClassDefinition classDefinition)
 				GenerateClassInterfaceDeclarations(module, classDefinition, interfaces);
+			else if (definition is StructDefinition structDefinition)
+				GenerateStructInterfaceDeclarations(module, structDefinition, interfaces);
 		}
 	}
 
@@ -91,7 +96,7 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(vtable);
 			generatedInterfaceDefinitions.Add(vtable);
 
-			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, DirectEntries: interfaceIndex == 0);
+			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, DirectEntries: interfaceIndex == 0, IsStruct: false);
 			implementations.Add(lowering);
 			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
 			interfaceIndex++;
@@ -102,6 +107,34 @@ public sealed partial class BindableNodeAnalyzer
 			EnsureInterfaceInitNewMethod(classDefinition);
 			classInterfaceLowerings[classDefinition] = implementations;
 		}
+	}
+
+	void GenerateStructInterfaceDeclarations(Module module, StructDefinition structDefinition, Dictionary<string, InterfaceDefinition> interfaces)
+	{
+		List<InterfaceImplementationLowering> implementations = [];
+		foreach (TypeReference baseType in structDefinition.BaseTypes)
+		{
+			if (!TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
+				continue;
+
+			EnsureInterfaceIndirectStruct(module, interfaceDefinition);
+			VariableDefinition vtable = new()
+			{
+				Name = InterfaceVTableName(structDefinition, interfaceDefinition),
+				Symbol = InterfaceVTableName(structDefinition, interfaceDefinition),
+				Type = InterfaceType(interfaceDefinition),
+				ResolvedType = interfaceDefinition.Name
+			};
+			module.Definitions.Add(vtable);
+			generatedInterfaceDefinitions.Add(vtable);
+
+			InterfaceImplementationLowering lowering = new(structDefinition, interfaceDefinition, Field: null, vtable, DirectEntries: false, IsStruct: true);
+			implementations.Add(lowering);
+			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
+		}
+
+		if (implementations.Count > 0)
+			structInterfaceLowerings[structDefinition] = implementations;
 	}
 
 	void EnsureInterfaceInitNewMethod(ClassDefinition classDefinition)
@@ -143,10 +176,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		FunctionDefinition thunk = new()
 		{
-			Name = InterfaceThunkName(lowering.Class, entryInterface, member),
-			Symbol = InterfaceThunkName(lowering.Class, entryInterface, member),
+			Name = InterfaceThunkName(lowering.Type, entryInterface, member),
+			Symbol = InterfaceThunkName(lowering.Type, entryInterface, member),
 			ReturnType = CloneType(member.ReturnType) ?? VoidType(),
-			ResolvedType = GetInterfaceEntryReturnType(member, lowering.Class)
+			ResolvedType = GetInterfaceEntryReturnType(member, lowering.Type)
 		};
 		thunk.Parameters.Add(new ParameterDefinition
 		{
@@ -175,6 +208,12 @@ public sealed partial class BindableNodeAnalyzer
 				InsertInterfaceVTableInitialization(classDefinition, lowerings[i]);
 		}
 
+		foreach ((StructDefinition _, List<InterfaceImplementationLowering> lowerings) in structInterfaceLowerings)
+		{
+			foreach (InterfaceImplementationLowering lowering in lowerings)
+				lowering.VTable.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface);
+		}
+
 		foreach ((FunctionDefinition thunk, InterfaceThunkLowering lowering) in interfaceThunkLowerings)
 			thunk.Body = CreateInterfaceThunkBody(thunk, lowering);
 	}
@@ -187,6 +226,8 @@ public sealed partial class BindableNodeAnalyzer
 				module.Definitions[i] = LowerInterfaceDefinition(interfaceDefinition);
 			else if (module.Definitions[i] is ClassDefinition classDefinition)
 				RemoveLoweredInterfaceBaseTypes(classDefinition);
+			else if (module.Definitions[i] is StructDefinition structDefinition)
+				RemoveLoweredInterfaceBaseTypes(structDefinition);
 		}
 	}
 
@@ -351,6 +392,15 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	void RemoveLoweredInterfaceBaseTypes(StructDefinition structDefinition)
+	{
+		for (int i = structDefinition.BaseTypes.Count - 1; i >= 0; i--)
+		{
+			if (TryGetInterfaceDefinition(structDefinition.BaseTypes[i], out _))
+				structDefinition.BaseTypes.RemoveAt(i);
+		}
+	}
+
 	StructDefinition LowerInterfaceDefinition(InterfaceDefinition definition)
 	{
 		if (loweredInterfaceStructs.TryGetValue(definition, out StructDefinition? existing))
@@ -387,6 +437,49 @@ public sealed partial class BindableNodeAnalyzer
 
 		loweredInterfaceStructs[definition] = lowered;
 		return lowered;
+	}
+
+	StructDefinition EnsureInterfaceIndirectStruct(Module module, InterfaceDefinition interfaceDefinition)
+	{
+		if (interfaceIndirectStructs.TryGetValue(interfaceDefinition, out StructDefinition? existing))
+			return existing;
+
+		GenericParameter generic = new()
+		{
+			Name = "U",
+			ResolvedType = "U",
+			Constraint = PointerTo(VoidType())
+		};
+		generic.Constraint.ResolvedType = "void*";
+
+		StructDefinition indirect = new()
+		{
+			Name = InterfaceIndirectName(interfaceDefinition),
+			Symbol = InterfaceIndirectName(interfaceDefinition),
+			Export = interfaceDefinition.Export,
+			Modifier = StructModifier.Fixed,
+			ResolvedType = InterfaceIndirectName(interfaceDefinition)
+		};
+		indirect.GenericParameters.Add(generic);
+		indirect.Fields.Add(new FieldDefinition
+		{
+			Name = "_vt",
+			Symbol = "_vt",
+			Type = PointerTo(InterfaceType(interfaceDefinition)),
+			ResolvedType = $"{interfaceDefinition.Name}*"
+		});
+		indirect.Fields.Add(new FieldDefinition
+		{
+			Name = "ctx",
+			Symbol = "ctx",
+			Type = PointerTo(new GenericParameterTypeReference { Name = generic.Name, Parameter = generic, ResolvedType = generic.Name }),
+			ResolvedType = $"{generic.Name}*"
+		});
+
+		interfaceIndirectStructs[interfaceDefinition] = indirect;
+		module.Definitions.Add(indirect);
+		generatedInterfaceDefinitions.Add(indirect);
+		return indirect;
 	}
 
 	FieldDefinition CreateInterfaceVTableEntryField(InterfaceDefinition owner, FunctionDefinition member)
@@ -453,9 +546,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression CreateInterfaceVTableEntryReference(InterfaceImplementationLowering lowering, InterfaceDefinition interfaceDefinition, FunctionDefinition member)
 	{
-		if (lowering.DirectEntries && FindImplementationMethod(lowering.Class, member) is FunctionDefinition implementation)
+		if (lowering.DirectEntries && FindImplementationMethod(lowering.Type, member) is FunctionDefinition implementation)
 		{
-			EnsureImplementationMethodSymbol(lowering.Class, implementation);
+			EnsureImplementationMethodSymbol(lowering.Type, implementation);
 			MethodReferenceExpression reference = new()
 			{
 				ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
@@ -468,7 +561,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
 		};
-		if (TryFindGeneratedFunction(InterfaceThunkName(lowering.Class, interfaceDefinition, member), out FunctionDefinition? thunkFunction) && thunkFunction is not null)
+		if (TryFindGeneratedFunction(InterfaceThunkName(lowering.Type, interfaceDefinition, member), out FunctionDefinition? thunkFunction) && thunkFunction is not null)
 			thunk.Candidates.Add(thunkFunction);
 		return thunk;
 	}
@@ -480,20 +573,38 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void"
 		};
 		ParameterDefinition ctx = thunk.Parameters[0];
-		DeclarationStatement instance = CreateGeneratedLocal("instance", $"{lowering.Implementation.Class.Name}*", PointerTo(InterfaceType(lowering.Implementation.Class)), CreateInterfaceInstanceFixup(lowering, ctx));
+		DeclarationStatement? indirect = null;
+		DeclarationStatement instance;
+		if (lowering.Implementation.IsStruct)
+		{
+			indirect = CreateGeneratedLocal("indirect", $"{InterfaceIndirectName(lowering.EntryInterface)}<{lowering.Implementation.Type.Name}>*", PointerTo(InterfaceIndirectType(lowering.EntryInterface, lowering.Implementation.Type)), CreateInterfaceInstanceFixup(lowering, ctx));
+			indirect.Target.Names.Clear();
+			indirect.Target.Names.Add("indirect");
+			body.Statements.Add(indirect);
+			instance = CreateGeneratedLocal("instance", $"{lowering.Implementation.Type.Name}*", PointerTo(InterfaceType(lowering.Implementation.Type)), new MemberReferenceExpression
+			{
+				Target = CreateVariableReference(indirect.Target, indirect.Target.ResolvedType ?? $"{InterfaceIndirectName(lowering.EntryInterface)}<{lowering.Implementation.Type.Name}>*"),
+				Name = "ctx",
+				ResolvedType = $"{lowering.Implementation.Type.Name}*"
+			});
+		}
+		else
+		{
+			instance = CreateGeneratedLocal("instance", $"{lowering.Implementation.Type.Name}*", PointerTo(InterfaceType(lowering.Implementation.Type)), CreateInterfaceInstanceFixup(lowering, ctx));
+		}
 		instance.Target.Names.Clear();
 		instance.Target.Names.Add("instance");
 		body.Statements.Add(instance);
 
 		CallExpression call = new()
 		{
-			ResolvedType = GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Class),
+			ResolvedType = GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Type),
 			Target = new MemberReferenceExpression
 			{
-				Target = CreateVariableReference(instance.Target, instance.Target.ResolvedType ?? $"{lowering.Implementation.Class.Name}*"),
+				Target = CreateVariableReference(instance.Target, instance.Target.ResolvedType ?? $"{lowering.Implementation.Type.Name}*"),
 				Name = GetImplementationMethodName(lowering.Member),
-				Member = FindImplementationMethod(lowering.Implementation.Class, lowering.Member),
-				ResolvedType = GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Class)
+				Member = FindImplementationMethod(lowering.Implementation.Type, lowering.Member),
+				ResolvedType = GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Type)
 			}
 		};
 		foreach (ParameterDefinition parameter in thunk.Parameters)
@@ -516,11 +627,25 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression CreateInterfaceInstanceFixup(InterfaceThunkLowering lowering, ParameterDefinition ctx)
 	{
+		if (lowering.Implementation.IsStruct)
+		{
+			return new CastExpression
+			{
+				Type = PointerTo(InterfaceIndirectType(lowering.EntryInterface, lowering.Implementation.Type)),
+				Kind = CastKind.Type,
+				ResolvedType = $"{InterfaceIndirectName(lowering.EntryInterface)}<{lowering.Implementation.Type.Name}>*",
+				Expression = CreateVariableReference(ctx, ctx.ResolvedType ?? $"{lowering.EntryInterface.Name}**")
+			};
+		}
+
+		if (lowering.Implementation.Field is null)
+			return CreateVariableReference(ctx, ctx.ResolvedType ?? $"{lowering.EntryInterface.Name}**");
+
 		return new CastExpression
 		{
-			Type = PointerTo(InterfaceType(lowering.Implementation.Class)),
+			Type = PointerTo(InterfaceType(lowering.Implementation.Type)),
 			Kind = CastKind.Type,
-			ResolvedType = $"{lowering.Implementation.Class.Name}*",
+			ResolvedType = $"{lowering.Implementation.Type.Name}*",
 			Expression = new BinaryExpression
 			{
 				Left = new CastExpression
@@ -541,7 +666,7 @@ public sealed partial class BindableNodeAnalyzer
 						{
 							Value = new MemberExpression
 							{
-								Target = new TypeReferenceExpression { Type = InterfaceType(lowering.Implementation.Class), ResolvedType = lowering.Implementation.Class.Name },
+								Target = new TypeReferenceExpression { Type = InterfaceType(lowering.Implementation.Type), ResolvedType = lowering.Implementation.Type.Name },
 								Name = lowering.Implementation.Field.Name,
 								ResolvedType = lowering.Implementation.Field.ResolvedType
 							},
@@ -569,7 +694,7 @@ public sealed partial class BindableNodeAnalyzer
 					Target = new MemberReferenceExpression
 					{
 						Target = new ThisExpression { ResolvedType = classDefinition.Name },
-						Name = lowering.Field.Name,
+						Name = lowering.Field!.Name,
 						Member = lowering.Field,
 						ResolvedType = lowering.Field.ResolvedType
 					},
@@ -644,10 +769,10 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	FunctionDefinition? FindImplementationMethod(ClassDefinition classDefinition, FunctionDefinition interfaceMember)
+	FunctionDefinition? FindImplementationMethod(TypeDefinition type, FunctionDefinition interfaceMember)
 	{
 		string name = GetImplementationMethodName(interfaceMember);
-		foreach (FunctionDefinition function in classDefinition.Functions)
+		foreach (FunctionDefinition function in GetFunctions(type))
 		{
 			if (function.Name == name)
 				return function;
@@ -718,6 +843,11 @@ public sealed partial class BindableNodeAnalyzer
 		return type.Name + "_" + interfaceDefinition.Name;
 	}
 
+	static string InterfaceIndirectName(InterfaceDefinition interfaceDefinition)
+	{
+		return interfaceDefinition.Name + "_Indirect";
+	}
+
 	static string InterfaceThunkName(TypeDefinition type, InterfaceDefinition interfaceDefinition, FunctionDefinition member)
 	{
 		return type.Name + "_" + interfaceDefinition.Name + "_" + GetInterfaceEntryName(member);
@@ -757,6 +887,17 @@ public sealed partial class BindableNodeAnalyzer
 	static TypeReference InterfaceInstanceType(InterfaceDefinition interfaceDefinition)
 	{
 		return PointerTo(PointerTo(InterfaceType(interfaceDefinition)));
+	}
+
+	static TypeReference InterfaceIndirectType(InterfaceDefinition interfaceDefinition, TypeDefinition implementation)
+	{
+		TypeDefinitionReference reference = new()
+		{
+			Name = InterfaceIndirectName(interfaceDefinition),
+			ResolvedType = $"{InterfaceIndirectName(interfaceDefinition)}<{implementation.Name}>"
+		};
+		reference.TypeArguments.Add(InterfaceType(implementation));
+		return reference;
 	}
 
 	void GenerateLifecycleMethods(Module module)
@@ -1142,7 +1283,15 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
+			List<Statement>? previousPrefix = currentStatementPrefix;
+			currentStatementPrefix = [];
 			statements[i] = RewriteStatement(statements[i]);
+			if (currentStatementPrefix.Count > 0)
+			{
+				statements.InsertRange(i, currentStatementPrefix);
+				i += currentStatementPrefix.Count;
+			}
+			currentStatementPrefix = previousPrefix;
 		}
 	}
 
@@ -1265,6 +1414,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			case CastExpression cast:
 				cast.Expression = LowerExpression(cast.Expression);
+				if (IsInterfacePointerType(cast.Type))
+					return LowerInterfaceConversion(cast.Type, cast.Expression) ?? cast;
 				break;
 
 			case LambdaExpression lambda:
@@ -1323,6 +1474,8 @@ public sealed partial class BindableNodeAnalyzer
 			case AssignmentExpression assignment:
 				assignment.Target = LowerExpression(assignment.Target);
 				assignment.Value = LowerExpression(assignment.Value);
+				if (assignment.Target is VariableReferenceExpression { Variable: DeclarationTarget target })
+					assignment.Value = LowerInterfaceConversion(target.Type, assignment.Value);
 				break;
 
 			case ConditionalExpression conditional:
@@ -1380,13 +1533,24 @@ public sealed partial class BindableNodeAnalyzer
 			return value;
 
 		string sourceType = value.ResolvedType ?? "";
+		if (sourceType == targetPointer.ResolvedType || TryGetPointerElementType(sourceType) == targetInterface.Name)
+			return value;
+
 		if (TryGetPointerElementType(sourceType) is string className
 			&& typeDefinitions.TryGetValue(BaseTypeName(className), out TypeDefinition? typeDefinition)
 			&& typeDefinition is ClassDefinition classDefinition
 			&& TryFindInterfaceLowering(classDefinition, targetInterface, out InterfaceImplementationLowering? lowering)
 			&& lowering is not null)
 		{
-			return AddressOfInterfaceField(value, lowering.Field);
+			return lowering.Field is null ? value : AddressOfInterfaceField(value, lowering.Field);
+		}
+
+		if (typeDefinitions.TryGetValue(BaseTypeName(sourceType), out TypeDefinition? sourceTypeDefinition)
+			&& sourceTypeDefinition is StructDefinition structDefinition
+			&& TryFindInterfaceLowering(structDefinition, targetInterface, out InterfaceImplementationLowering? structLowering)
+			&& structLowering is not null)
+		{
+			return CreateStructInterfaceConversion(value, structDefinition, targetInterface, structLowering);
 		}
 
 		if (TryGetPointerElementType(sourceType) is string sourceInterfaceName
@@ -1404,6 +1568,79 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return value;
+	}
+
+	bool IsInterfacePointerType(TypeReference? type)
+	{
+		return type is PointerTypeReference pointer
+			&& TryGetInterfaceDefinition(pointer.ElementType ?? pointer, out InterfaceDefinition? interfaceDefinition)
+			&& interfaceDefinition is not null;
+	}
+
+	Expression CreateStructInterfaceConversion(Expression value, StructDefinition structDefinition, InterfaceDefinition targetInterface, InterfaceImplementationLowering lowering)
+	{
+		if (currentStatementPrefix is null)
+			return value;
+
+		string localName = NewGeneratedLocalName("iface");
+		TypeReference indirectType = InterfaceIndirectType(targetInterface, structDefinition);
+		DeclarationStatement local = CreateGeneratedLocal(localName, indirectType.ResolvedType ?? $"{InterfaceIndirectName(targetInterface)}<{structDefinition.Name}>", indirectType, initialValue: null);
+		currentStatementPrefix.Add(local);
+
+		Expression localReference = CreateVariableReference(local.Target, local.Target.ResolvedType ?? indirectType.ResolvedType ?? ErrorType);
+		currentStatementPrefix.Add(new ExpressionStatement
+		{
+			ResolvedType = "void",
+			Expression = new AssignmentExpression
+			{
+				Target = CreateInterfaceIndirectMember(localReference, "_vt", $"{targetInterface.Name}*"),
+				Operator = AssignmentOperator.Assign,
+				Value = new UnaryExpression
+				{
+					Operator = UnaryOperator.AddressOf,
+					Operand = new NamedExpression
+					{
+						Name = lowering.VTable.Name,
+						ResolvedType = lowering.VTable.ResolvedType
+					},
+					ResolvedType = $"{targetInterface.Name}*"
+				},
+				ResolvedType = $"{targetInterface.Name}*"
+			}
+		});
+		currentStatementPrefix.Add(new ExpressionStatement
+		{
+			ResolvedType = "void",
+			Expression = new AssignmentExpression
+			{
+				Target = CreateInterfaceIndirectMember(localReference, "ctx", $"{structDefinition.Name}*"),
+				Operator = AssignmentOperator.Assign,
+				Value = new UnaryExpression
+				{
+					Operator = UnaryOperator.AddressOf,
+					Operand = value,
+					ResolvedType = $"{structDefinition.Name}*"
+				},
+				ResolvedType = $"{structDefinition.Name}*"
+			}
+		});
+
+		return new UnaryExpression
+		{
+			Operator = UnaryOperator.AddressOf,
+			Operand = CreateInterfaceIndirectMember(localReference, "_vt", $"{targetInterface.Name}*"),
+			ResolvedType = $"{targetInterface.Name}**"
+		};
+	}
+
+	static MemberReferenceExpression CreateInterfaceIndirectMember(Expression target, string name, string type)
+	{
+		return new MemberReferenceExpression
+		{
+			Target = target,
+			Name = name,
+			ResolvedType = type
+		};
 	}
 
 	Expression AddressOfInterfaceField(Expression instance, FieldDefinition field)
@@ -1426,6 +1663,23 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		lowering = null;
 		if (!classInterfaceLowerings.TryGetValue(classDefinition, out List<InterfaceImplementationLowering>? lowerings))
+			return false;
+
+		foreach (InterfaceImplementationLowering candidate in lowerings)
+		{
+			if (ReferenceEquals(candidate.Interface, targetInterface) || InterfaceContainsBase(candidate.Interface, targetInterface))
+			{
+				lowering = candidate;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool TryFindInterfaceLowering(StructDefinition structDefinition, InterfaceDefinition targetInterface, out InterfaceImplementationLowering? lowering)
+	{
+		lowering = null;
+		if (!structInterfaceLowerings.TryGetValue(structDefinition, out List<InterfaceImplementationLowering>? lowerings))
 			return false;
 
 		foreach (InterfaceImplementationLowering candidate in lowerings)
@@ -2118,7 +2372,7 @@ public sealed partial class BindableNodeAnalyzer
 		return method;
 	}
 
-	sealed record InterfaceImplementationLowering(ClassDefinition Class, InterfaceDefinition Interface, FieldDefinition Field, VariableDefinition VTable, bool DirectEntries);
+	sealed record InterfaceImplementationLowering(TypeDefinition Type, InterfaceDefinition Interface, FieldDefinition? Field, VariableDefinition VTable, bool DirectEntries, bool IsStruct);
 
 	sealed record InterfaceThunkLowering(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member);
 }

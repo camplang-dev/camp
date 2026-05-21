@@ -892,6 +892,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameter.Constraint is PrimitiveTypeReference primitive && IsIntegralPrimitive(primitive.Type))
 			return;
 
+		if (parameter.Constraint is PointerTypeReference { ElementType: PrimitiveTypeReference { Type: PrimitiveType.Void } })
+			return;
+
 		Report(GetRange(parameter.Constraint.SourceSyntax), $"Generic parameter '{parameter.Name}' must be constrained to any, an integral type, or implements Interface.");
 	}
 

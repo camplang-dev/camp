@@ -1331,7 +1331,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetCallableShape(source, out CallableShape sourceCallable) && TryGetCallableShape(target, out CallableShape targetCallable))
 			return CallableShapesCompatible(sourceCallable, targetCallable);
 
-		if (IsClassToInterfaceConversion(source, target) || IsInterfaceUpcast(source, target))
+		if (IsClassToInterfaceConversion(source, target) || IsStructToInterfaceConversion(source, target) || IsInterfaceUpcast(source, target))
 			return true;
 
 		if (IsNewtypeOrEnumBoundary(source, target))
@@ -1354,6 +1354,19 @@ public sealed partial class BindableNodeAnalyzer
 			&& ClassImplementsInterface(classDefinition, interfaceDefinition);
 	}
 
+	bool IsStructToInterfaceConversion(string source, string target)
+	{
+		string? targetElement = TryGetPointerElementType(target);
+		if (targetElement is null)
+			return false;
+
+		return typeDefinitions.TryGetValue(BaseTypeName(source), out TypeDefinition? sourceType)
+			&& sourceType is StructDefinition structDefinition
+			&& typeDefinitions.TryGetValue(BaseTypeName(targetElement), out TypeDefinition? targetType)
+			&& targetType is InterfaceDefinition interfaceDefinition
+			&& TypeImplementsInterface(structDefinition, interfaceDefinition);
+	}
+
 	bool IsInterfaceUpcast(string source, string target)
 	{
 		string? sourceElement = TryGetPointerElementType(source);
@@ -1370,7 +1383,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool ClassImplementsInterface(ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)
 	{
-		foreach (InterfaceDefinition implemented in GetImplementedInterfaces(classDefinition))
+		return TypeImplementsInterface(classDefinition, interfaceDefinition);
+	}
+
+	bool TypeImplementsInterface(TypeDefinition typeDefinition, InterfaceDefinition interfaceDefinition)
+	{
+		foreach (InterfaceDefinition implemented in GetImplementedInterfaces(typeDefinition))
 		{
 			if (ReferenceEquals(implemented, interfaceDefinition))
 				return true;
