@@ -11,6 +11,8 @@ public sealed partial class BindableNodeAnalyzer
 	readonly FunctionDefinition allocatorFreeMethod = CreateAllocatorFreeMethod();
 	readonly Dictionary<ClassDefinition, List<InterfaceImplementationLowering>> classInterfaceLowerings = [];
 	readonly Dictionary<StructDefinition, List<InterfaceImplementationLowering>> structInterfaceLowerings = [];
+	readonly Dictionary<ClassDefinition, VirtualClassLowering> virtualClassLowerings = [];
+	readonly Dictionary<FunctionDefinition, FunctionDefinition> virtualImplementations = [];
 	readonly Dictionary<FunctionDefinition, InterfaceThunkLowering> interfaceThunkLowerings = [];
 	readonly Dictionary<InterfaceDefinition, StructDefinition> loweredInterfaceStructs = [];
 	readonly Dictionary<InterfaceDefinition, StructDefinition> interfaceIndirectStructs = [];
@@ -21,6 +23,8 @@ public sealed partial class BindableNodeAnalyzer
 	const string DestroyMethodName = "destroy";
 	Expression? currentAllocatorOverride;
 	List<Statement>? currentStatementPrefix;
+	FunctionDefinition? currentRewriteFunction;
+	TypeDefinition? currentRewriteContainingType;
 	int generatedLocalIndex;
 
 	public static AnalysisResult AnalyzeAndRewrite(Module module)
@@ -28,7 +32,10 @@ public sealed partial class BindableNodeAnalyzer
 		ArgumentNullException.ThrowIfNull(module);
 
 		BindableNodeAnalyzer analyzer = new();
+		analyzer.currentModule = module;
+		analyzer.CollectTypeNames(module);
 		analyzer.GenerateLifecycleMethods(module);
+		analyzer.GenerateVirtualDeclarations(module);
 		analyzer.GenerateInterfaceDeclarations(module);
 		analyzer.AnalyzeModule(module);
 		analyzer.FillMissingResolvedTypes(module);
@@ -48,6 +55,262 @@ public sealed partial class BindableNodeAnalyzer
 		LowerSourceInterfaceTypes(module);
 		RefreshLoweredResolvedTypes(module);
 		LowerInterfaceDefinitions(module);
+	}
+
+	void GenerateVirtualDeclarations(Module module)
+	{
+		foreach (Definition definition in module.Definitions.ToArray())
+		{
+			if (definition is ClassDefinition classDefinition && IsVirtualClassParticipant(classDefinition))
+				GenerateVirtualClassDeclarations(module, classDefinition);
+		}
+	}
+
+	void GenerateVirtualClassDeclarations(Module module, ClassDefinition classDefinition)
+	{
+		ClassDefinition? baseClass = GetDirectBaseClass(classDefinition);
+		VirtualClassLowering? baseLowering = baseClass is not null && virtualClassLowerings.TryGetValue(baseClass, out VirtualClassLowering? foundBase)
+			? foundBase
+			: null;
+
+		StructDefinition vtableType = new()
+		{
+			Name = VirtualTableTypeName(classDefinition),
+			Symbol = VirtualTableTypeName(classDefinition),
+			ResolvedType = VirtualTableTypeName(classDefinition)
+		};
+		if (baseLowering is not null)
+		{
+			vtableType.Fields.Add(new FieldDefinition
+			{
+				Name = baseClass!.Name,
+				Symbol = baseClass.Name,
+				Type = TypeReferenceFor(baseLowering.VTableType),
+				ResolvedType = baseLowering.VTableType.Name
+			});
+		}
+
+		VirtualClassLowering lowering = new(classDefinition, baseClass, baseLowering, vtableType);
+		virtualClassLowerings[classDefinition] = lowering;
+
+		if (baseLowering is null)
+		{
+			FieldDefinition field = new()
+			{
+				Name = VirtualTableFieldName,
+				Symbol = VirtualTableFieldName,
+				Type = PointerTo(TypeReferenceFor(vtableType)),
+				ResolvedType = $"{vtableType.Name}*"
+			};
+			classDefinition.Fields.Insert(0, field);
+			lowering.Field = field;
+		}
+
+		List<FunctionDefinition> generated = [];
+		foreach (FunctionDefinition function in classDefinition.Functions.ToArray())
+		{
+			if (!IsVirtualMethodDeclaration(function))
+				continue;
+
+			FunctionDefinition? implementation = CreateVirtualImplementationMethod(classDefinition, function);
+			if (implementation is not null)
+			{
+				generated.Add(implementation);
+				virtualImplementations[function] = implementation;
+			}
+
+			if (function.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract)
+			{
+				VirtualSlot slot = new(function, implementation);
+				lowering.DeclaredSlots.Add(slot);
+				vtableType.Fields.Add(CreateVirtualSlotField(classDefinition, function));
+				if (function.Modifier == FunctionModifier.Virtual)
+					function.Body = CreateVirtualDispatchBody(classDefinition, function);
+			}
+			else if (function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed)
+			{
+				function.Body = null;
+			}
+		}
+		classDefinition.Functions.AddRange(generated);
+
+		VariableDefinition vtable = new()
+		{
+			Name = VirtualTableVariableName(classDefinition),
+			Symbol = VirtualTableVariableName(classDefinition),
+			Type = TypeReferenceFor(vtableType),
+			ResolvedType = vtableType.Name
+		};
+		lowering.VTable = vtable;
+
+		module.Definitions.Add(vtableType);
+		module.Definitions.Add(vtable);
+		vtable.InitialValue = CreateVirtualVTableInitializer(lowering);
+	}
+
+	static bool IsVirtualClassParticipant(ClassDefinition classDefinition)
+	{
+		return classDefinition.Modifier is ClassModifier.Virtual or ClassModifier.Abstract or ClassModifier.Sealed;
+	}
+
+	static bool IsVirtualMethodDeclaration(FunctionDefinition function)
+	{
+		if (IsDestructorFunction(function))
+			return false;
+
+		return function.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract or FunctionModifier.Override or FunctionModifier.Sealed;
+	}
+
+	FunctionDefinition? CreateVirtualImplementationMethod(ClassDefinition owner, FunctionDefinition source)
+	{
+		if (source.Body is null)
+			return null;
+
+		FunctionDefinition implementation = new()
+		{
+			SourceSyntax = source.SourceSyntax,
+			Name = VirtualImplementationName(source),
+			Symbol = VirtualImplementationSymbol(owner, source),
+			Export = source.Export,
+			ReturnType = CloneType(source.ReturnType),
+			ResolvedType = source.ResolvedType,
+			Body = source.Body
+		};
+		CopyParameters(source.Parameters, implementation.Parameters);
+		return implementation;
+	}
+
+	FieldDefinition CreateVirtualSlotField(ClassDefinition owner, FunctionDefinition function)
+	{
+		CallableTypeReference callable = new()
+		{
+			Kind = CallableKind.Function,
+			ReturnType = CloneType(function.ReturnType) ?? VoidType(),
+			ResolvedType = BuildVirtualSlotCallableType(owner, function)
+		};
+		callable.Parameters.Add(new ParameterDefinition
+		{
+			Name = "ctx",
+			Symbol = "ctx",
+			Type = PointerTo(TypeReferenceFor(owner)),
+			ResolvedType = $"{owner.Name}*"
+		});
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter is ThisParameterDefinition)
+				continue;
+			callable.Parameters.Add(CloneParameter(parameter));
+		}
+
+		return new FieldDefinition
+		{
+			Name = VirtualSlotName(function),
+			Symbol = VirtualSlotName(function),
+			Type = callable,
+			ResolvedType = callable.ResolvedType
+		};
+	}
+
+	BlockStatement CreateVirtualDispatchBody(ClassDefinition owner, FunctionDefinition function)
+	{
+		string returnType = GetFunctionReturnTypeName(function);
+		Expression vtableTarget = new MemberReferenceExpression
+		{
+			Target = new ThisExpression { ResolvedType = owner.Name },
+			Name = VirtualTableFieldName,
+			ResolvedType = GetRootVirtualTableFieldType(owner)
+		};
+		if (virtualClassLowerings.TryGetValue(owner, out VirtualClassLowering? lowering) && lowering.BaseLowering is not null)
+		{
+			vtableTarget = new CastExpression
+			{
+				Type = PointerTo(TypeReferenceFor(lowering.VTableType)),
+				Kind = CastKind.Type,
+				Expression = vtableTarget,
+				ResolvedType = $"{lowering.VTableType.Name}*"
+			};
+		}
+
+		CallExpression call = new()
+		{
+			ResolvedType = returnType,
+			Target = new MemberReferenceExpression
+			{
+				Target = vtableTarget,
+				Name = VirtualSlotName(function),
+				Member = function,
+				ResolvedType = BuildVirtualSlotCallableType(owner, function)
+			}
+		};
+		call.Arguments.Add(new ArgumentExpression
+		{
+			Value = new ThisExpression { ResolvedType = owner.Name },
+			ResolvedType = $"{owner.Name}*"
+		});
+		foreach (ArgumentExpression argument in function.ArgumentsFromParameters())
+			call.Arguments.Add(argument);
+
+		BlockStatement body = new() { ResolvedType = "void" };
+		if (returnType == "void")
+			body.Statements.Add(new ExpressionStatement { Expression = call, ResolvedType = "void" });
+		else
+			body.Statements.Add(new ReturnStatement { Expression = call, ResolvedType = "void" });
+		return body;
+	}
+
+	InitializerExpression CreateVirtualVTableInitializer(VirtualClassLowering lowering)
+	{
+		InitializerExpression initializer = new() { ResolvedType = lowering.VTableType.Name };
+		if (lowering.BaseLowering is not null && lowering.BaseClass is not null)
+		{
+			initializer.Items.Add(new InitializerItem
+			{
+				Target = InitializerTargetFor(lowering.BaseClass.Name),
+				Expression = CreateBaseVirtualInitializer(lowering, lowering.BaseLowering),
+				ResolvedType = lowering.BaseLowering.VTableType.Name
+			});
+		}
+
+		foreach (VirtualSlot slot in lowering.DeclaredSlots)
+		{
+			initializer.Items.Add(new InitializerItem
+			{
+				Target = InitializerTargetFor(VirtualSlotName(slot.Declaration)),
+				Expression = slot.Implementation is null
+					? new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "#NULL" }
+					: CreateMethodReference(slot.Implementation, BuildVirtualSlotCallableType(lowering.Class, slot.Declaration)),
+				ResolvedType = BuildVirtualSlotCallableType(lowering.Class, slot.Declaration)
+			});
+		}
+		return initializer;
+	}
+
+	InitializerExpression CreateBaseVirtualInitializer(VirtualClassLowering derived, VirtualClassLowering baseLowering)
+	{
+		InitializerExpression initializer = new() { ResolvedType = baseLowering.VTableType.Name };
+		if (baseLowering.BaseLowering is not null && baseLowering.BaseClass is not null)
+		{
+			initializer.Items.Add(new InitializerItem
+			{
+				Target = InitializerTargetFor(baseLowering.BaseClass.Name),
+				Expression = CreateBaseVirtualInitializer(derived, baseLowering.BaseLowering),
+				ResolvedType = baseLowering.BaseLowering.VTableType.Name
+			});
+		}
+
+		foreach (VirtualSlot slot in baseLowering.DeclaredSlots)
+		{
+			FunctionDefinition? implementation = FindClosestVirtualImplementation(derived.Class, slot.Declaration);
+			initializer.Items.Add(new InitializerItem
+			{
+				Target = InitializerTargetFor(VirtualSlotName(slot.Declaration)),
+				Expression = implementation is null
+					? new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "#NULL" }
+					: CreateMethodReference(implementation, BuildVirtualSlotCallableType(baseLowering.Class, slot.Declaration)),
+				ResolvedType = BuildVirtualSlotCallableType(baseLowering.Class, slot.Declaration)
+			});
+		}
+		return initializer;
 	}
 
 	void GenerateInterfaceDeclarations(Module module)
@@ -71,7 +334,7 @@ public sealed partial class BindableNodeAnalyzer
 	void GenerateClassInterfaceDeclarations(Module module, ClassDefinition classDefinition, Dictionary<string, InterfaceDefinition> interfaces)
 	{
 		List<InterfaceImplementationLowering> implementations = [];
-		int interfaceIndex = 0;
+		int interfaceIndex = classDefinition.Fields.Count > 0 && classDefinition.Fields[0].Name == VirtualTableFieldName ? 1 : 0;
 		foreach (TypeReference baseType in classDefinition.BaseTypes)
 		{
 			if (!TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
@@ -857,6 +1120,98 @@ public sealed partial class BindableNodeAnalyzer
 		return type.Name + "_" + interfaceDefinition.Name + "_" + GetInterfaceEntryName(member);
 	}
 
+	const string VirtualTableFieldName = "_vt";
+
+	static string VirtualTableTypeName(TypeDefinition type)
+	{
+		return "_" + type.Name;
+	}
+
+	static string VirtualTableVariableName(TypeDefinition type)
+	{
+		return "_" + type.Name + "__vt";
+	}
+
+	static string VirtualImplementationName(FunctionDefinition function)
+	{
+		return "_" + VirtualSlotName(function);
+	}
+
+	static string VirtualImplementationSymbol(TypeDefinition type, FunctionDefinition function)
+	{
+		return type.Name + "__" + VirtualSlotName(function);
+	}
+
+	static string VirtualSlotName(FunctionDefinition function)
+	{
+		return function.Name == DeleteMethodName || IsDestructorFunction(function) ? DeleteMethodName : function.Name;
+	}
+
+	static string BuildVirtualSlotCallableType(TypeDefinition owner, FunctionDefinition function)
+	{
+		List<string> parameters = [$"{owner.Name}*"];
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter is ThisParameterDefinition)
+				continue;
+			parameters.Add(parameter.ResolvedType ?? ErrorType);
+		}
+		return $"fn {GetFunctionReturnTypeName(function)}({string.Join(", ", parameters)})";
+	}
+
+	static string GetFunctionReturnTypeName(FunctionDefinition function)
+	{
+		return function.ResolvedType ?? GetTypeReferenceName(function.ReturnType) ?? "void";
+	}
+
+	static string? GetTypeReferenceName(TypeReference? type)
+	{
+		return type switch
+		{
+			null => null,
+			PrimitiveTypeReference primitive => GetPrimitiveTypeName(primitive.Type),
+			NamedTypeReference named => BuildNamedTypeSourceName(named),
+			PointerTypeReference { ElementType: not null } pointer => GetTypeReferenceName(pointer.ElementType) + "*",
+			ConstTypeReference { Type: not null } constant => "const " + GetTypeReferenceName(constant.Type),
+			VolatileTypeReference { Type: not null } vol => "volatile " + GetTypeReferenceName(vol.Type),
+			EscapedTypeReference { Type: not null } escaped => "escaped " + GetTypeReferenceName(escaped.Type),
+			ScopedTypeReference { Type: not null } scoped => "scoped " + GetTypeReferenceName(scoped.Type),
+			UnscopedTypeReference { Type: not null } unscoped => "unscoped " + GetTypeReferenceName(unscoped.Type),
+			AutoTypeReference => AutoType,
+			AnyTypeReference => "any",
+			_ => type.ResolvedType
+		};
+	}
+
+	string GetRootVirtualTableFieldType(ClassDefinition owner)
+	{
+		ClassDefinition root = owner;
+		while (GetDirectBaseClass(root) is ClassDefinition baseClass && virtualClassLowerings.ContainsKey(baseClass))
+			root = baseClass;
+		return $"{VirtualTableTypeName(root)}*";
+	}
+
+	FunctionDefinition? FindClosestVirtualImplementation(ClassDefinition owner, FunctionDefinition slotDeclaration)
+	{
+		foreach (ClassDefinition candidate in EnumerateClassAndBases(owner))
+		{
+			foreach (FunctionDefinition function in candidate.Functions)
+			{
+				if (!virtualImplementations.TryGetValue(function, out FunctionDefinition? implementation))
+					continue;
+				if (VirtualSlotName(function) == VirtualSlotName(slotDeclaration))
+					return implementation;
+			}
+		}
+		return null;
+	}
+
+	IEnumerable<ClassDefinition> EnumerateClassAndBases(ClassDefinition owner)
+	{
+		for (ClassDefinition? current = owner; current is not null; current = GetDirectBaseClass(current))
+			yield return current;
+	}
+
 	static InitializerTarget InitializerTargetFor(string name)
 	{
 		InitializerTarget target = new() { ResolvedType = TargetType };
@@ -1114,57 +1469,63 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (FieldDefinition field in classDefinition.Fields)
 					field.InitialValue = LowerExpression(field.InitialValue);
 				foreach (FunctionDefinition function in classDefinition.Functions)
-					RewriteFunction(function);
+					RewriteFunction(function, classDefinition);
 				break;
 
 			case StructDefinition structDefinition:
 				foreach (FieldDefinition field in structDefinition.Fields)
 					field.InitialValue = LowerExpression(field.InitialValue);
 				foreach (FunctionDefinition function in structDefinition.Functions)
-					RewriteFunction(function);
+					RewriteFunction(function, structDefinition);
 				break;
 
 			case InterfaceDefinition interfaceDefinition:
 				foreach (FunctionDefinition function in interfaceDefinition.Functions)
-					RewriteFunction(function);
+					RewriteFunction(function, interfaceDefinition);
 				break;
 
 			case EnumDefinition enumDefinition:
 				foreach (VariableDefinition value in enumDefinition.Values)
 					value.InitialValue = LowerExpression(value.InitialValue);
 				foreach (FunctionDefinition function in enumDefinition.Functions)
-					RewriteFunction(function);
+					RewriteFunction(function, enumDefinition);
 				break;
 
 			case NewtypeDefinition newtypeDefinition:
 				foreach (ParameterDefinition parameter in newtypeDefinition.Parameters)
 					parameter.DefaultValue = LowerExpression(parameter.DefaultValue);
 				foreach (FunctionDefinition function in newtypeDefinition.Functions)
-					RewriteFunction(function);
+					RewriteFunction(function, newtypeDefinition);
 				break;
 
 			case ParamsDefinition paramsDefinition:
 				foreach (ParameterDefinition component in paramsDefinition.Components)
 					component.DefaultValue = LowerExpression(component.DefaultValue);
 				foreach (FunctionDefinition function in paramsDefinition.Functions)
-					RewriteFunction(function);
+					RewriteFunction(function, paramsDefinition);
 				break;
 
 			case FunctionDefinition function:
-				RewriteFunction(function);
+				RewriteFunction(function, containingType: null);
 				break;
 		}
 	}
 
-	void RewriteFunction(FunctionDefinition function)
+	void RewriteFunction(FunctionDefinition function, TypeDefinition? containingType)
 	{
 		foreach (ParameterDefinition parameter in function.Parameters)
 			parameter.DefaultValue = LowerExpression(parameter.DefaultValue);
 
 		Expression? previousAllocator = currentAllocatorOverride;
+		FunctionDefinition? previousFunction = currentRewriteFunction;
+		TypeDefinition? previousType = currentRewriteContainingType;
 		currentAllocatorOverride = GetFunctionAllocatorForBody(function);
+		currentRewriteFunction = function;
+		currentRewriteContainingType = containingType;
 		function.Body = RewriteFunctionBody(function.Body);
 		currentAllocatorOverride = previousAllocator;
+		currentRewriteFunction = previousFunction;
+		currentRewriteContainingType = previousType;
 	}
 
 	BlockStatement? RewriteFunctionBody(BlockStatement? body)
@@ -1339,10 +1700,18 @@ public sealed partial class BindableNodeAnalyzer
 		declaration.InitialValue = CreateAllocCall(TypeReferenceFor(definition), declaration.SourceSyntax);
 		statements.Add(declaration);
 
+		Expression target = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? $"{typeName}*");
+		if (CreateVirtualTableAssignment(target, definition) is Expression vtableAssignment)
+		{
+			statements.Add(new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = vtableAssignment
+			});
+		}
 		if (initNew is null)
 			return true;
 
-		Expression target = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? $"{typeName}*");
 		statements.Add(new IfStatement
 		{
 			SourceSyntax = construction.SourceSyntax,
@@ -1381,6 +1750,15 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		statements.Add(declaration);
+		if (typeDefinitions.TryGetValue(BaseConstructedType(target.ResolvedType), out TypeDefinition? definition)
+			&& CreateVirtualTableAssignment(target, definition) is Expression vtableAssignment)
+		{
+			statements.Add(new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = vtableAssignment
+			});
+		}
 		statements.Add(new ExpressionStatement
 		{
 			SourceSyntax = construction.SourceSyntax,
@@ -1674,6 +2052,69 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
+	bool NeedsVirtualTableAssignment(TypeDefinition type)
+	{
+		return type is ClassDefinition classDefinition && virtualClassLowerings.ContainsKey(classDefinition);
+	}
+
+	Expression? CreateVirtualTableAssignment(Expression instance, TypeDefinition type)
+	{
+		if (type is not ClassDefinition classDefinition || !virtualClassLowerings.TryGetValue(classDefinition, out VirtualClassLowering? lowering))
+			return null;
+
+		VirtualClassLowering root = GetRootVirtualLowering(lowering);
+		return new AssignmentExpression
+		{
+			Target = new MemberReferenceExpression
+			{
+				Target = instance,
+				Name = VirtualTableFieldName,
+				Member = root.Field,
+				ResolvedType = $"{root.VTableType.Name}*"
+			},
+			Operator = AssignmentOperator.Assign,
+			Value = CreateVirtualTablePointer(lowering, root),
+			ResolvedType = $"{root.VTableType.Name}*"
+		};
+	}
+
+	VirtualClassLowering GetRootVirtualLowering(VirtualClassLowering lowering)
+	{
+		while (lowering.BaseLowering is not null)
+			lowering = lowering.BaseLowering;
+		return lowering;
+	}
+
+	Expression CreateVirtualTablePointer(VirtualClassLowering target, VirtualClassLowering root)
+	{
+		Expression expression = new NamedExpression
+		{
+			Name = target.VTable?.Name ?? VirtualTableVariableName(target.Class),
+			ResolvedType = target.VTableType.Name
+		};
+		List<string> path = [];
+		for (VirtualClassLowering? current = target; current is not null && !ReferenceEquals(current, root); current = current.BaseLowering)
+		{
+			if (current.BaseClass is not null)
+				path.Add(current.BaseClass.Name);
+		}
+		for (int i = path.Count - 1; i >= 0; i--)
+		{
+			expression = new MemberReferenceExpression
+			{
+				Target = expression,
+				Name = path[i],
+				ResolvedType = i == 0 ? root.VTableType.Name : ErrorType
+			};
+		}
+		return new UnaryExpression
+		{
+			Operator = UnaryOperator.AddressOf,
+			Operand = expression,
+			ResolvedType = $"{root.VTableType.Name}*"
+		};
+	}
+
 	bool TryFindInterfaceLowering(ClassDefinition classDefinition, InterfaceDefinition targetInterface, out InterfaceImplementationLowering? lowering)
 	{
 		lowering = null;
@@ -1758,7 +2199,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		TypeReference typeReference = TypeReferenceFor(type);
 		FunctionDefinition? initNew = FindInitNewMethod(type, arguments.Count);
-		if (initNew is null)
+		if (initNew is null && !NeedsVirtualTableAssignment(type))
 			return CreateAllocCall(typeReference, syntax);
 
 		string localName = NewGeneratedLocalName("created");
@@ -1783,11 +2224,18 @@ public sealed partial class BindableNodeAnalyzer
 			},
 			ResolvedType = resolvedType ?? $"{type.Name}*"
 		});
-		grouped.Items.Add(new GroupedExpressionItem
-		{
-			Expression = CreateInitNewCall(localReference, initNew, arguments, syntax),
-			ResolvedType = "void"
-		});
+		if (CreateVirtualTableAssignment(localReference, type) is Expression vtableAssignment)
+			grouped.Items.Add(new GroupedExpressionItem
+			{
+				Expression = vtableAssignment,
+				ResolvedType = "void"
+			});
+		if (initNew is not null)
+			grouped.Items.Add(new GroupedExpressionItem
+			{
+				Expression = CreateInitNewCall(localReference, initNew, arguments, syntax),
+				ResolvedType = "void"
+			});
 		grouped.Items.Add(new GroupedExpressionItem
 		{
 			Expression = localReference,
@@ -1811,6 +2259,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression RewriteDeleteExpression(Expression? expression)
 	{
+		if (expression is NamedExpression { Qualifiers.Count: 0, Name: "base" } && CreateBaseDeleteCall() is Expression baseDelete)
+			return baseDelete;
+
 		Expression? target = LowerExpression(expression);
 		string targetType = target?.ResolvedType ?? ErrorType;
 		string? elementType = TryGetPointerElementType(targetType);
@@ -1831,6 +2282,28 @@ public sealed partial class BindableNodeAnalyzer
 			return CreateFreeCall(CreateArrayElementsAccess(target));
 
 		return CreateDeleteExpression(target, opDelete, isPointer || isThisPointer);
+	}
+
+	Expression? CreateBaseDeleteCall()
+	{
+		if (currentRewriteContainingType is not ClassDefinition classDefinition)
+			return null;
+		ClassDefinition? baseClass = GetDirectBaseClass(classDefinition);
+		if (baseClass is null)
+			return null;
+
+		FunctionDefinition? opDelete = FindVirtualImplementationByName(baseClass, DeleteMethodName) ?? FindDeleteMethod(baseClass.Name);
+		if (opDelete is null)
+			return null;
+
+		CallExpression call = new()
+		{
+			ResolvedType = "void",
+			Target = CreateMethodReference(opDelete, "void")
+		};
+		if (HasWithinParameter(opDelete))
+			call.Arguments.Add(new ArgumentExpression { Value = CurrentAllocator(), ResolvedType = AllocatorType });
+		return call;
 	}
 
 	CallExpression CreateAllocCall(TypeReference type, SyntaxNode? syntax)
@@ -2390,6 +2863,15 @@ public sealed partial class BindableNodeAnalyzer
 	sealed record InterfaceImplementationLowering(TypeDefinition Type, InterfaceDefinition Interface, FieldDefinition? Field, VariableDefinition VTable, bool DirectEntries, bool IsStruct);
 
 	sealed record InterfaceThunkLowering(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member);
+
+	sealed record VirtualSlot(FunctionDefinition Declaration, FunctionDefinition? Implementation);
+
+	sealed record VirtualClassLowering(ClassDefinition Class, ClassDefinition? BaseClass, VirtualClassLowering? BaseLowering, StructDefinition VTableType)
+	{
+		public FieldDefinition? Field { get; set; }
+		public VariableDefinition? VTable { get; set; }
+		public List<VirtualSlot> DeclaredSlots { get; } = [];
+	}
 }
 
 static class BindableNodeAnalyzerRewriteParameterExtensions

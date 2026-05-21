@@ -133,7 +133,10 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			case DeleteStatement deleteStatement:
-				BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
+				if (IsBaseDeleteExpression(deleteStatement.Expression))
+					AnalyzeBaseDeleteExpression(deleteStatement.Expression, scope);
+				else
+					BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
 				break;
 
 			case TryStatement tryStatement:
@@ -163,6 +166,30 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (statement is not null)
 			BodyAnalyzeStatement(statement, scope, typeScope);
+	}
+
+	static bool IsBaseDeleteExpression(Expression? expression)
+	{
+		return expression is NamedExpression { Qualifiers.Count: 0, Name: "base" };
+	}
+
+	void AnalyzeBaseDeleteExpression(Expression? expression, BodyScope scope)
+	{
+		if (scope.ContainingType is not ClassDefinition containingClass)
+		{
+			Report(GetRange(expression?.SourceSyntax), "delete base is valid only in a class method.");
+			return;
+		}
+
+		ClassDefinition? baseClass = GetDirectBaseClass(containingClass);
+		if (baseClass is null)
+		{
+			Report(GetRange(expression?.SourceSyntax), $"Class '{containingClass.Name}' does not have a base class.");
+			return;
+		}
+
+		if (expression is not null)
+			expression.ResolvedType = baseClass.Name;
 	}
 
 	void BodyAnalyzeDeclarationStatement(DeclarationStatement declaration, BodyScope scope, AnalysisScope typeScope)
@@ -659,6 +686,9 @@ public sealed partial class BindableNodeAnalyzer
 
 			case MemberExpression member:
 			{
+				if (member.Target is NamedExpression { Qualifiers.Count: 0, Name: "base" })
+					return ResolveBaseMemberCallTarget(member, scope, typeScope, argumentCount);
+
 				string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
 				List<FunctionDefinition> functions = LookupMemberFunctions(targetType, member.Name);
 				if (functions.Count == 1)
@@ -689,6 +719,39 @@ public sealed partial class BindableNodeAnalyzer
 				BodyAnalyzeExpression(target, scope, typeScope);
 				return null;
 		}
+	}
+
+	FunctionDefinition? ResolveBaseMemberCallTarget(MemberExpression member, BodyScope scope, AnalysisScope typeScope, int argumentCount)
+	{
+		if (scope.ContainingType is not ClassDefinition containingClass)
+		{
+			Report(GetRange(member.SourceSyntax), "base member access is valid only in a class method.");
+			return null;
+		}
+
+		ClassDefinition? baseClass = GetDirectBaseClass(containingClass);
+		if (baseClass is null)
+		{
+			Report(GetRange(member.SourceSyntax), $"Class '{containingClass.Name}' does not have a base class.");
+			return null;
+		}
+
+		FunctionDefinition? implementation = FindVirtualImplementationByName(baseClass, member.Name);
+		if (implementation is null)
+		{
+			Report(GetRange(member.SourceSyntax), $"Base implementation '{member.Name}' could not be found.");
+			return null;
+		}
+
+		EnsureFunctionSignatureAnalyzed(implementation, typeScope);
+		MethodReferenceExpression reference = new()
+		{
+			SourceSyntax = member.SourceSyntax,
+			ResolvedType = BuildFunctionValueType(implementation, isInstance: false)
+		};
+		reference.Candidates.Add(implementation);
+		expressionRewrites[member] = reference;
+		return implementation;
 	}
 
 	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope)
@@ -1555,9 +1618,25 @@ public sealed partial class BindableNodeAnalyzer
 	List<FunctionDefinition> LookupTypeFunctions(TypeDefinition type, string name)
 	{
 		List<FunctionDefinition> functions = [];
+		if (type is ClassDefinition classDefinition)
+		{
+			foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
+			{
+				foreach (FunctionDefinition function in candidateClass.Functions)
+				{
+					if (function.Name == name && !IsBodylessVirtualOverrideDeclaration(function))
+						functions.Add(function);
+				}
+
+				if (functions.Count > 0)
+					return functions;
+			}
+
+			return functions;
+		}
+
 		IEnumerable<FunctionDefinition> candidates = type switch
 		{
-			ClassDefinition classDefinition => classDefinition.Functions,
 			StructDefinition structDefinition => structDefinition.Functions,
 			InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions,
 			EnumDefinition enumDefinition => enumDefinition.Functions,
@@ -1573,6 +1652,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return functions;
+	}
+
+	bool IsBodylessVirtualOverrideDeclaration(FunctionDefinition function)
+	{
+		return function.Body is null
+			&& function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed
+			&& virtualImplementations.ContainsKey(function);
 	}
 
 	List<FunctionDefinition> LookupMemberFunctions(string targetType, string name)
@@ -1769,6 +1855,22 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (function.Name == InitNewMethodName)
 				return function;
+		}
+		return null;
+	}
+
+	FunctionDefinition? FindVirtualImplementationByName(ClassDefinition owner, string name)
+	{
+		string slotName = name == DeleteMethodName ? DeleteMethodName : name;
+		foreach (ClassDefinition candidate in EnumerateClassAndBases(owner))
+		{
+			foreach (FunctionDefinition function in candidate.Functions)
+			{
+				if (!virtualImplementations.TryGetValue(function, out FunctionDefinition? implementation))
+					continue;
+				if (VirtualSlotName(function) == slotName)
+					return implementation;
+			}
 		}
 		return null;
 	}
@@ -2235,7 +2337,8 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case DeleteStatement deleteStatement:
-				FlowAnalyzeExpression(deleteStatement.Expression, state);
+				if (!IsBaseDeleteExpression(deleteStatement.Expression))
+					FlowAnalyzeExpression(deleteStatement.Expression, state);
 				break;
 
 			case TryStatement tryStatement:
@@ -2456,7 +2559,8 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case FinallyDeleteExpression finallyDelete:
-				FlowAnalyzeExpression(finallyDelete.Expression, state);
+				if (!IsBaseDeleteExpression(finallyDelete.Expression))
+					FlowAnalyzeExpression(finallyDelete.Expression, state);
 				break;
 
 			case BinaryExpression binary:

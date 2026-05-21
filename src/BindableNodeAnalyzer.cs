@@ -98,7 +98,12 @@ public sealed partial class BindableNodeAnalyzer
 			if (string.IsNullOrWhiteSpace(typeDefinition.Name))
 				continue;
 
-			if (!typeDefinitions.TryAdd(typeDefinition.Name, typeDefinition))
+			if (typeDefinitions.TryGetValue(typeDefinition.Name, out TypeDefinition? existing))
+			{
+				if (!ReferenceEquals(existing, typeDefinition))
+					Report(GetNameRange(typeDefinition), $"Duplicate type name '{typeDefinition.Name}'.");
+			}
+			else if (!typeDefinitions.TryAdd(typeDefinition.Name, typeDefinition))
 				Report(GetNameRange(typeDefinition), $"Duplicate type name '{typeDefinition.Name}'.");
 			else
 				typeInfos[typeDefinition] = new TypeAnalysisInfo(typeDefinition);
@@ -609,10 +614,30 @@ public sealed partial class BindableNodeAnalyzer
 		if (!typeInfos.TryGetValue(definition, out TypeAnalysisInfo? info))
 			yield break;
 
+		bool foundRegisteredBase = false;
 		foreach (TypeDefinition baseType in info.BaseTypes)
 		{
 			if (baseType is ClassDefinition)
+			{
+				foundRegisteredBase = true;
 				yield return baseType;
+			}
+		}
+
+		if (foundRegisteredBase)
+			yield break;
+
+		IEnumerable<TypeReference> baseTypes = definition switch
+		{
+			ClassDefinition classDefinition => classDefinition.BaseTypes,
+			StructDefinition structDefinition => structDefinition.BaseTypes,
+			InterfaceDefinition interfaceDefinition => interfaceDefinition.BaseTypes,
+			_ => []
+		};
+		foreach (TypeReference baseType in baseTypes)
+		{
+			if (TryGetNamedTypeDefinition(baseType, out TypeDefinition? resolved) && resolved is ClassDefinition)
+				yield return resolved;
 		}
 	}
 
@@ -715,9 +740,11 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateOverrideMethod(ClassDefinition owner, FunctionDefinition function)
 	{
 		MethodSignature signature = BuildMethodSignature(function);
-		foreach (FunctionDefinition abstractMethod in GetInheritedAbstractMethods(owner))
+		foreach (FunctionDefinition inherited in GetInheritedClassMethods(owner))
 		{
-			if (BuildMethodSignature(abstractMethod).Equals(signature))
+			if (inherited.Modifier is not FunctionModifier.Virtual and not FunctionModifier.Abstract)
+				continue;
+			if (BuildMethodSignature(inherited).Equals(signature))
 				return;
 		}
 
@@ -743,7 +770,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
-		Report(GetNameRange(function), $"{function.Modifier} method '{function.Name}' must match an inherited abstract method.");
+		Report(GetNameRange(function), $"{function.Modifier} method '{function.Name}' must match an inherited virtual or abstract method.");
 	}
 
 	void ValidateInheritedMethodNames(ClassDefinition definition)
@@ -754,10 +781,15 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (IsGeneratedLifecycleMethodName(function.Name))
 				continue;
+			if (IsGeneratedVirtualImplementation(function))
+				continue;
 
 			MethodSignature signature = BuildMethodSignature(function);
 			foreach (FunctionDefinition inherited in GetInheritedClassMethods(definition))
 			{
+				if (IsGeneratedVirtualImplementation(inherited))
+					continue;
+
 				MethodSignature inheritedSignature = BuildMethodSignature(inherited);
 				if (!SameMethodIdentity(signature, inheritedSignature))
 					continue;
@@ -966,6 +998,17 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsGeneratedLifecycleMethodName(string name)
 	{
 		return name is InitNewMethodName or CreateMethodName or DeleteMethodName or DestroyMethodName;
+	}
+
+	bool IsGeneratedVirtualImplementation(FunctionDefinition function)
+	{
+		foreach (FunctionDefinition implementation in virtualImplementations.Values)
+		{
+			if (ReferenceEquals(implementation, function))
+				return true;
+		}
+
+		return false;
 	}
 
 	void ValidateGenericParameterConstraint(GenericParameter parameter)
