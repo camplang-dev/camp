@@ -605,8 +605,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (argument.Target is not null)
 		{
-			if (argument.Modifier != ArgumentModifier.Out)
-				Report(GetRange(argument.SourceSyntax), "Argument declarations may only be used with 'out'.");
+			if (argument.Modifier is not ArgumentModifier.Out and not ArgumentModifier.Catch)
+				Report(GetRange(argument.SourceSyntax), "Argument declarations may only be used with 'out' or 'catch'.");
 
 			BodyAnalyzeDeclarationTarget(argument.Target, scope, typeScope, targetType ?? TargetType);
 			argument.ResolvedType = argument.Target.ResolvedType ?? ErrorType;
@@ -773,6 +773,10 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(arguments[i].SourceSyntax), "Out parameters require an 'out' argument.");
 				if (parameter.Modifier != ParameterModifier.Out && arguments[i].Modifier == ArgumentModifier.Out)
 					Report(GetRange(arguments[i].SourceSyntax), "Only out parameters may use an 'out' argument.");
+				if (parameter.Modifier == ParameterModifier.Thrown && arguments[i].Modifier != ArgumentModifier.Catch)
+					Report(GetRange(arguments[i].SourceSyntax), "Thrown parameters require a 'catch' argument.");
+				if (parameter.Modifier != ParameterModifier.Thrown && arguments[i].Modifier == ArgumentModifier.Catch)
+					Report(GetRange(arguments[i].SourceSyntax), "Only thrown parameters may use a 'catch' argument.");
 				CheckAssignable(expected, actual, arguments[i].SourceSyntax, "Argument");
 			}
 		}
@@ -787,7 +791,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (ParameterDefinition parameter in parameters)
 		{
-			if (parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition)
+			if (parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within || parameter is WithinParameterDefinition)
 				callableParameters.Add(parameter);
 		}
 	}

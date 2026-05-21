@@ -2245,8 +2245,34 @@ public sealed partial class BindableNodeAnalyzer
 
 	ArgumentExpression LowerArgument(ArgumentExpression argument)
 	{
+		if (argument.Target is not null)
+			LowerArgumentDeclaration(argument);
+
 		argument.Value = LowerExpression(argument.Value);
 		return argument;
+	}
+
+	void LowerArgumentDeclaration(ArgumentExpression argument)
+	{
+		if (currentStatementPrefix is null || argument.Target is not DeclarationTarget target)
+			return;
+
+		DeclarationStatement declaration = new()
+		{
+			SourceSyntax = target.SourceSyntax,
+			ResolvedType = "void"
+		};
+		declaration.Target.Type = target.Type is AutoTypeReference ? null : CloneType(target.Type);
+		declaration.Target.ResolvedType = target.ResolvedType;
+		declaration.Target.SourceSyntax = target.SourceSyntax;
+		foreach (string name in target.Names)
+			declaration.Target.Names.Add(name);
+
+		currentStatementPrefix.Add(declaration);
+		argument.Target = null;
+		argument.Type = null;
+		argument.Value = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? argument.ResolvedType ?? ErrorType);
+		argument.ResolvedType = argument.Value.ResolvedType;
 	}
 
 	void LowerInitializer(InitializerExpression? initializer)

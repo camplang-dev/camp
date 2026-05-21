@@ -1576,13 +1576,9 @@ public sealed class CampParser
 		else if (Is("catch"))
 		{
 			syntax.CatchKeyword = Take();
-			syntax.AutoKeyword = TakeIf("auto");
-
-			if (syntax.AutoKeyword is not null)
-			{
-				syntax.Expression = ParseQualifiedNameExpression();
+			syntax.DeclarationTarget = ParseDeclarationTarget();
+			if (syntax.DeclarationTarget is not null)
 				return syntax;
-			}
 		}
 		else if (Is("within"))
 		{
