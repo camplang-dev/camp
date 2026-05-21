@@ -788,20 +788,24 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string GetImplementationMethodName(FunctionDefinition member)
 	{
+		if (IsDestructorFunction(member))
+			return DestroyMethodName;
+
 		return member.Modifier switch
 		{
 			FunctionModifier.Constructor => CreateMethodName,
-			FunctionModifier.Destructor => DestroyMethodName,
 			_ => member.Name
 		};
 	}
 
 	static string GetInterfaceEntryName(FunctionDefinition member)
 	{
+		if (IsDestructorFunction(member))
+			return DestroyMethodName;
+
 		return member.Modifier switch
 		{
 			FunctionModifier.Constructor => CreateMethodName,
-			FunctionModifier.Destructor => DestroyMethodName,
 			_ => member.Name
 		};
 	}
@@ -925,27 +929,27 @@ public sealed partial class BindableNodeAnalyzer
 		List<FunctionDefinition> generated = [];
 		foreach (FunctionDefinition function in functions.ToArray())
 		{
-			switch (function.Modifier)
+			if (function.Modifier == FunctionModifier.Constructor)
 			{
-				case FunctionModifier.Constructor:
+				FunctionDefinition initNew = CreateInitNewMethod(type, function);
+				generated.Add(initNew);
+				if (type is not ClassDefinition { Modifier: ClassModifier.Abstract })
 				{
-					FunctionDefinition initNew = CreateInitNewMethod(type, function);
 					FunctionDefinition create = CreateCreateMethod(type, function, initNew);
-					generated.Add(initNew);
 					generated.Add(create);
-					function.Body = null;
-					break;
 				}
-
-				case FunctionModifier.Destructor:
+				function.Body = null;
+			}
+			else if (IsDestructorFunction(function))
+			{
+				FunctionDefinition opDelete = CreateDeleteMethod(type, function);
+				generated.Add(opDelete);
+				if (function.Modifier is not FunctionModifier.Override and not FunctionModifier.Sealed)
 				{
-					FunctionDefinition opDelete = CreateDeleteMethod(type, function);
 					FunctionDefinition destroy = CreateDestroyMethod(type, function, opDelete);
-					generated.Add(opDelete);
 					generated.Add(destroy);
-					function.Body = null;
-					break;
 				}
+				function.Body = null;
 			}
 		}
 
@@ -1031,12 +1035,23 @@ public sealed partial class BindableNodeAnalyzer
 			Name = DeleteMethodName,
 			Symbol = $"{type.Name}_op_delete",
 			Export = destructor.Export,
+			Modifier = GetDeleteMethodModifier(destructor),
 			ReturnType = VoidType(),
 			ResolvedType = "void",
 			Body = destructor.Body
 		};
 		CopyParameters(destructor.Parameters, method.Parameters);
 		return method;
+	}
+
+	static FunctionModifier GetDeleteMethodModifier(FunctionDefinition destructor)
+	{
+		return destructor.Modifier is FunctionModifier.Abstract
+			or FunctionModifier.Virtual
+			or FunctionModifier.Override
+			or FunctionModifier.Sealed
+			? destructor.Modifier
+			: FunctionModifier.None;
 	}
 
 	FunctionDefinition CreateDestroyMethod(TypeDefinition type, FunctionDefinition destructor, FunctionDefinition opDelete)

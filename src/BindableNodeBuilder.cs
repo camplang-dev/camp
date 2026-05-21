@@ -598,12 +598,13 @@ public sealed partial class BindableNodeBuilder
 		};
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
-		ApplyFunctionDeclarators(definition, syntax.Declarators, isGlobal, allowVirtual, onlyExport: isLifecycleMember);
+		ApplyFunctionDeclarators(definition, syntax.Declarators, isGlobal, allowVirtual, onlyExport: isConstructor);
 		AddGenericParameters(definition.GenericParameters, syntax.GenericParameterList);
 
 		if (isDestructor)
 		{
-			SetFunctionModifier(definition, FunctionModifier.Destructor, syntax, "destructor");
+			if (definition.Modifier == FunctionModifier.None)
+				SetFunctionModifier(definition, FunctionModifier.Destructor, syntax, "destructor");
 
 			if (syntax.Type is not null)
 				Report(syntax.Type, "Destructor declarations may not have a return type.");

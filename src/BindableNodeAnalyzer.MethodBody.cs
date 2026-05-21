@@ -732,12 +732,14 @@ public sealed partial class BindableNodeAnalyzer
 	void EnsureFunctionSignatureAnalyzed(FunctionDefinition function, AnalysisScope scope)
 	{
 		if (function.ResolvedType is null)
-			function.ResolvedType = function.Modifier switch
-			{
-				FunctionModifier.Constructor => FindContainingType(function)?.Name ?? ConstructorType,
-				FunctionModifier.Destructor => "void",
-				_ => AnalyzeOptionalType(function.ReturnType, scope) ?? ErrorType
-			};
+		{
+			if (function.Modifier == FunctionModifier.Constructor)
+				function.ResolvedType = FindContainingType(function)?.Name ?? ConstructorType;
+			else if (IsDestructorFunction(function))
+				function.ResolvedType = "void";
+			else
+				function.ResolvedType = AnalyzeOptionalType(function.ReturnType, scope) ?? ErrorType;
+		}
 
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
@@ -766,10 +768,45 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		ClassDefinition? baseClass = GetDirectBaseClass(containingClass);
-		if (baseClass is null || hasBaseCall || HasAccessibleParameterlessConstructor(baseClass))
+		if (baseClass is null || hasBaseCall)
 			return;
 
+		if (TryGetAccessibleParameterlessConstructor(baseClass, out FunctionDefinition? parameterlessConstructor))
+		{
+			if (parameterlessConstructor is not null)
+				InsertImplicitBaseConstructorCall(function.Body, parameterlessConstructor);
+			return;
+		}
+
 		Report(GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Constructor for class '{containingClass.Name}' must invoke a base constructor because base class '{baseClass.Name}' has no accessible parameterless constructor.");
+	}
+
+	void InsertImplicitBaseConstructorCall(BlockStatement body, FunctionDefinition constructor)
+	{
+		FunctionDefinition? initNew = FindGeneratedInitNewMethod(FindContainingType(constructor));
+		CallExpression call = new()
+		{
+			Target = CreateBaseInitNewReference(constructor, initNew),
+			ResolvedType = "void"
+		};
+		if (initNew is not null)
+			callTargets[call] = initNew;
+
+		body.Statements.Insert(0, new ExpressionStatement
+		{
+			ResolvedType = "void",
+			Expression = call
+		});
+	}
+
+	static MethodReferenceExpression CreateBaseInitNewReference(FunctionDefinition constructor, FunctionDefinition? initNew)
+	{
+		MethodReferenceExpression reference = new()
+		{
+			ResolvedType = "void"
+		};
+		reference.Candidates.Add(initNew ?? constructor);
+		return reference;
 	}
 
 	static Expression? GetFirstConstructorAction(BlockStatement body)
@@ -1108,15 +1145,12 @@ public sealed partial class BindableNodeAnalyzer
 			return null;
 		}
 
-		target.ResolvedType = constructor.ResolvedType ?? "void";
-		MethodReferenceExpression reference = new()
-		{
-			SourceSyntax = target.SourceSyntax,
-			ResolvedType = target.ResolvedType
-		};
-		reference.Candidates.Add(constructor);
+		FunctionDefinition? initNew = FindGeneratedInitNewMethod(baseClass);
+		target.ResolvedType = "void";
+		MethodReferenceExpression reference = CreateBaseInitNewReference(constructor, initNew);
+		reference.SourceSyntax = target.SourceSyntax;
 		expressionRewrites[target] = reference;
-		return constructor;
+		return initNew ?? constructor;
 	}
 
 	string BodyAnalyzeIndexExpression(IndexExpression index, BodyScope scope, AnalysisScope typeScope)
@@ -1726,6 +1760,19 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
+	static FunctionDefinition? FindGeneratedInitNewMethod(TypeDefinition? type)
+	{
+		if (type is null)
+			return null;
+
+		foreach (FunctionDefinition function in GetTypeFunctions(type))
+		{
+			if (function.Name == InitNewMethodName)
+				return function;
+		}
+		return null;
+	}
+
 	ClassDefinition? GetDirectBaseClass(TypeDefinition definition)
 	{
 		foreach (TypeDefinition baseType in GetDirectBaseClasses(definition))
@@ -1739,6 +1786,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool HasAccessibleParameterlessConstructor(ClassDefinition definition)
 	{
+		return TryGetAccessibleParameterlessConstructor(definition, out _);
+	}
+
+	bool TryGetAccessibleParameterlessConstructor(ClassDefinition definition, out FunctionDefinition? constructor)
+	{
+		constructor = null;
 		bool hasConstructor = false;
 		foreach (FunctionDefinition function in definition.Functions)
 		{
@@ -1747,10 +1800,19 @@ public sealed partial class BindableNodeAnalyzer
 
 			hasConstructor = true;
 			if (CountRequiredParameters(function.Parameters) == 0)
+			{
+				constructor = function;
 				return true;
+			}
 		}
 
-		return !hasConstructor;
+		if (!hasConstructor)
+		{
+			constructor = null;
+			return true;
+		}
+
+		return false;
 	}
 
 	TypeDefinition? FindContainingType(FunctionDefinition function)
@@ -2575,7 +2637,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsLifecycleFunction(FunctionDefinition function)
 	{
-		return function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor
+		return function.Modifier == FunctionModifier.Constructor || IsDestructorFunction(function)
 			|| function.Name is InitNewMethodName or DeleteMethodName;
 	}
 
@@ -2823,7 +2885,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return function.Modifier != FunctionModifier.Static
 			&& function.Modifier != FunctionModifier.Constructor
-			&& function.Modifier != FunctionModifier.Destructor
+			&& !IsDestructorFunction(function)
 			&& FindContainingType(function) is not null;
 	}
 

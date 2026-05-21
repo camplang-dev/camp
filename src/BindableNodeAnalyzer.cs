@@ -303,7 +303,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (definition.Modifier == FunctionModifier.Constructor)
 			definition.ResolvedType = containingType ?? ConstructorType;
-		else if (definition.Modifier == FunctionModifier.Destructor)
+		else if (IsDestructorFunction(definition))
 			definition.ResolvedType = "void";
 		else
 			definition.ResolvedType = AnalyzeOptionalType(definition.ReturnType, scope) ?? ErrorType;
@@ -630,6 +630,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeClassImplementations(ClassDefinition definition)
 	{
 		ValidateClassVirtualMethods(definition);
+		ValidateInheritedMethodNames(definition);
 
 		List<MethodSignature> available = GetClassMethodSignatures(definition);
 
@@ -689,6 +690,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (FunctionDefinition function in definition.Functions)
 		{
+			if (function.Modifier == FunctionModifier.Virtual && definition.Modifier is not ClassModifier.Virtual and not ClassModifier.Abstract)
+				Report(GetNameRange(function), "Virtual methods may only be declared in virtual or abstract classes.");
+
 			if (function.Modifier == FunctionModifier.Abstract && definition.Modifier != ClassModifier.Abstract)
 				Report(GetNameRange(function), "Abstract methods may only be declared in abstract classes.");
 
@@ -717,7 +721,92 @@ public sealed partial class BindableNodeAnalyzer
 				return;
 		}
 
+		if (IsDestructorFunction(function))
+		{
+			foreach (FunctionDefinition inherited in GetInheritedClassMethods(owner))
+			{
+				if (IsDestructorFunction(inherited)
+					&& inherited.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract
+					&& BuildMethodSignature(inherited).Equals(signature))
+					return;
+			}
+		}
+
+		if (function.Name == DeleteMethodName)
+		{
+			foreach (FunctionDefinition inherited in GetInheritedClassMethods(owner))
+			{
+				if (inherited.Name == DeleteMethodName
+					&& inherited.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract
+					&& BuildMethodSignature(inherited).Equals(signature))
+					return;
+			}
+		}
+
 		Report(GetNameRange(function), $"{function.Modifier} method '{function.Name}' must match an inherited abstract method.");
+	}
+
+	void ValidateInheritedMethodNames(ClassDefinition definition)
+	{
+		foreach (FunctionDefinition function in definition.Functions)
+		{
+			if (function.Modifier is FunctionModifier.Constructor)
+				continue;
+			if (IsGeneratedLifecycleMethodName(function.Name))
+				continue;
+
+			MethodSignature signature = BuildMethodSignature(function);
+			foreach (FunctionDefinition inherited in GetInheritedClassMethods(definition))
+			{
+				MethodSignature inheritedSignature = BuildMethodSignature(inherited);
+				if (!SameMethodIdentity(signature, inheritedSignature))
+					continue;
+
+				if (function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed)
+					continue;
+
+				Report(GetNameRange(function), $"Duplicate method name '{GetDuplicateMethodDisplayName(signature)}' inherited from base class.");
+				break;
+			}
+		}
+	}
+
+	IEnumerable<FunctionDefinition> GetInheritedClassMethods(ClassDefinition definition)
+	{
+		return GetInheritedClassMethods(definition, []);
+	}
+
+	IEnumerable<FunctionDefinition> GetInheritedClassMethods(ClassDefinition definition, HashSet<ClassDefinition> seen)
+	{
+		foreach (TypeDefinition baseClass in GetDirectBaseClasses(definition))
+		{
+			if (baseClass is not ClassDefinition classDefinition || !seen.Add(classDefinition))
+				continue;
+
+			foreach (FunctionDefinition function in classDefinition.Functions)
+				yield return function;
+
+			foreach (FunctionDefinition inherited in GetInheritedClassMethods(classDefinition, seen))
+				yield return inherited;
+		}
+	}
+
+	static bool SameMethodIdentity(MethodSignature left, MethodSignature right)
+	{
+		if (left.Name != right.Name || left.ParameterTypes.Count != right.ParameterTypes.Count)
+			return false;
+
+		for (int i = 0; i < left.ParameterTypes.Count; i++)
+		{
+			if (left.ParameterTypes[i] != right.ParameterTypes[i])
+				return false;
+		}
+		return true;
+	}
+
+	static string GetDuplicateMethodDisplayName(MethodSignature signature)
+	{
+		return signature.Name == "#DESTROY" ? DestroyMethodName : signature.DisplayName;
 	}
 
 	IEnumerable<InterfaceDefinition> GetImplementedInterfaces(TypeDefinition definition)
@@ -870,8 +959,13 @@ public sealed partial class BindableNodeAnalyzer
 		if (definition.Modifier == FunctionModifier.Abstract && definition.Body is not null)
 			Report(GetNameRange(definition), "Abstract methods may not have a body.");
 
-		if (definition.Modifier == FunctionModifier.Virtual && definition.Body is null)
+		if (definition.Modifier == FunctionModifier.Virtual && definition.Body is null && !IsDestructorFunction(definition))
 			Report(GetNameRange(definition), "Virtual methods must have a body; use abstract for bodyless dispatch slots.");
+	}
+
+	static bool IsGeneratedLifecycleMethodName(string name)
+	{
+		return name is InitNewMethodName or CreateMethodName or DeleteMethodName or DestroyMethodName;
 	}
 
 	void ValidateGenericParameterConstraint(GenericParameter parameter)
@@ -1263,7 +1357,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		List<string> parameterTypes = [];
 		string receiverContract = "";
-		bool isLifecycleMember = function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor;
+		bool isLifecycleMember = function.Modifier == FunctionModifier.Constructor || IsDestructorFunction(function);
 
 		for (int i = 0; i < function.Parameters.Count; i++)
 		{
@@ -1288,8 +1382,7 @@ public sealed partial class BindableNodeAnalyzer
 		return function.Modifier switch
 		{
 			FunctionModifier.Constructor => "#CREATE",
-			FunctionModifier.Destructor => "#DESTROY",
-			_ => function.Name
+			_ => IsDestructorFunction(function) ? "#DESTROY" : function.Name
 		};
 	}
 
@@ -1298,9 +1391,13 @@ public sealed partial class BindableNodeAnalyzer
 		return function.Modifier switch
 		{
 			FunctionModifier.Constructor => "#INSTANCE",
-			FunctionModifier.Destructor => "void",
-			_ => function.ResolvedType ?? ErrorType
+			_ => IsDestructorFunction(function) ? "void" : function.ResolvedType ?? ErrorType
 		};
+	}
+
+	static bool IsDestructorFunction(FunctionDefinition function)
+	{
+		return function.Modifier == FunctionModifier.Destructor || function.Name.StartsWith("~", StringComparison.Ordinal);
 	}
 
 	static bool IsWithinParameter(ParameterDefinition parameter)
