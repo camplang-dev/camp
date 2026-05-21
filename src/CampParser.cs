@@ -12,7 +12,7 @@ public sealed class CampParser
 	static readonly string[] MemberDeclarators = ["export", "extern", "static", "virtual", "override", "sealed", "abstract", "async"];
 	static readonly string[] ParameterDeclaratorKeywords = ["in", "out", "thrown"];
 	static readonly string[] TypeDeclaratorKeywords = ["const", "volatile", "escaped", "scoped", "unscoped"];
-	static readonly string[] StatementKeywords = ["if", "do", "while", "for", "else", "yield", "return", "continue", "break", "switch", "within", "try", "catch", "finally", "foreach", "delete"];
+	static readonly string[] StatementKeywords = ["if", "do", "while", "for", "else", "yield", "return", "continue", "break", "switch", "within", "try", "catch", "finally", "foreach", "delete", "goto"];
 
 	readonly TokenSequence tokens;
 	readonly List<ParseDiagnostic> diagnostics = [];
@@ -758,6 +758,9 @@ public sealed class CampParser
 
 		if (Is("default"))
 			return new DefaultStatementSyntax { DefaultKeyword = Take(), ColonToken = Expect(":") };
+
+		if (IsIdentifier() && PeekValue(1) == ":")
+			return new LabelStatementSyntax { Identifier = TakeIdentifier(), ColonToken = Expect(":") };
 
 		if (IsAny(StatementKeywords))
 			return ParseKeywordStatement();

@@ -39,6 +39,13 @@ public sealed partial class BindableNodeBuilder
 			case DefaultStatementSyntax defaultStatement:
 				return new DefaultStatement { SourceSyntax = defaultStatement };
 
+			case LabelStatementSyntax label:
+				return new LabelStatement
+				{
+					SourceSyntax = label,
+					Name = label.Identifier?.Value
+				};
+
 			case KeywordStatementSyntax keyword:
 				return BuildKeywordStatement(keyword);
 
@@ -100,6 +107,7 @@ public sealed partial class BindableNodeBuilder
 			"return" => new ReturnStatement { SourceSyntax = syntax, Expression = BuildStatementExpression(syntax, "Return statement") },
 			"yield" => new YieldStatement { SourceSyntax = syntax, Expression = BuildStatementExpression(syntax, "Yield statement") },
 			"delete" => new DeleteStatement { SourceSyntax = syntax, Expression = BuildStatementExpression(syntax, "Delete statement") },
+			"goto" => BuildGotoStatement(syntax),
 			"break" => BuildBreakStatement(syntax),
 			"continue" => BuildContinueStatement(syntax),
 			"else" => BuildDetachedFollowerStatement(syntax, "'else' must follow an if statement."),
@@ -331,6 +339,22 @@ public sealed partial class BindableNodeBuilder
 			Report(syntax, "Continue statement may not have an expression or body.");
 
 		return new ContinueStatement { SourceSyntax = syntax };
+	}
+
+	GotoStatement BuildGotoStatement(KeywordStatementSyntax syntax)
+	{
+		if (syntax.Condition is not null || syntax.BodyStatements is not null)
+			Report(syntax, "Goto statement may not have a condition or body.");
+
+		GotoStatement statement = new() { SourceSyntax = syntax };
+		if (syntax.Body is EmptyStatementSyntax)
+			Report(syntax, "Goto statement is missing a label.");
+		else if (syntax.Body is ExpressionStatementSyntax { Expression: QualifiedNameExpressionSyntax name } && name.Qualifiers is null or { Count: 0 })
+			statement.TargetName = name.Identifier?.Value;
+		else if (syntax.Body is not null)
+			Report(syntax.Body, "Goto statement requires a label name.");
+
+		return statement;
 	}
 
 	Expression? BuildConditionExpression(StatementConditionSyntax? syntax, string context)

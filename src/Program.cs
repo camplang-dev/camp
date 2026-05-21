@@ -481,6 +481,7 @@ static bool IsSemanticReferenceProperty(PropertyInfo property)
 	return property.DeclaringType == typeof(VariableReferenceExpression) && property.Name == nameof(VariableReferenceExpression.Variable)
 		|| property.DeclaringType == typeof(TypeDefinitionReference) && property.Name == nameof(TypeDefinitionReference.Definition)
 		|| property.DeclaringType == typeof(GenericParameterTypeReference) && property.Name == nameof(GenericParameterTypeReference.Parameter)
+		|| property.DeclaringType == typeof(GotoStatement) && property.Name == nameof(GotoStatement.Target)
 		|| property.DeclaringType == typeof(MethodReferenceExpression) && property.Name == nameof(MethodReferenceExpression.Candidates)
 		|| property.DeclaringType == typeof(MemberReferenceExpression) && property.Name == nameof(MemberReferenceExpression.Member)
 		|| property.DeclaringType == typeof(MemberReferenceExpression) && property.Name == nameof(MemberReferenceExpression.Candidates);
@@ -522,6 +523,7 @@ static string GetSemanticReferenceName(BindableNode node)
 		Definition definition => definition.Name,
 		DeclarationTarget target => string.Join(", ", target.Names),
 		LambdaParameter parameter => parameter.Name ?? parameter.Parameter?.Name ?? "",
+		LabelStatement label => label.Name ?? "",
 		_ => node.GetType().Name
 	};
 }

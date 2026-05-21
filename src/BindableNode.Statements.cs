@@ -74,6 +74,17 @@ public class DefaultStatement : Statement
 {
 }
 
+public class LabelStatement : Statement
+{
+	public string? Name { get; set; }
+}
+
+public class GotoStatement : Statement
+{
+	public string? TargetName { get; set; }
+	public LabelStatement? Target { get; set; }
+}
+
 public class BreakStatement : Statement
 {
 }

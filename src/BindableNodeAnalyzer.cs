@@ -1581,6 +1581,14 @@ public sealed partial class BindableNodeAnalyzer
 				AnalyzeOptionalExpression(caseStatement.Expression, scope);
 				break;
 
+			case LabelStatement labelStatement:
+				CheckName(labelStatement.Name, GetLabelNameRange(labelStatement.SourceSyntax), "label");
+				break;
+
+			case GotoStatement gotoStatement:
+				CheckName(gotoStatement.TargetName, GetGotoTargetNameRange(gotoStatement.SourceSyntax), "label");
+				break;
+
 			case ReturnStatement returnStatement:
 				AnalyzeOptionalExpression(returnStatement.Expression, scope);
 				break;
@@ -1981,6 +1989,19 @@ public sealed partial class BindableNodeAnalyzer
 		return GetRange(syntax);
 	}
 
+	static TokenRange? GetLabelNameRange(SyntaxNode? syntax)
+	{
+		return syntax is LabelStatementSyntax label ? label.Identifier?.Range : GetRange(syntax);
+	}
+
+	static TokenRange? GetGotoTargetNameRange(SyntaxNode? syntax)
+	{
+		if (syntax is not KeywordStatementSyntax { Body: ExpressionStatementSyntax { Expression: QualifiedNameExpressionSyntax name } })
+			return GetRange(syntax);
+
+		return name.Identifier?.Range ?? GetRange(syntax);
+	}
+
 	static TokenRange? GetLambdaParameterNameRange(SyntaxNode? syntax)
 	{
 		return syntax is LambdaParameterSyntax parameter ? parameter.Identifier?.Range : GetRange(syntax);
@@ -2169,6 +2190,7 @@ public sealed partial class BindableNodeAnalyzer
 		return property.DeclaringType == typeof(VariableReferenceExpression) && property.Name == nameof(VariableReferenceExpression.Variable)
 			|| property.DeclaringType == typeof(TypeDefinitionReference) && property.Name == nameof(TypeDefinitionReference.Definition)
 			|| property.DeclaringType == typeof(GenericParameterTypeReference) && property.Name == nameof(GenericParameterTypeReference.Parameter)
+			|| property.DeclaringType == typeof(GotoStatement) && property.Name == nameof(GotoStatement.Target)
 			|| property.DeclaringType == typeof(MethodReferenceExpression) && property.Name == nameof(MethodReferenceExpression.Candidates)
 			|| property.DeclaringType == typeof(MemberReferenceExpression) && property.Name == nameof(MemberReferenceExpression.Member)
 			|| property.DeclaringType == typeof(MemberReferenceExpression) && property.Name == nameof(MemberReferenceExpression.Candidates);

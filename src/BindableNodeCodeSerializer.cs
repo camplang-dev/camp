@@ -435,6 +435,19 @@ public sealed class BindableNodeCodeSerializer
 				writer.WriteLine("default:");
 				break;
 
+			case LabelStatement labelStatement:
+				WriteIndent();
+				writer.Write(labelStatement.Name ?? "/* missing */");
+				writer.WriteLine(":");
+				break;
+
+			case GotoStatement gotoStatement:
+				WriteIndent();
+				writer.Write("goto ");
+				writer.Write(gotoStatement.TargetName ?? "/* missing */");
+				writer.WriteLine(";");
+				break;
+
 			case BreakStatement:
 				WriteSimpleStatement("break");
 				break;

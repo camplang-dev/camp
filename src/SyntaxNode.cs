@@ -328,6 +328,12 @@ public class DefaultStatementSyntax : StatementSyntax
 	public Token? ColonToken { get; set; }
 }
 
+public class LabelStatementSyntax : StatementSyntax
+{
+	public Token? Identifier { get; set; }
+	public Token? ColonToken { get; set; }
+}
+
 public class DeclarationStatementStatementSyntax : StatementSyntax
 {
 	public DeclarationStatementSyntax? DeclarationStatement { get; set; }

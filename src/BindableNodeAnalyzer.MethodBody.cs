@@ -8,6 +8,7 @@ public sealed partial class BindableNodeAnalyzer
 {
 	readonly Dictionary<Expression, bool> expressionConstants = [];
 	readonly Dictionary<CallExpression, FunctionDefinition> callTargets = [];
+	readonly Dictionary<FunctionDefinition, Dictionary<string, LabelStatement>> functionLabels = [];
 
 	void AnalyzeMethodBody(FunctionDefinition function, AnalysisScope typeAndMethodScope, TypeDefinition? containingType)
 	{
@@ -29,6 +30,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		function.Body.ResolvedType = "void";
 		BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
+		BindFunctionLabels(function);
 		ValidateBaseConstructorInvocation(function, containingType);
 		FlowAnalyzeFunctionBody(function, scope);
 	}
@@ -115,6 +117,12 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(caseStatement.SourceSyntax), "Switch case expressions must be constant.");
 				break;
 
+			case LabelStatement:
+				break;
+
+			case GotoStatement:
+				break;
+
 			case ReturnStatement returnStatement:
 			{
 				string returnType = returnStatement.Expression is null ? "void" : BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope, scope.CurrentFunctionReturnType);
@@ -166,6 +174,108 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (statement is not null)
 			BodyAnalyzeStatement(statement, scope, typeScope);
+	}
+
+	void BindFunctionLabels(FunctionDefinition function)
+	{
+		if (function.Body is null)
+			return;
+
+		functionLabels[function] = BindStatementLabels(function.Body.Statements);
+	}
+
+	Dictionary<string, LabelStatement> BindStatementLabels(List<Statement> statements)
+	{
+		Dictionary<string, LabelStatement> labels = new(StringComparer.Ordinal);
+		List<GotoStatement> gotos = [];
+		CollectFunctionLabels(statements, labels, gotos);
+
+		foreach (GotoStatement gotoStatement in gotos)
+		{
+			if (string.IsNullOrWhiteSpace(gotoStatement.TargetName))
+				continue;
+
+			if (labels.TryGetValue(gotoStatement.TargetName, out LabelStatement? label))
+				gotoStatement.Target = label;
+			else
+				Report(GetGotoTargetNameRange(gotoStatement.SourceSyntax), $"Label '{gotoStatement.TargetName}' could not be found in this function.");
+		}
+
+		return labels;
+	}
+
+	void CollectFunctionLabels(List<Statement> statements, Dictionary<string, LabelStatement> labels, List<GotoStatement> gotos)
+	{
+		foreach (Statement statement in statements)
+			CollectFunctionLabels(statement, labels, gotos);
+	}
+
+	void CollectFunctionLabels(Statement? statement, Dictionary<string, LabelStatement> labels, List<GotoStatement> gotos)
+	{
+		switch (statement)
+		{
+			case null:
+				break;
+
+			case BlockStatement block:
+				CollectFunctionLabels(block.Statements, labels, gotos);
+				break;
+
+			case LabelStatement label:
+				if (string.IsNullOrWhiteSpace(label.Name))
+					break;
+				if (!labels.TryAdd(label.Name, label))
+					Report(GetLabelNameRange(label.SourceSyntax), $"Duplicate label '{label.Name}'.");
+				break;
+
+			case GotoStatement gotoStatement:
+				gotos.Add(gotoStatement);
+				break;
+
+			case IfStatement ifStatement:
+				CollectFunctionLabels(ifStatement.Body, labels, gotos);
+				CollectFunctionLabels(ifStatement.ElseBody, labels, gotos);
+				break;
+
+			case WhileStatement whileStatement:
+				CollectFunctionLabels(whileStatement.Body, labels, gotos);
+				break;
+
+			case DoWhileStatement doWhile:
+				CollectFunctionLabels(doWhile.Body, labels, gotos);
+				break;
+
+			case ForStatement forStatement:
+				CollectFunctionLabels(forStatement.Body, labels, gotos);
+				break;
+
+			case ForeachStatement foreachStatement:
+				CollectFunctionLabels(foreachStatement.Body, labels, gotos);
+				break;
+
+			case SwitchStatement switchStatement:
+				CollectFunctionLabels(switchStatement.Statements, labels, gotos);
+				break;
+
+			case TryStatement tryStatement:
+				CollectFunctionLabels(tryStatement.Body, labels, gotos);
+				foreach (CatchStatement catchStatement in tryStatement.Catches)
+					CollectFunctionLabels(catchStatement.Body, labels, gotos);
+				CollectFunctionLabels(tryStatement.Finally, labels, gotos);
+				break;
+
+			case CatchStatement catchStatement:
+				CollectFunctionLabels(catchStatement.Body, labels, gotos);
+				break;
+
+			case FinallyStatement finallyStatement:
+				CollectFunctionLabels(finallyStatement.Body, labels, gotos);
+				break;
+
+			case WithinStatement withinStatement:
+				CollectFunctionLabels(withinStatement.Body, labels, gotos);
+				break;
+		}
 	}
 
 	static bool IsBaseDeleteExpression(Expression? expression)
@@ -583,6 +693,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (lambda.Body is BlockStatement block)
 		{
 			BodyAnalyzeBlock(block.Statements, lambdaScope, typeScope);
+			BindStatementLabels(block.Statements);
 			block.ResolvedType = "void";
 			returnType = InferBlockReturnType(block, targetShape?.ReturnType);
 		}
@@ -2259,8 +2370,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (Statement statement in statements)
 		{
-			if (!state.Reachable)
-				break;
+			if (!state.Reachable && statement is not LabelStatement)
+				continue;
 
 			FlowAnalyzeStatement(statement, state);
 		}
@@ -2328,6 +2439,14 @@ public sealed partial class BindableNodeAnalyzer
 
 			case CaseStatement caseStatement:
 				FlowAnalyzeExpression(caseStatement.Expression, state);
+				break;
+
+			case LabelStatement:
+				state.Reachable = true;
+				break;
+
+			case GotoStatement:
+				state.Reachable = false;
 				break;
 
 			case ReturnStatement returnStatement:

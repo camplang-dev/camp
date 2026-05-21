@@ -1602,6 +1602,10 @@ public sealed partial class BindableNodeAnalyzer
 				caseStatement.Expression = LowerExpression(caseStatement.Expression);
 				break;
 
+			case LabelStatement:
+			case GotoStatement:
+				break;
+
 			case ReturnStatement returnStatement:
 				returnStatement.Expression = LowerExpression(returnStatement.Expression);
 				break;
