@@ -1827,6 +1827,8 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case IndexExpression index:
+				if (index.Target is MemberReferenceExpression getter && IsPropertyGetterReference(getter))
+					return RewritePropertyGetterCall(getter, index.Arguments);
 				index.Target = LowerExpression(index.Target);
 				for (int i = 0; i < index.Arguments.Count; i++)
 					index.Arguments[i] = LowerArgument(index.Arguments[i]);
@@ -1838,6 +1840,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			case MemberReferenceExpression memberReference:
 				memberReference.Target = LowerExpression(memberReference.Target);
+				if (IsPropertyGetterReference(memberReference))
+					return RewritePropertyGetterCall(memberReference, []);
 				break;
 
 			case NamelessIndexerExpression nameless:
@@ -1865,6 +1869,8 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case AssignmentExpression assignment:
+				if (TryRewritePropertySetterAssignment(assignment, out Expression? setterCall))
+					return setterCall;
 				assignment.Target = LowerExpression(assignment.Target);
 				assignment.Value = LowerExpression(assignment.Value);
 				if (assignment.Target is VariableReferenceExpression { Variable: DeclarationTarget target })
@@ -1884,6 +1890,80 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return expression;
+	}
+
+	bool TryRewritePropertySetterAssignment(AssignmentExpression assignment, out Expression? rewritten)
+	{
+		rewritten = null;
+		switch (assignment.Target)
+		{
+			case MemberReferenceExpression setter when IsPropertySetterReference(setter):
+				rewritten = RewritePropertySetterCall(setter, [], assignment.Value);
+				return true;
+
+			case IndexExpression { Target: MemberReferenceExpression setter } index when IsPropertySetterReference(setter):
+				rewritten = RewritePropertySetterCall(setter, index.Arguments, assignment.Value);
+				return true;
+
+			default:
+				return false;
+		}
+	}
+
+	bool IsPropertyGetterReference(MemberReferenceExpression member)
+	{
+		return member.Member is FunctionDefinition function && function.Name == "get" + member.Name;
+	}
+
+	bool IsPropertySetterReference(MemberReferenceExpression member)
+	{
+		return member.Member is FunctionDefinition function && function.Name == "set" + member.Name;
+	}
+
+	CallExpression RewritePropertyGetterCall(MemberReferenceExpression getter, List<ArgumentExpression> arguments)
+	{
+		FunctionDefinition function = (FunctionDefinition)getter.Member!;
+		getter.Target = LowerExpression(getter.Target);
+		getter.Name = function.Name;
+		getter.ResolvedType = BuildFunctionValueType(function, isInstance: true);
+
+		CallExpression call = new()
+		{
+			SourceSyntax = getter.SourceSyntax,
+			Target = getter,
+			ResolvedType = function.ResolvedType ?? ErrorType
+		};
+		for (int i = 0; i < arguments.Count; i++)
+			call.Arguments.Add(LowerArgument(arguments[i]));
+		return call;
+	}
+
+	CallExpression RewritePropertySetterCall(MemberReferenceExpression setter, List<ArgumentExpression> arguments, Expression? value)
+	{
+		FunctionDefinition function = (FunctionDefinition)setter.Member!;
+		setter.Target = LowerExpression(setter.Target);
+		setter.Name = function.Name;
+		setter.ResolvedType = BuildFunctionValueType(function, isInstance: true);
+
+		CallExpression call = new()
+		{
+			SourceSyntax = setter.SourceSyntax,
+			Target = setter,
+			ResolvedType = function.ResolvedType ?? "void"
+		};
+		for (int i = 0; i < arguments.Count; i++)
+			call.Arguments.Add(LowerArgument(arguments[i]));
+
+		Expression? loweredValue = LowerExpression(value);
+		ParameterDefinition? valueParameter = function.Parameters.Count == 0 ? null : function.Parameters[^1];
+		if (valueParameter?.Type is not null)
+			loweredValue = LowerInterfaceConversion(valueParameter.Type, loweredValue);
+		call.Arguments.Add(new ArgumentExpression
+		{
+			Value = loweredValue,
+			ResolvedType = loweredValue?.ResolvedType ?? valueParameter?.ResolvedType ?? ErrorType
+		});
+		return call;
 	}
 
 	void LowerInterfaceCall(CallExpression call)
