@@ -339,12 +339,11 @@ public sealed class BindableNodeCodeSerializer
 		switch (statement)
 		{
 			case BlockStatement block:
-				WriteIndent();
 				WriteLineBlock(() =>
 				{
 					foreach (Statement child in block.Statements)
 						WriteStatement(child);
-				});
+				}, leadingLineBreak: false);
 				break;
 
 			case EmptyStatement:
@@ -420,7 +419,7 @@ public sealed class BindableNodeCodeSerializer
 				{
 					foreach (Statement child in switchStatement.Statements)
 						WriteStatement(child);
-				});
+				}, leadingLineBreak: false);
 				break;
 
 			case CaseStatement caseStatement:
@@ -775,9 +774,10 @@ public sealed class BindableNodeCodeSerializer
 		writer.WriteLine(";");
 	}
 
-	void WriteLineBlock(Action writeBody)
+	void WriteLineBlock(Action writeBody, bool leadingLineBreak = true)
 	{
-		writer.WriteLine();
+		if (leadingLineBreak)
+			writer.WriteLine();
 		WriteIndent();
 		writer.WriteLine("{");
 		indent++;
@@ -1019,8 +1019,9 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case ThrownTypeReference thrown:
-				writer.Write("thrown ");
+				writer.Write("thrown(");
 				WriteType(thrown.Type);
+				writer.Write(")");
 				break;
 		}
 	}

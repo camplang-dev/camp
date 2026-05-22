@@ -83,7 +83,10 @@ public sealed partial class BindableNodeBuilder
 						continue;
 
 					case "finally":
-						AttachFinally(target, keyword);
+						if (target.Count > 0 && target[^1] is TryStatement)
+							AttachFinally(target, keyword);
+						else
+							target.Add(BuildStatement(keyword));
 						continue;
 				}
 			}
@@ -107,12 +110,13 @@ public sealed partial class BindableNodeBuilder
 			"return" => new ReturnStatement { SourceSyntax = syntax, Expression = BuildStatementExpression(syntax, "Return statement") },
 			"yield" => new YieldStatement { SourceSyntax = syntax, Expression = BuildStatementExpression(syntax, "Yield statement") },
 			"delete" => new DeleteStatement { SourceSyntax = syntax, Expression = BuildStatementExpression(syntax, "Delete statement") },
+			"throw" => new ExpressionStatement { SourceSyntax = syntax, Expression = new UnaryExpression { SourceSyntax = syntax, Operator = UnaryOperator.Throw, Operand = BuildStatementExpression(syntax, "Throw statement") } },
 			"goto" => BuildGotoStatement(syntax),
 			"break" => BuildBreakStatement(syntax),
 			"continue" => BuildContinueStatement(syntax),
 			"else" => BuildDetachedFollowerStatement(syntax, "'else' must follow an if statement."),
 			"catch" => BuildDetachedFollowerStatement(syntax, "'catch' must follow a try statement."),
-			"finally" => BuildDetachedFollowerStatement(syntax, "'finally' must follow a try statement."),
+			"finally" => new FinallyStatement { SourceSyntax = syntax, Body = BuildStatementBody(syntax) },
 			_ => BuildUnknownKeywordStatement(syntax)
 		};
 	}

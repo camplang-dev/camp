@@ -332,6 +332,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (definition is VTableOfParameterDefinition vtableOf)
 			AnalyzeOptionalType(vtableOf.InterfaceType, scope);
 
+		if (definition.Modifier == ParameterModifier.Thrown && string.IsNullOrWhiteSpace(definition.Name))
+		{
+			definition.Name = "error";
+			definition.Symbol = "error";
+		}
+
 		definition.ResolvedType = definition.Type?.ResolvedType ?? GetImplicitParameterType(definition);
 		ValidateGenericArgumentUse(definition.Type);
 		ValidateParameterPassing(definition, scope);
