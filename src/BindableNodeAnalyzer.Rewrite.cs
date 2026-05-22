@@ -42,7 +42,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (expansion.Diagnostics.Count > 0)
 			return new AnalysisResult(expansion.Module, expansion.Diagnostics);
 
-		return AnalyzeAndRewriteExpanded(expansion);
+		LoweringResult lowering = BindableNodeLowerer.Lower(expansion);
+		return new AnalysisResult(lowering.Module, lowering.Diagnostics);
 	}
 
 	internal static DeclarationExpansionResult ExpandDeclarations(Module module)
@@ -73,6 +74,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	public static AnalysisResult AnalyzeAndRewriteExpanded(DeclarationExpansionResult expansion)
 	{
+		LoweringResult lowering = BindableNodeLowerer.Lower(expansion);
+		return new AnalysisResult(lowering.Module, lowering.Diagnostics);
+	}
+
+	internal static LoweringResult LowerExpanded(DeclarationExpansionResult expansion)
+	{
 		ArgumentNullException.ThrowIfNull(expansion);
 		BindableNodeAnalyzer analyzer = expansion.Analyzer;
 		analyzer.AnalyzeDeclarations(expansion.Module);
@@ -82,11 +89,11 @@ public sealed partial class BindableNodeAnalyzer
 		analyzer.FillMissingResolvedTypes(expansion.Module);
 		AnalysisResult analysis = new(expansion.Module, analyzer.diagnostics);
 		if (analysis.Diagnostics.Count > 0)
-			return analysis;
+			return new LoweringResult(analysis.Module, analysis.Diagnostics);
 
 		analyzer.RewriteModule(expansion.Module);
 		analyzer.FillMissingResolvedTypes(expansion.Module);
-		return new AnalysisResult(expansion.Module, analyzer.diagnostics);
+		return new LoweringResult(expansion.Module, analyzer.diagnostics);
 	}
 
 	void RewriteModule(Module module)

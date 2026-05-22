@@ -17,6 +17,7 @@ public sealed class SourceFile
 	public IReadOnlyList<ParseDiagnostic> ParseDiagnostics { get; set; } = [];
 	public IReadOnlyList<BindDiagnostic> BindDiagnostics { get; set; } = [];
 	public DeclarationExpansionResult? DeclarationExpansion { get; set; }
+	public LoweringResult? Lowering { get; set; }
 }
 
 public static class CompilationPipeline
@@ -70,6 +71,23 @@ public static class CompilationPipeline
 			file.DeclarationExpansion = BindableNodeExpander.Expand(file.BindableTree!);
 			file.BindableTree = file.DeclarationExpansion.Module;
 			if (file.DeclarationExpansion.Diagnostics.Count > 0)
+				success = false;
+		}
+		return success;
+	}
+
+	public static bool Lower(Compilation compilation)
+	{
+		bool expansionSuccess = ExpandDeclarations(compilation);
+		if (!expansionSuccess)
+			return false;
+
+		bool success = true;
+		foreach (SourceFile file in compilation.Files)
+		{
+			file.Lowering = BindableNodeLowerer.Lower(file.DeclarationExpansion!);
+			file.BindableTree = file.Lowering.Module;
+			if (file.Lowering.Diagnostics.Count > 0)
 				success = false;
 		}
 		return success;

@@ -171,16 +171,8 @@ static int PrintDeclarations(Compilation compilation, bool printXml)
 
 static int PrintLowering(Compilation compilation, bool printXml)
 {
-	if (!ExpandDeclarationsAndReport(compilation))
+	if (!LowerAndReport(compilation))
 		return 1;
-
-	foreach (SourceFile file in compilation.Files)
-	{
-		AnalysisResult rewrite = BindableNodeAnalyzer.AnalyzeAndRewriteExpanded(file.DeclarationExpansion!);
-		if (!PrintAnalysisDiagnostics(file.Path, rewrite.Diagnostics))
-			return 1;
-		file.BindableTree = rewrite.Module;
-	}
 
 	PrintBindable(compilation.Files[0].BindableTree!, printXml);
 	return 0;
@@ -226,19 +218,51 @@ static bool BuildAllAndReport(Compilation compilation)
 static bool ExpandDeclarationsAndReport(Compilation compilation)
 {
 	bool success = CompilationPipeline.ExpandDeclarations(compilation);
+	PrintPipelineDiagnostics(compilation);
+	return success;
+}
+
+static bool LowerAndReport(Compilation compilation)
+{
+	bool success = CompilationPipeline.Lower(compilation);
+	PrintPipelineDiagnostics(compilation);
+	return success;
+}
+
+static void PrintPipelineDiagnostics(Compilation compilation)
+{
+	HashSet<string> printed = [];
 	foreach (SourceFile file in compilation.Files)
 	{
 		foreach (ParseDiagnostic diagnostic in file.ParseDiagnostics)
-			PrintDiagnostic(file.Path, diagnostic);
+			PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, printed);
 		foreach (BindDiagnostic diagnostic in file.BindDiagnostics)
-			PrintBindDiagnostic(file.Path, diagnostic);
-		if (file.DeclarationExpansion is not null)
+			PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, printed);
+		if (file.DeclarationExpansion is not null && file.Lowering is null)
 		{
 			foreach (AnalysisDiagnostic diagnostic in file.DeclarationExpansion.Diagnostics)
-				PrintAnalysisDiagnostic(file.Path, diagnostic);
+				PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, printed);
+		}
+		if (file.Lowering is not null)
+		{
+			foreach (AnalysisDiagnostic diagnostic in file.Lowering.Diagnostics)
+				PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, printed);
 		}
 	}
-	return success;
+}
+
+static void PrintDiagnosticOnce(string filename, TokenRange? range, string message, HashSet<string> printed)
+{
+	string key = range is TokenRange r
+		? $"{filename}:{r.StartLineNumber}:{r.StartColumn}:{message}"
+		: $"{filename}:::${message}";
+	if (!printed.Add(key))
+		return;
+
+	if (range is TokenRange tokenRange)
+		Console.Error.WriteLine($"{filename}({tokenRange.StartLineNumber},{tokenRange.StartColumn}): error: {message}");
+	else
+		Console.Error.WriteLine($"{filename}: error: {message}");
 }
 
 static bool PrintAnalysisDiagnostics(string filename, IReadOnlyList<AnalysisDiagnostic> diagnostics)
