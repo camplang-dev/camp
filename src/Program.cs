@@ -122,21 +122,21 @@ static bool TryReadInput(string filename, out string text)
 
 static int PrintDefaultOutput(Compilation compilation)
 {
-	TokenizeAll(compilation);
+	CompilationPipeline.Tokenize(compilation);
 	PrintColoredTokens(compilation.Files[0].Tokens!);
 	return 0;
 }
 
 static int PrintTokens(Compilation compilation)
 {
-	TokenizeAll(compilation);
+	CompilationPipeline.Tokenize(compilation);
 	PrintTokenLines(compilation.Files[0].Tokens!);
 	return 0;
 }
 
 static int PrintSyntaxXml(Compilation compilation)
 {
-	if (!ParseAll(compilation))
+	if (!ParseAllAndReport(compilation))
 		return 1;
 
 	PrintXmlDocument(SerializeSyntax(compilation.Files[0].SyntaxTree!));
@@ -145,7 +145,7 @@ static int PrintSyntaxXml(Compilation compilation)
 
 static int PrintBindXml(Compilation compilation)
 {
-	if (!BuildAll(compilation))
+	if (!BuildAllAndReport(compilation))
 		return 1;
 
 	PrintXmlDocument(SerializeBindableNode(compilation.Files[0].BindableTree!));
@@ -154,7 +154,7 @@ static int PrintBindXml(Compilation compilation)
 
 static int PrintDeclarations(Compilation compilation, bool printXml)
 {
-	if (!BuildAll(compilation))
+	if (!BuildAllAndReport(compilation))
 		return 1;
 
 	foreach (SourceFile file in compilation.Files)
@@ -171,7 +171,7 @@ static int PrintDeclarations(Compilation compilation, bool printXml)
 
 static int PrintLowering(Compilation compilation, bool printXml)
 {
-	if (!BuildAll(compilation))
+	if (!BuildAllAndReport(compilation))
 		return 1;
 
 	foreach (SourceFile file in compilation.Files)
@@ -186,37 +186,39 @@ static int PrintLowering(Compilation compilation, bool printXml)
 	return 0;
 }
 
-static void TokenizeAll(Compilation compilation)
+static bool ParseAllAndReport(Compilation compilation)
 {
-	foreach (SourceFile file in compilation.Files)
-		file.Tokens ??= new TokenSequence(CampTokenizer.Tokenize(file.Text));
-}
-
-static bool ParseAll(Compilation compilation)
-{
-	TokenizeAll(compilation);
+	bool success = CompilationPipeline.Parse(compilation);
 	foreach (SourceFile file in compilation.Files)
 	{
-		file.SyntaxTree = CampParser.Parse(file.Tokens!, out IReadOnlyList<ParseDiagnostic> diagnostics);
-		foreach (ParseDiagnostic diagnostic in diagnostics)
+		foreach (ParseDiagnostic diagnostic in file.ParseDiagnostics)
 			PrintDiagnostic(file.Path, diagnostic);
-		if (diagnostics.Count > 0)
-			return false;
 	}
-	return true;
+	return success;
 }
 
-static bool BuildAll(Compilation compilation)
+static bool BuildAllAndReport(Compilation compilation)
 {
-	if (!ParseAll(compilation))
-		return false;
+	bool success = CompilationPipeline.BuildAst(compilation);
 	foreach (SourceFile file in compilation.Files)
 	{
-		file.BindableTree = BindableNodeBuilder.Build(file.SyntaxTree!, out IReadOnlyList<BindDiagnostic> diagnostics);
-		foreach (BindDiagnostic diagnostic in diagnostics)
+		foreach (ParseDiagnostic diagnostic in file.ParseDiagnostics)
+			PrintDiagnostic(file.Path, diagnostic);
+	}
+	if (!success)
+	{
+		foreach (SourceFile file in compilation.Files)
+		{
+			foreach (BindDiagnostic diagnostic in file.BindDiagnostics)
+				PrintBindDiagnostic(file.Path, diagnostic);
+		}
+		return false;
+	}
+
+	foreach (SourceFile file in compilation.Files)
+	{
+		foreach (BindDiagnostic diagnostic in file.BindDiagnostics)
 			PrintBindDiagnostic(file.Path, diagnostic);
-		if (diagnostics.Count > 0)
-			return false;
 	}
 	return true;
 }

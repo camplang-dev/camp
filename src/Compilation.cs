@@ -14,4 +14,46 @@ public sealed class SourceFile
 	public TokenSequence? Tokens { get; set; }
 	public CompilationUnitSyntax? SyntaxTree { get; set; }
 	public Module? BindableTree { get; set; }
+	public IReadOnlyList<ParseDiagnostic> ParseDiagnostics { get; set; } = [];
+	public IReadOnlyList<BindDiagnostic> BindDiagnostics { get; set; } = [];
+}
+
+public static class CompilationPipeline
+{
+	public static void Tokenize(Compilation compilation)
+	{
+		foreach (SourceFile file in compilation.Files)
+			file.Tokens ??= new TokenSequence(CampTokenizer.Tokenize(file.Text));
+	}
+
+	public static bool Parse(Compilation compilation)
+	{
+		Tokenize(compilation);
+		bool success = true;
+		foreach (SourceFile file in compilation.Files)
+		{
+			file.SyntaxTree = CampParser.Parse(file.Tokens!, out IReadOnlyList<ParseDiagnostic> diagnostics);
+			file.ParseDiagnostics = diagnostics;
+			if (diagnostics.Count > 0)
+				success = false;
+		}
+		return success;
+	}
+
+	public static bool BuildAst(Compilation compilation)
+	{
+		bool parseSuccess = Parse(compilation);
+		if (!parseSuccess)
+			return false;
+
+		bool success = true;
+		foreach (SourceFile file in compilation.Files)
+		{
+			file.BindableTree = BindableNodeBuilder.Build(file.SyntaxTree!, out IReadOnlyList<BindDiagnostic> diagnostics);
+			file.BindDiagnostics = diagnostics;
+			if (diagnostics.Count > 0)
+				success = false;
+		}
+		return success;
+	}
 }
