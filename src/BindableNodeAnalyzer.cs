@@ -122,6 +122,28 @@ public sealed partial class BindableNodeAnalyzer
 		Report(GetRange(referenceSyntax), $"{symbolKind} '{definition.Name}' is declared in another file but is not exported.");
 	}
 
+	bool IsDefinitionInSameFile(Definition definition, SyntaxNode? referenceSyntax)
+	{
+		if (currentModule is null || !currentModule.DefinitionSources.TryGetValue(definition, out TokenSequence? definitionSource))
+			return true;
+
+		if (definitionSource is null)
+			return true;
+
+		TokenRange? referenceRange = GetRange(referenceSyntax);
+		return referenceRange is not TokenRange range || ReferenceEquals(range.Sequence, definitionSource);
+	}
+
+	bool IsMemberVisible(Definition member, TypeDefinition owner, SyntaxNode? referenceSyntax)
+	{
+		return member.Export is not null || IsDefinitionInSameFile(owner, referenceSyntax);
+	}
+
+	void ReportMemberNotExported(Definition member, SyntaxNode? referenceSyntax)
+	{
+		Report(GetRange(referenceSyntax), $"Member '{member.Name}' is declared in another file but is not exported.");
+	}
+
 	static TypeReference UnwrapTypeDeclarators(TypeReference type)
 	{
 		while (true)

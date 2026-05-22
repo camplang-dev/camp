@@ -25,7 +25,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == target || source == ErrorType || target == ErrorType || target == TargetType)
 			return true;
 
-		if (source == "#NULL" && (target.EndsWith("*", StringComparison.Ordinal) || target.EndsWith("?", StringComparison.Ordinal)))
+		if (IsConstQualified(target) && CanImplicitlyConvert(source, StripConst(target)))
+			return true;
+
+		string unqualifiedTarget = StripConst(target);
+		if (source == "#NULL" && (unqualifiedTarget.EndsWith("*", StringComparison.Ordinal) || unqualifiedTarget.EndsWith("?", StringComparison.Ordinal)))
 			return true;
 
 		if (source == AllocatorType && target == "Allocator*")
@@ -199,7 +203,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		List<FunctionDefinition> functions = [];
 		if (scope.ContainingType is not null)
-			functions.AddRange(LookupTypeFunctions(scope.ContainingType, name));
+			functions.AddRange(LookupTypeFunctions(scope.ContainingType, name, scope.CurrentFunction.SourceSyntax));
 
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
@@ -232,7 +236,7 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
-	List<FunctionDefinition> LookupTypeFunctions(TypeDefinition type, string name)
+	List<FunctionDefinition> LookupTypeFunctions(TypeDefinition type, string name, SyntaxNode? referenceSyntax)
 	{
 		List<FunctionDefinition> functions = [];
 		if (type is ClassDefinition classDefinition)
@@ -241,7 +245,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				foreach (FunctionDefinition function in candidateClass.Functions)
 				{
-					if (function.Name == name && !IsBodylessVirtualOverrideDeclaration(function))
+					if (function.Name == name && !IsBodylessVirtualOverrideDeclaration(function) && IsMemberVisible(function, candidateClass, referenceSyntax))
 						functions.Add(function);
 				}
 
@@ -264,11 +268,70 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (FunctionDefinition function in candidates)
 		{
-			if (function.Name == name)
+			if (function.Name == name && IsMemberVisible(function, type, referenceSyntax))
 				functions.Add(function);
 		}
 
 		return functions;
+	}
+
+	FunctionDefinition? LookupHiddenTypeFunction(TypeDefinition type, string name, SyntaxNode? referenceSyntax)
+	{
+		if (type is ClassDefinition classDefinition)
+		{
+			foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
+			{
+				foreach (FunctionDefinition function in candidateClass.Functions)
+				{
+					if (function.Name == name && !IsBodylessVirtualOverrideDeclaration(function) && !IsMemberVisible(function, candidateClass, referenceSyntax))
+						return function;
+				}
+			}
+			return null;
+		}
+
+		foreach (FunctionDefinition function in GetTypeFunctions(type))
+		{
+			if (function.Name == name && !IsMemberVisible(function, type, referenceSyntax))
+				return function;
+		}
+
+		return null;
+	}
+
+	Definition? LookupHiddenMember(TypeDefinition type, string name, SyntaxNode? referenceSyntax)
+	{
+		if (LookupHiddenTypeFunction(type, name, referenceSyntax) is FunctionDefinition hiddenFunction)
+			return hiddenFunction;
+
+		switch (type)
+		{
+			case ClassDefinition classDefinition:
+				foreach (FieldDefinition field in classDefinition.Fields)
+				{
+					if (field.Name == name && !IsMemberVisible(field, classDefinition, referenceSyntax))
+						return field;
+				}
+				break;
+
+			case StructDefinition structDefinition:
+				foreach (FieldDefinition field in structDefinition.Fields)
+				{
+					if (field.Name == name && !IsMemberVisible(field, structDefinition, referenceSyntax))
+						return field;
+				}
+				break;
+
+			case InterfaceDefinition interfaceDefinition:
+				foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
+				{
+					if ((GetSignatureName(function) == name || function.Name == name) && !IsMemberVisible(function, interfaceDefinition, referenceSyntax))
+						return function;
+				}
+				break;
+		}
+
+		return null;
 	}
 
 	bool IsBodylessVirtualOverrideDeclaration(FunctionDefinition function)
@@ -278,7 +341,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& virtualImplementations.ContainsKey(function);
 	}
 
-	List<FunctionDefinition> LookupMemberFunctions(string targetType, string name)
+	List<FunctionDefinition> LookupMemberFunctions(string targetType, string name, SyntaxNode? referenceSyntax)
 	{
 		if (TryGetPointerElementType(targetType) is string interfaceElement
 			&& typeDefinitions.TryGetValue(BaseTypeName(interfaceElement), out TypeDefinition? interfaceType)
@@ -287,7 +350,7 @@ public sealed partial class BindableNodeAnalyzer
 			List<FunctionDefinition> functions = [];
 			foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
 			{
-				if (GetSignatureName(function) == name || function.Name == name)
+				if ((GetSignatureName(function) == name || function.Name == name) && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
 					functions.Add(function);
 			}
 			return functions;
@@ -296,10 +359,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
 			return [];
 
-		return LookupTypeFunctions(type, name);
+		return LookupTypeFunctions(type, name, referenceSyntax);
 	}
 
-	List<BodySymbol> LookupMemberSymbols(string targetType, string name)
+	List<BodySymbol> LookupMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax)
 	{
 		List<BodySymbol> members = [];
 		if (TryGetPointerElementType(targetType) is string interfaceElement
@@ -308,7 +371,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
 			{
-				if (GetSignatureName(function) == name || function.Name == name)
+				if ((GetSignatureName(function) == name || function.Name == name) && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
 					members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
 			}
 			return members;
@@ -322,7 +385,7 @@ public sealed partial class BindableNodeAnalyzer
 			case ClassDefinition classDefinition:
 				foreach (FieldDefinition field in classDefinition.Fields)
 				{
-					if (field.Name == name)
+					if (field.Name == name && IsMemberVisible(field, classDefinition, referenceSyntax))
 						members.Add(new BodySymbol(name, field.ResolvedType ?? ErrorType, field));
 				}
 				break;
@@ -330,7 +393,7 @@ public sealed partial class BindableNodeAnalyzer
 			case StructDefinition structDefinition:
 				foreach (FieldDefinition field in structDefinition.Fields)
 				{
-					if (field.Name == name)
+					if (field.Name == name && IsMemberVisible(field, structDefinition, referenceSyntax))
 						members.Add(new BodySymbol(name, field.ResolvedType ?? ErrorType, field));
 				}
 				break;
@@ -352,10 +415,10 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 		}
 
-		foreach (FunctionDefinition function in LookupTypeFunctions(type, name))
+		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
 			members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
 
-		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name))
+		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
 		{
 			if (getter.Parameters.Count == 0)
 				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
@@ -371,7 +434,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (GetTypeDefinition(targetType) is not TypeDefinition type)
 			return false;
 
-		foreach (FunctionDefinition getter in LookupPropertyGetters(type, member.Name))
+		foreach (FunctionDefinition getter in LookupPropertyGetters(type, member.Name, member.SourceSyntax))
 		{
 			if (CountRequiredParameters(getter.Parameters) <= arguments.Count)
 			{
@@ -383,7 +446,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
-		if (LookupPropertySetters(type, member.Name).Count > 0)
+		if (LookupPropertySetters(type, member.Name, member.SourceSyntax).Count > 0)
 		{
 			Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not readable on type '{targetType}'.");
 			foreach (ArgumentExpression argument in arguments)
@@ -401,7 +464,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (GetTypeDefinition(targetType) is not TypeDefinition type)
 			return false;
 
-		List<FunctionDefinition> setters = LookupPropertySetters(type, member.Name);
+		List<FunctionDefinition> setters = LookupPropertySetters(type, member.Name, member.SourceSyntax);
 		foreach (FunctionDefinition setter in setters)
 		{
 			if (setter.Parameters.Count == 0)
@@ -431,7 +494,7 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		if (setters.Count == 0 && LookupPropertyGetters(type, member.Name).Count == 0)
+		if (setters.Count == 0 && LookupPropertyGetters(type, member.Name, member.SourceSyntax).Count == 0)
 			return false;
 
 		Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not writable on type '{targetType}'.");
@@ -624,14 +687,14 @@ public sealed partial class BindableNodeAnalyzer
 		return count;
 	}
 
-	List<FunctionDefinition> LookupPropertyGetters(TypeDefinition type, string name)
+	List<FunctionDefinition> LookupPropertyGetters(TypeDefinition type, string name, SyntaxNode? referenceSyntax)
 	{
-		return LookupTypeFunctions(type, "get" + name);
+		return LookupTypeFunctions(type, "get" + name, referenceSyntax);
 	}
 
-	List<FunctionDefinition> LookupPropertySetters(TypeDefinition type, string name)
+	List<FunctionDefinition> LookupPropertySetters(TypeDefinition type, string name, SyntaxNode? referenceSyntax)
 	{
-		return LookupTypeFunctions(type, "set" + name);
+		return LookupTypeFunctions(type, "set" + name, referenceSyntax);
 	}
 
 	TypeDefinition? GetTypeDefinition(string typeName)
@@ -796,9 +859,9 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static bool IsCharPointerType(string? type)
+	static bool IsConstCharPointerType(string? type)
 	{
-		return type is "char*" or "const char*";
+		return type == "const char*";
 	}
 
 	string BuildFunctionValueType(FunctionDefinition function, bool isInstance)

@@ -112,6 +112,7 @@ public sealed partial class BindableNodeAnalyzer
 			ExpressionListSyntax list => list.Expressions is [ExpressionSyntax first, ..] ? GetRange(first) : null,
 			ArgumentSyntax argument => argument.Identifier?.Range ?? argument.OutKeyword?.Range ?? argument.CatchKeyword?.Range ?? argument.WithinKeyword?.Range,
 			ExpressionSyntax expression => GetExpressionRange(expression),
+			PostfixPartSyntax postfix => GetPostfixPartRange(postfix),
 			_ => null
 		};
 	}
@@ -160,6 +161,20 @@ public sealed partial class BindableNodeAnalyzer
 			UnaryExpressionSyntax unary => unary.Prefixes is [UnaryPrefixSyntax first, ..] ? GetRange(first) : GetRange(unary.Expression),
 			PostfixExpressionSyntax postfix => GetRange(postfix.Expression),
 			LambdaExpressionSyntax lambda => lambda.ArrowToken,
+			_ => null
+		};
+	}
+
+	static TokenRange? GetPostfixPartRange(PostfixPartSyntax postfix)
+	{
+		return postfix switch
+		{
+			CallPostfixPartSyntax call => call.OpenParenToken?.Range,
+			IndexPostfixPartSyntax index => index.OpenBracketToken?.Range,
+			MemberPostfixPartSyntax member => member.Identifier?.Range ?? member.DotToken?.Range,
+			NamelessIndexerPostfixPartSyntax indexer => indexer.OpenBracketToken?.Range ?? indexer.DotToken?.Range,
+			GenericPostfixPartSyntax generic => generic.LessThanToken?.Range,
+			PostfixOperatorPartSyntax op => op.Operator,
 			_ => null
 		};
 	}

@@ -141,6 +141,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string BaseTypeName(string type)
 	{
+		type = StripConst(type);
 		int genericStart = type.IndexOf('<', StringComparison.Ordinal);
 		if (genericStart >= 0)
 			type = type[..genericStart];
@@ -152,6 +153,19 @@ public sealed partial class BindableNodeAnalyzer
 			else
 				type = type[..^1];
 		}
+
+		return type;
+	}
+
+	static bool IsConstQualified(string? type)
+	{
+		return type is not null && type.StartsWith("const ", StringComparison.Ordinal);
+	}
+
+	static string StripConst(string type)
+	{
+		while (type.StartsWith("const ", StringComparison.Ordinal))
+			type = type["const ".Length..];
 
 		return type;
 	}

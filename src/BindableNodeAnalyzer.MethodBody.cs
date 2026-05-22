@@ -428,8 +428,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			LiteralKind.True or LiteralKind.False => "bool",
 			LiteralKind.Null => "#NULL",
-			LiteralKind.String when IsCharPointerType(targetType) => targetType!,
-			LiteralKind.String => "StringView",
+			LiteralKind.String when IsConstCharPointerType(targetType) => targetType!,
+			LiteralKind.String => "const StringView",
 			LiteralKind.Number => GetNumberLiteralType(literal.Text, targetType),
 			_ => ErrorType
 		};
@@ -813,7 +813,7 @@ public sealed partial class BindableNodeAnalyzer
 					return ResolveBaseMemberCallTarget(member, scope, typeScope, argumentCount);
 
 				string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
-				List<FunctionDefinition> functions = LookupMemberFunctions(targetType, member.Name);
+				List<FunctionDefinition> functions = LookupMemberFunctions(targetType, member.Name, member.SourceSyntax);
 				if (functions.Count == 1)
 				{
 					member.ResolvedType = functions[0].ResolvedType ?? ErrorType;
@@ -822,6 +822,8 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				if (functions.Count > 1)
 					Report(GetRange(member.SourceSyntax), $"Multiple candidates found for member call '{member.Name}'.");
+				else if (GetTypeDefinition(targetType) is TypeDefinition memberType && LookupHiddenMember(memberType, member.Name, member.SourceSyntax) is Definition hiddenMember)
+					ReportMemberNotExported(hiddenMember, member.SourceSyntax);
 				else
 					Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' could not be found on type '{targetType}'.");
 				return null;
@@ -1370,12 +1372,17 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope)
 	{
 		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
-		List<BodySymbol> members = LookupMemberSymbols(targetType, member.Name);
+		List<BodySymbol> members = LookupMemberSymbols(targetType, member.Name, member.SourceSyntax);
 		if (members.Count == 0)
 		{
-			if (GetTypeDefinition(targetType) is TypeDefinition type && LookupPropertySetters(type, member.Name).Count > 0)
+			if (GetTypeDefinition(targetType) is TypeDefinition type && LookupPropertySetters(type, member.Name, member.SourceSyntax).Count > 0)
 			{
 				Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not readable on type '{targetType}'.");
+				return ErrorType;
+			}
+			if (GetTypeDefinition(targetType) is TypeDefinition hiddenType && LookupHiddenMember(hiddenType, member.Name, member.SourceSyntax) is Definition hiddenMember)
+			{
+				ReportMemberNotExported(hiddenMember, member.SourceSyntax);
 				return ErrorType;
 			}
 
