@@ -157,15 +157,12 @@ static int PrintDeclarations(Compilation compilation, bool printXml)
 	if (!ExpandDeclarationsAndReport(compilation))
 		return 1;
 
-	foreach (SourceFile file in compilation.Files)
-	{
-		AnalysisResult analysis = BindableNodeAnalyzer.AnalyzeExpanded(file.DeclarationExpansion!);
-		if (!PrintAnalysisDiagnostics(file.Path, analysis.Diagnostics))
-			return 1;
-		file.BindableTree = analysis.Module;
-	}
+	AnalysisResult analysis = BindableNodeAnalyzer.AnalyzeExpanded(compilation.DeclarationExpansion!);
+	if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
+		return 1;
+	compilation.SharedModule = analysis.Module;
 
-	PrintBindable(compilation.Files[0].BindableTree!, printXml);
+	PrintBindable(BuildOutputModule(compilation, compilation.Files[0]), printXml);
 	return 0;
 }
 
@@ -174,8 +171,32 @@ static int PrintLowering(Compilation compilation, bool printXml)
 	if (!LowerAndReport(compilation))
 		return 1;
 
-	PrintBindable(compilation.Files[0].BindableTree!, printXml);
+	PrintBindable(BuildOutputModule(compilation, compilation.Files[0]), printXml);
 	return 0;
+}
+
+static Camp.Compiler.Module BuildOutputModule(Compilation compilation, SourceFile file)
+{
+	if (compilation.SharedModule is null)
+		return file.BindableTree!;
+
+	Camp.Compiler.Module output = new()
+	{
+		SourceSyntax = file.BindableTree?.SourceSyntax,
+		ResolvedType = compilation.SharedModule.ResolvedType,
+		ExportAs = file.BindableTree?.ExportAs
+	};
+
+	foreach (UsingDeclaration usingDeclaration in file.BindableTree?.Usings ?? [])
+		output.Usings.Add(usingDeclaration);
+
+	foreach (Definition definition in compilation.SharedModule.Definitions)
+	{
+		if (compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) && ReferenceEquals(owner, file))
+			output.Definitions.Add(definition);
+	}
+
+	return output;
 }
 
 static bool ParseAllAndReport(Compilation compilation)
@@ -238,16 +259,17 @@ static void PrintPipelineDiagnostics(Compilation compilation)
 			PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, printed);
 		foreach (BindDiagnostic diagnostic in file.BindDiagnostics)
 			PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, printed);
-		if (file.DeclarationExpansion is not null && file.Lowering is null)
-		{
-			foreach (AnalysisDiagnostic diagnostic in file.DeclarationExpansion.Diagnostics)
-				PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, printed);
-		}
-		if (file.Lowering is not null)
-		{
-			foreach (AnalysisDiagnostic diagnostic in file.Lowering.Diagnostics)
-				PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, printed);
-		}
+	}
+
+	if (compilation.DeclarationExpansion is not null && compilation.Lowering is null)
+	{
+		foreach (AnalysisDiagnostic diagnostic in compilation.DeclarationExpansion.Diagnostics)
+			PrintDiagnosticOnce(GetDiagnosticFilename(compilation, diagnostic.Range), diagnostic.Range, diagnostic.Message, printed);
+	}
+	if (compilation.Lowering is not null)
+	{
+		foreach (AnalysisDiagnostic diagnostic in compilation.Lowering.Diagnostics)
+			PrintDiagnosticOnce(GetDiagnosticFilename(compilation, diagnostic.Range), diagnostic.Range, diagnostic.Message, printed);
 	}
 }
 
@@ -265,11 +287,25 @@ static void PrintDiagnosticOnce(string filename, TokenRange? range, string messa
 		Console.Error.WriteLine($"{filename}: error: {message}");
 }
 
-static bool PrintAnalysisDiagnostics(string filename, IReadOnlyList<AnalysisDiagnostic> diagnostics)
+static bool PrintAnalysisDiagnostics(Compilation compilation, IReadOnlyList<AnalysisDiagnostic> diagnostics)
 {
 	foreach (AnalysisDiagnostic diagnostic in diagnostics)
-		PrintAnalysisDiagnostic(filename, diagnostic);
+		PrintAnalysisDiagnostic(GetDiagnosticFilename(compilation, diagnostic.Range), diagnostic);
 	return diagnostics.Count == 0;
+}
+
+static string GetDiagnosticFilename(Compilation compilation, TokenRange? range)
+{
+	if (range is TokenRange tokenRange)
+	{
+		foreach (SourceFile file in compilation.Files)
+		{
+			if (ReferenceEquals(file.Tokens, tokenRange.Sequence))
+				return file.Path;
+		}
+	}
+
+	return compilation.Files.Count == 0 ? "" : compilation.Files[0].Path;
 }
 
 static void PrintBindable(Camp.Compiler.Module module, bool printXml)

@@ -161,6 +161,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (named.Qualifiers.Count == 0 && typeDefinitions.TryGetValue(named.Name, out TypeDefinition? definition))
 		{
+			if (!IsDefinitionVisible(definition, named.SourceSyntax))
+			{
+				ReportNotExported(definition, named.SourceSyntax, "Type");
+				return $"{UnresolvedType}({sourceName})";
+			}
+
 			ValidateGenericArity(named, definition);
 			string resolvedType = AddTypeArguments(named.Name, named.TypeArguments);
 			TypeDefinitionReference reference = new()

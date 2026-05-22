@@ -5,6 +5,10 @@ namespace Camp.Compiler;
 public sealed class Compilation
 {
 	public List<SourceFile> Files { get; } = [];
+	public Module? SharedModule { get; set; }
+	public DeclarationExpansionResult? DeclarationExpansion { get; set; }
+	public LoweringResult? Lowering { get; set; }
+	public Dictionary<Definition, SourceFile> DefinitionOwners { get; } = [];
 }
 
 public sealed class SourceFile
@@ -16,8 +20,6 @@ public sealed class SourceFile
 	public Module? BindableTree { get; set; }
 	public IReadOnlyList<ParseDiagnostic> ParseDiagnostics { get; set; } = [];
 	public IReadOnlyList<BindDiagnostic> BindDiagnostics { get; set; } = [];
-	public DeclarationExpansionResult? DeclarationExpansion { get; set; }
-	public LoweringResult? Lowering { get; set; }
 }
 
 public static class CompilationPipeline
@@ -56,6 +58,8 @@ public static class CompilationPipeline
 			if (diagnostics.Count > 0)
 				success = false;
 		}
+		if (success)
+			compilation.SharedModule = BuildSharedModule(compilation);
 		return success;
 	}
 
@@ -65,15 +69,10 @@ public static class CompilationPipeline
 		if (!buildSuccess)
 			return false;
 
-		bool success = true;
-		foreach (SourceFile file in compilation.Files)
-		{
-			file.DeclarationExpansion = BindableNodeExpander.Expand(file.BindableTree!);
-			file.BindableTree = file.DeclarationExpansion.Module;
-			if (file.DeclarationExpansion.Diagnostics.Count > 0)
-				success = false;
-		}
-		return success;
+		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!);
+		compilation.SharedModule = compilation.DeclarationExpansion.Module;
+		AssignGeneratedDefinitionOwners(compilation);
+		return compilation.DeclarationExpansion.Diagnostics.Count == 0;
 	}
 
 	public static bool Lower(Compilation compilation)
@@ -82,14 +81,81 @@ public static class CompilationPipeline
 		if (!expansionSuccess)
 			return false;
 
-		bool success = true;
+		compilation.Lowering = BindableNodeLowerer.Lower(compilation.DeclarationExpansion!);
+		compilation.SharedModule = compilation.Lowering.Module;
+		AssignGeneratedDefinitionOwners(compilation);
+		return compilation.Lowering.Diagnostics.Count == 0;
+	}
+
+	static Module BuildSharedModule(Compilation compilation)
+	{
+		Module module = new();
 		foreach (SourceFile file in compilation.Files)
 		{
-			file.Lowering = BindableNodeLowerer.Lower(file.DeclarationExpansion!);
-			file.BindableTree = file.Lowering.Module;
-			if (file.Lowering.Diagnostics.Count > 0)
-				success = false;
+			if (file.BindableTree is not Module fileModule)
+				continue;
+
+			foreach (UsingDeclaration usingDeclaration in fileModule.Usings)
+				module.Usings.Add(usingDeclaration);
+
+			module.ExportAs ??= fileModule.ExportAs;
+
+			foreach (Definition definition in fileModule.Definitions)
+			{
+				module.Definitions.Add(definition);
+				compilation.DefinitionOwners[definition] = file;
+				module.DefinitionSources[definition] = file.Tokens;
+			}
 		}
-		return success;
+
+		return module;
+	}
+
+	static void AssignGeneratedDefinitionOwners(Compilation compilation)
+	{
+		if (compilation.SharedModule is null)
+			return;
+
+		Dictionary<SourceFile, HashSet<string>> ownedNames = [];
+		foreach (SourceFile file in compilation.Files)
+		{
+			HashSet<string> names = new(System.StringComparer.Ordinal);
+			foreach (Definition definition in file.BindableTree?.Definitions ?? [])
+				names.Add(definition.Name);
+			ownedNames[file] = names;
+		}
+
+		foreach (Definition definition in compilation.SharedModule.Definitions)
+		{
+			if (compilation.DefinitionOwners.ContainsKey(definition))
+				continue;
+
+			foreach ((SourceFile file, HashSet<string> names) in ownedNames)
+			{
+				if (GeneratedNameBelongsToFile(definition.Name, names))
+				{
+					compilation.DefinitionOwners[definition] = file;
+					compilation.SharedModule.DefinitionSources[definition] = file.Tokens;
+					break;
+				}
+			}
+		}
+	}
+
+	static bool GeneratedNameBelongsToFile(string name, HashSet<string> ownedNames)
+	{
+		foreach (string ownedName in ownedNames)
+		{
+			if (string.IsNullOrWhiteSpace(ownedName))
+				continue;
+
+			if (name == ownedName
+				|| name == "_" + ownedName
+				|| name.StartsWith(ownedName + "_", System.StringComparison.Ordinal)
+				|| name.StartsWith("_" + ownedName + "__", System.StringComparison.Ordinal))
+				return true;
+		}
+
+		return false;
 	}
 }

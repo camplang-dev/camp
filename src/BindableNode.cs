@@ -14,6 +14,7 @@ public class Module : BindableNode
 	public List<UsingDeclaration> Usings { get; } = [];
 	public string? ExportAs { get; set; }
 	public List<Definition> Definitions { get; } = [];
+	public Dictionary<Definition, TokenSequence?> DefinitionSources { get; } = [];
 }
 
 public class UsingDeclaration : BindableNode

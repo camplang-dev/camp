@@ -73,7 +73,16 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		type = UnwrapTypeDeclarators(type);
 		if (type is NamedTypeReference named)
-			return TryGetNamedTypeDefinition(named, out definition);
+		{
+			if (!TryGetNamedTypeDefinition(named, out definition))
+				return false;
+			if (definition is not null && !IsDefinitionVisible(definition, named.SourceSyntax))
+			{
+				definition = null;
+				return false;
+			}
+			return true;
+		}
 		if (type is TypeDefinitionReference reference)
 		{
 			definition = reference.Definition;
@@ -91,6 +100,26 @@ public sealed partial class BindableNodeAnalyzer
 
 		definition = null;
 		return false;
+	}
+
+	bool IsDefinitionVisible(Definition definition, SyntaxNode? referenceSyntax)
+	{
+		if (definition.Export is not null)
+			return true;
+
+		if (currentModule is null || !currentModule.DefinitionSources.TryGetValue(definition, out TokenSequence? definitionSource))
+			return true;
+
+		if (definitionSource is null)
+			return true;
+
+		TokenRange? referenceRange = GetRange(referenceSyntax);
+		return referenceRange is not TokenRange range || ReferenceEquals(range.Sequence, definitionSource);
+	}
+
+	void ReportNotExported(Definition definition, SyntaxNode? referenceSyntax, string symbolKind)
+	{
+		Report(GetRange(referenceSyntax), $"{symbolKind} '{definition.Name}' is declared in another file but is not exported.");
 	}
 
 	static TypeReference UnwrapTypeDeclarators(TypeReference type)

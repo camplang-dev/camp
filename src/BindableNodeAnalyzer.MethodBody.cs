@@ -466,7 +466,7 @@ public sealed partial class BindableNodeAnalyzer
 			return symbol.Type;
 		}
 
-		if (LookupGlobalVariable(named.Name) is VariableDefinition variable)
+		if (LookupGlobalVariable(named.Name, named.SourceSyntax) is VariableDefinition variable)
 		{
 			string type = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
 			named.ResolvedType = type;
@@ -498,6 +498,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (typeDefinitions.TryGetValue(named.Name, out TypeDefinition? typeDefinition))
 		{
+			if (!IsDefinitionVisible(typeDefinition, named.SourceSyntax))
+			{
+				ReportNotExported(typeDefinition, named.SourceSyntax, "Type");
+				return ErrorType;
+			}
+
 			TypeDefinitionReference typeReference = new()
 			{
 				SourceSyntax = named.SourceSyntax,
@@ -513,6 +519,12 @@ public sealed partial class BindableNodeAnalyzer
 			};
 			expressionRewrites[named] = expression;
 			return expression.ResolvedType;
+		}
+
+		if (LookupHiddenGlobalSymbol(named.Name, named.SourceSyntax) is Definition hidden)
+		{
+			ReportNotExported(hidden, named.SourceSyntax, hidden is TypeDefinition ? "Type" : "Symbol");
+			return ErrorType;
 		}
 
 		Report(GetRange(named.SourceSyntax), $"Symbol '{named.Name}' could not be found.");

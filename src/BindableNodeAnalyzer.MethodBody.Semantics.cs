@@ -203,19 +203,30 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
-			if (definition is FunctionDefinition function && function.Name == name)
+			if (definition is FunctionDefinition function && function.Name == name && IsDefinitionVisible(function, scope.CurrentFunction.SourceSyntax))
 				functions.Add(function);
 		}
 
 		return functions;
 	}
 
-	VariableDefinition? LookupGlobalVariable(string name)
+	VariableDefinition? LookupGlobalVariable(string name, SyntaxNode? referenceSyntax)
 	{
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
-			if (definition is VariableDefinition variable && variable.Name == name)
+			if (definition is VariableDefinition variable && variable.Name == name && IsDefinitionVisible(variable, referenceSyntax))
 				return variable;
+		}
+
+		return null;
+	}
+
+	Definition? LookupHiddenGlobalSymbol(string name, SyntaxNode? referenceSyntax)
+	{
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition.Name == name && !IsDefinitionVisible(definition, referenceSyntax))
+				return definition;
 		}
 
 		return null;
