@@ -9,125 +9,107 @@ using System.Xml;
 using System.Xml.Linq;
 using Camp.Compiler;
 
-Argument<string> fileArgument = new("filename")
+Argument<List<string>> filesArgument = new("files")
 {
-	Description = "The source file to read, or '-' to read from standard input."
+	Description = "One or more source files to read, or '-' to read from standard input.",
+	Arity = ArgumentArity.OneOrMore
 };
 
-Option<bool> tokensOption = new("--tokens")
+Option<InspectMode?> inspectOption = new("--inspect")
 {
-	Description = "Print one token per line."
-};
-
-Option<bool> syntaxOption = new("--syntax")
-{
-	Description = "Parse and print the syntax tree as XML."
-};
-
-Option<bool> bindOption = new("--bind")
-{
-	Description = "Parse and print the bindable tree as XML."
-};
-
-Option<bool> rewriteOption = new("--rewrite")
-{
-	Description = "Parse, bind, analyze, rewrite, and print the rewritten bindable tree as Camp code."
+	Description = "Print an intermediate compiler representation."
 };
 
 Option<bool> xmlOption = new("--xml")
 {
-	Description = "Print the rewritten bindable tree as XML when used with --rewrite."
+	Description = "Print the rewritten bindable tree as XML when used with --inspect declarations or --inspect lowering."
 };
 
-RootCommand rootCommand = new("Camp compiler");
-rootCommand.Arguments.Add(fileArgument);
-rootCommand.Options.Add(tokensOption);
-rootCommand.Options.Add(syntaxOption);
-rootCommand.Options.Add(bindOption);
-rootCommand.Options.Add(rewriteOption);
+RootCommand rootCommand = new("Camp compiler")
+{
+	Description = """
+	Usage:
+	  campc <files...> [options]
+
+	Arguments:
+	  <files...>  One or more source files to read, or '-' to read from standard input.
+
+	Options:
+	  --inspect tokens        Print one token per line.
+	  --inspect cst           Parse and print the syntax tree as XML.
+	  --inspect ast           Parse and print the bindable tree as XML.
+	  --inspect declarations  Analyze declarations and print the bindable tree as Camp code.
+	  --inspect lowering      Analyze, lower, and print the bindable tree as Camp code.
+	  --xml                   Print XML for declarations/lowering inspection.
+	"""
+};
+rootCommand.Arguments.Add(filesArgument);
+rootCommand.Options.Add(inspectOption);
 rootCommand.Options.Add(xmlOption);
 rootCommand.SetAction(parseResult =>
 {
-	string? filename = parseResult.GetValue(fileArgument);
-	bool printTokens = parseResult.GetValue(tokensOption);
-	bool printSyntax = parseResult.GetValue(syntaxOption);
-	bool printBind = parseResult.GetValue(bindOption);
-	bool printRewrite = parseResult.GetValue(rewriteOption);
+	List<string>? filenames = parseResult.GetValue(filesArgument);
+	InspectMode? inspect = parseResult.GetValue(inspectOption);
 	bool printXml = parseResult.GetValue(xmlOption);
 
-	return Run(filename, printTokens, printSyntax, printBind, printRewrite, printXml);
+	return Run(filenames, inspect, printXml);
 });
 
 return rootCommand.Parse(args).Invoke();
 
-static int Run(string? filename, bool printTokens, bool printSyntax, bool printBind, bool printRewrite, bool printXml)
+static int Run(List<string>? filenames, InspectMode? inspect, bool printXml)
 {
-	if (string.IsNullOrWhiteSpace(filename))
+	if (filenames is null || filenames.Count == 0)
 	{
-		Console.Error.WriteLine("A filename is required.");
+		Console.Error.WriteLine("At least one filename is required.");
 		return 1;
 	}
 
-	if (printXml && !printRewrite)
+	if (filenames.Count > 1 && filenames.Contains("-"))
 	{
-		Console.Error.WriteLine("--xml can only be used with --rewrite.");
+		Console.Error.WriteLine("Standard input may only be used by itself.");
 		return 1;
 	}
 
-	if (SelectedModeCount(printTokens, printSyntax, printBind, printRewrite) > 1)
+	if (printXml && inspect is not (InspectMode.Declarations or InspectMode.Lowering))
 	{
-		Console.Error.WriteLine("Specify only one output mode: --tokens, --syntax, --bind, or --rewrite.");
+		Console.Error.WriteLine("--xml can only be used with --inspect declarations or --inspect lowering.");
 		return 1;
 	}
 
-	if (!TryReadInput(filename, out string text))
+	if (!TryLoadCompilation(filenames, out Compilation compilation))
 		return 1;
 
-	TokenSequence tokens = new(CampTokenizer.Tokenize(text));
-
-	if (printTokens)
+	inspect ??= InspectMode.None;
+	return inspect switch
 	{
-		PrintTokenLines(tokens);
-		return 0;
-	}
-
-	if (printSyntax)
-		return PrintSyntaxXml(filename, tokens);
-
-	if (printBind)
-		return PrintBindXml(filename, tokens);
-
-	if (printRewrite)
-		return PrintRewrite(filename, tokens, printXml);
-
-	PrintColoredSource(tokens);
-	return 0;
+		InspectMode.None => PrintDefaultOutput(compilation),
+		InspectMode.Tokens => PrintTokens(compilation),
+		InspectMode.Cst => PrintSyntaxXml(compilation),
+		InspectMode.Ast => PrintBindXml(compilation),
+		InspectMode.Declarations => PrintDeclarations(compilation, printXml),
+		InspectMode.Lowering => PrintLowering(compilation, printXml),
+		_ => 1
+	};
 }
 
-static int SelectedModeCount(params bool[] modes)
+static bool TryLoadCompilation(List<string> filenames, out Compilation compilation)
 {
-	int count = 0;
-
-	foreach (bool mode in modes)
+	compilation = new Compilation();
+	foreach (string filename in filenames)
 	{
-		if (mode)
-			count++;
+		if (!TryReadInput(filename, out string text))
+			return false;
+		compilation.Files.Add(new SourceFile { Path = filename, Text = text });
 	}
-
-	return count;
+	return true;
 }
 
 static bool TryReadInput(string filename, out string text)
 {
-	if (filename == "-")
-	{
-		text = Console.In.ReadToEnd();
-		return true;
-	}
-
 	try
 	{
-		text = File.ReadAllText(filename);
+		text = filename == "-" ? Console.In.ReadToEnd() : File.ReadAllText(filename);
 		return true;
 	}
 	catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -138,114 +120,133 @@ static bool TryReadInput(string filename, out string text)
 	}
 }
 
-static int PrintSyntaxXml(string filename, TokenSequence tokens)
+static int PrintDefaultOutput(Compilation compilation)
 {
-	CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> diagnostics);
+	TokenizeAll(compilation);
+	PrintColoredTokens(compilation.Files[0].Tokens!);
+	return 0;
+}
 
-	if (diagnostics.Count > 0)
+static int PrintTokens(Compilation compilation)
+{
+	TokenizeAll(compilation);
+	PrintTokenLines(compilation.Files[0].Tokens!);
+	return 0;
+}
+
+static int PrintSyntaxXml(Compilation compilation)
+{
+	if (!ParseAll(compilation))
+		return 1;
+
+	PrintXmlDocument(SerializeSyntax(compilation.Files[0].SyntaxTree!));
+	return 0;
+}
+
+static int PrintBindXml(Compilation compilation)
+{
+	if (!BuildAll(compilation))
+		return 1;
+
+	PrintXmlDocument(SerializeBindableNode(compilation.Files[0].BindableTree!));
+	return 0;
+}
+
+static int PrintDeclarations(Compilation compilation, bool printXml)
+{
+	if (!BuildAll(compilation))
+		return 1;
+
+	foreach (SourceFile file in compilation.Files)
 	{
+		AnalysisResult analysis = BindableNodeAnalyzer.Analyze(file.BindableTree!);
+		if (!PrintAnalysisDiagnostics(file.Path, analysis.Diagnostics))
+			return 1;
+		file.BindableTree = analysis.Module;
+	}
+
+	PrintBindable(compilation.Files[0].BindableTree!, printXml);
+	return 0;
+}
+
+static int PrintLowering(Compilation compilation, bool printXml)
+{
+	if (!BuildAll(compilation))
+		return 1;
+
+	foreach (SourceFile file in compilation.Files)
+	{
+		AnalysisResult rewrite = BindableNodeAnalyzer.AnalyzeAndRewrite(file.BindableTree!);
+		if (!PrintAnalysisDiagnostics(file.Path, rewrite.Diagnostics))
+			return 1;
+		file.BindableTree = rewrite.Module;
+	}
+
+	PrintBindable(compilation.Files[0].BindableTree!, printXml);
+	return 0;
+}
+
+static void TokenizeAll(Compilation compilation)
+{
+	foreach (SourceFile file in compilation.Files)
+		file.Tokens ??= new TokenSequence(CampTokenizer.Tokenize(file.Text));
+}
+
+static bool ParseAll(Compilation compilation)
+{
+	TokenizeAll(compilation);
+	foreach (SourceFile file in compilation.Files)
+	{
+		file.SyntaxTree = CampParser.Parse(file.Tokens!, out IReadOnlyList<ParseDiagnostic> diagnostics);
 		foreach (ParseDiagnostic diagnostic in diagnostics)
-			PrintDiagnostic(filename, diagnostic);
-
-		return 1;
+			PrintDiagnostic(file.Path, diagnostic);
+		if (diagnostics.Count > 0)
+			return false;
 	}
-
-	XDocument document = new(new XDeclaration("1.0", "utf-8", null), SerializeSyntax(syntax));
-	XmlWriterSettings settings = new()
-	{
-		Indent = true,
-		OmitXmlDeclaration = false
-	};
-
-	using XmlWriter writer = XmlWriter.Create(Console.Out, settings);
-	document.Save(writer);
-	return 0;
+	return true;
 }
 
-static int PrintBindXml(string filename, TokenSequence tokens)
+static bool BuildAll(Compilation compilation)
 {
-	CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> parseDiagnostics);
-
-	if (parseDiagnostics.Count > 0)
+	if (!ParseAll(compilation))
+		return false;
+	foreach (SourceFile file in compilation.Files)
 	{
-		foreach (ParseDiagnostic diagnostic in parseDiagnostics)
-			PrintDiagnostic(filename, diagnostic);
-
-		return 1;
+		file.BindableTree = BindableNodeBuilder.Build(file.SyntaxTree!, out IReadOnlyList<BindDiagnostic> diagnostics);
+		foreach (BindDiagnostic diagnostic in diagnostics)
+			PrintBindDiagnostic(file.Path, diagnostic);
+		if (diagnostics.Count > 0)
+			return false;
 	}
-
-	Camp.Compiler.Module module = BindableNodeBuilder.Build(syntax, out IReadOnlyList<BindDiagnostic> bindDiagnostics);
-
-	if (bindDiagnostics.Count > 0)
-	{
-		foreach (BindDiagnostic diagnostic in bindDiagnostics)
-			PrintBindDiagnostic(filename, diagnostic);
-
-		return 1;
-	}
-
-	XDocument document = new(new XDeclaration("1.0", "utf-8", null), SerializeBindableNode(module));
-	XmlWriterSettings settings = new()
-	{
-		Indent = true,
-		OmitXmlDeclaration = false
-	};
-
-	using XmlWriter writer = XmlWriter.Create(Console.Out, settings);
-	document.Save(writer);
-	return 0;
+	return true;
 }
 
-static int PrintRewrite(string filename, TokenSequence tokens, bool printXml)
+static bool PrintAnalysisDiagnostics(string filename, IReadOnlyList<AnalysisDiagnostic> diagnostics)
 {
-	CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> parseDiagnostics);
+	foreach (AnalysisDiagnostic diagnostic in diagnostics)
+		PrintAnalysisDiagnostic(filename, diagnostic);
+	return diagnostics.Count == 0;
+}
 
-	if (parseDiagnostics.Count > 0)
-	{
-		foreach (ParseDiagnostic diagnostic in parseDiagnostics)
-			PrintDiagnostic(filename, diagnostic);
-
-		return 1;
-	}
-
-	Camp.Compiler.Module module = BindableNodeBuilder.Build(syntax, out IReadOnlyList<BindDiagnostic> bindDiagnostics);
-
-	if (bindDiagnostics.Count > 0)
-	{
-		foreach (BindDiagnostic diagnostic in bindDiagnostics)
-			PrintBindDiagnostic(filename, diagnostic);
-
-		return 1;
-	}
-
-	AnalysisResult rewrite = BindableNodeAnalyzer.AnalyzeAndRewrite(module);
-
-	if (rewrite.Diagnostics.Count > 0)
-	{
-		foreach (AnalysisDiagnostic diagnostic in rewrite.Diagnostics)
-			PrintAnalysisDiagnostic(filename, diagnostic);
-
-		return 1;
-	}
-
+static void PrintBindable(Camp.Compiler.Module module, bool printXml)
+{
 	if (printXml)
-	{
-		XDocument document = new(new XDeclaration("1.0", "utf-8", null), SerializeBindableNode(rewrite.Module));
-		XmlWriterSettings settings = new()
-		{
-			Indent = true,
-			OmitXmlDeclaration = false
-		};
-
-		using XmlWriter writer = XmlWriter.Create(Console.Out, settings);
-		document.Save(writer);
-	}
+		PrintXmlDocument(SerializeBindableNode(module));
 	else
-	{
-		BindableNodeCodeSerializer.Serialize(rewrite.Module, Console.Out);
-	}
+		BindableNodeCodeSerializer.Serialize(module, Console.Out);
+}
 
-	return 0;
+static void PrintXmlDocument(XElement root)
+{
+	XDocument document = new(new XDeclaration("1.0", "utf-8", null), root);
+	XmlWriterSettings settings = new()
+	{
+		Indent = true,
+		OmitXmlDeclaration = false
+	};
+
+	using XmlWriter writer = XmlWriter.Create(Console.Out, settings);
+	document.Save(writer);
 }
 
 static void PrintDiagnostic(string filename, ParseDiagnostic diagnostic)
@@ -272,7 +273,7 @@ static void PrintAnalysisDiagnostic(string filename, AnalysisDiagnostic diagnost
 		Console.Error.WriteLine($"{filename}: error: {diagnostic.Message}");
 }
 
-static void PrintColoredSource(IEnumerable<Token> tokens)
+static void PrintColoredTokens(IEnumerable<Token> tokens)
 {
 	foreach (Token token in tokens)
 		WriteColored(token.Value, GetTokenColor(token.Class));
@@ -579,4 +580,14 @@ static string GetXmlName(string typeName)
 	return typeName.EndsWith("Syntax", StringComparison.Ordinal)
 		? typeName[..^"Syntax".Length]
 		: typeName;
+}
+
+enum InspectMode
+{
+	None,
+	Tokens,
+	Cst,
+	Ast,
+	Declarations,
+	Lowering
 }
