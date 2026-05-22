@@ -58,9 +58,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	public static AnalysisResult AnalyzeExpanded(DeclarationExpansionResult expansion)
 	{
+		return AnalyzeDeclarationsExpanded(expansion);
+	}
+
+	public static AnalysisResult AnalyzeDeclarationsExpanded(DeclarationExpansionResult expansion)
+	{
 		ArgumentNullException.ThrowIfNull(expansion);
 		BindableNodeAnalyzer analyzer = expansion.Analyzer;
-		analyzer.AnalyzeModule(expansion.Module);
+		analyzer.AnalyzeDeclarations(expansion.Module);
+		analyzer.ApplyNodeRewrites(expansion.Module);
 		analyzer.FillMissingResolvedTypes(expansion.Module);
 		return new AnalysisResult(expansion.Module, analyzer.diagnostics);
 	}
@@ -69,7 +75,12 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		ArgumentNullException.ThrowIfNull(expansion);
 		BindableNodeAnalyzer analyzer = expansion.Analyzer;
-		AnalysisResult analysis = AnalyzeExpanded(expansion);
+		analyzer.AnalyzeDeclarations(expansion.Module);
+		if (analyzer.diagnostics.Count == 0)
+			analyzer.AnalyzeMethodBodies(expansion.Module);
+		analyzer.ApplyNodeRewrites(expansion.Module);
+		analyzer.FillMissingResolvedTypes(expansion.Module);
+		AnalysisResult analysis = new(expansion.Module, analyzer.diagnostics);
 		if (analysis.Diagnostics.Count > 0)
 			return analysis;
 

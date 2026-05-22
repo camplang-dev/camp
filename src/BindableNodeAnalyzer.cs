@@ -67,6 +67,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeModule(Module module)
 	{
+		AnalyzeDeclarations(module);
+		if (diagnostics.Count == 0)
+			AnalyzeMethodBodies(module);
+		ApplyNodeRewrites(module);
+	}
+
+	void AnalyzeDeclarations(Module module)
+	{
 		currentModule = module;
 		module.ResolvedType = ModuleType;
 		CollectTypeNames(module);
@@ -83,7 +91,6 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeInheritance();
 		AnalyzeImplementations();
 		AnalyzeExportVisibility(module);
-		ApplyNodeRewrites(module);
 	}
 
 	void CollectTypeNames(Module module)
@@ -318,8 +325,61 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ParameterDefinition parameter in definition.Parameters)
 			AnalyzeParameterDefinition(parameter, scope);
+	}
 
-		AnalyzeMethodBody(definition, scope, FindContainingType(definition));
+	void AnalyzeMethodBodies(Module module)
+	{
+		foreach (Definition definition in module.Definitions)
+			AnalyzeDefinitionMethodBodies(definition, new AnalysisScope(), containingType: null);
+	}
+
+	void AnalyzeDefinitionMethodBodies(Definition definition, AnalysisScope parentScope, TypeDefinition? containingType)
+	{
+		switch (definition)
+		{
+			case ClassDefinition classDefinition:
+				AnalyzeTypeMethodBodies(classDefinition, classDefinition.Functions, parentScope);
+				break;
+
+			case StructDefinition structDefinition:
+				AnalyzeTypeMethodBodies(structDefinition, structDefinition.Functions, parentScope);
+				break;
+
+			case InterfaceDefinition interfaceDefinition:
+				AnalyzeTypeMethodBodies(interfaceDefinition, interfaceDefinition.Functions, parentScope);
+				break;
+
+			case EnumDefinition enumDefinition:
+				AnalyzeTypeMethodBodies(enumDefinition, enumDefinition.Functions, parentScope);
+				break;
+
+			case NewtypeDefinition newtypeDefinition:
+				AnalyzeTypeMethodBodies(newtypeDefinition, newtypeDefinition.Functions, parentScope);
+				break;
+
+			case ParamsDefinition paramsDefinition:
+				AnalyzeTypeMethodBodies(paramsDefinition, paramsDefinition.Functions, parentScope);
+				break;
+
+			case FunctionDefinition functionDefinition:
+				AnalyzeFunctionMethodBody(functionDefinition, parentScope, containingType);
+				break;
+		}
+	}
+
+	void AnalyzeTypeMethodBodies(TypeDefinition definition, List<FunctionDefinition> functions, AnalysisScope parentScope)
+	{
+		AnalysisScope scope = CreateTypeScope(definition, parentScope);
+		foreach (FunctionDefinition function in functions)
+			AnalyzeFunctionMethodBody(function, scope, definition);
+	}
+
+	void AnalyzeFunctionMethodBody(FunctionDefinition definition, AnalysisScope parentScope, TypeDefinition? containingType)
+	{
+		AnalysisScope scope = new(parentScope);
+		foreach (GenericParameter parameter in definition.GenericParameters)
+			scope.GenericParameters[parameter.Name] = parameter;
+		AnalyzeMethodBody(definition, scope, containingType);
 	}
 
 	void AnalyzeParameterDefinition(ParameterDefinition definition, AnalysisScope scope)
