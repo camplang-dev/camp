@@ -16,6 +16,7 @@ public sealed class SourceFile
 	public Module? BindableTree { get; set; }
 	public IReadOnlyList<ParseDiagnostic> ParseDiagnostics { get; set; } = [];
 	public IReadOnlyList<BindDiagnostic> BindDiagnostics { get; set; } = [];
+	public DeclarationExpansionResult? DeclarationExpansion { get; set; }
 }
 
 public static class CompilationPipeline
@@ -52,6 +53,23 @@ public static class CompilationPipeline
 			file.BindableTree = BindableNodeBuilder.Build(file.SyntaxTree!, out IReadOnlyList<BindDiagnostic> diagnostics);
 			file.BindDiagnostics = diagnostics;
 			if (diagnostics.Count > 0)
+				success = false;
+		}
+		return success;
+	}
+
+	public static bool ExpandDeclarations(Compilation compilation)
+	{
+		bool buildSuccess = BuildAst(compilation);
+		if (!buildSuccess)
+			return false;
+
+		bool success = true;
+		foreach (SourceFile file in compilation.Files)
+		{
+			file.DeclarationExpansion = BindableNodeExpander.Expand(file.BindableTree!);
+			file.BindableTree = file.DeclarationExpansion.Module;
+			if (file.DeclarationExpansion.Diagnostics.Count > 0)
 				success = false;
 		}
 		return success;

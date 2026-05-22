@@ -154,12 +154,12 @@ static int PrintBindXml(Compilation compilation)
 
 static int PrintDeclarations(Compilation compilation, bool printXml)
 {
-	if (!BuildAllAndReport(compilation))
+	if (!ExpandDeclarationsAndReport(compilation))
 		return 1;
 
 	foreach (SourceFile file in compilation.Files)
 	{
-		AnalysisResult analysis = BindableNodeAnalyzer.Analyze(file.BindableTree!);
+		AnalysisResult analysis = BindableNodeAnalyzer.AnalyzeExpanded(file.DeclarationExpansion!);
 		if (!PrintAnalysisDiagnostics(file.Path, analysis.Diagnostics))
 			return 1;
 		file.BindableTree = analysis.Module;
@@ -171,12 +171,12 @@ static int PrintDeclarations(Compilation compilation, bool printXml)
 
 static int PrintLowering(Compilation compilation, bool printXml)
 {
-	if (!BuildAllAndReport(compilation))
+	if (!ExpandDeclarationsAndReport(compilation))
 		return 1;
 
 	foreach (SourceFile file in compilation.Files)
 	{
-		AnalysisResult rewrite = BindableNodeAnalyzer.AnalyzeAndRewrite(file.BindableTree!);
+		AnalysisResult rewrite = BindableNodeAnalyzer.AnalyzeAndRewriteExpanded(file.DeclarationExpansion!);
 		if (!PrintAnalysisDiagnostics(file.Path, rewrite.Diagnostics))
 			return 1;
 		file.BindableTree = rewrite.Module;
@@ -221,6 +221,24 @@ static bool BuildAllAndReport(Compilation compilation)
 			PrintBindDiagnostic(file.Path, diagnostic);
 	}
 	return true;
+}
+
+static bool ExpandDeclarationsAndReport(Compilation compilation)
+{
+	bool success = CompilationPipeline.ExpandDeclarations(compilation);
+	foreach (SourceFile file in compilation.Files)
+	{
+		foreach (ParseDiagnostic diagnostic in file.ParseDiagnostics)
+			PrintDiagnostic(file.Path, diagnostic);
+		foreach (BindDiagnostic diagnostic in file.BindDiagnostics)
+			PrintBindDiagnostic(file.Path, diagnostic);
+		if (file.DeclarationExpansion is not null)
+		{
+			foreach (AnalysisDiagnostic diagnostic in file.DeclarationExpansion.Diagnostics)
+				PrintAnalysisDiagnostic(file.Path, diagnostic);
+		}
+	}
+	return success;
 }
 
 static bool PrintAnalysisDiagnostics(string filename, IReadOnlyList<AnalysisDiagnostic> diagnostics)

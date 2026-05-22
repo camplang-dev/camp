@@ -38,20 +38,44 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		ArgumentNullException.ThrowIfNull(module);
 
+		DeclarationExpansionResult expansion = BindableNodeExpander.Expand(module);
+		if (expansion.Diagnostics.Count > 0)
+			return new AnalysisResult(expansion.Module, expansion.Diagnostics);
+
+		return AnalyzeAndRewriteExpanded(expansion);
+	}
+
+	internal static DeclarationExpansionResult ExpandDeclarations(Module module)
+	{
 		BindableNodeAnalyzer analyzer = new();
 		analyzer.currentModule = module;
 		analyzer.CollectTypeNames(module);
 		analyzer.GenerateLifecycleMethods(module);
 		analyzer.GenerateVirtualDeclarations(module);
 		analyzer.GenerateInterfaceDeclarations(module);
-		analyzer.AnalyzeModule(module);
-		analyzer.FillMissingResolvedTypes(module);
-		if (analyzer.diagnostics.Count == 0)
-		{
-			analyzer.RewriteModule(module);
-			analyzer.FillMissingResolvedTypes(module);
-		}
-		return new AnalysisResult(module, analyzer.diagnostics);
+		return new DeclarationExpansionResult(module, analyzer.diagnostics, analyzer);
+	}
+
+	public static AnalysisResult AnalyzeExpanded(DeclarationExpansionResult expansion)
+	{
+		ArgumentNullException.ThrowIfNull(expansion);
+		BindableNodeAnalyzer analyzer = expansion.Analyzer;
+		analyzer.AnalyzeModule(expansion.Module);
+		analyzer.FillMissingResolvedTypes(expansion.Module);
+		return new AnalysisResult(expansion.Module, analyzer.diagnostics);
+	}
+
+	public static AnalysisResult AnalyzeAndRewriteExpanded(DeclarationExpansionResult expansion)
+	{
+		ArgumentNullException.ThrowIfNull(expansion);
+		BindableNodeAnalyzer analyzer = expansion.Analyzer;
+		AnalysisResult analysis = AnalyzeExpanded(expansion);
+		if (analysis.Diagnostics.Count > 0)
+			return analysis;
+
+		analyzer.RewriteModule(expansion.Module);
+		analyzer.FillMissingResolvedTypes(expansion.Module);
+		return new AnalysisResult(expansion.Module, analyzer.diagnostics);
 	}
 
 	void RewriteModule(Module module)
