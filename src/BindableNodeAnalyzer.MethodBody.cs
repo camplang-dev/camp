@@ -19,9 +19,6 @@ public sealed partial class BindableNodeAnalyzer
 		scope.CurrentFunctionReturnType = IsLifecycleFunction(function) ? "void" : function.ResolvedType ?? ErrorType;
 		scope.CurrentIteratorElementType = function.IteratorKind == IteratorKind.None ? null : GetIteratorElementType(function.ReturnType);
 
-		if (containingType is not null)
-			AddTypeMembersToScope(scope, containingType);
-
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
 			if (!string.IsNullOrWhiteSpace(parameter.Name))
@@ -519,6 +516,12 @@ public sealed partial class BindableNodeAnalyzer
 			};
 			expressionRewrites[named] = expression;
 			return expression.ResolvedType;
+		}
+
+		if (TryGetUnqualifiedInstanceField(scope.ContainingType, named.Name, out _))
+		{
+			Report(GetRange(named.SourceSyntax), $"Member field '{named.Name}' requires explicit 'this.' qualification.");
+			return ErrorType;
 		}
 
 		if (LookupHiddenGlobalSymbol(named.Name, named.SourceSyntax) is Definition hidden)
@@ -1548,6 +1551,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	string AnalyzeArithmeticBinary(BinaryExpression binary, string left, string right)
 	{
+		if (left == ErrorType || right == ErrorType)
+			return ErrorType;
+
 		if (!IsNumericType(left) || !IsNumericType(right))
 			Report(GetRange(binary.SourceSyntax), $"Arithmetic operators require numeric operands, not '{left}' and '{right}'.");
 		return UsualArithmeticConversion(left, right);

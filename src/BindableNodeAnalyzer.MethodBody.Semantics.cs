@@ -210,6 +210,28 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	static bool TryGetUnqualifiedInstanceField(TypeDefinition? type, string name, out FieldDefinition? field)
+	{
+		field = null;
+		IEnumerable<FieldDefinition> fields = type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Fields,
+			StructDefinition structDefinition => structDefinition.Fields,
+			_ => []
+		};
+
+		foreach (FieldDefinition candidate in fields)
+		{
+			if (candidate.Name == name)
+			{
+				field = candidate;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	List<FunctionDefinition> LookupFunctions(string name, BodyScope scope)
 	{
 		List<FunctionDefinition> functions = [];
@@ -938,6 +960,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string GetNumberLiteralType(string text, string? targetType)
 	{
+		targetType = targetType is null ? null : StripTopLevelValueQualifiers(targetType);
 		if (targetType is not null && IsNumericTypeName(targetType))
 			return targetType;
 
@@ -946,6 +969,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string PromoteInteger(string type)
 	{
+		type = StripTopLevelValueQualifiers(type);
 		return type is "byte" or "sbyte" or "ushort" or "short" or "char" or "wchar" or "achar" or "uchar"
 			? "int"
 			: type;
@@ -960,6 +984,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsNumericTypeName(string type)
 	{
+		type = StripTopLevelValueQualifiers(type);
 		return IsIntegralTypeName(type) || type is "float" or "double";
 	}
 
@@ -975,11 +1000,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsIntegralTypeName(string type)
 	{
+		type = StripTopLevelValueQualifiers(type);
 		return type is "byte" or "sbyte" or "ushort" or "short" or "uint" or "int" or "ulong" or "long" or "nuint" or "nint" or "char" or "wchar" or "achar" or "uchar";
 	}
 
 	static int NumericRank(string type)
 	{
+		type = StripTopLevelValueQualifiers(type);
 		return type switch
 		{
 			"byte" or "sbyte" => 1,

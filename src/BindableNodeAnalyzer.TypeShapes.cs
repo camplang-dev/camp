@@ -164,6 +164,16 @@ public sealed partial class BindableNodeAnalyzer
 			: $"const {type}";
 	}
 
+	static string StripTopLevelValueQualifiers(string type)
+	{
+		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
+			return type;
+
+		return shape.Kind == TypeShapeKind.Named
+			? TypeShapeParser.Format(shape with { Qualifiers = TypeQualifiers.None })
+			: type;
+	}
+
 	static bool IsConstReceiverType(string? type)
 	{
 		if (!new TypeShapeParser(type ?? "").TryParse(out TypeShape shape))
