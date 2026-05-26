@@ -218,7 +218,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
-			if (definition is FunctionDefinition function && function.Name == name && IsDefinitionVisible(function, scope.CurrentFunction.SourceSyntax))
+			if (definition is FunctionDefinition function && function.Name == name && GetExplicitThisParameter(function) is null && IsDefinitionVisible(function, scope.CurrentFunction.SourceSyntax))
 				functions.Add(function);
 		}
 
@@ -371,7 +371,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
-			return [];
+			return LookupExtensionFunctions(targetType, name, referenceSyntax);
 
 		List<FunctionDefinition> callable = [];
 		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
@@ -379,6 +379,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
 				callable.Add(function);
 		}
+		AddExtensionMemberFunctions(callable, targetType, name, referenceSyntax);
 		return callable;
 	}
 
@@ -398,7 +399,16 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
+		{
+			foreach (FunctionDefinition function in LookupExtensionFunctions(targetType, name, referenceSyntax))
+				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
+			foreach (FunctionDefinition getter in LookupExtensionFunctions(targetType, "get" + name, referenceSyntax))
+			{
+				if (CanCallWithArgumentCount(getter.Parameters, 0))
+					members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+			}
 			return members;
+		}
 
 		switch (type)
 		{
@@ -440,24 +450,52 @@ public sealed partial class BindableNodeAnalyzer
 			if (ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
 				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
 		}
+		foreach (FunctionDefinition function in LookupExtensionFunctions(targetType, name, referenceSyntax))
+			members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
 
 		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
 		{
 			if (getter.Parameters.Count == 0 && ReceiverCanCallFunction(targetType, getter, isPropertyGetterSyntax: true))
 				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
 		}
+		foreach (FunctionDefinition getter in LookupExtensionFunctions(targetType, "get" + name, referenceSyntax))
+		{
+			if (CanCallWithArgumentCount(getter.Parameters, 0))
+				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+		}
 
 		return members;
+	}
+
+	void AddExtensionMemberFunctions(List<FunctionDefinition> target, string targetType, string name, SyntaxNode? referenceSyntax)
+	{
+		foreach (FunctionDefinition function in LookupExtensionFunctions(targetType, name, referenceSyntax))
+			target.Add(function);
+	}
+
+	List<FunctionDefinition> LookupExtensionFunctions(string targetType, string name, SyntaxNode? referenceSyntax)
+	{
+		List<FunctionDefinition> functions = [];
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is not FunctionDefinition function || function.Name != name || !IsDefinitionVisible(function, referenceSyntax))
+				continue;
+			if (GetExplicitThisParameter(function) is null)
+				continue;
+			if (ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
+				functions.Add(function);
+		}
+		return functions;
 	}
 
 	bool TryAnalyzePropertyIndexer(MemberExpression member, List<ArgumentExpression> arguments, BodyScope scope, AnalysisScope typeScope, out string propertyType)
 	{
 		propertyType = ErrorType;
 		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
-		if (GetTypeDefinition(targetType) is not TypeDefinition type)
-			return false;
+		TypeDefinition? type = GetTypeDefinition(targetType);
 
-		List<FunctionDefinition> getters = LookupPropertyGetters(type, member.Name, member.SourceSyntax);
+		List<FunctionDefinition> getters = type is null ? [] : LookupPropertyGetters(type, member.Name, member.SourceSyntax);
+		getters.AddRange(LookupExtensionFunctions(targetType, "get" + member.Name, member.SourceSyntax));
 		bool getterReceiverMismatch = false;
 		foreach (FunctionDefinition getter in getters)
 		{
@@ -485,7 +523,9 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		if (LookupPropertySetters(type, member.Name, member.SourceSyntax).Count > 0)
+		List<FunctionDefinition> setters = type is null ? [] : LookupPropertySetters(type, member.Name, member.SourceSyntax);
+		setters.AddRange(LookupExtensionFunctions(targetType, "set" + member.Name, member.SourceSyntax));
+		if (setters.Count > 0)
 		{
 			Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not readable on type '{targetType}'.");
 			foreach (ArgumentExpression argument in arguments)
@@ -500,10 +540,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		propertyType = ErrorType;
 		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
-		if (GetTypeDefinition(targetType) is not TypeDefinition type)
-			return false;
+		TypeDefinition? type = GetTypeDefinition(targetType);
 
-		List<FunctionDefinition> setters = LookupPropertySetters(type, member.Name, member.SourceSyntax);
+		List<FunctionDefinition> setters = type is null ? [] : LookupPropertySetters(type, member.Name, member.SourceSyntax);
+		setters.AddRange(LookupExtensionFunctions(targetType, "set" + member.Name, member.SourceSyntax));
 		bool setterReceiverMismatch = false;
 		foreach (FunctionDefinition setter in setters)
 		{
@@ -551,7 +591,9 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		if (setters.Count == 0 && LookupPropertyGetters(type, member.Name, member.SourceSyntax).Count == 0)
+		List<FunctionDefinition> getters = type is null ? [] : LookupPropertyGetters(type, member.Name, member.SourceSyntax);
+		getters.AddRange(LookupExtensionFunctions(targetType, "get" + member.Name, member.SourceSyntax));
+		if (setters.Count == 0 && getters.Count == 0)
 			return false;
 
 		Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not writable on type '{targetType}'.");
@@ -571,12 +613,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BuildEffectiveReceiverType(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
 	{
+		ThisParameterDefinition? explicitThis = GetExplicitThisParameter(function);
 		TypeDefinition? owner = FindContainingType(function);
 		string receiverType = TryGetPointerElementType(targetType) is not null && owner is not null
 			? $"{owner.Name}*"
-			: owner?.Name ?? targetType;
+			: owner?.Name ?? explicitThis?.ResolvedType ?? targetType;
 
-		ThisParameterDefinition? explicitThis = GetExplicitThisParameter(function);
 		if (explicitThis is not null)
 			return ApplyThisDeclarators(receiverType, explicitThis);
 

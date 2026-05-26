@@ -549,6 +549,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (scope.ContainingType is null)
 		{
+			if (GetExplicitThisParameter(scope.CurrentFunction) is ThisParameterDefinition thisParameter)
+				return thisParameter.ResolvedType ?? ErrorType;
+
 			Report(GetRange(expression.SourceSyntax), "'this' is not available in this context.");
 			return ErrorType;
 		}

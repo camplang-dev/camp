@@ -28,6 +28,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Definition definition in module.Definitions)
 			AnalyzeDefinition(definition, new AnalysisScope());
 
+		ValidateDuplicateTopLevelSymbols(module);
 		AnalyzeInheritance();
 		AnalyzeImplementations();
 		AnalyzeExportVisibility(module);
@@ -202,6 +203,51 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	void ValidateDuplicateTopLevelSymbols(Module module)
+	{
+		Dictionary<string, Definition> symbols = new(StringComparer.Ordinal);
+		foreach (Definition definition in module.Definitions)
+		{
+			string symbol = definition.Symbol;
+			if (string.IsNullOrWhiteSpace(symbol))
+				continue;
+
+			if (symbols.TryGetValue(symbol, out Definition? existing) && !ReferenceEquals(existing, definition))
+				Report(GetNameRange(definition), $"Duplicate symbol name '{symbol}'.");
+			else
+				symbols[symbol] = definition;
+		}
+	}
+
+	static void NormalizeExtensionThisParameter(FunctionDefinition definition, string? containingType)
+	{
+		if (containingType is not null || definition.Parameters.Count == 0 || definition.Parameters[0] is ThisParameterDefinition)
+			return;
+
+		ParameterDefinition first = definition.Parameters[0];
+		if (first.Name != "this")
+			return;
+
+		definition.Parameters[0] = new ThisParameterDefinition
+		{
+			SourceSyntax = first.SourceSyntax,
+			Name = first.Name,
+			Symbol = first.Symbol,
+			Type = first.Type,
+			DefaultValue = first.DefaultValue,
+			Modifier = first.Modifier,
+			ResolvedType = first.ResolvedType
+		};
+	}
+
+	static bool IsExtensionThisParameter(FunctionDefinition definition, string? containingType, int parameterIndex)
+	{
+		return containingType is null
+			&& parameterIndex == 0
+			&& definition.Parameters.Count > 0
+			&& definition.Parameters[0] is ThisParameterDefinition { Name: "this" };
+	}
+
 	AnalysisScope CreateTypeScope(TypeDefinition definition, AnalysisScope parentScope)
 	{
 		AnalysisScope scope = new(parentScope);
@@ -246,6 +292,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType)
 	{
 		CheckName(definition.Name.TrimStart('~'), GetNameRange(definition), "function");
+		NormalizeExtensionThisParameter(definition, containingType);
 
 		AnalysisScope scope = new(parentScope);
 		foreach (GenericParameter parameter in definition.GenericParameters)
@@ -263,8 +310,11 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateFunctionModifiers(definition);
 		ValidateGenericArgumentUse(definition.ReturnType);
 
-		foreach (ParameterDefinition parameter in definition.Parameters)
-			AnalyzeParameterDefinition(parameter, scope);
+		for (int i = 0; i < definition.Parameters.Count; i++)
+			AnalyzeParameterDefinition(definition.Parameters[i], scope, allowThisName: IsExtensionThisParameter(definition, containingType, i));
+
+		if (containingType is null && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
+			definition.Symbol = BuildExtensionFunctionSymbol(definition.Name, thisParameter.ResolvedType ?? ErrorType);
 	}
 
 	void AnalyzeMethodBodies(Module module)
@@ -322,9 +372,9 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeMethodBody(definition, scope, containingType);
 	}
 
-	void AnalyzeParameterDefinition(ParameterDefinition definition, AnalysisScope scope)
+	void AnalyzeParameterDefinition(ParameterDefinition definition, AnalysisScope scope, bool allowThisName = false)
 	{
-		if (IsUserNamedParameter(definition))
+		if (IsUserNamedParameter(definition) && !(allowThisName && definition.Name == "this"))
 			CheckName(definition.Name, GetNameRange(definition), "parameter");
 
 		AnalyzeOptionalType(definition.Type, scope);

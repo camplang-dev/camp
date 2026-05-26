@@ -221,6 +221,22 @@ public sealed partial class BindableNodeAnalyzer
 		return TypeShapeParser.Format(shape with { Qualifiers = shape.Qualifiers with { Lifetime = kind } });
 	}
 
+	static string BuildExtensionFunctionSymbol(string methodName, string receiverType)
+	{
+		if (!new TypeShapeParser(receiverType).TryParse(out TypeShape shape))
+			return receiverType + "_" + methodName;
+
+		bool isArray = false;
+		while (shape.Element is not null)
+		{
+			if (shape.Kind == TypeShapeKind.Array)
+				isArray = true;
+			shape = shape.Element;
+		}
+
+		return shape.Name + (isArray ? "Array" : "") + "_" + methodName;
+	}
+
 	sealed class TypeShapeParser
 	{
 		readonly string text;
