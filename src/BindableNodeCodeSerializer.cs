@@ -855,8 +855,7 @@ public sealed class BindableNodeCodeSerializer
 
 		if (parameter is ThisParameterDefinition)
 		{
-			WriteTypeOrResolved(parameter.Type, parameter.ResolvedType);
-			writer.Write(" this");
+			WriteThisParameter((ThisParameterDefinition)parameter);
 		}
 		else if (parameter is SizeOfParameterDefinition)
 		{
@@ -898,6 +897,46 @@ public sealed class BindableNodeCodeSerializer
 			WriteType(type);
 		else
 			writer.Write(string.IsNullOrWhiteSpace(resolvedType) ? "auto" : SanitizeTypeName(resolvedType));
+	}
+
+	void WriteThisParameter(ThisParameterDefinition parameter)
+	{
+		if (parameter.SourceSyntax is ThisParameterSyntax { Declarators: { Count: > 0 } declarators })
+		{
+			for (int i = 0; i < declarators.Count; i++)
+			{
+				if (i > 0)
+					writer.Write(" ");
+				WriteTypeDeclaratorSyntax(declarators[i]);
+			}
+			writer.Write(" this");
+			return;
+		}
+
+		if (parameter.SourceSyntax is ThisParameterSyntax)
+		{
+			writer.Write("this");
+			return;
+		}
+
+		WriteTypeOrResolved(parameter.Type, parameter.ResolvedType);
+		writer.Write(" this");
+	}
+
+	void WriteTypeDeclaratorSyntax(TypeDeclaratorSyntax declarator)
+	{
+		writer.Write(declarator.Keyword?.Value ?? "");
+		if (declarator.AnchorList?.Identifiers is { Count: > 0 } anchors)
+		{
+			writer.Write("(");
+			for (int i = 0; i < anchors.Count; i++)
+			{
+				if (i > 0)
+					writer.Write(", ");
+				writer.Write(anchors[i].Value);
+			}
+			writer.Write(")");
+		}
 	}
 
 	void WriteType(TypeReference? type)

@@ -20,6 +20,15 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
 	}
 
+	void RequireMutableWriteTarget(string targetType, SyntaxNode? syntax, string context)
+	{
+		if (targetType == ErrorType || targetType == TargetType)
+			return;
+
+		if (IsConstQualified(targetType))
+			Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
+	}
+
 	bool CanImplicitlyConvert(string source, string target)
 	{
 		if (source == target || source == ErrorType || target == ErrorType || target == TargetType)
@@ -353,7 +362,10 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
 			{
 				if ((GetSignatureName(function) == name || function.Name == name) && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
-					functions.Add(function);
+				{
+					if (ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
+						functions.Add(function);
+				}
 			}
 			return functions;
 		}
@@ -361,7 +373,13 @@ public sealed partial class BindableNodeAnalyzer
 		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
 			return [];
 
-		return LookupTypeFunctions(type, name, referenceSyntax);
+		List<FunctionDefinition> callable = [];
+		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
+		{
+			if (ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
+				callable.Add(function);
+		}
+		return callable;
 	}
 
 	List<BodySymbol> LookupMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax)
@@ -418,11 +436,14 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
-			members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
+		{
+			if (ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
+				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
+		}
 
 		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
 		{
-			if (getter.Parameters.Count == 0)
+			if (getter.Parameters.Count == 0 && ReceiverCanCallFunction(targetType, getter, isPropertyGetterSyntax: true))
 				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
 		}
 
@@ -436,9 +457,17 @@ public sealed partial class BindableNodeAnalyzer
 		if (GetTypeDefinition(targetType) is not TypeDefinition type)
 			return false;
 
-		foreach (FunctionDefinition getter in LookupPropertyGetters(type, member.Name, member.SourceSyntax))
+		List<FunctionDefinition> getters = LookupPropertyGetters(type, member.Name, member.SourceSyntax);
+		bool getterReceiverMismatch = false;
+		foreach (FunctionDefinition getter in getters)
 		{
-			if (CountRequiredParameters(getter.Parameters) <= arguments.Count)
+			if (!ReceiverCanCallFunction(targetType, getter, isPropertyGetterSyntax: true))
+			{
+				getterReceiverMismatch = true;
+				continue;
+			}
+
+			if (CanCallWithArgumentCount(getter.Parameters, arguments.Count))
 			{
 				AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope);
 				member.ResolvedType = getter.ResolvedType ?? ErrorType;
@@ -446,6 +475,14 @@ public sealed partial class BindableNodeAnalyzer
 				propertyType = member.ResolvedType;
 				return true;
 			}
+		}
+
+		if (getterReceiverMismatch)
+		{
+			Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' exists on type '{targetType}', but its getter's this parameter is not compatible with that receiver.");
+			foreach (ArgumentExpression argument in arguments)
+				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
+			return true;
 		}
 
 		if (LookupPropertySetters(type, member.Name, member.SourceSyntax).Count > 0)
@@ -467,13 +504,21 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		List<FunctionDefinition> setters = LookupPropertySetters(type, member.Name, member.SourceSyntax);
+		bool setterReceiverMismatch = false;
 		foreach (FunctionDefinition setter in setters)
 		{
-			if (setter.Parameters.Count == 0)
+			if (!ReceiverCanCallFunction(targetType, setter, isPropertyGetterSyntax: false))
+			{
+				setterReceiverMismatch = true;
+				continue;
+			}
+
+			List<ParameterDefinition> callableParameters = GetCallableParameters(setter.Parameters);
+			if (callableParameters.Count == 0)
 				continue;
 
-			int valueParameterIndex = setter.Parameters.Count - 1;
-			int setterArgumentCount = setter.Parameters.Count - 1;
+			int valueParameterIndex = callableParameters.Count - 1;
+			int setterArgumentCount = callableParameters.Count - 1;
 			if (CountRequiredParametersForPropertySetter(setter.Parameters) > arguments.Count)
 				continue;
 			if (setterArgumentCount != arguments.Count)
@@ -481,18 +526,28 @@ public sealed partial class BindableNodeAnalyzer
 
 			for (int i = 0; i < arguments.Count; i++)
 			{
-				string expected = setter.Parameters[i].ResolvedType ?? ErrorType;
+				string expected = callableParameters[i].ResolvedType ?? ErrorType;
 				string actual = BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, expected);
 				CheckAssignable(expected, actual, arguments[i].SourceSyntax, "Argument");
 			}
 
-			string expectedValueType = setter.Parameters[valueParameterIndex].ResolvedType ?? ErrorType;
+			string expectedValueType = callableParameters[valueParameterIndex].ResolvedType ?? ErrorType;
 			string actualValueType = BodyAnalyzeExpression(value, scope, typeScope, expectedValueType);
 			CheckAssignable(expectedValueType, actualValueType, value?.SourceSyntax, "Assignment");
 
 			member.ResolvedType = expectedValueType;
 			expressionRewrites[member] = CreateMemberReference(member, member.Target, expectedValueType, setter);
 			propertyType = expectedValueType;
+			return true;
+		}
+
+		if (setterReceiverMismatch)
+		{
+			Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' exists on type '{targetType}', but its setter's this parameter is not compatible with that receiver.");
+			if (value is not null)
+				BodyAnalyzeExpression(value, scope, typeScope);
+			foreach (ArgumentExpression argument in arguments)
+				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
 			return true;
 		}
 
@@ -505,6 +560,67 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ArgumentExpression argument in arguments)
 			BodyAnalyzeArgumentExpression(argument, scope, typeScope);
 		return true;
+	}
+
+	bool ReceiverCanCallFunction(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
+	{
+		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
+		string actualType = StripTopLevelConstForReceiver(targetType);
+		return CanImplicitlyConvert(actualType, receiverType);
+	}
+
+	string BuildEffectiveReceiverType(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
+	{
+		TypeDefinition? owner = FindContainingType(function);
+		string receiverType = TryGetPointerElementType(targetType) is not null && owner is not null
+			? $"{owner.Name}*"
+			: owner?.Name ?? targetType;
+
+		ThisParameterDefinition? explicitThis = GetExplicitThisParameter(function);
+		if (explicitThis is not null)
+			return ApplyThisDeclarators(receiverType, explicitThis);
+
+		return isPropertyGetterSyntax ? AddConstToReceiverInstance(receiverType) : receiverType;
+	}
+
+	static bool IsPropertyGetterFunction(FunctionDefinition function)
+	{
+		return function.Name.StartsWith("get", StringComparison.Ordinal)
+			&& function.Name.Length > "get".Length
+			&& function.ResolvedType != "void";
+	}
+
+	static ThisParameterDefinition? GetExplicitThisParameter(FunctionDefinition function)
+	{
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter is ThisParameterDefinition thisParameter)
+				return thisParameter;
+		}
+
+		return null;
+	}
+
+	static string ApplyThisDeclarators(string receiverType, ThisParameterDefinition thisParameter)
+	{
+		if (thisParameter.SourceSyntax is not ThisParameterSyntax { Declarators: not null } syntax)
+			return receiverType;
+
+		string result = receiverType;
+		foreach (TypeDeclaratorSyntax declarator in syntax.Declarators)
+		{
+			result = declarator.Keyword?.Value switch
+			{
+				"const" => AddConstToReceiverInstance(result),
+				"volatile" => AddTopLevelVolatileToReceiverInstance(result),
+				"escaped" => AddTopLevelLifetimeToReceiver(result, "escaped"),
+				"scoped" => AddTopLevelLifetimeToReceiver(result, "scoped"),
+				"unscoped" => AddTopLevelLifetimeToReceiver(result, "unscoped"),
+				_ => result
+			};
+		}
+
+		return result;
 	}
 
 	FunctionDefinition? LookupConstructor(string targetType, int argumentCount)
@@ -682,7 +798,7 @@ public sealed partial class BindableNodeAnalyzer
 			ParameterDefinition parameter = parameters[i];
 			if (parameter.DefaultValue is null
 				&& parameter.Modifier is not ParameterModifier.Out and not ParameterModifier.Thrown
-				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+				&& parameter is not ThisParameterDefinition and not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
 				count++;
 		}
 
@@ -697,6 +813,28 @@ public sealed partial class BindableNodeAnalyzer
 	List<FunctionDefinition> LookupPropertySetters(TypeDefinition type, string name, SyntaxNode? referenceSyntax)
 	{
 		return LookupTypeFunctions(type, "set" + name, referenceSyntax);
+	}
+
+	bool HasPropertyGetterWithIncompatibleReceiver(TypeDefinition type, string targetType, string name, SyntaxNode? referenceSyntax)
+	{
+		foreach (FunctionDefinition getter in LookupPropertyGetters(type, name, referenceSyntax))
+		{
+			if (!ReceiverCanCallFunction(targetType, getter, isPropertyGetterSyntax: true))
+				return true;
+		}
+
+		return false;
+	}
+
+	bool HasMemberFunctionWithIncompatibleReceiver(TypeDefinition type, string targetType, string name, SyntaxNode? referenceSyntax)
+	{
+		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
+		{
+			if (IsMemberVisible(function, type, referenceSyntax) && !ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
+				return true;
+		}
+
+		return false;
 	}
 
 	TypeDefinition? GetTypeDefinition(string typeName)

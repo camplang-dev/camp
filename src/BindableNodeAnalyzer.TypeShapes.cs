@@ -50,15 +50,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool CanImplicitlyConvertShape(TypeShape source, TypeShape target, bool protectedByConstTarget, int pointerDepth)
 	{
+		if (source.Kind == TypeShapeKind.Named && target.Kind == TypeShapeKind.Named)
+			return source.Name == target.Name
+				|| IsNumericType(source.Name) && IsNumericType(target.Name) && NumericRank(source.Name) <= NumericRank(target.Name);
+
 		if (!QualifiersCanConvert(source.Qualifiers, target.Qualifiers, protectedByConstTarget, pointerDepth))
 			return false;
 
 		if (source.Kind == target.Kind)
 		{
-			if (source.Kind == TypeShapeKind.Named)
-				return source.Name == target.Name
-					|| IsNumericType(source.Name) && IsNumericType(target.Name) && NumericRank(source.Name) <= NumericRank(target.Name);
-
 			if ((source.Kind == TypeShapeKind.Pointer || source.Kind == TypeShapeKind.Array)
 				&& source.Element is TypeShape sourceElementForVariance
 				&& target.Element is TypeShape targetElementForVariance
@@ -155,6 +155,70 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsConstQualifiedShape(string? type)
 	{
 		return new TypeShapeParser(type ?? "").TryParse(out TypeShape shape) && shape.Qualifiers.IsConst;
+	}
+
+	static string AddTopLevelConstToType(string type)
+	{
+		return new TypeShapeParser(type).TryParse(out TypeShape shape)
+			? TypeShapeParser.Format(shape with { Qualifiers = shape.Qualifiers with { IsConst = true } })
+			: $"const {type}";
+	}
+
+	static bool IsConstReceiverType(string? type)
+	{
+		if (!new TypeShapeParser(type ?? "").TryParse(out TypeShape shape))
+			return false;
+
+		return shape.Kind == TypeShapeKind.Pointer
+			? shape.Element?.Qualifiers.IsConst == true
+			: shape.Qualifiers.IsConst;
+	}
+
+	static string StripTopLevelConstForReceiver(string type)
+	{
+		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
+			return type;
+
+		return shape.Kind == TypeShapeKind.Pointer
+			? TypeShapeParser.Format(shape with { Qualifiers = shape.Qualifiers with { IsConst = false } })
+			: type;
+	}
+
+	static string AddConstToReceiverInstance(string type)
+	{
+		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
+			return AddTopLevelConstToType(type);
+
+		if (shape.Kind == TypeShapeKind.Pointer && shape.Element is not null)
+			return TypeShapeParser.Format(shape with { Element = shape.Element with { Qualifiers = shape.Element.Qualifiers with { IsConst = true } } });
+
+		return TypeShapeParser.Format(shape with { Qualifiers = shape.Qualifiers with { IsConst = true } });
+	}
+
+	static string AddTopLevelVolatileToReceiverInstance(string type)
+	{
+		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
+			return $"volatile {type}";
+
+		if (shape.Kind == TypeShapeKind.Pointer && shape.Element is not null)
+			return TypeShapeParser.Format(shape with { Element = shape.Element with { Qualifiers = shape.Element.Qualifiers with { IsVolatile = true } } });
+
+		return TypeShapeParser.Format(shape with { Qualifiers = shape.Qualifiers with { IsVolatile = true } });
+	}
+
+	static string AddTopLevelLifetimeToReceiver(string type, string lifetime)
+	{
+		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
+			return $"{lifetime} {type}";
+
+		LifetimeKind kind = lifetime switch
+		{
+			"escaped" => LifetimeKind.Escaped,
+			"unscoped" => LifetimeKind.Unscoped,
+			_ => LifetimeKind.Scoped
+		};
+
+		return TypeShapeParser.Format(shape with { Qualifiers = shape.Qualifiers with { Lifetime = kind } });
 	}
 
 	sealed class TypeShapeParser

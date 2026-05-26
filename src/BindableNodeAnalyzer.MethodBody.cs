@@ -553,7 +553,7 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		}
 
-		return scope.ContainingType.Name;
+		return BuildEffectiveReceiverType(scope.ContainingType.Name, scope.CurrentFunction, IsPropertyGetterFunction(scope.CurrentFunction));
 	}
 
 	string BodyAnalyzeDefaultExpression(DefaultExpression expression, AnalysisScope typeScope, string? targetType)
@@ -822,6 +822,8 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				if (functions.Count > 1)
 					Report(GetRange(member.SourceSyntax), $"Multiple candidates found for member call '{member.Name}'.");
+				else if (GetTypeDefinition(targetType) is TypeDefinition receiverType && HasMemberFunctionWithIncompatibleReceiver(receiverType, targetType, member.Name, member.SourceSyntax))
+					Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' exists on type '{targetType}', but its this parameter is not compatible with that receiver.");
 				else if (GetTypeDefinition(targetType) is TypeDefinition memberType && LookupHiddenMember(memberType, member.Name, member.SourceSyntax) is Definition hiddenMember)
 					ReportMemberNotExported(hiddenMember, member.SourceSyntax);
 				else
@@ -1378,7 +1380,12 @@ public sealed partial class BindableNodeAnalyzer
 		List<BodySymbol> members = LookupMemberSymbols(targetType, member.Name, member.SourceSyntax);
 		if (members.Count == 0)
 		{
-			if (GetTypeDefinition(targetType) is TypeDefinition type && LookupPropertySetters(type, member.Name, member.SourceSyntax).Count > 0)
+			if (GetTypeDefinition(targetType) is TypeDefinition type && HasPropertyGetterWithIncompatibleReceiver(type, targetType, member.Name, member.SourceSyntax))
+			{
+				Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' exists on type '{targetType}', but its getter's this parameter is not compatible with that receiver.");
+				return ErrorType;
+			}
+			if (GetTypeDefinition(targetType) is TypeDefinition setterType && LookupPropertySetters(setterType, member.Name, member.SourceSyntax).Count > 0)
 			{
 				Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not readable on type '{targetType}'.");
 				return ErrorType;
@@ -1396,9 +1403,14 @@ public sealed partial class BindableNodeAnalyzer
 		if (members.Count > 1)
 			return ReportMultipleCandidates(member.SourceSyntax, member.Name);
 
-		expressionConstants[member] = members[0].IsConstant;
-		expressionRewrites[member] = CreateMemberReference(member, member.Target, members[0].Type, members[0].Node);
-		return members[0].Type;
+		BodySymbol selected = members[0];
+		string memberType = IsConstReceiverType(targetType) && selected.Node is FieldDefinition or ParameterDefinition
+			? AddTopLevelConstToType(selected.Type)
+			: selected.Type;
+
+		expressionConstants[member] = selected.IsConstant;
+		expressionRewrites[member] = CreateMemberReference(member, member.Target, memberType, selected.Node);
+		return memberType;
 	}
 
 	string BodyAnalyzeUnaryExpression(UnaryExpression unary, BodyScope scope, AnalysisScope typeScope, string? targetType)
@@ -1440,6 +1452,7 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzePostfixUpdateExpression(PostfixUpdateExpression postfix, BodyScope scope, AnalysisScope typeScope)
 	{
 		string operandType = BodyAnalyzeExpression(postfix.Expression, scope, typeScope);
+		RequireMutableWriteTarget(operandType, postfix.Expression?.SourceSyntax, "Update target");
 		if (!IsNumericType(operandType))
 			Report(GetRange(postfix.Expression?.SourceSyntax), $"Update operator requires a numeric operand, not '{operandType}'.");
 		return operandType;
@@ -1469,6 +1482,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		string targetType = BodyAnalyzeExpression(assignment.Target, scope, typeScope);
 		string valueType = BodyAnalyzeExpression(assignment.Value, scope, typeScope, targetType);
+		RequireMutableWriteTarget(targetType, assignment.Target?.SourceSyntax, "Assignment target");
 		CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
 		return targetType;
 	}
