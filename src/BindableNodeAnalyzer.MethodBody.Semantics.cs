@@ -25,11 +25,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == target || source == ErrorType || target == ErrorType || target == TargetType)
 			return true;
 
-		if (IsConstQualified(target) && CanImplicitlyConvert(source, StripConst(target)))
-			return true;
-
-		string unqualifiedTarget = StripConst(target);
-		if (source == "#NULL" && (unqualifiedTarget.EndsWith("*", StringComparison.Ordinal) || unqualifiedTarget.EndsWith("?", StringComparison.Ordinal)))
+		if (source == "#NULL" && TryParseTypeShape(target, out TypeShape nullTarget) && (nullTarget.IsPointer || nullTarget.IsOptional))
 			return true;
 
 		if (source == AllocatorType && target == "Allocator*")
@@ -43,6 +39,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (IsNewtypeOrEnumBoundary(source, target))
 			return false;
+
+		if (TryParseTypeShape(source, out TypeShape sourceShape) && TryParseTypeShape(target, out TypeShape targetShape))
+			return CanImplicitlyConvertShape(sourceShape, targetShape);
 
 		return IsNumericType(source) && IsNumericType(target) && NumericRank(source) <= NumericRank(target);
 	}
@@ -127,7 +126,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsNumericType(source) && IsNumericType(target))
 			return true;
 
-		return source.EndsWith("*", StringComparison.Ordinal) && target.EndsWith("*", StringComparison.Ordinal);
+		return TryParseTypeShape(source, out TypeShape sourceShape)
+			&& TryParseTypeShape(target, out TypeShape targetShape)
+			&& sourceShape.IsPointer
+			&& targetShape.IsPointer;
 	}
 
 	bool IsNewtypeOrEnumBoundary(string source, string target)
@@ -716,12 +718,16 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string? TryGetArrayElementType(string? type)
 	{
-		return type is not null && type.EndsWith("[]", StringComparison.Ordinal) ? type[..^2] : null;
+		return new TypeShapeParser(type ?? "").TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Array
+			? TypeShapeParser.Format(shape.Element)
+			: null;
 	}
 
 	static string? TryGetPointerElementType(string? type)
 	{
-		return type is not null && type.EndsWith("*", StringComparison.Ordinal) ? type[..^1] : null;
+		return new TypeShapeParser(type ?? "").TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Pointer
+			? TypeShapeParser.Format(shape.Element)
+			: null;
 	}
 
 	string? GetIteratorElementType(TypeReference? type)
@@ -846,7 +852,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsConstantVariable(VariableDefinition variable)
 	{
-		return IsConstType(variable.Type) || variable.Type?.ResolvedType?.StartsWith("const ", StringComparison.Ordinal) == true;
+		return IsConstType(variable.Type) || IsConstQualified(variable.Type?.ResolvedType);
 	}
 
 	static bool IsConstType(TypeReference? type)

@@ -334,6 +334,45 @@ public sealed partial class BindableNodeAnalyzer
 		return anchors.Count == 0 ? keyword : $"{keyword}({string.Join(", ", anchors)})";
 	}
 
+	static string FormatTypeReference(TypeReference? type)
+	{
+		return type switch
+		{
+			null => ErrorType,
+			TypeDefinitionReference definition => AddTypeArguments(definition.Name, definition.TypeArguments),
+			GenericParameterTypeReference genericParameter => genericParameter.Name,
+			AllocatorTypeReference => AllocatorType,
+			NamedTypeReference named => named.ResolvedType ?? BuildNamedTypeSourceName(named),
+			AttributedTypeReference attributed => FormatTypeReference(attributed.Type),
+			GenericTypeReference generic => $"{FormatTypeReference(generic.Type)}<{string.Join(", ", GetResolvedTypes(generic.TypeArguments))}>",
+			ArrayTypeReference array => $"{FormatTypeReference(array.ElementType)}[]",
+			OptionalTypeReference optional => $"{FormatTypeReference(optional.ElementType)}?",
+			PointerTypeReference pointer => $"{FormatTypeReference(pointer.ElementType)}*",
+			ConstTypeReference constant => FormatTypeDeclarator("const", constant.Type),
+			VolatileTypeReference vol => FormatTypeDeclarator("volatile", vol.Type),
+			AnyTypeReference => "any",
+			AutoTypeReference => AutoType,
+			PrimitiveTypeReference primitive => GetPrimitiveTypeName(primitive.Type),
+			EscapedTypeReference escaped => FormatTypeDeclarator("escaped", escaped.Type),
+			ScopedTypeReference scoped => FormatTypeDeclarator(BuildAnchoredDeclarator("scoped", scoped.Anchors), scoped.Type),
+			UnscopedTypeReference unscoped => FormatTypeDeclarator(BuildAnchoredDeclarator("unscoped", unscoped.Anchors), unscoped.Type),
+			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)} {FormatTypeReference(callable.ReturnType)}({string.Join(", ", GetParameterTypeNames(callable.Parameters))})",
+			IterTypeReference iter => $"iter {FormatTypeReference(iter.ElementType)}",
+			GroupedParamsTypeReference grouped => $"params({FormatTypeReference(grouped.StructType)})",
+			MaterializedStructTypeReference materialized => $"struct({FormatTypeReference(materialized.ParamsType)})",
+			ThrownTypeReference thrown => $"thrown({FormatTypeReference(thrown.Type)})",
+			_ => type.ResolvedType ?? ErrorType
+		};
+	}
+
+	static string FormatTypeDeclarator(string keyword, TypeReference? inner)
+	{
+		string innerText = FormatTypeReference(inner);
+		return inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or GenericTypeReference or CallableTypeReference
+			? $"{innerText} {keyword}"
+			: $"{keyword} {innerText}";
+	}
+
 	static string GetCallableKindName(CallableKind kind)
 	{
 		return kind switch

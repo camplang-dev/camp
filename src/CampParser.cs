@@ -463,6 +463,10 @@ public sealed class CampParser
 			{
 				type = generic;
 			}
+			else if (IsAny(TypeDeclaratorKeywords))
+			{
+				type = new DeclaratorTypeSyntax { Declarator = ParseTypeDeclarator(), Type = type };
+			}
 			else
 			{
 				return type;
@@ -517,7 +521,7 @@ public sealed class CampParser
 			});
 
 		if (IsAny(TypeDeclaratorKeywords))
-			return new DeclaratorTypeSyntax { Declarator = ParseTypeDeclarator(), Type = ParseType() };
+			return new DeclaratorTypeSyntax { Declarator = ParseTypeDeclarator(), Type = ParseTypePrefix() };
 
 		return ParseQualifiedNameType();
 	}

@@ -54,32 +54,32 @@ public sealed partial class BindableNodeAnalyzer
 			case GenericTypeReference generic:
 				AnalyzeOptionalType(generic.Type, scope);
 				AnalyzeTypeList(generic.TypeArguments, scope);
-				type.ResolvedType = $"{generic.Type?.ResolvedType ?? ErrorType}<{string.Join(", ", GetResolvedTypes(generic.TypeArguments))}>";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case ArrayTypeReference array:
 				AnalyzeOptionalType(array.ElementType, scope);
-				type.ResolvedType = $"{array.ElementType?.ResolvedType ?? ErrorType}[]";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case OptionalTypeReference optional:
 				AnalyzeOptionalType(optional.ElementType, scope);
-				type.ResolvedType = $"{optional.ElementType?.ResolvedType ?? ErrorType}?";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case PointerTypeReference pointer:
 				AnalyzeOptionalType(pointer.ElementType, scope);
-				type.ResolvedType = $"{pointer.ElementType?.ResolvedType ?? ErrorType}*";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case ConstTypeReference constType:
 				AnalyzeOptionalType(constType.Type, scope);
-				type.ResolvedType = $"const {constType.Type?.ResolvedType ?? ErrorType}";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case VolatileTypeReference volatileType:
 				AnalyzeOptionalType(volatileType.Type, scope);
-				type.ResolvedType = $"volatile {volatileType.Type?.ResolvedType ?? ErrorType}";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case AnyTypeReference:
@@ -96,44 +96,44 @@ public sealed partial class BindableNodeAnalyzer
 
 			case EscapedTypeReference escaped:
 				AnalyzeOptionalType(escaped.Type, scope);
-				type.ResolvedType = $"escaped {escaped.Type?.ResolvedType ?? ErrorType}";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case ScopedTypeReference scoped:
 				AnalyzeOptionalType(scoped.Type, scope);
-				type.ResolvedType = $"{BuildAnchoredDeclarator("scoped", scoped.Anchors)} {scoped.Type?.ResolvedType ?? ErrorType}";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case UnscopedTypeReference unscoped:
 				AnalyzeOptionalType(unscoped.Type, scope);
-				type.ResolvedType = $"{BuildAnchoredDeclarator("unscoped", unscoped.Anchors)} {unscoped.Type?.ResolvedType ?? ErrorType}";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case CallableTypeReference callable:
 				AnalyzeOptionalType(callable.ReturnType, scope);
 				foreach (ParameterDefinition parameter in callable.Parameters)
 					AnalyzeParameterDefinition(parameter, scope);
-				type.ResolvedType = $"{GetCallableKindName(callable.Kind)} {callable.ReturnType?.ResolvedType ?? ErrorType}({string.Join(", ", GetParameterTypeNames(callable.Parameters))})";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case IterTypeReference iter:
 				AnalyzeOptionalType(iter.ElementType, scope);
-				type.ResolvedType = $"iter {iter.ElementType?.ResolvedType ?? ErrorType}";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case GroupedParamsTypeReference grouped:
 				AnalyzeOptionalType(grouped.StructType, scope);
-				type.ResolvedType = $"params({grouped.StructType?.ResolvedType ?? ErrorType})";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case MaterializedStructTypeReference materialized:
 				AnalyzeOptionalType(materialized.ParamsType, scope);
-				type.ResolvedType = $"struct({materialized.ParamsType?.ResolvedType ?? ErrorType})";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case ThrownTypeReference thrown:
 				AnalyzeOptionalType(thrown.Type, scope);
-				type.ResolvedType = $"thrown({thrown.Type?.ResolvedType ?? ErrorType})";
+				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			default:

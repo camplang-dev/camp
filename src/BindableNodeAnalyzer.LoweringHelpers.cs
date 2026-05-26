@@ -384,7 +384,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(type))
 			return "";
 
-		return type.EndsWith("*", StringComparison.Ordinal) ? type[..^1] : type;
+		return new TypeShapeParser(type).TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Pointer
+			? TypeShapeParser.Format(shape.Element)
+			: type;
 	}
 
 	void Report(SyntaxNode? syntax, string message)

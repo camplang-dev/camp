@@ -960,13 +960,11 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case ConstTypeReference constant:
-				writer.Write("const ");
-				WriteType(constant.Type);
+				WriteTypeDeclarator("const", constant.Type);
 				break;
 
 			case VolatileTypeReference vol:
-				writer.Write("volatile ");
-				WriteType(vol.Type);
+				WriteTypeDeclarator("volatile", vol.Type);
 				break;
 
 			case AnyTypeReference:
@@ -982,18 +980,15 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case EscapedTypeReference escaped:
-				writer.Write("escaped ");
-				WriteType(escaped.Type);
+				WriteTypeDeclarator("escaped", escaped.Type);
 				break;
 
 			case ScopedTypeReference scoped:
-				writer.Write("scoped ");
-				WriteType(scoped.Type);
+				WriteTypeDeclarator(GetAnchoredDeclarator("scoped", scoped.Anchors), scoped.Type);
 				break;
 
 			case UnscopedTypeReference unscoped:
-				writer.Write("unscoped ");
-				WriteType(unscoped.Type);
+				WriteTypeDeclarator(GetAnchoredDeclarator("unscoped", unscoped.Anchors), unscoped.Type);
 				break;
 
 			case CallableTypeReference callable:
@@ -1024,6 +1019,26 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write(")");
 				break;
 		}
+	}
+
+	void WriteTypeDeclarator(string keyword, TypeReference? inner)
+	{
+		if (inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or GenericTypeReference or CallableTypeReference)
+		{
+			WriteType(inner);
+			writer.Write(" ");
+			writer.Write(keyword);
+			return;
+		}
+
+		writer.Write(keyword);
+		writer.Write(" ");
+		WriteType(inner);
+	}
+
+	static string GetAnchoredDeclarator(string keyword, List<string> anchors)
+	{
+		return anchors.Count == 0 ? keyword : $"{keyword}({string.Join(", ", anchors)})";
 	}
 
 	void WriteLiteral(LiteralExpression literal)

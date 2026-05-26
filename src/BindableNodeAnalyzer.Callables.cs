@@ -141,7 +141,18 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string BaseTypeName(string type)
 	{
-		type = StripConst(type);
+		if (new TypeShapeParser(type).TryParse(out TypeShape shape))
+		{
+			while (shape.Element is not null)
+				shape = shape.Element;
+
+			type = shape.Name;
+		}
+		else
+		{
+			type = StripConst(type);
+		}
+
 		int genericStart = type.IndexOf('<', StringComparison.Ordinal);
 		if (genericStart >= 0)
 			type = type[..genericStart];
@@ -159,14 +170,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsConstQualified(string? type)
 	{
-		return type is not null && type.StartsWith("const ", StringComparison.Ordinal);
+		return IsConstQualifiedShape(type);
 	}
 
 	static string StripConst(string type)
 	{
-		while (type.StartsWith("const ", StringComparison.Ordinal))
-			type = type["const ".Length..];
-
-		return type;
+		return StripConstFromShape(type);
 	}
 }

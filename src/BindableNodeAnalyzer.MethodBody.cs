@@ -902,7 +902,10 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(arguments[i].SourceSyntax), "Thrown parameters require a 'catch' argument.");
 				if (parameter.Modifier != ParameterModifier.Thrown && arguments[i].Modifier == ArgumentModifier.Catch)
 					Report(GetRange(arguments[i].SourceSyntax), "Only thrown parameters may use a 'catch' argument.");
-				CheckAssignable(expected, actual, arguments[i].SourceSyntax, "Argument");
+				if (parameter.Modifier == ParameterModifier.Out)
+					CheckAssignable(actual, expected, arguments[i].SourceSyntax, "Out argument");
+				else
+					CheckAssignable(expected, actual, arguments[i].SourceSyntax, "Argument");
 			}
 		}
 

@@ -1,0 +1,362 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+
+namespace Camp.Compiler;
+
+public sealed partial class BindableNodeAnalyzer
+{
+	enum TypeShapeKind
+	{
+		Named,
+		Pointer,
+		Array,
+		Optional
+	}
+
+	readonly record struct TypeQualifiers(bool IsConst, bool IsVolatile, LifetimeKind Lifetime)
+	{
+		public static readonly TypeQualifiers None = new(false, false, LifetimeKind.Scoped);
+	}
+
+	enum LifetimeKind
+	{
+		Scoped = 0,
+		Unscoped = 1,
+		Escaped = 2
+	}
+
+	sealed record TypeShape(TypeShapeKind Kind, string Name, TypeShape? Element, TypeQualifiers Qualifiers)
+	{
+		public bool IsPointer => Kind == TypeShapeKind.Pointer;
+		public bool IsArray => Kind == TypeShapeKind.Array;
+		public bool IsOptional => Kind == TypeShapeKind.Optional;
+	}
+
+	bool TryParseTypeShape(string? type, out TypeShape shape)
+	{
+		TypeShapeParser parser = new(type ?? "");
+		if (parser.TryParse(out shape) && parser.IsEnd)
+			return true;
+
+		shape = new TypeShape(TypeShapeKind.Named, type ?? ErrorType, null, TypeQualifiers.None);
+		return false;
+	}
+
+	bool CanImplicitlyConvertShape(TypeShape source, TypeShape target)
+	{
+		return CanImplicitlyConvertShape(source, target, protectedByConstTarget: false, pointerDepth: 0);
+	}
+
+	bool CanImplicitlyConvertShape(TypeShape source, TypeShape target, bool protectedByConstTarget, int pointerDepth)
+	{
+		if (!QualifiersCanConvert(source.Qualifiers, target.Qualifiers, protectedByConstTarget, pointerDepth))
+			return false;
+
+		if (source.Kind == target.Kind)
+		{
+			if (source.Kind == TypeShapeKind.Named)
+				return source.Name == target.Name
+					|| IsNumericType(source.Name) && IsNumericType(target.Name) && NumericRank(source.Name) <= NumericRank(target.Name);
+
+			if ((source.Kind == TypeShapeKind.Pointer || source.Kind == TypeShapeKind.Array)
+				&& source.Element is TypeShape sourceElementForVariance
+				&& target.Element is TypeShape targetElementForVariance
+				&& IsDerivedClassType(sourceElementForVariance, targetElementForVariance))
+			{
+				if (source.Kind == TypeShapeKind.Pointer)
+					return pointerDepth == 0 || protectedByConstTarget || target.Qualifiers.IsConst;
+
+				return protectedByConstTarget || target.Qualifiers.IsConst;
+			}
+
+			bool childProtected = protectedByConstTarget || target.Qualifiers.IsConst;
+			int childPointerDepth = source.Kind == TypeShapeKind.Pointer ? pointerDepth + 1 : pointerDepth;
+			return source.Element is not null
+				&& target.Element is not null
+				&& CanImplicitlyConvertShape(source.Element, target.Element, childProtected, childPointerDepth);
+		}
+
+		if ((source.Kind == TypeShapeKind.Pointer || source.Kind == TypeShapeKind.Array)
+			&& (target.Kind == TypeShapeKind.Pointer || target.Kind == TypeShapeKind.Array)
+			&& source.Element is TypeShape sourceElement
+			&& target.Element is TypeShape targetElement)
+		{
+			if (IsDerivedClassType(sourceElement, targetElement))
+				return source.Kind == TypeShapeKind.Pointer && target.Kind == TypeShapeKind.Pointer || target.Qualifiers.IsConst;
+
+			return (protectedByConstTarget || target.Qualifiers.IsConst)
+				&& CanImplicitlyConvertShape(sourceElement, targetElement, protectedByConstTarget: true, pointerDepth);
+		}
+
+		return false;
+	}
+
+	static bool QualifiersCanConvert(TypeQualifiers source, TypeQualifiers target, bool protectedByConstTarget, int pointerDepth)
+	{
+		if (source.IsConst && !target.IsConst && !protectedByConstTarget)
+			return false;
+
+		if (source.IsVolatile && !target.IsVolatile && !protectedByConstTarget)
+			return false;
+
+		if (!protectedByConstTarget && pointerDepth > 1)
+		{
+			if (!source.IsConst && target.IsConst)
+				return false;
+			if (!source.IsVolatile && target.IsVolatile)
+				return false;
+		}
+
+		return source.Lifetime >= target.Lifetime;
+	}
+
+	bool IsDerivedClassType(TypeShape source, TypeShape target)
+	{
+		if (source.Kind != TypeShapeKind.Named || target.Kind != TypeShapeKind.Named || source.Name == target.Name)
+			return false;
+
+		if (!typeDefinitions.TryGetValue(BaseTypeName(source.Name), out TypeDefinition? sourceType)
+			|| sourceType is not ClassDefinition sourceClass
+			|| !typeDefinitions.TryGetValue(BaseTypeName(target.Name), out TypeDefinition? targetType)
+			|| targetType is not ClassDefinition targetClass)
+			return false;
+
+		for (ClassDefinition? current = GetDirectBaseClass(sourceClass); current is not null; current = GetDirectBaseClass(current))
+		{
+			if (ReferenceEquals(current, targetClass))
+				return true;
+		}
+
+		return false;
+	}
+
+	string? TryGetArrayElementTypeFromShape(string? type)
+	{
+		return TryParseTypeShape(type, out TypeShape shape) && shape.Kind == TypeShapeKind.Array
+			? TypeShapeParser.Format(shape.Element)
+			: null;
+	}
+
+	string? TryGetPointerElementTypeFromShape(string? type)
+	{
+		return TryParseTypeShape(type, out TypeShape shape) && shape.Kind == TypeShapeKind.Pointer
+			? TypeShapeParser.Format(shape.Element)
+			: null;
+	}
+
+	static string StripConstFromShape(string type)
+	{
+		return new TypeShapeParser(type).TryParse(out TypeShape shape)
+			? TypeShapeParser.Format(shape with { Qualifiers = shape.Qualifiers with { IsConst = false } })
+			: type.StartsWith("const ", StringComparison.Ordinal) ? type["const ".Length..] : type;
+	}
+
+	static bool IsConstQualifiedShape(string? type)
+	{
+		return new TypeShapeParser(type ?? "").TryParse(out TypeShape shape) && shape.Qualifiers.IsConst;
+	}
+
+	sealed class TypeShapeParser
+	{
+		readonly string text;
+		int index;
+
+		public TypeShapeParser(string text)
+		{
+			this.text = text;
+		}
+
+		public bool IsEnd
+		{
+			get
+			{
+				SkipWhitespace();
+				return index >= text.Length;
+			}
+		}
+
+		public bool TryParse(out TypeShape shape)
+		{
+			SkipWhitespace();
+			if (!TryParsePrefix(out shape))
+				return false;
+
+			while (true)
+			{
+				SkipWhitespace();
+				if (TryTake("[]"))
+					shape = new TypeShape(TypeShapeKind.Array, "", shape, TypeQualifiers.None);
+				else if (TryTake("?"))
+					shape = new TypeShape(TypeShapeKind.Optional, "", shape, TypeQualifiers.None);
+				else if (TryTake("*"))
+					shape = new TypeShape(TypeShapeKind.Pointer, "", shape, TypeQualifiers.None);
+				else if (TryReadQualifier(out TypeQualifiers qualifier))
+					shape = AddQualifier(shape, qualifier);
+				else
+					return true;
+			}
+		}
+
+		static TypeShape AddQualifier(TypeShape shape, TypeQualifiers qualifier)
+		{
+			TypeQualifiers existing = shape.Qualifiers;
+			LifetimeKind lifetime = qualifier.Lifetime > existing.Lifetime ? qualifier.Lifetime : existing.Lifetime;
+			return shape with
+			{
+				Qualifiers = new TypeQualifiers(
+					existing.IsConst || qualifier.IsConst,
+					existing.IsVolatile || qualifier.IsVolatile,
+					lifetime)
+			};
+		}
+
+		bool TryParsePrefix(out TypeShape shape)
+		{
+			TypeQualifiers prefix = TypeQualifiers.None;
+			while (TryReadQualifier(out TypeQualifiers qualifier))
+			{
+				prefix = new TypeQualifiers(
+					prefix.IsConst || qualifier.IsConst,
+					prefix.IsVolatile || qualifier.IsVolatile,
+					qualifier.Lifetime > prefix.Lifetime ? qualifier.Lifetime : prefix.Lifetime);
+			}
+
+			SkipWhitespace();
+			if (index >= text.Length)
+			{
+				shape = new TypeShape(TypeShapeKind.Named, ErrorType, null, prefix);
+				return false;
+			}
+
+			string name = ReadTypeName();
+			if (name.Length == 0)
+			{
+				shape = new TypeShape(TypeShapeKind.Named, ErrorType, null, prefix);
+				return false;
+			}
+
+			shape = new TypeShape(TypeShapeKind.Named, name, null, prefix);
+			return true;
+		}
+
+		string ReadTypeName()
+		{
+			int start = index;
+			int genericDepth = 0;
+			int parenDepth = 0;
+			while (index < text.Length)
+			{
+				char ch = text[index];
+				if (ch == '<')
+					genericDepth++;
+				else if (ch == '>' && genericDepth > 0)
+					genericDepth--;
+				else if (ch == '(')
+					parenDepth++;
+				else if (ch == ')' && parenDepth > 0)
+					parenDepth--;
+				else if (genericDepth == 0 && parenDepth == 0 && (char.IsWhiteSpace(ch) || ch is '*' or '?' or '['))
+					break;
+
+				index++;
+			}
+
+			return text[start..index];
+		}
+
+		bool TryReadQualifier(out TypeQualifiers qualifier)
+		{
+			SkipWhitespace();
+			int start = index;
+			string word = ReadIdentifier();
+			qualifier = word switch
+			{
+				"const" => new TypeQualifiers(true, false, LifetimeKind.Scoped),
+				"volatile" => new TypeQualifiers(false, true, LifetimeKind.Scoped),
+				"escaped" => new TypeQualifiers(false, false, LifetimeKind.Escaped),
+				"unscoped" => new TypeQualifiers(false, false, LifetimeKind.Unscoped),
+				"scoped" => new TypeQualifiers(false, false, LifetimeKind.Scoped),
+				_ => TypeQualifiers.None
+			};
+
+			if (word is "scoped" or "unscoped" && index < text.Length && text[index] == '(')
+				SkipBalanced('(', ')');
+
+			if (word is "const" or "volatile" or "escaped" or "unscoped" or "scoped")
+				return true;
+
+			index = start;
+			return false;
+		}
+
+		string ReadIdentifier()
+		{
+			int start = index;
+			while (index < text.Length && (char.IsLetterOrDigit(text[index]) || text[index] == '_' || text[index] == '#'))
+				index++;
+			return text[start..index];
+		}
+
+		void SkipBalanced(char open, char close)
+		{
+			int depth = 0;
+			while (index < text.Length)
+			{
+				if (text[index] == open)
+					depth++;
+				else if (text[index] == close && --depth == 0)
+				{
+					index++;
+					return;
+				}
+				index++;
+			}
+		}
+
+		bool TryTake(string value)
+		{
+			SkipWhitespace();
+			if (!text.AsSpan(index).StartsWith(value, StringComparison.Ordinal))
+				return false;
+
+			index += value.Length;
+			return true;
+		}
+
+		void SkipWhitespace()
+		{
+			while (index < text.Length && char.IsWhiteSpace(text[index]))
+				index++;
+		}
+
+		public static string Format(TypeShape? shape)
+		{
+			if (shape is null)
+				return ErrorType;
+
+			string core = shape.Kind switch
+			{
+				TypeShapeKind.Pointer => Format(shape.Element) + "*",
+				TypeShapeKind.Array => Format(shape.Element) + "[]",
+				TypeShapeKind.Optional => Format(shape.Element) + "?",
+				_ => shape.Name
+			};
+
+			List<string> suffixes = [];
+			if (shape.Qualifiers.IsConst)
+				suffixes.Add("const");
+			if (shape.Qualifiers.IsVolatile)
+				suffixes.Add("volatile");
+			if (shape.Qualifiers.Lifetime != LifetimeKind.Scoped)
+				suffixes.Add(shape.Qualifiers.Lifetime.ToString().ToLower(CultureInfo.InvariantCulture));
+
+			if (suffixes.Count == 0)
+				return core;
+
+			return shape.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array or TypeShapeKind.Optional
+				? core + " " + string.Join(" ", suffixes)
+				: string.Join(" ", suffixes) + " " + core;
+		}
+	}
+}
