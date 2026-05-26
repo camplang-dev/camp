@@ -1077,6 +1077,28 @@ public sealed partial class BindableNodeAnalyzer
 		return type == "const char*";
 	}
 
+	string GetStringLiteralType(LiteralExpression literal, string? targetType)
+	{
+		if (targetType is null || targetType == TargetType || targetType == AutoType)
+			return "const String";
+
+		if (IsStringLiteralTargetType(targetType))
+			return targetType;
+
+		Report(GetRange(literal.SourceSyntax), $"String literal cannot implicitly convert to mutable type '{targetType}'.");
+		return ErrorType;
+	}
+
+	static bool IsStringLiteralTargetType(string? type)
+	{
+		return type is "const char*"
+			or "const String"
+			or "const wchar*"
+			or "const WString"
+			or "const achar*"
+			or "const AString";
+	}
+
 	string BuildFunctionValueType(FunctionDefinition function, bool isInstance)
 	{
 		string kind = isInstance ? "delegate" : "fn";
