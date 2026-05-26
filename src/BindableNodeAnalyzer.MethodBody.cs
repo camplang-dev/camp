@@ -429,7 +429,7 @@ public sealed partial class BindableNodeAnalyzer
 			LiteralKind.True or LiteralKind.False => "bool",
 			LiteralKind.Null => "#NULL",
 			LiteralKind.String when IsConstCharPointerType(targetType) => targetType!,
-			LiteralKind.String => "const StringView",
+			LiteralKind.String => "escaped const String",
 			LiteralKind.Number => GetNumberLiteralType(literal.Text, targetType),
 			_ => ErrorType
 		};
