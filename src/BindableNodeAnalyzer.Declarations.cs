@@ -315,6 +315,8 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < definition.Parameters.Count; i++)
 			AnalyzeParameterDefinition(definition.Parameters[i], scope, allowThisName: IsExtensionThisParameter(definition, containingType, i));
 
+		if (containingType is not null && GetExplicitThisParameter(definition) is ThisParameterDefinition memberThisParameter)
+			memberThisParameter.ResolvedType = ApplyThisDeclarators(containingType, memberThisParameter);
 		if (containingType is null && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
 			definition.Symbol = BuildExtensionFunctionSymbol(definition.Name, thisParameter.ResolvedType ?? ErrorType);
 	}

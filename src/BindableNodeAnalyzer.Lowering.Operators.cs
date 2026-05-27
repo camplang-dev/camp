@@ -172,22 +172,25 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallExpression CreateAllocCall(TypeReference type, Expression allocator, SyntaxNode? syntax, Expression? length = null)
 	{
+		MemberReferenceExpression targetReference = new()
+		{
+			Target = allocator,
+			Name = "alloc",
+			Member = allocatorAllocMethod,
+			ResolvedType = allocatorAllocMethod.ResolvedType
+		};
 		CallExpression call = new()
 		{
 			SourceSyntax = syntax,
 			ResolvedType = $"{type.ResolvedType}*",
-			Target = new MemberReferenceExpression
-			{
-				Target = allocator,
-				Name = "alloc",
-				Member = allocatorAllocMethod,
-				ResolvedType = allocatorAllocMethod.ResolvedType
-			}
+			Target = targetReference
 		};
 		call.TypeArguments.Add(CloneType(type)!);
 		call.Arguments.Add(new ArgumentExpression { Value = length ?? NumberLiteral("1", "nuint"), ResolvedType = "nuint" });
 		call.Arguments.Add(new ArgumentExpression { Value = new SizeOfExpression { Type = CloneType(type), ResolvedType = "nuint" }, ResolvedType = "nuint" });
 		call.Arguments.Add(new ArgumentExpression { Modifier = ArgumentModifier.Catch, Value = new NamedExpression { Name = "_", ResolvedType = "MemoryError" }, ResolvedType = "MemoryError" });
+		if (ShouldEmitFlattenedInstanceCalls())
+			RewriteInstanceInvocation(call, targetReference, allocator, allocatorAllocMethod);
 		return call;
 	}
 
@@ -212,24 +215,29 @@ public sealed partial class BindableNodeAnalyzer
 			call.Arguments.Add(argument);
 		if (HasWithinParameter(initNew))
 			call.Arguments.Add(new ArgumentExpression { Value = allocatorArgument ?? CurrentAllocator(), ResolvedType = AllocatorType });
+		if (ShouldEmitFlattenedInstanceCalls() && call.Target is MemberReferenceExpression member && target is not null)
+			RewriteInstanceInvocation(call, member, target, initNew);
 		return call;
 	}
 
 	CallExpression CreateDestructorCall(Expression target, FunctionDefinition opDelete, Expression? allocatorArgument = null)
 	{
+		MemberReferenceExpression targetReference = new()
+		{
+			Target = target,
+			Name = opDelete.Name,
+			Member = opDelete,
+			ResolvedType = "void"
+		};
 		CallExpression call = new()
 		{
 			ResolvedType = "void",
-			Target = new MemberReferenceExpression
-			{
-				Target = target,
-				Name = opDelete.Name,
-				Member = opDelete,
-				ResolvedType = "void"
-			}
+			Target = targetReference
 		};
 		if (HasWithinParameter(opDelete))
 			call.Arguments.Add(new ArgumentExpression { Value = allocatorArgument ?? CurrentAllocator(), ResolvedType = AllocatorType });
+		if (ShouldEmitFlattenedInstanceCalls())
+			RewriteInstanceInvocation(call, targetReference, target, opDelete);
 		return call;
 	}
 
@@ -240,21 +248,25 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallExpression CreateFreeCall(Expression target, Expression allocator)
 	{
-		return new CallExpression
+		MemberReferenceExpression targetReference = new()
+		{
+			Target = allocator,
+			Name = "free",
+			Member = allocatorFreeMethod,
+			ResolvedType = allocatorFreeMethod.ResolvedType
+		};
+		CallExpression call = new()
 		{
 			ResolvedType = "void",
-			Target = new MemberReferenceExpression
-			{
-				Target = allocator,
-				Name = "free",
-				Member = allocatorFreeMethod,
-				ResolvedType = allocatorFreeMethod.ResolvedType
-			},
+			Target = targetReference,
 			Arguments =
 			{
 				new ArgumentExpression { Value = target, ResolvedType = target.ResolvedType }
 			}
 		};
+		if (ShouldEmitFlattenedInstanceCalls())
+			RewriteInstanceInvocation(call, targetReference, allocator, allocatorFreeMethod);
+		return call;
 	}
 
 	Expression CreateDeleteExpression(Expression target, FunctionDefinition? opDelete, bool deallocate)

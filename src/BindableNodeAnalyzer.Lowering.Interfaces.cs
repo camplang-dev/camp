@@ -30,6 +30,8 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		for (int i = 0; i < arguments.Count; i++)
 			call.Arguments.Add(LowerArgument(arguments[i]));
+		if (getter.Target is Expression receiver)
+			RewriteInstanceInvocation(call, getter, receiver, function);
 		return call;
 	}
 
@@ -58,6 +60,8 @@ public sealed partial class BindableNodeAnalyzer
 			Value = loweredValue,
 			ResolvedType = loweredValue?.ResolvedType ?? valueParameter?.ResolvedType ?? ErrorType
 		});
+		if (setter.Target is Expression receiver)
+			RewriteInstanceInvocation(call, setter, receiver, function);
 		return call;
 	}
 

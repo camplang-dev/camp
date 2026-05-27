@@ -56,11 +56,16 @@ public sealed partial class BindableNodeAnalyzer
 				return LowerArgument(argument);
 
 			case CallExpression call:
-				call.Target = LowerExpression(call.Target);
+				if (call.Target is MemberReferenceExpression callMemberTarget)
+					callMemberTarget.Target = LowerExpression(callMemberTarget.Target);
+				else
+					call.Target = LowerExpression(call.Target);
 				LowerThrowingArguments(call);
 				for (int i = 0; i < call.Arguments.Count; i++)
 					call.Arguments[i] = LowerArgument(call.Arguments[i]);
 				LowerCallArgumentConversions(call);
+				if (TryRewriteInstanceInvocation(call))
+					return LowerUncaughtThrowingCall(call);
 				LowerInterfaceCall(call);
 				return LowerUncaughtThrowingCall(call);
 
@@ -80,6 +85,8 @@ public sealed partial class BindableNodeAnalyzer
 				memberReference.Target = LowerExpression(memberReference.Target);
 				if (IsPropertyGetterReference(memberReference))
 					return RewritePropertyGetterCall(memberReference, []);
+				if (memberReference is { Target: not null, Member: FunctionDefinition function } && FindContainingType(function) is not InterfaceDefinition)
+					return RewriteInstanceMethodDelegate(memberReference);
 				break;
 
 			case NamelessIndexerExpression nameless:

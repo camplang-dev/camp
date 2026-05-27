@@ -560,9 +560,11 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case MethodReferenceExpression method when method.Candidates.Count == 1:
-				bool isInstance = IsInstanceFunction(method.Candidates[0]);
-				if (!isInstance || NeedsResolvedTypeRefresh(method.ResolvedType))
+				if (NeedsResolvedTypeRefresh(method.ResolvedType))
+				{
+					bool isInstance = IsInstanceFunction(method.Candidates[0]);
 					method.ResolvedType = BuildFunctionValueType(method.Candidates[0], isInstance);
+				}
 				break;
 
 			case MemberReferenceExpression { Member: FunctionDefinition function } member:
