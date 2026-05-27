@@ -187,6 +187,9 @@ static Camp.Compiler.Module BuildOutputModule(Compilation compilation, SourceFil
 		ExportAs = file.BindableTree?.ExportAs
 	};
 
+	foreach (HeaderDirective directive in file.BindableTree?.HeaderDirectives ?? [])
+		output.HeaderDirectives.Add(directive);
+
 	foreach (UsingDeclaration usingDeclaration in file.BindableTree?.Usings ?? [])
 		output.Usings.Add(usingDeclaration);
 

@@ -95,6 +95,9 @@ public static class CompilationPipeline
 			if (file.BindableTree is not Module fileModule)
 				continue;
 
+			foreach (HeaderDirective directive in fileModule.HeaderDirectives)
+				module.HeaderDirectives.Add(directive);
+
 			foreach (UsingDeclaration usingDeclaration in fileModule.Usings)
 				module.Usings.Add(usingDeclaration);
 

@@ -11,10 +11,23 @@ public abstract class BindableNode
 
 public class Module : BindableNode
 {
+	public List<HeaderDirective> HeaderDirectives { get; } = [];
 	public List<UsingDeclaration> Usings { get; } = [];
 	public string? ExportAs { get; set; }
 	public List<Definition> Definitions { get; } = [];
 	public Dictionary<Definition, TokenSequence?> DefinitionSources { get; } = [];
+}
+
+public class HeaderDirective : BindableNode
+{
+	public HeaderDirectiveKind Kind { get; set; }
+	public string Header { get; set; } = "";
+}
+
+public enum HeaderDirectiveKind
+{
+	Include,
+	Require
 }
 
 public class UsingDeclaration : BindableNode
@@ -31,6 +44,7 @@ public abstract class Definition : BindableNode
 	public string Symbol { get; set; } = "";
 	public string? Export { get; set; }
 	public string? Extern { get; set; }
+	public List<string> ForeignHeaders { get; } = [];
 }
 
 public abstract class TypeDefinition : Definition
