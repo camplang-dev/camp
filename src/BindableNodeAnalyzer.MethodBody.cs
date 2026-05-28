@@ -306,10 +306,52 @@ public sealed partial class BindableNodeAnalyzer
 			? TargetType
 			: declaration.Target.Type.ResolvedType ?? ErrorType;
 		string initialType = declaration.InitialValue is null ? TargetType : BodyAnalyzeExpression(declaration.InitialValue, scope, typeScope, targetType);
+		if (declaration.Target.Names.Count > 1 && TryAnalyzeDeconstructionTarget(declaration.Target, initialType, scope))
+			return;
+
 		BodyAnalyzeDeclarationTarget(declaration.Target, scope, typeScope, initialType);
 
 		if (declaration.InitialValue is not null)
 			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+	}
+
+	bool TryAnalyzeDeconstructionTarget(DeclarationTarget target, string initialType, BodyScope scope)
+	{
+		if (target.Names.Count <= 1)
+			return false;
+		if (!TryGetParamsComponentShape(target.Type, initialType, "value", out ParamsComponentShape shape))
+			return false;
+
+		target.ResolvedType = initialType;
+		if (shape.Components.Count != target.Names.Count)
+		{
+			Report(GetRange(target.SourceSyntax), $"Deconstruction declares {target.Names.Count.ToString(CultureInfo.InvariantCulture)} target(s), but the initializer has {shape.Components.Count.ToString(CultureInfo.InvariantCulture)} component(s).");
+			return true;
+		}
+
+		for (int i = 0; i < target.Names.Count; i++)
+		{
+			string name = target.Names[i];
+			if (string.IsNullOrWhiteSpace(name))
+				continue;
+			if (scope.Symbols.ContainsKey(name))
+				Report(GetDeclarationTargetNameRange(target.SourceSyntax, name), $"Symbol '{name}' is already declared in this scope.");
+			else
+				scope.Symbols[name] = new BodySymbol(name, shape.Components[i].Type, CreateDeconstructedTarget(target, name, shape.Components[i].Type));
+		}
+
+		return true;
+	}
+
+	static DeclarationTarget CreateDeconstructedTarget(DeclarationTarget source, string name, string type)
+	{
+		DeclarationTarget target = new()
+		{
+			SourceSyntax = source.SourceSyntax,
+			ResolvedType = type
+		};
+		target.Names.Add(name);
+		return target;
 	}
 
 	void BodyAnalyzeDeclarationTarget(DeclarationTarget target, BodyScope scope, AnalysisScope typeScope, string targetType)

@@ -116,6 +116,12 @@ public sealed partial class BindableNodeAnalyzer
 					ExpandParamsLocalDeclarations(block.Statements);
 					break;
 
+				case DeclarationStatement declaration when TryExpandParamsDeconstruction(declaration, out List<Statement>? declarations):
+					statements.RemoveAt(i);
+					statements.InsertRange(i, declarations);
+					i += declarations.Count - 1;
+					break;
+
 				case DeclarationStatement declaration when TryExpandParamsLocalDeclaration(declaration, out List<Statement>? declarations):
 					statements.RemoveAt(i);
 					statements.InsertRange(i, declarations);
@@ -177,6 +183,37 @@ public sealed partial class BindableNodeAnalyzer
 			ExpandParamsLocalDeclarations(block.Statements);
 		else if (statement is not null)
 			ExpandParamsLocalDeclarations([statement]);
+	}
+
+	bool TryExpandParamsDeconstruction(DeclarationStatement declaration, out List<Statement> declarations)
+	{
+		declarations = [];
+		if (declaration.Target.Names.Count <= 1)
+			return false;
+		if (!TryCreateParamsComponentExpressions(declaration.InitialValue, out List<Expression> components))
+			return false;
+		if (components.Count != declaration.Target.Names.Count)
+		{
+			Report(GetRange(declaration.SourceSyntax), $"Deconstruction declares {declaration.Target.Names.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} target(s), but the initializer has {components.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} component(s).");
+			return false;
+		}
+
+		for (int i = 0; i < declaration.Target.Names.Count; i++)
+		{
+			DeclarationStatement componentDeclaration = new()
+			{
+				SourceSyntax = declaration.SourceSyntax,
+				InitialValue = components[i],
+				ResolvedType = declaration.ResolvedType
+			};
+			componentDeclaration.Target.SourceSyntax = declaration.Target.SourceSyntax;
+			componentDeclaration.Target.Type = declaration.Target.Type is AutoTypeReference ? null : CloneType(declaration.Target.Type);
+			componentDeclaration.Target.ResolvedType = components[i].ResolvedType;
+			componentDeclaration.Target.Names.Add(declaration.Target.Names[i]);
+			declarations.Add(componentDeclaration);
+		}
+
+		return true;
 	}
 
 	bool TryExpandParamsVariable(VariableDefinition variable, out List<VariableDefinition> variables)

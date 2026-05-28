@@ -43,6 +43,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetCallableShape(source, out CallableShape sourceCallable) && TryGetCallableShape(target, out CallableShape targetCallable))
 			return CallableShapesCompatible(sourceCallable, targetCallable);
 
+		if (CanConvertStructuralGroupedToNominalParams(source, target))
+			return true;
+
 		if (IsClassToInterfaceConversion(source, target) || IsStructToInterfaceConversion(source, target) || IsInterfaceUpcast(source, target))
 			return true;
 
@@ -53,6 +56,104 @@ public sealed partial class BindableNodeAnalyzer
 			return CanImplicitlyConvertShape(sourceShape, targetShape);
 
 		return IsNumericType(source) && IsNumericType(target) && NumericRank(source) <= NumericRank(target);
+	}
+
+	bool CanConvertStructuralGroupedToNominalParams(string source, string target)
+	{
+		if (!TryGetStructuralGroupedComponents(source, out List<GroupedTypeComponent> sourceComponents))
+			return false;
+		if (!typeDefinitions.TryGetValue(BaseTypeName(target), out TypeDefinition? definition) || definition is not ParamsDefinition)
+			return false;
+		if (!TryGetParamsComponentShape(TypeReferenceFor(definition), definition.ResolvedType ?? definition.Name, "value", out ParamsComponentShape shape))
+			return false;
+		if (sourceComponents.Count != shape.Components.Count)
+			return false;
+
+		bool anyNamed = false;
+		bool allNamed = true;
+		for (int i = 0; i < sourceComponents.Count; i++)
+		{
+			GroupedTypeComponent sourceComponent = sourceComponents[i];
+			ParamsComponent targetComponent = shape.Components[i];
+			anyNamed |= sourceComponent.Name is not null;
+			allNamed &= sourceComponent.Name is not null;
+			if (sourceComponent.Name is not null && sourceComponent.Name != targetComponent.Name)
+				return false;
+			if (!CanImplicitlyConvert(sourceComponent.Type, targetComponent.Type))
+				return false;
+		}
+
+		return !anyNamed || allNamed;
+	}
+
+	readonly record struct GroupedTypeComponent(string? Name, string Type);
+
+	static bool TryGetStructuralGroupedComponents(string source, out List<GroupedTypeComponent> components)
+	{
+		components = [];
+		if (!source.StartsWith("(", StringComparison.Ordinal) || !source.EndsWith(")", StringComparison.Ordinal))
+			return false;
+
+		string text = source[1..^1].Trim();
+		if (string.IsNullOrWhiteSpace(text))
+			return false;
+
+		foreach (string part in SplitTopLevelGroupedComponents(text))
+		{
+			string component = part.Trim();
+			string? name = null;
+			string type = component;
+			int colon = FindTopLevelColon(component);
+			if (colon >= 0)
+			{
+				name = component[..colon].Trim();
+				type = component[(colon + 1)..].Trim();
+			}
+
+			if (string.IsNullOrWhiteSpace(type))
+				return false;
+			components.Add(new GroupedTypeComponent(string.IsNullOrWhiteSpace(name) ? null : name, type));
+		}
+
+		return components.Count > 0;
+	}
+
+	static List<string> SplitTopLevelGroupedComponents(string text)
+	{
+		List<string> components = [];
+		int start = 0;
+		int depth = 0;
+		for (int i = 0; i < text.Length; i++)
+		{
+			char c = text[i];
+			if (c is '(' or '<' or '[')
+				depth++;
+			else if (c is ')' or '>' or ']')
+				depth--;
+			else if (c == ',' && depth == 0)
+			{
+				components.Add(text[start..i]);
+				start = i + 1;
+			}
+		}
+		components.Add(text[start..]);
+		return components;
+	}
+
+	static int FindTopLevelColon(string text)
+	{
+		int depth = 0;
+		for (int i = 0; i < text.Length; i++)
+		{
+			char c = text[i];
+			if (c is '(' or '<' or '[')
+				depth++;
+			else if (c is ')' or '>' or ']')
+				depth--;
+			else if (c == ':' && depth == 0)
+				return i;
+		}
+		return -1;
 	}
 
 	bool IsClassToInterfaceConversion(string source, string target)

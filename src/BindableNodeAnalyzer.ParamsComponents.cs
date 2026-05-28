@@ -104,6 +104,24 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (!string.IsNullOrWhiteSpace(resolvedType))
 		{
+			if (TryGetStructuralGroupedComponents(resolvedType, out List<GroupedTypeComponent> groupedComponents))
+			{
+				kind = ParamsComponentShapeKind.Structural;
+				typeName = resolvedType;
+				for (int i = 0; i < groupedComponents.Count; i++)
+				{
+					GroupedTypeComponent component = groupedComponents[i];
+					string componentName = component.Name ?? i.ToString(System.Globalization.CultureInfo.InvariantCulture);
+					components.Add(new PendingParamsComponent(
+						componentName,
+						component.Type,
+						[.. prefix, new ParamsNamePart(componentName, false)],
+						null,
+						ParamsComponentShapeKind.Structural));
+				}
+				return components.Count > 0;
+			}
+
 			if (TryParseTypeShape(resolvedType, out TypeShape typeShape))
 			{
 				if (typeShape.Kind == TypeShapeKind.Pointer && typeShape.Element is not null)
