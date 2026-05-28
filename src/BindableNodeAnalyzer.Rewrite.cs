@@ -102,6 +102,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Definition definition in module.Definitions)
 			RewriteDefinition(definition);
 		LowerSourceInterfaceTypes(module);
+		ExpandParamsDeclarations(module);
 		RefreshLoweredResolvedTypes(module);
 		LowerInterfaceDefinitions(module);
 	}
