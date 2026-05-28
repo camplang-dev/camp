@@ -186,6 +186,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition component in definition.Components)
 			AnalyzeParameterDefinition(component, scope);
 
+		ValidateParamsComponentShape(definition);
 		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
