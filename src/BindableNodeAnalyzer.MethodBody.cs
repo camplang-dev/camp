@@ -381,6 +381,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (string componentName in GetPotentialParamsComponentNames(sourceType, resolvedType, name))
 		{
+			if (componentName == name)
+				continue;
 			if (scope.Symbols.ContainsKey(componentName) || scope.TryLookupComponent(componentName, out _))
 				Report(GetDeclarationTargetNameRange(syntax ?? node.SourceSyntax, name), $"Symbol '{componentName}' is already declared in this scope as a component of '{name}'.");
 			else

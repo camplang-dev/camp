@@ -221,7 +221,7 @@ public sealed partial class BindableNodeAnalyzer
 		else
 			components.Add(new PendingParamsComponent("elements", elementPointerType, elementPrefix, null, ParamsComponentShapeKind.Array));
 
-		components.Add(new PendingParamsComponent("length", "nuint", [.. prefix, new ParamsNamePart("length", false)], null, ParamsComponentShapeKind.Array));
+		components.Add(new PendingParamsComponent("length", HasConstValueQualifier(elementType, elementResolvedType) ? "const nuint" : "nuint", [.. prefix, new ParamsNamePart("length", false)], null, ParamsComponentShapeKind.Array));
 	}
 
 	bool TryBuildPendingPointerComponents(
@@ -240,8 +240,14 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		}
 
+		bool elementIsConst = HasConstValueQualifier(elementType, elementResolvedType);
 		for (int i = 0; i < components.Count; i++)
-			components[i] = components[i] with { Type = AddPointer(components[i].Type) };
+		{
+			if (elementIsConst)
+				components[i] = components[i] with { Type = AddConstToReceiverInstance(components[i].Type) };
+			string componentType = AddPointer(components[i].Type);
+			components[i] = components[i] with { Type = componentType };
+		}
 		return true;
 	}
 
@@ -261,9 +267,24 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		}
 
+		bool elementIsConst = element.Qualifiers.IsConst;
 		for (int i = 0; i < components.Count; i++)
-			components[i] = components[i] with { Type = AddPointer(components[i].Type) };
+		{
+			if (elementIsConst)
+				components[i] = components[i] with { Type = AddConstToReceiverInstance(components[i].Type) };
+			string componentType = AddPointer(components[i].Type);
+			components[i] = components[i] with { Type = componentType };
+		}
 		return true;
+	}
+
+	static bool HasConstValueQualifier(TypeReference? type, string? resolvedType)
+	{
+		if (type is ConstTypeReference)
+			return true;
+		if (!string.IsNullOrWhiteSpace(resolvedType) && new TypeShapeParser(resolvedType).TryParse(out TypeShape shape))
+			return shape.Qualifiers.IsConst;
+		return false;
 	}
 
 	void AddOptionalPendingComponents(TypeReference? valueType, string? valueResolvedType, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)

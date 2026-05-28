@@ -109,6 +109,15 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				return components.Count > 0;
 
+			case ArrayExpression array:
+				return TryCreateArrayParamsComponentExpressions(array, out components);
+
+			case LiteralExpression { Kind: LiteralKind.String } literal:
+				return TryCreateStringParamsComponentExpressions(literal, out components);
+
+			case IndexExpression index:
+				return TryCreateIndexedParamsComponentExpressions(index, out components);
+
 			case UnaryExpression { Operator: UnaryOperator.AddressOf } addressOf
 				when TryCreateParamsComponentExpressions(addressOf.Operand, out List<Expression> addressed):
 				foreach (Expression component in addressed)
@@ -144,6 +153,124 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	bool TryCreateArrayParamsComponentExpressions(ArrayExpression array, out List<Expression> components)
+	{
+		components = [];
+		if (array.Elements.Count == 0)
+			return false;
+
+		List<List<Expression>> elementComponents = [];
+		foreach (Expression element in array.Elements)
+		{
+			if (!TryCreateParamsComponentExpressions(element, out List<Expression> current))
+				return false;
+			if (elementComponents.Count > 0 && current.Count != elementComponents[0].Count)
+				return false;
+			elementComponents.Add(current);
+		}
+
+		if (elementComponents.Count == 0 || elementComponents[0].Count == 0)
+			return false;
+
+		for (int componentIndex = 0; componentIndex < elementComponents[0].Count; componentIndex++)
+		{
+			ArrayExpression componentArray = new()
+			{
+				SourceSyntax = array.SourceSyntax,
+				ResolvedType = AddPointer(elementComponents[0][componentIndex].ResolvedType ?? ErrorType)
+			};
+			for (int elementIndex = 0; elementIndex < elementComponents.Count; elementIndex++)
+				componentArray.Elements.Add(elementComponents[elementIndex][componentIndex]);
+			components.Add(componentArray);
+		}
+
+		components.Add(NumberLiteral(array.Elements.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), "nuint"));
+		return true;
+	}
+
+	bool TryCreateStringParamsComponentExpressions(LiteralExpression literal, out List<Expression> components)
+	{
+		components = [];
+		string stringType = BaseTypeName(literal.ResolvedType ?? "");
+		if (string.IsNullOrWhiteSpace(stringType)
+			|| !typeDefinitions.TryGetValue(stringType, out TypeDefinition? definition)
+			|| definition is not ParamsDefinition paramsDefinition
+			|| !TryGetParamsComponentShape(TypeReferenceFor(paramsDefinition), literal.ResolvedType ?? paramsDefinition.ResolvedType ?? paramsDefinition.Name, "value", out ParamsComponentShape shape)
+			|| shape.Components.Count != 2)
+			return false;
+
+		if (shape.Components[0].Type != literal.ResolvedType && !shape.Components[0].Type.EndsWith("char*", System.StringComparison.Ordinal) && !shape.Components[0].Type.EndsWith("wchar*", System.StringComparison.Ordinal) && !shape.Components[0].Type.EndsWith("achar*", System.StringComparison.Ordinal))
+			return false;
+		if (shape.Components[1].Type != "nuint" && shape.Components[1].Type != "const nuint")
+			return false;
+
+		components.Add(new LiteralExpression
+		{
+			SourceSyntax = literal.SourceSyntax,
+			Kind = literal.Kind,
+			Text = literal.Text,
+			Value = literal.Value,
+			ResolvedType = shape.Components[0].Type
+		});
+		components.Add(NumberLiteral(GetStringLiteralLength(literal).ToString(System.Globalization.CultureInfo.InvariantCulture), shape.Components[1].Type));
+		return true;
+	}
+
+	bool TryCreateIndexedParamsComponentExpressions(IndexExpression index, out List<Expression> components)
+	{
+		components = [];
+		if (!TryCreateParamsComponentExpressions(index.Target, out List<Expression> targetComponents) || targetComponents.Count < 2)
+			return false;
+
+		for (int i = 0; i < targetComponents.Count - 1; i++)
+		{
+			Expression targetComponent = targetComponents[i];
+			IndexExpression componentIndex = new()
+			{
+				SourceSyntax = index.SourceSyntax,
+				Target = targetComponent,
+				ResolvedType = TryGetPointerElementType(targetComponent.ResolvedType) ?? ErrorType
+			};
+			foreach (ArgumentExpression argument in index.Arguments)
+				componentIndex.Arguments.Add(CloneArgument(argument));
+			components.Add(componentIndex);
+		}
+		return components.Count > 0;
+	}
+
+	static int GetStringLiteralLength(LiteralExpression literal)
+	{
+		if (literal.Value is string value)
+			return value.Length;
+
+		string text = literal.Text;
+		if (text.Length >= 2 && (text[0] == '"' || text[0] == '\'') && text[^1] == text[0])
+			text = text[1..^1];
+
+		int length = 0;
+		for (int i = 0; i < text.Length; i++)
+		{
+			if (text[i] == '\\' && i + 1 < text.Length)
+				i++;
+			length++;
+		}
+		return length;
+	}
+
+	ArgumentExpression CloneArgument(ArgumentExpression argument)
+	{
+		return new ArgumentExpression
+		{
+			SourceSyntax = argument.SourceSyntax,
+			Name = argument.Name,
+			Modifier = argument.Modifier,
+			Type = CloneType(argument.Type),
+			Target = argument.Target,
+			Value = CloneParamsExpansionExpression(argument.Value),
+			ResolvedType = argument.ResolvedType
+		};
+	}
+
 	bool TryCreateParamsMemberComponentExpression(MemberReferenceExpression member, out Expression componentExpression)
 	{
 		componentExpression = member;
@@ -169,6 +296,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			VariableReferenceExpression { Variable: not null } variable => IsParamsExpansionComponentNamed(variable.Variable, name),
 			MemberReferenceExpression { Member: not null } member => IsParamsExpansionComponentNamed(member.Member, name),
+			IndexExpression { Target: not null } index => IsParamsComponentNamed(index.Target, name),
 			UnaryExpression unary => IsParamsComponentNamed(unary.Operand!, name),
 			_ => false
 		};

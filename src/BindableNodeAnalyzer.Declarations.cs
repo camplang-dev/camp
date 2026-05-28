@@ -228,6 +228,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			foreach (string componentName in GetDefinitionComponentSymbolNames(definition))
 			{
+				if (componentName == definition.Name)
+					continue;
 				if (symbols.ContainsKey(componentName) || componentSymbols.ContainsKey(componentName))
 					Report(GetNameRange(definition), $"Symbol '{componentName}' is already declared in this scope as a component of '{definition.Name}'.");
 				else
@@ -263,6 +265,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			foreach (string componentName in GetPotentialParamsComponentNames(field.Type, field.ResolvedType, field.Name))
 			{
+				if (componentName == field.Name)
+					continue;
 				if (symbols.ContainsKey(componentName) || componentSymbols.ContainsKey(componentName))
 					Report(GetNameRange(field), $"Symbol '{componentName}' is already declared in this scope as a component of '{field.Name}'.");
 				else
@@ -394,6 +398,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			foreach (string componentName in GetPotentialParamsComponentNames(parameter.Type, parameter.ResolvedType, parameter.Name))
 			{
+				if (componentName == parameter.Name)
+					continue;
 				if (symbols.ContainsKey(componentName) || componentSymbols.ContainsKey(componentName))
 					Report(GetNameRange(parameter), $"Symbol '{componentName}' is already declared in this scope as a component of '{parameter.Name}'.");
 				else
