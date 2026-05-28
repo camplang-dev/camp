@@ -99,10 +99,10 @@ public sealed partial class BindableNodeAnalyzer
 	void RewriteModule(Module module)
 	{
 		CompleteInterfaceDeclarations(module);
-		foreach (Definition definition in module.Definitions)
-			RewriteDefinition(definition);
 		LowerSourceInterfaceTypes(module);
 		ExpandParamsDeclarations(module);
+		foreach (Definition definition in module.Definitions)
+			RewriteDefinition(definition);
 		RefreshLoweredResolvedTypes(module);
 		LowerInterfaceDefinitions(module);
 	}

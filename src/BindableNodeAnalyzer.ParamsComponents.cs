@@ -32,6 +32,10 @@ public sealed partial class BindableNodeAnalyzer
 		ParameterDefinition? SourceParameter,
 		ParamsComponentShapeKind SourceKind);
 
+	sealed record ParamsExpansionComponent(string Name, string Type, BindableNode Node);
+
+	readonly Dictionary<BindableNode, List<ParamsExpansionComponent>> paramsExpansions = [];
+
 	bool TryGetParamsComponentShape(TypeReference? type, string baseName, out ParamsComponentShape shape)
 	{
 		return TryGetParamsComponentShape(type, type?.ResolvedType, baseName, out shape);

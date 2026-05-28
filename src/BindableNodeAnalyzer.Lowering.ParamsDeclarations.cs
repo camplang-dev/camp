@@ -78,6 +78,7 @@ public sealed partial class BindableNodeAnalyzer
 			List<ParameterDefinition> components = [];
 			foreach (ParamsComponent component in shape.Components)
 				components.Add(CreateExpandedParameter(parameter, component));
+			RegisterParamsExpansion(parameter, components);
 
 			parameters.RemoveAt(i);
 			parameters.InsertRange(i, components);
@@ -94,8 +95,10 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			List<FieldDefinition> components = [];
-			foreach (ParamsComponent component in shape.Components)
-				components.Add(CreateExpandedField(field, component));
+			List<Expression?> initialValues = GetParamsComponentInitialValues(field.InitialValue, shape);
+			for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
+				components.Add(CreateExpandedField(field, shape.Components[componentIndex], initialValues[componentIndex]));
+			RegisterParamsExpansion(field, components);
 
 			fields.RemoveAt(i);
 			fields.InsertRange(i, components);
@@ -182,8 +185,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryGetParamsComponentShape(variable.Type, variable.ResolvedType, variable.Name, out ParamsComponentShape shape))
 			return false;
 
-		foreach (ParamsComponent component in shape.Components)
-			variables.Add(CreateExpandedVariable(variable, component));
+		List<Expression?> initialValues = GetParamsComponentInitialValues(variable.InitialValue, shape);
+		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
+			variables.Add(CreateExpandedVariable(variable, shape.Components[componentIndex], initialValues[componentIndex]));
+		RegisterParamsExpansion(variable, variables);
 		return variables.Count > 0;
 	}
 
@@ -197,8 +202,15 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryGetParamsComponentShape(declaration.Target.Type, declaration.Target.ResolvedType, name, out ParamsComponentShape shape))
 			return false;
 
-		foreach (ParamsComponent component in shape.Components)
-			declarations.Add(CreateExpandedDeclaration(declaration, component));
+		List<Expression?> initialValues = GetParamsComponentInitialValues(declaration.InitialValue, shape);
+		List<DeclarationTarget> targets = [];
+		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
+		{
+			DeclarationStatement componentDeclaration = CreateExpandedDeclaration(declaration, shape.Components[componentIndex], initialValues[componentIndex]);
+			declarations.Add(componentDeclaration);
+			targets.Add(componentDeclaration.Target);
+		}
+		RegisterParamsExpansion(declaration.Target, targets);
 		return declarations.Count > 0;
 	}
 
@@ -215,7 +227,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	FieldDefinition CreateExpandedField(FieldDefinition source, ParamsComponent component)
+	FieldDefinition CreateExpandedField(FieldDefinition source, ParamsComponent component, Expression? initialValue)
 	{
 		return new FieldDefinition
 		{
@@ -225,11 +237,12 @@ public sealed partial class BindableNodeAnalyzer
 			Export = source.Export,
 			Extern = source.Extern,
 			Modifier = source.Modifier,
-			ResolvedType = component.Type
+			ResolvedType = component.Type,
+			InitialValue = initialValue
 		};
 	}
 
-	VariableDefinition CreateExpandedVariable(VariableDefinition source, ParamsComponent component)
+	VariableDefinition CreateExpandedVariable(VariableDefinition source, ParamsComponent component, Expression? initialValue)
 	{
 		return new VariableDefinition
 		{
@@ -238,20 +251,57 @@ public sealed partial class BindableNodeAnalyzer
 			Symbol = component.ExpandedName,
 			Export = source.Export,
 			Extern = source.Extern,
-			ResolvedType = component.Type
+			ResolvedType = component.Type,
+			InitialValue = initialValue
 		};
 	}
 
-	DeclarationStatement CreateExpandedDeclaration(DeclarationStatement source, ParamsComponent component)
+	DeclarationStatement CreateExpandedDeclaration(DeclarationStatement source, ParamsComponent component, Expression? initialValue)
 	{
 		DeclarationStatement declaration = new()
 		{
 			SourceSyntax = source.SourceSyntax,
+			InitialValue = initialValue,
 			ResolvedType = source.ResolvedType
 		};
 		declaration.Target.SourceSyntax = source.Target.SourceSyntax;
 		declaration.Target.ResolvedType = component.Type;
 		declaration.Target.Names.Add(component.ExpandedName);
 		return declaration;
+	}
+
+	List<Expression?> GetParamsComponentInitialValues(Expression? initialValue, ParamsComponentShape shape)
+	{
+		List<Expression?> values = [];
+		if (initialValue is not null && TryCreateParamsComponentExpressions(initialValue, out List<Expression> components) && components.Count == shape.Components.Count)
+		{
+			values.AddRange(components);
+			return values;
+		}
+
+		for (int i = 0; i < shape.Components.Count; i++)
+			values.Add(null);
+		return values;
+	}
+
+	void RegisterParamsExpansion<T>(BindableNode source, List<T> components)
+		where T : BindableNode
+	{
+		List<ParamsExpansionComponent> expansion = [];
+		foreach (BindableNode component in components)
+		{
+			string name = component switch
+			{
+				ParameterDefinition parameter => parameter.Name,
+				FieldDefinition field => field.Name,
+				VariableDefinition variable => variable.Name,
+				DeclarationTarget target => target.Names.Count == 1 ? target.Names[0] : "",
+				_ => ""
+			};
+			expansion.Add(new ParamsExpansionComponent(name, component.ResolvedType ?? ErrorType, component));
+		}
+
+		if (expansion.Count > 0)
+			paramsExpansions[source] = expansion;
 	}
 }

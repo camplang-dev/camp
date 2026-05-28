@@ -213,6 +213,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ArgumentExpression argument in arguments)
 			call.Arguments.Add(argument);
+		ExpandParamsArguments(call.Arguments);
 		if (HasWithinParameter(initNew))
 			call.Arguments.Add(new ArgumentExpression { Value = allocatorArgument ?? CurrentAllocator(), ResolvedType = AllocatorType });
 		if (ShouldEmitFlattenedInstanceCalls() && call.Target is MemberReferenceExpression member && target is not null)

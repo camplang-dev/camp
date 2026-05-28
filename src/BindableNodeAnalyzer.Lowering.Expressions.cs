@@ -63,6 +63,7 @@ public sealed partial class BindableNodeAnalyzer
 				LowerThrowingArguments(call);
 				for (int i = 0; i < call.Arguments.Count; i++)
 					call.Arguments[i] = LowerArgument(call.Arguments[i]);
+				ExpandParamsArguments(call.Arguments);
 				LowerCallArgumentConversions(call);
 				if (TryRewriteInstanceInvocation(call))
 					return LowerUncaughtThrowingCall(call);
