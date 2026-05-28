@@ -112,6 +112,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FieldDefinition field in definition.Fields)
 			AnalyzeFieldDefinition(field, scope);
 
+		ValidateExpandedFieldNames(definition.Fields);
 		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
@@ -128,6 +129,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FieldDefinition field in definition.Fields)
 			AnalyzeFieldDefinition(field, scope);
 
+		ValidateExpandedFieldNames(definition.Fields);
 		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
@@ -209,16 +211,63 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateDuplicateTopLevelSymbols(Module module)
 	{
 		Dictionary<string, Definition> symbols = new(StringComparer.Ordinal);
+		Dictionary<string, string> componentSymbols = new(StringComparer.Ordinal);
 		foreach (Definition definition in module.Definitions)
 		{
 			string symbol = definition.Symbol;
 			if (string.IsNullOrWhiteSpace(symbol))
 				continue;
 
+			if (componentSymbols.TryGetValue(symbol, out string? componentOwner))
+				Report(GetNameRange(definition), $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
+
 			if (symbols.TryGetValue(symbol, out Definition? existing) && !ReferenceEquals(existing, definition))
 				Report(GetNameRange(definition), $"Duplicate symbol name '{symbol}'.");
 			else
 				symbols[symbol] = definition;
+
+			foreach (string componentName in GetDefinitionComponentSymbolNames(definition))
+			{
+				if (symbols.ContainsKey(componentName) || componentSymbols.ContainsKey(componentName))
+					Report(GetNameRange(definition), $"Symbol '{componentName}' is already declared in this scope as a component of '{definition.Name}'.");
+				else
+					componentSymbols[componentName] = definition.Name;
+			}
+		}
+	}
+
+	IEnumerable<string> GetDefinitionComponentSymbolNames(Definition definition)
+	{
+		return definition switch
+		{
+			VariableDefinition variable => GetPotentialParamsComponentNames(variable.Type, variable.ResolvedType, variable.Symbol),
+			_ => []
+		};
+	}
+
+	void ValidateExpandedFieldNames(List<FieldDefinition> fields)
+	{
+		Dictionary<string, FieldDefinition> symbols = new(StringComparer.Ordinal);
+		Dictionary<string, string> componentSymbols = new(StringComparer.Ordinal);
+		foreach (FieldDefinition field in fields)
+		{
+			string name = field.Name;
+			if (string.IsNullOrWhiteSpace(name))
+				continue;
+
+			if (componentSymbols.TryGetValue(name, out string? componentOwner))
+				Report(GetNameRange(field), $"Symbol '{name}' is already declared in this scope as a component of '{componentOwner}'.");
+
+			if (!symbols.TryAdd(name, field))
+				Report(GetNameRange(field), $"Duplicate field name '{name}'.");
+
+			foreach (string componentName in GetPotentialParamsComponentNames(field.Type, field.ResolvedType, field.Name))
+			{
+				if (symbols.ContainsKey(componentName) || componentSymbols.ContainsKey(componentName))
+					Report(GetNameRange(field), $"Symbol '{componentName}' is already declared in this scope as a component of '{field.Name}'.");
+				else
+					componentSymbols[componentName] = field.Name;
+			}
 		}
 	}
 
@@ -316,10 +365,41 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < definition.Parameters.Count; i++)
 			AnalyzeParameterDefinition(definition.Parameters[i], scope, allowThisName: IsExtensionThisParameter(definition, containingType, i));
 
+		ValidateExpandedParameterNames(definition.Parameters);
+
 		if (containingType is not null && GetExplicitThisParameter(definition) is ThisParameterDefinition memberThisParameter)
 			memberThisParameter.ResolvedType = ApplyThisDeclarators(containingType, memberThisParameter);
 		if (containingType is null && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
 			definition.Symbol = BuildExtensionFunctionSymbol(definition.Name, thisParameter.ResolvedType ?? ErrorType);
+	}
+
+	void ValidateExpandedParameterNames(List<ParameterDefinition> parameters)
+	{
+		Dictionary<string, ParameterDefinition> symbols = new(StringComparer.Ordinal);
+		Dictionary<string, string> componentSymbols = new(StringComparer.Ordinal);
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+				continue;
+
+			string name = parameter.Name;
+			if (string.IsNullOrWhiteSpace(name))
+				continue;
+
+			if (componentSymbols.TryGetValue(name, out string? componentOwner))
+				Report(GetNameRange(parameter), $"Symbol '{name}' is already declared in this scope as a component of '{componentOwner}'.");
+
+			if (!symbols.TryAdd(name, parameter))
+				Report(GetNameRange(parameter), $"Duplicate parameter name '{name}'.");
+
+			foreach (string componentName in GetPotentialParamsComponentNames(parameter.Type, parameter.ResolvedType, parameter.Name))
+			{
+				if (symbols.ContainsKey(componentName) || componentSymbols.ContainsKey(componentName))
+					Report(GetNameRange(parameter), $"Symbol '{componentName}' is already declared in this scope as a component of '{parameter.Name}'.");
+				else
+					componentSymbols[componentName] = parameter.Name;
+			}
+		}
 	}
 
 	void AnalyzeMethodBodies(Module module)

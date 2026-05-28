@@ -36,6 +36,19 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly Dictionary<BindableNode, List<ParamsExpansionComponent>> paramsExpansions = [];
 
+	List<string> GetPotentialParamsComponentNames(TypeReference? type, string? resolvedType, string sourceName)
+	{
+		List<string> names = [];
+		if (string.IsNullOrWhiteSpace(sourceName))
+			return names;
+		if (!TryGetParamsComponentShape(type, resolvedType, sourceName, out ParamsComponentShape shape))
+			return names;
+
+		foreach (ParamsComponent component in shape.Components)
+			names.Add(component.ExpandedName);
+		return names;
+	}
+
 	bool TryGetParamsComponentShape(TypeReference? type, string baseName, out ParamsComponentShape shape)
 	{
 		return TryGetParamsComponentShape(type, type?.ResolvedType, baseName, out shape);

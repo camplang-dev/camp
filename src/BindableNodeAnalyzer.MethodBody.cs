@@ -22,7 +22,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
 			if (!string.IsNullOrWhiteSpace(parameter.Name))
-				scope.Symbols[parameter.Name] = new BodySymbol(parameter.Name, parameter.ResolvedType ?? ErrorType, parameter);
+				RegisterBodySymbol(scope, parameter.Name, parameter.ResolvedType ?? ErrorType, parameter, parameter.Type, parameter.ResolvedType);
 		}
 
 		function.Body.ResolvedType = "void";
@@ -334,10 +334,7 @@ public sealed partial class BindableNodeAnalyzer
 			string name = target.Names[i];
 			if (string.IsNullOrWhiteSpace(name))
 				continue;
-			if (scope.Symbols.ContainsKey(name))
-				Report(GetDeclarationTargetNameRange(target.SourceSyntax, name), $"Symbol '{name}' is already declared in this scope.");
-			else
-				scope.Symbols[name] = new BodySymbol(name, shape.Components[i].Type, CreateDeconstructedTarget(target, name, shape.Components[i].Type));
+			RegisterBodySymbol(scope, name, shape.Components[i].Type, CreateDeconstructedTarget(target, name, shape.Components[i].Type), null, shape.Components[i].Type, target.SourceSyntax);
 		}
 
 		return true;
@@ -368,10 +365,26 @@ public sealed partial class BindableNodeAnalyzer
 			if (string.IsNullOrWhiteSpace(name))
 				continue;
 
-			if (scope.Symbols.ContainsKey(name))
-				Report(GetDeclarationTargetNameRange(target.SourceSyntax, name), $"Symbol '{name}' is already declared in this scope.");
+			RegisterBodySymbol(scope, name, target.ResolvedType ?? ErrorType, target, target.Type, target.ResolvedType, target.SourceSyntax);
+		}
+	}
+
+	void RegisterBodySymbol(BodyScope scope, string name, string type, BindableNode node, TypeReference? sourceType, string? resolvedType, SyntaxNode? syntax = null)
+	{
+		if (scope.TryLookupComponent(name, out string? componentOwner))
+			Report(GetDeclarationTargetNameRange(syntax ?? node.SourceSyntax, name), $"Symbol '{name}' is already declared in this scope as a component of '{componentOwner}'.");
+
+		if (scope.Symbols.ContainsKey(name))
+			Report(GetDeclarationTargetNameRange(syntax ?? node.SourceSyntax, name), $"Symbol '{name}' is already declared in this scope.");
+		else
+			scope.Symbols[name] = new BodySymbol(name, type, node);
+
+		foreach (string componentName in GetPotentialParamsComponentNames(sourceType, resolvedType, name))
+		{
+			if (scope.Symbols.ContainsKey(componentName) || scope.TryLookupComponent(componentName, out _))
+				Report(GetDeclarationTargetNameRange(syntax ?? node.SourceSyntax, name), $"Symbol '{componentName}' is already declared in this scope as a component of '{name}'.");
 			else
-				scope.Symbols[name] = new BodySymbol(name, target.ResolvedType ?? ErrorType, target);
+				scope.ComponentSymbols[componentName] = name;
 		}
 	}
 
@@ -1627,6 +1640,7 @@ public sealed partial class BindableNodeAnalyzer
 		public string? CurrentIteratorElementType { get; set; }
 		public Dictionary<string, BodySymbol> Symbols { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, BodySymbol> MemberSymbols { get; } = new(StringComparer.Ordinal);
+		public Dictionary<string, string> ComponentSymbols { get; } = new(StringComparer.Ordinal);
 
 		public bool TryLookup(string name, out BodySymbol symbol)
 		{
@@ -1637,6 +1651,18 @@ public sealed partial class BindableNodeAnalyzer
 				return Parent.TryLookup(name, out symbol);
 
 			symbol = default;
+			return false;
+		}
+
+		public bool TryLookupComponent(string name, out string owner)
+		{
+			if (ComponentSymbols.TryGetValue(name, out owner!))
+				return true;
+
+			if (Parent is not null)
+				return Parent.TryLookupComponent(name, out owner);
+
+			owner = "";
 			return false;
 		}
 	}
