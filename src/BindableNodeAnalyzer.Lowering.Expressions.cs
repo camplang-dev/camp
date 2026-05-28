@@ -84,6 +84,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			case MemberReferenceExpression memberReference:
 				memberReference.Target = LowerExpression(memberReference.Target);
+				if (TryCreateParamsMemberComponentExpression(memberReference, out Expression paramsComponent))
+					return LowerExpression(paramsComponent);
 				if (IsPropertyGetterReference(memberReference))
 					return RewritePropertyGetterCall(memberReference, []);
 				if (memberReference is { Target: not null, Member: FunctionDefinition function } && FindContainingType(function) is not InterfaceDefinition)

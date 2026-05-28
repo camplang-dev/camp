@@ -32,7 +32,7 @@ public sealed partial class BindableNodeAnalyzer
 		ParameterDefinition? SourceParameter,
 		ParamsComponentShapeKind SourceKind);
 
-	sealed record ParamsExpansionComponent(string Name, string Type, BindableNode Node);
+	sealed record ParamsExpansionComponent(string SourceName, string Name, string Type, BindableNode Node);
 
 	readonly Dictionary<BindableNode, List<ParamsExpansionComponent>> paramsExpansions = [];
 

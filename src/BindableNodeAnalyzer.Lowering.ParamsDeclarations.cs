@@ -78,7 +78,7 @@ public sealed partial class BindableNodeAnalyzer
 			List<ParameterDefinition> components = [];
 			foreach (ParamsComponent component in shape.Components)
 				components.Add(CreateExpandedParameter(parameter, component));
-			RegisterParamsExpansion(parameter, components);
+			RegisterParamsExpansion(parameter, shape, components);
 
 			parameters.RemoveAt(i);
 			parameters.InsertRange(i, components);
@@ -98,7 +98,7 @@ public sealed partial class BindableNodeAnalyzer
 			List<Expression?> initialValues = GetParamsComponentInitialValues(field.InitialValue, shape);
 			for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
 				components.Add(CreateExpandedField(field, shape.Components[componentIndex], initialValues[componentIndex]));
-			RegisterParamsExpansion(field, components);
+			RegisterParamsExpansion(field, shape, components);
 
 			fields.RemoveAt(i);
 			fields.InsertRange(i, components);
@@ -188,7 +188,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<Expression?> initialValues = GetParamsComponentInitialValues(variable.InitialValue, shape);
 		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
 			variables.Add(CreateExpandedVariable(variable, shape.Components[componentIndex], initialValues[componentIndex]));
-		RegisterParamsExpansion(variable, variables);
+		RegisterParamsExpansion(variable, shape, variables);
 		return variables.Count > 0;
 	}
 
@@ -210,7 +210,7 @@ public sealed partial class BindableNodeAnalyzer
 			declarations.Add(componentDeclaration);
 			targets.Add(componentDeclaration.Target);
 		}
-		RegisterParamsExpansion(declaration.Target, targets);
+		RegisterParamsExpansion(declaration.Target, shape, targets);
 		return declarations.Count > 0;
 	}
 
@@ -284,12 +284,13 @@ public sealed partial class BindableNodeAnalyzer
 		return values;
 	}
 
-	void RegisterParamsExpansion<T>(BindableNode source, List<T> components)
+	void RegisterParamsExpansion<T>(BindableNode source, ParamsComponentShape shape, List<T> components)
 		where T : BindableNode
 	{
 		List<ParamsExpansionComponent> expansion = [];
-		foreach (BindableNode component in components)
+		for (int i = 0; i < components.Count && i < shape.Components.Count; i++)
 		{
+			BindableNode component = components[i];
 			string name = component switch
 			{
 				ParameterDefinition parameter => parameter.Name,
@@ -298,7 +299,7 @@ public sealed partial class BindableNodeAnalyzer
 				DeclarationTarget target => target.Names.Count == 1 ? target.Names[0] : "",
 				_ => ""
 			};
-			expansion.Add(new ParamsExpansionComponent(name, component.ResolvedType ?? ErrorType, component));
+			expansion.Add(new ParamsExpansionComponent(shape.Components[i].Name, name, component.ResolvedType ?? ErrorType, component));
 		}
 
 		if (expansion.Count > 0)

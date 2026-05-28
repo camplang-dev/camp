@@ -1457,6 +1457,8 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzePostfixUpdateExpression(PostfixUpdateExpression postfix, BodyScope scope, AnalysisScope typeScope)
 	{
 		string operandType = BodyAnalyzeExpression(postfix.Expression, scope, typeScope);
+		if (IsParamsComponentMemberReference(postfix.Expression))
+			Report(GetRange(postfix.Expression?.SourceSyntax), "Individual params components cannot be assigned; assign the whole params value instead.");
 		RequireMutableWriteTarget(operandType, postfix.Expression?.SourceSyntax, "Update target");
 		if (!IsNumericType(operandType))
 			Report(GetRange(postfix.Expression?.SourceSyntax), $"Update operator requires a numeric operand, not '{operandType}'.");
@@ -1487,9 +1489,24 @@ public sealed partial class BindableNodeAnalyzer
 
 		string targetType = BodyAnalyzeExpression(assignment.Target, scope, typeScope);
 		string valueType = BodyAnalyzeExpression(assignment.Value, scope, typeScope, targetType);
+		if (IsParamsComponentMemberReference(assignment.Target))
+			Report(GetRange(assignment.Target?.SourceSyntax), "Individual params components cannot be assigned; assign the whole params value instead.");
 		RequireMutableWriteTarget(targetType, assignment.Target?.SourceSyntax, "Assignment target");
 		CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
 		return targetType;
+	}
+
+	bool IsParamsComponentMemberReference(Expression? expression)
+	{
+		if (expression is not MemberExpression member)
+			return false;
+		if (!expressionRewrites.TryGetValue(member, out Expression? rewritten))
+			return false;
+		if (rewritten is not MemberReferenceExpression { Member: ParameterDefinition })
+			return false;
+
+		string targetType = member.Target?.ResolvedType ?? "";
+		return GetTypeDefinition(targetType) is ParamsDefinition;
 	}
 
 	bool TryAnalyzePropertyAssignment(AssignmentExpression assignment, BodyScope scope, AnalysisScope typeScope, out string propertyType)

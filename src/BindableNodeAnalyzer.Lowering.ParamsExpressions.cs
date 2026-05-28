@@ -92,6 +92,11 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				return components.Count > 0;
 
+			case MemberReferenceExpression { Target: not null } member
+				when TryCreateParamsMemberComponentExpression(member, out Expression? component):
+				components.Add(component);
+				return true;
+
 			case GroupedExpression grouped:
 				foreach (GroupedExpressionItem item in grouped.Items)
 				{
@@ -137,6 +142,49 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return false;
 		}
+	}
+
+	bool TryCreateParamsMemberComponentExpression(MemberReferenceExpression member, out Expression componentExpression)
+	{
+		componentExpression = member;
+		if (!TryCreateParamsComponentExpressions(member.Target, out List<Expression> targetComponents))
+			return false;
+
+		for (int i = targetComponents.Count - 1; i >= 0; i--)
+		{
+			Expression targetComponent = targetComponents[i];
+			if (!IsParamsComponentNamed(targetComponent, member.Name))
+				continue;
+
+			componentExpression = targetComponent;
+			return true;
+		}
+
+		return false;
+	}
+
+	bool IsParamsComponentNamed(Expression expression, string name)
+	{
+		return expression switch
+		{
+			VariableReferenceExpression { Variable: not null } variable => IsParamsExpansionComponentNamed(variable.Variable, name),
+			MemberReferenceExpression { Member: not null } member => IsParamsExpansionComponentNamed(member.Member, name),
+			UnaryExpression unary => IsParamsComponentNamed(unary.Operand!, name),
+			_ => false
+		};
+	}
+
+	bool IsParamsExpansionComponentNamed(BindableNode node, string name)
+	{
+		foreach (List<ParamsExpansionComponent> expansion in paramsExpansions.Values)
+		{
+			foreach (ParamsExpansionComponent component in expansion)
+			{
+				if (ReferenceEquals(component.Node, node) && component.SourceName == name)
+					return true;
+			}
+		}
+		return false;
 	}
 
 	Expression? CloneParamsExpansionExpression(Expression? expression)
