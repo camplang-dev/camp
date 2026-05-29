@@ -421,7 +421,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<FunctionDefinition> functions = [];
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
-			if (definition is FunctionDefinition function && IsFunctionNamed(function, name) && IsDefinitionVisible(function, scope.CurrentFunction.SourceSyntax))
+			if (definition is FunctionDefinition function && IsCallableTopLevelFunctionNamed(function, name) && IsDefinitionVisible(function, scope.CurrentFunction.SourceSyntax))
 				functions.Add(function);
 		}
 		foreach (TypeDefinition type in typeDefinitions.Values)
@@ -434,6 +434,14 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return functions;
+	}
+
+	static bool IsCallableTopLevelFunctionNamed(FunctionDefinition function, string name)
+	{
+		if (GetExplicitThisParameter(function) is not null)
+			return !string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol == name;
+
+		return IsFunctionNamed(function, name);
 	}
 
 	IEnumerable<TypeDefinition> EnumerateTypeAndBases(TypeDefinition type)

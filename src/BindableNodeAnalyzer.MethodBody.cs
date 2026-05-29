@@ -627,12 +627,6 @@ public sealed partial class BindableNodeAnalyzer
 			return symbol.Type;
 		}
 
-		if (TryGetUnqualifiedInstanceMember(scope.ContainingType, named.Name, named.SourceSyntax, out string memberKind))
-		{
-			Report(GetRange(named.SourceSyntax), $"{memberKind} '{named.Name}' requires explicit 'this.' qualification.");
-			return ErrorType;
-		}
-
 		if (LookupGlobalVariable(named.Name, named.SourceSyntax) is VariableDefinition variable)
 		{
 			string type = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
@@ -661,6 +655,12 @@ public sealed partial class BindableNodeAnalyzer
 			method.Candidates.Add(functions[0]);
 			expressionRewrites[named] = method;
 			return method.ResolvedType;
+		}
+
+		if (TryGetUnqualifiedInstanceMember(scope.ContainingType, named.Name, named.SourceSyntax, out string memberKind))
+		{
+			Report(GetRange(named.SourceSyntax), $"{memberKind} '{named.Name}' requires explicit 'this.' qualification.");
+			return ErrorType;
 		}
 
 		if (typeDefinitions.TryGetValue(named.Name, out TypeDefinition? typeDefinition))
@@ -1055,12 +1055,6 @@ public sealed partial class BindableNodeAnalyzer
 					return null;
 				}
 
-				if (named.Qualifiers.Count == 0 && TryGetUnqualifiedInstanceMember(scope.ContainingType, named.Name, named.SourceSyntax, out string memberKind))
-				{
-					Report(GetRange(named.SourceSyntax), $"{memberKind} '{named.Name}' requires explicit 'this.' qualification.");
-					return null;
-				}
-
 				List<FunctionDefinition> functions = LookupFunctions(named.Name, scope);
 				if (functions.Count == 1)
 				{
@@ -1070,6 +1064,8 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				if (functions.Count > 1)
 					Report(GetRange(named.SourceSyntax), $"Multiple candidates found for call target '{named.Name}'.");
+				else if (named.Qualifiers.Count == 0 && TryGetUnqualifiedInstanceMember(scope.ContainingType, named.Name, named.SourceSyntax, out string memberKind))
+					Report(GetRange(named.SourceSyntax), $"{memberKind} '{named.Name}' requires explicit 'this.' qualification.");
 				else
 					BodyAnalyzeNamedExpression(named, scope);
 				return null;
