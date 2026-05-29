@@ -9,8 +9,9 @@ This section defines the type forms that appear everywhere else in the language:
 - pointer types
 - plain function types
 - ordinary function declarations and calls
-- grouped `params` types and their storage counterpart forms
-- built-in grouped forms such as arrays, optionals, delegates, and strings
+- compiler-expanded forms such as arrays, optionals, and delegates
+- multi-output binding through `out`, async completion, and iterator protocols
+- primitive string types and character-array text views
 - enum types
 - `newtype`
 - the conversion rules that connect these forms
@@ -19,19 +20,21 @@ The design goal is not to make types magical. The design goal is to make them pr
 
 Several later language features build directly on the material in this section. In particular:
 
-- `params` explains why Camp can model multiple values, arrays, optionals, delegates, and strings in one consistent way.
-- `fn`, `delegate`, and ordinary function declarations explain Camp’s callable surface before async, iterators, and lambdas add further structure.
-- the conversion rules here explain how narrow nominal forms such as `String` relate to wider nominal forms such as `StringView`, how structural grouped values become nominal ones, and how grouped values become real storage when storage is required.
+- arrays, optionals, and delegates define the small closed set of compiler-expanded value forms
+- `fn`, `delegate`, and ordinary function declarations explain Camp's callable surface before async, iterators, and lambdas add further structure
+- multi-output binding explains how several caller-provided result slots can be consumed ergonomically without creating a general tuple or user-defined expansion system
+- strings explain the distinction between zero-terminated text pointers and counted character arrays
 
 Camp favors explicit surface distinctions where those distinctions help prevent mistakes:
 
-- owning strings and borrowed string views are different types
+- a zero-terminated string pointer and a counted character array are different types
 - `newtype` introduces a real nominal boundary even when the machine representation stays the same
-- grouped values are not silently treated as stored aggregates
+- compiler-expanded forms introduce visible component symbols instead of hidden aggregate members
+- `struct(...)` materializes an expanded form when one-address storage is required
 - `in` changes transport, not source-level meaning
 - `out` is explicit caller-provided result storage, not a hidden reference category
 
-That explicitness keeps the language compatible with the C ABI without forcing programmers to work at raw C’s level of ceremony.
+That explicitness keeps the language compatible with the C ABI without forcing programmers to work at raw C's level of ceremony.
 
 ## 1.1 Primitive Types
 
@@ -39,7 +42,7 @@ Primitive types are the indivisible built-in types of the language.
 
 Camp defines a fixed set of primitive names. Their meaning does not drift by platform. That stability is important for header generation, ABI predictability, foreign interop, and low-level work on small or unusual targets.
 
-### 1.1.1 Scalar primitive overview
+### 1.1.1 Primitive overview
 
 | Type | Meaning |
 |---|---|
@@ -60,6 +63,9 @@ Camp defines a fixed set of primitive names. Their meaning does not drift by pla
 | `wchar` | UTF-16 code unit |
 | `uchar` | Unicode code point |
 | `achar` | ASCII or system-code-page character |
+| `string` | zero-terminated UTF-8 string pointer |
+| `wstring` | zero-terminated UTF-16 string pointer |
+| `astring` | zero-terminated ASCII or system-code-page string pointer |
 | `void` | no value |
 
 `void` is listed with the primitives because it participates in signatures, function types, delegates, and ABI reasoning, even though it is not a storable scalar value in the ordinary sense.
@@ -115,7 +121,7 @@ Use unsigned integer types when the domain is naturally non-negative or bitwise:
 ```camp
 uint permissions = 0x12;
 ulong checksum = 0;
-nuint length = buffer.length;
+nuint length = buffer_length;
 ```
 
 That distinction matters more in Camp than in languages that lean heavily on implicit widening and overloaded arithmetic rules, because Camp’s design generally prefers obviousness over aggressive silent coercion.
@@ -136,7 +142,7 @@ That rule avoids a class of awkwardness that appears on very small platforms whe
 Examples:
 
 ```camp
-nuint count = values.length;
+nuint count = values_length;
 nint nativeResult = foreignCall();
 ```
 
@@ -168,11 +174,11 @@ bool finished = count == 0;
 It is also a common payload and control type in APIs:
 
 ```camp
-bool has(StringView name);
-bool remove(StringView name);
+bool has(const char[] name);
+bool remove(const char[] name);
 ```
 
-Like the other scalar primitives, `bool` participates directly in `params` values, delegates, arrays, and optionals.
+Like the other scalar primitives, `bool` participates directly in delegates, arrays, optionals, and materialized storage forms.
 
 ### 1.1.7 Character types
 
@@ -250,11 +256,11 @@ It is used in:
 Examples:
 
 ```camp
-void logLine(StringView text);
-delegate void(StringView text) logger;
+void logLine(const char[] text);
+delegate void(const char[] text) logger;
 ```
 
-`void` is not a grouped type and not a storable payload type in the ordinary sense. It exists to describe absence of a result.
+`void` is not a storable payload type in the ordinary sense. It exists to describe absence of a result.
 
 ### 1.1.10 Primitive defaults
 
@@ -265,7 +271,7 @@ The important practical defaults in this section are:
 - numeric zero for numeric primitives
 - `false` for `bool`
 - `null` for pointer-like values
-- the type’s ordinary all-default form for grouped types built from primitive components
+- the type’s ordinary all-default form for aggregate, array, optional, and delegate storage
 
 A status enum intended for ordinary success-code checking therefore commonly gives its success member the value `0`:
 
@@ -299,7 +305,7 @@ That matters especially for object types later in the language. A class instance
 
 ### 1.2.1 Ordinary pointer meaning
 
-For an ordinary non-`params` type `T`, `T*` means a pointer to one `T`.
+For an ordinary non-expanded form `T`, `T*` means a pointer to one `T`.
 
 Examples:
 
@@ -337,27 +343,26 @@ Window* alias = &local;
 
 This explicitness keeps value semantics and reference semantics visually separate.
 
-### 1.2.4 Pointers and grouped types
+### 1.2.4 Pointers and compiler-expanded forms
 
-Grouped `params` values need special treatment. A grouped value does not have one ordinary aggregate address. As a result, `T*` for a `params` type ordinarily means “apply pointer formation componentwise,” not “pointer to one aggregate grouped object.”
+For an ordinary type `T`, `T*` means a pointer to one `T`.
 
-That rule belongs to `params`, not to primitive pointer syntax, but it is important enough to state early because it prevents one of the most common wrong intuitions about grouped values.
+Compiler-expanded forms such as arrays, optionals, and delegates do not themselves imply one aggregate address in parameter expansion. For example, a parameter written as `byte[] data` lowers as separate component parameters rather than as a pointer to an anonymous array object.
 
-For example, with:
-
-```camp
-params StringView(@nosuffix char* units, nuint length);
-```
-
-the type:
+When a real one-address storage object is required, Camp uses `struct(T)` for the expanded form:
 
 ```camp
-StringView*
+struct(byte[]) stored;
+struct(int?) maybeCount;
 ```
 
-is structurally a pointer-to-components shape, not a pointer to one opaque boxed aggregate object.
+A pointer to that storage is written in the ordinary way:
 
-When a real one-address storage object is required, Camp uses `struct(T)` and `(struct)expr` instead.
+```camp
+struct(byte[])* storedPtr;
+```
+
+This keeps pointer syntax ordinary while making expansion and materialization explicit.
 
 ### 1.2.5 Pointer defaults
 
@@ -416,14 +421,14 @@ Examples:
 
 ```camp
 fn bool(int value)
-delegate void(StringView text)
+delegate void(const char[] text)
 once void()
 iter int()
 async int(int left, int right)
-async iter StringView?()
+async iter char[]?()
 ```
 
-The plain `fn` form is just a function signature. It does not carry closure state and it is not a grouped value.
+The plain `fn` form is just a function signature. It does not carry closure state and it is not a expanded value.
 
 The other callable forms are blessed structural types. Matching shape alone is not enough to participate in delegate, iterator, or async semantics. When code constructs a matching shape without using the keyworded form, an explicit cast such as `(delegate)`, `(iter)`, or `(async)` blesses it.
 
@@ -432,7 +437,7 @@ Delegate-like callable signatures may spell an explicit `this` parameter first i
 Examples:
 
 ```camp
-delegate void(scoped this, StringView text)
+delegate void(scoped this, const char[] text)
 once void(escaped this)
 async int(const this, int left, int right)
 ```
@@ -502,7 +507,7 @@ The other callable forms reuse ordinary signatures, but also mark the value as p
 
 ## 1.4 Functions
 
-Camp function declarations are ordinary, explicit signatures. Camp does not use overloads, hidden reference categories, or opaque call-resolution machinery to make one name mean many different unrelated callable surfaces.
+Camp function declarations are ordinary, explicit signatures. Camp does not use overloads, hidden reference categories, or opaque call-resolution machinery to make one name mean many unrelated callable surfaces.
 
 A function name therefore refers to one callable declaration.
 
@@ -527,13 +532,13 @@ int add(int left, int right)
 	return left + right;
 }
 
-void printLine(StringView text)
+void printLine(const char[] text)
 {
 	Console.writeLine(text);
 }
 ```
 
-Camp’s syntax is intentionally close to C and C# here. The important differences emerge from the type system and ABI model, not from decorative declaration syntax.
+Camp's syntax is intentionally close to C and C# here. The important differences emerge from the type system and ABI model, not from decorative declaration syntax.
 
 ### 1.4.2 Parameters are explicit
 
@@ -558,13 +563,13 @@ void moveWindow(nint x, nint y, bool repaint = true)
 Ordinary function return types are written explicitly.
 
 ```camp
-bool has(StringView name);
+bool has(const char[] name);
 nuint count();
-StringView getText();
+char[] getText();
 void clear();
 ```
 
-Grouped results are handled through `params` and `out`, not through tuple syntax or hidden multi-return runtime mechanisms.
+When a routine needs to produce several result values, it uses `out` parameters. Call-site deconstruction can bind those result slots without introducing a general tuple value.
 
 ### 1.4.4 No overloads
 
@@ -576,30 +581,26 @@ If a design needs optional behavior at the same call site, the preferred tools a
 
 - default arguments
 - options objects
-- grouped `params` forms
 - distinct method names
-
-That rule is especially helpful once exported APIs, header generation, and property-accessor rewriting are involved.
+- explicit result or parameter structs
 
 ### 1.4.5 Default arguments
 
 Parameters may have default values:
 
 ```camp
-void logLine(StringView text = default)
+void logLine(const char[] text = default)
 {
 	...
 }
 
-void connect(StringView host, ushort port = 80)
+void connect(const char[] host, ushort port = 80)
 {
 	...
 }
 ```
 
 Default arguments keep the surface compact without introducing constructor-like overload families or ad hoc helper wrappers.
-
-A common Camp pattern is to use one declaration with a few carefully chosen defaults instead of many sibling declarations with nearly identical meanings.
 
 ### 1.4.6 Calls
 
@@ -610,13 +611,11 @@ int sum = add(3, 4);
 printLine("hello");
 ```
 
-Calls are matched left to right. Because Camp does not have overloads, call matching does not perform overload-style backtracking. This becomes important once grouped `params` values are allowed to spread across adjacent parameters.
+Calls are matched left to right. Because Camp does not have overloads, call matching does not perform overload-style backtracking.
 
 ### 1.4.7 Named arguments
 
 Camp also supports named arguments.
-
-Named arguments participate in the same call surface as positional arguments, including when nominal `params` parameters expand into ABI-visible component parameters.
 
 Example:
 
@@ -630,102 +629,88 @@ Named arguments are especially useful when:
 
 - later parameters have default values
 - multiple parameters have the same primitive type
-- a call mixes ordinary parameters and exploded nominal `params` components
+- a call supplies explicit `out` or `catch` storage
+- a parameter is a compiler-expanded form whose component names are visible in the ABI
 
 ### 1.4.8 Mixing positional and named arguments
 
-Positional and named arguments may be mixed, but no component may be supplied more than once.
-
-That rule applies both to ordinary parameters and to the component names introduced by a nominal `params` parameter after expansion.
+Positional and named arguments may be mixed, but no parameter or expanded component may be supplied more than once.
 
 Example:
 
 ```camp
-params Point(int x, int y);
+void fill(byte[] buffer, byte value);
 
-void place(Point pt, int color);
-
-place(10, pt_y: 20, color: 3); // valid if `x` and `y` are each supplied once
-```
-
-By contrast:
-
-```camp
-params Point(int x, int y);
-
-void draw(Point pt);
-
-Point p = (x: 10, y: 20);
-
-draw(pt: p, pt_x: 10); // ERROR
-draw(10, pt: p);       // ERROR
+fill(buffer: data, buffer_length: 100, value: 0); // OK
+fill(data, buffer_length: 100, value: 0);         // ERROR: `buffer_length` already supplied by `data`
 ```
 
 Camp rejects duplicate supply rather than guessing what the programmer intended.
 
-### 1.4.9 Parameters expand when nominal `params` is used
+### 1.4.9 Compiler-expanded parameters
 
-If a parameter is a nominal `params` type, that parameter expands into multiple ABI-visible parameters.
+Camp has a small closed set of compiler-expanded forms:
 
-Example:
+| Source form | Component symbols | Parameter expansion |
+|---|---|---|
+| `T[] name` | `name`, `name_length` | `T* name, nuint name_length` |
+| `T? name` | `name`, `name_specified` | `T name, bool name_specified` |
+| `delegate R(...) name` | `name`, `name_context` | call target, context pointer |
+| `once R(...) name` | `name`, `name_context` | call target, context pointer |
+| `async R(...) name` | `name`, `name_context` | call target, context pointer |
 
-```camp
-params Point(int x, int y);
-
-void moveTo(Point position);
-```
-
-Conceptually, the call surface expands to:
-
-```camp
-void moveTo(int position_x, int position_y);
-```
-
-This naming rule is used for both:
-
-- ABI/header-visible parameter names
-- named-argument resolution in Camp source
-
-So the source surface and the lowered surface stay aligned.
-
-### 1.4.10 `@nosuffix` in parameter expansion
-
-Some nominal grouped types read better if one component omits its suffix during expansion.
-
-For that, one component of a nominal `params` declaration may be marked `@nosuffix`.
+The first component keeps the declared parameter name. Additional components use the declared name plus a fixed suffix.
 
 Example:
 
 ```camp
-params StringView(@nosuffix char* units, nuint length);
-
-void setText(StringView value);
+void write(byte[] data);
 ```
 
-The expanded call shape becomes:
+has the ABI-facing shape:
 
 ```camp
-void setText(char* value, nuint value_length);
+void write(byte* data, nuint data_length);
 ```
 
-not:
+A delegate parameter keeps the callable target under the declared name:
 
 ```camp
-void setText(char* value_units, nuint value_length);
+void filter(delegate bool(int value) predicate);
 ```
 
-Important restrictions:
+has a call target named `predicate` and a context component named `predicate_context`. The call target receives the context as its first argument.
 
-- at most one component may use `@nosuffix`
-- it affects parameter expansion and named-argument spelling only
-- it does not rename the actual members of the grouped value
+These expansions are compiler-defined. User code does not declare new expanded forms.
 
-So these remain the member names:
+### 1.4.10 Expanded component symbols
+
+An expanded binding introduces all of its component symbols into the containing scope.
 
 ```camp
-text.units
-text.length
+void f(byte[] arr, int? opt, delegate void() del)
+{
+	log(arr_length);
+
+	if (opt_specified)
+		log(opt);
+
+	del(del_context);
+}
 ```
+
+The introduced component symbols are ordinary bindings for redeclaration purposes:
+
+```camp
+void f(byte[] arr)
+{
+	nuint arr_length = 0; // ERROR: `arr_length` is already introduced by `arr`
+}
+```
+
+This rule is part of the source language, not merely a C backend detail. The component names are predictable, visible, and ABI-aligned.
+
+Component symbols are not fields. Use `_` names for raw components. Use `.` for ordinary fields, methods, static members, and property syntax.
 
 ### 1.4.11 `in` parameters
 
@@ -751,11 +736,9 @@ void printPoint(in Point pt)
 The caller writes:
 
 ```camp
-Point p = (x: 10, y: 20);
+Point p = { .x = 10, .y = 20 };
 printPoint(p);
 ```
-
-not some address-taking ceremony. The parameter still reads like a value parameter in source.
 
 This is especially important in erased generic code, where `in T` is usually the right surface form when the API wants value-like transport for `T: any`.
 
@@ -791,26 +774,40 @@ int height = 0;
 getBounds(out width, out height);
 ```
 
-But Camp also gives trailing `out` parameters a more compact grouped-result surface when the caller omits them.
+Trailing `out` parameters may also be consumed through deconstruction at the call site.
 
-### 1.4.14 Omitted trailing `out` values
+### 1.4.14 Deconstructing trailing `out` values
 
-If a call omits one trailing `out` parameter, that omitted value becomes the ordinary return value.
-
-If a call omits multiple trailing `out` values, the result becomes a structural grouped `params` value.
-
-Example:
+If a call omits trailing `out` parameters and the call expression is immediately bound through deconstruction, the omitted result slots are bound to the declared locals.
 
 ```camp
-void getStats(out int length, out int capacity);
+void getPoint(out int x, out int y)
+{
+	...
+}
 
-auto stats = getStats();
-auto (length, capacity) = getStats();
+auto (x, y) = getPoint();
 ```
 
-This is not a separate tuple subsystem. It is the ordinary grouped-value model applied to omitted trailing `out` results.
+This lowers directly to caller-provided storage:
 
-The omitted names are preserved when available, so the grouped result can carry meaningful component names.
+```camp
+int x;
+int y;
+getPoint(out x, out y);
+```
+
+The omitted values do not form a general-purpose anonymous value. They may be bound by immediate deconstruction, returned through an async or iterator protocol that explicitly supports multiple output slots, or handled by explicit `out` arguments.
+
+If only one trailing `out` parameter is omitted, the same rule may bind a single local:
+
+```camp
+void getCount(out int count);
+
+auto count = getCount();
+```
+
+A `thrown` parameter is not an `out` parameter and does not participate in deconstruction.
 
 ### 1.4.15 `thrown`
 
@@ -850,7 +847,7 @@ The error type must be one of:
 
 If the error type is a pointer, it is treated as `escaped`, the same way a pointer `out` result is.
 
-Camp’s ordinary convention is:
+Camp's ordinary convention is:
 
 - the default value of the status or error type means success
 - any non-default value means failure
@@ -897,88 +894,11 @@ void sample(thrown CalcError)
 }
 ```
 
-When `thrown(E)` is the return type, `catch` still appears in the argument list. In that call form, the thrown return is handled as though it were an additional final argument, while omitted trailing `out` values still form the ordinary result.
+When `thrown(E)` is the return type, `catch` still appears in the argument list. In that call form, the thrown return is handled as though it were an additional final argument, while omitted trailing `out` values still follow the ordinary result-binding rule.
 
-A `thrown` parameter is not an `out` parameter. It does not participate in omitted trailing `out` result formation.
+A `thrown` parameter is not an `out` parameter.
 
-### 1.4.16 Functions returning grouped values
-
-A function may explicitly return a nominal grouped type:
-
-```camp
-params DivResult(int quotient, int remainder);
-
-DivResult divideInt(int a, int b)
-{
-	return (quotient: a / b, remainder: a % b);
-}
-```
-
-This is often clearer than a long list of explicit `out` parameters when the grouped result has a meaningful name and identity.
-
-### 1.4.17 Calls and grouped arguments
-
-Grouped structural `params` values spread automatically in calls:
-
-```camp
-void setPair(int left, int right);
-
-auto xy = 5, 10;
-setPair(xy); // same as setPair(5, 10)
-```
-
-Spreading is positional and left-to-right. There is no overload-style backtracking.
-
-Example:
-
-```camp
-void doWork(int a, int b, int c, int d);
-
-auto lr = 10, 20;
-
-doWork(lr, 30, 40); // a=10, b=20, c=30, d=40
-doWork(1, lr, 4);   // a=1,  b=10, c=20, d=4
-doWork(1, 2, lr);   // a=1,  b=2,  c=10, d=20
-```
-
-Nominal grouped values do **not** spread everywhere. They spread only when the destination endorses that exact nominal type at that parameter position.
-
-```camp
-params Point(int x, int y);
-
-void makeLine(Point start, Point end);
-void makeRange(int x1, int y1, int x2, int y2);
-
-Point a = (x: 1, y: 2);
-Point b = (x: 3, y: 4);
-
-makeLine(a, b);               // OK
-makeLine(a, 3, 4);            // OK
-makeLine(1, 2, 3, 4);         // OK
-
-makeRange(a, b);              // ERROR
-makeRange(a.x, a.y, b.x, b.y);// OK
-```
-
-This keeps nominal grouped types meaningful instead of letting them dissolve into raw positional component lists everywhere.
-
-### 1.4.18 Initializer lists are not call spreading
-
-A grouped value does not spread in an initializer list.
-
-```camp
-auto rectArgs = (x: 1, y: 2, width: 3, height: 4);
-
-Rect a = { 1, 2, 3, 4 };        // OK
-Rect b = rectArgs;              // ERROR
-Rect c = { rectArgs };          // ERROR
-Rect d = init Rect(rectArgs);   // OK
-Rect e = (struct)rectArgs;      // OK
-```
-
-Spreading is a call-argument rule, not a general “expand everywhere” rule.
-
-### 1.4.19 Functions, methods, and callable values
+### 1.4.16 Functions, methods, and callable values
 
 This section defines ordinary function declarations and calls.
 
@@ -991,631 +911,233 @@ Later sections add:
 
 But those later surfaces still build on the ordinary signature model defined here. Camp does not introduce a disconnected callable subsystem for each feature.
 
-## 1.5 `params` Types
+## 1.5 Compiler-Expanded Forms
 
-`params` is one of Camp’s most important type mechanisms.
+Camp has three compiler-expanded value forms:
 
-A `params` value is a grouped set of independent components. It is not an aggregate object with one implied address. That one sentence explains much of the rest of Camp:
+- arrays
+- optionals
+- delegates and delegate-like callable values
 
-- multiple values can travel together without inventing tuple objects
-- arrays, strings, optionals, and delegates can all be expressed as built-in grouped forms
-- functions can return multiple values naturally
-- grouped forms can spread across calls without becoming separate library-defined wrapper types
-- when one real address is needed, Camp makes storage formation explicit with `struct(T)` and `(struct)expr`
+These forms have multiple ABI-visible components, but they are not user-defined tuple or expanded forms. The language defines their component names, construction rules, materialized storage forms, and composition limits directly.
+
+User code does not declare new expanded forms.
 
 ### 1.5.1 Core idea
 
-A nominal grouped declaration looks like this:
+A compiler-expanded value is a source-level value with a fixed set of component symbols.
+
+For example:
 
 ```camp
-params Point(int x, int y);
+byte[] data;
+int? count;
+delegate void() callback;
 ```
 
-A value of type `Point` has two components:
-
-- `x`
-- `y`
-
-But those components are conceptually separate. The grouped value is not secretly “a tiny struct.”
-
-This means:
-
-- grouped values do not automatically have one whole-object address
-- pointer and array derived forms often distribute across components
-- many validity questions can be answered componentwise
-
-Camp’s normative mental model is:
-
-> unless a rule says otherwise, reason about a grouped value by imagining each component used independently in the corresponding position
-
-### 1.5.2 Why grouped values exist
-
-Camp uses grouped values for:
-
-- multiple-value grouping
-- arrays
-- strings and string views
-- optionals
-- delegates
-- omitted trailing `out` results
-
-That reuse is not accidental. Camp does not want one mechanism for tuples, another for strings, another for delegates, and another for “multi-return result packs.” It wants one small, explicit model that lowers cleanly.
-
-### 1.5.3 `params(T)` and `struct(T)`
-
-Camp makes the grouped-versus-storage distinction explicit at both the type level and the value level. These forms apply to grouped values and copyable storage values. Fixed structs and classes do not convert to grouped form.
-
-Type-level forms:
-
-- `params(T)` — grouped-value form
-- `struct(T)` — materialized storage form
-
-Value-level conversions:
-
-- `(params)expr`
-- `(struct)expr`
-
-This gives the language symmetry:
-
-- `params(StructType)` explodes a struct-like storage value into grouped form
-- `struct(ParamsType)` materializes a grouped value into stored fields
-
-Example:
+introduce component symbols like:
 
 ```camp
-struct PointStorage
+data
+data_length
+
+count
+count_specified
+
+callback
+callback_context
+```
+
+The first component keeps the declared name. Additional components use fixed suffixes.
+
+Expanded values are not hidden structs. They do not pretend to have fields. Raw component access uses the component symbols directly.
+
+### 1.5.2 `struct(T)` and materialized storage
+
+`struct(T)` materializes a compiler-expanded form into ordinary one-address storage.
+
+Examples:
+
+```camp
+struct(byte[]) storedBytes;
+struct(int?) storedOptional;
+struct(delegate void(int)) storedCallback;
+```
+
+The fields of the materialized storage form match the logical component names of the expanded form:
+
+```camp
+struct(byte[])
 {
-	int x;
-	int y;
+	byte* elements;
+	nuint length;
 }
 
-void drawPoint(int x, int y);
-
-PointStorage pt = { .x = 10, .y = 20 };
-drawPoint((params)pt);
+struct(int?)
+{
+	int value;
+	bool specified;
+}
 ```
 
-And in the other direction:
+For delegate-like forms, the materialized fields are `call` and `context`.
+
+A value of an expanded form may be materialized explicitly:
 
 ```camp
-params Point(int x, int y);
-
-void draw(Point pt);
-
-auto grouped = (x: 5, y: 10);
-draw((struct)grouped);
+auto stored = (struct)items;
 ```
 
-### 1.5.4 Fixed types do not participate
-
-A fixed type does not convert to or from grouped form using `params(T)` and `struct(T)`.
-
-These forms are for grouped values and copyable storage values, not for class instances or fixed structs.
-
-### 1.5.5 Structural versus nominal grouped forms
-
-Camp has two grouped categories:
-
-- structural grouped values
-- nominal grouped types
-
-Structural grouped values are anonymous. Nominal grouped values are declared types with real names.
-
-#### Structural grouped examples
-
-Unnamed structural grouping:
+and materialized storage may be expanded when assigned or passed to the matching expanded form:
 
 ```camp
-auto pair = 5, 10;
+byte[] view = stored;
 ```
 
-Named structural grouping:
+`struct(...)` forms are allowed in fields, locals, arrays, and other ordinary storage positions. They are not used as expanded parameters.
+
+### 1.5.3 `sizeof` for expanded forms
+
+`sizeof(T)` is defined for compiler-expanded forms as the size of their materialized storage form.
 
 ```camp
-auto pointLike = (x: 5, y: 10);
+sizeof(byte[]) == sizeof(struct(byte[]))
+sizeof(int?) == sizeof(struct(int?))
 ```
 
-In both cases, the result is structural, not nominal.
+This rule is especially important in erased generic code, where storage and transport use materialized representations.
 
-#### Nominal grouped example
+### 1.5.4 Composition limits
+
+Direct recursive expansion is restricted.
+
+The following direct compositions are invalid:
 
 ```camp
-params Point(int x, int y);
+int?[]                         // ERROR
+byte[][]                       // ERROR
+delegate void()[]              // ERROR
+int??                          // ERROR
 ```
 
-A `Point` is a distinct nominal type.
-
-### 1.5.6 Structural grouped identity
-
-Two structural grouped types are structurally identical when they have the same:
-
-- arity
-- component order
-- component types
-
-Component names do **not** affect structural identity.
-
-So these are structurally identical:
+The materialized form is the explicit storage escape hatch:
 
 ```camp
-params(int x, int y)
-params(int left, int right)
-params(int, int)
+struct(int?)[] items;
+struct(byte[])[] rows;
+struct(delegate void())[] callbacks;
 ```
 
-and these are not:
+Optional arrays and optional delegates are allowed:
 
 ```camp
-params(int, bool)
-params(bool, int)
-params(int, int, int)
+byte[]? maybeBytes;
+delegate void()? maybeCallback;
 ```
 
-That distinction is important: names matter for access and ABI spelling, but not for structural identity itself.
-
-### 1.5.7 Structural-to-nominal conversion
-
-A structural grouped value may convert to a nominal grouped type if the shapes match, but named structural forms are intentionally restricted.
-
-A structural grouped value may be assigned to a nominal grouped type only when:
-
-1. all structural components are unnamed
-2. or all structural components are named and the names match the nominal component names exactly, in the same order
-
-Examples:
+They introduce the ordinary expanded symbols plus the optional presence symbol:
 
 ```camp
-params Point(int x, int y);
+maybeBytes
+maybeBytes_length
+maybeBytes_specified
 
-Point a = (1, 2);         // OK
-Point b = (x: 1, y: 2);   // OK
-Point c = 1, 2;           // OK
-
-Point d = (left: 1, right: 2); // ERROR
-Point e = (y: 1, x: 2);        // ERROR
+maybeCallback
+maybeCallback_context
+maybeCallback_specified
 ```
 
-This rule prevents a named structural value from looking “almost right” while actually supplying the wrong semantic names.
+Optional optionals are invalid.
 
-### 1.5.8 Erasing nominal identity
+### 1.5.5 Fixed types and materialization
 
-A nominal grouped value does not silently become structural, but `(params)expr` may erase its nominal identity explicitly:
+`struct(T)` for compiler-expanded forms creates ordinary copyable storage for the expanded slots.
 
-```camp
-params Point(int x, int y);
-
-Point p = (x: 1, y: 2);
-auto structural = (params)p;
-```
-
-After that conversion, the result is structural.
-
-### 1.5.9 Declaring nominal grouped types
-
-A nominal grouped declaration takes one of two forms.
-
-#### Ordinary nominal declaration
-
-```camp
-params Point(int x, int y);
-params Range<T>(T start, T end);
-```
-
-#### Narrow nominal declaration with widening
-
-```camp
-params String: StringView;
-```
-
-A narrowing declaration introduces a distinct nominal type that implicitly widens to an existing grouped type.
-
-This is how the current string-owning types are expressed.
-
-### 1.5.10 Consequences of narrowing declarations
-
-Given:
-
-```camp
-params String: StringView;
-```
-
-the type `String`:
-
-- is distinct from `StringView`
-- inherits the component names of `StringView`
-- widens implicitly to `StringView`
-- does not declare its own separate parameter list
-
-So if `StringView` has components `units` and `length`, then `String` uses those same names for member access and parameter expansion.
-
-### 1.5.11 Recursive grouped declarations are forbidden
-
-A nominal grouped declaration may not directly contain a fixed type. A pointer to a fixed type is allowed, but the fixed value itself is not a grouped component.
-
-A nominal grouped declaration may not recursively contain itself, even through pointer-shaped distributive expansion.
-
-This is rejected:
-
-```camp
-params Abc(int value, Abc* next); // ERROR
-```
-
-The reason is not aesthetic. Recursive grouped types would imply unbounded distributive expansion.
-
-### 1.5.12 Creating grouped values
-
-Structural grouped values may be created:
-
-- by comma outside a call
-- by named grouped formation
-- by explicit grouped type annotation
-
-Examples:
-
-```camp
-auto pair = 1, 2;
-auto named = (x: 1, y: 2);
-params(int x, int y) p = (1, 2);
-```
-
-Nominal grouped values may be created from structurally matching values:
-
-```camp
-params Point(int x, int y);
-
-Point a = 1, 2;
-Point b = (1, 2);
-Point c = (x: 1, y: 2);
-```
-
-### 1.5.13 Component access
-
-Named grouped components may be accessed by name:
-
-```camp
-params Point(int x, int y);
-
-Point p = (x: 10, y: 20);
-log(p.x);
-log(p.y);
-
-auto pair = (left: 1, right: 2);
-log(pair.left);
-log(pair.right);
-```
-
-Unnamed structural grouped values do not have member names:
-
-```camp
-auto pair = 5, 10;
-// pair.?  // no member names exist
-```
-
-When names are needed, use:
-
-- deconstruction
-- a named structural annotation
-- conversion to an appropriate nominal type
-
-### 1.5.14 Deconstruction
-
-Any grouped value may be deconstructed when the arity matches:
-
-```camp
-params Point(int x, int y);
-
-Point p = (x: 7, y: 8);
-auto (x, y) = p;
-
-auto pair = 10, 20;
-auto (a, b) = pair;
-```
-
-This is often the clearest way to work with unnamed structural results.
-
-### 1.5.15 Equality
-
-Grouped values compare componentwise.
-
-Two grouped values are equal when corresponding components are equal.
-
-```camp
-params Point(int x, int y);
-
-Point p = (x: 1, y: 2);
-auto q = 1, 2;
-auto r = 1, 3;
-
-bool a = (p == q); // true
-bool b = (q != r); // true
-```
-
-This rule is reused by built-in grouped forms such as optionals.
-
-### 1.5.16 Call spreading
-
-Structural grouped values spread automatically in call positions.
-
-```camp
-void setPair(int left, int right);
-
-auto xy = 5, 10;
-setPair(xy);
-```
-
-Nominal grouped values spread only when endorsed by the destination signature.
-
-This is one of the key differences between structural and nominal grouping.
-
-### 1.5.17 Crossing argument boundaries
-
-Structural grouped values may cross nominal grouping boundaries because they are just positional components.
-
-Nominal grouped values may not cross such boundaries.
-
-```camp
-params Point(int x, int y);
-
-void makeLine(Point p1, Point p2);
-
-auto crossable = 2, 3;
-Point p = (x: 10, y: 20);
-
-makeLine(1, crossable, 4); // OK
-makeLine(1, p, 4);         // ERROR
-```
-
-This preserves the integrity of nominal grouping.
-
-### 1.5.18 Grouped values do not spread in initializers
-
-Grouped values do not spread in initializer lists.
-
-```camp
-auto rectArgs = (x: 1, y: 2, width: 3, height: 4);
-
-Rect a = { 1, 2, 3, 4 };        // OK
-Rect b = rectArgs;              // ERROR
-Rect c = { rectArgs };          // ERROR
-Rect d = init Rect(rectArgs);   // OK
-Rect e = (struct)rectArgs;      // OK
-```
-
-Again, spreading is specifically a call-argument rule.
-
-### 1.5.19 Addressability
-
-A grouped value has no single address as a whole, but its components may be addressable.
-
-That gives rise to a practical rule:
-
-- if code needs pointer-to-components semantics, a grouped lvalue can often supply it directly
-- if code needs one whole-object address, materialize storage first
-
-Example of materializing first:
-
-```camp
-auto pair = (x: 5, y: 10);
-auto temp = (struct)pair;
-usePointPointer(&temp);
-```
-
-### 1.5.20 Built-in grouped form: arrays
-
-An array type `T[]` is a compiler-reserved nominal grouped form with canonical components:
-
-- `elements`
-- `length`
-
-Conceptually:
-
-```camp
-T[] -> (elements, length)
-```
-
-Arrays are not ordinary user-defined generic library types. They are built into the language model.
-
-Example:
-
-```camp
-byte[] buffer = new byte[256];
-log(buffer.length);
-```
-
-At the language level, `T[]` is an array of `T`. When a context requires materialized storage for grouped element types, that storage model is explicit and separate.
-
-Example:
-
-```camp
-params Point(int x, int y);
-
-Point[] points = init Point[10];
-
-Point p = points[4];
-points[4] = 10, 20;
-```
-
-Semantically, this is an array of `Point`, even though implementation details may materialize element storage where required.
-
-### 1.5.21 Built-in grouped form: optionals
-
-An optional type `T?` is a compiler-reserved nominal grouped form with canonical components:
-
-- `value`
-- `specified`
-
-Conceptually:
-
-```camp
-T? -> (value, specified)
-```
-
-This is a built-in grouped form, not a library wrapper type.
-
-### 1.5.22 Built-in grouped form: delegates
-
-A delegate value is a two-component nominal grouped form:
-
-- `context`
-- `call`
-
-The call target receives the context first.
-
-```camp
-delegate bool(int value)
-```
-
-A delegate value therefore participates in the general grouped model while remaining a first-class callable abstraction. Callable `newtype` declarations introduce nominal callable types later.
-
-### 1.5.23 Built-in grouped form: strings and views
-
-Strings and string views are nominal grouped types.
-
-Current canonical declarations are:
-
-```camp
-params StringView(@nosuffix char* units, nuint length);
-params WStringView(@nosuffix wchar* units, nuint length);
-params AStringView(@nosuffix achar* asciichars, nuint length);
-
-params String: StringView;
-params WString: WStringView;
-params AString: AStringView;
-```
-
-So the current canonical member names are:
-
-| Type | Components |
-|---|---|
-| `StringView` | `units`, `length` |
-| `WStringView` | `units`, `length` |
-| `AStringView` | `asciichars`, `length` |
-| `String` | inherited from `StringView` |
-| `WString` | inherited from `WStringView` |
-| `AString` | inherited from `AStringView` |
-
-This preserves both a compact surface spelling and a fully ordinary lowered model.
-
-### 1.5.24 Delete support is opt-in
-
-Grouped types are not deletable by default.
-
-Delete support exists only when the specific nominal grouped type declares destructor syntax.
-
-Consequences:
-
-- `String` may define a destructor and therefore may support `delete`
-- `StringView` does not become deletable just because `String` is
-- delegates are not deletable by default
-- array-like grouped forms are not deletable by default
-
-Delete availability follows declared lifecycle surface, not mere shape.
-
-### 1.5.25 Built-in grouped forms at a glance
-
-The language reuses the grouped model for several built-in forms.
-
-| Form | Canonical components | Notes |
-|---|---|---|
-| `T[]` | `elements`, `length` | compiler-reserved array form |
-| `T?` | `value`, `specified` | compiler-reserved optional form |
-| `delegate R(...)` | `context`, `call` | call target receives context first |
-| `StringView` | `units`, `length` | borrowed UTF-8 text view |
-| `WStringView` | `units`, `length` | borrowed UTF-16 text view |
-| `AStringView` | `asciichars`, `length` | borrowed ASCII or code-page text view |
-| `String` | inherited from `StringView` | owning UTF-8 string, implicit widening to `StringView` |
-| `WString` | inherited from `WStringView` | owning UTF-16 string |
-| `AString` | inherited from `AStringView` | owning ASCII or code-page string |
-
-This table is useful because it shows how much surface area Camp avoids duplicating. Arrays, optionals, delegates, and strings do not need four separate runtime representations with four separate mental models. They are all ordinary, ABI-visible grouped forms with feature-specific rules layered on top.
-
-### 1.5.26 What grouped values are not
-
-Because grouped values are so widely used, it is worth being explicit about what they are *not*.
-
-A grouped value is not:
-
-- an anonymous class instance
-- a hidden tuple object
-- a heap allocation
-- a hidden temporary struct with one implied address
-- a library-defined generic wrapper with opaque runtime behavior
-
-When a grouped value needs to behave like real storage, Camp says so explicitly:
-
-```camp
-auto grouped = (x: 10, y: 20);
-auto stored = (struct)grouped;
-```
-
-That explicit bridge is one of the language’s most important clarity points. It lets grouped values remain light and distributive in ordinary expression and call positions, while still permitting one-address storage when real storage is actually needed.
+Fixed structs and classes are not converted to or from expanded form by `struct(T)`. They already have one storage identity of their own.
 
 ## 1.6 Arrays
 
-Arrays are built into the language as nominal grouped forms, but they are common enough to warrant separate practical treatment here.
+Arrays are built into the language as compiler-expanded forms.
 
 ### 1.6.1 Shape
 
-An array type `T[]` has two canonical components:
+An array type `T[]` has two component symbols:
 
-- `elements`
-- `length`
+- `name` — pointer to the first element
+- `name_length` — element count
 
-Conceptually, it behaves like a lightweight pair of pointer plus count.
+Conceptually, an array value is a lightweight pointer plus count.
 
-This does **not** make arrays “just syntax for a user-defined library type.” The form is compiler-reserved and receives dedicated language treatment.
+A parameter written as:
+
+```camp
+void write(byte[] data);
+```
+
+has the ABI-facing shape:
+
+```camp
+void write(byte* data, nuint data_length);
+```
 
 ### 1.6.2 Basic use
 
 ```camp
 byte[] buffer = new byte[256];
-nuint len = buffer.length;
+nuint len = buffer_length;
 ```
 
 Array shapes appear throughout the language and standard library:
 
 - raw binary buffers
-- text code-unit buffers
-- arrays of nominal grouped values
+- counted text code-unit buffers
 - arrays used in generic algorithms
 - array-based reader and writer APIs
 
-### 1.6.3 Arrays of grouped values
+### 1.6.3 Array allocation
 
-Arrays may contain nominal grouped element types:
+Array values are allocated on the stack or on the heap.
 
 ```camp
-params Point(int x, int y);
-
-Point[] points = init Point[10];
-points[4] = 10, 20;
-Point p = points[4];
+auto stackBytes = init byte[256];
+auto heapBytes = new byte[256];
 ```
 
-At the source level, this is simply an array of `Point`. When actual contiguous element storage is needed, the storage model is explicit rather than hidden.
+The resulting array value carries the element pointer and length component. Element construction rules for constructor-bearing element types are defined with data structures.
 
-Arrays may also contain fixed types. Fixed array elements use the same copyability rules as class elements: an element may be initialized in place, but it may not be copied by value.
+### 1.6.4 Arrays of expanded values
 
-### 1.6.4 Arrays are not strings
+An array element type may not be a non-materialized expanded form.
 
-Even when their physical layout may be compatible, arrays and string types are distinct nominal forms with different semantics and method surfaces.
+Invalid:
 
-This avoids a long list of problems:
+```camp
+int?[] values;
+byte[][] rows;
+delegate void()[] callbacks;
+```
 
-- accidental treatment of arbitrary binary buffers as text
-- accidental reliance on string-only APIs on raw arrays
-- confusion about borrowing, ownership, encoding, and null termination
+Use the materialized form when each element should store the expanded value as one ordinary element:
 
-### 1.6.5 Array APIs follow the grouped model
+```camp
+struct(int?)[] values;
+struct(byte[])[] rows;
+struct(delegate void())[] callbacks;
+```
 
-The current array API direction reinforces the grouped interpretation:
+This keeps the array ABI conventional. For example, `string[]` is an ordinary array of zero-terminated string pointers, not an array split into string pointers and string lengths.
 
-- borrowed slices return array values
-- `addressOf()` exposes element-address access explicitly
-- copy-producing APIs are named as copies
-- generic array APIs often use `in T` transport and `sizeof(T)` where needed
+### 1.6.5 Arrays are not strings
 
-Examples from the current API direction:
+Arrays and string types are distinct nominal forms with different semantics and method surfaces.
+
+A `char[]` is a counted sequence of UTF-8 code units. A `string` is a zero-terminated UTF-8 string pointer. Both are useful, but they represent different contracts.
+
+### 1.6.6 Array APIs
+
+Array APIs use the expanded component model directly.
+
+Representative examples:
 
 ```camp
 scoped T[] slice<T: any>(const T[] this, @range nuint index = 0, nuint count = ^0, sizeof(T));
@@ -1625,9 +1147,9 @@ T[] copy<T: any>(const T[] this, within allocator, sizeof(T));
 
 Copy-producing array APIs are valid only when the element operation is valid for the substituted type. They do not copy fixed struct or class elements by value.
 
-### 1.6.6 Array indexing and slicing shape
+### 1.6.7 Array indexing and slicing shape
 
-Raw array indexing is still expressed with `[]`.
+Raw array indexing is expressed with `[]`.
 
 Slicing is expressed through ordinary methods and index-aware parameters rather than through a separate hidden slicing operator category.
 
@@ -1639,14 +1161,20 @@ Optional values are built into Camp with the `?` suffix.
 
 ### 1.7.1 Core model
 
-A type `T?` is a distinct grouped type derived from `T`. `T` may not be a fixed type. Use `T*?` when the optional payload should be a nullable pointer to a fixed value.
+A type `T?` is an expanded form derived from `T`. `T` may not be a fixed type. Use `T*?` when the optional payload should be a nullable pointer to a fixed value.
 
-Its canonical components are:
+An optional value introduces:
 
-- `value`
-- `specified`
+- `name` — the payload slot
+- `name_specified` — the presence flag
 
-`T?` is the language form. It is not a user-defined generic alias or library wrapper.
+For example:
+
+```camp
+int? count;
+```
+
+introduces `count` and `count_specified`.
 
 ### 1.7.2 Construction
 
@@ -1656,8 +1184,6 @@ A value of type `T` implicitly converts to `T?`:
 int? x = 5;
 ```
 
-This is the one built-in convenience conversion attached to optionals.
-
 The default value of `T?` is the unspecified state:
 
 ```camp
@@ -1666,36 +1192,33 @@ int? missing = default;
 
 Conceptually:
 
-- `missing.specified == false`
-- `missing.value` contains the default payload value for `T`
+- `missing_specified == false`
+- `missing` contains the default payload value for `T`
 
-A programmer may also form an optional explicitly using grouped syntax:
+A default payload may be specified explicitly:
 
 ```camp
-int? a = (value: 10, specified: true);
-int? b = (value: 0, specified: false);
+SomeStruct? x = default(SomeStruct);
 ```
+
+Here `x_specified` is true and the payload is the default `SomeStruct` value.
 
 ### 1.7.3 Access
 
-Presence is checked through `.specified`:
+Presence is checked through the presence component:
 
 ```camp
-if (x.specified)
+if (x_specified)
 {
-	log(x.value);
+	log(x);
 }
 ```
 
-The payload is read through `.value`.
-
-Reading `.value` performs no automatic safety check. If `specified` is false, the payload slot still contains whatever payload value is stored there.
-
-This is deliberate. Camp does not invent hidden control flow or runtime wrapping rules here.
+Reading the payload performs no automatic safety check. If the presence flag is false, the payload slot still contains whatever payload value is stored there.
 
 ### 1.7.4 Semantics
 
-Optional values add no hidden semantics beyond their grouped representation.
+Optional values add no hidden semantics beyond their expanded representation.
 
 In particular, Camp does **not** add:
 
@@ -1703,78 +1226,82 @@ In particular, Camp does **not** add:
 - flow-sensitive “definitely present” analysis
 - null-based special cases
 - hidden propagation
-- special comparison rules
 
-Equality is ordinary componentwise grouped equality:
-
-```camp
-int? a = 5;
-int? b = 5;
-int? c = default;
-
-bool same = (a == b);
-bool missing = (c == default);
-```
+There is no implicit conversion from `T?` to `T`.
 
 ### 1.7.5 Composition
 
-Optionals compose naturally with other type forms:
+Optionals compose with ordinary type forms:
 
 ```camp
 int? value;
-String? text;
-int?[] items;
-int?? nested;
+string? text;
+byte[]? maybeBuffer;
+delegate void()? maybeCallback;
 ```
 
-When generic code needs a real storage form for an optional, it uses:
+Direct optional-optionals are invalid:
 
 ```camp
-struct(T?)
+int?? nested; // ERROR
 ```
 
-just like any other grouped form.
+When code needs an optional as an element, field subobject, or addressable value, it uses the materialized form:
+
+```camp
+struct(int?) stored;
+struct(int?)[] values;
+```
 
 ### 1.7.6 Why optionals matter elsewhere
 
-Optionals are especially important because they solve one recurring problem cleanly: distinguishing “no logical value” from a payload that happens to be the default value of its type.
+Optionals distinguish “no logical value” from a payload that happens to be the default value of its type.
 
 That is why async iterators use `T?` as the explicit presence channel when `0`, `false`, or `null` must be carried as real data.
 
 ## 1.8 Delegates
 
-Delegates are grouped callable values.
-
-They belong here because they are a built-in grouped type form, not merely a library abstraction layered on top of functions.
+Delegates are compiler-expanded callable values.
 
 ### 1.8.1 Shape
 
 A delegate value consists of:
 
-- `context`
 - `call`
+- `context`
 
-The `call` target receives `context` first.
+For a binding named `del`, the component symbols are:
+
+```camp
+del
+del_context
+```
+
+The call target receives the context first.
 
 Conceptually:
 
 ```camp
-delegate bool(int value)
+delegate bool(int value) del;
 ```
 
-is a grouped value whose lowered call target is equivalent to a plain function receiving the context plus the ordinary declared parameters.
+is invoked as:
+
+```camp
+del(del_context, value);
+```
 
 ### 1.8.2 Using delegate types
 
 A delegate type may be written anywhere a type is needed:
 
 ```camp
-delegate void(StringView text) logger;
+delegate void(const char[] text) logger;
 delegate bool(int value) predicate;
 delegate int(int left, int right) comparer;
 ```
 
-Lifetime annotations on a delegate value describe the lifetime of that hidden context pointer.
+Lifetime annotations on a delegate value describe the lifetime of the hidden context pointer.
 
 For example:
 
@@ -1784,7 +1311,7 @@ For example:
 Delegate-like callable signatures may also spell an explicit `this` parameter first in order to qualify the hidden context parameter:
 
 ```camp
-delegate void(scoped this, StringView text) logger;
+delegate void(scoped this, const char[] text) logger;
 ```
 
 Later sections define lambdas, method references, `once`, `iter`, and `async`. This section only defines the delegate value model itself.
@@ -1803,11 +1330,11 @@ bool eitherGreater(int a, int b, delegate bool(int value) comparer)
 then the invocation is conceptually equivalent to:
 
 ```camp
-return comparer.call(comparer.context, a)
-	|| comparer.call(comparer.context, b);
+return comparer(comparer_context, a)
+	|| comparer(comparer_context, b);
 ```
 
-The grouped delegate value itself may therefore spread according to the general grouped rules, although ordinary code usually writes the packed delegate form.
+Ordinary code calls the delegate value directly. The component form describes its ABI and raw binding shape.
 
 ### 1.8.4 What delegates are for
 
@@ -1820,17 +1347,17 @@ Delegates cover several cases with one uniform model:
 - escaped copied closures
 - scoped closures that use surrounding state directly
 
-Camp does not want a separate runtime closure object category for each of these cases. The grouped delegate model is enough.
+Camp does not need a separate runtime closure object category for each of these cases. The expanded delegate model is enough.
 
 ### 1.8.5 Delegates versus plain `fn`
 
-Use `fn` for a plain callable target with no grouped context.
+Use `fn` for a plain callable target with no context.
 
 Use `delegate` when code needs:
 
 - captured state
 - a bound receiver
-- a context-plus-call ABI shape
+- a call-plus-context ABI shape
 - a first-class callback surface that may carry data with it
 
 ### 1.8.6 Deletion
@@ -1839,213 +1366,153 @@ Delegates are not deletable by default.
 
 A delegate value does not imply ownership of some magical closure object. If the target or captured state needs destruction, that ownership belongs to the actual storage or object model involved, not to the delegate type as such.
 
-## 1.9 Strings and String Views
+## 1.9 Strings and Counted Text
 
-String types are ordinary basic types in Camp, not a late library afterthought.
+Camp has two basic text representations:
 
-They are also grouped nominal types, not hidden runtime objects.
+- zero-terminated string pointer types
+- counted character arrays
 
-### 1.9.1 Core split
+The string pointer types are compiler-blessed primitive keywords. Counted text is represented with ordinary character arrays.
 
-Camp distinguishes:
+### 1.9.1 Core string types
 
-- borrowed string-view types
-- ordinary string types
-
-For UTF-8:
-
-- `StringView`
-- `String`
-
-For UTF-16:
-
-- `WStringView`
-- `WString`
-
-For ASCII or code-page text:
-
-- `AStringView`
-- `AString`
-
-This split is fundamental.
-
-A `StringView` is a non-owning view. It is not “the immutable version of `String`.” A `String` is the ordinary string type. It is not merely “a pointer plus length that happens to own memory.” The type names are chosen to make borrowing visible in code.
-
-### 1.9.2 Current canonical declarations
-
-The current canonical grouped declarations are:
+The core string types are primitive keywords:
 
 ```camp
-params StringView(@nosuffix char* units, nuint length);
-params WStringView(@nosuffix wchar* units, nuint length);
-params AStringView(@nosuffix achar* asciichars, nuint length);
-
-params String: StringView;
-params WString: WStringView;
-params AString: AStringView;
+string
+wstring
+astring
 ```
 
-So:
+| Type | Meaning |
+|---|---|
+| `string` | zero-terminated UTF-8 string pointer |
+| `wstring` | zero-terminated UTF-16 string pointer |
+| `astring` | zero-terminated ASCII or system-code-page string pointer |
 
-- the view types declare the canonical components directly
-- the owning string types are distinct narrow nominal forms that widen implicitly to their corresponding view types
+A `string` has the same ABI representation as `char*`, but the type carries the additional contract that the pointed-to sequence is zero-terminated. A plain `char*` does not carry that contract. Passing a raw `char*` where `string` is expected requires an explicit cast.
 
-### 1.9.3 Widening direction
+There is no implicit conversion between `string`, `wstring`, and `astring`. Converting between text families requires an explicit library operation that performs the required transcoding or validation.
 
-`String` may be passed where a `StringView` is expected.
+### 1.9.2 Counted text
 
-The reverse is not implicit.
+Counted text uses arrays:
+
+| Type | Meaning |
+|---|---|
+| `char[]` | counted UTF-8 code-unit sequence |
+| `wchar[]` | counted UTF-16 code-unit sequence |
+| `achar[]` | counted ASCII or system-code-page code-unit sequence |
+
+A counted array is the appropriate representation when code needs a known length, slicing, embedded zero code units, or bounded processing.
+
+### 1.9.3 Null termination and length
+
+The core string types are zero-terminated and do not carry a length component.
+
+A string length property such as `str.Length` calls a method such as `getLength()` and computes the length by scanning for the terminator.
+
+A character array length is a direct expanded component:
 
 ```camp
-void printLine(StringView text)
-{
-	Console.writeLine(text);
-}
+const string str = "hello";
+nuint a = str.Length;      // computed
 
-String text = "hello";
-printLine(text); // OK
+const char[] view = str.asArray();
+nuint b = view_length;     // direct count
 ```
 
-This widening direction is one of the most important conversion rules in the language. It makes borrowed APIs ergonomic without erasing ownership distinctions.
+### 1.9.4 Ownership
 
-### 1.9.4 Deletion
+The `string`, `wstring`, and `astring` type names describe zero-terminated text representation. They do not by themselves describe ownership.
 
-`String` may define destructor syntax and therefore may support `delete`.
+An API that allocates a string must document how that string is released. An API that borrows a string must document the lifetime of the pointed-to text through ordinary lifetime annotations.
 
-`StringView` does not define destructor syntax and is therefore not deletable.
+### 1.9.5 string literals
 
-Delete availability does not “leak across” the widening relationship. The fact that `String` may be deletable does not make `StringView` deletable.
-
-### 1.9.5 Strings are distinct from arrays
-
-Strings and arrays may share compatible physical layouts, but they remain distinct nominal types because they have different semantics and method surfaces.
-
-This avoids a long list of problems:
-
-- accidental treatment of arbitrary binary buffers as text
-- accidental reliance on string-only APIs on raw arrays
-- confusion about borrowing, ownership, encoding, and null termination
-
-### 1.9.6 Null termination
-
-Only string literals are automatically null-terminated.
-
-That guarantee should not be generalized to arbitrary `String` values produced by:
-
-- slicing
-- concatenation
-- builder operations
-- foreign APIs
-- conversion helpers
-
-A specific API may promise null termination if it wishes. The type itself does not imply it.
-
-### 1.9.7 Code-unit indexing
-
-String indexing and slicing operate in code units, not code points.
-
-This is why the view methods use names and parameter wording such as:
-
-- `getChar(@index nuint unit)`
-- `getCharUnits(@index nuint unit)`
-- `slice(@range nuint index = 0, nuint count = ^0)`
-
-The parameter name `unit` is intentional.
-
-For example, on `StringView`:
+A string literal is constant. Without a target type, its inferred type is `const string`.
 
 ```camp
-uchar getChar(const StringView this, @index nuint unit);
-nuint getCharUnits(const StringView this, @index nuint unit);
+const string s = "hello";
 ```
 
-These let the caller decode Unicode code points from a code-unit indexed string view while keeping the indexing contract explicit.
+A string literal may also target any of these constant destination types:
 
-### 1.9.8 Borrowing versus copying
+- `const string`
+- `const wstring`
+- `const astring`
+- `const char[]`
+- `const wchar[]`
+- `const achar[]`
+- `const char*`
+- `const wchar*`
+- `const achar*`
 
-Borrowing operations return view types. Copy-producing operations advertise their allocation clearly, typically with `Copy` in the name.
-
-Examples from the current API direction:
+Examples:
 
 ```camp
-StringView trim(const StringView this);
-String uppercaseCopy(const StringView this, within allocator);
-String lowercaseCopy(const StringView this, within allocator);
-String toStringCopy(const StringView this, within allocator);
+const string s = "hello";
+const wstring ws = "hello";
+const char[] view = "hello";
+const char* raw = "hello";
 ```
 
-That naming helps the reader answer two questions immediately:
-
-- does this operation allocate?
-- does the result borrow from existing storage or own new storage?
-
-### 1.9.9 Splitting strings
-
-`splitCopy` allocates the outer array but does not deep-copy the inner segments. The segments are `StringView` values pointing into existing string storage.
-
-That detail matters because it preserves efficiency without hiding allocation:
-
-- the array itself is an allocated result
-- the inner string segments are borrowed views
-
-### 1.9.10 Strings in APIs
-
-Borrowed textual accessors commonly return `StringView`, not `String`.
-
-Example:
+The corresponding non-`const` forms are not valid literal destinations:
 
 ```camp
-export extern StringView getReason();
-export extern StringView getUrl();
-export extern StringView getStatusText();
+string s = "hello";  // ERROR: string literals are constant
+char* raw = "hello"; // ERROR: string literals are constant
 ```
 
-That convention makes ownership visible and avoids silent copies.
+When a literal targets a string type or pointer type, the result is a zero-terminated pointer. When it targets a character array, the result is a counted array view of the literal's code units.
 
-### 1.9.11 Text families and ordinary usage
+### 1.9.6 string methods and array methods
 
-Camp deliberately keeps the three text families parallel:
+string methods operate on zero-terminated text. Counted text methods operate on character arrays.
 
-| Family | View type | Ordinary string type | Typical use |
+Representative examples:
+
+```camp
+nuint getLength(string this);
+scoped char[] asArray(string this);
+
+nuint countChars(const char[] this);
+uchar getChar(const char[] this, @index nuint unit);
+scoped char[] slice(const char[] this, @range nuint index = 0, nuint count = ^0);
+string toStringCopy(const char[] this, within allocator);
+```
+
+The same pattern applies to `wstring` / `wchar[]` and `astring` / `achar[]`.
+
+### 1.9.7 Arrays of strings
+
+Because strings are pointer-shaped primitive values, arrays of strings have the ordinary array-of-pointers shape:
+
+```camp
+string[] names;
+```
+
+lowers as an element pointer plus an array length, not as separate arrays of string pointers and string lengths.
+
+### 1.9.8 Text families and ordinary usage
+
+Camp keeps the three text families parallel:
+
+| Family | string type | Counted type | Typical use |
 |---|---|---|---|
-| UTF-8 | `StringView` | `String` | general text, source-facing APIs, most common default |
-| UTF-16 | `WStringView` | `WString` | UTF-16-oriented foreign APIs or host environments |
-| ASCII / code page | `AStringView` | `AString` | legacy APIs, code-page text, explicitly narrow text surfaces |
-
-The point of the parallel naming is not abundance for its own sake. The point is that code can remain explicit about representation without inventing unrelated naming schemes for each family.
+| UTF-8 | `string` | `char[]` | general text, source-facing APIs, most common default |
+| UTF-16 | `wstring` | `wchar[]` | UTF-16-oriented foreign APIs or host environments |
+| ASCII / code page | `astring` | `achar[]` | legacy APIs, code-page text, explicitly narrow text surfaces |
 
 Typical usage looks like this:
 
 ```camp
-void writeUtf8(StringView text);
-void writeUtf16(WStringView text);
-void writeLegacy(AStringView text);
+void writeUtf8(const char[] text);
+void writeUtf16(const wchar[] text);
+void writeLegacy(const achar[] text);
+void callForeign(string text);
 ```
-
-The caller can pass an owning string to the corresponding view-typed API without noise, but the API still advertises the representation it expects.
-
-### 1.9.12 String methods remain ordinary methods
-
-Camp deliberately keeps string operations on the ordinary method surface.
-
-That means:
-
-- borrowed operations return view types
-- allocating operations say so in their names
-- index-aware operations are ordinary methods with index-like parameters
-- property and indexer ergonomics are surface rewriting, not a hidden string-only subsystem
-
-Representative examples from the current API direction include:
-
-```camp
-StringView trim(const StringView this);
-StringView slice(const StringView this, @range nuint index = 0, nuint count = ^0);
-uchar getChar(const StringView this, @index nuint unit);
-String uppercaseCopy(const StringView this, within allocator);
-String toStringCopy(const StringView this, within allocator);
-```
-
-This keeps the string model aligned with the rest of Camp: small core rules, explicit ownership, and ordinary ABI-visible calls.
 
 ## 1.10 Enum Types
 
@@ -2114,11 +1581,11 @@ enum LookupError
 }
 ```
 
-That aligns naturally with Camp’s ordinary success-code convention, where the default value of the status type means success.
+That aligns naturally with Camp's ordinary success-code convention, where the default value of the status type means success.
 
 ### 1.10.4 Enums in APIs
 
-Enums appear naturally in signatures, structs, and grouped values:
+Enums appear naturally in signatures, structs, and expanded values:
 
 ```camp
 struct HttpRequestOptions
@@ -2136,7 +1603,7 @@ Because enums are ordinary named types, they make such declarations much easier 
 
 When an enum is used as an error or status type, it is common and advisable to assign the success member the value `0`.
 
-Camp’s error-handling model does not require every enum to be a status enum, but when an enum *is* used in that role, aligning success with the default value is the natural fit.
+Camp's error-handling model does not require every enum to be a status enum, but when an enum *is* used in that role, aligning success with the default value is the natural fit.
 
 ### 1.10.6 What this section does not assume
 
@@ -2145,7 +1612,7 @@ The current source set uses enums heavily, but does not yet give them a dedicate
 - enums are nominal named sets of constants
 - members may have explicit values
 - enums are used directly in ordinary type positions
-- status enums commonly align `OK = 0` with Camp’s ordinary success convention
+- status enums commonly align `OK = 0` with Camp's ordinary success convention
 
 More detailed representation rules, if any, should be added only when they are intentionally fixed.
 
@@ -2188,7 +1655,7 @@ A `newtype`:
 
 - is a real distinct nominal type
 - has the same ABI representation as its underlying structural form
-- requires explicit casts to cross the boundary
+- requires explicit casts to cross the boundary unless a specific built-in rule says otherwise
 - does not invent hidden wrapper storage, hidden fields, or hidden runtime behavior
 
 Example:
@@ -2236,19 +1703,19 @@ newtype OpaqueState: void*;
 Disallowed value underlyings include:
 
 ```camp
-newtype Name: String;      // ERROR
-newtype Values: int[];     // ERROR
-newtype Client: HttpClient;// ERROR
+newtype Values: int[];      // ERROR
+newtype MaybeId: int?;      // ERROR
+newtype Client: HttpClient; // ERROR
 ```
 
 Callable `newtype` underlyings use the ordinary callable forms:
 
 ```camp
-newtype fn int Parser(StringView text);
+newtype fn int Parser(const char[] text);
 newtype delegate bool Predicate(int value);
 newtype once void Completion(int result);
-newtype async int Loader(StringView path, thrown IoError);
-newtype async iter StringView? LineSource();
+newtype async int Loader(const char[] path, thrown IoError);
+newtype async iter char[]? LineSource();
 ```
 
 ### 1.11.4 Declaration forms
@@ -2318,7 +1785,7 @@ newtype Counter: int
 {
 	void increment()
 	{
-		this += 1; // ERROR
+		this.value += 1; // ERROR
 	}
 }
 ```
@@ -2359,7 +1826,7 @@ The important point is not the exact C spelling. The important point is that the
 
 ### 1.11.9 Method naming
 
-Methods declared on a `newtype` use the `newtype`’s own name in symbol generation.
+Methods declared on a `newtype` use the `newtype`'s own name in symbol generation.
 
 Conceptually:
 
@@ -2382,9 +1849,7 @@ That preserves the nominal identity the programmer explicitly introduced.
 
 ## 1.12 Conversions
 
-Camp’s conversion model is intentionally smaller and more visible than that of many modern languages.
-
-This section defines the core conversion relationships that are already fixed by the current source documents.
+Camp's conversion model is intentionally smaller and more visible than that of many modern languages.
 
 ### 1.12.1 Design principles
 
@@ -2393,14 +1858,14 @@ The stable pattern across the language is:
 - allow implicit conversion where one form is clearly a widening or convenience view of another
 - require explicit conversion when crossing a nominal boundary
 - avoid hidden ownership changes
-- avoid hidden materialization of storage
-- avoid hidden unwrapping of grouped forms
+- avoid hidden materialization of addressable storage
+- avoid hidden unwrapping of expanded forms
 
 The result is a conversion model that is practical, but not eager to guess.
 
 ### 1.12.2 Primitive character conversions
 
-The current built-in character conversion chain is:
+The built-in character conversion chain is:
 
 Implicit widening:
 
@@ -2414,118 +1879,56 @@ Explicit narrowing:
 uchar -> wchar -> char -> achar
 ```
 
-This is the clearest primitive conversion relationship presently fixed in the source documents.
-
 ### 1.12.3 Optional lifting
 
 A value of type `T` implicitly converts to `T?`.
 
 ```camp
 int? count = 5;
-String? maybeText = someString;
+string? maybeText = someString;
 ```
 
-This is a genuine convenience conversion and one of the very few grouped conversions that Camp makes implicit by default.
+This is a genuine convenience conversion and one of the few expanded conversions that Camp makes implicit by default.
+
+The default value of `T?` is the unspecified optional. `default(T)` is a value of `T`, so assigning it to `T?` produces a specified optional carrying the default payload.
 
 There is no opposite implicit conversion. `T?` does not implicitly unwrap to `T`.
 
-### 1.12.4 String widening
+### 1.12.4 string and pointer conversions
 
-Owning string types implicitly widen to their corresponding view types:
-
-```text
-String   -> StringView
-WString  -> WStringView
-AString  -> AStringView
-```
-
-This follows from the current narrowing declarations:
+`string`, `wstring`, and `astring` are primitive string types with pointer-shaped ABI representations. Crossing between a string type and its underlying pointer type is explicit unless a string literal is being target-typed to a permitted constant destination.
 
 ```camp
-params String: StringView;
-params WString: WStringView;
-params AString: AStringView;
+const string s = "hello";
+const char* raw = (const char*)s;
+const string again = (const string)raw;
 ```
 
-The reverse direction is not implicit:
+There is no implicit conversion among `string`, `wstring`, and `astring`. A conversion between text families requires an explicit API that performs the required encoding conversion or validation.
 
-```text
-StringView  -/-> String
-```
+A counted character array does not implicitly become a zero-terminated string. Use an API that validates or creates the terminator when that conversion is required.
 
-That rule preserves ownership clarity.
+### 1.12.5 Materializing expanded forms
 
-### 1.12.5 Structural grouped to nominal grouped
-
-A structural grouped value may convert to a nominal grouped type when the shapes match and the naming rule is satisfied.
-
-Allowed:
+Use `(struct)` when an expanded value must become real copyable storage with one address:
 
 ```camp
-params Point(int x, int y);
-
-Point a = (1, 2);
-Point b = (x: 1, y: 2);
-Point c = 1, 2;
+byte[] data = getData();
+auto stored = (struct)data;
 ```
 
-Rejected:
+The reverse conversion from matching materialized storage to the expanded form is allowed where the destination type is known:
 
 ```camp
-Point d = (left: 1, right: 2);
-Point e = (y: 1, x: 2);
+struct(byte[]) stored = ...;
+byte[] view = stored;
 ```
 
-This preserves both structural convenience and nominal meaning.
+This value conversion does not collapse pointer identity. Storage identity remains real.
 
-### 1.12.6 Erasing nominal identity
+### 1.12.6 Newtype conversions
 
-A nominal grouped value does not implicitly become structural.
-
-Use `(params)` when explicit erasure of nominal identity is desired:
-
-```camp
-Point p = (x: 1, y: 2);
-auto structural = (params)p;
-```
-
-### 1.12.7 Grouped value to materialized storage
-
-Use `(struct)` when a grouped value must become real copyable storage with one address:
-
-```camp
-auto grouped = (x: 5, y: 10);
-auto stored = (struct)grouped;
-```
-
-This is a value conversion, not a constructor call.
-
-### 1.12.8 Materialized storage to grouped value
-
-Use `(params)` when a storage value should be viewed as grouped form:
-
-```camp
-struct Size
-{
-	int width;
-	int height;
-}
-
-Size s = { .width = 640, .height = 480 };
-auto grouped = (params)s;
-```
-
-### 1.12.9 `T` and `struct(T)` value conversion
-
-At the value level, a grouped type `T` and its materialized storage counterpart `struct(T)` are interconvertible. Fixed structs and classes are not part of this conversion.
-
-That does **not** collapse pointer identity. The value conversion is easy; storage identity remains real.
-
-This distinction is one of the main reasons Camp keeps grouped values and storage values separate instead of pretending they are the same thing.
-
-### 1.12.10 Newtype conversions
-
-Crossing a `newtype` boundary is explicit only.
+Crossing a `newtype` boundary is explicit only unless a specific built-in rule says otherwise.
 
 ```camp
 newtype UserId: uint;
@@ -2536,58 +1939,44 @@ uint raw = (uint)id;
 
 There is no implicit conversion in either direction, and sibling `newtype`s over the same base type remain distinct.
 
-### 1.12.11 No implicit optional unwrapping
+### 1.12.7 No implicit optional unwrapping
 
 There is no implicit conversion from `T?` to `T`.
 
-Presence must be checked explicitly through `.specified`, and the payload is read explicitly through `.value`.
+Presence must be checked explicitly through the `_specified` component, and the payload is read explicitly through the payload component.
 
-This keeps optional behavior consistent with Camp’s general preference for visible control flow.
+### 1.12.8 No implicit owning conversion from counted text
 
-### 1.12.12 No implicit owning conversion from views
-
-A view type does not implicitly become an owning string type.
+A counted character array does not implicitly become an allocated zero-terminated string.
 
 ```camp
-StringView view = "hello";
-String owned = view; // not an implicit conversion
+const char[] view = "hello";
+string owned = view; // ERROR: not an implicit conversion
 ```
 
-Ownership-changing operations are expected to be explicit and usually allocation-bearing.
+Ownership-changing or terminator-producing operations are expected to be explicit and usually allocation-bearing.
 
-### 1.12.13 No implicit aggregate address formation
+### 1.12.9 No implicit aggregate address formation
 
-A grouped value does not implicitly materialize itself merely because code asks for a pointer-shaped use that truly requires one whole-object address.
+An expanded value does not implicitly materialize itself merely because code asks for a pointer-shaped use that truly requires one whole-object address.
 
 Materialize first:
 
 ```camp
-auto pair = (x: 1, y: 2);
-auto temp = (struct)pair;
-usePointPointer(&temp);
+byte[] data = getData();
+auto temp = (struct)data;
+useArrayStoragePointer(&temp);
 ```
 
 This rule prevents a large class of hidden temporary-creation behavior.
 
-### 1.12.14 Call spreading is not general conversion
-
-Structural grouped values spread in calls. That does not mean they “convert to anything with the right number of fields everywhere.”
-
-Spreading is specifically a call-argument rule. It is not initializer-list spreading, not hidden storage synthesis, and not a general-purpose aggregate coercion rule.
-
-### 1.12.15 Conversions and deletion are independent
+### 1.12.10 Conversions and deletion are independent
 
 Delete availability is not a conversion rule.
 
-In particular:
+In particular, a primitive string type's pointer-shaped representation does not imply ownership. APIs that allocate string storage must define the matching release operation explicitly.
 
-- `String` may widen to `StringView`
-- `String` may support `delete`
-- `StringView` does not thereby become deletable
-
-Similarly, a grouped form is not deletable merely because some related form with a similar shape is.
-
-### 1.12.16 Conversions in generic code
+### 1.12.11 Conversions in generic code
 
 Generics add one important wrinkle.
 
@@ -2595,9 +1984,10 @@ In erased generic code:
 
 - `in T`, `out T`, and return `T` may materialize storage when transport requires it for copyable types
 - for classes and fixed structs, generic use follows the same non-copying rules as ordinary class-like use
-- `T*` means pointer to the materialized storage form of `T` for grouped or otherwise materialized copyable types, and pointer to the instance for fixed types
+- for compiler-expanded forms, erased storage uses the materialized form
+- `T*` means pointer to the materialized storage form of `T` for compiler-expanded or otherwise materialized copyable types, and pointer to the instance for fixed types
 
-So for a grouped or otherwise materialized copyable type in that specific generic context:
+So for an expanded or otherwise materialized copyable type in that specific generic context:
 
 ```text
 T*  means  struct(T)*
@@ -2605,7 +1995,7 @@ T*  means  struct(T)*
 
 This is not a general rewrite of pointer meaning. It is the precise rule for erased-generic pointer-to-storage contracts.
 
-### 1.12.17 Practical summary table
+### 1.12.12 Practical summary table
 
 | From | To | Implicit? | Notes |
 |---|---|---|---|
@@ -2614,17 +2004,18 @@ This is not a general rewrite of pointer meaning. It is the precise rule for era
 | `wchar` | `uchar` | yes | representation widening |
 | `uchar` | `wchar` / `char` / `achar` | no | explicit narrowing |
 | `T` | `T?` | yes | optional lifting |
-| `String` | `StringView` | yes | ownership-to-view widening |
-| `WString` | `WStringView` | yes | ownership-to-view widening |
-| `AString` | `AStringView` | yes | ownership-to-view widening |
-| structural grouped | matching nominal grouped | sometimes | names must be unnamed or exact |
-| nominal grouped | structural grouped | no | use `(params)` |
-| grouped value | copyable storage value | no direct hidden materialization | use `(struct)` |
-| copyable storage value | grouped value | no hidden explosion | use `(params)` |
+| `default(T)` | `T?` | yes | specified optional with default payload |
+| `string` | `char*` | no | explicit cast to underlying pointer |
+| `char*` | `string` | no | explicit assertion of zero termination |
+| `string` / `wstring` / `astring` | another string family | no | requires explicit transcoding or validation API |
+| `char[]` | `string` | no | requires explicit terminator-producing API |
+| expanded value | `struct(expanded-type)` | no hidden address materialization | use `(struct)` |
+| `struct(expanded-type)` | expanded value | yes when destination is known | exposes stored components |
 | `newtype` | underlying intrinsic type | no | explicit cast required |
 | underlying intrinsic type | `newtype` | no | explicit cast required |
 
 The main pattern is simple: implicit conversion is reserved for obvious widening and convenience cases; explicit conversion is used for nominal boundaries and storage-boundary changes.
+
 # 2. Data Structures
 
 Camp has two primary user-defined type categories:
@@ -2647,7 +2038,7 @@ That distinction affects all of the following:
 - interface implementation strategy
 - construction and destruction shape at the ABI boundary
 
-Camp also treats storage and abstraction separately. A grouped value can be materialized into real stored fields, and a class can live either in existing storage or in allocated storage. So the important distinction is never “stack versus heap.” It is always the value model.
+Camp also treats storage and abstraction separately. A expanded value can be materialized into real stored fields, and a class can live either in existing storage or in allocated storage. So the important distinction is never “stack versus heap.” It is always the value model.
 
 This section defines that model.
 
@@ -3004,7 +2395,7 @@ An exported class remains opaque.
 ```camp
 export class HttpClient
 {
-	String baseUrl;
+	string baseUrl;
 	int timeoutMs;
 }
 ```
@@ -3018,31 +2409,26 @@ This difference is intentional.
 
 ### 2.1.9 Structural storage forms
 
-Section 1 introduced grouped values and their storage counterpart forms. The storage-side forms belong conceptually with copyable storage, not with fixed types.
-
-Camp provides:
-
-- `struct(T)` — materialized storage for a grouped type
-- `struct(...)` — anonymous structural storage with real fields
+Camp provides `struct(...)` storage forms for compiler-expanded types and anonymous structural storage with real fields.
 
 These are storage forms, not object forms.
 
 Example:
 
 ```camp
-auto grouped = (x: 10, y: 20);
-auto stored = (struct)grouped;
+byte[] bytes = getBytes();
+auto stored = (struct)bytes;
 ```
 
 The result is a real one-address storage object. That places it in the copyable value/storage side of the language. It does not behave like a class or fixed struct.
 
-Anonymous `struct(...)` forms follow stricter compatibility rules than structural `params`:
+Anonymous `struct(...)` forms follow strict compatibility rules:
 
 - field names must match
 - field order must match
 - field types must match
 
-They are useful for locals, fields, casts, and temporary storage, but they are not part of the exported nominal ABI surface.
+They are useful for locals, fields, casts, arrays of materialized expanded values, and temporary storage, but they are not part of the exported nominal ABI surface.
 
 ## 2.2 Fields, Methods, Constructors, and Destructors
 
@@ -3066,7 +2452,7 @@ struct Size
 
 class ImageCache
 {
-	Map<String, Image> entries;
+	Map<string, Image> entries;
 	int version;
 }
 ```
@@ -3241,7 +2627,7 @@ Example:
 ```camp
 class FileHandle
 {
-	static FileHandle* open(StringView path);
+	static FileHandle* open(const char[] path);
 }
 
 auto file = FileHandle.open(path);
@@ -3286,9 +2672,9 @@ struct Range
 ```camp
 class Logger
 {
-	String name;
+	string name;
 
-	Logger(String name)
+	Logger(string name)
 	{
 		this.name = name;
 	}
@@ -3388,9 +2774,9 @@ A derived class constructor may call the base constructor using `base(...)`.
 ```camp
 class Connection
 {
-	String name;
+	string name;
 
-	Connection(String name)
+	Connection(string name)
 	{
 		this.name = name;
 	}
@@ -3400,7 +2786,7 @@ class SecureConnection: Connection
 {
 	bool verifyCertificates;
 
-	SecureConnection(String name, bool verifyCertificates = true)
+	SecureConnection(string name, bool verifyCertificates = true)
 	{
 		base(name);
 		this.verifyCertificates = verifyCertificates;
@@ -3480,7 +2866,7 @@ Example:
 ```camp
 struct TempFile
 {
-	String path;
+	string path;
 
 	~TempFile()
 	{
@@ -3509,7 +2895,7 @@ Example:
 ```camp
 class ImageCache
 {
-	Map<String, Image> entries;
+	Map<string, Image> entries;
 
 	~ImageCache()
 	{
@@ -3594,12 +2980,12 @@ An `init` or `new` expression may be followed by initializer syntax that applies
 ```camp
 class HttpRequest
 {
-	StringView method;
-	StringView url;
+	const char[] method;
+	const char[] url;
 	HeaderCollection headers;
 	int timeoutMs;
 
-	HttpRequest(StringView method, StringView url)
+	HttpRequest(unscoped const char[] method, unscoped const char[] url)
 	{
 		this.method = method;
 		this.url = url;
@@ -3861,7 +3247,7 @@ An instance method is non-virtual unless it is explicitly declared otherwise.
 ```camp
 class Label
 {
-	void setText(StringView value);
+	void setText(char[] value);
 }
 ```
 
@@ -3981,7 +3367,7 @@ Within a Camp module, the compiler has the full private-header layout and helper
 
 ## 2.4 Interfaces
 
-Interfaces in Camp are explicit ABI-visible contracts. They are not hidden runtime objects, they are not structural method matching, and they are not delegate-like grouped `(context, call)` values.
+Interfaces in Camp are explicit ABI-visible contracts. They are not hidden runtime objects, they are not structural method matching, and they are not delegate-like expanded `(context, call)` values.
 
 An interface declaration defines a nominal vtable shape. Ordinary interface values are represented by pointers to interface-instance slots.
 
@@ -4299,13 +3685,13 @@ interface Seekable: Readable
 
 interface NamedResource
 {
-	StringView getName();
-	void rename(StringView name);
+	char[] getName();
+	void rename(char[] name);
 }
 
 class MemoryDocument: Seekable, NamedResource
 {
-	String name;
+	string name;
 	byte[] data;
 	nuint position;
 
@@ -4313,8 +3699,8 @@ class MemoryDocument: Seekable, NamedResource
 	bool getEndOfFile() { ... }
 	void seek(nuint position) { ... }
 	nuint getPosition() { ... }
-	StringView getName() { ... }
-	void rename(StringView name) { ... }
+	char[] getName() { ... }
+	void rename(char[] name) { ... }
 }
 ```
 
@@ -4337,8 +3723,8 @@ struct Seekable
 
 struct NamedResource
 {
-	fn StringView(NamedResource** ctx) getName;
-	fn void(NamedResource** ctx, StringView name) rename;
+	fn char[](NamedResource** ctx) getName;
+	fn void(NamedResource** ctx, char[] name) rename;
 }
 
 class MemoryDocument
@@ -4346,11 +3732,11 @@ class MemoryDocument
 	Seekable* _vt_Seekable;
 	NamedResource* _vt_NamedResource;
 
-	String name;
+	string name;
 	byte[] data;
 	nuint position;
 
-	MemoryDocument(StringView name, byte[] data)
+	MemoryDocument(char[] name, byte[] data)
 	{
 		this._vt_Seekable = &MemoryDocument_Seekable;
 		this._vt_NamedResource = &MemoryDocument_NamedResource;
@@ -4394,7 +3780,7 @@ NamedResource MemoryDocument_NamedResource =
 	.rename = MemoryDocument_NamedResource_rename,
 };
 
-StringView MemoryDocument_NamedResource_getName(NamedResource** ctx)
+char[] MemoryDocument_NamedResource_getName(NamedResource** ctx)
 {
 	MemoryDocument* instance =
 		(MemoryDocument*)(((byte*)ctx) - offsetof(MemoryDocument._vt_NamedResource));
@@ -4402,7 +3788,7 @@ StringView MemoryDocument_NamedResource_getName(NamedResource** ctx)
 	return instance.getName();
 }
 
-void MemoryDocument_NamedResource_rename(NamedResource** ctx, StringView name)
+void MemoryDocument_NamedResource_rename(NamedResource** ctx, char[] name)
 {
 	MemoryDocument* instance =
 		(MemoryDocument*)(((byte*)ctx) - offsetof(MemoryDocument._vt_NamedResource));
@@ -4467,7 +3853,7 @@ struct SliceReader: IByteReader
 	nuint read(byte[] buffer)
 	{
 		nuint remaining = this.length - this.position;
-		nuint copied = remaining < buffer.length ? remaining : buffer.length;
+		nuint copied = remaining < buffer_length ? remaining : buffer_length;
 		this.position += copied;
 		return copied;
 	}
@@ -4609,9 +3995,9 @@ That model is explicit, ABI-visible, and consistent with the rest of Camp's desi
 
 # 3. Statements and Expressions
 
-This section defines the executable core of Camp: the statements that control evaluation, the ordinary operators used in expressions, the rules for member and property access, grouped multi-value results, and the syntax used for iteration, slicing, and cleanup.
+This section defines the executable core of Camp: the statements that control evaluation, the ordinary operators used in expressions, the rules for member and property access, expanded multi-value results, and the syntax used for iteration, slicing, and cleanup.
 
-Camp intentionally keeps most day-to-day statement and operator syntax familiar to C-family programmers. The important work here is therefore not to restate C in full, but to make Camp-specific rules precise: boolean conditions are explicit, member access uses one uniform surface, grouped values participate directly in results and calls, property syntax is a rewrite over methods, and cleanup remains explicit.
+Camp intentionally keeps most day-to-day statement and operator syntax familiar to C-family programmers. The important work here is therefore not to restate C in full, but to make Camp-specific rules precise: boolean conditions are explicit, member access uses one uniform surface, expanded values participate directly in results and calls, property syntax is a rewrite over methods, and cleanup remains explicit.
 
 ## 3.1 Basic Statements
 
@@ -4700,7 +4086,7 @@ while (!done);
 ```
 
 ```camp
-for (nuint i = 0; i < values.length; i++)
+for (nuint i = 0; i < values_length; i++)
 	total += values[i];
 ```
 
@@ -4741,7 +4127,7 @@ int abs(int x)
 }
 ```
 
-Camp also allows grouped multi-value returns. Those are described in §3.6.
+Camp also allows expanded multi-value returns. Those are described in §3.6.
 
 ## 3.2 Operators
 
@@ -4790,22 +4176,13 @@ bool ok = (count != 0) && (ptr != null);
 auto result = (ptr != null) ? a : b;
 ```
 
-### 3.2.3 Equality and grouped values
+### 3.2.3 Equality and expanded values
 
-When an operator is applied to a grouped `params` value, the shared grouped-value rules apply. In particular, equality compares componentwise.
+Expanded values compare according to their specific form.
 
-```camp
-params Point(int x, int y);
+Optionals compare by payload and presence flag when the payload type supports equality. Arrays compare by their components unless a library method defines elementwise comparison explicitly. Delegates compare by call target and context when such comparison is permitted by the target platform.
 
-Point a = (x: 1, y: 2);
-auto b = 1, 2;
-auto c = 1, 3;
-
-bool same = (a == b);    // true
-bool diff = (b != c);    // true
-```
-
-The grouped-value model itself was defined earlier. Here it matters only because grouped values appear naturally inside ordinary expressions.
+Elementwise sequence comparison is a library operation, not hidden array equality.
 
 ### 3.2.4 Member access is not `->`
 
@@ -4817,7 +4194,7 @@ Member access is always written with `.` whether the receiver is:
 - a pointer
 - a class instance
 - a class pointer
-- a grouped value with named components
+- a expanded value with named components
 
 Examples:
 
@@ -4836,7 +4213,7 @@ Camp follows ordinary C-family operator precedence closely enough that experienc
 
 When an expression becomes hard to read, parenthesize it. This is especially advisable when combining:
 
-- grouped-return deconstruction or multi-step call results
+- expanded-return deconstruction or multi-step call results
 - nested property/indexer access
 - `await` with chained member access
 - range-like slice expressions
@@ -4853,12 +4230,12 @@ The design goal is convenience without hidden dynamic behavior. Inference determ
 
 ```camp
 auto count = 0;                    // int
-auto title = "Report";             // target-appropriate string type
-auto pair = 10, 20;                // structural params(int, int)
-auto point = (x: 5, y: 10);        // structural named params
+auto title = "Report";              // const string
+auto bytes = new byte[256];          // byte[]
+auto maybe = default(int?);          // int?
 ```
 
-`auto` is often the clearest choice when the initializer already makes the type obvious or when the exact grouped form is more verbose than helpful.
+`auto` is often the clearest choice when the initializer already makes the type obvious or when the exact expanded form is more verbose than helpful.
 
 ### 3.3.2 `auto` in deconstruction
 
@@ -4878,7 +4255,7 @@ Some expressions are typed from context rather than from their own surface form 
 Common cases include:
 
 - `default`
-- grouped structural literals assigned to nominal grouped types
+- string and character-array literals
 - initializer forms
 - omitted trailing `out` values captured into locals
 - some generic arguments and method-group conversions
@@ -4886,10 +4263,10 @@ Common cases include:
 Examples:
 
 ```camp
-Point p = (1, 2);
+const string title = "Report";
 ```
 
-Here the structural grouped expression is target-typed to `Point`.
+Here the string literal is target-typed as `const string`.
 
 ```camp
 int? count = default;
@@ -4919,23 +4296,23 @@ value = "hello";   // ERROR
 
 Inference is convenient, but explicit spelling is often clearer when one of these is true:
 
-- the distinction between structural and nominal grouped values matters
+- the distinction between expanded slots and materialized storage matters
 - a narrow nominal type is intended
-- a view type versus owning type matters
+- zero-terminated text versus counted text matters
 - a pointer lifetime annotation matters
 - the exact numeric type matters
 
 Examples:
 
 ```camp
-Point p = (1, 2);              // clearer than auto if nominal identity matters
-StringView title = request.Path;
+const string title = "Report"; // clearer than auto when string representation matters
+const char[] path = request.Path;
 escaped byte* data = getBuffer();
 ```
 
 ## 3.4 Member Access
 
-Member access is written with `.` and is shared across fields, methods, grouped components, and static members.
+Member access is written with `.` and is shared across fields, methods, expanded components, and static members.
 
 This uniform surface is one of Camp's most visible simplifications.
 
@@ -4972,31 +4349,28 @@ FileHandle_openRead(path)
 
 For static methods declared outside the type body, the declaration uses the canonical symbol name. The compiler recognizes visible no-receiver symbols with a `TypeName_` prefix as candidates for `TypeName.` static lookup. Namespace qualification may qualify the type name before the `.`.
 
-### 3.4.3 Named grouped components
+### 3.4.3 Expanded component symbols
 
-Named grouped values also use `.` for component access:
-
-```camp
-params DivResult(int quotient, int remainder);
-
-DivResult r = divideInt(10, 3);
-log(r.quotient);
-log(r.remainder);
-```
-
-Likewise for built-in grouped forms such as optionals:
+Compiler-expanded values introduce component symbols directly into scope.
 
 ```camp
-if (count.specified)
-	log(count.value);
+byte[] buffer;
+int? count;
+
+log(buffer_length);
+
+if (count_specified)
+	log(count);
 ```
+
+These component names are not fields. They use `_` spelling because they are ordinary symbols introduced by the expanded binding.
 
 ### 3.4.4 Method references
 
 A method name used without `()` refers to the method itself rather than calling it. That ordinary member-binding behavior remains available even when a method is also eligible for property syntax.
 
 ```camp
-delegate void(StringView) writer = Console.writeLine;
+delegate void(const char[]) writer = Console.writeLine;
 writer("hello");
 ```
 
@@ -5149,8 +4523,8 @@ If rewriting was also possible, the compiler should issue a warning.
 ```camp
 class Widget
 {
-	String Text;
-	String getText() => this.Text;
+	string Text;
+	string getText() => this.Text;
 }
 
 auto x = widget.Text;   // binds to the field, not the getter
@@ -5191,8 +4565,8 @@ If the rewritten accessor has a `thrown` parameter, the property operation handl
 ```camp
 class Config
 {
-	String getPath(thrown Err) => ...;
-	void setPath(String value, thrown Err) => ...;
+	const string getPath(thrown Err) => ...;
+	void setPath(const string value, thrown Err) => ...;
 }
 
 try
@@ -5245,7 +4619,7 @@ auto result = (await widget.Child[1]).Result;
 A getter returning an iterator is legal as a method, but not as a property.
 
 ```camp
-iter StringView getLines() => ...;
+iter char[] getLines() => ...;
 ```
 
 ```camp
@@ -5257,85 +4631,81 @@ This rule preserves the ordinary expectation that property access is field-like 
 
 ## 3.6 Multiple Return Values
 
-Camp uses the ordinary grouped-value model for multi-value results. It does not introduce a separate tuple subsystem just for return values.
+Camp supports multiple result values through explicit result slots. This is not a general tuple subsystem and does not create arbitrary anonymous expanded values.
 
-There are two common ways to produce multiple results:
+The common forms are:
 
-- explicitly returning a grouped value
-- omitting trailing `out` parameters at the call site
+- omitted trailing `out` parameters bound by immediate deconstruction
+- async completion callbacks with more than one non-error result slot
+- iterator and async-iterator protocols that yield several result slots
 
-### 3.6.1 Explicit grouped returns
+### 3.6.1 Omitted trailing `out` values
 
-A function may explicitly return a grouped type.
-
-```camp
-params DivResult(int quotient, int remainder);
-
-DivResult divideInt(int a, int b)
-{
-	return (quotient: a / b, remainder: a % b);
-}
-```
-
-At the call site:
-
-```camp
-DivResult r = divideInt(10, 3);
-log(r.quotient);
-log(r.remainder);
-```
-
-A structural grouped result may also be deconstructed directly:
-
-```camp
-auto (q, r) = divideInt(10, 3);
-```
-
-### 3.6.2 Omitted trailing `out` values
-
-If a call omits one trailing `out` parameter, the omitted value becomes the ordinary return value.
-
-If a call omits multiple trailing `out` parameters, the omitted values become a grouped structural result.
+A call may omit trailing `out` parameters when the call expression is immediately consumed by a binding form.
 
 ```camp
 void getBounds(out int width, out int height);
 
-auto stats = getBounds();
 auto (width, height) = getBounds();
 ```
 
-This keeps `out`-heavy APIs usable without requiring a separate result-object design for every such function.
+This lowers directly to explicit caller-provided storage:
 
-### 3.6.3 Deconstruction
+```camp
+int width;
+int height;
+getBounds(out width, out height);
+```
 
-Any grouped result may be deconstructed when the arity matches.
+If a single trailing `out` parameter is omitted, the result may be bound as an ordinary single value:
+
+```camp
+void getCount(out int count);
+
+auto count = getCount();
+```
+
+### 3.6.2 Deconstruction
+
+A multi-output result may be deconstructed when the arity matches.
 
 ```camp
 auto (min, max) = getMinMax(values);
 auto (x, y) = getOrigin();
 ```
 
-Deconstruction is usually the clearest way to consume unnamed structural results.
+Each local is inferred independently from the corresponding result slot.
 
-### 3.6.4 Grouped returns still follow grouped rules
+### 3.6.3 Multi-output results are not general values
 
-Because grouped multi-value results are just grouped values, all ordinary grouped rules still apply:
+A multi-output result produced by omitted `out` parameters is a binding surface. It is not an anonymous value that can be stored, indexed, placed into arrays, or passed around as a first-class object.
 
-- named results expose named components
-- unnamed structural results do not
-- structural results spread automatically in calls
-- nominal grouped results spread only where the destination endorses them
-- equality remains componentwise
-
-Example:
+When a result needs a durable shape, declare an ordinary `struct` result type:
 
 ```camp
-void setRange(int start, int end);
-auto bounds = getBounds();
-setRange(bounds);
+struct DivResult
+{
+	int quotient;
+	int remainder;
+}
+
+DivResult divideInt(int a, int b)
+{
+	return { .quotient = a / b, .remainder = a % b };
+}
 ```
 
-If `bounds` is a structural grouped value, it spreads positionally. If it is nominal, the ordinary endorsement rules apply.
+### 3.6.4 Async and iterator result slots
+
+Async, iterator, and async-iterator protocols may carry multiple non-error result slots where the protocol explicitly defines them.
+
+Those slots may be consumed through deconstruction:
+
+```camp
+auto (x, y) = await getPointAsync();
+```
+
+Protocol-defined multi-output slots do not imply user-defined expanded value types.
 
 ## 3.7 Error Handling and Cleanup
 
@@ -5346,7 +4716,7 @@ Camp uses explicit error values rather than exceptions. The control-flow surface
 A function that may fail declares a trailing `thrown` parameter:
 
 ```camp
-int parsePort(StringView text, thrown ParseError)
+int parsePort(const char[] text, thrown ParseError)
 {
 	...
 }
@@ -5373,9 +4743,9 @@ enum ParseError
 `throw e;` exits the current function with the specified error value.
 
 ```camp
-int parsePort(StringView text, thrown ParseError)
+int parsePort(const char[] text, thrown ParseError)
 {
-	if (text.length == 0)
+	if (text_length == 0)
 		throw E_INVALID_PORT;
 	...
 }
@@ -5452,7 +4822,7 @@ Use `catch` when the error value should stay an error value rather than becoming
 `catch` is often used to translate one error type into another.
 
 ```camp
-void openConfig(StringView path, thrown AppError)
+void openConfig(const char[] path, thrown AppError)
 {
 	try
 	{
@@ -5545,7 +4915,7 @@ Here it is enough to know that Camp recognizes iterator-shaped sources and drive
 The loop variable may be written explicitly or inferred with `auto`:
 
 ```camp
-foreach (StringView line in fileView.getLines())
+foreach (char[] line in fileView.getLines())
 	log(line);
 
 foreach (auto line in fileView.getLines())
@@ -5583,7 +4953,7 @@ Examples:
 
 ```camp
 scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
-uchar getChar(const StringView this, @index nuint unit);
+uchar getChar(const char[] this, @index nuint unit);
 ```
 
 Call-site examples:
@@ -5611,7 +4981,7 @@ Examples:
 
 ```camp
 scoped T[] slice<T: any>(const T[] this, @range nuint index = 0, nuint count = ^0, sizeof(T));
-scoped StringView slice(const StringView this, @range nuint index = 0, nuint count = ^0);
+scoped char[] slice(const char[] this, @range nuint index = 0, nuint count = ^0);
 ```
 
 Call-site examples:
@@ -5682,7 +5052,7 @@ auto middle = values.slice(2..^1);
 
 ### 3.9.6 Strings and views use methods and property indexers
 
-String-family types do not use raw array-style element access through `addressOf()` in the standard library. Instead they expose index-aware methods and property/indexer-friendly accessors.
+string-family types do not use raw array-style element access through `addressOf()` in the standard library. Instead they expose index-aware methods and property/indexer-friendly accessors.
 
 ```camp
 uchar ch = text.Char[2];
@@ -5766,7 +5136,7 @@ Examples:
 
 ```camp
 escaped Widget* p
-escaped StringView text
+escaped char[] text
 escaped delegate void() callback
 escaped class Widget
 escaped interface IWidget
@@ -5876,13 +5246,13 @@ This rule is recursive through materialized storage.
 
 A value therefore does not need to itself be a pointer in order to participate in lifetime checking. A stack value containing pointers is checked through the pointers it contains.
 
-This is what makes containers of `StringView`, `Span<T>`, delegate values, and other pointer-bearing values meaningful under the lifetime system.
+This is what makes containers of `char[]`, `Span<T>`, delegate values, and other pointer-bearing values meaningful under the lifetime system.
 
 A pointer-bearing aggregate or context value has one lifetime for its contained pointers. Individual fields do not acquire separate lifetime annotations, even when those fields are nested inside other fields.
 
 Assignment into a field or nested field is therefore checked as assignment into the containing value. A value may not be assigned into a field if that value is too narrow for the containing aggregate's current lifetime.
 
-This rule applies equally to structs, classes, `params` values, materialized `struct(T)` storage, arrays whose elements contain pointers, optionals whose payload contains pointers, delegates, and compiler-generated context objects.
+This rule applies equally to structs, classes, expanded values, materialized `struct(T)` storage, arrays whose elements contain pointers, optionals whose payload contains pointers, delegates, and compiler-generated context objects.
 
 ## 4.2 Return Defaults and Declaration-Site Defaults
 
@@ -5925,7 +5295,7 @@ scoped(source) Slice<T> firstHalf<T>(T[] source)
 {
 	return {
 		.items = source.addressOf(0),
-		.length = source.length / 2
+		.length = source_length / 2
 	};
 }
 ```
@@ -6529,7 +5899,7 @@ For example, an exported struct remains layout-visible in the public header, whi
 An exported declaration may also name a metadata output:
 
 ```camp
-export("api") void process(StringView value);
+export("api") void process(const char[] value);
 ```
 
 The declaration is still exported normally. In addition, its definition is emitted to the named metadata file. That metadata can be transformed into a C header or another external declaration surface as a separate compilation step.
@@ -6624,7 +5994,7 @@ A typical pattern is:
 ```camp
 export as Std;
 
-export void printLine(StringView text)
+export void printLine(const char[] text)
 {
 	Console.writeLine(text);
 }
@@ -6759,17 +6129,18 @@ A generator parameter list may not contain a trailing `thrown` parameter. Callin
 An ordinary function returning an iterator may still fail while preparing the iterator:
 
 ```camp
-export iter char chars(StringView text, within allocator, thrown MemoryError)
+export iter char chars(char[] text, within allocator, thrown MemoryError)
 {
 	return charsOwned(text.toStringCopy(within allocator));
 }
 
-class iter char charsOwned(escaped String text)
+class iter char charsOwned(escaped string text)
 {
 	finally delete text;
 
-	for (nuint i = 0; i < text.length; i++)
-		yield text.units[i];
+	const char[] units = text.asArray();
+	for (nuint i = 0; i < units_length; i++)
+		yield units[i];
 }
 ```
 
@@ -6872,39 +6243,26 @@ bool next(Y* this, T* current, thrown E);
 
 As elsewhere in Camp, the default value of the error type means success.
 
-### 5.2.8 Yielding `params` types
+### 5.2.8 Yielding multiple result slots
 
-If the yielded type is a `params` type, the `current` storage follows the ordinary shared grouped-value rules.
-
-That means `T* current` expands componentwise after substitution.
-
-Conceptually, if `T` expands into `F1, F2, ...`, then:
+Iterator protocols may yield more than one ordinary result slot when the iterator type explicitly declares that shape.
 
 ```camp
-bool next(Y* this, F1* current1, F2* current2, ...);
+struct iter(int x, int y) points()
+{
+	...
+}
 ```
 
-This is not an iterator-specific exception. It is the same grouped-value rule used elsewhere in the language.
-
-### 5.2.9 Cleanup
-
-Iterators are cleaned up explicitly and deterministically.
-
-For ordinary non-`params` yields, cleanup of an abstract iterator value is requested by calling `next(...)` with `null` current storage:
+The `next(...)` protocol writes each yielded slot through caller-provided storage:
 
 ```camp
-seq(null);
+bool next(Y* this, int* current_x, int* current_y);
 ```
 
-When the concrete generated iterator type is known, ordinary lifecycle syntax may also be used:
+This is a protocol-defined multi-output surface. It does not create a user-defined expanded value type.
 
-```camp
-rangeIter state = range(1, 5) finally delete;
-```
-
-A `finally` statement inside a generator body participates in that generated iterator cleanup path. It runs when iteration finishes naturally, when the iterator is cleaned up early, or when the concrete generated state is deleted.
-
-If the yielded type is params-based and `current` has exploded into multiple pointer parameters, the first exploded `current` component is the cleanup signal. In practice, compiler-generated cleanup passes the full exploded default group.
+If the yielded protocol has multiple current slots, compiler-generated cleanup passes the protocol-defined default cleanup shape.
 
 ### 5.2.10 `foreach` lowering
 
@@ -7007,7 +6365,7 @@ The important practical rules are:
 - `yield` writes the next logical value through caller-provided storage
 - `next(...)` is the protocol beneath both manual iteration and `foreach`
 - cleanup is explicit and deterministic
-- grouped yields and failing iterators follow the ordinary shared `params` and `thrown` rules
+- expanded yields and failing iterators follow the ordinary shared `params` and `thrown` rules
 
 ## 5.3 Async Functions
 
@@ -7093,12 +6451,12 @@ The awaited final parameter does not need a special nominal type name. Camp’s 
 
 ### 5.3.6 Awaited result values
 
-The value produced by an awaited call is the non-`thrown` parameter list of the completion callback.
+The value or values produced by an awaited call are the non-`thrown` parameters of the completion callback.
 
 That means:
 
 - one completion value becomes one ordinary result
-- multiple completion values form a grouped result
+- multiple completion values may be bound by deconstruction
 - a `thrown` completion parameter is rethrown automatically inside the awaiting function
 
 Examples:
@@ -7109,19 +6467,37 @@ async int addAsync(int x, int y, thrown CalcError)
 	return x + y;
 }
 
+async void getPointAsync(out int x, out int y, thrown CalcError)
+{
+	...
+}
+
 async int sample(thrown CalcError)
 {
 	return await addAsync(3, 4);
 }
+
+async void samplePoint(thrown CalcError)
+{
+	auto (x, y) = await getPointAsync();
+}
 ```
 
-Conceptually, the awaited call consumes a completion shape like:
+Conceptually, the awaited call consumes a completion shape such as:
 
 ```camp
 once void(int result, thrown CalcError) complete
 ```
 
-and yields the non-error part.
+or:
+
+```camp
+once void(int x, int y, thrown CalcError) complete
+```
+
+and yields the non-error slots to the binding site.
+
+Multiple awaited result slots do not create a general anonymous value.
 
 ### 5.3.7 Calling async functions without `await`
 
@@ -7392,7 +6768,7 @@ await foreach (int value in getScoresAsync())
 ```camp
 await foreach (int? value in getScoresAsync())
 {
-	log(value.value);
+	log(value);
 }
 ```
 
@@ -7475,7 +6851,7 @@ void sample()
 }
 ```
 
-The resulting value has the ordinary grouped callable shape:
+The resulting value has the ordinary expanded callable shape:
 
 - a `context` component
 - a `call` component
@@ -7870,7 +7246,7 @@ class AnyList<T: any>
 - copyable structs
 - fixed structs
 - classes
-- materializable `params`-based values
+- compiler-expanded forms through their materialized storage representation
 - other forms supported by the language
 
 In this model, the generic body does not rely on one fixed source-level representation for every `T`. Instead, it relies on the erased transport and storage rules below.
@@ -7921,46 +7297,31 @@ That is why erased generic APIs should usually prefer:
 
 and use `T*` only deliberately when address identity is part of the contract.
 
-### 6.2.4 Grouped values and storage
+### 6.2.4 Expanded forms and storage
 
-Camp distinguishes grouped values from real one-address storage.
+Compiler-expanded forms such as `T[]`, `T?`, and `delegate` do not recursively expand inside erased generic bodies.
 
-At the type level:
+When erased generic code needs storage for such a type, it uses the materialized storage form:
 
-- `params(T)` is the grouped-value form
-- `struct(T)` is the materialized storage form
+```camp
+struct(T[])
+struct(T?)
+struct(delegate void())
+```
 
-At the value level:
-
-- `(params)expr` converts storage to grouped form
-- `(struct)expr` materializes a grouped value into storage
-
-This distinction matters sharply in erased generics because `T` may denote a grouped value that does **not** already exist as one storage object.
+This distinction matters sharply in erased generics because `T` may denote an expanded value that does **not** already exist as one storage object in non-generic source.
 
 ### 6.2.5 The meaning of `T*` in erased generic code
 
 Outside erased substitution, pointer rules are ordinary.
 
-Inside erased substitution of `<T: any>`, `T*` means a pointer to the materialized storage form of `T` for grouped or otherwise materialized copyable types. For fixed structs and classes, it means a pointer to the fixed instance.
+Inside erased substitution of `<T: any>`, `T*` means a pointer to the materialized storage form of `T` for compiler-expanded or otherwise materialized copyable types. For fixed structs and classes, it means a pointer to the fixed instance.
 
-So for a grouped or otherwise materialized copyable type in this context:
+So for an expanded or otherwise materialized copyable type in this context:
 
 > `T*` means `struct(T)*`.
 
-```camp
-void consumePointPtr<T: any>(T* value)
-{
-	...
-}
-
-params Point(int x, int y);
-
-Point groupedPoint = (x: 5, y: 10);
-auto temp = (struct)groupedPoint;
-consumePointPtr(&temp);
-```
-
-A grouped value does not automatically provide the right pointer type. If code needs a real pointer to the value as a whole, it must materialize storage first.
+A non-materialized expanded value does not automatically provide the right pointer type. If code needs a real pointer to the value as a whole, it must materialize storage first.
 
 ### 6.2.6 When materialization is automatic
 
@@ -7986,10 +7347,7 @@ Arrays and optionals remain compiler-reserved built-in type forms. They are not 
 
 #### Arrays
 
-An array type `T[]` remains a nominal built-in `params` form with canonical components such as:
-
-- `elements`
-- `length`
+An array type `T[]` is an expanded form with `elements` and `length` components. In ordinary source, a binding named `items` introduces `items` and `items_length`.
 
 In a `T: any` context, if erased generic storage requires materialization for a copyable type, the effective storage model becomes:
 
@@ -7997,44 +7355,31 @@ In a `T: any` context, if erased generic storage requires materialization for a 
 struct(T)[]
 ```
 
-even though the surface syntax remains `T[]`. For fixed structs and classes, array elements follow class-like copyability rules.
+for the element storage required by the generic container. For fixed structs and classes, array elements follow class-like copyability rules.
 
 ```camp
 void appendAll<T: any>(AnyList<T>* list, T[] items)
 {
-	for (nuint i = 0; i < items.length; i++)
+	for (nuint i = 0; i < items_length; i++)
 		list.add(items[i]);
 }
 ```
 
-This matters because ordinary grouped arrays and materialized arrays are not the same type. For example, `String[]` and `struct(String)[]` are distinct concepts.
-
 #### Optionals
 
-`T?` remains a compiler-reserved nominal `params` form with the usual optional semantics. Generic code should treat it as a built-in type transformation rather than as user-defined generic sugar. If `T` is a fixed type, `T?` is not valid; use `T*?` when an optional pointer is intended.
+`T?` is a compiler-reserved expanded form with the usual optional semantics. Generic code treats it as a built-in type transformation. When storage is needed for the optional as a whole, the materialized form is `struct(T?)`.
 
 ### 6.2.8 Delegates and strings in generic code
 
-The same general principle applies to other compiler-reserved nominal grouped forms.
+Delegates are compiler-expanded forms. When a generic API needs to store a delegate as a whole, it stores the materialized delegate form.
 
-- delegates are grouped `(context, call)` values
-- strings and string views are nominal `params` forms
-- arrays and optionals remain compiler-reserved forms
-
-Generic code may use these types normally, but it should not assume that all of them share one identical storage model. When pointer identity for the whole value matters, the grouped-versus-materialized distinction still controls.
+string types are pointer-shaped primitive values, so they behave like other pointer-shaped values in generic code while retaining their zero-termination contract. Counted text uses character arrays and follows ordinary array rules.
 
 ### 6.2.9 Lifetimes and async
 
-The erased generic model does not replace Camp’s lifetime rules.
+The lifetime system applies to erased generic values through their stored or transported representation.
 
-`escaped`, default `scoped`, `unscoped(...)`, return annotations such as `scoped(...)`, and declaration-site `escaped` defaults still apply after substitution in the ordinary way. Camp does not add a second generic-only lifetime system on top.
-
-In particular:
-
-- `in` changes transport, not lifetime category
-- generic async code follows the ordinary async-frame rules
-- container rules still apply after substitution
-- there is no generic-only exception for delegates, arrays, or interfaces involving `T`
+If `T` contains pointers after substitution, then `in T`, `out T`, return `T`, array elements, optional payloads, delegate contexts, async frames, and iterator frames are all checked through the ordinary aggregate/container rule.
 
 ## 6.3 `sizeof(T)` and `vtableof(T: Interface)`
 
@@ -8120,7 +7465,7 @@ class RefHolder<T: implements IRef>
 
 	void retain()
 	{
-		this.value.retain();
+		this.retain();
 	}
 }
 ```
@@ -8260,8 +7605,8 @@ interface ITextBuilder
 {
 	ITextBuilder(within allocator);
 	~ITextBuilder(within allocator);
-	void append(String text);
-	String takeString();
+	void append(string text);
+	string takeString();
 }
 ```
 
@@ -8290,13 +7635,13 @@ class LineWriter<T: implements ITextBuilder>
 		delete this.builder;
 	}
 
-	void writeLine(String text)
+	void writeLine(string text)
 	{
 		this.builder.append(text);
 		this.builder.append("\n");
 	}
 
-	String finish()
+	string finish()
 	{
 		return this.builder.takeString();
 	}
@@ -8404,227 +7749,148 @@ The library surfaces described here build directly on the language rules already
 
 ## 7.1 Arrays and Strings
 
-Camp treats arrays and string-family types as core library-facing value forms rather than as heavy runtime containers.
-
-Arrays, strings, and string views are all lightweight nominal grouped types. They may share similar physical shapes, but they are still distinct types with distinct semantics and method sets.
+This section sketches the standard library surface for arrays, zero-terminated strings, and counted text.
 
 ### 7.1.1 Arrays
 
-An array value is a built-in nominal form with two canonical components:
-
-- `elements`
-- `length`
-
-That underlying model was defined earlier. What matters here is the standard API surface attached to arrays.
+Arrays are compiler-expanded values with an element pointer and a length component. A binding named `items` introduces `items` and `items_length`.
 
 #### 7.1.1.1 Array API design
 
-The standard array API follows a few simple rules:
+The ordinary array API is written around explicit element type, length, and storage operations.
 
-- mutating operations return the array itself when chaining is useful
-- allocating operations are explicit
-- indexing and slicing are ordinary methods with index-aware parameter annotations
-- generic array operations use `T: any` plus `sizeof(T)`
-
-The core generic array methods are:
+Representative surface:
 
 ```camp
-// Search and comparison.
-nint indexOf<T: any>(const T[] this, in T match, sizeof(T));
-nint indexOfAny<T: any>(const T[] this, const T[] matches, sizeof(T));
-nint lastIndexOf<T: any>(const T[] this, in T match, sizeof(T));
-nint lastIndexOfAny<T: any>(const T[] this, const T[] matches, sizeof(T));
-bool contentsEqualTo<T: any>(const T[] this, const T[] other, sizeof(T));
-
-// In-place mutation.
-scoped T[] fill<T: any>(T[] this, in T value, sizeof(T));
-scoped T[] overwrite<T: any>(T[] this, const T[] source, sizeof(T));
-scoped T[] update<T: any>(T[] this, delegate T(in T element) updater, sizeof(T));
-scoped T[] sort<T: any>(T[] this, delegate int(in T a, in T b) comparer, sizeof(T));
-scoped T[] reverse<T: any>(T[] this, sizeof(T));
-
-// Borrowing operations.
 scoped T[] slice<T: any>(const T[] this, @range nuint index = 0, nuint count = ^0, sizeof(T));
 scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
-
-// Allocating operations.
 T[] copy<T: any>(const T[] this, within allocator, sizeof(T));
-TResult[] mapCopy<T: any, TResult: any>(const T[] this, delegate TResult(in T element) mapper, sizeof(T), within allocator);
-T[] filterCopy<T: any>(const T[] this, delegate bool(in T element) predicate, within allocator, sizeof(T));
 ```
 
-These methods are intentionally small and conventional. Camp does not try to make arrays into a deep collection hierarchy.
+The methods operate on the array's direct components. For a receiver named `items`, implementations use `items` and `items_length`.
 
 #### 7.1.1.2 Searching, comparison, and mutation
 
-The search methods return the usual index or `-1` result:
+Generic helpers use `in T` for value-like element transport and `sizeof(T)` where erased storage requires it.
 
 ```camp
-int[] values = [3, 5, 8, 13, 21];
-
-nint a = values.indexOf(8);
-nint b = values.lastIndexOfAny([5, 21]);
-bool same = values.contentsEqualTo([3, 5, 8, 13, 21]);
+nint indexOf<T: any>(const T[] this, in T match, sizeof(T));
+bool contains<T: any>(const T[] this, in T match, sizeof(T));
+void fill<T: any>(T[] this, in T value, sizeof(T));
 ```
 
-In-place methods return the array itself so that common pipelines remain short:
-
-```camp
-int[] values = new int[5] finally delete;
-
-values
-	.fill(1)
-	.update(x => x * 2)
-	.reverse();
-```
-
-`sort(...)` uses an ordinary comparer delegate:
-
-```camp
-values.sort((left, right) => left - right);
-```
-
-Delegate parameters are `scoped` by default, so array callbacks follow the ordinary delegate lifetime rules.
+Elementwise equality and comparison are library operations. Raw array equality compares the expanded components, not the sequence contents.
 
 #### 7.1.1.3 Indexing and slicing
 
-Arrays support ordinary element indexing syntax through `addressOf()`.
-
-That means this library declaration:
+Raw element indexing uses `[]`.
 
 ```camp
-scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
-```
-
-supports code such as:
-
-```camp
-int[] values = [10, 20, 30, 40, 50];
-
 int first = values[0];
 int last = values[^1];
-int* p = &values[2];
 ```
 
-Borrowed slicing is provided by `slice(...)`:
+Slicing is expressed through `slice(...)` methods with `@range` parameters:
 
 ```camp
-auto middle = values.slice(1, 3);
-auto inner = values.slice(1..^1);
+auto middle = values.slice(2..^1);
 ```
-
-The `@index` and `@range` annotations allow the compiler to understand from-end syntax such as `^1` and range syntax such as `1..^1` while still keeping the ABI surface as ordinary methods.
 
 #### 7.1.1.4 Allocating array operations
 
-Methods that allocate storage say so clearly.
+Copy-producing array operations take an allocator:
 
 ```camp
-int[] original = [1, 2, 3, 4];
-
-within(tempArena)
-{
-	auto copied = original.copy() finally delete;
-	auto doubled = original.mapCopy(x => x * 2) finally delete;
-	auto even = original.filterCopy(x => x % 2 == 0) finally delete;
-}
+T[] copy<T: any>(const T[] this, within allocator, sizeof(T));
 ```
 
-This is the standard pattern throughout the Camp library:
+The returned array owns the allocated element storage only according to the API contract that produced it. The array type itself is just pointer plus length.
 
-- borrowed operations return views or scoped values
-- allocating operations take `within allocator` and produce new owned results
+#### 7.1.1.5 Arrays of expanded values
 
-#### 7.1.1.5 Arrays of `params` types
-
-The generic array API is written for `T: any`, but an important practical rule applies when the element type is a non-materialized grouped type.
-
-The array operations documented here work for arrays of ordinary materialized elements. For grouped `params` types, that usually means using the materialized form.
-
-For example:
+Direct arrays of non-materialized expanded values are invalid:
 
 ```camp
-struct(String)[] items;
+int?[] values;            // ERROR
+char[][] lines;           // ERROR
+delegate void()[] calls;  // ERROR
 ```
 
-is an ordinary materialized array element type for generic array algorithms, while:
+Use materialized element storage instead:
 
 ```camp
-String[] items;
+struct(int?)[] values;
+struct(char[])[] lines;
+struct(delegate void())[] calls;
 ```
 
-remains a distinct grouped array type with different semantics.
+This keeps the array ABI conventional and prevents recursive expansion.
 
-Camp may grow more direct operations for non-materialized grouped arrays, but that is separate from the API surface documented here.
+### 7.1.2 Strings and Counted Text
 
-### 7.1.2 Strings and Views
+Camp distinguishes zero-terminated string pointer types from counted character arrays.
 
-Camp distinguishes ordinary string types from borrowed string-view types.
-
-The three built-in families are:
-
-| Family | Borrowed view | Ordinary string | Units |
+| Family | string type | Counted type | Units |
 |---|---|---|---|
-| UTF-8 | `StringView` | `String` | `char` |
-| UTF-16 | `WStringView` | `WString` | `wchar` |
-| ASCII / system code page | `AStringView` | `AString` | `achar` |
+| UTF-8 | `string` | `char[]` | `char` |
+| UTF-16 | `wstring` | `wchar[]` | `wchar` |
+| ASCII / system code page | `astring` | `achar[]` | `achar` |
 
-The canonical declarations are:
+The string types are primitive pointer-shaped keywords: `string`, `wstring`, and `astring`.
 
-```camp
-params StringView(@nosuffix char* units, nuint length);
-params WStringView(@nosuffix wchar* units, nuint length);
-params AStringView(@nosuffix achar* asciichars, nuint length);
+#### 7.1.2.1 Zero-terminated strings and counted arrays
 
-params String: StringView;
-params WString: WStringView;
-params AString: AStringView;
+A `string` is a zero-terminated UTF-8 string pointer. A `char[]` is a counted UTF-8 code-unit sequence.
 
-~String(within allocator);
-~WString(within allocator);
-~AString(within allocator);
-```
+The same relationship applies to the UTF-16 and ASCII families.
 
-The narrowing declarations mean that the owning types are distinct nominal types that widen implicitly to their corresponding view types.
+Use string types for C-style zero-terminated APIs and compact pointer-shaped string storage. Use counted character arrays when code needs an explicit length, slicing, bounded access, or embedded zero code units.
 
-#### 7.1.2.1 Owning versus borrowed text
+#### 7.1.2.2 Ownership and release
 
-The basic rule is simple:
+The core string type names describe representation, not ownership.
 
-- `StringView` is a borrowed view into text data
-- `String` is the ordinary UTF-8 string type
-- the same distinction applies to the UTF-16 and ASCII families
+An API that allocates a string must state the matching release operation. An API that borrows a string must express the lifetime of the pointer through ordinary lifetime annotations.
 
-A `String` may be passed where a `StringView` is expected:
+The primitive string types do not define destructors.
+
+#### 7.1.2.3 Length and null termination
+
+string length is computed by scanning for the terminator:
 
 ```camp
-void printLine(StringView text)
-{
-	Console.writeLine(text);
-}
-
-String text = "hello";
-printLine(text);
+nuint getLength(string this);
 ```
 
-The reverse conversion is not implicit.
-
-Camp intentionally keeps borrowing visible. Operations such as trimming and slicing therefore return views rather than automatically allocating new strings.
-
-#### 7.1.2.2 Deletion and null termination
-
-Owning strings may define destructors and therefore may support `delete`.
-View types do not.
+So:
 
 ```camp
-auto upper = someText.uppercaseCopy(within arena) finally delete;
+const string text = "hello";
+nuint len = text.Length; // calls getLength()
 ```
 
-The widening relationship does not carry delete support with it: a deletable `String` does not make `StringView` deletable.
+A counted character array carries its length directly:
 
-Only string literals are automatically null-terminated. Ordinary `String` values are not assumed to preserve a general null-termination guarantee unless a specific API says so.
+```camp
+const char[] text = "hello";
+nuint len = text_length;
+```
 
-#### 7.1.2.3 Character encodings and scalar conversions
+#### 7.1.2.4 String literals
+
+String literals are constant. The default inferred type is `const string`, and a literal may target only constant string, character-array, or character-pointer forms.
+
+```camp
+auto text = "hello";       // const string
+const wstring wide = "hello";
+const char[] view = "hello";
+const char* raw = "hello";
+
+string mutableText = "hello"; // ERROR
+char* mutableRaw = "hello";   // ERROR
+```
+
+#### 7.1.2.5 Character encodings and scalar conversions
 
 The library uses these character types:
 
@@ -8643,16 +7909,14 @@ achar -> char -> wchar -> uchar
 
 Narrowing casts exist in the opposite direction. These are ordinary value conversions, not checked transcoding APIs.
 
-#### 7.1.2.4 String indexing and slicing are code-unit based
+#### 7.1.2.6 Counted text indexing and slicing are code-unit based
 
-String indexing and slicing use code-unit positions, not Unicode character positions.
-
-This is deliberate. It keeps the core API cheap and predictable while still allowing Unicode-aware operations where they are actually needed.
+Counted text indexing and slicing use code-unit positions, not Unicode character positions.
 
 Examples:
 
 ```camp
-StringView text = "héllo";
+const char[] text = "héllo";
 
 nint i = text.indexOf("ll");
 uchar ch = text.Char[2];
@@ -8666,170 +7930,124 @@ Important consequences:
 - `getChar(...)` decodes the code point beginning at a code-unit position
 - `countChars()` is a decoding operation and may therefore be `O(n)`
 
-#### 7.1.2.5 Common view operations
+#### 7.1.2.6 Common counted text operations
 
-The string-view API is intentionally broad enough for ordinary text work but still small enough to remember.
+The counted text API is intentionally broad enough for ordinary text work but still small enough to remember.
 
-The common methods are conceptually duplicated across the UTF-8, UTF-16, and ASCII view families.
+The common methods are conceptually duplicated across the UTF-8, UTF-16, and ASCII counted families.
 
 ##### Searching and comparison
 
 ```camp
-nint indexOf(const StringView this, const StringView match, bool caseInsensitive = false);
-nint indexOfChar(const StringView this, uchar match, bool caseInsensitive = false);
-nint indexOfAnyChar(const StringView this, const uchar[] matches, bool caseInsensitive = false);
+nint indexOf(const char[] this, const char[] match, bool caseInsensitive = false);
+nint indexOfChar(const char[] this, uchar match, bool caseInsensitive = false);
+nint indexOfAnyChar(const char[] this, const uchar[] matches, bool caseInsensitive = false);
 
-nint lastIndexOf(const StringView this, const StringView match, bool caseInsensitive = false);
-nint lastIndexOfChar(const StringView this, uchar match, bool caseInsensitive = false);
-nint lastIndexOfAnyChar(const StringView this, const uchar[] matches, bool caseInsensitive = false);
+nint lastIndexOf(const char[] this, const char[] match, bool caseInsensitive = false);
+nint lastIndexOfChar(const char[] this, uchar match, bool caseInsensitive = false);
+nint lastIndexOfAnyChar(const char[] this, const uchar[] matches, bool caseInsensitive = false);
 
-bool startsWith(const StringView this, const StringView match, bool caseInsensitive = false);
-bool startsWithChar(const StringView this, uchar match, bool caseInsensitive = false);
-bool endsWith(const StringView this, const StringView match, bool caseInsensitive = false);
-bool endsWithChar(const StringView this, uchar match, bool caseInsensitive = false);
+bool startsWith(const char[] this, const char[] match, bool caseInsensitive = false);
+bool startsWithChar(const char[] this, uchar match, bool caseInsensitive = false);
+bool endsWith(const char[] this, const char[] match, bool caseInsensitive = false);
+bool endsWithChar(const char[] this, uchar match, bool caseInsensitive = false);
 
-nint compareTo(const StringView this, const StringView other, bool caseInsensitive = false);
+nint compareTo(const char[] this, const char[] other, bool caseInsensitive = false);
 ```
-
-These methods operate on code-unit sequences. Case-insensitive behavior is part of the individual method contract rather than a separate comparer framework.
 
 ##### Unicode-aware access
 
 ```camp
-struct iter uchar chars(const StringView this);
-nuint countChars(const StringView this);
-uchar getChar(const StringView this, @index nuint unit);
-nuint getCharUnits(const StringView this, @index nuint unit);
+struct iter uchar chars(const char[] this);
+nuint countChars(const char[] this);
+uchar getChar(const char[] this, @index nuint unit);
+nuint getCharUnits(const char[] this, @index nuint unit);
 ```
-
-Typical usage:
-
-```camp
-foreach (uchar ch in text.chars())
-{
-	processCodePoint(ch);
-}
-
-uchar first = text.Char[0];
-nuint lastWidth = text.CharUnits[^1];
-```
-
-Property syntax keeps unit-based indexing readable without exposing raw `addressOf()` on strings.
 
 ##### Borrowing transformations
 
 ```camp
-StringView trim(const StringView this);
-StringView trimStart(const StringView this);
-StringView trimEnd(const StringView this);
-scoped StringView slice(const StringView this, @range nuint index = 0, nuint count = ^0);
+char[] trim(const char[] this);
+char[] trimStart(const char[] this);
+char[] trimEnd(const char[] this);
+scoped char[] slice(const char[] this, @range nuint index = 0, nuint count = ^0);
 ```
 
-These operations return borrowed views rather than allocating new storage.
-
-```camp
-StringView line = input.trim();
-StringView stem = line.slice(..^1);
-```
+These operations return counted views rather than allocating new storage.
 
 ##### Copy-producing transformations
 
 ```camp
-String uppercaseCopy(const StringView this, within allocator);
-String lowercaseCopy(const StringView this, within allocator);
+string toStringCopy(const char[] this, within allocator);
+string uppercaseStringCopy(const char[] this, within allocator);
+string lowercaseStringCopy(const char[] this, within allocator);
 
-String StringView_concatCopy(const StringView[] strings, within allocator);
-String StringView_joinCopy(const StringView separator, const StringView[] strings, within allocator);
+string CharArray_concatStringCopy(const struct(char[])[] strings, within allocator);
+string CharArray_joinStringCopy(const char[] separator, const struct(char[])[] strings, within allocator);
 
-(scoped StringView)[] splitCopy(const StringView this, const StringView separator, within allocator);
+struct(char[])[] splitCopy(const char[] this, const char[] separator, within allocator);
 ```
 
 The naming is intentional:
 
-- `uppercaseCopy(...)` and `lowercaseCopy(...)` allocate
-- `concatCopy(...)` and `joinCopy(...)` allocate
-- `splitCopy(...)` allocates only the outer array, not the text segments themselves
+- `toStringCopy(...)` produces zero-terminated string storage
+- `uppercaseStringCopy(...)` and `lowercaseStringCopy(...)` allocate
+- `concatStringCopy(...)` and `joinStringCopy(...)` allocate
+- `splitCopy(...)` allocates only the outer materialized array, not the text segments themselves
 
-Example:
-
-```camp
-within(tempArena)
-{
-	auto words = sentence.splitCopy(" ") finally delete;
-	auto loud = sentence.uppercaseCopy() finally delete;
-	auto combined = StringView_joinCopy(", ", words) finally delete;
-}
-```
-
-In the `splitCopy(...)` case, the returned array owns only the array storage. The individual `StringView` elements still borrow the original text storage.
-
-#### 7.1.2.6 Family-specific conversions and reinterpretations
+#### 7.1.2.7 Family-specific conversions and reinterpretations
 
 Each string family also has a few type-specific helpers.
 
 ##### UTF-8 family
 
 ```camp
-String toStringCopy(const StringView this, within allocator);
-WString convertToWStringCopy(const StringView this, within allocator);
-AString convertToAStringCopy(const StringView this, within allocator);
-scoped char[] asArray(const StringView this);
-scoped AStringView assumeAStringView(const StringView this);
+string toStringCopy(const char[] this, within allocator);
+wstring convertToWStringCopy(const char[] this, within allocator);
+astring convertToAStringCopy(const char[] this, within allocator);
+scoped char[] asArray(string this);
+scoped achar[] assumeACharArray(const char[] this);
 ```
 
 ##### UTF-16 family
 
 ```camp
-WString toWStringCopy(const WStringView this, within allocator);
-String convertToStringCopy(const WStringView this, within allocator);
-AString convertToAStringCopy(const WStringView this, within allocator);
-scoped wchar[] asArray(const WStringView this);
+wstring toWStringCopy(const wchar[] this, within allocator);
+string convertToStringCopy(const wchar[] this, within allocator);
+astring convertToAStringCopy(const wchar[] this, within allocator);
+scoped wchar[] asArray(wstring this);
 ```
 
 ##### ASCII family
 
 ```camp
-AString toAStringCopy(const AStringView this, within allocator);
-String convertToStringCopy(const AStringView this, within allocator);
-WString convertToWStringCopy(const AStringView this, within allocator);
-scoped achar[] asArray(const AStringView this);
-void makeUppercase(AStringView this);
-void makeLowercase(AStringView this);
+astring toAStringCopy(const achar[] this, within allocator);
+string convertToStringCopy(const achar[] this, within allocator);
+wstring convertToWStringCopy(const achar[] this, within allocator);
+scoped achar[] asArray(astring this);
+void makeUppercase(achar[] this);
+void makeLowercase(achar[] this);
 ```
 
-The ASCII in-place case operations intentionally return `void`, so mutating an `AStringView` does not suggest that a new owning string was created.
+#### 7.1.2.8 string-to-array and array-to-string helpers
 
-#### 7.1.2.7 Array-to-view reinterpretation helpers
-
-The standard library also provides direct view reinterpretation from raw character arrays:
+A zero-terminated string may be viewed as a counted character array by scanning for its terminator:
 
 ```camp
-StringView asView(const char[] this);
-WStringView asView(const wchar[] this);
-AStringView asView(const achar[] this);
+scoped char[] asArray(string this);
+scoped wchar[] asArray(wstring this);
+scoped achar[] asArray(astring this);
 ```
 
-These helpers are especially useful when interoperating with lower-level APIs:
+A counted character array may be copied into a zero-terminated string:
 
 ```camp
-char[] buffer = init char[256];
-StringView text = buffer.asView();
+string toStringCopy(const char[] this, within allocator);
+wstring toWStringCopy(const wchar[] this, within allocator);
+astring toAStringCopy(const achar[] this, within allocator);
 ```
 
-#### 7.1.2.8 Strings do not expose raw element addressing
-
-Built-in arrays expose `addressOf()` and therefore ordinary `[]` element access in the standard library.
-Strings and string views intentionally do not.
-
-Character access goes through:
-
-- `getChar(...)`
-- `getCharUnits(...)`
-- property syntax such as `text.Char[index]`
-
-This makes it clearer that strings are text-oriented types, not raw mutable buffers.
-
-If code actually wants a raw unit array, it can use `asArray()` and then work with the resulting array view explicitly.
+The copying helpers allocate and append the terminator.
 
 ### 7.1.3 `StringBuilder`
 
@@ -8837,44 +8055,7 @@ If code actually wants a raw unit array, it can use `asArray()` and then work wi
 
 It is the mutation-heavy text-construction utility for cases where repeated string concatenation would be awkward or wasteful.
 
-Its design goals are:
-
-- explicit allocator usage
-- efficient incremental growth
-- a guaranteed null terminator in the backing buffer
-- a clear distinction between borrowed access and ownership transfer
-
-A representative sketch looks like this:
-
-```camp
-class StringBuilder
-{
-	StringBuilder(within allocator);
-	~StringBuilder();
-
-	void clear();
-	void ensureCapacity(nuint minimum, thrown MemoryError);
-	void trimExcess(thrown MemoryError);
-
-	nuint getLength();
-	nuint getCapacity();
-	StringView asView();
-	String asString();
-
-	void append(uchar ch, thrown MemoryError);
-	void append(StringView text, thrown MemoryError);
-	void append(String text, thrown MemoryError);
-	void appendBool(bool value, thrown MemoryError);
-	void appendInt(nint value, thrown MemoryError);
-	void appendUInt(nuint value, thrown MemoryError);
-	void appendUppercase(StringView text, thrown MemoryError);
-	void appendLowercase(StringView text, thrown MemoryError);
-	void appendLine(thrown MemoryError);
-	void appendLine(StringView text, thrown MemoryError);
-}
-```
-
-The exact finalized method set may still change. The important point is conceptual: builders are where mutation-heavy string construction belongs.
+It stores counted character data internally and can produce either counted views or zero-terminated string copies.
 
 ## 7.2 Streams and I/O
 
@@ -8946,17 +8127,17 @@ export ByteWriter writer(byte[] this);
 export AsyncByteWriter asyncWriter(byte[] this);
 ```
 
-For string views:
+For character arrays:
 
 ```camp
-export CharReader reader(StringView this);
-export AsyncCharReader asyncReader(StringView this);
+export CharReader reader(char[] this);
+export AsyncCharReader asyncReader(char[] this);
 
-export WCharReader reader(WStringView this);
-export AsyncWCharReader asyncReader(WStringView this);
+export WCharReader reader(Wchar[] this);
+export AsyncWCharReader asyncReader(Wchar[] this);
 
-export ACharReader reader(AStringView this);
-export AsyncACharReader asyncReader(AStringView this);
+export ACharReader reader(Achar[] this);
+export AsyncACharReader asyncReader(Achar[] this);
 ```
 
 These are useful for:
@@ -9001,14 +8182,14 @@ export struct FileOptions
 
 export class FileHandle
 {
-	static ByteReader openRead(StringView path, FileMode mode = OPEN_EXISTING, FileOptions options = default, thrown IoError);
-	static AsyncByteReader openReadAsync(StringView path, FileMode mode = OPEN_EXISTING, FileOptions options = default, thrown IoError);
+	static ByteReader openRead(const char[] path, FileMode mode = OPEN_EXISTING, FileOptions options = default, thrown IoError);
+	static AsyncByteReader openReadAsync(const char[] path, FileMode mode = OPEN_EXISTING, FileOptions options = default, thrown IoError);
 
-	static ByteWriter openWrite(StringView path, FileMode mode = CREATE_OR_TRUNCATE, FileOptions options = default, thrown IoError);
-	static AsyncByteWriter openWriteAsync(StringView path, FileMode mode = CREATE_OR_TRUNCATE, FileOptions options = default, thrown IoError);
+	static ByteWriter openWrite(const char[] path, FileMode mode = CREATE_OR_TRUNCATE, FileOptions options = default, thrown IoError);
+	static AsyncByteWriter openWriteAsync(const char[] path, FileMode mode = CREATE_OR_TRUNCATE, FileOptions options = default, thrown IoError);
 
-	static FileHandle* open(StringView path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError);
-	static async FileHandle* openAsync(StringView path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError);
+	static FileHandle* open(const char[] path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError);
+	static async FileHandle* openAsync(const char[] path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError);
 
 	~FileHandle(thrown IoError);
 
@@ -9046,11 +8227,11 @@ export class Console
 	export static extern CharWriter getError();
 	export static extern AsyncCharWriter getAsyncError();
 
-	export static extern thrown(IoError) writeString(StringView value);
-	export static extern thrown(IoError) writeLine(StringView value = default);
+	export static extern thrown(IoError) writeString(char[] value);
+	export static extern thrown(IoError) writeLine(char[] value = default);
 
-	export static extern async void writeStringAsync(StringView value, thrown IoError);
-	export static extern async void writeLineAsync(StringView value = default, thrown IoError);
+	export static extern async void writeStringAsync(char[] value, thrown IoError);
+	export static extern async void writeLineAsync(char[] value = default, thrown IoError);
 }
 ```
 
@@ -9116,8 +8297,8 @@ UTF-8 forms:
 
 ```camp
 export thrown(IoError) writeChar(CharWriter this, uchar value);
-export thrown(IoError) writeString(CharWriter this, StringView value);
-export thrown(IoError) writeLine(CharWriter this, StringView value = default);
+export thrown(IoError) writeString(CharWriter this, char[] value);
+export thrown(IoError) writeLine(CharWriter this, char[] value = default);
 
 export thrown(IoError) writeBool(CharWriter this, bool value);
 export thrown(IoError) writeInt(CharWriter this, int value);
@@ -9127,8 +8308,8 @@ export thrown(IoError) writeULong(CharWriter this, ulong value);
 export thrown(IoError) writeFloat(CharWriter this, float value);
 export thrown(IoError) writeDouble(CharWriter this, double value);
 
-export async void writeStringAsync(AsyncCharWriter this, StringView value, thrown IoError);
-export async void writeLineAsync(AsyncCharWriter this, StringView value = default, thrown IoError);
+export async void writeStringAsync(AsyncCharWriter this, char[] value, thrown IoError);
+export async void writeLineAsync(AsyncCharWriter this, char[] value = default, thrown IoError);
 ```
 
 Equivalent `WChar*` and `AChar*` helper families exist for UTF-16 and ASCII/system-code-page streams.
@@ -9138,14 +8319,14 @@ Equivalent `WChar*` and `AChar*` helper families exist for UTF-16 and ASCII/syst
 UTF-8 forms:
 
 ```camp
-export String readAllCopy(CharReader this, within allocator, thrown IoError);
-export async String readAllCopyAsync(AsyncCharReader this, within allocator, thrown IoError);
+export string readAllCopy(CharReader this, within allocator, thrown IoError);
+export async string readAllCopyAsync(AsyncCharReader this, within allocator, thrown IoError);
 
 export iter nuint readLines(CharReader this, char[] buffer, thrown IoError);
 export async iter nuint readLinesAsync(AsyncCharReader this, char[] buffer, thrown IoError);
 
-export iter StringView iterateLines(CharReader this, char[] buffer, thrown IoError);
-export async iter StringView? iterateLinesAsync(AsyncCharReader this, char[] buffer, thrown IoError);
+export iter char[] iterateLines(CharReader this, char[] buffer, thrown IoError);
+export async iter char[]? iterateLinesAsync(AsyncCharReader this, char[] buffer, thrown IoError);
 ```
 
 Equivalent `WChar*` and `AChar*` reading helper families exist for UTF-16 and ASCII/system-code-page streams.
@@ -9162,7 +8343,7 @@ The distinction between the two line-reading styles is intentional:
 ```camp
 using Std::IO;
 
-void dumpBytes(StringView path, thrown IoError)
+void dumpBytes(const char[] path, thrown IoError)
 {
 	auto reader = FileHandle.openRead(path) finally delete;
 	byte[] buffer = init byte[4096];
@@ -9179,7 +8360,7 @@ Async form:
 ```camp
 using Std::IO;
 
-async void dumpBytesAsync(StringView path, thrown IoError)
+async void dumpBytesAsync(const char[] path, thrown IoError)
 {
 	auto reader = FileHandle.openReadAsync(path) finally delete;
 	auto buffer = new byte[4096] finally delete;
@@ -9196,7 +8377,7 @@ async void dumpBytesAsync(StringView path, thrown IoError)
 ```camp
 using Std::IO;
 
-void writeData(StringView path, const byte[] data, thrown IoError)
+void writeData(const char[] path, const byte[] data, thrown IoError)
 {
 	auto writer = FileHandle.openWrite(path) finally delete;
 	writer.writeAll(data);
@@ -9208,7 +8389,7 @@ Manual form without helpers:
 ```camp
 using Std::IO;
 
-void writeDataManually(StringView path, const byte[] data, thrown IoError)
+void writeDataManually(const char[] path, const byte[] data, thrown IoError)
 {
 	auto writer = FileHandle.openWrite(path) finally delete;
 	auto remaining = data;
@@ -9217,7 +8398,7 @@ void writeDataManually(StringView path, const byte[] data, thrown IoError)
 	{
 		remaining = remaining.slice(written);
 
-		if (remaining.length == 0)
+		if (remaining_length == 0)
 			break;
 	}
 }
@@ -9228,12 +8409,12 @@ void writeDataManually(StringView path, const byte[] data, thrown IoError)
 ```camp
 using Std::IO;
 
-void printTextFile(StringView path, thrown IoError)
+void printTextFile(const char[] path, thrown IoError)
 {
 	auto reader = FileHandle.openRead(path) finally delete;
 	char[] lineBuffer = init char[512];
 
-	foreach (StringView line in reader.CharReader.iterateLines(lineBuffer))
+	foreach (char[] line in reader.CharReader.iterateLines(lineBuffer))
 	{
 		if (line.startsWith("#"))
 			continue;
@@ -9248,7 +8429,7 @@ void printTextFile(StringView path, thrown IoError)
 ```camp
 using Std::IO;
 
-void writeTextFile(StringView path, thrown IoError)
+void writeTextFile(const char[] path, thrown IoError)
 {
 	auto writer = FileHandle.openWrite(path) finally delete;
 
@@ -9268,7 +8449,7 @@ void repl()
 {
 	char[] lineBuffer = init char[256];
 
-	foreach (StringView line in Console.getReader().iterateLines(lineBuffer))
+	foreach (char[] line in Console.getReader().iterateLines(lineBuffer))
 	{
 		if (line == "quit")
 			break;

@@ -319,24 +319,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (target.Names.Count <= 1)
 			return false;
-		if (!TryGetParamsComponentShape(target.Type, initialType, "value", out ParamsComponentShape shape))
-			return false;
 
-		target.ResolvedType = initialType;
-		if (shape.Components.Count != target.Names.Count)
-		{
-			Report(GetRange(target.SourceSyntax), $"Deconstruction declares {target.Names.Count.ToString(CultureInfo.InvariantCulture)} target(s), but the initializer has {shape.Components.Count.ToString(CultureInfo.InvariantCulture)} component(s).");
-			return true;
-		}
-
-		for (int i = 0; i < target.Names.Count; i++)
-		{
-			string name = target.Names[i];
-			if (string.IsNullOrWhiteSpace(name))
-				continue;
-			RegisterBodySymbol(scope, name, shape.Components[i].Type, CreateDeconstructedTarget(target, name, shape.Components[i].Type), null, shape.Components[i].Type, target.SourceSyntax);
-		}
-
+		Report(GetRange(target.SourceSyntax), "Declaration deconstruction is only supported for omitted out/async/iter result slots.");
 		return true;
 	}
 
@@ -633,15 +617,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeGroupedExpression(GroupedExpression grouped, BodyScope scope, AnalysisScope typeScope)
 	{
-		List<string> itemTypes = [];
 		foreach (GroupedExpressionItem item in grouped.Items)
 		{
 			string itemType = BodyAnalyzeExpression(item.Expression, scope, typeScope);
 			item.ResolvedType = itemType;
-			itemTypes.Add(item.Name is null ? itemType : $"{item.Name}: {itemType}");
 		}
 
-		return $"({string.Join(", ", itemTypes)})";
+		Report(GetRange(grouped.SourceSyntax), "Anonymous grouped values are no longer supported.");
+		return ErrorType;
 	}
 
 	string BodyAnalyzeArrayExpression(ArrayExpression array, BodyScope scope, AnalysisScope typeScope, string? targetType)
@@ -814,6 +797,10 @@ public sealed partial class BindableNodeAnalyzer
 			EnsureFunctionSignatureAnalyzed(function, typeScope);
 			callTargets[call] = function;
 		}
+		else if (TryAnalyzeCallableInvocation(call, scope, typeScope, targetType, out string callableReturnType))
+		{
+			return callableReturnType;
+		}
 		if (IsGeneratedAllocatorCall(function))
 		{
 			foreach (ArgumentExpression argument in call.Arguments)
@@ -828,6 +815,30 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
 		return returnType;
+	}
+
+	bool TryAnalyzeCallableInvocation(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType, out string returnType)
+	{
+		returnType = ErrorType;
+		string callableType = call.Target?.ResolvedType ?? ErrorType;
+		if (!TryGetCallableShape(callableType, out CallableShape callable))
+			return false;
+
+		List<ParameterDefinition> parameters = [];
+		foreach (string parameterType in callable.Parameters)
+		{
+			parameters.Add(new ParameterDefinition
+			{
+				ResolvedType = parameterType,
+				Type = new NamedTypeReference { Name = parameterType, ResolvedType = parameterType }
+			});
+		}
+
+		AnalyzeCallArguments(call.Arguments, parameters, scope, typeScope);
+		returnType = callable.ReturnType;
+		if (targetType is not null)
+			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
+		return true;
 	}
 
 	bool IsGeneratedAllocatorCall(FunctionDefinition? function)
@@ -1432,6 +1443,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetArrayElementType(targetType) is string elementType)
 			return elementType;
 
+		if (GetPrimitiveStringElementType(targetType) is string stringElementType)
+			return stringElementType;
+
 		Report(GetRange(target?.SourceSyntax), $"Type '{targetType}' is not indexable.");
 		return ErrorType;
 	}
@@ -1516,7 +1530,7 @@ public sealed partial class BindableNodeAnalyzer
 		string operandType = BodyAnalyzeExpression(postfix.Expression, scope, typeScope);
 		if (IsParamsComponentMemberReference(postfix.Expression))
 			Report(GetRange(postfix.Expression?.SourceSyntax), "Individual params components cannot be assigned; assign the whole params value instead.");
-		RequireMutableWriteTarget(operandType, postfix.Expression?.SourceSyntax, "Update target");
+		RequireMutableWriteTarget(postfix.Expression, operandType, postfix.Expression?.SourceSyntax, "Update target");
 		if (!IsNumericType(operandType))
 			Report(GetRange(postfix.Expression?.SourceSyntax), $"Update operator requires a numeric operand, not '{operandType}'.");
 		return operandType;
@@ -1548,7 +1562,7 @@ public sealed partial class BindableNodeAnalyzer
 		string valueType = BodyAnalyzeExpression(assignment.Value, scope, typeScope, targetType);
 		if (IsParamsComponentMemberReference(assignment.Target))
 			Report(GetRange(assignment.Target?.SourceSyntax), "Individual params components cannot be assigned; assign the whole params value instead.");
-		RequireMutableWriteTarget(targetType, assignment.Target?.SourceSyntax, "Assignment target");
+		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target");
 		CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
 		return targetType;
 	}

@@ -63,6 +63,7 @@ public sealed partial class BindableNodeAnalyzer
 				LowerThrowingArguments(call);
 				for (int i = 0; i < call.Arguments.Count; i++)
 					call.Arguments[i] = LowerArgument(call.Arguments[i]);
+				TryRewriteDelegateInvocation(call);
 				ExpandParamsArguments(call.Arguments);
 				LowerCallArgumentConversions(call);
 				if (TryRewriteInstanceInvocation(call))
@@ -73,6 +74,8 @@ public sealed partial class BindableNodeAnalyzer
 			case IndexExpression index:
 				if (index.Target is MemberReferenceExpression getter && IsPropertyGetterReference(getter))
 					return RewritePropertyGetterCall(getter, index.Arguments);
+				if (TryCreateParamsComponentExpressions(index, out List<Expression> indexedComponents) && indexedComponents.Count == 1)
+					return LowerExpression(indexedComponents[0]);
 				index.Target = LowerExpression(index.Target);
 				for (int i = 0; i < index.Arguments.Count; i++)
 					index.Arguments[i] = LowerArgument(index.Arguments[i]);
@@ -137,6 +140,23 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return expression;
+	}
+
+	bool TryRewriteDelegateInvocation(CallExpression call)
+	{
+		if (!TryCreateParamsComponentExpressions(call.Target, out List<Expression> components) || components.Count != 2)
+			return false;
+		if (!TryGetCallableShape(components[0].ResolvedType, out CallableShape callable) || callable.Kind != "fn")
+			return false;
+
+		call.Target = components[0];
+		call.Arguments.Insert(0, new ArgumentExpression
+		{
+			SourceSyntax = components[1].SourceSyntax,
+			Value = components[1],
+			ResolvedType = components[1].ResolvedType
+		});
+		return true;
 	}
 
 	bool TryRewritePropertySetterAssignment(AssignmentExpression assignment, out Expression? rewritten)

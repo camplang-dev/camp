@@ -84,12 +84,6 @@ public sealed partial class BindableNodeAnalyzer
 
 		switch (type)
 		{
-			case TypeDefinitionReference { Definition: ParamsDefinition definition }:
-				return TryBuildPendingParamsDefinitionComponents(definition, prefix, out components, out kind, out typeName);
-
-			case NamedTypeReference named when typeDefinitions.TryGetValue(named.Name, out TypeDefinition? definition) && definition is ParamsDefinition paramsDefinition:
-				return TryBuildPendingParamsDefinitionComponents(paramsDefinition, prefix, out components, out kind, out typeName);
-
 			case ArrayTypeReference { ElementType: not null } array:
 				kind = ParamsComponentShapeKind.Array;
 				typeName = type.ResolvedType ?? resolvedType ?? ErrorType;
@@ -102,44 +96,17 @@ public sealed partial class BindableNodeAnalyzer
 				AddOptionalPendingComponents(optional.ElementType, optional.ElementType.ResolvedType, prefix, components);
 				return true;
 
-			case PointerTypeReference { ElementType: not null } pointer:
-				return TryBuildPendingPointerComponents(pointer.ElementType, pointer.ElementType.ResolvedType, prefix, out components, out kind, out typeName);
-
 			case CallableTypeReference { Kind: CallableKind.Delegate } callable:
 				kind = ParamsComponentShapeKind.Delegate;
 				typeName = type.ResolvedType ?? resolvedType ?? ErrorType;
 				AddDelegatePendingComponents(callable.ReturnType?.ResolvedType ?? ErrorType, GetExpandedCallableParameterTypes(callable.Parameters), prefix, components);
 				return true;
-
-			case GroupedParamsTypeReference { StructType: not null } grouped:
-				return TryBuildPendingParamsComponents(grouped.StructType, grouped.StructType.ResolvedType, prefix, out components, out kind, out typeName);
 		}
 
 		if (!string.IsNullOrWhiteSpace(resolvedType))
 		{
-			if (TryGetStructuralGroupedComponents(resolvedType, out List<GroupedTypeComponent> groupedComponents))
-			{
-				kind = ParamsComponentShapeKind.Structural;
-				typeName = resolvedType;
-				for (int i = 0; i < groupedComponents.Count; i++)
-				{
-					GroupedTypeComponent component = groupedComponents[i];
-					string componentName = component.Name ?? i.ToString(System.Globalization.CultureInfo.InvariantCulture);
-					components.Add(new PendingParamsComponent(
-						componentName,
-						component.Type,
-						[.. prefix, new ParamsNamePart(componentName, false)],
-						null,
-						ParamsComponentShapeKind.Structural));
-				}
-				return components.Count > 0;
-			}
-
 			if (TryParseTypeShape(resolvedType, out TypeShape typeShape))
 			{
-				if (typeShape.Kind == TypeShapeKind.Pointer && typeShape.Element is not null)
-					return TryBuildPendingPointerComponents(typeShape.Element, prefix, out components, out kind, out typeName);
-
 				if (typeShape.Kind == TypeShapeKind.Array && typeShape.Element is TypeShape arrayElement)
 				{
 					kind = ParamsComponentShapeKind.Array;
@@ -155,15 +122,7 @@ public sealed partial class BindableNodeAnalyzer
 					AddOptionalPendingComponents(null, TypeShapeParser.Format(optionalElement), prefix, components);
 					return true;
 				}
-
-				if (typeShape.Kind == TypeShapeKind.Named
-					&& typeDefinitions.TryGetValue(typeShape.Name, out TypeDefinition? shapedDefinition)
-					&& shapedDefinition is ParamsDefinition shapedParamsDefinition)
-					return TryBuildPendingParamsDefinitionComponents(shapedParamsDefinition, prefix, out components, out kind, out typeName);
 			}
-
-			if (typeDefinitions.TryGetValue(BaseTypeName(resolvedType), out TypeDefinition? definition) && definition is ParamsDefinition paramsDefinition)
-				return TryBuildPendingParamsDefinitionComponents(paramsDefinition, prefix, out components, out kind, out typeName);
 
 			if (TryGetCallableShape(resolvedType, out CallableShape callable) && callable.Kind == "delegate")
 			{
@@ -214,14 +173,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddArrayPendingComponents(TypeReference? elementType, string? elementResolvedType, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
 	{
-		List<ParamsNamePart> elementPrefix = [.. prefix, new ParamsNamePart("elements", true)];
+		List<ParamsNamePart> elementPrefix = [.. prefix, new ParamsNamePart("elements", false)];
 		string elementPointerType = AddPointer(elementResolvedType ?? elementType?.ResolvedType ?? ErrorType);
-		if (TryBuildPendingParamsComponents(PointerToElementType(elementType, elementResolvedType), elementPointerType, elementPrefix, out List<PendingParamsComponent> elementComponents, out _, out _))
-			components.AddRange(elementComponents);
-		else
-			components.Add(new PendingParamsComponent("elements", elementPointerType, elementPrefix, null, ParamsComponentShapeKind.Array));
+		components.Add(new PendingParamsComponent("elements", elementPointerType, elementPrefix, null, ParamsComponentShapeKind.Array));
 
-		components.Add(new PendingParamsComponent("length", HasConstValueQualifier(elementType, elementResolvedType) ? "const nuint" : "nuint", [.. prefix, new ParamsNamePart("length", false)], null, ParamsComponentShapeKind.Array));
+		components.Add(new PendingParamsComponent("length", "nuint", [.. prefix, new ParamsNamePart("length", false)], null, ParamsComponentShapeKind.Array));
 	}
 
 	bool TryBuildPendingPointerComponents(
@@ -289,7 +245,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddOptionalPendingComponents(TypeReference? valueType, string? valueResolvedType, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
 	{
-		List<ParamsNamePart> valuePrefix = [.. prefix, new ParamsNamePart("value", true)];
+		List<ParamsNamePart> valuePrefix = [.. prefix, new ParamsNamePart("value", false)];
 		if (TryBuildPendingParamsComponents(valueType, valueResolvedType, valuePrefix, out List<PendingParamsComponent> valueComponents, out _, out _))
 			components.AddRange(valueComponents);
 		else
@@ -302,7 +258,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string contextType = "void*";
 		string callType = BuildCallableType("fn", returnType, [contextType, .. parameterTypes]);
-		components.Add(new PendingParamsComponent("call", callType, [.. prefix, new ParamsNamePart("call", true)], null, ParamsComponentShapeKind.Delegate));
+		components.Add(new PendingParamsComponent("call", callType, [.. prefix, new ParamsNamePart("call", false)], null, ParamsComponentShapeKind.Delegate));
 		components.Add(new PendingParamsComponent("context", contextType, [.. prefix, new ParamsNamePart("context", false)], null, ParamsComponentShapeKind.Delegate));
 	}
 
@@ -417,7 +373,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<ParamsComponent> components = [];
 		foreach (ParamsComponent component in shape.Components)
-			components.Add(component with { Type = AddConstToReceiverInstance(component.Type) });
+			components.Add(component with { Type = AddTopLevelConstToType(component.Type) });
 		return shape with { Components = components };
 	}
 

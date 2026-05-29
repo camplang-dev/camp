@@ -1,0 +1,160 @@
+%YAML 1.2
+---
+name: Camp
+file_extensions:
+  - camp
+scope: source.camp
+
+variables:
+  identifier: '[A-Za-z_][A-Za-z0-9_]*'
+  qualified_identifier: '{{identifier}}(?:(::){{identifier}})*'
+  type_keywords: '\b(?:any|auto|bool|byte|sbyte|ushort|short|uint|int|ulong|long|nuint|nint|float|double|char|wchar|achar|uchar|void|string|wstring|astring)\b'
+  type_forms: '\b(?:fn|delegate|async|once|iter|thrown|struct|class)\b'
+  storage_keywords: '\b(?:const|volatile|escaped|scoped|unscoped|in|out|thrown|within|sizeof|vtableof)\b'
+
+contexts:
+  main:
+    - include: comments
+    - include: preprocessor
+    - include: attributes
+    - include: strings
+    - include: numbers
+    - include: declarations
+    - include: statements
+    - include: types
+    - include: constants
+    - include: operators
+    - include: punctuation
+    - include: names
+
+  comments:
+    - match: '//'
+      scope: punctuation.definition.comment.camp
+      push:
+        - meta_scope: comment.line.double-slash.camp
+        - match: $\n?
+          pop: true
+    - match: '/\*'
+      scope: punctuation.definition.comment.begin.camp
+      push:
+        - meta_scope: comment.block.camp
+        - match: '\*/'
+          scope: punctuation.definition.comment.end.camp
+          pop: true
+
+  preprocessor:
+    - match: '^\s*(#)\s*(include|require)\b'
+      captures:
+        1: punctuation.definition.directive.camp
+        2: keyword.control.import.camp
+      push:
+        - meta_scope: meta.preprocessor.camp
+        - match: '<[^>\n]+>'
+          scope: string.quoted.other.lt-gt.include.camp
+        - match: '"'
+          scope: punctuation.definition.string.begin.camp
+          push:
+            - meta_scope: string.quoted.double.include.camp
+            - match: '\\.'
+              scope: constant.character.escape.camp
+            - match: '"'
+              scope: punctuation.definition.string.end.camp
+              pop: true
+        - match: $\n?
+          pop: true
+
+  attributes:
+    - match: '@{{identifier}}\b'
+      scope: storage.type.annotation.camp
+
+  strings:
+    - match: '"'
+      scope: punctuation.definition.string.begin.camp
+      push:
+        - meta_scope: string.quoted.double.camp
+        - match: '\\(?:[\\''"0abfnrtv]|x[0-9A-Fa-f]+|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})'
+          scope: constant.character.escape.camp
+        - match: '\\.'
+          scope: invalid.illegal.escape.camp
+        - match: '"'
+          scope: punctuation.definition.string.end.camp
+          pop: true
+    - match: "'"
+      scope: punctuation.definition.string.begin.camp
+      push:
+        - meta_scope: string.quoted.single.camp
+        - match: '\\(?:[\\''"0abfnrtv]|x[0-9A-Fa-f]+|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})'
+          scope: constant.character.escape.camp
+        - match: '\\.'
+          scope: invalid.illegal.escape.camp
+        - match: "'"
+          scope: punctuation.definition.string.end.camp
+          pop: true
+
+  numbers:
+    - match: '\b0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*(?:[uUlLnN]|n?u?int|u?long|u?short|u?byte)?\b'
+      scope: constant.numeric.integer.hexadecimal.camp
+    - match: '\b0[bB][01](?:_?[01])*(?:[uUlLnN]|n?u?int|u?long|u?short|u?byte)?\b'
+      scope: constant.numeric.integer.binary.camp
+    - match: '\b(?:[0-9](?:_?[0-9])*)?\.[0-9](?:_?[0-9])*(?:[eE][+-]?[0-9](?:_?[0-9])*)?(?:[fFdD])?\b'
+      scope: constant.numeric.float.camp
+    - match: '\b[0-9](?:_?[0-9])*(?:[eE][+-]?[0-9](?:_?[0-9])*)?(?:[fFdD])\b'
+      scope: constant.numeric.float.camp
+    - match: '\b[0-9](?:_?[0-9])*(?:[uUlLnN]|n?u?int|u?long|u?short|u?byte)?\b'
+      scope: constant.numeric.integer.decimal.camp
+
+  declarations:
+    - match: '\b(export|extern|static|virtual|override|sealed|abstract|fixed)\b'
+      scope: storage.modifier.camp
+    - match: '\b(using|as)\b'
+      scope: keyword.control.import.camp
+    - match: '\b(struct|class|interface|enum|newtype|params)\b\s+({{identifier}})'
+      captures:
+        1: storage.type.camp
+        2: entity.name.type.camp
+    - match: '(~)\s*({{identifier}})\b'
+      captures:
+        1: punctuation.definition.destructor.camp
+        2: entity.name.function.destructor.camp
+    - match: '\b({{identifier}})\s*(?=<)'
+      scope: entity.name.type.generic.camp
+    - match: '\b({{identifier}})\s*(?=\()'
+      scope: entity.name.function.camp
+
+  statements:
+    - match: '\b(?:if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|init|new)\b'
+      scope: keyword.control.camp
+
+  types:
+    - match: '{{type_keywords}}'
+      scope: storage.type.primitive.camp
+    - match: '{{type_forms}}'
+      scope: storage.type.camp
+    - match: '{{storage_keywords}}'
+      scope: storage.modifier.type.camp
+
+  constants:
+    - match: '\b(?:true|false|null|default|this|base)\b'
+      scope: constant.language.camp
+
+  operators:
+    - match: '(::)'
+      scope: punctuation.accessor.namespace.camp
+    - match: '(=>|\+\+|--|\?\?|\.\.|==|!=|<=|>=|<<|>>|&&|\|\||[+\-*/%&|^~!=<>?:]=?|=)'
+      scope: keyword.operator.camp
+
+  punctuation:
+    - match: '[{}]'
+      scope: punctuation.section.block.camp
+    - match: '[()]'
+      scope: punctuation.section.group.camp
+    - match: '[\[\]]'
+      scope: punctuation.section.brackets.camp
+    - match: '[,.;:]'
+      scope: punctuation.separator.camp
+
+  names:
+    - match: '{{qualified_identifier}}'
+      scope: variable.other.camp
+      captures:
+        1: punctuation.accessor.namespace.camp

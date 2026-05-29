@@ -131,6 +131,9 @@ public sealed partial class BindableNodeAnalyzer
 			&& thisType is ClassDefinition;
 		string deletedType = isPointer ? elementType ?? ErrorType : targetType;
 		FunctionDefinition? opDelete = FindDeleteMethod(deletedType);
+		if (opDelete is null
+			&& typeDefinitions.TryGetValue(BaseTypeName(deletedType), out TypeDefinition? deletedDefinition))
+			opDelete = FindCallableDeleteMethod(deletedDefinition, target?.SourceSyntax);
 
 		if (!isPointer && !isThisPointer && !isArray && opDelete is null)
 			Report(target?.SourceSyntax, $"delete requires a pointer or a type with a destructor, not '{targetType}'.");
@@ -141,6 +144,16 @@ public sealed partial class BindableNodeAnalyzer
 			return CreateFreeCall(CreateArrayElementsAccess(target));
 
 		return CreateDeleteExpression(target, opDelete, isPointer || isThisPointer);
+	}
+
+	FunctionDefinition? FindCallableDeleteMethod(TypeDefinition type, SyntaxNode? referenceSyntax)
+	{
+		foreach (FunctionDefinition function in LookupTypeFunctions(type, DeleteMethodName, referenceSyntax))
+			return function;
+		foreach (FunctionDefinition function in GetFunctions(type))
+			if (IsDestructorFunction(function))
+				return function;
+		return null;
 	}
 
 	Expression? CreateBaseDeleteCall()

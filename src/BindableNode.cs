@@ -347,6 +347,9 @@ public enum PrimitiveType
 {
 	Void,
 	Bool,
+	String,
+	WString,
+	AString,
 	Byte,
 	SByte,
 	UShort,

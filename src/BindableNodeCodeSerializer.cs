@@ -1050,13 +1050,15 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case GroupedParamsTypeReference grouped:
-				writer.Write("params ");
+				writer.Write("params(");
 				WriteType(grouped.StructType);
+				writer.Write(")");
 				break;
 
 			case MaterializedStructTypeReference materialized:
-				writer.Write("struct ");
+				writer.Write("struct(");
 				WriteType(materialized.ParamsType);
+				writer.Write(")");
 				break;
 
 			case ThrownTypeReference thrown:
@@ -1341,6 +1343,9 @@ public sealed class BindableNodeCodeSerializer
 		{
 			PrimitiveType.Void => "void",
 			PrimitiveType.Bool => "bool",
+			PrimitiveType.String => "string",
+			PrimitiveType.WString => "wstring",
+			PrimitiveType.AString => "astring",
 			PrimitiveType.Byte => "byte",
 			PrimitiveType.SByte => "sbyte",
 			PrimitiveType.UShort => "ushort",

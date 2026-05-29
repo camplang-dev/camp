@@ -67,10 +67,30 @@ public sealed partial class BindableNodeAnalyzer
 		if (!typeDefinitions.TryGetValue(typeName, out TypeDefinition? type))
 			return null;
 
-		foreach (FunctionDefinition function in GetFunctions(type))
+		return FindDeleteMethod(type);
+	}
+
+	FunctionDefinition? FindDeleteMethod(TypeDefinition type)
+	{
+		if (type is ClassDefinition classDefinition)
 		{
-			if (function.Name == DeleteMethodName)
-				return function;
+			foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
+				foreach (FunctionDefinition candidateFunction in candidateClass.Functions)
+					if (candidateFunction.Name == DeleteMethodName)
+						return candidateFunction;
+			foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
+				foreach (FunctionDefinition candidateFunction in candidateClass.Functions)
+					if (IsDestructorFunction(candidateFunction))
+						return candidateFunction;
+		}
+		else
+		{
+			foreach (FunctionDefinition function in GetFunctions(type))
+				if (function.Name == DeleteMethodName)
+					return function;
+			foreach (FunctionDefinition function in GetFunctions(type))
+				if (IsDestructorFunction(function))
+					return function;
 		}
 
 		return null;

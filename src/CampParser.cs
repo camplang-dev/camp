@@ -870,6 +870,23 @@ public sealed class CampParser
 			Keyword = Take()
 		};
 
+		if (KeywordRequiresExpressionBody(syntax.Keyword?.Value))
+		{
+			if (!Is(";"))
+			{
+				syntax.Body = new ExpressionStatementSyntax
+				{
+					Expression = ParseExpression(),
+					SemicolonToken = Expect(";")
+				};
+			}
+			else
+			{
+				syntax.Body = new EmptyStatementSyntax { SemicolonToken = Take() };
+			}
+			return syntax;
+		}
+
 		if (KeywordAllowsParenthesizedCondition(syntax.Keyword?.Value) && Is("("))
 		{
 			syntax.OpenParenToken = Take();
@@ -900,6 +917,11 @@ public sealed class CampParser
 		}
 
 		return syntax;
+	}
+
+	static bool KeywordRequiresExpressionBody(string? keyword)
+	{
+		return keyword is "return" or "yield" or "delete" or "throw";
 	}
 
 	static bool KeywordAllowsParenthesizedCondition(string? keyword)

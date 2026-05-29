@@ -59,11 +59,15 @@ public sealed partial class BindableNodeAnalyzer
 
 			case ArrayTypeReference array:
 				AnalyzeOptionalType(array.ElementType, scope);
+				if (IsExpandedFormType(array.ElementType))
+					Report(GetRange(array.SourceSyntax), $"Arrays of expanded values are not supported; use struct({FormatTypeReference(array.ElementType)})[] instead.");
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case OptionalTypeReference optional:
 				AnalyzeOptionalType(optional.ElementType, scope);
+				if (optional.ElementType is OptionalTypeReference)
+					Report(GetRange(optional.SourceSyntax), "Optional values may not directly contain another optional; use struct(T?)? if materialized nesting is required.");
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
@@ -123,11 +127,14 @@ public sealed partial class BindableNodeAnalyzer
 
 			case GroupedParamsTypeReference grouped:
 				AnalyzeOptionalType(grouped.StructType, scope);
+				Report(GetRange(grouped.SourceSyntax), "params(T) type syntax is no longer supported; use an expanded built-in form or struct(T).");
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case MaterializedStructTypeReference materialized:
 				AnalyzeOptionalType(materialized.ParamsType, scope);
+				if (!IsExpandedFormType(materialized.ParamsType))
+					Report(GetRange(materialized.SourceSyntax), "struct(T) materialization requires an expanded array, optional, or delegate type.");
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
@@ -140,6 +147,17 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = ErrorType;
 				break;
 		}
+	}
+
+	static bool IsExpandedFormType(TypeReference? type)
+	{
+		if (type is null)
+			return false;
+
+		type = UnwrapTypeDeclarators(type);
+		return type is ArrayTypeReference
+			or OptionalTypeReference
+			or CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once or CallableKind.Async };
 	}
 
 	string ResolveNamedType(NamedTypeReference named, AnalysisScope scope)

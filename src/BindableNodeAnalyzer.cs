@@ -34,14 +34,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	static readonly HashSet<string> ReservedWords = new(StringComparer.Ordinal)
 	{
-		"abstract", "any", "as", "async", "auto", "bool", "break", "byte", "case", "catch",
+		"abstract", "any", "as", "astring", "async", "auto", "bool", "break", "byte", "case", "catch",
 		"char", "class", "const", "continue", "default", "delegate", "delete", "do", "double",
 		"else", "enum", "escaped", "export", "extern", "false", "finally", "fixed", "float",
 		"fn", "for", "foreach", "if", "implements", "in", "init", "int", "interface", "iter",
 		"long", "new", "newtype", "nint", "null", "nuint", "once", "out", "override", "params",
-		"return", "sbyte", "scoped", "sealed", "short", "sizeof", "static", "struct", "switch",
+		"return", "sbyte", "scoped", "sealed", "short", "sizeof", "static", "string", "struct", "switch",
 		"this", "thrown", "true", "try", "uchar", "uint", "ulong", "unscoped", "ushort",
-		"using", "virtual", "void", "volatile", "vtableof", "wchar", "while", "within", "yield"
+		"using", "virtual", "void", "volatile", "vtableof", "wchar", "while", "within", "wstring", "yield"
 	};
 
 	readonly List<AnalysisDiagnostic> diagnostics = [];
@@ -397,6 +397,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			PrimitiveType.Void => "void",
 			PrimitiveType.Bool => "bool",
+			PrimitiveType.String => "string",
+			PrimitiveType.WString => "wstring",
+			PrimitiveType.AString => "astring",
 			PrimitiveType.Byte => "byte",
 			PrimitiveType.SByte => "sbyte",
 			PrimitiveType.UShort => "ushort",

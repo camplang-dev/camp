@@ -92,6 +92,12 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				return components.Count > 0;
 
+			case MemberReferenceExpression { Target: not null, Member: FunctionDefinition function } member
+				when FindContainingType(function) is not InterfaceDefinition:
+				components.Add(CreateFlattenedMethodReference(member, member.Target, function));
+				components.Add(member.Target);
+				return true;
+
 			case MemberReferenceExpression { Target: not null } member
 				when TryCreateParamsMemberComponentExpression(member, out Expression? component):
 				components.Add(component);
@@ -108,6 +114,9 @@ public sealed partial class BindableNodeAnalyzer
 					components.Add(item.Expression);
 				}
 				return components.Count > 0;
+
+			case DefaultExpression defaultExpression:
+				return TryCreateDefaultParamsComponentExpressions(defaultExpression, out components);
 
 			case ArrayExpression array:
 				return TryCreateArrayParamsComponentExpressions(array, out components);
@@ -156,6 +165,14 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateArrayParamsComponentExpressions(ArrayExpression array, out List<Expression> components)
 	{
 		components = [];
+		if (TryGetArrayElementType(array.ResolvedType) is string arrayElementType)
+		{
+			array.ResolvedType = AddPointer(arrayElementType);
+			components.Add(array);
+			components.Add(NumberLiteral(array.Elements.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), IsConstQualified(arrayElementType) ? "const nuint" : "nuint"));
+			return true;
+		}
+
 		if (array.Elements.Count == 0)
 			return false;
 
@@ -188,20 +205,28 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
+	bool TryCreateDefaultParamsComponentExpressions(DefaultExpression defaultExpression, out List<Expression> components)
+	{
+		components = [];
+		if (!TryGetParamsComponentShape(defaultExpression.Type, defaultExpression.ResolvedType, "value", out ParamsComponentShape shape))
+			return false;
+
+		foreach (ParamsComponent component in shape.Components)
+		{
+			components.Add(new DefaultExpression
+			{
+				SourceSyntax = defaultExpression.SourceSyntax,
+				ResolvedType = component.Type
+			});
+		}
+		return components.Count > 0;
+	}
+
 	bool TryCreateStringParamsComponentExpressions(LiteralExpression literal, out List<Expression> components)
 	{
 		components = [];
-		string stringType = BaseTypeName(literal.ResolvedType ?? "");
-		if (string.IsNullOrWhiteSpace(stringType)
-			|| !typeDefinitions.TryGetValue(stringType, out TypeDefinition? definition)
-			|| definition is not ParamsDefinition paramsDefinition
-			|| !TryGetParamsComponentShape(TypeReferenceFor(paramsDefinition), literal.ResolvedType ?? paramsDefinition.ResolvedType ?? paramsDefinition.Name, "value", out ParamsComponentShape shape)
-			|| shape.Components.Count != 2)
-			return false;
-
-		if (shape.Components[0].Type != literal.ResolvedType && !shape.Components[0].Type.EndsWith("char*", System.StringComparison.Ordinal) && !shape.Components[0].Type.EndsWith("wchar*", System.StringComparison.Ordinal) && !shape.Components[0].Type.EndsWith("achar*", System.StringComparison.Ordinal))
-			return false;
-		if (shape.Components[1].Type != "nuint" && shape.Components[1].Type != "const nuint")
+		string resolvedType = literal.ResolvedType ?? "";
+		if (!IsStringLiteralArrayType(resolvedType, out string pointerType, out string lengthType))
 			return false;
 
 		components.Add(new LiteralExpression
@@ -210,10 +235,35 @@ public sealed partial class BindableNodeAnalyzer
 			Kind = literal.Kind,
 			Text = literal.Text,
 			Value = literal.Value,
-			ResolvedType = shape.Components[0].Type
+			ResolvedType = pointerType
 		});
-		components.Add(NumberLiteral(GetStringLiteralLength(literal).ToString(System.Globalization.CultureInfo.InvariantCulture), shape.Components[1].Type));
+		components.Add(NumberLiteral(GetStringLiteralLength(literal).ToString(System.Globalization.CultureInfo.InvariantCulture), lengthType));
 		return true;
+	}
+
+	static bool IsStringLiteralArrayType(string type, out string pointerType, out string lengthType)
+	{
+		pointerType = "";
+		lengthType = "";
+		if (!TryParseStringLiteralArrayType(type, out string elementType, out bool isConst))
+			return false;
+
+		pointerType = AddPointer(elementType);
+		lengthType = isConst ? "const nuint" : "nuint";
+		return true;
+	}
+
+	static bool TryParseStringLiteralArrayType(string type, out string elementType, out bool isConst)
+	{
+		elementType = "";
+		isConst = false;
+		if (!type.EndsWith("[]", System.StringComparison.Ordinal))
+			return false;
+
+		elementType = type[..^2].Trim();
+		isConst = elementType.StartsWith("const ", System.StringComparison.Ordinal);
+		string bare = isConst ? elementType["const ".Length..].Trim() : elementType;
+		return bare is "char" or "wchar" or "achar";
 	}
 
 	bool TryCreateIndexedParamsComponentExpressions(IndexExpression index, out List<Expression> components)

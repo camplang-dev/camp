@@ -152,6 +152,7 @@ public sealed partial class BindableNodeBuilder
 				return BuildNewtypeDefinition(syntax);
 
 			case "params":
+				Report(syntax.Keyword?.Range, "User-defined params declarations are no longer supported; use arrays, optionals, delegates, or struct(T) materialization.");
 				return BuildParamsDefinition(syntax);
 
 			default:
@@ -1185,11 +1186,7 @@ public sealed partial class BindableNodeBuilder
 				};
 
 			case ParamsTypeSyntax grouped:
-				return new GroupedParamsTypeReference
-				{
-					SourceSyntax = grouped,
-					StructType = grouped.Type is null ? MissingType(grouped, "Params type is missing an inner type.") : BuildTypeReference(grouped.Type)
-				};
+				return MissingType(grouped, "params(T) type syntax is no longer supported; use an expanded built-in form or struct(T).");
 
 			case StructTypeSyntax materialized:
 				return new MaterializedStructTypeReference
@@ -1475,6 +1472,15 @@ public sealed partial class BindableNodeBuilder
 				return true;
 			case "bool":
 				type = PrimitiveType.Bool;
+				return true;
+			case "string":
+				type = PrimitiveType.String;
+				return true;
+			case "wstring":
+				type = PrimitiveType.WString;
+				return true;
+			case "astring":
+				type = PrimitiveType.AString;
 				return true;
 			case "byte":
 				type = PrimitiveType.Byte;

@@ -29,6 +29,53 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
 	}
 
+	void RequireMutableWriteTarget(Expression? target, string targetType, SyntaxNode? syntax, string context)
+	{
+		if (target is MemberReferenceExpression { Member: FieldDefinition or ParameterDefinition or VariableDefinition } && IsMutableStorageType(targetType))
+			return;
+		if (target is MemberExpression member
+			&& expressionRewrites.TryGetValue(member, out Expression? rewrite)
+			&& rewrite is MemberReferenceExpression { Member: FieldDefinition or ParameterDefinition or VariableDefinition }
+			&& IsMutableStorageType(targetType))
+			return;
+
+		if (target is IndexExpression index)
+		{
+			RequireMutableIndexedWriteTarget(index, syntax, context);
+			return;
+		}
+
+		RequireMutableWriteTarget(targetType, syntax, context);
+	}
+
+	static bool IsMutableStorageType(string type)
+	{
+		return IsPrimitiveStringType(type);
+	}
+
+	void RequireMutableIndexedWriteTarget(IndexExpression index, SyntaxNode? syntax, string context)
+	{
+		string indexedType = index.Target?.ResolvedType ?? ErrorType;
+		if (indexedType == ErrorType || indexedType == TargetType)
+			return;
+
+		if (TryGetArrayElementType(indexedType) is not null)
+		{
+			if (IsConstQualified(indexedType))
+				Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
+			return;
+		}
+
+		if (GetPrimitiveStringElementType(indexedType) is not null)
+		{
+			if (IsConstQualified(indexedType))
+				Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
+			return;
+		}
+
+		RequireMutableWriteTarget(index.ResolvedType ?? ErrorType, syntax, context);
+	}
+
 	bool CanImplicitlyConvert(string source, string target)
 	{
 		if (source == target || source == ErrorType || target == ErrorType || target == TargetType)
@@ -37,13 +84,16 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == "#NULL" && TryParseTypeShape(target, out TypeShape nullTarget) && (nullTarget.IsPointer || nullTarget.IsOptional))
 			return true;
 
+		if (source == "#NULL" && IsPrimitiveStringType(target))
+			return true;
+
 		if (source == AllocatorType && target == "Allocator*")
 			return true;
 
 		if (TryGetCallableShape(source, out CallableShape sourceCallable) && TryGetCallableShape(target, out CallableShape targetCallable))
 			return CallableShapesCompatible(sourceCallable, targetCallable);
 
-		if (CanConvertStructuralGroupedToNominalParams(source, target))
+		if (CanCopyConstValue(source, target))
 			return true;
 
 		if (IsClassToInterfaceConversion(source, target) || IsStructToInterfaceConversion(source, target) || IsInterfaceUpcast(source, target))
@@ -58,32 +108,21 @@ public sealed partial class BindableNodeAnalyzer
 		return IsNumericType(source) && IsNumericType(target) && NumericRank(source) <= NumericRank(target);
 	}
 
+	bool CanCopyConstValue(string source, string target)
+	{
+		if (!TryParseTypeShape(source, out TypeShape sourceShape) || !TryParseTypeShape(target, out TypeShape targetShape))
+			return false;
+		if (sourceShape.Kind != TypeShapeKind.Named || targetShape.Kind != TypeShapeKind.Named)
+			return false;
+		if (sourceShape.Name != targetShape.Name || IsPrimitiveStringType(source) || IsPrimitiveStringType(target))
+			return false;
+
+		return sourceShape.Qualifiers.IsConst && !targetShape.Qualifiers.IsConst;
+	}
+
 	bool CanConvertStructuralGroupedToNominalParams(string source, string target)
 	{
-		if (!TryGetStructuralGroupedComponents(source, out List<GroupedTypeComponent> sourceComponents))
-			return false;
-		if (!typeDefinitions.TryGetValue(BaseTypeName(target), out TypeDefinition? definition) || definition is not ParamsDefinition)
-			return false;
-		if (!TryGetParamsComponentShape(TypeReferenceFor(definition), definition.ResolvedType ?? definition.Name, "value", out ParamsComponentShape shape))
-			return false;
-		if (sourceComponents.Count != shape.Components.Count)
-			return false;
-
-		bool anyNamed = false;
-		bool allNamed = true;
-		for (int i = 0; i < sourceComponents.Count; i++)
-		{
-			GroupedTypeComponent sourceComponent = sourceComponents[i];
-			ParamsComponent targetComponent = shape.Components[i];
-			anyNamed |= sourceComponent.Name is not null;
-			allNamed &= sourceComponent.Name is not null;
-			if (sourceComponent.Name is not null && sourceComponent.Name != targetComponent.Name)
-				return false;
-			if (!CanImplicitlyConvert(sourceComponent.Type, targetComponent.Type))
-				return false;
-		}
-
-		return !anyNamed || allNamed;
+		return false;
 	}
 
 	readonly record struct GroupedTypeComponent(string? Name, string Type);
@@ -1181,7 +1220,7 @@ public sealed partial class BindableNodeAnalyzer
 	string GetStringLiteralType(LiteralExpression literal, string? targetType)
 	{
 		if (targetType is null || targetType == TargetType || targetType == AutoType)
-			return "const String";
+			return "const string";
 
 		if (IsStringLiteralTargetType(targetType))
 			return targetType;
@@ -1193,11 +1232,32 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsStringLiteralTargetType(string? type)
 	{
 		return type is "const char*"
-			or "const String"
 			or "const wchar*"
-			or "const WString"
 			or "const achar*"
-			or "const AString";
+			or "const string"
+			or "const wstring"
+			or "const astring"
+			or "const char[]"
+			or "const wchar[]"
+			or "const achar[]";
+	}
+
+	static bool IsPrimitiveStringType(string? type)
+	{
+		type = StripTopLevelValueQualifiers(type ?? "");
+		return type is "string" or "wstring" or "astring";
+	}
+
+	static string? GetPrimitiveStringElementType(string? type)
+	{
+		type = StripTopLevelValueQualifiers(type ?? "");
+		return type switch
+		{
+			"string" => "char",
+			"wstring" => "wchar",
+			"astring" => "achar",
+			_ => null
+		};
 	}
 
 	string BuildFunctionValueType(FunctionDefinition function, bool isInstance)

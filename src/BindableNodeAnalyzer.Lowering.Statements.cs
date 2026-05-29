@@ -353,15 +353,42 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryRewriteInitDeclaration(DeclarationStatement declaration, out List<Statement> statements)
 	{
 		statements = [];
-		if (declaration.InitialValue is not ConstructionExpression { Kind: ConstructionKind.Init } construction || declaration.Target.Names.Count != 1)
+		bool finallyDelete = false;
+		Expression? initialValue = declaration.InitialValue;
+		if (initialValue is FinallyDeleteExpression { Expression: ConstructionExpression finallyDeleteConstruction } finallyDeleteExpression
+			&& finallyDeleteConstruction.Kind == ConstructionKind.Init)
+		{
+			finallyDelete = true;
+			initialValue = finallyDeleteConstruction;
+			finallyDeleteExpression.Expression = finallyDeleteConstruction;
+		}
+
+		if (initialValue is not ConstructionExpression { Kind: ConstructionKind.Init } construction || declaration.Target.Names.Count != 1)
 			return false;
 
 		for (int i = 0; i < construction.Arguments.Count; i++)
 			construction.Arguments[i] = LowerArgument(construction.Arguments[i]);
 		LowerInitializer(construction.Initializer);
 
+		TypeDefinition? constructedDefinition = null;
+		string constructedTypeName = construction.Type?.ResolvedType ?? BaseConstructedType(construction.ResolvedType);
+		if (!string.IsNullOrWhiteSpace(constructedTypeName))
+			typeDefinitions.TryGetValue(constructedTypeName, out constructedDefinition);
+
 		Expression target = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? ErrorType);
 		CallExpression? initCall = CreateInitCallForConstruction(construction, target);
+		if (constructedDefinition is null
+			&& initCall?.Target is MemberReferenceExpression { Member: FunctionDefinition initFunction })
+			constructedDefinition = FindContainingType(initFunction);
+		if (constructedDefinition is null
+			&& initCall?.Target is MethodReferenceExpression { Candidates.Count: > 0 } initReference)
+			constructedDefinition = FindContainingType(initReference.Candidates[0]);
+		if (constructedDefinition is null
+			&& typeDefinitions.TryGetValue(BaseConstructedType(declaration.Target.ResolvedType), out TypeDefinition? targetDefinition))
+			constructedDefinition = targetDefinition;
+		if (constructedDefinition is null
+			&& typeDefinitions.TryGetValue(BaseConstructedType(declaration.Target.Type?.ResolvedType), out TypeDefinition? targetTypeDefinition))
+			constructedDefinition = targetTypeDefinition;
 		declaration.InitialValue = construction.Initializer;
 
 		if (initCall is null)
@@ -383,6 +410,21 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void",
 			Expression = initCall
 		});
+		if (finallyDelete && currentCleanupScopes.Count > 0)
+		{
+			FunctionDefinition? opDelete = constructedDefinition is null ? null : FindDeleteMethod(constructedDefinition);
+			if (opDelete is null && constructedDefinition is not null)
+				opDelete = FindCallableDeleteMethod(constructedDefinition, declaration.SourceSyntax);
+			currentCleanupScopes[^1].Statements.Add(new ExpressionStatement
+			{
+				SourceSyntax = declaration.SourceSyntax,
+				ResolvedType = "void",
+				Expression = CreateDeleteExpression(
+					CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? ErrorType),
+					opDelete,
+					deallocate: false)
+			});
+		}
 		return true;
 	}
 
