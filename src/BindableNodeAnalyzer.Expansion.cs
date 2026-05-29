@@ -202,7 +202,7 @@ public sealed partial class BindableNodeAnalyzer
 			},
 			ResolvedType = $"{owner.Name}*"
 		});
-		foreach (ArgumentExpression argument in function.ArgumentsFromParameters())
+		foreach (ArgumentExpression argument in CreateVirtualDispatchParameterArguments(function))
 			call.Arguments.Add(argument);
 
 		BlockStatement body = new() { ResolvedType = "void" };
@@ -211,6 +211,29 @@ public sealed partial class BindableNodeAnalyzer
 		else
 			body.Statements.Add(new ReturnStatement { Expression = call, ResolvedType = "void" });
 		return body;
+	}
+
+	List<ArgumentExpression> CreateVirtualDispatchParameterArguments(FunctionDefinition function)
+	{
+		List<ArgumentExpression> arguments = [];
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+				continue;
+
+			arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = parameter.SourceSyntax,
+				Value = new VariableReferenceExpression
+				{
+					SourceSyntax = parameter.SourceSyntax,
+					Variable = parameter,
+					ResolvedType = parameter.ResolvedType
+				},
+				ResolvedType = parameter.ResolvedType
+			});
+		}
+		return arguments;
 	}
 
 	InitializerExpression CreateVirtualVTableInitializer(VirtualClassLowering lowering)

@@ -686,7 +686,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		string targetType = construction.Type?.ResolvedType ?? TargetType;
 		FunctionDefinition? constructor = LookupConstructor(targetType, construction.Arguments.Count);
-		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? [], scope, typeScope);
+		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? [], scope, typeScope, construction.SourceSyntax);
 		BodyAnalyzeExpression(construction.ElementCount, scope, typeScope, "nuint");
 		if (construction.Initializer is not null)
 			BodyAnalyzeInitializerExpression(construction.Initializer, scope, typeScope);
@@ -809,7 +809,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else
 		{
-			AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope);
+			AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax);
 		}
 
 		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments);
@@ -835,7 +835,7 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 
-		AnalyzeCallArguments(call.Arguments, parameters, scope, typeScope);
+		AnalyzeCallArguments(call.Arguments, parameters, scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax);
 		returnType = callable.ReturnType;
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
@@ -965,7 +965,7 @@ public sealed partial class BindableNodeAnalyzer
 		return implementation;
 	}
 
-	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope)
+	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null)
 	{
 		List<ParameterDefinition> callableParameters = GetCallableParameters(parameters);
 		if (arguments.Count > callableParameters.Count)
@@ -979,30 +979,30 @@ public sealed partial class BindableNodeAnalyzer
 			string expected = parameter?.ResolvedType ?? ErrorType;
 			string actual = BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, expected);
 			if (parameter is not null)
-			{
-				if (parameter.Modifier == ParameterModifier.Out && arguments[i].Modifier != ArgumentModifier.Out)
-					Report(GetRange(arguments[i].SourceSyntax), "Out parameters require an 'out' argument.");
-				if (parameter.Modifier != ParameterModifier.Out && arguments[i].Modifier == ArgumentModifier.Out)
-					Report(GetRange(arguments[i].SourceSyntax), "Only out parameters may use an 'out' argument.");
-				if (parameter.Modifier == ParameterModifier.Thrown && arguments[i].Modifier != ArgumentModifier.Catch)
-					Report(GetRange(arguments[i].SourceSyntax), "Thrown parameters require a 'catch' argument.");
-				if (parameter.Modifier != ParameterModifier.Thrown && arguments[i].Modifier == ArgumentModifier.Catch)
-					Report(GetRange(arguments[i].SourceSyntax), "Only thrown parameters may use a 'catch' argument.");
-				if (parameter.Modifier == ParameterModifier.Out)
-					CheckAssignable(actual, expected, arguments[i].SourceSyntax, "Out argument");
-				else
 				{
-					CheckAssignable(expected, actual, arguments[i].SourceSyntax, "Argument");
-					if (CanLiftToOptional(actual, expected))
-						arguments[i].ResolvedType = expected;
+					if (parameter.Modifier == ParameterModifier.Out && arguments[i].Modifier != ArgumentModifier.Out)
+						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Out parameters require an 'out' argument.");
+					if (parameter.Modifier != ParameterModifier.Out && arguments[i].Modifier == ArgumentModifier.Out)
+						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Only out parameters may use an 'out' argument.");
+					if (parameter.Modifier == ParameterModifier.Thrown && arguments[i].Modifier != ArgumentModifier.Catch)
+						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Thrown parameters require a 'catch' argument.");
+					if (parameter.Modifier != ParameterModifier.Thrown && arguments[i].Modifier == ArgumentModifier.Catch)
+						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Only thrown parameters may use a 'catch' argument.");
+					if (parameter.Modifier == ParameterModifier.Out)
+						CheckAssignable(actual, expected, arguments[i].SourceSyntax ?? fallbackSyntax, "Out argument");
+					else
+					{
+						CheckAssignable(expected, actual, arguments[i].SourceSyntax ?? fallbackSyntax, "Argument");
+						if (CanLiftToOptional(actual, expected))
+							arguments[i].ResolvedType = expected;
+					}
 				}
 			}
-		}
 
-		if (parameters.Count > 0 && arguments.Count < CountRequiredParameters(parameters))
-			Report(GetRange(arguments.Count > 0 ? arguments[^1].SourceSyntax : null), "Call is missing required arguments.");
+		if (parameters.Count > 0 && arguments.Count < CountRequiredParameters(callableParameters))
+			Report(GetRange((arguments.Count > 0 ? arguments[^1].SourceSyntax : null) ?? fallbackSyntax), "Call is missing required arguments.");
 		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
-			Report(GetRange(arguments[^1].SourceSyntax), "Call has too many arguments.");
+			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
 	}
 
 	static void AddExplicitHiddenParameters(List<ParameterDefinition> parameters, List<ParameterDefinition> callableParameters)

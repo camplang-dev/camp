@@ -755,7 +755,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (CanCallWithArgumentCount(getter.Parameters, arguments.Count))
 			{
-				AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope);
+				AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope, member.SourceSyntax);
 				member.ResolvedType = getter.ResolvedType ?? ErrorType;
 				expressionRewrites[member] = CreateMemberReference(member, member.Target, member.ResolvedType, getter);
 				propertyType = member.ResolvedType;
