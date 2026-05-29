@@ -398,7 +398,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (containingType is not null && GetExplicitThisParameter(definition) is ThisParameterDefinition memberThisParameter)
 			memberThisParameter.ResolvedType = ApplyThisDeclarators(containingType, memberThisParameter);
 		if (containingType is null && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
-			definition.Symbol = BuildExtensionFunctionSymbol(definition.Name, thisParameter.ResolvedType ?? ErrorType);
+			definition.Symbol = BuildExtensionFunctionSymbol(definition.Name, thisParameter.ResolvedType ?? ErrorType, definition);
 	}
 
 	void ValidateExpandedParameterNames(List<ParameterDefinition> parameters)

@@ -421,7 +421,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<FunctionDefinition> functions = [];
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
-			if (definition is FunctionDefinition function && IsFunctionNamed(function, name) && GetExplicitThisParameter(function) is null && IsDefinitionVisible(function, scope.CurrentFunction.SourceSyntax))
+			if (definition is FunctionDefinition function && IsFunctionNamed(function, name) && IsDefinitionVisible(function, scope.CurrentFunction.SourceSyntax))
 				functions.Add(function);
 		}
 		foreach (TypeDefinition type in typeDefinitions.Values)
@@ -1063,43 +1063,46 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static int CountRequiredParameters(List<ParameterDefinition> parameters)
+	static int CountRequiredParameters(List<ParameterDefinition> parameters, bool includeExplicitThis = false)
 	{
 		int count = 0;
 		foreach (ParameterDefinition parameter in parameters)
 		{
 			if (parameter.DefaultValue is null
 				&& parameter.Modifier is not ParameterModifier.Thrown and not ParameterModifier.Within
-				&& parameter is not ThisParameterDefinition and not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+				&& (includeExplicitThis || parameter is not ThisParameterDefinition)
+				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
 				count++;
 		}
 		return count;
 	}
 
-	static int CountCallableParameters(List<ParameterDefinition> parameters)
+	static int CountCallableParameters(List<ParameterDefinition> parameters, bool includeExplicitThis = false)
 	{
 		int count = 0;
 		foreach (ParameterDefinition parameter in parameters)
 		{
 			if (parameter.Modifier is not ParameterModifier.Thrown and not ParameterModifier.Within
-				&& parameter is not ThisParameterDefinition and not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+				&& (includeExplicitThis || parameter is not ThisParameterDefinition)
+				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
 				count++;
 		}
 		return count;
 	}
 
-	static bool CanCallWithArgumentCount(List<ParameterDefinition> parameters, int argumentCount)
+	static bool CanCallWithArgumentCount(List<ParameterDefinition> parameters, int argumentCount, bool includeExplicitThis = false)
 	{
-		return CountRequiredParameters(parameters) <= argumentCount && argumentCount <= CountCallableParameters(parameters);
+		return CountRequiredParameters(parameters, includeExplicitThis) <= argumentCount && argumentCount <= CountCallableParameters(parameters, includeExplicitThis);
 	}
 
-	static List<ParameterDefinition> GetCallableParameters(List<ParameterDefinition> parameters)
+	static List<ParameterDefinition> GetCallableParameters(List<ParameterDefinition> parameters, bool includeExplicitThis = false)
 	{
 		List<ParameterDefinition> callable = [];
 		foreach (ParameterDefinition parameter in parameters)
 		{
 			if (parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
-				|| parameter is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+				|| !includeExplicitThis && parameter is ThisParameterDefinition
+				|| parameter is WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
 				continue;
 
 			callable.Add(parameter);
@@ -1382,7 +1385,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<string> parameters = [];
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
-			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+			if ((isInstance && parameter is ThisParameterDefinition) || parameter is SizeOfParameterDefinition or VTableOfParameterDefinition)
 				continue;
 
 			parameters.Add(parameter.ResolvedType ?? ErrorType);

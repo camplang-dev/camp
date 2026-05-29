@@ -79,7 +79,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (GetExplicitThisParameter(function) is ThisParameterDefinition thisParameter)
 		{
-			function.Symbol = BuildExtensionFunctionSymbol(function.Name, thisParameter.ResolvedType ?? ErrorType);
+			function.Symbol = BuildExtensionFunctionSymbol(function.Name, thisParameter.ResolvedType ?? ErrorType, function);
 			return;
 		}
 

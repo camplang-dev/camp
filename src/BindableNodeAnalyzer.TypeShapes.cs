@@ -236,20 +236,42 @@ public sealed partial class BindableNodeAnalyzer
 		return TypeShapeParser.Format(shape with { Qualifiers = shape.Qualifiers with { Lifetime = kind } });
 	}
 
-	static string BuildExtensionFunctionSymbol(string methodName, string receiverType)
+	static string BuildExtensionFunctionSymbol(string methodName, string receiverType, FunctionDefinition? function = null)
 	{
 		if (!new TypeShapeParser(receiverType).TryParse(out TypeShape shape))
 			return receiverType + "_" + methodName;
 
-		bool isArray = false;
+		int arrayCount = 0;
 		while (shape.Element is not null)
 		{
 			if (shape.Kind == TypeShapeKind.Array)
-				isArray = true;
+				arrayCount++;
 			shape = shape.Element;
 		}
 
-		return shape.Name + (isArray ? "Array" : "") + "_" + methodName;
+		string receiverName = IsGenericReceiverTypeName(shape.Name, function)
+			? ""
+			: shape.Name;
+		for (int i = 0; i < arrayCount; i++)
+			receiverName += "Array";
+
+		return string.IsNullOrWhiteSpace(receiverName)
+			? methodName
+			: receiverName + "_" + methodName;
+	}
+
+	static bool IsGenericReceiverTypeName(string name, FunctionDefinition? function)
+	{
+		if (function is null)
+			return false;
+
+		foreach (GenericParameter parameter in function.GenericParameters)
+		{
+			if (parameter.Name == name)
+				return true;
+		}
+
+		return false;
 	}
 
 	sealed class TypeShapeParser

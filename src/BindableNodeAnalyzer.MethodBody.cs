@@ -935,10 +935,15 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeType(argument, typeScope);
 
 		FunctionDefinition? function = ResolveCallTarget(call.Target, scope, typeScope, call.Arguments.Count);
+		Dictionary<string, string> genericSubstitutions = [];
+		HashSet<string> genericParameterNames = [];
 		if (function is not null)
 		{
 			EnsureFunctionSignatureAnalyzed(function, typeScope);
 			callTargets[call] = function;
+			foreach (GenericParameter parameter in function.GenericParameters)
+				genericParameterNames.Add(parameter.Name);
+			AddExplicitGenericSubstitutions(function, call.TypeArguments, genericSubstitutions);
 		}
 		else if (TryAnalyzeCallableInvocation(call, scope, typeScope, targetType, out string callableReturnType))
 		{
@@ -951,10 +956,10 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else
 		{
-			AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax);
+			AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax, IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames);
 		}
 
-		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments);
+		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments, genericSubstitutions);
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
 		return returnType;
@@ -989,15 +994,31 @@ public sealed partial class BindableNodeAnalyzer
 		return ReferenceEquals(function, allocatorAllocMethod) || ReferenceEquals(function, allocatorFreeMethod);
 	}
 
-	static string SubstituteGenericReturnType(string? returnType, List<TypeReference> typeArguments)
+	static string SubstituteGenericReturnType(string? returnType, List<TypeReference> typeArguments, Dictionary<string, string>? substitutions = null)
 	{
 		if (returnType is null)
 			return ErrorType;
+		if (substitutions is { Count: > 0 })
+			return SubstituteGenericType(returnType, substitutions);
 		if (typeArguments.Count == 0)
 			return returnType;
 
 		string firstType = typeArguments[0].ResolvedType ?? ErrorType;
 		return returnType.Replace("T", firstType, StringComparison.Ordinal);
+	}
+
+	static void AddExplicitGenericSubstitutions(FunctionDefinition function, List<TypeReference> typeArguments, Dictionary<string, string> substitutions)
+	{
+		int count = Math.Min(function.GenericParameters.Count, typeArguments.Count);
+		for (int i = 0; i < count; i++)
+			substitutions[function.GenericParameters[i].Name] = typeArguments[i].ResolvedType ?? ErrorType;
+	}
+
+	static bool IncludeExplicitThisArgument(Expression? target, FunctionDefinition? function)
+	{
+		return function is not null
+			&& GetExplicitThisParameter(function) is not null
+			&& target is not MemberExpression and not MemberReferenceExpression;
 	}
 
 	FunctionDefinition? ResolveCallTarget(Expression? target, BodyScope scope, AnalysisScope typeScope, int argumentCount = 0)
@@ -1107,9 +1128,11 @@ public sealed partial class BindableNodeAnalyzer
 		return implementation;
 	}
 
-	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null)
+	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null, bool includeExplicitThis = false, Dictionary<string, string>? genericSubstitutions = null, HashSet<string>? genericParameterNames = null)
 	{
-		List<ParameterDefinition> callableParameters = GetCallableParameters(parameters);
+		genericSubstitutions ??= [];
+		genericParameterNames ??= [];
+		List<ParameterDefinition> callableParameters = GetCallableParameters(parameters, includeExplicitThis);
 		if (arguments.Count > callableParameters.Count)
 			AddExplicitHiddenParameters(parameters, callableParameters);
 		for (int i = 0; i < arguments.Count; i++)
@@ -1118,8 +1141,14 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter is not null && parameter.ResolvedType is null)
 				AnalyzeParameterDefinition(parameter, typeScope);
 
-			string expected = parameter?.ResolvedType ?? ErrorType;
-			string actual = BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, expected);
+			string expected = SubstituteGenericType(parameter?.ResolvedType ?? ErrorType, genericSubstitutions);
+			string analysisTarget = ContainsUnboundGenericParameter(expected, genericSubstitutions, genericParameterNames) ? TargetType : expected;
+			string actual = BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, analysisTarget);
+			if (parameter is not null)
+			{
+				InferGenericSubstitutions(parameter.ResolvedType ?? ErrorType, actual, genericSubstitutions, genericParameterNames);
+				expected = SubstituteGenericType(parameter.ResolvedType ?? ErrorType, genericSubstitutions);
+			}
 			if (parameter is not null)
 				{
 					if (parameter.Modifier == ParameterModifier.Out && arguments[i].Modifier != ArgumentModifier.Out)
@@ -1141,10 +1170,113 @@ public sealed partial class BindableNodeAnalyzer
 				}
 			}
 
-		if (parameters.Count > 0 && arguments.Count < CountRequiredParameters(callableParameters))
+		if (parameters.Count > 0 && arguments.Count < CountRequiredParameters(callableParameters, includeExplicitThis: true))
 			Report(GetRange((arguments.Count > 0 ? arguments[^1].SourceSyntax : null) ?? fallbackSyntax), "Call is missing required arguments.");
 		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
 			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
+	}
+
+	static void InferGenericSubstitutions(string pattern, string actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
+	{
+		if (string.IsNullOrWhiteSpace(pattern) || actual == ErrorType)
+			return;
+
+		if (genericParameterNames.Contains(pattern))
+		{
+			if (!substitutions.ContainsKey(pattern))
+				substitutions[pattern] = actual;
+			return;
+		}
+
+		foreach (string name in ExtractGenericNames(pattern, genericParameterNames))
+		{
+			if (!substitutions.ContainsKey(name) && pattern == name)
+				substitutions[name] = actual;
+		}
+	}
+
+	static bool ContainsUnboundGenericParameter(string type, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
+	{
+		foreach (string name in ExtractGenericNames(type, genericParameterNames))
+		{
+			if (!substitutions.ContainsKey(name))
+				return true;
+		}
+		return false;
+	}
+
+	static string SubstituteGenericType(string type, Dictionary<string, string> substitutions)
+	{
+		foreach ((string name, string replacement) in substitutions)
+			type = ReplaceTypeIdentifier(type, name, replacement);
+		return type;
+	}
+
+	static IEnumerable<string> ExtractGenericNames(string type, HashSet<string> genericParameterNames)
+	{
+		int start = -1;
+		for (int i = 0; i <= type.Length; i++)
+		{
+			bool identifier = i < type.Length && IsIdentifierPart(type[i]);
+			if (identifier && start < 0)
+				start = i;
+			else if (!identifier && start >= 0)
+			{
+				string token = type[start..i];
+				if (genericParameterNames.Contains(token))
+					yield return token;
+				start = -1;
+			}
+		}
+	}
+
+	static string ReplaceTypeIdentifier(string type, string name, string replacement)
+	{
+		List<string> parts = [];
+		int start = 0;
+		for (int i = 0; i < type.Length;)
+		{
+			if (IsIdentifierStart(type[i]))
+			{
+				int tokenStart = i++;
+				while (i < type.Length && IsIdentifierPart(type[i]))
+					i++;
+				if (type[tokenStart..i] == name)
+				{
+					parts.Add(type[start..tokenStart]);
+					parts.Add(replacement);
+					start = i;
+				}
+			}
+			else
+			{
+				i++;
+			}
+		}
+		parts.Add(type[start..]);
+		return string.Concat(parts);
+	}
+
+	static bool IsIdentifier(string value)
+	{
+		if (string.IsNullOrWhiteSpace(value) || !IsIdentifierStart(value[0]))
+			return false;
+		for (int i = 1; i < value.Length; i++)
+		{
+			if (!IsIdentifierPart(value[i]))
+				return false;
+		}
+		return true;
+	}
+
+	static bool IsIdentifierStart(char c)
+	{
+		return char.IsLetter(c) || c == '_';
+	}
+
+	static bool IsIdentifierPart(char c)
+	{
+		return char.IsLetterOrDigit(c) || c == '_';
 	}
 
 	static void AddExplicitHiddenParameters(List<ParameterDefinition> parameters, List<ParameterDefinition> callableParameters)
