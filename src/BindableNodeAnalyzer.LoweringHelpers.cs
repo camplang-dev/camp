@@ -204,14 +204,10 @@ public sealed partial class BindableNodeAnalyzer
 		return declaration;
 	}
 
-	Expression? GetFunctionAllocatorForBody(FunctionDefinition function)
+	Expression? GetFunctionWithinContext(FunctionDefinition function)
 	{
-		if (function.Name == DeleteMethodName && GetWithinParameter(function) is ParameterDefinition deleteAllocator)
-			return CreateVariableReference(deleteAllocator, deleteAllocator.ResolvedType ?? "Allocator*");
-		if (function.Name == InitNewMethodName && GetWithinParameter(function) is not null)
-			return CreateResolvedAllocatorReference();
-		if (function.Name == InitNewMethodName || function.Name == DeleteMethodName)
-			return StdDefaultAllocator();
+		if (GetWithinParameter(function) is ParameterDefinition allocator)
+			return CreateVariableReference(allocator, allocator.ResolvedType ?? "Allocator*");
 		return null;
 	}
 
@@ -224,15 +220,46 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static NamedExpression StdDefaultAllocator()
+	Expression StdDefaultAllocator(SyntaxNode? syntax = null)
 	{
+		if (FindStdDefaultAllocator(syntax) is VariableDefinition variable)
+		{
+			return new VariableReferenceExpression
+			{
+				SourceSyntax = syntax,
+				Variable = variable,
+				ResolvedType = variable.ResolvedType ?? variable.Type?.ResolvedType ?? "Allocator*"
+			};
+		}
+
 		NamedExpression expression = new()
 		{
+			SourceSyntax = syntax,
 			Name = "defaultAllocator",
 			ResolvedType = "Allocator*"
 		};
 		expression.Qualifiers.Add("Std");
 		return expression;
+	}
+
+	VariableDefinition? FindStdDefaultAllocator(SyntaxNode? syntax)
+	{
+		if (!typeDefinitions.TryGetValue("Allocator", out TypeDefinition? allocatorType) || !IsDefinitionVisible(allocatorType, syntax))
+			Report(syntax, "Allocator type 'Std::Allocator' could not be found.");
+
+		if (LookupGlobalVariable("defaultAllocator", syntax) is VariableDefinition variable)
+		{
+			string type = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
+			if (!CanImplicitlyConvert(type, "Allocator*"))
+				Report(syntax, "Allocator variable 'Std::defaultAllocator' must have type 'Allocator*'.");
+			return variable;
+		}
+
+		if (LookupHiddenGlobalSymbol("defaultAllocator", syntax) is Definition hidden)
+			ReportNotExported(hidden, syntax, "Allocator variable");
+		else
+			Report(syntax, "Allocator variable 'Std::defaultAllocator' could not be found.");
+		return null;
 	}
 
 	static void CopyParameters(List<ParameterDefinition> source, List<ParameterDefinition> target)
@@ -385,9 +412,88 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	Expression CurrentAllocator()
+	Expression CurrentAllocator(SyntaxNode? syntax = null)
 	{
-		return currentAllocatorOverride ?? new CurrentAllocatorExpression { ResolvedType = AllocatorType };
+		Expression? context = currentWithinContext;
+		if (context is null)
+			return StdDefaultAllocator(syntax);
+
+		return new BinaryExpression
+		{
+			SourceSyntax = syntax ?? context.SourceSyntax,
+			Left = context,
+			Operator = BinaryOperator.NullCoalescing,
+			Right = StdDefaultAllocator(syntax ?? context.SourceSyntax),
+			ResolvedType = "Allocator*"
+		};
+	}
+
+	Expression CurrentWithinArgument(SyntaxNode? syntax = null)
+	{
+		return currentWithinContext ?? new LiteralExpression
+		{
+			SourceSyntax = syntax,
+			Kind = LiteralKind.Null,
+			Text = "null",
+			ResolvedType = "#NULL"
+		};
+	}
+
+	FunctionDefinition ResolveAllocatorAllocMethod(SyntaxNode? syntax)
+	{
+		if (FindAllocatorAllocMethod(syntax) is FunctionDefinition function)
+			return function;
+
+		if (allocatorSurfaceValidationEnabled)
+			Report(syntax, "Allocator method 'Std::Allocator.alloc' could not be found.");
+		return allocatorAllocMethod;
+	}
+
+	FunctionDefinition ResolveAllocatorFreeMethod(SyntaxNode? syntax)
+	{
+		if (FindAllocatorFreeMethod(syntax) is FunctionDefinition function)
+			return function;
+
+		if (allocatorSurfaceValidationEnabled)
+			Report(syntax, "Allocator method 'Std::Allocator.free' could not be found.");
+		return allocatorFreeMethod;
+	}
+
+	FunctionDefinition? FindAllocatorAllocMethod(SyntaxNode? syntax)
+	{
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is not FunctionDefinition function || !IsDefinitionVisible(function, syntax))
+				continue;
+			if (!IsFunctionNamed(function, "alloc") || GetExplicitThisParameter(function) is not ThisParameterDefinition thisParameter)
+				continue;
+			if (CanImplicitlyConvert(thisParameter.ResolvedType ?? thisParameter.Type?.ResolvedType ?? ErrorType, "Allocator*"))
+				return function;
+		}
+
+		return null;
+	}
+
+	FunctionDefinition? FindAllocatorFreeMethod(SyntaxNode? syntax)
+	{
+		if (!typeDefinitions.TryGetValue("Allocator", out TypeDefinition? allocatorType) || !IsDefinitionVisible(allocatorType, syntax))
+			return null;
+
+		foreach (FunctionDefinition function in GetFunctions(allocatorType))
+			if (function.Name == "free" && IsMemberVisible(function, allocatorType, syntax))
+				return function;
+
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is not FunctionDefinition function || !IsDefinitionVisible(function, syntax))
+				continue;
+			if (!IsFunctionNamed(function, "free") || GetExplicitThisParameter(function) is not ThisParameterDefinition thisParameter)
+				continue;
+			if (CanImplicitlyConvert(thisParameter.ResolvedType ?? thisParameter.Type?.ResolvedType ?? ErrorType, "Allocator*"))
+				return function;
+		}
+
+		return null;
 	}
 
 	static TypeReference AllocatorPointerType()

@@ -64,13 +64,13 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in function.Parameters)
 			parameter.DefaultValue = LowerExpression(parameter.DefaultValue);
 
-		Expression? previousAllocator = currentAllocatorOverride;
+		Expression? previousWithinContext = currentWithinContext;
 		FunctionDefinition? previousFunction = currentRewriteFunction;
 		TypeDefinition? previousType = currentRewriteContainingType;
 		string? previousFunctionExitLabel = currentFunctionExitLabel;
 		DeclarationTarget? previousFunctionReturnTarget = currentFunctionReturnTarget;
 		string previousFunctionReturnType = currentFunctionReturnType;
-		currentAllocatorOverride = GetFunctionAllocatorForBody(function);
+		currentWithinContext = GetFunctionWithinContext(function);
 		currentRewriteFunction = function;
 		currentRewriteContainingType = containingType;
 		currentFunctionExitLabel = null;
@@ -79,7 +79,7 @@ public sealed partial class BindableNodeAnalyzer
 		function.Body = RewriteFunctionBody(function.Body);
 		if (function.Body is not null && currentFunctionExitLabel is not null)
 			AppendFunctionExit(function.Body.Statements);
-		currentAllocatorOverride = previousAllocator;
+		currentWithinContext = previousWithinContext;
 		currentRewriteFunction = previousFunction;
 		currentRewriteContainingType = previousType;
 		currentFunctionExitLabel = previousFunctionExitLabel;
@@ -226,10 +226,14 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case WithinStatement withinStatement:
-				withinStatement.Allocator = LowerExpression(withinStatement.Allocator);
-				if (withinStatement.Body is not null)
-					withinStatement.Body = RewriteStatement(withinStatement.Body);
-				break;
+			{
+				Expression? allocator = LowerExpression(withinStatement.Allocator);
+				Expression? previousWithinContext = currentWithinContext;
+				currentWithinContext = allocator;
+				Statement rewritten = withinStatement.Body is null ? CreateBlock([]) : RewriteStatement(withinStatement.Body);
+				currentWithinContext = previousWithinContext;
+				return rewritten;
+			}
 		}
 
 		return statement;
@@ -315,7 +319,7 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		FunctionDefinition? initNew = FindInitNewMethod(definition, construction.Arguments.Count);
-		declaration.InitialValue = CreateAllocCall(TypeReferenceFor(definition), declaration.SourceSyntax);
+		declaration.InitialValue = CreateAllocCall(TypeReferenceFor(definition), construction.SourceSyntax ?? declaration.SourceSyntax);
 		statements.Add(declaration);
 
 		Expression target = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? $"{typeName}*");

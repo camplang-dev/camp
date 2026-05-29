@@ -21,8 +21,13 @@ public sealed partial class BindableNodeAnalyzer
 
 			case WithinExpression within:
 				within.Context = LowerExpression(within.Context);
-				within.Expression = LowerExpression(within.Expression);
-				return within;
+				if (within.Expression is null)
+					return within.Context;
+				Expression? previousWithinContext = currentWithinContext;
+				currentWithinContext = within.Context;
+				Expression? lowered = LowerExpression(within.Expression);
+				currentWithinContext = previousWithinContext;
+				return lowered ?? within.Expression;
 
 			case GroupedExpression grouped:
 				foreach (GroupedExpressionItem item in grouped.Items)
@@ -61,6 +66,7 @@ public sealed partial class BindableNodeAnalyzer
 				else
 					call.Target = LowerExpression(call.Target);
 				LowerThrowingArguments(call);
+				AddImplicitWithinArgument(call);
 				for (int i = 0; i < call.Arguments.Count; i++)
 					call.Arguments[i] = LowerArgument(call.Arguments[i]);
 				TryRewriteDelegateInvocation(call);

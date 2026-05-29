@@ -209,23 +209,24 @@ public sealed partial class BindableNodeAnalyzer
 			Target = CreateMethodReference(opDelete, "void")
 		};
 		if (HasWithinParameter(opDelete))
-			call.Arguments.Add(new ArgumentExpression { Value = CurrentAllocator(), ResolvedType = AllocatorType });
+			call.Arguments.Add(new ArgumentExpression { Value = CurrentAllocator(opDelete.SourceSyntax), ResolvedType = AllocatorType });
 		return call;
 	}
 
 	CallExpression CreateAllocCall(TypeReference type, SyntaxNode? syntax)
 	{
-		return CreateAllocCall(type, CurrentAllocator(), syntax);
+		return CreateAllocCall(type, CurrentAllocator(syntax), syntax);
 	}
 
 	CallExpression CreateAllocCall(TypeReference type, Expression allocator, SyntaxNode? syntax, Expression? length = null)
 	{
+		FunctionDefinition allocMethod = ResolveAllocatorAllocMethod(syntax);
 		MemberReferenceExpression targetReference = new()
 		{
 			Target = allocator,
 			Name = "alloc",
-			Member = allocatorAllocMethod,
-			ResolvedType = allocatorAllocMethod.ResolvedType
+			Member = allocMethod,
+			ResolvedType = allocMethod.ResolvedType
 		};
 		CallExpression call = new()
 		{
@@ -238,7 +239,7 @@ public sealed partial class BindableNodeAnalyzer
 		call.Arguments.Add(new ArgumentExpression { Value = new SizeOfExpression { Type = CloneType(type), ResolvedType = "nuint" }, ResolvedType = "nuint" });
 		call.Arguments.Add(new ArgumentExpression { Modifier = ArgumentModifier.Catch, Value = new NamedExpression { Name = "_", ResolvedType = "MemoryError" }, ResolvedType = "MemoryError" });
 		if (ShouldEmitFlattenedInstanceCalls())
-			RewriteInstanceInvocation(call, targetReference, allocator, allocatorAllocMethod);
+			RewriteInstanceInvocation(call, targetReference, allocator, allocMethod);
 		return call;
 	}
 
@@ -263,7 +264,7 @@ public sealed partial class BindableNodeAnalyzer
 			call.Arguments.Add(argument);
 		ExpandParamsArguments(call.Arguments);
 		if (HasWithinParameter(initNew))
-			call.Arguments.Add(new ArgumentExpression { Value = allocatorArgument ?? CurrentAllocator(), ResolvedType = AllocatorType });
+			call.Arguments.Add(new ArgumentExpression { Value = allocatorArgument ?? CurrentAllocator(syntax), ResolvedType = AllocatorType });
 		if (ShouldEmitFlattenedInstanceCalls() && call.Target is MemberReferenceExpression member && target is not null)
 			RewriteInstanceInvocation(call, member, target, initNew);
 		return call;
@@ -284,7 +285,7 @@ public sealed partial class BindableNodeAnalyzer
 			Target = targetReference
 		};
 		if (HasWithinParameter(opDelete))
-			call.Arguments.Add(new ArgumentExpression { Value = allocatorArgument ?? CurrentAllocator(), ResolvedType = AllocatorType });
+			call.Arguments.Add(new ArgumentExpression { Value = allocatorArgument ?? CurrentAllocator(opDelete.SourceSyntax), ResolvedType = AllocatorType });
 		if (ShouldEmitFlattenedInstanceCalls())
 			RewriteInstanceInvocation(call, targetReference, target, opDelete);
 		return call;
@@ -292,17 +293,18 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallExpression CreateFreeCall(Expression target)
 	{
-		return CreateFreeCall(target, CurrentAllocator());
+		return CreateFreeCall(target, CurrentAllocator(target.SourceSyntax));
 	}
 
 	CallExpression CreateFreeCall(Expression target, Expression allocator)
 	{
+		FunctionDefinition freeMethod = ResolveAllocatorFreeMethod(target.SourceSyntax);
 		MemberReferenceExpression targetReference = new()
 		{
 			Target = allocator,
 			Name = "free",
-			Member = allocatorFreeMethod,
-			ResolvedType = allocatorFreeMethod.ResolvedType
+			Member = freeMethod,
+			ResolvedType = freeMethod.ResolvedType
 		};
 		CallExpression call = new()
 		{
@@ -314,7 +316,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		};
 		if (ShouldEmitFlattenedInstanceCalls())
-			RewriteInstanceInvocation(call, targetReference, allocator, allocatorFreeMethod);
+			RewriteInstanceInvocation(call, targetReference, allocator, freeMethod);
 		return call;
 	}
 
@@ -351,7 +353,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Name = "elements",
 			ResolvedType = $"{elementType.ResolvedType}*",
-			Expression = CreateAllocCall(elementType, CurrentAllocator(), syntax, length)
+			Expression = CreateAllocCall(elementType, CurrentAllocator(syntax), syntax, length)
 		});
 		grouped.Items.Add(new GroupedExpressionItem
 		{

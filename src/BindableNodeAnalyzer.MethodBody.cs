@@ -584,8 +584,20 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (named.Qualifiers.Count == 1 && named.Qualifiers[0] == "Std" && named.Name == "defaultAllocator")
 		{
-			named.ResolvedType = "Allocator*";
-			return named.ResolvedType;
+			if (FindStdDefaultAllocator(named.SourceSyntax) is VariableDefinition defaultAllocator)
+			{
+				string type = defaultAllocator.ResolvedType ?? defaultAllocator.Type?.ResolvedType ?? "Allocator*";
+				named.ResolvedType = type;
+				expressionRewrites[named] = new VariableReferenceExpression
+				{
+					SourceSyntax = named.SourceSyntax,
+					Variable = defaultAllocator,
+					ResolvedType = type
+				};
+				return type;
+			}
+
+			return ErrorType;
 		}
 
 		if (IsDiscardExpression(named))
@@ -710,7 +722,10 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		}
 
-		return BuildEffectiveReceiverType(scope.ContainingType.Name, scope.CurrentFunction, IsPropertyGetterFunction(scope.CurrentFunction));
+		string receiverType = scope.ContainingType is ClassDefinition
+			? $"{scope.ContainingType.Name}*"
+			: scope.ContainingType.Name;
+		return BuildEffectiveReceiverType(receiverType, scope.CurrentFunction, IsPropertyGetterFunction(scope.CurrentFunction));
 	}
 
 	string BodyAnalyzeDefaultExpression(DefaultExpression expression, AnalysisScope typeScope, string? targetType)
@@ -807,7 +822,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeWithinExpression(WithinExpression within, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
-		BodyAnalyzeExpression(within.Context, scope, typeScope);
+		string contextType = BodyAnalyzeExpression(within.Context, scope, typeScope, AllocatorType);
+		CheckAssignable(AllocatorType, contextType, within.Context?.SourceSyntax ?? within.SourceSyntax, "within allocator");
+		if (within.Expression is null)
+			return contextType;
 		return BodyAnalyzeExpression(within.Expression, scope, typeScope, targetType);
 	}
 
@@ -896,6 +914,13 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			argument.ResolvedType = argument.Type?.ResolvedType ?? targetType ?? ErrorType;
 			argument.Value!.ResolvedType = argument.ResolvedType;
+			return argument.ResolvedType;
+		}
+
+		if (argument.Value is WithinExpression { Expression: null } within)
+		{
+			string contextType = BodyAnalyzeExpression(within.Context, scope, typeScope, targetType);
+			argument.ResolvedType = argument.Type?.ResolvedType ?? contextType;
 			return argument.ResolvedType;
 		}
 

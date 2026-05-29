@@ -194,12 +194,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		call.Arguments.Add(new ArgumentExpression
 		{
-			Value = new UnaryExpression
-			{
-				Operator = UnaryOperator.AddressOf,
-				Operand = new ThisExpression { ResolvedType = owner.Name },
-				ResolvedType = $"{owner.Name}*"
-			},
+			Value = new ThisExpression { ResolvedType = $"{owner.Name}*" },
 			ResolvedType = $"{owner.Name}*"
 		});
 		foreach (ArgumentExpression argument in CreateVirtualDispatchParameterArguments(function))
@@ -1425,14 +1420,14 @@ public sealed partial class BindableNodeAnalyzer
 		body.Statements.Add(new ExpressionStatement
 		{
 			ResolvedType = "void",
-			Expression = CreateDestructorCall(new ThisExpression { ResolvedType = type.Name }, opDelete, GetAllocatorParameter(method) is ParameterDefinition allocatorParameter ? CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*") : null)
+			Expression = CreateDestructorCall(new ThisExpression { ResolvedType = $"{type.Name}*" }, opDelete, GetAllocatorParameter(method) is ParameterDefinition allocatorParameter ? CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*") : null)
 		});
 		if (destroyWithAllocator)
 			body.Statements.Add(CreateResolvedAllocatorLocal(GetAllocatorParameter(method)));
 		body.Statements.Add(new ExpressionStatement
 		{
 			ResolvedType = "void",
-			Expression = CreateFreeCall(new ThisExpression { ResolvedType = type.Name }, destroyWithAllocator ? CreateResolvedAllocatorReference() : StdDefaultAllocator())
+			Expression = CreateFreeCall(new ThisExpression { ResolvedType = $"{type.Name}*" }, destroyWithAllocator ? CreateResolvedAllocatorReference() : StdDefaultAllocator())
 		});
 		return method;
 	}

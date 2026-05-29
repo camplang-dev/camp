@@ -87,10 +87,16 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == "#NULL" && IsPrimitiveStringType(target))
 			return true;
 
+		if (source == "#NULL" && target == AllocatorType)
+			return true;
+
 		if (CanLiftToOptional(source, target))
 			return true;
 
 		if (source == AllocatorType && target == "Allocator*")
+			return true;
+
+		if (source == "Allocator*" && target == AllocatorType)
 			return true;
 
 		if (TryGetCallableShape(source, out CallableShape sourceCallable) && TryGetCallableShape(target, out CallableShape targetCallable))

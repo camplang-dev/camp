@@ -57,6 +57,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (!QualifiersCanConvert(source.Qualifiers, target.Qualifiers, protectedByConstTarget, pointerDepth))
 			return false;
 
+		if (source.Kind == TypeShapeKind.Pointer
+			&& target.Kind == TypeShapeKind.Pointer
+			&& target.Element is TypeShape { Kind: TypeShapeKind.Named, Name: "void" })
+			return true;
+
 		if (source.Kind == target.Kind)
 		{
 			if ((source.Kind == TypeShapeKind.Pointer || source.Kind == TypeShapeKind.Array)

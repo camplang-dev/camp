@@ -99,6 +99,43 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	void AddImplicitWithinArgument(CallExpression call)
+	{
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !HasWithinParameter(function))
+			return;
+
+		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters);
+		int index = callableParameters.Count;
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter.Modifier == ParameterModifier.Thrown)
+			{
+				if (index < call.Arguments.Count && call.Arguments[index].Modifier == ArgumentModifier.Catch)
+					index++;
+				continue;
+			}
+
+			if (parameter.Modifier != ParameterModifier.Within && parameter is not WithinParameterDefinition)
+				continue;
+
+			if (index < call.Arguments.Count && IsWithinArgumentAlreadySupplied(call.Arguments[index]))
+				return;
+
+			call.Arguments.Insert(index, new ArgumentExpression
+			{
+				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
+				Value = CurrentWithinArgument(call.SourceSyntax ?? call.Target?.SourceSyntax),
+				ResolvedType = AllocatorType
+			});
+			return;
+		}
+	}
+
+	static bool IsWithinArgumentAlreadySupplied(ArgumentExpression argument)
+	{
+		return argument.Modifier != ArgumentModifier.Catch || argument.Value is WithinExpression { Expression: null };
+	}
+
 	Expression? LowerInterfaceConversion(TypeReference? targetType, Expression? value)
 	{
 		if (targetType is not PointerTypeReference targetPointer || value is null)

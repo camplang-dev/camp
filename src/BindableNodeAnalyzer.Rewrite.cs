@@ -21,7 +21,7 @@ public sealed partial class BindableNodeAnalyzer
 	const string CreateMethodName = "create";
 	const string DeleteMethodName = "op_delete";
 	const string DestroyMethodName = "destroy";
-	Expression? currentAllocatorOverride;
+	Expression? currentWithinContext;
 	List<Statement>? currentStatementPrefix;
 	List<Statement>? currentStatementSuffix;
 	DeclarationTarget? currentImplicitCatchTarget;
@@ -32,6 +32,7 @@ public sealed partial class BindableNodeAnalyzer
 	string? currentFunctionExitLabel;
 	DeclarationTarget? currentFunctionReturnTarget;
 	string currentFunctionReturnType = "void";
+	bool allocatorSurfaceValidationEnabled;
 	int generatedLocalIndex;
 	int generatedDiscardIndex;
 
@@ -92,6 +93,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (analysis.Diagnostics.Count > 0)
 			return new LoweringResult(analysis.Module, analysis.Diagnostics);
 
+		analyzer.allocatorSurfaceValidationEnabled = true;
 		analyzer.RewriteModule(expansion.Module);
 		analyzer.FillMissingResolvedTypes(expansion.Module);
 		return new LoweringResult(expansion.Module, analyzer.diagnostics);
