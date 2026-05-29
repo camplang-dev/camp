@@ -348,6 +348,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (argument.Target is not null)
 			LowerArgumentDeclaration(argument);
+		else if (argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch && IsDiscardExpression(argument.Value))
+			argument.Value = CreateDiscardReference(argument.ResolvedType ?? argument.Value?.ResolvedType ?? ErrorType, argument.SourceSyntax);
 
 		argument.Value = LowerExpression(argument.Value);
 		return argument;

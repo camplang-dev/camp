@@ -10,6 +10,15 @@ public sealed partial class BindableNodeAnalyzer
 		if (currentStatementPrefix is null || argument.Target is not DeclarationTarget target)
 			return;
 
+		if (IsDiscardTarget(target))
+		{
+			argument.Target = null;
+			argument.Type = null;
+			argument.Value = CreateDiscardReference(target.ResolvedType ?? argument.ResolvedType ?? ErrorType, target.SourceSyntax);
+			argument.ResolvedType = argument.Value.ResolvedType;
+			return;
+		}
+
 		DeclarationStatement declaration = new()
 		{
 			SourceSyntax = target.SourceSyntax,
@@ -26,6 +35,32 @@ public sealed partial class BindableNodeAnalyzer
 		argument.Type = null;
 		argument.Value = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? argument.ResolvedType ?? ErrorType);
 		argument.ResolvedType = argument.Value.ResolvedType;
+	}
+
+	VariableReferenceExpression CreateDiscardReference(string type, SyntaxNode? syntax)
+	{
+		DeclarationTarget target = new()
+		{
+			SourceSyntax = syntax,
+			ResolvedType = type
+		};
+		target.Names.Add("__discard" + (++generatedDiscardIndex).ToString(System.Globalization.CultureInfo.InvariantCulture));
+		DeclarationStatement declaration = new()
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void"
+		};
+		declaration.Target.SourceSyntax = syntax;
+		declaration.Target.ResolvedType = type;
+		foreach (string name in target.Names)
+			declaration.Target.Names.Add(name);
+		currentStatementPrefix?.Add(declaration);
+		return CreateVariableReference(declaration.Target, type);
+	}
+
+	static bool IsDiscardTarget(DeclarationTarget target)
+	{
+		return target.Names.Count == 1 && target.Names[0] == "_";
 	}
 
 	void LowerInitializer(InitializerExpression? initializer)

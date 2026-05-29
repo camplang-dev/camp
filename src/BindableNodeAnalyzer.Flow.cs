@@ -260,7 +260,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (string name in target.Names)
 		{
-			if (!string.IsNullOrWhiteSpace(name))
+			if (!string.IsNullOrWhiteSpace(name) && name != "_")
 				state.Declare(name, assigned);
 		}
 	}
@@ -461,7 +461,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		switch (target)
 		{
-			case NamedExpression named when !string.IsNullOrWhiteSpace(named.Name):
+			case NamedExpression named when !string.IsNullOrWhiteSpace(named.Name) && named.Name != "_":
 				state.Assign(named.Name);
 				break;
 
@@ -491,6 +491,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void CheckVariableRead(NamedExpression named, FlowState state)
 	{
+		if (named.Name == "_")
+			return;
+
 		if (!state.IsDeclared(named.Name) || state.IsAssigned(named.Name))
 			return;
 

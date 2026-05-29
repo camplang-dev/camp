@@ -33,6 +33,7 @@ public sealed partial class BindableNodeAnalyzer
 	DeclarationTarget? currentFunctionReturnTarget;
 	string currentFunctionReturnType = "void";
 	int generatedLocalIndex;
+	int generatedDiscardIndex;
 
 	public static AnalysisResult AnalyzeAndRewrite(Module module)
 	{

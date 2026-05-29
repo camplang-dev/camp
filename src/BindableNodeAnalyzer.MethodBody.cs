@@ -302,6 +302,7 @@ public sealed partial class BindableNodeAnalyzer
 	void BodyAnalyzeDeclarationStatement(DeclarationStatement declaration, BodyScope scope, AnalysisScope typeScope)
 	{
 		AnalyzeOptionalType(declaration.Target.Type, typeScope);
+		TryRewriteOmittedOutDeconstruction(declaration, scope, typeScope);
 		string targetType = declaration.Target.Type is AutoTypeReference or null
 			? TargetType
 			: declaration.Target.Type.ResolvedType ?? ErrorType;
@@ -324,6 +325,106 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
+	bool TryRewriteOmittedOutDeconstruction(DeclarationStatement declaration, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (declaration.Target.Names.Count <= 1 || declaration.InitialValue is not CallExpression call)
+			return false;
+
+		FunctionDefinition? function = ResolveCallTargetAllowingOmittedOut(call, declaration.Target.Names.Count, scope, typeScope);
+		if (function is null)
+			return false;
+
+		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters);
+		int providedCount = call.Arguments.Count;
+		List<ParameterDefinition> omittedOut = [];
+		for (int i = providedCount; i < callableParameters.Count; i++)
+		{
+			if (callableParameters[i].Modifier != ParameterModifier.Out)
+				return false;
+			omittedOut.Add(callableParameters[i]);
+		}
+
+		bool hasReturnValue = (function.ResolvedType ?? "void") != "void";
+		int expectedNames = omittedOut.Count + (hasReturnValue ? 1 : 0);
+		if (expectedNames != declaration.Target.Names.Count)
+			return false;
+
+		int nameIndex = hasReturnValue ? 1 : 0;
+		foreach (ParameterDefinition parameter in omittedOut)
+		{
+			string name = declaration.Target.Names[nameIndex++];
+			DeclarationTarget target = new()
+			{
+				SourceSyntax = declaration.Target.SourceSyntax,
+				Type = CloneType(parameter.Type),
+				ResolvedType = parameter.ResolvedType
+			};
+			target.Names.Add(name);
+			call.Arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = declaration.SourceSyntax,
+				Modifier = ArgumentModifier.Out,
+				Target = target,
+				ResolvedType = parameter.ResolvedType
+			});
+		}
+
+		if (hasReturnValue)
+		{
+			string returnName = declaration.Target.Names[0];
+			declaration.Target.Names.Clear();
+			declaration.Target.Names.Add(returnName);
+			return true;
+		}
+
+		Report(GetRange(declaration.SourceSyntax), "Void calls with only omitted out values cannot be bound with a declaration target yet.");
+		return false;
+	}
+
+	FunctionDefinition? ResolveCallTargetAllowingOmittedOut(CallExpression call, int resultCount, BodyScope scope, AnalysisScope typeScope)
+	{
+		List<FunctionDefinition> candidates = call.Target switch
+		{
+			NamedExpression named when named.Qualifiers.Count == 0 => LookupFunctions(named.Name, scope),
+			MemberExpression member => LookupMemberFunctions(BodyAnalyzeExpression(member.Target, scope, typeScope), member.Name, member.SourceSyntax),
+			MemberReferenceExpression { Member: FunctionDefinition function } => [function],
+			MethodReferenceExpression method => method.Candidates,
+			_ => []
+		};
+
+		List<FunctionDefinition> matches = [];
+		foreach (FunctionDefinition function in candidates)
+		{
+			EnsureFunctionSignatureAnalyzed(function, typeScope);
+			if (CanBindOmittedOutDeconstruction(function, call.Arguments.Count, resultCount))
+				matches.Add(function);
+		}
+
+		if (matches.Count == 1)
+			return matches[0];
+		if (matches.Count > 1)
+			Report(GetRange(call.Target?.SourceSyntax ?? call.SourceSyntax), "Multiple candidates found for omitted out deconstruction.");
+		return null;
+	}
+
+	static bool CanBindOmittedOutDeconstruction(FunctionDefinition function, int providedArgumentCount, int resultCount)
+	{
+		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters);
+		if (providedArgumentCount > callableParameters.Count)
+			return false;
+
+		int omittedOutCount = 0;
+		for (int i = providedArgumentCount; i < callableParameters.Count; i++)
+		{
+			if (callableParameters[i].Modifier != ParameterModifier.Out)
+				return false;
+			omittedOutCount++;
+		}
+
+		bool hasReturnValue = (function.ResolvedType ?? "void") != "void";
+		return omittedOutCount + (hasReturnValue ? 1 : 0) == resultCount;
+	}
+
 	static DeclarationTarget CreateDeconstructedTarget(DeclarationTarget source, string name, string type)
 	{
 		DeclarationTarget target = new()
@@ -335,7 +436,7 @@ public sealed partial class BindableNodeAnalyzer
 		return target;
 	}
 
-	void BodyAnalyzeDeclarationTarget(DeclarationTarget target, BodyScope scope, AnalysisScope typeScope, string targetType)
+	void BodyAnalyzeDeclarationTarget(DeclarationTarget target, BodyScope scope, AnalysisScope typeScope, string targetType, bool allowDiscard = false)
 	{
 		AnalyzeOptionalType(target.Type, typeScope);
 
@@ -348,6 +449,12 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (string.IsNullOrWhiteSpace(name))
 				continue;
+			if (name == "_")
+			{
+				if (!allowDiscard)
+					Report(GetDeclarationTargetNameRange(target.SourceSyntax, name), "Discard '_' may not be used as a declaration name.");
+				continue;
+			}
 
 			RegisterBodySymbol(scope, name, target.ResolvedType ?? ErrorType, target, target.Type, target.ResolvedType, target.SourceSyntax);
 		}
@@ -481,8 +588,11 @@ public sealed partial class BindableNodeAnalyzer
 			return named.ResolvedType;
 		}
 
-		if (named.Qualifiers.Count == 0 && named.Name == "_" && named.ResolvedType is not null)
-			return named.ResolvedType;
+		if (IsDiscardExpression(named))
+		{
+			Report(GetRange(named.SourceSyntax), "Discard '_' is write-only and cannot be read.");
+			return ErrorType;
+		}
 
 		if (named.Qualifiers.Count > 0)
 		{
@@ -777,8 +887,15 @@ public sealed partial class BindableNodeAnalyzer
 			if (argument.Modifier is not ArgumentModifier.Out and not ArgumentModifier.Catch)
 				Report(GetRange(argument.SourceSyntax), "Argument declarations may only be used with 'out' or 'catch'.");
 
-			BodyAnalyzeDeclarationTarget(argument.Target, scope, typeScope, targetType ?? TargetType);
+			BodyAnalyzeDeclarationTarget(argument.Target, scope, typeScope, targetType ?? TargetType, allowDiscard: argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch);
 			argument.ResolvedType = argument.Target.ResolvedType ?? ErrorType;
+			return argument.ResolvedType;
+		}
+
+		if (argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch && IsDiscardExpression(argument.Value))
+		{
+			argument.ResolvedType = argument.Type?.ResolvedType ?? targetType ?? ErrorType;
+			argument.Value!.ResolvedType = argument.ResolvedType;
 			return argument.ResolvedType;
 		}
 
@@ -1573,13 +1690,25 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryAnalyzePropertyAssignment(assignment, scope, typeScope, out string propertyType))
 			return propertyType;
 
-		string targetType = BodyAnalyzeExpression(assignment.Target, scope, typeScope);
-		string valueType = BodyAnalyzeExpression(assignment.Value, scope, typeScope, targetType);
+		bool discardTarget = IsDiscardExpression(assignment.Target);
+		string targetType = discardTarget ? TargetType : BodyAnalyzeExpression(assignment.Target, scope, typeScope);
+		string valueType = BodyAnalyzeExpression(assignment.Value, scope, typeScope, discardTarget ? null : targetType);
+		if (discardTarget)
+		{
+			assignment.Target!.ResolvedType = valueType;
+			assignment.ResolvedType = valueType;
+			return valueType;
+		}
 		if (IsParamsComponentMemberReference(assignment.Target))
 			Report(GetRange(assignment.Target?.SourceSyntax), "Individual params components cannot be assigned; assign the whole params value instead.");
 		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target");
 		CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
 		return targetType;
+	}
+
+	static bool IsDiscardExpression(Expression? expression)
+	{
+		return expression is NamedExpression { Qualifiers.Count: 0, Name: "_" };
 	}
 
 	bool IsParamsComponentMemberReference(Expression? expression)

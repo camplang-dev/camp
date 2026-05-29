@@ -119,6 +119,12 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case AssignmentExpression assignment:
+				if (IsDiscardExpression(assignment.Target))
+				{
+					assignment.Value = LowerExpression(assignment.Value);
+					assignment.Target = CreateDiscardReference(assignment.Value?.ResolvedType ?? assignment.Target?.ResolvedType ?? ErrorType, assignment.Target?.SourceSyntax);
+					break;
+				}
 				if (TryRewritePropertySetterAssignment(assignment, out Expression? setterCall))
 					return setterCall;
 				if (TryRewriteInitAssignment(assignment, out Expression? initCall))

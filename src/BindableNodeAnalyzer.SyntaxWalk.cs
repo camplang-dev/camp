@@ -126,7 +126,11 @@ public sealed partial class BindableNodeAnalyzer
 		target.ResolvedType = target.Type?.ResolvedType ?? ErrorType;
 
 		foreach (string name in target.Names)
+		{
+			if (name == "_")
+				continue;
 			CheckName(name, GetDeclarationTargetNameRange(target.SourceSyntax, name), "local");
+		}
 	}
 
 	void AnalyzeForStatementCondition(ForStatementCondition condition, AnalysisScope scope)
