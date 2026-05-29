@@ -121,6 +121,8 @@ public sealed partial class BindableNodeAnalyzer
 			case AssignmentExpression assignment:
 				if (TryRewritePropertySetterAssignment(assignment, out Expression? setterCall))
 					return setterCall;
+				if (TryRewriteInitAssignment(assignment, out Expression? initCall))
+					return initCall;
 				assignment.Target = LowerExpression(assignment.Target);
 				assignment.Value = LowerExpression(assignment.Value);
 				if (assignment.Target is VariableReferenceExpression { Variable: DeclarationTarget target })
@@ -140,6 +142,56 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return expression;
+	}
+
+	bool TryRewriteInitAssignment(AssignmentExpression assignment, out Expression? expression)
+	{
+		expression = null;
+		if (assignment.Operator != AssignmentOperator.Assign
+			|| assignment.Target is null
+			|| assignment.Value is not ConstructionExpression { Kind: ConstructionKind.Init } construction)
+			return false;
+
+		for (int i = 0; i < construction.Arguments.Count; i++)
+			construction.Arguments[i] = LowerArgument(construction.Arguments[i]);
+		LowerInitializer(construction.Initializer);
+
+		Expression target = LowerExpression(assignment.Target) ?? assignment.Target;
+		Expression targetAddress = new UnaryExpression
+		{
+			SourceSyntax = assignment.Target.SourceSyntax,
+			Operator = UnaryOperator.AddressOf,
+			Operand = target,
+			ResolvedType = AddPointer(target.ResolvedType ?? ErrorType)
+		};
+		CallExpression? initCall = CreateInitCallForConstruction(construction, targetAddress);
+		if (initCall is null)
+			return false;
+
+		if (typeDefinitions.TryGetValue(BaseConstructedType(target.ResolvedType), out TypeDefinition? definition)
+			&& CreateVirtualTableAssignment(target, definition) is Expression vtableAssignment)
+		{
+			GroupedExpression grouped = new()
+			{
+				SourceSyntax = assignment.SourceSyntax,
+				ResolvedType = "void"
+			};
+			grouped.Items.Add(new GroupedExpressionItem
+			{
+				Expression = vtableAssignment,
+				ResolvedType = "void"
+			});
+			grouped.Items.Add(new GroupedExpressionItem
+			{
+				Expression = initCall,
+				ResolvedType = "void"
+			});
+			expression = grouped;
+			return true;
+		}
+
+		expression = initCall;
+		return true;
 	}
 
 	bool TryRewriteDelegateInvocation(CallExpression call)
