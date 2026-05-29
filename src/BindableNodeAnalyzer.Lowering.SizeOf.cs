@@ -1,0 +1,263 @@
+using System;
+using System.Collections.Generic;
+
+namespace Camp.Compiler;
+
+public sealed partial class BindableNodeAnalyzer
+{
+	readonly Dictionary<(ClassDefinition Class, string GenericName), FieldDefinition> sizeOfFields = [];
+
+	static string SizeOfParameterName(TypeReference? type)
+	{
+		return "sizeof_" + SizeOfTypeName(type);
+	}
+
+	static string SizeOfFieldName(TypeReference? type)
+	{
+		return "_sizeof_" + SizeOfTypeName(type);
+	}
+
+	static string SizeOfTypeName(TypeReference? type)
+	{
+		return type switch
+		{
+			GenericParameterTypeReference generic => generic.Name,
+			NamedTypeReference named => named.Name,
+			TypeDefinitionReference definition => definition.Name,
+			_ => type?.ResolvedType ?? ErrorType
+		};
+	}
+
+	void GenerateSizeOfFields(ClassDefinition classDefinition)
+	{
+		HashSet<string> generated = [];
+		foreach (FunctionDefinition function in classDefinition.Functions)
+		{
+			if (function.Modifier != FunctionModifier.Constructor && function.Name != InitNewMethodName)
+				continue;
+
+			foreach (ParameterDefinition parameter in function.Parameters)
+			{
+				if (parameter is not SizeOfParameterDefinition sizeOf)
+					continue;
+
+				string genericName = SizeOfTypeName(sizeOf.Type);
+				if (!ClassHasGenericParameter(classDefinition, genericName) || !generated.Add(genericName))
+					continue;
+
+				FieldDefinition field = new()
+				{
+					SourceSyntax = sizeOf.SourceSyntax,
+					Name = SizeOfFieldName(sizeOf.Type),
+					Symbol = SizeOfFieldName(sizeOf.Type),
+					Type = NuintType(),
+					ResolvedType = "nuint"
+				};
+				classDefinition.Fields.Add(field);
+				sizeOfFields[(classDefinition, genericName)] = field;
+			}
+		}
+	}
+
+	static bool ClassHasGenericParameter(ClassDefinition classDefinition, string name)
+	{
+		foreach (GenericParameter parameter in classDefinition.GenericParameters)
+		{
+			if (parameter.Name == name)
+				return true;
+		}
+		return false;
+	}
+
+	void InsertSizeOfFieldAssignments(FunctionDefinition function, TypeDefinition? containingType)
+	{
+		if (function.Body is null || function.Name != InitNewMethodName || containingType is not ClassDefinition classDefinition)
+			return;
+
+		List<Statement> assignments = [];
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter is not SizeOfParameterDefinition sizeOf)
+				continue;
+
+			string genericName = SizeOfTypeName(sizeOf.Type);
+			if (!sizeOfFields.TryGetValue((classDefinition, genericName), out FieldDefinition? field))
+				continue;
+
+			assignments.Add(new ExpressionStatement
+			{
+				SourceSyntax = parameter.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = parameter.SourceSyntax,
+					Target = CreateSizeOfFieldReference(classDefinition, field, parameter.SourceSyntax),
+					Operator = AssignmentOperator.Assign,
+					Value = CreateVariableReference(parameter, "nuint"),
+					ResolvedType = "nuint"
+				}
+			});
+		}
+
+		if (assignments.Count > 0)
+			function.Body.Statements.InsertRange(0, assignments);
+	}
+
+	Expression LowerSizeOfExpression(SizeOfExpression sizeOf)
+	{
+		if (!IsGenericSizeOf(sizeOf, out string genericName))
+			return sizeOf;
+
+		if (FindSizeOfParameter(currentRewriteFunction, genericName) is SizeOfParameterDefinition parameter)
+			return CreateVariableReference(parameter, "nuint");
+
+		if (currentRewriteContainingType is ClassDefinition classDefinition
+			&& sizeOfFields.TryGetValue((classDefinition, genericName), out FieldDefinition? field))
+		{
+			if (currentRewriteFunction?.Modifier == FunctionModifier.Static)
+			{
+				Report(sizeOf.SourceSyntax, $"sizeof({genericName}) requires parameter '{SizeOfParameterName(sizeOf.Type)}' in this static method.");
+				return sizeOf;
+			}
+
+			return CreateSizeOfFieldReference(classDefinition, field, sizeOf.SourceSyntax);
+		}
+
+		Report(sizeOf.SourceSyntax, $"sizeof({genericName}) requires parameter '{SizeOfParameterName(sizeOf.Type)}'.");
+		return sizeOf;
+	}
+
+	static bool IsGenericSizeOf(SizeOfExpression sizeOf, out string genericName)
+	{
+		genericName = "";
+		TypeReference? type = sizeOf.Type;
+		if (type is GenericParameterTypeReference generic)
+		{
+			genericName = generic.Name;
+			return true;
+		}
+		return false;
+	}
+
+	static SizeOfParameterDefinition? FindSizeOfParameter(FunctionDefinition? function, string genericName)
+	{
+		if (function is null)
+			return null;
+
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter is SizeOfParameterDefinition sizeOf && SizeOfTypeName(sizeOf.Type) == genericName)
+				return sizeOf;
+		}
+
+		return null;
+	}
+
+	MemberReferenceExpression CreateSizeOfFieldReference(ClassDefinition classDefinition, FieldDefinition field, SyntaxNode? syntax)
+	{
+		return new MemberReferenceExpression
+		{
+			SourceSyntax = syntax,
+			Target = new ThisExpression
+			{
+				SourceSyntax = syntax,
+				ResolvedType = classDefinition.Name
+			},
+			Name = field.Name,
+			Member = field,
+			ResolvedType = "nuint"
+		};
+	}
+
+	void AddImplicitSizeOfArguments(CallExpression call)
+	{
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function))
+			return;
+
+		AddImplicitSizeOfArguments(call, function, constructedType: null);
+	}
+
+	void AddImplicitSizeOfArguments(CallExpression call, FunctionDefinition function, TypeReference? constructedType)
+	{
+		Dictionary<string, string> substitutions = GetGenericSubstitutions(call, function, constructedType);
+		List<ParameterDefinition> parameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(call.Target, function));
+		for (int i = 0; i < parameters.Count; i++)
+		{
+			if (parameters[i] is not SizeOfParameterDefinition sizeOf)
+				continue;
+			if (i < call.Arguments.Count && call.Arguments[i].Modifier == ArgumentModifier.None && call.Arguments[i].Value is not WithinExpression { Expression: null })
+				continue;
+
+			string genericName = SizeOfTypeName(sizeOf.Type);
+			string concreteType = substitutions.TryGetValue(genericName, out string? substituted)
+				? substituted
+				: sizeOf.Type?.ResolvedType ?? genericName;
+			call.Arguments.Insert(i, new ArgumentExpression
+			{
+				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
+				Value = new SizeOfExpression
+				{
+					SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
+					Type = TypeReferenceForResolvedName(concreteType),
+					ResolvedType = "nuint"
+				},
+				ResolvedType = "nuint"
+			});
+		}
+	}
+
+	Dictionary<string, string> GetGenericSubstitutions(CallExpression call, FunctionDefinition function, TypeReference? constructedType)
+	{
+		Dictionary<string, string> substitutions = callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? existing)
+			? new Dictionary<string, string>(existing, StringComparer.Ordinal)
+			: [];
+
+		AddFunctionTypeArgumentSubstitutions(function, call.TypeArguments, substitutions);
+		if (constructedType is not null && FindContainingType(function) is TypeDefinition containingType)
+			AddTypeArgumentSubstitutions(containingType.GenericParameters, GetTypeArguments(constructedType), substitutions);
+		return substitutions;
+	}
+
+	static void AddFunctionTypeArgumentSubstitutions(FunctionDefinition function, List<TypeReference> typeArguments, Dictionary<string, string> substitutions)
+	{
+		int count = Math.Min(function.GenericParameters.Count, typeArguments.Count);
+		for (int i = 0; i < count; i++)
+			substitutions[function.GenericParameters[i].Name] = typeArguments[i].ResolvedType ?? ErrorType;
+	}
+
+	static void AddTypeArgumentSubstitutions(List<GenericParameter> parameters, List<TypeReference> typeArguments, Dictionary<string, string> substitutions)
+	{
+		int count = Math.Min(parameters.Count, typeArguments.Count);
+		for (int i = 0; i < count; i++)
+			substitutions[parameters[i].Name] = typeArguments[i].ResolvedType ?? ErrorType;
+	}
+
+	static List<TypeReference> GetTypeArguments(TypeReference type)
+	{
+		return type switch
+		{
+			NamedTypeReference named => named.TypeArguments,
+			TypeDefinitionReference definition => definition.TypeArguments,
+			GenericTypeReference generic => generic.TypeArguments,
+			_ => []
+		};
+	}
+
+	static TypeReference TypeReferenceForResolvedName(string typeName)
+	{
+		return new NamedTypeReference
+		{
+			Name = typeName,
+			ResolvedType = typeName
+		};
+	}
+
+	static TypeReference NuintType()
+	{
+		return new PrimitiveTypeReference
+		{
+			Type = PrimitiveType.NUInt,
+			ResolvedType = "nuint"
+		};
+	}
+}

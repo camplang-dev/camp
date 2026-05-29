@@ -866,10 +866,8 @@ public sealed class BindableNodeCodeSerializer
 		}
 		else if (parameter is SizeOfParameterDefinition)
 		{
-			writer.Write("sizeof(");
-			if (parameter.Type is not null)
-				WriteType(parameter.Type);
-			writer.Write(")");
+			writer.Write("nuint ");
+			writer.Write(string.IsNullOrWhiteSpace(parameter.Name) ? "sizeof" : parameter.Name);
 		}
 		else if (parameter is VTableOfParameterDefinition vtable)
 		{

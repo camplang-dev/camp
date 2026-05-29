@@ -113,10 +113,11 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FieldDefinition field in definition.Fields)
 			AnalyzeFieldDefinition(field, scope);
 
-		ValidateExpandedFieldNames(definition.Fields);
 		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
+		GenerateSizeOfFields(definition);
+		ValidateExpandedFieldNames(definition.Fields);
 	}
 
 	void AnalyzeStructDefinition(StructDefinition definition, AnalysisScope parentScope)
@@ -407,7 +408,7 @@ public sealed partial class BindableNodeAnalyzer
 		Dictionary<string, string> componentSymbols = new(StringComparer.Ordinal);
 		foreach (ParameterDefinition parameter in parameters)
 		{
-			if (parameter is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+			if (parameter is ThisParameterDefinition or WithinParameterDefinition or VTableOfParameterDefinition)
 				continue;
 
 			string name = parameter.Name;
@@ -489,10 +490,18 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeParameterDefinition(ParameterDefinition definition, AnalysisScope scope, bool allowThisName = false)
 	{
+		if (definition is SizeOfParameterDefinition)
+		{
+			AnalyzeOptionalType(definition.Type, scope);
+			definition.Name = SizeOfParameterName(definition.Type);
+			definition.Symbol = definition.Name;
+		}
+
 		if (IsUserNamedParameter(definition) && !(allowThisName && definition.Name == "this"))
 			CheckName(definition.Name, GetNameRange(definition), "parameter");
 
-		AnalyzeOptionalType(definition.Type, scope);
+		if (definition is not SizeOfParameterDefinition)
+			AnalyzeOptionalType(definition.Type, scope);
 
 		if (definition is VTableOfParameterDefinition vtableOf)
 			AnalyzeOptionalType(vtableOf.InterfaceType, scope);
@@ -503,7 +512,9 @@ public sealed partial class BindableNodeAnalyzer
 			definition.Symbol = "error";
 		}
 
-		definition.ResolvedType = definition.Type?.ResolvedType ?? GetImplicitParameterType(definition);
+		definition.ResolvedType = definition is SizeOfParameterDefinition
+			? GetImplicitParameterType(definition)
+			: definition.Type?.ResolvedType ?? GetImplicitParameterType(definition);
 		ValidateGenericArgumentUse(definition.Type);
 		ValidateParameterPassing(definition, scope);
 		AnalyzeConstantExpression(definition.DefaultValue, scope, "Parameter default value");

@@ -319,7 +319,6 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsUserNamedParameter(ParameterDefinition definition)
 	{
 		return definition is not ThisParameterDefinition
-			and not SizeOfParameterDefinition
 			and not VTableOfParameterDefinition;
 	}
 

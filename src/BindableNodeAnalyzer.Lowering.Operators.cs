@@ -75,7 +75,7 @@ public sealed partial class BindableNodeAnalyzer
 	Expression RewriteConstruction(ConstructionExpression construction)
 	{
 		TypeReference? type = construction.Type;
-		string typeName = type?.ResolvedType ?? BaseConstructedType(construction.ResolvedType);
+		string typeName = BaseConstructedType(type?.ResolvedType ?? construction.ResolvedType);
 		if (construction.ElementCount is not null && type is not null)
 			return CreateArrayConstruction(type, construction.ElementCount, construction.SourceSyntax, construction.ResolvedType);
 		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
@@ -83,13 +83,13 @@ public sealed partial class BindableNodeAnalyzer
 
 		return construction.Kind switch
 		{
-			ConstructionKind.New => CreateNewExpression(definition, construction.Arguments, construction.SourceSyntax, construction.ResolvedType),
+			ConstructionKind.New => CreateNewExpression(definition, construction.Type, construction.Arguments, construction.SourceSyntax, construction.ResolvedType),
 			ConstructionKind.Init => (Expression?)CreateInitCallForConstruction(construction, target: null) ?? construction,
 			_ => construction
 		};
 	}
 
-	Expression CreateNewExpression(TypeDefinition type, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
+	Expression CreateNewExpression(TypeDefinition type, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
 	{
 		TypeReference typeReference = TypeReferenceFor(type);
 		FunctionDefinition? initNew = FindInitNewMethod(type, arguments.Count);
@@ -127,7 +127,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (initNew is not null)
 			grouped.Items.Add(new GroupedExpressionItem
 			{
-				Expression = CreateInitNewCall(localReference, initNew, arguments, syntax),
+				Expression = CreateInitNewCall(localReference, initNew, arguments, syntax, constructedType: constructedType),
 				ResolvedType = "void"
 			});
 		grouped.Items.Add(new GroupedExpressionItem
@@ -140,7 +140,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallExpression? CreateInitCallForConstruction(ConstructionExpression construction, Expression? target)
 	{
-		string typeName = construction.Type?.ResolvedType ?? BaseConstructedType(construction.ResolvedType);
+		string typeName = BaseConstructedType(construction.Type?.ResolvedType ?? construction.ResolvedType);
 		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
 			return null;
 
@@ -148,7 +148,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (initNew is null)
 			return null;
 
-		return CreateInitNewCall(target, initNew, construction.Arguments, construction.SourceSyntax);
+		return CreateInitNewCall(target, initNew, construction.Arguments, construction.SourceSyntax, constructedType: construction.Type);
 	}
 
 	Expression RewriteDeleteExpression(Expression? expression)
@@ -243,7 +243,7 @@ public sealed partial class BindableNodeAnalyzer
 		return call;
 	}
 
-	CallExpression CreateInitNewCall(Expression? target, FunctionDefinition initNew, List<ArgumentExpression> arguments, SyntaxNode? syntax, Expression? allocatorArgument = null)
+	CallExpression CreateInitNewCall(Expression? target, FunctionDefinition initNew, List<ArgumentExpression> arguments, SyntaxNode? syntax, Expression? allocatorArgument = null, TypeReference? constructedType = null)
 	{
 		CallExpression call = new()
 		{
@@ -263,6 +263,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ArgumentExpression argument in arguments)
 			call.Arguments.Add(argument);
 		ExpandParamsArguments(call.Arguments);
+		AddImplicitSizeOfArguments(call, initNew, constructedType);
 		if (HasWithinParameter(initNew))
 			call.Arguments.Add(new ArgumentExpression { Value = allocatorArgument ?? CurrentAllocator(syntax), ResolvedType = AllocatorType });
 		if (ShouldEmitFlattenedInstanceCalls() && call.Target is MemberReferenceExpression member && target is not null)

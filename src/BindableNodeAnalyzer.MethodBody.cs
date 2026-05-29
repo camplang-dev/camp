@@ -8,6 +8,7 @@ public sealed partial class BindableNodeAnalyzer
 {
 	readonly Dictionary<Expression, bool> expressionConstants = [];
 	readonly Dictionary<CallExpression, FunctionDefinition> callTargets = [];
+	readonly Dictionary<CallExpression, Dictionary<string, string>> callGenericSubstitutions = [];
 	readonly Dictionary<FunctionDefinition, Dictionary<string, LabelStatement>> functionLabels = [];
 
 	void AnalyzeMethodBody(FunctionDefinition function, AnalysisScope typeAndMethodScope, TypeDefinition? containingType)
@@ -931,6 +932,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeCallExpression(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
+		NormalizeGenericCallSyntax(call);
 		foreach (TypeReference argument in call.TypeArguments)
 			AnalyzeType(argument, typeScope);
 
@@ -943,6 +945,11 @@ public sealed partial class BindableNodeAnalyzer
 			callTargets[call] = function;
 			foreach (GenericParameter parameter in function.GenericParameters)
 				genericParameterNames.Add(parameter.Name);
+			if (FindContainingType(function) is TypeDefinition containingType)
+			{
+				foreach (GenericParameter parameter in containingType.GenericParameters)
+					genericParameterNames.Add(parameter.Name);
+			}
 			AddExplicitGenericSubstitutions(function, call.TypeArguments, genericSubstitutions);
 		}
 		else if (TryAnalyzeCallableInvocation(call, scope, typeScope, targetType, out string callableReturnType))
@@ -958,11 +965,23 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax, IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames);
 		}
+		if (function is not null)
+			callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
 
 		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments, genericSubstitutions);
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
 		return returnType;
+	}
+
+	static void NormalizeGenericCallSyntax(CallExpression call)
+	{
+		if (call.Target is not CallExpression { Arguments.Count: 0, TypeArguments.Count: > 0 } genericTarget)
+			return;
+
+		call.Target = genericTarget.Target;
+		foreach (TypeReference argument in genericTarget.TypeArguments)
+			call.TypeArguments.Add(argument);
 	}
 
 	bool TryAnalyzeCallableInvocation(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType, out string returnType)
@@ -1133,11 +1152,17 @@ public sealed partial class BindableNodeAnalyzer
 		genericSubstitutions ??= [];
 		genericParameterNames ??= [];
 		List<ParameterDefinition> callableParameters = GetCallableParameters(parameters, includeExplicitThis);
-		if (arguments.Count > callableParameters.Count)
+		if (arguments.Count > callableParameters.Count || HasExplicitHiddenArgument(arguments))
 			AddExplicitHiddenParameters(parameters, callableParameters);
+		int parameterIndex = 0;
 		for (int i = 0; i < arguments.Count; i++)
 		{
-			ParameterDefinition? parameter = i < callableParameters.Count ? callableParameters[i] : null;
+			ParameterDefinition? parameter = parameterIndex < callableParameters.Count ? callableParameters[parameterIndex] : null;
+			while (parameter is SizeOfParameterDefinition && IsExplicitHiddenArgument(arguments[i]))
+			{
+				parameterIndex++;
+				parameter = parameterIndex < callableParameters.Count ? callableParameters[parameterIndex] : null;
+			}
 			if (parameter is not null && parameter.ResolvedType is null)
 				AnalyzeParameterDefinition(parameter, typeScope);
 
@@ -1168,12 +1193,26 @@ public sealed partial class BindableNodeAnalyzer
 							arguments[i].ResolvedType = expected;
 					}
 				}
-			}
+			parameterIndex++;
+		}
 
 		if (parameters.Count > 0 && arguments.Count < CountRequiredParameters(callableParameters, includeExplicitThis: true))
 			Report(GetRange((arguments.Count > 0 ? arguments[^1].SourceSyntax : null) ?? fallbackSyntax), "Call is missing required arguments.");
 		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
 			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
+	}
+
+	static bool HasExplicitHiddenArgument(List<ArgumentExpression> arguments)
+	{
+		foreach (ArgumentExpression argument in arguments)
+			if (IsExplicitHiddenArgument(argument))
+				return true;
+		return false;
+	}
+
+	static bool IsExplicitHiddenArgument(ArgumentExpression argument)
+	{
+		return argument.Modifier == ArgumentModifier.Catch || argument.Value is WithinExpression { Expression: null };
 	}
 
 	static void InferGenericSubstitutions(string pattern, string actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)

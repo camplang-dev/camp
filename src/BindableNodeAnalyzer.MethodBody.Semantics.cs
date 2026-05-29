@@ -893,14 +893,23 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		ThisParameterDefinition? explicitThis = GetExplicitThisParameter(function);
 		TypeDefinition? owner = FindContainingType(function);
-		string receiverType = TryGetPointerElementType(targetType) is not null && owner is not null
-			? $"{owner.Name}*"
-			: owner?.Name ?? explicitThis?.ResolvedType ?? targetType;
+		string receiverType = owner is null
+			? explicitThis?.ResolvedType ?? targetType
+			: BuildOwnedReceiverType(targetType, owner);
 
 		if (explicitThis is not null)
 			return ApplyThisDeclarators(receiverType, explicitThis);
 
 		return isPropertyGetterSyntax ? AddConstToReceiverInstance(receiverType) : receiverType;
+	}
+
+	static string BuildOwnedReceiverType(string targetType, TypeDefinition owner)
+	{
+		if (TryGetPointerElementType(targetType) is string elementType && BaseTypeName(elementType) == owner.Name)
+			return $"{elementType}*";
+		if (BaseTypeName(targetType) == owner.Name)
+			return targetType;
+		return TryGetPointerElementType(targetType) is not null ? $"{owner.Name}*" : owner.Name;
 	}
 
 	static bool IsPropertyGetterFunction(FunctionDefinition function)
@@ -1084,7 +1093,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameter.Modifier is not ParameterModifier.Thrown and not ParameterModifier.Within
 				&& (includeExplicitThis || parameter is not ThisParameterDefinition)
-				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+				&& parameter is not WithinParameterDefinition and not VTableOfParameterDefinition)
 				count++;
 		}
 		return count;
@@ -1102,7 +1111,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
 				|| !includeExplicitThis && parameter is ThisParameterDefinition
-				|| parameter is WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+				|| parameter is WithinParameterDefinition or VTableOfParameterDefinition)
 				continue;
 
 			callable.Add(parameter);
@@ -1385,7 +1394,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<string> parameters = [];
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
-			if ((isInstance && parameter is ThisParameterDefinition) || parameter is SizeOfParameterDefinition or VTableOfParameterDefinition)
+			if ((isInstance && parameter is ThisParameterDefinition) || parameter is VTableOfParameterDefinition)
 				continue;
 
 			parameters.Add(parameter.ResolvedType ?? ErrorType);

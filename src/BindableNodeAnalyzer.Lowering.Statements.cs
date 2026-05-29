@@ -76,6 +76,7 @@ public sealed partial class BindableNodeAnalyzer
 		currentFunctionExitLabel = null;
 		currentFunctionReturnTarget = null;
 		currentFunctionReturnType = function.ResolvedType ?? "void";
+		InsertSizeOfFieldAssignments(function, containingType);
 		function.Body = RewriteFunctionBody(function.Body);
 		if (function.Body is not null && currentFunctionExitLabel is not null)
 			AppendFunctionExit(function.Body.Statements);
@@ -348,7 +349,7 @@ public sealed partial class BindableNodeAnalyzer
 			Body = new ExpressionStatement
 			{
 				ResolvedType = "void",
-				Expression = CreateInitNewCall(target, initNew, construction.Arguments, construction.SourceSyntax)
+				Expression = CreateInitNewCall(target, initNew, construction.Arguments, construction.SourceSyntax, constructedType: construction.Type)
 			}
 		});
 		return true;

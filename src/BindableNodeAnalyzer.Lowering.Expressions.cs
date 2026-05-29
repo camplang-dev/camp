@@ -53,6 +53,9 @@ public sealed partial class BindableNodeAnalyzer
 					return LowerInterfaceConversion(cast.Type, cast.Expression) ?? cast;
 				break;
 
+			case SizeOfExpression sizeOf:
+				return LowerSizeOfExpression(sizeOf);
+
 			case LambdaExpression lambda:
 				lambda.Body = RewriteFunctionBody(lambda.Body);
 				break;
@@ -66,6 +69,7 @@ public sealed partial class BindableNodeAnalyzer
 				else
 					call.Target = LowerExpression(call.Target);
 				LowerThrowingArguments(call);
+				AddImplicitSizeOfArguments(call);
 				AddImplicitWithinArgument(call);
 				for (int i = 0; i < call.Arguments.Count; i++)
 					call.Arguments[i] = LowerArgument(call.Arguments[i]);

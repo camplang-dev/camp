@@ -120,7 +120,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			callable++;
-			if (parameter.DefaultValue is null)
+			if (parameter.DefaultValue is null && parameter is not SizeOfParameterDefinition)
 				required++;
 		}
 
@@ -130,7 +130,7 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsHiddenParameter(ParameterDefinition parameter)
 	{
 		return parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
-			|| parameter is WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition;
+			|| parameter is WithinParameterDefinition or VTableOfParameterDefinition;
 	}
 
 	static bool HasWithinParameter(FunctionDefinition function)
@@ -510,9 +510,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(type))
 			return "";
 
-		return new TypeShapeParser(type).TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Pointer
+		string constructed = new TypeShapeParser(type).TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Pointer
 			? TypeShapeParser.Format(shape.Element)
 			: type;
+		return BaseTypeName(constructed);
 	}
 
 	void Report(SyntaxNode? syntax, string message)
@@ -530,7 +531,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		method.Parameters.Add(new ThisParameterDefinition { Name = "this", Symbol = "this", ResolvedType = "Allocator*" });
 		method.Parameters.Add(new ParameterDefinition { Name = "len", Symbol = "len", ResolvedType = "nuint" });
-		method.Parameters.Add(new SizeOfParameterDefinition { Name = "sizeof", Symbol = "sizeof", ResolvedType = "nuint" });
+		method.Parameters.Add(new SizeOfParameterDefinition { Name = "sizeof_T", Symbol = "sizeof_T", Type = new GenericParameterTypeReference { Name = "T", ResolvedType = "T" }, ResolvedType = "nuint" });
 		method.Parameters.Add(new ParameterDefinition { Name = "MemoryError", Symbol = "MemoryError", Modifier = ParameterModifier.Thrown, ResolvedType = "MemoryError" });
 		return method;
 	}

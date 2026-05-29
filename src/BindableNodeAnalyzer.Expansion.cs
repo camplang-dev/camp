@@ -213,7 +213,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<ArgumentExpression> arguments = [];
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
-			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+			if (parameter is ThisParameterDefinition or VTableOfParameterDefinition)
 				continue;
 
 			arguments.Add(new ArgumentExpression
@@ -537,6 +537,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		switch (node)
 		{
+			case SizeOfParameterDefinition:
+				node.ResolvedType = "nuint";
+				break;
+
 			case ParameterDefinition parameter when parameter.Type is not null:
 				parameter.ResolvedType = parameter.Type.ResolvedType;
 				break;
