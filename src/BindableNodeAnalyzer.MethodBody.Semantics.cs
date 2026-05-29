@@ -361,21 +361,48 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	static bool TryGetUnqualifiedInstanceField(TypeDefinition? type, string name, out FieldDefinition? field)
+	bool TryGetUnqualifiedInstanceMember(TypeDefinition? type, string name, SyntaxNode? referenceSyntax, out string memberKind)
 	{
-		field = null;
-		IEnumerable<FieldDefinition> fields = type switch
-		{
-			ClassDefinition classDefinition => classDefinition.Fields,
-			StructDefinition structDefinition => structDefinition.Fields,
-			_ => []
-		};
+		memberKind = "";
+		if (type is null)
+			return false;
 
-		foreach (FieldDefinition candidate in fields)
+		foreach (TypeDefinition candidateType in EnumerateTypeAndBases(type))
 		{
-			if (candidate.Name == name)
+			foreach (FieldDefinition field in GetTypeFields(candidateType))
 			{
-				field = candidate;
+				if (field.Name == name)
+				{
+					memberKind = "Member field";
+					return true;
+				}
+
+				if (TryGetParamsComponentShape(field.Type, field.ResolvedType, field.Name, out ParamsComponentShape shape))
+				{
+					foreach (ParamsComponent component in shape.Components)
+					{
+						if (component.ExpandedName == name)
+						{
+							memberKind = "Member field";
+							return true;
+						}
+					}
+				}
+			}
+
+			foreach (FunctionDefinition function in LookupTypeFunctions(candidateType, name, referenceSyntax))
+			{
+				if (!IsInstanceFunction(function))
+					continue;
+				memberKind = "Member method";
+				return true;
+			}
+
+			foreach (FunctionDefinition getter in LookupTypeFunctions(candidateType, "get" + name, referenceSyntax))
+			{
+				if (!IsInstanceFunction(getter))
+					continue;
+				memberKind = "Member property";
 				return true;
 			}
 		}
@@ -386,9 +413,6 @@ public sealed partial class BindableNodeAnalyzer
 	List<FunctionDefinition> LookupFunctions(string name, BodyScope scope)
 	{
 		List<FunctionDefinition> functions = [];
-		if (scope.ContainingType is not null)
-			functions.AddRange(LookupTypeFunctions(scope.ContainingType, name, scope.CurrentFunction.SourceSyntax));
-
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
 			if (definition is FunctionDefinition function && function.Name == name && GetExplicitThisParameter(function) is null && IsDefinitionVisible(function, scope.CurrentFunction.SourceSyntax))
@@ -396,6 +420,28 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return functions;
+	}
+
+	IEnumerable<TypeDefinition> EnumerateTypeAndBases(TypeDefinition type)
+	{
+		if (type is ClassDefinition classDefinition)
+		{
+			foreach (ClassDefinition candidate in EnumerateClassAndBases(classDefinition))
+				yield return candidate;
+			yield break;
+		}
+
+		yield return type;
+	}
+
+	static IEnumerable<FieldDefinition> GetTypeFields(TypeDefinition type)
+	{
+		return type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Fields,
+			StructDefinition structDefinition => structDefinition.Fields,
+			_ => []
+		};
 	}
 
 	VariableDefinition? LookupGlobalVariable(string name, SyntaxNode? referenceSyntax)

@@ -504,6 +504,12 @@ public sealed partial class BindableNodeAnalyzer
 			return symbol.Type;
 		}
 
+		if (TryGetUnqualifiedInstanceMember(scope.ContainingType, named.Name, named.SourceSyntax, out string memberKind))
+		{
+			Report(GetRange(named.SourceSyntax), $"{memberKind} '{named.Name}' requires explicit 'this.' qualification.");
+			return ErrorType;
+		}
+
 		if (LookupGlobalVariable(named.Name, named.SourceSyntax) is VariableDefinition variable)
 		{
 			string type = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
@@ -557,12 +563,6 @@ public sealed partial class BindableNodeAnalyzer
 			};
 			expressionRewrites[named] = expression;
 			return expression.ResolvedType;
-		}
-
-		if (TryGetUnqualifiedInstanceField(scope.ContainingType, named.Name, out _))
-		{
-			Report(GetRange(named.SourceSyntax), $"Member field '{named.Name}' requires explicit 'this.' qualification.");
-			return ErrorType;
 		}
 
 		if (LookupHiddenGlobalSymbol(named.Name, named.SourceSyntax) is Definition hidden)
@@ -866,6 +866,18 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if (named.Qualifiers.Count == 0 && named.Name == "base")
 					return ResolveBaseConstructorCall(named, scope, argumentCount);
+
+				if (named.Qualifiers.Count == 0 && scope.TryLookup(named.Name, out _))
+				{
+					BodyAnalyzeExpression(named, scope, typeScope);
+					return null;
+				}
+
+				if (named.Qualifiers.Count == 0 && TryGetUnqualifiedInstanceMember(scope.ContainingType, named.Name, named.SourceSyntax, out string memberKind))
+				{
+					Report(GetRange(named.SourceSyntax), $"{memberKind} '{named.Name}' requires explicit 'this.' qualification.");
+					return null;
+				}
 
 				List<FunctionDefinition> functions = LookupFunctions(named.Name, scope);
 				if (functions.Count == 1)
@@ -1665,7 +1677,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		public bool TryLookup(string name, out BodySymbol symbol)
 		{
-			if (Symbols.TryGetValue(name, out symbol) || MemberSymbols.TryGetValue(name, out symbol))
+			if (Symbols.TryGetValue(name, out symbol))
 				return true;
 
 			if (Parent is not null)
