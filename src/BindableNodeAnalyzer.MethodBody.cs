@@ -910,10 +910,8 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(member.SourceSyntax), $"Multiple candidates found for member call '{member.Name}'.");
 				else if (GetTypeDefinition(targetType) is TypeDefinition receiverType && HasMemberFunctionWithIncompatibleReceiver(receiverType, targetType, member.Name, member.SourceSyntax))
 					Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' exists on type '{targetType}', but its this parameter is not compatible with that receiver.");
-				else if (GetTypeDefinition(targetType) is TypeDefinition memberType && LookupHiddenMember(memberType, member.Name, member.SourceSyntax) is Definition hiddenMember)
-					ReportMemberNotExported(hiddenMember, member.SourceSyntax);
 				else
-					Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' could not be found on type '{targetType}'.");
+					BodyAnalyzeMemberExpression(member, scope, typeScope);
 				return null;
 			}
 

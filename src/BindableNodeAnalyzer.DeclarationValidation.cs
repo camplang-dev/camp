@@ -474,7 +474,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (participatesInVirtualDispatch && definition.GenericParameters.Count > 0)
 			Report(GetNameRange(definition), "Virtual, abstract, override, and sealed methods may not declare generic parameters.");
 
-		if (definition.Modifier == FunctionModifier.Abstract && definition.Body is not null)
+		if (definition.Modifier == FunctionModifier.Abstract && definition.Body is { SourceSyntax: not null })
 			Report(GetNameRange(definition), "Abstract methods may not have a body.");
 
 		if (definition.Modifier == FunctionModifier.Virtual && definition.Body is null && !IsDestructorFunction(definition))

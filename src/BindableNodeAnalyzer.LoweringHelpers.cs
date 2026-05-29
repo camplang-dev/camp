@@ -446,7 +446,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	sealed record InterfaceThunkLowering(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member);
 
-	sealed record VirtualSlot(FunctionDefinition Declaration, FunctionDefinition? Implementation);
+	sealed record VirtualSlot(FunctionDefinition Declaration, FunctionDefinition? Implementation, FieldDefinition Field);
 
 	sealed record ThrowHandler(string ErrorType, DeclarationTarget ErrorTarget, string LabelName);
 

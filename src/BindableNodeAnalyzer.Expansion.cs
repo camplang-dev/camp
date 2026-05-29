@@ -71,11 +71,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (function.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract)
 			{
-				VirtualSlot slot = new(function, implementation);
+				FieldDefinition slotField = CreateVirtualSlotField(classDefinition, function);
+				VirtualSlot slot = new(function, implementation, slotField);
 				lowering.DeclaredSlots.Add(slot);
-				vtableType.Fields.Add(CreateVirtualSlotField(classDefinition, function));
-				if (function.Modifier == FunctionModifier.Virtual)
-					function.Body = CreateVirtualDispatchBody(classDefinition, function);
+				vtableType.Fields.Add(slotField);
+				function.Body = CreateVirtualDispatchBody(classDefinition, function, slotField);
 			}
 			else if (function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed)
 			{
@@ -161,7 +161,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	BlockStatement CreateVirtualDispatchBody(ClassDefinition owner, FunctionDefinition function)
+	BlockStatement CreateVirtualDispatchBody(ClassDefinition owner, FunctionDefinition function, FieldDefinition slotField)
 	{
 		string returnType = GetFunctionReturnTypeName(function);
 		Expression vtableTarget = new MemberReferenceExpression
@@ -188,13 +188,18 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				Target = vtableTarget,
 				Name = VirtualSlotName(function),
-				Member = function,
-				ResolvedType = BuildVirtualSlotCallableType(owner, function)
+				Member = slotField,
+				ResolvedType = slotField.ResolvedType
 			}
 		};
 		call.Arguments.Add(new ArgumentExpression
 		{
-			Value = new ThisExpression { ResolvedType = owner.Name },
+			Value = new UnaryExpression
+			{
+				Operator = UnaryOperator.AddressOf,
+				Operand = new ThisExpression { ResolvedType = owner.Name },
+				ResolvedType = $"{owner.Name}*"
+			},
 			ResolvedType = $"{owner.Name}*"
 		});
 		foreach (ArgumentExpression argument in function.ArgumentsFromParameters())
