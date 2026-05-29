@@ -1160,7 +1160,29 @@ public sealed class CampParser
 		if (IsExpressionBoundary())
 			return null;
 
-		return TakeOperator("||", "??", "&&", "==", "!=", "<=", ">=", "<<", ">>", "|", "^", "&", "<", ">", "+", "-", "*", "/", "%");
+		SkipTrivia();
+		foreach (string op in new[] { "||", "??", "&&", "==", "!=", "<=", ">=", "<<", ">>", "|", "^", "&", "<", ">", "+", "-", "*", "/", "%" })
+		{
+			TokenRange? range = MatchOperatorAt(index, op);
+			if (range is null)
+				continue;
+			if (OperatorWouldStartCompoundAssignment(range.Value))
+				return null;
+
+			index += range.Value.Count;
+			return range;
+		}
+
+		return null;
+	}
+
+	bool OperatorWouldStartCompoundAssignment(TokenRange range)
+	{
+		int next = range.Index + range.Count;
+		return next < tokens.Count
+			&& tokens[next].Class == TokenClass.Symbol
+			&& tokens[next].Value == "="
+			&& AreAdjacent(tokens[next - 1], tokens[next]);
 	}
 
 	ExpressionSyntax? ParseUnaryExpression()

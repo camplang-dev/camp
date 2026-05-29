@@ -316,6 +316,19 @@ public sealed partial class BindableNodeAnalyzer
 			return values;
 		}
 
+		if (initialValue is not null && shape.Kind == ParamsComponentShapeKind.Optional && shape.Components.Count == 2)
+		{
+			values.Add(initialValue);
+			values.Add(new LiteralExpression
+			{
+				Kind = LiteralKind.True,
+				Text = "true",
+				Value = true,
+				ResolvedType = "bool"
+			});
+			return values;
+		}
+
 		for (int i = 0; i < shape.Components.Count; i++)
 			values.Add(null);
 		return values;

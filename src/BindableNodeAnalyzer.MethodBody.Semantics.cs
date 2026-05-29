@@ -87,6 +87,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == "#NULL" && IsPrimitiveStringType(target))
 			return true;
 
+		if (CanLiftToOptional(source, target))
+			return true;
+
 		if (source == AllocatorType && target == "Allocator*")
 			return true;
 
@@ -106,6 +109,14 @@ public sealed partial class BindableNodeAnalyzer
 			return CanImplicitlyConvertShape(sourceShape, targetShape);
 
 		return IsNumericType(source) && IsNumericType(target) && NumericRank(source) <= NumericRank(target);
+	}
+
+	bool CanLiftToOptional(string source, string target)
+	{
+		if (!TryParseTypeShape(target, out TypeShape targetShape) || targetShape.Kind != TypeShapeKind.Optional || targetShape.Element is null)
+			return false;
+		string targetElement = TypeShapeParser.Format(targetShape.Element);
+		return CanImplicitlyConvert(source, targetElement);
 	}
 
 	bool CanCopyConstValue(string source, string target)
@@ -579,6 +590,7 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					if (field.Name == name && IsMemberVisible(field, classDefinition, referenceSyntax))
 						members.Add(new BodySymbol(name, field.ResolvedType ?? ErrorType, field));
+					AddExpandedFieldMemberSymbol(members, field, name, classDefinition, referenceSyntax);
 				}
 				break;
 
@@ -587,6 +599,7 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					if (field.Name == name && IsMemberVisible(field, structDefinition, referenceSyntax))
 						members.Add(new BodySymbol(name, field.ResolvedType ?? ErrorType, field));
+					AddExpandedFieldMemberSymbol(members, field, name, structDefinition, referenceSyntax);
 				}
 				break;
 
@@ -627,6 +640,33 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return members;
+	}
+
+	void AddExpandedFieldMemberSymbol(List<BodySymbol> members, FieldDefinition field, string name, TypeDefinition owner, SyntaxNode? referenceSyntax)
+	{
+		if (!IsMemberVisible(field, owner, referenceSyntax))
+			return;
+		if (!TryGetParamsComponentShape(field.Type, field.ResolvedType, field.Name, out ParamsComponentShape shape))
+			return;
+
+		foreach (ParamsComponent component in shape.Components)
+		{
+			if (component.ExpandedName != name)
+				continue;
+
+			FieldDefinition componentField = new()
+			{
+				SourceSyntax = field.SourceSyntax,
+				Name = component.ExpandedName,
+				Symbol = component.ExpandedName,
+				Export = field.Export,
+				Extern = field.Extern,
+				Modifier = field.Modifier,
+				ResolvedType = component.Type
+			};
+			members.Add(new BodySymbol(name, component.Type, componentField));
+			return;
+		}
 	}
 
 	void AddExtensionMemberFunctions(List<FunctionDefinition> target, string targetType, string name, SyntaxNode? referenceSyntax)

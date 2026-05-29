@@ -10,7 +10,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ArgumentExpression argument = arguments[i];
 			if (!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components))
-				continue;
+			{
+				if (!TryCreateLiftedOptionalArgumentComponents(argument, out components))
+					continue;
+			}
 
 			arguments.RemoveAt(i);
 			for (int componentIndex = 0; componentIndex < components.Count; componentIndex++)
@@ -26,6 +29,28 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			i += components.Count - 1;
 		}
+	}
+
+	bool TryCreateLiftedOptionalArgumentComponents(ArgumentExpression argument, out List<Expression> components)
+	{
+		components = [];
+		if (argument.Value is null || !TryGetParamsComponentShape(null, argument.ResolvedType, "value", out ParamsComponentShape shape))
+			return false;
+		if (shape.Kind != ParamsComponentShapeKind.Optional || shape.Components.Count != 2)
+			return false;
+		if (TryGetParamsComponentShape(null, argument.Value.ResolvedType, "value", out _))
+			return false;
+
+		components.Add(argument.Value);
+		components.Add(new LiteralExpression
+		{
+			SourceSyntax = argument.SourceSyntax,
+			Kind = LiteralKind.True,
+			Text = "true",
+			Value = true,
+			ResolvedType = "bool"
+		});
+		return true;
 	}
 
 	bool TryRewriteParamsAssignment(AssignmentExpression assignment, out List<Statement> statements)

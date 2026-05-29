@@ -384,7 +384,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Expression? clause = condition.Clauses[i];
 			string clauseType = BodyAnalyzeExpression(clause, scope, typeScope);
-			if (i == 1 && clause is not null)
+			int conditionClauseIndex = condition.Declaration is null ? 1 : 0;
+			if (i == conditionClauseIndex && clause is not null)
 				RequireExpressionType("bool", clauseType, clause.SourceSyntax, "For condition");
 		}
 	}
@@ -980,7 +981,11 @@ public sealed partial class BindableNodeAnalyzer
 				if (parameter.Modifier == ParameterModifier.Out)
 					CheckAssignable(actual, expected, arguments[i].SourceSyntax, "Out argument");
 				else
+				{
 					CheckAssignable(expected, actual, arguments[i].SourceSyntax, "Argument");
+					if (CanLiftToOptional(actual, expected))
+						arguments[i].ResolvedType = expected;
+				}
 			}
 		}
 
