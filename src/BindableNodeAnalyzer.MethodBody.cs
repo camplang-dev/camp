@@ -432,7 +432,7 @@ public sealed partial class BindableNodeAnalyzer
 			DefaultExpression defaultExpression => BodyAnalyzeDefaultExpression(defaultExpression, typeScope, targetType),
 			GroupedExpression grouped => BodyAnalyzeGroupedExpression(grouped, scope, typeScope),
 			ArrayExpression array => BodyAnalyzeArrayExpression(array, scope, typeScope, targetType),
-			InitializerExpression initializer => BodyAnalyzeInitializerExpression(initializer, scope, typeScope),
+			InitializerExpression initializer => BodyAnalyzeInitializerExpression(initializer, scope, typeScope, targetType),
 			ParenthesizedExpression parenthesized => BodyAnalyzeExpression(parenthesized.Expression, scope, typeScope, targetType),
 			CastExpression cast => BodyAnalyzeCastExpression(cast, scope, typeScope),
 			ConstructionExpression construction => BodyAnalyzeConstructionExpression(construction, scope, typeScope),
@@ -642,7 +642,7 @@ public sealed partial class BindableNodeAnalyzer
 		return $"{elementType}[]";
 	}
 
-	string BodyAnalyzeInitializerExpression(InitializerExpression initializer, BodyScope scope, AnalysisScope typeScope)
+	string BodyAnalyzeInitializerExpression(InitializerExpression initializer, BodyScope scope, AnalysisScope typeScope, string? targetType = null)
 	{
 		foreach (InitializerItem item in initializer.Items)
 		{
@@ -651,7 +651,7 @@ public sealed partial class BindableNodeAnalyzer
 			item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope);
 		}
 
-		return TargetType;
+		return targetType ?? TargetType;
 	}
 
 	void BodyAnalyzeInitializerTarget(InitializerTarget target, BodyScope scope, AnalysisScope typeScope)
@@ -689,7 +689,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? [], scope, typeScope, construction.SourceSyntax);
 		BodyAnalyzeExpression(construction.ElementCount, scope, typeScope, "nuint");
 		if (construction.Initializer is not null)
-			BodyAnalyzeInitializerExpression(construction.Initializer, scope, typeScope);
+			BodyAnalyzeInitializerExpression(construction.Initializer, scope, typeScope, targetType);
 		if (construction.ElementCount is not null)
 			return $"{targetType}[]";
 		return construction.Kind == ConstructionKind.New ? $"{targetType}*" : targetType;

@@ -30,6 +30,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Definition definition in module.Definitions)
 			AnalyzeDefinition(definition, new AnalysisScope());
 
+		AnalyzeGlobalInitializers(module);
 		ValidateDuplicateTopLevelSymbols(module);
 		AnalyzeInheritance();
 		AnalyzeImplementations();
@@ -335,6 +336,29 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeOptionalType(definition.Type, scope);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		AnalyzeOptionalExpression(definition.InitialValue, scope);
+	}
+
+	void AnalyzeGlobalInitializers(Module module)
+	{
+		AnalysisScope typeScope = new();
+		foreach (Definition definition in module.Definitions)
+		{
+			if (definition is not VariableDefinition variable || variable.InitialValue is null)
+				continue;
+
+			FunctionDefinition initializerContext = new()
+			{
+				Name = "#global_initializer",
+				ResolvedType = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType
+			};
+			BodyScope scope = new(null, initializerContext, containingType: null)
+			{
+				CurrentFunctionReturnType = initializerContext.ResolvedType ?? ErrorType
+			};
+			string targetType = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
+			string initialType = BodyAnalyzeExpression(variable.InitialValue, scope, typeScope, targetType);
+			CheckAssignable(targetType, initialType, variable.InitialValue.SourceSyntax ?? variable.SourceSyntax, "Global initializer");
+		}
 	}
 
 	void AnalyzeFieldDefinition(FieldDefinition definition, AnalysisScope scope)

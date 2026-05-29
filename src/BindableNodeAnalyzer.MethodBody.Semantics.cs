@@ -415,8 +415,16 @@ public sealed partial class BindableNodeAnalyzer
 		List<FunctionDefinition> functions = [];
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
-			if (definition is FunctionDefinition function && function.Name == name && GetExplicitThisParameter(function) is null && IsDefinitionVisible(function, scope.CurrentFunction.SourceSyntax))
+			if (definition is FunctionDefinition function && IsFunctionNamed(function, name) && GetExplicitThisParameter(function) is null && IsDefinitionVisible(function, scope.CurrentFunction.SourceSyntax))
 				functions.Add(function);
+		}
+		foreach (TypeDefinition type in typeDefinitions.Values)
+		{
+			foreach (FunctionDefinition function in GetTypeFunctions(type))
+			{
+				if (IsTypeFunctionSymbolNamed(type, function, name) && IsMemberVisible(function, type, scope.CurrentFunction.SourceSyntax))
+					functions.Add(function);
+			}
 		}
 
 		return functions;
@@ -444,11 +452,27 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
+	static bool IsFunctionNamed(FunctionDefinition function, string name)
+	{
+		return function.Name == name || function.Symbol == name;
+	}
+
+	static bool IsDefinitionNamed(Definition definition, string name)
+	{
+		return definition.Name == name || definition.Symbol == name;
+	}
+
+	static bool IsTypeFunctionSymbolNamed(TypeDefinition type, FunctionDefinition function, string name)
+	{
+		return (!string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol != function.Name && function.Symbol == name)
+			|| $"{type.Name}_{function.Name.TrimStart('~')}" == name;
+	}
+
 	VariableDefinition? LookupGlobalVariable(string name, SyntaxNode? referenceSyntax)
 	{
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
-			if (definition is VariableDefinition variable && variable.Name == name && IsDefinitionVisible(variable, referenceSyntax))
+			if (definition is VariableDefinition variable && IsDefinitionNamed(variable, name) && IsDefinitionVisible(variable, referenceSyntax))
 				return variable;
 		}
 
@@ -459,7 +483,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
-			if (definition.Name == name && !IsDefinitionVisible(definition, referenceSyntax))
+			if (IsDefinitionNamed(definition, name) && !IsDefinitionVisible(definition, referenceSyntax))
 				return definition;
 		}
 
