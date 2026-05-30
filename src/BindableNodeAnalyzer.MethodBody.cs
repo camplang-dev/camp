@@ -723,9 +723,7 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		}
 
-		string receiverType = scope.ContainingType is ClassDefinition
-			? $"{scope.ContainingType.Name}*"
-			: scope.ContainingType.Name;
+		string receiverType = $"{scope.ContainingType.Name}*";
 		return BuildEffectiveReceiverType(receiverType, scope.CurrentFunction, IsPropertyGetterFunction(scope.CurrentFunction));
 	}
 

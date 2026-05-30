@@ -894,7 +894,11 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
 		string actualType = StripTopLevelConstForReceiver(targetType);
-		return CanImplicitlyConvert(actualType, receiverType);
+		if (CanImplicitlyConvert(actualType, receiverType))
+			return true;
+		return TryGetPointerElementType(receiverType) is string receiverElement
+			&& TryGetPointerElementType(actualType) is null
+			&& BaseTypeName(receiverElement) == BaseTypeName(actualType);
 	}
 
 	string BuildEffectiveReceiverType(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
@@ -916,7 +920,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetPointerElementType(targetType) is string elementType && BaseTypeName(elementType) == owner.Name)
 			return $"{elementType}*";
 		if (BaseTypeName(targetType) == owner.Name)
-			return targetType;
+			return $"{targetType}*";
 		return TryGetPointerElementType(targetType) is not null ? $"{owner.Name}*" : owner.Name;
 	}
 

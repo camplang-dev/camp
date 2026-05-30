@@ -302,6 +302,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition freeMethod = ResolveAllocatorFreeMethod(target.SourceSyntax);
 		MemberReferenceExpression targetReference = new()
 		{
+			SourceSyntax = target.SourceSyntax,
 			Target = allocator,
 			Name = "free",
 			Member = freeMethod,
@@ -309,11 +310,12 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		CallExpression call = new()
 		{
+			SourceSyntax = target.SourceSyntax,
 			ResolvedType = "void",
 			Target = targetReference,
 			Arguments =
 			{
-				new ArgumentExpression { Value = target, ResolvedType = target.ResolvedType }
+				new ArgumentExpression { SourceSyntax = target.SourceSyntax, Value = target, ResolvedType = target.ResolvedType }
 			}
 		};
 		if (ShouldEmitFlattenedInstanceCalls())

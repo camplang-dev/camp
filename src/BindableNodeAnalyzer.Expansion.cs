@@ -1390,20 +1390,6 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition CreateDestroyMethod(TypeDefinition type, FunctionDefinition destructor, FunctionDefinition opDelete)
 	{
-		TypeReference typeReference = TypeReferenceFor(type);
-		ParameterDefinition value = new()
-		{
-			Name = "value",
-			Symbol = "value",
-			Type = PointerTo(CloneType(typeReference)!),
-			ResolvedType = $"{type.Name}*"
-		};
-		VariableReferenceExpression target = new()
-		{
-			Variable = value,
-			ResolvedType = value.ResolvedType
-		};
-
 		FunctionDefinition method = new()
 		{
 			SourceSyntax = destructor.SourceSyntax,
@@ -1421,17 +1407,20 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void"
 		};
 		BlockStatement body = method.Body;
+		ThisExpression target = new() { SourceSyntax = destructor.SourceSyntax, ResolvedType = $"{type.Name}*" };
 		body.Statements.Add(new ExpressionStatement
 		{
+			SourceSyntax = destructor.SourceSyntax,
 			ResolvedType = "void",
-			Expression = CreateDestructorCall(new ThisExpression { ResolvedType = $"{type.Name}*" }, opDelete, GetAllocatorParameter(method) is ParameterDefinition allocatorParameter ? CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*") : null)
+			Expression = CreateDestructorCall(target, opDelete, GetAllocatorParameter(method) is ParameterDefinition allocatorParameter ? CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*") : null)
 		});
 		if (destroyWithAllocator)
 			body.Statements.Add(CreateResolvedAllocatorLocal(GetAllocatorParameter(method)));
 		body.Statements.Add(new ExpressionStatement
 		{
+			SourceSyntax = destructor.SourceSyntax,
 			ResolvedType = "void",
-			Expression = CreateFreeCall(new ThisExpression { ResolvedType = $"{type.Name}*" }, destroyWithAllocator ? CreateResolvedAllocatorReference() : StdDefaultAllocator())
+			Expression = CreateFreeCall(new ThisExpression { SourceSyntax = destructor.SourceSyntax, ResolvedType = $"{type.Name}*" }, destroyWithAllocator ? CreateResolvedAllocatorReference() : StdDefaultAllocator(destructor.SourceSyntax))
 		});
 		return method;
 	}

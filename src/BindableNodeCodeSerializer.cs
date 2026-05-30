@@ -808,9 +808,9 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteDefinitionPrefix(Definition definition)
 	{
-		if (!string.IsNullOrWhiteSpace(definition.Export))
+		if (definition.Export is not null)
 			writer.Write("export ");
-		if (!string.IsNullOrWhiteSpace(definition.Extern))
+		if (definition.Extern is not null)
 			writer.Write("extern ");
 	}
 

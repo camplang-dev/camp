@@ -25,7 +25,7 @@ public sealed partial class BindableNodeAnalyzer
 	void RewriteInstanceInvocation(CallExpression call, MemberReferenceExpression member, Expression receiver, FunctionDefinition function)
 	{
 		call.Target = CreateFlattenedMethodReference(member, receiver, function);
-		call.Arguments.Insert(0, CreateReceiverArgument(receiver));
+		call.Arguments.Insert(0, CreateReceiverArgument(receiver, function));
 	}
 
 	Expression RewriteInstanceMethodDelegate(MemberReferenceExpression member)
@@ -40,12 +40,13 @@ public sealed partial class BindableNodeAnalyzer
 		grouped.Items.Add(new GroupedExpressionItem
 		{
 			Expression = CreateFlattenedMethodReference(member, receiver, function),
-			ResolvedType = BuildFlattenedFunctionValueType(function, receiver.ResolvedType ?? ErrorType)
+			ResolvedType = BuildFlattenedFunctionValueType(function, BuildFlattenedReceiverType(function, receiver.ResolvedType ?? ErrorType))
 		});
+		ArgumentExpression receiverArgument = CreateReceiverArgument(receiver, function);
 		grouped.Items.Add(new GroupedExpressionItem
 		{
-			Expression = receiver,
-			ResolvedType = receiver.ResolvedType
+			Expression = receiverArgument.Value,
+			ResolvedType = receiverArgument.ResolvedType
 		});
 		return grouped;
 	}
@@ -56,20 +57,52 @@ public sealed partial class BindableNodeAnalyzer
 		MethodReferenceExpression reference = new()
 		{
 			SourceSyntax = member.SourceSyntax,
-			ResolvedType = BuildFlattenedFunctionValueType(function, receiver.ResolvedType ?? ErrorType)
+			ResolvedType = BuildFlattenedFunctionValueType(function, BuildFlattenedReceiverType(function, receiver.ResolvedType ?? ErrorType))
 		};
 		reference.Candidates.Add(function);
 		return reference;
 	}
 
-	ArgumentExpression CreateReceiverArgument(Expression receiver)
+	ArgumentExpression CreateReceiverArgument(Expression receiver, FunctionDefinition function)
 	{
+		Expression value = receiver;
+		string receiverValueType = GetReceiverValueType(receiver);
+		string flattenedReceiverType = BuildFlattenedReceiverType(function, receiver.ResolvedType ?? receiverValueType);
+		if (TryGetPointerElementType(flattenedReceiverType) is not null && TryGetPointerElementType(receiverValueType) is null)
+		{
+			value = new UnaryExpression
+			{
+				SourceSyntax = receiver.SourceSyntax,
+				Operator = UnaryOperator.AddressOf,
+				Operand = receiver,
+				ResolvedType = flattenedReceiverType
+			};
+		}
+
 		return new ArgumentExpression
 		{
 			SourceSyntax = receiver.SourceSyntax,
-			Value = receiver,
-			ResolvedType = receiver.ResolvedType
+			Value = value,
+			ResolvedType = value.ResolvedType
 		};
+	}
+
+	static string GetReceiverValueType(Expression receiver)
+	{
+		return receiver switch
+		{
+			VariableReferenceExpression { Variable: DeclarationTarget { Type.ResolvedType: string declarationType } } => declarationType,
+			VariableReferenceExpression { Variable: VariableDefinition { Type.ResolvedType: string variableType } } => variableType,
+			VariableReferenceExpression { Variable.ResolvedType: string variableType } => variableType,
+			MemberReferenceExpression { Member: FieldDefinition { Type.ResolvedType: string fieldType } } => fieldType,
+			MemberReferenceExpression { Member.ResolvedType: string memberType } => memberType,
+			_ => receiver.ResolvedType ?? ErrorType
+		};
+	}
+
+	string BuildFlattenedReceiverType(FunctionDefinition function, string receiverType)
+	{
+		return BuildEffectiveReceiverType(receiverType, function, isPropertyGetterSyntax: false);
 	}
 
 	void EnsureFlattenedFunctionSymbol(FunctionDefinition function)
