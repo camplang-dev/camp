@@ -310,6 +310,19 @@ public sealed partial class BindableNodeAnalyzer
 	List<Expression?> GetParamsComponentInitialValues(Expression? initialValue, ParamsComponentShape shape)
 	{
 		List<Expression?> values = [];
+		if (initialValue is ConstructionExpression { ElementCount: not null, Type: not null } construction
+			&& shape.Kind == ParamsComponentShapeKind.Array
+			&& shape.Components.Count == 2)
+		{
+			values.Add(CreateAllocCall(
+				construction.Type,
+				new CurrentAllocatorExpression { SourceSyntax = construction.SourceSyntax, ResolvedType = AllocatorType },
+				construction.SourceSyntax,
+				construction.ElementCount));
+			values.Add(construction.ElementCount);
+			return values;
+		}
+
 		if (initialValue is not null && TryCreateParamsComponentExpressions(initialValue, out List<Expression> components) && components.Count == shape.Components.Count)
 		{
 			values.AddRange(components);

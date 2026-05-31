@@ -56,6 +56,9 @@ public sealed partial class BindableNodeAnalyzer
 			case SizeOfExpression sizeOf:
 				return LowerSizeOfExpression(sizeOf);
 
+			case CurrentAllocatorExpression currentAllocator:
+				return CurrentAllocator(currentAllocator.SourceSyntax);
+
 			case LambdaExpression lambda:
 				lambda.Body = RewriteFunctionBody(lambda.Body);
 				break;
