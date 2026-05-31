@@ -199,6 +199,8 @@ public sealed partial class BindableNodeAnalyzer
 				returnStatement.Expression = returnStatement.Expression is not null && ContainsUncaughtThrow(returnStatement.Expression)
 					? HoistThrowingExpression(returnStatement.Expression)
 					: LowerExpression(returnStatement.Expression);
+				if (TryRewriteExpandedReturn(returnStatement, out Statement? expandedReturn))
+					return WithPendingCleanups(expandedReturn);
 				return WithPendingCleanups(returnStatement);
 
 			case YieldStatement yieldStatement:

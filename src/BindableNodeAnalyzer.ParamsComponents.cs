@@ -35,6 +35,7 @@ public sealed partial class BindableNodeAnalyzer
 	sealed record ParamsExpansionComponent(string SourceName, string Name, string Type, BindableNode Node);
 
 	readonly Dictionary<BindableNode, List<ParamsExpansionComponent>> paramsExpansions = [];
+	readonly Dictionary<FunctionDefinition, ParamsComponentShape> expandedReturnShapes = [];
 
 	List<string> GetPotentialParamsComponentNames(TypeReference? type, string? resolvedType, string sourceName)
 	{
@@ -45,12 +46,7 @@ public sealed partial class BindableNodeAnalyzer
 			return names;
 
 		foreach (ParamsComponent component in shape.Components)
-		{
 			names.Add(component.ExpandedName);
-			string accessorName = BuildParamsComponentAccessorName(sourceName, component.Name);
-			if (accessorName != component.ExpandedName)
-				names.Add(accessorName);
-		}
 		return names;
 	}
 
@@ -265,11 +261,6 @@ public sealed partial class BindableNodeAnalyzer
 		string callType = BuildCallableType("fn", returnType, [contextType, .. parameterTypes]);
 		components.Add(new PendingParamsComponent("call", callType, [.. prefix, new ParamsNamePart("call", true)], null, ParamsComponentShapeKind.Delegate));
 		components.Add(new PendingParamsComponent("context", contextType, [.. prefix, new ParamsNamePart("context", false)], null, ParamsComponentShapeKind.Delegate));
-	}
-
-	static string BuildParamsComponentAccessorName(string sourceName, string componentName)
-	{
-		return string.IsNullOrWhiteSpace(componentName) ? sourceName : $"{sourceName}_{componentName}";
 	}
 
 	List<string> GetExpandedCallableParameterTypes(List<ParameterDefinition> parameters)

@@ -60,9 +60,37 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ExpandParamsFunctionDeclarations(FunctionDefinition function)
 	{
+		ExpandParamsReturn(function);
 		ExpandParamsParameters(function.Parameters);
 		if (function.Body is not null)
 			ExpandParamsLocalDeclarations(function.Body.Statements);
+	}
+
+	void ExpandParamsReturn(FunctionDefinition function)
+	{
+		if (function.ReturnType is null || !TryGetParamsComponentShape(function.ReturnType, function.ResolvedType, "result", out ParamsComponentShape shape))
+			return;
+		if (shape.Components.Count == 0)
+			return;
+
+		expandedReturnShapes[function] = shape;
+		ParamsComponent first = shape.Components[0];
+		function.ReturnType = new NamedTypeReference { Name = first.Type, ResolvedType = first.Type };
+		function.ResolvedType = first.Type;
+
+		for (int i = 1; i < shape.Components.Count; i++)
+		{
+			ParamsComponent component = shape.Components[i];
+			function.Parameters.Add(new ParameterDefinition
+			{
+				SourceSyntax = function.SourceSyntax,
+				Name = component.ExpandedName,
+				Symbol = component.ExpandedName,
+				Modifier = ParameterModifier.Out,
+				Type = new NamedTypeReference { Name = component.Type, ResolvedType = component.Type },
+				ResolvedType = component.Type
+			});
+		}
 	}
 
 	void ExpandParamsParameters(List<ParameterDefinition> parameters)
@@ -246,6 +274,33 @@ public sealed partial class BindableNodeAnalyzer
 			DeclarationStatement componentDeclaration = CreateExpandedDeclaration(declaration, shape.Components[componentIndex], initialValues[componentIndex]);
 			declarations.Add(componentDeclaration);
 			targets.Add(componentDeclaration.Target);
+		}
+		if (declaration.InitialValue is CallExpression call && TryGetParamsComponentShape(null, call.ResolvedType, name, out ParamsComponentShape callShape) && callShape.Components.Count == shape.Components.Count)
+		{
+			((DeclarationStatement)declarations[0]).InitialValue = null;
+			for (int i = 1; i < targets.Count; i++)
+			{
+				call.Arguments.Add(new ArgumentExpression
+				{
+					SourceSyntax = declaration.SourceSyntax,
+					Modifier = ArgumentModifier.Out,
+					Value = CreateVariableReference(targets[i], shape.Components[i].Type),
+					ResolvedType = shape.Components[i].Type
+				});
+			}
+			declarations.Add(new ExpressionStatement
+			{
+				SourceSyntax = declaration.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = declaration.SourceSyntax,
+					Target = CreateVariableReference(targets[0], shape.Components[0].Type),
+					Operator = AssignmentOperator.Assign,
+					Value = call,
+					ResolvedType = shape.Components[0].Type
+				}
+			});
 		}
 		RegisterParamsExpansion(declaration.Target, shape, targets);
 		return declarations.Count > 0;

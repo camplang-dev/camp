@@ -128,6 +128,9 @@ public sealed partial class BindableNodeAnalyzer
 				components.Add(component);
 				return true;
 
+			case CallExpression call when TryCreateExpandedReturnCallComponents(call, out components):
+				return true;
+
 			case GroupedExpression grouped:
 				foreach (GroupedExpressionItem item in grouped.Items)
 				{
@@ -185,6 +188,42 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return false;
 		}
+	}
+
+	bool TryRewriteExpandedReturn(ReturnStatement statement, out Statement rewritten)
+	{
+		rewritten = statement;
+		if (currentRewriteFunction is null || !expandedReturnShapes.TryGetValue(currentRewriteFunction, out ParamsComponentShape? shape))
+			return false;
+		if (!TryCreateParamsComponentExpressions(statement.Expression, out List<Expression> components) || components.Count != shape.Components.Count)
+			return false;
+
+		List<Statement> statements = [];
+		for (int i = 1; i < components.Count; i++)
+		{
+			ParameterDefinition parameter = currentRewriteFunction.Parameters[^ (components.Count - i)];
+			statements.Add(new ExpressionStatement
+			{
+				SourceSyntax = statement.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = statement.SourceSyntax,
+					Target = CreateVariableReference(parameter, parameter.ResolvedType ?? shape.Components[i].Type),
+					Operator = AssignmentOperator.Assign,
+					Value = components[i],
+					ResolvedType = shape.Components[i].Type
+				}
+			});
+		}
+		statements.Add(new ReturnStatement
+		{
+			SourceSyntax = statement.SourceSyntax,
+			ResolvedType = "void",
+			Expression = components[0]
+		});
+		rewritten = CreateBlock(statements);
+		return true;
 	}
 
 	bool TryCreateArrayParamsComponentExpressions(ArrayExpression array, out List<Expression> components)
@@ -363,6 +402,53 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return false;
+	}
+
+	bool TryCreateExpandedReturnCallComponents(CallExpression call, out List<Expression> components)
+	{
+		components = [];
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !expandedReturnShapes.TryGetValue(function, out ParamsComponentShape? shape))
+			return false;
+		if (currentStatementPrefix is null || shape.Components.Count == 0)
+			return false;
+
+		List<DeclarationTarget> targets = [];
+		for (int i = 0; i < shape.Components.Count; i++)
+		{
+			string name = NewGeneratedLocalName(shape.Components[i].Name);
+			DeclarationStatement declaration = CreateGeneratedLocal(name, shape.Components[i].Type, new NamedTypeReference { Name = shape.Components[i].Type, ResolvedType = shape.Components[i].Type }, null);
+			targets.Add(declaration.Target);
+			currentStatementPrefix.Add(declaration);
+		}
+
+		for (int i = 1; i < targets.Count; i++)
+		{
+			call.Arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = call.SourceSyntax,
+				Modifier = ArgumentModifier.Out,
+				Value = CreateVariableReference(targets[i], shape.Components[i].Type),
+				ResolvedType = shape.Components[i].Type
+			});
+		}
+		currentStatementPrefix.Add(new ExpressionStatement
+		{
+			SourceSyntax = call.SourceSyntax,
+			ResolvedType = "void",
+			Expression = new AssignmentExpression
+			{
+				SourceSyntax = call.SourceSyntax,
+				Target = CreateVariableReference(targets[0], shape.Components[0].Type),
+				Operator = AssignmentOperator.Assign,
+				Value = LowerExpression(call),
+				ResolvedType = shape.Components[0].Type
+			}
+		});
+
+		for (int i = 0; i < targets.Count; i++)
+			components.Add(CreateVariableReference(targets[i], shape.Components[i].Type));
+		RegisterParamsExpansion(call, shape, targets);
+		return true;
 	}
 
 	bool IsParamsComponentNamed(Expression expression, string name)

@@ -84,6 +84,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == "#NULL" && TryParseTypeShape(target, out TypeShape nullTarget) && (nullTarget.IsPointer || nullTarget.IsOptional))
 			return true;
 
+		if (source == "#NULL" && TryGetCallableShape(target, out CallableShape nullCallableTarget) && nullCallableTarget.Kind == "fn")
+			return true;
+
 		if (source == "#NULL" && IsPrimitiveStringType(target))
 			return true;
 
@@ -103,6 +106,9 @@ public sealed partial class BindableNodeAnalyzer
 			return CallableShapesCompatible(sourceCallable, targetCallable);
 
 		if (CanCopyConstValue(source, target))
+			return true;
+
+		if (CanCopyTopLevelConstValue(source, target))
 			return true;
 
 		if (IsClassToInterfaceConversion(source, target) || IsStructToInterfaceConversion(source, target) || IsInterfaceUpcast(source, target))
@@ -135,6 +141,14 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		return sourceShape.Qualifiers.IsConst && !targetShape.Qualifiers.IsConst;
+	}
+
+	static bool CanCopyTopLevelConstValue(string source, string target)
+	{
+		if (!IsConstQualifiedShape(source))
+			return false;
+
+		return StripConstFromShape(source) == target;
 	}
 
 	bool CanConvertStructuralGroupedToNominalParams(string source, string target)
@@ -643,6 +657,19 @@ public sealed partial class BindableNodeAnalyzer
 	List<BodySymbol> LookupMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax)
 	{
 		List<BodySymbol> members = [];
+		if (TryGetParamsComponentShape(null, targetType, "value", out ParamsComponentShape expandedShape))
+		{
+			foreach (ParamsComponent component in expandedShape.Components)
+				if (component.Name == name)
+					members.Add(new BodySymbol(name, component.Type, new ParameterDefinition
+					{
+						Name = component.Name,
+						Symbol = component.ExpandedName,
+						ResolvedType = component.Type
+					}));
+			return members;
+		}
+
 		if (TryGetPointerElementType(targetType) is string interfaceElement
 			&& typeDefinitions.TryGetValue(BaseTypeName(interfaceElement), out TypeDefinition? interfaceType)
 			&& interfaceType is InterfaceDefinition interfaceDefinition)
@@ -735,7 +762,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ParamsComponent component in shape.Components)
 		{
-			if (component.ExpandedName != name && BuildParamsComponentAccessorName(field.Name, component.Name) != name)
+			if (component.ExpandedName == field.Name || component.ExpandedName != name)
 				continue;
 
 			FieldDefinition componentField = new()

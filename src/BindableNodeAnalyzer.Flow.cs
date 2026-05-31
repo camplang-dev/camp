@@ -497,11 +497,6 @@ public sealed partial class BindableNodeAnalyzer
 		if (!state.IsDeclared(named.Name) || state.IsAssigned(named.Name))
 			return;
 
-		if (state.BodyScope.TryLookupComponentSymbol(named.Name, out BodyComponentSymbol component)
-			&& state.IsDeclared(component.Owner)
-			&& state.IsAssigned(component.Owner))
-			return;
-
 		Report(GetRange(named.SourceSyntax), $"Variable '{named.Name}' must be assigned before it is read.");
 	}
 

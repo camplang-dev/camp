@@ -475,10 +475,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		foreach (ParamsComponent component in componentShape.Components)
-		{
 			RegisterComponentBodySymbol(scope, name, component.ExpandedName, component.ExpandedName, component.Type, node, syntax);
-			RegisterComponentBodySymbol(scope, name, BuildParamsComponentAccessorName(name, component.Name), component.ExpandedName, component.Type, node, syntax);
-		}
 	}
 
 	void RegisterComponentBodySymbol(BodyScope scope, string ownerName, string componentName, string expandedName, string componentType, BindableNode node, SyntaxNode? syntax)
@@ -642,19 +639,6 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = symbol.Type
 			};
 			return symbol.Type;
-		}
-
-		if (scope.TryLookupComponentSymbol(named.Name, out BodyComponentSymbol component))
-		{
-			named.ResolvedType = component.Type;
-			expressionConstants[named] = false;
-			expressionRewrites[named] = new NamedExpression
-			{
-				SourceSyntax = named.SourceSyntax,
-				Name = component.ExpandedName,
-				ResolvedType = component.Type
-			};
-			return component.Type;
 		}
 
 		if (LookupGlobalVariable(named.Name, named.SourceSyntax) is VariableDefinition variable)
@@ -1883,8 +1867,6 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzePostfixUpdateExpression(PostfixUpdateExpression postfix, BodyScope scope, AnalysisScope typeScope)
 	{
 		string operandType = BodyAnalyzeExpression(postfix.Expression, scope, typeScope);
-		if (IsParamsComponentMemberReference(postfix.Expression))
-			Report(GetRange(postfix.Expression?.SourceSyntax), "Individual params components cannot be assigned; assign the whole params value instead.");
 		RequireMutableWriteTarget(postfix.Expression, operandType, postfix.Expression?.SourceSyntax, "Update target");
 		if (!IsNumericType(operandType))
 			Report(GetRange(postfix.Expression?.SourceSyntax), $"Update operator requires a numeric operand, not '{operandType}'.");
@@ -1922,8 +1904,6 @@ public sealed partial class BindableNodeAnalyzer
 			assignment.ResolvedType = valueType;
 			return valueType;
 		}
-		if (IsParamsComponentMemberReference(assignment.Target))
-			Report(GetRange(assignment.Target?.SourceSyntax), "Individual params components cannot be assigned; assign the whole params value instead.");
 		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target");
 		CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
 		return targetType;

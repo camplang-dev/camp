@@ -68,7 +68,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			case CallExpression call:
 				if (call.Target is MemberReferenceExpression callMemberTarget)
+				{
 					callMemberTarget.Target = LowerExpression(callMemberTarget.Target);
+					if (TryCreateParamsMemberComponentExpression(callMemberTarget, out Expression componentTarget))
+						call.Target = componentTarget;
+				}
 				else
 					call.Target = LowerExpression(call.Target);
 				LowerThrowingArguments(call);
