@@ -29,7 +29,7 @@ Camp favors explicit surface distinctions where those distinctions help prevent 
 
 - a zero-terminated string pointer and a counted character array are different types
 - `newtype` introduces a real nominal boundary even when the machine representation stays the same
-- compiler-expanded forms introduce visible component symbols instead of hidden aggregate members
+- compiler-expanded forms expose visible dot-access components while preserving ABI component symbols
 - `struct(...)` materializes an expanded form when one-address storage is required
 - `in` changes transport, not source-level meaning
 - `out` is explicit caller-provided result storage, not a hidden reference category
@@ -121,7 +121,7 @@ Use unsigned integer types when the domain is naturally non-negative or bitwise:
 ```camp
 uint permissions = 0x12;
 ulong checksum = 0;
-nuint length = buffer_length;
+nuint length = buffer.length;
 ```
 
 That distinction matters more in Camp than in languages that lean heavily on implicit widening and overloaded arithmetic rules, because Camp’s design generally prefers obviousness over aggressive silent coercion.
@@ -142,7 +142,7 @@ That rule avoids a class of awkwardness that appears on very small platforms whe
 Examples:
 
 ```camp
-nuint count = values_length;
+nuint count = values.length;
 nint nativeResult = foreignCall();
 ```
 
@@ -651,15 +651,15 @@ Camp rejects duplicate supply rather than guessing what the programmer intended.
 
 Camp has a small closed set of compiler-expanded forms:
 
-| Source form | Component symbols | Parameter expansion |
+| Source form | Source component access | Parameter expansion |
 |---|---|---|
-| `T[] name` | `name`, `name_length` | `T* name, nuint name_length` |
-| `T? name` | `name`, `name_specified` | `T name, bool name_specified` |
-| `delegate R(...) name` | `name`, `name_context` | call target, context pointer |
-| `once R(...) name` | `name`, `name_context` | call target, context pointer |
-| `async R(...) name` | `name`, `name_context` | call target, context pointer |
+| `T[] name` | `name.elements`, `name.length` | `T* name, nuint name_length` |
+| `T? name` | `name.value`, `name.specified` | `T name, bool name_specified` |
+| `delegate R(...) name` | `name.call`, `name.context` | call target, context pointer |
+| `once R(...) name` | `name.call`, `name.context` | call target, context pointer |
+| `async R(...) name` | `name.call`, `name.context` | call target, context pointer |
 
-The first component keeps the declared parameter name. Additional components use the declared name plus a fixed suffix.
+The first ABI component keeps the declared parameter name. Additional ABI components use the declared name plus a fixed suffix.
 
 Example:
 
@@ -679,27 +679,27 @@ A delegate parameter keeps the callable target under the declared name:
 void filter(delegate bool(int value) predicate);
 ```
 
-has a call target named `predicate` and a context component named `predicate_context`. The call target receives the context as its first argument.
+has a call target named `predicate`, a context component named `predicate_context`, and source component access through `predicate.call` and `predicate.context`. The call target receives the context as its first argument.
 
 These expansions are compiler-defined. User code does not declare new expanded forms.
 
 ### 1.4.10 Expanded component symbols
 
-An expanded binding introduces all of its component symbols into the containing scope.
+An expanded binding introduces all of its ABI component symbols into the containing scope, and exposes those components through member-access syntax.
 
 ```camp
 void f(byte[] arr, int? opt, delegate void() del)
 {
-	log(arr_length);
+	log(arr.length);
 
-	if (opt_specified)
-		log(opt);
+	if (opt.specified)
+		log(opt.value);
 
-	del(del_context);
+	del.call(del.context);
 }
 ```
 
-The introduced component symbols are ordinary bindings for redeclaration purposes:
+The introduced ABI component symbols are ordinary bindings for redeclaration purposes:
 
 ```camp
 void f(byte[] arr)
@@ -708,9 +708,9 @@ void f(byte[] arr)
 }
 ```
 
-This rule is part of the source language, not merely a C backend detail. The component names are predictable, visible, and ABI-aligned.
+This rule is part of the source language, not merely a C backend detail. The ABI component names are predictable, visible, and ABI-aligned.
 
-Component symbols are not fields. Use `_` names for raw components. Use `.` for ordinary fields, methods, static members, and property syntax.
+Component access uses `.`. The underscore names remain the ABI component symbols and remain in scope for collision and named-argument purposes.
 
 ### 1.4.11 `in` parameters
 
@@ -925,7 +925,7 @@ User code does not declare new expanded forms.
 
 ### 1.5.1 Core idea
 
-A compiler-expanded value is a source-level value with a fixed set of component symbols.
+A compiler-expanded value is a source-level value with a fixed set of source components and ABI component symbols.
 
 For example:
 
@@ -935,7 +935,20 @@ int? count;
 delegate void() callback;
 ```
 
-introduce component symbols like:
+provide source component access like:
+
+```camp
+data.elements
+data.length
+
+count.value
+count.specified
+
+callback.call
+callback.context
+```
+
+The first ABI component keeps the declared name. Additional ABI components use fixed suffixes:
 
 ```camp
 data
@@ -948,9 +961,9 @@ callback
 callback_context
 ```
 
-The first component keeps the declared name. Additional components use fixed suffixes.
+Assignment between matching expanded values copies all components. Individual components may also be assigned through member-access syntax.
 
-Expanded values are not hidden structs. They do not pretend to have fields. Raw component access uses the component symbols directly.
+Expanded values are not hidden structs. Component access uses `.` only for the compiler-defined components of the expanded form.
 
 ### 1.5.2 `struct(T)` and materialized storage
 
@@ -1035,17 +1048,19 @@ byte[]? maybeBytes;
 delegate void()? maybeCallback;
 ```
 
-They introduce the ordinary expanded symbols plus the optional presence symbol:
+They expose the ordinary source components plus the optional presence component:
 
 ```camp
-maybeBytes
-maybeBytes_length
-maybeBytes_specified
+maybeBytes.elements
+maybeBytes.length
+maybeBytes.specified
 
-maybeCallback
-maybeCallback_context
-maybeCallback_specified
+maybeCallback.call
+maybeCallback.context
+maybeCallback.specified
 ```
+
+The ABI symbols remain `maybeBytes`, `maybeBytes_length`, `maybeBytes_specified`, `maybeCallback`, `maybeCallback_context`, and `maybeCallback_specified`.
 
 Optional optionals are invalid.
 
@@ -1061,10 +1076,12 @@ Arrays are built into the language as compiler-expanded forms.
 
 ### 1.6.1 Shape
 
-An array type `T[]` has two component symbols:
+An array type `T[]` has two source components:
 
-- `name` — pointer to the first element
-- `name_length` — element count
+- `name.elements` — pointer to the first element
+- `name.length` — element count
+
+The corresponding ABI component symbols are `name` and `name_length`.
 
 Conceptually, an array value is a lightweight pointer plus count.
 
@@ -1084,7 +1101,7 @@ void write(byte* data, nuint data_length);
 
 ```camp
 byte[] buffer = new byte[256];
-nuint len = buffer_length;
+nuint len = buffer.length;
 ```
 
 Array shapes appear throughout the language and standard library:
@@ -1163,10 +1180,12 @@ Optional values are built into Camp with the `?` suffix.
 
 A type `T?` is an expanded form derived from `T`. `T` may not be a fixed type. Use `T*?` when the optional payload should be a nullable pointer to a fixed value.
 
-An optional value introduces:
+An optional value exposes:
 
-- `name` — the payload slot
-- `name_specified` — the presence flag
+- `name.value` — the payload slot
+- `name.specified` — the presence flag
+
+The corresponding ABI component symbols are `name` and `name_specified`.
 
 For example:
 
@@ -1174,7 +1193,7 @@ For example:
 int? count;
 ```
 
-introduces `count` and `count_specified`.
+has source components `count.value` and `count.specified`, and ABI symbols `count` and `count_specified`.
 
 ### 1.7.2 Construction
 
@@ -1192,8 +1211,8 @@ int? missing = default;
 
 Conceptually:
 
-- `missing_specified == false`
-- `missing` contains the default payload value for `T`
+- `missing.specified == false`
+- `missing.value` contains the default payload value for `T`
 
 A default payload may be specified explicitly:
 
@@ -1201,16 +1220,16 @@ A default payload may be specified explicitly:
 SomeStruct? x = default(SomeStruct);
 ```
 
-Here `x_specified` is true and the payload is the default `SomeStruct` value.
+Here `x.specified` is true and the payload is the default `SomeStruct` value.
 
 ### 1.7.3 Access
 
 Presence is checked through the presence component:
 
 ```camp
-if (x_specified)
+if (x.specified)
 {
-	log(x);
+	log(x.value);
 }
 ```
 
@@ -1270,14 +1289,14 @@ A delegate value consists of:
 - `call`
 - `context`
 
-For a binding named `del`, the component symbols are:
+For a binding named `del`, the source components are:
 
 ```camp
-del
-del_context
+del.call
+del.context
 ```
 
-The call target receives the context first.
+The corresponding ABI component symbols are `del` and `del_context`. The call target receives the context first.
 
 Conceptually:
 
@@ -1285,10 +1304,10 @@ Conceptually:
 delegate bool(int value) del;
 ```
 
-is invoked as:
+has the raw component invocation shape:
 
 ```camp
-del(del_context, value);
+del.call(del.context, value);
 ```
 
 ### 1.8.2 Using delegate types
@@ -1330,8 +1349,8 @@ bool eitherGreater(int a, int b, delegate bool(int value) comparer)
 then the invocation is conceptually equivalent to:
 
 ```camp
-return comparer(comparer_context, a)
-	|| comparer(comparer_context, b);
+return comparer.call(comparer.context, a)
+	|| comparer.call(comparer.context, b);
 ```
 
 Ordinary code calls the delegate value directly. The component form describes its ABI and raw binding shape.
@@ -1943,7 +1962,7 @@ There is no implicit conversion in either direction, and sibling `newtype`s over
 
 There is no implicit conversion from `T?` to `T`.
 
-Presence must be checked explicitly through the `_specified` component, and the payload is read explicitly through the payload component.
+Presence must be checked explicitly through the `.specified` component, and the payload is read explicitly through the `.value` component.
 
 ### 1.12.8 No implicit owning conversion from counted text
 
@@ -3853,7 +3872,7 @@ struct SliceReader: IByteReader
 	nuint read(byte[] buffer)
 	{
 		nuint remaining = this.length - this.position;
-		nuint copied = remaining < buffer_length ? remaining : buffer_length;
+		nuint copied = remaining < buffer.length ? remaining : buffer.length;
 		this.position += copied;
 		return copied;
 	}
@@ -4086,7 +4105,7 @@ while (!done);
 ```
 
 ```camp
-for (nuint i = 0; i < values_length; i++)
+for (nuint i = 0; i < values.length; i++)
 	total += values[i];
 ```
 
@@ -4349,21 +4368,21 @@ FileHandle_openRead(path)
 
 For static methods declared outside the type body, the declaration uses the canonical symbol name. The compiler recognizes visible no-receiver symbols with a `TypeName_` prefix as candidates for `TypeName.` static lookup. Namespace qualification may qualify the type name before the `.`.
 
-### 3.4.3 Expanded component symbols
+### 3.4.3 Expanded components
 
-Compiler-expanded values introduce component symbols directly into scope.
+Compiler-expanded values expose their components through member access.
 
 ```camp
 byte[] buffer;
 int? count;
 
-log(buffer_length);
+log(buffer.length);
 
-if (count_specified)
-	log(count);
+if (count.specified)
+	log(count.value);
 ```
 
-These component names are not fields. They use `_` spelling because they are ordinary symbols introduced by the expanded binding.
+The ABI component symbols are still introduced into the containing scope. For `buffer`, the symbols are `buffer` and `buffer_length`; for `count`, the symbols are `count` and `count_specified`. A user declaration that repeats one of those ABI component names in the same scope is a duplicate declaration.
 
 ### 3.4.4 Method references
 
@@ -4665,6 +4684,16 @@ void getCount(out int count);
 auto count = getCount();
 ```
 
+A function that returns an array uses the array element pointer as the ordinary return value and the length as an omitted trailing result slot. When the call result is bound as an array, the compiler reconstructs the expanded array local from both components. A caller may also select one component directly:
+
+```camp
+byte[] getBytes();
+
+auto bytes = getBytes();
+nuint lengthOnly = getBytes().length;
+byte* elementsOnly = getBytes().elements;
+```
+
 ### 3.6.2 Deconstruction
 
 A multi-output result may be deconstructed when the arity matches.
@@ -4745,7 +4774,7 @@ enum ParseError
 ```camp
 int parsePort(const char[] text, thrown ParseError)
 {
-	if (text_length == 0)
+	if (text.length == 0)
 		throw E_INVALID_PORT;
 	...
 }
@@ -5295,7 +5324,7 @@ scoped(source) Slice<T> firstHalf<T>(T[] source)
 {
 	return {
 		.items = source.addressOf(0),
-		.length = source_length / 2
+		.length = source.length / 2
 	};
 }
 ```
@@ -6139,7 +6168,7 @@ class iter char charsOwned(escaped string text)
 	finally delete text;
 
 	const char[] units = text.asArray();
-	for (nuint i = 0; i < units_length; i++)
+	for (nuint i = 0; i < units.length; i++)
 		yield units[i];
 }
 ```
@@ -7347,7 +7376,7 @@ Arrays and optionals remain compiler-reserved built-in type forms. They are not 
 
 #### Arrays
 
-An array type `T[]` is an expanded form with `elements` and `length` components. In ordinary source, a binding named `items` introduces `items` and `items_length`.
+An array type `T[]` is an expanded form with `elements` and `length` components. In ordinary source, a binding named `items` exposes `items.elements` and `items.length`; the ABI symbols remain `items` and `items_length`.
 
 In a `T: any` context, if erased generic storage requires materialization for a copyable type, the effective storage model becomes:
 
@@ -7360,7 +7389,7 @@ for the element storage required by the generic container. For fixed structs and
 ```camp
 void appendAll<T: any>(AnyList<T>* list, T[] items)
 {
-	for (nuint i = 0; i < items_length; i++)
+	for (nuint i = 0; i < items.length; i++)
 		list.add(items[i]);
 }
 ```
@@ -7753,7 +7782,7 @@ This section sketches the standard library surface for arrays, zero-terminated s
 
 ### 7.1.1 Arrays
 
-Arrays are compiler-expanded values with an element pointer and a length component. A binding named `items` introduces `items` and `items_length`.
+Arrays are compiler-expanded values with an element pointer and a length component. A binding named `items` exposes `items.elements` and `items.length`; the ABI symbols remain `items` and `items_length`.
 
 #### 7.1.1.1 Array API design
 
@@ -7767,7 +7796,7 @@ scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
 T[] copy<T: any>(const T[] this, within allocator, sizeof(T));
 ```
 
-The methods operate on the array's direct components. For a receiver named `items`, implementations use `items` and `items_length`.
+The methods operate on the array's direct components. For a receiver named `items`, implementations use `items.elements` and `items.length`.
 
 #### 7.1.1.2 Searching, comparison, and mutation
 
@@ -8398,7 +8427,7 @@ void writeDataManually(const char[] path, const byte[] data, thrown IoError)
 	{
 		remaining = remaining.slice(written);
 
-		if (remaining_length == 0)
+		if (remaining.length == 0)
 			break;
 	}
 }
