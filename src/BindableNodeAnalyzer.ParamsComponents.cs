@@ -45,7 +45,12 @@ public sealed partial class BindableNodeAnalyzer
 			return names;
 
 		foreach (ParamsComponent component in shape.Components)
+		{
 			names.Add(component.ExpandedName);
+			string accessorName = BuildParamsComponentAccessorName(sourceName, component.Name);
+			if (accessorName != component.ExpandedName)
+				names.Add(accessorName);
+		}
 		return names;
 	}
 
@@ -173,7 +178,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddArrayPendingComponents(TypeReference? elementType, string? elementResolvedType, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
 	{
-		List<ParamsNamePart> elementPrefix = [.. prefix, new ParamsNamePart("elements", false)];
+		List<ParamsNamePart> elementPrefix = [.. prefix, new ParamsNamePart("elements", true)];
 		string elementPointerType = AddPointer(elementResolvedType ?? elementType?.ResolvedType ?? ErrorType);
 		components.Add(new PendingParamsComponent("elements", elementPointerType, elementPrefix, null, ParamsComponentShapeKind.Array));
 
@@ -245,7 +250,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddOptionalPendingComponents(TypeReference? valueType, string? valueResolvedType, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
 	{
-		List<ParamsNamePart> valuePrefix = [.. prefix, new ParamsNamePart("value", false)];
+		List<ParamsNamePart> valuePrefix = [.. prefix, new ParamsNamePart("value", true)];
 		if (TryBuildPendingParamsComponents(valueType, valueResolvedType, valuePrefix, out List<PendingParamsComponent> valueComponents, out _, out _))
 			components.AddRange(valueComponents);
 		else
@@ -258,8 +263,13 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string contextType = "void*";
 		string callType = BuildCallableType("fn", returnType, [contextType, .. parameterTypes]);
-		components.Add(new PendingParamsComponent("call", callType, [.. prefix, new ParamsNamePart("call", false)], null, ParamsComponentShapeKind.Delegate));
+		components.Add(new PendingParamsComponent("call", callType, [.. prefix, new ParamsNamePart("call", true)], null, ParamsComponentShapeKind.Delegate));
 		components.Add(new PendingParamsComponent("context", contextType, [.. prefix, new ParamsNamePart("context", false)], null, ParamsComponentShapeKind.Delegate));
+	}
+
+	static string BuildParamsComponentAccessorName(string sourceName, string componentName)
+	{
+		return string.IsNullOrWhiteSpace(componentName) ? sourceName : $"{sourceName}_{componentName}";
 	}
 
 	List<string> GetExpandedCallableParameterTypes(List<ParameterDefinition> parameters)

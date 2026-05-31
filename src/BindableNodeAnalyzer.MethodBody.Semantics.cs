@@ -735,7 +735,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ParamsComponent component in shape.Components)
 		{
-			if (component.ExpandedName != name)
+			if (component.ExpandedName != name && BuildParamsComponentAccessorName(field.Name, component.Name) != name)
 				continue;
 
 			FieldDefinition componentField = new()

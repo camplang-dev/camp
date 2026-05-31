@@ -471,14 +471,31 @@ public sealed partial class BindableNodeAnalyzer
 		else
 			scope.Symbols[name] = new BodySymbol(name, type, node);
 
-		foreach (string componentName in GetPotentialParamsComponentNames(sourceType, resolvedType, name))
+		if (!TryGetParamsComponentShape(sourceType, resolvedType, name, out ParamsComponentShape componentShape))
+			return;
+
+		foreach (ParamsComponent component in componentShape.Components)
 		{
-			if (componentName == name)
-				continue;
-			if (scope.Symbols.ContainsKey(componentName) || scope.TryLookupComponent(componentName, out _))
-				Report(GetDeclarationTargetNameRange(syntax ?? node.SourceSyntax, name), $"Symbol '{componentName}' is already declared in this scope as a component of '{name}'.");
-			else
-				scope.ComponentSymbols[componentName] = name;
+			RegisterComponentBodySymbol(scope, name, component.ExpandedName, component.ExpandedName, component.Type, node, syntax);
+			RegisterComponentBodySymbol(scope, name, BuildParamsComponentAccessorName(name, component.Name), component.ExpandedName, component.Type, node, syntax);
+		}
+	}
+
+	void RegisterComponentBodySymbol(BodyScope scope, string ownerName, string componentName, string expandedName, string componentType, BindableNode node, SyntaxNode? syntax)
+	{
+		if (componentName == ownerName)
+			return;
+		if (scope.ComponentSymbolTypes.TryGetValue(componentName, out BodyComponentSymbol existing)
+			&& existing.Owner == ownerName
+			&& existing.ExpandedName == expandedName)
+			return;
+
+		if (scope.Symbols.ContainsKey(componentName) || scope.TryLookupComponent(componentName, out _))
+			Report(GetDeclarationTargetNameRange(syntax ?? node.SourceSyntax, ownerName), $"Symbol '{componentName}' is already declared in this scope as a component of '{ownerName}'.");
+		else
+		{
+			scope.ComponentSymbols[componentName] = ownerName;
+			scope.ComponentSymbolTypes[componentName] = new BodyComponentSymbol(componentName, expandedName, componentType, ownerName);
 		}
 	}
 
@@ -625,6 +642,19 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = symbol.Type
 			};
 			return symbol.Type;
+		}
+
+		if (scope.TryLookupComponentSymbol(named.Name, out BodyComponentSymbol component))
+		{
+			named.ResolvedType = component.Type;
+			expressionConstants[named] = false;
+			expressionRewrites[named] = new NamedExpression
+			{
+				SourceSyntax = named.SourceSyntax,
+				Name = component.ExpandedName,
+				ResolvedType = component.Type
+			};
+			return component.Type;
 		}
 
 		if (LookupGlobalVariable(named.Name, named.SourceSyntax) is VariableDefinition variable)
@@ -1807,7 +1837,10 @@ public sealed partial class BindableNodeAnalyzer
 			: selected.Type;
 
 		expressionConstants[member] = selected.IsConstant;
-		expressionRewrites[member] = CreateMemberReference(member, member.Target, memberType, selected.Node);
+		MemberReferenceExpression reference = CreateMemberReference(member, member.Target, memberType, selected.Node);
+		if (selected.Node is FieldDefinition field)
+			reference.Name = field.Name;
+		expressionRewrites[member] = reference;
 		return memberType;
 	}
 
@@ -1991,6 +2024,7 @@ public sealed partial class BindableNodeAnalyzer
 		public Dictionary<string, BodySymbol> Symbols { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, BodySymbol> MemberSymbols { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, string> ComponentSymbols { get; } = new(StringComparer.Ordinal);
+		public Dictionary<string, BodyComponentSymbol> ComponentSymbolTypes { get; } = new(StringComparer.Ordinal);
 
 		public bool TryLookup(string name, out BodySymbol symbol)
 		{
@@ -2015,10 +2049,26 @@ public sealed partial class BindableNodeAnalyzer
 			owner = "";
 			return false;
 		}
+
+		public bool TryLookupComponentSymbol(string name, out BodyComponentSymbol symbol)
+		{
+			if (ComponentSymbolTypes.TryGetValue(name, out symbol))
+				return true;
+
+			if (Parent is not null)
+				return Parent.TryLookupComponentSymbol(name, out symbol);
+
+			symbol = default;
+			return false;
+		}
 	}
 
 	readonly record struct BodySymbol(string Name, string Type, BindableNode Node, bool IsConstant = false)
 	{
 		public bool IsConstant { get; } = IsConstant || Node is VariableDefinition variable && IsConstantVariable(variable) || Node is FieldDefinition { Modifier: FieldModifier.Static };
+	}
+
+	readonly record struct BodyComponentSymbol(string Name, string ExpandedName, string Type, string Owner)
+	{
 	}
 }
