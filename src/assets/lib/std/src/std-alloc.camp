@@ -1,0 +1,17 @@
+export as Std;
+
+extern void* malloc(nuint size);
+extern void* realloc(void* ptr, nuint new_size);
+extern void free(void* ptr);
+
+export enum MemoryError
+{
+	NONE = 0,
+	NO_MEMORY
+}
+
+export abstract class Allocator
+{
+	export abstract void* alloc(nuint size, thrown MemoryError);
+	export abstract void free(escaped void* ptr);
+}

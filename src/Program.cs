@@ -4,10 +4,16 @@ using System.Collections.Generic;
 using System.CommandLine;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using Camp.Compiler;
+using IniParser;
+using IniParser.Model;
+using IniParser.Model.Configuration;
+using IniParser.Parser;
 
 Argument<List<string>> filesArgument = new("files")
 {
@@ -37,6 +43,23 @@ Option<bool> inspectApiOption = new("--inspect-api")
 	Description = "Print merged exported API declarations for the non-header input files as Camp code."
 };
 
+Option<string> targetOption = new("--target", "-t")
+{
+	Description = "Select the target to use.",
+	DefaultValueFactory = _ => "clang-macos-x64"
+};
+
+Option<string> profileOption = new("--profile", "-p")
+{
+	Description = "Select the build profile to use: DEBUG or RELEASE.",
+	DefaultValueFactory = _ => "DEBUG"
+};
+
+Option<bool> noStdLibOption = new("--nostdlib")
+{
+	Description = "Do not include the default standard library package."
+};
+
 RootCommand rootCommand = new("Camp compiler")
 {
 	Description = """
@@ -48,6 +71,9 @@ RootCommand rootCommand = new("Camp compiler")
 
 	Options:
 	  -i, --include <files...>  Include API header files in the compilation.
+	  -t, --target <name>      Select the target to use. Defaults to clang-macos-x64.
+	  -p, --profile <name>     Select DEBUG or RELEASE. Defaults to DEBUG.
+	  --nostdlib              Do not include the default std package.
 	  --inspect tokens        Print one token per line.
 	  --inspect cst           Parse and print the syntax tree as XML.
 	  --inspect ast           Parse and print the bindable tree as XML.
@@ -62,6 +88,9 @@ rootCommand.Options.Add(inspectOption);
 rootCommand.Options.Add(xmlOption);
 rootCommand.Options.Add(includeOption);
 rootCommand.Options.Add(inspectApiOption);
+rootCommand.Options.Add(targetOption);
+rootCommand.Options.Add(profileOption);
+rootCommand.Options.Add(noStdLibOption);
 rootCommand.SetAction(parseResult =>
 {
 	List<string>? filenames = parseResult.GetValue(filesArgument);
@@ -69,13 +98,16 @@ rootCommand.SetAction(parseResult =>
 	InspectMode? inspect = parseResult.GetValue(inspectOption);
 	bool inspectApi = parseResult.GetValue(inspectApiOption);
 	bool printXml = parseResult.GetValue(xmlOption);
+	string targetName = parseResult.GetValue(targetOption) ?? "clang-macos-x64";
+	string profileName = parseResult.GetValue(profileOption) ?? "DEBUG";
+	bool noStdLib = parseResult.GetValue(noStdLibOption);
 
-	return Run(filenames, includeFilenames, inspect, inspectApi, printXml);
+	return Run(filenames, includeFilenames, inspect, inspectApi, printXml, targetName, profileName, noStdLib);
 });
 
 return rootCommand.Parse(args).Invoke();
 
-static int Run(List<string>? filenames, List<string>? includeFilenames, InspectMode? inspect, bool inspectApi, bool printXml)
+static int Run(List<string>? filenames, List<string>? includeFilenames, InspectMode? inspect, bool inspectApi, bool printXml, string targetName, string profileName, bool noStdLib)
 {
 	if (filenames is null || filenames.Count == 0)
 	{
@@ -108,7 +140,18 @@ static int Run(List<string>? filenames, List<string>? includeFilenames, InspectM
 		return 1;
 	}
 
-	if (!TryLoadCompilation(filenames, includeFilenames, out Compilation compilation))
+	if (!TryCreateRuntimeContext(targetName, profileName, out RuntimeContext? context))
+		return 1;
+
+	List<string> packageApiHeaders = [];
+	string? stdApiHeader = null;
+	if (!noStdLib && !TryPreparePackageApi(context!, "std", out stdApiHeader))
+		return 1;
+	if (!noStdLib && stdApiHeader is not null)
+		packageApiHeaders.Add(stdApiHeader);
+
+	List<string> allIncludeFilenames = [.. packageApiHeaders, .. includeFilenames];
+	if (!TryLoadCompilation(filenames, allIncludeFilenames, out Compilation compilation))
 		return 1;
 
 	if (inspectApi)
@@ -156,6 +199,207 @@ static bool TryReadInput(string filename, out string text)
 	{
 		Console.Error.WriteLine($"{filename}: {ex.Message}");
 		text = "";
+		return false;
+	}
+}
+
+static bool TryCreateRuntimeContext(string targetName, string profileName, out RuntimeContext? context)
+{
+	context = null;
+	string executableDirectory = AppContext.BaseDirectory;
+	string normalizedProfile = profileName.ToUpperInvariant();
+	if (normalizedProfile is not "DEBUG" and not "RELEASE")
+	{
+		Console.Error.WriteLine($"Profile '{profileName}' is not valid. Expected DEBUG or RELEASE.");
+		return false;
+	}
+
+	if (!TryLoadTargetCatalog(Path.Combine(executableDirectory, "targets"), out Dictionary<string, TargetDefinition> targets))
+		return false;
+
+	if (!targets.TryGetValue(targetName, out TargetDefinition? target))
+	{
+		Console.Error.WriteLine($"Target '{targetName}' could not be found in '{Path.Combine(executableDirectory, "targets")}'.");
+		return false;
+	}
+
+	if (!TryValidateTargetBaseChain(target, targets))
+		return false;
+
+	context = new RuntimeContext(executableDirectory, target.Name, normalizedProfile);
+	return true;
+}
+
+static bool TryLoadTargetCatalog(string targetsDirectory, out Dictionary<string, TargetDefinition> targets)
+{
+	targets = new Dictionary<string, TargetDefinition>(StringComparer.Ordinal);
+	if (!Directory.Exists(targetsDirectory))
+	{
+		Console.Error.WriteLine($"Target directory '{targetsDirectory}' could not be found.");
+		return false;
+	}
+
+	FileIniDataParser parser = new(new IniDataParser(new IniParserConfiguration
+	{
+		AllowDuplicateKeys = false,
+		AllowDuplicateSections = false,
+		AllowKeysWithoutSection = false,
+		ThrowExceptionsOnError = true
+	}));
+
+	foreach (string filename in Directory.GetFiles(targetsDirectory, "*.ini", SearchOption.AllDirectories).OrderBy(static x => x, StringComparer.Ordinal))
+	{
+		IniData data;
+		try
+		{
+			data = parser.ReadFile(filename, Encoding.UTF8);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or IniParser.Exceptions.ParsingException)
+		{
+			Console.Error.WriteLine($"{filename}: {ex.Message}");
+			return false;
+		}
+
+		if (!TryGetTargetName(data, out string? targetName))
+		{
+			Console.Error.WriteLine($"{filename}: Target file is missing [target] name.");
+			return false;
+		}
+
+		if (targets.TryGetValue(targetName!, out TargetDefinition? existing))
+		{
+			Console.Error.WriteLine($"Target '{targetName}' is declared by both '{existing.Path}' and '{filename}'.");
+			return false;
+		}
+
+		targets.Add(targetName!, new TargetDefinition(targetName!, TryGetTargetBase(data), filename));
+	}
+
+	if (targets.Count == 0)
+	{
+		Console.Error.WriteLine($"Target directory '{targetsDirectory}' does not contain any target INI files.");
+		return false;
+	}
+
+	return true;
+}
+
+static bool TryValidateTargetBaseChain(TargetDefinition target, Dictionary<string, TargetDefinition> targets)
+{
+	HashSet<string> visited = new(StringComparer.Ordinal);
+	TargetDefinition current = target;
+	while (!string.IsNullOrWhiteSpace(current.BaseName))
+	{
+		if (!visited.Add(current.Name))
+		{
+			Console.Error.WriteLine($"Target '{target.Name}' has a circular base target chain.");
+			return false;
+		}
+
+		string baseName = current.BaseName;
+		if (!targets.TryGetValue(baseName, out TargetDefinition? next))
+		{
+			Console.Error.WriteLine($"{current.Path}: Base target '{baseName}' could not be found.");
+			return false;
+		}
+
+		current = next;
+	}
+
+	return true;
+}
+
+static bool TryGetTargetName(IniData data, out string? name)
+{
+	name = null;
+	if (!data.Sections.ContainsSection("target"))
+		return false;
+
+	name = data.Sections.GetSectionData("target").Keys.GetKeyData("name")?.Value?.Trim();
+	return !string.IsNullOrWhiteSpace(name);
+}
+
+static string? TryGetTargetBase(IniData data)
+{
+	if (!data.Sections.ContainsSection("target"))
+		return null;
+
+	string? baseName = data.Sections.GetSectionData("target").Keys.GetKeyData("base")?.Value?.Trim();
+	return string.IsNullOrWhiteSpace(baseName) ? null : baseName;
+}
+
+static bool TryPreparePackageApi(RuntimeContext context, string packageName, out string? apiHeaderPath)
+{
+	apiHeaderPath = null;
+	string packageDirectory = Path.Combine(context.ExecutableDirectory, "lib", packageName);
+	string sourceDirectory = Path.Combine(packageDirectory, "src");
+	if (!Directory.Exists(sourceDirectory))
+	{
+		Console.Error.WriteLine($"Package '{packageName}' source directory '{sourceDirectory}' could not be found.");
+		return false;
+	}
+
+	string[] sourceFiles = Directory.GetFiles(sourceDirectory, "*.camp", SearchOption.AllDirectories)
+		.OrderBy(static x => x, StringComparer.Ordinal)
+		.ToArray();
+	if (sourceFiles.Length == 0)
+	{
+		Console.Error.WriteLine($"Package '{packageName}' source directory '{sourceDirectory}' does not contain any .camp files.");
+		return false;
+	}
+
+	string apiPath = Path.Combine(packageDirectory, "bin", context.TargetName, context.ProfileName, packageName + "-api.camp");
+	if (IsApiCacheCurrent(apiPath, sourceFiles))
+	{
+		apiHeaderPath = apiPath;
+		return true;
+	}
+
+	if (!TryBuildPackageApi(sourceFiles, apiPath))
+		return false;
+
+	apiHeaderPath = apiPath;
+	return true;
+}
+
+static bool IsApiCacheCurrent(string apiPath, IReadOnlyList<string> sourceFiles)
+{
+	if (!File.Exists(apiPath))
+		return false;
+
+	DateTime apiTime = File.GetLastWriteTimeUtc(apiPath);
+	foreach (string sourceFile in sourceFiles)
+	{
+		if (apiTime <= File.GetLastWriteTimeUtc(sourceFile))
+			return false;
+	}
+
+	return true;
+}
+
+static bool TryBuildPackageApi(IReadOnlyList<string> sourceFiles, string apiPath)
+{
+	if (!TryLoadCompilation([.. sourceFiles], [], out Compilation packageCompilation))
+		return false;
+
+	if (!BuildAllAndReport(packageCompilation))
+		return false;
+
+	AnalysisResult analysis = BindableNodeAnalyzer.Analyze(packageCompilation.SharedModule!);
+	if (!PrintAnalysisDiagnostics(packageCompilation, analysis.Diagnostics))
+		return false;
+	packageCompilation.SharedModule = analysis.Module;
+
+	try
+	{
+		Directory.CreateDirectory(Path.GetDirectoryName(apiPath)!);
+		using StreamWriter writer = new(apiPath, append: false, Encoding.UTF8);
+		BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+		return true;
+	}
+	catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+	{
+		Console.Error.WriteLine($"{apiPath}: {ex.Message}");
 		return false;
 	}
 }
@@ -736,6 +980,10 @@ static string GetXmlName(string typeName)
 		? typeName[..^"Syntax".Length]
 		: typeName;
 }
+
+sealed record RuntimeContext(string ExecutableDirectory, string TargetName, string ProfileName);
+
+sealed record TargetDefinition(string Name, string? BaseName, string Path);
 
 enum InspectMode
 {

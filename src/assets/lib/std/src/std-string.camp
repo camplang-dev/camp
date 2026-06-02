@@ -1,0 +1,38 @@
+export as Std;
+
+export nint indexOf(const string this, const char[] match, bool caseInsensitive = false) => 0;
+export nint indexOfChar(const string this, uchar match, bool caseInsensitive = false) => 0;
+export nint indexOfAnyChar(const string this, uchar[] const matches, bool caseInsensitive = false) => 0;
+
+export nint lastIndexOf(const string this, const char[] match, bool caseInsensitive = false) => 0;
+export nint lastIndexOfChar(const string this, uchar match, bool caseInsensitive = false) => 0;
+export nint lastIndexOfAnyChar(const string this, const uchar[] matches, bool caseInsensitive = false) => 0;
+
+export bool startsWith(const string this, const char[] match, bool caseInsensitive = false) => false;
+export bool startsWithChar(const string this, uchar match, bool caseInsensitive = false) => false;
+export bool endsWith(const string this, const char[] match, bool caseInsensitive = false) => false;
+export bool endsWithChar(const string this, uchar match, bool caseInsensitive = false) => false;
+
+export nint compareTo(const string this, const char[] other, bool caseInsensitive = false) => 0;
+
+export nuint countChars(const string this) => 0;
+export uchar getChar(const string this, @index nuint unit) => 0;
+export nuint getCharUnits(const string this, @index nuint unit) => 0;
+
+// Borrowing transformations
+export scoped char[] trim(const string this) => default;
+export scoped char[] trimStart(const string this) => default;
+export scoped char[] trimEnd(const string this) => default;
+
+// NOT YET
+//scoped String slice(const string this, @range nuint index = 0, nuint count = ^0);
+
+// Copy-producing transformations
+export string uppercaseCopy(const string this, within allocator) => default;
+export string lowercaseCopy(const string this, within allocator) => default;
+
+//export scoped string[] splitCopy(const string this, const char[] separator, within allocator) => default;
+
+export string concatCopy(const string[] const this, within allocator) => default;
+export string joinCopy(const string[] const this, const char[] separator, within allocator) => default;
+
