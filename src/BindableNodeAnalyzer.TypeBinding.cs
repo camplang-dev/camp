@@ -122,7 +122,7 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case CallableTypeReference callable:
-				ValidateTargetCallSpec(callable.CallSpec, callable.SourceSyntax);
+				ValidateCallableSpec(callable);
 				AnalyzeOptionalType(callable.ReturnType, scope);
 				foreach (ParameterDefinition parameter in callable.Parameters)
 					AnalyzeParameterDefinition(parameter, scope);
@@ -176,6 +176,24 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (selectedTarget is null || !selectedTarget.HasCallSpec(callSpec))
 			Report(GetRange(syntax), $"Callspec '{callSpec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
+	}
+
+	void ValidateCallableSpec(CallableTypeReference callable)
+	{
+		if (string.IsNullOrWhiteSpace(callable.CallSpec))
+			return;
+
+		if (selectedTarget?.HasCallSpec(callable.CallSpec) == true)
+			return;
+
+		if (selectedTarget?.HasTypeSpec(callable.CallSpec) == true)
+		{
+			callable.TargetSpec = callable.CallSpec;
+			callable.CallSpec = null;
+			return;
+		}
+
+		Report(GetRange(callable.SourceSyntax), $"Callspec or typespec '{callable.CallSpec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
 	}
 
 	void ValidateTargetTypeSpec(TargetTypeSpecTypeReference typeSpec)

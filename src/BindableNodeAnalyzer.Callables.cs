@@ -24,7 +24,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& TryParseCallableShape(underlyingType, out shape))
 		{
 			if (newtypeDefinition.Parameters.Count > 0)
-				shape = new CallableShape(shape.Kind, shape.ReturnType, [.. GetParameterTypeNames(newtypeDefinition.Parameters)]);
+				shape = new CallableShape(shape.Kind, shape.Spec, shape.ReturnType, [.. GetParameterTypeNames(newtypeDefinition.Parameters)]);
 			return true;
 		}
 
@@ -66,9 +66,34 @@ public sealed partial class BindableNodeAnalyzer
 		if (open < 0 || close < open)
 			return false;
 
-		string returnType = remainder[..open].Trim();
+		string signaturePrefix = remainder[..open].Trim();
+		string? spec = null;
+		if (TrySplitCallableSpec(signaturePrefix, out string? parsedSpec, out string? parsedReturnType))
+		{
+			spec = parsedSpec;
+			signaturePrefix = parsedReturnType;
+		}
+
+		string returnType = signaturePrefix;
 		string parametersText = remainder[(open + 1)..close].Trim();
-		shape = new CallableShape(kind, returnType, SplitCallableParameterTypes(parametersText));
+		shape = new CallableShape(kind, spec, returnType, SplitCallableParameterTypes(parametersText));
+		return true;
+	}
+
+	static bool TrySplitCallableSpec(string text, out string? spec, out string returnType)
+	{
+		spec = null;
+		returnType = text;
+		int space = text.IndexOf(' ');
+		if (space <= 0)
+			return false;
+
+		string candidate = text[..space];
+		if (!candidate.StartsWith("_", StringComparison.Ordinal))
+			return false;
+
+		spec = candidate;
+		returnType = text[(space + 1)..].TrimStart();
 		return true;
 	}
 
@@ -109,7 +134,7 @@ public sealed partial class BindableNodeAnalyzer
 				return false;
 		}
 
-		return source.ReturnType == target.ReturnType;
+		return source.Spec == target.Spec && source.ReturnType == target.ReturnType;
 	}
 
 	static string? GetLambdaParameterSymbolName(LambdaParameter parameter)
@@ -119,14 +144,16 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly struct CallableShape
 	{
-		public CallableShape(string kind, string returnType, List<string> parameters)
+		public CallableShape(string kind, string? spec, string returnType, List<string> parameters)
 		{
 			Kind = kind;
+			Spec = spec;
 			ReturnType = returnType;
 			Parameters = parameters;
 		}
 
 		public string Kind { get; }
+		public string? Spec { get; }
 		public string ReturnType { get; }
 		public List<string> Parameters { get; }
 	}

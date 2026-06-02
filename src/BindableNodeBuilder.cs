@@ -1526,6 +1526,9 @@ public sealed partial class BindableNodeBuilder
 			case "uchar":
 				type = PrimitiveType.UChar;
 				return true;
+			case "untyped":
+				type = PrimitiveType.Untyped;
+				return true;
 			default:
 				type = default;
 				return false;

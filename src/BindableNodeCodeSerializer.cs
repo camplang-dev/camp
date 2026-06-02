@@ -1153,8 +1153,8 @@ public sealed class BindableNodeCodeSerializer
 
 			case CallableTypeReference callable:
 				writer.Write(GetCallableKind(callable.Kind));
-				WriteCallSpec(callable.CallSpec, leadingSpace: true);
-				if (string.IsNullOrWhiteSpace(callable.CallSpec))
+				WriteCallSpec(callable.CallSpec ?? callable.TargetSpec, leadingSpace: true);
+				if (string.IsNullOrWhiteSpace(callable.CallSpec) && string.IsNullOrWhiteSpace(callable.TargetSpec))
 					writer.Write(" ");
 				WriteType(callable.ReturnType);
 				WriteParameterList(callable.Parameters);
@@ -1489,6 +1489,7 @@ public sealed class BindableNodeCodeSerializer
 			PrimitiveType.WChar => "wchar",
 			PrimitiveType.AChar => "achar",
 			PrimitiveType.UChar => "uchar",
+			PrimitiveType.Untyped => "untyped",
 			_ => "auto"
 		};
 	}

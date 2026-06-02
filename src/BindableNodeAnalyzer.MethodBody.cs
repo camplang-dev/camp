@@ -952,7 +952,7 @@ public sealed partial class BindableNodeAnalyzer
 			parameterTypes.Add(parameter.ResolvedType ?? ErrorType);
 
 		string inferredType = BuildCallableType("fn", targetShape?.ReturnType ?? returnType, parameterTypes);
-		if (targetType is not null && TryGetCallableShape(targetType, out CallableShape expectedShape) && CallableShapesCompatible(new CallableShape("fn", returnType, parameterTypes), expectedShape))
+		if (targetType is not null && TryGetCallableShape(targetType, out CallableShape expectedShape) && CallableShapesCompatible(new CallableShape("fn", null, returnType, parameterTypes), expectedShape))
 			return targetType;
 
 		return inferredType;

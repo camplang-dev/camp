@@ -51,6 +51,11 @@ Option<string> profileOption = new("--profile", "-p")
 	DefaultValueFactory = _ => "DEBUG"
 };
 
+Option<string?> memoryModelOption = new("--memory-model")
+{
+	Description = "Select the target memory model to use when required by the target."
+};
+
 Option<bool> noStdLibOption = new("--nostdlib")
 {
 	Description = "Do not include the default standard library package."
@@ -69,6 +74,7 @@ RootCommand rootCommand = new("Camp compiler")
 	  -i, --include <files...>  Include API header files in the compilation.
 	  -t, --target <name>      Select the target to use. Defaults to clang-macos-x64.
 	  -p, --profile <name>     Select DEBUG or RELEASE. Defaults to DEBUG.
+	  --memory-model <name>    Select a target memory model when the target requires one.
 	  --nostdlib              Do not include the default std package.
 	  --inspect tokens        Print one token per line.
 	  --inspect cst           Parse and print the syntax tree as XML.
@@ -86,6 +92,7 @@ rootCommand.Options.Add(includeOption);
 rootCommand.Options.Add(inspectApiOption);
 rootCommand.Options.Add(targetOption);
 rootCommand.Options.Add(profileOption);
+rootCommand.Options.Add(memoryModelOption);
 rootCommand.Options.Add(noStdLibOption);
 rootCommand.SetAction(parseResult =>
 {
@@ -96,14 +103,15 @@ rootCommand.SetAction(parseResult =>
 	bool printXml = parseResult.GetValue(xmlOption);
 	string targetName = parseResult.GetValue(targetOption) ?? "clang-macos-x64";
 	string profileName = parseResult.GetValue(profileOption) ?? "DEBUG";
+	string? memoryModelName = parseResult.GetValue(memoryModelOption);
 	bool noStdLib = parseResult.GetValue(noStdLibOption);
 
-	return Run(filenames, includeFilenames, inspect, inspectApi, printXml, targetName, profileName, noStdLib);
+	return Run(filenames, includeFilenames, inspect, inspectApi, printXml, targetName, profileName, memoryModelName, noStdLib);
 });
 
 return rootCommand.Parse(args).Invoke();
 
-static int Run(List<string>? filenames, List<string>? includeFilenames, InspectMode? inspect, bool inspectApi, bool printXml, string targetName, string profileName, bool noStdLib)
+static int Run(List<string>? filenames, List<string>? includeFilenames, InspectMode? inspect, bool inspectApi, bool printXml, string targetName, string profileName, string? memoryModelName, bool noStdLib)
 {
 	if (filenames is null || filenames.Count == 0)
 	{
@@ -136,7 +144,7 @@ static int Run(List<string>? filenames, List<string>? includeFilenames, InspectM
 		return 1;
 	}
 
-	if (!TryCreateRuntimeContext(targetName, profileName, out RuntimeContext? context))
+	if (!TryCreateRuntimeContext(targetName, profileName, memoryModelName, out RuntimeContext? context))
 		return 1;
 
 	List<string> packageApiHeaders = [];
@@ -168,7 +176,7 @@ static int Run(List<string>? filenames, List<string>? includeFilenames, InspectM
 
 static bool TryLoadCompilation(List<string> filenames, List<string> includeFilenames, RuntimeContext context, out Compilation compilation)
 {
-	compilation = new Compilation { Target = context.Target, ProfileName = context.ProfileName };
+	compilation = new Compilation { Target = context.Target, ProfileName = context.ProfileName, MemoryModelName = context.MemoryModelName };
 	foreach (string filename in filenames)
 	{
 		if (!TryReadInput(filename, out string text))
@@ -199,7 +207,7 @@ static bool TryReadInput(string filename, out string text)
 	}
 }
 
-static bool TryCreateRuntimeContext(string targetName, string profileName, out RuntimeContext? context)
+static bool TryCreateRuntimeContext(string targetName, string profileName, string? memoryModelName, out RuntimeContext? context)
 {
 	context = null;
 	string executableDirectory = AppContext.BaseDirectory;
@@ -222,7 +230,26 @@ static bool TryCreateRuntimeContext(string targetName, string profileName, out R
 		return false;
 	}
 
-	context = new RuntimeContext(executableDirectory, target!, normalizedProfile);
+	if (target!.MemoryModels.Count > 0)
+	{
+		if (string.IsNullOrWhiteSpace(memoryModelName))
+		{
+			Console.Error.WriteLine($"Target '{target.Name}' requires --memory-model. Available memory models: {string.Join(", ", target.MemoryModels.Keys)}.");
+			return false;
+		}
+		if (!target.MemoryModels.ContainsKey(memoryModelName))
+		{
+			Console.Error.WriteLine($"Memory model '{memoryModelName}' is not defined by target '{target.Name}'. Available memory models: {string.Join(", ", target.MemoryModels.Keys)}.");
+			return false;
+		}
+	}
+	else if (!string.IsNullOrWhiteSpace(memoryModelName))
+	{
+		Console.Error.WriteLine($"Target '{target.Name}' does not define memory models, so --memory-model cannot be used.");
+		return false;
+	}
+
+	context = new RuntimeContext(executableDirectory, target, normalizedProfile, string.IsNullOrWhiteSpace(memoryModelName) ? null : memoryModelName);
 	return true;
 }
 
@@ -246,7 +273,7 @@ static bool TryPreparePackageApi(RuntimeContext context, string packageName, out
 		return false;
 	}
 
-	string apiPath = Path.Combine(packageDirectory, "bin", context.Target.Name, context.ProfileName, packageName + "-api.camp");
+	string apiPath = Path.Combine(packageDirectory, "bin", context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName, packageName + "-api.camp");
 	if (IsApiCacheCurrent(apiPath, sourceFiles))
 	{
 		apiHeaderPath = apiPath;
@@ -283,7 +310,7 @@ static bool TryBuildPackageApi(IReadOnlyList<string> sourceFiles, string apiPath
 	if (!BuildAllAndReport(packageCompilation))
 		return false;
 
-	AnalysisResult analysis = BindableNodeAnalyzer.Analyze(packageCompilation.SharedModule!, packageCompilation.Target);
+	AnalysisResult analysis = BindableNodeAnalyzer.Analyze(packageCompilation.SharedModule!, packageCompilation.Target, packageCompilation.MemoryModelName);
 	if (!PrintAnalysisDiagnostics(packageCompilation, analysis.Diagnostics))
 		return false;
 	packageCompilation.SharedModule = analysis.Module;
@@ -339,7 +366,7 @@ static int PrintDeclarations(Compilation compilation, bool printXml)
 	if (!ExpandDeclarationsAndReport(compilation))
 		return 1;
 
-	AnalysisResult analysis = BindableNodeAnalyzer.AnalyzeExpanded(compilation.DeclarationExpansion!, compilation.Target);
+	AnalysisResult analysis = BindableNodeAnalyzer.AnalyzeExpanded(compilation.DeclarationExpansion!, compilation.Target, compilation.MemoryModelName);
 	if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
 		return 1;
 	compilation.SharedModule = analysis.Module;
@@ -362,7 +389,7 @@ static int PrintApi(Compilation compilation)
 	if (!BuildAllAndReport(compilation))
 		return 1;
 
-	AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target);
+	AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target, compilation.MemoryModelName);
 	if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
 		return 1;
 
@@ -879,7 +906,7 @@ static string GetXmlName(string typeName)
 		: typeName;
 }
 
-sealed record RuntimeContext(string ExecutableDirectory, TargetDefinition Target, string ProfileName);
+sealed record RuntimeContext(string ExecutableDirectory, TargetDefinition Target, string ProfileName, string? MemoryModelName);
 
 enum InspectMode
 {

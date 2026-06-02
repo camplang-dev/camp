@@ -127,7 +127,15 @@ public sealed class TargetCatalog
 			sections.CopyFrom(resolvedTargets[baseTarget.Name].Sections);
 		}
 
-		sections.MergeFrom(target.Data);
+		try
+		{
+			sections.MergeFrom(target.Data);
+		}
+		catch (InvalidDataException ex)
+		{
+			error = $"{target.Path}: {ex.Message}";
+			return false;
+		}
 		resolving.Remove(target.Name);
 		resolvedTargets[target.Name] = new TargetDefinition(target.Name, target.BaseName, target.Path, sections);
 		return true;
@@ -172,6 +180,9 @@ public sealed class TargetDefinition
 	public IReadOnlyDictionary<string, string> CallSpecs => Sections.CallSpecs;
 	public IReadOnlyDictionary<string, string> TypeSpecs => Sections.TypeSpecs;
 	public IReadOnlyDictionary<string, string> CTypes => Sections.CTypes;
+	public IReadOnlyDictionary<string, int> NaturalIntegerWidths => Sections.NaturalIntegerWidths;
+	public IReadOnlyDictionary<string, int> PointerWidths => Sections.PointerWidths;
+	public IReadOnlyDictionary<string, TargetMemoryModel> MemoryModels => Sections.MemoryModels;
 	public IReadOnlyList<string> TypeSpecOrder => Sections.TypeSpecOrder;
 
 	public bool HasCallSpec(string name)
@@ -187,6 +198,35 @@ public sealed class TargetDefinition
 	public bool IsPrimitiveUnsupported(string name)
 	{
 		return Sections.CTypes.TryGetValue(name, out string? value) && value == "<unsupported>";
+	}
+
+	public string? GetPrimitiveCSpelling(string name)
+	{
+		return Sections.CTypes.TryGetValue(name, out string? value) ? value : null;
+	}
+
+	public int GetNaturalIntegerWidth(string? typeSpec)
+	{
+		if (typeSpec is not null && Sections.NaturalIntegerWidths.TryGetValue(typeSpec, out int width))
+			return width;
+		return Sections.NaturalIntegerWidths.TryGetValue("", out int defaultWidth) ? defaultWidth : 32;
+	}
+
+	public int GetPointerWidth(string? typeSpec, string? memoryModelName, bool functionPointer)
+	{
+		typeSpec ??= GetMemoryModelDefault(memoryModelName, functionPointer);
+		if (typeSpec is not null && Sections.PointerWidths.TryGetValue(typeSpec, out int width))
+			return width;
+		return Sections.PointerWidths.TryGetValue("", out int defaultWidth) ? defaultWidth : 32;
+	}
+
+	public string? GetMemoryModelDefault(string? memoryModelName, bool functionPointer)
+	{
+		if (memoryModelName is null)
+			return null;
+		return Sections.MemoryModels.TryGetValue(memoryModelName, out TargetMemoryModel? model)
+			? functionPointer ? model.CodePointerTypeSpec : model.DataPointerTypeSpec
+			: null;
 	}
 
 	public bool CanWidenTypeSpec(string? source, string? target)
@@ -219,6 +259,9 @@ internal sealed class TargetSections
 	public Dictionary<string, string> CallSpecs { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> TypeSpecs { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> CTypes { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, int> NaturalIntegerWidths { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, int> PointerWidths { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, TargetMemoryModel> MemoryModels { get; } = new(StringComparer.Ordinal);
 	public List<string> TypeSpecOrder { get; } = [];
 
 	public void CopyFrom(TargetSections source)
@@ -226,6 +269,9 @@ internal sealed class TargetSections
 		CopySection(source.CallSpecs, CallSpecs);
 		CopyTypeSpecSection(source.TypeSpecs, source.TypeSpecOrder);
 		CopySection(source.CTypes, CTypes);
+		CopySection(source.NaturalIntegerWidths, NaturalIntegerWidths);
+		CopySection(source.PointerWidths, PointerWidths);
+		CopySection(source.MemoryModels, MemoryModels);
 	}
 
 	public void MergeFrom(IniData data)
@@ -233,6 +279,10 @@ internal sealed class TargetSections
 		MergeSection(data, "callspec", CallSpecs);
 		MergeTypeSpecSection(data);
 		MergeSection(data, "ctype", CTypes);
+		MergeWidthSection(data, "nint", NaturalIntegerWidths);
+		MergeWidthSection(data, "pointer", PointerWidths);
+		MergeMemoryModelSection(data);
+		ValidateTargetMetadata();
 	}
 
 	void CopyTypeSpecSection(Dictionary<string, string> source, List<string> order)
@@ -248,6 +298,12 @@ internal sealed class TargetSections
 	static void CopySection(Dictionary<string, string> source, Dictionary<string, string> target)
 	{
 		foreach ((string key, string value) in source)
+			target[key] = value;
+	}
+
+	static void CopySection<T>(Dictionary<string, T> source, Dictionary<string, T> target)
+	{
+		foreach ((string key, T value) in source)
 			target[key] = value;
 	}
 
@@ -272,4 +328,57 @@ internal sealed class TargetSections
 			TypeSpecs[key.KeyName] = key.Value;
 		}
 	}
+
+	void MergeWidthSection(IniData data, string sectionName, Dictionary<string, int> target)
+	{
+		if (!data.Sections.ContainsSection(sectionName))
+			return;
+
+		foreach (KeyData key in data.Sections.GetSectionData(sectionName).Keys)
+		{
+			string value = key.Value.Trim();
+			if (!int.TryParse(value, out int width) || width is not (16 or 32 or 64))
+				throw new InvalidDataException($"[{sectionName}] '{key.KeyName}' must be one of 16, 32, or 64.");
+			target[key.KeyName] = width;
+		}
+	}
+
+	void MergeMemoryModelSection(IniData data)
+	{
+		if (!data.Sections.ContainsSection("memorymodel"))
+			return;
+
+		foreach (KeyData key in data.Sections.GetSectionData("memorymodel").Keys)
+		{
+			string[] parts = key.Value.Split('/', 2);
+			if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[1]))
+				throw new InvalidDataException($"[memorymodel] '{key.KeyName}' must use '<code>/<data>' format.");
+			MemoryModels[key.KeyName] = new TargetMemoryModel(key.KeyName, parts[0].Trim(), parts[1].Trim());
+		}
+	}
+
+	void ValidateTargetMetadata()
+	{
+		foreach (string key in NaturalIntegerWidths.Keys)
+		{
+			if (key.Length > 0 && !TypeSpecs.ContainsKey(key))
+				throw new InvalidDataException($"[nint] '{key}' must name a valid target typespec.");
+		}
+
+		foreach (string key in PointerWidths.Keys)
+		{
+			if (key.Length > 0 && !TypeSpecs.ContainsKey(key))
+				throw new InvalidDataException($"[pointer] '{key}' must name a valid target typespec.");
+		}
+
+		foreach (TargetMemoryModel model in MemoryModels.Values)
+		{
+			if (!TypeSpecs.ContainsKey(model.CodePointerTypeSpec))
+				throw new InvalidDataException($"[memorymodel] '{model.Name}' code default '{model.CodePointerTypeSpec}' must name a valid target typespec.");
+			if (!TypeSpecs.ContainsKey(model.DataPointerTypeSpec))
+				throw new InvalidDataException($"[memorymodel] '{model.Name}' data default '{model.DataPointerTypeSpec}' must name a valid target typespec.");
+		}
+	}
 }
+
+public sealed record TargetMemoryModel(string Name, string CodePointerTypeSpec, string DataPointerTypeSpec);

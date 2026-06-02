@@ -48,7 +48,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	internal static DeclarationExpansionResult ExpandDeclarations(Module module, TargetDefinition? selectedTarget = null)
 	{
-		BindableNodeAnalyzer analyzer = new(selectedTarget);
+		return ExpandDeclarations(module, selectedTarget, selectedMemoryModel: null);
+	}
+
+	internal static DeclarationExpansionResult ExpandDeclarations(Module module, TargetDefinition? selectedTarget, string? selectedMemoryModel)
+	{
+		BindableNodeAnalyzer analyzer = new(selectedTarget, selectedMemoryModel);
 		analyzer.currentModule = module;
 		analyzer.CollectTypeNames(module);
 		analyzer.GenerateLifecycleMethods(module);
@@ -59,10 +64,20 @@ public sealed partial class BindableNodeAnalyzer
 
 	public static AnalysisResult AnalyzeExpanded(DeclarationExpansionResult expansion, TargetDefinition? selectedTarget = null)
 	{
-		return AnalyzeDeclarationsExpanded(expansion, selectedTarget);
+		return AnalyzeDeclarationsExpanded(expansion, selectedTarget, selectedMemoryModel: null);
+	}
+
+	public static AnalysisResult AnalyzeExpanded(DeclarationExpansionResult expansion, TargetDefinition? selectedTarget, string? selectedMemoryModel)
+	{
+		return AnalyzeDeclarationsExpanded(expansion, selectedTarget, selectedMemoryModel);
 	}
 
 	public static AnalysisResult AnalyzeDeclarationsExpanded(DeclarationExpansionResult expansion, TargetDefinition? selectedTarget = null)
+	{
+		return AnalyzeDeclarationsExpanded(expansion, selectedTarget, selectedMemoryModel: null);
+	}
+
+	public static AnalysisResult AnalyzeDeclarationsExpanded(DeclarationExpansionResult expansion, TargetDefinition? selectedTarget, string? selectedMemoryModel)
 	{
 		ArgumentNullException.ThrowIfNull(expansion);
 		BindableNodeAnalyzer analyzer = expansion.Analyzer;

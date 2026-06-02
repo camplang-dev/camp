@@ -365,7 +365,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static CallableTypeReference CloneCallable(CallableTypeReference callable)
 	{
-		CallableTypeReference clone = new() { Kind = callable.Kind, CallSpec = callable.CallSpec, ReturnType = CloneType(callable.ReturnType) };
+		CallableTypeReference clone = new() { Kind = callable.Kind, CallSpec = callable.CallSpec, TargetSpec = callable.TargetSpec, ReturnType = CloneType(callable.ReturnType) };
 		foreach (ParameterDefinition parameter in callable.Parameters)
 			clone.Parameters.Add(CloneParameter(parameter));
 		return clone;

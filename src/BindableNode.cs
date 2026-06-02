@@ -244,6 +244,7 @@ public class CallableTypeReference : TypeReference
 {
 	public CallableKind Kind { get; set; }
 	public string? CallSpec { get; set; }
+	public string? TargetSpec { get; set; }
 	public TypeReference? ReturnType { get; set; }
 	public List<ParameterDefinition> Parameters { get; } = [];
 }
@@ -360,5 +361,6 @@ public enum PrimitiveType
 	Char,
 	WChar,
 	AChar,
-	UChar
+	UChar,
+	Untyped
 }

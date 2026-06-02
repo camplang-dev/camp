@@ -151,6 +151,83 @@ public sealed partial class BindableNodeAnalyzer
 		return shape.TargetSpec is not null || shape.Element is not null && ContainsTargetSpec(shape.Element);
 	}
 
+	bool CanExplicitlyConvertPointerNaturalInteger(TypeShape source, TypeShape target)
+	{
+		if (source.Kind == TypeShapeKind.Pointer && IsNaturalIntegerShape(target))
+			return GetNaturalIntegerWidth(target) >= GetObjectPointerWidth(source);
+
+		if (IsNaturalIntegerShape(source) && target.Kind == TypeShapeKind.Pointer)
+			return GetObjectPointerWidth(target) >= GetNaturalIntegerWidth(source);
+
+		return false;
+	}
+
+	bool CanExplicitlyConvertCallableNaturalInteger(string source, string target)
+	{
+		if (TryGetCallableShape(source, out CallableShape sourceCallable)
+			&& TryParseTypeShape(target, out TypeShape targetShape)
+			&& IsNaturalIntegerShape(targetShape))
+		{
+			return GetNaturalIntegerWidth(targetShape) >= GetFunctionPointerWidth(sourceCallable);
+		}
+
+		if (TryParseTypeShape(source, out TypeShape sourceShape)
+			&& IsNaturalIntegerShape(sourceShape)
+			&& TryGetCallableShape(target, out CallableShape targetCallable))
+		{
+			return GetFunctionPointerWidth(targetCallable) >= GetNaturalIntegerWidth(sourceShape);
+		}
+
+		return false;
+	}
+
+	bool CanExplicitlyConvertUntypedPointer(TypeShape source, TypeShape target)
+	{
+		return IsUntypedPointerShape(source) && target.Kind == TypeShapeKind.Pointer
+			|| IsUntypedPointerShape(target) && source.Kind == TypeShapeKind.Pointer;
+	}
+
+	bool CanExplicitlyConvertUntypedPointerToCallable(TypeShape source, string target)
+	{
+		return IsUntypedPointerShape(source) && TryGetCallableShape(target, out _);
+	}
+
+	bool IsObjectPointerType(string type)
+	{
+		return TryParseTypeShape(type, out TypeShape shape) && shape.Kind == TypeShapeKind.Pointer;
+	}
+
+	bool IsUntypedPointerType(string type)
+	{
+		return TryParseTypeShape(type, out TypeShape shape) && IsUntypedPointerShape(shape);
+	}
+
+	static bool IsUntypedPointerShape(TypeShape shape)
+	{
+		return shape.Kind == TypeShapeKind.Pointer && shape.Element is TypeShape { Kind: TypeShapeKind.Named, Name: "untyped" };
+	}
+
+	static bool IsNaturalIntegerShape(TypeShape shape)
+	{
+		return shape.Kind == TypeShapeKind.Named && shape.Name is "nint" or "nuint";
+	}
+
+	int GetNaturalIntegerWidth(TypeShape shape)
+	{
+		return selectedTarget?.GetNaturalIntegerWidth(shape.TargetSpec) ?? 32;
+	}
+
+	int GetObjectPointerWidth(TypeShape shape)
+	{
+		return selectedTarget?.GetPointerWidth(shape.TargetSpec, selectedMemoryModel, functionPointer: false) ?? 32;
+	}
+
+	int GetFunctionPointerWidth(CallableShape shape)
+	{
+		string? targetSpec = shape.Spec is not null && selectedTarget?.HasTypeSpec(shape.Spec) == true ? shape.Spec : null;
+		return selectedTarget?.GetPointerWidth(targetSpec, selectedMemoryModel, functionPointer: true) ?? 32;
+	}
+
 	static bool QualifiersCanConvert(TypeQualifiers source, TypeQualifiers target, bool protectedByConstTarget, int pointerDepth)
 	{
 		if (source.IsConst && !target.IsConst && !protectedByConstTarget)

@@ -11,6 +11,7 @@ public sealed class Compilation
 	public Dictionary<Definition, SourceFile> DefinitionOwners { get; } = [];
 	public TargetDefinition? Target { get; set; }
 	public string ProfileName { get; set; } = "DEBUG";
+	public string? MemoryModelName { get; set; }
 }
 
 public sealed class SourceFile
@@ -72,7 +73,7 @@ public static class CompilationPipeline
 		if (!buildSuccess)
 			return false;
 
-		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!, compilation.Target);
+		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!, compilation.Target, compilation.MemoryModelName);
 		compilation.SharedModule = compilation.DeclarationExpansion.Module;
 		AssignGeneratedDefinitionOwners(compilation);
 		return compilation.DeclarationExpansion.Diagnostics.Count == 0;

@@ -102,6 +102,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == "Allocator*" && target == AllocatorType)
 			return true;
 
+		if (IsUntypedPointerType(target) && (IsObjectPointerType(source) || TryGetCallableShape(source, out _)))
+			return true;
+
 		if (TryGetCallableShape(source, out CallableShape sourceCallable) && TryGetCallableShape(target, out CallableShape targetCallable))
 			return CallableShapesCompatible(sourceCallable, targetCallable);
 
@@ -308,7 +311,16 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (TryParseTypeShape(source, out TypeShape explicitSourceShape)
 			&& TryParseTypeShape(target, out TypeShape explicitTargetShape)
-			&& CanExplicitlyConvertTargetSpecShape(explicitSourceShape, explicitTargetShape))
+			&& (CanExplicitlyConvertTargetSpecShape(explicitSourceShape, explicitTargetShape)
+				|| CanExplicitlyConvertPointerNaturalInteger(explicitSourceShape, explicitTargetShape)
+				|| CanExplicitlyConvertUntypedPointer(explicitSourceShape, explicitTargetShape)))
+			return true;
+
+		if (CanExplicitlyConvertCallableNaturalInteger(source, target))
+			return true;
+
+		if (TryParseTypeShape(source, out TypeShape untypedSourceShape)
+			&& CanExplicitlyConvertUntypedPointerToCallable(untypedSourceShape, target))
 			return true;
 
 		return TryParseTypeShape(source, out TypeShape sourceShape)
