@@ -25,6 +25,18 @@ Option<bool> xmlOption = new("--xml")
 	Description = "Print the rewritten bindable tree as XML when used with --inspect declarations or --inspect lowering."
 };
 
+Option<List<string>> includeOption = new("--include", "-i")
+{
+	Description = "Include one or more Camp API header files in the compilation.",
+	Arity = ArgumentArity.ZeroOrMore,
+	AllowMultipleArgumentsPerToken = true
+};
+
+Option<bool> inspectApiOption = new("--inspect-api")
+{
+	Description = "Print merged exported API declarations for the non-header input files as Camp code."
+};
+
 RootCommand rootCommand = new("Camp compiler")
 {
 	Description = """
@@ -35,29 +47,35 @@ RootCommand rootCommand = new("Camp compiler")
 	  <files...>  One or more source files to read, or '-' to read from standard input.
 
 	Options:
+	  -i, --include <files...>  Include API header files in the compilation.
 	  --inspect tokens        Print one token per line.
 	  --inspect cst           Parse and print the syntax tree as XML.
 	  --inspect ast           Parse and print the bindable tree as XML.
 	  --inspect declarations  Analyze declarations and print the bindable tree as Camp code.
 	  --inspect lowering      Analyze, lower, and print the bindable tree as Camp code.
+	  --inspect-api           Print merged exported API declarations for compiled files.
 	  --xml                   Print XML for declarations/lowering inspection.
 	"""
 };
 rootCommand.Arguments.Add(filesArgument);
 rootCommand.Options.Add(inspectOption);
 rootCommand.Options.Add(xmlOption);
+rootCommand.Options.Add(includeOption);
+rootCommand.Options.Add(inspectApiOption);
 rootCommand.SetAction(parseResult =>
 {
 	List<string>? filenames = parseResult.GetValue(filesArgument);
+	List<string>? includeFilenames = parseResult.GetValue(includeOption);
 	InspectMode? inspect = parseResult.GetValue(inspectOption);
+	bool inspectApi = parseResult.GetValue(inspectApiOption);
 	bool printXml = parseResult.GetValue(xmlOption);
 
-	return Run(filenames, inspect, printXml);
+	return Run(filenames, includeFilenames, inspect, inspectApi, printXml);
 });
 
 return rootCommand.Parse(args).Invoke();
 
-static int Run(List<string>? filenames, InspectMode? inspect, bool printXml)
+static int Run(List<string>? filenames, List<string>? includeFilenames, InspectMode? inspect, bool inspectApi, bool printXml)
 {
 	if (filenames is null || filenames.Count == 0)
 	{
@@ -65,9 +83,16 @@ static int Run(List<string>? filenames, InspectMode? inspect, bool printXml)
 		return 1;
 	}
 
-	if (filenames.Count > 1 && filenames.Contains("-"))
+	includeFilenames ??= [];
+	if (filenames.Count > 1 && filenames.Contains("-") || includeFilenames.Count > 0 && filenames.Contains("-"))
 	{
-		Console.Error.WriteLine("Standard input may only be used by itself.");
+		Console.Error.WriteLine("Standard input may only be used by itself and cannot be combined with API headers.");
+		return 1;
+	}
+
+	if (includeFilenames.Contains("-"))
+	{
+		Console.Error.WriteLine("API headers must be read from files, not standard input.");
 		return 1;
 	}
 
@@ -77,8 +102,17 @@ static int Run(List<string>? filenames, InspectMode? inspect, bool printXml)
 		return 1;
 	}
 
-	if (!TryLoadCompilation(filenames, out Compilation compilation))
+	if (inspectApi && (inspect is not null || printXml))
+	{
+		Console.Error.WriteLine("--inspect-api cannot be combined with --inspect or --xml.");
 		return 1;
+	}
+
+	if (!TryLoadCompilation(filenames, includeFilenames, out Compilation compilation))
+		return 1;
+
+	if (inspectApi)
+		return PrintApi(compilation);
 
 	inspect ??= InspectMode.None;
 	return inspect switch
@@ -93,7 +127,7 @@ static int Run(List<string>? filenames, InspectMode? inspect, bool printXml)
 	};
 }
 
-static bool TryLoadCompilation(List<string> filenames, out Compilation compilation)
+static bool TryLoadCompilation(List<string> filenames, List<string> includeFilenames, out Compilation compilation)
 {
 	compilation = new Compilation();
 	foreach (string filename in filenames)
@@ -101,6 +135,12 @@ static bool TryLoadCompilation(List<string> filenames, out Compilation compilati
 		if (!TryReadInput(filename, out string text))
 			return false;
 		compilation.Files.Add(new SourceFile { Path = filename, Text = text });
+	}
+	foreach (string filename in includeFilenames)
+	{
+		if (!TryReadInput(filename, out string text))
+			return false;
+		compilation.Files.Add(new SourceFile { Path = filename, Text = text, IsApiHeader = true });
 	}
 	return true;
 }
@@ -173,6 +213,42 @@ static int PrintLowering(Compilation compilation, bool printXml)
 
 	PrintBindable(BuildOutputModule(compilation, compilation.Files[0]), printXml);
 	return 0;
+}
+
+static int PrintApi(Compilation compilation)
+{
+	if (!BuildAllAndReport(compilation))
+		return 1;
+
+	AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!);
+	if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
+		return 1;
+
+	BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation), Console.Out, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+	return 0;
+}
+
+static Camp.Compiler.Module BuildApiOutputModule(Compilation compilation)
+{
+	Camp.Compiler.Module output = new()
+	{
+		ResolvedType = compilation.SharedModule?.ResolvedType
+	};
+
+	foreach (SourceFile file in compilation.Files)
+	{
+		if (file.IsApiHeader || file.BindableTree is not Camp.Compiler.Module module)
+			continue;
+
+		output.SourceSyntax ??= module.SourceSyntax;
+		output.ExportAs ??= module.ExportAs;
+		foreach (UsingDeclaration usingDeclaration in module.Usings)
+			output.Usings.Add(usingDeclaration);
+		foreach (Definition definition in module.Definitions)
+			output.Definitions.Add(definition);
+	}
+
+	return output;
 }
 
 static Camp.Compiler.Module BuildOutputModule(Compilation compilation, SourceFile file)

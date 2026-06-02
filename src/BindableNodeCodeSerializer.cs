@@ -9,12 +9,14 @@ namespace Camp.Compiler;
 public sealed class BindableNodeCodeSerializerOptions
 {
 	public string TabString { get; set; } = "\t";
+	public bool ApiHeader { get; set; }
 }
 
 public sealed class BindableNodeCodeSerializer
 {
 	readonly TextWriter writer;
 	readonly string tab;
+	readonly bool apiHeader;
 	readonly Dictionary<BindableNode, string> generatedNames = new();
 	int indent;
 	int generatedLocalIndex;
@@ -23,6 +25,7 @@ public sealed class BindableNodeCodeSerializer
 	{
 		this.writer = writer;
 		tab = options?.TabString ?? "\t";
+		apiHeader = options?.ApiHeader ?? false;
 	}
 
 	public static void Serialize(BindableNode node, TextWriter writer, BindableNodeCodeSerializerOptions? options = null)
@@ -58,8 +61,23 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteModule(Module module)
 	{
+		bool wrotePrelude = false;
+		if (!string.IsNullOrWhiteSpace(module.ExportAs))
+		{
+			WriteIndent();
+			writer.Write("export as ");
+			writer.Write(module.ExportAs);
+			writer.WriteLine(";");
+			wrotePrelude = true;
+		}
+
 		foreach (UsingDeclaration usingDeclaration in module.Usings)
 		{
+			if (wrotePrelude)
+			{
+				writer.WriteLine();
+				wrotePrelude = false;
+			}
 			WriteIndent();
 			writer.Write("using ");
 			writer.Write(usingDeclaration.Name);
@@ -71,17 +89,24 @@ public sealed class BindableNodeCodeSerializer
 			writer.WriteLine(";");
 		}
 
-		if (module.Usings.Count > 0 && module.Definitions.Count > 0)
+		if ((!string.IsNullOrWhiteSpace(module.ExportAs) || module.Usings.Count > 0) && module.Definitions.Count > 0)
 			writer.WriteLine();
 
 		bool wroteDefinition = false;
 		foreach (Definition definition in module.Definitions)
 		{
+			if (apiHeader && !ShouldWriteApiDefinition(definition))
+				continue;
 			if (wroteDefinition && definition is TypeDefinition)
 				writer.WriteLine();
 			WriteDefinition(definition);
 			wroteDefinition = true;
 		}
+	}
+
+	static bool ShouldWriteApiDefinition(Definition definition)
+	{
+		return definition.Export is not null;
 	}
 
 	void WriteDefinition(Definition definition)
@@ -137,7 +162,10 @@ public sealed class BindableNodeCodeSerializer
 		WriteBaseTypes(definition.BaseTypes);
 		WriteLineBlock(() =>
 		{
-			WriteMembers(definition.Fields, definition.Functions);
+			if (apiHeader)
+				WriteApiFunctions(definition.Functions);
+			else
+				WriteMembers(definition.Fields, definition.Functions);
 		});
 	}
 
@@ -152,7 +180,13 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write(definition.Name);
 		WriteGenericParameters(definition.GenericParameters);
 		WriteBaseTypes(definition.BaseTypes);
-		WriteLineBlock(() => WriteMembers(definition.Fields, definition.Functions));
+		WriteLineBlock(() =>
+		{
+			if (apiHeader)
+				WriteApiStructMembers(definition.Fields, definition.Functions);
+			else
+				WriteMembers(definition.Fields, definition.Functions);
+		});
 	}
 
 	void WriteInterfaceDefinition(InterfaceDefinition definition)
@@ -216,14 +250,32 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write("newtype ");
 		if (definition.IteratorKind != IteratorKind.None)
 			writer.Write($"{Lower(definition.IteratorKind)} ");
-		if (definition.UnderlyingType is not null)
-			WriteType(definition.UnderlyingType);
-		else
-			writer.Write(definition.ResolvedType ?? "auto");
-		writer.Write(" ");
+
+		bool callable = definition.UnderlyingType is CallableTypeReference or IterTypeReference || definition.Parameters.Count > 0;
+		if (callable)
+		{
+			if (definition.UnderlyingType is not null)
+				WriteType(definition.UnderlyingType);
+			else
+				writer.Write(definition.ResolvedType ?? "auto");
+			writer.Write(" ");
+		}
 		writer.Write(definition.Name);
-		WriteParameterList(definition.Parameters);
-		writer.WriteLine(";");
+		if (callable)
+			WriteParameterList(definition.Parameters);
+		else if (definition.UnderlyingType is not null)
+		{
+			writer.Write(" : ");
+			WriteType(definition.UnderlyingType);
+		}
+
+		if (definition.Functions.Count == 0 || apiHeader && !HasExportedFunction(definition.Functions))
+		{
+			writer.WriteLine(";");
+			return;
+		}
+
+		WriteLineBlock(() => WriteApiAwareFunctions(definition.Functions));
 	}
 
 	void WriteParamsDefinition(ParamsDefinition definition)
@@ -253,6 +305,43 @@ public sealed class BindableNodeCodeSerializer
 		}
 	}
 
+	void WriteApiStructMembers(List<FieldDefinition> fields, List<FunctionDefinition> functions)
+	{
+		foreach (FieldDefinition field in fields)
+			WriteFieldDefinition(field);
+
+		if (fields.Count > 0 && HasExportedFunction(functions))
+			writer.WriteLine();
+		WriteApiFunctions(functions);
+	}
+
+	void WriteApiFunctions(List<FunctionDefinition> functions)
+	{
+		WriteApiAwareFunctions(functions);
+	}
+
+	void WriteApiAwareFunctions(List<FunctionDefinition> functions)
+	{
+		bool wrote = false;
+		foreach (FunctionDefinition function in functions)
+		{
+			if (apiHeader && function.Export is null)
+				continue;
+			if (wrote)
+				writer.WriteLine();
+			WriteFunctionDefinition(function);
+			wrote = true;
+		}
+	}
+
+	static bool HasExportedFunction(List<FunctionDefinition> functions)
+	{
+		foreach (FunctionDefinition function in functions)
+			if (function.Export is not null)
+				return true;
+		return false;
+	}
+
 	void WriteVariableDefinition(VariableDefinition definition)
 	{
 		WriteAttributes(definition.Attributes);
@@ -261,7 +350,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteTypeOrResolved(definition.Type, definition.ResolvedType);
 		writer.Write(" ");
 		writer.Write(GetName(definition));
-		if (definition.InitialValue is not null)
+		if (definition.InitialValue is not null && !ShouldSuppressApiInitializer(definition))
 		{
 			writer.Write(" = ");
 			WriteExpression(definition.InitialValue);
@@ -316,7 +405,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteGenericParameters(definition.GenericParameters);
 		WriteParameterList(definition.Parameters);
 
-		if (definition.Body is null)
+		if (definition.Body is null || apiHeader && definition.Export is not null)
 		{
 			writer.WriteLine(";");
 			return;
@@ -332,6 +421,17 @@ public sealed class BindableNodeCodeSerializer
 				});
 				break;
 		}
+	}
+
+	static bool ShouldSuppressApiInitializer(VariableDefinition definition)
+	{
+		return definition.Export is not null && !IsConstantVariableDefinition(definition);
+	}
+
+	static bool IsConstantVariableDefinition(VariableDefinition definition)
+	{
+		return definition.Type is ConstTypeReference
+			|| (definition.ResolvedType is string type && type.StartsWith("const ", StringComparison.Ordinal));
 	}
 
 	void WriteStatement(Statement statement)
@@ -803,8 +903,24 @@ public sealed class BindableNodeCodeSerializer
 	{
 		if (definition.Export is not null)
 			writer.Write("export ");
-		if (definition.Extern is not null)
+		if (ShouldWriteExternPrefix(definition))
 			writer.Write("extern ");
+	}
+
+	bool ShouldWriteExternPrefix(Definition definition)
+	{
+		if (definition.Extern is not null)
+			return true;
+		if (!apiHeader || definition.Export is null)
+			return false;
+
+		return definition switch
+		{
+			ClassDefinition => true,
+			FunctionDefinition function => function.Body is not null,
+			VariableDefinition variable => !IsConstantVariableDefinition(variable),
+			_ => false
+		};
 	}
 
 	void WriteGenericParameters(List<GenericParameter> parameters)
