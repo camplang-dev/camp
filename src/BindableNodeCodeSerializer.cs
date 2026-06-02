@@ -254,7 +254,9 @@ public sealed class BindableNodeCodeSerializer
 		bool callable = definition.UnderlyingType is CallableTypeReference or IterTypeReference || definition.Parameters.Count > 0;
 		if (callable)
 		{
-			if (definition.UnderlyingType is not null)
+			if (definition.UnderlyingType is CallableTypeReference callableType)
+				WriteCallableNewtypePrefix(callableType);
+			else if (definition.UnderlyingType is not null)
 				WriteType(definition.UnderlyingType);
 			else
 				writer.Write(definition.ResolvedType ?? "auto");
@@ -276,6 +278,13 @@ public sealed class BindableNodeCodeSerializer
 		}
 
 		WriteLineBlock(() => WriteApiAwareFunctions(definition.Functions));
+	}
+
+	void WriteCallableNewtypePrefix(CallableTypeReference callable)
+	{
+		writer.Write(GetCallableKind(callable.Kind));
+		WriteCallableSpecs(callable.TargetSpec, callable.CallSpec);
+		WriteType(callable.ReturnType);
 	}
 
 	void WriteParamsDefinition(ParamsDefinition definition)
@@ -1153,9 +1162,7 @@ public sealed class BindableNodeCodeSerializer
 
 			case CallableTypeReference callable:
 				writer.Write(GetCallableKind(callable.Kind));
-				WriteCallSpec(callable.CallSpec ?? callable.TargetSpec, leadingSpace: true);
-				if (string.IsNullOrWhiteSpace(callable.CallSpec) && string.IsNullOrWhiteSpace(callable.TargetSpec))
-					writer.Write(" ");
+				WriteCallableSpecs(callable.TargetSpec, callable.CallSpec);
 				WriteType(callable.ReturnType);
 				WriteParameterList(callable.Parameters);
 				break;
@@ -1208,6 +1215,21 @@ public sealed class BindableNodeCodeSerializer
 		if (leadingSpace)
 			writer.Write(" ");
 		writer.Write(callSpec);
+		writer.Write(" ");
+	}
+
+	void WriteCallableSpecs(string? targetSpec, string? callSpec)
+	{
+		if (!string.IsNullOrWhiteSpace(targetSpec))
+		{
+			writer.Write(" ");
+			writer.Write(targetSpec);
+		}
+		if (!string.IsNullOrWhiteSpace(callSpec))
+		{
+			writer.Write(" ");
+			writer.Write(callSpec);
+		}
 		writer.Write(" ");
 	}
 

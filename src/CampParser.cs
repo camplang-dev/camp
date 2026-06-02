@@ -176,12 +176,36 @@ public sealed class CampParser
 			Keyword = Take()
 		};
 
+		if (syntax.Keyword?.Value == "newtype" && Is("fn"))
+		{
+			TypeSyntax? callable = ParseType();
+			if (callable is CallableTypeSyntax callableType)
+			{
+				while (IsPossibleTargetSpecIdentifier())
+				{
+					if (callableType.CallSpec is null)
+						callableType.CallSpec = Take();
+					else if (syntax.CallSpec is null)
+						syntax.CallSpec = Take();
+					else
+						break;
+				}
+				if (IsIdentifier())
+					syntax.Type = callable;
+				else
+					syntax.Type = null;
+			}
+		}
+
 		int typeStart = index;
-		TypeSyntax? type = ParseType();
-		if (type is not null && IsIdentifier())
-			syntax.Type = type;
-		else
-			index = typeStart;
+		if (syntax.Type is null)
+		{
+			TypeSyntax? type = ParseType();
+			if (type is not null && IsIdentifier())
+				syntax.Type = type;
+			else
+				index = typeStart;
+		}
 
 		syntax.Identifier = ExpectIdentifier();
 
@@ -288,7 +312,7 @@ public sealed class CampParser
 		if (syntax.Declarators.Count == 0)
 			syntax.Declarators = null;
 
-		if (CanParseCallSpec(syntax.Declarators) && IsPossibleTargetSpecIdentifier())
+		if (IsPossibleTargetSpecIdentifier())
 			syntax.CallSpec = Take();
 
 		int typeStart = index;
@@ -494,6 +518,8 @@ public sealed class CampParser
 			};
 			if (IsPossibleTargetSpecIdentifier())
 				callable.CallSpec = Take();
+			if (IsPossibleTargetSpecIdentifier())
+				callable.TargetSpec = Take();
 			callable.ReturnType = ParseType();
 			callable.ParameterList = Is("(") ? ParseParameterList() : null;
 			return callable;
@@ -604,17 +630,6 @@ public sealed class CampParser
 		}
 
 		return syntax;
-	}
-
-	bool CanParseCallSpec(List<MemberDeclaratorSyntax>? declarators)
-	{
-		foreach (MemberDeclaratorSyntax declarator in declarators ?? [])
-		{
-			if (declarator.Keyword?.Value is "extern" or "export")
-				return true;
-		}
-
-		return false;
 	}
 
 	bool IsPossibleTargetSpecIdentifier()

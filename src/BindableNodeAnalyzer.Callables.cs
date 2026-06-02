@@ -24,7 +24,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& TryParseCallableShape(underlyingType, out shape))
 		{
 			if (newtypeDefinition.Parameters.Count > 0)
-				shape = new CallableShape(shape.Kind, shape.Spec, shape.ReturnType, [.. GetParameterTypeNames(newtypeDefinition.Parameters)]);
+				shape = new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, [.. GetParameterTypeNames(newtypeDefinition.Parameters)]);
 			return true;
 		}
 
@@ -67,34 +67,30 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		string signaturePrefix = remainder[..open].Trim();
-		string? spec = null;
-		if (TrySplitCallableSpec(signaturePrefix, out string? parsedSpec, out string? parsedReturnType))
-		{
-			spec = parsedSpec;
-			signaturePrefix = parsedReturnType;
-		}
+		List<string> specs = SplitCallableSpecs(ref signaturePrefix);
 
 		string returnType = signaturePrefix;
 		string parametersText = remainder[(open + 1)..close].Trim();
-		shape = new CallableShape(kind, spec, returnType, SplitCallableParameterTypes(parametersText));
+		shape = new CallableShape(kind, specs.Count > 0 ? specs[0] : null, specs.Count > 1 ? specs[1] : null, returnType, SplitCallableParameterTypes(parametersText));
 		return true;
 	}
 
-	static bool TrySplitCallableSpec(string text, out string? spec, out string returnType)
+	static List<string> SplitCallableSpecs(ref string text)
 	{
-		spec = null;
-		returnType = text;
-		int space = text.IndexOf(' ');
-		if (space <= 0)
-			return false;
+		List<string> specs = [];
+		while (true)
+		{
+			int space = text.IndexOf(' ');
+			if (space <= 0)
+				return specs;
 
-		string candidate = text[..space];
-		if (!candidate.StartsWith("_", StringComparison.Ordinal))
-			return false;
+			string candidate = text[..space];
+			if (!candidate.StartsWith("_", StringComparison.Ordinal))
+				return specs;
 
-		spec = candidate;
-		returnType = text[(space + 1)..].TrimStart();
-		return true;
+			specs.Add(candidate);
+			text = text[(space + 1)..].TrimStart();
+		}
 	}
 
 	static List<string> SplitCallableParameterTypes(string parametersText)
@@ -134,7 +130,7 @@ public sealed partial class BindableNodeAnalyzer
 				return false;
 		}
 
-		return source.Spec == target.Spec && source.ReturnType == target.ReturnType;
+		return source.Spec == target.Spec && source.CallSpec == target.CallSpec && source.ReturnType == target.ReturnType;
 	}
 
 	static string? GetLambdaParameterSymbolName(LambdaParameter parameter)
@@ -144,16 +140,18 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly struct CallableShape
 	{
-		public CallableShape(string kind, string? spec, string returnType, List<string> parameters)
+		public CallableShape(string kind, string? spec, string? callSpec, string returnType, List<string> parameters)
 		{
 			Kind = kind;
 			Spec = spec;
+			CallSpec = callSpec;
 			ReturnType = returnType;
 			Parameters = parameters;
 		}
 
 		public string Kind { get; }
 		public string? Spec { get; }
+		public string? CallSpec { get; }
 		public string ReturnType { get; }
 		public List<string> Parameters { get; }
 	}

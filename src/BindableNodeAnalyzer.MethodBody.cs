@@ -952,7 +952,7 @@ public sealed partial class BindableNodeAnalyzer
 			parameterTypes.Add(parameter.ResolvedType ?? ErrorType);
 
 		string inferredType = BuildCallableType("fn", targetShape?.ReturnType ?? returnType, parameterTypes);
-		if (targetType is not null && TryGetCallableShape(targetType, out CallableShape expectedShape) && CallableShapesCompatible(new CallableShape("fn", null, returnType, parameterTypes), expectedShape))
+		if (targetType is not null && TryGetCallableShape(targetType, out CallableShape expectedShape) && CallableShapesCompatible(new CallableShape("fn", null, null, returnType, parameterTypes), expectedShape))
 			return targetType;
 
 		return inferredType;
@@ -1816,6 +1816,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetArrayElementType(targetType) is string elementType)
 			return elementType;
 
+		if (TryGetPointerElementType(targetType) is string pointerElementType)
+			return pointerElementType;
+
 		if (GetPrimitiveStringElementType(targetType) is string stringElementType)
 			return stringElementType;
 
@@ -1887,6 +1890,8 @@ public sealed partial class BindableNodeAnalyzer
 				return GetAwaitedType(unary.Operand, scope, typeScope);
 
 			case UnaryOperator.AddressOf:
+				if (unary.Operand is IndexExpression index && TryGetIndexedAddressType(index.Target?.ResolvedType, out string indexedAddressType))
+					return indexedAddressType;
 				return $"{operandType}*";
 
 			case UnaryOperator.PointerDereference:

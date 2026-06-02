@@ -1236,6 +1236,7 @@ public sealed partial class BindableNodeBuilder
 				_ => CallableKind.Function
 			},
 			CallSpec = syntax.CallSpec?.Value,
+			TargetSpec = syntax.TargetSpec?.Value,
 			ReturnType = syntax.ReturnType is null ? MissingType(syntax, "Callable type is missing a return type.") : BuildTypeReference(syntax.ReturnType)
 		};
 

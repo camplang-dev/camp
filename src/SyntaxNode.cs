@@ -58,6 +58,7 @@ public class TypeDeclarationSyntax : SyntaxNode
 	public List<TypeDeclarationDeclaratorSyntax>? Declarators { get; set; }
 	public Token? Keyword { get; set; }
 	public TypeSyntax? Type { get; set; }
+	public Token? CallSpec { get; set; }
 	public Token? Identifier { get; set; }
 	public GenericParameterListSyntax? GenericParameterList { get; set; }
 	public ParameterListSyntax? ParameterList { get; set; }
@@ -181,6 +182,7 @@ public class CallableTypeSyntax : TypeSyntax
 {
 	public Token? CallableKeyword { get; set; }
 	public Token? CallSpec { get; set; }
+	public Token? TargetSpec { get; set; }
 	public TypeSyntax? ReturnType { get; set; }
 	public ParameterListSyntax? ParameterList { get; set; }
 }

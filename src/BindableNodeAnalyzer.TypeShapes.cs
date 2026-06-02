@@ -281,6 +281,27 @@ public sealed partial class BindableNodeAnalyzer
 			: null;
 	}
 
+	static bool TryGetIndexedAddressType(string? targetType, out string addressType)
+	{
+		addressType = ErrorType;
+		if (!new TypeShapeParser(targetType ?? "").TryParse(out TypeShape shape))
+			return false;
+
+		if (shape.Kind == TypeShapeKind.Array && shape.Element is not null)
+		{
+			addressType = TypeShapeParser.Format(new TypeShape(TypeShapeKind.Pointer, "", shape.Element, TypeQualifiers.None, shape.TargetSpec));
+			return true;
+		}
+
+		if (shape.Kind == TypeShapeKind.Pointer)
+		{
+			addressType = TypeShapeParser.Format(shape);
+			return true;
+		}
+
+		return false;
+	}
+
 	static string StripConstFromShape(string type)
 	{
 		return new TypeShapeParser(type).TryParse(out TypeShape shape)

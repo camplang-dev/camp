@@ -180,20 +180,40 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateCallableSpec(CallableTypeReference callable)
 	{
-		if (string.IsNullOrWhiteSpace(callable.CallSpec))
+		if (string.IsNullOrWhiteSpace(callable.CallSpec) && string.IsNullOrWhiteSpace(callable.TargetSpec))
 			return;
 
-		if (selectedTarget?.HasCallSpec(callable.CallSpec) == true)
+		string? normalizedCallSpec = null;
+		string? normalizedTargetSpec = null;
+		ClassifyCallableSpec(callable.CallSpec, callable.SourceSyntax, ref normalizedCallSpec, ref normalizedTargetSpec);
+		ClassifyCallableSpec(callable.TargetSpec, callable.SourceSyntax, ref normalizedCallSpec, ref normalizedTargetSpec);
+
+		callable.CallSpec = normalizedCallSpec;
+		callable.TargetSpec = normalizedTargetSpec;
+	}
+
+	void ClassifyCallableSpec(string? spec, SyntaxNode? syntax, ref string? callSpec, ref string? targetSpec)
+	{
+		if (string.IsNullOrWhiteSpace(spec))
 			return;
 
-		if (selectedTarget?.HasTypeSpec(callable.CallSpec) == true)
+		if (selectedTarget?.HasCallSpec(spec) == true)
 		{
-			callable.TargetSpec = callable.CallSpec;
-			callable.CallSpec = null;
+			if (callSpec is not null && callSpec != spec)
+				Report(GetRange(syntax), $"Callable type has multiple callspecs: '{callSpec}' and '{spec}'.");
+			callSpec = spec;
 			return;
 		}
 
-		Report(GetRange(callable.SourceSyntax), $"Callspec or typespec '{callable.CallSpec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
+		if (selectedTarget?.HasTypeSpec(spec) == true)
+		{
+			if (targetSpec is not null && targetSpec != spec)
+				Report(GetRange(syntax), $"Callable type has multiple target typespecs: '{targetSpec}' and '{spec}'.");
+			targetSpec = spec;
+			return;
+		}
+
+		Report(GetRange(syntax), $"Callspec or typespec '{spec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
 	}
 
 	void ValidateTargetTypeSpec(TargetTypeSpecTypeReference typeSpec)

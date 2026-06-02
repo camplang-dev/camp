@@ -366,7 +366,7 @@ public sealed partial class BindableNodeAnalyzer
 			ScopedTypeReference scoped => FormatTypeDeclarator(BuildAnchoredDeclarator("scoped", scoped.Anchors), scoped.Type),
 			UnscopedTypeReference unscoped => FormatTypeDeclarator(BuildAnchoredDeclarator("unscoped", unscoped.Anchors), unscoped.Type),
 			TargetTypeSpecTypeReference targetSpec => $"{FormatTypeReference(targetSpec.Type)} {targetSpec.Specifier}",
-			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)}{FormatCallSpec(callable.CallSpec ?? callable.TargetSpec)} {FormatTypeReference(callable.ReturnType)}({string.Join(", ", GetParameterTypeNames(callable.Parameters))})",
+			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)}{FormatCallSpec(callable.TargetSpec)}{FormatCallSpec(callable.CallSpec)} {FormatTypeReference(callable.ReturnType)}({string.Join(", ", GetParameterTypeNames(callable.Parameters))})",
 			IterTypeReference iter => $"iter {FormatTypeReference(iter.ElementType)}",
 			GroupedParamsTypeReference grouped => $"params({FormatTypeReference(grouped.StructType)})",
 			MaterializedStructTypeReference materialized => $"struct({FormatTypeReference(materialized.ParamsType)})",
