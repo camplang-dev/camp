@@ -501,6 +501,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (definition is not SizeOfParameterDefinition)
 			AnalyzeOptionalType(definition.Type, scope);
 
+		if (definition is WithinParameterDefinition && definition.Type is null)
+			BindImplicitWithinParameterType(definition, scope);
+
 		if (definition is VTableOfParameterDefinition vtableOf)
 			AnalyzeOptionalType(vtableOf.InterfaceType, scope);
 
@@ -516,5 +519,29 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateGenericArgumentUse(definition.Type);
 		ValidateParameterPassing(definition, scope);
 		AnalyzeConstantExpression(definition.DefaultValue, scope, "Parameter default value");
+	}
+
+	void BindImplicitWithinParameterType(ParameterDefinition definition, AnalysisScope scope)
+	{
+		NamedTypeReference allocatorType = new()
+		{
+			SourceSyntax = definition.SourceSyntax,
+			Name = "Allocator"
+		};
+		AnalyzeType(allocatorType, scope);
+		if (allocatorType.ResolvedType == ErrorType)
+		{
+			Report(GetNameRange(definition), "Implicit within parameter requires an accessible type named 'Allocator'.");
+			definition.ResolvedType = ErrorType;
+			return;
+		}
+
+		definition.Type = new PointerTypeReference
+		{
+			SourceSyntax = definition.SourceSyntax,
+			ElementType = allocatorType,
+			ResolvedType = $"{allocatorType.ResolvedType}*"
+		};
+		definition.ResolvedType = definition.Type.ResolvedType;
 	}
 }

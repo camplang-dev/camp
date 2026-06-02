@@ -125,7 +125,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
 				Value = CurrentWithinArgument(call.SourceSyntax ?? call.Target?.SourceSyntax),
-				ResolvedType = AllocatorType
+				ResolvedType = currentWithinContext?.ResolvedType ?? "#NULL"
 			});
 			return;
 		}

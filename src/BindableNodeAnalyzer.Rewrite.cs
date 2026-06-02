@@ -7,8 +7,6 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
-	readonly FunctionDefinition allocatorAllocMethod = CreateAllocatorAllocMethod();
-	readonly FunctionDefinition allocatorFreeMethod = CreateAllocatorFreeMethod();
 	readonly Dictionary<ClassDefinition, List<InterfaceImplementationLowering>> classInterfaceLowerings = [];
 	readonly Dictionary<StructDefinition, List<InterfaceImplementationLowering>> structInterfaceLowerings = [];
 	readonly Dictionary<ClassDefinition, VirtualClassLowering> virtualClassLowerings = [];

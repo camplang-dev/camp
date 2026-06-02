@@ -191,14 +191,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	DeclarationStatement CreateResolvedAllocatorLocal(ParameterDefinition? allocator)
 	{
-		Expression source = allocator is null ? StdDefaultAllocator() : CreateVariableReference(allocator, allocator.ResolvedType ?? "Allocator*");
-		DeclarationStatement declaration = CreateGeneratedLocal("resolvedAllocator", "Allocator*", AllocatorPointerType(), new BinaryExpression
-		{
-			Left = source,
-			Operator = BinaryOperator.NullCoalescing,
-			Right = StdDefaultAllocator(),
-			ResolvedType = "Allocator*"
-		});
+		string allocatorType = allocator?.ResolvedType ?? allocator?.Type?.ResolvedType ?? "Allocator*";
+		Expression source = allocator is null
+			? NullLiteral()
+			: CreateVariableReference(allocator, allocatorType);
+		TypeReference type = allocator?.Type is null
+			? new NamedTypeReference { Name = allocatorType, ResolvedType = allocatorType }
+			: CloneType(allocator.Type) ?? new NamedTypeReference { Name = allocatorType, ResolvedType = allocatorType };
+		DeclarationStatement declaration = CreateGeneratedLocal("resolvedAllocator", allocatorType, type, source);
 		declaration.Target.Names.Clear();
 		declaration.Target.Names.Add("resolvedAllocator");
 		return declaration;
@@ -211,55 +211,42 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
-	static NamedExpression CreateResolvedAllocatorReference()
+	Expression? CaptureWithinContext(Expression? allocator, SyntaxNode? syntax)
+	{
+		if (allocator is null || currentStatementPrefix is null)
+			return allocator;
+
+		DeclarationStatement local = CreateWithinContextLocal(allocator, syntax);
+		currentStatementPrefix.Add(local);
+		return CreateVariableReference(local.Target, local.Target.ResolvedType ?? allocator.ResolvedType ?? ErrorType);
+	}
+
+	DeclarationStatement CreateWithinContextLocal(Expression allocator, SyntaxNode? syntax)
+	{
+		string type = allocator.ResolvedType ?? ErrorType;
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("allocator"), type, new NamedTypeReference { Name = type, ResolvedType = type }, allocator);
+		local.SourceSyntax = syntax;
+		return local;
+	}
+
+	static NamedExpression CreateResolvedAllocatorReference(string resolvedType = "Allocator*")
 	{
 		return new NamedExpression
 		{
 			Name = "resolvedAllocator",
-			ResolvedType = "Allocator*"
+			ResolvedType = resolvedType
 		};
 	}
 
-	Expression StdDefaultAllocator(SyntaxNode? syntax = null)
+	static LiteralExpression NullLiteral(SyntaxNode? syntax = null)
 	{
-		if (FindStdDefaultAllocator(syntax) is VariableDefinition variable)
-		{
-			return new VariableReferenceExpression
-			{
-				SourceSyntax = syntax,
-				Variable = variable,
-				ResolvedType = variable.ResolvedType ?? variable.Type?.ResolvedType ?? "Allocator*"
-			};
-		}
-
-		NamedExpression expression = new()
+		return new LiteralExpression
 		{
 			SourceSyntax = syntax,
-			Name = "defaultAllocator",
-			ResolvedType = "Allocator*"
+			Kind = LiteralKind.Null,
+			Text = "null",
+			ResolvedType = "#NULL"
 		};
-		expression.Qualifiers.Add("Std");
-		return expression;
-	}
-
-	VariableDefinition? FindStdDefaultAllocator(SyntaxNode? syntax)
-	{
-		if (!typeDefinitions.TryGetValue("Allocator", out TypeDefinition? allocatorType) || !IsDefinitionVisible(allocatorType, syntax))
-			Report(syntax, "Allocator type 'Std::Allocator' could not be found.");
-
-		if (LookupGlobalVariable("defaultAllocator", syntax) is VariableDefinition variable)
-		{
-			string type = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
-			if (!CanImplicitlyConvert(type, "Allocator*"))
-				Report(syntax, "Allocator variable 'Std::defaultAllocator' must have type 'Allocator*'.");
-			return variable;
-		}
-
-		if (LookupHiddenGlobalSymbol("defaultAllocator", syntax) is Definition hidden)
-			ReportNotExported(hidden, syntax, "Allocator variable");
-		else
-			Report(syntax, "Allocator variable 'Std::defaultAllocator' could not be found.");
-		return null;
 	}
 
 	static void CopyParameters(List<ParameterDefinition> source, List<ParameterDefinition> target)
@@ -412,20 +399,9 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	Expression CurrentAllocator(SyntaxNode? syntax = null)
+	Expression? CurrentAllocator()
 	{
-		Expression? context = currentWithinContext;
-		if (context is null)
-			return StdDefaultAllocator(syntax);
-
-		return new BinaryExpression
-		{
-			SourceSyntax = syntax ?? context.SourceSyntax,
-			Left = context,
-			Operator = BinaryOperator.NullCoalescing,
-			Right = StdDefaultAllocator(syntax ?? context.SourceSyntax),
-			ResolvedType = "Allocator*"
-		};
+		return currentWithinContext;
 	}
 
 	Expression CurrentWithinArgument(SyntaxNode? syntax = null)
@@ -439,61 +415,186 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	FunctionDefinition ResolveAllocatorAllocMethod(SyntaxNode? syntax)
+	Expression CreateAllocationSizeExpression(TypeReference type, Expression? length, SyntaxNode? syntax)
 	{
-		if (FindAllocatorAllocMethod(syntax) is FunctionDefinition function)
-			return function;
-
-		if (allocatorSurfaceValidationEnabled)
-			Report(syntax, "Allocator method 'Std::Allocator.alloc' could not be found.");
-		return allocatorAllocMethod;
-	}
-
-	FunctionDefinition ResolveAllocatorFreeMethod(SyntaxNode? syntax)
-	{
-		if (FindAllocatorFreeMethod(syntax) is FunctionDefinition function)
-			return function;
-
-		if (allocatorSurfaceValidationEnabled)
-			Report(syntax, "Allocator method 'Std::Allocator.free' could not be found.");
-		return allocatorFreeMethod;
-	}
-
-	FunctionDefinition? FindAllocatorAllocMethod(SyntaxNode? syntax)
-	{
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		Expression sizeOf = new SizeOfExpression
 		{
-			if (definition is not FunctionDefinition function || !IsDefinitionVisible(function, syntax))
-				continue;
-			if (!IsFunctionNamed(function, "alloc") || GetExplicitThisParameter(function) is not ThisParameterDefinition thisParameter)
-				continue;
-			if (CanImplicitlyConvert(thisParameter.ResolvedType ?? thisParameter.Type?.ResolvedType ?? ErrorType, "Allocator*"))
+			SourceSyntax = syntax,
+			Type = CloneType(type),
+			ResolvedType = "nuint"
+		};
+		if (length is null)
+			return sizeOf;
+		return new BinaryExpression
+		{
+			SourceSyntax = syntax,
+			Left = sizeOf,
+			Operator = BinaryOperator.Multiply,
+			Right = length,
+			ResolvedType = "nuint"
+		};
+	}
+
+	CallExpression CreateMallocCall(Expression size, SyntaxNode? syntax)
+	{
+		FunctionDefinition? malloc = FindMallocFunction(syntax);
+		if (malloc is null && allocatorSurfaceValidationEnabled)
+			Report(syntax, "Allocation requires an accessible function named 'malloc' that takes a single integer parameter.");
+		CallExpression call = new()
+		{
+			SourceSyntax = syntax,
+			ResolvedType = malloc?.ResolvedType ?? "void*",
+			Target = malloc is null ? new NamedExpression { SourceSyntax = syntax, Name = "malloc", ResolvedType = "fn void*(nuint)" } : CreateMethodReference(malloc, malloc.ResolvedType ?? "void*")
+		};
+		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = size, ResolvedType = size.ResolvedType });
+		return call;
+	}
+
+	CallExpression CreateAllocatorAllocCall(Expression allocator, Expression size, SyntaxNode? syntax)
+	{
+		FunctionDefinition? alloc = FindAllocatorPatternMethod(allocator.ResolvedType, "alloc", IsSingleIntegerValueParameter, syntax);
+		if (alloc is null && allocatorSurfaceValidationEnabled)
+			Report(syntax, $"Allocator type '{allocator.ResolvedType ?? ErrorType}' must provide an accessible method named 'alloc' that takes a single integer parameter.");
+		MemberReferenceExpression target = new()
+		{
+			SourceSyntax = syntax,
+			Target = allocator,
+			Name = "alloc",
+			Member = alloc,
+			ResolvedType = alloc?.ResolvedType ?? "void*"
+		};
+		CallExpression call = new()
+		{
+			SourceSyntax = syntax,
+			ResolvedType = alloc?.ResolvedType ?? "void*",
+			Target = target
+		};
+		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = size, ResolvedType = size.ResolvedType });
+		if (alloc is not null && ShouldEmitFlattenedInstanceCalls())
+			RewriteInstanceInvocation(call, target, allocator, alloc);
+		return call;
+	}
+
+	CallExpression CreateGlobalFreeCall(Expression pointer, SyntaxNode? syntax)
+	{
+		FunctionDefinition? free = FindFreeFunction(syntax);
+		if (free is null && allocatorSurfaceValidationEnabled)
+			Report(syntax, "Deallocation requires an accessible function named 'free' that takes a single void* parameter.");
+		CallExpression call = new()
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Target = free is null ? new NamedExpression { SourceSyntax = syntax, Name = "free", ResolvedType = "fn void(void*)" } : CreateMethodReference(free, "void")
+		};
+		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = pointer, ResolvedType = pointer.ResolvedType });
+		return call;
+	}
+
+	CallExpression CreateAllocatorFreeCall(Expression allocator, Expression pointer, SyntaxNode? syntax)
+	{
+		FunctionDefinition? free = FindAllocatorPatternMethod(allocator.ResolvedType, "free", IsSingleVoidPointerValueParameter, syntax);
+		if (free is null && allocatorSurfaceValidationEnabled)
+			Report(syntax, $"Allocator type '{allocator.ResolvedType ?? ErrorType}' must provide an accessible method named 'free' that takes a single void* parameter.");
+		MemberReferenceExpression target = new()
+		{
+			SourceSyntax = syntax,
+			Target = allocator,
+			Name = "free",
+			Member = free,
+			ResolvedType = "void"
+		};
+		CallExpression call = new()
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Target = target
+		};
+		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = pointer, ResolvedType = pointer.ResolvedType });
+		if (free is not null && ShouldEmitFlattenedInstanceCalls())
+			RewriteInstanceInvocation(call, target, allocator, free);
+		return call;
+	}
+
+	FunctionDefinition? FindMallocFunction(SyntaxNode? syntax)
+	{
+		foreach (FunctionDefinition function in LookupGlobalFunctions("malloc", syntax))
+		{
+			if (GetExplicitThisParameter(function) is null && IsSingleIntegerValueParameter(function))
 				return function;
 		}
 
 		return null;
 	}
 
-	FunctionDefinition? FindAllocatorFreeMethod(SyntaxNode? syntax)
+	FunctionDefinition? FindFreeFunction(SyntaxNode? syntax)
 	{
-		if (!typeDefinitions.TryGetValue("Allocator", out TypeDefinition? allocatorType) || !IsDefinitionVisible(allocatorType, syntax))
+		foreach (FunctionDefinition function in LookupGlobalFunctions("free", syntax))
+		{
+			if (GetExplicitThisParameter(function) is null && IsSingleVoidPointerValueParameter(function))
+				return function;
+		}
+
+		return null;
+	}
+
+	IEnumerable<FunctionDefinition> LookupGlobalFunctions(string name, SyntaxNode? syntax)
+	{
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is not FunctionDefinition function || !IsDefinitionVisible(function, syntax))
+				continue;
+			if (IsFunctionNamed(function, name))
+				yield return function;
+		}
+	}
+
+	FunctionDefinition? FindAllocatorPatternMethod(string? allocatorType, string name, Func<FunctionDefinition, bool> predicate, SyntaxNode? syntax)
+	{
+		string receiverType = TryGetPointerElementType(allocatorType ?? "") ?? allocatorType ?? ErrorType;
+		if (GetTypeDefinition(receiverType) is not TypeDefinition type)
 			return null;
 
-		foreach (FunctionDefinition function in GetFunctions(allocatorType))
-			if (function.Name == "free" && IsMemberVisible(function, allocatorType, syntax))
+		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, syntax))
+			if (predicate(function))
 				return function;
-
-		foreach (Definition definition in currentModule?.Definitions ?? [])
-		{
-			if (definition is not FunctionDefinition function || !IsDefinitionVisible(function, syntax))
-				continue;
-			if (!IsFunctionNamed(function, "free") || GetExplicitThisParameter(function) is not ThisParameterDefinition thisParameter)
-				continue;
-			if (CanImplicitlyConvert(thisParameter.ResolvedType ?? thisParameter.Type?.ResolvedType ?? ErrorType, "Allocator*"))
-				return function;
-		}
 
 		return null;
+	}
+
+	static bool IsSingleIntegerValueParameter(FunctionDefinition function)
+	{
+		return GetPatternValueParameters(function) is [ParameterDefinition parameter] && IsIntegerTypeName(parameter.ResolvedType ?? parameter.Type?.ResolvedType);
+	}
+
+	bool IsSingleVoidPointerValueParameter(FunctionDefinition function)
+	{
+		return GetPatternValueParameters(function) is [ParameterDefinition parameter] && IsVoidPointerTypeName(parameter.ResolvedType ?? parameter.Type?.ResolvedType);
+	}
+
+	static List<ParameterDefinition> GetPatternValueParameters(FunctionDefinition function)
+	{
+		List<ParameterDefinition> parameters = [];
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+				continue;
+			if (parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within)
+				continue;
+			parameters.Add(parameter);
+		}
+		return parameters;
+	}
+
+	static bool IsIntegerTypeName(string? type)
+	{
+		return type is "byte" or "sbyte" or "ushort" or "short" or "uint" or "int" or "ulong" or "long" or "nuint" or "nint" or "char" or "wchar" or "achar" or "uchar";
+	}
+
+	bool IsVoidPointerTypeName(string? type)
+	{
+		return TryParseTypeShape(type, out TypeShape shape)
+			&& shape.Kind == TypeShapeKind.Pointer
+			&& shape.Element is TypeShape { Kind: TypeShapeKind.Named, Name: "void" };
 	}
 
 	static TypeReference AllocatorPointerType()
@@ -519,34 +620,6 @@ public sealed partial class BindableNodeAnalyzer
 	void Report(SyntaxNode? syntax, string message)
 	{
 		diagnostics.Add(new AnalysisDiagnostic(GetRange(syntax), message));
-	}
-
-	static FunctionDefinition CreateAllocatorAllocMethod()
-	{
-		FunctionDefinition method = new()
-		{
-			Name = "alloc",
-			Symbol = "alloc",
-			ResolvedType = "T*"
-		};
-		method.Parameters.Add(new ThisParameterDefinition { Name = "this", Symbol = "this", ResolvedType = "Allocator*" });
-		method.Parameters.Add(new ParameterDefinition { Name = "len", Symbol = "len", ResolvedType = "nuint" });
-		method.Parameters.Add(new SizeOfParameterDefinition { Name = "sizeof_T", Symbol = "sizeof_T", Type = new GenericParameterTypeReference { Name = "T", ResolvedType = "T" }, ResolvedType = "nuint" });
-		method.Parameters.Add(new ParameterDefinition { Name = "MemoryError", Symbol = "MemoryError", Modifier = ParameterModifier.Thrown, ResolvedType = "MemoryError" });
-		return method;
-	}
-
-	static FunctionDefinition CreateAllocatorFreeMethod()
-	{
-		FunctionDefinition method = new()
-		{
-			Name = "free",
-			Symbol = "free",
-			ResolvedType = "void"
-		};
-		method.Parameters.Add(new ThisParameterDefinition { Name = "this", Symbol = "this", ResolvedType = "Allocator*" });
-		method.Parameters.Add(new ParameterDefinition { Name = "ptr", Symbol = "ptr", ResolvedType = "escaped void*" });
-		return method;
 	}
 
 	sealed record InterfaceImplementationLowering(TypeDefinition Type, InterfaceDefinition Interface, FieldDefinition? Field, VariableDefinition VTable, bool DirectEntries, bool IsStruct);

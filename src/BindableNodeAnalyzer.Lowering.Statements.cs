@@ -231,11 +231,16 @@ public sealed partial class BindableNodeAnalyzer
 			case WithinStatement withinStatement:
 			{
 				Expression? allocator = LowerExpression(withinStatement.Allocator);
+				DeclarationStatement? allocatorLocal = allocator is null ? null : CreateWithinContextLocal(allocator, withinStatement.SourceSyntax);
 				Expression? previousWithinContext = currentWithinContext;
-				currentWithinContext = allocator;
+				currentWithinContext = allocatorLocal is null ? allocator : CreateVariableReference(allocatorLocal.Target, allocatorLocal.Target.ResolvedType ?? ErrorType);
 				Statement rewritten = withinStatement.Body is null ? CreateBlock([]) : RewriteStatement(withinStatement.Body);
 				currentWithinContext = previousWithinContext;
-				return rewritten;
+				if (allocatorLocal is null)
+					return rewritten;
+
+				List<Statement> withinStatements = [allocatorLocal, rewritten];
+				return CreateBlock(withinStatements);
 			}
 		}
 

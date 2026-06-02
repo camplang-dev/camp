@@ -24,7 +24,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (within.Expression is null)
 					return within.Context;
 				Expression? previousWithinContext = currentWithinContext;
-				currentWithinContext = within.Context;
+				currentWithinContext = CaptureWithinContext(within.Context, within.SourceSyntax);
 				Expression? lowered = LowerExpression(within.Expression);
 				currentWithinContext = previousWithinContext;
 				return lowered ?? within.Expression;
@@ -57,7 +57,7 @@ public sealed partial class BindableNodeAnalyzer
 				return LowerSizeOfExpression(sizeOf);
 
 			case CurrentAllocatorExpression currentAllocator:
-				return CurrentAllocator(currentAllocator.SourceSyntax);
+				return CurrentAllocator() ?? NullLiteral(currentAllocator.SourceSyntax);
 
 			case LambdaExpression lambda:
 				lambda.Body = RewriteFunctionBody(lambda.Body);
@@ -67,6 +67,11 @@ public sealed partial class BindableNodeAnalyzer
 				return LowerArgument(argument);
 
 			case CallExpression call:
+				if (call.Target is CurrentAllocatorExpression currentAllocatorTarget && call.TypeArguments.Count == 1 && call.Arguments.Count == 1)
+				{
+					call.Arguments[0] = LowerArgument(call.Arguments[0]);
+					return CreateAllocCallFromByteSize(call.TypeArguments[0], CurrentAllocator(), call.Arguments[0].Value ?? NumberLiteral("0", "nuint"), call.SourceSyntax ?? currentAllocatorTarget.SourceSyntax);
+				}
 				if (call.Target is MemberReferenceExpression callMemberTarget)
 				{
 					callMemberTarget.Target = LowerExpression(callMemberTarget.Target);

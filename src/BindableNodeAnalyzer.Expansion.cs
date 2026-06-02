@@ -1334,7 +1334,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (createWithAllocator)
 			body.Statements.Add(CreateResolvedAllocatorLocal(allocatorParameter));
 		string localName = NewGeneratedLocalName("created");
-		DeclarationStatement local = CreateGeneratedLocal(localName, $"{type.Name}*", PointerTo(CloneType(typeReference)!), CreateAllocCall(typeReference, createWithAllocator ? CreateResolvedAllocatorReference() : StdDefaultAllocator(), method.SourceSyntax));
+		string allocatorType = allocatorParameter?.ResolvedType ?? allocatorParameter?.Type?.ResolvedType ?? "Allocator*";
+		DeclarationStatement local = CreateGeneratedLocal(localName, $"{type.Name}*", PointerTo(CloneType(typeReference)!), CreateAllocCall(typeReference, createWithAllocator ? CreateResolvedAllocatorReference(allocatorType) : null, method.SourceSyntax));
 		body.Statements.Add(local);
 		IfStatement guard = new()
 		{
@@ -1420,7 +1421,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = destructor.SourceSyntax,
 			ResolvedType = "void",
-			Expression = CreateFreeCall(new ThisExpression { SourceSyntax = destructor.SourceSyntax, ResolvedType = $"{type.Name}*" }, destroyWithAllocator ? CreateResolvedAllocatorReference() : StdDefaultAllocator(destructor.SourceSyntax))
+			Expression = CreateFreeCall(new ThisExpression { SourceSyntax = destructor.SourceSyntax, ResolvedType = $"{type.Name}*" }, destroyWithAllocator ? CreateResolvedAllocatorReference(GetAllocatorParameter(method)?.ResolvedType ?? GetAllocatorParameter(method)?.Type?.ResolvedType ?? "Allocator*") : null)
 		});
 		return method;
 	}

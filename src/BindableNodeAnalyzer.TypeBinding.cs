@@ -203,9 +203,6 @@ public sealed partial class BindableNodeAnalyzer
 		if (named.Name == "<missing>")
 			return MissingTypeName;
 
-		if (named.Qualifiers.Count == 0 && named.Name == "Allocator")
-			return "Allocator";
-
 		Report(GetRange(named.SourceSyntax), $"Unknown type '{sourceName}'.");
 		return $"{UnresolvedType}({sourceName})";
 	}

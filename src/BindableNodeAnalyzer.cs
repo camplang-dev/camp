@@ -303,7 +303,7 @@ public sealed partial class BindableNodeAnalyzer
 		return definition switch
 		{
 			ThisParameterDefinition => ThisType,
-			WithinParameterDefinition => AllocatorType,
+			WithinParameterDefinition => ErrorType,
 			SizeOfParameterDefinition => "nuint",
 			VTableOfParameterDefinition => VTableType,
 			_ => ErrorType

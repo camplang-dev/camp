@@ -597,24 +597,6 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeNamedExpression(NamedExpression named, BodyScope scope)
 	{
-		if (named.Qualifiers.Count == 1 && named.Qualifiers[0] == "Std" && named.Name == "defaultAllocator")
-		{
-			if (FindStdDefaultAllocator(named.SourceSyntax) is VariableDefinition defaultAllocator)
-			{
-				string type = defaultAllocator.ResolvedType ?? defaultAllocator.Type?.ResolvedType ?? "Allocator*";
-				named.ResolvedType = type;
-				expressionRewrites[named] = new VariableReferenceExpression
-				{
-					SourceSyntax = named.SourceSyntax,
-					Variable = defaultAllocator,
-					ResolvedType = type
-				};
-				return type;
-			}
-
-			return ErrorType;
-		}
-
 		if (IsDiscardExpression(named))
 		{
 			Report(GetRange(named.SourceSyntax), "Discard '_' is write-only and cannot be read.");
@@ -835,8 +817,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeWithinExpression(WithinExpression within, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
-		string contextType = BodyAnalyzeExpression(within.Context, scope, typeScope, AllocatorType);
-		CheckAssignable(AllocatorType, contextType, within.Context?.SourceSyntax ?? within.SourceSyntax, "within allocator");
+		string contextType = BodyAnalyzeExpression(within.Context, scope, typeScope, targetType);
 		if (within.Expression is null)
 			return contextType;
 		return BodyAnalyzeExpression(within.Expression, scope, typeScope, targetType);
@@ -968,15 +949,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			return callableReturnType;
 		}
-		if (IsGeneratedAllocatorCall(function))
-		{
-			foreach (ArgumentExpression argument in call.Arguments)
-				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
-		}
-		else
-		{
-			AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax, IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames);
-		}
+		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax, IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames);
 		if (function is not null)
 			callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
 
@@ -1018,11 +991,6 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
 		return true;
-	}
-
-	bool IsGeneratedAllocatorCall(FunctionDefinition? function)
-	{
-		return ReferenceEquals(function, allocatorAllocMethod) || ReferenceEquals(function, allocatorFreeMethod);
 	}
 
 	static string SubstituteGenericReturnType(string? returnType, List<TypeReference> typeArguments, Dictionary<string, string>? substitutions = null)

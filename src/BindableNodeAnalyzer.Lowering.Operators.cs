@@ -209,37 +209,66 @@ public sealed partial class BindableNodeAnalyzer
 			Target = CreateMethodReference(opDelete, "void")
 		};
 		if (HasWithinParameter(opDelete))
-			call.Arguments.Add(new ArgumentExpression { Value = CurrentAllocator(opDelete.SourceSyntax), ResolvedType = AllocatorType });
+		{
+			Expression? allocator = CurrentAllocator();
+			call.Arguments.Add(new ArgumentExpression { Value = allocator ?? NullLiteral(opDelete.SourceSyntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" });
+		}
 		return call;
 	}
 
-	CallExpression CreateAllocCall(TypeReference type, SyntaxNode? syntax)
+	Expression CreateAllocCall(TypeReference type, SyntaxNode? syntax)
 	{
-		return CreateAllocCall(type, CurrentAllocator(syntax), syntax);
+		return CreateAllocCall(type, CurrentAllocator(), syntax);
 	}
 
-	CallExpression CreateAllocCall(TypeReference type, Expression allocator, SyntaxNode? syntax, Expression? length = null)
+	Expression CreateAllocCall(TypeReference type, Expression? allocator, SyntaxNode? syntax, Expression? length = null)
 	{
-		FunctionDefinition allocMethod = ResolveAllocatorAllocMethod(syntax);
-		MemberReferenceExpression targetReference = new()
+		Expression size = CreateAllocationSizeExpression(type, length, syntax);
+		if (allocator is CurrentAllocatorExpression currentAllocator)
+			return CreateDeferredCurrentAllocatorAllocCall(type, size, currentAllocator, syntax);
+
+		return CreateAllocCallFromByteSize(type, allocator, size, syntax);
+	}
+
+	Expression CreateAllocCallFromByteSize(TypeReference type, Expression? allocator, Expression size, SyntaxNode? syntax)
+	{
+		Expression allocation = allocator is null
+			? CreateMallocCall(size, syntax)
+			: new ConditionalExpression
+			{
+				SourceSyntax = syntax,
+				Condition = new BinaryExpression
+				{
+					SourceSyntax = syntax,
+					Left = allocator,
+					Operator = BinaryOperator.NotEqual,
+					Right = NullLiteral(syntax),
+					ResolvedType = "bool"
+				},
+				WhenTrue = CreateAllocatorAllocCall(allocator, size, syntax),
+				WhenFalse = CreateMallocCall(size, syntax),
+				ResolvedType = "void*"
+			};
+		return new CastExpression
 		{
-			Target = allocator,
-			Name = "alloc",
-			Member = allocMethod,
-			ResolvedType = allocMethod.ResolvedType
+			SourceSyntax = syntax,
+			Kind = CastKind.Type,
+			Type = PointerTo(CloneType(type)!),
+			Expression = allocation,
+			ResolvedType = $"{type.ResolvedType}*"
 		};
+	}
+
+	Expression CreateDeferredCurrentAllocatorAllocCall(TypeReference type, Expression size, CurrentAllocatorExpression currentAllocator, SyntaxNode? syntax)
+	{
 		CallExpression call = new()
 		{
 			SourceSyntax = syntax,
 			ResolvedType = $"{type.ResolvedType}*",
-			Target = targetReference
+			Target = currentAllocator
 		};
 		call.TypeArguments.Add(CloneType(type)!);
-		call.Arguments.Add(new ArgumentExpression { Value = length ?? NumberLiteral("1", "nuint"), ResolvedType = "nuint" });
-		call.Arguments.Add(new ArgumentExpression { Value = new SizeOfExpression { Type = CloneType(type), ResolvedType = "nuint" }, ResolvedType = "nuint" });
-		call.Arguments.Add(new ArgumentExpression { Modifier = ArgumentModifier.Catch, Value = new NamedExpression { Name = "_", ResolvedType = "MemoryError" }, ResolvedType = "MemoryError" });
-		if (ShouldEmitFlattenedInstanceCalls())
-			RewriteInstanceInvocation(call, targetReference, allocator, allocMethod);
+		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = size, ResolvedType = size.ResolvedType });
 		return call;
 	}
 
@@ -265,7 +294,10 @@ public sealed partial class BindableNodeAnalyzer
 		ExpandParamsArguments(call.Arguments);
 		AddImplicitSizeOfArguments(call, initNew, constructedType);
 		if (HasWithinParameter(initNew))
-			call.Arguments.Add(new ArgumentExpression { Value = allocatorArgument ?? CurrentAllocator(syntax), ResolvedType = AllocatorType });
+		{
+			Expression? allocator = allocatorArgument ?? CurrentAllocator();
+			call.Arguments.Add(new ArgumentExpression { Value = allocator ?? NullLiteral(syntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" });
+		}
 		if (ShouldEmitFlattenedInstanceCalls() && call.Target is MemberReferenceExpression member && target is not null)
 			RewriteInstanceInvocation(call, member, target, initNew);
 		return call;
@@ -286,41 +318,48 @@ public sealed partial class BindableNodeAnalyzer
 			Target = targetReference
 		};
 		if (HasWithinParameter(opDelete))
-			call.Arguments.Add(new ArgumentExpression { Value = allocatorArgument ?? CurrentAllocator(opDelete.SourceSyntax), ResolvedType = AllocatorType });
+		{
+			Expression? allocator = allocatorArgument ?? CurrentAllocator();
+			call.Arguments.Add(new ArgumentExpression { Value = allocator ?? NullLiteral(opDelete.SourceSyntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" });
+		}
 		if (ShouldEmitFlattenedInstanceCalls())
 			RewriteInstanceInvocation(call, targetReference, target, opDelete);
 		return call;
 	}
 
-	CallExpression CreateFreeCall(Expression target)
+	Expression CreateFreeCall(Expression target)
 	{
-		return CreateFreeCall(target, CurrentAllocator(target.SourceSyntax));
+		return CreateFreeCall(target, CurrentAllocator());
 	}
 
-	CallExpression CreateFreeCall(Expression target, Expression allocator)
+	Expression CreateFreeCall(Expression target, Expression? allocator)
 	{
-		FunctionDefinition freeMethod = ResolveAllocatorFreeMethod(target.SourceSyntax);
-		MemberReferenceExpression targetReference = new()
+		Expression pointer = new CastExpression
 		{
 			SourceSyntax = target.SourceSyntax,
-			Target = allocator,
-			Name = "free",
-			Member = freeMethod,
-			ResolvedType = freeMethod.ResolvedType
+			Kind = CastKind.Type,
+			Type = PointerTo(VoidType()),
+			Expression = target,
+			ResolvedType = "void*"
 		};
-		CallExpression call = new()
+		if (allocator is null)
+			return CreateGlobalFreeCall(pointer, target.SourceSyntax);
+
+		return new ConditionalExpression
 		{
 			SourceSyntax = target.SourceSyntax,
-			ResolvedType = "void",
-			Target = targetReference,
-			Arguments =
+			Condition = new BinaryExpression
 			{
-				new ArgumentExpression { SourceSyntax = target.SourceSyntax, Value = target, ResolvedType = target.ResolvedType }
-			}
+				SourceSyntax = target.SourceSyntax,
+				Left = allocator,
+				Operator = BinaryOperator.NotEqual,
+				Right = NullLiteral(target.SourceSyntax),
+				ResolvedType = "bool"
+			},
+			WhenTrue = CreateAllocatorFreeCall(allocator, pointer, target.SourceSyntax),
+			WhenFalse = CreateGlobalFreeCall(pointer, target.SourceSyntax),
+			ResolvedType = "void"
 		};
-		if (ShouldEmitFlattenedInstanceCalls())
-			RewriteInstanceInvocation(call, targetReference, allocator, freeMethod);
-		return call;
 	}
 
 	Expression CreateDeleteExpression(Expression target, FunctionDefinition? opDelete, bool deallocate)
@@ -356,7 +395,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Name = "elements",
 			ResolvedType = $"{elementType.ResolvedType}*",
-			Expression = CreateAllocCall(elementType, CurrentAllocator(syntax), syntax, length)
+			Expression = CreateAllocCall(elementType, CurrentAllocator(), syntax, length)
 		});
 		grouped.Items.Add(new GroupedExpressionItem
 		{
@@ -367,8 +406,11 @@ public sealed partial class BindableNodeAnalyzer
 		return grouped;
 	}
 
-	static Expression CreateArrayElementsAccess(Expression target)
+	Expression CreateArrayElementsAccess(Expression target)
 	{
+		if (TryCreateParamsComponentExpressions(target, out List<Expression> components) && components.Count > 0)
+			return components[0];
+
 		return new MemberExpression
 		{
 			Target = target,

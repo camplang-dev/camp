@@ -123,7 +123,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			List<FieldDefinition> components = [];
-			List<Expression?> initialValues = GetParamsComponentInitialValues(field.InitialValue, shape);
+			List<Expression?> initialValues = GetParamsComponentInitialValues(field.InitialValue, shape, deferCurrentAllocator: false);
 			for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
 				components.Add(CreateExpandedField(field, shape.Components[componentIndex], initialValues[componentIndex]));
 			RegisterParamsExpansion(field, shape, components);
@@ -250,7 +250,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryGetParamsComponentShape(variable.Type, variable.ResolvedType, variable.Name, out ParamsComponentShape shape))
 			return false;
 
-		List<Expression?> initialValues = GetParamsComponentInitialValues(variable.InitialValue, shape);
+		List<Expression?> initialValues = GetParamsComponentInitialValues(variable.InitialValue, shape, deferCurrentAllocator: false);
 		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
 			variables.Add(CreateExpandedVariable(variable, shape.Components[componentIndex], initialValues[componentIndex]));
 		RegisterParamsExpansion(variable, shape, variables);
@@ -267,7 +267,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryGetParamsComponentShape(declaration.Target.Type, declaration.Target.ResolvedType, name, out ParamsComponentShape shape))
 			return false;
 
-		List<Expression?> initialValues = GetParamsComponentInitialValues(declaration.InitialValue, shape);
+		List<Expression?> initialValues = GetParamsComponentInitialValues(declaration.InitialValue, shape, deferCurrentAllocator: true);
 		List<DeclarationTarget> targets = [];
 		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
 		{
@@ -362,7 +362,7 @@ public sealed partial class BindableNodeAnalyzer
 		return declaration;
 	}
 
-	List<Expression?> GetParamsComponentInitialValues(Expression? initialValue, ParamsComponentShape shape)
+	List<Expression?> GetParamsComponentInitialValues(Expression? initialValue, ParamsComponentShape shape, bool deferCurrentAllocator)
 	{
 		List<Expression?> values = [];
 		if (initialValue is ConstructionExpression { ElementCount: not null, Type: not null } construction
@@ -371,7 +371,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			values.Add(CreateAllocCall(
 				construction.Type,
-				new CurrentAllocatorExpression { SourceSyntax = construction.SourceSyntax, ResolvedType = AllocatorType },
+				deferCurrentAllocator ? new CurrentAllocatorExpression { SourceSyntax = construction.SourceSyntax, ResolvedType = "Allocator*" } : null,
 				construction.SourceSyntax,
 				construction.ElementCount));
 			values.Add(construction.ElementCount);
