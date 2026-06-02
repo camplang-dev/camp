@@ -600,6 +600,7 @@ public sealed partial class BindableNodeBuilder
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyFunctionDeclarators(definition, syntax.Declarators, isGlobal, allowVirtual, onlyExport: isConstructor);
+		definition.CallSpec = syntax.CallSpec?.Value;
 		AddGenericParameters(definition.GenericParameters, syntax.GenericParameterList);
 
 		if (isDestructor)
@@ -1190,6 +1191,15 @@ public sealed partial class BindableNodeBuilder
 			case DeclaratorTypeSyntax declarator:
 				return BuildDeclaratorTypeReference(declarator);
 
+			case TargetTypeSpecTypeSyntax targetSpec:
+				return new TargetTypeSpecTypeReference
+				{
+					SourceSyntax = targetSpec,
+					Specifier = targetSpec.Specifier?.Value ?? "",
+					Type = targetSpec.Type is null ? MissingType(targetSpec, "Target typespec is missing an inner type.") : BuildTypeReference(targetSpec.Type),
+					IsPrefix = targetSpec.IsPrefix
+				};
+
 			case QualifiedNameTypeSyntax name:
 				return BuildNamedTypeReference(name);
 
@@ -1225,6 +1235,7 @@ public sealed partial class BindableNodeBuilder
 				"once" => CallableKind.Once,
 				_ => CallableKind.Function
 			},
+			CallSpec = syntax.CallSpec?.Value,
 			ReturnType = syntax.ReturnType is null ? MissingType(syntax, "Callable type is missing a return type.") : BuildTypeReference(syntax.ReturnType)
 		};
 
@@ -1626,6 +1637,7 @@ public sealed partial class BindableNodeBuilder
 			StructTypeSyntax materialized => materialized.StructKeyword?.Range,
 			ThrownTypeSyntax thrown => thrown.ThrownKeyword?.Range,
 			DeclaratorTypeSyntax declarator => GetRangeOrNull(declarator.Declarator) ?? GetRangeOrNull(declarator.Type),
+			TargetTypeSpecTypeSyntax targetSpec => targetSpec.Specifier?.Range ?? GetRangeOrNull(targetSpec.Type),
 			QualifiedNameTypeSyntax named => named.Identifier?.Range,
 			_ => null
 		};

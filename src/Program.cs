@@ -10,10 +10,6 @@ using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using Camp.Compiler;
-using IniParser;
-using IniParser.Model;
-using IniParser.Model.Configuration;
-using IniParser.Parser;
 
 Argument<List<string>> filesArgument = new("files")
 {
@@ -151,7 +147,7 @@ static int Run(List<string>? filenames, List<string>? includeFilenames, InspectM
 		packageApiHeaders.Add(stdApiHeader);
 
 	List<string> allIncludeFilenames = [.. packageApiHeaders, .. includeFilenames];
-	if (!TryLoadCompilation(filenames, allIncludeFilenames, out Compilation compilation))
+	if (!TryLoadCompilation(filenames, allIncludeFilenames, context!, out Compilation compilation))
 		return 1;
 
 	if (inspectApi)
@@ -170,9 +166,9 @@ static int Run(List<string>? filenames, List<string>? includeFilenames, InspectM
 	};
 }
 
-static bool TryLoadCompilation(List<string> filenames, List<string> includeFilenames, out Compilation compilation)
+static bool TryLoadCompilation(List<string> filenames, List<string> includeFilenames, RuntimeContext context, out Compilation compilation)
 {
-	compilation = new Compilation();
+	compilation = new Compilation { Target = context.Target, ProfileName = context.ProfileName };
 	foreach (string filename in filenames)
 	{
 		if (!TryReadInput(filename, out string text))
@@ -214,118 +210,20 @@ static bool TryCreateRuntimeContext(string targetName, string profileName, out R
 		return false;
 	}
 
-	if (!TryLoadTargetCatalog(Path.Combine(executableDirectory, "targets"), out Dictionary<string, TargetDefinition> targets))
+	if (!TargetCatalog.TryLoad(Path.Combine(executableDirectory, "targets"), out TargetCatalog? catalog, out string? error))
+	{
+		Console.Error.WriteLine(error);
 		return false;
+	}
 
-	if (!targets.TryGetValue(targetName, out TargetDefinition? target))
+	if (!catalog!.TryGetTarget(targetName, out TargetDefinition? target))
 	{
 		Console.Error.WriteLine($"Target '{targetName}' could not be found in '{Path.Combine(executableDirectory, "targets")}'.");
 		return false;
 	}
 
-	if (!TryValidateTargetBaseChain(target, targets))
-		return false;
-
-	context = new RuntimeContext(executableDirectory, target.Name, normalizedProfile);
+	context = new RuntimeContext(executableDirectory, target!, normalizedProfile);
 	return true;
-}
-
-static bool TryLoadTargetCatalog(string targetsDirectory, out Dictionary<string, TargetDefinition> targets)
-{
-	targets = new Dictionary<string, TargetDefinition>(StringComparer.Ordinal);
-	if (!Directory.Exists(targetsDirectory))
-	{
-		Console.Error.WriteLine($"Target directory '{targetsDirectory}' could not be found.");
-		return false;
-	}
-
-	FileIniDataParser parser = new(new IniDataParser(new IniParserConfiguration
-	{
-		AllowDuplicateKeys = false,
-		AllowDuplicateSections = false,
-		AllowKeysWithoutSection = false,
-		ThrowExceptionsOnError = true
-	}));
-
-	foreach (string filename in Directory.GetFiles(targetsDirectory, "*.ini", SearchOption.AllDirectories).OrderBy(static x => x, StringComparer.Ordinal))
-	{
-		IniData data;
-		try
-		{
-			data = parser.ReadFile(filename, Encoding.UTF8);
-		}
-		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or IniParser.Exceptions.ParsingException)
-		{
-			Console.Error.WriteLine($"{filename}: {ex.Message}");
-			return false;
-		}
-
-		if (!TryGetTargetName(data, out string? targetName))
-		{
-			Console.Error.WriteLine($"{filename}: Target file is missing [target] name.");
-			return false;
-		}
-
-		if (targets.TryGetValue(targetName!, out TargetDefinition? existing))
-		{
-			Console.Error.WriteLine($"Target '{targetName}' is declared by both '{existing.Path}' and '{filename}'.");
-			return false;
-		}
-
-		targets.Add(targetName!, new TargetDefinition(targetName!, TryGetTargetBase(data), filename));
-	}
-
-	if (targets.Count == 0)
-	{
-		Console.Error.WriteLine($"Target directory '{targetsDirectory}' does not contain any target INI files.");
-		return false;
-	}
-
-	return true;
-}
-
-static bool TryValidateTargetBaseChain(TargetDefinition target, Dictionary<string, TargetDefinition> targets)
-{
-	HashSet<string> visited = new(StringComparer.Ordinal);
-	TargetDefinition current = target;
-	while (!string.IsNullOrWhiteSpace(current.BaseName))
-	{
-		if (!visited.Add(current.Name))
-		{
-			Console.Error.WriteLine($"Target '{target.Name}' has a circular base target chain.");
-			return false;
-		}
-
-		string baseName = current.BaseName;
-		if (!targets.TryGetValue(baseName, out TargetDefinition? next))
-		{
-			Console.Error.WriteLine($"{current.Path}: Base target '{baseName}' could not be found.");
-			return false;
-		}
-
-		current = next;
-	}
-
-	return true;
-}
-
-static bool TryGetTargetName(IniData data, out string? name)
-{
-	name = null;
-	if (!data.Sections.ContainsSection("target"))
-		return false;
-
-	name = data.Sections.GetSectionData("target").Keys.GetKeyData("name")?.Value?.Trim();
-	return !string.IsNullOrWhiteSpace(name);
-}
-
-static string? TryGetTargetBase(IniData data)
-{
-	if (!data.Sections.ContainsSection("target"))
-		return null;
-
-	string? baseName = data.Sections.GetSectionData("target").Keys.GetKeyData("base")?.Value?.Trim();
-	return string.IsNullOrWhiteSpace(baseName) ? null : baseName;
 }
 
 static bool TryPreparePackageApi(RuntimeContext context, string packageName, out string? apiHeaderPath)
@@ -348,14 +246,14 @@ static bool TryPreparePackageApi(RuntimeContext context, string packageName, out
 		return false;
 	}
 
-	string apiPath = Path.Combine(packageDirectory, "bin", context.TargetName, context.ProfileName, packageName + "-api.camp");
+	string apiPath = Path.Combine(packageDirectory, "bin", context.Target.Name, context.ProfileName, packageName + "-api.camp");
 	if (IsApiCacheCurrent(apiPath, sourceFiles))
 	{
 		apiHeaderPath = apiPath;
 		return true;
 	}
 
-	if (!TryBuildPackageApi(sourceFiles, apiPath))
+	if (!TryBuildPackageApi(sourceFiles, apiPath, context))
 		return false;
 
 	apiHeaderPath = apiPath;
@@ -377,15 +275,15 @@ static bool IsApiCacheCurrent(string apiPath, IReadOnlyList<string> sourceFiles)
 	return true;
 }
 
-static bool TryBuildPackageApi(IReadOnlyList<string> sourceFiles, string apiPath)
+static bool TryBuildPackageApi(IReadOnlyList<string> sourceFiles, string apiPath, RuntimeContext context)
 {
-	if (!TryLoadCompilation([.. sourceFiles], [], out Compilation packageCompilation))
+	if (!TryLoadCompilation([.. sourceFiles], [], context, out Compilation packageCompilation))
 		return false;
 
 	if (!BuildAllAndReport(packageCompilation))
 		return false;
 
-	AnalysisResult analysis = BindableNodeAnalyzer.Analyze(packageCompilation.SharedModule!);
+	AnalysisResult analysis = BindableNodeAnalyzer.Analyze(packageCompilation.SharedModule!, packageCompilation.Target);
 	if (!PrintAnalysisDiagnostics(packageCompilation, analysis.Diagnostics))
 		return false;
 	packageCompilation.SharedModule = analysis.Module;
@@ -441,7 +339,7 @@ static int PrintDeclarations(Compilation compilation, bool printXml)
 	if (!ExpandDeclarationsAndReport(compilation))
 		return 1;
 
-	AnalysisResult analysis = BindableNodeAnalyzer.AnalyzeExpanded(compilation.DeclarationExpansion!);
+	AnalysisResult analysis = BindableNodeAnalyzer.AnalyzeExpanded(compilation.DeclarationExpansion!, compilation.Target);
 	if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
 		return 1;
 	compilation.SharedModule = analysis.Module;
@@ -464,7 +362,7 @@ static int PrintApi(Compilation compilation)
 	if (!BuildAllAndReport(compilation))
 		return 1;
 
-	AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!);
+	AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target);
 	if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
 		return 1;
 
@@ -981,9 +879,7 @@ static string GetXmlName(string typeName)
 		: typeName;
 }
 
-sealed record RuntimeContext(string ExecutableDirectory, string TargetName, string ProfileName);
-
-sealed record TargetDefinition(string Name, string? BaseName, string Path);
+sealed record RuntimeContext(string ExecutableDirectory, TargetDefinition Target, string ProfileName);
 
 enum InspectMode
 {

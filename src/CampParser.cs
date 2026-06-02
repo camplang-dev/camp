@@ -288,6 +288,9 @@ public sealed class CampParser
 		if (syntax.Declarators.Count == 0)
 			syntax.Declarators = null;
 
+		if (CanParseCallSpec(syntax.Declarators) && IsPossibleTargetSpecIdentifier())
+			syntax.CallSpec = Take();
+
 		int typeStart = index;
 		TypeSyntax? type = ParseType();
 		if (type is not null && LooksLikeMemberName())
@@ -467,6 +470,10 @@ public sealed class CampParser
 			{
 				type = new DeclaratorTypeSyntax { Declarator = ParseTypeDeclarator(), Type = type };
 			}
+			else if (IsPossibleTargetSpecIdentifier())
+			{
+				type = new TargetTypeSpecTypeSyntax { Specifier = Take(), Type = type };
+			}
 			else
 			{
 				return type;
@@ -480,12 +487,17 @@ public sealed class CampParser
 			return new AttributedTypeSyntax { Attribute = ParseAttribute(), Type = ParseType() };
 
 		if (IsAny("fn", "delegate", "async", "once"))
-			return new CallableTypeSyntax
+		{
+			CallableTypeSyntax callable = new()
 			{
 				CallableKeyword = Take(),
-				ReturnType = ParseType(),
-				ParameterList = Is("(") ? ParseParameterList() : null
 			};
+			if (IsPossibleTargetSpecIdentifier())
+				callable.CallSpec = Take();
+			callable.ReturnType = ParseType();
+			callable.ParameterList = Is("(") ? ParseParameterList() : null;
+			return callable;
+		}
 
 		if ((Is("struct") || Is("class")) && PeekValue(1) == "iter")
 			return new IterTypeSyntax { StorageKeyword = Take(), IterKeyword = Expect("iter"), ElementType = ParseType() };
@@ -522,6 +534,9 @@ public sealed class CampParser
 
 		if (IsAny(TypeDeclaratorKeywords))
 			return new DeclaratorTypeSyntax { Declarator = ParseTypeDeclarator(), Type = ParseTypePrefix() };
+
+		if (IsPossibleTargetSpecIdentifier())
+			return new TargetTypeSpecTypeSyntax { Specifier = Take(), Type = ParseTypePrefix(), IsPrefix = true };
 
 		return ParseQualifiedNameType();
 	}
@@ -589,6 +604,22 @@ public sealed class CampParser
 		}
 
 		return syntax;
+	}
+
+	bool CanParseCallSpec(List<MemberDeclaratorSyntax>? declarators)
+	{
+		foreach (MemberDeclaratorSyntax declarator in declarators ?? [])
+		{
+			if (declarator.Keyword?.Value is "extern" or "export")
+				return true;
+		}
+
+		return false;
+	}
+
+	bool IsPossibleTargetSpecIdentifier()
+	{
+		return IsIdentifier() && Current?.Value.StartsWith("_", StringComparison.Ordinal) == true;
 	}
 
 	ParameterListSyntax ParseParameterList()

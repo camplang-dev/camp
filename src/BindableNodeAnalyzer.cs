@@ -49,17 +49,19 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<TypeDefinition, TypeAnalysisInfo> typeInfos = [];
 	readonly Dictionary<Expression, Expression> expressionRewrites = [];
 	readonly Dictionary<TypeReference, TypeReference> typeRewrites = [];
+	readonly TargetDefinition? selectedTarget;
 	Module? currentModule;
 
-	BindableNodeAnalyzer()
+	BindableNodeAnalyzer(TargetDefinition? selectedTarget = null)
 	{
+		this.selectedTarget = selectedTarget;
 	}
 
-	public static AnalysisResult Analyze(Module module)
+	public static AnalysisResult Analyze(Module module, TargetDefinition? selectedTarget = null)
 	{
 		ArgumentNullException.ThrowIfNull(module);
 
-		BindableNodeAnalyzer analyzer = new();
+		BindableNodeAnalyzer analyzer = new(selectedTarget);
 		analyzer.AnalyzeModule(module);
 		analyzer.FillMissingResolvedTypes(module);
 		return new AnalysisResult(module, analyzer.diagnostics);
@@ -155,11 +157,12 @@ public sealed partial class BindableNodeAnalyzer
 				EscapedTypeReference { Type: not null } escapedType => escapedType.Type,
 				ScopedTypeReference { Type: not null } scopedType => scopedType.Type,
 				UnscopedTypeReference { Type: not null } unscopedType => unscopedType.Type,
+				TargetTypeSpecTypeReference { Type: not null } targetSpec => targetSpec.Type,
 				AttributedTypeReference { Type: not null } attributedType => attributedType.Type,
 				_ => type
 			};
 
-			if (type is not ConstTypeReference and not VolatileTypeReference and not EscapedTypeReference and not ScopedTypeReference and not UnscopedTypeReference and not AttributedTypeReference)
+			if (type is not ConstTypeReference and not VolatileTypeReference and not EscapedTypeReference and not ScopedTypeReference and not UnscopedTypeReference and not TargetTypeSpecTypeReference and not AttributedTypeReference)
 				return type;
 		}
 	}
@@ -355,7 +358,8 @@ public sealed partial class BindableNodeAnalyzer
 			EscapedTypeReference escaped => FormatTypeDeclarator("escaped", escaped.Type),
 			ScopedTypeReference scoped => FormatTypeDeclarator(BuildAnchoredDeclarator("scoped", scoped.Anchors), scoped.Type),
 			UnscopedTypeReference unscoped => FormatTypeDeclarator(BuildAnchoredDeclarator("unscoped", unscoped.Anchors), unscoped.Type),
-			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)} {FormatTypeReference(callable.ReturnType)}({string.Join(", ", GetParameterTypeNames(callable.Parameters))})",
+			TargetTypeSpecTypeReference targetSpec => $"{FormatTypeReference(targetSpec.Type)} {targetSpec.Specifier}",
+			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)}{FormatCallSpec(callable.CallSpec)} {FormatTypeReference(callable.ReturnType)}({string.Join(", ", GetParameterTypeNames(callable.Parameters))})",
 			IterTypeReference iter => $"iter {FormatTypeReference(iter.ElementType)}",
 			GroupedParamsTypeReference grouped => $"params({FormatTypeReference(grouped.StructType)})",
 			MaterializedStructTypeReference materialized => $"struct({FormatTypeReference(materialized.ParamsType)})",
@@ -370,6 +374,11 @@ public sealed partial class BindableNodeAnalyzer
 		return inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or GenericTypeReference or CallableTypeReference
 			? $"{innerText} {keyword}"
 			: $"{keyword} {innerText}";
+	}
+
+	static string FormatCallSpec(string? callSpec)
+	{
+		return string.IsNullOrWhiteSpace(callSpec) ? "" : " " + callSpec;
 	}
 
 	static string GetCallableKindName(CallableKind kind)

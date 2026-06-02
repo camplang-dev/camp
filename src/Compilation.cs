@@ -9,6 +9,8 @@ public sealed class Compilation
 	public DeclarationExpansionResult? DeclarationExpansion { get; set; }
 	public LoweringResult? Lowering { get; set; }
 	public Dictionary<Definition, SourceFile> DefinitionOwners { get; } = [];
+	public TargetDefinition? Target { get; set; }
+	public string ProfileName { get; set; } = "DEBUG";
 }
 
 public sealed class SourceFile
@@ -70,7 +72,7 @@ public static class CompilationPipeline
 		if (!buildSuccess)
 			return false;
 
-		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!);
+		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!, compilation.Target);
 		compilation.SharedModule = compilation.DeclarationExpansion.Module;
 		AssignGeneratedDefinitionOwners(compilation);
 		return compilation.DeclarationExpansion.Diagnostics.Count == 0;

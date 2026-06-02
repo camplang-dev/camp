@@ -217,6 +217,11 @@ public sealed partial class BindableNodeAnalyzer
 					yield return child;
 				break;
 
+			case TargetTypeSpecTypeReference { Type: not null } targetSpec:
+				foreach (NamedTypeReference child in GetNamedTypes(targetSpec.Type))
+					yield return child;
+				break;
+
 			case CallableTypeReference callable:
 				if (callable.ReturnType is not null)
 				{

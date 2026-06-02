@@ -15,7 +15,12 @@ public static class BindableNodeExpander
 {
 	public static DeclarationExpansionResult Expand(Module module)
 	{
+		return Expand(module, selectedTarget: null);
+	}
+
+	public static DeclarationExpansionResult Expand(Module module, TargetDefinition? selectedTarget)
+	{
 		ArgumentNullException.ThrowIfNull(module);
-		return BindableNodeAnalyzer.ExpandDeclarations(module);
+		return BindableNodeAnalyzer.ExpandDeclarations(module, selectedTarget);
 	}
 }

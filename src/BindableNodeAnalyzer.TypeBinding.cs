@@ -113,7 +113,14 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
+			case TargetTypeSpecTypeReference targetSpec:
+				AnalyzeOptionalType(targetSpec.Type, scope);
+				ValidateTargetTypeSpec(targetSpec);
+				type.ResolvedType = FormatTypeReference(type);
+				break;
+
 			case CallableTypeReference callable:
+				ValidateTargetCallSpec(callable.CallSpec, callable.SourceSyntax);
 				AnalyzeOptionalType(callable.ReturnType, scope);
 				foreach (ParameterDefinition parameter in callable.Parameters)
 					AnalyzeParameterDefinition(parameter, scope);
@@ -160,9 +167,52 @@ public sealed partial class BindableNodeAnalyzer
 			or CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once or CallableKind.Async };
 	}
 
+	void ValidateTargetCallSpec(string? callSpec, SyntaxNode? syntax)
+	{
+		if (string.IsNullOrWhiteSpace(callSpec))
+			return;
+
+		if (selectedTarget is null || !selectedTarget.HasCallSpec(callSpec))
+			Report(GetRange(syntax), $"Callspec '{callSpec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
+	}
+
+	void ValidateTargetTypeSpec(TargetTypeSpecTypeReference typeSpec)
+	{
+		if (string.IsNullOrWhiteSpace(typeSpec.Specifier))
+			return;
+
+		if (selectedTarget is null || !selectedTarget.HasTypeSpec(typeSpec.Specifier))
+		{
+			Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
+			return;
+		}
+
+		if (typeSpec.IsPrefix)
+		{
+			Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' must appear after the type form it modifies.");
+			return;
+		}
+
+		TypeReference? inner = typeSpec.Type;
+		if (inner is PrimitiveTypeReference { Type: PrimitiveType.NInt or PrimitiveType.NUInt or PrimitiveType.String or PrimitiveType.WString or PrimitiveType.AString })
+			return;
+
+		inner = UnwrapTypeDeclarators(inner ?? typeSpec);
+		if (inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or CallableTypeReference or GenericTypeReference)
+			return;
+
+		Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' cannot be applied to type '{FormatTypeReference(typeSpec.Type)}'.");
+	}
+
 	string ResolveNamedType(NamedTypeReference named, AnalysisScope scope)
 	{
 		string sourceName = BuildNamedTypeSourceName(named);
+
+		if (named.Qualifiers.Count == 0 && selectedTarget is not null && selectedTarget.HasTypeSpec(named.Name))
+		{
+			Report(GetRange(named.SourceSyntax), $"Typespec '{named.Name}' must appear after the type form it modifies.");
+			return $"{UnresolvedType}({sourceName})";
+		}
 
 		if (named.Qualifiers.Count == 0 && scope.TryGetGenericParameter(named.Name, out GenericParameter? genericParameter))
 		{

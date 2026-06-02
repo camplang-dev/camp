@@ -372,6 +372,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		CheckName(definition.Name.TrimStart('~'), GetNameRange(definition), "function");
 		NormalizeExtensionThisParameter(definition, containingType);
+		ValidateTargetCallSpec(definition.CallSpec, definition.SourceSyntax);
 
 		AnalysisScope scope = new(parentScope);
 		foreach (GenericParameter parameter in definition.GenericParameters)

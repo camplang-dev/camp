@@ -381,6 +381,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
+		WriteCallSpec(definition.CallSpec);
 		if (definition.Modifier == FunctionModifier.Constructor)
 		{
 			writer.Write(definition.Name);
@@ -1144,9 +1145,17 @@ public sealed class BindableNodeCodeSerializer
 				WriteTypeDeclarator(GetAnchoredDeclarator("unscoped", unscoped.Anchors), unscoped.Type);
 				break;
 
+			case TargetTypeSpecTypeReference targetSpec:
+				WriteType(targetSpec.Type);
+				writer.Write(" ");
+				writer.Write(targetSpec.Specifier);
+				break;
+
 			case CallableTypeReference callable:
 				writer.Write(GetCallableKind(callable.Kind));
-				writer.Write(" ");
+				WriteCallSpec(callable.CallSpec, leadingSpace: true);
+				if (string.IsNullOrWhiteSpace(callable.CallSpec))
+					writer.Write(" ");
 				WriteType(callable.ReturnType);
 				WriteParameterList(callable.Parameters);
 				break;
@@ -1189,6 +1198,17 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write(keyword);
 		writer.Write(" ");
 		WriteType(inner);
+	}
+
+	void WriteCallSpec(string? callSpec, bool leadingSpace = false)
+	{
+		if (string.IsNullOrWhiteSpace(callSpec))
+			return;
+
+		if (leadingSpace)
+			writer.Write(" ");
+		writer.Write(callSpec);
+		writer.Write(" ");
 	}
 
 	static string GetAnchoredDeclarator(string keyword, List<string> anchors)

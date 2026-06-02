@@ -46,9 +46,9 @@ public sealed partial class BindableNodeAnalyzer
 		return new AnalysisResult(lowering.Module, lowering.Diagnostics);
 	}
 
-	internal static DeclarationExpansionResult ExpandDeclarations(Module module)
+	internal static DeclarationExpansionResult ExpandDeclarations(Module module, TargetDefinition? selectedTarget = null)
 	{
-		BindableNodeAnalyzer analyzer = new();
+		BindableNodeAnalyzer analyzer = new(selectedTarget);
 		analyzer.currentModule = module;
 		analyzer.CollectTypeNames(module);
 		analyzer.GenerateLifecycleMethods(module);
@@ -57,12 +57,12 @@ public sealed partial class BindableNodeAnalyzer
 		return new DeclarationExpansionResult(module, analyzer.diagnostics, analyzer);
 	}
 
-	public static AnalysisResult AnalyzeExpanded(DeclarationExpansionResult expansion)
+	public static AnalysisResult AnalyzeExpanded(DeclarationExpansionResult expansion, TargetDefinition? selectedTarget = null)
 	{
-		return AnalyzeDeclarationsExpanded(expansion);
+		return AnalyzeDeclarationsExpanded(expansion, selectedTarget);
 	}
 
-	public static AnalysisResult AnalyzeDeclarationsExpanded(DeclarationExpansionResult expansion)
+	public static AnalysisResult AnalyzeDeclarationsExpanded(DeclarationExpansionResult expansion, TargetDefinition? selectedTarget = null)
 	{
 		ArgumentNullException.ThrowIfNull(expansion);
 		BindableNodeAnalyzer analyzer = expansion.Analyzer;

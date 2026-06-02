@@ -101,6 +101,7 @@ public class FunctionDefinition : Definition
 	public FunctionModifier Modifier { get; set; }
 	public bool IsAsync { get; set; }
 	public IteratorKind IteratorKind { get; set; }
+	public string? CallSpec { get; set; }
 	public TypeReference? ReturnType { get; set; }
 	public List<GenericParameter> GenericParameters { get; } = [];
 	public List<ParameterDefinition> Parameters { get; } = [];
@@ -242,8 +243,16 @@ public class UnscopedTypeReference : TypeReference
 public class CallableTypeReference : TypeReference
 {
 	public CallableKind Kind { get; set; }
+	public string? CallSpec { get; set; }
 	public TypeReference? ReturnType { get; set; }
 	public List<ParameterDefinition> Parameters { get; } = [];
+}
+
+public class TargetTypeSpecTypeReference : TypeReference
+{
+	public string Specifier { get; set; } = "";
+	public TypeReference? Type { get; set; }
+	public bool IsPrefix { get; set; }
 }
 
 public class IterTypeReference : TypeReference

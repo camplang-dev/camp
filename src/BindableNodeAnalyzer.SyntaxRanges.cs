@@ -132,6 +132,7 @@ public sealed partial class BindableNodeAnalyzer
 			StructTypeSyntax materialized => materialized.StructKeyword?.Range,
 			ThrownTypeSyntax thrown => thrown.ThrownKeyword?.Range,
 			DeclaratorTypeSyntax declarator => GetRange(declarator.Declarator) ?? GetRange(declarator.Type),
+			TargetTypeSpecTypeSyntax targetSpec => targetSpec.Specifier?.Range ?? GetRange(targetSpec.Type),
 			QualifiedNameTypeSyntax named => named.Identifier?.Range,
 			_ => null
 		};

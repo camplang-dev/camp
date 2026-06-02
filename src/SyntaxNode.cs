@@ -107,6 +107,7 @@ public class MemberDeclarationSyntax : SyntaxNode
 {
 	public List<AttributeSyntax>? Attributes { get; set; }
 	public List<MemberDeclaratorSyntax>? Declarators { get; set; }
+	public Token? CallSpec { get; set; }
 	public TypeSyntax? Type { get; set; }
 	public Token? TildeToken { get; set; }
 	public Token? Identifier { get; set; }
@@ -179,6 +180,7 @@ public abstract class TypeSyntax : SyntaxNode
 public class CallableTypeSyntax : TypeSyntax
 {
 	public Token? CallableKeyword { get; set; }
+	public Token? CallSpec { get; set; }
 	public TypeSyntax? ReturnType { get; set; }
 	public ParameterListSyntax? ParameterList { get; set; }
 }
@@ -251,6 +253,13 @@ public class DeclaratorTypeSyntax : TypeSyntax
 {
 	public TypeDeclaratorSyntax? Declarator { get; set; }
 	public TypeSyntax? Type { get; set; }
+}
+
+public class TargetTypeSpecTypeSyntax : TypeSyntax
+{
+	public Token? Specifier { get; set; }
+	public TypeSyntax? Type { get; set; }
+	public bool IsPrefix { get; set; }
 }
 
 public class QualifiedNameTypeSyntax : TypeSyntax
