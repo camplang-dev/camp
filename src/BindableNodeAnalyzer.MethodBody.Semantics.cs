@@ -306,6 +306,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsNumericType(source) && IsNumericType(target))
 			return true;
 
+		if (TryParseTypeShape(source, out TypeShape explicitSourceShape)
+			&& TryParseTypeShape(target, out TypeShape explicitTargetShape)
+			&& CanExplicitlyConvertTargetSpecShape(explicitSourceShape, explicitTargetShape))
+			return true;
+
 		return TryParseTypeShape(source, out TypeShape sourceShape)
 			&& TryParseTypeShape(target, out TypeShape targetShape)
 			&& sourceShape.IsPointer
@@ -1292,6 +1297,8 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsNumericTypeName(string type)
 	{
 		type = StripTopLevelValueQualifiers(type);
+		if (new TypeShapeParser(type).TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Named)
+			type = shape.Name;
 		return IsIntegralTypeName(type) || type is "float" or "double";
 	}
 
@@ -1308,12 +1315,16 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsIntegralTypeName(string type)
 	{
 		type = StripTopLevelValueQualifiers(type);
+		if (new TypeShapeParser(type).TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Named)
+			type = shape.Name;
 		return type is "byte" or "sbyte" or "ushort" or "short" or "uint" or "int" or "ulong" or "long" or "nuint" or "nint" or "char" or "wchar" or "achar" or "uchar";
 	}
 
 	static int NumericRank(string type)
 	{
 		type = StripTopLevelValueQualifiers(type);
+		if (new TypeShapeParser(type).TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Named)
+			type = shape.Name;
 		return type switch
 		{
 			"byte" or "sbyte" => 1,

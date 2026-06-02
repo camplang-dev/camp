@@ -26,7 +26,7 @@ public sealed partial class BindableNodeAnalyzer
 		Escaped = 2
 	}
 
-	sealed record TypeShape(TypeShapeKind Kind, string Name, TypeShape? Element, TypeQualifiers Qualifiers)
+	sealed record TypeShape(TypeShapeKind Kind, string Name, TypeShape? Element, TypeQualifiers Qualifiers, string? TargetSpec = null)
 	{
 		public bool IsPointer => Kind == TypeShapeKind.Pointer;
 		public bool IsArray => Kind == TypeShapeKind.Array;
@@ -51,10 +51,18 @@ public sealed partial class BindableNodeAnalyzer
 	bool CanImplicitlyConvertShape(TypeShape source, TypeShape target, bool protectedByConstTarget, int pointerDepth)
 	{
 		if (source.Kind == TypeShapeKind.Named && target.Kind == TypeShapeKind.Named)
+		{
+			if (!TargetSpecsCanImplicitlyConvert(source.TargetSpec, target.TargetSpec))
+				return false;
+			if (!QualifiersCanConvert(source.Qualifiers, target.Qualifiers, protectedByConstTarget, pointerDepth))
+				return false;
 			return source.Name == target.Name
 				|| IsNumericType(source.Name) && IsNumericType(target.Name) && NumericRank(source.Name) <= NumericRank(target.Name);
+		}
 
 		if (!QualifiersCanConvert(source.Qualifiers, target.Qualifiers, protectedByConstTarget, pointerDepth))
+			return false;
+		if (!TargetSpecsCanImplicitlyConvert(source.TargetSpec, target.TargetSpec))
 			return false;
 
 		if (source.Kind == TypeShapeKind.Pointer
@@ -95,6 +103,52 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return false;
+	}
+
+	bool TargetSpecsCanImplicitlyConvert(string? source, string? target)
+	{
+		if (source == target)
+			return true;
+		if (selectedTarget is null)
+			return source is null && target is null;
+		return selectedTarget.CanWidenTypeSpec(source, target);
+	}
+
+	bool TargetSpecsAreExplicitlyCompatible(string? source, string? target)
+	{
+		if (source == target)
+			return true;
+		if (selectedTarget is null)
+			return source is null && target is null;
+		return selectedTarget.AreTypeSpecsCompatible(source, target);
+	}
+
+	bool CanExplicitlyConvertTargetSpecShape(TypeShape source, TypeShape target)
+	{
+		if (!ContainsTargetSpec(source) && !ContainsTargetSpec(target))
+			return false;
+		return CanExplicitlyConvertTargetSpecShape(source, target, hasTargetSpec: false);
+	}
+
+	bool CanExplicitlyConvertTargetSpecShape(TypeShape source, TypeShape target, bool hasTargetSpec)
+	{
+		if (source.Kind != target.Kind)
+			return false;
+		if (!TargetSpecsAreExplicitlyCompatible(source.TargetSpec, target.TargetSpec))
+			return false;
+
+		hasTargetSpec = hasTargetSpec || source.TargetSpec is not null || target.TargetSpec is not null;
+		if (source.Kind == TypeShapeKind.Named)
+			return hasTargetSpec && (source.Name == target.Name || IsNumericType(source.Name) && IsNumericType(target.Name));
+
+		return source.Element is not null
+			&& target.Element is not null
+			&& CanExplicitlyConvertTargetSpecShape(source.Element, target.Element, hasTargetSpec);
+	}
+
+	static bool ContainsTargetSpec(TypeShape shape)
+	{
+		return shape.TargetSpec is not null || shape.Element is not null && ContainsTargetSpec(shape.Element);
 	}
 
 	static bool QualifiersCanConvert(TypeQualifiers source, TypeQualifiers target, bool protectedByConstTarget, int pointerDepth)
@@ -310,6 +364,8 @@ public sealed partial class BindableNodeAnalyzer
 					shape = new TypeShape(TypeShapeKind.Pointer, "", shape, TypeQualifiers.None);
 				else if (TryReadQualifier(out TypeQualifiers qualifier))
 					shape = AddQualifier(shape, qualifier);
+				else if (TryReadTargetSpec(out string? targetSpec))
+					shape = shape with { TargetSpec = targetSpec };
 				else
 					return true;
 			}
@@ -467,13 +523,37 @@ public sealed partial class BindableNodeAnalyzer
 				suffixes.Add("volatile");
 			if (shape.Qualifiers.Lifetime != LifetimeKind.Scoped)
 				suffixes.Add(shape.Qualifiers.Lifetime.ToString().ToLower(CultureInfo.InvariantCulture));
+			string? targetSpec = shape.TargetSpec;
 
-			if (suffixes.Count == 0)
+			if (suffixes.Count == 0 && targetSpec is null)
 				return core;
 
-			return shape.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array or TypeShapeKind.Optional
-				? core + " " + string.Join(" ", suffixes)
-				: string.Join(" ", suffixes) + " " + core;
+			if (shape.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array or TypeShapeKind.Optional)
+			{
+				if (targetSpec is not null)
+					suffixes.Add(targetSpec);
+				return core + " " + string.Join(" ", suffixes);
+			}
+
+			string prefix = suffixes.Count == 0 ? "" : string.Join(" ", suffixes) + " ";
+			string suffix = targetSpec is null ? "" : " " + targetSpec;
+			return prefix + core + suffix;
+		}
+
+		bool TryReadTargetSpec(out string? targetSpec)
+		{
+			SkipWhitespace();
+			int start = index;
+			string word = ReadIdentifier();
+			if (word.StartsWith("_", StringComparison.Ordinal))
+			{
+				targetSpec = word;
+				return true;
+			}
+
+			index = start;
+			targetSpec = null;
+			return false;
 		}
 	}
 }

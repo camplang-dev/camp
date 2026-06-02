@@ -172,6 +172,7 @@ public sealed class TargetDefinition
 	public IReadOnlyDictionary<string, string> CallSpecs => Sections.CallSpecs;
 	public IReadOnlyDictionary<string, string> TypeSpecs => Sections.TypeSpecs;
 	public IReadOnlyDictionary<string, string> CTypes => Sections.CTypes;
+	public IReadOnlyList<string> TypeSpecOrder => Sections.TypeSpecOrder;
 
 	public bool HasCallSpec(string name)
 	{
@@ -182,6 +183,35 @@ public sealed class TargetDefinition
 	{
 		return Sections.TypeSpecs.ContainsKey(name);
 	}
+
+	public bool IsPrimitiveUnsupported(string name)
+	{
+		return Sections.CTypes.TryGetValue(name, out string? value) && value == "<unsupported>";
+	}
+
+	public bool CanWidenTypeSpec(string? source, string? target)
+	{
+		if (source == target)
+			return true;
+		if (target is null)
+			return false;
+		if (source is null)
+			return HasTypeSpec(target);
+		int sourceIndex = Sections.TypeSpecOrder.IndexOf(source);
+		int targetIndex = Sections.TypeSpecOrder.IndexOf(target);
+		return sourceIndex >= 0 && targetIndex >= 0 && sourceIndex <= targetIndex;
+	}
+
+	public bool AreTypeSpecsCompatible(string? source, string? target)
+	{
+		if (source == target)
+			return true;
+		if (source is null)
+			return target is not null && HasTypeSpec(target);
+		if (target is null)
+			return HasTypeSpec(source);
+		return HasTypeSpec(source) && HasTypeSpec(target);
+	}
 }
 
 internal sealed class TargetSections
@@ -189,19 +219,30 @@ internal sealed class TargetSections
 	public Dictionary<string, string> CallSpecs { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> TypeSpecs { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> CTypes { get; } = new(StringComparer.Ordinal);
+	public List<string> TypeSpecOrder { get; } = [];
 
 	public void CopyFrom(TargetSections source)
 	{
 		CopySection(source.CallSpecs, CallSpecs);
-		CopySection(source.TypeSpecs, TypeSpecs);
+		CopyTypeSpecSection(source.TypeSpecs, source.TypeSpecOrder);
 		CopySection(source.CTypes, CTypes);
 	}
 
 	public void MergeFrom(IniData data)
 	{
 		MergeSection(data, "callspec", CallSpecs);
-		MergeSection(data, "typespec", TypeSpecs);
+		MergeTypeSpecSection(data);
 		MergeSection(data, "ctype", CTypes);
+	}
+
+	void CopyTypeSpecSection(Dictionary<string, string> source, List<string> order)
+	{
+		foreach (string key in order)
+		{
+			if (!TypeSpecs.ContainsKey(key))
+				TypeSpecOrder.Add(key);
+			TypeSpecs[key] = source[key];
+		}
 	}
 
 	static void CopySection(Dictionary<string, string> source, Dictionary<string, string> target)
@@ -217,5 +258,18 @@ internal sealed class TargetSections
 
 		foreach (KeyData key in data.Sections.GetSectionData(sectionName).Keys)
 			target[key.KeyName] = key.Value;
+	}
+
+	void MergeTypeSpecSection(IniData data)
+	{
+		if (!data.Sections.ContainsSection("typespec"))
+			return;
+
+		foreach (KeyData key in data.Sections.GetSectionData("typespec").Keys)
+		{
+			if (!TypeSpecs.ContainsKey(key.KeyName))
+				TypeSpecOrder.Add(key.KeyName);
+			TypeSpecs[key.KeyName] = key.Value;
+		}
 	}
 }

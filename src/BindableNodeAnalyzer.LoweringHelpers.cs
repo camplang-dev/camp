@@ -586,6 +586,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsIntegerTypeName(string? type)
 	{
+		if (type is not null
+			&& new TypeShapeParser(type).TryParse(out TypeShape shape)
+			&& shape.Kind == TypeShapeKind.Named)
+		{
+			type = shape.Name;
+		}
+
 		return type is "byte" or "sbyte" or "ushort" or "short" or "uint" or "int" or "ulong" or "long" or "nuint" or "nint" or "char" or "wchar" or "achar" or "uchar";
 	}
 

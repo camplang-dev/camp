@@ -96,6 +96,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			case PrimitiveTypeReference primitive:
 				type.ResolvedType = GetPrimitiveTypeName(primitive.Type);
+				if (selectedTarget?.IsPrimitiveUnsupported(type.ResolvedType) == true)
+					Report(GetRange(type.SourceSyntax), $"Primitive type '{type.ResolvedType}' is not supported by target '{selectedTarget.Name}'.");
 				break;
 
 			case EscapedTypeReference escaped:
