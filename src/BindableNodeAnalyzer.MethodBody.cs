@@ -33,13 +33,13 @@ public sealed partial class BindableNodeAnalyzer
 		FlowAnalyzeFunctionBody(function, scope);
 	}
 
-	void AnalyzeConstantExpression(Expression? expression, AnalysisScope typeScope, string context)
+	void AnalyzeConstantExpression(Expression? expression, AnalysisScope typeScope, string context, string? targetType = null)
 	{
 		if (expression is null)
 			return;
 
 		BodyScope scope = new(null, new FunctionDefinition { Name = "#constant", ResolvedType = ErrorType }, containingType: null);
-		BodyAnalyzeExpression(expression, scope, typeScope);
+		BodyAnalyzeExpression(expression, scope, typeScope, targetType);
 		if (!IsConstant(expression))
 			Report(GetRange(expression.SourceSyntax), $"{context} must be a constant expression.");
 	}
@@ -528,13 +528,17 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (Statement child in statement.Statements)
 		{
-			BodyAnalyzeStatement(child, scope, typeScope);
 			if (child is CaseStatement caseStatement)
 			{
+				BodyAnalyzeExpression(caseStatement.Expression, scope, typeScope, switchType);
+				if (!IsConstant(caseStatement.Expression))
+					Report(GetRange(caseStatement.SourceSyntax), "Switch case expressions must be constant.");
 				string caseType = caseStatement.Expression?.ResolvedType ?? ErrorType;
 				if (!CanImplicitlyConvert(caseType, switchType))
 					Report(GetRange(caseStatement.Expression?.SourceSyntax ?? caseStatement.SourceSyntax), $"Switch case type '{caseType}' is not compatible with switch type '{switchType}'.");
 			}
+			else
+				BodyAnalyzeStatement(child, scope, typeScope);
 		}
 	}
 
@@ -546,7 +550,7 @@ public sealed partial class BindableNodeAnalyzer
 		string type = expression switch
 		{
 			LiteralExpression literal => BodyAnalyzeLiteralExpression(literal, targetType),
-			NamedExpression named => BodyAnalyzeNamedExpression(named, scope),
+			NamedExpression named => BodyAnalyzeNamedExpression(named, scope, targetType),
 			VariableReferenceExpression variable => variable.Variable?.ResolvedType ?? ErrorType,
 			MethodReferenceExpression method => BodyAnalyzeMethodReference(method),
 			TypeReferenceExpression typeReference => typeReference.Type?.ResolvedType ?? ErrorType,
@@ -595,13 +599,16 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	string BodyAnalyzeNamedExpression(NamedExpression named, BodyScope scope)
+	string BodyAnalyzeNamedExpression(NamedExpression named, BodyScope scope, string? targetType)
 	{
 		if (IsDiscardExpression(named))
 		{
 			Report(GetRange(named.SourceSyntax), "Discard '_' is write-only and cannot be read.");
 			return ErrorType;
 		}
+
+		if (TryResolveTargetTypedEnumValue(named, targetType, out string enumType))
+			return enumType;
 
 		if (named.Qualifiers.Count > 0)
 		{
@@ -692,6 +699,68 @@ public sealed partial class BindableNodeAnalyzer
 
 		Report(GetRange(named.SourceSyntax), $"Symbol '{named.Name}' could not be found.");
 		return ErrorType;
+	}
+
+	bool TryResolveTargetTypedEnumValue(NamedExpression named, string? targetType, out string enumType)
+	{
+		enumType = ErrorType;
+		if (named.Qualifiers.Count > 0 || string.IsNullOrWhiteSpace(named.Name))
+			return false;
+
+		if (!TryGetTargetEnumDefinition(targetType, out EnumDefinition? enumDefinition))
+			return false;
+
+		foreach (VariableDefinition value in enumDefinition!.Values)
+		{
+			if (value.Name != named.Name)
+				continue;
+
+			enumType = enumDefinition.Name;
+			named.ResolvedType = enumType;
+			expressionConstants[named] = true;
+			expressionRewrites[named] = new VariableReferenceExpression
+			{
+				SourceSyntax = named.SourceSyntax,
+				Variable = value,
+				ResolvedType = enumType
+			};
+			return true;
+		}
+
+		return false;
+	}
+
+	bool TryGetTargetEnumDefinition(string? targetType, out EnumDefinition? enumDefinition)
+	{
+		enumDefinition = null;
+		string? enumType = GetEnumTargetTypeName(targetType);
+		if (enumType is null)
+			return false;
+
+		if (!typeDefinitions.TryGetValue(BaseTypeName(enumType), out TypeDefinition? type) || type is not EnumDefinition found)
+			return false;
+
+		enumDefinition = found;
+		return true;
+	}
+
+	string? GetEnumTargetTypeName(string? targetType)
+	{
+		if (string.IsNullOrWhiteSpace(targetType) || targetType == TargetType || targetType == ErrorType)
+			return null;
+
+		string direct = BaseTypeName(targetType);
+		if (typeDefinitions.TryGetValue(direct, out TypeDefinition? directType) && directType is EnumDefinition)
+			return direct;
+
+		if (TryParseTypeShape(targetType, out TypeShape shape) && shape.Kind == TypeShapeKind.Optional && shape.Element is not null)
+		{
+			string elementType = BaseTypeName(TypeShapeParser.Format(shape.Element));
+			if (typeDefinitions.TryGetValue(elementType, out TypeDefinition? optionalElement) && optionalElement is EnumDefinition)
+				return elementType;
+		}
+
+		return null;
 	}
 
 	string BodyAnalyzeMethodReference(MethodReferenceExpression method)
@@ -1047,7 +1116,7 @@ public sealed partial class BindableNodeAnalyzer
 				else if (named.Qualifiers.Count == 0 && TryGetUnqualifiedInstanceMember(scope.ContainingType, named.Name, named.SourceSyntax, out string memberKind))
 					Report(GetRange(named.SourceSyntax), $"{memberKind} '{named.Name}' requires explicit 'this.' qualification.");
 				else
-					BodyAnalyzeNamedExpression(named, scope);
+					BodyAnalyzeNamedExpression(named, scope, targetType: null);
 				return null;
 			}
 
@@ -1798,7 +1867,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeUnaryExpression(UnaryExpression unary, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
-		string operandType = BodyAnalyzeExpression(unary.Operand, scope, typeScope, targetType);
+		string? operandTargetType = unary.Operator == UnaryOperator.Throw
+			? GetFunctionThrownParameter(scope.CurrentFunction)?.ResolvedType ?? GetFunctionThrownReturnType(scope.CurrentFunction)
+			: targetType;
+		string operandType = BodyAnalyzeExpression(unary.Operand, scope, typeScope, operandTargetType);
 		if (unary.Context is not null)
 			BodyAnalyzeExpression(unary.Context, scope, typeScope);
 
@@ -1843,8 +1915,18 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeBinaryExpression(BinaryExpression binary, BodyScope scope, AnalysisScope typeScope)
 	{
-		string left = BodyAnalyzeExpression(binary.Left, scope, typeScope);
-		string right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
+		string left;
+		string right;
+		if (IsComparisonOperator(binary.Operator) && binary.Left is NamedExpression && binary.Right is not null)
+		{
+			right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
+			left = BodyAnalyzeExpression(binary.Left, scope, typeScope, IsEnumTargetType(right) ? right : null);
+		}
+		else
+		{
+			left = BodyAnalyzeExpression(binary.Left, scope, typeScope);
+			right = BodyAnalyzeExpression(binary.Right, scope, typeScope, IsEnumTargetType(left) ? left : null);
+		}
 		expressionConstants[binary] = IsConstant(binary.Left) && IsConstant(binary.Right);
 
 		return binary.Operator switch
@@ -1856,6 +1938,21 @@ public sealed partial class BindableNodeAnalyzer
 			BinaryOperator.NullCoalescing => left,
 			_ => ErrorType
 		};
+	}
+
+	static bool IsComparisonOperator(BinaryOperator op)
+	{
+		return op is BinaryOperator.Equal
+			or BinaryOperator.NotEqual
+			or BinaryOperator.LessThan
+			or BinaryOperator.LessThanOrEqual
+			or BinaryOperator.GreaterThan
+			or BinaryOperator.GreaterThanOrEqual;
+	}
+
+	bool IsEnumTargetType(string? type)
+	{
+		return GetEnumTargetTypeName(type) is not null;
 	}
 
 	string BodyAnalyzeAssignmentExpression(AssignmentExpression assignment, BodyScope scope, AnalysisScope typeScope)

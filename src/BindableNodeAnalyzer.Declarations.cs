@@ -518,7 +518,7 @@ public sealed partial class BindableNodeAnalyzer
 			: definition.Type?.ResolvedType ?? GetImplicitParameterType(definition);
 		ValidateGenericArgumentUse(definition.Type);
 		ValidateParameterPassing(definition, scope);
-		AnalyzeConstantExpression(definition.DefaultValue, scope, "Parameter default value");
+		AnalyzeConstantExpression(definition.DefaultValue, scope, "Parameter default value", definition.ResolvedType);
 	}
 
 	void BindImplicitWithinParameterType(ParameterDefinition definition, AnalysisScope scope)
