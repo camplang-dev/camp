@@ -577,9 +577,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<ParameterDefinition> parameters = [];
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
-			if (parameter is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
-				continue;
-			if (parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within)
+			if (parameter is ThisParameterDefinition)
 				continue;
 			parameters.Add(parameter);
 		}
