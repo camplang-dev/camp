@@ -42,9 +42,7 @@ public sealed partial class BindableNodeBuilder
 
 		foreach (CompilationUnitItemSyntax item in syntax.Items ?? [])
 		{
-			if (item.HeaderDirective is not null)
-				BuildHeaderDirective(module, item.HeaderDirective);
-			else if (item.ImportExportDeclaration is not null)
+			if (item.ImportExportDeclaration is not null)
 				BuildImportExportDeclaration(module, item.ImportExportDeclaration);
 			else if (item.Declaration is not null)
 				AddGlobalDeclaration(module, item.Declaration);
@@ -53,19 +51,6 @@ public sealed partial class BindableNodeBuilder
 		}
 
 		return module;
-	}
-
-	void BuildHeaderDirective(Module module, HeaderDirectiveSyntax syntax)
-	{
-		if (string.IsNullOrWhiteSpace(syntax.Kind) || string.IsNullOrWhiteSpace(syntax.Header))
-			return;
-
-		module.HeaderDirectives.Add(new HeaderDirective
-		{
-			SourceSyntax = syntax,
-			Kind = syntax.Kind == "require" ? HeaderDirectiveKind.Require : HeaderDirectiveKind.Include,
-			Header = syntax.Header
-		});
 	}
 
 	void BuildImportExportDeclaration(Module module, ImportExportDeclarationSyntax syntax)

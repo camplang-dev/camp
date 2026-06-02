@@ -141,16 +141,6 @@ public sealed partial class BindableNodeAnalyzer
 			if (definition is null)
 				continue;
 
-			if (definition.ForeignHeaders.Count > 0)
-			{
-				foreach (string header in definition.ForeignHeaders)
-				{
-					if (!HasRequiredHeaderInSameFile(exportedDeclaration, header))
-						Report(GetRange(named.SourceSyntax), $"Exported declaration '{exportedDeclaration.Name}' exposes foreign declaration '{definition.Name}' from header '{header}', but this file does not name that header with #require.");
-				}
-				continue;
-			}
-
 			if (definition is { Export: null })
 				Report(GetRange(named.SourceSyntax), $"Exported declaration '{exportedDeclaration.Name}' exposes non-exported type '{definition.Name}'.");
 		}

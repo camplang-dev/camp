@@ -58,13 +58,6 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteModule(Module module)
 	{
-		foreach (HeaderDirective directive in module.HeaderDirectives)
-		{
-			WriteIndent();
-			writer.Write(directive.Kind == HeaderDirectiveKind.Require ? "#require " : "#include ");
-			writer.WriteLine(directive.Header);
-		}
-
 		foreach (UsingDeclaration usingDeclaration in module.Usings)
 		{
 			WriteIndent();

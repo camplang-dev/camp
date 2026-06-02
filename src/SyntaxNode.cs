@@ -13,16 +13,8 @@ public class CompilationUnitSyntax : SyntaxNode
 
 public class CompilationUnitItemSyntax : SyntaxNode
 {
-	public HeaderDirectiveSyntax? HeaderDirective { get; set; }
 	public ImportExportDeclarationSyntax? ImportExportDeclaration { get; set; }
 	public DeclarationSyntax? Declaration { get; set; }
-}
-
-public class HeaderDirectiveSyntax : SyntaxNode
-{
-	public Token? Token { get; set; }
-	public string? Kind { get; set; }
-	public string? Header { get; set; }
 }
 
 public abstract class ImportExportDeclarationSyntax : SyntaxNode

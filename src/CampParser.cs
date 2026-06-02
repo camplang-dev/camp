@@ -17,7 +17,6 @@ public sealed class CampParser
 	readonly TokenSequence tokens;
 	readonly List<ParseDiagnostic> diagnostics = [];
 	int index;
-	bool headerPreludeOpen = true;
 
 	public CampParser(TokenSequence tokens)
 	{
@@ -57,80 +56,15 @@ public sealed class CampParser
 
 	CompilationUnitItemSyntax? ParseCompilationUnitItem()
 	{
-		HeaderDirectiveSyntax? directive = ParseHeaderDirective();
-		if (directive is not null)
-			return new CompilationUnitItemSyntax { HeaderDirective = directive };
-
 		ImportExportDeclarationSyntax? importExport = ParseImportExportDeclaration();
 		if (importExport is not null)
 			return new CompilationUnitItemSyntax { ImportExportDeclaration = importExport };
 
 		DeclarationSyntax? declaration = ParseDeclaration();
 		if (declaration is not null)
-		{
-			headerPreludeOpen = false;
 			return new CompilationUnitItemSyntax { Declaration = declaration };
-		}
 
 		return null;
-	}
-
-	HeaderDirectiveSyntax? ParseHeaderDirective()
-	{
-		if (!IsClass(TokenClass.Preprocessor))
-			return null;
-
-		Token? token = Take();
-		HeaderDirectiveSyntax syntax = new() { Token = token };
-		if (!headerPreludeOpen)
-			Report(token, "C header directives may appear only in the file prelude before ordinary declarations.");
-
-		string text = token?.Value.Trim() ?? "";
-		if (!TryParseHeaderDirectiveText(text, out string? kind, out string? header))
-		{
-			Report(token, "Expected '#include <header.h>', '#include \"header.h\"', '#require <header.h>', or '#require \"header.h\"'.");
-			return syntax;
-		}
-
-		syntax.Kind = kind;
-		syntax.Header = header;
-		return syntax;
-	}
-
-	static bool TryParseHeaderDirectiveText(string text, out string? kind, out string? header)
-	{
-		kind = null;
-		header = null;
-		string prefix;
-		if (text.StartsWith("#include", StringComparison.Ordinal))
-		{
-			kind = "include";
-			prefix = "#include";
-		}
-		else if (text.StartsWith("#require", StringComparison.Ordinal))
-		{
-			kind = "require";
-			prefix = "#require";
-		}
-		else
-		{
-			return false;
-		}
-
-		string rest = text[prefix.Length..].Trim();
-		if (rest.Length < 3)
-			return false;
-		if (rest[0] == '<' && rest[^1] == '>')
-		{
-			header = rest;
-			return true;
-		}
-		if (rest[0] == '"' && rest[^1] == '"')
-		{
-			header = rest;
-			return true;
-		}
-		return false;
 	}
 
 	ImportExportDeclarationSyntax? ParseImportExportDeclaration()

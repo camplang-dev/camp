@@ -105,7 +105,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool IsDefinitionVisible(Definition definition, SyntaxNode? referenceSyntax)
 	{
 		if (definition.Export is not null)
-			return IsForeignHeaderDependencyVisible(definition, referenceSyntax);
+			return true;
 
 		if (currentModule is null || !currentModule.DefinitionSources.TryGetValue(definition, out TokenSequence? definitionSource))
 			return true;
@@ -119,12 +119,6 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ReportNotExported(Definition definition, SyntaxNode? referenceSyntax, string symbolKind)
 	{
-		if (definition.Export is not null && definition.ForeignHeaders.Count > 0 && !IsForeignHeaderDependencyVisible(definition, referenceSyntax))
-		{
-			ReportMissingForeignHeader(definition, referenceSyntax);
-			return;
-		}
-
 		Report(GetRange(referenceSyntax), $"{symbolKind} '{definition.Name}' is declared in another file but is not exported.");
 	}
 

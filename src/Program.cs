@@ -187,9 +187,6 @@ static Camp.Compiler.Module BuildOutputModule(Compilation compilation, SourceFil
 		ExportAs = file.BindableTree?.ExportAs
 	};
 
-	foreach (HeaderDirective directive in file.BindableTree?.HeaderDirectives ?? [])
-		output.HeaderDirectives.Add(directive);
-
 	foreach (UsingDeclaration usingDeclaration in file.BindableTree?.Usings ?? [])
 		output.Usings.Add(usingDeclaration);
 
@@ -412,7 +409,6 @@ static ConsoleColor GetTokenColor(TokenClass tokenClass)
 		TokenClass.Number => ConsoleColor.Magenta,
 		TokenClass.String => ConsoleColor.Red,
 		TokenClass.Symbol => ConsoleColor.DarkGray,
-		TokenClass.Preprocessor => ConsoleColor.Magenta,
 		TokenClass.LineComment or TokenClass.BlockComment => ConsoleColor.Green,
 		TokenClass.Whitespace or TokenClass.NewLine => ConsoleColor.Gray,
 		TokenClass.Invalid => ConsoleColor.Red,

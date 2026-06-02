@@ -12,7 +12,6 @@ public enum TokenClass
 	Number,
 	String,
 	Symbol,
-	Preprocessor,
 	LineComment,
 	BlockComment,
 	Whitespace,
@@ -55,13 +54,6 @@ public static class CampTokenizer
 						i++;
 
 					yield return new TokenValue(text[start..i], TokenClass.Whitespace);
-					break;
-
-				case '#':
-					while (i < text.Length && !IsNewLineStart(text, i))
-						i++;
-
-					yield return new TokenValue(text[start..i], TokenClass.Preprocessor);
 					break;
 
 				case '/' when Peek(text, i + 1) == '/':

@@ -18,8 +18,6 @@ public sealed partial class BindableNodeAnalyzer
 		currentModule = module;
 		module.ResolvedType = ModuleType;
 		CollectTypeNames(module);
-		AnalyzeHeaderDirectives(module);
-		AssociateForeignHeaderDeclarations(module);
 
 		foreach (UsingDeclaration usingDeclaration in module.Usings)
 		{
