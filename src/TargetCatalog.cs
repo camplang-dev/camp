@@ -180,6 +180,7 @@ public sealed class TargetDefinition
 	public IReadOnlyDictionary<string, string> CallSpecs => Sections.CallSpecs;
 	public IReadOnlyDictionary<string, string> TypeSpecs => Sections.TypeSpecs;
 	public IReadOnlyDictionary<string, string> CTypes => Sections.CTypes;
+	public IReadOnlyDictionary<string, string> Defines => Sections.Defines;
 	public IReadOnlyDictionary<string, int> NaturalIntegerWidths => Sections.NaturalIntegerWidths;
 	public IReadOnlyDictionary<string, int> PointerWidths => Sections.PointerWidths;
 	public IReadOnlyDictionary<string, TargetMemoryModel> MemoryModels => Sections.MemoryModels;
@@ -260,6 +261,7 @@ internal sealed class TargetSections
 	public Dictionary<string, string> CallSpecs { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> TypeSpecs { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> CTypes { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, string> Defines { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, int> NaturalIntegerWidths { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, int> PointerWidths { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, TargetMemoryModel> MemoryModels { get; } = new(StringComparer.Ordinal);
@@ -269,6 +271,7 @@ internal sealed class TargetSections
 	public void CopyFrom(TargetSections source)
 	{
 		Includes.AddRange(source.Includes);
+		CopySection(source.Defines, Defines);
 		CopySection(source.CallSpecs, CallSpecs);
 		CopyTypeSpecSection(source.TypeSpecs, source.TypeSpecOrder);
 		CopySection(source.CTypes, CTypes);
@@ -281,6 +284,7 @@ internal sealed class TargetSections
 	{
 		MergeSection(data, "callspec", CallSpecs);
 		MergeTargetSection(data);
+		MergeSection(data, "define", Defines);
 		MergeTypeSpecSection(data);
 		MergeSection(data, "ctype", CTypes);
 		MergeWidthSection(data, "nint", NaturalIntegerWidths);

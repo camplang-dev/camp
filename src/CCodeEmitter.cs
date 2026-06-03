@@ -52,7 +52,11 @@ public static class CCodeEmitter
 			foreach (SourceFile file in compilation.Files)
 			{
 				if (file.IsApiHeader)
+				{
+					if (HasExportedDeclarations(compilation, file))
+						EmitPublicHeader(compilation, options, file, result, declarations);
 					continue;
+				}
 
 				EmitSourceFile(compilation, options, file, result, declarations);
 				if (HasExportedDeclarations(compilation, file))
@@ -127,12 +131,12 @@ public static class CCodeEmitter
 		writer.WriteLine("#ifndef " + guard);
 		writer.WriteLine("#define " + guard);
 		writer.WriteLine();
-		writer.WriteLine("#include <stddef.h>");
-		foreach (string include in compilation.Target?.Includes ?? [])
+		WriteTargetPreamble(writer, compilation);
+
+		foreach (SourceFile file in compilation.Files.Where(static file => file.IsApiHeader))
 		{
-			if (include == "stddef.h")
-				continue;
-			writer.WriteLine("#include <" + include + ">");
+			if (HasExportedDeclarations(compilation, file))
+				writer.WriteLine("#include \"" + GetHeaderFilename(file) + "\"");
 		}
 
 		writer.WriteLine();
@@ -168,7 +172,7 @@ public static class CCodeEmitter
 		if (!file.IsApiHeader)
 			writer.WriteLine("#include \"" + options.ProjectName + "_private.h\"");
 		else
-			WriteTargetIncludes(writer, compilation);
+			WriteTargetPreamble(writer, compilation);
 		writer.WriteLine();
 		declarations.WritePublicHeaderDeclarations(writer, file);
 		writer.WriteLine();
@@ -176,7 +180,7 @@ public static class CCodeEmitter
 		result.GeneratedFiles.Add(filename);
 	}
 
-	static void WriteTargetIncludes(TextWriter writer, Compilation compilation)
+	static void WriteTargetPreamble(TextWriter writer, Compilation compilation)
 	{
 		writer.WriteLine("#include <stddef.h>");
 		foreach (string include in compilation.Target?.Includes ?? [])
@@ -184,6 +188,17 @@ public static class CCodeEmitter
 			if (include == "stddef.h")
 				continue;
 			writer.WriteLine("#include <" + include + ">");
+		}
+		foreach ((string name, string value) in compilation.Target?.Defines ?? new Dictionary<string, string>())
+		{
+			writer.Write("#define ");
+			writer.Write(name);
+			if (!string.IsNullOrWhiteSpace(value))
+			{
+				writer.Write(" ");
+				writer.Write(value);
+			}
+			writer.WriteLine();
 		}
 	}
 
@@ -1121,7 +1136,7 @@ public static class CCodeEmitter
 		string FormatCallableDeclarator(CallableTypeReference callable, string name)
 		{
 			string callSpec = FormatCallSpec(callable.CallSpec);
-			string targetSpec = FormatTypeSpec(callable.TargetSpec);
+			string targetSpec = FormatTypeSpec(callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true));
 			string pointer = "*";
 			if (targetSpec.Length > 0)
 				pointer += " " + targetSpec;
@@ -1147,8 +1162,9 @@ public static class CCodeEmitter
 				ArrayTypeReference array => FormatType(array.ElementType, "*" + declarator),
 				OptionalTypeReference optional => FormatType(optional.ElementType, declarator),
 				CallableTypeReference callable => new CType(FormatCallableDeclarator(callable, declarator)),
-				PrimitiveTypeReference primitive => new CType(FormatPrimitive(primitive.Type) + " " + declarator),
+				PrimitiveTypeReference primitive => FormatPrimitiveType(primitive.Type, declarator),
 				TypeDefinitionReference definition => new CType(CTypeName(definition) + " " + declarator),
+				NamedTypeReference named when ShouldFormatResolvedType(named.ResolvedType) => FormatResolvedType(named.ResolvedType!, declarator),
 				NamedTypeReference named => new CType(CTypeName(named) + " " + declarator),
 				GenericTypeReference generic => FormatType(generic.Type, declarator),
 				GenericParameterTypeReference => new CType("void* " + declarator),
@@ -1185,6 +1201,7 @@ public static class CCodeEmitter
 		{
 			string type = resolvedType.Trim();
 			List<string> qualifiers = [];
+			List<string> trailingQualifiers = [];
 			while (true)
 			{
 				if (type.StartsWith("const ", StringComparison.Ordinal))
@@ -1216,6 +1233,22 @@ public static class CCodeEmitter
 				}
 				break;
 			}
+			while (true)
+			{
+				if (type.EndsWith(" const", StringComparison.Ordinal))
+				{
+					trailingQualifiers.Insert(0, "const");
+					type = type[..^6].TrimEnd();
+					continue;
+				}
+				if (type.EndsWith(" volatile", StringComparison.Ordinal))
+				{
+					trailingQualifiers.Insert(0, "volatile");
+					type = type[..^9].TrimEnd();
+					continue;
+				}
+				break;
+			}
 
 			int pointerCount = 0;
 			while (type.EndsWith("*", StringComparison.Ordinal))
@@ -1232,6 +1265,8 @@ public static class CCodeEmitter
 
 			string cType = FormatResolvedBaseType(type);
 			string pointerPart = pointerCount == 0 ? "" : new string('*', pointerCount);
+			if (pointerPart.Length > 0 && trailingQualifiers.Count > 0)
+				pointerPart += " " + string.Join(" ", trailingQualifiers);
 			string qualifierPart = qualifiers.Count == 0 ? "" : string.Join(" ", qualifiers) + " ";
 			return new CType(qualifierPart + cType + pointerPart + " " + declarator);
 		}
@@ -1270,25 +1305,42 @@ public static class CCodeEmitter
 
 		CType FormatPointerType(PointerTypeReference pointer, string declarator)
 		{
+			string targetSpec = FormatTypeSpec(GetDefaultTargetTypeSpec(functionPointer: false));
+			if (targetSpec.Length > 0)
+				declarator = "* " + targetSpec + " " + declarator;
+			else
+				declarator = "*" + declarator;
 			if (pointer.ElementType is PrimitiveTypeReference { Type: PrimitiveType.Untyped })
-				return new CType("void* " + declarator);
-			return FormatType(pointer.ElementType, "*" + declarator);
+				return new CType("void " + declarator);
+			return FormatType(pointer.ElementType, declarator);
 		}
 
-		string FormatPrimitive(PrimitiveType primitive)
+		CType FormatPrimitiveType(PrimitiveType primitive, string declarator)
 		{
 			string name = GetPrimitiveName(primitive);
 			if (primitive == PrimitiveType.Void)
-				return "void";
+				return new CType("void " + declarator);
 			if (primitive == PrimitiveType.String)
-				return "char*";
+				return FormatDataPointerPrimitive("char", declarator);
 			if (primitive == PrimitiveType.WString)
-				return "uint16_t*";
+				return FormatDataPointerPrimitive("uint16_t", declarator);
 			if (primitive == PrimitiveType.AString)
-				return "char*";
+				return FormatDataPointerPrimitive("char", declarator);
 			if (primitive == PrimitiveType.Untyped)
-				return "void";
-			return compilation.Target?.GetPrimitiveCSpelling(name) ?? name;
+				return new CType("void " + declarator);
+			return new CType((compilation.Target?.GetPrimitiveCSpelling(name) ?? name) + " " + declarator);
+		}
+
+		CType FormatDataPointerPrimitive(string elementType, string declarator)
+		{
+			string targetSpec = FormatTypeSpec(GetDefaultTargetTypeSpec(functionPointer: false));
+			string pointer = targetSpec.Length == 0 ? "*" : "* " + targetSpec + " ";
+			return new CType(elementType + pointer + declarator);
+		}
+
+		string? GetDefaultTargetTypeSpec(bool functionPointer)
+		{
+			return compilation.Target?.GetMemoryModelDefault(compilation.MemoryModelName, functionPointer);
 		}
 
 		string FormatCallSpec(string? spec)
@@ -1337,6 +1389,20 @@ public static class CCodeEmitter
 			return !string.IsNullOrWhiteSpace(named.ResolvedType)
 				? CTypeName(named.ResolvedType)
 				: SanitizeIdentifier(named.Name);
+		}
+
+		static bool ShouldFormatResolvedType(string? resolvedType)
+		{
+			if (string.IsNullOrWhiteSpace(resolvedType))
+				return false;
+			string type = resolvedType.Trim();
+			if (type.Contains('*', StringComparison.Ordinal) || type.Contains("[]", StringComparison.Ordinal) || type.Contains('?', StringComparison.Ordinal))
+				return true;
+			if (type.StartsWith("const ", StringComparison.Ordinal) || type.StartsWith("volatile ", StringComparison.Ordinal))
+				return true;
+			return type is "void" or "bool" or "string" or "wstring" or "astring" or "untyped"
+				or "sbyte" or "byte" or "short" or "ushort" or "int" or "uint" or "long" or "ulong"
+				or "nint" or "nuint" or "float" or "double" or "char" or "wchar" or "achar" or "uchar";
 		}
 
 		static string CTypeName(string resolvedType)
