@@ -56,6 +56,13 @@ Option<string?> memoryModelOption = new("--memory-model")
 	Description = "Select the target memory model to use when required by the target."
 };
 
+Option<List<string>> defineOption = new("--define", "-d")
+{
+	Description = "Define one or more conditional compilation symbols.",
+	Arity = ArgumentArity.ZeroOrMore,
+	AllowMultipleArgumentsPerToken = true
+};
+
 Option<string> emitOption = new("--emit")
 {
 	Description = "Select the output emitter to use. Defaults to c99.",
@@ -86,6 +93,7 @@ RootCommand rootCommand = new("Camp compiler")
 	  -t, --target <name>      Select the target to use. Defaults to clang-macos-x64.
 	  -p, --profile <name>     Select DEBUG or RELEASE. Defaults to DEBUG.
 	  --memory-model <name>    Select a target memory model when the target requires one.
+	  -d, --define <symbols...> Define conditional compilation symbols.
 	  --emit c99              Generate C99 output. Defaults to c99.
 	  --out-dir <dir>         Write generated output files to this directory.
 	  --nostdlib              Do not include the default std package.
@@ -106,6 +114,7 @@ rootCommand.Options.Add(inspectApiOption);
 rootCommand.Options.Add(targetOption);
 rootCommand.Options.Add(profileOption);
 rootCommand.Options.Add(memoryModelOption);
+rootCommand.Options.Add(defineOption);
 rootCommand.Options.Add(emitOption);
 rootCommand.Options.Add(outDirOption);
 rootCommand.Options.Add(noStdLibOption);
@@ -119,16 +128,17 @@ rootCommand.SetAction(parseResult =>
 	string targetName = parseResult.GetValue(targetOption) ?? "clang-macos-x64";
 	string profileName = parseResult.GetValue(profileOption) ?? "DEBUG";
 	string? memoryModelName = parseResult.GetValue(memoryModelOption);
+	List<string>? defineNames = parseResult.GetValue(defineOption);
 	string emitKind = parseResult.GetValue(emitOption) ?? "c99";
 	string? outDir = parseResult.GetValue(outDirOption);
 	bool noStdLib = parseResult.GetValue(noStdLibOption);
 
-	return Run(filenames, includeFilenames, inspect, inspectApi, printXml, targetName, profileName, memoryModelName, emitKind, outDir, noStdLib);
+	return Run(filenames, includeFilenames, inspect, inspectApi, printXml, targetName, profileName, memoryModelName, defineNames, emitKind, outDir, noStdLib);
 });
 
 return rootCommand.Parse(args).Invoke();
 
-static int Run(List<string>? filenames, List<string>? includeFilenames, InspectMode? inspect, bool inspectApi, bool printXml, string targetName, string profileName, string? memoryModelName, string emitKind, string? outDir, bool noStdLib)
+static int Run(List<string>? filenames, List<string>? includeFilenames, InspectMode? inspect, bool inspectApi, bool printXml, string targetName, string profileName, string? memoryModelName, List<string>? defineNames, string emitKind, string? outDir, bool noStdLib)
 {
 	if (filenames is null || filenames.Count == 0)
 	{
@@ -161,7 +171,8 @@ static int Run(List<string>? filenames, List<string>? includeFilenames, InspectM
 		return 1;
 	}
 
-	if (!TryCreateRuntimeContext(targetName, profileName, memoryModelName, out RuntimeContext? context))
+	defineNames ??= [];
+	if (!TryCreateRuntimeContext(targetName, profileName, memoryModelName, defineNames, out RuntimeContext? context))
 		return 1;
 
 	List<string> packageApiHeaders = [];
@@ -194,6 +205,7 @@ static int Run(List<string>? filenames, List<string>? includeFilenames, InspectM
 static bool TryLoadCompilation(List<string> filenames, List<string> includeFilenames, RuntimeContext context, out Compilation compilation)
 {
 	compilation = new Compilation { Target = context.Target, ProfileName = context.ProfileName, MemoryModelName = context.MemoryModelName };
+	AddPreprocessorSymbols(compilation, context);
 	foreach (string filename in filenames)
 	{
 		if (!TryReadInput(filename, out string text))
@@ -207,6 +219,19 @@ static bool TryLoadCompilation(List<string> filenames, List<string> includeFilen
 		compilation.Files.Add(new SourceFile { Path = filename, Text = text, IsApiHeader = true });
 	}
 	return true;
+}
+
+static void AddPreprocessorSymbols(Compilation compilation, RuntimeContext context)
+{
+	compilation.PreprocessorSymbols.Add("TRUE");
+	compilation.PreprocessorSymbols.Add(context.ProfileName);
+	foreach (string symbol in context.Target.Defines.Keys)
+		compilation.PreprocessorSymbols.Add(symbol);
+	foreach (string symbol in context.CommandLineDefines)
+	{
+		if (!string.IsNullOrWhiteSpace(symbol))
+			compilation.PreprocessorSymbols.Add(symbol);
+	}
 }
 
 static bool TryReadInput(string filename, out string text)
@@ -224,7 +249,7 @@ static bool TryReadInput(string filename, out string text)
 	}
 }
 
-static bool TryCreateRuntimeContext(string targetName, string profileName, string? memoryModelName, out RuntimeContext? context)
+static bool TryCreateRuntimeContext(string targetName, string profileName, string? memoryModelName, IReadOnlyList<string> defineNames, out RuntimeContext? context)
 {
 	context = null;
 	string executableDirectory = AppContext.BaseDirectory;
@@ -266,7 +291,7 @@ static bool TryCreateRuntimeContext(string targetName, string profileName, strin
 		return false;
 	}
 
-	context = new RuntimeContext(executableDirectory, target, normalizedProfile, string.IsNullOrWhiteSpace(memoryModelName) ? null : memoryModelName);
+	context = new RuntimeContext(executableDirectory, target, normalizedProfile, string.IsNullOrWhiteSpace(memoryModelName) ? null : memoryModelName, [.. defineNames]);
 	return true;
 }
 
@@ -291,7 +316,7 @@ static bool TryPreparePackageApi(RuntimeContext context, string packageName, out
 	}
 
 	string apiPath = Path.Combine(packageDirectory, "bin", context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName, packageName + "_api.camp");
-	if (IsApiCacheCurrent(apiPath, sourceFiles))
+	if (context.CommandLineDefines.Count == 0 && IsApiCacheCurrent(apiPath, sourceFiles))
 	{
 		apiHeaderPath = apiPath;
 		return true;
@@ -932,7 +957,7 @@ static string GetXmlName(string typeName)
 		: typeName;
 }
 
-sealed record RuntimeContext(string ExecutableDirectory, TargetDefinition Target, string ProfileName, string? MemoryModelName);
+sealed record RuntimeContext(string ExecutableDirectory, TargetDefinition Target, string ProfileName, string? MemoryModelName, IReadOnlyList<string> CommandLineDefines);
 
 enum InspectMode
 {

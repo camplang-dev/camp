@@ -95,7 +95,7 @@ public static class CampTokenizer
 					yield return new TokenValue(text[start..i], TokenClass.Number);
 					break;
 
-				case '~' or '!' or '%' or '^' or '&' or '*' or '(' or ')' or '+' or '-' or '=' or '{' or '}' or '[' or ']' or '|' or ';' or ':' or ',' or '.' or '/' or '<' or '>' or '?' or '$':
+				case '~' or '!' or '%' or '^' or '&' or '*' or '(' or ')' or '+' or '-' or '=' or '{' or '}' or '[' or ']' or '|' or ';' or ':' or ',' or '.' or '/' or '<' or '>' or '?' or '$' or '#':
 					i++;
 					yield return new TokenValue(text[start..i], TokenClass.Symbol);
 					break;

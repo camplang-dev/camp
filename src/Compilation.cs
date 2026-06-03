@@ -12,6 +12,7 @@ public sealed class Compilation
 	public TargetDefinition? Target { get; set; }
 	public string ProfileName { get; set; } = "DEBUG";
 	public string? MemoryModelName { get; set; }
+	public HashSet<string> PreprocessorSymbols { get; } = new(System.StringComparer.Ordinal);
 }
 
 public sealed class SourceFile
@@ -20,6 +21,7 @@ public sealed class SourceFile
 	public required string Text { get; init; }
 	public bool IsApiHeader { get; init; }
 	public TokenSequence? Tokens { get; set; }
+	public IReadOnlyList<ParseDiagnostic> PreprocessDiagnostics { get; set; } = [];
 	public CompilationUnitSyntax? SyntaxTree { get; set; }
 	public Module? BindableTree { get; set; }
 	public IReadOnlyList<ParseDiagnostic> ParseDiagnostics { get; set; } = [];
@@ -31,7 +33,14 @@ public static class CompilationPipeline
 	public static void Tokenize(Compilation compilation)
 	{
 		foreach (SourceFile file in compilation.Files)
-			file.Tokens ??= new TokenSequence(CampTokenizer.Tokenize(file.Text));
+		{
+			if (file.Tokens is not null)
+				continue;
+			TokenSequence rawTokens = new(CampTokenizer.Tokenize(file.Text));
+			PreprocessResult result = CampPreprocessor.Process(rawTokens, compilation.PreprocessorSymbols);
+			file.Tokens = new TokenSequence(result.Tokens);
+			file.PreprocessDiagnostics = result.Diagnostics;
+		}
 	}
 
 	public static bool Parse(Compilation compilation)
@@ -41,8 +50,8 @@ public static class CompilationPipeline
 		foreach (SourceFile file in compilation.Files)
 		{
 			file.SyntaxTree = CampParser.Parse(file.Tokens!, out IReadOnlyList<ParseDiagnostic> diagnostics);
-			file.ParseDiagnostics = diagnostics;
-			if (diagnostics.Count > 0)
+			file.ParseDiagnostics = [.. file.PreprocessDiagnostics, .. diagnostics];
+			if (file.ParseDiagnostics.Count > 0)
 				success = false;
 		}
 		return success;
