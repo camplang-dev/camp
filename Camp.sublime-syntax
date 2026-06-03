@@ -8,6 +8,7 @@ scope: source.camp
 variables:
   identifier: '[A-Za-z_][A-Za-z0-9_]*'
   qualified_identifier: '{{identifier}}(?:(::){{identifier}})*'
+  target_spec: '_[a-z][A-Za-z0-9_]*'
   type_keywords: '\b(?:any|auto|bool|byte|sbyte|ushort|short|uint|int|ulong|long|nuint|nint|float|double|char|wchar|achar|uchar|void|string|wstring|astring)\b'
   type_forms: '\b(?:fn|delegate|async|once|iter|thrown|struct|class)\b'
   storage_keywords: '\b(?:const|volatile|escaped|scoped|unscoped|in|out|thrown|within|sizeof|vtableof)\b'
@@ -43,23 +44,38 @@ contexts:
           pop: true
 
   preprocessor:
-    - match: '^\s*(#)\s*(include|require)\b'
+    - match: '^\s*(#)\s*(if|elif)\b'
       captures:
         1: punctuation.definition.directive.camp
-        2: keyword.control.import.camp
+        2: keyword.control.preprocessor.conditional.camp
       push:
-        - meta_scope: meta.preprocessor.camp
-        - match: '<[^>\n]+>'
-          scope: string.quoted.other.lt-gt.include.camp
-        - match: '"'
-          scope: punctuation.definition.string.begin.camp
-          push:
-            - meta_scope: string.quoted.double.include.camp
-            - match: '\\.'
-              scope: constant.character.escape.camp
-            - match: '"'
-              scope: punctuation.definition.string.end.camp
-              pop: true
+        - meta_scope: meta.preprocessor.conditional.camp
+        - match: '\bTRUE\b'
+          scope: constant.language.boolean.preprocessor.camp
+        - match: '{{identifier}}'
+          scope: variable.other.preprocessor.symbol.camp
+        - match: '&&|\|\||!'
+          scope: keyword.operator.logical.preprocessor.camp
+        - match: '[()]'
+          scope: punctuation.section.group.preprocessor.camp
+        - match: $\n?
+          pop: true
+    - match: '^\s*(#)\s*(else|endif)\b'
+      captures:
+        1: punctuation.definition.directive.camp
+        2: keyword.control.preprocessor.conditional.camp
+      push:
+        - meta_scope: meta.preprocessor.conditional.camp
+        - match: $\n?
+          pop: true
+    - match: '^\s*(#)\s*(define|undef)\b'
+      captures:
+        1: punctuation.definition.directive.camp
+        2: keyword.control.preprocessor.define.camp
+      push:
+        - meta_scope: meta.preprocessor.define.camp
+        - match: '{{identifier}}'
+          scope: entity.name.constant.preprocessor.camp
         - match: $\n?
           pop: true
 
@@ -104,6 +120,9 @@ contexts:
       scope: constant.numeric.integer.decimal.camp
 
   declarations:
+    - match: '^(\s*(?:(?:export|extern|static|virtual|override|sealed|abstract|fixed)\s+)*)(\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)\s+(?=[^\n;{}]*\()'
+      captures:
+        2: storage.modifier.target.camp
     - match: '\b(export|extern|static|virtual|override|sealed|abstract|fixed)\b'
       scope: storage.modifier.camp
     - match: '\b(using|as)\b'
@@ -118,6 +137,18 @@ contexts:
         2: entity.name.function.destructor.camp
     - match: '\b({{identifier}})\s*(?=<)'
       scope: entity.name.type.generic.camp
+    - match: '\b(fn|delegate|async|once)\b(\s+\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)?'
+      captures:
+        1: storage.type.camp
+        2: storage.modifier.target.camp
+    - match: '({{type_keywords}}|{{qualified_identifier}})(\s+\b{{target_spec}}\b)(?=\s*(?:[*?\[\]]|\b{{identifier}}\b))'
+      captures:
+        1: storage.type.camp
+        2: storage.modifier.target.camp
+    - match: '(\*)(\s+\b{{target_spec}}\b)'
+      captures:
+        1: keyword.operator.pointer.camp
+        2: storage.modifier.target.camp
     - match: '\b({{identifier}})\s*(?=\()'
       scope: entity.name.function.camp
 
@@ -126,6 +157,18 @@ contexts:
       scope: keyword.control.camp
 
   types:
+    - match: '\b(fn|delegate|async|once)\b(\s+\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)?'
+      captures:
+        1: storage.type.camp
+        2: storage.modifier.target.camp
+    - match: '({{type_keywords}}|{{qualified_identifier}})(\s+\b{{target_spec}}\b)(?=\s*(?:[*?\[\]]|\b{{identifier}}\b))'
+      captures:
+        1: storage.type.camp
+        2: storage.modifier.target.camp
+    - match: '(\*)(\s+\b{{target_spec}}\b)'
+      captures:
+        1: keyword.operator.pointer.camp
+        2: storage.modifier.target.camp
     - match: '{{type_keywords}}'
       scope: storage.type.primitive.camp
     - match: '{{type_forms}}'
