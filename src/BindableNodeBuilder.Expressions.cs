@@ -124,6 +124,7 @@ public sealed partial class BindableNodeBuilder
 		LiteralKind kind = literal.Class switch
 		{
 			TokenClass.Number => LiteralKind.Number,
+			TokenClass.String when literal.Value.StartsWith("'", StringComparison.Ordinal) => LiteralKind.Character,
 			TokenClass.String => LiteralKind.String,
 			_ when literal.Value == "true" => LiteralKind.True,
 			_ when literal.Value == "false" => LiteralKind.False,
@@ -131,19 +132,23 @@ public sealed partial class BindableNodeBuilder
 			_ => LiteralKind.String
 		};
 
+		object? value = kind switch
+		{
+			LiteralKind.True => true,
+			LiteralKind.False => false,
+			LiteralKind.Null => null,
+			LiteralKind.String or LiteralKind.Character => DecodeStringLiteral(literal.Value),
+			_ => literal.Value
+		};
+		if (kind == LiteralKind.Character && value is string characterText && characterText.Length != 1)
+			Report(syntax, "Character literal must contain exactly one character.");
+
 		return new LiteralExpression
 		{
 			SourceSyntax = syntax,
 			Kind = kind,
 			Text = literal.Value,
-			Value = kind switch
-			{
-				LiteralKind.True => true,
-				LiteralKind.False => false,
-				LiteralKind.Null => null,
-				LiteralKind.String => DecodeStringLiteral(literal.Value),
-				_ => literal.Value
-			}
+			Value = value
 		};
 	}
 

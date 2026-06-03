@@ -291,6 +291,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ArgumentExpression argument in arguments)
 			call.Arguments.Add(argument);
+		callTargets[call] = initNew;
+		AddImplicitDefaultArguments(call);
 		ExpandParamsArguments(call.Arguments);
 		AddImplicitSizeOfArguments(call, initNew, constructedType);
 		if (HasWithinParameter(initNew))

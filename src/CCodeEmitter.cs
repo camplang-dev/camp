@@ -1044,7 +1044,7 @@ public static class CCodeEmitter
 				ConditionalExpression conditional => "(" + FormatExpression(conditional.Condition) + " ? " + FormatExpression(conditional.WhenTrue) + " : " + FormatExpression(conditional.WhenFalse) + ")",
 				InitializerExpression initializer => FormatInitializer(initializer),
 				RangeExpression => UnsupportedExpression(expression),
-				GroupedExpression => UnsupportedExpression(expression),
+				GroupedExpression grouped => FormatGroupedExpression(grouped),
 				ArrayExpression => UnsupportedExpression(expression),
 				ConstructionExpression => UnsupportedExpression(expression),
 				CurrentAllocatorExpression => UnsupportedExpression(expression),
@@ -1120,6 +1120,13 @@ public static class CCodeEmitter
 			return "{ " + string.Join(", ", items) + " }";
 		}
 
+		string FormatGroupedExpression(GroupedExpression grouped)
+		{
+			if (grouped.Items.Count == 0)
+				return "0";
+			return "(" + string.Join(", ", grouped.Items.Select(static item => item.Expression).Select(FormatExpression)) + ")";
+		}
+
 		static string? FormatInitializerTarget(InitializerTarget? target)
 		{
 			if (target is null || target.Parts.Count == 0)
@@ -1150,6 +1157,7 @@ public static class CCodeEmitter
 			{
 				LiteralKind.Number => literal.Text,
 				LiteralKind.String => literal.Text,
+				LiteralKind.Character => literal.Text,
 				LiteralKind.True => "true",
 				LiteralKind.False => "false",
 				LiteralKind.Null => "NULL",

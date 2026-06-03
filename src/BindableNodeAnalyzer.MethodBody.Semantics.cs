@@ -90,6 +90,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == "#NULL" && IsPrimitiveStringType(target))
 			return true;
 
+		if (CanConvertPrimitiveStringToPointer(source, target))
+			return true;
+
 		if (source == "#NULL" && target == AllocatorType)
 			return true;
 
@@ -309,6 +312,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsNumericType(source) && IsNumericType(target))
 			return true;
 
+		if (CanExplicitlyConvertPrimitiveStringPointer(source, target))
+			return true;
+
 		if (TryParseTypeShape(source, out TypeShape explicitSourceShape)
 			&& TryParseTypeShape(target, out TypeShape explicitTargetShape)
 			&& (CanExplicitlyConvertTargetSpecShape(explicitSourceShape, explicitTargetShape)
@@ -445,6 +451,38 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return false;
+	}
+
+	bool CanExplicitlyConvertPrimitiveStringPointer(string source, string target)
+	{
+		return CanConvertPrimitiveStringToPointer(source, target)
+			|| CanConvertPrimitiveStringToPointer(target, source)
+			|| IsPrimitiveStringPointerPair(source, target);
+	}
+
+	bool IsPrimitiveStringPointerPair(string source, string target)
+	{
+		return TryGetPrimitiveStringPointerElement(source, out string sourceElement)
+			&& TryGetPrimitiveStringPointerElement(target, out string targetElement)
+			&& sourceElement == targetElement;
+	}
+
+	bool TryGetPrimitiveStringPointerElement(string type, out string element)
+	{
+		element = StripTopLevelValueQualifiers(type) switch
+		{
+			"string" => "char",
+			"wstring" => "wchar",
+			"astring" => "achar",
+			_ => ""
+		};
+		if (element.Length > 0)
+			return true;
+
+		if (!TryParseTypeShape(type, out TypeShape shape) || shape.Kind != TypeShapeKind.Pointer || shape.Element is null)
+			return false;
+		element = StripTopLevelValueQualifiers(TypeShapeParser.Format(shape.Element));
+		return element is "char" or "wchar" or "achar";
 	}
 
 	List<FunctionDefinition> LookupFunctions(string name, BodyScope scope)
@@ -1405,6 +1443,26 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsConstCharPointerType(string? type)
 	{
 		return type == "const char*";
+	}
+
+	bool CanConvertPrimitiveStringToPointer(string source, string target)
+	{
+		string sourceElement = StripTopLevelValueQualifiers(source) switch
+		{
+			"string" => "char",
+			"wstring" => "wchar",
+			"astring" => "achar",
+			_ => ""
+		};
+		if (sourceElement.Length == 0)
+			return false;
+		if (!TryParseTypeShape(target, out TypeShape targetShape) || targetShape.Kind != TypeShapeKind.Pointer || targetShape.Element is null)
+			return false;
+		string targetElement = TypeShapeParser.Format(targetShape.Element);
+		string unqualifiedTargetElement = StripTopLevelValueQualifiers(targetElement);
+		if (unqualifiedTargetElement != sourceElement)
+			return false;
+		return !IsConstQualified(source) || IsConstQualified(targetElement);
 	}
 
 	string GetStringLiteralType(LiteralExpression literal, string? targetType)

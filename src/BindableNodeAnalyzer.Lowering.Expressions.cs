@@ -80,6 +80,7 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				else
 					call.Target = LowerExpression(call.Target);
+				AddImplicitDefaultArguments(call);
 				LowerThrowingArguments(call);
 				AddImplicitSizeOfArguments(call);
 				AddImplicitWithinArgument(call);
@@ -237,6 +238,58 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = components[1].ResolvedType
 		});
 		return true;
+	}
+
+	void AddImplicitDefaultArguments(CallExpression call)
+	{
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function))
+			return;
+
+		bool includeExplicitThis = IncludeExplicitThisArgument(call.Target, function);
+		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, includeExplicitThis);
+		int argumentIndex = 0;
+		for (int parameterIndex = 0; parameterIndex < callableParameters.Count; parameterIndex++)
+		{
+			ParameterDefinition parameter = callableParameters[parameterIndex];
+			if (parameter is SizeOfParameterDefinition)
+				continue;
+			if (argumentIndex < call.Arguments.Count && !IsExplicitHiddenArgument(call.Arguments[argumentIndex]))
+			{
+				argumentIndex++;
+				continue;
+			}
+			if (parameter.DefaultValue is null)
+				continue;
+
+			Expression? defaultValue = CloneDefaultArgumentExpression(parameter.DefaultValue);
+			call.Arguments.Insert(argumentIndex, new ArgumentExpression
+			{
+				SourceSyntax = call.SourceSyntax ?? parameter.SourceSyntax,
+				Value = defaultValue,
+				ResolvedType = defaultValue?.ResolvedType ?? parameter.ResolvedType
+			});
+			argumentIndex++;
+		}
+	}
+
+	Expression? CloneDefaultArgumentExpression(Expression? expression)
+	{
+		return expression switch
+		{
+			null => null,
+			LiteralExpression literal => new LiteralExpression { SourceSyntax = literal.SourceSyntax, Kind = literal.Kind, Text = literal.Text, Value = literal.Value, ResolvedType = literal.ResolvedType },
+			DefaultExpression defaultExpression => new DefaultExpression { SourceSyntax = defaultExpression.SourceSyntax, ResolvedType = defaultExpression.ResolvedType },
+			NamedExpression named => CloneNamedExpression(named),
+			VariableReferenceExpression variable => new VariableReferenceExpression { SourceSyntax = variable.SourceSyntax, Variable = variable.Variable, ResolvedType = variable.ResolvedType },
+			TypeReferenceExpression type => new TypeReferenceExpression { SourceSyntax = type.SourceSyntax, Type = CloneType(type.Type), ResolvedType = type.ResolvedType },
+			ParenthesizedExpression parenthesized => new ParenthesizedExpression { SourceSyntax = parenthesized.SourceSyntax, Expression = CloneDefaultArgumentExpression(parenthesized.Expression), ResolvedType = parenthesized.ResolvedType },
+			CastExpression cast => new CastExpression { SourceSyntax = cast.SourceSyntax, Kind = cast.Kind, Type = CloneType(cast.Type), Expression = CloneDefaultArgumentExpression(cast.Expression), ResolvedType = cast.ResolvedType },
+			UnaryExpression unary => new UnaryExpression { SourceSyntax = unary.SourceSyntax, Operator = unary.Operator, Operand = CloneDefaultArgumentExpression(unary.Operand), ResolvedType = unary.ResolvedType },
+			BinaryExpression binary => new BinaryExpression { SourceSyntax = binary.SourceSyntax, Operator = binary.Operator, Left = CloneDefaultArgumentExpression(binary.Left), Right = CloneDefaultArgumentExpression(binary.Right), ResolvedType = binary.ResolvedType },
+			MemberExpression member => new MemberExpression { SourceSyntax = member.SourceSyntax, Target = CloneDefaultArgumentExpression(member.Target), Name = member.Name, ResolvedType = member.ResolvedType },
+			MemberReferenceExpression member => new MemberReferenceExpression { SourceSyntax = member.SourceSyntax, Target = CloneDefaultArgumentExpression(member.Target), Name = member.Name, Member = member.Member, ResolvedType = member.ResolvedType },
+			_ => expression
+		};
 	}
 
 	bool TryRewritePropertySetterAssignment(AssignmentExpression assignment, out Expression? rewritten)

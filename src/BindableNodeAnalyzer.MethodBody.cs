@@ -594,6 +594,7 @@ public sealed partial class BindableNodeAnalyzer
 			LiteralKind.True or LiteralKind.False => "bool",
 			LiteralKind.Null => "#NULL",
 			LiteralKind.String => GetStringLiteralType(literal, targetType),
+			LiteralKind.Character => "char",
 			LiteralKind.Number => GetNumberLiteralType(literal.Text, targetType),
 			_ => ErrorType
 		};

@@ -68,7 +68,8 @@ public sealed partial class BindableNodeAnalyzer
 		Expression value = receiver;
 		string receiverValueType = GetReceiverValueType(receiver);
 		string flattenedReceiverType = BuildFlattenedReceiverType(function, receiver.ResolvedType ?? receiverValueType);
-		if (TryGetPointerElementType(flattenedReceiverType) is not null && TryGetPointerElementType(receiverValueType) is null)
+		string addressDecisionType = receiver.ResolvedType ?? receiverValueType;
+		if (TryGetPointerElementType(flattenedReceiverType) is not null && TryGetPointerElementType(addressDecisionType) is null)
 		{
 			value = new UnaryExpression
 			{

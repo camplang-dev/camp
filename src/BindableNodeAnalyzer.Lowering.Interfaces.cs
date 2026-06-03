@@ -30,6 +30,8 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		for (int i = 0; i < arguments.Count; i++)
 			call.Arguments.Add(LowerArgument(arguments[i]));
+		callTargets[call] = function;
+		AddImplicitDefaultArguments(call);
 		ExpandParamsArguments(call.Arguments);
 		if (getter.Target is Expression receiver)
 			RewriteInstanceInvocation(call, getter, receiver, function);
@@ -51,6 +53,8 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		for (int i = 0; i < arguments.Count; i++)
 			call.Arguments.Add(LowerArgument(arguments[i]));
+		callTargets[call] = function;
+		AddImplicitDefaultArguments(call);
 		ExpandParamsArguments(call.Arguments);
 
 		Expression? loweredValue = LowerExpression(value);

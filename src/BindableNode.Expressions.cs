@@ -226,6 +226,7 @@ public enum LiteralKind
 {
 	Number,
 	String,
+	Character,
 	True,
 	False,
 	Null
