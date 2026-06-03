@@ -69,9 +69,19 @@ Option<string> emitOption = new("--emit")
 	DefaultValueFactory = _ => "c99"
 };
 
+Option<string?> buildOption = new("--build", "-b")
+{
+	Description = "Build a native artifact: exec, static, or shared."
+};
+
 Option<string?> outDirOption = new("--out-dir")
 {
-	Description = "Write generated output files to this directory."
+	Description = "Write native output artifacts to this directory."
+};
+
+Option<string?> buildDirOption = new("--build-dir")
+{
+	Description = "Write generated C and intermediate build files to this directory."
 };
 
 Option<bool> noStdLibOption = new("--nostdlib")
@@ -95,7 +105,9 @@ RootCommand rootCommand = new("Camp compiler")
 	  --memory-model <name>    Select a target memory model when the target requires one.
 	  -d, --define <symbols...> Define conditional compilation symbols.
 	  --emit c99              Generate C99 output. Defaults to c99.
-	  --out-dir <dir>         Write generated output files to this directory.
+	  -b, --build <kind>      Build a native artifact: exec, static, or shared.
+	  --out-dir <dir>         Write native output artifacts to this directory.
+	  --build-dir <dir>       Write generated C and intermediate build files to this directory.
 	  --nostdlib              Do not include the default std package.
 	  --inspect tokens        Print one token per line.
 	  --inspect cst           Parse and print the syntax tree as XML.
@@ -116,7 +128,9 @@ rootCommand.Options.Add(profileOption);
 rootCommand.Options.Add(memoryModelOption);
 rootCommand.Options.Add(defineOption);
 rootCommand.Options.Add(emitOption);
+rootCommand.Options.Add(buildOption);
 rootCommand.Options.Add(outDirOption);
+rootCommand.Options.Add(buildDirOption);
 rootCommand.Options.Add(noStdLibOption);
 rootCommand.SetAction(parseResult =>
 {
@@ -130,15 +144,17 @@ rootCommand.SetAction(parseResult =>
 	string? memoryModelName = parseResult.GetValue(memoryModelOption);
 	List<string>? defineNames = parseResult.GetValue(defineOption);
 	string emitKind = parseResult.GetValue(emitOption) ?? "c99";
+	string? buildKind = parseResult.GetValue(buildOption);
 	string? outDir = parseResult.GetValue(outDirOption);
+	string? buildDir = parseResult.GetValue(buildDirOption);
 	bool noStdLib = parseResult.GetValue(noStdLibOption);
 
-	return Run(filenames, includeFilenames, inspect, inspectApi, printXml, targetName, profileName, memoryModelName, defineNames, emitKind, outDir, noStdLib);
+	return Run(filenames, includeFilenames, inspect, inspectApi, printXml, targetName, profileName, memoryModelName, defineNames, emitKind, buildKind, outDir, buildDir, noStdLib);
 });
 
 return rootCommand.Parse(args).Invoke();
 
-static int Run(List<string>? filenames, List<string>? includeFilenames, InspectMode? inspect, bool inspectApi, bool printXml, string targetName, string profileName, string? memoryModelName, List<string>? defineNames, string emitKind, string? outDir, bool noStdLib)
+static int Run(List<string>? filenames, List<string>? includeFilenames, InspectMode? inspect, bool inspectApi, bool printXml, string targetName, string profileName, string? memoryModelName, List<string>? defineNames, string emitKind, string? buildKind, string? outDir, string? buildDir, bool noStdLib)
 {
 	if (filenames is null || filenames.Count == 0)
 	{
@@ -171,16 +187,35 @@ static int Run(List<string>? filenames, List<string>? includeFilenames, InspectM
 		return 1;
 	}
 
+	if (!TryParseNativeBuildKind(buildKind, out NativeBuildKind? nativeBuildKind))
+		return 1;
+
+	if (nativeBuildKind is not null && inspect is not null)
+	{
+		Console.Error.WriteLine("--build cannot be combined with --inspect.");
+		return 1;
+	}
+
+	if (nativeBuildKind is not null && inspectApi)
+	{
+		Console.Error.WriteLine("--build cannot be combined with --inspect-api.");
+		return 1;
+	}
+
 	defineNames ??= [];
 	if (!TryCreateRuntimeContext(targetName, profileName, memoryModelName, defineNames, out RuntimeContext? context))
 		return 1;
 
 	List<string> packageApiHeaders = [];
+	List<string> packageLibraries = [];
 	string? stdApiHeader = null;
-	if (!noStdLib && !TryPreparePackageApi(context!, "std", out stdApiHeader))
+	string? stdLibrary = null;
+	if (!noStdLib && !TryPreparePackage(context!, "std", nativeBuildKind is not null, out stdApiHeader, out stdLibrary))
 		return 1;
 	if (!noStdLib && stdApiHeader is not null)
 		packageApiHeaders.Add(stdApiHeader);
+	if (!noStdLib && stdLibrary is not null)
+		packageLibraries.Add(stdLibrary);
 
 	List<string> allIncludeFilenames = [.. packageApiHeaders, .. includeFilenames];
 	if (!TryLoadCompilation(filenames, allIncludeFilenames, context!, out Compilation compilation))
@@ -192,7 +227,7 @@ static int Run(List<string>? filenames, List<string>? includeFilenames, InspectM
 	inspect ??= InspectMode.None;
 	return inspect switch
 	{
-		InspectMode.None => EmitDefaultOutput(compilation, emitKind, outDir),
+		InspectMode.None => EmitDefaultOutput(compilation, emitKind, nativeBuildKind, outDir, buildDir, packageLibraries),
 		InspectMode.Tokens => PrintTokens(compilation),
 		InspectMode.Cst => PrintSyntaxXml(compilation),
 		InspectMode.Ast => PrintBindXml(compilation),
@@ -200,6 +235,28 @@ static int Run(List<string>? filenames, List<string>? includeFilenames, InspectM
 		InspectMode.Lowering => PrintLowering(compilation, printXml),
 		_ => 1
 	};
+}
+
+static bool TryParseNativeBuildKind(string? value, out NativeBuildKind? kind)
+{
+	kind = null;
+	if (string.IsNullOrWhiteSpace(value))
+		return true;
+	switch (value.Trim().ToLowerInvariant())
+	{
+		case "exec":
+			kind = NativeBuildKind.Exec;
+			return true;
+		case "static":
+			kind = NativeBuildKind.Static;
+			return true;
+		case "shared":
+			kind = NativeBuildKind.Shared;
+			return true;
+		default:
+			Console.Error.WriteLine($"Build kind '{value}' is not valid. Expected exec, static, or shared.");
+			return false;
+	}
 }
 
 static bool TryLoadCompilation(List<string> filenames, List<string> includeFilenames, RuntimeContext context, out Compilation compilation)
@@ -295,9 +352,10 @@ static bool TryCreateRuntimeContext(string targetName, string profileName, strin
 	return true;
 }
 
-static bool TryPreparePackageApi(RuntimeContext context, string packageName, out string? apiHeaderPath)
+static bool TryPreparePackage(RuntimeContext context, string packageName, bool requireNativeLibrary, out string? apiHeaderPath, out string? libraryPath)
 {
 	apiHeaderPath = null;
+	libraryPath = null;
 	string packageDirectory = Path.Combine(context.ExecutableDirectory, "lib", packageName);
 	string sourceDirectory = Path.Combine(packageDirectory, "src");
 	if (!Directory.Exists(sourceDirectory))
@@ -315,26 +373,43 @@ static bool TryPreparePackageApi(RuntimeContext context, string packageName, out
 		return false;
 	}
 
-	string apiPath = Path.Combine(packageDirectory, "bin", context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName, packageName + "_api.camp");
-	if (context.CommandLineDefines.Count == 0 && IsApiCacheCurrent(apiPath, sourceFiles))
+	string packageBinDirectory = Path.Combine(packageDirectory, "bin", context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName);
+	string apiPath = Path.Combine(packageBinDirectory, packageName + "_api.camp");
+	string staticLibraryPath = NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
+	{
+		Target = context.Target,
+		ProfileName = context.ProfileName,
+		BuildDirectory = Path.Combine(packageBinDirectory, "build"),
+		OutputDirectory = packageBinDirectory,
+		ProjectName = packageName,
+		Kind = NativeBuildKind.Static,
+		SourceFiles = []
+	});
+
+	bool canUseCache = context.CommandLineDefines.Count == 0;
+	bool apiCurrent = canUseCache && IsOutputCacheCurrent(apiPath, sourceFiles);
+	bool libraryCurrent = !requireNativeLibrary || canUseCache && IsOutputCacheCurrent(staticLibraryPath, sourceFiles);
+	if (apiCurrent && libraryCurrent)
 	{
 		apiHeaderPath = apiPath;
+		libraryPath = requireNativeLibrary ? staticLibraryPath : null;
 		return true;
 	}
 
-	if (!TryBuildPackageApi(sourceFiles, apiPath, context))
+	if (!TryBuildPackage(packageName, sourceFiles, apiPath, requireNativeLibrary ? staticLibraryPath : null, context))
 		return false;
 
 	apiHeaderPath = apiPath;
+	libraryPath = requireNativeLibrary ? staticLibraryPath : null;
 	return true;
 }
 
-static bool IsApiCacheCurrent(string apiPath, IReadOnlyList<string> sourceFiles)
+static bool IsOutputCacheCurrent(string outputPath, IReadOnlyList<string> sourceFiles)
 {
-	if (!File.Exists(apiPath))
+	if (!File.Exists(outputPath))
 		return false;
 
-	DateTime apiTime = File.GetLastWriteTimeUtc(apiPath);
+	DateTime apiTime = File.GetLastWriteTimeUtc(outputPath);
 	foreach (string sourceFile in sourceFiles)
 	{
 		if (apiTime <= File.GetLastWriteTimeUtc(sourceFile))
@@ -344,7 +419,7 @@ static bool IsApiCacheCurrent(string apiPath, IReadOnlyList<string> sourceFiles)
 	return true;
 }
 
-static bool TryBuildPackageApi(IReadOnlyList<string> sourceFiles, string apiPath, RuntimeContext context)
+static bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, string apiPath, string? staticLibraryPath, RuntimeContext context)
 {
 	if (!TryLoadCompilation([.. sourceFiles], [], context, out Compilation packageCompilation))
 		return false;
@@ -362,28 +437,70 @@ static bool TryBuildPackageApi(IReadOnlyList<string> sourceFiles, string apiPath
 		Directory.CreateDirectory(Path.GetDirectoryName(apiPath)!);
 		using StreamWriter writer = new(apiPath, append: false, Encoding.UTF8);
 		BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
-		return true;
 	}
 	catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 	{
 		Console.Error.WriteLine($"{apiPath}: {ex.Message}");
 		return false;
 	}
+
+	if (staticLibraryPath is null)
+		return true;
+
+	if (!LowerAndReport(packageCompilation))
+		return false;
+
+	string packageBuildDirectory = Path.Combine(Path.GetDirectoryName(staticLibraryPath)!, "build");
+	CEmissionResult emission = CCodeEmitter.Emit(packageCompilation, new CEmissionOptions
+	{
+		OutputDirectory = packageBuildDirectory,
+		ProjectName = packageName,
+		EmitKind = "c99"
+	});
+	foreach (string diagnostic in emission.Diagnostics)
+		Console.Error.WriteLine(diagnostic);
+	if (!emission.Success)
+		return false;
+
+	NativeBuildResult build = NativeBuildDriver.Build(new NativeBuildOptions
+	{
+		Target = context.Target,
+		ProfileName = context.ProfileName,
+		BuildDirectory = packageBuildDirectory,
+		OutputDirectory = Path.GetDirectoryName(staticLibraryPath)!,
+		ProjectName = packageName,
+		Kind = NativeBuildKind.Static,
+		SourceFiles = emission.GeneratedSourceFiles
+	});
+	foreach (string diagnostic in build.Diagnostics)
+		Console.Error.WriteLine(diagnostic);
+	return build.Success;
 }
 
-static int EmitDefaultOutput(Compilation compilation, string emitKind, string? outDir)
+static int EmitDefaultOutput(Compilation compilation, string emitKind, NativeBuildKind? nativeBuildKind, string? outDir, string? buildDir, IReadOnlyList<string> packageLibraries)
 {
 	if (!LowerAndReport(compilation))
 		return 1;
 
-	string outputDirectory = string.IsNullOrWhiteSpace(outDir)
+	FunctionDefinition? execEntryPoint = null;
+	if (nativeBuildKind is NativeBuildKind.Exec && !TryPrepareExecEntryPoint(compilation, out execEntryPoint))
+		return 1;
+
+	string buildDirectory = string.IsNullOrWhiteSpace(buildDir)
 		? CCodeEmitter.GetDefaultOutputDirectory(compilation.Files)
+		: buildDir;
+	string outputDirectory = string.IsNullOrWhiteSpace(outDir)
+		? CCodeEmitter.GetDefaultArtifactDirectory(compilation.Files)
 		: outDir;
+	buildDirectory = Path.GetFullPath(buildDirectory);
+	outputDirectory = Path.GetFullPath(outputDirectory);
 	CEmissionResult result = CCodeEmitter.Emit(compilation, new CEmissionOptions
 	{
-		OutputDirectory = outputDirectory,
+		OutputDirectory = buildDirectory,
 		ProjectName = CCodeEmitter.GetProjectName(compilation.Files),
-		EmitKind = emitKind
+		EmitKind = emitKind,
+		EmitExecMainWrapper = nativeBuildKind is NativeBuildKind.Exec,
+		ExecEntryPoint = execEntryPoint
 	});
 	foreach (string diagnostic in result.Diagnostics)
 		Console.Error.WriteLine(diagnostic);
@@ -392,7 +509,114 @@ static int EmitDefaultOutput(Compilation compilation, string emitKind, string? o
 
 	foreach (string generated in result.GeneratedFiles)
 		Console.Out.WriteLine("generated: " + Path.GetFileName(generated));
+
+	if (nativeBuildKind is NativeBuildKind.Static or NativeBuildKind.Shared)
+	{
+		if (!TryEmitLibraryApiArtifacts(compilation, emitKind, outputDirectory))
+			return 1;
+	}
+
+	if (nativeBuildKind is null)
+		return 0;
+
+	NativeBuildResult build = NativeBuildDriver.Build(new NativeBuildOptions
+	{
+		Target = compilation.Target!,
+		ProfileName = compilation.ProfileName,
+		BuildDirectory = buildDirectory,
+		OutputDirectory = outputDirectory,
+		ProjectName = CCodeEmitter.GetProjectName(compilation.Files),
+		Kind = nativeBuildKind.Value,
+		SourceFiles = result.GeneratedSourceFiles,
+		Libraries = packageLibraries
+	});
+	foreach (string diagnostic in build.Diagnostics)
+		Console.Error.WriteLine(diagnostic);
+	if (!build.Success)
+		return 1;
+	foreach (string generated in build.GeneratedFiles)
+		Console.Out.WriteLine("generated: " + Path.GetFileName(generated));
 	return 0;
+}
+
+static bool TryPrepareExecEntryPoint(Compilation compilation, out FunctionDefinition? entryPoint)
+{
+	entryPoint = null;
+	List<FunctionDefinition> candidates = [];
+	foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+	{
+		if (definition is FunctionDefinition { Name: "main", Export: not null } function)
+			candidates.Add(function);
+	}
+	if (candidates.Count != 1)
+	{
+		Console.Error.WriteLine(candidates.Count == 0
+			? "Building an executable requires exactly one exported function named 'main'."
+			: "Building an executable requires exactly one exported function named 'main', but multiple were found.");
+		return false;
+	}
+
+	FunctionDefinition main = candidates[0];
+	bool returnsInt = main.ReturnType is PrimitiveTypeReference { Type: PrimitiveType.Int } || main.ResolvedType == "int";
+	bool returnsVoid = main.ReturnType is PrimitiveTypeReference { Type: PrimitiveType.Void } || main.ResolvedType == "void";
+	if (!returnsInt && !returnsVoid)
+	{
+		Console.Error.WriteLine("Executable entry point 'main' must return int or void.");
+		return false;
+	}
+
+	if (main.Parameters.Count is not (0 or 2))
+	{
+		Console.Error.WriteLine("Executable entry point 'main' must have no parameters or one string[] parameter.");
+		return false;
+	}
+
+	if (main.Parameters.Count == 2)
+	{
+		bool firstLooksLikeStringElements = main.Parameters[0].ResolvedType is string first && first.Contains("string", StringComparison.Ordinal) && first.Contains("*", StringComparison.Ordinal);
+		bool secondLooksLikeLength = main.Parameters[1].ResolvedType is "nuint" or "const nuint" || main.Parameters[1].Type is PrimitiveTypeReference { Type: PrimitiveType.NUInt };
+		if (!firstLooksLikeStringElements || !secondLooksLikeLength)
+		{
+			Console.Error.WriteLine("Executable entry point 'main' must have no parameters or one string[] parameter.");
+			return false;
+		}
+	}
+
+	main.Symbol = "campmain";
+	entryPoint = main;
+	return true;
+}
+
+static bool TryEmitLibraryApiArtifacts(Compilation compilation, string emitKind, string outputDirectory)
+{
+	string projectName = CCodeEmitter.GetProjectName(compilation.Files);
+	string campApiPath = Path.Combine(outputDirectory, projectName + "_api.camp");
+	try
+	{
+		Directory.CreateDirectory(outputDirectory);
+		using StreamWriter writer = new(campApiPath, append: false, Encoding.UTF8);
+		BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+		Console.Out.WriteLine("generated: " + Path.GetFileName(campApiPath));
+	}
+	catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+	{
+		Console.Error.WriteLine($"{campApiPath}: {ex.Message}");
+		return false;
+	}
+
+	CEmissionResult apiHeader = CCodeEmitter.EmitProjectApiHeader(compilation, new CEmissionOptions
+	{
+		OutputDirectory = outputDirectory,
+		ProjectName = projectName,
+		EmitKind = emitKind
+	}, outputDirectory);
+	foreach (string diagnostic in apiHeader.Diagnostics)
+		Console.Error.WriteLine(diagnostic);
+	if (!apiHeader.Success)
+		return false;
+	foreach (string generated in apiHeader.GeneratedFiles)
+		Console.Out.WriteLine("generated: " + Path.GetFileName(generated));
+	return true;
 }
 
 static int PrintTokens(Compilation compilation)

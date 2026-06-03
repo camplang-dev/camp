@@ -14,11 +14,14 @@ public sealed class CEmissionOptions
 	public required string OutputDirectory { get; init; }
 	public required string ProjectName { get; init; }
 	public string EmitKind { get; init; } = "c99";
+	public bool EmitExecMainWrapper { get; init; }
+	public FunctionDefinition? ExecEntryPoint { get; init; }
 }
 
 public sealed class CEmissionResult
 {
 	public List<string> GeneratedFiles { get; } = [];
+	public List<string> GeneratedSourceFiles { get; } = [];
 	public List<string> Diagnostics { get; } = [];
 	public bool Success => Diagnostics.Count == 0;
 }
@@ -73,6 +76,43 @@ public static class CCodeEmitter
 		return result;
 	}
 
+	public static CEmissionResult EmitProjectApiHeader(Compilation compilation, CEmissionOptions options, string outputDirectory)
+	{
+		ArgumentNullException.ThrowIfNull(compilation);
+		ArgumentNullException.ThrowIfNull(options);
+
+		CEmissionResult result = new();
+		if (!ValidateEmissionKind(options.EmitKind, result))
+			return result;
+		if (!ValidateLoweredTree(compilation, result))
+			return result;
+
+		try
+		{
+			Directory.CreateDirectory(outputDirectory);
+			CDeclarationWriter declarations = new(compilation, result);
+			string filename = Path.Combine(outputDirectory, options.ProjectName + "_api.h");
+			using StreamWriter writer = new(filename, append: false, Utf8NoBom);
+			string guard = BuildHeaderGuard(options.ProjectName + "_api_h");
+			writer.WriteLine("#ifndef " + guard);
+			writer.WriteLine("#define " + guard);
+			writer.WriteLine();
+			WriteTargetPreamble(writer, compilation);
+			writer.WriteLine();
+			declarations.WriteProjectApiHeaderDeclarations(writer);
+			writer.WriteLine();
+			writer.WriteLine("#endif");
+			result.GeneratedFiles.Add(filename);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+		{
+			result.Diagnostics.Add(ex.Message);
+		}
+		if (!result.Success)
+			DeleteGeneratedFiles(result);
+		return result;
+	}
+
 	static void DeleteGeneratedFiles(CEmissionResult result)
 	{
 		foreach (string generated in result.GeneratedFiles)
@@ -110,7 +150,7 @@ public static class CCodeEmitter
 		HashSet<BindableNode> visited = [];
 		foreach (BindableNode node in EnumerateNodes(compilation.SharedModule, visited))
 		{
-			if (node is LiteralExpression)
+			if (node is LiteralExpression or AttributeConstructor)
 				continue;
 			if (node.ResolvedType is string resolvedType && InvalidResolvedTypes.Contains(resolvedType))
 			{
@@ -157,7 +197,15 @@ public static class CCodeEmitter
 		declarations.WriteSourceFileForwardDeclarations(writer, file);
 		writer.WriteLine();
 		declarations.WriteSourceFileDefinitions(writer, file);
+		if (options.EmitExecMainWrapper && options.ExecEntryPoint is not null && IsFirstProjectSource(compilation, file))
+			declarations.WriteExecMainWrapper(writer, options.ExecEntryPoint);
 		result.GeneratedFiles.Add(filename);
+		result.GeneratedSourceFiles.Add(filename);
+	}
+
+	static bool IsFirstProjectSource(Compilation compilation, SourceFile file)
+	{
+		return ReferenceEquals(compilation.Files.FirstOrDefault(static candidate => !candidate.IsApiHeader), file);
 	}
 
 	static void EmitPublicHeader(Compilation compilation, CEmissionOptions options, SourceFile file, CEmissionResult result, CDeclarationWriter declarations)
@@ -263,6 +311,13 @@ public static class CCodeEmitter
 		SourceFile? first = files.FirstOrDefault(static file => !file.IsApiHeader) ?? files.FirstOrDefault();
 		string? directory = first is null || first.Path == "-" ? Directory.GetCurrentDirectory() : Path.GetDirectoryName(first.Path);
 		return Path.Combine(string.IsNullOrWhiteSpace(directory) ? Directory.GetCurrentDirectory() : directory, "build");
+	}
+
+	public static string GetDefaultArtifactDirectory(IReadOnlyList<SourceFile> files)
+	{
+		SourceFile? first = files.FirstOrDefault(static file => !file.IsApiHeader) ?? files.FirstOrDefault();
+		string? directory = first is null || first.Path == "-" ? Directory.GetCurrentDirectory() : Path.GetDirectoryName(first.Path);
+		return string.IsNullOrWhiteSpace(directory) ? Directory.GetCurrentDirectory() : directory;
 	}
 
 	static string GetCSourceFilename(SourceFile file)
@@ -427,6 +482,115 @@ public static class CCodeEmitter
 
 			if (!wrote)
 				writer.WriteLine("/* No exported declarations. */");
+		}
+
+		public void WriteProjectApiHeaderDeclarations(TextWriter writer)
+		{
+			emittedNames.Clear();
+			List<Definition> definitions = GetProjectDefinitions().ToList();
+			bool wrote = false;
+
+			foreach (TypeDefinition type in definitions.OfType<TypeDefinition>().Where(static type => type.Export is not null))
+			{
+				switch (type)
+				{
+					case ClassDefinition:
+						WriteTypeForwardDeclaration(writer, type);
+						wrote = true;
+						break;
+					case InterfaceDefinition interfaceDefinition:
+						WriteInterfaceLayout(writer, interfaceDefinition);
+						wrote = true;
+						break;
+					case NewtypeDefinition newtype:
+						WriteNewtypeDefinition(writer, newtype, exportedOnly: true);
+						wrote = true;
+						break;
+					case EnumDefinition enumDefinition:
+						WriteEnumDefinition(writer, enumDefinition);
+						wrote = true;
+						break;
+					case StructDefinition structDefinition:
+						WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
+						wrote = true;
+						break;
+				}
+			}
+
+			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null))
+			{
+				if (!ShouldWriteProjectApiFunction(function))
+					continue;
+				WriteFunctionPrototype(writer, function, storage: null);
+				wrote = true;
+			}
+
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null))
+			{
+				if (IsGeneratedVTableVariable(variable))
+					continue;
+				WriteVariableDeclaration(writer, variable, storage: "extern");
+				wrote = true;
+			}
+
+			if (!wrote)
+				writer.WriteLine("/* No exported declarations. */");
+		}
+
+		public void WriteExecMainWrapper(TextWriter writer, FunctionDefinition entryPoint)
+		{
+			writer.WriteLine();
+			if (entryPoint.Parameters.Count == 0)
+			{
+				writer.WriteLine("int main(void)");
+				writer.WriteLine("{");
+				if (IsIntReturn(entryPoint))
+					writer.WriteLine("\treturn " + CName(entryPoint) + "();");
+				else
+				{
+					writer.WriteLine("\t" + CName(entryPoint) + "();");
+					writer.WriteLine("\treturn 0;");
+				}
+				writer.WriteLine("}");
+				return;
+			}
+
+			writer.WriteLine("int main(int argc, char* argv[])");
+			writer.WriteLine("{");
+			if (IsIntReturn(entryPoint))
+				writer.WriteLine("\treturn " + CName(entryPoint) + "(argv, (uintptr_t)argc);");
+			else
+			{
+				writer.WriteLine("\t" + CName(entryPoint) + "(argv, (uintptr_t)argc);");
+				writer.WriteLine("\treturn 0;");
+			}
+			writer.WriteLine("}");
+		}
+
+		static bool IsIntReturn(FunctionDefinition function)
+		{
+			return function.ReturnType is PrimitiveTypeReference { Type: PrimitiveType.Int } || function.ResolvedType == "int";
+		}
+
+		static bool ShouldWriteProjectApiFunction(FunctionDefinition function)
+		{
+			if (function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor)
+				return false;
+			if (function.Name is "op_initnew" or "op_delete")
+				return false;
+			if (function.Name.StartsWith("_", StringComparison.Ordinal) && function.Name is not "_create" and not "_destroy")
+				return false;
+			if (function.Symbol.Contains("__", StringComparison.Ordinal))
+				return false;
+			return true;
+		}
+
+		static bool IsGeneratedVTableVariable(VariableDefinition variable)
+		{
+			return variable.Name.Contains("__vt", StringComparison.Ordinal)
+				|| variable.Symbol.Contains("__vt", StringComparison.Ordinal)
+				|| variable.Name.EndsWith("_vt", StringComparison.Ordinal)
+				|| variable.Symbol.EndsWith("_vt", StringComparison.Ordinal);
 		}
 
 		IEnumerable<Definition> GetDefinitions()
@@ -871,7 +1035,7 @@ public static class CCodeEmitter
 				SizeOfExpression sizeOf => "sizeof(" + FormatType(sizeOf.Type, "").Declaration.Trim() + ")",
 				CallExpression call => FormatCallExpression(call),
 				IndexExpression index => FormatExpression(index.Target) + "[" + string.Join(", ", index.Arguments.Select(FormatArgumentValue)) + "]",
-				MemberExpression member => FormatExpression(member.Target) + "." + SanitizeIdentifier(member.Name),
+				MemberExpression member => FormatExpression(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
 				MemberReferenceExpression member => FormatMemberReference(member),
 				UnaryExpression unary => FormatUnaryExpression(unary),
 				PostfixUpdateExpression postfix => FormatExpression(postfix.Expression) + FormatUpdateOperator(postfix.Operator),
@@ -917,8 +1081,13 @@ public static class CCodeEmitter
 		{
 			if (member.Member is FunctionDefinition function)
 				return CName(function);
-			string separator = IsPointerLike(member.Target?.ResolvedType) ? "->" : ".";
+			string separator = IsPointerMemberTarget(member.Target) ? "->" : ".";
 			return FormatExpression(member.Target) + separator + SanitizeIdentifier(member.Name);
+		}
+
+		static bool IsPointerMemberTarget(Expression? target)
+		{
+			return target is ThisExpression || IsPointerLike(target?.ResolvedType);
 		}
 
 		static bool IsPointerLike(string? type)
@@ -1170,6 +1339,8 @@ public static class CCodeEmitter
 
 		CType FormatTypeOrResolved(TypeReference? type, string? resolvedType, string declarator)
 		{
+			if (type is CallableTypeReference)
+				return FormatType(type, declarator);
 			if (ShouldFormatResolvedType(resolvedType))
 				return FormatResolvedType(resolvedType!, declarator);
 			if (type is not null)

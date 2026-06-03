@@ -186,6 +186,10 @@ public sealed class TargetDefinition
 	public IReadOnlyDictionary<string, TargetMemoryModel> MemoryModels => Sections.MemoryModels;
 	public IReadOnlyList<string> TypeSpecOrder => Sections.TypeSpecOrder;
 	public IReadOnlyList<string> Includes => Sections.Includes;
+	public IReadOnlyDictionary<string, string> Toolchain => Sections.Toolchain;
+	public IReadOnlyDictionary<string, string> Artifact => Sections.Artifact;
+	public IReadOnlyDictionary<string, string> BuildTemplates => Sections.BuildTemplates;
+	public IReadOnlyDictionary<string, TargetProfileBuild> Profiles => Sections.Profiles;
 
 	public bool HasCallSpec(string name)
 	{
@@ -205,6 +209,26 @@ public sealed class TargetDefinition
 	public string? GetPrimitiveCSpelling(string name)
 	{
 		return Sections.CTypes.TryGetValue(name, out string? value) ? value : null;
+	}
+
+	public string GetTool(string name)
+	{
+		return Sections.Toolchain.TryGetValue(name, out string? value) && !string.IsNullOrWhiteSpace(value) ? value : name;
+	}
+
+	public string GetArtifactValue(string name, string defaultValue = "")
+	{
+		return Sections.Artifact.TryGetValue(name, out string? value) ? value : defaultValue;
+	}
+
+	public string? GetBuildTemplate(string name)
+	{
+		return Sections.BuildTemplates.TryGetValue(name, out string? value) && !string.IsNullOrWhiteSpace(value) ? value : null;
+	}
+
+	public TargetProfileBuild GetProfileBuild(string profileName)
+	{
+		return Sections.Profiles.TryGetValue(profileName, out TargetProfileBuild? profile) ? profile : TargetProfileBuild.Empty;
 	}
 
 	public int GetNaturalIntegerWidth(string? typeSpec)
@@ -267,6 +291,10 @@ internal sealed class TargetSections
 	public Dictionary<string, TargetMemoryModel> MemoryModels { get; } = new(StringComparer.Ordinal);
 	public List<string> TypeSpecOrder { get; } = [];
 	public List<string> Includes { get; } = [];
+	public Dictionary<string, string> Toolchain { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, string> Artifact { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, string> BuildTemplates { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, TargetProfileBuild> Profiles { get; } = new(StringComparer.Ordinal);
 
 	public void CopyFrom(TargetSections source)
 	{
@@ -278,6 +306,10 @@ internal sealed class TargetSections
 		CopySection(source.NaturalIntegerWidths, NaturalIntegerWidths);
 		CopySection(source.PointerWidths, PointerWidths);
 		CopySection(source.MemoryModels, MemoryModels);
+		CopySection(source.Toolchain, Toolchain);
+		CopySection(source.Artifact, Artifact);
+		CopySection(source.BuildTemplates, BuildTemplates);
+		CopySection(source.Profiles, Profiles);
 	}
 
 	public void MergeFrom(IniData data)
@@ -290,6 +322,10 @@ internal sealed class TargetSections
 		MergeWidthSection(data, "nint", NaturalIntegerWidths);
 		MergeWidthSection(data, "pointer", PointerWidths);
 		MergeMemoryModelSection(data);
+		MergeSection(data, "toolchain", Toolchain);
+		MergeSection(data, "artifact", Artifact);
+		MergeSection(data, "build", BuildTemplates);
+		MergeProfileSections(data);
 		ValidateTargetMetadata();
 	}
 
@@ -381,6 +417,21 @@ internal sealed class TargetSections
 		}
 	}
 
+	void MergeProfileSections(IniData data)
+	{
+		foreach (SectionData section in data.Sections)
+		{
+			if (!section.SectionName.StartsWith("profile.", StringComparison.Ordinal))
+				continue;
+			string profileName = section.SectionName["profile.".Length..].Trim();
+			if (profileName.Length == 0)
+				throw new InvalidDataException("Profile build section names must use [profile.NAME].");
+			string cflags = section.Keys.GetKeyData("cflags")?.Value ?? "";
+			string ldflags = section.Keys.GetKeyData("ldflags")?.Value ?? "";
+			Profiles[profileName.ToUpperInvariant()] = new TargetProfileBuild(cflags, ldflags);
+		}
+	}
+
 	void ValidateTargetMetadata()
 	{
 		foreach (string key in NaturalIntegerWidths.Keys)
@@ -406,3 +457,8 @@ internal sealed class TargetSections
 }
 
 public sealed record TargetMemoryModel(string Name, string CodePointerTypeSpec, string DataPointerTypeSpec);
+
+public sealed record TargetProfileBuild(string CFlags, string LdFlags)
+{
+	public static TargetProfileBuild Empty { get; } = new("", "");
+}
