@@ -343,9 +343,9 @@ public static class CCodeEmitter
 
 			writer.WriteLine("/* Private file declarations. */");
 			foreach (FunctionDefinition function in privateFunctions)
-				WriteFunctionPrototype(writer, function, storage: "static");
+				WriteFunctionPrototype(writer, function, storage: function.Extern is not null ? null : "static");
 			foreach (VariableDefinition variable in privateVariables)
-				WriteVariableDeclaration(writer, variable, storage: "static");
+				WriteVariableDeclaration(writer, variable, storage: variable.Extern is not null ? "extern" : "static");
 		}
 
 		public void WriteSourceFileDefinitions(TextWriter writer, SourceFile file)
@@ -607,7 +607,7 @@ public static class CCodeEmitter
 			if (fields.Count == 0)
 				writer.WriteLine("\tchar _camp_empty;");
 			foreach (FieldDefinition field in fields.Where(static field => field.Modifier != FieldModifier.Static))
-				writer.WriteLine("\t" + FormatType(field.Type, CName(field)).Declaration + ";");
+				writer.WriteLine("\t" + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration + ";");
 			writer.WriteLine("};");
 		}
 
@@ -649,19 +649,19 @@ public static class CCodeEmitter
 			string callSpec = FormatCallSpec(function.CallSpec);
 			if (callSpec.Length > 0)
 				callSpec += " ";
-			writer.WriteLine(prefix + FormatType(function.ReturnType, callSpec + name).Declaration + FormatParameters(function) + ";");
+			writer.WriteLine(prefix + FormatTypeOrResolved(function.ReturnType, function.ResolvedType, callSpec + name).Declaration + FormatParameters(function) + ";");
 		}
 
 		void WriteVariableDeclaration(TextWriter writer, VariableDefinition variable, string? storage)
 		{
 			string prefix = string.IsNullOrWhiteSpace(storage) ? "" : storage + " ";
-			writer.WriteLine(prefix + FormatType(variable.Type, CName(variable)).Declaration + ";");
+			writer.WriteLine(prefix + FormatTypeOrResolved(variable.Type, variable.ResolvedType, CName(variable)).Declaration + ";");
 		}
 
 		void WriteVariableDefinition(TextWriter writer, VariableDefinition variable, string? storage)
 		{
 			string prefix = string.IsNullOrWhiteSpace(storage) ? "" : storage + " ";
-			writer.Write(prefix + FormatType(variable.Type, CName(variable)).Declaration);
+			writer.Write(prefix + FormatTypeOrResolved(variable.Type, variable.ResolvedType, CName(variable)).Declaration);
 			if (variable.InitialValue is not null)
 				writer.Write(" = " + FormatExpression(variable.InitialValue));
 			writer.WriteLine(";");
@@ -673,7 +673,7 @@ public static class CCodeEmitter
 			string callSpec = FormatCallSpec(function.CallSpec);
 			if (callSpec.Length > 0)
 				callSpec += " ";
-			writer.WriteLine(prefix + FormatType(function.ReturnType, callSpec + CName(function)).Declaration + FormatParameters(function));
+			writer.WriteLine(prefix + FormatTypeOrResolved(function.ReturnType, function.ResolvedType, callSpec + CName(function)).Declaration + FormatParameters(function));
 			WriteBlock(writer, function.Body!, indent: 0, forceBraces: true);
 			writer.WriteLine();
 		}
@@ -780,7 +780,8 @@ public static class CCodeEmitter
 
 		void WriteDeclarationStatement(TextWriter writer, DeclarationStatement declaration, int indent)
 		{
-			string type = FormatType(declaration.Target.Type, declaration.Target.Names.Count == 0 ? "__unnamed" : SanitizeIdentifier(declaration.Target.Names[0])).Declaration;
+			string name = declaration.Target.Names.Count == 0 ? "__unnamed" : SanitizeIdentifier(declaration.Target.Names[0]);
+			string type = FormatTypeOrResolved(declaration.Target.Type, declaration.Target.ResolvedType, name).Declaration;
 			WriteIndent(writer, indent);
 			writer.Write(type);
 			if (declaration.InitialValue is not null)
@@ -808,8 +809,10 @@ public static class CCodeEmitter
 				initializer = FormatDeclarationForClause(declaration);
 			else if (forStatement.Condition.Clauses.Count > 0 && forStatement.Condition.Clauses[0] is not null)
 				initializer = FormatExpression(forStatement.Condition.Clauses[0]);
-			string condition = forStatement.Condition.Clauses.Count > 1 && forStatement.Condition.Clauses[1] is not null ? FormatExpression(forStatement.Condition.Clauses[1]) : "";
-			string increment = forStatement.Condition.Clauses.Count > 2 && forStatement.Condition.Clauses[2] is not null ? FormatExpression(forStatement.Condition.Clauses[2]) : "";
+			int conditionIndex = forStatement.Condition.Declaration is null ? 1 : 0;
+			int incrementIndex = forStatement.Condition.Declaration is null ? 2 : 1;
+			string condition = forStatement.Condition.Clauses.Count > conditionIndex && forStatement.Condition.Clauses[conditionIndex] is not null ? FormatExpression(forStatement.Condition.Clauses[conditionIndex]) : "";
+			string increment = forStatement.Condition.Clauses.Count > incrementIndex && forStatement.Condition.Clauses[incrementIndex] is not null ? FormatExpression(forStatement.Condition.Clauses[incrementIndex]) : "";
 
 			WriteIndent(writer, indent);
 			writer.WriteLine("for (" + initializer + "; " + condition + "; " + increment + ")");
@@ -819,7 +822,7 @@ public static class CCodeEmitter
 		string FormatDeclarationForClause(DeclarationStatement declaration)
 		{
 			string name = declaration.Target.Names.Count == 0 ? "__unnamed" : SanitizeIdentifier(declaration.Target.Names[0]);
-			string text = FormatType(declaration.Target.Type, name).Declaration;
+			string text = FormatTypeOrResolved(declaration.Target.Type, declaration.Target.ResolvedType, name).Declaration;
 			if (declaration.InitialValue is not null)
 				text += " = " + FormatExpression(declaration.InitialValue);
 			return text;
@@ -927,6 +930,7 @@ public static class CCodeEmitter
 				VariableDefinition definition => CName(definition),
 				ParameterDefinition parameter => CName(parameter),
 				FieldDefinition field => CName(field),
+				DeclarationTarget target => CName(target),
 				_ => UnsupportedExpression(variable)
 			};
 		}
@@ -1067,11 +1071,11 @@ public static class CCodeEmitter
 				if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 				{
 					TypeReference? parameterType = parameter.Type;
-					parts.Add(FormatType(new PointerTypeReference { ElementType = parameterType }, name).Declaration);
+					parts.Add(FormatOutParameterType(parameterType, parameter.ResolvedType, name).Declaration);
 				}
 				else
 				{
-					parts.Add(FormatType(parameter.Type, name).Declaration);
+					parts.Add(FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name).Declaration);
 				}
 			}
 			return "(" + (parts.Count == 0 ? "void" : string.Join(", ", parts)) + ")";
@@ -1090,11 +1094,11 @@ public static class CCodeEmitter
 				if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 				{
 					TypeReference? parameterType = parameter.Type;
-					parts.Add(FormatType(new PointerTypeReference { ElementType = parameterType }, name).Declaration);
+					parts.Add(FormatOutParameterType(parameterType, parameter.ResolvedType, name).Declaration);
 				}
 				else
 				{
-					parts.Add(FormatType(parameter.Type, name).Declaration);
+					parts.Add(FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name).Declaration);
 				}
 			}
 			return "(" + (parts.Count == 0 ? "void" : string.Join(", ", parts)) + ")";
@@ -1156,6 +1160,95 @@ public static class CCodeEmitter
 				ThrownTypeReference thrown => FormatType(thrown.Type, declarator),
 				IterTypeReference => new CType("void* " + declarator),
 				_ => new CType((type.ResolvedType is null ? "void*" : CTypeName(type.ResolvedType)) + " " + declarator)
+			};
+		}
+
+		CType FormatTypeOrResolved(TypeReference? type, string? resolvedType, string declarator)
+		{
+			if (type is not null)
+				return FormatType(type, declarator);
+			if (!string.IsNullOrWhiteSpace(resolvedType))
+				return FormatResolvedType(resolvedType, declarator);
+			return FormatType(null, declarator);
+		}
+
+		CType FormatOutParameterType(TypeReference? type, string? resolvedType, string declarator)
+		{
+			if (type is not null)
+				return FormatType(new PointerTypeReference { ElementType = type }, declarator);
+			if (!string.IsNullOrWhiteSpace(resolvedType))
+				return FormatResolvedType(resolvedType + "*", declarator);
+			return FormatType(new PointerTypeReference { ElementType = null }, declarator);
+		}
+
+		CType FormatResolvedType(string resolvedType, string declarator)
+		{
+			string type = resolvedType.Trim();
+			List<string> qualifiers = [];
+			while (true)
+			{
+				if (type.StartsWith("const ", StringComparison.Ordinal))
+				{
+					qualifiers.Add("const");
+					type = type[6..].TrimStart();
+					continue;
+				}
+				if (type.StartsWith("volatile ", StringComparison.Ordinal))
+				{
+					qualifiers.Add("volatile");
+					type = type[9..].TrimStart();
+					continue;
+				}
+				if (type.StartsWith("escaped ", StringComparison.Ordinal))
+				{
+					type = type[8..].TrimStart();
+					continue;
+				}
+				if (type.StartsWith("scoped ", StringComparison.Ordinal))
+				{
+					type = type[7..].TrimStart();
+					continue;
+				}
+				if (type.StartsWith("unscoped ", StringComparison.Ordinal))
+				{
+					type = type[9..].TrimStart();
+					continue;
+				}
+				break;
+			}
+
+			int pointerCount = 0;
+			while (type.EndsWith("*", StringComparison.Ordinal))
+			{
+				pointerCount++;
+				type = type[..^1].TrimEnd();
+			}
+
+			if (type.EndsWith("[]", StringComparison.Ordinal))
+			{
+				pointerCount++;
+				type = type[..^2].TrimEnd();
+			}
+
+			string cType = FormatResolvedBaseType(type);
+			string pointerPart = pointerCount == 0 ? "" : new string('*', pointerCount);
+			string qualifierPart = qualifiers.Count == 0 ? "" : string.Join(" ", qualifiers) + " ";
+			return new CType(qualifierPart + cType + pointerPart + " " + declarator);
+		}
+
+		string FormatResolvedBaseType(string type)
+		{
+			return type switch
+			{
+				"void" => "void",
+				"bool" => compilation.Target?.GetPrimitiveCSpelling("bool") ?? "bool",
+				"string" => "char*",
+				"wstring" => "uint16_t*",
+				"astring" => "char*",
+				"untyped" => "void",
+				"sbyte" or "byte" or "short" or "ushort" or "int" or "uint" or "long" or "ulong" or "nint" or "nuint" or "float" or "double" or "char" or "wchar" or "achar" or "uchar"
+					=> compilation.Target?.GetPrimitiveCSpelling(type) ?? type,
+				_ => CTypeName(type)
 			};
 		}
 
@@ -1293,6 +1386,11 @@ public static class CCodeEmitter
 		static string CName(ParameterDefinition parameter)
 		{
 			return SanitizeIdentifier(string.IsNullOrWhiteSpace(parameter.Symbol) ? parameter.Name : parameter.Symbol);
+		}
+
+		static string CName(DeclarationTarget target)
+		{
+			return target.Names.Count == 0 ? "__unnamed" : SanitizeIdentifier(target.Names[0]);
 		}
 
 		static string GetPrimitiveName(PrimitiveType type)
