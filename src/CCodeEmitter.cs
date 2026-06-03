@@ -47,16 +47,12 @@ public static class CCodeEmitter
 		try
 		{
 			Directory.CreateDirectory(options.OutputDirectory);
-			CDeclarationWriter declarations = new(compilation);
+			CDeclarationWriter declarations = new(compilation, result);
 			EmitPrivateHeader(compilation, options, result, declarations);
 			foreach (SourceFile file in compilation.Files)
 			{
 				if (file.IsApiHeader)
-				{
-					if (HasExportedDeclarations(compilation, file))
-						EmitPublicHeader(compilation, options, file, result, declarations);
 					continue;
-				}
 
 				EmitSourceFile(compilation, options, file, result, declarations);
 				if (HasExportedDeclarations(compilation, file))
@@ -67,8 +63,27 @@ public static class CCodeEmitter
 		{
 			result.Diagnostics.Add(ex.Message);
 		}
+		if (!result.Success)
+			DeleteGeneratedFiles(result);
 
 		return result;
+	}
+
+	static void DeleteGeneratedFiles(CEmissionResult result)
+	{
+		foreach (string generated in result.GeneratedFiles)
+		{
+			try
+			{
+				if (File.Exists(generated))
+					File.Delete(generated);
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+			{
+				result.Diagnostics.Add(ex.Message);
+			}
+		}
+		result.GeneratedFiles.Clear();
 	}
 
 	static bool ValidateEmissionKind(string emitKind, CEmissionResult result)
@@ -120,12 +135,6 @@ public static class CCodeEmitter
 			writer.WriteLine("#include <" + include + ">");
 		}
 
-		foreach (SourceFile file in compilation.Files.Where(static file => file.IsApiHeader))
-		{
-			if (HasExportedDeclarations(compilation, file))
-				writer.WriteLine("#include \"" + GetHeaderFilename(file) + "\"");
-		}
-
 		writer.WriteLine();
 		declarations.WritePrivateHeaderDeclarations(writer);
 		writer.WriteLine();
@@ -143,7 +152,7 @@ public static class CCodeEmitter
 		writer.WriteLine();
 		declarations.WriteSourceFileForwardDeclarations(writer, file);
 		writer.WriteLine();
-		writer.WriteLine("/* Function and object definitions will be emitted in a later C emission stage. */");
+		declarations.WriteSourceFileDefinitions(writer, file);
 		result.GeneratedFiles.Add(filename);
 	}
 
@@ -275,7 +284,7 @@ public static class CCodeEmitter
 		return builder.Length == 0 ? "camp" : builder.ToString();
 	}
 
-	sealed class CDeclarationWriter(Compilation compilation)
+	sealed class CDeclarationWriter(Compilation compilation, CEmissionResult result)
 	{
 		readonly HashSet<string> emittedNames = new(StringComparer.Ordinal);
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
@@ -283,7 +292,7 @@ public static class CCodeEmitter
 		public void WritePrivateHeaderDeclarations(TextWriter writer)
 		{
 			emittedNames.Clear();
-			List<Definition> definitions = GetDefinitions().ToList();
+			List<Definition> definitions = GetProjectDefinitions().ToList();
 
 			WriteSection(writer, "Forward declarations", () =>
 			{
@@ -337,6 +346,34 @@ public static class CCodeEmitter
 				WriteFunctionPrototype(writer, function, storage: "static");
 			foreach (VariableDefinition variable in privateVariables)
 				WriteVariableDeclaration(writer, variable, storage: "static");
+		}
+
+		public void WriteSourceFileDefinitions(TextWriter writer, SourceFile file)
+		{
+			emittedNames.Clear();
+			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
+			bool wrote = false;
+
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>())
+			{
+				if (variable.Extern is not null)
+					continue;
+				WriteVariableDefinition(writer, variable, storage: variable.Export is null ? "static" : null);
+				wrote = true;
+			}
+
+			foreach (FunctionDefinition function in GetAllFunctions(definitions))
+			{
+				if (function.Extern is not null || function.Body is null)
+					continue;
+				if (function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor)
+					continue;
+				WriteFunctionDefinition(writer, function, storage: function.Export is null ? "static" : null);
+				wrote = true;
+			}
+
+			if (!wrote)
+				writer.WriteLine("/* No C definitions emitted for this file. */");
 		}
 
 		public void WritePublicHeaderDeclarations(TextWriter writer, SourceFile file)
@@ -399,6 +436,16 @@ public static class CCodeEmitter
 			{
 				if (compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) && ReferenceEquals(owner, file))
 					yield return definition;
+			}
+		}
+
+		IEnumerable<Definition> GetProjectDefinitions()
+		{
+			foreach (Definition definition in GetDefinitions())
+			{
+				if (!compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) || owner.IsApiHeader)
+					continue;
+				yield return definition;
 			}
 		}
 
@@ -609,6 +656,404 @@ public static class CCodeEmitter
 		{
 			string prefix = string.IsNullOrWhiteSpace(storage) ? "" : storage + " ";
 			writer.WriteLine(prefix + FormatType(variable.Type, CName(variable)).Declaration + ";");
+		}
+
+		void WriteVariableDefinition(TextWriter writer, VariableDefinition variable, string? storage)
+		{
+			string prefix = string.IsNullOrWhiteSpace(storage) ? "" : storage + " ";
+			writer.Write(prefix + FormatType(variable.Type, CName(variable)).Declaration);
+			if (variable.InitialValue is not null)
+				writer.Write(" = " + FormatExpression(variable.InitialValue));
+			writer.WriteLine(";");
+		}
+
+		void WriteFunctionDefinition(TextWriter writer, FunctionDefinition function, string? storage)
+		{
+			string prefix = string.IsNullOrWhiteSpace(storage) ? "" : storage + " ";
+			string callSpec = FormatCallSpec(function.CallSpec);
+			if (callSpec.Length > 0)
+				callSpec += " ";
+			writer.WriteLine(prefix + FormatType(function.ReturnType, callSpec + CName(function)).Declaration + FormatParameters(function));
+			WriteBlock(writer, function.Body!, indent: 0, forceBraces: true);
+			writer.WriteLine();
+		}
+
+		void WriteBlock(TextWriter writer, BlockStatement block, int indent, bool forceBraces)
+		{
+			if (forceBraces)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine("{");
+			}
+			foreach (Statement statement in block.Statements)
+				WriteStatement(writer, statement, forceBraces ? indent + 1 : indent);
+			if (forceBraces)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine("}");
+			}
+		}
+
+		void WriteStatement(TextWriter writer, Statement statement, int indent)
+		{
+			switch (statement)
+			{
+				case EmptyStatement:
+					WriteIndent(writer, indent);
+					writer.WriteLine(";");
+					break;
+				case BlockStatement block:
+					WriteBlock(writer, block, indent, forceBraces: true);
+					break;
+				case ExpressionStatement expression:
+					WriteIndent(writer, indent);
+					writer.WriteLine(FormatExpression(expression.Expression) + ";");
+					break;
+				case DeclarationStatement declaration:
+					WriteDeclarationStatement(writer, declaration, indent);
+					break;
+				case ReturnStatement ret:
+					WriteIndent(writer, indent);
+					writer.Write("return");
+					if (ret.Expression is not null)
+						writer.Write(" " + FormatExpression(ret.Expression));
+					writer.WriteLine(";");
+					break;
+				case IfStatement ifStatement:
+					WriteIfStatement(writer, ifStatement, indent);
+					break;
+				case WhileStatement whileStatement:
+					WriteIndent(writer, indent);
+					writer.WriteLine("while (" + FormatExpression(whileStatement.Condition) + ")");
+					WriteEmbeddedStatement(writer, whileStatement.Body, indent);
+					break;
+				case DoWhileStatement doWhile:
+					WriteIndent(writer, indent);
+					writer.WriteLine("do");
+					WriteEmbeddedStatement(writer, doWhile.Body, indent);
+					WriteIndent(writer, indent);
+					writer.WriteLine("while (" + FormatExpression(doWhile.Condition) + ");");
+					break;
+				case ForStatement forStatement:
+					WriteForStatement(writer, forStatement, indent);
+					break;
+				case BreakStatement:
+					WriteIndent(writer, indent);
+					writer.WriteLine("break;");
+					break;
+				case ContinueStatement:
+					WriteIndent(writer, indent);
+					writer.WriteLine("continue;");
+					break;
+				case LabelStatement label:
+					writer.WriteLine(SanitizeIdentifier(label.Name ?? "label") + ":");
+					break;
+				case GotoStatement go:
+					WriteIndent(writer, indent);
+					writer.WriteLine("goto " + SanitizeIdentifier(go.Target?.Name ?? go.TargetName ?? "label") + ";");
+					break;
+				case SwitchStatement switchStatement:
+					WriteIndent(writer, indent);
+					writer.WriteLine("switch (" + FormatExpression(switchStatement.Expression) + ")");
+					WriteIndent(writer, indent);
+					writer.WriteLine("{");
+					foreach (Statement child in switchStatement.Statements)
+						WriteStatement(writer, child, indent + 1);
+					WriteIndent(writer, indent);
+					writer.WriteLine("}");
+					break;
+				case CaseStatement caseStatement:
+					WriteIndent(writer, Math.Max(0, indent - 1));
+					writer.WriteLine("case " + FormatExpression(caseStatement.Expression) + ":");
+					break;
+				case DefaultStatement:
+					WriteIndent(writer, Math.Max(0, indent - 1));
+					writer.WriteLine("default:");
+					break;
+				default:
+					AddUnsupported(statement, "statement");
+					WriteIndent(writer, indent);
+					writer.WriteLine("/* unsupported " + statement.GetType().Name + " */");
+					break;
+			}
+		}
+
+		void WriteDeclarationStatement(TextWriter writer, DeclarationStatement declaration, int indent)
+		{
+			string type = FormatType(declaration.Target.Type, declaration.Target.Names.Count == 0 ? "__unnamed" : SanitizeIdentifier(declaration.Target.Names[0])).Declaration;
+			WriteIndent(writer, indent);
+			writer.Write(type);
+			if (declaration.InitialValue is not null)
+				writer.Write(" = " + FormatExpression(declaration.InitialValue));
+			writer.WriteLine(";");
+		}
+
+		void WriteIfStatement(TextWriter writer, IfStatement ifStatement, int indent)
+		{
+			WriteIndent(writer, indent);
+			writer.WriteLine("if (" + FormatExpression(ifStatement.Condition) + ")");
+			WriteEmbeddedStatement(writer, ifStatement.Body, indent);
+			if (ifStatement.ElseBody is not null)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine("else");
+				WriteEmbeddedStatement(writer, ifStatement.ElseBody, indent);
+			}
+		}
+
+		void WriteForStatement(TextWriter writer, ForStatement forStatement, int indent)
+		{
+			string initializer = "";
+			if (forStatement.Condition.Declaration is DeclarationStatement declaration)
+				initializer = FormatDeclarationForClause(declaration);
+			else if (forStatement.Condition.Clauses.Count > 0 && forStatement.Condition.Clauses[0] is not null)
+				initializer = FormatExpression(forStatement.Condition.Clauses[0]);
+			string condition = forStatement.Condition.Clauses.Count > 1 && forStatement.Condition.Clauses[1] is not null ? FormatExpression(forStatement.Condition.Clauses[1]) : "";
+			string increment = forStatement.Condition.Clauses.Count > 2 && forStatement.Condition.Clauses[2] is not null ? FormatExpression(forStatement.Condition.Clauses[2]) : "";
+
+			WriteIndent(writer, indent);
+			writer.WriteLine("for (" + initializer + "; " + condition + "; " + increment + ")");
+			WriteEmbeddedStatement(writer, forStatement.Body, indent);
+		}
+
+		string FormatDeclarationForClause(DeclarationStatement declaration)
+		{
+			string name = declaration.Target.Names.Count == 0 ? "__unnamed" : SanitizeIdentifier(declaration.Target.Names[0]);
+			string text = FormatType(declaration.Target.Type, name).Declaration;
+			if (declaration.InitialValue is not null)
+				text += " = " + FormatExpression(declaration.InitialValue);
+			return text;
+		}
+
+		void WriteEmbeddedStatement(TextWriter writer, Statement? statement, int indent)
+		{
+			if (statement is null)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine("{}");
+				return;
+			}
+			if (statement is BlockStatement block)
+			{
+				WriteBlock(writer, block, indent, forceBraces: true);
+				return;
+			}
+			WriteIndent(writer, indent);
+			writer.WriteLine("{");
+			WriteStatement(writer, statement, indent + 1);
+			WriteIndent(writer, indent);
+			writer.WriteLine("}");
+		}
+
+		string FormatExpression(Expression? expression)
+		{
+			if (expression is null)
+				return "0";
+
+			return expression switch
+			{
+				LiteralExpression literal => FormatLiteral(literal),
+				VariableReferenceExpression variable => FormatVariableReference(variable.Variable),
+				NamedExpression named => SanitizeIdentifier(named.Name),
+				MethodReferenceExpression method => method.Candidates.Count == 1 ? CName(method.Candidates[0]) : UnsupportedExpression(expression),
+				TypeReferenceExpression => UnsupportedExpression(expression),
+				ThisExpression => "this",
+				DefaultExpression => "0",
+				ParenthesizedExpression parenthesized => "(" + FormatExpression(parenthesized.Expression) + ")",
+				CastExpression cast => "(" + FormatType(cast.Type, "").Declaration.Trim() + ")(" + FormatExpression(cast.Expression) + ")",
+				SizeOfExpression sizeOf => "sizeof(" + FormatType(sizeOf.Type, "").Declaration.Trim() + ")",
+				CallExpression call => FormatCallExpression(call),
+				IndexExpression index => FormatExpression(index.Target) + "[" + string.Join(", ", index.Arguments.Select(FormatArgumentValue)) + "]",
+				MemberExpression member => FormatExpression(member.Target) + "." + SanitizeIdentifier(member.Name),
+				MemberReferenceExpression member => FormatMemberReference(member),
+				UnaryExpression unary => FormatUnaryExpression(unary),
+				PostfixUpdateExpression postfix => FormatExpression(postfix.Expression) + FormatUpdateOperator(postfix.Operator),
+				BinaryExpression binary => "(" + FormatExpression(binary.Left) + " " + FormatBinaryOperator(binary.Operator) + " " + FormatExpression(binary.Right) + ")",
+				AssignmentExpression assignment => FormatExpression(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + FormatExpression(assignment.Value),
+				ConditionalExpression conditional => "(" + FormatExpression(conditional.Condition) + " ? " + FormatExpression(conditional.WhenTrue) + " : " + FormatExpression(conditional.WhenFalse) + ")",
+				InitializerExpression initializer => FormatInitializer(initializer),
+				RangeExpression => UnsupportedExpression(expression),
+				GroupedExpression => UnsupportedExpression(expression),
+				ArrayExpression => UnsupportedExpression(expression),
+				ConstructionExpression => UnsupportedExpression(expression),
+				CurrentAllocatorExpression => UnsupportedExpression(expression),
+				WithinExpression => UnsupportedExpression(expression),
+				VTableOfExpression => UnsupportedExpression(expression),
+				LambdaExpression => UnsupportedExpression(expression),
+				ArgumentExpression argument => FormatArgumentValue(argument),
+				NamelessIndexerExpression indexer => FormatExpression(indexer.Target) + "[" + string.Join(", ", indexer.Arguments.Select(FormatArgumentValue)) + "]",
+				FinallyDeleteExpression finallyDelete => FormatExpression(finallyDelete.Expression),
+				_ => UnsupportedExpression(expression)
+			};
+		}
+
+		string FormatCallExpression(CallExpression call)
+		{
+			string target = FormatExpression(call.Target);
+			List<string> arguments = [];
+			foreach (ArgumentExpression argument in call.Arguments)
+				arguments.Add(FormatArgumentValue(argument));
+			return target + "(" + string.Join(", ", arguments) + ")";
+		}
+
+		string FormatArgumentValue(ArgumentExpression argument)
+		{
+			string value = FormatExpression(argument.Value);
+			return argument.Modifier switch
+			{
+				ArgumentModifier.Out or ArgumentModifier.Catch => "&" + value,
+				_ => value
+			};
+		}
+
+		string FormatMemberReference(MemberReferenceExpression member)
+		{
+			if (member.Member is FunctionDefinition function)
+				return CName(function);
+			string separator = IsPointerLike(member.Target?.ResolvedType) ? "->" : ".";
+			return FormatExpression(member.Target) + separator + SanitizeIdentifier(member.Name);
+		}
+
+		static bool IsPointerLike(string? type)
+		{
+			return !string.IsNullOrWhiteSpace(type) && type.TrimEnd().EndsWith("*", StringComparison.Ordinal);
+		}
+
+		string FormatVariableReference(BindableNode? variable)
+		{
+			return variable switch
+			{
+				FunctionDefinition function => CName(function),
+				VariableDefinition definition => CName(definition),
+				ParameterDefinition parameter => CName(parameter),
+				FieldDefinition field => CName(field),
+				_ => UnsupportedExpression(variable)
+			};
+		}
+
+		string FormatInitializer(InitializerExpression initializer)
+		{
+			List<string> items = [];
+			foreach (InitializerItem item in initializer.Items)
+			{
+				string value = FormatExpression(item.Expression);
+				string? target = FormatInitializerTarget(item.Target);
+				items.Add(target is null ? value : "." + target + " = " + value);
+			}
+			return "{ " + string.Join(", ", items) + " }";
+		}
+
+		static string? FormatInitializerTarget(InitializerTarget? target)
+		{
+			if (target is null || target.Parts.Count == 0)
+				return null;
+			return string.Join(".", target.Parts.Select(static part => SanitizeIdentifier(part.Name ?? "")));
+		}
+
+		string FormatUnaryExpression(UnaryExpression unary)
+		{
+			string operand = FormatExpression(unary.Operand);
+			return unary.Operator switch
+			{
+				UnaryOperator.Plus => "+" + operand,
+				UnaryOperator.Minus => "-" + operand,
+				UnaryOperator.LogicalNot => "!" + operand,
+				UnaryOperator.BitwiseNot => "~" + operand,
+				UnaryOperator.AddressOf => "&" + operand,
+				UnaryOperator.PointerDereference => "*" + operand,
+				UnaryOperator.Increment => "++" + operand,
+				UnaryOperator.Decrement => "--" + operand,
+				_ => UnsupportedExpression(unary)
+			};
+		}
+
+		static string FormatLiteral(LiteralExpression literal)
+		{
+			return literal.Kind switch
+			{
+				LiteralKind.Number => literal.Text,
+				LiteralKind.String => literal.Text,
+				LiteralKind.True => "true",
+				LiteralKind.False => "false",
+				LiteralKind.Null => "NULL",
+				_ => "0"
+			};
+		}
+
+		static string FormatUpdateOperator(UpdateOperator op)
+		{
+			return op switch
+			{
+				UpdateOperator.Increment => "++",
+				UpdateOperator.Decrement => "--",
+				_ => ""
+			};
+		}
+
+		static string FormatBinaryOperator(BinaryOperator op)
+		{
+			return op switch
+			{
+				BinaryOperator.LogicalOr => "||",
+				BinaryOperator.NullCoalescing => "??",
+				BinaryOperator.LogicalAnd => "&&",
+				BinaryOperator.BitwiseOr => "|",
+				BinaryOperator.BitwiseXor => "^",
+				BinaryOperator.BitwiseAnd => "&",
+				BinaryOperator.Equal => "==",
+				BinaryOperator.NotEqual => "!=",
+				BinaryOperator.LessThan => "<",
+				BinaryOperator.LessThanOrEqual => "<=",
+				BinaryOperator.GreaterThan => ">",
+				BinaryOperator.GreaterThanOrEqual => ">=",
+				BinaryOperator.LeftShift => "<<",
+				BinaryOperator.RightShift => ">>",
+				BinaryOperator.Add => "+",
+				BinaryOperator.Subtract => "-",
+				BinaryOperator.Multiply => "*",
+				BinaryOperator.Divide => "/",
+				BinaryOperator.Modulo => "%",
+				_ => "?"
+			};
+		}
+
+		static string FormatAssignmentOperator(AssignmentOperator op)
+		{
+			return op switch
+			{
+				AssignmentOperator.Assign => "=",
+				AssignmentOperator.Add => "+=",
+				AssignmentOperator.Subtract => "-=",
+				AssignmentOperator.Multiply => "*=",
+				AssignmentOperator.Divide => "/=",
+				AssignmentOperator.Modulo => "%=",
+				AssignmentOperator.BitwiseAnd => "&=",
+				AssignmentOperator.BitwiseOr => "|=",
+				AssignmentOperator.BitwiseXor => "^=",
+				AssignmentOperator.LeftShift => "<<=",
+				AssignmentOperator.RightShift => ">>=",
+				_ => "="
+			};
+		}
+
+		string UnsupportedExpression(BindableNode? node)
+		{
+			if (node is not null)
+				AddUnsupported(node, "expression");
+			return "/* unsupported */ 0";
+		}
+
+		void AddUnsupported(BindableNode node, string kind)
+		{
+			string message = $"C emission does not yet support {kind} node {node.GetType().Name}.";
+			if (!result.Diagnostics.Contains(message, StringComparer.Ordinal))
+				result.Diagnostics.Add(message);
+		}
+
+		static void WriteIndent(TextWriter writer, int indent)
+		{
+			for (int i = 0; i < indent; i++)
+				writer.Write('\t');
 		}
 
 		string FormatParameters(List<ParameterDefinition> parameters)
