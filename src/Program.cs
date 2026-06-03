@@ -56,6 +56,17 @@ Option<string?> memoryModelOption = new("--memory-model")
 	Description = "Select the target memory model to use when required by the target."
 };
 
+Option<string> emitOption = new("--emit")
+{
+	Description = "Select the output emitter to use. Defaults to c99.",
+	DefaultValueFactory = _ => "c99"
+};
+
+Option<string?> outDirOption = new("--out-dir")
+{
+	Description = "Write generated output files to this directory."
+};
+
 Option<bool> noStdLibOption = new("--nostdlib")
 {
 	Description = "Do not include the default standard library package."
@@ -75,6 +86,8 @@ RootCommand rootCommand = new("Camp compiler")
 	  -t, --target <name>      Select the target to use. Defaults to clang-macos-x64.
 	  -p, --profile <name>     Select DEBUG or RELEASE. Defaults to DEBUG.
 	  --memory-model <name>    Select a target memory model when the target requires one.
+	  --emit c99              Generate C99 output. Defaults to c99.
+	  --out-dir <dir>         Write generated output files to this directory.
 	  --nostdlib              Do not include the default std package.
 	  --inspect tokens        Print one token per line.
 	  --inspect cst           Parse and print the syntax tree as XML.
@@ -93,6 +106,8 @@ rootCommand.Options.Add(inspectApiOption);
 rootCommand.Options.Add(targetOption);
 rootCommand.Options.Add(profileOption);
 rootCommand.Options.Add(memoryModelOption);
+rootCommand.Options.Add(emitOption);
+rootCommand.Options.Add(outDirOption);
 rootCommand.Options.Add(noStdLibOption);
 rootCommand.SetAction(parseResult =>
 {
@@ -104,14 +119,16 @@ rootCommand.SetAction(parseResult =>
 	string targetName = parseResult.GetValue(targetOption) ?? "clang-macos-x64";
 	string profileName = parseResult.GetValue(profileOption) ?? "DEBUG";
 	string? memoryModelName = parseResult.GetValue(memoryModelOption);
+	string emitKind = parseResult.GetValue(emitOption) ?? "c99";
+	string? outDir = parseResult.GetValue(outDirOption);
 	bool noStdLib = parseResult.GetValue(noStdLibOption);
 
-	return Run(filenames, includeFilenames, inspect, inspectApi, printXml, targetName, profileName, memoryModelName, noStdLib);
+	return Run(filenames, includeFilenames, inspect, inspectApi, printXml, targetName, profileName, memoryModelName, emitKind, outDir, noStdLib);
 });
 
 return rootCommand.Parse(args).Invoke();
 
-static int Run(List<string>? filenames, List<string>? includeFilenames, InspectMode? inspect, bool inspectApi, bool printXml, string targetName, string profileName, string? memoryModelName, bool noStdLib)
+static int Run(List<string>? filenames, List<string>? includeFilenames, InspectMode? inspect, bool inspectApi, bool printXml, string targetName, string profileName, string? memoryModelName, string emitKind, string? outDir, bool noStdLib)
 {
 	if (filenames is null || filenames.Count == 0)
 	{
@@ -164,7 +181,7 @@ static int Run(List<string>? filenames, List<string>? includeFilenames, InspectM
 	inspect ??= InspectMode.None;
 	return inspect switch
 	{
-		InspectMode.None => PrintDefaultOutput(compilation),
+		InspectMode.None => EmitDefaultOutput(compilation, emitKind, outDir),
 		InspectMode.Tokens => PrintTokens(compilation),
 		InspectMode.Cst => PrintSyntaxXml(compilation),
 		InspectMode.Ast => PrintBindXml(compilation),
@@ -273,7 +290,7 @@ static bool TryPreparePackageApi(RuntimeContext context, string packageName, out
 		return false;
 	}
 
-	string apiPath = Path.Combine(packageDirectory, "bin", context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName, packageName + "-api.camp");
+	string apiPath = Path.Combine(packageDirectory, "bin", context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName, packageName + "_api.camp");
 	if (IsApiCacheCurrent(apiPath, sourceFiles))
 	{
 		apiHeaderPath = apiPath;
@@ -329,10 +346,27 @@ static bool TryBuildPackageApi(IReadOnlyList<string> sourceFiles, string apiPath
 	}
 }
 
-static int PrintDefaultOutput(Compilation compilation)
+static int EmitDefaultOutput(Compilation compilation, string emitKind, string? outDir)
 {
-	CompilationPipeline.Tokenize(compilation);
-	PrintColoredTokens(compilation.Files[0].Tokens!);
+	if (!LowerAndReport(compilation))
+		return 1;
+
+	string outputDirectory = string.IsNullOrWhiteSpace(outDir)
+		? CCodeEmitter.GetDefaultOutputDirectory(compilation.Files)
+		: outDir;
+	CEmissionResult result = CCodeEmitter.Emit(compilation, new CEmissionOptions
+	{
+		OutputDirectory = outputDirectory,
+		ProjectName = CCodeEmitter.GetProjectName(compilation.Files),
+		EmitKind = emitKind
+	});
+	foreach (string diagnostic in result.Diagnostics)
+		Console.Error.WriteLine(diagnostic);
+	if (!result.Success)
+		return 1;
+
+	foreach (string generated in result.GeneratedFiles)
+		Console.Out.WriteLine("generated: " + Path.GetFileName(generated));
 	return 0;
 }
 
@@ -596,14 +630,6 @@ static void PrintAnalysisDiagnostic(string filename, AnalysisDiagnostic diagnost
 		Console.Error.WriteLine($"{filename}({range.StartLineNumber},{range.StartColumn}): error: {diagnostic.Message}");
 	else
 		Console.Error.WriteLine($"{filename}: error: {diagnostic.Message}");
-}
-
-static void PrintColoredTokens(IEnumerable<Token> tokens)
-{
-	foreach (Token token in tokens)
-		WriteColored(token.Value, GetTokenColor(token.Class));
-
-	ResetColor();
 }
 
 static void PrintTokenLines(IEnumerable<Token> tokens)

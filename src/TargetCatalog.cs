@@ -184,6 +184,7 @@ public sealed class TargetDefinition
 	public IReadOnlyDictionary<string, int> PointerWidths => Sections.PointerWidths;
 	public IReadOnlyDictionary<string, TargetMemoryModel> MemoryModels => Sections.MemoryModels;
 	public IReadOnlyList<string> TypeSpecOrder => Sections.TypeSpecOrder;
+	public IReadOnlyList<string> Includes => Sections.Includes;
 
 	public bool HasCallSpec(string name)
 	{
@@ -263,9 +264,11 @@ internal sealed class TargetSections
 	public Dictionary<string, int> PointerWidths { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, TargetMemoryModel> MemoryModels { get; } = new(StringComparer.Ordinal);
 	public List<string> TypeSpecOrder { get; } = [];
+	public List<string> Includes { get; } = [];
 
 	public void CopyFrom(TargetSections source)
 	{
+		Includes.AddRange(source.Includes);
 		CopySection(source.CallSpecs, CallSpecs);
 		CopyTypeSpecSection(source.TypeSpecs, source.TypeSpecOrder);
 		CopySection(source.CTypes, CTypes);
@@ -277,6 +280,7 @@ internal sealed class TargetSections
 	public void MergeFrom(IniData data)
 	{
 		MergeSection(data, "callspec", CallSpecs);
+		MergeTargetSection(data);
 		MergeTypeSpecSection(data);
 		MergeSection(data, "ctype", CTypes);
 		MergeWidthSection(data, "nint", NaturalIntegerWidths);
@@ -314,6 +318,22 @@ internal sealed class TargetSections
 
 		foreach (KeyData key in data.Sections.GetSectionData(sectionName).Keys)
 			target[key.KeyName] = key.Value;
+	}
+
+	void MergeTargetSection(IniData data)
+	{
+		if (!data.Sections.ContainsSection("target"))
+			return;
+
+		string? include = data.Sections.GetSectionData("target").Keys.GetKeyData("include")?.Value;
+		if (string.IsNullOrWhiteSpace(include))
+			return;
+
+		foreach (string item in include.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+		{
+			if (!Includes.Contains(item, StringComparer.Ordinal))
+				Includes.Add(item);
+		}
 	}
 
 	void MergeTypeSpecSection(IniData data)
