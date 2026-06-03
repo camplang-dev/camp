@@ -189,17 +189,6 @@ public static class CCodeEmitter
 				continue;
 			writer.WriteLine("#include <" + include + ">");
 		}
-		foreach ((string name, string value) in compilation.Target?.Defines ?? new Dictionary<string, string>())
-		{
-			writer.Write("#define ");
-			writer.Write(name);
-			if (!string.IsNullOrWhiteSpace(value))
-			{
-				writer.Write(" ");
-				writer.Write(value);
-			}
-			writer.WriteLine();
-		}
 	}
 
 	static bool HasExportedDeclarations(Compilation compilation, SourceFile file)
@@ -1181,9 +1170,11 @@ public static class CCodeEmitter
 
 		CType FormatTypeOrResolved(TypeReference? type, string? resolvedType, string declarator)
 		{
+			if (ShouldFormatResolvedType(resolvedType))
+				return FormatResolvedType(resolvedType!, declarator);
 			if (type is not null)
 				return FormatType(type, declarator);
-			if (!string.IsNullOrWhiteSpace(resolvedType))
+			if (resolvedType is not null)
 				return FormatResolvedType(resolvedType, declarator);
 			return FormatType(null, declarator);
 		}
@@ -1265,6 +1256,9 @@ public static class CCodeEmitter
 
 			string cType = FormatResolvedBaseType(type);
 			string pointerPart = pointerCount == 0 ? "" : new string('*', pointerCount);
+			string targetSpec = pointerPart.Length == 0 ? "" : FormatTypeSpec(GetDefaultTargetTypeSpec(functionPointer: false));
+			if (targetSpec.Length > 0)
+				pointerPart += " " + targetSpec;
 			if (pointerPart.Length > 0 && trailingQualifiers.Count > 0)
 				pointerPart += " " + string.Join(" ", trailingQualifiers);
 			string qualifierPart = qualifiers.Count == 0 ? "" : string.Join(" ", qualifiers) + " ";
@@ -1334,7 +1328,7 @@ public static class CCodeEmitter
 		CType FormatDataPointerPrimitive(string elementType, string declarator)
 		{
 			string targetSpec = FormatTypeSpec(GetDefaultTargetTypeSpec(functionPointer: false));
-			string pointer = targetSpec.Length == 0 ? "*" : "* " + targetSpec + " ";
+			string pointer = targetSpec.Length == 0 ? "* " : "* " + targetSpec + " ";
 			return new CType(elementType + pointer + declarator);
 		}
 
