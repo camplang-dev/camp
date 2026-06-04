@@ -6,11 +6,20 @@ Run the golden integration suite from `/src` with:
 dotnet test camplang.sln
 ```
 
-Coverage can be collected with:
+Run tests and generate a console + HTML coverage report with:
 
 ```sh
-dotnet test camplang.sln --collect:"XPlat Code Coverage"
+dotnet msbuild coverage.proj
 ```
+
+To also open the HTML report after it is generated:
+
+```sh
+dotnet msbuild coverage.proj -p:Open=true
+```
+
+The report is written to `tmp/coverage-report/Summary.txt` and
+`tmp/coverage-report/index.html` at the repo root.
 
 Golden test cases live under this directory. Each `.camp` file has a committed
 `.expected.*` sibling baseline. Test runs always write a `.actual.*` file first.

@@ -1,0 +1,16 @@
+<Project DefaultTargets="Coverage">
+  <PropertyGroup>
+    <Open Condition="'$(Open)' == ''">false</Open>
+    <CoverageOpenArgument Condition="'$(Open)' == 'true'">--open</CoverageOpenArgument>
+    <CoverageOpenArgument Condition="'$(Open)' == 'True'">--open</CoverageOpenArgument>
+  </PropertyGroup>
+
+  <Target Name="Coverage">
+    <Exec
+      WorkingDirectory="$(MSBuildThisFileDirectory)"
+      Command="dotnet test &quot;$(MSBuildThisFileDirectory)camplang.sln&quot; --collect:&quot;XPlat Code Coverage&quot;" />
+    <Exec
+      WorkingDirectory="$(MSBuildThisFileDirectory)"
+      Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)Camp.Compiler.Coverage&quot; -- --no-test $(CoverageOpenArgument)" />
+  </Target>
+</Project>

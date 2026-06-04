@@ -24,4 +24,3 @@ tmp/
 # Test output
 *.actual.*
 TestResults/
-coverage-report/
