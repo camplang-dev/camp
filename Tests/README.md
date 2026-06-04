@@ -1,21 +1,22 @@
 # Camp Compiler Tests
 
-Run the golden integration suite with:
+Run the golden integration suite from `/src` with:
 
 ```sh
-dotnet test
+dotnet test camplang.sln
 ```
 
 Coverage can be collected with:
 
 ```sh
-dotnet test --collect:"XPlat Code Coverage"
+dotnet test camplang.sln --collect:"XPlat Code Coverage"
 ```
 
-Golden cases live in `Tests/Cases`. Each `.camp` input has a committed
-`.expected.*` sibling. Test runs write `.actual.*` files; passing tests delete
-them, and failing tests keep them for inspection.
+Golden test cases live under this directory. Each `.camp` file has a committed
+`.expected.*` sibling baseline. Test runs always write a `.actual.*` file first.
+If the expected file is missing, the test creates an empty expected file, keeps
+the actual file, and fails.
 
-To approve an intentional output change, manually copy or merge the `.actual.*`
-content into the corresponding `.expected.*` file. Missing expected baselines
-intentionally fail after creating an empty expected file.
+When a compiler change intentionally changes output, inspect the `.actual.*` file
+and manually copy or merge its content into the matching `.expected.*` file. There
+is no automatic bless/update-baselines mode.

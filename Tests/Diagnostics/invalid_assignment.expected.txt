@@ -1,0 +1,1 @@
+tests/Diagnostics/invalid_assignment.camp(3,14): error: String literal cannot implicitly convert to mutable type 'int'.

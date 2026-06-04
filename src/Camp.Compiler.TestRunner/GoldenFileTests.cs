@@ -18,7 +18,7 @@ public sealed class GoldenFileTests
 	public static IEnumerable<object[]> GetCases()
 	{
 		string repositoryRoot = FindRepositoryRoot();
-		string casesRoot = Path.Combine(repositoryRoot, "Tests", "Cases");
+		string casesRoot = Path.Combine(repositoryRoot, "tests");
 		foreach (string casePath in Directory.GetFiles(casesRoot, "*.camp", SearchOption.AllDirectories)
 			.Where(static path => !Path.GetFileName(path).Contains(".expected.", StringComparison.Ordinal) && !Path.GetFileName(path).Contains(".actual.", StringComparison.Ordinal))
 			.OrderBy(static path => path, StringComparer.Ordinal))
@@ -42,7 +42,7 @@ public sealed class GoldenFileTests
 			"Lowering" => GoldenFileTestKind.Lowering,
 			"Diagnostics" => GoldenFileTestKind.Diagnostics,
 			"CEmit" => GoldenFileTestKind.CEmit,
-			_ => throw new InvalidOperationException($"Test case '{casePath}' is not under a supported Tests/Cases kind folder.")
+			_ => throw new InvalidOperationException($"Test case '{casePath}' is not under a supported tests kind folder.")
 		};
 	}
 
@@ -51,10 +51,10 @@ public sealed class GoldenFileTests
 		DirectoryInfo? directory = new(AppContext.BaseDirectory);
 		while (directory is not null)
 		{
-			if (File.Exists(Path.Combine(directory.FullName, "camplang.sln")))
+			if (File.Exists(Path.Combine(directory.FullName, "src", "camplang.sln")))
 				return directory.FullName;
 			directory = directory.Parent;
 		}
-		throw new InvalidOperationException("Could not find repository root containing camplang.sln.");
+		throw new InvalidOperationException("Could not find repository root containing src/camplang.sln.");
 	}
 }

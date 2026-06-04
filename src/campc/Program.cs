@@ -140,7 +140,7 @@ rootCommand.SetAction(parseResult =>
 		OutDir = parseResult.GetValue(outDirOption),
 		BuildDir = parseResult.GetValue(buildDirOption),
 		NoStdLib = parseResult.GetValue(noStdLibOption),
-		AssetRoot = AppContext.BaseDirectory
+		RuntimeRoot = AppContext.BaseDirectory
 	};
 
 	request.Files.AddRange(parseResult.GetValue(filesArgument) ?? []);

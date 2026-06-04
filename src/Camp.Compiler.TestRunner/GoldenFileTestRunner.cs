@@ -41,7 +41,10 @@ public static class GoldenFileTestRunner
 
 		CompilerRequest request = new()
 		{
-			AssetRoot = Path.Combine(testCase.RepositoryRoot, "src", "assets"),
+			RuntimeRoot = Path.Combine(testCase.RepositoryRoot, "bin"),
+			TargetRoot = Path.Combine(testCase.RepositoryRoot, "targets"),
+			PackageSourceRoot = Path.Combine(testCase.RepositoryRoot, "lib"),
+			PackageArtifactRoot = Path.Combine(testCase.RepositoryRoot, "tmp", "golden-packages"),
 			WorkingDirectory = testCase.RepositoryRoot,
 			NoStdLib = true,
 			BuildDir = GetBuildDirectory(testCase),

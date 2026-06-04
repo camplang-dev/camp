@@ -37,7 +37,10 @@ public sealed class CompilerRequest
 	public string? OutDir { get; set; }
 	public string? BuildDir { get; set; }
 	public bool NoStdLib { get; set; }
-	public string AssetRoot { get; set; } = AppContext.BaseDirectory;
+	public string RuntimeRoot { get; set; } = AppContext.BaseDirectory;
+	public string? TargetRoot { get; set; }
+	public string? PackageSourceRoot { get; set; }
+	public string? PackageArtifactRoot { get; set; }
 	public string WorkingDirectory { get; set; } = Directory.GetCurrentDirectory();
 }
 
@@ -146,7 +149,7 @@ public static class CompilerDriver
 				return false;
 			}
 
-			string targetsDirectory = Path.Combine(request.AssetRoot, "targets");
+			string targetsDirectory = GetTargetRoot();
 			if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out string? error))
 			{
 				ErrorLine(error ?? $"Target directory '{targetsDirectory}' could not be loaded.");
@@ -178,8 +181,29 @@ public static class CompilerDriver
 				return false;
 			}
 
-			context = new RuntimeContext(request.AssetRoot, target, normalizedProfile, string.IsNullOrWhiteSpace(request.MemoryModelName) ? null : request.MemoryModelName, [.. request.Defines]);
+			context = new RuntimeContext(GetPackageSourceRoot(), GetPackageArtifactRoot(), target, normalizedProfile, string.IsNullOrWhiteSpace(request.MemoryModelName) ? null : request.MemoryModelName, [.. request.Defines]);
 			return true;
+		}
+
+		string GetTargetRoot()
+		{
+			return Path.GetFullPath(string.IsNullOrWhiteSpace(request.TargetRoot)
+				? Path.Combine(request.RuntimeRoot, "..", "targets")
+				: request.TargetRoot);
+		}
+
+		string GetPackageSourceRoot()
+		{
+			return Path.GetFullPath(string.IsNullOrWhiteSpace(request.PackageSourceRoot)
+				? Path.Combine(request.RuntimeRoot, "..", "lib")
+				: request.PackageSourceRoot);
+		}
+
+		string GetPackageArtifactRoot()
+		{
+			return Path.GetFullPath(string.IsNullOrWhiteSpace(request.PackageArtifactRoot)
+				? Path.Combine(request.RuntimeRoot, "lib")
+				: request.PackageArtifactRoot);
 		}
 
 		bool TryLoadCompilation(List<string> filenames, List<string> includeFilenames, RuntimeContext context, out Compilation compilation)
@@ -248,8 +272,7 @@ public static class CompilerDriver
 		{
 			apiHeaderPath = null;
 			libraryPath = null;
-			string packageDirectory = Path.Combine(context.AssetRoot, "lib", packageName);
-			string sourceDirectory = Path.Combine(packageDirectory, "src");
+			string sourceDirectory = Path.Combine(context.PackageSourceRoot, packageName, "src");
 			if (!Directory.Exists(sourceDirectory))
 			{
 				ErrorLine($"Package '{packageName}' source directory '{sourceDirectory}' could not be found.");
@@ -265,8 +288,9 @@ public static class CompilerDriver
 				return false;
 			}
 
-			string packageBinDirectory = Path.Combine(packageDirectory, "bin", context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName);
+			string packageBinDirectory = Path.Combine(context.PackageArtifactRoot, packageName, context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName);
 			string apiPath = Path.Combine(packageBinDirectory, packageName + "_api.camp");
+			string cApiPath = Path.Combine(packageBinDirectory, packageName + "_api.h");
 			string staticLibraryPath = NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
 			{
 				Target = context.Target,
@@ -279,7 +303,7 @@ public static class CompilerDriver
 			});
 
 			bool canUseCache = context.CommandLineDefines.Count == 0;
-			bool apiCurrent = canUseCache && IsOutputCacheCurrent(apiPath, sourceFiles);
+			bool apiCurrent = canUseCache && IsOutputCacheCurrent(apiPath, sourceFiles) && (!requireNativeLibrary || IsOutputCacheCurrent(cApiPath, sourceFiles));
 			bool libraryCurrent = !requireNativeLibrary || canUseCache && IsOutputCacheCurrent(staticLibraryPath, sourceFiles);
 			if (apiCurrent && libraryCurrent)
 			{
@@ -311,7 +335,10 @@ public static class CompilerDriver
 		{
 			CompilerRequest packageRequest = new()
 			{
-				AssetRoot = request.AssetRoot,
+				RuntimeRoot = request.RuntimeRoot,
+				TargetRoot = request.TargetRoot,
+				PackageSourceRoot = request.PackageSourceRoot,
+				PackageArtifactRoot = request.PackageArtifactRoot,
 				WorkingDirectory = request.WorkingDirectory,
 				TargetName = context.Target.Name,
 				ProfileName = context.ProfileName,
@@ -348,7 +375,19 @@ public static class CompilerDriver
 			if (!LowerAndReport(packageCompilation))
 				return false;
 
-			string packageBuildDirectory = Path.Combine(Path.GetDirectoryName(staticLibraryPath)!, "build");
+			string packageArtifactDirectory = Path.GetDirectoryName(staticLibraryPath)!;
+			CEmissionResult apiHeader = CCodeEmitter.EmitProjectApiHeader(packageCompilation, new CEmissionOptions
+			{
+				OutputDirectory = packageArtifactDirectory,
+				ProjectName = packageName,
+				EmitKind = request.EmitKind
+			}, packageArtifactDirectory);
+			foreach (string diagnostic in apiHeader.Diagnostics)
+				ErrorLine(diagnostic);
+			if (!apiHeader.Success)
+				return false;
+
+			string packageBuildDirectory = Path.Combine(packageArtifactDirectory, "build");
 			CEmissionResult emission = CCodeEmitter.Emit(packageCompilation, new CEmissionOptions
 			{
 				OutputDirectory = packageBuildDirectory,
@@ -727,5 +766,5 @@ public static class CompilerDriver
 		}
 	}
 
-	sealed record RuntimeContext(string AssetRoot, TargetDefinition Target, string ProfileName, string? MemoryModelName, IReadOnlyList<string> CommandLineDefines);
+	sealed record RuntimeContext(string PackageSourceRoot, string PackageArtifactRoot, TargetDefinition Target, string ProfileName, string? MemoryModelName, IReadOnlyList<string> CommandLineDefines);
 }

@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Camp.Compiler/Camp.Compiler.csproj" />
+    <ProjectReference Include="../Camp.Compiler/Camp.Compiler.csproj" />
   </ItemGroup>
 
 </Project>

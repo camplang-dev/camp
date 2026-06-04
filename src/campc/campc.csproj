@@ -15,11 +15,15 @@
     <ProjectReference Include="../Camp.Compiler/Camp.Compiler.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="../assets/**/*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <TargetPath>%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
-    </Content>
-  </ItemGroup>
+  <Target Name="CopyCampcToRepoBin" AfterTargets="Build">
+    <PropertyGroup>
+      <CampcRepoBin>$(MSBuildProjectDirectory)/../../bin/</CampcRepoBin>
+    </PropertyGroup>
+    <MakeDir Directories="$(CampcRepoBin)" />
+    <ItemGroup>
+      <CampcRuntimeFiles Include="$(TargetDir)campc*;$(TargetDir)*.dll;$(TargetDir)*.deps.json;$(TargetDir)*.runtimeconfig.json" Exclude="$(TargetDir)*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CampcRuntimeFiles)" DestinationFolder="$(CampcRepoBin)" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>
