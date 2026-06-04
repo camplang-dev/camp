@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Text;
 using Camp.Compiler;
 using Xunit;
 
@@ -12,7 +14,7 @@ public static class GoldenFileTestRunner
 		ArgumentNullException.ThrowIfNull(testCase);
 
 		CompilerResult result = CompilerDriver.Execute(CreateRequest(testCase));
-		string actual = Normalize(SelectOutput(testCase.Kind, result));
+		string actual = Normalize(SelectOutput(testCase, result));
 		File.WriteAllText(testCase.ActualPath, actual);
 
 		if (!File.Exists(testCase.ExpectedPath))
@@ -30,16 +32,25 @@ public static class GoldenFileTestRunner
 
 	static CompilerRequest CreateRequest(GoldenFileTestCase testCase)
 	{
+		if (testCase.Kind == GoldenFileTestKind.CEmit)
+		{
+			string buildDirectory = GetBuildDirectory(testCase);
+			if (Directory.Exists(buildDirectory))
+				Directory.Delete(buildDirectory, recursive: true);
+		}
+
 		CompilerRequest request = new()
 		{
 			AssetRoot = Path.Combine(testCase.RepositoryRoot, "src", "assets"),
 			WorkingDirectory = testCase.RepositoryRoot,
 			NoStdLib = true,
+			BuildDir = GetBuildDirectory(testCase),
 			Inspect = testCase.Kind switch
 			{
 				GoldenFileTestKind.Ast => CompilerInspectMode.Ast,
 				GoldenFileTestKind.Lowering => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.Diagnostics => CompilerInspectMode.Lowering,
+				GoldenFileTestKind.CEmit => null,
 				_ => throw new ArgumentOutOfRangeException()
 			}
 		};
@@ -47,9 +58,38 @@ public static class GoldenFileTestRunner
 		return request;
 	}
 
-	static string SelectOutput(GoldenFileTestKind kind, CompilerResult result)
+	static string SelectOutput(GoldenFileTestCase testCase, CompilerResult result)
 	{
-		return kind == GoldenFileTestKind.Diagnostics ? result.StdErr : result.StdOut;
+		return testCase.Kind switch
+		{
+			GoldenFileTestKind.Diagnostics => result.StdErr,
+			GoldenFileTestKind.CEmit => ReadGeneratedFiles(testCase),
+			_ => result.StdOut
+		};
+	}
+
+	static string ReadGeneratedFiles(GoldenFileTestCase testCase)
+	{
+		string buildDirectory = GetBuildDirectory(testCase);
+		if (!Directory.Exists(buildDirectory))
+			return "";
+		StringBuilder builder = new();
+		foreach (string file in Directory.GetFiles(buildDirectory)
+			.Where(static path => Path.GetExtension(path) is ".c" or ".h")
+			.OrderBy(static path => Path.GetFileName(path), StringComparer.Ordinal))
+		{
+			builder.Append("// file: ").Append(Path.GetFileName(file)).Append('\n');
+			builder.Append(Normalize(File.ReadAllText(file)));
+			if (builder.Length == 0 || builder[^1] != '\n')
+				builder.Append('\n');
+		}
+		return builder.ToString();
+	}
+
+	static string GetBuildDirectory(GoldenFileTestCase testCase)
+	{
+		string caseName = Path.GetFileNameWithoutExtension(testCase.CasePath);
+		return Path.Combine(testCase.RepositoryRoot, "tmp", "golden-cemit", caseName);
 	}
 
 	static string Normalize(string text)

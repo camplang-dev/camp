@@ -1,0 +1,19 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+struct Logger
+{
+	Logger()
+	{
+	}
+
+	~Logger()
+	{
+	}
+}
+
+export void run()
+{
+	auto logger = new Logger();
+	delete logger;
+}

@@ -1,0 +1,9 @@
+export int add(int left, int right)
+{
+	return left + right;
+}
+
+int privateSquare(int value)
+{
+	return value * value;
+}
