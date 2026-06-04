@@ -8,12 +8,33 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (call.Target is not MemberReferenceExpression { Target: Expression receiver, Member: FunctionDefinition function } member)
 			return false;
+		if (!IsInstanceFunction(function))
+			return false;
 		if (IsPropertyGetterReference(member) || IsPropertySetterReference(member))
 			return false;
 		if (FindContainingType(function) is InterfaceDefinition)
 			return false;
 
 		RewriteInstanceInvocation(call, member, receiver, function);
+		return true;
+	}
+
+	bool TryRewriteStaticMemberInvocation(CallExpression call)
+	{
+		if (call.Target is not MemberReferenceExpression { Member: FunctionDefinition function } member)
+			return false;
+		if (IsInstanceFunction(function))
+			return false;
+		if (IsPropertyGetterReference(member) || IsPropertySetterReference(member))
+			return false;
+
+		MethodReferenceExpression reference = new()
+		{
+			SourceSyntax = member.SourceSyntax,
+			ResolvedType = BuildFunctionValueType(function, isInstance: false)
+		};
+		reference.Candidates.Add(function);
+		call.Target = reference;
 		return true;
 	}
 

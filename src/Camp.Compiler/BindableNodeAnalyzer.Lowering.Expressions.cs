@@ -86,9 +86,12 @@ public sealed partial class BindableNodeAnalyzer
 				AddImplicitWithinArgument(call);
 				for (int i = 0; i < call.Arguments.Count; i++)
 					call.Arguments[i] = LowerArgument(call.Arguments[i]);
-				if (TryRewriteInstanceInvocation(call))
-					return LowerUncaughtThrowingCall(call);
-				TryRewriteDelegateInvocation(call);
+				bool flattenedInstanceCall = TryRewriteInstanceInvocation(call);
+				if (!flattenedInstanceCall)
+				{
+					TryRewriteStaticMemberInvocation(call);
+					TryRewriteDelegateInvocation(call);
+				}
 				ExpandParamsArguments(call.Arguments);
 				LowerCallArgumentConversions(call);
 				LowerInterfaceCall(call);

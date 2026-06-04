@@ -1,0 +1,13 @@
+export class Logger
+{
+	export void log(const char[] value)
+	{
+	}
+}
+
+export int main()
+{
+	Logger* logger = default;
+	logger.log("Hello, Console!");
+	return 0;
+}

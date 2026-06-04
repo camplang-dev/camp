@@ -104,8 +104,8 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			List<ParameterDefinition> components = [];
-			foreach (ParamsComponent component in shape.Components)
-				components.Add(CreateExpandedParameter(parameter, component));
+			for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
+				components.Add(CreateExpandedParameter(parameter, shape.Components[componentIndex], componentIndex == 0));
 			RegisterParamsExpansion(parameter, shape, components);
 
 			parameters.RemoveAt(i);
@@ -306,7 +306,7 @@ public sealed partial class BindableNodeAnalyzer
 		return declarations.Count > 0;
 	}
 
-	ParameterDefinition CreateExpandedParameter(ParameterDefinition source, ParamsComponent component)
+	ParameterDefinition CreateExpandedParameter(ParameterDefinition source, ParamsComponent component, bool inheritDefaultValue)
 	{
 		return new ParameterDefinition
 		{
@@ -315,7 +315,7 @@ public sealed partial class BindableNodeAnalyzer
 			Symbol = component.ExpandedName,
 			Modifier = source.Modifier,
 			ResolvedType = component.Type,
-			DefaultValue = component.SourceParameter?.DefaultValue
+			DefaultValue = component.SourceParameter?.DefaultValue ?? (inheritDefaultValue ? source.DefaultValue : null)
 		};
 	}
 

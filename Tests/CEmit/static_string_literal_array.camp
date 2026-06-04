@@ -1,0 +1,12 @@
+export class Console
+{
+	export static void writeLine(const char[] value)
+	{
+	}
+}
+
+export int main()
+{
+	Console.writeLine("hello");
+	return 0;
+}
