@@ -1,0 +1,12 @@
+extern int externalDefault(int value = 7);
+
+int addDefault(int left, int right = 5)
+{
+	return left + right;
+}
+
+void main()
+{
+	int total = addDefault(3);
+	total += externalDefault();
+}

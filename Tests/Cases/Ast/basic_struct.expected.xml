@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module>
+  <Definitions>
+    <StructDefinition Name="Rect" Symbol="Rect">
+      <Fields>
+        <FieldDefinition Name="x" Symbol="x">
+          <Type Type="Int" />
+        </FieldDefinition>
+        <FieldDefinition Name="y" Symbol="y">
+          <Type Type="Int" />
+        </FieldDefinition>
+      </Fields>
+    </StructDefinition>
+  </Definitions>
+</Module>

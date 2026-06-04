@@ -20,3 +20,8 @@ obj/
 
 # Temporary files
 tmp/
+
+# Test output
+*.actual.*
+TestResults/
+coverage-report/
