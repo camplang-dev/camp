@@ -1,0 +1,52 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+class Object
+{
+	Object(within Allocator* allocator)
+	{
+		this.buffer = new int[4];
+	}
+
+	~Object(within Allocator* allocator)
+	{
+		delete this.buffer;
+	}
+
+	int[] buffer;
+}
+
+void acceptsAllocator(within Allocator* allocator)
+{
+	Object* nested = new Object();
+	delete nested;
+}
+
+void main(Allocator* arena)
+{
+	Object* normal = new Object();
+	delete normal;
+
+	within (arena)
+	{
+		Object* scopedObject = new Object();
+		acceptsAllocator();
+		delete scopedObject;
+	}
+
+	Object* expressionAllocated = within (arena) new Object();
+	within (arena) delete expressionAllocated;
+}

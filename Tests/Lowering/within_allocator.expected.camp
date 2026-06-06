@@ -1,0 +1,82 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+class Object
+{
+	int* buffer;
+	nuint buffer_length;
+
+	Object(Allocator* allocator);
+
+	~Object(Allocator* allocator);
+
+	void op_initnew(Allocator* allocator)
+	{
+		Allocator* resolvedAllocator = allocator;
+		this.buffer = (elements: (int*)(allocator != null ? Allocator_alloc(allocator, sizeof(int) * 4) : malloc(sizeof(int) * 4)), length: 4);
+	}
+
+	static Object* create(Allocator* allocator)
+	{
+		Allocator* resolvedAllocator = allocator;
+		Object* __local0 = (Object*)(resolvedAllocator != null ? resolvedAllocator.alloc(sizeof(Object)) : malloc(sizeof(Object)));
+		if (__local0 != null)
+			Object_op_initnew(__local0, allocator);
+		return __local0;
+	}
+
+	void op_delete(Allocator* allocator)
+	{
+		allocator != null ? Allocator_free(allocator, (void*)this.buffer) : free((void*)this.buffer);
+	}
+
+	void destroy(Allocator* allocator)
+	{
+		Object_op_delete(this, allocator);
+		Allocator* resolvedAllocator = allocator;
+		resolvedAllocator != null ? resolvedAllocator.free((void*)this) : free((void*)this);
+	}
+}
+void acceptsAllocator(Allocator* allocator)
+{
+	Object* nested = (Object*)(allocator != null ? Allocator_alloc(allocator, sizeof(Object)) : malloc(sizeof(Object)));
+	if (nested != null)
+		Object_op_initnew(nested, allocator);
+	(Object_op_delete(nested, allocator), allocator != null ? Allocator_free(allocator, (void*)nested) : free((void*)nested));
+}
+void main(Allocator* arena)
+{
+	Object* normal = (Object*)malloc(sizeof(Object));
+	if (normal != null)
+		Object_op_initnew(normal, null);
+	(Object_op_delete(normal, null), free((void*)normal));
+	{
+		Allocator* __local1 = arena;
+		{
+			Object* scopedObject = (Object*)(__local1 != null ? Allocator_alloc(__local1, sizeof(Object)) : malloc(sizeof(Object)));
+			if (scopedObject != null)
+				Object_op_initnew(scopedObject, __local1);
+			acceptsAllocator(__local1);
+			(Object_op_delete(scopedObject, __local1), __local1 != null ? Allocator_free(__local1, (void*)scopedObject) : free((void*)scopedObject));
+		}
+	}
+	Allocator* __local2 = arena;
+	Object* expressionAllocated = (#created3 = (Object*)(__local2 != null ? Allocator_alloc(__local2, sizeof(Object)) : malloc(sizeof(Object))), Object_op_initnew(#created3, __local2), #created3);
+	{
+		Allocator* __local3 = arena;
+		(Object_op_delete(expressionAllocated, __local3), __local3 != null ? Allocator_free(__local3, (void*)expressionAllocated) : free((void*)expressionAllocated));
+	}
+}
