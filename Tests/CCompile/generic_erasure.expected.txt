@@ -1,0 +1,3 @@
+generated: generic_erasure.c
+generated: generic_erasure_private.h
+compiled: generic_erasure.c

@@ -347,6 +347,7 @@ public static class CCodeEmitter
 	{
 		readonly HashSet<string> emittedNames = new(StringComparer.Ordinal);
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
+		readonly HashSet<string> currentGenericTypeNames = new(StringComparer.Ordinal);
 
 		public void WritePrivateHeaderDeclarations(TextWriter writer)
 		{
@@ -918,7 +919,10 @@ public static class CCodeEmitter
 			string callSpec = FormatCallSpec(function.CallSpec);
 			if (callSpec.Length > 0)
 				callSpec += " ";
-			writer.WriteLine(prefix + FormatTypeOrResolved(function.ReturnType, function.ResolvedType, callSpec + name).Declaration + FormatParameters(function) + ";");
+			WithGenericContext(function, () =>
+			{
+				writer.WriteLine(prefix + FormatTypeOrResolved(function.ReturnType, function.ResolvedType, callSpec + name).Declaration + FormatParameters(function) + ";");
+			});
 		}
 
 		void WriteVariableDeclaration(TextWriter writer, VariableDefinition variable, string? storage)
@@ -942,9 +946,34 @@ public static class CCodeEmitter
 			string callSpec = FormatCallSpec(function.CallSpec);
 			if (callSpec.Length > 0)
 				callSpec += " ";
-			writer.WriteLine(prefix + FormatTypeOrResolved(function.ReturnType, function.ResolvedType, callSpec + CName(function)).Declaration + FormatParameters(function));
-			WriteFunctionBody(writer, function);
-			writer.WriteLine();
+			WithGenericContext(function, () =>
+			{
+				writer.WriteLine(prefix + FormatTypeOrResolved(function.ReturnType, function.ResolvedType, callSpec + CName(function)).Declaration + FormatParameters(function));
+				WriteFunctionBody(writer, function);
+				writer.WriteLine();
+			});
+		}
+
+		void WithGenericContext(FunctionDefinition function, Action action)
+		{
+			HashSet<string> previous = new(currentGenericTypeNames, StringComparer.Ordinal);
+			currentGenericTypeNames.Clear();
+			foreach (GenericParameter parameter in function.GenericParameters)
+				currentGenericTypeNames.Add(parameter.Name);
+			if (containingTypes.TryGetValue(function, out TypeDefinition? containingType))
+				foreach (GenericParameter parameter in containingType.GenericParameters)
+					currentGenericTypeNames.Add(parameter.Name);
+
+			try
+			{
+				action();
+			}
+			finally
+			{
+				currentGenericTypeNames.Clear();
+				foreach (string name in previous)
+					currentGenericTypeNames.Add(name);
+			}
 		}
 
 		void WriteFunctionBody(TextWriter writer, FunctionDefinition function)
@@ -1564,7 +1593,8 @@ public static class CCodeEmitter
 				type = type[..^2].TrimEnd();
 			}
 
-			string cType = FormatResolvedBaseType(type);
+			bool isGenericType = currentGenericTypeNames.Contains(type);
+			string cType = isGenericType && pointerCount == 0 ? "void*" : FormatResolvedBaseType(type);
 			string pointerPart = pointerCount == 0 ? "" : new string('*', pointerCount);
 			string targetSpec = pointerPart.Length == 0 ? "" : FormatTypeSpec(GetDefaultTargetTypeSpec(functionPointer: false));
 			if (targetSpec.Length > 0)
@@ -1577,6 +1607,9 @@ public static class CCodeEmitter
 
 		string FormatResolvedBaseType(string type)
 		{
+			if (currentGenericTypeNames.Contains(type))
+				return "void";
+
 			return type switch
 			{
 				"void" => "void",

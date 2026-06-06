@@ -1,0 +1,10 @@
+void accept<T: any>(T* value)
+{
+}
+
+int main()
+{
+	int value = 0;
+	accept<int>(&value);
+	return 0;
+}
