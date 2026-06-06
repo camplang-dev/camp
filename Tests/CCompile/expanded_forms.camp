@@ -1,0 +1,26 @@
+int addOne(int value)
+{
+	return value + 1;
+}
+
+int addOneWithContext(void* context, int value)
+{
+	return addOne(value);
+}
+
+const char[] getName()
+{
+	return "john";
+}
+
+int apply(delegate int(int value) transform, int? maybe, const char[] name)
+{
+	if (maybe.specified)
+		return transform(maybe.value) + (int)name.length;
+	return (int)name.length;
+}
+
+int main()
+{
+	return 0;
+}

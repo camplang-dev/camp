@@ -1,0 +1,43 @@
+enum Err
+{
+	OK = 0,
+	BAD
+}
+
+int getValue()
+{
+	return 1;
+}
+
+int mightThrow(int value, thrown Err error)
+{
+	if (value == 0)
+		throw BAD;
+	return value;
+}
+
+void cleanup()
+{
+}
+
+int propagate(thrown Err error)
+{
+	finally cleanup();
+	return getValue() + mightThrow(1) + mightThrow(2);
+}
+
+int handledFinally()
+{
+	try
+	{
+		return mightThrow(0);
+	}
+	catch (Err e)
+	{
+		return 42;
+	}
+	finally
+	{
+		cleanup();
+	}
+}

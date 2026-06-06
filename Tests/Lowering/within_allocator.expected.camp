@@ -32,7 +32,7 @@ class Object
 	static Object* create(Allocator* allocator)
 	{
 		Allocator* resolvedAllocator = allocator;
-		Object* __local0 = (Object*)(resolvedAllocator != null ? resolvedAllocator.alloc(sizeof(Object)) : malloc(sizeof(Object)));
+		Object* __local0 = (Object*)(resolvedAllocator != null ? Allocator_alloc(resolvedAllocator, sizeof(Object)) : malloc(sizeof(Object)));
 		if (__local0 != null)
 			Object_op_initnew(__local0, allocator);
 		return __local0;
@@ -47,7 +47,7 @@ class Object
 	{
 		Object_op_delete(this, allocator);
 		Allocator* resolvedAllocator = allocator;
-		resolvedAllocator != null ? resolvedAllocator.free((void*)this) : free((void*)this);
+		resolvedAllocator != null ? Allocator_free(resolvedAllocator, (void*)this) : free((void*)this);
 	}
 }
 void acceptsAllocator(Allocator* allocator)

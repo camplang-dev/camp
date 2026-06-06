@@ -293,7 +293,7 @@ public sealed partial class BindableNodeAnalyzer
 			call.Arguments.Add(argument);
 		callTargets[call] = initNew;
 		AddImplicitDefaultArguments(call);
-		ExpandParamsArguments(call.Arguments);
+		ExpandParamsArguments(call);
 		AddImplicitSizeOfArguments(call, initNew, constructedType);
 		if (HasWithinParameter(initNew))
 		{

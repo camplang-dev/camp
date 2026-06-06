@@ -1,0 +1,59 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+struct Buffer
+{
+	Buffer(int length, within Allocator* allocator)
+	{
+		this.item = (int*)malloc(sizeof(int));
+	}
+
+	~Buffer(within Allocator* allocator)
+	{
+		delete this.item;
+	}
+
+	int* item;
+}
+
+class Holder
+{
+	Holder(within Allocator* allocator)
+	{
+		this.buffer = init Buffer(4);
+	}
+
+	~Holder(within Allocator* allocator)
+	{
+		delete this.buffer;
+	}
+
+	Buffer buffer;
+}
+
+int main()
+{
+	Allocator* arena = null;
+	within (arena)
+	{
+		Holder* holder = new Holder();
+		delete holder;
+		Buffer local = init Buffer(2);
+		delete local;
+	}
+
+	return 0;
+}

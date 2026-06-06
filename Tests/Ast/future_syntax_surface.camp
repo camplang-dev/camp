@@ -1,0 +1,24 @@
+interface IPrintable
+{
+	void print();
+}
+
+void inspect(vtableof(Document: IPrintable))
+{
+}
+
+iter int count(int[] values)
+{
+	foreach (int value in values)
+	{
+		yield value;
+	}
+}
+
+void main(int[] values)
+{
+	auto all = values[..];
+	auto tail = values[1..];
+	auto prefix = values[..^0];
+	auto middle = values[1..^0];
+}

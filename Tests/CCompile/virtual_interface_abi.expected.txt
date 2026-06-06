@@ -1,0 +1,3 @@
+generated: virtual_interface_abi.c
+generated: virtual_interface_abi_private.h
+compiled: virtual_interface_abi.c

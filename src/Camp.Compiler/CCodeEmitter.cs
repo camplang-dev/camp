@@ -365,6 +365,16 @@ public static class CCodeEmitter
 					WriteNewtypeDefinition(writer, newtype, exportedOnly: false);
 			});
 
+			List<string> callableTypes = CollectResolvedCallableTypes(definitions).ToList();
+			if (callableTypes.Count > 0)
+			{
+				WriteSection(writer, "Callable typedefs", () =>
+				{
+					foreach (string callableType in callableTypes)
+						WriteCallableAliasTypedef(writer, callableType);
+				});
+			}
+
 			WriteSection(writer, "Enums", () =>
 			{
 				foreach (EnumDefinition enumDefinition in definitions.OfType<EnumDefinition>())
@@ -654,6 +664,75 @@ public static class CCodeEmitter
 			}
 		}
 
+		IEnumerable<string> CollectResolvedCallableTypes(IEnumerable<Definition> definitions)
+		{
+			HashSet<string> types = new(StringComparer.Ordinal);
+			foreach (FunctionDefinition function in GetAllFunctions(definitions))
+			{
+				AddType(function.ReturnType, function.ResolvedType);
+				foreach (ParameterDefinition parameter in function.Parameters)
+					AddType(parameter.Type, parameter.ResolvedType);
+			}
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>())
+				AddType(variable.Type, variable.ResolvedType);
+			foreach (TypeDefinition type in definitions.OfType<TypeDefinition>())
+			{
+				foreach (FieldDefinition field in type switch
+				{
+					ClassDefinition classDefinition => classDefinition.Fields,
+					StructDefinition structDefinition => structDefinition.Fields,
+					_ => []
+				})
+					AddType(field.Type, field.ResolvedType);
+			}
+			return types.Order(StringComparer.Ordinal);
+
+			void AddType(TypeReference? type, string? resolvedType)
+			{
+				if (resolvedType is not null && IsResolvedCallableType(resolvedType))
+					types.Add(resolvedType);
+				switch (type)
+				{
+					case null:
+						break;
+					case CallableTypeReference callable:
+						if (callable.ResolvedType is not null && IsResolvedCallableType(callable.ResolvedType))
+							types.Add(callable.ResolvedType);
+						AddType(callable.ReturnType, callable.ReturnType?.ResolvedType);
+						foreach (ParameterDefinition parameter in callable.Parameters)
+							AddType(parameter.Type, parameter.ResolvedType);
+						break;
+					case PointerTypeReference pointer:
+						AddType(pointer.ElementType, pointer.ElementType?.ResolvedType);
+						break;
+					case ArrayTypeReference array:
+						AddType(array.ElementType, array.ElementType?.ResolvedType);
+						break;
+					case OptionalTypeReference optional:
+						AddType(optional.ElementType, optional.ElementType?.ResolvedType);
+						break;
+					case ConstTypeReference constant:
+						AddType(constant.Type, constant.Type?.ResolvedType);
+						break;
+					case VolatileTypeReference vol:
+						AddType(vol.Type, vol.Type?.ResolvedType);
+						break;
+					case TargetTypeSpecTypeReference targetSpec:
+						AddType(targetSpec.Type, targetSpec.Type?.ResolvedType);
+						break;
+					case GenericTypeReference generic:
+						AddType(generic.Type, generic.Type?.ResolvedType);
+						foreach (TypeReference argument in generic.TypeArguments)
+							AddType(argument, argument.ResolvedType);
+						break;
+					case TypeDefinitionReference definition:
+						foreach (TypeReference argument in definition.TypeArguments)
+							AddType(argument, argument.ResolvedType);
+						break;
+				}
+			}
+		}
+
 		static Dictionary<FunctionDefinition, TypeDefinition> BuildContainingTypeMap(Compilation compilation)
 		{
 			Dictionary<FunctionDefinition, TypeDefinition> map = [];
@@ -724,6 +803,28 @@ public static class CCodeEmitter
 
 			CType type = FormatType(definition.UnderlyingType, name);
 			writer.WriteLine("typedef " + type.Declaration + ";");
+		}
+
+		void WriteCallableAliasTypedef(TextWriter writer, string resolvedType)
+		{
+			string name = CTypeName(resolvedType);
+			if (!emittedNames.Add("callable-typedef:" + name))
+				return;
+			if (!TryParseResolvedCallableType(resolvedType, out string returnType, out List<string> parameterTypes))
+				return;
+
+			string declarator = "(* " + name + ")";
+			writer.WriteLine("typedef " + FormatResolvedType(returnType, declarator).Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ");");
+		}
+
+		string FormatResolvedParameterList(List<string> parameterTypes)
+		{
+			if (parameterTypes.Count == 0)
+				return "void";
+			List<string> parts = [];
+			for (int i = 0; i < parameterTypes.Count; i++)
+				parts.Add(FormatResolvedType(parameterTypes[i], "arg" + i.ToString(CultureInfo.InvariantCulture)).Declaration);
+			return string.Join(", ", parts);
 		}
 
 		void WriteEnumDefinition(TextWriter writer, EnumDefinition definition)
@@ -1606,6 +1707,62 @@ public static class CCodeEmitter
 			return type is "void" or "bool" or "string" or "wstring" or "astring" or "untyped"
 				or "sbyte" or "byte" or "short" or "ushort" or "int" or "uint" or "long" or "ulong"
 				or "nint" or "nuint" or "float" or "double" or "char" or "wchar" or "achar" or "uchar";
+		}
+
+		static bool IsResolvedCallableType(string resolvedType)
+		{
+			string type = resolvedType.TrimStart();
+			return type.StartsWith("fn ", StringComparison.Ordinal) && type.Contains('(', StringComparison.Ordinal) && type.EndsWith(")", StringComparison.Ordinal);
+		}
+
+		static bool TryParseResolvedCallableType(string resolvedType, out string returnType, out List<string> parameterTypes)
+		{
+			returnType = "";
+			parameterTypes = [];
+			string type = resolvedType.Trim();
+			if (!type.StartsWith("fn ", StringComparison.Ordinal))
+				return false;
+			int open = type.IndexOf('(', StringComparison.Ordinal);
+			int close = type.LastIndexOf(')');
+			if (open < 0 || close < open)
+				return false;
+			string prefix = type[3..open].Trim();
+			if (prefix.Length == 0)
+				return false;
+			List<string> prefixParts = SplitTopLevel(prefix, ' ');
+			returnType = prefixParts[^1];
+			string parameterText = type[(open + 1)..close].Trim();
+			if (parameterText.Length == 0)
+				return true;
+			foreach (string parameter in SplitTopLevel(parameterText, ','))
+				parameterTypes.Add(parameter.Trim());
+			return true;
+		}
+
+		static List<string> SplitTopLevel(string text, char separator)
+		{
+			List<string> parts = [];
+			int depth = 0;
+			int start = 0;
+			for (int i = 0; i < text.Length; i++)
+			{
+				char ch = text[i];
+				if (ch is '(' or '<')
+					depth++;
+				else if (ch is ')' or '>')
+					depth--;
+				else if (ch == separator && depth == 0)
+				{
+					string part = text[start..i].Trim();
+					if (part.Length > 0)
+						parts.Add(part);
+					start = i + 1;
+				}
+			}
+			string final = text[start..].Trim();
+			if (final.Length > 0)
+				parts.Add(final);
+			return parts;
 		}
 
 		static string CTypeName(string resolvedType)

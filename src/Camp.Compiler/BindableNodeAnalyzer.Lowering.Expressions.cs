@@ -92,7 +92,7 @@ public sealed partial class BindableNodeAnalyzer
 					TryRewriteStaticMemberInvocation(call);
 					TryRewriteDelegateInvocation(call);
 				}
-				ExpandParamsArguments(call.Arguments);
+				ExpandParamsArguments(call);
 				LowerCallArgumentConversions(call);
 				LowerInterfaceCall(call);
 				return LowerUncaughtThrowingCall(call);

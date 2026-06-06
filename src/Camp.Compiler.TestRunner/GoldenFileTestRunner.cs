@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -43,7 +45,7 @@ public static class GoldenFileTestRunner
 
 	static CompilerRequest CreateRequest(GoldenFileTestCase testCase)
 	{
-		if (testCase.Kind == GoldenFileTestKind.CEmit)
+		if (testCase.Kind is GoldenFileTestKind.CEmit or GoldenFileTestKind.CCompile)
 		{
 			string buildDirectory = GetBuildDirectory(testCase);
 			if (Directory.Exists(buildDirectory))
@@ -66,6 +68,7 @@ public static class GoldenFileTestRunner
 				GoldenFileTestKind.Diagnostics => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.Std => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.CEmit => null,
+				GoldenFileTestKind.CCompile => null,
 				_ => throw new ArgumentOutOfRangeException()
 			}
 		};
@@ -79,8 +82,82 @@ public static class GoldenFileTestRunner
 		{
 			GoldenFileTestKind.Diagnostics => result.StdErr,
 			GoldenFileTestKind.CEmit => ReadGeneratedFiles(testCase),
+			GoldenFileTestKind.CCompile => CompileGeneratedC(testCase, result),
 			_ => result.StdOut
 		};
+	}
+
+	static string CompileGeneratedC(GoldenFileTestCase testCase, CompilerResult result)
+	{
+		StringBuilder builder = new();
+		if (result.ExitCode != 0)
+		{
+			builder.AppendLine("compiler: failed");
+			if (!string.IsNullOrWhiteSpace(result.StdErr))
+				builder.Append(Normalize(result.StdErr));
+			if (!string.IsNullOrWhiteSpace(result.StdOut))
+				builder.Append(Normalize(result.StdOut));
+			return builder.ToString();
+		}
+
+		foreach (string generated in result.GeneratedFiles
+			.Where(static path => Path.GetExtension(path) is ".c" or ".h")
+			.OrderBy(static path => Path.GetFileName(path), StringComparer.Ordinal))
+			builder.AppendLine("generated: " + Path.GetFileName(generated));
+
+		List<string> sourceFiles = result.GeneratedFiles
+			.Where(static path => Path.GetExtension(path) == ".c")
+			.OrderBy(static path => Path.GetFileName(path), StringComparer.Ordinal)
+			.ToList();
+		if (sourceFiles.Count == 0)
+		{
+			builder.AppendLine("compile: no C source files");
+			return builder.ToString();
+		}
+
+		string objectDirectory = Path.Combine(GetBuildDirectory(testCase), "obj");
+		Directory.CreateDirectory(objectDirectory);
+		foreach (string sourceFile in sourceFiles)
+		{
+			string objectFile = Path.Combine(objectDirectory, Path.GetFileNameWithoutExtension(sourceFile) + ".o");
+			ProcessResult compile = RunProcess("clang", ["-std=c99", "-Werror=incompatible-pointer-types", "-c", sourceFile, "-o", objectFile], testCase.RepositoryRoot);
+			if (compile.ExitCode == 0)
+			{
+				builder.AppendLine("compiled: " + Path.GetFileName(sourceFile));
+				continue;
+			}
+
+			builder.AppendLine("compile failed: " + Path.GetFileName(sourceFile));
+			builder.Append(Normalize(compile.StdOut));
+			builder.Append(Normalize(compile.StdErr));
+		}
+		return builder.ToString();
+	}
+
+	static ProcessResult RunProcess(string executable, IReadOnlyList<string> arguments, string workingDirectory)
+	{
+		ProcessStartInfo startInfo = new(executable)
+		{
+			WorkingDirectory = workingDirectory,
+			UseShellExecute = false,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true
+		};
+		foreach (string argument in arguments)
+			startInfo.ArgumentList.Add(argument);
+
+		try
+		{
+			using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException($"Could not start '{executable}'.");
+			string stdout = process.StandardOutput.ReadToEnd();
+			string stderr = process.StandardError.ReadToEnd();
+			process.WaitForExit();
+			return new ProcessResult(process.ExitCode, stdout, stderr);
+		}
+		catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+		{
+			return new ProcessResult(1, "", ex.Message + Environment.NewLine);
+		}
 	}
 
 	static string ReadGeneratedFiles(GoldenFileTestCase testCase)
@@ -104,7 +181,8 @@ public static class GoldenFileTestRunner
 	static string GetBuildDirectory(GoldenFileTestCase testCase)
 	{
 		string caseName = Path.GetFileNameWithoutExtension(testCase.CasePath);
-		return Path.Combine(testCase.RepositoryRoot, "tmp", "golden-cemit", caseName);
+		string folder = testCase.Kind == GoldenFileTestKind.CCompile ? "golden-ccompile" : "golden-cemit";
+		return Path.Combine(testCase.RepositoryRoot, "tmp", folder, caseName);
 	}
 
 	static string Normalize(string text)
@@ -114,4 +192,6 @@ public static class GoldenFileTestRunner
 			text += "\n";
 		return text;
 	}
+
+	readonly record struct ProcessResult(int ExitCode, string StdOut, string StdErr);
 }

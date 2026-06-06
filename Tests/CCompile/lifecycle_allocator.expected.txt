@@ -1,0 +1,3 @@
+generated: lifecycle_allocator.c
+generated: lifecycle_allocator_private.h
+compiled: lifecycle_allocator.c

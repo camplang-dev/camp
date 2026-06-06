@@ -4,14 +4,28 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	void ExpandParamsArguments(CallExpression call)
+	{
+		List<ParameterDefinition>? callableParameters = callTargets.TryGetValue(call, out FunctionDefinition? function)
+			? GetCallableParameters(function.Parameters)
+			: null;
+		ExpandParamsArguments(call.Arguments, callableParameters);
+	}
+
 	void ExpandParamsArguments(List<ArgumentExpression> arguments)
+	{
+		ExpandParamsArguments(arguments, callableParameters: null);
+	}
+
+	void ExpandParamsArguments(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters)
 	{
 		for (int i = 0; i < arguments.Count; i++)
 		{
 			ArgumentExpression argument = arguments[i];
 			if (!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components))
 			{
-				if (!TryCreateLiftedOptionalArgumentComponents(argument, out components))
+				if (!TryCreateLiftedOptionalArgumentComponents(argument, out components)
+					&& !TryCreateFunctionToDelegateArgumentComponents(argument, callableParameters, i, out components))
 					continue;
 			}
 
@@ -50,6 +64,28 @@ public sealed partial class BindableNodeAnalyzer
 			Value = true,
 			ResolvedType = "bool"
 		});
+		return true;
+	}
+
+	bool TryCreateFunctionToDelegateArgumentComponents(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index, out List<Expression> components)
+	{
+		components = [];
+		if (argument.Value is null || callableParameters is null || index + 1 >= callableParameters.Count)
+			return false;
+		if (!TryGetCallableShape(argument.Value.ResolvedType, out CallableShape source) || source.Kind != "fn")
+			return false;
+		if (!TryGetCallableShape(callableParameters[index].ResolvedType, out CallableShape target) || target.Kind != "fn")
+			return false;
+		if (callableParameters[index + 1].ResolvedType != "void*")
+			return false;
+		if (target.ReturnType != source.ReturnType || target.Parameters.Count != source.Parameters.Count + 1 || target.Parameters[0] != "void*")
+			return false;
+		for (int i = 0; i < source.Parameters.Count; i++)
+			if (source.Parameters[i] != target.Parameters[i + 1])
+				return false;
+
+		components.Add(argument.Value);
+		components.Add(NullLiteral(argument.SourceSyntax));
 		return true;
 	}
 

@@ -456,6 +456,8 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? alloc = FindAllocatorPatternMethod(allocator.ResolvedType, "alloc", IsSingleIntegerValueParameter, syntax);
 		if (alloc is null && allocatorSurfaceValidationEnabled)
 			Report(syntax, $"Allocator type '{allocator.ResolvedType ?? ErrorType}' must provide an accessible method named 'alloc' that takes a single integer parameter.");
+		if (alloc is null && !allocatorSurfaceValidationEnabled)
+			alloc = CreateSyntheticAllocatorPatternMethod(allocator.ResolvedType, "alloc", "void*");
 		MemberReferenceExpression target = new()
 		{
 			SourceSyntax = syntax,
@@ -471,7 +473,7 @@ public sealed partial class BindableNodeAnalyzer
 			Target = target
 		};
 		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = size, ResolvedType = size.ResolvedType });
-		if (alloc is not null && ShouldEmitFlattenedInstanceCalls())
+		if (alloc is not null)
 			RewriteInstanceInvocation(call, target, allocator, alloc);
 		return call;
 	}
@@ -496,6 +498,8 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? free = FindAllocatorPatternMethod(allocator.ResolvedType, "free", IsSingleVoidPointerValueParameter, syntax);
 		if (free is null && allocatorSurfaceValidationEnabled)
 			Report(syntax, $"Allocator type '{allocator.ResolvedType ?? ErrorType}' must provide an accessible method named 'free' that takes a single void* parameter.");
+		if (free is null && !allocatorSurfaceValidationEnabled)
+			free = CreateSyntheticAllocatorPatternMethod(allocator.ResolvedType, "free", "void");
 		MemberReferenceExpression target = new()
 		{
 			SourceSyntax = syntax,
@@ -511,9 +515,22 @@ public sealed partial class BindableNodeAnalyzer
 			Target = target
 		};
 		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = pointer, ResolvedType = pointer.ResolvedType });
-		if (free is not null && ShouldEmitFlattenedInstanceCalls())
+		if (free is not null)
 			RewriteInstanceInvocation(call, target, allocator, free);
 		return call;
+	}
+
+	static FunctionDefinition? CreateSyntheticAllocatorPatternMethod(string? allocatorType, string name, string returnType)
+	{
+		string receiverType = TryGetPointerElementType(allocatorType ?? "") ?? allocatorType ?? "";
+		if (string.IsNullOrWhiteSpace(receiverType) || receiverType == ErrorType)
+			return null;
+		return new FunctionDefinition
+		{
+			Name = name,
+			Symbol = $"{receiverType}_{name}",
+			ResolvedType = returnType
+		};
 	}
 
 	FunctionDefinition? FindMallocFunction(SyntaxNode? syntax)
@@ -552,14 +569,48 @@ public sealed partial class BindableNodeAnalyzer
 	FunctionDefinition? FindAllocatorPatternMethod(string? allocatorType, string name, Func<FunctionDefinition, bool> predicate, SyntaxNode? syntax)
 	{
 		string receiverType = TryGetPointerElementType(allocatorType ?? "") ?? allocatorType ?? ErrorType;
-		if (GetTypeDefinition(receiverType) is not TypeDefinition type)
+		if (GetTypeDefinition(receiverType) is not TypeDefinition type && !TryFindModuleTypeDefinition(receiverType, out type))
 			return null;
 
 		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, syntax))
 			if (predicate(function))
 				return function;
 
+		foreach (FunctionDefinition function in LookupAllocatorPatternFunctions(type, name))
+			if (predicate(function))
+				return function;
+
 		return null;
+	}
+
+	bool TryFindModuleTypeDefinition(string name, out TypeDefinition type)
+	{
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is TypeDefinition candidate && candidate.Name == name)
+			{
+				type = candidate;
+				return true;
+			}
+		}
+		type = null!;
+		return false;
+	}
+
+	IEnumerable<FunctionDefinition> LookupAllocatorPatternFunctions(TypeDefinition type, string name)
+	{
+		if (type is ClassDefinition classDefinition)
+		{
+			foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
+				foreach (FunctionDefinition function in candidateClass.Functions)
+					if (function.Name == name && !IsBodylessVirtualOverrideDeclaration(function))
+						yield return function;
+			yield break;
+		}
+
+		foreach (FunctionDefinition function in GetFunctions(type))
+			if (function.Name == name)
+				yield return function;
 	}
 
 	static bool IsSingleIntegerValueParameter(FunctionDefinition function)

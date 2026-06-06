@@ -1357,11 +1357,17 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		BlockStatement body = method.Body;
 		ParameterDefinition? allocatorParameter = GetAllocatorParameter(method);
+		DeclarationStatement? resolvedAllocatorLocal = null;
 		if (createWithAllocator)
-			body.Statements.Add(CreateResolvedAllocatorLocal(allocatorParameter));
+		{
+			resolvedAllocatorLocal = CreateResolvedAllocatorLocal(allocatorParameter);
+			body.Statements.Add(resolvedAllocatorLocal);
+		}
 		string localName = NewGeneratedLocalName("created");
-		string allocatorType = allocatorParameter?.ResolvedType ?? allocatorParameter?.Type?.ResolvedType ?? "Allocator*";
-		DeclarationStatement local = CreateGeneratedLocal(localName, $"{type.Name}*", PointerTo(CloneType(typeReference)!), CreateAllocCall(typeReference, createWithAllocator ? CreateResolvedAllocatorReference(allocatorType) : null, method.SourceSyntax));
+		Expression? allocationAllocator = resolvedAllocatorLocal is null
+			? null
+			: CreateVariableReference(resolvedAllocatorLocal.Target, resolvedAllocatorLocal.Target.ResolvedType ?? allocatorParameter?.ResolvedType ?? "Allocator*");
+		DeclarationStatement local = CreateGeneratedLocal(localName, $"{type.Name}*", PointerTo(CloneType(typeReference)!), CreateAllocCall(typeReference, allocationAllocator, method.SourceSyntax));
 		body.Statements.Add(local);
 		IfStatement guard = new()
 		{
@@ -1441,13 +1447,19 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void",
 			Expression = CreateDestructorCall(target, opDelete, GetAllocatorParameter(method) is ParameterDefinition allocatorParameter ? CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*") : null)
 		});
+		DeclarationStatement? resolvedAllocatorLocal = null;
 		if (destroyWithAllocator)
-			body.Statements.Add(CreateResolvedAllocatorLocal(GetAllocatorParameter(method)));
+		{
+			resolvedAllocatorLocal = CreateResolvedAllocatorLocal(GetAllocatorParameter(method));
+			body.Statements.Add(resolvedAllocatorLocal);
+		}
 		body.Statements.Add(new ExpressionStatement
 		{
 			SourceSyntax = destructor.SourceSyntax,
 			ResolvedType = "void",
-			Expression = CreateFreeCall(new ThisExpression { SourceSyntax = destructor.SourceSyntax, ResolvedType = $"{type.Name}*" }, destroyWithAllocator ? CreateResolvedAllocatorReference(GetAllocatorParameter(method)?.ResolvedType ?? GetAllocatorParameter(method)?.Type?.ResolvedType ?? "Allocator*") : null)
+			Expression = CreateFreeCall(
+				new ThisExpression { SourceSyntax = destructor.SourceSyntax, ResolvedType = $"{type.Name}*" },
+				resolvedAllocatorLocal is null ? null : CreateVariableReference(resolvedAllocatorLocal.Target, resolvedAllocatorLocal.Target.ResolvedType ?? GetAllocatorParameter(method)?.ResolvedType ?? "Allocator*"))
 		});
 		return method;
 	}

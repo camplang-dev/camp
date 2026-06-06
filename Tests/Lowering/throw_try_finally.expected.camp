@@ -1,0 +1,80 @@
+enum Err
+{
+	OK = 0,
+	BAD
+}
+int getValue()
+{
+	return 1;
+}
+int mightThrow(int value, thrown Err error)
+{
+	if (value == 0)
+	{
+		error = BAD;
+		return default;
+	}
+	return value;
+}
+void cleanup()
+{
+}
+int propagate(thrown Err error)
+{
+	int __local0 = getValue() + mightThrow(1, catch error);
+	int __local1 = default;
+	if (error != default)
+	{
+		__local1 = default;
+		goto __cleanup1;
+	}
+	int __local2 = mightThrow(2, catch error);
+	if (error != default)
+	{
+		__local1 = default;
+		goto __cleanup1;
+	}
+	int __local3 = __local0 + __local2;
+	if (error != default)
+	{
+		__local1 = default;
+		goto __cleanup1;
+	}
+	{
+		__local1 = __local3;
+		goto __cleanup1;
+	}
+	__cleanup1:
+	cleanup();
+	return __local1;
+}
+int handledFinally()
+{
+	{
+		Err e;
+		int __local4 = default;
+		{
+			int __local5 = mightThrow(0, catch e);
+			if (e != default)
+			{
+				goto __catch7;
+			}
+			{
+				__local4 = __local5;
+				goto __cleanup10;
+			}
+		}
+		__catch7:
+		{
+			{
+				__local4 = 42;
+				goto __cleanup10;
+			}
+		}
+		__cleanup10:
+		{
+			cleanup();
+		}
+		return __local4;
+	}
+}

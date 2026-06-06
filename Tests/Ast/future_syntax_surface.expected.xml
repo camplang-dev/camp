@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module>
+  <Definitions>
+    <InterfaceDefinition Name="IPrintable" Symbol="IPrintable">
+      <Functions>
+        <FunctionDefinition Name="print" Symbol="print">
+          <ReturnType Type="Void" />
+        </FunctionDefinition>
+      </Functions>
+    </InterfaceDefinition>
+    <FunctionDefinition Name="inspect" Symbol="inspect">
+      <ReturnType Type="Void" />
+      <Parameters>
+        <VTableOfParameterDefinition Name="vtableof" Symbol="vtableof">
+          <InterfaceType Type="NamedTypeReference" Name="IPrintable" />
+          <Type Type="NamedTypeReference" Name="Document" />
+        </VTableOfParameterDefinition>
+      </Parameters>
+      <Body Type="BlockStatement" />
+    </FunctionDefinition>
+    <FunctionDefinition Name="count" Symbol="count">
+      <ReturnType Type="IterTypeReference">
+        <ElementType Type="Int" />
+      </ReturnType>
+      <Parameters>
+        <ParameterDefinition Name="values" Symbol="values">
+          <Type Type="ArrayTypeReference">
+            <ElementType Type="Int" />
+          </Type>
+        </ParameterDefinition>
+      </Parameters>
+      <Body Type="BlockStatement">
+        <Statements>
+          <ForeachStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="Int" />
+              <Names>
+                <Value>value</Value>
+              </Names>
+            </Target>
+            <Source Type="NamedExpression" Name="values" />
+            <Body Type="BlockStatement">
+              <Statements>
+                <YieldStatement>
+                  <Expression Type="NamedExpression" Name="value" />
+                </YieldStatement>
+              </Statements>
+            </Body>
+          </ForeachStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+    <FunctionDefinition Name="main" Symbol="main">
+      <ReturnType Type="Void" />
+      <Parameters>
+        <ParameterDefinition Name="values" Symbol="values">
+          <Type Type="ArrayTypeReference">
+            <ElementType Type="Int" />
+          </Type>
+        </ParameterDefinition>
+      </Parameters>
+      <Body Type="BlockStatement">
+        <Statements>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="AutoTypeReference" />
+              <Names>
+                <Value>all</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="IndexExpression">
+              <Target Type="NamedExpression" Name="values" />
+              <Arguments>
+                <ArgumentExpression>
+                  <Value Type="RangeExpression" />
+                </ArgumentExpression>
+              </Arguments>
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="AutoTypeReference" />
+              <Names>
+                <Value>tail</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="IndexExpression">
+              <Target Type="NamedExpression" Name="values" />
+              <Arguments>
+                <ArgumentExpression>
+                  <Value Type="RangeExpression">
+                    <Start Type="LiteralExpression" Kind="Number" Text="1" Value="1" />
+                  </Value>
+                </ArgumentExpression>
+              </Arguments>
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="AutoTypeReference" />
+              <Names>
+                <Value>prefix</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="IndexExpression">
+              <Target Type="NamedExpression" Name="values" />
+              <Arguments>
+                <ArgumentExpression>
+                  <Value Type="RangeExpression">
+                    <End Type="UnaryExpression" Operator="FromEnd">
+                      <Operand Type="LiteralExpression" Kind="Number" Text="0" Value="0" />
+                    </End>
+                  </Value>
+                </ArgumentExpression>
+              </Arguments>
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="AutoTypeReference" />
+              <Names>
+                <Value>middle</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="IndexExpression">
+              <Target Type="NamedExpression" Name="values" />
+              <Arguments>
+                <ArgumentExpression>
+                  <Value Type="RangeExpression">
+                    <Start Type="LiteralExpression" Kind="Number" Text="1" Value="1" />
+                    <End Type="UnaryExpression" Operator="FromEnd">
+                      <Operand Type="LiteralExpression" Kind="Number" Text="0" Value="0" />
+                    </End>
+                  </Value>
+                </ArgumentExpression>
+              </Arguments>
+            </InitialValue>
+          </DeclarationStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+  </Definitions>
+</Module>

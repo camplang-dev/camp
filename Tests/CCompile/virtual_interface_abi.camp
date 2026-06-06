@@ -1,0 +1,51 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+interface IValue
+{
+	int value();
+}
+
+abstract class Allocator
+{
+	abstract void* alloc(nuint size);
+	abstract void free(void* ptr);
+}
+
+virtual class HeapAllocator: Allocator
+{
+	override void* alloc(nuint size)
+	{
+		return null;
+	}
+
+	override void free(void* ptr)
+	{
+	}
+}
+
+virtual class BaseCounter
+{
+	virtual int value()
+	{
+		return 1;
+	}
+}
+
+virtual class Counter: BaseCounter
+{
+	override int value()
+	{
+		return base.value() + 1;
+	}
+}
+
+int readValue(IValue* value)
+{
+	return 0;
+}
+
+int main()
+{
+	return 0;
+}
