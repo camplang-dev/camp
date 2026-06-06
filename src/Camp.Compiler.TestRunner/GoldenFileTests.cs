@@ -42,6 +42,7 @@ public sealed class GoldenFileTests
 			"Lowering" => GoldenFileTestKind.Lowering,
 			"Diagnostics" => GoldenFileTestKind.Diagnostics,
 			"CEmit" => GoldenFileTestKind.CEmit,
+			"Std" => GoldenFileTestKind.Std,
 			_ => throw new InvalidOperationException($"Test case '{casePath}' is not under a supported tests kind folder.")
 		};
 	}

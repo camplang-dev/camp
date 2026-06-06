@@ -9,3 +9,16 @@ export abstract class Allocator
 	export abstract void* alloc(nuint size);
 	export abstract void free(escaped void* ptr);
 }
+
+export virtual class HeapAllocator: Allocator
+{
+	export override void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+	
+	export override void free(escaped void* ptr)
+	{
+		free(ptr);
+	}
+}

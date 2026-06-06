@@ -8,7 +8,8 @@ public enum GoldenFileTestKind
 	Ast,
 	Lowering,
 	Diagnostics,
-	CEmit
+	CEmit,
+	Std
 }
 
 public sealed class GoldenFileTestCase
@@ -31,6 +32,7 @@ public sealed class GoldenFileTestCase
 		GoldenFileTestKind.Lowering => ".expected.camp",
 		GoldenFileTestKind.Diagnostics => ".expected.txt",
 		GoldenFileTestKind.CEmit => ".expected.c",
+		GoldenFileTestKind.Std => ".expected.camp",
 		_ => throw new ArgumentOutOfRangeException()
 	};
 
@@ -40,6 +42,7 @@ public sealed class GoldenFileTestCase
 		GoldenFileTestKind.Lowering => ".actual.camp",
 		GoldenFileTestKind.Diagnostics => ".actual.txt",
 		GoldenFileTestKind.CEmit => ".actual.c",
+		GoldenFileTestKind.Std => ".actual.camp",
 		_ => throw new ArgumentOutOfRangeException()
 	};
 }

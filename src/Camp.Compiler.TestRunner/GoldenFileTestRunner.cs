@@ -46,13 +46,14 @@ public static class GoldenFileTestRunner
 			PackageSourceRoot = Path.Combine(testCase.RepositoryRoot, "lib"),
 			PackageArtifactRoot = Path.Combine(testCase.RepositoryRoot, "tmp", "golden-packages"),
 			WorkingDirectory = testCase.RepositoryRoot,
-			NoStdLib = true,
+			NoStdLib = testCase.Kind != GoldenFileTestKind.Std,
 			BuildDir = GetBuildDirectory(testCase),
 			Inspect = testCase.Kind switch
 			{
 				GoldenFileTestKind.Ast => CompilerInspectMode.Ast,
 				GoldenFileTestKind.Lowering => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.Diagnostics => CompilerInspectMode.Lowering,
+				GoldenFileTestKind.Std => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.CEmit => null,
 				_ => throw new ArgumentOutOfRangeException()
 			}

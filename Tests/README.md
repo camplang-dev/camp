@@ -21,7 +21,10 @@ dotnet msbuild coverage.proj -p:Open=true
 The report is written to `tmp/coverage-report/Summary.txt` and
 `tmp/coverage-report/index.html` at the repo root.
 
-Golden test cases live under this directory. Each `.camp` file has a committed
+Golden test cases live under this directory. `Ast`, `Lowering`, `Diagnostics`,
+and `CEmit` cases run with `--nostdlib` so language-feature tests stay
+standalone. `Std` cases opt into the standard library and are used for behavior
+that depends on bundled std declarations. Each `.camp` file has a committed
 `.expected.*` sibling baseline. Test runs always write a `.actual.*` file first.
 If the expected file is missing, the test creates an empty expected file, keeps
 the actual file, and fails.
