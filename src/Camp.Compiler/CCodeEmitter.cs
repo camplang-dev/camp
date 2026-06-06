@@ -872,13 +872,16 @@ public static class CCodeEmitter
 			if (!emittedNames.Add("layout:" + name))
 				return;
 
-			writer.WriteLine("struct " + name);
-			writer.WriteLine("{");
-			if (fields.Count == 0)
-				writer.WriteLine("\tchar _camp_empty;");
-			foreach (FieldDefinition field in fields.Where(static field => field.Modifier != FieldModifier.Static))
-				writer.WriteLine("\t" + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration + ";");
-			writer.WriteLine("};");
+			WithGenericContext(type, () =>
+			{
+				writer.WriteLine("struct " + name);
+				writer.WriteLine("{");
+				if (fields.Count == 0)
+					writer.WriteLine("\tchar _camp_empty;");
+				foreach (FieldDefinition field in fields.Where(static field => field.Modifier != FieldModifier.Static))
+					writer.WriteLine("\t" + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration + ";");
+				writer.WriteLine("};");
+			});
 		}
 
 		void WriteInterfaceLayout(TextWriter writer, InterfaceDefinition definition)
@@ -963,6 +966,25 @@ public static class CCodeEmitter
 			if (containingTypes.TryGetValue(function, out TypeDefinition? containingType))
 				foreach (GenericParameter parameter in containingType.GenericParameters)
 					currentGenericTypeNames.Add(parameter.Name);
+
+			try
+			{
+				action();
+			}
+			finally
+			{
+				currentGenericTypeNames.Clear();
+				foreach (string name in previous)
+					currentGenericTypeNames.Add(name);
+			}
+		}
+
+		void WithGenericContext(TypeDefinition type, Action action)
+		{
+			HashSet<string> previous = new(currentGenericTypeNames, StringComparer.Ordinal);
+			currentGenericTypeNames.Clear();
+			foreach (GenericParameter parameter in type.GenericParameters)
+				currentGenericTypeNames.Add(parameter.Name);
 
 			try
 			{

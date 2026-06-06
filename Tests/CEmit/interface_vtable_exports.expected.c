@@ -81,7 +81,7 @@ struct Handle
 struct IRef_Indirect
 {
 	const IRef* _vt;
-	U* ctx;
+	void* ctx;
 };
 
 /* Function declarations. */

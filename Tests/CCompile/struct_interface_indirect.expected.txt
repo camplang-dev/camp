@@ -1,0 +1,3 @@
+generated: struct_interface_indirect.c
+generated: struct_interface_indirect_private.h
+compiled: struct_interface_indirect.c

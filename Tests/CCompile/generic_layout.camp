@@ -1,0 +1,9 @@
+class List<T>
+{
+	T[] items;
+}
+
+int main()
+{
+	return 0;
+}

@@ -1,0 +1,17 @@
+interface IRef
+{
+	void retain();
+}
+
+struct Handle: IRef
+{
+	void retain()
+	{
+	}
+}
+
+int main()
+{
+	Handle handle = {};
+	return 0;
+}
