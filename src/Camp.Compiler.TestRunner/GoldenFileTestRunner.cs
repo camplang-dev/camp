@@ -27,7 +27,18 @@ public static class GoldenFileTestRunner
 		if (expected != actual)
 			Assert.Fail($"Golden file mismatch. Expected: '{testCase.ExpectedPath}'. Actual: '{testCase.ActualPath}'.");
 
-		File.Delete(testCase.ActualPath);
+		DeleteActualFiles(testCase);
+	}
+
+	static void DeleteActualFiles(GoldenFileTestCase testCase)
+	{
+		string? directory = Path.GetDirectoryName(testCase.CasePath);
+		if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+			return;
+
+		string prefix = Path.GetFileNameWithoutExtension(testCase.CasePath) + ".actual.";
+		foreach (string actualPath in Directory.GetFiles(directory, prefix + "*"))
+			File.Delete(actualPath);
 	}
 
 	static CompilerRequest CreateRequest(GoldenFileTestCase testCase)
