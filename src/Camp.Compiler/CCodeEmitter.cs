@@ -1120,6 +1120,7 @@ public static class CCodeEmitter
 			{
 				FunctionDefinition function => CName(function),
 				VariableDefinition definition => CName(definition),
+				ParameterDefinition { Modifier: ParameterModifier.Out or ParameterModifier.Thrown } parameter => "(*" + CName(parameter) + ")",
 				ParameterDefinition parameter => CName(parameter),
 				FieldDefinition field => CName(field),
 				DeclarationTarget target => CName(target),

@@ -1,0 +1,14 @@
+int main()
+{
+	takesName(getName());
+	return 0;
+}
+
+const char[] getName()
+{
+	return "john";
+}
+
+void takesName(const char[] name)
+{
+}
