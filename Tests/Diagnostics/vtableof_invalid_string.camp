@@ -1,0 +1,8 @@
+interface IRef
+{
+	void retain();
+}
+
+void invalid(vtableof(string: IRef))
+{
+}

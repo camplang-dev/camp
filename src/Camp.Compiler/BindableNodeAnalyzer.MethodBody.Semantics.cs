@@ -709,6 +709,20 @@ public sealed partial class BindableNodeAnalyzer
 		return callable;
 	}
 
+	List<FunctionDefinition> LookupGenericConstraintMemberFunctions(string targetType, string name, BodyScope scope, SyntaxNode? referenceSyntax)
+	{
+		if (!TryGetGenericConstraintInterface(targetType, scope, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
+			return [];
+
+		List<FunctionDefinition> functions = [];
+		foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
+		{
+			if ((GetSignatureName(function) == name || function.Name == name) && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
+				functions.Add(function);
+		}
+		return functions;
+	}
+
 	List<BodySymbol> LookupMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax)
 	{
 		List<BodySymbol> members = [];
@@ -806,6 +820,46 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return members;
+	}
+
+	List<BodySymbol> LookupGenericConstraintMemberSymbols(string targetType, string name, BodyScope scope, SyntaxNode? referenceSyntax)
+	{
+		if (!TryGetGenericConstraintInterface(targetType, scope, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
+			return [];
+
+		List<BodySymbol> members = [];
+		foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
+		{
+			if ((GetSignatureName(function) == name || function.Name == name) && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
+				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
+		}
+		return members;
+	}
+
+	bool TryGetGenericConstraintInterface(string targetType, BodyScope scope, out InterfaceDefinition? interfaceDefinition)
+	{
+		interfaceDefinition = null;
+		string genericName = TryGetPointerElementType(targetType) ?? BaseTypeName(targetType);
+		GenericParameter? parameter = FindBodyGenericParameter(scope, genericName);
+		if (parameter is null || !parameter.RequiresImplementation || parameter.Constraint is null)
+			return false;
+
+		if (!TryGetInterfaceDefinition(parameter.Constraint, out interfaceDefinition) || interfaceDefinition is null)
+			return false;
+
+		return true;
+	}
+
+	static GenericParameter? FindBodyGenericParameter(BodyScope scope, string name)
+	{
+		foreach (GenericParameter parameter in scope.CurrentFunction.GenericParameters)
+			if (parameter.Name == name)
+				return parameter;
+		if (scope.ContainingType is not null)
+			foreach (GenericParameter parameter in scope.ContainingType.GenericParameters)
+				if (parameter.Name == name)
+					return parameter;
+		return null;
 	}
 
 	void AddExpandedFieldMemberSymbol(List<BodySymbol> members, FieldDefinition field, string name, TypeDefinition owner, SyntaxNode? referenceSyntax)
@@ -1187,7 +1241,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameter.Modifier is not ParameterModifier.Thrown and not ParameterModifier.Within
 				&& (includeExplicitThis || parameter is not ThisParameterDefinition)
-				&& parameter is not WithinParameterDefinition and not VTableOfParameterDefinition)
+				&& parameter is not WithinParameterDefinition)
 				count++;
 		}
 		return count;
@@ -1205,7 +1259,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
 				|| !includeExplicitThis && parameter is ThisParameterDefinition
-				|| parameter is WithinParameterDefinition or VTableOfParameterDefinition)
+				|| parameter is WithinParameterDefinition)
 				continue;
 
 			callable.Add(parameter);
@@ -1514,7 +1568,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<string> parameters = [];
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
-			if ((isInstance && parameter is ThisParameterDefinition) || parameter is VTableOfParameterDefinition)
+			if (isInstance && parameter is ThisParameterDefinition)
 				continue;
 
 			parameters.Add(parameter.ResolvedType ?? ErrorType);

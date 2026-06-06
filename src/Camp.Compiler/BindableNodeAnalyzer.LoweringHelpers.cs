@@ -130,7 +130,7 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsHiddenParameter(ParameterDefinition parameter)
 	{
 		return parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
-			|| parameter is WithinParameterDefinition or VTableOfParameterDefinition;
+			|| parameter is WithinParameterDefinition;
 	}
 
 	static bool HasWithinParameter(FunctionDefinition function)
@@ -679,7 +679,7 @@ public sealed partial class BindableNodeAnalyzer
 		diagnostics.Add(new AnalysisDiagnostic(GetRange(syntax), message));
 	}
 
-	sealed record InterfaceImplementationLowering(TypeDefinition Type, InterfaceDefinition Interface, FieldDefinition? Field, VariableDefinition VTable, bool DirectEntries, bool IsStruct);
+	sealed record InterfaceImplementationLowering(TypeDefinition Type, InterfaceDefinition Interface, FieldDefinition? Field, VariableDefinition VTable, VariableDefinition VTableStorage, bool DirectEntries, bool IsStruct);
 
 	sealed record InterfaceThunkLowering(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member);
 

@@ -133,7 +133,7 @@ static class BindableNodeAnalyzerRewriteParameterExtensions
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
 			if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within
-				|| parameter is WithinParameterDefinition or VTableOfParameterDefinition)
+				|| parameter is WithinParameterDefinition)
 				continue;
 			if (skipAllocator && parameter.Name == "allocator")
 				continue;

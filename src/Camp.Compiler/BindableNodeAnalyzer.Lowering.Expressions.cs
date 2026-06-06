@@ -56,6 +56,9 @@ public sealed partial class BindableNodeAnalyzer
 			case SizeOfExpression sizeOf:
 				return LowerSizeOfExpression(sizeOf);
 
+			case VTableOfExpression vtableOf:
+				return LowerVTableOfExpression(vtableOf);
+
 			case CurrentAllocatorExpression currentAllocator:
 				return CurrentAllocator() ?? NullLiteral(currentAllocator.SourceSyntax);
 
@@ -83,6 +86,7 @@ public sealed partial class BindableNodeAnalyzer
 				AddImplicitDefaultArguments(call);
 				LowerThrowingArguments(call);
 				AddImplicitSizeOfArguments(call);
+				AddImplicitVTableOfArguments(call);
 				AddImplicitWithinArgument(call);
 				for (int i = 0; i < call.Arguments.Count; i++)
 					call.Arguments[i] = LowerArgument(call.Arguments[i]);

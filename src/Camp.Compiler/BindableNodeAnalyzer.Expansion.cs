@@ -343,22 +343,39 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				Name = InterfaceFieldName(interfaceDefinition),
 				Symbol = InterfaceFieldName(interfaceDefinition),
-				Type = PointerTo(InterfaceType(interfaceDefinition)),
-				ResolvedType = $"{interfaceDefinition.Name}*"
+				Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
+				ResolvedType = "const " + interfaceDefinition.Name + "*"
 			};
 			classDefinition.Fields.Insert(interfaceIndex, field);
+
+			VariableDefinition vtableStorage = new()
+			{
+				Name = InterfaceVTableName(classDefinition, interfaceDefinition) + "__storage",
+				Symbol = InterfaceVTableName(classDefinition, interfaceDefinition) + "__storage",
+				Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name },
+				ResolvedType = "const " + interfaceDefinition.Name
+			};
+			module.Definitions.Add(vtableStorage);
+			generatedInterfaceDefinitions.Add(vtableStorage);
 
 			VariableDefinition vtable = new()
 			{
 				Name = InterfaceVTableName(classDefinition, interfaceDefinition),
 				Symbol = InterfaceVTableName(classDefinition, interfaceDefinition),
-				Type = InterfaceType(interfaceDefinition),
-				ResolvedType = interfaceDefinition.Name
+				Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
+				Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
+				ResolvedType = "const " + interfaceDefinition.Name + "*",
+				InitialValue = new UnaryExpression
+				{
+					Operator = UnaryOperator.AddressOf,
+					Operand = new VariableReferenceExpression { Variable = vtableStorage, ResolvedType = vtableStorage.ResolvedType },
+					ResolvedType = "const " + interfaceDefinition.Name + "*"
+				}
 			};
 			module.Definitions.Add(vtable);
 			generatedInterfaceDefinitions.Add(vtable);
 
-			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, DirectEntries: interfaceIndex == 0, IsStruct: false);
+			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, vtableStorage, DirectEntries: interfaceIndex == 0, IsStruct: false);
 			implementations.Add(lowering);
 			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
 			interfaceIndex++;
@@ -380,17 +397,34 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			EnsureInterfaceIndirectStruct(module, interfaceDefinition);
+			VariableDefinition vtableStorage = new()
+			{
+				Name = InterfaceVTableName(structDefinition, interfaceDefinition) + "__storage",
+				Symbol = InterfaceVTableName(structDefinition, interfaceDefinition) + "__storage",
+				Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name },
+				ResolvedType = "const " + interfaceDefinition.Name
+			};
+			module.Definitions.Add(vtableStorage);
+			generatedInterfaceDefinitions.Add(vtableStorage);
+
 			VariableDefinition vtable = new()
 			{
 				Name = InterfaceVTableName(structDefinition, interfaceDefinition),
 				Symbol = InterfaceVTableName(structDefinition, interfaceDefinition),
-				Type = InterfaceType(interfaceDefinition),
-				ResolvedType = interfaceDefinition.Name
+				Export = structDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
+				Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
+				ResolvedType = "const " + interfaceDefinition.Name + "*",
+				InitialValue = new UnaryExpression
+				{
+					Operator = UnaryOperator.AddressOf,
+					Operand = new VariableReferenceExpression { Variable = vtableStorage, ResolvedType = vtableStorage.ResolvedType },
+					ResolvedType = "const " + interfaceDefinition.Name + "*"
+				}
 			};
 			module.Definitions.Add(vtable);
 			generatedInterfaceDefinitions.Add(vtable);
 
-			InterfaceImplementationLowering lowering = new(structDefinition, interfaceDefinition, Field: null, vtable, DirectEntries: false, IsStruct: true);
+			InterfaceImplementationLowering lowering = new(structDefinition, interfaceDefinition, Field: null, vtable, vtableStorage, DirectEntries: false, IsStruct: true);
 			implementations.Add(lowering);
 			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
 		}
@@ -464,7 +498,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach ((ClassDefinition classDefinition, List<InterfaceImplementationLowering> lowerings) in classInterfaceLowerings)
 		{
 			foreach (InterfaceImplementationLowering lowering in lowerings)
-				lowering.VTable.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface);
+				lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface);
 
 			for (int i = lowerings.Count - 1; i >= 0; i--)
 				InsertInterfaceVTableInitialization(classDefinition, lowerings[i]);
@@ -473,7 +507,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach ((StructDefinition _, List<InterfaceImplementationLowering> lowerings) in structInterfaceLowerings)
 		{
 			foreach (InterfaceImplementationLowering lowering in lowerings)
-				lowering.VTable.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface);
+				lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface);
 		}
 
 		foreach ((FunctionDefinition thunk, InterfaceThunkLowering lowering) in interfaceThunkLowerings)
@@ -565,6 +599,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			case SizeOfParameterDefinition:
 				node.ResolvedType = "nuint";
+				break;
+
+			case VTableOfParameterDefinition vtableOf:
+				node.ResolvedType = VTablePointerType(vtableOf.InterfaceType);
 				break;
 
 			case ParameterDefinition parameter when parameter.Type is not null:
@@ -733,8 +771,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Name = "_vt",
 			Symbol = "_vt",
-			Type = PointerTo(InterfaceType(interfaceDefinition)),
-			ResolvedType = $"{interfaceDefinition.Name}*"
+			Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
+			ResolvedType = "const " + interfaceDefinition.Name + "*"
 		});
 		indirect.Fields.Add(new FieldDefinition
 		{
@@ -967,15 +1005,10 @@ public sealed partial class BindableNodeAnalyzer
 						ResolvedType = lowering.Field.ResolvedType
 					},
 					Operator = AssignmentOperator.Assign,
-					Value = new UnaryExpression
+					Value = new VariableReferenceExpression
 					{
-						Operator = UnaryOperator.AddressOf,
-						Operand = new NamedExpression
-						{
-							Name = lowering.VTable.Name,
-							ResolvedType = lowering.VTable.ResolvedType
-						},
-						ResolvedType = lowering.Field.ResolvedType
+						Variable = lowering.VTable,
+						ResolvedType = lowering.VTable.ResolvedType
 					},
 					ResolvedType = lowering.Field.ResolvedType
 				}

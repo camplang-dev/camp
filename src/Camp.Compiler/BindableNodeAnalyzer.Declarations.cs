@@ -115,6 +115,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
 		GenerateSizeOfFields(definition);
+		GenerateVTableOfFields(definition);
 		ValidateExpandedFieldNames(definition.Fields);
 	}
 
@@ -407,7 +408,7 @@ public sealed partial class BindableNodeAnalyzer
 		Dictionary<string, string> componentSymbols = new(StringComparer.Ordinal);
 		foreach (ParameterDefinition parameter in parameters)
 		{
-			if (parameter is ThisParameterDefinition or WithinParameterDefinition or VTableOfParameterDefinition)
+			if (parameter is ThisParameterDefinition or WithinParameterDefinition)
 				continue;
 
 			string name = parameter.Name;
@@ -506,7 +507,10 @@ public sealed partial class BindableNodeAnalyzer
 			BindImplicitWithinParameterType(definition, scope);
 
 		if (definition is VTableOfParameterDefinition vtableOf)
+		{
 			AnalyzeOptionalType(vtableOf.InterfaceType, scope);
+			FinalizeVTableOfParameter(vtableOf, scope);
+		}
 
 		if (definition.Modifier == ParameterModifier.Thrown && string.IsNullOrWhiteSpace(definition.Name))
 		{
@@ -516,6 +520,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		definition.ResolvedType = definition is SizeOfParameterDefinition
 			? GetImplicitParameterType(definition)
+			: definition is VTableOfParameterDefinition vtableOfParameter
+				? VTableOfParameterType(vtableOfParameter)
 			: definition.Type?.ResolvedType ?? GetImplicitParameterType(definition);
 		ValidateGenericArgumentUse(definition.Type);
 		ValidateParameterPassing(definition, scope);

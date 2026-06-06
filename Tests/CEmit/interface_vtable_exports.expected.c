@@ -1,0 +1,96 @@
+// file: interface_vtable_exports.c
+#include "interface_vtable_exports_private.h"
+#include "interface_vtable_exports.h"
+
+/* Private file declarations. */
+static void Widget_op_initnew(Widget *this);
+static void Handle_IRef_retain(IRef** ctx);
+static const IRef Widget_IRef__storage;
+static const IRef Handle_IRef__storage;
+
+static const IRef Widget_IRef__storage = { .retain = Widget_retain };
+const IRef* Widget_IRef = &Widget_IRef__storage;
+static const IRef Handle_IRef__storage = { .retain = Handle_IRef_retain };
+const IRef* Handle_IRef = &Handle_IRef__storage;
+void Widget_retain(Widget *this)
+{
+}
+
+static void Widget_op_initnew(Widget *this)
+{
+	this->_vt_IRef = Widget_IRef;
+}
+
+void Handle_retain(Handle *this)
+{
+}
+
+static void Handle_IRef_retain(IRef** ctx)
+{
+	IRef_Indirect* indirect = (IRef_Indirect *)(ctx);
+	Handle* instance = indirect->ctx;
+	Handle_retain(instance);
+}
+
+// file: interface_vtable_exports.h
+#ifndef INTERFACE_VTABLE_EXPORTS_H_
+#define INTERFACE_VTABLE_EXPORTS_H_
+
+#include "interface_vtable_exports_private.h"
+
+void Widget_retain(Widget *this);
+void Handle_retain(Handle *this);
+extern const IRef* Widget_IRef;
+extern const IRef* Handle_IRef;
+
+#endif
+// file: interface_vtable_exports_private.h
+#ifndef INTERFACE_VTABLE_EXPORTS_PRIVATE_H_
+#define INTERFACE_VTABLE_EXPORTS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IRef IRef;
+typedef struct Widget Widget;
+typedef struct Handle Handle;
+typedef struct IRef_Indirect IRef_Indirect;
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef void (* fn_void_IRefPtrPtr_)(IRef** arg0);
+
+/* Enums. */
+
+/* Layouts. */
+struct IRef
+{
+	void (* retain)(IRef** ctx);
+};
+struct Widget
+{
+	const IRef* _vt_IRef;
+};
+struct Handle
+{
+	char _camp_empty;
+};
+struct IRef_Indirect
+{
+	const IRef* _vt;
+	U* ctx;
+};
+
+/* Function declarations. */
+void Widget_retain(Widget *this);
+void Handle_retain(Handle *this);
+
+/* Object declarations. */
+extern const IRef* Widget_IRef;
+extern const IRef* Handle_IRef;
+
+
+#endif

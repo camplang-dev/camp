@@ -75,17 +75,47 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (call.Target is not MemberReferenceExpression { Target: not null, Member: FunctionDefinition function } member)
 			return;
-		if (FindContainingType(function) is not InterfaceDefinition)
+		if (FindContainingType(function) is not InterfaceDefinition interfaceDefinition)
 			return;
 		if (function.Modifier == FunctionModifier.Constructor)
 			return;
 
 		Expression context = member.Target;
+		if (!IsInterfaceInstanceReceiver(context.ResolvedType, interfaceDefinition) && TryGetGenericReceiverTypeName(context.ResolvedType, out string genericName))
+		{
+			member.Target = LowerVTableOfExpression(new VTableOfExpression
+			{
+				SourceSyntax = member.SourceSyntax,
+				Type = new GenericParameterTypeReference { Name = genericName, ResolvedType = genericName },
+				InterfaceType = InterfaceType(interfaceDefinition),
+				ResolvedType = interfaceDefinition.Name + "*"
+			});
+			context = new CastExpression
+			{
+				SourceSyntax = context.SourceSyntax,
+				Kind = CastKind.Type,
+				Type = PointerTo(PointerTo(InterfaceType(interfaceDefinition))),
+				Expression = context,
+				ResolvedType = interfaceDefinition.Name + "**"
+			};
+		}
+
 		call.Arguments.Insert(0, new ArgumentExpression
 		{
 			Value = context,
 			ResolvedType = context.ResolvedType
 		});
+	}
+
+	static bool IsInterfaceInstanceReceiver(string? type, InterfaceDefinition interfaceDefinition)
+	{
+		return type == interfaceDefinition.Name + "**" || TryGetPointerElementType(type ?? "") == interfaceDefinition.Name;
+	}
+
+	static bool TryGetGenericReceiverTypeName(string? receiverType, out string genericName)
+	{
+		genericName = TryGetPointerElementType(receiverType ?? "") ?? BaseTypeName(receiverType ?? "");
+		return !string.IsNullOrWhiteSpace(genericName) && genericName != ErrorType;
 	}
 
 	void LowerCallArgumentConversions(CallExpression call)
@@ -208,19 +238,14 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void",
 			Expression = new AssignmentExpression
 			{
-				Target = CreateInterfaceIndirectMember(localReference, "_vt", $"{targetInterface.Name}*"),
+				Target = CreateInterfaceIndirectMember(localReference, "_vt", $"const {targetInterface.Name}*"),
 				Operator = AssignmentOperator.Assign,
-				Value = new UnaryExpression
+				Value = new VariableReferenceExpression
 				{
-					Operator = UnaryOperator.AddressOf,
-					Operand = new NamedExpression
-					{
-						Name = lowering.VTable.Name,
-						ResolvedType = lowering.VTable.ResolvedType
-					},
-					ResolvedType = $"{targetInterface.Name}*"
+					Variable = lowering.VTable,
+					ResolvedType = lowering.VTable.ResolvedType
 				},
-				ResolvedType = $"{targetInterface.Name}*"
+				ResolvedType = $"const {targetInterface.Name}*"
 			}
 		});
 		currentStatementPrefix.Add(new ExpressionStatement

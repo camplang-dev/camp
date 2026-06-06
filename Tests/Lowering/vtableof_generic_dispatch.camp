@@ -1,0 +1,34 @@
+interface IRef
+{
+	void retain();
+}
+
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Widget: IRef
+{
+	void retain()
+	{
+	}
+}
+
+struct Handle: IRef
+{
+	void retain()
+	{
+	}
+}
+
+void retainGeneric<T: implements IRef>(T* value, vtableof(T: IRef))
+{
+	value.retain();
+}
+
+void main()
+{
+	Widget* widget = new Widget();
+	Handle handle = {};
+	retainGeneric<Widget>(widget);
+	retainGeneric<Handle>(&handle);
+}

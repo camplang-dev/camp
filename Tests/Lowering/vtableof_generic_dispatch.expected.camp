@@ -1,0 +1,56 @@
+struct IRef
+{
+	fn void(IRef** ctx) retain;
+}
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Widget
+{
+	const IRef* _vt_IRef;
+
+	void retain()
+	{
+	}
+
+	void op_initnew()
+	{
+		this._vt_IRef = Widget_IRef;
+	}
+}
+
+struct Handle
+{
+	void retain()
+	{
+	}
+}
+void retainGeneric<T: IRef>(T* value, vtableof(T: IRef))
+{
+	vtableof_T_IRef.retain((IRef**)value);
+}
+void main()
+{
+	Widget* widget = (Widget*)malloc(sizeof(Widget));
+	if (widget != null)
+		Widget_op_initnew(widget);
+	Handle handle = {};
+	retainGeneric<Widget>(widget, Widget_IRef);
+	retainGeneric<Handle>(&handle, Handle_IRef);
+}
+const IRef Widget_IRef__storage = {.retain = Widget_retain};
+const IRef* Widget_IRef = &Widget_IRef__storage;
+
+fixed struct IRef_Indirect<U: void*>
+{
+	const IRef* _vt;
+	U* ctx;
+}
+const IRef Handle_IRef__storage = {.retain = Handle_IRef_retain};
+const IRef* Handle_IRef = &Handle_IRef__storage;
+void Handle_IRef_retain(IRef** ctx)
+{
+	IRef_Indirect<Handle>* indirect = (IRef_Indirect<Handle>*)ctx;
+	Handle* instance = indirect.ctx;
+	Handle_retain(instance);
+}

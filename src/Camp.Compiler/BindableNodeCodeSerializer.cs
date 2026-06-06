@@ -724,7 +724,7 @@ public sealed class BindableNodeCodeSerializer
 				WriteType(vtableOf.Type);
 				if (vtableOf.InterfaceType is not null)
 				{
-					writer.Write(", ");
+					writer.Write(": ");
 					WriteType(vtableOf.InterfaceType);
 				}
 				writer.Write(")");
@@ -991,6 +991,8 @@ public sealed class BindableNodeCodeSerializer
 		else if (parameter is VTableOfParameterDefinition vtable)
 		{
 			writer.Write("vtableof(");
+			WriteType(vtable.Type);
+			writer.Write(": ");
 			WriteType(vtable.InterfaceType);
 			writer.Write(")");
 		}

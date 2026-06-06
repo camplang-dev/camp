@@ -1,0 +1,18 @@
+export interface IRef
+{
+	export void retain();
+}
+
+export class Widget: IRef
+{
+	export void retain()
+	{
+	}
+}
+
+export struct Handle: IRef
+{
+	export void retain()
+	{
+	}
+}

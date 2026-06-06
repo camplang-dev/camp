@@ -902,11 +902,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeVTableOfExpression(VTableOfExpression vtableOf, AnalysisScope typeScope)
 	{
-		if (vtableOf.Type is not null)
-			AnalyzeType(vtableOf.Type, typeScope);
-		if (vtableOf.InterfaceType is not null)
-			AnalyzeType(vtableOf.InterfaceType, typeScope);
-		return VTableType;
+		return BodyAnalyzeVTableOfExpressionCore(vtableOf, typeScope);
 	}
 
 	string BodyAnalyzeLambdaExpression(LambdaExpression lambda, BodyScope scope, AnalysisScope typeScope, string? targetType)
@@ -1128,6 +1124,8 @@ public sealed partial class BindableNodeAnalyzer
 
 				string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
 				List<FunctionDefinition> functions = LookupMemberFunctions(targetType, member.Name, member.SourceSyntax);
+				if (functions.Count == 0)
+					functions = LookupGenericConstraintMemberFunctions(targetType, member.Name, scope, member.SourceSyntax);
 				if (functions.Count == 1)
 				{
 					member.ResolvedType = functions[0].ResolvedType ?? ErrorType;
@@ -1834,6 +1832,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
 		List<BodySymbol> members = LookupMemberSymbols(targetType, member.Name, member.SourceSyntax);
+		if (members.Count == 0)
+			members = LookupGenericConstraintMemberSymbols(targetType, member.Name, scope, member.SourceSyntax);
 		if (members.Count == 0)
 		{
 			if (GetTypeDefinition(targetType) is TypeDefinition type && HasPropertyGetterWithIncompatibleReceiver(type, targetType, member.Name, member.SourceSyntax))

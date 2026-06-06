@@ -1199,7 +1199,7 @@ public static class CCodeEmitter
 
 		string FormatMemberReference(MemberReferenceExpression member)
 		{
-			if (member.Member is FunctionDefinition function)
+			if (member.Member is FunctionDefinition function && (!containingTypes.TryGetValue(function, out TypeDefinition? owner) || owner is not InterfaceDefinition || member.Target is null))
 				return CName(function);
 			string separator = IsPointerMemberTarget(member.Target) ? "->" : ".";
 			return FormatExpression(member.Target) + separator + SanitizeIdentifier(member.Name);
