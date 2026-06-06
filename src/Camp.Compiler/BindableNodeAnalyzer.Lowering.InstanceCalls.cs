@@ -100,6 +100,19 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = flattenedReceiverType
 			};
 		}
+		if (function.AbiThisType is not null
+			&& !string.IsNullOrWhiteSpace(function.AbiThisType.ResolvedType)
+			&& value.ResolvedType != function.AbiThisType.ResolvedType)
+		{
+			value = new CastExpression
+			{
+				SourceSyntax = receiver.SourceSyntax,
+				Kind = CastKind.Type,
+				Type = CloneType(function.AbiThisType),
+				Expression = value,
+				ResolvedType = function.AbiThisType.ResolvedType
+			};
+		}
 
 		return new ArgumentExpression
 		{
@@ -124,6 +137,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BuildFlattenedReceiverType(FunctionDefinition function, string receiverType)
 	{
+		if (function.AbiThisType?.ResolvedType is string abiThisType && !string.IsNullOrWhiteSpace(abiThisType))
+			return abiThisType;
 		return BuildEffectiveReceiverType(receiverType, function, isPropertyGetterSyntax: false);
 	}
 

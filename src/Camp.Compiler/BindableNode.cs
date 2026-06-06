@@ -103,6 +103,8 @@ public class FunctionDefinition : Definition
 	public IteratorKind IteratorKind { get; set; }
 	public string? CallSpec { get; set; }
 	public TypeReference? ReturnType { get; set; }
+	public TypeReference? AbiThisType { get; set; }
+	public TypeReference? ImplementationThisType { get; set; }
 	public List<GenericParameter> GenericParameters { get; } = [];
 	public List<ParameterDefinition> Parameters { get; } = [];
 	public BlockStatement? Body { get; set; }

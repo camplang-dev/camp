@@ -1183,12 +1183,15 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		EnsureFunctionSignatureAnalyzed(implementation, typeScope);
-		MethodReferenceExpression reference = new()
+		Expression baseReceiver = new CastExpression
 		{
 			SourceSyntax = member.SourceSyntax,
-			ResolvedType = BuildFunctionValueType(implementation, isInstance: false)
+			Kind = CastKind.Type,
+			Type = PointerTo(TypeReferenceFor(baseClass)),
+			Expression = new ThisExpression { SourceSyntax = member.Target?.SourceSyntax, ResolvedType = $"{containingClass.Name}*" },
+			ResolvedType = $"{baseClass.Name}*"
 		};
-		reference.Candidates.Add(implementation);
+		MemberReferenceExpression reference = CreateMemberReference(member, baseReceiver, BuildFunctionValueType(implementation, isInstance: true), implementation);
 		expressionRewrites[member] = reference;
 		return implementation;
 	}

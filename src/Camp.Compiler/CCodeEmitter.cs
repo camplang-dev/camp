@@ -842,8 +842,27 @@ public static class CCodeEmitter
 			if (callSpec.Length > 0)
 				callSpec += " ";
 			writer.WriteLine(prefix + FormatTypeOrResolved(function.ReturnType, function.ResolvedType, callSpec + CName(function)).Declaration + FormatParameters(function));
-			WriteBlock(writer, function.Body!, indent: 0, forceBraces: true);
+			WriteFunctionBody(writer, function);
 			writer.WriteLine();
+		}
+
+		void WriteFunctionBody(TextWriter writer, FunctionDefinition function)
+		{
+			writer.WriteLine("{");
+			if (NeedsAbiThisFixup(function))
+			{
+				WriteIndent(writer, 1);
+				writer.Write(FormatTypeOrResolved(function.ImplementationThisType, function.ImplementationThisType?.ResolvedType, "this").Declaration);
+				writer.Write(" = (");
+				writer.Write(FormatTypeOrResolved(function.ImplementationThisType, function.ImplementationThisType?.ResolvedType, "").Declaration.Trim());
+				writer.Write(")(ctx);");
+				writer.WriteLine();
+				WriteIndent(writer, 1);
+				writer.WriteLine("(void)this;");
+			}
+			foreach (Statement statement in function.Body!.Statements)
+				WriteStatement(writer, statement, 1);
+			writer.WriteLine("}");
 		}
 
 		void WriteBlock(TextWriter writer, BlockStatement block, int indent, bool forceBraces)
@@ -1266,7 +1285,10 @@ public static class CCodeEmitter
 		{
 			List<string> parts = [];
 			if (RequiresImplicitThisParameter(function) && containingTypes.TryGetValue(function, out TypeDefinition? type))
-				parts.Add(FormatType(new PointerTypeReference { ElementType = new TypeDefinitionReference { Definition = type, Name = type.Name } }, "this").Declaration);
+			{
+				TypeReference thisType = function.AbiThisType ?? new PointerTypeReference { ElementType = new TypeDefinitionReference { Definition = type, Name = type.Name } };
+				parts.Add(FormatTypeOrResolved(thisType, thisType.ResolvedType, NeedsAbiThisFixup(function) ? "ctx" : "this").Declaration);
+			}
 			foreach (ParameterDefinition parameter in function.Parameters)
 			{
 				if (parameter is WithinParameterDefinition && parameter.Type is null)
@@ -1292,6 +1314,13 @@ public static class CCodeEmitter
 			if (function.Modifier is FunctionModifier.Static or FunctionModifier.Constructor or FunctionModifier.Destructor)
 				return false;
 			return function.Parameters.Count == 0 || function.Parameters[0].Symbol != "this";
+		}
+
+		static bool NeedsAbiThisFixup(FunctionDefinition function)
+		{
+			return function.AbiThisType is not null
+				&& function.ImplementationThisType is not null
+				&& function.AbiThisType.ResolvedType != function.ImplementationThisType.ResolvedType;
 		}
 
 		string FormatCallableTypedef(CallableTypeReference callable, string name)

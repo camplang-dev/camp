@@ -116,6 +116,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (source.Body is null)
 			return null;
 
+		ClassDefinition? abiOwner = GetVirtualImplementationAbiOwner(owner, source);
 		FunctionDefinition implementation = new()
 		{
 			SourceSyntax = source.SourceSyntax,
@@ -127,7 +128,32 @@ public sealed partial class BindableNodeAnalyzer
 			Body = source.Body
 		};
 		CopyParameters(source.Parameters, implementation.Parameters);
+		if (abiOwner is not null && !ReferenceEquals(abiOwner, owner))
+		{
+			implementation.AbiThisType = PointerTo(TypeReferenceFor(abiOwner));
+			implementation.AbiThisType.ResolvedType = $"{abiOwner.Name}*";
+			implementation.ImplementationThisType = PointerTo(TypeReferenceFor(owner));
+			implementation.ImplementationThisType.ResolvedType = $"{owner.Name}*";
+		}
 		return implementation;
+	}
+
+	ClassDefinition? GetVirtualImplementationAbiOwner(ClassDefinition owner, FunctionDefinition source)
+	{
+		if (source.Modifier is not (FunctionModifier.Override or FunctionModifier.Sealed))
+			return owner;
+
+		for (ClassDefinition? current = GetDirectBaseClass(owner); current is not null; current = GetDirectBaseClass(current))
+		{
+			foreach (FunctionDefinition candidate in current.Functions)
+			{
+				if (VirtualSlotName(candidate) != VirtualSlotName(source))
+					continue;
+				if (candidate.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract)
+					return current;
+			}
+		}
+		return owner;
 	}
 
 	FieldDefinition CreateVirtualSlotField(ClassDefinition owner, FunctionDefinition function)
