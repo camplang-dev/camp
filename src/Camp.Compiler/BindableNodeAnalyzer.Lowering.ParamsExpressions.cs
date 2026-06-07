@@ -370,6 +370,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateIndexedParamsComponentExpressions(IndexExpression index, out List<Expression> components)
 	{
 		components = [];
+		if (index.Target is ArrayExpression)
+			return false;
 		if (!TryCreateParamsComponentExpressions(index.Target, out List<Expression> targetComponents) || targetComponents.Count < 2)
 			return false;
 
