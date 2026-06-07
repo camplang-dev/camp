@@ -1,0 +1,88 @@
+// file: generic_scalar_erasure.c
+#include "generic_scalar_erasure_private.h"
+
+/* Private file declarations. */
+void* malloc(uintptr_t size);
+static void List_add(List *this, void* item);
+static void* List_getItem(List *this, uintptr_t index);
+static void List_op_initnew(List *this);
+static List* List_create(void);
+static void acceptInt(int value);
+static int main(void);
+
+static void List_add(List *this, void* item)
+{
+	this->items[this->count++] = item;
+}
+
+static void* List_getItem(List *this, uintptr_t index)
+{
+	return this->items[index];
+}
+
+static void List_op_initnew(List *this)
+{
+	{
+		this->items = 0;
+		this->items_length = 0;
+	}
+	this->count = 0;
+}
+
+static List* List_create(void)
+{
+	List* _created0 = (List *)(malloc(sizeof(List)));
+	if ((_created0 != NULL))
+	{
+		List_op_initnew(_created0);
+	}
+	return _created0;
+}
+
+static void acceptInt(int value)
+{
+}
+
+static int main(void)
+{
+	List* numbers = (List *)(malloc(sizeof(List)));
+	if ((numbers != NULL))
+	{
+		List_op_initnew(numbers);
+	}
+	List_add(numbers, (void *)(intptr_t)(1));
+	acceptInt((int)(intptr_t)(List_getItem(numbers, 0)));
+	return 0;
+}
+
+// file: generic_scalar_erasure_private.h
+#ifndef GENERIC_SCALAR_ERASURE_PRIVATE_H_
+#define GENERIC_SCALAR_ERASURE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct List List;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct List
+{
+	void** items;
+	uintptr_t items_length;
+	uintptr_t count;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generic_scalar_erasure.c

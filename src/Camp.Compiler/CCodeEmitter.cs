@@ -1290,20 +1290,209 @@ public static class CCodeEmitter
 		string FormatCallExpression(CallExpression call)
 		{
 			string target = FormatExpression(call.Target);
+			FunctionDefinition? function = TryGetCallFunction(call);
+			Dictionary<string, string> genericSubstitutions = function is null ? [] : GetCallGenericSubstitutions(call, function);
+			List<string> parameterTypes = function is null ? [] : GetCallableParameterTypes(function);
 			List<string> arguments = [];
-			foreach (ArgumentExpression argument in call.Arguments)
-				arguments.Add(FormatArgumentValue(argument));
-			return target + "(" + string.Join(", ", arguments) + ")";
+			for (int i = 0; i < call.Arguments.Count; i++)
+			{
+				string? parameterType = i < parameterTypes.Count ? parameterTypes[i] : null;
+				arguments.Add(FormatArgumentValue(call.Arguments[i], parameterType, genericSubstitutions));
+			}
+			string text = target + "(" + string.Join(", ", arguments) + ")";
+			if (function is not null && TryGetConcreteGenericType(function.ResolvedType, genericSubstitutions, out string? concreteReturnType) && NeedsGenericScalarCast(concreteReturnType))
+				return CastFromErasedGeneric(text, concreteReturnType);
+			return text;
 		}
 
 		string FormatArgumentValue(ArgumentExpression argument)
 		{
+			return FormatArgumentValue(argument, expectedParameterType: null, genericSubstitutions: []);
+		}
+
+		string FormatArgumentValue(ArgumentExpression argument, string? expectedParameterType, Dictionary<string, string> genericSubstitutions)
+		{
 			string value = FormatExpression(argument.Value);
+			if (argument.Modifier == ArgumentModifier.None
+				&& TryGetConcreteGenericType(expectedParameterType, genericSubstitutions, out string? concreteType)
+				&& NeedsGenericScalarCast(concreteType))
+				value = CastToErasedGeneric(value, concreteType);
 			return argument.Modifier switch
 			{
 				ArgumentModifier.Out or ArgumentModifier.Catch => "&" + value,
 				_ => value
 			};
+		}
+
+		static FunctionDefinition? TryGetCallFunction(CallExpression call)
+		{
+			return call.Target switch
+			{
+				MethodReferenceExpression { Candidates.Count: 1 } method => method.Candidates[0],
+				MemberReferenceExpression { Member: FunctionDefinition function } => function,
+				_ => null
+			};
+		}
+
+		Dictionary<string, string> GetCallGenericSubstitutions(CallExpression call, FunctionDefinition function)
+		{
+			Dictionary<string, string> substitutions = [];
+			int typeArgumentCount = Math.Min(function.GenericParameters.Count, call.TypeArguments.Count);
+			for (int i = 0; i < typeArgumentCount; i++)
+				substitutions[function.GenericParameters[i].Name] = call.TypeArguments[i].ResolvedType ?? "void*";
+
+			if (containingTypes.TryGetValue(function, out TypeDefinition? containingType) && containingType.GenericParameters.Count > 0)
+			{
+				string? receiverType = call.Target is MemberReferenceExpression member
+					? member.Target?.ResolvedType
+					: RequiresImplicitThisParameter(function) && call.Arguments.Count > 0
+						? call.Arguments[0].Value?.ResolvedType
+						: null;
+				if (receiverType is not null)
+				{
+					List<string> typeArguments = ExtractConstructedTypeArguments(receiverType);
+					int count = Math.Min(containingType.GenericParameters.Count, typeArguments.Count);
+					for (int i = 0; i < count; i++)
+						substitutions[containingType.GenericParameters[i].Name] = typeArguments[i];
+				}
+			}
+
+			return substitutions;
+		}
+
+		List<string> GetCallableParameterTypes(FunctionDefinition function)
+		{
+			List<string> parameterTypes = [];
+			if (RequiresImplicitThisParameter(function) && containingTypes.TryGetValue(function, out TypeDefinition? containingType))
+				parameterTypes.Add((function.AbiThisType?.ResolvedType ?? containingType.Name) + (function.AbiThisType is null ? "*" : ""));
+			foreach (ParameterDefinition parameter in function.Parameters)
+			{
+				if (parameter is WithinParameterDefinition && parameter.Type is null)
+					continue;
+				parameterTypes.Add(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "void*");
+			}
+			return parameterTypes;
+		}
+
+		static bool TryGetConcreteGenericType(string? genericType, Dictionary<string, string> substitutions, out string concreteType)
+		{
+			concreteType = "";
+			if (string.IsNullOrWhiteSpace(genericType))
+				return false;
+			string key = StripTypeDecorators(genericType);
+			if (!substitutions.TryGetValue(key, out string? substitution))
+				return false;
+			concreteType = substitution;
+			return true;
+		}
+
+		static string StripTypeDecorators(string type)
+		{
+			type = type.Trim();
+			while (type.StartsWith("const ", StringComparison.Ordinal)
+				|| type.StartsWith("volatile ", StringComparison.Ordinal)
+				|| type.StartsWith("escaped ", StringComparison.Ordinal)
+				|| type.StartsWith("scoped ", StringComparison.Ordinal)
+				|| type.StartsWith("unscoped ", StringComparison.Ordinal))
+			{
+				int space = type.IndexOf(' ', StringComparison.Ordinal);
+				type = space < 0 ? "" : type[(space + 1)..].TrimStart();
+			}
+			while (type.EndsWith(" const", StringComparison.Ordinal)
+				|| type.EndsWith(" volatile", StringComparison.Ordinal))
+			{
+				int space = type.LastIndexOf(' ');
+				type = space < 0 ? "" : type[..space].TrimEnd();
+			}
+			return type;
+		}
+
+		bool NeedsGenericScalarCast(string concreteType)
+		{
+			string type = StripTypeDecorators(concreteType);
+			if (type.EndsWith("*", StringComparison.Ordinal) || type.EndsWith("[]", StringComparison.Ordinal) || type.EndsWith("?", StringComparison.Ordinal))
+				return false;
+			if (type is "string" or "wstring" or "astring" or "void" or "untyped" or "any" or "auto")
+				return false;
+			if (IsPrimitiveScalarType(type))
+				return true;
+			return IsEnumType(type);
+		}
+
+		static bool IsPrimitiveScalarType(string type)
+		{
+			return type is "bool" or "sbyte" or "byte" or "short" or "ushort" or "int" or "uint" or "long" or "ulong" or "nint" or "nuint" or "float" or "double" or "char" or "wchar" or "achar" or "uchar";
+		}
+
+		bool IsEnumType(string type)
+		{
+			foreach (SourceFile file in compilation.Files)
+				foreach (Definition definition in file.BindableTree?.Definitions ?? [])
+					if (definition is EnumDefinition enumDefinition && enumDefinition.Name == type)
+						return true;
+			return false;
+		}
+
+		string CastToErasedGeneric(string value, string concreteType)
+		{
+			return "(void *)(intptr_t)(" + value + ")";
+		}
+
+		string CastFromErasedGeneric(string value, string concreteType)
+		{
+			string cType = FormatResolvedType(concreteType, "").Declaration.Trim();
+			return "(" + cType + ")(intptr_t)(" + value + ")";
+		}
+
+		static List<string> ExtractConstructedTypeArguments(string type)
+		{
+			type = StripTypeDecorators(type);
+			while (type.EndsWith("*", StringComparison.Ordinal) || type.EndsWith("[]", StringComparison.Ordinal) || type.EndsWith("?", StringComparison.Ordinal))
+			{
+				type = type.EndsWith("[]", StringComparison.Ordinal) ? type[..^2].TrimEnd() : type[..^1].TrimEnd();
+				type = StripTypeDecorators(type);
+			}
+
+			int start = type.IndexOf('<', StringComparison.Ordinal);
+			if (start < 0)
+				return [];
+			int depth = 0;
+			for (int i = start; i < type.Length; i++)
+			{
+				if (type[i] == '<')
+					depth++;
+				else if (type[i] == '>' && --depth == 0)
+					return SplitGenericArgumentList(type[(start + 1)..i]);
+			}
+			return [];
+		}
+
+		static List<string> SplitGenericArgumentList(string text)
+		{
+			List<string> arguments = [];
+			int start = 0;
+			int genericDepth = 0;
+			int parenDepth = 0;
+			for (int i = 0; i <= text.Length; i++)
+			{
+				char ch = i < text.Length ? text[i] : ',';
+				if (ch == '<')
+					genericDepth++;
+				else if (ch == '>' && genericDepth > 0)
+					genericDepth--;
+				else if (ch == '(')
+					parenDepth++;
+				else if (ch == ')' && parenDepth > 0)
+					parenDepth--;
+				else if (ch == ',' && genericDepth == 0 && parenDepth == 0)
+				{
+					string argument = text[start..i].Trim();
+					if (argument.Length > 0)
+						arguments.Add(argument);
+					start = i + 1;
+				}
+			}
+			return arguments;
 		}
 
 		string FormatMemberReference(MemberReferenceExpression member)

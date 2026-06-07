@@ -1,0 +1,35 @@
+extern void* malloc(nuint size);
+
+class List<T>
+{
+	T[] items;
+	nuint count;
+
+	List()
+	{
+		this.items = default;
+		this.count = 0;
+	}
+
+	void add(T item)
+	{
+		this.items.elements[this.count++] = item;
+	}
+
+	T getItem(nuint index)
+	{
+		return this.items[index];
+	}
+}
+
+void acceptInt(int value)
+{
+}
+
+int main()
+{
+	auto numbers = new List<int>();
+	numbers.add(1);
+	acceptInt(numbers.Item[0]);
+	return 0;
+}
