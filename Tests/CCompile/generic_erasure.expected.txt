@@ -1,3 +1,42 @@
-generated: generic_erasure.c
-generated: generic_erasure_private.h
+// file: generic_erasure.c
+#include "generic_erasure_private.h"
+
+/* Private file declarations. */
+static void accept(void* value);
+static int main(void);
+
+static void accept(void* value)
+{
+}
+
+static int main(void)
+{
+	int value = 0;
+	accept(&value);
+	return 0;
+}
+
+// file: generic_erasure_private.h
+#ifndef GENERIC_ERASURE_PRIVATE_H_
+#define GENERIC_ERASURE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
 compiled: generic_erasure.c

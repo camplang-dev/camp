@@ -100,10 +100,10 @@ public static class GoldenFileTestRunner
 			return builder.ToString();
 		}
 
-		foreach (string generated in result.GeneratedFiles
-			.Where(static path => Path.GetExtension(path) is ".c" or ".h")
-			.OrderBy(static path => Path.GetFileName(path), StringComparer.Ordinal))
-			builder.AppendLine("generated: " + Path.GetFileName(generated));
+		builder.Append(ReadGeneratedFiles(testCase));
+		if (builder.Length > 0 && builder[^1] != '\n')
+			builder.Append('\n');
+		builder.AppendLine("// compile");
 
 		List<string> sourceFiles = result.GeneratedFiles
 			.Where(static path => Path.GetExtension(path) == ".c")

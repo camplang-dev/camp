@@ -1,3 +1,69 @@
-generated: expanded_forms.c
-generated: expanded_forms_private.h
+// file: expanded_forms.c
+#include "expanded_forms_private.h"
+
+/* Private file declarations. */
+static int addOne(int value);
+static int addOneWithContext(void* context, int value);
+static const char* getName(uintptr_t *result_length);
+static int apply(fn_int_voidPtr__int_ transform, void* transform_context, int maybe, bool maybe_specified, const char* name, uintptr_t name_length);
+static int main(void);
+
+static int addOne(int value)
+{
+	return (value + 1);
+}
+
+static int addOneWithContext(void* context, int value)
+{
+	return addOne(value);
+}
+
+static const char* getName(uintptr_t *result_length)
+{
+	{
+		(*result_length) = 4;
+		return "john";
+	}
+}
+
+static int apply(fn_int_voidPtr__int_ transform, void* transform_context, int maybe, bool maybe_specified, const char* name, uintptr_t name_length)
+{
+	if (maybe_specified)
+	{
+		return (transform(transform_context, maybe) + (int)(name_length));
+	}
+	return (int)(name_length);
+}
+
+static int main(void)
+{
+	return 0;
+}
+
+// file: expanded_forms_private.h
+#ifndef EXPANDED_FORMS_PRIVATE_H_
+#define EXPANDED_FORMS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_voidPtr__int_)(void* arg0, int arg1);
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
 compiled: expanded_forms.c

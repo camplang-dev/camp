@@ -1,3 +1,72 @@
-generated: struct_interface_indirect.c
-generated: struct_interface_indirect_private.h
+// file: struct_interface_indirect.c
+#include "struct_interface_indirect_private.h"
+
+/* Private file declarations. */
+static void Handle_retain(Handle *this);
+static int main(void);
+static void Handle_IRef_retain(IRef** ctx);
+static const IRef Handle_IRef__storage;
+static const IRef* Handle_IRef;
+
+static const IRef Handle_IRef__storage = { .retain = Handle_IRef_retain };
+static const IRef* Handle_IRef = &Handle_IRef__storage;
+static void Handle_retain(Handle *this)
+{
+}
+
+static int main(void)
+{
+	Handle handle = {  };
+	return 0;
+}
+
+static void Handle_IRef_retain(IRef** ctx)
+{
+	IRef_Indirect* indirect = (IRef_Indirect *)(ctx);
+	Handle* instance = indirect->ctx;
+	Handle_retain(instance);
+}
+
+// file: struct_interface_indirect_private.h
+#ifndef STRUCT_INTERFACE_INDIRECT_PRIVATE_H_
+#define STRUCT_INTERFACE_INDIRECT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IRef IRef;
+typedef struct Handle Handle;
+typedef struct IRef_Indirect IRef_Indirect;
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef void (* fn_void_IRefPtrPtr_)(IRef** arg0);
+
+/* Enums. */
+
+/* Layouts. */
+struct IRef
+{
+	void (* retain)(IRef** ctx);
+};
+struct Handle
+{
+	char _camp_empty;
+};
+struct IRef_Indirect
+{
+	const IRef* _vt;
+	void* ctx;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
 compiled: struct_interface_indirect.c

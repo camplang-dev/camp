@@ -1,3 +1,41 @@
-generated: generic_layout.c
-generated: generic_layout_private.h
+// file: generic_layout.c
+#include "generic_layout_private.h"
+
+/* Private file declarations. */
+static int main(void);
+
+static int main(void)
+{
+	return 0;
+}
+
+// file: generic_layout_private.h
+#ifndef GENERIC_LAYOUT_PRIVATE_H_
+#define GENERIC_LAYOUT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct List List;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct List
+{
+	void** items;
+	uintptr_t items_length;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
 compiled: generic_layout.c

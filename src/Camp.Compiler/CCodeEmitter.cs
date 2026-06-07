@@ -348,6 +348,7 @@ public static class CCodeEmitter
 		readonly HashSet<string> emittedNames = new(StringComparer.Ordinal);
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
 		readonly HashSet<string> currentGenericTypeNames = new(StringComparer.Ordinal);
+		readonly HashSet<string> currentArrayElementComponentNames = new(StringComparer.Ordinal);
 
 		public void WritePrivateHeaderDeclarations(TextWriter writer)
 		{
@@ -874,13 +875,16 @@ public static class CCodeEmitter
 
 			WithGenericContext(type, () =>
 			{
-				writer.WriteLine("struct " + name);
-				writer.WriteLine("{");
-				if (fields.Count == 0)
-					writer.WriteLine("\tchar _camp_empty;");
-				foreach (FieldDefinition field in fields.Where(static field => field.Modifier != FieldModifier.Static))
-					writer.WriteLine("\t" + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration + ";");
-				writer.WriteLine("};");
+				WithArrayElementComponentContext(fields, () =>
+				{
+					writer.WriteLine("struct " + name);
+					writer.WriteLine("{");
+					if (fields.Count == 0)
+						writer.WriteLine("\tchar _camp_empty;");
+					foreach (FieldDefinition field in fields.Where(static field => field.Modifier != FieldModifier.Static))
+						writer.WriteLine("\t" + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration + ";");
+					writer.WriteLine("};");
+				});
 			});
 		}
 
@@ -995,6 +999,60 @@ public static class CCodeEmitter
 				currentGenericTypeNames.Clear();
 				foreach (string name in previous)
 					currentGenericTypeNames.Add(name);
+			}
+		}
+
+		void WithArrayElementComponentContext<T>(IEnumerable<T> declarations, Action action)
+			where T : BindableNode
+		{
+			HashSet<string> previous = new(currentArrayElementComponentNames, StringComparer.Ordinal);
+			currentArrayElementComponentNames.Clear();
+			List<(string Name, string Type)> candidates = [];
+			HashSet<string> names = new(StringComparer.Ordinal);
+			foreach (T declaration in declarations)
+			{
+				if (!TryGetDeclarationNameAndType(declaration, out string? name, out string? type) || string.IsNullOrWhiteSpace(name))
+					continue;
+
+				names.Add(name);
+				if (!string.IsNullOrWhiteSpace(type))
+					candidates.Add((name, type));
+			}
+
+			foreach ((string name, string type) in candidates)
+			{
+				if (type.TrimEnd().EndsWith("*", StringComparison.Ordinal) && names.Contains(name + "_length"))
+					currentArrayElementComponentNames.Add(name);
+			}
+
+			try
+			{
+				action();
+			}
+			finally
+			{
+				currentArrayElementComponentNames.Clear();
+				foreach (string name in previous)
+					currentArrayElementComponentNames.Add(name);
+			}
+		}
+
+		static bool TryGetDeclarationNameAndType(BindableNode declaration, out string? name, out string? type)
+		{
+			switch (declaration)
+			{
+				case FieldDefinition field:
+					name = CName(field);
+					type = field.ResolvedType;
+					return true;
+				case ParameterDefinition parameter:
+					name = CName(parameter);
+					type = parameter.ResolvedType;
+					return true;
+				default:
+					name = null;
+					type = null;
+					return false;
 			}
 		}
 
@@ -1416,47 +1474,53 @@ public static class CCodeEmitter
 		string FormatParameters(List<ParameterDefinition> parameters)
 		{
 			List<string> parts = [];
-			foreach (ParameterDefinition parameter in parameters)
+			WithArrayElementComponentContext(parameters, () =>
 			{
-				if (parameter is WithinParameterDefinition && parameter.Type is null)
-					continue;
-				string name = CName(parameter);
-				if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
+				foreach (ParameterDefinition parameter in parameters)
 				{
-					TypeReference? parameterType = parameter.Type;
-					parts.Add(FormatOutParameterType(parameterType, parameter.ResolvedType, name).Declaration);
+					if (parameter is WithinParameterDefinition && parameter.Type is null)
+						continue;
+					string name = CName(parameter);
+					if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
+					{
+						TypeReference? parameterType = parameter.Type;
+						parts.Add(FormatOutParameterType(parameterType, parameter.ResolvedType, name).Declaration);
+					}
+					else
+					{
+						parts.Add(FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name).Declaration);
+					}
 				}
-				else
-				{
-					parts.Add(FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name).Declaration);
-				}
-			}
+			});
 			return "(" + (parts.Count == 0 ? "void" : string.Join(", ", parts)) + ")";
 		}
 
 		string FormatParameters(FunctionDefinition function)
 		{
 			List<string> parts = [];
-			if (RequiresImplicitThisParameter(function) && containingTypes.TryGetValue(function, out TypeDefinition? type))
+			WithArrayElementComponentContext(function.Parameters, () =>
 			{
-				TypeReference thisType = function.AbiThisType ?? new PointerTypeReference { ElementType = new TypeDefinitionReference { Definition = type, Name = type.Name } };
-				parts.Add(FormatTypeOrResolved(thisType, thisType.ResolvedType, NeedsAbiThisFixup(function) ? "ctx" : "this").Declaration);
-			}
-			foreach (ParameterDefinition parameter in function.Parameters)
-			{
-				if (parameter is WithinParameterDefinition && parameter.Type is null)
-					continue;
-				string name = CName(parameter);
-				if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
+				if (RequiresImplicitThisParameter(function) && containingTypes.TryGetValue(function, out TypeDefinition? type))
 				{
-					TypeReference? parameterType = parameter.Type;
-					parts.Add(FormatOutParameterType(parameterType, parameter.ResolvedType, name).Declaration);
+					TypeReference thisType = function.AbiThisType ?? new PointerTypeReference { ElementType = new TypeDefinitionReference { Definition = type, Name = type.Name } };
+					parts.Add(FormatTypeOrResolved(thisType, thisType.ResolvedType, NeedsAbiThisFixup(function) ? "ctx" : "this").Declaration);
 				}
-				else
+				foreach (ParameterDefinition parameter in function.Parameters)
 				{
-					parts.Add(FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name).Declaration);
+					if (parameter is WithinParameterDefinition && parameter.Type is null)
+						continue;
+					string name = CName(parameter);
+					if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
+					{
+						TypeReference? parameterType = parameter.Type;
+						parts.Add(FormatOutParameterType(parameterType, parameter.ResolvedType, name).Declaration);
+					}
+					else
+					{
+						parts.Add(FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name).Declaration);
+					}
 				}
-			}
+			});
 			return "(" + (parts.Count == 0 ? "void" : string.Join(", ", parts)) + ")";
 		}
 
@@ -1616,6 +1680,8 @@ public static class CCodeEmitter
 			}
 
 			bool isGenericType = currentGenericTypeNames.Contains(type);
+			if (isGenericType && pointerCount > 0 && currentArrayElementComponentNames.Contains(declarator))
+				pointerCount++;
 			string cType = isGenericType && pointerCount == 0 ? "void*" : FormatResolvedBaseType(type);
 			string pointerPart = pointerCount == 0 ? "" : new string('*', pointerCount);
 			string targetSpec = pointerPart.Length == 0 ? "" : FormatTypeSpec(GetDefaultTargetTypeSpec(functionPointer: false));
