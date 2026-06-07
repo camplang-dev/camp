@@ -1274,7 +1274,7 @@ public static class CCodeEmitter
 				InitializerExpression initializer => FormatInitializer(initializer),
 				RangeExpression => UnsupportedExpression(expression),
 				GroupedExpression grouped => FormatGroupedExpression(grouped),
-				ArrayExpression => UnsupportedExpression(expression),
+				ArrayExpression array => FormatArrayExpression(array),
 				ConstructionExpression => UnsupportedExpression(expression),
 				CurrentAllocatorExpression => UnsupportedExpression(expression),
 				WithinExpression => UnsupportedExpression(expression),
@@ -1308,6 +1308,43 @@ public static class CCodeEmitter
 		string FormatArgumentValue(ArgumentExpression argument)
 		{
 			return FormatArgumentValue(argument, expectedParameterType: null, genericSubstitutions: []);
+		}
+
+		string FormatArrayExpression(ArrayExpression array)
+		{
+			if (!TryGetArrayLiteralElementType(array.ResolvedType, out string elementType))
+			{
+				AddUnsupported(array, "expression");
+				return "/* unsupported array literal */ 0";
+			}
+
+			string cArrayType = FormatResolvedType(elementType, "[]").Declaration.Trim();
+			return "(" + cArrayType + "){" + string.Join(", ", array.Elements.Select(FormatExpression)) + "}";
+		}
+
+		static bool TryGetArrayLiteralElementType(string? resolvedType, out string elementType)
+		{
+			elementType = "";
+			if (string.IsNullOrWhiteSpace(resolvedType))
+				return false;
+
+			string type = resolvedType.Trim();
+			if (type is "#ERROR" or "#MISSING" or "#UNRESOLVED")
+				return false;
+
+			if (type.EndsWith("[]", StringComparison.Ordinal))
+			{
+				elementType = type[..^2].TrimEnd();
+				return !string.IsNullOrWhiteSpace(elementType);
+			}
+
+			if (type.EndsWith("*", StringComparison.Ordinal))
+			{
+				elementType = type[..^1].TrimEnd();
+				return !string.IsNullOrWhiteSpace(elementType);
+			}
+
+			return false;
 		}
 
 		string FormatArgumentValue(ArgumentExpression argument, string? expectedParameterType, Dictionary<string, string> genericSubstitutions)

@@ -265,7 +265,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateArrayParamsComponentExpressions(ArrayExpression array, out List<Expression> components)
 	{
 		components = [];
-		if (TryGetArrayElementType(array.ResolvedType) is string arrayElementType)
+		string? arrayElementType = TryGetArrayElementType(array.ResolvedType) ?? TryGetPointerElementType(array.ResolvedType);
+		if (arrayElementType is not null)
 		{
 			array.ResolvedType = AddPointer(arrayElementType);
 			components.Add(array);

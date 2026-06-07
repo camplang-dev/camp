@@ -1,0 +1,46 @@
+// file: array_literal_initialization.c
+#include "array_literal_initialization_private.h"
+
+/* Private file declarations. */
+static void processArray(int* values, uintptr_t values_length);
+static int main(void);
+
+static void processArray(int* values, uintptr_t values_length)
+{
+}
+
+static int main(void)
+{
+	int* arr = (int []){1, 2, 3};
+	uintptr_t arr_length = 3;
+	int* arrptr = (int []){1, 2, 3};
+	const char** strs = (const char* []){"one", "two", "three"};
+	uintptr_t strs_length = 3;
+	processArray((int []){1, 2, 3}, 3);
+	return (arr[0] + arrptr[1]);
+}
+
+// file: array_literal_initialization_private.h
+#ifndef ARRAY_LITERAL_INITIALIZATION_PRIVATE_H_
+#define ARRAY_LITERAL_INITIALIZATION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: array_literal_initialization.c

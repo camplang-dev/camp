@@ -820,7 +820,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeArrayExpression(ArrayExpression array, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
+		bool pointerTarget = false;
 		string? elementTarget = TryGetArrayElementType(targetType);
+		if (elementTarget is null)
+		{
+			elementTarget = TryGetPointerElementType(targetType);
+			pointerTarget = elementTarget is not null;
+		}
 		List<string> elementTypes = [];
 		foreach (Expression element in array.Elements)
 			elementTypes.Add(BodyAnalyzeExpression(element, scope, typeScope, elementTarget));
@@ -829,7 +835,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (string actual in elementTypes)
 			CheckAssignable(elementType, actual, array.SourceSyntax, "Array element");
 
-		return $"{elementType}[]";
+		return pointerTarget ? $"{elementType}*" : $"{elementType}[]";
 	}
 
 	string BodyAnalyzeInitializerExpression(InitializerExpression initializer, BodyScope scope, AnalysisScope typeScope, string? targetType = null)
@@ -1330,13 +1336,28 @@ public sealed partial class BindableNodeAnalyzer
 							arguments[i].ResolvedType = expected;
 					}
 				}
+			if (ArrayLiteralConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex))
+				parameterIndex++;
 			parameterIndex++;
 		}
 
-		if (parameters.Count > 0 && arguments.Count < CountRequiredParameters(callableParameters, includeExplicitThis: true))
+		if (parameters.Count > 0 && parameterIndex < CountRequiredParameters(callableParameters, includeExplicitThis: true))
 			Report(GetRange((arguments.Count > 0 ? arguments[^1].SourceSyntax : null) ?? fallbackSyntax), "Call is missing required arguments.");
 		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
 			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
+	}
+
+	static bool ArrayLiteralConsumesLengthParameter(ArgumentExpression argument, ParameterDefinition? parameter, List<ParameterDefinition> callableParameters, int parameterIndex)
+	{
+		if (argument.Value is not ArrayExpression || parameter is null || parameterIndex + 1 >= callableParameters.Count)
+			return false;
+		if (argument.Modifier != ArgumentModifier.None)
+			return false;
+		if (TryGetPointerElementType(parameter.ResolvedType) is null)
+			return false;
+
+		string lengthType = callableParameters[parameterIndex + 1].ResolvedType ?? "";
+		return StripTopLevelValueQualifiers(lengthType) is "nuint" or "nint" or "uint" or "int" or "ulong" or "long" or "ushort" or "short";
 	}
 
 	static bool HasExplicitHiddenArgument(List<ArgumentExpression> arguments)
