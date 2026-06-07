@@ -323,12 +323,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (construction.ElementCount is not null || construction.Type is null)
 			return false;
 
-		string typeName = construction.Type.ResolvedType ?? BaseConstructedType(construction.ResolvedType);
+		string typeName = BaseConstructedType(construction.Type.ResolvedType ?? construction.ResolvedType);
 		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
 			return false;
 
 		FunctionDefinition? initNew = FindInitNewMethod(definition, construction.Arguments.Count);
-		declaration.InitialValue = CreateAllocCall(TypeReferenceFor(definition), construction.SourceSyntax ?? declaration.SourceSyntax);
+		declaration.InitialValue = CreateAllocCall(construction.Type ?? TypeReferenceFor(definition), construction.SourceSyntax ?? declaration.SourceSyntax);
 		statements.Add(declaration);
 
 		Expression target = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? $"{typeName}*");

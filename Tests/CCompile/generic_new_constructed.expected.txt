@@ -1,0 +1,62 @@
+// file: generic_new_constructed.c
+#include "generic_new_constructed_private.h"
+
+/* Private file declarations. */
+void* malloc(uintptr_t size);
+static void Box_op_initnew(Box *this);
+static Box* Box_create(void);
+static int main(void);
+
+static void Box_op_initnew(Box *this)
+{
+}
+
+static Box* Box_create(void)
+{
+	Box* _created0 = (Box *)(malloc(sizeof(Box)));
+	if ((_created0 != NULL))
+	{
+		Box_op_initnew(_created0);
+	}
+	return _created0;
+}
+
+static int main(void)
+{
+	Box* box = (Box *)(malloc(sizeof(Box)));
+	if ((box != NULL))
+	{
+		Box_op_initnew(box);
+	}
+	return ((box != NULL) ? 0 : 1);
+}
+
+// file: generic_new_constructed_private.h
+#ifndef GENERIC_NEW_CONSTRUCTED_PRIVATE_H_
+#define GENERIC_NEW_CONSTRUCTED_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Box Box;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct Box
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generic_new_constructed.c

@@ -1,0 +1,53 @@
+// file: generic_property_result.c
+#include "generic_property_result_private.h"
+
+/* Private file declarations. */
+static void* Box_getItem(Box *this, uintptr_t index);
+static void accept(const char* value);
+static int main(void);
+
+static void* Box_getItem(Box *this, uintptr_t index)
+{
+	return 0;
+}
+
+static void accept(const char* value)
+{
+}
+
+static int main(void)
+{
+	Box* box = NULL;
+	accept(Box_getItem(box, 0));
+	return 0;
+}
+
+// file: generic_property_result_private.h
+#ifndef GENERIC_PROPERTY_RESULT_PRIVATE_H_
+#define GENERIC_PROPERTY_RESULT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Box Box;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct Box
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generic_property_result.c

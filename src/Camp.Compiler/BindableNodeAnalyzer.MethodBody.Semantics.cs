@@ -929,8 +929,10 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (CanCallWithArgumentCount(getter.Parameters, arguments.Count))
 			{
-				AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope, member.SourceSyntax);
-				member.ResolvedType = getter.ResolvedType ?? ErrorType;
+				Dictionary<string, string> genericSubstitutions = [];
+				AddReceiverTypeGenericSubstitutions(targetType, getter, genericSubstitutions);
+				AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope, member.SourceSyntax, genericSubstitutions: genericSubstitutions, genericParameterNames: GetFunctionGenericParameterNames(getter));
+				member.ResolvedType = SubstituteGenericType(getter.ResolvedType ?? ErrorType, genericSubstitutions);
 				expressionRewrites[member] = CreateMemberReference(member, member.Target, member.ResolvedType, getter);
 				propertyType = member.ResolvedType;
 				return true;
@@ -986,15 +988,22 @@ public sealed partial class BindableNodeAnalyzer
 			if (setterArgumentCount != arguments.Count)
 				continue;
 
+			Dictionary<string, string> genericSubstitutions = [];
+			AddReceiverTypeGenericSubstitutions(targetType, setter, genericSubstitutions);
+			HashSet<string> genericParameterNames = GetFunctionGenericParameterNames(setter);
 			for (int i = 0; i < arguments.Count; i++)
 			{
-				string expected = callableParameters[i].ResolvedType ?? ErrorType;
+				string expected = SubstituteGenericType(callableParameters[i].ResolvedType ?? ErrorType, genericSubstitutions);
 				string actual = BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, expected);
+				InferGenericSubstitutions(callableParameters[i].ResolvedType ?? ErrorType, actual, genericSubstitutions, genericParameterNames);
+				expected = SubstituteGenericType(callableParameters[i].ResolvedType ?? ErrorType, genericSubstitutions);
 				CheckAssignable(expected, actual, arguments[i].SourceSyntax, "Argument");
 			}
 
-			string expectedValueType = callableParameters[valueParameterIndex].ResolvedType ?? ErrorType;
+			string expectedValueType = SubstituteGenericType(callableParameters[valueParameterIndex].ResolvedType ?? ErrorType, genericSubstitutions);
 			string actualValueType = BodyAnalyzeExpression(value, scope, typeScope, expectedValueType);
+			InferGenericSubstitutions(callableParameters[valueParameterIndex].ResolvedType ?? ErrorType, actualValueType, genericSubstitutions, genericParameterNames);
+			expectedValueType = SubstituteGenericType(callableParameters[valueParameterIndex].ResolvedType ?? ErrorType, genericSubstitutions);
 			CheckAssignable(expectedValueType, actualValueType, value?.SourceSyntax, "Assignment");
 
 			member.ResolvedType = expectedValueType;

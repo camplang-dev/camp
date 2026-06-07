@@ -74,9 +74,10 @@ void main(Allocator* arena)
 		}
 	}
 	Allocator* __local2 = arena;
-	Object* expressionAllocated = (#created3 = (Object*)(__local2 != null ? Allocator_alloc(__local2, sizeof(Object)) : malloc(sizeof(Object))), Object_op_initnew(#created3, __local2), #created3);
+	Object* __local3;
+	Object* expressionAllocated = (__local3 = (Object*)(__local2 != null ? Allocator_alloc(__local2, sizeof(Object)) : malloc(sizeof(Object))), Object_op_initnew(__local3, __local2), __local3);
 	{
-		Allocator* __local3 = arena;
-		(Object_op_delete(expressionAllocated, __local3), __local3 != null ? Allocator_free(__local3, (void*)expressionAllocated) : free((void*)expressionAllocated));
+		Allocator* __local4 = arena;
+		(Object_op_delete(expressionAllocated, __local4), __local4 != null ? Allocator_free(__local4, (void*)expressionAllocated) : free((void*)expressionAllocated));
 	}
 }

@@ -91,21 +91,34 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression CreateNewExpression(TypeDefinition type, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
 	{
-		TypeReference typeReference = TypeReferenceFor(type);
+		TypeReference typeReference = constructedType ?? TypeReferenceFor(type);
 		FunctionDefinition? initNew = FindInitNewMethod(type, arguments.Count);
 		if (initNew is null && !NeedsVirtualTableAssignment(type))
 			return CreateAllocCall(typeReference, syntax);
 
 		string localName = NewGeneratedLocalName("created");
-		NamedExpression localReference = new()
+		string localType = resolvedType ?? $"{constructedType?.ResolvedType ?? type.Name}*";
+		DeclarationStatement? localDeclaration = null;
+		Expression localReference;
+		if (currentStatementPrefix is not null)
 		{
-			Name = localName,
-			ResolvedType = resolvedType ?? $"{type.Name}*"
-		};
+			TypeReference localTypeReference = PointerTo(CloneType(constructedType ?? TypeReferenceFor(type)) ?? TypeReferenceFor(type));
+			localDeclaration = CreateGeneratedLocal(localName, localType, localTypeReference, initialValue: null);
+			currentStatementPrefix.Add(localDeclaration);
+			localReference = CreateVariableReference(localDeclaration.Target, localType);
+		}
+		else
+		{
+			localReference = new NamedExpression
+			{
+				Name = localName,
+				ResolvedType = localType
+			};
+		}
 		GroupedExpression grouped = new()
 		{
 			SourceSyntax = syntax,
-			ResolvedType = resolvedType ?? $"{type.Name}*"
+			ResolvedType = localType
 		};
 		grouped.Items.Add(new GroupedExpressionItem
 		{
@@ -114,9 +127,9 @@ public sealed partial class BindableNodeAnalyzer
 				Target = localReference,
 				Operator = AssignmentOperator.Assign,
 				Value = CreateAllocCall(typeReference, syntax),
-				ResolvedType = resolvedType ?? $"{type.Name}*"
+				ResolvedType = localType
 			},
-			ResolvedType = resolvedType ?? $"{type.Name}*"
+			ResolvedType = localType
 		});
 		if (CreateVirtualTableAssignment(localReference, type) is Expression vtableAssignment)
 			grouped.Items.Add(new GroupedExpressionItem
@@ -133,7 +146,7 @@ public sealed partial class BindableNodeAnalyzer
 		grouped.Items.Add(new GroupedExpressionItem
 		{
 			Expression = localReference,
-			ResolvedType = resolvedType ?? $"{type.Name}*"
+			ResolvedType = localType
 		});
 		return grouped;
 	}

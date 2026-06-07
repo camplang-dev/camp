@@ -1,0 +1,14 @@
+extern void* malloc(nuint size);
+
+class Box<T>
+{
+	Box()
+	{
+	}
+}
+
+int main()
+{
+	auto box = new Box<const string>();
+	return box != null ? 0 : 1;
+}

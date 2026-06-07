@@ -1,0 +1,18 @@
+class Box<T>
+{
+	T getItem(nuint index)
+	{
+		return default;
+	}
+}
+
+void accept(const char* value)
+{
+}
+
+int main()
+{
+	Box<const string>* box = null;
+	accept(box.Item[0]);
+	return 0;
+}

@@ -1010,6 +1010,7 @@ public sealed partial class BindableNodeAnalyzer
 					genericParameterNames.Add(parameter.Name);
 			}
 			AddExplicitGenericSubstitutions(function, call.TypeArguments, genericSubstitutions);
+			AddReceiverGenericSubstitutions(call.Target, function, genericSubstitutions);
 		}
 		else if (TryAnalyzeCallableInvocation(call, scope, typeScope, targetType, out string callableReturnType))
 		{
@@ -1077,6 +1078,95 @@ public sealed partial class BindableNodeAnalyzer
 		int count = Math.Min(function.GenericParameters.Count, typeArguments.Count);
 		for (int i = 0; i < count; i++)
 			substitutions[function.GenericParameters[i].Name] = typeArguments[i].ResolvedType ?? ErrorType;
+	}
+
+	void AddReceiverGenericSubstitutions(Expression? target, FunctionDefinition function, Dictionary<string, string> substitutions)
+	{
+		string? receiverType = target switch
+		{
+			MemberExpression member => member.Target?.ResolvedType,
+			MemberReferenceExpression member => member.Target?.ResolvedType,
+			_ => null
+		};
+		if (receiverType is null)
+			return;
+
+		AddReceiverTypeGenericSubstitutions(receiverType, function, substitutions);
+	}
+
+	void AddReceiverTypeGenericSubstitutions(string receiverType, FunctionDefinition function, Dictionary<string, string> substitutions)
+	{
+		if (FindContainingType(function) is not TypeDefinition containingType || containingType.GenericParameters.Count == 0)
+			return;
+
+		List<string> typeArguments = ExtractConstructedTypeArguments(receiverType);
+		int count = Math.Min(containingType.GenericParameters.Count, typeArguments.Count);
+		for (int i = 0; i < count; i++)
+			substitutions[containingType.GenericParameters[i].Name] = typeArguments[i];
+	}
+
+	HashSet<string> GetFunctionGenericParameterNames(FunctionDefinition function)
+	{
+		HashSet<string> genericParameterNames = [];
+		foreach (GenericParameter parameter in function.GenericParameters)
+			genericParameterNames.Add(parameter.Name);
+		if (FindContainingType(function) is TypeDefinition containingType)
+			foreach (GenericParameter parameter in containingType.GenericParameters)
+				genericParameterNames.Add(parameter.Name);
+		return genericParameterNames;
+	}
+
+	static List<string> ExtractConstructedTypeArguments(string type)
+	{
+		if (new TypeShapeParser(type).TryParse(out TypeShape shape))
+		{
+			while (shape.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array or TypeShapeKind.Optional)
+				shape = shape.Element ?? shape;
+			type = shape.Name;
+		}
+
+		int start = type.IndexOf('<', StringComparison.Ordinal);
+		if (start < 0)
+			return [];
+
+		int depth = 0;
+		for (int i = start; i < type.Length; i++)
+		{
+			if (type[i] == '<')
+				depth++;
+			else if (type[i] == '>' && --depth == 0)
+				return SplitGenericArgumentList(type[(start + 1)..i]);
+		}
+
+		return [];
+	}
+
+	static List<string> SplitGenericArgumentList(string text)
+	{
+		List<string> arguments = [];
+		int start = 0;
+		int genericDepth = 0;
+		int parenDepth = 0;
+		for (int i = 0; i <= text.Length; i++)
+		{
+			char ch = i < text.Length ? text[i] : ',';
+			if (ch == '<')
+				genericDepth++;
+			else if (ch == '>' && genericDepth > 0)
+				genericDepth--;
+			else if (ch == '(')
+				parenDepth++;
+			else if (ch == ')' && parenDepth > 0)
+				parenDepth--;
+			else if (ch == ',' && genericDepth == 0 && parenDepth == 0)
+			{
+				string argument = text[start..i].Trim();
+				if (argument.Length > 0)
+					arguments.Add(argument);
+				start = i + 1;
+			}
+		}
+		return arguments;
 	}
 
 	static bool IncludeExplicitThisArgument(Expression? target, FunctionDefinition? function)
