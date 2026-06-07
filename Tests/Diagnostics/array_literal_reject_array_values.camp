@@ -1,0 +1,10 @@
+int[] getArray()
+{
+	return [1, 2, 3];
+}
+
+int main()
+{
+	auto values = [getArray(), getArray()];
+	return 0;
+}

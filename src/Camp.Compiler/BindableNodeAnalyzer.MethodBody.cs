@@ -829,7 +829,20 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		List<string> elementTypes = [];
 		foreach (Expression element in array.Elements)
-			elementTypes.Add(BodyAnalyzeExpression(element, scope, typeScope, elementTarget));
+		{
+			string actual = BodyAnalyzeExpression(element, scope, typeScope, elementTarget);
+			if (elementTarget is null && element is ArrayExpression && TryGetArrayElementType(actual) is string nestedElement)
+			{
+				actual = $"{nestedElement}*";
+				element.ResolvedType = actual;
+			}
+			else if (element is not ArrayExpression && TryGetArrayElementType(actual) is not null)
+			{
+				Report(GetRange(element.SourceSyntax ?? array.SourceSyntax), "Array values may not be used as array literal elements; use '.elements' to make the pointer conversion explicit.");
+				actual = ErrorType;
+			}
+			elementTypes.Add(actual);
+		}
 
 		string elementType = elementTarget ?? BestType(elementTypes);
 		foreach (string actual in elementTypes)

@@ -1,0 +1,2 @@
+tests/Diagnostics/array_literal_reject_array_values.camp(8,25): error: Array values may not be used as array literal elements; use '.elements' to make the pointer conversion explicit.
+tests/Diagnostics/array_literal_reject_array_values.camp(8,37): error: Array values may not be used as array literal elements; use '.elements' to make the pointer conversion explicit.

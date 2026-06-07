@@ -1,0 +1,43 @@
+// file: nested_array_literal_decay.c
+#include "nested_array_literal_decay_private.h"
+
+/* Private file declarations. */
+static void accept(int** values, uintptr_t values_length);
+static int main(void);
+
+static void accept(int** values, uintptr_t values_length)
+{
+}
+
+static int main(void)
+{
+	int** arr = (int* []){(int []){1, 2, 3}, (int []){4, 5}};
+	uintptr_t arr_length = 2;
+	accept((int* []){(int []){1, 2, 3}, (int []){4, 5}}, 2);
+	return (arr[0][1] + arr[1][0]);
+}
+
+// file: nested_array_literal_decay_private.h
+#ifndef NESTED_ARRAY_LITERAL_DECAY_PRIVATE_H_
+#define NESTED_ARRAY_LITERAL_DECAY_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: nested_array_literal_decay.c
