@@ -156,37 +156,39 @@ public sealed partial class BindableNodeAnalyzer
 				if (whileStatement.Condition is not null && ContainsUncaughtThrow(whileStatement.Condition))
 					return RewriteWhileStatementWithThrowingCondition(whileStatement);
 				whileStatement.Condition = LowerExpression(whileStatement.Condition);
+				string whileContinueLabel = NewGeneratedLabelName("while_continue");
+				string whileBreakLabel = NewGeneratedLabelName("while_break");
 				if (whileStatement.Body is not null)
-					whileStatement.Body = RewriteStatement(whileStatement.Body);
-				break;
+					whileStatement.Body = RewriteLoopBody(whileStatement.Body, whileContinueLabel, whileBreakLabel);
+				return WrapLoopWithBreakLabel(whileStatement, whileBreakLabel);
 
 			case DoWhileStatement doWhile:
+				string doContinueLabel = NewGeneratedLabelName("do_continue");
+				string doBreakLabel = NewGeneratedLabelName("do_break");
 				if (doWhile.Body is not null)
-					doWhile.Body = RewriteStatement(doWhile.Body);
+					doWhile.Body = RewriteLoopBody(doWhile.Body, doContinueLabel, doBreakLabel);
 				doWhile.Condition = LowerExpression(doWhile.Condition);
-				break;
+				return WrapLoopWithBreakLabel(doWhile, doBreakLabel);
 
 			case ForStatement forStatement:
 				if (forStatement.Condition.Declaration is not null)
 					forStatement.Condition.Declaration = (DeclarationStatement)RewriteStatement(forStatement.Condition.Declaration);
 				for (int i = 0; i < forStatement.Condition.Clauses.Count; i++)
 					forStatement.Condition.Clauses[i] = LowerExpression(forStatement.Condition.Clauses[i]);
+				string forContinueLabel = NewGeneratedLabelName("for_continue");
+				string forBreakLabel = NewGeneratedLabelName("for_break");
 				if (forStatement.Body is not null)
-					forStatement.Body = RewriteStatement(forStatement.Body);
-				break;
+					forStatement.Body = RewriteLoopBody(forStatement.Body, forContinueLabel, forBreakLabel);
+				return WrapLoopWithBreakLabel(forStatement, forBreakLabel);
 
 			case ForeachStatement foreachStatement:
-				foreachStatement.Source = LowerExpression(foreachStatement.Source);
-				if (foreachStatement.Body is not null)
-					foreachStatement.Body = RewriteStatement(foreachStatement.Body);
-				break;
+				return RewriteArrayForeachStatement(foreachStatement);
 
 			case SwitchStatement switchStatement:
 				switchStatement.Expression = switchStatement.Expression is not null && ContainsUncaughtThrow(switchStatement.Expression)
 					? HoistThrowingExpression(switchStatement.Expression)
 					: LowerExpression(switchStatement.Expression);
-				RewriteStatementList(switchStatement.Statements);
-				break;
+				return RewriteSwitchStatementWithBreakLabel(switchStatement);
 
 			case CaseStatement caseStatement:
 				caseStatement.Expression = LowerExpression(caseStatement.Expression);
@@ -195,6 +197,10 @@ public sealed partial class BindableNodeAnalyzer
 			case LabelStatement:
 			case GotoStatement:
 				break;
+
+			case BreakStatement:
+			case ContinueStatement:
+				return WithPendingCleanups(statement);
 
 			case ReturnStatement returnStatement:
 				returnStatement.Expression = returnStatement.Expression is not null && ContainsUncaughtThrow(returnStatement.Expression)
@@ -246,6 +252,120 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return statement;
+	}
+
+	Statement RewriteArrayForeachStatement(ForeachStatement foreachStatement)
+	{
+		Expression? source = foreachStatement.Source is not null && ContainsUncaughtThrow(foreachStatement.Source)
+			? HoistThrowingExpression(foreachStatement.Source)
+			: LowerExpression(foreachStatement.Source);
+		if (!TryCreateParamsComponentExpressions(source, out List<Expression> sourceComponents) || sourceComponents.Count < 2)
+		{
+			foreachStatement.Source = source;
+			if (foreachStatement.Body is not null)
+				foreachStatement.Body = RewriteStatement(foreachStatement.Body);
+			return foreachStatement;
+		}
+
+		Expression elements = LowerExpression(sourceComponents[0]) ?? sourceComponents[0];
+		Expression length = LowerExpression(sourceComponents[^1]) ?? sourceComponents[^1];
+		string elementPointerType = elements.ResolvedType ?? ErrorType;
+		string elementType = TryGetPointerElementType(elementPointerType) ?? TryGetArrayElementType(source?.ResolvedType) ?? foreachStatement.Target.ResolvedType ?? ErrorType;
+
+		DeclarationStatement elementsLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachElements"), elementPointerType, TypeReferenceForResolvedName(elementPointerType), elements);
+		DeclarationStatement lengthLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachLength"), length.ResolvedType ?? "nuint", TypeReferenceForResolvedName(length.ResolvedType ?? "nuint"), length);
+		DeclarationStatement indexLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIndex"), "nuint", NuintType(), NumberLiteral("0", "nuint"));
+
+		Expression indexReference = CreateVariableReference(indexLocal.Target, "nuint");
+		Expression elementsReference = CreateVariableReference(elementsLocal.Target, elementPointerType);
+
+		DeclarationStatement loopValue = new()
+		{
+			SourceSyntax = foreachStatement.SourceSyntax,
+			ResolvedType = "void",
+			InitialValue = new IndexExpression
+			{
+				SourceSyntax = foreachStatement.SourceSyntax,
+				Target = elementsReference,
+				ResolvedType = elementType
+			}
+		};
+		loopValue.Target.SourceSyntax = foreachStatement.Target.SourceSyntax;
+		loopValue.Target.Type = foreachStatement.Target.Type is AutoTypeReference ? TypeReferenceForResolvedName(elementType) : CloneType(foreachStatement.Target.Type);
+		loopValue.Target.ResolvedType = elementType;
+		foreach (string name in foreachStatement.Target.Names)
+			loopValue.Target.Names.Add(name);
+		((IndexExpression)loopValue.InitialValue).Arguments.Add(new ArgumentExpression
+		{
+			SourceSyntax = foreachStatement.SourceSyntax,
+			Value = CreateVariableReference(indexLocal.Target, "nuint"),
+			ResolvedType = "nuint"
+		});
+
+		string continueLabel = NewGeneratedLabelName("foreach_continue");
+		string breakLabel = NewGeneratedLabelName("foreach_break");
+		BlockStatement loopBody = new() { SourceSyntax = foreachStatement.Body?.SourceSyntax ?? foreachStatement.SourceSyntax, ResolvedType = "void" };
+		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
+		List<Statement> bodyStatements = [loopValue];
+		if (foreachStatement.Body is not null)
+			bodyStatements.Add(foreachStatement.Body);
+		RewriteStatementList(bodyStatements);
+		currentLoopTransferTargets.RemoveAt(currentLoopTransferTargets.Count - 1);
+		loopBody.Statements.AddRange(bodyStatements);
+		loopBody.Statements.Add(new LabelStatement { Name = continueLabel, ResolvedType = "void" });
+		loopBody.Statements.Add(new ExpressionStatement
+		{
+			SourceSyntax = foreachStatement.SourceSyntax,
+			ResolvedType = "void",
+			Expression = new PostfixUpdateExpression
+			{
+				SourceSyntax = foreachStatement.SourceSyntax,
+				Expression = CreateVariableReference(indexLocal.Target, "nuint"),
+				Operator = UpdateOperator.Increment,
+				ResolvedType = "nuint"
+			}
+		});
+
+		WhileStatement loop = new()
+		{
+			SourceSyntax = foreachStatement.SourceSyntax,
+			ResolvedType = "void",
+			Condition = new BinaryExpression
+			{
+				SourceSyntax = foreachStatement.SourceSyntax,
+				Left = indexReference,
+				Operator = BinaryOperator.LessThan,
+				Right = CreateVariableReference(lengthLocal.Target, lengthLocal.Target.ResolvedType ?? "nuint"),
+				ResolvedType = "bool"
+			},
+			Body = loopBody
+		};
+
+		return CreateBlock([elementsLocal, lengthLocal, indexLocal, loop, new LabelStatement { Name = breakLabel, ResolvedType = "void" }]);
+	}
+
+	Statement RewriteLoopBody(Statement body, string continueLabel, string breakLabel)
+	{
+		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
+		BlockStatement block = body as BlockStatement ?? CreateBlock([body]);
+		RewriteStatementList(block.Statements);
+		currentLoopTransferTargets.RemoveAt(currentLoopTransferTargets.Count - 1);
+		block.Statements.Add(new LabelStatement { Name = continueLabel, ResolvedType = "void" });
+		return block;
+	}
+
+	Statement WrapLoopWithBreakLabel(Statement loop, string breakLabel)
+	{
+		return CreateBlock([loop, new LabelStatement { Name = breakLabel, ResolvedType = "void" }]);
+	}
+
+	Statement RewriteSwitchStatementWithBreakLabel(SwitchStatement switchStatement)
+	{
+		string breakLabel = NewGeneratedLabelName("switch_break");
+		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, null));
+		RewriteStatementList(switchStatement.Statements);
+		currentLoopTransferTargets.RemoveAt(currentLoopTransferTargets.Count - 1);
+		return CreateBlock([switchStatement, new LabelStatement { Name = breakLabel, ResolvedType = "void" }]);
 	}
 
 	void RewriteStatementList(List<Statement> statements)

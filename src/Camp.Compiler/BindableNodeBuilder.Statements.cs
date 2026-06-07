@@ -331,7 +331,7 @@ public sealed partial class BindableNodeBuilder
 
 	BreakStatement BuildBreakStatement(KeywordStatementSyntax syntax)
 	{
-		if (syntax.Condition is not null || syntax.Body is not null || syntax.BodyStatements is not null)
+		if (syntax.Condition is not null || syntax.Body is not null and not EmptyStatementSyntax || syntax.BodyStatements is not null)
 			Report(syntax, "Break statement may not have an expression or body.");
 
 		return new BreakStatement { SourceSyntax = syntax };
@@ -339,7 +339,7 @@ public sealed partial class BindableNodeBuilder
 
 	ContinueStatement BuildContinueStatement(KeywordStatementSyntax syntax)
 	{
-		if (syntax.Condition is not null || syntax.Body is not null || syntax.BodyStatements is not null)
+		if (syntax.Condition is not null || syntax.Body is not null and not EmptyStatementSyntax || syntax.BodyStatements is not null)
 			Report(syntax, "Continue statement may not have an expression or body.");
 
 		return new ContinueStatement { SourceSyntax = syntax };

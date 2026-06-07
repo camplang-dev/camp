@@ -153,15 +153,55 @@ public sealed partial class BindableNodeAnalyzer
 
 	Statement WithPendingCleanups(Statement transfer)
 	{
+		if (transfer is BreakStatement && TryGetCurrentBreakLabel(out string? breakLabel))
+			return CreateCleanupGotoTransfer(breakLabel);
+
+		if (transfer is ContinueStatement && TryGetCurrentContinueLabel(out string? continueLabel))
+			return CreateCleanupGotoTransfer(continueLabel);
+
 		CleanupScope? exitScope = GetCleanupExitScope();
 		if (exitScope is null || transfer is GotoStatement)
 			return transfer;
 
-		exitScope.ExitLabelName ??= NewGeneratedLabelName("cleanup");
 		if (transfer is ReturnStatement returnStatement)
+		{
+			exitScope.ExitLabelName ??= NewGeneratedLabelName("cleanup");
 			return CreateCleanupReturnTransfer(returnStatement, exitScope);
+		}
+		return transfer;
+	}
 
-		return new GotoStatement { TargetName = exitScope.ExitLabelName, ResolvedType = "void" };
+	Statement CreateCleanupGotoTransfer(string targetLabel)
+	{
+		List<Statement> statements = GetPendingCleanups();
+		statements.Add(new GotoStatement { TargetName = targetLabel, ResolvedType = "void" });
+		return statements.Count == 1 ? statements[0] : CreateBlock(statements);
+	}
+
+	bool TryGetCurrentBreakLabel(out string label)
+	{
+		for (int i = currentLoopTransferTargets.Count - 1; i >= 0; i--)
+			if (currentLoopTransferTargets[i].BreakLabelName is string breakLabel)
+			{
+				label = breakLabel;
+				return true;
+			}
+
+		label = "";
+		return false;
+	}
+
+	bool TryGetCurrentContinueLabel(out string label)
+	{
+		for (int i = currentLoopTransferTargets.Count - 1; i >= 0; i--)
+			if (currentLoopTransferTargets[i].ContinueLabelName is string continueLabel)
+			{
+				label = continueLabel;
+				return true;
+			}
+
+		label = "";
+		return false;
 	}
 
 	Statement CreateCleanupReturnTransfer(ReturnStatement returnStatement, CleanupScope exitScope)
@@ -232,11 +272,13 @@ public sealed partial class BindableNodeAnalyzer
 			Body = new BreakStatement { ResolvedType = "void" }
 		});
 		if (whileStatement.Body is not null)
-			body.Statements.Add(RewriteStatement(whileStatement.Body));
+			body.Statements.Add(whileStatement.Body);
 
 		whileStatement.Condition = new LiteralExpression { Kind = LiteralKind.True, Text = "true", Value = true, ResolvedType = "bool" };
-		whileStatement.Body = body;
-		return whileStatement;
+		string continueLabel = NewGeneratedLabelName("while_continue");
+		string breakLabel = NewGeneratedLabelName("while_break");
+		whileStatement.Body = RewriteLoopBody(body, continueLabel, breakLabel);
+		return WrapLoopWithBreakLabel(whileStatement, breakLabel);
 	}
 
 	List<Statement> GetPendingCleanups()
@@ -618,14 +660,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (GetCleanupExitScope() is not null)
 			return WithPendingCleanups(CreateDefaultReturn());
 
-		currentFunctionExitLabel ??= NewGeneratedLabelName("exit");
-		if (currentFunctionReturnType != "void" && currentFunctionReturnTarget is null)
-		{
-			DeclarationStatement returnLocal = CreateGeneratedLocal(NewGeneratedLocalName("return"), currentFunctionReturnType, new NamedTypeReference { Name = currentFunctionReturnType, ResolvedType = currentFunctionReturnType }, new DefaultExpression { ResolvedType = currentFunctionReturnType });
-			currentStatementPrefix?.Add(returnLocal);
-			currentFunctionReturnTarget = returnLocal.Target;
-		}
-		return new GotoStatement { TargetName = currentFunctionExitLabel, ResolvedType = "void" };
+		return CreateDefaultReturn();
 	}
 
 	bool TryGetMatchingHandler(DeclarationTarget target, string errorType, out ThrowHandler handler)

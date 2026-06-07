@@ -1,0 +1,86 @@
+enum Err
+{
+	OK = 0,
+	BAD
+}
+void cleanup()
+{
+}
+int failIfNegative(int value, thrown Err error)
+{
+	if (value < 0)
+	{
+		error = BAD;
+		return default;
+	}
+	return value;
+}
+int sumValues(int* values, nuint values_length, thrown Err error)
+{
+	int total = 0;
+	{
+		int* __local0 = values;
+		nuint __local1 = values_length;
+		nuint __local2 = 0;
+		while (__local2 < __local1)
+		{
+			int value = __local0[__local2];
+			{
+				if (value == 0)
+				{
+					cleanup();
+					goto __foreach_continue3;
+				}
+				if (value == 99)
+				{
+					cleanup();
+					goto __foreach_break4;
+				}
+				total += value;
+				cleanup();
+			}
+			__foreach_continue3:
+			__local2++;
+		}
+		__foreach_break4:
+	}
+	return total;
+}
+int sumChecked(int* values, nuint values_length, thrown Err error)
+{
+	int total = 0;
+	{
+		int* __local3 = values;
+		nuint __local4 = values_length;
+		nuint __local5 = 0;
+		while (__local5 < __local4)
+		{
+			int value = __local3[__local5];
+			total += failIfNegative(value, catch error);
+			if (error != default)
+				return default;
+			__foreach_continue8:
+			__local5++;
+		}
+		__foreach_break9:
+	}
+	return total;
+}
+int sumAuto(int* values, nuint values_length)
+{
+	int total = 0;
+	{
+		int* __local6 = values;
+		nuint __local7 = values_length;
+		nuint __local8 = 0;
+		while (__local8 < __local7)
+		{
+			int value = __local6[__local8];
+			total += value;
+			__foreach_continue13:
+			__local8++;
+		}
+		__foreach_break14:
+	}
+	return total;
+}

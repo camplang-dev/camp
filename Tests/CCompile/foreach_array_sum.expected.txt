@@ -1,0 +1,57 @@
+// file: foreach_array_sum.c
+#include "foreach_array_sum_private.h"
+
+/* Private file declarations. */
+static int sum(int* values, uintptr_t values_length);
+static int main(void);
+
+static int sum(int* values, uintptr_t values_length)
+{
+	int total = 0;
+	{
+		int* _foreachElements0 = values;
+		uintptr_t _foreachLength1 = values_length;
+		uintptr_t _foreachIndex2 = 0;
+		while ((_foreachIndex2 < _foreachLength1))
+		{
+			int value = _foreachElements0[_foreachIndex2];
+			total += value;
+__foreach_continue3:
+			_foreachIndex2++;
+		}
+__foreach_break4:
+	}
+	return total;
+}
+
+static int main(void)
+{
+	int* values = (int []){1, 2, 3, 4};
+	uintptr_t values_length = 4;
+	return sum(values, values_length);
+}
+
+// file: foreach_array_sum_private.h
+#ifndef FOREACH_ARRAY_SUM_PRIVATE_H_
+#define FOREACH_ARRAY_SUM_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: foreach_array_sum.c

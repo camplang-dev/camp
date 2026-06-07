@@ -1,0 +1,47 @@
+enum Err
+{
+	OK = 0,
+	BAD
+}
+
+void cleanup()
+{
+}
+
+int failIfNegative(int value, thrown Err error)
+{
+	if (value < 0)
+		throw BAD;
+	return value;
+}
+
+int sumValues(int[] values, thrown Err error)
+{
+	int total = 0;
+	foreach (int value in values)
+	{
+		finally cleanup();
+		if (value == 0)
+			continue;
+		if (value == 99)
+			break;
+		total += value;
+	}
+	return total;
+}
+
+int sumChecked(int[] values, thrown Err error)
+{
+	int total = 0;
+	foreach (int value in values)
+		total += failIfNegative(value);
+	return total;
+}
+
+int sumAuto(int[] values)
+{
+	int total = 0;
+	foreach (auto value in values)
+		total += value;
+	return total;
+}

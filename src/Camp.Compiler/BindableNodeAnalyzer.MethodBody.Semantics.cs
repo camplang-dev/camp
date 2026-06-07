@@ -346,10 +346,10 @@ public sealed partial class BindableNodeAnalyzer
 			return isAwaited ? ReportType(syntax, "await foreach requires an async iter source, not an array.") : arrayElement;
 
 		if (sourceType.StartsWith("iter ", StringComparison.Ordinal))
-			return isAwaited ? ReportType(syntax, "await foreach requires an async iter source, not an iter source.") : sourceType["iter ".Length..];
+			return ReportType(syntax, isAwaited ? "await foreach requires an async iter source, not an iter source." : "Iterator foreach is not implemented yet.");
 
 		if (sourceType.StartsWith("async iter ", StringComparison.Ordinal))
-			return sourceType["async iter ".Length..];
+			return ReportType(syntax, isAwaited ? "Async iterator foreach is not implemented yet." : "foreach requires an array source; iterator foreach is not implemented yet.");
 
 		Report(GetRange(syntax), $"Foreach source type '{sourceType}' is not iterable.");
 		return ErrorType;

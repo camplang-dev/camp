@@ -25,6 +25,7 @@ public sealed partial class BindableNodeAnalyzer
 	DeclarationTarget? currentImplicitCatchTarget;
 	readonly List<CleanupScope> currentCleanupScopes = [];
 	readonly List<ThrowHandler> currentThrowHandlers = [];
+	readonly List<LoopTransferTarget> currentLoopTransferTargets = [];
 	FunctionDefinition? currentRewriteFunction;
 	TypeDefinition? currentRewriteContainingType;
 	string? currentFunctionExitLabel;

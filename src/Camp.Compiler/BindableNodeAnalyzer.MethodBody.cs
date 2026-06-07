@@ -516,6 +516,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string sourceType = BodyAnalyzeExpression(statement.Source, scope, typeScope);
 		string elementType = GetForeachElementType(sourceType, statement.IsAwaited, statement.Source?.SourceSyntax);
+		if (statement.Target.Names.Count != 1)
+			Report(GetRange(statement.Target.SourceSyntax ?? statement.SourceSyntax), "Foreach statement must declare exactly one loop variable.");
 		BodyAnalyzeDeclarationTarget(statement.Target, scope, typeScope, elementType);
 		BodyAnalyzeOptionalStatement(statement.Body, scope, typeScope);
 	}
