@@ -1165,11 +1165,25 @@ public sealed partial class BindableNodeBuilder
 				if (iter.StorageKeyword is not null && !allowIteratorStorage)
 					Report(iter.StorageKeyword.Value.Range, "'struct iter' and 'class iter' are function return modifiers, not iter type modifiers.");
 
-				return new IterTypeReference
+				IterTypeReference iterReference = new()
 				{
 					SourceSyntax = iter,
-					ElementType = iter.ElementType is null ? MissingType(iter, "Iter type is missing an element type.") : BuildTypeReference(iter.ElementType)
+					IsAsync = iter.AsyncKeyword is not null,
+					ElementType = iter.ElementType is null && iter.ParameterList is null ? MissingType(iter, "Iter type is missing an element type.") : iter.ElementType is null ? null : BuildTypeReference(iter.ElementType)
 				};
+				foreach (ParameterSyntax parameter in iter.ParameterList?.Parameters ?? [])
+					iterReference.Parameters.Add(BuildParameterDefinition(parameter));
+				if (iterReference.ElementType is null)
+				{
+					foreach (ParameterDefinition parameter in iterReference.Parameters)
+					{
+						if (parameter.Modifier == ParameterModifier.Thrown)
+							continue;
+						iterReference.ElementType = parameter.Type;
+						break;
+					}
+				}
+				return iterReference;
 
 			case ParamsTypeSyntax grouped:
 				return MissingType(grouped, "params(T) type syntax is no longer supported; use an expanded built-in form or struct(T).");
@@ -1636,7 +1650,7 @@ public sealed partial class BindableNodeBuilder
 			OptionalTypeSyntax optional => GetRangeOrNull(optional.ElementType) ?? optional.QuestionToken?.Range,
 			PointerTypeSyntax pointer => GetRangeOrNull(pointer.ElementType) ?? pointer.StarToken?.Range,
 			GenericTypeSyntax generic => GetRangeOrNull(generic.Type) ?? generic.LessThanToken?.Range,
-			IterTypeSyntax iter => iter.StorageKeyword?.Range ?? iter.IterKeyword?.Range,
+			IterTypeSyntax iter => iter.AsyncKeyword?.Range ?? iter.StorageKeyword?.Range ?? iter.IterKeyword?.Range,
 			ParamsTypeSyntax grouped => grouped.ParamsKeyword?.Range,
 			StructTypeSyntax materialized => materialized.StructKeyword?.Range,
 			ThrownTypeSyntax thrown => thrown.ThrownKeyword?.Range,

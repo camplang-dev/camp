@@ -968,6 +968,33 @@ public sealed class BindableNodeCodeSerializer
 		WriteDelimited("(", ")", parameters, WriteParameter);
 	}
 
+	void WriteIterType(IterTypeReference iter)
+	{
+		if (iter.IsAsync)
+			writer.Write("async ");
+		writer.Write("iter");
+		if (iter.Parameters.Count == 0)
+		{
+			writer.Write(" ");
+			WriteType(iter.ElementType);
+			return;
+		}
+
+		WriteDelimited("(", ")", iter.Parameters, WriteIterSlot);
+	}
+
+	void WriteIterSlot(ParameterDefinition parameter)
+	{
+		if (parameter.Modifier == ParameterModifier.Thrown)
+			writer.Write("thrown ");
+		WriteTypeOrResolved(parameter.Type, parameter.ResolvedType);
+		if (!string.IsNullOrWhiteSpace(parameter.Name))
+		{
+			writer.Write(" ");
+			writer.Write(parameter.Name);
+		}
+	}
+
 	void WriteParameter(ParameterDefinition parameter)
 	{
 		if ((parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition) && parameter.Type is null)
@@ -1170,8 +1197,7 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case IterTypeReference iter:
-				writer.Write("iter ");
-				WriteType(iter.ElementType);
+				WriteIterType(iter);
 				break;
 
 			case GroupedParamsTypeReference grouped:

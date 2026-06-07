@@ -393,6 +393,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		for (int i = 0; i < definition.Parameters.Count; i++)
 			AnalyzeParameterDefinition(definition.Parameters[i], scope, allowThisName: IsExtensionThisParameter(definition, containingType, i));
+		ValidateIteratorGeneratorParameters(definition);
 
 		ValidateExpandedParameterNames(definition.Parameters);
 
@@ -400,6 +401,18 @@ public sealed partial class BindableNodeAnalyzer
 			memberThisParameter.ResolvedType = ApplyThisDeclarators(containingType, memberThisParameter);
 		if (containingType is null && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
 			definition.Symbol = BuildExtensionFunctionSymbol(definition.Name, thisParameter.ResolvedType ?? ErrorType, definition);
+	}
+
+	void ValidateIteratorGeneratorParameters(FunctionDefinition definition)
+	{
+		if (definition.IteratorKind == IteratorKind.None)
+			return;
+
+		foreach (ParameterDefinition parameter in definition.Parameters)
+		{
+			if (parameter.Modifier is ParameterModifier.In or ParameterModifier.Out or ParameterModifier.Thrown)
+				Report(GetNameRange(parameter), "Generator parameter lists may not contain in, out, or thrown parameters.");
+		}
 	}
 
 	void ValidateExpandedParameterNames(List<ParameterDefinition> parameters)

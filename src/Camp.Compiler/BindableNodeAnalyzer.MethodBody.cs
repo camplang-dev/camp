@@ -883,7 +883,9 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeType(cast.Type, typeScope);
 
 		string targetType = cast.Type?.ResolvedType ?? ErrorType;
-		if (!CanExplicitlyConvert(sourceType, targetType))
+		if (cast.Type is null && cast.Kind != CastKind.Type)
+			targetType = sourceType;
+		else if (!CanExplicitlyConvert(sourceType, targetType))
 			Report(GetRange(cast.SourceSyntax), $"Invalid cast from '{sourceType}' to '{targetType}'.");
 
 		expressionConstants[cast] = IsConstant(cast.Expression);

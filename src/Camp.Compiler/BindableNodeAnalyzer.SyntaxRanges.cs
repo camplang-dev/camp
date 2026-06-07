@@ -127,7 +127,7 @@ public sealed partial class BindableNodeAnalyzer
 			OptionalTypeSyntax optional => GetRange(optional.ElementType) ?? optional.QuestionToken?.Range,
 			PointerTypeSyntax pointer => GetRange(pointer.ElementType) ?? pointer.StarToken?.Range,
 			GenericTypeSyntax generic => GetRange(generic.Type) ?? generic.LessThanToken?.Range,
-			IterTypeSyntax iter => iter.StorageKeyword?.Range ?? iter.IterKeyword?.Range,
+			IterTypeSyntax iter => iter.AsyncKeyword?.Range ?? iter.StorageKeyword?.Range ?? iter.IterKeyword?.Range,
 			ParamsTypeSyntax grouped => grouped.ParamsKeyword?.Range,
 			StructTypeSyntax materialized => materialized.StructKeyword?.Range,
 			ThrownTypeSyntax thrown => thrown.ThrownKeyword?.Range,

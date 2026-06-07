@@ -237,9 +237,19 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				break;
 
-			case IterTypeReference { ElementType: not null } iter:
-				foreach (NamedTypeReference child in GetNamedTypes(iter.ElementType))
-					yield return child;
+			case IterTypeReference iter:
+				if (iter.ElementType is not null)
+				{
+					foreach (NamedTypeReference child in GetNamedTypes(iter.ElementType))
+						yield return child;
+				}
+				foreach (ParameterDefinition parameter in iter.Parameters)
+				{
+					if (parameter.Type is null)
+						continue;
+					foreach (NamedTypeReference child in GetNamedTypes(parameter.Type))
+						yield return child;
+				}
 				break;
 
 			case GroupedParamsTypeReference { StructType: not null } grouped:

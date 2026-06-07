@@ -1,0 +1,22 @@
+enum RangeError
+{
+	OK = 0,
+	BAD
+}
+iter(int, thrown RangeError error) getRange()
+{
+	return default;
+}
+async iter(const char[]? line) getLines()
+{
+	return default;
+}
+void main()
+{
+	iter(int, thrown RangeError error) values = default;
+	async iter(const char[]? line) lines = default;
+	iter(int, thrown RangeError) __discard1;
+	__discard1 = values;
+	async iter(const char[]?) __discard2;
+	__discard2 = lines;
+}

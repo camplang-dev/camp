@@ -313,7 +313,7 @@ public sealed partial class BindableNodeAnalyzer
 			UnscopedTypeReference unscoped => CloneUnscoped(unscoped),
 			TargetTypeSpecTypeReference targetSpec => new TargetTypeSpecTypeReference { Specifier = targetSpec.Specifier, Type = CloneType(targetSpec.Type), IsPrefix = targetSpec.IsPrefix },
 			CallableTypeReference callable => CloneCallable(callable),
-			IterTypeReference iter => new IterTypeReference { ElementType = CloneType(iter.ElementType) },
+			IterTypeReference iter => CloneIter(iter),
 			GroupedParamsTypeReference grouped => new GroupedParamsTypeReference { StructType = CloneType(grouped.StructType) },
 			MaterializedStructTypeReference materialized => new MaterializedStructTypeReference { ParamsType = CloneType(materialized.ParamsType) },
 			ThrownTypeReference thrown => new ThrownTypeReference { Type = CloneType(thrown.Type) },
@@ -367,6 +367,14 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		CallableTypeReference clone = new() { Kind = callable.Kind, CallSpec = callable.CallSpec, TargetSpec = callable.TargetSpec, ReturnType = CloneType(callable.ReturnType) };
 		foreach (ParameterDefinition parameter in callable.Parameters)
+			clone.Parameters.Add(CloneParameter(parameter));
+		return clone;
+	}
+
+	static IterTypeReference CloneIter(IterTypeReference iter)
+	{
+		IterTypeReference clone = new() { IsAsync = iter.IsAsync, ElementType = CloneType(iter.ElementType) };
+		foreach (ParameterDefinition parameter in iter.Parameters)
 			clone.Parameters.Add(CloneParameter(parameter));
 		return clone;
 	}

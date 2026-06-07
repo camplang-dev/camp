@@ -1,0 +1,13 @@
+enum RangeError
+{
+	OK = 0,
+	BAD
+}
+
+extern iter(int, thrown RangeError) range(int first, int last);
+extern async iter(const char[]? line) readLines();
+
+struct iter(int x, int y) points()
+{
+	yield 0;
+}

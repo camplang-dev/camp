@@ -1,0 +1,13 @@
+enum Err
+{
+	OK = 0,
+	BAD
+}
+
+extern iter(thrown Err) onlyThrows();
+extern iter(int, thrown Err, int) valueAfterThrow();
+
+struct iter int badGenerator(out int value)
+{
+	yield value;
+}

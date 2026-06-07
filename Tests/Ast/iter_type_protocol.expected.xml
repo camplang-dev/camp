@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module>
+  <Definitions>
+    <EnumDefinition Name="RangeError" Symbol="RangeError">
+      <Values>
+        <VariableDefinition Name="OK" Symbol="OK">
+          <Type Type="NamedTypeReference" Name="RangeError" />
+          <InitialValue Type="LiteralExpression" Kind="Number" Text="0" Value="0" />
+        </VariableDefinition>
+        <VariableDefinition Name="BAD" Symbol="BAD">
+          <Type Type="NamedTypeReference" Name="RangeError" />
+        </VariableDefinition>
+      </Values>
+    </EnumDefinition>
+    <FunctionDefinition Name="range" Symbol="range" Extern="">
+      <ReturnType Type="IterTypeReference">
+        <ElementType Type="Int" />
+        <Parameters>
+          <ParameterDefinition Name="" Symbol="">
+            <Type Type="Int" />
+          </ParameterDefinition>
+          <ParameterDefinition Modifier="Thrown" Name="" Symbol="">
+            <Type Type="NamedTypeReference" Name="RangeError" />
+          </ParameterDefinition>
+        </Parameters>
+      </ReturnType>
+      <Parameters>
+        <ParameterDefinition Name="first" Symbol="first">
+          <Type Type="Int" />
+        </ParameterDefinition>
+        <ParameterDefinition Name="last" Symbol="last">
+          <Type Type="Int" />
+        </ParameterDefinition>
+      </Parameters>
+    </FunctionDefinition>
+    <FunctionDefinition IsAsync="True" Name="readLines" Symbol="readLines" Extern="">
+      <ReturnType Type="IterTypeReference">
+        <ElementType Type="OptionalTypeReference">
+          <ElementType Type="ArrayTypeReference">
+            <ElementType Type="ConstTypeReference">
+              <Type Type="Char" />
+            </ElementType>
+          </ElementType>
+        </ElementType>
+        <Parameters>
+          <ParameterDefinition Name="line" Symbol="line">
+            <Type Type="OptionalTypeReference">
+              <ElementType Type="ArrayTypeReference">
+                <ElementType Type="ConstTypeReference">
+                  <Type Type="Char" />
+                </ElementType>
+              </ElementType>
+            </Type>
+          </ParameterDefinition>
+        </Parameters>
+      </ReturnType>
+    </FunctionDefinition>
+    <FunctionDefinition IteratorKind="Struct" Name="points" Symbol="points">
+      <ReturnType Type="IterTypeReference">
+        <ElementType Type="Int" />
+        <Parameters>
+          <ParameterDefinition Name="x" Symbol="x">
+            <Type Type="Int" />
+          </ParameterDefinition>
+          <ParameterDefinition Name="y" Symbol="y">
+            <Type Type="Int" />
+          </ParameterDefinition>
+        </Parameters>
+      </ReturnType>
+      <Body Type="BlockStatement">
+        <Statements>
+          <YieldStatement>
+            <Expression Type="LiteralExpression" Kind="Number" Text="0" Value="0" />
+          </YieldStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+  </Definitions>
+</Module>

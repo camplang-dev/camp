@@ -163,6 +163,12 @@ public sealed class CampParser
 		while (IsAny(TypeDeclarationDeclarators))
 			declarators.Add(new TypeDeclarationDeclaratorSyntax { Keyword = Take() });
 
+		if ((Is("struct") || Is("class")) && PeekValue(1) == "iter")
+		{
+			index = start;
+			return null;
+		}
+
 		if (!IsAny(TypeDeclarationKeywords))
 		{
 			index = start;
@@ -510,6 +516,9 @@ public sealed class CampParser
 		if (IsClass(TokenClass.AttributeIdentifier))
 			return new AttributedTypeSyntax { Attribute = ParseAttribute(), Type = ParseType() };
 
+		if (Is("async") && PeekValue(1) == "iter")
+			return ParseIterType(asyncKeyword: Take(), storageKeyword: null);
+
 		if (IsAny("fn", "delegate", "async", "once"))
 		{
 			CallableTypeSyntax callable = new()
@@ -526,10 +535,10 @@ public sealed class CampParser
 		}
 
 		if ((Is("struct") || Is("class")) && PeekValue(1) == "iter")
-			return new IterTypeSyntax { StorageKeyword = Take(), IterKeyword = Expect("iter"), ElementType = ParseType() };
+			return ParseIterType(asyncKeyword: null, storageKeyword: Take());
 
 		if (Is("iter"))
-			return new IterTypeSyntax { IterKeyword = Take(), ElementType = ParseType() };
+			return ParseIterType(asyncKeyword: null, storageKeyword: null);
 
 		if (Is("params"))
 			return ParseWrappedType<ParamsTypeSyntax>("params", (syntax, keyword, open, type, close) =>
@@ -565,6 +574,23 @@ public sealed class CampParser
 			return new TargetTypeSpecTypeSyntax { Specifier = Take(), Type = ParseTypePrefix(), IsPrefix = true };
 
 		return ParseQualifiedNameType();
+	}
+
+	IterTypeSyntax ParseIterType(Token? asyncKeyword, Token? storageKeyword)
+	{
+		IterTypeSyntax syntax = new()
+		{
+			AsyncKeyword = asyncKeyword,
+			StorageKeyword = storageKeyword,
+			IterKeyword = Expect("iter")
+		};
+
+		if (Is("("))
+			syntax.ParameterList = ParseParameterList();
+		else
+			syntax.ElementType = ParseType();
+
+		return syntax;
 	}
 
 	T ParseWrappedType<T>(string keywordValue, Action<T, Token?, Token?, TypeSyntax?, Token?> assign)
@@ -1405,7 +1431,7 @@ public sealed class CampParser
 		if (open is null)
 			return null;
 
-		Token? castKeyword = IsAny("params", "struct", "class")
+		Token? castKeyword = IsAny("params", "struct", "class", "delegate", "fn", "once", "iter", "async")
 			? Take()
 			: null;
 

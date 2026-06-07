@@ -345,10 +345,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetArrayElementType(sourceType) is string arrayElement)
 			return isAwaited ? ReportType(syntax, "await foreach requires an async iter source, not an array.") : arrayElement;
 
-		if (sourceType.StartsWith("iter ", StringComparison.Ordinal))
+		if (sourceType.StartsWith("iter ", StringComparison.Ordinal) || sourceType.StartsWith("iter(", StringComparison.Ordinal))
 			return ReportType(syntax, isAwaited ? "await foreach requires an async iter source, not an iter source." : "Iterator foreach is not implemented yet.");
 
-		if (sourceType.StartsWith("async iter ", StringComparison.Ordinal))
+		if (sourceType.StartsWith("async iter ", StringComparison.Ordinal) || sourceType.StartsWith("async iter(", StringComparison.Ordinal))
 			return ReportType(syntax, isAwaited ? "Async iterator foreach is not implemented yet." : "foreach requires an array source; iterator foreach is not implemented yet.");
 
 		Report(GetRange(syntax), $"Foreach source type '{sourceType}' is not iterable.");
@@ -1363,7 +1363,27 @@ public sealed partial class BindableNodeAnalyzer
 			return iter.ElementType.ResolvedType;
 
 		string? resolved = type?.ResolvedType;
-		return resolved is not null && resolved.StartsWith("iter ", StringComparison.Ordinal) ? resolved["iter ".Length..] : null;
+		if (resolved is null)
+			return null;
+		if (resolved.StartsWith("iter ", StringComparison.Ordinal))
+			return resolved["iter ".Length..];
+		if (resolved.StartsWith("async iter ", StringComparison.Ordinal))
+			return resolved["async iter ".Length..];
+		if (resolved.StartsWith("iter(", StringComparison.Ordinal))
+			return ExtractFirstIteratorSlotType(resolved, "iter(");
+		if (resolved.StartsWith("async iter(", StringComparison.Ordinal))
+			return ExtractFirstIteratorSlotType(resolved, "async iter(");
+		return null;
+	}
+
+	static string? ExtractFirstIteratorSlotType(string resolved, string prefix)
+	{
+		string slots = resolved[prefix.Length..];
+		if (slots.EndsWith(")", StringComparison.Ordinal))
+			slots = slots[..^1];
+		int comma = slots.IndexOf(',', StringComparison.Ordinal);
+		string first = comma < 0 ? slots : slots[..comma];
+		return first.Trim();
 	}
 
 	string BestType(List<string> types)

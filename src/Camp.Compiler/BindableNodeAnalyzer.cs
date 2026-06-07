@@ -367,12 +367,27 @@ public sealed partial class BindableNodeAnalyzer
 			UnscopedTypeReference unscoped => FormatTypeDeclarator(BuildAnchoredDeclarator("unscoped", unscoped.Anchors), unscoped.Type),
 			TargetTypeSpecTypeReference targetSpec => $"{FormatTypeReference(targetSpec.Type)} {targetSpec.Specifier}",
 			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)}{FormatCallSpec(callable.TargetSpec)}{FormatCallSpec(callable.CallSpec)} {FormatTypeReference(callable.ReturnType)}({string.Join(", ", GetParameterTypeNames(callable.Parameters))})",
-			IterTypeReference iter => $"iter {FormatTypeReference(iter.ElementType)}",
+			IterTypeReference iter => FormatIterTypeReference(iter),
 			GroupedParamsTypeReference grouped => $"params({FormatTypeReference(grouped.StructType)})",
 			MaterializedStructTypeReference materialized => $"struct({FormatTypeReference(materialized.ParamsType)})",
 			ThrownTypeReference thrown => $"thrown({FormatTypeReference(thrown.Type)})",
 			_ => type.ResolvedType ?? ErrorType
 		};
+	}
+
+	static string FormatIterTypeReference(IterTypeReference iter)
+	{
+		string prefix = iter.IsAsync ? "async iter" : "iter";
+		if (iter.Parameters.Count == 0)
+			return $"{prefix} {FormatTypeReference(iter.ElementType)}";
+
+		List<string> slots = [];
+		foreach (ParameterDefinition parameter in iter.Parameters)
+		{
+			string type = parameter.ResolvedType ?? FormatTypeReference(parameter.Type);
+			slots.Add(parameter.Modifier == ParameterModifier.Thrown ? $"thrown {type}" : type);
+		}
+		return $"{prefix}({string.Join(", ", slots)})";
 	}
 
 	static string FormatTypeDeclarator(string keyword, TypeReference? inner)

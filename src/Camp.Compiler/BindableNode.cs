@@ -260,7 +260,9 @@ public class TargetTypeSpecTypeReference : TypeReference
 
 public class IterTypeReference : TypeReference
 {
+	public bool IsAsync { get; set; }
 	public TypeReference? ElementType { get; set; }
+	public List<ParameterDefinition> Parameters { get; } = [];
 }
 
 public class GroupedParamsTypeReference : TypeReference

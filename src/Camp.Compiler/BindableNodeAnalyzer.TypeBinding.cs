@@ -131,6 +131,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			case IterTypeReference iter:
 				AnalyzeOptionalType(iter.ElementType, scope);
+				ValidateIteratorType(iter, scope);
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
@@ -214,6 +215,52 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		Report(GetRange(syntax), $"Callspec or typespec '{spec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
+	}
+
+	void ValidateIteratorType(IterTypeReference iter, AnalysisScope scope)
+	{
+		if (iter.Parameters.Count == 0)
+		{
+			if (iter.ElementType is null)
+				Report(GetRange(iter.SourceSyntax), "Iter type is missing a yielded type.");
+			return;
+		}
+
+		int yieldedCount = 0;
+		int thrownCount = 0;
+		foreach (ParameterDefinition parameter in iter.Parameters)
+		{
+			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition or WithinParameterDefinition
+				|| parameter.Modifier is ParameterModifier.In or ParameterModifier.Out or ParameterModifier.Within)
+			{
+				Report(GetIteratorSlotRange(parameter), "Iterator result slots may only be yielded value slots or a thrown slot.");
+				continue;
+			}
+
+			AnalyzeParameterDefinition(parameter, scope);
+			if (parameter.Modifier == ParameterModifier.Thrown)
+			{
+				thrownCount++;
+				if (yieldedCount == 0)
+					Report(GetIteratorSlotRange(parameter), "Iterator thrown slot must follow at least one yielded value slot.");
+				if (thrownCount > 1)
+					Report(GetIteratorSlotRange(parameter), "Iterator type may declare at most one thrown slot.");
+			}
+			else
+			{
+				if (thrownCount > 0)
+					Report(GetIteratorSlotRange(parameter), "Iterator yielded value slots must appear before the thrown slot.");
+				yieldedCount++;
+			}
+		}
+
+		if (yieldedCount == 0)
+			Report(GetRange(iter.SourceSyntax), "Iter type is missing a yielded type.");
+	}
+
+	static TokenRange? GetIteratorSlotRange(ParameterDefinition parameter)
+	{
+		return GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax);
 	}
 
 	void ValidateTargetTypeSpec(TargetTypeSpecTypeReference typeSpec)

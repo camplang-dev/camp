@@ -222,9 +222,11 @@ public class GenericTypeSyntax : TypeSyntax
 
 public class IterTypeSyntax : TypeSyntax
 {
+	public Token? AsyncKeyword { get; set; }
 	public Token? StorageKeyword { get; set; }
 	public Token? IterKeyword { get; set; }
 	public TypeSyntax? ElementType { get; set; }
+	public ParameterListSyntax? ParameterList { get; set; }
 }
 
 public class ParamsTypeSyntax : TypeSyntax

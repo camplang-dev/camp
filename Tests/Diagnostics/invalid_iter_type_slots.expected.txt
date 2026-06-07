@@ -1,0 +1,4 @@
+tests/Diagnostics/invalid_iter_type_slots.camp(7,20): error: Iterator thrown slot must follow at least one yielded value slot.
+tests/Diagnostics/invalid_iter_type_slots.camp(7,8): error: Iter type is missing a yielded type.
+tests/Diagnostics/invalid_iter_type_slots.camp(8,30): error: Iterator yielded value slots must appear before the thrown slot.
+tests/Diagnostics/invalid_iter_type_slots.camp(10,38): error: Generator parameter lists may not contain in, out, or thrown parameters.
