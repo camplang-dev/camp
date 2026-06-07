@@ -1,0 +1,4 @@
+class iter int one()
+{
+	yield 1;
+}

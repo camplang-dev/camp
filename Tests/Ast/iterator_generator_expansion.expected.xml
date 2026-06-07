@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module>
+  <Definitions>
+    <FunctionDefinition IteratorKind="Class" Name="one" Symbol="one">
+      <ReturnType Type="IterTypeReference">
+        <ElementType Type="Int" />
+      </ReturnType>
+      <Body Type="BlockStatement">
+        <Statements>
+          <YieldStatement>
+            <Expression Type="LiteralExpression" Kind="Number" Text="1" Value="1" />
+          </YieldStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+  </Definitions>
+</Module>

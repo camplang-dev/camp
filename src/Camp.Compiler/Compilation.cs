@@ -164,6 +164,7 @@ public static class CompilationPipeline
 
 			if (name == ownedName
 				|| name == "_" + ownedName
+				|| name.StartsWith(ownedName + "Iter", System.StringComparison.Ordinal)
 				|| name.StartsWith(ownedName + "_", System.StringComparison.Ordinal)
 				|| name.StartsWith("_" + ownedName + "__", System.StringComparison.Ordinal))
 				return true;

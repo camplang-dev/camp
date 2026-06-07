@@ -1,0 +1,34 @@
+extern void* malloc(nuint size);
+classValueIter* classValue(int value)
+{
+	classValueIter* __local0 = (classValueIter*)malloc(sizeof(classValueIter));
+	__local0.__state = 0;
+	__local0.value = value;
+	return __local0;
+}
+void main()
+{
+	classValueIter* seq = classValue(9);
+	int current = 0;
+	bool __discard1;
+	__discard1 = classValueIter_next(seq, &current);
+}
+
+class classValueIter
+{
+	int __state;
+	int value;
+
+	bool next(int* current)
+	{
+		if (this.__state != 0)
+			return false;
+		*current = this.value;
+		this.__state = 1;
+		return true;
+	}
+
+	void destroy()
+	{
+	}
+}

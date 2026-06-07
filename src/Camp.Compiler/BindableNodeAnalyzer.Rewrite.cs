@@ -57,6 +57,7 @@ public sealed partial class BindableNodeAnalyzer
 		BindableNodeAnalyzer analyzer = new(selectedTarget, selectedMemoryModel);
 		analyzer.currentModule = module;
 		analyzer.CollectTypeNames(module);
+		analyzer.GenerateIteratorDeclarations(module);
 		analyzer.GenerateLifecycleMethods(module);
 		analyzer.GenerateVirtualDeclarations(module);
 		analyzer.GenerateInterfaceDeclarations(module);

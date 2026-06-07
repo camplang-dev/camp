@@ -1,0 +1,11 @@
+struct iter int singleValue(int value)
+{
+	yield value;
+}
+
+void main()
+{
+	singleValueIter seq = singleValue(7);
+	int current = 0;
+	_ = seq.next(&current);
+}

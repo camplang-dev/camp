@@ -1,0 +1,13 @@
+extern void* malloc(nuint size);
+
+class iter int classValue(int value)
+{
+	yield value;
+}
+
+void main()
+{
+	classValueIter* seq = classValue(9);
+	int current = 0;
+	_ = seq.next(&current);
+}

@@ -1,0 +1,5 @@
+struct iter int values()
+{
+	yield 1;
+	yield 2;
+}

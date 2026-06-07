@@ -1,0 +1,1 @@
+tests/Diagnostics/iterator_generator_complex_body.camp(2,1): error: Iterator generator lowering currently supports only a single yield statement with one yielded slot.

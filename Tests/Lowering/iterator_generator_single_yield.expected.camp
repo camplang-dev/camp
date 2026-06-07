@@ -1,0 +1,30 @@
+singleValueIter singleValue(int value)
+{
+	return {.__state = 0, .value = value};
+}
+void main()
+{
+	singleValueIter seq = singleValue(7);
+	int current = 0;
+	bool __discard1;
+	__discard1 = singleValueIter_next(&seq, &current);
+}
+
+fixed struct singleValueIter
+{
+	int __state;
+	int value;
+
+	bool next(int* current)
+	{
+		if (this.__state != 0)
+			return false;
+		*current = this.value;
+		this.__state = 1;
+		return true;
+	}
+
+	void destroy()
+	{
+	}
+}
