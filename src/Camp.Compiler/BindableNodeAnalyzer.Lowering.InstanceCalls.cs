@@ -8,7 +8,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (call.Target is not MemberReferenceExpression { Target: Expression receiver, Member: FunctionDefinition function } member)
 			return false;
-		if (!IsInstanceFunction(function))
+		if (!IsInstanceInvocationFunction(function))
 			return false;
 		if (IsPropertyGetterReference(member) || IsPropertySetterReference(member))
 			return false;
@@ -23,7 +23,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (call.Target is not MemberReferenceExpression { Member: FunctionDefinition function } member)
 			return false;
-		if (IsInstanceFunction(function))
+		if (IsInstanceInvocationFunction(function))
 			return false;
 		if (IsPropertyGetterReference(member) || IsPropertySetterReference(member))
 			return false;
@@ -36,6 +36,11 @@ public sealed partial class BindableNodeAnalyzer
 		reference.Candidates.Add(function);
 		call.Target = reference;
 		return true;
+	}
+
+	bool IsInstanceInvocationFunction(FunctionDefinition function)
+	{
+		return IsInstanceFunction(function) || GetExplicitThisParameter(function) is not null;
 	}
 
 	bool ShouldEmitFlattenedInstanceCalls()

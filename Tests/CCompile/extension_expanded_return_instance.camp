@@ -1,0 +1,19 @@
+const char[] toArray(const string this)
+{
+	const char[] arr = {};
+	arr.elements = this;
+	arr.length = 0;
+	return arr;
+}
+
+void accept(const char[] value)
+{
+}
+
+int main()
+{
+	const string value = "two";
+	accept(string_toArray(value));
+	accept(value.toArray());
+	return 0;
+}

@@ -447,6 +447,14 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (currentStatementPrefix is null || shape.Components.Count == 0)
 			return false;
+		if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
+			&& IsInstanceInvocationFunction(function)
+			&& !IsPropertyGetterReference(member)
+			&& !IsPropertySetterReference(member)
+			&& FindContainingType(function) is not InterfaceDefinition)
+		{
+			RewriteInstanceInvocation(call, member, receiver, function);
+		}
 
 		List<DeclarationTarget> targets = [];
 		for (int i = 0; i < shape.Components.Count; i++)
