@@ -194,7 +194,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(function.Body))
 		{
-			if (!TryCreateIteratorForeachState(foreachStatement, out IteratorForeachStateFields? fields) || fields is null)
+			if (!TryCreateIteratorForeachState(function, foreachStatement, out IteratorForeachStateFields? fields) || fields is null)
 				continue;
 
 			iteratorForeachStates[foreachStatement] = fields;
@@ -206,6 +206,17 @@ public sealed partial class BindableNodeAnalyzer
 				Type = TypeReferenceForIteratorField(fields.IteratorType),
 				ResolvedType = fields.IteratorType
 			});
+			if (fields is { IsProtocol: true, ContextFieldName: not null })
+			{
+				AddIteratorField(state, new FieldDefinition
+				{
+					SourceSyntax = foreachStatement.SourceSyntax,
+					Name = fields.ContextFieldName,
+					Symbol = fields.ContextFieldName,
+					Type = PointerTo(VoidType()),
+					ResolvedType = "void*"
+				});
+			}
 			AddIteratorField(state, new FieldDefinition
 			{
 				SourceSyntax = foreachStatement.SourceSyntax,
@@ -217,9 +228,11 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	bool TryCreateIteratorForeachState(ForeachStatement foreachStatement, out IteratorForeachStateFields? fields)
+	bool TryCreateIteratorForeachState(FunctionDefinition function, ForeachStatement foreachStatement, out IteratorForeachStateFields? fields)
 	{
 		fields = null;
+		if (TryCreateIteratorProtocolForeachState(function, foreachStatement, out fields))
+			return true;
 		if (!TryResolveIteratorForeachSourceType(foreachStatement.Source, out string sourceType))
 			return false;
 		if (!TryFindIteratorNextMethod(sourceType, out FunctionDefinition? next, out string elementType) || next is null)
@@ -228,6 +241,43 @@ public sealed partial class BindableNodeAnalyzer
 		int index = iteratorForeachStateIndex++;
 		fields = new IteratorForeachStateFields($"__foreachIter{index}", $"__foreachCurrent{index}", sourceType, elementType);
 		return true;
+	}
+
+	bool TryCreateIteratorProtocolForeachState(FunctionDefinition function, ForeachStatement foreachStatement, out IteratorForeachStateFields? fields)
+	{
+		fields = null;
+		string sourceType = ResolveIteratorProtocolForeachSourceType(function, foreachStatement.Source);
+		if (!TryGetIteratorProtocolCurrentTypes(sourceType, out List<string>? currentTypes) || currentTypes is not { Count: 1 })
+			return false;
+
+		string elementType = foreachStatement.Target.ResolvedType ?? currentTypes[0];
+		string callType = BuildCallableType("fn", "bool", ["void*", AddPointer(elementType)]);
+		int index = iteratorForeachStateIndex++;
+		fields = IteratorForeachStateFields.ForProtocol(
+			$"__foreachIterCall{index}",
+			$"__foreachIterContext{index}",
+			$"__foreachCurrent{index}",
+			callType,
+			elementType);
+		return true;
+	}
+
+	static string ResolveIteratorProtocolForeachSourceType(FunctionDefinition function, Expression? source)
+	{
+		string? sourceType = source?.ResolvedType;
+		if (!string.IsNullOrWhiteSpace(sourceType) && sourceType != UnresolvedType && sourceType != ErrorType)
+			return sourceType;
+
+		if (source is NamedExpression { Qualifiers.Count: 0 } named)
+		{
+			foreach (ParameterDefinition parameter in function.Parameters)
+			{
+				if (parameter.Name == named.Name)
+					return parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type);
+			}
+		}
+
+		return sourceType ?? ErrorType;
 	}
 
 	bool TryResolveIteratorForeachSourceType(Expression? source, out string sourceType)
@@ -247,8 +297,35 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	static TypeReference TypeReferenceForIteratorField(string type)
+	TypeReference TypeReferenceForIteratorField(string type)
 	{
+		if (TryGetCallableShape(type, out CallableShape callable))
+		{
+			CallableTypeReference reference = new()
+			{
+				Kind = callable.Kind switch
+				{
+					"delegate" => CallableKind.Delegate,
+					"once" => CallableKind.Once,
+					"async" => CallableKind.Async,
+					_ => CallableKind.Function
+				},
+				ReturnType = TypeReferenceForIteratorField(callable.ReturnType),
+				ResolvedType = type
+			};
+			for (int i = 0; i < callable.Parameters.Count; i++)
+			{
+				string parameterType = callable.Parameters[i];
+				reference.Parameters.Add(new ParameterDefinition
+				{
+					Name = "arg" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
+					Symbol = "arg" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
+					Type = TypeReferenceForIteratorField(parameterType),
+					ResolvedType = parameterType
+				});
+			}
+			return reference;
+		}
 		if (TryGetPointerElementType(type) is string elementType)
 		{
 			TypeReference pointer = PointerTo(TypeReferenceForResolvedName(elementType));
@@ -316,14 +393,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		BlockStatement cleanupBody = new() { ResolvedType = "void" };
 		foreach (IteratorForeachStateFields fields in GetIteratorForeachStateFields(sourceFunction))
-		{
-			cleanupBody.Statements.Add(new DeleteStatement
-			{
-				SourceSyntax = sourceFunction.SourceSyntax,
-				ResolvedType = "void",
-				Expression = ThisMemberReference(fields.IteratorFieldName, fields.IteratorType)
-			});
-		}
+			cleanupBody.Statements.Add(CreateIteratorForeachCleanup(sourceFunction, fields));
 		IteratorBodyLowering cleanupLowering = new(this, sourceFunction, new ParameterDefinition { Name = "current", Symbol = "current", ResolvedType = "void*" }, ErrorType);
 		foreach (Statement cleanup in GetTopLevelIteratorFinallyStatements(sourceFunction))
 		{
@@ -367,6 +437,46 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		AddIteratorFunction(state, destroy);
 		currentIteratorStateThisType = previousIteratorStateThisType;
+	}
+
+	Statement CreateIteratorForeachCleanup(FunctionDefinition sourceFunction, IteratorForeachStateFields fields)
+	{
+		if (fields is { IsProtocol: true, ContextFieldName: not null })
+		{
+			return new ExpressionStatement
+			{
+				SourceSyntax = sourceFunction.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new CallExpression
+				{
+					SourceSyntax = sourceFunction.SourceSyntax,
+					Target = ThisMemberReference(fields.IteratorFieldName, fields.IteratorType),
+					ResolvedType = "bool",
+					Arguments =
+					{
+						new ArgumentExpression
+						{
+							SourceSyntax = sourceFunction.SourceSyntax,
+							Value = ThisMemberReference(fields.ContextFieldName, "void*"),
+							ResolvedType = "void*"
+						},
+						new ArgumentExpression
+						{
+							SourceSyntax = sourceFunction.SourceSyntax,
+							Value = NullLiteral(sourceFunction.SourceSyntax),
+							ResolvedType = "#NULL"
+						}
+					}
+				}
+			};
+		}
+
+		return new DeleteStatement
+		{
+			SourceSyntax = sourceFunction.SourceSyntax,
+			ResolvedType = "void",
+			Expression = ThisMemberReference(fields.IteratorFieldName, fields.IteratorType)
+		};
 	}
 
 	void AddIteratorProtocolAdapter(TypeDefinition state, IterTypeReference iterType)
@@ -1188,7 +1298,20 @@ public sealed partial class BindableNodeAnalyzer
 		return $"{(iter.IsAsync ? "async iter" : "iter")}({string.Join(", ", slots)})";
 	}
 
-	sealed record IteratorForeachStateFields(string IteratorFieldName, string CurrentFieldName, string IteratorType, string ElementType);
+	sealed record IteratorForeachStateFields(string IteratorFieldName, string CurrentFieldName, string IteratorType, string ElementType)
+	{
+		public bool IsProtocol { get; init; }
+		public string? ContextFieldName { get; init; }
+
+		public static IteratorForeachStateFields ForProtocol(string callFieldName, string contextFieldName, string currentFieldName, string callType, string elementType)
+		{
+			return new IteratorForeachStateFields(callFieldName, currentFieldName, callType, elementType)
+			{
+				IsProtocol = true,
+				ContextFieldName = contextFieldName
+			};
+		}
+	}
 
 	sealed class IteratorBodyLowering
 	{

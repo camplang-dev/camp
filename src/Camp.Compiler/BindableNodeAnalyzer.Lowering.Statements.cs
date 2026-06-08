@@ -256,6 +256,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	Statement RewriteForeachStatement(ForeachStatement foreachStatement)
 	{
+		if (iteratorForeachStates.TryGetValue(foreachStatement, out IteratorForeachStateFields? fields) && fields.IsProtocol)
+			return RewriteIteratorProtocolForeachStatement(foreachStatement);
 		if (foreachStatement.IteratorNext is not null)
 			return RewriteIteratorForeachStatement(foreachStatement);
 		string sourceType = foreachStatement.Source?.ResolvedType ?? "";
@@ -298,12 +300,30 @@ public sealed partial class BindableNodeAnalyzer
 			return RewriteArrayForeachStatement(foreachStatement);
 
 		string elementType = foreachStatement.Target.ResolvedType ?? TryGetPointerElementType(callable.Parameters[1]) ?? ErrorType;
-		DeclarationStatement callLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIterCall"), call.ResolvedType ?? BuildCallableType("fn", "bool", ["void*", AddPointer(elementType)]), TypeReferenceForResolvedName(call.ResolvedType ?? ErrorType), call);
-		DeclarationStatement contextLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIterContext"), context.ResolvedType ?? "void*", TypeReferenceForResolvedName(context.ResolvedType ?? "void*"), context);
-		DeclarationStatement currentLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachCurrent"), elementType, TypeReferenceForResolvedName(elementType), new DefaultExpression { ResolvedType = elementType });
-		Expression CallReference() => CreateVariableReference(callLocal.Target, callLocal.Target.ResolvedType ?? ErrorType);
-		Expression ContextReference() => CreateVariableReference(contextLocal.Target, contextLocal.Target.ResolvedType ?? "void*");
-		Expression CurrentReference() => CreateVariableReference(currentLocal.Target, elementType);
+		bool useLiftedState = iteratorForeachStates.TryGetValue(foreachStatement, out IteratorForeachStateFields? stateFields) && stateFields is { IsProtocol: true, ContextFieldName: not null };
+		string callType = call.ResolvedType ?? BuildCallableType("fn", "bool", ["void*", AddPointer(elementType)]);
+		List<Statement> statements = [];
+		DeclarationStatement? callLocal = null;
+		DeclarationStatement? contextLocal = null;
+		DeclarationStatement? currentLocal = null;
+		Expression CallReference() => useLiftedState && stateFields is not null ? ThisMemberReference(stateFields.IteratorFieldName, stateFields.IteratorType) : CreateVariableReference(callLocal!.Target, callLocal.Target.ResolvedType ?? ErrorType);
+		Expression ContextReference() => useLiftedState && stateFields is { ContextFieldName: not null } ? ThisMemberReference(stateFields.ContextFieldName, "void*") : CreateVariableReference(contextLocal!.Target, contextLocal.Target.ResolvedType ?? "void*");
+		Expression CurrentReference() => useLiftedState && stateFields is not null ? ThisMemberReference(stateFields.CurrentFieldName, stateFields.ElementType) : CreateVariableReference(currentLocal!.Target, elementType);
+		if (useLiftedState && stateFields is not null)
+		{
+			statements.Add(CreateAssignmentStatement(CallReference(), call, callType, foreachStatement.SourceSyntax));
+			statements.Add(CreateAssignmentStatement(ContextReference(), context, "void*", foreachStatement.SourceSyntax));
+			statements.Add(CreateAssignmentStatement(CurrentReference(), new DefaultExpression { ResolvedType = elementType }, elementType, foreachStatement.SourceSyntax));
+		}
+		else
+		{
+			callLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIterCall"), callType, TypeReferenceForResolvedName(callType), call);
+			contextLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIterContext"), context.ResolvedType ?? "void*", TypeReferenceForResolvedName(context.ResolvedType ?? "void*"), context);
+			currentLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachCurrent"), elementType, TypeReferenceForResolvedName(elementType), new DefaultExpression { ResolvedType = elementType });
+			statements.Add(callLocal);
+			statements.Add(contextLocal);
+			statements.Add(currentLocal);
+		}
 
 		DeclarationStatement loopValue = new()
 		{
@@ -347,7 +367,8 @@ public sealed partial class BindableNodeAnalyzer
 			Condition = LowerExpression(CreateIteratorProtocolCall(CallReference(), ContextReference(), CurrentReference(), foreachStatement.SourceSyntax)),
 			Body = loopBody
 		};
-		List<Statement> statements = [callLocal, contextLocal, currentLocal, loop, cleanupStatement];
+		statements.Add(loop);
+		statements.Add(cleanupStatement);
 		bool hasCleanupExit = iteratorCleanupScope.ExitLabelName is not null;
 		string? doneLabel = hasCleanupExit ? NewGeneratedLabelName("foreach_done") : null;
 		if (doneLabel is not null)
@@ -357,6 +378,23 @@ public sealed partial class BindableNodeAnalyzer
 		if (doneLabel is not null)
 			statements.Add(new LabelStatement { Name = doneLabel, ResolvedType = "void" });
 		return CreateBlock(statements);
+	}
+
+	ExpressionStatement CreateAssignmentStatement(Expression target, Expression value, string type, SyntaxNode? syntax)
+	{
+		return new ExpressionStatement
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Expression = new AssignmentExpression
+			{
+				SourceSyntax = syntax,
+				Target = target,
+				Operator = AssignmentOperator.Assign,
+				Value = value,
+				ResolvedType = type
+			}
+		};
 	}
 
 	CallExpression CreateIteratorProtocolCall(Expression call, Expression context, Expression current, SyntaxNode? syntax)

@@ -138,12 +138,12 @@ static bool applyPredicateIter_next(applyPredicateIter *this, int* current)
 		goto __iter_resume1;
 	}
 	{
-		fn_bool_voidPtr__intPtr_ _foreachIterCall11 = this->inner;
-		void* _foreachIterContext12 = this->inner_context;
-		int _foreachCurrent13 = 0;
-		while (_foreachIterCall11(_foreachIterContext12, &_foreachCurrent13))
+		this->__foreachIterCall0 = this->inner;
+		this->__foreachIterContext0 = this->inner_context;
+		this->__foreachCurrent0 = 0;
+		while (this->__foreachIterCall0(this->__foreachIterContext0, &this->__foreachCurrent0))
 		{
-			int value = _foreachCurrent13;
+			int value = this->__foreachCurrent0;
 			{
 				if (this->predicate(value))
 				{
@@ -154,10 +154,10 @@ __iter_resume1:
 					;
 				}
 			}
-__foreach_continue14:
+__foreach_continue11:
 		}
-		_foreachIterCall11(_foreachIterContext12, NULL);
-__foreach_break15:
+		this->__foreachIterCall0(this->__foreachIterContext0, NULL);
+__foreach_break12:
 	}
 	this->__state = -1;
 	return false;
@@ -167,6 +167,7 @@ static void applyPredicateIter_op_delete(applyPredicateIter *this)
 {
 	if ((this->__state != -1))
 	{
+		this->__foreachIterCall0(this->__foreachIterContext0, NULL);
 		this->__state = -1;
 	}
 }
@@ -209,9 +210,9 @@ static bool applyPredicateExplicitIter_next(applyPredicateExplicitIter *this, in
 __iter_resume1:
 				;
 			}
-__while_continue16:
+__while_continue13:
 		}
-__while_break17:
+__while_break14:
 	}
 	this->inner(this->inner_context, NULL);
 	this->__state = -1;
@@ -287,6 +288,9 @@ struct applyPredicateIter
 	fn_bool_voidPtr__intPtr_ inner;
 	void* inner_context;
 	bool (* predicate)(int camp);
+	bool (* __foreachIterCall0)(void* arg0, int* arg1);
+	void* __foreachIterContext0;
+	int __foreachCurrent0;
 };
 struct applyPredicateExplicitIter
 {
