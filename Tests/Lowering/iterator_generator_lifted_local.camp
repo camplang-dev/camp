@@ -1,0 +1,7 @@
+struct iter int counter(int start)
+{
+	int current = start;
+	yield current;
+	current += 1;
+	yield current;
+}

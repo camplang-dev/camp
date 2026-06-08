@@ -120,8 +120,9 @@ public sealed partial class BindableNodeAnalyzer
 	void AddIteratorStateMembers(TypeDefinition state, FunctionDefinition function, IterTypeReference iterType)
 	{
 		AddIteratorStateFields(state, function);
+		AddIteratorLiftedLocalFields(state, function);
 		AddIteratorNextMethod(state, function, iterType);
-		AddIteratorDestructor(state);
+		AddIteratorDestructor(state, function);
 	}
 
 	void AddIteratorStateFields(TypeDefinition state, FunctionDefinition function)
@@ -151,6 +152,42 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	void AddIteratorLiftedLocalFields(TypeDefinition state, FunctionDefinition function)
+	{
+		HashSet<string> names = new(StringComparer.Ordinal);
+		foreach (FieldDefinition field in GetIteratorFields(state))
+			if (!string.IsNullOrWhiteSpace(field.Name))
+				names.Add(field.Name);
+
+		foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(function.Body))
+		{
+			foreach (string name in declaration.Target.Names)
+			{
+				if (name == "_")
+					continue;
+				if (!names.Add(name))
+				{
+					Report(GetDeclarationTargetNameRange(declaration.Target.SourceSyntax ?? declaration.SourceSyntax, name), $"Iterator state field '{name}' is already declared.");
+					continue;
+				}
+				if (declaration.Target.Type is AutoTypeReference)
+				{
+					Report(GetDeclarationTargetNameRange(declaration.Target.SourceSyntax ?? declaration.SourceSyntax, name), $"Iterator local '{name}' must have an explicit type so it can be lifted into the iterator state.");
+					continue;
+				}
+
+				AddIteratorField(state, new FieldDefinition
+				{
+					SourceSyntax = declaration.SourceSyntax,
+					Name = name,
+					Symbol = name,
+					Type = CloneType(declaration.Target.Type),
+					ResolvedType = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType
+				});
+			}
+		}
+	}
+
 	void AddIteratorNextMethod(TypeDefinition state, FunctionDefinition function, IterTypeReference iterType)
 	{
 		FunctionDefinition next = new()
@@ -160,8 +197,7 @@ public sealed partial class BindableNodeAnalyzer
 			Symbol = $"{state.Name}_next",
 			Export = function.Export,
 			ReturnType = new PrimitiveTypeReference { Type = PrimitiveType.Bool, ResolvedType = "bool" },
-			ResolvedType = "bool",
-			Body = CreateIteratorNextBody(function, iterType, state)
+			ResolvedType = "bool"
 		};
 
 		foreach (ParameterDefinition slot in GetIteratorYieldSlots(iterType))
@@ -172,7 +208,6 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = slot.SourceSyntax,
 				Name = slotName,
 				Symbol = slotName,
-				Modifier = ParameterModifier.Out,
 				Type = PointerTo(CloneType(slot.Type) ?? VoidType()),
 				ResolvedType = $"{slot.ResolvedType ?? slot.Type?.ResolvedType ?? ErrorType}*"
 			});
@@ -191,12 +226,13 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 
+		next.Body = CreateIteratorNextBody(function, iterType, state, next.Parameters);
 		AddIteratorFunction(state, next);
 	}
 
-	void AddIteratorDestructor(TypeDefinition state)
+	void AddIteratorDestructor(TypeDefinition state, FunctionDefinition sourceFunction)
 	{
-		AddIteratorFunction(state, new FunctionDefinition
+		FunctionDefinition destroy = new()
 		{
 			Name = "destroy",
 			Symbol = $"{state.Name}_destroy",
@@ -204,7 +240,10 @@ public sealed partial class BindableNodeAnalyzer
 			ReturnType = VoidType(),
 			ResolvedType = "void",
 			Body = new BlockStatement { ResolvedType = "void" }
-		});
+		};
+		foreach (Statement cleanup in GetTopLevelIteratorFinallyStatements(sourceFunction))
+			destroy.Body.Statements.Add(CloneStatementForCleanup(cleanup));
+		AddIteratorFunction(state, destroy);
 	}
 
 	BlockStatement CreateIteratorFactoryBody(FunctionDefinition function, TypeDefinition stateType)
@@ -284,12 +323,12 @@ public sealed partial class BindableNodeAnalyzer
 		return body;
 	}
 
-	BlockStatement CreateIteratorNextBody(FunctionDefinition function, IterTypeReference iterType, TypeDefinition state)
+	BlockStatement CreateIteratorNextBody(FunctionDefinition function, IterTypeReference iterType, TypeDefinition state, List<ParameterDefinition> nextParameters)
 	{
-		YieldStatement? yield = TryGetSingleYield(function.Body);
-		if (yield is null || GetIteratorYieldSlots(iterType).Count != 1)
+		List<ParameterDefinition> yieldSlots = GetIteratorYieldSlots(iterType);
+		if (yieldSlots.Count != 1)
 		{
-			Report(GetRange(function.Body?.SourceSyntax ?? function.SourceSyntax), "Iterator generator lowering currently supports only a single yield statement with one yielded slot.");
+			Report(GetRange(function.Body?.SourceSyntax ?? function.SourceSyntax), "Iterator generator lowering currently supports only one yielded slot.");
 			return new BlockStatement
 			{
 				ResolvedType = "void",
@@ -304,112 +343,337 @@ public sealed partial class BindableNodeAnalyzer
 			};
 		}
 
-		ParameterDefinition current = new()
-		{
-			Name = "current",
-			Symbol = "current",
-			Modifier = ParameterModifier.Out,
-			Type = PointerTo(CloneType(GetIteratorYieldSlots(iterType)[0].Type) ?? VoidType()),
-			ResolvedType = $"{GetIteratorYieldSlots(iterType)[0].ResolvedType ?? ErrorType}*"
-		};
-		Expression stateField = ThisMemberReference(IteratorStateFieldName, "int");
-		Expression currentTarget = new UnaryExpression
-		{
-			Operator = UnaryOperator.PointerDereference,
-			Operand = CreateVariableReference(current, current.ResolvedType ?? ErrorType),
-			ResolvedType = GetIteratorYieldSlots(iterType)[0].ResolvedType
-		};
-		return new BlockStatement
-		{
-			ResolvedType = "void",
-			Statements =
-			{
-				new IfStatement
-				{
-					Condition = new BinaryExpression
-					{
-						Left = stateField,
-						Operator = BinaryOperator.NotEqual,
-						Right = NumberLiteral("0", "int"),
-						ResolvedType = "bool"
-					},
-					Body = new ReturnStatement
-					{
-						Expression = new LiteralExpression { Kind = LiteralKind.False, Text = "false", Value = false, ResolvedType = "bool" },
-						ResolvedType = "void"
-					},
-					ResolvedType = "void"
-				},
-				new ExpressionStatement
-				{
-					Expression = new AssignmentExpression
-					{
-						Target = currentTarget,
-						Operator = AssignmentOperator.Assign,
-						Value = RewriteIteratorYieldExpression(yield.Expression, function.Parameters),
-						ResolvedType = GetIteratorYieldSlots(iterType)[0].ResolvedType
-					},
-					ResolvedType = "void"
-				},
-				new ExpressionStatement
-				{
-					Expression = new AssignmentExpression
-					{
-						Target = ThisMemberReference(IteratorStateFieldName, "int"),
-						Operator = AssignmentOperator.Assign,
-						Value = NumberLiteral("1", "int"),
-						ResolvedType = "int"
-					},
-					ResolvedType = "void"
-				},
-				new ReturnStatement
-				{
-					Expression = new LiteralExpression { Kind = LiteralKind.True, Text = "true", Value = true, ResolvedType = "bool" },
-					ResolvedType = "void"
-				}
-			}
-		};
+		IteratorBodyLowering lowering = new(this, function, nextParameters[0], yieldSlots[0].ResolvedType ?? ErrorType);
+		List<Statement> rewrittenStatements = RewriteIteratorBodyStatements(function.Body, lowering);
+		BlockStatement body = new() { ResolvedType = "void" };
+		body.Statements.AddRange(lowering.CreateResumeDispatch());
+		foreach (Statement statement in rewrittenStatements)
+			body.Statements.Add(statement);
+		body.Statements.AddRange(lowering.CreateCompletion());
+		return body;
 	}
 
-	YieldStatement? TryGetSingleYield(BlockStatement? body)
+	List<Statement> RewriteIteratorBodyStatements(BlockStatement? body, IteratorBodyLowering lowering)
 	{
-		if (body?.Statements.Count != 1 || body.Statements[0] is not YieldStatement yield)
-			return null;
-		return yield;
+		List<Statement> statements = [];
+		if (body is null)
+			return statements;
+
+		foreach (Statement statement in body.Statements)
+		{
+			if (statement is FinallyStatement)
+				continue;
+			statements.AddRange(RewriteIteratorStatement(statement, lowering));
+		}
+		return statements;
 	}
 
-	Expression? RewriteIteratorYieldExpression(Expression? expression, List<ParameterDefinition> parameters)
+	List<Statement> RewriteIteratorStatement(Statement statement, IteratorBodyLowering lowering)
+	{
+		switch (statement)
+		{
+			case YieldStatement yield:
+				return lowering.CreateYield(yield.Expression);
+
+			case ReturnStatement:
+				return lowering.CreateCompletion();
+
+			case DeclarationStatement declaration:
+				return RewriteIteratorDeclaration(declaration, lowering);
+
+			case BlockStatement block:
+			{
+				BlockStatement rewritten = new() { SourceSyntax = block.SourceSyntax, ResolvedType = "void" };
+				foreach (Statement child in block.Statements)
+				{
+					if (child is FinallyStatement)
+						continue;
+					rewritten.Statements.AddRange(RewriteIteratorStatement(child, lowering));
+				}
+				return [rewritten];
+			}
+
+			case IfStatement ifStatement:
+				ifStatement.Condition = RewriteIteratorExpression(ifStatement.Condition, lowering);
+				ifStatement.Body = RewriteIteratorOptionalStatement(ifStatement.Body, lowering);
+				ifStatement.ElseBody = RewriteIteratorOptionalStatement(ifStatement.ElseBody, lowering);
+				return [ifStatement];
+
+			case WhileStatement whileStatement:
+				whileStatement.Condition = RewriteIteratorExpression(whileStatement.Condition, lowering);
+				whileStatement.Body = RewriteIteratorOptionalStatement(whileStatement.Body, lowering);
+				return [whileStatement];
+
+			case DoWhileStatement doWhile:
+				doWhile.Body = RewriteIteratorOptionalStatement(doWhile.Body, lowering);
+				doWhile.Condition = RewriteIteratorExpression(doWhile.Condition, lowering);
+				return [doWhile];
+
+			case ForStatement forStatement:
+				if (forStatement.Condition.Declaration is not null)
+				{
+					List<Statement> declarations = RewriteIteratorDeclaration(forStatement.Condition.Declaration, lowering);
+					forStatement.Condition.Declaration = null;
+					for (int i = 0; i < forStatement.Condition.Clauses.Count; i++)
+						forStatement.Condition.Clauses[i] = RewriteIteratorExpression(forStatement.Condition.Clauses[i], lowering);
+					forStatement.Body = RewriteIteratorOptionalStatement(forStatement.Body, lowering);
+					declarations.Add(forStatement);
+					return declarations;
+				}
+				for (int i = 0; i < forStatement.Condition.Clauses.Count; i++)
+					forStatement.Condition.Clauses[i] = RewriteIteratorExpression(forStatement.Condition.Clauses[i], lowering);
+				forStatement.Body = RewriteIteratorOptionalStatement(forStatement.Body, lowering);
+				return [forStatement];
+
+			case ForeachStatement foreachStatement:
+				foreachStatement.Source = RewriteIteratorExpression(foreachStatement.Source, lowering);
+				foreachStatement.Body = RewriteIteratorOptionalStatement(foreachStatement.Body, lowering);
+				return [foreachStatement];
+
+			case SwitchStatement switchStatement:
+				switchStatement.Expression = RewriteIteratorExpression(switchStatement.Expression, lowering);
+				for (int i = 0; i < switchStatement.Statements.Count; i++)
+				{
+					List<Statement> rewritten = RewriteIteratorStatement(switchStatement.Statements[i], lowering);
+					switchStatement.Statements.RemoveAt(i);
+					switchStatement.Statements.InsertRange(i, rewritten);
+					i += rewritten.Count - 1;
+				}
+				return [switchStatement];
+
+			case CaseStatement caseStatement:
+				caseStatement.Expression = RewriteIteratorExpression(caseStatement.Expression, lowering);
+				return [caseStatement];
+
+			case ExpressionStatement expression:
+				expression.Expression = RewriteIteratorExpression(expression.Expression, lowering);
+				return [expression];
+
+			case DeleteStatement deleteStatement:
+				deleteStatement.Expression = RewriteIteratorExpression(deleteStatement.Expression, lowering);
+				return [deleteStatement];
+
+			case TryStatement tryStatement:
+				tryStatement.Body = RewriteIteratorOptionalStatement(tryStatement.Body, lowering);
+				foreach (CatchStatement catchStatement in tryStatement.Catches)
+					catchStatement.Body = RewriteIteratorOptionalStatement(catchStatement.Body, lowering);
+				tryStatement.Finally = (FinallyStatement?)RewriteIteratorOptionalStatement(tryStatement.Finally, lowering);
+				return [tryStatement];
+
+			case CatchStatement catchStatement:
+				catchStatement.Body = RewriteIteratorOptionalStatement(catchStatement.Body, lowering);
+				return [catchStatement];
+
+			case FinallyStatement:
+				return [];
+
+			case WithinStatement withinStatement:
+				withinStatement.Allocator = RewriteIteratorExpression(withinStatement.Allocator, lowering);
+				withinStatement.Body = RewriteIteratorOptionalStatement(withinStatement.Body, lowering);
+				return [withinStatement];
+
+			default:
+				return [statement];
+		}
+	}
+
+	List<Statement> RewriteIteratorDeclaration(DeclarationStatement declaration, IteratorBodyLowering lowering)
+	{
+		List<Statement> statements = [];
+		foreach (string name in declaration.Target.Names)
+		{
+			if (name == "_")
+				continue;
+
+			Expression? value = RewriteIteratorExpression(declaration.InitialValue, lowering);
+			string type = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? ErrorType;
+			value ??= new DefaultExpression { ResolvedType = type };
+
+			statements.Add(new ExpressionStatement
+			{
+				SourceSyntax = declaration.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = declaration.SourceSyntax,
+					Target = ThisMemberReference(name, type),
+					Operator = AssignmentOperator.Assign,
+					Value = value,
+					ResolvedType = type
+				}
+			});
+		}
+		return statements;
+	}
+
+	Statement? RewriteIteratorOptionalStatement(Statement? statement, IteratorBodyLowering lowering)
+	{
+		if (statement is null)
+			return null;
+		List<Statement> rewritten = RewriteIteratorStatement(statement, lowering);
+		return rewritten.Count == 1 ? rewritten[0] : CreateBlock(rewritten);
+	}
+
+	Expression? RewriteIteratorExpression(Expression? expression, IteratorBodyLowering lowering)
 	{
 		if (expression is null)
 			return null;
 
 		if (expression is NamedExpression named && named.Qualifiers.Count == 0)
 		{
-			foreach (ParameterDefinition parameter in parameters)
-			{
-				if (parameter.Name == named.Name)
-					return ThisMemberReference(parameter.Name, parameter.ResolvedType ?? ErrorType);
-			}
+			if (lowering.IsLiftedName(named.Name))
+				return ThisMemberReference(named.Name, lowering.GetLiftedType(named.Name));
 		}
 
 		switch (expression)
 		{
 			case BinaryExpression binary:
-				binary.Left = RewriteIteratorYieldExpression(binary.Left, parameters);
-				binary.Right = RewriteIteratorYieldExpression(binary.Right, parameters);
+				binary.Left = RewriteIteratorExpression(binary.Left, lowering);
+				binary.Right = RewriteIteratorExpression(binary.Right, lowering);
 				break;
 			case UnaryExpression unary:
-				unary.Operand = RewriteIteratorYieldExpression(unary.Operand, parameters);
+				unary.Operand = RewriteIteratorExpression(unary.Operand, lowering);
+				unary.Context = RewriteIteratorExpression(unary.Context, lowering);
 				break;
 			case ParenthesizedExpression parenthesized:
-				parenthesized.Expression = RewriteIteratorYieldExpression(parenthesized.Expression, parameters);
+				parenthesized.Expression = RewriteIteratorExpression(parenthesized.Expression, lowering);
 				break;
 			case CastExpression cast:
-				cast.Expression = RewriteIteratorYieldExpression(cast.Expression, parameters);
+				cast.Expression = RewriteIteratorExpression(cast.Expression, lowering);
+				break;
+			case AssignmentExpression assignment:
+				assignment.Target = RewriteIteratorExpression(assignment.Target, lowering);
+				assignment.Value = RewriteIteratorExpression(assignment.Value, lowering);
+				break;
+			case CallExpression call:
+				call.Target = RewriteIteratorExpression(call.Target, lowering);
+				foreach (ArgumentExpression argument in call.Arguments)
+					argument.Value = RewriteIteratorExpression(argument.Value, lowering);
+				break;
+			case IndexExpression index:
+				index.Target = RewriteIteratorExpression(index.Target, lowering);
+				foreach (ArgumentExpression argument in index.Arguments)
+					argument.Value = RewriteIteratorExpression(argument.Value, lowering);
+				break;
+			case MemberExpression member:
+				member.Target = RewriteIteratorExpression(member.Target, lowering);
+				break;
+			case MemberReferenceExpression memberReference:
+				memberReference.Target = RewriteIteratorExpression(memberReference.Target, lowering);
+				break;
+			case ConditionalExpression conditional:
+				conditional.Condition = RewriteIteratorExpression(conditional.Condition, lowering);
+				conditional.WhenTrue = RewriteIteratorExpression(conditional.WhenTrue, lowering);
+				conditional.WhenFalse = RewriteIteratorExpression(conditional.WhenFalse, lowering);
+				break;
+			case ArrayExpression array:
+				for (int i = 0; i < array.Elements.Count; i++)
+					array.Elements[i] = RewriteIteratorExpression(array.Elements[i], lowering)!;
+				break;
+			case InitializerExpression initializer:
+				foreach (InitializerItem item in initializer.Items)
+					item.Expression = RewriteIteratorExpression(item.Expression, lowering);
 				break;
 		}
 
 		return expression;
+	}
+
+	IEnumerable<DeclarationStatement> EnumerateIteratorLocalDeclarations(BlockStatement? body)
+	{
+		if (body is null)
+			yield break;
+
+		foreach (Statement statement in body.Statements)
+			foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(statement))
+				yield return declaration;
+	}
+
+	IEnumerable<DeclarationStatement> EnumerateIteratorLocalDeclarations(Statement? statement)
+	{
+		switch (statement)
+		{
+			case DeclarationStatement declaration:
+				yield return declaration;
+				break;
+			case BlockStatement block:
+				foreach (Statement child in block.Statements)
+					foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(child))
+						yield return declaration;
+				break;
+			case IfStatement ifStatement:
+				foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(ifStatement.Body))
+					yield return declaration;
+				foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(ifStatement.ElseBody))
+					yield return declaration;
+				break;
+			case WhileStatement whileStatement:
+				foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(whileStatement.Body))
+					yield return declaration;
+				break;
+			case DoWhileStatement doWhile:
+				foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(doWhile.Body))
+					yield return declaration;
+				break;
+			case ForStatement forStatement:
+				if (forStatement.Condition.Declaration is not null)
+					yield return forStatement.Condition.Declaration;
+				foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(forStatement.Body))
+					yield return declaration;
+				break;
+			case ForeachStatement foreachStatement:
+				foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(foreachStatement.Body))
+					yield return declaration;
+				break;
+			case SwitchStatement switchStatement:
+				foreach (Statement child in switchStatement.Statements)
+					foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(child))
+						yield return declaration;
+				break;
+			case TryStatement tryStatement:
+				foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(tryStatement.Body))
+					yield return declaration;
+				foreach (CatchStatement catchStatement in tryStatement.Catches)
+					foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(catchStatement.Body))
+						yield return declaration;
+				foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(tryStatement.Finally))
+					yield return declaration;
+				break;
+			case CatchStatement catchStatement:
+				foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(catchStatement.Body))
+					yield return declaration;
+				break;
+			case FinallyStatement finallyStatement:
+				foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(finallyStatement.Body))
+					yield return declaration;
+				break;
+			case WithinStatement withinStatement:
+				foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(withinStatement.Body))
+					yield return declaration;
+				break;
+		}
+	}
+
+	List<Statement> GetTopLevelIteratorFinallyStatements(FunctionDefinition function)
+	{
+		List<Statement> statements = [];
+		if (function.Body is null)
+			return statements;
+
+		foreach (Statement statement in function.Body.Statements)
+			if (statement is FinallyStatement { Body: not null } finallyStatement)
+				statements.Add(finallyStatement.Body);
+		return statements;
+	}
+
+	static IEnumerable<FieldDefinition> GetIteratorFields(TypeDefinition type)
+	{
+		return type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Fields,
+			StructDefinition structDefinition => structDefinition.Fields,
+			_ => []
+		};
 	}
 
 	MemberReferenceExpression ThisMemberReference(string name, string? resolvedType)
@@ -487,5 +751,156 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string baseName = function.Name.TrimStart('~') + "Iter";
 		return containingType is null ? baseName : containingType.Name + "_" + baseName;
+	}
+
+	sealed class IteratorBodyLowering
+	{
+		readonly BindableNodeAnalyzer analyzer;
+		readonly Dictionary<string, string> liftedTypes = new(StringComparer.Ordinal);
+		readonly List<Statement> cleanupStatements;
+		readonly ParameterDefinition current;
+		readonly string yieldedType;
+		int nextState = 1;
+
+		public IteratorBodyLowering(BindableNodeAnalyzer analyzer, FunctionDefinition function, ParameterDefinition current, string yieldedType)
+		{
+			this.analyzer = analyzer;
+			this.current = current;
+			this.yieldedType = yieldedType;
+			cleanupStatements = analyzer.GetTopLevelIteratorFinallyStatements(function);
+			foreach (ParameterDefinition parameter in function.Parameters)
+			{
+				if (!string.IsNullOrWhiteSpace(parameter.Name))
+					liftedTypes[parameter.Name] = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType;
+			}
+			foreach (DeclarationStatement declaration in analyzer.EnumerateIteratorLocalDeclarations(function.Body))
+			{
+				foreach (string name in declaration.Target.Names)
+					if (name != "_")
+						liftedTypes[name] = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? ErrorType;
+			}
+		}
+
+		public bool IsLiftedName(string name) => liftedTypes.ContainsKey(name);
+
+		public string GetLiftedType(string name) => liftedTypes.TryGetValue(name, out string? type) ? type : ErrorType;
+
+		public List<Statement> CreateResumeDispatch()
+		{
+			List<Statement> statements =
+			[
+				new IfStatement
+				{
+					Condition = new BinaryExpression
+					{
+						Left = analyzer.ThisMemberReference(IteratorStateFieldName, "int"),
+						Operator = BinaryOperator.Equal,
+						Right = NumberLiteral("-1", "int"),
+						ResolvedType = "bool"
+					},
+					Body = ReturnFalse(),
+					ResolvedType = "void"
+				}
+			];
+
+			for (int state = 1; state < nextState; state++)
+				statements.Add(CreateResumeIf(state));
+			return statements;
+		}
+
+		public List<Statement> CreateYield(Expression? value)
+		{
+			int resumeState = nextState++;
+			return
+			[
+				new ExpressionStatement
+				{
+					ResolvedType = "void",
+					Expression = new AssignmentExpression
+					{
+						Target = new UnaryExpression
+						{
+							Operator = UnaryOperator.PointerDereference,
+							Operand = CreateVariableReference(current, current.ResolvedType ?? ErrorType),
+							ResolvedType = yieldedType
+						},
+						Operator = AssignmentOperator.Assign,
+						Value = analyzer.RewriteIteratorExpression(value, this),
+						ResolvedType = yieldedType
+					}
+				},
+				SetState(resumeState),
+				new ReturnStatement
+				{
+					Expression = BoolLiteral(true),
+					ResolvedType = "void"
+				},
+				new LabelStatement { Name = ResumeLabel(resumeState), ResolvedType = "void" },
+				new EmptyStatement { ResolvedType = "void" }
+			];
+		}
+
+		public List<Statement> CreateCompletion()
+		{
+			List<Statement> statements = [];
+			foreach (Statement cleanup in cleanupStatements)
+				statements.Add(analyzer.CloneStatementForCleanup(cleanup));
+			statements.Add(SetState(-1));
+			statements.Add(ReturnFalse());
+			return statements;
+		}
+
+		Statement CreateResumeIf(int state)
+		{
+			return new IfStatement
+			{
+				Condition = new BinaryExpression
+				{
+					Left = analyzer.ThisMemberReference(IteratorStateFieldName, "int"),
+					Operator = BinaryOperator.Equal,
+					Right = NumberLiteral(state.ToString(System.Globalization.CultureInfo.InvariantCulture), "int"),
+					ResolvedType = "bool"
+				},
+				Body = new GotoStatement { TargetName = ResumeLabel(state), ResolvedType = "void" },
+				ResolvedType = "void"
+			};
+		}
+
+		Statement SetState(int state)
+		{
+			return new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					Target = analyzer.ThisMemberReference(IteratorStateFieldName, "int"),
+					Operator = AssignmentOperator.Assign,
+					Value = NumberLiteral(state.ToString(System.Globalization.CultureInfo.InvariantCulture), "int"),
+					ResolvedType = "int"
+				}
+			};
+		}
+
+		static ReturnStatement ReturnFalse()
+		{
+			return new ReturnStatement
+			{
+				Expression = BoolLiteral(false),
+				ResolvedType = "void"
+			};
+		}
+
+		static LiteralExpression BoolLiteral(bool value)
+		{
+			return new LiteralExpression
+			{
+				Kind = value ? LiteralKind.True : LiteralKind.False,
+				Text = value ? "true" : "false",
+				Value = value,
+				ResolvedType = "bool"
+			};
+		}
+
+		static string ResumeLabel(int state) => $"__iter_resume{state}";
 	}
 }

@@ -384,7 +384,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			List<ParameterDefinition> parameters = GetCallableParameters(function.Parameters);
-			if (parameters.Count == 0 || parameters[0].Modifier != ParameterModifier.Out)
+			if (parameters.Count == 0)
 				continue;
 
 			string? yieldedType = TryGetPointerElementType(parameters[0].ResolvedType);

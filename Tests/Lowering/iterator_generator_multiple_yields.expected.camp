@@ -1,27 +1,9 @@
-countIter count()
+valuesIter values()
 {
 	return {.__state = 0};
 }
-int sum()
-{
-	int total = 0;
-	{
-		countIter __local0 = count();
-		int __local1 = default;
-		while (countIter_next(&__local0, &__local1))
-		{
-			int value = __local1;
-			{
-				total += value;
-			}
-			__foreach_continue2:
-		}
-		__foreach_break3:
-	}
-	return total;
-}
 
-fixed struct countIter
+fixed struct valuesIter
 {
 	int __state;
 
@@ -31,10 +13,17 @@ fixed struct countIter
 			return false;
 		if (this.__state == 1)
 			goto __iter_resume1;
+		if (this.__state == 2)
+			goto __iter_resume2;
 		*current = 1;
 		this.__state = 1;
 		return true;
 		__iter_resume1:
+		;
+		*current = 2;
+		this.__state = 2;
+		return true;
+		__iter_resume2:
 		;
 		this.__state = -1;
 		return false;

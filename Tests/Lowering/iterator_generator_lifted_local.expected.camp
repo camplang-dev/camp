@@ -1,0 +1,39 @@
+counterIter counter(int start)
+{
+	return {.__state = 0, .start = start};
+}
+
+fixed struct counterIter
+{
+	int __state;
+	int start;
+	int current;
+
+	bool next(int* current)
+	{
+		if (this.__state == -1)
+			return false;
+		if (this.__state == 1)
+			goto __iter_resume1;
+		if (this.__state == 2)
+			goto __iter_resume2;
+		this.current = this.start;
+		*current = this.current;
+		this.__state = 1;
+		return true;
+		__iter_resume1:
+		;
+		this.current += 1;
+		*current = this.current;
+		this.__state = 2;
+		return true;
+		__iter_resume2:
+		;
+		this.__state = -1;
+		return false;
+	}
+
+	void destroy()
+	{
+	}
+}

@@ -404,9 +404,14 @@ public sealed partial class BindableNodeAnalyzer
 				new ArgumentExpression
 				{
 					SourceSyntax = foreachStatement.SourceSyntax,
-					Modifier = ArgumentModifier.Out,
-					Value = CreateVariableReference(currentLocal.Target, elementType),
-					ResolvedType = elementType
+					Value = new UnaryExpression
+					{
+						SourceSyntax = foreachStatement.SourceSyntax,
+						Operator = UnaryOperator.AddressOf,
+						Operand = CreateVariableReference(currentLocal.Target, elementType),
+						ResolvedType = $"{elementType}*"
+					},
+					ResolvedType = $"{elementType}*"
 				}
 			}
 		};
