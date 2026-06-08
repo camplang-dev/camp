@@ -268,9 +268,9 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					SourceSyntax = parameter.SourceSyntax,
 					Name = parameter.Name,
-					ResolvedType = parameter.ResolvedType
+					ResolvedType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type)
 				},
-				ResolvedType = parameter.ResolvedType
+				ResolvedType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type)
 			});
 		}
 
@@ -309,10 +309,10 @@ public sealed partial class BindableNodeAnalyzer
 					{
 						Target = localReference,
 						Name = item.Target?.Parts.Count > 0 ? item.Target.Parts[0].Name ?? "" : "",
-						ResolvedType = item.ResolvedType
+						ResolvedType = item.ResolvedType ?? ErrorType
 					},
 					Value = item.Expression,
-					ResolvedType = item.ResolvedType
+					ResolvedType = item.ResolvedType ?? ErrorType
 				}
 			});
 		}

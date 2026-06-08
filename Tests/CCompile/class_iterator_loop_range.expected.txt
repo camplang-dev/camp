@@ -1,0 +1,81 @@
+// file: class_iterator_loop_range.c
+#include "class_iterator_loop_range_private.h"
+
+/* Private file declarations. */
+void* malloc(uintptr_t size);
+static loopRangeIter* loopRange(int first, int last);
+static bool loopRangeIter_next(loopRangeIter *this, int* current);
+static void loopRangeIter_destroy(loopRangeIter *this);
+
+static loopRangeIter* loopRange(int first, int last)
+{
+	loopRangeIter* _iter0 = (loopRangeIter *)(malloc(sizeof(loopRangeIter)));
+	_iter0->__state = 0;
+	_iter0->first = first;
+	_iter0->last = last;
+	return _iter0;
+}
+
+static bool loopRangeIter_next(loopRangeIter *this, int* current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	this->i = this->first;
+	{
+		for (; (this->i <= this->last); this->i++)
+		{
+			*current = this->i;
+			this->__state = 1;
+			return true;
+__iter_resume1:
+			;
+__for_continue1:
+		}
+__for_break2:
+	}
+	this->__state = -1;
+	return false;
+}
+
+static void loopRangeIter_destroy(loopRangeIter *this)
+{
+}
+
+// file: class_iterator_loop_range_private.h
+#ifndef CLASS_ITERATOR_LOOP_RANGE_PRIVATE_H_
+#define CLASS_ITERATOR_LOOP_RANGE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct loopRangeIter loopRangeIter;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct loopRangeIter
+{
+	int __state;
+	int first;
+	int last;
+	int i;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: class_iterator_loop_range.c
