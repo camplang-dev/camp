@@ -178,6 +178,10 @@ public sealed partial class BindableNodeAnalyzer
 			case ParenthesizedExpression parenthesized:
 				return TryCreateParamsComponentExpressions(parenthesized.Expression, out components);
 
+			case NamedExpression named
+				when TryCreateNamedParamsComponentExpressions(named, out components):
+				return true;
+
 			case VariableReferenceExpression { Variable: not null } variable
 				when paramsExpansions.TryGetValue(variable.Variable, out List<ParamsExpansionComponent>? expansion):
 				foreach (ParamsExpansionComponent component in expansion)
@@ -384,6 +388,35 @@ public sealed partial class BindableNodeAnalyzer
 			VariableDefinition variable => variable.Name,
 			DeclarationTarget target when target.Names.Count == 1 => target.Names[0],
 			_ => null
+		};
+	}
+
+	bool TryCreateNamedParamsComponentExpressions(NamedExpression named, out List<Expression> components)
+	{
+		components = [];
+		if (named.Qualifiers.Count > 0)
+			return false;
+
+		foreach ((BindableNode node, List<ParamsExpansionComponent> expansion) in paramsExpansions)
+		{
+			if (!ParamsExpansionNodeMatchesName(node, named.Name))
+				continue;
+
+			foreach (ParamsExpansionComponent component in expansion)
+				components.Add(CreateVariableReference(component.Node, component.Type));
+			return components.Count > 0;
+		}
+		return false;
+	}
+
+	static bool ParamsExpansionNodeMatchesName(BindableNode node, string name)
+	{
+		return node switch
+		{
+			DeclarationTarget target => target.Names.Contains(name),
+			ParameterDefinition parameter => parameter.Name == name || parameter.Symbol == name,
+			Definition definition => definition.Name == name || definition.Symbol == name,
+			_ => false
 		};
 	}
 
@@ -609,6 +642,23 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (!TryCreateParamsComponentExpressions(index.Target, out List<Expression> targetComponents) || targetComponents.Count < 2)
 			return false;
+		if (index.Arguments.Count == 2 && TryGetArrayElementType(index.ResolvedType) is not null)
+		{
+			Expression? start = ReplaceParamsLengthComponentExpressions(index.Arguments[0].Value);
+			Expression? count = ReplaceParamsLengthComponentExpressions(index.Arguments[1].Value);
+			if (start is null || count is null)
+				return false;
+			components.Add(new BinaryExpression
+			{
+				SourceSyntax = index.SourceSyntax,
+				Left = targetComponents[0],
+				Operator = BinaryOperator.Add,
+				Right = start,
+				ResolvedType = targetComponents[0].ResolvedType
+			});
+			components.Add(count);
+			return true;
+		}
 
 		for (int i = 0; i < targetComponents.Count - 1; i++)
 		{
@@ -624,6 +674,66 @@ public sealed partial class BindableNodeAnalyzer
 			components.Add(componentIndex);
 		}
 		return components.Count > 0;
+	}
+
+	Expression? ReplaceParamsLengthComponentExpressions(Expression? expression)
+	{
+		return expression switch
+		{
+			null => null,
+			ParenthesizedExpression parenthesized => new ParenthesizedExpression
+			{
+				SourceSyntax = parenthesized.SourceSyntax,
+				Expression = ReplaceParamsLengthComponentExpressions(parenthesized.Expression),
+				ResolvedType = parenthesized.ResolvedType
+			},
+			MemberExpression { Name: "length", Target: not null } member
+				when TryCreateParamsComponentExpressions(member.Target, out List<Expression> components) && components.Count >= 2
+				=> components[^1],
+			MemberExpression member => new MemberExpression
+			{
+				SourceSyntax = member.SourceSyntax,
+				Target = ReplaceParamsLengthComponentExpressions(member.Target),
+				Name = member.Name,
+				ResolvedType = member.ResolvedType
+			},
+			MemberReferenceExpression { Name: "length", Target: not null } member
+				when TryCreateParamsComponentExpressions(member.Target, out List<Expression> components) && components.Count >= 2
+				=> components[^1],
+			MemberReferenceExpression member => new MemberReferenceExpression
+			{
+				SourceSyntax = member.SourceSyntax,
+				Target = ReplaceParamsLengthComponentExpressions(member.Target),
+				Name = member.Name,
+				Member = member.Member,
+				ResolvedType = member.ResolvedType
+			},
+			UnaryExpression unary => new UnaryExpression
+			{
+				SourceSyntax = unary.SourceSyntax,
+				Operator = unary.Operator,
+				Operand = ReplaceParamsLengthComponentExpressions(unary.Operand),
+				Context = ReplaceParamsLengthComponentExpressions(unary.Context),
+				ResolvedType = unary.ResolvedType
+			},
+			BinaryExpression binary => new BinaryExpression
+			{
+				SourceSyntax = binary.SourceSyntax,
+				Left = ReplaceParamsLengthComponentExpressions(binary.Left),
+				Operator = binary.Operator,
+				Right = ReplaceParamsLengthComponentExpressions(binary.Right),
+				ResolvedType = binary.ResolvedType
+			},
+			ConditionalExpression conditional => new ConditionalExpression
+			{
+				SourceSyntax = conditional.SourceSyntax,
+				Condition = ReplaceParamsLengthComponentExpressions(conditional.Condition),
+				WhenTrue = ReplaceParamsLengthComponentExpressions(conditional.WhenTrue),
+				WhenFalse = ReplaceParamsLengthComponentExpressions(conditional.WhenFalse),
+				ResolvedType = conditional.ResolvedType
+			},
+			_ => expression
+		};
 	}
 
 	static int GetStringLiteralLength(LiteralExpression literal)

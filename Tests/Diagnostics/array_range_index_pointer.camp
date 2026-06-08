@@ -1,0 +1,7 @@
+void main()
+{
+	const char[] message = "Hello, world!";
+	const char[]* pointer = &message;
+	auto invalid = pointer[..5];
+	auto valid = (*pointer)[..5];
+}

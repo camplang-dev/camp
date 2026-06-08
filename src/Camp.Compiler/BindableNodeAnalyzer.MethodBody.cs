@@ -1997,6 +1997,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType == ErrorType)
 			return ErrorType;
 
+		if (arguments is [{ Value: RangeExpression range }])
+			return BodyAnalyzeArrayRangeIndexExpression(target, targetType, arguments, range);
+
 		foreach (ArgumentExpression argument in arguments)
 		{
 			if (argument.Value is UnaryExpression { Operator: UnaryOperator.FromEnd } fromEnd)
@@ -2025,6 +2028,44 @@ public sealed partial class BindableNodeAnalyzer
 
 		Report(GetRange(target?.SourceSyntax), $"Type '{targetType}' is not indexable.");
 		return ErrorType;
+	}
+
+	string BodyAnalyzeArrayRangeIndexExpression(Expression? target, string targetType, List<ArgumentExpression> arguments, RangeExpression range)
+	{
+		ArgumentExpression argument = arguments[0];
+		if (TryGetArrayElementType(targetType) is null)
+		{
+			if (TryGetPointerElementType(targetType) is string pointerElementType && TryGetArrayElementType(pointerElementType) is not null)
+				Report(GetRange(range.SourceSyntax ?? argument.SourceSyntax ?? target?.SourceSyntax), "Range indexing is only valid on array values; dereference the array pointer before applying the range.");
+			else
+				Report(GetRange(range.SourceSyntax ?? argument.SourceSyntax ?? target?.SourceSyntax), "Range indexing is only valid on array values.");
+			argument.Value = ErrorExpression(ErrorType, range.SourceSyntax ?? argument.SourceSyntax);
+			argument.ResolvedType = ErrorType;
+			return ErrorType;
+		}
+
+		Expression? length = CreateLengthExpression(target, range.SourceSyntax ?? argument.SourceSyntax ?? target?.SourceSyntax);
+		if (length is null)
+		{
+			Report(GetRange(range.SourceSyntax ?? argument.SourceSyntax ?? target?.SourceSyntax), "Range indexing requires the array receiver to expose a length (.length, .Length, or getLength()).");
+			argument.Value = ErrorExpression(ErrorType, range.SourceSyntax ?? argument.SourceSyntax);
+			argument.ResolvedType = ErrorType;
+			return ErrorType;
+		}
+
+		Expression start = ClampBoundary(CreateBoundaryExpression(range.Start, length, defaultToLength: false, range.SourceSyntax), length, range.SourceSyntax);
+		Expression end = ClampBoundary(CreateBoundaryExpression(range.End, length, defaultToLength: true, range.SourceSyntax), length, range.SourceSyntax);
+		Expression count = CreateRangeCountExpression(start, end, range.SourceSyntax);
+
+		argument.Value = start;
+		argument.ResolvedType = "nuint";
+		arguments.Insert(1, new ArgumentExpression
+		{
+			SourceSyntax = argument.SourceSyntax,
+			Value = count,
+			ResolvedType = "nuint"
+		});
+		return targetType;
 	}
 
 	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope)

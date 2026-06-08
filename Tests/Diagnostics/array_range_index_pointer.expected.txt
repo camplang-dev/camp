@@ -1,0 +1,1 @@
+tests/Diagnostics/array_range_index_pointer.camp(5,25): error: Range indexing is only valid on array values; dereference the array pointer before applying the range.

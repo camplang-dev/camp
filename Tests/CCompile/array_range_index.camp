@@ -1,0 +1,8 @@
+int main()
+{
+	const char[] message = "Hello, world!";
+	auto firstWord = message[..5];
+	auto rest = message[7..];
+	auto middle = message[1..^1];
+	return (int)(firstWord.length + rest.length + middle.length);
+}
