@@ -182,7 +182,7 @@ public sealed partial class BindableNodeAnalyzer
 				return WrapLoopWithBreakLabel(forStatement, forBreakLabel);
 
 			case ForeachStatement foreachStatement:
-				return RewriteArrayForeachStatement(foreachStatement);
+				return RewriteForeachStatement(foreachStatement);
 
 			case SwitchStatement switchStatement:
 				switchStatement.Expression = switchStatement.Expression is not null && ContainsUncaughtThrow(switchStatement.Expression)
@@ -252,6 +252,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return statement;
+	}
+
+	Statement RewriteForeachStatement(ForeachStatement foreachStatement)
+	{
+		return foreachStatement.IteratorNext is not null
+			? RewriteIteratorForeachStatement(foreachStatement)
+			: RewriteArrayForeachStatement(foreachStatement);
 	}
 
 	Statement RewriteArrayForeachStatement(ForeachStatement foreachStatement)
@@ -342,6 +349,76 @@ public sealed partial class BindableNodeAnalyzer
 		};
 
 		return CreateBlock([elementsLocal, lengthLocal, indexLocal, loop, new LabelStatement { Name = breakLabel, ResolvedType = "void" }]);
+	}
+
+	Statement RewriteIteratorForeachStatement(ForeachStatement foreachStatement)
+	{
+		Expression? source = foreachStatement.Source is not null && ContainsUncaughtThrow(foreachStatement.Source)
+			? HoistThrowingExpression(foreachStatement.Source)
+			: LowerExpression(foreachStatement.Source);
+		FunctionDefinition next = foreachStatement.IteratorNext!;
+		string iteratorType = source?.ResolvedType ?? ErrorType;
+		string elementType = foreachStatement.Target.ResolvedType ?? TryGetPointerElementType(GetCallableParameters(next.Parameters)[0].ResolvedType) ?? ErrorType;
+		DeclarationStatement iteratorLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIter"), iteratorType, TypeReferenceForResolvedName(iteratorType), source);
+		DeclarationStatement currentLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachCurrent"), elementType, TypeReferenceForResolvedName(elementType), new DefaultExpression { ResolvedType = elementType });
+
+		DeclarationStatement loopValue = new()
+		{
+			SourceSyntax = foreachStatement.SourceSyntax,
+			ResolvedType = "void",
+			InitialValue = CreateVariableReference(currentLocal.Target, elementType)
+		};
+		loopValue.Target.SourceSyntax = foreachStatement.Target.SourceSyntax;
+		loopValue.Target.Type = foreachStatement.Target.Type is AutoTypeReference ? TypeReferenceForResolvedName(elementType) : CloneType(foreachStatement.Target.Type);
+		loopValue.Target.ResolvedType = elementType;
+		foreach (string name in foreachStatement.Target.Names)
+			loopValue.Target.Names.Add(name);
+
+		string continueLabel = NewGeneratedLabelName("foreach_continue");
+		string breakLabel = NewGeneratedLabelName("foreach_break");
+		BlockStatement loopBody = new() { SourceSyntax = foreachStatement.Body?.SourceSyntax ?? foreachStatement.SourceSyntax, ResolvedType = "void" };
+		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
+		List<Statement> bodyStatements = [loopValue];
+		if (foreachStatement.Body is not null)
+			bodyStatements.Add(foreachStatement.Body);
+		RewriteStatementList(bodyStatements);
+		currentLoopTransferTargets.RemoveAt(currentLoopTransferTargets.Count - 1);
+		loopBody.Statements.AddRange(bodyStatements);
+		loopBody.Statements.Add(new LabelStatement { Name = continueLabel, ResolvedType = "void" });
+
+		Expression iteratorReference = CreateVariableReference(iteratorLocal.Target, iteratorType);
+		CallExpression nextCall = new()
+		{
+			SourceSyntax = foreachStatement.SourceSyntax,
+			Target = new MemberReferenceExpression
+			{
+				SourceSyntax = foreachStatement.SourceSyntax,
+				Target = iteratorReference,
+				Name = "next",
+				Member = next,
+				ResolvedType = BuildFunctionValueType(next, isInstance: true)
+			},
+			ResolvedType = "bool",
+			Arguments =
+			{
+				new ArgumentExpression
+				{
+					SourceSyntax = foreachStatement.SourceSyntax,
+					Modifier = ArgumentModifier.Out,
+					Value = CreateVariableReference(currentLocal.Target, elementType),
+					ResolvedType = elementType
+				}
+			}
+		};
+		WhileStatement loop = new()
+		{
+			SourceSyntax = foreachStatement.SourceSyntax,
+			ResolvedType = "void",
+			Condition = LowerExpression(nextCall),
+			Body = loopBody
+		};
+
+		return CreateBlock([iteratorLocal, currentLocal, loop, new LabelStatement { Name = breakLabel, ResolvedType = "void" }]);
 	}
 
 	Statement RewriteLoopBody(Statement body, string continueLabel, string breakLabel)

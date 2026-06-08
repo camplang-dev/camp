@@ -1,0 +1,14 @@
+struct iter int count()
+{
+	yield 1;
+}
+
+int sum()
+{
+	int total = 0;
+	foreach (auto value in count())
+	{
+		total += value;
+	}
+	return total;
+}

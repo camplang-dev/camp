@@ -346,13 +346,57 @@ public sealed partial class BindableNodeAnalyzer
 			return isAwaited ? ReportType(syntax, "await foreach requires an async iter source, not an array.") : arrayElement;
 
 		if (sourceType.StartsWith("iter ", StringComparison.Ordinal) || sourceType.StartsWith("iter(", StringComparison.Ordinal))
-			return ReportType(syntax, isAwaited ? "await foreach requires an async iter source, not an iter source." : "Iterator foreach is not implemented yet.");
+			return ReportType(syntax, isAwaited ? "await foreach requires an async iter source, not an iter source." : "Iterator foreach requires a lowered iterator state source.");
 
 		if (sourceType.StartsWith("async iter ", StringComparison.Ordinal) || sourceType.StartsWith("async iter(", StringComparison.Ordinal))
-			return ReportType(syntax, isAwaited ? "Async iterator foreach is not implemented yet." : "foreach requires an array source; iterator foreach is not implemented yet.");
+			return ReportType(syntax, isAwaited ? "Async iterator foreach is not implemented yet." : "foreach requires an array or iterator state source.");
 
 		Report(GetRange(syntax), $"Foreach source type '{sourceType}' is not iterable.");
 		return ErrorType;
+	}
+
+	string GetForeachElementType(ForeachStatement statement, string sourceType, SyntaxNode? syntax)
+	{
+		if (TryGetArrayElementType(sourceType) is string arrayElement)
+			return statement.IsAwaited ? ReportType(syntax, "await foreach requires an async iter source, not an array.") : arrayElement;
+
+		if (TryFindIteratorNextMethod(sourceType, out FunctionDefinition? next, out string elementType))
+		{
+			if (statement.IsAwaited)
+				return ReportType(syntax, "await foreach over iterator states is not implemented yet.");
+			statement.IteratorNext = next;
+			return elementType;
+		}
+
+		return GetForeachElementType(sourceType, statement.IsAwaited, syntax);
+	}
+
+	bool TryFindIteratorNextMethod(string sourceType, out FunctionDefinition? next, out string elementType)
+	{
+		next = null;
+		elementType = ErrorType;
+		if (GetTypeDefinition(sourceType) is not TypeDefinition type)
+			return false;
+
+		foreach (FunctionDefinition function in GetFunctions(type))
+		{
+			if (function.Name != "next" || function.ResolvedType != "bool")
+				continue;
+
+			List<ParameterDefinition> parameters = GetCallableParameters(function.Parameters);
+			if (parameters.Count == 0 || parameters[0].Modifier != ParameterModifier.Out)
+				continue;
+
+			string? yieldedType = TryGetPointerElementType(parameters[0].ResolvedType);
+			if (yieldedType is null)
+				continue;
+
+			next = function;
+			elementType = yieldedType;
+			return true;
+		}
+
+		return false;
 	}
 
 	bool IsAwaitable(Expression? expression, BodyScope scope, AnalysisScope typeScope)

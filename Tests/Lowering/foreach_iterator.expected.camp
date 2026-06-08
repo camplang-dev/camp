@@ -1,0 +1,38 @@
+countIter count()
+{
+	return {.__state = 0};
+}
+int sum()
+{
+	int total = 0;
+	{
+		countIter __local0 = count();
+		int __local1 = default;
+		while (countIter_next(&__local0, &__local1))
+		{
+			int value = __local1;
+			total += value;
+			__foreach_continue2:
+		}
+		__foreach_break3:
+	}
+	return total;
+}
+
+fixed struct countIter
+{
+	int __state;
+
+	bool next(int* current)
+	{
+		if (this.__state != 0)
+			return false;
+		*current = 1;
+		this.__state = 1;
+		return true;
+	}
+
+	void destroy()
+	{
+	}
+}

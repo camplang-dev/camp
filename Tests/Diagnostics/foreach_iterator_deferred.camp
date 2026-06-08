@@ -1,8 +1,0 @@
-extern iter int count();
-
-void main()
-{
-	foreach (int value in count())
-	{
-	}
-}

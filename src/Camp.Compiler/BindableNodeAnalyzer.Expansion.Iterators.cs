@@ -172,6 +172,7 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = slot.SourceSyntax,
 				Name = slotName,
 				Symbol = slotName,
+				Modifier = ParameterModifier.Out,
 				Type = PointerTo(CloneType(slot.Type) ?? VoidType()),
 				ResolvedType = $"{slot.ResolvedType ?? slot.Type?.ResolvedType ?? ErrorType}*"
 			});
@@ -307,6 +308,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Name = "current",
 			Symbol = "current",
+			Modifier = ParameterModifier.Out,
 			Type = PointerTo(CloneType(GetIteratorYieldSlots(iterType)[0].Type) ?? VoidType()),
 			ResolvedType = $"{GetIteratorYieldSlots(iterType)[0].ResolvedType ?? ErrorType}*"
 		};

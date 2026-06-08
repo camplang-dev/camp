@@ -56,6 +56,7 @@ public class ForeachStatement : Statement
 	public bool IsAwaited { get; set; }
 	public DeclarationTarget Target { get; } = new();
 	public Expression? Source { get; set; }
+	public FunctionDefinition? IteratorNext { get; set; }
 	public Statement? Body { get; set; }
 }
 

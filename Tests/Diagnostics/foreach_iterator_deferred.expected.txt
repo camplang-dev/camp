@@ -1,1 +1,0 @@
-tests/Diagnostics/foreach_iterator_deferred.camp(5,29): error: Iterator foreach is not implemented yet.
