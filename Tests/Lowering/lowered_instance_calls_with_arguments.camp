@@ -1,0 +1,34 @@
+extern void* malloc(nuint size);
+
+struct StructThing
+{
+	void first()
+	{
+	}
+
+	void second(int current)
+	{
+	}
+}
+
+class ClassThing
+{
+	void first()
+	{
+	}
+
+	void second(int current)
+	{
+	}
+}
+
+void main()
+{
+	StructThing s = {};
+	StructThing_first(&s);
+	StructThing_second(&s, 1);
+
+	ClassThing* c = new ClassThing();
+	ClassThing_first(c);
+	ClassThing_second(c, 2);
+}

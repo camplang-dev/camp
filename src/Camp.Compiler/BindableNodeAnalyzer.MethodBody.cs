@@ -1039,7 +1039,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			return callableReturnType;
 		}
-		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax, IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames);
+		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax, IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function);
 		if (function is not null)
 			callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
 
@@ -1192,10 +1192,10 @@ public sealed partial class BindableNodeAnalyzer
 		return arguments;
 	}
 
-	static bool IncludeExplicitThisArgument(Expression? target, FunctionDefinition? function)
+	bool IncludeExplicitThisArgument(Expression? target, FunctionDefinition? function)
 	{
 		return function is not null
-			&& GetExplicitThisParameter(function) is not null
+			&& (GetExplicitThisParameter(function) is not null || IsInstanceFunction(function))
 			&& target is not MemberExpression and not MemberReferenceExpression;
 	}
 
@@ -1307,11 +1307,13 @@ public sealed partial class BindableNodeAnalyzer
 		return implementation;
 	}
 
-	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null, bool includeExplicitThis = false, Dictionary<string, string>? genericSubstitutions = null, HashSet<string>? genericParameterNames = null)
+	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null, bool includeExplicitThis = false, Dictionary<string, string>? genericSubstitutions = null, HashSet<string>? genericParameterNames = null, FunctionDefinition? function = null)
 	{
 		genericSubstitutions ??= [];
 		genericParameterNames ??= [];
 		List<ParameterDefinition> callableParameters = GetCallableParameters(parameters, includeExplicitThis);
+		if (function is not null && includeExplicitThis && GetExplicitThisParameter(function) is null && IsInstanceFunction(function) && FindContainingType(function) is TypeDefinition containingType)
+			callableParameters.Insert(0, CreateImplicitThisParameter(containingType));
 		if (arguments.Count > callableParameters.Count || HasExplicitHiddenArgument(arguments))
 			AddExplicitHiddenParameters(parameters, callableParameters);
 		int parameterIndex = 0;
@@ -1362,6 +1364,18 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange((arguments.Count > 0 ? arguments[^1].SourceSyntax : null) ?? fallbackSyntax), "Call is missing required arguments.");
 		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
 			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
+	}
+
+	static ThisParameterDefinition CreateImplicitThisParameter(TypeDefinition containingType)
+	{
+		ThisParameterDefinition parameter = new()
+		{
+			Name = "this",
+			Symbol = "this",
+			Type = PointerTo(TypeReferenceFor(containingType)),
+			ResolvedType = containingType.Name + "*"
+		};
+		return parameter;
 	}
 
 	static bool ArrayLiteralConsumesLengthParameter(ArgumentExpression argument, ParameterDefinition? parameter, List<ParameterDefinition> callableParameters, int parameterIndex)
