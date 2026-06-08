@@ -1,0 +1,11 @@
+struct Holder
+{
+	int _x;
+}
+int readValue(int _p)
+{
+	int _local = _p;
+	Holder holder = {};
+	holder._x = _local;
+	return holder._x;
+}

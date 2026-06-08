@@ -322,7 +322,7 @@ public sealed class CampParser
 			syntax.CallSpec = Take();
 
 		int typeStart = index;
-		TypeSyntax? type = ParseType();
+		TypeSyntax? type = ParseType(requireIdentifierAfterTerminalTargetSpec: true);
 		if (type is not null && LooksLikeMemberName())
 			syntax.Type = type;
 		else
@@ -467,7 +467,7 @@ public sealed class CampParser
 		return syntax;
 	}
 
-	TypeSyntax? ParseType()
+	TypeSyntax? ParseType(bool requireIdentifierAfterTerminalTargetSpec = false)
 	{
 		TypeSyntax? type = ParseTypePrefix();
 		if (type is null)
@@ -502,6 +502,8 @@ public sealed class CampParser
 			}
 			else if (IsPossibleTargetSpecIdentifier())
 			{
+				if (requireIdentifierAfterTerminalTargetSpec && !CanTargetSpecBePartOfDeclarationType())
+					return type;
 				type = new TargetTypeSpecTypeSyntax { Specifier = Take(), Type = type };
 			}
 			else
@@ -663,6 +665,21 @@ public sealed class CampParser
 		return IsIdentifier() && Current?.Value.StartsWith("_", StringComparison.Ordinal) == true;
 	}
 
+	bool CanTargetSpecBePartOfDeclarationType()
+	{
+		string? next = PeekValue(1);
+		if (next is null)
+			return false;
+
+		if (ValueIsAny(next, "[", "?", "*", "<"))
+			return true;
+
+		if (Array.IndexOf(TypeDeclaratorKeywords, next) >= 0)
+			return true;
+
+		return Peek(1)?.Class == TokenClass.Identifier;
+	}
+
 	ParameterListSyntax ParseParameterList()
 	{
 		ParameterListSyntax syntax = new()
@@ -734,7 +751,7 @@ public sealed class CampParser
 		if (syntax.Declarators.Count == 0)
 			syntax.Declarators = null;
 
-		syntax.Type = ParseType();
+		syntax.Type = ParseType(requireIdentifierAfterTerminalTargetSpec: true);
 		if (syntax.Type is null)
 			return null;
 
@@ -1022,7 +1039,7 @@ public sealed class CampParser
 		}
 
 		int start = index;
-		TypeSyntax? type = ParseType();
+		TypeSyntax? type = ParseType(requireIdentifierAfterTerminalTargetSpec: true);
 		if (type is null || !IsIdentifier())
 		{
 			index = start;
