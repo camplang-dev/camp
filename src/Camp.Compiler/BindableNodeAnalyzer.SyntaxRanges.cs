@@ -8,6 +8,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return definition.SourceSyntax switch
 		{
+			AliasDeclarationSyntax syntax => syntax.Identifier?.Range,
 			TypeDeclarationSyntax syntax => syntax.Identifier?.Range,
 			MemberDeclarationSyntax syntax => syntax.Identifier?.Range,
 			EnumValueSyntax syntax => syntax.Identifier?.Range,
@@ -82,8 +83,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			null => null,
 			CompilationUnitSyntax compilationUnit => compilationUnit.Items is [CompilationUnitItemSyntax first, ..] ? GetRange(first) : null,
-			CompilationUnitItemSyntax item => GetRange(item.ImportExportDeclaration) ?? GetRange(item.Declaration),
+			CompilationUnitItemSyntax item => GetRange(item.ImportExportDeclaration) ?? GetRange(item.AliasDeclaration) ?? GetRange(item.Declaration),
 			ImportExportDeclarationSyntax declaration => declaration.Keyword?.Range,
+			AliasDeclarationSyntax alias => alias.Identifier?.Range ?? alias.AliasKeyword?.Range,
 			QualifiedNamespaceSyntax qualifiedNamespace => qualifiedNamespace.Identifier?.Range,
 			QualifierSyntax qualifier => qualifier.Identifier?.Range,
 			TypeDeclarationSyntax declaration => declaration.Keyword?.Range ?? declaration.Identifier?.Range,

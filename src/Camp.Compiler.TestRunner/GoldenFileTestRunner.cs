@@ -67,10 +67,12 @@ public static class GoldenFileTestRunner
 				GoldenFileTestKind.Lowering => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.Diagnostics => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.Std => CompilerInspectMode.Lowering,
+				GoldenFileTestKind.Api => null,
 				GoldenFileTestKind.CEmit => null,
 				GoldenFileTestKind.CCompile => null,
 				_ => throw new ArgumentOutOfRangeException()
-			}
+			},
+			InspectApi = testCase.Kind == GoldenFileTestKind.Api
 		};
 		ApplyCaseOptions(testCase, request);
 		request.Files.Add(Path.GetRelativePath(testCase.RepositoryRoot, testCase.CasePath));
@@ -100,6 +102,7 @@ public static class GoldenFileTestRunner
 			GoldenFileTestKind.Diagnostics => result.StdErr,
 			GoldenFileTestKind.CEmit => ReadGeneratedFiles(testCase),
 			GoldenFileTestKind.CCompile => CompileGeneratedC(testCase, result),
+			GoldenFileTestKind.Api => result.StdOut,
 			_ => result.StdOut
 		};
 	}

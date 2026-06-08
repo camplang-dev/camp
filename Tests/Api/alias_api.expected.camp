@@ -1,0 +1,4 @@
+export as Sample;
+
+export alias TCHAR = wchar;
+export extern void setTitle(wchar* text);

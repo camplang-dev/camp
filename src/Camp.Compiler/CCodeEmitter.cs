@@ -246,7 +246,7 @@ public static class CCodeEmitter
 		{
 			if (!compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) || !ReferenceEquals(owner, file))
 				continue;
-			if (definition.Export is not null)
+			if (definition.Export is not null && definition is not AliasDefinition)
 				return true;
 			if (definition is TypeDefinition typeDefinition && TypeHasExportedCallable(typeDefinition))
 				return true;

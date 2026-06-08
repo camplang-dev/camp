@@ -546,6 +546,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<FunctionDefinition> LookupFunctions(string name, BodyScope scope)
 	{
+		if (TryResolveAlias(name, AliasTargetKind.Callable, scope.CurrentFunction.SourceSyntax, out AliasDefinition? alias))
+			name = alias!.ResolvedTargetName;
+
 		List<FunctionDefinition> functions = [];
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{

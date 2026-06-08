@@ -34,7 +34,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static readonly HashSet<string> ReservedWords = new(StringComparer.Ordinal)
 	{
-		"_", "abstract", "any", "as", "astring", "async", "auto", "bool", "break", "byte", "case", "catch",
+		"_", "abstract", "alias", "any", "as", "astring", "async", "auto", "bool", "break", "byte", "case", "catch",
 		"char", "class", "const", "continue", "default", "delegate", "delete", "do", "double",
 		"else", "enum", "escaped", "export", "extern", "false", "finally", "fixed", "float",
 		"fn", "for", "foreach", "if", "implements", "in", "init", "int", "interface", "iter",
@@ -46,6 +46,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly List<AnalysisDiagnostic> diagnostics = [];
 	readonly Dictionary<string, TypeDefinition> typeDefinitions = new(StringComparer.Ordinal);
+	readonly Dictionary<string, AliasDefinition> aliasDefinitions = new(StringComparer.Ordinal);
 	readonly Dictionary<TypeDefinition, TypeAnalysisInfo> typeInfos = [];
 	readonly Dictionary<Expression, Expression> expressionRewrites = [];
 	readonly Dictionary<TypeReference, TypeReference> typeRewrites = [];
@@ -448,6 +449,51 @@ public sealed partial class BindableNodeAnalyzer
 			PrimitiveType.Untyped => "untyped",
 			_ => ErrorType
 		};
+	}
+
+	static bool TryGetPrimitiveType(string name, out PrimitiveType type)
+	{
+		foreach (PrimitiveType primitive in Enum.GetValues<PrimitiveType>())
+		{
+			if (GetPrimitiveTypeName(primitive) == name)
+			{
+				type = primitive;
+				return true;
+			}
+		}
+
+		type = default;
+		return false;
+	}
+
+	bool TryResolveAlias(string name, AliasTargetKind kind, SyntaxNode? referenceSyntax, out AliasDefinition? alias)
+	{
+		alias = null;
+		if (!aliasDefinitions.TryGetValue(name, out AliasDefinition? candidate))
+			return false;
+		if (!IsDefinitionVisible(candidate, referenceSyntax))
+		{
+			ReportNotExported(candidate, referenceSyntax, "Alias");
+			return false;
+		}
+		if (candidate.TargetKind != kind)
+			return false;
+		alias = candidate;
+		return true;
+	}
+
+	string ResolveCallSpecAlias(string callSpec, SyntaxNode? syntax)
+	{
+		return TryResolveAlias(callSpec, AliasTargetKind.CallSpec, syntax, out AliasDefinition? alias)
+			? alias!.ResolvedTargetName
+			: callSpec;
+	}
+
+	string ResolveTypeSpecAlias(string typeSpec, SyntaxNode? syntax)
+	{
+		return TryResolveAlias(typeSpec, AliasTargetKind.TypeSpec, syntax, out AliasDefinition? alias)
+			? alias!.ResolvedTargetName
+			: typeSpec;
 	}
 
 

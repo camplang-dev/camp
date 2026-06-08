@@ -176,6 +176,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(callSpec))
 			return;
 
+		callSpec = ResolveCallSpecAlias(callSpec, syntax);
 		if (selectedTarget is null || !selectedTarget.HasCallSpec(callSpec))
 			Report(GetRange(syntax), $"Callspec '{callSpec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
 	}
@@ -198,6 +199,12 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (string.IsNullOrWhiteSpace(spec))
 			return;
+
+		spec = TryResolveAlias(spec, AliasTargetKind.CallSpec, syntax, out AliasDefinition? callAlias)
+			? callAlias!.ResolvedTargetName
+			: TryResolveAlias(spec, AliasTargetKind.TypeSpec, syntax, out AliasDefinition? typeAlias)
+				? typeAlias!.ResolvedTargetName
+				: spec;
 
 		if (selectedTarget?.HasCallSpec(spec) == true)
 		{
@@ -269,6 +276,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(typeSpec.Specifier))
 			return;
 
+		typeSpec.Specifier = ResolveTypeSpecAlias(typeSpec.Specifier, typeSpec.SourceSyntax);
 		if (selectedTarget is null || !selectedTarget.HasTypeSpec(typeSpec.Specifier))
 		{
 			Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
@@ -301,6 +309,37 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(named.SourceSyntax), $"Typespec '{named.Name}' must appear after the type form it modifies.");
 			return $"{UnresolvedType}({sourceName})";
 		}
+
+		if (named.Qualifiers.Count == 0 && named.TypeArguments.Count == 0 && TryResolveAlias(named.Name, AliasTargetKind.Type, named.SourceSyntax, out AliasDefinition? alias))
+		{
+			if (TryGetPrimitiveType(alias!.ResolvedTargetName, out PrimitiveType primitive))
+			{
+				PrimitiveTypeReference primitiveReference = new()
+				{
+					SourceSyntax = named.SourceSyntax,
+					Type = primitive,
+					ResolvedType = alias.ResolvedTargetName
+				};
+				typeRewrites[named] = primitiveReference;
+				return alias.ResolvedTargetName;
+			}
+
+			if (typeDefinitions.TryGetValue(alias.ResolvedTargetName, out TypeDefinition? aliasType))
+			{
+				TypeDefinitionReference reference = new()
+				{
+					SourceSyntax = named.SourceSyntax,
+					Name = aliasType.Name,
+					Definition = aliasType,
+					ResolvedType = aliasType.Name
+				};
+				typeRewrites[named] = reference;
+				return aliasType.Name;
+			}
+		}
+
+		if (named.Qualifiers.Count == 0 && named.TypeArguments.Count > 0 && aliasDefinitions.ContainsKey(named.Name))
+			Report(GetRange(named.SourceSyntax), $"Alias '{named.Name}' cannot be used with generic type arguments.");
 
 		if (named.Qualifiers.Count == 0 && scope.TryGetGenericParameter(named.Name, out GenericParameter? genericParameter))
 		{

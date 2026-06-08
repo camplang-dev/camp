@@ -137,6 +137,10 @@ public sealed class BindableNodeCodeSerializer
 				WriteParamsDefinition(paramsDefinition);
 				break;
 
+			case AliasDefinition aliasDefinition:
+				WriteAliasDefinition(aliasDefinition);
+				break;
+
 			case FunctionDefinition functionDefinition:
 				WriteFunctionDefinition(functionDefinition);
 				break;
@@ -295,6 +299,18 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write("params ");
 		writer.Write(definition.Name);
 		WriteParameterList(definition.Components);
+		writer.WriteLine(";");
+	}
+
+	void WriteAliasDefinition(AliasDefinition definition)
+	{
+		WriteAttributes(definition.Attributes);
+		WriteIndent();
+		WriteDefinitionPrefix(definition);
+		writer.Write("alias ");
+		writer.Write(definition.Name);
+		writer.Write(" = ");
+		WriteQualifiedName(definition.TargetQualifiers, definition.TargetName);
 		writer.WriteLine(";");
 	}
 

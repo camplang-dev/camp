@@ -1,0 +1,14 @@
+alias Count = int;
+alias SystemCall = _sysv;
+alias inc = increment;
+
+SystemCall int increment(Count value)
+{
+	return value + 1;
+}
+
+export int main()
+{
+	Count value = 1;
+	return inc(value);
+}

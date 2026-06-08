@@ -14,6 +14,7 @@ public class CompilationUnitSyntax : SyntaxNode
 public class CompilationUnitItemSyntax : SyntaxNode
 {
 	public ImportExportDeclarationSyntax? ImportExportDeclaration { get; set; }
+	public AliasDeclarationSyntax? AliasDeclaration { get; set; }
 	public DeclarationSyntax? Declaration { get; set; }
 }
 
@@ -50,6 +51,16 @@ public class QualifierSyntax : SyntaxNode
 {
 	public Token? Identifier { get; set; }
 	public TokenRange? ColonColonToken { get; set; }
+}
+
+public class AliasDeclarationSyntax : SyntaxNode
+{
+	public List<MemberDeclaratorSyntax>? Declarators { get; set; }
+	public Token? AliasKeyword { get; set; }
+	public Token? Identifier { get; set; }
+	public Token? EqualsToken { get; set; }
+	public QualifiedNamespaceSyntax? TargetName { get; set; }
+	public Token? SemicolonToken { get; set; }
 }
 
 public class TypeDeclarationSyntax : SyntaxNode

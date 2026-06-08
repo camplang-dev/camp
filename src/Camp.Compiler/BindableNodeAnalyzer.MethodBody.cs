@@ -669,6 +669,46 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		}
 
+		if (TryResolveAlias(named.Name, AliasTargetKind.Type, named.SourceSyntax, out AliasDefinition? alias))
+		{
+			if (TryGetPrimitiveType(alias!.ResolvedTargetName, out PrimitiveType primitive))
+			{
+				PrimitiveTypeReference primitiveReference = new()
+				{
+					SourceSyntax = named.SourceSyntax,
+					Type = primitive,
+					ResolvedType = alias.ResolvedTargetName
+				};
+				TypeReferenceExpression primitiveExpression = new()
+				{
+					SourceSyntax = named.SourceSyntax,
+					Type = primitiveReference,
+					ResolvedType = primitiveReference.ResolvedType
+				};
+				expressionRewrites[named] = primitiveExpression;
+				return primitiveExpression.ResolvedType;
+			}
+
+			if (typeDefinitions.TryGetValue(alias.ResolvedTargetName, out TypeDefinition? aliasType))
+			{
+				TypeDefinitionReference aliasReference = new()
+				{
+					SourceSyntax = named.SourceSyntax,
+					Name = aliasType.Name,
+					Definition = aliasType,
+					ResolvedType = aliasType.ResolvedType ?? aliasType.Name
+				};
+				TypeReferenceExpression aliasExpression = new()
+				{
+					SourceSyntax = named.SourceSyntax,
+					Type = aliasReference,
+					ResolvedType = aliasReference.ResolvedType
+				};
+				expressionRewrites[named] = aliasExpression;
+				return aliasExpression.ResolvedType;
+			}
+		}
+
 		if (typeDefinitions.TryGetValue(named.Name, out TypeDefinition? typeDefinition))
 		{
 			if (!IsDefinitionVisible(typeDefinition, named.SourceSyntax))

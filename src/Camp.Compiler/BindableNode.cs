@@ -39,6 +39,23 @@ public abstract class TypeDefinition : Definition
 	public List<GenericParameter> GenericParameters { get; } = [];
 }
 
+public enum AliasTargetKind
+{
+	Unresolved,
+	Type,
+	Callable,
+	CallSpec,
+	TypeSpec
+}
+
+public class AliasDefinition : Definition
+{
+	public List<string> TargetQualifiers { get; } = [];
+	public string TargetName { get; set; } = "";
+	public AliasTargetKind TargetKind { get; set; }
+	public string ResolvedTargetName { get; set; } = "";
+}
+
 public class ClassDefinition : TypeDefinition
 {
 	public ClassModifier Modifier { get; set; }

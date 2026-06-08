@@ -60,6 +60,10 @@ public sealed class CampParser
 		if (importExport is not null)
 			return new CompilationUnitItemSyntax { ImportExportDeclaration = importExport };
 
+		AliasDeclarationSyntax? aliasDeclaration = ParseAliasDeclaration();
+		if (aliasDeclaration is not null)
+			return new CompilationUnitItemSyntax { AliasDeclaration = aliasDeclaration };
+
 		DeclarationSyntax? declaration = ParseDeclaration();
 		if (declaration is not null)
 			return new CompilationUnitItemSyntax { Declaration = declaration };
@@ -111,6 +115,31 @@ public sealed class CampParser
 			QualifiedNamespace = ParseQualifiedNamespace(),
 			SemicolonToken = Expect(";")
 		};
+	}
+
+	AliasDeclarationSyntax? ParseAliasDeclaration()
+	{
+		int start = index;
+		List<MemberDeclaratorSyntax> declarators = [];
+		while (Is("export") || Is("public"))
+			declarators.Add(new MemberDeclaratorSyntax { Keyword = Take() });
+
+		if (!Is("alias"))
+		{
+			index = start;
+			return null;
+		}
+
+		AliasDeclarationSyntax syntax = new()
+		{
+			Declarators = declarators.Count == 0 ? null : declarators,
+			AliasKeyword = Expect("alias"),
+			Identifier = ExpectIdentifier(),
+			EqualsToken = Expect("="),
+			TargetName = ParseQualifiedNamespace(),
+			SemicolonToken = Expect(";")
+		};
+		return syntax;
 	}
 
 	QualifiedNamespaceSyntax? ParseQualifiedNamespace()
@@ -318,7 +347,7 @@ public sealed class CampParser
 		if (syntax.Declarators.Count == 0)
 			syntax.Declarators = null;
 
-		if (IsPossibleTargetSpecIdentifier())
+		if (IsPossibleLeadingCallSpecIdentifier())
 			syntax.CallSpec = Take();
 
 		int typeStart = index;
@@ -500,7 +529,7 @@ public sealed class CampParser
 			{
 				type = new DeclaratorTypeSyntax { Declarator = ParseTypeDeclarator(), Type = type };
 			}
-			else if (IsPossibleTargetSpecIdentifier())
+			else if (IsPossiblePostfixTargetSpecIdentifier())
 			{
 				if (requireIdentifierAfterTerminalTargetSpec && !CanTargetSpecBePartOfDeclarationType())
 					return type;
@@ -527,7 +556,7 @@ public sealed class CampParser
 			{
 				CallableKeyword = Take(),
 			};
-			if (IsPossibleTargetSpecIdentifier())
+			if (IsPossibleLeadingCallSpecIdentifier())
 				callable.CallSpec = Take();
 			if (IsPossibleTargetSpecIdentifier())
 				callable.TargetSpec = Take();
@@ -663,6 +692,40 @@ public sealed class CampParser
 	bool IsPossibleTargetSpecIdentifier()
 	{
 		return IsIdentifier() && Current?.Value.StartsWith("_", StringComparison.Ordinal) == true;
+	}
+
+	bool IsPossiblePostfixTargetSpecIdentifier()
+	{
+		return IsPossibleTargetSpecIdentifier();
+	}
+
+	bool IsPossibleLeadingCallSpecIdentifier()
+	{
+		if (!IsIdentifier())
+			return false;
+		if (Current?.Value.StartsWith("_", StringComparison.Ordinal) == true)
+			return true;
+		if (IsReservedLeadingCallSpecToken(Current?.Value))
+			return false;
+
+		return ValueIsAny(PeekValue(1),
+			"void", "bool", "string", "wstring", "astring", "byte", "sbyte", "ushort", "short",
+			"uint", "int", "ulong", "long", "nuint", "nint", "float", "double", "char",
+			"wchar", "achar", "uchar", "untyped", "fn", "delegate", "once", "async", "iter");
+	}
+
+	static bool IsReservedLeadingCallSpecToken(string? value)
+	{
+		return ValueIsAny(value,
+			"abstract", "alias", "any", "as", "astring", "async", "auto", "bool", "break", "byte",
+			"case", "catch", "char", "class", "const", "continue", "default", "delegate", "delete",
+			"do", "double", "else", "enum", "escaped", "export", "extern", "false", "finally",
+			"fixed", "float", "fn", "for", "foreach", "if", "implements", "in", "init", "int",
+			"interface", "iter", "long", "new", "newtype", "nint", "null", "nuint", "once", "out",
+			"override", "params", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
+			"static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
+			"ulong", "unscoped", "ushort", "untyped", "using", "virtual", "void", "volatile",
+			"vtableof", "wchar", "while", "within", "wstring", "yield");
 	}
 
 	bool CanTargetSpecBePartOfDeclarationType()

@@ -1,0 +1,9 @@
+export as Sample;
+
+export alias TCHAR = wchar;
+public alias InternalChar = char;
+alias LocalChar = achar;
+
+export extern void setTitle(TCHAR* text);
+public extern void setInternal(InternalChar value);
+extern void setLocal(LocalChar value);

@@ -32,7 +32,40 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (TypeReference consumedType in GetVisibleTypes(function))
 					CheckExportedTypeUse(function, consumedType);
 				break;
+
+			case AliasDefinition alias:
+				CheckExportedAliasUse(alias);
+				break;
 		}
+	}
+
+	void CheckExportedAliasUse(AliasDefinition alias)
+	{
+		switch (alias.TargetKind)
+		{
+			case AliasTargetKind.Type:
+				if (typeDefinitions.TryGetValue(alias.ResolvedTargetName, out TypeDefinition? typeDefinition) && typeDefinition.Export is null)
+					Report(GetNameRange(alias), $"Exported declaration '{alias.Name}' exposes non-exported type '{typeDefinition.Name}'.");
+				break;
+			case AliasTargetKind.Callable:
+				if (FindFunctionBySymbol(alias.ResolvedTargetName) is FunctionDefinition aliasedFunction && aliasedFunction.Export is null)
+					Report(GetNameRange(alias), $"Exported declaration '{alias.Name}' exposes non-exported symbol '{aliasedFunction.Name}'.");
+				break;
+		}
+	}
+
+	FunctionDefinition? FindFunctionBySymbol(string symbol)
+	{
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is FunctionDefinition function && IsFunctionNamed(function, symbol))
+				return function;
+			if (definition is TypeDefinition type)
+				foreach (FunctionDefinition candidate in GetTypeFunctions(type))
+					if (IsFunctionNamed(candidate, symbol))
+						return candidate;
+		}
+		return null;
 	}
 
 	void AnalyzeExportedMembers(TypeDefinition typeDefinition)

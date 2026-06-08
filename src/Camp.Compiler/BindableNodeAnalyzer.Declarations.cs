@@ -18,6 +18,8 @@ public sealed partial class BindableNodeAnalyzer
 		currentModule = module;
 		module.ResolvedType = ModuleType;
 		CollectTypeNames(module);
+		CollectAliasNames(module);
+		ResolveAliases();
 
 		foreach (UsingDeclaration usingDeclaration in module.Usings)
 		{
@@ -90,6 +92,10 @@ public sealed partial class BindableNodeAnalyzer
 				AnalyzeParamsDefinition(paramsDefinition, parentScope);
 				break;
 
+			case AliasDefinition aliasDefinition:
+				AnalyzeAliasDefinition(aliasDefinition);
+				break;
+
 			case VariableDefinition variableDefinition:
 				AnalyzeVariableDefinition(variableDefinition, parentScope);
 				break;
@@ -98,6 +104,168 @@ public sealed partial class BindableNodeAnalyzer
 				AnalyzeFunctionDefinition(functionDefinition, parentScope, containingType: null);
 				break;
 		}
+	}
+
+	void CollectAliasNames(Module module)
+	{
+		foreach (Definition definition in module.Definitions)
+		{
+			if (definition is not AliasDefinition alias)
+				continue;
+
+			CheckName(alias.Name, GetNameRange(alias), "alias");
+			if (string.IsNullOrWhiteSpace(alias.Name))
+				continue;
+
+			if (aliasDefinitions.TryGetValue(alias.Name, out AliasDefinition? existing))
+			{
+				if (!ReferenceEquals(existing, alias))
+					Report(GetNameRange(alias), $"Duplicate alias name '{alias.Name}'.");
+			}
+			else if (!aliasDefinitions.TryAdd(alias.Name, alias))
+				Report(GetNameRange(alias), $"Duplicate alias name '{alias.Name}'.");
+		}
+	}
+
+	void ResolveAliases()
+	{
+		Dictionary<AliasDefinition, AliasDefinition> resolving = [];
+		foreach (AliasDefinition alias in aliasDefinitions.Values)
+			ResolveAlias(alias, resolving);
+	}
+
+	bool ResolveAlias(AliasDefinition alias, Dictionary<AliasDefinition, AliasDefinition> resolving)
+	{
+		if (alias.TargetKind != AliasTargetKind.Unresolved)
+			return true;
+		if (resolving.ContainsKey(alias))
+		{
+			Report(GetNameRange(alias), $"Alias '{alias.Name}' cannot reference itself through an alias cycle.");
+			alias.TargetKind = AliasTargetKind.Type;
+			alias.ResolvedTargetName = ErrorType;
+			return false;
+		}
+
+		resolving.Add(alias, alias);
+		bool success = ResolveAliasTarget(alias, resolving);
+		resolving.Remove(alias);
+		return success;
+	}
+
+	bool ResolveAliasTarget(AliasDefinition alias, Dictionary<AliasDefinition, AliasDefinition> resolving)
+	{
+		string target = BuildAliasTargetName(alias);
+		if (target == alias.Name && alias.TargetQualifiers.Count == 0)
+		{
+			Report(GetNameRange(alias), $"Alias '{alias.Name}' cannot reference itself.");
+			alias.TargetKind = AliasTargetKind.Type;
+			alias.ResolvedTargetName = ErrorType;
+			return false;
+		}
+
+		if (alias.TargetQualifiers.Count == 0 && aliasDefinitions.TryGetValue(alias.TargetName, out AliasDefinition? targetAlias))
+		{
+			if (!IsDefinitionVisible(targetAlias, alias.SourceSyntax))
+				ReportNotExported(targetAlias, alias.SourceSyntax, "Alias");
+			ResolveAlias(targetAlias, resolving);
+			alias.TargetKind = targetAlias.TargetKind;
+			alias.ResolvedTargetName = targetAlias.ResolvedTargetName;
+			return true;
+		}
+
+		if (alias.TargetQualifiers.Count == 0 && TryGetPrimitiveType(alias.TargetName, out _))
+		{
+			alias.TargetKind = AliasTargetKind.Type;
+			alias.ResolvedTargetName = alias.TargetName;
+			return true;
+		}
+
+		if (alias.TargetQualifiers.Count == 0 && typeDefinitions.TryGetValue(alias.TargetName, out TypeDefinition? type))
+		{
+			if (!IsDefinitionVisible(type, alias.SourceSyntax))
+				ReportNotExported(type, alias.SourceSyntax, "Type");
+			alias.TargetKind = AliasTargetKind.Type;
+			alias.ResolvedTargetName = type.Name;
+			return true;
+		}
+
+		if (alias.TargetQualifiers.Count == 0 && selectedTarget?.HasCallSpec(alias.TargetName) == true)
+		{
+			alias.TargetKind = AliasTargetKind.CallSpec;
+			alias.ResolvedTargetName = alias.TargetName;
+			return true;
+		}
+
+		if (alias.TargetQualifiers.Count == 0 && selectedTarget?.HasTypeSpec(alias.TargetName) == true)
+		{
+			alias.TargetKind = AliasTargetKind.TypeSpec;
+			alias.ResolvedTargetName = alias.TargetName;
+			return true;
+		}
+
+		if (TryResolveCallableAliasTarget(alias, target, out string resolvedCallable))
+		{
+			alias.TargetKind = AliasTargetKind.Callable;
+			alias.ResolvedTargetName = resolvedCallable;
+			return true;
+		}
+
+		Report(GetNameRange(alias), $"Alias target '{target}' could not be found.");
+		alias.TargetKind = AliasTargetKind.Type;
+		alias.ResolvedTargetName = ErrorType;
+		return false;
+	}
+
+	bool TryResolveCallableAliasTarget(AliasDefinition alias, string target, out string resolvedName)
+	{
+		resolvedName = "";
+		List<FunctionDefinition> matches = [];
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is FunctionDefinition function && IsCallableTopLevelFunctionAliasTarget(function, alias, target) && IsDefinitionVisible(function, alias.SourceSyntax))
+				matches.Add(function);
+		}
+		foreach (TypeDefinition type in typeDefinitions.Values)
+		{
+			foreach (FunctionDefinition function in GetTypeFunctions(type))
+			{
+				if (IsTypeFunctionSymbolNamed(type, function, target) && IsMemberVisible(function, type, alias.SourceSyntax))
+					matches.Add(function);
+			}
+		}
+
+		if (matches.Count == 0)
+			return false;
+		if (matches.Count > 1)
+		{
+			Report(GetNameRange(alias), $"Multiple candidates found for alias target '{target}'.");
+			resolvedName = ErrorType;
+			return true;
+		}
+
+		resolvedName = matches[0].Symbol;
+		return true;
+	}
+
+	static bool IsCallableTopLevelFunctionAliasTarget(FunctionDefinition function, AliasDefinition alias, string target)
+	{
+		if (alias.TargetQualifiers.Count > 0)
+			return !string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol == target;
+		if (GetExplicitThisParameter(function) is not null)
+			return !string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol == target;
+		return IsFunctionNamed(function, target);
+	}
+
+	static string BuildAliasTargetName(AliasDefinition alias)
+	{
+		return alias.TargetQualifiers.Count == 0
+			? alias.TargetName
+			: string.Join("::", alias.TargetQualifiers) + "::" + alias.TargetName;
+	}
+
+	void AnalyzeAliasDefinition(AliasDefinition definition)
+	{
+		definition.ResolvedType = definition.TargetKind.ToString();
 	}
 
 	void AnalyzeClassDefinition(ClassDefinition definition, AnalysisScope parentScope)
@@ -373,6 +541,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		CheckName(definition.Name.TrimStart('~'), GetNameRange(definition), "function");
 		NormalizeExtensionThisParameter(definition, containingType);
+		if (!string.IsNullOrWhiteSpace(definition.CallSpec))
+			definition.CallSpec = ResolveCallSpecAlias(definition.CallSpec, definition.SourceSyntax);
 		ValidateTargetCallSpec(definition.CallSpec, definition.SourceSyntax);
 
 		AnalysisScope scope = new(parentScope);

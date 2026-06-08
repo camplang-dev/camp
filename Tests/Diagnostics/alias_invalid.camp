@@ -1,0 +1,11 @@
+alias A = B;
+alias B = A;
+
+struct Thing
+{
+	int field;
+	void method() {}
+}
+
+alias badField = field;
+alias badMethod = method;

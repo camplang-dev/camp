@@ -1,0 +1,3 @@
+tests/Diagnostics/alias_invalid.camp(1,7): error: Alias 'A' cannot reference itself through an alias cycle.
+tests/Diagnostics/alias_invalid.camp(10,7): error: Alias target 'field' could not be found.
+tests/Diagnostics/alias_invalid.camp(11,7): error: Alias target 'method' could not be found.

@@ -44,6 +44,8 @@ public sealed partial class BindableNodeBuilder
 		{
 			if (item.ImportExportDeclaration is not null)
 				BuildImportExportDeclaration(module, item.ImportExportDeclaration);
+			else if (item.AliasDeclaration is not null)
+				AddAliasDeclaration(module, item.AliasDeclaration);
 			else if (item.Declaration is not null)
 				AddGlobalDeclaration(module, item.Declaration);
 			else
@@ -90,6 +92,48 @@ public sealed partial class BindableNodeBuilder
 			declaration.SelectedNames.Add(identifier.Value);
 
 		return declaration;
+	}
+
+	void AddAliasDeclaration(Module module, AliasDeclarationSyntax syntax)
+	{
+		AliasDefinition definition = new()
+		{
+			SourceSyntax = syntax,
+			Name = syntax.Identifier?.Value ?? "",
+			Symbol = syntax.Identifier?.Value ?? "",
+			TargetName = syntax.TargetName?.Identifier?.Value ?? ""
+		};
+
+		foreach (MemberDeclaratorSyntax declarator in syntax.Declarators ?? [])
+		{
+			switch (declarator.Keyword?.Value)
+			{
+				case "export":
+					SetVisibility(definition, declarator, "export");
+					break;
+				case "public":
+					SetVisibility(definition, declarator, "public");
+					break;
+				default:
+					Report(declarator, $"'{declarator.Keyword?.Value}' is not a valid alias declarator.");
+					break;
+			}
+		}
+
+		if (syntax.TargetName is null)
+			Report(syntax, "Alias target is missing a name.");
+		else
+		{
+			foreach (QualifierSyntax qualifier in syntax.TargetName.Qualifiers ?? [])
+			{
+				if (qualifier.Identifier is null)
+					Report(qualifier, "Alias target qualifier is missing an identifier.");
+				else
+					definition.TargetQualifiers.Add(qualifier.Identifier.Value.Value);
+			}
+		}
+
+		module.Definitions.Add(definition);
 	}
 
 	void AddGlobalDeclaration(Module module, DeclarationSyntax syntax)
@@ -1635,7 +1679,8 @@ public sealed partial class BindableNodeBuilder
 		return syntax switch
 		{
 			CompilationUnitSyntax compilationUnit => compilationUnit.Items is [CompilationUnitItemSyntax first, ..] ? GetRange(first) : null,
-			CompilationUnitItemSyntax item => GetRangeOrNull(item.ImportExportDeclaration) ?? GetRangeOrNull(item.Declaration),
+			CompilationUnitItemSyntax item => GetRangeOrNull(item.ImportExportDeclaration) ?? GetRangeOrNull(item.AliasDeclaration) ?? GetRangeOrNull(item.Declaration),
+			AliasDeclarationSyntax alias => alias.Identifier?.Range ?? alias.AliasKeyword?.Range,
 			ImportExportDeclarationSyntax declaration => declaration.Keyword?.Range,
 			QualifiedNamespaceSyntax qualifiedNamespace => qualifiedNamespace.Identifier?.Range,
 			QualifierSyntax qualifier => qualifier.Identifier?.Range,
