@@ -1,0 +1,5 @@
+struct iter int loopRange(int first, int last)
+{
+	for (int i = first; i <= last; i++)
+		yield i;
+}

@@ -6,6 +6,7 @@ namespace Camp.Compiler;
 public sealed partial class BindableNodeAnalyzer
 {
 	const string IteratorStateFieldName = "__state";
+	string? currentIteratorStateThisType;
 
 	void GenerateIteratorDeclarations(Module module)
 	{
@@ -182,7 +183,7 @@ public sealed partial class BindableNodeAnalyzer
 					Name = name,
 					Symbol = name,
 					Type = CloneType(declaration.Target.Type),
-					ResolvedType = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType
+					ResolvedType = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? FormatTypeReference(declaration.Target.Type)
 				});
 			}
 		}
@@ -344,13 +345,22 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		IteratorBodyLowering lowering = new(this, function, nextParameters[0], yieldSlots[0].ResolvedType ?? ErrorType);
-		List<Statement> rewrittenStatements = RewriteIteratorBodyStatements(function.Body, lowering);
-		BlockStatement body = new() { ResolvedType = "void" };
-		body.Statements.AddRange(lowering.CreateResumeDispatch());
-		foreach (Statement statement in rewrittenStatements)
-			body.Statements.Add(statement);
-		body.Statements.AddRange(lowering.CreateCompletion());
-		return body;
+		string? previousIteratorStateThisType = currentIteratorStateThisType;
+		currentIteratorStateThisType = $"{state.Name}*";
+		try
+		{
+			List<Statement> rewrittenStatements = RewriteIteratorBodyStatements(function.Body, lowering);
+			BlockStatement body = new() { ResolvedType = "void" };
+			body.Statements.AddRange(lowering.CreateResumeDispatch());
+			foreach (Statement statement in rewrittenStatements)
+				body.Statements.Add(statement);
+			body.Statements.AddRange(lowering.CreateCompletion());
+			return body;
+		}
+		finally
+		{
+			currentIteratorStateThisType = previousIteratorStateThisType;
+		}
 	}
 
 	List<Statement> RewriteIteratorBodyStatements(BlockStatement? body, IteratorBodyLowering lowering)
@@ -487,7 +497,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			Expression? value = RewriteIteratorExpression(declaration.InitialValue, lowering);
-			string type = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? ErrorType;
+			string type = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? FormatTypeReference(declaration.Target.Type);
 			value ??= new DefaultExpression { ResolvedType = type };
 
 			statements.Add(new ExpressionStatement
@@ -684,7 +694,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return new MemberReferenceExpression
 		{
-			Target = new ThisExpression(),
+			Target = new ThisExpression { ResolvedType = currentIteratorStateThisType },
 			Name = name,
 			ResolvedType = resolvedType
 		};
