@@ -1,0 +1,39 @@
+struct iter int valuesFromIf(bool flag)
+{
+	if (flag)
+		yield 1;
+	else
+		yield 2;
+}
+
+struct iter int valuesFromSwitch(int value)
+{
+	switch (value)
+	{
+		case 0:
+			yield 10;
+			break;
+		case 1:
+			yield 20;
+			break;
+		default:
+			yield 30;
+			break;
+	}
+}
+
+struct iter int valuesFromWhile(int count)
+{
+	int i = 0;
+	while (i < count)
+	{
+		yield i;
+		i++;
+	}
+}
+
+struct iter int valuesFromFor(int count)
+{
+	for (int i = 0; i < count; i++)
+		yield i;
+}

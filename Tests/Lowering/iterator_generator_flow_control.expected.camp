@@ -1,0 +1,174 @@
+valuesFromIfIter valuesFromIf(bool flag)
+{
+	return {.__state = 0, .flag = flag};
+}
+valuesFromSwitchIter valuesFromSwitch(int value)
+{
+	return {.__state = 0, .value = value};
+}
+valuesFromWhileIter valuesFromWhile(int count)
+{
+	return {.__state = 0, .count = count};
+}
+valuesFromForIter valuesFromFor(int count)
+{
+	return {.__state = 0, .count = count};
+}
+
+fixed struct valuesFromIfIter
+{
+	int __state;
+	bool flag;
+
+	bool next(int* current)
+	{
+		if (this.__state == -1)
+			return false;
+		if (this.__state == 1)
+			goto __iter_resume1;
+		if (this.__state == 2)
+			goto __iter_resume2;
+		if (this.flag)
+		{
+			*current = 1;
+			this.__state = 1;
+			return true;
+			__iter_resume1:
+			;
+		}
+		else
+		{
+			*current = 2;
+			this.__state = 2;
+			return true;
+			__iter_resume2:
+			;
+		}
+		this.__state = -1;
+		return false;
+	}
+
+	void destroy()
+	{
+	}
+}
+
+fixed struct valuesFromSwitchIter
+{
+	int __state;
+	int value;
+
+	bool next(int* current)
+	{
+		if (this.__state == -1)
+			return false;
+		if (this.__state == 1)
+			goto __iter_resume1;
+		if (this.__state == 2)
+			goto __iter_resume2;
+		if (this.__state == 3)
+			goto __iter_resume3;
+		{
+			switch (this.value)
+			{
+				case 0:
+				*current = 10;
+				this.__state = 1;
+				return true;
+				__iter_resume1:
+				;
+				goto __switch_break0;
+				case 1:
+				*current = 20;
+				this.__state = 2;
+				return true;
+				__iter_resume2:
+				;
+				goto __switch_break0;
+				default:
+				*current = 30;
+				this.__state = 3;
+				return true;
+				__iter_resume3:
+				;
+				goto __switch_break0;
+			}
+			__switch_break0:
+		}
+		this.__state = -1;
+		return false;
+	}
+
+	void destroy()
+	{
+	}
+}
+
+fixed struct valuesFromWhileIter
+{
+	int __state;
+	int count;
+	int i;
+
+	bool next(int* current)
+	{
+		if (this.__state == -1)
+			return false;
+		if (this.__state == 1)
+			goto __iter_resume1;
+		this.i = 0;
+		{
+			while (this.i < this.count)
+			{
+				*current = this.i;
+				this.__state = 1;
+				return true;
+				__iter_resume1:
+				;
+				this.i++;
+				__while_continue1:
+			}
+			__while_break2:
+		}
+		this.__state = -1;
+		return false;
+	}
+
+	void destroy()
+	{
+	}
+}
+
+fixed struct valuesFromForIter
+{
+	int __state;
+	int count;
+	int i;
+
+	bool next(int* current)
+	{
+		if (this.__state == -1)
+			return false;
+		if (this.__state == 1)
+			goto __iter_resume1;
+		this.i = 0;
+		{
+			for (/* missing */; this.i < this.count; this.i++)
+			{
+				*current = this.i;
+				this.__state = 1;
+				return true;
+				__iter_resume1:
+				;
+				__for_continue3:
+			}
+			__for_break4:
+		}
+		this.__state = -1;
+		return false;
+	}
+
+	void destroy()
+	{
+	}
+}

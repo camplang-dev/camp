@@ -414,6 +414,7 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					List<Statement> declarations = RewriteIteratorDeclaration(forStatement.Condition.Declaration, lowering);
 					forStatement.Condition.Declaration = null;
+					forStatement.Condition.Clauses.Insert(0, null);
 					for (int i = 0; i < forStatement.Condition.Clauses.Count; i++)
 						forStatement.Condition.Clauses[i] = RewriteIteratorExpression(forStatement.Condition.Clauses[i], lowering);
 					forStatement.Body = RewriteIteratorOptionalStatement(forStatement.Body, lowering);
@@ -534,6 +535,9 @@ public sealed partial class BindableNodeAnalyzer
 			case UnaryExpression unary:
 				unary.Operand = RewriteIteratorExpression(unary.Operand, lowering);
 				unary.Context = RewriteIteratorExpression(unary.Context, lowering);
+				break;
+			case PostfixUpdateExpression update:
+				update.Expression = RewriteIteratorExpression(update.Expression, lowering);
 				break;
 			case ParenthesizedExpression parenthesized:
 				parenthesized.Expression = RewriteIteratorExpression(parenthesized.Expression, lowering);
@@ -771,13 +775,13 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (ParameterDefinition parameter in function.Parameters)
 			{
 				if (!string.IsNullOrWhiteSpace(parameter.Name))
-					liftedTypes[parameter.Name] = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType;
+					liftedTypes[parameter.Name] = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type);
 			}
 			foreach (DeclarationStatement declaration in analyzer.EnumerateIteratorLocalDeclarations(function.Body))
 			{
 				foreach (string name in declaration.Target.Names)
 					if (name != "_")
-						liftedTypes[name] = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? ErrorType;
+						liftedTypes[name] = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? FormatTypeReference(declaration.Target.Type);
 			}
 		}
 
