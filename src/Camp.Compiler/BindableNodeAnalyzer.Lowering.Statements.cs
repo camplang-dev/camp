@@ -256,9 +256,153 @@ public sealed partial class BindableNodeAnalyzer
 
 	Statement RewriteForeachStatement(ForeachStatement foreachStatement)
 	{
-		return foreachStatement.IteratorNext is not null
-			? RewriteIteratorForeachStatement(foreachStatement)
-			: RewriteArrayForeachStatement(foreachStatement);
+		if (foreachStatement.IteratorNext is not null)
+			return RewriteIteratorForeachStatement(foreachStatement);
+		string sourceType = foreachStatement.Source?.ResolvedType ?? "";
+		if (TryGetIteratorProtocolCurrentTypes(sourceType, out _) || IsIteratorProtocolCallComponent(sourceType))
+			return RewriteIteratorProtocolForeachStatement(foreachStatement);
+		return RewriteArrayForeachStatement(foreachStatement);
+	}
+
+	bool IsIteratorProtocolCallComponent(string sourceType)
+	{
+		return TryGetCallableShape(sourceType, out CallableShape callable)
+			&& callable.Kind == "fn"
+			&& callable.ReturnType == "bool"
+			&& callable.Parameters.Count >= 2
+			&& callable.Parameters[0] == "void*";
+	}
+
+	Statement RewriteIteratorProtocolForeachStatement(ForeachStatement foreachStatement)
+	{
+		Expression? source = foreachStatement.Source;
+		bool hasComponents = TryCreateParamsComponentExpressions(source, out List<Expression> components) && components.Count == 2;
+		if (!hasComponents)
+		{
+			source = foreachStatement.Source is not null && ContainsUncaughtThrow(foreachStatement.Source)
+				? HoistThrowingExpression(foreachStatement.Source)
+				: LowerExpression(foreachStatement.Source);
+			hasComponents = TryCreateParamsComponentExpressions(source, out components) && components.Count == 2;
+		}
+		if (!hasComponents)
+		{
+			foreachStatement.Source = source;
+			if (foreachStatement.Body is not null)
+				foreachStatement.Body = RewriteStatement(foreachStatement.Body);
+			return foreachStatement;
+		}
+
+		Expression call = LowerExpression(components[0]) ?? components[0];
+		Expression context = LowerExpression(components[1]) ?? components[1];
+		if (!TryGetCallableShape(call.ResolvedType, out CallableShape callable) || callable.Parameters.Count < 2)
+			return RewriteArrayForeachStatement(foreachStatement);
+
+		string elementType = foreachStatement.Target.ResolvedType ?? TryGetPointerElementType(callable.Parameters[1]) ?? ErrorType;
+		DeclarationStatement callLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIterCall"), call.ResolvedType ?? BuildCallableType("fn", "bool", ["void*", AddPointer(elementType)]), TypeReferenceForResolvedName(call.ResolvedType ?? ErrorType), call);
+		DeclarationStatement contextLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIterContext"), context.ResolvedType ?? "void*", TypeReferenceForResolvedName(context.ResolvedType ?? "void*"), context);
+		DeclarationStatement currentLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachCurrent"), elementType, TypeReferenceForResolvedName(elementType), new DefaultExpression { ResolvedType = elementType });
+		Expression CallReference() => CreateVariableReference(callLocal.Target, callLocal.Target.ResolvedType ?? ErrorType);
+		Expression ContextReference() => CreateVariableReference(contextLocal.Target, contextLocal.Target.ResolvedType ?? "void*");
+		Expression CurrentReference() => CreateVariableReference(currentLocal.Target, elementType);
+
+		DeclarationStatement loopValue = new()
+		{
+			SourceSyntax = foreachStatement.SourceSyntax,
+			ResolvedType = "void",
+			InitialValue = CurrentReference()
+		};
+		loopValue.Target.SourceSyntax = foreachStatement.Target.SourceSyntax;
+		loopValue.Target.Type = foreachStatement.Target.Type is AutoTypeReference ? TypeReferenceForResolvedName(elementType) : CloneType(foreachStatement.Target.Type);
+		loopValue.Target.ResolvedType = elementType;
+		foreach (string name in foreachStatement.Target.Names)
+			loopValue.Target.Names.Add(name);
+
+		string continueLabel = NewGeneratedLabelName("foreach_continue");
+		string breakLabel = NewGeneratedLabelName("foreach_break");
+		BlockStatement loopBody = new() { SourceSyntax = foreachStatement.Body?.SourceSyntax ?? foreachStatement.SourceSyntax, ResolvedType = "void" };
+		Statement cleanupStatement = CreateIteratorProtocolCleanupStatement(CallReference(), ContextReference(), foreachStatement.SourceSyntax);
+		CleanupScope iteratorCleanupScope = new([cleanupStatement], RunBeforeCatch: true) { RunBeforeContinue = false };
+		if (currentFunctionReturnType != "void" && ContainsReturnStatement(foreachStatement.Body))
+		{
+			DeclarationStatement returnLocal = CreateGeneratedLocal(NewGeneratedLocalName("return"), currentFunctionReturnType, TypeReferenceForResolvedName(currentFunctionReturnType), new DefaultExpression { ResolvedType = currentFunctionReturnType });
+			iteratorCleanupScope.ReturnTarget = returnLocal.Target;
+			iteratorCleanupScope.ReturnType = currentFunctionReturnType;
+			currentStatementPrefix?.Add(returnLocal);
+		}
+		currentCleanupScopes.Add(iteratorCleanupScope);
+		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
+		List<Statement> bodyStatements = [loopValue];
+		if (foreachStatement.Body is not null)
+			bodyStatements.Add(foreachStatement.Body);
+		RewriteStatementList(bodyStatements);
+		currentLoopTransferTargets.RemoveAt(currentLoopTransferTargets.Count - 1);
+		currentCleanupScopes.RemoveAt(currentCleanupScopes.Count - 1);
+		loopBody.Statements.AddRange(bodyStatements);
+		loopBody.Statements.Add(new LabelStatement { Name = continueLabel, ResolvedType = "void" });
+
+		WhileStatement loop = new()
+		{
+			SourceSyntax = foreachStatement.SourceSyntax,
+			ResolvedType = "void",
+			Condition = LowerExpression(CreateIteratorProtocolCall(CallReference(), ContextReference(), CurrentReference(), foreachStatement.SourceSyntax)),
+			Body = loopBody
+		};
+		List<Statement> statements = [callLocal, contextLocal, currentLocal, loop, cleanupStatement];
+		bool hasCleanupExit = iteratorCleanupScope.ExitLabelName is not null;
+		string? doneLabel = hasCleanupExit ? NewGeneratedLabelName("foreach_done") : null;
+		if (doneLabel is not null)
+			statements.Add(new GotoStatement { TargetName = doneLabel, ResolvedType = "void" });
+		AppendCleanupScopeExit(statements, iteratorCleanupScope);
+		statements.Add(new LabelStatement { Name = breakLabel, ResolvedType = "void" });
+		if (doneLabel is not null)
+			statements.Add(new LabelStatement { Name = doneLabel, ResolvedType = "void" });
+		return CreateBlock(statements);
+	}
+
+	CallExpression CreateIteratorProtocolCall(Expression call, Expression context, Expression current, SyntaxNode? syntax)
+	{
+		return new CallExpression
+		{
+			SourceSyntax = syntax,
+			Target = call,
+			ResolvedType = "bool",
+			Arguments =
+			{
+				new ArgumentExpression { SourceSyntax = syntax, Value = context, ResolvedType = context.ResolvedType },
+				new ArgumentExpression
+				{
+					SourceSyntax = syntax,
+					Value = new UnaryExpression
+					{
+						SourceSyntax = syntax,
+						Operator = UnaryOperator.AddressOf,
+						Operand = current,
+						ResolvedType = AddPointer(current.ResolvedType ?? ErrorType)
+					},
+					ResolvedType = AddPointer(current.ResolvedType ?? ErrorType)
+				}
+			}
+		};
+	}
+
+	Statement CreateIteratorProtocolCleanupStatement(Expression call, Expression context, SyntaxNode? syntax)
+	{
+		return new ExpressionStatement
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Expression = new CallExpression
+			{
+				SourceSyntax = syntax,
+				Target = call,
+				ResolvedType = "bool",
+				Arguments =
+				{
+					new ArgumentExpression { SourceSyntax = syntax, Value = context, ResolvedType = context.ResolvedType },
+					new ArgumentExpression { SourceSyntax = syntax, Value = NullLiteral(syntax), ResolvedType = "#NULL" }
+				}
+			}
+		};
 	}
 
 	Statement RewriteArrayForeachStatement(ForeachStatement foreachStatement)

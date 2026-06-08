@@ -53,4 +53,15 @@ fixed struct countIter
 	{
 		countIter_op_delete(this);
 	}
+
+	static bool op_iter(void* ctx, int* current)
+	{
+		countIter* state = (countIter*)ctx;
+		if (current == null)
+		{
+			countIter_op_delete(state);
+			return false;
+		}
+		return countIter_next(state, current);
+	}
 }

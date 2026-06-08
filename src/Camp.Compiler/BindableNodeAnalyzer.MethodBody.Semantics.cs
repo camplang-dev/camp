@@ -93,6 +93,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (CanConvertPrimitiveStringToPointer(source, target))
 			return true;
 
+		if (CanConvertIteratorStateToProtocol(source, target))
+			return true;
+
 		if (source == "#NULL" && target == AllocatorType)
 			return true;
 
@@ -127,6 +130,18 @@ public sealed partial class BindableNodeAnalyzer
 			return CanImplicitlyConvertShape(sourceShape, targetShape);
 
 		return IsNumericType(source) && IsNumericType(target) && NumericRank(source) <= NumericRank(target);
+	}
+
+	bool CanConvertIteratorStateToProtocol(string source, string target)
+	{
+		if (!TryGetIteratorProtocolCurrentTypes(target, out List<string>? targetCurrentTypes) || targetCurrentTypes is null)
+			return false;
+
+		string stateType = TryGetPointerElementType(source) ?? source;
+		if (!TryFindIteratorNextMethod(stateType, out _, out string elementType))
+			return false;
+
+		return targetCurrentTypes.Count == 1 && CanImplicitlyConvert(elementType, targetCurrentTypes[0]);
 	}
 
 	bool CanLiftToOptional(string source, string target)
@@ -345,8 +360,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetArrayElementType(sourceType) is string arrayElement)
 			return isAwaited ? ReportType(syntax, "await foreach requires an async iter source, not an array.") : arrayElement;
 
-		if (sourceType.StartsWith("iter ", StringComparison.Ordinal) || sourceType.StartsWith("iter(", StringComparison.Ordinal))
-			return ReportType(syntax, isAwaited ? "await foreach requires an async iter source, not an iter source." : "Iterator foreach requires a lowered iterator state source.");
+		if (TryGetIteratorProtocolCurrentTypes(sourceType, out List<string>? currentTypes) && currentTypes is { Count: 1 })
+			return isAwaited ? ReportType(syntax, "await foreach requires an async iter source, not an iter source.") : currentTypes[0];
 
 		if (sourceType.StartsWith("async iter ", StringComparison.Ordinal) || sourceType.StartsWith("async iter(", StringComparison.Ordinal))
 			return ReportType(syntax, isAwaited ? "Async iterator foreach is not implemented yet." : "foreach requires an array or iterator state source.");

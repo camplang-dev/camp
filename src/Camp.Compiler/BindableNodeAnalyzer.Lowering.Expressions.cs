@@ -78,7 +78,9 @@ public sealed partial class BindableNodeAnalyzer
 				if (call.Target is MemberReferenceExpression callMemberTarget)
 				{
 					callMemberTarget.Target = LowerExpression(callMemberTarget.Target);
-					if (TryCreateParamsMemberComponentExpression(callMemberTarget, out Expression componentTarget))
+					if (TryCreateParamsComponentExpressions(callMemberTarget, out List<Expression> callTargetComponents) && callTargetComponents.Count == 1)
+						call.Target = callTargetComponents[0];
+					else if (!TryCreateParamsComponentExpressions(callMemberTarget, out _) && TryCreateParamsMemberComponentExpression(callMemberTarget, out Expression componentTarget))
 						call.Target = componentTarget;
 				}
 				else
@@ -94,6 +96,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (!flattenedInstanceCall)
 				{
 					TryRewriteStaticMemberInvocation(call);
+					TryRewriteIteratorProtocolInvocation(call);
 					TryRewriteDelegateInvocation(call);
 				}
 				ExpandParamsArguments(call);
@@ -235,6 +238,27 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryCreateParamsComponentExpressions(call.Target, out List<Expression> components) || components.Count != 2)
 			return false;
 		if (!TryGetCallableShape(components[0].ResolvedType, out CallableShape callable) || callable.Kind != "fn")
+			return false;
+		if (callable.Parameters.Count > 0 && call.Arguments.Count > 0 && call.Arguments[0].Value?.ResolvedType == callable.Parameters[0])
+			return false;
+
+		call.Target = components[0];
+		call.Arguments.Insert(0, new ArgumentExpression
+		{
+			SourceSyntax = components[1].SourceSyntax,
+			Value = components[1],
+			ResolvedType = components[1].ResolvedType
+		});
+		return true;
+	}
+
+	bool TryRewriteIteratorProtocolInvocation(CallExpression call)
+	{
+		if (!TryCreateParamsComponentExpressions(call.Target, out List<Expression> components) || components.Count != 2)
+			return false;
+		if (!TryGetCallableShape(components[0].ResolvedType, out CallableShape callable) || callable.Kind != "fn" || callable.ReturnType != "bool" || callable.Parameters.Count < 2 || callable.Parameters[0] != "void*")
+			return false;
+		if (call.Arguments.Count > 0 && call.Arguments[0].Value?.ResolvedType == callable.Parameters[0])
 			return false;
 
 		call.Target = components[0];

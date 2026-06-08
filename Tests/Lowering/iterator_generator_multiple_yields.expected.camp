@@ -41,4 +41,15 @@ fixed struct valuesIter
 	{
 		valuesIter_op_delete(this);
 	}
+
+	static bool op_iter(void* ctx, int* current)
+	{
+		valuesIter* state = (valuesIter*)ctx;
+		if (current == null)
+		{
+			valuesIter_op_delete(state);
+			return false;
+		}
+		return valuesIter_next(state, current);
+	}
 }

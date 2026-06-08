@@ -11,7 +11,8 @@ public sealed partial class BindableNodeAnalyzer
 		Structural,
 		Array,
 		Optional,
-		Delegate
+		Delegate,
+		Iter
 	}
 
 	sealed record ParamsComponentShape(ParamsComponentShapeKind Kind, string TypeName, List<ParamsComponent> Components);
@@ -102,6 +103,12 @@ public sealed partial class BindableNodeAnalyzer
 				typeName = type.ResolvedType ?? resolvedType ?? ErrorType;
 				AddDelegatePendingComponents(callable.ReturnType?.ResolvedType ?? ErrorType, GetExpandedCallableParameterTypes(callable.Parameters), prefix, components);
 				return true;
+
+			case IterTypeReference iter:
+				kind = ParamsComponentShapeKind.Iter;
+				typeName = type.ResolvedType ?? resolvedType ?? ErrorType;
+				AddIteratorPendingComponents(GetIteratorProtocolCurrentTypes(iter), prefix, components);
+				return true;
 		}
 
 		if (!string.IsNullOrWhiteSpace(resolvedType))
@@ -130,6 +137,14 @@ public sealed partial class BindableNodeAnalyzer
 				kind = ParamsComponentShapeKind.Delegate;
 				typeName = resolvedType;
 				AddDelegatePendingComponents(callable.ReturnType, GetExpandedCallableParameterTypes(callable.Parameters), prefix, components);
+				return true;
+			}
+
+			if (TryGetIteratorProtocolCurrentTypes(resolvedType, out List<string>? currentTypes) && currentTypes is not null)
+			{
+				kind = ParamsComponentShapeKind.Iter;
+				typeName = resolvedType;
+				AddIteratorPendingComponents(currentTypes, prefix, components);
 				return true;
 			}
 		}
@@ -261,6 +276,32 @@ public sealed partial class BindableNodeAnalyzer
 		string callType = BuildCallableType("fn", returnType, [contextType, .. parameterTypes]);
 		components.Add(new PendingParamsComponent("call", callType, [.. prefix, new ParamsNamePart("call", true)], null, ParamsComponentShapeKind.Delegate));
 		components.Add(new PendingParamsComponent("context", contextType, [.. prefix, new ParamsNamePart("context", false)], null, ParamsComponentShapeKind.Delegate));
+	}
+
+	void AddIteratorPendingComponents(List<string> currentTypes, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
+	{
+		string contextType = "void*";
+		List<string> parameterTypes = [contextType];
+		foreach (string currentType in currentTypes)
+			parameterTypes.Add(AddPointer(currentType));
+		string callType = BuildCallableType("fn", "bool", parameterTypes);
+		components.Add(new PendingParamsComponent("call", callType, [.. prefix, new ParamsNamePart("call", true)], null, ParamsComponentShapeKind.Iter));
+		components.Add(new PendingParamsComponent("context", contextType, [.. prefix, new ParamsNamePart("context", false)], null, ParamsComponentShapeKind.Iter));
+	}
+
+	List<string> GetIteratorProtocolCurrentTypes(IterTypeReference iter)
+	{
+		List<string> types = [];
+		if (iter.Parameters.Count == 0)
+		{
+			types.Add(iter.ElementType?.ResolvedType ?? FormatTypeReference(iter.ElementType));
+			return types;
+		}
+
+		foreach (ParameterDefinition parameter in iter.Parameters)
+			if (parameter.Modifier != ParameterModifier.Thrown)
+				types.Add(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type));
+		return types;
 	}
 
 	List<string> GetExpandedCallableParameterTypes(List<ParameterDefinition> parameters)

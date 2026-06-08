@@ -3,20 +3,30 @@ enum RangeError
 	OK = 0,
 	BAD
 }
-iter(int, thrown RangeError error) getRange()
+fn bool(void*, int*) getRange(out void* result_context)
 {
-	return default;
+	{
+		result_context = default;
+		return default;
+	}
 }
-async iter(const char[]? line) getLines()
+async fn bool(void*, const char[]?*) getLines(out void* result_context)
 {
-	return default;
+	{
+		result_context = default;
+		return default;
+	}
 }
 void main()
 {
-	iter(int, thrown RangeError error) values = default;
-	async iter(const char[]? line) lines = default;
-	iter(int, thrown RangeError) __discard1;
-	__discard1 = values;
-	async iter(const char[]?) __discard2;
-	__discard2 = lines;
+	fn bool(void*, int*) values = default;
+	void* values_context = default;
+	fn bool(void*, const char[]?*) lines;
+	void* lines_context;
+	{
+		_ = values;
+		__context = values_context;
+	}
+	async iter(const char[]?) __discard1;
+	__discard1 = lines;
 }

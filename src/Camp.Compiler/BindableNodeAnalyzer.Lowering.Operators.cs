@@ -68,8 +68,61 @@ public sealed partial class BindableNodeAnalyzer
 		if (initializer is null)
 			return;
 
-		foreach (InitializerItem item in initializer.Items)
+		for (int i = 0; i < initializer.Items.Count; i++)
+		{
+			InitializerItem item = initializer.Items[i];
 			item.Expression = LowerExpression(item.Expression);
+			if (!TryExpandInitializerItem(item, out List<InitializerItem>? expandedItems))
+				continue;
+
+			initializer.Items.RemoveAt(i);
+			initializer.Items.InsertRange(i, expandedItems);
+			i += expandedItems.Count - 1;
+		}
+	}
+
+	bool TryExpandInitializerItem(InitializerItem item, out List<InitializerItem> expandedItems)
+	{
+		expandedItems = [];
+		string? targetName = GetSingleInitializerTargetName(item.Target);
+		if (targetName is null || !TryCreateParamsComponentExpressions(item.Expression, out List<Expression> components) || components.Count <= 1)
+			return false;
+
+		for (int i = 0; i < components.Count; i++)
+		{
+			Expression component = components[i];
+			string? componentName = GetInitializerComponentName(component);
+			if (componentName is null)
+				return false;
+			if (i == 0 && componentName != targetName)
+				return false;
+
+			expandedItems.Add(new InitializerItem
+			{
+				SourceSyntax = item.SourceSyntax,
+				Target = InitializerTargetFor(componentName),
+				Expression = component,
+				ResolvedType = component.ResolvedType
+			});
+		}
+
+		return expandedItems.Count > 1;
+	}
+
+	static string? GetSingleInitializerTargetName(InitializerTarget? target)
+	{
+		return target?.Parts.Count == 1 ? target.Parts[0].Name : null;
+	}
+
+	static string? GetInitializerComponentName(Expression? expression)
+	{
+		return expression switch
+		{
+			NamedExpression named => named.Name,
+			MemberReferenceExpression member => member.Name,
+			VariableReferenceExpression variable => GetReferenceName(variable.Variable),
+			_ => null
+		};
 	}
 
 	Expression RewriteConstruction(ConstructionExpression construction)

@@ -10,6 +10,7 @@ static int firstValue(void);
 static bool valuesIter_next(valuesIter *this, int* current);
 static void valuesIter_op_delete(valuesIter *this);
 static void valuesIter_destroy(valuesIter *this);
+static bool valuesIter_iter(void* ctx, int* current);
 
 static void cleanup(void)
 {
@@ -89,6 +90,17 @@ static void valuesIter_op_delete(valuesIter *this)
 static void valuesIter_destroy(valuesIter *this)
 {
 	valuesIter_op_delete(this);
+}
+
+static bool valuesIter_iter(void* ctx, int* current)
+{
+	valuesIter* state = (valuesIter *)(ctx);
+	if ((current == NULL))
+	{
+		(valuesIter_op_delete(state), free((void *)(state)));
+		return false;
+	}
+	return valuesIter_next(state, current);
 }
 
 // file: class_iterator_foreach_cleanup_private.h

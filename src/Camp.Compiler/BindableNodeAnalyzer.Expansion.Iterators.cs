@@ -126,6 +126,7 @@ public sealed partial class BindableNodeAnalyzer
 		AddIteratorLiftedLocalFields(state, function);
 		AddIteratorNextMethod(state, function, iterType);
 		AddIteratorDestructor(state, function);
+		AddIteratorProtocolAdapter(state, iterType);
 	}
 
 	void AddIteratorStateFields(TypeDefinition state, FunctionDefinition function)
@@ -143,6 +144,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (IsHiddenParameter(parameter) || parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 				continue;
+			string parameterType = ResolvedTypeForIteratorExpansion(parameter.Type, parameter.ResolvedType);
 
 			AddIteratorField(state, new FieldDefinition
 			{
@@ -150,7 +152,7 @@ public sealed partial class BindableNodeAnalyzer
 				Name = parameter.Name,
 				Symbol = parameter.Name,
 				Type = CloneType(parameter.Type),
-				ResolvedType = parameter.ResolvedType
+				ResolvedType = parameterType
 			});
 		}
 	}
@@ -322,8 +324,12 @@ public sealed partial class BindableNodeAnalyzer
 				Expression = ThisMemberReference(fields.IteratorFieldName, fields.IteratorType)
 			});
 		}
+		IteratorBodyLowering cleanupLowering = new(this, sourceFunction, new ParameterDefinition { Name = "current", Symbol = "current", ResolvedType = "void*" }, ErrorType);
 		foreach (Statement cleanup in GetTopLevelIteratorFinallyStatements(sourceFunction))
-			cleanupBody.Statements.Add(CloneStatementForCleanup(cleanup));
+		{
+			foreach (Statement rewrittenCleanup in RewriteIteratorStatement(CloneStatementForCleanup(cleanup), cleanupLowering))
+				cleanupBody.Statements.Add(rewrittenCleanup);
+		}
 		cleanupBody.Statements.Add(SetIteratorStateExpression(-1));
 		opDelete.Body.Statements.Add(new IfStatement
 		{
@@ -361,6 +367,145 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		AddIteratorFunction(state, destroy);
 		currentIteratorStateThisType = previousIteratorStateThisType;
+	}
+
+	void AddIteratorProtocolAdapter(TypeDefinition state, IterTypeReference iterType)
+	{
+		List<ParameterDefinition> slots = GetIteratorYieldSlots(iterType);
+		if (slots.Count != 1)
+			return;
+
+		string slotType = slots[0].ResolvedType ?? slots[0].Type?.ResolvedType ?? FormatTypeReference(slots[0].Type);
+		FunctionDefinition? next = null;
+		FunctionDefinition? opDelete = null;
+		foreach (FunctionDefinition function in GetFunctions(state))
+		{
+			if (function.Name == "next")
+				next = function;
+			else if (function.Name == DeleteMethodName)
+				opDelete = function;
+		}
+		if (next is null || opDelete is null)
+			return;
+
+		ParameterDefinition context = new()
+		{
+			Name = "ctx",
+			Symbol = "ctx",
+			Type = PointerTo(VoidType()),
+			ResolvedType = "void*"
+		};
+		ParameterDefinition current = new()
+		{
+			Name = "current",
+			Symbol = "current",
+			Type = PointerTo(CloneType(slots[0].Type) ?? TypeReferenceForResolvedName(slotType)),
+			ResolvedType = AddPointer(slotType)
+		};
+		TypeReference statePointerType = PointerTo(TypeReferenceFor(state));
+		string statePointerResolvedType = AddPointer(state.Name);
+		DeclarationStatement stateLocal = CreateGeneratedLocal("state", statePointerResolvedType, statePointerType, new CastExpression
+		{
+			Type = CloneType(statePointerType),
+			Expression = CreateVariableReference(context, "void*"),
+			ResolvedType = statePointerResolvedType
+		});
+		Expression stateReference = CreateVariableReference(stateLocal.Target, statePointerResolvedType);
+		FunctionDefinition adapter = new()
+		{
+			Name = "op_iter",
+			Symbol = $"{state.Name}_iter",
+			Modifier = FunctionModifier.Static,
+			Export = state.Export,
+			ReturnType = new PrimitiveTypeReference { Type = PrimitiveType.Bool, ResolvedType = "bool" },
+			ResolvedType = "bool",
+			Body = new BlockStatement
+			{
+				ResolvedType = "void",
+				Statements =
+				{
+					stateLocal,
+					new IfStatement
+					{
+						ResolvedType = "void",
+						Condition = new BinaryExpression
+						{
+							Left = CreateVariableReference(current, current.ResolvedType),
+							Operator = BinaryOperator.Equal,
+							Right = NullLiteral(),
+							ResolvedType = "bool"
+						},
+						Body = new BlockStatement
+						{
+							ResolvedType = "void",
+							Statements =
+							{
+								CreateIteratorAdapterCleanup(state, stateReference, opDelete),
+								new ReturnStatement
+								{
+									Expression = new LiteralExpression { Kind = LiteralKind.False, Text = "false", Value = false, ResolvedType = "bool" },
+									ResolvedType = "void"
+								}
+							}
+						}
+					},
+					new ReturnStatement
+					{
+						ResolvedType = "void",
+						Expression = new CallExpression
+						{
+							Target = new MemberReferenceExpression
+							{
+								Target = CreateVariableReference(stateLocal.Target, statePointerResolvedType),
+								Name = "next",
+								Member = next,
+								ResolvedType = BuildFunctionValueType(next, isInstance: true)
+							},
+							Arguments =
+							{
+								new ArgumentExpression
+								{
+									Value = CreateVariableReference(current, current.ResolvedType),
+									ResolvedType = current.ResolvedType
+								}
+							},
+							ResolvedType = "bool"
+						}
+					}
+				}
+			}
+		};
+		adapter.Parameters.Add(context);
+		adapter.Parameters.Add(current);
+		AddIteratorFunction(state, adapter);
+	}
+
+	Statement CreateIteratorAdapterCleanup(TypeDefinition state, Expression stateReference, FunctionDefinition opDelete)
+	{
+		if (state is ClassDefinition)
+		{
+			return new DeleteStatement
+			{
+				ResolvedType = "void",
+				Expression = stateReference
+			};
+		}
+
+		return new ExpressionStatement
+		{
+			ResolvedType = "void",
+			Expression = new CallExpression
+			{
+				Target = new MemberReferenceExpression
+				{
+					Target = stateReference,
+					Name = DeleteMethodName,
+					Member = opDelete,
+					ResolvedType = BuildFunctionValueType(opDelete, isInstance: true)
+				},
+				ResolvedType = "void"
+			}
+		};
 	}
 
 	ExpressionStatement SetIteratorStateExpression(int state)
@@ -406,6 +551,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (IsHiddenParameter(parameter) || parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 				continue;
+			string parameterType = ResolvedTypeForIteratorExpansion(parameter.Type, parameter.ResolvedType);
 
 			initializer.Items.Add(new InitializerItem
 			{
@@ -414,9 +560,9 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					SourceSyntax = parameter.SourceSyntax,
 					Name = parameter.Name,
-					ResolvedType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type)
+					ResolvedType = parameterType
 				},
-				ResolvedType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type)
+				ResolvedType = parameterType
 			});
 		}
 
@@ -996,6 +1142,50 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string baseName = function.Name.TrimStart('~') + "Iter";
 		return containingType is null ? baseName : containingType.Name + "_" + baseName;
+	}
+
+	string ResolvedTypeForIteratorExpansion(TypeReference? type, string? resolvedType)
+	{
+		if (!string.IsNullOrWhiteSpace(resolvedType) && resolvedType != UnresolvedType && resolvedType != ErrorType)
+			return resolvedType;
+		return type switch
+		{
+			null => ErrorType,
+			AttributedTypeReference attributed => ResolvedTypeForIteratorExpansion(attributed.Type, attributed.ResolvedType),
+			ConstTypeReference constant => "const " + ResolvedTypeForIteratorExpansion(constant.Type, constant.ResolvedType),
+			PointerTypeReference pointer => AddPointer(ResolvedTypeForIteratorExpansion(pointer.ElementType, pointer.ElementType?.ResolvedType)),
+			ArrayTypeReference array => ResolvedTypeForIteratorExpansion(array.ElementType, array.ElementType?.ResolvedType) + "[]",
+			OptionalTypeReference optional => ResolvedTypeForIteratorExpansion(optional.ElementType, optional.ElementType?.ResolvedType) + "?",
+			PrimitiveTypeReference primitive => GetPrimitiveTypeName(primitive.Type),
+			CallableTypeReference callable => BuildCallableType(GetCallableKindName(callable.Kind), ResolvedTypeForIteratorExpansion(callable.ReturnType, callable.ReturnType?.ResolvedType), GetIteratorExpansionParameterTypes(callable.Parameters)),
+			IterTypeReference iter => ResolvedIteratorTypeForExpansion(iter),
+			NamedTypeReference named => named.ResolvedType ?? named.Name,
+			TypeDefinitionReference definition => definition.ResolvedType ?? definition.Name,
+			GenericParameterTypeReference generic => generic.ResolvedType ?? generic.Name,
+			_ => type.ResolvedType ?? FormatTypeReference(type)
+		};
+	}
+
+	List<string> GetIteratorExpansionParameterTypes(List<ParameterDefinition> parameters)
+	{
+		List<string> types = [];
+		foreach (ParameterDefinition parameter in parameters)
+			types.Add(ResolvedTypeForIteratorExpansion(parameter.Type, parameter.ResolvedType));
+		return types;
+	}
+
+	string ResolvedIteratorTypeForExpansion(IterTypeReference iter)
+	{
+		if (iter.Parameters.Count == 0)
+			return $"{(iter.IsAsync ? "async iter" : "iter")} {ResolvedTypeForIteratorExpansion(iter.ElementType, iter.ElementType?.ResolvedType)}";
+
+		List<string> slots = [];
+		foreach (ParameterDefinition parameter in iter.Parameters)
+		{
+			string type = ResolvedTypeForIteratorExpansion(parameter.Type, parameter.ResolvedType);
+			slots.Add(parameter.Modifier == ParameterModifier.Thrown ? $"thrown {type}" : type);
+		}
+		return $"{(iter.IsAsync ? "async iter" : "iter")}({string.Join(", ", slots)})";
 	}
 
 	sealed record IteratorForeachStateFields(string IteratorFieldName, string CurrentFieldName, string IteratorType, string ElementType);

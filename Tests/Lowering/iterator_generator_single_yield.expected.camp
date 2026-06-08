@@ -42,4 +42,15 @@ fixed struct singleValueIter
 	{
 		singleValueIter_op_delete(this);
 	}
+
+	static bool op_iter(void* ctx, int* current)
+	{
+		singleValueIter* state = (singleValueIter*)ctx;
+		if (current == null)
+		{
+			singleValueIter_op_delete(state);
+			return false;
+		}
+		return singleValueIter_next(state, current);
+	}
 }

@@ -45,6 +45,17 @@ fixed struct innerIter
 	{
 		innerIter_op_delete(this);
 	}
+
+	static bool op_iter(void* ctx, int* current)
+	{
+		innerIter* state = (innerIter*)ctx;
+		if (current == null)
+		{
+			innerIter_op_delete(state);
+			return false;
+		}
+		return innerIter_next(state, current);
+	}
 }
 
 fixed struct outerIter
@@ -93,5 +104,16 @@ fixed struct outerIter
 	void destroy()
 	{
 		outerIter_op_delete(this);
+	}
+
+	static bool op_iter(void* ctx, int* current)
+	{
+		outerIter* state = (outerIter*)ctx;
+		if (current == null)
+		{
+			outerIter_op_delete(state);
+			return false;
+		}
+		return outerIter_next(state, current);
 	}
 }

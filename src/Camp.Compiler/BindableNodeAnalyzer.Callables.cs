@@ -16,6 +16,15 @@ public sealed partial class BindableNodeAnalyzer
 		if (type is null)
 			return false;
 
+		if (TryGetIteratorProtocolCurrentTypes(type, out List<string>? currentTypes) && currentTypes is not null)
+		{
+			List<string> parameters = [];
+			foreach (string currentType in currentTypes)
+				parameters.Add(AddPointer(currentType));
+			shape = new CallableShape("iter", null, null, "bool", parameters);
+			return true;
+		}
+
 		if (TryParseCallableShape(type, out shape))
 			return true;
 
@@ -28,6 +37,32 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
+		return false;
+	}
+
+	static bool TryGetIteratorProtocolCurrentTypes(string type, out List<string>? currentTypes)
+	{
+		currentTypes = null;
+		if (type.StartsWith("iter ", StringComparison.Ordinal))
+		{
+			currentTypes = [type["iter ".Length..].Trim()];
+			return currentTypes[0].Length > 0;
+		}
+		if (type.StartsWith("iter(", StringComparison.Ordinal))
+		{
+			currentTypes = [];
+			string slots = type["iter(".Length..];
+			if (slots.EndsWith(")", StringComparison.Ordinal))
+				slots = slots[..^1];
+			foreach (string slot in SplitCallableParameterTypes(slots))
+			{
+				if (slot.StartsWith("thrown ", StringComparison.Ordinal))
+					continue;
+				if (slot.Length > 0)
+					currentTypes.Add(slot);
+			}
+			return currentTypes.Count > 0;
+		}
 		return false;
 	}
 

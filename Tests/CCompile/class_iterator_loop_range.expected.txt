@@ -3,10 +3,12 @@
 
 /* Private file declarations. */
 void* malloc(uintptr_t size);
+void free(void* ptr);
 static loopRangeIter* loopRange(int first, int last);
 static bool loopRangeIter_next(loopRangeIter *this, int* current);
 static void loopRangeIter_op_delete(loopRangeIter *this);
 static void loopRangeIter_destroy(loopRangeIter *this);
+static bool loopRangeIter_iter(void* ctx, int* current);
 
 static loopRangeIter* loopRange(int first, int last)
 {
@@ -55,6 +57,17 @@ static void loopRangeIter_op_delete(loopRangeIter *this)
 static void loopRangeIter_destroy(loopRangeIter *this)
 {
 	loopRangeIter_op_delete(this);
+}
+
+static bool loopRangeIter_iter(void* ctx, int* current)
+{
+	loopRangeIter* state = (loopRangeIter *)(ctx);
+	if ((current == NULL))
+	{
+		(loopRangeIter_op_delete(state), free((void *)(state)));
+		return false;
+	}
+	return loopRangeIter_next(state, current);
 }
 
 // file: class_iterator_loop_range_private.h

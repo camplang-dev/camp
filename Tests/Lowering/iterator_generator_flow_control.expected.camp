@@ -60,6 +60,17 @@ fixed struct valuesFromIfIter
 	{
 		valuesFromIfIter_op_delete(this);
 	}
+
+	static bool op_iter(void* ctx, int* current)
+	{
+		valuesFromIfIter* state = (valuesFromIfIter*)ctx;
+		if (current == null)
+		{
+			valuesFromIfIter_op_delete(state);
+			return false;
+		}
+		return valuesFromIfIter_next(state, current);
+	}
 }
 
 fixed struct valuesFromSwitchIter
@@ -120,6 +131,17 @@ fixed struct valuesFromSwitchIter
 	{
 		valuesFromSwitchIter_op_delete(this);
 	}
+
+	static bool op_iter(void* ctx, int* current)
+	{
+		valuesFromSwitchIter* state = (valuesFromSwitchIter*)ctx;
+		if (current == null)
+		{
+			valuesFromSwitchIter_op_delete(state);
+			return false;
+		}
+		return valuesFromSwitchIter_next(state, current);
+	}
 }
 
 fixed struct valuesFromWhileIter
@@ -164,6 +186,17 @@ fixed struct valuesFromWhileIter
 	{
 		valuesFromWhileIter_op_delete(this);
 	}
+
+	static bool op_iter(void* ctx, int* current)
+	{
+		valuesFromWhileIter* state = (valuesFromWhileIter*)ctx;
+		if (current == null)
+		{
+			valuesFromWhileIter_op_delete(state);
+			return false;
+		}
+		return valuesFromWhileIter_next(state, current);
+	}
 }
 
 fixed struct valuesFromForIter
@@ -206,5 +239,16 @@ fixed struct valuesFromForIter
 	void destroy()
 	{
 		valuesFromForIter_op_delete(this);
+	}
+
+	static bool op_iter(void* ctx, int* current)
+	{
+		valuesFromForIter* state = (valuesFromForIter*)ctx;
+		if (current == null)
+		{
+			valuesFromForIter_op_delete(state);
+			return false;
+		}
+		return valuesFromForIter_next(state, current);
 	}
 }

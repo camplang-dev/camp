@@ -1,4 +1,5 @@
 extern void* malloc(nuint size);
+extern void free(void* ptr);
 
 class iter int loopRange(int first, int last)
 {

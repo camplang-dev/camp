@@ -167,7 +167,8 @@ public sealed partial class BindableNodeAnalyzer
 		type = UnwrapTypeDeclarators(type);
 		return type is ArrayTypeReference
 			or OptionalTypeReference
-			or CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once or CallableKind.Async };
+			or CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once or CallableKind.Async }
+			or IterTypeReference;
 	}
 
 	void ValidateTargetCallSpec(string? callSpec, SyntaxNode? syntax)

@@ -1,0 +1,308 @@
+// file: iterator_protocol_filter.c
+#include "iterator_protocol_filter_private.h"
+#include "iterator_protocol_filter.h"
+
+/* Private file declarations. */
+void* malloc(uintptr_t size);
+void free(void* ptr);
+static rangeIter* range(int first, int last);
+static applyPredicateIter applyPredicate(fn_bool_voidPtr__intPtr_ inner, void* inner_context, bool (* predicate)(int camp));
+static applyPredicateExplicitIter applyPredicateExplicit(fn_bool_voidPtr__intPtr_ inner, void* inner_context, bool (* predicate)(int camp));
+static bool isEven(int number);
+static bool rangeIter_next(rangeIter *this, int* current);
+static void rangeIter_op_delete(rangeIter *this);
+static void rangeIter_destroy(rangeIter *this);
+static bool rangeIter_iter(void* ctx, int* current);
+static bool applyPredicateIter_next(applyPredicateIter *this, int* current);
+static void applyPredicateIter_op_delete(applyPredicateIter *this);
+static void applyPredicateIter_destroy(applyPredicateIter *this);
+static bool applyPredicateIter_iter(void* ctx, int* current);
+static bool applyPredicateExplicitIter_next(applyPredicateExplicitIter *this, int* current);
+static void applyPredicateExplicitIter_op_delete(applyPredicateExplicitIter *this);
+static void applyPredicateExplicitIter_destroy(applyPredicateExplicitIter *this);
+static bool applyPredicateExplicitIter_iter(void* ctx, int* current);
+
+static rangeIter* range(int first, int last)
+{
+	rangeIter* _iter0 = (rangeIter *)(malloc(sizeof(rangeIter)));
+	_iter0->__state = 0;
+	_iter0->first = first;
+	_iter0->last = last;
+	return _iter0;
+}
+
+static applyPredicateIter applyPredicate(fn_bool_voidPtr__intPtr_ inner, void* inner_context, bool (* predicate)(int camp))
+{
+	return (applyPredicateIter){ .__state = 0, .inner = inner, .inner_context = inner_context, .predicate = predicate };
+}
+
+static applyPredicateExplicitIter applyPredicateExplicit(fn_bool_voidPtr__intPtr_ inner, void* inner_context, bool (* predicate)(int camp))
+{
+	return (applyPredicateExplicitIter){ .__state = 0, .inner = inner, .inner_context = inner_context, .predicate = predicate };
+}
+
+static bool isEven(int number)
+{
+	return ((number % 2) == 0);
+}
+
+void run(void)
+{
+	{
+		applyPredicateIter _foreachIter1 = applyPredicate(rangeIter_iter, range(2, 10), isEven);
+		int _foreachCurrent2 = 0;
+		while (applyPredicateIter_next(&_foreachIter1, &_foreachCurrent2))
+		{
+			int number1 = _foreachCurrent2;
+			{
+			}
+__foreach_continue3:
+		}
+		applyPredicateIter_op_delete(&_foreachIter1);
+__foreach_break4:
+	}
+	{
+		applyPredicateExplicitIter _foreachIter5 = applyPredicateExplicit(rangeIter_iter, range(22, 30), isEven);
+		int _foreachCurrent6 = 0;
+		while (applyPredicateExplicitIter_next(&_foreachIter5, &_foreachCurrent6))
+		{
+			int number2 = _foreachCurrent6;
+			{
+			}
+__foreach_continue7:
+		}
+		applyPredicateExplicitIter_op_delete(&_foreachIter5);
+__foreach_break8:
+	}
+}
+
+static bool rangeIter_next(rangeIter *this, int* current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	this->i = this->first;
+	{
+		for (; (this->i <= this->last); this->i++)
+		{
+			*current = this->i;
+			this->__state = 1;
+			return true;
+__iter_resume1:
+			;
+__for_continue9:
+		}
+__for_break10:
+	}
+	this->__state = -1;
+	return false;
+}
+
+static void rangeIter_op_delete(rangeIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static void rangeIter_destroy(rangeIter *this)
+{
+	rangeIter_op_delete(this);
+}
+
+static bool rangeIter_iter(void* ctx, int* current)
+{
+	rangeIter* state = (rangeIter *)(ctx);
+	if ((current == NULL))
+	{
+		(rangeIter_op_delete(state), free((void *)(state)));
+		return false;
+	}
+	return rangeIter_next(state, current);
+}
+
+static bool applyPredicateIter_next(applyPredicateIter *this, int* current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	{
+		fn_bool_voidPtr__intPtr_ _foreachIterCall11 = this->inner;
+		void* _foreachIterContext12 = this->inner_context;
+		int _foreachCurrent13 = 0;
+		while (_foreachIterCall11(_foreachIterContext12, &_foreachCurrent13))
+		{
+			int value = _foreachCurrent13;
+			{
+				if (this->predicate(value))
+				{
+					*current = value;
+					this->__state = 1;
+					return true;
+__iter_resume1:
+					;
+				}
+			}
+__foreach_continue14:
+		}
+		_foreachIterCall11(_foreachIterContext12, NULL);
+__foreach_break15:
+	}
+	this->__state = -1;
+	return false;
+}
+
+static void applyPredicateIter_op_delete(applyPredicateIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static void applyPredicateIter_destroy(applyPredicateIter *this)
+{
+	applyPredicateIter_op_delete(this);
+}
+
+static bool applyPredicateIter_iter(void* ctx, int* current)
+{
+	applyPredicateIter* state = (applyPredicateIter *)(ctx);
+	if ((current == NULL))
+	{
+		applyPredicateIter_op_delete(state);
+		return false;
+	}
+	return applyPredicateIter_next(state, current);
+}
+
+static bool applyPredicateExplicitIter_next(applyPredicateExplicitIter *this, int* current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	this->value = 0;
+	{
+		while (this->inner(this->inner_context, &this->value))
+		{
+			if (this->predicate(this->value))
+			{
+				*current = this->value;
+				this->__state = 1;
+				return true;
+__iter_resume1:
+				;
+			}
+__while_continue16:
+		}
+__while_break17:
+	}
+	this->inner(this->inner_context, NULL);
+	this->__state = -1;
+	return false;
+}
+
+static void applyPredicateExplicitIter_op_delete(applyPredicateExplicitIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->inner(this->inner_context, NULL);
+		this->__state = -1;
+	}
+}
+
+static void applyPredicateExplicitIter_destroy(applyPredicateExplicitIter *this)
+{
+	applyPredicateExplicitIter_op_delete(this);
+}
+
+static bool applyPredicateExplicitIter_iter(void* ctx, int* current)
+{
+	applyPredicateExplicitIter* state = (applyPredicateExplicitIter *)(ctx);
+	if ((current == NULL))
+	{
+		applyPredicateExplicitIter_op_delete(state);
+		return false;
+	}
+	return applyPredicateExplicitIter_next(state, current);
+}
+
+// file: iterator_protocol_filter.h
+#ifndef ITERATOR_PROTOCOL_FILTER_H_
+#define ITERATOR_PROTOCOL_FILTER_H_
+
+#include "iterator_protocol_filter_private.h"
+
+void run(void);
+
+#endif
+// file: iterator_protocol_filter_private.h
+#ifndef ITERATOR_PROTOCOL_FILTER_PRIVATE_H_
+#define ITERATOR_PROTOCOL_FILTER_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct rangeIter rangeIter;
+typedef struct applyPredicateIter applyPredicateIter;
+typedef struct applyPredicateExplicitIter applyPredicateExplicitIter;
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef bool (* fn_bool_int_)(int arg0);
+typedef bool (* fn_bool_voidPtr__intPtr_)(void* arg0, int* arg1);
+
+/* Enums. */
+
+/* Layouts. */
+struct rangeIter
+{
+	int __state;
+	int first;
+	int last;
+	int i;
+};
+struct applyPredicateIter
+{
+	int __state;
+	fn_bool_voidPtr__intPtr_ inner;
+	void* inner_context;
+	bool (* predicate)(int camp);
+};
+struct applyPredicateExplicitIter
+{
+	int __state;
+	fn_bool_voidPtr__intPtr_ inner;
+	void* inner_context;
+	bool (* predicate)(int camp);
+	int value;
+};
+
+/* Function declarations. */
+void run(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: iterator_protocol_filter.c

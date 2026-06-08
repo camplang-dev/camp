@@ -25,6 +25,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components))
 			{
 				if (!TryCreateLiftedOptionalArgumentComponents(argument, out components)
+					&& !TryCreateIteratorToProtocolArgumentComponents(argument, callableParameters, i, out components)
 					&& !TryCreateFunctionToDelegateArgumentComponents(argument, callableParameters, i, out components))
 					continue;
 			}
@@ -87,6 +88,51 @@ public sealed partial class BindableNodeAnalyzer
 		components.Add(argument.Value);
 		components.Add(NullLiteral(argument.SourceSyntax));
 		return true;
+	}
+
+	bool TryCreateIteratorToProtocolArgumentComponents(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index, out List<Expression> components)
+	{
+		components = [];
+		if (argument.Value is null || callableParameters is null || index + 1 >= callableParameters.Count)
+			return false;
+		if (!TryGetCallableShape(callableParameters[index].ResolvedType, out CallableShape target) || target.Kind != "fn" || target.ReturnType != "bool")
+			return false;
+		if (callableParameters[index + 1].ResolvedType != "void*")
+			return false;
+
+		string sourceType = argument.Value.ResolvedType ?? ErrorType;
+		string stateTypeName = TryGetPointerElementType(sourceType) ?? sourceType;
+		if (GetTypeDefinition(stateTypeName) is not TypeDefinition stateType)
+			return false;
+		FunctionDefinition? adapter = null;
+		foreach (FunctionDefinition function in GetFunctions(stateType))
+		{
+			if (function.Name == "op_iter")
+			{
+				adapter = function;
+				break;
+			}
+		}
+		if (adapter is null || !TryGetCallableShape(BuildFunctionValueType(adapter, isInstance: false), out CallableShape source) || !CallableShapesCompatible(source, target))
+			return false;
+
+		components.Add(CreateMethodReference(adapter, BuildFunctionValueType(adapter, isInstance: false)));
+		components.Add(CreateIteratorProtocolContext(argument.Value, sourceType, stateTypeName));
+		return true;
+	}
+
+	Expression CreateIteratorProtocolContext(Expression value, string sourceType, string stateTypeName)
+	{
+		if (TryGetPointerElementType(sourceType) is not null)
+			return value;
+
+		return new UnaryExpression
+		{
+			SourceSyntax = value.SourceSyntax,
+			Operator = UnaryOperator.AddressOf,
+			Operand = value,
+			ResolvedType = AddPointer(stateTypeName)
+		};
 	}
 
 	bool TryRewriteParamsAssignment(AssignmentExpression assignment, out List<Statement> statements)
@@ -159,6 +205,18 @@ public sealed partial class BindableNodeAnalyzer
 				components.Add(member.Target);
 				return true;
 
+			case VariableReferenceExpression variable
+				when TryCreateIteratorProtocolComponentsFromExpandedCall(variable, out components):
+				return true;
+
+			case MemberReferenceExpression member
+				when TryCreateIteratorProtocolComponentsFromExpandedCall(member, out components):
+				return true;
+
+			case Expression protocol
+				when TryCreateIteratorProtocolComponentsFromProtocolValue(protocol, out components):
+				return true;
+
 			case MemberReferenceExpression { Target: not null } member
 				when TryCreateParamsMemberComponentExpression(member, out Expression? component):
 				components.Add(component);
@@ -224,6 +282,183 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return false;
 		}
+	}
+
+	bool TryCreateIteratorProtocolComponentsFromExpandedCall(Expression expression, out List<Expression> components)
+	{
+		components = [];
+		if (!TryGetCallableShape(expression.ResolvedType, out CallableShape callable) || callable.Kind != "fn" || callable.ReturnType != "bool" || callable.Parameters.Count < 2 || callable.Parameters[0] != "void*")
+			return false;
+		if (!TryFindParamsExpansionSibling(expression, "context", out Expression? context) || context is null)
+			return false;
+
+		components.Add(expression);
+		components.Add(context);
+		return true;
+	}
+
+	bool TryCreateIteratorProtocolComponentsFromProtocolValue(Expression expression, out List<Expression> components)
+	{
+		components = [];
+		if (!TryGetIteratorProtocolCallType(expression.ResolvedType, out string callType))
+			return false;
+
+			switch (expression)
+			{
+			case ParenthesizedExpression { Expression: not null } parenthesized:
+				return TryCreateIteratorProtocolComponentsFromProtocolValue(parenthesized.Expression, out components);
+
+			case MemberReferenceExpression member:
+				components.Add(new MemberReferenceExpression
+				{
+					SourceSyntax = member.SourceSyntax,
+					Target = CloneParamsExpansionExpression(member.Target),
+					Name = member.Name,
+					ResolvedType = callType
+				});
+				components.Add(new MemberReferenceExpression
+				{
+					SourceSyntax = member.SourceSyntax,
+					Target = CloneParamsExpansionExpression(member.Target),
+					Name = member.Name + "_context",
+					ResolvedType = "void*"
+				});
+				return true;
+
+			case NamedExpression named:
+				components.Add(new NamedExpression
+				{
+					SourceSyntax = named.SourceSyntax,
+					Name = named.Name,
+					ResolvedType = callType
+				});
+				components.Add(new NamedExpression
+				{
+					SourceSyntax = named.SourceSyntax,
+					Name = named.Name + "_context",
+					ResolvedType = "void*"
+				});
+				return true;
+
+			case VariableReferenceExpression variable when GetReferenceName(variable.Variable) is string name:
+				components.Add(new NamedExpression
+				{
+					SourceSyntax = variable.SourceSyntax,
+					Name = name,
+					ResolvedType = callType
+				});
+				components.Add(new NamedExpression
+				{
+					SourceSyntax = variable.SourceSyntax,
+					Name = name + "_context",
+					ResolvedType = "void*"
+				});
+				return true;
+
+			default:
+				return false;
+		}
+	}
+
+	bool TryGetIteratorProtocolCallType(string? iterType, out string callType)
+	{
+		callType = "";
+		if (iterType is null)
+			return false;
+		if (!TryGetIteratorProtocolCurrentTypes(iterType, out List<string>? currentTypes) || currentTypes is null)
+			return false;
+
+		List<string> parameters = ["void*"];
+		foreach (string currentType in currentTypes)
+			parameters.Add(AddPointer(currentType));
+		callType = BuildCallableType("fn", "bool", parameters);
+		return true;
+	}
+
+	static string? GetReferenceName(BindableNode? node)
+	{
+		return node switch
+		{
+			ParameterDefinition parameter => parameter.Name,
+			FieldDefinition field => field.Name,
+			VariableDefinition variable => variable.Name,
+			DeclarationTarget target when target.Names.Count == 1 => target.Names[0],
+			_ => null
+		};
+	}
+
+	bool TryFindParamsExpansionSibling(Expression expression, string sourceName, out Expression? sibling)
+	{
+		sibling = null;
+		BindableNode? node = expression switch
+		{
+			VariableReferenceExpression variable => variable.Variable,
+			MemberReferenceExpression member => member.Member,
+			_ => null
+		};
+		if (node is null)
+			return false;
+
+		foreach (List<ParamsExpansionComponent> expansion in paramsExpansions.Values)
+		{
+			bool containsNode = false;
+			ParamsExpansionComponent? siblingComponent = null;
+			foreach (ParamsExpansionComponent component in expansion)
+			{
+				if (ReferenceEquals(component.Node, node))
+					containsNode = true;
+				if (component.SourceName == sourceName)
+					siblingComponent = component;
+			}
+			if (!containsNode || siblingComponent is null)
+				continue;
+
+			sibling = expression is MemberReferenceExpression memberExpression
+				? new MemberReferenceExpression
+				{
+					SourceSyntax = expression.SourceSyntax,
+					Target = CloneParamsExpansionExpression(memberExpression.Target),
+					Name = siblingComponent.Name,
+					Member = siblingComponent.Node,
+					ResolvedType = siblingComponent.Type
+				}
+				: CreateVariableReference(siblingComponent.Node, siblingComponent.Type);
+			return true;
+		}
+		if (sourceName == "context")
+		{
+			switch (expression)
+			{
+				case MemberReferenceExpression member:
+					sibling = new MemberReferenceExpression
+					{
+						SourceSyntax = expression.SourceSyntax,
+						Target = CloneParamsExpansionExpression(member.Target),
+						Name = member.Name + "_context",
+						ResolvedType = "void*"
+					};
+					return true;
+
+				case VariableReferenceExpression { Variable: ParameterDefinition parameter }:
+					sibling = new NamedExpression
+					{
+						SourceSyntax = expression.SourceSyntax,
+						Name = parameter.Name + "_context",
+						ResolvedType = "void*"
+					};
+					return true;
+
+				case VariableReferenceExpression { Variable: DeclarationTarget target } when target.Names.Count == 1:
+					sibling = new NamedExpression
+					{
+						SourceSyntax = expression.SourceSyntax,
+						Name = target.Names[0] + "_context",
+						ResolvedType = "void*"
+					};
+					return true;
+			}
+		}
+		return false;
 	}
 
 	bool TryRewriteExpandedReturn(ReturnStatement statement, out Statement rewritten)

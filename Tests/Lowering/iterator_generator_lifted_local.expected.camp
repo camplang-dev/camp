@@ -45,4 +45,15 @@ fixed struct counterIter
 	{
 		counterIter_op_delete(this);
 	}
+
+	static bool op_iter(void* ctx, int* current)
+	{
+		counterIter* state = (counterIter*)ctx;
+		if (current == null)
+		{
+			counterIter_op_delete(state);
+			return false;
+		}
+		return counterIter_next(state, current);
+	}
 }
