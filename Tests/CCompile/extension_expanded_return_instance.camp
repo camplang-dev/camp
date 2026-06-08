@@ -13,7 +13,7 @@ void accept(const char[] value)
 int main()
 {
 	const string value = "two";
-	accept(string_toArray(value));
+	accept(String_toArray(value));
 	accept(value.toArray());
 	return 0;
 }

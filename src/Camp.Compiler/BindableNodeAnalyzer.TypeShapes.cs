@@ -403,13 +403,43 @@ public sealed partial class BindableNodeAnalyzer
 
 		string receiverName = IsGenericReceiverTypeName(shape.Name, function)
 			? ""
-			: shape.Name;
+			: GetFlattenedSymbolTypeName(shape.Name);
 		for (int i = 0; i < arrayCount; i++)
 			receiverName += "Array";
 
 		return string.IsNullOrWhiteSpace(receiverName)
 			? methodName
 			: receiverName + "_" + methodName;
+	}
+
+	static string GetFlattenedSymbolTypeName(string typeName)
+	{
+		return typeName switch
+		{
+			"astring" => "AString",
+			"bool" => "Bool",
+			"byte" => "Byte",
+			"sbyte" => "SByte",
+			"ushort" => "UShort",
+			"short" => "Short",
+			"uint" => "UInt",
+			"int" => "Int",
+			"ulong" => "ULong",
+			"long" => "Long",
+			"nuint" => "NUInt",
+			"nint" => "NInt",
+			"float" => "Float",
+			"double" => "Double",
+			"char" => "Char",
+			"wchar" => "WChar",
+			"achar" => "AChar",
+			"uchar" => "UChar",
+			"string" => "String",
+			"wstring" => "WString",
+			"untyped" => "Untyped",
+			"void" => "Void",
+			_ => typeName
+		};
 	}
 
 	static bool IsGenericReceiverTypeName(string name, FunctionDefinition? function)

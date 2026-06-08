@@ -1,0 +1,39 @@
+bool tryParseInt(const string this, out int value)
+{
+	value = 0;
+	return false;
+}
+
+uint next(uint this)
+{
+	return this + 1;
+}
+
+nuint wideNext(nuint this)
+{
+	return this + 1;
+}
+
+void touch(const int[] this)
+{
+}
+
+@symbol("CustomStringName")
+bool custom(const string this)
+{
+	return true;
+}
+
+export int main()
+{
+	int value;
+	bool parsed = "42".tryParseInt(out value);
+	uint one = 0.next();
+	nuint two = ((nuint)0).wideNext();
+	int[] values = [1, 2, 3];
+	values.touch();
+	bool named = "x".custom();
+	if (parsed || named)
+		return value + (int)one + (int)two;
+	return 0;
+}
