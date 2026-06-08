@@ -1,0 +1,21 @@
+struct Rect
+{
+	int x;
+	int y;
+}
+
+Rect makeRect()
+{
+	return default;
+}
+
+void acceptRect(Rect rect)
+{
+}
+
+void run()
+{
+	Rect local = default;
+	acceptRect(default);
+	local = makeRect();
+}

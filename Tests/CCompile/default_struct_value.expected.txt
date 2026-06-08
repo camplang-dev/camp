@@ -1,0 +1,54 @@
+// file: default_struct_value.c
+#include "default_struct_value_private.h"
+
+/* Private file declarations. */
+static Rect makeRect(void);
+static void acceptRect(Rect rect);
+static void run(void);
+
+static Rect makeRect(void)
+{
+	return (Rect){0};
+}
+
+static void acceptRect(Rect rect)
+{
+}
+
+static void run(void)
+{
+	Rect local = (Rect){0};
+	acceptRect((Rect){0});
+	local = makeRect();
+}
+
+// file: default_struct_value_private.h
+#ifndef DEFAULT_STRUCT_VALUE_PRIVATE_H_
+#define DEFAULT_STRUCT_VALUE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Rect Rect;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct Rect
+{
+	int x;
+	int y;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: default_struct_value.c

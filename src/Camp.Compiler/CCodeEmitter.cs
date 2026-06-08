@@ -1258,7 +1258,7 @@ public static class CCodeEmitter
 				MethodReferenceExpression method => method.Candidates.Count == 1 ? CName(method.Candidates[0]) : UnsupportedExpression(expression),
 				TypeReferenceExpression => UnsupportedExpression(expression),
 				ThisExpression => "this",
-				DefaultExpression => "0",
+				DefaultExpression defaultExpression => FormatDefaultExpression(defaultExpression),
 				ParenthesizedExpression parenthesized => "(" + FormatExpression(parenthesized.Expression) + ")",
 				CastExpression cast => "(" + FormatType(cast.Type, "").Declaration.Trim() + ")(" + FormatExpression(cast.Expression) + ")",
 				SizeOfExpression sizeOf => "sizeof(" + FormatType(sizeOf.Type, "").Declaration.Trim() + ")",
@@ -1285,6 +1285,69 @@ public static class CCodeEmitter
 				FinallyDeleteExpression finallyDelete => FormatExpression(finallyDelete.Expression),
 				_ => UnsupportedExpression(expression)
 			};
+		}
+
+		string FormatDefaultExpression(DefaultExpression expression)
+		{
+			string? resolvedType = expression.ResolvedType ?? expression.Type?.ResolvedType;
+			if (!IsAggregateValueType(resolvedType))
+				return "0";
+
+			string type = FormatTypeOrResolved(expression.Type, resolvedType, "").Declaration.Trim();
+			return "(" + type + "){0}";
+		}
+
+		bool IsAggregateValueType(string? resolvedType)
+		{
+			if (string.IsNullOrWhiteSpace(resolvedType))
+				return false;
+
+			string type = StripTypeQualifiers(resolvedType.Trim());
+			if (type.EndsWith("*", StringComparison.Ordinal) || type.EndsWith("[]", StringComparison.Ordinal))
+				return false;
+
+			int genericStart = type.IndexOf('<');
+			if (genericStart >= 0)
+				type = type[..genericStart];
+
+			foreach (Definition definition in GetDefinitions())
+			{
+				if (definition.Name != type && definition.Symbol != type)
+					continue;
+
+				return definition is StructDefinition or ClassDefinition;
+			}
+
+			return false;
+		}
+
+		static string StripTypeQualifiers(string type)
+		{
+			bool changed;
+			do
+			{
+				changed = false;
+				foreach (string prefix in new[] { "const ", "volatile ", "escaped ", "scoped ", "unscoped " })
+				{
+					if (!type.StartsWith(prefix, StringComparison.Ordinal))
+						continue;
+
+					type = type[prefix.Length..].TrimStart();
+					changed = true;
+				}
+
+				foreach (string suffix in new[] { " const", " volatile" })
+				{
+					if (!type.EndsWith(suffix, StringComparison.Ordinal))
+						continue;
+
+					type = type[..^suffix.Length].TrimEnd();
+					changed = true;
+				}
+			}
+			while (changed);
+
+			return type;
 		}
 
 		string FormatCallExpression(CallExpression call)
