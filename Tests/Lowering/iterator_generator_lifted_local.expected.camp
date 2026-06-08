@@ -33,7 +33,16 @@ fixed struct counterIter
 		return false;
 	}
 
+	void op_delete()
+	{
+		if (this.__state != -1)
+		{
+			this.__state = -1;
+		}
+	}
+
 	void destroy()
 	{
+		counterIter_op_delete(this);
 	}
 }

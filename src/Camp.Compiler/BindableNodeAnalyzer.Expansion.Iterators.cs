@@ -7,6 +7,8 @@ public sealed partial class BindableNodeAnalyzer
 {
 	const string IteratorStateFieldName = "__state";
 	string? currentIteratorStateThisType;
+	int iteratorForeachStateIndex;
+	readonly Dictionary<ForeachStatement, IteratorForeachStateFields> iteratorForeachStates = [];
 
 	void GenerateIteratorDeclarations(Module module)
 	{
@@ -187,6 +189,71 @@ public sealed partial class BindableNodeAnalyzer
 				});
 			}
 		}
+
+		foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(function.Body))
+		{
+			if (!TryCreateIteratorForeachState(foreachStatement, out IteratorForeachStateFields? fields) || fields is null)
+				continue;
+
+			iteratorForeachStates[foreachStatement] = fields;
+			AddIteratorField(state, new FieldDefinition
+			{
+				SourceSyntax = foreachStatement.SourceSyntax,
+				Name = fields.IteratorFieldName,
+				Symbol = fields.IteratorFieldName,
+				Type = TypeReferenceForIteratorField(fields.IteratorType),
+				ResolvedType = fields.IteratorType
+			});
+			AddIteratorField(state, new FieldDefinition
+			{
+				SourceSyntax = foreachStatement.SourceSyntax,
+				Name = fields.CurrentFieldName,
+				Symbol = fields.CurrentFieldName,
+				Type = TypeReferenceForResolvedName(fields.ElementType),
+				ResolvedType = fields.ElementType
+			});
+		}
+	}
+
+	bool TryCreateIteratorForeachState(ForeachStatement foreachStatement, out IteratorForeachStateFields? fields)
+	{
+		fields = null;
+		if (!TryResolveIteratorForeachSourceType(foreachStatement.Source, out string sourceType))
+			return false;
+		if (!TryFindIteratorNextMethod(sourceType, out FunctionDefinition? next, out string elementType) || next is null)
+			return false;
+
+		int index = iteratorForeachStateIndex++;
+		fields = new IteratorForeachStateFields($"__foreachIter{index}", $"__foreachCurrent{index}", sourceType, elementType);
+		return true;
+	}
+
+	bool TryResolveIteratorForeachSourceType(Expression? source, out string sourceType)
+	{
+		sourceType = ErrorType;
+		if (source is CallExpression { Target: NamedExpression { Qualifiers.Count: 0 } named })
+		{
+			foreach (Definition definition in currentModule?.Definitions ?? [])
+			{
+				if (definition is FunctionDefinition function && function.Name == named.Name)
+				{
+					sourceType = function.ResolvedType ?? function.ReturnType?.ResolvedType ?? ErrorType;
+					return sourceType != ErrorType;
+				}
+			}
+		}
+		return false;
+	}
+
+	static TypeReference TypeReferenceForIteratorField(string type)
+	{
+		if (TryGetPointerElementType(type) is string elementType)
+		{
+			TypeReference pointer = PointerTo(TypeReferenceForResolvedName(elementType));
+			pointer.ResolvedType = type;
+			return pointer;
+		}
+		return TypeReferenceForResolvedName(type);
 	}
 
 	void AddIteratorNextMethod(TypeDefinition state, FunctionDefinition function, IterTypeReference iterType)
@@ -204,13 +271,14 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition slot in GetIteratorYieldSlots(iterType))
 		{
 			string slotName = string.IsNullOrWhiteSpace(slot.Name) ? "current" : slot.Name;
+			string slotType = slot.ResolvedType ?? slot.Type?.ResolvedType ?? FormatTypeReference(slot.Type);
 			next.Parameters.Add(new ParameterDefinition
 			{
 				SourceSyntax = slot.SourceSyntax,
 				Name = slotName,
 				Symbol = slotName,
 				Type = PointerTo(CloneType(slot.Type) ?? VoidType()),
-				ResolvedType = $"{slot.ResolvedType ?? slot.Type?.ResolvedType ?? ErrorType}*"
+				ResolvedType = $"{slotType}*"
 			});
 		}
 
@@ -233,6 +301,44 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddIteratorDestructor(TypeDefinition state, FunctionDefinition sourceFunction)
 	{
+		string? previousIteratorStateThisType = currentIteratorStateThisType;
+		currentIteratorStateThisType = $"{state.Name}*";
+		FunctionDefinition opDelete = new()
+		{
+			Name = DeleteMethodName,
+			Symbol = $"{state.Name}_{DeleteMethodName}",
+			Export = state.Export,
+			ReturnType = VoidType(),
+			ResolvedType = "void",
+			Body = new BlockStatement { ResolvedType = "void" }
+		};
+		BlockStatement cleanupBody = new() { ResolvedType = "void" };
+		foreach (IteratorForeachStateFields fields in GetIteratorForeachStateFields(sourceFunction))
+		{
+			cleanupBody.Statements.Add(new DeleteStatement
+			{
+				SourceSyntax = sourceFunction.SourceSyntax,
+				ResolvedType = "void",
+				Expression = ThisMemberReference(fields.IteratorFieldName, fields.IteratorType)
+			});
+		}
+		foreach (Statement cleanup in GetTopLevelIteratorFinallyStatements(sourceFunction))
+			cleanupBody.Statements.Add(CloneStatementForCleanup(cleanup));
+		cleanupBody.Statements.Add(SetIteratorStateExpression(-1));
+		opDelete.Body.Statements.Add(new IfStatement
+		{
+			ResolvedType = "void",
+			Condition = new BinaryExpression
+			{
+				Left = ThisMemberReference(IteratorStateFieldName, "int"),
+				Operator = BinaryOperator.NotEqual,
+				Right = NumberLiteral("-1", "int"),
+				ResolvedType = "bool"
+			},
+			Body = cleanupBody
+		});
+		AddIteratorFunction(state, opDelete);
+
 		FunctionDefinition destroy = new()
 		{
 			Name = "destroy",
@@ -240,11 +346,51 @@ public sealed partial class BindableNodeAnalyzer
 			Export = state.Export,
 			ReturnType = VoidType(),
 			ResolvedType = "void",
-			Body = new BlockStatement { ResolvedType = "void" }
+			Body = new BlockStatement
+			{
+				ResolvedType = "void",
+				Statements =
+				{
+					new ExpressionStatement
+					{
+						ResolvedType = "void",
+						Expression = CreateIteratorInstanceCall(opDelete)
+					}
+				}
+			}
 		};
-		foreach (Statement cleanup in GetTopLevelIteratorFinallyStatements(sourceFunction))
-			destroy.Body.Statements.Add(CloneStatementForCleanup(cleanup));
 		AddIteratorFunction(state, destroy);
+		currentIteratorStateThisType = previousIteratorStateThisType;
+	}
+
+	ExpressionStatement SetIteratorStateExpression(int state)
+	{
+		return new ExpressionStatement
+		{
+			ResolvedType = "void",
+			Expression = new AssignmentExpression
+			{
+				Target = ThisMemberReference(IteratorStateFieldName, "int"),
+				Operator = AssignmentOperator.Assign,
+				Value = NumberLiteral(state.ToString(System.Globalization.CultureInfo.InvariantCulture), "int"),
+				ResolvedType = "int"
+			}
+		};
+	}
+
+	CallExpression CreateIteratorInstanceCall(FunctionDefinition function)
+	{
+		return new CallExpression
+		{
+			ResolvedType = function.ResolvedType ?? "void",
+			Target = new MemberReferenceExpression
+			{
+				Target = new ThisExpression { ResolvedType = currentIteratorStateThisType },
+				Name = function.Name,
+				Member = function,
+				ResolvedType = BuildFunctionValueType(function, isInstance: true)
+			}
+		};
 	}
 
 	BlockStatement CreateIteratorFactoryBody(FunctionDefinition function, TypeDefinition stateType)
@@ -668,6 +814,77 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	IEnumerable<ForeachStatement> EnumerateIteratorForeachStatements(BlockStatement? body)
+	{
+		if (body is null)
+			yield break;
+
+		foreach (Statement statement in body.Statements)
+			foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(statement))
+				yield return foreachStatement;
+	}
+
+	IEnumerable<ForeachStatement> EnumerateIteratorForeachStatements(Statement? statement)
+	{
+		switch (statement)
+		{
+			case ForeachStatement foreachStatement:
+				yield return foreachStatement;
+				foreach (ForeachStatement child in EnumerateIteratorForeachStatements(foreachStatement.Body))
+					yield return child;
+				break;
+			case BlockStatement block:
+				foreach (Statement child in block.Statements)
+					foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(child))
+						yield return foreachStatement;
+				break;
+			case IfStatement ifStatement:
+				foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(ifStatement.Body))
+					yield return foreachStatement;
+				foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(ifStatement.ElseBody))
+					yield return foreachStatement;
+				break;
+			case WhileStatement whileStatement:
+				foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(whileStatement.Body))
+					yield return foreachStatement;
+				break;
+			case DoWhileStatement doWhile:
+				foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(doWhile.Body))
+					yield return foreachStatement;
+				break;
+			case ForStatement forStatement:
+				foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(forStatement.Body))
+					yield return foreachStatement;
+				break;
+			case SwitchStatement switchStatement:
+				foreach (Statement child in switchStatement.Statements)
+					foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(child))
+						yield return foreachStatement;
+				break;
+			case TryStatement tryStatement:
+				foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(tryStatement.Body))
+					yield return foreachStatement;
+				foreach (CatchStatement catchStatement in tryStatement.Catches)
+					foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(catchStatement.Body))
+						yield return foreachStatement;
+				foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(tryStatement.Finally))
+					yield return foreachStatement;
+				break;
+			case CatchStatement catchStatement:
+				foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(catchStatement.Body))
+					yield return foreachStatement;
+				break;
+			case FinallyStatement finallyStatement:
+				foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(finallyStatement.Body))
+					yield return foreachStatement;
+				break;
+			case WithinStatement withinStatement:
+				foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(withinStatement.Body))
+					yield return foreachStatement;
+				break;
+		}
+	}
+
 	List<Statement> GetTopLevelIteratorFinallyStatements(FunctionDefinition function)
 	{
 		List<Statement> statements = [];
@@ -678,6 +895,13 @@ public sealed partial class BindableNodeAnalyzer
 			if (statement is FinallyStatement { Body: not null } finallyStatement)
 				statements.Add(finallyStatement.Body);
 		return statements;
+	}
+
+	IEnumerable<IteratorForeachStateFields> GetIteratorForeachStateFields(FunctionDefinition function)
+	{
+		foreach (ForeachStatement foreachStatement in EnumerateIteratorForeachStatements(function.Body))
+			if (iteratorForeachStates.TryGetValue(foreachStatement, out IteratorForeachStateFields? fields))
+				yield return fields;
 	}
 
 	static IEnumerable<FieldDefinition> GetIteratorFields(TypeDefinition type)
@@ -692,9 +916,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	MemberReferenceExpression ThisMemberReference(string name, string? resolvedType)
 	{
+		string? thisType = currentIteratorStateThisType;
+		if (thisType is null && currentRewriteContainingType is not null)
+			thisType = $"{currentRewriteContainingType.Name}*";
+
 		return new MemberReferenceExpression
 		{
-			Target = new ThisExpression { ResolvedType = currentIteratorStateThisType },
+			Target = new ThisExpression { ResolvedType = thisType },
 			Name = name,
 			ResolvedType = resolvedType
 		};
@@ -730,7 +958,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	static List<ParameterDefinition> GetIteratorYieldSlots(IterTypeReference iterType)
+	List<ParameterDefinition> GetIteratorYieldSlots(IterTypeReference iterType)
 	{
 		List<ParameterDefinition> slots = [];
 		if (iterType.Parameters.Count == 0)
@@ -740,7 +968,7 @@ public sealed partial class BindableNodeAnalyzer
 				Name = "current",
 				Symbol = "current",
 				Type = CloneType(iterType.ElementType),
-				ResolvedType = iterType.ElementType?.ResolvedType
+				ResolvedType = iterType.ElementType?.ResolvedType ?? FormatTypeReference(iterType.ElementType)
 			});
 			return slots;
 		}
@@ -748,7 +976,10 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in iterType.Parameters)
 		{
 			if (parameter.Modifier != ParameterModifier.Thrown)
+			{
+				parameter.ResolvedType ??= parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type);
 				slots.Add(parameter);
+			}
 		}
 		return slots;
 	}
@@ -766,6 +997,8 @@ public sealed partial class BindableNodeAnalyzer
 		string baseName = function.Name.TrimStart('~') + "Iter";
 		return containingType is null ? baseName : containingType.Name + "_" + baseName;
 	}
+
+	sealed record IteratorForeachStateFields(string IteratorFieldName, string CurrentFieldName, string IteratorType, string ElementType);
 
 	sealed class IteratorBodyLowering
 	{
@@ -847,6 +1080,7 @@ public sealed partial class BindableNodeAnalyzer
 				new ReturnStatement
 				{
 					Expression = BoolLiteral(true),
+					SkipPendingCleanups = true,
 					ResolvedType = "void"
 				},
 				new LabelStatement { Name = ResumeLabel(resumeState), ResolvedType = "void" },

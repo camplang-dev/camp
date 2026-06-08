@@ -154,10 +154,10 @@ public sealed partial class BindableNodeAnalyzer
 	Statement WithPendingCleanups(Statement transfer)
 	{
 		if (transfer is BreakStatement && TryGetCurrentBreakLabel(out string? breakLabel))
-			return CreateCleanupGotoTransfer(breakLabel);
+			return CreateCleanupGotoTransfer(breakLabel, includeContinueCleanups: true);
 
 		if (transfer is ContinueStatement && TryGetCurrentContinueLabel(out string? continueLabel))
-			return CreateCleanupGotoTransfer(continueLabel);
+			return CreateCleanupGotoTransfer(continueLabel, includeContinueCleanups: false);
 
 		CleanupScope? exitScope = GetCleanupExitScope();
 		if (exitScope is null || transfer is GotoStatement)
@@ -165,15 +165,17 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (transfer is ReturnStatement returnStatement)
 		{
+			if (returnStatement.SkipPendingCleanups)
+				return returnStatement;
 			exitScope.ExitLabelName ??= NewGeneratedLabelName("cleanup");
 			return CreateCleanupReturnTransfer(returnStatement, exitScope);
 		}
 		return transfer;
 	}
 
-	Statement CreateCleanupGotoTransfer(string targetLabel)
+	Statement CreateCleanupGotoTransfer(string targetLabel, bool includeContinueCleanups)
 	{
-		List<Statement> statements = GetPendingCleanups();
+		List<Statement> statements = GetPendingCleanups(includeCatchExitCleanups: true, includeContinueCleanups);
 		statements.Add(new GotoStatement { TargetName = targetLabel, ResolvedType = "void" });
 		return statements.Count == 1 ? statements[0] : CreateBlock(statements);
 	}
@@ -237,7 +239,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	CleanupScope? GetCleanupExitScope()
 	{
-		for (int i = 0; i < currentCleanupScopes.Count; i++)
+		for (int i = currentCleanupScopes.Count - 1; i >= 0; i--)
 		{
 			if (currentCleanupScopes[i].Statements.Count > 0)
 				return currentCleanupScopes[i];
@@ -288,11 +290,18 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<Statement> GetPendingCleanups(bool includeCatchExitCleanups)
 	{
+		return GetPendingCleanups(includeCatchExitCleanups, includeContinueCleanups: true);
+	}
+
+	List<Statement> GetPendingCleanups(bool includeCatchExitCleanups, bool includeContinueCleanups)
+	{
 		List<Statement> cleanups = [];
 		for (int i = currentCleanupScopes.Count - 1; i >= 0; i--)
 		{
 			CleanupScope cleanupScope = currentCleanupScopes[i];
 			if (!includeCatchExitCleanups && !cleanupScope.RunBeforeCatch)
+				continue;
+			if (!includeContinueCleanups && !cleanupScope.RunBeforeContinue)
 				continue;
 			List<Statement> scope = cleanupScope.Statements;
 			for (int j = scope.Count - 1; j >= 0; j--)

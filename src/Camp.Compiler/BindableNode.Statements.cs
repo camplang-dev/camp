@@ -97,6 +97,7 @@ public class ContinueStatement : Statement
 public class ReturnStatement : Statement
 {
 	public Expression? Expression { get; set; }
+	public bool SkipPendingCleanups { get; set; }
 }
 
 public class YieldStatement : Statement

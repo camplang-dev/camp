@@ -48,8 +48,17 @@ fixed struct valuesFromIfIter
 		return false;
 	}
 
+	void op_delete()
+	{
+		if (this.__state != -1)
+		{
+			this.__state = -1;
+		}
+	}
+
 	void destroy()
 	{
+		valuesFromIfIter_op_delete(this);
 	}
 }
 
@@ -99,8 +108,17 @@ fixed struct valuesFromSwitchIter
 		return false;
 	}
 
+	void op_delete()
+	{
+		if (this.__state != -1)
+		{
+			this.__state = -1;
+		}
+	}
+
 	void destroy()
 	{
+		valuesFromSwitchIter_op_delete(this);
 	}
 }
 
@@ -134,8 +152,17 @@ fixed struct valuesFromWhileIter
 		return false;
 	}
 
+	void op_delete()
+	{
+		if (this.__state != -1)
+		{
+			this.__state = -1;
+		}
+	}
+
 	void destroy()
 	{
+		valuesFromWhileIter_op_delete(this);
 	}
 }
 
@@ -168,7 +195,16 @@ fixed struct valuesFromForIter
 		return false;
 	}
 
+	void op_delete()
+	{
+		if (this.__state != -1)
+		{
+			this.__state = -1;
+		}
+	}
+
 	void destroy()
 	{
+		valuesFromForIter_op_delete(this);
 	}
 }

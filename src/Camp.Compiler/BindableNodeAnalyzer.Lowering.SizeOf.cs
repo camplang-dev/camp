@@ -245,6 +245,18 @@ public sealed partial class BindableNodeAnalyzer
 
 	static TypeReference TypeReferenceForResolvedName(string typeName)
 	{
+		foreach (PrimitiveType primitive in Enum.GetValues<PrimitiveType>())
+		{
+			if (GetPrimitiveTypeName(primitive) == typeName)
+			{
+				return new PrimitiveTypeReference
+				{
+					Type = primitive,
+					ResolvedType = typeName
+				};
+			}
+		}
+
 		return new NamedTypeReference
 		{
 			Name = typeName,

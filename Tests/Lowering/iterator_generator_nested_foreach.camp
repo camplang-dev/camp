@@ -1,0 +1,11 @@
+struct iter int inner()
+{
+	yield 1;
+	yield 2;
+}
+
+struct iter int outer()
+{
+	foreach (int value in inner())
+		yield value;
+}

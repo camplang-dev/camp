@@ -16,6 +16,7 @@ int sum()
 			}
 			__foreach_continue2:
 		}
+		countIter_op_delete(&__local0);
 		__foreach_break3:
 	}
 	return total;
@@ -40,7 +41,16 @@ fixed struct countIter
 		return false;
 	}
 
+	void op_delete()
+	{
+		if (this.__state != -1)
+		{
+			this.__state = -1;
+		}
+	}
+
 	void destroy()
 	{
+		countIter_op_delete(this);
 	}
 }

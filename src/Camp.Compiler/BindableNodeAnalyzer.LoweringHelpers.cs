@@ -699,6 +699,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	sealed record CleanupScope(List<Statement> Statements, bool RunBeforeCatch)
 	{
+		public bool RunBeforeContinue { get; set; } = true;
 		public string? ExitLabelName { get; set; }
 		public DeclarationTarget? ReturnTarget { get; set; }
 		public string ReturnType { get; set; } = "void";

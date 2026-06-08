@@ -29,7 +29,16 @@ fixed struct valuesIter
 		return false;
 	}
 
+	void op_delete()
+	{
+		if (this.__state != -1)
+		{
+			this.__state = -1;
+		}
+	}
+
 	void destroy()
 	{
+		valuesIter_op_delete(this);
 	}
 }

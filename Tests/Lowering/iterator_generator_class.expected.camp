@@ -34,7 +34,16 @@ class classValueIter
 		return false;
 	}
 
+	void op_delete()
+	{
+		if (this.__state != -1)
+		{
+			this.__state = -1;
+		}
+	}
+
 	void destroy()
 	{
+		classValueIter_op_delete(this);
 	}
 }

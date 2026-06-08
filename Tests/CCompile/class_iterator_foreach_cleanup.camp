@@ -1,0 +1,20 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+void cleanup()
+{
+}
+
+class iter int values()
+{
+	finally cleanup();
+	yield 1;
+	yield 2;
+}
+
+int firstValue()
+{
+	foreach (int value in values())
+		return value;
+	return 0;
+}

@@ -359,14 +359,66 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition next = foreachStatement.IteratorNext!;
 		string iteratorType = source?.ResolvedType ?? ErrorType;
 		string elementType = foreachStatement.Target.ResolvedType ?? TryGetPointerElementType(GetCallableParameters(next.Parameters)[0].ResolvedType) ?? ErrorType;
-		DeclarationStatement iteratorLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIter"), iteratorType, TypeReferenceForResolvedName(iteratorType), source);
-		DeclarationStatement currentLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachCurrent"), elementType, TypeReferenceForResolvedName(elementType), new DefaultExpression { ResolvedType = elementType });
+		bool useLiftedState = iteratorForeachStates.TryGetValue(foreachStatement, out IteratorForeachStateFields? stateFields);
+		DeclarationStatement? iteratorLocal = null;
+		DeclarationStatement? currentLocal = null;
+		List<Statement> setupStatements = [];
+		if (useLiftedState && stateFields is not null)
+		{
+			iteratorType = stateFields.IteratorType;
+			elementType = stateFields.ElementType;
+			setupStatements.Add(new ExpressionStatement
+			{
+				SourceSyntax = foreachStatement.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = foreachStatement.SourceSyntax,
+					Target = ThisMemberReference(stateFields.IteratorFieldName, iteratorType),
+					Operator = AssignmentOperator.Assign,
+					Value = source,
+					ResolvedType = iteratorType
+				}
+			});
+			setupStatements.Add(new ExpressionStatement
+			{
+				SourceSyntax = foreachStatement.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = foreachStatement.SourceSyntax,
+					Target = ThisMemberReference(stateFields.CurrentFieldName, elementType),
+					Operator = AssignmentOperator.Assign,
+					Value = new DefaultExpression { ResolvedType = elementType },
+					ResolvedType = elementType
+				}
+			});
+		}
+		else
+		{
+			iteratorLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIter"), iteratorType, TypeReferenceForResolvedName(iteratorType), source);
+			currentLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachCurrent"), elementType, TypeReferenceForResolvedName(elementType), new DefaultExpression { ResolvedType = elementType });
+			setupStatements.Add(iteratorLocal);
+			setupStatements.Add(currentLocal);
+		}
+		Expression IteratorReference()
+		{
+			return useLiftedState && stateFields is not null
+				? ThisMemberReference(stateFields.IteratorFieldName, iteratorType)
+				: CreateVariableReference(iteratorLocal!.Target, iteratorType);
+		}
+		Expression CurrentReference()
+		{
+			return useLiftedState && stateFields is not null
+				? ThisMemberReference(stateFields.CurrentFieldName, elementType)
+				: CreateVariableReference(currentLocal!.Target, elementType);
+		}
 
 		DeclarationStatement loopValue = new()
 		{
 			SourceSyntax = foreachStatement.SourceSyntax,
 			ResolvedType = "void",
-			InitialValue = CreateVariableReference(currentLocal.Target, elementType)
+			InitialValue = CurrentReference()
 		};
 		loopValue.Target.SourceSyntax = foreachStatement.Target.SourceSyntax;
 		loopValue.Target.Type = foreachStatement.Target.Type is AutoTypeReference ? TypeReferenceForResolvedName(elementType) : CloneType(foreachStatement.Target.Type);
@@ -377,23 +429,33 @@ public sealed partial class BindableNodeAnalyzer
 		string continueLabel = NewGeneratedLabelName("foreach_continue");
 		string breakLabel = NewGeneratedLabelName("foreach_break");
 		BlockStatement loopBody = new() { SourceSyntax = foreachStatement.Body?.SourceSyntax ?? foreachStatement.SourceSyntax, ResolvedType = "void" };
+		Statement cleanupStatement = CreateIteratorCleanupStatement(IteratorReference(), iteratorType, foreachStatement.SourceSyntax);
+		CleanupScope iteratorCleanupScope = new([cleanupStatement], RunBeforeCatch: true) { RunBeforeContinue = false };
+		if (currentFunctionReturnType != "void" && ContainsReturnStatement(foreachStatement.Body))
+		{
+			DeclarationStatement returnLocal = CreateGeneratedLocal(NewGeneratedLocalName("return"), currentFunctionReturnType, TypeReferenceForResolvedName(currentFunctionReturnType), new DefaultExpression { ResolvedType = currentFunctionReturnType });
+			setupStatements.Add(returnLocal);
+			iteratorCleanupScope.ReturnTarget = returnLocal.Target;
+			iteratorCleanupScope.ReturnType = currentFunctionReturnType;
+		}
+		currentCleanupScopes.Add(iteratorCleanupScope);
 		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
 		List<Statement> bodyStatements = [loopValue];
 		if (foreachStatement.Body is not null)
 			bodyStatements.Add(foreachStatement.Body);
 		RewriteStatementList(bodyStatements);
 		currentLoopTransferTargets.RemoveAt(currentLoopTransferTargets.Count - 1);
+		currentCleanupScopes.RemoveAt(currentCleanupScopes.Count - 1);
 		loopBody.Statements.AddRange(bodyStatements);
 		loopBody.Statements.Add(new LabelStatement { Name = continueLabel, ResolvedType = "void" });
 
-		Expression iteratorReference = CreateVariableReference(iteratorLocal.Target, iteratorType);
 		CallExpression nextCall = new()
 		{
 			SourceSyntax = foreachStatement.SourceSyntax,
 			Target = new MemberReferenceExpression
 			{
 				SourceSyntax = foreachStatement.SourceSyntax,
-				Target = iteratorReference,
+				Target = IteratorReference(),
 				Name = "next",
 				Member = next,
 				ResolvedType = BuildFunctionValueType(next, isInstance: true)
@@ -408,7 +470,7 @@ public sealed partial class BindableNodeAnalyzer
 					{
 						SourceSyntax = foreachStatement.SourceSyntax,
 						Operator = UnaryOperator.AddressOf,
-						Operand = CreateVariableReference(currentLocal.Target, elementType),
+						Operand = CurrentReference(),
 						ResolvedType = $"{elementType}*"
 					},
 					ResolvedType = $"{elementType}*"
@@ -423,7 +485,49 @@ public sealed partial class BindableNodeAnalyzer
 			Body = loopBody
 		};
 
-		return CreateBlock([iteratorLocal, currentLocal, loop, new LabelStatement { Name = breakLabel, ResolvedType = "void" }]);
+		setupStatements.Add(loop);
+		setupStatements.Add(cleanupStatement);
+		bool hasCleanupExit = iteratorCleanupScope.ExitLabelName is not null;
+		string? doneLabel = hasCleanupExit ? NewGeneratedLabelName("foreach_done") : null;
+		if (doneLabel is not null)
+			setupStatements.Add(new GotoStatement { TargetName = doneLabel, ResolvedType = "void" });
+		AppendCleanupScopeExit(setupStatements, iteratorCleanupScope);
+		setupStatements.Add(new LabelStatement { Name = breakLabel, ResolvedType = "void" });
+		if (doneLabel is not null)
+			setupStatements.Add(new LabelStatement { Name = doneLabel, ResolvedType = "void" });
+		return CreateBlock(setupStatements);
+	}
+
+	Statement CreateIteratorCleanupStatement(Expression iteratorTarget, string iteratorType, SyntaxNode? syntax)
+	{
+		return new ExpressionStatement
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Expression = RewriteDeleteExpression(iteratorTarget)
+		};
+	}
+
+	static bool ContainsReturnStatement(Statement? statement)
+	{
+		return statement switch
+		{
+			ReturnStatement returnStatement => !returnStatement.SkipPendingCleanups,
+			BlockStatement block => block.Statements.Exists(ContainsReturnStatement),
+			IfStatement ifStatement => ContainsReturnStatement(ifStatement.Body) || ContainsReturnStatement(ifStatement.ElseBody),
+			WhileStatement whileStatement => ContainsReturnStatement(whileStatement.Body),
+			DoWhileStatement doWhile => ContainsReturnStatement(doWhile.Body),
+			ForStatement forStatement => ContainsReturnStatement(forStatement.Body),
+			ForeachStatement foreachStatement => ContainsReturnStatement(foreachStatement.Body),
+			SwitchStatement switchStatement => switchStatement.Statements.Exists(ContainsReturnStatement),
+			TryStatement tryStatement => ContainsReturnStatement(tryStatement.Body)
+				|| tryStatement.Catches.Exists(catchStatement => ContainsReturnStatement(catchStatement.Body))
+				|| ContainsReturnStatement(tryStatement.Finally),
+			CatchStatement catchStatement => ContainsReturnStatement(catchStatement.Body),
+			FinallyStatement finallyStatement => ContainsReturnStatement(finallyStatement.Body),
+			WithinStatement withinStatement => ContainsReturnStatement(withinStatement.Body),
+			_ => false
+		};
 	}
 
 	Statement RewriteLoopBody(Statement body, string continueLabel, string breakLabel)

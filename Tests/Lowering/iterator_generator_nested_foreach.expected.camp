@@ -1,0 +1,97 @@
+innerIter inner()
+{
+	return {.__state = 0};
+}
+outerIter outer()
+{
+	return {.__state = 0};
+}
+
+fixed struct innerIter
+{
+	int __state;
+
+	bool next(int* current)
+	{
+		if (this.__state == -1)
+			return false;
+		if (this.__state == 1)
+			goto __iter_resume1;
+		if (this.__state == 2)
+			goto __iter_resume2;
+		*current = 1;
+		this.__state = 1;
+		return true;
+		__iter_resume1:
+		;
+		*current = 2;
+		this.__state = 2;
+		return true;
+		__iter_resume2:
+		;
+		this.__state = -1;
+		return false;
+	}
+
+	void op_delete()
+	{
+		if (this.__state != -1)
+		{
+			this.__state = -1;
+		}
+	}
+
+	void destroy()
+	{
+		innerIter_op_delete(this);
+	}
+}
+
+fixed struct outerIter
+{
+	int __state;
+	innerIter __foreachIter0;
+	int __foreachCurrent0;
+
+	bool next(int* current)
+	{
+		if (this.__state == -1)
+			return false;
+		if (this.__state == 1)
+			goto __iter_resume1;
+		{
+			this.__foreachIter0 = inner();
+			this.__foreachCurrent0 = default;
+			while (innerIter_next(&this.__foreachIter0, &this.__foreachCurrent0))
+			{
+				int value = this.__foreachCurrent0;
+				{
+					*current = value;
+					this.__state = 1;
+					return true;
+					__iter_resume1:
+					;
+				}
+				__foreach_continue0:
+			}
+			innerIter_op_delete(&this.__foreachIter0);
+			__foreach_break1:
+		}
+		this.__state = -1;
+		return false;
+	}
+
+	void op_delete()
+	{
+		if (this.__state != -1)
+		{
+			innerIter_op_delete(&this.__foreachIter0);
+			this.__state = -1;
+		}
+	}
+
+	void destroy()
+	{
+		outerIter_op_delete(this);
+	}
+}

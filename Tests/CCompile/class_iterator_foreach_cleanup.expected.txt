@@ -1,0 +1,122 @@
+// file: class_iterator_foreach_cleanup.c
+#include "class_iterator_foreach_cleanup_private.h"
+
+/* Private file declarations. */
+void* malloc(uintptr_t size);
+void free(void* ptr);
+static void cleanup(void);
+static valuesIter* values(void);
+static int firstValue(void);
+static bool valuesIter_next(valuesIter *this, int* current);
+static void valuesIter_op_delete(valuesIter *this);
+static void valuesIter_destroy(valuesIter *this);
+
+static void cleanup(void)
+{
+}
+
+static valuesIter* values(void)
+{
+	valuesIter* _iter0 = (valuesIter *)(malloc(sizeof(valuesIter)));
+	_iter0->__state = 0;
+	return _iter0;
+}
+
+static int firstValue(void)
+{
+	{
+		valuesIter* _foreachIter1 = values();
+		int _foreachCurrent2 = 0;
+		int _return5 = 0;
+		while (valuesIter_next(_foreachIter1, &_foreachCurrent2))
+		{
+			int value = _foreachCurrent2;
+			{
+				_return5 = value;
+				goto __cleanup6;
+			}
+__foreach_continue3:
+		}
+		(valuesIter_op_delete(_foreachIter1), free((void *)(_foreachIter1)));
+		goto __foreach_done7;
+__cleanup6:
+		(valuesIter_op_delete(_foreachIter1), free((void *)(_foreachIter1)));
+		return _return5;
+__foreach_break4:
+__foreach_done7:
+	}
+	return 0;
+}
+
+static bool valuesIter_next(valuesIter *this, int* current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	if ((this->__state == 2))
+	{
+		goto __iter_resume2;
+	}
+	*current = 1;
+	this->__state = 1;
+	return true;
+__iter_resume1:
+	;
+	*current = 2;
+	this->__state = 2;
+	return true;
+__iter_resume2:
+	;
+	cleanup();
+	this->__state = -1;
+	return false;
+}
+
+static void valuesIter_op_delete(valuesIter *this)
+{
+	if ((this->__state != -1))
+	{
+		cleanup();
+		this->__state = -1;
+	}
+}
+
+static void valuesIter_destroy(valuesIter *this)
+{
+	valuesIter_op_delete(this);
+}
+
+// file: class_iterator_foreach_cleanup_private.h
+#ifndef CLASS_ITERATOR_FOREACH_CLEANUP_PRIVATE_H_
+#define CLASS_ITERATOR_FOREACH_CLEANUP_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct valuesIter valuesIter;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct valuesIter
+{
+	int __state;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: class_iterator_foreach_cleanup.c

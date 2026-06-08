@@ -5,6 +5,7 @@
 void* malloc(uintptr_t size);
 static loopRangeIter* loopRange(int first, int last);
 static bool loopRangeIter_next(loopRangeIter *this, int* current);
+static void loopRangeIter_op_delete(loopRangeIter *this);
 static void loopRangeIter_destroy(loopRangeIter *this);
 
 static loopRangeIter* loopRange(int first, int last)
@@ -43,8 +44,17 @@ __for_break2:
 	return false;
 }
 
+static void loopRangeIter_op_delete(loopRangeIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
 static void loopRangeIter_destroy(loopRangeIter *this)
 {
+	loopRangeIter_op_delete(this);
 }
 
 // file: class_iterator_loop_range_private.h
