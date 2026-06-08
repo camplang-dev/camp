@@ -196,20 +196,25 @@ public sealed partial class BindableNodeAnalyzer
 			return null;
 
 		string receiverType = receiver.ResolvedType ?? "";
-		if (LookupMemberFunctions(receiverType, "getLength", syntax).Count > 0)
+		List<FunctionDefinition> lengthFunctions = LookupMemberFunctions(receiverType, "getLength", syntax);
+		if (lengthFunctions.Count > 0)
 		{
-			return new CallExpression
+			FunctionDefinition lengthFunction = lengthFunctions[0];
+			CallExpression call = new()
 			{
 				SourceSyntax = syntax ?? receiver.SourceSyntax,
-				Target = new MemberExpression
+				Target = new MemberReferenceExpression
 				{
 					SourceSyntax = syntax ?? receiver.SourceSyntax,
 					Target = CloneParamsExpansionExpression(receiver),
 					Name = "getLength",
-					ResolvedType = "nuint"
+					Member = lengthFunction,
+					ResolvedType = BuildFunctionValueType(lengthFunction, IsInstanceInvocationFunction(lengthFunction))
 				},
 				ResolvedType = "nuint"
 			};
+			callTargets[call] = lengthFunction;
+			return call;
 		}
 
 		return new MemberExpression

@@ -120,10 +120,10 @@ public sealed partial class BindableNodeAnalyzer
 
 			case MemberReferenceExpression memberReference:
 				memberReference.Target = LowerExpression(memberReference.Target);
-				if (TryCreateParamsMemberComponentExpression(memberReference, out Expression paramsComponent))
-					return LowerExpression(paramsComponent);
 				if (IsPropertyGetterReference(memberReference))
 					return RewritePropertyGetterCall(memberReference, []);
+				if (TryCreateParamsMemberComponentExpression(memberReference, out Expression paramsComponent))
+					return LowerExpression(paramsComponent);
 				if (memberReference is { Target: not null, Member: FunctionDefinition function } && FindContainingType(function) is not InterfaceDefinition)
 					return RewriteInstanceMethodDelegate(memberReference);
 				break;
@@ -294,7 +294,26 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter.DefaultValue is UnaryExpression { Operator: UnaryOperator.FromEnd }
 				&& parameterIndex > 0
 				&& HasAttribute(callableParameters[parameterIndex - 1].Attributes, "@range"))
+			{
+				Expression? length = CreateLengthExpression(GetRangeReceiver(call.Target), call.SourceSyntax ?? parameter.SourceSyntax);
+				if (length is null)
+				{
+					Report(GetRange(call.SourceSyntax ?? parameter.SourceSyntax), "Range count default requires an accessible length field, length property, or getLength() method.");
+					continue;
+				}
+
+				Expression count = argumentIndex > 0 && call.Arguments[argumentIndex - 1].Value is Expression index
+					? CreateRangeCountExpression(index, CreateFromEndExpression((UnaryExpression)parameter.DefaultValue, length), parameter.DefaultValue.SourceSyntax)
+					: CreateFromEndExpression((UnaryExpression)parameter.DefaultValue, length);
+				call.Arguments.Insert(argumentIndex, new ArgumentExpression
+				{
+					SourceSyntax = call.SourceSyntax ?? parameter.SourceSyntax,
+					Value = count,
+					ResolvedType = "nuint"
+				});
+				argumentIndex++;
 				continue;
+			}
 
 			Expression? defaultValue = CloneDefaultArgumentExpression(parameter.DefaultValue);
 			call.Arguments.Insert(argumentIndex, new ArgumentExpression

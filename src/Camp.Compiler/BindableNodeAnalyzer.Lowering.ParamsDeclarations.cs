@@ -268,6 +268,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryGetParamsComponentShape(declaration.Target.Type, declaration.Target.ResolvedType, name, out ParamsComponentShape shape))
 			return false;
 
+		declaration.InitialValue = NormalizeExpandedReturnPropertyGetter(declaration.InitialValue);
 		List<Expression?> initialValues = GetParamsComponentInitialValues(declaration.InitialValue, shape, deferCurrentAllocator: true);
 		List<DeclarationTarget> targets = [];
 		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
@@ -276,8 +277,12 @@ public sealed partial class BindableNodeAnalyzer
 			declarations.Add(componentDeclaration);
 			targets.Add(componentDeclaration.Target);
 		}
-		if (declaration.InitialValue is CallExpression call && TryGetParamsComponentShape(null, call.ResolvedType, name, out ParamsComponentShape callShape) && callShape.Components.Count == shape.Components.Count)
+		if (declaration.InitialValue is CallExpression call
+			&& callTargets.TryGetValue(call, out FunctionDefinition? function)
+			&& expandedReturnShapes.TryGetValue(function, out ParamsComponentShape? callShape)
+			&& callShape.Components.Count == shape.Components.Count)
 		{
+			AddImplicitDefaultArguments(call);
 			((DeclarationStatement)declarations[0]).InitialValue = null;
 			for (int i = 1; i < targets.Count; i++)
 			{
@@ -305,6 +310,47 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		RegisterParamsExpansion(declaration.Target, shape, targets);
 		return declarations.Count > 0;
+	}
+
+	Expression? NormalizeExpandedReturnPropertyGetter(Expression? expression)
+	{
+		switch (expression)
+		{
+			case MemberReferenceExpression getter when IsExpandedReturnPropertyGetter(getter, out FunctionDefinition? function):
+				return CreatePropertyGetterCall(getter, [], function);
+
+			case IndexExpression { Target: MemberReferenceExpression getter } index when IsExpandedReturnPropertyGetter(getter, out FunctionDefinition? function):
+				return CreatePropertyGetterCall(getter, index.Arguments, function);
+
+			default:
+				return expression;
+		}
+	}
+
+	bool IsExpandedReturnPropertyGetter(MemberReferenceExpression getter, out FunctionDefinition function)
+	{
+		function = null!;
+		if (!IsPropertyGetterReference(getter) || getter.Member is not FunctionDefinition candidate)
+			return false;
+		if (!expandedReturnShapes.ContainsKey(candidate))
+			return false;
+
+		function = candidate;
+		return true;
+	}
+
+	CallExpression CreatePropertyGetterCall(MemberReferenceExpression getter, List<ArgumentExpression> arguments, FunctionDefinition function)
+	{
+		getter.Name = function.Name;
+		CallExpression call = new()
+		{
+			SourceSyntax = getter.SourceSyntax,
+			Target = getter,
+			ResolvedType = function.ResolvedType ?? ErrorType
+		};
+		call.Arguments.AddRange(arguments);
+		callTargets[call] = function;
+		return call;
 	}
 
 	ParameterDefinition CreateExpandedParameter(ParameterDefinition source, ParamsComponent component, bool inheritDefaultValue)

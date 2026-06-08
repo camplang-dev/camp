@@ -1,0 +1,67 @@
+// file: slice_property_getter.c
+#include "slice_property_getter_private.h"
+
+/* Private file declarations. */
+static uintptr_t String_getLength(const char* this);
+static const char* String_getSpan(const char* this, uintptr_t index, uintptr_t count, uintptr_t *result_length);
+static int main(void);
+
+static uintptr_t String_getLength(const char* this)
+{
+	uintptr_t i = 0;
+	{
+		while ((this[i] != 0))
+		{
+			i++;
+__while_continue0:
+		}
+__while_break1:
+	}
+	return i;
+}
+
+static const char* String_getSpan(const char* this, uintptr_t index, uintptr_t count, uintptr_t *result_length)
+{
+	const char* span = 0;
+	uintptr_t span_length = 0;
+	span = &this[index];
+	span_length = (count - index);
+	{
+		(*result_length) = span_length;
+		return span;
+	}
+}
+
+static int main(void)
+{
+	const char* message = "Hello, world!";
+	const char* span;
+	uintptr_t span_length;
+	span = String_getSpan(message, 0, (((String_getLength(message) - 0) >= 0) ? ((String_getLength(message) - 0) - 0) : 0), &span_length);
+	return (int)(span_length);
+}
+
+// file: slice_property_getter_private.h
+#ifndef SLICE_PROPERTY_GETTER_PRIVATE_H_
+#define SLICE_PROPERTY_GETTER_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: slice_property_getter.c
