@@ -1,0 +1,10 @@
+int find(const char[] value, bool flag = false)
+{
+	return flag ? (int)value.length : 0;
+}
+
+int main()
+{
+	const char[] text = "hello";
+	return find(text, true) == 5 ? 0 : 1;
+}

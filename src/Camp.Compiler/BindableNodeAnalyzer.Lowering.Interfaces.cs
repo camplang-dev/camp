@@ -167,10 +167,11 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter.Modifier != ParameterModifier.Within && parameter is not WithinParameterDefinition)
 				continue;
 
-			if (index < call.Arguments.Count && IsWithinArgumentAlreadySupplied(call.Arguments[index]))
+			int argumentIndex = System.Math.Min(index, call.Arguments.Count);
+			if (argumentIndex < call.Arguments.Count && IsWithinArgumentAlreadySupplied(call.Arguments[argumentIndex]))
 				return;
 
-			call.Arguments.Insert(index, new ArgumentExpression
+			call.Arguments.Insert(argumentIndex, new ArgumentExpression
 			{
 				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
 				Value = CurrentWithinArgument(call.SourceSyntax ?? call.Target?.SourceSyntax),

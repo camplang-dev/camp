@@ -19,17 +19,17 @@ class Object
 	int* buffer;
 	nuint buffer_length;
 
-	Object(Allocator* allocator);
+	Object(within Allocator* allocator);
 
-	~Object(Allocator* allocator);
+	~Object(within Allocator* allocator);
 
-	void op_initnew(Allocator* allocator)
+	void op_initnew(within Allocator* allocator)
 	{
 		Allocator* resolvedAllocator = allocator;
 		this.buffer = (elements: (int*)(allocator != null ? Allocator_alloc(allocator, sizeof(int) * 4) : malloc(sizeof(int) * 4)), length: 4);
 	}
 
-	static Object* create(Allocator* allocator)
+	static Object* create(within Allocator* allocator)
 	{
 		Allocator* resolvedAllocator = allocator;
 		Object* __local0 = (Object*)(resolvedAllocator != null ? Allocator_alloc(resolvedAllocator, sizeof(Object)) : malloc(sizeof(Object)));
@@ -38,7 +38,7 @@ class Object
 		return __local0;
 	}
 
-	void op_delete(Allocator* allocator)
+	void op_delete(within Allocator* allocator)
 	{
 		allocator != null ? Allocator_free(allocator, (void*)this.buffer) : free((void*)this.buffer);
 	}
@@ -50,7 +50,7 @@ class Object
 		resolvedAllocator != null ? Allocator_free(resolvedAllocator, (void*)this) : free((void*)this);
 	}
 }
-void acceptsAllocator(Allocator* allocator)
+void acceptsAllocator(within Allocator* allocator)
 {
 	Object* nested = (Object*)(allocator != null ? Allocator_alloc(allocator, sizeof(Object)) : malloc(sizeof(Object)));
 	if (nested != null)

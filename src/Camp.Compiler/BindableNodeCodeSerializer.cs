@@ -1015,7 +1015,8 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteParameter(ParameterDefinition parameter)
 	{
-		if ((parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition) && parameter.Type is null)
+		bool isWithin = parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition;
+		if (isWithin)
 			writer.Write("within ");
 		else if (parameter.Modifier == ParameterModifier.Out)
 			writer.Write("out ");

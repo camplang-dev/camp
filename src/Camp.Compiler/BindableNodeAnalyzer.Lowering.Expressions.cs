@@ -288,7 +288,9 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (argumentIndex < call.Arguments.Count && !IsExplicitHiddenArgument(call.Arguments[argumentIndex]))
 			{
+				int consumedParameters = CountCallableParametersSatisfiedByArgument(call.Arguments[argumentIndex], callableParameters, parameterIndex);
 				argumentIndex++;
+				parameterIndex += consumedParameters - 1;
 				continue;
 			}
 			if (parameter.DefaultValue is null)
@@ -326,6 +328,35 @@ public sealed partial class BindableNodeAnalyzer
 			});
 			argumentIndex++;
 		}
+	}
+
+	int CountCallableParametersSatisfiedByArgument(ArgumentExpression argument, List<ParameterDefinition> callableParameters, int parameterIndex)
+	{
+		if (!TryGetArgumentParamsComponentShape(argument, out ParamsComponentShape shape) || shape.Components.Count <= 1)
+			return 1;
+		if (parameterIndex + shape.Components.Count > callableParameters.Count)
+			return 1;
+
+		for (int i = 0; i < shape.Components.Count; i++)
+		{
+			string componentType = shape.Components[i].Type;
+			string parameterType = callableParameters[parameterIndex + i].ResolvedType ?? ErrorType;
+			if (componentType != parameterType)
+				return 1;
+		}
+
+		return shape.Components.Count;
+	}
+
+	bool TryGetArgumentParamsComponentShape(ArgumentExpression argument, out ParamsComponentShape shape)
+	{
+		if (TryGetParamsComponentShape(null, argument.ResolvedType, "value", out shape))
+			return true;
+		if (argument.Value is not null && TryGetParamsComponentShape(null, argument.Value.ResolvedType, "value", out shape))
+			return true;
+
+		shape = new ParamsComponentShape(ParamsComponentShapeKind.Array, "", []);
+		return false;
 	}
 
 	Expression? CloneDefaultArgumentExpression(Expression? expression)
