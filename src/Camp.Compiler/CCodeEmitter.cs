@@ -1874,12 +1874,15 @@ public static class CCodeEmitter
 				componentParameter = currentThis;
 			if (componentParameter is null)
 				return null;
-			if (!TryGetArrayLiteralElementType(componentParameter.ResolvedType, out _))
+			string componentName = CName(componentParameter);
+			bool hasLengthComponent = currentFunction?.Parameters.Any(parameter => CName(parameter) == componentName + "_length") == true;
+			if (!hasLengthComponent && !TryGetArrayLiteralElementType(componentParameter.ResolvedType, out _))
 				return null;
 			return name switch
 			{
-				"elements" => CName(componentParameter),
-				"length" => CName(componentParameter) + "_length",
+				"elements" => componentName,
+				"length" when hasLengthComponent => componentName + "_length",
+				"length" when TryGetArrayLiteralElementType(componentParameter.ResolvedType, out _) => componentName + "_length",
 				_ => null
 			};
 		}

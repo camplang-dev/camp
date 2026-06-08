@@ -178,6 +178,19 @@ public sealed partial class BindableNodeAnalyzer
 			case ParenthesizedExpression parenthesized:
 				return TryCreateParamsComponentExpressions(parenthesized.Expression, out components);
 
+			case ThisExpression
+				when currentRewriteFunction is not null
+					&& GetExplicitThisParameter(currentRewriteFunction) is ThisParameterDefinition thisParameter
+					&& paramsExpansions.TryGetValue(thisParameter, out List<ParamsExpansionComponent>? expansion):
+				foreach (ParamsExpansionComponent component in expansion)
+					components.Add(CreateVariableReference(component.Node, component.Type));
+				return components.Count > 0;
+
+			case ThisExpression thisExpression
+				when currentRewriteFunction is not null
+					&& TryGetParamsComponentShape(null, thisExpression.ResolvedType, "this", out ParamsComponentShape shape):
+				return TryCreateCurrentThisParameterComponents(shape, out components);
+
 			case NamedExpression named
 				when TryCreateNamedParamsComponentExpressions(named, out components):
 				return true;
@@ -187,6 +200,10 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (ParamsExpansionComponent component in expansion)
 					components.Add(CreateVariableReference(component.Node, component.Type));
 				return components.Count > 0;
+
+			case VariableReferenceExpression { Variable: ParameterDefinition { Name: "this" } }
+				when TryCreateCurrentThisParameterComponents(out components):
+				return true;
 
 			case MemberReferenceExpression { Member: not null } member
 				when paramsExpansions.TryGetValue(member.Member, out List<ParamsExpansionComponent>? expansion):
@@ -286,6 +303,50 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return false;
 		}
+	}
+
+	bool TryCreateCurrentThisParameterComponents(out List<Expression> components)
+	{
+		if (TryCreateCurrentThisParameterComponents(["this", "this_length"], out components))
+			return true;
+		if (TryCreateCurrentThisParameterComponents(["this", "this_specified"], out components))
+			return true;
+		if (TryCreateCurrentThisParameterComponents(["this", "this_context"], out components))
+			return true;
+		if (TryCreateCurrentThisParameterComponents(["this_call", "this_context"], out components))
+			return true;
+		return false;
+	}
+
+	bool TryCreateCurrentThisParameterComponents(ParamsComponentShape shape, out List<Expression> components)
+	{
+		List<string> names = [];
+		foreach (ParamsComponent component in shape.Components)
+			names.Add(component.ExpandedName);
+		return TryCreateCurrentThisParameterComponents(names, out components);
+	}
+
+	bool TryCreateCurrentThisParameterComponents(IReadOnlyList<string> names, out List<Expression> components)
+	{
+		components = [];
+		if (currentRewriteFunction is null)
+			return false;
+
+		foreach (string name in names)
+		{
+			ParameterDefinition? parameter = null;
+			foreach (ParameterDefinition candidate in currentRewriteFunction.Parameters)
+				if (candidate.Name == name)
+				{
+					parameter = candidate;
+					break;
+				}
+			if (parameter is null)
+				return false;
+			components.Add(CreateVariableReference(parameter, parameter.ResolvedType ?? ErrorType));
+		}
+
+		return components.Count > 0;
 	}
 
 	bool TryCreateIteratorProtocolComponentsFromExpandedCall(Expression expression, out List<Expression> components)
@@ -772,13 +833,25 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateParamsMemberComponentExpression(MemberReferenceExpression member, out Expression componentExpression)
 	{
 		componentExpression = member;
-		if (!TryCreateParamsComponentExpressions(member.Target, out List<Expression> targetComponents))
+		return TryCreateParamsMemberComponentExpression(member.Target, member.Name, out componentExpression);
+	}
+
+	bool TryCreateParamsMemberComponentExpression(MemberExpression member, out Expression componentExpression)
+	{
+		componentExpression = member;
+		return TryCreateParamsMemberComponentExpression(member.Target, member.Name, out componentExpression);
+	}
+
+	bool TryCreateParamsMemberComponentExpression(Expression? target, string name, out Expression componentExpression)
+	{
+		componentExpression = target ?? new MemberExpression { Name = name };
+		if (!TryCreateParamsComponentExpressions(target, out List<Expression> targetComponents))
 			return false;
 
 		for (int i = targetComponents.Count - 1; i >= 0; i--)
 		{
 			Expression targetComponent = targetComponents[i];
-			if (!IsParamsComponentNamed(targetComponent, member.Name))
+			if (!IsParamsComponentNamed(targetComponent, name))
 				continue;
 
 			componentExpression = targetComponent;

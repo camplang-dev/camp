@@ -1,0 +1,13 @@
+int sum(const int[] this)
+{
+	int total = 0;
+	for (nuint i = 0; i < this.length; i++)
+		total += this[i];
+	return total;
+}
+
+int main()
+{
+	int[] values = [1, 2, 3];
+	return values.sum() == 6 ? 0 : 1;
+}

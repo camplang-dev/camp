@@ -116,6 +116,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			case MemberExpression member:
 				member.Target = LowerExpression(member.Target);
+				if (TryCreateParamsMemberComponentExpression(member, out Expression memberComponent))
+					return LowerExpression(memberComponent);
 				break;
 
 			case MemberReferenceExpression memberReference:
