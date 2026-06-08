@@ -8,9 +8,9 @@ static void Handle_IRef_retain(IRef** ctx);
 static const IRef Widget_IRef__storage;
 static const IRef Handle_IRef__storage;
 
-static const IRef Widget_IRef__storage = { .retain = Widget_retain };
+static const IRef Widget_IRef__storage = (IRef){ .retain = Widget_retain };
 const IRef* Widget_IRef = &Widget_IRef__storage;
-static const IRef Handle_IRef__storage = { .retain = Handle_IRef_retain };
+static const IRef Handle_IRef__storage = (IRef){ .retain = Handle_IRef_retain };
 const IRef* Handle_IRef = &Handle_IRef__storage;
 void Widget_retain(Widget *this)
 {

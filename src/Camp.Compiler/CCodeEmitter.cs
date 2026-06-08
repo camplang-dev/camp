@@ -1636,7 +1636,12 @@ public static class CCodeEmitter
 				string? target = FormatInitializerTarget(item.Target);
 				items.Add(target is null ? value : "." + target + " = " + value);
 			}
-			return "{ " + string.Join(", ", items) + " }";
+			string body = "{ " + string.Join(", ", items) + " }";
+			if (!IsAggregateValueType(initializer.ResolvedType))
+				return body;
+
+			string type = FormatTypeOrResolved(null, initializer.ResolvedType, "").Declaration.Trim();
+			return "(" + type + ")" + body;
 		}
 
 		string FormatGroupedExpression(GroupedExpression grouped)

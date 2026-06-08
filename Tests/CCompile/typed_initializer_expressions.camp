@@ -1,0 +1,21 @@
+struct Point
+{
+	int x;
+	int y;
+}
+
+Point getPoint()
+{
+	return {.x = 0};
+}
+
+void setPoint(Point pt)
+{
+}
+
+void run()
+{
+	Point local = {.x = 1};
+	setPoint({.x = 0});
+	local = getPoint();
+}

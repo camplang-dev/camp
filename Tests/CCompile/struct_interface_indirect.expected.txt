@@ -8,7 +8,7 @@ static void Handle_IRef_retain(IRef** ctx);
 static const IRef Handle_IRef__storage;
 static const IRef* Handle_IRef;
 
-static const IRef Handle_IRef__storage = { .retain = Handle_IRef_retain };
+static const IRef Handle_IRef__storage = (IRef){ .retain = Handle_IRef_retain };
 static const IRef* Handle_IRef = &Handle_IRef__storage;
 static void Handle_retain(Handle *this)
 {
@@ -16,7 +16,7 @@ static void Handle_retain(Handle *this)
 
 static int main(void)
 {
-	Handle handle = {  };
+	Handle handle = (Handle){  };
 	return 0;
 }
 

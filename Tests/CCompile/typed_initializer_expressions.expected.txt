@@ -1,0 +1,54 @@
+// file: typed_initializer_expressions.c
+#include "typed_initializer_expressions_private.h"
+
+/* Private file declarations. */
+static Point getPoint(void);
+static void setPoint(Point pt);
+static void run(void);
+
+static Point getPoint(void)
+{
+	return (Point){ .x = 0 };
+}
+
+static void setPoint(Point pt)
+{
+}
+
+static void run(void)
+{
+	Point local = (Point){ .x = 1 };
+	setPoint((Point){ .x = 0 });
+	local = getPoint();
+}
+
+// file: typed_initializer_expressions_private.h
+#ifndef TYPED_INITIALIZER_EXPRESSIONS_PRIVATE_H_
+#define TYPED_INITIALIZER_EXPRESSIONS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Point Point;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct Point
+{
+	int x;
+	int y;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: typed_initializer_expressions.c
