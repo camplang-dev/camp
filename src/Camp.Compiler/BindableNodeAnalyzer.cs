@@ -38,7 +38,7 @@ public sealed partial class BindableNodeAnalyzer
 		"char", "class", "const", "continue", "default", "delegate", "delete", "do", "double",
 		"else", "enum", "escaped", "export", "extern", "false", "finally", "fixed", "float",
 		"fn", "for", "foreach", "if", "implements", "in", "init", "int", "interface", "iter",
-		"long", "new", "newtype", "nint", "null", "nuint", "once", "out", "override", "params",
+		"long", "new", "newtype", "nint", "null", "nuint", "once", "out", "override", "params", "public",
 		"return", "sbyte", "scoped", "sealed", "short", "sizeof", "static", "string", "struct", "switch",
 		"this", "thrown", "true", "try", "uchar", "uint", "ulong", "unscoped", "ushort", "untyped",
 		"using", "virtual", "void", "volatile", "vtableof", "wchar", "while", "within", "wstring", "yield"
@@ -113,7 +113,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsDefinitionVisible(Definition definition, SyntaxNode? referenceSyntax)
 	{
-		if (definition.Export is not null)
+		if (IsExternallyVisible(definition))
 			return true;
 
 		if (currentModule is null || !currentModule.DefinitionSources.TryGetValue(definition, out TokenSequence? definitionSource))
@@ -145,12 +145,17 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsMemberVisible(Definition member, TypeDefinition owner, SyntaxNode? referenceSyntax)
 	{
-		return member.Export is not null || IsDefinitionInSameFile(owner, referenceSyntax);
+		return IsExternallyVisible(member) || IsDefinitionInSameFile(owner, referenceSyntax);
 	}
 
 	void ReportMemberNotExported(Definition member, SyntaxNode? referenceSyntax)
 	{
 		Report(GetRange(referenceSyntax), $"Member '{member.Name}' is declared in another file but is not exported.");
+	}
+
+	static bool IsExternallyVisible(Definition definition)
+	{
+		return definition.Export is not null || definition.Public is not null;
 	}
 
 	static TypeReference UnwrapTypeDeclarators(TypeReference type)

@@ -1,0 +1,93 @@
+// file: public_visibility.c
+#include "public_visibility_private.h"
+#include "public_visibility.h"
+
+
+int publicOffset = 7;
+int exportedOffset = 11;
+int InternalValue_getValue(InternalValue *this)
+{
+	return this->value;
+}
+
+int ExportedValue_getValue(ExportedValue *this)
+{
+	return this->value;
+}
+
+int ExportedValue_getHiddenValue(ExportedValue *this)
+{
+	return (this->value + publicOffset);
+}
+
+int internalAdd(InternalValue* value)
+{
+	return (InternalValue_getValue(value) + publicOffset);
+}
+
+int exportedAdd(ExportedValue* value)
+{
+	return ((ExportedValue_getValue(value) + ExportedValue_getHiddenValue(value)) + exportedOffset);
+}
+
+int run(void)
+{
+	InternalValue internal = (InternalValue){ .value = 3 };
+	ExportedValue exported = (ExportedValue){ .value = 5 };
+	return (internalAdd(&internal) + exportedAdd(&exported));
+}
+
+// file: public_visibility.h
+#ifndef PUBLIC_VISIBILITY_H_
+#define PUBLIC_VISIBILITY_H_
+
+#include "public_visibility_private.h"
+
+int ExportedValue_getValue(ExportedValue *this);
+int exportedAdd(ExportedValue* value);
+int run(void);
+extern int exportedOffset;
+
+#endif
+// file: public_visibility_private.h
+#ifndef PUBLIC_VISIBILITY_PRIVATE_H_
+#define PUBLIC_VISIBILITY_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct InternalValue InternalValue;
+typedef struct ExportedValue ExportedValue;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct InternalValue
+{
+	int value;
+};
+struct ExportedValue
+{
+	int value;
+};
+
+/* Function declarations. */
+int InternalValue_getValue(InternalValue *this);
+int ExportedValue_getValue(ExportedValue *this);
+int ExportedValue_getHiddenValue(ExportedValue *this);
+int internalAdd(InternalValue* value);
+int exportedAdd(ExportedValue* value);
+int run(void);
+
+/* Object declarations. */
+extern int publicOffset;
+extern int exportedOffset;
+
+
+#endif
+// compile
+compiled: public_visibility.c

@@ -391,13 +391,13 @@ public static class CCodeEmitter
 
 			WriteSection(writer, "Function declarations", () =>
 			{
-				foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null))
+				foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(IsExternallyVisible))
 					WriteFunctionPrototype(writer, function, storage: null);
 			});
 
 			WriteSection(writer, "Object declarations", () =>
 			{
-				foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null))
+				foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(IsExternallyVisible))
 					WriteVariableDeclaration(writer, variable, storage: "extern");
 			});
 		}
@@ -406,8 +406,8 @@ public static class CCodeEmitter
 		{
 			emittedNames.Clear();
 			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
-			List<FunctionDefinition> privateFunctions = GetAllFunctions(definitions).Where(static function => function.Export is null).ToList();
-			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is null).ToList();
+			List<FunctionDefinition> privateFunctions = GetAllFunctions(definitions).Where(static function => !IsExternallyVisible(function)).ToList();
+			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(static variable => !IsExternallyVisible(variable)).ToList();
 
 			if (privateFunctions.Count == 0 && privateVariables.Count == 0)
 				return;
@@ -429,7 +429,7 @@ public static class CCodeEmitter
 			{
 				if (variable.Extern is not null)
 					continue;
-				WriteVariableDefinition(writer, variable, storage: variable.Export is null ? "static" : null);
+				WriteVariableDefinition(writer, variable, storage: IsExternallyVisible(variable) ? null : "static");
 				wrote = true;
 			}
 
@@ -439,7 +439,7 @@ public static class CCodeEmitter
 					continue;
 				if (function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor)
 					continue;
-				WriteFunctionDefinition(writer, function, storage: function.Export is null ? "static" : null);
+				WriteFunctionDefinition(writer, function, storage: IsExternallyVisible(function) ? null : "static");
 				wrote = true;
 			}
 
@@ -595,6 +595,11 @@ public static class CCodeEmitter
 			if (function.Symbol.Contains("__", StringComparison.Ordinal))
 				return false;
 			return true;
+		}
+
+		static bool IsExternallyVisible(Definition definition)
+		{
+			return definition.Export is not null || definition.Public is not null;
 		}
 
 		static bool IsGeneratedVTableVariable(VariableDefinition variable)

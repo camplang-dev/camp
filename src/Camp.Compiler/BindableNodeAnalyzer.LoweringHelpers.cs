@@ -269,6 +269,7 @@ public sealed partial class BindableNodeAnalyzer
 		clone.Name = parameter.Name;
 		clone.Symbol = parameter.Symbol;
 		clone.Export = parameter.Export;
+		clone.Public = parameter.Public;
 		clone.Extern = parameter.Extern;
 		clone.Modifier = parameter.Modifier;
 		clone.Type = parameter is WithinParameterDefinition && parameter.Type is null ? new AllocatorTypeReference { ResolvedType = AllocatorType } : CloneType(parameter.Type);

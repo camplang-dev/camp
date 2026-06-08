@@ -123,6 +123,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = VirtualImplementationName(source),
 			Symbol = VirtualImplementationSymbol(owner, source),
 			Export = source.Export,
+			Public = source.Public,
 			ReturnType = CloneType(source.ReturnType),
 			ResolvedType = source.ResolvedType,
 			Body = source.Body
@@ -363,6 +364,7 @@ public sealed partial class BindableNodeAnalyzer
 				Name = InterfaceVTableName(classDefinition, interfaceDefinition),
 				Symbol = InterfaceVTableName(classDefinition, interfaceDefinition),
 				Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
+				Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null,
 				Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
 				ResolvedType = "const " + interfaceDefinition.Name + "*",
 				InitialValue = new UnaryExpression
@@ -412,6 +414,7 @@ public sealed partial class BindableNodeAnalyzer
 				Name = InterfaceVTableName(structDefinition, interfaceDefinition),
 				Symbol = InterfaceVTableName(structDefinition, interfaceDefinition),
 				Export = structDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
+				Public = (structDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(structDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null,
 				Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
 				ResolvedType = "const " + interfaceDefinition.Name + "*",
 				InitialValue = new UnaryExpression
@@ -718,6 +721,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = definition.Name,
 			Symbol = definition.Symbol,
 			Export = definition.Export,
+			Public = definition.Public,
 			Extern = definition.Extern,
 			ResolvedType = definition.ResolvedType ?? definition.Name
 		};
@@ -763,6 +767,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = InterfaceIndirectName(interfaceDefinition),
 			Symbol = InterfaceIndirectName(interfaceDefinition),
 			Export = interfaceDefinition.Export,
+			Public = interfaceDefinition.Public,
 			Modifier = StructModifier.Fixed,
 			ResolvedType = InterfaceIndirectName(interfaceDefinition)
 		};
@@ -1357,6 +1362,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = InitNewMethodName,
 			Symbol = $"{type.Name}_{InitNewMethodName}",
 			Export = constructor.Export,
+			Public = constructor.Public,
 			ReturnType = VoidType(),
 			ResolvedType = "void",
 			Body = constructor.Body
@@ -1376,6 +1382,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = CreateMethodName,
 			Symbol = $"{type.Name}_{CreateMethodName}",
 			Export = constructor.Export,
+			Public = constructor.Public,
 			Modifier = FunctionModifier.Static,
 			ReturnType = PointerTo(CloneType(typeReference)!),
 			ResolvedType = $"{type.Name}*"
@@ -1435,6 +1442,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = DeleteMethodName,
 			Symbol = $"{type.Name}_op_delete",
 			Export = destructor.Export,
+			Public = destructor.Public,
 			Modifier = GetDeleteMethodModifier(destructor),
 			ReturnType = VoidType(),
 			ResolvedType = "void",
@@ -1462,6 +1470,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = DestroyMethodName,
 			Symbol = $"{type.Name}_{DestroyMethodName}",
 			Export = destructor.Export,
+			Public = destructor.Public,
 			ReturnType = VoidType(),
 			ResolvedType = "void"
 		};

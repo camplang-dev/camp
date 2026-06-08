@@ -1,0 +1,44 @@
+public struct InternalValue
+{
+	int value;
+
+	public int getValue()
+	{
+		return this.value;
+	}
+}
+
+export struct ExportedValue
+{
+	int value;
+
+	export int getValue()
+	{
+		return this.value;
+	}
+
+	public int getHiddenValue()
+	{
+		return this.value + publicOffset;
+	}
+}
+
+public int publicOffset = 7;
+export int exportedOffset = 11;
+
+public int internalAdd(InternalValue* value)
+{
+	return value.getValue() + publicOffset;
+}
+
+export int exportedAdd(ExportedValue* value)
+{
+	return value.getValue() + value.getHiddenValue() + exportedOffset;
+}
+
+export int run()
+{
+	InternalValue internal = { .value = 3 };
+	ExportedValue exported = { .value = 5 };
+	return internalAdd(&internal) + exportedAdd(&exported);
+}

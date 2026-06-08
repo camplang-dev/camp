@@ -30,6 +30,7 @@ public abstract class Definition : BindableNode
 	public string Name { get; set; } = "";
 	public string Symbol { get; set; } = "";
 	public string? Export { get; set; }
+	public string? Public { get; set; }
 	public string? Extern { get; set; }
 }
 

@@ -814,7 +814,11 @@ public sealed partial class BindableNodeBuilder
 			switch (declarator.Keyword?.Value)
 			{
 				case "export":
-					definition.Export = SetNullableArgument(definition.Export, "", declarator, "export");
+					SetVisibility(definition, declarator, "export");
+					break;
+
+				case "public":
+					SetVisibility(definition, declarator, "public");
 					break;
 
 				case "extern":
@@ -846,7 +850,11 @@ public sealed partial class BindableNodeBuilder
 			switch (declarator.Keyword?.Value)
 			{
 				case "export":
-					definition.Export = SetNullableArgument(definition.Export, "", declarator, "export");
+					SetVisibility(definition, declarator, "export");
+					break;
+
+				case "public":
+					SetVisibility(definition, declarator, "public");
 					break;
 
 				case "extern":
@@ -891,6 +899,20 @@ public sealed partial class BindableNodeBuilder
 			definition.Modifier = modifier;
 	}
 
+	void SetVisibility(Definition definition, SyntaxNode syntax, string keyword)
+	{
+		if (definition.Export is not null || definition.Public is not null)
+		{
+			Report(syntax, $"'{keyword}' cannot be combined with another visibility declarator.");
+			return;
+		}
+
+		if (keyword == "export")
+			definition.Export = SetNullableArgument(definition.Export, "", syntax, "export");
+		else
+			definition.Public = SetNullableArgument(definition.Public, "", syntax, "public");
+	}
+
 	void ApplyNonStructTypeDeclarators(TypeDefinition definition, List<TypeDeclarationDeclaratorSyntax>? declarators, string typeKind)
 	{
 		foreach (TypeDeclarationDeclaratorSyntax declarator in declarators ?? [])
@@ -898,7 +920,11 @@ public sealed partial class BindableNodeBuilder
 			switch (declarator.Keyword?.Value)
 			{
 				case "export":
-					definition.Export = SetNullableArgument(definition.Export, "", declarator, "export");
+					SetVisibility(definition, declarator, "export");
+					break;
+
+				case "public":
+					SetVisibility(definition, declarator, "public");
 					break;
 
 				case "extern":
@@ -927,7 +953,11 @@ public sealed partial class BindableNodeBuilder
 			switch (declarator.Keyword?.Value)
 			{
 				case "export":
-					definition.Export = SetNullableArgument(definition.Export, "", declarator, "export");
+					SetVisibility(definition, declarator, "export");
+					break;
+
+				case "public":
+					SetVisibility(definition, declarator, "public");
 					break;
 
 				case "extern":
@@ -965,6 +995,7 @@ public sealed partial class BindableNodeBuilder
 					break;
 
 				case "export":
+				case "public":
 				case "extern":
 				case "virtual":
 				case "override":
@@ -988,7 +1019,11 @@ public sealed partial class BindableNodeBuilder
 			switch (declarator.Keyword?.Value)
 			{
 				case "export":
-					definition.Export = SetNullableArgument(definition.Export, "", declarator, "export");
+					SetVisibility(definition, declarator, "export");
+					break;
+
+				case "public":
+					SetVisibility(definition, declarator, "public");
 					break;
 
 				case "extern":

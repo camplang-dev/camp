@@ -478,14 +478,14 @@ public static class CompilerDriver
 			entryPoint = null;
 			List<FunctionDefinition> candidates = [];
 			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
-				if (definition is FunctionDefinition { Name: "main", Export: not null } function)
+				if (definition is FunctionDefinition { Name: "main" } function && (function.Export is not null || function.Public is not null))
 					candidates.Add(function);
 
 			if (candidates.Count != 1)
 			{
 				ErrorLine(candidates.Count == 0
-					? "Building an executable requires exactly one exported function named 'main'."
-					: "Building an executable requires exactly one exported function named 'main', but multiple were found.");
+					? "Building an executable requires exactly one public or exported function named 'main'."
+					: "Building an executable requires exactly one public or exported function named 'main', but multiple were found.");
 				return false;
 			}
 

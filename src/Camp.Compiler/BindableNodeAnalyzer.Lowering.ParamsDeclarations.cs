@@ -86,6 +86,7 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = function.SourceSyntax,
 				Name = component.ExpandedName,
 				Symbol = component.ExpandedName,
+				Public = function.Public,
 				Modifier = ParameterModifier.Out,
 				Type = new NamedTypeReference { Name = component.Type, ResolvedType = component.Type },
 				ResolvedType = component.Type
@@ -313,6 +314,7 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = source.SourceSyntax,
 			Name = component.ExpandedName,
 			Symbol = component.ExpandedName,
+			Public = source.Public,
 			Modifier = source.Modifier,
 			ResolvedType = component.Type,
 			DefaultValue = component.SourceParameter?.DefaultValue ?? (inheritDefaultValue ? source.DefaultValue : null)
@@ -327,6 +329,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = component.ExpandedName,
 			Symbol = component.ExpandedName,
 			Export = source.Export,
+			Public = source.Public,
 			Extern = source.Extern,
 			Modifier = source.Modifier,
 			ResolvedType = component.Type,
@@ -342,6 +345,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = component.ExpandedName,
 			Symbol = component.ExpandedName,
 			Export = source.Export,
+			Public = source.Public,
 			Extern = source.Extern,
 			ResolvedType = component.Type,
 			InitialValue = initialValue

@@ -99,6 +99,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = stateName,
 			Symbol = stateName,
 			Export = function.Export,
+			Public = function.Public,
 			ResolvedType = stateName
 		};
 		AddIteratorStateMembers(state, function, iterType);
@@ -113,6 +114,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = stateName,
 			Symbol = stateName,
 			Export = function.Export,
+			Public = function.Public,
 			Modifier = StructModifier.Fixed,
 			ResolvedType = stateName
 		};
@@ -343,6 +345,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = "next",
 			Symbol = $"{state.Name}_next",
 			Export = function.Export,
+			Public = function.Public,
 			ReturnType = new PrimitiveTypeReference { Type = PrimitiveType.Bool, ResolvedType = "bool" },
 			ResolvedType = "bool"
 		};
@@ -387,6 +390,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = DeleteMethodName,
 			Symbol = $"{state.Name}_{DeleteMethodName}",
 			Export = state.Export,
+			Public = state.Public,
 			ReturnType = VoidType(),
 			ResolvedType = "void",
 			Body = new BlockStatement { ResolvedType = "void" }
@@ -420,6 +424,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = "destroy",
 			Symbol = $"{state.Name}_destroy",
 			Export = state.Export,
+			Public = state.Public,
 			ReturnType = VoidType(),
 			ResolvedType = "void",
 			Body = new BlockStatement
@@ -527,6 +532,7 @@ public sealed partial class BindableNodeAnalyzer
 			Symbol = $"{state.Name}_iter",
 			Modifier = FunctionModifier.Static,
 			Export = state.Export,
+			Public = state.Public,
 			ReturnType = new PrimitiveTypeReference { Type = PrimitiveType.Bool, ResolvedType = "bool" },
 			ResolvedType = "bool",
 			Body = new BlockStatement
