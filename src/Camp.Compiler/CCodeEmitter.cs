@@ -14,6 +14,7 @@ public sealed class CEmissionOptions
 	public required string OutputDirectory { get; init; }
 	public required string ProjectName { get; init; }
 	public string EmitKind { get; init; } = "c99";
+	public NativeBuildKind? BuildKind { get; init; }
 	public bool EmitExecMainWrapper { get; init; }
 	public FunctionDefinition? ExecEntryPoint { get; init; }
 }
@@ -50,7 +51,7 @@ public static class CCodeEmitter
 		try
 		{
 			Directory.CreateDirectory(options.OutputDirectory);
-			CDeclarationWriter declarations = new(compilation, result);
+			CDeclarationWriter declarations = new(compilation, options, result);
 			EmitPrivateHeader(compilation, options, result, declarations);
 			foreach (SourceFile file in compilation.Files)
 			{
@@ -90,7 +91,7 @@ public static class CCodeEmitter
 		try
 		{
 			Directory.CreateDirectory(outputDirectory);
-			CDeclarationWriter declarations = new(compilation, result);
+			CDeclarationWriter declarations = new(compilation, options, result);
 			string filename = Path.Combine(outputDirectory, options.ProjectName + "_api.h");
 			using StreamWriter writer = new(filename, append: false, Utf8NoBom);
 			string guard = BuildHeaderGuard(options.ProjectName + "_api_h");
@@ -343,12 +344,15 @@ public static class CCodeEmitter
 		return builder.Length == 0 ? "camp" : builder.ToString();
 	}
 
-	sealed class CDeclarationWriter(Compilation compilation, CEmissionResult result)
+	sealed class CDeclarationWriter(Compilation compilation, CEmissionOptions options, CEmissionResult result)
 	{
 		readonly HashSet<string> emittedNames = new(StringComparer.Ordinal);
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
 		readonly HashSet<string> currentGenericTypeNames = new(StringComparer.Ordinal);
 		readonly HashSet<string> currentArrayElementComponentNames = new(StringComparer.Ordinal);
+		readonly string sharedExportPrefix = options.BuildKind is NativeBuildKind.Shared
+			? compilation.Target?.GetCEmitterValue("dll_export_prefix") ?? ""
+			: "";
 
 		public void WritePrivateHeaderDeclarations(TextWriter writer)
 		{
@@ -927,7 +931,7 @@ public static class CCodeEmitter
 			if (!emittedNames.Add(key))
 				return;
 
-			string prefix = string.IsNullOrWhiteSpace(storage) ? "" : storage + " ";
+			string prefix = BuildDeclarationPrefix(function, storage);
 			string callSpec = FormatCallSpec(function.CallSpec);
 			if (callSpec.Length > 0)
 				callSpec += " ";
@@ -939,13 +943,13 @@ public static class CCodeEmitter
 
 		void WriteVariableDeclaration(TextWriter writer, VariableDefinition variable, string? storage)
 		{
-			string prefix = string.IsNullOrWhiteSpace(storage) ? "" : storage + " ";
+			string prefix = BuildDeclarationPrefix(variable, storage);
 			writer.WriteLine(prefix + FormatTypeOrResolved(variable.Type, variable.ResolvedType, CName(variable)).Declaration + ";");
 		}
 
 		void WriteVariableDefinition(TextWriter writer, VariableDefinition variable, string? storage)
 		{
-			string prefix = string.IsNullOrWhiteSpace(storage) ? "" : storage + " ";
+			string prefix = BuildDeclarationPrefix(variable, storage);
 			writer.Write(prefix + FormatTypeOrResolved(variable.Type, variable.ResolvedType, CName(variable)).Declaration);
 			if (variable.InitialValue is not null)
 				writer.Write(" = " + FormatExpression(variable.InitialValue));
@@ -954,7 +958,7 @@ public static class CCodeEmitter
 
 		void WriteFunctionDefinition(TextWriter writer, FunctionDefinition function, string? storage)
 		{
-			string prefix = string.IsNullOrWhiteSpace(storage) ? "" : storage + " ";
+			string prefix = BuildDeclarationPrefix(function, storage);
 			string callSpec = FormatCallSpec(function.CallSpec);
 			if (callSpec.Length > 0)
 				callSpec += " ";
@@ -964,6 +968,16 @@ public static class CCodeEmitter
 				WriteFunctionBody(writer, function);
 				writer.WriteLine();
 			});
+		}
+
+		string BuildDeclarationPrefix(Definition definition, string? storage)
+		{
+			List<string> parts = [];
+			if (!string.IsNullOrWhiteSpace(storage))
+				parts.Add(storage);
+			if (definition.Export is not null && storage is not "static" && !string.IsNullOrWhiteSpace(sharedExportPrefix))
+				parts.Add(sharedExportPrefix);
+			return parts.Count == 0 ? "" : string.Join(" ", parts) + " ";
 		}
 
 		void WithGenericContext(FunctionDefinition function, Action action)

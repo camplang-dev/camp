@@ -1,0 +1,14 @@
+// @build shared
+
+export int exportedValue = 3;
+public int publicValue = 4;
+
+export int exportedAdd(int value)
+{
+	return value + exportedValue;
+}
+
+public int publicAdd(int value)
+{
+	return exportedAdd(value) + publicValue;
+}

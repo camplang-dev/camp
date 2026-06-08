@@ -72,8 +72,25 @@ public static class GoldenFileTestRunner
 				_ => throw new ArgumentOutOfRangeException()
 			}
 		};
+		ApplyCaseOptions(testCase, request);
 		request.Files.Add(Path.GetRelativePath(testCase.RepositoryRoot, testCase.CasePath));
 		return request;
+	}
+
+	static void ApplyCaseOptions(GoldenFileTestCase testCase, CompilerRequest request)
+	{
+		foreach (string line in File.ReadLines(testCase.CasePath))
+		{
+			string trimmed = line.Trim();
+			if (!trimmed.StartsWith("// @", StringComparison.Ordinal))
+				continue;
+			string option = trimmed[4..].Trim();
+			if (option.Equals("build shared", StringComparison.OrdinalIgnoreCase))
+			{
+				request.BuildKind = NativeBuildKind.Shared;
+				request.OutDir = Path.Combine(GetBuildDirectory(testCase), "out");
+			}
+		}
 	}
 
 	static string SelectOutput(GoldenFileTestCase testCase, CompilerResult result)

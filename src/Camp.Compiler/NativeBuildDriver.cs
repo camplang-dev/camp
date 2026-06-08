@@ -122,9 +122,21 @@ public static class NativeBuildDriver
 		values["ld"] = Quote(options.Target.GetTool("ld"));
 		values["profile_cflags"] = profile.CFlags;
 		values["profile_ldflags"] = profile.LdFlags;
+		values["build_cflags"] = GetBuildCFlags(options);
 
 		string command = ExpandTemplate(template, values);
 		return RunCommand(command, options.BuildDirectory, result);
+	}
+
+	static string GetBuildCFlags(NativeBuildOptions options)
+	{
+		return options.Kind switch
+		{
+			NativeBuildKind.Shared => options.Target.GetCEmitterValue("shared_cflags"),
+			NativeBuildKind.Static => options.Target.GetCEmitterValue("static_cflags"),
+			NativeBuildKind.Exec => options.Target.GetCEmitterValue("exec_cflags"),
+			_ => ""
+		};
 	}
 
 	static string ExpandTemplate(string template, IReadOnlyDictionary<string, string> values)

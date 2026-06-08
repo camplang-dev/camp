@@ -430,6 +430,7 @@ public static class CompilerDriver
 				OutputDirectory = buildDirectory,
 				ProjectName = CCodeEmitter.GetProjectName(compilation.Files),
 				EmitKind = request.EmitKind,
+				BuildKind = request.BuildKind,
 				EmitExecMainWrapper = request.BuildKind is NativeBuildKind.Exec,
 				ExecEntryPoint = execEntryPoint
 			});
@@ -529,7 +530,8 @@ public static class CompilerDriver
 			{
 				OutputDirectory = outputDirectory,
 				ProjectName = projectName,
-				EmitKind = request.EmitKind
+				EmitKind = request.EmitKind,
+				BuildKind = request.BuildKind
 			}, outputDirectory);
 			foreach (string diagnostic in apiHeader.Diagnostics)
 				ErrorLine(diagnostic);

@@ -189,6 +189,7 @@ public sealed class TargetDefinition
 	public IReadOnlyDictionary<string, string> Toolchain => Sections.Toolchain;
 	public IReadOnlyDictionary<string, string> Artifact => Sections.Artifact;
 	public IReadOnlyDictionary<string, string> BuildTemplates => Sections.BuildTemplates;
+	public IReadOnlyDictionary<string, string> CEmitter => Sections.CEmitter;
 	public IReadOnlyDictionary<string, TargetProfileBuild> Profiles => Sections.Profiles;
 
 	public bool HasCallSpec(string name)
@@ -224,6 +225,11 @@ public sealed class TargetDefinition
 	public string? GetBuildTemplate(string name)
 	{
 		return Sections.BuildTemplates.TryGetValue(name, out string? value) && !string.IsNullOrWhiteSpace(value) ? value : null;
+	}
+
+	public string GetCEmitterValue(string name, string defaultValue = "")
+	{
+		return Sections.CEmitter.TryGetValue(name, out string? value) ? value : defaultValue;
 	}
 
 	public TargetProfileBuild GetProfileBuild(string profileName)
@@ -294,6 +300,7 @@ internal sealed class TargetSections
 	public Dictionary<string, string> Toolchain { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> Artifact { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> BuildTemplates { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, string> CEmitter { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, TargetProfileBuild> Profiles { get; } = new(StringComparer.Ordinal);
 
 	public void CopyFrom(TargetSections source)
@@ -309,6 +316,7 @@ internal sealed class TargetSections
 		CopySection(source.Toolchain, Toolchain);
 		CopySection(source.Artifact, Artifact);
 		CopySection(source.BuildTemplates, BuildTemplates);
+		CopySection(source.CEmitter, CEmitter);
 		CopySection(source.Profiles, Profiles);
 	}
 
@@ -325,6 +333,7 @@ internal sealed class TargetSections
 		MergeSection(data, "toolchain", Toolchain);
 		MergeSection(data, "artifact", Artifact);
 		MergeSection(data, "build", BuildTemplates);
+		MergeSection(data, "cemit", CEmitter);
 		MergeProfileSections(data);
 		ValidateTargetMetadata();
 	}
