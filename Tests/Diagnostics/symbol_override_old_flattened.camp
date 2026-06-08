@@ -1,0 +1,13 @@
+class Control
+{
+	@symbol("ControlValue")
+	int getValue()
+	{
+		return 0;
+	}
+}
+
+void test(Control* c)
+{
+	Control_getValue(c);
+}

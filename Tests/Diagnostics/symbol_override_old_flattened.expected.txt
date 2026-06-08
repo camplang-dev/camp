@@ -1,0 +1,1 @@
+tests/Diagnostics/symbol_override_old_flattened.camp(12,2): error: Symbol 'Control_getValue' could not be found.

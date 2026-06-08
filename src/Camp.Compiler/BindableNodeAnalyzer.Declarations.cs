@@ -63,8 +63,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeDefinition(Definition definition, AnalysisScope parentScope)
 	{
-		foreach (AttributeConstructor attribute in definition.Attributes)
-			AnalyzeAttribute(attribute);
+		AnalyzeAttributes(definition.Attributes);
 
 		switch (definition)
 		{
@@ -265,11 +264,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeAliasDefinition(AliasDefinition definition)
 	{
+		AnalyzeAttributes(definition.Attributes);
+		ApplySymbolAttribute(definition, allowed: false, "alias");
 		definition.ResolvedType = definition.TargetKind.ToString();
 	}
 
 	void AnalyzeClassDefinition(ClassDefinition definition, AnalysisScope parentScope)
 	{
+		ApplySymbolAttribute(definition, allowed: false, "type");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
@@ -289,6 +291,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeStructDefinition(StructDefinition definition, AnalysisScope parentScope)
 	{
+		ApplySymbolAttribute(definition, allowed: false, "type");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
@@ -306,6 +309,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeInterfaceDefinition(InterfaceDefinition definition, AnalysisScope parentScope)
 	{
+		ApplySymbolAttribute(definition, allowed: false, "type");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
@@ -319,13 +323,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeEnumDefinition(EnumDefinition definition, AnalysisScope parentScope)
 	{
+		ApplySymbolAttribute(definition, allowed: false, "type");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
 		AnalyzeOptionalType(definition.UnderlyingType, scope);
 
 		foreach (VariableDefinition value in definition.Values)
-			AnalyzeVariableDefinition(value, scope);
+			AnalyzeVariableDefinition(value, scope, allowSymbolAttribute: false);
 
 		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
@@ -334,6 +339,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeNewtypeDefinition(NewtypeDefinition definition, AnalysisScope parentScope)
 	{
+		ApplySymbolAttribute(definition, allowed: false, "type");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
@@ -349,6 +355,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeParamsDefinition(ParamsDefinition definition, AnalysisScope parentScope)
 	{
+		ApplySymbolAttribute(definition, allowed: false, "type");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
@@ -403,6 +410,24 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetNameRange(definition), $"Symbol '{componentName}' is already declared in this scope as a component of '{definition.Name}'.");
 				else
 					componentSymbols[componentName] = definition.Name;
+			}
+		}
+
+		foreach (TypeDefinition type in typeDefinitions.Values)
+		{
+			foreach (FunctionDefinition function in GetTypeFunctions(type))
+			{
+				if (!function.SymbolOverridden || string.IsNullOrWhiteSpace(function.Symbol))
+					continue;
+
+				string symbol = function.Symbol;
+				if (componentSymbols.TryGetValue(symbol, out string? componentOwner))
+					Report(GetNameRange(function), $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
+
+				if (symbols.TryGetValue(symbol, out Definition? existing) && !ReferenceEquals(existing, function))
+					Report(GetNameRange(function), $"Duplicate symbol name '{symbol}'.");
+				else
+					symbols[symbol] = function;
 			}
 		}
 	}
@@ -498,8 +523,10 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	void AnalyzeVariableDefinition(VariableDefinition definition, AnalysisScope scope)
+	void AnalyzeVariableDefinition(VariableDefinition definition, AnalysisScope scope, bool allowSymbolAttribute = true)
 	{
+		AnalyzeAttributes(definition.Attributes);
+		ApplySymbolAttribute(definition, allowSymbolAttribute, allowSymbolAttribute ? "variable" : "enum value");
 		CheckName(definition.Name, GetNameRange(definition), "variable");
 		AnalyzeOptionalType(definition.Type, scope);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
@@ -531,6 +558,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeFieldDefinition(FieldDefinition definition, AnalysisScope scope)
 	{
+		AnalyzeAttributes(definition.Attributes);
+		ApplySymbolAttribute(definition, allowed: false, "field");
 		CheckName(definition.Name, GetNameRange(definition), "field");
 		AnalyzeOptionalType(definition.Type, scope);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
@@ -539,6 +568,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType)
 	{
+		AnalyzeAttributes(definition.Attributes);
+		ApplySymbolAttribute(definition, allowed: true, "function");
 		CheckName(definition.Name.TrimStart('~'), GetNameRange(definition), "function");
 		NormalizeExtensionThisParameter(definition, containingType);
 		if (!string.IsNullOrWhiteSpace(definition.CallSpec))
@@ -569,7 +600,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (containingType is not null && GetExplicitThisParameter(definition) is ThisParameterDefinition memberThisParameter)
 			memberThisParameter.ResolvedType = ApplyThisDeclarators(containingType, memberThisParameter);
-		if (containingType is null && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
+		if (containingType is null && !definition.SymbolOverridden && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
 			definition.Symbol = BuildExtensionFunctionSymbol(definition.Name, thisParameter.ResolvedType ?? ErrorType, definition);
 	}
 
@@ -673,6 +704,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeParameterDefinition(ParameterDefinition definition, AnalysisScope scope, bool allowThisName = false)
 	{
+		AnalyzeAttributes(definition.Attributes);
+		ApplySymbolAttribute(definition, allowed: false, "parameter");
+
 		if (definition is SizeOfParameterDefinition)
 		{
 			AnalyzeOptionalType(definition.Type, scope);

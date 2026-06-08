@@ -1,0 +1,13 @@
+export as MyLib;
+
+@symbol("ExportedC")
+export extern int exportedCampName();
+
+@symbol("HiddenPublic")
+public extern int publicCampName();
+
+@symbol("PrivateC")
+extern int privateImport();
+
+@symbol("ExportedValueC")
+export int ExportedValue = 1;

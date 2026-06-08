@@ -1088,6 +1088,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	static void EnsureImplementationMethodSymbol(TypeDefinition type, FunctionDefinition function)
 	{
+		if (function.SymbolOverridden)
+			return;
+
 		if (string.IsNullOrWhiteSpace(function.Symbol) || function.Symbol == function.Name)
 			function.Symbol = type.Name + "_" + function.Name.TrimStart('~');
 	}

@@ -20,7 +20,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition function = (FunctionDefinition)getter.Member!;
 		getter.Target = LowerExpression(getter.Target);
 		getter.Name = function.Name;
-		getter.ResolvedType = BuildFunctionValueType(function, isInstance: true);
+		getter.ResolvedType = BuildFunctionValueType(function, IsInstanceInvocationFunction(function));
 
 		CallExpression call = new()
 		{
@@ -33,8 +33,10 @@ public sealed partial class BindableNodeAnalyzer
 		callTargets[call] = function;
 		AddImplicitDefaultArguments(call);
 		ExpandParamsArguments(call);
-		if (getter.Target is Expression receiver)
+		if (IsInstanceInvocationFunction(function) && getter.Target is Expression receiver)
 			RewriteInstanceInvocation(call, getter, receiver, function);
+		else
+			RewriteStaticCallableTarget(call, getter, function, isInstance: false);
 		return call;
 	}
 
@@ -43,7 +45,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition function = (FunctionDefinition)setter.Member!;
 		setter.Target = LowerExpression(setter.Target);
 		setter.Name = function.Name;
-		setter.ResolvedType = BuildFunctionValueType(function, isInstance: true);
+		setter.ResolvedType = BuildFunctionValueType(function, IsInstanceInvocationFunction(function));
 
 		CallExpression call = new()
 		{
@@ -66,9 +68,22 @@ public sealed partial class BindableNodeAnalyzer
 			Value = loweredValue,
 			ResolvedType = loweredValue?.ResolvedType ?? valueParameter?.ResolvedType ?? ErrorType
 		});
-		if (setter.Target is Expression receiver)
+		if (IsInstanceInvocationFunction(function) && setter.Target is Expression receiver)
 			RewriteInstanceInvocation(call, setter, receiver, function);
+		else
+			RewriteStaticCallableTarget(call, setter, function, isInstance: false);
 		return call;
+	}
+
+	void RewriteStaticCallableTarget(CallExpression call, MemberReferenceExpression member, FunctionDefinition function, bool isInstance)
+	{
+		MethodReferenceExpression reference = new()
+		{
+			SourceSyntax = member.SourceSyntax,
+			ResolvedType = BuildFunctionValueType(function, isInstance)
+		};
+		reference.Candidates.Add(function);
+		call.Target = reference;
 	}
 
 	void LowerInterfaceCall(CallExpression call)

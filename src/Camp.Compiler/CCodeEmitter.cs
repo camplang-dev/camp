@@ -2226,6 +2226,8 @@ public static class CCodeEmitter
 
 		string CName(FunctionDefinition function)
 		{
+			if (function.SymbolOverridden && !string.IsNullOrWhiteSpace(function.Symbol))
+				return SanitizeIdentifier(function.Symbol);
 			if (!string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol != function.Name)
 				return SanitizeIdentifier(function.Symbol);
 			if (containingTypes.TryGetValue(function, out TypeDefinition? type))

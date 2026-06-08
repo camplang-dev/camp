@@ -44,6 +44,15 @@ public sealed partial class BindableNodeAnalyzer
 		"using", "virtual", "void", "volatile", "vtableof", "wchar", "while", "within", "wstring", "yield"
 	};
 
+	static readonly HashSet<string> CReservedWords = new(StringComparer.Ordinal)
+	{
+		"auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else", "enum",
+		"extern", "float", "for", "goto", "if", "inline", "int", "long", "register", "restrict", "return",
+		"short", "signed", "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void",
+		"volatile", "while", "_Alignas", "_Alignof", "_Atomic", "_Bool", "_Complex", "_Generic", "_Imaginary",
+		"_Noreturn", "_Static_assert", "_Thread_local"
+	};
+
 	readonly List<AnalysisDiagnostic> diagnostics = [];
 	readonly Dictionary<string, TypeDefinition> typeDefinitions = new(StringComparer.Ordinal);
 	readonly Dictionary<string, AliasDefinition> aliasDefinitions = new(StringComparer.Ordinal);
@@ -295,7 +304,83 @@ public sealed partial class BindableNodeAnalyzer
 		attribute.ResolvedType = AttributeType;
 
 		foreach (ArgumentExpression argument in attribute.Arguments)
-			AnalyzeExpression(argument, new AnalysisScope());
+		{
+			if (argument.Value is null)
+				argument.ResolvedType = ErrorType;
+			else
+			{
+				AnalyzeExpression(argument.Value, new AnalysisScope());
+				argument.Value.ResolvedType = AttributeType;
+				argument.ResolvedType = AttributeType;
+			}
+		}
+	}
+
+	void AnalyzeAttributes(List<AttributeConstructor> attributes)
+	{
+		foreach (AttributeConstructor attribute in attributes)
+		{
+			if (attribute.ResolvedType != AttributeType)
+				AnalyzeAttribute(attribute);
+		}
+	}
+
+	void ApplySymbolAttribute(Definition definition, bool allowed, string symbolKind)
+	{
+		foreach (AttributeConstructor attribute in definition.Attributes)
+		{
+			if (!IsSymbolAttribute(attribute))
+				continue;
+
+			if (!allowed)
+			{
+				Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), $"@symbol may not be applied to {symbolKind} declarations.");
+				continue;
+			}
+
+			if (definition.SymbolOverridden)
+				continue;
+
+			if (attribute.Arguments.Count != 1)
+			{
+				Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@symbol requires exactly one string argument.");
+				continue;
+			}
+
+			Expression? value = attribute.Arguments[0].Value;
+			if (value is not LiteralExpression { Kind: LiteralKind.String, Value: string symbol })
+			{
+				Report(GetRange(value?.SourceSyntax ?? attribute.Arguments[0].SourceSyntax ?? attribute.SourceSyntax), "@symbol argument must be a string literal.");
+				continue;
+			}
+
+			if (!IsIdentifier(symbol))
+			{
+				Report(GetRange(value.SourceSyntax ?? attribute.Arguments[0].SourceSyntax ?? attribute.SourceSyntax), $"@symbol value '{symbol}' is not a valid identifier.");
+				continue;
+			}
+
+			if (ReservedWords.Contains(symbol))
+			{
+				Report(GetRange(value.SourceSyntax ?? attribute.Arguments[0].SourceSyntax ?? attribute.SourceSyntax), $"@symbol value '{symbol}' is a reserved Camp word.");
+				continue;
+			}
+
+			if (CReservedWords.Contains(symbol))
+			{
+				Report(GetRange(value.SourceSyntax ?? attribute.Arguments[0].SourceSyntax ?? attribute.SourceSyntax), $"@symbol value '{symbol}' is a reserved C word.");
+				continue;
+			}
+
+			definition.Symbol = symbol;
+			definition.SymbolOverridden = true;
+		}
+	}
+
+	static bool IsSymbolAttribute(AttributeConstructor attribute)
+	{
+		string name = attribute.Name.StartsWith("@", StringComparison.Ordinal) ? attribute.Name[1..] : attribute.Name;
+		return name == "symbol";
 	}
 
 

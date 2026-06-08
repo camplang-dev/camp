@@ -1,0 +1,10 @@
+tests/Diagnostics/symbol_override_invalid.camp(1,1): error: @symbol requires exactly one string argument.
+tests/Diagnostics/symbol_override_invalid.camp(4,9): error: @symbol argument must be a string literal.
+tests/Diagnostics/symbol_override_invalid.camp(7,9): error: @symbol value 'bad-name' is not a valid identifier.
+tests/Diagnostics/symbol_override_invalid.camp(10,9): error: @symbol value 'class' is a reserved Camp word.
+tests/Diagnostics/symbol_override_invalid.camp(13,9): error: @symbol value 'typedef' is a reserved C word.
+tests/Diagnostics/symbol_override_invalid.camp(16,1): error: @symbol may not be applied to type declarations.
+tests/Diagnostics/symbol_override_invalid.camp(23,2): error: @symbol may not be applied to field declarations.
+tests/Diagnostics/symbol_override_invalid.camp(27,19): error: @symbol may not be applied to parameter declarations.
+tests/Diagnostics/symbol_override_invalid.camp(34,12): error: Duplicate symbol name 'Same'.
+tests/Diagnostics/symbol_override_invalid.camp(37,12): error: Duplicate symbol name 'Same'.

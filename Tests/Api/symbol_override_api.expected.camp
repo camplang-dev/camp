@@ -1,0 +1,6 @@
+export as MyLib;
+
+@symbol("ExportedC")
+export extern int exportedCampName();
+@symbol("ExportedValueC")
+export extern int ExportedValue;

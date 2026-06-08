@@ -610,7 +610,7 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsTypeFunctionSymbolNamed(TypeDefinition type, FunctionDefinition function, string name)
 	{
 		return (!string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol != function.Name && function.Symbol == name)
-			|| $"{type.Name}_{function.Name.TrimStart('~')}" == name;
+			|| (!function.SymbolOverridden && $"{type.Name}_{function.Name.TrimStart('~')}" == name);
 	}
 
 	VariableDefinition? LookupGlobalVariable(string name, SyntaxNode? referenceSyntax)

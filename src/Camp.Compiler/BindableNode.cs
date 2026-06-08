@@ -29,6 +29,7 @@ public abstract class Definition : BindableNode
 	public List<AttributeConstructor> Attributes { get; } = [];
 	public string Name { get; set; } = "";
 	public string Symbol { get; set; } = "";
+	public bool SymbolOverridden { get; set; }
 	public string? Export { get; set; }
 	public string? Public { get; set; }
 	public string? Extern { get; set; }

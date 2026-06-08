@@ -1,0 +1,51 @@
+@symbol()
+extern int missing();
+
+@symbol(1)
+extern int nonString();
+
+@symbol("bad-name")
+extern int badName();
+
+@symbol("class")
+extern int campReserved();
+
+@symbol("typedef")
+extern int cReserved();
+
+@symbol("BadType")
+struct BadType
+{
+}
+
+struct Holder
+{
+	@symbol("BadField")
+	int field;
+}
+
+void badParameter(@symbol("BadParameter") int value)
+{
+}
+
+alias Same = int;
+
+@symbol("Same")
+extern int first();
+
+@symbol("Same")
+extern int second();
+
+class Control
+{
+	@symbol("ControlValue")
+	int getValue()
+	{
+		return 0;
+	}
+}
+
+void test(Control* c)
+{
+	Control_getValue(c);
+}

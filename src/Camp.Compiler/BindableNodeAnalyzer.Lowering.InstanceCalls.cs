@@ -149,6 +149,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void EnsureFlattenedFunctionSymbol(FunctionDefinition function)
 	{
+		if (function.SymbolOverridden)
+			return;
+
 		if (!string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol != function.Name)
 			return;
 
