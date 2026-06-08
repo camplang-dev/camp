@@ -1,3 +1,3 @@
 tests/Diagnostics/slice_range_invalid.camp(1,40): error: @range must mark the first parameter of an index/count pair.
 tests/Diagnostics/slice_range_invalid.camp(5,33): error: @range parameter 'index' must be integral.
-tests/Diagnostics/slice_range_invalid.camp(9,75): error: A ^ default value is valid only for the count parameter paired with an @range parameter.
+tests/Diagnostics/slice_range_invalid.camp(9,63): error: A ^ default value is valid only for the count parameter paired with an @range parameter.

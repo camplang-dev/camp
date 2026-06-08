@@ -1,4 +1,4 @@
-const char[] toArray(const string this)
+const char[] toArray(string this)
 {
 	const char[] arr = {};
 	arr.elements = this;
@@ -12,7 +12,7 @@ void accept(const char[] value)
 
 int main()
 {
-	const string value = "two";
+	string value = "two";
 	accept(String_toArray(value));
 	accept(value.toArray());
 	return 0;

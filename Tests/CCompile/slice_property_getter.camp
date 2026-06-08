@@ -1,4 +1,4 @@
-nuint getLength(const string this)
+nuint getLength(string this)
 {
 	nuint i = 0;
 	while (this[i] != 0)
@@ -6,7 +6,7 @@ nuint getLength(const string this)
 	return i;
 }
 
-const char[] getSpan(const string this, @range nuint index = 0, nuint count = ^0)
+const char[] getSpan(string this, @range nuint index = 0, nuint count = ^0)
 {
 	const char[] span = default;
 	span.elements = &this[index];
@@ -16,7 +16,7 @@ const char[] getSpan(const string this, @range nuint index = 0, nuint count = ^0
 
 int main()
 {
-	const string message = "Hello, world!";
+	string message = "Hello, world!";
 	const char[] span = message.Span;
 	return (int)span.length;
 }

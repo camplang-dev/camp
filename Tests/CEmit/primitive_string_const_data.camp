@@ -1,0 +1,14 @@
+export string echo(string value)
+{
+	return value;
+}
+
+export void takesChars(const char* value)
+{
+}
+
+export void main()
+{
+	string value = "hello";
+	takesChars(value);
+}

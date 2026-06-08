@@ -12,7 +12,7 @@ void accept(const char* value)
 
 int main()
 {
-	Box<const string>* box = null;
+	Box<string>* box = null;
 	accept(box.Item[0]);
 	return 0;
 }

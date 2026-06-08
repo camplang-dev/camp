@@ -1,4 +1,4 @@
-bool tryParseInt(const string this, out int value)
+bool tryParseInt(string this, out int value)
 {
 	value = 0;
 	return false;
@@ -19,7 +19,7 @@ void touch(const int[] this)
 }
 
 @symbol("CustomStringName")
-bool custom(const string this)
+bool custom(string this)
 {
 	return true;
 }

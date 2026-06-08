@@ -1,5 +1,5 @@
 @symbol("SetWindowTextA")
-extern bool SetWindowText(int hWnd, const astring text);
+extern bool SetWindowText(int hWnd, astring text);
 
 @symbol("MyLibSomeValue")
 export int SomeValue = 5;

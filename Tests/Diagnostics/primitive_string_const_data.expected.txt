@@ -1,0 +1,3 @@
+tests/Diagnostics/primitive_string_const_data.camp(4,21): error: Declaration initializer cannot convert 'string' to 'char*'.
+tests/Diagnostics/primitive_string_const_data.camp(5,7): error: Assignment target is const and cannot be assigned.
+tests/Diagnostics/primitive_string_const_data.camp(6,18): error: String literal cannot implicitly convert to mutable type 'char*'.

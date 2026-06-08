@@ -68,8 +68,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (GetPrimitiveStringElementType(indexedType) is not null)
 		{
-			if (IsConstQualified(indexedType))
-				Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
+			Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
 			return;
 		}
 
@@ -1608,13 +1607,13 @@ public sealed partial class BindableNodeAnalyzer
 		string unqualifiedTargetElement = StripTopLevelValueQualifiers(targetElement);
 		if (unqualifiedTargetElement != sourceElement)
 			return false;
-		return !IsConstQualified(source) || IsConstQualified(targetElement);
+		return IsConstQualified(targetElement);
 	}
 
 	string GetStringLiteralType(LiteralExpression literal, string? targetType)
 	{
 		if (targetType is null || targetType == TargetType || targetType == AutoType)
-			return "const string";
+			return "string";
 
 		if (IsStringLiteralTargetType(targetType))
 			return targetType;
@@ -1625,12 +1624,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsStringLiteralTargetType(string? type)
 	{
-		return type is "const char*"
-			or "const wchar*"
-			or "const achar*"
+		return type is "string"
+			or "wstring"
+			or "astring"
 			or "const string"
 			or "const wstring"
 			or "const astring"
+			or "const char*"
+			or "const wchar*"
+			or "const achar*"
 			or "const char[]"
 			or "const wchar[]"
 			or "const achar[]";

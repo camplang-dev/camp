@@ -1,0 +1,7 @@
+void main()
+{
+	string value = "hello";
+	char* fromString = value;
+	value[0] = 1;
+	char* mutable = "bad";
+}

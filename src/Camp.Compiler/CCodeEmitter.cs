@@ -2039,6 +2039,13 @@ public static class CCodeEmitter
 				type = type[..^2].TrimEnd();
 			}
 
+			if (IsPrimitiveStringResolvedName(type))
+			{
+				pointerCount++;
+				if (qualifiers.Remove("const"))
+					trailingQualifiers.Insert(0, "const");
+			}
+
 			bool isGenericType = currentGenericTypeNames.Contains(type);
 			if (isGenericType && pointerCount > 0 && currentArrayElementComponentNames.Contains(declarator))
 				pointerCount++;
@@ -2062,14 +2069,19 @@ public static class CCodeEmitter
 			{
 				"void" => "void",
 				"bool" => compilation.Target?.GetPrimitiveCSpelling("bool") ?? "bool",
-				"string" => "char*",
-				"wstring" => "uint16_t*",
-				"astring" => "char*",
+				"string" => "const char",
+				"wstring" => "const uint16_t",
+				"astring" => "const char",
 				"untyped" => "void",
 				"sbyte" or "byte" or "short" or "ushort" or "int" or "uint" or "long" or "ulong" or "nint" or "nuint" or "float" or "double" or "char" or "wchar" or "achar" or "uchar"
 					=> compilation.Target?.GetPrimitiveCSpelling(type) ?? type,
 				_ => CTypeName(type)
 			};
+		}
+
+		static bool IsPrimitiveStringResolvedName(string type)
+		{
+			return type is "string" or "wstring" or "astring";
 		}
 
 		CType FormatQualifiedType(string qualifier, TypeReference? inner, string declarator)
@@ -2106,11 +2118,11 @@ public static class CCodeEmitter
 			if (primitive == PrimitiveType.Void)
 				return new CType("void " + declarator);
 			if (primitive == PrimitiveType.String)
-				return FormatDataPointerPrimitive("char", declarator);
+				return FormatDataPointerPrimitive("const char", declarator);
 			if (primitive == PrimitiveType.WString)
-				return FormatDataPointerPrimitive("uint16_t", declarator);
+				return FormatDataPointerPrimitive("const uint16_t", declarator);
 			if (primitive == PrimitiveType.AString)
-				return FormatDataPointerPrimitive("char", declarator);
+				return FormatDataPointerPrimitive("const char", declarator);
 			if (primitive == PrimitiveType.Untyped)
 				return new CType("void " + declarator);
 			return new CType((compilation.Target?.GetPrimitiveCSpelling(name) ?? name) + " " + declarator);
