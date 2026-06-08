@@ -595,6 +595,7 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < definition.Parameters.Count; i++)
 			AnalyzeParameterDefinition(definition.Parameters[i], scope, allowThisName: IsExtensionThisParameter(definition, containingType, i));
 		ValidateIteratorGeneratorParameters(definition);
+		ValidateIndexAwareParameters(definition);
 
 		ValidateExpandedParameterNames(definition.Parameters);
 

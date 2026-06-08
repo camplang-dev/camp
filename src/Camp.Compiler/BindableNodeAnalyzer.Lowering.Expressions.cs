@@ -291,6 +291,10 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			if (parameter.DefaultValue is null)
 				continue;
+			if (parameter.DefaultValue is UnaryExpression { Operator: UnaryOperator.FromEnd }
+				&& parameterIndex > 0
+				&& HasAttribute(callableParameters[parameterIndex - 1].Attributes, "@range"))
+				continue;
 
 			Expression? defaultValue = CloneDefaultArgumentExpression(parameter.DefaultValue);
 			call.Arguments.Insert(argumentIndex, new ArgumentExpression

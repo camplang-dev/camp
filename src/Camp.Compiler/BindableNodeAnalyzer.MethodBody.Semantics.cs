@@ -990,11 +990,11 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
-			if (CanCallWithArgumentCount(getter.Parameters, arguments.Count))
+			if (CanCallWithArgumentCount(getter.Parameters, HasRangeArgument(arguments) ? arguments.Count + 1 : arguments.Count))
 			{
 				Dictionary<string, string> genericSubstitutions = [];
 				AddReceiverTypeGenericSubstitutions(targetType, getter, genericSubstitutions);
-				AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope, member.SourceSyntax, genericSubstitutions: genericSubstitutions, genericParameterNames: GetFunctionGenericParameterNames(getter));
+				AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope, member.SourceSyntax, genericSubstitutions: genericSubstitutions, genericParameterNames: GetFunctionGenericParameterNames(getter), callTarget: member);
 				member.ResolvedType = SubstituteGenericType(getter.ResolvedType ?? ErrorType, genericSubstitutions);
 				expressionRewrites[member] = CreateMemberReference(member, member.Target, member.ResolvedType, getter);
 				propertyType = member.ResolvedType;

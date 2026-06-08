@@ -1,0 +1,21 @@
+scoped const int[] slice(const int[] this, @range nuint index = 0, nuint count = ^0)
+{
+	const int[] sliceResult = {};
+	sliceResult.elements = this.elements;
+	sliceResult.length = count;
+	return sliceResult;
+}
+
+void consume(const int[] values)
+{
+}
+
+int main()
+{
+	int[] values = [1, 2, 3, 4, 5, 6];
+	consume(values.slice(2..4));
+	consume(values.slice(..^1));
+	consume(values.slice(3));
+	consume(values.slice());
+	return 0;
+}

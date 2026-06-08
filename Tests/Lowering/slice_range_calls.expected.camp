@@ -1,0 +1,56 @@
+scoped const int* slice(const int[] this, nuint index = 0, nuint count = 0, out nuint result_length)
+{
+	const int* sliceResult;
+	nuint sliceResult_length;
+	sliceResult = this.elements;
+	sliceResult_length = count;
+	{
+		result_length = sliceResult_length;
+		return sliceResult;
+	}
+}
+int getAt(const int[] this, nuint index)
+{
+	return this[index];
+}
+void consume(const int* values, nuint values_length)
+{
+}
+void main()
+{
+	int* values = [1, 2, 3, 4, 5, 6];
+	nuint values_length = 6;
+	scoped const int* __local0;
+	nuint __local1;
+	__local0 = IntArray_slice(values, values_length, 2 > values_length ? values_length : 2 < 0 ? 0 : 2, (5 > values_length ? values_length : 5 < 0 ? 0 : 5) >= (2 > values_length ? values_length : 2 < 0 ? 0 : 2) ? (5 > values_length ? values_length : 5 < 0 ? 0 : 5) - (2 > values_length ? values_length : 2 < 0 ? 0 : 2) : 0, out __local1);
+	consume(__local0, __local1);
+	scoped const int* __local2;
+	nuint __local3;
+	__local2 = IntArray_slice(values, values_length, 0 > values_length ? values_length : 0 < 0 ? 0 : 0, (5 > values_length ? values_length : 5 < 0 ? 0 : 5) >= (0 > values_length ? values_length : 0 < 0 ? 0 : 0) ? (5 > values_length ? values_length : 5 < 0 ? 0 : 5) - (0 > values_length ? values_length : 0 < 0 ? 0 : 0) : 0, out __local3);
+	consume(__local2, __local3);
+	scoped const int* __local4;
+	nuint __local5;
+	__local4 = IntArray_slice(values, values_length, 2 > values_length ? values_length : 2 < 0 ? 0 : 2, (values_length > values_length ? values_length : values_length < 0 ? 0 : values_length) >= (2 > values_length ? values_length : 2 < 0 ? 0 : 2) ? (values_length > values_length ? values_length : values_length < 0 ? 0 : values_length) - (2 > values_length ? values_length : 2 < 0 ? 0 : 2) : 0, out __local5);
+	consume(__local4, __local5);
+	scoped const int* __local6;
+	nuint __local7;
+	__local6 = IntArray_slice(values, values_length, 0 > values_length ? values_length : 0 < 0 ? 0 : 0, (values_length > values_length ? values_length : values_length < 0 ? 0 : values_length) >= (0 > values_length ? values_length : 0 < 0 ? 0 : 0) ? (values_length > values_length ? values_length : values_length < 0 ? 0 : values_length) - (0 > values_length ? values_length : 0 < 0 ? 0 : 0) : 0, out __local7);
+	consume(__local6, __local7);
+	scoped const int* __local8;
+	nuint __local9;
+	__local8 = IntArray_slice(values, values_length, 2 > values_length ? values_length : 2 < 0 ? 0 : 2, (values_length - 1 > values_length ? values_length : values_length - 1 < 0 ? 0 : values_length - 1) >= (2 > values_length ? values_length : 2 < 0 ? 0 : 2) ? (values_length - 1 > values_length ? values_length : values_length - 1 < 0 ? 0 : values_length - 1) - (2 > values_length ? values_length : 2 < 0 ? 0 : 2) : 0, out __local9);
+	consume(__local8, __local9);
+	scoped const int* __local10;
+	nuint __local11;
+	__local10 = IntArray_slice(values, values_length, values_length - 5 > values_length ? values_length : values_length - 5 < 0 ? 0 : values_length - 5, (values_length - 1 > values_length ? values_length : values_length - 1 < 0 ? 0 : values_length - 1) >= (values_length - 5 > values_length ? values_length : values_length - 5 < 0 ? 0 : values_length - 5) ? (values_length - 1 > values_length ? values_length : values_length - 1 < 0 ? 0 : values_length - 1) - (values_length - 5 > values_length ? values_length : values_length - 5 < 0 ? 0 : values_length - 5) : 0, out __local11);
+	consume(__local10, __local11);
+	scoped const int* __local12;
+	nuint __local13;
+	__local12 = IntArray_slice(values, values_length, 5, values_length - 0 >= 5 ? values_length - 0 - 5 : 0, out __local13);
+	consume(__local12, __local13);
+	scoped const int* __local14;
+	nuint __local15;
+	__local14 = IntArray_slice(values, values_length, 0, values_length - 0 >= 0 ? values_length - 0 - 0 : 0, out __local15);
+	consume(__local14, __local15);
+	int last = IntArray_getAt(values, values_length, values_length - 1);
+}

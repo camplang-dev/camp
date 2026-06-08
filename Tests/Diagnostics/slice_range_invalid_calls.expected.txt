@@ -1,0 +1,2 @@
+tests/Diagnostics/slice_range_invalid_calls.camp(18,15): error: Range argument requires an @range parameter.
+tests/Diagnostics/slice_range_invalid_calls.camp(19,16): error: ^ from-end syntax requires the receiver to expose a length (.length, .Length, or getLength()).

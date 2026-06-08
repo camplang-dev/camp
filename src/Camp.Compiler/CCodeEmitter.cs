@@ -350,6 +350,7 @@ public static class CCodeEmitter
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
 		readonly HashSet<string> currentGenericTypeNames = new(StringComparer.Ordinal);
 		readonly HashSet<string> currentArrayElementComponentNames = new(StringComparer.Ordinal);
+		FunctionDefinition? currentFunction;
 		readonly string sharedExportPrefix = options.BuildKind is NativeBuildKind.Shared
 			? compilation.Target?.GetCEmitterValue("dll_export_prefix") ?? ""
 			: "";
@@ -1077,6 +1078,8 @@ public static class CCodeEmitter
 
 		void WriteFunctionBody(TextWriter writer, FunctionDefinition function)
 		{
+			FunctionDefinition? previousFunction = currentFunction;
+			currentFunction = function;
 			writer.WriteLine("{");
 			if (NeedsAbiThisFixup(function))
 			{
@@ -1092,6 +1095,7 @@ public static class CCodeEmitter
 			foreach (Statement statement in function.Body!.Statements)
 				WriteStatement(writer, statement, 1);
 			writer.WriteLine("}");
+			currentFunction = previousFunction;
 		}
 
 		void WriteBlock(TextWriter writer, BlockStatement block, int indent, bool forceBraces)
@@ -1283,7 +1287,7 @@ public static class CCodeEmitter
 				SizeOfExpression sizeOf => "sizeof(" + FormatType(sizeOf.Type, "").Declaration.Trim() + ")",
 				CallExpression call => FormatCallExpression(call),
 				IndexExpression index => FormatExpression(index.Target) + "[" + string.Join(", ", index.Arguments.Select(FormatArgumentValue)) + "]",
-				MemberExpression member => FormatExpression(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
+				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatExpression(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
 				MemberReferenceExpression member => FormatMemberReference(member),
 				UnaryExpression unary => FormatUnaryExpression(unary),
 				PostfixUpdateExpression postfix => FormatExpression(postfix.Expression) + FormatUpdateOperator(postfix.Operator),
@@ -1618,6 +1622,9 @@ public static class CCodeEmitter
 		{
 			if (member.Member is FunctionDefinition function && (!containingTypes.TryGetValue(function, out TypeDefinition? owner) || owner is not InterfaceDefinition || member.Target is null))
 				return CName(function);
+			string? expandedThisComponent = FormatExpandedThisComponent(member.Target, member.Name);
+			if (expandedThisComponent is not null)
+				return expandedThisComponent;
 			string separator = IsPointerMemberTarget(member.Target) ? "->" : ".";
 			return FormatExpression(member.Target) + separator + SanitizeIdentifier(member.Name);
 		}
@@ -1823,6 +1830,12 @@ public static class CCodeEmitter
 					if (parameter is WithinParameterDefinition && parameter.Type is null)
 						continue;
 					string name = CName(parameter);
+					if (parameter is ThisParameterDefinition && TryGetArrayLiteralElementType(parameter.ResolvedType, out string thisElementType))
+					{
+						parts.Add(FormatTypeOrResolved(null, thisElementType + "*", name).Declaration);
+						parts.Add(FormatTypeOrResolved(null, "nuint", name + "_length").Declaration);
+						continue;
+					}
 					if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 					{
 						TypeReference? parameterType = parameter.Type;
@@ -1835,6 +1848,40 @@ public static class CCodeEmitter
 				}
 			});
 			return "(" + (parts.Count == 0 ? "void" : string.Join(", ", parts)) + ")";
+		}
+
+		string? FormatExpandedThisComponent(MemberExpression member)
+		{
+			return FormatExpandedThisComponent(member.Target, member.Name);
+		}
+
+		string? FormatExpandedThisComponent(Expression? target, string name)
+		{
+			ThisParameterDefinition? parameter = target switch
+			{
+				VariableReferenceExpression { Variable: ThisParameterDefinition variable } => variable,
+				ThisExpression when currentFunction?.Parameters.FirstOrDefault() is ThisParameterDefinition implicitThis => implicitThis,
+				_ => null
+			};
+			ParameterDefinition? componentParameter = parameter;
+			if (componentParameter is null
+				&& target is VariableReferenceExpression { Variable: ParameterDefinition namedParameter }
+				&& CName(namedParameter) == "this")
+				componentParameter = namedParameter;
+			if (componentParameter is null
+				&& target is ThisExpression
+				&& currentFunction?.Parameters.FirstOrDefault(static p => p.Symbol == "this") is { } currentThis)
+				componentParameter = currentThis;
+			if (componentParameter is null)
+				return null;
+			if (!TryGetArrayLiteralElementType(componentParameter.ResolvedType, out _))
+				return null;
+			return name switch
+			{
+				"elements" => CName(componentParameter),
+				"length" => CName(componentParameter) + "_length",
+				_ => null
+			};
 		}
 
 		bool RequiresImplicitThisParameter(FunctionDefinition function)

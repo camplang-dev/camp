@@ -6,7 +6,7 @@
 static bool String_tryParseInt(const char* this, int *value);
 static uint32_t UInt_next(uint32_t this);
 static uintptr_t NUInt_wideNext(uintptr_t this);
-static void IntArray_touch(const int* this);
+static void IntArray_touch(const int* this, uintptr_t this_length);
 static bool CustomStringName(const char* this);
 
 static bool String_tryParseInt(const char* this, int *value)
@@ -25,7 +25,7 @@ static uintptr_t NUInt_wideNext(uintptr_t this)
 	return (this + 1);
 }
 
-static void IntArray_touch(const int* this)
+static void IntArray_touch(const int* this, uintptr_t this_length)
 {
 }
 

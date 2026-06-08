@@ -1079,7 +1079,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			return callableReturnType;
 		}
-		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax, IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function);
+		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax, IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function, call.Target);
 		if (function is not null)
 			callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
 
@@ -1347,7 +1347,7 @@ public sealed partial class BindableNodeAnalyzer
 		return implementation;
 	}
 
-	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null, bool includeExplicitThis = false, Dictionary<string, string>? genericSubstitutions = null, HashSet<string>? genericParameterNames = null, FunctionDefinition? function = null)
+	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null, bool includeExplicitThis = false, Dictionary<string, string>? genericSubstitutions = null, HashSet<string>? genericParameterNames = null, FunctionDefinition? function = null, Expression? callTarget = null)
 	{
 		genericSubstitutions ??= [];
 		genericParameterNames ??= [];
@@ -1356,6 +1356,7 @@ public sealed partial class BindableNodeAnalyzer
 			callableParameters.Insert(0, CreateImplicitThisParameter(containingType));
 		if (arguments.Count > callableParameters.Count || HasExplicitHiddenArgument(arguments))
 			AddExplicitHiddenParameters(parameters, callableParameters);
+		AnalyzeRangeAwareArguments(arguments, callableParameters, GetRangeReceiver(callTarget), scope, typeScope, fallbackSyntax);
 		int parameterIndex = 0;
 		for (int i = 0; i < arguments.Count; i++)
 		{
@@ -1370,7 +1371,9 @@ public sealed partial class BindableNodeAnalyzer
 
 			string expected = SubstituteGenericType(parameter?.ResolvedType ?? ErrorType, genericSubstitutions);
 			string analysisTarget = ContainsUnboundGenericParameter(expected, genericSubstitutions, genericParameterNames) ? TargetType : expected;
-			string actual = BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, analysisTarget);
+			string actual = arguments[i].ResolvedType == ErrorType
+				? ErrorType
+				: BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, analysisTarget);
 			if (parameter is not null)
 			{
 				InferGenericSubstitutions(parameter.ResolvedType ?? ErrorType, actual, genericSubstitutions, genericParameterNames);
@@ -1995,7 +1998,21 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 
 		foreach (ArgumentExpression argument in arguments)
+		{
+			if (argument.Value is UnaryExpression { Operator: UnaryOperator.FromEnd } fromEnd)
+			{
+				SyntaxNode? syntax = fromEnd.SourceSyntax ?? fromEnd.Operand?.SourceSyntax ?? argument.SourceSyntax;
+				Expression? length = CreateLengthExpression(target, syntax);
+				if (length is null)
+					Report(GetRange(syntax), "^ from-end syntax requires the receiver to expose a length (.length, .Length, or getLength()).");
+				else
+				{
+					argument.Value = CreateFromEndExpression(fromEnd, length);
+					argument.ResolvedType = "nuint";
+				}
+			}
 			BodyAnalyzeArgumentExpression(argument, scope, typeScope, "nuint");
+		}
 
 		if (TryGetArrayElementType(targetType) is string elementType)
 			return elementType;

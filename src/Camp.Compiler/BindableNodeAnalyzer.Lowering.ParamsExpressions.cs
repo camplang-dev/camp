@@ -788,6 +788,37 @@ public sealed partial class BindableNodeAnalyzer
 				Expression = CloneParamsExpansionExpression(parenthesized.Expression),
 				ResolvedType = parenthesized.ResolvedType
 			},
+			UnaryExpression unary => new UnaryExpression
+			{
+				SourceSyntax = unary.SourceSyntax,
+				Operator = unary.Operator,
+				Operand = CloneParamsExpansionExpression(unary.Operand),
+				Context = CloneParamsExpansionExpression(unary.Context),
+				ResolvedType = unary.ResolvedType
+			},
+			BinaryExpression binary => new BinaryExpression
+			{
+				SourceSyntax = binary.SourceSyntax,
+				Left = CloneParamsExpansionExpression(binary.Left),
+				Operator = binary.Operator,
+				Right = CloneParamsExpansionExpression(binary.Right),
+				ResolvedType = binary.ResolvedType
+			},
+			ConditionalExpression conditional => new ConditionalExpression
+			{
+				SourceSyntax = conditional.SourceSyntax,
+				Condition = CloneParamsExpansionExpression(conditional.Condition),
+				WhenTrue = CloneParamsExpansionExpression(conditional.WhenTrue),
+				WhenFalse = CloneParamsExpansionExpression(conditional.WhenFalse),
+				ResolvedType = conditional.ResolvedType
+			},
+			CallExpression call =>
+				new CallExpression
+				{
+					SourceSyntax = call.SourceSyntax,
+					Target = CloneParamsExpansionExpression(call.Target),
+					ResolvedType = call.ResolvedType
+				},
 			_ => expression
 		};
 	}

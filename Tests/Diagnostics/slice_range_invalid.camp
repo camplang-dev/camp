@@ -1,0 +1,28 @@
+void badRangeMissingCount(@range nuint index)
+{
+}
+
+void badRangeType(@range string index, nuint count)
+{
+}
+
+const string badDefault(const string this, nuint index = 0, nuint count = ^0)
+{
+	return this;
+}
+
+const string noRange(const string this, nuint index, nuint count)
+{
+	return this;
+}
+
+nuint getLength(const string this)
+{
+	return 10;
+}
+
+void main(const string text)
+{
+	noRange(text, 1..2);
+	text.badDefault(1, ^2);
+}

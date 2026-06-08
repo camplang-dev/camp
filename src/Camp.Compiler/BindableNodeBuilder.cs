@@ -1711,6 +1711,7 @@ public sealed partial class BindableNodeBuilder
 			ExpressionListSyntax list => list.Expressions is [ExpressionSyntax first, ..] ? GetRange(first) : null,
 			ExpressionSyntax expression => GetExpressionRange(expression),
 			ArgumentSyntax argument => argument.Identifier?.Range ?? argument.OutKeyword?.Range ?? argument.CatchKeyword?.Range ?? argument.WithinKeyword?.Range,
+			UnaryPrefixSyntax prefix => prefix.OperatorOrKeyword ?? prefix.OpenParenToken?.Range,
 			_ => null
 		};
 	}
