@@ -45,7 +45,7 @@ public static class GoldenFileTestRunner
 
 	static CompilerRequest CreateRequest(GoldenFileTestCase testCase)
 	{
-		if (testCase.Kind is GoldenFileTestKind.CEmit or GoldenFileTestKind.CCompile)
+		if (testCase.Kind is GoldenFileTestKind.CEmit or GoldenFileTestKind.CCompile or GoldenFileTestKind.StdRun)
 		{
 			string buildDirectory = GetBuildDirectory(testCase);
 			if (Directory.Exists(buildDirectory))
@@ -57,16 +57,21 @@ public static class GoldenFileTestRunner
 			RuntimeRoot = Path.Combine(testCase.RepositoryRoot, "bin"),
 			TargetRoot = Path.Combine(testCase.RepositoryRoot, "targets"),
 			PackageSourceRoot = Path.Combine(testCase.RepositoryRoot, "lib"),
-			PackageArtifactRoot = Path.Combine(testCase.RepositoryRoot, "tmp", "golden-packages"),
+			PackageArtifactRoot = testCase.Kind == GoldenFileTestKind.StdRun
+				? Path.Combine(GetBuildDirectory(testCase), "packages")
+				: Path.Combine(testCase.RepositoryRoot, "tmp", "golden-packages"),
 			WorkingDirectory = testCase.RepositoryRoot,
-			NoStdLib = testCase.Kind != GoldenFileTestKind.Std,
+			NoStdLib = testCase.Kind is not (GoldenFileTestKind.Std or GoldenFileTestKind.StdRun),
 			BuildDir = GetBuildDirectory(testCase),
+			OutDir = testCase.Kind == GoldenFileTestKind.StdRun ? Path.Combine(GetBuildDirectory(testCase), "out") : null,
+			BuildKind = testCase.Kind == GoldenFileTestKind.StdRun ? NativeBuildKind.Exec : null,
 			Inspect = testCase.Kind switch
 			{
 				GoldenFileTestKind.Ast => CompilerInspectMode.Ast,
 				GoldenFileTestKind.Lowering => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.Diagnostics => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.Std => CompilerInspectMode.Lowering,
+				GoldenFileTestKind.StdRun => null,
 				GoldenFileTestKind.Api => null,
 				GoldenFileTestKind.CEmit => null,
 				GoldenFileTestKind.CCompile => null,
@@ -102,9 +107,40 @@ public static class GoldenFileTestRunner
 			GoldenFileTestKind.Diagnostics => result.StdErr,
 			GoldenFileTestKind.CEmit => ReadGeneratedFiles(testCase),
 			GoldenFileTestKind.CCompile => CompileGeneratedC(testCase, result),
+			GoldenFileTestKind.StdRun => RunGeneratedExecutable(testCase, result),
 			GoldenFileTestKind.Api => result.StdOut,
 			_ => result.StdOut
 		};
+	}
+
+	static string RunGeneratedExecutable(GoldenFileTestCase testCase, CompilerResult result)
+	{
+		StringBuilder builder = new();
+		if (result.ExitCode != 0)
+		{
+			builder.AppendLine("compiler: failed");
+			if (!string.IsNullOrWhiteSpace(result.StdErr))
+				builder.Append(Normalize(result.StdErr));
+			if (!string.IsNullOrWhiteSpace(result.StdOut))
+				builder.Append(Normalize(result.StdOut));
+			return builder.ToString();
+		}
+
+		string? executable = result.GeneratedFiles
+			.Where(File.Exists)
+			.Where(static path => Path.GetExtension(path) is not ".c" and not ".h" and not ".o" and not ".a" and not ".camp")
+			.OrderByDescending(File.GetLastWriteTimeUtc)
+			.FirstOrDefault();
+		if (executable is null)
+			return "run: no executable\n";
+
+		ProcessResult run = RunProcess(executable, [], testCase.RepositoryRoot);
+		builder.AppendLine("exit: " + run.ExitCode.ToString(System.Globalization.CultureInfo.InvariantCulture));
+		if (!string.IsNullOrWhiteSpace(run.StdOut))
+			builder.Append(Normalize(run.StdOut));
+		if (!string.IsNullOrWhiteSpace(run.StdErr))
+			builder.Append(Normalize(run.StdErr));
+		return builder.ToString();
 	}
 
 	static string CompileGeneratedC(GoldenFileTestCase testCase, CompilerResult result)
@@ -201,7 +237,12 @@ public static class GoldenFileTestRunner
 	static string GetBuildDirectory(GoldenFileTestCase testCase)
 	{
 		string caseName = Path.GetFileNameWithoutExtension(testCase.CasePath);
-		string folder = testCase.Kind == GoldenFileTestKind.CCompile ? "golden-ccompile" : "golden-cemit";
+		string folder = testCase.Kind switch
+		{
+			GoldenFileTestKind.CCompile => "golden-ccompile",
+			GoldenFileTestKind.StdRun => "golden-stdrun",
+			_ => "golden-cemit"
+		};
 		return Path.Combine(testCase.RepositoryRoot, "tmp", folder, caseName);
 	}
 

@@ -1,38 +1,371 @@
 export as Std;
 
-export nint indexOf(string this, const char[] match, bool caseInsensitive = false) => 0;
-export nint indexOfChar(string this, uchar match, bool caseInsensitive = false) => 0;
-export nint indexOfAnyChar(string this, uchar[] const matches, bool caseInsensitive = false) => 0;
+extern nint utf8cmp(string src1, string src2);
+extern nint utf8casecmp(string src1, string src2);
+extern nint utf8ncmp(string src1, const char* src2, nuint len);
+extern nint utf8ncasecmp(string src1, const char* src2, nuint len);
+extern string utf8chr(string src, uchar chr);
+extern string utf8rchr(string src, uchar chr);
+extern nuint utf8len(string src);
+extern nuint utf8size_lazy(string src);
+extern string utf8codepoint(string src, out uchar codepoint);
+extern nuint utf8codepointcalcsize(string src);
+extern char* utf8cpy(char* dst, string src);
+extern char* utf8cat(char* dst, string src);
+extern void utf8upr(char* src);
+extern void utf8lwr(char* src);
 
-export nint lastIndexOf(string this, const char[] match, bool caseInsensitive = false) => 0;
-export nint lastIndexOfChar(string this, uchar match, bool caseInsensitive = false) => 0;
-export nint lastIndexOfAnyChar(string this, const uchar[] matches, bool caseInsensitive = false) => 0;
+export nint indexOf(string this, const char[] match, bool caseInsensitive = false)
+{
+	if (match.length == 0)
+		return 0;
 
-export bool startsWith(string this, const char[] match, bool caseInsensitive = false) => false;
-export bool startsWithChar(string this, uchar match, bool caseInsensitive = false) => false;
-export bool endsWith(string this, const char[] match, bool caseInsensitive = false) => false;
-export bool endsWithChar(string this, uchar match, bool caseInsensitive = false) => false;
+	nuint length = this.Length;
+	if (match.length > length)
+		return -1;
 
-export nint compareTo(string this, const char[] other, bool caseInsensitive = false) => 0;
+	nuint last = length - match.length;
+	for (nuint i = 0; i <= last; i++)
+	{
+		nint comparison = caseInsensitive
+			? utf8ncasecmp((string)&this[i], match.elements, match.length)
+			: utf8ncmp((string)&this[i], match.elements, match.length);
+		if (comparison == 0)
+			return (nint)i;
+	}
+	return -1;
+}
 
-export nuint countChars(string this) => 0;
-export uchar getChar(string this, @index nuint unit) => 0;
-export nuint getCharUnits(string this, @index nuint unit) => 0;
+export nint indexOfChar(string this, uchar match)
+{
+	string found = utf8chr(this, match);
+	if (found == null)
+		return -1;
+	return byteOffsetOf(this, found);
+}
 
-// Borrowing transformations
-export scoped char[] trim(string this) => default;
-export scoped char[] trimStart(string this) => default;
-export scoped char[] trimEnd(string this) => default;
+export nint indexOfAnyChar(string this, const uchar[] matches)
+{
+	nuint offset = 0;
+	string current = this;
+	while (current[0] != 0)
+	{
+		uchar codepoint = 0;
+		nuint units = utf8codepointcalcsize(current);
+		utf8codepoint(current, out codepoint);
+		if (containsCodepoint(matches, codepoint))
+			return (nint)offset;
+		offset += units;
+		current = (string)&current[units];
+	}
+	return -1;
+}
 
-// NOT YET
-//scoped String slice(string this, @range nuint index = 0, nuint count = ^0);
+export nint lastIndexOf(string this, const char[] match, bool caseInsensitive = false)
+{
+	if (match.length == 0)
+		return (nint)this.Length;
+
+	nuint length = this.Length;
+	if (match.length > length)
+		return -1;
+
+	nint result = -1;
+	nuint last = length - match.length;
+	for (nuint i = 0; i <= last; i++)
+	{
+		nint comparison = caseInsensitive
+			? utf8ncasecmp((string)&this[i], match.elements, match.length)
+			: utf8ncmp((string)&this[i], match.elements, match.length);
+		if (comparison == 0)
+			result = (nint)i;
+	}
+	return result;
+}
+
+export nint lastIndexOfChar(string this, uchar match, bool caseInsensitive = false)
+{
+	uchar searched = caseInsensitive ? utf8lwrcodepoint(match) : match;
+	nint result = -1;
+	nuint offset = 0;
+	string current = this;
+	while (current[0] != 0)
+	{
+		uchar codepoint = 0;
+		nuint units = utf8codepointcalcsize(current);
+		utf8codepoint(current, out codepoint);
+		if ((caseInsensitive ? utf8lwrcodepoint(codepoint) : codepoint) == searched)
+			result = (nint)offset;
+		offset += units;
+		current = (string)&current[units];
+	}
+	return result;
+}
+
+export nint lastIndexOfAnyChar(string this, const uchar[] matches, bool caseInsensitive = false)
+{
+	nint result = -1;
+	nuint offset = 0;
+	string current = this;
+	while (current[0] != 0)
+	{
+		uchar codepoint = 0;
+		nuint units = utf8codepointcalcsize(current);
+		utf8codepoint(current, out codepoint);
+		uchar compared = caseInsensitive ? utf8lwrcodepoint(codepoint) : codepoint;
+		if (containsCodepoint(matches, compared))
+			result = (nint)offset;
+		offset += units;
+		current = (string)&current[units];
+	}
+	return result;
+}
+
+export bool startsWith(string this, const char[] match, bool caseInsensitive = false)
+{
+	if (match.length > this.Length)
+		return false;
+	return (caseInsensitive ? utf8ncasecmp(this, match.elements, match.length) : utf8ncmp(this, match.elements, match.length)) == 0;
+}
+
+export bool startsWithChar(string this, uchar match, bool caseInsensitive = false)
+{
+	if (this[0] == 0)
+		return false;
+
+	uchar codepoint = 0;
+	utf8codepoint(this, out codepoint);
+	if (caseInsensitive)
+		return utf8lwrcodepoint(codepoint) == utf8lwrcodepoint(match);
+	return codepoint == match;
+}
+
+export bool endsWith(string this, const char[] match, bool caseInsensitive = false)
+{
+	nuint length = this.Length;
+	if (match.length > length)
+		return false;
+	return (caseInsensitive ? utf8ncasecmp((string)&this[length - match.length], match.elements, match.length) : utf8ncmp((string)&this[length - match.length], match.elements, match.length)) == 0;
+}
+
+export bool endsWithChar(string this, uchar match, bool caseInsensitive = false)
+{
+	nint index = String_lastIndexOfChar(this, match, caseInsensitive);
+	if (index < 0)
+		return false;
+	return (nuint)index + String_getCharUnits(this, (nuint)index) == this.Length;
+}
+
+// returns -1 (other < this), 0 (equal), or 1 (other > this)
+export nint compareTo(string this, const char[] other, bool caseInsensitive = false)
+{
+	nint comparison = caseInsensitive
+		? utf8ncasecmp(this, other.elements, other.length)
+		: utf8ncmp(this, other.elements, other.length);
+	if (comparison < 0)
+		return -1;
+	if (comparison > 0)
+		return 1;
+
+	nuint length = this.Length;
+	if (length < other.length)
+		return -1;
+	if (length > other.length)
+		return 1;
+	return 0;
+}
+
+// Returns the number of UTF-8 code points in a string
+export nuint countChars(string this)
+{
+	return utf8len(this);
+}
+
+// Returns a single code pointer of a UTF-8 string, starting at a code unit number (NOT a byte index)
+export uchar getChar(string this, @index nuint unit)
+{
+	uchar codepoint = 0;
+	utf8codepoint((string)&this[unit], out codepoint);
+	return codepoint;
+}
+
+// Returns the number of units that make up the code point, starting at a code unit number
+export nuint getCharUnits(string this, @index nuint unit)
+{
+	return utf8codepointcalcsize((string)&this[unit]);
+}
+
+// Borrowing transformations - trims the 6 ASCII characters classified as whitespace
+export scoped const char[] trim(string this)
+{
+	nuint start = trimStartIndex(this);
+	nuint end = trimEndIndex(this, start);
+	const char[] trimmed = default;
+	trimmed.elements = &this[start];
+	trimmed.length = end - start;
+	return trimmed;
+}
+
+export scoped const char[] trimStart(string this)
+{
+	nuint start = trimStartIndex(this);
+	const char[] trimmed = default;
+	trimmed.elements = &this[start];
+	trimmed.length = this.Length - start;
+	return trimmed;
+}
+
+export scoped const char[] trimEnd(string this)
+{
+	nuint end = trimEndIndex(this, 0);
+	const char[] trimmed = default;
+	trimmed.elements = this;
+	trimmed.length = end;
+	return trimmed;
+}
 
 // Copy-producing transformations
-export string uppercaseCopy(string this, within allocator) => default;
-export string lowercaseCopy(string this, within allocator) => default;
+export string uppercaseCopy(string this, within allocator)
+{
+	char* buffer = copyString(this, allocator);
+	if (buffer == null)
+		return null;
+	utf8upr(buffer);
+	return (string)buffer;
+}
 
+export string lowercaseCopy(string this, within allocator)
+{
+	char* buffer = copyString(this, allocator);
+	if (buffer == null)
+		return null;
+	utf8lwr(buffer);
+	return (string)buffer;
+}
+
+// Skip this one for now
 //export scoped string[] splitCopy(string this, const char[] separator, within allocator) => default;
 
-export string concatCopy(string[] const this, within allocator) => default;
-export string joinCopy(string[] const this, const char[] separator, within allocator) => default;
+export string concatCopy(string[] this, within allocator)
+{
+	nuint size = 1;
+	for (nuint i = 0; i < this.length; i++)
+		size += this[i].Length;
 
+	char* buffer = allocateString(size, allocator);
+	if (buffer == null)
+		return null;
+	buffer[0] = 0;
+
+	for (nuint j = 0; j < this.length; j++)
+		utf8cat(buffer, this[j]);
+	return (string)buffer;
+}
+
+export string joinCopy(string[] this, const char[] separator, within allocator)
+{
+	nuint size = 1;
+	for (nuint i = 0; i < this.length; i++)
+	{
+		size += this[i].Length;
+		if (i > 0)
+			size += separator.length;
+	}
+
+	char* buffer = allocateString(size, allocator);
+	if (buffer == null)
+		return null;
+	buffer[0] = 0;
+
+	for (nuint j = 0; j < this.length; j++)
+	{
+		if (j > 0)
+			appendSpan(buffer, separator);
+		utf8cat(buffer, this[j]);
+	}
+	return (string)buffer;
+}
+
+extern uchar utf8lwrcodepoint(uchar codepoint);
+
+nuint getLength(string this)
+{
+	return utf8size_lazy(this);
+}
+
+const char[] getSpan(string this, @range nuint index = 0, nuint count = ^0)
+{
+	const char[] span = default;
+	span.elements = &this[index];
+	span.length = count;
+	return span;
+}
+
+nint byteOffsetOf(string start, string target)
+{
+	nuint offset = 0;
+	while (&start[offset] != (const char*)target)
+		offset++;
+	return (nint)offset;
+}
+
+bool containsCodepoint(const uchar[] values, uchar codepoint)
+{
+	for (nuint i = 0; i < values.length; i++)
+		if (values[i] == codepoint)
+			return true;
+	return false;
+}
+
+bool isAsciiWhitespace(char value)
+{
+	return value == ' '
+		|| value == '\t'
+		|| value == '\n'
+		|| value == '\r'
+		|| value == '\v'
+		|| value == '\f';
+}
+
+nuint trimStartIndex(string value)
+{
+	nuint length = value.Length;
+	nuint start = 0;
+	while (start < length && isAsciiWhitespace(value[start]))
+		start++;
+	return start;
+}
+
+nuint trimEndIndex(string value, nuint start)
+{
+	nuint end = value.Length;
+	while (end > start && isAsciiWhitespace(value[end - 1]))
+		end--;
+	return end;
+}
+
+char* allocateString(nuint size, Allocator* allocator)
+{
+	if (allocator != null)
+		return (char*)allocator.alloc(size);
+	return (char*)malloc(size);
+}
+
+char* copyString(string value, Allocator* allocator)
+{
+	char* buffer = allocateString(value.Length + 1, allocator);
+	if (buffer == null)
+		return null;
+	utf8cpy(buffer, value);
+	return buffer;
+}
+
+void appendSpan(char* buffer, const char[] span)
+{
+	nuint offset = 0;
+	while (buffer[offset] != 0)
+		offset++;
+	for (nuint i = 0; i < span.length; i++)
+		buffer[offset + i] = span[i];
+	buffer[offset + span.length] = 0;
+}

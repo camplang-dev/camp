@@ -287,6 +287,14 @@ public static class CompilerDriver
 				ErrorLine($"Package '{packageName}' source directory '{sourceDirectory}' does not contain any .camp files.");
 				return false;
 			}
+			string[] nativeSourceFiles = Directory.GetFiles(sourceDirectory, "*.c", SearchOption.AllDirectories)
+				.OrderBy(static x => x, StringComparer.Ordinal)
+				.ToArray();
+			string[] cacheSourceFiles = sourceFiles
+				.Concat(nativeSourceFiles)
+				.Concat(Directory.GetFiles(sourceDirectory, "*.h", SearchOption.AllDirectories))
+				.OrderBy(static x => x, StringComparer.Ordinal)
+				.ToArray();
 
 			string packageBinDirectory = Path.Combine(context.PackageArtifactRoot, packageName, context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName);
 			string apiPath = Path.Combine(packageBinDirectory, packageName + "_api.camp");
@@ -303,8 +311,8 @@ public static class CompilerDriver
 			});
 
 			bool canUseCache = context.CommandLineDefines.Count == 0;
-			bool apiCurrent = canUseCache && IsOutputCacheCurrent(apiPath, sourceFiles) && (!requireNativeLibrary || IsOutputCacheCurrent(cApiPath, sourceFiles));
-			bool libraryCurrent = !requireNativeLibrary || canUseCache && IsOutputCacheCurrent(staticLibraryPath, sourceFiles);
+			bool apiCurrent = canUseCache && IsOutputCacheCurrent(apiPath, cacheSourceFiles) && (!requireNativeLibrary || IsOutputCacheCurrent(cApiPath, cacheSourceFiles));
+			bool libraryCurrent = !requireNativeLibrary || canUseCache && IsOutputCacheCurrent(staticLibraryPath, cacheSourceFiles);
 			if (apiCurrent && libraryCurrent)
 			{
 				apiHeaderPath = apiPath;
@@ -312,7 +320,7 @@ public static class CompilerDriver
 				return true;
 			}
 
-			if (!TryBuildPackage(packageName, sourceFiles, apiPath, requireNativeLibrary ? staticLibraryPath : null, context))
+			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeLibrary ? staticLibraryPath : null, context))
 				return false;
 
 			apiHeaderPath = apiPath;
@@ -331,7 +339,7 @@ public static class CompilerDriver
 			return true;
 		}
 
-		bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, string apiPath, string? staticLibraryPath, RuntimeContext context)
+		bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, IReadOnlyList<string> nativeSourceFiles, string apiPath, string? staticLibraryPath, RuntimeContext context)
 		{
 			CompilerRequest packageRequest = new()
 			{
@@ -407,7 +415,7 @@ public static class CompilerDriver
 				OutputDirectory = Path.GetDirectoryName(staticLibraryPath)!,
 				ProjectName = packageName,
 				Kind = NativeBuildKind.Static,
-				SourceFiles = emission.GeneratedSourceFiles
+				SourceFiles = emission.GeneratedSourceFiles.Concat(nativeSourceFiles).ToList()
 			});
 			foreach (string diagnostic in build.Diagnostics)
 				ErrorLine(diagnostic);

@@ -1,0 +1,76 @@
+using Std;
+
+export int main()
+{
+	string text = "  Hello, hello!  ";
+
+	if (text.indexOf("Hello") != 2)
+		return 1;
+	const char[] helloLower = "hello";
+	if (text.indexOf(helloLower, true) != 2)
+		return 2;
+	if (text.lastIndexOf("lo") != 12)
+		return 3;
+	if (text.indexOfChar((uchar)'H') != 2)
+		return 4;
+	if (text.lastIndexOfChar((uchar)'o') != 13)
+		return 5;
+
+	uchar[] any = [(uchar)'x', (uchar)'H'];
+	if (text.indexOfAnyChar(any) != 2)
+		return 6;
+	uchar[] anyLast = [(uchar)'!', (uchar)'x'];
+	if (text.lastIndexOfAnyChar(anyLast) != 14)
+		return 7;
+
+	if (!text.startsWith("  He"))
+		return 8;
+	if (!text.startsWithChar((uchar)' '))
+		return 9;
+	if (!text.endsWith("!  "))
+		return 10;
+	if (!text.endsWithChar((uchar)' '))
+		return 11;
+	if (text.compareTo("  Hello, hello!  ") != 0)
+		return 12;
+
+	string accent = "caf\xC3\xA9";
+	if (accent.countChars() != 4)
+		return 13;
+	if (accent.getChar(3) != (uchar)233)
+		return 14;
+	if (accent.getCharUnits(3) != 2)
+		return 15;
+
+	if (text.trim().length != 13)
+		return 16;
+	if (text.trimStart().length != 15)
+		return 17;
+	if (text.trimEnd().length != 15)
+		return 18;
+
+	Allocator* allocator = null;
+	string upper = null;
+	string lower = null;
+	string joined = null;
+	string concatenated = null;
+	string[] words = ["one", "two", "three"];
+	within (allocator)
+	{
+		upper = text.uppercaseCopy();
+		lower = text.lowercaseCopy();
+		concatenated = words.concatCopy();
+		joined = words.joinCopy(",");
+	}
+
+	if (upper.compareTo("  HELLO, HELLO!  ") != 0)
+		return 19;
+	if (lower.compareTo("  hello, hello!  ") != 0)
+		return 20;
+	if (concatenated.compareTo("onetwothree") != 0)
+		return 21;
+	if (joined.compareTo("one,two,three") != 0)
+		return 22;
+
+	return 0;
+}
