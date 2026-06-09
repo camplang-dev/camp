@@ -1703,6 +1703,9 @@ public static class CCodeEmitter
 
 		static string FormatLiteral(LiteralExpression literal)
 		{
+			if (literal.Kind == LiteralKind.String && IsWideStringLiteralType(literal.ResolvedType))
+				return FormatWideStringLiteral(literal);
+
 			return literal.Kind switch
 			{
 				LiteralKind.Number => literal.Text,
@@ -1713,6 +1716,22 @@ public static class CCodeEmitter
 				LiteralKind.Null => "NULL",
 				_ => "0"
 			};
+		}
+
+		static bool IsWideStringLiteralType(string? type)
+		{
+			type = StripTypeQualifiers(type ?? "");
+			return type is "wstring" or "wchar*" or "wchar[]";
+		}
+
+		static string FormatWideStringLiteral(LiteralExpression literal)
+		{
+			string text = literal.Value as string ?? "";
+			List<string> units = [];
+			for (int i = 0; i < text.Length; i++)
+				units.Add("0x" + ((int)text[i]).ToString("X4", CultureInfo.InvariantCulture));
+			units.Add("0");
+			return "((const uint16_t[]){" + string.Join(", ", units) + "})";
 		}
 
 		static string FormatUpdateOperator(UpdateOperator op)

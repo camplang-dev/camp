@@ -1,0 +1,91 @@
+using Std;
+
+export int main()
+{
+	wstring text = "  Hello, hello!  ";
+	const wchar[] span = text[..];
+
+	if (text.indexOf("Hello") != 2)
+		return 1;
+	const wchar[] helloLower = "hello";
+	if (text.indexOf(helloLower, true) != 2)
+		return 2;
+	if (span.lastIndexOf("lo") != 12)
+		return 3;
+	if (span.indexOfChar((uchar)'H') != 2)
+		return 4;
+	if (text.indexOfChar((uchar)'e') != 3)
+		return 5;
+	if (text[..].indexOfChar((uchar)'l') != 4)
+		return 6;
+	if (span.lastIndexOfChar((uchar)'o') != 13)
+		return 7;
+
+	uchar[] any = [(uchar)'x', (uchar)'H'];
+	if (span.indexOfAnyChar(any) != 2)
+		return 8;
+	uchar[] anyLast = [(uchar)'!', (uchar)'x'];
+	if (span.lastIndexOfAnyChar(anyLast) != 14)
+		return 9;
+
+	if (!text.startsWith("  He"))
+		return 10;
+	if (!span.startsWithChar((uchar)' '))
+		return 11;
+	if (!span.endsWith("!  "))
+		return 12;
+	if (!span.endsWithChar((uchar)' '))
+		return 13;
+	if (text.compareTo("  Hello, hello!  ") != 0)
+		return 14;
+
+	wstring face = "a\U0001F600b";
+	if (face[..].countChars() != 3)
+		return 15;
+	if (face[..].getChar(1) != (uchar)128512)
+		return 16;
+	if (face[..].getCharUnits(1) != 2)
+		return 17;
+
+	if (span.trim().length != 13)
+		return 18;
+	if (span.trimStart().length != 15)
+		return 19;
+	if (span.trimEnd().length != 15)
+		return 20;
+
+	Allocator* allocator = null;
+	wstring copied = null;
+	wstring upper = null;
+	wstring lower = null;
+	wstring joined = null;
+	wstring concatenated = null;
+	wstring[] words = ["one", "two", "three"];
+	within (allocator)
+	{
+		copied = span.stringCopy();
+		upper = span.uppercaseCopy();
+		lower = span.lowercaseCopy();
+		concatenated = words.concatCopy();
+		joined = words.joinCopy(",");
+	}
+
+	if (copied[..].compareTo("  Hello, hello!  ") != 0)
+		return 21;
+	if (upper[..].compareTo("  HELLO, HELLO!  ") != 0)
+		return 22;
+	if (lower[..].compareTo("  hello, hello!  ") != 0)
+		return 23;
+	if (concatenated[..].compareTo("onetwothree") != 0)
+		return 24;
+	if (joined[..].compareTo("one,two,three") != 0)
+		return 25;
+
+	const wchar[] embeddedNull = [(wchar)'a', (wchar)'b', (wchar)0, (wchar)'x', (wchar)'y'];
+	if (embeddedNull.compareTo("ab") != 0)
+		return 26;
+	if (embeddedNull.countChars() != 2)
+		return 27;
+
+	return 0;
+}
