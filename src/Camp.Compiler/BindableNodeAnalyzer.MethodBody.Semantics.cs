@@ -518,7 +518,14 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return CanConvertPrimitiveStringToPointer(source, target)
 			|| CanConvertPrimitiveStringToPointer(target, source)
+			|| IsPrimitiveStringVoidPointerPair(source, target)
 			|| IsPrimitiveStringPointerPair(source, target);
+	}
+
+	bool IsPrimitiveStringVoidPointerPair(string source, string target)
+	{
+		return StripTopLevelValueQualifiers(source) == "void*" && IsPrimitiveStringType(target)
+			|| IsPrimitiveStringType(source) && StripTopLevelValueQualifiers(target) == "void*";
 	}
 
 	bool IsPrimitiveStringPointerPair(string source, string target)

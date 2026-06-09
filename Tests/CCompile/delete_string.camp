@@ -1,0 +1,21 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+void deleteNow()
+{
+	string text = (string)malloc(16);
+	delete text;
+}
+
+void deleteFinally()
+{
+	string text = (string)malloc(16) finally delete;
+	_ = text;
+}
+
+export int main()
+{
+	deleteNow();
+	deleteFinally();
+	return 0;
+}

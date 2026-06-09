@@ -225,12 +225,14 @@ public sealed partial class BindableNodeAnalyzer
 		Expression? target = LowerExpression(expression);
 		string targetType = target?.ResolvedType ?? ErrorType;
 		string? elementType = TryGetPointerElementType(targetType);
-		bool isPointer = elementType is not null;
+		string? primitiveStringElementType = GetPrimitiveStringElementType(targetType);
+		bool isPrimitiveStringPointer = primitiveStringElementType is not null;
+		bool isPointer = elementType is not null || isPrimitiveStringPointer;
 		bool isArray = TryGetArrayElementType(targetType) is not null;
 		bool isThisPointer = target is ThisExpression
 			&& typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? thisType)
 			&& thisType is ClassDefinition;
-		string deletedType = isPointer ? elementType ?? ErrorType : targetType;
+		string deletedType = elementType ?? primitiveStringElementType ?? targetType;
 		FunctionDefinition? opDelete = FindDeleteMethod(deletedType);
 		if (opDelete is null
 			&& typeDefinitions.TryGetValue(BaseTypeName(deletedType), out TypeDefinition? deletedDefinition))

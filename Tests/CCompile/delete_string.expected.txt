@@ -1,0 +1,66 @@
+// file: delete_string.c
+#include "delete_string_private.h"
+#include "delete_string.h"
+
+/* Private file declarations. */
+void* malloc(uintptr_t size);
+void free(void* ptr);
+static void deleteNow(void);
+static void deleteFinally(void);
+
+static void deleteNow(void)
+{
+	const char* text = (const char*)(malloc(16));
+	free((void *)(text));
+}
+
+static void deleteFinally(void)
+{
+	void* _finally0 = malloc(16);
+	const char* text = (const char*)(_finally0);
+	const char* __discard1;
+	__discard1 = text;
+	free((void *)(_finally0));
+}
+
+int main(void)
+{
+	deleteNow();
+	deleteFinally();
+	return 0;
+}
+
+// file: delete_string.h
+#ifndef DELETE_STRING_H_
+#define DELETE_STRING_H_
+
+#include "delete_string_private.h"
+
+int main(void);
+
+#endif
+// file: delete_string_private.h
+#ifndef DELETE_STRING_PRIVATE_H_
+#define DELETE_STRING_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: delete_string.c
