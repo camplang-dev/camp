@@ -1,0 +1,134 @@
+export as Std;
+
+@symbol("write")
+public extern nint posixWrite(int fd, const void* buffer, nuint count);
+
+export enum IoError
+{
+	OK = 0,
+	FAILED
+}
+
+export newtype iter nuint ByteReader(byte[] buffer);
+export newtype iter nuint ByteWriter(byte[] buffer);
+
+export newtype iter nuint CharReader(char[] buffer);
+export newtype iter nuint CharWriter(char[] buffer);
+
+export newtype iter nuint WCharReader(wchar[] buffer);
+export newtype iter nuint WCharWriter(wchar[] buffer);
+
+export newtype iter nuint ACharReader(achar[] buffer);
+export newtype iter nuint ACharWriter(achar[] buffer);
+
+// export newtype async iter nuint AsyncByteReader(byte[] buffer);
+// export newtype async iter nuint AsyncByteWriter(const byte[] buffer);
+// export newtype async iter nuint AsyncCharReader(char[] buffer);
+// export newtype async iter nuint AsyncCharWriter(const char[] buffer);
+// export newtype async iter nuint AsyncWCharReader(wchar[] buffer);
+// export newtype async iter nuint AsyncWCharWriter(const wchar[] buffer);
+// export newtype async iter nuint AsyncACharReader(achar[] buffer);
+// export newtype async iter nuint AsyncACharWriter(const achar[] buffer);
+
+export void writeAll(ByteWriter this, const byte[] value, thrown IoError error)
+{
+	nuint offset = 0;
+	while (offset < value.length)
+	{
+		const byte[] remaining = default;
+		remaining.elements = &value.elements[offset];
+		remaining.length = value.length - offset;
+		
+		nuint written = 0;
+		if (!this(&written, (byte*)remaining.elements, remaining.length))
+			throw FAILED;
+		if (written == 0)
+			throw FAILED;
+		offset += written;
+	}
+}
+
+export void writeChar(CharWriter this, char value, thrown IoError error)
+{
+	const char[] buffer = [value];
+	nuint written = 0;
+	if (!this(&written, (char*)buffer.elements, buffer.length) || written != 1)
+		throw FAILED;
+}
+
+export void writeString(CharWriter this, const char[] value, thrown IoError error)
+{
+	nuint offset = 0;
+	while (offset < value.length)
+	{
+		const char[] remaining = default;
+		remaining.elements = &value.elements[offset];
+		remaining.length = value.length - offset;
+		
+		nuint written = 0;
+		if (!this(&written, (char*)remaining.elements, remaining.length))
+			throw FAILED;
+		if (written == 0)
+			throw FAILED;
+		offset += written;
+	}
+}
+
+export void writeLine(CharWriter this, const char[] value = default, thrown IoError error)
+{
+	CharWriter_writeString(this, value, catch error);
+	CharWriter_writeChar(this, '\n', catch error);
+}
+
+export void writeBool(CharWriter this, bool value, thrown IoError error)
+{
+	if (value)
+		CharWriter_writeString(this, "true", catch error);
+	else
+		CharWriter_writeString(this, "false", catch error);
+}
+
+export void writeInt(CharWriter this, int value, thrown IoError error)
+{
+	if (value < 0)
+	{
+		CharWriter_writeChar(this, '-', catch error);
+		CharWriter_writeUInt(this, (uint)(0 - value), catch error);
+	}
+	else
+	{
+		CharWriter_writeUInt(this, (uint)value, catch error);
+	}
+}
+
+export void writeUInt(CharWriter this, uint value, thrown IoError error)
+{
+	if (value >= 10)
+		CharWriter_writeUInt(this, value / 10, catch error);
+	CharWriter_writeChar(this, (char)((int)'0' + (int)(value % 10)), catch error);
+}
+
+export void writeDouble(CharWriter this, double value, thrown IoError error)
+{
+	if (value < 0.0)
+	{
+		CharWriter_writeChar(this, '-', catch error);
+		value = 0.0 - value;
+	}
+	
+	uint integerPart = (uint)value;
+	CharWriter_writeUInt(this, integerPart, catch error);
+	CharWriter_writeChar(this, '.', catch error);
+	
+	double fraction = value - (double)integerPart;
+	for (int i = 0; i < 6; i++)
+	{
+		fraction *= 10.0;
+		uint digit = (uint)fraction;
+		CharWriter_writeChar(this, (char)((int)'0' + (int)digit), catch error);
+		fraction -= (double)digit;
+	}
+}
+
+// export void writeStringAsync(AsyncCharWriter this, const char[] value, thrown IoError error);
+// export void writeLineAsync(AsyncCharWriter this, const char[] value = default, thrown IoError error);

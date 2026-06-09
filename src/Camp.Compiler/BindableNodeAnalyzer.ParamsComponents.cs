@@ -113,6 +113,20 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (!string.IsNullOrWhiteSpace(resolvedType))
 		{
+			if (typeDefinitions.TryGetValue(BaseTypeName(resolvedType), out TypeDefinition? nominalDefinition)
+				&& nominalDefinition is NewtypeDefinition { UnderlyingType: not null } newtypeDefinition
+				&& TryBuildPendingParamsComponents(newtypeDefinition.UnderlyingType, newtypeDefinition.UnderlyingType.ResolvedType, prefix, out components, out kind, out _)
+				&& kind is ParamsComponentShapeKind.Delegate or ParamsComponentShapeKind.Iter)
+			{
+				if (kind == ParamsComponentShapeKind.Iter && newtypeDefinition.UnderlyingType is IterTypeReference iterType)
+				{
+					components = [];
+					AddIteratorPendingComponents(GetIteratorProtocolCurrentTypes(iterType), GetExpandedCallableParameterTypes(newtypeDefinition.Parameters), prefix, components);
+				}
+				typeName = resolvedType;
+				return true;
+			}
+
 			if (TryParseTypeShape(resolvedType, out TypeShape typeShape))
 			{
 				if (typeShape.Kind == TypeShapeKind.Array && typeShape.Element is TypeShape arrayElement)
@@ -280,10 +294,16 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddIteratorPendingComponents(List<string> currentTypes, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
 	{
+		AddIteratorPendingComponents(currentTypes, [], prefix, components);
+	}
+
+	void AddIteratorPendingComponents(List<string> currentTypes, List<string> inputTypes, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
+	{
 		string contextType = "void*";
 		List<string> parameterTypes = [contextType];
 		foreach (string currentType in currentTypes)
 			parameterTypes.Add(AddPointer(currentType));
+		parameterTypes.AddRange(inputTypes);
 		string callType = BuildCallableType("fn", "bool", parameterTypes);
 		components.Add(new PendingParamsComponent("call", callType, [.. prefix, new ParamsNamePart("call", true)], null, ParamsComponentShapeKind.Iter));
 		components.Add(new PendingParamsComponent("context", contextType, [.. prefix, new ParamsNamePart("context", false)], null, ParamsComponentShapeKind.Iter));

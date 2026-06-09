@@ -250,6 +250,8 @@ static bool applyPredicateExplicitIter_iter(void* ctx, int* current)
 
 #include "iterator_protocol_filter_private.h"
 
+typedef bool (* fn_bool_int_)(int arg0);
+typedef bool (* fn_bool_voidPtr__intPtr_)(void* arg0, int* arg1);
 void run(void);
 
 #endif

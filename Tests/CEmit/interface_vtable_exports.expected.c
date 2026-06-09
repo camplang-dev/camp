@@ -38,6 +38,7 @@ static void Handle_IRef_retain(IRef** ctx)
 
 #include "interface_vtable_exports_private.h"
 
+typedef void (* fn_void_IRefPtrPtr_)(IRef** arg0);
 void Widget_retain(Widget *this);
 void Handle_retain(Handle *this);
 extern const IRef* Widget_IRef;

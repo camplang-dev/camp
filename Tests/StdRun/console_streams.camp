@@ -1,0 +1,13 @@
+using Std;
+
+export int main()
+{
+	Console.writeString("stream ");
+	Console.writeInt(-12);
+	Console.writeChar(' ');
+	Console.writeUInt(34);
+	Console.writeChar(' ');
+	Console.writeBool(true);
+	Console.writeLine();
+	return 0;
+}

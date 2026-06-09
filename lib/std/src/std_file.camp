@@ -1,0 +1,236 @@
+export as Std;
+
+@symbol("open")
+extern int posixOpen(const char* path, int flags, uint mode);
+
+@symbol("close")
+extern int posixClose(int fd);
+
+@symbol("read")
+extern nint posixRead(int fd, void* buffer, nuint count);
+
+@symbol("lseek")
+extern nint posixSeek(int fd, nint offset, int whence);
+
+const int O_RDONLY = 0;
+const int O_WRONLY = 1;
+const int O_RDWR = 2;
+const int O_CREAT = 512;
+const int O_TRUNC = 1024;
+const int O_APPEND = 8;
+
+const int SEEK_SET = 0;
+const int SEEK_CUR = 1;
+const int SEEK_END = 2;
+
+int FileHandle_buildFlags(FileAccess access, FileMode mode)
+{
+	int flags = O_RDONLY;
+		if (access == FileAccess.WRITE)
+			flags = O_WRONLY;
+		else
+		{
+			if (access == FileAccess.READ_WRITE)
+				flags = O_RDWR;
+		}
+		
+	if (mode == FileMode.CREATE)
+			flags |= O_CREAT;
+		else
+		{
+			if (mode == FileMode.CREATE_OR_TRUNCATE)
+				flags |= O_CREAT | O_TRUNC;
+			else
+			{
+				if (mode == FileMode.APPEND)
+					flags |= O_CREAT | O_APPEND;
+			}
+		}
+	
+	return flags;
+}
+
+export enum FileAccess
+{
+	READ,
+	WRITE,
+	READ_WRITE
+}
+
+export enum FileMode
+{
+	OPEN_EXISTING,
+	CREATE,
+	CREATE_OR_TRUNCATE,
+	APPEND
+}
+
+export struct FileOptions
+{
+	bool sequential;
+	bool randomAccess;
+	bool writeThrough;
+	bool allowSharedRead;
+	bool allowSharedWrite;
+}
+
+bool FileHandle_readFd(void* context, nuint* readCount, byte* buffer, nuint buffer_length)
+{
+	FileHandle* handle = (FileHandle*)context;
+	nint result = posixRead(handle.fd, (void*)buffer, buffer_length);
+	if (result < 0)
+		return false;
+	*readCount = (nuint)result;
+	if (result == 0)
+		handle.endOfFile = true;
+	return true;
+}
+
+bool FileHandle_writeFd(void* context, nuint* written, byte* buffer, nuint buffer_length)
+{
+	FileHandle* handle = (FileHandle*)context;
+	nint result = posixWrite(handle.fd, (const void*)buffer, buffer_length);
+	if (result < 0)
+		return false;
+	*written = (nuint)result;
+	return true;
+}
+
+export class FileHandle
+{
+	int fd;
+	bool readable;
+	bool writable;
+	bool endOfFile;
+	
+	~FileHandle()
+	{
+		if (this.fd >= 0)
+		{
+			posixClose(this.fd);
+			this.fd = -1;
+		}
+	}
+	
+	export static FileHandle* open(string path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError error)
+	{
+		int flags = FileHandle_buildFlags(access, mode);
+		int fd = posixOpen((const char*)path, flags, 438);
+		if (fd < 0)
+			throw FAILED;
+		
+		FileHandle* handle = new FileHandle();
+		if (handle == null)
+		{
+			posixClose(fd);
+			throw FAILED;
+		}
+		
+		handle.fd = fd;
+		handle.readable = access != FileAccess.WRITE;
+		handle.writable = access != FileAccess.READ;
+		handle.endOfFile = false;
+		return handle;
+	}
+	
+	export static ByteReader openRead(string path, FileMode mode = FileMode.OPEN_EXISTING, FileOptions options = default, thrown IoError error)
+	{
+		FileHandle* handle = FileHandle_open(path, FileAccess.READ, mode, options);
+		return handle.Reader;
+	}
+	
+	export static ByteWriter openWrite(string path, FileMode mode = FileMode.CREATE_OR_TRUNCATE, FileOptions options = default, thrown IoError error)
+	{
+		FileHandle* handle = FileHandle_open(path, FileAccess.WRITE, mode, options);
+		return handle.Writer;
+	}
+	
+	export bool getOpen()
+	{
+		return this.fd >= 0;
+	}
+	
+	export bool getReadable()
+	{
+		return this.readable;
+	}
+	
+	export bool getWritable()
+	{
+		return this.writable;
+	}
+	
+	export bool getEndOfFile()
+	{
+		return this.endOfFile;
+	}
+	
+	export ulong getLength(thrown IoError error)
+	{
+		nint current = posixSeek(this.fd, 0, SEEK_CUR);
+		if (current < 0)
+			throw FAILED;
+		nint length = posixSeek(this.fd, 0, SEEK_END);
+		if (length < 0)
+			throw FAILED;
+		if (posixSeek(this.fd, current, SEEK_SET) < 0)
+			throw FAILED;
+		return (ulong)length;
+	}
+	
+	export ulong getPosition(thrown IoError error)
+	{
+		nint position = posixSeek(this.fd, 0, SEEK_CUR);
+		if (position < 0)
+			throw FAILED;
+		return (ulong)position;
+	}
+	
+	export void setPosition(ulong value, thrown IoError error)
+	{
+		if (posixSeek(this.fd, (nint)value, SEEK_SET) < 0)
+			throw FAILED;
+		this.endOfFile = false;
+	}
+
+	export void read(byte[] buffer, out nuint readCount, thrown IoError error)
+	{
+		nint result = posixRead(this.fd, (void*)buffer.elements, buffer.length);
+		if (result < 0)
+			throw FAILED;
+		readCount = (nuint)result;
+		if (result == 0)
+			this.endOfFile = true;
+	}
+	
+	export void write(const byte[] buffer, thrown IoError error)
+	{
+		nuint offset = 0;
+		while (offset < buffer.length)
+		{
+			nint result = posixWrite(this.fd, (const void*)&buffer.elements[offset], buffer.length - offset);
+			if (result <= 0)
+				throw FAILED;
+			offset += (nuint)result;
+		}
+	}
+	
+	export ByteReader getReader()
+	{
+		ByteReader reader = default;
+		reader.call = FileHandle_readFd;
+		reader.context = this;
+		return reader;
+	}
+	
+	export ByteWriter getWriter()
+	{
+		ByteWriter writer = default;
+		writer.call = FileHandle_writeFd;
+		writer.context = this;
+		return writer;
+	}
+	
+	// export AsyncByteReader getAsyncReader();
+	// export AsyncByteWriter getAsyncWriter();
+}

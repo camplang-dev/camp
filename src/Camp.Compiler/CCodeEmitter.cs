@@ -478,11 +478,20 @@ public static class CCodeEmitter
 							wrote = true;
 							break;
 						case StructDefinition structDefinition:
+							WriteTypeForwardDeclaration(writer, structDefinition);
 							WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
 							wrote = true;
 							break;
 					}
 				}
+			}
+
+			List<string> callableTypes = CollectResolvedCallableTypes(definitions).ToList();
+			if (callableTypes.Count > 0)
+			{
+				foreach (string callableType in callableTypes)
+					WriteCallableAliasTypedef(writer, callableType);
+				wrote = true;
 			}
 
 			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null))
@@ -528,10 +537,19 @@ public static class CCodeEmitter
 						wrote = true;
 						break;
 					case StructDefinition structDefinition:
+						WriteTypeForwardDeclaration(writer, structDefinition);
 						WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
 						wrote = true;
 						break;
 				}
+			}
+
+			List<string> callableTypes = CollectResolvedCallableTypes(definitions).ToList();
+			if (callableTypes.Count > 0)
+			{
+				foreach (string callableType in callableTypes)
+					WriteCallableAliasTypedef(writer, callableType);
+				wrote = true;
 			}
 
 			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null))
@@ -1622,6 +1640,8 @@ public static class CCodeEmitter
 		{
 			if (member.Member is FunctionDefinition function && (!containingTypes.TryGetValue(function, out TypeDefinition? owner) || owner is not InterfaceDefinition || member.Target is null))
 				return CName(function);
+			if (member.Member is VariableDefinition variable)
+				return CName(variable);
 			string? expandedThisComponent = FormatExpandedThisComponent(member.Target, member.Name);
 			if (expandedThisComponent is not null)
 				return expandedThisComponent;

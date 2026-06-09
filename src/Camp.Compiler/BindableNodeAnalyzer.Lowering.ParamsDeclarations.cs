@@ -99,7 +99,8 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < parameters.Count; i++)
 		{
 			ParameterDefinition parameter = parameters[i];
-			if (parameter is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+			if (parameter is WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition
+				|| parameter is ThisParameterDefinition && !ShouldExpandThisParameter(parameter))
 				continue;
 			if (!TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape))
 				continue;
@@ -113,6 +114,16 @@ public sealed partial class BindableNodeAnalyzer
 			parameters.InsertRange(i, components);
 			i += components.Count - 1;
 		}
+	}
+
+	bool ShouldExpandThisParameter(ParameterDefinition parameter)
+	{
+		if (parameter.SourceSyntax is null)
+			return false;
+		string type = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "";
+		if (!typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition))
+			return false;
+		return definition is NewtypeDefinition { UnderlyingType: CallableTypeReference { Kind: CallableKind.Delegate } or IterTypeReference };
 	}
 
 	void ExpandParamsFields(List<FieldDefinition> fields)

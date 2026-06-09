@@ -1,0 +1,37 @@
+using Std;
+
+export int main()
+{
+	IoError error = default;
+	FileOptions options = default;
+	FileHandle* writerHandle = FileHandle.open("tmp/golden-stdrun-file.txt", FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
+	if (error != default || writerHandle == null)
+		return 1;
+	
+	const byte[] bytes = [(byte)'a', (byte)'b', (byte)'c'];
+	writerHandle.write(bytes, catch error);
+	if (error != default)
+		return 2;
+	delete writerHandle;
+	
+	FileHandle* readerHandle = FileHandle.open("tmp/golden-stdrun-file.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
+	if (error != default || readerHandle == null)
+		return 3;
+	if (!readerHandle.Open || !readerHandle.Readable || readerHandle.Writable)
+		return 4;
+	if (readerHandle.getLength(catch error) != 3 || error != default)
+		return 5;
+	
+	byte[] buffer = init byte[4];
+	nuint readCount = 0;
+	readerHandle.read(buffer, out readCount, catch error);
+	if (error != default)
+		return 6;
+	if (readCount != 3)
+		return 7;
+	if (buffer[0] != (byte)'a' || buffer[1] != (byte)'b' || buffer[2] != (byte)'c')
+		return 8;
+	delete readerHandle;
+	
+	return 0;
+}

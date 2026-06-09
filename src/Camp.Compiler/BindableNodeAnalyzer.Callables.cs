@@ -29,12 +29,27 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 
 		if (typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition)
-			&& definition is NewtypeDefinition { UnderlyingType: { ResolvedType: string underlyingType } } newtypeDefinition
-			&& TryParseCallableShape(underlyingType, out shape))
+			&& definition is NewtypeDefinition { UnderlyingType: not null } newtypeDefinition)
 		{
-			if (newtypeDefinition.Parameters.Count > 0)
-				shape = new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, [.. GetParameterTypeNames(newtypeDefinition.Parameters)]);
-			return true;
+			string underlyingType = newtypeDefinition.UnderlyingType.ResolvedType ?? ErrorType;
+			if (TryParseCallableShape(underlyingType, out shape))
+			{
+				if (newtypeDefinition.Parameters.Count > 0)
+					shape = new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, [.. GetParameterTypeNames(newtypeDefinition.Parameters)]);
+				return true;
+			}
+
+			if (newtypeDefinition.UnderlyingType is IterTypeReference
+				&& TryGetIteratorProtocolCurrentTypes(underlyingType, out List<string>? iterCurrentTypes)
+				&& iterCurrentTypes is not null)
+			{
+				List<string> parameters = [];
+				foreach (string currentType in iterCurrentTypes)
+					parameters.Add(AddPointer(currentType));
+				parameters.AddRange(GetExpandedCallableParameterTypes(newtypeDefinition.Parameters));
+				shape = new CallableShape("iter", null, null, "bool", parameters);
+				return true;
+			}
 		}
 
 		return false;

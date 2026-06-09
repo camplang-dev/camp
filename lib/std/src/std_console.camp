@@ -1,73 +1,110 @@
 export as Std;
 
-extern int putchar(int ch);
+bool Console_writeFd(void* context, nuint* written, char* buffer, nuint buffer_length)
+{
+	int fd = (int)(nint)context;
+	nint result = posixWrite(fd, (const void*)buffer, buffer_length);
+	if (result < 0)
+		return false;
+	*written = (nuint)result;
+	return true;
+}
+
+bool Console_readFd(void* context, nuint* readCount, char* buffer, nuint buffer_length)
+{
+	return false;
+}
 
 export class Console
 {
+	export static CharReader getReader()
+	{
+		CharReader reader = default;
+		reader.call = Console_readFd;
+		reader.context = null;
+		return reader;
+	}
+	
+	export static CharWriter getWriter()
+	{
+		CharWriter writer = default;
+		writer.call = Console_writeFd;
+		writer.context = (void*)(nint)1;
+		return writer;
+	}
+	
+	export static CharWriter getError()
+	{
+		CharWriter writer = default;
+		writer.call = Console_writeFd;
+		writer.context = (void*)(nint)2;
+		return writer;
+	}
+	
+	// export static AsyncCharReader getAsyncReader();
+	// export static AsyncCharWriter getAsyncWriter();
+	// export static AsyncCharWriter getAsyncError();
+	
 	export static void writeString(const char[] value)
 	{
-		for (nuint i = 0; i < value.length; i++)
-			Console.writeChar(value[i]);
+		IoError error = default;
+		CharWriter writer = default;
+		writer.call = Console_writeFd;
+		writer.context = (void*)(nint)1;
+		CharWriter_writeString(writer, value, catch error);
 	}
 	
 	export static void writeLine(const char[] value = default)
 	{
-		Console.writeString(value);
-		Console.writeChar('\n');
+		IoError error = default;
+		CharWriter writer = default;
+		writer.call = Console_writeFd;
+		writer.context = (void*)(nint)1;
+		CharWriter_writeLine(writer, value, catch error);
 	}
 	
 	export static void writeBool(bool value)
 	{
-		if (value)
-			Console.writeString("true");
-		else
-			Console.writeString("false");
+		IoError error = default;
+		CharWriter writer = default;
+		writer.call = Console_writeFd;
+		writer.context = (void*)(nint)1;
+		CharWriter_writeBool(writer, value, catch error);
 	}
 	
 	export static void writeChar(char value)
 	{
-		putchar((int)value);
+		IoError error = default;
+		CharWriter writer = default;
+		writer.call = Console_writeFd;
+		writer.context = (void*)(nint)1;
+		CharWriter_writeChar(writer, value, catch error);
 	}
 	
 	export static void writeInt(int value)
 	{
-		if (value < 0)
-		{
-			Console.writeChar('-');
-			Console.writeUInt((uint)(0 - value));
-		}
-		else
-		{
-			Console.writeUInt((uint)value);
-		}
+		IoError error = default;
+		CharWriter writer = default;
+		writer.call = Console_writeFd;
+		writer.context = (void*)(nint)1;
+		CharWriter_writeInt(writer, value, catch error);
 	}
 	
 	export static void writeUInt(uint value)
 	{
-		if (value >= 10)
-			Console.writeUInt(value / 10);
-		Console.writeChar((char)((int)'0' + (int)(value % 10)));
+		IoError error = default;
+		CharWriter writer = default;
+		writer.call = Console_writeFd;
+		writer.context = (void*)(nint)1;
+		CharWriter_writeUInt(writer, value, catch error);
 	}
 	
 	export static void writeDouble(double value)
 	{
-		if (value < 0.0)
-		{
-			Console.writeChar('-');
-			value = 0.0 - value;
-		}
-		
-		uint integerPart = (uint)value;
-		Console.writeUInt(integerPart);
-		Console.writeChar('.');
-		
-		double fraction = value - (double)integerPart;
-		for (int i = 0; i < 6; i++)
-		{
-			fraction *= 10.0;
-			uint digit = (uint)fraction;
-			Console.writeChar((char)((int)'0' + (int)digit));
-			fraction -= (double)digit;
-		}
+		IoError error = default;
+		CharWriter writer = default;
+		writer.call = Console_writeFd;
+		writer.context = (void*)(nint)1;
+		CharWriter_writeDouble(writer, value, catch error);
 	}
 }
