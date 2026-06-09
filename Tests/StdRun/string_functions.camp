@@ -2,51 +2,51 @@ using Std;
 
 export int main()
 {
-	string text = "  Hello, hello!  ";
+	const char[] span = "  Hello, hello!  ";
 
-	if (text.indexOf("Hello") != 2)
+	if (span.indexOf("Hello") != 2)
 		return 1;
 	const char[] helloLower = "hello";
-	if (text.indexOf(helloLower, true) != 2)
+	if (span.indexOf(helloLower, true) != 2)
 		return 2;
-	if (text.lastIndexOf("lo") != 12)
+	if (span.lastIndexOf("lo") != 12)
 		return 3;
-	if (text.indexOfChar((uchar)'H') != 2)
+	if (span.indexOfChar((uchar)'H') != 2)
 		return 4;
-	if (text.lastIndexOfChar((uchar)'o') != 13)
+	if (span.lastIndexOfChar((uchar)'o') != 13)
 		return 5;
 
 	uchar[] any = [(uchar)'x', (uchar)'H'];
-	if (text.indexOfAnyChar(any) != 2)
+	if (span.indexOfAnyChar(any) != 2)
 		return 6;
 	uchar[] anyLast = [(uchar)'!', (uchar)'x'];
-	if (text.lastIndexOfAnyChar(anyLast) != 14)
+	if (span.lastIndexOfAnyChar(anyLast) != 14)
 		return 7;
 
-	if (!text.startsWith("  He"))
+	if (!span.startsWith("  He"))
 		return 8;
-	if (!text.startsWithChar((uchar)' '))
+	if (!span.startsWithChar((uchar)' '))
 		return 9;
-	if (!text.endsWith("!  "))
+	if (!span.endsWith("!  "))
 		return 10;
-	if (!text.endsWithChar((uchar)' '))
+	if (!span.endsWithChar((uchar)' '))
 		return 11;
-	if (text.compareTo("  Hello, hello!  ") != 0)
+	if (span.compareTo("  Hello, hello!  ") != 0)
 		return 12;
 
 	string accent = "caf\xC3\xA9";
-	if (accent.countChars() != 4)
+	if (accent.getSpan(0, accent.Length).countChars() != 4)
 		return 13;
-	if (accent.getChar(3) != (uchar)233)
+	if (accent.getSpan(0, accent.Length).getChar(3) != (uchar)233)
 		return 14;
-	if (accent.getCharUnits(3) != 2)
+	if (accent.getSpan(0, accent.Length).getCharUnits(3) != 2)
 		return 15;
 
-	if (text.trim().length != 13)
+	if (span.trim().length != 13)
 		return 16;
-	if (text.trimStart().length != 15)
+	if (span.trimStart().length != 15)
 		return 17;
-	if (text.trimEnd().length != 15)
+	if (span.trimEnd().length != 15)
 		return 18;
 
 	Allocator* allocator = null;
@@ -57,20 +57,26 @@ export int main()
 	string[] words = ["one", "two", "three"];
 	within (allocator)
 	{
-		upper = text.uppercaseCopy();
-		lower = text.lowercaseCopy();
+		upper = span.uppercaseCopy();
+		lower = span.lowercaseCopy();
 		concatenated = words.concatCopy();
 		joined = words.joinCopy(",");
 	}
 
-	if (upper.compareTo("  HELLO, HELLO!  ") != 0)
+	if (upper.getSpan(0, upper.Length).compareTo("  HELLO, HELLO!  ") != 0)
 		return 19;
-	if (lower.compareTo("  hello, hello!  ") != 0)
+	if (lower.getSpan(0, lower.Length).compareTo("  hello, hello!  ") != 0)
 		return 20;
-	if (concatenated.compareTo("onetwothree") != 0)
+	if (concatenated.getSpan(0, concatenated.Length).compareTo("onetwothree") != 0)
 		return 21;
-	if (joined.compareTo("one,two,three") != 0)
+	if (joined.getSpan(0, joined.Length).compareTo("one,two,three") != 0)
 		return 22;
+
+	const char[] embeddedNull = ['a', 'b', '\0', 'x', 'y'];
+	if (embeddedNull.compareTo("ab") != 0)
+		return 23;
+	if (embeddedNull.countChars() != 2)
+		return 24;
 
 	return 0;
 }
