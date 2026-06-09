@@ -1,0 +1,377 @@
+export as Std;
+
+export string copyString(const char[] this, within allocator)
+{
+	return (string)strconvCopyCharSpan(this.elements, this.length, allocator);
+}
+
+export wstring copyWString(const char[] this, within allocator)
+{
+	nuint length = strconvCharLogicalLength(this.elements, this.length);
+	nuint outputLength = strconvUtf8ToUtf16Length(this.elements, length);
+	wchar* buffer = strconvAllocateWChars(outputLength + 1, allocator);
+	if (buffer == null)
+		return null;
+
+	nuint input = 0;
+	nuint output = 0;
+	while (input < length)
+	{
+		nuint next = input;
+		uchar codepoint = strconvReadUtf8(this.elements, length, input, out next);
+		output = strconvWriteUtf16(buffer, output, codepoint);
+		input = next;
+	}
+	buffer[output] = (wchar)0;
+	return (wstring)buffer;
+}
+
+export astring copyAString(const char[] this, achar unrepresentable = '?', within allocator)
+{
+	nuint length = strconvCharLogicalLength(this.elements, this.length);
+	achar* buffer = strconvAllocateAChars(length + 1, allocator);
+	if (buffer == null)
+		return null;
+
+	nuint input = 0;
+	nuint output = 0;
+	while (input < length)
+	{
+		nuint next = input;
+		uchar codepoint = strconvReadUtf8(this.elements, length, input, out next);
+		buffer[output] = codepoint < 0x80 ? (achar)codepoint : unrepresentable;
+		input = next;
+		output++;
+	}
+	buffer[output] = (achar)0;
+	return (astring)buffer;
+}
+
+export string copyString(const wchar[] this, within allocator)
+{
+	nuint length = strconvWCharLogicalLength(this.elements, this.length);
+	nuint outputLength = strconvUtf16ToUtf8Length(this.elements, length);
+	char* buffer = strconvAllocateChars(outputLength + 1, allocator);
+	if (buffer == null)
+		return null;
+
+	nuint input = 0;
+	nuint output = 0;
+	while (input < length)
+	{
+		nuint next = input;
+		uchar codepoint = strconvReadUtf16(this.elements, length, input, out next);
+		output = strconvWriteUtf8(buffer, output, codepoint);
+		input = next;
+	}
+	buffer[output] = 0;
+	return (string)buffer;
+}
+
+export wstring copyWString(const wchar[] this, within allocator)
+{
+	return (wstring)strconvCopyWCharSpan(this.elements, this.length, allocator);
+}
+
+export astring copyAString(const wchar[] this, achar unrepresentable = '?', within allocator)
+{
+	nuint length = strconvWCharLogicalLength(this.elements, this.length);
+	achar* buffer = strconvAllocateAChars(length + 1, allocator);
+	if (buffer == null)
+		return null;
+
+	nuint input = 0;
+	nuint output = 0;
+	while (input < length)
+	{
+		nuint next = input;
+		uchar codepoint = strconvReadUtf16(this.elements, length, input, out next);
+		buffer[output] = codepoint < 0x80 ? (achar)codepoint : unrepresentable;
+		input = next;
+		output++;
+	}
+	buffer[output] = (achar)0;
+	return (astring)buffer;
+}
+
+export string copyString(const achar[] this, within allocator)
+{
+	nuint length = strconvACharLogicalLength(this.elements, this.length);
+	nuint outputLength = 0;
+	for (nuint i = 0; i < length; i++)
+		outputLength += strconvUtf8LengthOf((uchar)this.elements[i]);
+
+	char* buffer = strconvAllocateChars(outputLength + 1, allocator);
+	if (buffer == null)
+		return null;
+
+	nuint output = 0;
+	for (nuint j = 0; j < length; j++)
+		output = strconvWriteUtf8(buffer, output, (uchar)this.elements[j]);
+	buffer[output] = 0;
+	return (string)buffer;
+}
+
+export wstring copyWString(const achar[] this, within allocator)
+{
+	nuint length = strconvACharLogicalLength(this.elements, this.length);
+	wchar* buffer = strconvAllocateWChars(length + 1, allocator);
+	if (buffer == null)
+		return null;
+
+	for (nuint i = 0; i < length; i++)
+		buffer[i] = (wchar)this.elements[i];
+	buffer[length] = (wchar)0;
+	return (wstring)buffer;
+}
+
+export astring copyAString(const achar[] this, achar unrepresentable = '?', within allocator)
+{
+	return (astring)strconvCopyACharSpan(this.elements, this.length, allocator);
+}
+
+char* strconvCopyCharSpan(const char* value, nuint valueLength, Allocator* allocator)
+{
+	nuint length = strconvCharLogicalLength(value, valueLength);
+	char* buffer = strconvAllocateChars(length + 1, allocator);
+	if (buffer == null)
+		return null;
+
+	for (nuint i = 0; i < length; i++)
+		buffer[i] = value[i];
+	buffer[length] = (char)0;
+	return buffer;
+}
+
+wchar* strconvCopyWCharSpan(const wchar* value, nuint valueLength, Allocator* allocator)
+{
+	nuint length = strconvWCharLogicalLength(value, valueLength);
+	wchar* buffer = strconvAllocateWChars(length + 1, allocator);
+	if (buffer == null)
+		return null;
+
+	for (nuint i = 0; i < length; i++)
+		buffer[i] = value[i];
+	buffer[length] = (wchar)0;
+	return buffer;
+}
+
+achar* strconvCopyACharSpan(const achar* value, nuint valueLength, Allocator* allocator)
+{
+	nuint length = strconvACharLogicalLength(value, valueLength);
+	achar* buffer = strconvAllocateAChars(length + 1, allocator);
+	if (buffer == null)
+		return null;
+
+	for (nuint i = 0; i < length; i++)
+		buffer[i] = value[i];
+	buffer[length] = (achar)0;
+	return buffer;
+}
+
+nuint strconvCharLogicalLength(const char* value, nuint valueLength)
+{
+	nuint length = 0;
+	while (length < valueLength && value[length] != (char)0)
+		length++;
+	return length;
+}
+
+nuint strconvWCharLogicalLength(const wchar* value, nuint valueLength)
+{
+	nuint length = 0;
+	while (length < valueLength && value[length] != (wchar)0)
+		length++;
+	return length;
+}
+
+nuint strconvACharLogicalLength(const achar* value, nuint valueLength)
+{
+	nuint length = 0;
+	while (length < valueLength && value[length] != (achar)0)
+		length++;
+	return length;
+}
+
+char* strconvAllocateChars(nuint count, Allocator* allocator)
+{
+	if (allocator != null)
+		return (char*)allocator.alloc(count * sizeof(char));
+	return (char*)malloc(count * sizeof(char));
+}
+
+wchar* strconvAllocateWChars(nuint count, Allocator* allocator)
+{
+	if (allocator != null)
+		return (wchar*)allocator.alloc(count * sizeof(wchar));
+	return (wchar*)malloc(count * sizeof(wchar));
+}
+
+achar* strconvAllocateAChars(nuint count, Allocator* allocator)
+{
+	if (allocator != null)
+		return (achar*)allocator.alloc(count * sizeof(achar));
+	return (achar*)malloc(count * sizeof(achar));
+}
+
+nuint strconvUtf8ToUtf16Length(const char* input, nuint inputLength)
+{
+	nuint length = 0;
+	nuint index = 0;
+	while (index < inputLength)
+	{
+		nuint next = index;
+		uchar codepoint = strconvReadUtf8(input, inputLength, index, out next);
+		length += strconvUtf16LengthOf(codepoint);
+		index = next;
+	}
+	return length;
+}
+
+nuint strconvUtf16ToUtf8Length(const wchar* input, nuint inputLength)
+{
+	nuint length = 0;
+	nuint index = 0;
+	while (index < inputLength)
+	{
+		nuint next = index;
+		uchar codepoint = strconvReadUtf16(input, inputLength, index, out next);
+		length += strconvUtf8LengthOf(codepoint);
+		index = next;
+	}
+	return length;
+}
+
+uchar strconvReadUtf8(const char* input, nuint inputLength, nuint index, out nuint next)
+{
+	uchar replacement = (uchar)0xFFFD;
+	next = index + 1;
+
+	uchar b0 = (uchar)(byte)input[index];
+	nuint left = inputLength - index;
+	if (b0 < 0x80)
+		return b0;
+
+	if (b0 >= 0xC2 && b0 <= 0xDF)
+	{
+		if (left < 2)
+			return replacement;
+		uchar b1 = (uchar)(byte)input[index + 1];
+		if ((b1 & 0xC0) != 0x80)
+			return replacement;
+		next = index + 2;
+		return (uchar)(((b0 & 0x1F) << 6) | (b1 & 0x3F));
+	}
+
+	if (b0 >= 0xE0 && b0 <= 0xEF)
+	{
+		if (left < 3)
+			return replacement;
+		uchar b1 = (uchar)(byte)input[index + 1];
+		uchar b2 = (uchar)(byte)input[index + 2];
+		if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80)
+			return replacement;
+		if ((b0 == 0xE0 && b1 < 0xA0) || (b0 == 0xED && b1 >= 0xA0))
+			return replacement;
+		next = index + 3;
+		return (uchar)(((b0 & 0x0F) << 12) | ((b1 & 0x3F) << 6) | (b2 & 0x3F));
+	}
+
+	if (b0 >= 0xF0 && b0 <= 0xF4)
+	{
+		if (left < 4)
+			return replacement;
+		uchar b1 = (uchar)(byte)input[index + 1];
+		uchar b2 = (uchar)(byte)input[index + 2];
+		uchar b3 = (uchar)(byte)input[index + 3];
+		if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80)
+			return replacement;
+		if ((b0 == 0xF0 && b1 < 0x90) || (b0 == 0xF4 && b1 > 0x8F))
+			return replacement;
+		next = index + 4;
+		return (uchar)(((b0 & 0x07) << 18) | ((b1 & 0x3F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F));
+	}
+
+	return replacement;
+}
+
+uchar strconvReadUtf16(const wchar* input, nuint inputLength, nuint index, out nuint next)
+{
+	uchar replacement = (uchar)0xFFFD;
+	next = index + 1;
+
+	uchar w1 = (uchar)input[index];
+	if (w1 >= 0xD800 && w1 <= 0xDBFF)
+	{
+		if (inputLength - index < 2)
+			return replacement;
+		uchar w2 = (uchar)input[index + 1];
+		if (w2 < 0xDC00 || w2 > 0xDFFF)
+			return replacement;
+		next = index + 2;
+		return (uchar)(0x10000 + (((w1 - 0xD800) << 10) | (w2 - 0xDC00)));
+	}
+	if (w1 >= 0xDC00 && w1 <= 0xDFFF)
+		return replacement;
+	return w1;
+}
+
+nuint strconvUtf8LengthOf(uchar codepoint)
+{
+	if (codepoint < 0x80)
+		return 1;
+	if (codepoint < 0x800)
+		return 2;
+	if (codepoint < 0x10000)
+		return 3;
+	return 4;
+}
+
+nuint strconvUtf16LengthOf(uchar codepoint)
+{
+	return codepoint < 0x10000 ? 1 : 2;
+}
+
+nuint strconvWriteUtf8(char* output, nuint index, uchar codepoint)
+{
+	if (codepoint < 0x80)
+	{
+		output[index] = (char)codepoint;
+		return index + 1;
+	}
+
+	if (codepoint < 0x800)
+	{
+		output[index] = (char)(0xC0 | (codepoint >> 6));
+		output[index + 1] = (char)(0x80 | (codepoint & 0x3F));
+		return index + 2;
+	}
+
+	if (codepoint < 0x10000)
+	{
+		output[index] = (char)(0xE0 | (codepoint >> 12));
+		output[index + 1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+		output[index + 2] = (char)(0x80 | (codepoint & 0x3F));
+		return index + 3;
+	}
+
+	output[index] = (char)(0xF0 | (codepoint >> 18));
+	output[index + 1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
+	output[index + 2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+	output[index + 3] = (char)(0x80 | (codepoint & 0x3F));
+	return index + 4;
+}
+
+nuint strconvWriteUtf16(wchar* output, nuint index, uchar codepoint)
+{
+	if (codepoint < 0x10000)
+	{
+		output[index] = (wchar)codepoint;
+		return index + 1;
+	}
+
+	uchar adjusted = (uchar)(codepoint - 0x10000);
+	output[index] = (wchar)(0xD800 + (adjusted >> 10));
+	output[index + 1] = (wchar)(0xDC00 + (adjusted & 0x3FF));
+	return index + 2;
+}

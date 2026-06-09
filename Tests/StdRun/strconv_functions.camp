@@ -1,0 +1,78 @@
+using Std;
+
+export int main()
+{
+	Allocator* allocator = null;
+
+	const char[] cafeUtf8 = [(char)'c', (char)'a', (char)'f', (char)0xC3, (char)0xA9];
+	const wchar[] cafeUtf16 = "caf\U000000E9";
+	const achar[] plainAscii = "plain";
+
+	string copiedUtf8 = null;
+	wstring wideFromUtf8 = null;
+	astring asciiFromUtf8 = null;
+	string utf8FromWide = null;
+	wstring copiedWide = null;
+	astring asciiFromWide = null;
+	string utf8FromAscii = null;
+	wstring wideFromAscii = null;
+	astring copiedAscii = null;
+
+	within (allocator)
+	{
+		copiedUtf8 = cafeUtf8.copyString();
+		wideFromUtf8 = cafeUtf8.copyWString();
+		asciiFromUtf8 = cafeUtf8.copyAString();
+
+		utf8FromWide = cafeUtf16.copyString();
+		copiedWide = cafeUtf16.copyWString();
+		asciiFromWide = cafeUtf16.copyAString();
+
+		utf8FromAscii = plainAscii.copyString();
+		wideFromAscii = plainAscii.copyWString();
+		copiedAscii = plainAscii.copyAString();
+	}
+
+	if (copiedUtf8[..].compareTo(cafeUtf8) != 0)
+		return 1;
+	if (wideFromUtf8[..].compareTo(cafeUtf16) != 0)
+		return 2;
+	if (wideFromUtf8[..].countChars() != 4)
+		return 3;
+	if (wideFromUtf8[..].getChar(3) != (uchar)233)
+		return 4;
+	if (asciiFromUtf8[..].compareTo("caf?") != 0)
+		return 5;
+
+	if (utf8FromWide[..].compareTo(cafeUtf8) != 0)
+		return 6;
+	if (copiedWide[..].compareTo(cafeUtf16) != 0)
+		return 7;
+	if (asciiFromWide[..].compareTo("caf?") != 0)
+		return 8;
+
+	if (utf8FromAscii[..].compareTo("plain") != 0)
+		return 9;
+	if (wideFromAscii[..].compareTo("plain") != 0)
+		return 10;
+	if (copiedAscii[..].compareTo("plain") != 0)
+		return 11;
+
+	wstring faceWide = "a\U0001F600b";
+	string faceUtf8 = null;
+	astring faceAscii = null;
+	within (allocator)
+	{
+		faceUtf8 = faceWide[..].copyString();
+		faceAscii = faceWide[..].copyAString((achar)'?');
+	}
+
+	if (faceUtf8[..].countChars() != 3)
+		return 12;
+	if (faceUtf8[..].getChar(1) != (uchar)128512)
+		return 13;
+	if (faceAscii[..].compareTo("a?b") != 0)
+		return 14;
+
+	return 0;
+}
