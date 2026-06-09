@@ -63,9 +63,10 @@ Camp defines a fixed set of primitive names. Their meaning does not drift by pla
 | `wchar` | UTF-16 code unit |
 | `uchar` | Unicode code point |
 | `achar` | ASCII or system-code-page character |
-| `string` | zero-terminated UTF-8 string pointer |
-| `wstring` | zero-terminated UTF-16 string pointer |
-| `astring` | zero-terminated ASCII or system-code-page string pointer |
+| `string` | zero-terminated UTF-8 string pointer to const data |
+| `wstring` | zero-terminated UTF-16 string pointer to const data |
+| `astring` | zero-terminated ASCII or system-code-page string pointer to const data |
+| `untyped` | opaque pointee for `untyped*` |
 | `void` | no value |
 
 `void` is listed with the primitives because it participates in signatures, function types, delegates, and ABI reasoning, even though it is not a storable scalar value in the ordinary sense.
@@ -331,6 +332,11 @@ newtype NativeState: void*;
 ```
 
 Camp keeps `void*` available because foreign APIs, opaque callbacks, and low-level allocators still need it.
+
+`untyped*` is a more general opaque pointer-like form used when code must carry
+either data pointers or function pointers without choosing one family. Ordinary
+object pointers and function pointers may convert to `untyped*`; converting
+back to a specific pointer form requires an explicit cast.
 
 ### 1.2.3 Pointer explicitness
 
@@ -923,6 +929,11 @@ These forms have multiple ABI-visible components, but they are not user-defined 
 
 User code does not declare new expanded forms.
 
+Earlier drafts experimented with user-defined `params` declarations and
+`params(T)` type syntax. Those forms are no longer part of Camp; use the closed
+expanded forms above, or `struct(T)` when one-address materialized storage is
+needed.
+
 ### 1.5.1 Core idea
 
 A compiler-expanded value is a source-level value with a fixed set of source components and ABI component symbols.
@@ -1406,11 +1417,15 @@ astring
 
 | Type | Meaning |
 |---|---|
-| `string` | zero-terminated UTF-8 string pointer |
-| `wstring` | zero-terminated UTF-16 string pointer |
-| `astring` | zero-terminated ASCII or system-code-page string pointer |
+| `string` | zero-terminated UTF-8 string pointer to const data |
+| `wstring` | zero-terminated UTF-16 string pointer to const data |
+| `astring` | zero-terminated ASCII or system-code-page string pointer to const data |
 
-A `string` has the same ABI representation as `char*`, but the type carries the additional contract that the pointed-to sequence is zero-terminated. A plain `char*` does not carry that contract. Passing a raw `char*` where `string` is expected requires an explicit cast.
+The primitive string types are pointer-shaped, but they are not mutable string
+buffers. A `string` has the same ABI representation as `const char*`, but the
+type carries the additional contract that the pointed-to sequence is
+zero-terminated. A plain `char*` or `const char*` does not carry that contract.
+Passing a raw pointer where `string` is expected requires an explicit cast.
 
 There is no implicit conversion between `string`, `wstring`, and `astring`. Converting between text families requires an explicit library operation that performs the required transcoding or validation.
 
@@ -1435,11 +1450,11 @@ A string length property such as `str.Length` calls a method such as `getLength(
 A character array length is a direct expanded component:
 
 ```camp
-const string str = "hello";
+string str = "hello";
 nuint a = str.Length;      // computed
 
 const char[] view = str.asArray();
-nuint b = view_length;     // direct count
+nuint b = view.length;     // direct count
 ```
 
 ### 1.9.4 Ownership
@@ -1450,17 +1465,18 @@ An API that allocates a string must document how that string is released. An API
 
 ### 1.9.5 string literals
 
-A string literal is constant. Without a target type, its inferred type is `const string`.
+A string literal is constant data. Without a target type, its inferred type is
+`string`.
 
 ```camp
-const string s = "hello";
+string s = "hello";
 ```
 
-A string literal may also target any of these constant destination types:
+A string literal may also target any of these destination types:
 
-- `const string`
-- `const wstring`
-- `const astring`
+- `string`
+- `wstring`
+- `astring`
 - `const char[]`
 - `const wchar[]`
 - `const achar[]`
@@ -1471,17 +1487,18 @@ A string literal may also target any of these constant destination types:
 Examples:
 
 ```camp
-const string s = "hello";
-const wstring ws = "hello";
+string s = "hello";
+wstring ws = "hello";
 const char[] view = "hello";
 const char* raw = "hello";
 ```
 
-The corresponding non-`const` forms are not valid literal destinations:
+The corresponding mutable character-pointer and mutable character-array forms
+are not valid literal destinations:
 
 ```camp
-string s = "hello";  // ERROR: string literals are constant
-char* raw = "hello"; // ERROR: string literals are constant
+char[] view = "hello"; // ERROR: string literals are constant
+char* raw = "hello";   // ERROR: string literals are constant
 ```
 
 When a literal targets a string type or pointer type, the result is a zero-terminated pointer. When it targets a character array, the result is a counted array view of the literal's code units.
@@ -1499,10 +1516,22 @@ scoped char[] asArray(string this);
 nuint countChars(const char[] this);
 uchar getChar(const char[] this, @index nuint unit);
 scoped char[] slice(const char[] this, @range nuint index = 0, nuint count = ^0);
-string toStringCopy(const char[] this, within allocator);
+string stringCopy(const char[] this, within allocator);
 ```
 
 The same pattern applies to `wstring` / `wchar[]` and `astring` / `achar[]`.
+
+Camp also has a compiler-sponsored one-way view conversion from each string
+primitive to its counted const character-array form:
+
+```camp
+string text = "hello";
+const char[] span = text;      // scans text.Length
+```
+
+The compiler finds the appropriate in-scope length property or `getLength`
+method for the string family. The reverse direction is not implicit because it
+would require proving or creating a zero terminator.
 
 ### 1.9.7 Arrays of strings
 
@@ -1915,17 +1944,37 @@ There is no opposite implicit conversion. `T?` does not implicitly unwrap to `T`
 
 ### 1.12.4 string and pointer conversions
 
-`string`, `wstring`, and `astring` are primitive string types with pointer-shaped ABI representations. Crossing between a string type and its underlying pointer type is explicit unless a string literal is being target-typed to a permitted constant destination.
+`string`, `wstring`, and `astring` are primitive string types with
+pointer-shaped ABI representations. They implicitly convert to their underlying
+const pointer forms:
 
 ```camp
-const string s = "hello";
-const char* raw = (const char*)s;
-const string again = (const string)raw;
+string s = "hello";
+const char* raw = s;
 ```
 
-There is no implicit conversion among `string`, `wstring`, and `astring`. A conversion between text families requires an explicit API that performs the required encoding conversion or validation.
+Converting a raw pointer to a string type is explicit because the cast asserts
+zero termination:
 
-A counted character array does not implicitly become a zero-terminated string. Use an API that validates or creates the terminator when that conversion is required.
+```camp
+string again = (string)raw;
+```
+
+There is no implicit conversion among `string`, `wstring`, and `astring`. A
+conversion between text families requires an explicit API that performs the
+required encoding conversion or validation.
+
+Each string type also has a compiler-sponsored implicit conversion to the
+matching counted const character array:
+
+```camp
+const char[] span = s;
+```
+
+This scans the string length using the visible string length property or
+`getLength` method. A counted character array does not implicitly become a
+zero-terminated string. Use an API that validates or creates the terminator when
+that conversion is required.
 
 ### 1.12.5 Materializing expanded forms
 
@@ -2024,8 +2073,9 @@ This is not a general rewrite of pointer meaning. It is the precise rule for era
 | `uchar` | `wchar` / `char` / `achar` | no | explicit narrowing |
 | `T` | `T?` | yes | optional lifting |
 | `default(T)` | `T?` | yes | specified optional with default payload |
-| `string` | `char*` | no | explicit cast to underlying pointer |
-| `char*` | `string` | no | explicit assertion of zero termination |
+| `string` | `const char*` | yes | exposes the underlying const pointer |
+| `const char*` | `string` | no | explicit assertion of zero termination |
+| `string` | `const char[]` | yes | scans length through visible string length API |
 | `string` / `wstring` / `astring` | another string family | no | requires explicit transcoding or validation API |
 | `char[]` | `string` | no | requires explicit terminator-producing API |
 | expanded value | `struct(expanded-type)` | no hidden address materialization | use `(struct)` |
@@ -2577,6 +2627,15 @@ nint indexOf<T: any>(const T[] this, in T match, sizeof(T));
 nint find<T: any>(const T[][] this, in T match, sizeof(T));
 ```
 
+Primitive receiver names use title-style spellings in flattened symbols:
+`string` becomes `String`, `wstring` becomes `WString`, `astring` becomes
+`AString`, `nuint` becomes `NUInt`, and so on.
+
+```camp
+// Symbol: String_tryParseInt
+bool tryParseInt(string this, out int value);
+```
+
 Symbol names share one module namespace. If two declarations would produce the same symbol name, the program is invalid. User declarations also may not collide with compiler-generated helper symbols.
 
 ### 2.2.4 `this`
@@ -2618,6 +2677,21 @@ Rules for in-scope explicit receivers:
 - it may carry only `const`, `unscoped`, or `escaped`
 
 If `this` is omitted, the receiver still exists implicitly. Lifetime defaults for the implicit receiver are defined in the lifetime chapter.
+
+Member fields and member methods are not implicitly in scope inside an instance
+method body. Use `this.` for instance access:
+
+```camp
+struct Rect
+{
+	int width;
+
+	int getWidth()
+	{
+		return this.width; // OK
+	}
+}
+```
 
 An out-of-scope receiver method must declare a fully specified receiver type:
 
@@ -3096,7 +3170,8 @@ The public header contains the surface visible across the C ABI.
 - exported structs, including fixed structs, appear with full layout
 - exported classes appear as opaque types
 - exported methods and helper functions appear with their callable ABI surface
-- exported interface implementation relationships may expose non-fixup vtable objects
+- exported interface implementation relationships expose vtable objects that C
+  callers may pass to generic Camp functions requiring `vtableof(...)`
 
 #### Private header
 
@@ -3760,7 +3835,7 @@ class MemoryDocument
 		this._vt_Seekable = &MemoryDocument_Seekable;
 		this._vt_NamedResource = &MemoryDocument_NamedResource;
 
-		this.name = name.toStringCopy();
+		this.name = name.stringCopy();
 		this.data = data;
 		this.position = 0;
 	}
@@ -3973,15 +4048,19 @@ These are ordinary ABI-visible interface surfaces. Generic substitution affects 
 
 Interfaces are part of the ABI surface in their own right. They are not opaque in the same way classes are opaque.
 
-If a struct or class exports an interface implementation relationship, the compiler may expose the appropriate public projection surface for that relationship.
-
-For classes, that public story is tied to the exported vtable object for the implementation pair.
+If a struct or class exports an interface implementation relationship, the
+compiler exposes the vtable object for that implementation pair.
 
 Conceptually:
 
 - `TypeName_InterfaceName`
 
-may become part of the exported ABI surface.
+becomes part of the exported ABI surface as an `extern const` pointer to the
+interface vtable shape.
+
+That exported symbol lets a C caller call a generic Camp function that requires
+`vtableof(T: Interface)`: the caller passes a pointer to the concrete object and
+the matching exported interface vtable pointer.
 
 Exported class opacity still remains in force. Hidden `_vt_InterfaceName` fields are private-header details, not public class layout.
 
@@ -4031,6 +4110,7 @@ Camp provides the ordinary control-flow statements expected in an imperative lan
 - `switch`
 - `break`
 - `continue`
+- `goto`
 - `return`
 
 Their everyday use is intentionally conventional. Only Camp-specific differences are called out here.
@@ -4133,7 +4213,8 @@ These statements also interact with Camp cleanup in the ordinary way: if the sco
 
 ### 3.1.4 `return`
 
-`return` exits the current function.
+`return` exits the current function. If the function returns a value, the
+returned expression is target-typed to the function's return type.
 
 An ordinary single-value return looks as expected:
 
@@ -4147,6 +4228,36 @@ int abs(int x)
 ```
 
 Camp also allows expanded multi-value returns. Those are described in §3.6.
+
+### 3.1.5 Labels and `goto`
+
+Camp supports C-style labels and `goto` within a single function.
+
+```camp
+retry:
+	if (!tryStep())
+		goto retry;
+```
+
+A label is visible throughout its function body. A `goto` may not jump to a
+label in another function, lambda, or generator body. Unlike ordinary structured
+control flow, `goto` is allowed to jump out of blocks without running skipped
+`finally` expressions; use it with the same care expected in C.
+
+### 3.1.6 Discard `_`
+
+`_` is a write-only discard. It can be used where a value is produced but the
+program intentionally ignores it:
+
+```camp
+_ = doWork(out int result);
+tryParse(text, out _);
+mayFail(catch _);
+```
+
+Each discard has its own hidden storage as needed. It may not be declared as a
+normal variable, type, function, parameter, field, or member name, and reading
+from `_` is an error.
 
 ## 3.2 Operators
 
@@ -4249,7 +4360,7 @@ The design goal is convenience without hidden dynamic behavior. Inference determ
 
 ```camp
 auto count = 0;                    // int
-auto title = "Report";              // const string
+auto title = "Report";              // string
 auto bytes = new byte[256];          // byte[]
 auto maybe = default(int?);          // int?
 ```
@@ -4282,10 +4393,10 @@ Common cases include:
 Examples:
 
 ```camp
-const string title = "Report";
+string title = "Report";
 ```
 
-Here the string literal is target-typed as `const string`.
+Here the string literal is target-typed as `string`.
 
 ```camp
 int? count = default;
@@ -4324,7 +4435,7 @@ Inference is convenient, but explicit spelling is often clearer when one of thes
 Examples:
 
 ```camp
-const string title = "Report"; // clearer than auto when string representation matters
+string title = "Report"; // clearer than auto when string representation matters
 const char[] path = request.Path;
 escaped byte* data = getBuffer();
 ```
@@ -4500,6 +4611,9 @@ Additional rules:
 - a getter used via property syntax may not be an iterator
 - a nameless getter still needs at least one ordinary parameter; `get(thrown E)` would imply `obj.[]`, which is not allowed
 
+If a property getter omits an explicit receiver, its implicit `this` is `const`.
+Setter receivers and ordinary method receivers remain mutable by default.
+
 A method that fails these requirements is still a valid ordinary method. It is simply not eligible for property syntax.
 
 ### 3.5.4 Property syntax is semantically identical to method syntax
@@ -4584,8 +4698,8 @@ If the rewritten accessor has a `thrown` parameter, the property operation handl
 ```camp
 class Config
 {
-	const string getPath(thrown Err) => ...;
-	void setPath(const string value, thrown Err) => ...;
+	string getPath(thrown Err) => ...;
+	void setPath(string value, thrown Err) => ...;
 }
 
 try
@@ -5067,29 +5181,39 @@ In `a..b` form, Camp first clamps the written boundaries and only then computes 
 
 So if a boundary goes beyond the source range, the result is the clamped slice implied by the final boundaries, not a negative or nonsensical count.
 
-### 3.9.5 Arrays use both indexing and slicing
+### 3.9.5 Arrays and strings use both indexing and slicing
 
-Arrays support ordinary element indexing through `[]` and slice-like views through `slice(...)`.
+Arrays support ordinary element indexing through `[]` and slice-like views
+through range indexing.
 
 ```camp
 int[] values = [1, 2, 3, 4, 5, 6];
 
 int first = values[0];
 int last = values[^1];
-auto middle = values.slice(2..^1);
+auto middle = values[2..^1];
 ```
 
-### 3.9.6 Strings and views use methods and property indexers
-
-string-family types do not use raw array-style element access through `addressOf()` in the standard library. Instead they expose index-aware methods and property/indexer-friendly accessors.
+The same source surface works for primitive string types. String indexing and
+slicing are code-unit based and require a visible string length property.
 
 ```camp
-uchar ch = text.Char[2];
-uchar last = text.Char[^1];
-auto body = text.slice(5..^2);
+string text = "hello";
+
+char firstChar = text[0];
+char lastChar = text[^1];
+const char[] body = text[1..^1];
 ```
 
-This keeps text indexing explicit about code-unit semantics while still providing a concise surface.
+Plain pointers do not support from-end indexing or range slicing. If a program
+has a pointer to materialized array storage, it must dereference to the array
+value first.
+
+### 3.9.6 Methods and property indexers may also be range-aware
+
+Methods may opt into the same range syntax by declaring `@index` or `@range`
+parameters. That keeps user-defined slice-like APIs aligned with built-in array
+and string slicing.
 
 ### 3.9.7 Property indexers and slicing compose naturally
 
@@ -5152,6 +5276,20 @@ Lifetime annotations may appear on:
 For a delegate-like callable value, lifetime annotations describe the lifetime of the hidden context pointer.
 
 Lifetime annotations are not written on individual fields. Aggregate and context lifetimes are expressed on the containing value instead.
+
+Storage-class specifiers such as `const`, `volatile`, `scoped`, `unscoped`, and
+`escaped` follow C-style placement: a specifier applies to the thing on its
+left; if there is nothing on its left, it applies to the thing on its right.
+
+```camp
+const int* a;      // pointer to const int
+int* const b;      // const pointer to mutable int
+const int[] data;  // const elements, mutable array binding
+int[] const view;  // const array binding, mutable elements
+```
+
+Mutable values may convert to const views, non-volatile values may convert to
+volatile views, and lifetime widening follows `escaped -> unscoped -> scoped`.
 
 ### 4.1.3 `escaped`
 
@@ -5263,7 +5401,7 @@ This applies to:
 
 - struct fields
 - class fields
-- `params` components
+- compiler-expanded components
 - materialized `struct(T)` storage
 - array elements when the element type contains pointers
 - delegate context storage
@@ -5386,50 +5524,52 @@ The language supports two common styles:
 
 The `within` mechanism supports both.
 
-### 4.3.1 The allocator interface
+### 4.3.1 The allocator pattern
 
-Allocators are ordinary classes. The minimal virtual surface is untyped.
+Allocators are ordinary types. The language does not require a particular
+standard-library base class, but it does recognize a small pattern:
 
 ```camp
-export abstract class Allocator
+abstract class Allocator
 {
-	abstract void* allocUntyped(nuint size, thrown MemoryError);
-	abstract void* reallocUntyped(void* ptr, nuint newSize, thrown MemoryError);
+	abstract void* alloc(nuint size);
 	abstract void free(escaped void* ptr);
 }
 ```
 
-Generic helpers are layered on top:
+The exact integer type of `size` may vary, but `alloc` must take one integer
+byte-count parameter and return untyped storage. `free` releases a pointer
+previously returned by the same allocator.
+
+When a `within` parameter omits its type, the compiler looks for a visible type
+named `Allocator`. If a program wants a different allocator type, it may spell
+that type explicitly:
 
 ```camp
-export T* alloc<T: any>(Allocator* this, nuint len = 1, sizeof(T), thrown MemoryError);
-export T* realloc<T: any>(Allocator* this, T* ptr, nuint newLen, sizeof(T), thrown MemoryError);
+void parse(within Arena* arena)
+{
+	...
+}
 ```
 
-The generic surface uses element counts, not byte counts.
+### 4.3.2 Allocation fallback
 
-### 4.3.2 Generic allocator semantics
-
-At the generic layer:
-
-- `alloc<T>(n)` allocates space for `n` elements of `T`
-- in erased-generic code, this means the materialized storage form of `T`
-- alignment is the allocator’s responsibility
-- `free` accepts any pointer previously returned by the allocator
-
-This keeps generic allocation explicit without inventing a separate allocator sublanguage.
-
-### 4.3.3 The default allocator
-
-The standard library exposes a process-wide default allocator:
+If a `new` or pointer-form `delete` has no current allocator, or the current
+allocator is `null`, the compiler uses ordinary functions visible at the call
+site:
 
 ```camp
-export const Allocator* defaultAllocator;
+extern void* malloc(nuint size);
+extern void free(void* ptr);
 ```
 
-If no allocator is supplied for an allocation path, `Std::defaultAllocator` is used.
+`malloc` must take a single integer byte count. `free` must accept `void*`.
+This keeps allocation independent from any particular standard library.
 
-### 4.3.4 Lexical allocator context
+Allocation failure is represented by `null`. The compiler-generated `new`
+lowering checks for `null` before invoking the constructor.
+
+### 4.3.3 Lexical allocator context
 
 `within` establishes the current allocator context lexically.
 
@@ -5454,7 +5594,7 @@ within(a)
 }
 ```
 
-### 4.3.5 Expression-form override
+### 4.3.4 Expression-form override
 
 A specific operation may override the surrounding context.
 
@@ -5467,7 +5607,7 @@ within(a)
 
 This changes only that operation.
 
-### 4.3.6 What `within` affects
+### 4.3.5 What `within` affects
 
 `within` affects allocator-backed behavior.
 
@@ -5480,7 +5620,7 @@ In ordinary source code, that means primarily:
 
 A plain `init` does not allocate outer instance storage. However, if the constructor selected by `init` takes `within`, the current allocator context is still forwarded into that constructor.
 
-### 4.3.7 `within` parameters
+### 4.3.6 `within` parameters
 
 A function, constructor, or destructor may declare a `within` parameter.
 
@@ -5492,7 +5632,7 @@ class StringBuilder
 
 	StringBuilder(within arena)
 	{
-		this.arena = arena ?? Std::defaultAllocator;
+		this.arena = arena;
 	}
 }
 ```
@@ -5507,13 +5647,13 @@ Defaults:
 
 | Property | Meaning |
 |---|---|
-| Type | `Allocator*` |
+| Type | visible `Allocator*`, unless a type is written explicitly |
 | Lifetime | `unscoped` |
 | Default value | `null` |
 
 Only one `within` parameter is allowed per routine.
 
-### 4.3.8 Implicit forwarding
+### 4.3.7 Implicit forwarding
 
 If a routine declares a `within` parameter and the caller does not supply it explicitly, the compiler supplies one automatically.
 
@@ -5532,8 +5672,8 @@ class BufferOwner
 
 	BufferOwner(nuint length, within arena)
 	{
-		this.arena = arena ?? Std::defaultAllocator;
-		this.data = this.arena.alloc<byte>(length);
+		this.arena = arena;
+		this.data = new byte[length];
 	}
 }
 
@@ -5545,7 +5685,7 @@ within(tempArena)
 
 The constructor receives `tempArena` without the call having to mention it explicitly.
 
-### 4.3.9 Inside the routine
+### 4.3.8 Inside the routine
 
 Inside a routine that declares `within`, that parameter itself establishes the current allocator context.
 
@@ -5556,9 +5696,10 @@ void add(Item x, within arena)
 }
 ```
 
-Here `new Node(x)` uses `arena ?? Std::defaultAllocator` unless overridden again with a nested `within(...)`.
+Here `new Node(x)` uses `arena` when it is non-null, and otherwise falls back to
+visible `malloc`.
 
-### 4.3.10 Stored allocator style
+### 4.3.9 Stored allocator style
 
 A type may accept a `within` parameter and store the allocator for later internal allocations.
 
@@ -5570,14 +5711,14 @@ class StringBuilder
 
 	StringBuilder(within arena)
 	{
-		this.arena = arena ?? Std::defaultAllocator;
+		this.arena = arena;
 	}
 }
 ```
 
 This style is useful when many related allocations should remain tied to the object.
 
-### 4.3.11 Threaded allocator style
+### 4.3.10 Threaded allocator style
 
 A routine may instead accept `within` and simply use it during the call.
 
@@ -5590,7 +5731,7 @@ void push(Value v, within arena)
 
 This style keeps the object model simpler and leaves allocator choice to the call chain.
 
-### 4.3.12 `within` and async frames
+### 4.3.11 `within` and async frames
 
 If an async routine declares `within`, that allocator may also be used to allocate the async frame.
 
@@ -5637,7 +5778,7 @@ The allocator used for the outer allocation is chosen in this order:
 
 1. an explicit `within(...)` attached to the `new` expression
 2. the current surrounding `within(...)` context
-3. `Std::defaultAllocator`
+3. visible `malloc(...)` fallback
 
 ```camp
 auto a = new Node(1);                  // default allocator, unless inside within(...)
@@ -5645,6 +5786,9 @@ auto b = within(arena) new Node(2);    // explicit override
 ```
 
 If the selected constructor declares `within`, that same allocator is also forwarded into the constructor unless the call supplies a different allocator explicitly.
+
+If allocation returns `null`, the constructor is not called and the `new`
+expression evaluates to `null`.
 
 For result lifetime checking, `new` participates in the constructor result lifetime rule described below.
 
@@ -5780,7 +5924,7 @@ The allocator used for deallocation is chosen by the same `within` rules:
 
 1. explicit `within(...)` attached to the delete expression
 2. current surrounding `within(...)` context
-3. `Std::defaultAllocator`
+3. visible `free(...)` fallback
 
 ```camp
 Window* dialog = within(arena) new Window(800, 600);
@@ -5867,6 +6011,7 @@ This section defines the larger control-flow and modularity features that build 
 Camp keeps its module surface deliberately small. Each Camp source file is a self-contained module.
 
 - symbols are private by default
+- `public` symbols are visible to other Camp files in the build
 - exported declarations form the public ABI surface
 - namespaces are an import-site naming aid, not a runtime feature
 - the visible organization of Camp code is compiler-driven rather than header-driven
@@ -5875,7 +6020,8 @@ The goal is to make visibility explicit in source and keep generated public and 
 
 ### 5.1.1 Default visibility
 
-A declaration is internal to its defining source file unless it is marked `export`.
+A declaration is internal to its defining source file unless it is marked
+`public` or `export`.
 
 ```camp
 struct Point
@@ -5890,12 +6036,12 @@ bool isOrigin(in Point this)
 }
 ```
 
-None of the declarations above are public outside the defining module.
+None of the declarations above are visible outside the defining module.
 
-Public declarations are written explicitly:
+Cross-file declarations are written explicitly:
 
 ```camp
-export struct Point
+public struct InternalPoint
 {
 	int x;
 	int y;
@@ -5906,6 +6052,10 @@ export bool isOrigin(in Point this)
 	return this.x == 0 && this.y == 0;
 }
 ```
+
+`public` and `export` are both visible to other Camp files in the same build.
+The difference is API exposure: `export` declarations are included in generated
+public API surfaces, while `public` declarations are library-internal.
 
 This rule applies uniformly to:
 
@@ -5919,7 +6069,9 @@ This rule applies uniformly to:
 
 ### 5.1.2 `export` is about ABI surface, not only name lookup
 
-An exported declaration is part of the module’s public ABI story.
+An exported declaration is part of the module’s public ABI story. A `public`
+declaration is visible to Camp code in the build, but is not documented in the
+public API surface.
 
 That means `export` affects more than ordinary visibility. It also affects what must appear in generated public headers and what outside code is allowed to name or call.
 
@@ -6053,9 +6205,93 @@ extern void nativeInit();
 extern("kernel32") nuint RtlMoveMemory(const void* src, void* dst, nuint len);
 ```
 
-An `extern` function, method, or variable is implemented outside Camp. An `extern` `class`, `struct`, `params`, or `newtype` declaration describes a type whose member implementations are supplied outside Camp.
+An `extern` function, method, or variable is implemented outside Camp. An
+`extern` `class`, `struct`, or `newtype` declaration describes a type whose
+member implementations are supplied outside Camp.
 
-### 5.1.7 Public versus private generated views
+### 5.1.7 Aliases
+
+A top-level `alias` declaration introduces another name for an existing type,
+primitive, callable symbol, target callspec/typespec, or alias.
+
+```camp
+export alias TCHAR = wchar;
+alias write = Std::Console_writeLine;
+```
+
+Aliases are active throughout the file or, when `public` or `export`, across
+the visible build surface. They are not C typedefs. Camp API output preserves
+exported aliases, but generated C uses the resolved underlying name.
+
+Alias targets are names, not full type expressions. For example, aliasing
+`TCHAR` is valid; aliasing `char[]` is not.
+
+### 5.1.8 Symbol overrides
+
+The built-in `@symbol("Name")` attribute changes the canonical flattened symbol
+for a function or variable.
+
+```camp
+@symbol("SetWindowTextA")
+extern bool SetWindowText(HWND hWnd, astring lpString);
+
+class Control
+{
+	@symbol("ControlValue")
+	export int getValue()
+	{
+		return 0;
+	}
+}
+```
+
+The source name remains usable for ordinary Camp lookup. The override becomes
+the canonical symbol name, so direct calls to the old compiler-generated
+flattened name are not valid. Exported declarations preserve `@symbol` in Camp
+API output; generated C uses the overridden name.
+
+### 5.1.9 Target callspecs and typespecs
+
+Some targets define calling-convention and pointer/memory-model specifiers.
+Camp accepts those specifiers in fixed type and callable positions and validates
+them against the selected target.
+
+```camp
+extern _stdcall void InitializeLibrary();
+fn _cdecl int(int value) callback;
+char* _far text;
+newtype fn _far _pascal nint FARPROC();
+```
+
+Callspecs describe how a callable is called. Typespecs describe target-specific
+pointer or storage forms. Target details such as INI file syntax are tooling
+configuration, but the source language treats validated callspecs/typespecs as
+part of the type.
+
+Unspecified target specs may convert to explicit wider target specs when the
+selected target says that conversion is safe. Explicit casts may be used for
+compatible same-kind forms when an implicit conversion would be narrowing.
+
+### 5.1.10 Conditional compilation
+
+Camp has C#-style conditional compilation. Symbols are either defined or not
+defined; they do not have values.
+
+```camp
+#define WINDOWS
+
+#if WINDOWS && !UNICODE
+export alias TCHAR = achar;
+#else
+export alias TCHAR = wchar;
+#endif
+```
+
+Supported directives are `#define`, `#undef`, `#if`, `#elif`, `#else`, and
+`#endif`. Conditions may use symbol names, `TRUE`, `!`, `&&`, `||`, and
+parentheses. Code in inactive branches is tokenized but not parsed as Camp code.
+
+### 5.1.11 Public versus private generated views
 
 Camp’s visibility rules are reflected in two generated surfaces:
 
@@ -6065,11 +6301,12 @@ Camp’s visibility rules are reflected in two generated surfaces:
 This distinction was introduced earlier for data structures. At the module level, the key point is simpler:
 
 - `export` decides what belongs in the public view
-- everything else remains private to the module
+- `public` declarations are visible to Camp code but omitted from the public view
+- private declarations remain local to the defining file
 
 This gives Camp a direct source-level replacement for the traditional C pattern of manually splitting declarations across headers and implementation files.
 
-### 5.1.8 Foreign import direction in v1
+### 5.1.12 Foreign import direction in v1
 
 Camp keeps foreign-import convenience intentionally modest in v1. The current direction is that parsing C headers and generating Camp declarations is primarily a tooling concern rather than a large built-in language subsystem.
 
@@ -6158,9 +6395,9 @@ A generator parameter list may not contain a trailing `thrown` parameter. Callin
 An ordinary function returning an iterator may still fail while preparing the iterator:
 
 ```camp
-export iter char chars(char[] text, within allocator, thrown MemoryError)
+export iter char chars(char[] text, within allocator, thrown TextError)
 {
-	return charsOwned(text.toStringCopy(within allocator));
+	return charsOwned(text.stringCopy(within allocator));
 }
 
 class iter char charsOwned(escaped string text)
@@ -6394,7 +6631,8 @@ The important practical rules are:
 - `yield` writes the next logical value through caller-provided storage
 - `next(...)` is the protocol beneath both manual iteration and `foreach`
 - cleanup is explicit and deterministic
-- expanded yields and failing iterators follow the ordinary shared `params` and `thrown` rules
+- expanded yields and failing iterators follow the ordinary compiler-expanded
+  form and `thrown` rules
 
 ## 5.3 Async Functions
 
@@ -6743,7 +6981,7 @@ This rule is mechanical:
 - `0` is skipped for integer results
 - `false` is skipped for `bool`
 - `null` is skipped for pointer-like results
-- a params-based result is skipped only if every lowered component is default
+- an expanded result is skipped only if every lowered component is default
 
 So `await foreach` uses the ordinary yielded value itself as the “no logical value this step” channel. It does not add a hidden `hasResult` flag.
 
@@ -6824,7 +7062,8 @@ At a high level:
 - generated `class async iter` state cleans up through its destruction entry point
 - `await foreach` remains responsible for deterministic cleanup on early exit
 
-If the yielded type is params-based, cleanup still uses the ordinary first-component cleanup signal rule.
+If the yielded type is compiler-expanded, cleanup still uses the ordinary
+first-component cleanup signal rule.
 
 ### 5.4.14 Design summary
 
@@ -7037,7 +7276,9 @@ The central design goal is simple:
 
 > Generic code must obey the same ABI-first rules as the rest of Camp.
 
-This section defines the generic model itself. It assumes the ordinary rules for `params`, storage materialization, interfaces, lifetimes, `within`, constructors, and destructors that were defined earlier.
+This section defines the generic model itself. It assumes the ordinary rules for
+compiler-expanded forms, storage materialization, interfaces, lifetimes,
+`within`, constructors, and destructors that were defined earlier.
 
 ## 6.1 Generic Constraints
 
@@ -7523,7 +7764,7 @@ class AnyList<T: any>
 		if (newCapacity < minimum)
 			newCapacity = minimum;
 
-		this.items = allocator.reallocUntyped(this.items, sizeof(T) * newCapacity);
+		this.items = (T*)realloc(this.items, sizeof(T) * newCapacity);
 		this.capacity = newCapacity;
 	}
 }
@@ -7774,7 +8015,10 @@ Two ideas appear repeatedly:
 - lightweight value forms are preferred over hidden runtime objects
 - allocation is explicit, and APIs that allocate usually advertise that fact in their names
 
-The library surfaces described here build directly on the language rules already defined for arrays, strings, `params`, iterators, async functions, property accessors, and allocators. This section focuses on the public library shape and intended usage.
+The library surfaces described here build directly on the language rules already
+defined for arrays, strings, compiler-expanded forms, iterators, async
+functions, property accessors, and allocators. This section focuses on the
+public library shape and intended usage.
 
 ## 7.1 Arrays and Strings
 
@@ -7857,7 +8101,8 @@ This keeps the array ABI conventional and prevents recursive expansion.
 
 ### 7.1.2 Strings and Counted Text
 
-Camp distinguishes zero-terminated string pointer types from counted character arrays.
+Camp distinguishes zero-terminated string pointer types from counted character
+arrays.
 
 | Family | string type | Counted type | Units |
 |---|---|---|---|
@@ -7865,15 +8110,20 @@ Camp distinguishes zero-terminated string pointer types from counted character a
 | UTF-16 | `wstring` | `wchar[]` | `wchar` |
 | ASCII / system code page | `astring` | `achar[]` | `achar` |
 
-The string types are primitive pointer-shaped keywords: `string`, `wstring`, and `astring`.
+The string types are primitive pointer-shaped keywords: `string`, `wstring`,
+and `astring`. They point to const data. Mutable text buffers are ordinary
+character arrays such as `char[]`.
 
 #### 7.1.2.1 Zero-terminated strings and counted arrays
 
-A `string` is a zero-terminated UTF-8 string pointer. A `char[]` is a counted UTF-8 code-unit sequence.
+A `string` is a zero-terminated UTF-8 string pointer to const data. A `char[]`
+is a counted UTF-8 code-unit sequence.
 
 The same relationship applies to the UTF-16 and ASCII families.
 
-Use string types for C-style zero-terminated APIs and compact pointer-shaped string storage. Use counted character arrays when code needs an explicit length, slicing, bounded access, or embedded zero code units.
+Use string types for C-style zero-terminated APIs and compact pointer-shaped
+string storage. Use counted character arrays when code needs an explicit length,
+slicing, bounded access, or mutable buffer storage.
 
 #### 7.1.2.2 Ownership and release
 
@@ -7894,7 +8144,7 @@ nuint getLength(string this);
 So:
 
 ```camp
-const string text = "hello";
+string text = "hello";
 nuint len = text.Length; // calls getLength()
 ```
 
@@ -7902,20 +8152,22 @@ A counted character array carries its length directly:
 
 ```camp
 const char[] text = "hello";
-nuint len = text_length;
+nuint len = text.length;
 ```
 
 #### 7.1.2.4 String literals
 
-String literals are constant. The default inferred type is `const string`, and a literal may target only constant string, character-array, or character-pointer forms.
+String literals are constant data. The default inferred type is `string`, and a
+literal may target only string, const character-array, or const
+character-pointer forms.
 
 ```camp
-auto text = "hello";       // const string
-const wstring wide = "hello";
+auto text = "hello";       // string
+wstring wide = "hello";
 const char[] view = "hello";
 const char* raw = "hello";
 
-string mutableText = "hello"; // ERROR
+char[] mutableView = "hello"; // ERROR
 char* mutableRaw = "hello";   // ERROR
 ```
 
@@ -7948,9 +8200,9 @@ Examples:
 const char[] text = "héllo";
 
 nint i = text.indexOf("ll");
-uchar ch = text.Char[2];
-nuint width = text.CharUnits[^1];
-auto tail = text.slice(2..);
+uchar ch = text.getChar(2);
+nuint width = text.getCharUnits(^1);
+auto tail = text[2..];
 ```
 
 Important consequences:
@@ -7959,7 +8211,7 @@ Important consequences:
 - `getChar(...)` decodes the code point beginning at a code-unit position
 - `countChars()` is a decoding operation and may therefore be `O(n)`
 
-#### 7.1.2.6 Common counted text operations
+#### 7.1.2.7 Current counted text operations
 
 The counted text API is intentionally broad enough for ordinary text work but still small enough to remember.
 
@@ -7987,7 +8239,6 @@ nint compareTo(const char[] this, const char[] other, bool caseInsensitive = fal
 ##### Unicode-aware access
 
 ```camp
-struct iter uchar chars(const char[] this);
 nuint countChars(const char[] this);
 uchar getChar(const char[] this, @index nuint unit);
 nuint getCharUnits(const char[] this, @index nuint unit);
@@ -7996,9 +8247,9 @@ nuint getCharUnits(const char[] this, @index nuint unit);
 ##### Borrowing transformations
 
 ```camp
-char[] trim(const char[] this);
-char[] trimStart(const char[] this);
-char[] trimEnd(const char[] this);
+scoped const char[] trim(const char[] this);
+scoped const char[] trimStart(const char[] this);
+scoped const char[] trimEnd(const char[] this);
 scoped char[] slice(const char[] this, @range nuint index = 0, nuint count = ^0);
 ```
 
@@ -8007,76 +8258,62 @@ These operations return counted views rather than allocating new storage.
 ##### Copy-producing transformations
 
 ```camp
-string toStringCopy(const char[] this, within allocator);
-string uppercaseStringCopy(const char[] this, within allocator);
-string lowercaseStringCopy(const char[] this, within allocator);
+string stringCopy(const char[] this, within allocator);
+string uppercaseCopy(const char[] this, within allocator);
+string lowercaseCopy(const char[] this, within allocator);
 
-string CharArray_concatStringCopy(const struct(char[])[] strings, within allocator);
-string CharArray_joinStringCopy(const char[] separator, const struct(char[])[] strings, within allocator);
-
-struct(char[])[] splitCopy(const char[] this, const char[] separator, within allocator);
+string concatCopy(string[] this, within allocator);
+string joinCopy(string[] this, const char[] separator, within allocator);
 ```
 
 The naming is intentional:
 
-- `toStringCopy(...)` produces zero-terminated string storage
-- `uppercaseStringCopy(...)` and `lowercaseStringCopy(...)` allocate
-- `concatStringCopy(...)` and `joinStringCopy(...)` allocate
-- `splitCopy(...)` allocates only the outer materialized array, not the text segments themselves
+- `stringCopy(...)` produces zero-terminated string storage
+- `uppercaseCopy(...)` and `lowercaseCopy(...)` allocate
+- `concatCopy(...)` and `joinCopy(...)` allocate
 
-#### 7.1.2.7 Family-specific conversions and reinterpretations
+#### 7.1.2.8 Family-specific conversions
 
-Each string family also has a few type-specific helpers.
+Each counted text family can copy into any string family. The conversion helpers
+allocate and append the target terminator.
 
-##### UTF-8 family
-
-```camp
-string toStringCopy(const char[] this, within allocator);
-wstring convertToWStringCopy(const char[] this, within allocator);
-astring convertToAStringCopy(const char[] this, within allocator);
-scoped char[] asArray(string this);
-scoped achar[] assumeACharArray(const char[] this);
-```
-
-##### UTF-16 family
+From UTF-8 counted text:
 
 ```camp
-wstring toWStringCopy(const wchar[] this, within allocator);
-string convertToStringCopy(const wchar[] this, within allocator);
-astring convertToAStringCopy(const wchar[] this, within allocator);
-scoped wchar[] asArray(wstring this);
+string copyString(const char[] this, within allocator);
+wstring copyWString(const char[] this, within allocator);
+astring copyAString(const char[] this, achar unrepresentable = '?', within allocator);
 ```
 
-##### ASCII family
+From UTF-16 counted text:
 
 ```camp
-astring toAStringCopy(const achar[] this, within allocator);
-string convertToStringCopy(const achar[] this, within allocator);
-wstring convertToWStringCopy(const achar[] this, within allocator);
-scoped achar[] asArray(astring this);
-void makeUppercase(achar[] this);
-void makeLowercase(achar[] this);
+string copyString(const wchar[] this, within allocator);
+wstring copyWString(const wchar[] this, within allocator);
+astring copyAString(const wchar[] this, achar unrepresentable = '?', within allocator);
 ```
 
-#### 7.1.2.8 string-to-array and array-to-string helpers
-
-A zero-terminated string may be viewed as a counted character array by scanning for its terminator:
+From ASCII counted text:
 
 ```camp
-scoped char[] asArray(string this);
-scoped wchar[] asArray(wstring this);
-scoped achar[] asArray(astring this);
+string copyString(const achar[] this, within allocator);
+wstring copyWString(const achar[] this, within allocator);
+astring copyAString(const achar[] this, achar unrepresentable = '?', within allocator);
 ```
 
-A counted character array may be copied into a zero-terminated string:
+The `copyAString` fallback character is used for code points that cannot be
+represented in ASCII.
+
+#### 7.1.2.9 string-to-array views
+
+A zero-terminated string may be viewed as a counted character array by scanning
+for its terminator. This conversion is compiler-sponsored and is equivalent to
+calling the visible length property for the string family.
 
 ```camp
-string toStringCopy(const char[] this, within allocator);
-wstring toWStringCopy(const wchar[] this, within allocator);
-astring toAStringCopy(const achar[] this, within allocator);
+string text = "hello";
+const char[] view = text;
 ```
-
-The copying helpers allocate and append the terminator.
 
 ### 7.1.3 `StringBuilder`
 
@@ -8087,6 +8324,10 @@ It is the mutation-heavy text-construction utility for cases where repeated stri
 It stores counted character data internally and can produce either counted views or zero-terminated string copies.
 
 ## 7.2 Streams and I/O
+
+This section is provisional library design. The language features it relies on
+are real Camp features, but the full stream library surface described here is
+not yet the committed standard-library API.
 
 Camp models streaming I/O using a small core abstraction:
 
@@ -8242,11 +8483,22 @@ The convenience methods `openRead(...)` and `openWrite(...)` return streams dire
 
 ### 7.2.5 `Console`
 
-The console is character-oriented by default.
+The currently implemented console surface is a small static helper class for
+writing to standard output:
 
 ```camp
 export class Console
 {
+	export static void writeString(const char[] value);
+	export static void writeLine(const char[] value = default);
+	export static void writeBool(bool value);
+	export static void writeChar(char value);
+	export static void writeInt(int value);
+	export static void writeUInt(uint value);
+	export static void writeDouble(double value);
+	
+	// These are planned:
+	
 	export static extern CharReader getReader();
 	export static extern AsyncCharReader getAsyncReader();
 
@@ -8255,20 +8507,11 @@ export class Console
 
 	export static extern CharWriter getError();
 	export static extern AsyncCharWriter getAsyncError();
-
-	export static extern thrown(IoError) writeString(char[] value);
-	export static extern thrown(IoError) writeLine(char[] value = default);
-
-	export static extern async void writeStringAsync(char[] value, thrown IoError);
-	export static extern async void writeLineAsync(char[] value = default, thrown IoError);
 }
 ```
 
-This means:
-
-- `Console.getReader()` and `Console.getWriter()` are `char`-based
-- text helpers live directly on `Console`
-- error output is a separate writer surface
+Reader/writer console streams are planned library design and are described
+below as part of the broader stream model.
 
 ### 7.2.6 Stream adapters
 

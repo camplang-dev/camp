@@ -52,7 +52,7 @@ primary-expression:
 	<vtableof-expression>
 
 literal:
-	<NUMBER> | <STRING> | true | false | null
+	<NUMBER> | <STRING> | <CHARACTER> | true | false | null
 
 qualified-name:
 	<qualifier>* <IDENT>
@@ -62,7 +62,7 @@ cast-expression:
 	'(' <cast-keyword> ')' <unary-expression>
 
 cast-keyword:
-	params | struct | class | delegate | fn | once | iter | async
+	struct | class | delegate | fn | once | iter | async
 
 sizeof-expression:
 	sizeof '(' <type> ')'
