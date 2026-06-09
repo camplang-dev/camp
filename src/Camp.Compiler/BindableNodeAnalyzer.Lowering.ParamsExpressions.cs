@@ -742,6 +742,25 @@ public sealed partial class BindableNodeAnalyzer
 		components = [];
 		if (index.Target is ArrayExpression)
 			return false;
+		if (index.Arguments.Count == 2
+			&& TryGetArrayElementType(index.ResolvedType) is string resultElementType
+			&& GetPrimitiveStringElementType(index.Target?.ResolvedType) == StripTopLevelValueQualifiers(resultElementType))
+		{
+			Expression? start = ReplaceParamsLengthComponentExpressions(index.Arguments[0].Value);
+			Expression? count = ReplaceParamsLengthComponentExpressions(index.Arguments[1].Value);
+			if (index.Target is null || start is null || count is null)
+				return false;
+			components.Add(new BinaryExpression
+			{
+				SourceSyntax = index.SourceSyntax,
+				Left = index.Target,
+				Operator = BinaryOperator.Add,
+				Right = start,
+				ResolvedType = AddPointer(resultElementType)
+			});
+			components.Add(count);
+			return true;
+		}
 		if (!TryCreateParamsComponentExpressions(index.Target, out List<Expression> targetComponents) || targetComponents.Count < 2)
 			return false;
 		if (index.Arguments.Count == 2 && TryGetArrayElementType(index.ResolvedType) is not null)

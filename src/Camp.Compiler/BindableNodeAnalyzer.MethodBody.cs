@@ -2026,13 +2026,20 @@ public sealed partial class BindableNodeAnalyzer
 			if (argument.Value is UnaryExpression { Operator: UnaryOperator.FromEnd } fromEnd)
 			{
 				SyntaxNode? syntax = fromEnd.SourceSyntax ?? fromEnd.Operand?.SourceSyntax ?? argument.SourceSyntax;
-				Expression? length = CreateLengthExpression(target, syntax);
-				if (length is null)
-					Report(GetRange(syntax), "^ from-end syntax requires the receiver to expose a length (.length, .Length, or getLength()).");
+				if (TryGetPointerElementType(targetType) is not null && TryGetArrayElementType(targetType) is null)
+				{
+					Report(GetRange(syntax), "^ from-end indexing is not valid on plain pointer values.");
+				}
 				else
 				{
-					argument.Value = CreateFromEndExpression(fromEnd, length);
-					argument.ResolvedType = "nuint";
+					Expression? length = CreateLengthExpression(target, syntax);
+					if (length is null)
+						Report(GetRange(syntax), "^ from-end syntax requires the receiver to expose a length (.length, .Length, or getLength()).");
+					else
+					{
+						argument.Value = CreateFromEndExpression(fromEnd, length);
+						argument.ResolvedType = "nuint";
+					}
 				}
 			}
 			BodyAnalyzeArgumentExpression(argument, scope, typeScope, "nuint");
@@ -2054,12 +2061,14 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeArrayRangeIndexExpression(Expression? target, string targetType, List<ArgumentExpression> arguments, RangeExpression range)
 	{
 		ArgumentExpression argument = arguments[0];
-		if (TryGetArrayElementType(targetType) is null)
+		string? arrayElementType = TryGetArrayElementType(targetType);
+		string? stringElementType = GetPrimitiveStringElementType(targetType);
+		if (arrayElementType is null && stringElementType is null)
 		{
 			if (TryGetPointerElementType(targetType) is string pointerElementType && TryGetArrayElementType(pointerElementType) is not null)
 				Report(GetRange(range.SourceSyntax ?? argument.SourceSyntax ?? target?.SourceSyntax), "Range indexing is only valid on array values; dereference the array pointer before applying the range.");
 			else
-				Report(GetRange(range.SourceSyntax ?? argument.SourceSyntax ?? target?.SourceSyntax), "Range indexing is only valid on array values.");
+				Report(GetRange(range.SourceSyntax ?? argument.SourceSyntax ?? target?.SourceSyntax), "Range indexing is only valid on array or string values.");
 			argument.Value = ErrorExpression(ErrorType, range.SourceSyntax ?? argument.SourceSyntax);
 			argument.ResolvedType = ErrorType;
 			return ErrorType;
@@ -2086,7 +2095,7 @@ public sealed partial class BindableNodeAnalyzer
 			Value = count,
 			ResolvedType = "nuint"
 		});
-		return targetType;
+		return stringElementType is null ? targetType : $"const {stringElementType}[]";
 	}
 
 	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope)

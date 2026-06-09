@@ -1,0 +1,5 @@
+void main()
+{
+	int* pointer = [6, 7, 8, 9];
+	int value = pointer[^1];
+}

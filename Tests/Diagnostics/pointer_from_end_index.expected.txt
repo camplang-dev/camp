@@ -1,0 +1,1 @@
+tests/Diagnostics/pointer_from_end_index.camp(4,22): error: ^ from-end indexing is not valid on plain pointer values.

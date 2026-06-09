@@ -1,0 +1,30 @@
+string getMessage()
+{
+	return "Hello, world!";
+}
+
+nuint getLength(string this)
+{
+	nuint length = 0;
+	while (this[length] != 0)
+		length++;
+	return length;
+}
+
+void consumeSpan(const char[] value)
+{
+}
+
+export int main()
+{
+	string hello = getMessage();
+	const char[] slice = hello[0..^1];
+	char letterD = hello[^2];
+
+	auto numbers = [1, 2, 3, 4, 5];
+	int number5 = numbers[^1];
+	int* number5addr = &numbers[^1];
+
+	consumeSpan(slice);
+	return (int)letterD + number5 + *number5addr;
+}
