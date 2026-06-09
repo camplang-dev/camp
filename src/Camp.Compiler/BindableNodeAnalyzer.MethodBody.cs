@@ -1398,7 +1398,8 @@ public sealed partial class BindableNodeAnalyzer
 							arguments[i].ResolvedType = expected;
 					}
 				}
-			if (ArrayLiteralConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex))
+			if (ArrayLiteralConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex)
+				|| PrimitiveStringConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex, fallbackSyntax))
 				parameterIndex++;
 			parameterIndex++;
 		}
@@ -1432,6 +1433,26 @@ public sealed partial class BindableNodeAnalyzer
 
 		string lengthType = callableParameters[parameterIndex + 1].ResolvedType ?? "";
 		return StripTopLevelValueQualifiers(lengthType) is "nuint" or "nint" or "uint" or "int" or "ulong" or "long" or "ushort" or "short";
+	}
+
+	bool PrimitiveStringConsumesLengthParameter(ArgumentExpression argument, ParameterDefinition? parameter, List<ParameterDefinition> callableParameters, int parameterIndex, SyntaxNode? fallbackSyntax)
+	{
+		if (argument.Value is null || parameter is null || parameterIndex + 1 >= callableParameters.Count)
+			return false;
+		string actual = argument.Value.ResolvedType ?? argument.ResolvedType ?? ErrorType;
+		if (GetPrimitiveStringElementType(actual) is not string stringElement)
+			return false;
+		if (parameter.ResolvedType is not string pointerType || TryGetPointerElementType(pointerType) is not string pointerElement)
+			return false;
+		if (StripTopLevelValueQualifiers(pointerElement) != stringElement || !IsConstQualified(pointerElement))
+			return false;
+		string lengthType = callableParameters[parameterIndex + 1].ResolvedType ?? "";
+		if (StripTopLevelValueQualifiers(lengthType) is not ("nuint" or "nint" or "uint" or "int" or "ulong" or "long" or "ushort" or "short"))
+			return false;
+
+		if (CreateLengthExpression(argument.Value, argument.SourceSyntax ?? fallbackSyntax) is null)
+			Report(GetRange(argument.SourceSyntax ?? fallbackSyntax), $"Cannot implicitly convert '{actual}' to 'const {stringElement}[]' because no accessible Length property or getLength() method was found.");
+		return true;
 	}
 
 	static bool HasExplicitHiddenArgument(List<ArgumentExpression> arguments)

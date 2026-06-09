@@ -7,7 +7,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ExpandParamsArguments(CallExpression call)
 	{
 		List<ParameterDefinition>? callableParameters = callTargets.TryGetValue(call, out FunctionDefinition? function)
-			? GetCallableParameters(function.Parameters)
+			? GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(call.Target, function))
 			: null;
 		ExpandParamsArguments(call.Arguments, callableParameters);
 	}
@@ -26,7 +26,8 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if (!TryCreateLiftedOptionalArgumentComponents(argument, out components)
 					&& !TryCreateIteratorToProtocolArgumentComponents(argument, callableParameters, i, out components)
-					&& !TryCreateFunctionToDelegateArgumentComponents(argument, callableParameters, i, out components))
+					&& !TryCreateFunctionToDelegateArgumentComponents(argument, callableParameters, i, out components)
+					&& !TryCreatePrimitiveStringToArrayArgumentComponents(argument, callableParameters, i, out components))
 					continue;
 			}
 
@@ -44,6 +45,46 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			i += components.Count - 1;
 		}
+	}
+
+	bool TryCreatePrimitiveStringToArrayArgumentComponents(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index, out List<Expression> components)
+	{
+		components = [];
+		if (argument.Value is null || callableParameters is null || index >= callableParameters.Count)
+			return false;
+		if (GetPrimitiveStringElementType(argument.Value.ResolvedType ?? argument.ResolvedType) is not string stringElement)
+			return false;
+		if (!PrimitiveStringArrayArgumentTargetMatches(callableParameters, index, stringElement))
+			return false;
+
+		Expression? length = CreateLengthExpression(argument.Value, argument.SourceSyntax);
+		if (length is null)
+			return false;
+		length = LowerExpression(length) ?? length;
+
+		components.Add(argument.Value);
+		components.Add(length);
+		return true;
+	}
+
+	bool PrimitiveStringArrayArgumentTargetMatches(List<ParameterDefinition> callableParameters, int index, string stringElement)
+	{
+		if (CanConvertPrimitiveStringToConstArray(stringElement switch
+			{
+				"wchar" => "wstring",
+				"achar" => "astring",
+				_ => "string"
+			}, callableParameters[index].ResolvedType ?? ErrorType))
+			return true;
+
+		if (index + 1 >= callableParameters.Count)
+			return false;
+		if (callableParameters[index].ResolvedType is not string pointerType || TryGetPointerElementType(pointerType) is not string pointerElement)
+			return false;
+		if (StripTopLevelValueQualifiers(pointerElement) != stringElement || !IsConstQualified(pointerElement))
+			return false;
+		string lengthType = callableParameters[index + 1].ResolvedType ?? "";
+		return StripTopLevelValueQualifiers(lengthType) is "nuint" or "nint" or "uint" or "int" or "ulong" or "long" or "ushort" or "short";
 	}
 
 	bool TryCreateLiftedOptionalArgumentComponents(ArgumentExpression argument, out List<Expression> components)

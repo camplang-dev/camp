@@ -1,0 +1,60 @@
+// file: primitive_string_span_conversion.c
+#include "primitive_string_span_conversion_private.h"
+
+/* Private file declarations. */
+static uintptr_t String_getLength(const char* this);
+static intptr_t spanOnly(const char* value, uintptr_t value_length);
+static intptr_t String_choose(const char* this);
+static intptr_t CharArray_choose(const char* this, uintptr_t this_length);
+static int main(void);
+
+static uintptr_t String_getLength(const char* this)
+{
+	return 3;
+}
+
+static intptr_t spanOnly(const char* value, uintptr_t value_length)
+{
+	return (intptr_t)(value_length);
+}
+
+static intptr_t String_choose(const char* this)
+{
+	return 1;
+}
+
+static intptr_t CharArray_choose(const char* this, uintptr_t this_length)
+{
+	return 2;
+}
+
+static int main(void)
+{
+	const char* value = "abc";
+	return (int)(((spanOnly(value, String_getLength(value)) + String_choose(value))));
+}
+
+// file: primitive_string_span_conversion_private.h
+#ifndef PRIMITIVE_STRING_SPAN_CONVERSION_PRIVATE_H_
+#define PRIMITIVE_STRING_SPAN_CONVERSION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: primitive_string_span_conversion.c

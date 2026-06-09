@@ -293,6 +293,7 @@ public static class CompilerDriver
 			string[] cacheSourceFiles = sourceFiles
 				.Concat(nativeSourceFiles)
 				.Concat(Directory.GetFiles(sourceDirectory, "*.h", SearchOption.AllDirectories))
+				.Concat(GetCompilerCacheInputs())
 				.OrderBy(static x => x, StringComparer.Ordinal)
 				.ToArray();
 
@@ -337,6 +338,13 @@ public static class CompilerDriver
 				if (outputTime <= File.GetLastWriteTimeUtc(sourceFile))
 					return false;
 			return true;
+		}
+
+		static IEnumerable<string> GetCompilerCacheInputs()
+		{
+			string assemblyPath = typeof(CompilerDriver).Assembly.Location;
+			if (!string.IsNullOrWhiteSpace(assemblyPath) && File.Exists(assemblyPath))
+				yield return assemblyPath;
 		}
 
 		bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, IReadOnlyList<string> nativeSourceFiles, string apiPath, string? staticLibraryPath, RuntimeContext context)

@@ -1,0 +1,25 @@
+nuint getLength(string this)
+{
+	return 3;
+}
+
+nint spanOnly(const char[] value)
+{
+	return (nint)value.length;
+}
+
+nint choose(string this)
+{
+	return 1;
+}
+
+nint choose(const char[] this)
+{
+	return 2;
+}
+
+int main()
+{
+	string value = "abc";
+	return (int)(spanOnly(value) + value.choose());
+}

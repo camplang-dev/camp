@@ -1,0 +1,1 @@
+tests/Diagnostics/primitive_string_span_missing_length.camp(9,12): error: Cannot implicitly convert 'string' to 'const char[]' because no accessible Length property or getLength() method was found.

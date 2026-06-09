@@ -5,15 +5,19 @@ export int main()
 	string text = "  Hello, hello!  ";
 	const char[] span = text.Span;
 
-	if (span.indexOf("Hello") != 2)
+	if (text.indexOf("Hello") != 2)
 		return 1;
 	const char[] helloLower = "hello";
-	if (span.indexOf(helloLower, true) != 2)
+	if (text.indexOf(helloLower, true) != 2)
 		return 2;
 	if (span.lastIndexOf("lo") != 12)
 		return 3;
 	if (span.indexOfChar((uchar)'H') != 2)
 		return 4;
+	if (text.indexOfChar('e') != 3)
+		return 25;
+	if (text.Span.indexOfChar('l') != 4)
+		return 26;
 	if (span.lastIndexOfChar((uchar)'o') != 13)
 		return 5;
 
@@ -24,7 +28,7 @@ export int main()
 	if (span.lastIndexOfAnyChar(anyLast) != 14)
 		return 7;
 
-	if (!span.startsWith("  He"))
+	if (!text.startsWith("  He"))
 		return 8;
 	if (!span.startsWithChar((uchar)' '))
 		return 9;
@@ -32,7 +36,7 @@ export int main()
 		return 10;
 	if (!span.endsWithChar((uchar)' '))
 		return 11;
-	if (span.compareTo("  Hello, hello!  ") != 0)
+	if (text.compareTo("  Hello, hello!  ") != 0)
 		return 12;
 
 	string accent = "caf\xC3\xA9";

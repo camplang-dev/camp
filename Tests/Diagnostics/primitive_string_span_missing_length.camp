@@ -1,0 +1,10 @@
+nint spanOnly(const char[] this)
+{
+	return 0;
+}
+
+void main()
+{
+	string value = "abc";
+	_ = value.spanOnly();
+}

@@ -92,6 +92,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (CanConvertPrimitiveStringToPointer(source, target))
 			return true;
 
+		if (CanConvertPrimitiveStringToConstArray(source, target))
+			return true;
+
 		if (CanConvertIteratorStateToProtocol(source, target))
 			return true;
 
@@ -959,6 +962,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<FunctionDefinition> LookupExtensionFunctions(string targetType, string name, SyntaxNode? referenceSyntax)
 	{
+		List<FunctionDefinition> exactPrimitiveStringFunctions = [];
 		List<FunctionDefinition> functions = [];
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
@@ -966,10 +970,50 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (GetExplicitThisParameter(function) is null)
 				continue;
-			if (ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
+			if (!ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
+				continue;
+
+			if (RequiresPrimitiveStringSpanLength(targetType, function, IsPropertyGetterFunction(function))
+				&& !PrimitiveStringHasLengthProvider(targetType, referenceSyntax))
+				Report(GetRange(referenceSyntax), $"Cannot implicitly convert '{targetType}' to '{PrimitiveStringConstArrayType(targetType)}' because no accessible Length property or getLength() method was found.");
+
+			if (IsExactPrimitiveStringReceiver(targetType, function, IsPropertyGetterFunction(function)))
+				exactPrimitiveStringFunctions.Add(function);
+			else
 				functions.Add(function);
 		}
-		return functions;
+		return exactPrimitiveStringFunctions.Count > 0 ? exactPrimitiveStringFunctions : functions;
+	}
+
+	bool RequiresPrimitiveStringSpanLength(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
+	{
+		if (!IsPrimitiveStringType(targetType))
+			return false;
+		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
+		return CanConvertPrimitiveStringToConstArray(targetType, receiverType)
+			&& StripTopLevelValueQualifiers(receiverType) != StripTopLevelValueQualifiers(targetType);
+	}
+
+	bool PrimitiveStringHasLengthProvider(string targetType, SyntaxNode? referenceSyntax)
+	{
+		foreach (FunctionDefinition function in LookupExtensionFunctions(targetType, "getLength", referenceSyntax))
+			if (ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
+				return true;
+		return false;
+	}
+
+	string PrimitiveStringConstArrayType(string type)
+	{
+		string element = GetPrimitiveStringElementType(type) ?? "char";
+		return $"const {element}[]";
+	}
+
+	bool IsExactPrimitiveStringReceiver(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
+	{
+		if (!IsPrimitiveStringType(targetType))
+			return false;
+		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
+		return StripTopLevelValueQualifiers(receiverType) == StripTopLevelValueQualifiers(targetType);
 	}
 
 	bool TryAnalyzePropertyIndexer(MemberExpression member, List<ArgumentExpression> arguments, BodyScope scope, AnalysisScope typeScope, out string propertyType)
@@ -1604,6 +1648,19 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryParseTypeShape(target, out TypeShape targetShape) || targetShape.Kind != TypeShapeKind.Pointer || targetShape.Element is null)
 			return false;
 		string targetElement = TypeShapeParser.Format(targetShape.Element);
+		string unqualifiedTargetElement = StripTopLevelValueQualifiers(targetElement);
+		if (unqualifiedTargetElement != sourceElement)
+			return false;
+		return IsConstQualified(targetElement);
+	}
+
+	bool CanConvertPrimitiveStringToConstArray(string source, string target)
+	{
+		string sourceElement = GetPrimitiveStringElementType(source) ?? "";
+		if (sourceElement.Length == 0)
+			return false;
+		if (TryGetArrayElementType(target) is not string targetElement)
+			return false;
 		string unqualifiedTargetElement = StripTopLevelValueQualifiers(targetElement);
 		if (unqualifiedTargetElement != sourceElement)
 			return false;
