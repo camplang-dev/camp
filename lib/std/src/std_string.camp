@@ -187,6 +187,11 @@ export scoped const char[] trimEnd(const char[] this)
 }
 
 // Copy-producing transformations
+export string stringCopy(const char[] this, within allocator)
+{
+	return (string)copySpan(this.elements, this.length, allocator);
+}
+
 export string uppercaseCopy(const char[] this, within allocator)
 {
 	char* buffer = copySpan(this.elements, this.length, allocator);
@@ -251,14 +256,6 @@ export string joinCopy(string[] this, const char[] separator, within allocator)
 export nuint getLength(string this)
 {
 	return utf8size_lazy(this);
-}
-
-export const char[] getSpan(string this, @range nuint index = 0, nuint count = ^0)
-{
-	const char[] span = default;
-	span.elements = &this[index];
-	span.length = count;
-	return span;
 }
 
 nint byteOffsetOf(const char* start, const char* target)
