@@ -1,0 +1,22 @@
+enum Err
+{
+	OK = 0,
+	BAD
+}
+
+int mightThrow(thrown Err error)
+{
+	throw BAD;
+}
+
+int propagate(thrown Err error)
+{
+	return mightThrow();
+}
+
+int main()
+{
+	Err error = default;
+	int value = propagate(catch error);
+	return error == Err.BAD ? value : 1;
+}

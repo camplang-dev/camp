@@ -1460,9 +1460,57 @@ public static class CCodeEmitter
 				value = CastToErasedGeneric(value, concreteType);
 			return argument.Modifier switch
 			{
+				ArgumentModifier.Out or ArgumentModifier.Catch when TryFormatForwardedOutArgument(argument.Value, out string forwarded) => forwarded,
 				ArgumentModifier.Out or ArgumentModifier.Catch => "&" + value,
 				_ => value
 			};
+		}
+
+		bool TryFormatForwardedOutArgument(Expression? expression, out string value)
+		{
+			value = "";
+			switch (expression)
+			{
+				case VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.Out or ParameterModifier.Thrown } parameter }:
+					value = CName(parameter);
+					return true;
+
+				case VariableReferenceExpression { Variable: DeclarationTarget target } when TryFindCurrentOutParameter(target, out ParameterDefinition? parameter):
+					value = CName(parameter);
+					return true;
+
+				case NamedExpression named when TryFindCurrentOutParameter(named.Name, out ParameterDefinition? parameter):
+					value = CName(parameter);
+					return true;
+
+				default:
+					return false;
+			}
+		}
+
+		bool TryFindCurrentOutParameter(DeclarationTarget target, out ParameterDefinition parameter)
+		{
+			parameter = null!;
+			return target.Names.Count == 1 && TryFindCurrentOutParameter(target.Names[0], out parameter);
+		}
+
+		bool TryFindCurrentOutParameter(string name, out ParameterDefinition parameter)
+		{
+			parameter = null!;
+			if (currentFunction is null)
+				return false;
+
+			foreach (ParameterDefinition candidate in currentFunction.Parameters)
+			{
+				if (candidate.Modifier is not ParameterModifier.Out and not ParameterModifier.Thrown)
+					continue;
+				if (candidate.Name == name || candidate.Symbol == name)
+				{
+					parameter = candidate;
+					return true;
+				}
+			}
+			return false;
 		}
 
 		static FunctionDefinition? TryGetCallFunction(CallExpression call)
@@ -1668,6 +1716,7 @@ public static class CCodeEmitter
 				ParameterDefinition { Modifier: ParameterModifier.Out or ParameterModifier.Thrown } parameter => "(*" + CName(parameter) + ")",
 				ParameterDefinition parameter => CName(parameter),
 				FieldDefinition field => CName(field),
+				DeclarationTarget target when TryFindCurrentOutParameter(target, out ParameterDefinition? parameter) => "(*" + CName(parameter) + ")",
 				DeclarationTarget target => CName(target),
 				_ => UnsupportedExpression(variable)
 			};

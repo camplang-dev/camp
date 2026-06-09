@@ -1,0 +1,62 @@
+// file: thrown_parameter_forwarding.c
+#include "thrown_parameter_forwarding_private.h"
+
+/* Private file declarations. */
+static int mightThrow(Err *error);
+static int propagate(Err *error);
+static int main(void);
+
+static int mightThrow(Err *error)
+{
+	{
+		(*error) = BAD;
+		return 0;
+	}
+}
+
+static int propagate(Err *error)
+{
+	int _value0 = mightThrow(error);
+	if (((*error) != 0))
+	{
+		return 0;
+	}
+	return _value0;
+}
+
+static int main(void)
+{
+	Err error = 0;
+	int value = propagate(&error);
+	return ((error == BAD) ? value : 1);
+}
+
+// file: thrown_parameter_forwarding_private.h
+#ifndef THROWN_PARAMETER_FORWARDING_PRIVATE_H_
+#define THROWN_PARAMETER_FORWARDING_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Enums. */
+typedef enum Err
+{
+	OK = 0,
+	BAD
+} Err;
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: thrown_parameter_forwarding.c
