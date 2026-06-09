@@ -332,6 +332,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (CanExplicitlyConvertPrimitiveStringPointer(source, target))
 			return true;
 
+		if (CanExplicitlyConvertCallable(source, target))
+			return true;
+
 		if (TryParseTypeShape(source, out TypeShape explicitSourceShape)
 			&& TryParseTypeShape(target, out TypeShape explicitTargetShape)
 			&& (CanExplicitlyConvertTargetSpecShape(explicitSourceShape, explicitTargetShape)
@@ -350,6 +353,17 @@ public sealed partial class BindableNodeAnalyzer
 			&& TryParseTypeShape(target, out TypeShape targetShape)
 			&& sourceShape.IsPointer
 			&& targetShape.IsPointer;
+	}
+
+	bool CanExplicitlyConvertCallable(string source, string target)
+	{
+		if (!TryGetCallableShape(source, out CallableShape sourceCallable)
+			|| !TryGetCallableShape(target, out CallableShape targetCallable))
+			return false;
+
+		return sourceCallable.Kind == targetCallable.Kind
+			&& sourceCallable.ReturnType == targetCallable.ReturnType
+			&& sourceCallable.Parameters.Count == targetCallable.Parameters.Count;
 	}
 
 	bool IsNewtypeOrEnumBoundary(string source, string target)
@@ -807,7 +821,8 @@ public sealed partial class BindableNodeAnalyzer
 						Symbol = component.ExpandedName,
 						ResolvedType = component.Type
 					}));
-			return members;
+			if (members.Count > 0)
+				return members;
 		}
 
 		if (TryGetPointerElementType(targetType) is string interfaceElement
@@ -976,7 +991,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (definition is not FunctionDefinition function || function.Name != name || !IsDefinitionVisible(function, referenceSyntax))
 				continue;
-			if (GetExplicitThisParameter(function) is null)
+			if (GetExplicitThisParameter(function) is null && !HasExpandedThisParameters(function.Parameters))
 				continue;
 			if (!ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
 				continue;
@@ -1356,13 +1371,17 @@ public sealed partial class BindableNodeAnalyzer
 	static int CountRequiredParameters(List<ParameterDefinition> parameters, bool includeExplicitThis = false)
 	{
 		int count = 0;
+		int expandedThisCount = includeExplicitThis ? 0 : CountExpandedThisParameters(parameters);
+		int index = 0;
 		foreach (ParameterDefinition parameter in parameters)
 		{
 			if (parameter.DefaultValue is null
 				&& parameter.Modifier is not ParameterModifier.Thrown and not ParameterModifier.Within
 				&& (includeExplicitThis || parameter is not ThisParameterDefinition)
+				&& index >= expandedThisCount
 				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
 				count++;
+			index++;
 		}
 		return count;
 	}
@@ -1370,12 +1389,16 @@ public sealed partial class BindableNodeAnalyzer
 	static int CountCallableParameters(List<ParameterDefinition> parameters, bool includeExplicitThis = false)
 	{
 		int count = 0;
+		int expandedThisCount = includeExplicitThis ? 0 : CountExpandedThisParameters(parameters);
+		int index = 0;
 		foreach (ParameterDefinition parameter in parameters)
 		{
 			if (parameter.Modifier is not ParameterModifier.Thrown and not ParameterModifier.Within
 				&& (includeExplicitThis || parameter is not ThisParameterDefinition)
+				&& index >= expandedThisCount
 				&& parameter is not WithinParameterDefinition)
 				count++;
+			index++;
 		}
 		return count;
 	}

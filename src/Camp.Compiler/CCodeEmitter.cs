@@ -1882,13 +1882,14 @@ public static class CCodeEmitter
 		string FormatParameters(List<ParameterDefinition> parameters)
 		{
 			List<string> parts = [];
+			HashSet<string> usedNames = [];
 			WithArrayElementComponentContext(parameters, () =>
 			{
 				foreach (ParameterDefinition parameter in parameters)
 				{
 					if (parameter is WithinParameterDefinition && parameter.Type is null)
 						continue;
-					string name = CName(parameter);
+					string name = UniqueCallableParameterName(CName(parameter), usedNames);
 					if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 					{
 						TypeReference? parameterType = parameter.Type;
@@ -1901,6 +1902,21 @@ public static class CCodeEmitter
 				}
 			});
 			return "(" + (parts.Count == 0 ? "void" : string.Join(", ", parts)) + ")";
+		}
+
+		static string UniqueCallableParameterName(string name, HashSet<string> usedNames)
+		{
+			if (string.IsNullOrWhiteSpace(name))
+				name = "arg";
+
+			string candidate = name;
+			int suffix = 0;
+			while (!usedNames.Add(candidate))
+			{
+				suffix++;
+				candidate = name + suffix.ToString(CultureInfo.InvariantCulture);
+			}
+			return candidate;
 		}
 
 		string FormatParameters(FunctionDefinition function)

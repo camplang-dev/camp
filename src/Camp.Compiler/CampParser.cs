@@ -1511,7 +1511,7 @@ public sealed class CampParser
 		if (open is null)
 			return null;
 
-		Token? castKeyword = IsAny("params", "struct", "class", "delegate", "fn", "once", "iter", "async")
+		Token? castKeyword = IsAny("params", "struct", "class")
 			? Take()
 			: null;
 

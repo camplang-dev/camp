@@ -30,6 +30,61 @@ export newtype iter nuint ACharWriter(achar[] buffer);
 // export newtype async iter nuint AsyncACharReader(achar[] buffer);
 // export newtype async iter nuint AsyncACharWriter(const achar[] buffer);
 
+export CharReader getCharReader(ByteReader this)
+{
+	CharReader reader = default;
+	reader.call = (fn bool(void*, nuint*, char*, nuint))this.call;
+	reader.context = this.context;
+	return reader;
+}
+
+export WCharReader getWCharReader(ByteReader this)
+{
+	WCharReader reader = default;
+	reader.call = (fn bool(void*, nuint*, wchar*, nuint))this.call;
+	reader.context = this.context;
+	return reader;
+}
+
+export ACharReader getACharReader(ByteReader this)
+{
+	ACharReader reader = default;
+	reader.call = (fn bool(void*, nuint*, achar*, nuint))this.call;
+	reader.context = this.context;
+	return reader;
+}
+
+export CharWriter getCharWriter(ByteWriter this)
+{
+	CharWriter writer = default;
+	writer.call = (fn bool(void*, nuint*, char*, nuint))this.call;
+	writer.context = this.context;
+	return writer;
+}
+
+export WCharWriter getWCharWriter(ByteWriter this)
+{
+	WCharWriter writer = default;
+	writer.call = (fn bool(void*, nuint*, wchar*, nuint))this.call;
+	writer.context = this.context;
+	return writer;
+}
+
+export ACharWriter getACharWriter(ByteWriter this)
+{
+	ACharWriter writer = default;
+	writer.call = (fn bool(void*, nuint*, achar*, nuint))this.call;
+	writer.context = this.context;
+	return writer;
+}
+
+// export AsyncCharReader getCharReader(AsyncByteReader this);
+// export AsyncWCharReader getWCharReader(AsyncByteReader this);
+// export AsyncACharReader getACharReader(AsyncByteReader this);
+// export AsyncCharWriter getCharWriter(AsyncByteWriter this);
+// export AsyncWCharWriter getWCharWriter(AsyncByteWriter this);
+// export AsyncACharWriter getACharWriter(AsyncByteWriter this);
+
 export void writeAll(ByteWriter this, const byte[] value, thrown IoError error)
 {
 	nuint offset = 0;

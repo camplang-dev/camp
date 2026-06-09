@@ -1,0 +1,49 @@
+using Std;
+
+bool captureBytes(void* context, nuint* written, byte* buffer, nuint buffer_length)
+{
+	nuint* total = (nuint*)context;
+	*total = buffer_length;
+	*written = buffer_length;
+	return true;
+}
+
+bool provideBytes(void* context, nuint* readCount, byte* buffer, nuint buffer_length)
+{
+	if (buffer_length == 0)
+	{
+		*readCount = 0;
+		return true;
+	}
+	
+	buffer[0] = (byte)'z';
+	*readCount = 1;
+	return true;
+}
+
+export int main(string[] args)
+{
+	nuint total = 0;
+	ByteWriter byteWriter = default;
+	byteWriter.call = captureBytes;
+	byteWriter.context = &total;
+	
+	CharWriter charWriter = byteWriter.CharWriter;
+	charWriter.writeString("abc", catch _);
+	if (total != 3)
+		return 1;
+	
+	ByteReader byteReader = default;
+	byteReader.call = provideBytes;
+	byteReader.context = null;
+	
+	CharReader charReader = byteReader.CharReader;
+	char[] buffer = ['\0'];
+	nuint readCount = 0;
+	if (!charReader(&readCount, buffer.elements, buffer.length))
+		return 2;
+	if (readCount != 1 || buffer[0] != 'z')
+		return 3;
+	
+	return 0;
+}
