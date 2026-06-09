@@ -1,0 +1,25 @@
+newtype iter nuint Writer(char[] buffer);
+
+bool writeAll(void* context, nuint* written, char* buffer, nuint buffer_length)
+{
+	*written = buffer_length;
+	return true;
+}
+
+Writer getWriter()
+{
+	Writer writer = default;
+	writer.call = writeAll;
+	writer.context = null;
+	return writer;
+}
+
+int main()
+{
+	Writer writer = getWriter();
+	char[] text = ['o', 'k'];
+	nuint written = 0;
+	if (!writer(&written, text.elements, text.length))
+		return 1;
+	return written == 2 ? 0 : 2;
+}

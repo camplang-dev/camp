@@ -1,0 +1,71 @@
+// file: expanded_return_iter_assignment.c
+#include "expanded_return_iter_assignment_private.h"
+
+/* Private file declarations. */
+static bool writeAll(void* context, uintptr_t* written, char* buffer, uintptr_t buffer_length);
+static fn_bool_voidPtr__nuintPtr__charPtr__nuint_ getWriter(void* *result_context);
+static int main(void);
+
+static bool writeAll(void* context, uintptr_t* written, char* buffer, uintptr_t buffer_length)
+{
+	*written = buffer_length;
+	return true;
+}
+
+static fn_bool_voidPtr__nuintPtr__charPtr__nuint_ getWriter(void* *result_context)
+{
+	fn_bool_voidPtr__nuintPtr__charPtr__nuint_ writer = 0;
+	void* writer_context = 0;
+	writer = writeAll;
+	writer_context = NULL;
+	{
+		(*result_context) = writer_context;
+		return writer;
+	}
+}
+
+static int main(void)
+{
+	fn_bool_voidPtr__nuintPtr__charPtr__nuint_ writer;
+	void* writer_context;
+	{
+		writer = getWriter(&writer_context);
+	}
+	char* text = (char []){'o', 'k'};
+	uintptr_t text_length = 2;
+	uintptr_t written = 0;
+	if (!writer(writer_context, &written, text, text_length))
+	{
+		return 1;
+	}
+	return ((written == 2) ? 0 : 2);
+}
+
+// file: expanded_return_iter_assignment_private.h
+#ifndef EXPANDED_RETURN_ITER_ASSIGNMENT_PRIVATE_H_
+#define EXPANDED_RETURN_ITER_ASSIGNMENT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+typedef void* Writer;
+
+/* Callable typedefs. */
+typedef bool (* fn_bool_voidPtr__nuintPtr__charPtr__nuint_)(void* arg0, uintptr_t* arg1, char* arg2, uintptr_t arg3);
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: expanded_return_iter_assignment.c

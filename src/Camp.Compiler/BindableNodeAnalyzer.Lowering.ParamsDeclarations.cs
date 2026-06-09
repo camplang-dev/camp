@@ -305,6 +305,7 @@ public sealed partial class BindableNodeAnalyzer
 					ResolvedType = shape.Components[i].Type
 				});
 			}
+			preparedExpandedReturnCalls.Add(call);
 			declarations.Add(new ExpressionStatement
 			{
 				SourceSyntax = declaration.SourceSyntax,

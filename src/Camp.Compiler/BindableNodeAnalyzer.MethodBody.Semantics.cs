@@ -1388,16 +1388,41 @@ public sealed partial class BindableNodeAnalyzer
 	static List<ParameterDefinition> GetCallableParameters(List<ParameterDefinition> parameters, bool includeExplicitThis = false)
 	{
 		List<ParameterDefinition> callable = [];
+		int expandedThisCount = includeExplicitThis ? 0 : CountExpandedThisParameters(parameters);
+		int index = 0;
 		foreach (ParameterDefinition parameter in parameters)
 		{
 			if (parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
 				|| !includeExplicitThis && parameter is ThisParameterDefinition
+				|| index < expandedThisCount
 				|| parameter is WithinParameterDefinition)
+			{
+				index++;
 				continue;
+			}
 
 			callable.Add(parameter);
+			index++;
 		}
 		return callable;
+	}
+
+	static bool HasExpandedThisParameters(List<ParameterDefinition> parameters)
+	{
+		return CountExpandedThisParameters(parameters) > 0;
+	}
+
+	static int CountExpandedThisParameters(List<ParameterDefinition> parameters)
+	{
+		if (parameters.Count < 2 || parameters[0] is ThisParameterDefinition || parameters[0].Name != "this")
+			return 0;
+		if (!parameters[1].Name.StartsWith("this_", StringComparison.Ordinal))
+			return 0;
+
+		int count = 1;
+		while (count < parameters.Count && parameters[count].Name.StartsWith("this_", StringComparison.Ordinal))
+			count++;
+		return count;
 	}
 
 	static int CountRequiredParametersForPropertySetter(List<ParameterDefinition> parameters)

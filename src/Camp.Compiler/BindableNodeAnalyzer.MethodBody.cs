@@ -1235,7 +1235,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool IncludeExplicitThisArgument(Expression? target, FunctionDefinition? function)
 	{
 		return function is not null
-			&& (GetExplicitThisParameter(function) is not null || IsInstanceFunction(function))
+			&& (GetExplicitThisParameter(function) is not null || HasExpandedThisParameters(function.Parameters) || IsInstanceFunction(function))
 			&& target is not MemberExpression and not MemberReferenceExpression;
 	}
 

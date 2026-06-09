@@ -45,66 +45,17 @@ export class Console
 	// export static AsyncCharWriter getAsyncWriter();
 	// export static AsyncCharWriter getAsyncError();
 	
-	export static void writeString(const char[] value)
-	{
-		IoError error = default;
-		CharWriter writer = default;
-		writer.call = Console_writeFd;
-		writer.context = (void*)(nint)1;
-		CharWriter_writeString(writer, value, catch error);
-	}
+	export static void writeString(const char[] value) => Console.Writer.writeString(value, catch _);
 	
-	export static void writeLine(const char[] value = default)
-	{
-		IoError error = default;
-		CharWriter writer = default;
-		writer.call = Console_writeFd;
-		writer.context = (void*)(nint)1;
-		CharWriter_writeLine(writer, value, catch error);
-	}
+	export static void writeLine(const char[] value = default) => Console.Writer.writeLine(value, catch _);
 	
-	export static void writeBool(bool value)
-	{
-		IoError error = default;
-		CharWriter writer = default;
-		writer.call = Console_writeFd;
-		writer.context = (void*)(nint)1;
-		CharWriter_writeBool(writer, value, catch error);
-	}
+	export static void writeBool(bool value) => Console.Writer.writeBool(value, catch _);
 	
-	export static void writeChar(char value)
-	{
-		IoError error = default;
-		CharWriter writer = default;
-		writer.call = Console_writeFd;
-		writer.context = (void*)(nint)1;
-		CharWriter_writeChar(writer, value, catch error);
-	}
+	export static void writeChar(char value) => Console.Writer.writeChar(value, catch _);
 	
-	export static void writeInt(int value)
-	{
-		IoError error = default;
-		CharWriter writer = default;
-		writer.call = Console_writeFd;
-		writer.context = (void*)(nint)1;
-		CharWriter_writeInt(writer, value, catch error);
-	}
+	export static void writeInt(int value) => Console.Writer.writeInt(value, catch _);
 	
-	export static void writeUInt(uint value)
-	{
-		IoError error = default;
-		CharWriter writer = default;
-		writer.call = Console_writeFd;
-		writer.context = (void*)(nint)1;
-		CharWriter_writeUInt(writer, value, catch error);
-	}
+	export static void writeUInt(uint value) => Console.Writer.writeUInt(value, catch _);
 	
-	export static void writeDouble(double value)
-	{
-		IoError error = default;
-		CharWriter writer = default;
-		writer.call = Console_writeFd;
-		writer.context = (void*)(nint)1;
-		CharWriter_writeDouble(writer, value, catch error);
-	}
+	export static void writeDouble(double value) => Console.Writer.writeDouble(value, catch _);
 }

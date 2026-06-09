@@ -40,7 +40,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsInstanceInvocationFunction(FunctionDefinition function)
 	{
-		return IsInstanceFunction(function) || GetExplicitThisParameter(function) is not null;
+		return IsInstanceFunction(function)
+			|| GetExplicitThisParameter(function) is not null
+			|| HasExpandedThisParameters(function.Parameters);
 	}
 
 	bool ShouldEmitFlattenedInstanceCalls()

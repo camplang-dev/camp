@@ -37,6 +37,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly Dictionary<BindableNode, List<ParamsExpansionComponent>> paramsExpansions = [];
 	readonly Dictionary<FunctionDefinition, ParamsComponentShape> expandedReturnShapes = [];
+	readonly HashSet<CallExpression> preparedExpandedReturnCalls = [];
 
 	List<string> GetPotentialParamsComponentNames(TypeReference? type, string? resolvedType, string sourceName)
 	{

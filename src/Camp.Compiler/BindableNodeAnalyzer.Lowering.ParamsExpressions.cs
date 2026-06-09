@@ -183,6 +183,8 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (!TryCreateParamsComponentExpressions(assignment.Target, out List<Expression> targets))
 			return false;
+		if (TryRewriteExpandedReturnAssignment(assignment, targets, out statements))
+			return true;
 		if (!TryCreateParamsComponentExpressions(assignment.Value, out List<Expression> values))
 			return false;
 		if (targets.Count != values.Count)
@@ -206,6 +208,47 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return statements.Count > 0;
+	}
+
+	bool TryRewriteExpandedReturnAssignment(AssignmentExpression assignment, List<Expression> targets, out List<Statement> statements)
+	{
+		statements = [];
+		if (assignment.Value is not CallExpression call)
+			return false;
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !TryGetExpandedReturnShape(function, out ParamsComponentShape? shape))
+			return false;
+		if (shape.Components.Count != targets.Count)
+			return false;
+
+		if (!preparedExpandedReturnCalls.Contains(call))
+		{
+			for (int i = 1; i < targets.Count; i++)
+			{
+				call.Arguments.Add(new ArgumentExpression
+				{
+					SourceSyntax = assignment.SourceSyntax,
+					Modifier = ArgumentModifier.Out,
+					Value = LowerExpression(CloneParamsExpansionExpression(targets[i])),
+					ResolvedType = shape.Components[i].Type
+				});
+			}
+			preparedExpandedReturnCalls.Add(call);
+		}
+
+		statements.Add(new ExpressionStatement
+		{
+			SourceSyntax = assignment.SourceSyntax,
+			ResolvedType = "void",
+			Expression = new AssignmentExpression
+			{
+				SourceSyntax = assignment.SourceSyntax,
+				Target = LowerExpression(CloneParamsExpansionExpression(targets[0])),
+				Operator = AssignmentOperator.Assign,
+				Value = LowerExpression(call),
+				ResolvedType = shape.Components[0].Type
+			}
+		});
+		return true;
 	}
 
 	bool TryCreateParamsComponentExpressions(Expression? expression, out List<Expression> components)
