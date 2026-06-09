@@ -2,7 +2,8 @@ using Std;
 
 export int main()
 {
-	const char[] span = "  Hello, hello!  ";
+	string text = "  Hello, hello!  ";
+	const char[] span = text.Span;
 
 	if (span.indexOf("Hello") != 2)
 		return 1;
@@ -35,11 +36,11 @@ export int main()
 		return 12;
 
 	string accent = "caf\xC3\xA9";
-	if (accent.getSpan(0, accent.Length).countChars() != 4)
+	if (accent.Span.countChars() != 4)
 		return 13;
-	if (accent.getSpan(0, accent.Length).getChar(3) != (uchar)233)
+	if (accent.Span.getChar(3) != (uchar)233)
 		return 14;
-	if (accent.getSpan(0, accent.Length).getCharUnits(3) != 2)
+	if (accent.Span.getCharUnits(3) != 2)
 		return 15;
 
 	if (span.trim().length != 13)
@@ -63,13 +64,13 @@ export int main()
 		joined = words.joinCopy(",");
 	}
 
-	if (upper.getSpan(0, upper.Length).compareTo("  HELLO, HELLO!  ") != 0)
+	if (upper.Span.compareTo("  HELLO, HELLO!  ") != 0)
 		return 19;
-	if (lower.getSpan(0, lower.Length).compareTo("  hello, hello!  ") != 0)
+	if (lower.Span.compareTo("  hello, hello!  ") != 0)
 		return 20;
-	if (concatenated.getSpan(0, concatenated.Length).compareTo("onetwothree") != 0)
+	if (concatenated.Span.compareTo("onetwothree") != 0)
 		return 21;
-	if (joined.getSpan(0, joined.Length).compareTo("one,two,three") != 0)
+	if (joined.Span.compareTo("one,two,three") != 0)
 		return 22;
 
 	const char[] embeddedNull = ['a', 'b', '\0', 'x', 'y'];

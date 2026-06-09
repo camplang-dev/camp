@@ -913,15 +913,19 @@ public sealed class BindableNodeCodeSerializer
 		writer.WriteLine("}");
 	}
 
-	void WriteAttributes(List<AttributeConstructor> attributes)
+	void WriteAttributes(List<AttributeConstructor> attributes, bool inline = false)
 	{
 		foreach (AttributeConstructor attribute in attributes)
 		{
-			WriteIndent();
+			if (!inline)
+				WriteIndent();
 			WriteAttributeName(attribute.Name);
 			if (attribute.Arguments.Count > 0)
 				WriteDelimited("(", ")", attribute.Arguments, WriteArgument);
-			writer.WriteLine();
+			if (inline)
+				writer.Write(" ");
+			else
+				writer.WriteLine();
 		}
 	}
 
@@ -1015,6 +1019,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteParameter(ParameterDefinition parameter)
 	{
+		WriteAttributes(parameter.Attributes, inline: true);
 		bool isWithin = parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition;
 		if (isWithin)
 			writer.Write("within ");
@@ -1449,6 +1454,9 @@ public sealed class BindableNodeCodeSerializer
 				break;
 			case UnaryOperator.Within:
 				writer.Write("within ");
+				break;
+			case UnaryOperator.FromEnd:
+				writer.Write("^");
 				break;
 		}
 		WriteExpression(unary.Operand, GetPrecedence(unary));

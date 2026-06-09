@@ -864,7 +864,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateExpandedReturnCallComponents(CallExpression call, out List<Expression> components)
 	{
 		components = [];
-		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !expandedReturnShapes.TryGetValue(function, out ParamsComponentShape? shape))
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !TryGetExpandedReturnShape(function, out ParamsComponentShape? shape))
 			return false;
 		if (currentStatementPrefix is null || shape.Components.Count == 0)
 			return false;

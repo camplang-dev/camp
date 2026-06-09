@@ -279,7 +279,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (declaration.InitialValue is CallExpression call
 			&& callTargets.TryGetValue(call, out FunctionDefinition? function)
-			&& expandedReturnShapes.TryGetValue(function, out ParamsComponentShape? callShape)
+			&& TryGetExpandedReturnShape(function, out ParamsComponentShape? callShape)
 			&& callShape.Components.Count == shape.Components.Count)
 		{
 			AddImplicitDefaultArguments(call);
@@ -316,11 +316,23 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		switch (expression)
 		{
+			case MemberExpression member
+				when expressionRewrites.TryGetValue(member, out Expression? rewritten)
+				&& rewritten is MemberReferenceExpression getter
+				&& IsExpandedReturnPropertyGetter(getter, out _):
+				return RewritePropertyGetterCall(getter, []);
+
 			case MemberReferenceExpression getter when IsExpandedReturnPropertyGetter(getter, out FunctionDefinition? function):
-				return CreatePropertyGetterCall(getter, [], function);
+				return RewritePropertyGetterCall(getter, []);
+
+			case IndexExpression { Target: MemberExpression member } index
+				when expressionRewrites.TryGetValue(member, out Expression? rewritten)
+				&& rewritten is MemberReferenceExpression getter
+				&& IsExpandedReturnPropertyGetter(getter, out _):
+				return RewritePropertyGetterCall(getter, index.Arguments);
 
 			case IndexExpression { Target: MemberReferenceExpression getter } index when IsExpandedReturnPropertyGetter(getter, out FunctionDefinition? function):
-				return CreatePropertyGetterCall(getter, index.Arguments, function);
+				return RewritePropertyGetterCall(getter, index.Arguments);
 
 			default:
 				return expression;
@@ -332,25 +344,18 @@ public sealed partial class BindableNodeAnalyzer
 		function = null!;
 		if (!IsPropertyGetterReference(getter) || getter.Member is not FunctionDefinition candidate)
 			return false;
-		if (!expandedReturnShapes.ContainsKey(candidate))
+		if (!TryGetExpandedReturnShape(candidate, out _))
 			return false;
 
 		function = candidate;
 		return true;
 	}
 
-	CallExpression CreatePropertyGetterCall(MemberReferenceExpression getter, List<ArgumentExpression> arguments, FunctionDefinition function)
+	bool TryGetExpandedReturnShape(FunctionDefinition function, out ParamsComponentShape shape)
 	{
-		getter.Name = function.Name;
-		CallExpression call = new()
-		{
-			SourceSyntax = getter.SourceSyntax,
-			Target = getter,
-			ResolvedType = function.ResolvedType ?? ErrorType
-		};
-		call.Arguments.AddRange(arguments);
-		callTargets[call] = function;
-		return call;
+		if (expandedReturnShapes.TryGetValue(function, out shape!))
+			return true;
+		return TryGetParamsComponentShape(function.ReturnType, function.ResolvedType, "result", out shape);
 	}
 
 	ParameterDefinition CreateExpandedParameter(ParameterDefinition source, ParamsComponent component, bool inheritDefaultValue)
