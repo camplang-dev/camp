@@ -1,0 +1,79 @@
+using Std;
+
+export int main()
+{
+	astring text = "  Alpha, alpha!  ";
+	const achar[] span = text[..];
+
+	if (text.indexOf("Alpha") != 2)
+		return 1;
+	const achar[] alphaLower = "alpha";
+	if (text.indexOf(alphaLower, true) != 2)
+		return 2;
+	if (span.lastIndexOf("ha") != 12)
+		return 3;
+	if (span.indexOfChar((achar)'A') != 2)
+		return 4;
+	if (text.indexOfChar((achar)'p') != 4)
+		return 5;
+	if (span.lastIndexOfChar((achar)'a') != 13)
+		return 6;
+
+	achar[] any = [(achar)'x', (achar)'A'];
+	if (span.indexOfAnyChar(any) != 2)
+		return 7;
+	achar[] anyLast = [(achar)'!', (achar)'x'];
+	if (span.lastIndexOfAnyChar(anyLast) != 14)
+		return 8;
+
+	if (!text.startsWith("  Al"))
+		return 9;
+	if (!span.startsWithChar((achar)' '))
+		return 10;
+	if (!span.endsWith("!  "))
+		return 11;
+	if (!span.endsWithChar((achar)' '))
+		return 12;
+	if (text.compareTo("  Alpha, alpha!  ") != 0)
+		return 13;
+
+	if (span.trim().length != 13)
+		return 14;
+	if (span.trimStart().length != 15)
+		return 15;
+	if (span.trimEnd().length != 15)
+		return 16;
+
+	Allocator* allocator = null;
+	astring copied = null;
+	astring upper = null;
+	astring lower = null;
+	astring joined = null;
+	astring concatenated = null;
+	astring[] words = ["one", "two", "three"];
+	within (allocator)
+	{
+		copied = span.stringCopy();
+		upper = span.uppercaseCopy();
+		lower = span.lowercaseCopy();
+		concatenated = words.concatCopy();
+		joined = words.joinCopy(",");
+	}
+
+	if (copied[..].compareTo("  Alpha, alpha!  ") != 0)
+		return 17;
+	if (upper[..].compareTo("  ALPHA, ALPHA!  ") != 0)
+		return 18;
+	if (lower[..].compareTo("  alpha, alpha!  ") != 0)
+		return 19;
+	if (concatenated[..].compareTo("onetwothree") != 0)
+		return 20;
+	if (joined[..].compareTo("one,two,three") != 0)
+		return 21;
+
+	const achar[] embeddedNull = [(achar)'a', (achar)'b', 0, (achar)'x', (achar)'y'];
+	if (embeddedNull.compareTo("ab") != 0)
+		return 22;
+
+	return 0;
+}

@@ -969,6 +969,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<FunctionDefinition> LookupExtensionFunctions(string targetType, string name, SyntaxNode? referenceSyntax)
 	{
+		List<FunctionDefinition> exactReceiverFunctions = [];
 		List<FunctionDefinition> exactPrimitiveStringFunctions = [];
 		List<FunctionDefinition> functions = [];
 		foreach (Definition definition in currentModule?.Definitions ?? [])
@@ -984,12 +985,22 @@ public sealed partial class BindableNodeAnalyzer
 				&& !PrimitiveStringHasLengthProvider(targetType, referenceSyntax))
 				Report(GetRange(referenceSyntax), $"Cannot implicitly convert '{targetType}' to '{PrimitiveStringConstArrayType(targetType)}' because no accessible Length property or getLength() method was found.");
 
-			if (IsExactPrimitiveStringReceiver(targetType, function, IsPropertyGetterFunction(function)))
+			if (IsExactReceiver(targetType, function, IsPropertyGetterFunction(function)))
+				exactReceiverFunctions.Add(function);
+			else if (IsExactPrimitiveStringReceiver(targetType, function, IsPropertyGetterFunction(function)))
 				exactPrimitiveStringFunctions.Add(function);
 			else
 				functions.Add(function);
 		}
+		if (exactReceiverFunctions.Count > 0)
+			return exactReceiverFunctions;
 		return exactPrimitiveStringFunctions.Count > 0 ? exactPrimitiveStringFunctions : functions;
+	}
+
+	bool IsExactReceiver(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
+	{
+		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
+		return StripTopLevelValueQualifiers(receiverType) == StripTopLevelValueQualifiers(targetType);
 	}
 
 	bool RequiresPrimitiveStringSpanLength(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)

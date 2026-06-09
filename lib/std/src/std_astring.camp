@@ -1,0 +1,398 @@
+export as Std;
+
+export nint indexOf(const achar[] this, const achar[] match, bool caseInsensitive = false)
+{
+	nuint length = astringLogicalLength(this.elements, this.length);
+	nuint matchLength = astringLogicalLength(match.elements, match.length);
+	if (matchLength == 0)
+		return 0;
+	if (matchLength > length)
+		return -1;
+
+	nuint last = length - matchLength;
+	for (nuint i = 0; i <= last; i++)
+	{
+		if (astringCompareUnits(&this.elements[i], match.elements, matchLength, caseInsensitive) == 0)
+			return (nint)i;
+	}
+	return -1;
+}
+
+export nint indexOfChar(const achar[] this, achar match, bool caseInsensitive = false)
+{
+	nuint length = astringLogicalLength(this.elements, this.length);
+	achar normalized = caseInsensitive ? astringLowerUnit(match) : match;
+	for (nuint i = 0; i < length; i++)
+	{
+		achar value = caseInsensitive ? astringLowerUnit(this.elements[i]) : this.elements[i];
+		if (value == normalized)
+			return (nint)i;
+	}
+	return -1;
+}
+
+export nint indexOfAnyChar(const achar[] this, const achar[] matches, bool caseInsensitive = false)
+{
+	nuint length = astringLogicalLength(this.elements, this.length);
+	nuint matchLength = astringLogicalLength(matches.elements, matches.length);
+	for (nuint i = 0; i < length; i++)
+	{
+		achar value = caseInsensitive ? astringLowerUnit(this.elements[i]) : this.elements[i];
+		for (nuint j = 0; j < matchLength; j++)
+		{
+			achar match = caseInsensitive ? astringLowerUnit(matches.elements[j]) : matches.elements[j];
+			if (value == match)
+				return (nint)i;
+		}
+	}
+	return -1;
+}
+
+export nint lastIndexOf(const achar[] this, const achar[] match, bool caseInsensitive = false)
+{
+	nuint length = astringLogicalLength(this.elements, this.length);
+	nuint matchLength = astringLogicalLength(match.elements, match.length);
+	if (matchLength == 0)
+		return (nint)length;
+	if (matchLength > length)
+		return -1;
+
+	nint result = -1;
+	nuint last = length - matchLength;
+	for (nuint i = 0; i <= last; i++)
+	{
+		if (astringCompareUnits(&this.elements[i], match.elements, matchLength, caseInsensitive) == 0)
+			result = (nint)i;
+	}
+	return result;
+}
+
+export nint lastIndexOfChar(const achar[] this, achar match, bool caseInsensitive = false)
+{
+	nint result = -1;
+	nuint length = astringLogicalLength(this.elements, this.length);
+	achar normalized = caseInsensitive ? astringLowerUnit(match) : match;
+	for (nuint i = 0; i < length; i++)
+	{
+		achar value = caseInsensitive ? astringLowerUnit(this.elements[i]) : this.elements[i];
+		if (value == normalized)
+			result = (nint)i;
+	}
+	return result;
+}
+
+export nint lastIndexOfAnyChar(const achar[] this, const achar[] matches, bool caseInsensitive = false)
+{
+	nint result = -1;
+	nuint length = astringLogicalLength(this.elements, this.length);
+	nuint matchLength = astringLogicalLength(matches.elements, matches.length);
+	for (nuint i = 0; i < length; i++)
+	{
+		achar value = caseInsensitive ? astringLowerUnit(this.elements[i]) : this.elements[i];
+		for (nuint j = 0; j < matchLength; j++)
+		{
+			achar match = caseInsensitive ? astringLowerUnit(matches.elements[j]) : matches.elements[j];
+			if (value == match)
+				result = (nint)i;
+		}
+	}
+	return result;
+}
+
+export bool startsWith(const achar[] this, const achar[] match, bool caseInsensitive = false)
+{
+	nuint matchLength = astringLogicalLength(match.elements, match.length);
+	if (matchLength > astringLogicalLength(this.elements, this.length))
+		return false;
+	return astringCompareUnits(this.elements, match.elements, matchLength, caseInsensitive) == 0;
+}
+
+export bool startsWithChar(const achar[] this, achar match, bool caseInsensitive = false)
+{
+	nuint length = astringLogicalLength(this.elements, this.length);
+	if (length == 0)
+		return false;
+	achar value = caseInsensitive ? astringLowerUnit(this.elements[0]) : this.elements[0];
+	achar normalized = caseInsensitive ? astringLowerUnit(match) : match;
+	return value == normalized;
+}
+
+export bool endsWith(const achar[] this, const achar[] match, bool caseInsensitive = false)
+{
+	nuint length = astringLogicalLength(this.elements, this.length);
+	nuint matchLength = astringLogicalLength(match.elements, match.length);
+	if (matchLength > length)
+		return false;
+	return astringCompareUnits(&this.elements[length - matchLength], match.elements, matchLength, caseInsensitive) == 0;
+}
+
+export bool endsWithChar(const achar[] this, achar match, bool caseInsensitive = false)
+{
+	nuint length = astringLogicalLength(this.elements, this.length);
+	if (length == 0)
+		return false;
+	achar value = caseInsensitive ? astringLowerUnit(this.elements[length - 1]) : this.elements[length - 1];
+	achar normalized = caseInsensitive ? astringLowerUnit(match) : match;
+	return value == normalized;
+}
+
+export nint compareTo(const achar[] this, const achar[] other, bool caseInsensitive = false)
+{
+	nuint thisLength = astringLogicalLength(this.elements, this.length);
+	nuint otherLength = astringLogicalLength(other.elements, other.length);
+	nuint comparedLength = astringMin(thisLength, otherLength);
+	nint comparison = astringCompareUnits(this.elements, other.elements, comparedLength, caseInsensitive);
+	if (comparison < 0)
+		return -1;
+	if (comparison > 0)
+		return 1;
+
+	if (thisLength < otherLength)
+		return -1;
+	if (thisLength > otherLength)
+		return 1;
+	return 0;
+}
+
+export scoped const achar[] trim(const achar[] this)
+{
+	nuint start = astringTrimStartIndex(this.elements, this.length);
+	nuint end = astringTrimEndIndex(this.elements, this.length, start);
+	const achar[] trimmed = default;
+	trimmed.elements = &this.elements[start];
+	trimmed.length = end - start;
+	return trimmed;
+}
+
+export scoped const achar[] trimStart(const achar[] this)
+{
+	nuint start = astringTrimStartIndex(this.elements, this.length);
+	const achar[] trimmed = default;
+	trimmed.elements = &this.elements[start];
+	trimmed.length = astringLogicalLength(this.elements, this.length) - start;
+	return trimmed;
+}
+
+export scoped const achar[] trimEnd(const achar[] this)
+{
+	nuint end = astringTrimEndIndex(this.elements, this.length, 0);
+	const achar[] trimmed = default;
+	trimmed.elements = this.elements;
+	trimmed.length = end;
+	return trimmed;
+}
+
+export astring stringCopy(const achar[] this, within allocator)
+{
+	return (astring)astringCopySpan(this.elements, this.length, allocator);
+}
+
+export astring uppercaseCopy(const achar[] this, within allocator)
+{
+	achar* buffer = astringCopySpan(this.elements, this.length, allocator);
+	if (buffer == null)
+		return null;
+	astringUppercaseInPlace(buffer);
+	return (astring)buffer;
+}
+
+export astring lowercaseCopy(const achar[] this, within allocator)
+{
+	achar* buffer = astringCopySpan(this.elements, this.length, allocator);
+	if (buffer == null)
+		return null;
+	astringLowercaseInPlace(buffer);
+	return (astring)buffer;
+}
+
+export astring concatCopy(astring[] this, within allocator)
+{
+	nuint size = 1;
+	for (nuint i = 0; i < this.length; i++)
+		size += this[i].Length;
+
+	achar* buffer = astringAllocateString(size, allocator);
+	if (buffer == null)
+		return null;
+	buffer[0] = (achar)0;
+
+	for (nuint j = 0; j < this.length; j++)
+		astringAppendString(buffer, this[j]);
+	return (astring)buffer;
+}
+
+export astring joinCopy(astring[] this, const achar[] separator, within allocator)
+{
+	nuint size = 1;
+	for (nuint i = 0; i < this.length; i++)
+	{
+		size += this[i].Length;
+		if (i > 0)
+			size += astringLogicalLength(separator.elements, separator.length);
+	}
+
+	achar* buffer = astringAllocateString(size, allocator);
+	if (buffer == null)
+		return null;
+	buffer[0] = (achar)0;
+
+	for (nuint j = 0; j < this.length; j++)
+	{
+		if (j > 0)
+			astringAppendSpan(buffer, separator);
+		astringAppendString(buffer, this[j]);
+	}
+	return (astring)buffer;
+}
+
+export nuint getLength(astring this)
+{
+	nuint length = 0;
+	while (this[length] != (achar)0)
+		length++;
+	return length;
+}
+
+bool astringIsAsciiWhitespace(achar value)
+{
+	return value == (achar)' '
+		|| value == (achar)'\t'
+		|| value == (achar)'\n'
+		|| value == (achar)'\r'
+		|| value == (achar)'\v'
+		|| value == (achar)'\f';
+}
+
+bool astringIsAsciiUpper(achar value)
+{
+	return value >= (achar)'A' && value <= (achar)'Z';
+}
+
+bool astringIsAsciiLower(achar value)
+{
+	return value >= (achar)'a' && value <= (achar)'z';
+}
+
+achar astringLowerUnit(achar value)
+{
+	if (astringIsAsciiUpper(value))
+		return (achar)(value + ((achar)'a' - (achar)'A'));
+	return value;
+}
+
+achar astringUpperUnit(achar value)
+{
+	if (astringIsAsciiLower(value))
+		return (achar)(value - ((achar)'a' - (achar)'A'));
+	return value;
+}
+
+nint astringCompareUnits(const achar* left, const achar* right, nuint length, bool caseInsensitive)
+{
+	for (nuint i = 0; i < length; i++)
+	{
+		achar leftUnit = caseInsensitive ? astringLowerUnit(left[i]) : left[i];
+		achar rightUnit = caseInsensitive ? astringLowerUnit(right[i]) : right[i];
+		if (leftUnit < rightUnit)
+			return -1;
+		if (leftUnit > rightUnit)
+			return 1;
+		if (leftUnit == (achar)0)
+			return 0;
+	}
+	return 0;
+}
+
+nuint astringTrimStartIndex(const achar* value, nuint valueLength)
+{
+	nuint length = astringLogicalLength(value, valueLength);
+	nuint start = 0;
+	while (start < length && astringIsAsciiWhitespace(value[start]))
+		start++;
+	return start;
+}
+
+nuint astringTrimEndIndex(const achar* value, nuint valueLength, nuint start)
+{
+	nuint end = astringLogicalLength(value, valueLength);
+	while (end > start && astringIsAsciiWhitespace(value[end - 1]))
+		end--;
+	return end;
+}
+
+nuint astringLogicalLength(const achar* value, nuint valueLength)
+{
+	nuint length = 0;
+	while (length < valueLength && value[length] != (achar)0)
+		length++;
+	return length;
+}
+
+nuint astringMin(nuint left, nuint right)
+{
+	return left < right ? left : right;
+}
+
+achar* astringAllocateString(nuint size, Allocator* allocator)
+{
+	if (allocator != null)
+		return (achar*)allocator.alloc(size);
+	return (achar*)malloc(size);
+}
+
+achar* astringCopySpan(const achar* value, nuint valueLength, Allocator* allocator)
+{
+	nuint length = astringLogicalLength(value, valueLength);
+	achar* buffer = astringAllocateString(length + 1, allocator);
+	if (buffer == null)
+		return null;
+	for (nuint i = 0; i < length; i++)
+		buffer[i] = value[i];
+	buffer[length] = (achar)0;
+	return buffer;
+}
+
+void astringAppendString(achar* buffer, const achar* value)
+{
+	nuint offset = 0;
+	while (buffer[offset] != (achar)0)
+		offset++;
+	nuint i = 0;
+	while (value[i] != (achar)0)
+	{
+		buffer[offset + i] = value[i];
+		i++;
+	}
+	buffer[offset + i] = (achar)0;
+}
+
+void astringAppendSpan(achar* buffer, const achar[] span)
+{
+	nuint offset = 0;
+	nuint length = astringLogicalLength(span.elements, span.length);
+	while (buffer[offset] != (achar)0)
+		offset++;
+	for (nuint i = 0; i < length; i++)
+		buffer[offset + i] = span[i];
+	buffer[offset + length] = (achar)0;
+}
+
+void astringUppercaseInPlace(achar* value)
+{
+	nuint i = 0;
+	while (value[i] != (achar)0)
+	{
+		value[i] = astringUpperUnit(value[i]);
+		i++;
+	}
+}
+
+void astringLowercaseInPlace(achar* value)
+{
+	nuint i = 0;
+	while (value[i] != (achar)0)
+	{
+		value[i] = astringLowerUnit(value[i]);
+		i++;
+	}
+}
