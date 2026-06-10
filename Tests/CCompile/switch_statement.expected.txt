@@ -1,0 +1,45 @@
+// file: switch_statement.c
+#include "switch_statement_private.h"
+
+/* Private file declarations. */
+static int choose(const char** args, uintptr_t args_length);
+
+static int choose(const char** args, uintptr_t args_length)
+{
+	{
+		switch (args_length)
+		{
+		case 2:
+			return 2;
+		case 1:
+			return 1;
+		}
+__switch_break0:
+	}
+	return 0;
+}
+
+// file: switch_statement_private.h
+#ifndef SWITCH_STATEMENT_PRIVATE_H_
+#define SWITCH_STATEMENT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: switch_statement.c

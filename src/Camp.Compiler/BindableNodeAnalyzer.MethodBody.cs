@@ -70,6 +70,7 @@ public sealed partial class BindableNodeAnalyzer
 			case BreakStatement:
 			case ContinueStatement:
 			case DefaultStatement:
+				statement.ResolvedType = "void";
 				break;
 
 			case ExpressionStatement expression:
@@ -107,12 +108,14 @@ public sealed partial class BindableNodeAnalyzer
 
 			case SwitchStatement switchStatement:
 				BodyAnalyzeSwitchStatement(switchStatement, scope, typeScope);
+				switchStatement.ResolvedType = "void";
 				break;
 
 			case CaseStatement caseStatement:
 				BodyAnalyzeExpression(caseStatement.Expression, scope, typeScope);
 				if (!IsConstant(caseStatement.Expression))
 					Report(GetRange(caseStatement.SourceSyntax), "Switch case expressions must be constant.");
+				caseStatement.ResolvedType = "void";
 				break;
 
 			case LabelStatement:
@@ -538,6 +541,11 @@ public sealed partial class BindableNodeAnalyzer
 				string caseType = caseStatement.Expression?.ResolvedType ?? ErrorType;
 				if (!CanImplicitlyConvert(caseType, switchType))
 					Report(GetRange(caseStatement.Expression?.SourceSyntax ?? caseStatement.SourceSyntax), $"Switch case type '{caseType}' is not compatible with switch type '{switchType}'.");
+				caseStatement.ResolvedType = "void";
+			}
+			else if (child is DefaultStatement defaultStatement)
+			{
+				defaultStatement.ResolvedType = "void";
 			}
 			else
 				BodyAnalyzeStatement(child, scope, typeScope);
