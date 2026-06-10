@@ -1,0 +1,76 @@
+// file: generic_new_sizeof_field.c
+#include "generic_new_sizeof_field_private.h"
+#include "generic_new_sizeof_field.h"
+
+/* Private file declarations. */
+void* malloc(uintptr_t size);
+void free(void* ptr);
+static Box* Box_copy(Box *this);
+static void Box_op_initnew(Box *this, uintptr_t sizeof_T);
+static Box* Box_create(uintptr_t sizeof_T);
+
+static Box* Box_copy(Box *this)
+{
+	Box* _created1;
+	return (_created1 = (Box *)(malloc(sizeof(Box))), Box_op_initnew(_created1, this->_sizeof_T), _created1);
+}
+
+static void Box_op_initnew(Box *this, uintptr_t sizeof_T)
+{
+	this->_sizeof_T = sizeof_T;
+}
+
+static Box* Box_create(uintptr_t sizeof_T)
+{
+	Box* _created0 = (Box *)(malloc(sizeof(Box)));
+	if ((_created0 != NULL))
+	{
+		Box_op_initnew(_created0, sizeof_T);
+	}
+	return _created0;
+}
+
+int main(void)
+{
+	return 0;
+}
+
+// file: generic_new_sizeof_field.h
+#ifndef GENERIC_NEW_SIZEOF_FIELD_H_
+#define GENERIC_NEW_SIZEOF_FIELD_H_
+
+#include "generic_new_sizeof_field_private.h"
+
+int main(void);
+
+#endif
+// file: generic_new_sizeof_field_private.h
+#ifndef GENERIC_NEW_SIZEOF_FIELD_PRIVATE_H_
+#define GENERIC_NEW_SIZEOF_FIELD_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Box Box;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct Box
+{
+	uintptr_t _sizeof_T;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generic_new_sizeof_field.c

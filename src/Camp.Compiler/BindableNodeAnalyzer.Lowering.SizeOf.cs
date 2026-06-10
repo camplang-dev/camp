@@ -192,15 +192,18 @@ public sealed partial class BindableNodeAnalyzer
 			string concreteType = substitutions.TryGetValue(genericName, out string? substituted)
 				? substituted
 				: sizeOf.Type?.ResolvedType ?? genericName;
+			SizeOfExpression value = new()
+			{
+				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
+				Type = concreteType == genericName
+					? CloneType(sizeOf.Type)
+					: TypeReferenceForResolvedName(concreteType),
+				ResolvedType = "nuint"
+			};
 			call.Arguments.Insert(i, new ArgumentExpression
 			{
 				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
-				Value = new SizeOfExpression
-				{
-					SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
-					Type = TypeReferenceForResolvedName(concreteType),
-					ResolvedType = "nuint"
-				},
+				Value = IsGenericSizeOf(value, out _) ? LowerSizeOfExpression(value) : value,
 				ResolvedType = "nuint"
 			});
 		}

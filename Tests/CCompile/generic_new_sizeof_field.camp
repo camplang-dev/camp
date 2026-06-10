@@ -1,0 +1,19 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Box<T: any>
+{
+	Box(sizeof(T))
+	{
+	}
+
+	Box<T>* copy()
+	{
+		return new Box<T>();
+	}
+}
+
+export int main()
+{
+	return 0;
+}

@@ -6,12 +6,6 @@
   as `reader.readLine(catch error)` inside a `within (allocator)` block should
   be able to insert the allocator automatically, but today they must spell
   `within allocator, catch error` explicitly.
-- **BUG-008:** Generic constructor calls can emit unresolved hidden `sizeof(T)`.
-  Calling `new SomeGeneric<T>()` from inside a generic instance method may
-  insert the constructor's hidden `sizeof(T)` argument as literal `sizeof(T)` in
-  C instead of lowering it to the containing instance's stored `_sizeof_T`
-  field. `List<T>` works around this in `copyList` by manually allocating and
-  initializing the copy.
 - **BUG-009:** Direct function-to-delegate argument expansion can miss trailing
   delegate parameters. A call such as `list.sort(compare)` may fail to insert the
   delegate context when the delegate parameter is the final logical parameter.
