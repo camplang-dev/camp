@@ -1375,7 +1375,7 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void",
 			Body = constructor.Body
 		};
-		CopyParameters(constructor.Parameters, method.Parameters);
+		CopyLifecycleParameters(constructor.Parameters, method.Parameters);
 		if (HasWithinParameter(method) && method.Body is BlockStatement block)
 			block.Statements.Insert(0, CreateResolvedAllocatorLocal(GetWithinParameter(method)));
 		return method;
@@ -1395,7 +1395,7 @@ public sealed partial class BindableNodeAnalyzer
 			ReturnType = PointerTo(CloneType(typeReference)!),
 			ResolvedType = $"{type.Name}*"
 		};
-		CopyParameters(constructor.Parameters, method.Parameters);
+		CopyLifecycleParameters(constructor.Parameters, method.Parameters);
 		bool createWithAllocator = HasWithinParameter(method) || HasCreateWithAllocatorAttribute(type);
 		if (createWithAllocator && !HasWithinParameter(method))
 			method.Parameters.Add(CreateAllocatorParameter());
@@ -1456,7 +1456,7 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void",
 			Body = destructor.Body
 		};
-		CopyParameters(destructor.Parameters, method.Parameters);
+		CopyLifecycleParameters(destructor.Parameters, method.Parameters);
 		return method;
 	}
 

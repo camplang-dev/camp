@@ -191,11 +191,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	DeclarationStatement CreateResolvedAllocatorLocal(ParameterDefinition? allocator)
 	{
-		string allocatorType = allocator?.ResolvedType ?? allocator?.Type?.ResolvedType ?? "Allocator*";
+		string allocatorType = allocator?.ResolvedType ?? allocator?.Type?.ResolvedType ?? (allocator?.Type is null ? "Allocator*" : FormatTypeReference(allocator.Type));
+		if (allocatorType == AllocatorType)
+			allocatorType = "Allocator*";
 		Expression source = allocator is null
 			? NullLiteral()
-			: CreateVariableReference(allocator, allocatorType);
-		TypeReference type = allocator?.Type is null
+			: CreateVariableReference(allocator, allocator.ResolvedType == AllocatorType ? AllocatorType : allocatorType);
+		TypeReference type = allocator?.Type is null || allocator.Type is AllocatorTypeReference
 			? new NamedTypeReference { Name = allocatorType, ResolvedType = allocatorType }
 			: CloneType(allocator.Type) ?? new NamedTypeReference { Name = allocatorType, ResolvedType = allocatorType };
 		DeclarationStatement declaration = CreateGeneratedLocal("resolvedAllocator", allocatorType, type, source);
@@ -253,6 +255,16 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (ParameterDefinition parameter in source)
 			target.Add(CloneParameter(parameter));
+	}
+
+	static void CopyLifecycleParameters(List<ParameterDefinition> source, List<ParameterDefinition> target)
+	{
+		foreach (ParameterDefinition parameter in source)
+			if (parameter.Modifier != ParameterModifier.Within && parameter is not WithinParameterDefinition)
+				target.Add(CloneParameter(parameter));
+		foreach (ParameterDefinition parameter in source)
+			if (parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition)
+				target.Add(CloneParameter(parameter));
 	}
 
 	static ParameterDefinition CloneParameter(ParameterDefinition parameter)

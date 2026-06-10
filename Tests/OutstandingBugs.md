@@ -15,8 +15,3 @@
   `addEach(iter T iterator)` or `sort(delegate int(T, T) comparer)` in
   `class List<T>` can emit private-header typedefs containing raw `T` instead
   of erasing the callable slot types for C.
-- **BUG-007:** Generated `_create` helpers for generic constructors can mishandle
-  constructors that combine `within` and `sizeof(T)` hidden parameters. The
-  emitted helper may pass `sizeof_T` and `allocator` to `op_initnew` in the
-  wrong order and may look for an allocator method using an invalid symbol such
-  as `_ALLOCATOR_alloc`.

@@ -1,0 +1,32 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Arena
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+class Box<T>
+{
+	Box(within Arena* allocator, sizeof(T))
+	{
+	}
+}
+
+void run()
+{
+	Arena* arena = null;
+	within (arena)
+	{
+		Box<int>* box = new Box<int>();
+		delete box;
+	}
+}

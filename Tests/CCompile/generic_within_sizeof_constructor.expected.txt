@@ -1,0 +1,89 @@
+// file: generic_within_sizeof_constructor.c
+#include "generic_within_sizeof_constructor_private.h"
+
+/* Private file declarations. */
+void* malloc(uintptr_t size);
+void free(void* ptr);
+static void* Arena_alloc(Arena *this, uintptr_t size);
+static void Arena_free(Arena *this, void* ptr);
+static void Box_op_initnew(Box *this, uintptr_t sizeof_T, Arena* allocator);
+static Box* Box_create(uintptr_t sizeof_T, Arena* allocator);
+static void run(void);
+
+static void* Arena_alloc(Arena *this, uintptr_t size)
+{
+	return malloc(size);
+}
+
+static void Arena_free(Arena *this, void* ptr)
+{
+	free(ptr);
+}
+
+static void Box_op_initnew(Box *this, uintptr_t sizeof_T, Arena* allocator)
+{
+	this->_sizeof_T = sizeof_T;
+	Arena* resolvedAllocator = allocator;
+}
+
+static Box* Box_create(uintptr_t sizeof_T, Arena* allocator)
+{
+	Arena* resolvedAllocator = allocator;
+	Box* _created0 = (Box *)(((resolvedAllocator != NULL) ? Arena_alloc(resolvedAllocator, sizeof(Box)) : malloc(sizeof(Box))));
+	if ((_created0 != NULL))
+	{
+		Box_op_initnew(_created0, sizeof_T, allocator);
+	}
+	return _created0;
+}
+
+static void run(void)
+{
+	Arena* arena = NULL;
+	{
+		Arena* _allocator1 = arena;
+		{
+			Box* box = (Box *)(((_allocator1 != NULL) ? Arena_alloc(_allocator1, sizeof(Box)) : malloc(sizeof(Box))));
+			if ((box != NULL))
+			{
+				Box_op_initnew(box, sizeof(int), _allocator1);
+			}
+			((_allocator1 != NULL) ? Arena_free(_allocator1, (void *)(box)) : free((void *)(box)));
+		}
+	}
+}
+
+// file: generic_within_sizeof_constructor_private.h
+#ifndef GENERIC_WITHIN_SIZEOF_CONSTRUCTOR_PRIVATE_H_
+#define GENERIC_WITHIN_SIZEOF_CONSTRUCTOR_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Arena Arena;
+typedef struct Box Box;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct Arena
+{
+	char _camp_empty;
+};
+struct Box
+{
+	uintptr_t _sizeof_T;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generic_within_sizeof_constructor.c
