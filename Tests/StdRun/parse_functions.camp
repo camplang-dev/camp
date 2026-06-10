@@ -1,0 +1,75 @@
+using Std;
+
+export int main()
+{
+	int result1 = 0;
+	if (!"123 ".tryParse(out result1) || result1 != 123)
+		return 1;
+
+	string test = "12345 1.30 .99 1_234_567_890_123_456 0xF 0x_AbCD 0xFFFF0000FFFF";
+	int testInt = 0;
+	if (!test[0..5].tryParse(out testInt) || testInt != 12345)
+		return 2;
+
+	int testIntFail = 77;
+	if (test[6..10].tryParse(out testIntFail) || testIntFail != 0)
+		return 3;
+
+	double testDouble = 0.0;
+	if (!test[6..10].tryParse(out testDouble) || testDouble < 1.29 || testDouble > 1.31)
+		return 4;
+
+	double leadingDot = 0.0;
+	if (!test[11..14].tryParse(out leadingDot) || leadingDot < 0.98 || leadingDot > 1.0)
+		return 5;
+
+	long big = 0;
+	if (!test[15..36].tryParse(out big) || big != 1234567890123456)
+		return 6;
+
+	uint hexSmall = 0;
+	if (!test[37..40].tryParse(out hexSmall) || hexSmall != 15)
+		return 7;
+
+	int hexSeparated = 0;
+	if (!test[41..48].tryParse(out hexSeparated) || hexSeparated != 0xABCD)
+		return 8;
+
+	ulong hexLarge = 0;
+	if (!test[49..63].tryParse(out hexLarge) || hexLarge != 0xFFFF0000FFFF)
+		return 9;
+
+	int signedMin = 0;
+	if (!"-2147483648".tryParse(out signedMin) || signedMin != -2147483648)
+		return 10;
+
+	uint unsignedNegative = 5;
+	if ("-1".tryParse(out unsignedNegative) || unsignedNegative != 0)
+		return 11;
+
+	int overflow = 5;
+	if ("2147483648".tryParse(out overflow) || overflow != 0)
+		return 12;
+
+	ulong ulongMax = 0;
+	if (!"18446744073709551615".tryParse(out ulongMax) || ulongMax != 18446744073709551615)
+		return 13;
+
+	ulong ulongOverflow = 5;
+	if ("18446744073709551616".tryParse(out ulongOverflow) || ulongOverflow != 0)
+		return 14;
+
+	double badExponent = 3.0;
+	if ("1.0e-10".tryParse(out badExponent) || badExponent != 0.0)
+		return 15;
+
+	int badComma = 3;
+	if ("1,000".tryParse(out badComma) || badComma != 0)
+		return 16;
+
+	int badUnderscore = 3;
+	if ("123_".tryParse(out badUnderscore) || badUnderscore != 0)
+		return 17;
+
+	return 0;
+}

@@ -1,0 +1,267 @@
+export as Std;
+
+export bool tryParse(const char[] this, overload out int result)
+{
+	ulong value = 0;
+	bool negative = false;
+	if (!parseUnsignedInteger(this.elements, this.length, out value, out negative, 2147483647, 2147483648))
+	{
+		result = 0;
+		return false;
+	}
+
+	if (negative)
+		result = value == 2147483648 ? -2147483648 : 0 - (int)value;
+	else
+		result = (int)value;
+	return true;
+}
+
+export bool tryParse(const char[] this, overload out uint result)
+{
+	ulong value = 0;
+	bool negative = false;
+	if (!parseUnsignedInteger(this.elements, this.length, out value, out negative, 4294967295, 0) || negative)
+	{
+		result = 0;
+		return false;
+	}
+
+	result = (uint)value;
+	return true;
+}
+
+export bool tryParse(const char[] this, overload out long result)
+{
+	ulong value = 0;
+	bool negative = false;
+	if (!parseUnsignedInteger(this.elements, this.length, out value, out negative, 9223372036854775807, 9223372036854775808))
+	{
+		result = 0;
+		return false;
+	}
+
+	if (negative)
+		result = value == 9223372036854775808 ? -9223372036854775808 : 0 - (long)value;
+	else
+		result = (long)value;
+	return true;
+}
+
+export bool tryParse(const char[] this, overload out ulong result)
+{
+	ulong value = 0;
+	bool negative = false;
+	if (!parseUnsignedInteger(this.elements, this.length, out value, out negative, 18446744073709551615, 0) || negative)
+	{
+		result = 0;
+		return false;
+	}
+
+	result = value;
+	return true;
+}
+
+export bool tryParse(const char[] this, overload out double result)
+{
+	nuint start = parseTrimStart(this.elements, this.length);
+	nuint end = parseTrimEnd(this.elements, this.length, start);
+	if (start >= end)
+	{
+		result = 0.0;
+		return false;
+	}
+
+	bool negative = false;
+	if (this[start] == '+' || this[start] == '-')
+	{
+		negative = this[start] == '-';
+		start++;
+		if (start >= end)
+		{
+			result = 0.0;
+			return false;
+		}
+	}
+
+	double value = 0.0;
+	double divisor = 1.0;
+	bool sawDigit = false;
+	bool sawDot = false;
+	bool separatorAllowed = false;
+	bool pendingSeparator = false;
+
+	for (nuint i = start; i < end; i++)
+	{
+		char ch = this[i];
+		if (ch == '_')
+		{
+			if (!separatorAllowed)
+			{
+				result = 0.0;
+				return false;
+			}
+			pendingSeparator = true;
+			continue;
+		}
+
+		if (ch == '.')
+		{
+			if (sawDot || pendingSeparator)
+			{
+				result = 0.0;
+				return false;
+			}
+			sawDot = true;
+			separatorAllowed = false;
+			continue;
+		}
+
+		int digit = parseDecimalDigit(ch);
+		if (digit < 0)
+		{
+			result = 0.0;
+			return false;
+		}
+
+		if (sawDot)
+		{
+			divisor *= 10.0;
+			value += (double)digit / divisor;
+		}
+		else
+		{
+			value = value * 10.0 + (double)digit;
+		}
+		sawDigit = true;
+		separatorAllowed = true;
+		pendingSeparator = false;
+	}
+
+	if (!sawDigit || pendingSeparator)
+	{
+		result = 0.0;
+		return false;
+	}
+
+	result = negative ? 0.0 - value : value;
+	return true;
+}
+
+bool parseUnsignedInteger(const char* text, nuint textLength, out ulong result, out bool negative, ulong positiveMax, ulong negativeMax)
+{
+	result = 0;
+	negative = false;
+
+	nuint start = parseTrimStart(text, textLength);
+	nuint end = parseTrimEnd(text, textLength, start);
+	if (start >= end)
+		return false;
+
+	if (text[start] == '+' || text[start] == '-')
+	{
+		negative = text[start] == '-';
+		start++;
+		if (start >= end)
+			return false;
+	}
+
+	uint radix = 10;
+	if (start + 1 < end && text[start] == '0' && (text[start + 1] == 'x' || text[start + 1] == 'X'))
+	{
+		radix = 16;
+		start += 2;
+		if (start >= end)
+			return false;
+	}
+
+	ulong limit = negative ? negativeMax : positiveMax;
+	if (limit == 0)
+		return false;
+
+	ulong threshold = limit / (ulong)radix;
+	ulong remainder = limit % (ulong)radix;
+	bool sawDigit = false;
+	bool separatorAllowed = radix == 16;
+	bool pendingSeparator = false;
+
+	for (nuint i = start; i < end; i++)
+	{
+		char ch = text[i];
+		if (ch == '_')
+		{
+			if (!separatorAllowed)
+				return false;
+			pendingSeparator = true;
+			continue;
+		}
+
+		int digit = radix == 16 ? parseHexDigit(ch) : parseDecimalDigit(ch);
+		if (digit < 0)
+			return false;
+
+		ulong unsignedDigit = (ulong)digit;
+		if (result > threshold || (result == threshold && unsignedDigit > remainder))
+		{
+			result = 0;
+			return false;
+		}
+
+		result = result * (ulong)radix + unsignedDigit;
+		sawDigit = true;
+		separatorAllowed = true;
+		pendingSeparator = false;
+	}
+
+	if (!sawDigit || pendingSeparator)
+	{
+		result = 0;
+		return false;
+	}
+
+	return true;
+}
+
+nuint parseTrimStart(const char* text, nuint textLength)
+{
+	nuint start = 0;
+	while (start < textLength && parseIsAsciiWhitespace(text[start]))
+		start++;
+	return start;
+}
+
+nuint parseTrimEnd(const char* text, nuint textLength, nuint start)
+{
+	nuint end = textLength;
+	while (end > start && parseIsAsciiWhitespace(text[end - 1]))
+		end--;
+	return end;
+}
+
+bool parseIsAsciiWhitespace(char value)
+{
+	return value == ' '
+		|| value == '\t'
+		|| value == '\n'
+		|| value == '\r'
+		|| value == '\v'
+		|| value == '\f';
+}
+
+int parseDecimalDigit(char value)
+{
+	if (value >= '0' && value <= '9')
+		return (int)value - (int)'0';
+	return -1;
+}
+
+int parseHexDigit(char value)
+{
+	if (value >= '0' && value <= '9')
+		return (int)value - (int)'0';
+	if (value >= 'a' && value <= 'f')
+		return 10 + (int)value - (int)'a';
+	if (value >= 'A' && value <= 'F')
+		return 10 + (int)value - (int)'A';
+	return -1;
+}

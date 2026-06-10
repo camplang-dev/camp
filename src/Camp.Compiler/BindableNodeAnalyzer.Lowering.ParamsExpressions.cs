@@ -52,6 +52,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (callableParameters is null || index + 1 >= arguments.Count || index + 1 >= callableParameters.Count)
 			return false;
+		if (arguments[index + 1].Modifier != ArgumentModifier.None)
+			return false;
 		if (IsExplicitHiddenArgument(arguments[index + 1]))
 			return false;
 		Expression? value = arguments[index].Value;
