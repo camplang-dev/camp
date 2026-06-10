@@ -55,6 +55,8 @@ public static class CompilerXmlSerializer
 			object? value = property.GetValue(node);
 			if (value is null)
 				continue;
+			if ((property.Name == "InvokerName" || property.Name == "FullCallableName") && value is "")
+				continue;
 
 			if (IsSemanticReferenceProperty(property))
 				SerializeSemanticReference(element, property.Name, value);

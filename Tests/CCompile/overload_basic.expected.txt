@@ -1,0 +1,64 @@
+// file: overload_basic.c
+#include "overload_basic_private.h"
+
+/* Private file declarations. */
+static void Writer_writeInt(int value);
+static void Writer_writeString(const char* value, bool newline);
+static void writeInt(int value);
+static void writeString(const char* value, bool newline);
+static int main(void);
+
+static void Writer_writeInt(int value)
+{
+}
+
+static void Writer_writeString(const char* value, bool newline)
+{
+}
+
+static void writeInt(int value)
+{
+}
+
+static void writeString(const char* value, bool newline)
+{
+}
+
+static int main(void)
+{
+	writeInt(123);
+	writeString("hello", true);
+	Writer_writeInt(456);
+	Writer_writeString("world", false);
+	return 0;
+}
+
+// file: overload_basic_private.h
+#ifndef OVERLOAD_BASIC_PRIVATE_H_
+#define OVERLOAD_BASIC_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Writer Writer;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct Writer
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: overload_basic.c

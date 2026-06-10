@@ -159,12 +159,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (GetExplicitThisParameter(function) is ThisParameterDefinition thisParameter)
 		{
-			function.Symbol = BuildExtensionFunctionSymbol(function.Name, thisParameter.ResolvedType ?? ErrorType, function);
+			function.Symbol = BuildExtensionFunctionSymbol(GetCallableName(function), thisParameter.ResolvedType ?? ErrorType, function);
 			return;
 		}
 
 		if (FindContainingType(function) is TypeDefinition type)
-			function.Symbol = $"{type.Name}_{function.Name.TrimStart('~')}";
+			function.Symbol = $"{type.Name}_{GetCallableName(function).TrimStart('~')}";
 	}
 
 	string BuildFlattenedFunctionValueType(FunctionDefinition function, string receiverType)

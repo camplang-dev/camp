@@ -393,6 +393,22 @@ public sealed partial class BindableNodeAnalyzer
 		if (!new TypeShapeParser(receiverType).TryParse(out TypeShape shape))
 			return receiverType + "_" + methodName;
 
+		string receiverName = BuildFlattenedTypeFragment(shape, function);
+		return string.IsNullOrWhiteSpace(receiverName)
+			? methodName
+			: receiverName + "_" + methodName;
+	}
+
+	static string BuildFlattenedTypeFragment(string type, FunctionDefinition? function = null)
+	{
+		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
+			return "";
+
+		return BuildFlattenedTypeFragment(shape, function);
+	}
+
+	static string BuildFlattenedTypeFragment(TypeShape shape, FunctionDefinition? function = null)
+	{
 		int arrayCount = 0;
 		while (shape.Element is not null)
 		{
@@ -407,9 +423,7 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < arrayCount; i++)
 			receiverName += "Array";
 
-		return string.IsNullOrWhiteSpace(receiverName)
-			? methodName
-			: receiverName + "_" + methodName;
+		return receiverName;
 	}
 
 	static string GetFlattenedSymbolTypeName(string typeName)

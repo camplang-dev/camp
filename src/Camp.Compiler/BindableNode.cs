@@ -121,6 +121,8 @@ public class FunctionDefinition : Definition
 	public bool IsAsync { get; set; }
 	public IteratorKind IteratorKind { get; set; }
 	public string? CallSpec { get; set; }
+	public string InvokerName { get; set; } = "";
+	public string FullCallableName { get; set; } = "";
 	public TypeReference? ReturnType { get; set; }
 	public TypeReference? AbiThisType { get; set; }
 	public TypeReference? ImplementationThisType { get; set; }
@@ -132,6 +134,7 @@ public class FunctionDefinition : Definition
 public class ParameterDefinition : Definition
 {
 	public ParameterModifier Modifier { get; set; }
+	public bool IsOverloadSelector { get; set; }
 	public TypeReference? Type { get; set; }
 	public Expression? DefaultValue { get; set; }
 }

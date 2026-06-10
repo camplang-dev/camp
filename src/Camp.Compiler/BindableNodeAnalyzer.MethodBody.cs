@@ -659,7 +659,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (functions.Count > 0)
 		{
 			if (functions.Count > 1)
+			{
+				if (IsOverloadFamily(functions))
+					return ReportOverloadFamilyAsValue(named.SourceSyntax, named.Name);
 				return ReportMultipleCandidates(named.SourceSyntax, named.Name);
+			}
 
 			MethodReferenceExpression method = new()
 			{
@@ -1066,7 +1070,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (TypeReference argument in call.TypeArguments)
 			AnalyzeType(argument, typeScope);
 
-		FunctionDefinition? function = ResolveCallTarget(call.Target, scope, typeScope, call.Arguments.Count);
+		FunctionDefinition? function = ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
 		Dictionary<string, string> genericSubstitutions = [];
 		HashSet<string> genericParameterNames = [];
 		if (function is not null)
@@ -1247,8 +1251,9 @@ public sealed partial class BindableNodeAnalyzer
 			&& target is not MemberExpression and not MemberReferenceExpression;
 	}
 
-	FunctionDefinition? ResolveCallTarget(Expression? target, BodyScope scope, AnalysisScope typeScope, int argumentCount = 0)
+	FunctionDefinition? ResolveCallTarget(Expression? target, BodyScope scope, AnalysisScope typeScope, List<ArgumentExpression>? arguments = null)
 	{
+		int argumentCount = arguments?.Count ?? 0;
 		switch (target)
 		{
 			case NamedExpression named:
@@ -1263,6 +1268,13 @@ public sealed partial class BindableNodeAnalyzer
 				}
 
 				List<FunctionDefinition> functions = LookupFunctions(named.Name, scope);
+				if (functions.Count > 1 && TrySelectOverload(named.Name, functions, arguments ?? [], scope, typeScope, named.SourceSyntax) is FunctionDefinition selectedNamed)
+				{
+					EnsureFunctionSignatureAnalyzed(selectedNamed, typeScope);
+					named.ResolvedType = BuildFunctionValueType(selectedNamed, IsInstanceFunction(selectedNamed));
+					expressionRewrites[named] = CreateMethodReference(selectedNamed, named.ResolvedType);
+					return selectedNamed;
+				}
 				if (functions.Count == 1)
 				{
 					EnsureFunctionSignatureAnalyzed(functions[0], typeScope);
@@ -1281,12 +1293,18 @@ public sealed partial class BindableNodeAnalyzer
 			case MemberExpression member:
 			{
 				if (member.Target is NamedExpression { Qualifiers.Count: 0, Name: "base" })
-					return ResolveBaseMemberCallTarget(member, scope, typeScope, argumentCount);
+					return ResolveBaseMemberCallTarget(member, scope, typeScope, arguments ?? []);
 
 				string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
 				List<FunctionDefinition> functions = LookupMemberFunctions(targetType, member.Name, member.SourceSyntax);
 				if (functions.Count == 0)
 					functions = LookupGenericConstraintMemberFunctions(targetType, member.Name, scope, member.SourceSyntax);
+				if (functions.Count > 1 && TrySelectOverload(member.Name, functions, arguments ?? [], scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedMember)
+				{
+					member.ResolvedType = selectedMember.ResolvedType ?? ErrorType;
+					expressionRewrites[member] = CreateMemberReference(member, member.Target, BuildFunctionValueType(selectedMember, isInstance: true), selectedMember);
+					return selectedMember;
+				}
 				if (functions.Count == 1)
 				{
 					member.ResolvedType = functions[0].ResolvedType ?? ErrorType;
@@ -1319,7 +1337,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	FunctionDefinition? ResolveBaseMemberCallTarget(MemberExpression member, BodyScope scope, AnalysisScope typeScope, int argumentCount)
+	FunctionDefinition? ResolveBaseMemberCallTarget(MemberExpression member, BodyScope scope, AnalysisScope typeScope, List<ArgumentExpression> arguments)
 	{
 		if (scope.ContainingType is not ClassDefinition containingClass)
 		{
@@ -1334,7 +1352,17 @@ public sealed partial class BindableNodeAnalyzer
 			return null;
 		}
 
-		FunctionDefinition? implementation = FindVirtualImplementationByName(baseClass, member.Name);
+		List<FunctionDefinition> baseCandidates = LookupTypeFunctions(baseClass, member.Name, member.SourceSyntax);
+		FunctionDefinition? baseDeclaration = baseCandidates.Count switch
+		{
+			1 => baseCandidates[0],
+			> 1 => TrySelectOverload(member.Name, baseCandidates, arguments, scope, typeScope, member.SourceSyntax),
+			_ => null
+		};
+
+		FunctionDefinition? implementation = baseDeclaration is null
+			? null
+			: FindVirtualImplementationByName(baseClass, VirtualSlotName(baseDeclaration));
 		if (implementation is null)
 		{
 			Report(GetRange(member.SourceSyntax), $"Base implementation '{member.Name}' could not be found.");
@@ -2135,7 +2163,15 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		if (members.Count > 1)
+		{
+			List<FunctionDefinition> overloadMembers = [];
+			foreach (BodySymbol candidate in members)
+				if (candidate.Node is FunctionDefinition function)
+					overloadMembers.Add(function);
+			if (overloadMembers.Count == members.Count && IsOverloadFamily(overloadMembers))
+				return ReportOverloadFamilyAsValue(member.SourceSyntax, member.Name);
 			return ReportMultipleCandidates(member.SourceSyntax, member.Name);
+		}
 
 		BodySymbol selected = members[0];
 		string memberType = IsConstReceiverType(targetType) && selected.Node is FieldDefinition or ParameterDefinition

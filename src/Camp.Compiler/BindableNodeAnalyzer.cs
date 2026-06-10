@@ -38,7 +38,7 @@ public sealed partial class BindableNodeAnalyzer
 		"char", "class", "const", "continue", "default", "delegate", "delete", "do", "double",
 		"else", "enum", "escaped", "export", "extern", "false", "finally", "fixed", "float",
 		"fn", "for", "foreach", "if", "implements", "in", "init", "int", "interface", "iter",
-		"long", "new", "newtype", "nint", "null", "nuint", "once", "out", "override", "params", "public",
+		"long", "new", "newtype", "nint", "null", "nuint", "once", "out", "overload", "override", "params", "public",
 		"return", "sbyte", "scoped", "sealed", "short", "sizeof", "static", "string", "struct", "switch",
 		"this", "thrown", "true", "try", "uchar", "uint", "ulong", "unscoped", "ushort", "untyped",
 		"using", "virtual", "void", "volatile", "vtableof", "wchar", "while", "within", "wstring", "yield"
@@ -218,8 +218,13 @@ public sealed partial class BindableNodeAnalyzer
 		return function.Modifier switch
 		{
 			FunctionModifier.Constructor => "#CREATE",
-			_ => IsDestructorFunction(function) ? "#DESTROY" : function.Name
+			_ => IsDestructorFunction(function) ? "#DESTROY" : GetCallableName(function)
 		};
+	}
+
+	internal static string GetCallableName(FunctionDefinition function)
+	{
+		return string.IsNullOrWhiteSpace(function.FullCallableName) ? function.Name : function.FullCallableName;
 	}
 
 	static string GetSignatureReturnType(FunctionDefinition function)

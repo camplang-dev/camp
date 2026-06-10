@@ -2402,7 +2402,7 @@ public static class CCodeEmitter
 			if (!string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol != function.Name)
 				return SanitizeIdentifier(function.Symbol);
 			if (containingTypes.TryGetValue(function, out TypeDefinition? type))
-				return SanitizeIdentifier(type.Name + "_" + function.Name.TrimStart('~'));
+				return SanitizeIdentifier(type.Name + "_" + BindableNodeAnalyzer.GetCallableName(function).TrimStart('~'));
 			return SanitizeIdentifier(string.IsNullOrWhiteSpace(function.Symbol) ? function.Name : function.Symbol);
 		}
 

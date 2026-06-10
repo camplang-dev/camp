@@ -1,0 +1,40 @@
+void mixed(int value)
+{
+}
+
+void mixed(overload string value)
+{
+}
+
+void duplicate(overload int value)
+{
+}
+
+void duplicate(overload int value)
+{
+}
+
+void generic<T: any>(overload T value)
+{
+}
+
+void wrongPosition(int mode, overload int value)
+{
+}
+
+void defaulted(overload int value = 0)
+{
+}
+
+void read(overload out int value)
+{
+}
+
+void main()
+{
+	mixed(1);
+	duplicate(1);
+	generic(default);
+	auto f = duplicate;
+	int x = read();
+}

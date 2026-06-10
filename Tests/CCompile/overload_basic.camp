@@ -1,0 +1,27 @@
+class Writer
+{
+	static void write(overload int value)
+	{
+	}
+
+	static void write(overload string value, bool newline = false)
+	{
+	}
+}
+
+void write(overload int value)
+{
+}
+
+void write(overload string value, bool newline = false)
+{
+}
+
+int main()
+{
+	write(123);
+	write("hello", true);
+	Writer.write(456);
+	Writer.write("world");
+	return 0;
+}

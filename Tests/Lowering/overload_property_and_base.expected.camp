@@ -1,0 +1,82 @@
+virtual class Writer
+{
+	_Writer* _vt;
+
+	virtual void write(overload int value)
+	{
+		this._vt.writeInt(this, value);
+	}
+
+	virtual void write(overload string value)
+	{
+		this._vt.writeString(this, value);
+	}
+
+	void _writeInt(overload int value)
+	{
+	}
+
+	void _writeString(overload string value)
+	{
+	}
+}
+
+sealed class ConsoleWriter : Writer
+{
+	override void write(overload int value);
+
+	override void write(overload string value);
+
+	void _writeInt(overload int value)
+	{
+		Writer__writeInt((Writer*)this, value);
+	}
+
+	void _writeString(overload string value)
+	{
+		Writer__writeString((Writer*)this, value);
+	}
+}
+
+class Item
+{
+	void setValue(overload int value)
+	{
+	}
+
+	void setValue(overload string value)
+	{
+	}
+
+	int getValue(overload int fallback)
+	{
+		return fallback;
+	}
+
+	string getValue(overload string fallback)
+	{
+		return fallback;
+	}
+}
+void main(ConsoleWriter* writer, Item* item)
+{
+	Writer_writeInt(writer, 1);
+	Writer_writeString(writer, "x");
+	Item_setValueInt(item, 1);
+	Item_setValueString(item, "x");
+	auto a = Item_getValueInt(item, 2);
+	auto b = Item_getValueString(item, "y");
+}
+
+struct _Writer
+{
+	fn void(Writer* ctx, overload int value) writeInt;
+	fn void(Writer* ctx, overload string value) writeString;
+}
+_Writer _Writer__vt = {.writeInt = Writer__writeInt, .writeString = Writer__writeString};
+
+struct _ConsoleWriter
+{
+	_Writer Writer;
+}
+_ConsoleWriter _ConsoleWriter__vt = {.Writer = {.writeInt = ConsoleWriter__writeInt, .writeString = ConsoleWriter__writeString}};

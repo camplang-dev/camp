@@ -1515,6 +1515,10 @@ public sealed partial class BindableNodeBuilder
 				parameter.Modifier = ParameterModifier.Thrown;
 				break;
 
+			case "overload":
+				parameter.IsOverloadSelector = true;
+				break;
+
 			default:
 				Report(syntax, "Unknown parameter declarator.");
 				break;

@@ -1,0 +1,47 @@
+virtual class Writer
+{
+	virtual void write(overload int value)
+	{
+	}
+
+	virtual void write(overload string value)
+	{
+	}
+}
+
+sealed class ConsoleWriter: Writer
+{
+	override void write(overload int value)
+	{
+		base.write(value);
+	}
+
+	override void write(overload string value)
+	{
+		base.write(value);
+	}
+}
+
+class Item
+{
+	void setValue(overload int value)
+	{
+	}
+
+	void setValue(overload string value)
+	{
+	}
+
+	int getValue(overload int fallback) => fallback;
+	string getValue(overload string fallback) => fallback;
+}
+
+void main(ConsoleWriter* writer, Item* item)
+{
+	writer.write(1);
+	writer.write("x");
+	item.Value = 1;
+	item.Value = "x";
+	auto a = item.Value[2];
+	auto b = item.Value["y"];
+}

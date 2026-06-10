@@ -1020,6 +1020,8 @@ public sealed class BindableNodeCodeSerializer
 	void WriteParameter(ParameterDefinition parameter)
 	{
 		WriteAttributes(parameter.Attributes, inline: true);
+		if (parameter.IsOverloadSelector)
+			writer.Write("overload ");
 		bool isWithin = parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition;
 		if (isWithin)
 			writer.Write("within ");

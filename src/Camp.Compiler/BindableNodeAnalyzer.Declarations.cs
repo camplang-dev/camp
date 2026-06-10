@@ -30,6 +30,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Definition definition in module.Definitions)
 			AnalyzeDefinition(definition, new AnalysisScope());
 
+		ValidateTopLevelOverloadFamilies(module);
 		AnalyzeGlobalInitializers(module);
 		ValidateDuplicateTopLevelSymbols(module);
 		AnalyzeInheritance();
@@ -281,10 +282,10 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FieldDefinition field in definition.Fields)
 			AnalyzeFieldDefinition(field, scope);
 
-		ValidateDuplicateMethodNames(definition.Functions);
-		foreach (FunctionDefinition function in definition.Functions)
-			AnalyzeFunctionDefinition(function, scope, definition.Name);
-		GenerateSizeOfFields(definition);
+			foreach (FunctionDefinition function in definition.Functions)
+				AnalyzeFunctionDefinition(function, scope, definition.Name);
+			ValidateDuplicateMethodNames(definition.Functions);
+			GenerateSizeOfFields(definition);
 		GenerateVTableOfFields(definition);
 		ValidateExpandedFieldNames(definition.Fields);
 	}
@@ -302,9 +303,9 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeFieldDefinition(field, scope);
 
 		ValidateExpandedFieldNames(definition.Fields);
-		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
+		ValidateDuplicateMethodNames(definition.Functions);
 	}
 
 	void AnalyzeInterfaceDefinition(InterfaceDefinition definition, AnalysisScope parentScope)
@@ -316,9 +317,9 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeTypeList(definition.BaseTypes, scope);
 		RegisterBaseTypes(definition, definition.BaseTypes);
 
-		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
+		ValidateDuplicateMethodNames(definition.Functions);
 	}
 
 	void AnalyzeEnumDefinition(EnumDefinition definition, AnalysisScope parentScope)
@@ -332,9 +333,9 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (VariableDefinition value in definition.Values)
 			AnalyzeVariableDefinition(value, scope, allowSymbolAttribute: false);
 
-		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
+		ValidateDuplicateMethodNames(definition.Functions);
 	}
 
 	void AnalyzeNewtypeDefinition(NewtypeDefinition definition, AnalysisScope parentScope)
@@ -348,9 +349,9 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in definition.Parameters)
 			AnalyzeParameterDefinition(parameter, scope);
 
-		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
+		ValidateDuplicateMethodNames(definition.Functions);
 	}
 
 	void AnalyzeParamsDefinition(ParamsDefinition definition, AnalysisScope parentScope)
@@ -365,22 +366,38 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeParameterDefinition(component, scope);
 
 		ValidateParamsComponentShape(definition);
-		ValidateDuplicateMethodNames(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
+		ValidateDuplicateMethodNames(definition.Functions);
 	}
 
 	void ValidateDuplicateMethodNames(List<FunctionDefinition> functions)
 	{
-		HashSet<string> names = new(StringComparer.Ordinal);
+		Dictionary<string, List<FunctionDefinition>> invokers = new(StringComparer.Ordinal);
+		HashSet<string> callableNames = new(StringComparer.Ordinal);
 		foreach (FunctionDefinition function in functions)
 		{
-			string name = function.Name;
+			string name = GetInvokerName(function);
 			if (string.IsNullOrWhiteSpace(name))
 				continue;
 
-			if (!names.Add(name))
-				Report(GetNameRange(function), $"Duplicate method name '{name}'.");
+			if (!invokers.TryGetValue(name, out List<FunctionDefinition>? family))
+			{
+				family = [];
+				invokers[name] = family;
+			}
+			family.Add(function);
+
+			string callableName = GetCallableName(function);
+			if (!string.IsNullOrWhiteSpace(callableName) && !callableNames.Add(callableName))
+				Report(GetNameRange(function), $"Duplicate method name '{callableName}'.");
+		}
+
+		foreach ((string invoker, List<FunctionDefinition> family) in invokers)
+		{
+			if (family.Count <= 1)
+				continue;
+			ValidateOverloadFamily(invoker, family);
 		}
 	}
 
@@ -390,17 +407,19 @@ public sealed partial class BindableNodeAnalyzer
 		Dictionary<string, string> componentSymbols = new(StringComparer.Ordinal);
 		foreach (Definition definition in module.Definitions)
 		{
-			string symbol = definition.Symbol;
-			if (string.IsNullOrWhiteSpace(symbol))
-				continue;
+			foreach (string symbol in GetDefinitionSymbolNames(definition))
+			{
+				if (string.IsNullOrWhiteSpace(symbol))
+					continue;
 
-			if (componentSymbols.TryGetValue(symbol, out string? componentOwner))
-				Report(GetNameRange(definition), $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
+				if (componentSymbols.TryGetValue(symbol, out string? componentOwner))
+					Report(GetNameRange(definition), $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
 
-			if (symbols.TryGetValue(symbol, out Definition? existing) && !ReferenceEquals(existing, definition))
-				Report(GetNameRange(definition), $"Duplicate symbol name '{symbol}'.");
-			else
-				symbols[symbol] = definition;
+				if (symbols.TryGetValue(symbol, out Definition? existing) && !ReferenceEquals(existing, definition))
+					Report(GetNameRange(definition), $"Duplicate symbol name '{symbol}'.");
+				else
+					symbols[symbol] = definition;
+			}
 
 			foreach (string componentName in GetDefinitionComponentSymbolNames(definition))
 			{
@@ -439,6 +458,17 @@ public sealed partial class BindableNodeAnalyzer
 			VariableDefinition variable => GetPotentialParamsComponentNames(variable.Type, variable.ResolvedType, variable.Symbol),
 			_ => []
 		};
+	}
+
+	IEnumerable<string> GetDefinitionSymbolNames(Definition definition)
+	{
+		if (!string.IsNullOrWhiteSpace(definition.Symbol))
+			yield return definition.Symbol;
+
+		if (definition is FunctionDefinition function
+			&& !string.IsNullOrWhiteSpace(function.FullCallableName)
+			&& function.FullCallableName != definition.Symbol)
+			yield return function.FullCallableName;
 	}
 
 	void ValidateExpandedFieldNames(List<FieldDefinition> fields)
@@ -594,6 +624,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		for (int i = 0; i < definition.Parameters.Count; i++)
 			AnalyzeParameterDefinition(definition.Parameters[i], scope, allowThisName: IsExtensionThisParameter(definition, containingType, i));
+		AnalyzeOverloadDeclaration(definition, containingType);
 		ValidateIteratorGeneratorParameters(definition);
 		ValidateIndexAwareParameters(definition);
 
@@ -602,7 +633,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (containingType is not null && GetExplicitThisParameter(definition) is ThisParameterDefinition memberThisParameter)
 			memberThisParameter.ResolvedType = ApplyThisDeclarators(containingType, memberThisParameter);
 		if (containingType is null && !definition.SymbolOverridden && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
-			definition.Symbol = BuildExtensionFunctionSymbol(definition.Name, thisParameter.ResolvedType ?? ErrorType, definition);
+			definition.Symbol = BuildExtensionFunctionSymbol(GetCallableName(definition), thisParameter.ResolvedType ?? ErrorType, definition);
+		else if (containingType is null && !definition.SymbolOverridden && HasOverloadSelector(definition))
+			definition.Symbol = GetCallableName(definition);
 	}
 
 	void ValidateIteratorGeneratorParameters(FunctionDefinition definition)

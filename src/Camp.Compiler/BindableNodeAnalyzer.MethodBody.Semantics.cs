@@ -432,7 +432,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsAwaitable(Expression? expression, BodyScope scope, AnalysisScope typeScope)
 	{
-		if (expression is CallExpression call && ResolveCallTarget(call.Target, scope, typeScope) is FunctionDefinition function)
+		if (expression is CallExpression call && ResolveCallTarget(call.Target, scope, typeScope, call.Arguments) is FunctionDefinition function)
 			return function.IsAsync || HasAwaitableCallback(function.Parameters);
 
 		string type = expression?.ResolvedType ?? ErrorType;
@@ -441,7 +441,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string GetAwaitedType(Expression? expression, BodyScope scope, AnalysisScope typeScope)
 	{
-		if (expression is CallExpression call && ResolveCallTarget(call.Target, scope, typeScope) is FunctionDefinition function)
+		if (expression is CallExpression call && ResolveCallTarget(call.Target, scope, typeScope, call.Arguments) is FunctionDefinition function)
 			return function.ResolvedType == "void" ? "void" : function.ResolvedType ?? ErrorType;
 
 		string type = expression?.ResolvedType ?? ErrorType;
@@ -622,7 +622,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsFunctionNamed(FunctionDefinition function, string name)
 	{
-		return function.Name == name || function.Symbol == name;
+		return function.Name == name || GetCallableName(function) == name || function.Symbol == name;
 	}
 
 	static bool IsDefinitionNamed(Definition definition, string name)
@@ -633,7 +633,7 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsTypeFunctionSymbolNamed(TypeDefinition type, FunctionDefinition function, string name)
 	{
 		return (!string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol != function.Name && function.Symbol == name)
-			|| (!function.SymbolOverridden && $"{type.Name}_{function.Name.TrimStart('~')}" == name);
+			|| (!function.SymbolOverridden && $"{type.Name}_{GetCallableName(function).TrimStart('~')}" == name);
 	}
 
 	VariableDefinition? LookupGlobalVariable(string name, SyntaxNode? referenceSyntax)
@@ -667,7 +667,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				foreach (FunctionDefinition function in candidateClass.Functions)
 				{
-					if (function.Name == name && !IsBodylessVirtualOverrideDeclaration(function) && IsMemberVisible(function, candidateClass, referenceSyntax))
+					if ((function.Name == name || GetCallableName(function) == name) && !IsBodylessVirtualOverrideDeclaration(function) && IsMemberVisible(function, candidateClass, referenceSyntax))
 						functions.Add(function);
 				}
 
@@ -690,7 +690,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (FunctionDefinition function in candidates)
 		{
-			if (function.Name == name && IsMemberVisible(function, type, referenceSyntax))
+			if ((function.Name == name || GetCallableName(function) == name) && IsMemberVisible(function, type, referenceSyntax))
 				functions.Add(function);
 		}
 
@@ -705,7 +705,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				foreach (FunctionDefinition function in candidateClass.Functions)
 				{
-					if (function.Name == name && !IsBodylessVirtualOverrideDeclaration(function) && !IsMemberVisible(function, candidateClass, referenceSyntax))
+					if ((function.Name == name || GetCallableName(function) == name) && !IsBodylessVirtualOverrideDeclaration(function) && !IsMemberVisible(function, candidateClass, referenceSyntax))
 						return function;
 				}
 			}
@@ -714,7 +714,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (FunctionDefinition function in GetTypeFunctions(type))
 		{
-			if (function.Name == name && !IsMemberVisible(function, type, referenceSyntax))
+			if ((function.Name == name || GetCallableName(function) == name) && !IsMemberVisible(function, type, referenceSyntax))
 				return function;
 		}
 
@@ -989,7 +989,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<FunctionDefinition> functions = [];
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
-			if (definition is not FunctionDefinition function || function.Name != name || !IsDefinitionVisible(function, referenceSyntax))
+			if (definition is not FunctionDefinition function || (function.Name != name && GetCallableName(function) != name) || !IsDefinitionVisible(function, referenceSyntax))
 				continue;
 			if (GetExplicitThisParameter(function) is null && !HasExpandedThisParameters(function.Parameters))
 				continue;
@@ -1057,6 +1057,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<FunctionDefinition> getters = type is null ? [] : LookupPropertyGetters(type, member.Name, member.SourceSyntax);
 		getters.AddRange(LookupExtensionFunctions(targetType, "get" + member.Name, member.SourceSyntax));
+		if (getters.Count > 1 && TrySelectOverload("get" + member.Name, getters, arguments, scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedGetter)
+			getters = [selectedGetter];
 		bool getterReceiverMismatch = false;
 		foreach (FunctionDefinition getter in getters)
 		{
@@ -1107,6 +1109,11 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<FunctionDefinition> setters = type is null ? [] : LookupPropertySetters(type, member.Name, member.SourceSyntax);
 		setters.AddRange(LookupExtensionFunctions(targetType, "set" + member.Name, member.SourceSyntax));
+		List<ArgumentExpression> logicalArguments = [.. arguments];
+		if (value is not null)
+			logicalArguments.Add(new ArgumentExpression { SourceSyntax = value.SourceSyntax, Value = value });
+		if (setters.Count > 1 && TrySelectOverload("set" + member.Name, setters, logicalArguments, scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedSetter)
+			setters = [selectedSetter];
 		bool setterReceiverMismatch = false;
 		foreach (FunctionDefinition setter in setters)
 		{
@@ -1506,6 +1513,12 @@ public sealed partial class BindableNodeAnalyzer
 	string ReportMultipleCandidates(SyntaxNode? syntax, string name)
 	{
 		Report(GetRange(syntax), $"Multiple member candidates found for '{name}'.");
+		return ErrorType;
+	}
+
+	string ReportOverloadFamilyAsValue(SyntaxNode? syntax, string name)
+	{
+		Report(GetRange(syntax), $"`{name}` names an overload family, not a callable value. Select a concrete full callable name or write an explicit wrapper.");
 		return ErrorType;
 	}
 

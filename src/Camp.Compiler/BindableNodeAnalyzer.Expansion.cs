@@ -1080,7 +1080,7 @@ public sealed partial class BindableNodeAnalyzer
 		string name = GetImplementationMethodName(interfaceMember);
 		foreach (FunctionDefinition function in GetFunctions(type))
 		{
-			if (function.Name == name)
+			if (GetCallableName(function) == name || function.Name == name)
 				return function;
 		}
 		return null;
@@ -1092,7 +1092,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		if (string.IsNullOrWhiteSpace(function.Symbol) || function.Symbol == function.Name)
-			function.Symbol = type.Name + "_" + function.Name.TrimStart('~');
+			function.Symbol = type.Name + "_" + GetCallableName(function).TrimStart('~');
 	}
 
 	static string GetImplementationMethodName(FunctionDefinition member)
@@ -1103,7 +1103,7 @@ public sealed partial class BindableNodeAnalyzer
 		return member.Modifier switch
 		{
 			FunctionModifier.Constructor => CreateMethodName,
-			_ => member.Name
+			_ => GetCallableName(member)
 		};
 	}
 
@@ -1115,7 +1115,7 @@ public sealed partial class BindableNodeAnalyzer
 		return member.Modifier switch
 		{
 			FunctionModifier.Constructor => CreateMethodName,
-			_ => member.Name
+			_ => GetCallableName(member)
 		};
 	}
 
@@ -1190,7 +1190,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string VirtualSlotName(FunctionDefinition function)
 	{
-		return function.Name == DeleteMethodName || IsDestructorFunction(function) ? DeleteMethodName : function.Name;
+		return function.Name == DeleteMethodName || IsDestructorFunction(function) ? DeleteMethodName : GetCallableName(function);
 	}
 
 	static string BuildVirtualSlotCallableType(TypeDefinition owner, FunctionDefinition function)
@@ -1217,6 +1217,11 @@ public sealed partial class BindableNodeAnalyzer
 			null => null,
 			PrimitiveTypeReference primitive => GetPrimitiveTypeName(primitive.Type),
 			NamedTypeReference named => BuildNamedTypeSourceName(named),
+			TypeDefinitionReference definition => definition.Name,
+			GenericParameterTypeReference generic => generic.Name,
+			GenericTypeReference { Type: not null } generic => GetTypeReferenceName(generic.Type),
+			ArrayTypeReference { ElementType: not null } array => GetTypeReferenceName(array.ElementType) + "[]",
+			OptionalTypeReference { ElementType: not null } optional => GetTypeReferenceName(optional.ElementType) + "?",
 			PointerTypeReference { ElementType: not null } pointer => GetTypeReferenceName(pointer.ElementType) + "*",
 			ConstTypeReference { Type: not null } constant => "const " + GetTypeReferenceName(constant.Type),
 			VolatileTypeReference { Type: not null } vol => "volatile " + GetTypeReferenceName(vol.Type),
