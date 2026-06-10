@@ -50,19 +50,21 @@ export class Console
 	// export static AsyncCharWriter getAsyncWriter();
 	// export static AsyncCharWriter getAsyncError();
 	
-	export static void writeString(const char[] value) => Console.Writer.writeString(value, catch _);
+	export static void write(overload string value) => Console.Writer.writeCharArray(value, catch _);
+	
+	export static void write(overload const char[] value) => Console.Writer.writeCharArray(value, catch _);
+	
+	export static void write(overload bool value) => Console.Writer.writeBool(value, catch _);
+	
+	export static void write(overload char value) => Console.Writer.writeChar(value, catch _);
+	
+	export static void write(overload int value) => Console.Writer.writeInt(value, catch _);
+	
+	export static void write(overload uint value) => Console.Writer.writeUInt(value, catch _);
+	
+	export static void write(overload double value) => Console.Writer.writeDouble(value, catch _);
 	
 	export static void writeLine(const char[] value = default) => Console.Writer.writeLine(value, catch _);
-	
-	export static void writeBool(bool value) => Console.Writer.writeBool(value, catch _);
-	
-	export static void writeChar(char value) => Console.Writer.writeChar(value, catch _);
-	
-	export static void writeInt(int value) => Console.Writer.writeInt(value, catch _);
-	
-	export static void writeUInt(uint value) => Console.Writer.writeUInt(value, catch _);
-	
-	export static void writeDouble(double value) => Console.Writer.writeDouble(value, catch _);
 	
 	export static char readChar() => Console.Reader.readChar(catch _);
 	

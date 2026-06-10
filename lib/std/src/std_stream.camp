@@ -103,7 +103,7 @@ export void writeAll(ByteWriter this, const byte[] value, thrown IoError error)
 	}
 }
 
-export void writeChar(CharWriter this, char value, thrown IoError error)
+export void write(CharWriter this, overload char value, thrown IoError error)
 {
 	const char[] buffer = [value];
 	nuint written = 0;
@@ -111,7 +111,12 @@ export void writeChar(CharWriter this, char value, thrown IoError error)
 		throw FAILED;
 }
 
-export void writeString(CharWriter this, const char[] value, thrown IoError error)
+export void write(CharWriter this, overload string value, thrown IoError error)
+{
+	this.writeCharArray(value);
+}
+
+export void write(CharWriter this, overload const char[] value, thrown IoError error)
 {
 	nuint offset = 0;
 	while (offset < value.length)
@@ -131,19 +136,19 @@ export void writeString(CharWriter this, const char[] value, thrown IoError erro
 
 export void writeLine(CharWriter this, const char[] value = default, thrown IoError error)
 {
-	CharWriter_writeString(this, value, catch error);
+	CharWriter_writeCharArray(this, value, catch error);
 	CharWriter_writeChar(this, '\n', catch error);
 }
 
-export void writeBool(CharWriter this, bool value, thrown IoError error)
+export void write(CharWriter this, overload bool value, thrown IoError error)
 {
 	if (value)
-		CharWriter_writeString(this, "true", catch error);
+		CharWriter_writeCharArray(this, "true", catch error);
 	else
-		CharWriter_writeString(this, "false", catch error);
+		CharWriter_writeCharArray(this, "false", catch error);
 }
 
-export void writeInt(CharWriter this, int value, thrown IoError error)
+export void write(CharWriter this, overload int value, thrown IoError error)
 {
 	if (value < 0)
 	{
@@ -156,14 +161,14 @@ export void writeInt(CharWriter this, int value, thrown IoError error)
 	}
 }
 
-export void writeUInt(CharWriter this, uint value, thrown IoError error)
+export void write(CharWriter this, overload uint value, thrown IoError error)
 {
 	if (value >= 10)
 		CharWriter_writeUInt(this, value / 10, catch error);
 	CharWriter_writeChar(this, (char)((int)'0' + (int)(value % 10)), catch error);
 }
 
-export void writeDouble(CharWriter this, double value, thrown IoError error)
+export void write(CharWriter this, overload double value, thrown IoError error)
 {
 	if (value < 0.0)
 	{
