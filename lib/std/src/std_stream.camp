@@ -111,11 +111,6 @@ export void write(CharWriter this, overload char value, thrown IoError error)
 		throw FAILED;
 }
 
-export void write(CharWriter this, overload string value, thrown IoError error)
-{
-	this.writeCharArray(value);
-}
-
 export void write(CharWriter this, overload const char[] value, thrown IoError error)
 {
 	nuint offset = 0;

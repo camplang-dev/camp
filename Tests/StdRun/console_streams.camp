@@ -2,7 +2,7 @@ using Std;
 
 export int main()
 {
-	Console.writeString("stream ");
+	Console.writeCharArray("stream ");
 	Console.writeInt(-12);
 	Console.writeChar(' ');
 	Console.writeUInt(34);

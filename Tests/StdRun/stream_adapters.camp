@@ -29,7 +29,7 @@ export int main(string[] args)
 	byteWriter.context = &total;
 	
 	CharWriter charWriter = byteWriter.CharWriter;
-	charWriter.writeString("abc", catch _);
+	charWriter.writeCharArray("abc", catch _);
 	if (total != 3)
 		return 1;
 	
