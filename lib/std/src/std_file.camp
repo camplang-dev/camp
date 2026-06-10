@@ -26,26 +26,28 @@ const int SEEK_END = 2;
 int FileHandle_buildFlags(FileAccess access, FileMode mode)
 {
 	int flags = O_RDONLY;
-		if (access == FileAccess.WRITE)
-			flags = O_WRONLY;
-		else
-		{
-			if (access == FileAccess.READ_WRITE)
-				flags = O_RDWR;
-		}
+	if (access == FileAccess.WRITE)
+	{
+		flags = O_WRONLY;
+	}
+	else
+	{
+		if (access == FileAccess.READ_WRITE)
+			flags = O_RDWR;
+	}
 		
 	if (mode == FileMode.CREATE)
-			flags |= O_CREAT;
-		else
-		{
-			if (mode == FileMode.CREATE_OR_TRUNCATE)
-				flags |= O_CREAT | O_TRUNC;
-			else
-			{
-				if (mode == FileMode.APPEND)
-					flags |= O_CREAT | O_APPEND;
-			}
-		}
+	{
+		flags |= O_CREAT;
+	}
+	else if (mode == FileMode.CREATE_OR_TRUNCATE)
+	{
+		flags |= O_CREAT | O_TRUNC;
+	}
+	else if (mode == FileMode.APPEND)
+	{
+		flags |= O_CREAT | O_APPEND;
+	}
 	
 	return flags;
 }
@@ -133,18 +135,6 @@ export class FileHandle
 		return handle;
 	}
 	
-	export static ByteReader openRead(string path, FileMode mode = FileMode.OPEN_EXISTING, FileOptions options = default, thrown IoError error)
-	{
-		FileHandle* handle = FileHandle_open(path, FileAccess.READ, mode, options);
-		return handle.Reader;
-	}
-	
-	export static ByteWriter openWrite(string path, FileMode mode = FileMode.CREATE_OR_TRUNCATE, FileOptions options = default, thrown IoError error)
-	{
-		FileHandle* handle = FileHandle_open(path, FileAccess.WRITE, mode, options);
-		return handle.Writer;
-	}
-	
 	export bool getOpen()
 	{
 		return this.fd >= 0;
@@ -215,7 +205,7 @@ export class FileHandle
 		}
 	}
 	
-	export ByteReader getReader()
+	export ByteReader getByteReader()
 	{
 		ByteReader reader = default;
 		reader.call = FileHandle_readFd;
@@ -223,12 +213,22 @@ export class FileHandle
 		return reader;
 	}
 	
-	export ByteWriter getWriter()
+	export CharReader getCharReader()
+	{
+		return this.ByteReader.CharReader;
+	}
+	
+	export ByteWriter getByteWriter()
 	{
 		ByteWriter writer = default;
 		writer.call = FileHandle_writeFd;
 		writer.context = this;
 		return writer;
+	}
+	
+	export CharWriter getCharWriter()
+	{
+		return this.ByteWriter.CharWriter;
 	}
 	
 	// export AsyncByteReader getAsyncReader();
