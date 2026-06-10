@@ -348,6 +348,7 @@ public static class CCodeEmitter
 	{
 		readonly HashSet<string> emittedNames = new(StringComparer.Ordinal);
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
+		readonly HashSet<string> genericParameterNames = BuildGenericParameterNameSet(compilation);
 		readonly HashSet<string> currentGenericTypeNames = new(StringComparer.Ordinal);
 		readonly HashSet<string> currentArrayElementComponentNames = new(StringComparer.Ordinal);
 		FunctionDefinition? currentFunction;
@@ -702,6 +703,9 @@ public static class CCodeEmitter
 				AddType(function.ReturnType, function.ResolvedType);
 				foreach (ParameterDefinition parameter in function.Parameters)
 					AddType(parameter.Type, parameter.ResolvedType);
+				if (function.Body is not null)
+					foreach (BindableNode node in EnumerateNodes(function.Body, []))
+						AddNode(node);
 			}
 			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>())
 				AddType(variable.Type, variable.ResolvedType);
@@ -761,6 +765,22 @@ public static class CCodeEmitter
 						break;
 				}
 			}
+
+			void AddNode(BindableNode node)
+			{
+				switch (node)
+				{
+					case DeclarationStatement declaration:
+						AddType(declaration.Target.Type, declaration.Target.ResolvedType);
+						break;
+					case DeclarationTarget target:
+						AddType(target.Type, target.ResolvedType);
+						break;
+					case ArgumentExpression argument:
+						AddType(argument.Type, argument.ResolvedType);
+						break;
+				}
+			}
 		}
 
 		static Dictionary<FunctionDefinition, TypeDefinition> BuildContainingTypeMap(Compilation compilation)
@@ -796,6 +816,44 @@ public static class CCodeEmitter
 			{
 				foreach (FunctionDefinition function in functions)
 					map[function] = type;
+			}
+		}
+
+		static HashSet<string> BuildGenericParameterNameSet(Compilation compilation)
+		{
+			HashSet<string> names = new(StringComparer.Ordinal);
+			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+				AddDefinition(definition);
+			return names;
+
+			void AddDefinition(Definition definition)
+			{
+				if (definition is TypeDefinition type)
+				{
+					foreach (GenericParameter parameter in type.GenericParameters)
+						names.Add(parameter.Name);
+					foreach (FunctionDefinition function in type switch
+					{
+						ClassDefinition classDefinition => classDefinition.Functions,
+						StructDefinition structDefinition => structDefinition.Functions,
+						InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions,
+						EnumDefinition enumDefinition => enumDefinition.Functions,
+						NewtypeDefinition newtypeDefinition => newtypeDefinition.Functions,
+						ParamsDefinition paramsDefinition => paramsDefinition.Functions,
+						_ => []
+					})
+						AddFunction(function);
+				}
+				else if (definition is FunctionDefinition function)
+				{
+					AddFunction(function);
+				}
+			}
+
+			void AddFunction(FunctionDefinition function)
+			{
+				foreach (GenericParameter parameter in function.GenericParameters)
+					names.Add(parameter.Name);
 			}
 		}
 
@@ -853,7 +911,14 @@ public static class CCodeEmitter
 				return "void";
 			List<string> parts = [];
 			for (int i = 0; i < parameterTypes.Count; i++)
-				parts.Add(FormatResolvedType(parameterTypes[i], "arg" + i.ToString(CultureInfo.InvariantCulture)).Declaration);
+			{
+				string parameterType = parameterTypes[i];
+				string declarator = "arg" + i.ToString(CultureInfo.InvariantCulture);
+				if (parameterType.StartsWith("in ", StringComparison.Ordinal))
+					parts.Add(FormatResolvedType(parameterType[3..].TrimStart() + "*", declarator).Declaration);
+				else
+					parts.Add(FormatResolvedType(parameterType, declarator).Declaration);
+			}
 			return string.Join(", ", parts);
 		}
 
@@ -1407,17 +1472,58 @@ public static class CCodeEmitter
 			else if (TryFormatLoweredInterfaceSlotTarget(call, out string interfaceSlotTarget))
 				target = interfaceSlotTarget;
 			Dictionary<string, string> genericSubstitutions = function is null ? [] : GetCallGenericSubstitutions(call, function);
-			List<string> parameterTypes = function is null ? [] : GetCallableParameterTypes(function);
+			List<ParameterDefinition> parameters = function is not null
+				? GetCallableParametersForCall(function)
+				: GetCallableParametersForExpression(call.Target);
 			List<string> arguments = [];
 			for (int i = 0; i < call.Arguments.Count; i++)
 			{
-				string? parameterType = i < parameterTypes.Count ? parameterTypes[i] : null;
-				arguments.Add(FormatArgumentValue(call.Arguments[i], parameterType, genericSubstitutions));
+				ParameterDefinition? parameter = i < parameters.Count ? parameters[i] : null;
+				arguments.Add(FormatArgumentValue(call.Arguments[i], parameter, genericSubstitutions));
 			}
 			string text = target + "(" + string.Join(", ", arguments) + ")";
 			if (function is not null && TryGetConcreteGenericType(function.ResolvedType, genericSubstitutions, out string? concreteReturnType) && NeedsGenericScalarCast(concreteReturnType))
 				return CastFromErasedGeneric(text, concreteReturnType);
 			return text;
+		}
+
+		List<ParameterDefinition> GetCallableParametersForExpression(Expression? expression)
+		{
+			if (expression?.ResolvedType is not string resolvedType || !TryParseResolvedCallableType(resolvedType, out _, out List<string> parameterTypes))
+				return [];
+
+			List<ParameterDefinition> parameters = [];
+			foreach (string parameterType in parameterTypes)
+				parameters.Add(CreateCallableParameterFromResolvedType(parameterType));
+			return parameters;
+		}
+
+		static ParameterDefinition CreateCallableParameterFromResolvedType(string parameterType)
+		{
+			string typeName = parameterType.Trim();
+			ParameterModifier modifier = ParameterModifier.None;
+			if (typeName.StartsWith("in ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.In;
+				typeName = typeName[3..].TrimStart();
+			}
+			else if (typeName.StartsWith("out ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Out;
+				typeName = typeName[4..].TrimStart();
+			}
+			else if (typeName.StartsWith("thrown ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Thrown;
+				typeName = typeName[7..].TrimStart();
+			}
+
+			return new ParameterDefinition
+			{
+				Modifier = modifier,
+				ResolvedType = typeName,
+				Type = new NamedTypeReference { Name = typeName, ResolvedType = typeName }
+			};
 		}
 
 		bool TryFormatOffsetOfCall(CallExpression call, out string text)
@@ -1483,7 +1589,7 @@ public static class CCodeEmitter
 
 		string FormatArgumentValue(ArgumentExpression argument)
 		{
-			return FormatArgumentValue(argument, expectedParameterType: null, genericSubstitutions: []);
+			return FormatArgumentValue(argument, parameter: null, genericSubstitutions: []);
 		}
 
 		string FormatTypeReferenceExpression(TypeReferenceExpression expression)
@@ -1532,19 +1638,53 @@ public static class CCodeEmitter
 			return false;
 		}
 
-		string FormatArgumentValue(ArgumentExpression argument, string? expectedParameterType, Dictionary<string, string> genericSubstitutions)
+		string FormatArgumentValue(ArgumentExpression argument, ParameterDefinition? parameter, Dictionary<string, string> genericSubstitutions)
 		{
 			string value = FormatExpression(argument.Value);
+			string? expectedParameterType = parameter?.ResolvedType ?? parameter?.Type?.ResolvedType;
 			if (argument.Modifier == ArgumentModifier.None
+				&& parameter?.Modifier != ParameterModifier.In
 				&& TryGetConcreteGenericType(expectedParameterType, genericSubstitutions, out string? concreteType)
 				&& NeedsGenericScalarCast(concreteType))
 				value = CastToErasedGeneric(value, concreteType);
+			if (argument.Modifier == ArgumentModifier.None
+				&& expectedParameterType is not null
+				&& IsResolvedCallableType(expectedParameterType)
+				&& (argument.Value is MethodReferenceExpression or VariableReferenceExpression { Variable: FunctionDefinition } or NamedExpression
+					|| argument.Value?.ResolvedType is string argumentType && IsResolvedCallableType(argumentType)))
+				value = "(" + CTypeName(expectedParameterType) + ")" + value;
+			if (argument.Modifier == ArgumentModifier.None && parameter?.Modifier == ParameterModifier.In)
+				return FormatInArgument(argument.Value, value, TryGetConcreteGenericType(expectedParameterType, genericSubstitutions, out string? concreteInType) ? concreteInType : expectedParameterType);
 			return argument.Modifier switch
 			{
 				ArgumentModifier.Out or ArgumentModifier.Catch when TryFormatForwardedOutArgument(argument.Value, out string forwarded) => forwarded,
 				ArgumentModifier.Out or ArgumentModifier.Catch => "&" + value,
 				_ => value
 			};
+		}
+
+		string FormatInArgument(Expression? expression, string value, string? concreteType)
+		{
+			if (TryFormatForwardedInArgument(expression, out string forwarded))
+				return forwarded;
+
+			string type = string.IsNullOrWhiteSpace(concreteType)
+				? "void*"
+				: FormatResolvedType(concreteType, "").Declaration.Trim();
+			return "&(" + type + "){" + value + "}";
+		}
+
+		static bool TryFormatForwardedInArgument(Expression? expression, out string value)
+		{
+			value = "";
+			switch (expression)
+			{
+				case VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter }:
+					value = CName(parameter);
+					return true;
+				default:
+					return false;
+			}
 		}
 
 		bool TryFormatForwardedOutArgument(Expression? expression, out string value)
@@ -1635,18 +1775,26 @@ public static class CCodeEmitter
 			return substitutions;
 		}
 
-		List<string> GetCallableParameterTypes(FunctionDefinition function)
+		List<ParameterDefinition> GetCallableParametersForCall(FunctionDefinition function)
 		{
-			List<string> parameterTypes = [];
+			List<ParameterDefinition> parameters = [];
 			if (RequiresImplicitThisParameter(function) && containingTypes.TryGetValue(function, out TypeDefinition? containingType))
-				parameterTypes.Add((function.AbiThisType?.ResolvedType ?? containingType.Name) + (function.AbiThisType is null ? "*" : ""));
+			{
+				parameters.Add(new ThisParameterDefinition
+				{
+					Name = "this",
+					Symbol = "this",
+					Type = function.AbiThisType ?? new PointerTypeReference { ElementType = new TypeDefinitionReference { Definition = containingType, Name = containingType.Name } },
+					ResolvedType = (function.AbiThisType?.ResolvedType ?? containingType.Name) + (function.AbiThisType is null ? "*" : "")
+				});
+			}
 			foreach (ParameterDefinition parameter in function.Parameters)
 			{
 				if (parameter is WithinParameterDefinition && parameter.Type is null)
 					continue;
-				parameterTypes.Add(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "void*");
+				parameters.Add(parameter);
 			}
-			return parameterTypes;
+			return parameters;
 		}
 
 		static bool TryGetConcreteGenericType(string? genericType, Dictionary<string, string> substitutions, out string concreteType)
@@ -1668,7 +1816,8 @@ public static class CCodeEmitter
 				|| type.StartsWith("volatile ", StringComparison.Ordinal)
 				|| type.StartsWith("escaped ", StringComparison.Ordinal)
 				|| type.StartsWith("scoped ", StringComparison.Ordinal)
-				|| type.StartsWith("unscoped ", StringComparison.Ordinal))
+				|| type.StartsWith("unscoped ", StringComparison.Ordinal)
+				|| type.StartsWith("in ", StringComparison.Ordinal))
 			{
 				int space = type.IndexOf(' ', StringComparison.Ordinal);
 				type = space < 0 ? "" : type[(space + 1)..].TrimStart();
@@ -1803,12 +1952,22 @@ public static class CCodeEmitter
 				FunctionDefinition function => CName(function),
 				VariableDefinition definition => CName(definition),
 				ParameterDefinition { Modifier: ParameterModifier.Out or ParameterModifier.Thrown } parameter => "(*" + CName(parameter) + ")",
+				ParameterDefinition { Modifier: ParameterModifier.In } parameter when IsGenericParameterType(parameter.ResolvedType) => CName(parameter),
+				ParameterDefinition { Modifier: ParameterModifier.In } parameter => "(*" + CName(parameter) + ")",
 				ParameterDefinition parameter => CName(parameter),
 				FieldDefinition field => CName(field),
 				DeclarationTarget target when IsSyntheticCurrentOutParameterTarget(target) && TryFindCurrentOutParameter(target, out ParameterDefinition? parameter) => "(*" + CName(parameter) + ")",
 				DeclarationTarget target => CName(target),
 				_ => UnsupportedExpression(variable)
 			};
+		}
+
+		bool IsGenericParameterType(string? type)
+		{
+			if (string.IsNullOrWhiteSpace(type))
+				return false;
+			string stripped = StripTypeDecorators(type);
+			return genericParameterNames.Contains(stripped) || currentGenericTypeNames.Contains(stripped);
 		}
 
 		string FormatInitializer(InitializerExpression initializer)
@@ -1844,6 +2003,11 @@ public static class CCodeEmitter
 
 		string FormatUnaryExpression(UnaryExpression unary)
 		{
+			if (unary.Operator == UnaryOperator.AddressOf
+				&& unary.Operand is VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter }
+				&& IsGenericParameterType(parameter.ResolvedType))
+				return CName(parameter);
+
 			string operand = FormatExpression(unary.Operand);
 			return unary.Operator switch
 			{
@@ -1984,6 +2148,11 @@ public static class CCodeEmitter
 						TypeReference? parameterType = parameter.Type;
 						parts.Add(FormatOutParameterType(parameterType, parameter.ResolvedType, name).Declaration);
 					}
+					else if (parameter.Modifier is ParameterModifier.In)
+					{
+						TypeReference? parameterType = parameter.Type;
+						parts.Add(FormatInParameterType(parameterType, parameter.ResolvedType, name).Declaration);
+					}
 					else
 					{
 						parts.Add(FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name).Declaration);
@@ -2033,6 +2202,11 @@ public static class CCodeEmitter
 					{
 						TypeReference? parameterType = parameter.Type;
 						parts.Add(FormatOutParameterType(parameterType, parameter.ResolvedType, name).Declaration);
+					}
+					else if (parameter.Modifier is ParameterModifier.In)
+					{
+						TypeReference? parameterType = parameter.Type;
+						parts.Add(FormatInParameterType(parameterType, parameter.ResolvedType, name).Declaration);
 					}
 					else
 					{
@@ -2169,6 +2343,15 @@ public static class CCodeEmitter
 			return FormatType(new PointerTypeReference { ElementType = null }, declarator);
 		}
 
+		CType FormatInParameterType(TypeReference? type, string? resolvedType, string declarator)
+		{
+			if (!string.IsNullOrWhiteSpace(resolvedType))
+				return FormatResolvedType(resolvedType + "*", declarator);
+			if (type is not null)
+				return FormatType(new PointerTypeReference { ElementType = type }, declarator);
+			return FormatType(new PointerTypeReference { ElementType = null }, declarator);
+		}
+
 		CType FormatResolvedType(string resolvedType, string declarator)
 		{
 			string type = resolvedType.Trim();
@@ -2242,7 +2425,7 @@ public static class CCodeEmitter
 					trailingQualifiers.Insert(0, "const");
 			}
 
-			bool isGenericType = currentGenericTypeNames.Contains(type);
+			bool isGenericType = currentGenericTypeNames.Contains(type) || genericParameterNames.Contains(type);
 			if (isGenericType && pointerCount > 0 && currentArrayElementComponentNames.Contains(declarator))
 				pointerCount++;
 			string cType = isGenericType && pointerCount == 0 ? "void*" : FormatResolvedBaseType(type);
@@ -2259,6 +2442,8 @@ public static class CCodeEmitter
 		string FormatResolvedBaseType(string type)
 		{
 			if (currentGenericTypeNames.Contains(type))
+				return "void";
+			if (genericParameterNames.Contains(type))
 				return "void";
 
 			return type switch
@@ -2474,6 +2659,7 @@ public static class CCodeEmitter
 				.Replace("escaped ", "", StringComparison.Ordinal)
 				.Replace("scoped ", "", StringComparison.Ordinal)
 				.Replace("unscoped ", "", StringComparison.Ordinal)
+				.Replace("in ", "", StringComparison.Ordinal)
 				.Replace("*", "Ptr", StringComparison.Ordinal)
 				.Replace("[]", "Array", StringComparison.Ordinal)
 				.Replace("?", "Optional", StringComparison.Ordinal);

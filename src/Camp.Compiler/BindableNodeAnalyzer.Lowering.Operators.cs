@@ -162,6 +162,12 @@ public sealed partial class BindableNodeAnalyzer
 				createCall.Arguments.Add(argument);
 			callTargets[createCall] = create;
 			AddImplicitSizeOfArguments(createCall, create, constructedType);
+			AddImplicitVTableOfArguments(createCall, create, constructedType);
+			if (HasWithinParameter(create))
+			{
+				Expression? allocator = CurrentAllocator();
+				createCall.Arguments.Add(new ArgumentExpression { Value = allocator ?? NullLiteral(syntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" });
+			}
 			return createCall;
 		}
 

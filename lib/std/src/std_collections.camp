@@ -3,47 +3,108 @@ export as Std;
 extern void* memcpy(void* destination, const void* source, nuint count);
 extern void* memmove(void* destination, const void* source, nuint count);
 
-export class List<T>
+void listCopyValue(void* destination, const void* source, nuint size)
 {
-	T[] buffer;
-	nuint length;
-
-	// Initializes an empty list without allocating its buffer.
-	export List(sizeof(T))
+	if (size == 1)
 	{
-		this.buffer = default;
+		((byte*)destination)[0] = ((const byte*)source)[0];
+	}
+	else if (size == 2)
+	{
+		((ushort*)destination)[0] = ((const ushort*)source)[0];
+	}
+	else if (size == 4)
+	{
+		((uint*)destination)[0] = ((const uint*)source)[0];
+	}
+	else if (size == 8)
+	{
+		((ulong*)destination)[0] = ((const ulong*)source)[0];
+	}
+	else
+	{
+		memcpy(destination, source, size);
+	}
+}
+
+void listMoveValues(void* destination, const void* source, nuint count, nuint itemSize)
+{
+	if (count == 0)
+		return;
+
+	memmove(destination, source, count * itemSize);
+}
+
+export class List<T: any>
+{
+	void* buffer;
+	nuint length;
+	nuint capacity;
+	Allocator* allocator;
+
+	// Initializes an empty list and remembers the allocator used for storage.
+	export List(within allocator, sizeof(T))
+	{
+		this.buffer = null;
 		this.length = 0;
+		this.capacity = 0;
+		this.allocator = allocator;
 	}
 
-	// Releases the buffer when one has been allocated.
+	// Releases the allocated element buffer, if any.
 	export ~List()
 	{
-		if (this.buffer.elements != null)
+		if (this.buffer != null)
 		{
-			free(this.buffer.elements);
-			this.buffer = default;
+			if (this.allocator != null)
+				this.allocator.free(this.buffer);
+			else
+				free(this.buffer);
 		}
+
+		this.buffer = null;
 		this.length = 0;
+		this.capacity = 0;
+	}
+
+	void* itemAddress(@index nuint at)
+	{
+		return (void*)&((byte*)this.buffer)[at * sizeof(T)];
 	}
 
 	// Adds or inserts a single item.
-	export void add(T item, @index nuint at = ^0)
+	export void add(in T item, @index nuint at = ^0)
 	{
 		if (at > this.length)
 			at = this.length;
 
 		this.ensureCapacity(this.length + 1);
-		if (this.buffer.length <= this.length)
+		if (this.capacity <= this.length)
 			return;
 
 		if (at < this.length)
-		{
-			nuint count = this.length - at;
-			memmove((void*)&this.buffer.elements[at + 1], (const void*)&this.buffer.elements[at], count * sizeof(T));
-		}
+			listMoveValues(this.itemAddress(at + 1), this.itemAddress(at), this.length - at, sizeof(T));
 
-		this.buffer.elements[at] = item;
+		listCopyValue(this.itemAddress(at), (const void*)&item, sizeof(T));
 		this.length++;
+	}
+
+	// Replaces the item at an index.
+	export void setItem(@index nuint at, in T value)
+	{
+		if (at >= this.length)
+			return;
+
+		listCopyValue(this.itemAddress(at), (const void*)&value, sizeof(T));
+	}
+
+	// Returns the item at an index.
+	export T getItem(@index nuint at)
+	{
+		T result = default;
+		if (at < this.length)
+			listCopyValue((void*)&result, (const void*)this.itemAddress(at), sizeof(T));
+		return result;
 	}
 
 	// Removes one item and returns 1 when an item was removed.
@@ -54,7 +115,7 @@ export class List<T>
 
 		nuint remaining = this.length - at - 1;
 		if (remaining > 0)
-			memmove((void*)&this.buffer.elements[at], (const void*)&this.buffer.elements[at + 1], remaining * sizeof(T));
+			listMoveValues(this.itemAddress(at), this.itemAddress(at + 1), remaining, sizeof(T));
 
 		this.length--;
 		return 1;
@@ -72,14 +133,64 @@ export class List<T>
 		nuint remainingStart = startAt + count;
 		nuint remaining = this.length - remainingStart;
 		if (remaining > 0)
-			memmove((void*)&this.buffer.elements[startAt], (const void*)&this.buffer.elements[remainingStart], remaining * sizeof(T));
+			listMoveValues(this.itemAddress(startAt), this.itemAddress(remainingStart), remaining, sizeof(T));
 
 		this.length -= count;
 		return count;
 	}
 
+	// Clears the list and optionally releases its buffer.
+	export void clear(bool deleteBuffer = false)
+	{
+		this.length = 0;
+		if (deleteBuffer && this.buffer != null)
+		{
+			if (this.allocator != null)
+				this.allocator.free(this.buffer);
+			else
+				free(this.buffer);
+
+			this.buffer = null;
+			this.capacity = 0;
+		}
+	}
+
+	// Allocates a new list and copies a range of items into it.
+	export List<T>* copyList(@range nuint startAt = 0, nuint count = ^0)
+	{
+		void* storage = null;
+		if (this.allocator != null)
+			storage = this.allocator.alloc(sizeof(List<T>));
+		else
+			storage = malloc(sizeof(List<T>));
+
+		List<T>* copy = (List<T>*)storage;
+		if (copy == null)
+			return null;
+
+		copy.buffer = null;
+		copy.length = 0;
+		copy.capacity = 0;
+		copy.allocator = this.allocator;
+		copy._sizeof_T = this._sizeof_T;
+
+		if (startAt >= this.length || count == 0)
+			return copy;
+
+		if (count > this.length - startAt)
+			count = this.length - startAt;
+
+		copy.ensureCapacity(count);
+		if (copy.capacity < count)
+			return copy;
+
+		listMoveValues(copy.buffer, this.itemAddress(startAt), count, sizeof(T));
+		copy.length = count;
+		return copy;
+	}
+
 	// Returns the first matching index, or -1 when no match is found.
-	export nint findIndex(T item, @range nuint startAt = 0, nuint count = ^0)
+	export nint findIndex(in T item, delegate bool(in T left, in T right) equals, @range nuint startAt = 0, nuint count = ^0)
 	{
 		if (startAt >= this.length || count == 0)
 			return -1;
@@ -89,14 +200,14 @@ export class List<T>
 			end = this.length;
 
 		for (nuint i = startAt; i < end; i++)
-			if (this.buffer.elements[i] == item)
+			if (equals(this.getItem(i), item))
 				return (nint)i;
 
 		return -1;
 	}
 
 	// Returns the last matching index, or -1 when no match is found.
-	export nint findLastIndex(T item, @range nuint startAt = 0, nuint count = ^0)
+	export nint findLastIndex(in T item, delegate bool(in T left, in T right) equals, @range nuint startAt = 0, nuint count = ^0)
 	{
 		if (startAt >= this.length || count == 0)
 			return -1;
@@ -108,109 +219,92 @@ export class List<T>
 		while (end > startAt)
 		{
 			end--;
-			if (this.buffer.elements[end] == item)
+			if (equals(this.getItem(end), item))
 				return (nint)end;
 		}
 
 		return -1;
 	}
 
-	// Clears the list and optionally releases its buffer.
-	export void clear(bool deleteBuffer = false)
+	// Sorts the list in place using the supplied comparer.
+	export void sort(delegate int(in T left, in T right) comparer)
 	{
-		this.length = 0;
-		if (deleteBuffer && this.buffer.elements != null)
+		if (this.length < 2)
+			return;
+
+		void* temp = this.allocator != null ? this.allocator.alloc(sizeof(T)) : malloc(sizeof(T));
+		if (temp == null)
+			return;
+
+		for (nuint i = 1; i < this.length; i++)
 		{
-			free(this.buffer.elements);
-			this.buffer = default;
+			listCopyValue(temp, this.itemAddress(i), sizeof(T));
+			T pivot = default;
+			listCopyValue((void*)&pivot, temp, sizeof(T));
+			nuint j = i;
+			while (j > 0 && comparer(this.getItem(j - 1), pivot) > 0)
+			{
+				listCopyValue(this.itemAddress(j), this.itemAddress(j - 1), sizeof(T));
+				j--;
+			}
+			listCopyValue(this.itemAddress(j), temp, sizeof(T));
 		}
+
+		if (this.allocator != null)
+			this.allocator.free(temp);
+		else
+			free(temp);
 	}
 
-	// Allocates a new list and copies a range of items into it.
-	export List<T>* copyList(@range nuint startAt = 0, nuint count = ^0, within allocator)
-	{
-		List<T>* copy = (List<T>*)malloc(sizeof(List<T>));
-		if (copy == null)
-			return null;
-
-		copy.buffer = default;
-		copy.length = 0;
-		copy._sizeof_T = this._sizeof_T;
-
-		if (startAt >= this.length || count == 0)
-			return copy;
-
-		if (count > this.length - startAt)
-			count = this.length - startAt;
-
-		copy.ensureCapacity(count);
-		if (copy.buffer.length < count)
-			return copy;
-
-		memcpy((void*)copy.buffer.elements, (const void*)&this.buffer.elements[startAt], count * sizeof(T));
-		copy.length = count;
-		return copy;
-	}
-
-	// Returns the number of used slots in the buffer.
+	// Returns the number of items in the list.
 	export nuint getLength()
 	{
 		return this.length;
 	}
 
-	// Returns the number of allocated slots in the buffer.
+	// Returns the number of allocated item slots.
 	export nuint getCapacity()
 	{
-		return this.buffer.length;
-	}
-
-	// Returns the item at an index.
-	export T get(@index nuint at)
-	{
-		return this.buffer.elements[at];
-	}
-
-	// Replaces the item at an index.
-	export void set(@index nuint at, T value)
-	{
-		this.buffer.elements[at] = value;
-	}
-
-	// Returns the item at an index using property syntax.
-	export T getItem(@index nuint at)
-	{
-		return this.get(at);
-	}
-
-	// Replaces the item at an index using property syntax.
-	export void setItem(@index nuint at, T value)
-	{
-		this.set(at, value);
+		return this.capacity;
 	}
 
 	// Ensures the buffer has at least the requested number of slots.
 	export void ensureCapacity(nuint minimumCapacity)
 	{
-		if (this.buffer.length >= minimumCapacity)
+		if (this.capacity >= minimumCapacity)
 			return;
 
-		nuint capacity = this.buffer.length;
-		if (capacity == 0)
-			capacity = 8;
+		nuint newCapacity = this.capacity;
+		if (newCapacity == 0)
+			newCapacity = 8;
 
-		while (capacity < minimumCapacity)
+		while (newCapacity < minimumCapacity)
 		{
-			nuint grown = capacity + (capacity / 2);
-			if (grown <= capacity)
-				grown = capacity + 1;
-			capacity = grown;
+			nuint grown = newCapacity + (newCapacity / 2);
+			if (grown <= newCapacity)
+				grown = newCapacity + 1;
+			newCapacity = grown;
 		}
 
-		T* elements = (T*)realloc(this.buffer.elements, capacity * sizeof(T));
-		if (elements == null)
+		void* newBuffer = null;
+		if (this.allocator != null)
+			newBuffer = this.allocator.alloc(newCapacity * sizeof(T));
+		else
+			newBuffer = malloc(newCapacity * sizeof(T));
+
+		if (newBuffer == null)
 			return;
 
-		this.buffer.elements = elements;
-		this.buffer.length = capacity;
+		if (this.buffer != null)
+		{
+			listMoveValues(newBuffer, this.buffer, this.length, sizeof(T));
+			if (this.allocator != null)
+				this.allocator.free(this.buffer);
+			else
+				free(this.buffer);
+		}
+
+		this.buffer = newBuffer;
+		this.capacity = newCapacity;
 	}
 }

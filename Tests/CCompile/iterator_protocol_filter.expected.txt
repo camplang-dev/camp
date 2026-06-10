@@ -49,7 +49,7 @@ static bool isEven(int number)
 void run(void)
 {
 	{
-		applyPredicateIter _foreachIter1 = applyPredicate(rangeIter_iter, range(2, 10), isEven);
+		applyPredicateIter _foreachIter1 = applyPredicate((fn_bool_voidPtr__intPtr_)rangeIter_iter, range(2, 10), (fn_bool_int_)isEven);
 		int _foreachCurrent2 = 0;
 		while (applyPredicateIter_next(&_foreachIter1, &_foreachCurrent2))
 		{
@@ -62,7 +62,7 @@ __foreach_continue3:
 __foreach_break4:
 	}
 	{
-		applyPredicateExplicitIter _foreachIter5 = applyPredicateExplicit(rangeIter_iter, range(22, 30), isEven);
+		applyPredicateExplicitIter _foreachIter5 = applyPredicateExplicit((fn_bool_voidPtr__intPtr_)rangeIter_iter, range(22, 30), (fn_bool_int_)isEven);
 		int _foreachCurrent6 = 0;
 		while (applyPredicateExplicitIter_next(&_foreachIter5, &_foreachCurrent6))
 		{

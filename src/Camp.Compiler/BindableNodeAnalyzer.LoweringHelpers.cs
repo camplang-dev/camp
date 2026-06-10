@@ -198,12 +198,20 @@ public sealed partial class BindableNodeAnalyzer
 			? NullLiteral()
 			: CreateVariableReference(allocator, allocator.ResolvedType == AllocatorType ? AllocatorType : allocatorType);
 		TypeReference type = allocator?.Type is null || allocator.Type is AllocatorTypeReference
-			? new NamedTypeReference { Name = allocatorType, ResolvedType = allocatorType }
+			? TypeReferenceForResolvedType(allocatorType)
 			: CloneType(allocator.Type) ?? new NamedTypeReference { Name = allocatorType, ResolvedType = allocatorType };
 		DeclarationStatement declaration = CreateGeneratedLocal("resolvedAllocator", allocatorType, type, source);
 		declaration.Target.Names.Clear();
 		declaration.Target.Names.Add("resolvedAllocator");
 		return declaration;
+	}
+
+	static TypeReference TypeReferenceForResolvedType(string resolvedType)
+	{
+		if (resolvedType == "Allocator*")
+			return AllocatorPointerType();
+
+		return new NamedTypeReference { Name = resolvedType, ResolvedType = resolvedType };
 	}
 
 	Expression? GetFunctionWithinContext(FunctionDefinition function)

@@ -1121,10 +1121,28 @@ public sealed partial class BindableNodeAnalyzer
 		List<ParameterDefinition> parameters = [];
 		foreach (string parameterType in callable.Parameters)
 		{
+			string typeName = parameterType;
+			ParameterModifier modifier = ParameterModifier.None;
+			if (typeName.StartsWith("in ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.In;
+				typeName = typeName[3..].TrimStart();
+			}
+			else if (typeName.StartsWith("out ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Out;
+				typeName = typeName[4..].TrimStart();
+			}
+			else if (typeName.StartsWith("thrown ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Thrown;
+				typeName = typeName[7..].TrimStart();
+			}
 			parameters.Add(new ParameterDefinition
 			{
-				ResolvedType = parameterType,
-				Type = new NamedTypeReference { Name = parameterType, ResolvedType = parameterType }
+				Modifier = modifier,
+				ResolvedType = typeName,
+				Type = new NamedTypeReference { Name = typeName, ResolvedType = typeName }
 			});
 		}
 

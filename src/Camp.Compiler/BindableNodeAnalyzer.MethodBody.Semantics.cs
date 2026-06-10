@@ -1801,7 +1801,14 @@ public sealed partial class BindableNodeAnalyzer
 			if (isInstance && parameter is ThisParameterDefinition)
 				continue;
 
-			parameters.Add(parameter.ResolvedType ?? ErrorType);
+			string parameterType = parameter.ResolvedType ?? ErrorType;
+			parameters.Add(parameter.Modifier switch
+			{
+				ParameterModifier.In => "in " + parameterType,
+				ParameterModifier.Out => "out " + parameterType,
+				ParameterModifier.Thrown => "thrown " + parameterType,
+				_ => parameterType
+			});
 		}
 
 		return $"{kind} {function.ResolvedType ?? ErrorType}({string.Join(", ", parameters)})";

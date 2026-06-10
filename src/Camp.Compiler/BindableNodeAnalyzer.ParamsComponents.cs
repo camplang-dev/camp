@@ -337,7 +337,14 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			else
 			{
-				types.Add(parameter.ResolvedType ?? ErrorType);
+				string parameterType = parameter.ResolvedType ?? ErrorType;
+				types.Add(parameter.Modifier switch
+				{
+					ParameterModifier.In => "in " + parameterType,
+					ParameterModifier.Out => "out " + parameterType,
+					ParameterModifier.Thrown => "thrown " + parameterType,
+					_ => parameterType
+				});
 			}
 		}
 		return types;

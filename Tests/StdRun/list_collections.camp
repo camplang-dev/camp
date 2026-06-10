@@ -13,29 +13,34 @@ export int main()
 	if (ints.Item[0] != 3 || ints.Item[1] != 2 || ints.Item[2] != 1)
 		return 3;
 
-	ints.set(0, 5);
-	if (ints.get(0) != 5)
+	ints.setItem(0, 5);
+	if (ints.getItem(0) != 5)
 		return 4;
 
 	ints.Item[1] = 4;
 	if (ints.Item[1] != 4)
 		return 5;
 
-	if (ints.findIndex(1) != 2)
-		return 6;
 	if (ints.removeRange(1..2) != 1)
-		return 7;
+		return 6;
 	if (ints.Length != 2)
-		return 8;
+		return 7;
 	if (ints.remove(8) != 0)
-		return 9;
+		return 8;
 	if (ints.remove(^1) != 1)
-		return 10;
+		return 9;
 	if (ints.Length != 1)
-		return 11;
+		return 10;
 	ints.clear(true);
 	if (ints.Length != 0 || ints.Capacity != 0)
+		return 11;
+
+	for (int i = 0; i < 12; i++)
+		ints.add(i);
+	if (ints.Capacity <= 8)
 		return 12;
+	if (ints.Item[0] != 0 || ints.Item[11] != 11)
+		return 13;
 
 	auto words = new List<string>() finally delete;
 	string one = "one";
@@ -43,8 +48,6 @@ export int main()
 	words.add(one);
 	words.add(two);
 	if (words.Length != 2)
-		return 13;
-	if (words.findLastIndex(two) != 1)
 		return 14;
 	if (words.Item[0].Length != 3)
 		return 15;
@@ -54,6 +57,9 @@ export int main()
 		return 16;
 	if (copy.Length != 2 || copy.Item[1].Length != 3)
 		return 17;
+	words.setItem(1, "changed");
+	if (copy.Item[1].Length != 3)
+		return 18;
 
 	return 0;
 }

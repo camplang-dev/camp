@@ -144,12 +144,49 @@ public sealed partial class BindableNodeAnalyzer
 		if (target.ReturnType != source.ReturnType || target.Parameters.Count != source.Parameters.Count + 1 || target.Parameters[0] != "void*")
 			return false;
 		for (int i = 0; i < source.Parameters.Count; i++)
-			if (source.Parameters[i] != target.Parameters[i + 1])
+			if (source.Parameters[i] != target.Parameters[i + 1] && !IsGenericCallableParameterTarget(target.Parameters[i + 1]))
 				return false;
 
 		components.Add(argument.Value);
 		components.Add(NullLiteral(argument.SourceSyntax));
 		return true;
+	}
+
+	bool IsGenericCallableParameterTarget(string parameterType)
+	{
+		string type = StripTopLevelValueQualifiers(parameterType);
+		if (type.StartsWith("in ", System.StringComparison.Ordinal))
+			type = type[3..].TrimStart();
+		if (type.StartsWith("out ", System.StringComparison.Ordinal))
+			type = type[4..].TrimStart();
+		if (type.StartsWith("thrown ", System.StringComparison.Ordinal))
+			type = type[7..].TrimStart();
+		return IsGenericPlaceholderParameter(type);
+	}
+
+	bool IsCurrentGenericParameter(string name)
+	{
+		if (currentRewriteFunction is null)
+			return false;
+		foreach (GenericParameter parameter in currentRewriteFunction.GenericParameters)
+			if (parameter.Name == name)
+				return true;
+		if (FindContainingType(currentRewriteFunction) is TypeDefinition containingType)
+			foreach (GenericParameter parameter in containingType.GenericParameters)
+				if (parameter.Name == name)
+					return true;
+		return false;
+	}
+
+	bool IsGenericPlaceholderParameter(string name)
+	{
+		if (IsCurrentGenericParameter(name))
+			return true;
+		if (string.IsNullOrWhiteSpace(name))
+			return false;
+		if (TryGetPrimitiveType(name, out _) || typeDefinitions.ContainsKey(BaseTypeName(name)))
+			return false;
+		return char.IsUpper(name[0]);
 	}
 
 	bool TryCreateIteratorToProtocolArgumentComponents(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index, out List<Expression> components)

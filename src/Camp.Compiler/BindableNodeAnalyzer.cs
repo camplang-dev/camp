@@ -431,7 +431,16 @@ public sealed partial class BindableNodeAnalyzer
 	static IEnumerable<string> GetParameterTypeNames(IEnumerable<ParameterDefinition> parameters)
 	{
 		foreach (ParameterDefinition parameter in parameters)
-			yield return parameter.ResolvedType ?? ErrorType;
+		{
+			string type = parameter.ResolvedType ?? ErrorType;
+			yield return parameter.Modifier switch
+			{
+				ParameterModifier.In => "in " + type,
+				ParameterModifier.Out => "out " + type,
+				ParameterModifier.Thrown => "thrown " + type,
+				_ => type
+			};
+		}
 	}
 
 	static string BuildAnchoredDeclarator(string keyword, List<string> anchors)
