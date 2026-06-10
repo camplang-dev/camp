@@ -467,7 +467,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (definition is FunctionDefinition function
 			&& !string.IsNullOrWhiteSpace(function.FullCallableName)
-			&& function.FullCallableName != definition.Symbol)
+			&& function.FullCallableName != definition.Symbol
+			&& !function.SymbolOverridden
+			&& GetExplicitThisParameter(function) is null)
 			yield return function.FullCallableName;
 	}
 

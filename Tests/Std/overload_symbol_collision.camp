@@ -1,0 +1,9 @@
+using Std;
+
+void writeInt()
+{
+}
+
+export void main()
+{
+}
