@@ -53,6 +53,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (function.IteratorKind == IteratorKind.None)
 			return;
 
+		AnalyzeIteratorGeneratorReturnType(function, containingType);
 		if (function.ReturnType is not IterTypeReference iterType)
 		{
 			Report(GetRange(function.SourceSyntax), "Iterator generator return type must be an iter type.");
@@ -77,21 +78,36 @@ public sealed partial class BindableNodeAnalyzer
 
 		IteratorKind iteratorKind = function.IteratorKind;
 		TypeDefinition stateType = iteratorKind == IteratorKind.Class
-			? CreateIteratorClass(function, iterType, stateName)
-			: CreateIteratorStruct(function, iterType, stateName);
+			? CreateIteratorClass(function, containingType, iterType, stateName)
+			: CreateIteratorStruct(function, containingType, iterType, stateName);
 		module.Definitions.Add(stateType);
 		typeDefinitions[stateType.Name] = stateType;
 		typeInfos[stateType] = new TypeAnalysisInfo(stateType);
 
 		function.IteratorKind = IteratorKind.None;
+		TypeReference stateReference = CreateIteratorStateReference(stateType, function, containingType);
 		function.ReturnType = iteratorKind == IteratorKind.Class
-			? PointerTo(TypeReferenceFor(stateType))
-			: TypeReferenceFor(stateType);
+			? PointerTo(stateReference)
+			: stateReference;
 		function.ResolvedType = function.ReturnType.ResolvedType;
-		function.Body = CreateIteratorFactoryBody(function, stateType);
+		function.Body = CreateIteratorFactoryBody(function, stateType, stateReference);
 	}
 
-	ClassDefinition CreateIteratorClass(FunctionDefinition function, IterTypeReference iterType, string stateName)
+	void AnalyzeIteratorGeneratorReturnType(FunctionDefinition function, TypeDefinition? containingType)
+	{
+		if (function.ReturnType is null)
+			return;
+
+		AnalysisScope scope = new();
+		if (containingType is not null)
+			foreach (GenericParameter parameter in containingType.GenericParameters)
+				scope.GenericParameters[parameter.Name] = parameter;
+		foreach (GenericParameter parameter in function.GenericParameters)
+			scope.GenericParameters[parameter.Name] = parameter;
+		AnalyzeType(function.ReturnType, scope);
+	}
+
+	ClassDefinition CreateIteratorClass(FunctionDefinition function, TypeDefinition? containingType, IterTypeReference iterType, string stateName)
 	{
 		ClassDefinition state = new()
 		{
@@ -102,11 +118,12 @@ public sealed partial class BindableNodeAnalyzer
 			Public = function.Public,
 			ResolvedType = stateName
 		};
+		AddIteratorGenericParameters(state, function, containingType);
 		AddIteratorStateMembers(state, function, iterType);
 		return state;
 	}
 
-	StructDefinition CreateIteratorStruct(FunctionDefinition function, IterTypeReference iterType, string stateName)
+	StructDefinition CreateIteratorStruct(FunctionDefinition function, TypeDefinition? containingType, IterTypeReference iterType, string stateName)
 	{
 		StructDefinition state = new()
 		{
@@ -118,8 +135,35 @@ public sealed partial class BindableNodeAnalyzer
 			Modifier = StructModifier.Fixed,
 			ResolvedType = stateName
 		};
+		AddIteratorGenericParameters(state, function, containingType);
 		AddIteratorStateMembers(state, function, iterType);
 		return state;
+	}
+
+	static void AddIteratorGenericParameters(TypeDefinition state, FunctionDefinition function, TypeDefinition? containingType)
+	{
+		if (containingType is not null)
+			foreach (GenericParameter parameter in containingType.GenericParameters)
+				state.GenericParameters.Add(parameter);
+		foreach (GenericParameter parameter in function.GenericParameters)
+			state.GenericParameters.Add(parameter);
+	}
+
+	TypeReference CreateIteratorStateReference(TypeDefinition state, FunctionDefinition function, TypeDefinition? containingType)
+	{
+		TypeDefinitionReference reference = new()
+		{
+			Name = state.Name,
+			Definition = state,
+			ResolvedType = state.Name
+		};
+		if (containingType is not null)
+			foreach (GenericParameter parameter in containingType.GenericParameters)
+				reference.TypeArguments.Add(new GenericParameterTypeReference { Name = parameter.Name, Parameter = parameter, ResolvedType = parameter.Name });
+		foreach (GenericParameter parameter in function.GenericParameters)
+			reference.TypeArguments.Add(new GenericParameterTypeReference { Name = parameter.Name, Parameter = parameter, ResolvedType = parameter.Name });
+		reference.ResolvedType = AddTypeArguments(state.Name, reference.TypeArguments);
+		return reference;
 	}
 
 	void AddIteratorStateMembers(TypeDefinition state, FunctionDefinition function, IterTypeReference iterType)
@@ -654,9 +698,10 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	BlockStatement CreateIteratorFactoryBody(FunctionDefinition function, TypeDefinition stateType)
+	BlockStatement CreateIteratorFactoryBody(FunctionDefinition function, TypeDefinition stateType, TypeReference stateReference)
 	{
-		InitializerExpression initializer = new() { ResolvedType = stateType.Name };
+		string stateResolvedType = stateReference.ResolvedType ?? stateType.Name;
+		InitializerExpression initializer = new() { ResolvedType = stateResolvedType };
 		initializer.Items.Add(new InitializerItem
 		{
 			Target = InitializerTargetFor(IteratorStateFieldName),
@@ -695,14 +740,14 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		string localName = NewGeneratedLocalName("iter");
-		DeclarationStatement local = CreateGeneratedLocal(localName, $"{stateType.Name}*", PointerTo(TypeReferenceFor(stateType)), new ConstructionExpression
+		DeclarationStatement local = CreateGeneratedLocal(localName, $"{stateResolvedType}*", PointerTo(CloneType(stateReference) ?? TypeReferenceFor(stateType)), new ConstructionExpression
 		{
 			SourceSyntax = function.SourceSyntax,
 			Kind = ConstructionKind.New,
-			Type = TypeReferenceFor(stateType),
-			ResolvedType = $"{stateType.Name}*"
+			Type = CloneType(stateReference),
+			ResolvedType = $"{stateResolvedType}*"
 		});
-		Expression localReference = CreateVariableReference(local.Target, local.Target.ResolvedType ?? $"{stateType.Name}*");
+		Expression localReference = CreateVariableReference(local.Target, local.Target.ResolvedType ?? $"{stateResolvedType}*");
 		BlockStatement body = new() { ResolvedType = "void" };
 		body.Statements.Add(local);
 		foreach (InitializerItem item in initializer.Items)
@@ -726,7 +771,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		body.Statements.Add(new ReturnStatement
 		{
-			Expression = CreateVariableReference(local.Target, local.Target.ResolvedType ?? $"{stateType.Name}*"),
+			Expression = CreateVariableReference(local.Target, local.Target.ResolvedType ?? $"{stateResolvedType}*"),
 			ResolvedType = "void"
 		});
 		return body;

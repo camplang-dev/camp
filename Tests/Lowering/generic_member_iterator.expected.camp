@@ -1,0 +1,48 @@
+class Box<T>
+{
+	Box_iterateIter<T> iterate()
+	{
+		return {.__state = 0};
+	}
+}
+void main(Box<int>* box)
+{
+	auto it = Box_iterate(box);
+}
+
+fixed struct Box_iterateIter<T>
+{
+	int __state;
+
+	bool next(T* current)
+	{
+		if (this.__state == -1)
+			return false;
+		this.__state = -1;
+		return false;
+	}
+
+	void op_delete()
+	{
+		if (this.__state != -1)
+		{
+			this.__state = -1;
+		}
+	}
+
+	void destroy()
+	{
+		Box_iterateIter_op_delete(this);
+	}
+
+	static bool op_iter(void* ctx, T* current)
+	{
+		Box_iterateIter* state = (Box_iterateIter*)ctx;
+		if (current == null)
+		{
+			Box_iterateIter_op_delete(state);
+			return false;
+		}
+		return Box_iterateIter_next(state, current);
+	}
+}

@@ -1,0 +1,11 @@
+class Box<T>
+{
+	struct iter T iterate()
+	{
+	}
+}
+
+void main(Box<int>* box)
+{
+	auto it = box.iterate();
+}
