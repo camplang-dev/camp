@@ -13,6 +13,7 @@ public sealed partial class BindableNodeAnalyzer
 			bool hasIndex = HasAttribute(parameter.Attributes, "@index");
 			bool hasRange = HasAttribute(parameter.Attributes, "@range");
 			if (parameter.DefaultValue is UnaryExpression { Operator: UnaryOperator.FromEnd }
+				&& !hasIndex
 				&& (i == 0 || !HasAttribute(callableParameters[i - 1].Attributes, "@range")))
 				Report(GetRange(parameter.DefaultValue.SourceSyntax) ?? GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "A ^ default value is valid only for the count parameter paired with an @range parameter.");
 
@@ -148,6 +149,26 @@ public sealed partial class BindableNodeAnalyzer
 					SourceSyntax = fallbackSyntax ?? parameter.SourceSyntax,
 					Value = defaultValue,
 					ResolvedType = defaultValue?.ResolvedType ?? parameter.ResolvedType
+				});
+				argumentIndex++;
+				continue;
+			}
+
+			if (HasAttribute(parameter.Attributes, "@index") && parameter.DefaultValue is UnaryExpression { Operator: UnaryOperator.FromEnd } fromEndIndexDefault)
+			{
+				Expression? receiverLength = CreateLengthExpression(receiver, fallbackSyntax ?? parameter.SourceSyntax);
+				if (receiverLength is null)
+				{
+					Report(GetRange(fallbackSyntax ?? parameter.SourceSyntax), "^ index default requires the receiver to expose a length (.length, .Length, or getLength()).");
+					continue;
+				}
+
+				Expression defaultIndex = CreateFromEndExpression(fromEndIndexDefault, receiverLength);
+				arguments.Insert(argumentIndex, new ArgumentExpression
+				{
+					SourceSyntax = fallbackSyntax ?? parameter.SourceSyntax,
+					Value = defaultIndex,
+					ResolvedType = "nuint"
 				});
 				argumentIndex++;
 				continue;

@@ -1,0 +1,9 @@
+void insert(const int[] this, int value, @index nuint at = ^0)
+{
+}
+void main()
+{
+	int* values = [1, 2, 3];
+	nuint values_length = 3;
+	IntArray_insert(values, values_length, 4, values_length - 0);
+}
