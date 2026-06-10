@@ -185,5 +185,89 @@ export void writeDouble(CharWriter this, double value, thrown IoError error)
 	}
 }
 
+char* CharReader_growBuffer(char* buffer, nuint length, nuint capacity, within allocator, thrown IoError error)
+{
+	nuint nextCapacity = capacity == 0 ? 64 : capacity * 2;
+	char[] nextArray = new char[nextCapacity];
+	if (nextArray.elements == null)
+		throw FAILED;
+	char* next = nextArray.elements;
+	
+	for (nuint i = 0; i < length; i++)
+		next[i] = buffer[i];
+	if (buffer != null)
+		delete buffer;
+	return next;
+}
+
+string readCopy(CharReader this, bool stopAtNewline, within allocator, thrown IoError error)
+{
+	char* buffer = null;
+	nuint length = 0;
+	nuint capacity = 0;
+	bool reading = true;
+	
+	while (reading)
+	{
+		char ch = CharReader_readChar(this, catch error);
+		if (error != default)
+		{
+			if (buffer != null)
+				delete buffer;
+			return null;
+		}
+		
+		if (ch == '\0')
+		{
+			reading = false;
+		}
+		else
+		{
+			if (length + 1 >= capacity)
+			{
+				buffer = CharReader_growBuffer(buffer, length, capacity, within allocator, catch error);
+				if (error != default)
+					return null;
+				capacity = capacity == 0 ? 64 : capacity * 2;
+			}
+			
+			buffer[length] = ch;
+			length++;
+			if (stopAtNewline && ch == '\n')
+				reading = false;
+		}
+	}
+	
+	if (length + 1 >= capacity)
+	{
+		buffer = CharReader_growBuffer(buffer, length, capacity, within allocator, catch error);
+		if (error != default)
+			return null;
+	}
+	buffer[length] = '\0';
+	return (string)buffer;
+}
+
+export char readChar(CharReader this, thrown IoError error)
+{
+	char[] buffer = ['\0'];
+	nuint readCount = 0;
+	if (!this(&readCount, buffer.elements, buffer.length))
+		throw FAILED;
+	if (readCount == 0)
+		return '\0';
+	return buffer[0];
+}
+
+export string readLine(CharReader this, within allocator, thrown IoError error)
+{
+	return CharReader_readCopy(this, true, within allocator, catch error);
+}
+
+export string readToEnd(CharReader this, within allocator, thrown IoError error)
+{
+	return CharReader_readCopy(this, false, within allocator, catch error);
+}
+
 // export void writeStringAsync(AsyncCharWriter this, const char[] value, thrown IoError error);
 // export void writeLineAsync(AsyncCharWriter this, const char[] value = default, thrown IoError error);

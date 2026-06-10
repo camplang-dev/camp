@@ -1,0 +1,46 @@
+using Std;
+
+export int main()
+{
+	IoError error = default;
+	FileOptions options = default;
+	
+	FileHandle* writerHandle = FileHandle.open("tmp/golden-stdrun-reader.txt", FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
+	if (error != default || writerHandle == null)
+		return 1;
+	writerHandle.CharWriter.writeString("A\nBC\nDEF", catch error);
+	delete writerHandle;
+	if (error != default)
+		return 2;
+	
+	FileHandle* readerHandle = FileHandle.open("tmp/golden-stdrun-reader.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
+	if (error != default || readerHandle == null)
+		return 3;
+	
+	CharReader reader = readerHandle.CharReader;
+	Allocator* allocator = null;
+	string line = null;
+	within (allocator)
+		line = reader.readLine(within allocator, catch error);
+	if (error != default)
+		return 4;
+	if (line.compareTo("A\n") != 0)
+		return 5;
+	
+	char ch = reader.readChar(catch error);
+	if (error != default)
+		return 6;
+	if (ch != 'B')
+		return 7;
+	
+	string rest = null;
+	within (allocator)
+		rest = reader.readToEnd(within allocator, catch error);
+	if (error != default)
+		return 8;
+	if (rest.compareTo("C\nDEF") != 0)
+		return 9;
+	
+	delete readerHandle;
+	return 0;
+}

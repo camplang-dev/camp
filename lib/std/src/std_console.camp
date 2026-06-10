@@ -12,7 +12,12 @@ bool Console_writeFd(void* context, nuint* written, char* buffer, nuint buffer_l
 
 bool Console_readFd(void* context, nuint* readCount, char* buffer, nuint buffer_length)
 {
-	return false;
+	int fd = context == null ? 0 : (int)(nint)context;
+	nint result = posixRead(fd, (void*)buffer, buffer_length);
+	if (result < 0)
+		return false;
+	*readCount = (nuint)result;
+	return true;
 }
 
 export class Console
@@ -58,4 +63,10 @@ export class Console
 	export static void writeUInt(uint value) => Console.Writer.writeUInt(value, catch _);
 	
 	export static void writeDouble(double value) => Console.Writer.writeDouble(value, catch _);
+	
+	export static char readChar() => Console.Reader.readChar(catch _);
+	
+	export static string readLine(within allocator) => Console.Reader.readLine(within allocator, catch _);
+	
+	export static string readToEnd(within allocator) => Console.Reader.readToEnd(within allocator, catch _);
 }

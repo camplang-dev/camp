@@ -7,7 +7,7 @@ extern int posixOpen(const char* path, int flags, uint mode);
 extern int posixClose(int fd);
 
 @symbol("read")
-extern nint posixRead(int fd, void* buffer, nuint count);
+public extern nint posixRead(int fd, void* buffer, nuint count);
 
 @symbol("lseek")
 extern nint posixSeek(int fd, nint offset, int whence);
