@@ -13,7 +13,10 @@ int failIfNegative(int value, thrown Err error)
 		error = BAD;
 		return default;
 	}
-	return value;
+	{
+		error = default;
+		return value;
+	}
 }
 int sumValues(int* values, nuint values_length, thrown Err error)
 {
@@ -44,7 +47,10 @@ int sumValues(int* values, nuint values_length, thrown Err error)
 		}
 		__foreach_break4:
 	}
-	return total;
+	{
+		error = default;
+		return total;
+	}
 }
 int sumChecked(int* values, nuint values_length, thrown Err error)
 {
@@ -64,7 +70,10 @@ int sumChecked(int* values, nuint values_length, thrown Err error)
 		}
 		__foreach_break9:
 	}
-	return total;
+	{
+		error = default;
+		return total;
+	}
 }
 int sumAuto(int* values, nuint values_length)
 {

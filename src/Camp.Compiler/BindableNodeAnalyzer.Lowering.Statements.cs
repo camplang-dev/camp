@@ -207,8 +207,8 @@ public sealed partial class BindableNodeAnalyzer
 					? HoistThrowingExpression(returnStatement.Expression)
 					: LowerExpression(returnStatement.Expression);
 				if (TryRewriteExpandedReturn(returnStatement, out Statement? expandedReturn))
-					return WithPendingCleanups(expandedReturn);
-				return WithPendingCleanups(returnStatement);
+					return PrependThrownParameterClear(WithPendingCleanups(expandedReturn), returnStatement.SourceSyntax);
+				return PrependThrownParameterClear(WithPendingCleanups(returnStatement), returnStatement.SourceSyntax);
 
 			case YieldStatement yieldStatement:
 				yieldStatement.Expression = LowerExpression(yieldStatement.Expression);
@@ -252,6 +252,32 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return statement;
+	}
+
+	Statement PrependThrownParameterClear(Statement returnTransfer, SyntaxNode? syntax)
+	{
+		ParameterDefinition? thrownParameter = GetFunctionThrownParameter(currentRewriteFunction);
+		if (thrownParameter is null)
+			return returnTransfer;
+
+		string thrownType = thrownParameter.ResolvedType ?? ErrorType;
+		return CreateBlock(
+		[
+			new ExpressionStatement
+			{
+				SourceSyntax = syntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = syntax,
+					Target = CreateVariableReference(thrownParameter, thrownType),
+					Operator = AssignmentOperator.Assign,
+					Value = new DefaultExpression { SourceSyntax = syntax, ResolvedType = thrownType },
+					ResolvedType = thrownType
+				}
+			},
+			returnTransfer
+		]);
 	}
 
 	Statement RewriteForeachStatement(ForeachStatement foreachStatement)

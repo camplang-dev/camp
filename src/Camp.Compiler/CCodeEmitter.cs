@@ -1475,7 +1475,7 @@ public static class CCodeEmitter
 					value = CName(parameter);
 					return true;
 
-				case VariableReferenceExpression { Variable: DeclarationTarget target } when TryFindCurrentOutParameter(target, out ParameterDefinition? parameter):
+				case VariableReferenceExpression { Variable: DeclarationTarget target } when IsSyntheticCurrentOutParameterTarget(target) && TryFindCurrentOutParameter(target, out ParameterDefinition? parameter):
 					value = CName(parameter);
 					return true;
 
@@ -1486,6 +1486,11 @@ public static class CCodeEmitter
 				default:
 					return false;
 			}
+		}
+
+		bool IsSyntheticCurrentOutParameterTarget(DeclarationTarget target)
+		{
+			return target.SourceSyntax is null && target.Names.Count == 1;
 		}
 
 		bool TryFindCurrentOutParameter(DeclarationTarget target, out ParameterDefinition parameter)
@@ -1716,7 +1721,7 @@ public static class CCodeEmitter
 				ParameterDefinition { Modifier: ParameterModifier.Out or ParameterModifier.Thrown } parameter => "(*" + CName(parameter) + ")",
 				ParameterDefinition parameter => CName(parameter),
 				FieldDefinition field => CName(field),
-				DeclarationTarget target when TryFindCurrentOutParameter(target, out ParameterDefinition? parameter) => "(*" + CName(parameter) + ")",
+				DeclarationTarget target when IsSyntheticCurrentOutParameterTarget(target) && TryFindCurrentOutParameter(target, out ParameterDefinition? parameter) => "(*" + CName(parameter) + ")",
 				DeclarationTarget target => CName(target),
 				_ => UnsupportedExpression(variable)
 			};

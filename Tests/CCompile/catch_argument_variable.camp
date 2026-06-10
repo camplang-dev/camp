@@ -1,0 +1,37 @@
+enum IoError
+{
+	OK = 0,
+	FAILED
+}
+
+extern void free(void* ptr);
+
+class FileHandle
+{
+	~FileHandle()
+	{
+	}
+}
+
+FileHandle* openHandle(thrown IoError error)
+{
+	throw IoError.FAILED;
+}
+
+int normalReturn(thrown IoError error)
+{
+	return 7;
+}
+
+int useCatchVariable()
+{
+	auto handle = openHandle(catch IoError e) finally delete;
+	if (e != default)
+		return 1;
+	int value = normalReturn(catch e);
+	if (e != default)
+		return 2;
+	if (value != 7)
+		return 3;
+	return 0;
+}

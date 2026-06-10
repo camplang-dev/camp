@@ -14,7 +14,10 @@ int mightThrow(int value, thrown Err error)
 		error = BAD;
 		return default;
 	}
-	return value;
+	{
+		error = default;
+		return value;
+	}
 }
 void cleanup()
 {
@@ -41,8 +44,11 @@ int propagate(thrown Err error)
 		goto __cleanup1;
 	}
 	{
-		__local1 = __local3;
-		goto __cleanup1;
+		error = default;
+		{
+			__local1 = __local3;
+			goto __cleanup1;
+		}
 	}
 	__cleanup1:
 	cleanup();

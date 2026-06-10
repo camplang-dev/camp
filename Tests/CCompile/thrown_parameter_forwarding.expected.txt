@@ -21,7 +21,10 @@ static int propagate(Err *error)
 	{
 		return 0;
 	}
-	return _value0;
+	{
+		(*error) = 0;
+		return _value0;
+	}
 }
 
 static int main(void)
