@@ -577,7 +577,13 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (!usesThrownReturn)
 			{
-				call.Arguments.Add(new ArgumentExpression { Modifier = ArgumentModifier.Catch, Value = CreateVariableReference(currentImplicitCatchTarget, currentImplicitCatchTarget.ResolvedType ?? thrownType ?? ErrorType), ResolvedType = currentImplicitCatchTarget.ResolvedType ?? thrownType ?? ErrorType });
+				call.Arguments.Add(new ArgumentExpression
+				{
+					SourceSyntax = call.SourceSyntax,
+					Modifier = ArgumentModifier.Catch,
+					Value = CreateVariableReference(currentImplicitCatchTarget, currentImplicitCatchTarget.ResolvedType ?? thrownType ?? ErrorType),
+					ResolvedType = currentImplicitCatchTarget.ResolvedType ?? thrownType ?? ErrorType
+				});
 				return call;
 			}
 
@@ -621,7 +627,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else
 		{
-			call.Arguments.Add(new ArgumentExpression { Modifier = ArgumentModifier.Catch, Value = CreateVariableReference(errorTarget, errorTarget.ResolvedType ?? ErrorType), ResolvedType = errorTarget.ResolvedType ?? ErrorType });
+			call.Arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = call.SourceSyntax,
+				Modifier = ArgumentModifier.Catch,
+				Value = CreateVariableReference(errorTarget, errorTarget.ResolvedType ?? ErrorType),
+				ResolvedType = errorTarget.ResolvedType ?? ErrorType
+			});
 		}
 		currentStatementSuffix.AddRange(CreateThrowCheck(errorTarget, errorTarget.ResolvedType ?? ErrorType));
 		return result;

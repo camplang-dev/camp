@@ -1,0 +1,1 @@
+tests/Diagnostics/missing_required_arguments_lowered.camp(16,18): error: Call is missing required arguments.

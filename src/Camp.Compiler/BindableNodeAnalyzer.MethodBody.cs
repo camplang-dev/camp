@@ -1413,7 +1413,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		if (parameters.Count > 0 && parameterIndex < CountRequiredParameters(callableParameters, includeExplicitThis: true))
-			Report(GetRange((arguments.Count > 0 ? arguments[^1].SourceSyntax : null) ?? fallbackSyntax), "Call is missing required arguments.");
+			Report(GetRange(fallbackSyntax ?? (arguments.Count > 0 ? arguments[^1].SourceSyntax : null)), "Call is missing required arguments.");
 		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
 			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
 	}

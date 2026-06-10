@@ -1,0 +1,22 @@
+enum Err
+{
+	OK = 0,
+	BAD
+}
+
+int needsTwo(int value, int missing, thrown Err error)
+{
+	return value;
+}
+
+int main()
+{
+	try
+	{
+		return needsTwo(1);
+	}
+	catch (Err e)
+	{
+		return 0;
+	}
+}
