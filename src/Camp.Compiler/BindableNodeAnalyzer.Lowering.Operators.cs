@@ -145,31 +145,11 @@ public sealed partial class BindableNodeAnalyzer
 	Expression CreateNewExpression(TypeDefinition type, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
 	{
 		TypeReference typeReference = constructedType ?? TypeReferenceFor(type);
-		if (type is ClassDefinition { Extern: not null } && FindCreateMethod(type, arguments.Count) is FunctionDefinition create)
-		{
-			CallExpression createCall = new()
-			{
-				SourceSyntax = syntax,
-				Target = new MethodReferenceExpression
-				{
-					SourceSyntax = syntax,
-					Candidates = { create },
-					ResolvedType = BuildFunctionValueType(create, isInstance: false)
-				},
-				ResolvedType = resolvedType ?? $"{constructedType?.ResolvedType ?? type.Name}*"
-			};
-			foreach (ArgumentExpression argument in arguments)
-				createCall.Arguments.Add(argument);
-			callTargets[createCall] = create;
-			AddImplicitSizeOfArguments(createCall, create, constructedType);
-			AddImplicitVTableOfArguments(createCall, create, constructedType);
-			if (HasWithinParameter(create))
-			{
-				Expression? allocator = CurrentAllocator();
-				createCall.Arguments.Add(new ArgumentExpression { Value = allocator ?? NullLiteral(syntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" });
-			}
-			return createCall;
-		}
+		if (FindExternalCreateMethod(type, arguments.Count) is FunctionDefinition create)
+			return CreateCreateCall(create, constructedType, arguments, syntax, resolvedType);
+
+		if (type is ClassDefinition { Extern: not null } && FindExternInitNewMethod(type, arguments.Count) is FunctionDefinition externInitNew)
+			return CreateCreateCall(CreateExternalCreateMethod(type, externInitNew), constructedType, arguments, syntax, resolvedType);
 
 		FunctionDefinition? initNew = FindInitNewMethod(type, arguments.Count);
 		if (initNew is null && !NeedsVirtualTableAssignment(type))
@@ -230,6 +210,32 @@ public sealed partial class BindableNodeAnalyzer
 		return grouped;
 	}
 
+	CallExpression CreateCreateCall(FunctionDefinition create, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
+	{
+		CallExpression createCall = new()
+		{
+			SourceSyntax = syntax,
+			Target = new MethodReferenceExpression
+			{
+				SourceSyntax = syntax,
+				Candidates = { create },
+				ResolvedType = BuildFunctionValueType(create, isInstance: false)
+			},
+			ResolvedType = resolvedType ?? create.ResolvedType
+		};
+		foreach (ArgumentExpression argument in arguments)
+			createCall.Arguments.Add(argument);
+		callTargets[createCall] = create;
+		AddImplicitSizeOfArguments(createCall, create, constructedType);
+		AddImplicitVTableOfArguments(createCall, create, constructedType);
+		if (HasWithinParameter(create))
+		{
+			Expression? allocator = CurrentAllocator();
+			createCall.Arguments.Add(new ArgumentExpression { Value = allocator ?? NullLiteral(syntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" });
+		}
+		return createCall;
+	}
+
 	FunctionDefinition? FindCreateMethod(TypeDefinition type, int argumentCount)
 	{
 		foreach (FunctionDefinition function in GetFunctions(type))
@@ -239,6 +245,43 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return null;
+	}
+
+	FunctionDefinition? FindExternalCreateMethod(TypeDefinition type, int argumentCount)
+	{
+		FunctionDefinition? create = FindCreateMethod(type, argumentCount);
+		if (create is null)
+			return null;
+
+		if (type is ClassDefinition { Extern: not null } || create.Extern is not null)
+			return create;
+
+		return null;
+	}
+
+	FunctionDefinition? FindExternInitNewMethod(TypeDefinition type, int argumentCount)
+	{
+		FunctionDefinition? initNew = FindInitNewMethod(type, argumentCount);
+		return initNew?.Extern is not null ? initNew : null;
+	}
+
+	FunctionDefinition CreateExternalCreateMethod(TypeDefinition type, FunctionDefinition initNew)
+	{
+		TypeReference typeReference = TypeReferenceFor(type);
+		FunctionDefinition create = new()
+		{
+			SourceSyntax = initNew.SourceSyntax,
+			Name = CreateMethodName,
+			Symbol = $"{type.Name}_{CreateMethodName}",
+			Export = initNew.Export,
+			Public = initNew.Public,
+			Extern = initNew.Extern ?? "",
+			Modifier = FunctionModifier.Static,
+			ReturnType = PointerTo(CloneType(typeReference)!),
+			ResolvedType = $"{type.Name}*"
+		};
+		CopyLifecycleParameters(initNew.Parameters, create.Parameters);
+		return create;
 	}
 
 	CallExpression? CreateInitCallForConstruction(ConstructionExpression construction, Expression? target)

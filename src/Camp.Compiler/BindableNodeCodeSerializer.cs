@@ -431,13 +431,6 @@ public sealed class BindableNodeCodeSerializer
 		WriteGenericParameters(definition.GenericParameters);
 		WriteParameterList(definition.Parameters);
 
-		if (apiHeader && definition.Export is not null && IsLifecycleFunction(definition))
-		{
-			writer.WriteLine();
-			WriteLineBlock(() => { });
-			return;
-		}
-
 		if (definition.Body is null || apiHeader && definition.Export is not null)
 		{
 			writer.WriteLine(";");
@@ -956,7 +949,7 @@ public sealed class BindableNodeCodeSerializer
 		return definition switch
 		{
 			ClassDefinition => true,
-			FunctionDefinition function => function.Body is not null && !IsLifecycleFunction(function),
+			FunctionDefinition function => IsLifecycleFunction(function) || function.Body is not null,
 			VariableDefinition variable => !IsConstantVariableDefinition(variable),
 			_ => false
 		};

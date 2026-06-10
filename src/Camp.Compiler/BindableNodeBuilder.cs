@@ -1071,12 +1071,6 @@ public sealed partial class BindableNodeBuilder
 					break;
 
 				case "extern":
-					if (onlyExport)
-					{
-						Report(declarator, "'extern' is not valid on constructors or destructors.");
-						break;
-					}
-
 					definition.Extern = SetNullableArgument(definition.Extern, "", declarator, "extern");
 					break;
 

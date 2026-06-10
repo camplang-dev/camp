@@ -841,6 +841,19 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
 			return false;
 
+		if (FindExternalCreateMethod(definition, construction.Arguments.Count) is FunctionDefinition create)
+		{
+			declaration.InitialValue = CreateCreateCall(create, construction.Type, construction.Arguments, construction.SourceSyntax ?? declaration.SourceSyntax, declaration.Target.ResolvedType ?? construction.ResolvedType);
+			statements.Add(declaration);
+			return true;
+		}
+		if (definition is ClassDefinition { Extern: not null } && FindExternInitNewMethod(definition, construction.Arguments.Count) is FunctionDefinition externInitNew)
+		{
+			declaration.InitialValue = CreateCreateCall(CreateExternalCreateMethod(definition, externInitNew), construction.Type, construction.Arguments, construction.SourceSyntax ?? declaration.SourceSyntax, declaration.Target.ResolvedType ?? construction.ResolvedType);
+			statements.Add(declaration);
+			return true;
+		}
+
 		FunctionDefinition? initNew = FindInitNewMethod(definition, construction.Arguments.Count);
 		declaration.InitialValue = CreateAllocCall(construction.Type ?? TypeReferenceFor(definition), construction.SourceSyntax ?? declaration.SourceSyntax);
 		statements.Add(declaration);

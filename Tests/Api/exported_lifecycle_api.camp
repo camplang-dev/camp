@@ -1,0 +1,10 @@
+export class Resource
+{
+	export Resource()
+	{
+	}
+
+	export ~Resource()
+	{
+	}
+}

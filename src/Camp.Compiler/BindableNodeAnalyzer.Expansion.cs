@@ -1371,6 +1371,7 @@ public sealed partial class BindableNodeAnalyzer
 			Symbol = $"{type.Name}_{InitNewMethodName}",
 			Export = constructor.Export,
 			Public = constructor.Public,
+			Extern = constructor.Extern,
 			ReturnType = VoidType(),
 			ResolvedType = "void",
 			Body = constructor.Body
@@ -1391,6 +1392,7 @@ public sealed partial class BindableNodeAnalyzer
 			Symbol = $"{type.Name}_{CreateMethodName}",
 			Export = constructor.Export,
 			Public = constructor.Public,
+			Extern = constructor.Extern,
 			Modifier = FunctionModifier.Static,
 			ReturnType = PointerTo(CloneType(typeReference)!),
 			ResolvedType = $"{type.Name}*"
@@ -1399,6 +1401,9 @@ public sealed partial class BindableNodeAnalyzer
 		bool createWithAllocator = HasWithinParameter(method) || HasCreateWithAllocatorAttribute(type);
 		if (createWithAllocator && !HasWithinParameter(method))
 			method.Parameters.Add(CreateAllocatorParameter());
+		if (method.Extern is not null)
+			return method;
+
 		method.Body = new BlockStatement
 		{
 			ResolvedType = "void"
@@ -1451,6 +1456,7 @@ public sealed partial class BindableNodeAnalyzer
 			Symbol = $"{type.Name}_op_delete",
 			Export = destructor.Export,
 			Public = destructor.Public,
+			Extern = destructor.Extern,
 			Modifier = GetDeleteMethodModifier(destructor),
 			ReturnType = VoidType(),
 			ResolvedType = "void",
@@ -1479,12 +1485,16 @@ public sealed partial class BindableNodeAnalyzer
 			Symbol = $"{type.Name}_{DestroyMethodName}",
 			Export = destructor.Export,
 			Public = destructor.Public,
+			Extern = destructor.Extern,
 			ReturnType = VoidType(),
 			ResolvedType = "void"
 		};
 		bool destroyWithAllocator = HasWithinParameter(destructor) || HasCreateWithAllocatorAttribute(type);
 		if (destroyWithAllocator)
 			method.Parameters.Add(CreateAllocatorParameter());
+		if (method.Extern is not null)
+			return method;
+
 		method.Body = new BlockStatement
 		{
 			ResolvedType = "void"

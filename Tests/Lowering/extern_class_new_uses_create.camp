@@ -1,0 +1,9 @@
+export extern class Opaque
+{
+	export extern Opaque();
+}
+
+void main()
+{
+	auto value = new Opaque();
+}
