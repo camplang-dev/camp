@@ -24,10 +24,11 @@ public sealed partial class BindableNodeAnalyzer
 			ArgumentExpression argument = arguments[i];
 			if (!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components))
 			{
-				if (!TryCreateLiftedOptionalArgumentComponents(argument, out components)
-					&& !TryCreateIteratorToProtocolArgumentComponents(argument, callableParameters, i, out components)
-					&& !TryCreateFunctionToDelegateArgumentComponents(argument, callableParameters, i, out components)
-					&& !TryCreatePrimitiveStringToArrayArgumentComponents(argument, callableParameters, i, out components))
+				if (PrimitiveStringArrayLengthAlreadyProvided(arguments, callableParameters, i)
+					|| !TryCreateLiftedOptionalArgumentComponents(argument, out components)
+						&& !TryCreateIteratorToProtocolArgumentComponents(argument, callableParameters, i, out components)
+						&& !TryCreateFunctionToDelegateArgumentComponents(argument, callableParameters, i, out components)
+						&& !TryCreatePrimitiveStringToArrayArgumentComponents(argument, callableParameters, i, out components))
 					continue;
 			}
 
@@ -47,10 +48,28 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	bool PrimitiveStringArrayLengthAlreadyProvided(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters, int index)
+	{
+		if (callableParameters is null || index + 1 >= arguments.Count || index + 1 >= callableParameters.Count)
+			return false;
+		if (IsExplicitHiddenArgument(arguments[index + 1]))
+			return false;
+		Expression? value = arguments[index].Value;
+		if (value is null || GetPrimitiveStringElementType(value.ResolvedType ?? arguments[index].ResolvedType) is not string stringElement)
+			return false;
+		if (!PrimitiveStringArrayArgumentTargetMatches(callableParameters, index, stringElement))
+			return false;
+
+		string lengthType = callableParameters[index + 1].ResolvedType ?? "";
+		return StripTopLevelValueQualifiers(lengthType) is "nuint" or "nint" or "uint" or "int" or "ulong" or "long" or "ushort" or "short";
+	}
+
 	bool TryCreatePrimitiveStringToArrayArgumentComponents(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index, out List<Expression> components)
 	{
 		components = [];
 		if (argument.Value is null || callableParameters is null || index >= callableParameters.Count)
+			return false;
+		if (TryGetParamsComponentShape(null, argument.Value.ResolvedType, "value", out _))
 			return false;
 		if (GetPrimitiveStringElementType(argument.Value.ResolvedType ?? argument.ResolvedType) is not string stringElement)
 			return false;
