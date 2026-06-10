@@ -1,0 +1,11 @@
+void invoke(delegate int(in int left, in int right) comparer)
+{
+}
+
+int compare(in int left, in int right) => 0;
+
+export int main()
+{
+	invoke(compare);
+	return 0;
+}

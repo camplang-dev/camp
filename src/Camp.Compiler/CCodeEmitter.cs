@@ -351,6 +351,9 @@ public static class CCodeEmitter
 		readonly HashSet<string> genericParameterNames = BuildGenericParameterNameSet(compilation);
 		readonly HashSet<string> currentGenericTypeNames = new(StringComparer.Ordinal);
 		readonly HashSet<string> currentArrayElementComponentNames = new(StringComparer.Ordinal);
+		readonly Dictionary<Expression, DelegateThunk> delegateThunksByExpression = [];
+		readonly Dictionary<SourceFile, List<DelegateThunk>> delegateThunksByFile = [];
+		readonly HashSet<string> reservedCNames = [];
 		FunctionDefinition? currentFunction;
 		readonly string sharedExportPrefix = options.BuildKind is NativeBuildKind.Shared
 			? compilation.Target?.GetCEmitterValue("dll_export_prefix") ?? ""
@@ -358,6 +361,7 @@ public static class CCodeEmitter
 
 		public void WritePrivateHeaderDeclarations(TextWriter writer)
 		{
+			EnsureDelegateThunksCollected();
 			emittedNames.Clear();
 			List<Definition> definitions = GetProjectDefinitions().ToList();
 
@@ -410,15 +414,19 @@ public static class CCodeEmitter
 
 		public void WriteSourceFileForwardDeclarations(TextWriter writer, SourceFile file)
 		{
+			EnsureDelegateThunksCollected();
 			emittedNames.Clear();
 			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
 			List<FunctionDefinition> privateFunctions = GetAllFunctions(definitions).Where(static function => !IsExternallyVisible(function)).ToList();
 			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(static variable => !IsExternallyVisible(variable)).ToList();
+			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
 
-			if (privateFunctions.Count == 0 && privateVariables.Count == 0)
+			if (privateFunctions.Count == 0 && privateVariables.Count == 0 && delegateThunks.Count == 0)
 				return;
 
 			writer.WriteLine("/* Private file declarations. */");
+			foreach (DelegateThunk thunk in delegateThunks)
+				WriteDelegateThunkPrototype(writer, thunk);
 			foreach (FunctionDefinition function in privateFunctions)
 				WriteFunctionPrototype(writer, function, storage: function.Extern is not null ? null : "static");
 			foreach (VariableDefinition variable in privateVariables)
@@ -427,9 +435,17 @@ public static class CCodeEmitter
 
 		public void WriteSourceFileDefinitions(TextWriter writer, SourceFile file)
 		{
+			EnsureDelegateThunksCollected();
 			emittedNames.Clear();
 			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
+			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
 			bool wrote = false;
+
+			foreach (DelegateThunk thunk in delegateThunks)
+			{
+				WriteDelegateThunkDefinition(writer, thunk);
+				wrote = true;
+			}
 
 			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>())
 			{
@@ -601,6 +617,224 @@ public static class CCodeEmitter
 				writer.WriteLine("\treturn 0;");
 			}
 			writer.WriteLine("}");
+		}
+
+		void EnsureDelegateThunksCollected()
+		{
+			if (reservedCNames.Count > 0)
+				return;
+
+			foreach (Definition definition in GetDefinitions())
+				ReserveDefinitionNames(definition);
+
+			foreach (FunctionDefinition function in GetAllFunctions(GetDefinitions()))
+			{
+				if (function.Body is null || !TryGetDefinitionOwner(function, out SourceFile? file))
+					continue;
+
+				foreach (BindableNode node in EnumerateNodes(function.Body, []))
+				{
+					if (node is not CallExpression call)
+						continue;
+
+					FunctionDefinition? targetFunction = TryGetCallFunction(call);
+					if (targetFunction is null)
+						continue;
+
+					Dictionary<string, string> substitutions = GetCallGenericSubstitutions(call, targetFunction);
+					List<ParameterDefinition> parameters = GetCallableParametersForCall(targetFunction);
+					for (int i = 0; i < call.Arguments.Count && i < parameters.Count; i++)
+					{
+						ArgumentExpression argument = call.Arguments[i];
+						if (argument.Modifier != ArgumentModifier.None || argument.Value is null)
+							continue;
+						if (!TryGetDirectFunctionValue(argument.Value, out FunctionDefinition? sourceFunction))
+							continue;
+						if (!TryCreateDelegateThunk(sourceFunction, parameters[i], substitutions, file, out DelegateThunk? thunk))
+							continue;
+
+						delegateThunksByExpression[argument.Value] = thunk;
+					}
+				}
+			}
+		}
+
+		void ReserveDefinitionNames(Definition definition)
+		{
+			switch (definition)
+			{
+				case FunctionDefinition function:
+					reservedCNames.Add(CName(function));
+					break;
+				case VariableDefinition variable:
+					reservedCNames.Add(CName(variable));
+					break;
+				case TypeDefinition type:
+					reservedCNames.Add(CName(type));
+					foreach (FunctionDefinition function in type switch
+					{
+						ClassDefinition classDefinition => classDefinition.Functions,
+						StructDefinition structDefinition => structDefinition.Functions,
+						InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions,
+						EnumDefinition enumDefinition => enumDefinition.Functions,
+						NewtypeDefinition newtypeDefinition => newtypeDefinition.Functions,
+						ParamsDefinition paramsDefinition => paramsDefinition.Functions,
+						_ => []
+					})
+						reservedCNames.Add(CName(function));
+					break;
+			}
+		}
+
+		bool TryGetDefinitionOwner(FunctionDefinition function, out SourceFile file)
+		{
+			if (compilation.DefinitionOwners.TryGetValue(function, out file!))
+				return true;
+			if (!containingTypes.TryGetValue(function, out TypeDefinition? type))
+				return false;
+			return compilation.DefinitionOwners.TryGetValue(type, out file!);
+		}
+
+		static bool TryGetDirectFunctionValue(Expression expression, out FunctionDefinition function)
+		{
+			switch (expression)
+			{
+				case MethodReferenceExpression { Candidates.Count: 1 } method:
+					function = method.Candidates[0];
+					return true;
+				case MemberReferenceExpression { Member: FunctionDefinition memberFunction }:
+					function = memberFunction;
+					return true;
+				case VariableReferenceExpression { Variable: FunctionDefinition variableFunction }:
+					function = variableFunction;
+					return true;
+				default:
+					function = null!;
+					return false;
+			}
+		}
+
+		bool TryCreateDelegateThunk(
+			FunctionDefinition sourceFunction,
+			ParameterDefinition targetParameter,
+			Dictionary<string, string> substitutions,
+			SourceFile file,
+			out DelegateThunk thunk)
+		{
+			thunk = null!;
+			string? expectedType = SubstituteGenericTypeTokens(targetParameter.ResolvedType ?? targetParameter.Type?.ResolvedType, substitutions);
+			if (expectedType is null || !TryParseResolvedCallableType(expectedType, out string targetReturnType, out List<string> targetParameterTypes))
+				return false;
+			if (targetParameterTypes.Count == 0 || !IsVoidPointerType(targetParameterTypes[0]))
+				return false;
+
+			List<ParameterDefinition> sourceParameters = GetCallableParametersForCall(sourceFunction);
+			if (sourceParameters.Count + 1 != targetParameterTypes.Count)
+				return false;
+			string sourceReturnType = sourceFunction.ResolvedType ?? sourceFunction.ReturnType?.ResolvedType ?? "void";
+			if (!SameCallableTypeSlot(sourceReturnType, targetReturnType))
+				return false;
+			for (int i = 0; i < sourceParameters.Count; i++)
+				if (!SameCallableTypeSlot(GetCallableParameterTypeText(sourceParameters[i]), targetParameterTypes[i + 1]))
+					return false;
+
+			string name = CreateUniqueDelegateThunkName(sourceFunction);
+			thunk = new DelegateThunk(name, sourceFunction, targetReturnType, targetParameterTypes);
+			if (!delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks))
+			{
+				thunks = [];
+				delegateThunksByFile[file] = thunks;
+			}
+			thunks.Add(thunk);
+			return true;
+		}
+
+		string CreateUniqueDelegateThunkName(FunctionDefinition sourceFunction)
+		{
+			string prefix = "__camp_delegate_" + CName(sourceFunction);
+			string candidate = prefix;
+			int suffix = 0;
+			while (!reservedCNames.Add(candidate))
+			{
+				suffix++;
+				candidate = prefix + "_" + suffix.ToString(CultureInfo.InvariantCulture);
+			}
+			return candidate;
+		}
+
+		static bool IsVoidPointerType(string type)
+		{
+			string normalized = StripTypeDecorators(type).Replace(" ", "", StringComparison.Ordinal);
+			return normalized is "void*" or "untyped*";
+		}
+
+		static string GetCallableParameterTypeText(ParameterDefinition parameter)
+		{
+			string type = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "void";
+			return parameter.Modifier switch
+			{
+				ParameterModifier.In => "in " + type,
+				ParameterModifier.Out => "out " + type,
+				ParameterModifier.Thrown => "thrown " + type,
+				_ => type
+			};
+		}
+
+		static bool SameCallableTypeSlot(string left, string right)
+		{
+			return NormalizeCallableTypeSlot(left) == NormalizeCallableTypeSlot(right);
+		}
+
+		static string NormalizeCallableTypeSlot(string type)
+		{
+			return string.Join(" ", SplitTopLevel(type.Trim(), ' '));
+		}
+
+		string? SubstituteGenericTypeTokens(string? type, Dictionary<string, string> substitutions)
+		{
+			if (string.IsNullOrWhiteSpace(type) || substitutions.Count == 0)
+				return type;
+
+			StringBuilder builder = new(type.Length);
+			for (int i = 0; i < type.Length;)
+			{
+				if (IsIdentifierStart(type[i]))
+				{
+					int start = i;
+					i++;
+					while (i < type.Length && IsIdentifierPart(type[i]))
+						i++;
+					string token = type[start..i];
+					builder.Append(substitutions.TryGetValue(token, out string? replacement) ? replacement : token);
+					continue;
+				}
+
+				builder.Append(type[i]);
+				i++;
+			}
+			return builder.ToString();
+		}
+
+		void WriteDelegateThunkPrototype(TextWriter writer, DelegateThunk thunk)
+		{
+			writer.WriteLine("static " + FormatResolvedType(thunk.ReturnType, thunk.Name).Declaration + "(" + FormatResolvedParameterList(thunk.ParameterTypes) + ");");
+		}
+
+		void WriteDelegateThunkDefinition(TextWriter writer, DelegateThunk thunk)
+		{
+			writer.WriteLine("static " + FormatResolvedType(thunk.ReturnType, thunk.Name).Declaration + "(" + FormatResolvedParameterList(thunk.ParameterTypes) + ")");
+			writer.WriteLine("{");
+			writer.WriteLine("\t(void)arg0;");
+			List<string> arguments = [];
+			for (int i = 1; i < thunk.ParameterTypes.Count; i++)
+				arguments.Add("arg" + i.ToString(CultureInfo.InvariantCulture));
+			string call = CName(thunk.SourceFunction) + "(" + string.Join(", ", arguments) + ")";
+			if (thunk.ReturnType == "void")
+				writer.WriteLine("\t" + call + ";");
+			else
+				writer.WriteLine("\treturn " + call + ";");
+			writer.WriteLine("}");
+			writer.WriteLine();
 		}
 
 		static bool IsIntReturn(FunctionDefinition function)
@@ -1641,15 +1875,21 @@ public static class CCodeEmitter
 		string FormatArgumentValue(ArgumentExpression argument, ParameterDefinition? parameter, Dictionary<string, string> genericSubstitutions)
 		{
 			string value = FormatExpression(argument.Value);
-			string? expectedParameterType = parameter?.ResolvedType ?? parameter?.Type?.ResolvedType;
+			string? rawExpectedParameterType = parameter?.ResolvedType ?? parameter?.Type?.ResolvedType;
+			string? expectedParameterType = SubstituteGenericTypeTokens(rawExpectedParameterType, genericSubstitutions);
 			if (argument.Modifier == ArgumentModifier.None
 				&& parameter?.Modifier != ParameterModifier.In
-				&& TryGetConcreteGenericType(expectedParameterType, genericSubstitutions, out string? concreteType)
+				&& TryGetConcreteGenericType(rawExpectedParameterType, genericSubstitutions, out string? concreteType)
 				&& NeedsGenericScalarCast(concreteType))
 				value = CastToErasedGeneric(value, concreteType);
 			if (argument.Modifier == ArgumentModifier.None
+				&& argument.Value is not null
+				&& delegateThunksByExpression.TryGetValue(argument.Value, out DelegateThunk? thunk))
+				value = thunk.Name;
+			if (argument.Modifier == ArgumentModifier.None
 				&& expectedParameterType is not null
 				&& IsResolvedCallableType(expectedParameterType)
+				&& (argument.Value is null || !delegateThunksByExpression.ContainsKey(argument.Value))
 				&& (argument.Value is MethodReferenceExpression or VariableReferenceExpression { Variable: FunctionDefinition } or NamedExpression
 					|| argument.Value?.ResolvedType is string argumentType && IsResolvedCallableType(argumentType)))
 				value = "(" + CTypeName(expectedParameterType) + ")" + value;
@@ -2777,5 +3017,11 @@ public static class CCodeEmitter
 		}
 
 		readonly record struct CType(string Declaration);
+
+		sealed record DelegateThunk(
+			string Name,
+			FunctionDefinition SourceFunction,
+			string ReturnType,
+			List<string> ParameterTypes);
 	}
 }

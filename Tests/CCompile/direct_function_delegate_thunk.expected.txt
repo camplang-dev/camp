@@ -1,0 +1,70 @@
+// file: direct_function_delegate_thunk.c
+#include "direct_function_delegate_thunk_private.h"
+#include "direct_function_delegate_thunk.h"
+
+/* Private file declarations. */
+static int __camp_delegate_compare(void* arg0, int* arg1, int* arg2);
+static void invoke(fn_int_voidPtr__int__int_ comparer, void* comparer_context);
+static int compare(int* left, int* right);
+
+static int __camp_delegate_compare(void* arg0, int* arg1, int* arg2)
+{
+	(void)arg0;
+	return compare(arg1, arg2);
+}
+
+static void invoke(fn_int_voidPtr__int__int_ comparer, void* comparer_context)
+{
+}
+
+static int compare(int* left, int* right)
+{
+	return 0;
+}
+
+int main(void)
+{
+	invoke(__camp_delegate_compare, NULL);
+	return 0;
+}
+
+// file: direct_function_delegate_thunk.h
+#ifndef DIRECT_FUNCTION_DELEGATE_THUNK_H_
+#define DIRECT_FUNCTION_DELEGATE_THUNK_H_
+
+#include "direct_function_delegate_thunk_private.h"
+
+typedef int (* fn_int_int__int_)(int* arg0, int* arg1);
+typedef int (* fn_int_voidPtr__int__int_)(void* arg0, int* arg1, int* arg2);
+int main(void);
+
+#endif
+// file: direct_function_delegate_thunk_private.h
+#ifndef DIRECT_FUNCTION_DELEGATE_THUNK_PRIVATE_H_
+#define DIRECT_FUNCTION_DELEGATE_THUNK_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_int__int_)(int* arg0, int* arg1);
+typedef int (* fn_int_voidPtr__int__int_)(void* arg0, int* arg1, int* arg2);
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: direct_function_delegate_thunk.c
