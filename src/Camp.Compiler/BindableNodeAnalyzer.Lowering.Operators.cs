@@ -145,6 +145,26 @@ public sealed partial class BindableNodeAnalyzer
 	Expression CreateNewExpression(TypeDefinition type, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
 	{
 		TypeReference typeReference = constructedType ?? TypeReferenceFor(type);
+		if (type is ClassDefinition { Extern: not null } && FindCreateMethod(type, arguments.Count) is FunctionDefinition create)
+		{
+			CallExpression createCall = new()
+			{
+				SourceSyntax = syntax,
+				Target = new MethodReferenceExpression
+				{
+					SourceSyntax = syntax,
+					Candidates = { create },
+					ResolvedType = BuildFunctionValueType(create, isInstance: false)
+				},
+				ResolvedType = resolvedType ?? $"{constructedType?.ResolvedType ?? type.Name}*"
+			};
+			foreach (ArgumentExpression argument in arguments)
+				createCall.Arguments.Add(argument);
+			callTargets[createCall] = create;
+			AddImplicitSizeOfArguments(createCall, create, constructedType);
+			return createCall;
+		}
+
 		FunctionDefinition? initNew = FindInitNewMethod(type, arguments.Count);
 		if (initNew is null && !NeedsVirtualTableAssignment(type))
 			return CreateAllocCall(typeReference, syntax);
@@ -202,6 +222,17 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = localType
 		});
 		return grouped;
+	}
+
+	FunctionDefinition? FindCreateMethod(TypeDefinition type, int argumentCount)
+	{
+		foreach (FunctionDefinition function in GetFunctions(type))
+		{
+			if (function.Name == CreateMethodName && CallableByArgumentCount(function.Parameters, argumentCount))
+				return function;
+		}
+
+		return null;
 	}
 
 	CallExpression? CreateInitCallForConstruction(ConstructionExpression construction, Expression? target)

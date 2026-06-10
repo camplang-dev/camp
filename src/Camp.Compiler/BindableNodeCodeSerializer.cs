@@ -431,6 +431,13 @@ public sealed class BindableNodeCodeSerializer
 		WriteGenericParameters(definition.GenericParameters);
 		WriteParameterList(definition.Parameters);
 
+		if (apiHeader && definition.Export is not null && IsLifecycleFunction(definition))
+		{
+			writer.WriteLine();
+			WriteLineBlock(() => { });
+			return;
+		}
+
 		if (definition.Body is null || apiHeader && definition.Export is not null)
 		{
 			writer.WriteLine(";");
@@ -949,10 +956,15 @@ public sealed class BindableNodeCodeSerializer
 		return definition switch
 		{
 			ClassDefinition => true,
-			FunctionDefinition function => function.Body is not null,
+			FunctionDefinition function => function.Body is not null && !IsLifecycleFunction(function),
 			VariableDefinition variable => !IsConstantVariableDefinition(variable),
 			_ => false
 		};
+	}
+
+	static bool IsLifecycleFunction(FunctionDefinition definition)
+	{
+		return definition.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor;
 	}
 
 	void WriteGenericParameters(List<GenericParameter> parameters)
@@ -1036,10 +1048,11 @@ public sealed class BindableNodeCodeSerializer
 		{
 			WriteThisParameter((ThisParameterDefinition)parameter);
 		}
-		else if (parameter is SizeOfParameterDefinition)
+		else if (parameter is SizeOfParameterDefinition sizeOf)
 		{
-			writer.Write("nuint ");
-			writer.Write(string.IsNullOrWhiteSpace(parameter.Name) ? "sizeof" : parameter.Name);
+			writer.Write("sizeof(");
+			WriteType(sizeOf.Type);
+			writer.Write(")");
 		}
 		else if (parameter is VTableOfParameterDefinition vtable)
 		{
