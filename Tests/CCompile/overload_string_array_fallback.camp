@@ -1,0 +1,30 @@
+extern void* malloc(nuint size);
+
+class Writer
+{
+	void write(overload const char[] value)
+	{
+	}
+
+	void write(overload int value)
+	{
+	}
+
+	Writer()
+	{
+	}
+}
+
+void write(overload const char[] value)
+{
+}
+
+void write(overload int value)
+{
+}
+
+void run(Writer* writer)
+{
+	write("asdf");
+	writer.write("qwer");
+}

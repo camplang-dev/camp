@@ -1,0 +1,3 @@
+tests/Diagnostics/overload_string_array_missing.camp(11,8): error: No overload entry `writeString` or `writeCharArray` is visible for selector type `string`.
+tests/Diagnostics/overload_string_array_missing.camp(11,2): error: Multiple candidates found for call target 'write'.
+tests/Diagnostics/overload_string_array_missing.camp(11,8): error: String literal cannot implicitly convert to mutable type '#ERROR'.

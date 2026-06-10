@@ -1,0 +1,12 @@
+void write(overload int value)
+{
+}
+
+void write(overload double value)
+{
+}
+
+void main()
+{
+	write("asdf");
+}

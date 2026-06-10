@@ -1,7 +1,7 @@
-tests/Diagnostics/overload_calls.camp: error: No overload entry `write#NULL` is visible for selector type `#NULL`.
+tests/Diagnostics/overload_calls.camp(11,8): error: No overload entry `write#NULL` is visible for selector type `#NULL`.
 tests/Diagnostics/overload_calls.camp(11,2): error: Multiple candidates found for call target 'write'.
-tests/Diagnostics/overload_calls.camp: error: Cannot select overload `write` because the selector expression has no independent static type. Add an explicit cast.
+tests/Diagnostics/overload_calls.camp(12,8): error: Cannot select overload `write` because the selector expression has no independent static type. Add an explicit cast.
 tests/Diagnostics/overload_calls.camp(12,2): error: Multiple candidates found for call target 'write'.
-tests/Diagnostics/overload_calls.camp: error: No overload entry `writeDouble` is visible for selector type `double`.
+tests/Diagnostics/overload_calls.camp(13,8): error: No overload entry `writeDouble` is visible for selector type `double`.
 tests/Diagnostics/overload_calls.camp(13,2): error: Multiple candidates found for call target 'write'.
 tests/Diagnostics/overload_calls.camp(14,11): error: `write` names an overload family, not a callable value. Select a concrete full callable name or write an explicit wrapper.

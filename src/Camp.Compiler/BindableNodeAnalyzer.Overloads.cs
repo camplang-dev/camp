@@ -227,25 +227,48 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		ArgumentExpression selectorArgument = arguments[selectorIndex];
+		SyntaxNode? selectorSyntax = OverloadSelectorSyntax(selectorArgument, syntax);
 		ParameterDefinition? selector = GetOverloadSelector(candidates[0]);
 		if (selector?.Modifier == ParameterModifier.Out && selectorArgument.Modifier != ArgumentModifier.Out)
-			Report(GetRange(selectorArgument.SourceSyntax ?? syntax), "Out overload selectors require an explicit 'out' argument.");
+			Report(GetRange(selectorSyntax), "Out overload selectors require an explicit 'out' argument.");
 
 		string selectorType = BodyAnalyzeArgumentExpression(selectorArgument, scope, typeScope, targetType: null);
 		if (selectorType is TargetType or ErrorType or UnresolvedType)
 		{
-			Report(GetRange(selectorArgument.SourceSyntax ?? syntax), $"Cannot select overload `{invokerName}` because the selector expression has no independent static type. Add an explicit cast.");
+			Report(GetRange(selectorSyntax), $"Cannot select overload `{invokerName}` because the selector expression has no independent static type. Add an explicit cast.");
 			return null;
 		}
 
 		string fragment = BuildFlattenedTypeFragment(selectorType);
 		if (string.IsNullOrWhiteSpace(fragment))
 		{
-			Report(GetRange(selectorArgument.SourceSyntax ?? syntax), $"Cannot select overload `{invokerName}` because selector type '{selectorType}' does not contribute a method-symbol type fragment.");
+			Report(GetRange(selectorSyntax), $"Cannot select overload `{invokerName}` because selector type '{selectorType}' does not contribute a method-symbol type fragment.");
 			return null;
 		}
 
 		string fullName = invokerName + fragment;
+		FunctionDefinition? selected = SelectOverloadCandidate(candidates, fullName, selectorSyntax);
+		if (selected is null && TryGetPrimitiveStringArrayOverloadName(invokerName, selectorType, out string arrayFullName))
+			selected = SelectOverloadCandidate(candidates, arrayFullName, selectorSyntax);
+
+		if (selected is null)
+		{
+			if (TryGetPrimitiveStringArrayOverloadName(invokerName, selectorType, out string fallbackFullName))
+				Report(GetRange(selectorSyntax), $"No overload entry `{fullName}` or `{fallbackFullName}` is visible for selector type `{selectorType}`.");
+			else
+				Report(GetRange(selectorSyntax), $"No overload entry `{fullName}` is visible for selector type `{selectorType}`.");
+		}
+
+		return selected;
+	}
+
+	static SyntaxNode? OverloadSelectorSyntax(ArgumentExpression selectorArgument, SyntaxNode? fallback)
+	{
+		return selectorArgument.Value?.SourceSyntax ?? selectorArgument.SourceSyntax ?? fallback;
+	}
+
+	FunctionDefinition? SelectOverloadCandidate(List<FunctionDefinition> candidates, string fullName, SyntaxNode? syntax)
+	{
 		FunctionDefinition? selected = null;
 		foreach (FunctionDefinition candidate in candidates)
 		{
@@ -253,16 +276,26 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (selected is not null)
 			{
-				Report(GetRange(selectorArgument.SourceSyntax ?? syntax), $"Multiple overload entries named `{fullName}` are visible.");
+				Report(GetRange(syntax), $"Multiple overload entries named `{fullName}` are visible.");
 				return null;
 			}
 			selected = candidate;
 		}
-
-		if (selected is null)
-			Report(GetRange(selectorArgument.SourceSyntax ?? syntax), $"No overload entry `{fullName}` is visible for selector type `{selectorType}`.");
-
 		return selected;
+	}
+
+	bool TryGetPrimitiveStringArrayOverloadName(string invokerName, string selectorType, out string fullName)
+	{
+		fullName = "";
+		if (!IsPrimitiveStringType(selectorType))
+			return false;
+
+		string fragment = BuildFlattenedTypeFragment(PrimitiveStringConstArrayType(selectorType));
+		if (string.IsNullOrWhiteSpace(fragment))
+			return false;
+
+		fullName = invokerName + fragment;
+		return true;
 	}
 
 	static int GetCallableOverloadSelectorIndex(FunctionDefinition function)
