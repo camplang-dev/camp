@@ -349,6 +349,7 @@ public static class CCodeEmitter
 		readonly HashSet<string> emittedNames = new(StringComparer.Ordinal);
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
 		readonly HashSet<string> genericParameterNames = BuildGenericParameterNameSet(compilation);
+		readonly HashSet<string> anyGenericParameterNames = BuildAnyGenericParameterNameSet(compilation);
 		readonly HashSet<string> currentGenericTypeNames = new(StringComparer.Ordinal);
 		readonly HashSet<string> currentArrayElementComponentNames = new(StringComparer.Ordinal);
 		readonly Dictionary<Expression, DelegateThunk> delegateThunksByExpression = [];
@@ -1087,6 +1088,50 @@ public static class CCodeEmitter
 			void AddFunction(FunctionDefinition function)
 			{
 				foreach (GenericParameter parameter in function.GenericParameters)
+					names.Add(parameter.Name);
+			}
+		}
+
+		static HashSet<string> BuildAnyGenericParameterNameSet(Compilation compilation)
+		{
+			HashSet<string> names = new(StringComparer.Ordinal);
+			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+				AddDefinition(definition);
+			return names;
+
+			void AddDefinition(Definition definition)
+			{
+				if (definition is TypeDefinition type)
+				{
+					foreach (GenericParameter parameter in type.GenericParameters)
+						AddParameter(parameter);
+					foreach (FunctionDefinition function in type switch
+					{
+						ClassDefinition classDefinition => classDefinition.Functions,
+						StructDefinition structDefinition => structDefinition.Functions,
+						InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions,
+						EnumDefinition enumDefinition => enumDefinition.Functions,
+						NewtypeDefinition newtypeDefinition => newtypeDefinition.Functions,
+						ParamsDefinition paramsDefinition => paramsDefinition.Functions,
+						_ => []
+					})
+						AddFunction(function);
+				}
+				else if (definition is FunctionDefinition function)
+				{
+					AddFunction(function);
+				}
+			}
+
+			void AddFunction(FunctionDefinition function)
+			{
+				foreach (GenericParameter parameter in function.GenericParameters)
+					AddParameter(parameter);
+			}
+
+			void AddParameter(GenericParameter parameter)
+			{
+				if (parameter.Constraint is AnyTypeReference)
 					names.Add(parameter.Name);
 			}
 		}
@@ -2666,7 +2711,7 @@ public static class CCodeEmitter
 			}
 
 			bool isGenericType = currentGenericTypeNames.Contains(type) || genericParameterNames.Contains(type);
-			if (isGenericType && pointerCount > 0 && currentArrayElementComponentNames.Contains(declarator))
+			if (isGenericType && !anyGenericParameterNames.Contains(type) && pointerCount > 0 && currentArrayElementComponentNames.Contains(declarator))
 				pointerCount++;
 			string cType = isGenericType && pointerCount == 0 ? "void*" : FormatResolvedBaseType(type);
 			string pointerPart = pointerCount == 0 ? "" : new string('*', pointerCount);

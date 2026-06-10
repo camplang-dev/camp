@@ -189,6 +189,80 @@ export class List<T: any>
 		return copy;
 	}
 
+	// Adds or inserts all items from an array.
+	export void addArray(T[] const array, @index nuint at = ^0)
+	{
+		if (array.length == 0)
+			return;
+
+		if (at > this.length)
+			at = this.length;
+
+		nuint newLength = this.length + array.length;
+		this.ensureCapacity(newLength);
+		if (this.capacity < newLength)
+			return;
+
+		if (at < this.length)
+			listMoveValues(this.itemAddress(at + array.length), this.itemAddress(at), this.length - at, sizeof(T));
+
+		listMoveValues(this.itemAddress(at), (const void*)array.elements, array.length, sizeof(T));
+		this.length = newLength;
+	}
+
+	// Transfers the owned buffer to the caller as an array and empties the list.
+	export T[] takeBuffer()
+	{
+		T[] bufferResult = default;
+		bufferResult.elements = (T*)this.buffer;
+		bufferResult.length = this.length;
+		this.buffer = null;
+		this.length = 0;
+		this.capacity = 0;
+		return bufferResult;
+	}
+
+	// Allocates a new array and copies a range of items into it.
+	export T[] copyArray(@range nuint startAt = 0, nuint count = ^0)
+	{
+		T[] arrayResult = default;
+		if (startAt >= this.length || count == 0)
+			return arrayResult;
+
+		if (count > this.length - startAt)
+			count = this.length - startAt;
+
+		void* storage = null;
+		if (this.allocator != null)
+			storage = this.allocator.alloc(count * sizeof(T));
+		else
+			storage = malloc(count * sizeof(T));
+
+		if (storage == null)
+			return arrayResult;
+
+		listMoveValues(storage, this.itemAddress(startAt), count, sizeof(T));
+		arrayResult.elements = (T*)storage;
+		arrayResult.length = count;
+		return arrayResult;
+	}
+
+	// Copies a range of items into an existing array.
+	export void copyTo(T[] dest, nuint destIndex, @range nuint startAt = 0, nuint count = ^0)
+	{
+		if (destIndex >= dest.length || startAt >= this.length || count == 0)
+			return;
+
+		if (count > this.length - startAt)
+			count = this.length - startAt;
+		if (count > dest.length - destIndex)
+			count = dest.length - destIndex;
+		if (count == 0)
+			return;
+
+		listMoveValues((void*)&((byte*)dest.elements)[destIndex * sizeof(T)], this.itemAddress(startAt), count, sizeof(T));
+	}
+
 	// Returns the first matching index, or -1 when no match is found.
 	export nint findIndex(in T item, delegate bool(in T left, in T right) equals, @range nuint startAt = 0, nuint count = ^0)
 	{

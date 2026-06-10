@@ -337,6 +337,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameterIndex + shape.Components.Count > callableParameters.Count)
 			return 1;
 
+		if (shape.Kind == ParamsComponentShapeKind.Array
+			&& shape.Components.Count == 2
+			&& ParameterLooksLikeArrayElementComponent(callableParameters[parameterIndex])
+			&& ParameterLooksLikeArrayLengthComponent(callableParameters[parameterIndex + 1]))
+			return 2;
+
 		for (int i = 0; i < shape.Components.Count; i++)
 		{
 			string componentType = shape.Components[i].Type;
@@ -346,6 +352,19 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return shape.Components.Count;
+	}
+
+	bool ParameterLooksLikeArrayElementComponent(ParameterDefinition parameter)
+	{
+		string type = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "";
+		type = StripTopLevelValueQualifiers(type);
+		return type.EndsWith("*", StringComparison.Ordinal) || IsGenericPlaceholderParameter(type);
+	}
+
+	static bool ParameterLooksLikeArrayLengthComponent(ParameterDefinition parameter)
+	{
+		string type = StripTopLevelValueQualifiers(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "");
+		return type is "nuint" or "nint" or "uint" or "int" or "ulong" or "long" or "ushort" or "short";
 	}
 
 	bool TryGetArgumentParamsComponentShape(ArgumentExpression argument, out ParamsComponentShape shape)
