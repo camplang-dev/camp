@@ -71,5 +71,8 @@ export int main()
 	if ("123_".tryParse(out badUnderscore) || badUnderscore != 0)
 		return 17;
 
+	if (!"42".tryParse(out uint declaredAge) || declaredAge != 42)
+		return 18;
+
 	return 0;
 }

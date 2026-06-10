@@ -232,7 +232,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (selector?.Modifier == ParameterModifier.Out && selectorArgument.Modifier != ArgumentModifier.Out)
 			Report(GetRange(selectorSyntax), "Out overload selectors require an explicit 'out' argument.");
 
-		string selectorType = BodyAnalyzeArgumentExpression(selectorArgument, scope, typeScope, targetType: null);
+		string selectorType = BodyAnalyzeOverloadSelectorArgument(selectorArgument, scope, typeScope);
 		if (selectorType is TargetType or ErrorType or UnresolvedType)
 		{
 			Report(GetRange(selectorSyntax), $"Cannot select overload `{invokerName}` because the selector expression has no independent static type. Add an explicit cast.");
@@ -260,6 +260,32 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return selected;
+	}
+
+	string BodyAnalyzeOverloadSelectorArgument(ArgumentExpression argument, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (argument.Target is not null)
+		{
+			AnalyzeOptionalType(argument.Target.Type, typeScope);
+			string resolvedType = argument.Target.Type is null or AutoTypeReference
+				? ErrorType
+				: argument.Target.Type.ResolvedType ?? ErrorType;
+			argument.Target.ResolvedType = resolvedType;
+			argument.ResolvedType = resolvedType;
+			return resolvedType;
+		}
+
+		if (argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch && IsDiscardExpression(argument.Value))
+		{
+			if (argument.Type is not null)
+				AnalyzeType(argument.Type, typeScope);
+			argument.ResolvedType = argument.Type?.ResolvedType ?? ErrorType;
+			if (argument.Value is not null)
+				argument.Value.ResolvedType = argument.ResolvedType;
+			return argument.ResolvedType;
+		}
+
+		return BodyAnalyzeArgumentExpression(argument, scope, typeScope, targetType: null);
 	}
 
 	static SyntaxNode? OverloadSelectorSyntax(ArgumentExpression selectorArgument, SyntaxNode? fallback)
