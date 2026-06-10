@@ -1,0 +1,30 @@
+virtual class Base
+{
+	virtual void write(overload int value)
+	{
+	}
+}
+
+sealed class BadOverride: Base
+{
+	override void writeInt(int value)
+	{
+	}
+}
+
+sealed class BadDerived: Base
+{
+	void write(string value)
+	{
+	}
+}
+
+interface IOrdinary
+{
+	void draw(int value);
+}
+
+interface IBad: IOrdinary
+{
+	void draw(overload string value);
+}

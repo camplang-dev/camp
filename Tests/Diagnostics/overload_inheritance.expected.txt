@@ -1,0 +1,3 @@
+tests/Diagnostics/overload_inheritance.camp(29,7): error: `draw` was inherited as an ordinary method. A derived interface cannot change that method category.
+tests/Diagnostics/overload_inheritance.camp(10,16): error: Override 'writeInt' must preserve the base declaration's overload spelling.
+tests/Diagnostics/overload_inheritance.camp(17,7): error: `write` was inherited as an overload family. A derived type cannot change that method category.

@@ -79,6 +79,21 @@ public sealed partial class BindableNodeAnalyzer
 			if (TryGetNamedTypeDefinition(baseType, out TypeDefinition? definition) && definition is not InterfaceDefinition)
 				Report(GetRange(baseType.SourceSyntax), $"Interface '{owner.Name}' may only derive from interfaces.");
 		}
+
+		foreach (FunctionDefinition function in owner.Functions)
+		{
+			foreach (InterfaceDefinition baseInterface in GetBaseInterfaces(owner))
+			{
+				foreach (FunctionDefinition inherited in baseInterface.Functions)
+				{
+					if (GetInvokerName(inherited) != GetInvokerName(function) || HasOverloadSelector(inherited) == HasOverloadSelector(function))
+						continue;
+
+					string category = HasOverloadSelector(inherited) ? "an overload family" : "an ordinary method";
+					Report(GetNameRange(function), $"`{GetInvokerName(function)}` was inherited as {category}. A derived interface cannot change that method category.");
+				}
+			}
+		}
 	}
 
 	void CheckCircularClassInheritance(TypeDefinition definition, HashSet<TypeDefinition> path)
@@ -231,7 +246,11 @@ public sealed partial class BindableNodeAnalyzer
 			if (inherited.Modifier is not FunctionModifier.Virtual and not FunctionModifier.Abstract)
 				continue;
 			if (BuildMethodSignature(inherited).Equals(signature))
+			{
+				if (HasOverloadSelector(inherited) != HasOverloadSelector(function))
+					Report(GetNameRange(function), $"Override '{GetCallableName(function)}' must preserve the base declaration's overload spelling.");
 				return;
+			}
 		}
 
 		if (IsDestructorFunction(function))
@@ -275,6 +294,13 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if (IsGeneratedVirtualImplementation(inherited))
 					continue;
+
+				if (GetInvokerName(inherited) == GetInvokerName(function) && HasOverloadSelector(inherited) != HasOverloadSelector(function))
+				{
+					string category = HasOverloadSelector(inherited) ? "an overload family" : "an ordinary method";
+					Report(GetNameRange(function), $"`{GetInvokerName(function)}` was inherited as {category}. A derived type cannot change that method category.");
+					break;
+				}
 
 				MethodSignature inheritedSignature = BuildMethodSignature(inherited);
 				if (!SameMethodIdentity(signature, inheritedSignature))

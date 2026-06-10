@@ -399,7 +399,7 @@ public sealed partial class BindableNodeAnalyzer
 			: receiverName + "_" + methodName;
 	}
 
-	static string BuildFlattenedTypeFragment(string type, FunctionDefinition? function = null)
+	internal static string BuildFlattenedTypeFragment(string type, FunctionDefinition? function = null)
 	{
 		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
 			return "";

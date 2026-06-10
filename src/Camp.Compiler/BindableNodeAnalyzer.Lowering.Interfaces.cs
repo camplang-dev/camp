@@ -86,14 +86,14 @@ public sealed partial class BindableNodeAnalyzer
 		call.Target = reference;
 	}
 
-	void LowerInterfaceCall(CallExpression call)
+	bool LowerInterfaceCall(CallExpression call)
 	{
 		if (call.Target is not MemberReferenceExpression { Target: not null, Member: FunctionDefinition function } member)
-			return;
+			return false;
 		if (FindContainingType(function) is not InterfaceDefinition interfaceDefinition)
-			return;
+			return false;
 		if (function.Modifier == FunctionModifier.Constructor)
-			return;
+			return false;
 
 		Expression context = member.Target;
 		if (!IsInterfaceInstanceReceiver(context.ResolvedType, interfaceDefinition) && TryGetGenericReceiverTypeName(context.ResolvedType, out string genericName))
@@ -115,11 +115,26 @@ public sealed partial class BindableNodeAnalyzer
 			};
 		}
 
+		call.Target = new MemberReferenceExpression
+		{
+			SourceSyntax = member.SourceSyntax,
+			Target = new UnaryExpression
+			{
+				SourceSyntax = member.Target.SourceSyntax,
+				Operator = UnaryOperator.PointerDereference,
+				Operand = member.Target,
+				ResolvedType = $"{interfaceDefinition.Name}*"
+			},
+			Name = GetCallableName(function),
+			Member = function,
+			ResolvedType = member.ResolvedType
+		};
 		call.Arguments.Insert(0, new ArgumentExpression
 		{
 			Value = context,
 			ResolvedType = context.ResolvedType
 		});
+		return true;
 	}
 
 	static bool IsInterfaceInstanceReceiver(string? type, InterfaceDefinition interfaceDefinition)

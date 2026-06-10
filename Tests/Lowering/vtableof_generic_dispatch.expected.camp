@@ -27,7 +27,7 @@ struct Handle
 }
 void retainGeneric<T: IRef>(T* value, vtableof(T: IRef))
 {
-	vtableof_T_IRef.retain((IRef**)value);
+	(*vtableof_T_IRef).retain((IRef**)value);
 }
 void main()
 {
@@ -38,8 +38,13 @@ void main()
 	retainGeneric<Widget>(widget, Widget_IRef);
 	retainGeneric<Handle>(&handle, Handle_IRef);
 }
-const IRef Widget_IRef__storage = {.retain = Widget_retain};
+const IRef Widget_IRef__storage = {.retain = Widget_IRef_retain};
 const IRef* Widget_IRef = &Widget_IRef__storage;
+void Widget_IRef_retain(IRef** ctx)
+{
+	Widget* instance = (Widget*)(byte*)ctx - offsetof(Widget._vt_IRef);
+	Widget_retain(instance);
+}
 
 fixed struct IRef_Indirect<U: void*>
 {

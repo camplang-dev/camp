@@ -1,0 +1,11 @@
+@symbol("sqrt")
+extern double sqrt(overload double value);
+
+@symbol("sqrtf")
+extern float sqrt(overload float value);
+
+void main()
+{
+	double a = sqrt((double)9);
+	float b = sqrt((float)9);
+}

@@ -1,0 +1,24 @@
+interface IWriter
+{
+	void write(overload int value);
+	void write(overload string value);
+}
+
+class ConsoleWriter: IWriter
+{
+	void write(overload int value)
+	{
+	}
+
+	void writeString(string value)
+	{
+	}
+}
+
+void run(IWriter* writer, ConsoleWriter* concrete)
+{
+	writer.write(1);
+	writer.write("x");
+	concrete.writeInt(1);
+	concrete.writeString("x");
+}

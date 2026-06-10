@@ -4,11 +4,12 @@
 
 /* Private file declarations. */
 static void Widget_op_initnew(Widget *this);
+static void Widget_IRef_retain(IRef** ctx);
 static void Handle_IRef_retain(IRef** ctx);
 static const IRef Widget_IRef__storage;
 static const IRef Handle_IRef__storage;
 
-static const IRef Widget_IRef__storage = (IRef){ .retain = Widget_retain };
+static const IRef Widget_IRef__storage = (IRef){ .retain = Widget_IRef_retain };
 const IRef* Widget_IRef = &Widget_IRef__storage;
 static const IRef Handle_IRef__storage = (IRef){ .retain = Handle_IRef_retain };
 const IRef* Handle_IRef = &Handle_IRef__storage;
@@ -23,6 +24,12 @@ static void Widget_op_initnew(Widget *this)
 
 void Handle_retain(Handle *this)
 {
+}
+
+static void Widget_IRef_retain(IRef** ctx)
+{
+	Widget* instance = (Widget *)(((uint8_t *)(ctx) - offsetof(Widget, _vt_IRef)));
+	Widget_retain(instance);
 }
 
 static void Handle_IRef_retain(IRef** ctx)

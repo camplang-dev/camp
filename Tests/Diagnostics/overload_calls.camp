@@ -1,0 +1,15 @@
+void write(overload int value)
+{
+}
+
+void write(overload string value)
+{
+}
+
+void main()
+{
+	write(null);
+	write(default);
+	write((double)1);
+	auto f = write;
+}

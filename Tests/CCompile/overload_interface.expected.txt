@@ -1,0 +1,87 @@
+// file: overload_interface.c
+#include "overload_interface_private.h"
+
+/* Private file declarations. */
+static void ConsoleWriter_writeInt(ConsoleWriter *this, int value);
+static void ConsoleWriter_writeString(ConsoleWriter *this, const char* value);
+static void ConsoleWriter_op_initnew(ConsoleWriter *this);
+static void run(IWriter** writer, ConsoleWriter* concrete);
+static void ConsoleWriter_IWriter_writeInt(IWriter** ctx, int value);
+static void ConsoleWriter_IWriter_writeString(IWriter** ctx, const char* value);
+static const IWriter ConsoleWriter_IWriter__storage;
+static const IWriter* ConsoleWriter_IWriter;
+
+static const IWriter ConsoleWriter_IWriter__storage = (IWriter){ .writeInt = ConsoleWriter_IWriter_writeInt, .writeString = ConsoleWriter_IWriter_writeString };
+static const IWriter* ConsoleWriter_IWriter = &ConsoleWriter_IWriter__storage;
+static void ConsoleWriter_writeInt(ConsoleWriter *this, int value)
+{
+}
+
+static void ConsoleWriter_writeString(ConsoleWriter *this, const char* value)
+{
+}
+
+static void ConsoleWriter_op_initnew(ConsoleWriter *this)
+{
+	this->_vt_IWriter = ConsoleWriter_IWriter;
+}
+
+static void run(IWriter** writer, ConsoleWriter* concrete)
+{
+	(*writer)->writeInt(writer, 1);
+	(*writer)->writeString(writer, "x");
+	ConsoleWriter_writeInt(concrete, 1);
+	ConsoleWriter_writeString(concrete, "x");
+}
+
+static void ConsoleWriter_IWriter_writeInt(IWriter** ctx, int value)
+{
+	ConsoleWriter* instance = (ConsoleWriter *)(((uint8_t *)(ctx) - offsetof(ConsoleWriter, _vt_IWriter)));
+	ConsoleWriter_writeInt(instance, value);
+}
+
+static void ConsoleWriter_IWriter_writeString(IWriter** ctx, const char* value)
+{
+	ConsoleWriter* instance = (ConsoleWriter *)(((uint8_t *)(ctx) - offsetof(ConsoleWriter, _vt_IWriter)));
+	ConsoleWriter_writeString(instance, value);
+}
+
+// file: overload_interface_private.h
+#ifndef OVERLOAD_INTERFACE_PRIVATE_H_
+#define OVERLOAD_INTERFACE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IWriter IWriter;
+typedef struct ConsoleWriter ConsoleWriter;
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef void (* fn_void_IWriterPtrPtr__int_)(IWriter** arg0, int arg1);
+typedef void (* fn_void_IWriterPtrPtr__string_)(IWriter** arg0, const char* arg1);
+
+/* Enums. */
+
+/* Layouts. */
+struct IWriter
+{
+	void (* writeInt)(IWriter** ctx, int value);
+	void (* writeString)(IWriter** ctx, const char* value);
+};
+struct ConsoleWriter
+{
+	const IWriter* _vt_IWriter;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: overload_interface.c

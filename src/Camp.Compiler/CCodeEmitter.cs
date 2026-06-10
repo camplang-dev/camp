@@ -1297,7 +1297,7 @@ public static class CCodeEmitter
 				VariableReferenceExpression variable => FormatVariableReference(variable.Variable),
 				NamedExpression named => SanitizeIdentifier(named.Name),
 				MethodReferenceExpression method => method.Candidates.Count == 1 ? CName(method.Candidates[0]) : UnsupportedExpression(expression),
-				TypeReferenceExpression => UnsupportedExpression(expression),
+				TypeReferenceExpression type => FormatTypeReferenceExpression(type),
 				ThisExpression => "this",
 				DefaultExpression defaultExpression => FormatDefaultExpression(defaultExpression),
 				ParenthesizedExpression parenthesized => "(" + FormatExpression(parenthesized.Expression) + ")",
@@ -1393,8 +1393,19 @@ public static class CCodeEmitter
 
 		string FormatCallExpression(CallExpression call)
 		{
+			if (TryFormatOffsetOfCall(call, out string offsetOfText))
+				return offsetOfText;
+
 			string target = FormatExpression(call.Target);
 			FunctionDefinition? function = TryGetCallFunction(call);
+			if (function is not null
+				&& containingTypes.TryGetValue(function, out TypeDefinition? owner)
+				&& owner is InterfaceDefinition
+				&& call.Arguments.Count > 0
+				&& call.Arguments[0].Value is not null)
+				target = "(*" + FormatExpression(call.Arguments[0].Value) + ")->" + SanitizeIdentifier(BindableNodeAnalyzer.GetCallableName(function));
+			else if (TryFormatLoweredInterfaceSlotTarget(call, out string interfaceSlotTarget))
+				target = interfaceSlotTarget;
 			Dictionary<string, string> genericSubstitutions = function is null ? [] : GetCallGenericSubstitutions(call, function);
 			List<string> parameterTypes = function is null ? [] : GetCallableParameterTypes(function);
 			List<string> arguments = [];
@@ -1409,9 +1420,79 @@ public static class CCodeEmitter
 			return text;
 		}
 
+		bool TryFormatOffsetOfCall(CallExpression call, out string text)
+		{
+			text = "";
+			if (call.Target is not NamedExpression { Name: "offsetof", Qualifiers.Count: 0 }
+				|| call.Arguments.Count != 1
+				|| call.Arguments[0].Value is not MemberExpression { Target: TypeReferenceExpression type, Name: { Length: > 0 } field })
+				return false;
+
+			text = "offsetof(" + FormatTypeReferenceExpression(type) + ", " + SanitizeIdentifier(field) + ")";
+			return true;
+		}
+
+		bool TryFormatLoweredInterfaceSlotTarget(CallExpression call, out string target)
+		{
+			target = "";
+			if (call.Target is not NamedExpression named
+				|| call.Arguments.Count == 0
+				|| call.Arguments[0].Value is not Expression contextValue)
+				return false;
+
+			string? contextType = call.Arguments[0].ResolvedType ?? contextValue.ResolvedType;
+			if (string.IsNullOrWhiteSpace(contextType) || !contextType.EndsWith("**", StringComparison.Ordinal))
+				return false;
+
+			string interfaceName = contextType[..^2].Trim();
+			StructDefinition? interfaceStruct = null;
+			foreach (Definition definition in GetDefinitions())
+			{
+				if (definition is StructDefinition candidate && candidate.Name == interfaceName)
+				{
+					interfaceStruct = candidate;
+					break;
+				}
+			}
+			if (interfaceStruct is null)
+				return false;
+
+			string slotName = named.Name;
+			if (!HasField(interfaceStruct, slotName) && call.Arguments.Count > 1)
+			{
+				string selectorType = call.Arguments[1].ResolvedType ?? call.Arguments[1].Value?.ResolvedType ?? "";
+				string fragment = BindableNodeAnalyzer.BuildFlattenedTypeFragment(selectorType);
+				if (!string.IsNullOrWhiteSpace(fragment) && HasField(interfaceStruct, named.Name + fragment))
+					slotName = named.Name + fragment;
+			}
+
+			if (!HasField(interfaceStruct, slotName))
+				return false;
+
+			target = "(*" + FormatExpression(contextValue) + ")->" + SanitizeIdentifier(slotName);
+			return true;
+		}
+
+		static bool HasField(StructDefinition definition, string name)
+		{
+			foreach (FieldDefinition field in definition.Fields)
+				if (field.Name == name || field.Symbol == name)
+					return true;
+			return false;
+		}
+
 		string FormatArgumentValue(ArgumentExpression argument)
 		{
 			return FormatArgumentValue(argument, expectedParameterType: null, genericSubstitutions: []);
+		}
+
+		string FormatTypeReferenceExpression(TypeReferenceExpression expression)
+		{
+			if (expression.Type is null)
+				return UnsupportedExpression(expression);
+			if (expression.Type is TypeDefinitionReference { Definition: not null } reference)
+				return CName(reference.Definition);
+			return FormatType(expression.Type, "").Declaration.Trim();
 		}
 
 		string FormatArrayExpression(ArrayExpression array)
@@ -1691,15 +1772,18 @@ public static class CCodeEmitter
 
 		string FormatMemberReference(MemberReferenceExpression member)
 		{
-			if (member.Member is FunctionDefinition function && (!containingTypes.TryGetValue(function, out TypeDefinition? owner) || owner is not InterfaceDefinition || member.Target is null))
+			if (member.Member is FunctionDefinition function && (member.Target is null || containingTypes.TryGetValue(function, out TypeDefinition? owner) && owner is not InterfaceDefinition))
 				return CName(function);
 			if (member.Member is VariableDefinition variable)
 				return CName(variable);
 			string? expandedThisComponent = FormatExpandedThisComponent(member.Target, member.Name);
 			if (expandedThisComponent is not null)
 				return expandedThisComponent;
+			string target = FormatExpression(member.Target);
+			if (member.Target is UnaryExpression { Operator: UnaryOperator.PointerDereference })
+				target = "(" + target + ")";
 			string separator = IsPointerMemberTarget(member.Target) ? "->" : ".";
-			return FormatExpression(member.Target) + separator + SanitizeIdentifier(member.Name);
+			return target + separator + SanitizeIdentifier(member.Name);
 		}
 
 		static bool IsPointerMemberTarget(Expression? target)

@@ -12,11 +12,11 @@ virtual class Writer
 		this._vt.writeString(this, value);
 	}
 
-	void _writeInt(overload int value)
+	void _writeInt(int value)
 	{
 	}
 
-	void _writeString(overload string value)
+	void _writeString(string value)
 	{
 	}
 }
@@ -27,12 +27,12 @@ sealed class ConsoleWriter : Writer
 
 	override void write(overload string value);
 
-	void _writeInt(overload int value)
+	void _writeInt(int value)
 	{
 		Writer__writeInt((Writer*)this, value);
 	}
 
-	void _writeString(overload string value)
+	void _writeString(string value)
 	{
 		Writer__writeString((Writer*)this, value);
 	}
@@ -70,8 +70,8 @@ void main(ConsoleWriter* writer, Item* item)
 
 struct _Writer
 {
-	fn void(Writer* ctx, overload int value) writeInt;
-	fn void(Writer* ctx, overload string value) writeString;
+	fn void(Writer* ctx, int value) writeInt;
+	fn void(Writer* ctx, string value) writeString;
 }
 _Writer _Writer__vt = {.writeInt = Writer__writeInt, .writeString = Writer__writeString};
 

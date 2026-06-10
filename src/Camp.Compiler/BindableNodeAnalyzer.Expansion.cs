@@ -377,7 +377,7 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(vtable);
 			generatedInterfaceDefinitions.Add(vtable);
 
-			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, vtableStorage, DirectEntries: interfaceIndex == 0, IsStruct: false);
+			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, vtableStorage, DirectEntries: false, IsStruct: false);
 			implementations.Add(lowering);
 			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
 			interfaceIndex++;
