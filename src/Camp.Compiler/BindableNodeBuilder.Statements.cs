@@ -238,8 +238,14 @@ public sealed partial class BindableNodeBuilder
 			return;
 		}
 
+		while (ifStatement.ElseBody is IfStatement elseIf)
+			ifStatement = elseIf;
+
 		if (ifStatement.ElseBody is not null)
+		{
 			Report(syntax, "If statement already has an else body.");
+			return;
+		}
 
 		ifStatement.ElseBody = BuildStatementBody(syntax);
 	}

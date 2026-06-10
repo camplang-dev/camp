@@ -1,0 +1,16 @@
+export int main(string[] args)
+{
+	if (args.length > 2)
+	{
+		return 3;
+	}
+	else if (args.length > 1)
+	{
+		return 2;
+	}
+	else if (args.length > 0)
+	{
+		return 1;
+	}
+	return 0;
+}
