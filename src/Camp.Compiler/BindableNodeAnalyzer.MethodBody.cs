@@ -950,6 +950,12 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeType(construction.Type, typeScope);
 
 		string targetType = construction.Type?.ResolvedType ?? TargetType;
+		if (construction.Kind == ConstructionKind.Init
+			&& typeDefinitions.TryGetValue(BaseConstructedType(targetType), out TypeDefinition? constructedDefinition)
+			&& constructedDefinition is ClassDefinition { Extern: not null })
+		{
+			Report(GetRange(construction.SourceSyntax), $"Cannot use init for incomplete type '{targetType}'. Use new instead.");
+		}
 		FunctionDefinition? constructor = LookupConstructor(targetType, construction.Arguments.Count);
 		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? [], scope, typeScope, construction.SourceSyntax);
 		BodyAnalyzeExpression(construction.ElementCount, scope, typeScope, "nuint");

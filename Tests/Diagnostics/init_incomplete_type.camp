@@ -1,0 +1,10 @@
+extern class Box<T: any>
+{
+	extern Box(sizeof(T));
+}
+
+export int main()
+{
+	Box<const char[]> value = init Box<const char[]>();
+	return 0;
+}

@@ -22,7 +22,8 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < arguments.Count; i++)
 		{
 			ArgumentExpression argument = arguments[i];
-			if (!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components))
+			if (!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components)
+				&& !TryCreateTargetTypedExpandedReturnArgumentComponents(argument, out components))
 			{
 				if (PrimitiveStringArrayLengthAlreadyProvided(arguments, callableParameters, i)
 					|| !TryCreateLiftedOptionalArgumentComponents(argument, out components)
@@ -46,6 +47,16 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			i += components.Count - 1;
 		}
+	}
+
+	bool TryCreateTargetTypedExpandedReturnArgumentComponents(ArgumentExpression argument, out List<Expression> components)
+	{
+		components = [];
+		if (argument.Value is not CallExpression call)
+			return false;
+		if (!TryGetParamsComponentShape(null, argument.ResolvedType, "value", out ParamsComponentShape shape) || shape.Components.Count <= 1)
+			return false;
+		return TryCreateExpandedReturnCallComponents(call, shape, out components);
 	}
 
 	bool PrimitiveStringArrayLengthAlreadyProvided(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters, int index)
@@ -273,7 +284,7 @@ public sealed partial class BindableNodeAnalyzer
 		statements = [];
 		if (assignment.Value is not CallExpression call)
 			return false;
-		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !TryGetExpandedReturnShape(function, out ParamsComponentShape? shape))
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !TryGetExpandedReturnShape(call, function, out ParamsComponentShape? shape))
 			return false;
 		if (shape.Components.Count != targets.Count)
 			return false;
@@ -1025,9 +1036,17 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateExpandedReturnCallComponents(CallExpression call, out List<Expression> components)
 	{
 		components = [];
-		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !TryGetExpandedReturnShape(function, out ParamsComponentShape? shape))
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !TryGetExpandedReturnShape(call, function, out ParamsComponentShape? shape))
 			return false;
+		return TryCreateExpandedReturnCallComponents(call, shape, out components);
+	}
+
+	bool TryCreateExpandedReturnCallComponents(CallExpression call, ParamsComponentShape shape, out List<Expression> components)
+	{
+		components = [];
 		if (currentStatementPrefix is null || shape.Components.Count == 0)
+			return false;
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function))
 			return false;
 		if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
 			&& IsInstanceInvocationFunction(function)

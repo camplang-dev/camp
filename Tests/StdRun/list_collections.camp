@@ -100,5 +100,23 @@ export int main()
 		return 27;
 	delete wordBuffer;
 
+	auto lines = new List<const char[]>() finally delete;
+	const char[] alpha = "one";
+	const char[] beta = "two";
+	lines.add(alpha);
+	lines.add(beta);
+	if (lengthOf(lines.getItem(0)) != 3)
+		return 28;
+	auto lineItem = lines.Item[1];
+	if (lineItem.length != 3 || lineItem[0] != 't')
+		return 29;
+	if (lengthOf(lineItem.trim()) != 3)
+		return 30;
+
 	return 0;
+}
+
+nuint lengthOf(const char[] value)
+{
+	return value.length;
 }

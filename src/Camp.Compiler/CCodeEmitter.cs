@@ -1328,9 +1328,47 @@ public static class CCodeEmitter
 			WithGenericContext(function, () =>
 			{
 				writer.WriteLine(prefix + FormatTypeOrResolved(function.ReturnType, function.ResolvedType, callSpec + CName(function)).Declaration + FormatParameters(function));
-				WriteFunctionBody(writer, function);
+				if (!TryWriteStdListGetItemBody(writer, function))
+					WriteFunctionBody(writer, function);
 				writer.WriteLine();
 			});
+		}
+
+		bool TryWriteStdListGetItemBody(TextWriter writer, FunctionDefinition function)
+		{
+			if (CName(function) != "List_getItem"
+				|| StripTypeDecorators(function.ResolvedType ?? function.ReturnType?.ResolvedType ?? "") != "T"
+				|| function.Parameters.Count == 0
+				|| !IsStdErasedList(function))
+				return false;
+
+			writer.WriteLine("{");
+			writer.WriteLine("\tif ((at >= this->length))");
+			writer.WriteLine("\t{");
+			writer.WriteLine("\t\treturn NULL;");
+			writer.WriteLine("\t}");
+			writer.WriteLine("\treturn List_itemAddress(this, at);");
+			writer.WriteLine("}");
+			return true;
+		}
+
+		bool IsStdErasedList(FunctionDefinition function)
+		{
+			return containingTypes.TryGetValue(function, out TypeDefinition? owner)
+				&& HasTypeField(owner, "buffer")
+				&& HasTypeField(owner, "length")
+				&& HasTypeField(owner, "capacity")
+				&& HasTypeField(owner, "_sizeof_T");
+		}
+
+		static bool HasTypeField(TypeDefinition definition, string name)
+		{
+			return definition switch
+			{
+				ClassDefinition classDefinition => classDefinition.Fields.Any(field => field.Name == name),
+				StructDefinition structDefinition => structDefinition.Fields.Any(field => field.Name == name),
+				_ => false
+			};
 		}
 
 		string BuildDeclarationPrefix(Definition definition, string? storage)
@@ -1646,7 +1684,7 @@ public static class CCodeEmitter
 				DefaultExpression defaultExpression => FormatDefaultExpression(defaultExpression),
 				ParenthesizedExpression parenthesized => "(" + FormatExpression(parenthesized.Expression) + ")",
 				CastExpression cast => "(" + FormatType(cast.Type, "").Declaration.Trim() + ")(" + FormatExpression(cast.Expression) + ")",
-				SizeOfExpression sizeOf => "sizeof(" + FormatType(sizeOf.Type, "").Declaration.Trim() + ")",
+				SizeOfExpression sizeOf => FormatSizeOfExpression(sizeOf),
 				CallExpression call => FormatCallExpression(call),
 				IndexExpression index => FormatExpression(index.Target) + "[" + string.Join(", ", index.Arguments.Select(FormatArgumentValue)) + "]",
 				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatExpression(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
@@ -1654,7 +1692,7 @@ public static class CCodeEmitter
 				UnaryExpression unary => FormatUnaryExpression(unary),
 				PostfixUpdateExpression postfix => FormatExpression(postfix.Expression) + FormatUpdateOperator(postfix.Operator),
 				BinaryExpression binary => "(" + FormatExpression(binary.Left) + " " + FormatBinaryOperator(binary.Operator) + " " + FormatExpression(binary.Right) + ")",
-				AssignmentExpression assignment => FormatExpression(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + FormatExpression(assignment.Value),
+				AssignmentExpression assignment => FormatAssignmentExpression(assignment),
 				ConditionalExpression conditional => "(" + FormatExpression(conditional.Condition) + " ? " + FormatExpression(conditional.WhenTrue) + " : " + FormatExpression(conditional.WhenFalse) + ")",
 				InitializerExpression initializer => FormatInitializer(initializer),
 				RangeExpression => UnsupportedExpression(expression),
@@ -1680,6 +1718,19 @@ public static class CCodeEmitter
 
 			string type = FormatTypeOrResolved(expression.Type, resolvedType, "").Declaration.Trim();
 			return "(" + type + "){0}";
+		}
+
+		string FormatSizeOfExpression(SizeOfExpression sizeOf)
+		{
+			string? resolvedType = sizeOf.Type?.ResolvedType;
+			if (TryGetArrayLiteralElementType(resolvedType, out string elementType))
+				return "sizeof(" + FormatMaterializedArrayStructType(elementType) + ")";
+			return "sizeof(" + FormatType(sizeOf.Type, "").Declaration.Trim() + ")";
+		}
+
+		string FormatMaterializedArrayStructType(string elementType)
+		{
+			return "struct { " + FormatResolvedType(elementType + "*", "elements").Declaration + "; uintptr_t length; }";
 		}
 
 		bool IsAggregateValueType(string? resolvedType)
@@ -1742,6 +1793,8 @@ public static class CCodeEmitter
 
 			string target = FormatExpression(call.Target);
 			FunctionDefinition? function = TryGetCallFunction(call);
+			if (TryFormatStdListExpandedCall(call, function, target, out string listText))
+				return listText;
 			if (function is not null
 				&& containingTypes.TryGetValue(function, out TypeDefinition? owner)
 				&& owner is InterfaceDefinition
@@ -1761,9 +1814,80 @@ public static class CCodeEmitter
 				arguments.Add(FormatArgumentValue(call.Arguments[i], parameter, genericSubstitutions));
 			}
 			string text = target + "(" + string.Join(", ", arguments) + ")";
-			if (function is not null && TryGetConcreteGenericType(function.ResolvedType, genericSubstitutions, out string? concreteReturnType) && NeedsGenericScalarCast(concreteReturnType))
-				return CastFromErasedGeneric(text, concreteReturnType);
+			if (function is not null && TryGetConcreteGenericType(function.ResolvedType, genericSubstitutions, out string? concreteReturnType))
+			{
+				if (CName(function) == "List_getItem" && IsErasedAnyListFunction(function) && NeedsGenericStoredValueDereference(concreteReturnType))
+					return CastFromErasedGenericPointer(text, concreteReturnType);
+				if (NeedsGenericScalarCast(concreteReturnType))
+					return CastFromErasedGeneric(text, concreteReturnType);
+			}
 			return text;
+		}
+
+		bool TryFormatStdListExpandedCall(CallExpression call, FunctionDefinition? function, string target, out string text)
+		{
+			text = "";
+			string name = function is null ? "" : CName(function);
+			if ((name is "List_add" || target is "List_add") && call.Arguments.Count == 4 && IsErasedAnyListFunction(function))
+			{
+				string itemType = call.Arguments[1].ResolvedType ?? call.Arguments[1].Value?.ResolvedType ?? "";
+				if (!TryGetArrayLiteralElementType(itemType, out string elementType))
+					return false;
+				string materialized = "&(" + FormatMaterializedArrayStructType(elementType) + "){" + FormatArgumentValue(call.Arguments[1]) + ", " + FormatArgumentValue(call.Arguments[2]) + "}";
+				text = name + "(" + FormatArgumentValue(call.Arguments[0]) + ", " + materialized + ", " + FormatArgumentValue(call.Arguments[3]) + ")";
+				return true;
+			}
+
+			if ((name is "List_getItem" || target is "List_getItem") && call.Arguments.Count == 3 && IsErasedAnyListFunction(function))
+			{
+				string itemType = call.ResolvedType ?? "";
+				if (!TryGetArrayLiteralElementType(itemType, out string elementType))
+					return false;
+				string pointer = name + "(" + FormatArgumentValue(call.Arguments[0]) + ", " + FormatArgumentValue(call.Arguments[1]) + ")";
+				string materializedType = FormatMaterializedArrayStructType(elementType);
+				string lengthTarget = FormatArgumentValue(call.Arguments[2]);
+				text = "(*(" + lengthTarget + ") = ((" + materializedType + "*)" + pointer + ")->length, ((" + materializedType + "*)" + pointer + ")->elements)";
+				return true;
+			}
+
+			return false;
+		}
+
+		bool IsErasedAnyListFunction(FunctionDefinition? function)
+		{
+			if (function is null || !containingTypes.TryGetValue(function, out TypeDefinition? owner) || owner.Name != "List")
+				return false;
+			return owner.GenericParameters.Any(parameter => parameter.Name == "T" && parameter.Constraint is AnyTypeReference);
+		}
+
+		string FormatAssignmentExpression(AssignmentExpression assignment)
+		{
+			if (assignment.Operator == AssignmentOperator.Assign
+				&& assignment.Value is CallExpression call
+				&& TryFormatStdListExpandedGetItemCall(call, assignment.Target?.ResolvedType, out string expandedCall))
+				return FormatExpression(assignment.Target) + " = " + expandedCall;
+
+			return FormatExpression(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + FormatExpression(assignment.Value);
+		}
+
+		bool TryFormatStdListExpandedGetItemCall(CallExpression call, string? resultType, out string text)
+		{
+			text = "";
+			string target = FormatExpression(call.Target);
+			FunctionDefinition? function = TryGetCallFunction(call);
+			string name = function is null ? "" : CName(function);
+			if (!IsErasedAnyListFunction(function))
+				return false;
+			if ((name is not "List_getItem" && target is not "List_getItem") || call.Arguments.Count != 3)
+				return false;
+			if (!TryGetArrayLiteralElementType(resultType, out string elementType))
+				return false;
+
+			string pointer = target + "(" + FormatArgumentValue(call.Arguments[0]) + ", " + FormatArgumentValue(call.Arguments[1]) + ")";
+			string materializedType = FormatMaterializedArrayStructType(elementType);
+			string lengthTarget = FormatArgumentValue(call.Arguments[2]);
+			text = "(*(" + lengthTarget + ") = ((" + materializedType + "*)" + pointer + ")->length, ((" + materializedType + "*)" + pointer + ")->elements)";
+			return true;
 		}
 
 		List<ParameterDefinition> GetCallableParametersForExpression(Expression? expression)
@@ -2128,6 +2252,20 @@ public static class CCodeEmitter
 			return IsEnumType(type);
 		}
 
+		bool NeedsGenericStoredValueDereference(string concreteType)
+		{
+			string type = StripTypeDecorators(concreteType);
+			if (type is "void" or "untyped" or "any" or "auto")
+				return false;
+			if (type.EndsWith("[]", StringComparison.Ordinal) || type.EndsWith("?", StringComparison.Ordinal))
+				return false;
+			if (type is "string" or "wstring" or "astring")
+				return true;
+			if (type.EndsWith("*", StringComparison.Ordinal))
+				return true;
+			return NeedsGenericScalarCast(type);
+		}
+
 		static bool IsPrimitiveScalarType(string type)
 		{
 			return type is "bool" or "sbyte" or "byte" or "short" or "ushort" or "int" or "uint" or "long" or "ulong" or "nint" or "nuint" or "float" or "double" or "char" or "wchar" or "achar" or "uchar";
@@ -2151,6 +2289,12 @@ public static class CCodeEmitter
 		{
 			string cType = FormatResolvedType(concreteType, "").Declaration.Trim();
 			return "(" + cType + ")(intptr_t)(" + value + ")";
+		}
+
+		string CastFromErasedGenericPointer(string value, string concreteType)
+		{
+			string cType = FormatResolvedType(concreteType, "").Declaration.Trim();
+			return "*((" + cType + "*)(" + value + "))";
 		}
 
 		static List<string> ExtractConstructedTypeArguments(string type)

@@ -290,7 +290,8 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (declaration.InitialValue is CallExpression call
 			&& callTargets.TryGetValue(call, out FunctionDefinition? function)
-			&& TryGetExpandedReturnShape(function, out ParamsComponentShape? callShape)
+			&& (TryGetExpandedReturnShape(call, function, out ParamsComponentShape? callShape)
+				|| TryUseTargetShapeForGenericExpandedReturn(function, shape, out callShape))
 			&& callShape.Components.Count == shape.Components.Count)
 		{
 			AddImplicitDefaultArguments(call);
@@ -322,6 +323,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		RegisterParamsExpansion(declaration.Target, shape, targets);
 		return declarations.Count > 0;
+	}
+
+	bool TryUseTargetShapeForGenericExpandedReturn(FunctionDefinition function, ParamsComponentShape targetShape, out ParamsComponentShape shape)
+	{
+		shape = targetShape;
+		string returnType = StripTopLevelValueQualifiers(function.ResolvedType ?? function.ReturnType?.ResolvedType ?? "");
+		return IsGenericPlaceholderParameter(returnType) && targetShape.Components.Count > 1;
 	}
 
 	Expression? NormalizeExpandedReturnPropertyGetter(Expression? expression)
@@ -356,7 +364,8 @@ public sealed partial class BindableNodeAnalyzer
 		function = null!;
 		if (!IsPropertyGetterReference(getter) || getter.Member is not FunctionDefinition candidate)
 			return false;
-		if (!TryGetExpandedReturnShape(candidate, out _))
+		string returnType = StripTopLevelValueQualifiers(candidate.ResolvedType ?? candidate.ReturnType?.ResolvedType ?? "");
+		if (!TryGetExpandedReturnShape(candidate, out _) && !IsGenericPlaceholderParameter(returnType))
 			return false;
 
 		function = candidate;
@@ -368,6 +377,22 @@ public sealed partial class BindableNodeAnalyzer
 		if (expandedReturnShapes.TryGetValue(function, out shape!))
 			return true;
 		return TryGetParamsComponentShape(function.ReturnType, function.ResolvedType, "result", out shape);
+	}
+
+	bool TryGetExpandedReturnShape(CallExpression call, FunctionDefinition function, out ParamsComponentShape shape)
+	{
+		if (TryGetExpandedReturnShape(function, out shape))
+		{
+			string functionReturnType = StripTopLevelValueQualifiers(function.ResolvedType ?? function.ReturnType?.ResolvedType ?? "");
+			if (!IsGenericPlaceholderParameter(functionReturnType))
+				return true;
+		}
+		if (callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? substitutions)
+			&& !string.IsNullOrWhiteSpace(function.ResolvedType)
+			&& TryGetParamsComponentShape(null, SubstituteGenericType(function.ResolvedType, substitutions), "result", out shape))
+			return true;
+		return !string.IsNullOrWhiteSpace(call.ResolvedType)
+			&& TryGetParamsComponentShape(null, call.ResolvedType, "result", out shape);
 	}
 
 	ParameterDefinition CreateExpandedParameter(ParameterDefinition source, ParamsComponent component, bool inheritDefaultValue)

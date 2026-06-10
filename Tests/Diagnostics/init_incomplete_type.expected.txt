@@ -1,0 +1,1 @@
+tests/Diagnostics/init_incomplete_type.camp(8,28): error: Cannot use init for incomplete type 'Box<const char[]>'. Use new instead.
