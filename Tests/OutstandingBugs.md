@@ -6,10 +6,6 @@
   as `reader.readLine(catch error)` inside a `within (allocator)` block should
   be able to insert the allocator automatically, but today they must spell
   `within allocator, catch error` explicitly.
-- **BUG-005:** Generic member iterator generators cannot currently use the
-  containing type's generic parameters in the `iter` return type. A method such
-  as `struct iter T iterate()` inside `class List<T>` reports `Unknown type 'T'`
-  or is treated as an ordinary `iter T` return instead of a generator.
 - **BUG-006:** Generic iterator parameter types can leak generic parameter names
   into emitted C typedefs. Generic callable/delegate parameters have been
   narrowed to erase bare generic parameter names for C, but iterator typedef
