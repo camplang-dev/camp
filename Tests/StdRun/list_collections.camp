@@ -1,0 +1,59 @@
+using Std;
+
+export int main()
+{
+	auto ints = new List<int>() finally delete;
+	ints.add(3);
+	ints.add(1);
+	ints.add(2, 1);
+	if (ints.Length != 3)
+		return 1;
+	if (ints.Capacity < 8)
+		return 2;
+	if (ints.Item[0] != 3 || ints.Item[1] != 2 || ints.Item[2] != 1)
+		return 3;
+
+	ints.set(0, 5);
+	if (ints.get(0) != 5)
+		return 4;
+
+	ints.Item[1] = 4;
+	if (ints.Item[1] != 4)
+		return 5;
+
+	if (ints.findIndex(1) != 2)
+		return 6;
+	if (ints.removeRange(1..2) != 1)
+		return 7;
+	if (ints.Length != 2)
+		return 8;
+	if (ints.remove(8) != 0)
+		return 9;
+	if (ints.remove(^1) != 1)
+		return 10;
+	if (ints.Length != 1)
+		return 11;
+	ints.clear(true);
+	if (ints.Length != 0 || ints.Capacity != 0)
+		return 12;
+
+	auto words = new List<string>() finally delete;
+	string one = "one";
+	string two = "two";
+	words.add(one);
+	words.add(two);
+	if (words.Length != 2)
+		return 13;
+	if (words.findLastIndex(two) != 1)
+		return 14;
+	if (words.Item[0].Length != 3)
+		return 15;
+
+	auto copy = words.copyList() finally delete;
+	if (copy == null)
+		return 16;
+	if (copy.Length != 2 || copy.Item[1].Length != 3)
+		return 17;
+
+	return 0;
+}
