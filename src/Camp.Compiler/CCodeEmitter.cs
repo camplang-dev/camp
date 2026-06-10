@@ -2552,17 +2552,17 @@ public static class CCodeEmitter
 			};
 		}
 
-		static string CTypeName(TypeReference type)
+		string CTypeName(TypeReference type)
 		{
 			return type.ResolvedType is string resolved ? CTypeName(resolved) : "void*";
 		}
 
-		static string CTypeName(TypeDefinitionReference definition)
+		string CTypeName(TypeDefinitionReference definition)
 		{
 			return definition.Definition is not null ? CName(definition.Definition) : SanitizeIdentifier(definition.Name);
 		}
 
-		static string CTypeName(NamedTypeReference named)
+		string CTypeName(NamedTypeReference named)
 		{
 			return !string.IsNullOrWhiteSpace(named.ResolvedType)
 				? CTypeName(named.ResolvedType)
@@ -2639,16 +2639,66 @@ public static class CCodeEmitter
 			return parts;
 		}
 
-		static string CTypeName(string resolvedType)
+		string CTypeName(string resolvedType)
 		{
 			int genericStart = resolvedType.IndexOf('<', StringComparison.Ordinal);
 			if (genericStart >= 0)
 				resolvedType = resolvedType[..genericStart];
+			resolvedType = EraseGenericParametersForCName(resolvedType);
 			return resolvedType switch
 			{
 				"any" or "auto" or "#TARGET" => "void*",
 				_ => SanitizeIdentifier(RemoveTypeDecorators(resolvedType))
 			};
+		}
+
+		string EraseGenericParametersForCName(string resolvedType)
+		{
+			if (genericParameterNames.Count == 0 || string.IsNullOrWhiteSpace(resolvedType))
+				return resolvedType;
+
+			StringBuilder builder = new(resolvedType.Length);
+			for (int i = 0; i < resolvedType.Length;)
+			{
+				if (IsIdentifierStart(resolvedType[i]))
+				{
+					int start = i;
+					i++;
+					while (i < resolvedType.Length && IsIdentifierPart(resolvedType[i]))
+						i++;
+					string token = resolvedType[start..i];
+					if (genericParameterNames.Contains(token))
+					{
+						builder.Append("void*");
+						int afterToken = i;
+						while (afterToken < resolvedType.Length && char.IsWhiteSpace(resolvedType[afterToken]))
+							afterToken++;
+						while (afterToken < resolvedType.Length && resolvedType[afterToken] == '*')
+							afterToken++;
+						if (afterToken > i)
+							i = afterToken;
+					}
+					else
+					{
+						builder.Append(token);
+					}
+					continue;
+				}
+
+				builder.Append(resolvedType[i]);
+				i++;
+			}
+			return builder.ToString();
+		}
+
+		static bool IsIdentifierStart(char c)
+		{
+			return c == '_' || char.IsLetter(c);
+		}
+
+		static bool IsIdentifierPart(char c)
+		{
+			return IsIdentifierStart(c) || char.IsDigit(c);
 		}
 
 		static string RemoveTypeDecorators(string value)

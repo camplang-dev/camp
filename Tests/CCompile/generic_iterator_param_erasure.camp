@@ -1,0 +1,11 @@
+class Sink<T: any>
+{
+	void addEach(iter T iterator)
+	{
+	}
+}
+
+export int main()
+{
+	return 0;
+}

@@ -6,10 +6,6 @@
   as `reader.readLine(catch error)` inside a `within (allocator)` block should
   be able to insert the allocator automatically, but today they must spell
   `within allocator, catch error` explicitly.
-- **BUG-006:** Generic iterator parameter types can leak generic parameter names
-  into emitted C typedefs. Generic callable/delegate parameters have been
-  narrowed to erase bare generic parameter names for C, but iterator typedef
-  surfaces such as `addEach(iter T iterator)` still need focused coverage.
 - **BUG-008:** Generic constructor calls can emit unresolved hidden `sizeof(T)`.
   Calling `new SomeGeneric<T>()` from inside a generic instance method may
   insert the constructor's hidden `sizeof(T)` argument as literal `sizeof(T)` in

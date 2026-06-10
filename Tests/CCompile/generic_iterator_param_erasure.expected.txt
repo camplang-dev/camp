@@ -1,0 +1,59 @@
+// file: generic_iterator_param_erasure.c
+#include "generic_iterator_param_erasure_private.h"
+#include "generic_iterator_param_erasure.h"
+
+/* Private file declarations. */
+static void Sink_addEach(Sink *this, fn_bool_voidPtr__voidPtr_ iterator, void* iterator_context);
+
+static void Sink_addEach(Sink *this, fn_bool_voidPtr__voidPtr_ iterator, void* iterator_context)
+{
+}
+
+int main(void)
+{
+	return 0;
+}
+
+// file: generic_iterator_param_erasure.h
+#ifndef GENERIC_ITERATOR_PARAM_ERASURE_H_
+#define GENERIC_ITERATOR_PARAM_ERASURE_H_
+
+#include "generic_iterator_param_erasure_private.h"
+
+typedef bool (* fn_bool_voidPtr__voidPtr_)(void* arg0, void* arg1);
+int main(void);
+
+#endif
+// file: generic_iterator_param_erasure_private.h
+#ifndef GENERIC_ITERATOR_PARAM_ERASURE_PRIVATE_H_
+#define GENERIC_ITERATOR_PARAM_ERASURE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Sink Sink;
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef bool (* fn_bool_voidPtr__voidPtr_)(void* arg0, void* arg1);
+
+/* Enums. */
+
+/* Layouts. */
+struct Sink
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generic_iterator_param_erasure.c
