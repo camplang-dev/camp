@@ -611,10 +611,10 @@ public static class CCodeEmitter
 			writer.WriteLine("int main(int argc, char* argv[])");
 			writer.WriteLine("{");
 			if (IsIntReturn(entryPoint))
-				writer.WriteLine("\treturn " + CName(entryPoint) + "(argv, (uintptr_t)argc);");
+				writer.WriteLine("\treturn " + CName(entryPoint) + "((const char**)argv, (uintptr_t)argc);");
 			else
 			{
-				writer.WriteLine("\t" + CName(entryPoint) + "(argv, (uintptr_t)argc);");
+				writer.WriteLine("\t" + CName(entryPoint) + "((const char**)argv, (uintptr_t)argc);");
 				writer.WriteLine("\treturn 0;");
 			}
 			writer.WriteLine("}");
