@@ -169,10 +169,26 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BuildFlattenedFunctionValueType(FunctionDefinition function, string receiverType)
 	{
+		Dictionary<string, string> substitutions = [];
+		AddReceiverTypeGenericSubstitutions(receiverType, function, substitutions);
 		List<string> parameters = [receiverType];
 		foreach (ParameterDefinition parameter in GetCallableParameters(function.Parameters))
-			parameters.Add(parameter.ResolvedType ?? ErrorType);
+		{
+			string parameterType = parameter.ResolvedType ?? ErrorType;
+			if (substitutions.Count > 0)
+				parameterType = SubstituteGenericType(parameterType, substitutions);
+			parameters.Add(parameter.Modifier switch
+			{
+				ParameterModifier.In => "in " + parameterType,
+				ParameterModifier.Out => "out " + parameterType,
+				ParameterModifier.Thrown => "thrown " + parameterType,
+				_ => parameterType
+			});
+		}
 
-		return BuildCallableType("fn", function.ResolvedType ?? ErrorType, parameters);
+		string returnType = substitutions.Count > 0
+			? SubstituteGenericType(function.ResolvedType ?? ErrorType, substitutions)
+			: function.ResolvedType ?? ErrorType;
+		return BuildCallableType("fn", returnType, parameters);
 	}
 }

@@ -1217,11 +1217,20 @@ public sealed partial class BindableNodeAnalyzer
 
 	static List<string> ExtractConstructedTypeArguments(string type)
 	{
-		if (new TypeShapeParser(type).TryParse(out TypeShape shape))
+		type = StripTopLevelValueQualifiers(type.Trim());
+		while (true)
 		{
-			while (shape.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array or TypeShapeKind.Optional)
-				shape = shape.Element ?? shape;
-			type = shape.Name;
+			if (type.EndsWith("[]", StringComparison.Ordinal))
+			{
+				type = type[..^2].TrimEnd();
+				continue;
+			}
+			if (type.EndsWith("*", StringComparison.Ordinal) || type.EndsWith("?", StringComparison.Ordinal))
+			{
+				type = type[..^1].TrimEnd();
+				continue;
+			}
+			break;
 		}
 
 		int start = type.IndexOf('<', StringComparison.Ordinal);

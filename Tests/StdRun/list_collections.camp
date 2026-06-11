@@ -112,6 +112,11 @@ export int main()
 		return 29;
 	if (lengthOf(lineItem.trim()) != 3)
 		return 30;
+	string gamma = "three";
+	lines.add(gamma);
+	auto lineItem2 = lines.Item[2];
+	if (lineItem2.length != 5 || lineItem2[0] != 't')
+		return 31;
 
 	return 0;
 }

@@ -18,12 +18,104 @@ public sealed partial class BindableNodeAnalyzer
 				includeExplicitThis = true;
 			}
 			callableParameters = GetCallableParametersForCall(function, includeExplicitThis);
+			Dictionary<string, string> substitutions = callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? existing)
+				? new Dictionary<string, string>(existing, System.StringComparer.Ordinal)
+				: [];
+			AddFunctionTypeArgumentSubstitutions(function, call.TypeArguments, substitutions);
+			if (includeExplicitThis && call.Arguments.Count > 0 && call.Arguments[0].Value?.ResolvedType is string receiverType)
+				AddReceiverTypeGenericSubstitutions(receiverType, function, substitutions);
+			if (substitutions.Count == 0 && TryGetCallableShape(call.Target?.ResolvedType, out CallableShape callableShape) && callableShape.Parameters.Count > 0)
+			{
+				AddConstructedTypeGenericSubstitutions(callableShape.Parameters[0], substitutions);
+				if (substitutions.Count == 0)
+					AddSingleReceiverTypeArgumentSubstitutions(callableShape.Parameters[0], callableParameters, substitutions);
+			}
+			if (substitutions.Count > 0)
+				callableParameters = SubstituteCallableParameterTypes(callableParameters, substitutions);
 		}
 		else
 		{
 			callableParameters = GetCallableParametersForExpression(call.Target);
+			if (callableParameters is not null
+				&& TryGetCallableShape(call.Target?.ResolvedType, out CallableShape callableShape)
+				&& callableShape.Parameters.Count > 0)
+			{
+				Dictionary<string, string> substitutions = [];
+				AddSingleReceiverTypeArgumentSubstitutions(callableShape.Parameters[0], callableParameters, substitutions);
+				if (substitutions.Count > 0)
+					callableParameters = SubstituteCallableParameterTypes(callableParameters, substitutions);
+			}
 		}
 		ExpandParamsArguments(call.Arguments, callableParameters);
+	}
+
+	void AddConstructedTypeGenericSubstitutions(string constructedType, Dictionary<string, string> substitutions)
+	{
+		string baseName = BaseConstructedType(constructedType);
+		if (!typeDefinitions.TryGetValue(baseName, out TypeDefinition? definition) || definition.GenericParameters.Count == 0)
+			return;
+
+		List<string> typeArguments = ExtractConstructedTypeArgumentsPreservingTypeText(constructedType);
+		int count = System.Math.Min(definition.GenericParameters.Count, typeArguments.Count);
+		for (int i = 0; i < count; i++)
+			substitutions[definition.GenericParameters[i].Name] = typeArguments[i];
+	}
+
+	void AddSingleReceiverTypeArgumentSubstitutions(string constructedType, List<ParameterDefinition> parameters, Dictionary<string, string> substitutions)
+	{
+		List<string> typeArguments = ExtractConstructedTypeArgumentsPreservingTypeText(constructedType);
+		if (typeArguments.Count != 1)
+			return;
+
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter.Type is NamedTypeReference named && IsGenericPlaceholderParameter(named.Name))
+				substitutions[named.Name] = typeArguments[0];
+			else if (IsGenericPlaceholderParameter(StripTopLevelValueQualifiers(parameter.ResolvedType ?? "")))
+				substitutions[StripTopLevelValueQualifiers(parameter.ResolvedType ?? "")] = typeArguments[0];
+		}
+	}
+
+	static List<string> ExtractConstructedTypeArgumentsPreservingTypeText(string type)
+	{
+		type = StripTopLevelValueQualifiers(type.Trim());
+		while (true)
+		{
+			if (type.EndsWith("[]", System.StringComparison.Ordinal))
+			{
+				type = type[..^2].TrimEnd();
+				continue;
+			}
+			if (type.EndsWith("*", System.StringComparison.Ordinal) || type.EndsWith("?", System.StringComparison.Ordinal))
+			{
+				type = type[..^1].TrimEnd();
+				continue;
+			}
+			break;
+		}
+		return ExtractConstructedTypeArguments(type);
+	}
+
+	static List<ParameterDefinition> SubstituteCallableParameterTypes(List<ParameterDefinition> parameters, Dictionary<string, string> substitutions)
+	{
+		List<ParameterDefinition> substituted = [];
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			ParameterDefinition copy = parameter switch
+			{
+				ThisParameterDefinition => new ThisParameterDefinition(),
+				_ => new ParameterDefinition()
+			};
+			copy.SourceSyntax = parameter.SourceSyntax;
+			copy.Name = parameter.Name;
+			copy.Symbol = parameter.Symbol;
+			copy.Modifier = parameter.Modifier;
+			copy.Type = parameter.Type;
+			copy.ResolvedType = SubstituteGenericType(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType, substitutions);
+			copy.DefaultValue = parameter.DefaultValue;
+			substituted.Add(copy);
+		}
+		return substituted;
 	}
 
 	List<ParameterDefinition> GetCallableParametersForCall(FunctionDefinition function, bool includeExplicitThis)
@@ -171,14 +263,17 @@ public sealed partial class BindableNodeAnalyzer
 		if (currentStatementPrefix is null
 			|| callableParameters is null
 			|| index >= callableParameters.Count
-			|| callableParameters[index].Modifier != ParameterModifier.In
-			|| !IsGenericInParameter(callableParameters[index])
-			|| argument.Value is null
-			|| !TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components)
-			|| components.Count <= 1)
+			|| !IsMaterializedExpandedStorageParameter(callableParameters[index])
+			|| argument.Value is null)
 			return false;
 
-		string resultType = argument.ResolvedType ?? argument.Value.ResolvedType ?? "";
+		string parameterType = callableParameters[index].ResolvedType ?? callableParameters[index].Type?.ResolvedType ?? "";
+		string resultType = IsGenericPlaceholderParameter(StripTopLevelValueQualifiers(parameterType))
+			? argument.ResolvedType ?? argument.Value.ResolvedType ?? ""
+			: parameterType;
+		if ((!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components) || components.Count <= 1)
+			&& !TryCreatePrimitiveStringMaterializedComponents(argument, resultType, out components))
+			return false;
 		if (string.IsNullOrWhiteSpace(resultType) || !TryGetParamsComponentShape(null, resultType, "value", out ParamsComponentShape shape) || shape.Components.Count != components.Count)
 			return false;
 
@@ -213,11 +308,41 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	bool IsGenericInParameter(ParameterDefinition parameter)
+	bool TryCreatePrimitiveStringMaterializedComponents(ArgumentExpression argument, string resultType, out List<Expression> components)
 	{
+		components = [];
+		if (argument.Value is null || GetPrimitiveStringElementType(argument.Value.ResolvedType ?? argument.ResolvedType) is not string stringElement)
+			return false;
+		string stringType = stringElement switch
+		{
+			"wchar" => "wstring",
+			"achar" => "astring",
+			_ => "string"
+		};
+		if (!CanConvertPrimitiveStringToConstArray(stringType, resultType))
+			return false;
+
+		Expression? length = CreateLengthExpression(argument.Value, argument.SourceSyntax);
+		if (length is null)
+			return false;
+		length = LowerExpression(length) ?? length;
+		components.Add(argument.Value);
+		components.Add(length);
+		return true;
+	}
+
+	bool IsMaterializedExpandedStorageParameter(ParameterDefinition parameter)
+	{
+		if (parameter.Modifier == ParameterModifier.Out || parameter.Modifier == ParameterModifier.Thrown)
+			return false;
 		if (parameter.Type is NamedTypeReference named && IsGenericPlaceholderParameter(named.Name))
 			return true;
-		return IsGenericPlaceholderParameter(StripTopLevelValueQualifiers(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ""));
+		string type = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "";
+		if (IsGenericPlaceholderParameter(StripTopLevelValueQualifiers(type)))
+			return true;
+		return parameter.Modifier == ParameterModifier.In
+			&& TryGetParamsComponentShape(null, type, "value", out ParamsComponentShape shape)
+			&& shape.Components.Count > 1;
 	}
 
 	bool TryCreateTargetTypedExpandedReturnArgumentComponents(ArgumentExpression argument, out List<Expression> components)
