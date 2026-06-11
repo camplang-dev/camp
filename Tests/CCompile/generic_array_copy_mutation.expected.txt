@@ -1,0 +1,190 @@
+// file: generic_array_copy_mutation.c
+#include "generic_array_copy_mutation_private.h"
+
+/* Private file declarations. */
+static int __camp_delegate_compareInt(void* arg0, int* arg1, int* arg2);
+static void clear(void* values, uintptr_t values_length, uintptr_t sizeof_T);
+static void copyTo(const void* source, uintptr_t source_length, void* destination, uintptr_t destination_length, uintptr_t sizeof_T);
+static void copyFrom(void* destination, uintptr_t destination_length, const void* source, uintptr_t source_length, uintptr_t sizeof_T);
+static void reverse(void* values, uintptr_t values_length, uintptr_t sizeof_T);
+static void sort(void* values, uintptr_t values_length, fn_int_voidPtr__voidPtr__voidPtr_ compare, void* compare_context, uintptr_t sizeof_T);
+static int compareInt(int* left, int* right);
+
+static int __camp_delegate_compareInt(void* arg0, int* arg1, int* arg2)
+{
+	(void)arg0;
+	return compareInt(arg1, arg2);
+}
+
+static void clear(void* values, uintptr_t values_length, uintptr_t sizeof_T)
+{
+	{
+		for (uintptr_t i = 0; (i < values_length); i++)
+		{
+			__builtin_memset((void*)(((uint8_t*)values) + (i * sizeof_T)), 0, sizeof_T);
+__for_continue0: ;
+		}
+__for_break1: ;
+	}
+}
+
+static void copyTo(const void* source, uintptr_t source_length, void* destination, uintptr_t destination_length, uintptr_t sizeof_T)
+{
+	uintptr_t count = source_length;
+	if ((destination_length < count))
+	{
+		count = destination_length;
+	}
+	{
+		for (uintptr_t i = 0; (i < count); i++)
+		{
+			{
+				__builtin_memmove((void*)(((uint8_t*)destination) + (i * sizeof_T)), (void*)(((const uint8_t*)source) + (i * sizeof_T)), sizeof_T);
+			}
+__for_continue2: ;
+		}
+__for_break3: ;
+	}
+}
+
+static void copyFrom(void* destination, uintptr_t destination_length, const void* source, uintptr_t source_length, uintptr_t sizeof_T)
+{
+	uintptr_t count = source_length;
+	if ((destination_length < count))
+	{
+		count = destination_length;
+	}
+	{
+		for (uintptr_t i = 0; (i < count); i++)
+		{
+			{
+				__builtin_memmove((void*)(((uint8_t*)destination) + (i * sizeof_T)), (void*)(((const uint8_t*)source) + (i * sizeof_T)), sizeof_T);
+			}
+__for_continue4: ;
+		}
+__for_break5: ;
+	}
+}
+
+static void reverse(void* values, uintptr_t values_length, uintptr_t sizeof_T)
+{
+	if ((values_length < 2))
+	{
+		return;
+	}
+	uintptr_t left = 0;
+	uintptr_t right = (values_length - 1);
+	{
+		while ((left < right))
+		{
+			uint8_t temp[sizeof_T];
+			__builtin_memcpy(temp, (void*)(((uint8_t*)values) + (left * sizeof_T)), sizeof_T);
+			{
+				__builtin_memmove((void*)(((uint8_t*)values) + (left * sizeof_T)), (void*)(((uint8_t*)values) + (right * sizeof_T)), sizeof_T);
+			}
+			__builtin_memmove((void*)(((uint8_t*)values) + (right * sizeof_T)), temp, sizeof_T);
+			left++;
+			right--;
+__while_continue6: ;
+		}
+__while_break7: ;
+	}
+}
+
+static void sort(void* values, uintptr_t values_length, fn_int_voidPtr__voidPtr__voidPtr_ compare, void* compare_context, uintptr_t sizeof_T)
+{
+	if ((values_length < 2))
+	{
+		return;
+	}
+	{
+		for (uintptr_t i = 1; (i < values_length); i++)
+		{
+			uintptr_t j = i;
+			{
+				while (((j > 0) && (compare(compare_context, (void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), (void*)(((uint8_t*)values) + (j * sizeof_T))) > 0)))
+				{
+					uint8_t temp[sizeof_T];
+					__builtin_memcpy(temp, (void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), sizeof_T);
+					{
+						__builtin_memmove((void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), (void*)(((uint8_t*)values) + (j * sizeof_T)), sizeof_T);
+					}
+					__builtin_memmove((void*)(((uint8_t*)values) + (j * sizeof_T)), temp, sizeof_T);
+					j--;
+__while_continue10: ;
+				}
+__while_break11: ;
+			}
+__for_continue8: ;
+		}
+__for_break9: ;
+	}
+}
+
+static int compareInt(int* left, int* right)
+{
+	if (((*left) < (*right)))
+	{
+		return -1;
+	}
+	if (((*left) > (*right)))
+	{
+		return 1;
+	}
+	return 0;
+}
+
+int main(void)
+{
+	int* source = (int []){3, 1, 2, 4};
+	uintptr_t source_length = 4;
+	int* destination = (int []){0, 0, 0, 0};
+	uintptr_t destination_length = 4;
+	copyTo(source, source_length, destination, destination_length, sizeof(int));
+	reverse(destination, destination_length, sizeof(int));
+	sort(destination, destination_length, (fn_int_voidPtr__voidPtr__voidPtr_)__camp_delegate_compareInt, NULL, sizeof(int));
+	clear(source, source_length, sizeof(int));
+	copyFrom(source, source_length, destination, destination_length, sizeof(int));
+	return (((source[0] + source[1]) + source[2]) + source[3]);
+}
+
+// file: generic_array_copy_mutation.h
+#ifndef GENERIC_ARRAY_COPY_MUTATION_H_
+#define GENERIC_ARRAY_COPY_MUTATION_H_
+
+#include "generic_array_copy_mutation_private.h"
+
+typedef int (* fn_int_int__int_)(int* arg0, int* arg1);
+typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void* arg0, void* arg1, void* arg2);
+int main(void);
+
+#endif
+// file: generic_array_copy_mutation_private.h
+#ifndef GENERIC_ARRAY_COPY_MUTATION_PRIVATE_H_
+#define GENERIC_ARRAY_COPY_MUTATION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_int__int_)(int* arg0, int* arg1);
+typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void* arg0, void* arg1, void* arg2);
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generic_array_copy_mutation.c

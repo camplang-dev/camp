@@ -1,0 +1,87 @@
+void clear<T: any>(T[] values, sizeof(T))
+{
+	for (nuint i = 0; i < values.length; i++)
+		values[i] = default;
+}
+
+void copyTo<T: any>(const T[] source, T[] destination, sizeof(T))
+{
+	nuint count = source.length;
+	if (destination.length < count)
+		count = destination.length;
+
+	for (nuint i = 0; i < count; i++)
+		destination[i] = source[i];
+}
+
+void copyFrom<T: any>(T[] destination, const T[] source, sizeof(T))
+{
+	nuint count = source.length;
+	if (destination.length < count)
+		count = destination.length;
+
+	for (nuint i = 0; i < count; i++)
+		destination[i] = source[i];
+}
+
+void reverse<T: any>(T[] values, sizeof(T))
+{
+	if (values.length < 2)
+		return;
+
+	nuint left = 0;
+	nuint right = values.length - 1;
+	while (left < right)
+	{
+		T temp = values[left];
+		values[left] = values[right];
+		values[right] = temp;
+		left++;
+		right--;
+	}
+}
+
+void sort<T: any>(
+	T[] values,
+	delegate int(in T left, in T right) compare,
+	sizeof(T))
+{
+	if (values.length < 2)
+		return;
+
+	for (nuint i = 1; i < values.length; i++)
+	{
+		nuint j = i;
+
+		while (j > 0 && compare(values[j - 1], values[j]) > 0)
+		{
+			T temp = values[j - 1];
+			values[j - 1] = values[j];
+			values[j] = temp;
+			j--;
+		}
+	}
+}
+
+int compareInt(in int left, in int right)
+{
+	if (left < right)
+		return -1;
+	if (left > right)
+		return 1;
+	return 0;
+}
+
+export int main()
+{
+	int[] source = [3, 1, 2, 4];
+	int[] destination = [0, 0, 0, 0];
+
+	copyTo<int>(source, destination);
+	reverse<int>(destination);
+	sort<int>(destination, compareInt);
+	clear<int>(source);
+	copyFrom<int>(source, destination);
+
+	return source[0] + source[1] + source[2] + source[3];
+}

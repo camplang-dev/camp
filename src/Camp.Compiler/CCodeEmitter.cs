@@ -349,6 +349,7 @@ public static class CCodeEmitter
 		readonly HashSet<string> genericParameterNames = BuildGenericParameterNameSet(compilation);
 		readonly HashSet<string> anyGenericParameterNames = BuildAnyGenericParameterNameSet(compilation);
 		readonly HashSet<string> currentGenericTypeNames = new(StringComparer.Ordinal);
+		readonly HashSet<string> currentAnyGenericTypeNames = new(StringComparer.Ordinal);
 		readonly HashSet<string> currentArrayElementComponentNames = new(StringComparer.Ordinal);
 		readonly Dictionary<Expression, DelegateThunk> delegateThunksByExpression = [];
 		readonly Dictionary<SourceFile, List<DelegateThunk>> delegateThunksByFile = [];
@@ -1409,12 +1410,22 @@ public static class CCodeEmitter
 		void WithGenericContext(FunctionDefinition function, Action action)
 		{
 			HashSet<string> previous = new(currentGenericTypeNames, StringComparer.Ordinal);
+			HashSet<string> previousAny = new(currentAnyGenericTypeNames, StringComparer.Ordinal);
 			currentGenericTypeNames.Clear();
+			currentAnyGenericTypeNames.Clear();
 			foreach (GenericParameter parameter in function.GenericParameters)
+			{
 				currentGenericTypeNames.Add(parameter.Name);
+				if (parameter.Constraint is AnyTypeReference)
+					currentAnyGenericTypeNames.Add(parameter.Name);
+			}
 			if (containingTypes.TryGetValue(function, out TypeDefinition? containingType))
 				foreach (GenericParameter parameter in containingType.GenericParameters)
+				{
 					currentGenericTypeNames.Add(parameter.Name);
+					if (parameter.Constraint is AnyTypeReference)
+						currentAnyGenericTypeNames.Add(parameter.Name);
+				}
 
 			try
 			{
@@ -1425,15 +1436,24 @@ public static class CCodeEmitter
 				currentGenericTypeNames.Clear();
 				foreach (string name in previous)
 					currentGenericTypeNames.Add(name);
+				currentAnyGenericTypeNames.Clear();
+				foreach (string name in previousAny)
+					currentAnyGenericTypeNames.Add(name);
 			}
 		}
 
 		void WithGenericContext(TypeDefinition type, Action action)
 		{
 			HashSet<string> previous = new(currentGenericTypeNames, StringComparer.Ordinal);
+			HashSet<string> previousAny = new(currentAnyGenericTypeNames, StringComparer.Ordinal);
 			currentGenericTypeNames.Clear();
+			currentAnyGenericTypeNames.Clear();
 			foreach (GenericParameter parameter in type.GenericParameters)
+			{
 				currentGenericTypeNames.Add(parameter.Name);
+				if (parameter.Constraint is AnyTypeReference)
+					currentAnyGenericTypeNames.Add(parameter.Name);
+			}
 
 			try
 			{
@@ -1444,6 +1464,9 @@ public static class CCodeEmitter
 				currentGenericTypeNames.Clear();
 				foreach (string name in previous)
 					currentGenericTypeNames.Add(name);
+				currentAnyGenericTypeNames.Clear();
+				foreach (string name in previousAny)
+					currentAnyGenericTypeNames.Add(name);
 			}
 		}
 
@@ -1639,7 +1662,7 @@ public static class CCodeEmitter
 				else if (declaration.InitialValue is not null)
 				{
 					WriteIndent(writer, indent);
-					writer.WriteLine("/* unsupported generic initializer */");
+					writer.WriteLine("__builtin_memcpy(" + name + ", " + FormatGenericStorageSource(declaration.InitialValue) + ", " + size + ");");
 				}
 				return;
 			}
@@ -1944,6 +1967,14 @@ public static class CCodeEmitter
 		string FormatAssignmentExpression(AssignmentExpression assignment)
 		{
 			if (assignment.Operator == AssignmentOperator.Assign
+				&& TryFormatGenericStorageAddress(assignment.Target, out string destination, out string genericType))
+			{
+				string size = FormatGenericSizeExpression(genericType);
+				if (assignment.Value is DefaultExpression)
+					return "__builtin_memset(" + destination + ", 0, " + size + ")";
+				return "__builtin_memmove(" + destination + ", " + FormatGenericStorageSource(assignment.Value) + ", " + size + ")";
+			}
+			if (assignment.Operator == AssignmentOperator.Assign
 				&& assignment.Target is VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.Out } parameter }
 				&& IsAnyGenericParameterType(parameter.ResolvedType))
 			{
@@ -2204,7 +2235,7 @@ public static class CCodeEmitter
 			value = "";
 			string? arrayType = index.Target?.ResolvedType;
 			if ((TryGetArrayElementType(arrayType, out string elementType) || TryGetPointerElementType(arrayType, out elementType))
-				&& IsGenericParameterType(StripTypeDecorators(elementType))
+				&& IsAnyGenericParameterType(StripTypeDecorators(elementType))
 				&& index.Arguments.Count == 1)
 			{
 				string target = FormatExpression(index.Target);
@@ -2464,7 +2495,7 @@ public static class CCodeEmitter
 		bool IsAnyGenericParameterType(string? type)
 		{
 			string stripped = StripTypeDecorators(type ?? "");
-			return anyGenericParameterNames.Contains(stripped) || currentGenericTypeNames.Contains(stripped) && anyGenericParameterNames.Contains(stripped);
+			return currentAnyGenericTypeNames.Contains(stripped);
 		}
 
 		string FormatGenericSizeExpression(string? type)
@@ -2490,12 +2521,41 @@ public static class CCodeEmitter
 
 		string FormatGenericStorageSource(Expression? expression)
 		{
+			if (TryFormatGenericStorageAddress(expression, out string address, out _))
+				return address;
 			return expression switch
 			{
 				VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter } when IsGenericParameterType(parameter.ResolvedType) => CName(parameter),
 				VariableReferenceExpression { Variable: DeclarationTarget target } when IsAnyGenericParameterType(target.ResolvedType) => CName(target),
 				_ => "&(" + FormatExpression(expression) + ")"
 			};
+		}
+
+		bool TryFormatGenericStorageAddress(Expression? expression, out string address, out string genericType)
+		{
+			address = "";
+			genericType = "";
+			switch (expression)
+			{
+				case IndexExpression index when TryFormatGenericArrayElementAddress(index, out address):
+					genericType = TryGetArrayElementType(index.Target?.ResolvedType, out string arrayElement)
+						? arrayElement
+						: TryGetPointerElementType(index.Target?.ResolvedType, out string pointerElement) ? pointerElement : "";
+					return !string.IsNullOrWhiteSpace(genericType);
+
+				case VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter } when IsGenericParameterType(parameter.ResolvedType):
+					address = CName(parameter);
+					genericType = parameter.ResolvedType ?? "";
+					return true;
+
+				case VariableReferenceExpression { Variable: DeclarationTarget target } when IsAnyGenericParameterType(target.ResolvedType):
+					address = CName(target);
+					genericType = target.ResolvedType ?? "";
+					return true;
+
+				default:
+					return false;
+			}
 		}
 
 		static bool IsPrimitiveScalarType(string type)
