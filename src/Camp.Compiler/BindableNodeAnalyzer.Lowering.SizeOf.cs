@@ -200,7 +200,8 @@ public sealed partial class BindableNodeAnalyzer
 					: TypeReferenceForResolvedName(concreteType),
 				ResolvedType = "nuint"
 			};
-			call.Arguments.Insert(i, new ArgumentExpression
+			int insertIndex = Math.Min(i, call.Arguments.Count);
+			call.Arguments.Insert(insertIndex, new ArgumentExpression
 			{
 				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
 				Value = IsGenericSizeOf(value, out _) ? LowerSizeOfExpression(value) : value,

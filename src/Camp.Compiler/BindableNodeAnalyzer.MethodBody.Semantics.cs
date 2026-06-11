@@ -29,7 +29,7 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
 	}
 
-	void RequireMutableWriteTarget(Expression? target, string targetType, SyntaxNode? syntax, string context)
+	void RequireMutableWriteTarget(Expression? target, string targetType, SyntaxNode? syntax, string context, BodyScope scope)
 	{
 		if (target is MemberReferenceExpression { Member: FieldDefinition or ParameterDefinition or VariableDefinition } && IsMutableStorageType(targetType))
 			return;
@@ -41,7 +41,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (target is IndexExpression index)
 		{
-			RequireMutableIndexedWriteTarget(index, syntax, context);
+			RequireMutableIndexedWriteTarget(index, syntax, context, scope);
 			return;
 		}
 
@@ -53,7 +53,7 @@ public sealed partial class BindableNodeAnalyzer
 		return IsPrimitiveStringType(type);
 	}
 
-	void RequireMutableIndexedWriteTarget(IndexExpression index, SyntaxNode? syntax, string context)
+	void RequireMutableIndexedWriteTarget(IndexExpression index, SyntaxNode? syntax, string context, BodyScope scope)
 	{
 		string indexedType = index.Target?.ResolvedType ?? ErrorType;
 		if (indexedType == ErrorType || indexedType == TargetType)
@@ -61,6 +61,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (TryGetArrayElementType(indexedType) is not null)
 		{
+			RequireGenericArrayElementStride(indexedType, scope, syntax, "mutate T[]");
+			RequireGenericArrayMutableElement(indexedType, scope, syntax);
 			if (IsConstQualified(indexedType))
 				Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
 			return;

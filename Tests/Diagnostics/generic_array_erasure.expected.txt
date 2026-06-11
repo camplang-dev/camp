@@ -1,0 +1,10 @@
+tests/Diagnostics/generic_array_erasure.camp(8,15): error: Cannot index T[] because element stride for erased type parameter 'T' is unavailable. Add sizeof(T) to the parameter list or use a representation constraint.
+tests/Diagnostics/generic_array_erasure.camp(13,18): error: Cannot index T[] because element stride for erased type parameter 'T' is unavailable. Add sizeof(T) to the parameter list or use a representation constraint.
+tests/Diagnostics/generic_array_erasure.camp(13,17): error: Cannot take the address of an element of T[] because element stride for erased type parameter 'T' is unavailable. Add sizeof(T) to the parameter list or use a representation constraint.
+tests/Diagnostics/generic_array_erasure.camp(18,24): error: Cannot enumerate T[] because element stride for erased type parameter 'T' is unavailable. Add sizeof(T) to the parameter list or use a representation constraint.
+tests/Diagnostics/generic_array_erasure.camp(25,21): error: Cannot slice T[] because element stride for erased type parameter 'T' is unavailable. Add sizeof(T) to the parameter list or use a representation constraint.
+tests/Diagnostics/generic_array_erasure.camp(30,2): error: Cannot index T[] because element stride for erased type parameter 'T' is unavailable. Add sizeof(T) to the parameter list or use a representation constraint.
+tests/Diagnostics/generic_array_erasure.camp(30,7): error: Cannot mutate T[] because element stride for erased type parameter 'T' is unavailable. Add sizeof(T) to the parameter list or use a representation constraint.
+tests/Diagnostics/generic_array_erasure.camp(35,16): error: Cannot new T[] because element stride for erased type parameter 'T' is unavailable. Add sizeof(T) to the parameter list or use a representation constraint.
+tests/Diagnostics/generic_array_erasure.camp(40,2): error: vtableof(T: IValue) supplies interface dispatch capability, not element stride. Add sizeof(T) to index T[].
+tests/Diagnostics/generic_array_erasure.camp(50,7): error: Cannot mutate an element through const T[].

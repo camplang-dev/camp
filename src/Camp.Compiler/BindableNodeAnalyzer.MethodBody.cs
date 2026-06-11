@@ -518,6 +518,8 @@ public sealed partial class BindableNodeAnalyzer
 	void BodyAnalyzeForeachStatement(ForeachStatement statement, BodyScope scope, AnalysisScope typeScope)
 	{
 		string sourceType = BodyAnalyzeExpression(statement.Source, scope, typeScope);
+		if (TryGetArrayElementType(sourceType) is not null)
+			RequireGenericArrayElementStride(sourceType, scope, statement.Source?.SourceSyntax, "enumerate T[]");
 		string elementType = GetForeachElementType(statement, sourceType, statement.Source?.SourceSyntax);
 		if (statement.Target.Names.Count != 1)
 			Report(GetRange(statement.Target.SourceSyntax ?? statement.SourceSyntax), "Foreach statement must declare exactly one loop variable.");
@@ -963,6 +965,11 @@ public sealed partial class BindableNodeAnalyzer
 			BodyAnalyzeInitializerExpression(construction.Initializer, scope, typeScope, targetType);
 		if (construction.ElementCount is not null)
 		{
+			if (construction.Type?.ResolvedType is string elementType)
+			{
+				string arrayType = $"{elementType}[]";
+				RequireGenericArrayElementStride(arrayType, scope, construction.SourceSyntax, $"{construction.Kind.ToString().ToLowerInvariant()} T[]");
+			}
 			if (TryGetPointerElementType(targetExpressionType) is string pointerElement
 				&& (pointerElement == "void" || CanImplicitlyConvert(construction.Type?.ResolvedType ?? ErrorType, pointerElement)))
 			{
@@ -2095,7 +2102,7 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 
 		if (arguments is [{ Value: RangeExpression range }])
-			return BodyAnalyzeArrayRangeIndexExpression(target, targetType, arguments, range);
+			return BodyAnalyzeArrayRangeIndexExpression(target, targetType, arguments, range, scope);
 
 		foreach (ArgumentExpression argument in arguments)
 		{
@@ -2122,7 +2129,10 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		if (TryGetArrayElementType(targetType) is string elementType)
+		{
+			RequireGenericArrayElementStride(targetType, scope, target?.SourceSyntax, "index T[]");
 			return elementType;
+		}
 
 		if (TryGetPointerElementType(targetType) is string pointerElementType)
 			return pointerElementType;
@@ -2134,7 +2144,7 @@ public sealed partial class BindableNodeAnalyzer
 		return ErrorType;
 	}
 
-	string BodyAnalyzeArrayRangeIndexExpression(Expression? target, string targetType, List<ArgumentExpression> arguments, RangeExpression range)
+	string BodyAnalyzeArrayRangeIndexExpression(Expression? target, string targetType, List<ArgumentExpression> arguments, RangeExpression range, BodyScope scope)
 	{
 		ArgumentExpression argument = arguments[0];
 		string? arrayElementType = TryGetArrayElementType(targetType);
@@ -2149,6 +2159,8 @@ public sealed partial class BindableNodeAnalyzer
 			argument.ResolvedType = ErrorType;
 			return ErrorType;
 		}
+		if (arrayElementType is not null)
+			RequireGenericArrayElementStride(targetType, scope, range.SourceSyntax ?? argument.SourceSyntax ?? target?.SourceSyntax, "slice T[]");
 
 		Expression? length = CreateLengthExpression(target, range.SourceSyntax ?? argument.SourceSyntax ?? target?.SourceSyntax);
 		if (length is null)
@@ -2249,7 +2261,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			case UnaryOperator.AddressOf:
 				if (unary.Operand is IndexExpression index && TryGetIndexedAddressType(index.Target?.ResolvedType, out string indexedAddressType))
+				{
+					if (index.Target?.ResolvedType is string indexedType && TryGetArrayElementType(indexedType) is not null)
+						RequireGenericArrayElementStride(indexedType, scope, unary.SourceSyntax ?? index.SourceSyntax, "take the address of an element of T[]");
 					return indexedAddressType;
+				}
 				return $"{operandType}*";
 
 			case UnaryOperator.PointerDereference:
@@ -2270,7 +2286,7 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzePostfixUpdateExpression(PostfixUpdateExpression postfix, BodyScope scope, AnalysisScope typeScope)
 	{
 		string operandType = BodyAnalyzeExpression(postfix.Expression, scope, typeScope);
-		RequireMutableWriteTarget(postfix.Expression, operandType, postfix.Expression?.SourceSyntax, "Update target");
+		RequireMutableWriteTarget(postfix.Expression, operandType, postfix.Expression?.SourceSyntax, "Update target", scope);
 		if (!IsNumericType(operandType))
 			Report(GetRange(postfix.Expression?.SourceSyntax), $"Update operator requires a numeric operand, not '{operandType}'.");
 		return operandType;
@@ -2332,7 +2348,7 @@ public sealed partial class BindableNodeAnalyzer
 			assignment.ResolvedType = valueType;
 			return valueType;
 		}
-		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target");
+		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target", scope);
 		CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
 		return targetType;
 	}

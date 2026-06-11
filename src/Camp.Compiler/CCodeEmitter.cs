@@ -736,7 +736,8 @@ public static class CCodeEmitter
 			if (!SameCallableTypeSlot(sourceReturnType, targetReturnType))
 				return false;
 			for (int i = 0; i < sourceParameters.Count; i++)
-				if (!SameCallableTypeSlot(GetCallableParameterTypeText(sourceParameters[i]), targetParameterTypes[i + 1]))
+				if (!SameCallableTypeSlot(GetCallableParameterTypeText(sourceParameters[i]), targetParameterTypes[i + 1])
+					&& !(sourceParameters[i].Modifier == ParameterModifier.In && IsVoidPointerType(targetParameterTypes[i + 1])))
 					return false;
 
 			string name = CreateUniqueDelegateThunkName(sourceFunction);
@@ -827,8 +828,25 @@ public static class CCodeEmitter
 			writer.WriteLine("{");
 			writer.WriteLine("\t(void)arg0;");
 			List<string> arguments = [];
+			List<ParameterDefinition> sourceParameters = GetCallableParametersForCall(thunk.SourceFunction);
 			for (int i = 1; i < thunk.ParameterTypes.Count; i++)
-				arguments.Add("arg" + i.ToString(CultureInfo.InvariantCulture));
+			{
+				string argument = "arg" + i.ToString(CultureInfo.InvariantCulture);
+				int sourceIndex = i - 1;
+				if (sourceIndex < sourceParameters.Count)
+				{
+					string sourceType = GetCallableParameterTypeText(sourceParameters[sourceIndex]);
+					string targetType = thunk.ParameterTypes[i];
+					if (!SameCallableTypeSlot(sourceType, targetType))
+					{
+						string cType = sourceParameters[sourceIndex].Modifier == ParameterModifier.In
+							? FormatResolvedType((sourceParameters[sourceIndex].ResolvedType ?? sourceParameters[sourceIndex].Type?.ResolvedType ?? "void") + "*", "").Declaration.Trim()
+							: FormatResolvedType(sourceParameters[sourceIndex].ResolvedType ?? sourceParameters[sourceIndex].Type?.ResolvedType ?? "void", "").Declaration.Trim();
+						argument = "(" + cType + ")" + argument;
+					}
+				}
+				arguments.Add(argument);
+			}
 			string call = CName(thunk.SourceFunction) + "(" + string.Join(", ", arguments) + ")";
 			if (thunk.ReturnType == "void")
 				writer.WriteLine("\t" + call + ";");
@@ -2094,6 +2112,12 @@ public static class CCodeEmitter
 			string? rawExpectedParameterType = parameter?.ResolvedType ?? parameter?.Type?.ResolvedType;
 			string? expectedParameterType = SubstituteGenericTypeTokens(rawExpectedParameterType, genericSubstitutions);
 			if (argument.Modifier == ArgumentModifier.None
+				&& expectedParameterType is not null
+				&& IsVoidPointerType(expectedParameterType)
+				&& argument.Value is IndexExpression genericIndex
+				&& TryFormatGenericArrayElementAddress(genericIndex, out string genericElementAddress))
+				return genericElementAddress;
+			if (argument.Modifier == ArgumentModifier.None
 				&& parameter?.Modifier != ParameterModifier.In
 				&& TryGetConcreteGenericType(rawExpectedParameterType, genericSubstitutions, out string? concreteType)
 				&& NeedsGenericScalarCast(concreteType))
@@ -2101,7 +2125,13 @@ public static class CCodeEmitter
 			if (argument.Modifier == ArgumentModifier.None
 				&& argument.Value is not null
 				&& delegateThunksByExpression.TryGetValue(argument.Value, out DelegateThunk? thunk))
+			{
 				value = thunk.Name;
+				if (rawExpectedParameterType is not null
+					&& IsResolvedCallableType(rawExpectedParameterType)
+					&& ContainsGenericParameterTypeName(rawExpectedParameterType))
+					value = "(" + CTypeName(rawExpectedParameterType) + ")" + value;
+			}
 			if (argument.Modifier == ArgumentModifier.None
 				&& expectedParameterType is not null
 				&& IsResolvedCallableType(expectedParameterType)
@@ -2117,6 +2147,25 @@ public static class CCodeEmitter
 				ArgumentModifier.Out or ArgumentModifier.Catch => "&" + value,
 				_ => value
 			};
+		}
+
+		bool ContainsGenericParameterTypeName(string type)
+		{
+			for (int i = 0; i < type.Length;)
+			{
+				if (!IsIdentifierStart(type[i]))
+				{
+					i++;
+					continue;
+				}
+				int start = i++;
+				while (i < type.Length && IsIdentifierPart(type[i]))
+					i++;
+				string token = type[start..i];
+				if (genericParameterNames.Contains(token) || currentGenericTypeNames.Contains(token))
+					return true;
+			}
+			return false;
 		}
 
 		string FormatInArgument(Expression? expression, string value, string? concreteType)
@@ -2135,6 +2184,9 @@ public static class CCodeEmitter
 			value = "";
 			switch (expression)
 			{
+				case IndexExpression index when TryFormatGenericArrayElementAddress(index, out string address):
+					value = address;
+					return true;
 				case VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter }:
 					value = CName(parameter);
 					return true;
@@ -2147,6 +2199,53 @@ public static class CCodeEmitter
 				default:
 					return false;
 			}
+		}
+
+		bool TryFormatGenericArrayElementAddress(IndexExpression index, out string value)
+		{
+			value = "";
+			string? arrayType = index.Target?.ResolvedType;
+			if ((TryGetArrayElementType(arrayType, out string elementType) || TryGetPointerElementType(arrayType, out elementType))
+				&& IsGenericParameterType(StripTypeDecorators(elementType))
+				&& index.Arguments.Count == 1)
+			{
+				string target = FormatExpression(index.Target);
+				string offset = FormatArgumentValue(index.Arguments[0]) + " * " + FormatGenericSizeExpression(elementType);
+				string bytePointer = ElementTypeIsConst(elementType) ? "const uint8_t*" : "uint8_t*";
+				value = "(void*)(((" + bytePointer + ")" + target + ") + (" + offset + "))";
+				return true;
+			}
+			return false;
+		}
+
+		static bool ElementTypeIsConst(string type)
+		{
+			type = type.Trim();
+			return type.StartsWith("const ", StringComparison.Ordinal) || type.EndsWith(" const", StringComparison.Ordinal);
+		}
+
+		static bool TryGetArrayElementType(string? resolvedType, out string elementType)
+		{
+			elementType = "";
+			if (string.IsNullOrWhiteSpace(resolvedType))
+				return false;
+			string type = resolvedType.Trim();
+			if (!type.EndsWith("[]", StringComparison.Ordinal))
+				return false;
+			elementType = type[..^2].TrimEnd();
+			return !string.IsNullOrWhiteSpace(elementType);
+		}
+
+		static bool TryGetPointerElementType(string? resolvedType, out string elementType)
+		{
+			elementType = "";
+			if (string.IsNullOrWhiteSpace(resolvedType))
+				return false;
+			string type = resolvedType.Trim();
+			if (!type.EndsWith("*", StringComparison.Ordinal))
+				return false;
+			elementType = type[..^1].TrimEnd();
+			return !string.IsNullOrWhiteSpace(elementType);
 		}
 
 		bool TryFormatForwardedOutArgument(Expression? expression, out string value)
