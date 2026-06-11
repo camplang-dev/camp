@@ -157,28 +157,19 @@ export scoped const wchar[] trim(const wchar[] this)
 {
 	nuint start = wstringTrimStartIndex(this.elements, this.length);
 	nuint end = wstringTrimEndIndex(this.elements, this.length, start);
-	const wchar[] trimmed = default;
-	trimmed.elements = &this.elements[start];
-	trimmed.length = end - start;
-	return trimmed;
+	return { &this.elements[start], end - start };
 }
 
 export scoped const wchar[] trimStart(const wchar[] this)
 {
 	nuint start = wstringTrimStartIndex(this.elements, this.length);
-	const wchar[] trimmed = default;
-	trimmed.elements = &this.elements[start];
-	trimmed.length = wstringLogicalLength(this.elements, this.length) - start;
-	return trimmed;
+	return { &this.elements[start], wstringLogicalLength(this.elements, this.length) - start };
 }
 
 export scoped const wchar[] trimEnd(const wchar[] this)
 {
 	nuint end = wstringTrimEndIndex(this.elements, this.length, 0);
-	const wchar[] trimmed = default;
-	trimmed.elements = this.elements;
-	trimmed.length = end;
-	return trimmed;
+	return { this.elements, end };
 }
 
 export wstring stringCopy(const wchar[] this, within allocator)

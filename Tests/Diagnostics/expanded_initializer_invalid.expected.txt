@@ -1,0 +1,10 @@
+tests/Diagnostics/expanded_initializer_invalid.camp(8,18): error: Initializer expression requires a target type.
+tests/Diagnostics/expanded_initializer_invalid.camp(9,25): error: Expanded initializer for 'const char[]' is missing component 'length'.
+tests/Diagnostics/expanded_initializer_invalid.camp(10,33): error: Expanded initializer for 'const char[]' has too many components.
+tests/Diagnostics/expanded_initializer_invalid.camp(11,38): error: Expanded initializer for 'const char[]' has no component named 'pointer'.
+tests/Diagnostics/expanded_initializer_invalid.camp(11,25): error: Expanded initializer for 'const char[]' is missing component 'elements'.
+tests/Diagnostics/expanded_initializer_invalid.camp(12,58): error: Initializer component 'elements' is specified more than once.
+tests/Diagnostics/expanded_initializer_invalid.camp(13,40): error: Expanded initializer cannot mix named and positional components.
+tests/Diagnostics/expanded_initializer_invalid.camp(13,23): error: Expanded initializer for 'const char[]' is missing component 'length'.
+tests/Diagnostics/expanded_initializer_invalid.camp(13,23): error: Expanded initializer for 'const char[]' is missing component 'elements'.
+tests/Diagnostics/expanded_initializer_invalid.camp(14,16): error: Initializer component cannot convert 'const char*' to 'nuint'.

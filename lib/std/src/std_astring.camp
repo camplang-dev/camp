@@ -158,28 +158,19 @@ export scoped const achar[] trim(const achar[] this)
 {
 	nuint start = astringTrimStartIndex(this.elements, this.length);
 	nuint end = astringTrimEndIndex(this.elements, this.length, start);
-	const achar[] trimmed = default;
-	trimmed.elements = &this.elements[start];
-	trimmed.length = end - start;
-	return trimmed;
+	return { &this.elements[start], end - start };
 }
 
 export scoped const achar[] trimStart(const achar[] this)
 {
 	nuint start = astringTrimStartIndex(this.elements, this.length);
-	const achar[] trimmed = default;
-	trimmed.elements = &this.elements[start];
-	trimmed.length = astringLogicalLength(this.elements, this.length) - start;
-	return trimmed;
+	return { &this.elements[start], astringLogicalLength(this.elements, this.length) - start };
 }
 
 export scoped const achar[] trimEnd(const achar[] this)
 {
 	nuint end = astringTrimEndIndex(this.elements, this.length, 0);
-	const achar[] trimmed = default;
-	trimmed.elements = this.elements;
-	trimmed.length = end;
-	return trimmed;
+	return { this.elements, end };
 }
 
 export astring stringCopy(const achar[] this, within allocator)

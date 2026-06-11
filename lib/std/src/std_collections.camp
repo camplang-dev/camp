@@ -200,9 +200,7 @@ export class List<T: any>
 	// Transfers the owned buffer to the caller as an array and empties the list.
 	export T[] takeBuffer()
 	{
-		T[] bufferResult = default;
-		bufferResult.elements = (T*)this.buffer;
-		bufferResult.length = this.length;
+		T[] bufferResult = { (T*)this.buffer, this.length };
 		this.buffer = null;
 		this.length = 0;
 		this.capacity = 0;
@@ -225,9 +223,7 @@ export class List<T: any>
 			return arrayResult;
 
 		listMoveValues(storage, this.itemAddress(startAt), count, sizeof(T));
-		arrayResult.elements = (T*)storage;
-		arrayResult.length = count;
-		return arrayResult;
+		return { (T*)storage, count };
 	}
 
 	// Copies a range of items into an existing array.

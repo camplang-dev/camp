@@ -1,0 +1,15 @@
+void accept(const char[] value)
+{
+}
+
+void main()
+{
+	const char* raw = "hello";
+	auto inferred = { raw, 3 };
+	const char[] missing = { raw };
+	const char[] extra = { raw, 3, 4 };
+	const char[] unknown = { .pointer = raw, .length = 3 };
+	const char[] duplicate = { .elements = raw, .elements = raw, .length = 3 };
+	const char[] mixed = { raw, .length = 3 };
+	accept({ raw, raw });
+}

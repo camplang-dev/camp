@@ -162,28 +162,19 @@ export scoped const char[] trim(const char[] this)
 {
 	nuint start = trimStartIndex(this.elements, this.length);
 	nuint end = trimEndIndex(this.elements, this.length, start);
-	const char[] trimmed = default;
-	trimmed.elements = &this.elements[start];
-	trimmed.length = end - start;
-	return trimmed;
+	return { &this.elements[start], end - start };
 }
 
 export scoped const char[] trimStart(const char[] this)
 {
 	nuint start = trimStartIndex(this.elements, this.length);
-	const char[] trimmed = default;
-	trimmed.elements = &this.elements[start];
-	trimmed.length = logicalLength(this.elements, this.length) - start;
-	return trimmed;
+	return { &this.elements[start], logicalLength(this.elements, this.length) - start };
 }
 
 export scoped const char[] trimEnd(const char[] this)
 {
 	nuint end = trimEndIndex(this.elements, this.length, 0);
-	const char[] trimmed = default;
-	trimmed.elements = this.elements;
-	trimmed.length = end;
-	return trimmed;
+	return { this.elements, end };
 }
 
 // Copy-producing transformations

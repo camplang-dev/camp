@@ -32,50 +32,32 @@ export newtype iter nuint ACharWriter(achar[] buffer);
 
 export CharReader getCharReader(ByteReader this)
 {
-	CharReader reader = default;
-	reader.call = (fn bool(void*, nuint*, char*, nuint))this.call;
-	reader.context = this.context;
-	return reader;
+	return { (fn bool(void*, nuint*, char*, nuint))this.call, this.context };
 }
 
 export WCharReader getWCharReader(ByteReader this)
 {
-	WCharReader reader = default;
-	reader.call = (fn bool(void*, nuint*, wchar*, nuint))this.call;
-	reader.context = this.context;
-	return reader;
+	return { (fn bool(void*, nuint*, wchar*, nuint))this.call, this.context };
 }
 
 export ACharReader getACharReader(ByteReader this)
 {
-	ACharReader reader = default;
-	reader.call = (fn bool(void*, nuint*, achar*, nuint))this.call;
-	reader.context = this.context;
-	return reader;
+	return { (fn bool(void*, nuint*, achar*, nuint))this.call, this.context };
 }
 
 export CharWriter getCharWriter(ByteWriter this)
 {
-	CharWriter writer = default;
-	writer.call = (fn bool(void*, nuint*, char*, nuint))this.call;
-	writer.context = this.context;
-	return writer;
+	return { (fn bool(void*, nuint*, char*, nuint))this.call, this.context };
 }
 
 export WCharWriter getWCharWriter(ByteWriter this)
 {
-	WCharWriter writer = default;
-	writer.call = (fn bool(void*, nuint*, wchar*, nuint))this.call;
-	writer.context = this.context;
-	return writer;
+	return { (fn bool(void*, nuint*, wchar*, nuint))this.call, this.context };
 }
 
 export ACharWriter getACharWriter(ByteWriter this)
 {
-	ACharWriter writer = default;
-	writer.call = (fn bool(void*, nuint*, achar*, nuint))this.call;
-	writer.context = this.context;
-	return writer;
+	return { (fn bool(void*, nuint*, achar*, nuint))this.call, this.context };
 }
 
 // export AsyncCharReader getCharReader(AsyncByteReader this);
@@ -90,9 +72,7 @@ export void writeAll(ByteWriter this, const byte[] value, thrown IoError error)
 	nuint offset = 0;
 	while (offset < value.length)
 	{
-		const byte[] remaining = default;
-		remaining.elements = &value.elements[offset];
-		remaining.length = value.length - offset;
+		const byte[] remaining = { &value.elements[offset], value.length - offset };
 		
 		nuint written = 0;
 		if (!this(&written, (byte*)remaining.elements, remaining.length))
@@ -116,9 +96,7 @@ export void write(CharWriter this, overload const char[] value, thrown IoError e
 	nuint offset = 0;
 	while (offset < value.length)
 	{
-		const char[] remaining = default;
-		remaining.elements = &value.elements[offset];
-		remaining.length = value.length - offset;
+		const char[] remaining = { &value.elements[offset], value.length - offset };
 		
 		nuint written = 0;
 		if (!this(&written, (char*)remaining.elements, remaining.length))

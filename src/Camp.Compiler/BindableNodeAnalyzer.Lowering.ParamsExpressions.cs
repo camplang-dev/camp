@@ -752,6 +752,9 @@ public sealed partial class BindableNodeAnalyzer
 			case DefaultExpression defaultExpression:
 				return TryCreateDefaultParamsComponentExpressions(defaultExpression, out components);
 
+			case InitializerExpression initializer:
+				return TryCreateInitializerParamsComponentExpressions(initializer, out components);
+
 			case ArrayExpression array:
 				return TryCreateArrayParamsComponentExpressions(array, out components);
 
@@ -794,6 +797,51 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return false;
 		}
+	}
+
+	bool TryCreateInitializerParamsComponentExpressions(InitializerExpression initializer, out List<Expression> components)
+	{
+		components = [];
+		if (!TryGetParamsComponentShape(null, initializer.ResolvedType, "value", out ParamsComponentShape shape))
+			return false;
+
+		bool hasNamed = false;
+		bool hasPositional = false;
+		Dictionary<string, Expression> named = [];
+		foreach (InitializerItem item in initializer.Items)
+		{
+			if (item.Expression is null)
+				return false;
+			string? targetName = GetSingleInitializerTargetName(item.Target);
+			if (targetName is null)
+			{
+				hasPositional = true;
+				if (hasNamed || components.Count >= shape.Components.Count)
+					return false;
+				components.Add(LowerExpression(item.Expression) ?? item.Expression);
+				continue;
+			}
+
+			hasNamed = true;
+			if (hasPositional || named.ContainsKey(targetName))
+				return false;
+			if (FindParamsComponent(shape, targetName) is null)
+				return false;
+			named[targetName] = LowerExpression(item.Expression) ?? item.Expression;
+		}
+
+		if (hasNamed)
+		{
+			components.Clear();
+			foreach (ParamsComponent component in shape.Components)
+			{
+				if (!named.TryGetValue(component.Name, out Expression? expression))
+					return false;
+				components.Add(expression);
+			}
+		}
+
+		return components.Count == shape.Components.Count;
 	}
 
 	bool TryCreateCurrentThisParameterComponents(out List<Expression> components)

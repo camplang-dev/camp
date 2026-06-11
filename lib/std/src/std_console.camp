@@ -24,26 +24,17 @@ export class Console
 {
 	export static CharReader getReader()
 	{
-		CharReader reader = default;
-		reader.call = Console_readFd;
-		reader.context = null;
-		return reader;
+		return { Console_readFd, null };
 	}
 	
 	export static CharWriter getWriter()
 	{
-		CharWriter writer = default;
-		writer.call = Console_writeFd;
-		writer.context = (void*)(nint)1;
-		return writer;
+		return { Console_writeFd, (void*)(nint)1 };
 	}
 	
 	export static CharWriter getError()
 	{
-		CharWriter writer = default;
-		writer.call = Console_writeFd;
-		writer.context = (void*)(nint)2;
-		return writer;
+		return { Console_writeFd, (void*)(nint)2 };
 	}
 	
 	// export static AsyncCharReader getAsyncReader();

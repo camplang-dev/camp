@@ -18,10 +18,15 @@ export int main()
 	auto lines = new List<const char[]>() finally delete;
 	lines.add("first");
 	lines.add("second");
+	const char* raw = "third-value";
+	lines.add({ raw, 5 });
 
 	auto line = lines.Item[1];
 	if (line.length != 6 || line[0] != 's')
 		return 3;
+	auto third = lines.Item[2];
+	if (third.length != 5 || third[4] != 'd')
+		return 4;
 
 	return 0;
 }

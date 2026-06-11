@@ -207,36 +207,24 @@ export class FileHandle
 	
 	export ByteReader getByteReader()
 	{
-		ByteReader reader = default;
-		reader.call = FileHandle_readFd;
-		reader.context = this;
-		return reader;
+		return { FileHandle_readFd, this };
 	}
 	
 	export CharReader getCharReader()
 	{
 		ByteReader byteReader = this.ByteReader;
-		CharReader reader = default;
-		reader.call = (fn bool(void*, nuint*, char*, nuint))byteReader.call;
-		reader.context = byteReader.context;
-		return reader;
+		return { (fn bool(void*, nuint*, char*, nuint))byteReader.call, byteReader.context };
 	}
 	
 	export ByteWriter getByteWriter()
 	{
-		ByteWriter writer = default;
-		writer.call = FileHandle_writeFd;
-		writer.context = this;
-		return writer;
+		return { FileHandle_writeFd, this };
 	}
 	
 	export CharWriter getCharWriter()
 	{
 		ByteWriter byteWriter = this.ByteWriter;
-		CharWriter writer = default;
-		writer.call = (fn bool(void*, nuint*, char*, nuint))byteWriter.call;
-		writer.context = byteWriter.context;
-		return writer;
+		return { (fn bool(void*, nuint*, char*, nuint))byteWriter.call, byteWriter.context };
 	}
 	
 	// export AsyncByteReader getAsyncReader();

@@ -311,6 +311,12 @@ public sealed partial class BindableNodeAnalyzer
 			? TargetType
 			: declaration.Target.Type.ResolvedType ?? ErrorType;
 		string initialType = declaration.InitialValue is null ? TargetType : BodyAnalyzeExpression(declaration.InitialValue, scope, typeScope, targetType);
+		if (declaration.InitialValue is InitializerExpression
+			&& declaration.Target.Type is AutoTypeReference or null
+			&& declaration.Target.Names.Count == 1)
+		{
+			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Initializer expression requires a target type.");
+		}
 		if (declaration.Target.Names.Count > 1 && TryAnalyzeDeconstructionTarget(declaration.Target, initialType, scope))
 			return;
 
@@ -909,6 +915,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeInitializerExpression(InitializerExpression initializer, BodyScope scope, AnalysisScope typeScope, string? targetType = null)
 	{
+		if (TryGetParamsComponentShape(null, targetType, "value", out ParamsComponentShape shape))
+		{
+			initializer.ResolvedType = targetType;
+			AnalyzeExpandedInitializerExpression(initializer, shape, scope, typeScope);
+			return targetType ?? TargetType;
+		}
+
 		foreach (InitializerItem item in initializer.Items)
 		{
 			if (item.Target is not null)
@@ -917,6 +930,76 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return targetType ?? TargetType;
+	}
+
+	void AnalyzeExpandedInitializerExpression(InitializerExpression initializer, ParamsComponentShape shape, BodyScope scope, AnalysisScope typeScope)
+	{
+		bool hasNamed = false;
+		bool hasPositional = false;
+		HashSet<string> seen = [];
+		int positionalIndex = 0;
+
+		foreach (InitializerItem item in initializer.Items)
+		{
+			string? targetName = GetSingleInitializerTargetName(item.Target);
+			if (targetName is null)
+			{
+				hasPositional = true;
+				if (hasNamed)
+					Report(GetRange(item.Expression?.SourceSyntax ?? item.SourceSyntax), "Expanded initializer cannot mix named and positional components.");
+				if (positionalIndex >= shape.Components.Count)
+				{
+					Report(GetRange(item.Expression?.SourceSyntax ?? item.SourceSyntax), $"Expanded initializer for '{shape.TypeName}' has too many components.");
+					item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope);
+					positionalIndex++;
+					continue;
+				}
+
+				ParamsComponent component = shape.Components[positionalIndex++];
+				item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, component.Type);
+				CheckAssignable(component.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax, "Initializer component");
+				continue;
+			}
+
+			hasNamed = true;
+			if (hasPositional)
+				Report(GetRange(GetInitializerItemDiagnosticSyntax(item)), "Expanded initializer cannot mix named and positional components.");
+			if (!seen.Add(targetName))
+				Report(GetRange(GetInitializerItemDiagnosticSyntax(item)), $"Initializer component '{targetName}' is specified more than once.");
+			ParamsComponent? namedComponent = FindParamsComponent(shape, targetName);
+			if (namedComponent is null)
+			{
+				Report(GetRange(GetInitializerItemDiagnosticSyntax(item)), $"Expanded initializer for '{shape.TypeName}' has no component named '{targetName}'.");
+				item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope);
+				continue;
+			}
+
+			BodyAnalyzeInitializerTarget(item.Target!, scope, typeScope);
+			item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, namedComponent.Type);
+			CheckAssignable(namedComponent.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax, "Initializer component");
+		}
+
+		if (hasPositional && positionalIndex < shape.Components.Count)
+			Report(GetRange(initializer.SourceSyntax), $"Expanded initializer for '{shape.TypeName}' is missing component '{shape.Components[positionalIndex].Name}'.");
+		if (hasNamed)
+		{
+			foreach (ParamsComponent component in shape.Components)
+				if (!seen.Contains(component.Name))
+					Report(GetRange(initializer.SourceSyntax), $"Expanded initializer for '{shape.TypeName}' is missing component '{component.Name}'.");
+		}
+	}
+
+	SyntaxNode? GetInitializerItemDiagnosticSyntax(InitializerItem item)
+	{
+		return item.Expression?.SourceSyntax ?? item.Target?.SourceSyntax ?? item.SourceSyntax;
+	}
+
+	ParamsComponent? FindParamsComponent(ParamsComponentShape shape, string name)
+	{
+		foreach (ParamsComponent component in shape.Components)
+			if (component.Name == name)
+				return component;
+		return null;
 	}
 
 	void BodyAnalyzeInitializerTarget(InitializerTarget target, BodyScope scope, AnalysisScope typeScope)
