@@ -80,7 +80,7 @@ parameter:
 	vtableof '(' <type> : <type> ')'
 
 parameter-declarator:
-	<attribute>* [in | out | thrown]
+	<attribute>* [in | out | thrown | overload]
 
 type:
 	(fn|delegate|async|once) [<target-spec>] [<call-spec>] <type> '(' <parameter-list> ')'

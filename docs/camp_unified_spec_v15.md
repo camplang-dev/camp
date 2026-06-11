@@ -513,11 +513,14 @@ The other callable forms reuse ordinary signatures, but also mark the value as p
 
 ## 1.4 Functions
 
-Camp function declarations are ordinary, explicit signatures. Camp does not use overloads, hidden reference categories, or opaque call-resolution machinery to make one name mean many unrelated callable surfaces.
+Camp function declarations are ordinary, explicit signatures. A function name
+usually refers to one callable declaration. When a declaration intentionally
+participates in an overload family, Camp makes that fact visible on the
+distinguishing parameter with the `overload` keyword.
 
-A function name therefore refers to one callable declaration.
-
-This keeps calls easy to read, easy to lower, and easy to export.
+This keeps calls easy to read, easy to lower, and easy to export while still
+allowing library surfaces such as `write(int)`, `write(string)`, and
+`write(const char[])` to share a programmer-facing name.
 
 ### 1.4.1 Basic declaration form
 
@@ -554,6 +557,7 @@ Each parameter has:
 - a name
 - optionally a default value
 - optionally a transport or calling modifier such as `in` or `out`
+- optionally `overload`, when that parameter distinguishes an overload family
 
 Example:
 
@@ -577,13 +581,46 @@ void clear();
 
 When a routine needs to produce several result values, it uses `out` parameters. Call-site deconstruction can bind those result slots without introducing a general tuple value.
 
-### 1.4.4 No overloads
+### 1.4.4 Overload parameters
 
-Camp does not support overloads.
+Camp supports a narrow overload model. A parameter marked `overload` is part of
+the declaration's public call name and flattened symbol name. The overload set is
+selected from the argument type supplied for that parameter.
 
-This is an intentional design choice. It avoids the ambiguity, backtracking, and diagnostic complexity that overload sets often introduce. One function name therefore identifies one callable declaration, and call matching remains straightforward.
+```camp
+void write(overload int value);
+void write(overload string value);
+void write(overload const char[] value);
+```
 
-If a design needs optional behavior at the same call site, the preferred tools are:
+The keyword belongs on the parameter, not on the function. This makes the
+overload discriminator explicit at the declaration site.
+
+Overloaded functions still lower to distinct ABI symbols. For receiver methods,
+the receiver type remains part of the symbol as usual, and the overloaded
+parameter contributes its type name:
+
+```camp
+export extern void write(CharWriter this, overload int value, thrown IoError error);
+export extern void write(CharWriter this, overload const char[] value, thrown IoError error);
+```
+
+These declarations produce symbols such as `CharWriter_writeInt` and
+`CharWriter_writeCharArray`, while Camp callers can write:
+
+```camp
+writer.write(123);
+writer.write("hello");
+```
+
+If a string argument is used and there is no exact `string`, `wstring`, or
+`astring` overload, Camp may select the corresponding character-array overload:
+`const char[]`, `const wchar[]`, or `const achar[]`. This follows the same
+one-way string-to-span conversion used by ordinary calls.
+
+Overload resolution is intentionally smaller than in C++ or C#. It is based on
+the explicit overload parameter and Camp's ordinary conversion rules. APIs that
+need optional behavior should still prefer:
 
 - default arguments
 - options objects
@@ -617,7 +654,9 @@ int sum = add(3, 4);
 printLine("hello");
 ```
 
-Calls are matched left to right. Because Camp does not have overloads, call matching does not perform overload-style backtracking.
+Calls are matched left to right. When the target name refers to an overload
+family, the overload parameter is used to select the declaration before ordinary
+argument validation continues.
 
 ### 1.4.7 Named arguments
 

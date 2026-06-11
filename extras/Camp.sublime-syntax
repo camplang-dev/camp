@@ -11,7 +11,9 @@ variables:
   target_spec: '_[a-z][A-Za-z0-9_]*'
   type_keywords: '\b(?:any|auto|bool|byte|sbyte|ushort|short|uint|int|ulong|long|nuint|nint|float|double|char|wchar|achar|uchar|void|string|wstring|astring)\b'
   type_forms: '\b(?:fn|delegate|async|once|iter|thrown|struct|class)\b'
-  storage_keywords: '\b(?:const|volatile|escaped|scoped|unscoped|in|out|thrown|within|sizeof|vtableof)\b'
+  storage_keywords: '\b(?:const|volatile|escaped|scoped|unscoped|in|out|thrown|overload|within|sizeof|vtableof)\b'
+  statement_keywords: 'if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|init|new'
+  declaration_keywords: 'export|public|extern|static|virtual|override|sealed|abstract|fixed|alias'
 
 contexts:
   main:
@@ -20,8 +22,8 @@ contexts:
     - include: attributes
     - include: strings
     - include: numbers
-    - include: declarations
     - include: statements
+    - include: declarations
     - include: types
     - include: constants
     - include: operators
@@ -120,10 +122,10 @@ contexts:
       scope: constant.numeric.integer.decimal.camp
 
   declarations:
-    - match: '^(\s*(?:(?:export|extern|static|virtual|override|sealed|abstract|fixed)\s+)*)(\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)\s+(?=[^\n;{}]*\()'
+    - match: '^(\s*(?:(?:{{declaration_keywords}})\s+)*)(\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)\s+(?=[^\n;{}]*\()'
       captures:
         2: storage.modifier.target.camp
-    - match: '\b(export|extern|static|virtual|override|sealed|abstract|fixed)\b'
+    - match: '\b({{declaration_keywords}})\b'
       scope: storage.modifier.camp
     - match: '\b(using|as)\b'
       scope: keyword.control.import.camp
@@ -149,11 +151,11 @@ contexts:
       captures:
         1: keyword.operator.pointer.camp
         2: storage.modifier.target.camp
-    - match: '\b({{identifier}})\s*(?=\()'
+    - match: '\b(?!(?:{{statement_keywords}}|{{declaration_keywords}})\b)({{identifier}})\s*(?=\()'
       scope: entity.name.function.camp
 
   statements:
-    - match: '\b(?:if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|init|new)\b'
+    - match: '\b(?:{{statement_keywords}})\b'
       scope: keyword.control.camp
 
   types:
