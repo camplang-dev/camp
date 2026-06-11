@@ -8,6 +8,7 @@ obj/
 # User-specific IDE/editor files
 .idea/
 .vscode/
+.vs/
 *.user
 *.suo
 *.userosscache
