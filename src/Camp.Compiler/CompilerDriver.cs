@@ -738,7 +738,7 @@ public static class CompilerDriver
 			if (range is TokenRange tokenRange)
 				ErrorLine($"{filename}({tokenRange.StartLineNumber},{tokenRange.StartColumn}): error: {message}");
 			else
-				ErrorLine($"{filename}: error: {message}");
+				ErrorLine($"{filename}(1,1): (no line,column) error: {message}");
 		}
 
 		void PrintDiagnosticOnce(string filename, TokenRange? range, string message, HashSet<string> printed)
