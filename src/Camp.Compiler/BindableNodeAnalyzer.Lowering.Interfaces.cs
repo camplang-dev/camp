@@ -28,7 +28,7 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = getter.SourceSyntax,
 			Target = getter,
 			ResolvedType = materializedGenericReturnParameters.TryGetValue(function, out ParameterDefinition? resultParameter)
-				? propertyType ?? resultParameter.ResolvedType ?? ErrorType
+				? resultParameter.ResolvedType ?? propertyType ?? ErrorType
 				: function.ResolvedType ?? ErrorType
 		};
 		for (int i = 0; i < arguments.Count; i++)

@@ -1,0 +1,39 @@
+using Std;
+
+export int main()
+{
+	auto comparator = new Comparator() finally delete;
+	auto delegates = new List<delegate int(in int, in int)>() finally delete;
+	delegates.add(comparator.compareInt);
+
+	auto comparison = delegates.Item[0];
+	if ((nint)comparison.context == 0)
+		return 1;
+
+	int left = 1;
+	int right = 2;
+	if (comparison(left, right) >= 0)
+		return 2;
+
+	auto lines = new List<const char[]>() finally delete;
+	lines.add("first");
+	lines.add("second");
+
+	auto line = lines.Item[1];
+	if (line.length != 6 || line[0] != 's')
+		return 3;
+
+	return 0;
+}
+
+class Comparator
+{
+	int compareInt(in int left, in int right)
+	{
+		if (left < right)
+			return -1;
+		if (left > right)
+			return 1;
+		return 0;
+	}
+}

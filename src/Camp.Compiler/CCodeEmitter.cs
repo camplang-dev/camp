@@ -1788,9 +1788,18 @@ public static class CCodeEmitter
 		string FormatSizeOfExpression(SizeOfExpression sizeOf)
 		{
 			string? resolvedType = sizeOf.Type?.ResolvedType;
-			if (TryGetArrayLiteralElementType(resolvedType, out string elementType))
-				return "sizeof(" + FormatMaterializedArrayStructType(elementType) + ")";
+			if (IsExpandedStorageResolvedType(resolvedType))
+				return "sizeof(" + FormatStorageResolvedType(resolvedType ?? "", "").Declaration.Trim() + ")";
 			return "sizeof(" + FormatType(sizeOf.Type, "").Declaration.Trim() + ")";
+		}
+
+		static bool IsExpandedStorageResolvedType(string? resolvedType)
+		{
+			if (string.IsNullOrWhiteSpace(resolvedType))
+				return false;
+			return TryGetArrayElementOnly(resolvedType, out _)
+				|| TryGetOptionalElementOnly(resolvedType, out _)
+				|| TryParseExpandedCallableStorageType(resolvedType, out _, out _);
 		}
 
 		string FormatMaterializedArrayStructType(string elementType)
@@ -1821,6 +1830,37 @@ public static class CCodeEmitter
 		string FormatInlineResolvedFunctionPointer(string returnType, List<string> parameterTypes, string declarator)
 		{
 			return FormatResolvedType(returnType, "(* " + declarator + ")").Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
+		}
+
+		bool TryFormatResolvedCallableCast(string resolvedType, out string cast)
+		{
+			cast = "";
+			if (!TryParseResolvedCallableType(resolvedType, out string returnType, out List<string> parameterTypes))
+				return false;
+			cast = FormatInlineResolvedFunctionPointer(returnType, parameterTypes, "");
+			return true;
+		}
+
+		bool ShouldCastCallableAssignment(Expression value, string targetType)
+		{
+			if (!TryParseResolvedCallableType(targetType, out string targetReturn, out List<string> targetParameters))
+				return false;
+			if (!TryParseResolvedCallableType(value.ResolvedType ?? "", out string sourceReturn, out List<string> sourceParameters))
+				return true;
+			if (targetReturn != sourceReturn || targetParameters.Count != sourceParameters.Count)
+				return true;
+			for (int i = 0; i < targetParameters.Count; i++)
+				if (targetParameters[i] != sourceParameters[i])
+					return true;
+			return false;
+		}
+
+		static bool IsCallableSymbolExpression(Expression? expression)
+		{
+			return expression is MethodReferenceExpression
+				or MemberReferenceExpression { Member: FunctionDefinition }
+				or VariableReferenceExpression { Variable: FunctionDefinition }
+				or NamedExpression;
 		}
 
 		static bool TryParseExpandedCallableStorageType(string resolvedType, out string returnType, out List<string> parameterTypes)
@@ -1981,7 +2021,16 @@ public static class CCodeEmitter
 				string size = FormatGenericSizeExpression(parameter.ResolvedType);
 				return "__builtin_memcpy(" + CName(parameter) + ", " + FormatGenericStorageSource(assignment.Value) + ", " + size + ")";
 			}
-			return FormatExpression(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + FormatExpression(assignment.Value);
+			string value = FormatExpression(assignment.Value);
+			if (assignment.Operator == AssignmentOperator.Assign
+				&& assignment.Target?.ResolvedType is string targetType
+				&& TryFormatResolvedCallableCast(targetType, out string callableCast)
+				&& IsCallableSymbolExpression(assignment.Value)
+				&& ShouldCastCallableAssignment(assignment.Value!, targetType))
+			{
+				value = "(" + callableCast + ")" + value;
+			}
+			return FormatExpression(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + value;
 		}
 
 		List<ParameterDefinition> GetCallableParametersForExpression(Expression? expression)

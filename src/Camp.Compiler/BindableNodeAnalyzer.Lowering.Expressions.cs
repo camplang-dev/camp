@@ -121,12 +121,18 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case MemberExpression member:
+				if (TryRewriteMaterializedGenericIndexedMemberAccess(member, out Expression indexedMember))
+					return LowerExpression(indexedMember);
+				if (TryCreateParamsMemberComponentExpression(member, out Expression earlyMemberComponent))
+					return LowerExpression(earlyMemberComponent);
 				member.Target = LowerExpression(member.Target);
 				if (TryCreateParamsMemberComponentExpression(member, out Expression memberComponent))
 					return LowerExpression(memberComponent);
 				break;
 
 			case MemberReferenceExpression memberReference:
+				if (TryCreateParamsMemberComponentExpression(memberReference, out Expression earlyParamsComponent))
+					return LowerExpression(earlyParamsComponent);
 				memberReference.Target = LowerExpression(memberReference.Target);
 				if (IsPropertyGetterReference(memberReference))
 					return LowerExpression(RewritePropertyGetterCall(memberReference, []));
@@ -189,6 +195,62 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return expression;
+	}
+
+	bool TryRewriteMaterializedGenericIndexedMemberAccess(MemberExpression member, out Expression expression)
+	{
+		expression = member;
+		if (currentStatementPrefix is null || member.Target is not IndexExpression index)
+			return false;
+		if (!TryGetMaterializedGenericIndexGetter(index, out MemberReferenceExpression? getter) || getter is null)
+			return false;
+
+		CallExpression call = RewritePropertyGetterCall(getter, index.Arguments);
+		call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !IsMaterializedGenericReturnFunction(function))
+			return false;
+
+		string resultType = index.ResolvedType ?? materializedGenericReturnParameters.GetValueOrDefault(function)?.ResolvedType ?? ErrorType;
+		DeclarationStatement storage = CreateMaterializedGenericReturnStorage(resultType, index.SourceSyntax ?? member.SourceSyntax);
+		currentStatementPrefix.Add(storage);
+		call.Arguments.Add(new ArgumentExpression
+		{
+			SourceSyntax = index.SourceSyntax ?? member.SourceSyntax,
+			Modifier = ArgumentModifier.Out,
+			Value = CreateVariableReference(storage.Target, storage.Target.ResolvedType ?? ErrorType),
+			ResolvedType = storage.Target.ResolvedType ?? ErrorType
+		});
+		currentStatementPrefix.Add(new ExpressionStatement
+		{
+			SourceSyntax = index.SourceSyntax ?? member.SourceSyntax,
+			ResolvedType = "void",
+			Expression = LowerExpression(call)
+		});
+		expression = new MemberExpression
+		{
+			SourceSyntax = member.SourceSyntax,
+			Target = CreateVariableReference(storage.Target, storage.Target.ResolvedType ?? ErrorType),
+			Name = member.Name,
+			ResolvedType = member.ResolvedType
+		};
+		return true;
+	}
+
+	bool TryGetMaterializedGenericIndexGetter(IndexExpression index, out MemberReferenceExpression? getter)
+	{
+		getter = null;
+		if (index.Target is MemberExpression propertyMember
+			&& TryCreateMaterializedGenericPropertyGetterReference(propertyMember, out getter))
+			return true;
+		if (index.Target is MemberExpression member
+			&& expressionRewrites.TryGetValue(member, out Expression? rewritten)
+			&& rewritten is MemberReferenceExpression rewrittenGetter
+			&& IsPropertyGetterReference(rewrittenGetter))
+		{
+			getter = rewrittenGetter;
+			return true;
+		}
+		return false;
 	}
 
 	bool TryRewriteScalarMaterializedGenericReturnCall(CallExpression call, out Expression expression)

@@ -1558,6 +1558,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			VariableReferenceExpression { Variable: not null } variable => IsParamsExpansionComponentNamed(variable.Variable, name),
 			MemberReferenceExpression { Member: not null } member => IsParamsExpansionComponentNamed(member.Member, name),
+			MemberExpression member => member.Name == name,
 			IndexExpression { Target: not null } index => IsParamsComponentNamed(index.Target, name),
 			UnaryExpression unary => IsParamsComponentNamed(unary.Operand!, name),
 			_ => false
