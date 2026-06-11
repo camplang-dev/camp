@@ -6,10 +6,83 @@ public sealed partial class BindableNodeAnalyzer
 {
 	void ExpandParamsArguments(CallExpression call)
 	{
-		List<ParameterDefinition>? callableParameters = callTargets.TryGetValue(call, out FunctionDefinition? function)
-			? GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(call.Target, function))
-			: null;
+		List<ParameterDefinition>? callableParameters;
+		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
+		{
+			bool includeExplicitThis = IncludeExplicitThisArgument(call.Target, function);
+			if (!includeExplicitThis
+				&& IsInstanceFunction(function)
+				&& call.Target is not MemberExpression and not MemberReferenceExpression
+				&& call.Arguments.Count > GetCallableParameters(function.Parameters, includeExplicitThis: false).Count)
+			{
+				includeExplicitThis = true;
+			}
+			callableParameters = GetCallableParametersForCall(function, includeExplicitThis);
+		}
+		else
+		{
+			callableParameters = GetCallableParametersForExpression(call.Target);
+		}
 		ExpandParamsArguments(call.Arguments, callableParameters);
+	}
+
+	List<ParameterDefinition> GetCallableParametersForCall(FunctionDefinition function, bool includeExplicitThis)
+	{
+		List<ParameterDefinition> parameters = [];
+		if (includeExplicitThis
+			&& GetExplicitThisParameter(function) is null
+			&& IsInstanceFunction(function)
+			&& FindContainingType(function) is TypeDefinition containingType)
+		{
+			parameters.Add(new ThisParameterDefinition
+			{
+				Name = "this",
+				Symbol = "this",
+				Type = new PointerTypeReference { ElementType = new TypeDefinitionReference { Definition = containingType, Name = containingType.Name, ResolvedType = containingType.Name }, ResolvedType = containingType.Name + "*" },
+				ResolvedType = containingType.Name + "*"
+			});
+		}
+		parameters.AddRange(GetCallableParameters(function.Parameters, includeExplicitThis));
+		return parameters;
+	}
+
+	List<ParameterDefinition>? GetCallableParametersForExpression(Expression? expression)
+	{
+		if (!TryGetCallableShape(expression?.ResolvedType, out CallableShape shape))
+			return null;
+
+		List<ParameterDefinition> parameters = [];
+		foreach (string parameterType in shape.Parameters)
+			parameters.Add(CreateCallableShapeParameter(parameterType));
+		return parameters;
+	}
+
+	static ParameterDefinition CreateCallableShapeParameter(string parameterType)
+	{
+		string typeName = parameterType.Trim();
+		ParameterModifier modifier = ParameterModifier.None;
+		if (typeName.StartsWith("in ", System.StringComparison.Ordinal))
+		{
+			modifier = ParameterModifier.In;
+			typeName = typeName[3..].TrimStart();
+		}
+		else if (typeName.StartsWith("out ", System.StringComparison.Ordinal))
+		{
+			modifier = ParameterModifier.Out;
+			typeName = typeName[4..].TrimStart();
+		}
+		else if (typeName.StartsWith("thrown ", System.StringComparison.Ordinal))
+		{
+			modifier = ParameterModifier.Thrown;
+			typeName = typeName[7..].TrimStart();
+		}
+
+		return new ParameterDefinition
+		{
+			Modifier = modifier,
+			ResolvedType = typeName,
+			Type = new NamedTypeReference { Name = typeName, ResolvedType = typeName }
+		};
 	}
 
 	void ExpandParamsArguments(List<ArgumentExpression> arguments)
@@ -22,6 +95,11 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < arguments.Count; i++)
 		{
 			ArgumentExpression argument = arguments[i];
+			if (TryMaterializeGenericReturnInArgument(argument, callableParameters, i))
+				continue;
+			if (TryMaterializeExpandedGenericInArgument(argument, callableParameters, i))
+				continue;
+
 			if (!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components)
 				&& !TryCreateTargetTypedExpandedReturnArgumentComponents(argument, out components))
 			{
@@ -47,6 +125,99 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			i += components.Count - 1;
 		}
+	}
+
+	bool TryMaterializeGenericReturnInArgument(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index)
+	{
+		if (currentStatementPrefix is null
+			|| callableParameters is null
+			|| index >= callableParameters.Count
+			|| callableParameters[index].Modifier != ParameterModifier.In
+			|| argument.Value is not CallExpression call
+			|| !callTargets.TryGetValue(call, out FunctionDefinition? function)
+			|| !IsMaterializedGenericReturnFunction(function))
+			return false;
+
+		string expectedType = callableParameters[index].ResolvedType ?? callableParameters[index].Type?.ResolvedType ?? "";
+		if (!IsGenericPlaceholderParameter(StripTopLevelValueQualifiers(expectedType)))
+			return false;
+
+		string resultType = call.ResolvedType ?? argument.ResolvedType ?? expectedType;
+		if (string.IsNullOrWhiteSpace(resultType) || resultType == "void")
+			resultType = expectedType;
+
+		DeclarationStatement storage = CreateGeneratedLocal(NewGeneratedLocalName("value"), resultType, TypeReferenceForResolvedName(resultType), null);
+		currentStatementPrefix.Add(storage);
+		call.Arguments.Add(new ArgumentExpression
+		{
+			SourceSyntax = argument.SourceSyntax,
+			Modifier = ArgumentModifier.Out,
+			Value = CreateVariableReference(storage.Target, resultType),
+			ResolvedType = resultType
+		});
+		currentStatementPrefix.Add(new ExpressionStatement
+		{
+			SourceSyntax = argument.SourceSyntax,
+			ResolvedType = "void",
+			Expression = call
+		});
+		argument.Value = CreateVariableReference(storage.Target, resultType);
+		argument.ResolvedType = resultType;
+		return true;
+	}
+
+	bool TryMaterializeExpandedGenericInArgument(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index)
+	{
+		if (currentStatementPrefix is null
+			|| callableParameters is null
+			|| index >= callableParameters.Count
+			|| callableParameters[index].Modifier != ParameterModifier.In
+			|| !IsGenericInParameter(callableParameters[index])
+			|| argument.Value is null
+			|| !TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components)
+			|| components.Count <= 1)
+			return false;
+
+		string resultType = argument.ResolvedType ?? argument.Value.ResolvedType ?? "";
+		if (string.IsNullOrWhiteSpace(resultType) || !TryGetParamsComponentShape(null, resultType, "value", out ParamsComponentShape shape) || shape.Components.Count != components.Count)
+			return false;
+
+		DeclarationStatement storage = CreateMaterializedGenericReturnStorage(resultType, argument.SourceSyntax);
+		currentStatementPrefix.Add(storage);
+		Expression storageTarget = CreateVariableReference(storage.Target, storage.Target.ResolvedType ?? ErrorType);
+		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
+		{
+			currentStatementPrefix.Add(new ExpressionStatement
+			{
+				SourceSyntax = argument.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = argument.SourceSyntax,
+					Target = new MemberExpression
+					{
+						SourceSyntax = argument.SourceSyntax,
+						Target = CloneParamsExpansionExpression(storageTarget),
+						Name = shape.Components[componentIndex].Name,
+						ResolvedType = shape.Components[componentIndex].Type
+					},
+					Operator = AssignmentOperator.Assign,
+					Value = LowerExpression(components[componentIndex]),
+					ResolvedType = shape.Components[componentIndex].Type
+				}
+			});
+		}
+
+		argument.Value = CreateVariableReference(storage.Target, storage.Target.ResolvedType ?? ErrorType);
+		argument.ResolvedType = storage.Target.ResolvedType ?? resultType;
+		return true;
+	}
+
+	bool IsGenericInParameter(ParameterDefinition parameter)
+	{
+		if (parameter.Type is NamedTypeReference named && IsGenericPlaceholderParameter(named.Name))
+			return true;
+		return IsGenericPlaceholderParameter(StripTopLevelValueQualifiers(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ""));
 	}
 
 	bool TryCreateTargetTypedExpandedReturnArgumentComponents(ArgumentExpression argument, out List<Expression> components)
@@ -284,7 +455,9 @@ public sealed partial class BindableNodeAnalyzer
 		statements = [];
 		if (assignment.Value is not CallExpression call)
 			return false;
-		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !TryGetExpandedReturnShape(call, function, out ParamsComponentShape? shape))
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function)
+			|| materializedGenericReturnParameters.ContainsKey(function)
+			|| !TryGetExpandedReturnShape(call, function, out ParamsComponentShape? shape))
 			return false;
 		if (shape.Components.Count != targets.Count)
 			return false;
@@ -323,6 +496,12 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateParamsComponentExpressions(Expression? expression, out List<Expression> components)
 	{
 		components = [];
+		if (expression is not null
+			&& expressionRewrites.TryGetValue(expression, out Expression? rewritten)
+			&& !ReferenceEquals(rewritten, expression))
+		{
+			return TryCreateParamsComponentExpressions(rewritten, out components);
+		}
 		switch (expression)
 		{
 			case null:
@@ -711,6 +890,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryRewriteExpandedReturn(ReturnStatement statement, out Statement rewritten)
 	{
 		rewritten = statement;
+		if (TryRewriteMaterializedGenericReturn(statement, out rewritten))
+			return true;
 		if (currentRewriteFunction is null || !expandedReturnShapes.TryGetValue(currentRewriteFunction, out ParamsComponentShape? shape))
 			return false;
 		if (!TryCreateParamsComponentExpressions(statement.Expression, out List<Expression> components) || components.Count != shape.Components.Count)
@@ -740,6 +921,39 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void",
 			Expression = components[0]
 		});
+		rewritten = CreateBlock(statements);
+		return true;
+	}
+
+	bool TryRewriteMaterializedGenericReturn(ReturnStatement statement, out Statement rewritten)
+	{
+		rewritten = statement;
+		if (currentRewriteFunction is null
+			|| !materializedGenericReturnParameters.TryGetValue(currentRewriteFunction, out ParameterDefinition? parameter)
+			|| statement.Expression is null)
+			return false;
+
+		List<Statement> statements =
+		[
+			new ExpressionStatement
+			{
+				SourceSyntax = statement.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = statement.SourceSyntax,
+					Target = CreateVariableReference(parameter, parameter.ResolvedType ?? ErrorType),
+					Operator = AssignmentOperator.Assign,
+					Value = LowerExpression(statement.Expression),
+					ResolvedType = parameter.ResolvedType ?? ErrorType
+				}
+			},
+			new ReturnStatement
+			{
+				SourceSyntax = statement.SourceSyntax,
+				ResolvedType = "void"
+			}
+		];
 		rewritten = CreateBlock(statements);
 		return true;
 	}
@@ -854,6 +1068,22 @@ public sealed partial class BindableNodeAnalyzer
 		components = [];
 		if (index.Target is ArrayExpression)
 			return false;
+		if (index.Target is MemberExpression propertyMember
+			&& TryCreateMaterializedGenericPropertyGetterReference(propertyMember, out MemberReferenceExpression? propertyGetter))
+		{
+			CallExpression call = RewritePropertyGetterCall(propertyGetter, index.Arguments);
+			call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
+			return TryCreateParamsComponentExpressions(call, out components);
+		}
+		if (index.Target is MemberExpression member
+			&& expressionRewrites.TryGetValue(member, out Expression? rewritten)
+			&& rewritten is MemberReferenceExpression getter
+			&& IsPropertyGetterReference(getter))
+		{
+			CallExpression call = RewritePropertyGetterCall(getter, index.Arguments);
+			call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
+			return TryCreateParamsComponentExpressions(call, out components);
+		}
 		if (index.Arguments.Count == 2
 			&& TryGetArrayElementType(index.ResolvedType) is string resultElementType
 			&& GetPrimitiveStringElementType(index.Target?.ResolvedType) == StripTopLevelValueQualifiers(resultElementType))
@@ -1044,6 +1274,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateExpandedReturnCallComponents(CallExpression call, ParamsComponentShape shape, out List<Expression> components)
 	{
 		components = [];
+		if (TryCreateMaterializedGenericReturnCallComponents(call, shape, out components))
+			return true;
 		if (currentStatementPrefix is null || shape.Components.Count == 0)
 			return false;
 		if (!callTargets.TryGetValue(call, out FunctionDefinition? function))
@@ -1094,6 +1326,71 @@ public sealed partial class BindableNodeAnalyzer
 			components.Add(CreateVariableReference(targets[i], shape.Components[i].Type));
 		RegisterParamsExpansion(call, shape, targets);
 		return true;
+	}
+
+	bool TryCreateMaterializedGenericReturnCallComponents(CallExpression call, ParamsComponentShape shape, out List<Expression> components)
+	{
+		components = [];
+		if (currentStatementPrefix is null
+			|| !callTargets.TryGetValue(call, out FunctionDefinition? function)
+			|| !IsMaterializedGenericReturnFunction(function))
+			return false;
+
+		if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
+			&& IsInstanceInvocationFunction(function)
+			&& !IsPropertyGetterReference(member)
+			&& !IsPropertySetterReference(member)
+			&& FindContainingType(function) is not InterfaceDefinition)
+		{
+			RewriteInstanceInvocation(call, member, receiver, function);
+		}
+
+		DeclarationStatement storage = CreateMaterializedGenericReturnStorage(call.ResolvedType ?? shape.TypeName, call.SourceSyntax);
+		currentStatementPrefix.Add(storage);
+		call.Arguments.Add(new ArgumentExpression
+		{
+			SourceSyntax = call.SourceSyntax,
+			Modifier = ArgumentModifier.Out,
+			Value = CreateVariableReference(storage.Target, storage.Target.ResolvedType ?? ErrorType),
+			ResolvedType = storage.Target.ResolvedType ?? ErrorType
+		});
+		currentStatementPrefix.Add(new ExpressionStatement
+		{
+			SourceSyntax = call.SourceSyntax,
+			ResolvedType = "void",
+			Expression = LowerExpression(call)
+		});
+		components.AddRange(CreateMaterializedComponentExpressions(storage.Target, shape));
+		return components.Count > 0;
+	}
+
+	DeclarationStatement CreateMaterializedGenericReturnStorage(string expandedType, SyntaxNode? sourceSyntax)
+	{
+		string typeName = $"struct({expandedType})";
+		TypeReference type = new MaterializedStructTypeReference
+		{
+			SourceSyntax = sourceSyntax,
+			ResolvedType = typeName,
+			ParamsType = TypeReferenceForResolvedName(expandedType)
+		};
+		return CreateGeneratedLocal(NewGeneratedLocalName("result"), typeName, type, null);
+	}
+
+	List<Expression> CreateMaterializedComponentExpressions(DeclarationTarget storage, ParamsComponentShape shape)
+	{
+		List<Expression> components = [];
+		Expression target = CreateVariableReference(storage, storage.ResolvedType ?? ErrorType);
+		foreach (ParamsComponent component in shape.Components)
+		{
+			components.Add(new MemberExpression
+			{
+				SourceSyntax = storage.SourceSyntax,
+				Target = target,
+				Name = component.Name,
+				ResolvedType = component.Type
+			});
+		}
+		return components;
 	}
 
 	bool IsParamsComponentNamed(Expression expression, string name)

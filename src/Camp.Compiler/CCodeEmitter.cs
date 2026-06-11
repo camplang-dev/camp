@@ -1328,47 +1328,9 @@ public static class CCodeEmitter
 			WithGenericContext(function, () =>
 			{
 				writer.WriteLine(prefix + FormatTypeOrResolved(function.ReturnType, function.ResolvedType, callSpec + CName(function)).Declaration + FormatParameters(function));
-				if (!TryWriteStdListGetItemBody(writer, function))
-					WriteFunctionBody(writer, function);
+				WriteFunctionBody(writer, function);
 				writer.WriteLine();
 			});
-		}
-
-		bool TryWriteStdListGetItemBody(TextWriter writer, FunctionDefinition function)
-		{
-			if (CName(function) != "List_getItem"
-				|| StripTypeDecorators(function.ResolvedType ?? function.ReturnType?.ResolvedType ?? "") != "T"
-				|| function.Parameters.Count == 0
-				|| !IsStdErasedList(function))
-				return false;
-
-			writer.WriteLine("{");
-			writer.WriteLine("\tif ((at >= this->length))");
-			writer.WriteLine("\t{");
-			writer.WriteLine("\t\treturn NULL;");
-			writer.WriteLine("\t}");
-			writer.WriteLine("\treturn List_itemAddress(this, at);");
-			writer.WriteLine("}");
-			return true;
-		}
-
-		bool IsStdErasedList(FunctionDefinition function)
-		{
-			return containingTypes.TryGetValue(function, out TypeDefinition? owner)
-				&& HasTypeField(owner, "buffer")
-				&& HasTypeField(owner, "length")
-				&& HasTypeField(owner, "capacity")
-				&& HasTypeField(owner, "_sizeof_T");
-		}
-
-		static bool HasTypeField(TypeDefinition definition, string name)
-		{
-			return definition switch
-			{
-				ClassDefinition classDefinition => classDefinition.Fields.Any(field => field.Name == name),
-				StructDefinition structDefinition => structDefinition.Fields.Any(field => field.Name == name),
-				_ => false
-			};
 		}
 
 		string BuildDeclarationPrefix(Definition definition, string? storage)
@@ -1601,6 +1563,23 @@ public static class CCodeEmitter
 		void WriteDeclarationStatement(TextWriter writer, DeclarationStatement declaration, int indent)
 		{
 			string name = declaration.Target.Names.Count == 0 ? "__unnamed" : SanitizeIdentifier(declaration.Target.Names[0]);
+			if (IsAnyGenericParameterType(declaration.Target.ResolvedType))
+			{
+				string size = FormatGenericSizeExpression(declaration.Target.ResolvedType);
+				WriteIndent(writer, indent);
+				writer.WriteLine("uint8_t " + name + "[" + size + "];");
+				if (declaration.InitialValue is DefaultExpression)
+				{
+					WriteIndent(writer, indent);
+					writer.WriteLine("__builtin_memset(" + name + ", 0, " + size + ");");
+				}
+				else if (declaration.InitialValue is not null)
+				{
+					WriteIndent(writer, indent);
+					writer.WriteLine("/* unsupported generic initializer */");
+				}
+				return;
+			}
 			string type = FormatTypeOrResolved(declaration.Target.Type, declaration.Target.ResolvedType, name).Declaration;
 			WriteIndent(writer, indent);
 			writer.Write(type);
@@ -1733,6 +1712,85 @@ public static class CCodeEmitter
 			return "struct { " + FormatResolvedType(elementType + "*", "elements").Declaration + "; uintptr_t length; }";
 		}
 
+		CType FormatMaterializedStructType(MaterializedStructTypeReference materialized, string declarator)
+		{
+			string expandedType = materialized.ParamsType?.ResolvedType ?? "";
+			if (expandedType.StartsWith("struct(", StringComparison.Ordinal) && expandedType.EndsWith(")", StringComparison.Ordinal))
+				expandedType = expandedType[7..^1];
+			return FormatStorageResolvedType(expandedType, declarator);
+		}
+
+		CType FormatStorageResolvedType(string resolvedType, string declarator)
+		{
+			string type = resolvedType.Trim();
+			if (TryGetArrayElementOnly(type, out string elementType))
+				return new CType(FormatMaterializedArrayStructType(elementType) + " " + declarator);
+			if (TryGetOptionalElementOnly(type, out string optionalElementType))
+				return new CType("struct { " + FormatResolvedType(optionalElementType, "value").Declaration + "; bool specified; } " + declarator);
+			if (TryParseExpandedCallableStorageType(type, out string returnType, out List<string> parameterTypes))
+				return new CType("struct { " + FormatInlineResolvedFunctionPointer(returnType, [ "void*", .. parameterTypes ], "call") + "; void* context; } " + declarator);
+			return FormatResolvedType(resolvedType, declarator);
+		}
+
+		string FormatInlineResolvedFunctionPointer(string returnType, List<string> parameterTypes, string declarator)
+		{
+			return FormatResolvedType(returnType, "(* " + declarator + ")").Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
+		}
+
+		static bool TryParseExpandedCallableStorageType(string resolvedType, out string returnType, out List<string> parameterTypes)
+		{
+			returnType = "";
+			parameterTypes = [];
+			string type = resolvedType.Trim();
+			string kind;
+			if (type.StartsWith("delegate ", StringComparison.Ordinal))
+				kind = "delegate";
+			else if (type.StartsWith("once ", StringComparison.Ordinal))
+				kind = "once";
+			else
+				return false;
+
+			int open = type.IndexOf('(', StringComparison.Ordinal);
+			int close = type.LastIndexOf(')');
+			if (open < 0 || close < open)
+				return false;
+			string prefix = type[kind.Length..open].Trim();
+			if (prefix.Length == 0)
+				return false;
+			List<string> prefixParts = SplitTopLevel(prefix, ' ');
+			returnType = prefixParts[^1];
+			string parameterText = type[(open + 1)..close].Trim();
+			if (parameterText.Length == 0)
+				return true;
+			foreach (string parameter in SplitTopLevel(parameterText, ','))
+				parameterTypes.Add(parameter.Trim());
+			return true;
+		}
+
+		static bool TryGetArrayElementOnly(string? resolvedType, out string elementType)
+		{
+			elementType = "";
+			if (string.IsNullOrWhiteSpace(resolvedType))
+				return false;
+			string type = resolvedType.Trim();
+			if (!type.EndsWith("[]", StringComparison.Ordinal))
+				return false;
+			elementType = type[..^2].TrimEnd();
+			return !string.IsNullOrWhiteSpace(elementType);
+		}
+
+		static bool TryGetOptionalElementOnly(string? resolvedType, out string elementType)
+		{
+			elementType = "";
+			if (string.IsNullOrWhiteSpace(resolvedType))
+				return false;
+			string type = resolvedType.Trim();
+			if (!type.EndsWith("?", StringComparison.Ordinal))
+				return false;
+			elementType = type[..^1].TrimEnd();
+			return !string.IsNullOrWhiteSpace(elementType);
+		}
+
 		bool IsAggregateValueType(string? resolvedType)
 		{
 			if (string.IsNullOrWhiteSpace(resolvedType))
@@ -1793,8 +1851,6 @@ public static class CCodeEmitter
 
 			string target = FormatExpression(call.Target);
 			FunctionDefinition? function = TryGetCallFunction(call);
-			if (TryFormatStdListExpandedCall(call, function, target, out string listText))
-				return listText;
 			if (function is not null
 				&& containingTypes.TryGetValue(function, out TypeDefinition? owner)
 				&& owner is InterfaceDefinition
@@ -1816,78 +1872,22 @@ public static class CCodeEmitter
 			string text = target + "(" + string.Join(", ", arguments) + ")";
 			if (function is not null && TryGetConcreteGenericType(function.ResolvedType, genericSubstitutions, out string? concreteReturnType))
 			{
-				if (CName(function) == "List_getItem" && IsErasedAnyListFunction(function) && NeedsGenericStoredValueDereference(concreteReturnType))
-					return CastFromErasedGenericPointer(text, concreteReturnType);
 				if (NeedsGenericScalarCast(concreteReturnType))
 					return CastFromErasedGeneric(text, concreteReturnType);
 			}
 			return text;
 		}
 
-		bool TryFormatStdListExpandedCall(CallExpression call, FunctionDefinition? function, string target, out string text)
-		{
-			text = "";
-			string name = function is null ? "" : CName(function);
-			if ((name is "List_add" || target is "List_add") && call.Arguments.Count == 4 && IsErasedAnyListFunction(function))
-			{
-				string itemType = call.Arguments[1].ResolvedType ?? call.Arguments[1].Value?.ResolvedType ?? "";
-				if (!TryGetArrayLiteralElementType(itemType, out string elementType))
-					return false;
-				string materialized = "&(" + FormatMaterializedArrayStructType(elementType) + "){" + FormatArgumentValue(call.Arguments[1]) + ", " + FormatArgumentValue(call.Arguments[2]) + "}";
-				text = name + "(" + FormatArgumentValue(call.Arguments[0]) + ", " + materialized + ", " + FormatArgumentValue(call.Arguments[3]) + ")";
-				return true;
-			}
-
-			if ((name is "List_getItem" || target is "List_getItem") && call.Arguments.Count == 3 && IsErasedAnyListFunction(function))
-			{
-				string itemType = call.ResolvedType ?? "";
-				if (!TryGetArrayLiteralElementType(itemType, out string elementType))
-					return false;
-				string pointer = name + "(" + FormatArgumentValue(call.Arguments[0]) + ", " + FormatArgumentValue(call.Arguments[1]) + ")";
-				string materializedType = FormatMaterializedArrayStructType(elementType);
-				string lengthTarget = FormatArgumentValue(call.Arguments[2]);
-				text = "(*(" + lengthTarget + ") = ((" + materializedType + "*)" + pointer + ")->length, ((" + materializedType + "*)" + pointer + ")->elements)";
-				return true;
-			}
-
-			return false;
-		}
-
-		bool IsErasedAnyListFunction(FunctionDefinition? function)
-		{
-			if (function is null || !containingTypes.TryGetValue(function, out TypeDefinition? owner) || owner.Name != "List")
-				return false;
-			return owner.GenericParameters.Any(parameter => parameter.Name == "T" && parameter.Constraint is AnyTypeReference);
-		}
-
 		string FormatAssignmentExpression(AssignmentExpression assignment)
 		{
 			if (assignment.Operator == AssignmentOperator.Assign
-				&& assignment.Value is CallExpression call
-				&& TryFormatStdListExpandedGetItemCall(call, assignment.Target?.ResolvedType, out string expandedCall))
-				return FormatExpression(assignment.Target) + " = " + expandedCall;
-
+				&& assignment.Target is VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.Out } parameter }
+				&& IsAnyGenericParameterType(parameter.ResolvedType))
+			{
+				string size = FormatGenericSizeExpression(parameter.ResolvedType);
+				return "__builtin_memcpy(" + CName(parameter) + ", " + FormatGenericStorageSource(assignment.Value) + ", " + size + ")";
+			}
 			return FormatExpression(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + FormatExpression(assignment.Value);
-		}
-
-		bool TryFormatStdListExpandedGetItemCall(CallExpression call, string? resultType, out string text)
-		{
-			text = "";
-			string target = FormatExpression(call.Target);
-			FunctionDefinition? function = TryGetCallFunction(call);
-			string name = function is null ? "" : CName(function);
-			if (!IsErasedAnyListFunction(function))
-				return false;
-			if ((name is not "List_getItem" && target is not "List_getItem") || call.Arguments.Count != 3)
-				return false;
-			if (!TryGetArrayLiteralElementType(resultType, out string elementType))
-				return false;
-
-			string pointer = target + "(" + FormatArgumentValue(call.Arguments[0]) + ", " + FormatArgumentValue(call.Arguments[1]) + ")";
-			string materializedType = FormatMaterializedArrayStructType(elementType);
-			string lengthTarget = FormatArgumentValue(call.Arguments[2]);
-			text = "(*(" + lengthTarget + ") = ((" + materializedType + "*)" + pointer + ")->length, ((" + materializedType + "*)" + pointer + ")->elements)";
-			return true;
 		}
 
 		List<ParameterDefinition> GetCallableParametersForExpression(Expression? expression)
@@ -2079,17 +2079,23 @@ public static class CCodeEmitter
 
 			string type = string.IsNullOrWhiteSpace(concreteType)
 				? "void*"
-				: FormatResolvedType(concreteType, "").Declaration.Trim();
+				: FormatStorageResolvedType(concreteType, "").Declaration.Trim();
 			return "&(" + type + "){" + value + "}";
 		}
 
-		static bool TryFormatForwardedInArgument(Expression? expression, out string value)
+		bool TryFormatForwardedInArgument(Expression? expression, out string value)
 		{
 			value = "";
 			switch (expression)
 			{
 				case VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter }:
 					value = CName(parameter);
+					return true;
+				case VariableReferenceExpression { Variable: DeclarationTarget target } when IsAnyGenericParameterType(target.ResolvedType):
+					value = CName(target);
+					return true;
+				case VariableReferenceExpression { Variable: DeclarationTarget { Type: MaterializedStructTypeReference } target }:
+					value = "&" + CName(target);
 					return true;
 				default:
 					return false;
@@ -2103,6 +2109,10 @@ public static class CCodeEmitter
 			{
 				case VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.Out or ParameterModifier.Thrown } parameter }:
 					value = CName(parameter);
+					return true;
+
+				case VariableReferenceExpression { Variable: DeclarationTarget target } when IsAnyGenericParameterType(target.ResolvedType):
+					value = CName(target);
 					return true;
 
 				case VariableReferenceExpression { Variable: DeclarationTarget target } when IsSyntheticCurrentOutParameterTarget(target) && TryFindCurrentOutParameter(target, out ParameterDefinition? parameter):
@@ -2252,18 +2262,41 @@ public static class CCodeEmitter
 			return IsEnumType(type);
 		}
 
-		bool NeedsGenericStoredValueDereference(string concreteType)
+		bool IsAnyGenericParameterType(string? type)
 		{
-			string type = StripTypeDecorators(concreteType);
-			if (type is "void" or "untyped" or "any" or "auto")
-				return false;
-			if (type.EndsWith("[]", StringComparison.Ordinal) || type.EndsWith("?", StringComparison.Ordinal))
-				return false;
-			if (type is "string" or "wstring" or "astring")
-				return true;
-			if (type.EndsWith("*", StringComparison.Ordinal))
-				return true;
-			return NeedsGenericScalarCast(type);
+			string stripped = StripTypeDecorators(type ?? "");
+			return anyGenericParameterNames.Contains(stripped) || currentGenericTypeNames.Contains(stripped) && anyGenericParameterNames.Contains(stripped);
+		}
+
+		string FormatGenericSizeExpression(string? type)
+		{
+			string genericName = StripTypeDecorators(type ?? "");
+			if (currentFunction is not null)
+			{
+				foreach (ParameterDefinition parameter in currentFunction.Parameters)
+				{
+					if (parameter is SizeOfParameterDefinition && parameter.Name == "sizeof_" + genericName)
+						return CName(parameter);
+					if (parameter.Name == "sizeof_" + genericName)
+						return CName(parameter);
+				}
+				if (containingTypes.TryGetValue(currentFunction, out TypeDefinition? containingType)
+					&& containingType.GenericParameters.Exists(parameter => parameter.Name == genericName))
+				{
+					return "this->_sizeof_" + SanitizeIdentifier(genericName);
+				}
+			}
+			return "sizeof(void*)";
+		}
+
+		string FormatGenericStorageSource(Expression? expression)
+		{
+			return expression switch
+			{
+				VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter } when IsGenericParameterType(parameter.ResolvedType) => CName(parameter),
+				VariableReferenceExpression { Variable: DeclarationTarget target } when IsAnyGenericParameterType(target.ResolvedType) => CName(target),
+				_ => "&(" + FormatExpression(expression) + ")"
+			};
 		}
 
 		static bool IsPrimitiveScalarType(string type)
@@ -2289,12 +2322,6 @@ public static class CCodeEmitter
 		{
 			string cType = FormatResolvedType(concreteType, "").Declaration.Trim();
 			return "(" + cType + ")(intptr_t)(" + value + ")";
-		}
-
-		string CastFromErasedGenericPointer(string value, string concreteType)
-		{
-			string cType = FormatResolvedType(concreteType, "").Declaration.Trim();
-			return "*((" + cType + "*)(" + value + "))";
 		}
 
 		static List<string> ExtractConstructedTypeArguments(string type)
@@ -2436,6 +2463,10 @@ public static class CCodeEmitter
 				&& unary.Operand is VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter }
 				&& IsGenericParameterType(parameter.ResolvedType))
 				return CName(parameter);
+			if (unary.Operator == UnaryOperator.AddressOf
+				&& unary.Operand is VariableReferenceExpression { Variable: DeclarationTarget target }
+				&& IsAnyGenericParameterType(target.ResolvedType))
+				return CName(target);
 
 			string operand = FormatExpression(unary.Operand);
 			return unary.Operator switch
@@ -2742,7 +2773,7 @@ public static class CCodeEmitter
 				AnyTypeReference => new CType("void* " + declarator),
 				AutoTypeReference => new CType("void* " + declarator),
 				AllocatorTypeReference => new CType("Allocator* " + declarator),
-				MaterializedStructTypeReference => new CType("void* " + declarator),
+				MaterializedStructTypeReference materialized => FormatMaterializedStructType(materialized, declarator),
 				GroupedParamsTypeReference => new CType("void* " + declarator),
 				ThrownTypeReference thrown => FormatType(thrown.Type, declarator),
 				IterTypeReference => new CType("void* " + declarator),
@@ -2765,6 +2796,8 @@ public static class CCodeEmitter
 
 		CType FormatOutParameterType(TypeReference? type, string? resolvedType, string declarator)
 		{
+			if (IsAnyGenericParameterType(resolvedType))
+				return FormatResolvedType(resolvedType + "*", declarator);
 			if (type is not null)
 				return FormatType(new PointerTypeReference { ElementType = type }, declarator);
 			if (!string.IsNullOrWhiteSpace(resolvedType))
@@ -2784,6 +2817,9 @@ public static class CCodeEmitter
 		CType FormatResolvedType(string resolvedType, string declarator)
 		{
 			string type = resolvedType.Trim();
+			if (type.StartsWith("struct(", StringComparison.Ordinal) && type.EndsWith(")", StringComparison.Ordinal))
+				return FormatStorageResolvedType(type[7..^1], declarator);
+
 			List<string> qualifiers = [];
 			List<string> trailingQualifiers = [];
 			while (true)

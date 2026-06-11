@@ -215,7 +215,11 @@ export class FileHandle
 	
 	export CharReader getCharReader()
 	{
-		return this.ByteReader.CharReader;
+		ByteReader byteReader = this.ByteReader;
+		CharReader reader = default;
+		reader.call = (fn bool(void*, nuint*, char*, nuint))byteReader.call;
+		reader.context = byteReader.context;
+		return reader;
 	}
 	
 	export ByteWriter getByteWriter()
@@ -228,7 +232,11 @@ export class FileHandle
 	
 	export CharWriter getCharWriter()
 	{
-		return this.ByteWriter.CharWriter;
+		ByteWriter byteWriter = this.ByteWriter;
+		CharWriter writer = default;
+		writer.call = (fn bool(void*, nuint*, char*, nuint))byteWriter.call;
+		writer.context = byteWriter.context;
+		return writer;
 	}
 	
 	// export AsyncByteReader getAsyncReader();

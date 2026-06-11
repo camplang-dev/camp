@@ -68,6 +68,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ExpandParamsReturn(FunctionDefinition function)
 	{
+		if (TryExpandMaterializedGenericReturn(function))
+			return;
 		if (function.ReturnType is null || !TryGetParamsComponentShape(function.ReturnType, function.ResolvedType, "result", out ParamsComponentShape shape))
 			return;
 		if (shape.Components.Count == 0)
@@ -92,6 +94,44 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = component.Type
 			});
 		}
+	}
+
+	bool TryExpandMaterializedGenericReturn(FunctionDefinition function)
+	{
+		if (function.ReturnType is null || !IsAnyGenericReturn(function))
+			return false;
+
+		ParameterDefinition result = new()
+		{
+			SourceSyntax = function.SourceSyntax,
+			Name = "__result",
+			Symbol = "__result",
+			Public = function.Public,
+			Modifier = ParameterModifier.Out,
+			Type = function.ReturnType,
+			ResolvedType = function.ResolvedType
+		};
+		materializedGenericReturnParameters[function] = result;
+		function.Parameters.Add(result);
+		function.ReturnType = new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" };
+		function.ResolvedType = "void";
+		return true;
+	}
+
+	bool IsAnyGenericReturn(FunctionDefinition function)
+	{
+		string returnType = StripTopLevelValueQualifiers(function.ResolvedType ?? function.ReturnType?.ResolvedType ?? "");
+		if (string.IsNullOrWhiteSpace(returnType))
+			return false;
+
+		foreach (GenericParameter parameter in function.GenericParameters)
+			if (parameter.Name == returnType && parameter.Constraint is AnyTypeReference)
+				return true;
+		if (FindContainingType(function) is TypeDefinition containingType)
+			foreach (GenericParameter parameter in containingType.GenericParameters)
+				if (parameter.Name == returnType && parameter.Constraint is AnyTypeReference)
+					return true;
+		return false;
 	}
 
 	void ExpandParamsParameters(List<ParameterDefinition> parameters)
@@ -280,7 +320,12 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		declaration.InitialValue = NormalizeExpandedReturnPropertyGetter(declaration.InitialValue);
-		List<Expression?> initialValues = GetParamsComponentInitialValues(declaration.InitialValue, shape, deferCurrentAllocator: true);
+		bool materializedGenericReturnInitializer = declaration.InitialValue is CallExpression initialCall
+			&& callTargets.TryGetValue(initialCall, out FunctionDefinition? initialFunction)
+			&& IsMaterializedGenericReturnFunction(initialFunction);
+		List<Expression?> initialValues = materializedGenericReturnInitializer
+			? CreateNullInitialValues(shape)
+			: GetParamsComponentInitialValues(declaration.InitialValue, shape, deferCurrentAllocator: true);
 		List<DeclarationTarget> targets = [];
 		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
 		{
@@ -288,7 +333,11 @@ public sealed partial class BindableNodeAnalyzer
 			declarations.Add(componentDeclaration);
 			targets.Add(componentDeclaration.Target);
 		}
-		if (declaration.InitialValue is CallExpression call
+		if (materializedGenericReturnInitializer && declaration.InitialValue is CallExpression materializedCall)
+		{
+			AppendMaterializedGenericReturnAssignments(materializedCall, shape, targets, declarations, declaration.SourceSyntax);
+		}
+		else if (declaration.InitialValue is CallExpression call
 			&& callTargets.TryGetValue(call, out FunctionDefinition? function)
 			&& (TryGetExpandedReturnShape(call, function, out ParamsComponentShape? callShape)
 				|| TryUseTargetShapeForGenericExpandedReturn(function, shape, out callShape))
@@ -325,6 +374,50 @@ public sealed partial class BindableNodeAnalyzer
 		return declarations.Count > 0;
 	}
 
+	List<Expression?> CreateNullInitialValues(ParamsComponentShape shape)
+	{
+		List<Expression?> values = [];
+		for (int i = 0; i < shape.Components.Count; i++)
+			values.Add(null);
+		return values;
+	}
+
+	void AppendMaterializedGenericReturnAssignments(CallExpression call, ParamsComponentShape shape, List<DeclarationTarget> targets, List<Statement> statements, SyntaxNode? sourceSyntax)
+	{
+		DeclarationStatement storage = CreateMaterializedGenericReturnStorage(call.ResolvedType ?? shape.TypeName, call.SourceSyntax);
+		statements.Add(storage);
+		call.Arguments.Add(new ArgumentExpression
+		{
+			SourceSyntax = sourceSyntax,
+			Modifier = ArgumentModifier.Out,
+			Value = CreateVariableReference(storage.Target, storage.Target.ResolvedType ?? ErrorType),
+			ResolvedType = storage.Target.ResolvedType ?? ErrorType
+		});
+		statements.Add(new ExpressionStatement
+		{
+			SourceSyntax = sourceSyntax,
+			ResolvedType = "void",
+			Expression = LowerExpression(call)
+		});
+		List<Expression> components = CreateMaterializedComponentExpressions(storage.Target, shape);
+		for (int i = 0; i < targets.Count && i < components.Count; i++)
+		{
+			statements.Add(new ExpressionStatement
+			{
+				SourceSyntax = sourceSyntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = sourceSyntax,
+					Target = CreateVariableReference(targets[i], shape.Components[i].Type),
+					Operator = AssignmentOperator.Assign,
+					Value = components[i],
+					ResolvedType = shape.Components[i].Type
+				}
+			});
+		}
+	}
+
 	bool TryUseTargetShapeForGenericExpandedReturn(FunctionDefinition function, ParamsComponentShape targetShape, out ParamsComponentShape shape)
 	{
 		shape = targetShape;
@@ -346,17 +439,57 @@ public sealed partial class BindableNodeAnalyzer
 				return RewritePropertyGetterCall(getter, []);
 
 			case IndexExpression { Target: MemberExpression member } index
+				when TryCreateMaterializedGenericPropertyGetterReference(member, out MemberReferenceExpression? getter):
+			{
+				CallExpression call = RewritePropertyGetterCall(getter, index.Arguments);
+				call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
+				return call;
+			}
+
+			case IndexExpression { Target: MemberExpression member } index
 				when expressionRewrites.TryGetValue(member, out Expression? rewritten)
-				&& rewritten is MemberReferenceExpression getter
-				&& IsExpandedReturnPropertyGetter(getter, out _):
-				return RewritePropertyGetterCall(getter, index.Arguments);
+					&& rewritten is MemberReferenceExpression getter
+					&& IsExpandedReturnPropertyGetter(getter, out _):
+			{
+				CallExpression call = RewritePropertyGetterCall(getter, index.Arguments);
+				call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
+				return call;
+			}
 
 			case IndexExpression { Target: MemberReferenceExpression getter } index when IsExpandedReturnPropertyGetter(getter, out FunctionDefinition? function):
-				return RewritePropertyGetterCall(getter, index.Arguments);
+			{
+				CallExpression call = RewritePropertyGetterCall(getter, index.Arguments);
+				call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
+				return call;
+			}
 
 			default:
 				return expression;
 		}
+	}
+
+	bool TryCreateMaterializedGenericPropertyGetterReference(MemberExpression member, out MemberReferenceExpression getter)
+	{
+		getter = null!;
+		string targetType = member.Target?.ResolvedType ?? ErrorType;
+		TypeDefinition? type = GetTypeDefinition(targetType);
+		if (type is null && TryGetPointerElementType(targetType) is string pointedType)
+			type = GetTypeDefinition(pointedType);
+		List<FunctionDefinition> getters = type is null ? [] : LookupPropertyGetters(type, member.Name, member.SourceSyntax);
+		getters.AddRange(LookupExtensionFunctions(targetType, "get" + member.Name, member.SourceSyntax));
+		foreach (FunctionDefinition candidate in getters)
+		{
+			if (!IsMaterializedGenericReturnFunction(candidate))
+				continue;
+			getter = CreateMemberReference(member, member.Target, member.ResolvedType ?? candidate.ResolvedType ?? ErrorType, candidate);
+			return true;
+		}
+		return false;
+	}
+
+	bool IsMaterializedGenericReturnFunction(FunctionDefinition function)
+	{
+		return materializedGenericReturnParameters.ContainsKey(function) || IsAnyGenericReturn(function);
 	}
 
 	bool IsExpandedReturnPropertyGetter(MemberReferenceExpression getter, out FunctionDefinition function)
@@ -364,6 +497,11 @@ public sealed partial class BindableNodeAnalyzer
 		function = null!;
 		if (!IsPropertyGetterReference(getter) || getter.Member is not FunctionDefinition candidate)
 			return false;
+		if (materializedGenericReturnParameters.ContainsKey(candidate))
+		{
+			function = candidate;
+			return true;
+		}
 		string returnType = StripTopLevelValueQualifiers(candidate.ResolvedType ?? candidate.ReturnType?.ResolvedType ?? "");
 		if (!TryGetExpandedReturnShape(candidate, out _) && !IsGenericPlaceholderParameter(returnType))
 			return false;

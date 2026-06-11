@@ -18,6 +18,7 @@ public sealed partial class BindableNodeAnalyzer
 	CallExpression RewritePropertyGetterCall(MemberReferenceExpression getter, List<ArgumentExpression> arguments)
 	{
 		FunctionDefinition function = (FunctionDefinition)getter.Member!;
+		string propertyType = getter.ResolvedType ?? function.ResolvedType ?? ErrorType;
 		getter.Target = LowerExpression(getter.Target);
 		getter.Name = function.Name;
 		getter.ResolvedType = BuildFunctionValueType(function, IsInstanceInvocationFunction(function));
@@ -26,13 +27,14 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = getter.SourceSyntax,
 			Target = getter,
-			ResolvedType = function.ResolvedType ?? ErrorType
+			ResolvedType = materializedGenericReturnParameters.TryGetValue(function, out ParameterDefinition? resultParameter)
+				? propertyType ?? resultParameter.ResolvedType ?? ErrorType
+				: function.ResolvedType ?? ErrorType
 		};
 		for (int i = 0; i < arguments.Count; i++)
 			call.Arguments.Add(LowerArgument(arguments[i]));
 		callTargets[call] = function;
 		AddImplicitDefaultArguments(call);
-		ExpandParamsArguments(call);
 		if (IsInstanceInvocationFunction(function) && getter.Target is Expression receiver)
 			RewriteInstanceInvocation(call, getter, receiver, function);
 		else

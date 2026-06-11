@@ -102,11 +102,17 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				ExpandParamsArguments(call);
 				LowerCallArgumentConversions(call);
+				if (TryRewriteScalarMaterializedGenericReturnCall(call, out Expression? materialized))
+					return materialized;
 				return LowerUncaughtThrowingCall(call);
 
 			case IndexExpression index:
 				if (index.Target is MemberReferenceExpression getter && IsPropertyGetterReference(getter))
-					return RewritePropertyGetterCall(getter, index.Arguments);
+				{
+					CallExpression call = RewritePropertyGetterCall(getter, index.Arguments);
+					call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
+					return LowerExpression(call);
+				}
 				if (TryCreateParamsComponentExpressions(index, out List<Expression> indexedComponents) && indexedComponents.Count == 1)
 					return LowerExpression(indexedComponents[0]);
 				index.Target = LowerExpression(index.Target);
@@ -123,7 +129,7 @@ public sealed partial class BindableNodeAnalyzer
 			case MemberReferenceExpression memberReference:
 				memberReference.Target = LowerExpression(memberReference.Target);
 				if (IsPropertyGetterReference(memberReference))
-					return RewritePropertyGetterCall(memberReference, []);
+					return LowerExpression(RewritePropertyGetterCall(memberReference, []));
 				if (TryCreateParamsMemberComponentExpression(memberReference, out Expression paramsComponent))
 					return LowerExpression(paramsComponent);
 				if (memberReference is { Target: not null, Member: FunctionDefinition function } && FindContainingType(function) is not InterfaceDefinition)
@@ -183,6 +189,37 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return expression;
+	}
+
+	bool TryRewriteScalarMaterializedGenericReturnCall(CallExpression call, out Expression expression)
+	{
+		expression = call;
+		if (currentStatementPrefix is null
+			|| !callTargets.TryGetValue(call, out FunctionDefinition? function)
+			|| !IsMaterializedGenericReturnFunction(function))
+			return false;
+
+		string resultType = call.ResolvedType ?? function.ReturnType?.ResolvedType ?? ErrorType;
+		if (TryGetParamsComponentShape(null, resultType, "value", out ParamsComponentShape shape) && shape.Components.Count > 1)
+			return false;
+
+		DeclarationStatement storage = CreateGeneratedLocal(NewGeneratedLocalName("value"), resultType, TypeReferenceForResolvedName(resultType), null);
+		currentStatementPrefix.Add(storage);
+		call.Arguments.Add(new ArgumentExpression
+		{
+			SourceSyntax = call.SourceSyntax,
+			Modifier = ArgumentModifier.Out,
+			Value = CreateVariableReference(storage.Target, resultType),
+			ResolvedType = resultType
+		});
+		currentStatementPrefix.Add(new ExpressionStatement
+		{
+			SourceSyntax = call.SourceSyntax,
+			ResolvedType = "void",
+			Expression = call
+		});
+		expression = CreateVariableReference(storage.Target, resultType);
+		return true;
 	}
 
 	bool TryRewriteInitAssignment(AssignmentExpression assignment, out Expression? expression)
