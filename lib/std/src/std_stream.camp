@@ -143,24 +143,49 @@ export void write(CharWriter this, overload bool value, thrown IoError error)
 		CharWriter_writeCharArray(this, "false", catch error);
 }
 
-export void write(CharWriter this, overload int value, thrown IoError error)
+export void write(CharWriter this, overload long value, thrown IoError error)
 {
 	if (value < 0)
 	{
-		CharWriter_writeChar(this, '-', catch error);
-		CharWriter_writeUInt(this, (uint)(0 - value), catch error);
+		this.write('-', catch error);
+		this.write((ulong)(0 - value), catch error);
 	}
 	else
 	{
-		CharWriter_writeUInt(this, (uint)value, catch error);
+		this.write((ulong)value, catch error);
 	}
+}
+
+export void write(CharWriter this, overload ulong value, thrown IoError error)
+{
+	if (value >= 10)
+		this.write(value / 10, catch error);
+	this.write((char)((int)'0' + (int)(value % 10)), catch error);
+}
+
+export void write(CharWriter this, overload int value, thrown IoError error)
+{
+	this.write((long)value, catch error);
 }
 
 export void write(CharWriter this, overload uint value, thrown IoError error)
 {
-	if (value >= 10)
-		CharWriter_writeUInt(this, value / 10, catch error);
-	CharWriter_writeChar(this, (char)((int)'0' + (int)(value % 10)), catch error);
+	this.write((ulong)value, catch error);
+}
+
+export void write(CharWriter this, overload nint value, thrown IoError error)
+{
+	this.write((long)value, catch error);
+}
+
+export void write(CharWriter this, overload nuint value, thrown IoError error)
+{
+	this.write((ulong)value, catch error);
+}
+
+export void write(CharWriter this, overload float value, thrown IoError error)
+{
+	this.write((double)value, catch error);
 }
 
 export void write(CharWriter this, overload double value, thrown IoError error)

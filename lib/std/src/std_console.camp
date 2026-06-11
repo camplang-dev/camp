@@ -60,6 +60,16 @@ export class Console
 	
 	export static void write(overload uint value) => Console.Writer.writeUInt(value, catch _);
 	
+	export static void write(overload long value) => Console.Writer.writeLong(value, catch _);
+	
+	export static void write(overload ulong value) => Console.Writer.writeULong(value, catch _);
+	
+	export static void write(overload nint value) => Console.Writer.writeNInt(value, catch _);
+	
+	export static void write(overload nuint value) => Console.Writer.writeNUInt(value, catch _);
+	
+	export static void write(overload float value) => Console.Writer.writeFloat(value, catch _);
+	
 	export static void write(overload double value) => Console.Writer.writeDouble(value, catch _);
 	
 	export static void writeLine(const char[] value = default) => Console.Writer.writeLine(value, catch _);
