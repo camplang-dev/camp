@@ -1194,7 +1194,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			return callableReturnType;
 		}
-		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax, IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function, call.Target);
+		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function, call.Target);
 		if (function is not null)
 			callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
 
@@ -1249,7 +1249,7 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 
-		AnalyzeCallArguments(call.Arguments, parameters, scope, typeScope, call.SourceSyntax ?? call.Target?.SourceSyntax);
+		AnalyzeCallArguments(call.Arguments, parameters, scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
 		returnType = callable.ReturnType;
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
@@ -1555,11 +1555,12 @@ public sealed partial class BindableNodeAnalyzer
 						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Thrown parameters require a 'catch' argument.");
 					if (parameter.Modifier != ParameterModifier.Thrown && arguments[i].Modifier == ArgumentModifier.Catch)
 						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Only thrown parameters may use a 'catch' argument.");
+					SyntaxNode? argumentSyntax = GetArgumentDiagnosticSyntax(arguments[i], fallbackSyntax);
 					if (parameter.Modifier == ParameterModifier.Out)
-						CheckAssignable(actual, expected, arguments[i].SourceSyntax ?? fallbackSyntax, "Out argument");
+						CheckCallArgumentAssignable(actual, expected, argumentSyntax, "Out argument", function, genericSubstitutions, genericParameterNames);
 					else
 					{
-						CheckAssignable(expected, actual, arguments[i].SourceSyntax ?? fallbackSyntax, "Argument");
+						CheckCallArgumentAssignable(expected, actual, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
 						if (CanLiftToOptional(actual, expected))
 							arguments[i].ResolvedType = expected;
 					}
@@ -1574,6 +1575,97 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(fallbackSyntax ?? (arguments.Count > 0 ? arguments[^1].SourceSyntax : null)), "Call is missing required arguments.");
 		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
 			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
+	}
+
+	SyntaxNode? GetArgumentDiagnosticSyntax(ArgumentExpression argument, SyntaxNode? fallbackSyntax)
+	{
+		return GetExpressionDiagnosticSyntax(argument.Value) ?? argument.SourceSyntax ?? fallbackSyntax;
+	}
+
+	SyntaxNode? GetExpressionDiagnosticSyntax(Expression? expression)
+	{
+		return expression switch
+		{
+			null => null,
+			_ when expression.SourceSyntax is not null => expression.SourceSyntax,
+			ArgumentExpression argument => argument.SourceSyntax ?? GetExpressionDiagnosticSyntax(argument.Value),
+			ParenthesizedExpression parenthesized => GetExpressionDiagnosticSyntax(parenthesized.Expression),
+			CastExpression cast => GetExpressionDiagnosticSyntax(cast.Expression),
+			WithinExpression within => GetExpressionDiagnosticSyntax(within.Expression) ?? GetExpressionDiagnosticSyntax(within.Context),
+			FinallyDeleteExpression finallyDelete => GetExpressionDiagnosticSyntax(finallyDelete.Expression),
+			UnaryExpression unary => GetExpressionDiagnosticSyntax(unary.Operand) ?? GetExpressionDiagnosticSyntax(unary.Context),
+			PostfixUpdateExpression postfix => GetExpressionDiagnosticSyntax(postfix.Expression),
+			BinaryExpression binary => GetExpressionDiagnosticSyntax(binary.Left) ?? GetExpressionDiagnosticSyntax(binary.Right),
+			ConditionalExpression conditional => GetExpressionDiagnosticSyntax(conditional.Condition) ?? GetExpressionDiagnosticSyntax(conditional.WhenTrue) ?? GetExpressionDiagnosticSyntax(conditional.WhenFalse),
+			RangeExpression range => GetExpressionDiagnosticSyntax(range.Start) ?? GetExpressionDiagnosticSyntax(range.End),
+			CallExpression call => GetExpressionDiagnosticSyntax(call.Target) ?? GetArgumentListDiagnosticSyntax(call.Arguments),
+			IndexExpression index => GetExpressionDiagnosticSyntax(index.Target) ?? GetArgumentListDiagnosticSyntax(index.Arguments),
+			MemberExpression member => GetExpressionDiagnosticSyntax(member.Target),
+			MemberReferenceExpression member => GetExpressionDiagnosticSyntax(member.Target),
+			NamelessIndexerExpression indexer => GetExpressionDiagnosticSyntax(indexer.Target) ?? GetArgumentListDiagnosticSyntax(indexer.Arguments),
+			GroupedExpression grouped => GetGroupedExpressionDiagnosticSyntax(grouped),
+			ArrayExpression array => GetExpressionListDiagnosticSyntax(array.Elements),
+			InitializerExpression initializer => GetInitializerDiagnosticSyntax(initializer),
+			ConstructionExpression construction => GetArgumentListDiagnosticSyntax(construction.Arguments) ?? GetExpressionDiagnosticSyntax(construction.ElementCount) ?? GetExpressionDiagnosticSyntax(construction.Initializer),
+			_ => null
+		};
+	}
+
+	SyntaxNode? GetArgumentListDiagnosticSyntax(List<ArgumentExpression> arguments)
+	{
+		foreach (ArgumentExpression argument in arguments)
+			if (GetArgumentDiagnosticSyntax(argument, null) is SyntaxNode syntax)
+				return syntax;
+		return null;
+	}
+
+	SyntaxNode? GetExpressionListDiagnosticSyntax(List<Expression> expressions)
+	{
+		foreach (Expression expression in expressions)
+			if (GetExpressionDiagnosticSyntax(expression) is SyntaxNode syntax)
+				return syntax;
+		return null;
+	}
+
+	SyntaxNode? GetGroupedExpressionDiagnosticSyntax(GroupedExpression grouped)
+	{
+		foreach (GroupedExpressionItem item in grouped.Items)
+			if (GetExpressionDiagnosticSyntax(item.Expression) is SyntaxNode syntax)
+				return syntax;
+		return null;
+	}
+
+	SyntaxNode? GetInitializerDiagnosticSyntax(InitializerExpression initializer)
+	{
+		foreach (InitializerItem item in initializer.Items)
+			if (GetInitializerItemDiagnosticSyntax(item) is SyntaxNode syntax)
+				return syntax;
+		return null;
+	}
+
+	void CheckCallArgumentAssignable(
+		string expected,
+		string actual,
+		SyntaxNode? syntax,
+		string context,
+		FunctionDefinition? function,
+		Dictionary<string, string>? substitutions,
+		HashSet<string>? genericParameterNames)
+	{
+		if (expected == ErrorType || actual == ErrorType || expected == TargetType || actual == TargetType)
+			return;
+		if (CanImplicitlyConvert(actual, expected))
+			return;
+
+		if (function is not null
+			&& genericParameterNames is { Count: > 0 }
+			&& ContainsUnboundGenericParameter(expected, substitutions ?? [], genericParameterNames))
+		{
+			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}' because type arguments for '{function.Name}' cannot be inferred; specify them explicitly.");
+			return;
+		}
+
+		Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
 	}
 
 	static ThisParameterDefinition CreateImplicitThisParameter(TypeDefinition containingType)

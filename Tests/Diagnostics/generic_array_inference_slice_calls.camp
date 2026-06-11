@@ -1,0 +1,18 @@
+void copyTo<T: any>(const T[] this, T[] destination, sizeof(T))
+{
+}
+
+void copyFrom<T: any>(T[] this, const T[] source, sizeof(T))
+{
+}
+
+export int main()
+{
+	int[] array1 = [1, 2, 3, 4, 5, 6];
+	int[] array2 = init int[64];
+
+	array1[2..4].copyTo(array2[4..]);
+	array1.copyFrom(array2);
+
+	return 0;
+}
