@@ -1,3 +1,5 @@
+extern void* malloc(nuint size);
+
 export interface IRef
 {
 	export void retain();

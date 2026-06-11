@@ -1,3 +1,5 @@
+extern void* malloc(nuint size);
+
 export class Logger
 {
 	export void log(const char[] value)

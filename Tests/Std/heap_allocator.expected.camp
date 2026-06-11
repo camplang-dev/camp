@@ -2,8 +2,7 @@ using Std;
 
 void main()
 {
-	HeapAllocator* allocator = (HeapAllocator*)malloc(sizeof(HeapAllocator));
-	allocator._vt = &_HeapAllocator__vt.Allocator;
+	HeapAllocator* allocator = HeapAllocator_create();
 	void* memory = HeapAllocator_alloc(allocator, 16);
 	HeapAllocator_free(allocator, memory);
 	free((void*)allocator);

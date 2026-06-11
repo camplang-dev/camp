@@ -2,9 +2,25 @@
 #include "instance_string_literal_array_private.h"
 #include "instance_string_literal_array.h"
 
+/* Private file declarations. */
+void* malloc(uintptr_t size);
 
 void Logger_log(Logger *this, const char* value, uintptr_t value_length)
 {
+}
+
+void Logger_op_initnew(Logger *this)
+{
+}
+
+Logger* Logger_create(void)
+{
+	Logger* _created0 = (Logger *)(malloc(sizeof(Logger)));
+	if ((_created0 != NULL))
+	{
+		Logger_op_initnew(_created0);
+	}
+	return _created0;
 }
 
 int main(void)
@@ -21,6 +37,8 @@ int main(void)
 #include "instance_string_literal_array_private.h"
 
 void Logger_log(Logger *this, const char* value, uintptr_t value_length);
+void Logger_op_initnew(Logger *this);
+Logger* Logger_create(void);
 int main(void);
 
 #endif
@@ -47,6 +65,8 @@ struct Logger
 
 /* Function declarations. */
 void Logger_log(Logger *this, const char* value, uintptr_t value_length);
+void Logger_op_initnew(Logger *this);
+Logger* Logger_create(void);
 int main(void);
 
 /* Object declarations. */

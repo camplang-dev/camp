@@ -1,3 +1,5 @@
+extern void* malloc(nuint size);
+
 export class Console
 {
 	export static void writeLine(const char[] value)

@@ -8,3 +8,8 @@ export class Resource
 	{
 	}
 }
+
+export class DefaultConstructed
+{
+	int value;
+}

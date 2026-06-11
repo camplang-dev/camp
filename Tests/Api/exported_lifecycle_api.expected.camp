@@ -4,3 +4,7 @@ export extern class Resource
 
 	export extern ~Resource();
 }
+
+export extern class DefaultConstructed
+{
+}

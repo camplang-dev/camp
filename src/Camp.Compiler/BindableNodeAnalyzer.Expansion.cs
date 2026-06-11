@@ -1332,6 +1332,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	void GenerateLifecycleMethods(TypeDefinition type, List<FunctionDefinition> functions)
 	{
+		if (type is ClassDefinition classDefinition
+			&& classDefinition.Export is not null
+			&& classDefinition.Modifier != ClassModifier.Abstract
+			&& !HasConstructor(functions))
+		{
+			functions.Add(CreateImplicitExportedParameterlessConstructor(classDefinition));
+		}
+
 		List<FunctionDefinition> generated = [];
 		foreach (FunctionDefinition function in functions.ToArray())
 		{
@@ -1360,6 +1368,33 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		functions.AddRange(generated);
+	}
+
+	static bool HasConstructor(List<FunctionDefinition> functions)
+	{
+		foreach (FunctionDefinition function in functions)
+			if (function.Modifier == FunctionModifier.Constructor)
+				return true;
+		return false;
+	}
+
+	FunctionDefinition CreateImplicitExportedParameterlessConstructor(ClassDefinition classDefinition)
+	{
+		return new FunctionDefinition
+		{
+			SourceSyntax = classDefinition.SourceSyntax,
+			Name = classDefinition.Name,
+			Symbol = classDefinition.Name,
+			Export = "export",
+			Modifier = FunctionModifier.Constructor,
+			ReturnType = TypeReferenceFor(classDefinition),
+			ResolvedType = classDefinition.Name,
+			Body = new BlockStatement
+			{
+				SourceSyntax = classDefinition.SourceSyntax,
+				ResolvedType = "void"
+			}
+		};
 	}
 
 	FunctionDefinition CreateInitNewMethod(TypeDefinition type, FunctionDefinition constructor)

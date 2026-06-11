@@ -1,0 +1,11 @@
+extern void* malloc(nuint size);
+
+export class ExportedConcrete
+{
+	int value;
+}
+
+export abstract class ExportedAbstract
+{
+	export abstract void use();
+}
