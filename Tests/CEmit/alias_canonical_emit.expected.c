@@ -1,6 +1,5 @@
 // file: alias_canonical_emit.c
 #include "alias_canonical_emit_private.h"
-#include "alias_canonical_emit.h"
 
 /* Private file declarations. */
 static int __attribute__((sysv_abi)) increment(int value);

@@ -13,9 +13,9 @@ static uintptr_t String_getLength(const char* this)
 		while ((this[i] != 0))
 		{
 			i++;
-__while_continue0:
+__while_continue0: ;
 		}
-__while_break1:
+__while_break1: ;
 	}
 	return i;
 }

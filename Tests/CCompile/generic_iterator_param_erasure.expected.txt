@@ -1,6 +1,5 @@
 // file: generic_iterator_param_erasure.c
 #include "generic_iterator_param_erasure_private.h"
-#include "generic_iterator_param_erasure.h"
 
 /* Private file declarations. */
 static void Sink_addEach(Sink *this, fn_bool_voidPtr__voidPtr_ iterator, void* iterator_context);

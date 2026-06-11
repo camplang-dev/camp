@@ -1,6 +1,5 @@
 // file: default_arguments.c
 #include "default_arguments_private.h"
-#include "default_arguments.h"
 
 /* Private file declarations. */
 int externalDefault(int value);

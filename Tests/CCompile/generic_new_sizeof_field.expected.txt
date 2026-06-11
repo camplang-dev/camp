@@ -1,6 +1,5 @@
 // file: generic_new_sizeof_field.c
 #include "generic_new_sizeof_field_private.h"
-#include "generic_new_sizeof_field.h"
 
 /* Private file declarations. */
 void* malloc(uintptr_t size);

@@ -192,8 +192,6 @@ public static class CCodeEmitter
 		string filename = Path.Combine(options.OutputDirectory, GetCSourceFilename(file));
 		using StreamWriter writer = new(filename, append: false, Utf8NoBom);
 		writer.WriteLine("#include \"" + options.ProjectName + "_private.h\"");
-		if (HasExportedDeclarations(compilation, file))
-			writer.WriteLine("#include \"" + GetHeaderFilename(file) + "\"");
 		writer.WriteLine();
 		declarations.WriteSourceFileForwardDeclarations(writer, file);
 		writer.WriteLine();
@@ -1593,7 +1591,7 @@ public static class CCodeEmitter
 					writer.WriteLine("continue;");
 					break;
 				case LabelStatement label:
-					writer.WriteLine(SanitizeIdentifier(label.Name ?? "label") + ":");
+					writer.WriteLine(SanitizeIdentifier(label.Name ?? "label") + ": ;");
 					break;
 				case GotoStatement go:
 					WriteIndent(writer, indent);
@@ -2581,7 +2579,7 @@ public static class CCodeEmitter
 				string? target = FormatInitializerTarget(item.Target);
 				items.Add(target is null ? value : "." + target + " = " + value);
 			}
-			string body = "{ " + string.Join(", ", items) + " }";
+			string body = items.Count == 0 ? "{ 0 }" : "{ " + string.Join(", ", items) + " }";
 			if (!IsAggregateValueType(initializer.ResolvedType))
 				return body;
 

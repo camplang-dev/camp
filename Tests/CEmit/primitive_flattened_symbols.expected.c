@@ -1,6 +1,5 @@
 // file: primitive_flattened_symbols.c
 #include "primitive_flattened_symbols_private.h"
-#include "primitive_flattened_symbols.h"
 
 /* Private file declarations. */
 static bool String_tryParseInt(const char* this, int *value);

@@ -14,7 +14,7 @@ static int choose(const char** args, uintptr_t args_length)
 		case 1:
 			return 1;
 		}
-__switch_break0:
+__switch_break0: ;
 	}
 	return 0;
 }

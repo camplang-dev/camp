@@ -1,6 +1,5 @@
 // file: shared_export_symbols.c
 #include "shared_export_symbols_private.h"
-#include "shared_export_symbols.h"
 
 
 __attribute__((visibility("default"))) int exportedValue = 3;

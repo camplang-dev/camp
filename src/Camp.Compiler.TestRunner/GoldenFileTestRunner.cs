@@ -176,7 +176,19 @@ public static class GoldenFileTestRunner
 		foreach (string sourceFile in sourceFiles)
 		{
 			string objectFile = Path.Combine(objectDirectory, Path.GetFileNameWithoutExtension(sourceFile) + ".o");
-			ProcessResult compile = RunProcess("clang", ["-std=c99", "-Werror=incompatible-pointer-types", "-c", sourceFile, "-o", objectFile], testCase.RepositoryRoot);
+			ProcessResult compile = RunProcess(
+				"clang",
+				[
+					"-std=c99",
+					"-Werror=incompatible-pointer-types",
+					"-Werror=typedef-redefinition",
+					"-Werror=c23-extensions",
+					"-c",
+					sourceFile,
+					"-o",
+					objectFile
+				],
+				testCase.RepositoryRoot);
 			if (compile.ExitCode == 0)
 			{
 				builder.AppendLine("compiled: " + Path.GetFileName(sourceFile));

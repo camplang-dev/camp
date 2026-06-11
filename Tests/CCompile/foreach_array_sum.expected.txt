@@ -16,10 +16,10 @@ static int sum(int* values, uintptr_t values_length)
 		{
 			int value = _foreachElements0[_foreachIndex2];
 			total += value;
-__foreach_continue3:
+__foreach_continue3: ;
 			_foreachIndex2++;
 		}
-__foreach_break4:
+__foreach_break4: ;
 	}
 	return total;
 }

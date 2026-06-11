@@ -1,6 +1,5 @@
 // file: string_slice_and_from_end.c
 #include "string_slice_and_from_end_private.h"
-#include "string_slice_and_from_end.h"
 
 /* Private file declarations. */
 static const char* getMessage(void);
@@ -19,9 +18,9 @@ static uintptr_t String_getLength(const char* this)
 		while ((this[length] != 0))
 		{
 			length++;
-__while_continue0:
+__while_continue0: ;
 		}
-__while_break1:
+__while_break1: ;
 	}
 	return length;
 }

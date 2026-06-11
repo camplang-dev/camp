@@ -36,15 +36,15 @@ static int firstValue(void)
 				_return5 = value;
 				goto __cleanup6;
 			}
-__foreach_continue3:
+__foreach_continue3: ;
 		}
 		(valuesIter_op_delete(_foreachIter1), free((void *)(_foreachIter1)));
 		goto __foreach_done7;
-__cleanup6:
+__cleanup6: ;
 		(valuesIter_op_delete(_foreachIter1), free((void *)(_foreachIter1)));
 		return _return5;
-__foreach_break4:
-__foreach_done7:
+__foreach_break4: ;
+__foreach_done7: ;
 	}
 	return 0;
 }
@@ -66,12 +66,12 @@ static bool valuesIter_next(valuesIter *this, int* current)
 	*current = 1;
 	this->__state = 1;
 	return true;
-__iter_resume1:
+__iter_resume1: ;
 	;
 	*current = 2;
 	this->__state = 2;
 	return true;
-__iter_resume2:
+__iter_resume2: ;
 	;
 	cleanup();
 	this->__state = -1;

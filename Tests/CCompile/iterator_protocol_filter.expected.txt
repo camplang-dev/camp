@@ -1,6 +1,5 @@
 // file: iterator_protocol_filter.c
 #include "iterator_protocol_filter_private.h"
-#include "iterator_protocol_filter.h"
 
 /* Private file declarations. */
 void* malloc(uintptr_t size);
@@ -56,10 +55,10 @@ void run(void)
 			int number1 = _foreachCurrent2;
 			{
 			}
-__foreach_continue3:
+__foreach_continue3: ;
 		}
 		applyPredicateIter_op_delete(&_foreachIter1);
-__foreach_break4:
+__foreach_break4: ;
 	}
 	{
 		applyPredicateExplicitIter _foreachIter5 = applyPredicateExplicit((fn_bool_voidPtr__intPtr_)rangeIter_iter, range(22, 30), (fn_bool_int_)isEven);
@@ -69,10 +68,10 @@ __foreach_break4:
 			int number2 = _foreachCurrent6;
 			{
 			}
-__foreach_continue7:
+__foreach_continue7: ;
 		}
 		applyPredicateExplicitIter_op_delete(&_foreachIter5);
-__foreach_break8:
+__foreach_break8: ;
 	}
 }
 
@@ -93,11 +92,11 @@ static bool rangeIter_next(rangeIter *this, int* current)
 			*current = this->i;
 			this->__state = 1;
 			return true;
-__iter_resume1:
+__iter_resume1: ;
 			;
-__for_continue9:
+__for_continue9: ;
 		}
-__for_break10:
+__for_break10: ;
 	}
 	this->__state = -1;
 	return false;
@@ -150,14 +149,14 @@ static bool applyPredicateIter_next(applyPredicateIter *this, int* current)
 					*current = value;
 					this->__state = 1;
 					return true;
-__iter_resume1:
+__iter_resume1: ;
 					;
 				}
 			}
-__foreach_continue11:
+__foreach_continue11: ;
 		}
 		this->__foreachIterCall0(this->__foreachIterContext0, NULL);
-__foreach_break12:
+__foreach_break12: ;
 	}
 	this->__state = -1;
 	return false;
@@ -207,12 +206,12 @@ static bool applyPredicateExplicitIter_next(applyPredicateExplicitIter *this, in
 				*current = this->value;
 				this->__state = 1;
 				return true;
-__iter_resume1:
+__iter_resume1: ;
 				;
 			}
-__while_continue13:
+__while_continue13: ;
 		}
-__while_break14:
+__while_break14: ;
 	}
 	this->inner(this->inner_context, NULL);
 	this->__state = -1;

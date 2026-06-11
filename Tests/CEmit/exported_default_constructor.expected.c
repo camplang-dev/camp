@@ -1,6 +1,5 @@
 // file: exported_default_constructor.c
 #include "exported_default_constructor_private.h"
-#include "exported_default_constructor.h"
 
 /* Private file declarations. */
 void* malloc(uintptr_t size);

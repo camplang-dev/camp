@@ -30,11 +30,11 @@ static bool loopRangeIter_next(loopRangeIter *this, int* current)
 			*current = this->i;
 			this->__state = 1;
 			return true;
-__iter_resume1:
+__iter_resume1: ;
 			;
-__for_continue0:
+__for_continue0: ;
 		}
-__for_break1:
+__for_break1: ;
 	}
 	this->__state = -1;
 	return false;

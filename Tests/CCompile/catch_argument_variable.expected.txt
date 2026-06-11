@@ -61,7 +61,7 @@ static int useCatchVariable(void)
 		_return2 = 0;
 		goto __cleanup1;
 	}
-__cleanup1:
+__cleanup1: ;
 	(FileHandle_op_delete(_finally0), free((void *)(_finally0)));
 	return _return2;
 }

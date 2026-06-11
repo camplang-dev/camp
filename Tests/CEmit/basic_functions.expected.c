@@ -1,6 +1,5 @@
 // file: basic_functions.c
 #include "basic_functions_private.h"
-#include "basic_functions.h"
 
 /* Private file declarations. */
 static int privateSquare(int value);

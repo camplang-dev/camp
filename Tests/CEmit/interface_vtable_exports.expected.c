@@ -1,6 +1,5 @@
 // file: interface_vtable_exports.c
 #include "interface_vtable_exports_private.h"
-#include "interface_vtable_exports.h"
 
 /* Private file declarations. */
 void* malloc(uintptr_t size);

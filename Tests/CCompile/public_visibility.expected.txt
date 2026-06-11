@@ -1,6 +1,5 @@
 // file: public_visibility.c
 #include "public_visibility_private.h"
-#include "public_visibility.h"
 
 
 int publicOffset = 7;

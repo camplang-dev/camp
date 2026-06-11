@@ -1,6 +1,5 @@
 // file: primitive_string_const_data.c
 #include "primitive_string_const_data_private.h"
-#include "primitive_string_const_data.h"
 
 
 const char* echo(const char* value)

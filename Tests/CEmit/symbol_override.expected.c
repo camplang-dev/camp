@@ -1,6 +1,5 @@
 // file: symbol_override.c
 #include "symbol_override_private.h"
-#include "symbol_override.h"
 
 /* Private file declarations. */
 bool SetWindowTextA(int hWnd, const char* text);
@@ -26,7 +25,7 @@ int ComputeControlDefaultSize(void)
 
 int main(void)
 {
-	Control ctl = (Control){  };
+	Control ctl = (Control){ 0 };
 	int val1 = ControlValue(&ctl);
 	int val2 = ControlValue(&ctl);
 	int val3 = ControlValue(&ctl);

@@ -1,6 +1,5 @@
 // file: delete_string.c
 #include "delete_string_private.h"
-#include "delete_string.h"
 
 /* Private file declarations. */
 void* malloc(uintptr_t size);

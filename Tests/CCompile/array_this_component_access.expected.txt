@@ -12,9 +12,9 @@ static int IntArray_sum(const int* this, uintptr_t this_length)
 		for (uintptr_t i = 0; (i < this_length); i++)
 		{
 			total += this[i];
-__for_continue0:
+__for_continue0: ;
 		}
-__for_break1:
+__for_break1: ;
 	}
 	return total;
 }

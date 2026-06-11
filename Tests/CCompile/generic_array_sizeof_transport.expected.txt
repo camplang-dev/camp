@@ -1,6 +1,5 @@
 // file: generic_array_sizeof_transport.c
 #include "generic_array_sizeof_transport_private.h"
-#include "generic_array_sizeof_transport.h"
 
 /* Private file declarations. */
 static int __camp_delegate_compareInt(void* arg0, int* arg1, int* arg2);
@@ -37,9 +36,9 @@ static intptr_t binarySearch(const void* values, uintptr_t values_length, void* 
 					return (intptr_t)(mid);
 				}
 			}
-__while_continue0:
+__while_continue0: ;
 		}
-__while_break1:
+__while_break1: ;
 	}
 	return -1;
 }

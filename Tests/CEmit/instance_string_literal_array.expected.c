@@ -1,6 +1,5 @@
 // file: instance_string_literal_array.c
 #include "instance_string_literal_array_private.h"
-#include "instance_string_literal_array.h"
 
 /* Private file declarations. */
 void* malloc(uintptr_t size);

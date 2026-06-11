@@ -1,6 +1,5 @@
 // file: lifecycle_delete.c
 #include "lifecycle_delete_private.h"
-#include "lifecycle_delete.h"
 
 /* Private file declarations. */
 void* malloc(uintptr_t size);

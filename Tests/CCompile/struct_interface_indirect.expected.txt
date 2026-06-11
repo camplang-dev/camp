@@ -16,7 +16,7 @@ static void Handle_retain(Handle *this)
 
 static int main(void)
 {
-	Handle handle = (Handle){  };
+	Handle handle = (Handle){ 0 };
 	return 0;
 }
 

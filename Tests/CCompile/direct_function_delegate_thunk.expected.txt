@@ -1,6 +1,5 @@
 // file: direct_function_delegate_thunk.c
 #include "direct_function_delegate_thunk_private.h"
-#include "direct_function_delegate_thunk.h"
 
 /* Private file declarations. */
 static int __camp_delegate_compare(void* arg0, int* arg1, int* arg2);
