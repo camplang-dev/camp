@@ -24,7 +24,7 @@ export int main()
 		line = reader.readLine(within allocator, catch error);
 	if (error != default)
 		return 4;
-	if (line.compareTo("A\n") != 0)
+	if (line.compareTo("A") != 0)
 		return 5;
 	
 	char ch = reader.readChar(catch error);

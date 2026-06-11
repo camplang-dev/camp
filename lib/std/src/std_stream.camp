@@ -232,9 +232,10 @@ string readCopy(CharReader this, bool stopAtNewline, within allocator, thrown Io
 			}
 			
 			buffer[length] = ch;
-			length++;
 			if (stopAtNewline && ch == '\n')
 				reading = false;
+			else
+				length++;
 		}
 	}
 	
