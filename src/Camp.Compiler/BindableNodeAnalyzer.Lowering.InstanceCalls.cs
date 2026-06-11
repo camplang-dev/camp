@@ -109,7 +109,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (value.ResolvedType is string valueType
 			&& valueType != flattenedReceiverType
-			&& CanImplicitlyConvert(valueType, flattenedReceiverType))
+			&& ShouldCastFlattenedReceiver(valueType, flattenedReceiverType))
 		{
 			value = new CastExpression
 			{
@@ -140,6 +140,17 @@ public sealed partial class BindableNodeAnalyzer
 			Value = value,
 			ResolvedType = value.ResolvedType
 		};
+	}
+
+	bool ShouldCastFlattenedReceiver(string valueType, string flattenedReceiverType)
+	{
+		if (TryGetPointerElementType(valueType) is null || TryGetPointerElementType(flattenedReceiverType) is null)
+			return false;
+		if (TryGetParamsComponentShape(null, valueType, "value", out ParamsComponentShape valueShape) && valueShape.Components.Count > 1)
+			return false;
+		if (TryGetParamsComponentShape(null, flattenedReceiverType, "value", out ParamsComponentShape flattenedShape) && flattenedShape.Components.Count > 1)
+			return false;
+		return CanImplicitlyConvert(valueType, flattenedReceiverType);
 	}
 
 	static string GetReceiverValueType(Expression receiver)

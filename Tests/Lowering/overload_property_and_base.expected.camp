@@ -60,8 +60,8 @@ class Item
 }
 void main(ConsoleWriter* writer, Item* item)
 {
-	Writer_writeInt(writer, 1);
-	Writer_writeString(writer, "x");
+	Writer_writeInt((Writer*)writer, 1);
+	Writer_writeString((Writer*)writer, "x");
 	Item_setValueInt(item, 1);
 	Item_setValueString(item, "x");
 	auto a = Item_getValueInt(item, 2);
