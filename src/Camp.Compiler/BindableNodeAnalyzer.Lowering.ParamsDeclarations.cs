@@ -595,13 +595,22 @@ public sealed partial class BindableNodeAnalyzer
 	List<Expression?> GetParamsComponentInitialValues(Expression? initialValue, ParamsComponentShape shape, bool deferCurrentAllocator)
 	{
 		List<Expression?> values = [];
-		if (initialValue is ConstructionExpression { ElementCount: not null, Type: not null } construction
+		Expression? allocator = null;
+		Expression? arrayInitialValue = initialValue;
+		if (arrayInitialValue is FinallyDeleteExpression { Expression: not null } finallyDelete)
+			arrayInitialValue = finallyDelete.Expression;
+		if (arrayInitialValue is WithinExpression { Expression: not null } within)
+		{
+			allocator = within.Context;
+			arrayInitialValue = within.Expression;
+		}
+		if (arrayInitialValue is ConstructionExpression { ElementCount: not null, Type: not null } construction
 			&& shape.Kind == ParamsComponentShapeKind.Array
 			&& shape.Components.Count == 2)
 		{
 			values.Add(CreateAllocCall(
 				construction.Type,
-				deferCurrentAllocator ? new CurrentAllocatorExpression { SourceSyntax = construction.SourceSyntax, ResolvedType = "Allocator*" } : null,
+				allocator ?? (deferCurrentAllocator ? new CurrentAllocatorExpression { SourceSyntax = construction.SourceSyntax, ResolvedType = "Allocator*" } : null),
 				construction.SourceSyntax,
 				construction.ElementCount));
 			values.Add(construction.ElementCount);

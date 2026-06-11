@@ -1,0 +1,14 @@
+using Std;
+
+export int main()
+{
+	auto allocator = new HeapAllocator() finally delete;
+	auto array = within (allocator) new byte[64];
+
+	array[0] = 1;
+	if (array[0] != 1)
+		return 1;
+
+	within (allocator) delete array;
+	return 0;
+}

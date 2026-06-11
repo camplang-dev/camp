@@ -133,6 +133,8 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case DeclarationStatement declaration:
+				if (TryRewriteArrayNewPointerDeclaration(declaration, out List<Statement>? arrayPointerStatements))
+					return CreateBlock(arrayPointerStatements);
 				if (TryRewriteNewDeclaration(declaration, out List<Statement>? newStatements))
 					return CreateBlock(newStatements);
 				if (TryRewriteInitDeclaration(declaration, out List<Statement>? statements))
@@ -778,6 +780,14 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
+			if (statements[i] is DeclarationStatement pointerDeclaration && TryRewriteArrayNewPointerDeclaration(pointerDeclaration, out List<Statement>? pointerRewritten))
+			{
+				statements.RemoveAt(i);
+				statements.InsertRange(i, pointerRewritten);
+				i += pointerRewritten.Count - 1;
+				continue;
+			}
+
 			if (statements[i] is DeclarationStatement declaration && (TryRewriteNewDeclaration(declaration, out List<Statement>? rewritten) || TryRewriteInitDeclaration(declaration, out rewritten)))
 			{
 				statements.RemoveAt(i);
@@ -889,6 +899,76 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		});
 		return true;
+	}
+
+	bool TryRewriteArrayNewPointerDeclaration(DeclarationStatement declaration, out List<Statement> statements)
+	{
+		statements = [];
+		if (declaration.Target.Names.Count != 1
+			|| TryGetPointerElementType(declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType) is null
+			|| !TryUnwrapArrayNewDeclarationValue(declaration.InitialValue, out ConstructionExpression? construction, out Expression? allocator, out bool finallyDelete))
+			return false;
+
+		for (int i = 0; i < construction.Arguments.Count; i++)
+			construction.Arguments[i] = LowerArgument(construction.Arguments[i]);
+		construction.ElementCount = LowerExpression(construction.ElementCount);
+		LowerInitializer(construction.Initializer);
+		if (construction.ElementCount is null || construction.Type is null)
+			return false;
+
+		Expression? allocationAllocator = null;
+		if (allocator is not null)
+		{
+			Expression? loweredAllocator = LowerExpression(allocator);
+			if (loweredAllocator is not null)
+			{
+				DeclarationStatement allocatorLocal = CreateWithinContextLocal(loweredAllocator, allocator.SourceSyntax ?? declaration.SourceSyntax);
+				statements.Add(allocatorLocal);
+				allocationAllocator = CreateVariableReference(allocatorLocal.Target, allocatorLocal.Target.ResolvedType ?? loweredAllocator.ResolvedType ?? ErrorType);
+			}
+		}
+		else
+		{
+			allocationAllocator = CurrentAllocator();
+		}
+
+		declaration.InitialValue = CreateAllocCall(construction.Type, allocationAllocator, construction.SourceSyntax ?? declaration.SourceSyntax, construction.ElementCount);
+		statements.Add(declaration);
+
+		if (finallyDelete && currentCleanupScopes.Count > 0)
+		{
+			Expression target = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? ErrorType);
+			currentCleanupScopes[^1].Statements.Add(new ExpressionStatement
+			{
+				SourceSyntax = declaration.SourceSyntax,
+				ResolvedType = "void",
+				Expression = CreateFreeCall(target, allocationAllocator)
+			});
+		}
+		return true;
+	}
+
+	static bool TryUnwrapArrayNewDeclarationValue(Expression? value, out ConstructionExpression construction, out Expression? allocator, out bool finallyDelete)
+	{
+		allocator = null;
+		finallyDelete = false;
+		if (value is FinallyDeleteExpression { Expression: not null } finallyDeleteExpression)
+		{
+			finallyDelete = true;
+			value = finallyDeleteExpression.Expression;
+		}
+		if (value is WithinExpression { Expression: not null } within)
+		{
+			allocator = within.Context;
+			value = within.Expression;
+		}
+		if (value is ConstructionExpression { Kind: ConstructionKind.New, ElementCount: not null, Type: not null } arrayConstruction)
+		{
+			construction = arrayConstruction;
+			return true;
+		}
+		construction = null!;
+		return false;
 	}
 
 	bool TryRewriteInitDeclaration(DeclarationStatement declaration, out List<Statement> statements)

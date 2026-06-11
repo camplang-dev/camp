@@ -1,0 +1,13 @@
+using Std;
+
+export int main()
+{
+	auto allocator = new HeapAllocator() finally delete;
+	byte* array = within (allocator) new byte[64] finally delete;
+
+	array[0] = 1;
+	if (array[0] != 1)
+		return 1;
+
+	return 0;
+}

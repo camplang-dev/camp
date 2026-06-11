@@ -571,7 +571,7 @@ public sealed partial class BindableNodeAnalyzer
 			InitializerExpression initializer => BodyAnalyzeInitializerExpression(initializer, scope, typeScope, targetType),
 			ParenthesizedExpression parenthesized => BodyAnalyzeExpression(parenthesized.Expression, scope, typeScope, targetType),
 			CastExpression cast => BodyAnalyzeCastExpression(cast, scope, typeScope),
-			ConstructionExpression construction => BodyAnalyzeConstructionExpression(construction, scope, typeScope),
+			ConstructionExpression construction => BodyAnalyzeConstructionExpression(construction, scope, typeScope, targetType),
 			WithinExpression within => BodyAnalyzeWithinExpression(within, scope, typeScope, targetType),
 			SizeOfExpression sizeOf => BodyAnalyzeSizeOfExpression(sizeOf, typeScope),
 			VTableOfExpression vtableOf => BodyAnalyzeVTableOfExpression(vtableOf, typeScope),
@@ -584,7 +584,7 @@ public sealed partial class BindableNodeAnalyzer
 			NamelessIndexerExpression indexer => BodyAnalyzeIndexExpression(indexer.Target, indexer.Arguments, scope, typeScope),
 			UnaryExpression unary => BodyAnalyzeUnaryExpression(unary, scope, typeScope, targetType),
 			PostfixUpdateExpression postfix => BodyAnalyzePostfixUpdateExpression(postfix, scope, typeScope),
-			FinallyDeleteExpression finallyDelete => BodyAnalyzeExpression(finallyDelete.Expression, scope, typeScope),
+			FinallyDeleteExpression finallyDelete => BodyAnalyzeExpression(finallyDelete.Expression, scope, typeScope, targetType),
 			BinaryExpression binary => BodyAnalyzeBinaryExpression(binary, scope, typeScope),
 			AssignmentExpression assignment => BodyAnalyzeAssignmentExpression(assignment, scope, typeScope),
 			ConditionalExpression conditional => BodyAnalyzeConditionalExpression(conditional, scope, typeScope, targetType),
@@ -944,7 +944,7 @@ public sealed partial class BindableNodeAnalyzer
 		return targetType;
 	}
 
-	string BodyAnalyzeConstructionExpression(ConstructionExpression construction, BodyScope scope, AnalysisScope typeScope)
+	string BodyAnalyzeConstructionExpression(ConstructionExpression construction, BodyScope scope, AnalysisScope typeScope, string? targetExpressionType)
 	{
 		if (construction.Type is not null)
 			AnalyzeType(construction.Type, typeScope);
@@ -962,7 +962,14 @@ public sealed partial class BindableNodeAnalyzer
 		if (construction.Initializer is not null)
 			BodyAnalyzeInitializerExpression(construction.Initializer, scope, typeScope, targetType);
 		if (construction.ElementCount is not null)
+		{
+			if (TryGetPointerElementType(targetExpressionType) is string pointerElement
+				&& (pointerElement == "void" || CanImplicitlyConvert(construction.Type?.ResolvedType ?? ErrorType, pointerElement)))
+			{
+				return targetExpressionType!;
+			}
 			return $"{targetType}[]";
+		}
 		return construction.Kind == ConstructionKind.New ? $"{targetType}*" : targetType;
 	}
 
