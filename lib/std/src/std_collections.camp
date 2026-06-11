@@ -54,13 +54,7 @@ export class List<T: any>
 	// Releases the allocated element buffer, if any.
 	export ~List()
 	{
-		if (this.buffer != null)
-		{
-			if (this.allocator != null)
-				this.allocator.free(this.buffer);
-			else
-				free(this.buffer);
-		}
+		within (this.allocator) delete this.buffer;
 
 		this.buffer = null;
 		this.length = 0;
@@ -145,10 +139,7 @@ export class List<T: any>
 		this.length = 0;
 		if (deleteBuffer && this.buffer != null)
 		{
-			if (this.allocator != null)
-				this.allocator.free(this.buffer);
-			else
-				free(this.buffer);
+			within (this.allocator) delete this.buffer;
 
 			this.buffer = null;
 			this.capacity = 0;
@@ -158,11 +149,7 @@ export class List<T: any>
 	// Allocates a new list and copies a range of items into it.
 	export List<T>* copyList(@range nuint startAt = 0, nuint count = ^0)
 	{
-		void* storage = null;
-		if (this.allocator != null)
-			storage = this.allocator.alloc(sizeof(List<T>));
-		else
-			storage = malloc(sizeof(List<T>));
+		void* storage = within (this.allocator) new byte[sizeof(List<T>)];
 
 		List<T>* copy = (List<T>*)storage;
 		if (copy == null)
@@ -232,11 +219,7 @@ export class List<T: any>
 		if (count > this.length - startAt)
 			count = this.length - startAt;
 
-		void* storage = null;
-		if (this.allocator != null)
-			storage = this.allocator.alloc(count * sizeof(T));
-		else
-			storage = malloc(count * sizeof(T));
+		void* storage = within (this.allocator) new byte[count * sizeof(T)];
 
 		if (storage == null)
 			return arrayResult;
@@ -306,7 +289,8 @@ export class List<T: any>
 		if (this.length < 2)
 			return;
 
-		void* temp = this.allocator != null ? this.allocator.alloc(sizeof(T)) : malloc(sizeof(T));
+		void* temp = within (this.allocator) new byte[sizeof(T)];
+		//void* temp = this.allocator != null ? this.allocator.alloc(sizeof(T)) : malloc(sizeof(T));
 		if (temp == null)
 			return;
 
@@ -324,10 +308,7 @@ export class List<T: any>
 			listCopyValue(this.itemAddress(j), temp, sizeof(T));
 		}
 
-		if (this.allocator != null)
-			this.allocator.free(temp);
-		else
-			free(temp);
+		within (this.allocator) delete temp;
 	}
 
 	// Returns the number of items in the list.
@@ -360,11 +341,7 @@ export class List<T: any>
 			newCapacity = grown;
 		}
 
-		void* newBuffer = null;
-		if (this.allocator != null)
-			newBuffer = this.allocator.alloc(newCapacity * sizeof(T));
-		else
-			newBuffer = malloc(newCapacity * sizeof(T));
+		void* newBuffer = within (this.allocator) new byte[newCapacity * sizeof(T)];
 
 		if (newBuffer == null)
 			return;
@@ -372,10 +349,7 @@ export class List<T: any>
 		if (this.buffer != null)
 		{
 			listMoveValues(newBuffer, this.buffer, this.length, sizeof(T));
-			if (this.allocator != null)
-				this.allocator.free(this.buffer);
-			else
-				free(this.buffer);
+			within (this.allocator) delete this.buffer;
 		}
 
 		this.buffer = newBuffer;
