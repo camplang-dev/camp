@@ -603,7 +603,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, syntax))
 			if (predicate(function))
-				return function;
+				return type is ClassDefinition classDefinition
+					? GetAllocatorPatternDispatchFunction(classDefinition, function)
+					: function;
 
 		foreach (FunctionDefinition function in LookupAllocatorPatternFunctions(type, name))
 			if (predicate(function))
@@ -633,13 +635,32 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
 				foreach (FunctionDefinition function in candidateClass.Functions)
 					if (function.Name == name && !IsBodylessVirtualOverrideDeclaration(function))
-						yield return function;
+						yield return GetAllocatorPatternDispatchFunction(candidateClass, function);
 			yield break;
 		}
 
 		foreach (FunctionDefinition function in GetFunctions(type))
 			if (function.Name == name)
 				yield return function;
+	}
+
+	FunctionDefinition GetAllocatorPatternDispatchFunction(ClassDefinition owner, FunctionDefinition function)
+	{
+		if (function.Modifier is not FunctionModifier.Override and not FunctionModifier.Sealed)
+			return function;
+
+		MethodSignature signature = BuildMethodSignature(function);
+		for (ClassDefinition? baseClass = GetDirectBaseClass(owner); baseClass is not null; baseClass = GetDirectBaseClass(baseClass))
+		{
+			foreach (FunctionDefinition inherited in baseClass.Functions)
+			{
+				if (inherited.Modifier is not FunctionModifier.Virtual and not FunctionModifier.Abstract)
+					continue;
+				if (BuildMethodSignature(inherited).Equals(signature))
+					return inherited;
+			}
+		}
+		return function;
 	}
 
 	static bool IsSingleIntegerValueParameter(FunctionDefinition function)

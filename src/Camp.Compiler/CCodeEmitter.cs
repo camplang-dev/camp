@@ -1231,12 +1231,59 @@ public static class CCodeEmitter
 					WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
 					break;
 				case ClassDefinition classDefinition:
-					WriteFieldLayout(writer, classDefinition, classDefinition.Fields);
+					WriteFieldLayout(writer, classDefinition, GetClassLayoutFields(classDefinition));
 					break;
 				case InterfaceDefinition interfaceDefinition:
 					WriteInterfaceLayout(writer, interfaceDefinition);
 					break;
 			}
+		}
+
+		List<FieldDefinition> GetClassLayoutFields(ClassDefinition classDefinition)
+		{
+			List<FieldDefinition> fields = [];
+			AddClassLayoutFields(classDefinition, fields);
+			return fields;
+		}
+
+		void AddClassLayoutFields(ClassDefinition classDefinition, List<FieldDefinition> fields)
+		{
+			if (GetDirectBaseClass(classDefinition) is ClassDefinition baseClass)
+				AddClassLayoutFields(baseClass, fields);
+			fields.AddRange(classDefinition.Fields);
+		}
+
+		ClassDefinition? GetDirectBaseClass(ClassDefinition classDefinition)
+		{
+			foreach (TypeReference baseType in classDefinition.BaseTypes)
+			{
+				string name = ResolveTypeDefinitionName(baseType);
+				if (string.IsNullOrWhiteSpace(name))
+					continue;
+				foreach (Definition definition in GetDefinitions())
+					if (definition is ClassDefinition candidate && candidate.Name == name)
+						return candidate;
+			}
+			return null;
+		}
+
+		static string ResolveTypeDefinitionName(TypeReference? type)
+		{
+			return type switch
+			{
+				null => "",
+				TypeDefinitionReference { Definition: not null } reference => reference.Definition.Name,
+				TypeDefinitionReference reference => reference.Name,
+				NamedTypeReference named => named.Name,
+				GenericTypeReference generic => ResolveTypeDefinitionName(generic.Type),
+				PointerTypeReference pointer => ResolveTypeDefinitionName(pointer.ElementType),
+				ConstTypeReference constant => ResolveTypeDefinitionName(constant.Type),
+				VolatileTypeReference vol => ResolveTypeDefinitionName(vol.Type),
+				EscapedTypeReference escaped => ResolveTypeDefinitionName(escaped.Type),
+				ScopedTypeReference scoped => ResolveTypeDefinitionName(scoped.Type),
+				UnscopedTypeReference unscoped => ResolveTypeDefinitionName(unscoped.Type),
+				_ => type.ResolvedType ?? ""
+			};
 		}
 
 		void WriteFieldLayout(TextWriter writer, TypeDefinition type, List<FieldDefinition> fields)

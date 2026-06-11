@@ -107,6 +107,19 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = flattenedReceiverType
 			};
 		}
+		if (value.ResolvedType is string valueType
+			&& valueType != flattenedReceiverType
+			&& CanImplicitlyConvert(valueType, flattenedReceiverType))
+		{
+			value = new CastExpression
+			{
+				SourceSyntax = receiver.SourceSyntax,
+				Kind = CastKind.Type,
+				Type = TypeReferenceForResolvedName(flattenedReceiverType),
+				Expression = value,
+				ResolvedType = flattenedReceiverType
+			};
+		}
 		if (function.AbiThisType is not null
 			&& !string.IsNullOrWhiteSpace(function.AbiThisType.ResolvedType)
 			&& value.ResolvedType != function.AbiThisType.ResolvedType)

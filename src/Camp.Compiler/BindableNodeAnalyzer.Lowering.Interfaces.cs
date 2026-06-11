@@ -358,6 +358,57 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
+	void InsertCreateVirtualTableAssignment(FunctionDefinition function, TypeDefinition? containingType)
+	{
+		if (function.Body is null
+			|| function.Name != CreateMethodName
+			|| containingType is not ClassDefinition classDefinition
+			|| !NeedsVirtualTableAssignment(classDefinition))
+			return;
+
+		DeclarationStatement? createdLocal = null;
+		BlockStatement? guardBody = null;
+		foreach (Statement statement in function.Body.Statements)
+		{
+			if (createdLocal is null
+				&& statement is DeclarationStatement { Target.Names.Count: 1 } declaration
+				&& declaration.Target.ResolvedType == $"{classDefinition.Name}*")
+			{
+				createdLocal = declaration;
+				continue;
+			}
+
+			if (statement is IfStatement ifStatement)
+			{
+				guardBody = ifStatement.Body as BlockStatement;
+				if (guardBody is null && ifStatement.Body is not null)
+				{
+					guardBody = new BlockStatement { ResolvedType = "void" };
+					guardBody.Statements.Add(ifStatement.Body);
+					ifStatement.Body = guardBody;
+				}
+				break;
+			}
+		}
+
+		if (createdLocal is null || guardBody is null)
+			return;
+
+		Expression target = CreateVariableReference(createdLocal.Target, $"{classDefinition.Name}*");
+		if (CreateVirtualTableAssignment(target, classDefinition) is not Expression assignment)
+			return;
+
+		if (guardBody.Statements.Count > 0
+			&& guardBody.Statements[0] is ExpressionStatement { Expression: AssignmentExpression { Target: MemberReferenceExpression { Name: VirtualTableFieldName } } })
+			return;
+
+		guardBody.Statements.Insert(0, new ExpressionStatement
+		{
+			ResolvedType = "void",
+			Expression = assignment
+		});
+	}
+
 	VirtualClassLowering GetRootVirtualLowering(VirtualClassLowering lowering)
 	{
 		while (lowering.BaseLowering is not null)

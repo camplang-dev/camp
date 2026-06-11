@@ -95,7 +95,7 @@ struct Allocator
 };
 struct HeapAllocator
 {
-	char _camp_empty;
+	_Allocator* _vt;
 };
 struct BaseCounter
 {
@@ -103,7 +103,7 @@ struct BaseCounter
 };
 struct Counter
 {
-	char _camp_empty;
+	_BaseCounter* _vt;
 };
 struct _Allocator
 {
