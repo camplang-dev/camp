@@ -242,7 +242,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AddImplicitVTableOfArguments(CallExpression call, FunctionDefinition function, TypeReference? constructedType)
 	{
 		Dictionary<string, string> substitutions = GetGenericSubstitutions(call, function, constructedType);
-		List<ParameterDefinition> parameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(call.Target, function));
+		List<ParameterDefinition> parameters = GetCallableParametersForCall(function, IncludeExplicitThisArgument(call.Target, function));
 		for (int i = 0; i < parameters.Count; i++)
 		{
 			if (parameters[i] is not VTableOfParameterDefinition vtableOf)

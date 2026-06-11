@@ -2319,6 +2319,8 @@ public static class CCodeEmitter
 			for (int i = 0; i < typeArgumentCount; i++)
 				substitutions[function.GenericParameters[i].Name] = call.TypeArguments[i].ResolvedType ?? "void*";
 
+			AddCallArgumentGenericSubstitutions(call, function, substitutions);
+
 			if (containingTypes.TryGetValue(function, out TypeDefinition? containingType) && containingType.GenericParameters.Count > 0)
 			{
 				string? receiverType = call.Target is MemberReferenceExpression member
@@ -2338,6 +2340,42 @@ public static class CCodeEmitter
 			return substitutions;
 		}
 
+		void AddCallArgumentGenericSubstitutions(CallExpression call, FunctionDefinition function, Dictionary<string, string> substitutions)
+		{
+			if (function.GenericParameters.Count == 0)
+				return;
+
+			HashSet<string> genericNames = new(function.GenericParameters.Select(static parameter => parameter.Name), StringComparer.Ordinal);
+			List<ParameterDefinition> parameters = GetCallableParametersForCall(function);
+			for (int i = 0; i < call.Arguments.Count && i < parameters.Count; i++)
+			{
+				string expected = parameters[i].ResolvedType ?? parameters[i].Type?.ResolvedType ?? "";
+				string actual = call.Arguments[i].ResolvedType ?? call.Arguments[i].Value?.ResolvedType ?? "";
+				TryInferGenericSubstitution(expected, actual, genericNames, substitutions);
+			}
+		}
+
+		static bool TryInferGenericSubstitution(string expected, string actual, HashSet<string> genericNames, Dictionary<string, string> substitutions)
+		{
+			expected = StripTypeDecorators(expected);
+			actual = StripTypeDecorators(actual);
+			if (string.IsNullOrWhiteSpace(expected) || string.IsNullOrWhiteSpace(actual))
+				return false;
+
+			if (genericNames.Contains(expected))
+			{
+				substitutions.TryAdd(expected, actual);
+				return true;
+			}
+
+			if (expected.EndsWith("[]", StringComparison.Ordinal) && actual.EndsWith("[]", StringComparison.Ordinal))
+				return TryInferGenericSubstitution(expected[..^2], actual[..^2], genericNames, substitutions);
+			if (expected.EndsWith("*", StringComparison.Ordinal) && actual.EndsWith("*", StringComparison.Ordinal))
+				return TryInferGenericSubstitution(expected[..^1], actual[..^1], genericNames, substitutions);
+
+			return false;
+		}
+
 		List<ParameterDefinition> GetCallableParametersForCall(FunctionDefinition function)
 		{
 			List<ParameterDefinition> parameters = [];
@@ -2355,6 +2393,23 @@ public static class CCodeEmitter
 			{
 				if (parameter is WithinParameterDefinition && parameter.Type is null)
 					continue;
+				if (parameter is ThisParameterDefinition && TryGetArrayLiteralElementType(parameter.ResolvedType, out string thisElementType))
+				{
+					parameters.Add(new ThisParameterDefinition
+					{
+						Name = parameter.Name,
+						Symbol = parameter.Symbol,
+						Type = parameter.Type,
+						ResolvedType = thisElementType + "*"
+					});
+					parameters.Add(new ParameterDefinition
+					{
+						Name = parameter.Name + "_length",
+						Symbol = parameter.Symbol + "_length",
+						ResolvedType = "nuint"
+					});
+					continue;
+				}
 				parameters.Add(parameter);
 			}
 			return parameters;

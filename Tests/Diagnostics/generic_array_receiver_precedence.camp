@@ -1,0 +1,13 @@
+void pick<T: any>(const T[] this, in T value, sizeof(T))
+{
+}
+
+void pick(int[] this, int value)
+{
+}
+
+void main()
+{
+	const int[] values = [1, 2];
+	values.pick(1);
+}

@@ -987,6 +987,7 @@ public sealed partial class BindableNodeAnalyzer
 	List<FunctionDefinition> LookupExtensionFunctions(string targetType, string name, SyntaxNode? referenceSyntax)
 	{
 		List<FunctionDefinition> exactReceiverFunctions = [];
+		List<FunctionDefinition> incompatibleExactReceiverFunctions = [];
 		List<FunctionDefinition> exactPrimitiveStringFunctions = [];
 		List<FunctionDefinition> functions = [];
 		foreach (Definition definition in currentModule?.Definitions ?? [])
@@ -995,7 +996,16 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (GetExplicitThisParameter(function) is null && !HasExpandedThisParameters(function.Parameters))
 				continue;
-			if (!ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
+			bool canCall = ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function));
+			if (IsConcreteReceiverShapeMatch(targetType, function, IsPropertyGetterFunction(function)))
+			{
+				if (canCall)
+					exactReceiverFunctions.Add(function);
+				else
+					incompatibleExactReceiverFunctions.Add(function);
+				continue;
+			}
+			if (!canCall)
 				continue;
 
 			if (RequiresPrimitiveStringSpanLength(targetType, function, IsPropertyGetterFunction(function))
@@ -1011,6 +1021,11 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (exactReceiverFunctions.Count > 0)
 			return exactReceiverFunctions;
+		if (incompatibleExactReceiverFunctions.Count > 0)
+		{
+			Report(GetRange(referenceSyntax), $"Member '{name}' exists on type '{targetType}', but its this parameter is not compatible with that receiver.");
+			return incompatibleExactReceiverFunctions;
+		}
 		return exactPrimitiveStringFunctions.Count > 0 ? exactPrimitiveStringFunctions : functions;
 	}
 
@@ -1018,6 +1033,32 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
 		return StripTopLevelValueQualifiers(receiverType) == StripTopLevelValueQualifiers(targetType);
+	}
+
+	bool IsConcreteReceiverShapeMatch(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
+	{
+		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
+		if (!TryParseTypeShape(targetType, out TypeShape targetShape) || !TryParseTypeShape(receiverType, out TypeShape receiverShape))
+			return false;
+		if (ContainsGenericPlaceholder(receiverShape))
+			return false;
+		return SameReceiverShapeIgnoringQualifiers(targetShape, receiverShape);
+	}
+
+	bool ContainsGenericPlaceholder(TypeShape shape)
+	{
+		if (shape.Kind == TypeShapeKind.Named && IsGenericPlaceholderParameter(shape.Name))
+			return true;
+		return shape.Element is not null && ContainsGenericPlaceholder(shape.Element);
+	}
+
+	static bool SameReceiverShapeIgnoringQualifiers(TypeShape left, TypeShape right)
+	{
+		if (left.Kind != right.Kind)
+			return false;
+		if (left.Kind == TypeShapeKind.Named)
+			return left.Name == right.Name;
+		return left.Element is not null && right.Element is not null && SameReceiverShapeIgnoringQualifiers(left.Element, right.Element);
 	}
 
 	bool RequiresPrimitiveStringSpanLength(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
@@ -1189,9 +1230,41 @@ public sealed partial class BindableNodeAnalyzer
 		string actualType = StripTopLevelConstForReceiver(targetType);
 		if (CanImplicitlyConvert(actualType, receiverType))
 			return true;
+		if (CanGenericReceiverMatch(actualType, receiverType))
+			return true;
 		return TryGetPointerElementType(receiverType) is string receiverElement
 			&& TryGetPointerElementType(actualType) is null
 			&& BaseTypeName(receiverElement) == BaseTypeName(actualType);
+	}
+
+	bool CanGenericReceiverMatch(string actualType, string receiverType)
+	{
+		if (!TryParseTypeShape(actualType, out TypeShape actualShape) || !TryParseTypeShape(receiverType, out TypeShape receiverShape))
+			return false;
+
+		return CanGenericReceiverMatch(actualShape, receiverShape, protectedByConstTarget: false, pointerDepth: 0);
+	}
+
+	bool CanGenericReceiverMatch(TypeShape actual, TypeShape receiver, bool protectedByConstTarget, int pointerDepth)
+	{
+		if (!TargetSpecsCanImplicitlyConvert(actual.TargetSpec, receiver.TargetSpec))
+			return false;
+		if (!QualifiersCanConvert(actual.Qualifiers, receiver.Qualifiers, protectedByConstTarget, pointerDepth))
+			return false;
+
+		if (receiver.Kind == TypeShapeKind.Named && IsGenericPlaceholderParameter(receiver.Name))
+			return actual.Kind == TypeShapeKind.Named;
+
+		if (actual.Kind != receiver.Kind)
+			return false;
+		if (actual.Kind == TypeShapeKind.Named)
+			return actual.Name == receiver.Name;
+		if (actual.Element is null || receiver.Element is null)
+			return false;
+
+		bool childProtected = protectedByConstTarget || receiver.Qualifiers.IsConst;
+		int childPointerDepth = actual.Kind == TypeShapeKind.Pointer ? pointerDepth + 1 : pointerDepth;
+		return CanGenericReceiverMatch(actual.Element, receiver.Element, childProtected, childPointerDepth);
 	}
 
 	string BuildEffectiveReceiverType(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)

@@ -1,12 +1,12 @@
-nint binarySearch<T: any>(const T[] values, in T value, delegate int(in T left, in T right) compare, sizeof(T))
+nint binarySearch<T: any>(const T[] this, in T value, delegate int(in T left, in T right) compare, sizeof(T))
 {
 	nuint low = 0;
-	nuint high = values.length;
+	nuint high = this.length;
 
 	while (low < high)
 	{
 		nuint mid = low + ((high - low) / 2);
-		int order = compare(values[mid], value);
+		int order = compare(this[mid], value);
 
 		if (order < 0)
 		{
@@ -38,5 +38,6 @@ export int main()
 {
 	int[] values = [1, 3, 5, 7];
 	int needle = 5;
-	return (int)binarySearch<int>(values, needle, compareInt);
+	nint first = values.binarySearch(needle, compareInt);
+	return (int)(first + Array_binarySearch<int>(values, needle, compareInt));
 }

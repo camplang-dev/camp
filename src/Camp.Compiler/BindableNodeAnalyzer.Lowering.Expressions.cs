@@ -316,7 +316,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		bool includeExplicitThis = IncludeExplicitThisArgument(call.Target, function);
-		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, includeExplicitThis);
+		List<ParameterDefinition> callableParameters = GetCallableParametersForCall(function, includeExplicitThis);
 		int argumentIndex = 0;
 		for (int parameterIndex = 0; parameterIndex < callableParameters.Count; parameterIndex++)
 		{

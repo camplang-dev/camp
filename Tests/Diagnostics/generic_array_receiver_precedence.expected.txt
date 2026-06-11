@@ -1,0 +1,1 @@
+tests/Diagnostics/generic_array_receiver_precedence.camp(12,9): error: Member 'pick' exists on type 'const int[]', but its this parameter is not compatible with that receiver.

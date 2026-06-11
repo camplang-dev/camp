@@ -135,7 +135,38 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		parameters.AddRange(GetCallableParameters(function.Parameters, includeExplicitThis));
-		return parameters;
+		return ExpandExplicitThisArrayParameters(parameters);
+	}
+
+	List<ParameterDefinition> ExpandExplicitThisArrayParameters(List<ParameterDefinition> parameters)
+	{
+		List<ParameterDefinition> expanded = [];
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter is ThisParameterDefinition && TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape) && shape.Kind == ParamsComponentShapeKind.Array && shape.Components.Count == 2)
+			{
+				expanded.Add(new ThisParameterDefinition
+				{
+					SourceSyntax = parameter.SourceSyntax,
+					Name = parameter.Name,
+					Symbol = parameter.Symbol,
+					Type = parameter.Type,
+					ResolvedType = shape.Components[0].Type
+				});
+				expanded.Add(new ParameterDefinition
+				{
+					SourceSyntax = parameter.SourceSyntax,
+					Name = shape.Components[1].ExpandedName,
+					Symbol = shape.Components[1].ExpandedName,
+					ResolvedType = shape.Components[1].Type
+				});
+				continue;
+			}
+
+			expanded.Add(parameter);
+		}
+
+		return expanded;
 	}
 
 	List<ParameterDefinition>? GetCallableParametersForExpression(Expression? expression)
@@ -362,6 +393,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (arguments[index + 1].Modifier != ArgumentModifier.None)
 			return false;
 		if (IsExplicitHiddenArgument(arguments[index + 1]))
+			return false;
+		string actualLengthType = arguments[index + 1].Value?.ResolvedType ?? arguments[index + 1].ResolvedType ?? "";
+		if (StripTopLevelValueQualifiers(actualLengthType) is not ("nuint" or "nint" or "uint" or "int" or "ulong" or "long" or "ushort" or "short"))
 			return false;
 		Expression? value = arguments[index].Value;
 		if (value is null || GetPrimitiveStringElementType(value.ResolvedType ?? arguments[index].ResolvedType) is not string stringElement)
