@@ -1,0 +1,1053 @@
+using Std;
+
+export as Std::Time;
+
+// Minimal date/time API surface for Camp.
+//
+// This module intentionally does not include named time zones, DST rule
+// arithmetic, locale formatting, arbitrary format strings, monotonic clocks,
+// or checked thrown error results.
+//
+// These values are not guaranteed to be valid merely because they exist.
+// Most structs are ordinary field containers; callers are responsible for
+// constructing sensible values when they care, and for checking isValid()
+// when input may be untrusted.
+
+extern bool camp_time_get_utc_now_ms(long* unix_ms);
+
+extern bool camp_time_get_local_now(
+	ushort* year,
+	byte* month,
+	byte* day,
+	byte* hour,
+	byte* minute,
+	byte* second,
+	byte* fraction
+);
+
+extern bool camp_time_get_local_offset_minutes(short* minutes_east);
+
+const long TIME_MS_PER_SECOND = 1000;
+const long TIME_MS_PER_MINUTE = 60 * TIME_MS_PER_SECOND;
+const long TIME_MS_PER_HOUR = 60 * TIME_MS_PER_MINUTE;
+const long TIME_MS_PER_DAY = 24 * TIME_MS_PER_HOUR;
+const int TIME_UNIX_EPOCH_YEAR = 1970;
+
+export enum Weekday
+{
+	INVALID = 0,
+	MONDAY = 1,
+	TUESDAY,
+	WEDNESDAY,
+	THURSDAY,
+	FRIDAY,
+	SATURDAY,
+	SUNDAY
+}
+
+export newtype TimeSpan: long
+{
+	// Underlying value: signed milliseconds.
+
+	export static TimeSpan getINVALID() => (TimeSpan)(long)-9223372036854775808;
+	export static TimeSpan getZERO() => (TimeSpan)(long)0;
+	export static TimeSpan getMIN() => (TimeSpan)(long)-9223372036854775807;
+	export static TimeSpan getMAX() => (TimeSpan)(long)9223372036854775807;
+
+	export static TimeSpan fromMs(long value) => (TimeSpan)value;
+	export static TimeSpan fromSeconds(long value) => (TimeSpan)(value * 1000);
+	export static TimeSpan fromMinutes(long value) => (TimeSpan)(value * 1000 * 60);
+	export static TimeSpan fromHours(long value) => (TimeSpan)(value * 1000 * 60 * 60);
+	export static TimeSpan fromDays(long value) => (TimeSpan)(value * 1000 * 60 * 60 * 24);
+
+	export bool isValid() => *this != TimeSpan.INVALID;
+
+	// Whole-unit totals, truncated toward zero.
+	export long getMs() => (long)*this;
+	export long getSeconds() => (long)*this / 1000;
+	export long getMinutes() => (long)*this / (1000 * 60);
+	export long getHours() => (long)*this / (1000 * 60 * 60);
+	export long getDays() => (long)*this / (1000 * 60 * 60 * 24);
+	
+	// Whole-unit totals, truncated toward zero.
+	export double getTotalSeconds() => (double)(long)*this / 1000;
+	export double getTotalMinutes() => (double)(long)*this / (1000 * 60);
+	export double getTotalHours() => (double)(long)*this / (1000 * 60 * 60);
+	export double getTotalDays() => (double)(long)*this / (1000 * 60 * 60 * 24);
+
+	// Non-throwing. Overflow or invalid input returns TimeSpan.invalid().
+	export TimeSpan add(TimeSpan other) => (TimeSpan)((long)*this + (long)other);
+	export TimeSpan subtract(TimeSpan other) => (TimeSpan)((long)*this - (long)other);
+	export TimeSpan negate() => (TimeSpan)(-(long)(*this));
+	export TimeSpan abs() => ((long)*this < 0) ? this.negate() : *this;
+
+	// Allocates.
+	// Examples: "14:05:30", "44:05:30.551".
+	// Returns null only if allocation fails.
+	export string copyString(within allocator)
+	{
+		if (*this == TimeSpan.INVALID)
+			return timeCopyLiteral("invalid", 7);
+
+		long ms = (long)*this;
+		bool negative = ms < 0;
+		if (negative)
+			ms = 0 - ms;
+
+		long hours = ms / TIME_MS_PER_HOUR;
+		ms = ms % TIME_MS_PER_HOUR;
+		int minutes = (int)(ms / TIME_MS_PER_MINUTE);
+		ms = ms % TIME_MS_PER_MINUTE;
+		int seconds = (int)(ms / TIME_MS_PER_SECOND);
+		int fraction = (int)(ms % TIME_MS_PER_SECOND);
+
+		nuint hourDigits = timeCountUnsignedDigits((ulong)hours);
+		nuint length = hourDigits + 6;
+		if (negative)
+			length++;
+		if (fraction != 0)
+			length += 4;
+
+		char[] buffer = new char[length + 1];
+		if (buffer.elements == null)
+			return null;
+
+		nuint index = 0;
+		if (negative)
+			buffer[index++] = '-';
+		index = timeWriteUnsigned(buffer.elements, index, (ulong)hours);
+		buffer[index++] = ':';
+		index = timeWrite2(buffer.elements, index, minutes);
+		buffer[index++] = ':';
+		index = timeWrite2(buffer.elements, index, seconds);
+		if (fraction != 0)
+		{
+			buffer[index++] = '.';
+			index = timeWrite3(buffer.elements, index, fraction);
+		}
+		buffer[index] = '\0';
+		return (string)buffer.elements;
+	}
+}
+
+export newtype UtcOffset: short
+{
+	// Underlying value: signed offset minutes east of UTC.
+	// Valid range: -1080..+1080.
+	
+	export static UtcOffset getINVALID() => (UtcOffset)(short)-32767;
+	export static UtcOffset getUTC() => (UtcOffset)(short)0;
+	
+	export static UtcOffset fromHours(short hours, ushort minutes = 0) => (UtcOffset)(short)(hours * 60 + (hours < 0 ? 0 - (short)minutes : (short)minutes));
+	
+	export bool isValid() => *this != UtcOffset.INVALID && (short)*this >= -1080 && (short)*this <= 1080;
+
+	export short getHours() => (short)((short)*this / 60);
+	export byte getMinutes()
+	{
+		short minutes = (short)((short)*this % 60);
+		if (minutes < 0)
+			minutes = (short)(0 - minutes);
+		return (byte)minutes;
+	}
+	
+	export short getTotalMinutes() => (short)*this;
+
+	// Allocates. Examples: "Z", "-04:00", "+09:30".
+	// Always computes, even when value is considered invalid.  Min "-99:99" Max "99:99"
+	// Returns null only if allocation fails.
+	export string copyString(within allocator)
+	{
+		short total = (short)*this;
+		if (total == 0)
+			return timeCopyLiteral("Z", 1);
+
+		bool negative = total < 0;
+		if (negative)
+			total = (short)(0 - total);
+
+		char[] buffer = new char[7];
+		if (buffer.elements == null)
+			return null;
+		buffer[0] = negative ? '-' : '+';
+		timeWrite2(buffer.elements, 1, total / 60);
+		buffer[3] = ':';
+		timeWrite2(buffer.elements, 4, total % 60);
+		buffer[6] = '\0';
+		return (string)buffer.elements;
+	}
+}
+
+export newtype Instant: long
+{
+	// Underlying value: milliseconds since 1970-01-01T00:00:00Z.
+	// Suggested invalid sentinel: long.min.
+
+	export static Instant getINVALID() => (Instant)(long)-9223372036854775808;
+
+	// Current UTC instant.
+	export static Instant utcNow()
+	{
+		long ms = 0;
+		if (!camp_time_get_utc_now_ms(&ms))
+			return Instant.INVALID;
+		return (Instant)ms;
+	}
+
+	export static Instant fromUnixSeconds(long seconds) => (Instant)(seconds * TIME_MS_PER_SECOND);
+	export static Instant fromUnixMs(long ms) => (Instant)ms;
+
+	export bool isValid() => *this != Instant.INVALID;
+
+	export long getUnixSeconds() => (long)*this / TIME_MS_PER_SECOND;
+	export long getUnixMs() => (long)*this;
+
+	// Non-throwing. Overflow or invalid input returns Instant.INVALID
+	export Instant add(TimeSpan span)
+	{
+		if (!this.isValid() || !span.isValid())
+			return Instant.INVALID;
+		return (Instant)((long)*this + (long)span);
+	}
+
+	export Instant subtract(TimeSpan span)
+	{
+		if (!this.isValid() || !span.isValid())
+			return Instant.INVALID;
+		return (Instant)((long)*this - (long)span);
+	}
+
+	// this - earlier. Invalid input or overflow returns TimeSpan.INVALID
+	export TimeSpan since(Instant earlier)
+	{
+		if (!this.isValid() || !earlier.isValid())
+			return TimeSpan.INVALID;
+		return (TimeSpan)((long)*this - (long)earlier);
+	}
+
+	// UTC/fixed-offset conversions. Invalid input returns invalid result objects.
+	export DateTime getUtcDateTime() => timeDateTimeFromUnixMs((long)*this);
+
+	export OffsetDateTime getOffsetDateTime(UtcOffset offset)
+	{
+		if (!this.isValid() || !offset.isValid())
+			return default;
+		DateTime local = timeDateTimeFromUnixMs((long)*this + (long)offset.getTotalMinutes() * TIME_MS_PER_MINUTE);
+		return { local, offset };
+	}
+
+	// Allocates. Example: "2026-06-12T18:30:00.124Z".
+	// Always computes, even when value is considered "invalid".
+	// Returns null only if allocation fails
+	export string copyIsoString(within allocator)
+	{
+		DateTime utc = this.getUtcDateTime();
+		if (!utc.isValid())
+			return null;
+		string text = utc.copyIsoString();
+		if (text == null)
+			return null;
+		nuint length = text.Length;
+		char[] buffer = new char[length + 2];
+		if (buffer.elements == null)
+		{
+			delete text;
+			return null;
+		}
+		for (nuint i = 0; i < length; i++)
+			buffer[i] = text[i];
+		buffer[length] = 'Z';
+		buffer[length + 1] = '\0';
+		delete text;
+		return (string)buffer.elements;
+	}
+}
+
+export struct Date
+{
+	ushort year; // valid public range: 1..9999
+	byte month;  // 1..12
+	byte day;    // 1..31
+
+	// Current system civil date. Returns an invalid Date if unsupported.
+	export static Date today()
+	{
+		ushort year = 0;
+		byte month = 0;
+		byte day = 0;
+		byte hour = 0;
+		byte minute = 0;
+		byte second = 0;
+		byte fraction = 0;
+		if (!camp_time_get_local_now(&year, &month, &day, &hour, &minute, &second, &fraction))
+			return default;
+		return { year, month, day };
+	}
+
+	export bool isValid() => timeValidDate((int)this.year, (int)this.month, (int)this.day);
+
+	export bool getLeapYear() => timeIsLeapYear((int)this.year);
+	export byte getDaysInMonth() => timeDaysInMonth((int)this.year, (int)this.month);
+
+	// Returns INVALID if this Date is invalid.
+	export Weekday getWeekday()
+	{
+		if (!this.isValid())
+			return INVALID;
+		long days = timeDaysBeforeDate((int)this.year, (int)this.month, (int)this.day);
+		int weekday = (int)(days % 7);
+		if (weekday < 0)
+			weekday += 7;
+		return (Weekday)(weekday + 1);
+	}
+
+	// Non-throwing. Invalid input or out-of-range result returns an invalid Date.
+	export Date addDays(int days)
+	{
+		if (!this.isValid())
+			return default;
+		long serial = timeDaysBeforeDate((int)this.year, (int)this.month, (int)this.day);
+		return timeDateFromSerialDay(serial + days);
+	}
+
+	// end - this, in whole calendar days.
+	// Invalid input returns 0.
+	export int daysUntil(Date end)
+	{
+		if (!this.isValid() || !end.isValid())
+			return 0;
+		return (int)(timeDaysBeforeDate((int)end.year, (int)end.month, (int)end.day) - timeDaysBeforeDate((int)this.year, (int)this.month, (int)this.day));
+	}
+
+	// Allocates. Example: "2026-06-02".
+	// Year is always 4 digits, maxes out at 9999. Month/Day always two digits, maxes out at 99.
+	// Out-of-range month/day is not checked (put in month 14 and day 78 and that's what you get)
+	// Returns null only if allocation fails
+	export string copyIsoString(within allocator)
+	{
+		char[] buffer = new char[11];
+		if (buffer.elements == null)
+			return null;
+		timeWrite4(buffer.elements, 0, (int)this.year);
+		buffer[4] = '-';
+		timeWrite2(buffer.elements, 5, (int)this.month);
+		buffer[7] = '-';
+		timeWrite2(buffer.elements, 8, (int)this.day);
+		buffer[10] = '\0';
+		return (string)buffer.elements;
+	}
+}
+
+export struct TimeOfDay
+{
+	byte hour;     // 0..23
+	byte minute;   // 0..59
+	byte second;   // 0..59
+	byte fraction; // 0..255, fractional second as fraction / 256
+
+	export bool isValid() => this.hour < 24 && this.minute < 60 && this.second < 60;
+
+	// Fractional milliseconds within the current second.
+	// Calculation is floor(fraction * 1000 / 256), producing 0..996.
+	export ushort getMs() => (ushort)(((ushort)this.fraction * 1000) / 256);
+
+	export TimeSpan getSinceMidnight()
+	{
+		long ms = (long)this.hour * TIME_MS_PER_HOUR
+			+ (long)this.minute * TIME_MS_PER_MINUTE
+			+ (long)this.second * TIME_MS_PER_SECOND
+			+ this.getMs();
+		return (TimeSpan)ms;
+	}
+
+	// Allocates. Examples: "14:05:30", "04:05:30.500".
+	// Values under 10 are padded with zeroes; fractions are only written when non-zero, fixed to 3 decimal places
+	// Out-of-range field values are not checked, written using max 99
+	// (Invalid) example: { .hour = 27, .minute = 160, .second = 5 } -> "27:99:05"
+	// Returns null only if allocation fails
+	export string copyIsoString(within allocator)
+	{
+		ushort ms = this.getMs();
+		nuint length = ms == 0 ? 8 : 12;
+		char[] buffer = new char[length + 1];
+		if (buffer.elements == null)
+			return null;
+		timeWrite2(buffer.elements, 0, this.hour);
+		buffer[2] = ':';
+		timeWrite2(buffer.elements, 3, this.minute);
+		buffer[5] = ':';
+		timeWrite2(buffer.elements, 6, this.second);
+		if (ms != 0)
+		{
+			buffer[8] = '.';
+			timeWrite3(buffer.elements, 9, ms);
+		}
+		buffer[length] = '\0';
+		return (string)buffer.elements;
+	}
+}
+
+export struct DateTime
+{
+	// Calendar date/time with an unspecified UTC offset.
+	// This is not an Instant by itself and should not be described as local time.
+
+	Date date;
+	TimeOfDay time;
+
+	// Convenience field initializer.
+	export DateTime(
+		ushort year,
+		byte month,
+		byte day,
+		byte hour = 0,
+		byte minute = 0,
+		byte second = 0,
+		byte fraction = 0
+	)
+	{
+		this.date = { year, month, day };
+		this.time = { hour, minute, second, fraction };
+	}
+
+	// Current system civil date/time with no offset attached.
+	export static DateTime now()
+	{
+		ushort year = 0;
+		byte month = 0;
+		byte day = 0;
+		byte hour = 0;
+		byte minute = 0;
+		byte second = 0;
+		byte fraction = 0;
+		if (!camp_time_get_local_now(&year, &month, &day, &hour, &minute, &second, &fraction))
+			return default;
+		return { { year, month, day }, { hour, minute, second, fraction } };
+	}
+
+	export bool isValid() => this.date.isValid() && this.time.isValid();
+
+	// Interprets this DateTime using the fixed UTC offset provided by the PAL
+	// Invalid input or out-of-range conversion returns Instant.invalid().
+	export Instant toInstant(UtcOffset offset)
+	{
+		if (!this.isValid() || !offset.isValid())
+			return Instant.INVALID;
+		long days = timeDaysBeforeDate((int)this.date.year, (int)this.date.month, (int)this.date.day) - timeDaysBeforeDate(1970, 1, 1);
+		long ms = days * TIME_MS_PER_DAY + (long)this.time.getSinceMidnight();
+		ms -= (long)offset.getTotalMinutes() * TIME_MS_PER_MINUTE;
+		return (Instant)ms;
+	}
+
+	// Allocates. Examples: "2026-06-12T14:05:30", "2026-06-12T14:05:30.500".
+	// Returns null if this is invalid or allocation fails.
+	export string copyIsoString(within allocator)
+	{
+		if (!this.isValid())
+			return null;
+		string date = this.date.copyIsoString();
+		if (date == null)
+			return null;
+		string time = this.time.copyIsoString();
+		if (time == null)
+		{
+			delete date;
+			return null;
+		}
+		nuint dateLength = date.Length;
+		nuint timeLength = time.Length;
+		char[] buffer = new char[dateLength + 1 + timeLength + 1];
+		if (buffer.elements == null)
+		{
+			delete time;
+			delete date;
+			return null;
+		}
+		nuint index = 0;
+		for (nuint i = 0; i < dateLength; i++)
+			buffer[index++] = date[i];
+		buffer[index++] = 'T';
+		for (nuint j = 0; j < timeLength; j++)
+			buffer[index++] = time[j];
+		buffer[index] = '\0';
+		delete time;
+		delete date;
+		return (string)buffer.elements;
+	}
+}
+
+export struct OffsetDateTime
+{
+	// Calendar date/time plus a fixed UTC offset.
+	// This can be converted to an Instant without named time-zone rules.
+
+	DateTime local;
+	UtcOffset offset;
+
+	// Convenience field initializer. Does not throw.
+	export OffsetDateTime(
+		UtcOffset offset,
+		ushort year,
+		byte month,
+		byte day,
+		byte hour = 0,
+		byte minute = 0,
+		byte second = 0,
+		byte fraction = 0
+	)
+	{
+		this.local = { { year, month, day }, { hour, minute, second, fraction } };
+		this.offset = offset;
+	}
+
+	// Current system civil date/time plus current system UTC offset.
+	export static OffsetDateTime localNow()
+	{
+		DateTime local = DateTime.now();
+		short minutes = (short)0;
+		if (!local.isValid() || !camp_time_get_local_offset_minutes(&minutes))
+			return default;
+		return { local, (UtcOffset)minutes };
+	}
+
+	// Current system date/time in offset Z (UTC).
+	export static OffsetDateTime utcNow()
+	{
+		Instant instant = Instant.utcNow();
+		if (!instant.isValid())
+			return default;
+		return instant.getOffsetDateTime(UtcOffset.UTC);
+	}
+
+	export bool isValid() => this.local.isValid() && this.offset.isValid();
+
+	// Invalid input or out-of-range conversion returns Instant.INVALID
+	export Instant toInstant() => this.local.toInstant(this.offset);
+
+	// Allocates. Example: "2026-06-12T14:05:30.500-04:00".
+	// Returns null only if allocation fails.
+	export string copyIsoString(within allocator)
+	{
+		string dateTime = this.local.copyIsoString();
+		if (dateTime == null)
+			return null;
+		string offset = this.offset.copyString();
+		if (offset == null)
+		{
+			delete dateTime;
+			return null;
+		}
+		nuint dateTimeLength = dateTime.Length;
+		nuint offsetLength = offset.Length;
+		char[] buffer = new char[dateTimeLength + offsetLength + 1];
+		if (buffer.elements == null)
+		{
+			delete offset;
+			delete dateTime;
+			return null;
+		}
+		nuint index = 0;
+		for (nuint i = 0; i < dateTimeLength; i++)
+			buffer[index++] = dateTime[i];
+		for (nuint j = 0; j < offsetLength; j++)
+			buffer[index++] = offset[j];
+		buffer[index] = '\0';
+		delete offset;
+		delete dateTime;
+		return (string)buffer.elements;
+	}
+}
+
+// Parsing overload family.
+// Failed parse returns false. Implementations assign `value` to default.
+// Parsing is strict ISO, case-insensitive where a letter is accepted, and
+// ignores leading and trailing whitespace.
+
+export bool tryParse(const char[] this, overload out Date value)
+{
+	value = default;
+	nuint start = timeTrimStart(this.elements, this.length);
+	nuint end = timeTrimEnd(this.elements, this.length, start);
+	Date parsed = default;
+	if (!timeParseDateRange(this.elements, this.length, start, end, out parsed))
+		return false;
+	value = parsed;
+	return true;
+}
+
+export bool tryParse(const char[] this, overload out TimeOfDay value)
+{
+	value = default;
+	nuint start = timeTrimStart(this.elements, this.length);
+	nuint end = timeTrimEnd(this.elements, this.length, start);
+	TimeOfDay parsed = default;
+	if (!timeParseTimeRange(this.elements, this.length, start, end, out parsed))
+		return false;
+	value = parsed;
+	return true;
+}
+
+export bool tryParse(const char[] this, overload out DateTime value)
+{
+	value = default;
+	nuint start = timeTrimStart(this.elements, this.length);
+	nuint end = timeTrimEnd(this.elements, this.length, start);
+	DateTime parsed = default;
+	if (!timeParseDateTimeRange(this.elements, this.length, start, end, out parsed))
+		return false;
+	value = parsed;
+	return true;
+}
+
+export bool tryParse(const char[] this, overload out OffsetDateTime value)
+{
+	value = default;
+	nuint start = timeTrimStart(this.elements, this.length);
+	nuint end = timeTrimEnd(this.elements, this.length, start);
+	OffsetDateTime parsed = default;
+	if (!timeParseOffsetDateTimeRange(this.elements, this.length, start, end, out parsed))
+		return false;
+	value = parsed;
+	return true;
+}
+
+export bool tryParse(const char[] this, overload out Instant value)
+{
+	value = default;
+	OffsetDateTime parsed = default;
+	if (!this.tryParse(out parsed))
+		return false;
+	Instant instant = parsed.toInstant();
+	if (!instant.isValid())
+		return false;
+	value = instant;
+	return true;
+}
+
+export bool tryParse(const char[] this, overload out TimeSpan value)
+{
+	value = default;
+	nuint start = timeTrimStart(this.elements, this.length);
+	nuint end = timeTrimEnd(this.elements, this.length, start);
+	if (start >= end)
+		return false;
+
+	bool negative = false;
+	if (this[start] == '+' || this[start] == '-')
+	{
+		negative = this[start] == '-';
+		start++;
+		if (start >= end)
+			return false;
+	}
+
+	nuint cursor = start;
+	long hours = 0;
+	if (!timeParseUnsignedLongUntil(this.elements, this.length, cursor, end, ':', out hours, out cursor) || cursor >= end || this[cursor] != ':')
+		return false;
+	cursor++;
+	int minutes = 0;
+	if (!timeParseFixed2(this.elements, this.length, cursor, out minutes) || minutes > 59)
+		return false;
+	cursor += 2;
+	if (cursor >= end || this[cursor] != ':')
+		return false;
+	cursor++;
+	int seconds = 0;
+	if (!timeParseFixed2(this.elements, this.length, cursor, out seconds) || seconds > 59)
+		return false;
+	cursor += 2;
+	int ms = 0;
+	if (cursor < end && this[cursor] == '.')
+	{
+		cursor++;
+			if (!timeParseFractionMs(this.elements, this.length, cursor, end, out ms, out cursor))
+			return false;
+	}
+	if (cursor != end)
+		return false;
+
+	long total = hours * TIME_MS_PER_HOUR + minutes * TIME_MS_PER_MINUTE + seconds * TIME_MS_PER_SECOND + ms;
+	value = (TimeSpan)(negative ? 0 - total : total);
+	return true;
+}
+
+export bool tryParse(const char[] this, overload out UtcOffset value)
+{
+	value = default;
+	nuint start = timeTrimStart(this.elements, this.length);
+	nuint end = timeTrimEnd(this.elements, this.length, start);
+	UtcOffset parsed = UtcOffset.UTC;
+	if (!timeParseOffsetRange(this.elements, this.length, start, end, out parsed))
+		return false;
+	value = parsed;
+	return true;
+}
+
+bool timeIsWhitespace(char ch) => ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n';
+bool timeIsLeapYear(int year) => year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+
+byte timeDaysInMonth(int year, int month)
+{
+	switch (month)
+	{
+		case 1: return 31;
+		case 2: return timeIsLeapYear(year) ? (byte)29 : (byte)28;
+		case 3: return 31;
+		case 4: return 30;
+		case 5: return 31;
+		case 6: return 30;
+		case 7: return 31;
+		case 8: return 31;
+		case 9: return 30;
+		case 10: return 31;
+		case 11: return 30;
+		case 12: return 31;
+	}
+	return 0;
+}
+
+bool timeValidDate(int year, int month, int day)
+{
+	if (year < 1 || year > 9999 || month < 1 || month > 12)
+		return false;
+	return day >= 1 && day <= timeDaysInMonth(year, month);
+}
+
+long timeDaysBeforeYear(int year)
+{
+	long y = year - 1;
+	return y * 365 + y / 4 - y / 100 + y / 400;
+}
+
+long timeDaysBeforeDate(int year, int month, int day)
+{
+	long days = timeDaysBeforeYear(year);
+	for (int m = 1; m < month; m++)
+		days += timeDaysInMonth(year, m);
+	return days + day - 1;
+}
+
+Date timeDateFromSerialDay(long serial)
+{
+	if (serial < 0)
+		return default;
+	int year = 1;
+	while (year <= 9999)
+	{
+		long daysInYear = timeIsLeapYear(year) ? 366 : 365;
+		if (serial < daysInYear)
+			break;
+		serial -= daysInYear;
+		year++;
+	}
+	if (year > 9999)
+		return default;
+	int month = 1;
+	while (month <= 12)
+	{
+		int daysInMonth = timeDaysInMonth(year, month);
+		if (serial < daysInMonth)
+			break;
+		serial -= daysInMonth;
+		month++;
+	}
+	return { (ushort)year, (byte)month, (byte)(serial + 1) };
+}
+
+Date timeDateFromUnixDay(long unixDay)
+{
+	long epoch = timeDaysBeforeDate(TIME_UNIX_EPOCH_YEAR, 1, 1);
+	return timeDateFromSerialDay(epoch + unixDay);
+}
+
+DateTime timeDateTimeFromUnixMs(long unixMs)
+{
+	long days = unixMs / TIME_MS_PER_DAY;
+	long dayMs = unixMs % TIME_MS_PER_DAY;
+	if (dayMs < 0)
+	{
+		dayMs += TIME_MS_PER_DAY;
+		days--;
+	}
+
+	Date date = timeDateFromUnixDay(days);
+	if (!date.isValid())
+		return default;
+	int hour = (int)(dayMs / TIME_MS_PER_HOUR);
+	dayMs = dayMs % TIME_MS_PER_HOUR;
+	int minute = (int)(dayMs / TIME_MS_PER_MINUTE);
+	dayMs = dayMs % TIME_MS_PER_MINUTE;
+	int second = (int)(dayMs / TIME_MS_PER_SECOND);
+	int ms = (int)(dayMs % TIME_MS_PER_SECOND);
+	byte fraction = (byte)((ms * 256) / 1000);
+	return { date, { (byte)hour, (byte)minute, (byte)second, fraction } };
+}
+
+nuint timeTrimStart(const char* text, nuint textLength)
+{
+	nuint index = 0;
+	while (index < textLength && timeIsWhitespace(text[index]))
+		index++;
+	return index;
+}
+
+nuint timeTrimEnd(const char* text, nuint textLength, nuint start)
+{
+	nuint end = textLength;
+	while (end > start && timeIsWhitespace(text[end - 1]))
+		end--;
+	return end;
+}
+
+int timeDigit(char ch)
+{
+	if (ch < '0' || ch > '9')
+		return -1;
+	return (int)ch - (int)'0';
+}
+
+nuint timeCountUnsignedDigits(ulong value)
+{
+	nuint digits = 1;
+	while (value >= 10)
+	{
+		value /= 10;
+		digits++;
+	}
+	return digits;
+}
+
+nuint timeWriteUnsigned(char* buffer, nuint index, ulong value)
+{
+	nuint digits = timeCountUnsignedDigits(value);
+	nuint end = index + digits;
+	for (nuint i = 0; i < digits; i++)
+	{
+		buffer[end - 1 - i] = (char)((int)'0' + (int)(value % 10));
+		value /= 10;
+	}
+	return end;
+}
+
+nuint timeWrite2(char* buffer, nuint index, int value)
+{
+	if (value < 0)
+		value = 0;
+	if (value > 99)
+		value = 99;
+	buffer[index] = (char)((int)'0' + value / 10);
+	buffer[index + 1] = (char)((int)'0' + value % 10);
+	return index + 2;
+}
+
+nuint timeWrite3(char* buffer, nuint index, int value)
+{
+	if (value < 0)
+		value = 0;
+	if (value > 999)
+		value = 999;
+	buffer[index] = (char)((int)'0' + value / 100);
+	buffer[index + 1] = (char)((int)'0' + (value / 10) % 10);
+	buffer[index + 2] = (char)((int)'0' + value % 10);
+	return index + 3;
+}
+
+nuint timeWrite4(char* buffer, nuint index, int value)
+{
+	if (value < 0)
+		value = 0;
+	if (value > 9999)
+		value = 9999;
+	buffer[index] = (char)((int)'0' + value / 1000);
+	buffer[index + 1] = (char)((int)'0' + (value / 100) % 10);
+	buffer[index + 2] = (char)((int)'0' + (value / 10) % 10);
+	buffer[index + 3] = (char)((int)'0' + value % 10);
+	return index + 4;
+}
+
+string timeCopyLiteral(const char* value, nuint length, within allocator)
+{
+	char[] buffer = new char[length + 1];
+	if (buffer.elements == null)
+		return null;
+	for (nuint i = 0; i < length; i++)
+		buffer[i] = value[i];
+	buffer[length] = '\0';
+	return (string)buffer.elements;
+}
+
+bool timeParseFixed2(const char* text, nuint textLength, nuint index, out int value)
+{
+	value = 0;
+	if (index + 1 >= textLength)
+		return false;
+	int a = timeDigit(text[index]);
+	int b = timeDigit(text[index + 1]);
+	if (a < 0 || b < 0)
+		return false;
+	value = a * 10 + b;
+	return true;
+}
+
+bool timeParseFixed4(const char* text, nuint textLength, nuint index, out int value)
+{
+	value = 0;
+	if (index + 3 >= textLength)
+		return false;
+	int a = timeDigit(text[index]);
+	int b = timeDigit(text[index + 1]);
+	int c = timeDigit(text[index + 2]);
+	int d = timeDigit(text[index + 3]);
+	if (a < 0 || b < 0 || c < 0 || d < 0)
+		return false;
+	value = a * 1000 + b * 100 + c * 10 + d;
+	return true;
+}
+
+bool timeParseUnsignedLongUntil(const char* text, nuint textLength, nuint start, nuint end, char stop, out long value, out nuint cursor)
+{
+	value = 0;
+	cursor = start;
+	bool sawDigit = false;
+	while (cursor < end && text[cursor] != stop)
+	{
+		int digit = timeDigit(text[cursor]);
+		if (digit < 0)
+			return false;
+		value = value * 10 + digit;
+		cursor++;
+		sawDigit = true;
+	}
+	return sawDigit;
+}
+
+bool timeParseFractionMs(const char* text, nuint textLength, nuint start, nuint end, out int ms, out nuint cursor)
+{
+	ms = 0;
+	cursor = start;
+	int digits = 0;
+	while (cursor < end && digits < 3)
+	{
+		int digit = timeDigit(text[cursor]);
+		if (digit < 0)
+			break;
+		ms = ms * 10 + digit;
+		cursor++;
+		digits++;
+	}
+	if (digits == 0)
+		return false;
+	while (digits < 3)
+	{
+		ms *= 10;
+		digits++;
+	}
+	return true;
+}
+
+bool timeParseDateRange(const char* text, nuint textLength, nuint start, nuint end, out Date value)
+{
+	value = default;
+	if (end - start != 10 || text[start + 4] != '-' || text[start + 7] != '-')
+		return false;
+	int year = 0;
+	int month = 0;
+	int day = 0;
+	if (!timeParseFixed4(text, textLength, start, out year) || !timeParseFixed2(text, textLength, start + 5, out month) || !timeParseFixed2(text, textLength, start + 8, out day))
+		return false;
+	if (!timeValidDate(year, month, day))
+		return false;
+	value = { (ushort)year, (byte)month, (byte)day };
+	return true;
+}
+
+bool timeParseTimeRange(const char* text, nuint textLength, nuint start, nuint end, out TimeOfDay value)
+{
+	value = default;
+	if (end - start != 8 && end - start != 12)
+		return false;
+	if (text[start + 2] != ':' || text[start + 5] != ':')
+		return false;
+	int hour = 0;
+	int minute = 0;
+	int second = 0;
+	if (!timeParseFixed2(text, textLength, start, out hour) || !timeParseFixed2(text, textLength, start + 3, out minute) || !timeParseFixed2(text, textLength, start + 6, out second))
+		return false;
+	int ms = 0;
+	if (end - start == 12)
+	{
+		if (text[start + 8] != '.')
+			return false;
+		nuint cursor = start + 9;
+			if (!timeParseFractionMs(text, textLength, cursor, end, out ms, out cursor) || cursor != end)
+			return false;
+	}
+	byte fraction = (byte)((ms * 256) / 1000);
+	value = { (byte)hour, (byte)minute, (byte)second, fraction };
+	return value.isValid();
+}
+
+bool timeParseDateTimeRange(const char* text, nuint textLength, nuint start, nuint end, out DateTime value)
+{
+	value = default;
+	if (end - start < 19 || (text[start + 10] != 'T' && text[start + 10] != 't'))
+		return false;
+	Date date = default;
+	TimeOfDay time = default;
+	if (!timeParseDateRange(text, textLength, start, start + 10, out date) || !timeParseTimeRange(text, textLength, start + 11, end, out time))
+		return false;
+	value = { date, time };
+	return true;
+}
+
+bool timeParseOffsetRange(const char* text, nuint textLength, nuint start, nuint end, out UtcOffset value)
+{
+	value = default;
+	if (end == start + 1 && (text[start] == 'Z' || text[start] == 'z'))
+	{
+		value = UtcOffset.UTC;
+		return true;
+	}
+	if (end - start != 6 || (text[start] != '+' && text[start] != '-') || text[start + 3] != ':')
+		return false;
+	int hours = 0;
+	int minutes = 0;
+	if (!timeParseFixed2(text, textLength, start + 1, out hours) || !timeParseFixed2(text, textLength, start + 4, out minutes) || minutes > 59)
+		return false;
+	int total = hours * 60 + minutes;
+	if (text[start] == '-')
+		total = 0 - total;
+	value = (UtcOffset)(short)total;
+	return value.isValid();
+}
+
+bool timeParseOffsetDateTimeRange(const char* text, nuint textLength, nuint start, nuint end, out OffsetDateTime value)
+{
+	value = default;
+	if (end <= start)
+		return false;
+	UtcOffset offset = UtcOffset.UTC;
+	nuint offsetStart = end;
+	if (text[end - 1] == 'Z' || text[end - 1] == 'z')
+	{
+		offsetStart = end - 1;
+		if (!timeParseOffsetRange(text, textLength, offsetStart, end, out offset))
+			return false;
+	}
+	else if (end >= start + 6 && (text[end - 6] == '+' || text[end - 6] == '-'))
+	{
+		offsetStart = end - 6;
+		if (!timeParseOffsetRange(text, textLength, offsetStart, end, out offset))
+			return false;
+	}
+	else
+	{
+		return false;
+	}
+	DateTime local = default;
+	if (!timeParseDateTimeRange(text, textLength, start, offsetStart, out local))
+		return false;
+	value = { local, offset };
+	return true;
+}

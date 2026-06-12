@@ -1,0 +1,152 @@
+using Std;
+using Std::Time;
+
+export int main()
+{
+	Date leap = { 2024, 2, 29 };
+	if (!leap.isValid() || !leap.LeapYear || leap.DaysInMonth != 29)
+		return 1;
+	if (leap.Weekday != THURSDAY)
+		return 2;
+	Date nextDay = leap.addDays(1);
+	string nextDayIso = nextDay.copyIsoString() finally delete;
+	if (nextDayIso.compareTo("2024-03-01") != 0)
+		return 3;
+	if (leap.daysUntil(nextDay) != 1)
+		return 4;
+	Date invalidDate = { 2023, 2, 29 };
+	if (invalidDate.isValid())
+		return 5;
+	string dateIso = leap.copyIsoString() finally delete;
+	if (dateIso.compareTo("2024-02-29") != 0)
+		return 6;
+
+	TimeOfDay noon = { 14, 5, 30, 128 };
+	if (!noon.isValid() || noon.Ms != 500)
+		return 7;
+	TimeSpan sinceMidnight = noon.SinceMidnight;
+	if (sinceMidnight.Ms != 50730500)
+		return 8;
+	string timeIso = noon.copyIsoString() finally delete;
+	if (timeIso.compareTo("14:05:30.500") != 0)
+		return 9;
+
+	UtcOffset offset = UtcOffset.fromHours((short)-4);
+	if (!offset.isValid() || offset.Hours != -4 || offset.Minutes != 0)
+		return 10;
+	string offsetIso = offset.copyString() finally delete;
+	if (offsetIso.compareTo("-04:00") != 0)
+		return 11;
+	UtcOffset halfHour = UtcOffset.fromHours((short)9, (ushort)30);
+	string halfHourIso = halfHour.copyString() finally delete;
+	if (halfHourIso.compareTo("+09:30") != 0)
+		return 12;
+	UtcOffset utc = UtcOffset.UTC;
+	string utcIso = utc.copyString() finally delete;
+	if (utcIso.compareTo("Z") != 0)
+		return 13;
+
+	DateTime dt = { { 2026, 6, 12 }, { 14, 5, 30, 0 } };
+	if (!dt.isValid())
+		return 14;
+	string dtIso = dt.copyIsoString() finally delete;
+	if (dtIso.compareTo("2026-06-12T14:05:30") != 0)
+		return 15;
+	OffsetDateTime odt = { dt, offset };
+	string odtIso = odt.copyIsoString() finally delete;
+	if (odtIso.compareTo("2026-06-12T14:05:30-04:00") != 0)
+		return 16;
+	Instant instant = odt.toInstant();
+	if (!instant.isValid())
+		return 17;
+	OffsetDateTime roundTrip = instant.getOffsetDateTime(offset);
+	string roundTripIso = roundTrip.copyIsoString() finally delete;
+	if (!roundTrip.isValid() || roundTripIso.compareTo("2026-06-12T14:05:30-04:00") != 0)
+		return 18;
+
+	Instant epoch = Instant.fromUnixMs(0);
+	string epochIso = epoch.copyIsoString() finally delete;
+	if (epochIso.compareTo("1970-01-01T00:00:00Z") != 0)
+		return 19;
+	Instant twoSeconds = Instant.fromUnixSeconds(2);
+	if (twoSeconds.getUnixMs() != 2000)
+		return 20;
+	Instant oneSecond = Instant.fromUnixMs(1000);
+	TimeSpan sinceEpoch = oneSecond.since(epoch);
+	if (sinceEpoch.Ms != 1000)
+		return 21;
+
+	TimeSpan spanHours = TimeSpan.fromHours(44);
+	TimeSpan spanMinutes = TimeSpan.fromMinutes(5);
+	TimeSpan spanSeconds = TimeSpan.fromSeconds(30);
+	TimeSpan spanMs = TimeSpan.fromMs(551);
+	TimeSpan spanPart = spanHours.add(spanMinutes);
+	spanPart = spanPart.add(spanSeconds);
+	TimeSpan span = spanPart.add(spanMs);
+	string spanIso = span.copyString() finally delete;
+	if (spanIso.compareTo("44:05:30.551") != 0)
+		return 22;
+	TimeSpan negSpan = TimeSpan.fromSeconds((long)-30);
+	string negSpanIso = negSpan.copyString() finally delete;
+	if (negSpanIso.compareTo("-0:00:30") != 0)
+		return 23;
+
+	Date parsedDate = default;
+	if (!" 2024-02-29 ".tryParse(out parsedDate))
+		return 24;
+	string parsedDateIso = parsedDate.copyIsoString() finally delete;
+	if (parsedDateIso.compareTo("2024-02-29") != 0)
+		return 24;
+	TimeOfDay parsedTime = default;
+	if (!"14:05:30.500".tryParse(out parsedTime) || parsedTime.Ms != 500)
+		return 25;
+	DateTime parsedDateTime = default;
+	if (!"2026-06-12T14:05:30".tryParse(out parsedDateTime))
+		return 26;
+	string parsedDateTimeIso = parsedDateTime.copyIsoString() finally delete;
+	if (parsedDateTimeIso.compareTo("2026-06-12T14:05:30") != 0)
+		return 26;
+	OffsetDateTime parsedOffsetDateTime = default;
+	if (!"2026-06-12T14:05:30-04:00".tryParse(out parsedOffsetDateTime))
+		return 27;
+	string parsedOffsetDateTimeIso = parsedOffsetDateTime.copyIsoString() finally delete;
+	if (parsedOffsetDateTimeIso.compareTo("2026-06-12T14:05:30-04:00") != 0)
+		return 27;
+	Instant parsedInstant = default;
+	if (!"1970-01-01T00:00:01Z".tryParse(out parsedInstant) || parsedInstant.UnixMs != 1000)
+		return 28;
+	TimeSpan parsedSpan = default;
+	if (!"-44:05:30.551".tryParse(out parsedSpan) || parsedSpan.Ms != -158730551)
+		return 29;
+	UtcOffset parsedOffset = default;
+	if (!"+09:30".tryParse(out parsedOffset) || parsedOffset.TotalMinutes != 570)
+		return 30;
+
+	Date failed = { 1, 1, 1 };
+	if ("2023-02-29".tryParse(out failed) || failed.isValid())
+		return 31;
+	TimeOfDay failedTime = { 1, 1, 1, 1 };
+	if ("25:00:00".tryParse(out failedTime))
+		return 32;
+	string failedTimeIso = failedTime.copyIsoString() finally delete;
+	if (failedTimeIso.compareTo("00:00:00") != 0)
+		return 32;
+
+	Instant now = Instant.utcNow();
+	if (!now.isValid())
+		return 33;
+	Date today = Date.today();
+	if (!today.isValid())
+		return 34;
+	DateTime localNow = DateTime.now();
+	if (!localNow.isValid())
+		return 35;
+	OffsetDateTime localOffsetNow = OffsetDateTime.localNow();
+	if (!localOffsetNow.isValid())
+		return 36;
+	OffsetDateTime utcNow = OffsetDateTime.utcNow();
+	if (!utcNow.isValid())
+		return 37;
+
+	return 0;
+}
