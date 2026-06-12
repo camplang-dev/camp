@@ -1,0 +1,20 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+void consume(const char[] value)
+{
+}
+
+char[] take(nuint length)
+{
+	char[] result = new char[length];
+	return result;
+}
+
+export int main()
+{
+	auto local = take(3) finally delete;
+	consume(local);
+	consume(take(4) finally delete);
+	return 0;
+}

@@ -1,0 +1,36 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+void consume(const char* value, nuint value_length)
+{
+}
+char* take(nuint length, out nuint result_length)
+{
+	char* result = (char*)malloc(sizeof(char) * length);
+	nuint result_length = length;
+	{
+		result_length = result_length;
+		return result;
+	}
+}
+export int main()
+{
+	char* local;
+	nuint local_length;
+	local = take(3, out local_length);
+	char* __local0 = local;
+	__local0;
+	consume(local, local_length);
+	char* __local1;
+	nuint __local2;
+	__local1 = take(4, out __local2);
+	consume(__local1, __local2);
+	int __local3 = default;
+	{
+		__local3 = 0;
+		goto __cleanup3;
+	}
+	__cleanup3:
+	free((void*)__local1);
+	free((void*)__local0);
+	return __local3;
+}

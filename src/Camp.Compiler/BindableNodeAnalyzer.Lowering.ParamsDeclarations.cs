@@ -320,12 +320,19 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		declaration.InitialValue = NormalizeExpandedReturnPropertyGetter(declaration.InitialValue);
-		bool materializedGenericReturnInitializer = declaration.InitialValue is CallExpression initialCall
+		bool finallyDelete = false;
+		Expression? initialValue = declaration.InitialValue;
+		if (initialValue is FinallyDeleteExpression { Expression: not null } finallyDeleteExpression)
+		{
+			finallyDelete = true;
+			initialValue = NormalizeExpandedReturnPropertyGetter(finallyDeleteExpression.Expression);
+		}
+		bool materializedGenericReturnInitializer = initialValue is CallExpression initialCall
 			&& callTargets.TryGetValue(initialCall, out FunctionDefinition? initialFunction)
 			&& IsMaterializedGenericReturnFunction(initialFunction);
 		List<Expression?> initialValues = materializedGenericReturnInitializer
 			? CreateNullInitialValues(shape)
-			: GetParamsComponentInitialValues(declaration.InitialValue, shape, deferCurrentAllocator: true);
+			: GetParamsComponentInitialValues(initialValue, shape, deferCurrentAllocator: true);
 		List<DeclarationTarget> targets = [];
 		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
 		{
@@ -333,11 +340,11 @@ public sealed partial class BindableNodeAnalyzer
 			declarations.Add(componentDeclaration);
 			targets.Add(componentDeclaration.Target);
 		}
-		if (materializedGenericReturnInitializer && declaration.InitialValue is CallExpression materializedCall)
+		if (materializedGenericReturnInitializer && initialValue is CallExpression materializedCall)
 		{
 			AppendMaterializedGenericReturnAssignments(materializedCall, shape, targets, declarations, declaration.SourceSyntax);
 		}
-		else if (declaration.InitialValue is CallExpression call
+		else if (initialValue is CallExpression call
 			&& callTargets.TryGetValue(call, out FunctionDefinition? function)
 			&& (TryGetExpandedReturnShape(call, function, out ParamsComponentShape? callShape)
 				|| TryUseTargetShapeForGenericExpandedReturn(function, shape, out callShape))
@@ -375,6 +382,21 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		RegisterParamsExpansion(declaration.Target, shape, targets);
+		if (finallyDelete && targets.Count > 0)
+		{
+			Expression target = CreateVariableReference(targets[0], shape.Components[0].Type);
+			declarations.Add(new ExpressionStatement
+			{
+				SourceSyntax = declaration.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new FinallyDeleteExpression
+				{
+					SourceSyntax = declaration.SourceSyntax,
+					Expression = target,
+					ResolvedType = target.ResolvedType
+				}
+			});
+		}
 		return declarations.Count > 0;
 	}
 

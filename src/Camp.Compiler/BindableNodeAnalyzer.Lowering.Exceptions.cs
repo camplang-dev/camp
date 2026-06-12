@@ -135,6 +135,36 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression? RewriteFinallyDeleteExpression(FinallyDeleteExpression finallyDelete)
 	{
+		if (finallyDelete.Expression is CallExpression call
+			&& currentStatementPrefix is not null
+			&& currentCleanupScopes.Count > 0
+			&& TryCreateExpandedReturnCallComponents(call, out List<Expression> components)
+			&& components.Count > 0)
+		{
+			Expression expandedReference = components[0];
+			GroupedExpression grouped = new()
+			{
+				SourceSyntax = finallyDelete.SourceSyntax,
+				ResolvedType = finallyDelete.ResolvedType
+			};
+			foreach (Expression component in components)
+			{
+				grouped.Items.Add(new GroupedExpressionItem
+				{
+					SourceSyntax = component.SourceSyntax,
+					Expression = component,
+					ResolvedType = component.ResolvedType
+				});
+			}
+			expressionRewrites[expandedReference] = grouped;
+			currentCleanupScopes[^1].Statements.Add(new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = RewriteDeleteExpression(CloneParamsExpansionExpression(expandedReference))
+			});
+			return expandedReference;
+		}
+
 		Expression? value = LowerExpression(finallyDelete.Expression);
 		if (value is null || currentStatementPrefix is null || currentCleanupScopes.Count == 0)
 			return value;
