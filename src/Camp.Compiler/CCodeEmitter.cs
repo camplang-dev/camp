@@ -2469,7 +2469,7 @@ public static class CCodeEmitter
 					ResolvedType = (function.AbiThisType?.ResolvedType ?? containingType.Name) + (function.AbiThisType is null ? "*" : "")
 				});
 			}
-			foreach (ParameterDefinition parameter in function.Parameters)
+			foreach (ParameterDefinition parameter in GetAbiOrderedParameters(function.Parameters))
 			{
 				if (parameter is WithinParameterDefinition && parameter.Type is null)
 					continue;
@@ -2493,6 +2493,33 @@ public static class CCodeEmitter
 				parameters.Add(parameter);
 			}
 			return parameters;
+		}
+
+		static IEnumerable<ParameterDefinition> GetAbiOrderedParameters(IEnumerable<ParameterDefinition> parameters)
+		{
+			List<ParameterDefinition> pendingWithin = [];
+			foreach (ParameterDefinition parameter in parameters)
+			{
+				if (parameter is WithinParameterDefinition || parameter.Modifier == ParameterModifier.Within)
+				{
+					pendingWithin.Add(parameter);
+					continue;
+				}
+
+				if (parameter is SizeOfParameterDefinition or VTableOfParameterDefinition)
+				{
+					yield return parameter;
+					continue;
+				}
+
+				foreach (ParameterDefinition within in pendingWithin)
+					yield return within;
+				pendingWithin.Clear();
+				yield return parameter;
+			}
+
+			foreach (ParameterDefinition within in pendingWithin)
+				yield return within;
 		}
 
 		static bool TryGetConcreteGenericType(string? genericType, Dictionary<string, string> substitutions, out string concreteType)
@@ -2955,7 +2982,7 @@ public static class CCodeEmitter
 					TypeReference thisType = function.AbiThisType ?? new PointerTypeReference { ElementType = new TypeDefinitionReference { Definition = type, Name = type.Name } };
 					parts.Add(FormatTypeOrResolved(thisType, thisType.ResolvedType, NeedsAbiThisFixup(function) ? "ctx" : "this").Declaration);
 				}
-				foreach (ParameterDefinition parameter in function.Parameters)
+				foreach (ParameterDefinition parameter in GetAbiOrderedParameters(function.Parameters))
 				{
 					if (parameter is WithinParameterDefinition && parameter.Type is null)
 						continue;

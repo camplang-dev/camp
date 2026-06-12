@@ -1,0 +1,28 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+void copyTo<T: any>(const T[] this, T[] destination, sizeof(T))
+{
+	nuint count = this.length;
+	if (destination.length < count)
+		count = destination.length;
+
+	for (nuint i = 0; i < count; i++)
+		destination[i] = this[i];
+}
+
+T[] copyArray<T: any>(const T[] this, sizeof(T))
+{
+	T[] elements = new T[this.length];
+	this.copyTo<T>(elements);
+	return elements;
+}
+
+export int main()
+{
+	int[] values = [1, 2, 3];
+	int[] copied = Array_copyArray<int>(values);
+	int result = copied[1];
+	delete copied;
+	return result;
+}

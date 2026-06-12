@@ -1,0 +1,83 @@
+// file: generic_expanded_this_instance_call.c
+#include "generic_expanded_this_instance_call_private.h"
+
+/* Private file declarations. */
+void* malloc(uintptr_t size);
+void free(void* ptr);
+static void Array_copyTo(const void* this, uintptr_t this_length, void* destination, uintptr_t destination_length, uintptr_t sizeof_T);
+static void* Array_copyArray(const void* this, uintptr_t this_length, uintptr_t sizeof_T, uintptr_t *result_length);
+
+static void Array_copyTo(const void* this, uintptr_t this_length, void* destination, uintptr_t destination_length, uintptr_t sizeof_T)
+{
+	uintptr_t count = this_length;
+	if ((destination_length < count))
+	{
+		count = destination_length;
+	}
+	{
+		for (uintptr_t i = 0; (i < count); i++)
+		{
+			__builtin_memmove((void*)(((uint8_t*)destination) + (i * sizeof_T)), (void*)(((const uint8_t*)this) + (i * sizeof_T)), sizeof_T);
+__for_continue0: ;
+		}
+__for_break1: ;
+	}
+}
+
+static void* Array_copyArray(const void* this, uintptr_t this_length, uintptr_t sizeof_T, uintptr_t *result_length)
+{
+	void* elements = (void* *)(malloc((sizeof_T * this_length)));
+	uintptr_t elements_length = this_length;
+	Array_copyTo(this, this_length, elements, elements_length, sizeof_T);
+	{
+		(*result_length) = elements_length;
+		return elements;
+	}
+}
+
+int main(void)
+{
+	int* values = (int []){1, 2, 3};
+	uintptr_t values_length = 3;
+	int* copied;
+	uintptr_t copied_length;
+	copied = Array_copyArray(values, values_length, sizeof(int), &copied_length);
+	int result = copied[1];
+	free((void *)(copied));
+	return result;
+}
+
+// file: generic_expanded_this_instance_call.h
+#ifndef GENERIC_EXPANDED_THIS_INSTANCE_CALL_H_
+#define GENERIC_EXPANDED_THIS_INSTANCE_CALL_H_
+
+#include "generic_expanded_this_instance_call_private.h"
+
+int main(void);
+
+#endif
+// file: generic_expanded_this_instance_call_private.h
+#ifndef GENERIC_EXPANDED_THIS_INSTANCE_CALL_PRIVATE_H_
+#define GENERIC_EXPANDED_THIS_INSTANCE_CALL_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generic_expanded_this_instance_call.c

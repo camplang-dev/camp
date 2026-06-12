@@ -344,6 +344,10 @@ public sealed partial class BindableNodeAnalyzer
 			&& callShape.Components.Count == shape.Components.Count)
 		{
 			AddImplicitDefaultArguments(call);
+			ExpandParamsArguments(call);
+			AddImplicitWithinArgument(call);
+			AddImplicitSizeOfArguments(call);
+			AddImplicitVTableOfArguments(call);
 			((DeclarationStatement)declarations[0]).InitialValue = null;
 			for (int i = 1; i < targets.Count; i++)
 			{

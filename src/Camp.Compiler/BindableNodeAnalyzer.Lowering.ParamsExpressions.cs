@@ -222,6 +222,8 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (TryMaterializeExpandedGenericInArgument(argument, callableParameters, i))
 				continue;
+			if (ExpandedArgumentComponentAlreadyProvided(arguments, callableParameters, i))
+				continue;
 
 			if (!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components)
 				&& !TryCreateTargetTypedExpandedReturnArgumentComponents(argument, out components))
@@ -230,7 +232,8 @@ public sealed partial class BindableNodeAnalyzer
 					|| !TryCreateLiftedOptionalArgumentComponents(argument, out components)
 						&& !TryCreateIteratorToProtocolArgumentComponents(argument, callableParameters, i, out components)
 						&& !TryCreateFunctionToDelegateArgumentComponents(argument, callableParameters, i, out components)
-						&& !TryCreatePrimitiveStringToArrayArgumentComponents(argument, callableParameters, i, out components))
+						&& !TryCreatePrimitiveStringToArrayArgumentComponents(argument, callableParameters, i, out components)
+						&& !TryCreateSourceLevelExpandedArgumentComponents(argument, callableParameters, i, out components))
 					continue;
 			}
 
@@ -248,6 +251,129 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			i += components.Count - 1;
 		}
+		CollapseDuplicateExpandedThisComponents(arguments, callableParameters);
+	}
+
+	static void CollapseDuplicateExpandedThisComponents(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters)
+	{
+		if (callableParameters is null || callableParameters.Count < 2 || arguments.Count < 3)
+			return;
+
+		string firstName = callableParameters[0].Name;
+		string secondName = callableParameters[1].Name;
+		if (firstName is not ("this" or "this_call") || secondName != "this_context")
+			return;
+		if (ExpressionReferencesSameValue(arguments[1].Value, arguments[2].Value)
+			|| IsProvidedComponent(arguments[1].Value, secondName) && IsProvidedComponent(arguments[2].Value, secondName))
+		{
+			arguments.RemoveAt(2);
+		}
+	}
+
+	bool ExpandedArgumentComponentAlreadyProvided(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters, int index)
+	{
+		if (callableParameters is null || index + 1 >= callableParameters.Count || index + 1 >= arguments.Count)
+			return false;
+
+		string firstName = callableParameters[index].Name;
+		string secondName = callableParameters[index + 1].Name;
+		if (firstName == "this" && secondName == "this_length")
+			return IsProvidedLengthComponent(arguments[index].Value, arguments[index + 1].Value, secondName);
+		if (firstName == "this" && secondName == "this_context")
+			return IsProvidedComponent(arguments[index + 1].Value, secondName);
+		if (firstName == "this" && secondName == "this_specified")
+			return IsProvidedComponent(arguments[index + 1].Value, secondName);
+		if (firstName == "this_call" && secondName == "this_context")
+			return IsProvidedComponent(arguments[index + 1].Value, secondName);
+
+		return false;
+	}
+
+	static bool IsProvidedLengthComponent(Expression? value, Expression? next, string componentName)
+	{
+		if (next is VariableReferenceExpression { Variable: ParameterDefinition parameter } && parameter.Name == componentName)
+			return true;
+		if (next is NamedExpression named && named.Name == componentName)
+			return true;
+		if (next is MemberExpression { Name: "length" } member && ExpressionReferencesSameValue(value, member.Target))
+			return true;
+		return false;
+	}
+
+	static bool IsProvidedComponent(Expression? next, string componentName)
+	{
+		if (next is VariableReferenceExpression variable && GetReferenceName(variable.Variable) is string referenceName)
+		{
+			if (referenceName == componentName)
+				return true;
+			string suffix = componentName.StartsWith("this_", System.StringComparison.Ordinal)
+				? componentName["this_".Length..]
+				: componentName;
+			if (suffix == "context" && referenceName.Contains("context", System.StringComparison.OrdinalIgnoreCase))
+				return true;
+		}
+		if (next is VariableReferenceExpression { Variable: ParameterDefinition parameter } && parameter.Name == componentName)
+			return true;
+		if (next is NamedExpression named && named.Name == componentName)
+			return true;
+		if (next is MemberExpression member)
+		{
+			string suffix = componentName.StartsWith("this_", System.StringComparison.Ordinal)
+				? componentName["this_".Length..]
+				: componentName;
+			return member.Name == suffix;
+		}
+		return false;
+	}
+
+	static bool ExpressionReferencesSameValue(Expression? left, Expression? right)
+	{
+		if (ReferenceEquals(left, right))
+			return true;
+		return left switch
+		{
+			ThisExpression when right is ThisExpression => true,
+			VariableReferenceExpression leftVariable when right is VariableReferenceExpression rightVariable
+				=> ReferenceEquals(leftVariable.Variable, rightVariable.Variable),
+			NamedExpression leftNamed when right is NamedExpression rightNamed
+				=> leftNamed.Name == rightNamed.Name,
+			_ => false
+		};
+	}
+
+	bool TryCreateSourceLevelExpandedArgumentComponents(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index, out List<Expression> components)
+	{
+		components = [];
+		if (callableParameters is null || argument.Value is null || index + 1 >= callableParameters.Count)
+			return false;
+		if (argument.Value is not ThisExpression and not VariableReferenceExpression { Variable: ParameterDefinition { Name: "this" } })
+			return false;
+
+		string firstName = callableParameters[index].Name;
+		string secondName = callableParameters[index + 1].Name;
+		if (firstName == "this" && secondName.StartsWith("this_", System.StringComparison.Ordinal))
+			return TryCreateSourceLevelExpandedArgumentComponents(argument.Value, firstName, secondName, out components);
+
+		return false;
+	}
+
+	bool TryCreateSourceLevelExpandedArgumentComponents(Expression value, string firstName, string secondName, out List<Expression> components)
+	{
+		components = [];
+		if (firstName == "this" && secondName == "this_length")
+		{
+			components.Add(value);
+			components.Add(new MemberExpression
+			{
+				SourceSyntax = value.SourceSyntax,
+				Target = CloneParamsExpansionExpression(value),
+				Name = "length",
+				ResolvedType = "nuint"
+			});
+			return true;
+		}
+
+		return false;
 	}
 
 	bool TryMaterializeGenericReturnInArgument(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index)
@@ -294,6 +420,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (currentStatementPrefix is null
 			|| callableParameters is null
 			|| index >= callableParameters.Count
+			|| IsExpandedParameterComponentStart(callableParameters, index)
 			|| !IsMaterializedExpandedStorageParameter(callableParameters[index])
 			|| argument.Value is null)
 			return false;
@@ -337,6 +464,21 @@ public sealed partial class BindableNodeAnalyzer
 		argument.Value = CreateVariableReference(storage.Target, storage.Target.ResolvedType ?? ErrorType);
 		argument.ResolvedType = storage.Target.ResolvedType ?? resultType;
 		return true;
+	}
+
+	static bool IsExpandedParameterComponentStart(List<ParameterDefinition> callableParameters, int index)
+	{
+		if (index + 1 >= callableParameters.Count)
+			return false;
+
+		string name = callableParameters[index].Name;
+		if (string.IsNullOrWhiteSpace(name))
+			return false;
+
+		string nextName = callableParameters[index + 1].Name;
+		return nextName == name + "_length"
+			|| nextName == name + "_specified"
+			|| nextName == name + "_context";
 	}
 
 	bool TryCreatePrimitiveStringMaterializedComponents(ArgumentExpression argument, string resultType, out List<Expression> components)

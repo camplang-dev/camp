@@ -87,9 +87,9 @@ public sealed partial class BindableNodeAnalyzer
 					call.Target = LowerExpression(call.Target);
 				AddImplicitDefaultArguments(call);
 				LowerThrowingArguments(call);
+				AddImplicitWithinArgument(call);
 				AddImplicitSizeOfArguments(call);
 				AddImplicitVTableOfArguments(call);
-				AddImplicitWithinArgument(call);
 				for (int i = 0; i < call.Arguments.Count; i++)
 					call.Arguments[i] = LowerArgument(call.Arguments[i]);
 				bool loweredInterfaceCall = LowerInterfaceCall(call);

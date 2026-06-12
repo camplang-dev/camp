@@ -53,7 +53,7 @@ public sealed partial class BindableNodeAnalyzer
 	void RewriteInstanceInvocation(CallExpression call, MemberReferenceExpression member, Expression receiver, FunctionDefinition function)
 	{
 		call.Target = CreateFlattenedMethodReference(member, receiver, function);
-		call.Arguments.Insert(0, CreateReceiverArgument(receiver, function));
+		call.Arguments.InsertRange(0, CreateReceiverArguments(receiver, function));
 	}
 
 	Expression RewriteInstanceMethodDelegate(MemberReferenceExpression member)
@@ -70,13 +70,145 @@ public sealed partial class BindableNodeAnalyzer
 			Expression = CreateFlattenedMethodReference(member, receiver, function),
 			ResolvedType = BuildFlattenedFunctionValueType(function, BuildFlattenedReceiverType(function, receiver.ResolvedType ?? ErrorType))
 		});
-		ArgumentExpression receiverArgument = CreateReceiverArgument(receiver, function);
-		grouped.Items.Add(new GroupedExpressionItem
+		foreach (ArgumentExpression receiverArgument in CreateReceiverArguments(receiver, function))
 		{
-			Expression = receiverArgument.Value,
-			ResolvedType = receiverArgument.ResolvedType
-		});
+			grouped.Items.Add(new GroupedExpressionItem
+			{
+				Expression = receiverArgument.Value,
+				ResolvedType = receiverArgument.ResolvedType
+			});
+		}
 		return grouped;
+	}
+
+	List<ArgumentExpression> CreateReceiverArguments(Expression receiver, FunctionDefinition function)
+	{
+		if (GetExplicitThisParameter(function) is ThisParameterDefinition thisParameter
+			&& TryGetParamsComponentShape(thisParameter.Type, thisParameter.ResolvedType, thisParameter.Name, out ParamsComponentShape shape)
+			&& TryCreateReceiverComponentExpressions(receiver, shape, out List<Expression> components))
+		{
+			return CreateReceiverArguments(receiver, components);
+		}
+
+		if (TryGetExpandedThisParameterNames(function, out List<string> names)
+			&& TryCreateReceiverComponentExpressions(receiver, names, out components))
+		{
+			return CreateReceiverArguments(receiver, components);
+		}
+
+		return [CreateReceiverArgument(receiver, function)];
+	}
+
+	List<ArgumentExpression> CreateReceiverArguments(Expression receiver, List<Expression> components)
+	{
+		List<ArgumentExpression> arguments = [];
+		foreach (Expression component in components)
+		{
+			arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = receiver.SourceSyntax,
+				Value = component,
+				ResolvedType = component.ResolvedType
+			});
+		}
+
+		return arguments;
+	}
+
+	bool TryCreateReceiverComponentExpressions(Expression receiver, ParamsComponentShape shape, out List<Expression> components)
+	{
+		if (TryCreateParamsComponentExpressions(receiver, out components) && components.Count == shape.Components.Count)
+			return true;
+
+		if (receiver is ThisExpression or VariableReferenceExpression { Variable: ParameterDefinition { Name: "this" } })
+		{
+			if (TryCreateCurrentThisParameterComponents(shape, out components))
+				return true;
+			if (TryCreateReceiverComponentExpressionsFromShape(receiver, shape, out components))
+				return true;
+		}
+
+		return false;
+	}
+
+	bool TryCreateReceiverComponentExpressions(Expression receiver, IReadOnlyList<string> names, out List<Expression> components)
+	{
+		if (TryCreateParamsComponentExpressions(receiver, out components) && components.Count == names.Count)
+			return true;
+
+		if (receiver is ThisExpression or VariableReferenceExpression { Variable: ParameterDefinition { Name: "this" } })
+		{
+			if (TryCreateCurrentThisParameterComponents(names, out components))
+				return true;
+			if (TryCreateReceiverComponentExpressionsFromNames(receiver, names, out components))
+				return true;
+		}
+
+		return false;
+	}
+
+	bool TryCreateReceiverComponentExpressionsFromShape(Expression receiver, ParamsComponentShape shape, out List<Expression> components)
+	{
+		components = [];
+		if (shape.Components.Count < 2)
+			return false;
+
+		components.Add(receiver);
+		for (int i = 1; i < shape.Components.Count; i++)
+		{
+			components.Add(new MemberExpression
+			{
+				SourceSyntax = receiver.SourceSyntax,
+				Target = CloneParamsExpansionExpression(receiver),
+				Name = shape.Components[i].Name,
+				ResolvedType = shape.Components[i].Type
+			});
+		}
+		return true;
+	}
+
+	bool TryCreateReceiverComponentExpressionsFromNames(Expression receiver, IReadOnlyList<string> names, out List<Expression> components)
+	{
+		components = [];
+		if (names.Count < 2 || names[0] is not ("this" or "this_call"))
+			return false;
+
+		components.Add(receiver);
+		for (int i = 1; i < names.Count; i++)
+		{
+			string name = names[i];
+			string componentName = name.StartsWith("this_", System.StringComparison.Ordinal) ? name["this_".Length..] : name;
+			components.Add(new MemberExpression
+			{
+				SourceSyntax = receiver.SourceSyntax,
+				Target = CloneParamsExpansionExpression(receiver),
+				Name = componentName,
+				ResolvedType = ErrorType
+			});
+		}
+		return true;
+	}
+
+	static bool TryGetExpandedThisParameterNames(FunctionDefinition function, out List<string> names)
+	{
+		names = [];
+		if (function.Parameters.Count == 0)
+			return false;
+
+		ParameterDefinition first = function.Parameters[0];
+		if (first.Name is not ("this" or "this_call"))
+			return false;
+
+		names.Add(first.Name);
+		for (int i = 1; i < function.Parameters.Count; i++)
+		{
+			string name = function.Parameters[i].Name;
+			if (!name.StartsWith("this_", System.StringComparison.Ordinal))
+				break;
+			names.Add(name);
+		}
+
+		return names.Count > 1;
 	}
 
 	MethodReferenceExpression CreateFlattenedMethodReference(MemberReferenceExpression member, Expression receiver, FunctionDefinition function)
