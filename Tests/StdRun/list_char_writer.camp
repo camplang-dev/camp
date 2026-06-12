@@ -1,0 +1,28 @@
+using Std;
+
+export int main()
+{
+	auto chars = new List<char>() finally delete;
+	CharWriter writer = chars.CharWriter;
+
+	writer.writeCharArray("abc", catch _);
+	if (chars.Length != 3)
+		return 1;
+	if (chars.Item[0] != 'a' || chars.Item[1] != 'b' || chars.Item[2] != 'c')
+		return 2;
+
+	writer.writeChar('d', catch _);
+	if (chars.Length != 4 || chars.Item[3] != 'd')
+		return 3;
+
+	char[] more = ['e', 'f', 'g'];
+	nuint written = 0;
+	if (!writer(&written, more.elements, more.length))
+		return 4;
+	if (written != 3)
+		return 5;
+	if (chars.Length != 7 || chars.Item[4] != 'e' || chars.Item[6] != 'g')
+		return 6;
+
+	return 0;
+}

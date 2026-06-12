@@ -352,3 +352,26 @@ export class List<T: any>
 		this.capacity = newCapacity;
 	}
 }
+
+bool ListCharWriter_write(void* context, nuint* written, char* buffer, nuint buffer_length)
+{
+	if (written == null)
+		return false;
+
+	*written = 0;
+	if (context == null)
+		return false;
+
+	List<char>* list = (List<char>*)context;
+	nuint before = list.Length;
+	char[] value = { buffer, buffer_length };
+	list.addArray(value);
+
+	*written = list.Length - before;
+	return *written == buffer_length;
+}
+
+export CharWriter getCharWriter(List<char>* this)
+{
+	return { ListCharWriter_write, (void*)this };
+}
