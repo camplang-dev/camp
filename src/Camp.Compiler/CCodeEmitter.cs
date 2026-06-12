@@ -2184,6 +2184,20 @@ public static class CCodeEmitter
 			return false;
 		}
 
+		static bool TryGetExpandedArrayElementType(string? resolvedType, out string elementType)
+		{
+			elementType = "";
+			if (string.IsNullOrWhiteSpace(resolvedType))
+				return false;
+
+			string type = resolvedType.Trim();
+			if (!type.EndsWith("[]", StringComparison.Ordinal))
+				return false;
+
+			elementType = type[..^2].TrimEnd();
+			return !string.IsNullOrWhiteSpace(elementType);
+		}
+
 		string FormatArgumentValue(ArgumentExpression argument, ParameterDefinition? parameter, Dictionary<string, string> genericSubstitutions)
 		{
 			string value = FormatExpression(argument.Value);
@@ -2473,7 +2487,7 @@ public static class CCodeEmitter
 			{
 				if (parameter is WithinParameterDefinition && parameter.Type is null)
 					continue;
-				if (parameter is ThisParameterDefinition && TryGetArrayLiteralElementType(parameter.ResolvedType, out string thisElementType))
+				if (parameter is ThisParameterDefinition && TryGetExpandedArrayElementType(parameter.ResolvedType, out string thisElementType))
 				{
 					parameters.Add(new ThisParameterDefinition
 					{
@@ -2987,7 +3001,7 @@ public static class CCodeEmitter
 					if (parameter is WithinParameterDefinition && parameter.Type is null)
 						continue;
 					string name = CName(parameter);
-					if (parameter is ThisParameterDefinition && TryGetArrayLiteralElementType(parameter.ResolvedType, out string thisElementType))
+					if (parameter is ThisParameterDefinition && TryGetExpandedArrayElementType(parameter.ResolvedType, out string thisElementType))
 					{
 						parts.Add(FormatTypeOrResolved(null, thisElementType + "*", name).Declaration);
 						parts.Add(FormatTypeOrResolved(null, "nuint", name + "_length").Declaration);
