@@ -307,7 +307,8 @@ char* copySpan(const char* value, nuint valueLength, Allocator* allocator)
 	char* buffer = allocateString(length + 1, allocator);
 	if (buffer == null)
 		return null;
-	utf8ncpy(buffer, value, length);
+	for (nuint i = 0; i < length; i++)
+		buffer[i] = value[i];
 	buffer[length] = 0;
 	return buffer;
 }

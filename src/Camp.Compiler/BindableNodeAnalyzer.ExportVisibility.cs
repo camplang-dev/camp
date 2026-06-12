@@ -73,6 +73,9 @@ public sealed partial class BindableNodeAnalyzer
 		switch (typeDefinition)
 		{
 			case ClassDefinition classDefinition:
+				foreach (FieldDefinition field in classDefinition.Fields)
+					if (field.Modifier == FieldModifier.Static)
+						AnalyzeExportVisibility(field, containingTypeExported: false);
 				foreach (FunctionDefinition function in classDefinition.Functions)
 					AnalyzeExportVisibility(function, containingTypeExported: false);
 				break;
@@ -88,6 +91,14 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (FunctionDefinition function in interfaceDefinition.Functions)
 					AnalyzeExportVisibility(function, containingTypeExported: typeDefinition.Export is not null);
 				break;
+
+			case NewtypeDefinition newtypeDefinition:
+				foreach (FieldDefinition field in newtypeDefinition.Fields)
+					if (field.Modifier == FieldModifier.Static)
+						AnalyzeExportVisibility(field, containingTypeExported: false);
+				foreach (FunctionDefinition function in newtypeDefinition.Functions)
+					AnalyzeExportVisibility(function, containingTypeExported: false);
+				break;
 		}
 	}
 
@@ -98,6 +109,11 @@ public sealed partial class BindableNodeAnalyzer
 			case ClassDefinition classDefinition:
 				foreach (TypeReference type in classDefinition.BaseTypes)
 					yield return type;
+				foreach (FieldDefinition field in classDefinition.Fields)
+				{
+					if (field.Modifier == FieldModifier.Static && field.Export is not null && field.Type is not null)
+						yield return field.Type;
+				}
 				break;
 
 			case StructDefinition structDefinition:
@@ -132,6 +148,11 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					if (parameter.Type is not null)
 						yield return parameter.Type;
+				}
+				foreach (FieldDefinition field in newtypeDefinition.Fields)
+				{
+					if (field.Modifier == FieldModifier.Static && field.Export is not null && field.Type is not null)
+						yield return field.Type;
 				}
 				break;
 

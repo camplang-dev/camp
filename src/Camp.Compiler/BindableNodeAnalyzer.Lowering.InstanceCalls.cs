@@ -231,6 +231,12 @@ public sealed partial class BindableNodeAnalyzer
 		string addressDecisionType = receiver.ResolvedType ?? receiverValueType;
 		if (TryGetPointerElementType(flattenedReceiverType) is not null && TryGetPointerElementType(addressDecisionType) is null)
 		{
+			if (!CanTakeReceiverAddress(receiver) && currentStatementPrefix is not null)
+			{
+				DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("receiver"), receiverValueType, TypeReferenceForResolvedName(receiverValueType), receiver);
+				currentStatementPrefix.Add(local);
+				receiver = CreateVariableReference(local.Target, local.Target.ResolvedType ?? receiverValueType);
+			}
 			value = new UnaryExpression
 			{
 				SourceSyntax = receiver.SourceSyntax,
@@ -271,6 +277,20 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = receiver.SourceSyntax,
 			Value = value,
 			ResolvedType = value.ResolvedType
+		};
+	}
+
+	static bool CanTakeReceiverAddress(Expression receiver)
+	{
+		return receiver switch
+		{
+			ThisExpression => true,
+			VariableReferenceExpression => true,
+			MemberReferenceExpression => true,
+			MemberExpression => true,
+			IndexExpression => true,
+			UnaryExpression { Operator: UnaryOperator.PointerDereference } => true,
+			_ => false
 		};
 	}
 

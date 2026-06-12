@@ -167,7 +167,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteLineBlock(() =>
 		{
 			if (apiHeader)
-				WriteApiFunctions(definition.Functions);
+				WriteApiClassMembers(definition.Fields, definition.Functions);
 			else
 				WriteMembers(definition.Fields, definition.Functions);
 		});
@@ -275,13 +275,19 @@ public sealed class BindableNodeCodeSerializer
 			WriteType(definition.UnderlyingType);
 		}
 
-		if (definition.Functions.Count == 0 || apiHeader && !HasExportedFunction(definition.Functions))
+		if (definition.Functions.Count == 0 && definition.Fields.Count == 0 || apiHeader && !HasApiStaticField(definition.Fields) && !HasExportedFunction(definition.Functions))
 		{
 			writer.WriteLine(";");
 			return;
 		}
 
-		WriteLineBlock(() => WriteApiAwareFunctions(definition.Functions));
+		WriteLineBlock(() =>
+		{
+			if (apiHeader)
+				WriteApiClassMembers(definition.Fields, definition.Functions);
+			else
+				WriteMembers(definition.Fields, definition.Functions);
+		});
 	}
 
 	void WriteCallableNewtypePrefix(CallableTypeReference callable)
@@ -333,9 +339,29 @@ public sealed class BindableNodeCodeSerializer
 	void WriteApiStructMembers(List<FieldDefinition> fields, List<FunctionDefinition> functions)
 	{
 		foreach (FieldDefinition field in fields)
+		{
+			if (field.Modifier == FieldModifier.Static && field.Export is null)
+				continue;
 			WriteFieldDefinition(field);
+		}
 
 		if (fields.Count > 0 && HasExportedFunction(functions))
+			writer.WriteLine();
+		WriteApiFunctions(functions);
+	}
+
+	void WriteApiClassMembers(List<FieldDefinition> fields, List<FunctionDefinition> functions)
+	{
+		bool wrote = false;
+		foreach (FieldDefinition field in fields)
+		{
+			if (field.Modifier != FieldModifier.Static || field.Export is null)
+				continue;
+			WriteFieldDefinition(field);
+			wrote = true;
+		}
+
+		if (wrote && HasExportedFunction(functions))
 			writer.WriteLine();
 		WriteApiFunctions(functions);
 	}
@@ -363,6 +389,14 @@ public sealed class BindableNodeCodeSerializer
 	{
 		foreach (FunctionDefinition function in functions)
 			if (function.Export is not null)
+				return true;
+		return false;
+	}
+
+	static bool HasApiStaticField(List<FieldDefinition> fields)
+	{
+		foreach (FieldDefinition field in fields)
+			if (field.Modifier == FieldModifier.Static && field.Export is not null)
 				return true;
 		return false;
 	}

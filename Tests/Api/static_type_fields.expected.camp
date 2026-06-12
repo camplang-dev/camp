@@ -1,0 +1,15 @@
+export extern class ClassFields
+{
+	export static const int LIMIT = 12;
+}
+
+export struct StructFields
+{
+	int x;
+	export static const int LIMIT = 7;
+}
+
+export newtype FieldId : int
+{
+	export static const FieldId INVALID = (FieldId)0;
+}

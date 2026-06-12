@@ -1,0 +1,1 @@
+tests/Diagnostics/static_type_fields_newtype_invalid.camp(3,6): error: Newtype declarations may contain only static fields.

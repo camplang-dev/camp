@@ -246,7 +246,7 @@ public static class CCodeEmitter
 				continue;
 			if (definition.Export is not null && definition is not AliasDefinition)
 				return true;
-			if (definition is TypeDefinition typeDefinition && TypeHasExportedCallable(typeDefinition))
+			if (definition is TypeDefinition typeDefinition && (TypeHasExportedCallable(typeDefinition) || TypeHasExportedStaticField(typeDefinition)))
 				return true;
 		}
 
@@ -263,6 +263,17 @@ public static class CCodeEmitter
 			EnumDefinition enumDefinition => enumDefinition.Functions.Any(static function => function.Export is not null),
 			NewtypeDefinition newtypeDefinition => newtypeDefinition.Functions.Any(static function => function.Export is not null),
 			ParamsDefinition paramsDefinition => paramsDefinition.Functions.Any(static function => function.Export is not null),
+			_ => false
+		};
+	}
+
+	static bool TypeHasExportedStaticField(TypeDefinition typeDefinition)
+	{
+		return typeDefinition switch
+		{
+			ClassDefinition classDefinition => classDefinition.Fields.Any(static field => field.Modifier == FieldModifier.Static && field.Export is not null),
+			StructDefinition structDefinition => structDefinition.Fields.Any(static field => field.Modifier == FieldModifier.Static && field.Export is not null),
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields.Any(static field => field.Modifier == FieldModifier.Static && field.Export is not null),
 			_ => false
 		};
 	}
@@ -409,6 +420,8 @@ public static class CCodeEmitter
 			{
 				foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(IsExternallyVisible))
 					WriteVariableDeclaration(writer, variable, storage: "extern");
+				foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(IsExternallyVisible))
+					WriteFieldStorageDeclaration(writer, field, storage: "extern");
 			});
 		}
 
@@ -419,9 +432,10 @@ public static class CCodeEmitter
 			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
 			List<FunctionDefinition> privateFunctions = GetAllFunctions(definitions).Where(static function => !IsExternallyVisible(function)).ToList();
 			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(static variable => !IsExternallyVisible(variable)).ToList();
+			List<FieldDefinition> privateStaticFields = GetAllStaticFields(definitions).Where(static field => !IsExternallyVisible(field)).ToList();
 			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
 
-			if (privateFunctions.Count == 0 && privateVariables.Count == 0 && delegateThunks.Count == 0)
+			if (privateFunctions.Count == 0 && privateVariables.Count == 0 && privateStaticFields.Count == 0 && delegateThunks.Count == 0)
 				return;
 
 			writer.WriteLine("/* Private file declarations. */");
@@ -431,6 +445,8 @@ public static class CCodeEmitter
 				WriteFunctionPrototype(writer, function, storage: function.Extern is not null ? null : "static");
 			foreach (VariableDefinition variable in privateVariables)
 				WriteVariableDeclaration(writer, variable, storage: variable.Extern is not null ? "extern" : "static");
+			foreach (FieldDefinition field in privateStaticFields)
+				WriteFieldStorageDeclaration(writer, field, storage: "static");
 		}
 
 		public void WriteSourceFileDefinitions(TextWriter writer, SourceFile file)
@@ -452,6 +468,12 @@ public static class CCodeEmitter
 				if (variable.Extern is not null)
 					continue;
 				WriteVariableDefinition(writer, variable, storage: IsExternallyVisible(variable) ? null : "static");
+				wrote = true;
+			}
+
+			foreach (FieldDefinition field in GetAllStaticFields(definitions))
+			{
+				WriteFieldStorageDefinition(writer, field, storage: IsExternallyVisible(field) ? null : "static");
 				wrote = true;
 			}
 
@@ -522,6 +544,11 @@ public static class CCodeEmitter
 				WriteVariableDeclaration(writer, variable, storage: "extern");
 				wrote = true;
 			}
+			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null))
+			{
+				WriteFieldStorageDeclaration(writer, field, storage: "extern");
+				wrote = true;
+			}
 
 			if (!wrote)
 				writer.WriteLine("/* No exported declarations. */");
@@ -582,6 +609,11 @@ public static class CCodeEmitter
 				if (IsGeneratedVTableVariable(variable))
 					continue;
 				WriteVariableDeclaration(writer, variable, storage: "extern");
+				wrote = true;
+			}
+			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null))
+			{
+				WriteFieldStorageDeclaration(writer, field, storage: "extern");
 				wrote = true;
 			}
 
@@ -682,6 +714,9 @@ public static class CCodeEmitter
 						_ => []
 					})
 						reservedCNames.Add(CName(function));
+					foreach (FieldDefinition field in GetTypeFields(type))
+						if (field.Modifier == FieldModifier.Static)
+							reservedCNames.Add(CName(field));
 					break;
 			}
 		}
@@ -947,6 +982,29 @@ public static class CCodeEmitter
 			}
 		}
 
+		static IEnumerable<FieldDefinition> GetAllStaticFields(IEnumerable<Definition> definitions)
+		{
+			foreach (Definition definition in definitions)
+			{
+				if (definition is not TypeDefinition type)
+					continue;
+				foreach (FieldDefinition field in GetTypeFields(type))
+					if (field.Modifier == FieldModifier.Static)
+						yield return field;
+			}
+		}
+
+		static IEnumerable<FieldDefinition> GetTypeFields(TypeDefinition type)
+		{
+			return type switch
+			{
+				ClassDefinition classDefinition => classDefinition.Fields,
+				StructDefinition structDefinition => structDefinition.Fields,
+				NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields,
+				_ => []
+			};
+		}
+
 		IEnumerable<string> CollectResolvedCallableTypes(IEnumerable<Definition> definitions)
 		{
 			HashSet<string> types = new(StringComparer.Ordinal);
@@ -963,12 +1021,7 @@ public static class CCodeEmitter
 				AddType(variable.Type, variable.ResolvedType);
 			foreach (TypeDefinition type in definitions.OfType<TypeDefinition>())
 			{
-				foreach (FieldDefinition field in type switch
-				{
-					ClassDefinition classDefinition => classDefinition.Fields,
-					StructDefinition structDefinition => structDefinition.Fields,
-					_ => []
-				})
+				foreach (FieldDefinition field in GetTypeFields(type))
 					AddType(field.Type, field.ResolvedType);
 			}
 			return types.Order(StringComparer.Ordinal);
@@ -1380,6 +1433,21 @@ public static class CCodeEmitter
 			writer.Write(prefix + FormatTypeOrResolved(variable.Type, variable.ResolvedType, CName(variable)).Declaration);
 			if (variable.InitialValue is not null)
 				writer.Write(" = " + FormatExpression(variable.InitialValue));
+			writer.WriteLine(";");
+		}
+
+		void WriteFieldStorageDeclaration(TextWriter writer, FieldDefinition field, string? storage)
+		{
+			string prefix = BuildDeclarationPrefix(field, storage);
+			writer.WriteLine(prefix + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration + ";");
+		}
+
+		void WriteFieldStorageDefinition(TextWriter writer, FieldDefinition field, string? storage)
+		{
+			string prefix = BuildDeclarationPrefix(field, storage);
+			writer.Write(prefix + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration);
+			if (field.InitialValue is not null)
+				writer.Write(" = " + FormatExpression(field.InitialValue));
 			writer.WriteLine(";");
 		}
 

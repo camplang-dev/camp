@@ -280,7 +280,7 @@ public sealed partial class BindableNodeAnalyzer
 		RegisterBaseTypes(definition, definition.BaseTypes);
 
 		foreach (FieldDefinition field in definition.Fields)
-			AnalyzeFieldDefinition(field, scope);
+			AnalyzeFieldDefinition(field, scope, definition);
 
 			foreach (FunctionDefinition function in definition.Functions)
 				AnalyzeFunctionDefinition(function, scope, definition.Name);
@@ -300,7 +300,7 @@ public sealed partial class BindableNodeAnalyzer
 		RegisterBaseTypes(definition, definition.BaseTypes);
 
 		foreach (FieldDefinition field in definition.Fields)
-			AnalyzeFieldDefinition(field, scope);
+			AnalyzeFieldDefinition(field, scope, definition);
 
 		ValidateExpandedFieldNames(definition.Fields);
 		foreach (FunctionDefinition function in definition.Functions)
@@ -348,6 +348,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ParameterDefinition parameter in definition.Parameters)
 			AnalyzeParameterDefinition(parameter, scope);
+
+		foreach (FieldDefinition field in definition.Fields)
+			AnalyzeFieldDefinition(field, scope, definition);
 
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
@@ -434,6 +437,31 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (TypeDefinition type in typeDefinitions.Values)
 		{
+			foreach (FieldDefinition field in GetTypeFields(type))
+			{
+				if (field.Modifier != FieldModifier.Static || string.IsNullOrWhiteSpace(field.Symbol))
+					continue;
+
+				string symbol = field.Symbol;
+				if (componentSymbols.TryGetValue(symbol, out string? componentOwner))
+					Report(GetNameRange(field), $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
+
+				if (symbols.TryGetValue(symbol, out Definition? existing) && !ReferenceEquals(existing, field))
+					Report(GetNameRange(field), $"Duplicate symbol name '{symbol}'.");
+				else
+					symbols[symbol] = field;
+
+				foreach (string componentName in GetPotentialParamsComponentNames(field.Type, field.ResolvedType, field.Symbol))
+				{
+					if (componentName == field.Symbol)
+						continue;
+					if (symbols.ContainsKey(componentName) || componentSymbols.ContainsKey(componentName))
+						Report(GetNameRange(field), $"Symbol '{componentName}' is already declared in this scope as a component of '{field.Name}'.");
+					else
+						componentSymbols[componentName] = field.Name;
+				}
+			}
+
 			foreach (FunctionDefinition function in GetTypeFunctions(type))
 			{
 				if (!function.SymbolOverridden || string.IsNullOrWhiteSpace(function.Symbol))
@@ -588,14 +616,43 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	void AnalyzeFieldDefinition(FieldDefinition definition, AnalysisScope scope)
+	void AnalyzeFieldDefinition(FieldDefinition definition, AnalysisScope scope, TypeDefinition? containingType)
 	{
 		AnalyzeAttributes(definition.Attributes);
-		ApplySymbolAttribute(definition, allowed: false, "field");
+		if (definition.Modifier == FieldModifier.Static && containingType is not null)
+		{
+			ApplySymbolAttribute(definition, allowed: true, "static field");
+			if (!definition.SymbolOverridden)
+				definition.Symbol = containingType.Name + "_" + definition.Name;
+		}
+		else
+		{
+			ApplySymbolAttribute(definition, allowed: false, "field");
+		}
+		if ((definition.Export is not null || definition.Public is not null) && definition.Modifier != FieldModifier.Static)
+			Report(GetNameRange(definition), "Exported or public fields must be explicitly marked static.");
 		CheckName(definition.Name, GetNameRange(definition), "field");
 		AnalyzeOptionalType(definition.Type, scope);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
-		AnalyzeOptionalExpression(definition.InitialValue, scope);
+		if (definition.Modifier == FieldModifier.Static && definition.InitialValue is not null)
+		{
+			FunctionDefinition initializerContext = new()
+			{
+				Name = "#static-field-initializer",
+				ResolvedType = definition.ResolvedType ?? definition.Type?.ResolvedType ?? ErrorType
+			};
+			BodyScope bodyScope = new(null, initializerContext, containingType: null)
+			{
+				CurrentFunctionReturnType = initializerContext.ResolvedType ?? ErrorType
+			};
+			string targetType = definition.ResolvedType ?? definition.Type?.ResolvedType ?? ErrorType;
+			string initialType = BodyAnalyzeExpression(definition.InitialValue, bodyScope, scope, targetType);
+			CheckAssignable(targetType, initialType, definition.InitialValue.SourceSyntax ?? definition.SourceSyntax, "Static field initializer");
+		}
+		else
+		{
+			AnalyzeOptionalExpression(definition.InitialValue, scope);
+		}
 	}
 
 	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType)

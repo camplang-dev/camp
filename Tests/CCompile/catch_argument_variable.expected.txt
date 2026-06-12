@@ -37,33 +37,40 @@ static int normalReturn(IoError *error)
 
 static int useCatchVariable(void)
 {
+	FileHandle* _finally0 = 0;
+	bool _cleanupActive1 = false;
 	IoError e;
-	FileHandle* _finally0 = openHandle(&e);
+	_finally0 = openHandle(&e);
+	_cleanupActive1 = true;
 	FileHandle* handle = _finally0;
-	int _return2 = 0;
+	int _return3 = 0;
 	if ((e != 0))
 	{
-		_return2 = 1;
-		goto __cleanup1;
+		_return3 = 1;
+		goto __cleanup2;
 	}
 	int value = normalReturn(&e);
 	if ((e != 0))
 	{
-		_return2 = 2;
-		goto __cleanup1;
+		_return3 = 2;
+		goto __cleanup2;
 	}
 	if ((value != 7))
 	{
-		_return2 = 3;
-		goto __cleanup1;
+		_return3 = 3;
+		goto __cleanup2;
 	}
 	{
-		_return2 = 0;
-		goto __cleanup1;
+		_return3 = 0;
+		goto __cleanup2;
 	}
-__cleanup1: ;
-	(FileHandle_op_delete(_finally0), free((void *)(_finally0)));
-	return _return2;
+__cleanup2: ;
+	if (_cleanupActive1)
+	{
+		(FileHandle_op_delete(_finally0), free((void *)(_finally0)));
+		_cleanupActive1 = false;
+	}
+	return _return3;
 }
 
 // file: catch_argument_variable_private.h

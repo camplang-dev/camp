@@ -457,7 +457,7 @@ public sealed partial class BindableNodeBuilder
 		}
 
 		if (syntax.Scope is not null)
-			AddMethodOnlyScope(definition.Functions, syntax.Scope, "newtype");
+			AddNewtypeScope(definition, syntax.Scope);
 
 		return definition;
 	}
@@ -521,6 +521,35 @@ public sealed partial class BindableNodeBuilder
 			else
 			{
 				Report(child, $"{typeKind} member declaration is empty.");
+			}
+		}
+	}
+
+	void AddNewtypeScope(NewtypeDefinition definition, TypeDeclarationScopeSyntax scope)
+	{
+		foreach (DeclarationSyntax child in scope.Declarations ?? [])
+		{
+			if (child.MemberDeclaration is not null)
+			{
+				if (IsMethodDeclaration(child.MemberDeclaration))
+				{
+					if (BuildFunctionDefinition(child.MemberDeclaration, isGlobal: false, allowVirtual: false, containingTypeName: definition.Name) is FunctionDefinition function)
+						definition.Functions.Add(function);
+				}
+				else if (BuildFieldDefinition(child.MemberDeclaration) is FieldDefinition field)
+				{
+					if (field.Modifier != FieldModifier.Static)
+						Report(child.MemberDeclaration, "Newtype declarations may contain only static fields.");
+					definition.Fields.Add(field);
+				}
+			}
+			else if (child.TypeDeclaration is not null)
+			{
+				Report(child.TypeDeclaration, "Nested type declarations are not supported in newtype declarations by this binder pass.");
+			}
+			else
+			{
+				Report(child, "newtype member declaration is empty.");
 			}
 		}
 	}
@@ -1039,7 +1068,13 @@ public sealed partial class BindableNodeBuilder
 					break;
 
 				case "export":
+					SetVisibility(definition, declarator, "export");
+					break;
+
 				case "public":
+					SetVisibility(definition, declarator, "public");
+					break;
+
 				case "extern":
 				case "virtual":
 				case "override":

@@ -92,6 +92,7 @@ public class NewtypeDefinition : TypeDefinition
 	public IteratorKind IteratorKind { get; set; }
 	public TypeReference? UnderlyingType { get; set; }
 	public List<ParameterDefinition> Parameters { get; } = [];
+	public List<FieldDefinition> Fields { get; } = [];
 	public List<FunctionDefinition> Functions { get; } = [];
 }
 

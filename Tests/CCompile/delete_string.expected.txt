@@ -15,11 +15,18 @@ static void deleteNow(void)
 
 static void deleteFinally(void)
 {
-	void* _finally0 = malloc(16);
+	void* _finally0 = 0;
+	bool _cleanupActive1 = false;
+	_finally0 = malloc(16);
+	_cleanupActive1 = true;
 	const char* text = (const char*)(_finally0);
 	const char* __discard1;
 	__discard1 = text;
-	free((void *)(_finally0));
+	if (_cleanupActive1)
+	{
+		free((void *)(_finally0));
+		_cleanupActive1 = false;
+	}
 }
 
 int main(void)

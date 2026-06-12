@@ -649,15 +649,15 @@ public sealed partial class BindableNodeAnalyzer
 			return symbol.Type;
 		}
 
-		if (LookupGlobalVariable(named.Name, named.SourceSyntax) is VariableDefinition variable)
+		if (LookupGlobalStorageSymbol(named.Name, named.SourceSyntax) is BodySymbol globalSymbol)
 		{
-			string type = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
+			string type = globalSymbol.Type;
 			named.ResolvedType = type;
-			expressionConstants[named] = IsConstantVariable(variable);
+			expressionConstants[named] = globalSymbol.IsConstant;
 			expressionRewrites[named] = new VariableReferenceExpression
 			{
 				SourceSyntax = named.SourceSyntax,
-				Variable = variable,
+				Variable = globalSymbol.Node,
 				ResolvedType = type
 			};
 			return type;
@@ -1654,7 +1654,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (expected == ErrorType || actual == ErrorType || expected == TargetType || actual == TargetType)
 			return;
-		if (CanImplicitlyConvert(actual, expected))
+		if (CanAssignToType(expected, actual))
 			return;
 
 		if (function is not null
@@ -2364,7 +2364,10 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope)
 	{
 		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
-		List<BodySymbol> members = LookupMemberSymbols(targetType, member.Name, member.SourceSyntax);
+		bool isTypeTarget = member.Target is not null && expressionRewrites.TryGetValue(member.Target, out Expression? rewrittenTarget) && rewrittenTarget is TypeReferenceExpression;
+		List<BodySymbol> members = isTypeTarget
+			? LookupStaticMemberSymbols(targetType, member.Name, member.SourceSyntax)
+			: LookupMemberSymbols(targetType, member.Name, member.SourceSyntax);
 		if (members.Count == 0)
 			members = LookupGenericConstraintMemberSymbols(targetType, member.Name, scope, member.SourceSyntax);
 		if (members.Count == 0)
@@ -2406,6 +2409,17 @@ public sealed partial class BindableNodeAnalyzer
 			: selected.Type;
 
 		expressionConstants[member] = selected.IsConstant;
+		if (isTypeTarget && selected.Node is FieldDefinition staticField)
+		{
+			expressionRewrites[member] = new VariableReferenceExpression
+			{
+				SourceSyntax = member.SourceSyntax,
+				Variable = staticField,
+				ResolvedType = memberType
+			};
+			return memberType;
+		}
+
 		MemberReferenceExpression reference = CreateMemberReference(member, member.Target, memberType, selected.Node);
 		if (selected.Node is FieldDefinition field)
 			reference.Name = field.Name;
@@ -2664,7 +2678,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly record struct BodySymbol(string Name, string Type, BindableNode Node, bool IsConstant = false)
 	{
-		public bool IsConstant { get; } = IsConstant || Node is VariableDefinition variable && IsConstantVariable(variable) || Node is FieldDefinition { Modifier: FieldModifier.Static };
+		public bool IsConstant { get; } = IsConstant || Node is VariableDefinition variable && IsConstantVariable(variable) || Node is FieldDefinition field && IsConstantField(field);
 	}
 
 	readonly record struct BodyComponentSymbol(string Name, string ExpandedName, string Type, string Owner)

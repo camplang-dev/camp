@@ -49,10 +49,10 @@ export newtype TimeSpan: long
 {
 	// Underlying value: signed milliseconds.
 
-	export static TimeSpan getINVALID() => (TimeSpan)(long)-9223372036854775808;
-	export static TimeSpan getZERO() => (TimeSpan)(long)0;
-	export static TimeSpan getMIN() => (TimeSpan)(long)-9223372036854775807;
-	export static TimeSpan getMAX() => (TimeSpan)(long)9223372036854775807;
+	export static const TimeSpan INVALID = (TimeSpan)(long)-9223372036854775808;
+	export static const TimeSpan ZERO = (TimeSpan)(long)0;
+	export static const TimeSpan MIN = (TimeSpan)(long)-9223372036854775807;
+	export static const TimeSpan MAX = (TimeSpan)(long)9223372036854775807;
 
 	export static TimeSpan fromMs(long value) => (TimeSpan)value;
 	export static TimeSpan fromSeconds(long value) => (TimeSpan)(value * 1000);
@@ -87,7 +87,7 @@ export newtype TimeSpan: long
 	export string copyString(within allocator)
 	{
 		if (*this == TimeSpan.INVALID)
-			return timeCopyLiteral("invalid", 7);
+			return "invalid".stringCopy();
 
 		long ms = (long)*this;
 		bool negative = ms < 0;
@@ -135,8 +135,8 @@ export newtype UtcOffset: short
 	// Underlying value: signed offset minutes east of UTC.
 	// Valid range: -1080..+1080.
 	
-	export static UtcOffset getINVALID() => (UtcOffset)(short)-32767;
-	export static UtcOffset getUTC() => (UtcOffset)(short)0;
+	export static const UtcOffset INVALID = (UtcOffset)(short)-32767;
+	export static const UtcOffset UTC = (UtcOffset)(short)0;
 	
 	export static UtcOffset fromHours(short hours, ushort minutes = 0) => (UtcOffset)(short)(hours * 60 + (hours < 0 ? 0 - (short)minutes : (short)minutes));
 	
@@ -160,7 +160,7 @@ export newtype UtcOffset: short
 	{
 		short total = (short)*this;
 		if (total == 0)
-			return timeCopyLiteral("Z", 1);
+			return "Z".stringCopy();
 
 		bool negative = total < 0;
 		if (negative)
@@ -183,7 +183,8 @@ export newtype Instant: long
 	// Underlying value: milliseconds since 1970-01-01T00:00:00Z.
 	// Suggested invalid sentinel: long.min.
 
-	export static Instant getINVALID() => (Instant)(long)-9223372036854775808;
+	export static const Instant INVALID = (Instant)(long)-9223372036854775808;
+	export static const Instant UNIX_EPOCH = (Instant)(long)0;
 
 	// Current UTC instant.
 	export static Instant utcNow()
@@ -269,6 +270,8 @@ export struct Date
 	byte month;  // 1..12
 	byte day;    // 1..31
 
+	export static const Date INVALID = { 0, 0, 0 };
+
 	// Current system civil date. Returns an invalid Date if unsupported.
 	export static Date today()
 	{
@@ -345,6 +348,9 @@ export struct TimeOfDay
 	byte second;   // 0..59
 	byte fraction; // 0..255, fractional second as fraction / 256
 
+	export static const TimeOfDay INVALID = { 255, 0, 0, 0 };
+	export static const TimeOfDay MIDNIGHT = { 0, 0, 0, 0 };
+
 	export bool isValid() => this.hour < 24 && this.minute < 60 && this.second < 60;
 
 	// Fractional milliseconds within the current second.
@@ -394,6 +400,8 @@ export struct DateTime
 
 	Date date;
 	TimeOfDay time;
+
+	export static const DateTime INVALID = { { 0, 0, 0 }, { 255, 0, 0, 0 } };
 
 	// Convenience field initializer.
 	export DateTime(
@@ -483,6 +491,8 @@ export struct OffsetDateTime
 
 	DateTime local;
 	UtcOffset offset;
+
+	export static const OffsetDateTime INVALID = { { { 0, 0, 0 }, { 255, 0, 0, 0 } }, (UtcOffset)(short)-32767 };
 
 	// Convenience field initializer. Does not throw.
 	export OffsetDateTime(
@@ -864,17 +874,6 @@ nuint timeWrite4(char* buffer, nuint index, int value)
 	buffer[index + 2] = (char)((int)'0' + (value / 10) % 10);
 	buffer[index + 3] = (char)((int)'0' + value % 10);
 	return index + 4;
-}
-
-string timeCopyLiteral(const char* value, nuint length, within allocator)
-{
-	char[] buffer = new char[length + 1];
-	if (buffer.elements == null)
-		return null;
-	for (nuint i = 0; i < length; i++)
-		buffer[i] = value[i];
-	buffer[length] = '\0';
-	return (string)buffer.elements;
 }
 
 bool timeParseFixed2(const char* text, nuint textLength, nuint index, out int value)

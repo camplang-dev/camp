@@ -1,0 +1,25 @@
+class Counter
+{
+	export static const int START = 2;
+	public static int current = 0;
+	@symbol("CounterValue")
+	static int privateValue = 3;
+}
+
+struct Holder
+{
+	int value;
+	export static const int DEFAULT = 4;
+}
+
+newtype Id: int
+{
+	export static const Id INVALID = (Id)0;
+}
+
+export int main()
+{
+	Counter.current = Counter.START + Holder.DEFAULT + CounterValue;
+	Id id = Id.INVALID;
+	return Counter.current + (int)id;
+}

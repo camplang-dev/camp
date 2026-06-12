@@ -16,8 +16,14 @@ public sealed partial class BindableNodeAnalyzer
 		if (expected == ErrorType || actual == ErrorType || expected == TargetType || actual == TargetType)
 			return;
 
-		if (!CanImplicitlyConvert(actual, expected))
+		if (!CanAssignToType(expected, actual))
 			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
+	}
+
+	bool CanAssignToType(string expected, string actual)
+	{
+		return CanImplicitlyConvert(actual, expected)
+			|| IsConstQualified(expected) && StripConstFromShape(expected) == actual;
 	}
 
 	void RequireMutableWriteTarget(string targetType, SyntaxNode? syntax, string context)
@@ -618,6 +624,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ClassDefinition classDefinition => classDefinition.Fields,
 			StructDefinition structDefinition => structDefinition.Fields,
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields,
 			_ => []
 		};
 	}
@@ -638,12 +645,20 @@ public sealed partial class BindableNodeAnalyzer
 			|| (!function.SymbolOverridden && $"{type.Name}_{GetCallableName(function).TrimStart('~')}" == name);
 	}
 
-	VariableDefinition? LookupGlobalVariable(string name, SyntaxNode? referenceSyntax)
+	BodySymbol? LookupGlobalStorageSymbol(string name, SyntaxNode? referenceSyntax)
 	{
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
 			if (definition is VariableDefinition variable && IsDefinitionNamed(variable, name) && IsDefinitionVisible(variable, referenceSyntax))
-				return variable;
+				return new BodySymbol(name, variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType, variable, IsConstantVariable(variable));
+			if (definition is TypeDefinition type)
+			{
+				foreach (FieldDefinition field in GetTypeFields(type))
+				{
+					if (field.Modifier == FieldModifier.Static && IsDefinitionNamed(field, name) && IsMemberVisible(field, type, referenceSyntax))
+						return new BodySymbol(name, field.ResolvedType ?? field.Type?.ResolvedType ?? ErrorType, field, IsConstantField(field));
+				}
+			}
 		}
 
 		return null;
@@ -655,6 +670,12 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (IsDefinitionNamed(definition, name) && !IsDefinitionVisible(definition, referenceSyntax))
 				return definition;
+			if (definition is TypeDefinition type)
+			{
+				foreach (FieldDefinition field in GetTypeFields(type))
+					if (field.Modifier == FieldModifier.Static && IsDefinitionNamed(field, name) && !IsMemberVisible(field, type, referenceSyntax))
+						return field;
+			}
 		}
 
 		return null;
@@ -904,6 +925,41 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition getter in LookupExtensionFunctions(targetType, "get" + name, referenceSyntax))
 		{
 			if (CanCallWithArgumentCount(getter.Parameters, 0))
+				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+		}
+
+		return members;
+	}
+
+	List<BodySymbol> LookupStaticMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax)
+	{
+		List<BodySymbol> members = [];
+		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
+			return members;
+
+		foreach (FieldDefinition field in GetTypeFields(type))
+		{
+			if (field.Modifier == FieldModifier.Static && field.Name == name && IsMemberVisible(field, type, referenceSyntax))
+				members.Add(new BodySymbol(name, field.ResolvedType ?? ErrorType, field, IsConstantField(field)));
+		}
+
+		if (type is EnumDefinition enumDefinition)
+		{
+			foreach (VariableDefinition value in enumDefinition.Values)
+			{
+				if (value.Name == name)
+					members.Add(new BodySymbol(name, value.ResolvedType ?? enumDefinition.Name, value, IsConstant: true));
+			}
+		}
+
+		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
+		{
+			if (function.Modifier == FunctionModifier.Static)
+				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: false), function));
+		}
+		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
+		{
+			if (getter.Modifier == FunctionModifier.Static && getter.Parameters.Count == 0)
 				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
 		}
 
@@ -1771,6 +1827,11 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsConstantVariable(VariableDefinition variable)
 	{
 		return IsConstType(variable.Type) || IsConstQualified(variable.Type?.ResolvedType);
+	}
+
+	static bool IsConstantField(FieldDefinition field)
+	{
+		return IsConstType(field.Type) || IsConstQualified(field.Type?.ResolvedType);
 	}
 
 	static bool IsConstType(TypeReference? type)

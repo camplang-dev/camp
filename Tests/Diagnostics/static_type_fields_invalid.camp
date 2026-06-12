@@ -1,0 +1,17 @@
+class BadClass
+{
+	export int value;
+}
+
+struct BadStruct
+{
+	public int value;
+}
+
+int Collide;
+
+class SymbolCollision
+{
+	@symbol("Collide")
+	static int value;
+}

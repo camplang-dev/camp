@@ -815,6 +815,8 @@ public sealed partial class BindableNodeAnalyzer
 			currentStatementSuffix = previousSuffix;
 		}
 		currentCleanupScopes.RemoveAt(currentCleanupScopes.Count - 1);
+		if (cleanupScope.PreludeStatements.Count > 0)
+			statements.InsertRange(0, cleanupScope.PreludeStatements);
 		if (cleanupScope.ExitLabelName is not null)
 			statements.Add(new LabelStatement { Name = cleanupScope.ExitLabelName, ResolvedType = "void" });
 		for (int i = cleanupScope.Statements.Count - 1; i >= 0; i--)
@@ -937,13 +939,20 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (finallyDelete && currentCleanupScopes.Count > 0)
 		{
+			CleanupScope cleanupScope = currentCleanupScopes[^1];
+			DeclarationTarget activeTarget = CreateCleanupActiveFlag(cleanupScope);
+			statements.Add(CreateAssignmentStatement(
+				CreateVariableReference(activeTarget, "bool"),
+				BoolLiteral(true),
+				"bool"));
 			Expression target = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? ErrorType);
-			currentCleanupScopes[^1].Statements.Add(new ExpressionStatement
+			ExpressionStatement cleanup = new()
 			{
 				SourceSyntax = declaration.SourceSyntax,
 				ResolvedType = "void",
 				Expression = CreateFreeCall(target, allocationAllocator)
-			});
+			};
+			cleanupScope.Statements.Add(CreateGuardedCleanup(activeTarget, cleanup));
 		}
 		return true;
 	}
@@ -1033,10 +1042,16 @@ public sealed partial class BindableNodeAnalyzer
 		});
 		if (finallyDelete && currentCleanupScopes.Count > 0)
 		{
+			CleanupScope cleanupScope = currentCleanupScopes[^1];
+			DeclarationTarget activeTarget = CreateCleanupActiveFlag(cleanupScope);
+			statements.Add(CreateAssignmentStatement(
+				CreateVariableReference(activeTarget, "bool"),
+				BoolLiteral(true),
+				"bool"));
 			FunctionDefinition? opDelete = constructedDefinition is null ? null : FindDeleteMethod(constructedDefinition);
 			if (opDelete is null && constructedDefinition is not null)
 				opDelete = FindCallableDeleteMethod(constructedDefinition, declaration.SourceSyntax);
-			currentCleanupScopes[^1].Statements.Add(new ExpressionStatement
+			ExpressionStatement cleanup = new()
 			{
 				SourceSyntax = declaration.SourceSyntax,
 				ResolvedType = "void",
@@ -1044,7 +1059,8 @@ public sealed partial class BindableNodeAnalyzer
 					CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? ErrorType),
 					opDelete,
 					deallocate: false)
-			});
+			};
+			cleanupScope.Statements.Add(CreateGuardedCleanup(activeTarget, cleanup));
 		}
 		return true;
 	}

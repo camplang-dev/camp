@@ -115,6 +115,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AppendCleanupScopeExit(List<Statement> statements, CleanupScope cleanupScope)
 	{
+		if (cleanupScope.PreludeStatements.Count > 0)
+			statements.InsertRange(0, cleanupScope.PreludeStatements);
 		if (cleanupScope.ExitLabelName is null)
 			return;
 		statements.Add(new LabelStatement { Name = cleanupScope.ExitLabelName, ResolvedType = "void" });
@@ -170,15 +172,75 @@ public sealed partial class BindableNodeAnalyzer
 			return value;
 
 		string valueType = value.ResolvedType ?? finallyDelete.ResolvedType ?? ErrorType;
-		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("finally"), valueType, new NamedTypeReference { Name = valueType, ResolvedType = valueType }, value);
-		currentStatementPrefix.Add(local);
+		CleanupScope cleanupScope = currentCleanupScopes[^1];
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("finally"), valueType, new NamedTypeReference { Name = valueType, ResolvedType = valueType }, new DefaultExpression { ResolvedType = valueType });
+		cleanupScope.PreludeStatements.Add(local);
+		currentStatementPrefix.Add(CreateAssignmentStatement(
+			CreateVariableReference(local.Target, local.Target.ResolvedType ?? valueType),
+			value,
+			valueType));
+		DeclarationTarget activeTarget = CreateCleanupActiveFlag(cleanupScope);
+		currentStatementPrefix.Add(CreateAssignmentStatement(
+			CreateVariableReference(activeTarget, "bool"),
+			BoolLiteral(true),
+			"bool"));
 		Expression reference = CreateVariableReference(local.Target, local.Target.ResolvedType ?? valueType);
-		currentCleanupScopes[^1].Statements.Add(new ExpressionStatement
+		ExpressionStatement cleanup = new()
 		{
 			ResolvedType = "void",
 			Expression = RewriteDeleteExpression(CreateVariableReference(local.Target, local.Target.ResolvedType ?? valueType))
-		});
+		};
+		cleanupScope.Statements.Add(CreateGuardedCleanup(activeTarget, cleanup));
 		return reference;
+	}
+
+	DeclarationTarget CreateCleanupActiveFlag(CleanupScope cleanupScope)
+	{
+		DeclarationStatement active = CreateGeneratedLocal(NewGeneratedLocalName("cleanupActive"), "bool", new NamedTypeReference { Name = "bool", ResolvedType = "bool" }, BoolLiteral(false));
+		cleanupScope.PreludeStatements.Add(active);
+		return active.Target;
+	}
+
+	Statement CreateGuardedCleanup(DeclarationTarget activeTarget, Statement cleanup)
+	{
+		return new IfStatement
+		{
+			ResolvedType = "void",
+			Condition = CreateVariableReference(activeTarget, "bool"),
+			Body = CreateBlock([
+				cleanup,
+				CreateAssignmentStatement(
+					CreateVariableReference(activeTarget, "bool"),
+					BoolLiteral(false),
+					"bool")
+			])
+		};
+	}
+
+	static ExpressionStatement CreateAssignmentStatement(Expression target, Expression? value, string resolvedType)
+	{
+		return new ExpressionStatement
+		{
+			ResolvedType = "void",
+			Expression = new AssignmentExpression
+			{
+				Target = target,
+				Operator = AssignmentOperator.Assign,
+				Value = value,
+				ResolvedType = resolvedType
+			}
+		};
+	}
+
+	static LiteralExpression BoolLiteral(bool value)
+	{
+		return new LiteralExpression
+		{
+			Kind = value ? LiteralKind.True : LiteralKind.False,
+			Text = value ? "true" : "false",
+			Value = value,
+			ResolvedType = "bool"
+		};
 	}
 
 	Statement WithPendingCleanups(Statement transfer)

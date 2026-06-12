@@ -4,6 +4,8 @@ using Std::Time;
 export int main()
 {
 	Date leap = { 2024, 2, 29 };
+	if (leap.year != 2024 || leap.month != 2 || leap.day != 29)
+		return 38;
 	if (!leap.isValid() || !leap.LeapYear || leap.DaysInMonth != 29)
 		return 1;
 	if (leap.Weekday != THURSDAY)
@@ -22,6 +24,8 @@ export int main()
 		return 6;
 
 	TimeOfDay noon = { 14, 5, 30, 128 };
+	if (noon.hour != 14 || noon.minute != 5 || noon.second != 30)
+		return 39;
 	if (!noon.isValid() || noon.Ms != 500)
 		return 7;
 	TimeSpan sinceMidnight = noon.SinceMidnight;
@@ -42,6 +46,8 @@ export int main()
 	if (halfHourIso.compareTo("+09:30") != 0)
 		return 12;
 	UtcOffset utc = UtcOffset.UTC;
+	if (UtcOffset.INVALID.isValid())
+		return 40;
 	string utcIso = utc.copyString() finally delete;
 	if (utcIso.compareTo("Z") != 0)
 		return 13;
@@ -65,6 +71,10 @@ export int main()
 		return 18;
 
 	Instant epoch = Instant.fromUnixMs(0);
+	if (Instant.UNIX_EPOCH.UnixMs != 0)
+		return 41;
+	if (Instant.fromUnixMs(0).UnixMs != 0)
+		return 44;
 	string epochIso = epoch.copyIsoString() finally delete;
 	if (epochIso.compareTo("1970-01-01T00:00:00Z") != 0)
 		return 19;
@@ -123,6 +133,12 @@ export int main()
 		return 30;
 
 	Date failed = { 1, 1, 1 };
+	Date invalidConstant = Date.INVALID;
+	if (invalidConstant.year != 0 || invalidConstant.isValid())
+		return 42;
+	TimeOfDay midnight = TimeOfDay.MIDNIGHT;
+	if (midnight.hour != 0 || !midnight.isValid())
+		return 43;
 	if ("2023-02-29".tryParse(out failed) || failed.isValid())
 		return 31;
 	TimeOfDay failedTime = { 1, 1, 1, 1 };
