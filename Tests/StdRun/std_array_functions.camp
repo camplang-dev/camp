@@ -31,13 +31,19 @@ export int main()
 	if (Array_binarySearch<int>(destination, 9, compareInt) != -1)
 		return 5;
 
+	int[] duplicated;
+	duplicated = Array_copyArray<int>(destination, sizeof(int), null);
+	if (duplicated.length != 4 || duplicated[0] != 1 || duplicated[3] != 4)
+		return 6;
+	delete duplicated;
+
 	Array_clear<int>(source);
 	if (source[0] != 0 || source[1] != 0 || source[2] != 0 || source[3] != 0)
-		return 6;
+		return 7;
 
 	Array_copyFrom<int>(source, destination);
 	if (source[0] != 1 || source[1] != 2 || source[2] != 3 || source[3] != 4)
-		return 7;
+		return 8;
 
 	return 0;
 }

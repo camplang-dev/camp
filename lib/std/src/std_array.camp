@@ -6,6 +6,13 @@ export void clear<T: any>(T[] this, sizeof(T))
 		this[i] = default;
 }
 
+export T[] copyArray<T: any>(const T[] this, within allocator, sizeof(T))
+{
+	T[] elements = new T[this.length];
+	this.copyTo<T>(elements);
+	return elements;
+}
+
 export void copyTo<T: any>(const T[] this, T[] destination, sizeof(T))
 {
 	nuint count = this.length;
