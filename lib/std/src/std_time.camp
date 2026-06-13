@@ -240,12 +240,12 @@ export newtype Instant: long
 	// Allocates. Example: "2026-06-12T18:30:00.124Z".
 	// Always computes, even when value is considered "invalid".
 	// Returns null only if allocation fails
-	export string copyIsoString(within allocator)
+	export string copyString(within allocator)
 	{
 		DateTime utc = this.getUtcDateTime();
 		if (!utc.isValid())
 			return null;
-		string text = utc.copyIsoString();
+		string text = utc.copyString();
 		if (text == null)
 			return null;
 		nuint length = text.Length;
@@ -326,7 +326,7 @@ export struct Date
 	// Year is always 4 digits, maxes out at 9999. Month/Day always two digits, maxes out at 99.
 	// Out-of-range month/day is not checked (put in month 14 and day 78 and that's what you get)
 	// Returns null only if allocation fails
-	export string copyIsoString(within allocator)
+	export string copyString(within allocator)
 	{
 		char[] buffer = new char[11];
 		if (buffer.elements == null)
@@ -371,7 +371,7 @@ export struct TimeOfDay
 	// Out-of-range field values are not checked, written using max 99
 	// (Invalid) example: { .hour = 27, .minute = 160, .second = 5 } -> "27:99:05"
 	// Returns null only if allocation fails
-	export string copyIsoString(within allocator)
+	export string copyString(within allocator)
 	{
 		ushort ms = this.getMs();
 		nuint length = ms == 0 ? 8 : 12;
@@ -449,14 +449,14 @@ export struct DateTime
 
 	// Allocates. Examples: "2026-06-12T14:05:30", "2026-06-12T14:05:30.500".
 	// Returns null if this is invalid or allocation fails.
-	export string copyIsoString(within allocator)
+	export string copyString(within allocator)
 	{
 		if (!this.isValid())
 			return null;
-		string date = this.date.copyIsoString();
+		string date = this.date.copyString();
 		if (date == null)
 			return null;
-		string time = this.time.copyIsoString();
+		string time = this.time.copyString();
 		if (time == null)
 		{
 			delete date;
@@ -536,9 +536,9 @@ export struct OffsetDateTime
 
 	// Allocates. Example: "2026-06-12T14:05:30.500-04:00".
 	// Returns null only if allocation fails.
-	export string copyIsoString(within allocator)
+	export string copyString(within allocator)
 	{
-		string dateTime = this.local.copyIsoString();
+		string dateTime = this.local.copyString();
 		if (dateTime == null)
 			return null;
 		string offset = this.offset.copyString();
