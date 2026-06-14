@@ -5,6 +5,7 @@
 static int DateFormatter_plusOne(fn_int_voidPtr__int_ this, void* this_context);
 static bool tryParseInt(const char* text, uintptr_t text_length, int *value);
 static int Date_format(Date *this, int adjust);
+static uintptr_t Point_format(Point *this, char* buffer, uintptr_t buffer_length);
 static int main(void);
 
 static int DateFormatter_plusOne(fn_int_voidPtr__int_ this, void* this_context)
@@ -23,6 +24,11 @@ static int Date_format(Date *this, int adjust)
 	return (this->year + adjust);
 }
 
+static uintptr_t Point_format(Point *this, char* buffer, uintptr_t buffer_length)
+{
+	return buffer_length;
+}
+
 static int main(void)
 {
 	ParseInt parser = tryParseInt;
@@ -33,7 +39,11 @@ static int main(void)
 	void* formatter_context = date;
 	int dateValue = formatter(formatter_context, 4);
 	int extra = DateFormatter_plusOne((fn_int_voidPtr__int_)formatter, formatter_context);
-	return (ok ? ((parsed + dateValue) + extra) : 1);
+	Point* point = NULL;
+	fn_nuint_voidPtr__charPtr__nuint_ charFormatter = (uintptr_t (* )(void* arg0, char* arg1, uintptr_t arg2))Point_format;
+	void* charFormatter_context = point;
+	uintptr_t formatted = charFormatter(charFormatter_context, 0, 0);
+	return (ok ? (((parsed + dateValue) + extra) + (int)(formatted)) : 1);
 }
 
 // file: callable_ascription_private.h
@@ -46,13 +56,16 @@ static int main(void)
 
 /* Forward declarations. */
 typedef struct Date Date;
+typedef struct Point Point;
 
 /* Newtypes. */
 typedef bool (* ParseInt)(const char* arg0, uintptr_t arg1, int* arg2);
 typedef int (* DateFormatter)(int arg0);
+typedef uintptr_t (* CharFormatter)(char* arg0, uintptr_t arg1);
 
 /* Callable typedefs. */
 typedef int (* fn_int_voidPtr__int_)(void* arg0, int arg1);
+typedef uintptr_t (* fn_nuint_voidPtr__charPtr__nuint_)(void* arg0, char* arg1, uintptr_t arg2);
 
 /* Enums. */
 
@@ -60,6 +73,10 @@ typedef int (* fn_int_voidPtr__int_)(void* arg0, int arg1);
 struct Date
 {
 	int year;
+};
+struct Point
+{
+	char _camp_empty;
 };
 
 /* Function declarations. */

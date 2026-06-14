@@ -169,8 +169,11 @@ public sealed partial class BindableNodeAnalyzer
 		return parameters;
 	}
 
-	static bool CallableShapesCompatible(CallableShape source, CallableShape target)
+	bool CallableShapesCompatible(CallableShape source, CallableShape target)
 	{
+		source = ExpandCallableShape(source);
+		target = ExpandCallableShape(target);
+
 		if (source.Parameters.Count != target.Parameters.Count)
 			return false;
 
@@ -181,6 +184,11 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return source.Spec == target.Spec && source.CallSpec == target.CallSpec && source.ReturnType == target.ReturnType;
+	}
+
+	CallableShape ExpandCallableShape(CallableShape shape)
+	{
+		return new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, GetExpandedCallableParameterTypes(shape.Parameters));
 	}
 
 	static string? GetLambdaParameterSymbolName(LambdaParameter parameter)

@@ -20,6 +20,7 @@ public sealed partial class BindableNodeAnalyzer
 		CollectTypeNames(module);
 		CollectAliasNames(module);
 		ResolveAliases();
+		AnalyzeNewtypeSignatures(module);
 
 		foreach (UsingDeclaration usingDeclaration in module.Usings)
 		{
@@ -60,6 +61,14 @@ public sealed partial class BindableNodeAnalyzer
 			else
 				typeInfos[typeDefinition] = new TypeAnalysisInfo(typeDefinition);
 		}
+	}
+
+	void AnalyzeNewtypeSignatures(Module module)
+	{
+		AnalysisScope scope = new();
+		foreach (Definition definition in module.Definitions)
+			if (definition is NewtypeDefinition newtypeDefinition)
+				AnalyzeNewtypeSignature(newtypeDefinition, scope);
 	}
 
 	void AnalyzeDefinition(Definition definition, AnalysisScope parentScope)
@@ -340,14 +349,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeNewtypeDefinition(NewtypeDefinition definition, AnalysisScope parentScope)
 	{
-		ApplySymbolAttribute(definition, allowed: false, "type");
-		AnalysisScope scope = CreateTypeScope(definition, parentScope);
-		definition.ResolvedType = definition.Name;
-		AnalyzeGenericParameters(definition.GenericParameters, scope);
-		AnalyzeOptionalType(definition.UnderlyingType, scope);
-
-		foreach (ParameterDefinition parameter in definition.Parameters)
-			AnalyzeParameterDefinition(parameter, scope);
+		AnalysisScope scope = AnalyzeNewtypeSignature(definition, parentScope);
 
 		foreach (FieldDefinition field in definition.Fields)
 			AnalyzeFieldDefinition(field, scope, definition);
@@ -355,6 +357,23 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
 		ValidateDuplicateMethodNames(definition.Functions);
+	}
+
+	AnalysisScope AnalyzeNewtypeSignature(NewtypeDefinition definition, AnalysisScope parentScope)
+	{
+		AnalysisScope scope = CreateTypeScope(definition, parentScope);
+		if (!analyzedNewtypeSignatures.Add(definition))
+			return scope;
+
+		ApplySymbolAttribute(definition, allowed: false, "type");
+		definition.ResolvedType = definition.Name;
+		AnalyzeGenericParameters(definition.GenericParameters, scope);
+		AnalyzeOptionalType(definition.UnderlyingType, scope);
+
+		foreach (ParameterDefinition parameter in definition.Parameters)
+			AnalyzeParameterDefinition(parameter, scope);
+
+		return scope;
 	}
 
 	void AnalyzeParamsDefinition(ParamsDefinition definition, AnalysisScope parentScope)

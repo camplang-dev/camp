@@ -22,6 +22,16 @@ class Date
 	}
 }
 
+class Point
+{
+	nuint format(char[] buffer = default) : CharFormatter
+	{
+		return buffer.length;
+	}
+}
+
+newtype delegate nuint CharFormatter(char[] buffer = default);
+
 int main()
 {
 	ParseInt parser = tryParseInt;
@@ -32,6 +42,9 @@ int main()
 	DateFormatter formatter = date.format;
 	int dateValue = formatter();
 	int extra = formatter.plusOne();
+	Point* point = null;
+	CharFormatter charFormatter = point.format;
+	nuint formatted = charFormatter();
 
-	return ok ? parsed + dateValue + extra : 1;
+	return ok ? parsed + dateValue + extra + (int)formatted : 1;
 }

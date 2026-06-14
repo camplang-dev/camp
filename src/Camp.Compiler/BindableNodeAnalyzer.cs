@@ -60,6 +60,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<Expression, Expression> expressionRewrites = [];
 	readonly Dictionary<TypeReference, TypeReference> typeRewrites = [];
 	readonly Dictionary<FunctionDefinition, ParameterDefinition> materializedGenericReturnParameters = [];
+	readonly HashSet<NewtypeDefinition> analyzedNewtypeSignatures = [];
 	readonly TargetDefinition? selectedTarget;
 	readonly string? selectedMemoryModel;
 	Module? currentModule;
@@ -435,7 +436,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (ParameterDefinition parameter in parameters)
 		{
-			string type = parameter.ResolvedType ?? ErrorType;
+			string type = GetParameterTypeName(parameter);
 			yield return parameter.Modifier switch
 			{
 				ParameterModifier.In => "in " + type,
@@ -444,6 +445,11 @@ public sealed partial class BindableNodeAnalyzer
 				_ => type
 			};
 		}
+	}
+
+	static string GetParameterTypeName(ParameterDefinition parameter)
+	{
+		return parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type) ?? ErrorType;
 	}
 
 	static string BuildAnchoredDeclarator(string keyword, List<string> anchors)

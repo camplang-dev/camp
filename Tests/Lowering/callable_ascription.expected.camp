@@ -20,6 +20,16 @@ struct Date
 		return this.year + adjust;
 	}
 }
+
+class Point
+{
+	nuint format(char* buffer = default, nuint buffer_length) : CharFormatter
+	{
+		return buffer_length;
+	}
+}
+
+newtype delegate nuint CharFormatter(char[] buffer = default);
 void main(Date date)
 {
 	auto parser = tryParseInt;
@@ -28,4 +38,7 @@ void main(Date date)
 	fn int(void*, int) unbound;
 	void* unbound_context;
 	auto value = DateFormatter_plusOne(bound, bound_context);
+	Point* point = null;
+	fn nuint(void*, char*, nuint) formatter = Point_format;
+	void* formatter_context = point;
 }
