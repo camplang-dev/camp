@@ -677,6 +677,7 @@ public sealed partial class BindableNodeAnalyzer
 			definition.ResolvedType = "void";
 		else
 			definition.ResolvedType = AnalyzeOptionalType(definition.ReturnType, scope) ?? ErrorType;
+		AnalyzeOptionalType(definition.CallableAscriptionType, scope);
 
 		ValidateFunctionModifiers(definition);
 		ValidateGenericArgumentUse(definition.ReturnType);
@@ -686,6 +687,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeOverloadDeclaration(definition, containingType);
 		ValidateIteratorGeneratorParameters(definition);
 		ValidateIndexAwareParameters(definition);
+		ValidateCallableAscription(definition, containingType);
 
 		ValidateExpandedParameterNames(definition.Parameters);
 
@@ -695,6 +697,85 @@ public sealed partial class BindableNodeAnalyzer
 			definition.Symbol = BuildExtensionFunctionSymbol(GetCallableName(definition), thisParameter.ResolvedType ?? ErrorType, definition);
 		else if (containingType is null && !definition.SymbolOverridden && HasOverloadSelector(definition))
 			definition.Symbol = GetCallableName(definition);
+	}
+
+	void ValidateCallableAscription(FunctionDefinition definition, string? containingType)
+	{
+		if (definition.CallableAscriptionType is null)
+			return;
+
+		SyntaxNode? syntax = definition.CallableAscriptionType.SourceSyntax ?? definition.SourceSyntax;
+		string declarationName = GetCallableName(definition);
+		if (definition.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor)
+		{
+			Report(GetRange(syntax), $"Callable ascription on declaration '{declarationName}' is only valid on ordinary functions and methods.");
+			return;
+		}
+
+		if (definition.CallableAscriptionType is CallableTypeReference or IterTypeReference)
+		{
+			Report(GetRange(syntax), $"Callable ascription on declaration '{declarationName}' must name a callable newtype, not an anonymous callable type.");
+			return;
+		}
+
+		string targetType = BaseTypeName(definition.CallableAscriptionType.ResolvedType ?? ErrorType);
+		if (targetType.StartsWith(UnresolvedType, StringComparison.Ordinal) || targetType == ErrorType)
+			return;
+
+		if (!typeDefinitions.TryGetValue(targetType, out TypeDefinition? targetDefinition))
+		{
+			Report(GetRange(syntax), $"Callable ascription target '{targetType}' for declaration '{declarationName}' could not be resolved.");
+			return;
+		}
+
+		if (targetDefinition is not NewtypeDefinition newtypeDefinition)
+		{
+			Report(GetRange(syntax), $"Callable ascription target '{targetDefinition.Name}' for declaration '{declarationName}' is not a newtype.");
+			return;
+		}
+
+		string family = GetCallableNewtypeFamily(newtypeDefinition);
+		if (family == "value")
+		{
+			Report(GetRange(syntax), $"Callable ascription target '{newtypeDefinition.Name}' for declaration '{declarationName}' is a value newtype, not a callable newtype.");
+			return;
+		}
+
+		definition.CallableAscriptionNewtype = newtypeDefinition;
+
+		if (family is "once" or "async" or "async iter")
+		{
+			Report(GetRange(syntax), $"Callable ascription to {family} newtype '{newtypeDefinition.Name}' on declaration '{declarationName}' is not implemented yet.");
+			return;
+		}
+
+		bool receiverBearing = IsReceiverBearingDeclaration(definition);
+		if (!receiverBearing && family != "fn")
+		{
+			Report(GetRange(syntax), $"Receiverless declaration '{declarationName}' cannot ascribe {family} newtype '{newtypeDefinition.Name}'; use a fn newtype.");
+			return;
+		}
+		if (receiverBearing && family == "fn")
+		{
+			Report(GetRange(syntax), $"Receiver-bearing declaration '{declarationName}' cannot ascribe fn newtype '{newtypeDefinition.Name}'; use a delegate or iter newtype.");
+			return;
+		}
+
+		string sourceType = BuildCallableAscriptionSourceType(definition, family, receiverBearing);
+		if (!TryGetCallableShape(sourceType, out CallableShape sourceShape)
+			|| !TryGetCallableShape(newtypeDefinition.Name, out CallableShape targetShape)
+			|| !CallableShapesCompatible(sourceShape, targetShape))
+		{
+			Report(GetRange(syntax), $"Callable ascription target '{newtypeDefinition.Name}' is not compatible with declaration '{declarationName}'.");
+		}
+	}
+
+	string BuildCallableAscriptionSourceType(FunctionDefinition definition, string family, bool receiverBearing)
+	{
+		if (family == "iter" && definition.ReturnType is IterTypeReference)
+			return definition.ResolvedType ?? definition.ReturnType.ResolvedType ?? ErrorType;
+
+		return BuildFunctionValueType(definition, receiverBearing);
 	}
 
 	void ValidateIteratorGeneratorParameters(FunctionDefinition definition)

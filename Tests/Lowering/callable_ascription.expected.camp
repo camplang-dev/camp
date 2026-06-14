@@ -1,0 +1,31 @@
+newtype fn bool ParseInt(const char[] text, out int value);
+
+newtype delegate int DateFormatter(int adjust = 4);
+int plusOne(fn int(void*, int) this, void* this_context)
+{
+	return this(this_context, 4) + 1;
+}
+bool tryParseInt(const char* text, nuint text_length, out int value) : ParseInt
+{
+	value = (int)text_length;
+	return true;
+}
+
+struct Date
+{
+	int year;
+
+	int format(int adjust) : DateFormatter
+	{
+		return this.year + adjust;
+	}
+}
+void main(Date date)
+{
+	auto parser = tryParseInt;
+	fn int(void*, int) bound = Date_format;
+	void* bound_context = date;
+	fn int(void*, int) unbound;
+	void* unbound_context;
+	auto value = DateFormatter_plusOne(bound, bound_context);
+}

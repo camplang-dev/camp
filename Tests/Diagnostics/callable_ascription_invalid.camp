@@ -1,0 +1,39 @@
+newtype fn bool Parser(const char[] text, out int value);
+newtype delegate bool ParserDelegate(const char[] text, out int value);
+newtype once bool ParserOnce(const char[] text, out int value);
+newtype ValueAlias: int;
+
+bool anonymousTarget(const char[] text, out int value) : fn bool(const char[] text, out int value)
+{
+	value = 0;
+	return false;
+}
+
+bool valueTarget(const char[] text, out int value) : ValueAlias
+{
+	value = 0;
+	return false;
+}
+
+bool receiverlessDelegate(const char[] text, out int value) : ParserDelegate
+{
+	value = 0;
+	return false;
+}
+
+bool unsupportedOnce(const char[] text, out int value) : ParserOnce
+{
+	value = 0;
+	return false;
+}
+
+struct Date
+{
+	bool receiverFn(out int value) : Parser
+	{
+		value = this.year;
+		return true;
+	}
+
+	int year;
+}

@@ -698,6 +698,9 @@ public sealed partial class BindableNodeBuilder
 			definition.ReturnType = BuildTypeReference(syntax.Type, allowIteratorStorage: true);
 		}
 
+		if (syntax.CallableAscriptionType is not null)
+			definition.CallableAscriptionType = BuildTypeReference(syntax.CallableAscriptionType, allowIteratorStorage: true);
+
 		if (syntax.ParameterList is null)
 			Report(syntax, "Method declaration is missing a parameter list.");
 		else

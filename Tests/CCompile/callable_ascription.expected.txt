@@ -1,0 +1,72 @@
+// file: callable_ascription.c
+#include "callable_ascription_private.h"
+
+/* Private file declarations. */
+static int DateFormatter_plusOne(fn_int_voidPtr__int_ this, void* this_context);
+static bool tryParseInt(const char* text, uintptr_t text_length, int *value);
+static int Date_format(Date *this, int adjust);
+static int main(void);
+
+static int DateFormatter_plusOne(fn_int_voidPtr__int_ this, void* this_context)
+{
+	return (this(this_context, 4) + 1);
+}
+
+static bool tryParseInt(const char* text, uintptr_t text_length, int *value)
+{
+	(*value) = (int)(text_length);
+	return true;
+}
+
+static int Date_format(Date *this, int adjust)
+{
+	return (this->year + adjust);
+}
+
+static int main(void)
+{
+	ParseInt parser = tryParseInt;
+	int parsed = 0;
+	bool ok = parser("123", 3, &parsed);
+	Date* date = NULL;
+	fn_int_voidPtr__int_ formatter = (int (* )(void* arg0, int arg1))Date_format;
+	void* formatter_context = date;
+	int dateValue = formatter(formatter_context, 4);
+	int extra = DateFormatter_plusOne((fn_int_voidPtr__int_)formatter, formatter_context);
+	return (ok ? ((parsed + dateValue) + extra) : 1);
+}
+
+// file: callable_ascription_private.h
+#ifndef CALLABLE_ASCRIPTION_PRIVATE_H_
+#define CALLABLE_ASCRIPTION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Date Date;
+
+/* Newtypes. */
+typedef bool (* ParseInt)(const char* arg0, uintptr_t arg1, int* arg2);
+typedef int (* DateFormatter)(int arg0);
+
+/* Callable typedefs. */
+typedef int (* fn_int_voidPtr__int_)(void* arg0, int arg1);
+
+/* Enums. */
+
+/* Layouts. */
+struct Date
+{
+	int year;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: callable_ascription.c

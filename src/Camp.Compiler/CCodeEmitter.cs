@@ -151,8 +151,8 @@ public static class CCodeEmitter
 		HashSet<BindableNode> visited = [];
 		foreach (BindableNode node in EnumerateNodes(compilation.SharedModule, visited))
 		{
-			if (node is LiteralExpression or AttributeConstructor)
-				continue;
+            if (node is LiteralExpression or AttributeConstructor or InitializerItem)
+                continue;
 			if (node.ResolvedType is string resolvedType && InvalidResolvedTypes.Contains(resolvedType))
 			{
 				result.Diagnostics.Add($"C emission aborted because {node.GetType().Name} has unresolved type '{resolvedType}'.");
@@ -1234,7 +1234,7 @@ public static class CCodeEmitter
 			string name = CName(definition);
 			if (definition.UnderlyingType is CallableTypeReference callable)
 			{
-				writer.WriteLine(FormatCallableTypedef(callable, name) + ";");
+				writer.WriteLine(FormatCallableTypedef(callable, definition.Parameters, name) + ";");
 				return;
 			}
 
@@ -1265,6 +1265,10 @@ public static class CCodeEmitter
 				string declarator = "arg" + i.ToString(CultureInfo.InvariantCulture);
 				if (parameterType.StartsWith("in ", StringComparison.Ordinal))
 					parts.Add(FormatResolvedType(parameterType[3..].TrimStart() + "*", declarator).Declaration);
+				else if (parameterType.StartsWith("out ", StringComparison.Ordinal))
+					parts.Add(FormatResolvedType(parameterType[4..].TrimStart() + "*", declarator).Declaration);
+				else if (parameterType.StartsWith("thrown ", StringComparison.Ordinal))
+					parts.Add(FormatResolvedType(parameterType[7..].TrimStart() + "*", declarator).Declaration);
 				else
 					parts.Add(FormatResolvedType(parameterType, declarator).Declaration);
 			}
@@ -1738,7 +1742,7 @@ public static class CCodeEmitter
 			WriteIndent(writer, indent);
 			writer.Write(type);
 			if (declaration.InitialValue is not null)
-				writer.Write(" = " + FormatExpression(declaration.InitialValue));
+				writer.Write(" = " + FormatAssignmentValueForTarget(declaration.Target.ResolvedType, declaration.InitialValue));
 			writer.WriteLine(";");
 		}
 
@@ -2091,14 +2095,22 @@ public static class CCodeEmitter
 			}
 			string value = FormatExpression(assignment.Value);
 			if (assignment.Operator == AssignmentOperator.Assign
-				&& assignment.Target?.ResolvedType is string targetType
-				&& TryFormatResolvedCallableCast(targetType, out string callableCast)
-				&& IsCallableSymbolExpression(assignment.Value)
-				&& ShouldCastCallableAssignment(assignment.Value!, targetType))
-			{
-				value = "(" + callableCast + ")" + value;
-			}
+				&& assignment.Target?.ResolvedType is string targetType)
+				value = FormatAssignmentValueForTarget(targetType, assignment.Value!);
 			return FormatExpression(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + value;
+		}
+
+		string FormatAssignmentValueForTarget(string? targetType, Expression value)
+		{
+			string formatted = FormatExpression(value);
+			if (targetType is not null
+				&& TryFormatResolvedCallableCast(targetType, out string callableCast)
+				&& IsCallableSymbolExpression(value)
+				&& ShouldCastCallableAssignment(value, targetType))
+			{
+				return "(" + callableCast + ")" + formatted;
+			}
+			return formatted;
 		}
 
 		List<ParameterDefinition> GetCallableParametersForExpression(Expression? expression)
@@ -3150,6 +3162,58 @@ public static class CCodeEmitter
 		string FormatCallableTypedef(CallableTypeReference callable, string name)
 		{
 			return "typedef " + FormatCallableDeclarator(callable, name);
+		}
+
+		string FormatCallableTypedef(CallableTypeReference callable, List<ParameterDefinition> parameters, string name)
+		{
+			if (parameters.Count == 0)
+				return FormatCallableTypedef(callable, name);
+
+			string callSpec = FormatCallSpec(callable.CallSpec);
+			string targetSpec = FormatTypeSpec(callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true));
+			string pointer = "*";
+			if (targetSpec.Length > 0)
+				pointer += " " + targetSpec;
+			if (callSpec.Length > 0)
+				pointer += " " + callSpec;
+			string declarator = "(" + pointer + " " + name + ")";
+			return "typedef " + FormatType(callable.ReturnType, declarator).Declaration + "(" + FormatResolvedParameterList(GetExpandedCallableParameterTypesForC(parameters)) + ")";
+		}
+
+		static List<string> GetExpandedCallableParameterTypesForC(List<ParameterDefinition> parameters)
+		{
+			List<string> types = [];
+			foreach (ParameterDefinition parameter in parameters)
+			{
+				string parameterType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "";
+				if (TryGetArrayElementOnly(parameterType, out string arrayElementType))
+				{
+					types.Add(arrayElementType + "*");
+					types.Add("nuint");
+					continue;
+				}
+				if (TryGetOptionalElementOnly(parameterType, out string optionalElementType))
+				{
+					types.Add(optionalElementType);
+					types.Add("bool");
+					continue;
+				}
+				if (TryParseExpandedCallableStorageType(parameterType, out string callableReturnType, out List<string> callableParameterTypes))
+				{
+					types.Add("fn " + callableReturnType + "(" + string.Join(", ", ["void*", .. callableParameterTypes]) + ")");
+					types.Add("void*");
+					continue;
+				}
+
+				types.Add(parameter.Modifier switch
+				{
+					ParameterModifier.In => "in " + parameterType,
+					ParameterModifier.Out => "out " + parameterType,
+					ParameterModifier.Thrown => "thrown " + parameterType,
+					_ => parameterType
+				});
+			}
+			return types;
 		}
 
 		string FormatCallableDeclarator(CallableTypeReference callable, string name)

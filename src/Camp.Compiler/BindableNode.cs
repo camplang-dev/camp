@@ -125,6 +125,8 @@ public class FunctionDefinition : Definition
 	public string InvokerName { get; set; } = "";
 	public string FullCallableName { get; set; } = "";
 	public TypeReference? ReturnType { get; set; }
+	public TypeReference? CallableAscriptionType { get; set; }
+	public NewtypeDefinition? CallableAscriptionNewtype { get; set; }
 	public TypeReference? AbiThisType { get; set; }
 	public TypeReference? ImplementationThisType { get; set; }
 	public List<GenericParameter> GenericParameters { get; } = [];

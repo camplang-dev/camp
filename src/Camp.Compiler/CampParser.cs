@@ -372,6 +372,14 @@ public sealed class CampParser
 		if (Is("("))
 			syntax.ParameterList = ParseParameterList();
 
+		if (Is(":"))
+		{
+			syntax.CallableAscriptionColonToken = Take();
+			syntax.CallableAscriptionType = ParseType();
+			if (syntax.CallableAscriptionType is null)
+				Report(Current, "Callable ascription is missing a type.");
+		}
+
 		if (Is(";"))
 			syntax.SemicolonToken = Take();
 		else if (Is("{") || IsOperator("=>"))

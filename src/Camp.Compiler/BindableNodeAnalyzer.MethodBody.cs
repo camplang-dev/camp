@@ -8,6 +8,7 @@ public sealed partial class BindableNodeAnalyzer
 {
 	readonly Dictionary<Expression, bool> expressionConstants = [];
 	readonly Dictionary<CallExpression, FunctionDefinition> callTargets = [];
+	readonly Dictionary<CallExpression, List<ParameterDefinition>> callableInvocationParameters = [];
 	readonly Dictionary<CallExpression, Dictionary<string, string>> callGenericSubstitutions = [];
 	readonly Dictionary<FunctionDefinition, Dictionary<string, LabelStatement>> functionLabels = [];
 
@@ -676,7 +677,7 @@ public sealed partial class BindableNodeAnalyzer
 			MethodReferenceExpression method = new()
 			{
 				SourceSyntax = named.SourceSyntax,
-				ResolvedType = BuildFunctionValueType(functions[0], IsInstanceFunction(functions[0]))
+				ResolvedType = BuildFunctionValueType(functions[0], IsInstanceFunction(functions[0]), allowCallableAscription: !IsReceiverBearingDeclaration(functions[0]))
 			};
 			method.Candidates.Add(functions[0]);
 			expressionRewrites[named] = method;
@@ -837,6 +838,8 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		}
 
+		if (!string.IsNullOrWhiteSpace(method.ResolvedType))
+			return method.ResolvedType;
 		return BuildFunctionValueType(method.Candidates[0], IsInstanceFunction(method.Candidates[0]));
 	}
 
@@ -1221,8 +1224,36 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryGetCallableShape(callableType, out CallableShape callable))
 			return false;
 
+		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, out List<ParameterDefinition>? newtypeParameters)
+			? newtypeParameters!
+			: CreateStructuralCallableParameters(callable.Parameters);
+
+		callableInvocationParameters[call] = parameters;
+		AnalyzeCallArguments(call.Arguments, parameters, scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
+		returnType = callable.ReturnType;
+		if (targetType is not null)
+			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
+		return true;
+	}
+
+	bool TryGetCallableNewtypeParameters(string callableType, out List<ParameterDefinition>? parameters)
+	{
+		parameters = null;
+		if (!typeDefinitions.TryGetValue(BaseTypeName(callableType), out TypeDefinition? definition)
+			|| definition is not NewtypeDefinition newtypeDefinition
+			|| GetCallableNewtypeFamily(newtypeDefinition) is not ("fn" or "delegate"))
+			return false;
+
+		parameters = [];
+		foreach (ParameterDefinition parameter in newtypeDefinition.Parameters)
+			parameters.Add(CloneParameter(parameter));
+		return true;
+	}
+
+	static List<ParameterDefinition> CreateStructuralCallableParameters(List<string> parameterTypes)
+	{
 		List<ParameterDefinition> parameters = [];
-		foreach (string parameterType in callable.Parameters)
+		foreach (string parameterType in parameterTypes)
 		{
 			string typeName = parameterType;
 			ParameterModifier modifier = ParameterModifier.None;
@@ -1248,12 +1279,7 @@ public sealed partial class BindableNodeAnalyzer
 				Type = new NamedTypeReference { Name = typeName, ResolvedType = typeName }
 			});
 		}
-
-		AnalyzeCallArguments(call.Arguments, parameters, scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
-		returnType = callable.ReturnType;
-		if (targetType is not null)
-			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
-		return true;
+		return parameters;
 	}
 
 	static string SubstituteGenericReturnType(string? returnType, List<TypeReference> typeArguments, Dictionary<string, string>? substitutions = null)
@@ -1401,7 +1427,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (functions.Count > 1 && TrySelectOverload(named.Name, functions, arguments ?? [], scope, typeScope, named.SourceSyntax) is FunctionDefinition selectedNamed)
 				{
 					EnsureFunctionSignatureAnalyzed(selectedNamed, typeScope);
-					named.ResolvedType = BuildFunctionValueType(selectedNamed, IsInstanceFunction(selectedNamed));
+					named.ResolvedType = BuildFunctionValueType(selectedNamed, IsInstanceFunction(selectedNamed), allowCallableAscription: !IsReceiverBearingDeclaration(selectedNamed));
 					expressionRewrites[named] = CreateMethodReference(selectedNamed, named.ResolvedType);
 					return selectedNamed;
 				}
@@ -1432,13 +1458,13 @@ public sealed partial class BindableNodeAnalyzer
 				if (functions.Count > 1 && TrySelectOverload(member.Name, functions, arguments ?? [], scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedMember)
 				{
 					member.ResolvedType = selectedMember.ResolvedType ?? ErrorType;
-					expressionRewrites[member] = CreateMemberReference(member, member.Target, BuildFunctionValueType(selectedMember, isInstance: true), selectedMember);
+					expressionRewrites[member] = CreateMemberReference(member, member.Target, BuildFunctionValueType(selectedMember, isInstance: true, allowCallableAscription: !IsTypeReferenceExpression(member.Target)), selectedMember);
 					return selectedMember;
 				}
 				if (functions.Count == 1)
 				{
 					member.ResolvedType = functions[0].ResolvedType ?? ErrorType;
-					expressionRewrites[member] = CreateMemberReference(member, member.Target, BuildFunctionValueType(functions[0], isInstance: true), functions[0]);
+					expressionRewrites[member] = CreateMemberReference(member, member.Target, BuildFunctionValueType(functions[0], isInstance: true, allowCallableAscription: !IsTypeReferenceExpression(member.Target)), functions[0]);
 					return functions[0];
 				}
 				if (functions.Count > 1)
@@ -2364,7 +2390,7 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope)
 	{
 		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
-		bool isTypeTarget = member.Target is not null && expressionRewrites.TryGetValue(member.Target, out Expression? rewrittenTarget) && rewrittenTarget is TypeReferenceExpression;
+		bool isTypeTarget = IsTypeReferenceExpression(member.Target);
 		List<BodySymbol> members = isTypeTarget
 			? LookupStaticMemberSymbols(targetType, member.Name, member.SourceSyntax)
 			: LookupMemberSymbols(targetType, member.Name, member.SourceSyntax);
@@ -2425,6 +2451,13 @@ public sealed partial class BindableNodeAnalyzer
 			reference.Name = field.Name;
 		expressionRewrites[member] = reference;
 		return memberType;
+	}
+
+	bool IsTypeReferenceExpression(Expression? expression)
+	{
+		return expression is not null
+			&& expressionRewrites.TryGetValue(expression, out Expression? rewrittenTarget)
+			&& rewrittenTarget is TypeReferenceExpression;
 	}
 
 	string BodyAnalyzeUnaryExpression(UnaryExpression unary, BodyScope scope, AnalysisScope typeScope, string? targetType)

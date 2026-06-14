@@ -1,0 +1,5 @@
+tests/Diagnostics/callable_ascription_invalid.camp(6,58): error: Callable ascription on declaration 'anonymousTarget' must name a callable newtype, not an anonymous callable type.
+tests/Diagnostics/callable_ascription_invalid.camp(12,54): error: Callable ascription target 'ValueAlias' for declaration 'valueTarget' is a value newtype, not a callable newtype.
+tests/Diagnostics/callable_ascription_invalid.camp(18,63): error: Receiverless declaration 'receiverlessDelegate' cannot ascribe delegate newtype 'ParserDelegate'; use a fn newtype.
+tests/Diagnostics/callable_ascription_invalid.camp(24,58): error: Callable ascription to once newtype 'ParserOnce' on declaration 'unsupportedOnce' is not implemented yet.
+tests/Diagnostics/callable_ascription_invalid.camp(32,35): error: Receiver-bearing declaration 'receiverFn' cannot ascribe fn newtype 'Parser'; use a delegate or iter newtype.

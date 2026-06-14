@@ -464,6 +464,11 @@ public sealed class BindableNodeCodeSerializer
 
 		WriteGenericParameters(definition.GenericParameters);
 		WriteParameterList(definition.Parameters);
+		if (definition.CallableAscriptionType is not null)
+		{
+			writer.Write(" : ");
+			WriteType(definition.CallableAscriptionType);
+		}
 
 		if (definition.Body is null || apiHeader && definition.Export is not null)
 		{

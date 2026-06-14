@@ -214,6 +214,34 @@ public sealed partial class BindableNodeAnalyzer
 			&& FindContainingType(function) is not null;
 	}
 
+	bool IsReceiverBearingDeclaration(FunctionDefinition function)
+	{
+		if (GetExplicitThisParameter(function) is not null)
+			return true;
+
+		return function.Modifier != FunctionModifier.Static
+			&& function.Modifier != FunctionModifier.Constructor
+			&& !IsDestructorFunction(function)
+			&& FindContainingType(function) is not null;
+	}
+
+	static string GetCallableNewtypeFamily(NewtypeDefinition definition)
+	{
+		return definition.UnderlyingType switch
+		{
+			CallableTypeReference callable => callable.Kind switch
+			{
+				CallableKind.Function => "fn",
+				CallableKind.Delegate => "delegate",
+				CallableKind.Async => "async",
+				CallableKind.Once => "once",
+				_ => "value"
+			},
+			IterTypeReference iter => iter.IsAsync ? "async iter" : "iter",
+			_ => "value"
+		};
+	}
+
 	static string BaseTypeName(string type)
 	{
 		if (new TypeShapeParser(type).TryParse(out TypeShape shape))

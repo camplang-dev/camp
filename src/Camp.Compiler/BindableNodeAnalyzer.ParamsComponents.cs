@@ -119,7 +119,12 @@ public sealed partial class BindableNodeAnalyzer
 				&& TryBuildPendingParamsComponents(newtypeDefinition.UnderlyingType, newtypeDefinition.UnderlyingType.ResolvedType, prefix, out components, out kind, out _)
 				&& kind is ParamsComponentShapeKind.Delegate or ParamsComponentShapeKind.Iter)
 			{
-				if (kind == ParamsComponentShapeKind.Iter && newtypeDefinition.UnderlyingType is IterTypeReference iterType)
+				if (kind == ParamsComponentShapeKind.Delegate && newtypeDefinition.UnderlyingType is CallableTypeReference delegateType)
+				{
+					components = [];
+					AddDelegatePendingComponents(delegateType.ReturnType?.ResolvedType ?? ErrorType, GetExpandedCallableParameterTypes(newtypeDefinition.Parameters), prefix, components);
+				}
+				else if (kind == ParamsComponentShapeKind.Iter && newtypeDefinition.UnderlyingType is IterTypeReference iterType)
 				{
 					components = [];
 					AddIteratorPendingComponents(GetIteratorProtocolCurrentTypes(iterType), GetExpandedCallableParameterTypes(newtypeDefinition.Parameters), prefix, components);

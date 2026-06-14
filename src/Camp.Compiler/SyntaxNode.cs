@@ -125,6 +125,8 @@ public class MemberDeclarationSyntax : SyntaxNode
 	public Token? Identifier { get; set; }
 	public GenericParameterListSyntax? GenericParameterList { get; set; }
 	public ParameterListSyntax? ParameterList { get; set; }
+	public Token? CallableAscriptionColonToken { get; set; }
+	public TypeSyntax? CallableAscriptionType { get; set; }
 	public Token? SemicolonToken { get; set; }
 	public MethodBodySyntax? MethodBody { get; set; }
 	public AssignmentSyntax? Assignment { get; set; }

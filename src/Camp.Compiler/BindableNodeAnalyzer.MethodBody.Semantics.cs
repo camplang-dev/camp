@@ -855,7 +855,7 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
 			{
 				if ((GetSignatureName(function) == name || function.Name == name) && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
-					members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
+					members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), function));
 			}
 			return members;
 		}
@@ -863,7 +863,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
 		{
 			foreach (FunctionDefinition function in LookupExtensionFunctions(targetType, name, referenceSyntax))
-				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
+				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), function));
 			foreach (FunctionDefinition getter in LookupExtensionFunctions(targetType, "get" + name, referenceSyntax))
 			{
 				if (CanCallWithArgumentCount(getter.Parameters, 0))
@@ -912,10 +912,10 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
 		{
 			if (ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
-				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
+				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), function));
 		}
 		foreach (FunctionDefinition function in LookupExtensionFunctions(targetType, name, referenceSyntax))
-			members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
+			members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), function));
 
 		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
 		{
@@ -955,7 +955,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
 		{
 			if (function.Modifier == FunctionModifier.Static)
-				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: false), function));
+				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: false, allowCallableAscription: true), function));
 		}
 		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
 		{
@@ -975,7 +975,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
 		{
 			if ((GetSignatureName(function) == name || function.Name == name) && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
-				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true), function));
+				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), function));
 		}
 		return members;
 	}
@@ -1928,8 +1928,11 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	string BuildFunctionValueType(FunctionDefinition function, bool isInstance)
+	string BuildFunctionValueType(FunctionDefinition function, bool isInstance, bool allowCallableAscription = false)
 	{
+		if (allowCallableAscription && TryGetCallableAscriptionReferenceType(function, isInstance, out string ascribedType))
+			return ascribedType;
+
 		string kind = isInstance ? "delegate" : "fn";
 		List<string> parameters = [];
 		foreach (ParameterDefinition parameter in function.Parameters)
@@ -1948,6 +1951,27 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return $"{kind} {function.ResolvedType ?? ErrorType}({string.Join(", ", parameters)})";
+	}
+
+	bool TryGetCallableAscriptionReferenceType(FunctionDefinition function, bool isInstanceReference, out string ascribedType)
+	{
+		ascribedType = "";
+		if (function.CallableAscriptionNewtype is not NewtypeDefinition newtypeDefinition)
+			return false;
+
+		string family = GetCallableNewtypeFamily(newtypeDefinition);
+		bool receiverBearing = IsReceiverBearingDeclaration(function);
+		if (!isInstanceReference && !receiverBearing && family == "fn")
+		{
+			ascribedType = newtypeDefinition.Name;
+			return true;
+		}
+		if (isInstanceReference && receiverBearing && family is "delegate" or "iter")
+		{
+			ascribedType = newtypeDefinition.Name;
+			return true;
+		}
+		return false;
 	}
 
 	MemberReferenceExpression CreateMemberReference(MemberExpression member, Expression? target, string type, BindableNode node)
