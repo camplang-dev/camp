@@ -438,12 +438,13 @@ The plain `fn` form is just a function signature. It does not carry closure stat
 
 The other callable forms are blessed structural types. Matching shape alone is not enough to participate in delegate, iterator, or async semantics. When code constructs a matching shape without using the keyworded form, an explicit cast such as `(delegate)`, `(iter)`, or `(async)` blesses it.
 
-Delegate-like callable signatures may spell an explicit `this` parameter first in order to qualify the hidden context parameter.
+Context-carrying callable signatures may spell an explicit `this` parameter first in order to qualify the hidden context parameter. The explicit `this` parameter is not an ordinary callable argument. It describes the call context that is supplied by a bound receiver, closure, iterator frame, async frame, or other context-bearing callable value.
 
 Examples:
 
 ```camp
 delegate void(scoped this, const char[] text)
+delegate nuint(const this, char[] buffer)
 once void(escaped this)
 async int(const this, int left, int right)
 ```
@@ -458,7 +459,9 @@ This is permitted for callable forms that carry context:
 
 A plain `fn` signature may not declare `this` because it has no hidden context parameter.
 
-Lifetime annotations written on a delegate-like callable value apply to that hidden context pointer.
+The qualifiers on an explicit callable `this` parameter are part of the callable type. When a bound receiver method reference is converted to a context-carrying callable type, those qualifiers are enforced on the referenced method and on the receiver expression used as the callable context. For example, a target callable with `const this` requires a method callable on a const receiver, and a target callable with `escaped this` requires the bound receiver context to satisfy the escaped receiver requirement.
+
+Lifetime annotations written on a context-carrying callable value apply to the hidden context pointer. An explicit callable `this` parameter is the signature-local way to describe that hidden context's qualifiers.
 
 ### 1.3.1 `fn` versus context-carrying callables
 
@@ -467,7 +470,7 @@ This distinction is central:
 | Form | Meaning |
 |---|---|
 | `fn` | plain callable target |
-| `delegate` / `once` / `iter` / `async` | callable value with compiler-recognized semantics |
+| `delegate` / `once` / `iter` / `async` / `async iter` | callable value with compiler-recognized semantics |
 
 A context-carrying callable can represent:
 
@@ -531,6 +534,22 @@ ReturnType Name(ParameterList)
 {
 	...
 }
+```
+
+A declaration may also ascribe a named callable `newtype` after the parameter list:
+
+```camp
+ReturnType Name(ParameterList) : CallableNewtype
+{
+	...
+}
+```
+
+The same ascription position is used for declarations without bodies and expression-bodied declarations:
+
+```camp
+extern ReturnType Name(ParameterList) : CallableNewtype;
+ReturnType Name(ParameterList) : CallableNewtype => expression;
 ```
 
 Examples:
@@ -644,6 +663,8 @@ void connect(const char[] host, ushort port = 80)
 ```
 
 Default arguments keep the surface compact without introducing constructor-like overload families or ad hoc helper wrappers.
+
+Default values are inserted according to the static signature used by the call. When a callable value has a named callable `newtype`, defaults declared on that callable `newtype` are used for calls through that callable value. Defaults declared on the original function or method are used for direct calls to that function or method. The two signatures do not need to declare the same defaults.
 
 ### 1.4.6 Calls
 
@@ -943,7 +964,251 @@ When `thrown(E)` is the return type, `catch` still appears in the argument list.
 
 A `thrown` parameter is not an `out` parameter.
 
-### 1.4.16 Functions, methods, and callable values
+### 1.4.16 Callable `newtype` ascription
+
+A function-like declaration may ascribe one named callable `newtype` after its parameter list. The ascription gives the declaration's natural callable reference form a nominal callable type.
+
+```camp
+newtype fn bool IntParser(const char[] text, out int value);
+
+bool tryParseInt(const char[] text, out int value) : IntParser
+{
+	...
+}
+```
+
+```camp
+newtype delegate nuint CharFormatter(const this, char[] buffer = default);
+
+struct Date
+{
+	nuint format(char[] buffer = default) : CharFormatter
+	{
+		...
+	}
+}
+```
+
+The target of the ascription must resolve to a named callable `newtype`. It may not be an anonymous callable type, a value `newtype`, a primitive type, an aggregate type, an interface, an enum, an array, an optional, a materialized `struct(...)` form, or any other non-callable type. A concrete declaration has at most one callable ascription.
+
+Callable ascription is checked against the declaration's source-level callable reference family. A receiverless declaration may ascribe only a callable `newtype` whose underlying form is `fn`. Receiverless declarations are free functions and static methods.
+
+```camp
+newtype fn void LineWriter(const char[] text);
+
+class Console
+{
+	static void writeLine(const char[] text) : LineWriter
+	{
+		...
+	}
+}
+```
+
+A receiver-bearing declaration may ascribe only a context-carrying callable `newtype` accepted by callable ascription. In this version of Camp, those accepted context-carrying forms are `delegate` and `iter`. Receiver-bearing declarations include instance methods declared inside a type body, instance methods with an explicit in-scope `this` parameter, and out-of-scope receiver methods whose first parameter is named exactly `this`.
+
+```camp
+newtype iter char CharReader();
+
+struct TextView
+{
+	iter char chars() : CharReader
+	{
+		...
+	}
+}
+```
+
+```camp
+struct Date
+{
+	int day;
+}
+
+nuint format(const Date* this, char[] buffer = default) : CharFormatter
+{
+	...
+}
+```
+
+These declaration-family rules are enforced at the declaration site:
+
+```camp
+newtype delegate bool Parser(const char[] text, out int value);
+bool tryParseInt(const char[] text, out int value) : Parser { ... } // ERROR
+```
+
+```camp
+newtype fn nuint DateFormatFn(char[] buffer = default);
+struct DateFormatExample
+{
+	nuint format(char[] buffer = default) : DateFormatFn { ... } // ERROR
+}
+```
+
+The callable forms `once`, `async`, and `async iter` remain valid callable forms and valid callable `newtype` underlyings, but they are not accepted as callable-ascription targets in this version.
+
+When the ascribed context-carrying callable `newtype` has an explicit callable `this` parameter, its qualifiers are part of the ascribed method contract. If the method omits an explicit `this` parameter, those callable `this` qualifiers become the method receiver's effective qualifiers for declaration checking and body analysis.
+
+```camp
+newtype delegate nuint ConstFormatter(const this, char[] buffer = default);
+
+struct Date
+{
+	int year;
+
+	nuint format(char[] buffer = default) : ConstFormatter
+	{
+		return (nuint)this.year;
+	}
+}
+```
+
+In the example above, `format` is analyzed as a const receiver method because `ConstFormatter` declares `const this`. The implementation is not required to repeat `const this` in the method declaration.
+
+If an ascribed method declares an explicit `this` parameter and the ascribed callable `newtype` also declares an explicit callable `this` parameter, the normalized qualifier sets must match.
+
+```camp
+struct Date
+{
+	nuint format(const this, char[] buffer = default) : ConstFormatter
+	{
+		return 0;
+	}
+}
+```
+
+```camp
+struct Date
+{
+	nuint format(escaped this, char[] buffer = default) : ConstFormatter // ERROR
+	{
+		return 0;
+	}
+}
+```
+
+An out-of-scope receiver method follows the same rule through its explicit receiver parameter. For example, a method ascribed to `ConstFormatter` declares a const receiver:
+
+```camp
+nuint format(const Date* this, char[] buffer = default) : ConstFormatter
+{
+	return 0;
+}
+```
+
+If the ascribed callable `newtype` has no explicit callable `this` parameter, the method may still declare its own explicit receiver qualifiers. Those qualifiers apply to the method itself, but they are not part of the nominal callable contract unless the callable `newtype` declares them.
+
+An `escaped class` defaults instance receivers to `escaped this`. For an instance method in an `escaped class` that ascribes a context-carrying callable `newtype`, the escaped receiver requirement must be explicit either on the callable `newtype`'s callable `this` parameter or on the method's explicit `this` parameter.
+
+```camp
+newtype delegate void EscapedCallback(escaped this);
+
+escaped class Service
+{
+	void run() : EscapedCallback
+	{
+	}
+}
+```
+
+```camp
+newtype delegate void Callback();
+
+escaped class Service
+{
+	void run(escaped this) : Callback
+	{
+	}
+}
+```
+
+```camp
+escaped class Service
+{
+	void run() : Callback // ERROR
+	{
+	}
+}
+```
+
+The last declaration is invalid because the method's `escaped this` default would otherwise be lost from the ascribed callable contract without appearing explicitly on either the callable `newtype` or the method declaration. If an `escaped class` method ascribes a callable `newtype` whose explicit callable `this` parameter does not include `escaped`, omitting the method's explicit `escaped this` is invalid; explicitly writing a different receiver qualifier is also invalid when it conflicts with the callable `this` qualifier matching rule.
+
+The conformance check uses ordinary callable compatibility rules. For a receiverless declaration, the check is the same check that would be performed for assigning the function reference to the ascribed `fn` newtype:
+
+```camp
+IntParser parser = tryParseInt;
+```
+
+For a receiver-bearing declaration, the check is the same check that would be performed for assigning a bound method reference to the ascribed context-carrying newtype:
+
+```camp
+const Date date = ...;
+CharFormatter formatter = date.format;
+```
+
+For receiver-bearing methods, the receiver is not part of the ordinary callable argument list. The receiver is carried by the callable context. Explicit callable `this` qualifiers and lifetime annotations participate in compatibility checking through the same hidden-context rules used by ordinary bound method references. If the target callable `newtype` requires `const this`, a mutable-only method is not compatible. If it requires `escaped this`, the receiver expression used to form the bound method reference must satisfy the escaped receiver requirement.
+
+Callable ascription does not generate wrappers, adapter functions, thunks, allocation, closure objects, or null contexts merely to make a declaration fit a target type. If the declaration's natural callable reference form is not compatible with the ascribed callable `newtype`, the declaration is invalid.
+
+Ascription affects inference for the matching natural callable reference form.
+
+```camp
+auto parser = tryParseInt; // IntParser
+auto format = date.format; // CharFormatter
+```
+
+For a receiver-bearing method, the ascription applies to the bound method reference. Unbound method references and canonical flattened function symbols retain their ordinary anonymous `fn` type.
+
+```camp
+auto a = date.format; // CharFormatter
+auto b = Date.format; // anonymous fn
+auto c = Date_format; // anonymous fn
+```
+
+Direct calls remain ordinary calls to the declared function or method. Callable ascription does not alter direct invocation, overload resolution, virtual dispatch, interface conformance, default-argument insertion, ABI representation, generated C symbols, or callable lowering.
+
+```camp
+date.format(buffer); // ordinary direct method call
+```
+
+Defaults follow the static signature being called. A callable `newtype` and the ascribed function or method may declare different defaults, or only one of the two may declare a default.
+
+```camp
+newtype delegate nuint CharFormatter(const this, char[] buffer = default);
+
+struct Date
+{
+	nuint format(char[] buffer) : CharFormatter
+	{
+		return 1;
+	}
+}
+
+void sample(Date date)
+{
+	auto formatter = date.format;
+	auto needed = formatter(); // OK: `CharFormatter` supplies the default
+	date.format();             // ERROR: the direct method signature has no default
+}
+```
+
+Because the matching reference form has the nominal callable type, ordinary receiver-method lookup also sees methods whose receiver is that callable `newtype`.
+
+```camp
+string copyString(CharFormatter this, within allocator)
+{
+	auto buf = new char[this()];
+	this(buf);
+	return buf.elements;
+}
+
+string text = date.format.copyString() finally delete;
+```
+
+Callable ascription belongs to one concrete declaration. It does not make overload groups convertible to callable values and does not select an overload from a group.
+
+### 1.4.17 Functions, methods, and callable values
 
 This section defines ordinary function declarations and calls.
 
@@ -1377,13 +1642,14 @@ For example:
 - `escaped delegate bool(int value)` means the delegate context is non-stack
 - `scoped(owner) delegate void(Node* owner)` means the delegate context will not outlive `owner`
 
-Delegate-like callable signatures may also spell an explicit `this` parameter first in order to qualify the hidden context parameter:
+Delegate signatures may also spell an explicit `this` parameter first in order to qualify the hidden context parameter:
 
 ```camp
 delegate void(scoped this, const char[] text) logger;
+delegate nuint(const this, char[] buffer) formatter;
 ```
 
-Later sections define lambdas, method references, `once`, `iter`, and `async`. This section only defines the delegate value model itself.
+Those qualifiers are part of the delegate type and are enforced when a bound method reference is converted to the delegate type. Later sections define lambdas, method references, `once`, `iter`, and `async`. This section only defines the delegate value model itself.
 
 ### 1.8.3 Invocation model
 
@@ -1795,12 +2061,14 @@ newtype MaybeId: int?;      // ERROR
 newtype Client: HttpClient; // ERROR
 ```
 
-Callable `newtype` underlyings use the ordinary callable forms:
+Callable `newtype` underlyings use the ordinary callable forms. Context-carrying callable `newtype`s may declare an explicit callable `this` parameter to qualify the hidden context parameter:
 
 ```camp
 newtype fn int Parser(const char[] text);
 newtype delegate bool Predicate(int value);
-newtype once void Completion(int result);
+newtype delegate nuint CharFormatter(const this, char[] buffer);
+newtype iter char CharReader(const this);
+newtype once void Completion(escaped this, int result);
 newtype async int Loader(const char[] path, thrown IoError);
 newtype async iter char[]? LineSource();
 ```
@@ -1823,6 +2091,7 @@ A callable `newtype` places the name inside the signature:
 
 ```camp
 newtype delegate bool Predicate(int value);
+newtype delegate nuint CharFormatter(const this, char[] buffer);
 export newtype async void Completion(int result, thrown CalcError);
 ```
 
@@ -1857,6 +2126,20 @@ newtype Counter: int
 ```
 
 This keeps `newtype` aligned with its purpose: nominal distinction over an existing representation, not a miniature aggregate object model.
+
+A callable `newtype` may also be used as a callable ascription on a compatible function or method declaration. In that position, the `newtype` names the semantic callable contract for the declaration's natural callable reference form while preserving the same underlying representation.
+
+```camp
+newtype delegate nuint CharFormatter(const this, char[] buffer = default);
+
+struct Date
+{
+	nuint format(char[] buffer = default) : CharFormatter
+	{
+		...
+	}
+}
+```
 
 ### 1.11.6 `this` semantics
 
@@ -2715,7 +2998,7 @@ Rules for in-scope explicit receivers:
 - it has no explicit type because the receiver type is implied
 - it may carry only `const`, `unscoped`, or `escaped`
 
-If `this` is omitted, the receiver still exists implicitly. Lifetime defaults for the implicit receiver are defined in the lifetime chapter.
+If `this` is omitted, the receiver still exists implicitly. Lifetime defaults for the implicit receiver are defined in the lifetime chapter. When an instance method ascribes a context-carrying callable `newtype` with an explicit callable `this` parameter, those callable `this` qualifiers become the method receiver's effective qualifiers unless the method writes an explicit `this` parameter.
 
 Member fields and member methods are not implicitly in scope inside an instance
 method body. Use `this.` for instance access:
@@ -4545,6 +4828,23 @@ writer("hello");
 
 Property syntax never removes the underlying method symbol.
 
+When the referenced declaration has a matching callable `newtype` ascription, the method-reference expression has the ascribed nominal callable type for that reference form. Without such an ascription, the expression keeps its ordinary anonymous callable type. Explicit callable `this` qualifiers on the target callable type are enforced when the method reference is formed.
+
+```camp
+newtype delegate nuint CharFormatter(const this, char[] buffer = default);
+
+struct Date
+{
+	nuint format(char[] buffer = default) : CharFormatter
+	{
+		...
+	}
+}
+
+const Date date = ...;
+auto formatter = date.format; // CharFormatter
+```
+
 ### 3.4.5 No hidden dereference syntax
 
 Camp intentionally avoids separate pointer-member syntax. This keeps member access visually uniform while leaving pointer formation and pointer types explicit elsewhere.
@@ -5542,6 +5842,8 @@ That means:
 - a method call fails when the receiver does not satisfy the receiver contract at the point of use
 
 An `escaped class` is therefore not defined as "must use `new`." It means methods and pointers of that type assume a non-stack instance by default.
+
+When an instance method of an `escaped class` ascribes a context-carrying callable `newtype`, the escaped receiver requirement remains explicit in the callable contract or in the method declaration. The ascribed callable `newtype` may declare `escaped this`, or the method may explicitly declare `escaped this`. Omitting both is invalid for an ascribed `escaped class` method.
 
 ### 4.2.4 `escaped interface`
 
@@ -7136,14 +7438,21 @@ If the target requires a delegate and the lambda does not need context, Camp for
 
 A lambda may also be assigned to `auto`.
 
-For a non-capturing lambda or plain method reference, `auto` infers the plain `fn` form unless the expression is explicitly blessed.
+For a non-capturing lambda or plain method reference, `auto` infers the plain `fn` form unless the expression is explicitly blessed or the referenced declaration has a matching callable `newtype` ascription.
 
 ```camp
 auto increment = x => x + 1;
 auto asDelegate = (delegate) x => x + 1;
 ```
 
-This keeps the distinction between plain functions and context-carrying callables visible when no target type is present.
+```camp
+newtype fn bool IntParser(const char[] text, out int value);
+bool tryParseInt(const char[] text, out int value) : IntParser { ... }
+
+auto parser = tryParseInt; // IntParser
+```
+
+This keeps the distinction between plain functions and context-carrying callables visible when no target type is present, while still preserving nominal callable types that are stated at the declaration site.
 
 ### 5.5.3 Capturing lambdas
 
@@ -7257,9 +7566,11 @@ A callable value may also be formed from an existing callable target such as an 
 
 In that case, the callable context carries whatever receiver is needed by the lowered call target.
 
-If an anonymous delegate type is produced from a member method, qualifiers written on an explicit `this` parameter persist onto the resulting hidden context parameter.
+If an anonymous delegate type is produced from a member method, qualifiers written on an explicit `this` parameter persist onto the resulting hidden context parameter. If the member method has a matching callable `newtype` ascription, the same bound method reference has that named callable `newtype` instead of the anonymous delegate or iterator type.
 
-So Camp does not need a separate runtime category for bound methods. They are ordinary callable values whose context happens to contain a receiver.
+When the target context-carrying callable type has an explicit callable `this` parameter, those qualifiers are enforced at the method-reference conversion. A callable requiring `const this` accepts only methods callable through a const receiver. A callable requiring `escaped this` accepts only receiver contexts that satisfy the escaped receiver requirement.
+
+So Camp does not need a separate runtime category for bound methods. They are ordinary callable values whose context happens to contain a receiver. Callable `newtype` ascription names that callable value when the declaration supplies a compatible nominal callable contract.
 
 ### 5.5.10 Lambdas with async and iterator-style APIs
 
@@ -7289,7 +7600,7 @@ So `postpone` is best understood as deferred invocation built on ordinary callab
 The important practical rules are:
 
 - a lambda expression target-types to a callable form
-- non-capturing lambdas and plain method references target-type to `fn`
+- non-capturing lambdas and plain method references target-type to `fn` unless a matching callable `newtype` ascription supplies a named callable type
 - the same non-capturing lambda may become a delegate implicitly when the target requires one
 - explicit blessing such as `(delegate)` can force a blessed callable form for `auto`
 - there is no separate capture list feature in v1
