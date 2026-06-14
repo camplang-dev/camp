@@ -1,0 +1,42 @@
+using Std;
+
+export int main(string[] args)
+{
+	Point* pt = new Point();
+	pt.x = 5;
+	pt.y = 2;
+
+	Console.writeLine(pt.format.copyString());
+
+	return 0;
+}
+
+class Point
+{
+	int x;
+	int y;
+
+	nuint format(char[] buffer = default) : CharFormatter
+	{
+		if (buffer.length < 5)
+			return 4;
+		buffer[0] = (char)('0' + this.x);
+		buffer[1] = ',';
+		buffer[2] = ' ';
+		buffer[3] = (char)('0' + this.y);
+		buffer[4] = '\0';
+
+		return 4;
+	}
+}
+
+newtype delegate nuint CharFormatter(char[] buffer = default);
+
+string copyString(
+	CharFormatter this,
+	within allocator)
+{
+	auto buf = new char[this() + 1];
+	this(buf);
+	return (string)buf.elements;
+}

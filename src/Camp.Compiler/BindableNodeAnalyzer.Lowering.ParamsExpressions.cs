@@ -1822,15 +1822,40 @@ public sealed partial class BindableNodeAnalyzer
 				WhenFalse = CloneParamsExpansionExpression(conditional.WhenFalse),
 				ResolvedType = conditional.ResolvedType
 			},
-			CallExpression call =>
-				new CallExpression
-				{
-					SourceSyntax = call.SourceSyntax,
-					Target = CloneParamsExpansionExpression(call.Target),
-					ResolvedType = call.ResolvedType
-				},
+			CallExpression call => CloneCallExpression(call),
 			_ => expression
 		};
+	}
+
+	CallExpression CloneCallExpression(CallExpression call)
+	{
+		CallExpression clone = new()
+		{
+			SourceSyntax = call.SourceSyntax,
+			Target = CloneParamsExpansionExpression(call.Target),
+			ResolvedType = call.ResolvedType
+		};
+		clone.TypeArguments.AddRange(call.TypeArguments);
+		foreach (ArgumentExpression argument in call.Arguments)
+		{
+			clone.Arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = argument.SourceSyntax,
+				Name = argument.Name,
+				Modifier = argument.Modifier,
+				Type = argument.Type,
+				Target = argument.Target,
+				Value = CloneParamsExpansionExpression(argument.Value),
+				ResolvedType = argument.ResolvedType
+			});
+		}
+		if (callTargets.TryGetValue(call, out FunctionDefinition? target))
+			callTargets[clone] = target;
+		if (callableInvocationParameters.TryGetValue(call, out List<ParameterDefinition>? parameters))
+			callableInvocationParameters[clone] = parameters;
+		if (callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? substitutions))
+			callGenericSubstitutions[clone] = new Dictionary<string, string>(substitutions, System.StringComparer.Ordinal);
+		return clone;
 	}
 
 	static NamedExpression CloneNamedExpression(NamedExpression named)
