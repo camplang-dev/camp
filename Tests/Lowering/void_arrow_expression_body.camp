@@ -1,0 +1,21 @@
+bool tryParse(out int result)
+{
+	result = 42;
+	return true;
+}
+
+struct Parser
+{
+	int parseResult;
+	bool success;
+
+	void runParser() => tryParse(out this.parseResult);
+	void runParserAssign() => this.success = tryParse(out this.parseResult);
+}
+
+void main()
+{
+	Parser parser = default;
+	parser.runParser();
+	parser.runParserAssign();
+}

@@ -726,10 +726,44 @@ public sealed partial class BindableNodeBuilder
 			if (definition.Extern is not null)
 				Report(syntax.MethodBody, "Extern methods may not have a body.");
 
-			definition.Body = BuildFunctionBody(syntax.MethodBody);
+			definition.Body = BuildFunctionBody(syntax.MethodBody, definition);
 		}
 
 		return definition;
+	}
+
+	BlockStatement? BuildFunctionBody(MethodBodySyntax syntax, FunctionDefinition function)
+	{
+		switch (syntax)
+		{
+			case BlockMethodBodySyntax block:
+				return BuildBlockFunctionBody(block);
+
+			case ExpressionMethodBodySyntax expressionBody:
+			{
+				Expression? expression = BuildExpression(expressionBody.Expression, "Expression method body");
+				Statement statement = FunctionReturnsVoid(function)
+					? new ExpressionStatement
+					{
+						SourceSyntax = expressionBody,
+						Expression = expression
+					}
+					: new ReturnStatement
+					{
+						SourceSyntax = expressionBody,
+						Expression = expression
+					};
+				return new BlockStatement
+				{
+					SourceSyntax = expressionBody,
+					Statements = { statement }
+				};
+			}
+
+			default:
+				Report(syntax, "Unsupported method body syntax.");
+				return null;
+		}
 	}
 
 	BlockStatement? BuildFunctionBody(MethodBodySyntax syntax)
@@ -757,6 +791,12 @@ public sealed partial class BindableNodeBuilder
 				Report(syntax, "Unsupported method body syntax.");
 				return null;
 		}
+	}
+
+	static bool FunctionReturnsVoid(FunctionDefinition function)
+	{
+		return function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor
+			|| function.ReturnType is PrimitiveTypeReference { Type: PrimitiveType.Void };
 	}
 
 	void ValidateLifecycleMember(
