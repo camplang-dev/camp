@@ -8,6 +8,6 @@ export int main()
 	Console.writeUInt(34);
 	Console.writeChar(' ');
 	Console.writeBool(true);
-	Console.writeLine();
+	Console.newLine();
 	return 0;
 }

@@ -5,13 +5,13 @@ export int main()
 	auto chars = new List<char>() finally delete;
 	CharWriter writer = chars.CharWriter;
 
-	writer.writeCharArray("abc", catch _);
+	writer.writeCharArray("abc");
 	if (chars.Length != 3)
 		return 1;
 	if (chars.Item[0] != 'a' || chars.Item[1] != 'b' || chars.Item[2] != 'c')
 		return 2;
 
-	writer.writeChar('d', catch _);
+	writer.writeChar('d');
 	if (chars.Length != 4 || chars.Item[3] != 'd')
 		return 3;
 

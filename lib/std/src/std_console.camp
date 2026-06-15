@@ -1,25 +1,5 @@
 export as Std;
 
-bool Console_writeFd(void* context, nuint* written, char* buffer, nuint buffer_length)
-{
-	int fd = (int)(nint)context;
-	nint result = posixWrite(fd, (const void*)buffer, buffer_length);
-	if (result < 0)
-		return false;
-	*written = (nuint)result;
-	return true;
-}
-
-bool Console_readFd(void* context, nuint* readCount, char* buffer, nuint buffer_length)
-{
-	int fd = context == null ? 0 : (int)(nint)context;
-	nint result = posixRead(fd, (void*)buffer, buffer_length);
-	if (result < 0)
-		return false;
-	*readCount = (nuint)result;
-	return true;
-}
-
 export class Console
 {
 	export static CharReader getReader()
@@ -37,37 +17,110 @@ export class Console
 		return { Console_writeFd, (void*)(nint)2 };
 	}
 	
+	static bool writeFd(void* context, nuint* written, char* buffer, nuint buffer_length)
+	{
+		int fd = (int)(nint)context;
+		nint result = posixWrite(fd, (const void*)buffer, buffer_length);
+		if (result < 0)
+			return false;
+		*written = (nuint)result;
+		return true;
+	}
+
+	static bool readFd(void* context, nuint* readCount, char* buffer, nuint buffer_length)
+	{
+		int fd = context == null ? 0 : (int)(nint)context;
+		nint result = posixRead(fd, (void*)buffer, buffer_length);
+		if (result < 0)
+			return false;
+		*readCount = (nuint)result;
+		return true;
+	}
+	
 	// export static AsyncCharReader getAsyncReader();
 	// export static AsyncCharWriter getAsyncWriter();
 	// export static AsyncCharWriter getAsyncError();
 	
-	export static void write(overload const char[] value) => Console.Writer.writeCharArray(value, catch _);
+	export static void write(overload CharFormatter value)
+	{
+		auto size = value();
+		auto buf = init char[size];
+		value(buf);
+		if (size > 0)
+			posixWrite(1, buf.elements, size - 1);
+	}
 	
-	export static void write(overload bool value) => Console.Writer.writeBool(value, catch _);
+	export static void write(overload char   value)
+	{
+		auto buf = [value];
+		posixWrite(1, buf.elements, buf.length);
+	}
 	
-	export static void write(overload char value) => Console.Writer.writeChar(value, catch _);
+	export static void write(overload const char [] value)
+	{
+		posixWrite(1, value.elements, value.length);
+	}
 	
-	export static void write(overload int value) => Console.Writer.writeInt(value, catch _);
+	export static void write(overload string value)
+	{
+		posixWrite(1, (const void*)(void*)value, value.Length);
+	}
 	
-	export static void write(overload uint value) => Console.Writer.writeUInt(value, catch _);
+	export static void write(overload bool   value) => Console.write(value.format);
+	export static void write(overload byte   value) => Console.write(value.format);
+	export static void write(overload sbyte  value) => Console.write(value.format);
+	export static void write(overload ushort value) => Console.write(value.format);
+	export static void write(overload short  value) => Console.write(value.format);
+	export static void write(overload uint   value) => Console.write(value.format);
+	export static void write(overload int    value) => Console.write(value.format);
+	export static void write(overload ulong  value) => Console.write(value.format);
+	export static void write(overload long   value) => Console.write(value.format);
+	export static void write(overload nuint  value) => Console.write(value.format);
+	export static void write(overload nint   value) => Console.write(value.format);
 	
-	export static void write(overload long value) => Console.Writer.writeLong(value, catch _);
+	export static void writeLine(overload CharFormatter value)
+	{
+		auto size = value();
+		auto buf = init char[size + 1];
+		value(buf);
+		buf[buf.length - 2] = '\n';
+		buf[buf.length - 1] = '\0';
+		posixWrite(1, buf.elements, size);
+	}
 	
-	export static void write(overload ulong value) => Console.Writer.writeULong(value, catch _);
+	export static void writeLine(overload char   value)
+	{
+		auto buf = [value, '\n'];
+		posixWrite(1, buf.elements, buf.length);
+	}
 	
-	export static void write(overload nint value) => Console.Writer.writeNInt(value, catch _);
+	export static void writeLine(overload const char [] value)
+	{
+		Console.write(value);
+		Console.write('\n');
+	}
 	
-	export static void write(overload nuint value) => Console.Writer.writeNUInt(value, catch _);
+	export static void writeLine(overload string value)
+	{
+		Console.write(value);
+		Console.write('\n');
+	}
 	
-	export static void write(overload float value) => Console.Writer.writeFloat(value, catch _);
+	export static void writeLine(overload bool   value) => Console.writeLine(value.format);
+	export static void writeLine(overload byte   value) => Console.writeLine(value.format);
+	export static void writeLine(overload sbyte  value) => Console.writeLine(value.format);
+	export static void writeLine(overload ushort value) => Console.writeLine(value.format);
+	export static void writeLine(overload short  value) => Console.writeLine(value.format);
+	export static void writeLine(overload uint   value) => Console.writeLine(value.format);
+	export static void writeLine(overload int    value) => Console.writeLine(value.format);
+	export static void writeLine(overload ulong  value) => Console.writeLine(value.format);
+	export static void writeLine(overload long   value) => Console.writeLine(value.format);
+	export static void writeLine(overload nuint  value) => Console.writeLine(value.format);
+	export static void writeLine(overload nint   value) => Console.writeLine(value.format);
 	
-	export static void write(overload double value) => Console.Writer.writeDouble(value, catch _);
-	
-	export static void writeLine(const char[] value = default) => Console.Writer.writeLine(value, catch _);
+	export static void newLine() => Console.write('\n');
 	
 	export static char readChar() => Console.Reader.readChar(catch _);
 	
 	export static string readLine(within allocator) => Console.Reader.readLine(within allocator, catch _);
-	
-	export static string readToEnd(within allocator) => Console.Reader.readToEnd(within allocator, catch _);
 }

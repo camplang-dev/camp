@@ -6,3 +6,118 @@ export string copyString(CharFormatter this, within allocator)
 	this(buf);
 	return (string)buf.elements;
 }
+
+export nuint format(in bool this, char[] buffer = default) : CharFormatter
+{
+	if (this)
+	{
+		if (buffer.length >= 5)
+			buffer.copyFrom<char>("true\0");
+		return 5;
+	}
+	else
+	{
+		if (buffer.length >= 6)
+			buffer.copyFrom<char>("false\0");
+		return 6;
+	}
+}
+
+export nuint format(in byte   this, char[] buffer = default) : CharFormatter => applyFormat((long)this, false, buffer);
+export nuint format(in sbyte  this, char[] buffer = default) : CharFormatter => applyFormat(abs((int)this), this < 0, buffer);
+export nuint format(in ushort this, char[] buffer = default) : CharFormatter => applyFormat((long)this, false, buffer);
+export nuint format(in short  this, char[] buffer = default) : CharFormatter => applyFormat(abs((int)this), this < 0, buffer);
+export nuint format(in uint   this, char[] buffer = default) : CharFormatter => applyFormat((long)this, false, buffer);
+export nuint format(in int    this, char[] buffer = default) : CharFormatter => applyFormat(abs((long)this), this < 0, buffer);
+export nuint format(in nuint  this, char[] buffer = default) : CharFormatter => applyFormat((long)this, false, buffer);
+export nuint format(in nint   this, char[] buffer = default) : CharFormatter => applyFormat(abs((long)this), this < 0, buffer);
+export nuint format(in ulong  this, char[] buffer = default) : CharFormatter => applyFormat(this, false, buffer);
+
+export nuint format(in long   this, char[] buffer = default) : CharFormatter
+{
+	if (this == (-9223372036854775807 - 1))
+	{
+		if (buffer.length >= 21)
+			Array_copyTo<char>("-9223372036854775808\0", buffer);
+		return 21;
+	}
+	
+	ulong value = (this < 0) ? (ulong)-this : (ulong)this;
+
+	return applyFormat(value, this < 0, buffer);
+}
+
+nuint applyFormat(ulong value, bool sign, char[] buffer)
+{
+	nuint digits = decimalDigits(value);
+	nuint required = digits + (sign ? 2 : 1);
+
+	if (buffer.length < required)
+		return required;
+
+	nuint index = 0;
+	if (sign)
+	{
+		buffer[0] = '-';
+		index = 1;
+	}
+
+	nuint end = index + digits;
+	for (nuint i = 0; i < digits; i++)
+	{
+		buffer[end - 1 - i] = (char)((int)'0' + (int)(value % 10));
+		value /= 10;
+	}
+
+	buffer[required - 1] = '\0';
+	return required;
+}
+
+nuint decimalDigits(ulong n)
+{
+    if (n >= 10000000000) { // 11 to 20 digits
+        if (n >= 1000000000000000) { // 16 to 20 digits
+            if (n >= 100000000000000000) { // 18 to 20 digits
+                if (n >= 1000000000000000000) { // 19 or 20 digits
+                    return (n >= 10000000000000000000) ? 20 : 19;
+                } else {
+                    return 18;
+                }
+            } else { // 16 or 17 digits
+                return (n >= 10000000000000000) ? 17 : 16;
+            }
+        } else { // 11 to 15 digits
+            if (n >= 1000000000000) { // 13 to 15 digits
+                if (n >= 10000000000000) { // 14 or 15 digits
+                    return (n >= 100000000000000) ? 15 : 14;
+                } else {
+                    return 13;
+                }
+            } else { // 11 or 12 digits
+                return (n >= 100000000000) ? 12 : 11;
+            }
+        }
+    } else { // 1 to 10 digits
+        if (n >= 100000) { // 6 to 10 digits
+            if (n >= 100000000) { // 9 or 10 digits
+                return (n >= 1000000000) ? 10 : 9;
+            } else { // 6 to 8 digits
+                if (n >= 10000000) { // 8 digits
+                    return 8;
+                } else {
+                    return (n >= 1000000) ? 7 : 6;
+                }
+            }
+        } else { // 1 to 5 digits
+            if (n >= 100) { // 3 to 5 digits
+                if (n >= 1000) { // 4 or 5 digits
+                    return (n >= 10000) ? 5 : 4;
+                } else {
+                    return 3;
+                }
+            } else { // 1 or 2 digits
+                return (n >= 10) ? 2 : 1;
+            }
+        }
+    }
+}

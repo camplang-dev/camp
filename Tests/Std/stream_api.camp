@@ -3,5 +3,5 @@ using Std;
 export extern ByteWriter getWriter();
 export void writeSample(CharWriter writer, thrown IoError)
 {
-	CharWriter_writeLine(writer, "sample");
+	writer.writeLine("sample");
 }
