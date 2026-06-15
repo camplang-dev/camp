@@ -228,6 +228,13 @@ public sealed partial class BindableNodeAnalyzer
 
 		ArgumentExpression selectorArgument = arguments[selectorIndex];
 		SyntaxNode? selectorSyntax = OverloadSelectorSyntax(selectorArgument, syntax);
+		if (selectorArgument.Value is LambdaExpression)
+		{
+			Report(GetRange(selectorSyntax), $"Cannot select overload `{invokerName}` from a lambda argument. Call the typed overload entry explicitly.");
+			selectorArgument.ResolvedType = ErrorType;
+			selectorArgument.Value.ResolvedType = ErrorType;
+			return null;
+		}
 		ParameterDefinition? selector = GetOverloadSelector(candidates[0]);
 		if (selector?.Modifier == ParameterModifier.Out && selectorArgument.Modifier != ArgumentModifier.Out)
 			Report(GetRange(selectorSyntax), "Out overload selectors require an explicit 'out' argument.");

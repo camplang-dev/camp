@@ -1,0 +1,18 @@
+void choose(overload fn bool(int) predicate)
+{
+}
+
+void choose(overload delegate bool(int) predicate)
+{
+}
+
+void choosePredicate(delegate bool(int) predicate)
+{
+}
+
+void main()
+{
+	choose(x => true);
+	choosePredicate(x => x > 2);
+	choosefn((int x) => true);
+}
