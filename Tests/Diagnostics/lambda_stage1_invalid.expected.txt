@@ -1,0 +1,3 @@
+tests/Diagnostics/lambda_stage1_invalid.camp(16,24): error: Lambda captures are not implemented yet; captured local values cannot be referenced by a Stage 1 lambda.
+tests/Diagnostics/lambda_stage1_invalid.camp(17,8): error: Lambda parameter 'x' requires a target callable type or an explicit parameter type.
+tests/Diagnostics/lambda_stage1_invalid.camp(18,35): error: Stage 1 lambdas can target only fn callable types.

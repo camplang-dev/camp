@@ -1,0 +1,16 @@
+export int main()
+{
+	fn int(int) inc = x => x + 1;
+	fn bool(int) greaterThanTwo = (int value) =>
+	{
+		return value > 2;
+	};
+
+	if (inc(4) != 5)
+		return 1;
+	if (!greaterThanTwo(3))
+		return 2;
+	if (greaterThanTwo(1))
+		return 3;
+	return 0;
+}

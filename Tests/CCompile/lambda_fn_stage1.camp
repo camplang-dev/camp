@@ -1,0 +1,21 @@
+int apply(fn int(int) callback, int value)
+{
+	return callback(value);
+}
+
+newtype fn bool Predicate(int value);
+
+bool check(Predicate predicate, int value)
+{
+	return predicate(value);
+}
+
+export int main()
+{
+	fn int(int) inc = x => x + 1;
+	Predicate isPositive = (int value) =>
+	{
+		return value > 0;
+	};
+	return apply(inc, 4) == 5 && check(isPositive, 2) ? 0 : 1;
+}

@@ -1089,6 +1089,8 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeLambdaExpression(LambdaExpression lambda, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
 		CallableShape? targetShape = TryGetCallableShape(targetType, out CallableShape callableTarget) ? callableTarget : null;
+		if (targetShape is CallableShape targetCallable && targetCallable.Kind != "fn")
+			Report(GetRange(lambda.SourceSyntax), "Stage 1 lambdas can target only fn callable types.");
 		BodyScope lambdaScope = new(scope, scope.CurrentFunction, scope.ContainingType)
 		{
 			CurrentFunctionReturnType = targetShape?.ReturnType ?? TargetType,
@@ -1107,6 +1109,8 @@ public sealed partial class BindableNodeAnalyzer
 			string parameterType = parameter.Parameter?.ResolvedType
 				?? (targetShape is CallableShape target && i < target.Parameters.Count ? target.Parameters[i] : TargetType);
 			parameter.ResolvedType = parameterType;
+			if (parameter.Parameter is null && parameterType == TargetType)
+				Report(GetRange(lambda.SourceSyntax), $"Lambda parameter '{GetLambdaParameterSymbolName(parameter) ?? i.ToString(CultureInfo.InvariantCulture)}' requires a target callable type or an explicit parameter type.");
 
 			if (targetShape is CallableShape expected && i < expected.Parameters.Count && parameterType != TargetType && parameterType != expected.Parameters[i])
 				Report(GetRange(parameter.SourceSyntax), $"Lambda parameter type '{parameterType}' does not match target parameter type '{expected.Parameters[i]}'.");
@@ -1124,6 +1128,7 @@ public sealed partial class BindableNodeAnalyzer
 			block.ResolvedType = "void";
 			returnType = InferBlockReturnType(block, targetShape?.ReturnType);
 		}
+		LambdaCapturesUnsupportedValues(lambda);
 
 		List<string> parameterTypes = [];
 		foreach (LambdaParameter parameter in lambda.Parameters)

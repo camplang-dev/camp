@@ -63,8 +63,7 @@ public sealed partial class BindableNodeAnalyzer
 				return CurrentAllocator() ?? NullLiteral(currentAllocator.SourceSyntax);
 
 			case LambdaExpression lambda:
-				lambda.Body = RewriteFunctionBody(lambda.Body);
-				break;
+				return LowerLambdaExpression(lambda);
 
 			case ArgumentExpression argument:
 				return LowerArgument(argument);

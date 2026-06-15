@@ -1,0 +1,75 @@
+// file: lambda_fn_stage1.c
+#include "lambda_fn_stage1_private.h"
+
+/* Private file declarations. */
+static int apply(int (* callback)(int camp), int value);
+static bool check(Predicate predicate, int value);
+static int main_lambda0(int x);
+static bool main_lambda1(int value);
+
+static int apply(int (* callback)(int camp), int value)
+{
+	return callback(value);
+}
+
+static bool check(Predicate predicate, int value)
+{
+	return predicate(value);
+}
+
+int main(void)
+{
+	int (* inc)(int camp) = main_lambda0;
+	Predicate isPositive = main_lambda1;
+	return (((apply((fn_int_int_)inc, 4) == 5) && check(isPositive, 2)) ? 0 : 1);
+}
+
+static int main_lambda0(int x)
+{
+	return (x + 1);
+}
+
+static bool main_lambda1(int value)
+{
+	return (value > 0);
+}
+
+// file: lambda_fn_stage1.h
+#ifndef LAMBDA_FN_STAGE1_H_
+#define LAMBDA_FN_STAGE1_H_
+
+#include "lambda_fn_stage1_private.h"
+
+typedef int (* fn_int_int_)(int arg0);
+int main(void);
+
+#endif
+// file: lambda_fn_stage1_private.h
+#ifndef LAMBDA_FN_STAGE1_PRIVATE_H_
+#define LAMBDA_FN_STAGE1_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+typedef bool (* Predicate)(int arg0);
+
+/* Callable typedefs. */
+typedef int (* fn_int_int_)(int arg0);
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lambda_fn_stage1.c
