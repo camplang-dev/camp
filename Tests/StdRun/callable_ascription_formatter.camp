@@ -16,7 +16,7 @@ class Point
 	int x;
 	int y;
 
-	nuint format(char[] buffer = default) : CharFormatter
+	nuint format(char[] buffer = default) : PointFormatter
 	{
 		if (buffer.length < 5)
 			return 4;
@@ -30,10 +30,10 @@ class Point
 	}
 }
 
-newtype delegate nuint CharFormatter(char[] buffer = default);
+newtype delegate nuint PointFormatter(char[] buffer = default);
 
 string copyString(
-	CharFormatter this,
+	PointFormatter this,
 	within allocator)
 {
 	auto buf = new char[this() + 1];

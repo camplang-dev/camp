@@ -81,13 +81,19 @@ export newtype TimeSpan: long
 	export TimeSpan negate() => (TimeSpan)(-(long)(*this));
 	export TimeSpan abs() => ((long)*this < 0) ? this.negate() : *this;
 
-	// Allocates.
+	// Formats directly into caller-provided buffer.
 	// Examples: "14:05:30", "44:05:30.551".
-	// Returns null only if allocation fails.
-	export string copyString(within allocator)
+	// Returns required bytes including the terminator.
+	export nuint format(char[] buffer) : CharFormatter
 	{
 		if (*this == TimeSpan.INVALID)
-			return "invalid".stringCopy();
+		{
+			nuint required = 8;
+			if (buffer.length < required)
+				return required;
+			Array_copyTo<char>("invalid\0", buffer);
+			return required;
+		}
 
 		long ms = (long)*this;
 		bool negative = ms < 0;
@@ -102,15 +108,13 @@ export newtype TimeSpan: long
 		int fraction = (int)(ms % TIME_MS_PER_SECOND);
 
 		nuint hourDigits = timeCountUnsignedDigits((ulong)hours);
-		nuint length = hourDigits + 6;
+		nuint length = hourDigits + 7;
 		if (negative)
 			length++;
 		if (fraction != 0)
 			length += 4;
-
-		char[] buffer = new char[length + 1];
-		if (buffer.elements == null)
-			return null;
+		if (buffer.length < length)
+			return length;
 
 		nuint index = 0;
 		if (negative)
@@ -126,7 +130,7 @@ export newtype TimeSpan: long
 			index = timeWrite3(buffer.elements, index, fraction);
 		}
 		buffer[index] = '\0';
-		return (string)buffer.elements;
+		return length;
 	}
 }
 
@@ -153,28 +157,34 @@ export newtype UtcOffset: short
 	
 	export short getTotalMinutes() => (short)*this;
 
-	// Allocates. Examples: "Z", "-04:00", "+09:30".
+	// Formats directly into caller-provided buffer. Examples: "Z", "-04:00", "+09:30".
 	// Always computes, even when value is considered invalid.  Min "-99:99" Max "99:99"
-	// Returns null only if allocation fails.
-	export string copyString(within allocator)
+	// Returns required bytes including the terminator.
+	export nuint format(char[] buffer) : CharFormatter
 	{
 		short total = (short)*this;
 		if (total == 0)
-			return "Z".stringCopy();
+		{
+			nuint required = 2;
+			if (buffer.length < required)
+				return required;
+			buffer[0] = 'Z';
+			buffer[1] = '\0';
+			return required;
+		}
 
 		bool negative = total < 0;
 		if (negative)
 			total = (short)(0 - total);
 
-		char[] buffer = new char[7];
-		if (buffer.elements == null)
-			return null;
+		if (buffer.length < 7)
+			return 7;
 		buffer[0] = negative ? '-' : '+';
 		timeWrite2(buffer.elements, 1, total / 60);
 		buffer[3] = ':';
 		timeWrite2(buffer.elements, 4, total % 60);
 		buffer[6] = '\0';
-		return (string)buffer.elements;
+		return 7;
 	}
 }
 
@@ -237,30 +247,23 @@ export newtype Instant: long
 		return { local, offset };
 	}
 
-	// Allocates. Example: "2026-06-12T18:30:00.124Z".
+	// Formats directly into caller-provided buffer. Example: "2026-06-12T18:30:00.124Z".
 	// Always computes, even when value is considered "invalid".
-	// Returns null only if allocation fails
-	export string copyString(within allocator)
+	// Returns required bytes including the terminator.
+	export nuint format(char[] buffer) : CharFormatter
 	{
 		DateTime utc = this.getUtcDateTime();
 		if (!utc.isValid())
-			return null;
-		string text = utc.copyString();
-		if (text == null)
-			return null;
-		nuint length = text.Length;
-		char[] buffer = new char[length + 2];
-		if (buffer.elements == null)
-		{
-			delete text;
-			return null;
-		}
-		for (nuint i = 0; i < length; i++)
-			buffer[i] = text[i];
-		buffer[length] = 'Z';
-		buffer[length + 1] = '\0';
-		delete text;
-		return (string)buffer.elements;
+			return 0;
+		nuint length = utc.format(buffer);
+		if (length == 0)
+			return 0;
+		nuint required = length + 1;
+		if (buffer.length < required)
+			return required;
+		buffer[length - 1] = 'Z';
+		buffer[required - 1] = '\0';
+		return required;
 	}
 }
 
@@ -322,22 +325,21 @@ export struct Date
 		return (int)(timeDaysBeforeDate((int)end.year, (int)end.month, (int)end.day) - timeDaysBeforeDate((int)this.year, (int)this.month, (int)this.day));
 	}
 
-	// Allocates. Example: "2026-06-02".
+	// Formats directly into caller-provided buffer. Example: "2026-06-02".
 	// Year is always 4 digits, maxes out at 9999. Month/Day always two digits, maxes out at 99.
 	// Out-of-range month/day is not checked (put in month 14 and day 78 and that's what you get)
-	// Returns null only if allocation fails
-	export string copyString(within allocator)
+	// Returns required bytes including the terminator.
+	export nuint format(char[] buffer) : CharFormatter
 	{
-		char[] buffer = new char[11];
-		if (buffer.elements == null)
-			return null;
+		if (buffer.length < 11)
+			return 11;
 		timeWrite4(buffer.elements, 0, (int)this.year);
 		buffer[4] = '-';
 		timeWrite2(buffer.elements, 5, (int)this.month);
 		buffer[7] = '-';
 		timeWrite2(buffer.elements, 8, (int)this.day);
 		buffer[10] = '\0';
-		return (string)buffer.elements;
+		return 11;
 	}
 }
 
@@ -366,18 +368,17 @@ export struct TimeOfDay
 		return (TimeSpan)ms;
 	}
 
-	// Allocates. Examples: "14:05:30", "04:05:30.500".
+	// Formats directly into caller-provided buffer. Examples: "14:05:30", "04:05:30.500".
 	// Values under 10 are padded with zeroes; fractions are only written when non-zero, fixed to 3 decimal places
 	// Out-of-range field values are not checked, written using max 99
 	// (Invalid) example: { .hour = 27, .minute = 160, .second = 5 } -> "27:99:05"
-	// Returns null only if allocation fails
-	export string copyString(within allocator)
+	// Returns required bytes including the terminator.
+	export nuint format(char[] buffer) : CharFormatter
 	{
 		ushort ms = this.getMs();
-		nuint length = ms == 0 ? 8 : 12;
-		char[] buffer = new char[length + 1];
-		if (buffer.elements == null)
-			return null;
+		nuint length = ms == 0 ? 9 : 13;
+		if (buffer.length < length)
+			return length;
 		timeWrite2(buffer.elements, 0, this.hour);
 		buffer[2] = ':';
 		timeWrite2(buffer.elements, 3, this.minute);
@@ -388,8 +389,8 @@ export struct TimeOfDay
 			buffer[8] = '.';
 			timeWrite3(buffer.elements, 9, ms);
 		}
-		buffer[length] = '\0';
-		return (string)buffer.elements;
+		buffer[length - 1] = '\0';
+		return length;
 	}
 }
 
@@ -447,40 +448,36 @@ export struct DateTime
 		return (Instant)ms;
 	}
 
-	// Allocates. Examples: "2026-06-12T14:05:30", "2026-06-12T14:05:30.500".
-	// Returns null if this is invalid or allocation fails.
-	export string copyString(within allocator)
+	// Formats directly into caller-provided buffer. Examples: "2026-06-12T14:05:30", "2026-06-12T14:05:30.500".
+	// Returns 0 if invalid.
+	export nuint format(char[] buffer) : CharFormatter
 	{
 		if (!this.isValid())
-			return null;
-		string date = this.date.copyString();
-		if (date == null)
-			return null;
-		string time = this.time.copyString();
-		if (time == null)
+			return 0;
+
+		ushort ms = this.time.getMs();
+		nuint required = ms == 0 ? 20 : 24;
+		if (buffer.length < required)
+			return required;
+
+		timeWrite4(buffer.elements, 0, (int)this.date.year);
+		buffer[4] = '-';
+		timeWrite2(buffer.elements, 5, (int)this.date.month);
+		buffer[7] = '-';
+		timeWrite2(buffer.elements, 8, (int)this.date.day);
+		buffer[10] = 'T';
+		timeWrite2(buffer.elements, 11, (int)this.time.hour);
+		buffer[13] = ':';
+		timeWrite2(buffer.elements, 14, (int)this.time.minute);
+		buffer[16] = ':';
+		timeWrite2(buffer.elements, 17, (int)this.time.second);
+		if (ms != 0)
 		{
-			delete date;
-			return null;
+			buffer[19] = '.';
+			timeWrite3(buffer.elements, 20, ms);
 		}
-		nuint dateLength = date.Length;
-		nuint timeLength = time.Length;
-		char[] buffer = new char[dateLength + 1 + timeLength + 1];
-		if (buffer.elements == null)
-		{
-			delete time;
-			delete date;
-			return null;
-		}
-		nuint index = 0;
-		for (nuint i = 0; i < dateLength; i++)
-			buffer[index++] = date[i];
-		buffer[index++] = 'T';
-		for (nuint j = 0; j < timeLength; j++)
-			buffer[index++] = time[j];
-		buffer[index] = '\0';
-		delete time;
-		delete date;
-		return (string)buffer.elements;
+		buffer[required - 1] = '\0';
+		return required;
 	}
 }
 
@@ -534,37 +531,38 @@ export struct OffsetDateTime
 	// Invalid input or out-of-range conversion returns Instant.INVALID
 	export Instant toInstant() => this.local.toInstant(this.offset);
 
-	// Allocates. Example: "2026-06-12T14:05:30.500-04:00".
-	// Returns null only if allocation fails.
-	export string copyString(within allocator)
+	// Formats directly into caller-provided buffer. Example: "2026-06-12T14:05:30.500-04:00".
+	// Returns required bytes including the terminator.
+	export nuint format(char[] buffer) : CharFormatter
 	{
-		string dateTime = this.local.copyString();
-		if (dateTime == null)
-			return null;
-		string offset = this.offset.copyString();
-		if (offset == null)
+		nuint dateTimeLength = this.local.format(buffer);
+		if (!this.isValid() || dateTimeLength == 0)
+			return 0;
+		short total = (short)this.offset;
+		nuint offsetLength = total == 0 ? 2 : 7;
+		nuint required = dateTimeLength - 1 + offsetLength;
+		if (buffer.length < required)
+			return required;
+
+		nuint index = dateTimeLength - 1;
+		if (total == 0)
 		{
-			delete dateTime;
-			return null;
+			buffer[index++] = 'Z';
+			buffer[index] = '\0';
+			return required;
 		}
-		nuint dateTimeLength = dateTime.Length;
-		nuint offsetLength = offset.Length;
-		char[] buffer = new char[dateTimeLength + offsetLength + 1];
-		if (buffer.elements == null)
-		{
-			delete offset;
-			delete dateTime;
-			return null;
-		}
-		nuint index = 0;
-		for (nuint i = 0; i < dateTimeLength; i++)
-			buffer[index++] = dateTime[i];
-		for (nuint j = 0; j < offsetLength; j++)
-			buffer[index++] = offset[j];
+
+		bool negative = total < 0;
+		if (negative)
+			total = (short)(0 - total);
+		buffer[index++] = negative ? '-' : '+';
+		timeWrite2(buffer.elements, index, total / 60);
+		index += 2;
+		buffer[index++] = ':';
+		timeWrite2(buffer.elements, index, total % 60);
+		index += 2;
 		buffer[index] = '\0';
-		delete offset;
-		delete dateTime;
-		return (string)buffer.elements;
+		return required;
 	}
 }
 
