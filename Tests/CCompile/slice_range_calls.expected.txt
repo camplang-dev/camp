@@ -2,13 +2,13 @@
 #include "slice_range_calls_private.h"
 
 /* Private file declarations. */
-static const int* IntArray_slice(const int* this, uintptr_t this_length, uintptr_t index, uintptr_t count, uintptr_t *result_length);
-static void consume(const int* values, uintptr_t values_length);
+static const int *IntArray_slice(const int *this, uintptr_t this_length, uintptr_t index, uintptr_t count, uintptr_t *result_length);
+static void consume(const int *values, uintptr_t values_length);
 static int main(void);
 
-static const int* IntArray_slice(const int* this, uintptr_t this_length, uintptr_t index, uintptr_t count, uintptr_t *result_length)
+static const int *IntArray_slice(const int *this, uintptr_t this_length, uintptr_t index, uintptr_t count, uintptr_t *result_length)
 {
-	const int* sliceResult;
+	const int *sliceResult;
 	uintptr_t sliceResult_length;
 	sliceResult = this;
 	sliceResult_length = count;
@@ -18,27 +18,27 @@ static const int* IntArray_slice(const int* this, uintptr_t this_length, uintptr
 	}
 }
 
-static void consume(const int* values, uintptr_t values_length)
+static void consume(const int *values, uintptr_t values_length)
 {
 }
 
 static int main(void)
 {
-	int* values = (int []){1, 2, 3, 4, 5, 6};
+	int *values = (int []){1, 2, 3, 4, 5, 6};
 	uintptr_t values_length = 6;
-	const int* _elements0;
+	const int *_elements0;
 	uintptr_t _length1;
 	_elements0 = IntArray_slice(values, values_length, ((2 > values_length) ? values_length : ((2 < 0) ? 0 : 2)), ((((4 > values_length) ? values_length : ((4 < 0) ? 0 : 4)) >= ((2 > values_length) ? values_length : ((2 < 0) ? 0 : 2))) ? (((4 > values_length) ? values_length : ((4 < 0) ? 0 : 4)) - ((2 > values_length) ? values_length : ((2 < 0) ? 0 : 2))) : 0), &_length1);
 	consume(_elements0, _length1);
-	const int* _elements2;
+	const int *_elements2;
 	uintptr_t _length3;
 	_elements2 = IntArray_slice(values, values_length, ((0 > values_length) ? values_length : ((0 < 0) ? 0 : 0)), (((((values_length - 1) > values_length) ? values_length : (((values_length - 1) < 0) ? 0 : (values_length - 1))) >= ((0 > values_length) ? values_length : ((0 < 0) ? 0 : 0))) ? ((((values_length - 1) > values_length) ? values_length : (((values_length - 1) < 0) ? 0 : (values_length - 1))) - ((0 > values_length) ? values_length : ((0 < 0) ? 0 : 0))) : 0), &_length3);
 	consume(_elements2, _length3);
-	const int* _elements4;
+	const int *_elements4;
 	uintptr_t _length5;
 	_elements4 = IntArray_slice(values, values_length, 3, (((values_length - 0) >= 3) ? ((values_length - 0) - 3) : 0), &_length5);
 	consume(_elements4, _length5);
-	const int* _elements6;
+	const int *_elements6;
 	uintptr_t _length7;
 	_elements6 = IntArray_slice(values, values_length, 0, (((values_length - 0) >= 0) ? ((values_length - 0) - 0) : 0), &_length7);
 	consume(_elements6, _length7);

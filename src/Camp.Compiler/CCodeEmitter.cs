@@ -2555,12 +2555,13 @@ public static class CCodeEmitter
 			List<ParameterDefinition> parameters = [];
 			if (RequiresImplicitThisParameter(function) && containingTypes.TryGetValue(function, out TypeDefinition? containingType))
 			{
+				string resolvedThisType = function.AbiThisType?.ResolvedType ?? function.EffectiveThisParameter?.ResolvedType ?? containingType.Name + "*";
 				parameters.Add(new ThisParameterDefinition
 				{
 					Name = "this",
 					Symbol = "this",
 					Type = function.AbiThisType ?? new PointerTypeReference { ElementType = new TypeDefinitionReference { Definition = containingType, Name = containingType.Name } },
-					ResolvedType = (function.AbiThisType?.ResolvedType ?? containingType.Name) + (function.AbiThisType is null ? "*" : "")
+					ResolvedType = resolvedThisType
 				});
 			}
 			foreach (ParameterDefinition parameter in GetAbiOrderedParameters(function.Parameters))
@@ -3073,8 +3074,8 @@ public static class CCodeEmitter
 			{
 				if (RequiresImplicitThisParameter(function) && containingTypes.TryGetValue(function, out TypeDefinition? type))
 				{
-					TypeReference thisType = function.AbiThisType ?? new PointerTypeReference { ElementType = new TypeDefinitionReference { Definition = type, Name = type.Name } };
-					parts.Add(FormatTypeOrResolved(thisType, thisType.ResolvedType, NeedsAbiThisFixup(function) ? "ctx" : "this").Declaration);
+					string resolvedThisType = function.AbiThisType?.ResolvedType ?? function.EffectiveThisParameter?.ResolvedType ?? type.Name + "*";
+					parts.Add(FormatTypeOrResolved(function.AbiThisType, resolvedThisType, NeedsAbiThisFixup(function) ? "ctx" : "this").Declaration);
 				}
 				foreach (ParameterDefinition parameter in GetAbiOrderedParameters(function.Parameters))
 				{
@@ -3185,6 +3186,9 @@ public static class CCodeEmitter
 			List<string> types = [];
 			foreach (ParameterDefinition parameter in parameters)
 			{
+				if (parameter is ThisParameterDefinition)
+					continue;
+
 				string parameterType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "";
 				if (TryGetArrayElementOnly(parameterType, out string arrayElementType))
 				{
@@ -3382,7 +3386,13 @@ public static class CCodeEmitter
 			if (pointerPart.Length > 0 && trailingQualifiers.Count > 0)
 				pointerPart += " " + string.Join(" ", trailingQualifiers);
 			string qualifierPart = qualifiers.Count == 0 ? "" : string.Join(" ", qualifiers) + " ";
-			return new CType(qualifierPart + cType + pointerPart + " " + declarator);
+			string pointerDeclarator = declarator;
+			if (pointerPart.Length > 0)
+			{
+				string separator = pointerPart.EndsWith("*", StringComparison.Ordinal) || declarator.Length == 0 ? "" : " ";
+				pointerDeclarator = pointerPart + separator + declarator;
+			}
+			return new CType(qualifierPart + cType + " " + pointerDeclarator);
 		}
 
 		string FormatResolvedBaseType(string type)

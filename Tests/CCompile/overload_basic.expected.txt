@@ -3,16 +3,16 @@
 
 /* Private file declarations. */
 static void Writer_writeInt(int value);
-static void Writer_writeString(const char* value, bool newline);
+static void Writer_writeString(const char *value, bool newline);
 static void writeInt(int value);
-static void writeString(const char* value, bool newline);
+static void writeString(const char *value, bool newline);
 static int main(void);
 
 static void Writer_writeInt(int value)
 {
 }
 
-static void Writer_writeString(const char* value, bool newline)
+static void Writer_writeString(const char *value, bool newline)
 {
 }
 
@@ -20,7 +20,7 @@ static void writeInt(int value)
 {
 }
 
-static void writeString(const char* value, bool newline)
+static void writeString(const char *value, bool newline)
 {
 }
 

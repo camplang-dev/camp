@@ -2,10 +2,10 @@
 #include "generic_erasure_private.h"
 
 /* Private file declarations. */
-static void accept(void* value);
+static void accept(void *value);
 static int main(void);
 
-static void accept(void* value)
+static void accept(void *value)
 {
 }
 

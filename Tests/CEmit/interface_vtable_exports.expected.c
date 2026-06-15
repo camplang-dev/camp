@@ -2,16 +2,16 @@
 #include "interface_vtable_exports_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
-static void Widget_IRef_retain(IRef** ctx);
-static void Handle_IRef_retain(IRef** ctx);
+void *malloc(uintptr_t size);
+static void Widget_IRef_retain(IRef **ctx);
+static void Handle_IRef_retain(IRef **ctx);
 static const IRef Widget_IRef__storage;
 static const IRef Handle_IRef__storage;
 
 static const IRef Widget_IRef__storage = (IRef){ .retain = Widget_IRef_retain };
-const IRef* Widget_IRef = &Widget_IRef__storage;
+const IRef *Widget_IRef = &Widget_IRef__storage;
 static const IRef Handle_IRef__storage = (IRef){ .retain = Handle_IRef_retain };
-const IRef* Handle_IRef = &Handle_IRef__storage;
+const IRef *Handle_IRef = &Handle_IRef__storage;
 void Widget_retain(Widget *this)
 {
 }
@@ -21,9 +21,9 @@ void Widget_op_initnew(Widget *this)
 	this->_vt_IRef = Widget_IRef;
 }
 
-Widget* Widget_create(void)
+Widget *Widget_create(void)
 {
-	Widget* _created0 = (Widget *)(malloc(sizeof(Widget)));
+	Widget *_created0 = (Widget *)(malloc(sizeof(Widget)));
 	if ((_created0 != NULL))
 	{
 		Widget_op_initnew(_created0);
@@ -35,16 +35,16 @@ void Handle_retain(Handle *this)
 {
 }
 
-static void Widget_IRef_retain(IRef** ctx)
+static void Widget_IRef_retain(IRef **ctx)
 {
-	Widget* instance = (Widget *)(((uint8_t *)(ctx) - offsetof(Widget, _vt_IRef)));
+	Widget *instance = (Widget *)(((uint8_t *)(ctx) - offsetof(Widget, _vt_IRef)));
 	Widget_retain(instance);
 }
 
-static void Handle_IRef_retain(IRef** ctx)
+static void Handle_IRef_retain(IRef **ctx)
 {
-	IRef_Indirect* indirect = (IRef_Indirect *)(ctx);
-	Handle* instance = indirect->ctx;
+	IRef_Indirect *indirect = (IRef_Indirect *)(ctx);
+	Handle *instance = indirect->ctx;
 	Handle_retain(instance);
 }
 
@@ -54,13 +54,13 @@ static void Handle_IRef_retain(IRef** ctx)
 
 #include "interface_vtable_exports_private.h"
 
-typedef void (* fn_void_IRefPtrPtr_)(IRef** arg0);
+typedef void (* fn_void_IRefPtrPtr_)(IRef **arg0);
 void Widget_retain(Widget *this);
 void Widget_op_initnew(Widget *this);
-Widget* Widget_create(void);
+Widget *Widget_create(void);
 void Handle_retain(Handle *this);
-extern const IRef* Widget_IRef;
-extern const IRef* Handle_IRef;
+extern const IRef *Widget_IRef;
+extern const IRef *Handle_IRef;
 
 #endif
 // file: interface_vtable_exports_private.h
@@ -80,18 +80,18 @@ typedef struct IRef_Indirect IRef_Indirect;
 /* Newtypes. */
 
 /* Callable typedefs. */
-typedef void (* fn_void_IRefPtrPtr_)(IRef** arg0);
+typedef void (* fn_void_IRefPtrPtr_)(IRef **arg0);
 
 /* Enums. */
 
 /* Layouts. */
 struct IRef
 {
-	void (* retain)(IRef** ctx);
+	void (* retain)(IRef **ctx);
 };
 struct Widget
 {
-	const IRef* _vt_IRef;
+	const IRef *_vt_IRef;
 };
 struct Handle
 {
@@ -99,19 +99,19 @@ struct Handle
 };
 struct IRef_Indirect
 {
-	const IRef* _vt;
-	void* ctx;
+	const IRef *_vt;
+	void *ctx;
 };
 
 /* Function declarations. */
 void Widget_retain(Widget *this);
 void Widget_op_initnew(Widget *this);
-Widget* Widget_create(void);
+Widget *Widget_create(void);
 void Handle_retain(Handle *this);
 
 /* Object declarations. */
-extern const IRef* Widget_IRef;
-extern const IRef* Handle_IRef;
+extern const IRef *Widget_IRef;
+extern const IRef *Handle_IRef;
 
 
 #endif

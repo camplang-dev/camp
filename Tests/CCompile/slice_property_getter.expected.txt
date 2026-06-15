@@ -2,11 +2,11 @@
 #include "slice_property_getter_private.h"
 
 /* Private file declarations. */
-static uintptr_t String_getLength(const char* this);
-static const char* String_getSpan(const char* this, uintptr_t index, uintptr_t count, uintptr_t *result_length);
+static uintptr_t String_getLength(const char *this);
+static const char *String_getSpan(const char *this, uintptr_t index, uintptr_t count, uintptr_t *result_length);
 static int main(void);
 
-static uintptr_t String_getLength(const char* this)
+static uintptr_t String_getLength(const char *this)
 {
 	uintptr_t i = 0;
 	{
@@ -20,9 +20,9 @@ __while_break1: ;
 	return i;
 }
 
-static const char* String_getSpan(const char* this, uintptr_t index, uintptr_t count, uintptr_t *result_length)
+static const char *String_getSpan(const char *this, uintptr_t index, uintptr_t count, uintptr_t *result_length)
 {
-	const char* span = 0;
+	const char *span = 0;
 	uintptr_t span_length = 0;
 	span = &this[index];
 	span_length = (count - index);
@@ -34,8 +34,8 @@ static const char* String_getSpan(const char* this, uintptr_t index, uintptr_t c
 
 static int main(void)
 {
-	const char* message = "Hello, world!";
-	const char* span;
+	const char *message = "Hello, world!";
+	const char *span;
 	uintptr_t span_length;
 	span = String_getSpan(message, 0, (((String_getLength(message) - 0) >= 0) ? ((String_getLength(message) - 0) - 0) : 0), &span_length);
 	return (int)(span_length);

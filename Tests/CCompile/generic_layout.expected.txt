@@ -27,7 +27,7 @@ typedef struct List List;
 /* Layouts. */
 struct List
 {
-	void** items;
+	void **items;
 	uintptr_t items_length;
 };
 

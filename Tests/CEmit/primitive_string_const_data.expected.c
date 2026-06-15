@@ -2,18 +2,18 @@
 #include "primitive_string_const_data_private.h"
 
 
-const char* echo(const char* value)
+const char *echo(const char *value)
 {
 	return value;
 }
 
-void takesChars(const char* value)
+void takesChars(const char *value)
 {
 }
 
 void main(void)
 {
-	const char* value = "hello";
+	const char *value = "hello";
 	takesChars(value);
 }
 
@@ -23,8 +23,8 @@ void main(void)
 
 #include "primitive_string_const_data_private.h"
 
-const char* echo(const char* value);
-void takesChars(const char* value);
+const char *echo(const char *value);
+void takesChars(const char *value);
 void main(void);
 
 #endif
@@ -45,8 +45,8 @@ void main(void);
 /* Layouts. */
 
 /* Function declarations. */
-const char* echo(const char* value);
-void takesChars(const char* value);
+const char *echo(const char *value);
+void takesChars(const char *value);
 void main(void);
 
 /* Object declarations. */

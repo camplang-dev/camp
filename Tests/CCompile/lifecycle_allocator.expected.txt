@@ -2,40 +2,40 @@
 #include "lifecycle_allocator_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
-void free(void* ptr);
-static void* Allocator_alloc(Allocator *this, uintptr_t size);
-static void Allocator_free(Allocator *this, void* ptr);
-static void Buffer_op_initnew(Buffer *this, int length, Allocator* allocator);
-static Buffer* Buffer_create(int length, Allocator* allocator);
-static void Buffer_op_delete(Buffer *this, Allocator* allocator);
-static void Buffer_destroy(Buffer *this, Allocator* allocator);
-static void Holder_op_initnew(Holder *this, Allocator* allocator);
-static Holder* Holder_create(Allocator* allocator);
-static void Holder_op_delete(Holder *this, Allocator* allocator);
-static void Holder_destroy(Holder *this, Allocator* allocator);
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void *Allocator_alloc(Allocator *this, uintptr_t size);
+static void Allocator_free(Allocator *this, void *ptr);
+static void Buffer_op_initnew(Buffer *this, int length, Allocator *allocator);
+static Buffer *Buffer_create(int length, Allocator *allocator);
+static void Buffer_op_delete(Buffer *this, Allocator *allocator);
+static void Buffer_destroy(Buffer *this, Allocator *allocator);
+static void Holder_op_initnew(Holder *this, Allocator *allocator);
+static Holder *Holder_create(Allocator *allocator);
+static void Holder_op_delete(Holder *this, Allocator *allocator);
+static void Holder_destroy(Holder *this, Allocator *allocator);
 static int main(void);
 
-static void* Allocator_alloc(Allocator *this, uintptr_t size)
+static void *Allocator_alloc(Allocator *this, uintptr_t size)
 {
 	return malloc(size);
 }
 
-static void Allocator_free(Allocator *this, void* ptr)
+static void Allocator_free(Allocator *this, void *ptr)
 {
 	free(ptr);
 }
 
-static void Buffer_op_initnew(Buffer *this, int length, Allocator* allocator)
+static void Buffer_op_initnew(Buffer *this, int length, Allocator *allocator)
 {
-	Allocator* resolvedAllocator = allocator;
+	Allocator *resolvedAllocator = allocator;
 	this->item = (int *)(malloc(sizeof(int)));
 }
 
-static Buffer* Buffer_create(int length, Allocator* allocator)
+static Buffer *Buffer_create(int length, Allocator *allocator)
 {
-	Allocator* resolvedAllocator = allocator;
-	Buffer* _created0 = (Buffer *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Buffer)) : malloc(sizeof(Buffer))));
+	Allocator *resolvedAllocator = allocator;
+	Buffer *_created0 = (Buffer *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Buffer)) : malloc(sizeof(Buffer))));
 	if ((_created0 != NULL))
 	{
 		Buffer_op_initnew(_created0, length, allocator);
@@ -43,28 +43,28 @@ static Buffer* Buffer_create(int length, Allocator* allocator)
 	return _created0;
 }
 
-static void Buffer_op_delete(Buffer *this, Allocator* allocator)
+static void Buffer_op_delete(Buffer *this, Allocator *allocator)
 {
 	((allocator != NULL) ? Allocator_free(allocator, (void *)(this->item)) : free((void *)(this->item)));
 }
 
-static void Buffer_destroy(Buffer *this, Allocator* allocator)
+static void Buffer_destroy(Buffer *this, Allocator *allocator)
 {
 	Buffer_op_delete(this, allocator);
-	Allocator* resolvedAllocator = allocator;
+	Allocator *resolvedAllocator = allocator;
 	((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(this)) : free((void *)(this)));
 }
 
-static void Holder_op_initnew(Holder *this, Allocator* allocator)
+static void Holder_op_initnew(Holder *this, Allocator *allocator)
 {
-	Allocator* resolvedAllocator = allocator;
+	Allocator *resolvedAllocator = allocator;
 	Buffer_op_initnew(&this->buffer, 4, allocator);
 }
 
-static Holder* Holder_create(Allocator* allocator)
+static Holder *Holder_create(Allocator *allocator)
 {
-	Allocator* resolvedAllocator = allocator;
-	Holder* _created1 = (Holder *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Holder)) : malloc(sizeof(Holder))));
+	Allocator *resolvedAllocator = allocator;
+	Holder *_created1 = (Holder *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Holder)) : malloc(sizeof(Holder))));
 	if ((_created1 != NULL))
 	{
 		Holder_op_initnew(_created1, allocator);
@@ -72,25 +72,25 @@ static Holder* Holder_create(Allocator* allocator)
 	return _created1;
 }
 
-static void Holder_op_delete(Holder *this, Allocator* allocator)
+static void Holder_op_delete(Holder *this, Allocator *allocator)
 {
 	Buffer_op_delete(&this->buffer, allocator);
 }
 
-static void Holder_destroy(Holder *this, Allocator* allocator)
+static void Holder_destroy(Holder *this, Allocator *allocator)
 {
 	Holder_op_delete(this, allocator);
-	Allocator* resolvedAllocator = allocator;
+	Allocator *resolvedAllocator = allocator;
 	((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(this)) : free((void *)(this)));
 }
 
 static int main(void)
 {
-	Allocator* arena = NULL;
+	Allocator *arena = NULL;
 	{
-		Allocator* _allocator2 = arena;
+		Allocator *_allocator2 = arena;
 		{
-			Holder* holder = (Holder *)(((_allocator2 != NULL) ? Allocator_alloc(_allocator2, sizeof(Holder)) : malloc(sizeof(Holder))));
+			Holder *holder = (Holder *)(((_allocator2 != NULL) ? Allocator_alloc(_allocator2, sizeof(Holder)) : malloc(sizeof(Holder))));
 			if ((holder != NULL))
 			{
 				Holder_op_initnew(holder, _allocator2);
@@ -128,7 +128,7 @@ struct Allocator
 };
 struct Buffer
 {
-	int* item;
+	int *item;
 };
 struct Holder
 {

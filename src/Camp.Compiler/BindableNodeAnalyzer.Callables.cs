@@ -32,12 +32,15 @@ public sealed partial class BindableNodeAnalyzer
 			&& definition is NewtypeDefinition { UnderlyingType: not null } newtypeDefinition)
 		{
 			string underlyingType = newtypeDefinition.UnderlyingType.ResolvedType ?? ErrorType;
-			if (TryParseCallableShape(underlyingType, out shape))
-			{
-				if (newtypeDefinition.Parameters.Count > 0)
-					shape = new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, [.. GetParameterTypeNames(newtypeDefinition.Parameters)]);
-				return true;
-			}
+				if (TryParseCallableShape(underlyingType, out shape))
+				{
+					ThisContract thisContract = GetCallableNewtypeThisContract(newtypeDefinition);
+					if (newtypeDefinition.Parameters.Count > 0)
+						shape = new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, [.. GetCallableParameterTypeNames(newtypeDefinition.Parameters)], thisContract);
+					else
+						shape = shape with { This = thisContract };
+					return true;
+				}
 
 			if (newtypeDefinition.UnderlyingType is IterTypeReference
 				&& TryGetIteratorProtocolCurrentTypes(underlyingType, out List<string>? iterCurrentTypes)
@@ -47,7 +50,7 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (string currentType in iterCurrentTypes)
 					parameters.Add(AddPointer(currentType));
 				parameters.AddRange(GetExpandedCallableParameterTypes(newtypeDefinition.Parameters));
-				shape = new CallableShape("iter", null, null, "bool", parameters);
+				shape = new CallableShape("iter", null, null, "bool", parameters, GetCallableNewtypeThisContract(newtypeDefinition));
 				return true;
 			}
 		}
@@ -125,6 +128,11 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
+	IEnumerable<string> GetCallableParameterTypeNames(IEnumerable<ParameterDefinition> parameters)
+	{
+		return GetParameterTypeNames(GetCallableParameters([.. parameters]));
+	}
+
 	static List<string> SplitCallableSpecs(ref string text)
 	{
 		List<string> specs = [];
@@ -171,6 +179,16 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool CallableShapesCompatible(CallableShape source, CallableShape target)
 	{
+		return CallableShapesCompatible(source, target, compareThis: true);
+	}
+
+	bool CallableShapesCompatibleIgnoringThis(CallableShape source, CallableShape target)
+	{
+		return CallableShapesCompatible(source, target, compareThis: false);
+	}
+
+	bool CallableShapesCompatible(CallableShape source, CallableShape target, bool compareThis)
+	{
 		source = ExpandCallableShape(source);
 		target = ExpandCallableShape(target);
 
@@ -183,12 +201,15 @@ public sealed partial class BindableNodeAnalyzer
 				return false;
 		}
 
-		return source.Spec == target.Spec && source.CallSpec == target.CallSpec && source.ReturnType == target.ReturnType;
+		return source.Spec == target.Spec
+			&& source.CallSpec == target.CallSpec
+			&& source.ReturnType == target.ReturnType
+			&& (!compareThis || source.This == target.This);
 	}
 
 	CallableShape ExpandCallableShape(CallableShape shape)
 	{
-		return new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, GetExpandedCallableParameterTypes(shape.Parameters));
+		return new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, GetExpandedCallableParameterTypes(shape.Parameters), shape.This);
 	}
 
 	static string? GetLambdaParameterSymbolName(LambdaParameter parameter)
@@ -196,22 +217,63 @@ public sealed partial class BindableNodeAnalyzer
 		return parameter.Name ?? parameter.Parameter?.Name;
 	}
 
-	readonly struct CallableShape
+	readonly record struct CallableShape(string Kind, string? Spec, string? CallSpec, string ReturnType, List<string> Parameters, ThisContract This = default)
 	{
-		public CallableShape(string kind, string? spec, string? callSpec, string returnType, List<string> parameters)
+	}
+
+	readonly record struct ThisContract(bool HasThis, bool IsConst, bool IsVolatile, string Lifetime)
+	{
+		public bool IsEscaped => Lifetime == "escaped";
+		public bool IsDefault => !HasThis;
+	}
+
+	static ThisContract GetThisContract(ThisParameterDefinition? parameter)
+	{
+		if (parameter is null)
+			return default;
+
+		bool isConst = false;
+		bool isVolatile = false;
+		string lifetime = "";
+		if (parameter.SourceSyntax is ThisParameterSyntax { Declarators: not null } syntax)
 		{
-			Kind = kind;
-			Spec = spec;
-			CallSpec = callSpec;
-			ReturnType = returnType;
-			Parameters = parameters;
+			foreach (TypeDeclaratorSyntax declarator in syntax.Declarators)
+			{
+				switch (declarator.Keyword?.Value)
+				{
+					case "const":
+						isConst = true;
+						break;
+					case "volatile":
+						isVolatile = true;
+						break;
+					case "escaped":
+					case "scoped":
+					case "unscoped":
+						lifetime = declarator.Keyword.Value.Value;
+						break;
+				}
+			}
 		}
 
-		public string Kind { get; }
-		public string? Spec { get; }
-		public string? CallSpec { get; }
-		public string ReturnType { get; }
-		public List<string> Parameters { get; }
+		return new ThisContract(true, isConst, isVolatile, lifetime);
+	}
+
+	static ThisParameterDefinition? GetCallableNewtypeThisParameter(NewtypeDefinition definition)
+	{
+		return definition.Parameters.Count > 0 && definition.Parameters[0] is ThisParameterDefinition thisParameter
+			? thisParameter
+			: null;
+	}
+
+	static ThisContract GetCallableNewtypeThisContract(NewtypeDefinition definition)
+	{
+		return GetThisContract(GetCallableNewtypeThisParameter(definition));
+	}
+
+	static bool HasEscapedThisContract(FunctionDefinition function)
+	{
+		return GetThisContract(GetExplicitThisParameter(function) ?? function.EffectiveThisParameter).IsEscaped;
 	}
 
 	bool IsInstanceFunction(FunctionDefinition function)

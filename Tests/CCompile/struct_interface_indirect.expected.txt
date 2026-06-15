@@ -4,12 +4,12 @@
 /* Private file declarations. */
 static void Handle_retain(Handle *this);
 static int main(void);
-static void Handle_IRef_retain(IRef** ctx);
+static void Handle_IRef_retain(IRef **ctx);
 static const IRef Handle_IRef__storage;
-static const IRef* Handle_IRef;
+static const IRef *Handle_IRef;
 
 static const IRef Handle_IRef__storage = (IRef){ .retain = Handle_IRef_retain };
-static const IRef* Handle_IRef = &Handle_IRef__storage;
+static const IRef *Handle_IRef = &Handle_IRef__storage;
 static void Handle_retain(Handle *this)
 {
 }
@@ -20,10 +20,10 @@ static int main(void)
 	return 0;
 }
 
-static void Handle_IRef_retain(IRef** ctx)
+static void Handle_IRef_retain(IRef **ctx)
 {
-	IRef_Indirect* indirect = (IRef_Indirect *)(ctx);
-	Handle* instance = indirect->ctx;
+	IRef_Indirect *indirect = (IRef_Indirect *)(ctx);
+	Handle *instance = indirect->ctx;
 	Handle_retain(instance);
 }
 
@@ -43,14 +43,14 @@ typedef struct IRef_Indirect IRef_Indirect;
 /* Newtypes. */
 
 /* Callable typedefs. */
-typedef void (* fn_void_IRefPtrPtr_)(IRef** arg0);
+typedef void (* fn_void_IRefPtrPtr_)(IRef **arg0);
 
 /* Enums. */
 
 /* Layouts. */
 struct IRef
 {
-	void (* retain)(IRef** ctx);
+	void (* retain)(IRef **ctx);
 };
 struct Handle
 {
@@ -58,8 +58,8 @@ struct Handle
 };
 struct IRef_Indirect
 {
-	const IRef* _vt;
-	void* ctx;
+	const IRef *_vt;
+	void *ctx;
 };
 
 /* Function declarations. */

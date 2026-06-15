@@ -1,0 +1,64 @@
+// file: callable_this_ascription.c
+#include "callable_this_ascription_private.h"
+
+/* Private file declarations. */
+static uintptr_t Date_format(const Date *this, char *buffer, uintptr_t buffer_length);
+
+static uintptr_t Date_format(const Date *this, char *buffer, uintptr_t buffer_length)
+{
+	int y = this->year;
+	return 0;
+}
+
+int main(void)
+{
+	const Date d;
+	fn_nuint_voidPtr__charPtr__nuint_ f = (uintptr_t (* )(void *arg0, char *arg1, uintptr_t arg2))Date_format;
+	void *f_context = (void *)(&d);
+	return 0;
+}
+
+// file: callable_this_ascription.h
+#ifndef CALLABLE_THIS_ASCRIPTION_H_
+#define CALLABLE_THIS_ASCRIPTION_H_
+
+#include "callable_this_ascription_private.h"
+
+typedef uintptr_t (* fn_nuint_voidPtr__charPtr__nuint_)(void *arg0, char *arg1, uintptr_t arg2);
+int main(void);
+
+#endif
+// file: callable_this_ascription_private.h
+#ifndef CALLABLE_THIS_ASCRIPTION_PRIVATE_H_
+#define CALLABLE_THIS_ASCRIPTION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Date Date;
+
+/* Newtypes. */
+typedef uintptr_t (* CharFormatter)(char *arg0, uintptr_t arg1);
+
+/* Callable typedefs. */
+typedef uintptr_t (* fn_nuint_voidPtr__charPtr__nuint_)(void *arg0, char *arg1, uintptr_t arg2);
+
+/* Enums. */
+
+/* Layouts. */
+struct Date
+{
+	int year;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: callable_this_ascription.c

@@ -1,0 +1,62 @@
+newtype fn void BadFn(this);
+newtype delegate nuint CharFormatter(const this, char[] buffer);
+newtype delegate void ConstCallback(const this);
+newtype delegate void EscapedCallback(escaped this);
+newtype delegate void Callback();
+newtype delegate void ConstOnlyCallback(const this);
+
+class MutatingDate
+{
+	int year;
+
+	nuint format(char[] buffer) : CharFormatter
+	{
+		this.year = 2026;
+		return 0;
+	}
+}
+
+class MismatchedDate
+{
+	nuint format(escaped this, char[] buffer) : CharFormatter
+	{
+		return 0;
+	}
+}
+
+class PlainDate
+{
+	void run()
+	{
+	}
+}
+
+class Worker
+{
+	void run(escaped this)
+	{
+	}
+}
+
+escaped class MissingEscapedService
+{
+	void run() : Callback
+	{
+	}
+}
+
+escaped class ConstOnlyService
+{
+	void run() : ConstOnlyCallback
+	{
+	}
+}
+
+int main()
+{
+	const PlainDate d = init PlainDate();
+	ConstCallback cb1 = d.run;
+	Worker w = init Worker();
+	EscapedCallback cb2 = w.run;
+	return 0;
+}

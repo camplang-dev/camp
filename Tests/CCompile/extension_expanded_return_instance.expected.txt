@@ -2,13 +2,13 @@
 #include "extension_expanded_return_instance_private.h"
 
 /* Private file declarations. */
-static const char* String_toArray(const char* this, uintptr_t *result_length);
-static void accept(const char* value, uintptr_t value_length);
+static const char *String_toArray(const char *this, uintptr_t *result_length);
+static void accept(const char *value, uintptr_t value_length);
 static int main(void);
 
-static const char* String_toArray(const char* this, uintptr_t *result_length)
+static const char *String_toArray(const char *this, uintptr_t *result_length)
 {
-	const char* arr;
+	const char *arr;
 	uintptr_t arr_length;
 	arr = this;
 	arr_length = 0;
@@ -18,18 +18,18 @@ static const char* String_toArray(const char* this, uintptr_t *result_length)
 	}
 }
 
-static void accept(const char* value, uintptr_t value_length)
+static void accept(const char *value, uintptr_t value_length)
 {
 }
 
 static int main(void)
 {
-	const char* value = "two";
-	const char* _elements0;
+	const char *value = "two";
+	const char *_elements0;
 	uintptr_t _length1;
 	_elements0 = String_toArray(value, &_length1);
 	accept(_elements0, _length1);
-	const char* _elements2;
+	const char *_elements2;
 	uintptr_t _length3;
 	_elements2 = String_toArray(value, &_length3);
 	accept(_elements2, _length3);

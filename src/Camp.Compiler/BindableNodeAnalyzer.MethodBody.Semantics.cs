@@ -1325,7 +1325,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BuildEffectiveReceiverType(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
 	{
-		ThisParameterDefinition? explicitThis = GetExplicitThisParameter(function);
+		ThisParameterDefinition? explicitThis = GetExplicitThisParameter(function) ?? function.EffectiveThisParameter;
 		TypeDefinition? owner = FindContainingType(function);
 		string receiverType = owner is null
 			? explicitThis?.ResolvedType ?? targetType
@@ -1362,6 +1362,11 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return null;
+	}
+
+	static ThisParameterDefinition? GetEffectiveThisParameter(FunctionDefinition function)
+	{
+		return GetExplicitThisParameter(function) ?? function.EffectiveThisParameter;
 	}
 
 	static string ApplyThisDeclarators(string receiverType, ThisParameterDefinition thisParameter)

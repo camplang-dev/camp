@@ -2,9 +2,9 @@
 #include "generic_iterator_param_erasure_private.h"
 
 /* Private file declarations. */
-static void Sink_addEach(Sink *this, fn_bool_voidPtr__voidPtr_ iterator, void* iterator_context);
+static void Sink_addEach(Sink *this, fn_bool_voidPtr__voidPtr_ iterator, void *iterator_context);
 
-static void Sink_addEach(Sink *this, fn_bool_voidPtr__voidPtr_ iterator, void* iterator_context)
+static void Sink_addEach(Sink *this, fn_bool_voidPtr__voidPtr_ iterator, void *iterator_context)
 {
 }
 
@@ -19,7 +19,7 @@ int main(void)
 
 #include "generic_iterator_param_erasure_private.h"
 
-typedef bool (* fn_bool_voidPtr__voidPtr_)(void* arg0, void* arg1);
+typedef bool (* fn_bool_voidPtr__voidPtr_)(void *arg0, void *arg1);
 int main(void);
 
 #endif
@@ -37,7 +37,7 @@ typedef struct Sink Sink;
 /* Newtypes. */
 
 /* Callable typedefs. */
-typedef bool (* fn_bool_voidPtr__voidPtr_)(void* arg0, void* arg1);
+typedef bool (* fn_bool_voidPtr__voidPtr_)(void *arg0, void *arg1);
 
 /* Enums. */
 

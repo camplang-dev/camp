@@ -3,9 +3,9 @@
 
 /* Private file declarations. */
 static int addOne(int value);
-static int addOneWithContext(void* context, int value);
-static const char* getName(uintptr_t *result_length);
-static int apply(fn_int_voidPtr__int_ transform, void* transform_context, int maybe, bool maybe_specified, const char* name, uintptr_t name_length);
+static int addOneWithContext(void *context, int value);
+static const char *getName(uintptr_t *result_length);
+static int apply(fn_int_voidPtr__int_ transform, void *transform_context, int maybe, bool maybe_specified, const char *name, uintptr_t name_length);
 static int main(void);
 
 static int addOne(int value)
@@ -13,12 +13,12 @@ static int addOne(int value)
 	return (value + 1);
 }
 
-static int addOneWithContext(void* context, int value)
+static int addOneWithContext(void *context, int value)
 {
 	return addOne(value);
 }
 
-static const char* getName(uintptr_t *result_length)
+static const char *getName(uintptr_t *result_length)
 {
 	{
 		(*result_length) = 4;
@@ -26,7 +26,7 @@ static const char* getName(uintptr_t *result_length)
 	}
 }
 
-static int apply(fn_int_voidPtr__int_ transform, void* transform_context, int maybe, bool maybe_specified, const char* name, uintptr_t name_length)
+static int apply(fn_int_voidPtr__int_ transform, void *transform_context, int maybe, bool maybe_specified, const char *name, uintptr_t name_length)
 {
 	if (maybe_specified)
 	{
@@ -53,7 +53,7 @@ static int main(void)
 /* Newtypes. */
 
 /* Callable typedefs. */
-typedef int (* fn_int_voidPtr__int_)(void* arg0, int arg1);
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
 
 /* Enums. */
 

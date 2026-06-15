@@ -2,23 +2,23 @@
 #include "class_iterator_foreach_cleanup_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
-void free(void* ptr);
+void *malloc(uintptr_t size);
+void free(void *ptr);
 static void cleanup(void);
-static valuesIter* values(void);
+static valuesIter *values(void);
 static int firstValue(void);
-static bool valuesIter_next(valuesIter *this, int* current);
+static bool valuesIter_next(valuesIter *this, int *current);
 static void valuesIter_op_delete(valuesIter *this);
 static void valuesIter_destroy(valuesIter *this);
-static bool valuesIter_iter(void* ctx, int* current);
+static bool valuesIter_iter(void *ctx, int *current);
 
 static void cleanup(void)
 {
 }
 
-static valuesIter* values(void)
+static valuesIter *values(void)
 {
-	valuesIter* _iter0 = (valuesIter *)(malloc(sizeof(valuesIter)));
+	valuesIter *_iter0 = (valuesIter *)(malloc(sizeof(valuesIter)));
 	_iter0->__state = 0;
 	return _iter0;
 }
@@ -26,7 +26,7 @@ static valuesIter* values(void)
 static int firstValue(void)
 {
 	{
-		valuesIter* _foreachIter1 = values();
+		valuesIter *_foreachIter1 = values();
 		int _foreachCurrent2 = 0;
 		int _return5 = 0;
 		while (valuesIter_next(_foreachIter1, &_foreachCurrent2))
@@ -49,7 +49,7 @@ __foreach_done7: ;
 	return 0;
 }
 
-static bool valuesIter_next(valuesIter *this, int* current)
+static bool valuesIter_next(valuesIter *this, int *current)
 {
 	if ((this->__state == -1))
 	{
@@ -92,9 +92,9 @@ static void valuesIter_destroy(valuesIter *this)
 	valuesIter_op_delete(this);
 }
 
-static bool valuesIter_iter(void* ctx, int* current)
+static bool valuesIter_iter(void *ctx, int *current)
 {
-	valuesIter* state = (valuesIter *)(ctx);
+	valuesIter *state = (valuesIter *)(ctx);
 	if ((current == NULL))
 	{
 		(valuesIter_op_delete(state), free((void *)(state)));

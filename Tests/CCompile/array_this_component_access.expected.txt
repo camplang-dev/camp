@@ -2,10 +2,10 @@
 #include "array_this_component_access_private.h"
 
 /* Private file declarations. */
-static int IntArray_sum(const int* this, uintptr_t this_length);
+static int IntArray_sum(const int *this, uintptr_t this_length);
 static int main(void);
 
-static int IntArray_sum(const int* this, uintptr_t this_length)
+static int IntArray_sum(const int *this, uintptr_t this_length)
 {
 	int total = 0;
 	{
@@ -21,7 +21,7 @@ __for_break1: ;
 
 static int main(void)
 {
-	int* values = (int []){1, 2, 3};
+	int *values = (int []){1, 2, 3};
 	uintptr_t values_length = 3;
 	return ((IntArray_sum(values, values_length) == 6) ? 0 : 1);
 }

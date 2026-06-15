@@ -2,7 +2,7 @@
 #include "exported_default_constructor_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
+void *malloc(uintptr_t size);
 static _ExportedAbstract _ExportedAbstract__vt;
 
 static _ExportedAbstract _ExportedAbstract__vt = (_ExportedAbstract){ .use = NULL };
@@ -10,9 +10,9 @@ void ExportedConcrete_op_initnew(ExportedConcrete *this)
 {
 }
 
-ExportedConcrete* ExportedConcrete_create(void)
+ExportedConcrete *ExportedConcrete_create(void)
 {
-	ExportedConcrete* _created0 = (ExportedConcrete *)(malloc(sizeof(ExportedConcrete)));
+	ExportedConcrete *_created0 = (ExportedConcrete *)(malloc(sizeof(ExportedConcrete)));
 	if ((_created0 != NULL))
 	{
 		ExportedConcrete_op_initnew(_created0);
@@ -31,9 +31,9 @@ void ExportedAbstract_use(ExportedAbstract *this)
 
 #include "exported_default_constructor_private.h"
 
-typedef void (* fn_void_ExportedAbstractPtr_)(ExportedAbstract* arg0);
+typedef void (* fn_void_ExportedAbstractPtr_)(ExportedAbstract *arg0);
 void ExportedConcrete_op_initnew(ExportedConcrete *this);
-ExportedConcrete* ExportedConcrete_create(void);
+ExportedConcrete *ExportedConcrete_create(void);
 void ExportedAbstract_use(ExportedAbstract *this);
 
 #endif
@@ -53,7 +53,7 @@ typedef struct _ExportedAbstract _ExportedAbstract;
 /* Newtypes. */
 
 /* Callable typedefs. */
-typedef void (* fn_void_ExportedAbstractPtr_)(ExportedAbstract* arg0);
+typedef void (* fn_void_ExportedAbstractPtr_)(ExportedAbstract *arg0);
 
 /* Enums. */
 
@@ -64,16 +64,16 @@ struct ExportedConcrete
 };
 struct ExportedAbstract
 {
-	_ExportedAbstract* _vt;
+	_ExportedAbstract *_vt;
 };
 struct _ExportedAbstract
 {
-	void (* use)(ExportedAbstract* ctx);
+	void (* use)(ExportedAbstract *ctx);
 };
 
 /* Function declarations. */
 void ExportedConcrete_op_initnew(ExportedConcrete *this);
-ExportedConcrete* ExportedConcrete_create(void);
+ExportedConcrete *ExportedConcrete_create(void);
 void ExportedAbstract_use(ExportedAbstract *this);
 
 /* Object declarations. */

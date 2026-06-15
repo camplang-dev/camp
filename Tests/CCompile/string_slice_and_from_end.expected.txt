@@ -2,16 +2,16 @@
 #include "string_slice_and_from_end_private.h"
 
 /* Private file declarations. */
-static const char* getMessage(void);
-static uintptr_t String_getLength(const char* this);
-static void consumeSpan(const char* value, uintptr_t value_length);
+static const char *getMessage(void);
+static uintptr_t String_getLength(const char *this);
+static void consumeSpan(const char *value, uintptr_t value_length);
 
-static const char* getMessage(void)
+static const char *getMessage(void)
 {
 	return "Hello, world!";
 }
 
-static uintptr_t String_getLength(const char* this)
+static uintptr_t String_getLength(const char *this)
 {
 	uintptr_t length = 0;
 	{
@@ -25,20 +25,20 @@ __while_break1: ;
 	return length;
 }
 
-static void consumeSpan(const char* value, uintptr_t value_length)
+static void consumeSpan(const char *value, uintptr_t value_length)
 {
 }
 
 int main(void)
 {
-	const char* hello = getMessage();
-	const char* slice = (hello + ((0 > String_getLength(hello)) ? String_getLength(hello) : ((0 < 0) ? 0 : 0)));
+	const char *hello = getMessage();
+	const char *slice = (hello + ((0 > String_getLength(hello)) ? String_getLength(hello) : ((0 < 0) ? 0 : 0)));
 	uintptr_t slice_length = (((((String_getLength(hello) - 1) > String_getLength(hello)) ? String_getLength(hello) : (((String_getLength(hello) - 1) < 0) ? 0 : (String_getLength(hello) - 1))) >= ((0 > String_getLength(hello)) ? String_getLength(hello) : ((0 < 0) ? 0 : 0))) ? ((((String_getLength(hello) - 1) > String_getLength(hello)) ? String_getLength(hello) : (((String_getLength(hello) - 1) < 0) ? 0 : (String_getLength(hello) - 1))) - ((0 > String_getLength(hello)) ? String_getLength(hello) : ((0 < 0) ? 0 : 0))) : 0);
 	char letterD = hello[(String_getLength(hello) - 2)];
-	int* numbers = (int []){1, 2, 3, 4, 5};
+	int *numbers = (int []){1, 2, 3, 4, 5};
 	uintptr_t numbers_length = 5;
 	int number5 = numbers[(numbers_length - 1)];
-	int* number5addr = &numbers[(numbers_length - 1)];
+	int *number5addr = &numbers[(numbers_length - 1)];
 	consumeSpan(slice, slice_length);
 	return (((int)(letterD) + number5) + *number5addr);
 }

@@ -2,20 +2,20 @@
 #include "expanded_return_iter_assignment_private.h"
 
 /* Private file declarations. */
-static bool writeAll(void* context, uintptr_t* written, char* buffer, uintptr_t buffer_length);
-static fn_bool_voidPtr__nuintPtr__charPtr__nuint_ getWriter(void* *result_context);
+static bool writeAll(void *context, uintptr_t *written, char *buffer, uintptr_t buffer_length);
+static fn_bool_voidPtr__nuintPtr__charPtr__nuint_ getWriter(void **result_context);
 static int main(void);
 
-static bool writeAll(void* context, uintptr_t* written, char* buffer, uintptr_t buffer_length)
+static bool writeAll(void *context, uintptr_t *written, char *buffer, uintptr_t buffer_length)
 {
 	*written = buffer_length;
 	return true;
 }
 
-static fn_bool_voidPtr__nuintPtr__charPtr__nuint_ getWriter(void* *result_context)
+static fn_bool_voidPtr__nuintPtr__charPtr__nuint_ getWriter(void **result_context)
 {
 	fn_bool_voidPtr__nuintPtr__charPtr__nuint_ writer = 0;
-	void* writer_context = 0;
+	void *writer_context = 0;
 	writer = writeAll;
 	writer_context = NULL;
 	{
@@ -27,11 +27,11 @@ static fn_bool_voidPtr__nuintPtr__charPtr__nuint_ getWriter(void* *result_contex
 static int main(void)
 {
 	fn_bool_voidPtr__nuintPtr__charPtr__nuint_ writer;
-	void* writer_context;
+	void *writer_context;
 	{
 		writer = getWriter(&writer_context);
 	}
-	char* text = (char []){'o', 'k'};
+	char *text = (char []){'o', 'k'};
 	uintptr_t text_length = 2;
 	uintptr_t written = 0;
 	if (!writer(writer_context, &written, text, text_length))
@@ -55,7 +55,7 @@ static int main(void)
 typedef void* Writer;
 
 /* Callable typedefs. */
-typedef bool (* fn_bool_voidPtr__nuintPtr__charPtr__nuint_)(void* arg0, uintptr_t* arg1, char* arg2, uintptr_t arg3);
+typedef bool (* fn_bool_voidPtr__nuintPtr__charPtr__nuint_)(void *arg0, uintptr_t *arg1, char *arg2, uintptr_t arg3);
 
 /* Enums. */
 

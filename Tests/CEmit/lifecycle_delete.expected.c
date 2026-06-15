@@ -2,10 +2,10 @@
 #include "lifecycle_delete_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
-void free(void* ptr);
+void *malloc(uintptr_t size);
+void free(void *ptr);
 static void Logger_op_initnew(Logger *this);
-static Logger* Logger_create(void);
+static Logger *Logger_create(void);
 static void Logger_op_delete(Logger *this);
 static void Logger_destroy(Logger *this);
 
@@ -13,9 +13,9 @@ static void Logger_op_initnew(Logger *this)
 {
 }
 
-static Logger* Logger_create(void)
+static Logger *Logger_create(void)
 {
-	Logger* _created0 = (Logger *)(malloc(sizeof(Logger)));
+	Logger *_created0 = (Logger *)(malloc(sizeof(Logger)));
 	if ((_created0 != NULL))
 	{
 		Logger_op_initnew(_created0);
@@ -35,7 +35,7 @@ static void Logger_destroy(Logger *this)
 
 void run(void)
 {
-	Logger* logger = (Logger *)(malloc(sizeof(Logger)));
+	Logger *logger = (Logger *)(malloc(sizeof(Logger)));
 	if ((logger != NULL))
 	{
 		Logger_op_initnew(logger);

@@ -2,13 +2,13 @@
 #include "primitive_flattened_symbols_private.h"
 
 /* Private file declarations. */
-static bool String_tryParseInt(const char* this, int *value);
+static bool String_tryParseInt(const char *this, int *value);
 static uint32_t UInt_next(uint32_t this);
 static uintptr_t NUInt_wideNext(uintptr_t this);
-static void IntArray_touch(const int* this, uintptr_t this_length);
-static bool CustomStringName(const char* this);
+static void IntArray_touch(const int *this, uintptr_t this_length);
+static bool CustomStringName(const char *this);
 
-static bool String_tryParseInt(const char* this, int *value)
+static bool String_tryParseInt(const char *this, int *value)
 {
 	(*value) = 0;
 	return false;
@@ -24,11 +24,11 @@ static uintptr_t NUInt_wideNext(uintptr_t this)
 	return (this + 1);
 }
 
-static void IntArray_touch(const int* this, uintptr_t this_length)
+static void IntArray_touch(const int *this, uintptr_t this_length)
 {
 }
 
-static bool CustomStringName(const char* this)
+static bool CustomStringName(const char *this)
 {
 	return true;
 }
@@ -39,7 +39,7 @@ int main(void)
 	bool parsed = String_tryParseInt("42", &value);
 	uint32_t one = UInt_next(0);
 	uintptr_t two = NUInt_wideNext(((uintptr_t)(0)));
-	int* values = (int []){1, 2, 3};
+	int *values = (int []){1, 2, 3};
 	uintptr_t values_length = 3;
 	IntArray_touch(values, values_length);
 	bool named = CustomStringName("x");

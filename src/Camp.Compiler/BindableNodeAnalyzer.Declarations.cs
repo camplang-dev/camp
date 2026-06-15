@@ -372,8 +372,23 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ParameterDefinition parameter in definition.Parameters)
 			AnalyzeParameterDefinition(parameter, scope);
+		ValidateCallableNewtypeThisParameter(definition);
 
 		return scope;
+	}
+
+	void ValidateCallableNewtypeThisParameter(NewtypeDefinition definition)
+	{
+		string family = GetCallableNewtypeFamily(definition);
+		for (int i = 0; i < definition.Parameters.Count; i++)
+		{
+			if (definition.Parameters[i] is not ThisParameterDefinition)
+				continue;
+			if (family == "fn")
+				Report(GetRange(definition.Parameters[i].SourceSyntax), $"fn newtype '{definition.Name}' may not declare a this parameter.");
+			else if (i != 0 || family == "value")
+				Report(GetRange(definition.Parameters[i].SourceSyntax), $"Callable newtype '{definition.Name}' may declare this only as its first parameter.");
+		}
 	}
 
 	void AnalyzeParamsDefinition(ParamsDefinition definition, AnalysisScope parentScope)
@@ -710,8 +725,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		ValidateExpandedParameterNames(definition.Parameters);
 
-		if (containingType is not null && GetExplicitThisParameter(definition) is ThisParameterDefinition memberThisParameter)
-			memberThisParameter.ResolvedType = ApplyThisDeclarators(containingType, memberThisParameter);
+		if (containingType is not null && (GetExplicitThisParameter(definition) ?? definition.EffectiveThisParameter) is ThisParameterDefinition memberThisParameter)
+			memberThisParameter.ResolvedType = ApplyThisDeclarators($"{containingType}*", memberThisParameter);
 		if (containingType is null && !definition.SymbolOverridden && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
 			definition.Symbol = BuildExtensionFunctionSymbol(GetCallableName(definition), thisParameter.ResolvedType ?? ErrorType, definition);
 		else if (containingType is null && !definition.SymbolOverridden && HasOverloadSelector(definition))
@@ -779,13 +794,51 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"Receiver-bearing declaration '{declarationName}' cannot ascribe fn newtype '{newtypeDefinition.Name}'; use a delegate or iter newtype.");
 			return;
 		}
+		ValidateCallableAscriptionThisContract(definition, containingType, newtypeDefinition, family, syntax, declarationName);
 
 		string sourceType = BuildCallableAscriptionSourceType(definition, family, receiverBearing);
 		if (!TryGetCallableShape(sourceType, out CallableShape sourceShape)
 			|| !TryGetCallableShape(newtypeDefinition.Name, out CallableShape targetShape)
-			|| !CallableShapesCompatible(sourceShape, targetShape))
+			|| !CallableShapesCompatibleIgnoringThis(sourceShape, targetShape))
 		{
 			Report(GetRange(syntax), $"Callable ascription target '{newtypeDefinition.Name}' is not compatible with declaration '{declarationName}'.");
+		}
+	}
+
+	void ValidateCallableAscriptionThisContract(FunctionDefinition definition, string? containingType, NewtypeDefinition newtypeDefinition, string family, SyntaxNode? syntax, string declarationName)
+	{
+		if (family is "fn" or "value")
+			return;
+
+		ThisParameterDefinition? callableThis = GetCallableNewtypeThisParameter(newtypeDefinition);
+		ThisParameterDefinition? explicitThis = GetExplicitThisParameter(definition);
+		ThisContract callableContract = GetThisContract(callableThis);
+		ThisContract explicitContract = GetThisContract(explicitThis);
+
+		if (callableThis is not null && explicitThis is not null && callableContract != explicitContract)
+		{
+			Report(GetRange(explicitThis.SourceSyntax ?? syntax), $"Explicit this qualifiers on declaration '{declarationName}' do not match callable ascription target '{newtypeDefinition.Name}'.");
+			return;
+		}
+
+		if (callableThis is not null && explicitThis is null)
+		{
+			definition.EffectiveThisParameter = new ThisParameterDefinition
+			{
+				SourceSyntax = callableThis.SourceSyntax,
+				Name = "this",
+				Symbol = "this"
+			};
+		}
+
+		if (containingType is not null
+			&& typeDefinitions.TryGetValue(containingType, out TypeDefinition? type)
+			&& type is ClassDefinition { IsEscaped: true })
+		{
+			bool callableCarriesEscaped = callableContract.IsEscaped;
+			bool explicitCarriesEscaped = explicitContract.IsEscaped;
+			if (!callableCarriesEscaped && !explicitCarriesEscaped)
+				Report(GetRange(syntax), $"Ascribed method '{declarationName}' in escaped class '{containingType}' must explicitly carry escaped this on the callable newtype or on the method.");
 		}
 	}
 

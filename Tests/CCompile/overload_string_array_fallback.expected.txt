@@ -2,16 +2,16 @@
 #include "overload_string_array_fallback_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
-static void Writer_writeCharArray(Writer *this, const char* value, uintptr_t value_length);
+void *malloc(uintptr_t size);
+static void Writer_writeCharArray(Writer *this, const char *value, uintptr_t value_length);
 static void Writer_writeInt(Writer *this, int value);
 static void Writer_op_initnew(Writer *this);
-static Writer* Writer_create(void);
-static void writeCharArray(const char* value, uintptr_t value_length);
+static Writer *Writer_create(void);
+static void writeCharArray(const char *value, uintptr_t value_length);
 static void writeInt(int value);
-static void run(Writer* writer);
+static void run(Writer *writer);
 
-static void Writer_writeCharArray(Writer *this, const char* value, uintptr_t value_length)
+static void Writer_writeCharArray(Writer *this, const char *value, uintptr_t value_length)
 {
 }
 
@@ -23,9 +23,9 @@ static void Writer_op_initnew(Writer *this)
 {
 }
 
-static Writer* Writer_create(void)
+static Writer *Writer_create(void)
 {
-	Writer* _created0 = (Writer *)(malloc(sizeof(Writer)));
+	Writer *_created0 = (Writer *)(malloc(sizeof(Writer)));
 	if ((_created0 != NULL))
 	{
 		Writer_op_initnew(_created0);
@@ -33,7 +33,7 @@ static Writer* Writer_create(void)
 	return _created0;
 }
 
-static void writeCharArray(const char* value, uintptr_t value_length)
+static void writeCharArray(const char *value, uintptr_t value_length)
 {
 }
 
@@ -41,7 +41,7 @@ static void writeInt(int value)
 {
 }
 
-static void run(Writer* writer)
+static void run(Writer *writer)
 {
 	writeCharArray("asdf", 4);
 	Writer_writeCharArray(writer, "qwer", 4);

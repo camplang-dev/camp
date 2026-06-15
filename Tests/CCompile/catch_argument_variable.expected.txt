@@ -2,10 +2,10 @@
 #include "catch_argument_variable_private.h"
 
 /* Private file declarations. */
-void free(void* ptr);
+void free(void *ptr);
 static void FileHandle_op_delete(FileHandle *this);
 static void FileHandle_destroy(FileHandle *this);
-static FileHandle* openHandle(IoError *error);
+static FileHandle *openHandle(IoError *error);
 static int normalReturn(IoError *error);
 static int useCatchVariable(void);
 
@@ -19,7 +19,7 @@ static void FileHandle_destroy(FileHandle *this)
 	free((void *)(this));
 }
 
-static FileHandle* openHandle(IoError *error)
+static FileHandle *openHandle(IoError *error)
 {
 	{
 		(*error) = FAILED;
@@ -37,12 +37,12 @@ static int normalReturn(IoError *error)
 
 static int useCatchVariable(void)
 {
-	FileHandle* _finally0 = 0;
+	FileHandle *_finally0 = 0;
 	bool _cleanupActive1 = false;
 	IoError e;
 	_finally0 = openHandle(&e);
 	_cleanupActive1 = true;
-	FileHandle* handle = _finally0;
+	FileHandle *handle = _finally0;
 	int _return3 = 0;
 	if ((e != 0))
 	{

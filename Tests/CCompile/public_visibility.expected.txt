@@ -19,12 +19,12 @@ int ExportedValue_getHiddenValue(ExportedValue *this)
 	return (this->value + publicOffset);
 }
 
-int internalAdd(InternalValue* value)
+int internalAdd(InternalValue *value)
 {
 	return (InternalValue_getValue(value) + publicOffset);
 }
 
-int exportedAdd(ExportedValue* value)
+int exportedAdd(ExportedValue *value)
 {
 	return ((ExportedValue_getValue(value) + ExportedValue_getHiddenValue(value)) + exportedOffset);
 }
@@ -43,7 +43,7 @@ int run(void)
 #include "public_visibility_private.h"
 
 int ExportedValue_getValue(ExportedValue *this);
-int exportedAdd(ExportedValue* value);
+int exportedAdd(ExportedValue *value);
 int run(void);
 extern int exportedOffset;
 
@@ -78,8 +78,8 @@ struct ExportedValue
 int InternalValue_getValue(InternalValue *this);
 int ExportedValue_getValue(ExportedValue *this);
 int ExportedValue_getHiddenValue(ExportedValue *this);
-int internalAdd(InternalValue* value);
-int exportedAdd(ExportedValue* value);
+int internalAdd(InternalValue *value);
+int exportedAdd(ExportedValue *value);
 int run(void);
 
 /* Object declarations. */

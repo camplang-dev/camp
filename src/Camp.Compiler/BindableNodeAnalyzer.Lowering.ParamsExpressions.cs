@@ -856,7 +856,7 @@ public sealed partial class BindableNodeAnalyzer
 			case MemberReferenceExpression { Target: not null, Member: FunctionDefinition function } member
 				when FindContainingType(function) is not InterfaceDefinition:
 				components.Add(CreateFlattenedMethodReference(member, member.Target, function));
-				components.Add(member.Target);
+				components.Add(CreateDelegateContextExpression(member.Target));
 				return true;
 
 			case VariableReferenceExpression variable
@@ -1041,6 +1041,29 @@ public sealed partial class BindableNodeAnalyzer
 		components.Add(expression);
 		components.Add(context);
 		return true;
+	}
+
+	Expression CreateDelegateContextExpression(Expression target)
+	{
+		Expression context = CloneParamsExpansionExpression(target) ?? target;
+		if (TryGetPointerElementType(context.ResolvedType) is null)
+		{
+			context = new UnaryExpression
+			{
+				SourceSyntax = target.SourceSyntax,
+				Operator = UnaryOperator.AddressOf,
+				Operand = context,
+				ResolvedType = AddPointer(context.ResolvedType ?? ErrorType)
+			};
+		}
+		return new CastExpression
+		{
+			SourceSyntax = target.SourceSyntax,
+			Kind = CastKind.Type,
+			Type = TypeReferenceForResolvedName("void*"),
+			Expression = context,
+			ResolvedType = "void*"
+		};
 	}
 
 	bool TryCreateIteratorProtocolComponentsFromProtocolValue(Expression expression, out List<Expression> components)

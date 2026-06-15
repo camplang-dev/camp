@@ -588,7 +588,7 @@ public sealed partial class BindableNodeAnalyzer
 			ArgumentExpression argument => BodyAnalyzeArgumentExpression(argument, scope, typeScope, targetType),
 			CallExpression call => BodyAnalyzeCallExpression(call, scope, typeScope, targetType),
 			IndexExpression index => BodyAnalyzeIndexExpression(index, scope, typeScope),
-			MemberExpression member => BodyAnalyzeMemberExpression(member, scope, typeScope),
+			MemberExpression member => BodyAnalyzeMemberExpression(member, scope, typeScope, targetType),
 			MemberReferenceExpression member => member.ResolvedType ?? ErrorType,
 			NamelessIndexerExpression indexer => BodyAnalyzeIndexExpression(indexer.Target, indexer.Arguments, scope, typeScope),
 			UnaryExpression unary => BodyAnalyzeUnaryExpression(unary, scope, typeScope, targetType),
@@ -2387,7 +2387,7 @@ public sealed partial class BindableNodeAnalyzer
 		return stringElementType is null ? targetType : $"const {stringElementType}[]";
 	}
 
-	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope)
+	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope, string? targetCallableType = null)
 	{
 		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
 		bool isTypeTarget = IsTypeReferenceExpression(member.Target);
@@ -2419,11 +2419,11 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		if (members.Count > 1)
-		{
-			List<FunctionDefinition> overloadMembers = [];
-			foreach (BodySymbol candidate in members)
-				if (candidate.Node is FunctionDefinition function)
-					overloadMembers.Add(function);
+			{
+				List<FunctionDefinition> overloadMembers = [];
+				foreach (BodySymbol candidate in members)
+					if (candidate.Node is FunctionDefinition overloadFunction)
+						overloadMembers.Add(overloadFunction);
 			if (overloadMembers.Count == members.Count && IsOverloadFamily(overloadMembers))
 				return ReportOverloadFamilyAsValue(member.SourceSyntax, member.Name);
 			return ReportMultipleCandidates(member.SourceSyntax, member.Name);
@@ -2433,6 +2433,14 @@ public sealed partial class BindableNodeAnalyzer
 		string memberType = IsConstReceiverType(targetType) && selected.Node is FieldDefinition or ParameterDefinition
 			? AddTopLevelConstToType(selected.Type)
 			: selected.Type;
+		if (!isTypeTarget
+			&& selected.Node is FunctionDefinition function
+			&& TryGetCallableShape(targetCallableType, out CallableShape targetShape)
+			&& targetShape.This.HasThis)
+		{
+			if (BoundMethodReferenceCanSatisfyThisContract(targetType, function, targetShape.This, member.SourceSyntax))
+				memberType = targetCallableType!;
+		}
 
 		expressionConstants[member] = selected.IsConstant;
 		if (isTypeTarget && selected.Node is FieldDefinition staticField)
@@ -2451,6 +2459,27 @@ public sealed partial class BindableNodeAnalyzer
 			reference.Name = field.Name;
 		expressionRewrites[member] = reference;
 		return memberType;
+	}
+
+	bool BoundMethodReferenceCanSatisfyThisContract(string receiverType, FunctionDefinition function, ThisContract contract, SyntaxNode? syntax)
+	{
+		ThisContract methodContract = GetThisContract(GetEffectiveThisParameter(function));
+		if (contract.IsConst && !methodContract.IsConst)
+		{
+			Report(GetRange(syntax), $"Method reference '{GetCallableName(function)}' cannot satisfy callable target because the target requires const this.");
+			return false;
+		}
+		if (contract.IsVolatile && !methodContract.IsVolatile)
+		{
+			Report(GetRange(syntax), $"Method reference '{GetCallableName(function)}' cannot satisfy callable target because the target requires volatile this.");
+			return false;
+		}
+		if (contract.IsEscaped && !CanImplicitlyConvert(receiverType, AddTopLevelLifetimeToReceiver(receiverType, "escaped")))
+		{
+			Report(GetRange(syntax), $"Method reference '{GetCallableName(function)}' cannot satisfy callable target because the receiver does not satisfy escaped this.");
+			return false;
+		}
+		return true;
 	}
 
 	bool IsTypeReferenceExpression(Expression? expression)

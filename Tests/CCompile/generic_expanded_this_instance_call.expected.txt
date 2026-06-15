@@ -2,12 +2,12 @@
 #include "generic_expanded_this_instance_call_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
-void free(void* ptr);
-static void Array_copyTo(const void* this, uintptr_t this_length, void* destination, uintptr_t destination_length, uintptr_t sizeof_T);
-static void* Array_copyArray(const void* this, uintptr_t this_length, uintptr_t sizeof_T, uintptr_t *result_length);
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void Array_copyTo(const void *this, uintptr_t this_length, void *destination, uintptr_t destination_length, uintptr_t sizeof_T);
+static void *Array_copyArray(const void *this, uintptr_t this_length, uintptr_t sizeof_T, uintptr_t *result_length);
 
-static void Array_copyTo(const void* this, uintptr_t this_length, void* destination, uintptr_t destination_length, uintptr_t sizeof_T)
+static void Array_copyTo(const void *this, uintptr_t this_length, void *destination, uintptr_t destination_length, uintptr_t sizeof_T)
 {
 	uintptr_t count = this_length;
 	if ((destination_length < count))
@@ -24,9 +24,9 @@ __for_break1: ;
 	}
 }
 
-static void* Array_copyArray(const void* this, uintptr_t this_length, uintptr_t sizeof_T, uintptr_t *result_length)
+static void *Array_copyArray(const void *this, uintptr_t this_length, uintptr_t sizeof_T, uintptr_t *result_length)
 {
-	void* elements = (void* *)(malloc((sizeof_T * this_length)));
+	void *elements = (void* *)(malloc((sizeof_T * this_length)));
 	uintptr_t elements_length = this_length;
 	Array_copyTo(this, this_length, elements, elements_length, sizeof_T);
 	{
@@ -37,9 +37,9 @@ static void* Array_copyArray(const void* this, uintptr_t this_length, uintptr_t 
 
 int main(void)
 {
-	int* values = (int []){1, 2, 3};
+	int *values = (int []){1, 2, 3};
 	uintptr_t values_length = 3;
-	int* copied;
+	int *copied;
 	uintptr_t copied_length;
 	copied = Array_copyArray(values, values_length, sizeof(int), &copied_length);
 	int result = copied[1];

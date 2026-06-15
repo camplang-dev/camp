@@ -2,34 +2,34 @@
 #include "generic_within_sizeof_constructor_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
-void free(void* ptr);
-static void* Arena_alloc(Arena *this, uintptr_t size);
-static void Arena_free(Arena *this, void* ptr);
-static void Box_op_initnew(Box *this, uintptr_t sizeof_T, Arena* allocator);
-static Box* Box_create(uintptr_t sizeof_T, Arena* allocator);
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void *Arena_alloc(Arena *this, uintptr_t size);
+static void Arena_free(Arena *this, void *ptr);
+static void Box_op_initnew(Box *this, uintptr_t sizeof_T, Arena *allocator);
+static Box *Box_create(uintptr_t sizeof_T, Arena *allocator);
 static void run(void);
 
-static void* Arena_alloc(Arena *this, uintptr_t size)
+static void *Arena_alloc(Arena *this, uintptr_t size)
 {
 	return malloc(size);
 }
 
-static void Arena_free(Arena *this, void* ptr)
+static void Arena_free(Arena *this, void *ptr)
 {
 	free(ptr);
 }
 
-static void Box_op_initnew(Box *this, uintptr_t sizeof_T, Arena* allocator)
+static void Box_op_initnew(Box *this, uintptr_t sizeof_T, Arena *allocator)
 {
 	this->_sizeof_T = sizeof_T;
-	Arena* resolvedAllocator = allocator;
+	Arena *resolvedAllocator = allocator;
 }
 
-static Box* Box_create(uintptr_t sizeof_T, Arena* allocator)
+static Box *Box_create(uintptr_t sizeof_T, Arena *allocator)
 {
-	Arena* resolvedAllocator = allocator;
-	Box* _created0 = (Box *)(((resolvedAllocator != NULL) ? Arena_alloc(resolvedAllocator, sizeof(Box)) : malloc(sizeof(Box))));
+	Arena *resolvedAllocator = allocator;
+	Box *_created0 = (Box *)(((resolvedAllocator != NULL) ? Arena_alloc(resolvedAllocator, sizeof(Box)) : malloc(sizeof(Box))));
 	if ((_created0 != NULL))
 	{
 		Box_op_initnew(_created0, sizeof_T, allocator);
@@ -39,11 +39,11 @@ static Box* Box_create(uintptr_t sizeof_T, Arena* allocator)
 
 static void run(void)
 {
-	Arena* arena = NULL;
+	Arena *arena = NULL;
 	{
-		Arena* _allocator1 = arena;
+		Arena *_allocator1 = arena;
 		{
-			Box* box = (Box *)(((_allocator1 != NULL) ? Arena_alloc(_allocator1, sizeof(Box)) : malloc(sizeof(Box))));
+			Box *box = (Box *)(((_allocator1 != NULL) ? Arena_alloc(_allocator1, sizeof(Box)) : malloc(sizeof(Box))));
 			if ((box != NULL))
 			{
 				Box_op_initnew(box, sizeof(int), _allocator1);

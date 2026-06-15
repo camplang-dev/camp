@@ -2,24 +2,24 @@
 #include "generic_array_sizeof_transport_private.h"
 
 /* Private file declarations. */
-static int __camp_delegate_compareInt(void* arg0, int* arg1, int* arg2);
-static int __camp_delegate_compareInt_1(void* arg0, int* arg1, int* arg2);
-static intptr_t Array_binarySearch(const void* this, uintptr_t this_length, void* value, fn_int_voidPtr__voidPtr__voidPtr_ compare, void* compare_context, uintptr_t sizeof_T);
-static int compareInt(int* left, int* right);
+static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2);
+static int __camp_delegate_compareInt_1(void *arg0, int *arg1, int *arg2);
+static intptr_t Array_binarySearch(const void *this, uintptr_t this_length, void *value, fn_int_voidPtr__voidPtr__voidPtr_ compare, void *compare_context, uintptr_t sizeof_T);
+static int compareInt(int *left, int *right);
 
-static int __camp_delegate_compareInt(void* arg0, int* arg1, int* arg2)
+static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2)
 {
 	(void)arg0;
 	return compareInt(arg1, arg2);
 }
 
-static int __camp_delegate_compareInt_1(void* arg0, int* arg1, int* arg2)
+static int __camp_delegate_compareInt_1(void *arg0, int *arg1, int *arg2)
 {
 	(void)arg0;
 	return compareInt(arg1, arg2);
 }
 
-static intptr_t Array_binarySearch(const void* this, uintptr_t this_length, void* value, fn_int_voidPtr__voidPtr__voidPtr_ compare, void* compare_context, uintptr_t sizeof_T)
+static intptr_t Array_binarySearch(const void *this, uintptr_t this_length, void *value, fn_int_voidPtr__voidPtr__voidPtr_ compare, void *compare_context, uintptr_t sizeof_T)
 {
 	uintptr_t low = 0;
 	uintptr_t high = this_length;
@@ -50,7 +50,7 @@ __while_break1: ;
 	return -1;
 }
 
-static int compareInt(int* left, int* right)
+static int compareInt(int *left, int *right)
 {
 	if (((*left) < (*right)))
 	{
@@ -65,7 +65,7 @@ static int compareInt(int* left, int* right)
 
 int main(void)
 {
-	int* values = (int []){1, 3, 5, 7};
+	int *values = (int []){1, 3, 5, 7};
 	uintptr_t values_length = 4;
 	int needle = 5;
 	intptr_t first = Array_binarySearch(values, values_length, &(int){needle}, (fn_int_voidPtr__voidPtr__voidPtr_)__camp_delegate_compareInt, NULL, sizeof(int));
@@ -78,8 +78,8 @@ int main(void)
 
 #include "generic_array_sizeof_transport_private.h"
 
-typedef int (* fn_int_int__int_)(int* arg0, int* arg1);
-typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void* arg0, void* arg1, void* arg2);
+typedef int (* fn_int_int__int_)(int *arg0, int *arg1);
+typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void *arg0, void *arg1, void *arg2);
 int main(void);
 
 #endif
@@ -96,8 +96,8 @@ int main(void);
 /* Newtypes. */
 
 /* Callable typedefs. */
-typedef int (* fn_int_int__int_)(int* arg0, int* arg1);
-typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void* arg0, void* arg1, void* arg2);
+typedef int (* fn_int_int__int_)(int *arg0, int *arg1);
+typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void *arg0, void *arg1, void *arg2);
 
 /* Enums. */
 

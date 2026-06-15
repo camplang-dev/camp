@@ -2,18 +2,18 @@
 #include "generic_new_constructed_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
+void *malloc(uintptr_t size);
 static void Box_op_initnew(Box *this);
-static Box* Box_create(void);
+static Box *Box_create(void);
 static int main(void);
 
 static void Box_op_initnew(Box *this)
 {
 }
 
-static Box* Box_create(void)
+static Box *Box_create(void)
 {
-	Box* _created0 = (Box *)(malloc(sizeof(Box)));
+	Box *_created0 = (Box *)(malloc(sizeof(Box)));
 	if ((_created0 != NULL))
 	{
 		Box_op_initnew(_created0);
@@ -23,7 +23,7 @@ static Box* Box_create(void)
 
 static int main(void)
 {
-	Box* box = (Box *)(malloc(sizeof(Box)));
+	Box *box = (Box *)(malloc(sizeof(Box)));
 	if ((box != NULL))
 	{
 		Box_op_initnew(box);

@@ -127,6 +127,7 @@ public class FunctionDefinition : Definition
 	public TypeReference? ReturnType { get; set; }
 	public TypeReference? CallableAscriptionType { get; set; }
 	public NewtypeDefinition? CallableAscriptionNewtype { get; set; }
+	public ThisParameterDefinition? EffectiveThisParameter { get; set; }
 	public TypeReference? AbiThisType { get; set; }
 	public TypeReference? ImplementationThisType { get; set; }
 	public List<GenericParameter> GenericParameters { get; } = [];

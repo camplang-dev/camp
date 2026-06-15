@@ -2,9 +2,9 @@
 #include "switch_statement_private.h"
 
 /* Private file declarations. */
-static int choose(const char** args, uintptr_t args_length);
+static int choose(const char **args, uintptr_t args_length);
 
-static int choose(const char** args, uintptr_t args_length)
+static int choose(const char **args, uintptr_t args_length)
 {
 	{
 		switch (args_length)

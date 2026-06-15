@@ -2,17 +2,17 @@
 #include "default_argument_after_expanded_arg_private.h"
 
 /* Private file declarations. */
-static int find(const char* value, uintptr_t value_length, bool flag);
+static int find(const char *value, uintptr_t value_length, bool flag);
 static int main(void);
 
-static int find(const char* value, uintptr_t value_length, bool flag)
+static int find(const char *value, uintptr_t value_length, bool flag)
 {
 	return (flag ? (int)(value_length) : 0);
 }
 
 static int main(void)
 {
-	const char* text = "hello";
+	const char *text = "hello";
 	uintptr_t text_length = 5;
 	return ((find(text, text_length, true) == 5) ? 0 : 1);
 }

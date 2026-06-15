@@ -2,9 +2,9 @@
 #include "static_string_literal_array_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
+void *malloc(uintptr_t size);
 
-void Console_writeLine(const char* value, uintptr_t value_length)
+void Console_writeLine(const char *value, uintptr_t value_length)
 {
 }
 
@@ -12,9 +12,9 @@ void Console_op_initnew(Console *this)
 {
 }
 
-Console* Console_create(void)
+Console *Console_create(void)
 {
-	Console* _created0 = (Console *)(malloc(sizeof(Console)));
+	Console *_created0 = (Console *)(malloc(sizeof(Console)));
 	if ((_created0 != NULL))
 	{
 		Console_op_initnew(_created0);
@@ -34,9 +34,9 @@ int main(void)
 
 #include "static_string_literal_array_private.h"
 
-void Console_writeLine(const char* value, uintptr_t value_length);
+void Console_writeLine(const char *value, uintptr_t value_length);
 void Console_op_initnew(Console *this);
-Console* Console_create(void);
+Console *Console_create(void);
 int main(void);
 
 #endif
@@ -62,9 +62,9 @@ struct Console
 };
 
 /* Function declarations. */
-void Console_writeLine(const char* value, uintptr_t value_length);
+void Console_writeLine(const char *value, uintptr_t value_length);
 void Console_op_initnew(Console *this);
-Console* Console_create(void);
+Console *Console_create(void);
 int main(void);
 
 /* Object declarations. */

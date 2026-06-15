@@ -3,7 +3,7 @@
 
 /* Private file declarations. */
 static void* Box_getItem(Box *this, uintptr_t index);
-static void accept(const char* value);
+static void accept(const char *value);
 static int main(void);
 
 static void* Box_getItem(Box *this, uintptr_t index)
@@ -11,13 +11,13 @@ static void* Box_getItem(Box *this, uintptr_t index)
 	return 0;
 }
 
-static void accept(const char* value)
+static void accept(const char *value)
 {
 }
 
 static int main(void)
 {
-	Box* box = NULL;
+	Box *box = NULL;
 	accept(Box_getItem(box, 0));
 	return 0;
 }

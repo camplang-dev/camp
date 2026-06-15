@@ -3,17 +3,17 @@
 
 /* Private file declarations. */
 static loopRangeIter loopRange(int first, int last);
-static bool loopRangeIter_next(loopRangeIter *this, int* current);
+static bool loopRangeIter_next(loopRangeIter *this, int *current);
 static void loopRangeIter_op_delete(loopRangeIter *this);
 static void loopRangeIter_destroy(loopRangeIter *this);
-static bool loopRangeIter_iter(void* ctx, int* current);
+static bool loopRangeIter_iter(void *ctx, int *current);
 
 static loopRangeIter loopRange(int first, int last)
 {
 	return (loopRangeIter){ .__state = 0, .first = first, .last = last };
 }
 
-static bool loopRangeIter_next(loopRangeIter *this, int* current)
+static bool loopRangeIter_next(loopRangeIter *this, int *current)
 {
 	if ((this->__state == -1))
 	{
@@ -53,9 +53,9 @@ static void loopRangeIter_destroy(loopRangeIter *this)
 	loopRangeIter_op_delete(this);
 }
 
-static bool loopRangeIter_iter(void* ctx, int* current)
+static bool loopRangeIter_iter(void *ctx, int *current)
 {
-	loopRangeIter* state = (loopRangeIter *)(ctx);
+	loopRangeIter *state = (loopRangeIter *)(ctx);
 	if ((current == NULL))
 	{
 		loopRangeIter_op_delete(state);

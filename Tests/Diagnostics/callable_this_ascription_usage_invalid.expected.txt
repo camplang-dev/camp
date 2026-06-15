@@ -1,0 +1,5 @@
+tests/Diagnostics/callable_this_ascription_usage_invalid.camp(11,8): error: Assignment target is const and cannot be assigned.
+tests/Diagnostics/callable_this_ascription_usage_invalid.camp(33,24): error: Method reference 'run' cannot satisfy callable target because the target requires const this.
+tests/Diagnostics/callable_this_ascription_usage_invalid.camp(33,24): error: Declaration initializer cannot convert 'delegate void()' to 'ConstCallback'.
+tests/Diagnostics/callable_this_ascription_usage_invalid.camp(35,26): error: Method reference 'run' cannot satisfy callable target because the receiver does not satisfy escaped this.
+tests/Diagnostics/callable_this_ascription_usage_invalid.camp(35,26): error: Declaration initializer cannot convert 'delegate void()' to 'EscapedCallback'.

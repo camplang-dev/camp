@@ -2,25 +2,25 @@
 #include "delete_string_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
-void free(void* ptr);
+void *malloc(uintptr_t size);
+void free(void *ptr);
 static void deleteNow(void);
 static void deleteFinally(void);
 
 static void deleteNow(void)
 {
-	const char* text = (const char*)(malloc(16));
+	const char *text = (const char*)(malloc(16));
 	free((void *)(text));
 }
 
 static void deleteFinally(void)
 {
-	void* _finally0 = 0;
+	void *_finally0 = 0;
 	bool _cleanupActive1 = false;
 	_finally0 = malloc(16);
 	_cleanupActive1 = true;
-	const char* text = (const char*)(_finally0);
-	const char* __discard1;
+	const char *text = (const char*)(_finally0);
+	const char *__discard1;
 	__discard1 = text;
 	if (_cleanupActive1)
 	{

@@ -2,11 +2,11 @@
 #include "generic_scalar_erasure_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
+void *malloc(uintptr_t size);
 static void List_add(List *this, void* item);
 static void* List_getItem(List *this, uintptr_t index);
 static void List_op_initnew(List *this);
-static List* List_create(void);
+static List *List_create(void);
 static void acceptInt(int value);
 static int main(void);
 
@@ -29,9 +29,9 @@ static void List_op_initnew(List *this)
 	this->count = 0;
 }
 
-static List* List_create(void)
+static List *List_create(void)
 {
-	List* _created0 = (List *)(malloc(sizeof(List)));
+	List *_created0 = (List *)(malloc(sizeof(List)));
 	if ((_created0 != NULL))
 	{
 		List_op_initnew(_created0);
@@ -45,7 +45,7 @@ static void acceptInt(int value)
 
 static int main(void)
 {
-	List* numbers = (List *)(malloc(sizeof(List)));
+	List *numbers = (List *)(malloc(sizeof(List)));
 	if ((numbers != NULL))
 	{
 		List_op_initnew(numbers);
@@ -73,7 +73,7 @@ typedef struct List List;
 /* Layouts. */
 struct List
 {
-	void** items;
+	void **items;
 	uintptr_t items_length;
 	uintptr_t count;
 };

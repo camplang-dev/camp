@@ -1,0 +1,19 @@
+newtype delegate nuint CharFormatter(const this, char[] buffer);
+
+class Date
+{
+	int year;
+
+	nuint format(char[] buffer) : CharFormatter
+	{
+		int y = this.year;
+		return 0;
+	}
+}
+
+export int main()
+{
+	const Date d = init Date();
+	CharFormatter f = d.format;
+	return 0;
+}

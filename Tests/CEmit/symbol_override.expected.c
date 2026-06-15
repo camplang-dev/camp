@@ -2,7 +2,7 @@
 #include "symbol_override_private.h"
 
 /* Private file declarations. */
-bool SetWindowTextA(int hWnd, const char* text);
+bool SetWindowTextA(int hWnd, const char *text);
 static int privateImpl(void);
 static int PrivateNumber;
 

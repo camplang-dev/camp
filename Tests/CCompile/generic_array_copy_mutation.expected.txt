@@ -2,21 +2,21 @@
 #include "generic_array_copy_mutation_private.h"
 
 /* Private file declarations. */
-static int __camp_delegate_compareInt(void* arg0, int* arg1, int* arg2);
-static void clear(void* values, uintptr_t values_length, uintptr_t sizeof_T);
-static void copyTo(const void* source, uintptr_t source_length, void* destination, uintptr_t destination_length, uintptr_t sizeof_T);
-static void copyFrom(void* destination, uintptr_t destination_length, const void* source, uintptr_t source_length, uintptr_t sizeof_T);
-static void reverse(void* values, uintptr_t values_length, uintptr_t sizeof_T);
-static void sort(void* values, uintptr_t values_length, fn_int_voidPtr__voidPtr__voidPtr_ compare, void* compare_context, uintptr_t sizeof_T);
-static int compareInt(int* left, int* right);
+static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2);
+static void clear(void *values, uintptr_t values_length, uintptr_t sizeof_T);
+static void copyTo(const void *source, uintptr_t source_length, void *destination, uintptr_t destination_length, uintptr_t sizeof_T);
+static void copyFrom(void *destination, uintptr_t destination_length, const void *source, uintptr_t source_length, uintptr_t sizeof_T);
+static void reverse(void *values, uintptr_t values_length, uintptr_t sizeof_T);
+static void sort(void *values, uintptr_t values_length, fn_int_voidPtr__voidPtr__voidPtr_ compare, void *compare_context, uintptr_t sizeof_T);
+static int compareInt(int *left, int *right);
 
-static int __camp_delegate_compareInt(void* arg0, int* arg1, int* arg2)
+static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2)
 {
 	(void)arg0;
 	return compareInt(arg1, arg2);
 }
 
-static void clear(void* values, uintptr_t values_length, uintptr_t sizeof_T)
+static void clear(void *values, uintptr_t values_length, uintptr_t sizeof_T)
 {
 	{
 		for (uintptr_t i = 0; (i < values_length); i++)
@@ -28,7 +28,7 @@ __for_break1: ;
 	}
 }
 
-static void copyTo(const void* source, uintptr_t source_length, void* destination, uintptr_t destination_length, uintptr_t sizeof_T)
+static void copyTo(const void *source, uintptr_t source_length, void *destination, uintptr_t destination_length, uintptr_t sizeof_T)
 {
 	uintptr_t count = source_length;
 	if ((destination_length < count))
@@ -47,7 +47,7 @@ __for_break3: ;
 	}
 }
 
-static void copyFrom(void* destination, uintptr_t destination_length, const void* source, uintptr_t source_length, uintptr_t sizeof_T)
+static void copyFrom(void *destination, uintptr_t destination_length, const void *source, uintptr_t source_length, uintptr_t sizeof_T)
 {
 	uintptr_t count = source_length;
 	if ((destination_length < count))
@@ -66,7 +66,7 @@ __for_break5: ;
 	}
 }
 
-static void reverse(void* values, uintptr_t values_length, uintptr_t sizeof_T)
+static void reverse(void *values, uintptr_t values_length, uintptr_t sizeof_T)
 {
 	if ((values_length < 2))
 	{
@@ -91,7 +91,7 @@ __while_break7: ;
 	}
 }
 
-static void sort(void* values, uintptr_t values_length, fn_int_voidPtr__voidPtr__voidPtr_ compare, void* compare_context, uintptr_t sizeof_T)
+static void sort(void *values, uintptr_t values_length, fn_int_voidPtr__voidPtr__voidPtr_ compare, void *compare_context, uintptr_t sizeof_T)
 {
 	if ((values_length < 2))
 	{
@@ -121,7 +121,7 @@ __for_break9: ;
 	}
 }
 
-static int compareInt(int* left, int* right)
+static int compareInt(int *left, int *right)
 {
 	if (((*left) < (*right)))
 	{
@@ -136,9 +136,9 @@ static int compareInt(int* left, int* right)
 
 int main(void)
 {
-	int* source = (int []){3, 1, 2, 4};
+	int *source = (int []){3, 1, 2, 4};
 	uintptr_t source_length = 4;
-	int* destination = (int []){0, 0, 0, 0};
+	int *destination = (int []){0, 0, 0, 0};
 	uintptr_t destination_length = 4;
 	copyTo(source, source_length, destination, destination_length, sizeof(int));
 	reverse(destination, destination_length, sizeof(int));
@@ -154,8 +154,8 @@ int main(void)
 
 #include "generic_array_copy_mutation_private.h"
 
-typedef int (* fn_int_int__int_)(int* arg0, int* arg1);
-typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void* arg0, void* arg1, void* arg2);
+typedef int (* fn_int_int__int_)(int *arg0, int *arg1);
+typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void *arg0, void *arg1, void *arg2);
 int main(void);
 
 #endif
@@ -172,8 +172,8 @@ int main(void);
 /* Newtypes. */
 
 /* Callable typedefs. */
-typedef int (* fn_int_int__int_)(int* arg0, int* arg1);
-typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void* arg0, void* arg1, void* arg2);
+typedef int (* fn_int_int__int_)(int *arg0, int *arg1);
+typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void *arg0, void *arg1, void *arg2);
 
 /* Enums. */
 

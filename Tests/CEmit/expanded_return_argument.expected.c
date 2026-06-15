@@ -3,19 +3,19 @@
 
 /* Private file declarations. */
 static int main(void);
-static const char* getName(uintptr_t *result_length);
-static void takesName(const char* name, uintptr_t name_length);
+static const char *getName(uintptr_t *result_length);
+static void takesName(const char *name, uintptr_t name_length);
 
 static int main(void)
 {
-	const char* _elements0;
+	const char *_elements0;
 	uintptr_t _length1;
 	_elements0 = getName(&_length1);
 	takesName(_elements0, _length1);
 	return 0;
 }
 
-static const char* getName(uintptr_t *result_length)
+static const char *getName(uintptr_t *result_length)
 {
 	{
 		(*result_length) = 4;
@@ -23,7 +23,7 @@ static const char* getName(uintptr_t *result_length)
 	}
 }
 
-static void takesName(const char* name, uintptr_t name_length)
+static void takesName(const char *name, uintptr_t name_length)
 {
 }
 

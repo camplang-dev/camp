@@ -2,11 +2,11 @@
 #include "expanded_initializer_values_private.h"
 
 /* Private file declarations. */
-static const char* trimTo(const char* value, uintptr_t length, uintptr_t *result_length);
-static int acceptSpan(const char* value, uintptr_t value_length);
-static int compareInt(void* context, int* left, int* right);
+static const char *trimTo(const char *value, uintptr_t length, uintptr_t *result_length);
+static int acceptSpan(const char *value, uintptr_t value_length);
+static int compareInt(void *context, int *left, int *right);
 
-static const char* trimTo(const char* value, uintptr_t length, uintptr_t *result_length)
+static const char *trimTo(const char *value, uintptr_t length, uintptr_t *result_length)
 {
 	{
 		(*result_length) = length;
@@ -14,12 +14,12 @@ static const char* trimTo(const char* value, uintptr_t length, uintptr_t *result
 	}
 }
 
-static int acceptSpan(const char* value, uintptr_t value_length)
+static int acceptSpan(const char *value, uintptr_t value_length)
 {
 	return ((value_length == 5) ? 0 : 5);
 }
 
-static int compareInt(void* context, int* left, int* right)
+static int compareInt(void *context, int *left, int *right)
 {
 	if (((*left) < (*right)))
 	{
@@ -34,20 +34,20 @@ static int compareInt(void* context, int* left, int* right)
 
 int main(void)
 {
-	const char* raw = "hello";
-	const char* span = raw;
+	const char *raw = "hello";
+	const char *span = raw;
 	uintptr_t span_length = 3;
 	if (((span_length != 3) || (span[0] != 'h')))
 	{
 		return 1;
 	}
-	const char* named = raw;
+	const char *named = raw;
 	uintptr_t named_length = 2;
 	if (((named_length != 2) || (named[1] != 'e')))
 	{
 		return 2;
 	}
-	const char* returned;
+	const char *returned;
 	uintptr_t returned_length;
 	returned = trimTo(raw, 4, &returned_length);
 	if ((returned_length != 4))
@@ -61,7 +61,7 @@ int main(void)
 		return 4;
 	}
 	fn_int_voidPtr__int__int_ comparer = compareInt;
-	void* comparer_context = NULL;
+	void *comparer_context = NULL;
 	int left = 1;
 	int right = 2;
 	if ((comparer(comparer_context, &(int){left}, &(int){right}) >= 0))
@@ -77,7 +77,7 @@ int main(void)
 
 #include "expanded_initializer_values_private.h"
 
-typedef int (* fn_int_voidPtr__int__int_)(void* arg0, int* arg1, int* arg2);
+typedef int (* fn_int_voidPtr__int__int_)(void *arg0, int *arg1, int *arg2);
 int main(void);
 
 #endif
@@ -94,7 +94,7 @@ int main(void);
 /* Newtypes. */
 
 /* Callable typedefs. */
-typedef int (* fn_int_voidPtr__int__int_)(void* arg0, int* arg1, int* arg2);
+typedef int (* fn_int_voidPtr__int__int_)(void *arg0, int *arg1, int *arg2);
 
 /* Enums. */
 

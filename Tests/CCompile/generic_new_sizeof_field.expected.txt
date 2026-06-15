@@ -2,15 +2,15 @@
 #include "generic_new_sizeof_field_private.h"
 
 /* Private file declarations. */
-void* malloc(uintptr_t size);
-void free(void* ptr);
-static Box* Box_copy(Box *this);
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static Box *Box_copy(Box *this);
 static void Box_op_initnew(Box *this, uintptr_t sizeof_T);
-static Box* Box_create(uintptr_t sizeof_T);
+static Box *Box_create(uintptr_t sizeof_T);
 
-static Box* Box_copy(Box *this)
+static Box *Box_copy(Box *this)
 {
-	Box* _created1;
+	Box *_created1;
 	return (_created1 = (Box *)(malloc(sizeof(Box))), Box_op_initnew(_created1, this->_sizeof_T), _created1);
 }
 
@@ -19,9 +19,9 @@ static void Box_op_initnew(Box *this, uintptr_t sizeof_T)
 	this->_sizeof_T = sizeof_T;
 }
 
-static Box* Box_create(uintptr_t sizeof_T)
+static Box *Box_create(uintptr_t sizeof_T)
 {
-	Box* _created0 = (Box *)(malloc(sizeof(Box)));
+	Box *_created0 = (Box *)(malloc(sizeof(Box)));
 	if ((_created0 != NULL))
 	{
 		Box_op_initnew(_created0, sizeof_T);

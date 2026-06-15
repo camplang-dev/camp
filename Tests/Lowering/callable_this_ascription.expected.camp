@@ -1,0 +1,38 @@
+newtype delegate nuint CharFormatter(const this, char[] buffer);
+
+newtype delegate void EscapedCallback(escaped this);
+
+newtype delegate void Callback();
+
+class Date
+{
+	int year;
+
+	nuint format(char* buffer, nuint buffer_length) : CharFormatter
+	{
+		int y = this.year;
+		return 0;
+	}
+
+	nuint formatExplicit(const this, char* buffer, nuint buffer_length) : CharFormatter
+	{
+		return 0;
+	}
+}
+
+escaped class Service
+{
+	void run() : EscapedCallback
+	{
+	}
+
+	void runExplicit(escaped this) : Callback
+	{
+	}
+}
+void main()
+{
+	const Date d;
+	fn nuint(void*, char*, nuint) f = Date_format;
+	void* f_context = (void*)&d;
+}
