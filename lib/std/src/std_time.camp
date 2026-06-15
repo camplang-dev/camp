@@ -84,7 +84,7 @@ export newtype TimeSpan: long
 	// Formats directly into caller-provided buffer.
 	// Examples: "14:05:30", "44:05:30.551".
 	// Returns required bytes including the terminator.
-	export nuint format(char[] buffer) : CharFormatter
+	export nuint format(const this, char[] buffer = default) : CharFormatter
 	{
 		if (*this == TimeSpan.INVALID)
 		{
@@ -160,7 +160,7 @@ export newtype UtcOffset: short
 	// Formats directly into caller-provided buffer. Examples: "Z", "-04:00", "+09:30".
 	// Always computes, even when value is considered invalid.  Min "-99:99" Max "99:99"
 	// Returns required bytes including the terminator.
-	export nuint format(char[] buffer) : CharFormatter
+	export nuint format(const this, char[] buffer = default) : CharFormatter
 	{
 		short total = (short)*this;
 		if (total == 0)
@@ -250,7 +250,7 @@ export newtype Instant: long
 	// Formats directly into caller-provided buffer. Example: "2026-06-12T18:30:00.124Z".
 	// Always computes, even when value is considered "invalid".
 	// Returns required bytes including the terminator.
-	export nuint format(char[] buffer) : CharFormatter
+	export nuint format(const this, char[] buffer = default) : CharFormatter
 	{
 		DateTime utc = this.getUtcDateTime();
 		if (!utc.isValid())
@@ -329,7 +329,7 @@ export struct Date
 	// Year is always 4 digits, maxes out at 9999. Month/Day always two digits, maxes out at 99.
 	// Out-of-range month/day is not checked (put in month 14 and day 78 and that's what you get)
 	// Returns required bytes including the terminator.
-	export nuint format(char[] buffer) : CharFormatter
+	export nuint format(const this, char[] buffer = default) : CharFormatter
 	{
 		if (buffer.length < 11)
 			return 11;
@@ -373,17 +373,17 @@ export struct TimeOfDay
 	// Out-of-range field values are not checked, written using max 99
 	// (Invalid) example: { .hour = 27, .minute = 160, .second = 5 } -> "27:99:05"
 	// Returns required bytes including the terminator.
-	export nuint format(char[] buffer) : CharFormatter
+	export nuint format(const this, char[] buffer = default) : CharFormatter
 	{
 		ushort ms = this.getMs();
 		nuint length = ms == 0 ? 9 : 13;
 		if (buffer.length < length)
 			return length;
-		timeWrite2(buffer.elements, 0, this.hour);
+		timeWrite2(buffer.elements, 0, (int)this.hour);
 		buffer[2] = ':';
-		timeWrite2(buffer.elements, 3, this.minute);
+		timeWrite2(buffer.elements, 3, (int)this.minute);
 		buffer[5] = ':';
-		timeWrite2(buffer.elements, 6, this.second);
+		timeWrite2(buffer.elements, 6, (int)this.second);
 		if (ms != 0)
 		{
 			buffer[8] = '.';
@@ -450,7 +450,7 @@ export struct DateTime
 
 	// Formats directly into caller-provided buffer. Examples: "2026-06-12T14:05:30", "2026-06-12T14:05:30.500".
 	// Returns 0 if invalid.
-	export nuint format(char[] buffer) : CharFormatter
+	export nuint format(const this, char[] buffer = default) : CharFormatter
 	{
 		if (!this.isValid())
 			return 0;
@@ -533,7 +533,7 @@ export struct OffsetDateTime
 
 	// Formats directly into caller-provided buffer. Example: "2026-06-12T14:05:30.500-04:00".
 	// Returns required bytes including the terminator.
-	export nuint format(char[] buffer) : CharFormatter
+	export nuint format(const this, char[] buffer = default) : CharFormatter
 	{
 		nuint dateTimeLength = this.local.format(buffer);
 		if (!this.isValid() || dateTimeLength == 0)

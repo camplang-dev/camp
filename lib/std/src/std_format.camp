@@ -1,4 +1,4 @@
-export newtype delegate nuint CharFormatter(char[] buffer = default);
+export newtype delegate nuint CharFormatter(const this, char[] buffer = default);
 
 export string copyString(CharFormatter this, within allocator)
 {
