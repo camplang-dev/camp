@@ -1,0 +1,19 @@
+using Std;
+
+export int main()
+{
+	auto list = new List<char>() finally delete;
+
+	list.add('A');
+	list.add('B');
+
+	if (calculateTotal(list) != 2)
+		return 1;
+
+	return 0;
+}
+
+nuint calculateTotal(const List<char>* list)
+{
+	return list.Length;
+}

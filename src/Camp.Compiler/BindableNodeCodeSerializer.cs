@@ -1204,7 +1204,8 @@ public sealed class BindableNodeCodeSerializer
 
 			case GenericTypeReference generic:
 				WriteType(generic.Type);
-				WriteDelimited("<", ">", generic.TypeArguments, WriteType);
+				if (generic.TypeArguments.Count > 0)
+					WriteDelimited("<", ">", generic.TypeArguments, WriteType);
 				break;
 
 			case ArrayTypeReference array:

@@ -476,7 +476,9 @@ public sealed partial class BindableNodeAnalyzer
 			AllocatorTypeReference => AllocatorType,
 			NamedTypeReference named => named.ResolvedType ?? BuildNamedTypeSourceName(named),
 			AttributedTypeReference attributed => FormatTypeReference(attributed.Type),
-			GenericTypeReference generic => $"{FormatTypeReference(generic.Type)}<{string.Join(", ", GetResolvedTypes(generic.TypeArguments))}>",
+			GenericTypeReference generic => generic.TypeArguments.Count == 0
+				? FormatTypeReference(generic.Type)
+				: $"{FormatTypeReference(generic.Type)}<{string.Join(", ", GetResolvedTypes(generic.TypeArguments))}>",
 			ArrayTypeReference array => $"{FormatTypeReference(array.ElementType)}[]",
 			OptionalTypeReference optional => $"{FormatTypeReference(optional.ElementType)}?",
 			PointerTypeReference pointer => $"{FormatTypeReference(pointer.ElementType)}*",

@@ -52,9 +52,18 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case GenericTypeReference generic:
-				AnalyzeOptionalType(generic.Type, scope);
-				AnalyzeTypeList(generic.TypeArguments, scope);
-				type.ResolvedType = FormatTypeReference(type);
+				if (TryApplyGenericTypeArguments(generic.Type, generic.TypeArguments, out TypeReference? appliedGenericType) && appliedGenericType is not null)
+				{
+					AnalyzeOptionalType(appliedGenericType, scope);
+					type.ResolvedType = appliedGenericType.ResolvedType ?? FormatTypeReference(appliedGenericType);
+					typeRewrites[generic] = appliedGenericType;
+				}
+				else
+				{
+					AnalyzeOptionalType(generic.Type, scope);
+					AnalyzeTypeList(generic.TypeArguments, scope);
+					type.ResolvedType = FormatTypeReference(type);
+				}
 				break;
 
 			case ArrayTypeReference array:
@@ -157,6 +166,38 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = ErrorType;
 				break;
 		}
+	}
+
+	static bool TryApplyGenericTypeArguments(TypeReference? type, List<TypeReference> arguments, out TypeReference? appliedType)
+	{
+		appliedType = type;
+		if (type is null || arguments.Count == 0)
+			return false;
+
+		if (type is NamedTypeReference named)
+		{
+			if (named.TypeArguments.Count > 0)
+				return false;
+
+			foreach (TypeReference argument in arguments)
+				named.TypeArguments.Add(argument);
+			arguments.Clear();
+			return true;
+		}
+
+		TypeReference? inner = type switch
+		{
+			AttributedTypeReference attributed => attributed.Type,
+			ConstTypeReference constant => constant.Type,
+			VolatileTypeReference vol => vol.Type,
+			EscapedTypeReference escaped => escaped.Type,
+			ScopedTypeReference scoped => scoped.Type,
+			UnscopedTypeReference unscoped => unscoped.Type,
+			TargetTypeSpecTypeReference targetSpec => targetSpec.Type,
+			_ => null
+		};
+
+		return inner is not null && TryApplyGenericTypeArguments(inner, arguments, out _);
 	}
 
 	static bool IsExpandedFormType(TypeReference? type)
