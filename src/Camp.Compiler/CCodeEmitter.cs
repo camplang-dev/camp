@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Text;
 
@@ -36,6 +37,86 @@ public static class CCodeEmitter
 		"#MISSING",
 		"#UNRESOLVED"
 	};
+
+	static readonly BigInteger UInt32MaxValue = new(uint.MaxValue);
+	static readonly BigInteger Int32MinMagnitude = new(2147483648UL);
+
+	static string FormatNumberLiteralForC(string text, bool negativeContext = false)
+	{
+		if (!TryParseIntegerLiteral(text, out BigInteger magnitude, out bool unsignedSuffix, out string coreText))
+			return text;
+
+		bool needsLongLong = negativeContext
+			? magnitude > Int32MinMagnitude
+			: magnitude > UInt32MaxValue;
+		if (!needsLongLong)
+			return text;
+
+		return coreText + (unsignedSuffix ? "ULL" : "LL");
+	}
+
+	static bool TryParseIntegerLiteral(string text, out BigInteger magnitude, out bool unsignedSuffix, out string coreText)
+	{
+		magnitude = BigInteger.Zero;
+		unsignedSuffix = false;
+		coreText = text;
+
+		if (string.IsNullOrWhiteSpace(text)
+			|| text.Contains('.', StringComparison.Ordinal)
+			|| text.Contains('p', StringComparison.OrdinalIgnoreCase))
+			return false;
+
+		if (text.EndsWith("u", StringComparison.OrdinalIgnoreCase))
+		{
+			unsignedSuffix = true;
+			coreText = text[..^1];
+		}
+		else if (text.EndsWith("l", StringComparison.OrdinalIgnoreCase))
+		{
+			return false;
+		}
+
+		int radix = 10;
+		int start = 0;
+		if (coreText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+		{
+			radix = 16;
+			start = 2;
+		}
+		else if (coreText.StartsWith("0b", StringComparison.OrdinalIgnoreCase))
+		{
+			radix = 2;
+			start = 2;
+		}
+		else if (coreText.Contains('e', StringComparison.OrdinalIgnoreCase))
+		{
+			return false;
+		}
+
+		if (start >= coreText.Length)
+			return false;
+
+		for (int i = start; i < coreText.Length; i++)
+		{
+			char ch = coreText[i];
+			if (ch == '_')
+				continue;
+
+			int digit = ch switch
+			{
+				>= '0' and <= '9' => ch - '0',
+				>= 'a' and <= 'f' => ch - 'a' + 10,
+				>= 'A' and <= 'F' => ch - 'A' + 10,
+				_ => -1
+			};
+			if (digit < 0 || digit >= radix)
+				return false;
+
+			magnitude = magnitude * radix + digit;
+		}
+
+		return true;
+	}
 
 	public static CEmissionResult Emit(Compilation compilation, CEmissionOptions options)
 	{
@@ -2902,6 +2983,7 @@ public static class CCodeEmitter
 			return unary.Operator switch
 			{
 				UnaryOperator.Plus => "+" + operand,
+				UnaryOperator.Minus when unary.Operand is LiteralExpression { Kind: LiteralKind.Number } literal => "-" + FormatNumberLiteralForC(literal.Text, negativeContext: true),
 				UnaryOperator.Minus => "-" + operand,
 				UnaryOperator.LogicalNot => "!" + operand,
 				UnaryOperator.BitwiseNot => "~" + operand,
@@ -2920,7 +3002,7 @@ public static class CCodeEmitter
 
 			return literal.Kind switch
 			{
-				LiteralKind.Number => literal.Text,
+				LiteralKind.Number => FormatNumberLiteralForC(literal.Text),
 				LiteralKind.String => literal.Text,
 				LiteralKind.Character => literal.Text,
 				LiteralKind.True => "true",
@@ -3496,10 +3578,11 @@ public static class CCodeEmitter
 			return expression switch
 			{
 				null => null,
-				LiteralExpression { Kind: LiteralKind.Number } literal => literal.Text,
+				LiteralExpression { Kind: LiteralKind.Number } literal => FormatNumberLiteralForC(literal.Text),
 				LiteralExpression { Kind: LiteralKind.True } => "1",
 				LiteralExpression { Kind: LiteralKind.False } => "0",
 				LiteralExpression { Kind: LiteralKind.Null } => "NULL",
+				UnaryExpression { Operator: UnaryOperator.Minus, Operand: LiteralExpression { Kind: LiteralKind.Number } literal } => "-" + FormatNumberLiteralForC(literal.Text, negativeContext: true),
 				CastExpression cast => FormatConstantExpression(cast.Expression),
 				ParenthesizedExpression parenthesized => FormatConstantExpression(parenthesized.Expression),
 				VariableReferenceExpression { Variable: VariableDefinition variable } => CName(variable),

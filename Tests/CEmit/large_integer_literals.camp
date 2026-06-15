@@ -1,0 +1,29 @@
+export long positiveLarge()
+{
+	return 4294967296;
+}
+
+export ulong positiveLargeUnsigned()
+{
+	return 4294967296u;
+}
+
+export long negativeLarge()
+{
+	return -2147483649;
+}
+
+export ulong hexLargeUnsigned()
+{
+	return 0x100000000U;
+}
+
+export long signedMinBoundary()
+{
+	return -2147483648;
+}
+
+export ulong unsignedMaxBoundary()
+{
+	return 4294967295u;
+}
