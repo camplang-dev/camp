@@ -1,0 +1,19 @@
+using Std;
+
+export int main()
+{
+	const char[] span = "hello";
+	delegate nuint() getLength = () => span.length;
+	delegate char() getSecond = () => span[1];
+	delegate bool() hasElements = () => span.elements[0] == 'h';
+
+	if (getLength() != 5)
+		return 1;
+	if (getSecond() != 'e')
+		return 2;
+	if (!hasElements())
+		return 3;
+
+	Console.writeLine(getLength());
+	return 0;
+}

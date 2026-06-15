@@ -357,6 +357,10 @@ public sealed partial class BindableNodeAnalyzer
 			&& FindThisCapture(context) is LambdaCapture thisCapture)
 			return CreateCapturedValueReference(thisCapture, contextLocal, expression.SourceSyntax);
 
+		if (expression is MemberReferenceExpression memberReference
+			&& TryCreateCapturedParamsComponentReference(memberReference.Target, memberReference.Name, context, contextLocal, expression.SourceSyntax, out Expression? componentReference))
+			return componentReference;
+
 		if (TryGetCapturedVariable(expression, out BindableNode? captured)
 			&& FindCapture(context, captured) is LambdaCapture capture)
 			return CreateCapturedValueReference(capture, contextLocal, expression.SourceSyntax);
@@ -399,7 +403,10 @@ public sealed partial class BindableNodeAnalyzer
 					argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
 				break;
 			case IndexExpression index:
-				index.Target = RewriteLambdaCaptureReferences(index.Target, context, contextLocal);
+				if (TryCreateCapturedParamsComponentReference(index.Target, "elements", context, contextLocal, index.Target?.SourceSyntax ?? index.SourceSyntax, out Expression? elementsReference))
+					index.Target = elementsReference;
+				else
+					index.Target = RewriteLambdaCaptureReferences(index.Target, context, contextLocal);
 				foreach (ArgumentExpression argument in index.Arguments)
 					argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
 				break;
@@ -445,6 +452,25 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 		}
 		return expression;
+	}
+
+	bool TryCreateCapturedParamsComponentReference(Expression? source, string componentName, LambdaContextInfo context, DeclarationTarget contextLocal, SyntaxNode? syntax, out Expression? reference)
+	{
+		reference = null;
+		if (source is null || !TryGetCapturedVariable(source, out BindableNode? variable))
+			return false;
+		if (!paramsExpansions.TryGetValue(variable, out List<ParamsExpansionComponent>? expansion))
+			return false;
+		foreach (ParamsExpansionComponent component in expansion)
+		{
+			if (component.SourceName != componentName)
+				continue;
+			if (FindCapture(context, component.Node) is not LambdaCapture capture)
+				return false;
+			reference = CreateCapturedValueReference(capture, contextLocal, syntax);
+			return true;
+		}
+		return false;
 	}
 
 	Expression CreateCapturedValueReference(LambdaCapture capture, DeclarationTarget contextLocal, SyntaxNode? syntax)
@@ -674,16 +700,27 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddLambdaCapture(BindableNode variable, SyntaxNode? syntax, Dictionary<BindableNode, LambdaCapture> captures, bool reportUnsupported, bool isThis = false)
 	{
+		if (!isThis && paramsExpansions.TryGetValue(variable, out List<ParamsExpansionComponent>? expansion))
+		{
+			foreach (ParamsExpansionComponent component in expansion)
+				AddSingleLambdaCapture(component.Node, component.Name, component.Type, syntax, captures, reportUnsupported);
+			return;
+		}
+
+		AddSingleLambdaCapture(variable, isThis ? "this" : GetCaptureName(variable), GetCaptureType(variable), syntax, captures, reportUnsupported, isThis);
+	}
+
+	void AddSingleLambdaCapture(BindableNode variable, string name, string type, SyntaxNode? syntax, Dictionary<BindableNode, LambdaCapture> captures, bool reportUnsupported, bool isThis = false)
+	{
 		if (captures.ContainsKey(variable))
 			return;
-		string type = GetCaptureType(variable);
 		if (string.IsNullOrWhiteSpace(type) || type == ErrorType || type == TargetType)
 		{
 			if (reportUnsupported)
 				Report(GetRange(syntax), "Lambda capture has an unresolved type.");
 			return;
 		}
-		captures[variable] = new LambdaCapture(variable, isThis ? "this" : GetCaptureName(variable), type, new FieldDefinition(), isThis);
+		captures[variable] = new LambdaCapture(variable, name, type, new FieldDefinition(), isThis);
 	}
 
 	BindableNode? CreateLambdaThisCaptureNode(FunctionDefinition? currentFunction, TypeDefinition? containingType, SyntaxNode? syntax, bool reportUnsupported)

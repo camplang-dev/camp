@@ -33,3 +33,7 @@
   For example, forwarding `delegate int(within Allocator*)` through a wrapper
   can emit `wrapper(call, context, allocator, null)` even though the wrapper
   expects only `call, context, allocator`.
+- **BUG-013:** Callable typedef names and types can lose return-value constness
+  for pointer returns. For example, a `newtype delegate const char* Getter()`
+  can emit a `char* (*)(void*)` storage type and reject a lambda returning
+  `const char*`.
