@@ -61,6 +61,11 @@ public static class NativeBuildDriver
 		}
 
 		string output = GetArtifactPath(options);
+		if (options.Kind == NativeBuildKind.Static)
+			DeleteExistingStaticArchive(output, result);
+		if (!result.Success)
+			return result;
+
 		if (!RunTemplate(options, BuildTemplateName(options.Kind), result, new Dictionary<string, string>(StringComparer.Ordinal)
 		{
 			["objects"] = string.Join(" ", objects.Select(Quote)),
@@ -71,6 +76,19 @@ public static class NativeBuildDriver
 
 		result.GeneratedFiles.Add(output);
 		return result;
+	}
+
+	static void DeleteExistingStaticArchive(string output, NativeBuildResult result)
+	{
+		try
+		{
+			if (File.Exists(output))
+				File.Delete(output);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+		{
+			result.Diagnostics.Add($"{output}: {ex.Message}");
+		}
 	}
 
 	public static string GetArtifactPath(NativeBuildOptions options)

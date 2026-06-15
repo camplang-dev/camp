@@ -24,5 +24,15 @@ export int main()
 	if (chars.Length != 7 || chars.Item[4] != 'e' || chars.Item[6] != 'g')
 		return 6;
 
+	auto buffer = new List<char>() finally delete;
+	auto streamWriter = buffer.CharWriter;
+	streamWriter.write("The answer is: ");
+	streamWriter.write(42);
+	streamWriter.newLine();
+	streamWriter.writeLine("But you knew that, right?");
+
+	auto output = buffer.copyArray() finally delete;
+	Console.write(output);
+
 	return 0;
 }
