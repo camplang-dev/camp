@@ -18,19 +18,25 @@ export void copyTo<T: any>(const T[] this, T[] destination, sizeof(T))
 	nuint count = this.length;
 	if (destination.length < count)
 		count = destination.length;
+	if (count == 0)
+		return;
 
-	for (nuint i = 0; i < count; i++)
-		destination[i] = this[i];
+	if ((byte*)destination.elements < (byte*)this.elements)
+	{
+		for (nuint i = 0; i < count; i++)
+			destination[i] = this[i];
+	}
+	else
+	{
+		for (nuint i = count; i > 0; i--)
+			destination[i - 1] = this[i - 1];
+	}
 }
 
 export void copyFrom<T: any>(T[] this, const T[] source, sizeof(T))
 {
-	nuint count = source.length;
-	if (this.length < count)
-		count = this.length;
-
-	for (nuint i = 0; i < count; i++)
-		this[i] = source[i];
+	T[] destination = { this.elements, this.length };
+	source.copyTo<T>(destination);
 }
 
 export void resize<T: any>(T[]* this, nuint newSize, within allocator, sizeof(T))

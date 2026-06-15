@@ -1968,6 +1968,8 @@ public static class CCodeEmitter
 		string FormatSizeOfExpression(SizeOfExpression sizeOf)
 		{
 			string? resolvedType = sizeOf.Type?.ResolvedType;
+			if (IsAnyGenericParameterType(resolvedType))
+				return FormatGenericSizeExpression(resolvedType);
 			if (IsExpandedStorageResolvedType(resolvedType))
 				return "sizeof(" + FormatStorageResolvedType(resolvedType ?? "", "").Declaration.Trim() + ")";
 			return "sizeof(" + FormatType(sizeOf.Type, "").Declaration.Trim() + ")";

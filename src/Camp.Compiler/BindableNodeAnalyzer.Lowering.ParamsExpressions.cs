@@ -1560,12 +1560,13 @@ public sealed partial class BindableNodeAnalyzer
 			Expression? count = ReplaceParamsLengthComponentExpressions(index.Arguments[1].Value);
 			if (start is null || count is null)
 				return false;
+			Expression offset = CreateArraySlicePointerOffset(index.Target?.ResolvedType, start, index.SourceSyntax);
 			components.Add(new BinaryExpression
 			{
 				SourceSyntax = index.SourceSyntax,
 				Left = targetComponents[0],
 				Operator = BinaryOperator.Add,
-				Right = start,
+				Right = offset,
 				ResolvedType = targetComponents[0].ResolvedType
 			});
 			components.Add(count);
@@ -1586,6 +1587,27 @@ public sealed partial class BindableNodeAnalyzer
 			components.Add(componentIndex);
 		}
 		return components.Count > 0;
+	}
+
+	Expression CreateArraySlicePointerOffset(string? arrayType, Expression start, SyntaxNode? syntax)
+	{
+		string? elementType = TryGetArrayElementType(arrayType);
+		if (elementType is null || !IsGenericPlaceholderParameter(StripTopLevelValueQualifiers(elementType)))
+			return start;
+
+		return new BinaryExpression
+		{
+			SourceSyntax = syntax,
+			Left = start,
+			Operator = BinaryOperator.Multiply,
+			Right = LowerSizeOfExpression(new SizeOfExpression
+			{
+				SourceSyntax = syntax,
+				Type = TypeReferenceForResolvedName(elementType),
+				ResolvedType = "nuint"
+			}),
+			ResolvedType = "nuint"
+		};
 	}
 
 	Expression? ReplaceParamsLengthComponentExpressions(Expression? expression)
@@ -1870,6 +1892,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression? CloneParamsExpansionExpression(Expression? expression)
 	{
+		if (expression is not null
+			&& expressionRewrites.TryGetValue(expression, out Expression? rewritten)
+			&& !ReferenceEquals(rewritten, expression))
+			return CloneParamsExpansionExpression(rewritten);
+
 		return expression switch
 		{
 			null => null,

@@ -50,13 +50,7 @@ export class List<T: any>
 		if (this.items.length <= this.length)
 			return;
 
-		nuint i = this.length;
-		while (i > at)
-		{
-			this.items[i] = this.items[i - 1];
-			i--;
-		}
-
+		this.items[at..this.length].copyTo<T>(this.items[at + 1..]);
 		this.items[at] = item;
 		this.length++;
 	}
@@ -87,13 +81,7 @@ export class List<T: any>
 		if (at >= this.length)
 			return 0;
 
-		nuint i = at;
-		while (i + 1 < this.length)
-		{
-			this.items[i] = this.items[i + 1];
-			i++;
-		}
-
+		this.items[at + 1..this.length].copyTo<T>(this.items[at..]);
 		this.length--;
 		return 1;
 	}
@@ -101,22 +89,14 @@ export class List<T: any>
 	// Removes a range and returns the number of items removed.
 	export nuint removeRange(@range nuint startAt = 0, nuint count = ^0)
 	{
-		if (startAt >= this.length || count == 0)
+		T[] used = this.items[..this.length];
+		T[] removed = used[startAt..startAt + count];
+		if (removed.length == 0)
 			return 0;
 
-		if (count > this.length - startAt)
-			count = this.length - startAt;
-
-		nuint remaining = this.length - (startAt + count);
-		if (remaining > 0)
-		{
-			T[] source = { this.getBufferAddress(startAt + count), remaining };
-			T[] destination = { this.getBufferAddress(startAt), remaining };
-			source.copyTo<T>(destination);
-		}
-
-		this.length -= count;
-		return count;
+		used[startAt + removed.length..].copyTo<T>(this.items[startAt..]);
+		this.length -= removed.length;
+		return removed.length;
 	}
 
 	// Clears the list and optionally releases its buffer.
@@ -137,14 +117,8 @@ export class List<T: any>
 		if (copy == null)
 			return null;
 
-		if (startAt >= this.length || count == 0)
-			return copy;
-
-		if (count > this.length - startAt)
-			count = this.length - startAt;
-
-		T[] source = { this.getAddressOf(startAt), count };
-		copy.addRange(source);
+		T[] used = this.items[..this.length];
+		copy.addRange(used[startAt..startAt + count]);
 		return copy;
 	}
 
@@ -162,15 +136,8 @@ export class List<T: any>
 		if (this.items.length < newLength)
 			return;
 
-		nuint i = this.length;
-		while (i > at)
-		{
-			this.items[i + array.length - 1] = this.items[i - 1];
-			i--;
-		}
-
-		T[] destination = { this.getBufferAddress(at), array.length };
-		array.copyTo<T>(destination);
+		this.items[at..this.length].copyTo<T>(this.items[at + array.length..]);
+		array.copyTo<T>(this.items[at..]);
 		this.length = newLength;
 	}
 
@@ -186,44 +153,22 @@ export class List<T: any>
 	// Allocates a new array and copies a range of items into it.
 	export T[] copyArray(@range nuint startAt = 0, nuint count = ^0)
 	{
-		if (startAt >= this.length || count == 0)
-			return default;
-
-		if (count > this.length - startAt)
-			count = this.length - startAt;
-
-		T[] source = { this.getAddressOf(startAt), count };
-		return Array_copyArray<T>(source, sizeof(T), this.allocator);
+		T[] used = this.items[..this.length];
+		return within (this.allocator) used[startAt..startAt + count].copyArray<T>();
 	}
 
 	// Copies a range of items into an existing array.
 	export void copyTo(T[] dest, nuint destIndex, @range nuint startAt = 0, nuint count = ^0)
 	{
-		if (destIndex >= dest.length || startAt >= this.length || count == 0)
-			return;
-
-		if (count > this.length - startAt)
-			count = this.length - startAt;
-		if (count > dest.length - destIndex)
-			count = dest.length - destIndex;
-		if (count == 0)
-			return;
-
-		T[] source = { this.getBufferAddress(startAt), count };
-		T[] destination = { (T*)&((byte*)dest.elements)[destIndex * this._sizeof_T], count };
-		source.copyTo<T>(destination);
+		T[] used = this.items[..this.length];
+		used[startAt..startAt + count].copyTo<T>(dest[destIndex..]);
 	}
 
 	// Returns the first matching index, or -1 when no match is found.
 	export nint findIndex(in T item, delegate bool(in T left, in T right) equals, @range nuint startAt = 0, nuint count = ^0)
 	{
-		if (startAt >= this.length || count == 0)
-			return -1;
-
-		if (count > this.length - startAt)
-			count = this.length - startAt;
-
-		const T[] source = { this.getAddressOf(startAt), count };
+		T[] used = this.items[..this.length];
+		const T[] source = used[startAt..startAt + count];
 		nint found = source.findIndex<T>(item, equals);
 		return found < 0 ? -1 : (nint)startAt + found;
 	}
@@ -231,13 +176,8 @@ export class List<T: any>
 	// Returns the last matching index, or -1 when no match is found.
 	export nint findLastIndex(in T item, delegate bool(in T left, in T right) equals, @range nuint startAt = 0, nuint count = ^0)
 	{
-		if (startAt >= this.length || count == 0)
-			return -1;
-
-		if (count > this.length - startAt)
-			count = this.length - startAt;
-
-		const T[] source = { this.getAddressOf(startAt), count };
+		T[] used = this.items[..this.length];
+		const T[] source = used[startAt..startAt + count];
 		nint found = source.findLastIndex<T>(item, equals);
 		return found < 0 ? -1 : (nint)startAt + found;
 	}
@@ -250,10 +190,9 @@ export class List<T: any>
 
 		if (count == 0)
 			count = this.length - startAt;
-		if (count > this.length - startAt)
-			count = this.length - startAt;
 
-		const T[] source = { this.getAddressOf(startAt), count };
+		T[] used = this.items[..this.length];
+		const T[] source = used[startAt..startAt + count];
 		nint found = source.binarySearch<T>(item, comparer);
 		return found < 0 ? -1 : (nint)startAt + found;
 	}
@@ -261,8 +200,7 @@ export class List<T: any>
 	// Sorts the list in place using the supplied comparer.
 	export void sort(delegate int(in T left, in T right) comparer)
 	{
-		T[] used = { this.items.elements, this.length };
-		used.sort<T>(comparer);
+		this.items[..this.length].sort<T>(comparer);
 	}
 
 	// Returns the number of items in the list.

@@ -45,5 +45,14 @@ export int main()
 	if (source[0] != 1 || source[1] != 2 || source[2] != 3 || source[3] != 4)
 		return 8;
 
+	int[] overlap = [1, 2, 3, 4, 5];
+	overlap[..4].copyTo<int>(overlap[1..]);
+	if (overlap[0] != 1 || overlap[1] != 1 || overlap[2] != 2 || overlap[3] != 3 || overlap[4] != 4)
+		return 9;
+
+	overlap[1..].copyTo<int>(overlap[..4]);
+	if (overlap[0] != 1 || overlap[1] != 2 || overlap[2] != 3 || overlap[3] != 4 || overlap[4] != 4)
+		return 10;
+
 	return 0;
 }

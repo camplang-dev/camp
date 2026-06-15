@@ -2303,7 +2303,7 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 
 		if (arguments is [{ Value: RangeExpression range }])
-			return BodyAnalyzeArrayRangeIndexExpression(target, targetType, arguments, range, scope);
+			return BodyAnalyzeArrayRangeIndexExpression(target, targetType, arguments, range, scope, typeScope);
 
 		foreach (ArgumentExpression argument in arguments)
 		{
@@ -2345,9 +2345,10 @@ public sealed partial class BindableNodeAnalyzer
 		return ErrorType;
 	}
 
-	string BodyAnalyzeArrayRangeIndexExpression(Expression? target, string targetType, List<ArgumentExpression> arguments, RangeExpression range, BodyScope scope)
+	string BodyAnalyzeArrayRangeIndexExpression(Expression? target, string targetType, List<ArgumentExpression> arguments, RangeExpression range, BodyScope scope, AnalysisScope typeScope)
 	{
 		ArgumentExpression argument = arguments[0];
+		BodyAnalyzeRangeExpression(range, scope, typeScope);
 		string? arrayElementType = TryGetArrayElementType(targetType);
 		string? stringElementType = GetPrimitiveStringElementType(targetType);
 		if (arrayElementType is null && stringElementType is null)

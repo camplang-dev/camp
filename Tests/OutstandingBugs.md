@@ -11,12 +11,6 @@
   delegate context can hold the receiver pointer, but not the companion length
   value, so calls like `span.format` cannot be represented correctly without a
   generated context object or adapter thunk.
-- **BUG-006:** Slice/range lowering can leave unresolved cloned local-name
-  expressions when a local variable is used as a generated range boundary inside
-  generic std code, and some `@range` defaulted calls can emit an extra range
-  argument. The current workaround is to avoid range syntax/defaulted range
-  calls in generic std internals and pass explicit array params values or
-  explicit `index, count` arguments.
 - **BUG-008:** Default argument insertion can append a default for a later
   parameter even when the caller supplied that argument explicitly in some
   generic/delegate call shapes. `List<T>.binarySearch` avoids optional
