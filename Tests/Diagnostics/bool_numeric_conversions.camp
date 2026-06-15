@@ -1,0 +1,6 @@
+bool returnGreater(int a, int b) => a > b ? a : b;
+
+void main()
+{
+	int value = true;
+}

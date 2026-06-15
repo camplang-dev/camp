@@ -1,0 +1,3 @@
+tests/Diagnostics/bool_numeric_conversions.camp(1,45): error: Conditional expression cannot convert 'int' to 'bool'.
+tests/Diagnostics/bool_numeric_conversions.camp(1,49): error: Conditional expression cannot convert 'int' to 'bool'.
+tests/Diagnostics/bool_numeric_conversions.camp(5,14): error: Declaration initializer cannot convert 'bool' to 'int'.

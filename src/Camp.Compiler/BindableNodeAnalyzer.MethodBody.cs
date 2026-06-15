@@ -2679,7 +2679,13 @@ public sealed partial class BindableNodeAnalyzer
 		string trueType = BodyAnalyzeExpression(conditional.WhenTrue, scope, typeScope, targetType);
 		string falseType = BodyAnalyzeExpression(conditional.WhenFalse, scope, typeScope, targetType);
 		expressionConstants[conditional] = IsConstant(conditional.Condition) && IsConstant(conditional.WhenTrue) && IsConstant(conditional.WhenFalse);
-		return targetType ?? BestType([trueType, falseType]);
+		if (targetType is not null)
+		{
+			CheckAssignable(targetType, trueType, conditional.WhenTrue?.SourceSyntax, "Conditional expression");
+			CheckAssignable(targetType, falseType, conditional.WhenFalse?.SourceSyntax, "Conditional expression");
+			return targetType;
+		}
+		return BestType([trueType, falseType]);
 	}
 
 	string BodyAnalyzeRangeExpression(RangeExpression range, BodyScope scope, AnalysisScope typeScope)
