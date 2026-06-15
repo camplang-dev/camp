@@ -14,7 +14,7 @@ void duplicate(overload int value)
 {
 }
 
-void generic<T: any>(overload T value)
+void genericAny<T: any>(overload T value)
 {
 }
 
@@ -34,7 +34,7 @@ void main()
 {
 	mixed(1);
 	duplicate(1);
-	generic(default);
+	genericAny(default);
 	auto f = duplicate;
 	int x = read();
 }

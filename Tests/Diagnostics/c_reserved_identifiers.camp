@@ -1,0 +1,4 @@
+alias restrict = int;
+alias signed = int;
+alias typedef = int;
+alias register = int;

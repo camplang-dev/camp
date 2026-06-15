@@ -1,0 +1,4 @@
+tests/Diagnostics/c_reserved_identifiers.camp(1,7): error: Alias name 'restrict' is a reserved C word.
+tests/Diagnostics/c_reserved_identifiers.camp(2,7): error: Alias name 'signed' is a reserved C word.
+tests/Diagnostics/c_reserved_identifiers.camp(3,7): error: Alias name 'typedef' is a reserved C word.
+tests/Diagnostics/c_reserved_identifiers.camp(4,7): error: Alias name 'register' is a reserved C word.

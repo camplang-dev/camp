@@ -50,7 +50,10 @@ public sealed partial class BindableNodeAnalyzer
 		"extern", "float", "for", "goto", "if", "inline", "int", "long", "register", "restrict", "return",
 		"short", "signed", "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void",
 		"volatile", "while", "_Alignas", "_Alignof", "_Atomic", "_Bool", "_Complex", "_Generic", "_Imaginary",
-		"_Noreturn", "_Static_assert", "_Thread_local"
+		"_Noreturn", "_Static_assert", "_Thread_local", "alignas", "alignof", "atomic_bool", "atomic_char",
+		"atomic_int", "atomic_long", "atomic_short", "atomic_uint", "atomic_ulong", "atomic_ushort", "bool",
+		"complex", "constexpr", "false", "generic", "imaginary", "nullptr", "noreturn", "static_assert",
+		"thread_local", "true", "typeof", "typeof_unqual"
 	};
 
 	readonly List<AnalysisDiagnostic> diagnostics = [];
@@ -400,7 +403,13 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		if (ReservedWords.Contains(name))
+		{
 			Report(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is reserved.");
+			return;
+		}
+
+		if (CReservedWords.Contains(name))
+			Report(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is a reserved C word.");
 	}
 
 	void Report(TokenRange? range, string message)
