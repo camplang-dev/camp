@@ -1,0 +1,39 @@
+struct LocalAllocator
+{
+	void* alloc(nuint size) => null;
+	void free(void* ptr) {}
+}
+
+export int main()
+{
+	delegate bool(out int) parser = (out int value) =>
+	{
+		value = 3;
+		return true;
+	};
+
+	int parsed = 0;
+	if (!parser(out parsed))
+		return 1;
+	if (parsed != 3)
+		return 2;
+
+	delegate void(thrown int) thrower = (thrown int error) =>
+	{
+		error = 7;
+	};
+
+	int caught = 0;
+	thrower(catch caught);
+	if (caught != 7)
+		return 3;
+
+	LocalAllocator allocatorValue = init LocalAllocator();
+	LocalAllocator* allocator = &allocatorValue;
+	delegate int(within LocalAllocator* allocator) allocUser = (within LocalAllocator* current) => current == allocator ? 4 : 0;
+	int value = allocUser(within allocator);
+	if (value != 4)
+		return 4;
+
+	return 0;
+}

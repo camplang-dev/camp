@@ -927,6 +927,7 @@ public static class CCodeEmitter
 				ParameterModifier.In => "in " + type,
 				ParameterModifier.Out => "out " + type,
 				ParameterModifier.Thrown => "thrown " + type,
+				ParameterModifier.Within => "within " + type,
 				_ => type
 			};
 		}
@@ -1428,6 +1429,8 @@ public static class CCodeEmitter
 					parts.Add(FormatResolvedType(parameterType[4..].TrimStart() + "*", declarator).Declaration);
 				else if (parameterType.StartsWith("thrown ", StringComparison.Ordinal))
 					parts.Add(FormatResolvedType(parameterType[7..].TrimStart() + "*", declarator).Declaration);
+				else if (parameterType.StartsWith("within ", StringComparison.Ordinal))
+					parts.Add(FormatResolvedType(parameterType[7..].TrimStart(), declarator).Declaration);
 				else
 					parts.Add(FormatResolvedType(parameterType, declarator).Declaration);
 			}
@@ -2302,6 +2305,11 @@ public static class CCodeEmitter
 			else if (typeName.StartsWith("thrown ", StringComparison.Ordinal))
 			{
 				modifier = ParameterModifier.Thrown;
+				typeName = typeName[7..].TrimStart();
+			}
+			else if (typeName.StartsWith("within ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Within;
 				typeName = typeName[7..].TrimStart();
 			}
 
@@ -3502,6 +3510,7 @@ public static class CCodeEmitter
 					ParameterModifier.In => "in " + parameterType,
 					ParameterModifier.Out => "out " + parameterType,
 					ParameterModifier.Thrown => "thrown " + parameterType,
+					ParameterModifier.Within => "within " + parameterType,
 					_ => parameterType
 				});
 			}

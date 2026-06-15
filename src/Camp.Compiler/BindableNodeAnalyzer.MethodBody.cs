@@ -1108,14 +1108,16 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter.Parameter is not null)
 				AnalyzeParameterDefinition(parameter.Parameter, typeScope);
 
-			string parameterType = parameter.Parameter?.ResolvedType
-				?? (targetShape is CallableShape target && i < target.Parameters.Count ? target.Parameters[i] : TargetType);
+			string parameterSlot = parameter.Parameter is not null
+				? GetLambdaParameterCallableSlot(parameter.Parameter)
+				: (targetShape is CallableShape target && i < target.Parameters.Count ? target.Parameters[i] : TargetType);
+			string parameterType = StripCallableParameterSlotModifier(parameterSlot);
 			parameter.ResolvedType = parameterType;
-			if (parameter.Parameter is null && parameterType == TargetType)
+			if (parameter.Parameter is null && parameterSlot == TargetType)
 				Report(GetRange(lambda.SourceSyntax), $"Lambda parameter '{GetLambdaParameterSymbolName(parameter) ?? i.ToString(CultureInfo.InvariantCulture)}' requires a target callable type or an explicit parameter type.");
 
-			if (targetShape is CallableShape expected && i < expected.Parameters.Count && parameterType != TargetType && parameterType != expected.Parameters[i])
-				Report(GetRange(parameter.SourceSyntax), $"Lambda parameter type '{parameterType}' does not match target parameter type '{expected.Parameters[i]}'.");
+			if (targetShape is CallableShape expected && i < expected.Parameters.Count && parameterSlot != TargetType && parameterSlot != expected.Parameters[i])
+				Report(GetRange(parameter.SourceSyntax), $"Lambda parameter type '{parameterSlot}' does not match target parameter type '{expected.Parameters[i]}'.");
 
 			string? parameterName = GetLambdaParameterSymbolName(parameter);
 			if (!string.IsNullOrWhiteSpace(parameterName))
@@ -1136,8 +1138,13 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(lambda.SourceSyntax), "Capturing lambdas require a delegate target.");
 
 		List<string> parameterTypes = [];
-		foreach (LambdaParameter parameter in lambda.Parameters)
-			parameterTypes.Add(parameter.ResolvedType ?? ErrorType);
+		for (int i = 0; i < lambda.Parameters.Count; i++)
+		{
+			LambdaParameter parameter = lambda.Parameters[i];
+			parameterTypes.Add(parameter.Parameter is not null
+				? GetLambdaParameterCallableSlot(parameter)
+				: targetShape is CallableShape target && i < target.Parameters.Count ? target.Parameters[i] : parameter.ResolvedType ?? ErrorType);
+		}
 
 		string inferredKind = hasCaptures ? "delegate" : "fn";
 		string inferredType = BuildCallableType(inferredKind, targetShape?.ReturnType ?? returnType, parameterTypes);
@@ -1163,6 +1170,36 @@ public sealed partial class BindableNodeAnalyzer
 			Expression = returnStatement.Expression,
 			ResolvedType = "void"
 		};
+	}
+
+	static string GetLambdaParameterCallableSlot(LambdaParameter parameter)
+	{
+		if (parameter.Parameter is not null)
+			return GetLambdaParameterCallableSlot(parameter.Parameter);
+		return parameter.ResolvedType ?? ErrorType;
+	}
+
+	static string GetLambdaParameterCallableSlot(ParameterDefinition parameter)
+	{
+		string type = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType;
+		return parameter.Modifier switch
+		{
+			ParameterModifier.In => "in " + type,
+			ParameterModifier.Out => "out " + type,
+			ParameterModifier.Thrown => "thrown " + type,
+			ParameterModifier.Within => "within " + type,
+			_ => type
+		};
+	}
+
+	static string StripCallableParameterSlotModifier(string slot)
+	{
+		foreach (string prefix in new[] { "in ", "out ", "thrown ", "within " })
+		{
+			if (slot.StartsWith(prefix, StringComparison.Ordinal))
+				return slot[prefix.Length..].Trim();
+		}
+		return slot;
 	}
 
 	string BodyAnalyzeArgumentExpression(ArgumentExpression argument, BodyScope scope, AnalysisScope typeScope, string? targetType = null)
@@ -1299,6 +1336,11 @@ public sealed partial class BindableNodeAnalyzer
 			else if (typeName.StartsWith("thrown ", StringComparison.Ordinal))
 			{
 				modifier = ParameterModifier.Thrown;
+				typeName = typeName[7..].TrimStart();
+			}
+			else if (typeName.StartsWith("within ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Within;
 				typeName = typeName[7..].TrimStart();
 			}
 			parameters.Add(new ParameterDefinition

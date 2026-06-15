@@ -105,7 +105,7 @@ public sealed partial class BindableNodeAnalyzer
 			case CallableTypeReference { Kind: CallableKind.Delegate } callable:
 				kind = ParamsComponentShapeKind.Delegate;
 				typeName = type.ResolvedType ?? resolvedType ?? ErrorType;
-				AddDelegatePendingComponents(callable.ReturnType?.ResolvedType ?? ErrorType, GetExpandedCallableParameterTypes(callable.Parameters), prefix, components);
+				AddDelegatePendingComponents(callable.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredCallableParameterTypes(callable.Parameters), prefix, components);
 				return true;
 
 			case IterTypeReference iter:
@@ -125,7 +125,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (kind == ParamsComponentShapeKind.Delegate && newtypeDefinition.UnderlyingType is CallableTypeReference delegateType)
 				{
 					components = [];
-					AddDelegatePendingComponents(delegateType.ReturnType?.ResolvedType ?? ErrorType, GetExpandedCallableParameterTypes(newtypeDefinition.Parameters), prefix, components);
+					AddDelegatePendingComponents(delegateType.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredCallableParameterTypes(newtypeDefinition.Parameters), prefix, components);
 				}
 				else if (kind == ParamsComponentShapeKind.Iter && newtypeDefinition.UnderlyingType is IterTypeReference iterType)
 				{
@@ -358,6 +358,35 @@ public sealed partial class BindableNodeAnalyzer
 					ParameterModifier.In => "in " + parameterType,
 					ParameterModifier.Out => "out " + parameterType,
 					ParameterModifier.Thrown => "thrown " + parameterType,
+					ParameterModifier.Within => "within " + parameterType,
+					_ => parameterType
+				});
+			}
+		}
+		return types;
+	}
+
+	List<string> GetExpandedDeclaredCallableParameterTypes(List<ParameterDefinition> parameters)
+	{
+		List<string> types = [];
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+				continue;
+			if (TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape))
+			{
+				foreach (ParamsComponent component in shape.Components)
+					types.Add(component.Type);
+			}
+			else
+			{
+				string parameterType = parameter.ResolvedType ?? ErrorType;
+				types.Add(parameter.Modifier switch
+				{
+					ParameterModifier.In => "in " + parameterType,
+					ParameterModifier.Out => "out " + parameterType,
+					ParameterModifier.Thrown => "thrown " + parameterType,
+					ParameterModifier.Within => "within " + parameterType,
 					_ => parameterType
 				});
 			}

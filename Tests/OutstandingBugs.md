@@ -19,3 +19,17 @@
   C like `&items[index]` against a `void*` backing pointer instead of byte
   offsetting by `index * sizeof(T)`. `List<T>.getAddressOf` currently performs
   the byte arithmetic explicitly.
+- **BUG-010:** Iterator state fields that store expanded params values are not
+  fully materialized in emitted C. A generator local such as
+  `delegate int(int) map = ...` can emit a raw initializer for a delegate field,
+  and an `int[]` generator parameter stored on the iterator state can later emit
+  `this->values.length` instead of using the lifted companion length field.
+- **BUG-011:** Callable typedefs are emitted before enum typedefs, so a function
+  pointer type with an enum slot such as `delegate void(thrown MyError)` can
+  reference `MyError` before the enum typedef exists. The C emitter needs either
+  enum typedefs before callable typedefs or enum-tag spelling in callable slots.
+- **BUG-012:** A call that passes an expanded delegate value followed by an
+  explicit `within` argument can retain an extra generated hidden argument.
+  For example, forwarding `delegate int(within Allocator*)` through a wrapper
+  can emit `wrapper(call, context, allocator, null)` even though the wrapper
+  expects only `call, context, allocator`.

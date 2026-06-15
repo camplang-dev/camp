@@ -536,6 +536,11 @@ public sealed partial class BindableNodeAnalyzer
 				modifier = ParameterModifier.Thrown;
 				resolvedType = resolvedType["thrown ".Length..].Trim();
 			}
+			else if (resolvedType.StartsWith("within ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Within;
+				resolvedType = resolvedType["within ".Length..].Trim();
+			}
 		}
 		return new ParameterDefinition
 		{
