@@ -1041,9 +1041,95 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (InitializerItem item in initializer.Items)
 					item.Expression = RewriteIteratorExpression(item.Expression, lowering);
 				break;
+			case LambdaExpression lambda:
+				RewriteIteratorLambdaBody(lambda.Body, lowering);
+				break;
 		}
 
 		return expression;
+	}
+
+	void RewriteIteratorLambdaBody(BlockStatement? body, IteratorBodyLowering lowering)
+	{
+		if (body is null)
+			return;
+		foreach (Statement statement in body.Statements)
+			RewriteIteratorLambdaStatement(statement, lowering);
+	}
+
+	void RewriteIteratorLambdaStatement(Statement? statement, IteratorBodyLowering lowering)
+	{
+		switch (statement)
+		{
+			case null:
+				return;
+			case BlockStatement block:
+				foreach (Statement child in block.Statements)
+					RewriteIteratorLambdaStatement(child, lowering);
+				break;
+			case DeclarationStatement declaration:
+				declaration.InitialValue = RewriteIteratorExpression(declaration.InitialValue, lowering);
+				break;
+			case ExpressionStatement expression:
+				expression.Expression = RewriteIteratorExpression(expression.Expression, lowering);
+				break;
+			case IfStatement ifStatement:
+				ifStatement.Condition = RewriteIteratorExpression(ifStatement.Condition, lowering);
+				RewriteIteratorLambdaStatement(ifStatement.Body, lowering);
+				RewriteIteratorLambdaStatement(ifStatement.ElseBody, lowering);
+				break;
+			case WhileStatement whileStatement:
+				whileStatement.Condition = RewriteIteratorExpression(whileStatement.Condition, lowering);
+				RewriteIteratorLambdaStatement(whileStatement.Body, lowering);
+				break;
+			case DoWhileStatement doWhile:
+				RewriteIteratorLambdaStatement(doWhile.Body, lowering);
+				doWhile.Condition = RewriteIteratorExpression(doWhile.Condition, lowering);
+				break;
+			case ForStatement forStatement:
+				RewriteIteratorLambdaStatement(forStatement.Condition.Declaration, lowering);
+				for (int i = 0; i < forStatement.Condition.Clauses.Count; i++)
+					forStatement.Condition.Clauses[i] = RewriteIteratorExpression(forStatement.Condition.Clauses[i], lowering);
+				RewriteIteratorLambdaStatement(forStatement.Body, lowering);
+				break;
+			case ForeachStatement foreachStatement:
+				foreachStatement.Source = RewriteIteratorExpression(foreachStatement.Source, lowering);
+				RewriteIteratorLambdaStatement(foreachStatement.Body, lowering);
+				break;
+			case SwitchStatement switchStatement:
+				switchStatement.Expression = RewriteIteratorExpression(switchStatement.Expression, lowering);
+				foreach (Statement child in switchStatement.Statements)
+					RewriteIteratorLambdaStatement(child, lowering);
+				break;
+			case CaseStatement caseStatement:
+				caseStatement.Expression = RewriteIteratorExpression(caseStatement.Expression, lowering);
+				break;
+			case ReturnStatement returnStatement:
+				returnStatement.Expression = RewriteIteratorExpression(returnStatement.Expression, lowering);
+				break;
+			case YieldStatement yieldStatement:
+				yieldStatement.Expression = RewriteIteratorExpression(yieldStatement.Expression, lowering);
+				break;
+			case DeleteStatement deleteStatement:
+				deleteStatement.Expression = RewriteIteratorExpression(deleteStatement.Expression, lowering);
+				break;
+			case TryStatement tryStatement:
+				RewriteIteratorLambdaStatement(tryStatement.Body, lowering);
+				foreach (CatchStatement catchStatement in tryStatement.Catches)
+					RewriteIteratorLambdaStatement(catchStatement, lowering);
+				RewriteIteratorLambdaStatement(tryStatement.Finally, lowering);
+				break;
+			case CatchStatement catchStatement:
+				RewriteIteratorLambdaStatement(catchStatement.Body, lowering);
+				break;
+			case FinallyStatement finallyStatement:
+				RewriteIteratorLambdaStatement(finallyStatement.Body, lowering);
+				break;
+			case WithinStatement withinStatement:
+				withinStatement.Allocator = RewriteIteratorExpression(withinStatement.Allocator, lowering);
+				RewriteIteratorLambdaStatement(withinStatement.Body, lowering);
+				break;
+		}
 	}
 
 	IEnumerable<DeclarationStatement> EnumerateIteratorLocalDeclarations(BlockStatement? body)

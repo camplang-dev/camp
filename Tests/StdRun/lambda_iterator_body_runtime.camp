@@ -1,0 +1,25 @@
+using Std;
+
+int apply(delegate int(int) mapper, int value)
+{
+	return mapper(value);
+}
+
+struct iter int mappedValues(int* values, nuint length)
+{
+	int offset = 1;
+
+	for (nuint i = 0; i < length; i++)
+		yield apply(value => value + offset, values[i]);
+}
+
+export int main()
+{
+	int total = 0;
+	auto values = [1, 2, 3];
+	foreach (int value in mappedValues(values.elements, values.length))
+		total = total + value;
+
+	Console.writeLine(total);
+	return total == 9 ? 0 : 1;
+}
