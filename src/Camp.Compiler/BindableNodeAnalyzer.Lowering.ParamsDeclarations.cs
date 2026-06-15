@@ -330,6 +330,8 @@ public sealed partial class BindableNodeAnalyzer
 		bool materializedGenericReturnInitializer = initialValue is CallExpression initialCall
 			&& callTargets.TryGetValue(initialCall, out FunctionDefinition? initialFunction)
 			&& IsMaterializedGenericReturnFunction(initialFunction);
+		if (!materializedGenericReturnInitializer)
+			CaptureParamsArrayConstructionLength(initialValue, shape, declarations);
 		List<Expression?> initialValues = materializedGenericReturnInitializer
 			? CreateNullInitialValues(shape)
 			: GetParamsComponentInitialValues(initialValue, shape, deferCurrentAllocator: true);
@@ -398,6 +400,37 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		return declarations.Count > 0;
+	}
+
+	void CaptureParamsArrayConstructionLength(Expression? initialValue, ParamsComponentShape shape, List<Statement> declarations)
+	{
+		if (shape.Kind != ParamsComponentShapeKind.Array
+			|| shape.Components.Count != 2
+			|| !TryGetParamsArrayConstruction(initialValue, out ConstructionExpression construction)
+			|| construction.ElementCount is null
+			|| IsRepeatableArrayLengthExpression(construction.ElementCount))
+			return;
+
+		string type = construction.ElementCount.ResolvedType ?? "nuint";
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("arrayLength"), type, TypeReferenceForResolvedName(type), construction.ElementCount);
+		declarations.Add(local);
+		construction.ElementCount = CreateVariableReference(local.Target, type);
+	}
+
+	static bool TryGetParamsArrayConstruction(Expression? initialValue, out ConstructionExpression construction)
+	{
+		if (initialValue is FinallyDeleteExpression { Expression: not null } finallyDelete)
+			initialValue = finallyDelete.Expression;
+		if (initialValue is WithinExpression { Expression: not null } within)
+			initialValue = within.Expression;
+		if (initialValue is ConstructionExpression { ElementCount: not null, Type: not null } arrayConstruction)
+		{
+			construction = arrayConstruction;
+			return true;
+		}
+
+		construction = null!;
+		return false;
 	}
 
 	List<Expression?> CreateNullInitialValues(ParamsComponentShape shape)

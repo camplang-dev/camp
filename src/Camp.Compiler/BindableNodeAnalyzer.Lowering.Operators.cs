@@ -537,6 +537,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression CreateArrayConstruction(TypeReference elementType, Expression length, SyntaxNode? syntax, string? resolvedType)
 	{
+		length = CaptureArrayConstructionLength(length);
 		GroupedExpression grouped = new()
 		{
 			SourceSyntax = syntax,
@@ -555,6 +556,36 @@ public sealed partial class BindableNodeAnalyzer
 			Expression = length
 		});
 		return grouped;
+	}
+
+	Expression CaptureArrayConstructionLength(Expression length)
+	{
+		if (currentStatementPrefix is null || IsRepeatableArrayLengthExpression(length))
+			return length;
+
+		string type = length.ResolvedType ?? "nuint";
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("arrayLength"), type, TypeReferenceForResolvedName(type), length);
+		currentStatementPrefix.Add(local);
+		return CreateVariableReference(local.Target, type);
+	}
+
+	static bool IsRepeatableArrayLengthExpression(Expression? expression)
+	{
+		return expression switch
+		{
+			null => true,
+			LiteralExpression or VariableReferenceExpression or ThisExpression or DefaultExpression or SizeOfExpression or VTableOfExpression => true,
+			NamedExpression => true,
+			MemberExpression member => IsRepeatableArrayLengthExpression(member.Target),
+			ParenthesizedExpression parenthesized => IsRepeatableArrayLengthExpression(parenthesized.Expression),
+			CastExpression cast => IsRepeatableArrayLengthExpression(cast.Expression),
+			UnaryExpression unary => unary.Operator is not (UnaryOperator.Increment or UnaryOperator.Decrement) && IsRepeatableArrayLengthExpression(unary.Operand),
+			BinaryExpression binary => IsRepeatableArrayLengthExpression(binary.Left) && IsRepeatableArrayLengthExpression(binary.Right),
+			ConditionalExpression conditional => IsRepeatableArrayLengthExpression(conditional.Condition)
+				&& IsRepeatableArrayLengthExpression(conditional.WhenTrue)
+				&& IsRepeatableArrayLengthExpression(conditional.WhenFalse),
+			_ => false
+		};
 	}
 
 	Expression CreateArrayElementsAccess(Expression target)

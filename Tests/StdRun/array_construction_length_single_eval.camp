@@ -1,0 +1,24 @@
+using Std;
+
+int calls = 0;
+
+nuint nextLength()
+{
+	calls++;
+	return 4;
+}
+
+export int main(string[] args)
+{
+	char[] newBuffer = new char[nextLength()];
+	if (calls != 1)
+		return calls;
+	delete newBuffer;
+
+	char[] initBuffer = init char[nextLength()];
+	if (calls != 2)
+		return calls;
+	delete initBuffer;
+
+	return 0;
+}

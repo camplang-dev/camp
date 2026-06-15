@@ -18,16 +18,17 @@ static void Array_copyTo(const void *this, uintptr_t this_length, void *destinat
 		for (uintptr_t i = 0; (i < count); i++)
 		{
 			__builtin_memmove((void*)(((uint8_t*)destination) + (i * sizeof_T)), (void*)(((const uint8_t*)this) + (i * sizeof_T)), sizeof_T);
-__for_continue0: ;
+__for_continue1: ;
 		}
-__for_break1: ;
+__for_break2: ;
 	}
 }
 
 static void *Array_copyArray(const void *this, uintptr_t this_length, uintptr_t sizeof_T, uintptr_t *result_length)
 {
-	void *elements = (void* *)(malloc((sizeof_T * this_length)));
-	uintptr_t elements_length = this_length;
+	uintptr_t _arrayLength0 = this_length;
+	void *elements = (void* *)(malloc((sizeof_T * _arrayLength0)));
+	uintptr_t elements_length = _arrayLength0;
 	Array_copyTo(this, this_length, elements, elements_length, sizeof_T);
 	{
 		(*result_length) = elements_length;
