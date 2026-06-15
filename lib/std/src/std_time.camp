@@ -76,10 +76,10 @@ export newtype TimeSpan: long
 	export double getTotalDays() => (double)(long)*this / (1000 * 60 * 60 * 24);
 
 	// Non-throwing. Overflow or invalid input returns TimeSpan.invalid().
-	export TimeSpan add(TimeSpan other) => (TimeSpan)((long)*this + (long)other);
-	export TimeSpan subtract(TimeSpan other) => (TimeSpan)((long)*this - (long)other);
-	export TimeSpan negate() => (TimeSpan)(-(long)(*this));
-	export TimeSpan abs() => ((long)*this < 0) ? this.negate() : *this;
+	export TimeSpan add(const this, TimeSpan other) => (TimeSpan)((long)*this + (long)other);
+	export TimeSpan subtract(const this, TimeSpan other) => (TimeSpan)((long)*this - (long)other);
+	export TimeSpan negate(const this) => (TimeSpan)(-(long)(*this));
+	export TimeSpan abs(const this) => ((long)*this < 0) ? this.negate() : *this;
 
 	// Formats directly into caller-provided buffer.
 	// Examples: "14:05:30", "44:05:30.551".
@@ -154,7 +154,7 @@ export newtype UtcOffset: short
 			minutes = (short)(0 - minutes);
 		return (byte)minutes;
 	}
-	
+
 	export short getTotalMinutes() => (short)*this;
 
 	// Formats directly into caller-provided buffer. Examples: "Z", "-04:00", "+09:30".
@@ -214,14 +214,14 @@ export newtype Instant: long
 	export long getUnixMs() => (long)*this;
 
 	// Non-throwing. Overflow or invalid input returns Instant.INVALID
-	export Instant add(TimeSpan span)
+	export Instant add(const this, TimeSpan span)
 	{
 		if (!this.isValid() || !span.isValid())
 			return Instant.INVALID;
 		return (Instant)((long)*this + (long)span);
 	}
 
-	export Instant subtract(TimeSpan span)
+	export Instant subtract(const this, TimeSpan span)
 	{
 		if (!this.isValid() || !span.isValid())
 			return Instant.INVALID;
@@ -229,7 +229,7 @@ export newtype Instant: long
 	}
 
 	// this - earlier. Invalid input or overflow returns TimeSpan.INVALID
-	export TimeSpan since(Instant earlier)
+	export TimeSpan since(const this, Instant earlier)
 	{
 		if (!this.isValid() || !earlier.isValid())
 			return TimeSpan.INVALID;
@@ -308,7 +308,7 @@ export struct Date
 	}
 
 	// Non-throwing. Invalid input or out-of-range result returns an invalid Date.
-	export Date addDays(int days)
+	export Date addDays(const this, int days)
 	{
 		if (!this.isValid())
 			return default;
@@ -318,7 +318,7 @@ export struct Date
 
 	// end - this, in whole calendar days.
 	// Invalid input returns 0.
-	export int daysUntil(Date end)
+	export int daysUntil(const this, Date end)
 	{
 		if (!this.isValid() || !end.isValid())
 			return 0;
@@ -438,7 +438,7 @@ export struct DateTime
 
 	// Interprets this DateTime using the fixed UTC offset provided by the PAL
 	// Invalid input or out-of-range conversion returns Instant.invalid().
-	export Instant toInstant(UtcOffset offset)
+	export Instant toInstant(const this, UtcOffset offset)
 	{
 		if (!this.isValid() || !offset.isValid())
 			return Instant.INVALID;
@@ -529,7 +529,7 @@ export struct OffsetDateTime
 	export bool isValid(const this) => this.local.isValid() && this.offset.isValid();
 
 	// Invalid input or out-of-range conversion returns Instant.INVALID
-	export Instant toInstant() => this.local.toInstant(this.offset);
+	export Instant toInstant(const this) => this.local.toInstant(this.offset);
 
 	// Formats directly into caller-provided buffer. Example: "2026-06-12T14:05:30.500-04:00".
 	// Returns required bytes including the terminator.
