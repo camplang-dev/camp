@@ -11,3 +11,22 @@
   delegate context can hold the receiver pointer, but not the companion length
   value, so calls like `span.format` cannot be represented correctly without a
   generated context object or adapter thunk.
+- **BUG-006:** Slice/range lowering can leave unresolved cloned local-name
+  expressions when a local variable is used as a generated range boundary inside
+  generic std code, and some `@range` defaulted calls can emit an extra range
+  argument. The current workaround is to avoid range syntax/defaulted range
+  calls in generic std internals and pass explicit array params values or
+  explicit `index, count` arguments.
+- **BUG-007:** `Array_resize<T>(T[] this, ...)` receives expanded array
+  components by value in emitted C, so calls such as `this.items.resize(...)`
+  cannot update a field or caller-owned array value. `List<T>` currently grows
+  by allocating a new `T[]`, copying used elements with array helpers, and
+  assigning the field explicitly.
+- **BUG-008:** Default argument insertion can append a default for a later
+  parameter even when the caller supplied that argument explicitly in some
+  generic/delegate call shapes. `List<T>.binarySearch` avoids optional
+  `startAt/count` parameters until this is fixed.
+- **BUG-009:** Taking the address of an erased generic array element can emit
+  C like `&items[index]` against a `void*` backing pointer instead of byte
+  offsetting by `index * sizeof(T)`. `List<T>.getAddressOf` currently performs
+  the byte arithmetic explicitly.

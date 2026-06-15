@@ -236,12 +236,39 @@ public static class CCodeEmitter
                 continue;
 			if (node.ResolvedType is string resolvedType && InvalidResolvedTypes.Contains(resolvedType))
 			{
-				result.Diagnostics.Add($"C emission aborted because {node.GetType().Name} has unresolved type '{resolvedType}'.");
+				result.Diagnostics.Add($"C emission aborted because {DescribeUnresolvedNode(node)} has unresolved type '{resolvedType}'.");
 				return false;
 			}
 		}
 
 		return true;
+	}
+
+	static string DescribeUnresolvedNode(BindableNode node)
+	{
+		string description = node.GetType().Name;
+		if (node is NamedExpression named)
+			description += $" '{named.Name}'";
+
+		if (node.SourceSyntax is not null && TryGetSourceRange(node.SourceSyntax, out TokenRange range))
+			description += $" at {range.StartLineNumber},{range.StartColumn}";
+
+		return description;
+	}
+
+	static bool TryGetSourceRange(SyntaxNode syntax, out TokenRange range)
+	{
+		foreach (PropertyInfo property in syntax.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
+		{
+			if (property.PropertyType == typeof(TokenRange?) && property.GetValue(syntax) is TokenRange tokenRange)
+			{
+				range = tokenRange;
+				return true;
+			}
+		}
+
+		range = default;
+		return false;
 	}
 
 	static void EmitPrivateHeader(Compilation compilation, CEmissionOptions options, CEmissionResult result, CDeclarationWriter declarations)

@@ -1,0 +1,331 @@
+export as Std;
+
+export class List<T: any>
+{
+	T[] items;
+	nuint length;
+	Allocator* allocator;
+
+	// Initializes an empty list and remembers the allocator used for storage.
+	export List(within allocator, sizeof(T))
+	{
+		this.items = default;
+		this.length = 0;
+		this.allocator = allocator;
+	}
+
+	// Releases the allocated element buffer, if any.
+	export ~List()
+	{
+		within (this.allocator) delete this.items;
+
+		this.items = default;
+		this.length = 0;
+	}
+
+	// Returns a pointer to an item in the backing buffer.
+	export T* getAddressOf(@index nuint at)
+	{
+		if (at >= this.length)
+			return null;
+
+		return this.getBufferAddress(at);
+	}
+
+	T* getBufferAddress(@index nuint at)
+	{
+		if (at >= this.items.length)
+			return null;
+
+		return (T*)&((byte*)this.items.elements)[at * sizeof(T)];
+	}
+
+	// Adds or inserts a single item.
+	export void add(in T item, @index nuint at = ^0)
+	{
+		if (at > this.length)
+			at = this.length;
+
+		this.ensureCapacity(this.length + 1);
+		if (this.items.length <= this.length)
+			return;
+
+		nuint i = this.length;
+		while (i > at)
+		{
+			this.items[i] = this.items[i - 1];
+			i--;
+		}
+
+		this.items[at] = item;
+		this.length++;
+	}
+
+	// Replaces the item at an index.
+	export void setItem(@index nuint at, in T value)
+	{
+		if (at >= this.length)
+			return;
+
+		this.items[at] = value;
+	}
+
+	// Returns the item at an index.
+	export T getItem(@index nuint at)
+	{
+		T result = default;
+		if (at >= this.length)
+			return result;
+
+		result = this.items[at];
+		return result;
+	}
+
+	// Removes one item and returns 1 when an item was removed.
+	export nuint remove(@index nuint at)
+	{
+		if (at >= this.length)
+			return 0;
+
+		nuint i = at;
+		while (i + 1 < this.length)
+		{
+			this.items[i] = this.items[i + 1];
+			i++;
+		}
+
+		this.length--;
+		return 1;
+	}
+
+	// Removes a range and returns the number of items removed.
+	export nuint removeRange(@range nuint startAt = 0, nuint count = ^0)
+	{
+		if (startAt >= this.length || count == 0)
+			return 0;
+
+		if (count > this.length - startAt)
+			count = this.length - startAt;
+
+		nuint remaining = this.length - (startAt + count);
+		if (remaining > 0)
+		{
+			T[] source = { this.getBufferAddress(startAt + count), remaining };
+			T[] destination = { this.getBufferAddress(startAt), remaining };
+			source.copyTo<T>(destination);
+		}
+
+		this.length -= count;
+		return count;
+	}
+
+	// Clears the list and optionally releases its buffer.
+	export void clear(bool deleteBuffer = false)
+	{
+		this.length = 0;
+		if (deleteBuffer)
+		{
+			within (this.allocator) delete this.items;
+			this.items = default;
+		}
+	}
+
+	// Allocates a new list and copies a range of items into it.
+	export List<T>* copyList(@range nuint startAt = 0, nuint count = ^0)
+	{
+		auto copy = within (this.allocator) new List<T>();
+		if (copy == null)
+			return null;
+
+		if (startAt >= this.length || count == 0)
+			return copy;
+
+		if (count > this.length - startAt)
+			count = this.length - startAt;
+
+		T[] source = { this.getAddressOf(startAt), count };
+		copy.addRange(source);
+		return copy;
+	}
+
+	// Adds or inserts all items from an array.
+	export void addRange(const T[] array, @index nuint at = ^0)
+	{
+		if (array.length == 0)
+			return;
+
+		if (at > this.length)
+			at = this.length;
+
+		nuint newLength = this.length + array.length;
+		this.ensureCapacity(newLength);
+		if (this.items.length < newLength)
+			return;
+
+		nuint i = this.length;
+		while (i > at)
+		{
+			this.items[i + array.length - 1] = this.items[i - 1];
+			i--;
+		}
+
+		T[] destination = { this.getBufferAddress(at), array.length };
+		array.copyTo<T>(destination);
+		this.length = newLength;
+	}
+
+	// Transfers the used buffer span to the caller and empties the list.
+	export T[] takeBuffer()
+	{
+		T[] bufferResult = { this.items.elements, this.length };
+		this.items = default;
+		this.length = 0;
+		return bufferResult;
+	}
+
+	// Allocates a new array and copies a range of items into it.
+	export T[] copyArray(@range nuint startAt = 0, nuint count = ^0)
+	{
+		if (startAt >= this.length || count == 0)
+			return default;
+
+		if (count > this.length - startAt)
+			count = this.length - startAt;
+
+		T[] source = { this.getAddressOf(startAt), count };
+		return Array_copyArray<T>(source, sizeof(T), this.allocator);
+	}
+
+	// Copies a range of items into an existing array.
+	export void copyTo(T[] dest, nuint destIndex, @range nuint startAt = 0, nuint count = ^0)
+	{
+		if (destIndex >= dest.length || startAt >= this.length || count == 0)
+			return;
+
+		if (count > this.length - startAt)
+			count = this.length - startAt;
+		if (count > dest.length - destIndex)
+			count = dest.length - destIndex;
+		if (count == 0)
+			return;
+
+		T[] source = { this.getBufferAddress(startAt), count };
+		T[] destination = { (T*)&((byte*)dest.elements)[destIndex * this._sizeof_T], count };
+		source.copyTo<T>(destination);
+	}
+
+	// Returns the first matching index, or -1 when no match is found.
+	export nint findIndex(in T item, delegate bool(in T left, in T right) equals, @range nuint startAt = 0, nuint count = ^0)
+	{
+		if (startAt >= this.length || count == 0)
+			return -1;
+
+		if (count > this.length - startAt)
+			count = this.length - startAt;
+
+		const T[] source = { this.getAddressOf(startAt), count };
+		nint found = source.findIndex<T>(item, equals);
+		return found < 0 ? -1 : (nint)startAt + found;
+	}
+
+	// Returns the last matching index, or -1 when no match is found.
+	export nint findLastIndex(in T item, delegate bool(in T left, in T right) equals, @range nuint startAt = 0, nuint count = ^0)
+	{
+		if (startAt >= this.length || count == 0)
+			return -1;
+
+		if (count > this.length - startAt)
+			count = this.length - startAt;
+
+		const T[] source = { this.getAddressOf(startAt), count };
+		nint found = source.findLastIndex<T>(item, equals);
+		return found < 0 ? -1 : (nint)startAt + found;
+	}
+
+	// Returns the matching sorted index, or -1 when no match is found.
+	export nint binarySearch(in T item, delegate int(in T left, in T right) comparer, nuint startAt, nuint count)
+	{
+		if (startAt >= this.length)
+			return -1;
+
+		if (count == 0)
+			count = this.length - startAt;
+		if (count > this.length - startAt)
+			count = this.length - startAt;
+
+		const T[] source = { this.getAddressOf(startAt), count };
+		nint found = source.binarySearch<T>(item, comparer);
+		return found < 0 ? -1 : (nint)startAt + found;
+	}
+
+	// Sorts the list in place using the supplied comparer.
+	export void sort(delegate int(in T left, in T right) comparer)
+	{
+		T[] used = { this.items.elements, this.length };
+		used.sort<T>(comparer);
+	}
+
+	// Returns the number of items in the list.
+	export nuint getLength()
+	{
+		return this.length;
+	}
+
+	// Returns the number of allocated item slots.
+	export nuint getCapacity()
+	{
+		return this.items.length;
+	}
+
+	// Ensures the buffer has at least the requested number of slots.
+	export void ensureCapacity(nuint minimumCapacity)
+	{
+		if (this.items.length >= minimumCapacity)
+			return;
+
+		nuint newCapacity = this.items.length;
+		if (newCapacity == 0)
+			newCapacity = 8;
+
+		while (newCapacity < minimumCapacity)
+		{
+			nuint grown = newCapacity + (newCapacity / 2);
+			if (grown <= newCapacity)
+				grown = newCapacity + 1;
+			newCapacity = grown;
+		}
+
+		T[] newItems = within (this.allocator) new T[newCapacity];
+		if (newItems.elements == null)
+			return;
+
+		T[] used = { this.items.elements, this.length };
+		used.copyTo<T>(newItems);
+
+		within (this.allocator) delete this.items;
+		this.items = newItems;
+	}
+}
+
+bool ListCharWriter_write(void* context, nuint* written, char* buffer, nuint buffer_length)
+{
+	if (written == null)
+		return false;
+
+	*written = 0;
+	if (context == null)
+		return false;
+
+	List<char>* list = (List<char>*)context;
+	nuint before = list.Length;
+	char[] value = { buffer, buffer_length };
+	list.addRange(value);
+
+	*written = list.Length - before;
+	return *written == buffer_length;
+}
+
+export CharWriter getCharWriter(List<char>* this)
+{
+	return { ListCharWriter_write, (void*)this };
+}
