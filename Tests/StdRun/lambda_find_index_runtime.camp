@@ -1,0 +1,9 @@
+using Std;
+
+export void main()
+{
+	auto list = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5];
+	auto result = list.findIndex(3, (a, b) => a == b);
+
+	Console.writeLine(result);
+}

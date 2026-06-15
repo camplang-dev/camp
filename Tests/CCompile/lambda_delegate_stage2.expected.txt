@@ -2,11 +2,17 @@
 #include "lambda_delegate_stage2_private.h"
 
 /* Private file declarations. */
+static int __camp_delegate_main_lambda2(void *arg0, int arg1);
 static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value);
 static bool check(fn_bool_voidPtr__int_ predicate, void *predicate_context, int value);
 static int main_lambda0(void *context, int value);
 static bool main_lambda1(void *context, int value);
 static int main_lambda2(void *context, int value);
+
+static int __camp_delegate_main_lambda2(void *arg0, int arg1)
+{
+	return main_lambda2(arg0, arg1);
+}
 
 static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value)
 {
@@ -24,7 +30,7 @@ int main(void)
 	void *increment_context = NULL;
 	fn_bool_voidPtr__int_ positive = main_lambda1;
 	void *positive_context = NULL;
-	int direct = apply((fn_int_voidPtr__int_)main_lambda2, NULL, 21);
+	int direct = apply(__camp_delegate_main_lambda2, NULL, 21);
 	return ((((apply((fn_int_voidPtr__int_)increment, increment_context, 4) == 5) && check((fn_bool_voidPtr__int_)positive, positive_context, 2)) && (direct == 42)) ? 0 : 1);
 }
 

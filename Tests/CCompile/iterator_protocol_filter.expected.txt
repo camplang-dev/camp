@@ -2,6 +2,8 @@
 #include "iterator_protocol_filter_private.h"
 
 /* Private file declarations. */
+static bool __camp_delegate_rangeIter_iter(void *arg0, int *arg1);
+static bool __camp_delegate_rangeIter_iter_1(void *arg0, int *arg1);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static rangeIter *range(int first, int last);
@@ -20,6 +22,16 @@ static bool applyPredicateExplicitIter_next(applyPredicateExplicitIter *this, in
 static void applyPredicateExplicitIter_op_delete(applyPredicateExplicitIter *this);
 static void applyPredicateExplicitIter_destroy(applyPredicateExplicitIter *this);
 static bool applyPredicateExplicitIter_iter(void *ctx, int *current);
+
+static bool __camp_delegate_rangeIter_iter(void *arg0, int *arg1)
+{
+	return rangeIter_iter(arg0, arg1);
+}
+
+static bool __camp_delegate_rangeIter_iter_1(void *arg0, int *arg1)
+{
+	return rangeIter_iter(arg0, arg1);
+}
 
 static rangeIter *range(int first, int last)
 {
@@ -48,7 +60,7 @@ static bool isEven(int number)
 void run(void)
 {
 	{
-		applyPredicateIter _foreachIter1 = applyPredicate((fn_bool_voidPtr__intPtr_)rangeIter_iter, range(2, 10), (fn_bool_int_)isEven);
+		applyPredicateIter _foreachIter1 = applyPredicate(__camp_delegate_rangeIter_iter, range(2, 10), (fn_bool_int_)isEven);
 		int _foreachCurrent2 = 0;
 		while (applyPredicateIter_next(&_foreachIter1, &_foreachCurrent2))
 		{
@@ -61,7 +73,7 @@ __foreach_continue3: ;
 __foreach_break4: ;
 	}
 	{
-		applyPredicateExplicitIter _foreachIter5 = applyPredicateExplicit((fn_bool_voidPtr__intPtr_)rangeIter_iter, range(22, 30), (fn_bool_int_)isEven);
+		applyPredicateExplicitIter _foreachIter5 = applyPredicateExplicit(__camp_delegate_rangeIter_iter_1, range(22, 30), (fn_bool_int_)isEven);
 		int _foreachCurrent6 = 0;
 		while (applyPredicateExplicitIter_next(&_foreachIter5, &_foreachCurrent6))
 		{

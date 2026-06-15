@@ -2,10 +2,16 @@
 #include "lambda_scoped_capture_stage3_private.h"
 
 /* Private file declarations. */
+static int __camp_delegate_main_lambda2(void *arg0, int arg1);
 static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value);
 static int main_lambda0(void *context, int value);
 static void main_lambda1(void *context);
 static int main_lambda2(void *context, int value);
+
+static int __camp_delegate_main_lambda2(void *arg0, int arg1)
+{
+	return main_lambda2(arg0, arg1);
+}
 
 static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value)
 {
@@ -29,7 +35,7 @@ int main(void)
 	increment(increment_context);
 	main_lambdaContext2 _lambdaContext2;
 	_lambdaContext2.capture0_offset = &offset;
-	int direct = apply((fn_int_voidPtr__int_)main_lambda2, &_lambdaContext2, 2);
+	int direct = apply(__camp_delegate_main_lambda2, &_lambdaContext2, 2);
 	return ((((addOffset(addOffset_context, 1) == 21) && (count == 2)) && (direct == 22)) ? 0 : 1);
 }
 

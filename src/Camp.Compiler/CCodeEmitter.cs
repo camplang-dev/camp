@@ -842,6 +842,10 @@ public static class CCodeEmitter
 		{
 			switch (expression)
 			{
+				case CastExpression { Expression: not null } cast:
+					return TryGetDirectFunctionValue(cast.Expression, out function);
+				case ParenthesizedExpression { Expression: not null } parenthesized:
+					return TryGetDirectFunctionValue(parenthesized.Expression, out function);
 				case MethodReferenceExpression { Candidates.Count: 1 } method:
 					function = method.Candidates[0];
 					return true;
@@ -872,18 +876,21 @@ public static class CCodeEmitter
 				return false;
 
 			List<ParameterDefinition> sourceParameters = GetCallableParametersForCall(sourceFunction);
-			if (sourceParameters.Count + 1 != targetParameterTypes.Count)
+			bool forwardsContext = sourceParameters.Count == targetParameterTypes.Count
+				&& sourceParameters.Count > 0
+				&& IsVoidPointerType(sourceParameters[0].ResolvedType ?? sourceParameters[0].Type?.ResolvedType ?? "");
+			if (!forwardsContext && sourceParameters.Count + 1 != targetParameterTypes.Count)
 				return false;
 			string sourceReturnType = sourceFunction.ResolvedType ?? sourceFunction.ReturnType?.ResolvedType ?? "void";
 			if (!SameCallableTypeSlot(sourceReturnType, targetReturnType))
 				return false;
+			int targetOffset = forwardsContext ? 0 : 1;
 			for (int i = 0; i < sourceParameters.Count; i++)
-				if (!SameCallableTypeSlot(GetCallableParameterTypeText(sourceParameters[i]), targetParameterTypes[i + 1])
-					&& !(sourceParameters[i].Modifier == ParameterModifier.In && IsVoidPointerType(targetParameterTypes[i + 1])))
+				if (!CanThunkArgumentConvert(sourceParameters[i], targetParameterTypes[i + targetOffset]))
 					return false;
 
 			string name = CreateUniqueDelegateThunkName(sourceFunction);
-			thunk = new DelegateThunk(name, sourceFunction, targetReturnType, targetParameterTypes);
+			thunk = new DelegateThunk(name, sourceFunction, targetReturnType, targetParameterTypes, forwardsContext);
 			if (!delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks))
 			{
 				thunks = [];
@@ -929,6 +936,36 @@ public static class CCodeEmitter
 			return NormalizeCallableTypeSlot(left) == NormalizeCallableTypeSlot(right);
 		}
 
+		bool CanThunkArgumentConvert(ParameterDefinition sourceParameter, string targetType)
+		{
+			if (SameCallableTypeSlot(GetCallableParameterTypeText(sourceParameter), targetType))
+				return true;
+			if (!IsVoidPointerType(targetType))
+				return IsPointerStorageForValue(targetType, sourceParameter.ResolvedType ?? sourceParameter.Type?.ResolvedType ?? "");
+			if (sourceParameter.Modifier == ParameterModifier.In)
+				return true;
+			string sourceType = sourceParameter.ResolvedType ?? sourceParameter.Type?.ResolvedType ?? "";
+			return !string.IsNullOrWhiteSpace(sourceType) && !IsPointerLikeCArgumentType(sourceType);
+		}
+
+		static bool IsPointerStorageForValue(string targetType, string sourceType)
+		{
+			if (string.IsNullOrWhiteSpace(sourceType) || IsPointerLikeCArgumentType(sourceType))
+				return false;
+			if (targetType.StartsWith("in ", StringComparison.Ordinal))
+				return targetType["in ".Length..].Trim() == sourceType;
+			string strippedTarget = StripTypeDecorators(targetType);
+			return strippedTarget == sourceType + "*";
+		}
+
+		static bool IsPointerLikeCArgumentType(string type)
+		{
+			string stripped = StripTypeDecorators(type);
+			return stripped.EndsWith("*", StringComparison.Ordinal)
+				|| stripped.EndsWith("[]", StringComparison.Ordinal)
+				|| stripped.StartsWith("fn ", StringComparison.Ordinal);
+		}
+
 		static string NormalizeCallableTypeSlot(string type)
 		{
 			return string.Join(" ", SplitTopLevel(type.Trim(), ' '));
@@ -968,23 +1005,37 @@ public static class CCodeEmitter
 		{
 			writer.WriteLine("static " + FormatResolvedType(thunk.ReturnType, thunk.Name).Declaration + "(" + FormatResolvedParameterList(thunk.ParameterTypes) + ")");
 			writer.WriteLine("{");
-			writer.WriteLine("\t(void)arg0;");
+			if (!thunk.ForwardsContext)
+				writer.WriteLine("\t(void)arg0;");
 			List<string> arguments = [];
 			List<ParameterDefinition> sourceParameters = GetCallableParametersForCall(thunk.SourceFunction);
-			for (int i = 1; i < thunk.ParameterTypes.Count; i++)
+			int start = thunk.ForwardsContext ? 0 : 1;
+			for (int i = start; i < thunk.ParameterTypes.Count; i++)
 			{
 				string argument = "arg" + i.ToString(CultureInfo.InvariantCulture);
-				int sourceIndex = i - 1;
+				int sourceIndex = thunk.ForwardsContext ? i : i - 1;
 				if (sourceIndex < sourceParameters.Count)
 				{
 					string sourceType = GetCallableParameterTypeText(sourceParameters[sourceIndex]);
 					string targetType = thunk.ParameterTypes[i];
 					if (!SameCallableTypeSlot(sourceType, targetType))
 					{
-						string cType = sourceParameters[sourceIndex].Modifier == ParameterModifier.In
-							? FormatResolvedType((sourceParameters[sourceIndex].ResolvedType ?? sourceParameters[sourceIndex].Type?.ResolvedType ?? "void") + "*", "").Declaration.Trim()
-							: FormatResolvedType(sourceParameters[sourceIndex].ResolvedType ?? sourceParameters[sourceIndex].Type?.ResolvedType ?? "void", "").Declaration.Trim();
-						argument = "(" + cType + ")" + argument;
+						string sourceResolvedType = sourceParameters[sourceIndex].ResolvedType ?? sourceParameters[sourceIndex].Type?.ResolvedType ?? "void";
+						if (sourceParameters[sourceIndex].Modifier == ParameterModifier.In)
+						{
+							string cType = FormatResolvedType(sourceResolvedType + "*", "").Declaration.Trim();
+							argument = "(" + cType + ")" + argument;
+						}
+						else if ((IsVoidPointerType(targetType) || IsPointerStorageForValue(targetType, sourceResolvedType)) && !IsPointerLikeCArgumentType(sourceResolvedType))
+						{
+							string cType = FormatResolvedType(sourceResolvedType + "*", "").Declaration.Trim();
+							argument = "*((" + cType + ")" + argument + ")";
+						}
+						else
+						{
+							string cType = FormatResolvedType(sourceResolvedType, "").Declaration.Trim();
+							argument = "(" + cType + ")" + argument;
+						}
 					}
 				}
 				arguments.Add(argument);
@@ -3976,6 +4027,7 @@ public static class CCodeEmitter
 			string Name,
 			FunctionDefinition SourceFunction,
 			string ReturnType,
-			List<string> ParameterTypes);
+			List<string> ParameterTypes,
+			bool ForwardsContext);
 	}
 }

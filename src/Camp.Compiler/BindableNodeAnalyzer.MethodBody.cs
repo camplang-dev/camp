@@ -1088,9 +1088,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeLambdaExpression(LambdaExpression lambda, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
-		CallableShape? targetShape = TryGetCallableShape(targetType, out CallableShape callableTarget) ? callableTarget : null;
+		CallableShape? targetShape = TryGetLambdaCallableShape(targetType, out CallableShape callableTarget, out bool targetIsEscaped) ? callableTarget : null;
 		if (targetShape is CallableShape targetCallable && targetCallable.Kind is not ("fn" or "delegate"))
 			Report(GetRange(lambda.SourceSyntax), "Lambdas can target only fn or delegate callable types.");
+		if (targetIsEscaped)
+			Report(GetRange(lambda.SourceSyntax), "Escaped delegate lambdas are not implemented yet.");
 		BodyScope lambdaScope = new(scope, scope.CurrentFunction, scope.ContainingType)
 		{
 			CurrentFunctionReturnType = targetShape?.ReturnType ?? TargetType,
@@ -1129,7 +1131,7 @@ public sealed partial class BindableNodeAnalyzer
 			block.ResolvedType = "void";
 			returnType = InferBlockReturnType(block, targetShape?.ReturnType);
 		}
-		bool hasCaptures = LambdaHasCaptures(lambda);
+		bool hasCaptures = LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType);
 		if (hasCaptures && targetShape is CallableShape { Kind: "fn" })
 			Report(GetRange(lambda.SourceSyntax), "Capturing lambdas require a delegate target.");
 
@@ -1140,7 +1142,8 @@ public sealed partial class BindableNodeAnalyzer
 		string inferredKind = hasCaptures ? "delegate" : "fn";
 		string inferredType = BuildCallableType(inferredKind, targetShape?.ReturnType ?? returnType, parameterTypes);
 		if (targetType is not null
-			&& TryGetCallableShape(targetType, out CallableShape expectedShape)
+			&& TryGetLambdaCallableShape(targetType, out CallableShape expectedShape, out bool expectedEscaped)
+			&& !expectedEscaped
 			&& expectedShape.Kind is "fn" or "delegate"
 			&& CallableShapesCompatible(new CallableShape(expectedShape.Kind, expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This), expectedShape))
 			return targetType;

@@ -1,0 +1,23 @@
+using Std;
+
+class Accumulator
+{
+	int offset;
+
+	int apply(delegate int(int) callback, int value)
+	{
+		return callback(value);
+	}
+
+	int run()
+	{
+		this.offset = 5;
+		return this.apply(value => value + this.offset, 3);
+	}
+}
+
+export void main()
+{
+	auto accumulator = new Accumulator();
+	Console.writeLine(accumulator.run());
+}

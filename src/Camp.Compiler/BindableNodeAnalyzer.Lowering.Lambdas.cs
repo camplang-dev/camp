@@ -5,7 +5,7 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
-	sealed record LambdaCapture(BindableNode Variable, string Name, string Type, FieldDefinition Field);
+	sealed record LambdaCapture(BindableNode Variable, string Name, string Type, FieldDefinition Field, bool IsThis = false);
 	sealed record LambdaContextInfo(StructDefinition Definition, List<LambdaCapture> Captures)
 	{
 		public DeclarationTarget? LocalTarget { get; set; }
@@ -13,19 +13,56 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly Dictionary<LambdaExpression, LambdaContextInfo> lambdaContexts = [];
 
+	bool TryGetLambdaCallableShape(string? type, out CallableShape shape, out bool isEscaped)
+	{
+		isEscaped = false;
+		if (type is null)
+		{
+			shape = default;
+			return false;
+		}
+
+		string normalized = type.Trim();
+		if (normalized.StartsWith("escaped ", StringComparison.Ordinal))
+		{
+			isEscaped = true;
+			normalized = normalized["escaped ".Length..].Trim();
+		}
+		if (normalized.EndsWith(" escaped", StringComparison.Ordinal))
+		{
+			isEscaped = true;
+			normalized = normalized[..^" escaped".Length].Trim();
+		}
+		if (normalized.StartsWith("scoped ", StringComparison.Ordinal))
+			normalized = normalized["scoped ".Length..].Trim();
+		if (normalized.EndsWith(" scoped", StringComparison.Ordinal))
+			normalized = normalized[..^" scoped".Length].Trim();
+		if (normalized.StartsWith("unscoped ", StringComparison.Ordinal))
+			normalized = normalized["unscoped ".Length..].Trim();
+		if (normalized.EndsWith(" unscoped", StringComparison.Ordinal))
+			normalized = normalized[..^" unscoped".Length].Trim();
+
+		return TryGetCallableShape(normalized, out shape);
+	}
+
 	Expression LowerLambdaExpression(LambdaExpression lambda)
 	{
 		if (expressionRewrites.TryGetValue(lambda, out Expression? rewritten)
 			&& !ReferenceEquals(rewritten, lambda))
 			return rewritten;
 
-		if (!TryGetCallableShape(lambda.ResolvedType, out CallableShape shape) || shape.Kind is not ("fn" or "delegate"))
+		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind is not ("fn" or "delegate"))
 		{
 			Report(GetRange(lambda.SourceSyntax), "Lambda lowering supports only fn or delegate targets.");
 			return lambda;
 		}
+		if (isEscaped)
+		{
+			Report(GetRange(lambda.SourceSyntax), "Escaped delegate lambdas are not implemented yet.");
+			return lambda;
+		}
 
-		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, reportUnsupported: true);
+		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, currentRewriteFunction, FindCurrentRewriteContainingType(), reportUnsupported: true);
 		if (captures.Count > 0 && shape.Kind != "delegate")
 		{
 			Report(GetRange(lambda.SourceSyntax), "Capturing lambdas require a delegate target.");
@@ -59,7 +96,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition CreateLambdaFunction(LambdaExpression lambda, CallableShape shape, bool includeDelegateContext)
 	{
-		string owner = currentRewriteFunction is null ? "lambda" : GetCallableName(currentRewriteFunction).TrimStart('~');
+		string owner = GetLambdaOwnerName();
 		string name = owner + "_lambda" + generatedLambdaDefinitions.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
 		FunctionDefinition function = new()
 		{
@@ -124,7 +161,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (lambdaContexts.TryGetValue(lambda, out LambdaContextInfo? context))
 			return context;
 
-		string owner = currentRewriteFunction is null ? "lambda" : GetCallableName(currentRewriteFunction).TrimStart('~');
+		string owner = GetLambdaOwnerName();
 		string name = owner + "_lambdaContext" + generatedLambdaContextDefinitions.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
 		StructDefinition definition = new()
 		{
@@ -155,6 +192,16 @@ public sealed partial class BindableNodeAnalyzer
 		lambdaContexts[lambda] = context;
 		generatedLambdaContextDefinitions.Add(definition);
 		return context;
+	}
+
+	string GetLambdaOwnerName()
+	{
+		if (currentRewriteFunction is null)
+			return "lambda";
+		string functionName = GetCallableName(currentRewriteFunction).TrimStart('~');
+		return FindCurrentRewriteContainingType() is TypeDefinition owner
+			? owner.Name + "_" + functionName
+			: functionName;
 	}
 
 	void EnsureLambdaContextLocal(LambdaExpression lambda, LambdaContextInfo context, List<Statement>? statements)
@@ -196,9 +243,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void PrepareLambdaContextLocal(LambdaExpression lambda, List<Statement> statements)
 	{
-		if (!TryGetCallableShape(lambda.ResolvedType, out CallableShape shape) || shape.Kind != "delegate")
+		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind != "delegate" || isEscaped)
 			return;
-		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, reportUnsupported: true);
+		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, currentRewriteFunction, FindCurrentRewriteContainingType(), reportUnsupported: true);
 		if (captures.Count == 0)
 			return;
 		LambdaContextInfo context = GetOrCreateLambdaContext(lambda, captures);
@@ -305,6 +352,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (expression is null)
 			return null;
+		if (expression is ThisExpression
+			&& FindThisCapture(context) is LambdaCapture thisCapture)
+			return CreateCapturedValueReference(thisCapture, contextLocal, expression.SourceSyntax);
+
 		if (TryGetCapturedVariable(expression, out BindableNode? captured)
 			&& FindCapture(context, captured) is LambdaCapture capture)
 			return CreateCapturedValueReference(capture, contextLocal, expression.SourceSyntax);
@@ -426,6 +477,14 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
+	static LambdaCapture? FindThisCapture(LambdaContextInfo context)
+	{
+		foreach (LambdaCapture capture in context.Captures)
+			if (capture.IsThis)
+				return capture;
+		return null;
+	}
+
 	bool TryGetCapturedVariable(Expression expression, out BindableNode variable)
 	{
 		switch (expression)
@@ -458,30 +517,61 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		ParameterDefinition source = parameter.Parameter ?? new ParameterDefinition();
 		string name = GetLambdaParameterSymbolName(parameter) ?? "arg" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		ParameterModifier modifier = source.Modifier;
+		string resolvedType = parameterType;
+		if (source.Modifier == ParameterModifier.None)
+		{
+			if (resolvedType.StartsWith("in ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.In;
+				resolvedType = resolvedType["in ".Length..].Trim();
+			}
+			else if (resolvedType.StartsWith("out ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Out;
+				resolvedType = resolvedType["out ".Length..].Trim();
+			}
+			else if (resolvedType.StartsWith("thrown ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Thrown;
+				resolvedType = resolvedType["thrown ".Length..].Trim();
+			}
+		}
 		return new ParameterDefinition
 		{
 			SourceSyntax = parameter.SourceSyntax,
 			Name = name,
 			Symbol = name,
-			Modifier = source.Modifier,
-			Type = source.Type is null ? TypeReferenceForResolvedName(parameterType) : CloneType(source.Type),
-			ResolvedType = parameterType
+			Modifier = modifier,
+			Type = source.Type is null ? TypeReferenceForResolvedName(resolvedType) : CloneType(source.Type),
+			ResolvedType = resolvedType
 		};
 	}
 
 	bool LambdaHasCaptures(LambdaExpression lambda)
 	{
-		return CollectLambdaCaptures(lambda, reportUnsupported: false).Count > 0;
+		return CollectLambdaCaptures(lambda, currentRewriteFunction, FindCurrentRewriteContainingType(), reportUnsupported: false).Count > 0;
 	}
 
-	List<LambdaCapture> CollectLambdaCaptures(LambdaExpression lambda, bool reportUnsupported)
+	TypeDefinition? FindCurrentRewriteContainingType()
+	{
+		return currentRewriteFunction is null ? null : FindContainingType(currentRewriteFunction);
+	}
+
+	bool LambdaHasCaptures(LambdaExpression lambda, FunctionDefinition? currentFunction, TypeDefinition? containingType)
+	{
+		return CollectLambdaCaptures(lambda, currentFunction, containingType, reportUnsupported: false).Count > 0;
+	}
+
+	List<LambdaCapture> CollectLambdaCaptures(LambdaExpression lambda, FunctionDefinition? currentFunction, TypeDefinition? containingType, bool reportUnsupported)
 	{
 		HashSet<BindableNode> localNodes = [];
 		foreach (LambdaParameter parameter in lambda.Parameters)
 			localNodes.Add(parameter);
 		CollectLambdaLocalNodes(lambda.Body, localNodes);
 		Dictionary<BindableNode, LambdaCapture> captures = new(ReferenceEqualityComparer.Instance);
-		CollectLambdaCaptures(lambda.Body, localNodes, captures, reportUnsupported);
+		BindableNode? thisCaptureNode = CreateLambdaThisCaptureNode(currentFunction, containingType, lambda.SourceSyntax, reportUnsupported);
+		CollectLambdaCaptures(lambda.Body, localNodes, captures, thisCaptureNode, reportUnsupported);
 		return [.. captures.Values];
 	}
 
@@ -534,15 +624,20 @@ public sealed partial class BindableNodeAnalyzer
 			CollectLambdaLocalNodes(child, localNodes);
 	}
 
-	void CollectLambdaCaptures(BindableNode? node, HashSet<BindableNode> localNodes, Dictionary<BindableNode, LambdaCapture> captures, bool reportUnsupported)
+	void CollectLambdaCaptures(BindableNode? node, HashSet<BindableNode> localNodes, Dictionary<BindableNode, LambdaCapture> captures, BindableNode? thisCaptureNode, bool reportUnsupported)
 	{
 		switch (node)
 		{
 			case null:
 				return;
 			case ThisExpression thisExpression:
-				if (reportUnsupported)
-					Report(GetRange(thisExpression.SourceSyntax), "Capturing 'this' in lambdas is not implemented yet.");
+				if (thisCaptureNode is null)
+				{
+					if (reportUnsupported)
+						Report(GetRange(thisExpression.SourceSyntax), "'this' is not available in this lambda context.");
+					return;
+				}
+				AddLambdaCapture(thisCaptureNode, thisExpression.SourceSyntax, captures, reportUnsupported, isThis: true);
 				return;
 			case VariableReferenceExpression { Variable: BindableNode variable } reference
 				when !IsLambdaLocalOrGlobal(variable, localNodes):
@@ -559,19 +654,19 @@ public sealed partial class BindableNodeAnalyzer
 			foreach ((Statement? childStatement, Expression? childExpression) in LambdaStatementChildren(statement))
 			{
 				if (childStatement is not null)
-					CollectLambdaCaptures(childStatement, localNodes, captures, reportUnsupported);
+					CollectLambdaCaptures(childStatement, localNodes, captures, thisCaptureNode, reportUnsupported);
 				if (childExpression is not null)
-					CollectLambdaCaptures(childExpression, localNodes, captures, reportUnsupported);
+					CollectLambdaCaptures(childExpression, localNodes, captures, thisCaptureNode, reportUnsupported);
 			}
 		}
 		else if (node is Expression expression)
 		{
 			foreach (Expression childExpression in LambdaExpressionChildren(expression))
-				CollectLambdaCaptures(childExpression, localNodes, captures, reportUnsupported);
+				CollectLambdaCaptures(childExpression, localNodes, captures, thisCaptureNode, reportUnsupported);
 		}
 	}
 
-	void AddLambdaCapture(BindableNode variable, SyntaxNode? syntax, Dictionary<BindableNode, LambdaCapture> captures, bool reportUnsupported)
+	void AddLambdaCapture(BindableNode variable, SyntaxNode? syntax, Dictionary<BindableNode, LambdaCapture> captures, bool reportUnsupported, bool isThis = false)
 	{
 		if (captures.ContainsKey(variable))
 			return;
@@ -582,7 +677,36 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetRange(syntax), "Lambda capture has an unresolved type.");
 			return;
 		}
-		captures[variable] = new LambdaCapture(variable, GetCaptureName(variable), type, new FieldDefinition());
+		captures[variable] = new LambdaCapture(variable, isThis ? "this" : GetCaptureName(variable), type, new FieldDefinition(), isThis);
+	}
+
+	BindableNode? CreateLambdaThisCaptureNode(FunctionDefinition? currentFunction, TypeDefinition? containingType, SyntaxNode? syntax, bool reportUnsupported)
+	{
+		if (currentFunction is null)
+			return null;
+
+		if (GetExplicitThisParameter(currentFunction) is ThisParameterDefinition explicitThis)
+			return explicitThis;
+
+		if (containingType is null)
+			return null;
+
+		string receiverType = BuildEffectiveReceiverType($"{containingType.Name}*", currentFunction, IsPropertyGetterFunction(currentFunction));
+		if (string.IsNullOrWhiteSpace(receiverType) || receiverType == ErrorType)
+		{
+			if (reportUnsupported)
+				Report(GetRange(syntax), "Lambda capture has an unresolved this type.");
+			return null;
+		}
+
+		return new ThisParameterDefinition
+		{
+			SourceSyntax = syntax,
+			Name = "this",
+			Symbol = "this",
+			Type = TypeReferenceForResolvedName(receiverType),
+			ResolvedType = receiverType
+		};
 	}
 
 	static string GetCaptureName(BindableNode variable)
