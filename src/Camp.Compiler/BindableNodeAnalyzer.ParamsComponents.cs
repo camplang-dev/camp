@@ -303,7 +303,15 @@ public sealed partial class BindableNodeAnalyzer
 	void AddDelegatePendingComponents(string returnType, List<string> parameterTypes, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
 	{
 		string contextType = "void*";
-		string callType = BuildCallableType("fn", returnType, [contextType, .. parameterTypes]);
+		string callReturnType = returnType;
+		List<string> callParameterTypes = [contextType, .. parameterTypes];
+		if (TryGetParamsComponentShape(null, returnType, "result", out ParamsComponentShape returnShape) && returnShape.Components.Count > 1)
+		{
+			callReturnType = returnShape.Components[0].Type;
+			for (int i = 1; i < returnShape.Components.Count; i++)
+				callParameterTypes.Add("out " + returnShape.Components[i].Type);
+		}
+		string callType = BuildCallableType("fn", callReturnType, callParameterTypes);
 		components.Add(new PendingParamsComponent("call", callType, [.. prefix, new ParamsNamePart("call", true)], null, ParamsComponentShapeKind.Delegate));
 		components.Add(new PendingParamsComponent("context", contextType, [.. prefix, new ParamsNamePart("context", false)], null, ParamsComponentShapeKind.Delegate));
 	}

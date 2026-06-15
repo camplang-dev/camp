@@ -1746,7 +1746,14 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateExpandedReturnCallComponents(CallExpression call, out List<Expression> components)
 	{
 		components = [];
-		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !TryGetExpandedReturnShape(call, function, out ParamsComponentShape? shape))
+		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
+		{
+			if (!TryGetExpandedReturnShape(call, function, out ParamsComponentShape? functionShape))
+				return false;
+			return TryCreateExpandedReturnCallComponents(call, functionShape, out components);
+		}
+
+		if (!TryGetParamsComponentShape(null, call.ResolvedType, "result", out ParamsComponentShape shape) || shape.Components.Count <= 1)
 			return false;
 		return TryCreateExpandedReturnCallComponents(call, shape, out components);
 	}
@@ -1758,9 +1765,9 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		if (currentStatementPrefix is null || shape.Components.Count == 0)
 			return false;
-		if (!callTargets.TryGetValue(call, out FunctionDefinition? function))
-			return false;
-		if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
+		callTargets.TryGetValue(call, out FunctionDefinition? function);
+		if (function is not null
+			&& call.Target is MemberReferenceExpression { Target: Expression receiver } member
 			&& IsInstanceInvocationFunction(function)
 			&& !IsPropertyGetterReference(member)
 			&& !IsPropertySetterReference(member)

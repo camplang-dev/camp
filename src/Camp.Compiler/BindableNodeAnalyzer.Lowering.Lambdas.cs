@@ -80,6 +80,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		FunctionDefinition function = CreateLambdaFunction(lambda, shape, delegateTarget);
+		ExpandParamsFunctionDeclarations(function);
 		int parameterOffset = delegateTarget ? 1 : 0;
 		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, function.Parameters, parameterOffset);
 		if (contextInfo is not null)

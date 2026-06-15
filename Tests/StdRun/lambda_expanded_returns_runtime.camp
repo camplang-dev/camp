@@ -1,0 +1,48 @@
+using Std;
+
+newtype delegate const char[] SpanMaker();
+newtype delegate int? MaybeMaker(bool yes);
+
+const char[] takeSpan(SpanMaker maker)
+{
+	return maker();
+}
+
+int? takeMaybe(MaybeMaker maker, bool yes)
+{
+	return maker(yes);
+}
+
+export int main()
+{
+	const char[] span = takeSpan(() => "hello");
+	Console.writeLine(span);
+
+	int? some = takeMaybe((bool yes) =>
+	{
+		if (yes)
+		{
+			int? value = { 42, true };
+			return value;
+		}
+		return default;
+	}, true);
+
+	int? none = takeMaybe((bool yes) =>
+	{
+		if (yes)
+		{
+			int? value = { 42, true };
+			return value;
+		}
+		return default;
+	}, false);
+
+	if (!some.specified || some.value != 42)
+		return 1;
+	if (none.specified)
+		return 2;
+
+	Console.writeLine(some.value);
+	return 0;
+}
