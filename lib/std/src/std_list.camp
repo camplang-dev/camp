@@ -295,15 +295,7 @@ export class List<T: any>
 			newCapacity = grown;
 		}
 
-		T[] newItems = within (this.allocator) new T[newCapacity];
-		if (newItems.elements == null)
-			return;
-
-		T[] used = { this.items.elements, this.length };
-		used.copyTo<T>(newItems);
-
-		within (this.allocator) delete this.items;
-		this.items = newItems;
+		within (this.allocator) this.items.resize<T>(newCapacity);
 	}
 }
 

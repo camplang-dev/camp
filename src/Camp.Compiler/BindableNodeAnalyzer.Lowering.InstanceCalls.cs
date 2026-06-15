@@ -118,17 +118,53 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateReceiverComponentExpressions(Expression receiver, ParamsComponentShape shape, out List<Expression> components)
 	{
 		if (TryCreateParamsComponentExpressions(receiver, out components) && components.Count == shape.Components.Count)
+		{
+			if (ShapeUsesPointerComponents(shape))
+				components = CreateAddressOfComponents(components);
 			return true;
+		}
 
 		if (receiver is ThisExpression or VariableReferenceExpression { Variable: ParameterDefinition { Name: "this" } })
 		{
 			if (TryCreateCurrentThisParameterComponents(shape, out components))
+			{
+				if (ShapeUsesPointerComponents(shape))
+					components = CreateAddressOfComponents(components);
 				return true;
+			}
 			if (TryCreateReceiverComponentExpressionsFromShape(receiver, shape, out components))
+			{
+				if (ShapeUsesPointerComponents(shape))
+					components = CreateAddressOfComponents(components);
 				return true;
+			}
 		}
 
 		return false;
+	}
+
+	static bool ShapeUsesPointerComponents(ParamsComponentShape shape)
+	{
+		return shape.Components.Count == 2
+			&& TryGetPointerElementType(shape.Components[0].Type) is string firstElementType
+			&& TryGetPointerElementType(firstElementType) is not null
+			&& TryGetPointerElementType(shape.Components[1].Type) == "nuint";
+	}
+
+	static List<Expression> CreateAddressOfComponents(List<Expression> components)
+	{
+		List<Expression> addresses = [];
+		foreach (Expression component in components)
+		{
+			addresses.Add(new UnaryExpression
+			{
+				SourceSyntax = component.SourceSyntax,
+				Operator = UnaryOperator.AddressOf,
+				Operand = component,
+				ResolvedType = AddPointer(component.ResolvedType ?? ErrorType)
+			});
+		}
+		return addresses;
 	}
 
 	bool TryCreateReceiverComponentExpressions(Expression receiver, IReadOnlyList<string> names, out List<Expression> components)

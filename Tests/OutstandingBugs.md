@@ -17,11 +17,6 @@
   argument. The current workaround is to avoid range syntax/defaulted range
   calls in generic std internals and pass explicit array params values or
   explicit `index, count` arguments.
-- **BUG-007:** `Array_resize<T>(T[] this, ...)` receives expanded array
-  components by value in emitted C, so calls such as `this.items.resize(...)`
-  cannot update a field or caller-owned array value. `List<T>` currently grows
-  by allocating a new `T[]`, copying used elements with array helpers, and
-  assigning the field explicitly.
 - **BUG-008:** Default argument insertion can append a default for a later
   parameter even when the caller supplied that argument explicitly in some
   generic/delegate call shapes. `List<T>.binarySearch` avoids optional

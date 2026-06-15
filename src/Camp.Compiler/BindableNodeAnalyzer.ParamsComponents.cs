@@ -87,6 +87,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		switch (type)
 		{
+			case PointerTypeReference { ElementType: not null } pointer:
+				return TryBuildPendingPointerComponents(pointer.ElementType, pointer.ElementType.ResolvedType, prefix, out components, out kind, out typeName);
+
 			case ArrayTypeReference { ElementType: not null } array:
 				kind = ParamsComponentShapeKind.Array;
 				typeName = type.ResolvedType ?? resolvedType ?? ErrorType;
@@ -140,6 +143,13 @@ public sealed partial class BindableNodeAnalyzer
 					kind = ParamsComponentShapeKind.Array;
 					typeName = resolvedType;
 					AddArrayPendingComponents(null, TypeShapeParser.Format(arrayElement), prefix, components);
+					return true;
+				}
+
+				if (typeShape.Kind == TypeShapeKind.Pointer && typeShape.Element is TypeShape pointerElement
+					&& TryBuildPendingPointerComponents(pointerElement, prefix, out components, out kind, out typeName))
+				{
+					typeName = resolvedType;
 					return true;
 				}
 

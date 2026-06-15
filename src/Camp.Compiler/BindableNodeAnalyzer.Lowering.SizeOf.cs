@@ -180,7 +180,15 @@ public sealed partial class BindableNodeAnalyzer
 	void AddImplicitSizeOfArguments(CallExpression call, FunctionDefinition function, TypeReference? constructedType)
 	{
 		Dictionary<string, string> substitutions = GetGenericSubstitutions(call, function, constructedType);
-		List<ParameterDefinition> parameters = GetCallableParametersForCall(function, IncludeExplicitThisArgument(call.Target, function));
+		bool includeExplicitThis = IncludeExplicitThisArgument(call.Target, function);
+		if (!includeExplicitThis
+			&& IsInstanceFunction(function)
+			&& call.Target is not MemberExpression and not MemberReferenceExpression
+			&& call.Arguments.Count > GetCallableParameters(function.Parameters, includeExplicitThis: false).Count)
+		{
+			includeExplicitThis = true;
+		}
+		List<ParameterDefinition> parameters = GetCallableParametersForCall(function, includeExplicitThis);
 		for (int i = 0; i < parameters.Count; i++)
 		{
 			if (parameters[i] is not SizeOfParameterDefinition sizeOf)

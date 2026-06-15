@@ -224,6 +224,23 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (ExpandedArgumentComponentAlreadyProvided(arguments, callableParameters, i))
 				continue;
+			if (TryCreateParamsPointerArgumentComponents(argument, callableParameters, i, out List<Expression> pointerComponents))
+			{
+				arguments.RemoveAt(i);
+				for (int componentIndex = 0; componentIndex < pointerComponents.Count; componentIndex++)
+				{
+					Expression component = pointerComponents[componentIndex];
+					arguments.Insert(i + componentIndex, new ArgumentExpression
+					{
+						SourceSyntax = argument.SourceSyntax,
+						Modifier = argument.Modifier,
+						Value = component,
+						ResolvedType = component.ResolvedType
+					});
+				}
+				i += pointerComponents.Count - 1;
+				continue;
+			}
 
 			if (!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components)
 				&& !TryCreateTargetTypedExpandedReturnArgumentComponents(argument, out components))
@@ -254,6 +271,36 @@ public sealed partial class BindableNodeAnalyzer
 		CollapseDuplicateExpandedThisComponents(arguments, callableParameters);
 	}
 
+	bool TryCreateParamsPointerArgumentComponents(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index, out List<Expression> components)
+	{
+		components = [];
+		if (argument.Value is null || callableParameters is null || index + 1 >= callableParameters.Count)
+			return false;
+		string firstParameterType = callableParameters[index].ResolvedType ?? callableParameters[index].Type?.ResolvedType ?? "";
+		string secondParameterType = callableParameters[index + 1].ResolvedType ?? callableParameters[index + 1].Type?.ResolvedType ?? "";
+		if (TryGetPointerElementType(firstParameterType) is not string firstElementType
+			|| TryGetPointerElementType(firstElementType) is null
+			|| TryGetPointerElementType(secondParameterType) != "nuint")
+			return false;
+		if (!TryGetParamsComponentShape(null, argument.Value.ResolvedType, "value", out ParamsComponentShape shape) || shape.Components.Count != 2)
+			return false;
+		if (!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> valueComponents) || valueComponents.Count != 2)
+			return false;
+
+		for (int i = 0; i < valueComponents.Count; i++)
+		{
+			Expression valueComponent = valueComponents[i];
+			components.Add(new UnaryExpression
+			{
+				SourceSyntax = valueComponent.SourceSyntax,
+				Operator = UnaryOperator.AddressOf,
+				Operand = valueComponent,
+				ResolvedType = AddPointer(valueComponent.ResolvedType ?? shape.Components[i].Type)
+			});
+		}
+		return true;
+	}
+
 	static void CollapseDuplicateExpandedThisComponents(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters)
 	{
 		if (callableParameters is null || callableParameters.Count < 2 || arguments.Count < 3)
@@ -274,6 +321,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (callableParameters is null || index + 1 >= callableParameters.Count || index + 1 >= arguments.Count)
 			return false;
+		if (IsPointerToExpandedComponentPair(callableParameters, index))
+			return false;
 
 		string firstName = callableParameters[index].Name;
 		string secondName = callableParameters[index + 1].Name;
@@ -287,6 +336,17 @@ public sealed partial class BindableNodeAnalyzer
 			return IsProvidedComponent(arguments[index + 1].Value, secondName);
 
 		return false;
+	}
+
+	static bool IsPointerToExpandedComponentPair(List<ParameterDefinition> callableParameters, int index)
+	{
+		if (index + 1 >= callableParameters.Count)
+			return false;
+		string firstParameterType = callableParameters[index].ResolvedType ?? callableParameters[index].Type?.ResolvedType ?? "";
+		string secondParameterType = callableParameters[index + 1].ResolvedType ?? callableParameters[index + 1].Type?.ResolvedType ?? "";
+		return TryGetPointerElementType(firstParameterType) is string firstElementType
+			&& TryGetPointerElementType(firstElementType) is not null
+			&& TryGetPointerElementType(secondParameterType) == "nuint";
 	}
 
 	static bool IsProvidedLengthComponent(Expression? value, Expression? next, string componentName)

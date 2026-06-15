@@ -352,8 +352,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			AddImplicitDefaultArguments(call);
 			ExpandParamsArguments(call);
-			AddImplicitWithinArgument(call);
 			AddImplicitSizeOfArguments(call);
+			AddImplicitWithinArgument(call);
 			AddImplicitVTableOfArguments(call);
 			((DeclarationStatement)declarations[0]).InitialValue = null;
 			for (int i = 1; i < targets.Count; i++)

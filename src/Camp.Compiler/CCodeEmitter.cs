@@ -2386,6 +2386,20 @@ public static class CCodeEmitter
 			return !string.IsNullOrWhiteSpace(elementType);
 		}
 
+		static bool TryGetExpandedArrayPointerElementType(string? resolvedType, out string elementType)
+		{
+			elementType = "";
+			if (string.IsNullOrWhiteSpace(resolvedType))
+				return false;
+
+			string type = resolvedType.Trim();
+			if (!type.EndsWith("[]*", StringComparison.Ordinal))
+				return false;
+
+			elementType = type[..^3].TrimEnd();
+			return !string.IsNullOrWhiteSpace(elementType);
+		}
+
 		string FormatArgumentValue(ArgumentExpression argument, ParameterDefinition? parameter, Dictionary<string, string> genericSubstitutions)
 		{
 			string value = FormatExpression(argument.Value);
@@ -3273,6 +3287,12 @@ public static class CCodeEmitter
 						parts.Add(FormatTypeOrResolved(null, "nuint", name + "_length").Declaration);
 						continue;
 					}
+					if (parameter is ThisParameterDefinition && TryGetExpandedArrayPointerElementType(parameter.ResolvedType, out string thisPointerElementType))
+					{
+						parts.Add(FormatTypeOrResolved(null, thisPointerElementType + "**", name).Declaration);
+						parts.Add(FormatTypeOrResolved(null, "nuint*", name + "_length").Declaration);
+						continue;
+					}
 					if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 					{
 						TypeReference? parameterType = parameter.Type;
@@ -3299,6 +3319,9 @@ public static class CCodeEmitter
 
 		string? FormatExpandedThisComponent(Expression? target, string name)
 		{
+			if (TryGetExpandedThisPointerComponent(target, name, out string pointerComponent))
+				return pointerComponent;
+
 			ThisParameterDefinition? parameter = target switch
 			{
 				VariableReferenceExpression { Variable: ThisParameterDefinition variable } => variable,
@@ -3327,6 +3350,33 @@ public static class CCodeEmitter
 				"length" when TryGetArrayLiteralElementType(componentParameter.ResolvedType, out _) => componentName + "_length",
 				_ => null
 			};
+		}
+
+		bool TryGetExpandedThisPointerComponent(Expression? target, string name, out string component)
+		{
+			component = "";
+			Expression? operand = target is ParenthesizedExpression parenthesized ? parenthesized.Expression : target;
+			if (operand is not UnaryExpression { Operator: UnaryOperator.PointerDereference } dereference)
+				return false;
+
+			ParameterDefinition? parameter = dereference.Operand switch
+			{
+				VariableReferenceExpression { Variable: ThisParameterDefinition variable } => variable,
+				VariableReferenceExpression { Variable: ParameterDefinition namedParameter } when CName(namedParameter) == "this" => namedParameter,
+				ThisExpression when currentFunction?.Parameters.FirstOrDefault(static p => p.Symbol == "this") is { } currentThis => currentThis,
+				_ => null
+			};
+			if (parameter is null || !TryGetExpandedArrayPointerElementType(parameter.ResolvedType, out _))
+				return false;
+
+			string componentName = CName(parameter);
+			component = name switch
+			{
+				"elements" => "(*" + componentName + ")",
+				"length" => "(*" + componentName + "_length)",
+				_ => ""
+			};
+			return component.Length > 0;
 		}
 
 		bool RequiresImplicitThisParameter(FunctionDefinition function)
