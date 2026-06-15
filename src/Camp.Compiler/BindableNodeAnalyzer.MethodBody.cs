@@ -2390,6 +2390,9 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope, string? targetCallableType = null)
 	{
 		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
+		if (TryAnalyzeParamsPointerComponentMember(member, targetType, out string componentType))
+			return componentType;
+
 		bool isTypeTarget = IsTypeReferenceExpression(member.Target);
 		List<BodySymbol> members = isTypeTarget
 			? LookupStaticMemberSymbols(targetType, member.Name, member.SourceSyntax)
@@ -2457,6 +2460,35 @@ public sealed partial class BindableNodeAnalyzer
 			reference.Name = field.Name;
 		expressionRewrites[member] = reference;
 		return memberType;
+	}
+
+	bool TryAnalyzeParamsPointerComponentMember(MemberExpression member, string targetType, out string componentType)
+	{
+		componentType = ErrorType;
+		if (TryGetPointerElementType(targetType) is not string pointedType
+			|| !TryGetParamsComponentShape(null, pointedType, "value", out ParamsComponentShape shape))
+			return false;
+
+		ParamsComponent? component = FindParamsComponent(shape, member.Name);
+		if (component is null)
+			return false;
+
+		componentType = component.Type;
+		UnaryExpression dereferencedTarget = new()
+		{
+			SourceSyntax = member.Target?.SourceSyntax ?? member.SourceSyntax,
+			Operator = UnaryOperator.PointerDereference,
+			Operand = member.Target,
+			ResolvedType = pointedType
+		};
+		expressionRewrites[member] = new MemberExpression
+		{
+			SourceSyntax = member.SourceSyntax,
+			Target = dereferencedTarget,
+			Name = member.Name,
+			ResolvedType = componentType
+		};
+		return true;
 	}
 
 	bool BoundMethodReferenceCanSatisfyThisContract(string receiverType, FunctionDefinition function, ThisContract contract, SyntaxNode? syntax)
