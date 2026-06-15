@@ -1,0 +1,20 @@
+using Std;
+
+newtype delegate int Mapper(int value);
+
+int apply(Mapper mapper, int value)
+{
+	return mapper(value);
+}
+
+export int main()
+{
+	int offset = 4;
+	Mapper mapper = (int value) => value + offset;
+	int result1 = mapper(6);
+	int result2 = apply((int value) => value * 2 + offset, 5);
+
+	Console.writeLine(result1);
+	Console.writeLine(result2);
+	return result1 == 10 && result2 == 14 ? 0 : 1;
+}

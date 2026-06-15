@@ -1,0 +1,15 @@
+using Std;
+
+export int main()
+{
+	int offset = 3;
+	delegate int(int) mapper = (int value) =>
+	{
+		int doubled = value * 2;
+		return doubled + offset;
+	};
+
+	int result = mapper(7);
+	Console.writeLine(result);
+	return result == 17 ? 0 : 1;
+}
