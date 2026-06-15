@@ -108,3 +108,22 @@ export nint binarySearch<T: any>(const T[] this, in T value, delegate int(in T l
 
 	return -1;
 }
+
+export nint findIndex<T: any>(const T[] this, in T item, delegate bool(in T left, in T right) equals, sizeof(T))
+{
+	for (nuint i = 0; i < this.length; i++)
+		if (equals(this[i], item))
+			return (nint)i;
+
+	return -1;
+}
+
+export nint findLastIndex<T: any>(const T[] this, in T item, delegate bool(in T left, in T right) equals, sizeof(T))
+{
+	for (nuint i = this.length; i > 0; i--)
+		if (equals(this[i - 1], item))
+			return (nint)i - 1;
+
+	return -1;
+}
+
