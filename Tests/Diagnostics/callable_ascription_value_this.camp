@@ -1,0 +1,11 @@
+newtype delegate nuint CharFormatter(char[] buffer = default);
+
+nuint formatBad(int this, char[] buffer = default) : CharFormatter
+{
+	return 0;
+}
+
+nuint formatGood(in int this, char[] buffer = default) : CharFormatter
+{
+	return 0;
+}

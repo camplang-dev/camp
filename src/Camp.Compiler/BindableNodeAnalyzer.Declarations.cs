@@ -794,6 +794,7 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"Receiver-bearing declaration '{declarationName}' cannot ascribe fn newtype '{newtypeDefinition.Name}'; use a delegate or iter newtype.");
 			return;
 		}
+		ValidateCallableAscriptionReceiverTransport(definition, containingType, syntax, declarationName);
 		ValidateCallableAscriptionThisContract(definition, containingType, newtypeDefinition, family, syntax, declarationName);
 
 		string sourceType = BuildCallableAscriptionSourceType(definition, family, receiverBearing);
@@ -803,6 +804,19 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Report(GetRange(syntax), $"Callable ascription target '{newtypeDefinition.Name}' is not compatible with declaration '{declarationName}'.");
 		}
+	}
+
+	void ValidateCallableAscriptionReceiverTransport(FunctionDefinition definition, string? containingType, SyntaxNode? syntax, string declarationName)
+	{
+		if (containingType is not null || GetExplicitThisParameter(definition) is not ThisParameterDefinition thisParameter)
+			return;
+
+		string thisType = thisParameter.ResolvedType ?? thisParameter.Type?.ResolvedType ?? ErrorType;
+		if (thisParameter.Modifier == ParameterModifier.In || TryGetPointerElementType(thisType) is not null)
+			return;
+
+		Report(GetRange(thisParameter.SourceSyntax ?? syntax),
+			$"Callable ascription on extension method '{declarationName}' requires the this parameter to be passed by pointer; use 'in {thisType} this' or a pointer receiver.");
 	}
 
 	void ValidateCallableAscriptionThisContract(FunctionDefinition definition, string? containingType, NewtypeDefinition newtypeDefinition, string family, SyntaxNode? syntax, string declarationName)
