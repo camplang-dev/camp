@@ -11,7 +11,7 @@ Argument<List<string>> filesArgument = new("files")
 
 Option<string?> inspectOption = new("--inspect")
 {
-	Description = "Print an intermediate compiler representation."
+	Description = "Print an intermediate compiler representation. Allowed values: tokens, cst, ast, declarations, lowering."
 };
 
 Option<bool> xmlOption = new("--xml")
@@ -83,32 +83,7 @@ Option<bool> noStdLibOption = new("--nostdlib")
 
 RootCommand rootCommand = new("Camp compiler")
 {
-	Description = """
-	Usage:
-	  campc <files...> [options]
-
-	Arguments:
-	  <files...>  One or more source files to read, or '-' to read from standard input.
-
-	Options:
-	  -i, --include <files...>  Include API header files in the compilation.
-	  -t, --target <name>       Select the target to use. Defaults to clang-macos-x64.
-	  -p, --profile <name>      Select DEBUG or RELEASE. Defaults to DEBUG.
-	  --memory-model <name>     Select a target memory model when the target requires one.
-	  -d, --define <symbols...> Define conditional compilation symbols.
-	  --emit c99                Generate C99 output. Defaults to c99.
-	  -b, --build <kind>        Build a native artifact: exec, static, or shared.
-	  --out-dir <dir>           Write native output artifacts to this directory.
-	  --build-dir <dir>         Write generated C and intermediate build files to this directory.
-	  --nostdlib                Do not include the default std package.
-	  --inspect tokens          Print one token per line.
-	  --inspect cst             Parse and print the syntax tree as XML.
-	  --inspect ast             Parse and print the bindable tree as XML.
-	  --inspect declarations    Analyze declarations and print the bindable tree as Camp code.
-	  --inspect lowering        Analyze, lower, and print the bindable tree as Camp code.
-	  --inspect-api             Print merged exported API declarations for compiled files.
-	  --xml                     Print XML for declarations/lowering inspection.
-	"""
+	Description = "Camp compiler"
 };
 
 rootCommand.Arguments.Add(filesArgument);
