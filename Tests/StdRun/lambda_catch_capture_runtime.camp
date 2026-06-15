@@ -1,0 +1,29 @@
+using Std;
+
+enum Err
+{
+	ERR_OK = 0,
+	ERR_BAD
+}
+
+void fail(thrown Err error)
+{
+	throw Err.ERR_BAD;
+}
+
+export int main()
+{
+	int result = 0;
+	try
+	{
+		fail();
+	}
+	catch (Err e)
+	{
+		delegate int() map = () => e == Err.ERR_BAD ? 7 : 1;
+		result = map();
+	}
+
+	Console.writeLine(result);
+	return result == 7 ? 0 : 1;
+}
