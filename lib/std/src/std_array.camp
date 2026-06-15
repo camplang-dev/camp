@@ -33,6 +33,19 @@ export void copyFrom<T: any>(T[] this, const T[] source, sizeof(T))
 		this[i] = source[i];
 }
 
+export void resize<T: any>(T[] this, nuint newSize, within allocator, sizeof(T))
+{
+	if (this.length == newSize)
+		return;
+
+	void* resized = allocator.realloc(this.elements, newSize * sizeof(T));
+	if (resized == null && newSize != 0)
+		return;
+
+	this.elements = (T*)resized;
+	this.length = newSize;
+}
+
 export void reverse<T: any>(T[] this, sizeof(T))
 {
 	if (this.length < 2)
