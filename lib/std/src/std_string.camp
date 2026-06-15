@@ -289,11 +289,6 @@ nuint logicalLength(const char* value, nuint valueLength)
 	return utf8nsize_lazy(value, valueLength);
 }
 
-nuint min(nuint left, nuint right)
-{
-	return left < right ? left : right;
-}
-
 char* allocateString(nuint size, Allocator* allocator)
 {
 	if (allocator != null)

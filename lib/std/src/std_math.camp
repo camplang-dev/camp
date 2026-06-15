@@ -1,19 +1,69 @@
-export byte abs(overload sbyte value)
-{
-	return value < 0 ? (byte)-value : (byte)value;
-}
+export const byte Byte_MIN = (byte)0;
+export const byte Byte_MAX = (byte)255;
 
-export ushort abs(overload short value)
-{
-	return value < 0 ? (ushort)-value : (ushort)value;
-}
+export const sbyte SByte_MIN = (sbyte)-128;
+export const sbyte SByte_MAX = (sbyte)127;
 
-export uint abs(overload int value)
-{
-	return value < 0 ? -(uint)value : (uint)value;
-}
+export const short Short_MIN = (short)-32768;
+export const short Short_MAX = (short)32767;
 
-export ulong abs(overload long value)
-{
-	return value < 0 ? -(ulong)value : (ulong)value;
-}
+export const ushort UShort_MIN = (ushort)0;
+export const ushort UShort_MAX = (ushort)65535;
+
+export const int Int_MIN = -2147483647 - 1;
+export const int Int_MAX = 2147483647;
+
+export const uint UInt_MIN = (uint)0;
+export const uint UInt_MAX = (uint)4294967295;
+
+export const long Long_MIN = (long)-9223372036854775807 - 1;
+export const long Long_MAX = (long)9223372036854775807;
+
+export const ulong ULong_MIN = (ulong)0;
+export const ulong ULong_MAX = (ulong)18446744073709551615;
+
+export const nint NInt_MIN = -(nint)((nuint)1 << (((nuint)sizeof(nint) * 8) - 1));
+export const nint NInt_MAX = (nint)(((nuint)1 << (((nuint)sizeof(nint) * 8) - 1)) - 1);
+export const nuint NUInt_MIN = (nuint)0;
+export const nuint NUInt_MAX = ((((nuint)1 << (((nuint)sizeof(nuint) * 8) - 1)) - 1) * 2) + 1;
+
+export byte abs(overload sbyte value) => value < 0 ? (byte)-value : (byte)value;
+
+export ushort abs(overload short value) => value < 0 ? (ushort)-value : (ushort)value;
+
+export uint abs(overload int value) => value < 0 ? -(uint)value : (uint)value;
+
+export ulong abs(overload long value) => value < 0 ? -(ulong)value : (ulong)value;
+
+export byte min(overload byte left, byte right) => left < right ? left : right;
+export byte max(overload byte left, byte right) => left > right ? left : right;
+
+export sbyte min(overload sbyte left, sbyte right) => left < right ? left : right;
+export sbyte max(overload sbyte left, sbyte right) => left > right ? left : right;
+
+export short min(overload short left, short right) => left < right ? left : right;
+export short max(overload short left, short right) => left > right ? left : right;
+
+export ushort min(overload ushort left, ushort right) => left < right ? left : right;
+export ushort max(overload ushort left, ushort right) => left > right ? left : right;
+
+export int min(overload int left, int right) => left < right ? left : right;
+export int max(overload int left, int right) => left > right ? left : right;
+
+export uint min(overload uint left, uint right) => left < right ? left : right;
+export uint max(overload uint left, uint right) => left > right ? left : right;
+
+export long min(overload long left, long right) => left < right ? left : right;
+export long max(overload long left, long right) => left > right ? left : right;
+
+export ulong min(overload ulong left, ulong right) => left < right ? left : right;
+export ulong max(overload ulong left, ulong right) => left > right ? left : right;
+
+export nint min(overload nint left, nint right) => left < right ? left : right;
+export nint max(overload nint left, nint right) => left > right ? left : right;
+
+export nuint min(overload nuint left, nuint right) => left < right ? left : right;
+export nuint max(overload nuint left, nuint right) => left > right ? left : right;
+
+export uchar min(overload uchar left, uchar right) => left < right ? left : right;
+export uchar max(overload uchar left, uchar right) => left > right ? left : right;
