@@ -128,6 +128,8 @@ public sealed partial class BindableNodeAnalyzer
 			case ReturnStatement returnStatement:
 			{
 				string returnType = returnStatement.Expression is null ? "void" : BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope, scope.CurrentFunctionReturnType);
+				if (IsDirectCapturingLambda(returnStatement.Expression, scope))
+					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Capturing scoped lambdas cannot be returned.");
 				CheckAssignable(scope.CurrentFunctionReturnType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				break;
 			}
@@ -325,6 +327,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (declaration.InitialValue is not null)
 			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+	}
+
+	bool IsDirectCapturingLambda(Expression? expression, BodyScope scope)
+	{
+		return expression is LambdaExpression lambda
+			&& LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType);
 	}
 
 	bool TryAnalyzeDeconstructionTarget(DeclarationTarget target, string initialType, BodyScope scope)
@@ -2739,8 +2747,23 @@ public sealed partial class BindableNodeAnalyzer
 			return valueType;
 		}
 		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target", scope);
+		if (IsDirectCapturingLambda(assignment.Value, scope) && IsEscapingLambdaAssignmentTarget(assignment.Target))
+			Report(GetRange(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax), "Capturing scoped lambdas cannot be assigned to global variables or fields.");
 		CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
 		return targetType;
+	}
+
+	bool IsEscapingLambdaAssignmentTarget(Expression? target)
+	{
+		if (target is null)
+			return false;
+		Expression resolved = expressionRewrites.TryGetValue(target, out Expression? rewrite) ? rewrite : target;
+		return resolved switch
+		{
+			VariableReferenceExpression { Variable: VariableDefinition } => true,
+			MemberReferenceExpression { Member: FieldDefinition } => true,
+			_ => false
+		};
 	}
 
 	static bool IsDiscardExpression(Expression? expression)

@@ -1,0 +1,24 @@
+delegate int() stored;
+
+delegate int() returnCapture()
+{
+	int value = 3;
+	return () => value;
+}
+
+void assignGlobal()
+{
+	int value = 4;
+	stored = () => value;
+}
+
+class Box
+{
+	delegate int() callback;
+}
+
+void assignField(Box* box)
+{
+	int value = 5;
+	box.callback = () => value;
+}
