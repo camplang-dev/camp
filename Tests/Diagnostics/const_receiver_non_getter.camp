@@ -1,0 +1,19 @@
+class List<T: any>
+{
+	nuint length;
+
+	void add(in T item)
+	{
+	}
+
+	nuint getLength()
+	{
+		return this.length;
+	}
+}
+
+void test(const List<char>* list)
+{
+	_=list.Length;
+	list.add('C');
+}

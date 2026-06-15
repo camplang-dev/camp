@@ -5,7 +5,7 @@
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static void Processor_scale(const Processor *this);
-static void Processor_process(Processor *this, int x);
+static void Processor_process(const Processor *this, int x);
 
 int main(void)
 {
@@ -18,10 +18,10 @@ int main(void)
 
 static void Processor_scale(const Processor *this)
 {
-	Processor_process((Processor *)this, this->x);
+	Processor_process(this, this->x);
 }
 
-static void Processor_process(Processor *this, int x)
+static void Processor_process(const Processor *this, int x)
 {
 }
 

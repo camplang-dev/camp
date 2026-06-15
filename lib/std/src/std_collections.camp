@@ -61,7 +61,7 @@ export class List<T: any>
 		this.capacity = 0;
 	}
 
-	void* itemAddress(@index nuint at)
+	void* itemAddress(const this, @index nuint at)
 	{
 		return (void*)&((byte*)this.buffer)[at * sizeof(T)];
 	}

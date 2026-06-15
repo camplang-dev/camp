@@ -1,0 +1,1 @@
+tests/Diagnostics/const_receiver_non_getter.camp(18,7): error: Member 'add' exists on type 'const List<char>*', but its this parameter is not compatible with that receiver.

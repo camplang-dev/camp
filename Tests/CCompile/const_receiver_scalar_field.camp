@@ -19,7 +19,7 @@ class Processor
 		this.process(this.x);
 	}
 
-	void process(int x)
+	void process(const this, int x)
 	{
 	}
 }

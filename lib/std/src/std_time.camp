@@ -60,7 +60,7 @@ export newtype TimeSpan: long
 	export static TimeSpan fromHours(long value) => (TimeSpan)(value * 1000 * 60 * 60);
 	export static TimeSpan fromDays(long value) => (TimeSpan)(value * 1000 * 60 * 60 * 24);
 
-	export bool isValid() => *this != TimeSpan.INVALID;
+	export bool isValid(const this) => *this != TimeSpan.INVALID;
 
 	// Whole-unit totals, truncated toward zero.
 	export long getMs() => (long)*this;
@@ -144,7 +144,7 @@ export newtype UtcOffset: short
 	
 	export static UtcOffset fromHours(short hours, ushort minutes = 0) => (UtcOffset)(short)(hours * 60 + (hours < 0 ? 0 - (short)minutes : (short)minutes));
 	
-	export bool isValid() => *this != UtcOffset.INVALID && (short)*this >= -1080 && (short)*this <= 1080;
+	export bool isValid(const this) => *this != UtcOffset.INVALID && (short)*this >= -1080 && (short)*this <= 1080;
 
 	export short getHours() => (short)((short)*this / 60);
 	export byte getMinutes()
@@ -208,7 +208,7 @@ export newtype Instant: long
 	export static Instant fromUnixSeconds(long seconds) => (Instant)(seconds * TIME_MS_PER_SECOND);
 	export static Instant fromUnixMs(long ms) => (Instant)ms;
 
-	export bool isValid() => *this != Instant.INVALID;
+	export bool isValid(const this) => *this != Instant.INVALID;
 
 	export long getUnixSeconds() => (long)*this / TIME_MS_PER_SECOND;
 	export long getUnixMs() => (long)*this;
@@ -290,7 +290,7 @@ export struct Date
 		return { year, month, day };
 	}
 
-	export bool isValid() => timeValidDate((int)this.year, (int)this.month, (int)this.day);
+	export bool isValid(const this) => timeValidDate((int)this.year, (int)this.month, (int)this.day);
 
 	export bool getLeapYear() => timeIsLeapYear((int)this.year);
 	export byte getDaysInMonth() => timeDaysInMonth((int)this.year, (int)this.month);
@@ -353,7 +353,7 @@ export struct TimeOfDay
 	export static const TimeOfDay INVALID = { 255, 0, 0, 0 };
 	export static const TimeOfDay MIDNIGHT = { 0, 0, 0, 0 };
 
-	export bool isValid() => this.hour < 24 && this.minute < 60 && this.second < 60;
+	export bool isValid(const this) => this.hour < 24 && this.minute < 60 && this.second < 60;
 
 	// Fractional milliseconds within the current second.
 	// Calculation is floor(fraction * 1000 / 256), producing 0..996.
@@ -434,7 +434,7 @@ export struct DateTime
 		return { { year, month, day }, { hour, minute, second, fraction } };
 	}
 
-	export bool isValid() => this.date.isValid() && this.time.isValid();
+	export bool isValid(const this) => this.date.isValid() && this.time.isValid();
 
 	// Interprets this DateTime using the fixed UTC offset provided by the PAL
 	// Invalid input or out-of-range conversion returns Instant.invalid().
@@ -526,7 +526,7 @@ export struct OffsetDateTime
 		return instant.getOffsetDateTime(UtcOffset.UTC);
 	}
 
-	export bool isValid() => this.local.isValid() && this.offset.isValid();
+	export bool isValid(const this) => this.local.isValid() && this.offset.isValid();
 
 	// Invalid input or out-of-range conversion returns Instant.INVALID
 	export Instant toInstant() => this.local.toInstant(this.offset);
