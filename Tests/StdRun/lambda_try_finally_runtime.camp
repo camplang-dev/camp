@@ -1,0 +1,33 @@
+using Std;
+
+export int main()
+{
+	int result = 0;
+	int offset = 2;
+
+	try
+	{
+		delegate int(int) mapper = (int value) =>
+		{
+			try
+			{
+				return value + offset;
+			}
+			finally
+			{
+				result = result + 1;
+			}
+		};
+
+		int mapped = mapper(3);
+		result = result + mapped;
+	}
+	finally
+	{
+		delegate void() cleanup = () => result = result + 10;
+		cleanup();
+	}
+
+	Console.writeLine(result);
+	return result == 16 ? 0 : 1;
+}
