@@ -379,11 +379,11 @@ export struct TimeOfDay
 		nuint length = ms == 0 ? 9 : 13;
 		if (buffer.length < length)
 			return length;
-		timeWrite2(buffer.elements, 0, (int)this.hour);
+		timeWrite2(buffer.elements, 0, this.hour);
 		buffer[2] = ':';
-		timeWrite2(buffer.elements, 3, (int)this.minute);
+		timeWrite2(buffer.elements, 3, this.minute);
 		buffer[5] = ':';
-		timeWrite2(buffer.elements, 6, (int)this.second);
+		timeWrite2(buffer.elements, 6, this.second);
 		if (ms != 0)
 		{
 			buffer[8] = '.';

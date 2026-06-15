@@ -1,0 +1,9 @@
+class Processor
+{
+	byte x;
+
+	void scale(const this)
+	{
+		this.x = 3;
+	}
+}

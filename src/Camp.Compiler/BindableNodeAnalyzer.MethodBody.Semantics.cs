@@ -37,6 +37,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	void RequireMutableWriteTarget(Expression? target, string targetType, SyntaxNode? syntax, string context, BodyScope scope)
 	{
+		if (IsStorageAccessThroughConstReceiver(target))
+		{
+			Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
+			return;
+		}
 		if (target is MemberReferenceExpression { Member: FieldDefinition or ParameterDefinition or VariableDefinition } && IsMutableStorageType(targetType))
 			return;
 		if (target is MemberExpression member
@@ -52,6 +57,17 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		RequireMutableWriteTarget(targetType, syntax, context);
+	}
+
+	bool IsStorageAccessThroughConstReceiver(Expression? expression)
+	{
+		if (expression is MemberExpression member
+			&& expressionRewrites.TryGetValue(member, out Expression? rewrite)
+			&& !ReferenceEquals(rewrite, expression))
+			return IsStorageAccessThroughConstReceiver(rewrite);
+
+		return expression is MemberReferenceExpression { Target: not null, Member: FieldDefinition or ParameterDefinition or VariableDefinition } memberReference
+			&& IsConstReceiverType(memberReference.Target.ResolvedType);
 	}
 
 	static bool IsMutableStorageType(string type)

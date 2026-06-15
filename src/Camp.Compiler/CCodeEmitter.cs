@@ -2392,6 +2392,11 @@ public static class CCodeEmitter
 				&& (argument.Value is MethodReferenceExpression or VariableReferenceExpression { Variable: FunctionDefinition } or NamedExpression
 					|| argument.Value?.ResolvedType is string argumentType && IsResolvedCallableType(argumentType)))
 				value = "(" + CTypeName(expectedParameterType) + ")" + value;
+			if (argument.Modifier == ArgumentModifier.None
+				&& expectedParameterType is not null
+				&& argument.Value?.ResolvedType is string valueType
+				&& ShouldCastPointerArgument(valueType, expectedParameterType))
+				value = "(" + FormatTypeOrResolved(parameter?.Type, expectedParameterType, "").Declaration.Trim() + ")" + value;
 			if (argument.Modifier == ArgumentModifier.None && parameter?.Modifier == ParameterModifier.In)
 				return FormatInArgument(argument.Value, value, TryGetConcreteGenericType(expectedParameterType, genericSubstitutions, out string? concreteInType) ? concreteInType : expectedParameterType);
 			return argument.Modifier switch
@@ -2511,6 +2516,33 @@ public static class CCodeEmitter
 				return false;
 			elementType = type[..^1].TrimEnd();
 			return !string.IsNullOrWhiteSpace(elementType);
+		}
+
+		static bool ShouldCastPointerArgument(string valueType, string expectedType)
+		{
+			if (valueType == expectedType)
+				return false;
+			if (!TryGetPointerElementType(valueType, out string valueElement) || !TryGetPointerElementType(expectedType, out string expectedElement))
+				return false;
+			return HasTopLevelConstForC(valueElement)
+				&& !HasTopLevelConstForC(expectedElement)
+				&& StripTopLevelConstForC(valueElement) == StripTopLevelConstForC(expectedElement);
+		}
+
+		static bool HasTopLevelConstForC(string type)
+		{
+			type = type.Trim();
+			return type.StartsWith("const ", StringComparison.Ordinal) || type.EndsWith(" const", StringComparison.Ordinal);
+		}
+
+		static string StripTopLevelConstForC(string type)
+		{
+			type = type.Trim();
+			if (type.StartsWith("const ", StringComparison.Ordinal))
+				type = type["const ".Length..].TrimStart();
+			if (type.EndsWith(" const", StringComparison.Ordinal))
+				type = type[..^" const".Length].TrimEnd();
+			return type;
 		}
 
 		bool TryFormatForwardedOutArgument(Expression? expression, out string value)

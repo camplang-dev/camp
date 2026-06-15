@@ -2430,9 +2430,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		BodySymbol selected = members[0];
-		string memberType = IsConstReceiverType(targetType) && selected.Node is FieldDefinition or ParameterDefinition
-			? AddTopLevelConstToType(selected.Type)
-			: selected.Type;
+		string memberType = selected.Type;
 		if (!isTypeTarget
 			&& selected.Node is FunctionDefinition function
 			&& TryGetCallableShape(targetCallableType, out CallableShape targetShape)
@@ -2517,6 +2515,8 @@ public sealed partial class BindableNodeAnalyzer
 						RequireGenericArrayElementStride(indexedType, scope, unary.SourceSyntax ?? index.SourceSyntax, "take the address of an element of T[]");
 					return indexedAddressType;
 				}
+				if (IsStorageAccessThroughConstReceiver(unary.Operand))
+					return $"{AddTopLevelConstToType(operandType)}*";
 				return $"{operandType}*";
 
 			case UnaryOperator.PointerDereference:

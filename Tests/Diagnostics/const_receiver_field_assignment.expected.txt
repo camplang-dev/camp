@@ -1,0 +1,1 @@
+tests/Diagnostics/const_receiver_field_assignment.camp(7,8): error: Assignment target is const and cannot be assigned.

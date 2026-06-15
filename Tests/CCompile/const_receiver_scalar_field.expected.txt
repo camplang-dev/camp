@@ -1,0 +1,66 @@
+// file: const_receiver_scalar_field.c
+#include "const_receiver_scalar_field_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void Processor_scale(const Processor *this);
+static void Processor_process(Processor *this, int x);
+
+int main(void)
+{
+	Processor *p = (Processor *)(malloc(sizeof(Processor)));
+	p->x = 7;
+	Processor_scale((const Processor *)(p));
+	free((void *)(p));
+	return 0;
+}
+
+static void Processor_scale(const Processor *this)
+{
+	Processor_process((Processor *)this, this->x);
+}
+
+static void Processor_process(Processor *this, int x)
+{
+}
+
+// file: const_receiver_scalar_field.h
+#ifndef CONST_RECEIVER_SCALAR_FIELD_H_
+#define CONST_RECEIVER_SCALAR_FIELD_H_
+
+#include "const_receiver_scalar_field_private.h"
+
+int main(void);
+
+#endif
+// file: const_receiver_scalar_field_private.h
+#ifndef CONST_RECEIVER_SCALAR_FIELD_PRIVATE_H_
+#define CONST_RECEIVER_SCALAR_FIELD_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Processor Processor;
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+struct Processor
+{
+	uint8_t x;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: const_receiver_scalar_field.c

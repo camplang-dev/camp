@@ -1,0 +1,25 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+export int main()
+{
+	auto p = new Processor();
+	p.x = 7;
+	p.scale();
+	delete p;
+	return 0;
+}
+
+class Processor
+{
+	byte x;
+
+	void scale(const this)
+	{
+		this.process(this.x);
+	}
+
+	void process(int x)
+	{
+	}
+}
