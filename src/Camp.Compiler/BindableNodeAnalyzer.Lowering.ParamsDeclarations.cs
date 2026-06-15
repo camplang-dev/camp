@@ -340,6 +340,8 @@ public sealed partial class BindableNodeAnalyzer
 			&& IsMaterializedGenericReturnFunction(initialFunction);
 		if (!materializedGenericReturnInitializer)
 			CaptureParamsArrayConstructionLength(initialValue, shape, declarations);
+		if (initialValue is LambdaExpression lambda)
+			PrepareLambdaContextLocal(lambda, declarations);
 		List<Expression?> initialValues = materializedGenericReturnInitializer
 			? CreateNullInitialValues(shape)
 			: GetParamsComponentInitialValues(initialValue, shape, deferCurrentAllocator: true);

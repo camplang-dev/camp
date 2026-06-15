@@ -1123,18 +1123,22 @@ public sealed partial class BindableNodeAnalyzer
 		string returnType = "void";
 		if (lambda.Body is BlockStatement block)
 		{
+			RewriteVoidLambdaExpressionBody(block, targetShape?.ReturnType);
 			BodyAnalyzeBlock(block.Statements, lambdaScope, typeScope);
 			BindStatementLabels(block.Statements);
 			block.ResolvedType = "void";
 			returnType = InferBlockReturnType(block, targetShape?.ReturnType);
 		}
-		LambdaCapturesUnsupportedValues(lambda);
+		bool hasCaptures = LambdaHasCaptures(lambda);
+		if (hasCaptures && targetShape is CallableShape { Kind: "fn" })
+			Report(GetRange(lambda.SourceSyntax), "Capturing lambdas require a delegate target.");
 
 		List<string> parameterTypes = [];
 		foreach (LambdaParameter parameter in lambda.Parameters)
 			parameterTypes.Add(parameter.ResolvedType ?? ErrorType);
 
-		string inferredType = BuildCallableType("fn", targetShape?.ReturnType ?? returnType, parameterTypes);
+		string inferredKind = hasCaptures ? "delegate" : "fn";
+		string inferredType = BuildCallableType(inferredKind, targetShape?.ReturnType ?? returnType, parameterTypes);
 		if (targetType is not null
 			&& TryGetCallableShape(targetType, out CallableShape expectedShape)
 			&& expectedShape.Kind is "fn" or "delegate"
@@ -1142,6 +1146,20 @@ public sealed partial class BindableNodeAnalyzer
 			return targetType;
 
 		return inferredType;
+	}
+
+	static void RewriteVoidLambdaExpressionBody(BlockStatement block, string? targetReturnType)
+	{
+		if (targetReturnType != "void")
+			return;
+		if (block.Statements is not [ReturnStatement { Expression: not null } returnStatement])
+			return;
+		block.Statements[0] = new ExpressionStatement
+		{
+			SourceSyntax = returnStatement.SourceSyntax,
+			Expression = returnStatement.Expression,
+			ResolvedType = "void"
+		};
 	}
 
 	string BodyAnalyzeArgumentExpression(ArgumentExpression argument, BodyScope scope, AnalysisScope typeScope, string? targetType = null)

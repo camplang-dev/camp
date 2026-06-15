@@ -15,6 +15,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<InterfaceDefinition, StructDefinition> loweredInterfaceStructs = [];
 	readonly Dictionary<InterfaceDefinition, StructDefinition> interfaceIndirectStructs = [];
 	readonly List<Definition> generatedInterfaceDefinitions = [];
+	readonly List<StructDefinition> generatedLambdaContextDefinitions = [];
 	readonly List<FunctionDefinition> generatedLambdaDefinitions = [];
 	const string InitNewMethodName = "op_initnew";
 	const string CreateMethodName = "create";
@@ -118,12 +119,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	void RewriteModule(Module module)
 	{
+		generatedLambdaContextDefinitions.Clear();
 		generatedLambdaDefinitions.Clear();
 		CompleteInterfaceDeclarations(module);
 		LowerSourceInterfaceTypes(module);
 		ExpandParamsDeclarations(module);
 		foreach (Definition definition in module.Definitions)
 			RewriteDefinition(definition);
+		foreach (StructDefinition context in generatedLambdaContextDefinitions)
+			module.Definitions.Add(context);
 		foreach (FunctionDefinition lambda in generatedLambdaDefinitions)
 			module.Definitions.Add(lambda);
 		RefreshLoweredResolvedTypes(module);

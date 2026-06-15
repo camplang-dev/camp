@@ -1,0 +1,29 @@
+int apply(delegate int(int) callback, int value)
+{
+	return callback(value);
+}
+
+export int main()
+{
+	int offset = 10;
+	delegate int(int) addOffset = value => value + offset;
+	offset = 20;
+	if (addOffset(1) != 21)
+		return 1;
+
+	int count = 0;
+	delegate void() increment = () => count++;
+	increment();
+	increment();
+	if (count != 2)
+		return 2;
+
+	if (apply(value => value + offset, 2) != 22)
+		return 3;
+
+	auto inferred = (int value) => value + offset;
+	if (inferred(3) != 23)
+		return 4;
+
+	return 0;
+}

@@ -5,6 +5,14 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	sealed record LambdaCapture(BindableNode Variable, string Name, string Type, FieldDefinition Field);
+	sealed record LambdaContextInfo(StructDefinition Definition, List<LambdaCapture> Captures)
+	{
+		public DeclarationTarget? LocalTarget { get; set; }
+	}
+
+	readonly Dictionary<LambdaExpression, LambdaContextInfo> lambdaContexts = [];
+
 	Expression LowerLambdaExpression(LambdaExpression lambda)
 	{
 		if (expressionRewrites.TryGetValue(lambda, out Expression? rewritten)
@@ -17,18 +25,33 @@ public sealed partial class BindableNodeAnalyzer
 			return lambda;
 		}
 
-		if (LambdaCapturesUnsupportedValues(lambda))
+		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, reportUnsupported: true);
+		if (captures.Count > 0 && shape.Kind != "delegate")
+		{
+			Report(GetRange(lambda.SourceSyntax), "Capturing lambdas require a delegate target.");
 			return lambda;
+		}
 
 		bool delegateTarget = shape.Kind == "delegate";
+		LambdaContextInfo? contextInfo = null;
+		if (captures.Count > 0)
+		{
+			contextInfo = GetOrCreateLambdaContext(lambda, captures);
+			EnsureLambdaContextLocal(lambda, contextInfo, currentStatementPrefix);
+			if (contextInfo.LocalTarget is null)
+				return lambda;
+		}
+
 		FunctionDefinition function = CreateLambdaFunction(lambda, shape, delegateTarget);
 		int parameterOffset = delegateTarget ? 1 : 0;
 		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, function.Parameters, parameterOffset);
+		if (contextInfo is not null)
+			RewriteLambdaCaptureReferences(function, contextInfo);
 		RewriteFunction(function, containingType: null);
 		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, function.Parameters, parameterOffset);
 		generatedLambdaDefinitions.Add(function);
 		Expression result = delegateTarget
-			? CreateDelegateLambdaInitializer(lambda, function)
+			? CreateDelegateLambdaInitializer(lambda, function, contextInfo)
 			: CreateMethodReference(function, lambda.ResolvedType ?? BuildFunctionValueType(function, isInstance: false));
 		expressionRewrites[lambda] = result;
 		return result;
@@ -68,7 +91,7 @@ public sealed partial class BindableNodeAnalyzer
 		return function;
 	}
 
-	InitializerExpression CreateDelegateLambdaInitializer(LambdaExpression lambda, FunctionDefinition function)
+	InitializerExpression CreateDelegateLambdaInitializer(LambdaExpression lambda, FunctionDefinition function, LambdaContextInfo? contextInfo)
 	{
 		InitializerExpression initializer = new()
 		{
@@ -83,15 +106,340 @@ public sealed partial class BindableNodeAnalyzer
 		initializer.Items.Add(new InitializerItem
 		{
 			SourceSyntax = lambda.SourceSyntax,
-			Expression = new LiteralExpression
-			{
-				SourceSyntax = lambda.SourceSyntax,
-				Kind = LiteralKind.Null,
-				Text = "null",
-				ResolvedType = "#NULL"
-			}
+			Expression = contextInfo?.LocalTarget is null
+				? NullLiteral(lambda.SourceSyntax)
+				: new UnaryExpression
+				{
+					SourceSyntax = lambda.SourceSyntax,
+					Operator = UnaryOperator.AddressOf,
+					Operand = CreateVariableReference(contextInfo.LocalTarget, contextInfo.Definition.Name),
+					ResolvedType = contextInfo.Definition.Name + "*"
+				}
 		});
 		return initializer;
+	}
+
+	LambdaContextInfo GetOrCreateLambdaContext(LambdaExpression lambda, List<LambdaCapture> captures)
+	{
+		if (lambdaContexts.TryGetValue(lambda, out LambdaContextInfo? context))
+			return context;
+
+		string owner = currentRewriteFunction is null ? "lambda" : GetCallableName(currentRewriteFunction).TrimStart('~');
+		string name = owner + "_lambdaContext" + generatedLambdaContextDefinitions.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		StructDefinition definition = new()
+		{
+			SourceSyntax = lambda.SourceSyntax,
+			Name = name,
+			Symbol = name,
+			ResolvedType = name
+		};
+
+		List<LambdaCapture> contextCaptures = [];
+		for (int i = 0; i < captures.Count; i++)
+		{
+			LambdaCapture capture = captures[i];
+			string fieldName = "capture" + i.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" + capture.Name;
+			FieldDefinition field = new()
+			{
+				SourceSyntax = lambda.SourceSyntax,
+				Name = fieldName,
+				Symbol = fieldName,
+				Type = PointerTo(TypeReferenceForResolvedName(capture.Type)),
+				ResolvedType = AddPointer(capture.Type)
+			};
+			definition.Fields.Add(field);
+			contextCaptures.Add(capture with { Field = field });
+		}
+
+		context = new LambdaContextInfo(definition, contextCaptures);
+		lambdaContexts[lambda] = context;
+		generatedLambdaContextDefinitions.Add(definition);
+		return context;
+	}
+
+	void EnsureLambdaContextLocal(LambdaExpression lambda, LambdaContextInfo context, List<Statement>? statements)
+	{
+		if (context.LocalTarget is not null)
+			return;
+		if (statements is null)
+		{
+			Report(GetRange(lambda.SourceSyntax), "Captured lambda context cannot be created in this expression position yet.");
+			return;
+		}
+
+		string typeName = context.Definition.Name;
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("lambdaContext"), typeName, TypeReferenceFor(context.Definition), initialValue: null);
+		context.LocalTarget = local.Target;
+		statements.Add(local);
+		foreach (LambdaCapture capture in context.Captures)
+		{
+			statements.Add(CreateAssignmentStatement(
+				new MemberReferenceExpression
+				{
+					SourceSyntax = lambda.SourceSyntax,
+					Target = CreateVariableReference(local.Target, typeName),
+					Name = capture.Field.Name,
+					Member = capture.Field,
+					ResolvedType = capture.Field.ResolvedType
+				},
+				new UnaryExpression
+				{
+					SourceSyntax = lambda.SourceSyntax,
+					Operator = UnaryOperator.AddressOf,
+					Operand = CreateVariableReference(capture.Variable, capture.Type),
+					ResolvedType = AddPointer(capture.Type)
+				},
+				capture.Field.ResolvedType ?? ErrorType,
+				lambda.SourceSyntax));
+		}
+	}
+
+	void PrepareLambdaContextLocal(LambdaExpression lambda, List<Statement> statements)
+	{
+		if (!TryGetCallableShape(lambda.ResolvedType, out CallableShape shape) || shape.Kind != "delegate")
+			return;
+		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, reportUnsupported: true);
+		if (captures.Count == 0)
+			return;
+		LambdaContextInfo context = GetOrCreateLambdaContext(lambda, captures);
+		EnsureLambdaContextLocal(lambda, context, statements);
+	}
+
+	void RewriteLambdaCaptureReferences(FunctionDefinition function, LambdaContextInfo context)
+	{
+		if (function.Body is null || function.Parameters.Count == 0)
+			return;
+		ParameterDefinition contextParameter = function.Parameters[0];
+		string localName = "lambdaContext";
+		DeclarationStatement contextLocal = CreateGeneratedLocal(
+			localName,
+			context.Definition.Name + "*",
+			PointerTo(TypeReferenceFor(context.Definition)),
+			new CastExpression
+			{
+				SourceSyntax = function.SourceSyntax,
+				Type = PointerTo(TypeReferenceFor(context.Definition)),
+				Expression = CreateVariableReference(contextParameter, contextParameter.ResolvedType ?? "void*"),
+				ResolvedType = context.Definition.Name + "*"
+			});
+		function.Body.Statements.Insert(0, contextLocal);
+		RewriteLambdaCaptureReferences(function.Body, context, contextLocal.Target);
+	}
+
+	void RewriteLambdaCaptureReferences(Statement? statement, LambdaContextInfo context, DeclarationTarget contextLocal)
+	{
+		if (statement is null)
+			return;
+		switch (statement)
+		{
+			case BlockStatement block:
+				foreach (Statement child in block.Statements)
+					RewriteLambdaCaptureReferences(child, context, contextLocal);
+				break;
+			case ExpressionStatement expression:
+				expression.Expression = RewriteLambdaCaptureReferences(expression.Expression, context, contextLocal);
+				break;
+			case DeclarationStatement declaration:
+				declaration.InitialValue = RewriteLambdaCaptureReferences(declaration.InitialValue, context, contextLocal);
+				break;
+			case IfStatement ifStatement:
+				ifStatement.Condition = RewriteLambdaCaptureReferences(ifStatement.Condition, context, contextLocal);
+				RewriteLambdaCaptureReferences(ifStatement.Body, context, contextLocal);
+				RewriteLambdaCaptureReferences(ifStatement.ElseBody, context, contextLocal);
+				break;
+			case WhileStatement whileStatement:
+				whileStatement.Condition = RewriteLambdaCaptureReferences(whileStatement.Condition, context, contextLocal);
+				RewriteLambdaCaptureReferences(whileStatement.Body, context, contextLocal);
+				break;
+			case DoWhileStatement doWhile:
+				RewriteLambdaCaptureReferences(doWhile.Body, context, contextLocal);
+				doWhile.Condition = RewriteLambdaCaptureReferences(doWhile.Condition, context, contextLocal);
+				break;
+			case ForStatement forStatement:
+				RewriteLambdaCaptureReferences(forStatement.Condition.Declaration, context, contextLocal);
+				for (int i = 0; i < forStatement.Condition.Clauses.Count; i++)
+					forStatement.Condition.Clauses[i] = RewriteLambdaCaptureReferences(forStatement.Condition.Clauses[i], context, contextLocal);
+				RewriteLambdaCaptureReferences(forStatement.Body, context, contextLocal);
+				break;
+			case ForeachStatement foreachStatement:
+				foreachStatement.Source = RewriteLambdaCaptureReferences(foreachStatement.Source, context, contextLocal);
+				RewriteLambdaCaptureReferences(foreachStatement.Body, context, contextLocal);
+				break;
+			case SwitchStatement switchStatement:
+				switchStatement.Expression = RewriteLambdaCaptureReferences(switchStatement.Expression, context, contextLocal);
+				foreach (Statement child in switchStatement.Statements)
+					RewriteLambdaCaptureReferences(child, context, contextLocal);
+				break;
+			case CaseStatement caseStatement:
+				caseStatement.Expression = RewriteLambdaCaptureReferences(caseStatement.Expression, context, contextLocal);
+				break;
+			case ReturnStatement returnStatement:
+				returnStatement.Expression = RewriteLambdaCaptureReferences(returnStatement.Expression, context, contextLocal);
+				break;
+			case YieldStatement yieldStatement:
+				yieldStatement.Expression = RewriteLambdaCaptureReferences(yieldStatement.Expression, context, contextLocal);
+				break;
+			case DeleteStatement deleteStatement:
+				deleteStatement.Expression = RewriteLambdaCaptureReferences(deleteStatement.Expression, context, contextLocal);
+				break;
+			case TryStatement tryStatement:
+				RewriteLambdaCaptureReferences(tryStatement.Body, context, contextLocal);
+				foreach (CatchStatement catchStatement in tryStatement.Catches)
+					RewriteLambdaCaptureReferences(catchStatement, context, contextLocal);
+				RewriteLambdaCaptureReferences(tryStatement.Finally, context, contextLocal);
+				break;
+			case CatchStatement catchStatement:
+				RewriteLambdaCaptureReferences(catchStatement.Body, context, contextLocal);
+				break;
+			case FinallyStatement finallyStatement:
+				RewriteLambdaCaptureReferences(finallyStatement.Body, context, contextLocal);
+				break;
+			case WithinStatement withinStatement:
+				withinStatement.Allocator = RewriteLambdaCaptureReferences(withinStatement.Allocator, context, contextLocal);
+				RewriteLambdaCaptureReferences(withinStatement.Body, context, contextLocal);
+				break;
+		}
+	}
+
+	Expression? RewriteLambdaCaptureReferences(Expression? expression, LambdaContextInfo context, DeclarationTarget contextLocal)
+	{
+		if (expression is null)
+			return null;
+		if (TryGetCapturedVariable(expression, out BindableNode? captured)
+			&& FindCapture(context, captured) is LambdaCapture capture)
+			return CreateCapturedValueReference(capture, contextLocal, expression.SourceSyntax);
+
+		switch (expression)
+		{
+			case ParenthesizedExpression parenthesized:
+				parenthesized.Expression = RewriteLambdaCaptureReferences(parenthesized.Expression, context, contextLocal);
+				break;
+			case CastExpression cast:
+				cast.Expression = RewriteLambdaCaptureReferences(cast.Expression, context, contextLocal);
+				break;
+			case WithinExpression within:
+				within.Context = RewriteLambdaCaptureReferences(within.Context, context, contextLocal);
+				within.Expression = RewriteLambdaCaptureReferences(within.Expression, context, contextLocal);
+				break;
+			case UnaryExpression unary:
+				unary.Operand = RewriteLambdaCaptureReferences(unary.Operand, context, contextLocal);
+				unary.Context = RewriteLambdaCaptureReferences(unary.Context, context, contextLocal);
+				break;
+			case PostfixUpdateExpression postfix:
+				postfix.Expression = RewriteLambdaCaptureReferences(postfix.Expression, context, contextLocal);
+				break;
+			case BinaryExpression binary:
+				binary.Left = RewriteLambdaCaptureReferences(binary.Left, context, contextLocal);
+				binary.Right = RewriteLambdaCaptureReferences(binary.Right, context, contextLocal);
+				break;
+			case AssignmentExpression assignment:
+				assignment.Target = RewriteLambdaCaptureReferences(assignment.Target, context, contextLocal);
+				assignment.Value = RewriteLambdaCaptureReferences(assignment.Value, context, contextLocal);
+				break;
+			case ConditionalExpression conditional:
+				conditional.Condition = RewriteLambdaCaptureReferences(conditional.Condition, context, contextLocal);
+				conditional.WhenTrue = RewriteLambdaCaptureReferences(conditional.WhenTrue, context, contextLocal);
+				conditional.WhenFalse = RewriteLambdaCaptureReferences(conditional.WhenFalse, context, contextLocal);
+				break;
+			case CallExpression call:
+				call.Target = RewriteLambdaCaptureReferences(call.Target, context, contextLocal);
+				foreach (ArgumentExpression argument in call.Arguments)
+					argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
+				break;
+			case IndexExpression index:
+				index.Target = RewriteLambdaCaptureReferences(index.Target, context, contextLocal);
+				foreach (ArgumentExpression argument in index.Arguments)
+					argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
+				break;
+			case MemberExpression member:
+				member.Target = RewriteLambdaCaptureReferences(member.Target, context, contextLocal);
+				break;
+			case MemberReferenceExpression member:
+				member.Target = RewriteLambdaCaptureReferences(member.Target, context, contextLocal);
+				break;
+			case NamelessIndexerExpression indexer:
+				indexer.Target = RewriteLambdaCaptureReferences(indexer.Target, context, contextLocal);
+				foreach (ArgumentExpression argument in indexer.Arguments)
+					argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
+				break;
+			case RangeExpression range:
+				range.Start = RewriteLambdaCaptureReferences(range.Start, context, contextLocal);
+				range.End = RewriteLambdaCaptureReferences(range.End, context, contextLocal);
+				break;
+			case GroupedExpression grouped:
+				foreach (GroupedExpressionItem item in grouped.Items)
+					item.Expression = RewriteLambdaCaptureReferences(item.Expression, context, contextLocal);
+				break;
+			case ArrayExpression array:
+				for (int i = 0; i < array.Elements.Count; i++)
+					array.Elements[i] = RewriteLambdaCaptureReferences(array.Elements[i], context, contextLocal) ?? array.Elements[i];
+				break;
+			case InitializerExpression initializer:
+				foreach (InitializerItem item in initializer.Items)
+					item.Expression = RewriteLambdaCaptureReferences(item.Expression, context, contextLocal);
+				break;
+			case ConstructionExpression construction:
+				construction.ElementCount = RewriteLambdaCaptureReferences(construction.ElementCount, context, contextLocal);
+				if (construction.Initializer is not null)
+					construction.Initializer = (InitializerExpression?)RewriteLambdaCaptureReferences(construction.Initializer, context, contextLocal);
+				foreach (ArgumentExpression argument in construction.Arguments)
+					argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
+				break;
+			case FinallyDeleteExpression finallyDelete:
+				finallyDelete.Expression = RewriteLambdaCaptureReferences(finallyDelete.Expression, context, contextLocal);
+				break;
+			case ArgumentExpression argument:
+				argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
+				break;
+		}
+		return expression;
+	}
+
+	Expression CreateCapturedValueReference(LambdaCapture capture, DeclarationTarget contextLocal, SyntaxNode? syntax)
+	{
+		return new ParenthesizedExpression
+		{
+			SourceSyntax = syntax,
+			ResolvedType = capture.Type,
+			Expression = new UnaryExpression
+			{
+				SourceSyntax = syntax,
+				Operator = UnaryOperator.PointerDereference,
+				Operand = new MemberReferenceExpression
+				{
+					SourceSyntax = syntax,
+					Target = CreateVariableReference(contextLocal, contextLocal.ResolvedType ?? ErrorType),
+					Name = capture.Field.Name,
+					Member = capture.Field,
+					ResolvedType = capture.Field.ResolvedType
+				},
+				ResolvedType = capture.Type
+			},
+		};
+	}
+
+	static LambdaCapture? FindCapture(LambdaContextInfo context, BindableNode variable)
+	{
+		foreach (LambdaCapture capture in context.Captures)
+			if (ReferenceEquals(capture.Variable, variable))
+				return capture;
+		return null;
+	}
+
+	bool TryGetCapturedVariable(Expression expression, out BindableNode variable)
+	{
+		switch (expression)
+		{
+			case VariableReferenceExpression { Variable: BindableNode direct }:
+				variable = direct;
+				return true;
+			case NamedExpression named when TryGetRewrittenVariable(named, out BindableNode rewritten):
+				variable = rewritten;
+				return true;
+			default:
+				variable = null!;
+				return false;
+		}
 	}
 
 	static GenericParameter CloneGenericParameter(GenericParameter parameter)
@@ -121,13 +469,20 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	bool LambdaCapturesUnsupportedValues(LambdaExpression lambda)
+	bool LambdaHasCaptures(LambdaExpression lambda)
+	{
+		return CollectLambdaCaptures(lambda, reportUnsupported: false).Count > 0;
+	}
+
+	List<LambdaCapture> CollectLambdaCaptures(LambdaExpression lambda, bool reportUnsupported)
 	{
 		HashSet<BindableNode> localNodes = [];
 		foreach (LambdaParameter parameter in lambda.Parameters)
 			localNodes.Add(parameter);
 		CollectLambdaLocalNodes(lambda.Body, localNodes);
-		return LambdaCapturesUnsupportedValues(lambda.Body, localNodes);
+		Dictionary<BindableNode, LambdaCapture> captures = new(ReferenceEqualityComparer.Instance);
+		CollectLambdaCaptures(lambda.Body, localNodes, captures, reportUnsupported);
+		return [.. captures.Values];
 	}
 
 	static void CollectLambdaLocalNodes(Statement? statement, HashSet<BindableNode> localNodes)
@@ -179,42 +534,88 @@ public sealed partial class BindableNodeAnalyzer
 			CollectLambdaLocalNodes(child, localNodes);
 	}
 
-	bool LambdaCapturesUnsupportedValues(BindableNode? node, HashSet<BindableNode> localNodes)
+	void CollectLambdaCaptures(BindableNode? node, HashSet<BindableNode> localNodes, Dictionary<BindableNode, LambdaCapture> captures, bool reportUnsupported)
 	{
 		switch (node)
 		{
 			case null:
-				return false;
+				return;
 			case ThisExpression thisExpression:
-				Report(GetRange(thisExpression.SourceSyntax), "Lambda captures are not implemented yet; 'this' cannot be referenced by a Stage 1 lambda.");
-				return true;
+				if (reportUnsupported)
+					Report(GetRange(thisExpression.SourceSyntax), "Capturing 'this' in lambdas is not implemented yet.");
+				return;
 			case VariableReferenceExpression { Variable: BindableNode variable } reference
 				when !IsLambdaLocalOrGlobal(variable, localNodes):
-				Report(GetRange(reference.SourceSyntax), "Lambda captures are not implemented yet; captured local values cannot be referenced by a Stage 1 lambda.");
-				return true;
+				AddLambdaCapture(variable, reference.SourceSyntax, captures, reportUnsupported);
+				return;
 			case NamedExpression named
 				when TryGetRewrittenVariable(named, out BindableNode variable) && !IsLambdaLocalOrGlobal(variable, localNodes):
-				Report(GetRange(named.SourceSyntax), "Lambda captures are not implemented yet; captured local values cannot be referenced by a Stage 1 lambda.");
-				return true;
+				AddLambdaCapture(variable, named.SourceSyntax, captures, reportUnsupported);
+				return;
 		}
 
-		bool captured = false;
 		if (node is Statement statement)
 		{
 			foreach ((Statement? childStatement, Expression? childExpression) in LambdaStatementChildren(statement))
 			{
 				if (childStatement is not null)
-					captured |= LambdaCapturesUnsupportedValues(childStatement, localNodes);
+					CollectLambdaCaptures(childStatement, localNodes, captures, reportUnsupported);
 				if (childExpression is not null)
-					captured |= LambdaCapturesUnsupportedValues(childExpression, localNodes);
+					CollectLambdaCaptures(childExpression, localNodes, captures, reportUnsupported);
 			}
 		}
 		else if (node is Expression expression)
 		{
 			foreach (Expression childExpression in LambdaExpressionChildren(expression))
-				captured |= LambdaCapturesUnsupportedValues(childExpression, localNodes);
+				CollectLambdaCaptures(childExpression, localNodes, captures, reportUnsupported);
 		}
-		return captured;
+	}
+
+	void AddLambdaCapture(BindableNode variable, SyntaxNode? syntax, Dictionary<BindableNode, LambdaCapture> captures, bool reportUnsupported)
+	{
+		if (captures.ContainsKey(variable))
+			return;
+		string type = GetCaptureType(variable);
+		if (string.IsNullOrWhiteSpace(type) || type == ErrorType || type == TargetType)
+		{
+			if (reportUnsupported)
+				Report(GetRange(syntax), "Lambda capture has an unresolved type.");
+			return;
+		}
+		captures[variable] = new LambdaCapture(variable, GetCaptureName(variable), type, new FieldDefinition());
+	}
+
+	static string GetCaptureName(BindableNode variable)
+	{
+		string name = variable switch
+		{
+			ParameterDefinition parameter => parameter.Name,
+			DeclarationTarget target when target.Names.Count > 0 => target.Names[0],
+			VariableDefinition variableDefinition => variableDefinition.Name,
+			FieldDefinition field => field.Name,
+			_ => "value"
+		};
+		return string.IsNullOrWhiteSpace(name) ? "value" : SanitizeCaptureName(name);
+	}
+
+	static string SanitizeCaptureName(string name)
+	{
+		System.Text.StringBuilder builder = new();
+		foreach (char c in name)
+			builder.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
+		return builder.Length == 0 ? "value" : builder.ToString();
+	}
+
+	static string GetCaptureType(BindableNode variable)
+	{
+		return variable switch
+		{
+			ParameterDefinition parameter => parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType,
+			DeclarationTarget target => target.ResolvedType ?? target.Type?.ResolvedType ?? ErrorType,
+			VariableDefinition variableDefinition => variableDefinition.ResolvedType ?? variableDefinition.Type?.ResolvedType ?? ErrorType,
+			FieldDefinition field => field.ResolvedType ?? field.Type?.ResolvedType ?? ErrorType,
+			_ => variable.ResolvedType ?? ErrorType
+		};
 	}
 
 	static void RewriteLambdaParameterReferences(Statement? statement, List<LambdaParameter> lambdaParameters, List<ParameterDefinition> functionParameters, int functionParameterOffset)

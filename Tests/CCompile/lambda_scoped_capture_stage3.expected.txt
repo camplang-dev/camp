@@ -1,0 +1,108 @@
+// file: lambda_scoped_capture_stage3.c
+#include "lambda_scoped_capture_stage3_private.h"
+
+/* Private file declarations. */
+static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value);
+static int main_lambda0(void *context, int value);
+static void main_lambda1(void *context);
+static int main_lambda2(void *context, int value);
+
+static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value)
+{
+	return callback(callback_context, value);
+}
+
+int main(void)
+{
+	int offset = 10;
+	main_lambdaContext0 _lambdaContext0;
+	_lambdaContext0.capture0_offset = &offset;
+	fn_int_voidPtr__int_ addOffset = main_lambda0;
+	void *addOffset_context = &_lambdaContext0;
+	offset = 20;
+	int count = 0;
+	main_lambdaContext1 _lambdaContext1;
+	_lambdaContext1.capture0_count = &count;
+	fn_void_voidPtr_ increment = main_lambda1;
+	void *increment_context = &_lambdaContext1;
+	increment(increment_context);
+	increment(increment_context);
+	main_lambdaContext2 _lambdaContext2;
+	_lambdaContext2.capture0_offset = &offset;
+	int direct = apply((fn_int_voidPtr__int_)main_lambda2, &_lambdaContext2, 2);
+	return ((((addOffset(addOffset_context, 1) == 21) && (count == 2)) && (direct == 22)) ? 0 : 1);
+}
+
+static int main_lambda0(void *context, int value)
+{
+	main_lambdaContext0 *lambdaContext = (main_lambdaContext0 *)(context);
+	return (value + (*lambdaContext->capture0_offset));
+}
+
+static void main_lambda1(void *context)
+{
+	main_lambdaContext1 *lambdaContext = (main_lambdaContext1 *)(context);
+	(*lambdaContext->capture0_count)++;
+}
+
+static int main_lambda2(void *context, int value)
+{
+	main_lambdaContext2 *lambdaContext = (main_lambdaContext2 *)(context);
+	return (value + (*lambdaContext->capture0_offset));
+}
+
+// file: lambda_scoped_capture_stage3.h
+#ifndef LAMBDA_SCOPED_CAPTURE_STAGE3_H_
+#define LAMBDA_SCOPED_CAPTURE_STAGE3_H_
+
+#include "lambda_scoped_capture_stage3_private.h"
+
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+typedef void (* fn_void_voidPtr_)(void *arg0);
+int main(void);
+
+#endif
+// file: lambda_scoped_capture_stage3_private.h
+#ifndef LAMBDA_SCOPED_CAPTURE_STAGE3_PRIVATE_H_
+#define LAMBDA_SCOPED_CAPTURE_STAGE3_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct main_lambdaContext0 main_lambdaContext0;
+typedef struct main_lambdaContext1 main_lambdaContext1;
+typedef struct main_lambdaContext2 main_lambdaContext2;
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+typedef void (* fn_void_voidPtr_)(void *arg0);
+
+/* Enums. */
+
+/* Layouts. */
+struct main_lambdaContext0
+{
+	int *capture0_offset;
+};
+struct main_lambdaContext1
+{
+	int *capture0_count;
+};
+struct main_lambdaContext2
+{
+	int *capture0_offset;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lambda_scoped_capture_stage3.c
