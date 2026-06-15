@@ -789,6 +789,8 @@ An `in T` parameter:
 - does not expose pointer mechanics at the call site
 - does not by itself change the lifetime of the logical value
 
+An `in T` parameter is read-only within the callee. Direct mutation of the parameter is invalid, and taking its address produces `const T*`. ABI lowering passes the parameter as a hidden pointer to const storage.
+
 Example:
 
 ```camp

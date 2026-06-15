@@ -1,0 +1,38 @@
+newtype delegate nuint ByteFormatter(const this, char[] buffer = default);
+
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+export int main()
+{
+	byte test = 127;
+	auto size = test.formatHex();
+	auto buffer = init char[size];
+	test.formatHex(buffer);
+
+	ByteFormatter formatter = test.formatHex;
+	formatter(buffer);
+
+	string text = test.formatHex.copyString() finally delete;
+	return (int)buffer[0] + (int)buffer[1] + (int)text[0] + (int)text[1];
+}
+
+nuint formatHex(in byte this, char[] buffer = default) : ByteFormatter
+{
+	if (buffer.length < 3)
+		return 3;
+	int high = this >> 4;
+	int low = this & 0xF;
+
+	buffer[0] = (char)((high > 9) ? ((int)'A' + high - 10) : ((int)'0' + high));
+	buffer[1] = (char)((low > 9) ? ((int)'A' + low - 10) : ((int)'0' + low));
+	buffer[2] = '\0';
+	return 3;
+}
+
+string copyString(ByteFormatter this)
+{
+	auto buffer = init char[this() + 1];
+	this(buffer);
+	return (string)buffer.elements;
+}

@@ -1898,7 +1898,7 @@ public static class CCodeEmitter
 				NamedExpression named => SanitizeIdentifier(named.Name),
 				MethodReferenceExpression method => method.Candidates.Count == 1 ? CName(method.Candidates[0]) : UnsupportedExpression(expression),
 				TypeReferenceExpression type => FormatTypeReferenceExpression(type),
-				ThisExpression => "this",
+				ThisExpression => FormatThisExpression(),
 				DefaultExpression defaultExpression => FormatDefaultExpression(defaultExpression),
 				ParenthesizedExpression parenthesized => "(" + FormatExpression(parenthesized.Expression) + ")",
 				CastExpression cast => "(" + FormatType(cast.Type, "").Declaration.Trim() + ")(" + FormatExpression(cast.Expression) + ")",
@@ -2440,14 +2440,26 @@ public static class CCodeEmitter
 				case IndexExpression index when TryFormatGenericArrayElementAddress(index, out string address):
 					value = address;
 					return true;
+				case UnaryExpression { Operator: UnaryOperator.AddressOf } addressOf:
+					value = FormatExpression(addressOf);
+					return true;
 				case VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter }:
 					value = CName(parameter);
+					return true;
+				case VariableReferenceExpression { Variable: ParameterDefinition parameter }:
+					value = "&" + CName(parameter);
 					return true;
 				case VariableReferenceExpression { Variable: DeclarationTarget target } when IsAnyGenericParameterType(target.ResolvedType):
 					value = CName(target);
 					return true;
 				case VariableReferenceExpression { Variable: DeclarationTarget { Type: MaterializedStructTypeReference } target }:
 					value = "&" + CName(target);
+					return true;
+				case VariableReferenceExpression { Variable: DeclarationTarget target }:
+					value = "&" + CName(target);
+					return true;
+				case ThisExpression when TryGetCurrentInThisParameter(out _):
+					value = "this";
 					return true;
 				default:
 					return false;
@@ -2929,6 +2941,34 @@ public static class CCodeEmitter
 			};
 		}
 
+		string FormatThisExpression()
+		{
+			return TryGetCurrentInThisParameter(out _) ? "(*this)" : "this";
+		}
+
+		bool IsCurrentInThisExpression(Expression? expression)
+		{
+			if (!TryGetCurrentInThisParameter(out ParameterDefinition? inThis))
+				return false;
+
+			return expression switch
+			{
+				ThisExpression => true,
+				VariableReferenceExpression { Variable: ParameterDefinition parameter } => ReferenceEquals(parameter, inThis),
+				_ => false
+			};
+		}
+
+		bool TryGetCurrentInThisParameter(out ParameterDefinition parameter)
+		{
+			parameter = null!;
+			if (currentFunction is null)
+				return false;
+
+			parameter = currentFunction.Parameters.FirstOrDefault(static candidate => candidate.Symbol == "this" && candidate.Modifier == ParameterModifier.In)!;
+			return parameter is not null;
+		}
+
 		bool IsGenericParameterType(string? type)
 		{
 			if (string.IsNullOrWhiteSpace(type))
@@ -2974,6 +3014,10 @@ public static class CCodeEmitter
 				&& unary.Operand is VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter }
 				&& IsGenericParameterType(parameter.ResolvedType))
 				return CName(parameter);
+			if (unary.Operator == UnaryOperator.AddressOf && IsCurrentInThisExpression(unary.Operand))
+				return "this";
+			if (unary.Operator == UnaryOperator.PointerDereference && IsCurrentInThisExpression(unary.Operand))
+				return "**this";
 			if (unary.Operator == UnaryOperator.AddressOf
 				&& unary.Operand is VariableReferenceExpression { Variable: DeclarationTarget target }
 				&& IsAnyGenericParameterType(target.ResolvedType))

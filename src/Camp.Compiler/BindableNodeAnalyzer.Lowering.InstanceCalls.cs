@@ -229,7 +229,23 @@ public sealed partial class BindableNodeAnalyzer
 		string receiverValueType = GetReceiverValueType(receiver);
 		string flattenedReceiverType = BuildFlattenedReceiverType(function, receiver.ResolvedType ?? receiverValueType);
 		string addressDecisionType = receiver.ResolvedType ?? receiverValueType;
-		if (TryGetPointerElementType(flattenedReceiverType) is not null && TryGetPointerElementType(addressDecisionType) is null)
+		if (GetExplicitThisParameter(function)?.Modifier == ParameterModifier.In && TryGetPointerElementType(addressDecisionType) is null)
+		{
+			if (!CanTakeReceiverAddress(receiver) && currentStatementPrefix is not null)
+			{
+				DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("receiver"), receiverValueType, TypeReferenceForResolvedName(receiverValueType), receiver);
+				currentStatementPrefix.Add(local);
+				receiver = CreateVariableReference(local.Target, local.Target.ResolvedType ?? receiverValueType);
+			}
+			value = new UnaryExpression
+			{
+				SourceSyntax = receiver.SourceSyntax,
+				Operator = UnaryOperator.AddressOf,
+				Operand = receiver,
+				ResolvedType = AddPointer(receiver.ResolvedType ?? receiverValueType)
+			};
+		}
+		else if (TryGetPointerElementType(flattenedReceiverType) is not null && TryGetPointerElementType(addressDecisionType) is null)
 		{
 			if (!CanTakeReceiverAddress(receiver) && currentStatementPrefix is not null)
 			{
@@ -288,6 +304,7 @@ public sealed partial class BindableNodeAnalyzer
 			VariableReferenceExpression => true,
 			MemberReferenceExpression => true,
 			MemberExpression => true,
+			TypeReferenceExpression => true,
 			IndexExpression => true,
 			UnaryExpression { Operator: UnaryOperator.PointerDereference } => true,
 			_ => false

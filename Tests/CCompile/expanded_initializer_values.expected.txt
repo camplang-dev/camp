@@ -64,7 +64,7 @@ int main(void)
 	void *comparer_context = NULL;
 	int left = 1;
 	int right = 2;
-	if ((comparer(comparer_context, &(int){left}, &(int){right}) >= 0))
+	if ((comparer(comparer_context, &left, &right) >= 0))
 	{
 		return 5;
 	}

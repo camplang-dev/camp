@@ -856,7 +856,7 @@ public sealed partial class BindableNodeAnalyzer
 			case MemberReferenceExpression { Target: not null, Member: FunctionDefinition function } member
 				when FindContainingType(function) is not InterfaceDefinition:
 				components.Add(CreateFlattenedMethodReference(member, member.Target, function));
-				components.Add(CreateDelegateContextExpression(member.Target));
+				components.Add(CreateDelegateContextExpression(member.Target, function));
 				return true;
 
 			case VariableReferenceExpression variable
@@ -1043,9 +1043,26 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	Expression CreateDelegateContextExpression(Expression target)
+	Expression CreateDelegateContextExpression(Expression target, FunctionDefinition? function = null)
 	{
-		Expression context = CloneParamsExpansionExpression(target) ?? target;
+		Expression context;
+		if (function is not null && GetExplicitThisParameter(function)?.Modifier == ParameterModifier.In)
+		{
+			Expression operand = CloneParamsExpansionExpression(target) ?? target;
+			context = new UnaryExpression
+			{
+				SourceSyntax = target.SourceSyntax,
+				Operator = UnaryOperator.AddressOf,
+				Operand = operand,
+				ResolvedType = AddPointer(operand.ResolvedType ?? target.ResolvedType ?? ErrorType)
+			};
+		}
+		else
+		{
+			context = function is null
+				? CloneParamsExpansionExpression(target) ?? target
+				: CreateReceiverArgument(target, function).Value ?? target;
+		}
 		if (TryGetPointerElementType(context.ResolvedType) is null)
 		{
 			context = new UnaryExpression

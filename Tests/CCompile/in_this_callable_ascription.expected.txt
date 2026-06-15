@@ -1,0 +1,101 @@
+// file: in_this_callable_ascription.c
+#include "in_this_callable_ascription_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static uintptr_t Byte_formatHex(uint8_t *this, char *buffer, uintptr_t buffer_length);
+static const char *ByteFormatter_copyString(fn_nuint_voidPtr__charPtr__nuint_ this, void *this_context);
+
+int main(void)
+{
+	const char *_finally0 = 0;
+	bool _cleanupActive1 = false;
+	uint8_t test = 127;
+	uintptr_t size = Byte_formatHex(&test, 0, 0);
+	char *buffer = (char *)(malloc((sizeof(char) * size)));
+	uintptr_t buffer_length = size;
+	Byte_formatHex(&test, buffer, buffer_length);
+	fn_nuint_voidPtr__charPtr__nuint_ formatter = (uintptr_t (* )(void *arg0, char *arg1, uintptr_t arg2))Byte_formatHex;
+	void *formatter_context = (void *)(&test);
+	formatter(formatter_context, buffer, buffer_length);
+	_finally0 = ByteFormatter_copyString((fn_nuint_voidPtr__charPtr__nuint_)Byte_formatHex, &test);
+	_cleanupActive1 = true;
+	const char *text = _finally0;
+	int _return3 = 0;
+	{
+		_return3 = ((((int)(buffer[0]) + (int)(buffer[1])) + (int)(text[0])) + (int)(text[1]));
+		goto __cleanup2;
+	}
+__cleanup2: ;
+	if (_cleanupActive1)
+	{
+		free((void *)(_finally0));
+		_cleanupActive1 = false;
+	}
+	return _return3;
+}
+
+static uintptr_t Byte_formatHex(uint8_t *this, char *buffer, uintptr_t buffer_length)
+{
+	if ((buffer_length < 3))
+	{
+		return 3;
+	}
+	int high = ((*this) >> 4);
+	int low = ((*this) & 0xF);
+	buffer[0] = (char)(((((high > 9)) ? ((((int)('A') + high) - 10)) : (((int)('0') + high)))));
+	buffer[1] = (char)(((((low > 9)) ? ((((int)('A') + low) - 10)) : (((int)('0') + low)))));
+	buffer[2] = '\0';
+	return 3;
+}
+
+static const char *ByteFormatter_copyString(fn_nuint_voidPtr__charPtr__nuint_ this, void *this_context)
+{
+	char *buffer = (char *)(malloc((sizeof(char) * (this(this_context, 0, 0) + 1))));
+	uintptr_t buffer_length = (this(this_context, 0, 0) + 1);
+	this(this_context, buffer, buffer_length);
+	return (const char*)(buffer);
+}
+
+// file: in_this_callable_ascription.h
+#ifndef IN_THIS_CALLABLE_ASCRIPTION_H_
+#define IN_THIS_CALLABLE_ASCRIPTION_H_
+
+#include "in_this_callable_ascription_private.h"
+
+typedef uintptr_t (* fn_nuint_byte__charPtr__nuint_)(uint8_t arg0, char *arg1, uintptr_t arg2);
+typedef uintptr_t (* fn_nuint_voidPtr__charPtr__nuint_)(void *arg0, char *arg1, uintptr_t arg2);
+int main(void);
+
+#endif
+// file: in_this_callable_ascription_private.h
+#ifndef IN_THIS_CALLABLE_ASCRIPTION_PRIVATE_H_
+#define IN_THIS_CALLABLE_ASCRIPTION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+typedef uintptr_t (* ByteFormatter)(char *arg0, uintptr_t arg1);
+
+/* Callable typedefs. */
+typedef uintptr_t (* fn_nuint_byte__charPtr__nuint_)(uint8_t arg0, char *arg1, uintptr_t arg2);
+typedef uintptr_t (* fn_nuint_voidPtr__charPtr__nuint_)(void *arg0, char *arg1, uintptr_t arg2);
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: in_this_callable_ascription.c

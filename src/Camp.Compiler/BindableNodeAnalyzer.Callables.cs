@@ -232,7 +232,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameter is null)
 			return default;
 
-		bool isConst = false;
+		bool isConst = parameter.Modifier == ParameterModifier.In;
 		bool isVolatile = false;
 		string lifetime = "";
 		if (parameter.SourceSyntax is ThisParameterSyntax { Declarators: not null } syntax)

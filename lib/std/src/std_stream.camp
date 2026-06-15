@@ -93,10 +93,14 @@ export void write(CharWriter this, overload char value, thrown IoError error)
 
 export void write(CharWriter this, overload const char[] value, thrown IoError error)
 {
+	nuint writeLength = 0;
+	while (writeLength < value.length && value.elements[writeLength] != '\0')
+		writeLength++;
+	
 	nuint offset = 0;
-	while (offset < value.length)
+	while (offset < writeLength)
 	{
-		const char[] remaining = { &value.elements[offset], value.length - offset };
+		const char[] remaining = { &value.elements[offset], writeLength - offset };
 		
 		nuint written = 0;
 		if (!this(&written, (char*)remaining.elements, remaining.length))
