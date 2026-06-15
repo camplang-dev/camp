@@ -1089,8 +1089,8 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeLambdaExpression(LambdaExpression lambda, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
 		CallableShape? targetShape = TryGetCallableShape(targetType, out CallableShape callableTarget) ? callableTarget : null;
-		if (targetShape is CallableShape targetCallable && targetCallable.Kind != "fn")
-			Report(GetRange(lambda.SourceSyntax), "Stage 1 lambdas can target only fn callable types.");
+		if (targetShape is CallableShape targetCallable && targetCallable.Kind is not ("fn" or "delegate"))
+			Report(GetRange(lambda.SourceSyntax), "Lambdas can target only fn or delegate callable types.");
 		BodyScope lambdaScope = new(scope, scope.CurrentFunction, scope.ContainingType)
 		{
 			CurrentFunctionReturnType = targetShape?.ReturnType ?? TargetType,
@@ -1135,7 +1135,10 @@ public sealed partial class BindableNodeAnalyzer
 			parameterTypes.Add(parameter.ResolvedType ?? ErrorType);
 
 		string inferredType = BuildCallableType("fn", targetShape?.ReturnType ?? returnType, parameterTypes);
-		if (targetType is not null && TryGetCallableShape(targetType, out CallableShape expectedShape) && CallableShapesCompatible(new CallableShape("fn", null, null, returnType, parameterTypes), expectedShape))
+		if (targetType is not null
+			&& TryGetCallableShape(targetType, out CallableShape expectedShape)
+			&& expectedShape.Kind is "fn" or "delegate"
+			&& CallableShapesCompatible(new CallableShape(expectedShape.Kind, expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This), expectedShape))
 			return targetType;
 
 		return inferredType;
@@ -1566,28 +1569,37 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter is not null && parameter.ResolvedType is null)
 				AnalyzeParameterDefinition(parameter, typeScope);
 
-			string expected = SubstituteGenericType(parameter?.ResolvedType ?? ErrorType, genericSubstitutions);
+			ParameterDefinition? analysisParameter = parameter;
+			int consumedExpandedComponents = 0;
+			if (parameter is not null
+				&& TryGetLambdaTargetExpandedDelegateParameter(parameter, arguments[i], out ParameterDefinition? sourceParameter, out int componentCount))
+			{
+				analysisParameter = sourceParameter;
+				consumedExpandedComponents = componentCount - 1;
+			}
+
+			string expected = SubstituteGenericType(analysisParameter?.ResolvedType ?? ErrorType, genericSubstitutions);
 			string analysisTarget = ContainsUnboundGenericParameter(expected, genericSubstitutions, genericParameterNames) ? TargetType : expected;
 			string actual = arguments[i].ResolvedType == ErrorType
 				? ErrorType
 				: BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, analysisTarget);
-			if (parameter is not null)
+			if (analysisParameter is not null)
 			{
-				InferGenericSubstitutions(parameter.ResolvedType ?? ErrorType, actual, genericSubstitutions, genericParameterNames);
-				expected = SubstituteGenericType(parameter.ResolvedType ?? ErrorType, genericSubstitutions);
+				InferGenericSubstitutions(analysisParameter.ResolvedType ?? ErrorType, actual, genericSubstitutions, genericParameterNames);
+				expected = SubstituteGenericType(analysisParameter.ResolvedType ?? ErrorType, genericSubstitutions);
 			}
-			if (parameter is not null)
+			if (analysisParameter is not null)
 				{
-					if (parameter.Modifier == ParameterModifier.Out && arguments[i].Modifier != ArgumentModifier.Out)
+					if (analysisParameter.Modifier == ParameterModifier.Out && arguments[i].Modifier != ArgumentModifier.Out)
 						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Out parameters require an 'out' argument.");
-					if (parameter.Modifier != ParameterModifier.Out && arguments[i].Modifier == ArgumentModifier.Out)
+					if (analysisParameter.Modifier != ParameterModifier.Out && arguments[i].Modifier == ArgumentModifier.Out)
 						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Only out parameters may use an 'out' argument.");
-					if (parameter.Modifier == ParameterModifier.Thrown && arguments[i].Modifier != ArgumentModifier.Catch)
+					if (analysisParameter.Modifier == ParameterModifier.Thrown && arguments[i].Modifier != ArgumentModifier.Catch)
 						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Thrown parameters require a 'catch' argument.");
-					if (parameter.Modifier != ParameterModifier.Thrown && arguments[i].Modifier == ArgumentModifier.Catch)
+					if (analysisParameter.Modifier != ParameterModifier.Thrown && arguments[i].Modifier == ArgumentModifier.Catch)
 						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Only thrown parameters may use a 'catch' argument.");
 					SyntaxNode? argumentSyntax = GetArgumentDiagnosticSyntax(arguments[i], fallbackSyntax);
-					if (parameter.Modifier == ParameterModifier.Out)
+					if (analysisParameter.Modifier == ParameterModifier.Out)
 						CheckCallArgumentAssignable(actual, expected, argumentSyntax, "Out argument", function, genericSubstitutions, genericParameterNames);
 					else
 					{
@@ -1599,6 +1611,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (ArrayLiteralConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex)
 				|| PrimitiveStringConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex, fallbackSyntax))
 				parameterIndex++;
+			parameterIndex += consumedExpandedComponents;
 			parameterIndex++;
 		}
 
@@ -1606,6 +1619,31 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(fallbackSyntax ?? (arguments.Count > 0 ? arguments[^1].SourceSyntax : null)), "Call is missing required arguments.");
 		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
 			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
+	}
+
+	bool TryGetLambdaTargetExpandedDelegateParameter(ParameterDefinition componentParameter, ArgumentExpression argument, out ParameterDefinition sourceParameter, out int componentCount)
+	{
+		sourceParameter = componentParameter;
+		componentCount = 0;
+		if (argument.Value is not LambdaExpression)
+			return false;
+
+		foreach ((BindableNode source, List<ParamsExpansionComponent> expansion) in paramsExpansions)
+		{
+			if (source is not ParameterDefinition parameter || expansion.Count == 0)
+				continue;
+			if (!ReferenceEquals(expansion[0].Node, componentParameter))
+				continue;
+			if (!TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape)
+				|| shape.Kind != ParamsComponentShapeKind.Delegate)
+				return false;
+
+			sourceParameter = parameter;
+			componentCount = expansion.Count;
+			return componentCount > 1;
+		}
+
+		return false;
 	}
 
 	SyntaxNode? GetArgumentDiagnosticSyntax(ArgumentExpression argument, SyntaxNode? fallbackSyntax)

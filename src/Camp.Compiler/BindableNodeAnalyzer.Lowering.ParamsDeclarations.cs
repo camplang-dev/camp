@@ -63,7 +63,15 @@ public sealed partial class BindableNodeAnalyzer
 		ExpandParamsReturn(function);
 		ExpandParamsParameters(function.Parameters);
 		if (function.Body is not null)
+		{
+			FunctionDefinition? previousFunction = currentRewriteFunction;
+			TypeDefinition? previousType = currentRewriteContainingType;
+			currentRewriteFunction = function;
+			currentRewriteContainingType = FindContainingType(function);
 			ExpandParamsLocalDeclarations(function.Body.Statements);
+			currentRewriteFunction = previousFunction;
+			currentRewriteContainingType = previousType;
+		}
 	}
 
 	void ExpandParamsReturn(FunctionDefinition function)

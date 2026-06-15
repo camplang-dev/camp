@@ -1,0 +1,14 @@
+int apply(delegate int(int) callback, int value)
+{
+	return callback(value);
+}
+
+export int main()
+{
+	delegate int(int) increment = value => value + 1;
+	if (increment(4) != 5)
+		return 1;
+	if (apply(value => value * 2, 21) != 42)
+		return 2;
+	return 0;
+}

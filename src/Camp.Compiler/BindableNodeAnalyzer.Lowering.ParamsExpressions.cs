@@ -957,6 +957,10 @@ public sealed partial class BindableNodeAnalyzer
 			case InitializerExpression initializer:
 				return TryCreateInitializerParamsComponentExpressions(initializer, out components);
 
+			case LambdaExpression lambda
+				when TryGetCallableShape(lambda.ResolvedType, out CallableShape callable) && callable.Kind == "delegate":
+				return TryCreateParamsComponentExpressions(LowerLambdaExpression(lambda), out components);
+
 			case ArrayExpression array:
 				return TryCreateArrayParamsComponentExpressions(array, out components);
 

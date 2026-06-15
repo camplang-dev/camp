@@ -15,5 +15,5 @@ void main()
 	int threshold = 2;
 	usePredicate(x => x > threshold);
 	add(x => x > 2);
-	delegate bool(int) delegated = x => x > 2;
+	delegate bool(int) delegated = x => x > threshold;
 }

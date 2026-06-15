@@ -7,24 +7,34 @@ public sealed partial class BindableNodeAnalyzer
 {
 	Expression LowerLambdaExpression(LambdaExpression lambda)
 	{
-		if (!TryGetCallableShape(lambda.ResolvedType, out CallableShape shape) || shape.Kind != "fn")
+		if (expressionRewrites.TryGetValue(lambda, out Expression? rewritten)
+			&& !ReferenceEquals(rewritten, lambda))
+			return rewritten;
+
+		if (!TryGetCallableShape(lambda.ResolvedType, out CallableShape shape) || shape.Kind is not ("fn" or "delegate"))
 		{
-			Report(GetRange(lambda.SourceSyntax), "Stage 1 lambda lowering supports only fn targets.");
+			Report(GetRange(lambda.SourceSyntax), "Lambda lowering supports only fn or delegate targets.");
 			return lambda;
 		}
 
 		if (LambdaCapturesUnsupportedValues(lambda))
 			return lambda;
 
-		FunctionDefinition function = CreateLambdaFunction(lambda, shape);
-		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, function.Parameters);
+		bool delegateTarget = shape.Kind == "delegate";
+		FunctionDefinition function = CreateLambdaFunction(lambda, shape, delegateTarget);
+		int parameterOffset = delegateTarget ? 1 : 0;
+		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, function.Parameters, parameterOffset);
 		RewriteFunction(function, containingType: null);
-		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, function.Parameters);
+		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, function.Parameters, parameterOffset);
 		generatedLambdaDefinitions.Add(function);
-		return CreateMethodReference(function, lambda.ResolvedType ?? BuildFunctionValueType(function, isInstance: false));
+		Expression result = delegateTarget
+			? CreateDelegateLambdaInitializer(lambda, function)
+			: CreateMethodReference(function, lambda.ResolvedType ?? BuildFunctionValueType(function, isInstance: false));
+		expressionRewrites[lambda] = result;
+		return result;
 	}
 
-	FunctionDefinition CreateLambdaFunction(LambdaExpression lambda, CallableShape shape)
+	FunctionDefinition CreateLambdaFunction(LambdaExpression lambda, CallableShape shape, bool includeDelegateContext)
 	{
 		string owner = currentRewriteFunction is null ? "lambda" : GetCallableName(currentRewriteFunction).TrimStart('~');
 		string name = owner + "_lambda" + generatedLambdaDefinitions.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -42,9 +52,46 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (GenericParameter parameter in currentRewriteFunction.GenericParameters)
 				function.GenericParameters.Add(CloneGenericParameter(parameter));
 		}
+		if (includeDelegateContext)
+		{
+			function.Parameters.Add(new ParameterDefinition
+			{
+				SourceSyntax = lambda.SourceSyntax,
+				Name = "context",
+				Symbol = "context",
+				Type = TypeReferenceForResolvedName("void*"),
+				ResolvedType = "void*"
+			});
+		}
 		for (int i = 0; i < lambda.Parameters.Count; i++)
 			function.Parameters.Add(CreateLambdaFunctionParameter(lambda.Parameters[i], shape.Parameters[i], i));
 		return function;
+	}
+
+	InitializerExpression CreateDelegateLambdaInitializer(LambdaExpression lambda, FunctionDefinition function)
+	{
+		InitializerExpression initializer = new()
+		{
+			SourceSyntax = lambda.SourceSyntax,
+			ResolvedType = lambda.ResolvedType
+		};
+		initializer.Items.Add(new InitializerItem
+		{
+			SourceSyntax = lambda.SourceSyntax,
+			Expression = CreateMethodReference(function, BuildFunctionValueType(function, isInstance: false))
+		});
+		initializer.Items.Add(new InitializerItem
+		{
+			SourceSyntax = lambda.SourceSyntax,
+			Expression = new LiteralExpression
+			{
+				SourceSyntax = lambda.SourceSyntax,
+				Kind = LiteralKind.Null,
+				Text = "null",
+				ResolvedType = "#NULL"
+			}
+		});
+		return initializer;
 	}
 
 	static GenericParameter CloneGenericParameter(GenericParameter parameter)
@@ -170,34 +217,37 @@ public sealed partial class BindableNodeAnalyzer
 		return captured;
 	}
 
-	static void RewriteLambdaParameterReferences(Statement? statement, List<LambdaParameter> lambdaParameters, List<ParameterDefinition> functionParameters)
+	static void RewriteLambdaParameterReferences(Statement? statement, List<LambdaParameter> lambdaParameters, List<ParameterDefinition> functionParameters, int functionParameterOffset)
 	{
 		if (statement is null)
 			return;
 		foreach ((Statement? childStatement, Expression? childExpression) in LambdaStatementChildren(statement))
 		{
-			RewriteLambdaParameterReferences(childStatement, lambdaParameters, functionParameters);
-			RewriteLambdaParameterReferences(childExpression, lambdaParameters, functionParameters);
+			RewriteLambdaParameterReferences(childStatement, lambdaParameters, functionParameters, functionParameterOffset);
+			RewriteLambdaParameterReferences(childExpression, lambdaParameters, functionParameters, functionParameterOffset);
 		}
 	}
 
-	static void RewriteLambdaParameterReferences(Expression? expression, List<LambdaParameter> lambdaParameters, List<ParameterDefinition> functionParameters)
+	static void RewriteLambdaParameterReferences(Expression? expression, List<LambdaParameter> lambdaParameters, List<ParameterDefinition> functionParameters, int functionParameterOffset)
 	{
 		if (expression is null)
 			return;
 		if (expression is VariableReferenceExpression variable)
 		{
-			for (int i = 0; i < lambdaParameters.Count && i < functionParameters.Count; i++)
+			for (int i = 0; i < lambdaParameters.Count; i++)
 			{
 				if (!ReferenceEquals(variable.Variable, lambdaParameters[i]))
 					continue;
-				variable.Variable = functionParameters[i];
-				variable.ResolvedType = functionParameters[i].ResolvedType;
+				int functionParameterIndex = i + functionParameterOffset;
+				if (functionParameterIndex >= functionParameters.Count)
+					break;
+				variable.Variable = functionParameters[functionParameterIndex];
+				variable.ResolvedType = functionParameters[functionParameterIndex].ResolvedType;
 				break;
 			}
 		}
 		foreach (Expression child in LambdaExpressionChildren(expression))
-			RewriteLambdaParameterReferences(child, lambdaParameters, functionParameters);
+			RewriteLambdaParameterReferences(child, lambdaParameters, functionParameters, functionParameterOffset);
 	}
 
 	static IEnumerable<(Statement? Statement, Expression? Expression)> LambdaStatementChildren(Statement statement)

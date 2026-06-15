@@ -1,0 +1,19 @@
+int apply(delegate int(int) callback, int value)
+{
+	return callback(value);
+}
+
+newtype delegate bool Predicate(int value);
+
+bool check(Predicate predicate, int value)
+{
+	return predicate(value);
+}
+
+export int main()
+{
+	delegate int(int) increment = value => value + 1;
+	Predicate positive = (int value) => value > 0;
+	int direct = apply(value => value * 2, 21);
+	return apply(increment, 4) == 5 && check(positive, 2) && direct == 42 ? 0 : 1;
+}

@@ -1,0 +1,86 @@
+// file: lambda_delegate_stage2.c
+#include "lambda_delegate_stage2_private.h"
+
+/* Private file declarations. */
+static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value);
+static bool check(fn_bool_voidPtr__int_ predicate, void *predicate_context, int value);
+static int main_lambda0(void *context, int value);
+static bool main_lambda1(void *context, int value);
+static int main_lambda2(void *context, int value);
+
+static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value)
+{
+	return callback(callback_context, value);
+}
+
+static bool check(fn_bool_voidPtr__int_ predicate, void *predicate_context, int value)
+{
+	return predicate(predicate_context, value);
+}
+
+int main(void)
+{
+	fn_int_voidPtr__int_ increment = main_lambda0;
+	void *increment_context = NULL;
+	fn_bool_voidPtr__int_ positive = main_lambda1;
+	void *positive_context = NULL;
+	int direct = apply((fn_int_voidPtr__int_)main_lambda2, NULL, 21);
+	return ((((apply((fn_int_voidPtr__int_)increment, increment_context, 4) == 5) && check((fn_bool_voidPtr__int_)positive, positive_context, 2)) && (direct == 42)) ? 0 : 1);
+}
+
+static int main_lambda0(void *context, int value)
+{
+	return (value + 1);
+}
+
+static bool main_lambda1(void *context, int value)
+{
+	return (value > 0);
+}
+
+static int main_lambda2(void *context, int value)
+{
+	return (value * 2);
+}
+
+// file: lambda_delegate_stage2.h
+#ifndef LAMBDA_DELEGATE_STAGE2_H_
+#define LAMBDA_DELEGATE_STAGE2_H_
+
+#include "lambda_delegate_stage2_private.h"
+
+typedef bool (* fn_bool_voidPtr__int_)(void *arg0, int arg1);
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+int main(void);
+
+#endif
+// file: lambda_delegate_stage2_private.h
+#ifndef LAMBDA_DELEGATE_STAGE2_PRIVATE_H_
+#define LAMBDA_DELEGATE_STAGE2_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+typedef bool (* Predicate)(int arg0);
+
+/* Callable typedefs. */
+typedef bool (* fn_bool_voidPtr__int_)(void *arg0, int arg1);
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lambda_delegate_stage2.c

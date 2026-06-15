@@ -1749,7 +1749,7 @@ public sealed class CampParser
 		if (Is("{") || IsOperator("=>"))
 			syntax.MethodBody = ParseMethodBody();
 		else
-			syntax.Expression = ParseExpression();
+			syntax.Expression = ParseExpressionItem();
 
 		return syntax;
 	}
