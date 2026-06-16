@@ -1,0 +1,19 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+int invoke(delegate int(within int* allocator) callback, within int* allocator)
+{
+	return callback(within allocator);
+}
+
+int callbackFn(within int* allocator)
+{
+	return 7;
+}
+
+int main()
+{
+	int alloc = 0;
+	int result = invoke(callbackFn, within &alloc);
+	return result - 7;
+}

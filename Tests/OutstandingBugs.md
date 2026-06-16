@@ -6,11 +6,6 @@
   be able to insert the allocator automatically, but today they must spell
   `within allocator, catch error` explicitly.
 
-- **BUG-012:** A call that passes an expanded delegate value followed by an
-  explicit `within` argument can retain an extra generated hidden argument.
-  For example, forwarding `delegate int(within Allocator*)` through a wrapper
-  can emit `wrapper(call, context, allocator, null)` even though the wrapper
-  expects only `call, context, allocator`.
 - **BUG-013:** Callable typedef names and types can lose return-value constness
   for pointer returns. For example, a `newtype delegate const char* Getter()`
   can emit a `char* (*)(void*)` storage type and reject a lambda returning

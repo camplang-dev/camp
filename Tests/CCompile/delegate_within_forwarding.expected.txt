@@ -1,0 +1,62 @@
+// file: delegate_within_forwarding.c
+#include "delegate_within_forwarding_private.h"
+
+/* Private file declarations. */
+static int __camp_delegate_callbackFn(void *arg0, int *arg1);
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static int invoke(fn_int_voidPtr__withintPtr_ callback, void *callback_context, int *allocator);
+static int callbackFn(int *allocator);
+static int main(void);
+
+static int __camp_delegate_callbackFn(void *arg0, int *arg1)
+{
+	(void)arg0;
+	return callbackFn(arg1);
+}
+
+static int invoke(fn_int_voidPtr__withintPtr_ callback, void *callback_context, int *allocator)
+{
+	return callback(callback_context, allocator);
+}
+
+static int callbackFn(int *allocator)
+{
+	return 7;
+}
+
+static int main(void)
+{
+	int alloc = 0;
+	int result = invoke(__camp_delegate_callbackFn, NULL, &alloc);
+	return (result - 7);
+}
+
+// file: delegate_within_forwarding_private.h
+#ifndef DELEGATE_WITHIN_FORWARDING_PRIVATE_H_
+#define DELEGATE_WITHIN_FORWARDING_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_voidPtr__withintPtr_)(void *arg0, int *arg1);
+typedef int (* fn_int_withintPtr_)(int *arg0);
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: delegate_within_forwarding.c

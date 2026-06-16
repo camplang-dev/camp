@@ -170,6 +170,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !HasWithinParameter(function))
 			return;
 
+		if (HasExplicitWithinArgument(call.Arguments))
+			return;
+
 		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters);
 		int index = callableParameters.Count;
 		foreach (ParameterDefinition parameter in function.Parameters)
@@ -196,6 +199,16 @@ public sealed partial class BindableNodeAnalyzer
 			});
 			return;
 		}
+	}
+
+	static bool HasExplicitWithinArgument(List<ArgumentExpression> arguments)
+	{
+		foreach (ArgumentExpression argument in arguments)
+		{
+			if (argument.Value is WithinExpression { Context: not null })
+				return true;
+		}
+		return false;
 	}
 
 	static bool IsWithinArgumentAlreadySupplied(ArgumentExpression argument)
