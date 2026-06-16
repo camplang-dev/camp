@@ -1,0 +1,55 @@
+// file: callable_enum_typedef_order.c
+#include "callable_enum_typedef_order_private.h"
+
+/* Private file declarations. */
+static void invoke(void (* handler)(MyError *error));
+static void handle(MyError *error);
+static int main(void);
+
+static void invoke(void (* handler)(MyError *error))
+{
+}
+
+static void handle(MyError *error)
+{
+}
+
+static int main(void)
+{
+	invoke((fn_void_thrown_MyError_)handle);
+	return 0;
+}
+
+// file: callable_enum_typedef_order_private.h
+#ifndef CALLABLE_ENUM_TYPEDEF_ORDER_PRIVATE_H_
+#define CALLABLE_ENUM_TYPEDEF_ORDER_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+typedef enum MyError
+{
+	NONE,
+	FAIL
+} MyError;
+
+/* Newtypes. */
+typedef void (* ErrorHandler)(MyError *arg0);
+
+/* Callable typedefs. */
+typedef void (* fn_void_thrown_MyError_)(MyError *arg0);
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: callable_enum_typedef_order.c

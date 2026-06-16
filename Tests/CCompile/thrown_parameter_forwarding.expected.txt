@@ -44,14 +44,14 @@ static int main(void)
 
 /* Forward declarations. */
 
-/* Newtypes. */
-
 /* Enums. */
 typedef enum Err
 {
 	OK = 0,
 	BAD
 } Err;
+
+/* Newtypes. */
 
 /* Layouts. */
 

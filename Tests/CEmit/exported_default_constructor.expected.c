@@ -50,12 +50,12 @@ typedef struct ExportedConcrete ExportedConcrete;
 typedef struct ExportedAbstract ExportedAbstract;
 typedef struct _ExportedAbstract _ExportedAbstract;
 
+/* Enums. */
+
 /* Newtypes. */
 
 /* Callable typedefs. */
 typedef void (* fn_void_ExportedAbstractPtr_)(ExportedAbstract *arg0);
-
-/* Enums. */
 
 /* Layouts. */
 struct ExportedConcrete

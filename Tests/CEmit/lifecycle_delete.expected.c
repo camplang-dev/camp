@@ -63,9 +63,9 @@ void run(void);
 /* Forward declarations. */
 typedef struct Logger Logger;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct Logger

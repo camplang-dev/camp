@@ -65,9 +65,9 @@ static void run(void)
 typedef struct Arena Arena;
 typedef struct Box Box;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct Arena

@@ -84,14 +84,14 @@ __cleanup2: ;
 /* Forward declarations. */
 typedef struct FileHandle FileHandle;
 
-/* Newtypes. */
-
 /* Enums. */
 typedef enum IoError
 {
 	OK = 0,
 	FAILED
 } IoError;
+
+/* Newtypes. */
 
 /* Layouts. */
 struct FileHandle

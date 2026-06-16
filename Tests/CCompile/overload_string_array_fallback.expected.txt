@@ -58,9 +58,9 @@ static void run(Writer *writer)
 /* Forward declarations. */
 typedef struct Writer Writer;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct Writer

@@ -54,9 +54,9 @@ int main(void);
 /* Forward declarations. */
 typedef struct Box Box;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct Box

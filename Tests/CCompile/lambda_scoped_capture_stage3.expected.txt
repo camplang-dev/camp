@@ -81,13 +81,13 @@ typedef struct main_lambdaContext0 main_lambdaContext0;
 typedef struct main_lambdaContext1 main_lambdaContext1;
 typedef struct main_lambdaContext2 main_lambdaContext2;
 
+/* Enums. */
+
 /* Newtypes. */
 
 /* Callable typedefs. */
 typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
 typedef void (* fn_void_voidPtr_)(void *arg0);
-
-/* Enums. */
 
 /* Layouts. */
 struct main_lambdaContext0

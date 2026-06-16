@@ -66,9 +66,9 @@ static int main(void)
 /* Forward declarations. */
 typedef struct List List;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct List

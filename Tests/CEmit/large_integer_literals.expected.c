@@ -56,9 +56,9 @@ uint64_t unsignedMaxBoundary(void);
 
 /* Forward declarations. */
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 

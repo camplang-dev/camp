@@ -34,9 +34,9 @@ extern __attribute__((visibility("default"))) int exportedValue;
 
 /* Forward declarations. */
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 

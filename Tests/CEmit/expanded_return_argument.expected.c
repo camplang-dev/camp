@@ -37,9 +37,9 @@ static void takesName(const char *name, uintptr_t name_length)
 
 /* Forward declarations. */
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 

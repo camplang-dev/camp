@@ -29,9 +29,9 @@ __switch_break0: ;
 
 /* Forward declarations. */
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 

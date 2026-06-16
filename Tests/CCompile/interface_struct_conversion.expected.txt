@@ -51,12 +51,12 @@ typedef struct IValue IValue;
 typedef struct Counter Counter;
 typedef struct IValue_Indirect IValue_Indirect;
 
+/* Enums. */
+
 /* Newtypes. */
 
 /* Callable typedefs. */
 typedef int (* fn_int_IValuePtrPtr_)(IValue **arg0);
-
-/* Enums. */
 
 /* Layouts. */
 struct IValue

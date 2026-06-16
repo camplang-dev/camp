@@ -79,14 +79,14 @@ typedef struct _HeapAllocator _HeapAllocator;
 typedef struct _BaseCounter _BaseCounter;
 typedef struct _Counter _Counter;
 
+/* Enums. */
+
 /* Newtypes. */
 
 /* Callable typedefs. */
 typedef int (* fn_int_BaseCounterPtr_)(BaseCounter *arg0);
 typedef void (* fn_void_AllocatorPtr__voidPtr_)(Allocator *arg0, void *arg1);
 typedef void *(* fn_voidPtr_AllocatorPtr__nuint_)(Allocator *arg0, uintptr_t arg1);
-
-/* Enums. */
 
 /* Layouts. */
 struct Allocator

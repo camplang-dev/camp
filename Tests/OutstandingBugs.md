@@ -6,10 +6,6 @@
   be able to insert the allocator automatically, but today they must spell
   `within allocator, catch error` explicitly.
 
-- **BUG-011:** Callable typedefs are emitted before enum typedefs, so a function
-  pointer type with an enum slot such as `delegate void(thrown MyError)` can
-  reference `MyError` before the enum typedef exists. The C emitter needs either
-  enum typedefs before callable typedefs or enum-tag spelling in callable slots.
 - **BUG-012:** A call that passes an expanded delegate value followed by an
   explicit `within` argument can retain an extra generated hidden argument.
   For example, forwarding `delegate int(within Allocator*)` through a wrapper

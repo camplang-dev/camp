@@ -34,12 +34,12 @@ int main(void);
 /* Forward declarations. */
 typedef struct Sink Sink;
 
+/* Enums. */
+
 /* Newtypes. */
 
 /* Callable typedefs. */
 typedef bool (* fn_bool_voidPtr__voidPtr_)(void *arg0, void *arg1);
-
-/* Enums. */
 
 /* Layouts. */
 struct Sink

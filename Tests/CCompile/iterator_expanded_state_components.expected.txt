@@ -119,13 +119,13 @@ int main(void);
 /* Forward declarations. */
 typedef struct mapValuesIter mapValuesIter;
 
+/* Enums. */
+
 /* Newtypes. */
 
 /* Callable typedefs. */
 typedef int (* fn_int_int_)(int arg0);
 typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
-
-/* Enums. */
 
 /* Layouts. */
 struct mapValuesIter

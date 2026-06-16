@@ -77,12 +77,12 @@ typedef struct Widget Widget;
 typedef struct Handle Handle;
 typedef struct IRef_Indirect IRef_Indirect;
 
+/* Enums. */
+
 /* Newtypes. */
 
 /* Callable typedefs. */
 typedef void (* fn_void_IRefPtrPtr_)(IRef **arg0);
-
-/* Enums. */
 
 /* Layouts. */
 struct IRef

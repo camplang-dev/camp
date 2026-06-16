@@ -45,9 +45,9 @@ int main(void);
 /* Forward declarations. */
 typedef struct Processor Processor;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct Processor

@@ -38,9 +38,9 @@ void main(void);
 
 /* Forward declarations. */
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 

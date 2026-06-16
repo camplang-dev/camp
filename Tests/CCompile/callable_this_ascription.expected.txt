@@ -39,13 +39,13 @@ int main(void);
 /* Forward declarations. */
 typedef struct Date Date;
 
+/* Enums. */
+
 /* Newtypes. */
 typedef uintptr_t (* CharFormatter)(char *arg0, uintptr_t arg1);
 
 /* Callable typedefs. */
 typedef uintptr_t (* fn_nuint_voidPtr__charPtr__nuint_)(void *arg0, char *arg1, uintptr_t arg2);
-
-/* Enums. */
 
 /* Layouts. */
 struct Date

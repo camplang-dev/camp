@@ -1,0 +1,17 @@
+enum MyError { NONE, FAIL }
+
+newtype delegate void ErrorHandler(thrown MyError);
+
+void invoke(fn void(thrown MyError) handler)
+{
+}
+
+void handle(thrown MyError error)
+{
+}
+
+int main()
+{
+	invoke(handle);
+	return 0;
+}

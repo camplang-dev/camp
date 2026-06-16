@@ -50,12 +50,12 @@ static int main(void)
 
 /* Forward declarations. */
 
+/* Enums. */
+
 /* Newtypes. */
 
 /* Callable typedefs. */
 typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
-
-/* Enums. */
 
 /* Layouts. */
 

@@ -114,9 +114,9 @@ static bool valuesIter_iter(void *ctx, int *current)
 /* Forward declarations. */
 typedef struct valuesIter valuesIter;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct valuesIter

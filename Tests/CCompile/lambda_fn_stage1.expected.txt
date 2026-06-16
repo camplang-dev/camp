@@ -54,13 +54,13 @@ int main(void);
 
 /* Forward declarations. */
 
+/* Enums. */
+
 /* Newtypes. */
 typedef bool (* Predicate)(int arg0);
 
 /* Callable typedefs. */
 typedef int (* fn_int_int_)(int arg0);
-
-/* Enums. */
 
 /* Layouts. */
 

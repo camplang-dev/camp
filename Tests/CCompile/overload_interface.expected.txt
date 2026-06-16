@@ -58,13 +58,13 @@ static void ConsoleWriter_IWriter_writeString(IWriter **ctx, const char *value)
 typedef struct IWriter IWriter;
 typedef struct ConsoleWriter ConsoleWriter;
 
+/* Enums. */
+
 /* Newtypes. */
 
 /* Callable typedefs. */
 typedef void (* fn_void_IWriterPtrPtr__int_)(IWriter **arg0, int arg1);
 typedef void (* fn_void_IWriterPtrPtr__string_)(IWriter **arg0, const char *arg1);
-
-/* Enums. */
 
 /* Layouts. */
 struct IWriter

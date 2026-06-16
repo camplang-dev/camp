@@ -60,9 +60,9 @@ extern int exportedOffset;
 typedef struct InternalValue InternalValue;
 typedef struct ExportedValue ExportedValue;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct InternalValue

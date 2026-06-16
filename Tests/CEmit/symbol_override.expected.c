@@ -68,9 +68,9 @@ extern int MyLibSomeValue;
 /* Forward declarations. */
 typedef struct Control Control;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct Control

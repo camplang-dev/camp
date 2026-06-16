@@ -51,13 +51,13 @@ static int main(void)
 
 /* Forward declarations. */
 
+/* Enums. */
+
 /* Newtypes. */
 typedef void* Writer;
 
 /* Callable typedefs. */
 typedef bool (* fn_bool_voidPtr__nuintPtr__charPtr__nuint_)(void *arg0, uintptr_t *arg1, char *arg2, uintptr_t arg3);
-
-/* Enums. */
 
 /* Layouts. */
 

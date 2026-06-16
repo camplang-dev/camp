@@ -40,10 +40,10 @@ extern const Id Id_INVALID;
 typedef struct Counter Counter;
 typedef struct Holder Holder;
 
+/* Enums. */
+
 /* Newtypes. */
 typedef int Id;
-
-/* Enums. */
 
 /* Layouts. */
 struct Counter

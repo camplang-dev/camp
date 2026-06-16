@@ -51,9 +51,9 @@ int main(void);
 /* Forward declarations. */
 typedef struct Console Console;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct Console

@@ -81,9 +81,9 @@ static bool loopRangeIter_iter(void *ctx, int *current)
 /* Forward declarations. */
 typedef struct loopRangeIter loopRangeIter;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct loopRangeIter

@@ -279,13 +279,13 @@ typedef struct rangeIter rangeIter;
 typedef struct applyPredicateIter applyPredicateIter;
 typedef struct applyPredicateExplicitIter applyPredicateExplicitIter;
 
+/* Enums. */
+
 /* Newtypes. */
 
 /* Callable typedefs. */
 typedef bool (* fn_bool_int_)(int arg0);
 typedef bool (* fn_bool_voidPtr__intPtr_)(void *arg0, int *arg1);
-
-/* Enums. */
 
 /* Layouts. */
 struct rangeIter

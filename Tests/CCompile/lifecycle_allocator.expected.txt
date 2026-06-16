@@ -117,9 +117,9 @@ typedef struct Allocator Allocator;
 typedef struct Buffer Buffer;
 typedef struct Holder Holder;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct Allocator

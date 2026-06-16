@@ -70,14 +70,14 @@ int main(void);
 
 /* Forward declarations. */
 
+/* Enums. */
+
 /* Newtypes. */
 typedef bool (* Predicate)(int arg0);
 
 /* Callable typedefs. */
 typedef bool (* fn_bool_voidPtr__int_)(void *arg0, int arg1);
 typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
-
-/* Enums. */
 
 /* Layouts. */
 

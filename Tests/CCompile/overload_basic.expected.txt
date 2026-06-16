@@ -44,9 +44,9 @@ static int main(void)
 /* Forward declarations. */
 typedef struct Writer Writer;
 
-/* Newtypes. */
-
 /* Enums. */
+
+/* Newtypes. */
 
 /* Layouts. */
 struct Writer

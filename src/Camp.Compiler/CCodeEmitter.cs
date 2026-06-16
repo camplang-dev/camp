@@ -490,6 +490,12 @@ public static class CCodeEmitter
 					WriteTypeForwardDeclaration(writer, type);
 			});
 
+			WriteSection(writer, "Enums", () =>
+			{
+				foreach (EnumDefinition enumDefinition in definitions.OfType<EnumDefinition>())
+					WriteEnumDefinition(writer, enumDefinition);
+			});
+
 			WriteSection(writer, "Newtypes", () =>
 			{
 				foreach (NewtypeDefinition newtype in definitions.OfType<NewtypeDefinition>())
@@ -505,12 +511,6 @@ public static class CCodeEmitter
 						WriteCallableAliasTypedef(writer, callableType);
 				});
 			}
-
-			WriteSection(writer, "Enums", () =>
-			{
-				foreach (EnumDefinition enumDefinition in definitions.OfType<EnumDefinition>())
-					WriteEnumDefinition(writer, enumDefinition);
-			});
 
 			WriteSection(writer, "Layouts", () =>
 			{

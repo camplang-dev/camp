@@ -113,6 +113,8 @@ static int main(void)
 
 /* Forward declarations. */
 
+/* Enums. */
+
 /* Newtypes. */
 
 /* Callable typedefs. */
@@ -120,8 +122,6 @@ typedef int (* fn_int_int__int_)(int *arg0, int *arg1);
 typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void *arg0, void *arg1, void *arg2);
 typedef void (* fn_void_int_)(int *arg0);
 typedef void (* fn_void_voidPtr__voidPtr_)(void *arg0, void *arg1);
-
-/* Enums. */
 
 /* Layouts. */
 
