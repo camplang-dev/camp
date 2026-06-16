@@ -1934,12 +1934,12 @@ public static class CCodeEmitter
 				if (declaration.InitialValue is DefaultExpression)
 				{
 					WriteIndent(writer, indent);
-					writer.WriteLine("__builtin_memset(" + name + ", 0, " + size + ");");
+					writer.WriteLine(FormatMemoryCall("memset", name, "0", size) + ";");
 				}
 				else if (declaration.InitialValue is not null)
 				{
 					WriteIndent(writer, indent);
-					writer.WriteLine("__builtin_memcpy(" + name + ", " + FormatGenericStorageSource(declaration.InitialValue) + ", " + size + ");");
+					writer.WriteLine(FormatMemoryCall("memcpy", name, FormatGenericStorageSource(declaration.InitialValue), size) + ";");
 				}
 				return;
 			}
@@ -1955,6 +1955,12 @@ public static class CCodeEmitter
 		{
 			string alloca = compilation.Target?.GetCEmitterValue("alloca", "__builtin_alloca") ?? "__builtin_alloca";
 			return alloca + "(" + size + ")";
+		}
+
+		string FormatMemoryCall(string operation, params string[] arguments)
+		{
+			string functionName = compilation.Target?.GetCEmitterValue(operation, "__builtin_" + operation) ?? "__builtin_" + operation;
+			return functionName + "(" + string.Join(", ", arguments) + ")";
 		}
 
 		void WriteIfStatement(TextWriter writer, IfStatement ifStatement, int indent)
@@ -2314,15 +2320,15 @@ public static class CCodeEmitter
 			{
 				string size = FormatGenericSizeExpression(genericType);
 				if (assignment.Value is DefaultExpression)
-					return "__builtin_memset(" + destination + ", 0, " + size + ")";
-				return "__builtin_memmove(" + destination + ", " + FormatGenericStorageSource(assignment.Value) + ", " + size + ")";
+					return FormatMemoryCall("memset", destination, "0", size);
+				return FormatMemoryCall("memmove", destination, FormatGenericStorageSource(assignment.Value), size);
 			}
 			if (assignment.Operator == AssignmentOperator.Assign
 				&& assignment.Target is VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.Out } parameter }
 				&& IsAnyGenericParameterType(parameter.ResolvedType))
 			{
 				string size = FormatGenericSizeExpression(parameter.ResolvedType);
-				return "__builtin_memcpy(" + CName(parameter) + ", " + FormatGenericStorageSource(assignment.Value) + ", " + size + ")";
+				return FormatMemoryCall("memcpy", CName(parameter), FormatGenericStorageSource(assignment.Value), size);
 			}
 			string value = FormatExpression(assignment.Value);
 			if (assignment.Operator == AssignmentOperator.Assign

@@ -110,7 +110,7 @@ export class FileHandle
 	bool writable;
 	bool endOfFile;
 	
-	~FileHandle()
+	export ~FileHandle()
 	{
 		if (this.handle >= 0)
 		{

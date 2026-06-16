@@ -177,8 +177,7 @@ public static class NativeBuildDriver
 		};
 		if (OperatingSystem.IsWindows())
 		{
-			info.ArgumentList.Add("/C");
-			info.ArgumentList.Add(command);
+			info.Arguments = "/S /C \"" + command + "\"";
 		}
 		else
 		{

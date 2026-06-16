@@ -441,7 +441,12 @@ public sealed class BindableNodeCodeSerializer
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
 		WriteCallSpec(definition.CallSpec);
-		if (definition.Modifier == FunctionModifier.Constructor)
+		if (apiHeader && definition.Modifier == FunctionModifier.Destructor)
+		{
+			WriteTypeOrResolved(definition.ReturnType, definition.ResolvedType);
+			writer.Write(" op_delete");
+		}
+		else if (definition.Modifier == FunctionModifier.Constructor)
 		{
 			writer.Write(definition.Name);
 		}

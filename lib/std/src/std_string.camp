@@ -2,15 +2,15 @@ export as Std;
 
 extern nint utf8ncmp(const char* src1, const char* src2, nuint len);
 extern nint utf8ncasecmp(const char* src1, const char* src2, nuint len);
-extern nuint utf8nlen(const char* src, nuint len);
-extern nuint utf8size_lazy(const char* src);
+extern nuint camp_utf8nlen(const char* src, nuint len);
+extern nuint camp_utf8size_lazy(const char* src);
 extern nuint utf8nsize_lazy(const char* src, nuint len);
 extern const char* utf8codepoint(const char* src, out uchar codepoint);
 extern nuint utf8codepointcalcsize(const char* src);
 extern char* utf8ncpy(char* dst, const char* src, nuint len);
-extern char* utf8cat(char* dst, const char* src);
-extern void utf8upr(char* src);
-extern void utf8lwr(char* src);
+extern char* camp_utf8cat(char* dst, const char* src);
+extern void camp_utf8upr(char* src);
+extern void camp_utf8lwr(char* src);
 extern uchar utf8lwrcodepoint(uchar codepoint);
 
 extern const char* camp_utf8nstr(const char* haystack, nuint haystackLen, const char* needle, nuint needleLen);
@@ -136,7 +136,7 @@ export nint compareTo(const char[] this, const char[] other, bool caseInsensitiv
 // Returns the number of UTF-8 code points in a string
 export nuint countChars(const char[] this)
 {
-	return utf8nlen(this.elements, this.length);
+	return camp_utf8nlen(this.elements, this.length);
 }
 
 // Returns a single code pointer of a UTF-8 string, starting at a code unit number (NOT a byte index)
@@ -188,7 +188,7 @@ export string uppercaseCopy(const char[] this, within allocator)
 	char* buffer = copySpan(this.elements, this.length, allocator);
 	if (buffer == null)
 		return null;
-	utf8upr(buffer);
+	camp_utf8upr(buffer);
 	return (string)buffer;
 }
 
@@ -197,7 +197,7 @@ export string lowercaseCopy(const char[] this, within allocator)
 	char* buffer = copySpan(this.elements, this.length, allocator);
 	if (buffer == null)
 		return null;
-	utf8lwr(buffer);
+	camp_utf8lwr(buffer);
 	return (string)buffer;
 }
 
@@ -216,7 +216,7 @@ export string concatCopy(string[] this, within allocator)
 	buffer[0] = 0;
 
 	for (nuint j = 0; j < this.length; j++)
-		utf8cat(buffer, this[j]);
+		camp_utf8cat(buffer, this[j]);
 	return (string)buffer;
 }
 
@@ -239,14 +239,14 @@ export string joinCopy(string[] this, const char[] separator, within allocator)
 	{
 		if (j > 0)
 			appendSpan(buffer, separator);
-		utf8cat(buffer, this[j]);
+		camp_utf8cat(buffer, this[j]);
 	}
 	return (string)buffer;
 }
 
 export nuint getLength(string this)
 {
-	return utf8size_lazy(this);
+	return camp_utf8size_lazy(this);
 }
 
 nint byteOffsetOf(const char* start, const char* target)
