@@ -6,10 +6,6 @@
   be able to insert the allocator automatically, but today they must spell
   `within allocator, catch error` explicitly.
 
-- **BUG-009:** Taking the address of an erased generic array element can emit
-  C like `&items[index]` against a `void*` backing pointer instead of byte
-  offsetting by `index * sizeof(T)`. `List<T>.getAddressOf` currently performs
-  the byte arithmetic explicitly.
 - **BUG-010:** Iterator state fields that store expanded params values are not
   fully materialized in emitted C. A generator local such as
   `delegate int(int) map = ...` can emit a raw initializer for a delegate field,

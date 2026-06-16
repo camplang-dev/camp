@@ -1,0 +1,72 @@
+// file: generic_array_address_of.c
+#include "generic_array_address_of_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void *getAddressOf(void *items, uintptr_t items_length, uintptr_t index, uintptr_t sizeof_T);
+static const void *getAddressOfConst(const void *items, uintptr_t items_length, uintptr_t index, uintptr_t sizeof_T);
+static void acceptIn(void *value, uintptr_t sizeof_T);
+static void passInArg(void *items, uintptr_t items_length, uintptr_t index, uintptr_t sizeof_T);
+static void writeTo(void *items, uintptr_t items_length, uintptr_t index, void *value, uintptr_t sizeof_T);
+static int main(void);
+
+static void *getAddressOf(void *items, uintptr_t items_length, uintptr_t index, uintptr_t sizeof_T)
+{
+	return ((uint8_t*)items) + (index * sizeof_T);
+}
+
+static const void *getAddressOfConst(const void *items, uintptr_t items_length, uintptr_t index, uintptr_t sizeof_T)
+{
+	return ((const uint8_t*)items) + (index * sizeof_T);
+}
+
+static void acceptIn(void *value, uintptr_t sizeof_T)
+{
+}
+
+static void passInArg(void *items, uintptr_t items_length, uintptr_t index, uintptr_t sizeof_T)
+{
+	acceptIn((void*)(((uint8_t*)items) + (index * sizeof_T)), sizeof_T);
+}
+
+static void writeTo(void *items, uintptr_t items_length, uintptr_t index, void *value, uintptr_t sizeof_T)
+{
+	__builtin_memmove((void*)(((uint8_t*)items) + (index * sizeof_T)), value, sizeof_T);
+}
+
+static int main(void)
+{
+	int *arr = (int []){10, 20, 30};
+	uintptr_t arr_length = 3;
+	int *p = getAddressOf(arr, arr_length, 1, sizeof(int));
+	const int *cp = getAddressOfConst(arr, arr_length, 2, sizeof(int));
+	passInArg(arr, arr_length, 0, sizeof(int));
+	writeTo(arr, arr_length, 0, &(int){*p}, sizeof(int));
+	return (((int)((*p)) + (int)((*cp))) - 50);
+}
+
+// file: generic_array_address_of_private.h
+#ifndef GENERIC_ARRAY_ADDRESS_OF_PRIVATE_H_
+#define GENERIC_ARRAY_ADDRESS_OF_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generic_array_address_of.c

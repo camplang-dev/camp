@@ -2581,13 +2581,26 @@ public static class CCodeEmitter
 				&& IsAnyGenericParameterType(StripTypeDecorators(elementType))
 				&& index.Arguments.Count == 1)
 			{
-				string target = FormatExpression(index.Target);
-				string offset = FormatArgumentValue(index.Arguments[0]) + " * " + FormatGenericSizeExpression(elementType);
-				string bytePointer = ElementTypeIsConst(elementType) ? "const uint8_t*" : "uint8_t*";
-				value = "(void*)(((" + bytePointer + ")" + target + ") + (" + offset + "))";
+				value = "(void*)(" + FormatGenericArrayElementBytePointer(index, elementType) + ")";
 				return true;
 			}
 			return false;
+		}
+
+		string FormatGenericArrayElementBytePointer(IndexExpression index, string elementType)
+		{
+			string target = FormatExpression(index.Target);
+			string offset = FormatArgumentValue(index.Arguments[0]) + " * " + FormatGenericSizeExpression(elementType);
+			string bytePointer = ElementTypeIsConst(elementType) ? "const uint8_t*" : "uint8_t*";
+			return "((" + bytePointer + ")" + target + ") + (" + offset + ")";
+		}
+
+		bool IsGenericArrayElementIndex(IndexExpression index)
+		{
+			string? arrayType = index.Target?.ResolvedType;
+			return (TryGetArrayElementType(arrayType, out string elementType) || TryGetPointerElementType(arrayType, out elementType))
+				&& IsAnyGenericParameterType(StripTypeDecorators(elementType))
+				&& index.Arguments.Count == 1;
 		}
 
 		static bool ElementTypeIsConst(string type)
@@ -3156,6 +3169,16 @@ public static class CCodeEmitter
 				&& unary.Operand is VariableReferenceExpression { Variable: DeclarationTarget target }
 				&& IsAnyGenericParameterType(target.ResolvedType))
 				return CName(target);
+			if (unary.Operator == UnaryOperator.AddressOf
+				&& unary.Operand is IndexExpression addressIndex
+				&& IsGenericArrayElementIndex(addressIndex))
+			{
+				string? arrayType = addressIndex.Target?.ResolvedType;
+				TryGetArrayElementType(arrayType, out string elementType);
+				if (string.IsNullOrWhiteSpace(elementType))
+					TryGetPointerElementType(arrayType, out elementType);
+				return FormatGenericArrayElementBytePointer(addressIndex, elementType);
+			}
 
 			string operand = FormatExpression(unary.Operand);
 			return unary.Operator switch

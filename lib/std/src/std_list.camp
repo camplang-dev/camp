@@ -29,15 +29,7 @@ export class List<T: any>
 		if (at >= this.length)
 			return null;
 
-		return this.getBufferAddress(at);
-	}
-
-	T* getBufferAddress(@index nuint at)
-	{
-		if (at >= this.items.length)
-			return null;
-
-		return (T*)&((byte*)this.items.elements)[at * sizeof(T)];
+		return &this.items[at];
 	}
 
 	// Adds or inserts a single item.
