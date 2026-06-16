@@ -11,7 +11,7 @@ static void ConsoleWriter_IWriter_writeString(IWriter **ctx, const char *value);
 static const IWriter ConsoleWriter_IWriter__storage;
 static const IWriter *ConsoleWriter_IWriter;
 
-static const IWriter ConsoleWriter_IWriter__storage = (IWriter){ .writeInt = ConsoleWriter_IWriter_writeInt, .writeString = ConsoleWriter_IWriter_writeString };
+static const IWriter ConsoleWriter_IWriter__storage = { .writeInt = ConsoleWriter_IWriter_writeInt, .writeString = ConsoleWriter_IWriter_writeString };
 static const IWriter *ConsoleWriter_IWriter = &ConsoleWriter_IWriter__storage;
 static void ConsoleWriter_writeInt(ConsoleWriter *this, int value)
 {

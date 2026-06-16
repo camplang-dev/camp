@@ -9,7 +9,7 @@ static int Counter_IValue_value(IValue **ctx);
 static const IValue Counter_IValue__storage;
 static const IValue *Counter_IValue;
 
-static const IValue Counter_IValue__storage = (IValue){ .value = Counter_IValue_value };
+static const IValue Counter_IValue__storage = { .value = Counter_IValue_value };
 static const IValue *Counter_IValue = &Counter_IValue__storage;
 static int Counter_value(Counter *this)
 {

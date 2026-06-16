@@ -2,15 +2,15 @@ export as Std;
 
 extern nint utf16ncmp(const wchar* src1, const wchar* src2, nuint len);
 extern nint utf16ncasecmp(const wchar* src1, const wchar* src2, nuint len);
-extern nuint utf16nlen(const wchar* src, nuint len);
-extern nuint utf16size_lazy(const wchar* src);
-extern nuint utf16nsize_lazy(const wchar* src, nuint len);
+extern nuint camp_utf16nlen(const wchar* src, nuint len);
+extern nuint camp_utf16size_lazy(const wchar* src);
+extern nuint camp_utf16nsize_lazy(const wchar* src, nuint len);
 extern const wchar* utf16codepoint(const wchar* src, out uchar codepoint);
 extern nuint utf16codepointcalcsize(const wchar* src);
-extern wchar* utf16ncpy(wchar* dst, const wchar* src, nuint len);
-extern wchar* utf16cat(wchar* dst, const wchar* src);
-extern void utf16upr(wchar* src);
-extern void utf16lwr(wchar* src);
+extern wchar* camp_utf16ncpy(wchar* dst, const wchar* src, nuint len);
+extern wchar* camp_utf16cat(wchar* dst, const wchar* src);
+extern void camp_utf16upr(wchar* src);
+extern void camp_utf16lwr(wchar* src);
 extern uchar utf16lwrcodepoint(uchar codepoint);
 
 extern const wchar* camp_utf16nstr(const wchar* haystack, nuint haystackLen, const wchar* needle, nuint needleLen);
@@ -134,7 +134,7 @@ export nint compareTo(const wchar[] this, const wchar[] other, bool caseInsensit
 
 export nuint countChars(const wchar[] this)
 {
-	return utf16nlen(this.elements, this.length);
+	return camp_utf16nlen(this.elements, this.length);
 }
 
 export uchar getChar(const wchar[] this, @index nuint unit)
@@ -182,7 +182,7 @@ export wstring uppercaseCopy(const wchar[] this, within allocator)
 	wchar* buffer = wstringCopySpan(this.elements, this.length, allocator);
 	if (buffer == null)
 		return null;
-	utf16upr(buffer);
+	camp_utf16upr(buffer);
 	return (wstring)buffer;
 }
 
@@ -191,7 +191,7 @@ export wstring lowercaseCopy(const wchar[] this, within allocator)
 	wchar* buffer = wstringCopySpan(this.elements, this.length, allocator);
 	if (buffer == null)
 		return null;
-	utf16lwr(buffer);
+	camp_utf16lwr(buffer);
 	return (wstring)buffer;
 }
 
@@ -207,7 +207,7 @@ export wstring concatCopy(wstring[] this, within allocator)
 	buffer[0] = (wchar)0;
 
 	for (nuint j = 0; j < this.length; j++)
-		utf16cat(buffer, this[j]);
+		camp_utf16cat(buffer, this[j]);
 	return (wstring)buffer;
 }
 
@@ -230,14 +230,14 @@ export wstring joinCopy(wstring[] this, const wchar[] separator, within allocato
 	{
 		if (j > 0)
 			wstringAppendSpan(buffer, separator);
-		utf16cat(buffer, this[j]);
+		camp_utf16cat(buffer, this[j]);
 	}
 	return (wstring)buffer;
 }
 
 export nuint getLength(wstring this)
 {
-	return utf16size_lazy(this);
+	return camp_utf16size_lazy(this);
 }
 
 nint wstringOffsetOf(const wchar* start, const wchar* target)
@@ -277,7 +277,7 @@ nuint wstringTrimEndIndex(const wchar* value, nuint valueLength, nuint start)
 
 nuint wstringLogicalLength(const wchar* value, nuint valueLength)
 {
-	return utf16nsize_lazy(value, valueLength);
+	return camp_utf16nsize_lazy(value, valueLength);
 }
 
 nuint wstringMin(nuint left, nuint right)
@@ -299,7 +299,7 @@ wchar* wstringCopySpan(const wchar* value, nuint valueLength, Allocator* allocat
 	wchar* buffer = wstringAllocateString(length + 1, allocator);
 	if (buffer == null)
 		return null;
-	utf16ncpy(buffer, value, length);
+	camp_utf16ncpy(buffer, value, length);
 	buffer[length] = (wchar)0;
 	return buffer;
 }

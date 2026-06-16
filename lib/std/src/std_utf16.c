@@ -25,6 +25,41 @@ static size_t camp_utf16_advance(const utf16_int16_t *text, size_t remaining)
 	return size;
 }
 
+size_t camp_utf16nlen(const utf16_int16_t *src, size_t len)
+{
+	return utf16nlen(src, len);
+}
+
+size_t camp_utf16size_lazy(const utf16_int16_t *src)
+{
+	return utf16size_lazy(src);
+}
+
+size_t camp_utf16nsize_lazy(const utf16_int16_t *src, size_t len)
+{
+	return utf16nsize_lazy(src, len);
+}
+
+utf16_int16_t *camp_utf16ncpy(utf16_int16_t *dst, const utf16_int16_t *src, size_t len)
+{
+	return utf16ncpy(dst, src, len);
+}
+
+utf16_int16_t *camp_utf16cat(utf16_int16_t *dst, const utf16_int16_t *src)
+{
+	return utf16cat(dst, src);
+}
+
+void camp_utf16upr(utf16_int16_t *src)
+{
+	utf16upr(src);
+}
+
+void camp_utf16lwr(utf16_int16_t *src)
+{
+	utf16lwr(src);
+}
+
 const utf16_int16_t *camp_utf16nstr(
 	const utf16_int16_t *haystack,
 	size_t haystack_len,

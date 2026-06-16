@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Camp.Compiler;
 
@@ -167,6 +168,7 @@ public static class NativeBuildDriver
 
 	static bool RunCommand(string command, string workingDirectory, NativeBuildResult result)
 	{
+		const int timeoutMilliseconds = 30000;
 		ProcessStartInfo info = new()
 		{
 			FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/sh",
@@ -197,9 +199,22 @@ public static class NativeBuildDriver
 			return false;
 		}
 
-		string stdout = process.StandardOutput.ReadToEnd();
-		string stderr = process.StandardError.ReadToEnd();
-		process.WaitForExit();
+		Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+		Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+		if (!process.WaitForExit(timeoutMilliseconds))
+		{
+			try
+			{
+				process.Kill(entireProcessTree: true);
+			}
+			catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+			{
+			}
+			result.Diagnostics.Add($"Native build command timed out after {timeoutMilliseconds} ms: {command}");
+			return false;
+		}
+		string stdout = stdoutTask.GetAwaiter().GetResult();
+		string stderr = stderrTask.GetAwaiter().GetResult();
 		if (process.ExitCode == 0)
 			return true;
 

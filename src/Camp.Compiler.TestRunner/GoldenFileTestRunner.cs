@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Camp.Compiler;
 using Xunit;
 
@@ -14,6 +15,8 @@ public static class GoldenFileTestRunner
 	public static void Run(GoldenFileTestCase testCase)
 	{
 		ArgumentNullException.ThrowIfNull(testCase);
+		if (testCase.Kind == GoldenFileTestKind.StdRun && OperatingSystem.IsWindows() && !MsvcAvailable())
+			Assert.Skip("StdRun executable golden tests require MSVC tools on Windows.");
 
 		CompilerResult result = CompilerDriver.Execute(CreateRequest(testCase));
 		string actual = Normalize(SelectOutput(testCase, result));
@@ -61,6 +64,7 @@ public static class GoldenFileTestRunner
 				? Path.Combine(GetBuildDirectory(testCase), "packages")
 				: Path.Combine(testCase.RepositoryRoot, "tmp", "golden-packages"),
 			WorkingDirectory = testCase.RepositoryRoot,
+			TargetName = SelectTargetName(testCase.Kind),
 			NoStdLib = testCase.Kind is not (GoldenFileTestKind.Std or GoldenFileTestKind.StdRun),
 			BuildDir = GetBuildDirectory(testCase),
 			OutDir = testCase.Kind == GoldenFileTestKind.StdRun ? Path.Combine(GetBuildDirectory(testCase), "out") : null,
@@ -82,6 +86,13 @@ public static class GoldenFileTestRunner
 		ApplyCaseOptions(testCase, request);
 		request.Files.Add(Path.GetRelativePath(testCase.RepositoryRoot, testCase.CasePath));
 		return request;
+	}
+
+	static string SelectTargetName(GoldenFileTestKind kind)
+	{
+		if (kind == GoldenFileTestKind.StdRun && OperatingSystem.IsWindows())
+			return "msvc-windows-x86";
+		return "clang-macos-x64";
 	}
 
 	static void ApplyCaseOptions(GoldenFileTestCase testCase, CompilerRequest request)
@@ -204,6 +215,7 @@ public static class GoldenFileTestRunner
 
 	static ProcessResult RunProcess(string executable, IReadOnlyList<string> arguments, string workingDirectory)
 	{
+		const int timeoutMilliseconds = 30000;
 		ProcessStartInfo startInfo = new(executable)
 		{
 			WorkingDirectory = workingDirectory,
@@ -217,9 +229,21 @@ public static class GoldenFileTestRunner
 		try
 		{
 			using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException($"Could not start '{executable}'.");
-			string stdout = process.StandardOutput.ReadToEnd();
-			string stderr = process.StandardError.ReadToEnd();
-			process.WaitForExit();
+			Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+			Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+			if (!process.WaitForExit(timeoutMilliseconds))
+			{
+				try
+				{
+					process.Kill(entireProcessTree: true);
+				}
+				catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+				{
+				}
+				return new ProcessResult(124, "", $"Process timed out after {timeoutMilliseconds} ms: {executable}" + Environment.NewLine);
+			}
+			string stdout = stdoutTask.GetAwaiter().GetResult();
+			string stderr = stderrTask.GetAwaiter().GetResult();
 			return new ProcessResult(process.ExitCode, stdout, stderr);
 		}
 		catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
@@ -264,6 +288,29 @@ public static class GoldenFileTestRunner
 		if (text.Length > 0 && !text.EndsWith('\n'))
 			text += "\n";
 		return text;
+	}
+
+	static bool MsvcAvailable()
+	{
+		return ToolAvailable("cl") && ToolAvailable("lib");
+	}
+
+	static bool ToolAvailable(string tool)
+	{
+		string[] extensions = (Environment.GetEnvironmentVariable("PATHEXT") ?? ".COM;.EXE;.BAT;.CMD")
+			.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+		foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+		{
+			string trimmed = directory.Trim();
+			if (File.Exists(Path.Combine(trimmed, tool)))
+				return true;
+			foreach (string extension in extensions)
+			{
+				if (File.Exists(Path.Combine(trimmed, tool + extension)))
+					return true;
+			}
+		}
+		return false;
 	}
 
 	readonly record struct ProcessResult(int ExitCode, string StdOut, string StdErr);

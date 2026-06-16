@@ -265,7 +265,8 @@ public static class CompilerDriver
 		{
 			string root = Path.GetFullPath(request.WorkingDirectory);
 			string relative = Path.GetRelativePath(root, fullPath);
-			return relative.StartsWith("..", StringComparison.Ordinal) ? fullPath : relative;
+			string display = relative.StartsWith("..", StringComparison.Ordinal) ? fullPath : relative;
+			return display.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
 		}
 
 		bool TryPreparePackage(RuntimeContext context, string packageName, bool requireNativeLibrary, out string? apiHeaderPath, out string? libraryPath)

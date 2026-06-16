@@ -1,0 +1,243 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Camp.Compiler;
+using Xunit;
+
+namespace Camp.Compiler.Tests;
+
+public sealed class MsvcCompileTests
+{
+	[Fact]
+	[Trait("Category", "MsvcCompile")]
+	public void Hello_executable_runs()
+	{
+		if (!MsvcAvailable())
+			Assert.Skip("MSVC tools are not available on PATH.");
+		string source = WriteCase("hello", """
+			using Std;
+
+			export int main()
+			{
+				Console.writeLine("Hello from MSVC test");
+				return 0;
+			}
+			""");
+
+		CompilerResult result = Compile(source, NativeBuildKind.Exec);
+		AssertSuccess(result);
+		ProcessResult run = Run(FindArtifact(result, ".exe"));
+		Assert.Equal(0, run.ExitCode);
+		Assert.Contains("Hello from MSVC test", run.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Category", "MsvcCompile")]
+	public void Std_file_and_time_smoke_runs()
+	{
+		if (!MsvcAvailable())
+			Assert.Skip("MSVC tools are not available on PATH.");
+		string source = WriteCase("std_file_time", """
+			using Std;
+			using Std::Time;
+
+			export int main()
+			{
+				IoError error = default;
+				FileOptions options = default;
+				FileHandle* writer = FileHandle.open("tmp/msvc-test-file.txt", FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
+				if (error != default || writer == null)
+					return 1;
+				const byte[] bytes = [(byte)'o', (byte)'k'];
+				writer.write(bytes, catch error);
+				if (error != default)
+					return 2;
+				delete writer;
+
+				FileHandle* reader = FileHandle.open("tmp/msvc-test-file.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
+				if (error != default || reader == null)
+					return 3;
+				if (reader.getLength(catch error) != 2 || error != default)
+					return 4;
+				delete reader;
+
+				Instant now = Instant.utcNow();
+				string text = now.format.copyString() finally delete;
+				if (text.Length == 0)
+					return 5;
+				return 0;
+			}
+			""");
+
+		CompilerResult result = Compile(source, NativeBuildKind.Exec);
+		AssertSuccess(result);
+		ProcessResult run = Run(FindArtifact(result, ".exe"));
+		Assert.Equal(0, run.ExitCode);
+	}
+
+	[Fact]
+	[Trait("Category", "MsvcCompile")]
+	public void Static_and_shared_libraries_build()
+	{
+		if (!MsvcAvailable())
+			Assert.Skip("MSVC tools are not available on PATH.");
+		string source = WriteCase("library", """
+			export int add(int a, int b) => a + b;
+			public int helper(int x) => x;
+			""");
+
+		CompilerResult staticResult = Compile(source, NativeBuildKind.Static, "library-static");
+		AssertSuccess(staticResult);
+		Assert.EndsWith(".lib", FindArtifact(staticResult, ".lib"), StringComparison.OrdinalIgnoreCase);
+
+		CompilerResult sharedResult = Compile(source, NativeBuildKind.Shared, "library-shared");
+		AssertSuccess(sharedResult);
+		Assert.EndsWith(".dll", FindArtifact(sharedResult, ".dll"), StringComparison.OrdinalIgnoreCase);
+		string header = File.ReadAllText(Path.Combine(GetCaseRoot("library-shared"), "build", "library.h"));
+		Assert.Contains("__declspec(dllexport) int32_t add", header, StringComparison.Ordinal);
+		Assert.DoesNotContain("__declspec(dllexport) int32_t helper", header, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Category", "MsvcCompile")]
+	public void Calling_conventions_build_in_valid_msvc_positions()
+	{
+		if (!MsvcAvailable())
+			Assert.Skip("MSVC tools are not available on PATH.");
+		string source = WriteCase("callspec", """
+			export newtype fn _stdcall int Callback(int value);
+
+			export _stdcall int exportedCall(int value)
+			{
+				return value + 1;
+			}
+
+			export int callCallback(Callback callback, int value)
+			{
+				return callback(value);
+			}
+			""");
+
+		CompilerResult result = Compile(source, NativeBuildKind.Shared);
+		AssertSuccess(result);
+		string privateHeader = File.ReadAllText(Path.Combine(GetCaseRoot("callspec"), "build", "callspec_private.h"));
+		Assert.Contains("typedef int32_t (* __stdcall Callback)(int32_t arg0);", privateHeader, StringComparison.Ordinal);
+		Assert.Contains("int32_t __stdcall exportedCall", privateHeader, StringComparison.Ordinal);
+	}
+
+	static bool MsvcAvailable()
+	{
+		return OperatingSystem.IsWindows() && ToolAvailable("cl") && ToolAvailable("lib");
+	}
+
+	static bool ToolAvailable(string tool)
+	{
+		string[] extensions = (Environment.GetEnvironmentVariable("PATHEXT") ?? ".COM;.EXE;.BAT;.CMD")
+			.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+		foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+		{
+			string trimmed = directory.Trim();
+			if (File.Exists(Path.Combine(trimmed, tool)))
+				return true;
+			foreach (string extension in extensions)
+			{
+				if (File.Exists(Path.Combine(trimmed, tool + extension)))
+					return true;
+			}
+		}
+		return false;
+	}
+
+	static CompilerResult Compile(string source, NativeBuildKind kind, string? caseName = null)
+	{
+		string repositoryRoot = FindRepositoryRoot();
+		string name = caseName ?? Path.GetFileNameWithoutExtension(source);
+		string root = GetCaseRoot(name);
+		CompilerRequest request = new()
+		{
+			RuntimeRoot = Path.Combine(repositoryRoot, "bin"),
+			TargetRoot = Path.Combine(repositoryRoot, "targets"),
+			PackageSourceRoot = Path.Combine(repositoryRoot, "lib"),
+			PackageArtifactRoot = Path.Combine(repositoryRoot, "tmp", "msvc-tests", "packages"),
+			WorkingDirectory = repositoryRoot,
+			TargetName = "msvc-windows-x86",
+			BuildKind = kind,
+			BuildDir = Path.Combine(root, "build"),
+			OutDir = Path.Combine(root, "out")
+		};
+		request.Files.Add(source);
+		return CompilerDriver.Execute(request);
+	}
+
+	static string WriteCase(string name, string text)
+	{
+		string root = GetCaseRoot(name);
+		Directory.CreateDirectory(root);
+		string path = Path.Combine(root, name + ".camp");
+		File.WriteAllText(path, text.Replace("\r\n", "\n", StringComparison.Ordinal));
+		return path;
+	}
+
+	static string GetCaseRoot(string name)
+	{
+		return Path.Combine(FindRepositoryRoot(), "tmp", "msvc-tests", name);
+	}
+
+	static string FindArtifact(CompilerResult result, string extension)
+	{
+		string? artifact = result.GeneratedFiles.FirstOrDefault(path => Path.GetExtension(path).Equals(extension, StringComparison.OrdinalIgnoreCase));
+		Assert.False(string.IsNullOrWhiteSpace(artifact), "Expected generated artifact with extension " + extension + ".");
+		return artifact!;
+	}
+
+	static void AssertSuccess(CompilerResult result)
+	{
+		Assert.Equal(0, result.ExitCode);
+		Assert.True(string.IsNullOrWhiteSpace(result.StdErr), result.StdErr);
+	}
+
+	static ProcessResult Run(string executable)
+	{
+		ProcessStartInfo startInfo = new(executable)
+		{
+			WorkingDirectory = FindRepositoryRoot(),
+			UseShellExecute = false,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true
+		};
+		using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException("Could not start " + executable);
+		Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+		Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+		if (!process.WaitForExit(10000))
+		{
+			try
+			{
+				process.Kill(entireProcessTree: true);
+			}
+			catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+			{
+			}
+			Assert.Fail("Process timed out: " + executable);
+		}
+		string stdout = stdoutTask.GetAwaiter().GetResult();
+		string stderr = stderrTask.GetAwaiter().GetResult();
+		return new ProcessResult(process.ExitCode, stdout, stderr);
+	}
+
+	static string FindRepositoryRoot()
+	{
+		DirectoryInfo? directory = new(AppContext.BaseDirectory);
+		while (directory is not null)
+		{
+			if (File.Exists(Path.Combine(directory.FullName, "src", "camplang.sln")))
+				return directory.FullName;
+			directory = directory.Parent;
+		}
+		throw new InvalidOperationException("Could not find repository root containing src/camplang.sln.");
+	}
+
+	readonly record struct ProcessResult(int ExitCode, string StdOut, string StdErr);
+}

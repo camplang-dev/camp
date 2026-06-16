@@ -5,7 +5,7 @@
 void *malloc(uintptr_t size);
 static _ExportedAbstract _ExportedAbstract__vt;
 
-static _ExportedAbstract _ExportedAbstract__vt = (_ExportedAbstract){ .use = NULL };
+static _ExportedAbstract _ExportedAbstract__vt = { .use = NULL };
 void ExportedConcrete_op_initnew(ExportedConcrete *this)
 {
 }
