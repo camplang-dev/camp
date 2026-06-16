@@ -5,9 +5,14 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
-	static string BuildCallableType(string kind, string returnType, List<string> parameters)
+	static string BuildCallableType(string kind, string returnType, List<string> parameters, string? targetSpec = null, string? callSpec = null)
 	{
-		return $"{kind} {returnType}({string.Join(", ", parameters)})";
+		string specs = "";
+		if (!string.IsNullOrWhiteSpace(targetSpec))
+			specs += " " + targetSpec;
+		if (!string.IsNullOrWhiteSpace(callSpec))
+			specs += " " + callSpec;
+		return $"{kind}{specs} {returnType}({string.Join(", ", parameters)})";
 	}
 
 	bool TryGetCallableShape(string? type, out CallableShape shape)

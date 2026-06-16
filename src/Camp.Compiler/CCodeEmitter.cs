@@ -1419,11 +1419,10 @@ public static class CCodeEmitter
 			string name = CTypeName(resolvedType);
 			if (!emittedNames.Add("callable-typedef:" + name))
 				return;
-			if (!TryParseResolvedCallableType(resolvedType, out string returnType, out List<string> parameterTypes))
+			if (!TryParseResolvedCallableType(resolvedType, out string returnType, out List<string> parameterTypes, out string? targetSpec, out string? callSpec))
 				return;
 
-			string declarator = "(* " + name + ")";
-			writer.WriteLine("typedef " + FormatResolvedType(returnType, declarator).Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ");");
+			writer.WriteLine("typedef " + FormatInlineResolvedFunctionPointer(returnType, parameterTypes, name, targetSpec, callSpec) + ";");
 		}
 
 		string FormatResolvedParameterList(List<string> parameterTypes)
@@ -2076,7 +2075,7 @@ public static class CCodeEmitter
 			return "sizeof(" + FormatType(sizeOf.Type, "").Declaration.Trim() + ")";
 		}
 
-		static bool IsExpandedStorageResolvedType(string? resolvedType)
+		bool IsExpandedStorageResolvedType(string? resolvedType)
 		{
 			if (string.IsNullOrWhiteSpace(resolvedType))
 				return false;
@@ -2105,32 +2104,42 @@ public static class CCodeEmitter
 				return new CType(FormatMaterializedArrayStructType(elementType) + " " + declarator);
 			if (TryGetOptionalElementOnly(type, out string optionalElementType))
 				return new CType("struct { " + FormatResolvedType(optionalElementType, "value").Declaration + "; bool specified; } " + declarator);
-			if (TryParseExpandedCallableStorageType(type, out string returnType, out List<string> parameterTypes))
-				return new CType("struct { " + FormatInlineResolvedFunctionPointer(returnType, [ "void*", .. parameterTypes ], "call") + "; void* context; } " + declarator);
+			if (TryParseExpandedCallableStorageType(type, out string returnType, out List<string> parameterTypes, out string? targetSpec, out string? callSpec))
+				return new CType("struct { " + FormatInlineResolvedFunctionPointer(returnType, [ "void*", .. parameterTypes ], "call", targetSpec, callSpec) + "; void* context; } " + declarator);
 			return FormatResolvedType(resolvedType, declarator);
 		}
 
-		string FormatInlineResolvedFunctionPointer(string returnType, List<string> parameterTypes, string declarator)
+		string FormatInlineResolvedFunctionPointer(string returnType, List<string> parameterTypes, string declarator, string? targetSpec = null, string? callSpec = null)
 		{
-			return FormatResolvedType(returnType, "(* " + declarator + ")").Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
+			string pointer = "*";
+			string targetSpecSpelling = FormatTypeSpec(targetSpec);
+			string callSpecSpelling = FormatCallSpec(callSpec);
+			if (targetSpecSpelling.Length > 0)
+				pointer += " " + targetSpecSpelling;
+			if (callSpecSpelling.Length > 0)
+				pointer += " " + callSpecSpelling;
+			return FormatResolvedType(returnType, "(" + pointer + " " + declarator + ")").Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
 		}
 
 		bool TryFormatResolvedCallableCast(string resolvedType, out string cast)
 		{
 			cast = "";
-			if (!TryParseResolvedCallableType(resolvedType, out string returnType, out List<string> parameterTypes))
+			if (!TryParseResolvedCallableType(resolvedType, out string returnType, out List<string> parameterTypes, out string? targetSpec, out string? callSpec))
 				return false;
-			cast = FormatInlineResolvedFunctionPointer(returnType, parameterTypes, "");
+			cast = FormatInlineResolvedFunctionPointer(returnType, parameterTypes, "", targetSpec, callSpec);
 			return true;
 		}
 
 		bool ShouldCastCallableAssignment(Expression value, string targetType)
 		{
-			if (!TryParseResolvedCallableType(targetType, out string targetReturn, out List<string> targetParameters))
+			if (!TryParseResolvedCallableType(targetType, out string targetReturn, out List<string> targetParameters, out string? targetTargetSpec, out string? targetCallSpec))
 				return false;
-			if (!TryParseResolvedCallableType(value.ResolvedType ?? "", out string sourceReturn, out List<string> sourceParameters))
+			if (!TryParseResolvedCallableType(value.ResolvedType ?? "", out string sourceReturn, out List<string> sourceParameters, out string? sourceTargetSpec, out string? sourceCallSpec))
 				return true;
-			if (targetReturn != sourceReturn || targetParameters.Count != sourceParameters.Count)
+			if (targetReturn != sourceReturn
+				|| targetTargetSpec != sourceTargetSpec
+				|| targetCallSpec != sourceCallSpec
+				|| targetParameters.Count != sourceParameters.Count)
 				return true;
 			for (int i = 0; i < targetParameters.Count; i++)
 				if (targetParameters[i] != sourceParameters[i])
@@ -2146,10 +2155,17 @@ public static class CCodeEmitter
 				or NamedExpression;
 		}
 
-		static bool TryParseExpandedCallableStorageType(string resolvedType, out string returnType, out List<string> parameterTypes)
+		bool TryParseExpandedCallableStorageType(string resolvedType, out string returnType, out List<string> parameterTypes)
+		{
+			return TryParseExpandedCallableStorageType(resolvedType, out returnType, out parameterTypes, out _, out _);
+		}
+
+		bool TryParseExpandedCallableStorageType(string resolvedType, out string returnType, out List<string> parameterTypes, out string? targetSpec, out string? callSpec)
 		{
 			returnType = "";
 			parameterTypes = [];
+			targetSpec = null;
+			callSpec = null;
 			string type = resolvedType.Trim();
 			string kind;
 			if (type.StartsWith("delegate ", StringComparison.Ordinal))
@@ -2166,8 +2182,9 @@ public static class CCodeEmitter
 			string prefix = type[kind.Length..open].Trim();
 			if (prefix.Length == 0)
 				return false;
-			List<string> prefixParts = SplitTopLevel(prefix, ' ');
-			returnType = prefixParts[^1];
+			returnType = StripLeadingCallableSpecs(prefix, out targetSpec, out callSpec);
+			if (returnType.Length == 0)
+				return false;
 			string parameterText = type[(open + 1)..close].Trim();
 			if (parameterText.Length == 0)
 				return true;
@@ -3560,7 +3577,7 @@ public static class CCodeEmitter
 			return "typedef " + FormatType(callable.ReturnType, declarator).Declaration + "(" + FormatResolvedParameterList(GetExpandedCallableParameterTypesForC(parameters)) + ")";
 		}
 
-		static List<string> GetExpandedCallableParameterTypesForC(List<ParameterDefinition> parameters)
+		List<string> GetExpandedCallableParameterTypesForC(List<ParameterDefinition> parameters)
 		{
 			List<string> types = [];
 			foreach (ParameterDefinition parameter in parameters)
@@ -3581,9 +3598,14 @@ public static class CCodeEmitter
 					types.Add("bool");
 					continue;
 				}
-				if (TryParseExpandedCallableStorageType(parameterType, out string callableReturnType, out List<string> callableParameterTypes))
+				if (TryParseExpandedCallableStorageType(parameterType, out string callableReturnType, out List<string> callableParameterTypes, out string? callableTargetSpec, out string? callableCallSpec))
 				{
-					types.Add("fn " + callableReturnType + "(" + string.Join(", ", ["void*", .. callableParameterTypes]) + ")");
+					string specs = "";
+					if (!string.IsNullOrWhiteSpace(callableTargetSpec))
+						specs += " " + callableTargetSpec;
+					if (!string.IsNullOrWhiteSpace(callableCallSpec))
+						specs += " " + callableCallSpec;
+					types.Add("fn" + specs + " " + callableReturnType + "(" + string.Join(", ", ["void*", .. callableParameterTypes]) + ")");
 					types.Add("void*");
 					continue;
 				}
@@ -3926,10 +3948,17 @@ public static class CCodeEmitter
 			return type.StartsWith("fn ", StringComparison.Ordinal) && type.Contains('(', StringComparison.Ordinal) && type.EndsWith(")", StringComparison.Ordinal);
 		}
 
-		static bool TryParseResolvedCallableType(string resolvedType, out string returnType, out List<string> parameterTypes)
+		bool TryParseResolvedCallableType(string resolvedType, out string returnType, out List<string> parameterTypes)
+		{
+			return TryParseResolvedCallableType(resolvedType, out returnType, out parameterTypes, out _, out _);
+		}
+
+		bool TryParseResolvedCallableType(string resolvedType, out string returnType, out List<string> parameterTypes, out string? targetSpec, out string? callSpec)
 		{
 			returnType = "";
 			parameterTypes = [];
+			targetSpec = null;
+			callSpec = null;
 			string type = resolvedType.Trim();
 			if (!type.StartsWith("fn ", StringComparison.Ordinal))
 				return false;
@@ -3940,14 +3969,61 @@ public static class CCodeEmitter
 			string prefix = type[3..open].Trim();
 			if (prefix.Length == 0)
 				return false;
-			List<string> prefixParts = SplitTopLevel(prefix, ' ');
-			returnType = prefixParts[^1];
+			returnType = StripLeadingCallableSpecs(prefix, out targetSpec, out callSpec);
+			if (returnType.Length == 0)
+				return false;
 			string parameterText = type[(open + 1)..close].Trim();
 			if (parameterText.Length == 0)
 				return true;
 			foreach (string parameter in SplitTopLevel(parameterText, ','))
 				parameterTypes.Add(parameter.Trim());
 			return true;
+		}
+
+		string StripLeadingCallableSpecs(string prefix, out string? targetSpec, out string? callSpec)
+		{
+			targetSpec = null;
+			callSpec = null;
+			string text = prefix.Trim();
+			while (true)
+			{
+				int space = text.IndexOf(' ', StringComparison.Ordinal);
+				if (space <= 0)
+					return text;
+
+				string candidate = text[..space];
+				if (!TryClassifyCallablePrefixSpec(candidate, out CallablePrefixSpecKind kind))
+					return text;
+
+				if (kind == CallablePrefixSpecKind.TargetSpec)
+					targetSpec = candidate;
+				else
+					callSpec = candidate;
+				text = text[(space + 1)..].TrimStart();
+			}
+		}
+
+		bool TryClassifyCallablePrefixSpec(string candidate, out CallablePrefixSpecKind kind)
+		{
+			if (compilation.Target?.HasTypeSpec(candidate) == true)
+			{
+				kind = CallablePrefixSpecKind.TargetSpec;
+				return true;
+			}
+			if (compilation.Target?.HasCallSpec(candidate) == true)
+			{
+				kind = CallablePrefixSpecKind.CallSpec;
+				return true;
+			}
+			kind = CallablePrefixSpecKind.None;
+			return false;
+		}
+
+		enum CallablePrefixSpecKind
+		{
+			None,
+			TargetSpec,
+			CallSpec
 		}
 
 		static List<string> SplitTopLevel(string text, char separator)

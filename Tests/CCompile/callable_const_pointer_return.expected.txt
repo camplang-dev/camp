@@ -1,0 +1,70 @@
+// file: callable_const_pointer_return.c
+#include "callable_const_pointer_return_private.h"
+
+/* Private file declarations. */
+static const char *__camp_delegate_getLiteral(void *arg0);
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static const char *getLiteral(void);
+static const char *callGetter(fn_charPtr_voidPtr_ getter, void *getter_context);
+static const char *callCGetter(fn__msabi_charPtr_voidPtr_ getter, void *getter_context);
+static int main(void);
+
+static const char *__camp_delegate_getLiteral(void *arg0)
+{
+	(void)arg0;
+	return getLiteral();
+}
+
+static const char *getLiteral(void)
+{
+	return "hello";
+}
+
+static const char *callGetter(fn_charPtr_voidPtr_ getter, void *getter_context)
+{
+	return getter(getter_context);
+}
+
+static const char *callCGetter(fn__msabi_charPtr_voidPtr_ getter, void *getter_context)
+{
+	return getter(getter_context);
+}
+
+static int main(void)
+{
+	const char *value1 = callGetter(__camp_delegate_getLiteral, NULL);
+	return ((value1[0] == 'h') ? 0 : 1);
+}
+
+// file: callable_const_pointer_return_private.h
+#ifndef CALLABLE_CONST_POINTER_RETURN_PRIVATE_H_
+#define CALLABLE_CONST_POINTER_RETURN_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+typedef const char *(* Getter)(void);
+typedef const char *(* __attribute__((ms_abi)) CGetter)(void);
+
+/* Callable typedefs. */
+typedef const char *(* __attribute__((ms_abi)) fn__msabi_charPtr_voidPtr_)(void *arg0);
+typedef const char *(* fn_charPtr__)(void);
+typedef const char *(* fn_charPtr_voidPtr_)(void *arg0);
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: callable_const_pointer_return.c

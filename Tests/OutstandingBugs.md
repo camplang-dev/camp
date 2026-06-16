@@ -6,10 +6,6 @@
   be able to insert the allocator automatically, but today they must spell
   `within allocator, catch error` explicitly.
 
-- **BUG-013:** Callable typedef names and types can lose return-value constness
-  for pointer returns. For example, a `newtype delegate const char* Getter()`
-  can emit a `char* (*)(void*)` storage type and reject a lambda returning
-  `const char*`.
 - **BUG-014:** Lambda return lowering can reuse an outer function's cleanup
   label and generated return storage when the enclosing scope has an active
   `finally` cleanup. A lambda inside a function with `finally delete` can emit

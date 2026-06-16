@@ -1,0 +1,26 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+newtype delegate const char* Getter();
+newtype delegate _msabi const char* CGetter();
+
+const char* getLiteral()
+{
+	return "hello";
+}
+
+const char* callGetter(Getter getter)
+{
+	return getter();
+}
+
+const char* callCGetter(CGetter getter)
+{
+	return getter();
+}
+
+int main()
+{
+	const char* value1 = callGetter(getLiteral);
+	return value1[0] == 'h' ? 0 : 1;
+}

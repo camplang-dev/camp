@@ -105,7 +105,7 @@ public sealed partial class BindableNodeAnalyzer
 			case CallableTypeReference { Kind: CallableKind.Delegate } callable:
 				kind = ParamsComponentShapeKind.Delegate;
 				typeName = type.ResolvedType ?? resolvedType ?? ErrorType;
-				AddDelegatePendingComponents(callable.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredCallableParameterTypes(callable.Parameters), prefix, components);
+				AddDelegatePendingComponents(callable.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredCallableParameterTypes(callable.Parameters), prefix, components, callable.TargetSpec, callable.CallSpec);
 				return true;
 
 			case IterTypeReference iter:
@@ -125,7 +125,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (kind == ParamsComponentShapeKind.Delegate && newtypeDefinition.UnderlyingType is CallableTypeReference delegateType)
 				{
 					components = [];
-					AddDelegatePendingComponents(delegateType.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredCallableParameterTypes(newtypeDefinition.Parameters), prefix, components);
+					AddDelegatePendingComponents(delegateType.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredCallableParameterTypes(newtypeDefinition.Parameters), prefix, components, delegateType.TargetSpec, delegateType.CallSpec);
 				}
 				else if (kind == ParamsComponentShapeKind.Iter && newtypeDefinition.UnderlyingType is IterTypeReference iterType)
 				{
@@ -166,7 +166,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				kind = ParamsComponentShapeKind.Delegate;
 				typeName = resolvedType;
-				AddDelegatePendingComponents(callable.ReturnType, GetExpandedCallableParameterTypes(callable.Parameters), prefix, components);
+				AddDelegatePendingComponents(callable.ReturnType, GetExpandedCallableParameterTypes(callable.Parameters), prefix, components, callable.Spec, callable.CallSpec);
 				return true;
 			}
 
@@ -314,7 +314,7 @@ public sealed partial class BindableNodeAnalyzer
 		components.Add(new PendingParamsComponent("specified", "bool", [.. prefix, new ParamsNamePart("specified", false)], null, ParamsComponentShapeKind.Optional));
 	}
 
-	void AddDelegatePendingComponents(string returnType, List<string> parameterTypes, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
+	void AddDelegatePendingComponents(string returnType, List<string> parameterTypes, List<ParamsNamePart> prefix, List<PendingParamsComponent> components, string? targetSpec = null, string? callSpec = null)
 	{
 		string contextType = "void*";
 		string callReturnType = returnType;
@@ -325,7 +325,7 @@ public sealed partial class BindableNodeAnalyzer
 			for (int i = 1; i < returnShape.Components.Count; i++)
 				callParameterTypes.Add("out " + returnShape.Components[i].Type);
 		}
-		string callType = BuildCallableType("fn", callReturnType, callParameterTypes);
+		string callType = BuildCallableType("fn", callReturnType, callParameterTypes, targetSpec, callSpec);
 		components.Add(new PendingParamsComponent("call", callType, [.. prefix, new ParamsNamePart("call", true)], null, ParamsComponentShapeKind.Delegate));
 		components.Add(new PendingParamsComponent("context", contextType, [.. prefix, new ParamsNamePart("context", false)], null, ParamsComponentShapeKind.Delegate));
 	}
