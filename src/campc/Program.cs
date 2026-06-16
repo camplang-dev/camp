@@ -34,7 +34,7 @@ Option<bool> inspectApiOption = new("--inspect-api")
 Option<string> targetOption = new("--target", "-t")
 {
 	Description = "Select the target to use.",
-	DefaultValueFactory = _ => "clang-macos-x64"
+	DefaultValueFactory = _ => CompilerDefaults.TargetName
 };
 
 Option<string> profileOption = new("--profile", "-p")
@@ -107,7 +107,7 @@ rootCommand.SetAction(parseResult =>
 		Inspect = ParseInspectMode(parseResult.GetValue(inspectOption)),
 		Xml = parseResult.GetValue(xmlOption),
 		InspectApi = parseResult.GetValue(inspectApiOption),
-		TargetName = parseResult.GetValue(targetOption) ?? "clang-macos-x64",
+		TargetName = parseResult.GetValue(targetOption) ?? CompilerDefaults.TargetName,
 		ProfileName = parseResult.GetValue(profileOption) ?? "DEBUG",
 		MemoryModelName = parseResult.GetValue(memoryModelOption),
 		EmitKind = parseResult.GetValue(emitOption) ?? "c99",

@@ -163,7 +163,7 @@ public sealed class MsvcCompileTests
 			PackageSourceRoot = Path.Combine(repositoryRoot, "lib"),
 			PackageArtifactRoot = Path.Combine(repositoryRoot, "tmp", "msvc-tests", "packages"),
 			WorkingDirectory = repositoryRoot,
-			TargetName = "msvc-windows-x86",
+			TargetName = CompilerDefaults.TargetName,
 			BuildKind = kind,
 			BuildDir = Path.Combine(root, "build"),
 			OutDir = Path.Combine(root, "out")

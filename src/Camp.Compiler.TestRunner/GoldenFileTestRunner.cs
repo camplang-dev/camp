@@ -91,7 +91,7 @@ public static class GoldenFileTestRunner
 	static string SelectTargetName(GoldenFileTestKind kind)
 	{
 		if (kind == GoldenFileTestKind.StdRun && OperatingSystem.IsWindows())
-			return "msvc-windows-x86";
+			return CompilerDefaults.TargetName;
 		return "clang-macos-x64";
 	}
 

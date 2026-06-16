@@ -29,7 +29,7 @@ public sealed class CompilerRequest
 	public CompilerInspectMode? Inspect { get; set; }
 	public bool Xml { get; set; }
 	public bool InspectApi { get; set; }
-	public string TargetName { get; set; } = "clang-macos-x64";
+	public string TargetName { get; set; } = CompilerDefaults.TargetName;
 	public string ProfileName { get; set; } = "DEBUG";
 	public string? MemoryModelName { get; set; }
 	public string EmitKind { get; set; } = "c99";
