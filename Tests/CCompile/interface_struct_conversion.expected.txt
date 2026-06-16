@@ -1,0 +1,83 @@
+// file: interface_struct_conversion.c
+#include "interface_struct_conversion_private.h"
+
+/* Private file declarations. */
+static int Counter_value(Counter *this);
+static int readValue(IValue **counter);
+static int main(void);
+static int Counter_IValue_value(IValue **ctx);
+static const IValue Counter_IValue__storage;
+static const IValue *Counter_IValue;
+
+static const IValue Counter_IValue__storage = (IValue){ .value = Counter_IValue_value };
+static const IValue *Counter_IValue = &Counter_IValue__storage;
+static int Counter_value(Counter *this)
+{
+	return this->count;
+}
+
+static int readValue(IValue **counter)
+{
+	return (*counter)->value(counter);
+}
+
+static int main(void)
+{
+	Counter c = (Counter){ .count = 12 };
+	IValue_Indirect _iface0;
+	_iface0._vt = Counter_IValue;
+	_iface0.ctx = &c;
+	int v = readValue((IValue **)(&_iface0._vt));
+	return (v - 12);
+}
+
+static int Counter_IValue_value(IValue **ctx)
+{
+	IValue_Indirect *indirect = (IValue_Indirect *)(ctx);
+	Counter *instance = indirect->ctx;
+	return Counter_value(instance);
+}
+
+// file: interface_struct_conversion_private.h
+#ifndef INTERFACE_STRUCT_CONVERSION_PRIVATE_H_
+#define INTERFACE_STRUCT_CONVERSION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IValue IValue;
+typedef struct Counter Counter;
+typedef struct IValue_Indirect IValue_Indirect;
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_IValuePtrPtr_)(IValue **arg0);
+
+/* Enums. */
+
+/* Layouts. */
+struct IValue
+{
+	int (* value)(IValue **ctx);
+};
+struct Counter
+{
+	int count;
+};
+struct IValue_Indirect
+{
+	const IValue *_vt;
+	void *ctx;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: interface_struct_conversion.c

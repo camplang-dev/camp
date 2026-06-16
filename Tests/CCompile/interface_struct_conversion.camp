@@ -1,0 +1,26 @@
+interface IValue
+{
+	int value();
+}
+
+struct Counter: IValue
+{
+	int count;
+
+	int value()
+	{
+		return this.count;
+	}
+}
+
+int readValue(IValue* counter)
+{
+	return counter.value();
+}
+
+int main()
+{
+	Counter c = { .count = 12 };
+	int v = readValue(c);
+	return v - 12;
+}

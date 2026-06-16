@@ -1,0 +1,99 @@
+// file: interface_class_conversion.c
+#include "interface_class_conversion_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static int Counter_value(Counter *this);
+static void Counter_op_initnew(Counter *this, int count);
+static Counter *Counter_create(int count);
+static int readValue(IValue **counter);
+static int main(void);
+static int Counter_IValue_value(IValue **ctx);
+static const IValue Counter_IValue__storage;
+static const IValue *Counter_IValue;
+
+static const IValue Counter_IValue__storage = (IValue){ .value = Counter_IValue_value };
+static const IValue *Counter_IValue = &Counter_IValue__storage;
+static int Counter_value(Counter *this)
+{
+	return this->count;
+}
+
+static void Counter_op_initnew(Counter *this, int count)
+{
+	this->_vt_IValue = Counter_IValue;
+	this->count = count;
+}
+
+static Counter *Counter_create(int count)
+{
+	Counter *_created0 = (Counter *)(malloc(sizeof(Counter)));
+	if ((_created0 != NULL))
+	{
+		Counter_op_initnew(_created0, count);
+	}
+	return _created0;
+}
+
+static int readValue(IValue **counter)
+{
+	return (*counter)->value(counter);
+}
+
+static int main(void)
+{
+	Counter *c = (Counter *)(malloc(sizeof(Counter)));
+	if ((c != NULL))
+	{
+		Counter_op_initnew(c, 10);
+	}
+	int v = readValue((IValue **)&c->_vt_IValue);
+	free((void *)(c));
+	return (v - 10);
+}
+
+static int Counter_IValue_value(IValue **ctx)
+{
+	Counter *instance = (Counter *)(((uint8_t *)(ctx) - offsetof(Counter, _vt_IValue)));
+	return Counter_value(instance);
+}
+
+// file: interface_class_conversion_private.h
+#ifndef INTERFACE_CLASS_CONVERSION_PRIVATE_H_
+#define INTERFACE_CLASS_CONVERSION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IValue IValue;
+typedef struct Counter Counter;
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_IValuePtrPtr_)(IValue **arg0);
+
+/* Enums. */
+
+/* Layouts. */
+struct IValue
+{
+	int (* value)(IValue **ctx);
+};
+struct Counter
+{
+	const IValue *_vt_IValue;
+	int count;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: interface_class_conversion.c

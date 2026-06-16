@@ -207,7 +207,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (targetType is not PointerTypeReference targetPointer || value is null)
 			return value;
-		if (!TryGetInterfaceDefinition(targetPointer.ElementType ?? targetPointer, out InterfaceDefinition? targetInterface) || targetInterface is null)
+		if (!TryGetInterfacePointerDefinition(targetPointer, out InterfaceDefinition? targetInterface) || targetInterface is null)
 			return value;
 
 		string sourceType = value.ResolvedType ?? "";
@@ -250,8 +250,21 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsInterfacePointerType(TypeReference? type)
 	{
-		return type is PointerTypeReference pointer
-			&& TryGetInterfaceDefinition(pointer.ElementType ?? pointer, out InterfaceDefinition? interfaceDefinition)
+		return TryGetInterfacePointerDefinition(type, out InterfaceDefinition? interfaceDefinition)
+			&& interfaceDefinition is not null;
+	}
+
+	bool TryGetInterfacePointerDefinition(TypeReference? type, out InterfaceDefinition? interfaceDefinition)
+	{
+		interfaceDefinition = null;
+		if (type is not PointerTypeReference pointer)
+			return false;
+
+		TypeReference? element = pointer.ElementType ?? pointer;
+		if (element is PointerTypeReference innerPointer)
+			element = innerPointer.ElementType ?? innerPointer;
+
+		return TryGetInterfaceDefinition(element, out interfaceDefinition)
 			&& interfaceDefinition is not null;
 	}
 
@@ -298,13 +311,20 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		});
 
-		return new UnaryExpression
-		{
-			Operator = UnaryOperator.AddressOf,
-			Operand = CreateInterfaceIndirectMember(localReference, "_vt", $"{targetInterface.Name}*"),
-			ResolvedType = $"{targetInterface.Name}**"
-		};
-	}
+			UnaryExpression addressOfVTable = new()
+			{
+				Operator = UnaryOperator.AddressOf,
+				Operand = CreateInterfaceIndirectMember(localReference, "_vt", $"const {targetInterface.Name}*"),
+				ResolvedType = $"const {targetInterface.Name}**"
+			};
+			return new CastExpression
+			{
+				Type = PointerTo(PointerTo(InterfaceType(targetInterface))),
+				Kind = CastKind.Type,
+				Expression = addressOfVTable,
+				ResolvedType = $"{targetInterface.Name}**"
+			};
+		}
 
 	static MemberReferenceExpression CreateInterfaceIndirectMember(Expression target, string name, string type)
 	{
