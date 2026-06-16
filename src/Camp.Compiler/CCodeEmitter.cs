@@ -1609,7 +1609,7 @@ public static class CCodeEmitter
 			string prefix = BuildDeclarationPrefix(variable, storage);
 			writer.Write(prefix + FormatTypeOrResolved(variable.Type, variable.ResolvedType, CName(variable)).Declaration);
 			if (variable.InitialValue is not null)
-				writer.Write(" = " + FormatExpression(variable.InitialValue));
+				writer.Write(" = " + FormatFileScopeInitializer(variable.InitialValue));
 			writer.WriteLine(";");
 		}
 
@@ -1624,7 +1624,7 @@ public static class CCodeEmitter
 			string prefix = BuildDeclarationPrefix(field, storage);
 			writer.Write(prefix + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration);
 			if (field.InitialValue is not null)
-				writer.Write(" = " + FormatExpression(field.InitialValue));
+				writer.Write(" = " + FormatFileScopeInitializer(field.InitialValue));
 			writer.WriteLine(";");
 		}
 
@@ -1930,10 +1930,7 @@ public static class CCodeEmitter
 			{
 				string size = FormatGenericSizeExpression(declaration.Target.ResolvedType);
 				WriteIndent(writer, indent);
-				if (currentFunctionHasLabels)
-					writer.WriteLine("uint8_t *" + name + " = __builtin_alloca(" + size + ");");
-				else
-					writer.WriteLine("uint8_t " + name + "[" + size + "];");
+				writer.WriteLine("uint8_t *" + name + " = " + FormatAlloca(size) + ";");
 				if (declaration.InitialValue is DefaultExpression)
 				{
 					WriteIndent(writer, indent);
@@ -1952,6 +1949,12 @@ public static class CCodeEmitter
 			if (declaration.InitialValue is not null)
 				writer.Write(" = " + FormatAssignmentValueForTarget(declaration.Target.ResolvedType, declaration.InitialValue));
 			writer.WriteLine(";");
+		}
+
+		string FormatAlloca(string size)
+		{
+			string alloca = compilation.Target?.GetCEmitterValue("alloca", "__builtin_alloca") ?? "__builtin_alloca";
+			return alloca + "(" + size + ")";
 		}
 
 		void WriteIfStatement(TextWriter writer, IfStatement ifStatement, int indent)
@@ -2036,7 +2039,7 @@ public static class CCodeEmitter
 				MemberReferenceExpression member => FormatMemberReference(member),
 				UnaryExpression unary => FormatUnaryExpression(unary),
 				PostfixUpdateExpression postfix => FormatExpression(postfix.Expression) + FormatUpdateOperator(postfix.Operator),
-				BinaryExpression binary => "(" + FormatExpression(binary.Left) + " " + FormatBinaryOperator(binary.Operator) + " " + FormatExpression(binary.Right) + ")",
+				BinaryExpression binary => FormatBinaryExpression(binary),
 				AssignmentExpression assignment => FormatAssignmentExpression(assignment),
 				ConditionalExpression conditional => "(" + FormatExpression(conditional.Condition) + " ? " + FormatExpression(conditional.WhenTrue) + " : " + FormatExpression(conditional.WhenFalse) + ")",
 				InitializerExpression initializer => FormatInitializer(initializer),
@@ -3201,7 +3204,72 @@ public static class CCodeEmitter
 			return genericParameterNames.Contains(stripped) || currentGenericTypeNames.Contains(stripped);
 		}
 
-		string FormatInitializer(InitializerExpression initializer)
+		string FormatFileScopeInitializer(Expression expression)
+		{
+			if (expression is InitializerExpression initializer)
+				return FormatInitializer(initializer, includeType: false);
+			return FormatFileScopeConstantExpression(expression) ?? FormatExpression(expression);
+		}
+
+		string? FormatFileScopeConstantExpression(Expression? expression, HashSet<VariableDefinition>? seen = null)
+		{
+			return expression switch
+			{
+				null => null,
+				LiteralExpression { Kind: LiteralKind.Number } literal => FormatNumberLiteralForC(literal.Text),
+				LiteralExpression { Kind: LiteralKind.True } => "1",
+				LiteralExpression { Kind: LiteralKind.False } => "0",
+				LiteralExpression { Kind: LiteralKind.Null } => "NULL",
+				UnaryExpression { Operator: UnaryOperator.Minus, Operand: LiteralExpression { Kind: LiteralKind.Number } literal } => "-" + FormatNumberLiteralForC(literal.Text, negativeContext: true),
+				UnaryExpression unary => FormatFileScopeUnaryConstant(unary, seen),
+				BinaryExpression binary => FormatFileScopeBinaryConstant(binary, seen),
+				CastExpression cast => FormatFileScopeCastConstant(cast, seen),
+				ParenthesizedExpression parenthesized => FormatFileScopeConstantExpression(parenthesized.Expression, seen) is string value ? "(" + value + ")" : null,
+				VariableReferenceExpression { Variable: VariableDefinition variable } => FormatReferencedFileScopeConstant(variable, seen),
+				NamedExpression named => named.Name,
+				_ => null
+			};
+		}
+
+		string? FormatFileScopeUnaryConstant(UnaryExpression unary, HashSet<VariableDefinition>? seen)
+		{
+			string? operand = FormatFileScopeConstantExpression(unary.Operand, seen);
+			return operand is null ? null : unary.Operator switch
+			{
+				UnaryOperator.Plus => "+" + operand,
+				UnaryOperator.Minus => "-" + operand,
+				UnaryOperator.LogicalNot => "!" + operand,
+				UnaryOperator.BitwiseNot => "~" + operand,
+				_ => null
+			};
+		}
+
+		string? FormatFileScopeBinaryConstant(BinaryExpression binary, HashSet<VariableDefinition>? seen)
+		{
+			string? left = FormatFileScopeConstantExpression(binary.Left, seen);
+			string? right = FormatFileScopeConstantExpression(binary.Right, seen);
+			return left is null || right is null ? null : "(" + left + " " + FormatBinaryOperator(binary.Operator) + " " + right + ")";
+		}
+
+		string? FormatFileScopeCastConstant(CastExpression cast, HashSet<VariableDefinition>? seen)
+		{
+			string? value = FormatFileScopeConstantExpression(cast.Expression, seen);
+			return value is null ? null : "(" + FormatType(cast.Type, "").Declaration.Trim() + ")(" + value + ")";
+		}
+
+		string? FormatReferencedFileScopeConstant(VariableDefinition variable, HashSet<VariableDefinition>? seen)
+		{
+			if (variable.InitialValue is null)
+				return CName(variable);
+			seen ??= [];
+			if (!seen.Add(variable))
+				return CName(variable);
+			string? value = FormatFileScopeConstantExpression(variable.InitialValue, seen);
+			seen.Remove(variable);
+			return value ?? CName(variable);
+		}
+
+		string FormatInitializer(InitializerExpression initializer, bool includeType = true)
 		{
 			List<string> items = [];
 			foreach (InitializerItem item in initializer.Items)
@@ -3211,7 +3279,7 @@ public static class CCodeEmitter
 				items.Add(target is null ? value : "." + target + " = " + value);
 			}
 			string body = items.Count == 0 ? "{ 0 }" : "{ " + string.Join(", ", items) + " }";
-			if (!IsAggregateValueType(initializer.ResolvedType))
+			if (!includeType || !IsAggregateValueType(initializer.ResolvedType))
 				return body;
 
 			string type = FormatTypeOrResolved(null, initializer.ResolvedType, "").Declaration.Trim();
@@ -3223,6 +3291,36 @@ public static class CCodeEmitter
 			if (grouped.Items.Count == 0)
 				return "0";
 			return "(" + string.Join(", ", grouped.Items.Select(static item => item.Expression).Select(FormatExpression)) + ")";
+		}
+
+		string FormatBinaryExpression(BinaryExpression binary)
+		{
+			string left = FormatExpression(binary.Left);
+			string right = FormatExpression(binary.Right);
+			string op = FormatBinaryOperator(binary.Operator);
+			if (binary.Operator is BinaryOperator.Add or BinaryOperator.Subtract
+				&& TryFormatGenericArrayBytePointer(binary.Left, out string bytePointer))
+				left = bytePointer;
+			else if (binary.Operator is BinaryOperator.Add
+				&& TryFormatGenericArrayBytePointer(binary.Right, out bytePointer))
+				right = bytePointer;
+			return "(" + left + " " + op + " " + right + ")";
+		}
+
+		bool TryFormatGenericArrayBytePointer(Expression? expression, out string value)
+		{
+			value = "";
+			if (expression?.ResolvedType is not string resolvedType)
+				return false;
+			if (!TryGetArrayElementType(resolvedType, out string elementType)
+				&& !TryGetPointerElementType(resolvedType, out elementType))
+				return false;
+			if (!IsAnyGenericParameterType(StripTypeDecorators(elementType)))
+				return false;
+
+			string bytePointer = ElementTypeIsConst(elementType) ? "const uint8_t*" : "uint8_t*";
+			value = "((" + bytePointer + ")" + FormatExpression(expression) + ")";
+			return true;
 		}
 
 		static string? FormatInitializerTarget(InitializerTarget? target)
