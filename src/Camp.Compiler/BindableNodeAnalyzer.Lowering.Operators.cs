@@ -88,25 +88,48 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetName is null || !TryCreateParamsComponentExpressions(item.Expression, out List<Expression> components) || components.Count <= 1)
 			return false;
 
+		string? firstComponentName = GetInitializerComponentName(components[0]);
+		string? remappedTargetPrefix = firstComponentName != targetName && IsGeneratedSafeInitializerTarget(targetName)
+			? targetName
+			: null;
+
 		for (int i = 0; i < components.Count; i++)
 		{
 			Expression component = components[i];
 			string? componentName = GetInitializerComponentName(component);
 			if (componentName is null)
 				return false;
-			if (i == 0 && componentName != targetName)
+			if (i == 0 && componentName != targetName && remappedTargetPrefix is null)
 				return false;
 
+			string expandedTargetName = remappedTargetPrefix is not null
+				? RemapGeneratedSafeInitializerTarget(remappedTargetPrefix, firstComponentName, componentName)
+				: componentName;
 			expandedItems.Add(new InitializerItem
 			{
 				SourceSyntax = item.SourceSyntax,
-				Target = InitializerTargetFor(componentName),
+				Target = InitializerTargetFor(expandedTargetName),
 				Expression = component,
 				ResolvedType = component.ResolvedType
 			});
 		}
 
 		return expandedItems.Count > 1;
+	}
+
+	static bool IsGeneratedSafeInitializerTarget(string name)
+	{
+		return name.StartsWith("__iter_", StringComparison.Ordinal) || name.StartsWith("_sizeof_", StringComparison.Ordinal) || name.StartsWith("_vtableof_", StringComparison.Ordinal);
+	}
+
+	static string RemapGeneratedSafeInitializerTarget(string targetPrefix, string? sourcePrefix, string componentName)
+	{
+		if (string.IsNullOrWhiteSpace(sourcePrefix) || componentName == sourcePrefix)
+			return targetPrefix;
+		string sourceComponentPrefix = sourcePrefix + "_";
+		if (componentName.StartsWith(sourceComponentPrefix, StringComparison.Ordinal))
+			return targetPrefix + componentName[sourcePrefix.Length..];
+		return componentName;
 	}
 
 	static string? GetSingleInitializerTargetName(InitializerTarget? target)

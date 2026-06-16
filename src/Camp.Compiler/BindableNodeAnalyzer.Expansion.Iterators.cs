@@ -7,9 +7,11 @@ public sealed partial class BindableNodeAnalyzer
 {
 	const string IteratorStateFieldName = "__state";
 	string? currentIteratorStateThisType;
+	readonly HashSet<FunctionDefinition> generatedIteratorFactories = [];
 	int iteratorForeachStateIndex;
 	readonly Dictionary<ForeachStatement, IteratorForeachStateFields> iteratorForeachStates = [];
 	readonly Dictionary<string, Dictionary<string, FieldDefinition>> iteratorStateFields = new(StringComparer.Ordinal);
+	readonly Dictionary<string, Dictionary<string, FieldDefinition>> iteratorStateFieldsBySourceName = new(StringComparer.Ordinal);
 
 	void GenerateIteratorDeclarations(Module module)
 	{
@@ -92,6 +94,7 @@ public sealed partial class BindableNodeAnalyzer
 			: stateReference;
 		function.ResolvedType = function.ReturnType.ResolvedType;
 		function.Body = CreateIteratorFactoryBody(function, stateType, stateReference);
+		generatedIteratorFactories.Add(function);
 	}
 
 	void AnalyzeIteratorGeneratorReturnType(FunctionDefinition function, TypeDefinition? containingType)
@@ -191,17 +194,68 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (IsHiddenParameter(parameter) || parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 				continue;
-			string parameterType = ResolvedTypeForIteratorExpansion(parameter.Type, parameter.ResolvedType);
+			string sourceName = IteratorStateFieldSourceName(parameter);
+			string fieldName = IteratorStateFieldNameFor(parameter);
+			string parameterType = IteratorStateFieldType(parameter);
 
 			AddIteratorField(state, new FieldDefinition
 			{
 				SourceSyntax = parameter.SourceSyntax,
-				Name = parameter.Name,
-				Symbol = parameter.Name,
-				Type = CloneType(parameter.Type),
+				Name = fieldName,
+				Symbol = fieldName,
+				Type = IteratorStateFieldTypeReference(parameter, parameterType),
 				ResolvedType = parameterType
-			});
+			}, sourceName);
 		}
+	}
+
+	string IteratorStateFieldSourceName(ParameterDefinition parameter)
+	{
+		return parameter switch
+		{
+			SizeOfParameterDefinition sizeOf => SizeOfParameterName(sizeOf.Type),
+			VTableOfParameterDefinition vtableOf => VTableOfParameterName(vtableOf.Type, vtableOf.InterfaceType),
+			_ => parameter.Name
+		};
+	}
+
+	string IteratorStateFieldNameFor(ParameterDefinition parameter)
+	{
+		string sourceName = IteratorStateFieldSourceName(parameter);
+		if (parameter is ThisParameterDefinition)
+			return "__iter_this";
+		if (parameter is SizeOfParameterDefinition)
+			return "_" + sourceName;
+		if (parameter is VTableOfParameterDefinition)
+			return "_" + sourceName;
+		return IsReservedGeneratedFieldName(sourceName) ? "__iter_" + sourceName : sourceName;
+	}
+
+	static bool IsReservedGeneratedFieldName(string name)
+	{
+		return string.IsNullOrWhiteSpace(name)
+			|| ReservedWords.Contains(name)
+			|| CReservedWords.Contains(name);
+	}
+
+	string IteratorStateFieldType(ParameterDefinition parameter)
+	{
+		return parameter switch
+		{
+			SizeOfParameterDefinition => "nuint",
+			VTableOfParameterDefinition vtableOf => VTableOfParameterType(vtableOf),
+			_ => ResolvedTypeForIteratorExpansion(parameter.Type, parameter.ResolvedType)
+		};
+	}
+
+	TypeReference IteratorStateFieldTypeReference(ParameterDefinition parameter, string resolvedType)
+	{
+		return parameter switch
+		{
+			SizeOfParameterDefinition => NuintType(),
+			VTableOfParameterDefinition => TypeReferenceForResolvedName(resolvedType),
+			_ => CloneType(parameter.Type) ?? TypeReferenceForResolvedName(resolvedType)
+		};
 	}
 
 	void AddIteratorLiftedLocalFields(TypeDefinition state, FunctionDefinition function)
@@ -253,6 +307,26 @@ public sealed partial class BindableNodeAnalyzer
 				Type = TypeReferenceForIteratorField(fields.IteratorType),
 				ResolvedType = fields.IteratorType
 			});
+			if (fields is { IsArray: true, LengthFieldName: not null, IndexFieldName: not null })
+			{
+				AddIteratorField(state, new FieldDefinition
+				{
+					SourceSyntax = foreachStatement.SourceSyntax,
+					Name = fields.LengthFieldName,
+					Symbol = fields.LengthFieldName,
+					Type = NuintType(),
+					ResolvedType = "nuint"
+				});
+				AddIteratorField(state, new FieldDefinition
+				{
+					SourceSyntax = foreachStatement.SourceSyntax,
+					Name = fields.IndexFieldName,
+					Symbol = fields.IndexFieldName,
+					Type = NuintType(),
+					ResolvedType = "nuint"
+				});
+				continue;
+			}
 			if (fields is { IsProtocol: true, ContextFieldName: not null })
 			{
 				AddIteratorField(state, new FieldDefinition
@@ -280,6 +354,18 @@ public sealed partial class BindableNodeAnalyzer
 		fields = null;
 		if (TryCreateIteratorProtocolForeachState(function, foreachStatement, out fields))
 			return true;
+		string arraySourceType = ResolveIteratorProtocolForeachSourceType(function, foreachStatement.Source);
+		if (TryGetArrayElementType(arraySourceType) is string arrayElementType)
+		{
+			int arrayIndex = iteratorForeachStateIndex++;
+			fields = IteratorForeachStateFields.ForArray(
+				$"__foreachElements{arrayIndex}",
+				$"__foreachLength{arrayIndex}",
+				$"__foreachIndex{arrayIndex}",
+				AddPointer(arrayElementType),
+				arrayElementType);
+			return true;
+		}
 		if (!TryResolveIteratorForeachSourceType(foreachStatement.Source, out string sourceType))
 			return false;
 		if (!TryFindIteratorNextMethod(sourceType, out FunctionDefinition? next, out string elementType) || next is null)
@@ -314,6 +400,15 @@ public sealed partial class BindableNodeAnalyzer
 		string? sourceType = source?.ResolvedType;
 		if (!string.IsNullOrWhiteSpace(sourceType) && sourceType != UnresolvedType && sourceType != ErrorType)
 			return sourceType;
+
+		if (source is ThisExpression)
+		{
+			foreach (ParameterDefinition parameter in function.Parameters)
+			{
+				if (parameter is ThisParameterDefinition || parameter.Name == "this")
+					return parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type);
+			}
+		}
 
 		if (source is NamedExpression { Qualifiers.Count: 0 } named)
 		{
@@ -491,6 +586,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	Statement CreateIteratorForeachCleanup(FunctionDefinition sourceFunction, IteratorForeachStateFields fields)
 	{
+		if (fields.IsArray)
+			return new BlockStatement { SourceSyntax = sourceFunction.SourceSyntax, ResolvedType = "void" };
+
 		if (fields is { IsProtocol: true, ContextFieldName: not null })
 		{
 			return new ExpressionStatement
@@ -713,15 +811,17 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (IsHiddenParameter(parameter) || parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 				continue;
-			string parameterType = ResolvedTypeForIteratorExpansion(parameter.Type, parameter.ResolvedType);
+			string sourceName = IteratorStateFieldSourceName(parameter);
+			string parameterType = IteratorStateFieldType(parameter);
+			FieldDefinition? field = TryGetIteratorStateField(stateType, sourceName);
 
 			initializer.Items.Add(new InitializerItem
 			{
-				Target = InitializerTargetFor(parameter.Name),
-				Expression = new NamedExpression
+				Target = InitializerTargetFor(field?.Name ?? IteratorStateFieldNameFor(parameter)),
+				Expression = new VariableReferenceExpression
 				{
 					SourceSyntax = parameter.SourceSyntax,
-					Name = parameter.Name,
+					Variable = parameter,
 					ResolvedType = parameterType
 				},
 				ResolvedType = parameterType
@@ -763,6 +863,7 @@ public sealed partial class BindableNodeAnalyzer
 					{
 						Target = localReference,
 						Name = item.Target?.Parts.Count > 0 ? item.Target.Parts[0].Name ?? "" : "",
+						Member = TryGetIteratorStateField(stateType, item.Target?.Parts.Count > 0 ? item.Target.Parts[0].Name ?? "" : ""),
 						ResolvedType = item.ResolvedType ?? ErrorType
 					},
 					Value = item.Expression,
@@ -988,6 +1089,27 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (lowering.IsLiftedName(named.Name))
 				return ThisMemberReference(named.Name, lowering.GetLiftedType(named.Name));
+		}
+
+		if (expression is ThisExpression
+			&& currentIteratorStateThisType is not null
+			&& iteratorStateFieldsBySourceName.TryGetValue(BaseTypeName(currentIteratorStateThisType), out Dictionary<string, FieldDefinition>? stateFields)
+			&& stateFields.TryGetValue("this", out FieldDefinition? thisField))
+		{
+			return ThisMemberReference("this", thisField.ResolvedType);
+		}
+
+		if (expression is SizeOfExpression sizeOf
+			&& IsGenericSizeOf(sizeOf, out _)
+			&& ThisMemberReference(SizeOfParameterName(sizeOf.Type), "nuint") is { Member: FieldDefinition } sizeOfField)
+		{
+			return sizeOfField;
+		}
+
+		if (expression is VTableOfExpression vtableOf
+			&& ThisMemberReference(VTableOfParameterName(vtableOf.Type, vtableOf.InterfaceType), VTableOfParameterType(new VTableOfParameterDefinition { Type = vtableOf.Type, InterfaceType = vtableOf.InterfaceType })) is { Member: FieldDefinition } vtableOfField)
+		{
+			return vtableOfField;
 		}
 
 		switch (expression)
@@ -1316,7 +1438,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		FieldDefinition? field = null;
 		if (!string.IsNullOrWhiteSpace(thisType)
-			&& iteratorStateFields.TryGetValue(BaseTypeName(thisType), out Dictionary<string, FieldDefinition>? fields))
+			&& iteratorStateFieldsBySourceName.TryGetValue(BaseTypeName(thisType), out Dictionary<string, FieldDefinition>? fields))
 		{
 			fields.TryGetValue(name, out field);
 		}
@@ -1330,7 +1452,20 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	void AddIteratorField(TypeDefinition type, FieldDefinition field)
+	FieldDefinition? TryGetIteratorStateField(TypeDefinition type, string? name)
+	{
+		if (string.IsNullOrWhiteSpace(name))
+			return null;
+		if (iteratorStateFields.TryGetValue(type.Name, out Dictionary<string, FieldDefinition>? fields)
+			&& fields.TryGetValue(name, out FieldDefinition? field))
+			return field;
+		if (iteratorStateFieldsBySourceName.TryGetValue(type.Name, out Dictionary<string, FieldDefinition>? sourceFields)
+			&& sourceFields.TryGetValue(name, out field))
+			return field;
+		return null;
+	}
+
+	void AddIteratorField(TypeDefinition type, FieldDefinition field, string? sourceName = null)
 	{
 		switch (type)
 		{
@@ -1351,6 +1486,15 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (!string.IsNullOrWhiteSpace(field.Name))
 			fields[field.Name] = field;
+
+		sourceName ??= field.Name;
+		if (!iteratorStateFieldsBySourceName.TryGetValue(type.Name, out Dictionary<string, FieldDefinition>? sourceFields))
+		{
+			sourceFields = new Dictionary<string, FieldDefinition>(StringComparer.Ordinal);
+			iteratorStateFieldsBySourceName[type.Name] = sourceFields;
+		}
+		if (!string.IsNullOrWhiteSpace(sourceName))
+			sourceFields[sourceName] = field;
 	}
 
 	static void AddIteratorFunction(TypeDefinition type, FunctionDefinition function)
@@ -1423,11 +1567,16 @@ public sealed partial class BindableNodeAnalyzer
 			PrimitiveTypeReference primitive => GetPrimitiveTypeName(primitive.Type),
 			CallableTypeReference callable => BuildCallableType(GetCallableKindName(callable.Kind), ResolvedTypeForIteratorExpansion(callable.ReturnType, callable.ReturnType?.ResolvedType), GetIteratorExpansionParameterTypes(callable.Parameters)),
 			IterTypeReference iter => ResolvedIteratorTypeForExpansion(iter),
-			NamedTypeReference named => named.ResolvedType ?? named.Name,
-			TypeDefinitionReference definition => definition.ResolvedType ?? definition.Name,
-			GenericParameterTypeReference generic => generic.ResolvedType ?? generic.Name,
+			NamedTypeReference named => IsInvalidResolvedType(named.ResolvedType) ? named.Name : named.ResolvedType ?? named.Name,
+			TypeDefinitionReference definition => IsInvalidResolvedType(definition.ResolvedType) ? definition.Name : definition.ResolvedType ?? definition.Name,
+			GenericParameterTypeReference generic => IsInvalidResolvedType(generic.ResolvedType) ? generic.Name : generic.ResolvedType ?? generic.Name,
 			_ => type.ResolvedType ?? FormatTypeReference(type)
 		};
+	}
+
+	static bool IsInvalidResolvedType(string? type)
+	{
+		return type is null or "" or UnresolvedType or ErrorType;
 	}
 
 	List<string> GetIteratorExpansionParameterTypes(List<ParameterDefinition> parameters)
@@ -1454,8 +1603,21 @@ public sealed partial class BindableNodeAnalyzer
 
 	sealed record IteratorForeachStateFields(string IteratorFieldName, string CurrentFieldName, string IteratorType, string ElementType)
 	{
+		public bool IsArray { get; init; }
 		public bool IsProtocol { get; init; }
+		public string? LengthFieldName { get; init; }
+		public string? IndexFieldName { get; init; }
 		public string? ContextFieldName { get; init; }
+
+		public static IteratorForeachStateFields ForArray(string elementsFieldName, string lengthFieldName, string indexFieldName, string elementPointerType, string elementType)
+		{
+			return new IteratorForeachStateFields(elementsFieldName, "", elementPointerType, elementType)
+			{
+				IsArray = true,
+				LengthFieldName = lengthFieldName,
+				IndexFieldName = indexFieldName
+			};
+		}
 
 		public static IteratorForeachStateFields ForProtocol(string callFieldName, string contextFieldName, string currentFieldName, string callType, string elementType)
 		{

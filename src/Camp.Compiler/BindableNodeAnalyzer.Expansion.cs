@@ -532,6 +532,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	void LowerSourceInterfaceTypes(BindableNode node)
 	{
+		LowerSourceInterfaceTypes(node, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance));
+	}
+
+	void LowerSourceInterfaceTypes(BindableNode node, HashSet<BindableNode> visited)
+	{
+		if (!visited.Add(node))
+			return;
+
 		foreach (PropertyInfo property in node.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
 		{
 			if (property.Name == nameof(BindableNode.SourceSyntax) || property.Name == nameof(BindableNode.ResolvedType) || IsSemanticReferenceProperty(property))
@@ -546,22 +554,22 @@ public sealed partial class BindableNodeAnalyzer
 				TypeReference lowered = LowerSourceInterfaceType(type);
 				if (!ReferenceEquals(lowered, type) && property.CanWrite)
 					property.SetValue(node, lowered);
-				LowerSourceInterfaceTypes(lowered);
+				LowerSourceInterfaceTypes(lowered, visited);
 			}
 			else if (value is IList list)
 			{
-				LowerSourceInterfaceTypes(list);
+				LowerSourceInterfaceTypes(list, visited);
 			}
 			else if (value is BindableNode child)
 			{
-				LowerSourceInterfaceTypes(child);
+				LowerSourceInterfaceTypes(child, visited);
 			}
 		}
 
 		SyncResolvedTypeFromLoweredType(node);
 	}
 
-	void LowerSourceInterfaceTypes(IList list)
+	void LowerSourceInterfaceTypes(IList list, HashSet<BindableNode> visited)
 	{
 		for (int i = 0; i < list.Count; i++)
 		{
@@ -571,11 +579,11 @@ public sealed partial class BindableNodeAnalyzer
 				TypeReference lowered = LowerSourceInterfaceType(type);
 				if (!ReferenceEquals(lowered, type))
 					list[i] = lowered;
-				LowerSourceInterfaceTypes(lowered);
+				LowerSourceInterfaceTypes(lowered, visited);
 			}
 			else if (item is BindableNode child)
 			{
-				LowerSourceInterfaceTypes(child);
+				LowerSourceInterfaceTypes(child, visited);
 			}
 		}
 	}

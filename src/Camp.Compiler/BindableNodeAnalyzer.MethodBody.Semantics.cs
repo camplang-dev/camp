@@ -433,6 +433,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (GetTypeDefinition(sourceType) is not TypeDefinition type)
 			return false;
 
+		List<string> typeArguments = ExtractConstructedTypeArguments(sourceType);
+		Dictionary<string, string> substitutions = [];
+		int count = Math.Min(type.GenericParameters.Count, typeArguments.Count);
+		for (int i = 0; i < count; i++)
+			substitutions[type.GenericParameters[i].Name] = typeArguments[i];
+
 		foreach (FunctionDefinition function in GetFunctions(type))
 		{
 			if (function.Name != "next" || function.ResolvedType != "bool")
@@ -447,7 +453,9 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			next = function;
-			elementType = yieldedType;
+			elementType = substitutions.Count > 0
+				? SubstituteGenericType(yieldedType, substitutions)
+				: yieldedType;
 			return true;
 		}
 

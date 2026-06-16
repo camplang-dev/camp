@@ -76,6 +76,14 @@ public sealed partial class BindableNodeAnalyzer
 		if (FindSizeOfParameter(scope.CurrentFunction, genericName) is not null)
 			return true;
 
+		if (scope.ContainingType is TypeDefinition containingType)
+		{
+			string fieldName = SizeOfFieldName(new GenericParameterTypeReference { Name = genericName, ResolvedType = genericName });
+			foreach (FieldDefinition field in GetIteratorFields(containingType))
+				if (field.Name == fieldName && field.ResolvedType == "nuint")
+					return true;
+		}
+
 		if (scope.ContainingType is ClassDefinition classDefinition)
 		{
 			foreach (FunctionDefinition function in classDefinition.Functions)

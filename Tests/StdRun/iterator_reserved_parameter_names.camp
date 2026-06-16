@@ -1,0 +1,19 @@
+using Std;
+
+export void main()
+{
+	int[] list = [1, 2, 3];
+	
+	foreach (auto item in list.iterate())
+	{
+		Console.write(item);
+	}
+	
+	Console.writeLine("DONE");
+}
+
+struct iter T iterate<T: any>(T[] this, sizeof(T))
+{
+	foreach (auto v in this)
+		yield v;
+}

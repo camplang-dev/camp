@@ -489,13 +489,31 @@ public sealed partial class BindableNodeAnalyzer
 		Expression length = LowerExpression(sourceComponents[^1]) ?? sourceComponents[^1];
 		string elementPointerType = elements.ResolvedType ?? ErrorType;
 		string elementType = TryGetPointerElementType(elementPointerType) ?? TryGetArrayElementType(source?.ResolvedType) ?? foreachStatement.Target.ResolvedType ?? ErrorType;
+		bool useLiftedState = iteratorForeachStates.TryGetValue(foreachStatement, out IteratorForeachStateFields? stateFields)
+			&& stateFields is { IsArray: true, LengthFieldName: not null, IndexFieldName: not null };
 
-		DeclarationStatement elementsLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachElements"), elementPointerType, TypeReferenceForResolvedName(elementPointerType), elements);
-		DeclarationStatement lengthLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachLength"), length.ResolvedType ?? "nuint", TypeReferenceForResolvedName(length.ResolvedType ?? "nuint"), length);
-		DeclarationStatement indexLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIndex"), "nuint", NuintType(), NumberLiteral("0", "nuint"));
-
-		Expression indexReference = CreateVariableReference(indexLocal.Target, "nuint");
-		Expression elementsReference = CreateVariableReference(elementsLocal.Target, elementPointerType);
+		List<Statement> statements = [];
+		DeclarationStatement? elementsLocal = null;
+		DeclarationStatement? lengthLocal = null;
+		DeclarationStatement? indexLocal = null;
+		Expression ElementsReference() => useLiftedState && stateFields is not null ? ThisMemberReference(stateFields.IteratorFieldName, stateFields.IteratorType) : CreateVariableReference(elementsLocal!.Target, elementPointerType);
+		Expression LengthReference() => useLiftedState && stateFields is { LengthFieldName: not null } ? ThisMemberReference(stateFields.LengthFieldName, "nuint") : CreateVariableReference(lengthLocal!.Target, lengthLocal.Target.ResolvedType ?? "nuint");
+		Expression IndexReference() => useLiftedState && stateFields is { IndexFieldName: not null } ? ThisMemberReference(stateFields.IndexFieldName, "nuint") : CreateVariableReference(indexLocal!.Target, "nuint");
+		if (useLiftedState && stateFields is not null)
+		{
+			statements.Add(CreateAssignmentStatement(ElementsReference(), elements, elementPointerType, foreachStatement.SourceSyntax));
+			statements.Add(CreateAssignmentStatement(LengthReference(), length, "nuint", foreachStatement.SourceSyntax));
+			statements.Add(CreateAssignmentStatement(IndexReference(), NumberLiteral("0", "nuint"), "nuint", foreachStatement.SourceSyntax));
+		}
+		else
+		{
+			elementsLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachElements"), elementPointerType, TypeReferenceForResolvedName(elementPointerType), elements);
+			lengthLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachLength"), length.ResolvedType ?? "nuint", TypeReferenceForResolvedName(length.ResolvedType ?? "nuint"), length);
+			indexLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIndex"), "nuint", NuintType(), NumberLiteral("0", "nuint"));
+			statements.Add(elementsLocal);
+			statements.Add(lengthLocal);
+			statements.Add(indexLocal);
+		}
 
 		DeclarationStatement loopValue = new()
 		{
@@ -504,7 +522,7 @@ public sealed partial class BindableNodeAnalyzer
 			InitialValue = new IndexExpression
 			{
 				SourceSyntax = foreachStatement.SourceSyntax,
-				Target = elementsReference,
+				Target = ElementsReference(),
 				ResolvedType = elementType
 			}
 		};
@@ -516,7 +534,7 @@ public sealed partial class BindableNodeAnalyzer
 		((IndexExpression)loopValue.InitialValue).Arguments.Add(new ArgumentExpression
 		{
 			SourceSyntax = foreachStatement.SourceSyntax,
-			Value = CreateVariableReference(indexLocal.Target, "nuint"),
+			Value = IndexReference(),
 			ResolvedType = "nuint"
 		});
 
@@ -538,7 +556,7 @@ public sealed partial class BindableNodeAnalyzer
 			Expression = new PostfixUpdateExpression
 			{
 				SourceSyntax = foreachStatement.SourceSyntax,
-				Expression = CreateVariableReference(indexLocal.Target, "nuint"),
+				Expression = IndexReference(),
 				Operator = UpdateOperator.Increment,
 				ResolvedType = "nuint"
 			}
@@ -551,15 +569,17 @@ public sealed partial class BindableNodeAnalyzer
 			Condition = new BinaryExpression
 			{
 				SourceSyntax = foreachStatement.SourceSyntax,
-				Left = indexReference,
+				Left = IndexReference(),
 				Operator = BinaryOperator.LessThan,
-				Right = CreateVariableReference(lengthLocal.Target, lengthLocal.Target.ResolvedType ?? "nuint"),
+				Right = LengthReference(),
 				ResolvedType = "bool"
 			},
 			Body = loopBody
 		};
 
-		return CreateBlock([elementsLocal, lengthLocal, indexLocal, loop, new LabelStatement { Name = breakLabel, ResolvedType = "void" }]);
+		statements.Add(loop);
+		statements.Add(new LabelStatement { Name = breakLabel, ResolvedType = "void" });
+		return CreateBlock(statements);
 	}
 
 	Statement RewriteIteratorForeachStatement(ForeachStatement foreachStatement)

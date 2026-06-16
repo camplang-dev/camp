@@ -249,6 +249,17 @@ public static class CCodeEmitter
 		string description = node.GetType().Name;
 		if (node is NamedExpression named)
 			description += $" '{named.Name}'";
+		else if (node is VariableReferenceExpression variableReference)
+		{
+			description += variableReference.Variable switch
+			{
+				Definition definition => $" '{definition.Name}'",
+				DeclarationTarget target => $" '{string.Join(", ", target.Names)}'",
+				_ => ""
+			};
+			if (variableReference.Variable?.ResolvedType is string variableType)
+				description += $" referencing {variableReference.Variable.GetType().Name} '{variableType}'";
+		}
 
 		if (node.SourceSyntax is not null && TryGetSourceRange(node.SourceSyntax, out TokenRange range))
 			description += $" at {range.StartLineNumber},{range.StartColumn}";
@@ -474,6 +485,7 @@ public static class CCodeEmitter
 		readonly Dictionary<SourceFile, List<DelegateThunk>> delegateThunksByFile = [];
 		readonly HashSet<string> reservedCNames = [];
 		FunctionDefinition? currentFunction;
+		bool currentFunctionHasLabels;
 		readonly string sharedExportPrefix = options.BuildKind is NativeBuildKind.Shared
 			? compilation.Target?.GetCEmitterValue("dll_export_prefix") ?? ""
 			: "";
@@ -1761,7 +1773,9 @@ public static class CCodeEmitter
 		void WriteFunctionBody(TextWriter writer, FunctionDefinition function)
 		{
 			FunctionDefinition? previousFunction = currentFunction;
+			bool previousFunctionHasLabels = currentFunctionHasLabels;
 			currentFunction = function;
+			currentFunctionHasLabels = FunctionContainsLabels(function);
 			writer.WriteLine("{");
 			if (NeedsAbiThisFixup(function))
 			{
@@ -1778,6 +1792,36 @@ public static class CCodeEmitter
 				WriteStatement(writer, statement, 1);
 			writer.WriteLine("}");
 			currentFunction = previousFunction;
+			currentFunctionHasLabels = previousFunctionHasLabels;
+		}
+
+		static bool FunctionContainsLabels(FunctionDefinition function)
+		{
+			return function.Body is not null && StatementContainsLabels(function.Body);
+		}
+
+		static bool StatementContainsLabels(Statement? statement)
+		{
+			return statement switch
+			{
+				null => false,
+				LabelStatement => true,
+				BlockStatement block => block.Statements.Any(StatementContainsLabels),
+				IfStatement ifStatement => StatementContainsLabels(ifStatement.Body) || StatementContainsLabels(ifStatement.ElseBody),
+				WhileStatement whileStatement => StatementContainsLabels(whileStatement.Body),
+				DoWhileStatement doWhile => StatementContainsLabels(doWhile.Body),
+				ForStatement forStatement => StatementContainsLabels(forStatement.Condition.Declaration) || StatementContainsLabels(forStatement.Body),
+				ForeachStatement foreachStatement => StatementContainsLabels(foreachStatement.Body),
+				SwitchStatement switchStatement => switchStatement.Statements.Any(StatementContainsLabels),
+				CaseStatement => false,
+				TryStatement tryStatement => StatementContainsLabels(tryStatement.Body)
+					|| tryStatement.Catches.Any(StatementContainsLabels)
+					|| StatementContainsLabels(tryStatement.Finally),
+				CatchStatement catchStatement => StatementContainsLabels(catchStatement.Body),
+				FinallyStatement finallyStatement => StatementContainsLabels(finallyStatement.Body),
+				WithinStatement withinStatement => StatementContainsLabels(withinStatement.Body),
+				_ => false
+			};
 		}
 
 		void WriteBlock(TextWriter writer, BlockStatement block, int indent, bool forceBraces)
@@ -1887,7 +1931,10 @@ public static class CCodeEmitter
 			{
 				string size = FormatGenericSizeExpression(declaration.Target.ResolvedType);
 				WriteIndent(writer, indent);
-				writer.WriteLine("uint8_t " + name + "[" + size + "];");
+				if (currentFunctionHasLabels)
+					writer.WriteLine("uint8_t *" + name + " = __builtin_alloca(" + size + ");");
+				else
+					writer.WriteLine("uint8_t " + name + "[" + size + "];");
 				if (declaration.InitialValue is DefaultExpression)
 				{
 					WriteIndent(writer, indent);
@@ -2964,6 +3011,12 @@ public static class CCodeEmitter
 					genericType = target.ResolvedType ?? "";
 					return true;
 
+				case UnaryExpression { Operator: UnaryOperator.PointerDereference, ResolvedType: string targetType } unary
+					when IsAnyGenericParameterType(targetType):
+					address = FormatExpression(unary.Operand);
+					genericType = targetType;
+					return true;
+
 				default:
 					return false;
 			}
@@ -3051,6 +3104,13 @@ public static class CCodeEmitter
 				return CName(function);
 			if (member.Member is VariableDefinition variable)
 				return CName(variable);
+			if (member.Member is FieldDefinition field)
+			{
+				string fieldTarget = FormatExpression(member.Target);
+				if (member.Target is UnaryExpression { Operator: UnaryOperator.PointerDereference })
+					fieldTarget = "(" + fieldTarget + ")";
+				return fieldTarget + (IsPointerMemberTarget(member.Target) ? "->" : ".") + CName(field);
+			}
 			string? expandedThisComponent = FormatExpandedThisComponent(member.Target, member.Name);
 			if (expandedThisComponent is not null)
 				return expandedThisComponent;

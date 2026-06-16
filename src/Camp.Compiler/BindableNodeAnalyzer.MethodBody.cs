@@ -1399,15 +1399,29 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (FindContainingType(function) is not TypeDefinition containingType)
 		{
-			ThisParameterDefinition? thisParameter = GetExplicitThisParameter(function);
-			if (thisParameter is null || function.GenericParameters.Count == 0)
+			if (function.GenericParameters.Count == 0)
 				return;
 
-			InferGenericSubstitutions(
-				thisParameter.ResolvedType ?? ErrorType,
-				receiverType,
-				substitutions,
-				GetFunctionGenericParameterNames(function));
+			ThisParameterDefinition? thisParameter = GetExplicitThisParameter(function);
+			if (thisParameter is not null)
+			{
+				InferGenericSubstitutions(
+					thisParameter.ResolvedType ?? ErrorType,
+					receiverType,
+					substitutions,
+					GetFunctionGenericParameterNames(function));
+				return;
+			}
+
+			ParameterDefinition? firstParam = function.Parameters.Count > 0 ? function.Parameters[0] : null;
+			if (firstParam?.Name == "this")
+			{
+				InferGenericSubstitutions(
+					firstParam.ResolvedType ?? ErrorType,
+					receiverType,
+					substitutions,
+					GetFunctionGenericParameterNames(function));
+			}
 			return;
 		}
 

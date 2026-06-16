@@ -61,7 +61,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ExpandParamsFunctionDeclarations(FunctionDefinition function)
 	{
 		ExpandParamsReturn(function);
-		ExpandParamsParameters(function.Parameters);
+		ExpandParamsParameters(function, function.Parameters);
 		if (function.Body is not null)
 		{
 			FunctionDefinition? previousFunction = currentRewriteFunction;
@@ -142,13 +142,13 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	void ExpandParamsParameters(List<ParameterDefinition> parameters)
+	void ExpandParamsParameters(FunctionDefinition function, List<ParameterDefinition> parameters)
 	{
 		for (int i = 0; i < parameters.Count; i++)
 		{
 			ParameterDefinition parameter = parameters[i];
 			if (parameter is WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition
-				|| parameter is ThisParameterDefinition && !ShouldExpandThisParameter(parameter))
+				|| parameter is ThisParameterDefinition && !ShouldExpandThisParameter(function, parameter))
 				continue;
 			if (!TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape))
 				continue;
@@ -164,10 +164,12 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	bool ShouldExpandThisParameter(ParameterDefinition parameter)
+	bool ShouldExpandThisParameter(FunctionDefinition function, ParameterDefinition parameter)
 	{
 		if (parameter.SourceSyntax is null)
 			return false;
+		if (generatedIteratorFactories.Contains(function) && TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out _))
+			return true;
 		string type = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "";
 		if (!typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition))
 			return false;
@@ -618,11 +620,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	FieldDefinition CreateExpandedField(FieldDefinition source, ParamsComponent component, Expression? initialValue)
 	{
+		string symbol = component.ExpandedName;
+		if (!string.IsNullOrWhiteSpace(source.Symbol) && source.Symbol != source.Name)
+			symbol = component.ExpandedName == source.Name ? source.Symbol : source.Symbol + "_" + component.Name;
+
 		return new FieldDefinition
 		{
 			SourceSyntax = source.SourceSyntax,
 			Name = component.ExpandedName,
-			Symbol = component.ExpandedName,
+			Symbol = symbol,
 			Export = source.Export,
 			Public = source.Public,
 			Extern = source.Extern,

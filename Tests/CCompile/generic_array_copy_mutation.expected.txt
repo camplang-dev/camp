@@ -77,7 +77,7 @@ static void reverse(void *values, uintptr_t values_length, uintptr_t sizeof_T)
 	{
 		while ((left < right))
 		{
-			uint8_t temp[sizeof_T];
+			uint8_t *temp = __builtin_alloca(sizeof_T);
 			__builtin_memcpy(temp, (void*)(((uint8_t*)values) + (left * sizeof_T)), sizeof_T);
 			{
 				__builtin_memmove((void*)(((uint8_t*)values) + (left * sizeof_T)), (void*)(((uint8_t*)values) + (right * sizeof_T)), sizeof_T);
@@ -104,7 +104,7 @@ static void sort(void *values, uintptr_t values_length, fn_int_voidPtr__voidPtr_
 			{
 				while (((j > 0) && (compare(compare_context, (void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), (void*)(((uint8_t*)values) + (j * sizeof_T))) > 0)))
 				{
-					uint8_t temp[sizeof_T];
+					uint8_t *temp = __builtin_alloca(sizeof_T);
 					__builtin_memcpy(temp, (void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), sizeof_T);
 					{
 						__builtin_memmove((void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), (void*)(((uint8_t*)values) + (j * sizeof_T)), sizeof_T);

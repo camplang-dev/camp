@@ -220,10 +220,24 @@ public sealed partial class BindableNodeAnalyzer
 	void AddArrayPendingComponents(TypeReference? elementType, string? elementResolvedType, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
 	{
 		List<ParamsNamePart> elementPrefix = [.. prefix, new ParamsNamePart("elements", true)];
-		string elementPointerType = AddPointer(elementResolvedType ?? elementType?.ResolvedType ?? ErrorType);
+		string elementPointerType = AddPointer(ResolvedParamsComponentType(elementType, elementResolvedType));
 		components.Add(new PendingParamsComponent("elements", elementPointerType, elementPrefix, null, ParamsComponentShapeKind.Array));
 
 		components.Add(new PendingParamsComponent("length", "nuint", [.. prefix, new ParamsNamePart("length", false)], null, ParamsComponentShapeKind.Array));
+	}
+
+	static string ResolvedParamsComponentType(TypeReference? type, string? resolvedType)
+	{
+		if (!string.IsNullOrWhiteSpace(resolvedType) && resolvedType is not UnresolvedType and not ErrorType)
+			return resolvedType;
+		return type switch
+		{
+			GenericParameterTypeReference generic => generic.Name,
+			NamedTypeReference named => named.Name,
+			TypeDefinitionReference definition => definition.Name,
+			PrimitiveTypeReference primitive => GetPrimitiveTypeName(primitive.Type),
+			_ => type?.ResolvedType is { } nested && nested is not UnresolvedType and not ErrorType ? nested : ErrorType
+		};
 	}
 
 	bool TryBuildPendingPointerComponents(

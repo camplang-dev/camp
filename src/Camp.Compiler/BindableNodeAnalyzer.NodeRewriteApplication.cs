@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 
 namespace Camp.Compiler;
@@ -8,6 +9,14 @@ public sealed partial class BindableNodeAnalyzer
 {
 	void FillMissingResolvedTypes(BindableNode node)
 	{
+		FillMissingResolvedTypes(node, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance));
+	}
+
+	void FillMissingResolvedTypes(BindableNode node, HashSet<BindableNode> visited)
+	{
+		if (!visited.Add(node))
+			return;
+
 		node.ResolvedType ??= UnresolvedType;
 
 		Type type = node.GetType();
@@ -18,13 +27,13 @@ public sealed partial class BindableNodeAnalyzer
 
 			object? value = property.GetValue(node);
 			if (value is BindableNode child)
-				FillMissingResolvedTypes(child);
+				FillMissingResolvedTypes(child, visited);
 			else if (IsListType(property.PropertyType) && value is IEnumerable items)
 			{
 				foreach (object? item in items)
 				{
 					if (item is BindableNode childItem)
-						FillMissingResolvedTypes(childItem);
+						FillMissingResolvedTypes(childItem, visited);
 				}
 			}
 		}
@@ -41,6 +50,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ApplyNodeRewrites(BindableNode node)
 	{
+		ApplyNodeRewrites(node, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance));
+	}
+
+	void ApplyNodeRewrites(BindableNode node, HashSet<BindableNode> visited)
+	{
+		if (!visited.Add(node))
+			return;
+
 		foreach (PropertyInfo property in node.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
 		{
 			if (property.Name == nameof(BindableNode.SourceSyntax) || property.Name == nameof(BindableNode.ResolvedType) || IsSemanticReferenceProperty(property))
@@ -55,27 +72,27 @@ public sealed partial class BindableNodeAnalyzer
 				Expression rewritten = RewriteExpression(expression);
 				if (!ReferenceEquals(rewritten, expression) && property.CanWrite)
 					property.SetValue(node, rewritten);
-				ApplyNodeRewrites(rewritten);
+				ApplyNodeRewrites(rewritten, visited);
 			}
 			else if (value is TypeReference type)
 			{
 				TypeReference rewritten = RewriteTypeReference(type);
 				if (!ReferenceEquals(rewritten, type) && property.CanWrite)
 					property.SetValue(node, rewritten);
-				ApplyNodeRewrites(rewritten);
+				ApplyNodeRewrites(rewritten, visited);
 			}
 			else if (value is IList list)
 			{
-				ApplyListRewrites(list);
+				ApplyListRewrites(list, visited);
 			}
 			else if (value is BindableNode child)
 			{
-				ApplyNodeRewrites(child);
+				ApplyNodeRewrites(child, visited);
 			}
 		}
 	}
 
-	void ApplyListRewrites(IList list)
+	void ApplyListRewrites(IList list, HashSet<BindableNode> visited)
 	{
 		for (int i = 0; i < list.Count; i++)
 		{
@@ -88,18 +105,18 @@ public sealed partial class BindableNodeAnalyzer
 				Expression rewritten = RewriteExpression(expression);
 				if (!ReferenceEquals(rewritten, expression))
 					list[i] = rewritten;
-				ApplyNodeRewrites(rewritten);
+				ApplyNodeRewrites(rewritten, visited);
 			}
 			else if (item is TypeReference type)
 			{
 				TypeReference rewritten = RewriteTypeReference(type);
 				if (!ReferenceEquals(rewritten, type))
 					list[i] = rewritten;
-				ApplyNodeRewrites(rewritten);
+				ApplyNodeRewrites(rewritten, visited);
 			}
 			else if (item is BindableNode child)
 			{
-				ApplyNodeRewrites(child);
+				ApplyNodeRewrites(child, visited);
 			}
 		}
 	}
