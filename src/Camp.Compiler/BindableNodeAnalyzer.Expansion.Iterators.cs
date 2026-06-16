@@ -9,6 +9,7 @@ public sealed partial class BindableNodeAnalyzer
 	string? currentIteratorStateThisType;
 	int iteratorForeachStateIndex;
 	readonly Dictionary<ForeachStatement, IteratorForeachStateFields> iteratorForeachStates = [];
+	readonly Dictionary<string, Dictionary<string, FieldDefinition>> iteratorStateFields = new(StringComparer.Ordinal);
 
 	void GenerateIteratorDeclarations(Module module)
 	{
@@ -1313,15 +1314,23 @@ public sealed partial class BindableNodeAnalyzer
 		if (thisType is null && currentRewriteContainingType is not null)
 			thisType = $"{currentRewriteContainingType.Name}*";
 
+		FieldDefinition? field = null;
+		if (!string.IsNullOrWhiteSpace(thisType)
+			&& iteratorStateFields.TryGetValue(BaseTypeName(thisType), out Dictionary<string, FieldDefinition>? fields))
+		{
+			fields.TryGetValue(name, out field);
+		}
+
 		return new MemberReferenceExpression
 		{
 			Target = new ThisExpression { ResolvedType = thisType },
 			Name = name,
+			Member = field,
 			ResolvedType = resolvedType
 		};
 	}
 
-	static void AddIteratorField(TypeDefinition type, FieldDefinition field)
+	void AddIteratorField(TypeDefinition type, FieldDefinition field)
 	{
 		switch (type)
 		{
@@ -1334,6 +1343,14 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				throw new InvalidOperationException("Iterator state type must be a class or struct.");
 		}
+
+		if (!iteratorStateFields.TryGetValue(type.Name, out Dictionary<string, FieldDefinition>? fields))
+		{
+			fields = new Dictionary<string, FieldDefinition>(StringComparer.Ordinal);
+			iteratorStateFields[type.Name] = fields;
+		}
+		if (!string.IsNullOrWhiteSpace(field.Name))
+			fields[field.Name] = field;
 	}
 
 	static void AddIteratorFunction(TypeDefinition type, FunctionDefinition function)

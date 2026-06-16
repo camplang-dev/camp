@@ -1,0 +1,16 @@
+struct iter int mapValues(int[] values, delegate int(int) map)
+{
+	for (nuint i = 0; i < values.length; i++)
+		yield map(values[i]);
+}
+
+int doubleIt(int value) => value * 2;
+
+export int main()
+{
+	int[] values = [1, 2, 3];
+	int sum = 0;
+	foreach (int value in mapValues(values, doubleIt))
+		sum += value;
+	return sum;
+}

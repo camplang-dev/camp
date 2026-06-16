@@ -1,0 +1,149 @@
+// file: iterator_expanded_state_components.c
+#include "iterator_expanded_state_components_private.h"
+
+/* Private file declarations. */
+static int __camp_delegate_doubleIt(void *arg0, int arg1);
+static mapValuesIter mapValues(int *values, uintptr_t values_length, fn_int_voidPtr__int_ map, void *map_context);
+static int doubleIt(int value);
+static bool mapValuesIter_next(mapValuesIter *this, int *current);
+static void mapValuesIter_op_delete(mapValuesIter *this);
+static void mapValuesIter_destroy(mapValuesIter *this);
+static bool mapValuesIter_iter(void *ctx, int *current);
+
+static int __camp_delegate_doubleIt(void *arg0, int arg1)
+{
+	(void)arg0;
+	return doubleIt(arg1);
+}
+
+static mapValuesIter mapValues(int *values, uintptr_t values_length, fn_int_voidPtr__int_ map, void *map_context)
+{
+	return (mapValuesIter){ .__state = 0, .values = values, .values_length = values_length, .map = map, .map_context = map_context };
+}
+
+static int doubleIt(int value)
+{
+	return (value * 2);
+}
+
+int main(void)
+{
+	int *values = (int []){1, 2, 3};
+	uintptr_t values_length = 3;
+	int sum = 0;
+	{
+		mapValuesIter _foreachIter0 = mapValues(values, values_length, __camp_delegate_doubleIt, NULL);
+		int _foreachCurrent1 = 0;
+		while (mapValuesIter_next(&_foreachIter0, &_foreachCurrent1))
+		{
+			int value = _foreachCurrent1;
+			sum += value;
+__foreach_continue2: ;
+		}
+		mapValuesIter_op_delete(&_foreachIter0);
+__foreach_break3: ;
+	}
+	return sum;
+}
+
+static bool mapValuesIter_next(mapValuesIter *this, int *current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	this->i = 0;
+	{
+		for (; (this->i < this->values_length); this->i++)
+		{
+			*current = this->map(this->map_context, this->values[this->i]);
+			this->__state = 1;
+			return true;
+__iter_resume1: ;
+			;
+__for_continue4: ;
+		}
+__for_break5: ;
+	}
+	this->__state = -1;
+	return false;
+}
+
+static void mapValuesIter_op_delete(mapValuesIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static void mapValuesIter_destroy(mapValuesIter *this)
+{
+	mapValuesIter_op_delete(this);
+}
+
+static bool mapValuesIter_iter(void *ctx, int *current)
+{
+	mapValuesIter *state = (mapValuesIter *)(ctx);
+	if ((current == NULL))
+	{
+		mapValuesIter_op_delete(state);
+		return false;
+	}
+	return mapValuesIter_next(state, current);
+}
+
+// file: iterator_expanded_state_components.h
+#ifndef ITERATOR_EXPANDED_STATE_COMPONENTS_H_
+#define ITERATOR_EXPANDED_STATE_COMPONENTS_H_
+
+#include "iterator_expanded_state_components_private.h"
+
+typedef int (* fn_int_int_)(int arg0);
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+int main(void);
+
+#endif
+// file: iterator_expanded_state_components_private.h
+#ifndef ITERATOR_EXPANDED_STATE_COMPONENTS_PRIVATE_H_
+#define ITERATOR_EXPANDED_STATE_COMPONENTS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct mapValuesIter mapValuesIter;
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_int_)(int arg0);
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+
+/* Enums. */
+
+/* Layouts. */
+struct mapValuesIter
+{
+	int __state;
+	int *values;
+	uintptr_t values_length;
+	fn_int_voidPtr__int_ map;
+	void *map_context;
+	uintptr_t i;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: iterator_expanded_state_components.c

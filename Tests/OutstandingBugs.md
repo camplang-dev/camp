@@ -6,11 +6,6 @@
   be able to insert the allocator automatically, but today they must spell
   `within allocator, catch error` explicitly.
 
-- **BUG-010:** Iterator state fields that store expanded params values are not
-  fully materialized in emitted C. A generator local such as
-  `delegate int(int) map = ...` can emit a raw initializer for a delegate field,
-  and an `int[]` generator parameter stored on the iterator state can later emit
-  `this->values.length` instead of using the lifted companion length field.
 - **BUG-011:** Callable typedefs are emitted before enum typedefs, so a function
   pointer type with an enum slot such as `delegate void(thrown MyError)` can
   reference `MyError` before the enum typedef exists. The C emitter needs either

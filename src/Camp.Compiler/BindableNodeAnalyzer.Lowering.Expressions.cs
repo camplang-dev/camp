@@ -336,6 +336,11 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryRewriteDelegateInvocation(CallExpression call)
 	{
 		if (!TryCreateParamsComponentExpressions(call.Target, out List<Expression> components) || components.Count != 2)
+		{
+			if (!TryCreateDelegateComponentsFromExpandedCallTarget(call.Target, out components))
+				return false;
+		}
+		if (components.Count != 2)
 			return false;
 		if (!TryGetCallableShape(components[0].ResolvedType, out CallableShape callable) || callable.Kind != "fn")
 			return false;
@@ -349,6 +354,25 @@ public sealed partial class BindableNodeAnalyzer
 			Value = components[1],
 			ResolvedType = components[1].ResolvedType
 		});
+		return true;
+	}
+
+	bool TryCreateDelegateComponentsFromExpandedCallTarget(Expression? target, out List<Expression> components)
+	{
+		components = [];
+		if (target is null
+			|| !TryGetCallableShape(target.ResolvedType, out CallableShape callable)
+			|| callable.Kind != "fn"
+			|| callable.Parameters.Count == 0
+			|| callable.Parameters[0] != "void*"
+			|| !TryFindParamsExpansionSibling(target, "context", out Expression? context)
+			|| context is null)
+		{
+			return false;
+		}
+
+		components.Add(target);
+		components.Add(context);
 		return true;
 	}
 
