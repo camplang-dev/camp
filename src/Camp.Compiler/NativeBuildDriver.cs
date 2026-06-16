@@ -12,6 +12,7 @@ namespace Camp.Compiler;
 public enum NativeBuildKind
 {
 	Exec,
+	WinExe,
 	Static,
 	Shared
 }
@@ -97,6 +98,7 @@ public static class NativeBuildDriver
 		string prefix = options.Kind switch
 		{
 			NativeBuildKind.Exec => options.Target.GetArtifactValue("exec_prefix"),
+			NativeBuildKind.WinExe => options.Target.GetArtifactValue("exec_prefix"),
 			NativeBuildKind.Static => options.Target.GetArtifactValue("static_prefix", "lib"),
 			NativeBuildKind.Shared => options.Target.GetArtifactValue("shared_prefix", "lib"),
 			_ => ""
@@ -104,6 +106,7 @@ public static class NativeBuildDriver
 		string extension = options.Kind switch
 		{
 			NativeBuildKind.Exec => options.Target.GetArtifactValue("exec_ext"),
+			NativeBuildKind.WinExe => options.Target.GetArtifactValue("exec_ext"),
 			NativeBuildKind.Static => options.Target.GetArtifactValue("static_ext", ".a"),
 			NativeBuildKind.Shared => options.Target.GetArtifactValue("shared_ext", ".so"),
 			_ => ""
@@ -126,6 +129,7 @@ public static class NativeBuildDriver
 		return kind switch
 		{
 			NativeBuildKind.Exec => "exec",
+			NativeBuildKind.WinExe => "winexe",
 			NativeBuildKind.Static => "static",
 			NativeBuildKind.Shared => "shared",
 			_ => throw new ArgumentOutOfRangeException(nameof(kind))
@@ -154,6 +158,7 @@ public static class NativeBuildDriver
 			NativeBuildKind.Shared => options.Target.GetCEmitterValue("shared_cflags"),
 			NativeBuildKind.Static => options.Target.GetCEmitterValue("static_cflags"),
 			NativeBuildKind.Exec => options.Target.GetCEmitterValue("exec_cflags"),
+			NativeBuildKind.WinExe => options.Target.GetCEmitterValue("exec_cflags"),
 			_ => ""
 		};
 	}

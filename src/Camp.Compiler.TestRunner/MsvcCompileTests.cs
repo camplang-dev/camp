@@ -80,6 +80,24 @@ public sealed class MsvcCompileTests
 
 	[Fact]
 	[Trait("Category", "MsvcCompile")]
+	public void Windows_subsystem_executable_builds()
+	{
+		if (!MsvcAvailable())
+			Assert.Skip("MSVC tools are not available on PATH.");
+		string source = WriteCase("winexe", """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		CompilerResult result = Compile(source, NativeBuildKind.WinExe);
+		AssertSuccess(result);
+		Assert.EndsWith(".exe", FindArtifact(result, ".exe"), StringComparison.OrdinalIgnoreCase);
+	}
+
+	[Fact]
+	[Trait("Category", "MsvcCompile")]
 	public void Static_and_shared_libraries_build()
 	{
 		if (!MsvcAvailable())
@@ -148,7 +166,42 @@ public sealed class MsvcCompileTests
 					return true;
 			}
 		}
-		return false;
+		return CommandResolves(tool);
+	}
+
+	static bool CommandResolves(string tool)
+	{
+		try
+		{
+			ProcessStartInfo startInfo = new("cmd.exe")
+			{
+				UseShellExecute = false,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+				Arguments = "/S /C \"where " + tool + "\""
+			};
+			using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException();
+			Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+			Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+			if (!process.WaitForExit(3000))
+			{
+				try
+				{
+					process.Kill(entireProcessTree: true);
+				}
+				catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+				{
+				}
+				return false;
+			}
+			stdoutTask.GetAwaiter().GetResult();
+			stderrTask.GetAwaiter().GetResult();
+			return process.ExitCode == 0;
+		}
+		catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+		{
+			return false;
+		}
 	}
 
 	static CompilerResult Compile(string source, NativeBuildKind kind, string? caseName = null)

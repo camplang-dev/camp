@@ -63,7 +63,7 @@ Option<string> emitOption = new("--emit")
 
 Option<string?> buildOption = new("--build", "-b")
 {
-	Description = "Build a native artifact: exec, static, or shared."
+	Description = "Build a native artifact: exec, winexe, static, or shared."
 };
 
 Option<string?> outDirOption = new("--out-dir")
@@ -130,7 +130,7 @@ rootCommand.SetAction(parseResult =>
 
 	if (parseResult.GetValue(buildOption) is string build && request.BuildKind is null)
 	{
-		Console.Error.WriteLine($"Build kind '{build}' is not valid. Expected exec, static, or shared.");
+		Console.Error.WriteLine($"Build kind '{build}' is not valid. Expected exec, winexe, static, or shared.");
 		return 1;
 	}
 
@@ -162,6 +162,7 @@ static NativeBuildKind? ParseBuildKind(string? value)
 	{
 		null or "" => null,
 		"exec" => NativeBuildKind.Exec,
+		"winexe" => NativeBuildKind.WinExe,
 		"static" => NativeBuildKind.Static,
 		"shared" => NativeBuildKind.Shared,
 		_ => null

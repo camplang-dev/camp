@@ -437,7 +437,7 @@ public static class CompilerDriver
 				return 1;
 
 			FunctionDefinition? execEntryPoint = null;
-			if (request.BuildKind is NativeBuildKind.Exec && !TryPrepareExecEntryPoint(compilation, out execEntryPoint))
+			if (request.BuildKind is NativeBuildKind.Exec or NativeBuildKind.WinExe && !TryPrepareExecEntryPoint(compilation, out execEntryPoint))
 				return 1;
 
 			string buildDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(request.BuildDir) ? CCodeEmitter.GetDefaultOutputDirectory(compilation.Files) : request.BuildDir, request.WorkingDirectory);
@@ -448,7 +448,7 @@ public static class CompilerDriver
 				ProjectName = CCodeEmitter.GetProjectName(compilation.Files),
 				EmitKind = request.EmitKind,
 				BuildKind = request.BuildKind,
-				EmitExecMainWrapper = request.BuildKind is NativeBuildKind.Exec,
+				EmitExecMainWrapper = request.BuildKind is NativeBuildKind.Exec or NativeBuildKind.WinExe,
 				ExecEntryPoint = execEntryPoint
 			});
 			foreach (string diagnostic in result.Diagnostics)
