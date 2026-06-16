@@ -1,0 +1,2 @@
+tests/Diagnostics/delegate_receiver_context_invalid.camp(22,18): error: Type 'const char[]' cannot be the receiver of a delegate; delegate receivers must be single pointer values.
+tests/Diagnostics/delegate_receiver_context_invalid.camp(25,18): error: Type 'int' cannot be the receiver of a delegate; delegate receivers must be single pointer values.

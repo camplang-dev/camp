@@ -2599,15 +2599,23 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		BodySymbol selected = members[0];
-		string memberType = selected.Type;
-		if (!isTypeTarget
-			&& selected.Node is FunctionDefinition function
-			&& TryGetCallableShape(targetCallableType, out CallableShape targetShape)
-			&& targetShape.This.HasThis)
-		{
-			if (BoundMethodReferenceCanSatisfyThisContract(targetType, function, targetShape.This, member.SourceSyntax))
-				memberType = targetCallableType!;
-		}
+			string memberType = selected.Type;
+			if (!isTypeTarget
+				&& selected.Node is FunctionDefinition function
+				&& TryGetCallableShape(targetCallableType, out CallableShape targetShape)
+				&& targetShape.This.HasThis)
+			{
+				if (BoundMethodReferenceCanSatisfyThisContract(targetType, function, targetShape.This, member.SourceSyntax))
+					memberType = targetCallableType!;
+			}
+			if (!isTypeTarget
+				&& selected.Node is FunctionDefinition delegateFunction
+				&& IsDelegateCallableType(memberType)
+				&& !CanUseReceiverAsDelegateContext(targetType, delegateFunction))
+			{
+				Report(GetRange(member.SourceSyntax), $"Type '{targetType}' cannot be the receiver of a delegate; delegate receivers must be single pointer values.");
+				memberType = ErrorType;
+			}
 
 		expressionConstants[member] = selected.IsConstant;
 		if (isTypeTarget && selected.Node is FieldDefinition staticField)
@@ -2624,11 +2632,28 @@ public sealed partial class BindableNodeAnalyzer
 		MemberReferenceExpression reference = CreateMemberReference(member, member.Target, memberType, selected.Node);
 		if (selected.Node is FieldDefinition field)
 			reference.Name = field.Name;
-		expressionRewrites[member] = reference;
-		return memberType;
-	}
+			expressionRewrites[member] = reference;
+			return memberType;
+		}
 
-	bool TryAnalyzeParamsPointerComponentMember(MemberExpression member, string targetType, out string componentType)
+		bool IsDelegateCallableType(string? type)
+		{
+			return TryGetCallableShape(type, out CallableShape shape) && shape.Kind == "delegate";
+		}
+
+		bool CanUseReceiverAsDelegateContext(string targetType, FunctionDefinition function)
+		{
+			if (TryGetParamsComponentShape(null, targetType, "value", out _))
+				return false;
+			if (TryGetPointerElementType(targetType) is not null || IsPrimitiveStringType(targetType))
+				return true;
+			if (GetExplicitThisParameter(function)?.Modifier == ParameterModifier.In)
+				return true;
+			return typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? definition)
+				&& definition is ClassDefinition or StructDefinition or NewtypeDefinition;
+		}
+
+		bool TryAnalyzeParamsPointerComponentMember(MemberExpression member, string targetType, out string componentType)
 	{
 		componentType = ErrorType;
 		if (TryGetPointerElementType(targetType) is not string pointedType

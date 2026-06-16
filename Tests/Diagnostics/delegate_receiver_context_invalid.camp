@@ -1,0 +1,26 @@
+void acceptChar(delegate char() callback)
+{
+}
+
+void acceptInt(delegate int() callback)
+{
+}
+
+char first(const char[] this)
+{
+	return this[0];
+}
+
+int identity(int this)
+{
+	return this;
+}
+
+export void main()
+{
+	const char[] span = "hi";
+	acceptChar(span.first);
+
+	int value = 7;
+	acceptInt(value.identity);
+}
