@@ -5,10 +5,7 @@
   as `reader.readLine(catch error)` inside a `within (allocator)` block should
   be able to insert the allocator automatically, but today they must spell
   `within allocator, catch error` explicitly.
-- **BUG-008:** Default argument insertion can append a default for a later
-  parameter even when the caller supplied that argument explicitly in some
-  generic/delegate call shapes. `List<T>.binarySearch` avoids optional
-  `startAt/count` parameters until this is fixed.
+
 - **BUG-009:** Taking the address of an erased generic array element can emit
   C like `&items[index]` against a `void*` backing pointer instead of byte
   offsetting by `index * sizeof(T)`. `List<T>.getAddressOf` currently performs

@@ -1,0 +1,74 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+int compareInt(in int left, in int right)
+{
+	if (left < right)
+		return -1;
+	if (left > right)
+		return 1;
+	return 0;
+}
+
+// --
+// Test 1: generic function with delegate + optional trailing arg + sizeof(T)
+// Call with explicit optional: no extra default. Call without: uses default.
+// --
+
+nint findInArray<T: any>(const T[] this, in T item, delegate int(in T left, in T right) comparer, nuint startAt = 0, sizeof(T))
+{
+	nuint i = startAt;
+	while (i < this.length)
+	{
+		if (comparer(this[i], item) == 0)
+			return (nint)i;
+		i++;
+	}
+	return -1;
+}
+
+// --
+// Test 2: delegate arg expands to call/context; optional is supplied explicitly.
+// --
+
+void forEachFrom<T: any>(T[] this, delegate void(in T value) body, nuint startAt = 0, sizeof(T))
+{
+	for (nuint i = startAt; i < this.length; i++)
+		body(this[i]);
+}
+
+void noop(in int value)
+{
+}
+
+// --
+// Test 3: @range function where index supplied, count defaulted.
+// Test 3b: @range both index+count supplied, no default inserted.
+// --
+
+nuint len(const int[] this)
+{
+	return this.length;
+}
+
+int main()
+{
+	int[] values = [10, 20, 30, 40, 50];
+
+	// Test 1: delegate + explicit optional → must not insert extra default
+	nint found1 = values.findInArray<int>(30, compareInt, 1);
+
+	// Test 1b: delegate + optional defaulted → uses default
+	nint found2 = values.findInArray<int>(30, compareInt);
+
+	// Test 2: delegate + explicit optional
+	values.forEachFrom<int>(noop, 1);
+
+	// Test 2b: delegate + optional defaulted
+	values.forEachFrom<int>(noop);
+
+	// Test 3: @range default count
+	nuint n = values.len();
+
+	return (int)found1 + (int)found2 + (int)n;
+}

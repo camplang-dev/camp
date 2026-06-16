@@ -183,13 +183,10 @@ export class List<T: any>
 	}
 
 	// Returns the matching sorted index, or -1 when no match is found.
-	export nint binarySearch(in T item, delegate int(in T left, in T right) comparer, nuint startAt, nuint count)
+	export nint binarySearch(in T item, delegate int(in T left, in T right) comparer, @range nuint startAt = 0, nuint count = ^0)
 	{
 		if (startAt >= this.length)
 			return -1;
-
-		if (count == 0)
-			count = this.length - startAt;
 
 		T[] used = this.items[..this.length];
 		const T[] source = used[startAt..startAt + count];

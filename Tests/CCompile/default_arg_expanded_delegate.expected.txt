@@ -1,0 +1,135 @@
+// file: default_arg_expanded_delegate.c
+#include "default_arg_expanded_delegate_private.h"
+
+/* Private file declarations. */
+static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2);
+static int __camp_delegate_compareInt_1(void *arg0, int *arg1, int *arg2);
+static void __camp_delegate_noop(void *arg0, int *arg1);
+static void __camp_delegate_noop_1(void *arg0, int *arg1);
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static int compareInt(int *left, int *right);
+static intptr_t Array_findInArray(const void *this, uintptr_t this_length, void *item, fn_int_voidPtr__voidPtr__voidPtr_ comparer, void *comparer_context, uintptr_t startAt, uintptr_t sizeof_T);
+static void Array_forEachFrom(void *this, uintptr_t this_length, fn_void_voidPtr__voidPtr_ body, void *body_context, uintptr_t startAt, uintptr_t sizeof_T);
+static void noop(int *value);
+static uintptr_t IntArray_len(const int *this, uintptr_t this_length);
+static int main(void);
+
+static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2)
+{
+	(void)arg0;
+	return compareInt(arg1, arg2);
+}
+
+static int __camp_delegate_compareInt_1(void *arg0, int *arg1, int *arg2)
+{
+	(void)arg0;
+	return compareInt(arg1, arg2);
+}
+
+static void __camp_delegate_noop(void *arg0, int *arg1)
+{
+	(void)arg0;
+	noop(arg1);
+}
+
+static void __camp_delegate_noop_1(void *arg0, int *arg1)
+{
+	(void)arg0;
+	noop(arg1);
+}
+
+static int compareInt(int *left, int *right)
+{
+	if (((*left) < (*right)))
+	{
+		return -1;
+	}
+	if (((*left) > (*right)))
+	{
+		return 1;
+	}
+	return 0;
+}
+
+static intptr_t Array_findInArray(const void *this, uintptr_t this_length, void *item, fn_int_voidPtr__voidPtr__voidPtr_ comparer, void *comparer_context, uintptr_t startAt, uintptr_t sizeof_T)
+{
+	uintptr_t i = startAt;
+	{
+		while ((i < this_length))
+		{
+			if ((comparer(comparer_context, (void*)(((const uint8_t*)this) + (i * sizeof_T)), item) == 0))
+			{
+				return (intptr_t)(i);
+			}
+			i++;
+__while_continue0: ;
+		}
+__while_break1: ;
+	}
+	return -1;
+}
+
+static void Array_forEachFrom(void *this, uintptr_t this_length, fn_void_voidPtr__voidPtr_ body, void *body_context, uintptr_t startAt, uintptr_t sizeof_T)
+{
+	{
+		for (uintptr_t i = startAt; (i < this_length); i++)
+		{
+			body(body_context, (void*)(((uint8_t*)this) + (i * sizeof_T)));
+__for_continue2: ;
+		}
+__for_break3: ;
+	}
+}
+
+static void noop(int *value)
+{
+}
+
+static uintptr_t IntArray_len(const int *this, uintptr_t this_length)
+{
+	return this_length;
+}
+
+static int main(void)
+{
+	int *values = (int []){10, 20, 30, 40, 50};
+	uintptr_t values_length = 5;
+	intptr_t found1 = Array_findInArray(values, values_length, &(int){30}, (fn_int_voidPtr__voidPtr__voidPtr_)__camp_delegate_compareInt, NULL, 1, sizeof(int));
+	intptr_t found2 = Array_findInArray(values, values_length, &(int){30}, (fn_int_voidPtr__voidPtr__voidPtr_)__camp_delegate_compareInt_1, NULL, 0, sizeof(int));
+	Array_forEachFrom(values, values_length, (fn_void_voidPtr__voidPtr_)__camp_delegate_noop, NULL, 1, sizeof(int));
+	Array_forEachFrom(values, values_length, (fn_void_voidPtr__voidPtr_)__camp_delegate_noop_1, NULL, 0, sizeof(int));
+	uintptr_t n = IntArray_len(values, values_length);
+	return (((int)(found1) + (int)(found2)) + (int)(n));
+}
+
+// file: default_arg_expanded_delegate_private.h
+#ifndef DEFAULT_ARG_EXPANDED_DELEGATE_PRIVATE_H_
+#define DEFAULT_ARG_EXPANDED_DELEGATE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_int__int_)(int *arg0, int *arg1);
+typedef int (* fn_int_voidPtr__voidPtr__voidPtr_)(void *arg0, void *arg1, void *arg2);
+typedef void (* fn_void_int_)(int *arg0);
+typedef void (* fn_void_voidPtr__voidPtr_)(void *arg0, void *arg1);
+
+/* Enums. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: default_arg_expanded_delegate.c

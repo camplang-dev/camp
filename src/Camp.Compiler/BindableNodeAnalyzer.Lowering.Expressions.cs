@@ -434,7 +434,19 @@ public sealed partial class BindableNodeAnalyzer
 	int CountCallableParametersSatisfiedByArgument(ArgumentExpression argument, List<ParameterDefinition> callableParameters, int parameterIndex)
 	{
 		if (!TryGetArgumentParamsComponentShape(argument, out ParamsComponentShape shape) || shape.Components.Count <= 1)
+		{
+			if (parameterIndex + 1 < callableParameters.Count
+				&& ParametersLookLikeDelegateCallContextPair(callableParameters, parameterIndex)
+				&& ArgumentCouldExpandToDelegate(argument))
+				return 2;
+
+			if (parameterIndex + 1 < callableParameters.Count
+				&& ParametersLookLikeExpandedArrayComponents(callableParameters, parameterIndex)
+				&& ArgumentCouldExpandToArray(argument))
+				return 2;
+
 			return 1;
+		}
 		if (parameterIndex + shape.Components.Count > callableParameters.Count)
 			return 1;
 
@@ -453,6 +465,54 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return shape.Components.Count;
+	}
+
+	bool ParametersLookLikeDelegateCallContextPair(List<ParameterDefinition> callableParameters, int parameterIndex)
+	{
+		if (!TryGetCallableShape(callableParameters[parameterIndex].ResolvedType, out CallableShape shape)
+			|| shape.Kind != "fn" || shape.Parameters.Count == 0 || shape.Parameters[0] != "void*")
+			return false;
+
+		if (callableParameters[parameterIndex + 1].ResolvedType != "void*")
+			return false;
+
+		return true;
+	}
+
+	bool ArgumentCouldExpandToDelegate(ArgumentExpression argument)
+	{
+		if (argument.Value is null)
+			return false;
+
+		string type = argument.Value.ResolvedType ?? argument.ResolvedType ?? "";
+		if (TryGetCallableShape(type, out CallableShape shape) && shape.Kind == "fn")
+			return true;
+
+		if (TryGetParamsComponentShape(null, type, "value", out ParamsComponentShape componentShape)
+			&& componentShape.Kind == ParamsComponentShapeKind.Delegate)
+			return true;
+
+		return false;
+	}
+
+	bool ParametersLookLikeExpandedArrayComponents(List<ParameterDefinition> callableParameters, int parameterIndex)
+	{
+		return ParameterLooksLikeArrayElementComponent(callableParameters[parameterIndex])
+			&& ParameterLooksLikeArrayLengthComponent(callableParameters[parameterIndex + 1]);
+	}
+
+	bool ArgumentCouldExpandToArray(ArgumentExpression argument)
+	{
+		string type = argument.Value?.ResolvedType ?? argument.ResolvedType ?? "";
+		if (string.IsNullOrWhiteSpace(type))
+			return false;
+
+		if (TryGetParamsComponentShape(null, type, "value", out ParamsComponentShape shape)
+			&& shape.Kind == ParamsComponentShapeKind.Array
+			&& shape.Components.Count == 2)
+			return true;
+
+		return false;
 	}
 
 	bool ParameterLooksLikeArrayElementComponent(ParameterDefinition parameter)

@@ -86,28 +86,32 @@ export int main()
 		return 23;
 
 	ints.sort(compareInt);
-	if (ints.binarySearch(22, compareInt, 0, ints.Length) != 3)
+	if (ints.binarySearch(22, compareInt) != 3)
 		return 24;
-	if (ints.binarySearch(99, compareInt, 0, ints.Length) != -1)
+	if (ints.binarySearch(99, compareInt) != -1)
 		return 25;
+	if (ints.binarySearch(22, compareInt, 1..) != 3)
+		return 26;
+	if (ints.binarySearch(22, compareInt, 1..5) != 3)
+		return 27;
 
 	int[] taken = ints.takeBuffer();
 	if (taken.length != 5 || taken.elements[4] != 30)
-		return 26;
+		return 28;
 	if (ints.Length != 0 || ints.Capacity != 0)
-		return 27;
+		return 29;
 	delete taken;
 
 	string[] moreWords = ["red", "blue"];
 	words.addRange(moreWords);
 	if (words.Length != 4 || words.Item[2].Length != 3 || words.Item[3].Length != 4)
-		return 28;
+		return 30;
 
 	string[] wordBuffer = words.takeBuffer();
 	if (wordBuffer.length != 4 || wordBuffer.elements[0].Length != 3 || wordBuffer.elements[3].Length != 4)
-		return 29;
+		return 31;
 	if (words.Length != 0 || words.Capacity != 0)
-		return 30;
+		return 32;
 	delete wordBuffer;
 
 	auto lines = new List<const char[]>() finally delete;
@@ -116,17 +120,17 @@ export int main()
 	lines.add(alpha);
 	lines.add(beta);
 	if (lengthOf(lines.getItem(0)) != 3)
-		return 31;
+		return 33;
 	auto lineItem = lines.Item[1];
 	if (lineItem.length != 3 || lineItem[0] != 't')
-		return 32;
+		return 34;
 	if (lengthOf(lineItem.trim()) != 3)
-		return 33;
+		return 35;
 	string gamma = "three";
 	lines.add(gamma);
 	auto lineItem2 = lines.Item[2];
 	if (lineItem2.length != 5 || lineItem2[0] != 't')
-		return 34;
+		return 36;
 
 	return 0;
 }
