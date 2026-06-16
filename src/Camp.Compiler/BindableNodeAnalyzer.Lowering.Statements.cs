@@ -70,6 +70,12 @@ public sealed partial class BindableNodeAnalyzer
 		string? previousFunctionExitLabel = currentFunctionExitLabel;
 		DeclarationTarget? previousFunctionReturnTarget = currentFunctionReturnTarget;
 		string previousFunctionReturnType = currentFunctionReturnType;
+		List<CleanupScope> savedCleanupScopes = [.. currentCleanupScopes];
+		List<ThrowHandler> savedThrowHandlers = [.. currentThrowHandlers];
+		List<LoopTransferTarget> savedLoopTransferTargets = [.. currentLoopTransferTargets];
+		currentCleanupScopes.Clear();
+		currentThrowHandlers.Clear();
+		currentLoopTransferTargets.Clear();
 		currentWithinContext = GetFunctionWithinContext(function);
 		currentRewriteFunction = function;
 		currentRewriteContainingType = containingType;
@@ -88,6 +94,12 @@ public sealed partial class BindableNodeAnalyzer
 		currentFunctionExitLabel = previousFunctionExitLabel;
 		currentFunctionReturnTarget = previousFunctionReturnTarget;
 		currentFunctionReturnType = previousFunctionReturnType;
+		currentCleanupScopes.Clear();
+		currentCleanupScopes.AddRange(savedCleanupScopes);
+		currentThrowHandlers.Clear();
+		currentThrowHandlers.AddRange(savedThrowHandlers);
+		currentLoopTransferTargets.Clear();
+		currentLoopTransferTargets.AddRange(savedLoopTransferTargets);
 	}
 
 	BlockStatement? RewriteFunctionBody(BlockStatement? body)

@@ -1,0 +1,75 @@
+// file: lambda_with_outer_finally.c
+#include "lambda_with_outer_finally_private.h"
+
+/* Private file declarations. */
+static bool __camp_delegate_main_lambda0(void *arg0, int *arg1);
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static int apply(fn_bool_voidPtr__int_ predicate, void *predicate_context, int *value);
+static int main(void);
+static bool main_lambda0(void *context, int *value);
+
+static bool __camp_delegate_main_lambda0(void *arg0, int *arg1)
+{
+	return main_lambda0(arg0, arg1);
+}
+
+static int apply(fn_bool_voidPtr__int_ predicate, void *predicate_context, int *value)
+{
+	return (predicate(predicate_context, value) ? 1 : 0);
+}
+
+static int main(void)
+{
+	void *_finally0 = 0;
+	bool _cleanupActive1 = false;
+	_finally0 = malloc(sizeof(int));
+	_cleanupActive1 = true;
+	int *owned = (int *)(_finally0);
+	*owned = 3;
+	int _return3 = 0;
+	{
+		_return3 = ((apply(__camp_delegate_main_lambda0, NULL, &(int){*owned}) == 1) ? 0 : 1);
+		goto __cleanup2;
+	}
+__cleanup2: ;
+	if (_cleanupActive1)
+	{
+		free((void *)(_finally0));
+		_cleanupActive1 = false;
+	}
+	return _return3;
+}
+
+static bool main_lambda0(void *context, int *value)
+{
+	return ((*value) == 3);
+}
+
+// file: lambda_with_outer_finally_private.h
+#ifndef LAMBDA_WITH_OUTER_FINALLY_PRIVATE_H_
+#define LAMBDA_WITH_OUTER_FINALLY_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef bool (* fn_bool_voidPtr__int_)(void *arg0, int *arg1);
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lambda_with_outer_finally.c

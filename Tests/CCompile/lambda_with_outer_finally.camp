@@ -1,0 +1,14 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+int apply(delegate bool(in int value) predicate, in int value)
+{
+	return predicate(value) ? 1 : 0;
+}
+
+int main()
+{
+	int* owned = (int*)malloc(sizeof(int)) finally delete;
+	*owned = 3;
+	return apply(value => value == 3, *owned) == 1 ? 0 : 1;
+}
