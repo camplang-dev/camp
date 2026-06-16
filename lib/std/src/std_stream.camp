@@ -1,12 +1,38 @@
 export as Std;
 
-@symbol("write")
-public extern nint posixWrite(int fd, const void* buffer, nuint count);
+public extern nint camp_io_stdin();
+public extern nint camp_io_stdout();
+public extern nint camp_io_stderr();
+public extern nint camp_io_file_open(string path, int access, int mode, int options, out IoError error);
+public extern int camp_io_file_close(nint handle, out IoError error);
+public extern nint camp_io_file_read(nint handle, void* buffer, nuint length, out IoError error);
+public extern nint camp_io_file_write(nint handle, const void* buffer, nuint length, out IoError error);
+public extern long camp_io_file_seek(nint handle, long offset, int origin, out IoError error);
+public extern int camp_io_file_flush(nint handle, out IoError error);
 
 export enum IoError
 {
 	OK = 0,
-	FAILED
+	UNKNOWN,
+	INVALID_ARGUMENT,
+	NOT_SUPPORTED,
+	NOT_FOUND,
+	ALREADY_EXISTS,
+	PERMISSION_DENIED,
+	BUSY,
+	INTERRUPTED,
+	WOULD_BLOCK,
+	TOO_MANY_OPEN_FILES,
+	PATH_TOO_LONG,
+	NO_SPACE,
+	READ_ONLY,
+	IS_DIRECTORY,
+	NOT_DIRECTORY,
+	DIRECTORY_NOT_EMPTY,
+	BROKEN_PIPE,
+	IO,
+	NO_MEMORY,
+	TIMEOUT
 }
 
 export newtype iter nuint ByteReader(byte[] buffer);
@@ -76,9 +102,9 @@ export bool tryWriteAll(ByteWriter this, const byte[] value, thrown IoError erro
 		
 		nuint written = 0;
 		if (!this(&written, (byte*)remaining.elements, remaining.length))
-			throw FAILED;
+			throw IO;
 		if (written == 0)
-			throw FAILED;
+			throw IO;
 		offset += written;
 	}
 	return true;
@@ -94,7 +120,7 @@ export bool tryWrite(CharWriter this, overload char value, thrown IoError error)
 	const char[] buffer = [value];
 	nuint written = 0;
 	if (!this(&written, (char*)buffer.elements, buffer.length) || written != 1)
-		throw FAILED;
+		throw IO;
 	return true;
 }
 
@@ -116,9 +142,9 @@ export bool tryWrite(CharWriter this, overload const char[] value, thrown IoErro
 		
 		nuint written = 0;
 		if (!this(&written, (char*)remaining.elements, remaining.length))
-			throw FAILED;
+			throw IO;
 		if (written == 0)
-			throw FAILED;
+			throw IO;
 		offset += written;
 	}
 	return true;
@@ -325,7 +351,7 @@ char* CharReader_growBuffer(char* buffer, nuint length, nuint capacity, within a
 	nuint nextCapacity = capacity == 0 ? 64 : capacity * 2;
 	char[] nextArray = new char[nextCapacity];
 	if (nextArray.elements == null)
-		throw FAILED;
+		throw NO_MEMORY;
 	char* next = nextArray.elements;
 	
 	for (nuint i = 0; i < length; i++)
@@ -340,7 +366,7 @@ export char readChar(CharReader this, thrown IoError error)
 	char[] buffer = ['\0'];
 	nuint readCount = 0;
 	if (!this(&readCount, buffer.elements, buffer.length))
-		throw FAILED;
+		throw IO;
 	if (readCount == 0)
 		return '\0';
 	return buffer[0];

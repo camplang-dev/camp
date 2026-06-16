@@ -4,23 +4,23 @@ export class Console
 {
 	export static CharReader getReader()
 	{
-		return { Console_readFd, null };
+		return { Console_readFd, (void*)camp_io_stdin() };
 	}
 	
 	export static CharWriter getWriter()
 	{
-		return { Console_writeFd, (void*)(nint)1 };
+		return { Console_writeFd, (void*)camp_io_stdout() };
 	}
 	
 	export static CharWriter getError()
 	{
-		return { Console_writeFd, (void*)(nint)2 };
+		return { Console_writeFd, (void*)camp_io_stderr() };
 	}
 	
 	static bool writeFd(void* context, nuint* written, char* buffer, nuint buffer_length)
 	{
-		int fd = (int)(nint)context;
-		nint result = posixWrite(fd, (const void*)buffer, buffer_length);
+		IoError error = default;
+		nint result = camp_io_file_write((nint)context, (const void*)buffer, buffer_length, out error);
 		if (result < 0)
 			return false;
 		*written = (nuint)result;
@@ -29,8 +29,8 @@ export class Console
 
 	static bool readFd(void* context, nuint* readCount, char* buffer, nuint buffer_length)
 	{
-		int fd = context == null ? 0 : (int)(nint)context;
-		nint result = posixRead(fd, (void*)buffer, buffer_length);
+		IoError error = default;
+		nint result = camp_io_file_read((nint)context, (void*)buffer, buffer_length, out error);
 		if (result < 0)
 			return false;
 		*readCount = (nuint)result;
@@ -47,23 +47,29 @@ export class Console
 		auto buf = init char[size];
 		value(buf);
 		if (size > 0)
-			posixWrite(1, buf.elements, size - 1);
+		{
+			IoError error = default;
+			camp_io_file_write(camp_io_stdout(), buf.elements, size - 1, out error);
+		}
 	}
 	
 	export static void write(overload char   value)
 	{
 		auto buf = [value];
-		posixWrite(1, buf.elements, buf.length);
+		IoError error = default;
+		camp_io_file_write(camp_io_stdout(), buf.elements, buf.length, out error);
 	}
 	
 	export static void write(overload const char [] value)
 	{
-		posixWrite(1, value.elements, value.length);
+		IoError error = default;
+		camp_io_file_write(camp_io_stdout(), value.elements, value.length, out error);
 	}
 	
 	export static void write(overload string value)
 	{
-		posixWrite(1, (const void*)(void*)value, value.Length);
+		IoError error = default;
+		camp_io_file_write(camp_io_stdout(), (const void*)(void*)value, value.Length, out error);
 	}
 	
 	export static void write(overload bool   value) => Console.write(value.format);
@@ -85,13 +91,15 @@ export class Console
 		value(buf);
 		buf[buf.length - 2] = '\n';
 		buf[buf.length - 1] = '\0';
-		posixWrite(1, buf.elements, size);
+		IoError error = default;
+		camp_io_file_write(camp_io_stdout(), buf.elements, size, out error);
 	}
 	
 	export static void writeLine(overload char   value)
 	{
 		auto buf = [value, '\n'];
-		posixWrite(1, buf.elements, buf.length);
+		IoError error = default;
+		camp_io_file_write(camp_io_stdout(), buf.elements, buf.length, out error);
 	}
 	
 	export static void writeLine(overload const char [] value)

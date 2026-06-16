@@ -1,54 +1,57 @@
 export as Std;
 
-@symbol("open")
-extern int posixOpen(const char* path, int flags, uint mode);
+const int CAMP_IO_ACCESS_READ = 1;
+const int CAMP_IO_ACCESS_WRITE = 2;
+const int CAMP_IO_ACCESS_READ_WRITE = 3;
 
-@symbol("close")
-extern int posixClose(int fd);
+const int CAMP_IO_MODE_OPEN_EXISTING = 0;
+const int CAMP_IO_MODE_CREATE = 1;
+const int CAMP_IO_MODE_CREATE_OR_TRUNCATE = 2;
+const int CAMP_IO_MODE_APPEND = 3;
 
-@symbol("read")
-public extern nint posixRead(int fd, void* buffer, nuint count);
+const int CAMP_IO_SEEK_BEGIN = 0;
+const int CAMP_IO_SEEK_CURRENT = 1;
+const int CAMP_IO_SEEK_END = 2;
 
-@symbol("lseek")
-extern nint posixSeek(int fd, nint offset, int whence);
+const int CAMP_IO_OPTION_SEQUENTIAL = 1;
+const int CAMP_IO_OPTION_RANDOM_ACCESS = 2;
+const int CAMP_IO_OPTION_WRITE_THROUGH = 4;
+const int CAMP_IO_OPTION_SHARE_READ = 8;
+const int CAMP_IO_OPTION_SHARE_WRITE = 16;
 
-const int O_RDONLY = 0;
-const int O_WRONLY = 1;
-const int O_RDWR = 2;
-const int O_CREAT = 512;
-const int O_TRUNC = 1024;
-const int O_APPEND = 8;
-
-const int SEEK_SET = 0;
-const int SEEK_CUR = 1;
-const int SEEK_END = 2;
-
-int FileHandle_buildFlags(FileAccess access, FileMode mode)
+int FileHandle_access(FileAccess access)
 {
-	int flags = O_RDONLY;
 	if (access == FileAccess.WRITE)
-	{
-		flags = O_WRONLY;
-	}
-	else
-	{
-		if (access == FileAccess.READ_WRITE)
-			flags = O_RDWR;
-	}
-		
+		return CAMP_IO_ACCESS_WRITE;
+	if (access == FileAccess.READ_WRITE)
+		return CAMP_IO_ACCESS_READ_WRITE;
+	return CAMP_IO_ACCESS_READ;
+}
+
+int FileHandle_mode(FileMode mode)
+{
 	if (mode == FileMode.CREATE)
-	{
-		flags |= O_CREAT;
-	}
-	else if (mode == FileMode.CREATE_OR_TRUNCATE)
-	{
-		flags |= O_CREAT | O_TRUNC;
-	}
-	else if (mode == FileMode.APPEND)
-	{
-		flags |= O_CREAT | O_APPEND;
-	}
-	
+		return CAMP_IO_MODE_CREATE;
+	if (mode == FileMode.CREATE_OR_TRUNCATE)
+		return CAMP_IO_MODE_CREATE_OR_TRUNCATE;
+	if (mode == FileMode.APPEND)
+		return CAMP_IO_MODE_APPEND;
+	return CAMP_IO_MODE_OPEN_EXISTING;
+}
+
+int FileHandle_options(FileOptions options)
+{
+	int flags = 0;
+	if (options.sequential)
+		flags |= CAMP_IO_OPTION_SEQUENTIAL;
+	if (options.randomAccess)
+		flags |= CAMP_IO_OPTION_RANDOM_ACCESS;
+	if (options.writeThrough)
+		flags |= CAMP_IO_OPTION_WRITE_THROUGH;
+	if (options.allowSharedRead)
+		flags |= CAMP_IO_OPTION_SHARE_READ;
+	if (options.allowSharedWrite)
+		flags |= CAMP_IO_OPTION_SHARE_WRITE;
 	return flags;
 }
 
@@ -79,7 +82,8 @@ export struct FileOptions
 bool FileHandle_readFd(void* context, nuint* readCount, byte* buffer, nuint buffer_length)
 {
 	FileHandle* handle = (FileHandle*)context;
-	nint result = posixRead(handle.fd, (void*)buffer, buffer_length);
+	IoError error = default;
+	nint result = camp_io_file_read(handle.handle, (void*)buffer, buffer_length, out error);
 	if (result < 0)
 		return false;
 	*readCount = (nuint)result;
@@ -91,7 +95,8 @@ bool FileHandle_readFd(void* context, nuint* readCount, byte* buffer, nuint buff
 bool FileHandle_writeFd(void* context, nuint* written, byte* buffer, nuint buffer_length)
 {
 	FileHandle* handle = (FileHandle*)context;
-	nint result = posixWrite(handle.fd, (const void*)buffer, buffer_length);
+	IoError error = default;
+	nint result = camp_io_file_write(handle.handle, (const void*)buffer, buffer_length, out error);
 	if (result < 0)
 		return false;
 	*written = (nuint)result;
@@ -100,44 +105,46 @@ bool FileHandle_writeFd(void* context, nuint* written, byte* buffer, nuint buffe
 
 export class FileHandle
 {
-	int fd;
+	nint handle;
 	bool readable;
 	bool writable;
 	bool endOfFile;
 	
 	~FileHandle()
 	{
-		if (this.fd >= 0)
+		if (this.handle >= 0)
 		{
-			posixClose(this.fd);
-			this.fd = -1;
+			IoError error = default;
+			camp_io_file_close(this.handle, out error);
+			this.handle = -1;
 		}
 	}
 	
 	export static FileHandle* open(string path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError error)
 	{
-		int flags = FileHandle_buildFlags(access, mode);
-		int fd = posixOpen((const char*)path, flags, 438);
-		if (fd < 0)
-			throw FAILED;
+		nint fileHandle = camp_io_file_open(path, FileHandle_access(access), FileHandle_mode(mode), FileHandle_options(options), out error);
+		if (fileHandle < 0)
+			throw error;
 		
 		FileHandle* handle = new FileHandle();
 		if (handle == null)
 		{
-			posixClose(fd);
-			throw FAILED;
+			IoError closeError = default;
+			camp_io_file_close(fileHandle, out closeError);
+			throw NO_MEMORY;
 		}
 		
-		handle.fd = fd;
+		handle.handle = fileHandle;
 		handle.readable = access != FileAccess.WRITE;
 		handle.writable = access != FileAccess.READ;
 		handle.endOfFile = false;
+		error = default;
 		return handle;
 	}
 	
 	export bool getOpen()
 	{
-		return this.fd >= 0;
+		return this.handle >= 0;
 	}
 	
 	export bool getReadable()
@@ -157,40 +164,44 @@ export class FileHandle
 	
 	export ulong getLength(thrown IoError error)
 	{
-		nint current = posixSeek(this.fd, 0, SEEK_CUR);
+		long current = camp_io_file_seek(this.handle, 0, CAMP_IO_SEEK_CURRENT, out error);
 		if (current < 0)
-			throw FAILED;
-		nint length = posixSeek(this.fd, 0, SEEK_END);
+			throw error;
+		long length = camp_io_file_seek(this.handle, 0, CAMP_IO_SEEK_END, out error);
 		if (length < 0)
-			throw FAILED;
-		if (posixSeek(this.fd, current, SEEK_SET) < 0)
-			throw FAILED;
+			throw error;
+		if (camp_io_file_seek(this.handle, current, CAMP_IO_SEEK_BEGIN, out error) < 0)
+			throw error;
+		error = default;
 		return (ulong)length;
 	}
 	
 	export ulong getPosition(thrown IoError error)
 	{
-		nint position = posixSeek(this.fd, 0, SEEK_CUR);
+		long position = camp_io_file_seek(this.handle, 0, CAMP_IO_SEEK_CURRENT, out error);
 		if (position < 0)
-			throw FAILED;
+			throw error;
+		error = default;
 		return (ulong)position;
 	}
 	
 	export void setPosition(ulong value, thrown IoError error)
 	{
-		if (posixSeek(this.fd, (nint)value, SEEK_SET) < 0)
-			throw FAILED;
+		if (camp_io_file_seek(this.handle, (long)value, CAMP_IO_SEEK_BEGIN, out error) < 0)
+			throw error;
+		error = default;
 		this.endOfFile = false;
 	}
 
 	export void read(byte[] buffer, out nuint readCount, thrown IoError error)
 	{
-		nint result = posixRead(this.fd, (void*)buffer.elements, buffer.length);
+		nint result = camp_io_file_read(this.handle, (void*)buffer.elements, buffer.length, out error);
 		if (result < 0)
-			throw FAILED;
+			throw error;
 		readCount = (nuint)result;
 		if (result == 0)
 			this.endOfFile = true;
+		error = default;
 	}
 	
 	export void write(const byte[] buffer, thrown IoError error)
@@ -198,11 +209,16 @@ export class FileHandle
 		nuint offset = 0;
 		while (offset < buffer.length)
 		{
-			nint result = posixWrite(this.fd, (const void*)&buffer.elements[offset], buffer.length - offset);
+			nint result = camp_io_file_write(this.handle, (const void*)&buffer.elements[offset], buffer.length - offset, out error);
 			if (result <= 0)
-				throw FAILED;
+			{
+				if (error == default)
+					throw IO;
+				throw error;
+			}
 			offset += (nuint)result;
 		}
+		error = default;
 	}
 	
 	export ByteReader getByteReader()
