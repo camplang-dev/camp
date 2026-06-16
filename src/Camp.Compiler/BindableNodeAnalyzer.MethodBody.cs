@@ -1397,7 +1397,21 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddReceiverTypeGenericSubstitutions(string receiverType, FunctionDefinition function, Dictionary<string, string> substitutions)
 	{
-		if (FindContainingType(function) is not TypeDefinition containingType || containingType.GenericParameters.Count == 0)
+		if (FindContainingType(function) is not TypeDefinition containingType)
+		{
+			ThisParameterDefinition? thisParameter = GetExplicitThisParameter(function);
+			if (thisParameter is null || function.GenericParameters.Count == 0)
+				return;
+
+			InferGenericSubstitutions(
+				thisParameter.ResolvedType ?? ErrorType,
+				receiverType,
+				substitutions,
+				GetFunctionGenericParameterNames(function));
+			return;
+		}
+
+		if (containingType.GenericParameters.Count == 0)
 			return;
 
 		List<string> typeArguments = ExtractConstructedTypeArguments(receiverType);
@@ -1871,6 +1885,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(pattern) || actual == ErrorType)
 			return;
 
+		if (new TypeShapeParser(pattern).TryParse(out TypeShape patternShape) && new TypeShapeParser(actual).TryParse(out TypeShape actualShape))
+		{
+			InferGenericSubstitutions(patternShape, actualShape, substitutions, genericParameterNames);
+			return;
+		}
+
 		if (genericParameterNames.Contains(pattern))
 		{
 			if (!substitutions.ContainsKey(pattern))
@@ -1883,6 +1903,37 @@ public sealed partial class BindableNodeAnalyzer
 			if (!substitutions.ContainsKey(name) && pattern == name)
 				substitutions[name] = actual;
 		}
+	}
+
+	static void InferGenericSubstitutions(TypeShape pattern, TypeShape actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
+	{
+		if (pattern.Kind == TypeShapeKind.Named && genericParameterNames.Contains(pattern.Name))
+		{
+			if (!substitutions.ContainsKey(pattern.Name))
+				substitutions[pattern.Name] = TypeShapeParser.Format(actual);
+			return;
+		}
+
+		if (pattern.Kind != actual.Kind)
+			return;
+
+		if (pattern.Kind == TypeShapeKind.Named)
+		{
+			if (BaseTypeName(pattern.Name) != BaseTypeName(actual.Name))
+				return;
+
+			List<string> patternArguments = ExtractConstructedTypeArguments(pattern.Name);
+			List<string> actualArguments = ExtractConstructedTypeArguments(actual.Name);
+			if (patternArguments.Count != actualArguments.Count)
+				return;
+
+			for (int i = 0; i < patternArguments.Count; i++)
+				InferGenericSubstitutions(patternArguments[i], actualArguments[i], substitutions, genericParameterNames);
+			return;
+		}
+
+		if (pattern.Element is not null && actual.Element is not null)
+			InferGenericSubstitutions(pattern.Element, actual.Element, substitutions, genericParameterNames);
 	}
 
 	static bool ContainsUnboundGenericParameter(string type, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)

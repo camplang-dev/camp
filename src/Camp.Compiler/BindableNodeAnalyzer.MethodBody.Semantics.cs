@@ -1330,13 +1330,34 @@ public sealed partial class BindableNodeAnalyzer
 		if (actual.Kind != receiver.Kind)
 			return false;
 		if (actual.Kind == TypeShapeKind.Named)
-			return actual.Name == receiver.Name;
+			return actual.Name == receiver.Name || CanGenericNamedReceiverMatch(actual.Name, receiver.Name);
 		if (actual.Element is null || receiver.Element is null)
 			return false;
 
 		bool childProtected = protectedByConstTarget || receiver.Qualifiers.IsConst;
 		int childPointerDepth = actual.Kind == TypeShapeKind.Pointer ? pointerDepth + 1 : pointerDepth;
 		return CanGenericReceiverMatch(actual.Element, receiver.Element, childProtected, childPointerDepth);
+	}
+
+	bool CanGenericNamedReceiverMatch(string actualName, string receiverName)
+	{
+		if (BaseTypeName(actualName) != BaseTypeName(receiverName))
+			return false;
+
+		List<string> actualArguments = ExtractConstructedTypeArguments(actualName);
+		List<string> receiverArguments = ExtractConstructedTypeArguments(receiverName);
+		if (actualArguments.Count == 0 || actualArguments.Count != receiverArguments.Count)
+			return false;
+
+		for (int i = 0; i < actualArguments.Count; i++)
+		{
+			if (!TryParseTypeShape(actualArguments[i], out TypeShape actualArgument)
+				|| !TryParseTypeShape(receiverArguments[i], out TypeShape receiverArgument)
+				|| !CanGenericReceiverMatch(actualArgument, receiverArgument, protectedByConstTarget: false, pointerDepth: 0))
+				return false;
+		}
+
+		return true;
 	}
 
 	string BuildEffectiveReceiverType(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)

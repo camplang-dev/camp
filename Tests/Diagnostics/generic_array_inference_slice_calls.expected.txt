@@ -1,2 +1,1 @@
-tests/Diagnostics/generic_array_inference_slice_calls.camp(14,28): error: Argument cannot convert 'int[]' to 'T[]' because type arguments for 'copyTo' cannot be inferred; specify them explicitly.
-tests/Diagnostics/generic_array_inference_slice_calls.camp(15,18): error: Argument cannot convert 'int[]' to 'const T[]' because type arguments for 'copyFrom' cannot be inferred; specify them explicitly.
+tests/Diagnostics/generic_array_inference_slice_calls.camp(12,17): error: Allocation requires an accessible function named 'malloc' that takes a single integer parameter.

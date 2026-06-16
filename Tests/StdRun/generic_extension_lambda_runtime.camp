@@ -1,0 +1,25 @@
+using Std;
+
+export void main()
+{
+	auto list = new List<int>();
+	list.addRange([1, 2, 3, 4, 5, 1, 2, 3, 4, 5]);
+
+	list.removeAll(num => num == 2);
+	List_removeAll(list, num => num == 3);
+	List_removeAll<int>(list, num => num == 3);
+
+	Console.writeLine(list.Length);
+}
+
+void removeAll<T: any>(List<T>* this, delegate bool(in T item) predicate)
+{
+	for (nuint i = 1; i < this.Length + 1; i++)
+	{
+		if (predicate(this.Item[i - 1]))
+		{
+			this.remove(i - 1);
+			i--;
+		}
+	}
+}

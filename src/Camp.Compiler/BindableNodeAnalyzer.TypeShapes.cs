@@ -417,9 +417,10 @@ public sealed partial class BindableNodeAnalyzer
 			shape = shape.Element;
 		}
 
-		string receiverName = IsGenericReceiverTypeName(shape.Name, function)
+		string typeName = BaseTypeName(shape.Name);
+		string receiverName = IsGenericReceiverTypeName(typeName, function)
 			? ""
-			: GetFlattenedSymbolTypeName(shape.Name);
+			: GetFlattenedSymbolTypeName(typeName);
 		for (int i = 0; i < arrayCount; i++)
 			receiverName += "Array";
 
