@@ -1,0 +1,9 @@
+newtype HWND: nint;
+newtype BYTEHANDLE: byte;
+
+int main()
+{
+	HWND implicitZero = 0;
+	BYTEHANDLE tooLarge = (BYTEHANDLE)256;
+	return 0;
+}

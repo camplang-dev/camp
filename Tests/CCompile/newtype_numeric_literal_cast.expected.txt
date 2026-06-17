@@ -1,0 +1,40 @@
+// file: newtype_numeric_literal_cast.c
+#include "newtype_numeric_literal_cast_private.h"
+
+/* Private file declarations. */
+static int main(void);
+
+static int main(void)
+{
+	HWND zero = (HWND)(0);
+	HWND minusOne = (HWND)(-1);
+	FLAGS mask = (FLAGS)(0xFFFFu);
+	return (int)(((((intptr_t)(zero) + (intptr_t)(minusOne)) + (uintptr_t)(mask))));
+}
+
+// file: newtype_numeric_literal_cast_private.h
+#ifndef NEWTYPE_NUMERIC_LITERAL_CAST_PRIVATE_H_
+#define NEWTYPE_NUMERIC_LITERAL_CAST_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+typedef intptr_t HWND;
+typedef uintptr_t FLAGS;
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: newtype_numeric_literal_cast.c

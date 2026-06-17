@@ -1,0 +1,2 @@
+tests/Diagnostics/newtype_numeric_literal_cast_invalid.camp(6,22): error: Declaration initializer cannot convert 'int' to 'HWND'.
+tests/Diagnostics/newtype_numeric_literal_cast_invalid.camp(7,36): error: Numeric literal '256' is outside the range of underlying type 'byte' for newtype 'BYTEHANDLE'.

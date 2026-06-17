@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 
 namespace Camp.Compiler;
 
@@ -377,6 +378,149 @@ public sealed partial class BindableNodeAnalyzer
 			&& TryParseTypeShape(target, out TypeShape targetShape)
 			&& sourceShape.IsPointer
 			&& targetShape.IsPointer;
+	}
+
+	bool TryAnalyzeExplicitNumericLiteralNewtypeCast(Expression? expression, string targetType, out bool allowed, out string? diagnostic)
+	{
+		allowed = false;
+		diagnostic = null;
+		if (!TryGetNewtypeUnderlyingType(targetType, out string? underlyingType) || underlyingType is null)
+			return false;
+		if (!TryParseIntegerLiteralValue(expression, out BigInteger value, out string literalText))
+			return false;
+		if (!TryGetIntegerTypeBounds(underlyingType, out BigInteger min, out BigInteger max))
+			return false;
+
+		if (value >= min && value <= max)
+		{
+			allowed = true;
+			return true;
+		}
+
+		diagnostic = $"Numeric literal '{literalText}' is outside the range of underlying type '{underlyingType}' for newtype '{targetType}'.";
+		return true;
+	}
+
+	static bool TryParseIntegerLiteralValue(Expression? expression, out BigInteger value, out string literalText)
+	{
+		value = BigInteger.Zero;
+		literalText = "";
+		if (expression is UnaryExpression { Operator: UnaryOperator.Minus, Operand: LiteralExpression { Kind: LiteralKind.Number } literal })
+		{
+			literalText = "-" + literal.Text;
+			if (!TryParseIntegerLiteralMagnitude(literal.Text, out value))
+				return false;
+			value = -value;
+			return true;
+		}
+		if (expression is UnaryExpression { Operator: UnaryOperator.Plus, Operand: LiteralExpression { Kind: LiteralKind.Number } plusLiteral })
+		{
+			literalText = "+" + plusLiteral.Text;
+			return TryParseIntegerLiteralMagnitude(plusLiteral.Text, out value);
+		}
+		if (expression is not LiteralExpression { Kind: LiteralKind.Number } number)
+			return false;
+
+		literalText = number.Text;
+		return TryParseIntegerLiteralMagnitude(number.Text, out value);
+	}
+
+	static bool TryParseIntegerLiteralMagnitude(string text, out BigInteger magnitude)
+	{
+		magnitude = BigInteger.Zero;
+		if (string.IsNullOrWhiteSpace(text)
+			|| text.Contains('.', StringComparison.Ordinal)
+			|| text.Contains('p', StringComparison.OrdinalIgnoreCase))
+			return false;
+
+		string coreText = text;
+		if (coreText.EndsWith("u", StringComparison.OrdinalIgnoreCase))
+			coreText = coreText[..^1];
+		else if (coreText.EndsWith("l", StringComparison.OrdinalIgnoreCase))
+			return false;
+
+		int radix = 10;
+		int start = 0;
+		if (coreText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+		{
+			radix = 16;
+			start = 2;
+		}
+		else if (coreText.StartsWith("0b", StringComparison.OrdinalIgnoreCase))
+		{
+			radix = 2;
+			start = 2;
+		}
+		else if (coreText.Contains('e', StringComparison.OrdinalIgnoreCase))
+		{
+			return false;
+		}
+
+		if (start >= coreText.Length)
+			return false;
+
+		for (int i = start; i < coreText.Length; i++)
+		{
+			char ch = coreText[i];
+			if (ch == '_')
+				continue;
+
+			int digit = ch switch
+			{
+				>= '0' and <= '9' => ch - '0',
+				>= 'a' and <= 'f' => ch - 'a' + 10,
+				>= 'A' and <= 'F' => ch - 'A' + 10,
+				_ => -1
+			};
+			if (digit < 0 || digit >= radix)
+				return false;
+
+			magnitude = magnitude * radix + digit;
+		}
+
+		return true;
+	}
+
+	bool TryGetIntegerTypeBounds(string type, out BigInteger min, out BigInteger max)
+	{
+		min = BigInteger.Zero;
+		max = BigInteger.Zero;
+		type = StripTopLevelValueQualifiers(type);
+		string? targetSpec = null;
+		if (TryParseTypeShape(type, out TypeShape shape) && shape.Kind == TypeShapeKind.Named)
+		{
+			type = shape.Name;
+			targetSpec = shape.TargetSpec;
+		}
+
+		return type switch
+		{
+			"byte" or "char" or "achar" => UnsignedBounds(8, out min, out max),
+			"sbyte" => SignedBounds(8, out min, out max),
+			"ushort" or "wchar" => UnsignedBounds(16, out min, out max),
+			"short" => SignedBounds(16, out min, out max),
+			"uint" or "uchar" => UnsignedBounds(32, out min, out max),
+			"int" => SignedBounds(32, out min, out max),
+			"ulong" => UnsignedBounds(64, out min, out max),
+			"long" => SignedBounds(64, out min, out max),
+			"nuint" => UnsignedBounds(selectedTarget?.GetNaturalIntegerWidth(targetSpec) ?? 32, out min, out max),
+			"nint" => SignedBounds(selectedTarget?.GetNaturalIntegerWidth(targetSpec) ?? 32, out min, out max),
+			_ => false
+		};
+	}
+
+	static bool SignedBounds(int bits, out BigInteger min, out BigInteger max)
+	{
+		max = (BigInteger.One << (bits - 1)) - BigInteger.One;
+		min = -(BigInteger.One << (bits - 1));
+		return true;
+	}
+
+	static bool UnsignedBounds(int bits, out BigInteger min, out BigInteger max)
+	{
+		min = BigInteger.Zero;
+		max = (BigInteger.One << bits) - BigInteger.One;
+		return true;
 	}
 
 	bool CanExplicitlyConvertCallable(string source, string target)

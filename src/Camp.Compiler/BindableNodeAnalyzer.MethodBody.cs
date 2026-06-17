@@ -1053,7 +1053,17 @@ public sealed partial class BindableNodeAnalyzer
 		if (cast.Type is null && cast.Kind != CastKind.Type)
 			targetType = sourceType;
 		else if (!CanExplicitlyConvert(sourceType, targetType))
-			Report(GetRange(cast.SourceSyntax), $"Invalid cast from '{sourceType}' to '{targetType}'.");
+		{
+			if (TryAnalyzeExplicitNumericLiteralNewtypeCast(cast.Expression, targetType, out bool literalCastAllowed, out string? literalCastDiagnostic))
+			{
+				if (!literalCastAllowed && literalCastDiagnostic is not null)
+					Report(GetRange(cast.Expression?.SourceSyntax ?? cast.SourceSyntax), literalCastDiagnostic);
+			}
+			else
+			{
+				Report(GetRange(cast.SourceSyntax), $"Invalid cast from '{sourceType}' to '{targetType}'.");
+			}
+		}
 
 		expressionConstants[cast] = IsConstant(cast.Expression);
 		return targetType;
