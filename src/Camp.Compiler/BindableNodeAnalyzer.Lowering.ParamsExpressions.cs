@@ -931,6 +931,9 @@ public sealed partial class BindableNodeAnalyzer
 				when TryCreateCurrentThisParameterComponents(out components):
 				return true;
 
+			case IndexExpression index:
+				return TryCreateIndexedParamsComponentExpressions(index, out components);
+
 			case Expression fixedArray
 				when TryCreateFixedArrayParamsComponentExpressions(fixedArray, out components):
 				return true;
@@ -1003,9 +1006,6 @@ public sealed partial class BindableNodeAnalyzer
 
 			case LiteralExpression { Kind: LiteralKind.String } literal:
 				return TryCreateStringParamsComponentExpressions(literal, out components);
-
-			case IndexExpression index:
-				return TryCreateIndexedParamsComponentExpressions(index, out components);
 
 			case UnaryExpression { Operator: UnaryOperator.AddressOf } addressOf
 				when TryCreateParamsComponentExpressions(addressOf.Operand, out List<Expression> addressed):

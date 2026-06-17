@@ -1,0 +1,31 @@
+fixed int[3] GlobalValues = [7, 8, 9];
+
+struct Packet
+{
+	fixed byte[4] data;
+	fixed int[2][3] matrix;
+}
+
+int sum(int[] values)
+{
+	int total = 0;
+	for (nuint i = 0; i < values.length; i++)
+		total += values[i];
+	return total;
+}
+
+export int main()
+{
+	fixed int[4] values = [1, 2, 3, 4];
+	int[] span = values;
+	int* ptr = values;
+	int total = sum(values) + sum(values[1..3]) + (int)span.length + ptr[0];
+
+	Packet packet = default;
+	packet.data = [1, 2, 3, 4];
+	byte[4]* dataPointer = &packet.data;
+	total += (*dataPointer)[2];
+	total += (int)packet.data.length;
+	total += (int)packet.matrix.length;
+	return total + GlobalValues[1];
+}

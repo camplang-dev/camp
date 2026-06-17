@@ -642,7 +642,8 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeOptionalType(definition.Type, scope);
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
-		AnalyzeOptionalExpression(definition.InitialValue, scope);
+		if (definition.InitialValue is not null && !IsValidFixedStorageInitializer(definition.Type, definition.InitialValue))
+			AnalyzeOptionalExpression(definition.InitialValue, scope);
 	}
 
 	void AnalyzeGlobalInitializers(Module module)
