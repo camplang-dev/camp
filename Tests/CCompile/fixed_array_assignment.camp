@@ -1,0 +1,12 @@
+export int main()
+{
+	fixed int[4] values = default;
+	values = [1, 2, 3];
+	fixed char[8] text = default;
+	text = "hi";
+	int total = values[0] + values[1] + values[2] + values[3];
+	if (text[0] == 'h' && text[1] == 'i' && text[2] == '\0' && text[7] == '\0')
+		total += 4;
+	values = default;
+	return total + values[0];
+}

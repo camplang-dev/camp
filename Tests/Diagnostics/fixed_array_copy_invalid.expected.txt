@@ -1,0 +1,3 @@
+tests/Diagnostics/fixed_array_copy_invalid.camp(3,2): error: Fixed-size array storage declarations must be marked 'fixed'.
+tests/Diagnostics/fixed_array_copy_invalid.camp(5,22): error: Fixed-size arrays cannot be copied by value; initialize them with an array literal, string literal, or default.
+tests/Diagnostics/fixed_array_copy_invalid.camp(6,11): error: Fixed-size arrays cannot be copied by value; assign from an array literal, string literal, or default.

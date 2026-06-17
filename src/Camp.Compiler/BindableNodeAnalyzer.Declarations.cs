@@ -640,7 +640,7 @@ public sealed partial class BindableNodeAnalyzer
 		ApplySymbolAttribute(definition, allowSymbolAttribute, allowSymbolAttribute ? "variable" : "enum value");
 		CheckName(definition.Name, GetNameRange(definition), "variable");
 		AnalyzeOptionalType(definition.Type, scope);
-		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.SourceSyntax);
+		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		AnalyzeOptionalExpression(definition.InitialValue, scope);
 	}
@@ -686,7 +686,7 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(definition), "Exported or public fields must be explicitly marked static.");
 		CheckName(definition.Name, GetNameRange(definition), "field");
 		AnalyzeOptionalType(definition.Type, scope);
-		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.SourceSyntax);
+		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		if (containingType is NewtypeDefinition && definition.Modifier != FieldModifier.Static && IsDirectFixedArrayType(definition.Type))
 			Report(GetRange(definition.SourceSyntax), "Newtype instance fields may not use fixed-size array storage.");
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;

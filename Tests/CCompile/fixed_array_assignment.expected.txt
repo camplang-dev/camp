@@ -1,0 +1,53 @@
+// file: fixed_array_assignment.c
+#include "fixed_array_assignment_private.h"
+
+
+int main(void)
+{
+	int values[4] = {0};
+	__builtin_memcpy(values, (int[4]){1, 2, 3}, sizeof(values));
+	char text[8] = {0};
+	__builtin_memcpy(text, (char[8]){"hi"}, sizeof(text));
+	int total = (((((int *)(values))[0] + ((int *)(values))[1]) + ((int *)(values))[2]) + ((int *)(values))[3]);
+	if (((((((char *)(text))[0] == 'h') && (((char *)(text))[1] == 'i')) && (((char *)(text))[2] == '\0')) && (((char *)(text))[7] == '\0')))
+	{
+		total += 4;
+	}
+	__builtin_memset(values, 0, sizeof(values));
+	return (total + ((int *)(values))[0]);
+}
+
+// file: fixed_array_assignment.h
+#ifndef FIXED_ARRAY_ASSIGNMENT_H_
+#define FIXED_ARRAY_ASSIGNMENT_H_
+
+#include "fixed_array_assignment_private.h"
+
+int main(void);
+
+#endif
+// file: fixed_array_assignment_private.h
+#ifndef FIXED_ARRAY_ASSIGNMENT_PRIVATE_H_
+#define FIXED_ARRAY_ASSIGNMENT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: fixed_array_assignment.c

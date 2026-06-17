@@ -2278,6 +2278,15 @@ public static class CCodeEmitter
 		static bool TryGetFixedArrayElementType(string type, out string elementType)
 		{
 			elementType = "";
+			if (!TryGetFixedArrayShape(type, out elementType, out _))
+				return false;
+			return elementType.Length > 0;
+		}
+
+		static bool TryGetFixedArrayShape(string type, out string elementType, out long length)
+		{
+			length = 0;
+			elementType = "";
 			if (!type.EndsWith("]", StringComparison.Ordinal) || type.EndsWith("[]", StringComparison.Ordinal))
 				return false;
 
@@ -2286,7 +2295,7 @@ public static class CCodeEmitter
 				return false;
 
 			string lengthText = type[(bracket + 1)..^1].Trim();
-			if (!long.TryParse(lengthText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out _))
+			if (!long.TryParse(lengthText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out length))
 				return false;
 
 			elementType = type[..bracket].TrimEnd();
@@ -2395,6 +2404,10 @@ public static class CCodeEmitter
 		string FormatAssignmentExpression(AssignmentExpression assignment)
 		{
 			if (assignment.Operator == AssignmentOperator.Assign
+				&& TryGetFixedArrayElementType(assignment.Target?.ResolvedType ?? "", out _))
+				return FormatFixedArrayAssignment(assignment);
+
+			if (assignment.Operator == AssignmentOperator.Assign
 				&& TryFormatGenericStorageAddress(assignment.Target, out string destination, out string genericType))
 			{
 				string size = FormatGenericSizeExpression(genericType);
@@ -2414,6 +2427,35 @@ public static class CCodeEmitter
 				&& assignment.Target?.ResolvedType is string targetType)
 				value = FormatAssignmentValueForTarget(targetType, assignment.Value!);
 			return FormatExpression(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + value;
+		}
+
+		string FormatFixedArrayAssignment(AssignmentExpression assignment)
+		{
+			string target = FormatExpression(assignment.Target);
+			if (assignment.Value is DefaultExpression)
+				return FormatMemoryCall("memset", target, "0", "sizeof(" + target + ")");
+
+			string source = FormatFixedArrayCompoundLiteral(assignment.Target?.ResolvedType ?? "", assignment.Value);
+			return FormatMemoryCall("memcpy", target, source, "sizeof(" + target + ")");
+		}
+
+		string FormatFixedArrayCompoundLiteral(string targetType, Expression? value)
+		{
+			string initializer = value switch
+			{
+				null => "{0}",
+				LiteralExpression { Kind: LiteralKind.String } => "{" + FormatExpression(value) + "}",
+				_ => FormatFixedArrayInitializer(value)
+			};
+			return "(" + FormatFixedArrayCompoundLiteralType(targetType) + ")" + initializer;
+		}
+
+		string FormatFixedArrayCompoundLiteralType(string targetType)
+		{
+			if (!TryGetFixedArrayShape(targetType, out string elementType, out long length))
+				return "uint8_t[0]";
+			string element = FormatResolvedType(elementType, "").Declaration.Trim();
+			return element + "[" + length.ToString(System.Globalization.CultureInfo.InvariantCulture) + "]";
 		}
 
 		string FormatIndexExpression(IndexExpression index)

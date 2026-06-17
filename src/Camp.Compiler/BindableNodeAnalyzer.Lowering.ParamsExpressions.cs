@@ -813,6 +813,8 @@ public sealed partial class BindableNodeAnalyzer
 		statements = [];
 		if (assignment.Operator != AssignmentOperator.Assign)
 			return false;
+		if (TryGetFixedArrayShape(assignment.Target?.ResolvedType, out _, out _))
+			return false;
 		if (!TryCreateParamsComponentExpressions(assignment.Target, out List<Expression> targets))
 			return false;
 		if (TryRewriteExpandedReturnAssignment(assignment, targets, out statements))

@@ -327,9 +327,11 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		BodyAnalyzeDeclarationTarget(declaration.Target, scope, typeScope, initialType);
-		ValidateFixedStorageMarker(declaration.Target.Type, declaration.IsFixedStorage, declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
+		ValidateFixedStorageMarker(declaration.Target.Type, declaration.IsFixedStorage, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 
-		if (declaration.InitialValue is not null && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
+		if (declaration.InitialValue is not null && IsDirectFixedArrayType(declaration.Target.Type) && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
+			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Fixed-size arrays cannot be copied by value; initialize them with an array literal, string literal, or default.");
+		else if (declaration.InitialValue is not null && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue.SourceSyntax, "Declaration initializer");
 	}
 
@@ -337,6 +339,12 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return IsDirectFixedArrayType(targetType)
 			&& value is ArrayExpression or DefaultExpression or LiteralExpression { Kind: LiteralKind.String };
+	}
+
+	static bool IsValidFixedStorageAssignmentValue(string targetType, Expression? value)
+	{
+		return value is ArrayExpression or DefaultExpression
+			|| value is LiteralExpression { Kind: LiteralKind.String } && IsFixedCharacterArrayType(targetType);
 	}
 
 	bool TryGetImplicitIteratorProtocolType(Expression? expression, string initialType, out string iteratorProtocolType)
@@ -2951,7 +2959,15 @@ public sealed partial class BindableNodeAnalyzer
 		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target", scope);
 		if (IsDirectCapturingLambda(assignment.Value, scope) && IsEscapingLambdaAssignmentTarget(assignment.Target))
 			Report(GetRange(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax), "Capturing scoped lambdas cannot be assigned to global variables or fields.");
-		CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
+		if (TryGetFixedArrayShape(targetType, out _, out _))
+		{
+			if (!IsValidFixedStorageAssignmentValue(targetType, assignment.Value))
+				Report(GetRange(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax), "Fixed-size arrays cannot be copied by value; assign from an array literal, string literal, or default.");
+		}
+		else
+		{
+			CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
+		}
 		return targetType;
 	}
 

@@ -1,0 +1,8 @@
+export int main()
+{
+	int[4] missingFixed;
+	fixed int[4] source = [1, 2, 3, 4];
+	fixed int[4] copy = source;
+	source = copy;
+	return 0;
+}
