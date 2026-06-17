@@ -5,5 +5,8 @@ export int main()
 	fixed int[4] copy = source;
 	source = copy;
 	auto inferred = source;
+	fixed const byte[4] magic = [1, 2, 3, 4];
+	magic[0] = 9;
+	magic = [4, 3, 2, 1];
 	return 0;
 }

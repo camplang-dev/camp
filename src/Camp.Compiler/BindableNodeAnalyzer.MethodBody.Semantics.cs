@@ -32,7 +32,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType == ErrorType || targetType == TargetType)
 			return;
 
-		if (IsConstQualified(targetType))
+		if (IsConstQualified(targetType) || IsConstFixedArrayStorageType(targetType))
 			Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
 	}
 
@@ -86,7 +86,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			RequireGenericArrayElementStride(indexedType, scope, syntax, "mutate T[]");
 			RequireGenericArrayMutableElement(indexedType, scope, syntax);
-			if (IsConstQualified(indexedType))
+			if (IsConstQualified(indexedType) || IsConstFixedArrayStorageType(indexedType))
 				Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
 			return;
 		}
@@ -98,6 +98,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		RequireMutableWriteTarget(index.ResolvedType ?? ErrorType, syntax, context);
+	}
+
+	static bool IsConstFixedArrayStorageType(string type)
+	{
+		if (!TryGetFixedArrayShape(type, out string elementType, out _))
+			return false;
+		return IsConstQualified(elementType) || IsConstFixedArrayStorageType(elementType);
 	}
 
 	bool CanImplicitlyConvert(string source, string target)
