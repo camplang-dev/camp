@@ -2034,7 +2034,7 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 
-		return $"{kind} {function.ResolvedType ?? ErrorType}({string.Join(", ", parameters)})";
+		return $"{kind}{FormatCallSpec(function.CallSpec)} {function.ResolvedType ?? ErrorType}({string.Join(", ", parameters)})";
 	}
 
 	bool TryGetCallableAscriptionReferenceType(FunctionDefinition function, bool isInstanceReference, out string ascribedType)

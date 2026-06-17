@@ -1,0 +1,6 @@
+newtype fn _msabi int Callback(int value);
+
+int callback(int value) : Callback
+{
+	return value;
+}

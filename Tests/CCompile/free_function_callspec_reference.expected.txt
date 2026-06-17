@@ -1,0 +1,49 @@
+// file: free_function_callspec_reference.c
+#include "free_function_callspec_reference_private.h"
+
+/* Private file declarations. */
+static int __attribute__((ms_abi)) callback(int value);
+static int main(void);
+
+static int __attribute__((ms_abi)) callback(int value)
+{
+	return (value + 1);
+}
+
+static int main(void)
+{
+	Holder holder = (Holder){0};
+	holder.cb = callback;
+	return 0;
+}
+
+// file: free_function_callspec_reference_private.h
+#ifndef FREE_FUNCTION_CALLSPEC_REFERENCE_PRIVATE_H_
+#define FREE_FUNCTION_CALLSPEC_REFERENCE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Holder Holder;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef int (* __attribute__((ms_abi)) Callback)(int arg0);
+
+/* Layouts. */
+struct Holder
+{
+	Callback cb;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: free_function_callspec_reference.c

@@ -1,0 +1,1 @@
+tests/Diagnostics/free_function_callspec_ascription_missing.camp(3,27): error: Callable ascription target 'Callback' requires callspec '_msabi', but declaration 'callback' has no callspec.

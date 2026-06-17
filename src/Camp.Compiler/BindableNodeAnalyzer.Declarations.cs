@@ -798,12 +798,43 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateCallableAscriptionThisContract(definition, containingType, newtypeDefinition, family, syntax, declarationName);
 
 		string sourceType = BuildCallableAscriptionSourceType(definition, family, receiverBearing);
-		if (!TryGetCallableShape(sourceType, out CallableShape sourceShape)
-			|| !TryGetCallableShape(newtypeDefinition.Name, out CallableShape targetShape)
+		bool sourceShapeAvailable = TryGetCallableShape(sourceType, out CallableShape sourceShape);
+		bool targetShapeAvailable = TryGetCallableShape(newtypeDefinition.Name, out CallableShape targetShape);
+		if (!sourceShapeAvailable
+			|| !targetShapeAvailable
 			|| !CallableShapesCompatibleIgnoringThis(sourceShape, targetShape))
 		{
-			Report(GetRange(syntax), $"Callable ascription target '{newtypeDefinition.Name}' is not compatible with declaration '{declarationName}'.");
+			if (sourceShapeAvailable
+				&& targetShapeAvailable
+				&& CallableShapesCompatibleIgnoringThis(sourceShape with { Spec = targetShape.Spec, CallSpec = targetShape.CallSpec }, targetShape)
+				&& CallableSpecsDiffer(sourceShape, targetShape))
+			{
+				string actual = CallableSpecDescription(sourceShape);
+				string expected = CallableSpecDescription(targetShape);
+				Report(GetRange(syntax), $"Callable ascription target '{newtypeDefinition.Name}' requires {expected}, but declaration '{declarationName}' has {actual}.");
+			}
+			else
+			{
+				Report(GetRange(syntax), $"Callable ascription target '{newtypeDefinition.Name}' is not compatible with declaration '{declarationName}'.");
+			}
 		}
+	}
+
+	static bool CallableSpecsDiffer(CallableShape source, CallableShape target)
+	{
+		return source.Spec != target.Spec || source.CallSpec != target.CallSpec;
+	}
+
+	static string CallableSpecDescription(CallableShape shape)
+	{
+		List<string> specs = [];
+		if (!string.IsNullOrWhiteSpace(shape.Spec))
+			specs.Add(shape.Spec);
+		if (!string.IsNullOrWhiteSpace(shape.CallSpec))
+			specs.Add(shape.CallSpec);
+		return specs.Count == 0
+			? "no callspec"
+			: $"callspec '{string.Join(" ", specs)}'";
 	}
 
 	void ValidateCallableAscriptionReceiverTransport(FunctionDefinition definition, string? containingType, SyntaxNode? syntax, string declarationName)

@@ -1,0 +1,18 @@
+newtype fn _msabi int Callback(int value);
+
+_msabi int callback(int value) : Callback
+{
+	return value + 1;
+}
+
+struct Holder
+{
+	Callback cb;
+}
+
+int main()
+{
+	Holder holder = default;
+	holder.cb = callback;
+	return 0;
+}
