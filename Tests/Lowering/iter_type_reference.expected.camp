@@ -3,7 +3,7 @@ enum RangeError
 	OK = 0,
 	BAD
 }
-fn bool(void*, int*) getRange(out void* result_context)
+fn bool(void*, int*, thrown RangeError) getRange(out void* result_context)
 {
 	{
 		result_context = default;
@@ -19,7 +19,7 @@ async fn bool(void*, const char[]?*) getLines(out void* result_context)
 }
 void main()
 {
-	fn bool(void*, int*) values = default;
+	fn bool(void*, int*, thrown RangeError) values = default;
 	void* values_context = default;
 	fn bool(void*, const char[]?*) lines;
 	void* lines_context;

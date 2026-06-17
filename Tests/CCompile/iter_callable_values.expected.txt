@@ -1,0 +1,162 @@
+// file: iter_callable_values.c
+#include "iter_callable_values_private.h"
+
+/* Private file declarations. */
+static rangeIter range(int first, int last);
+static bool Source_pull(Source *this, int *current, Err *error);
+static bool rangeIter_next(rangeIter *this, int *current);
+static void rangeIter_op_delete(rangeIter *this);
+static void rangeIter_destroy(rangeIter *this);
+static bool rangeIter_iter(void *ctx, int *current);
+
+static rangeIter range(int first, int last)
+{
+	return (rangeIter){ .__state = 0, .first = first, .last = last };
+}
+
+static bool Source_pull(Source *this, int *current, Err *error)
+{
+	if ((current == NULL))
+	{
+		(*error) = 0;
+		return false;
+	}
+	*current = 42;
+	{
+		(*error) = 0;
+		return true;
+	}
+}
+
+int main(void)
+{
+	fn_bool_voidPtr__intPtr_ values;
+	void *values_context;
+	int current = 0;
+	if (!values(values_context, &current))
+	{
+		return 1;
+	}
+	values(values_context, NULL);
+	Source source = (Source){0};
+	fn_bool_voidPtr__intPtr__thrown_Err_ puller = (bool (* )(void *arg0, int *arg1, Err *arg2))Source_pull;
+	void *puller_context = (void *)(&source);
+	Err error = 0;
+	int pulled = 0;
+	if (!puller(puller_context, &pulled, &error))
+	{
+		return 2;
+	}
+	return (((((current == 1) && (pulled == 42)) && (error == 0))) ? 0 : 3);
+}
+
+static bool rangeIter_next(rangeIter *this, int *current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	this->i = this->first;
+	{
+		for (; (this->i <= this->last); this->i++)
+		{
+			*current = this->i;
+			this->__state = 1;
+			return true;
+__iter_resume1: ;
+			;
+__for_continue0: ;
+		}
+__for_break1: ;
+	}
+	this->__state = -1;
+	return false;
+}
+
+static void rangeIter_op_delete(rangeIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static void rangeIter_destroy(rangeIter *this)
+{
+	rangeIter_op_delete(this);
+}
+
+static bool rangeIter_iter(void *ctx, int *current)
+{
+	rangeIter *state = (rangeIter *)(ctx);
+	if ((current == NULL))
+	{
+		rangeIter_op_delete(state);
+		return false;
+	}
+	return rangeIter_next(state, current);
+}
+
+// file: iter_callable_values.h
+#ifndef ITER_CALLABLE_VALUES_H_
+#define ITER_CALLABLE_VALUES_H_
+
+#include "iter_callable_values_private.h"
+
+typedef bool (* fn_bool_voidPtr__intPtr_)(void *arg0, int *arg1);
+typedef bool (* fn_bool_voidPtr__intPtr__thrown_Err_)(void *arg0, int *arg1, Err *arg2);
+int main(void);
+
+#endif
+// file: iter_callable_values_private.h
+#ifndef ITER_CALLABLE_VALUES_PRIVATE_H_
+#define ITER_CALLABLE_VALUES_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Source Source;
+typedef struct rangeIter rangeIter;
+
+/* Enums. */
+typedef enum Err
+{
+	OK = 0,
+	FAILED
+} Err;
+
+/* Newtypes. */
+typedef bool (* Puller)(void *arg0, int *arg1, Err *arg2);
+
+/* Callable typedefs. */
+typedef bool (* fn_bool_voidPtr__intPtr_)(void *arg0, int *arg1);
+typedef bool (* fn_bool_voidPtr__intPtr__thrown_Err_)(void *arg0, int *arg1, Err *arg2);
+
+/* Layouts. */
+struct Source
+{
+	char _camp_empty;
+};
+struct rangeIter
+{
+	int __state;
+	int first;
+	int last;
+	int i;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: iter_callable_values.c

@@ -1,0 +1,41 @@
+enum Err
+{
+	OK = 0,
+	FAILED
+}
+
+struct iter int range(int first, int last)
+{
+	for (int i = first; i <= last; i++)
+		yield i;
+}
+
+newtype iter(int, thrown Err) Puller();
+
+struct Source
+{
+	bool pull(int* current, thrown Err error) : Puller
+	{
+		if (current == null)
+			return false;
+		*current = 42;
+		return true;
+	}
+}
+
+export int main()
+{
+	iter int values = range(1, 1);
+	int current = 0;
+	if (!values(&current))
+		return 1;
+	values(null);
+
+	Source source = default;
+	Puller puller = source.pull;
+	Err error = default;
+	int pulled = 0;
+	if (!puller(&pulled, catch error))
+		return 2;
+	return (current == 1 && pulled == 42 && error == default) ? 0 : 3;
+}

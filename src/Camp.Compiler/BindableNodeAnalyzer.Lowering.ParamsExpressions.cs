@@ -1227,12 +1227,10 @@ public sealed partial class BindableNodeAnalyzer
 		callType = "";
 		if (iterType is null)
 			return false;
-		if (!TryGetIteratorProtocolCurrentTypes(iterType, out List<string>? currentTypes) || currentTypes is null)
+		if (!TryGetIteratorProtocolParameterTypes(iterType, out List<string>? parameterTypes) || parameterTypes is null)
 			return false;
 
-		List<string> parameters = ["void*"];
-		foreach (string currentType in currentTypes)
-			parameters.Add(AddPointer(currentType));
+		List<string> parameters = ["void*", .. parameterTypes];
 		callType = BuildCallableType("fn", "bool", parameters);
 		return true;
 	}
