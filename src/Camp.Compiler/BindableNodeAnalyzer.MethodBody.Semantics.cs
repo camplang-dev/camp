@@ -1310,11 +1310,44 @@ public sealed partial class BindableNodeAnalyzer
 		string actualType = StripTopLevelConstForReceiver(targetType);
 		if (CanImplicitlyConvert(actualType, receiverType))
 			return true;
+		if (CanGenericCallableReceiverMatch(actualType, receiverType))
+			return true;
 		if (CanGenericReceiverMatch(actualType, receiverType))
 			return true;
 		return TryGetPointerElementType(receiverType) is string receiverElement
 			&& TryGetPointerElementType(actualType) is null
 			&& BaseTypeName(receiverElement) == BaseTypeName(actualType);
+	}
+
+	bool CanGenericCallableReceiverMatch(string actualType, string receiverType)
+	{
+		if (!TryGetCallableShape(actualType, out CallableShape actual) || !TryGetCallableShape(receiverType, out CallableShape receiver))
+			return false;
+
+		actual = ExpandCallableShape(actual);
+		receiver = ExpandCallableShape(receiver);
+		if (actual.Kind != receiver.Kind
+			|| actual.Spec != receiver.Spec
+			|| actual.CallSpec != receiver.CallSpec
+			|| actual.Parameters.Count != receiver.Parameters.Count
+			|| actual.This != receiver.This)
+			return false;
+		if (!CanGenericCallableSlotMatch(actual.ReturnType, receiver.ReturnType))
+			return false;
+
+		for (int i = 0; i < actual.Parameters.Count; i++)
+			if (!CanGenericCallableSlotMatch(actual.Parameters[i], receiver.Parameters[i]))
+				return false;
+
+		return true;
+	}
+
+	bool CanGenericCallableSlotMatch(string actualType, string receiverType)
+	{
+		return actualType == receiverType
+			|| TryParseTypeShape(actualType, out TypeShape actualShape)
+				&& TryParseTypeShape(receiverType, out TypeShape receiverShape)
+				&& CanGenericReceiverMatch(actualShape, receiverShape, protectedByConstTarget: false, pointerDepth: 0);
 	}
 
 	bool CanGenericReceiverMatch(string actualType, string receiverType)

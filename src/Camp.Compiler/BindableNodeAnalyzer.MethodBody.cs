@@ -1422,6 +1422,9 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		if (receiverType is null)
 			return;
+		if (target is MemberExpression memberExpression
+			&& TryGetImplicitIteratorProtocolType(memberExpression.Target, receiverType, out string iteratorProtocolType))
+			receiverType = iteratorProtocolType;
 
 		AddReceiverTypeGenericSubstitutions(receiverType, function, substitutions);
 	}
@@ -1590,9 +1593,12 @@ public sealed partial class BindableNodeAnalyzer
 					return ResolveBaseMemberCallTarget(member, scope, typeScope, arguments ?? []);
 
 				string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
-				List<FunctionDefinition> functions = LookupMemberFunctions(targetType, member.Name, member.SourceSyntax);
+				string lookupTargetType = TryGetImplicitIteratorProtocolType(member.Target, targetType, out string iteratorProtocolType)
+					? iteratorProtocolType
+					: targetType;
+				List<FunctionDefinition> functions = LookupMemberFunctions(lookupTargetType, member.Name, member.SourceSyntax);
 				if (functions.Count == 0)
-					functions = LookupGenericConstraintMemberFunctions(targetType, member.Name, scope, member.SourceSyntax);
+					functions = LookupGenericConstraintMemberFunctions(lookupTargetType, member.Name, scope, member.SourceSyntax);
 				if (functions.Count > 1 && TrySelectOverload(member.Name, functions, arguments ?? [], scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedMember)
 				{
 					member.ResolvedType = selectedMember.ResolvedType ?? ErrorType;
@@ -1607,8 +1613,8 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				if (functions.Count > 1)
 					Report(GetRange(member.SourceSyntax), $"Multiple candidates found for member call '{member.Name}'.");
-				else if (GetTypeDefinition(targetType) is TypeDefinition receiverType && HasMemberFunctionWithIncompatibleReceiver(receiverType, targetType, member.Name, member.SourceSyntax))
-					Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' exists on type '{targetType}', but its this parameter is not compatible with that receiver.");
+				else if (GetTypeDefinition(lookupTargetType) is TypeDefinition receiverType && HasMemberFunctionWithIncompatibleReceiver(receiverType, lookupTargetType, member.Name, member.SourceSyntax))
+					Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' exists on type '{lookupTargetType}', but its this parameter is not compatible with that receiver.");
 				else
 					BodyAnalyzeMemberExpression(member, scope, typeScope);
 				return null;
@@ -1925,10 +1931,17 @@ public sealed partial class BindableNodeAnalyzer
 		return argument.Modifier == ArgumentModifier.Catch || argument.Value is WithinExpression { Expression: null };
 	}
 
-	static void InferGenericSubstitutions(string pattern, string actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
+	void InferGenericSubstitutions(string pattern, string actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
 	{
 		if (string.IsNullOrWhiteSpace(pattern) || actual == ErrorType)
 			return;
+
+		if (TryGetCallableShape(pattern, out CallableShape patternCallable)
+			&& TryGetCallableShape(actual, out CallableShape actualCallable))
+		{
+			InferGenericCallableSubstitutions(patternCallable, actualCallable, substitutions, genericParameterNames);
+			return;
+		}
 
 		if (new TypeShapeParser(pattern).TryParse(out TypeShape patternShape) && new TypeShapeParser(actual).TryParse(out TypeShape actualShape))
 		{
@@ -1950,7 +1963,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	static void InferGenericSubstitutions(TypeShape pattern, TypeShape actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
+	void InferGenericSubstitutions(TypeShape pattern, TypeShape actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
 	{
 		if (pattern.Kind == TypeShapeKind.Named && genericParameterNames.Contains(pattern.Name))
 		{
@@ -1979,6 +1992,18 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (pattern.Element is not null && actual.Element is not null)
 			InferGenericSubstitutions(pattern.Element, actual.Element, substitutions, genericParameterNames);
+	}
+
+	void InferGenericCallableSubstitutions(CallableShape pattern, CallableShape actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
+	{
+		pattern = ExpandCallableShape(pattern);
+		actual = ExpandCallableShape(actual);
+		if (pattern.Kind != actual.Kind || pattern.Parameters.Count != actual.Parameters.Count)
+			return;
+
+		InferGenericSubstitutions(pattern.ReturnType, actual.ReturnType, substitutions, genericParameterNames);
+		for (int i = 0; i < pattern.Parameters.Count; i++)
+			InferGenericSubstitutions(pattern.Parameters[i], actual.Parameters[i], substitutions, genericParameterNames);
 	}
 
 	static bool ContainsUnboundGenericParameter(string type, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
@@ -2601,34 +2626,37 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope, string? targetCallableType = null)
 	{
 		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
+		string lookupTargetType = TryGetImplicitIteratorProtocolType(member.Target, targetType, out string iteratorProtocolType)
+			? iteratorProtocolType
+			: targetType;
 		if (TryAnalyzeParamsPointerComponentMember(member, targetType, out string componentType))
 			return componentType;
 
 		bool isTypeTarget = IsTypeReferenceExpression(member.Target);
 		List<BodySymbol> members = isTypeTarget
-			? LookupStaticMemberSymbols(targetType, member.Name, member.SourceSyntax)
-			: LookupMemberSymbols(targetType, member.Name, member.SourceSyntax);
+			? LookupStaticMemberSymbols(lookupTargetType, member.Name, member.SourceSyntax)
+			: LookupMemberSymbols(lookupTargetType, member.Name, member.SourceSyntax);
 		if (members.Count == 0)
-			members = LookupGenericConstraintMemberSymbols(targetType, member.Name, scope, member.SourceSyntax);
+			members = LookupGenericConstraintMemberSymbols(lookupTargetType, member.Name, scope, member.SourceSyntax);
 		if (members.Count == 0)
 		{
-			if (GetTypeDefinition(targetType) is TypeDefinition type && HasPropertyGetterWithIncompatibleReceiver(type, targetType, member.Name, member.SourceSyntax))
+			if (GetTypeDefinition(lookupTargetType) is TypeDefinition type && HasPropertyGetterWithIncompatibleReceiver(type, lookupTargetType, member.Name, member.SourceSyntax))
 			{
-				Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' exists on type '{targetType}', but its getter's this parameter is not compatible with that receiver.");
+				Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' exists on type '{lookupTargetType}', but its getter's this parameter is not compatible with that receiver.");
 				return ErrorType;
 			}
-			if (GetTypeDefinition(targetType) is TypeDefinition setterType && LookupPropertySetters(setterType, member.Name, member.SourceSyntax).Count > 0)
+			if (GetTypeDefinition(lookupTargetType) is TypeDefinition setterType && LookupPropertySetters(setterType, member.Name, member.SourceSyntax).Count > 0)
 			{
-				Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not readable on type '{targetType}'.");
+				Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not readable on type '{lookupTargetType}'.");
 				return ErrorType;
 			}
-			if (GetTypeDefinition(targetType) is TypeDefinition hiddenType && LookupHiddenMember(hiddenType, member.Name, member.SourceSyntax) is Definition hiddenMember)
+			if (GetTypeDefinition(lookupTargetType) is TypeDefinition hiddenType && LookupHiddenMember(hiddenType, member.Name, member.SourceSyntax) is Definition hiddenMember)
 			{
 				ReportMemberNotExported(hiddenMember, member.SourceSyntax);
 				return ErrorType;
 			}
 
-			Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' could not be found on type '{targetType}'.");
+			Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' could not be found on type '{lookupTargetType}'.");
 			return ErrorType;
 		}
 
@@ -2650,15 +2678,15 @@ public sealed partial class BindableNodeAnalyzer
 				&& TryGetCallableShape(targetCallableType, out CallableShape targetShape)
 				&& targetShape.This.HasThis)
 			{
-				if (BoundMethodReferenceCanSatisfyThisContract(targetType, function, targetShape.This, member.SourceSyntax))
+				if (BoundMethodReferenceCanSatisfyThisContract(lookupTargetType, function, targetShape.This, member.SourceSyntax))
 					memberType = targetCallableType!;
 			}
 			if (!isTypeTarget
 				&& selected.Node is FunctionDefinition delegateFunction
 				&& IsDelegateCallableType(memberType)
-				&& !CanUseReceiverAsDelegateContext(targetType, delegateFunction))
+				&& !CanUseReceiverAsDelegateContext(lookupTargetType, delegateFunction))
 			{
-				Report(GetRange(member.SourceSyntax), $"Type '{targetType}' cannot be the receiver of a delegate; delegate receivers must be single pointer values.");
+				Report(GetRange(member.SourceSyntax), $"Type '{lookupTargetType}' cannot be the receiver of a delegate; delegate receivers must be single pointer values.");
 				memberType = ErrorType;
 			}
 

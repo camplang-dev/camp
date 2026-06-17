@@ -169,6 +169,18 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryCreateReceiverComponentExpressions(Expression receiver, IReadOnlyList<string> names, out List<Expression> components)
 	{
+		if (names.Count == 2
+			&& names[0] == "this_call"
+			&& names[1] == "this_context"
+			&& receiver is CallExpression iteratorFactory
+			&& currentStatementPrefix is not null
+			&& TryCreateIteratorFactoryProtocolComponents(iteratorFactory, receiver.SourceSyntax, currentStatementPrefix, out List<Expression>? iteratorComponents)
+			&& iteratorComponents is not null)
+		{
+			components = iteratorComponents;
+			return true;
+		}
+
 		if (TryCreateParamsComponentExpressions(receiver, out components) && components.Count == names.Count)
 			return true;
 

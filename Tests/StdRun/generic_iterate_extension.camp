@@ -20,7 +20,7 @@ export void main()
 	}
 	delete concrete;
 
-	foreach (auto item in Iter_where<int>(list.iterate(), n => n > 1))
+	foreach (auto item in list.iterate().where(n => n > 1))
 	{
 		Console.write(item);
 	}
