@@ -344,7 +344,9 @@ public sealed partial class BindableNodeAnalyzer
 			CaptureParamsArrayConstructionLength(initialValue, shape, declarations);
 		if (initialValue is LambdaExpression lambda)
 			PrepareLambdaContextLocal(lambda, declarations);
-		List<Expression?> initialValues = materializedGenericReturnInitializer
+		List<Expression?> initialValues = TryCreateIteratorFactoryProtocolInitialValues(initialValue, shape, declarations, declaration.SourceSyntax, out List<Expression?>? iteratorProtocolInitialValues)
+			? iteratorProtocolInitialValues!
+			: materializedGenericReturnInitializer
 			? CreateNullInitialValues(shape)
 			: GetParamsComponentInitialValues(initialValue, shape, deferCurrentAllocator: true);
 		List<DeclarationTarget> targets = [];
@@ -412,6 +414,87 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		return declarations.Count > 0;
+	}
+
+	bool TryCreateIteratorFactoryProtocolInitialValues(Expression? initialValue, ParamsComponentShape shape, List<Statement> declarations, SyntaxNode? syntax, out List<Expression?>? initialValues)
+	{
+		initialValues = null;
+		if (shape.Kind != ParamsComponentShapeKind.Iter
+			|| shape.Components.Count != 2
+			|| initialValue is not CallExpression call
+			|| !TryCreateIteratorFactoryProtocolComponents(call, syntax, declarations, out List<Expression>? components)
+			|| components is null
+			|| components.Count != 2)
+			return false;
+
+		initialValues = [components[0], components[1]];
+		return true;
+	}
+
+	bool TryCreateIteratorFactoryProtocolComponents(CallExpression call, SyntaxNode? syntax, List<Statement> declarations, out List<Expression>? components)
+	{
+		components = null;
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function)
+			|| !generatedIteratorFactories.Contains(function))
+			return false;
+
+		AddImplicitDefaultArguments(call);
+		ExpandParamsArguments(call);
+		AddImplicitSizeOfArguments(call);
+		AddImplicitWithinArgument(call);
+		AddImplicitVTableOfArguments(call);
+
+		string stateType = function.ResolvedType ?? function.ReturnType?.ResolvedType ?? call.ResolvedType ?? ErrorType;
+		if (callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? substitutions))
+			stateType = SubstituteGenericType(stateType, substitutions);
+		string stateTypeName = TryGetPointerElementType(stateType) ?? stateType;
+		if (GetTypeDefinition(stateTypeName) is not TypeDefinition state)
+			return false;
+
+		FunctionDefinition? adapter = null;
+		foreach (FunctionDefinition candidate in GetFunctions(state))
+		{
+			if (candidate.Name == "op_iter")
+			{
+				adapter = candidate;
+				break;
+			}
+		}
+		if (adapter is null)
+			return false;
+
+		string localName = NewGeneratedLocalName("iterState");
+		DeclarationStatement local = CreateGeneratedLocal(localName, stateType, TypeReferenceForResolvedName(stateType), call);
+		local.SourceSyntax = syntax;
+		declarations.Add(local);
+
+		Expression context = CreateVariableReference(local.Target, stateType);
+		if (TryGetPointerElementType(stateType) is null)
+		{
+			context = new UnaryExpression
+			{
+				SourceSyntax = syntax,
+				Operator = UnaryOperator.AddressOf,
+				Operand = context,
+				ResolvedType = AddPointer(stateType)
+			};
+		}
+
+		context = new CastExpression
+		{
+			SourceSyntax = syntax,
+			Kind = CastKind.Type,
+			Type = TypeReferenceForResolvedName("void*"),
+			Expression = context,
+			ResolvedType = "void*"
+		};
+
+		components =
+		[
+			CreateMethodReference(adapter, BuildFunctionValueType(adapter, isInstance: false)),
+			context
+		];
+		return true;
 	}
 
 	void CaptureParamsArrayConstructionLength(Expression? initialValue, ParamsComponentShape shape, List<Statement> declarations)

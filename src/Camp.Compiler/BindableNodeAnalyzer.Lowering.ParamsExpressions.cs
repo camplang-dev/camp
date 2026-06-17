@@ -749,10 +749,10 @@ public sealed partial class BindableNodeAnalyzer
 
 		string sourceType = argument.Value.ResolvedType ?? ErrorType;
 		string stateTypeName = TryGetPointerElementType(sourceType) ?? sourceType;
-		if (GetTypeDefinition(stateTypeName) is not TypeDefinition stateType)
+		if (GetTypeDefinition(stateTypeName) is not TypeDefinition stateDefinition)
 			return false;
 		FunctionDefinition? adapter = null;
-		foreach (FunctionDefinition function in GetFunctions(stateType))
+		foreach (FunctionDefinition function in GetFunctions(stateDefinition))
 		{
 			if (function.Name == "op_iter")
 			{
@@ -760,12 +760,31 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 			}
 		}
-		if (adapter is null || !TryGetCallableShape(BuildFunctionValueType(adapter, isInstance: false), out CallableShape source) || !CallableShapesCompatible(source, target))
+		if (adapter is null)
 			return false;
 
-		components.Add(CreateMethodReference(adapter, BuildFunctionValueType(adapter, isInstance: false)));
+		string adapterType = BuildFunctionValueType(adapter, isInstance: false);
+		Dictionary<string, string> substitutions = GetConstructedTypeSubstitutions(stateDefinition, stateTypeName, sourceType);
+		if (substitutions.Count > 0)
+			adapterType = SubstituteGenericType(adapterType, substitutions);
+		if (!TryGetCallableShape(adapterType, out CallableShape source) || !CallableShapesCompatible(source, target))
+			return false;
+
+		components.Add(CreateMethodReference(adapter, callableParameters[index].ResolvedType ?? adapterType));
 		components.Add(CreateIteratorProtocolContext(argument.Value, sourceType, stateTypeName));
 		return true;
+	}
+
+	static Dictionary<string, string> GetConstructedTypeSubstitutions(TypeDefinition definition, string constructedType, string stateTypeName)
+	{
+		Dictionary<string, string> substitutions = [];
+		List<string> typeArguments = ExtractConstructedTypeArguments(constructedType);
+		if (typeArguments.Count == 0 && constructedType != stateTypeName)
+			typeArguments = ExtractConstructedTypeArguments(stateTypeName);
+		int count = definition.GenericParameters.Count < typeArguments.Count ? definition.GenericParameters.Count : typeArguments.Count;
+		for (int i = 0; i < count; i++)
+			substitutions[definition.GenericParameters[i].Name] = typeArguments[i];
+		return substitutions;
 	}
 
 	Expression CreateIteratorProtocolContext(Expression value, string sourceType, string stateTypeName)

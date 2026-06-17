@@ -30,8 +30,9 @@ static bool Source_pull(Source *this, int *current, Err *error)
 
 int main(void)
 {
-	fn_bool_voidPtr__intPtr_ values;
-	void *values_context;
+	rangeIter _iterState0 = range(1, 1);
+	fn_bool_voidPtr__intPtr_ values = rangeIter_iter;
+	void *values_context = (void *)(&_iterState0);
 	int current = 0;
 	if (!values(values_context, &current))
 	{
@@ -69,9 +70,9 @@ static bool rangeIter_next(rangeIter *this, int *current)
 			return true;
 __iter_resume1: ;
 			;
-__for_continue0: ;
+__for_continue1: ;
 		}
-__for_break1: ;
+__for_break2: ;
 	}
 	this->__state = -1;
 	return false;

@@ -2599,7 +2599,14 @@ public static class CCodeEmitter
 				&& (argument.Value is null || !delegateThunksByExpression.ContainsKey(argument.Value))
 				&& (argument.Value is MethodReferenceExpression or VariableReferenceExpression { Variable: FunctionDefinition } or NamedExpression
 					|| argument.Value?.ResolvedType is string argumentType && IsResolvedCallableType(argumentType)))
-				value = "(" + CTypeName(expectedParameterType) + ")" + value;
+			{
+				string castType = rawExpectedParameterType is not null
+					&& IsResolvedCallableType(rawExpectedParameterType)
+					&& ContainsGenericParameterTypeName(rawExpectedParameterType)
+					? rawExpectedParameterType
+					: expectedParameterType;
+				value = "(" + CTypeName(castType) + ")" + value;
+			}
 			if (argument.Modifier == ArgumentModifier.None
 				&& expectedParameterType is not null
 				&& argument.Value?.ResolvedType is string valueType

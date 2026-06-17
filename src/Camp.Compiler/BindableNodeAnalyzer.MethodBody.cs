@@ -314,6 +314,9 @@ public sealed partial class BindableNodeAnalyzer
 			? TargetType
 			: declaration.Target.Type.ResolvedType ?? ErrorType;
 		string initialType = declaration.InitialValue is null ? TargetType : BodyAnalyzeExpression(declaration.InitialValue, scope, typeScope, targetType);
+		if (declaration.Target.Type is AutoTypeReference
+			&& TryGetImplicitIteratorProtocolType(declaration.InitialValue, initialType, out string iteratorProtocolType))
+			initialType = iteratorProtocolType;
 		if (declaration.InitialValue is InitializerExpression
 			&& declaration.Target.Type is AutoTypeReference or null
 			&& declaration.Target.Names.Count == 1)
@@ -327,6 +330,22 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (declaration.InitialValue is not null)
 			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+	}
+
+	bool TryGetImplicitIteratorProtocolType(Expression? expression, string initialType, out string iteratorProtocolType)
+	{
+		iteratorProtocolType = "";
+		if (expression is not CallExpression call
+			|| !callTargets.TryGetValue(call, out FunctionDefinition? function)
+			|| !generatedIteratorFactories.Contains(function))
+			return false;
+
+		string stateType = TryGetPointerElementType(initialType) ?? initialType;
+		if (!TryFindIteratorNextMethod(stateType, out _, out string elementType) || string.IsNullOrWhiteSpace(elementType) || elementType == ErrorType)
+			return false;
+
+		iteratorProtocolType = "iter " + elementType;
+		return true;
 	}
 
 	bool IsDirectCapturingLambda(Expression? expression, BodyScope scope)

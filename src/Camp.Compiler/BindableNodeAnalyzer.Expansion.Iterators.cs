@@ -63,6 +63,8 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
+		EnsureIteratorSizeOfParameters(function);
+
 		bool invalidGeneratorParameters = false;
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
@@ -95,6 +97,34 @@ public sealed partial class BindableNodeAnalyzer
 		function.ResolvedType = function.ReturnType.ResolvedType;
 		function.Body = CreateIteratorFactoryBody(function, stateType, stateReference);
 		generatedIteratorFactories.Add(function);
+	}
+
+	void EnsureIteratorSizeOfParameters(FunctionDefinition function)
+	{
+		foreach (GenericParameter parameter in function.GenericParameters)
+		{
+			if (parameter.Constraint is not AnyTypeReference)
+				continue;
+			if (FindSizeOfParameter(function, parameter.Name) is not null)
+				continue;
+
+			GenericParameterTypeReference type = new()
+			{
+				SourceSyntax = parameter.SourceSyntax,
+				Name = parameter.Name,
+				Parameter = parameter,
+				ResolvedType = parameter.Name
+			};
+			string name = SizeOfParameterName(type);
+			function.Parameters.Add(new SizeOfParameterDefinition
+			{
+				SourceSyntax = parameter.SourceSyntax,
+				Name = name,
+				Symbol = name,
+				Type = type,
+				ResolvedType = "nuint"
+			});
+		}
 	}
 
 	void AnalyzeIteratorGeneratorReturnType(FunctionDefinition function, TypeDefinition? containingType)

@@ -1,0 +1,43 @@
+using Std;
+
+export void main()
+{
+	int[] list = [1, 2, 3];
+
+	auto iterated = list.iterate();
+
+	int current = 0;
+	while (iterated(&current))
+	{
+		Console.write(current);
+	}
+	iterated(null);
+
+	iterateIter<int> concrete = list.iterate();
+	while (concrete.next(&current))
+	{
+		Console.write(current);
+	}
+	delete concrete;
+
+	foreach (auto item in Iter_where<int>(list.iterate(), n => n > 1))
+	{
+		Console.write(item);
+	}
+
+	Console.writeLine("DONE");
+}
+
+struct iter T iterate<T: any>(T[] this, sizeof(T))
+{
+	foreach (auto v in this)
+		yield v;
+}
+
+@symbol("Iter_where")
+struct iter T where<T: any>(iter T this, delegate bool(in T item) predicate)
+{
+	foreach (auto v in this)
+		if (predicate(v))
+			yield v;
+}
