@@ -1238,6 +1238,7 @@ public sealed partial class BindableNodeAnalyzer
 			UnscopedTypeReference { Type: not null } unscoped => "unscoped " + GetTypeReferenceName(unscoped.Type),
 			AutoTypeReference => AutoType,
 			AnyTypeReference => "any",
+			CopyableTypeReference => "copyable",
 			_ => type.ResolvedType
 		};
 	}

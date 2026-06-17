@@ -1373,7 +1373,7 @@ public static class CCodeEmitter
 
 			void AddParameter(GenericParameter parameter)
 			{
-				if (parameter.Constraint is AnyTypeReference)
+				if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
 					names.Add(parameter.Name);
 			}
 		}
@@ -1666,14 +1666,14 @@ public static class CCodeEmitter
 			foreach (GenericParameter parameter in function.GenericParameters)
 			{
 				currentGenericTypeNames.Add(parameter.Name);
-				if (parameter.Constraint is AnyTypeReference)
+				if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
 					currentAnyGenericTypeNames.Add(parameter.Name);
 			}
 			if (containingTypes.TryGetValue(function, out TypeDefinition? containingType))
 				foreach (GenericParameter parameter in containingType.GenericParameters)
 				{
 					currentGenericTypeNames.Add(parameter.Name);
-					if (parameter.Constraint is AnyTypeReference)
+					if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
 						currentAnyGenericTypeNames.Add(parameter.Name);
 				}
 
@@ -1701,7 +1701,7 @@ public static class CCodeEmitter
 			foreach (GenericParameter parameter in type.GenericParameters)
 			{
 				currentGenericTypeNames.Add(parameter.Name);
-				if (parameter.Constraint is AnyTypeReference)
+				if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
 					currentAnyGenericTypeNames.Add(parameter.Name);
 			}
 
@@ -3105,7 +3105,7 @@ public static class CCodeEmitter
 			string type = StripTypeDecorators(concreteType);
 			if (type.EndsWith("*", StringComparison.Ordinal) || type.EndsWith("[]", StringComparison.Ordinal) || type.EndsWith("?", StringComparison.Ordinal))
 				return false;
-			if (type is "string" or "wstring" or "astring" or "void" or "untyped" or "any" or "auto")
+			if (type is "string" or "wstring" or "astring" or "void" or "untyped" or "any" or "copyable" or "auto")
 				return false;
 			if (IsPrimitiveScalarType(type))
 				return true;
@@ -4418,7 +4418,7 @@ public static class CCodeEmitter
 			resolvedType = EraseGenericParametersForCName(resolvedType);
 			return resolvedType switch
 			{
-				"any" or "auto" or "#TARGET" => "void*",
+				"any" or "copyable" or "auto" or "#TARGET" => "void*",
 				_ => SanitizeIdentifier(RemoveTypeDecorators(resolvedType))
 			};
 		}

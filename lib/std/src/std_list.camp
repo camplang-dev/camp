@@ -1,6 +1,6 @@
 export as Std;
 
-export class List<T: any>
+export class List<T: copyable>
 {
 	T[] items;
 	nuint length;

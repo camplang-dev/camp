@@ -116,6 +116,10 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = "any";
 				break;
 
+			case CopyableTypeReference:
+				type.ResolvedType = "copyable";
+				break;
+
 			case AutoTypeReference:
 				type.ResolvedType = AutoType;
 				break;

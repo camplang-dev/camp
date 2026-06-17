@@ -35,7 +35,7 @@ public sealed partial class BindableNodeAnalyzer
 	static readonly HashSet<string> ReservedWords = new(StringComparer.Ordinal)
 	{
 		"_", "abstract", "alias", "any", "as", "astring", "async", "auto", "bool", "break", "byte", "case", "catch",
-		"char", "class", "const", "continue", "default", "delegate", "delete", "do", "double",
+		"char", "class", "const", "continue", "copyable", "default", "delegate", "delete", "do", "double",
 		"else", "enum", "escaped", "export", "extern", "false", "finally", "fixed", "float",
 		"fn", "for", "foreach", "if", "implements", "in", "init", "int", "interface", "iter",
 		"long", "new", "newtype", "nint", "null", "nuint", "once", "out", "overload", "override", "params", "public",
@@ -487,6 +487,7 @@ public sealed partial class BindableNodeAnalyzer
 			ConstTypeReference constant => FormatTypeDeclarator("const", constant.Type),
 			VolatileTypeReference vol => FormatTypeDeclarator("volatile", vol.Type),
 			AnyTypeReference => "any",
+			CopyableTypeReference => "copyable",
 			AutoTypeReference => AutoType,
 			PrimitiveTypeReference primitive => GetPrimitiveTypeName(primitive.Type),
 			EscapedTypeReference escaped => FormatTypeDeclarator("escaped", escaped.Type),

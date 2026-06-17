@@ -1256,6 +1256,10 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write("any");
 				break;
 
+			case CopyableTypeReference:
+				writer.Write("copyable");
+				break;
+
 			case AutoTypeReference:
 				writer.Write("auto");
 				break;

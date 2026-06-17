@@ -729,7 +729,7 @@ public sealed class CampParser
 	{
 		return ValueIsAny(value,
 			"abstract", "alias", "any", "as", "astring", "async", "auto", "bool", "break", "byte",
-			"case", "catch", "char", "class", "const", "continue", "default", "delegate", "delete",
+			"case", "catch", "char", "class", "const", "continue", "copyable", "default", "delegate", "delete",
 			"do", "double", "else", "enum", "escaped", "export", "extern", "false", "finally",
 			"fixed", "float", "fn", "for", "foreach", "if", "implements", "in", "init", "int",
 			"interface", "iter", "long", "new", "newtype", "nint", "null", "nuint", "once", "out",

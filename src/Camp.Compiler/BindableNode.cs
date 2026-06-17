@@ -251,6 +251,10 @@ public class AnyTypeReference : TypeReference
 {
 }
 
+public class CopyableTypeReference : TypeReference
+{
+}
+
 public class AutoTypeReference : TypeReference
 {
 }

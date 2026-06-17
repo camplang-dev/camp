@@ -106,7 +106,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryExpandMaterializedGenericReturn(FunctionDefinition function)
 	{
-		if (function.ReturnType is null || !IsAnyGenericReturn(function))
+		if (function.ReturnType is null || !IsErasedGenericReturn(function))
 			return false;
 
 		ParameterDefinition result = new()
@@ -126,18 +126,18 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	bool IsAnyGenericReturn(FunctionDefinition function)
+	bool IsErasedGenericReturn(FunctionDefinition function)
 	{
 		string returnType = StripTopLevelValueQualifiers(function.ResolvedType ?? function.ReturnType?.ResolvedType ?? "");
 		if (string.IsNullOrWhiteSpace(returnType))
 			return false;
 
 		foreach (GenericParameter parameter in function.GenericParameters)
-			if (parameter.Name == returnType && parameter.Constraint is AnyTypeReference)
+			if (parameter.Name == returnType && parameter.Constraint is AnyTypeReference or CopyableTypeReference)
 				return true;
 		if (FindContainingType(function) is TypeDefinition containingType)
 			foreach (GenericParameter parameter in containingType.GenericParameters)
-				if (parameter.Name == returnType && parameter.Constraint is AnyTypeReference)
+				if (parameter.Name == returnType && parameter.Constraint is AnyTypeReference or CopyableTypeReference)
 					return true;
 		return false;
 	}
@@ -643,7 +643,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsMaterializedGenericReturnFunction(FunctionDefinition function)
 	{
-		return materializedGenericReturnParameters.ContainsKey(function) || IsAnyGenericReturn(function);
+		return materializedGenericReturnParameters.ContainsKey(function) || IsErasedGenericReturn(function);
 	}
 
 	bool IsExpandedReturnPropertyGetter(MemberReferenceExpression getter, out FunctionDefinition function)

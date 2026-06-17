@@ -6,14 +6,14 @@ export void clear<T: any>(T[] this, sizeof(T))
 		this[i] = default;
 }
 
-export T[] copyArray<T: any>(const T[] this, within allocator, sizeof(T))
+export T[] copyArray<T: copyable>(const T[] this, within allocator, sizeof(T))
 {
 	T[] elements = new T[this.length];
 	this.copyTo<T>(elements);
 	return elements;
 }
 
-export void copyTo<T: any>(const T[] this, T[] destination, sizeof(T))
+export void copyTo<T: copyable>(const T[] this, T[] destination, sizeof(T))
 {
 	nuint count = this.length;
 	if (destination.length < count)
@@ -33,13 +33,13 @@ export void copyTo<T: any>(const T[] this, T[] destination, sizeof(T))
 	}
 }
 
-export void copyFrom<T: any>(T[] this, const T[] source, sizeof(T))
+export void copyFrom<T: copyable>(T[] this, const T[] source, sizeof(T))
 {
 	T[] destination = { this.elements, this.length };
 	source.copyTo<T>(destination);
 }
 
-export void resize<T: any>(T[]* this, nuint newSize, within allocator, sizeof(T))
+export void resize<T: copyable>(T[]* this, nuint newSize, within allocator, sizeof(T))
 {
 	if (this.length == newSize)
 		return;
@@ -54,7 +54,7 @@ export void resize<T: any>(T[]* this, nuint newSize, within allocator, sizeof(T)
 	this.length = newSize;
 }
 
-export void reverse<T: any>(T[] this, sizeof(T))
+export void reverse<T: copyable>(T[] this, sizeof(T))
 {
 	if (this.length < 2)
 		return;
@@ -71,7 +71,7 @@ export void reverse<T: any>(T[] this, sizeof(T))
 	}
 }
 
-export void sort<T: any>(T[] this, delegate int(in T left, in T right) compare, sizeof(T))
+export void sort<T: copyable>(T[] this, delegate int(in T left, in T right) compare, sizeof(T))
 {
 	if (this.length < 2)
 		return;
