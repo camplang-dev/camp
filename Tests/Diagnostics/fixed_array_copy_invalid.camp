@@ -4,5 +4,6 @@ export int main()
 	fixed int[4] source = [1, 2, 3, 4];
 	fixed int[4] copy = source;
 	source = copy;
+	auto inferred = source;
 	return 0;
 }

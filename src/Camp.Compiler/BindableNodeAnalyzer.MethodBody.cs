@@ -323,6 +323,12 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Initializer expression requires a target type.");
 		}
+		if (declaration.InitialValue is not null
+			&& declaration.Target.Type is AutoTypeReference or null
+			&& TryGetFixedArrayShape(initialType, out _, out _))
+		{
+			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Fixed-size arrays cannot be inferred by value; declare a span, pointer, or fixed storage target explicitly.");
+		}
 		if (declaration.Target.Names.Count > 1 && TryAnalyzeDeconstructionTarget(declaration.Target, initialType, scope))
 			return;
 
