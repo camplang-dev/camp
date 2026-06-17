@@ -1,0 +1,12 @@
+T copyReturn<T: any>(T[] values, sizeof(T))
+{
+	return values[0];
+}
+
+void copyAssign<T: any>(T[] values, sizeof(T))
+{
+	values[0] = values[1];
+	T temp = values[0];
+	values[1] = temp;
+	values[2] = default;
+}

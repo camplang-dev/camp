@@ -12,7 +12,7 @@ export void main()
 	Console.writeLine("DONE");
 }
 
-struct iter T iterate<T: any>(T[] this, sizeof(T))
+struct iter T iterate<T: copyable>(T[] this, sizeof(T))
 {
 	foreach (auto v in this)
 		yield v;

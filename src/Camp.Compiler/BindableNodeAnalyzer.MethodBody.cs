@@ -130,6 +130,8 @@ public sealed partial class BindableNodeAnalyzer
 				string returnType = returnStatement.Expression is null ? "void" : BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope, scope.CurrentFunctionReturnType);
 				if (IsDirectCapturingLambda(returnStatement.Expression, scope))
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Capturing scoped lambdas cannot be returned.");
+				if (RequiresAnyGenericCopy(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
+					ReportAnyGenericCopy(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
 				CheckAssignable(scope.CurrentFunctionReturnType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				break;
 			}
@@ -337,8 +339,23 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (declaration.InitialValue is not null && IsDirectFixedArrayType(declaration.Target.Type) && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Fixed-size arrays cannot be copied by value; initialize them with an array literal, string literal, or default.");
+		else if (declaration.InitialValue is not null && RequiresAnyGenericCopy(declaration.Target.ResolvedType ?? ErrorType, declaration.InitialValue, scope))
+			ReportAnyGenericCopy(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax);
 		else if (declaration.InitialValue is not null && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+	}
+
+	bool RequiresAnyGenericCopy(string targetType, Expression? value, BodyScope scope)
+	{
+		if (value is null or DefaultExpression)
+			return false;
+		string type = StripTopLevelValueQualifiers(targetType);
+		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: AnyTypeReference };
+	}
+
+	void ReportAnyGenericCopy(SyntaxNode? syntax)
+	{
+		Report(GetRange(syntax), "T: any is non-copying. Use T: copyable plus sizeof(T) for generic value-copy operations.");
 	}
 
 	static bool IsValidFixedStorageInitializer(TypeReference? targetType, Expression value)
@@ -2991,6 +3008,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (!IsValidFixedStorageAssignmentValue(targetType, assignment.Value))
 				Report(GetRange(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax), "Fixed-size arrays cannot be copied by value; assign from an array literal, string literal, or default.");
+		}
+		else if (RequiresAnyGenericCopy(targetType, assignment.Value, scope))
+		{
+			ReportAnyGenericCopy(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax);
 		}
 		else
 		{

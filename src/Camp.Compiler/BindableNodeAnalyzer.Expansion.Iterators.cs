@@ -103,7 +103,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (GenericParameter parameter in function.GenericParameters)
 		{
-			if (parameter.Constraint is not AnyTypeReference)
+			if (parameter.Constraint is not AnyTypeReference and not CopyableTypeReference)
 				continue;
 			if (FindSizeOfParameter(function, parameter.Name) is not null)
 				continue;

@@ -20,7 +20,7 @@ void passInArg<T: any>(T[] items, nuint index, sizeof(T))
 	acceptIn<T>(items[index]);
 }
 
-void writeTo<T: any>(T[] items, nuint index, in T value, sizeof(T))
+void writeTo<T: copyable>(T[] items, nuint index, in T value, sizeof(T))
 {
 	items[index] = value;
 }

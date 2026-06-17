@@ -4,7 +4,7 @@ void clear<T: any>(T[] values, sizeof(T))
 		values[i] = default;
 }
 
-void copyTo<T: any>(const T[] source, T[] destination, sizeof(T))
+void copyTo<T: copyable>(const T[] source, T[] destination, sizeof(T))
 {
 	nuint count = source.length;
 	if (destination.length < count)
@@ -14,7 +14,7 @@ void copyTo<T: any>(const T[] source, T[] destination, sizeof(T))
 		destination[i] = source[i];
 }
 
-void copyFrom<T: any>(T[] destination, const T[] source, sizeof(T))
+void copyFrom<T: copyable>(T[] destination, const T[] source, sizeof(T))
 {
 	nuint count = source.length;
 	if (destination.length < count)
@@ -24,7 +24,7 @@ void copyFrom<T: any>(T[] destination, const T[] source, sizeof(T))
 		destination[i] = source[i];
 }
 
-void reverse<T: any>(T[] values, sizeof(T))
+void reverse<T: copyable>(T[] values, sizeof(T))
 {
 	if (values.length < 2)
 		return;
@@ -41,7 +41,7 @@ void reverse<T: any>(T[] values, sizeof(T))
 	}
 }
 
-void sort<T: any>(
+void sort<T: copyable>(
 	T[] values,
 	delegate int(in T left, in T right) compare,
 	sizeof(T))
