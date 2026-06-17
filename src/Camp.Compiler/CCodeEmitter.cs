@@ -1985,10 +1985,15 @@ public static class CCodeEmitter
 		{
 			return value switch
 			{
-				ArrayExpression array => "{" + string.Join(", ", array.Elements.Select(FormatExpression)) + "}",
+				ArrayExpression array => "{" + string.Join(", ", array.Elements.Select(FormatFixedArrayInitializerElement)) + "}",
 				DefaultExpression => "{0}",
 				_ => FormatExpression(value)
 			};
+		}
+
+		string FormatFixedArrayInitializerElement(Expression value)
+		{
+			return value is ArrayExpression ? FormatFixedArrayInitializer(value) : FormatExpression(value);
 		}
 
 		string FormatAlloca(string size)
@@ -2805,7 +2810,7 @@ public static class CCodeEmitter
 			value = "";
 			string? arrayType = index.Target?.ResolvedType;
 			if ((TryGetArrayElementType(arrayType, out string elementType) || TryGetPointerElementType(arrayType, out elementType))
-				&& IsAnyGenericParameterType(StripTypeDecorators(elementType))
+				&& IsErasedGenericElementType(elementType)
 				&& index.Arguments.Count == 1)
 			{
 				value = "(void*)(" + FormatGenericArrayElementBytePointer(index, elementType) + ")";
@@ -2826,8 +2831,15 @@ public static class CCodeEmitter
 		{
 			string? arrayType = index.Target?.ResolvedType;
 			return (TryGetArrayElementType(arrayType, out string elementType) || TryGetPointerElementType(arrayType, out elementType))
-				&& IsAnyGenericParameterType(StripTypeDecorators(elementType))
+				&& IsErasedGenericElementType(elementType)
 				&& index.Arguments.Count == 1;
+		}
+
+		bool IsErasedGenericElementType(string elementType)
+		{
+			string stripped = StripTypeDecorators(elementType);
+			return !TryGetFixedArrayShape(stripped, out _, out _)
+				&& IsAnyGenericParameterType(stripped);
 		}
 
 		static bool ElementTypeIsConst(string type)
@@ -3133,6 +3145,8 @@ public static class CCodeEmitter
 		bool IsAnyGenericParameterType(string? type)
 		{
 			string stripped = StripTypeDecorators(type ?? "");
+			if (TryGetFixedArrayShape(stripped, out _, out _))
+				return false;
 			return currentAnyGenericTypeNames.Contains(stripped);
 		}
 
@@ -3436,7 +3450,7 @@ public static class CCodeEmitter
 			List<string> items = [];
 			foreach (InitializerItem item in initializer.Items)
 			{
-				string value = FormatExpression(item.Expression);
+				string value = item.Expression is ArrayExpression ? FormatFixedArrayInitializer(item.Expression) : FormatExpression(item.Expression);
 				string? target = FormatInitializerTarget(item.Target);
 				items.Add(target is null ? value : "." + target + " = " + value);
 			}
@@ -3477,7 +3491,7 @@ public static class CCodeEmitter
 			if (!TryGetArrayElementType(resolvedType, out string elementType)
 				&& !TryGetPointerElementType(resolvedType, out elementType))
 				return false;
-			if (!IsAnyGenericParameterType(StripTypeDecorators(elementType)))
+			if (!IsErasedGenericElementType(elementType))
 				return false;
 
 			string bytePointer = ElementTypeIsConst(elementType) ? "const uint8_t*" : "uint8_t*";

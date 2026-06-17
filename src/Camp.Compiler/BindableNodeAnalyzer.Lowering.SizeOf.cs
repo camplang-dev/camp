@@ -257,6 +257,53 @@ public sealed partial class BindableNodeAnalyzer
 
 	static TypeReference TypeReferenceForResolvedName(string typeName)
 	{
+		if (typeName.Contains('[', StringComparison.Ordinal) && new TypeShapeParser(typeName).TryParse(out TypeShape shape))
+			return TypeReferenceForTypeShape(shape);
+
+		return TypeReferenceForNamedShape(typeName);
+	}
+
+	static TypeReference TypeReferenceForTypeShape(TypeShape shape)
+	{
+		TypeReference result = shape.Kind switch
+		{
+			TypeShapeKind.Pointer => new PointerTypeReference
+			{
+				ElementType = shape.Element is null ? new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element)
+			},
+			TypeShapeKind.Array => new ArrayTypeReference
+			{
+				ElementType = shape.Element is null ? new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element)
+			},
+			TypeShapeKind.FixedArray => new FixedArrayTypeReference
+			{
+				ElementType = shape.Element is null ? new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element),
+				Length = shape.Length,
+				LengthExpression = new LiteralExpression
+				{
+					Kind = LiteralKind.Number,
+					Text = (shape.Length ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture),
+					Value = shape.Length ?? 0,
+					ResolvedType = "nuint"
+				}
+			},
+			TypeShapeKind.Optional => new OptionalTypeReference
+			{
+				ElementType = shape.Element is null ? new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element)
+			},
+			_ => TypeReferenceForNamedShape(shape.Name)
+		};
+
+		result.ResolvedType = TypeShapeParser.Format(shape);
+		if (shape.Qualifiers.IsConst)
+			result = new ConstTypeReference { Type = result, ResolvedType = TypeShapeParser.Format(shape) };
+		if (shape.Qualifiers.IsVolatile)
+			result = new VolatileTypeReference { Type = result, ResolvedType = TypeShapeParser.Format(shape) };
+		return result;
+	}
+
+	static TypeReference TypeReferenceForNamedShape(string typeName)
+	{
 		foreach (PrimitiveType primitive in Enum.GetValues<PrimitiveType>())
 		{
 			if (GetPrimitiveTypeName(primitive) == typeName)

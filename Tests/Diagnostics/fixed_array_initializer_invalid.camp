@@ -1,0 +1,7 @@
+export int main()
+{
+	fixed byte[3] tooMany = [1, 2, 3, 4];
+	fixed char[2] tooShort = "cat";
+	fixed byte[2][3] matrix = [[1, 2, 3, 4], [5, 6]];
+	return 0;
+}

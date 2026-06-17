@@ -1,0 +1,21 @@
+struct Packet
+{
+	fixed byte[4] magic;
+	fixed char[8] name;
+}
+
+export int main()
+{
+	fixed byte[2][3] matrix = [[1, 2, 3], [4, 5]];
+	matrix[0][0] = 9;
+
+	Packet packet = {
+		.magic = [1, 2, 3, 4],
+		.name = "hello"
+	};
+	packet.magic = [4, 3, 2, 1];
+	packet.name = "world";
+
+	byte[] row = matrix[1];
+	return (int)row.length + (int)packet.magic[0] + (int)packet.name[0];
+}

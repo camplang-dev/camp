@@ -1,0 +1,56 @@
+// file: fixed_array_nested_initializers.c
+#include "fixed_array_nested_initializers_private.h"
+
+
+int main(void)
+{
+	uint8_t matrix[2][3] = {{1, 2, 3}, {4, 5}};
+	((uint8_t *)(matrix[0]))[0] = 9;
+	Packet packet = (Packet){ .magic = {1, 2, 3, 4}, .name = "hello" };
+	__builtin_memcpy(packet.magic, (uint8_t[4]){4, 3, 2, 1}, sizeof(packet.magic));
+	__builtin_memcpy(packet.name, (char[8]){"world"}, sizeof(packet.name));
+	uint8_t *row = (uint8_t *)(matrix[1]);
+	uintptr_t row_length = 3;
+	return (((int)(row_length) + (int)(((uint8_t *)(packet.magic))[0])) + (int)(((char *)(packet.name))[0]));
+}
+
+// file: fixed_array_nested_initializers.h
+#ifndef FIXED_ARRAY_NESTED_INITIALIZERS_H_
+#define FIXED_ARRAY_NESTED_INITIALIZERS_H_
+
+#include "fixed_array_nested_initializers_private.h"
+
+int main(void);
+
+#endif
+// file: fixed_array_nested_initializers_private.h
+#ifndef FIXED_ARRAY_NESTED_INITIALIZERS_PRIVATE_H_
+#define FIXED_ARRAY_NESTED_INITIALIZERS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Packet Packet;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Packet
+{
+	uint8_t magic[4];
+	char name[8];
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: fixed_array_nested_initializers.c

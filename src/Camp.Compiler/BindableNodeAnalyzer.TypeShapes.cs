@@ -523,7 +523,13 @@ public sealed partial class BindableNodeAnalyzer
 				if (TryTake("[]"))
 					shape = new TypeShape(TypeShapeKind.Array, "", shape, TypeQualifiers.None);
 				else if (TryReadFixedArrayLength(out long fixedLength))
-					shape = new TypeShape(TypeShapeKind.FixedArray, "", shape, TypeQualifiers.None, Length: fixedLength);
+				{
+					List<long> lengths = [fixedLength];
+					while (TryReadFixedArrayLength(out long nestedLength))
+						lengths.Add(nestedLength);
+					for (int i = lengths.Count - 1; i >= 0; i--)
+						shape = new TypeShape(TypeShapeKind.FixedArray, "", shape, TypeQualifiers.None, Length: lengths[i]);
+				}
 				else if (TryTake("?"))
 					shape = new TypeShape(TypeShapeKind.Optional, "", shape, TypeQualifiers.None);
 				else if (TryTake("*"))
@@ -678,7 +684,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				TypeShapeKind.Pointer => Format(shape.Element) + "*",
 				TypeShapeKind.Array => Format(shape.Element) + "[]",
-				TypeShapeKind.FixedArray => Format(shape.Element) + "[" + (shape.Length?.ToString(CultureInfo.InvariantCulture) ?? "?") + "]",
+				TypeShapeKind.FixedArray => FormatFixedArray(shape),
 				TypeShapeKind.Optional => Format(shape.Element) + "?",
 				_ => shape.Name
 			};
@@ -705,6 +711,22 @@ public sealed partial class BindableNodeAnalyzer
 			string prefix = suffixes.Count == 0 ? "" : string.Join(" ", suffixes) + " ";
 			string suffix = targetSpec is null ? "" : " " + targetSpec;
 			return prefix + core + suffix;
+		}
+
+		static string FormatFixedArray(TypeShape shape)
+		{
+			List<string> lengths = [];
+			TypeShape? element = shape;
+			while (element?.Kind == TypeShapeKind.FixedArray)
+			{
+				lengths.Add(element.Length?.ToString(CultureInfo.InvariantCulture) ?? "?");
+				element = element.Element;
+			}
+
+			string text = Format(element);
+			foreach (string length in lengths)
+				text += "[" + length + "]";
+			return text;
 		}
 
 		bool TryReadTargetSpec(out string? targetSpec)

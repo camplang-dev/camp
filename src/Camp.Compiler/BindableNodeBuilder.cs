@@ -1307,12 +1307,7 @@ public sealed partial class BindableNodeBuilder
 						SourceSyntax = array,
 						ElementType = array.ElementType is null ? MissingType(array, "Array type is missing an element type.") : BuildTypeReference(array.ElementType)
 					};
-				return new FixedArrayTypeReference
-				{
-					SourceSyntax = array,
-					ElementType = array.ElementType is null ? MissingType(array, "Fixed-size array type is missing an element type.") : BuildTypeReference(array.ElementType),
-					LengthExpression = BuildExpression(array.Length, "Fixed-size array length")
-				};
+				return BuildFixedArrayTypeReference(array);
 
 			case OptionalTypeSyntax optional:
 				return new OptionalTypeReference
@@ -1391,6 +1386,31 @@ public sealed partial class BindableNodeBuilder
 				Report(syntax, "Unsupported type syntax.");
 				return MissingType(syntax, "Unsupported type syntax.");
 		}
+	}
+
+	TypeReference BuildFixedArrayTypeReference(ArrayTypeSyntax array)
+	{
+		List<ArrayTypeSyntax> dimensions = [];
+		TypeSyntax? element = array;
+		while (element is ArrayTypeSyntax { Length: not null } fixedArray)
+		{
+			dimensions.Add(fixedArray);
+			element = fixedArray.ElementType;
+		}
+
+		TypeReference type = element is null
+			? MissingType(array, "Fixed-size array type is missing an element type.")
+			: BuildTypeReference(element);
+		foreach (ArrayTypeSyntax dimension in dimensions)
+		{
+			type = new FixedArrayTypeReference
+			{
+				SourceSyntax = dimension,
+				ElementType = type,
+				LengthExpression = BuildExpression(dimension.Length!, "Fixed-size array length")
+			};
+		}
+		return type;
 	}
 
 	static IteratorKind GetIteratorKind(TypeSyntax syntax)

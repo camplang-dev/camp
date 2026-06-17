@@ -2125,7 +2125,10 @@ public sealed partial class BindableNodeAnalyzer
 			return targetType;
 
 		if (IsFixedCharacterArrayType(targetType))
+		{
+			ValidateFixedCharacterArrayStringLiteral(literal, targetType);
 			return targetType;
+		}
 
 		Report(GetRange(literal.SourceSyntax), $"String literal cannot implicitly convert to mutable type '{targetType}'.");
 		return ErrorType;
@@ -2135,6 +2138,16 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return TryGetFixedArrayShape(type, out string elementType, out _)
 			&& StripTopLevelValueQualifiers(elementType) is "char" or "achar" or "wchar";
+	}
+
+	void ValidateFixedCharacterArrayStringLiteral(LiteralExpression literal, string targetType)
+	{
+		if (!TryGetFixedArrayShape(targetType, out _, out long length))
+			return;
+
+		string value = literal.Value as string ?? "";
+		if (value.Length > length)
+			Report(GetRange(literal.SourceSyntax), $"String literal contains too many code units for {targetType}.");
 	}
 
 	static bool IsStringLiteralTargetType(string? type)

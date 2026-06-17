@@ -1097,11 +1097,7 @@ public sealed partial class BindableNodeAnalyzer
 		components.Add(new CastExpression
 		{
 			SourceSyntax = expression.SourceSyntax,
-			Type = new NamedTypeReference
-			{
-				Name = pointerType,
-				ResolvedType = pointerType
-			},
+			Type = TypeReferenceForResolvedName(pointerType),
 			Expression = CloneParamsExpansionExpression(expression),
 			ResolvedType = pointerType
 		});
@@ -1594,6 +1590,8 @@ public sealed partial class BindableNodeAnalyzer
 			call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
 			return TryCreateParamsComponentExpressions(call, out components);
 		}
+		if (TryGetFixedArrayShape(index.ResolvedType, out _, out _))
+			return TryCreateFixedArrayParamsComponentExpressions(index, out components);
 		if (index.Arguments.Count == 2
 			&& TryGetArrayElementType(index.ResolvedType) is string resultElementType
 			&& GetPrimitiveStringElementType(index.Target?.ResolvedType) == StripTopLevelValueQualifiers(resultElementType))

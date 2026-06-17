@@ -481,7 +481,7 @@ public sealed partial class BindableNodeAnalyzer
 				? FormatTypeReference(generic.Type)
 				: $"{FormatTypeReference(generic.Type)}<{string.Join(", ", GetResolvedTypes(generic.TypeArguments))}>",
 			ArrayTypeReference array => $"{FormatTypeReference(array.ElementType)}[]",
-			FixedArrayTypeReference fixedArray => $"{FormatTypeReference(fixedArray.ElementType)}[{FormatFixedArrayLength(fixedArray)}]",
+			FixedArrayTypeReference fixedArray => FormatFixedArrayTypeReference(fixedArray),
 			OptionalTypeReference optional => $"{FormatTypeReference(optional.ElementType)}?",
 			PointerTypeReference pointer => $"{FormatTypeReference(pointer.ElementType)}*",
 			ConstTypeReference constant => FormatTypeDeclarator("const", constant.Type),
@@ -501,6 +501,21 @@ public sealed partial class BindableNodeAnalyzer
 			ThrownTypeReference thrown => $"thrown({FormatTypeReference(thrown.Type)})",
 			_ => type.ResolvedType ?? ErrorType
 		};
+	}
+
+	static string FormatFixedArrayTypeReference(FixedArrayTypeReference fixedArray)
+	{
+		List<string> lengths = [];
+		TypeReference? element = fixedArray;
+		while (element is FixedArrayTypeReference current)
+		{
+			lengths.Add(FormatFixedArrayLength(current));
+			element = current.ElementType;
+		}
+		StringBuilder builder = new(FormatTypeReference(element));
+		foreach (string length in lengths)
+			builder.Append('[').Append(length).Append(']');
+		return builder.ToString();
 	}
 
 	static string FormatIterTypeReference(IterTypeReference iter)

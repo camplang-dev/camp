@@ -211,7 +211,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (resolvedType == "Allocator*")
 			return AllocatorPointerType();
 
-		return new NamedTypeReference { Name = resolvedType, ResolvedType = resolvedType };
+		return TypeReferenceForResolvedName(resolvedType);
 	}
 
 	Expression? GetFunctionWithinContext(FunctionDefinition function)

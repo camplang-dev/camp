@@ -1225,13 +1225,7 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case FixedArrayTypeReference fixedArray:
-				WriteType(fixedArray.ElementType);
-				writer.Write("[");
-				if (fixedArray.LengthExpression is not null)
-					WriteExpression(fixedArray.LengthExpression);
-				else if (fixedArray.Length is long length)
-					writer.Write(length.ToString(System.Globalization.CultureInfo.InvariantCulture));
-				writer.Write("]");
+				WriteFixedArrayType(fixedArray);
 				break;
 
 			case OptionalTypeReference optional:
@@ -1314,6 +1308,28 @@ public sealed class BindableNodeCodeSerializer
 				WriteType(thrown.Type);
 				writer.Write(")");
 				break;
+		}
+	}
+
+	void WriteFixedArrayType(FixedArrayTypeReference fixedArray)
+	{
+		List<FixedArrayTypeReference> dimensions = [];
+		TypeReference? element = fixedArray;
+		while (element is FixedArrayTypeReference current)
+		{
+			dimensions.Add(current);
+			element = current.ElementType;
+		}
+
+		WriteType(element);
+		foreach (FixedArrayTypeReference dimension in dimensions)
+		{
+			writer.Write("[");
+			if (dimension.LengthExpression is not null)
+				WriteExpression(dimension.LengthExpression);
+			else if (dimension.Length is long length)
+				writer.Write(length.ToString(System.Globalization.CultureInfo.InvariantCulture));
+			writer.Write("]");
 		}
 	}
 

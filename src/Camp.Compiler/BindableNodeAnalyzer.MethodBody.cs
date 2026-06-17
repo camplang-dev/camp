@@ -965,7 +965,11 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeArrayExpression(ArrayExpression array, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
 		bool pointerTarget = false;
-		string? elementTarget = TryGetArrayElementType(targetType);
+		bool fixedTarget = TryGetFixedArrayShape(targetType, out string fixedElementType, out long fixedLength);
+		if (fixedTarget && array.Elements.Count > fixedLength)
+			Report(GetRange(array.SourceSyntax), $"Too many initializer values for {targetType}.");
+
+		string? elementTarget = fixedTarget ? fixedElementType : TryGetArrayElementType(targetType);
 		if (elementTarget is null)
 		{
 			elementTarget = TryGetPointerElementType(targetType);
@@ -992,6 +996,8 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (string actual in elementTypes)
 			CheckAssignable(elementType, actual, array.SourceSyntax, "Array element");
 
+		if (fixedTarget)
+			return targetType ?? ErrorType;
 		return pointerTarget ? $"{elementType}*" : $"{elementType}[]";
 	}
 
@@ -2704,7 +2710,11 @@ public sealed partial class BindableNodeAnalyzer
 			Value = count,
 			ResolvedType = "nuint"
 		});
-		return stringElementType is null ? targetType : $"const {stringElementType}[]";
+		if (stringElementType is not null)
+			return $"const {stringElementType}[]";
+		if (TryGetFixedArrayShape(targetType, out string fixedElementType, out _))
+			return $"{fixedElementType}[]";
+		return targetType;
 	}
 
 	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope, string? targetCallableType = null)
@@ -2832,11 +2842,7 @@ public sealed partial class BindableNodeAnalyzer
 				expressionRewrites[member] = new CastExpression
 				{
 					SourceSyntax = member.SourceSyntax,
-					Type = new PointerTypeReference
-					{
-						ElementType = new NamedTypeReference { Name = elementType, ResolvedType = elementType },
-						ResolvedType = componentType
-					},
+					Type = TypeReferenceForResolvedName(componentType),
 					Expression = member.Target,
 					ResolvedType = componentType
 				};

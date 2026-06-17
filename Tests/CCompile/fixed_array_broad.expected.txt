@@ -32,7 +32,7 @@ int main(void)
 	uint8_t (*dataPointer)[4] = &packet.data;
 	total += ((uint8_t *)(*dataPointer))[2];
 	total += (int)(4);
-	total += (int)(3);
+	total += (int)(2);
 	return (total + ((int *)(GlobalValues))[1]);
 }
 
@@ -64,7 +64,7 @@ typedef struct Packet Packet;
 struct Packet
 {
 	uint8_t data[4];
-	int matrix[3][2];
+	int matrix[2][3];
 };
 
 /* Function declarations. */

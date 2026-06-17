@@ -1,0 +1,3 @@
+tests/Diagnostics/fixed_array_initializer_invalid.camp(3,26): error: Too many initializer values for byte[3].
+tests/Diagnostics/fixed_array_initializer_invalid.camp(4,27): error: String literal contains too many code units for char[2].
+tests/Diagnostics/fixed_array_initializer_invalid.camp(5,29): error: Too many initializer values for byte[3].
