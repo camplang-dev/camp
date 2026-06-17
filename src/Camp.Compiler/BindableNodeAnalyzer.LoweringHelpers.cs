@@ -322,6 +322,7 @@ public sealed partial class BindableNodeAnalyzer
 			AttributedTypeReference attributed => new AttributedTypeReference { Attribute = attributed.Attribute, Type = CloneType(attributed.Type) },
 			GenericTypeReference generic => CloneGeneric(generic),
 			ArrayTypeReference array => new ArrayTypeReference { ElementType = CloneType(array.ElementType) },
+			FixedArrayTypeReference fixedArray => CloneFixedArray(fixedArray),
 			OptionalTypeReference optional => new OptionalTypeReference { ElementType = CloneType(optional.ElementType) },
 			PointerTypeReference pointer => new PointerTypeReference { ElementType = CloneType(pointer.ElementType) },
 			ConstTypeReference constant => new ConstTypeReference { Type = CloneType(constant.Type) },
@@ -343,6 +344,16 @@ public sealed partial class BindableNodeAnalyzer
 		clone.SourceSyntax = type.SourceSyntax;
 		clone.ResolvedType = type.ResolvedType;
 		return clone;
+	}
+
+	static FixedArrayTypeReference CloneFixedArray(FixedArrayTypeReference fixedArray)
+	{
+		return new FixedArrayTypeReference
+		{
+			ElementType = CloneType(fixedArray.ElementType),
+			Length = fixedArray.Length,
+			LengthExpression = fixedArray.LengthExpression
+		};
 	}
 
 	static NamedTypeReference CloneNamed(NamedTypeReference named)

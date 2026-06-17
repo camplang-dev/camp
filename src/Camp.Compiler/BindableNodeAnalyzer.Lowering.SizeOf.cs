@@ -259,8 +259,44 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (typeName.Contains('[', StringComparison.Ordinal) && new TypeShapeParser(typeName).TryParse(out TypeShape shape))
 			return TypeReferenceForTypeShape(shape);
+		if (TryCreatePrimitivePointerTypeReference(typeName, out TypeReference? pointerType) && pointerType is not null)
+			return pointerType;
 
 		return TypeReferenceForNamedShape(typeName);
+	}
+
+	static bool TryCreatePrimitivePointerTypeReference(string typeName, out TypeReference? pointerType)
+	{
+		pointerType = null;
+		string trimmed = typeName.Trim();
+		if (!trimmed.EndsWith("*", StringComparison.Ordinal))
+			return false;
+		string elementName = trimmed[..^1].TrimEnd();
+		bool isConst = false;
+		if (elementName.StartsWith("const ", StringComparison.Ordinal))
+		{
+			isConst = true;
+			elementName = elementName["const ".Length..].TrimStart();
+		}
+		foreach (PrimitiveType primitive in Enum.GetValues<PrimitiveType>())
+		{
+			if (GetPrimitiveTypeName(primitive) != elementName)
+				continue;
+			TypeReference element = new PrimitiveTypeReference
+			{
+				Type = primitive,
+				ResolvedType = elementName
+			};
+			if (isConst)
+				element = new ConstTypeReference { Type = element, ResolvedType = "const " + elementName };
+			pointerType = new PointerTypeReference
+			{
+				ElementType = element,
+				ResolvedType = typeName
+			};
+			return true;
+		}
+		return false;
 	}
 
 	static TypeReference TypeReferenceForTypeShape(TypeShape shape)

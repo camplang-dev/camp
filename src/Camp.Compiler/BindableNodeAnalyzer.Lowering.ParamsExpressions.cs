@@ -247,8 +247,9 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
-			if (!TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components)
-				&& !TryCreateTargetTypedExpandedReturnArgumentComponents(argument, out components))
+			bool expectsExpandedComponents = ExpectsExpandedArgumentComponents(callableParameters, i);
+			if ((!expectsExpandedComponents || !TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components))
+				&& (!expectsExpandedComponents || !TryCreateTargetTypedExpandedReturnArgumentComponents(argument, out components)))
 			{
 				if (PrimitiveStringArrayLengthAlreadyProvided(arguments, callableParameters, i)
 					|| !TryCreateLiftedOptionalArgumentComponents(argument, out components)
@@ -274,6 +275,32 @@ public sealed partial class BindableNodeAnalyzer
 			i += components.Count - 1;
 		}
 		CollapseDuplicateExpandedThisComponents(arguments, callableParameters);
+	}
+
+	bool ExpectsExpandedArgumentComponents(List<ParameterDefinition>? callableParameters, int index)
+	{
+		if (callableParameters is null)
+			return true;
+		if (index < callableParameters.Count
+			&& TryGetParamsComponentShape(callableParameters[index].Type, callableParameters[index].ResolvedType, callableParameters[index].Name, out ParamsComponentShape parameterShape)
+			&& parameterShape.Components.Count > 1)
+			return true;
+		if (index + 1 >= callableParameters.Count)
+			return false;
+
+		string firstName = callableParameters[index].Name;
+		string secondName = callableParameters[index + 1].Name;
+		if (secondName == firstName + "_length"
+			|| secondName == firstName + "_context"
+			|| secondName == firstName + "_specified")
+			return true;
+		if (firstName == "this" && secondName is "this_length" or "this_context" or "this_specified")
+			return true;
+		if (firstName == "this_call" && secondName == "this_context")
+			return true;
+		if (IsExpandedArrayComponentPair(callableParameters, index))
+			return true;
+		return IsPointerToExpandedComponentPair(callableParameters, index);
 	}
 
 	bool TryCreateParamsPointerArgumentComponents(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index, out List<Expression> components)
@@ -352,6 +379,33 @@ public sealed partial class BindableNodeAnalyzer
 		return TryGetPointerElementType(firstParameterType) is string firstElementType
 			&& TryGetPointerElementType(firstElementType) is not null
 			&& TryGetPointerElementType(secondParameterType) == "nuint";
+	}
+
+	static bool IsExpandedArrayComponentPair(List<ParameterDefinition> callableParameters, int index)
+	{
+		if (index + 1 >= callableParameters.Count)
+			return false;
+		string firstParameterType = callableParameters[index].ResolvedType ?? callableParameters[index].Type?.ResolvedType ?? "";
+		string secondParameterType = callableParameters[index + 1].ResolvedType ?? callableParameters[index + 1].Type?.ResolvedType ?? "";
+		return TryGetPointerElementType(firstParameterType) is string elementType
+			&& !IsFixedArrayTypeName(elementType)
+			&& StripTopLevelValueQualifiers(secondParameterType) == "nuint";
+	}
+
+	static bool IsFixedArrayTypeName(string type)
+	{
+		type = StripTopLevelValueQualifiers(type.Trim());
+		if (!type.EndsWith("]", System.StringComparison.Ordinal))
+			return false;
+		int open = type.LastIndexOf('[');
+		if (open < 0 || open + 1 >= type.Length - 1)
+			return false;
+		for (int i = open + 1; i < type.Length - 1; i++)
+		{
+			if (!char.IsDigit(type[i]))
+				return false;
+		}
+		return true;
 	}
 
 	static bool IsProvidedLengthComponent(Expression? value, Expression? next, string componentName)

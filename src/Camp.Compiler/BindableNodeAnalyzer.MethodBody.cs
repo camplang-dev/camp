@@ -1146,6 +1146,8 @@ public sealed partial class BindableNodeAnalyzer
 			BodyAnalyzeInitializerExpression(construction.Initializer, scope, typeScope, targetType);
 		if (construction.ElementCount is not null)
 		{
+			if (scope.CurrentIteratorElementType is not null && construction.Kind == ConstructionKind.Init)
+				Report(GetRange(construction.SourceSyntax), "Iterator generator bodies cannot use init array construction; use fixed storage or new instead.");
 			if (construction.Type?.ResolvedType is string elementType)
 			{
 				string arrayType = $"{elementType}[]";

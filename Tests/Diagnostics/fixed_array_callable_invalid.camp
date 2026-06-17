@@ -1,0 +1,5 @@
+newtype delegate void BadDelegate(byte[4] data);
+
+delegate void(byte[4] data) badDelegate;
+
+fn byte[4]() badReturn;

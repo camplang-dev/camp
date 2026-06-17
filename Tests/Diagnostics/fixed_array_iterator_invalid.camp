@@ -1,0 +1,11 @@
+struct iter byte[] badInit()
+{
+	byte[] scratch = init byte[4];
+	yield scratch;
+}
+
+struct iter byte[4] badYield()
+{
+	fixed byte[4] scratch = [1, 2, 3, 4];
+	yield scratch;
+}

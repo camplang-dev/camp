@@ -1,0 +1,126 @@
+// file: fixed_array_iterator_storage.c
+#include "fixed_array_iterator_storage_private.h"
+
+/* Private file declarations. */
+static chunksIter chunks(void);
+static bool chunksIter_next(chunksIter *this, uint8_t *current);
+static void chunksIter_op_delete(chunksIter *this);
+static void chunksIter_destroy(chunksIter *this);
+static bool chunksIter_iter(void *ctx, uint8_t *current);
+
+static chunksIter chunks(void)
+{
+	return (chunksIter){ .__state = 0 };
+}
+
+int main(void)
+{
+	int total = 0;
+	chunksIter iterator = chunks();
+	uint8_t value = 0;
+	{
+		while (chunksIter_next(&iterator, &value))
+		{
+			total += (int)(value);
+__while_continue0: ;
+		}
+__while_break1: ;
+	}
+	chunksIter_op_delete(&iterator);
+	return total;
+}
+
+static bool chunksIter_next(chunksIter *this, uint8_t *current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	if ((this->__state == 2))
+	{
+		goto __iter_resume2;
+	}
+	__builtin_memcpy(this->scratch, (uint8_t[4]){1, 2, 3, 4}, sizeof(this->scratch));
+	*current = ((uint8_t *)(this->scratch))[0];
+	this->__state = 1;
+	return true;
+__iter_resume1: ;
+	;
+	((uint8_t *)(this->scratch))[0] = 5;
+	*current = ((uint8_t *)(this->scratch))[1];
+	this->__state = 2;
+	return true;
+__iter_resume2: ;
+	;
+	this->__state = -1;
+	return false;
+}
+
+static void chunksIter_op_delete(chunksIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static void chunksIter_destroy(chunksIter *this)
+{
+	chunksIter_op_delete(this);
+}
+
+static bool chunksIter_iter(void *ctx, uint8_t *current)
+{
+	chunksIter *state = (chunksIter *)(ctx);
+	if ((current == NULL))
+	{
+		chunksIter_op_delete(state);
+		return false;
+	}
+	return chunksIter_next(state, current);
+}
+
+// file: fixed_array_iterator_storage.h
+#ifndef FIXED_ARRAY_ITERATOR_STORAGE_H_
+#define FIXED_ARRAY_ITERATOR_STORAGE_H_
+
+#include "fixed_array_iterator_storage_private.h"
+
+int main(void);
+
+#endif
+// file: fixed_array_iterator_storage_private.h
+#ifndef FIXED_ARRAY_ITERATOR_STORAGE_PRIVATE_H_
+#define FIXED_ARRAY_ITERATOR_STORAGE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct chunksIter chunksIter;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct chunksIter
+{
+	int __state;
+	uint8_t scratch[4];
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: fixed_array_iterator_storage.c

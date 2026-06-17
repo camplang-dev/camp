@@ -297,6 +297,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(function.Body))
 		{
+			if (declaration.InitialValue is ConstructionExpression { Kind: ConstructionKind.Init, ElementCount: not null } initArray)
+				Report(GetRange(initArray.SourceSyntax ?? declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Iterator generator bodies cannot use init array construction; use fixed storage or new instead.");
 			foreach (string name in declaration.Target.Names)
 			{
 				if (name == "_")
@@ -317,6 +319,7 @@ public sealed partial class BindableNodeAnalyzer
 					SourceSyntax = declaration.SourceSyntax,
 					Name = name,
 					Symbol = name,
+					IsFixedStorage = declaration.IsFixedStorage,
 					Type = CloneType(declaration.Target.Type),
 					ResolvedType = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? FormatTypeReference(declaration.Target.Type)
 				});

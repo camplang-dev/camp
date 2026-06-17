@@ -1,0 +1,18 @@
+newtype delegate void BlockCallback(byte[4]* block);
+
+void accept(BlockCallback callback, byte[4]* block)
+{
+	callback(block);
+}
+
+void fill(byte[4]* block)
+{
+	(*block)[0] = 7;
+}
+
+export int main()
+{
+	fixed byte[4] data = [1, 2, 3, 4];
+	accept(fill, &data);
+	return (int)data[0];
+}

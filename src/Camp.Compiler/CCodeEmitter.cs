@@ -4155,7 +4155,6 @@ public static class CCodeEmitter
 			bool isGenericType = currentGenericTypeNames.Contains(type) || genericParameterNames.Contains(type);
 			if (isGenericType && !anyGenericParameterNames.Contains(type) && pointerCount > 0 && currentArrayElementComponentNames.Contains(declarator))
 				pointerCount++;
-			string cType = isGenericType && pointerCount == 0 ? "void*" : FormatResolvedBaseType(type);
 			string pointerPart = pointerCount == 0 ? "" : new string('*', pointerCount);
 			string targetSpec = pointerPart.Length == 0 ? "" : FormatTypeSpec(GetDefaultTargetTypeSpec(functionPointer: false));
 			if (targetSpec.Length > 0)
@@ -4169,7 +4168,46 @@ public static class CCodeEmitter
 				string separator = pointerPart.EndsWith("*", StringComparison.Ordinal) || declarator.Length == 0 ? "" : " ";
 				pointerDeclarator = pointerPart + separator + declarator;
 			}
+			if (TrySplitFixedArrayType(type, out string fixedBaseType, out List<long> fixedLengths))
+				return FormatResolvedFixedArrayType(qualifierPart + fixedBaseType, fixedLengths, pointerDeclarator);
+			string cType = isGenericType && pointerCount == 0 ? "void*" : FormatResolvedBaseType(type);
 			return new CType(qualifierPart + cType + " " + pointerDeclarator);
+		}
+
+		CType FormatResolvedFixedArrayType(string baseType, List<long> lengths, string declarator)
+		{
+			string arrayDeclarator = NeedsArrayDeclaratorParens(declarator) ? "(" + declarator + ")" : declarator;
+			foreach (long length in lengths)
+				arrayDeclarator += "[" + length.ToString(System.Globalization.CultureInfo.InvariantCulture) + "]";
+			return FormatResolvedType(baseType, arrayDeclarator);
+		}
+
+		static bool TrySplitFixedArrayType(string type, out string baseType, out List<long> lengths)
+		{
+			baseType = "";
+			lengths = [];
+			int index = 0;
+			while (index < type.Length && type[index] != '[')
+				index++;
+			if (index <= 0)
+				return false;
+			baseType = type[..index].TrimEnd();
+			while (index < type.Length)
+			{
+				if (type[index] != '[')
+					return false;
+				int end = type.IndexOf(']', index + 1);
+				if (end < 0)
+					return false;
+				string lengthText = type[(index + 1)..end].Trim();
+				if (!long.TryParse(lengthText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long length))
+					return false;
+				lengths.Add(length);
+				index = end + 1;
+				while (index < type.Length && char.IsWhiteSpace(type[index]))
+					index++;
+			}
+			return baseType.Length > 0 && lengths.Count > 0;
 		}
 
 		string FormatResolvedBaseType(string type)

@@ -1,0 +1,4 @@
+tests/Diagnostics/fixed_array_callable_invalid.camp(1,35): error: Fixed-size array storage types are not valid as a parameter type; use a pointer to the fixed array or a span array instead.
+tests/Diagnostics/fixed_array_callable_invalid.camp(3,15): error: Fixed-size array storage types are not valid as a parameter type; use a pointer to the fixed array or a span array instead.
+tests/Diagnostics/fixed_array_callable_invalid.camp(3,15): error: Fixed-size array storage types are not valid as a callable parameter type; use a pointer to the fixed array or a span array instead.
+tests/Diagnostics/fixed_array_callable_invalid.camp(5,4): error: Fixed-size array storage types are not valid as a callable return type; use a pointer to the fixed array or a span array instead.

@@ -1,0 +1,72 @@
+// file: fixed_array_pointer_callable.c
+#include "fixed_array_pointer_callable_private.h"
+
+/* Private file declarations. */
+static void __camp_delegate_fill(void *arg0, uint8_t (*arg1)[4]);
+static void accept(fn_void_voidPtr__byte_4_Ptr_ callback, void *callback_context, uint8_t (*block)[4]);
+static void fill(uint8_t (*block)[4]);
+
+static void __camp_delegate_fill(void *arg0, uint8_t (*arg1)[4])
+{
+	(void)arg0;
+	fill(arg1);
+}
+
+static void accept(fn_void_voidPtr__byte_4_Ptr_ callback, void *callback_context, uint8_t (*block)[4])
+{
+	callback(callback_context, block);
+}
+
+static void fill(uint8_t (*block)[4])
+{
+	((uint8_t *)(*block))[0] = 7;
+}
+
+int main(void)
+{
+	uint8_t data[4] = {1, 2, 3, 4};
+	accept(__camp_delegate_fill, NULL, &data);
+	return (int)(((uint8_t *)(data))[0]);
+}
+
+// file: fixed_array_pointer_callable.h
+#ifndef FIXED_ARRAY_POINTER_CALLABLE_H_
+#define FIXED_ARRAY_POINTER_CALLABLE_H_
+
+#include "fixed_array_pointer_callable_private.h"
+
+typedef void (* fn_void_byte_4_Ptr_)(uint8_t (*arg0)[4]);
+typedef void (* fn_void_voidPtr__byte_4_Ptr_)(void *arg0, uint8_t (*arg1)[4]);
+int main(void);
+
+#endif
+// file: fixed_array_pointer_callable_private.h
+#ifndef FIXED_ARRAY_POINTER_CALLABLE_PRIVATE_H_
+#define FIXED_ARRAY_POINTER_CALLABLE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+typedef void (* BlockCallback)(uint8_t (*arg0)[4]);
+
+/* Callable typedefs. */
+typedef void (* fn_void_byte_4_Ptr_)(uint8_t (*arg0)[4]);
+typedef void (* fn_void_voidPtr__byte_4_Ptr_)(void *arg0, uint8_t (*arg1)[4]);
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: fixed_array_pointer_callable.c
