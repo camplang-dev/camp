@@ -1,0 +1,3 @@
+tests/Diagnostics/copyable_constraint_invalid.camp(23,8): error: Type argument 'byte[4]' does not satisfy copyable constraint 'T: copyable'.
+tests/Diagnostics/copyable_constraint_invalid.camp(24,8): error: Type argument 'RefType' does not satisfy copyable constraint 'T: copyable'.
+tests/Diagnostics/copyable_constraint_invalid.camp(25,8): error: Type argument 'FixedValue' does not satisfy copyable constraint 'T: copyable'.

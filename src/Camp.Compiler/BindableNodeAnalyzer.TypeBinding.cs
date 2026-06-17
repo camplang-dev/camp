@@ -511,6 +511,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			ValidateGenericArity(named, definition);
+			ValidateGenericTypeArgumentConstraints(named, definition, scope);
 			string resolvedType = AddTypeArguments(named.Name, named.TypeArguments);
 			TypeDefinitionReference reference = new()
 			{
@@ -530,5 +531,81 @@ public sealed partial class BindableNodeAnalyzer
 
 		Report(GetRange(named.SourceSyntax), $"Unknown type '{sourceName}'.");
 		return $"{UnresolvedType}({sourceName})";
+	}
+
+	void ValidateGenericTypeArgumentConstraints(NamedTypeReference named, TypeDefinition definition, AnalysisScope scope)
+	{
+		int count = System.Math.Min(named.TypeArguments.Count, definition.GenericParameters.Count);
+		for (int i = 0; i < count; i++)
+		{
+			GenericParameter parameter = definition.GenericParameters[i];
+			TypeReference argument = named.TypeArguments[i];
+			if (parameter.Constraint is CopyableTypeReference && !IsCopyableTypeArgument(argument, scope, []))
+				Report(GetRange(argument.SourceSyntax ?? named.SourceSyntax), $"Type argument '{argument.ResolvedType ?? FormatTypeReference(argument)}' does not satisfy copyable constraint '{parameter.Name}: copyable'.");
+		}
+	}
+
+	bool IsCopyableTypeArgument(TypeReference type, AnalysisScope scope, HashSet<string> visitedTypes)
+	{
+		type = UnwrapTypeDeclarators(type);
+		switch (type)
+		{
+			case FixedArrayTypeReference:
+				return false;
+
+			case PrimitiveTypeReference:
+			case PointerTypeReference:
+			case ArrayTypeReference:
+			case CallableTypeReference:
+			case IterTypeReference:
+			case OptionalTypeReference:
+			case MaterializedStructTypeReference:
+				return true;
+
+			case NamedTypeReference named when scope.TryGetGenericParameter(named.Name, out GenericParameter? parameter) && parameter is not null:
+				return parameter.Constraint is CopyableTypeReference;
+
+			case GenericParameterTypeReference generic:
+				return generic.Parameter?.Constraint is CopyableTypeReference;
+
+			case NamedTypeReference named when typeDefinitions.TryGetValue(BaseTypeName(named.ResolvedType ?? named.Name), out TypeDefinition? namedDefinition) && namedDefinition is not null:
+				return IsCopyableTypeDefinition(namedDefinition, visitedTypes);
+
+			case TypeDefinitionReference { Definition: not null } reference:
+				return IsCopyableTypeDefinition(reference.Definition, visitedTypes);
+
+			default:
+				return type.ResolvedType is not null
+					&& typeDefinitions.TryGetValue(BaseTypeName(type.ResolvedType), out TypeDefinition? resolvedDefinition)
+					&& resolvedDefinition is not null
+					&& IsCopyableTypeDefinition(resolvedDefinition, visitedTypes);
+		}
+	}
+
+	bool IsCopyableTypeDefinition(TypeDefinition definition, HashSet<string> visitedTypes)
+	{
+		if (!visitedTypes.Add(definition.Name))
+			return true;
+		if (definition is ClassDefinition or StructDefinition { Modifier: StructModifier.Fixed })
+			return false;
+		if (definition is not StructDefinition structDefinition)
+			return true;
+
+		foreach (FieldDefinition field in structDefinition.Fields)
+		{
+			if (field.Modifier == FieldModifier.Static || field.Type is null)
+				continue;
+			if (!IsCopyableStructFieldType(field.Type, visitedTypes))
+				return false;
+		}
+		return true;
+	}
+
+	bool IsCopyableStructFieldType(TypeReference type, HashSet<string> visitedTypes)
+	{
+		type = UnwrapTypeDeclarators(type);
+		if (type is FixedArrayTypeReference fixedArray)
+			return fixedArray.ElementType is not null && IsCopyableStructFieldType(fixedArray.ElementType, visitedTypes);
+		return IsCopyableTypeArgument(type, new AnalysisScope(), visitedTypes);
 	}
 }

@@ -1,0 +1,25 @@
+class RefType
+{
+}
+
+fixed struct FixedValue
+{
+	int value;
+}
+
+struct InlineBuffer
+{
+	fixed byte[4] bytes;
+}
+
+class Holder<T: copyable>
+{
+}
+
+Holder<int>* okPrimitive;
+Holder<byte[4]*>* okPointerToFixedArray;
+Holder<InlineBuffer>* okStructWithCopyableFixedArray;
+
+Holder<byte[4]>* badFixedArray;
+Holder<RefType>* badClass;
+Holder<FixedValue>* badFixedStruct;
