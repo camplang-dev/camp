@@ -1,0 +1,57 @@
+// file: fixed_array_storage.c
+#include "fixed_array_storage_private.h"
+
+/* Private file declarations. */
+static void useBytes(uint8_t *data, uintptr_t data_length);
+
+static void useBytes(uint8_t *data, uintptr_t data_length)
+{
+	uint8_t first = data[0];
+}
+
+int main(void)
+{
+	uint8_t data[4] = {1, 2, 3, 4};
+	useBytes((uint8_t *)(data), 4);
+	uint8_t *ptr = data;
+	uint8_t (*pointer)[4] = &data;
+	((uint8_t *)(*pointer))[1] = 5;
+	uintptr_t len = 4;
+	uint8_t *elements = (uint8_t *)(data);
+	return (((int)(len) + (int)(ptr[1])) + (int)(elements[2]));
+}
+
+// file: fixed_array_storage.h
+#ifndef FIXED_ARRAY_STORAGE_H_
+#define FIXED_ARRAY_STORAGE_H_
+
+#include "fixed_array_storage_private.h"
+
+int main(void);
+
+#endif
+// file: fixed_array_storage_private.h
+#ifndef FIXED_ARRAY_STORAGE_PRIVATE_H_
+#define FIXED_ARRAY_STORAGE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: fixed_array_storage.c

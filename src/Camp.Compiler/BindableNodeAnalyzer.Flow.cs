@@ -253,7 +253,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (declaration.InitialValue is not null)
 			FlowAnalyzeExpression(declaration.InitialValue, state);
 
-		DeclareTargets(declaration.Target, state, declaration.InitialValue is not null);
+		DeclareTargets(declaration.Target, state, declaration.InitialValue is not null || declaration.IsFixedStorage);
 	}
 
 	void DeclareTargets(DeclarationTarget target, FlowState state, bool assigned)

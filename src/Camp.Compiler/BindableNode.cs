@@ -112,6 +112,7 @@ public class GenericParameter : BindableNode
 
 public class VariableDefinition : Definition
 {
+	public bool IsFixedStorage { get; set; }
 	public TypeReference? Type { get; set; }
 	public Expression? InitialValue { get; set; }
 }
@@ -163,6 +164,7 @@ public class VTableOfParameterDefinition : ParameterDefinition
 public class FieldDefinition : Definition
 {
 	public FieldModifier Modifier { get; set; }
+	public bool IsFixedStorage { get; set; }
 	public TypeReference? Type { get; set; }
 	public Expression? InitialValue { get; set; }
 }
@@ -216,6 +218,13 @@ public class GenericTypeReference : TypeReference
 public class ArrayTypeReference : TypeReference
 {
 	public TypeReference? ElementType { get; set; }
+}
+
+public class FixedArrayTypeReference : TypeReference
+{
+	public TypeReference? ElementType { get; set; }
+	public Expression? LengthExpression { get; set; }
+	public long? Length { get; set; }
 }
 
 public class OptionalTypeReference : TypeReference

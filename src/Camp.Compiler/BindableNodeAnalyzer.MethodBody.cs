@@ -327,9 +327,16 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		BodyAnalyzeDeclarationTarget(declaration.Target, scope, typeScope, initialType);
+		ValidateFixedStorageMarker(declaration.Target.Type, declaration.IsFixedStorage, declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 
-		if (declaration.InitialValue is not null)
+		if (declaration.InitialValue is not null && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+	}
+
+	static bool IsValidFixedStorageInitializer(TypeReference? targetType, Expression value)
+	{
+		return IsDirectFixedArrayType(targetType)
+			&& value is ArrayExpression or DefaultExpression or LiteralExpression { Kind: LiteralKind.String };
 	}
 
 	bool TryGetImplicitIteratorProtocolType(Expression? expression, string initialType, out string iteratorProtocolType)
@@ -2639,6 +2646,8 @@ public sealed partial class BindableNodeAnalyzer
 		string lookupTargetType = TryGetImplicitIteratorProtocolType(member.Target, targetType, out string iteratorProtocolType)
 			? iteratorProtocolType
 			: targetType;
+		if (TryAnalyzeFixedArrayComponentMember(member, targetType, out string fixedComponentType))
+			return fixedComponentType;
 		if (TryAnalyzeParamsPointerComponentMember(member, targetType, out string componentType))
 			return componentType;
 
@@ -2734,6 +2743,40 @@ public sealed partial class BindableNodeAnalyzer
 				return true;
 			return typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? definition)
 				&& definition is ClassDefinition or StructDefinition or NewtypeDefinition;
+		}
+
+		bool TryAnalyzeFixedArrayComponentMember(MemberExpression member, string targetType, out string componentType)
+		{
+			componentType = ErrorType;
+			if (!TryGetFixedArrayShape(targetType, out string elementType, out long length))
+				return false;
+
+			if (member.Name == "length")
+			{
+				componentType = "nuint";
+				expressionConstants[member] = true;
+				expressionRewrites[member] = NumberLiteral(length.ToString(System.Globalization.CultureInfo.InvariantCulture), "nuint");
+				return true;
+			}
+
+			if (member.Name == "elements")
+			{
+				componentType = elementType + "*";
+				expressionRewrites[member] = new CastExpression
+				{
+					SourceSyntax = member.SourceSyntax,
+					Type = new PointerTypeReference
+					{
+						ElementType = new NamedTypeReference { Name = elementType, ResolvedType = elementType },
+						ResolvedType = componentType
+					},
+					Expression = member.Target,
+					ResolvedType = componentType
+				};
+				return true;
+			}
+
+			return false;
 		}
 
 		bool TryAnalyzeParamsPointerComponentMember(MemberExpression member, string targetType, out string componentType)

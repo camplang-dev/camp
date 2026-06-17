@@ -1080,6 +1080,10 @@ public sealed partial class BindableNodeBuilder
 					definition.Extern = SetNullableArgument(definition.Extern, "", declarator, "extern");
 					break;
 
+				case "fixed":
+					definition.IsFixedStorage = true;
+					break;
+
 				case "static":
 					if (isGlobal)
 						Report(declarator, "'static' is not valid on a global variable.");
@@ -1108,6 +1112,10 @@ public sealed partial class BindableNodeBuilder
 			{
 				case "static":
 					definition.Modifier = FieldModifier.Static;
+					break;
+
+				case "fixed":
+					definition.IsFixedStorage = true;
 					break;
 
 				case "export":
@@ -1230,6 +1238,10 @@ public sealed partial class BindableNodeBuilder
 					definition.IsAsync = true;
 					break;
 
+				case "fixed":
+					Report(declarator, "'fixed' is not valid on a method declaration.");
+					break;
+
 				default:
 					Report(declarator, "Unknown method declarator.");
 					break;
@@ -1289,10 +1301,17 @@ public sealed partial class BindableNodeBuilder
 				};
 
 			case ArrayTypeSyntax array:
-				return new ArrayTypeReference
+				if (array.Length is null)
+					return new ArrayTypeReference
+					{
+						SourceSyntax = array,
+						ElementType = array.ElementType is null ? MissingType(array, "Array type is missing an element type.") : BuildTypeReference(array.ElementType)
+					};
+				return new FixedArrayTypeReference
 				{
 					SourceSyntax = array,
-					ElementType = array.ElementType is null ? MissingType(array, "Array type is missing an element type.") : BuildTypeReference(array.ElementType)
+					ElementType = array.ElementType is null ? MissingType(array, "Fixed-size array type is missing an element type.") : BuildTypeReference(array.ElementType),
+					LengthExpression = BuildExpression(array.Length, "Fixed-size array length")
 				};
 
 			case OptionalTypeSyntax optional:

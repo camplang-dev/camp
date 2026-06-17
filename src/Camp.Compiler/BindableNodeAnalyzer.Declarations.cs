@@ -297,6 +297,7 @@ public sealed partial class BindableNodeAnalyzer
 			GenerateSizeOfFields(definition);
 		GenerateVTableOfFields(definition);
 		ValidateExpandedFieldNames(definition.Fields);
+		ValidateFlexibleArrayMembers(definition.Fields, allowFlexibleArrayMember: false);
 	}
 
 	void AnalyzeStructDefinition(StructDefinition definition, AnalysisScope parentScope)
@@ -312,6 +313,7 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeFieldDefinition(field, scope, definition);
 
 		ValidateExpandedFieldNames(definition.Fields);
+		ValidateFlexibleArrayMembers(definition.Fields, allowFlexibleArrayMember: true);
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
 		ValidateDuplicateMethodNames(definition.Functions);
@@ -338,6 +340,7 @@ public sealed partial class BindableNodeAnalyzer
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
 		AnalyzeOptionalType(definition.UnderlyingType, scope);
+		ValidateNoDirectFixedArrayType(definition.UnderlyingType, definition.UnderlyingType?.SourceSyntax ?? definition.SourceSyntax, "a newtype underlying type");
 
 		foreach (VariableDefinition value in definition.Values)
 			AnalyzeVariableDefinition(value, scope, allowSymbolAttribute: false);
@@ -353,10 +356,24 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (FieldDefinition field in definition.Fields)
 			AnalyzeFieldDefinition(field, scope, definition);
+		ValidateFlexibleArrayMembers(definition.Fields, allowFlexibleArrayMember: false);
 
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
 		ValidateDuplicateMethodNames(definition.Functions);
+	}
+
+	void ValidateFlexibleArrayMembers(List<FieldDefinition> fields, bool allowFlexibleArrayMember)
+	{
+		for (int i = 0; i < fields.Count; i++)
+		{
+			if (AsDirectFixedArrayType(fields[i].Type) is not { Length: 0 } fixedArray)
+				continue;
+
+			bool isFinalField = i == fields.Count - 1;
+			if (!allowFlexibleArrayMember || !isFinalField || fields[i].Modifier == FieldModifier.Static)
+				Report(GetRange(fixedArray.LengthExpression?.SourceSyntax ?? fixedArray.SourceSyntax ?? fields[i].SourceSyntax), "Fixed-size array length 0 is valid only for the final instance field of a struct.");
+		}
 	}
 
 	AnalysisScope AnalyzeNewtypeSignature(NewtypeDefinition definition, AnalysisScope parentScope)
@@ -623,6 +640,7 @@ public sealed partial class BindableNodeAnalyzer
 		ApplySymbolAttribute(definition, allowSymbolAttribute, allowSymbolAttribute ? "variable" : "enum value");
 		CheckName(definition.Name, GetNameRange(definition), "variable");
 		AnalyzeOptionalType(definition.Type, scope);
+		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.SourceSyntax);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		AnalyzeOptionalExpression(definition.InitialValue, scope);
 	}
@@ -646,7 +664,8 @@ public sealed partial class BindableNodeAnalyzer
 			};
 			string targetType = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
 			string initialType = BodyAnalyzeExpression(variable.InitialValue, scope, typeScope, targetType);
-			CheckAssignable(targetType, initialType, variable.InitialValue.SourceSyntax ?? variable.SourceSyntax, "Global initializer");
+			if (!IsValidFixedStorageInitializer(variable.Type, variable.InitialValue))
+				CheckAssignable(targetType, initialType, variable.InitialValue.SourceSyntax ?? variable.SourceSyntax, "Global initializer");
 		}
 	}
 
@@ -667,6 +686,9 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(definition), "Exported or public fields must be explicitly marked static.");
 		CheckName(definition.Name, GetNameRange(definition), "field");
 		AnalyzeOptionalType(definition.Type, scope);
+		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.SourceSyntax);
+		if (containingType is NewtypeDefinition && definition.Modifier != FieldModifier.Static && IsDirectFixedArrayType(definition.Type))
+			Report(GetRange(definition.SourceSyntax), "Newtype instance fields may not use fixed-size array storage.");
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		if (definition.Modifier == FieldModifier.Static && definition.InitialValue is not null)
 		{
@@ -681,7 +703,8 @@ public sealed partial class BindableNodeAnalyzer
 			};
 			string targetType = definition.ResolvedType ?? definition.Type?.ResolvedType ?? ErrorType;
 			string initialType = BodyAnalyzeExpression(definition.InitialValue, bodyScope, scope, targetType);
-			CheckAssignable(targetType, initialType, definition.InitialValue.SourceSyntax ?? definition.SourceSyntax, "Static field initializer");
+			if (!IsValidFixedStorageInitializer(definition.Type, definition.InitialValue))
+				CheckAssignable(targetType, initialType, definition.InitialValue.SourceSyntax ?? definition.SourceSyntax, "Static field initializer");
 		}
 		else
 		{
@@ -711,6 +734,7 @@ public sealed partial class BindableNodeAnalyzer
 			definition.ResolvedType = "void";
 		else
 			definition.ResolvedType = AnalyzeOptionalType(definition.ReturnType, scope) ?? ErrorType;
+		ValidateNoDirectFixedArrayType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
 		AnalyzeOptionalType(definition.CallableAscriptionType, scope);
 
 		ValidateFunctionModifiers(definition);
@@ -1010,6 +1034,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (definition is not SizeOfParameterDefinition)
 			AnalyzeOptionalType(definition.Type, scope);
+		ValidateNoDirectFixedArrayType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
 
 		if (definition is WithinParameterDefinition && definition.Type is null)
 			BindImplicitWithinParameterType(definition, scope);

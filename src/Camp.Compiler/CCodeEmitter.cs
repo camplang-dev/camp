@@ -1614,7 +1614,7 @@ public static class CCodeEmitter
 			string prefix = BuildDeclarationPrefix(variable, storage);
 			writer.Write(prefix + FormatTypeOrResolved(variable.Type, variable.ResolvedType, CName(variable)).Declaration);
 			if (variable.InitialValue is not null)
-				writer.Write(" = " + FormatFileScopeInitializer(variable.InitialValue));
+				writer.Write(" = " + FormatFileScopeInitializer(variable.ResolvedType, variable.InitialValue));
 			writer.WriteLine(";");
 		}
 
@@ -1629,7 +1629,7 @@ public static class CCodeEmitter
 			string prefix = BuildDeclarationPrefix(field, storage);
 			writer.Write(prefix + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration);
 			if (field.InitialValue is not null)
-				writer.Write(" = " + FormatFileScopeInitializer(field.InitialValue));
+				writer.Write(" = " + FormatFileScopeInitializer(field.ResolvedType, field.InitialValue));
 			writer.WriteLine(";");
 		}
 
@@ -1952,8 +1952,25 @@ public static class CCodeEmitter
 			WriteIndent(writer, indent);
 			writer.Write(type);
 			if (declaration.InitialValue is not null)
-				writer.Write(" = " + FormatAssignmentValueForTarget(declaration.Target.ResolvedType, declaration.InitialValue));
+				writer.Write(" = " + FormatDeclarationInitializer(declaration.Target.ResolvedType, declaration.InitialValue));
 			writer.WriteLine(";");
+		}
+
+		string FormatDeclarationInitializer(string? targetType, Expression value)
+		{
+			if (TryGetFixedArrayElementType(targetType ?? "", out _))
+				return FormatFixedArrayInitializer(value);
+			return FormatAssignmentValueForTarget(targetType, value);
+		}
+
+		string FormatFixedArrayInitializer(Expression value)
+		{
+			return value switch
+			{
+				ArrayExpression array => "{" + string.Join(", ", array.Elements.Select(FormatExpression)) + "}",
+				DefaultExpression => "{0}",
+				_ => FormatExpression(value)
+			};
 		}
 
 		string FormatAlloca(string size)
@@ -2045,7 +2062,7 @@ public static class CCodeEmitter
 				CastExpression cast => "(" + FormatType(cast.Type, "").Declaration.Trim() + ")(" + FormatExpression(cast.Expression) + ")",
 				SizeOfExpression sizeOf => FormatSizeOfExpression(sizeOf),
 				CallExpression call => FormatCallExpression(call),
-				IndexExpression index => FormatExpression(index.Target) + "[" + string.Join(", ", index.Arguments.Select(FormatArgumentValue)) + "]",
+				IndexExpression index => FormatIndexExpression(index),
 				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatExpression(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
 				MemberReferenceExpression member => FormatMemberReference(member),
 				UnaryExpression unary => FormatUnaryExpression(unary),
@@ -2247,9 +2264,33 @@ public static class CCodeEmitter
 				return false;
 			string type = resolvedType.Trim();
 			if (!type.EndsWith("[]", StringComparison.Ordinal))
-				return false;
-			elementType = type[..^2].TrimEnd();
+			{
+				if (!TryGetFixedArrayElementType(type, out elementType))
+					return false;
+			}
+			else
+			{
+				elementType = type[..^2].TrimEnd();
+			}
 			return !string.IsNullOrWhiteSpace(elementType);
+		}
+
+		static bool TryGetFixedArrayElementType(string type, out string elementType)
+		{
+			elementType = "";
+			if (!type.EndsWith("]", StringComparison.Ordinal) || type.EndsWith("[]", StringComparison.Ordinal))
+				return false;
+
+			int bracket = type.LastIndexOf('[');
+			if (bracket <= 0)
+				return false;
+
+			string lengthText = type[(bracket + 1)..^1].Trim();
+			if (!long.TryParse(lengthText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out _))
+				return false;
+
+			elementType = type[..bracket].TrimEnd();
+			return elementType.Length > 0;
 		}
 
 		static bool TryGetOptionalElementOnly(string? resolvedType, out string elementType)
@@ -2373,6 +2414,14 @@ public static class CCodeEmitter
 				&& assignment.Target?.ResolvedType is string targetType)
 				value = FormatAssignmentValueForTarget(targetType, assignment.Value!);
 			return FormatExpression(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + value;
+		}
+
+		string FormatIndexExpression(IndexExpression index)
+		{
+			string target = FormatExpression(index.Target);
+			if (index.Target is CastExpression)
+				target = "(" + target + ")";
+			return target + "[" + string.Join(", ", index.Arguments.Select(FormatArgumentValue)) + "]";
 		}
 
 		string FormatAssignmentValueForTarget(string? targetType, Expression value)
@@ -3255,8 +3304,10 @@ public static class CCodeEmitter
 			return genericParameterNames.Contains(stripped) || currentGenericTypeNames.Contains(stripped);
 		}
 
-		string FormatFileScopeInitializer(Expression expression)
+		string FormatFileScopeInitializer(string? targetType, Expression expression)
 		{
+			if (TryGetFixedArrayElementType(targetType ?? "", out _))
+				return FormatFixedArrayInitializer(expression);
 			if (expression is InitializerExpression initializer)
 				return FormatInitializer(initializer, includeType: false);
 			return FormatFileScopeConstantExpression(expression) ?? FormatExpression(expression);
@@ -3875,6 +3926,7 @@ public static class CCodeEmitter
 				TargetTypeSpecTypeReference targetSpec => FormatTargetSpecType(targetSpec, declarator),
 				PointerTypeReference pointer => FormatPointerType(pointer, declarator),
 				ArrayTypeReference array => FormatType(array.ElementType, "*" + declarator),
+				FixedArrayTypeReference fixedArray => FormatFixedArrayType(fixedArray, declarator),
 				OptionalTypeReference optional => FormatType(optional.ElementType, declarator),
 				CallableTypeReference callable => new CType(FormatCallableDeclarator(callable, declarator)),
 				PrimitiveTypeReference primitive => FormatPrimitiveType(primitive.Type, declarator),
@@ -3898,6 +3950,8 @@ public static class CCodeEmitter
 		{
 			if (type is CallableTypeReference)
 				return FormatType(type, declarator);
+			if (ContainsFixedArrayTypeReference(type))
+				return FormatType(type, declarator);
 			if (ShouldFormatResolvedType(resolvedType))
 				return FormatResolvedType(resolvedType!, declarator);
 			if (type is not null)
@@ -3905,6 +3959,27 @@ public static class CCodeEmitter
 			if (resolvedType is not null)
 				return FormatResolvedType(resolvedType, declarator);
 			return FormatType(null, declarator);
+		}
+
+		static bool ContainsFixedArrayTypeReference(TypeReference? type)
+		{
+			return type switch
+			{
+				null => false,
+				FixedArrayTypeReference => true,
+				AttributedTypeReference attributed => ContainsFixedArrayTypeReference(attributed.Type),
+				ConstTypeReference constant => ContainsFixedArrayTypeReference(constant.Type),
+				VolatileTypeReference vol => ContainsFixedArrayTypeReference(vol.Type),
+				EscapedTypeReference escaped => ContainsFixedArrayTypeReference(escaped.Type),
+				ScopedTypeReference scoped => ContainsFixedArrayTypeReference(scoped.Type),
+				UnscopedTypeReference unscoped => ContainsFixedArrayTypeReference(unscoped.Type),
+				TargetTypeSpecTypeReference targetSpec => ContainsFixedArrayTypeReference(targetSpec.Type),
+				PointerTypeReference pointer => ContainsFixedArrayTypeReference(pointer.ElementType),
+				ArrayTypeReference array => ContainsFixedArrayTypeReference(array.ElementType),
+				OptionalTypeReference optional => ContainsFixedArrayTypeReference(optional.ElementType),
+				GenericTypeReference generic => ContainsFixedArrayTypeReference(generic.Type),
+				_ => false
+			};
 		}
 
 		CType FormatOutParameterType(TypeReference? type, string? resolvedType, string declarator)
@@ -4075,6 +4150,21 @@ public static class CCodeEmitter
 			if (pointer.ElementType is PrimitiveTypeReference { Type: PrimitiveType.Untyped })
 				return new CType("void " + declarator);
 			return FormatType(pointer.ElementType, declarator);
+		}
+
+		CType FormatFixedArrayType(FixedArrayTypeReference fixedArray, string declarator)
+		{
+			string length = fixedArray.Length is long value
+				? value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+				: "0";
+			string arrayDeclarator = NeedsArrayDeclaratorParens(declarator) ? "(" + declarator + ")" : declarator;
+			return FormatType(fixedArray.ElementType, arrayDeclarator + "[" + length + "]");
+		}
+
+		static bool NeedsArrayDeclaratorParens(string declarator)
+		{
+			declarator = declarator.TrimStart();
+			return declarator.StartsWith("*", StringComparison.Ordinal);
 		}
 
 		CType FormatPrimitiveType(PrimitiveType primitive, string declarator)

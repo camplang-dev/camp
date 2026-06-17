@@ -929,6 +929,10 @@ public sealed partial class BindableNodeAnalyzer
 				when TryCreateCurrentThisParameterComponents(out components):
 				return true;
 
+			case Expression fixedArray
+				when TryCreateFixedArrayParamsComponentExpressions(fixedArray, out components):
+				return true;
+
 			case MemberReferenceExpression { Member: not null } member
 				when paramsExpansions.TryGetValue(member.Member, out List<ParamsExpansionComponent>? expansion):
 				foreach (ParamsExpansionComponent component in expansion)
@@ -1079,6 +1083,28 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return components.Count == shape.Components.Count;
+	}
+
+	bool TryCreateFixedArrayParamsComponentExpressions(Expression expression, out List<Expression> components)
+	{
+		components = [];
+		if (!TryGetFixedArrayShape(expression.ResolvedType, out string elementType, out long length))
+			return false;
+
+		string pointerType = elementType + "*";
+		components.Add(new CastExpression
+		{
+			SourceSyntax = expression.SourceSyntax,
+			Type = new NamedTypeReference
+			{
+				Name = pointerType,
+				ResolvedType = pointerType
+			},
+			Expression = CloneParamsExpansionExpression(expression),
+			ResolvedType = pointerType
+		});
+		components.Add(NumberLiteral(length.ToString(System.Globalization.CultureInfo.InvariantCulture), "nuint"));
+		return true;
 	}
 
 	bool TryCreateCurrentThisParameterComponents(out List<Expression> components)

@@ -1,0 +1,1 @@
+tests/Diagnostics/fixed_array_newtype_invalid.camp(1,19): error: Value newtype underlying type must be numeric or pointer-like.

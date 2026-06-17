@@ -9,7 +9,7 @@ public sealed class CampParser
 {
 	static readonly string[] TypeDeclarationKeywords = ["struct", "class", "interface", "params", "enum", "newtype"];
 	static readonly string[] TypeDeclarationDeclarators = ["export", "public", "extern", "virtual", "sealed", "abstract", "fixed", "escaped"];
-	static readonly string[] MemberDeclarators = ["export", "public", "extern", "static", "virtual", "override", "sealed", "abstract", "async"];
+	static readonly string[] MemberDeclarators = ["export", "public", "extern", "static", "virtual", "override", "sealed", "abstract", "async", "fixed"];
 	static readonly string[] ParameterDeclaratorKeywords = ["overload", "in", "out", "thrown"];
 	static readonly string[] TypeDeclaratorKeywords = ["const", "volatile", "escaped", "scoped", "unscoped"];
 	static readonly string[] StatementKeywords = ["if", "do", "while", "for", "else", "yield", "return", "continue", "break", "switch", "within", "try", "catch", "finally", "foreach", "delete", "goto", "throw"];
@@ -504,7 +504,7 @@ public sealed class CampParser
 		return syntax;
 	}
 
-	TypeSyntax? ParseType(bool requireIdentifierAfterTerminalTargetSpec = false)
+	TypeSyntax? ParseType(bool requireIdentifierAfterTerminalTargetSpec = false, bool allowFixedArrayLength = true)
 	{
 		TypeSyntax? type = ParseTypePrefix();
 		if (type is null)
@@ -512,12 +512,15 @@ public sealed class CampParser
 
 		while (true)
 		{
-			if (Is("[") && PeekValue(1) == "]")
+			if (allowFixedArrayLength && Is("["))
 			{
+				Token? open = Expect("[");
+				ExpressionSyntax? length = Is("]") ? null : ParseExpression();
 				type = new ArrayTypeSyntax
 				{
 					ElementType = type,
-					OpenBracketToken = Take(),
+					OpenBracketToken = open,
+					Length = length,
 					CloseBracketToken = Expect("]")
 				};
 			}
@@ -1091,9 +1094,10 @@ public sealed class CampParser
 
 	DeclarationTargetSyntax? ParseDeclarationTarget()
 	{
+		Token? fixedKeyword = TakeIf("fixed");
 		if (Is("auto"))
 		{
-			DeclarationTargetSyntax syntax = new() { AutoKeyword = Take() };
+			DeclarationTargetSyntax syntax = new() { FixedKeyword = fixedKeyword, AutoKeyword = Take() };
 
 			if (Is("("))
 			{
@@ -1114,10 +1118,12 @@ public sealed class CampParser
 		if (type is null || !IsIdentifier())
 		{
 			index = start;
+			if (fixedKeyword is not null)
+				index = fixedKeyword.Value.Index;
 			return null;
 		}
 
-		return new DeclarationTargetSyntax { Type = type, Identifier = TakeIdentifier() };
+		return new DeclarationTargetSyntax { FixedKeyword = fixedKeyword, Type = type, Identifier = TakeIdentifier() };
 	}
 
 	ExpressionSyntax? ParseExpression()
@@ -1657,7 +1663,7 @@ public sealed class CampParser
 		syntax.Keyword = Take();
 
 		if (!Is("("))
-			syntax.Type = ParseType();
+			syntax.Type = ParseType(allowFixedArrayLength: false);
 
 		if (Is("["))
 		{

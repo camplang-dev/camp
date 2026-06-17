@@ -217,6 +217,9 @@ public sealed partial class BindableNodeAnalyzer
 			return null;
 
 		string receiverType = receiver.ResolvedType ?? "";
+		if (TryGetFixedArrayShape(receiverType, out _, out long fixedLength))
+			return NumberLiteral(fixedLength.ToString(System.Globalization.CultureInfo.InvariantCulture), "nuint");
+
 		List<FunctionDefinition> lengthFunctions = LookupMemberFunctions(receiverType, "getLength", syntax);
 		if (lengthFunctions.Count > 0)
 		{

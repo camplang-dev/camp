@@ -133,6 +133,7 @@ public sealed partial class BindableNodeBuilder
 
 		statement.Target.SourceSyntax = syntax.DeclarationStatement.Target;
 		BuildDeclarationTarget(statement.Target, syntax.DeclarationStatement.Target, "Declaration statement");
+		statement.IsFixedStorage = syntax.DeclarationStatement.Target?.FixedKeyword is not null;
 		statement.InitialValue = syntax.DeclarationStatement.Assignment is null
 			? null
 			: BuildExpression(syntax.DeclarationStatement.Assignment.Expression, "Declaration initializer");
@@ -417,6 +418,7 @@ public sealed partial class BindableNodeBuilder
 		DeclarationStatement statement = new() { SourceSyntax = syntax };
 		statement.Target.SourceSyntax = syntax.Target;
 		BuildDeclarationTarget(statement.Target, syntax.Target, "Declaration statement");
+		statement.IsFixedStorage = syntax.Target?.FixedKeyword is not null;
 		statement.InitialValue = syntax.Assignment is null
 			? null
 			: BuildExpression(syntax.Assignment.Expression, "Declaration initializer");

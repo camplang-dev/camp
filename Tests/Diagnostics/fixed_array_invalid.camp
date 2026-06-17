@@ -1,0 +1,9 @@
+void badParam(byte[4] value)
+{
+}
+
+byte[4] badReturn()
+{
+	fixed byte[4] value;
+	return value;
+}

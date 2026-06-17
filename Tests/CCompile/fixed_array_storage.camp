@@ -1,0 +1,16 @@
+void useBytes(byte[] data)
+{
+	byte first = data[0];
+}
+
+export int main()
+{
+	fixed byte[4] data = [1, 2, 3, 4];
+	useBytes(data);
+	byte* ptr = data;
+	byte[4]* pointer = &data;
+	(*pointer)[1] = 5;
+	nuint len = data.length;
+	byte* elements = data.elements;
+	return (int)len + (int)ptr[1] + (int)elements[2];
+}

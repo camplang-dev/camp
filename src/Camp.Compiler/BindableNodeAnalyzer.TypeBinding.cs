@@ -73,6 +73,23 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
+			case FixedArrayTypeReference fixedArray:
+				AnalyzeOptionalType(fixedArray.ElementType, scope);
+				if (IsExpandedFormType(fixedArray.ElementType))
+					Report(GetRange(fixedArray.SourceSyntax), $"Fixed-size arrays of expanded values are not supported; use struct({FormatTypeReference(fixedArray.ElementType)})[{FormatFixedArrayLength(fixedArray)}] instead.");
+				if (TryEvaluateFixedArrayLength(fixedArray.LengthExpression, scope, out long length))
+				{
+					fixedArray.Length = length;
+					if (length < 0)
+						Report(GetRange(fixedArray.LengthExpression?.SourceSyntax ?? fixedArray.SourceSyntax), "Fixed-size array length cannot be negative.");
+				}
+				else
+				{
+					Report(GetRange(fixedArray.LengthExpression?.SourceSyntax ?? fixedArray.SourceSyntax), "Fixed-size array length must be a compile-time integer constant.");
+				}
+				type.ResolvedType = FormatTypeReference(type);
+				break;
+
 			case OptionalTypeReference optional:
 				AnalyzeOptionalType(optional.ElementType, scope);
 				if (optional.ElementType is OptionalTypeReference)
@@ -133,13 +150,18 @@ public sealed partial class BindableNodeAnalyzer
 			case CallableTypeReference callable:
 				ValidateCallableSpec(callable);
 				AnalyzeOptionalType(callable.ReturnType, scope);
+				ValidateNoDirectFixedArrayType(callable.ReturnType, callable.ReturnType?.SourceSyntax ?? callable.SourceSyntax, "a callable return type");
 				foreach (ParameterDefinition parameter in callable.Parameters)
+				{
 					AnalyzeParameterDefinition(parameter, scope);
+					ValidateNoDirectFixedArrayType(parameter.Type, parameter.Type?.SourceSyntax ?? parameter.SourceSyntax, "a callable parameter type");
+				}
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case IterTypeReference iter:
 				AnalyzeOptionalType(iter.ElementType, scope);
+				ValidateNoDirectFixedArrayType(iter.ElementType, iter.ElementType?.SourceSyntax ?? iter.SourceSyntax, "an iterator yield type");
 				ValidateIteratorType(iter, scope);
 				type.ResolvedType = FormatTypeReference(type);
 				break;
@@ -200,6 +222,62 @@ public sealed partial class BindableNodeAnalyzer
 		return inner is not null && TryApplyGenericTypeArguments(inner, arguments, out _);
 	}
 
+	static bool TryEvaluateFixedArrayLength(Expression? expression, AnalysisScope scope, out long length)
+	{
+		length = 0;
+		expression = UnwrapConstantExpressionSyntax(expression);
+		switch (expression)
+		{
+			case LiteralExpression literal:
+				return TryParseIntegerConstant(literal.Text, out length);
+
+			case UnaryExpression { Operator: UnaryOperator.Plus } unary:
+				return TryEvaluateFixedArrayLength(unary.Operand, scope, out length);
+
+			case UnaryExpression { Operator: UnaryOperator.Minus } unary:
+				if (!TryEvaluateFixedArrayLength(unary.Operand, scope, out long operand))
+					return false;
+				length = -operand;
+				return true;
+
+			case CastExpression cast:
+				return TryEvaluateFixedArrayLength(cast.Expression, scope, out length);
+
+			default:
+				return false;
+		}
+	}
+
+	static Expression? UnwrapConstantExpressionSyntax(Expression? expression)
+	{
+		while (expression is GroupedExpression grouped)
+		{
+			if (grouped.Items.Count != 1 || grouped.Items[0].Name is not null)
+				return expression;
+			expression = grouped.Items[0].Expression;
+		}
+		return expression;
+	}
+
+	static bool TryParseIntegerConstant(string text, out long value)
+	{
+		value = 0;
+		if (string.IsNullOrWhiteSpace(text))
+			return false;
+
+		text = text.Replace("_", "", System.StringComparison.Ordinal).Trim();
+		if (text.Length == 0)
+			return false;
+
+		while (text.Length > 0 && char.IsLetter(text[^1]) && text[^1] is not 'x' and not 'X')
+			text = text[..^1];
+
+		if (text.StartsWith("0x", System.StringComparison.OrdinalIgnoreCase))
+			return long.TryParse(text[2..], System.Globalization.NumberStyles.AllowHexSpecifier, System.Globalization.CultureInfo.InvariantCulture, out value);
+
+		return long.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out value);
+	}
+
 	static bool IsExpandedFormType(TypeReference? type)
 	{
 		if (type is null)
@@ -210,6 +288,31 @@ public sealed partial class BindableNodeAnalyzer
 			or OptionalTypeReference
 			or CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once or CallableKind.Async }
 			or IterTypeReference;
+	}
+
+	static bool IsDirectFixedArrayType(TypeReference? type)
+	{
+		return type is not null && UnwrapTypeDeclarators(type) is FixedArrayTypeReference;
+	}
+
+	static FixedArrayTypeReference? AsDirectFixedArrayType(TypeReference? type)
+	{
+		return type is null ? null : UnwrapTypeDeclarators(type) as FixedArrayTypeReference;
+	}
+
+	void ValidateFixedStorageMarker(TypeReference? type, bool isFixedStorage, SyntaxNode? syntax)
+	{
+		bool isFixedArray = IsDirectFixedArrayType(type);
+		if (isFixedStorage && !isFixedArray)
+			Report(GetRange(syntax), "'fixed' is only valid on fixed-size array storage declarations.");
+		else if (!isFixedStorage && isFixedArray)
+			Report(GetRange(syntax), "Fixed-size array storage declarations must be marked 'fixed'.");
+	}
+
+	void ValidateNoDirectFixedArrayType(TypeReference? type, SyntaxNode? syntax, string usage)
+	{
+		if (IsDirectFixedArrayType(type))
+			Report(GetRange(syntax), $"Fixed-size array storage types are not valid as {usage}; use a pointer to the fixed array or a span array instead.");
 	}
 
 	void ValidateTargetCallSpec(string? callSpec, SyntaxNode? syntax)

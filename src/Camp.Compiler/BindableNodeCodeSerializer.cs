@@ -406,6 +406,8 @@ public sealed class BindableNodeCodeSerializer
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
+		if (definition.IsFixedStorage)
+			writer.Write("fixed ");
 		WriteTypeOrResolved(definition.Type, definition.ResolvedType);
 		writer.Write(" ");
 		writer.Write(GetName(definition));
@@ -424,6 +426,8 @@ public sealed class BindableNodeCodeSerializer
 		WriteDefinitionPrefix(definition);
 		if (definition.Modifier != FieldModifier.None)
 			writer.Write($"{Lower(definition.Modifier)} ");
+		if (definition.IsFixedStorage)
+			writer.Write("fixed ");
 		WriteTypeOrResolved(definition.Type, definition.ResolvedType);
 		writer.Write(" ");
 		writer.Write(definition.Name);
@@ -885,7 +889,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteDeclarationInline(DeclarationStatement declaration)
 	{
-		WriteDeclarationTarget(declaration.Target);
+		WriteDeclarationTarget(declaration.Target, declaration.IsFixedStorage);
 		if (declaration.InitialValue is not null)
 		{
 			writer.Write(" = ");
@@ -893,8 +897,10 @@ public sealed class BindableNodeCodeSerializer
 		}
 	}
 
-	void WriteDeclarationTarget(DeclarationTarget target)
+	void WriteDeclarationTarget(DeclarationTarget target, bool isFixedStorage = false)
 	{
+		if (isFixedStorage)
+			writer.Write("fixed ");
 		WriteTypeOrResolved(target.Type, target.ResolvedType);
 		writer.Write(" ");
 		for (int i = 0; i < target.Names.Count; i++)
@@ -1218,6 +1224,16 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write("[]");
 				break;
 
+			case FixedArrayTypeReference fixedArray:
+				WriteType(fixedArray.ElementType);
+				writer.Write("[");
+				if (fixedArray.LengthExpression is not null)
+					WriteExpression(fixedArray.LengthExpression);
+				else if (fixedArray.Length is long length)
+					writer.Write(length.ToString(System.Globalization.CultureInfo.InvariantCulture));
+				writer.Write("]");
+				break;
+
 			case OptionalTypeReference optional:
 				WriteType(optional.ElementType);
 				writer.Write("?");
@@ -1299,7 +1315,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteTypeDeclarator(string keyword, TypeReference? inner)
 	{
-		if (inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or GenericTypeReference or CallableTypeReference)
+		if (inner is PointerTypeReference or ArrayTypeReference or FixedArrayTypeReference or OptionalTypeReference or GenericTypeReference or CallableTypeReference)
 		{
 			WriteType(inner);
 			writer.Write(" ");

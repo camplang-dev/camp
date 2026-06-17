@@ -210,6 +210,7 @@ public class ArrayTypeSyntax : TypeSyntax
 {
 	public TypeSyntax? ElementType { get; set; }
 	public Token? OpenBracketToken { get; set; }
+	public ExpressionSyntax? Length { get; set; }
 	public Token? CloseBracketToken { get; set; }
 }
 
@@ -379,6 +380,7 @@ public class EmptyStatementSyntax : StatementSyntax
 
 public class DeclarationTargetSyntax : SyntaxNode
 {
+	public Token? FixedKeyword { get; set; }
 	public TypeSyntax? Type { get; set; }
 	public Token? Identifier { get; set; }
 

@@ -1888,7 +1888,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string? TryGetArrayElementType(string? type)
 	{
-		return new TypeShapeParser(type ?? "").TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Array
+		return new TypeShapeParser(type ?? "").TryParse(out TypeShape shape) && shape.Kind is TypeShapeKind.Array or TypeShapeKind.FixedArray
 			? TypeShapeParser.Format(shape.Element)
 			: null;
 	}
@@ -2117,8 +2117,17 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsStringLiteralTargetType(targetType))
 			return targetType;
 
+		if (IsFixedCharacterArrayType(targetType))
+			return targetType;
+
 		Report(GetRange(literal.SourceSyntax), $"String literal cannot implicitly convert to mutable type '{targetType}'.");
 		return ErrorType;
+	}
+
+	static bool IsFixedCharacterArrayType(string? type)
+	{
+		return TryGetFixedArrayShape(type, out string elementType, out _)
+			&& StripTopLevelValueQualifiers(elementType) is "char" or "achar" or "wchar";
 	}
 
 	static bool IsStringLiteralTargetType(string? type)

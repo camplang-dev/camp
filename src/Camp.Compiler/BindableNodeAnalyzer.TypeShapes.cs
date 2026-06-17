@@ -11,6 +11,7 @@ public sealed partial class BindableNodeAnalyzer
 		Named,
 		Pointer,
 		Array,
+		FixedArray,
 		Optional
 	}
 
@@ -26,10 +27,11 @@ public sealed partial class BindableNodeAnalyzer
 		Escaped = 2
 	}
 
-	sealed record TypeShape(TypeShapeKind Kind, string Name, TypeShape? Element, TypeQualifiers Qualifiers, string? TargetSpec = null)
+	sealed record TypeShape(TypeShapeKind Kind, string Name, TypeShape? Element, TypeQualifiers Qualifiers, string? TargetSpec = null, long? Length = null)
 	{
 		public bool IsPointer => Kind == TypeShapeKind.Pointer;
 		public bool IsArray => Kind == TypeShapeKind.Array;
+		public bool IsFixedArray => Kind == TypeShapeKind.FixedArray;
 		public bool IsOptional => Kind == TypeShapeKind.Optional;
 	}
 
@@ -72,7 +74,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (source.Kind == target.Kind)
 		{
-			if ((source.Kind == TypeShapeKind.Pointer || source.Kind == TypeShapeKind.Array)
+			if ((source.Kind == TypeShapeKind.Pointer || source.Kind == TypeShapeKind.Array || source.Kind == TypeShapeKind.FixedArray)
 				&& source.Element is TypeShape sourceElementForVariance
 				&& target.Element is TypeShape targetElementForVariance
 				&& IsDerivedClassType(sourceElementForVariance, targetElementForVariance))
@@ -84,13 +86,21 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			bool childProtected = protectedByConstTarget || target.Qualifiers.IsConst;
+			if (source.Kind == TypeShapeKind.FixedArray && source.Length != target.Length)
+				return false;
 			int childPointerDepth = source.Kind == TypeShapeKind.Pointer ? pointerDepth + 1 : pointerDepth;
 			return source.Element is not null
 				&& target.Element is not null
 				&& CanImplicitlyConvertShape(source.Element, target.Element, childProtected, childPointerDepth);
 		}
 
-		if ((source.Kind == TypeShapeKind.Pointer || source.Kind == TypeShapeKind.Array)
+		if (source.Kind == TypeShapeKind.FixedArray && target.Kind == TypeShapeKind.Array && source.Element is not null && target.Element is not null)
+			return CanImplicitlyConvertShape(source.Element, target.Element, protectedByConstTarget || target.Qualifiers.IsConst, pointerDepth);
+
+		if (source.Kind == TypeShapeKind.FixedArray && target.Kind == TypeShapeKind.Pointer && source.Element is not null && target.Element is not null)
+			return CanImplicitlyConvertShape(source.Element, target.Element, protectedByConstTarget || target.Qualifiers.IsConst, pointerDepth);
+
+		if ((source.Kind == TypeShapeKind.Pointer || source.Kind == TypeShapeKind.Array || source.Kind == TypeShapeKind.FixedArray)
 			&& (target.Kind == TypeShapeKind.Pointer || target.Kind == TypeShapeKind.Array)
 			&& source.Element is TypeShape sourceElement
 			&& target.Element is TypeShape targetElement)
@@ -269,9 +279,20 @@ public sealed partial class BindableNodeAnalyzer
 
 	string? TryGetArrayElementTypeFromShape(string? type)
 	{
-		return TryParseTypeShape(type, out TypeShape shape) && shape.Kind == TypeShapeKind.Array
+		return TryParseTypeShape(type, out TypeShape shape) && shape.Kind is TypeShapeKind.Array or TypeShapeKind.FixedArray
 			? TypeShapeParser.Format(shape.Element)
 			: null;
+	}
+
+	static bool TryGetFixedArrayShape(string? type, out string elementType, out long length)
+	{
+		elementType = "";
+		length = 0;
+		if (!new TypeShapeParser(type ?? "").TryParse(out TypeShape shape) || shape.Kind != TypeShapeKind.FixedArray || shape.Element is null || shape.Length is not long fixedLength)
+			return false;
+		elementType = TypeShapeParser.Format(shape.Element);
+		length = fixedLength;
+		return true;
 	}
 
 	string? TryGetPointerElementTypeFromShape(string? type)
@@ -287,7 +308,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!new TypeShapeParser(targetType ?? "").TryParse(out TypeShape shape))
 			return false;
 
-		if (shape.Kind == TypeShapeKind.Array && shape.Element is not null)
+		if (shape.Kind is TypeShapeKind.Array or TypeShapeKind.FixedArray && shape.Element is not null)
 		{
 			addressType = TypeShapeParser.Format(new TypeShape(TypeShapeKind.Pointer, "", shape.Element, TypeQualifiers.None, shape.TargetSpec));
 			return true;
@@ -501,6 +522,8 @@ public sealed partial class BindableNodeAnalyzer
 				SkipWhitespace();
 				if (TryTake("[]"))
 					shape = new TypeShape(TypeShapeKind.Array, "", shape, TypeQualifiers.None);
+				else if (TryReadFixedArrayLength(out long fixedLength))
+					shape = new TypeShape(TypeShapeKind.FixedArray, "", shape, TypeQualifiers.None, Length: fixedLength);
 				else if (TryTake("?"))
 					shape = new TypeShape(TypeShapeKind.Optional, "", shape, TypeQualifiers.None);
 				else if (TryTake("*"))
@@ -655,6 +678,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				TypeShapeKind.Pointer => Format(shape.Element) + "*",
 				TypeShapeKind.Array => Format(shape.Element) + "[]",
+				TypeShapeKind.FixedArray => Format(shape.Element) + "[" + (shape.Length?.ToString(CultureInfo.InvariantCulture) ?? "?") + "]",
 				TypeShapeKind.Optional => Format(shape.Element) + "?",
 				_ => shape.Name
 			};
@@ -671,7 +695,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (suffixes.Count == 0 && targetSpec is null)
 				return core;
 
-			if (shape.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array or TypeShapeKind.Optional)
+			if (shape.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array or TypeShapeKind.FixedArray or TypeShapeKind.Optional)
 			{
 				if (targetSpec is not null)
 					suffixes.Add(targetSpec);
@@ -697,6 +721,29 @@ public sealed partial class BindableNodeAnalyzer
 			index = start;
 			targetSpec = null;
 			return false;
+		}
+
+		bool TryReadFixedArrayLength(out long length)
+		{
+			length = 0;
+			SkipWhitespace();
+			int start = index;
+			if (index >= text.Length || text[index] != '[')
+				return false;
+
+			index++;
+			int lengthStart = index;
+			while (index < text.Length && text[index] != ']')
+				index++;
+			if (index >= text.Length)
+			{
+				index = start;
+				return false;
+			}
+
+			string value = text[lengthStart..index].Trim();
+			index++;
+			return long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out length);
 		}
 	}
 }

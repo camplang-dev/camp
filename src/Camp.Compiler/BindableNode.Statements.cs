@@ -22,6 +22,7 @@ public class ExpressionStatement : Statement
 
 public class DeclarationStatement : Statement
 {
+	public bool IsFixedStorage { get; set; }
 	public DeclarationTarget Target { get; } = new();
 	public Expression? InitialValue { get; set; }
 }

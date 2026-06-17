@@ -481,6 +481,7 @@ public sealed partial class BindableNodeAnalyzer
 				? FormatTypeReference(generic.Type)
 				: $"{FormatTypeReference(generic.Type)}<{string.Join(", ", GetResolvedTypes(generic.TypeArguments))}>",
 			ArrayTypeReference array => $"{FormatTypeReference(array.ElementType)}[]",
+			FixedArrayTypeReference fixedArray => $"{FormatTypeReference(fixedArray.ElementType)}[{FormatFixedArrayLength(fixedArray)}]",
 			OptionalTypeReference optional => $"{FormatTypeReference(optional.ElementType)}?",
 			PointerTypeReference pointer => $"{FormatTypeReference(pointer.ElementType)}*",
 			ConstTypeReference constant => FormatTypeDeclarator("const", constant.Type),
@@ -516,10 +517,23 @@ public sealed partial class BindableNodeAnalyzer
 		return $"{prefix}({string.Join(", ", slots)})";
 	}
 
+	static string FormatFixedArrayLength(FixedArrayTypeReference fixedArray)
+	{
+		if (fixedArray.Length is long length)
+			return length.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		return fixedArray.LengthExpression switch
+		{
+			LiteralExpression literal => literal.Text,
+			UnaryExpression { Operator: UnaryOperator.Minus, Operand: LiteralExpression literal } => "-" + literal.Text,
+			UnaryExpression { Operator: UnaryOperator.Plus, Operand: LiteralExpression literal } => "+" + literal.Text,
+			_ => fixedArray.LengthExpression?.ResolvedType == "nuint" ? "0" : "?"
+		};
+	}
+
 	static string FormatTypeDeclarator(string keyword, TypeReference? inner)
 	{
 		string innerText = FormatTypeReference(inner);
-		return inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or GenericTypeReference or CallableTypeReference
+		return inner is PointerTypeReference or ArrayTypeReference or FixedArrayTypeReference or OptionalTypeReference or GenericTypeReference or CallableTypeReference
 			? $"{innerText} {keyword}"
 			: $"{keyword} {innerText}";
 	}
