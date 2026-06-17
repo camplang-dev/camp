@@ -690,6 +690,8 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		if (containingType is NewtypeDefinition && definition.Modifier != FieldModifier.Static && IsDirectFixedArrayType(definition.Type))
 			Report(GetRange(definition.SourceSyntax), "Newtype instance fields may not use fixed-size array storage.");
+		if (definition.Type is not null && IsAnyOrAnyConstrainedGeneric(definition.Type, scope))
+			Report(GetNameRange(definition), "Generic values constrained to any cannot be stored by value. Use T* or T: copyable.");
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		if (definition.Modifier == FieldModifier.Static && definition.InitialValue is not null)
 		{

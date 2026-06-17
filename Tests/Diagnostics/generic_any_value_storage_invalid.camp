@@ -1,0 +1,10 @@
+class BadBox<T: any>
+{
+	T value;
+	T* pointer;
+	T[] span;
+}
+
+void acceptValue<T: any>(T value)
+{
+}

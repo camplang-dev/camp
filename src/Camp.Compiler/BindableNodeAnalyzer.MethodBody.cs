@@ -353,9 +353,23 @@ public sealed partial class BindableNodeAnalyzer
 		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: AnyTypeReference };
 	}
 
+	bool RequiresAnyGenericDefaultFillSizeOf(string targetType, Expression? value, BodyScope scope)
+	{
+		if (value is not DefaultExpression)
+			return false;
+		string type = BaseTypeName(StripTopLevelValueQualifiers(targetType));
+		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: AnyTypeReference }
+			&& !HasSizeOfCapability(scope, type);
+	}
+
 	void ReportAnyGenericCopy(SyntaxNode? syntax)
 	{
 		Report(GetRange(syntax), "T: any is non-copying. Use T: copyable plus sizeof(T) for generic value-copy operations.");
+	}
+
+	void ReportAnyGenericDefaultFillNeedsSizeOf(SyntaxNode? syntax)
+	{
+		Report(GetRange(syntax), "Default-filling erased generic storage requires sizeof(T).");
 	}
 
 	static bool IsValidFixedStorageInitializer(TypeReference? targetType, Expression value)
@@ -3012,6 +3026,10 @@ public sealed partial class BindableNodeAnalyzer
 		else if (RequiresAnyGenericCopy(targetType, assignment.Value, scope))
 		{
 			ReportAnyGenericCopy(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax);
+		}
+		else if (RequiresAnyGenericDefaultFillSizeOf(targetType, assignment.Value, scope))
+		{
+			ReportAnyGenericDefaultFillNeedsSizeOf(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax);
 		}
 		else
 		{

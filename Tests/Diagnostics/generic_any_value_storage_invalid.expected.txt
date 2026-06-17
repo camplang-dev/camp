@@ -1,0 +1,2 @@
+tests/Diagnostics/generic_any_value_storage_invalid.camp(3,4): error: Generic values constrained to any cannot be stored by value. Use T* or T: copyable.
+tests/Diagnostics/generic_any_value_storage_invalid.camp(8,28): error: Generic values constrained to any must be passed by reference.

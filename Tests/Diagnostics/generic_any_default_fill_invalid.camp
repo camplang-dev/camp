@@ -1,0 +1,9 @@
+void clearMissingSize<T: any>(T* value)
+{
+	*value = default;
+}
+
+void clearWithSize<T: any>(T* value, sizeof(T))
+{
+	*value = default;
+}

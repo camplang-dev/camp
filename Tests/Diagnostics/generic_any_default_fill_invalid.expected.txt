@@ -1,0 +1,1 @@
+tests/Diagnostics/generic_any_default_fill_invalid.camp(3,11): error: Default-filling erased generic storage requires sizeof(T).
