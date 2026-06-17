@@ -773,6 +773,13 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetPointerElementType(sourceType) is not null)
 			return value;
 
+		if (!CanTakeReceiverAddress(value) && currentStatementPrefix is not null)
+		{
+			DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("iterState"), stateTypeName, TypeReferenceForResolvedName(stateTypeName), value);
+			currentStatementPrefix.Add(local);
+			value = CreateVariableReference(local.Target, local.Target.ResolvedType ?? stateTypeName);
+		}
+
 		return new UnaryExpression
 		{
 			SourceSyntax = value.SourceSyntax,

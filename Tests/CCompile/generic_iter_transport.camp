@@ -1,0 +1,42 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+struct iter int range(int first, int last)
+{
+	for (int i = first; i <= last; i++)
+		yield i;
+}
+
+nuint countIterator<T: any>(iter T values, sizeof(T))
+{
+	T current = default;
+	nuint count = 0;
+	while (values(&current))
+		count++;
+	return count;
+}
+
+class Collector<T: any>
+{
+	nuint count;
+
+	Collector(sizeof(T))
+	{
+		this.count = 0;
+	}
+
+	void addEach(iter T values)
+	{
+		T current = default;
+		while (values(&current))
+			this.count++;
+	}
+}
+
+export int main()
+{
+	nuint methodCount = countIterator<int>(range(1, 3));
+	auto collector = new Collector<int>();
+	collector.addEach(range(4, 7));
+	return (methodCount == 3 && collector.count == 4) ? 0 : 1;
+}
