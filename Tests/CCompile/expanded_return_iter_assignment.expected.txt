@@ -54,7 +54,7 @@ static int main(void)
 /* Enums. */
 
 /* Newtypes. */
-typedef void* Writer;
+typedef bool (* Writer)(void *arg0, uintptr_t *arg1, char *arg2, uintptr_t arg3);
 
 /* Callable typedefs. */
 typedef bool (* fn_bool_voidPtr__nuintPtr__charPtr__nuint_)(void *arg0, uintptr_t *arg1, char *arg2, uintptr_t arg3);

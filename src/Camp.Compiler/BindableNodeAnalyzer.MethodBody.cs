@@ -1298,7 +1298,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryGetCallableShape(callableType, out CallableShape callable))
 			return false;
 
-		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, out List<ParameterDefinition>? newtypeParameters)
+		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)
 			? newtypeParameters!
 			: CreateStructuralCallableParameters(callable.Parameters);
 
@@ -1310,17 +1310,29 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	bool TryGetCallableNewtypeParameters(string callableType, out List<ParameterDefinition>? parameters)
+	bool TryGetCallableNewtypeParameters(string callableType, List<ArgumentExpression> arguments, out List<ParameterDefinition>? parameters)
 	{
 		parameters = null;
 		if (!typeDefinitions.TryGetValue(BaseTypeName(callableType), out TypeDefinition? definition)
 			|| definition is not NewtypeDefinition newtypeDefinition
-			|| GetCallableNewtypeFamily(newtypeDefinition) is not ("fn" or "delegate"))
+			|| GetCallableNewtypeFamily(newtypeDefinition) is not ("fn" or "delegate" or "iter"))
 			return false;
 
 		parameters = [];
+		List<ParameterDefinition> protocolParameters = [];
+		if (GetCallableNewtypeFamily(newtypeDefinition) == "iter"
+			&& newtypeDefinition.UnderlyingType?.ResolvedType is string underlyingType
+			&& TryGetIteratorProtocolParameterTypes(underlyingType, out List<string>? iteratorParameters)
+			&& iteratorParameters is not null)
+			protocolParameters.AddRange(CreateStructuralCallableParameters(iteratorParameters));
+		parameters.AddRange(protocolParameters);
 		foreach (ParameterDefinition parameter in newtypeDefinition.Parameters)
 			parameters.Add(CloneParameter(parameter));
+		if (arguments.Count > parameters.Count || HasExplicitHiddenArgument(arguments))
+		{
+			parameters = [.. protocolParameters];
+			parameters.AddRange(CreateStructuralCallableParameters(GetExpandedCallableParameterTypes(newtypeDefinition.Parameters)));
+		}
 		return true;
 	}
 

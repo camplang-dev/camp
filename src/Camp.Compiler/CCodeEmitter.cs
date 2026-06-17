@@ -1409,6 +1409,11 @@ public static class CCodeEmitter
 				writer.WriteLine(FormatCallableTypedef(callable, definition.Parameters, name) + ";");
 				return;
 			}
+			if (definition.UnderlyingType is IterTypeReference iter)
+			{
+				writer.WriteLine(FormatIterTypedef(iter, definition.Parameters, name) + ";");
+				return;
+			}
 
 			CType type = FormatType(definition.UnderlyingType, name);
 			writer.WriteLine("typedef " + type.Declaration + ";");
@@ -2181,8 +2186,36 @@ public static class CCodeEmitter
 				kind = "delegate";
 			else if (type.StartsWith("once ", StringComparison.Ordinal))
 				kind = "once";
+			else if (type.StartsWith("iter ", StringComparison.Ordinal) || type.StartsWith("iter(", StringComparison.Ordinal))
+				kind = "iter";
 			else
 				return false;
+
+			if (kind == "iter")
+			{
+				returnType = "bool";
+				if (type.StartsWith("iter ", StringComparison.Ordinal))
+				{
+					string currentType = type["iter ".Length..].Trim();
+					if (currentType.Length == 0)
+						return false;
+					parameterTypes.Add(PointerTypeName(currentType));
+					return true;
+				}
+
+				string slotText = type["iter(".Length..];
+				if (!slotText.EndsWith(")", StringComparison.Ordinal))
+					return false;
+				slotText = slotText[..^1].Trim();
+				foreach (string slot in SplitTopLevel(slotText, ','))
+				{
+					string parameter = slot.Trim();
+					if (parameter.Length == 0)
+						continue;
+					parameterTypes.Add(parameter.StartsWith("thrown ", StringComparison.Ordinal) ? parameter : PointerTypeName(parameter));
+				}
+				return parameterTypes.Count > 0;
+			}
 
 			int open = type.IndexOf('(', StringComparison.Ordinal);
 			int close = type.LastIndexOf(')');
@@ -3679,6 +3712,97 @@ public static class CCodeEmitter
 				pointer += " " + callSpec;
 			string declarator = "(" + pointer + " " + name + ")";
 			return "typedef " + FormatType(callable.ReturnType, declarator).Declaration + "(" + FormatResolvedParameterList(GetExpandedCallableParameterTypesForC(parameters)) + ")";
+		}
+
+		string FormatIterTypedef(IterTypeReference iter, List<ParameterDefinition> parameters, string name)
+		{
+			List<string> parameterTypes = ["void*"];
+			foreach (string currentType in GetIteratorCurrentTypesForC(iter))
+				parameterTypes.Add(PointerTypeName(currentType));
+			if (GetIteratorThrownTypeForC(iter) is string thrownType)
+				parameterTypes.Add("thrown " + thrownType);
+			parameterTypes.AddRange(GetExpandedCallableParameterTypesForC(parameters));
+			return "typedef " + FormatInlineResolvedFunctionPointer("bool", parameterTypes, name);
+		}
+
+		List<string> GetIteratorCurrentTypesForC(IterTypeReference iter)
+		{
+			List<string> currentTypes = [];
+			if (iter.Parameters.Count == 0)
+			{
+				currentTypes.Add(ResolvedTypeForC(iter.ElementType, iter.ElementType?.ResolvedType));
+				return currentTypes;
+			}
+
+			foreach (ParameterDefinition parameter in iter.Parameters)
+				if (parameter.Modifier != ParameterModifier.Thrown)
+					currentTypes.Add(ResolvedTypeForC(parameter.Type, parameter.ResolvedType));
+			return currentTypes;
+		}
+
+		static string? GetIteratorThrownTypeForC(IterTypeReference iter)
+		{
+			foreach (ParameterDefinition parameter in iter.Parameters)
+				if (parameter.Modifier == ParameterModifier.Thrown)
+					return parameter.ResolvedType ?? parameter.Type?.ResolvedType;
+			return null;
+		}
+
+		static string PointerTypeName(string type)
+		{
+			return type.EndsWith("*", StringComparison.Ordinal) ? type + "*" : type + "*";
+		}
+
+		static string ResolvedTypeForC(TypeReference? type, string? resolvedType = null)
+		{
+			if (IsValidResolvedType(resolvedType))
+				return resolvedType!;
+			return type switch
+			{
+				GenericParameterTypeReference generic => generic.Name,
+				NamedTypeReference named => IsValidResolvedType(named.ResolvedType) ? named.ResolvedType! : named.Name,
+				TypeDefinitionReference definition => IsValidResolvedType(definition.ResolvedType) ? definition.ResolvedType! : definition.Name,
+				PrimitiveTypeReference primitive => PrimitiveName(primitive.Type),
+				ConstTypeReference constant => "const " + ResolvedTypeForC(constant.Type, constant.Type?.ResolvedType),
+				PointerTypeReference pointer => PointerTypeName(ResolvedTypeForC(pointer.ElementType, pointer.ElementType?.ResolvedType)),
+				ArrayTypeReference array => ResolvedTypeForC(array.ElementType, array.ElementType?.ResolvedType) + "[]",
+				OptionalTypeReference optional => ResolvedTypeForC(optional.ElementType, optional.ElementType?.ResolvedType) + "?",
+				CallableTypeReference callable => IsValidResolvedType(callable.ResolvedType) ? callable.ResolvedType! : "#ERROR",
+				IterTypeReference iter => IsValidResolvedType(iter.ResolvedType) ? iter.ResolvedType! : "#ERROR",
+				_ => IsValidResolvedType(type?.ResolvedType) ? type!.ResolvedType! : "#ERROR"
+			};
+		}
+
+		static bool IsValidResolvedType(string? type)
+		{
+			return !string.IsNullOrWhiteSpace(type) && type != "#UNRESOLVED" && type != "#ERROR";
+		}
+
+		static string PrimitiveName(PrimitiveType primitive)
+		{
+			return primitive switch
+			{
+				PrimitiveType.Void => "void",
+				PrimitiveType.Bool => "bool",
+				PrimitiveType.SByte => "sbyte",
+				PrimitiveType.Byte => "byte",
+				PrimitiveType.Short => "short",
+				PrimitiveType.UShort => "ushort",
+				PrimitiveType.Int => "int",
+				PrimitiveType.UInt => "uint",
+				PrimitiveType.Long => "long",
+				PrimitiveType.ULong => "ulong",
+				PrimitiveType.NInt => "nint",
+				PrimitiveType.NUInt => "nuint",
+				PrimitiveType.Float => "float",
+				PrimitiveType.Double => "double",
+				PrimitiveType.Char => "char",
+				PrimitiveType.WChar => "wchar",
+				PrimitiveType.AChar => "achar",
+				PrimitiveType.UChar => "uchar",
+				PrimitiveType.Untyped => "untyped",
+				_ => "void"
+			};
 		}
 
 		List<string> GetExpandedCallableParameterTypesForC(List<ParameterDefinition> parameters)

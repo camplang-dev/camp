@@ -21,12 +21,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (type is null)
 			return false;
 
-		if (TryGetIteratorProtocolCurrentTypes(type, out List<string>? currentTypes) && currentTypes is not null)
+		if (TryGetIteratorProtocolParameterTypes(type, out List<string>? iteratorParameters) && iteratorParameters is not null)
 		{
-			List<string> parameters = [];
-			foreach (string currentType in currentTypes)
-				parameters.Add(AddPointer(currentType));
-			shape = new CallableShape("iter", null, null, "bool", parameters);
+			shape = new CallableShape("iter", null, null, "bool", iteratorParameters);
 			return true;
 		}
 
@@ -48,12 +45,10 @@ public sealed partial class BindableNodeAnalyzer
 				}
 
 			if (newtypeDefinition.UnderlyingType is IterTypeReference
-				&& TryGetIteratorProtocolCurrentTypes(underlyingType, out List<string>? iterCurrentTypes)
-				&& iterCurrentTypes is not null)
+				&& TryGetIteratorProtocolParameterTypes(underlyingType, out List<string>? iterParameters)
+				&& iterParameters is not null)
 			{
-				List<string> parameters = [];
-				foreach (string currentType in iterCurrentTypes)
-					parameters.Add(AddPointer(currentType));
+				List<string> parameters = [.. iterParameters];
 				parameters.AddRange(GetExpandedCallableParameterTypes(newtypeDefinition.Parameters));
 				shape = new CallableShape("iter", null, null, "bool", parameters, GetCallableNewtypeThisContract(newtypeDefinition));
 				return true;
@@ -63,9 +58,29 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
+	static bool TryGetIteratorProtocolParameterTypes(string type, out List<string>? parameterTypes)
+	{
+		parameterTypes = null;
+		if (!TryGetIteratorProtocolSlots(type, out List<string>? currentTypes, out string? thrownType) || currentTypes is null)
+			return false;
+
+		parameterTypes = [];
+		foreach (string currentType in currentTypes)
+			parameterTypes.Add(AddPointer(currentType));
+		if (!string.IsNullOrWhiteSpace(thrownType))
+			parameterTypes.Add("thrown " + thrownType);
+		return true;
+	}
+
 	static bool TryGetIteratorProtocolCurrentTypes(string type, out List<string>? currentTypes)
 	{
+		return TryGetIteratorProtocolSlots(type, out currentTypes, out _);
+	}
+
+	static bool TryGetIteratorProtocolSlots(string type, out List<string>? currentTypes, out string? thrownType)
+	{
 		currentTypes = null;
+		thrownType = null;
 		if (type.StartsWith("iter ", StringComparison.Ordinal))
 		{
 			currentTypes = [type["iter ".Length..].Trim()];
@@ -80,7 +95,10 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (string slot in SplitCallableParameterTypes(slots))
 			{
 				if (slot.StartsWith("thrown ", StringComparison.Ordinal))
+				{
+					thrownType = slot["thrown ".Length..].Trim();
 					continue;
+				}
 				if (slot.Length > 0)
 					currentTypes.Add(slot);
 			}
