@@ -1,0 +1,54 @@
+// file: fixed_array_const_lengths.c
+#include "fixed_array_const_lengths_private.h"
+
+/* Private file declarations. */
+static const int GlobalCount;
+
+static const int GlobalCount = 4;
+const int Sizes_LocalCount = 3;
+int main(void)
+{
+	uint8_t globalSized[4] = {1, 2, 3, 4};
+	uint8_t staticSized[3] = {5, 6, 7};
+	return ((int)(4) + (int)(3));
+}
+
+// file: fixed_array_const_lengths.h
+#ifndef FIXED_ARRAY_CONST_LENGTHS_H_
+#define FIXED_ARRAY_CONST_LENGTHS_H_
+
+#include "fixed_array_const_lengths_private.h"
+
+int main(void);
+
+#endif
+// file: fixed_array_const_lengths_private.h
+#ifndef FIXED_ARRAY_CONST_LENGTHS_PRIVATE_H_
+#define FIXED_ARRAY_CONST_LENGTHS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Sizes Sizes;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Sizes
+{
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+extern const int Sizes_LocalCount;
+
+
+#endif
+// compile
+compiled: fixed_array_const_lengths.c

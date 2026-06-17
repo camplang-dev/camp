@@ -80,6 +80,14 @@ public sealed partial class BindableNodeAnalyzer
 				if (TryEvaluateFixedArrayLength(fixedArray.LengthExpression, scope, out long length))
 				{
 					fixedArray.Length = length;
+					fixedArray.LengthExpression = new LiteralExpression
+					{
+						SourceSyntax = fixedArray.LengthExpression?.SourceSyntax,
+						Kind = LiteralKind.Number,
+						Text = length.ToString(System.Globalization.CultureInfo.InvariantCulture),
+						Value = length.ToString(System.Globalization.CultureInfo.InvariantCulture),
+						ResolvedType = "nuint"
+					};
 					if (length < 0)
 						Report(GetRange(fixedArray.LengthExpression?.SourceSyntax ?? fixedArray.SourceSyntax), "Fixed-size array length cannot be negative.");
 				}
@@ -226,7 +234,12 @@ public sealed partial class BindableNodeAnalyzer
 		return inner is not null && TryApplyGenericTypeArguments(inner, arguments, out _);
 	}
 
-	static bool TryEvaluateFixedArrayLength(Expression? expression, AnalysisScope scope, out long length)
+	bool TryEvaluateFixedArrayLength(Expression? expression, AnalysisScope scope, out long length)
+	{
+		return TryEvaluateFixedArrayLength(expression, scope, [], out length);
+	}
+
+	bool TryEvaluateFixedArrayLength(Expression? expression, AnalysisScope scope, HashSet<BindableNode> visitedSymbols, out long length)
 	{
 		length = 0;
 		expression = UnwrapConstantExpressionSyntax(expression);
@@ -236,19 +249,73 @@ public sealed partial class BindableNodeAnalyzer
 				return TryParseIntegerConstant(literal.Text, out length);
 
 			case UnaryExpression { Operator: UnaryOperator.Plus } unary:
-				return TryEvaluateFixedArrayLength(unary.Operand, scope, out length);
+				return TryEvaluateFixedArrayLength(unary.Operand, scope, visitedSymbols, out length);
 
 			case UnaryExpression { Operator: UnaryOperator.Minus } unary:
-				if (!TryEvaluateFixedArrayLength(unary.Operand, scope, out long operand))
+				if (!TryEvaluateFixedArrayLength(unary.Operand, scope, visitedSymbols, out long operand))
 					return false;
 				length = -operand;
 				return true;
 
 			case CastExpression cast:
-				return TryEvaluateFixedArrayLength(cast.Expression, scope, out length);
+				return TryEvaluateFixedArrayLength(cast.Expression, scope, visitedSymbols, out length);
+
+			case NamedExpression named:
+				return TryEvaluateNamedFixedArrayLength(named, scope, visitedSymbols, out length);
+
+			case MemberExpression member:
+				return TryEvaluateMemberFixedArrayLength(member, scope, visitedSymbols, out length);
 
 			default:
 				return false;
+		}
+	}
+
+	bool TryEvaluateNamedFixedArrayLength(NamedExpression named, AnalysisScope scope, HashSet<BindableNode> visitedSymbols, out long length)
+	{
+		length = 0;
+		if (named.Qualifiers.Count > 0)
+			return false;
+		if (scope.TryGetGenericParameter(named.Name, out _))
+			return false;
+
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is VariableDefinition variable && IsDefinitionNamed(variable, named.Name) && IsConstantVariable(variable))
+				return TryEvaluateConstantStorageLength(variable, variable.InitialValue, visitedSymbols, out length);
+			if (definition is TypeDefinition type)
+			{
+				foreach (FieldDefinition field in GetTypeFields(type))
+					if (field.Modifier == FieldModifier.Static && IsDefinitionNamed(field, named.Name) && IsConstantField(field))
+						return TryEvaluateConstantStorageLength(field, field.InitialValue, visitedSymbols, out length);
+			}
+		}
+		return false;
+	}
+
+	bool TryEvaluateMemberFixedArrayLength(MemberExpression member, AnalysisScope scope, HashSet<BindableNode> visitedSymbols, out long length)
+	{
+		length = 0;
+		if (member.Target is not NamedExpression { Qualifiers.Count: 0 } target || !typeDefinitions.TryGetValue(target.Name, out TypeDefinition? type))
+			return false;
+		foreach (FieldDefinition field in GetTypeFields(type))
+			if (field.Modifier == FieldModifier.Static && field.Name == member.Name && IsConstantField(field))
+				return TryEvaluateConstantStorageLength(field, field.InitialValue, visitedSymbols, out length);
+		return false;
+	}
+
+	bool TryEvaluateConstantStorageLength(BindableNode node, Expression? initializer, HashSet<BindableNode> visitedSymbols, out long length)
+	{
+		length = 0;
+		if (!visitedSymbols.Add(node))
+			return false;
+		try
+		{
+			return initializer is not null && TryEvaluateFixedArrayLength(initializer, new AnalysisScope(), visitedSymbols, out length);
+		}
+		finally
+		{
+			visitedSymbols.Remove(node);
 		}
 	}
 

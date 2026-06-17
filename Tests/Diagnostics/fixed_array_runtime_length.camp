@@ -1,0 +1,6 @@
+int Count = 4;
+
+export void main()
+{
+	fixed byte[Count] values;
+}

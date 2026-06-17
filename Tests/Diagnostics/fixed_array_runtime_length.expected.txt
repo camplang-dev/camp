@@ -1,0 +1,1 @@
+tests/Diagnostics/fixed_array_runtime_length.camp(5,13): error: Fixed-size array length must be a compile-time integer constant.

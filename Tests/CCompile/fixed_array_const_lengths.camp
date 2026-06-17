@@ -1,0 +1,13 @@
+const int GlobalCount = 4;
+
+struct Sizes
+{
+	public static const int LocalCount = 3;
+}
+
+export int main()
+{
+	fixed byte[GlobalCount] globalSized = [1, 2, 3, 4];
+	fixed byte[Sizes.LocalCount] staticSized = [5, 6, 7];
+	return (int)globalSized.length + (int)staticSized.length;
+}
