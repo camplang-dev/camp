@@ -1,0 +1,8 @@
+void use<T: copyable>()
+{
+}
+
+export void main()
+{
+	use<byte[4]>();
+}

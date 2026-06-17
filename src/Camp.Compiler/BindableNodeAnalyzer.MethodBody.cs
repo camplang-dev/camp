@@ -1317,12 +1317,34 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function, call.Target);
 		if (function is not null)
+			ValidateGenericCallSubstitutionConstraints(function, genericSubstitutions, scope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
+		if (function is not null)
 			callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
 
 		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments, genericSubstitutions);
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
 		return returnType;
+	}
+
+	void ValidateGenericCallSubstitutionConstraints(FunctionDefinition function, Dictionary<string, string> substitutions, BodyScope scope, SyntaxNode? syntax)
+	{
+		HashSet<string> checkedNames = [];
+		foreach (GenericParameter parameter in function.GenericParameters)
+			ValidateGenericCallSubstitutionConstraint(function, parameter, substitutions, scope, syntax, checkedNames);
+		if (FindContainingType(function) is TypeDefinition containingType)
+			foreach (GenericParameter parameter in containingType.GenericParameters)
+				ValidateGenericCallSubstitutionConstraint(function, parameter, substitutions, scope, syntax, checkedNames);
+	}
+
+	void ValidateGenericCallSubstitutionConstraint(FunctionDefinition function, GenericParameter parameter, Dictionary<string, string> substitutions, BodyScope scope, SyntaxNode? syntax, HashSet<string> checkedNames)
+	{
+		if (!checkedNames.Add(parameter.Name) || parameter.Constraint is not CopyableTypeReference)
+			return;
+		if (!substitutions.TryGetValue(parameter.Name, out string? substitutedType) || string.IsNullOrWhiteSpace(substitutedType))
+			return;
+		if (!IsCopyableResolvedType(substitutedType, scope, []))
+			Report(GetRange(syntax), $"Type argument '{substitutedType}' does not satisfy copyable constraint '{parameter.Name}: copyable' for call to '{function.Name}'.");
 	}
 
 	static void NormalizeGenericCallSyntax(CallExpression call)

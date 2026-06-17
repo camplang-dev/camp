@@ -608,4 +608,27 @@ public sealed partial class BindableNodeAnalyzer
 			return fixedArray.ElementType is not null && IsCopyableStructFieldType(fixedArray.ElementType, visitedTypes);
 		return IsCopyableTypeArgument(type, new AnalysisScope(), visitedTypes);
 	}
+
+	bool IsCopyableResolvedType(string type, BodyScope? bodyScope, HashSet<string> visitedTypes)
+	{
+		type = StripTopLevelValueQualifiers(type);
+		if (new TypeShapeParser(type).TryParse(out TypeShape shape))
+			return IsCopyableTypeShape(shape, bodyScope, visitedTypes);
+		return true;
+	}
+
+	bool IsCopyableTypeShape(TypeShape shape, BodyScope? bodyScope, HashSet<string> visitedTypes)
+	{
+		if (shape.Kind == TypeShapeKind.FixedArray)
+			return false;
+		if (shape.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array)
+			return true;
+		if (shape.Kind != TypeShapeKind.Named)
+			return true;
+		if (bodyScope is not null && FindBodyGenericParameter(bodyScope, shape.Name) is GenericParameter parameter)
+			return parameter.Constraint is CopyableTypeReference;
+		if (typeDefinitions.TryGetValue(BaseTypeName(shape.Name), out TypeDefinition? definition) && definition is not null)
+			return IsCopyableTypeDefinition(definition, visitedTypes);
+		return true;
+	}
 }
