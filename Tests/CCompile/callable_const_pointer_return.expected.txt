@@ -51,10 +51,10 @@ static int main(void)
 
 /* Newtypes. */
 typedef const char *(* Getter)(void);
-typedef const char *(* __attribute__((ms_abi)) CGetter)(void);
+typedef const char *(__attribute__((ms_abi)) * CGetter)(void);
 
 /* Callable typedefs. */
-typedef const char *(* __attribute__((ms_abi)) fn__msabi_charPtr_voidPtr_)(void *arg0);
+typedef const char *(__attribute__((ms_abi)) * fn__msabi_charPtr_voidPtr_)(void *arg0);
 typedef const char *(* fn_charPtr__)(void);
 typedef const char *(* fn_charPtr_voidPtr_)(void *arg0);
 

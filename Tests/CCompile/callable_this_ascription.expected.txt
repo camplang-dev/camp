@@ -13,7 +13,7 @@ static uintptr_t Date_format(const Date *this, char *buffer, uintptr_t buffer_le
 int main(void)
 {
 	const Date d;
-	fn_nuint_voidPtr__charPtr__nuint_ f = (uintptr_t (* )(void *arg0, char *arg1, uintptr_t arg2))Date_format;
+	fn_nuint_voidPtr__charPtr__nuint_ f = (uintptr_t (*)(void *arg0, char *arg1, uintptr_t arg2))Date_format;
 	void *f_context = (void *)(&d);
 	return 0;
 }

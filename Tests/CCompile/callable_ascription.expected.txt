@@ -35,12 +35,12 @@ static int main(void)
 	int parsed = 0;
 	bool ok = parser("123", 3, &parsed);
 	Date *date = NULL;
-	fn_int_voidPtr__int_ formatter = (int (* )(void *arg0, int arg1))Date_format;
+	fn_int_voidPtr__int_ formatter = (int (*)(void *arg0, int arg1))Date_format;
 	void *formatter_context = (void *)(date);
 	int dateValue = formatter(formatter_context, 4);
 	int extra = DateFormatter_plusOne((fn_int_voidPtr__int_)formatter, formatter_context);
 	Point *point = NULL;
-	fn_nuint_voidPtr__charPtr__nuint_ charFormatter = (uintptr_t (* )(void *arg0, char *arg1, uintptr_t arg2))Point_format;
+	fn_nuint_voidPtr__charPtr__nuint_ charFormatter = (uintptr_t (*)(void *arg0, char *arg1, uintptr_t arg2))Point_format;
 	void *charFormatter_context = (void *)(point);
 	uintptr_t formatted = charFormatter(charFormatter_context, 0, 0);
 	return (ok ? (((parsed + dateValue) + extra) + (int)(formatted)) : 1);

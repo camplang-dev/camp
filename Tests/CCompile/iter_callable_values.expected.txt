@@ -40,7 +40,7 @@ int main(void)
 	}
 	values(values_context, NULL);
 	Source source = (Source){0};
-	fn_bool_voidPtr__intPtr__thrown_Err_ puller = (bool (* )(void *arg0, int *arg1, Err *arg2))Source_pull;
+	fn_bool_voidPtr__intPtr__thrown_Err_ puller = (bool (*)(void *arg0, int *arg1, Err *arg2))Source_pull;
 	void *puller_context = (void *)(&source);
 	Err error = 0;
 	int pulled = 0;

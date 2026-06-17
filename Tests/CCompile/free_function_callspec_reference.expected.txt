@@ -31,7 +31,7 @@ typedef struct Holder Holder;
 /* Enums. */
 
 /* Newtypes. */
-typedef int (* __attribute__((ms_abi)) Callback)(int arg0);
+typedef int (__attribute__((ms_abi)) * Callback)(int arg0);
 
 /* Layouts. */
 struct Holder

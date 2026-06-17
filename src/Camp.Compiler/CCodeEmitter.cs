@@ -2125,14 +2125,19 @@ public static class CCodeEmitter
 
 		string FormatInlineResolvedFunctionPointer(string returnType, List<string> parameterTypes, string declarator, string? targetSpec = null, string? callSpec = null)
 		{
+			return FormatResolvedType(returnType, FormatFunctionPointerDeclarator(declarator, targetSpec, callSpec)).Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
+		}
+
+		string FormatFunctionPointerDeclarator(string name, string? targetSpec = null, string? callSpec = null)
+		{
 			string pointer = "*";
 			string targetSpecSpelling = FormatTypeSpec(targetSpec);
-			string callSpecSpelling = FormatCallSpec(callSpec);
+			string callSpecSpelling = FormatCallSpec(callSpec).Trim();
 			if (targetSpecSpelling.Length > 0)
 				pointer += " " + targetSpecSpelling;
-			if (callSpecSpelling.Length > 0)
-				pointer += " " + callSpecSpelling;
-			return FormatResolvedType(returnType, "(" + pointer + " " + declarator + ")").Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
+			if (!string.IsNullOrWhiteSpace(name))
+				pointer += " " + name;
+			return "(" + (callSpecSpelling.Length > 0 ? callSpecSpelling + " " : "") + pointer + ")";
 		}
 
 		bool TryFormatResolvedCallableCast(string resolvedType, out string cast)
@@ -3710,14 +3715,7 @@ public static class CCodeEmitter
 			if (parameters.Count == 0)
 				return FormatCallableTypedef(callable, name);
 
-			string callSpec = FormatCallSpec(callable.CallSpec);
-			string targetSpec = FormatTypeSpec(callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true));
-			string pointer = "*";
-			if (targetSpec.Length > 0)
-				pointer += " " + targetSpec;
-			if (callSpec.Length > 0)
-				pointer += " " + callSpec;
-			string declarator = "(" + pointer + " " + name + ")";
+			string declarator = FormatFunctionPointerDeclarator(name, callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), callable.CallSpec);
 			return "typedef " + FormatType(callable.ReturnType, declarator).Declaration + "(" + FormatResolvedParameterList(GetExpandedCallableParameterTypesForC(parameters)) + ")";
 		}
 
@@ -3859,14 +3857,7 @@ public static class CCodeEmitter
 
 		string FormatCallableDeclarator(CallableTypeReference callable, string name)
 		{
-			string callSpec = FormatCallSpec(callable.CallSpec);
-			string targetSpec = FormatTypeSpec(callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true));
-			string pointer = "*";
-			if (targetSpec.Length > 0)
-				pointer += " " + targetSpec;
-			if (callSpec.Length > 0)
-				pointer += " " + callSpec;
-			string declarator = "(" + pointer + " " + name + ")";
+			string declarator = FormatFunctionPointerDeclarator(name, callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), callable.CallSpec);
 			return FormatType(callable.ReturnType, declarator).Declaration + FormatParameters(callable.Parameters);
 		}
 
