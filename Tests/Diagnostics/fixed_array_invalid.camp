@@ -7,3 +7,14 @@ byte[4] badReturn()
 	fixed byte[4] value;
 	return value;
 }
+
+struct BadStruct
+{
+	fixed byte[0] data;
+	int tail;
+}
+
+class BadClass
+{
+	fixed byte[0] data;
+}

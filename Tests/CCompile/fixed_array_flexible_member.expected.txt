@@ -1,0 +1,49 @@
+// file: fixed_array_flexible_member.c
+#include "fixed_array_flexible_member_private.h"
+
+
+int main(void)
+{
+	return 0;
+}
+
+// file: fixed_array_flexible_member.h
+#ifndef FIXED_ARRAY_FLEXIBLE_MEMBER_H_
+#define FIXED_ARRAY_FLEXIBLE_MEMBER_H_
+
+#include "fixed_array_flexible_member_private.h"
+
+int main(void);
+
+#endif
+// file: fixed_array_flexible_member_private.h
+#ifndef FIXED_ARRAY_FLEXIBLE_MEMBER_PRIVATE_H_
+#define FIXED_ARRAY_FLEXIBLE_MEMBER_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Packet Packet;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Packet
+{
+	int length;
+	uint8_t data[];
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: fixed_array_flexible_member.c

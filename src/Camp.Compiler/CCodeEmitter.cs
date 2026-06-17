@@ -1553,10 +1553,28 @@ public static class CCodeEmitter
 					if (fields.Count == 0)
 						writer.WriteLine("\tchar _camp_empty;");
 					foreach (FieldDefinition field in fields.Where(static field => field.Modifier != FieldModifier.Static))
-						writer.WriteLine("\t" + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration + ";");
+						writer.WriteLine("\t" + FormatFieldLayoutDeclaration(field) + ";");
 					writer.WriteLine("};");
 				});
 			});
+		}
+
+		string FormatFieldLayoutDeclaration(FieldDefinition field)
+		{
+			if (TryFormatFlexibleArrayField(field.Type, CName(field), out string declaration))
+				return declaration;
+			return FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration;
+		}
+
+		bool TryFormatFlexibleArrayField(TypeReference? type, string declarator, out string declaration)
+		{
+			declaration = "";
+			if (type is FixedArrayTypeReference { Length: 0 } fixedArray)
+			{
+				declaration = FormatType(fixedArray.ElementType, declarator + "[]").Declaration;
+				return true;
+			}
+			return false;
 		}
 
 		void WriteInterfaceLayout(TextWriter writer, InterfaceDefinition definition)

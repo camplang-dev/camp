@@ -1,2 +1,4 @@
 tests/Diagnostics/fixed_array_invalid.camp(1,15): error: Fixed-size array storage types are not valid as a parameter type; use a pointer to the fixed array or a span array instead.
 tests/Diagnostics/fixed_array_invalid.camp(5,1): error: Fixed-size array storage types are not valid as a function return type; use a pointer to the fixed array or a span array instead.
+tests/Diagnostics/fixed_array_invalid.camp(13,13): error: Fixed-size array length 0 is valid only for the final instance field of a struct.
+tests/Diagnostics/fixed_array_invalid.camp(19,13): error: Fixed-size array length 0 is valid only for the final instance field of a struct.

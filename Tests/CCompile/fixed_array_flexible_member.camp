@@ -1,0 +1,10 @@
+struct Packet
+{
+	int length;
+	fixed byte[0] data;
+}
+
+export int main()
+{
+	return 0;
+}
