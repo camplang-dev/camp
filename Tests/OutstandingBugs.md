@@ -1,5 +1,7 @@
 # Outstanding Bugs
 
+Next bug number: BUG-017.
+
 - **BUG-004:** Calls with an explicit `catch` argument do not currently receive an
   implicit `within` argument from the active `within (...)` context. Calls such
   as `reader.readLine(catch error)` inside a `within (allocator)` block should
