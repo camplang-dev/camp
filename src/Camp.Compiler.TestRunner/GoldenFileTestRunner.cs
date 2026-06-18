@@ -48,7 +48,7 @@ public static class GoldenFileTestRunner
 
 	static CompilerRequest CreateRequest(GoldenFileTestCase testCase)
 	{
-		if (testCase.Kind is GoldenFileTestKind.CEmit or GoldenFileTestKind.CCompile or GoldenFileTestKind.StdRun)
+		if (testCase.Kind is GoldenFileTestKind.CEmit or GoldenFileTestKind.CCompile or GoldenFileTestKind.StdRun or GoldenFileTestKind.Metadata)
 		{
 			string buildDirectory = GetBuildDirectory(testCase);
 			if (Directory.Exists(buildDirectory))
@@ -67,7 +67,7 @@ public static class GoldenFileTestRunner
 			TargetName = SelectTargetName(testCase.Kind),
 			NoStdLib = testCase.Kind is not (GoldenFileTestKind.Std or GoldenFileTestKind.StdRun),
 			BuildDir = GetBuildDirectory(testCase),
-			OutDir = testCase.Kind == GoldenFileTestKind.StdRun ? Path.Combine(GetBuildDirectory(testCase), "out") : null,
+			OutDir = testCase.Kind is GoldenFileTestKind.StdRun or GoldenFileTestKind.Metadata ? Path.Combine(GetBuildDirectory(testCase), "out") : null,
 			BuildKind = testCase.Kind == GoldenFileTestKind.StdRun ? NativeBuildKind.Exec : null,
 			Inspect = testCase.Kind switch
 			{
@@ -83,7 +83,7 @@ public static class GoldenFileTestRunner
 				_ => throw new ArgumentOutOfRangeException()
 			},
 			InspectApi = testCase.Kind == GoldenFileTestKind.Api,
-			EmitMetadataPath = testCase.Kind == GoldenFileTestKind.Metadata ? testCase.ActualPath : null
+			EmitMetadata = testCase.Kind == GoldenFileTestKind.Metadata ? MetadataVisibility.Export : null
 		};
 		ApplyCaseOptions(testCase, request);
 		request.Files.Add(Path.GetRelativePath(testCase.RepositoryRoot, testCase.CasePath));
@@ -110,9 +110,9 @@ public static class GoldenFileTestRunner
 				request.BuildKind = NativeBuildKind.Shared;
 				request.OutDir = Path.Combine(GetBuildDirectory(testCase), "out");
 			}
-			else if (option.StartsWith("metadata-visibility ", StringComparison.OrdinalIgnoreCase)
-				&& Enum.TryParse(option["metadata-visibility ".Length..], ignoreCase: true, out MetadataVisibility visibility))
-				request.MetadataVisibility = visibility;
+			else if (option.StartsWith("emit-metadata ", StringComparison.OrdinalIgnoreCase)
+				&& Enum.TryParse(option["emit-metadata ".Length..], ignoreCase: true, out MetadataVisibility visibility))
+				request.EmitMetadata = visibility;
 		}
 	}
 
@@ -134,7 +134,11 @@ public static class GoldenFileTestRunner
 	{
 		if (result.ExitCode != 0)
 			return result.StdErr + result.StdOut;
-		return File.Exists(testCase.ActualPath) ? File.ReadAllText(testCase.ActualPath) : "metadata: no output\n";
+		string? metadataPath = result.GeneratedFiles
+			.Where(static path => Path.GetExtension(path).Equals(".json", StringComparison.OrdinalIgnoreCase))
+			.OrderBy(static path => Path.GetFileName(path), StringComparer.Ordinal)
+			.FirstOrDefault();
+		return metadataPath is not null && File.Exists(metadataPath) ? File.ReadAllText(metadataPath) : "metadata: no output\n";
 	}
 
 	static string RunGeneratedExecutable(GoldenFileTestCase testCase, CompilerResult result)
@@ -290,6 +294,7 @@ public static class GoldenFileTestRunner
 		{
 			GoldenFileTestKind.CCompile => "golden-ccompile",
 			GoldenFileTestKind.StdRun => "golden-stdrun",
+			GoldenFileTestKind.Metadata => "golden-metadata",
 			_ => "golden-cemit"
 		};
 		return Path.Combine(testCase.RepositoryRoot, "tmp", folder, caseName);

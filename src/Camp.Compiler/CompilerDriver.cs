@@ -34,8 +34,7 @@ public sealed class CompilerRequest
 	public string? MemoryModelName { get; set; }
 	public string EmitKind { get; set; } = "c99";
 	public NativeBuildKind? BuildKind { get; set; }
-	public string? EmitMetadataPath { get; set; }
-	public MetadataVisibility MetadataVisibility { get; set; } = MetadataVisibility.Export;
+	public MetadataVisibility? EmitMetadata { get; set; }
 	public string? OutDir { get; set; }
 	public string? BuildDir { get; set; }
 	public bool NoStdLib { get; set; }
@@ -99,9 +98,7 @@ public static class CompilerDriver
 				return Error("--build cannot be combined with --inspect.");
 			if (request.BuildKind is not null && request.InspectApi)
 				return Error("--build cannot be combined with --inspect-api.");
-			if (request.BuildKind is not null && !string.IsNullOrWhiteSpace(request.EmitMetadataPath))
-				return Error("--emit-metadata cannot be combined with --build.");
-			if (!string.IsNullOrWhiteSpace(request.EmitMetadataPath) && (request.Inspect is not null || request.InspectApi || request.Xml))
+			if (GetEffectiveMetadataVisibility() != MetadataVisibility.None && (request.Inspect is not null || request.InspectApi || request.Xml))
 				return Error("--emit-metadata cannot be combined with --inspect, --inspect-api, or --xml.");
 
 			if (!TryCreateRuntimeContext(out RuntimeContext? context))
@@ -125,9 +122,6 @@ public static class CompilerDriver
 
 			if (request.InspectApi)
 				return PrintApi(compilation);
-
-			if (!string.IsNullOrWhiteSpace(request.EmitMetadataPath))
-				return EmitMetadata(compilation);
 
 			CompilerInspectMode inspect = request.Inspect ?? CompilerInspectMode.None;
 			return inspect switch
@@ -310,6 +304,7 @@ public static class CompilerDriver
 			string packageBinDirectory = Path.Combine(context.PackageArtifactRoot, packageName, context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName);
 			string apiPath = Path.Combine(packageBinDirectory, packageName + "_api.camp");
 			string cApiPath = Path.Combine(packageBinDirectory, packageName + "_api.h");
+			string metadataPath = Path.Combine(packageBinDirectory, packageName + "_api.json");
 			string staticLibraryPath = NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
 			{
 				Target = context.Target,
@@ -322,7 +317,7 @@ public static class CompilerDriver
 			});
 
 			bool canUseCache = context.CommandLineDefines.Count == 0;
-			bool apiCurrent = canUseCache && IsOutputCacheCurrent(apiPath, cacheSourceFiles) && (!requireNativeLibrary || IsOutputCacheCurrent(cApiPath, cacheSourceFiles));
+			bool apiCurrent = canUseCache && IsOutputCacheCurrent(apiPath, cacheSourceFiles) && (!requireNativeLibrary || IsOutputCacheCurrent(cApiPath, cacheSourceFiles) && IsOutputCacheCurrent(metadataPath, cacheSourceFiles));
 			bool libraryCurrent = !requireNativeLibrary || canUseCache && IsOutputCacheCurrent(staticLibraryPath, cacheSourceFiles);
 			if (apiCurrent && libraryCurrent)
 			{
@@ -388,6 +383,8 @@ public static class CompilerDriver
 				Directory.CreateDirectory(Path.GetDirectoryName(apiPath)!);
 				using StreamWriter writer = new(apiPath, append: false, Encoding.UTF8);
 				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+				if (staticLibraryPath is not null && !TryEmitMetadataArtifact(packageCompilation, Path.GetDirectoryName(apiPath)!, MetadataVisibility.Export, packageName))
+					return false;
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 			{
@@ -474,6 +471,10 @@ public static class CompilerDriver
 			if (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared && !TryEmitLibraryApiArtifacts(compilation, outputDirectory))
 				return 1;
 
+			MetadataVisibility metadataVisibility = GetEffectiveMetadataVisibility();
+			if (metadataVisibility != MetadataVisibility.None && !TryEmitMetadataArtifact(compilation, outputDirectory, metadataVisibility, GetMetadataProjectName(compilation.Files)))
+				return 1;
+
 			if (request.BuildKind is null)
 				return 0;
 
@@ -531,6 +532,34 @@ public static class CompilerDriver
 			}
 			main.Symbol = "campmain";
 			entryPoint = main;
+			return true;
+		}
+
+		MetadataVisibility GetEffectiveMetadataVisibility()
+		{
+			if (request.EmitMetadata is MetadataVisibility requested)
+				return requested;
+			return request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared
+				? MetadataVisibility.Export
+				: MetadataVisibility.None;
+		}
+
+		bool TryEmitMetadataArtifact(Compilation compilation, string outputDirectory, MetadataVisibility visibility, string projectName)
+		{
+			string metadataPath = Path.Combine(outputDirectory, projectName + "_api.json");
+			try
+			{
+				Directory.CreateDirectory(outputDirectory);
+				File.WriteAllText(metadataPath, MetadataJsonSerializer.Serialize(compilation, visibility), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+			{
+				ErrorLine($"{metadataPath}: {ex.Message}");
+				return false;
+			}
+
+			generatedFiles.Add(metadataPath);
+			OutLine("generated: " + Path.GetFileName(metadataPath));
 			return true;
 		}
 
@@ -624,34 +653,6 @@ public static class CompilerDriver
 				return 1;
 			using StringWriter writer = new(stdout, CultureInfo.InvariantCulture);
 			BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
-			return 0;
-		}
-
-		int EmitMetadata(Compilation compilation)
-		{
-			if (!BuildAllAndReport(compilation))
-				return 1;
-			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target, compilation.MemoryModelName);
-			if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
-				return 1;
-			compilation.SharedModule = analysis.Module;
-
-			string outputPath = Path.GetFullPath(request.EmitMetadataPath!, request.WorkingDirectory);
-			try
-			{
-				string? directory = Path.GetDirectoryName(outputPath);
-				if (!string.IsNullOrWhiteSpace(directory))
-					Directory.CreateDirectory(directory);
-				File.WriteAllText(outputPath, MetadataJsonSerializer.Serialize(compilation, request.MetadataVisibility), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-			}
-			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-			{
-				ErrorLine($"{outputPath}: {ex.Message}");
-				return 1;
-			}
-
-			generatedFiles.Add(outputPath);
-			OutLine("generated: " + Path.GetFileName(outputPath));
 			return 0;
 		}
 
@@ -749,6 +750,23 @@ public static class CompilerDriver
 				if (compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) && ReferenceEquals(owner, file))
 					output.Definitions.Add(definition);
 			return output;
+		}
+
+		static string GetMetadataProjectName(IReadOnlyList<SourceFile> files)
+		{
+			SourceFile? first = files.FirstOrDefault(static file => !file.IsApiHeader) ?? files.FirstOrDefault();
+			if (first is null || first.Path == "-")
+				return "stdin";
+
+			string path = first.Path.Replace('\\', '/');
+			string[] parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+			for (int i = 0; i + 2 < parts.Length; i++)
+			{
+				if ((parts[i] == "lib" || parts[i] == "pkg") && parts[i + 2] == "src")
+					return parts[i + 1];
+			}
+
+			return CCodeEmitter.GetProjectName(files);
 		}
 
 		void PrintBindable(Module module)

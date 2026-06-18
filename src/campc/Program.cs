@@ -68,13 +68,7 @@ Option<string?> buildOption = new("--build", "-b")
 
 Option<string?> emitMetadataOption = new("--emit-metadata")
 {
-	Description = "Write source-level declaration metadata JSON to the given file."
-};
-
-Option<string> metadataVisibilityOption = new("--metadata-visibility")
-{
-	Description = "Select metadata visibility: export, public, private, or all.",
-	DefaultValueFactory = _ => "export"
+	Description = "Select metadata emission: none, export, public, or all."
 };
 
 Option<string?> outDirOption = new("--out-dir")
@@ -109,13 +103,12 @@ rootCommand.Options.Add(defineOption);
 rootCommand.Options.Add(emitOption);
 rootCommand.Options.Add(buildOption);
 rootCommand.Options.Add(emitMetadataOption);
-rootCommand.Options.Add(metadataVisibilityOption);
 rootCommand.Options.Add(outDirOption);
 rootCommand.Options.Add(buildDirOption);
 rootCommand.Options.Add(noStdLibOption);
 rootCommand.SetAction(parseResult =>
 {
-	MetadataVisibility? metadataVisibility = ParseMetadataVisibility(parseResult.GetValue(metadataVisibilityOption));
+	MetadataVisibility? emitMetadata = ParseMetadataVisibility(parseResult.GetValue(emitMetadataOption));
 	CompilerRequest request = new()
 	{
 		Inspect = ParseInspectMode(parseResult.GetValue(inspectOption)),
@@ -126,8 +119,7 @@ rootCommand.SetAction(parseResult =>
 		MemoryModelName = parseResult.GetValue(memoryModelOption),
 		EmitKind = parseResult.GetValue(emitOption) ?? "c99",
 		BuildKind = ParseBuildKind(parseResult.GetValue(buildOption)),
-		EmitMetadataPath = parseResult.GetValue(emitMetadataOption),
-		MetadataVisibility = metadataVisibility ?? MetadataVisibility.Export,
+		EmitMetadata = emitMetadata,
 		OutDir = parseResult.GetValue(outDirOption),
 		BuildDir = parseResult.GetValue(buildDirOption),
 		NoStdLib = parseResult.GetValue(noStdLibOption),
@@ -150,9 +142,9 @@ rootCommand.SetAction(parseResult =>
 		return 1;
 	}
 
-	if (metadataVisibility is null)
+	if (parseResult.GetValue(emitMetadataOption) is not null && emitMetadata is null)
 	{
-		Console.Error.WriteLine($"Metadata visibility '{parseResult.GetValue(metadataVisibilityOption)}' is not valid. Expected export, public, private, or all.");
+		Console.Error.WriteLine($"Metadata emission '{parseResult.GetValue(emitMetadataOption)}' is not valid. Expected none, export, public, or all.");
 		return 1;
 	}
 
@@ -182,10 +174,10 @@ static MetadataVisibility? ParseMetadataVisibility(string? value)
 {
 	return value?.Trim().ToLowerInvariant() switch
 	{
-		null or "" => MetadataVisibility.Export,
+		null or "" => null,
+		"none" => MetadataVisibility.None,
 		"export" => MetadataVisibility.Export,
 		"public" => MetadataVisibility.Public,
-		"private" => MetadataVisibility.Private,
 		"all" => MetadataVisibility.All,
 		_ => null
 	};

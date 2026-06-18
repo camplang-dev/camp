@@ -9,9 +9,9 @@ namespace Camp.Compiler;
 
 public enum MetadataVisibility
 {
+	None,
 	Export,
 	Public,
-	Private,
 	All
 }
 
@@ -56,7 +56,8 @@ public static class MetadataJsonSerializer
 				WriteStubs(json);
 				json.WriteEndObject();
 			}
-			return Encoding.UTF8.GetString(stream.ToArray()).Replace("\r\n", "\n", StringComparison.Ordinal);
+			string text = Encoding.UTF8.GetString(stream.ToArray()).Replace("\r\n", "\n", StringComparison.Ordinal);
+			return text.EndsWith('\n') ? text : text + "\n";
 		}
 
 		void IndexModule()
@@ -458,9 +459,9 @@ public static class MetadataJsonSerializer
 		{
 			return visibility switch
 			{
+				MetadataVisibility.None => false,
 				MetadataVisibility.Export => definition.Export is not null,
 				MetadataVisibility.Public => definition.Export is not null || definition.Public is not null,
-				MetadataVisibility.Private => definition.Export is null && definition.Public is null,
 				MetadataVisibility.All => true,
 				_ => false
 			};

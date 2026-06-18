@@ -1,4 +1,4 @@
-// @metadata-visibility public
+// @emit-metadata public
 export as Docs;
 
 /// Exported value.
