@@ -2726,6 +2726,8 @@ public sealed partial class BindableNodeAnalyzer
 		string lookupTargetType = TryGetImplicitIteratorProtocolType(member.Target, targetType, out string iteratorProtocolType)
 			? iteratorProtocolType
 			: targetType;
+		if (TryAnalyzeFixedArrayPointerComponentMember(member, targetType))
+			return ErrorType;
 		if (TryAnalyzeFixedArrayComponentMember(member, targetType, out string fixedComponentType))
 			return fixedComponentType;
 		if (TryAnalyzeParamsPointerComponentMember(member, targetType, out string componentType))
@@ -2739,6 +2741,8 @@ public sealed partial class BindableNodeAnalyzer
 			members = LookupGenericConstraintMemberSymbols(lookupTargetType, member.Name, scope, member.SourceSyntax);
 		if (members.Count == 0)
 		{
+			if (TryReportFixedArrayPointerReceiverMember(member, lookupTargetType))
+				return ErrorType;
 			if (GetTypeDefinition(lookupTargetType) is TypeDefinition type && HasPropertyGetterWithIncompatibleReceiver(type, lookupTargetType, member.Name, member.SourceSyntax))
 			{
 				Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' exists on type '{lookupTargetType}', but its getter's this parameter is not compatible with that receiver.");
@@ -2823,6 +2827,42 @@ public sealed partial class BindableNodeAnalyzer
 				return true;
 			return typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? definition)
 				&& definition is ClassDefinition or StructDefinition or NewtypeDefinition;
+		}
+
+		bool TryReportFixedArrayPointerReceiverMember(MemberExpression member, string targetType)
+		{
+			if (!TryGetFixedArrayShape(StripTopLevelConstForReceiver(targetType), out _, out _))
+				return false;
+
+			foreach (Definition definition in currentModule?.Definitions ?? [])
+			{
+				if (definition is not FunctionDefinition function
+					|| (function.Name != member.Name && GetCallableName(function) != member.Name)
+					|| !IsDefinitionVisible(function, member.SourceSyntax)
+					|| GetExplicitThisParameter(function) is null && !HasExpandedThisParameters(function.Parameters))
+					continue;
+
+				if (IsFixedArrayPointerReceiverMismatch(targetType, function, IsPropertyGetterFunction(function)))
+				{
+					Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' exists, but fixed-size array storage does not implicitly become a pointer receiver; use an explicit pointer or span expression.");
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		bool TryAnalyzeFixedArrayPointerComponentMember(MemberExpression member, string targetType)
+		{
+			if (TryGetPointerElementType(targetType) is not string pointedType
+				|| !TryGetFixedArrayShape(pointedType, out _, out _))
+				return false;
+
+			if (member.Name is not ("length" or "elements"))
+				return false;
+
+			Report(GetRange(member.SourceSyntax), $"Fixed-size array pointer member '{member.Name}' requires explicit dereference; use (*value).{member.Name}.");
+			return true;
 		}
 
 		bool TryAnalyzeFixedArrayComponentMember(MemberExpression member, string targetType, out string componentType)

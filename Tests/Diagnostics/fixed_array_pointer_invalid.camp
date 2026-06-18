@@ -1,0 +1,25 @@
+void takesSpan(byte[] this)
+{
+}
+
+void takesPointer(byte* this)
+{
+}
+
+void takesFixedPointer(byte[4]* this)
+{
+}
+
+export int main()
+{
+	fixed byte[4] data = [1, 2, 3, 4];
+	byte[4]* pointer = &data;
+	nuint len = pointer.length;
+	byte* elements = pointer.elements;
+	byte[] slice = pointer[0..2];
+	byte value = pointer[0];
+	pointer.takesSpan();
+	data.takesPointer();
+	data.takesFixedPointer();
+	return (int)value + (int)len + (int)slice.length;
+}

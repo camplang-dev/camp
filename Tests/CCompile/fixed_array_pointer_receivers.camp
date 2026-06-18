@@ -1,0 +1,36 @@
+void touchSpan(byte[] this)
+{
+	this[0] = 5;
+}
+
+void touchPointer(byte* this)
+{
+	this[1] = 6;
+}
+
+void touchFixedPointer(byte[4]* this)
+{
+	(*this)[2] = 7;
+}
+
+int sum(byte[] values)
+{
+	int total = 0;
+	for (nuint i = 0; i < values.length; i++)
+		total += values[i];
+	return total;
+}
+
+export int main()
+{
+	fixed byte[4] data = [1, 2, 3, 4];
+	data.touchSpan();
+	data.elements.touchPointer();
+	byte[4]* pointer = &data;
+	pointer.touchFixedPointer();
+	nuint length = (*pointer).length;
+	byte* elements = (*pointer).elements;
+	byte[] slice = (*pointer)[1..3];
+	int total = sum(data) + sum(slice) + (int)length + elements[2];
+	return total;
+}

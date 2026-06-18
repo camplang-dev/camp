@@ -1,0 +1,7 @@
+tests/Diagnostics/fixed_array_pointer_invalid.camp(17,22): error: Fixed-size array pointer member 'length' requires explicit dereference; use (*value).length.
+tests/Diagnostics/fixed_array_pointer_invalid.camp(18,27): error: Fixed-size array pointer member 'elements' requires explicit dereference; use (*value).elements.
+tests/Diagnostics/fixed_array_pointer_invalid.camp(19,25): error: Range indexing is only valid on array values; dereference the array pointer before applying the range.
+tests/Diagnostics/fixed_array_pointer_invalid.camp(20,22): error: Declaration initializer cannot convert 'byte[4]' to 'byte'.
+tests/Diagnostics/fixed_array_pointer_invalid.camp(21,10): error: Member 'takesSpan' could not be found on type 'byte[4]*'.
+tests/Diagnostics/fixed_array_pointer_invalid.camp(22,7): error: Member 'takesPointer' exists, but fixed-size array storage does not implicitly become a pointer receiver; use an explicit pointer or span expression.
+tests/Diagnostics/fixed_array_pointer_invalid.camp(23,7): error: Member 'takesFixedPointer' exists, but fixed-size array storage does not implicitly become a pointer receiver; use an explicit pointer or span expression.

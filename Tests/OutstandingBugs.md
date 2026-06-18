@@ -8,16 +8,6 @@ Next bug number: BUG-022.
   generated `op_iter` adapter and `foreach` current-slot materialization still
   need first-class expanded-slot forwarding.
 
-- **BUG-018:** Fixed-array pointer receiver/member diagnostics need final
-  hardening. Priority: high. Complexity: medium. The proposal explicitly says a
-  `T[n]*` value must not silently act like either a `T[n]` value or a `T*`
-  element pointer. Add diagnostics and tests for `p.length`, `p.elements`,
-  `p[0..2]`, `byte x = p[0]`, hidden `T[] this` receiver selection from
-  `T[n]*`, hidden `T* this` receiver selection from `T[n]`, and hidden
-  `T[n]* this` receiver selection from `T[n]`. Positive tests should cover the
-  explicit forms: `(*p).length`, `(*p).elements`, `(*p)[0]`, `(*p)[0..2]`,
-  `&fixedArray`, and explicit `.elements` calls.
-
 - **BUG-019:** Fixed-array span-view lifetime and component synthesis are not
   fully audited. Priority: high. Complexity: medium-high. Add tests for fixed
   arrays converting to `T[]` in all proposal-required component-synthesis

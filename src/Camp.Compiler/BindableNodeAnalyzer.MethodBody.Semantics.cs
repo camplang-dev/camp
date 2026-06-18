@@ -1260,6 +1260,12 @@ public sealed partial class BindableNodeAnalyzer
 		return exactPrimitiveStringFunctions.Count > 0 ? exactPrimitiveStringFunctions : functions;
 	}
 
+	bool IsFixedArrayPointerReceiverMismatch(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
+	{
+		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
+		return WouldDecayFixedArrayStorageToPointerReceiver(StripTopLevelConstForReceiver(targetType), receiverType);
+	}
+
 	bool IsExactReceiver(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
 	{
 		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
@@ -1459,6 +1465,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
 		string actualType = StripTopLevelConstForReceiver(targetType);
+		if (WouldDecayFixedArrayStorageToPointerReceiver(actualType, receiverType))
+			return false;
 		if (CanImplicitlyConvert(actualType, receiverType))
 			return true;
 		if (CanGenericCallableReceiverMatch(actualType, receiverType))
@@ -1468,6 +1476,12 @@ public sealed partial class BindableNodeAnalyzer
 		return TryGetPointerElementType(receiverType) is string receiverElement
 			&& TryGetPointerElementType(actualType) is null
 			&& BaseTypeName(receiverElement) == BaseTypeName(actualType);
+	}
+
+	static bool WouldDecayFixedArrayStorageToPointerReceiver(string actualType, string receiverType)
+	{
+		return TryGetFixedArrayShape(actualType, out _, out _)
+			&& TryGetPointerElementType(receiverType) is not null;
 	}
 
 	bool CanGenericCallableReceiverMatch(string actualType, string receiverType)
