@@ -589,7 +589,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (first.Name != "this")
 			return;
 
-		definition.Parameters[0] = new ThisParameterDefinition
+		ThisParameterDefinition thisParameter = new()
 		{
 			SourceSyntax = first.SourceSyntax,
 			Name = first.Name,
@@ -599,6 +599,8 @@ public sealed partial class BindableNodeAnalyzer
 			Modifier = first.Modifier,
 			ResolvedType = first.ResolvedType
 		};
+		thisParameter.Attributes.AddRange(first.Attributes);
+		definition.Parameters[0] = thisParameter;
 	}
 
 	static bool IsExtensionThisParameter(FunctionDefinition definition, string? containingType, int parameterIndex)
@@ -623,6 +625,7 @@ public sealed partial class BindableNodeAnalyzer
 		HashSet<string> names = new(StringComparer.Ordinal);
 		foreach (GenericParameter parameter in parameters)
 		{
+			AnalyzeAttributes(parameter.Attributes);
 			parameter.ResolvedType = parameter.Name;
 			CheckName(parameter.Name, GetGenericParameterNameRange(parameter.SourceSyntax), "generic parameter");
 
@@ -901,6 +904,7 @@ public sealed partial class BindableNodeAnalyzer
 				Name = "this",
 				Symbol = "this"
 			};
+			definition.EffectiveThisParameter.Attributes.AddRange(callableThis.Attributes);
 		}
 
 		if (containingType is not null

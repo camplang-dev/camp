@@ -1,0 +1,7 @@
+export as Docs;
+
+@summary("Adds one to %s.", symbols: [symbolof(Number)])
+@returns("The incremented value.")
+export extern int add(@summary("Input value.") int value);
+@summary("A documented value.")
+export extern int Number;

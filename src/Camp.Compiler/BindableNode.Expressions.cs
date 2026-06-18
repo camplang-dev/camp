@@ -13,6 +13,12 @@ public class LiteralExpression : Expression
 	public object? Value { get; set; }
 }
 
+public class SymbolOfExpression : Expression
+{
+	public string Text { get; set; } = "";
+	public BindableNode? Reference { get; set; }
+}
+
 public class NamedExpression : Expression
 {
 	public List<string> Qualifiers { get; } = [];

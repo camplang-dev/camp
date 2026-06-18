@@ -1,0 +1,1 @@
+tests/Diagnostics/symbolof_runtime_expression.camp(3,15): error: symbolof(...) may only be used in metadata attribute arguments.

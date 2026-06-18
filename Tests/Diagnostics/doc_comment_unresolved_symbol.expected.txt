@@ -1,0 +1,1 @@
+tests/Diagnostics/doc_comment_unresolved_symbol.camp(1,1): error: symbolof reference 'MissingSymbol' could not be resolved.

@@ -11,6 +11,7 @@ public enum GoldenFileTestKind
 	CEmit,
 	CCompile,
 	Api,
+	Metadata,
 	Std,
 	StdRun
 }
@@ -37,6 +38,7 @@ public sealed class GoldenFileTestCase
 		GoldenFileTestKind.CEmit => ".expected.c",
 		GoldenFileTestKind.CCompile => ".expected.txt",
 		GoldenFileTestKind.Api => ".expected.camp",
+		GoldenFileTestKind.Metadata => ".expected.json",
 		GoldenFileTestKind.Std => ".expected.camp",
 		GoldenFileTestKind.StdRun => ".expected.txt",
 		_ => throw new ArgumentOutOfRangeException()
@@ -50,6 +52,7 @@ public sealed class GoldenFileTestCase
 		GoldenFileTestKind.CEmit => ".actual.c",
 		GoldenFileTestKind.CCompile => ".actual.txt",
 		GoldenFileTestKind.Api => ".actual.camp",
+		GoldenFileTestKind.Metadata => ".actual.json",
 		GoldenFileTestKind.Std => ".actual.camp",
 		GoldenFileTestKind.StdRun => ".actual.txt",
 		_ => throw new ArgumentOutOfRangeException()

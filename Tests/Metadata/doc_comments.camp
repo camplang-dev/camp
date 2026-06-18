@@ -1,0 +1,23 @@
+export as Docs;
+
+/// A sample exported type.
+export struct Widget
+{
+	/// Stored count.
+	int count;
+}
+
+/// Finds [Widget] values.
+///
+/// - T: Element type.
+/// - this: Values to search.
+/// - value: Value to find.
+/// - start: First index to search.
+/// - count: Number of values to inspect.
+/// @returns The matching index, or -1.
+export extern nint find<T: any>(
+	const T[] this,
+	in T value,
+	@range nuint start = 0,
+	nuint count = ^0,
+	sizeof(T));

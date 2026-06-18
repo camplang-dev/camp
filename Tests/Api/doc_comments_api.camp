@@ -1,0 +1,10 @@
+export as Docs;
+
+/// Adds one to [Number].
+///
+/// - value: Input value.
+/// @returns The incremented value.
+export extern int add(int value);
+
+/// A documented value.
+export int Number;

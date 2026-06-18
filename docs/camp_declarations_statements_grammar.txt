@@ -8,6 +8,9 @@ BNF format description:
 	- | means either
 	- literals are unquoted, or single-quoted if they're punctuation chars signficant to the BNF
 
+Doc comments are recognized as trivia before parsing and are translated into
+ordinary metadata attributes on the following declaration or declaration child.
+
 compilation-unit:
 	(<preprocessor-directive> | <import-export-declaration> | <declaration>)*
 
@@ -46,7 +49,7 @@ alias-declaration:
 	<attribute>* <visibility-declarator>* alias <IDENT> = <qualified-name> ;
 
 attribute:
-	<AT-IDENT> ['(' <expression-list> ')']
+	<AT-IDENT> ['(' <argument-list> ')']
 
 type-declaration-declarator:
 	export | public | extern | virtual | sealed | abstract | fixed | escaped
@@ -55,13 +58,13 @@ visibility-declarator:
 	export | public
 
 generic-parameter:
-	<IDENT> [: [implements] <type>]
+	<attribute>* <IDENT> [: [implements] <type>]
 
 type-declaration-scope:
 	'{' ([<enum-value-list> [; <declaration>*]] | <declaration>*) '}'
 
 enum-value:
-	<IDENT> [= <expression>]
+	<attribute>* <IDENT> [= <expression>]
 
 declaration:
 	<type-declaration> | <alias-declaration> | <member-declaration>

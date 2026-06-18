@@ -911,14 +911,17 @@ public sealed partial class BindableNodeBuilder
 		if (syntax.AttributeIdentifier is null)
 			Report(syntax, "Attribute is missing a name.");
 
-		foreach (ExpressionSyntax expression in syntax.ExpressionList?.Expressions ?? [])
-		{
-			attribute.Arguments.Add(new ArgumentExpression
+		if (syntax.ArgumentList is not null)
+			AddArguments(attribute.Arguments, syntax.ArgumentList, "Attribute argument");
+		else
+			foreach (ExpressionSyntax expression in syntax.ExpressionList?.Expressions ?? [])
 			{
-				SourceSyntax = expression,
-				Value = BuildExpression(expression, "Attribute argument")
-			});
-		}
+				attribute.Arguments.Add(new ArgumentExpression
+				{
+					SourceSyntax = expression,
+					Value = BuildExpression(expression, "Attribute argument")
+				});
+			}
 
 		return attribute;
 	}
@@ -1875,6 +1878,7 @@ public sealed partial class BindableNodeBuilder
 			ConstructionExpressionSyntax construction => construction.WithinKeyword?.Range ?? construction.Keyword?.Range,
 			SizeOfExpressionSyntax sizeOf => sizeOf.SizeOfKeyword?.Range,
 			VTableOfExpressionSyntax vtableOf => vtableOf.VTableOfKeyword?.Range,
+			SymbolOfExpressionSyntax symbolOf => symbolOf.SymbolOfKeyword?.Range,
 			InitializerListSyntax initializer => initializer.OpenBraceToken?.Range,
 			CommaExpressionSyntax comma => comma.Expressions is [ExpressionSyntax first, ..] ? GetRange(first) : null,
 			AssignmentExpressionSyntax assignment => GetRangeOrNull(assignment.Left),

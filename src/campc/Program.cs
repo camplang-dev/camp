@@ -66,6 +66,17 @@ Option<string?> buildOption = new("--build", "-b")
 	Description = "Build a native artifact: exec, winexe, static, or shared."
 };
 
+Option<string?> emitMetadataOption = new("--emit-metadata")
+{
+	Description = "Write source-level declaration metadata JSON to the given file."
+};
+
+Option<string> metadataVisibilityOption = new("--metadata-visibility")
+{
+	Description = "Select metadata visibility: export, public, private, or all.",
+	DefaultValueFactory = _ => "export"
+};
+
 Option<string?> outDirOption = new("--out-dir")
 {
 	Description = "Write native output artifacts to this directory."
@@ -97,11 +108,14 @@ rootCommand.Options.Add(memoryModelOption);
 rootCommand.Options.Add(defineOption);
 rootCommand.Options.Add(emitOption);
 rootCommand.Options.Add(buildOption);
+rootCommand.Options.Add(emitMetadataOption);
+rootCommand.Options.Add(metadataVisibilityOption);
 rootCommand.Options.Add(outDirOption);
 rootCommand.Options.Add(buildDirOption);
 rootCommand.Options.Add(noStdLibOption);
 rootCommand.SetAction(parseResult =>
 {
+	MetadataVisibility? metadataVisibility = ParseMetadataVisibility(parseResult.GetValue(metadataVisibilityOption));
 	CompilerRequest request = new()
 	{
 		Inspect = ParseInspectMode(parseResult.GetValue(inspectOption)),
@@ -112,6 +126,8 @@ rootCommand.SetAction(parseResult =>
 		MemoryModelName = parseResult.GetValue(memoryModelOption),
 		EmitKind = parseResult.GetValue(emitOption) ?? "c99",
 		BuildKind = ParseBuildKind(parseResult.GetValue(buildOption)),
+		EmitMetadataPath = parseResult.GetValue(emitMetadataOption),
+		MetadataVisibility = metadataVisibility ?? MetadataVisibility.Export,
 		OutDir = parseResult.GetValue(outDirOption),
 		BuildDir = parseResult.GetValue(buildDirOption),
 		NoStdLib = parseResult.GetValue(noStdLibOption),
@@ -134,6 +150,12 @@ rootCommand.SetAction(parseResult =>
 		return 1;
 	}
 
+	if (metadataVisibility is null)
+	{
+		Console.Error.WriteLine($"Metadata visibility '{parseResult.GetValue(metadataVisibilityOption)}' is not valid. Expected export, public, private, or all.");
+		return 1;
+	}
+
 	CompilerResult result = CompilerDriver.Execute(request);
 	Console.Out.Write(result.StdOut);
 	Console.Error.Write(result.StdErr);
@@ -152,6 +174,19 @@ static CompilerInspectMode? ParseInspectMode(string? value)
 		"ast" => CompilerInspectMode.Ast,
 		"declarations" => CompilerInspectMode.Declarations,
 		"lowering" => CompilerInspectMode.Lowering,
+		_ => null
+	};
+}
+
+static MetadataVisibility? ParseMetadataVisibility(string? value)
+{
+	return value?.Trim().ToLowerInvariant() switch
+	{
+		null or "" => MetadataVisibility.Export,
+		"export" => MetadataVisibility.Export,
+		"public" => MetadataVisibility.Public,
+		"private" => MetadataVisibility.Private,
+		"all" => MetadataVisibility.All,
 		_ => null
 	};
 }

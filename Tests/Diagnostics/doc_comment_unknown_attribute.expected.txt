@@ -1,0 +1,1 @@
+tests/Diagnostics/doc_comment_unknown_attribute.camp(1,1): error: Unknown doc-comment attribute '@banana'.

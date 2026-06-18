@@ -1,0 +1,45 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "Docs",
+    "namespace": "Docs"
+  },
+  "view": {
+    "visibility": "public",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "variable:Docs::ExportedValue",
+      "kind": "variable",
+      "name": "ExportedValue",
+      "symbol": "ExportedValue",
+      "visibility": "export",
+      "type": "int",
+      "metadata": [
+        {
+          "name": "summary",
+          "doc": true,
+          "content": "Exported value."
+        }
+      ]
+    },
+    {
+      "id": "variable:Docs::PublicValue",
+      "kind": "variable",
+      "name": "PublicValue",
+      "symbol": "PublicValue",
+      "visibility": "public",
+      "type": "int",
+      "metadata": [
+        {
+          "name": "summary",
+          "doc": true,
+          "content": "Public helper."
+        }
+      ]
+    }
+  ]
+}

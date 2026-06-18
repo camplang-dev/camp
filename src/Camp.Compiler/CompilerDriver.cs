@@ -34,6 +34,8 @@ public sealed class CompilerRequest
 	public string? MemoryModelName { get; set; }
 	public string EmitKind { get; set; } = "c99";
 	public NativeBuildKind? BuildKind { get; set; }
+	public string? EmitMetadataPath { get; set; }
+	public MetadataVisibility MetadataVisibility { get; set; } = MetadataVisibility.Export;
 	public string? OutDir { get; set; }
 	public string? BuildDir { get; set; }
 	public bool NoStdLib { get; set; }
@@ -97,6 +99,10 @@ public static class CompilerDriver
 				return Error("--build cannot be combined with --inspect.");
 			if (request.BuildKind is not null && request.InspectApi)
 				return Error("--build cannot be combined with --inspect-api.");
+			if (request.BuildKind is not null && !string.IsNullOrWhiteSpace(request.EmitMetadataPath))
+				return Error("--emit-metadata cannot be combined with --build.");
+			if (!string.IsNullOrWhiteSpace(request.EmitMetadataPath) && (request.Inspect is not null || request.InspectApi || request.Xml))
+				return Error("--emit-metadata cannot be combined with --inspect, --inspect-api, or --xml.");
 
 			if (!TryCreateRuntimeContext(out RuntimeContext? context))
 				return 1;
@@ -119,6 +125,9 @@ public static class CompilerDriver
 
 			if (request.InspectApi)
 				return PrintApi(compilation);
+
+			if (!string.IsNullOrWhiteSpace(request.EmitMetadataPath))
+				return EmitMetadata(compilation);
 
 			CompilerInspectMode inspect = request.Inspect ?? CompilerInspectMode.None;
 			return inspect switch
@@ -615,6 +624,34 @@ public static class CompilerDriver
 				return 1;
 			using StringWriter writer = new(stdout, CultureInfo.InvariantCulture);
 			BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+			return 0;
+		}
+
+		int EmitMetadata(Compilation compilation)
+		{
+			if (!BuildAllAndReport(compilation))
+				return 1;
+			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target, compilation.MemoryModelName);
+			if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
+				return 1;
+			compilation.SharedModule = analysis.Module;
+
+			string outputPath = Path.GetFullPath(request.EmitMetadataPath!, request.WorkingDirectory);
+			try
+			{
+				string? directory = Path.GetDirectoryName(outputPath);
+				if (!string.IsNullOrWhiteSpace(directory))
+					Directory.CreateDirectory(directory);
+				File.WriteAllText(outputPath, MetadataJsonSerializer.Serialize(compilation, request.MetadataVisibility), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+			{
+				ErrorLine($"{outputPath}: {ex.Message}");
+				return 1;
+			}
+
+			generatedFiles.Add(outputPath);
+			OutLine("generated: " + Path.GetFileName(outputPath));
 			return 0;
 		}
 

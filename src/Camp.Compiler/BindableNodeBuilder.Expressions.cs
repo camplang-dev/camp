@@ -101,6 +101,9 @@ public sealed partial class BindableNodeBuilder
 					InterfaceType = vtableOf.InterfaceType is null ? MissingType(vtableOf, "vtableof expression is missing an interface type.") : BuildTypeReference(vtableOf.InterfaceType)
 				};
 
+			case SymbolOfExpressionSyntax symbolOf:
+				return BuildSymbolOfExpression(symbolOf);
+
 			case InitializerListSyntax initializer:
 				return BuildInitializerExpression(initializer, context);
 
@@ -111,6 +114,18 @@ public sealed partial class BindableNodeBuilder
 				Report(syntax, $"Unsupported expression syntax in {context}.");
 				return null;
 		}
+	}
+
+	SymbolOfExpression BuildSymbolOfExpression(SymbolOfExpressionSyntax syntax)
+	{
+		StringBuilder builder = new();
+		foreach (Token token in syntax.Tokens)
+			builder.Append(token.Value);
+		return new SymbolOfExpression
+		{
+			SourceSyntax = syntax,
+			Text = builder.ToString()
+		};
 	}
 
 	LiteralExpression? BuildLiteralExpression(LiteralExpressionSyntax syntax)

@@ -105,6 +105,7 @@ public class ParamsDefinition : TypeDefinition
 
 public class GenericParameter : BindableNode
 {
+	public List<AttributeConstructor> Attributes { get; } = [];
 	public string Name { get; set; } = "";
 	public bool RequiresImplementation { get; set; }
 	public TypeReference? Constraint { get; set; }
@@ -173,6 +174,7 @@ public class AttributeConstructor : BindableNode
 {
 	public string Name { get; set; } = "";
 	public List<ArgumentExpression> Arguments { get; } = [];
+	public bool IsDocCommentAttribute { get; set; }
 }
 
 public abstract class TypeReference : BindableNode

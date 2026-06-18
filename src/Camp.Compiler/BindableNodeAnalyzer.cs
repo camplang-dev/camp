@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 
@@ -319,6 +320,11 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (argument.Value is null)
 				argument.ResolvedType = ErrorType;
+			else if (ValidateMetadataAttributeExpression(argument.Value))
+			{
+				argument.Value.ResolvedType = AttributeType;
+				argument.ResolvedType = AttributeType;
+			}
 			else
 			{
 				AnalyzeExpression(argument.Value, new AnalysisScope());
@@ -335,6 +341,102 @@ public sealed partial class BindableNodeAnalyzer
 			if (attribute.ResolvedType != AttributeType)
 				AnalyzeAttribute(attribute);
 		}
+	}
+
+	bool ValidateMetadataAttributeExpression(Expression expression)
+	{
+		if (expression is SymbolOfExpression symbolOf)
+		{
+			if (!TryResolveMetadataSymbol(symbolOf.Text, out BindableNode? reference))
+				Report(GetRange(symbolOf.SourceSyntax), $"symbolof reference '{symbolOf.Text}' could not be resolved.");
+			symbolOf.Reference = reference;
+			return true;
+		}
+
+		if (expression is ArrayExpression array && array.Elements.Count > 0 && array.Elements.All(static element => element is SymbolOfExpression))
+		{
+			foreach (Expression element in array.Elements)
+				ValidateMetadataAttributeExpression(element);
+			return true;
+		}
+
+		return false;
+	}
+
+	bool TryResolveMetadataSymbol(string text, out BindableNode? reference)
+	{
+		reference = null;
+		string name = NormalizeMetadataSymbolName(text);
+		if (name.Length == 0)
+			return false;
+
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+			if (TryResolveMetadataSymbolInDefinition(definition, name, out reference))
+				return true;
+
+		return false;
+	}
+
+	static bool TryResolveMetadataSymbolInDefinition(Definition definition, string name, out BindableNode? reference)
+	{
+		reference = null;
+		if (definition.Name == name || definition.Symbol == name)
+		{
+			reference = definition;
+			return true;
+		}
+
+		IEnumerable<Definition> children = definition switch
+		{
+			ClassDefinition classDefinition => classDefinition.Fields.Cast<Definition>().Concat(classDefinition.Functions),
+			StructDefinition structDefinition => structDefinition.Fields.Cast<Definition>().Concat(structDefinition.Functions),
+			InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions,
+			EnumDefinition enumDefinition => enumDefinition.Values.Cast<Definition>().Concat(enumDefinition.Functions),
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields.Cast<Definition>().Concat(newtypeDefinition.Functions),
+			ParamsDefinition paramsDefinition => paramsDefinition.Components.Cast<Definition>().Concat(paramsDefinition.Functions),
+			FunctionDefinition functionDefinition => functionDefinition.GenericParameters.Cast<BindableNode>().Concat(functionDefinition.Parameters).OfType<Definition>(),
+			_ => []
+		};
+
+		foreach (Definition child in children)
+		{
+			if (child.Name == name || child.Symbol == name)
+			{
+				reference = child;
+				return true;
+			}
+			if (TryResolveMetadataSymbolInDefinition(child, name, out reference))
+				return true;
+		}
+
+		if (definition is TypeDefinition typeDefinition)
+		{
+			foreach (GenericParameter parameter in typeDefinition.GenericParameters)
+			{
+				if (parameter.Name == name)
+				{
+					reference = parameter;
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	static string NormalizeMetadataSymbolName(string text)
+	{
+		string name = text.Trim();
+		int genericStart = name.IndexOf('<');
+		if (genericStart >= 0)
+			name = name[..genericStart];
+		int namespaceStart = name.LastIndexOf("::", name.Length - 1, StringComparison.Ordinal);
+		if (namespaceStart >= 0)
+			name = name[(namespaceStart + 2)..];
+		int memberStart = name.LastIndexOf('.');
+		if (memberStart >= 0)
+			name = name[(memberStart + 1)..];
+		return name.Trim();
 	}
 
 	void ApplySymbolAttribute(Definition definition, bool allowed, string symbolKind)
@@ -467,7 +569,7 @@ public sealed partial class BindableNodeAnalyzer
 		return anchors.Count == 0 ? keyword : $"{keyword}({string.Join(", ", anchors)})";
 	}
 
-	static string FormatTypeReference(TypeReference? type)
+	internal static string FormatTypeReference(TypeReference? type)
 	{
 		return type switch
 		{

@@ -6695,13 +6695,11 @@ That means `export` affects more than ordinary visibility. It also affects what 
 
 For example, an exported struct remains layout-visible in the public header, while an exported class remains opaque. Those type-specific consequences were defined earlier. The important point here is that `export` is the switch that places a declaration on the public boundary at all.
 
-An exported declaration may also name a metadata output:
-
-```camp
-export("api") void process(const char[] value);
-```
-
-The declaration is still exported normally. In addition, its definition is emitted to the named metadata file. That metadata can be transformed into a C header or another external declaration surface as a separate compilation step.
+Source metadata is emitted by the compiler as a file-level output mode, not by
+marking individual declarations with `export("api")` or similar syntax. Exported
+declarations are included in the default metadata view; public and private
+declarations can be requested by compiler option when a tool needs a broader
+source-level view.
 
 ### 5.1.3 Exporting members of otherwise non-exported types
 
@@ -6868,7 +6866,64 @@ the canonical symbol name, so direct calls to the old compiler-generated
 flattened name are not valid. Exported declarations preserve `@symbol` in Camp
 API output; generated C uses the overridden name.
 
-### 5.1.9 Target callspecs and typespecs
+### 5.1.9 Doc comments and metadata attributes
+
+Camp supports doc comments as a convenient source form for metadata attributes.
+Doc comments attach to the immediately following declaration or declaration
+child.
+
+```camp
+/// Writes a line to the current [Console] writer.
+///
+/// - value: Text to write.
+/// @returns Nothing.
+export void writeLine(const char[] value);
+```
+
+Plain doc text becomes `@summary(...)`. The recognized doc attributes are
+`@summary`, `@remarks`, `@returns`, `@example`, `@see`, and `@deprecated`.
+Child targets such as `- value:` attach documentation to parameters, type
+parameters, fields, enum values, receiver parameters, or members when those
+children exist. Unknown doc attributes and unresolved child targets are compiler
+errors.
+
+Inline code spans and triple-backtick fenced code blocks are treated as literal
+text. Links written as `[Symbol]` become metadata symbol references. In the
+generated Camp API surface, the example above is equivalent to ordinary metadata
+attributes such as:
+
+```camp
+@summary("Writes a line to the current %s writer.", symbols: [symbolof(Console)])
+export void writeLine(@summary("Text to write.") const char[] value);
+```
+
+`symbolof(...)` is valid only inside metadata attribute arguments. It is checked
+by the compiler so documentation links refer to real visible declarations.
+
+Metadata attributes are source-level information. Exported Camp API output
+preserves them, while generated C and C API headers omit documentation for now.
+
+### 5.1.10 Metadata JSON output
+
+The compiler can emit a source-level metadata JSON file for documentation tools,
+editors, and external generators:
+
+```text
+campc library.camp --emit-metadata library.campmeta.json
+campc library.camp --emit-metadata library.campmeta.json --metadata-visibility public
+```
+
+The default metadata visibility is `export`. Other supported views are
+`public`, `private`, and `all`. Metadata JSON describes Camp declarations as
+programmers see them: names, symbols, visibility, generic parameters, fields,
+parameters, callable ascriptions, aliases, and metadata attributes. It is not a
+lowered C ABI dump and does not include generated helper declarations by
+default.
+
+Metadata output is file-only in the current compiler. Native build output and
+metadata output are separate modes.
+
+### 5.1.11 Target callspecs and typespecs
 
 Some targets define calling-convention and pointer/memory-model specifiers.
 Camp accepts those specifiers in fixed type and callable positions and validates
@@ -6890,7 +6945,7 @@ Unspecified target specs may convert to explicit wider target specs when the
 selected target says that conversion is safe. Explicit casts may be used for
 compatible same-kind forms when an implicit conversion would be narrowing.
 
-### 5.1.10 Conditional compilation
+### 5.1.12 Conditional compilation
 
 Camp has C#-style conditional compilation. Symbols are either defined or not
 defined; they do not have values.
@@ -6909,7 +6964,7 @@ Supported directives are `#define`, `#undef`, `#if`, `#elif`, `#else`, and
 `#endif`. Conditions may use symbol names, `TRUE`, `!`, `&&`, `||`, and
 parentheses. Code in inactive branches is tokenized but not parsed as Camp code.
 
-### 5.1.11 Public versus private generated views
+### 5.1.13 Public versus private generated views
 
 Camp’s visibility rules are reflected in two generated surfaces:
 
@@ -6924,7 +6979,7 @@ This distinction was introduced earlier for data structures. At the module level
 
 This gives Camp a direct source-level replacement for the traditional C pattern of manually splitting declarations across headers and implementation files.
 
-### 5.1.12 Foreign import direction in v1
+### 5.1.14 Foreign import direction in v1
 
 Camp keeps foreign-import convenience intentionally modest in v1. The current direction is that parsing C headers and generating Camp declarations is primarily a tooling concern rather than a large built-in language subsystem.
 

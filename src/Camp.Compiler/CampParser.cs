@@ -429,7 +429,7 @@ public sealed class CampParser
 		{
 			syntax.OpenParenToken = Take();
 			if (!Is(")"))
-				syntax.ExpressionList = ParseExpressionList(")");
+				syntax.ArgumentList = ParseArgumentList(")");
 			syntax.CloseParenToken = Expect(")");
 		}
 
@@ -1446,6 +1446,9 @@ public sealed class CampParser
 				CloseParenToken = Expect(")")
 			};
 
+		if (Is("symbolof"))
+			return ParseSymbolOfExpression();
+
 		if (Is("within") || Is("init") || Is("new"))
 			return TryParseConstructionExpression();
 
@@ -1459,6 +1462,24 @@ public sealed class CampParser
 			return ParseInitializerList();
 
 		return ParseQualifiedNameExpression();
+	}
+
+	SymbolOfExpressionSyntax ParseSymbolOfExpression()
+	{
+		SymbolOfExpressionSyntax syntax = new()
+		{
+			SymbolOfKeyword = Take(),
+			OpenParenToken = Expect("(")
+		};
+
+		while (!AtEnd && !Is(")"))
+		{
+			if (Take() is Token token)
+				syntax.Tokens.Add(token);
+		}
+
+		syntax.CloseParenToken = Expect(")");
+		return syntax;
 	}
 
 	PrimaryExpressionSyntax? ParseParenthesizedCastOrGroupedExpression()

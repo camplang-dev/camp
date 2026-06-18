@@ -1,0 +1,1 @@
+tests/Diagnostics/doc_comment_unresolved_child.camp(1,1): error: Doc-comment child target 'missing' could not be found on declaration 'run'.

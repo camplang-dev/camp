@@ -707,6 +707,12 @@ public sealed class BindableNodeCodeSerializer
 				WriteLiteral(literal);
 				break;
 
+			case SymbolOfExpression symbolOf:
+				writer.Write("symbolof(");
+				writer.Write(symbolOf.Text);
+				writer.Write(")");
+				break;
+
 			case NamedExpression named:
 				WriteQualifiedName(named.Qualifiers, named.Name);
 				break;
@@ -1017,6 +1023,8 @@ public sealed class BindableNodeCodeSerializer
 
 		WriteDelimited("<", ">", parameters, parameter =>
 		{
+			if (parameter.Attributes.Count > 0)
+				WriteAttributes(parameter.Attributes, inline: true);
 			writer.Write(parameter.Name);
 			if (parameter.Constraint is not null)
 			{

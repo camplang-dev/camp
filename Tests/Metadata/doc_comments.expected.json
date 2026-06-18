@@ -1,0 +1,161 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "Docs",
+    "namespace": "Docs"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "struct:Docs::Widget",
+      "kind": "struct",
+      "name": "Widget",
+      "symbol": "Widget",
+      "visibility": "export",
+      "fields": [
+        {
+          "id": "struct:Docs::Widget/field:count",
+          "kind": "field",
+          "name": "count",
+          "symbol": "count",
+          "visibility": "private",
+          "type": "int",
+          "metadata": [
+            {
+              "name": "summary",
+              "doc": true,
+              "content": "Stored count."
+            }
+          ]
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "doc": true,
+          "content": "A sample exported type."
+        }
+      ]
+    },
+    {
+      "id": "function:Docs::find",
+      "kind": "function",
+      "name": "find",
+      "symbol": "Array_find",
+      "visibility": "export",
+      "returnType": "nint",
+      "typeParameters": [
+        {
+          "id": "function:Docs::find/type-parameter:T",
+          "kind": "type-parameter",
+          "name": "T",
+          "constraint": "any",
+          "metadata": [
+            {
+              "name": "summary",
+              "doc": true,
+              "content": "Element type."
+            }
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "id": "function:Docs::find/parameter:this",
+          "kind": "receiver",
+          "name": "this",
+          "symbol": "this",
+          "visibility": "private",
+          "type": "const T[]",
+          "metadata": [
+            {
+              "name": "summary",
+              "doc": true,
+              "content": "Values to search."
+            }
+          ]
+        },
+        {
+          "id": "function:Docs::find/parameter:value",
+          "kind": "parameter",
+          "name": "value",
+          "symbol": "value",
+          "visibility": "private",
+          "modifier": "in",
+          "type": "T",
+          "metadata": [
+            {
+              "name": "summary",
+              "doc": true,
+              "content": "Value to find."
+            }
+          ]
+        },
+        {
+          "id": "function:Docs::find/parameter:start",
+          "kind": "parameter",
+          "name": "start",
+          "symbol": "start",
+          "visibility": "private",
+          "type": "nuint",
+          "metadata": [
+            {
+              "name": "range"
+            },
+            {
+              "name": "summary",
+              "doc": true,
+              "content": "First index to search."
+            }
+          ]
+        },
+        {
+          "id": "function:Docs::find/parameter:count",
+          "kind": "parameter",
+          "name": "count",
+          "symbol": "count",
+          "visibility": "private",
+          "type": "nuint",
+          "metadata": [
+            {
+              "name": "summary",
+              "doc": true,
+              "content": "Number of values to inspect."
+            }
+          ]
+        },
+        {
+          "id": "function:Docs::find/parameter:sizeof_T",
+          "kind": "sizeof-parameter",
+          "name": "sizeof_T",
+          "symbol": "sizeof_T",
+          "visibility": "private",
+          "type": "nuint"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "doc": true,
+          "content": "Finds %s values.",
+          "symbols": [
+            {
+              "ref": "struct:Docs::Widget",
+              "text": "Widget"
+            }
+          ]
+        },
+        {
+          "name": "returns",
+          "doc": true,
+          "content": "The matching index, or -1."
+        }
+      ]
+    }
+  ]
+}

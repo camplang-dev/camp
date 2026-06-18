@@ -1,0 +1,11 @@
+// @metadata-visibility public
+export as Docs;
+
+/// Exported value.
+export int ExportedValue;
+
+/// Public helper.
+public int PublicValue;
+
+/// Private helper.
+int PrivateValue;

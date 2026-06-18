@@ -67,8 +67,10 @@ public static class CompilationPipeline
 		foreach (SourceFile file in compilation.Files)
 		{
 			file.BindableTree = BindableNodeBuilder.Build(file.SyntaxTree!, out IReadOnlyList<BindDiagnostic> diagnostics);
-			file.BindDiagnostics = diagnostics;
+			file.BindDiagnostics = [.. diagnostics, .. DocCommentTranslator.Apply(file)];
 			if (diagnostics.Count > 0)
+				success = false;
+			if (file.BindDiagnostics.Count > diagnostics.Count)
 				success = false;
 		}
 		if (success)

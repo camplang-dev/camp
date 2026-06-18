@@ -84,6 +84,7 @@ public class AttributeSyntax : SyntaxNode
 	public Token? AttributeIdentifier { get; set; }
 	public Token? OpenParenToken { get; set; }
 	public ExpressionListSyntax? ExpressionList { get; set; }
+	public ArgumentListSyntax? ArgumentList { get; set; }
 	public Token? CloseParenToken { get; set; }
 }
 
@@ -670,6 +671,14 @@ public class VTableOfExpressionSyntax : PrimaryExpressionSyntax
 	public TypeSyntax? Type { get; set; }
 	public Token? ColonToken { get; set; }
 	public TypeSyntax? InterfaceType { get; set; }
+	public Token? CloseParenToken { get; set; }
+}
+
+public class SymbolOfExpressionSyntax : PrimaryExpressionSyntax
+{
+	public Token? SymbolOfKeyword { get; set; }
+	public Token? OpenParenToken { get; set; }
+	public List<Token> Tokens { get; } = [];
 	public Token? CloseParenToken { get; set; }
 }
 

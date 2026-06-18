@@ -663,6 +663,7 @@ public sealed partial class BindableNodeAnalyzer
 			WithinExpression within => BodyAnalyzeWithinExpression(within, scope, typeScope, targetType),
 			SizeOfExpression sizeOf => BodyAnalyzeSizeOfExpression(sizeOf, typeScope),
 			VTableOfExpression vtableOf => BodyAnalyzeVTableOfExpression(vtableOf, typeScope),
+			SymbolOfExpression symbolOf => BodyAnalyzeSymbolOfExpression(symbolOf),
 			LambdaExpression lambda => BodyAnalyzeLambdaExpression(lambda, scope, typeScope, targetType),
 			ArgumentExpression argument => BodyAnalyzeArgumentExpression(argument, scope, typeScope, targetType),
 			CallExpression call => BodyAnalyzeCallExpression(call, scope, typeScope, targetType),
@@ -682,6 +683,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		expression.ResolvedType = type;
 		return type;
+	}
+
+	string BodyAnalyzeSymbolOfExpression(SymbolOfExpression expression)
+	{
+		Report(GetRange(expression.SourceSyntax), "symbolof(...) may only be used in metadata attribute arguments.");
+		return ErrorType;
 	}
 
 	string BodyAnalyzeLiteralExpression(LiteralExpression literal, string? targetType)

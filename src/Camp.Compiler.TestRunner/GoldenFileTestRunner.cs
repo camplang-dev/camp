@@ -77,11 +77,13 @@ public static class GoldenFileTestRunner
 				GoldenFileTestKind.Std => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.StdRun => null,
 				GoldenFileTestKind.Api => null,
+				GoldenFileTestKind.Metadata => null,
 				GoldenFileTestKind.CEmit => null,
 				GoldenFileTestKind.CCompile => null,
 				_ => throw new ArgumentOutOfRangeException()
 			},
-			InspectApi = testCase.Kind == GoldenFileTestKind.Api
+			InspectApi = testCase.Kind == GoldenFileTestKind.Api,
+			EmitMetadataPath = testCase.Kind == GoldenFileTestKind.Metadata ? testCase.ActualPath : null
 		};
 		ApplyCaseOptions(testCase, request);
 		request.Files.Add(Path.GetRelativePath(testCase.RepositoryRoot, testCase.CasePath));
@@ -108,6 +110,9 @@ public static class GoldenFileTestRunner
 				request.BuildKind = NativeBuildKind.Shared;
 				request.OutDir = Path.Combine(GetBuildDirectory(testCase), "out");
 			}
+			else if (option.StartsWith("metadata-visibility ", StringComparison.OrdinalIgnoreCase)
+				&& Enum.TryParse(option["metadata-visibility ".Length..], ignoreCase: true, out MetadataVisibility visibility))
+				request.MetadataVisibility = visibility;
 		}
 	}
 
@@ -120,8 +125,16 @@ public static class GoldenFileTestRunner
 			GoldenFileTestKind.CCompile => CompileGeneratedC(testCase, result),
 			GoldenFileTestKind.StdRun => RunGeneratedExecutable(testCase, result),
 			GoldenFileTestKind.Api => result.StdOut,
+			GoldenFileTestKind.Metadata => ReadMetadataOutput(testCase, result),
 			_ => result.StdOut
 		};
+	}
+
+	static string ReadMetadataOutput(GoldenFileTestCase testCase, CompilerResult result)
+	{
+		if (result.ExitCode != 0)
+			return result.StdErr + result.StdOut;
+		return File.Exists(testCase.ActualPath) ? File.ReadAllText(testCase.ActualPath) : "metadata: no output\n";
 	}
 
 	static string RunGeneratedExecutable(GoldenFileTestCase testCase, CompilerResult result)
