@@ -70,7 +70,7 @@ member-declaration:
 	<attribute>* <member-declarator>* <type>? [~] <IDENT> ['<' <generic-parameter-list> '>'] ['(' <parameter-list> ')'] (; | <method-body> | <assignment>)
 
 member-declarator:
-	export | public | extern | static | virtual | override | sealed | abstract | async
+	export | public | extern | static | virtual | override | sealed | abstract | async | fixed
 
 parameter:
 	[within] <parameter-declarator>* <type> <IDENT>? [= <expression>]
@@ -85,7 +85,7 @@ parameter-declarator:
 type:
 	(fn|delegate|async|once) [<target-spec>] [<call-spec>] <type> '(' <parameter-list> ')'
 	<attribute> <type>
-	<type> '[' ']'
+	<type> '[' <expression>? ']'
 	<type> '?'
 	<type> '*'
 	<type> '<' <type-list> '>'

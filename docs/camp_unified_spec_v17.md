@@ -9,7 +9,8 @@ This section defines the type forms that appear everywhere else in the language:
 - pointer types
 - plain function types
 - ordinary function declarations and calls
-- compiler-expanded forms such as arrays, optionals, and delegates
+- compiler-expanded forms such as span arrays, optionals, and delegates
+- fixed-size array storage
 - multi-output binding through `out`, async completion, and iterator protocols
 - primitive string types and character-array text views
 - enum types
@@ -20,7 +21,8 @@ The design goal is not to make types magical. The design goal is to make them pr
 
 Several later language features build directly on the material in this section. In particular:
 
-- arrays, optionals, and delegates define the small closed set of compiler-expanded value forms
+- span arrays, optionals, and delegates define the small closed set of compiler-expanded value forms
+- fixed-size arrays define explicit inline storage with array-like views
 - `fn`, `delegate`, and ordinary function declarations explain Camp's callable surface before async, iterators, and lambdas add further structure
 - multi-output binding explains how several caller-provided result slots can be consumed ergonomically without creating a general tuple or user-defined expansion system
 - strings explain the distinction between zero-terminated text pointers and counted character arrays
@@ -28,6 +30,7 @@ Several later language features build directly on the material in this section. 
 Camp favors explicit surface distinctions where those distinctions help prevent mistakes:
 
 - a zero-terminated string pointer and a counted character array are different types
+- a span array and fixed-size array storage are different types
 - `newtype` introduces a real nominal boundary even when the machine representation stays the same
 - compiler-expanded forms expose visible dot-access components while preserving ABI component symbols
 - `struct(...)` materializes an expanded form when one-address storage is required
@@ -297,6 +300,7 @@ A pointer type is written with `*`:
 int* p;
 char* text;
 Window* window;
+byte[32]* block;
 void* raw;
 ```
 
@@ -314,10 +318,19 @@ Examples:
 int* valuePtr;
 byte* buffer;
 Window* dialog;
+byte[32]* block;
 void* nativeHandle;
 ```
 
 This is the familiar C-style meaning.
+
+A pointer to a fixed-size array is written by applying `*` to the fixed-array type:
+
+```camp
+byte[32]* block;
+```
+
+This means a pointer to one fixed array object containing 32 bytes. It is distinct from `byte*` and from `byte[]`.
 
 ### 1.2.2 `void*`
 
@@ -369,6 +382,18 @@ struct(byte[])* storedPtr;
 ```
 
 This keeps pointer syntax ordinary while making expansion and materialization explicit.
+
+Fixed-size arrays are ordinary fixed storage forms for pointer purposes. A type such as `T[n]*` points at one fixed-size array object. Indexing that pointer indexes fixed-size array objects, not elements:
+
+```camp
+int[8]* values;
+
+// values[0] has type int[8]
+int first = (*values)[0];
+int same = values[0][0];
+```
+
+A pointer to a fixed-size array must be explicitly dereferenced before the fixed array's own indexing, slicing, `.elements`, `.length`, or span conversion is used.
 
 ### 1.2.5 Pointer defaults
 
@@ -777,6 +802,8 @@ void f(byte[] arr)
 This rule is part of the source language, not merely a C backend detail. The ABI component names are predictable, visible, and ABI-aligned.
 
 Component access uses `.`. The underscore names remain the ABI component symbols and remain in scope for collision and named-argument purposes.
+
+Fixed-size arrays also expose `.elements` and `.length` through member access, but they are not compiler-expanded values and do not introduce additional ABI component names into the containing scope.
 
 ### 1.4.11 `in` parameters
 
@@ -1387,6 +1414,14 @@ Optional optionals are invalid.
 
 Fixed structs and classes are not converted to or from expanded form by `struct(T)`. They already have one storage identity of their own.
 
+### 1.5.6 Fixed-size arrays are not expanded forms
+
+A fixed-size array type `T[n]` is not a compiler-expanded form. It is inline element storage with one storage identity.
+
+Fixed-size arrays expose `.elements` and `.length` for array-like use, but those are synthesized from the storage object. They do not introduce expanded ABI component symbols such as `name_length` for the fixed-array binding itself.
+
+A fixed-size array may convert to the matching span array `T[]`. That conversion synthesizes the span components from the fixed storage.
+
 ## 1.6 Arrays
 
 Arrays are built into the language as compiler-expanded forms.
@@ -1476,10 +1511,10 @@ Representative examples:
 ```camp
 scoped T[] slice<T: any>(const T[] this, @range nuint index = 0, nuint count = ^0, sizeof(T));
 scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
-T[] copy<T: any>(const T[] this, within allocator, sizeof(T));
+T[] copy<T: copyable>(const T[] this, within allocator, sizeof(T));
 ```
 
-Copy-producing array APIs are valid only when the element operation is valid for the substituted type. They do not copy fixed struct or class elements by value.
+Copy-producing array APIs require copyable element types and `sizeof(T)`. They do not copy fixed-size arrays, fixed structs, or class elements by value.
 
 ### 1.6.7 Array indexing and slicing shape
 
@@ -1489,13 +1524,192 @@ Slicing is expressed through ordinary methods and index-aware parameters rather 
 
 This keeps the call surface ordinary while still allowing convenient syntax through method and property rewriting.
 
+### 1.6.8 Fixed-size array storage
+
+A fixed-size array type is written:
+
+```camp
+T[n]
+```
+
+It denotes inline storage for exactly `n` elements of `T`. The length expression `n` must be a compile-time integer constant whose value is greater than or equal to zero.
+
+`T[n]` is not the same type as `T[]`. `T[]` is a span value with `elements` and `length` components. `T[n]` is fixed inline storage with storage identity.
+
+```camp
+byte[] span;
+fixed byte[32] buffer;
+```
+
+A declaration that creates fixed-size array storage must use `fixed`:
+
+```camp
+fixed byte[32] local;
+
+struct Packet
+{
+	fixed byte[256] payload;
+}
+
+export fixed byte[16] GlobalKey;
+```
+
+These declarations are invalid because they create fixed-size array storage without the `fixed` marker:
+
+```camp
+byte[32] local; // ERROR
+
+struct Packet
+{
+	byte[256] payload; // ERROR
+}
+```
+
+`fixed` is not used merely to name a fixed-size array type beneath a pointer:
+
+```camp
+byte[32]* block;
+byte[32]* getBlock();
+void useBlock(byte[32]* block);
+```
+
+Direct fixed-size array storage declarations are allowed only for locals, globals, and struct or class fields. A direct fixed-size array value is not an ordinary parameter type, return type, callable parameter slot, callable result slot, or value `newtype` underlying type.
+
+```camp
+int sum(int[8] values);          // ERROR
+int[8] getValues();              // ERROR
+fn int[8]();                     // ERROR
+newtype Values: int[8];          // ERROR
+
+int sum(int[8]* values);         // OK
+int[8]* getValues();             // OK
+fn int[8]*();                    // OK
+```
+
+A fixed-size array is a fixed value. It may not be copied, returned, passed, assigned from another fixed-size array, or extracted by value.
+
+```camp
+fixed byte[32] a;
+fixed byte[32] b;
+
+b = a;             // ERROR
+auto copy = a;     // ERROR
+```
+
+A fixed-size array may be initialized or overwritten from a target-typed initializer expression, a compatible string literal, or `default`. This writes an initializer pattern into known fixed storage; it is not fixed-array value copying. Too many initializer elements is an error; missing elements default-fill.
+
+```camp
+fixed byte[8] bytes = [1, 2, 3];
+bytes = [4, 5];     // remaining elements default-fill
+bytes = default;    // all elements default-fill
+
+fixed byte[2] small = [1, 2, 3]; // ERROR
+
+fixed char[8] name = "cat";
+name = "dog";
+```
+
+If the fixed array has const elements, initialization is allowed but later element mutation and whole-array overwrite are invalid.
+
+```camp
+fixed const byte[4] magic = [1, 2, 3, 4];
+magic[0] = 9;       // ERROR
+magic = [4, 3, 2, 1]; // ERROR
+```
+
+For character fixed arrays, string literals may target `char[n]`, `wchar[n]`, and `achar[n]`. If the literal exactly fills the destination, no terminator beyond capacity is required. If space remains, remaining elements are zero-filled.
+
+```camp
+fixed char[3] a = "cat";   // OK, no extra terminator
+fixed char[4] b = "cat";   // OK: c a t 0
+fixed char[2] c = "cat";   // ERROR
+
+fixed achar[4] d = "cat";  // OK
+fixed wchar[4] e = "cat";  // OK
+```
+
+A fixed-size array exposes array-like operations:
+
+```camp
+fixed int[8] values;
+
+nuint count = values.length; // 8
+int* elements = values.elements;
+values[0] = 10;
+int first = values[0];
+int[] span = values;
+int[] prefix = values[0..4];
+int[8]* whole = &values;
+```
+
+For `T[n]`, `.length` is the compile-time constant `n` exposed as `nuint`. `.elements` is a `T*` pointer to the first element. There is no backing length field.
+
+A fixed-size array converts to `T[]`. The reverse conversion is not implicit:
+
+```camp
+fixed byte[32] buffer;
+byte[] view = buffer;    // OK
+
+byte[] span;
+buffer = span;           // ERROR
+```
+
+Fixed-size arrays participate in receiver-method lookup through the `T[]` span view. A method whose receiver is `T[]` is a candidate for a fixed-size array receiver. A method whose receiver is `T*` or `T[n]*` is not selected by instance syntax from a fixed-size array value; use `.elements` or `&value` explicitly.
+
+Nested fixed-size arrays compose normally:
+
+```camp
+fixed byte[8][8] matrix;      // 8 by 8 byte matrix
+byte[8][8]* matrixPtr;        // pointer to such a matrix
+fixed byte[8]*[8] rowPtrs;    // fixed array of pointers to byte[8]
+fixed byte*[8][8] ptrMatrix;  // 8 by 8 matrix of byte pointers
+```
+
+For nested fixed arrays, indexing may produce another fixed-size array lvalue:
+
+```camp
+fixed byte[8][8] matrix;
+byte[] row = matrix[0];       // OK: row view
+byte[8]* rowPtr = &matrix[0]; // OK
+byte first = matrix[0][0];    // OK
+fixed byte[8] copy = matrix[0]; // ERROR
+```
+
+A span whose element type is a fixed-size array is a span of fixed-size array objects. Its `elements` component is a pointer to fixed-size array storage.
+
+```camp
+byte[8][] rows;       // elements: byte[8]*, length: nuint
+byte[] first = rows[0];
+byte[8]* firstPtr = &rows[0];
+rows[0] = rows[1];    // ERROR
+rows[0] = [1, 2, 3];  // OK: initializer write into fixed storage
+```
+
+`sizeof(T[n])` is valid and equals `n * sizeof(T)`, including padding or representation details required by the target for `T` elements.
+
+```camp
+nuint bytes = sizeof(int[8]); // 32
+```
+
+`T[0]` is valid only as the final field of a struct. It represents flexible trailing storage. Its `.length` is `0`; a separate field usually stores the runtime count.
+
+```camp
+struct Packet
+{
+	nuint length;
+	fixed byte[0] data;
+}
+```
+
+Fixed-size array storage lowers to inline C array storage where C is the selected backend representation. A pointer to fixed-size array storage lowers to a C pointer-to-array type where the target supports that spelling.
+
 ## 1.7 Optional Values
 
 Optional values are built into Camp with the `?` suffix.
 
 ### 1.7.1 Core model
 
-A type `T?` is an expanded form derived from `T`. `T` may not be a fixed type. Use `T*?` when the optional payload should be a nullable pointer to a fixed value.
+A type `T?` is an expanded form derived from `T`. `T` may not be a fixed type, including a fixed-size array type. Use `T*?` when the optional payload should be a nullable pointer to a fixed value.
 
 An optional value exposes:
 
@@ -1790,6 +2004,9 @@ A string literal may also target any of these destination types:
 - `const char*`
 - `const wchar*`
 - `const achar*`
+- fixed `char[n]`
+- fixed `wchar[n]`
+- fixed `achar[n]`
 
 Examples:
 
@@ -1798,9 +2015,10 @@ string s = "hello";
 wstring ws = "hello";
 const char[] view = "hello";
 const char* raw = "hello";
+fixed char[8] buffer = "hello";
 ```
 
-The corresponding mutable character-pointer and mutable character-array forms
+The corresponding mutable character-pointer and mutable span-array forms
 are not valid literal destinations:
 
 ```camp
@@ -1808,7 +2026,7 @@ char[] view = "hello"; // ERROR: string literals are constant
 char* raw = "hello";   // ERROR: string literals are constant
 ```
 
-When a literal targets a string type or pointer type, the result is a zero-terminated pointer. When it targets a character array, the result is a counted array view of the literal's code units.
+When a literal targets a string type or pointer type, the result is a zero-terminated pointer. When it targets a character array, the result is a counted array view of the literal's code units. When it targets a compatible fixed-size character array, the literal's code units are copied into that fixed storage and any remaining elements are zero-filled.
 
 ### 1.9.6 string methods and array methods
 
@@ -2059,6 +2277,7 @@ Disallowed value underlyings include:
 
 ```camp
 newtype Values: int[];      // ERROR
+newtype Bytes: byte[8];     // ERROR
 newtype MaybeId: int?;      // ERROR
 newtype Client: HttpClient; // ERROR
 ```
@@ -2300,6 +2519,15 @@ This scans the string length using the visible string length property or
 zero-terminated string. Use an API that validates or creates the terminator when
 that conversion is required.
 
+A fixed-size array converts to the matching span array by synthesizing the span's `elements` and `length` components from the fixed storage:
+
+```camp
+fixed byte[32] storage;
+byte[] span = storage;
+```
+
+The reverse conversion is not implicit because a span does not prove the existence of an inline fixed-size storage object of the required length.
+
 ### 1.12.5 Materializing expanded forms
 
 Use `(struct)` when an expanded value must become real copyable storage with one address:
@@ -2372,20 +2600,13 @@ In particular, a primitive string type's pointer-shaped representation does not 
 
 Generics add one important wrinkle.
 
-In erased generic code:
+In erased generic code, `T: any` is a non-copying constraint. It may represent copyable types, fixed structs, classes, fixed-size arrays, compiler-expanded forms through materialized storage, and pointer types, but the generic body may not copy, assign, return, or otherwise transport `T` by value merely because `T: any` was declared.
 
-- `in T`, `out T`, and return `T` may materialize storage when transport requires it for copyable types
-- for classes and fixed structs, generic use follows the same non-copying rules as ordinary class-like use
-- for compiler-expanded forms, erased storage uses the materialized form
-- `T*` means pointer to the materialized storage form of `T` for compiler-expanded or otherwise materialized copyable types, and pointer to the instance for fixed types
+`T: copyable` is the erased constraint for generic code that requires `T` value copying. It excludes direct class types, fixed structs, and fixed-size array value types. Pointer types, including pointers to those fixed values, remain copyable pointer values.
 
-So for an expanded or otherwise materialized copyable type in that specific generic context:
+For generic code, `T*` means pointer to the storage form of `T`. For compiler-expanded forms this is the materialized storage form. For fixed structs, classes, and fixed-size arrays, it is a pointer to the fixed instance or fixed storage object.
 
-```text
-T*  means  struct(T)*
-```
-
-This is not a general rewrite of pointer meaning. It is the precise rule for erased-generic pointer-to-storage contracts.
+A generic copy of a `T` value requires both `T: copyable` and an available `sizeof(T)` parameter when erased lowering needs the size. `sizeof(T)` permits size-based storage operations, enumeration, and default-fill under `T: any`; it does not make `T: any` copyable.
 
 ### 1.12.12 Practical summary table
 
@@ -2402,6 +2623,8 @@ This is not a general rewrite of pointer meaning. It is the precise rule for era
 | `string` | `const char[]` | yes | scans length through visible string length API |
 | `string` / `wstring` / `astring` | another string family | no | requires explicit transcoding or validation API |
 | `char[]` | `string` | no | requires explicit terminator-producing API |
+| `T[n]` | `T[]` | yes | span view over fixed storage |
+| `T[]` | `T[n]` | no | requires actual fixed storage of known length |
 | expanded value | `struct(expanded-type)` | no hidden address materialization | use `(struct)` |
 | `struct(expanded-type)` | expanded value | yes when destination is known | exposes stored components |
 | `newtype` | underlying intrinsic type | no | explicit cast required |
@@ -2645,7 +2868,7 @@ So the question is never “Where does this live?” The question is “What kin
 
 ### 2.1.6 Copyable types and fixed types
 
-The practical copyability difference is easiest to see in assignment and aliasing. A copyable type may be copied by ordinary value operations. A fixed type may not. Classes and fixed structs are fixed types; ordinary structs are copyable types unless another rule says otherwise.
+The practical copyability difference is easiest to see in assignment and aliasing. A copyable type may be copied by ordinary value operations. A fixed type may not. Classes, fixed structs, and fixed-size arrays are fixed types; ordinary structs are copyable types unless another rule says otherwise.
 
 | Operation | copyable struct | fixed struct | class |
 |---|---|---|---|
@@ -2858,7 +3081,25 @@ If a struct’s layout is visible, all of its fields are visible.
 
 Structs do not have the public/private header split that classes use for layout opacity. An exported struct’s public ABI surface includes its actual fields.
 
-A copyable struct may not contain a fixed struct or class instance as an in-place field, because copying the enclosing value would copy the fixed field. A fixed struct may contain fixed struct fields, and it may contain in-place class fields when the class layout is visible. A class may also contain a fixed struct field.
+A copyable struct may not contain a fixed struct or class instance as an in-place field, because copying the enclosing value would copy the fixed field.
+
+A copyable struct may contain fixed-size array fields only when the fixed-array storage is aggregate-copyable. For a single-dimensional fixed array, this usually means the element type is copyable. For nested fixed arrays, the rule applies recursively. Copying the enclosing struct copies the fixed-array storage as part of the enclosing aggregate copy, but direct fixed-array field assignment remains invalid except for initializer-pattern writes.
+
+```camp
+struct Packet
+{
+	fixed byte[32] data;
+	nuint length;
+}
+
+Packet a;
+Packet b;
+
+a = b;          // OK: aggregate copy, including `data`
+a.data = b.data; // ERROR: direct fixed-array copy
+```
+
+A fixed struct may contain fixed struct fields and fixed-size arrays whose elements are fixed values. It may contain in-place class fields when the class layout is visible. A class may also contain fixed struct fields and fixed-size array fields.
 
 #### Class fields
 
@@ -3442,6 +3683,22 @@ This pattern is useful when the constructor establishes the main invariant and a
 
 For lifetime checking, the constructor call and its trailing initializer are part of the same initialization operation. Pointer-bearing values retained by trailing initializer assignments participate in the initialized value's lifetime in the same way as pointer-bearing values retained by the constructor body.
 
+Fixed-size array fields may be initialized or overwritten in constructors and trailing initializers using target-typed initializer expressions, compatible string literals, or `default`.
+
+```camp
+struct Packet
+{
+	fixed byte[4] magic;
+	fixed char[16] name;
+
+	Packet()
+	{
+		this.magic = [1, 2, 3, 4];
+		this.name = "demo";
+	}
+}
+```
+
 ### 2.2.16 Arrays of constructor-bearing element types
 
 Camp does not implicitly call a constructor for every element of `new T[n]` or `init T[n]`.
@@ -3477,6 +3734,8 @@ void sample()
 ```
 
 This keeps array formation simple and ABI-transparent.
+
+The same no-hidden-bulk-construction rule applies to fixed-size array storage. Declaring `fixed T[n] storage;` creates inline storage; it does not implicitly call a constructor for every element. Individual elements may be initialized in place when the element operation itself is valid.
 
 ### 2.2.17 Public and private header model
 
@@ -4819,6 +5078,8 @@ if (count.specified)
 
 The ABI component symbols are still introduced into the containing scope. For `buffer`, the symbols are `buffer` and `buffer_length`; for `count`, the symbols are `count` and `count_specified`. A user declaration that repeats one of those ABI component names in the same scope is a duplicate declaration.
 
+Fixed-size array values expose `.elements` and `.length` through the same member-access surface. Those members are synthesized from the fixed storage and do not introduce `name_length` or other expanded component symbols for the binding.
+
 ### 3.4.4 Method references
 
 A method name used without `()` refers to the method itself rather than calling it. That ordinary member-binding behavior remains available even when a method is also eligible for property syntax.
@@ -5524,7 +5785,7 @@ So if a boundary goes beyond the source range, the result is the clamped slice i
 
 ### 3.9.5 Arrays and strings use both indexing and slicing
 
-Arrays support ordinary element indexing through `[]` and slice-like views
+Span arrays and fixed-size arrays support ordinary element indexing through `[]` and slice-like views
 through range indexing.
 
 ```camp
@@ -5547,8 +5808,14 @@ const char[] body = text[1..^1];
 ```
 
 Plain pointers do not support from-end indexing or range slicing. If a program
-has a pointer to materialized array storage, it must dereference to the array
+has a pointer to materialized array storage or to fixed-size array storage, it must dereference to the array
 value first.
+
+```camp
+int[8]* values;
+int[] prefix = (*values)[0..4]; // OK
+int[] bad = values[0..4];       // ERROR: slicing a pointer
+```
 
 ### 3.9.6 Methods and property indexers may also be range-aware
 
@@ -5745,6 +6012,7 @@ This applies to:
 - compiler-expanded components
 - materialized `struct(T)` storage
 - array elements when the element type contains pointers
+- fixed-size array elements when the element type contains pointers
 - delegate context storage
 - compiler-generated iterator frames
 - compiler-generated async frames
@@ -5760,7 +6028,7 @@ A pointer-bearing aggregate or context value has one lifetime for its contained 
 
 Assignment into a field or nested field is therefore checked as assignment into the containing value. A value may not be assigned into a field if that value is too narrow for the containing aggregate's current lifetime.
 
-This rule applies equally to structs, classes, expanded values, materialized `struct(T)` storage, arrays whose elements contain pointers, optionals whose payload contains pointers, delegates, and compiler-generated context objects.
+This rule applies equally to structs, classes, expanded values, materialized `struct(T)` storage, arrays and fixed-size arrays whose elements contain pointers, optionals whose payload contains pointers, delegates, and compiler-generated context objects.
 
 ## 4.2 Return Defaults and Declaration-Site Defaults
 
@@ -6110,6 +6378,13 @@ auto rects = init Rect[50];
 ```
 
 This creates non-heap storage. It does not allocate via an allocator and does not implicitly construct each element.
+
+The expression `init T[n]` remains an array allocation expression whose result is `T[]`. It is not a fixed-size array declaration. Fixed-size array storage is declared with a fixed-size array type and the `fixed` marker:
+
+```camp
+auto span = init byte[256]; // byte[]
+fixed byte[256] storage;    // fixed byte[256]
+```
 
 For pointer-bearing local values, `init` participates in the constructor result lifetime rule described below.
 
@@ -6773,6 +7048,17 @@ For `struct iter`, retained pointer-bearing parameters constrain the lifetime of
 
 For `class iter`, retained pointer-bearing parameters must be `escaped`, because the generated class state is escaped. This requirement includes `this`. Therefore, a `class iter` member function must either be a member of an `escaped class` or have an explicit `escaped this` parameter.
 
+Inside a generator body, an `init T[n]` array allocation expression is invalid. A generator may declare fixed-size array storage instead; that storage becomes part of the generated iterator state.
+
+```camp
+struct iter byte nextBytes()
+{
+	fixed byte[256] scratch; // OK
+	auto temp = init byte[256]; // ERROR
+	...
+}
+```
+
 ### 5.2.5 Generated type names
 
 The generated iterator state type is named by appending `Iter` to the generator name.
@@ -6952,14 +7238,9 @@ iter(int, thrown RangeError) values = getRangeFunc(1, 5);
 
 Iterator-specific generic rules follow the ordinary generic rules.
 
-For `T: any`, `T* current` means pointer to the materialized storage form of `T`.
+For `T: any`, `T* current` means pointer to the storage form of `T`: materialized storage for compiler-expanded forms, or the fixed instance/storage object for fixed structs, classes, and fixed-size arrays.
 
-So in erased-generic iterator code:
-
-- the logical yielded type is `T`
-- the storage contract for `current` is `struct(T)*`
-
-That is exactly the kind of context where an explicit pointer-to-storage contract is appropriate.
+An iterator that copies yielded `T` values requires `T: copyable` and the required `sizeof(T)` support. Under `T: any`, generic iterator code may enumerate or expose pointers to `T` storage, but it may not copy a `T` value into or out of the current slot.
 
 ### 5.2.14 Design summary
 
@@ -7528,6 +7809,8 @@ void sample()
 
 Here the escaped closure sees a copied capture value, not a direct reference to the original local.
 
+A fixed-size array is not captured by value. A scoped callable may refer to fixed-size array storage while the storage remains in scope. An escaped callable must capture a pointer to suitable storage or another copyable value; it may not copy the fixed-size array itself into the callable context.
+
 ### 5.5.7 Non-escaped references may not escape through lambdas
 
 A non-escaped reference may not be captured into escaped delegate context storage unless the ordinary container rule proves that the escaped context is valid for it.
@@ -7694,7 +7977,8 @@ Camp generic constraints fall into three categories.
 | Kind | Example | Meaning |
 |---|---|---|
 | integer representation constraint | `T: int` | inside the body, `T` behaves as the chosen integer representation |
-| erased value constraint | `T: any` | `T` may be any type supported by the erased model |
+| erased non-copying value constraint | `T: any` | `T` may be any type supported by the erased model, but `T` values are not copyable under this constraint |
+| erased copyable value constraint | `T: copyable` | `T` may be any type supported by the erased model that is copyable by value |
 | nominal interface capability | `T: implements IRef` | `T` must explicitly implement the named interface |
 
 A constraint describes what the generic body may assume. It does not create some separate runtime kind.
@@ -7805,7 +8089,39 @@ Slot<ulong> h;     // ERROR
 
 This is why the default generic constraint is useful for low-level code: it naturally covers common machine-sized integers, many nominal wrappers, and pointer-shaped tokens.
 
-### 6.1.6 `implements IFoo`
+### 6.1.6 `copyable`
+
+`T: copyable` is an erased value constraint for generic code that needs ordinary value copying, assignment, value storage, or value return.
+
+Direct class types, fixed structs, and fixed-size array value types do not satisfy `copyable`. Pointer types do satisfy `copyable`, including pointers to classes, fixed structs, and fixed-size arrays, because the pointer value itself is copyable.
+
+```camp
+class ValueBox<T: copyable>
+{
+	T value;
+}
+
+fixed struct ParserState
+{
+	nuint position;
+}
+
+class Widget
+{
+}
+
+ValueBox<int> a;            // OK
+ValueBox<ParserState> b;    // ERROR
+ValueBox<Widget> c;         // ERROR
+ValueBox<byte[32]> d;       // ERROR
+ValueBox<ParserState*> e;   // OK
+ValueBox<Widget*> f;        // OK
+ValueBox<byte[32]*> g;      // OK
+```
+
+A generic operation that copies `T` values under `T: copyable` also requires `sizeof(T)` when the erased lowering needs the storage size.
+
+### 6.1.7 `implements IFoo`
 
 `implements IFoo` is nominal only.
 
@@ -7847,14 +8163,13 @@ The difference matters because it determines how values are transported, stored,
 `T: any` is the erased model for types that do not share one known machine representation.
 
 ```camp
-class AnyList<T: any>
+class AnySlots<T: any>
 {
 	T* items;
 	nuint capacity;
-	nuint count;
 	Allocator* allocator;
 
-	AnyList(sizeof(T), within allocator)
+	AnySlots(sizeof(T), within allocator)
 	{
 		this.allocator = allocator;
 	}
@@ -7868,10 +8183,22 @@ class AnyList<T: any>
 - copyable structs
 - fixed structs
 - classes
+- fixed-size arrays
 - compiler-expanded forms through their materialized storage representation
 - other forms supported by the language
 
-In this model, the generic body does not rely on one fixed source-level representation for every `T`. Instead, it relies on the erased transport and storage rules below.
+In this model, the generic body does not rely on one fixed source-level representation for every `T`. It also does not assume that `T` is copyable. A body constrained only by `T: any` may not copy, assign, return, or otherwise transport `T` values by value.
+
+A generic type that stores only a pointer to `T` may accept fixed values through `T: any`:
+
+```camp
+class Box<T: any>
+{
+	T* ptr;
+}
+
+Box<byte[32]> fixedArrayBox; // OK: stores byte[32]*
+```
 
 ### 6.2.2 `in` is transport, not pointer semantics
 
@@ -7885,13 +8212,13 @@ An `in T` parameter:
 - does not by itself change the lifetime category of the logical value
 
 ```camp
-void append<T: any>(AnyList<T>* list, in T item)
+void inspect<T: any>(in T item, sizeof(T))
 {
-	list.add(item);
+	log(sizeof(T));
 }
 ```
 
-This is the usual preferred style for erased generic input parameters.
+This is a common style for erased generic input parameters when the routine only observes the value.
 
 The address of an `in T` parameter refers to the address of the local transport image for the call, and therefore has an implicit scoped lifetime.
 
@@ -7902,22 +8229,34 @@ Use `T*` instead of `in T` only when the API truly needs one of these:
 - explicit address identity
 - a pointer that may be kept or returned
 
-### 6.2.3 `out T` and return `T`
+### 6.2.3 Copying is not available under `T: any`
 
-The same transport logic applies to:
+`T: any` is a non-copying erased constraint. The following operations are invalid in a body constrained only by `T: any` because they require copying, assigning, returning, or transporting a `T` value by value:
 
-- `out T`
-- return `T`
+```camp
+void copyOne<T: any>(T* dst, T* src, sizeof(T))
+{
+	*dst = *src; // ERROR
+}
+```
 
-For copyable types, these forms may materialize as needed because they describe value transport, not shared pointer identity. For fixed structs and classes, the same forms are valid only where the corresponding non-copying class-like operation is valid.
+```camp
+void copySecond<T: any>(T* dst, T* src, sizeof(T))
+{
+	dst[1] = src[1]; // ERROR
+}
+```
 
-That is why erased generic APIs should usually prefer:
+```camp
+T getValue<T: any>(T* src)
+{
+	return *src; // ERROR
+}
+```
 
-- `in T`
-- `out T`
-- return `T`
+`sizeof(T)` may permit pointer indexing, enumeration, size-based allocation, and default-fill. It does not make `T: any` copyable.
 
-and use `T*` only deliberately when address identity is part of the contract.
+Use `T: copyable` when the generic body must copy, assign, pass, return, store, move, or otherwise transport `T` values by value.
 
 ### 6.2.4 Expanded forms and storage
 
@@ -7937,31 +8276,59 @@ This distinction matters sharply in erased generics because `T` may denote an ex
 
 Outside erased substitution, pointer rules are ordinary.
 
-Inside erased substitution of `<T: any>`, `T*` means a pointer to the materialized storage form of `T` for compiler-expanded or otherwise materialized copyable types. For fixed structs and classes, it means a pointer to the fixed instance.
+Inside erased substitution of `<T: any>` or `<T: copyable>`, `T*` means a pointer to the storage form of `T`. For compiler-expanded forms, this is the materialized storage form. For fixed structs, classes, and fixed-size arrays, it is a pointer to the fixed instance or fixed storage object.
 
-So for an expanded or otherwise materialized copyable type in this context:
+So for an expanded type in this context:
 
 > `T*` means `struct(T)*`.
 
+For a fixed-size array substitution such as `T = byte[32]`:
+
+> `T*` means `byte[32]*`.
+
 A non-materialized expanded value does not automatically provide the right pointer type. If code needs a real pointer to the value as a whole, it must materialize storage first.
 
-### 6.2.6 When materialization is automatic
+### 6.2.6 `T: copyable` and erased value copying
 
-Materialization may occur automatically for copyable types in transport positions:
+`T: copyable` is stronger than `T: any`. A type parameter known to satisfy `T: copyable` may be used where the same type is required under `T: any`. The reverse is invalid because `T: any` may be a class, fixed struct, or fixed-size array.
 
-- `in T`
-- `out T`
-- return `T`
+```camp
+void inspect<T: any>(T* value, sizeof(T))
+{
+	...
+}
 
-That is safe because these positions describe temporary value transport. It is not a permission to copy fixed structs or classes.
+void useCopyable<T: copyable>(T* value, sizeof(T))
+{
+	inspect<T>(value); // OK
+}
+```
 
-Materialization is **not** automatic for:
+```camp
+class List<T: copyable>
+{
+	...
+}
 
-- `T*`
-- array element identity
-- other positions where one real address matters semantically
+void useAny<T: any>(T* value, sizeof(T))
+{
+	List<T> list; // ERROR
+}
+```
 
-There, the generic code is asking for actual storage, not just transport.
+A copy operation in erased generic code requires both the `copyable` constraint and an available `sizeof(T)` parameter when the lowered operation needs the size.
+
+```camp
+void copyOne<T: copyable>(T* dst, T* src, sizeof(T))
+{
+	*dst = *src; // OK
+}
+
+void badCopy<T: copyable>(T* dst, T* src)
+{
+	*dst = *src; // ERROR: sizeof(T) is required for erased copy lowering
+}
+```
 
 ### 6.2.7 Arrays and optionals in generic code
 
@@ -7971,19 +8338,16 @@ Arrays and optionals remain compiler-reserved built-in type forms. They are not 
 
 An array type `T[]` is an expanded form with `elements` and `length` components. In ordinary source, a binding named `items` exposes `items.elements` and `items.length`; the ABI symbols remain `items` and `items_length`.
 
-In a `T: any` context, if erased generic storage requires materialization for a copyable type, the effective storage model becomes:
+In a `T: any` context, `T[]` may describe a span of `T` storage. If `T` is a compiler-expanded form, the span element storage uses the materialized storage form. If `T` is a fixed struct, class, or fixed-size array, indexing the span yields a fixed value lvalue and copying from that lvalue is invalid.
+
+`sizeof(T)` permits enumeration because it gives the element stride. It does not permit copying under `T: any`.
 
 ```camp
-struct(T)[]
-```
-
-for the element storage required by the generic container. For fixed structs and classes, array elements follow class-like copyability rules.
-
-```camp
-void appendAll<T: any>(AnyList<T>* list, T[] items)
+void countItems<T: any>(T[] items, sizeof(T), out nuint count)
 {
+	count = 0;
 	for (nuint i = 0; i < items.length; i++)
-		list.add(items[i]);
+		count++;
 }
 ```
 
@@ -8027,9 +8391,11 @@ The compiler supplies the concrete size at the call site. Across the ABI, it is 
 
 For representation generics, `sizeof(T)` is the size of the chosen representation.
 
-For `T: any`, `sizeof(T)` is the size of the concrete substituted type’s materialized storage form when such storage exists. For fixed structs and classes, `sizeof(T)` is not supplied automatically merely because an operation might copy; generic code must request it explicitly when it truly needs size-based storage or allocation.
+For `T: any`, `sizeof(T)` is the size of the concrete substituted type’s storage form. For compiler-expanded forms, that is the materialized storage form. For fixed structs, classes, and fixed-size arrays, it is the size of the fixed instance or fixed storage object.
 
-This is why `sizeof(T)` composes naturally with the rule that erased `T*` means `struct(T)*` for materialized storage.
+`sizeof(T)` is not supplied automatically merely because an operation might copy. Generic code must request it explicitly when it needs size-based storage, allocation, default-fill, pointer indexing, or erased copy lowering.
+
+For `T: any`, `sizeof(T)` permits size-based operations and enumeration, but never permits copying `T` values. For `T: copyable`, a generic copy operation also requires `sizeof(T)` when the erased lowering needs the storage size.
 
 ### 6.3.2 `vtableof(T: IFoo)`
 
@@ -8095,34 +8461,22 @@ class RefHolder<T: implements IRef>
 ### 6.3.6 Example: size-aware erased storage
 
 ```camp
-class AnyList<T: any>
+class RawSlots<T: any>
 {
 	T* items;
-	nuint count;
 	nuint capacity;
 	Allocator* allocator;
 
-	AnyList(sizeof(T), within allocator)
+	RawSlots(nuint capacity, sizeof(T), within allocator)
 	{
 		this.allocator = allocator;
-	}
-
-	void ensureCapacity(nuint minimum)
-	{
-		if (minimum <= this.capacity)
-			return;
-
-		nuint newCapacity = this.capacity == 0 ? 4 : this.capacity * 2;
-		if (newCapacity < minimum)
-			newCapacity = minimum;
-
-		this.items = (T*)realloc(this.items, sizeof(T) * newCapacity);
-		this.capacity = newCapacity;
+		this.capacity = capacity;
+		this.items = (T*)allocator.alloc(sizeof(T) * capacity);
 	}
 }
 ```
 
-The generic class asks for the storage size explicitly and uses it through ordinary allocator operations.
+The generic class asks for the storage size explicitly and uses it through ordinary allocator operations. It does not copy initialized `T` values.
 
 ## 6.4 Generics and Interfaces
 
@@ -8310,34 +8664,22 @@ Generic code that allocates raw storage rather than invoking constructors uses t
 - allocator APIs
 
 ```camp
-class AnyList<T: any>
+class RawSlots<T: any>
 {
 	T* items;
 	nuint capacity;
-	nuint count;
 	Allocator* allocator;
 
-	AnyList(sizeof(T), within allocator)
+	RawSlots(nuint capacity, sizeof(T), within allocator)
 	{
 		this.allocator = allocator;
-	}
-
-	void ensureCapacity(nuint minimum)
-	{
-		if (minimum <= this.capacity)
-			return;
-
-		nuint newCapacity = this.capacity == 0 ? 4 : this.capacity * 2;
-		if (newCapacity < minimum)
-			newCapacity = minimum;
-
-		this.items = allocator.realloc<T>(this.items, newCapacity, sizeof(T));
-		this.capacity = newCapacity;
+		this.capacity = capacity;
+		this.items = allocator.alloc<T>(capacity, sizeof(T));
 	}
 }
 ```
 
-This is ordinary erased storage management, not a separate generic allocation subsystem.
+This is ordinary erased storage management, not a separate generic allocation subsystem. Generic containers that copy, move, return, or compact initialized `T` values require `T: copyable` and the needed `sizeof(T)` support.
 
 ### 6.5.6 Destruction remains explicit
 
@@ -8380,6 +8722,8 @@ This section sketches the standard library surface for arrays, zero-terminated s
 
 Arrays are compiler-expanded values with an element pointer and a length component. A binding named `items` exposes `items.elements` and `items.length`; the ABI symbols remain `items` and `items_length`.
 
+Fixed-size arrays are not compiler-expanded values, but they convert to the matching array span and therefore use the same array APIs when a span receiver is expected.
+
 #### 7.1.1.1 Array API design
 
 The ordinary array API is written around explicit element type, length, and storage operations.
@@ -8389,19 +8733,19 @@ Representative surface:
 ```camp
 scoped T[] slice<T: any>(const T[] this, @range nuint index = 0, nuint count = ^0, sizeof(T));
 scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
-T[] copy<T: any>(const T[] this, within allocator, sizeof(T));
+T[] copy<T: copyable>(const T[] this, within allocator, sizeof(T));
 ```
 
 The methods operate on the array's direct components. For a receiver named `items`, implementations use `items.elements` and `items.length`.
 
 #### 7.1.1.2 Searching, comparison, and mutation
 
-Generic helpers use `in T` for value-like element transport and `sizeof(T)` where erased storage requires it.
+Non-copying generic helpers may use `T: any` with `sizeof(T)` where erased storage requires element stride. Helpers that copy or write a supplied `T` value into array storage use `T: copyable` and `sizeof(T)`.
 
 ```camp
 nint indexOf<T: any>(const T[] this, in T match, sizeof(T));
 bool contains<T: any>(const T[] this, in T match, sizeof(T));
-void fill<T: any>(T[] this, in T value, sizeof(T));
+void fill<T: copyable>(T[] this, in T value, sizeof(T));
 ```
 
 Elementwise equality and comparison are library operations. Raw array equality compares the expanded components, not the sequence contents.
@@ -8426,10 +8770,10 @@ auto middle = values.slice(2..^1);
 Copy-producing array operations take an allocator:
 
 ```camp
-T[] copy<T: any>(const T[] this, within allocator, sizeof(T));
+T[] copy<T: copyable>(const T[] this, within allocator, sizeof(T));
 ```
 
-The returned array owns the allocated element storage only according to the API contract that produced it. The array type itself is just pointer plus length.
+The returned array owns the allocated element storage only according to the API contract that produced it. The array type itself is just pointer plus length. Copy-producing APIs require `T: copyable` because they copy element values.
 
 #### 7.1.1.5 Arrays of expanded values
 
@@ -8450,6 +8794,8 @@ struct(delegate void())[] calls;
 ```
 
 This keeps the array ABI conventional and prevents recursive expansion.
+
+Generic standard-library types and methods use `T: copyable` when they store, copy, move, compact, swap, or return `T` values. For example, a list or vector that owns contiguous element storage and moves elements during growth or removal is declared with `T: copyable`, not `T: any`. Generic APIs that only observe, enumerate, address, or default-fill storage may use `T: any`.
 
 ### 7.1.2 Strings and Counted Text
 

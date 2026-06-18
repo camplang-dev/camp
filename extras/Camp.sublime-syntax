@@ -12,6 +12,7 @@ variables:
   type_keywords: '\b(?:any|auto|bool|byte|sbyte|ushort|short|uint|int|ulong|long|nuint|nint|float|double|char|wchar|achar|uchar|void|string|wstring|astring)\b'
   type_forms: '\b(?:fn|delegate|async|once|iter|thrown|struct|class)\b'
   storage_keywords: '\b(?:const|volatile|escaped|scoped|unscoped|in|out|thrown|overload|within|sizeof|vtableof)\b'
+  constraint_keywords: '\b(?:implements|copyable)\b'
   statement_keywords: 'if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|init|new'
   declaration_keywords: 'export|public|extern|static|virtual|override|sealed|abstract|fixed|alias'
 
@@ -127,6 +128,8 @@ contexts:
         2: storage.modifier.target.camp
     - match: '\b({{declaration_keywords}})\b'
       scope: storage.modifier.camp
+    - match: '{{constraint_keywords}}'
+      scope: storage.modifier.constraint.camp
     - match: '\b(using|as)\b'
       scope: keyword.control.import.camp
     - match: '\b(struct|class|interface|enum|newtype|params)\b\s+({{identifier}})'
@@ -175,6 +178,8 @@ contexts:
       scope: storage.type.primitive.camp
     - match: '{{type_forms}}'
       scope: storage.type.camp
+    - match: '{{constraint_keywords}}'
+      scope: storage.modifier.constraint.camp
     - match: '{{storage_keywords}}'
       scope: storage.modifier.type.camp
 
