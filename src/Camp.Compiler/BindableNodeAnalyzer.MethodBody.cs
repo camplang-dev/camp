@@ -1789,7 +1789,8 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < arguments.Count; i++)
 		{
 			ParameterDefinition? parameter = parameterIndex < callableParameters.Count ? callableParameters[parameterIndex] : null;
-			while (parameter is SizeOfParameterDefinition && IsExplicitHiddenArgument(arguments[i]))
+			while ((parameter is SizeOfParameterDefinition && IsExplicitHiddenArgument(arguments[i]))
+				|| (arguments[i].Modifier == ArgumentModifier.Catch && parameter is not null && IsWithinParameter(parameter)))
 			{
 				parameterIndex++;
 				parameter = parameterIndex < callableParameters.Count ? callableParameters[parameterIndex] : null;

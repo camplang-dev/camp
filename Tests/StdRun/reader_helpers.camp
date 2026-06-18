@@ -21,7 +21,7 @@ export int main()
 	Allocator* allocator = null;
 	string line = null;
 	within (allocator)
-		line = reader.readLine(within allocator, catch error);
+		line = reader.readLine(catch error);
 	if (error != default)
 		return 4;
 	if (line.compareTo("A") != 0)
@@ -35,7 +35,7 @@ export int main()
 	
 	string rest = null;
 	within (allocator)
-		rest = reader.readToEnd(within allocator, catch error);
+		rest = reader.readToEnd(catch error);
 	if (error != default)
 		return 8;
 	if (rest.compareTo("C\nDEF") != 0)
