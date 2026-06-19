@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Text.Json;
 
@@ -195,9 +196,7 @@ public static class MetadataJsonSerializer
 					WriteTypeDefinition(json, type);
 					break;
 				case VariableDefinition variable:
-					WriteTypeProperty(json, "type", variable.Type, variable.ResolvedType);
-					if (variable.IsFixedStorage)
-						json.WriteBoolean("fixed", true);
+					WriteVariable(json, variable, enumValue: null);
 					break;
 				case FunctionDefinition function:
 					WriteFunction(json, function);
@@ -260,7 +259,7 @@ public static class MetadataJsonSerializer
 					break;
 				case EnumDefinition enumDefinition:
 					WriteTypeProperty(json, "underlyingType", enumDefinition.UnderlyingType, enumDefinition.UnderlyingType?.ResolvedType);
-					WriteDefinitionArray(json, "values", enumDefinition.Values, includeKind: false);
+					WriteEnumValues(json, enumDefinition);
 					WriteDefinitionArray(json, "functions", enumDefinition.Functions);
 					break;
 				case NewtypeDefinition newtypeDefinition:
@@ -285,6 +284,7 @@ public static class MetadataJsonSerializer
 			WriteTypeProperty(json, "returnType", function.ReturnType, function.ResolvedType);
 			if (function.CallableAscriptionType is not null)
 				WriteTypeProperty(json, "ascription", function.CallableAscriptionType, function.CallableAscriptionType.ResolvedType);
+			WritePropertyInfo(json, function);
 			if (function.GenericParameters.Count > 0)
 			{
 				json.WriteStartArray("typeParameters");
@@ -302,8 +302,69 @@ public static class MetadataJsonSerializer
 			if (parameter.IsOverloadSelector)
 				json.WriteBoolean("overload", true);
 			WriteTypeProperty(json, "type", parameter.Type, parameter.ResolvedType);
+			if (parameter.DefaultValue is not null)
+				json.WriteString("defaultValue", SerializeExpression(parameter.DefaultValue));
 			if (parameter is VTableOfParameterDefinition vtable)
 				WriteTypeProperty(json, "interfaceType", vtable.InterfaceType, vtable.InterfaceType?.ResolvedType);
+		}
+
+		void WriteVariable(Utf8JsonWriter json, VariableDefinition variable, BigInteger? enumValue)
+		{
+			WriteTypeProperty(json, "type", variable.Type, variable.ResolvedType);
+			if (enumValue is not null)
+				WriteInteger(json, "value", enumValue.Value);
+			if (variable.IsFixedStorage)
+				json.WriteBoolean("fixed", true);
+		}
+
+		void WriteEnumValues(Utf8JsonWriter json, EnumDefinition enumDefinition)
+		{
+			List<VariableDefinition> sourceDefinitions = enumDefinition.Values.Where(static definition => !IsGeneratedDefinition(definition)).ToList();
+			if (sourceDefinitions.Count == 0)
+				return;
+
+			Dictionary<string, BigInteger> valuesByName = new(StringComparer.Ordinal);
+			BigInteger nextValue = BigInteger.Zero;
+			json.WriteStartArray("values");
+			foreach (VariableDefinition value in sourceDefinitions)
+			{
+				BigInteger numericValue = nextValue;
+				if (TryEvaluateIntegerExpression(value.InitialValue, valuesByName, out BigInteger explicitValue))
+					numericValue = explicitValue;
+				valuesByName[value.Name] = numericValue;
+				valuesByName[value.Symbol] = numericValue;
+				nextValue = numericValue + BigInteger.One;
+
+				json.WriteStartObject();
+				WriteIdentity(json, value, includeKind: false, includeVisibility: false);
+				WriteVariable(json, value, numericValue);
+				WriteMetadata(json, value.Attributes);
+				json.WriteEndObject();
+				emitted.Add(value);
+			}
+			json.WriteEndArray();
+		}
+
+		void WritePropertyInfo(Utf8JsonWriter json, FunctionDefinition function)
+		{
+			if (!TryGetPropertyInfo(function, IsTypeScoped(function), out string? accessor, out string? propertyName, out bool indexer, out List<string>? indexParams, out string? valueParam))
+				return;
+
+			json.WriteBoolean("property", true);
+			json.WriteString("propertyAccessor", accessor);
+			if (!string.IsNullOrWhiteSpace(propertyName))
+				json.WriteString("propertyName", propertyName);
+			if (indexer)
+				json.WriteBoolean("propertyIndexer", true);
+			if (indexParams.Count > 0)
+			{
+				json.WriteStartArray("propertyIndexParams");
+				foreach (string parameter in indexParams)
+					json.WriteStringValue(parameter);
+				json.WriteEndArray();
+			}
+			if (!string.IsNullOrWhiteSpace(valueParam))
+				json.WriteString("propertyValueParam", valueParam);
 		}
 
 		void WriteGenericParameter(Utf8JsonWriter json, GenericParameter parameter)
@@ -369,8 +430,6 @@ public static class MetadataJsonSerializer
 		{
 			json.WriteStartObject();
 			json.WriteString("name", attribute.Name.TrimStart('@'));
-			if (attribute.IsDocCommentAttribute)
-				json.WriteBoolean("doc", true);
 
 			List<ArgumentExpression> positional = attribute.Arguments.Where(static argument => string.IsNullOrWhiteSpace(argument.Name)).ToList();
 			List<ArgumentExpression> named = attribute.Arguments.Where(static argument => !string.IsNullOrWhiteSpace(argument.Name)).ToList();
@@ -533,6 +592,196 @@ public static class MetadataJsonSerializer
 			if (definition.Public is not null)
 				return "public";
 			return null;
+		}
+
+		static string SerializeExpression(Expression expression)
+		{
+			using StringWriter writer = new();
+			BindableNodeCodeSerializer.Serialize(expression, writer);
+			return writer.ToString().Trim();
+		}
+
+		bool IsTypeScoped(FunctionDefinition function)
+		{
+			return ids.TryGetValue(function, out string? id) && id.Contains("/function:", StringComparison.Ordinal);
+		}
+
+		static bool TryGetPropertyInfo(FunctionDefinition function, bool isTypeScoped, out string accessor, out string propertyName, out bool indexer, out List<string> indexParams, out string? valueParam)
+		{
+			accessor = "";
+			propertyName = "";
+			indexer = false;
+			indexParams = [];
+			valueParam = null;
+
+			if (!isTypeScoped && !function.Parameters.OfType<ThisParameterDefinition>().Any())
+				return false;
+
+			if (function.Name.StartsWith("get", StringComparison.Ordinal) && function.ResolvedType != "void" && function.IteratorKind == IteratorKind.None)
+			{
+				accessor = "get";
+				propertyName = GetPropertyName(function.Name, "get", function.IsAsync);
+				indexer = propertyName.Length == 0;
+				indexParams.AddRange(GetPropertyParameterNames(function.Parameters));
+				return function.Name.Length >= "get".Length;
+			}
+
+			if (function.Name.StartsWith("set", StringComparison.Ordinal) && function.IteratorKind == IteratorKind.None)
+			{
+				List<string> ordinaryParameters = GetPropertyParameterNames(function.Parameters);
+				if (ordinaryParameters.Count == 0)
+					return false;
+
+				accessor = "set";
+				propertyName = GetPropertyName(function.Name, "set", function.IsAsync);
+				indexer = propertyName.Length == 0;
+				valueParam = ordinaryParameters[^1];
+				indexParams.AddRange(ordinaryParameters.Take(ordinaryParameters.Count - 1));
+				return function.Name.Length >= "set".Length;
+			}
+
+			return false;
+		}
+
+		static string GetPropertyName(string functionName, string prefix, bool async)
+		{
+			string name = functionName[prefix.Length..];
+			if (async && name.EndsWith("Async", StringComparison.Ordinal) && name.Length > "Async".Length)
+				name = name[..^"Async".Length];
+			return name;
+		}
+
+		static List<string> GetPropertyParameterNames(IReadOnlyList<ParameterDefinition> parameters)
+		{
+			List<string> names = [];
+			foreach (ParameterDefinition parameter in parameters)
+			{
+				if (parameter is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+					continue;
+				if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
+					continue;
+				names.Add(parameter.Name);
+			}
+			return names;
+		}
+
+		static bool TryEvaluateIntegerExpression(Expression? expression, IReadOnlyDictionary<string, BigInteger> namedValues, out BigInteger value)
+		{
+			value = BigInteger.Zero;
+			return expression switch
+			{
+				null => false,
+				LiteralExpression literal => TryGetIntegerLiteral(literal, out value),
+				ParenthesizedExpression parenthesized => TryEvaluateIntegerExpression(parenthesized.Expression, namedValues, out value),
+				CastExpression cast => TryEvaluateIntegerExpression(cast.Expression, namedValues, out value),
+				UnaryExpression unary => TryEvaluateUnaryIntegerExpression(unary, namedValues, out value),
+				BinaryExpression binary => TryEvaluateBinaryIntegerExpression(binary, namedValues, out value),
+				NamedExpression named when named.Qualifiers.Count == 0 => namedValues.TryGetValue(named.Name, out value),
+				VariableReferenceExpression { Variable: VariableDefinition variable } => namedValues.TryGetValue(variable.Name, out value) || namedValues.TryGetValue(variable.Symbol, out value),
+				_ => false
+			};
+		}
+
+		static bool TryGetIntegerLiteral(LiteralExpression literal, out BigInteger value)
+		{
+			value = BigInteger.Zero;
+			if (literal.Value is int intValue)
+			{
+				value = intValue;
+				return true;
+			}
+			if (literal.Value is uint uintValue)
+			{
+				value = uintValue;
+				return true;
+			}
+			if (literal.Value is long longValue)
+			{
+				value = longValue;
+				return true;
+			}
+			if (literal.Value is ulong ulongValue)
+			{
+				value = ulongValue;
+				return true;
+			}
+			string text = literal.Text.TrimEnd('u', 'U');
+			if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+				return BigInteger.TryParse(text[2..], System.Globalization.NumberStyles.AllowHexSpecifier, System.Globalization.CultureInfo.InvariantCulture, out value);
+			return BigInteger.TryParse(text, out value);
+		}
+
+		static bool TryEvaluateUnaryIntegerExpression(UnaryExpression unary, IReadOnlyDictionary<string, BigInteger> namedValues, out BigInteger value)
+		{
+			value = BigInteger.Zero;
+			if (!TryEvaluateIntegerExpression(unary.Operand, namedValues, out BigInteger operand))
+				return false;
+			switch (unary.Operator)
+			{
+				case UnaryOperator.Plus:
+					value = operand;
+					return true;
+				case UnaryOperator.Minus:
+					value = -operand;
+					return true;
+				case UnaryOperator.BitwiseNot:
+					value = ~operand;
+					return true;
+				default:
+					return false;
+			}
+		}
+
+		static bool TryEvaluateBinaryIntegerExpression(BinaryExpression binary, IReadOnlyDictionary<string, BigInteger> namedValues, out BigInteger value)
+		{
+			value = BigInteger.Zero;
+			if (!TryEvaluateIntegerExpression(binary.Left, namedValues, out BigInteger left) || !TryEvaluateIntegerExpression(binary.Right, namedValues, out BigInteger right))
+				return false;
+			switch (binary.Operator)
+			{
+				case BinaryOperator.Add:
+					value = left + right;
+					return true;
+				case BinaryOperator.Subtract:
+					value = left - right;
+					return true;
+				case BinaryOperator.Multiply:
+					value = left * right;
+					return true;
+				case BinaryOperator.Divide when right != BigInteger.Zero:
+					value = left / right;
+					return true;
+				case BinaryOperator.Modulo when right != BigInteger.Zero:
+					value = left % right;
+					return true;
+				case BinaryOperator.BitwiseAnd:
+					value = left & right;
+					return true;
+				case BinaryOperator.BitwiseOr:
+					value = left | right;
+					return true;
+				case BinaryOperator.BitwiseXor:
+					value = left ^ right;
+					return true;
+				case BinaryOperator.LeftShift when right >= BigInteger.Zero && right <= int.MaxValue:
+					value = left << (int)right;
+					return true;
+				case BinaryOperator.RightShift when right >= BigInteger.Zero && right <= int.MaxValue:
+					value = left >> (int)right;
+					return true;
+				default:
+					return false;
+			}
+		}
+
+		static void WriteInteger(Utf8JsonWriter json, string propertyName, BigInteger value)
+		{
+			if (value >= long.MinValue && value <= long.MaxValue)
+				json.WriteNumber(propertyName, (long)value);
+			else if (value >= BigInteger.Zero && value <= ulong.MaxValue)
+				json.WriteNumber(propertyName, (ulong)value);
+			else
+				json.WriteString(propertyName, value.ToString(System.Globalization.CultureInfo.InvariantCulture));
 		}
 
 		static bool IsSameSymbol(Definition definition)

@@ -5,6 +5,26 @@ export struct Widget
 {
 	/// Stored count.
 	int count;
+
+	/// Gets the count.
+	int getCount() => this.count;
+
+	/// Sets the count.
+	void setCount(int value)
+	{
+		this.count = value;
+	}
+}
+
+/// Example mode values.
+export enum Mode
+{
+	/// First mode.
+	First = 4,
+	/// Second mode.
+	Second,
+	/// Combined mode.
+	Combined = 12
 }
 
 /// Exported class layout.

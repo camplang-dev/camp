@@ -31,7 +31,6 @@
           "metadata": [
             {
               "name": "summary",
-              "doc": true,
               "content": "Stored value."
             }
           ]
@@ -40,7 +39,6 @@
       "metadata": [
         {
           "name": "summary",
-          "doc": true,
           "content": "A %s stores a single value.",
           "symbols": [
             {

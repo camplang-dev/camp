@@ -24,8 +24,45 @@
           "metadata": [
             {
               "name": "summary",
-              "doc": true,
               "content": "Stored count."
+            }
+          ]
+        }
+      ],
+      "functions": [
+        {
+          "id": "struct:Docs::Widget/function:getCount",
+          "name": "getCount",
+          "returnType": "int",
+          "property": true,
+          "propertyAccessor": "get",
+          "propertyName": "Count",
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Gets the count."
+            }
+          ]
+        },
+        {
+          "id": "struct:Docs::Widget/function:setCount",
+          "name": "setCount",
+          "returnType": "void",
+          "property": true,
+          "propertyAccessor": "set",
+          "propertyName": "Count",
+          "propertyValueParam": "value",
+          "parameters": [
+            {
+              "id": "struct:Docs::Widget/function:setCount/parameter:value",
+              "name": "value",
+              "type": "int"
+            }
+          ],
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Sets the count."
             }
           ]
         }
@@ -33,8 +70,57 @@
       "metadata": [
         {
           "name": "summary",
-          "doc": true,
           "content": "A sample exported type."
+        }
+      ]
+    },
+    {
+      "id": "enum:Docs::Mode",
+      "kind": "enum",
+      "name": "Mode",
+      "visibility": "export",
+      "values": [
+        {
+          "id": "enum:Docs::Mode/value:First",
+          "name": "First",
+          "type": "Mode",
+          "value": 4,
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "First mode."
+            }
+          ]
+        },
+        {
+          "id": "enum:Docs::Mode/value:Second",
+          "name": "Second",
+          "type": "Mode",
+          "value": 5,
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Second mode."
+            }
+          ]
+        },
+        {
+          "id": "enum:Docs::Mode/value:Combined",
+          "name": "Combined",
+          "type": "Mode",
+          "value": 12,
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Combined mode."
+            }
+          ]
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Example mode values."
         }
       ]
     },
@@ -46,7 +132,6 @@
       "metadata": [
         {
           "name": "summary",
-          "doc": true,
           "content": "Exported class layout."
         }
       ]
@@ -66,7 +151,6 @@
           "metadata": [
             {
               "name": "summary",
-              "doc": true,
               "content": "Element type."
             }
           ]
@@ -80,7 +164,6 @@
           "metadata": [
             {
               "name": "summary",
-              "doc": true,
               "content": "Values to search."
             }
           ]
@@ -93,7 +176,6 @@
           "metadata": [
             {
               "name": "summary",
-              "doc": true,
               "content": "Value to find."
             }
           ]
@@ -102,13 +184,13 @@
           "id": "function:Docs::find/parameter:start",
           "name": "start",
           "type": "nuint",
+          "defaultValue": "0",
           "metadata": [
             {
               "name": "range"
             },
             {
               "name": "summary",
-              "doc": true,
               "content": "First index to search."
             }
           ]
@@ -117,10 +199,10 @@
           "id": "function:Docs::find/parameter:count",
           "name": "count",
           "type": "nuint",
+          "defaultValue": "^0",
           "metadata": [
             {
               "name": "summary",
-              "doc": true,
               "content": "Number of values to inspect."
             }
           ]
@@ -134,7 +216,6 @@
       "metadata": [
         {
           "name": "summary",
-          "doc": true,
           "content": "Finds %s values.",
           "symbols": [
             {
@@ -145,7 +226,6 @@
         },
         {
           "name": "returns",
-          "doc": true,
           "content": "The matching index, or -1."
         }
       ]

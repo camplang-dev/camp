@@ -20,7 +20,6 @@
       "metadata": [
         {
           "name": "summary",
-          "doc": true,
           "content": "Exported value."
         }
       ]
@@ -34,7 +33,6 @@
       "metadata": [
         {
           "name": "summary",
-          "doc": true,
           "content": "Public value."
         }
       ]
@@ -47,7 +45,6 @@
       "metadata": [
         {
           "name": "summary",
-          "doc": true,
           "content": "File-local value."
         }
       ]
@@ -65,7 +62,6 @@
           "metadata": [
             {
               "name": "summary",
-              "doc": true,
               "content": "Exported class field."
             }
           ]
@@ -74,7 +70,6 @@
       "metadata": [
         {
           "name": "summary",
-          "doc": true,
           "content": "Exported class."
         }
       ]
@@ -92,7 +87,6 @@
           "metadata": [
             {
               "name": "summary",
-              "doc": true,
               "content": "Public class field."
             }
           ]
@@ -101,7 +95,6 @@
       "metadata": [
         {
           "name": "summary",
-          "doc": true,
           "content": "Public class."
         }
       ]
@@ -118,7 +111,6 @@
           "metadata": [
             {
               "name": "summary",
-              "doc": true,
               "content": "File-local class field."
             }
           ]
@@ -127,7 +119,6 @@
       "metadata": [
         {
           "name": "summary",
-          "doc": true,
           "content": "File-local class."
         }
       ]
