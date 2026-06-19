@@ -1,0 +1,1 @@
+tests/Diagnostics/fixed_array_span_element_invalid.camp(1,23): error: Arrays whose element type is fixed-size array storage are not supported; use a pointer-to-fixed-array element type instead.

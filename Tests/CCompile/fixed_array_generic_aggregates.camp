@@ -1,0 +1,73 @@
+extern void* malloc(nuint size);
+
+class RefType
+{
+	int value;
+}
+
+fixed struct FixedValue
+{
+	int value;
+}
+
+struct InlineBuffer
+{
+	fixed byte[4] data;
+	int marker;
+}
+
+class PointerBox<T: any>
+{
+	T* value;
+
+	void set(T* value)
+	{
+		this.value = value;
+	}
+
+	T* getValue()
+	{
+		return this.value;
+	}
+}
+
+class ValueBox<T: copyable>
+{
+	T value;
+
+	void set(in T value)
+	{
+		this.value = value;
+	}
+}
+
+export int main()
+{
+	fixed byte[4] bytes = [1, 2, 3, 4];
+	byte[4]* bytesPointer = &bytes;
+
+	FixedValue fixedValue = default;
+	RefType* refValue = new RefType();
+
+	auto byteBox = new PointerBox<byte[4]>();
+	byteBox.set(bytesPointer);
+
+	auto fixedBox = new PointerBox<FixedValue>();
+	fixedBox.set(&fixedValue);
+
+	auto refBox = new PointerBox<RefType>();
+	refBox.set(refValue);
+
+	InlineBuffer first = default;
+	first.data = [5, 6, 7, 8];
+	first.marker = 11;
+	InlineBuffer second = first;
+
+	auto valueBox = new ValueBox<InlineBuffer>();
+	valueBox.set(second);
+
+	auto pointerValueBox = new ValueBox<byte[4]*>();
+	pointerValueBox.set(bytesPointer);
+
+	return (int)bytes[1] + fixedValue.value + refValue.value + (int)second.data[2] + second.marker;
+}

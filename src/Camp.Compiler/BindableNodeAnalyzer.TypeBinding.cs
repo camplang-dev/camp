@@ -70,6 +70,8 @@ public sealed partial class BindableNodeAnalyzer
 				AnalyzeOptionalType(array.ElementType, scope);
 				if (IsExpandedFormType(array.ElementType))
 					Report(GetRange(array.SourceSyntax), $"Arrays of expanded values are not supported; use struct({FormatTypeReference(array.ElementType)})[] instead.");
+				if (IsDirectFixedArrayType(array.ElementType))
+					Report(GetRange(array.SourceSyntax), "Arrays whose element type is fixed-size array storage are not supported; use a pointer-to-fixed-array element type instead.");
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 

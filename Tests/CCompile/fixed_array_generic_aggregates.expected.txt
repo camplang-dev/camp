@@ -1,0 +1,107 @@
+// file: fixed_array_generic_aggregates.c
+#include "fixed_array_generic_aggregates_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+static void PointerBox_set(PointerBox *this, void *value);
+static void *PointerBox_getValue(PointerBox *this);
+static void ValueBox_set(ValueBox *this, void *value);
+
+static void PointerBox_set(PointerBox *this, void *value)
+{
+	this->value = value;
+}
+
+static void *PointerBox_getValue(PointerBox *this)
+{
+	return this->value;
+}
+
+static void ValueBox_set(ValueBox *this, void *value)
+{
+	this->value = value;
+}
+
+int main(void)
+{
+	uint8_t bytes[4] = {1, 2, 3, 4};
+	uint8_t (*bytesPointer)[4] = &bytes;
+	FixedValue fixedValue = (FixedValue){0};
+	RefType *refValue = (RefType *)(malloc(sizeof(RefType)));
+	PointerBox *byteBox = (PointerBox *)(malloc(sizeof(PointerBox)));
+	PointerBox_set(byteBox, bytesPointer);
+	PointerBox *fixedBox = (PointerBox *)(malloc(sizeof(PointerBox)));
+	PointerBox_set(fixedBox, &fixedValue);
+	PointerBox *refBox = (PointerBox *)(malloc(sizeof(PointerBox)));
+	PointerBox_set(refBox, refValue);
+	InlineBuffer first = (InlineBuffer){0};
+	__builtin_memcpy(first.data, (uint8_t[4]){5, 6, 7, 8}, sizeof(first.data));
+	first.marker = 11;
+	InlineBuffer second = first;
+	ValueBox *valueBox = (ValueBox *)(malloc(sizeof(ValueBox)));
+	ValueBox_set(valueBox, &second);
+	ValueBox *pointerValueBox = (ValueBox *)(malloc(sizeof(ValueBox)));
+	ValueBox_set(pointerValueBox, &bytesPointer);
+	return (((((int)(((uint8_t *)(bytes))[1]) + fixedValue.value) + refValue->value) + (int)(((uint8_t *)(second.data))[2])) + second.marker);
+}
+
+// file: fixed_array_generic_aggregates.h
+#ifndef FIXED_ARRAY_GENERIC_AGGREGATES_H_
+#define FIXED_ARRAY_GENERIC_AGGREGATES_H_
+
+#include "fixed_array_generic_aggregates_private.h"
+
+int main(void);
+
+#endif
+// file: fixed_array_generic_aggregates_private.h
+#ifndef FIXED_ARRAY_GENERIC_AGGREGATES_PRIVATE_H_
+#define FIXED_ARRAY_GENERIC_AGGREGATES_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct RefType RefType;
+typedef struct FixedValue FixedValue;
+typedef struct InlineBuffer InlineBuffer;
+typedef struct PointerBox PointerBox;
+typedef struct ValueBox ValueBox;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct RefType
+{
+	int value;
+};
+struct FixedValue
+{
+	int value;
+};
+struct InlineBuffer
+{
+	uint8_t data[4];
+	int marker;
+};
+struct PointerBox
+{
+	void *value;
+};
+struct ValueBox
+{
+	void* value;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: fixed_array_generic_aggregates.c
