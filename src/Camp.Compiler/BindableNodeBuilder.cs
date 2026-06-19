@@ -410,7 +410,7 @@ public sealed partial class BindableNodeBuilder
 		{
 			SourceSyntax = syntax,
 			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Enum value is missing a name."),
-			Symbol = syntax.Identifier?.Value ?? "",
+			Symbol = enumName + "_" + (syntax.Identifier?.Value ?? ""),
 			Type = new NamedTypeReference { SourceSyntax = syntax, Name = enumName }
 		};
 

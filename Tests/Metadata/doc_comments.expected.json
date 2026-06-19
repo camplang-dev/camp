@@ -217,6 +217,7 @@
         {
           "id": "enum:Docs::Mode/value:First",
           "name": "First",
+          "symbol": "Mode_First",
           "type": "Mode",
           "value": 4,
           "metadata": [
@@ -229,6 +230,7 @@
         {
           "id": "enum:Docs::Mode/value:Second",
           "name": "Second",
+          "symbol": "Mode_Second",
           "type": "Mode",
           "value": 5,
           "metadata": [
@@ -241,6 +243,7 @@
         {
           "id": "enum:Docs::Mode/value:Combined",
           "name": "Combined",
+          "symbol": "Mode_Combined",
           "type": "Mode",
           "value": 12,
           "metadata": [

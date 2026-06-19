@@ -1,0 +1,54 @@
+// file: enum_value_c_symbols.c
+#include "enum_value_c_symbols_private.h"
+
+
+int main(void)
+{
+	FileMode mode = FileMode_OPEN_EXISTING;
+	if ((mode == FileMode_CREATE))
+	{
+		return 1;
+	}
+	return 0;
+}
+
+// file: enum_value_c_symbols.h
+#ifndef ENUM_VALUE_C_SYMBOLS_H_
+#define ENUM_VALUE_C_SYMBOLS_H_
+
+#include "enum_value_c_symbols_private.h"
+
+int main(void);
+
+#endif
+// file: enum_value_c_symbols_private.h
+#ifndef ENUM_VALUE_C_SYMBOLS_PRIVATE_H_
+#define ENUM_VALUE_C_SYMBOLS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+typedef enum FileMode
+{
+	FileMode_OPEN_EXISTING,
+	FileMode_CREATE = 7,
+	FileMode_APPEND
+} FileMode;
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: enum_value_c_symbols.c

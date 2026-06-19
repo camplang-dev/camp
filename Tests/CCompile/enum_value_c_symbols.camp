@@ -1,0 +1,14 @@
+enum FileMode
+{
+	OPEN_EXISTING,
+	CREATE = 7,
+	APPEND
+}
+
+export int main()
+{
+	FileMode mode = FileMode.OPEN_EXISTING;
+	if (mode == FileMode.CREATE)
+		return 1;
+	return 0;
+}
