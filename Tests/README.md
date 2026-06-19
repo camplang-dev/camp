@@ -6,6 +6,20 @@ Run the golden integration suite from `/src` with:
 dotnet test camplang.sln
 ```
 
+During compiler work, prefer targeted runs. Golden discovery supports these
+environment variables:
+
+```sh
+CAMP_TEST_KIND=Metadata dotnet test src/camplang.sln --no-build
+CAMP_TEST_KIND=CCompile CAMP_TEST_CASE=generic_array dotnet test src/camplang.sln --no-build
+CAMP_TEST_CASE=generic_self_link dotnet test src/camplang.sln --no-build
+```
+
+`CAMP_TEST_KIND` matches top-level test folders such as `Metadata`, `CCompile`,
+`Lowering`, or `StdRun`. `CAMP_TEST_CASE` matches one or more comma-separated
+substrings of the repository-relative case path without the `.camp` extension.
+Use a full suite only for broad compiler changes or before larger commits.
+
 Run tests and generate a console + HTML coverage report with:
 
 ```sh

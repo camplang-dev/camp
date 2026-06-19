@@ -19,17 +19,41 @@ public sealed class GoldenFileTests
 	{
 		string repositoryRoot = FindRepositoryRoot();
 		string casesRoot = Path.Combine(repositoryRoot, "tests");
+		string? kindFilter = Environment.GetEnvironmentVariable("CAMP_TEST_KIND");
+		string? caseFilter = Environment.GetEnvironmentVariable("CAMP_TEST_CASE");
 		foreach (string casePath in Directory.GetFiles(casesRoot, "*.camp", SearchOption.AllDirectories)
 			.Where(static path => !Path.GetFileName(path).Contains(".expected.", StringComparison.Ordinal) && !Path.GetFileName(path).Contains(".actual.", StringComparison.Ordinal))
 			.OrderBy(static path => path, StringComparer.Ordinal))
 		{
+			GoldenFileTestKind kind = GetKind(casesRoot, casePath);
+			string relativePath = Path.GetRelativePath(casesRoot, casePath).Replace('\\', '/');
+			if (!MatchesFilter(kind.ToString(), kindFilter) || !MatchesCaseFilter(relativePath, caseFilter))
+				continue;
+
 			yield return [new GoldenFileTestCase
 			{
 				RepositoryRoot = repositoryRoot,
 				CasePath = casePath,
-				Kind = GetKind(casesRoot, casePath)
+				Kind = kind
 			}];
 		}
+	}
+
+	static bool MatchesFilter(string value, string? filter)
+	{
+		if (string.IsNullOrWhiteSpace(filter))
+			return true;
+		return filter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Any(item => value.Equals(item, StringComparison.OrdinalIgnoreCase));
+	}
+
+	static bool MatchesCaseFilter(string relativePath, string? filter)
+	{
+		if (string.IsNullOrWhiteSpace(filter))
+			return true;
+		string extensionless = Path.ChangeExtension(relativePath, null)?.Replace('\\', '/') ?? relativePath;
+		return filter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Any(item => extensionless.Contains(item.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase));
 	}
 
 	static GoldenFileTestKind GetKind(string casesRoot, string casePath)
