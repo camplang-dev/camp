@@ -330,13 +330,14 @@ sealed class CampCli
 		BuildOptionBag bag = new();
 		ApplyGlobalPragmas(environment, bag, errors);
 
-		List<string> initialPatterns = [.. cli.Positionals, .. cli.IncludePatterns];
-		List<string> sourceFiles = ExpandSourcePatterns(initialPatterns, cli.ExcludePatterns, environment.WorkingDirectory, errors);
-		foreach (string file in sourceFiles)
+		List<string> sourceFiles = ExpandSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory, errors);
+		List<string> includeFiles = ExpandSourcePatterns(cli.IncludePatterns, [], environment.WorkingDirectory, errors);
+		foreach (string file in sourceFiles.Concat(includeFiles))
 			ApplyFilePragmas(file, environment, bag, Precedence.Local, errors);
 
 		bag.Apply(cli, Precedence.CommandLine, "command line", errors);
-		sourceFiles = ExpandSourcePatterns([.. cli.Positionals, .. bag.IncludePatterns], bag.ExcludePatterns, environment.WorkingDirectory, errors);
+		sourceFiles = ExpandSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory, errors);
+		includeFiles = ExpandSourcePatterns(bag.IncludePatterns, [], environment.WorkingDirectory, errors);
 		if (sourceFiles.Count == 0)
 			errors.Add("At least one source file pattern is required.");
 
@@ -378,6 +379,7 @@ sealed class CampCli
 		request.References.AddRange(bag.References);
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
+		request.IncludeFiles.AddRange(includeFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		return true;
 	}
 

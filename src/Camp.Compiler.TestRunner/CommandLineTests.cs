@@ -71,6 +71,29 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Include_files_contribute_build_pragmas_without_becoming_project_sources()
+	{
+		string api = CreateTempCase("include_pragmas_api.camp", """
+			#build --nostdlib
+			#build --artifact none
+
+			export extern void includedOnly();
+			""");
+		string source = CreateTempCase("include_pragmas_main.camp", """
+			export void main()
+			{
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "-i", api, "--build-dir", TempPath("include-pragma-build"));
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("generated: include_pragmas_main.c", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("include_pragmas_api.c", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("_api.camp", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Run_rejects_non_exec_artifact_before_building()
 	{
 		string temp = CreateTempCase("run_static.camp", """
