@@ -1,12 +1,17 @@
 export as Std;
 
+/// A vectorized list of items.
+/// @remarks
+/// A [List<T>] wraps an array, copying elements in and out, and growing it as necessary.
+/// 
+/// All methods that accept indexes or ranges are safe to call with out-of-range values.
 export class List<T: copyable>
 {
 	T[] items;
 	nuint length;
 	Allocator* allocator;
 
-	// Initializes an empty list and remembers the allocator used for storage.
+	/// Initializes an empty list and remembers the allocator used for storage.
 	export List(within allocator, sizeof(T))
 	{
 		this.items = default;
@@ -14,7 +19,7 @@ export class List<T: copyable>
 		this.allocator = allocator;
 	}
 
-	// Releases the allocated element buffer, if any.
+	/// Releases the allocated element buffer, if any.
 	export ~List()
 	{
 		within (this.allocator) delete this.items;
@@ -23,7 +28,8 @@ export class List<T: copyable>
 		this.length = 0;
 	}
 
-	// Returns a pointer to an item in the backing buffer.
+	/// Returns a pointer to an item in the backing buffer.
+	/// - at: The index of the item to return.  If `at >= this.length` then the return value is `null`.
 	export T* getAddressOf(@index nuint at)
 	{
 		if (at >= this.length)
@@ -32,7 +38,9 @@ export class List<T: copyable>
 		return &this.items[at];
 	}
 
-	// Adds or inserts a single item.
+	/// Adds or inserts a single item.
+	/// - item: A reference to the item to insert.
+	/// - at: The index before which the item is inserted.  If `at >= this.length` then the item is inserted at the end of the list.
 	export void add(in T item, @index nuint at = ^0)
 	{
 		if (at > this.length)
@@ -47,7 +55,8 @@ export class List<T: copyable>
 		this.length++;
 	}
 
-	// Replaces the item at an index.
+	/// Replaces the item at an index.
+	/// - at: The index of the item to replace.  If `at >= this.length`, no item is replaced.
 	export void setItem(@index nuint at, in T value)
 	{
 		if (at >= this.length)
@@ -56,7 +65,8 @@ export class List<T: copyable>
 		this.items[at] = value;
 	}
 
-	// Returns the item at an index.
+	/// Returns the item at an index.
+	/// - at: The index of the item to replace.  If `at >= this.length`, the return value is `default`.
 	export T getItem(@index nuint at)
 	{
 		T result = default;
@@ -67,7 +77,9 @@ export class List<T: copyable>
 		return result;
 	}
 
-	// Removes one item and returns 1 when an item was removed.
+	/// Removes one item and returns 1 when an item was removed.
+	/// - at: The index of the item to remove.  If `at >= this.length`, the no item is removed.
+	/// @returns 1 if an item was removed, otherwise 0.
 	export nuint remove(@index nuint at)
 	{
 		if (at >= this.length)
@@ -78,7 +90,8 @@ export class List<T: copyable>
 		return 1;
 	}
 
-	// Removes a range and returns the number of items removed.
+	/// Removes a range and returns the number of items removed.
+	/// @returns The number of removed items.
 	export nuint removeRange(@range nuint startAt = 0, nuint count = ^0)
 	{
 		T[] used = this.items[..this.length];
@@ -91,7 +104,7 @@ export class List<T: copyable>
 		return removed.length;
 	}
 
-	// Clears the list and optionally releases its buffer.
+	/// Clears the list and optionally releases its buffer.
 	export void clear(bool deleteBuffer = false)
 	{
 		this.length = 0;
@@ -102,7 +115,7 @@ export class List<T: copyable>
 		}
 	}
 
-	// Allocates a new list and copies a range of items into it.
+	/// Allocates a new list and copies a range of items into it.
 	export List<T>* copyList(@range nuint startAt = 0, nuint count = ^0)
 	{
 		auto copy = within (this.allocator) new List<T>();
@@ -114,7 +127,7 @@ export class List<T: copyable>
 		return copy;
 	}
 
-	// Adds or inserts all items from an array.
+	/// Adds or inserts all items from an array.
 	export void addRange(const T[] array, @index nuint at = ^0)
 	{
 		if (array.length == 0)
@@ -133,7 +146,7 @@ export class List<T: copyable>
 		this.length = newLength;
 	}
 
-	// Transfers the used buffer span to the caller and empties the list.
+	/// Transfers the used buffer span to the caller and empties the list.
 	export T[] takeBuffer()
 	{
 		T[] bufferResult = { this.items.elements, this.length };
@@ -142,21 +155,21 @@ export class List<T: copyable>
 		return bufferResult;
 	}
 
-	// Allocates a new array and copies a range of items into it.
+	/// Allocates a new array and copies a range of items into it.
 	export T[] copyArray(@range nuint startAt = 0, nuint count = ^0)
 	{
 		T[] used = this.items[..this.length];
 		return within (this.allocator) used[startAt..startAt + count].copyArray<T>();
 	}
 
-	// Copies a range of items into an existing array.
+	/// Copies a range of items into an existing array.
 	export void copyTo(T[] dest, nuint destIndex, @range nuint startAt = 0, nuint count = ^0)
 	{
 		T[] used = this.items[..this.length];
 		used[startAt..startAt + count].copyTo<T>(dest[destIndex..]);
 	}
 
-	// Returns the first matching index, or -1 when no match is found.
+	/// Returns the first matching index, or -1 when no match is found.
 	export nint findIndex(in T item, delegate bool(in T left, in T right) equals, @range nuint startAt = 0, nuint count = ^0)
 	{
 		T[] used = this.items[..this.length];
@@ -165,7 +178,7 @@ export class List<T: copyable>
 		return found < 0 ? -1 : (nint)startAt + found;
 	}
 
-	// Returns the last matching index, or -1 when no match is found.
+	/// Returns the last matching index, or -1 when no match is found.
 	export nint findLastIndex(in T item, delegate bool(in T left, in T right) equals, @range nuint startAt = 0, nuint count = ^0)
 	{
 		T[] used = this.items[..this.length];
@@ -174,7 +187,7 @@ export class List<T: copyable>
 		return found < 0 ? -1 : (nint)startAt + found;
 	}
 
-	// Returns the matching sorted index, or -1 when no match is found.
+	/// Returns the matching sorted index, or -1 when no match is found.
 	export nint binarySearch(in T item, delegate int(in T left, in T right) comparer, @range nuint startAt = 0, nuint count = ^0)
 	{
 		if (startAt >= this.length)
@@ -186,25 +199,25 @@ export class List<T: copyable>
 		return found < 0 ? -1 : (nint)startAt + found;
 	}
 
-	// Sorts the list in place using the supplied comparer.
+	/// Sorts the list in place using the supplied comparer.
 	export void sort(delegate int(in T left, in T right) comparer)
 	{
 		this.items[..this.length].sort<T>(comparer);
 	}
 
-	// Returns the number of items in the list.
+	/// Returns the number of items in the list.
 	export nuint getLength()
 	{
 		return this.length;
 	}
 
-	// Returns the number of allocated item slots.
+	/// Returns the number of allocated item slots.
 	export nuint getCapacity()
 	{
 		return this.items.length;
 	}
 
-	// Ensures the buffer has at least the requested number of slots.
+	/// Ensures the buffer has at least the requested number of slots.
 	export void ensureCapacity(nuint minimumCapacity)
 	{
 		if (this.items.length >= minimumCapacity)
@@ -244,6 +257,8 @@ bool ListCharWriter_write(void* context, nuint* written, char* buffer, nuint buf
 	return *written == buffer_length;
 }
 
+/// Returns a writer that appends characters to the list.
+/// - this: The list used as the writer backing store.
 export CharWriter getCharWriter(List<char>* this)
 {
 	return { ListCharWriter_write, (void*)this };
