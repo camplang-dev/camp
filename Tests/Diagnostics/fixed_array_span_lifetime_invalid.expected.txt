@@ -1,0 +1,1 @@
+tests/Diagnostics/fixed_array_span_lifetime_invalid.camp(4,9): error: Cannot return a span view to local fixed-size array storage.

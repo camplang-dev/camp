@@ -1,0 +1,198 @@
+// file: fixed_array_span_views.c
+#include "fixed_array_span_views_private.h"
+
+/* Private file declarations. */
+static bool __camp_delegate_chunksIter_iter(void *arg0, uint8_t **arg1, uintptr_t *arg2);
+static void consume(uint8_t *values, uintptr_t values_length);
+static int sum(const uint8_t *values, uintptr_t values_length);
+static uint8_t *viewData(Holder *holder, uintptr_t *result_length);
+static chunksIter chunks(void);
+static int sumChunks(fn_bool_voidPtr__bytePtrPtr__nuintPtr_ values, void *values_context);
+static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length);
+static void chunksIter_op_delete(chunksIter *this);
+static void chunksIter_destroy(chunksIter *this);
+static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_length);
+
+static bool __camp_delegate_chunksIter_iter(void *arg0, uint8_t **arg1, uintptr_t *arg2)
+{
+	return chunksIter_iter(arg0, arg1, arg2);
+}
+
+static void consume(uint8_t *values, uintptr_t values_length)
+{
+	values[0] = (uint8_t)(((values[0] + 1)));
+}
+
+static int sum(const uint8_t *values, uintptr_t values_length)
+{
+	int total = 0;
+	{
+		for (uintptr_t i = 0; (i < values_length); i++)
+		{
+			total += (int)(values[i]);
+__for_continue0: ;
+		}
+__for_break1: ;
+	}
+	return total;
+}
+
+static uint8_t *viewData(Holder *holder, uintptr_t *result_length)
+{
+	{
+		(*result_length) = 4;
+		return (uint8_t *)(holder->data);
+	}
+}
+
+static chunksIter chunks(void)
+{
+	return (chunksIter){ .__state = 0 };
+}
+
+static int sumChunks(fn_bool_voidPtr__bytePtrPtr__nuintPtr_ values, void *values_context)
+{
+	int total = 0;
+	{
+		bool (* _foreachIterCall2)(void *arg0, uint8_t **arg1, uintptr_t *arg2) = values;
+		void *_foreachIterContext3 = values_context;
+		uint8_t *_foreachCurrent4 = 0;
+		uintptr_t _foreachCurrent4_length = 0;
+		while (_foreachIterCall2(_foreachIterContext3, &_foreachCurrent4, &_foreachCurrent4_length))
+		{
+			uint8_t *value = _foreachCurrent4;
+			uintptr_t value_length = _foreachCurrent4_length;
+			total += sum(value, value_length);
+__foreach_continue5: ;
+		}
+		_foreachIterCall2(_foreachIterContext3, NULL, NULL);
+__foreach_break6: ;
+	}
+	return total;
+}
+
+int main(void)
+{
+	uint8_t local[4] = {10, 20, 30, 40};
+	const uint8_t *span = (uint8_t *)(local);
+	uintptr_t span_length = 4;
+	consume((uint8_t *)(local), 4);
+	Holder holder = (Holder){0};
+	__builtin_memcpy(holder.data, (uint8_t[4]){1, 2, 3, 4}, sizeof(holder.data));
+	uint8_t *fieldSpan;
+	uintptr_t fieldSpan_length;
+	fieldSpan = viewData(&holder, &fieldSpan_length);
+	chunksIter _iterState7 = chunks();
+	return ((sum(span, span_length) + sum(fieldSpan, fieldSpan_length)) + sumChunks(__camp_delegate_chunksIter_iter, &_iterState7));
+}
+
+static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	if ((this->__state == 2))
+	{
+		goto __iter_resume2;
+	}
+	__builtin_memcpy(this->first, (uint8_t[3]){1, 2, 3}, sizeof(this->first));
+	__builtin_memcpy(this->second, (uint8_t[2]){4, 5}, sizeof(this->second));
+	{
+		*current = ((uint8_t *)(this->first) + ((0 > 3) ? 3 : ((0 < 0) ? 0 : 0)));
+		*current_length = ((((3 > 3) ? 3 : ((3 < 0) ? 0 : 3)) >= ((0 > 3) ? 3 : ((0 < 0) ? 0 : 0))) ? (((3 > 3) ? 3 : ((3 < 0) ? 0 : 3)) - ((0 > 3) ? 3 : ((0 < 0) ? 0 : 0))) : 0);
+	}
+	this->__state = 1;
+	return true;
+__iter_resume1: ;
+	;
+	{
+		*current = (uint8_t *)(this->second);
+		*current_length = 2;
+	}
+	this->__state = 2;
+	return true;
+__iter_resume2: ;
+	;
+	this->__state = -1;
+	return false;
+}
+
+static void chunksIter_op_delete(chunksIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static void chunksIter_destroy(chunksIter *this)
+{
+	chunksIter_op_delete(this);
+}
+
+static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_length)
+{
+	chunksIter *state = (chunksIter *)(ctx);
+	if ((current == NULL))
+	{
+		chunksIter_op_delete(state);
+		return false;
+	}
+	return chunksIter_next(state, current, current_length);
+}
+
+// file: fixed_array_span_views.h
+#ifndef FIXED_ARRAY_SPAN_VIEWS_H_
+#define FIXED_ARRAY_SPAN_VIEWS_H_
+
+#include "fixed_array_span_views_private.h"
+
+typedef bool (* fn_bool_voidPtr__bytePtrPtr__nuintPtr_)(void *arg0, uint8_t **arg1, uintptr_t *arg2);
+int main(void);
+
+#endif
+// file: fixed_array_span_views_private.h
+#ifndef FIXED_ARRAY_SPAN_VIEWS_PRIVATE_H_
+#define FIXED_ARRAY_SPAN_VIEWS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Holder Holder;
+typedef struct chunksIter chunksIter;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef bool (* fn_bool_voidPtr__bytePtrPtr__nuintPtr_)(void *arg0, uint8_t **arg1, uintptr_t *arg2);
+
+/* Layouts. */
+struct Holder
+{
+	uint8_t data[4];
+};
+struct chunksIter
+{
+	int __state;
+	uint8_t first[3];
+	uint8_t second[2];
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: fixed_array_span_views.c

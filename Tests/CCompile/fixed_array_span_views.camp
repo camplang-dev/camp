@@ -1,0 +1,52 @@
+void consume(byte[] values)
+{
+	values[0] = (byte)(values[0] + 1);
+}
+
+int sum(const byte[] values)
+{
+	int total = 0;
+	for (nuint i = 0; i < values.length; i++)
+		total += (int)values[i];
+	return total;
+}
+
+struct Holder
+{
+	fixed byte[4] data;
+}
+
+byte[] viewData(Holder* holder)
+{
+	return holder.data;
+}
+
+struct iter byte[] chunks()
+{
+	fixed byte[3] first = [1, 2, 3];
+	fixed byte[2] second = [4, 5];
+
+	yield first[..];
+	yield second;
+}
+
+int sumChunks(iter byte[] values)
+{
+	int total = 0;
+	foreach (byte[] value in values)
+		total += sum(value);
+	return total;
+}
+
+export int main()
+{
+	fixed byte[4] local = [10, 20, 30, 40];
+	const byte[] span = local;
+	consume(values: local);
+
+	Holder holder = default;
+	holder.data = [1, 2, 3, 4];
+	byte[] fieldSpan = viewData(&holder);
+
+	return sum(span) + sum(fieldSpan) + sumChunks(chunks());
+}

@@ -1,0 +1,5 @@
+byte[] badLocalSpan()
+{
+	fixed byte[4] local = [1, 2, 3, 4];
+	return local;
+}

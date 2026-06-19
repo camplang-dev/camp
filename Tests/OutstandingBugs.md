@@ -2,17 +2,6 @@
 
 Next bug number: BUG-023.
 
-- **BUG-019:** Fixed-array span-view lifetime and component synthesis are not
-  fully audited. Priority: high. Complexity: medium-high. Add tests for fixed
-  arrays converting to `T[]` in all proposal-required component-synthesis
-  contexts that are not already covered: named arguments to expanded array
-  parameters, `const T[]` span initialization, valid scoped return of a
-  fixed-field span, invalid return of a local fixed-array span, valid yield of
-  `T[]` or `T[n]*` from iterator-owned fixed storage, and invalid lifetime
-  cases. Keep BUG-017 separate for expanded iterator protocol plumbing such as
-  `iter byte[]`; this bug is about validating the semantic/lifetime surface and
-  ordinary component synthesis around fixed-array views.
-
 - **BUG-020:** Fixed arrays in lambdas and delegate contexts are not covered
   enough. Priority: medium-high. Complexity: high. The proposal requires tests
   for lambda/delegate interaction with fixed storage: accepting

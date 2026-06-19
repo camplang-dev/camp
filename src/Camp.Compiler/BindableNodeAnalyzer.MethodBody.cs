@@ -132,6 +132,8 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Capturing scoped lambdas cannot be returned.");
 				if (RequiresAnyGenericCopy(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
 					ReportAnyGenericCopy(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
+				if (EscapesLocalFixedArraySpan(scope.CurrentFunctionReturnType, returnStatement.Expression))
+					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Cannot return a span view to local fixed-size array storage.");
 				CheckAssignable(scope.CurrentFunctionReturnType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				break;
 			}
@@ -142,6 +144,8 @@ public sealed partial class BindableNodeAnalyzer
 				if (scope.CurrentIteratorElementType is null)
 					Report(GetRange(yieldStatement.SourceSyntax), "Yield statements may only appear in iterator functions.");
 				string yieldedType = BodyAnalyzeExpression(yieldStatement.Expression, scope, typeScope, expected);
+				if (EscapesLocalFixedArraySpan(expected, yieldStatement.Expression))
+					Report(GetRange(yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax), "Cannot yield a span view to local fixed-size array storage.");
 				CheckAssignable(expected, yieldedType, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, "Yield expression");
 				break;
 			}
@@ -404,6 +408,30 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return expression is LambdaExpression lambda
 			&& LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType);
+	}
+
+	bool EscapesLocalFixedArraySpan(string targetType, Expression? expression)
+	{
+		if (!TryParseTypeShape(targetType, out TypeShape targetShape) || targetShape.Kind != TypeShapeKind.Array)
+			return false;
+		return ReferencesLocalFixedArrayStorage(expression);
+	}
+
+	bool ReferencesLocalFixedArrayStorage(Expression? expression)
+	{
+		if (expression is null)
+			return false;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return ReferencesLocalFixedArrayStorage(rewritten);
+
+		return expression switch
+		{
+			ParenthesizedExpression parenthesized => ReferencesLocalFixedArrayStorage(parenthesized.Expression),
+			CastExpression cast => ReferencesLocalFixedArrayStorage(cast.Expression),
+			VariableReferenceExpression { Variable: DeclarationTarget target } => TryGetFixedArrayShape(target.ResolvedType, out _, out _),
+			IndexExpression index when TryParseTypeShape(index.ResolvedType, out TypeShape indexShape) && indexShape.Kind == TypeShapeKind.Array => ReferencesLocalFixedArrayStorage(index.Target),
+			_ => false
+		};
 	}
 
 	bool TryAnalyzeDeconstructionTarget(DeclarationTarget target, string initialType, BodyScope scope)
