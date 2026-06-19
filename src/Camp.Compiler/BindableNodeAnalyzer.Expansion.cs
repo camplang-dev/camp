@@ -636,6 +636,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	void RefreshLoweredResolvedTypes(BindableNode node)
 	{
+		RefreshLoweredResolvedTypes(node, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance));
+	}
+
+	void RefreshLoweredResolvedTypes(BindableNode node, HashSet<BindableNode> visited)
+	{
+		if (!visited.Add(node))
+			return;
+
 		foreach (PropertyInfo property in node.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
 		{
 			if (property.Name == nameof(BindableNode.SourceSyntax) || property.Name == nameof(BindableNode.ResolvedType) || IsSemanticReferenceProperty(property))
@@ -643,13 +651,13 @@ public sealed partial class BindableNodeAnalyzer
 
 			object? value = property.GetValue(node);
 			if (value is BindableNode child)
-				RefreshLoweredResolvedTypes(child);
+				RefreshLoweredResolvedTypes(child, visited);
 			else if (value is IList list)
 			{
 				foreach (object? item in list)
 				{
 					if (item is BindableNode childItem)
-						RefreshLoweredResolvedTypes(childItem);
+						RefreshLoweredResolvedTypes(childItem, visited);
 				}
 			}
 		}

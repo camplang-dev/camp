@@ -1,0 +1,55 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "Docs",
+    "namespace": "Docs"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "struct:Docs::Box",
+      "kind": "struct",
+      "name": "Box",
+      "visibility": "export",
+      "typeParameters": [
+        {
+          "id": "struct:Docs::Box/type-parameter:T",
+          "name": "T",
+          "constraint": "copyable"
+        }
+      ],
+      "fields": [
+        {
+          "id": "struct:Docs::Box/field:value",
+          "name": "value",
+          "type": "T",
+          "metadata": [
+            {
+              "name": "summary",
+              "doc": true,
+              "content": "Stored value."
+            }
+          ]
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "doc": true,
+          "content": "A %s stores a single value.",
+          "symbols": [
+            {
+              "ref": "struct:Docs::Box",
+              "text": "Box\u003CT\u003E"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

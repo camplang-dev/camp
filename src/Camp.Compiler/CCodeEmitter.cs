@@ -403,6 +403,9 @@ public static class CCodeEmitter
 			yield break;
 
 		yield return root;
+		if (root is AttributeConstructor)
+			yield break;
+
 		foreach (PropertyInfo property in root.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
 		{
 			if (property.Name is nameof(BindableNode.SourceSyntax) or nameof(Module.DefinitionSources))

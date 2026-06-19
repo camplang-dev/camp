@@ -1,0 +1,8 @@
+export as Docs;
+
+/// A [Box<T>] stores a single value.
+export struct Box<T: copyable>
+{
+	/// Stored value.
+	T value;
+}

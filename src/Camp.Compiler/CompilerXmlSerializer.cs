@@ -113,6 +113,7 @@ public static class CompilerXmlSerializer
 		return property.DeclaringType == typeof(VariableReferenceExpression) && property.Name == nameof(VariableReferenceExpression.Variable)
 			|| property.DeclaringType == typeof(TypeDefinitionReference) && property.Name == nameof(TypeDefinitionReference.Definition)
 			|| property.DeclaringType == typeof(GenericParameterTypeReference) && property.Name == nameof(GenericParameterTypeReference.Parameter)
+			|| property.DeclaringType == typeof(SymbolOfExpression) && property.Name == nameof(SymbolOfExpression.Reference)
 			|| property.DeclaringType == typeof(GotoStatement) && property.Name == nameof(GotoStatement.Target)
 			|| property.DeclaringType == typeof(ForeachStatement) && property.Name == nameof(ForeachStatement.IteratorNext)
 			|| property.DeclaringType == typeof(MethodReferenceExpression) && property.Name == nameof(MethodReferenceExpression.Candidates)
