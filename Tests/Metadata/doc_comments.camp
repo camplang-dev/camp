@@ -1,5 +1,17 @@
 export as Docs;
 
+/// Function callback.
+export newtype fn _cdecl int Callback(int value);
+
+/// Formatter callback.
+export newtype delegate nuint Formatter(char[] buffer = default);
+
+/// Reader callback.
+export newtype iter int Reader();
+
+/// Handle value.
+export newtype Handle: nint;
+
 /// A sample exported type.
 export struct Widget
 {
@@ -20,12 +32,21 @@ export struct Widget
 	nuint getAt(nuint index) => index;
 }
 
+/// Child target container.
+/// - value: Value field docs.
+/// - getValue: Value getter docs.
+export struct ChildTargets
+{
+	int value;
+	int getValue() => this.value;
+}
+
 /// Example mode values.
+/// - First: First child-target mode.
+/// - Second: Second child-target mode.
 export enum Mode
 {
-	/// First mode.
 	First = 4,
-	/// Second mode.
 	Second,
 	/// Combined mode.
 	Combined = 12
@@ -36,7 +57,47 @@ export abstract class ExportedClass
 {
 	/// Hidden in export metadata.
 	int hiddenField;
+
+	/// Abstract method.
+	export abstract void run();
+
+	/// Static method.
+	export static int getDefault() => 0;
 }
+
+/// Drawable interface.
+export interface Drawable
+{
+	void draw();
+}
+
+/// Drawable struct.
+export struct Shape : Drawable
+{
+	void draw()
+	{
+	}
+}
+
+/// Widget alias.
+export alias WidgetAlias = Widget;
+
+/// Primitive alias.
+export alias IntAlias = int;
+
+/// Callable alias.
+export alias HelperAlias = helper;
+
+/// Helper function.
+export extern void helper();
+
+/// Uses `[NotALink]`, `@summary`, `- value:`, and `%s`.
+/// @example
+/// ```camp
+/// /// [NotASymbol]
+/// printf("%s", text);
+/// ```
+export extern void literalDocs();
 
 /// Finds [Widget] values.
 ///

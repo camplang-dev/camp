@@ -12,6 +12,77 @@
   },
   "declarations": [
     {
+      "id": "newtype:Docs::Callback",
+      "kind": "newtype",
+      "name": "Callback",
+      "visibility": "export",
+      "callableType": "fn",
+      "callspec": "_cdecl",
+      "returnType": "int",
+      "parameters": [
+        {
+          "id": "newtype:Docs::Callback/parameter:value",
+          "name": "value",
+          "type": "int"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Function callback."
+        }
+      ]
+    },
+    {
+      "id": "newtype:Docs::Formatter",
+      "kind": "newtype",
+      "name": "Formatter",
+      "visibility": "export",
+      "callableType": "delegate",
+      "returnType": "nuint",
+      "parameters": [
+        {
+          "id": "newtype:Docs::Formatter/parameter:buffer",
+          "name": "buffer",
+          "type": "char[]",
+          "defaultValue": "default"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Formatter callback."
+        }
+      ]
+    },
+    {
+      "id": "newtype:Docs::Reader",
+      "kind": "newtype",
+      "name": "Reader",
+      "visibility": "export",
+      "callableType": "iter",
+      "returnType": "int",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Reader callback."
+        }
+      ]
+    },
+    {
+      "id": "newtype:Docs::Handle",
+      "kind": "newtype",
+      "name": "Handle",
+      "visibility": "export",
+      "underlyingType": "Handle",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Handle value."
+        }
+      ]
+    },
+    {
       "id": "struct:Docs::Widget",
       "kind": "struct",
       "name": "Widget",
@@ -34,8 +105,6 @@
           "id": "struct:Docs::Widget/function:getCount",
           "name": "getCount",
           "returnType": "int",
-          "property": true,
-          "propertyAccessor": "get",
           "propertyName": "Count",
           "metadata": [
             {
@@ -48,8 +117,6 @@
           "id": "struct:Docs::Widget/function:setCount",
           "name": "setCount",
           "returnType": "void",
-          "property": true,
-          "propertyAccessor": "set",
           "propertyName": "Count",
           "propertyValueParam": "value",
           "parameters": [
@@ -70,8 +137,6 @@
           "id": "struct:Docs::Widget/function:getAt",
           "name": "getAt",
           "returnType": "nuint",
-          "property": true,
-          "propertyAccessor": "get",
           "propertyName": "At",
           "propertyIndexParams": [
             "index"
@@ -105,6 +170,45 @@
       ]
     },
     {
+      "id": "struct:Docs::ChildTargets",
+      "kind": "struct",
+      "name": "ChildTargets",
+      "visibility": "export",
+      "fields": [
+        {
+          "id": "struct:Docs::ChildTargets/field:value",
+          "name": "value",
+          "type": "int",
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Value field docs."
+            }
+          ]
+        }
+      ],
+      "functions": [
+        {
+          "id": "struct:Docs::ChildTargets/function:getValue",
+          "name": "getValue",
+          "returnType": "int",
+          "propertyName": "Value",
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Value getter docs."
+            }
+          ]
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Child target container."
+        }
+      ]
+    },
+    {
       "id": "enum:Docs::Mode",
       "kind": "enum",
       "name": "Mode",
@@ -118,7 +222,7 @@
           "metadata": [
             {
               "name": "summary",
-              "content": "First mode."
+              "content": "First child-target mode."
             }
           ]
         },
@@ -130,7 +234,7 @@
           "metadata": [
             {
               "name": "summary",
-              "content": "Second mode."
+              "content": "Second child-target mode."
             }
           ]
         },
@@ -159,10 +263,150 @@
       "kind": "class",
       "name": "ExportedClass",
       "visibility": "export",
+      "modifier": "abstract",
+      "functions": [
+        {
+          "id": "class:Docs::ExportedClass/function:run",
+          "name": "run",
+          "visibility": "export",
+          "modifier": "abstract",
+          "returnType": "void",
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Abstract method."
+            }
+          ]
+        },
+        {
+          "id": "class:Docs::ExportedClass/function:getDefault",
+          "name": "getDefault",
+          "visibility": "export",
+          "modifier": "static",
+          "returnType": "int",
+          "propertyName": "Default",
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Static method."
+            }
+          ]
+        }
+      ],
       "metadata": [
         {
           "name": "summary",
           "content": "Exported class layout."
+        }
+      ]
+    },
+    {
+      "id": "struct:Docs::Drawable",
+      "kind": "struct",
+      "name": "Drawable",
+      "visibility": "export"
+    },
+    {
+      "id": "struct:Docs::Shape",
+      "kind": "struct",
+      "name": "Shape",
+      "visibility": "export",
+      "interfaces": [
+        {
+          "type": "Drawable",
+          "ref": "struct:Docs::Drawable",
+          "symbol": "Shape_Drawable"
+        }
+      ],
+      "functions": [
+        {
+          "id": "struct:Docs::Shape/function:draw",
+          "name": "draw",
+          "symbol": "Shape_draw",
+          "returnType": "void"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Drawable struct."
+        }
+      ]
+    },
+    {
+      "id": "alias:Docs::WidgetAlias",
+      "kind": "alias",
+      "name": "WidgetAlias",
+      "visibility": "export",
+      "target": "Widget",
+      "resolvedTarget": "Widget",
+      "targetKind": "type",
+      "targetRef": "struct:Docs::Widget",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Widget alias."
+        }
+      ]
+    },
+    {
+      "id": "alias:Docs::IntAlias",
+      "kind": "alias",
+      "name": "IntAlias",
+      "visibility": "export",
+      "target": "int",
+      "resolvedTarget": "int",
+      "targetKind": "primitive",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Primitive alias."
+        }
+      ]
+    },
+    {
+      "id": "alias:Docs::HelperAlias",
+      "kind": "alias",
+      "name": "HelperAlias",
+      "visibility": "export",
+      "target": "helper",
+      "resolvedTarget": "helper",
+      "targetKind": "function",
+      "targetRef": "function:Docs::helper",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Callable alias."
+        }
+      ]
+    },
+    {
+      "id": "function:Docs::helper",
+      "kind": "function",
+      "name": "helper",
+      "visibility": "export",
+      "returnType": "void",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Helper function."
+        }
+      ]
+    },
+    {
+      "id": "function:Docs::literalDocs",
+      "kind": "function",
+      "name": "literalDocs",
+      "visibility": "export",
+      "returnType": "void",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Uses \u0060[NotALink]\u0060, \u0060@summary\u0060, \u0060- value:\u0060, and \u0060%%s\u0060."
+        },
+        {
+          "name": "example",
+          "content": "\u0060\u0060\u0060camp\n/// [NotASymbol]\nprintf(\u0022%%s\u0022, text);\n\u0060\u0060\u0060"
         }
       ]
     },

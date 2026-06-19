@@ -259,6 +259,11 @@ public static class DocCommentTranslator
 				builder.Append(EscapePercent(line));
 				builder.Append('\n');
 			}
+			else if (fenceLine)
+			{
+				builder.Append(TransformDocText(trimmed, symbols));
+				builder.Append('\n');
+			}
 			else
 			{
 				builder.Append(TransformDocText(trimmed, symbols));

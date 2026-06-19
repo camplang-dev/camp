@@ -54,6 +54,7 @@
       "kind": "class",
       "name": "ExportedClass",
       "visibility": "export",
+      "modifier": "abstract",
       "fields": [
         {
           "id": "class:Docs::ExportedClass/field:exportedClassField",
@@ -79,6 +80,7 @@
       "kind": "class",
       "name": "PublicClass",
       "visibility": "public",
+      "modifier": "abstract",
       "fields": [
         {
           "id": "class:Docs::PublicClass/field:publicClassField",
@@ -103,6 +105,7 @@
       "id": "class:Docs::LocalClass",
       "kind": "class",
       "name": "LocalClass",
+      "modifier": "abstract",
       "fields": [
         {
           "id": "class:Docs::LocalClass/field:localClassField",

@@ -34,6 +34,8 @@ public static class MetadataJsonSerializer
 		readonly Dictionary<BindableNode, string> ids = new(ReferenceEqualityComparer.Instance);
 		readonly HashSet<BindableNode> emitted = new(ReferenceEqualityComparer.Instance);
 		readonly HashSet<BindableNode> stubbed = new(ReferenceEqualityComparer.Instance);
+		readonly Dictionary<string, TypeDefinition> typeDefinitions = new(StringComparer.Ordinal);
+		readonly Dictionary<string, Definition> symbols = new(StringComparer.Ordinal);
 
 		public Writer(Compilation compilation, Module module, MetadataVisibility visibility)
 		{
@@ -64,7 +66,15 @@ public static class MetadataJsonSerializer
 		void IndexModule()
 		{
 			foreach (Definition definition in module.Definitions)
+			{
+				if (definition is TypeDefinition typeDefinition)
+					typeDefinitions[definition.Name] = typeDefinition;
+				if (!string.IsNullOrWhiteSpace(definition.Name))
+					symbols.TryAdd(definition.Name, definition);
+				if (!string.IsNullOrWhiteSpace(definition.Symbol))
+					symbols.TryAdd(definition.Symbol, definition);
 				IndexDefinition(definition, GetTopLevelId(definition));
+			}
 		}
 
 		void IndexDefinition(Definition definition, string id)
@@ -191,6 +201,10 @@ public static class MetadataJsonSerializer
 					json.WriteString("target", FormatAliasTarget(alias));
 					if (!string.IsNullOrWhiteSpace(alias.ResolvedTargetName))
 						json.WriteString("resolvedTarget", alias.ResolvedTargetName);
+					if (GetAliasTargetKind(alias) is string targetKind)
+						json.WriteString("targetKind", targetKind);
+					if (TryResolveAliasTargetDefinition(alias, out Definition? targetDefinition) && targetDefinition is not null)
+						WriteReference(json, "targetRef", targetDefinition);
 					break;
 				case TypeDefinition type:
 					WriteTypeDefinition(json, type);
@@ -243,13 +257,19 @@ public static class MetadataJsonSerializer
 			switch (type)
 			{
 				case ClassDefinition classDefinition:
+					if (classDefinition.Modifier != ClassModifier.None)
+						json.WriteString("modifier", classDefinition.Modifier.ToString().ToLowerInvariant());
 					WriteTypes(json, "baseTypes", classDefinition.BaseTypes);
+					WriteImplementedInterfaces(json, classDefinition.BaseTypes, classDefinition);
 					if (ShouldEmitClassFields(classDefinition))
 						WriteDefinitionArray(json, "fields", classDefinition.Fields, includeKind: false, includeVisibility: false);
 					WriteDefinitionArray(json, "functions", classDefinition.Functions);
 					break;
 				case StructDefinition structDefinition:
+					if (structDefinition.Modifier != StructModifier.None)
+						json.WriteString("modifier", structDefinition.Modifier.ToString().ToLowerInvariant());
 					WriteTypes(json, "baseTypes", structDefinition.BaseTypes);
+					WriteImplementedInterfaces(json, structDefinition.BaseTypes, structDefinition);
 					WriteDefinitionArray(json, "fields", structDefinition.Fields, includeKind: false, includeVisibility: false);
 					WriteDefinitionArray(json, "functions", structDefinition.Functions);
 					break;
@@ -263,10 +283,39 @@ public static class MetadataJsonSerializer
 					WriteDefinitionArray(json, "functions", enumDefinition.Functions);
 					break;
 				case NewtypeDefinition newtypeDefinition:
-					WriteTypeProperty(json, "underlyingType", newtypeDefinition.UnderlyingType, newtypeDefinition.ResolvedType);
+					if (IsCallableNewtype(newtypeDefinition))
+						WriteCallableNewtype(json, newtypeDefinition);
+					else
+						WriteTypeProperty(json, "underlyingType", newtypeDefinition.UnderlyingType, newtypeDefinition.ResolvedType);
 					WriteDefinitionArray(json, "parameters", newtypeDefinition.Parameters, includeKind: false, includeVisibility: false);
 					WriteDefinitionArray(json, "fields", newtypeDefinition.Fields, includeKind: false, includeVisibility: false);
 					WriteDefinitionArray(json, "functions", newtypeDefinition.Functions);
+					break;
+			}
+		}
+
+		static bool IsCallableNewtype(NewtypeDefinition definition)
+		{
+			return definition.UnderlyingType is CallableTypeReference or IterTypeReference || definition.Parameters.Count > 0;
+		}
+
+		void WriteCallableNewtype(Utf8JsonWriter json, NewtypeDefinition definition)
+		{
+			switch (definition.UnderlyingType)
+			{
+				case CallableTypeReference callable:
+					json.WriteString("callableType", GetCallableTypeName(callable.Kind));
+					if (!string.IsNullOrWhiteSpace(callable.CallSpec))
+						json.WriteString("callspec", callable.CallSpec);
+					WriteTypeProperty(json, "returnType", callable.ReturnType, callable.ReturnType?.ResolvedType);
+					break;
+				case IterTypeReference iter:
+					json.WriteString("callableType", iter.IsAsync ? "async iter" : "iter");
+					WriteTypeProperty(json, "returnType", iter.ElementType, iter.ElementType?.ResolvedType);
+					break;
+				default:
+					json.WriteString("callableType", "fn");
+					WriteTypeProperty(json, "returnType", definition.UnderlyingType, definition.UnderlyingType?.ResolvedType);
 					break;
 			}
 		}
@@ -350,8 +399,6 @@ public static class MetadataJsonSerializer
 			if (!TryGetPropertyInfo(function, IsTypeScoped(function), out string? accessor, out string? propertyName, out bool indexer, out List<string>? indexParams, out string? valueParam))
 				return;
 
-			json.WriteBoolean("property", true);
-			json.WriteString("propertyAccessor", accessor);
 			if (!string.IsNullOrWhiteSpace(propertyName))
 				json.WriteString("propertyName", propertyName);
 			if (indexer)
@@ -365,6 +412,42 @@ public static class MetadataJsonSerializer
 			}
 			if (!string.IsNullOrWhiteSpace(valueParam))
 				json.WriteString("propertyValueParam", valueParam);
+		}
+
+		void WriteImplementedInterfaces(Utf8JsonWriter json, IReadOnlyList<TypeReference> baseTypes, TypeDefinition owner)
+		{
+			List<(string Type, Definition? Definition, VariableDefinition? VTable)> interfaces = [];
+			HashSet<string> seen = new(StringComparer.Ordinal);
+			foreach (TypeReference baseType in baseTypes)
+			{
+				if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? interfaceDefinition) && interfaceDefinition is not null && seen.Add(interfaceDefinition.Name))
+					interfaces.Add((interfaceDefinition.Name, interfaceDefinition, FindInterfaceVTable(owner, interfaceDefinition.Name)));
+			}
+
+			foreach (VariableDefinition vtable in FindInterfaceVTables(owner))
+			{
+				string interfaceName = vtable.Symbol[(owner.Name.Length + 1)..];
+				if (!seen.Add(interfaceName))
+					continue;
+				typeDefinitions.TryGetValue(interfaceName, out TypeDefinition? interfaceDefinition);
+				interfaces.Add((interfaceName, interfaceDefinition, vtable));
+			}
+
+			if (interfaces.Count == 0)
+				return;
+
+			json.WriteStartArray("interfaces");
+			foreach ((string type, Definition? definition, VariableDefinition? vtable) in interfaces.OrderBy(static item => item.Type, StringComparer.Ordinal))
+			{
+				json.WriteStartObject();
+				json.WriteString("type", type);
+				if (definition is not null)
+					WriteReference(json, "ref", definition);
+				if (vtable is not null && vtable.Export is not null)
+					json.WriteString("symbol", vtable.Symbol);
+				json.WriteEndObject();
+			}
+			json.WriteEndArray();
 		}
 
 		void WriteGenericParameter(Utf8JsonWriter json, GenericParameter parameter)
@@ -517,6 +600,15 @@ public static class MetadataJsonSerializer
 			json.WriteEndObject();
 		}
 
+		void WriteReference(Utf8JsonWriter json, string propertyName, BindableNode node)
+		{
+			if (!ids.TryGetValue(node, out string? id))
+				return;
+			json.WriteString(propertyName, id);
+			if (!emitted.Contains(node))
+				stubbed.Add(node);
+		}
+
 		bool ShouldEmit(Definition definition)
 		{
 			if (IsGeneratedDefinition(definition))
@@ -583,6 +675,145 @@ public static class MetadataJsonSerializer
 				GenericParameter => "type-parameter",
 				_ => "node"
 			};
+		}
+
+		static string GetCallableTypeName(CallableKind kind)
+		{
+			return kind switch
+			{
+				CallableKind.Function => "fn",
+				CallableKind.Delegate => "delegate",
+				CallableKind.Async => "async",
+				CallableKind.Once => "once",
+				_ => "fn"
+			};
+		}
+
+		string? GetAliasTargetKind(AliasDefinition alias)
+		{
+			return alias.TargetKind switch
+			{
+				AliasTargetKind.CallSpec => "callspec",
+				AliasTargetKind.TypeSpec => "typespec",
+				AliasTargetKind.Callable => TryResolveAliasTargetDefinition(alias, out Definition? target) && target is FunctionDefinition function
+					? GetFunctionAliasTargetKind(function)
+					: "function",
+				AliasTargetKind.Type => GetTypeAliasTargetKind(alias),
+				_ => null
+			};
+		}
+
+		string? GetTypeAliasTargetKind(AliasDefinition alias)
+		{
+			string name = !string.IsNullOrWhiteSpace(alias.ResolvedTargetName) ? alias.ResolvedTargetName : alias.TargetName;
+			if (IsPrimitiveTypeName(name))
+				return "primitive";
+			if (TryResolveAliasTargetDefinition(alias, out Definition? target) && target is not null)
+			{
+				return target switch
+				{
+					AliasDefinition => "alias",
+					NewtypeDefinition => "newtype",
+					TypeDefinition => "type",
+					_ => null
+				};
+			}
+			return alias.TargetKind == AliasTargetKind.Type ? "type" : null;
+		}
+
+		string GetFunctionAliasTargetKind(FunctionDefinition function)
+		{
+			return function.Parameters.OfType<ThisParameterDefinition>().Any() || IsTypeScoped(function)
+				? "method"
+				: "function";
+		}
+
+		bool TryResolveAliasTargetDefinition(AliasDefinition alias, out Definition? definition)
+		{
+			string targetName = !string.IsNullOrWhiteSpace(alias.ResolvedTargetName) ? alias.ResolvedTargetName : alias.TargetName;
+			if (symbols.TryGetValue(targetName, out definition))
+				return true;
+			definition = null;
+			return false;
+		}
+
+		bool TryGetInterfaceDefinition(TypeReference type, out InterfaceDefinition? definition)
+		{
+			type = UnwrapTypeReference(type);
+			if (type is TypeDefinitionReference { Definition: InterfaceDefinition interfaceDefinition })
+			{
+				definition = interfaceDefinition;
+				return true;
+			}
+			if (type is NamedTypeReference named
+				&& named.Qualifiers.Count == 0
+				&& typeDefinitions.TryGetValue(named.Name, out TypeDefinition? typeDefinition)
+				&& typeDefinition is InterfaceDefinition found)
+			{
+				definition = found;
+				return true;
+			}
+			if (!string.IsNullOrWhiteSpace(type.ResolvedType)
+				&& typeDefinitions.TryGetValue(type.ResolvedType, out TypeDefinition? resolvedDefinition)
+				&& resolvedDefinition is InterfaceDefinition resolvedInterface)
+			{
+				definition = resolvedInterface;
+				return true;
+			}
+			definition = null;
+			return false;
+		}
+
+		VariableDefinition? FindInterfaceVTable(TypeDefinition owner, string interfaceName)
+		{
+			string symbol = owner.Name + "_" + interfaceName;
+			return module.Definitions.OfType<VariableDefinition>().FirstOrDefault(variable => variable.Symbol == symbol || variable.Name == symbol);
+		}
+
+		IEnumerable<VariableDefinition> FindInterfaceVTables(TypeDefinition owner)
+		{
+			string prefix = owner.Name + "_";
+			HashSet<string> storageSymbols = module.Definitions
+				.OfType<VariableDefinition>()
+				.Where(static variable => variable.Symbol.EndsWith("__storage", StringComparison.Ordinal))
+				.Select(static variable => variable.Symbol)
+				.ToHashSet(StringComparer.Ordinal);
+			foreach (VariableDefinition variable in module.Definitions.OfType<VariableDefinition>())
+			{
+				if (!variable.Symbol.StartsWith(prefix, StringComparison.Ordinal)
+					|| variable.Symbol.EndsWith("__storage", StringComparison.Ordinal)
+					|| !storageSymbols.Contains(variable.Symbol + "__storage"))
+					continue;
+				string interfaceName = variable.Symbol[prefix.Length..];
+				if (interfaceName.Length == 0 || interfaceName.Contains("__", StringComparison.Ordinal))
+					continue;
+				yield return variable;
+			}
+		}
+
+		static TypeReference UnwrapTypeReference(TypeReference type)
+		{
+			while (true)
+			{
+				type = type switch
+				{
+					ConstTypeReference { Type: not null } constant => constant.Type,
+					VolatileTypeReference { Type: not null } vol => vol.Type,
+					EscapedTypeReference { Type: not null } escaped => escaped.Type,
+					ScopedTypeReference { Type: not null } scoped => scoped.Type,
+					UnscopedTypeReference { Type: not null } unscoped => unscoped.Type,
+					_ => type
+				};
+				if (type is not ConstTypeReference and not VolatileTypeReference and not EscapedTypeReference and not ScopedTypeReference and not UnscopedTypeReference)
+					return type;
+			}
+		}
+
+		static bool IsPrimitiveTypeName(string name)
+		{
+			return name is "void" or "bool" or "byte" or "sbyte" or "short" or "ushort" or "int" or "uint"
+				or "long" or "ulong" or "float" or "double" or "nint" or "nuint" or "char" or "achar"
+				or "wchar" or "uchar" or "string" or "astring" or "wstring" or "untyped";
 		}
 
 		static string? GetVisibility(Definition definition)
