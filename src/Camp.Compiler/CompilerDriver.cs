@@ -18,7 +18,8 @@ public enum CompilerInspectMode
 	Cst,
 	Ast,
 	Declarations,
-	Lowering
+	Lowering,
+	Metadata
 }
 
 public sealed class CompilerRequest
@@ -34,10 +35,15 @@ public sealed class CompilerRequest
 	public string? MemoryModelName { get; set; }
 	public string EmitKind { get; set; } = "c99";
 	public NativeBuildKind? BuildKind { get; set; }
+	public bool InferBuildKind { get; set; }
 	public MetadataVisibility? EmitMetadata { get; set; }
 	public string? OutDir { get; set; }
 	public string? BuildDir { get; set; }
+	public string? ProjectName { get; set; }
+	public string? SubsystemName { get; set; }
 	public bool NoStdLib { get; set; }
+	public List<string> References { get; } = [];
+	public List<string> UsePackages { get; } = [];
 	public string RuntimeRoot { get; set; } = AppContext.BaseDirectory;
 	public string? TargetRoot { get; set; }
 	public string? PackageSourceRoot { get; set; }
@@ -90,16 +96,19 @@ public static class CompilerDriver
 				return Error("Standard input may only be used by itself and cannot be combined with API headers.");
 			if (request.IncludeFiles.Contains("-"))
 				return Error("API headers must be read from files, not standard input.");
+			if (request.InferBuildKind && !TryInferBuildKind())
+				return 1;
+			ApplySubsystem();
 			if (request.Xml && request.Inspect is not (CompilerInspectMode.Declarations or CompilerInspectMode.Lowering))
 				return Error("--xml can only be used with --inspect declarations or --inspect lowering.");
 			if (request.InspectApi && (request.Inspect is not null || request.Xml))
 				return Error("--inspect-api cannot be combined with --inspect or --xml.");
 			if (request.BuildKind is not null && request.Inspect is not null)
-				return Error("--build cannot be combined with --inspect.");
+				return Error("--artifact cannot be combined with dump commands.");
 			if (request.BuildKind is not null && request.InspectApi)
-				return Error("--build cannot be combined with --inspect-api.");
-			if (GetEffectiveMetadataVisibility() != MetadataVisibility.None && (request.Inspect is not null || request.InspectApi || request.Xml))
-				return Error("--emit-metadata cannot be combined with --inspect, --inspect-api, or --xml.");
+				return Error("--artifact cannot be combined with --inspect-api.");
+			if (GetEffectiveMetadataVisibility() != MetadataVisibility.None && (request.Inspect is not null and not CompilerInspectMode.Metadata || request.InspectApi || request.Xml))
+				return Error("--metadata cannot be combined with non-metadata dump commands, --inspect-api, or --xml.");
 
 			if (!TryCreateRuntimeContext(out RuntimeContext? context))
 				return 1;
@@ -114,6 +123,15 @@ public static class CompilerDriver
 					packageApiHeaders.Add(stdApiHeader);
 				if (stdLibrary is not null)
 					packageLibraries.Add(stdLibrary);
+			}
+			foreach (string package in request.UsePackages)
+			{
+				if (!TryPrepareInstalledPackage(context!, package, request.BuildKind is not null, out string? packageApiHeader, out string? packageLibrary))
+					return 1;
+				if (packageApiHeader is not null)
+					packageApiHeaders.Add(packageApiHeader);
+				if (packageLibrary is not null)
+					packageLibraries.Add(packageLibrary);
 			}
 
 			List<string> allIncludes = [.. packageApiHeaders, .. request.IncludeFiles];
@@ -132,8 +150,74 @@ public static class CompilerDriver
 				CompilerInspectMode.Ast => PrintBindXml(compilation),
 				CompilerInspectMode.Declarations => PrintDeclarations(compilation),
 				CompilerInspectMode.Lowering => PrintLowering(compilation),
+				CompilerInspectMode.Metadata => PrintMetadata(compilation),
 				_ => 1
 			};
+		}
+
+		void ApplySubsystem()
+		{
+			if (request.BuildKind == NativeBuildKind.Exec && request.SubsystemName?.Equals("windows", StringComparison.OrdinalIgnoreCase) == true)
+				request.BuildKind = NativeBuildKind.WinExe;
+		}
+
+		bool TryInferBuildKind()
+		{
+			foreach (string filename in request.Files)
+			{
+				if (filename == "-")
+				{
+					request.BuildKind = NativeBuildKind.Static;
+					return true;
+				}
+
+				try
+				{
+					string fullPath = Path.GetFullPath(filename, request.WorkingDirectory);
+					string text = File.ReadAllText(fullPath);
+					if (HasPublicOrExportedMain(text))
+					{
+						request.BuildKind = NativeBuildKind.Exec;
+						return true;
+					}
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+				{
+					ErrorLine($"{filename}: {ex.Message}");
+					return false;
+				}
+			}
+
+			request.BuildKind = NativeBuildKind.Static;
+			return true;
+		}
+
+		static bool HasPublicOrExportedMain(string text)
+		{
+			for (int i = 0; i < text.Length;)
+			{
+				int found = text.IndexOf("main", i, StringComparison.Ordinal);
+				if (found < 0)
+					return false;
+				i = found + 4;
+				if (!IsIdentifierBoundary(text, found - 1) || !IsIdentifierBoundary(text, found + 4))
+					continue;
+				int j = found + 4;
+				while (j < text.Length && char.IsWhiteSpace(text[j]))
+					j++;
+				if (j >= text.Length || text[j] != '(')
+					continue;
+				string prefix = text[..found];
+				int publicIndex = Math.Max(prefix.LastIndexOf("export", StringComparison.Ordinal), prefix.LastIndexOf("public", StringComparison.Ordinal));
+				if (publicIndex >= 0 && found - publicIndex < 256 && IsIdentifierBoundary(text, publicIndex - 1))
+					return true;
+			}
+			return false;
+		}
+
+		static bool IsIdentifierBoundary(string text, int index)
+		{
+			return index < 0 || index >= text.Length || !(char.IsLetterOrDigit(text[index]) || text[index] == '_');
 		}
 
 		int Error(string message)
@@ -334,6 +418,142 @@ public static class CompilerDriver
 			return true;
 		}
 
+		bool TryPrepareInstalledPackage(RuntimeContext context, string packageSpec, bool requireNativeLibrary, out string? apiHeaderPath, out string? libraryPath)
+		{
+			apiHeaderPath = null;
+			libraryPath = null;
+			(string packageName, string? requestedVersion) = ParsePackageSpec(packageSpec);
+			if (!TryFindInstalledPackage(packageName, requestedVersion, out string? sourceDirectory, out string? artifactRoot, out string? resolvedVersion))
+			{
+				ErrorLine($"Package '{packageSpec}' is not installed. Run 'campc restore' or 'campc pkg install {packageSpec}'.");
+				return false;
+			}
+
+			string[] sourceFiles = Directory.GetFiles(sourceDirectory!, "*.camp", SearchOption.AllDirectories)
+				.OrderBy(static x => x, StringComparer.Ordinal)
+				.ToArray();
+			string[] nativeSourceFiles = Directory.GetFiles(sourceDirectory!, "*.c", SearchOption.AllDirectories)
+				.OrderBy(static x => x, StringComparer.Ordinal)
+				.ToArray();
+			string[] cacheSourceFiles = sourceFiles
+				.Concat(nativeSourceFiles)
+				.Concat(Directory.GetFiles(sourceDirectory!, "*.h", SearchOption.AllDirectories))
+				.Concat(GetCompilerCacheInputs())
+				.OrderBy(static x => x, StringComparer.Ordinal)
+				.ToArray();
+
+			string packageBinDirectory = Path.Combine(artifactRoot!, packageName, resolvedVersion!, context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName);
+			string apiPath = Path.Combine(packageBinDirectory, packageName + "_api.camp");
+			string cApiPath = Path.Combine(packageBinDirectory, packageName + "_api.h");
+			string metadataPath = Path.Combine(packageBinDirectory, packageName + "_api.json");
+			string staticLibraryPath = NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
+			{
+				Target = context.Target,
+				ProfileName = context.ProfileName,
+				BuildDirectory = Path.Combine(packageBinDirectory, "build"),
+				OutputDirectory = packageBinDirectory,
+				ProjectName = packageName,
+				Kind = NativeBuildKind.Static,
+				SourceFiles = []
+			});
+
+			bool canUseCache = context.CommandLineDefines.Count == 0;
+			bool apiCurrent = canUseCache && IsOutputCacheCurrent(apiPath, cacheSourceFiles) && (!requireNativeLibrary || IsOutputCacheCurrent(cApiPath, cacheSourceFiles) && IsOutputCacheCurrent(metadataPath, cacheSourceFiles));
+			bool libraryCurrent = !requireNativeLibrary || canUseCache && IsOutputCacheCurrent(staticLibraryPath, cacheSourceFiles);
+			if (apiCurrent && libraryCurrent)
+			{
+				apiHeaderPath = apiPath;
+				libraryPath = requireNativeLibrary ? staticLibraryPath : null;
+				return true;
+			}
+
+			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeLibrary ? staticLibraryPath : null, context))
+				return false;
+
+			apiHeaderPath = apiPath;
+			libraryPath = requireNativeLibrary ? staticLibraryPath : null;
+			return true;
+		}
+
+		bool TryFindInstalledPackage(string packageName, string? requestedVersion, out string? sourceDirectory, out string? artifactRoot, out string? resolvedVersion)
+		{
+			sourceDirectory = null;
+			artifactRoot = null;
+			resolvedVersion = null;
+			foreach ((string installRoot, string outputRoot) in GetInstalledPackageRoots())
+			{
+				string packageDirectory = Path.Combine(installRoot, packageName);
+				if (!Directory.Exists(packageDirectory))
+					continue;
+				string? version = requestedVersion;
+				if (version is null)
+					version = Directory.GetDirectories(packageDirectory)
+						.Select(Path.GetFileName)
+						.Where(static value => !string.IsNullOrWhiteSpace(value))
+						.OrderByDescending(static value => PackageVersion.Parse(value!), PackageVersion.Comparer)
+						.FirstOrDefault();
+				if (version is null)
+					continue;
+				string candidate = Path.Combine(packageDirectory, version, "src");
+				if (!Directory.Exists(candidate))
+					continue;
+				sourceDirectory = candidate;
+				artifactRoot = outputRoot;
+				resolvedVersion = version;
+				return true;
+			}
+			return false;
+		}
+
+		IEnumerable<(string InstallRoot, string ArtifactRoot)> GetInstalledPackageRoots()
+		{
+			string globalRoot = Path.GetFullPath(Path.Combine(request.RuntimeRoot, "..", "pkg"));
+			string localRoot = Path.GetFullPath(Path.Combine(request.WorkingDirectory, "pkg"));
+			yield return (globalRoot, Path.Combine(request.RuntimeRoot, "pkg"));
+			yield return (localRoot, Path.Combine(request.WorkingDirectory, "bin", "pkg"));
+		}
+
+		static (string Name, string? Version) ParsePackageSpec(string value)
+		{
+			string[] parts = value.Split('@', 2);
+			return (parts[0], parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null);
+		}
+
+		readonly record struct PackageVersion(int Major, int Minor, int Patch, string? Suffix) : IComparable<PackageVersion>
+		{
+			public static IComparer<PackageVersion> Comparer { get; } = Comparer<PackageVersion>.Create(static (left, right) => left.CompareTo(right));
+
+			public static PackageVersion Parse(string value)
+			{
+				string[] suffixParts = value.Split('-', 2);
+				string[] parts = suffixParts[0].Split('.');
+				return new PackageVersion(ParsePart(parts, 0), ParsePart(parts, 1), ParsePart(parts, 2), suffixParts.Length == 2 ? suffixParts[1] : null);
+			}
+
+			public int CompareTo(PackageVersion other)
+			{
+				int major = Major.CompareTo(other.Major);
+				if (major != 0)
+					return major;
+				int minor = Minor.CompareTo(other.Minor);
+				if (minor != 0)
+					return minor;
+				int patch = Patch.CompareTo(other.Patch);
+				if (patch != 0)
+					return patch;
+				if (Suffix is null && other.Suffix is not null)
+					return 1;
+				if (Suffix is not null && other.Suffix is null)
+					return -1;
+				return string.Compare(Suffix, other.Suffix, StringComparison.Ordinal);
+			}
+
+			static int ParsePart(string[] parts, int index)
+			{
+				return index < parts.Length && int.TryParse(parts[index], NumberStyles.None, CultureInfo.InvariantCulture, out int value) ? value : 0;
+			}
+		}
+
 		static bool IsOutputCacheCurrent(string outputPath, IReadOnlyList<string> sourceFiles)
 		{
 			if (!File.Exists(outputPath))
@@ -448,10 +668,11 @@ public static class CompilerDriver
 
 			string buildDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(request.BuildDir) ? CCodeEmitter.GetDefaultOutputDirectory(compilation.Files) : request.BuildDir, request.WorkingDirectory);
 			string outputDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(request.OutDir) ? CCodeEmitter.GetDefaultArtifactDirectory(compilation.Files) : request.OutDir, request.WorkingDirectory);
+			string projectName = string.IsNullOrWhiteSpace(request.ProjectName) ? CCodeEmitter.GetProjectName(compilation.Files) : request.ProjectName!;
 			CEmissionResult result = CCodeEmitter.Emit(compilation, new CEmissionOptions
 			{
 				OutputDirectory = buildDirectory,
-				ProjectName = CCodeEmitter.GetProjectName(compilation.Files),
+				ProjectName = projectName,
 				EmitKind = request.EmitKind,
 				BuildKind = request.BuildKind,
 				EmitExecMainWrapper = request.BuildKind is NativeBuildKind.Exec or NativeBuildKind.WinExe,
@@ -472,7 +693,7 @@ public static class CompilerDriver
 				return 1;
 
 			MetadataVisibility metadataVisibility = GetEffectiveMetadataVisibility();
-			if (metadataVisibility != MetadataVisibility.None && !TryEmitMetadataArtifact(compilation, outputDirectory, metadataVisibility, GetMetadataProjectName(compilation.Files)))
+			if (metadataVisibility != MetadataVisibility.None && !TryEmitMetadataArtifact(compilation, outputDirectory, metadataVisibility, string.IsNullOrWhiteSpace(request.ProjectName) ? GetMetadataProjectName(compilation.Files) : request.ProjectName!))
 				return 1;
 
 			if (request.BuildKind is null)
@@ -484,10 +705,10 @@ public static class CompilerDriver
 				ProfileName = compilation.ProfileName,
 				BuildDirectory = buildDirectory,
 				OutputDirectory = outputDirectory,
-				ProjectName = CCodeEmitter.GetProjectName(compilation.Files),
+				ProjectName = projectName,
 				Kind = request.BuildKind.Value,
 				SourceFiles = result.GeneratedSourceFiles,
-				Libraries = packageLibraries
+				Libraries = packageLibraries.Concat(request.References.Select(reference => Path.GetFullPath(reference, request.WorkingDirectory))).ToList()
 			});
 			foreach (string diagnostic in build.Diagnostics)
 				ErrorLine(diagnostic);
@@ -565,7 +786,7 @@ public static class CompilerDriver
 
 		bool TryEmitLibraryApiArtifacts(Compilation compilation, string outputDirectory)
 		{
-			string projectName = CCodeEmitter.GetProjectName(compilation.Files);
+			string projectName = string.IsNullOrWhiteSpace(request.ProjectName) ? CCodeEmitter.GetProjectName(compilation.Files) : request.ProjectName!;
 			string campApiPath = Path.Combine(outputDirectory, projectName + "_api.camp");
 			try
 			{
@@ -653,6 +874,21 @@ public static class CompilerDriver
 				return 1;
 			using StringWriter writer = new(stdout, CultureInfo.InvariantCulture);
 			BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+			return 0;
+		}
+
+		int PrintMetadata(Compilation compilation)
+		{
+			if (!BuildAllAndReport(compilation))
+				return 1;
+			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target, compilation.MemoryModelName);
+			if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
+				return 1;
+			compilation.SharedModule = analysis.Module;
+			MetadataVisibility visibility = GetEffectiveMetadataVisibility();
+			if (visibility == MetadataVisibility.None)
+				visibility = MetadataVisibility.Export;
+			stdout.Append(MetadataJsonSerializer.Serialize(compilation, visibility));
 			return 0;
 		}
 

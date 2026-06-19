@@ -98,6 +98,9 @@ public static class CampPreprocessor
 						stack.RemoveAt(stack.Count - 1);
 					break;
 
+				case "build":
+					break;
+
 				default:
 					if (active)
 						AddDiagnostic(diagnostics, info.Directive.Value, $"Unknown preprocessor directive '#{directive}'.");

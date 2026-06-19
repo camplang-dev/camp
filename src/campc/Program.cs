@@ -1,197 +1,933 @@
 using System;
 using System.Collections.Generic;
-using System.CommandLine;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using Camp.Compiler;
 
-Argument<List<string>> filesArgument = new("files")
-{
-	Description = "One or more source files to read, or '-' to read from standard input.",
-	Arity = ArgumentArity.OneOrMore
-};
+CliEnvironment environment = CliEnvironment.Create();
+int exitCode = CampCli.Run(args, environment);
+return exitCode;
 
-Option<string?> inspectOption = new("--inspect")
+sealed class CampCli
 {
-	Description = "Print an intermediate compiler representation. Allowed values: tokens, cst, ast, declarations, lowering."
-};
-
-Option<bool> xmlOption = new("--xml")
-{
-	Description = "Print the rewritten bindable tree as XML when used with --inspect declarations or --inspect lowering."
-};
-
-Option<List<string>> includeOption = new("--include", "-i")
-{
-	Description = "Include one or more Camp API header files in the compilation.",
-	Arity = ArgumentArity.ZeroOrMore,
-	AllowMultipleArgumentsPerToken = true
-};
-
-Option<bool> inspectApiOption = new("--inspect-api")
-{
-	Description = "Print merged exported API declarations for the non-header input files as Camp code."
-};
-
-Option<string> targetOption = new("--target", "-t")
-{
-	Description = "Select the target to use.",
-	DefaultValueFactory = _ => CompilerDefaults.TargetName
-};
-
-Option<string> profileOption = new("--profile", "-p")
-{
-	Description = "Select the build profile to use: DEBUG or RELEASE.",
-	DefaultValueFactory = _ => "DEBUG"
-};
-
-Option<string?> memoryModelOption = new("--memory-model")
-{
-	Description = "Select the target memory model to use when required by the target."
-};
-
-Option<List<string>> defineOption = new("--define", "-d")
-{
-	Description = "Define one or more conditional compilation symbols.",
-	Arity = ArgumentArity.ZeroOrMore,
-	AllowMultipleArgumentsPerToken = true
-};
-
-Option<string> emitOption = new("--emit")
-{
-	Description = "Select the output emitter to use. Defaults to c99.",
-	DefaultValueFactory = _ => "c99"
-};
-
-Option<string?> buildOption = new("--build", "-b")
-{
-	Description = "Build a native artifact: exec, winexe, static, or shared."
-};
-
-Option<string?> emitMetadataOption = new("--emit-metadata")
-{
-	Description = "Select metadata emission: none, export, public, or all."
-};
-
-Option<string?> outDirOption = new("--out-dir")
-{
-	Description = "Write native output artifacts to this directory."
-};
-
-Option<string?> buildDirOption = new("--build-dir")
-{
-	Description = "Write generated C and intermediate build files to this directory."
-};
-
-Option<bool> noStdLibOption = new("--nostdlib")
-{
-	Description = "Do not include the default standard library package."
-};
-
-RootCommand rootCommand = new("Camp compiler")
-{
-	Description = "Camp compiler"
-};
-
-rootCommand.Arguments.Add(filesArgument);
-rootCommand.Options.Add(inspectOption);
-rootCommand.Options.Add(xmlOption);
-rootCommand.Options.Add(includeOption);
-rootCommand.Options.Add(inspectApiOption);
-rootCommand.Options.Add(targetOption);
-rootCommand.Options.Add(profileOption);
-rootCommand.Options.Add(memoryModelOption);
-rootCommand.Options.Add(defineOption);
-rootCommand.Options.Add(emitOption);
-rootCommand.Options.Add(buildOption);
-rootCommand.Options.Add(emitMetadataOption);
-rootCommand.Options.Add(outDirOption);
-rootCommand.Options.Add(buildDirOption);
-rootCommand.Options.Add(noStdLibOption);
-rootCommand.SetAction(parseResult =>
-{
-	MetadataVisibility? emitMetadata = ParseMetadataVisibility(parseResult.GetValue(emitMetadataOption));
-	CompilerRequest request = new()
+	public static int Run(string[] args, CliEnvironment environment)
 	{
-		Inspect = ParseInspectMode(parseResult.GetValue(inspectOption)),
-		Xml = parseResult.GetValue(xmlOption),
-		InspectApi = parseResult.GetValue(inspectApiOption),
-		TargetName = parseResult.GetValue(targetOption) ?? CompilerDefaults.TargetName,
-		ProfileName = parseResult.GetValue(profileOption) ?? "DEBUG",
-		MemoryModelName = parseResult.GetValue(memoryModelOption),
-		EmitKind = parseResult.GetValue(emitOption) ?? "c99",
-		BuildKind = ParseBuildKind(parseResult.GetValue(buildOption)),
-		EmitMetadata = emitMetadata,
-		OutDir = parseResult.GetValue(outDirOption),
-		BuildDir = parseResult.GetValue(buildDirOption),
-		NoStdLib = parseResult.GetValue(noStdLibOption),
-		RuntimeRoot = AppContext.BaseDirectory
-	};
+		if (args.Length == 0)
+			return Error("A command is required. Expected init, pkg, restore, build, dump, or run.");
 
-	request.Files.AddRange(parseResult.GetValue(filesArgument) ?? []);
-	request.IncludeFiles.AddRange(parseResult.GetValue(includeOption) ?? []);
-	request.Defines.AddRange(parseResult.GetValue(defineOption) ?? []);
+		return args[0] switch
+		{
+			"init" => Error("init is not implemented yet."),
+			"build" => RunBuild(args[1..], environment),
+			"run" => RunRun(args[1..], environment),
+			"dump" => RunDump(args[1..], environment),
+			"restore" => RunRestore(args[1..], environment),
+			"pkg" => PackageCommands.Run(args[1..], environment),
+			"--inspect" or "--build" or "-b" => Error("The root compiler command has been replaced by subcommands. Use 'campc dump ...' or 'campc build ...'."),
+			_ when args[0].StartsWith("-", StringComparison.Ordinal) => Error($"Unknown command '{args[0]}'. Use init, pkg, restore, build, dump, or run."),
+			_ => Error($"Unknown command '{args[0]}'. Use init, pkg, restore, build, dump, or run.")
+		};
+	}
 
-	if (parseResult.GetValue(inspectOption) is string inspect && request.Inspect is null)
+	static int RunBuild(string[] args, CliEnvironment environment)
 	{
-		Console.Error.WriteLine($"Inspect mode '{inspect}' is not valid. Expected tokens, cst, ast, declarations, or lowering.");
+		if (!TryBuildRequest(args, environment, CommandKind.Build, out CompilerRequest? request, out List<string> errors))
+			return PrintErrors(errors);
+
+		CompilerResult result = CompilerDriver.Execute(request!);
+		Console.Out.Write(result.StdOut);
+		Console.Error.Write(result.StdErr);
+		return result.ExitCode;
+	}
+
+	static int RunRun(string[] args, CliEnvironment environment)
+	{
+		int separator = Array.IndexOf(args, "--");
+		string[] buildArgs = separator >= 0 ? args[..separator] : args;
+		string[] programArgs = separator >= 0 ? args[(separator + 1)..] : [];
+
+		if (!TryBuildRequest(buildArgs, environment, CommandKind.Run, out CompilerRequest? request, out List<string> errors))
+			return PrintErrors(errors);
+
+		if (request!.BuildKind is not (NativeBuildKind.Exec or NativeBuildKind.WinExe))
+			return Error("run requires --artifact exec.");
+
+		CompilerResult result = CompilerDriver.Execute(request);
+		Console.Error.Write(result.StdErr);
+		if (result.ExitCode != 0)
+		{
+			Console.Out.Write(result.StdOut);
+			return result.ExitCode;
+		}
+
+		string? executable = result.GeneratedFiles
+			.Where(File.Exists)
+			.Where(static path => Path.GetExtension(path) is not ".c" and not ".h" and not ".o" and not ".obj" and not ".a" and not ".lib" and not ".camp" and not ".json")
+			.OrderByDescending(File.GetLastWriteTimeUtc)
+			.FirstOrDefault();
+		if (executable is null)
+			return Error("run could not find the generated executable.");
+
+		ProcessStartInfo info = new()
+		{
+			FileName = executable,
+			WorkingDirectory = environment.WorkingDirectory,
+			UseShellExecute = false
+		};
+		foreach (string argument in programArgs)
+			info.ArgumentList.Add(argument);
+
+		using Process process = new() { StartInfo = info };
+		try
+		{
+			process.Start();
+			process.WaitForExit();
+			return process.ExitCode;
+		}
+		catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+		{
+			return Error(ex.Message);
+		}
+	}
+
+	static int RunDump(string[] args, CliEnvironment environment)
+	{
+		if (args.Length == 0)
+			return Error("dump requires a dump kind: tokens, cst, ast, declarations, lowering, or metadata.");
+
+		CompilerInspectMode? inspect = ParseDumpKind(args[0]);
+		if (inspect is null)
+			return Error($"Dump kind '{args[0]}' is not valid. Expected tokens, cst, ast, declarations, lowering, or metadata.");
+
+		if (!TryBuildRequest(args[1..], environment, CommandKind.Dump, out CompilerRequest? request, out List<string> errors))
+			return PrintErrors(errors);
+
+		request!.Inspect = inspect;
+		if (inspect == CompilerInspectMode.Metadata && request.EmitMetadata is null)
+			request.EmitMetadata = MetadataVisibility.Export;
+
+		CompilerResult result = CompilerDriver.Execute(request);
+		Console.Out.Write(result.StdOut);
+		Console.Error.Write(result.StdErr);
+		return result.ExitCode;
+	}
+
+	static int RunRestore(string[] args, CliEnvironment environment)
+	{
+		if (args.Length == 0)
+			return Error("restore requires at least one .camp file.");
+
+		List<string> errors = [];
+		BuildOptionBag bag = new();
+		ApplyGlobalPragmas(environment, bag, errors);
+		foreach (string file in ExpandSourcePatterns(args.ToList(), [], environment.WorkingDirectory, errors))
+			ApplyFilePragmas(file, environment, bag, Precedence.Local, errors);
+		if (errors.Count > 0)
+			return PrintErrors(errors);
+
+		foreach (PackageSpec package in bag.UsePackages)
+		{
+			if (PackageCommands.IsInstalled(package, environment.GlobalPackageRoot) || PackageCommands.IsInstalled(package, environment.LocalPackageRoot))
+				continue;
+			if (!PackageCommands.Install(package, global: false, environment, bag.UseSources, out string message, out string? error))
+				return Error(error ?? message);
+			Console.Out.WriteLine(message);
+		}
+		return 0;
+	}
+
+	static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKind command, out CompilerRequest? request, out List<string> errors)
+	{
+		request = null;
+		errors = [];
+
+		ParsedOptions cli = CommandLineOptionParser.Parse(args, allowPositionals: true, errors);
+		if (errors.Count > 0)
+			return false;
+
+		BuildOptionBag bag = new();
+		ApplyGlobalPragmas(environment, bag, errors);
+
+		List<string> initialPatterns = [.. cli.Positionals, .. cli.IncludePatterns];
+		List<string> sourceFiles = ExpandSourcePatterns(initialPatterns, cli.ExcludePatterns, environment.WorkingDirectory, errors);
+		foreach (string file in sourceFiles)
+			ApplyFilePragmas(file, environment, bag, Precedence.Local, errors);
+
+		bag.Apply(cli, Precedence.CommandLine, "command line", errors);
+		sourceFiles = ExpandSourcePatterns([.. cli.Positionals, .. bag.IncludePatterns], bag.ExcludePatterns, environment.WorkingDirectory, errors);
+		if (sourceFiles.Count == 0)
+			errors.Add("At least one source file pattern is required.");
+
+		if (command == CommandKind.Dump && bag.HasBuildOnlyOptions)
+			errors.Add("dump does not accept --artifact, --name, --subsystem, --out-dir, or --build-dir.");
+		if (command == CommandKind.Run)
+		{
+			if (!bag.ArtifactSpecified)
+				bag.SetArtifact(NativeBuildKind.Exec, "run default", errors);
+			else if (bag.ArtifactKind is not NativeBuildKind.Exec)
+				errors.Add("run requires --artifact exec.");
+		}
+		if (errors.Count > 0)
+			return false;
+
+		request = new CompilerRequest
+		{
+			RuntimeRoot = environment.RuntimeRoot,
+			WorkingDirectory = environment.WorkingDirectory,
+			TargetName = bag.TargetName ?? CompilerDefaults.TargetName,
+			ProfileName = bag.ProfileName ?? "DEBUG",
+			MemoryModelName = bag.MemoryModelName,
+			EmitKind = bag.EmitKind ?? "c99",
+			Xml = bag.Xml,
+			BuildKind = bag.ArtifactKind,
+			InferBuildKind = command == CommandKind.Build && !bag.ArtifactSpecified,
+			EmitMetadata = bag.MetadataVisibility,
+			OutDir = bag.OutDir,
+			BuildDir = bag.BuildDir,
+			ProjectName = bag.ProjectName,
+			SubsystemName = bag.SubsystemName,
+			NoStdLib = bag.NoStdLib
+		};
+		request.Defines.AddRange(bag.Defines);
+		request.References.AddRange(bag.References);
+		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
+		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
+		return true;
+	}
+
+	static void ApplyGlobalPragmas(CliEnvironment environment, BuildOptionBag bag, List<string> errors)
+	{
+		if (!File.Exists(environment.GlobalCampPath))
+			return;
+		ApplyFilePragmas(environment.GlobalCampPath, environment, bag, Precedence.Global, errors);
+	}
+
+	static void ApplyFilePragmas(string file, CliEnvironment environment, BuildOptionBag bag, Precedence precedence, List<string> errors)
+	{
+		foreach (PragmaLine pragma in BuildPragmaReader.Read(file, environment.WorkingDirectory, errors))
+		{
+			ParsedOptions parsed = CommandLineOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors);
+			bag.Apply(parsed, precedence, pragma.SourceName, errors);
+		}
+	}
+
+	static List<string> ExpandSourcePatterns(List<string> patterns, List<string> excludePatterns, string workingDirectory, List<string> errors)
+	{
+		List<string> files = [];
+		HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+		foreach (string pattern in patterns)
+		{
+			foreach (string path in Glob.Expand(pattern, workingDirectory))
+			{
+				if (!path.EndsWith(".camp", StringComparison.OrdinalIgnoreCase))
+					continue;
+				if (excludePatterns.Any(exclude => Glob.IsMatch(Path.GetRelativePath(workingDirectory, path), exclude)))
+					continue;
+				if (seen.Add(path))
+					files.Add(path);
+			}
+		}
+		return files.OrderBy(static path => path, StringComparer.Ordinal).ToList();
+	}
+
+	static CompilerInspectMode? ParseDumpKind(string value)
+	{
+		return value.Trim().ToLowerInvariant() switch
+		{
+			"tokens" => CompilerInspectMode.Tokens,
+			"cst" => CompilerInspectMode.Cst,
+			"ast" => CompilerInspectMode.Ast,
+			"declarations" => CompilerInspectMode.Declarations,
+			"lowering" => CompilerInspectMode.Lowering,
+			"metadata" => CompilerInspectMode.Metadata,
+			_ => null
+		};
+	}
+
+	static int PrintErrors(IEnumerable<string> errors)
+	{
+		foreach (string error in errors)
+			Console.Error.WriteLine(error);
 		return 1;
 	}
 
-	if (parseResult.GetValue(buildOption) is string build && request.BuildKind is null)
+	static int Error(string message)
 	{
-		Console.Error.WriteLine($"Build kind '{build}' is not valid. Expected exec, winexe, static, or shared.");
+		Console.Error.WriteLine(message);
 		return 1;
 	}
-
-	if (parseResult.GetValue(emitMetadataOption) is not null && emitMetadata is null)
-	{
-		Console.Error.WriteLine($"Metadata emission '{parseResult.GetValue(emitMetadataOption)}' is not valid. Expected none, export, public, or all.");
-		return 1;
-	}
-
-	CompilerResult result = CompilerDriver.Execute(request);
-	Console.Out.Write(result.StdOut);
-	Console.Error.Write(result.StdErr);
-	return result.ExitCode;
-});
-
-return rootCommand.Parse(args).Invoke();
-
-static CompilerInspectMode? ParseInspectMode(string? value)
-{
-	return value?.Trim().ToLowerInvariant() switch
-	{
-		null or "" => null,
-		"tokens" => CompilerInspectMode.Tokens,
-		"cst" => CompilerInspectMode.Cst,
-		"ast" => CompilerInspectMode.Ast,
-		"declarations" => CompilerInspectMode.Declarations,
-		"lowering" => CompilerInspectMode.Lowering,
-		_ => null
-	};
 }
 
-static MetadataVisibility? ParseMetadataVisibility(string? value)
+sealed class PackageCommands
 {
-	return value?.Trim().ToLowerInvariant() switch
+	public static int Run(string[] args, CliEnvironment environment)
 	{
-		null or "" => null,
-		"none" => MetadataVisibility.None,
-		"export" => MetadataVisibility.Export,
-		"public" => MetadataVisibility.Public,
-		"all" => MetadataVisibility.All,
-		_ => null
-	};
+		if (args.Length == 0)
+			return Error("pkg requires a package command.");
+		return args[0] switch
+		{
+			"add-source" => AddSource(args[1..], environment),
+			"remove-source" => RemoveSource(args[1..], environment),
+			"search" => Search(args[1..], environment),
+			"install" => InstallCommand(args[1..], environment),
+			"uninstall" => Uninstall(args[1..], environment),
+			"add" => AddPackage(args[1..], environment),
+			"remove" => RemovePackage(args[1..], environment),
+			_ => Error($"Unknown pkg command '{args[0]}'.")
+		};
+	}
+
+	static int AddSource(string[] args, CliEnvironment environment)
+	{
+		if (args.Length < 2)
+			return Error("pkg add-source requires <name> <local-folder>.");
+		if (!TrySelectBuildFile(args[2..], environment, out string? file, out string? error))
+			return Error(error!);
+		EditBuildPragmas(file!, line => !line.StartsWith("#build --use-source " + args[0] + " ", StringComparison.Ordinal), $"#build --use-source {args[0]} {Quote(args[1])}");
+		return 0;
+	}
+
+	static int RemoveSource(string[] args, CliEnvironment environment)
+	{
+		if (args.Length < 1)
+			return Error("pkg remove-source requires <name>.");
+		if (!TrySelectBuildFile(args[1..], environment, out string? file, out string? error))
+			return Error(error!);
+		EditBuildPragmas(file!, line => !line.StartsWith("#build --use-source " + args[0], StringComparison.Ordinal), null);
+		return 0;
+	}
+
+	static int Search(string[] args, CliEnvironment environment)
+	{
+		if (args.Length == 0)
+			return Error("pkg search requires <pkg>.");
+		List<string> errors = [];
+		BuildOptionBag bag = LoadEffectiveSources(environment, args.Skip(1).ToArray(), errors);
+		if (errors.Count > 0)
+			return PrintErrors(errors);
+		string packageName = args[0];
+		string? sourceFilter = ReadOptionValue(args, "--source");
+		foreach (PackageSourceSpec source in bag.UseSources)
+		{
+			if (sourceFilter is not null && !source.Name.Equals(sourceFilter, StringComparison.Ordinal))
+				continue;
+			if (string.IsNullOrWhiteSpace(source.Path))
+				continue;
+			string packageDirectory = Path.Combine(source.Path!, packageName);
+			if (!Directory.Exists(packageDirectory))
+				continue;
+			foreach (string version in Directory.GetDirectories(packageDirectory).Select(Path.GetFileName).Where(static value => value is not null).Cast<string>().OrderBy(static value => SemVersion.Parse(value), SemVersion.Comparer))
+				Console.Out.WriteLine($"{source.Name}: {packageName}@{version}");
+		}
+		return 0;
+	}
+
+	static int InstallCommand(string[] args, CliEnvironment environment)
+	{
+		if (args.Length == 0)
+			return Error("pkg install requires <pkg@ver>.");
+		bool global = args.Contains("--global", StringComparer.Ordinal);
+		PackageSpec package = PackageSpec.Parse(args[0]);
+		List<string> errors = [];
+		BuildOptionBag bag = LoadEffectiveSources(environment, [], errors);
+		if (errors.Count > 0)
+			return PrintErrors(errors);
+		if (!Install(package, global, environment, bag.UseSources, out string message, out string? error))
+			return Error(error ?? message);
+		Console.Out.WriteLine(message);
+		return 0;
+	}
+
+	static int Uninstall(string[] args, CliEnvironment environment)
+	{
+		if (args.Length == 0)
+			return Error("pkg uninstall requires <pkg@ver>.");
+		bool global = args.Contains("--global", StringComparer.Ordinal);
+		PackageSpec package = PackageSpec.Parse(args[0]);
+		string root = global ? environment.GlobalPackageRoot : environment.LocalPackageRoot;
+		string packageDirectory = Path.Combine(root, package.Name);
+		if (!Directory.Exists(packageDirectory))
+			return 0;
+		if (package.Version is null)
+			Directory.Delete(packageDirectory, recursive: true);
+		else
+		{
+			string versionDirectory = Path.Combine(packageDirectory, package.Version);
+			if (Directory.Exists(versionDirectory))
+				Directory.Delete(versionDirectory, recursive: true);
+		}
+		return 0;
+	}
+
+	static int AddPackage(string[] args, CliEnvironment environment)
+	{
+		if (args.Length < 2)
+			return Error("pkg add requires <pkg@ver> <file.camp>.");
+		PackageSpec package = PackageSpec.Parse(args[0]);
+		string file = Path.GetFullPath(args[1], environment.WorkingDirectory);
+		EditBuildPragmas(file, line => !line.StartsWith("#build --use " + package.Name, StringComparison.Ordinal), "#build --use " + package);
+		return 0;
+	}
+
+	static int RemovePackage(string[] args, CliEnvironment environment)
+	{
+		if (args.Length < 2)
+			return Error("pkg remove requires <pkg> <file.camp>.");
+		string file = Path.GetFullPath(args[1], environment.WorkingDirectory);
+		EditBuildPragmas(file, line => !line.StartsWith("#build --use " + args[0], StringComparison.Ordinal), null);
+		return 0;
+	}
+
+	public static bool Install(PackageSpec package, bool global, CliEnvironment environment, IReadOnlyList<PackageSourceSpec> sources, out string message, out string? error)
+	{
+		error = null;
+		message = "";
+		foreach (PackageSourceSpec source in sources)
+		{
+			if (string.IsNullOrWhiteSpace(source.Path))
+				continue;
+			string packageDirectory = Path.Combine(source.Path!, package.Name);
+			if (!Directory.Exists(packageDirectory))
+				continue;
+			string? version = package.Version ?? Directory.GetDirectories(packageDirectory).Select(Path.GetFileName).Where(static value => value is not null).Cast<string>().OrderByDescending(static value => SemVersion.Parse(value), SemVersion.Comparer).FirstOrDefault();
+			if (version is null)
+				continue;
+			string sourceDirectory = Path.Combine(packageDirectory, version);
+			if (!Directory.Exists(Path.Combine(sourceDirectory, "src")))
+				continue;
+			string targetRoot = global ? environment.GlobalPackageRoot : environment.LocalPackageRoot;
+			string targetDirectory = Path.Combine(targetRoot, package.Name, version);
+			CopyDirectory(sourceDirectory, targetDirectory);
+			message = $"installed: {package.Name}@{version}";
+			return true;
+		}
+		error = $"Package '{package}' could not be found in configured package sources.";
+		return false;
+	}
+
+	public static bool IsInstalled(PackageSpec package, string root)
+	{
+		string packageDirectory = Path.Combine(root, package.Name);
+		if (!Directory.Exists(packageDirectory))
+			return false;
+		if (package.Version is null)
+			return Directory.GetDirectories(packageDirectory).Length > 0;
+		return Directory.Exists(Path.Combine(packageDirectory, package.Version));
+	}
+
+	static BuildOptionBag LoadEffectiveSources(CliEnvironment environment, string[] args, List<string> errors)
+	{
+		BuildOptionBag bag = new();
+		foreach (PragmaLine pragma in BuildPragmaReader.Read(environment.GlobalCampPath, environment.WorkingDirectory, errors))
+			bag.Apply(CommandLineOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors), Precedence.Global, pragma.SourceName, errors);
+		if (ReadOptionValue(args, "--local") is string localFile)
+		{
+			string fullPath = Path.GetFullPath(localFile, environment.WorkingDirectory);
+			foreach (PragmaLine pragma in BuildPragmaReader.Read(fullPath, environment.WorkingDirectory, errors))
+				bag.Apply(CommandLineOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors), Precedence.Local, pragma.SourceName, errors);
+		}
+		return bag;
+	}
+
+	static bool TrySelectBuildFile(string[] args, CliEnvironment environment, out string? file, out string? error)
+	{
+		file = null;
+		error = null;
+		if (args.Contains("--global", StringComparer.Ordinal))
+		{
+			file = environment.GlobalCampPath;
+			return true;
+		}
+		int local = Array.IndexOf(args, "--local");
+		if (local >= 0)
+		{
+			if (local + 1 >= args.Length)
+			{
+				error = "--local requires <file.camp>.";
+				return false;
+			}
+			file = Path.GetFullPath(args[local + 1], environment.WorkingDirectory);
+			return true;
+		}
+		error = "Specify --global or --local <file.camp>.";
+		return false;
+	}
+
+	static string? ReadOptionValue(string[] args, string name)
+	{
+		for (int i = 0; i + 1 < args.Length; i++)
+			if (args[i] == name)
+				return args[i + 1];
+		return null;
+	}
+
+	static void EditBuildPragmas(string file, Func<string, bool> keep, string? addLine)
+	{
+		Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+		List<string> lines = File.Exists(file) ? File.ReadAllLines(file).ToList() : [];
+		lines = lines.Where(line => !line.TrimStart().StartsWith("#build ", StringComparison.Ordinal) || keep(line.Trim())).ToList();
+		if (addLine is not null)
+			lines.Insert(0, addLine);
+		File.WriteAllLines(file, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+	}
+
+	static void CopyDirectory(string source, string target)
+	{
+		if (Directory.Exists(target))
+			Directory.Delete(target, recursive: true);
+		foreach (string directory in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
+			Directory.CreateDirectory(directory.Replace(source, target, StringComparison.Ordinal));
+		Directory.CreateDirectory(target);
+		foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+		{
+			string destination = file.Replace(source, target, StringComparison.Ordinal);
+			Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+			File.Copy(file, destination, overwrite: true);
+		}
+	}
+
+	static string Quote(string value) => value.Contains(' ', StringComparison.Ordinal) ? "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"" : value;
+	static int PrintErrors(IEnumerable<string> errors) { foreach (string error in errors) Console.Error.WriteLine(error); return 1; }
+	static int Error(string message) { Console.Error.WriteLine(message); return 1; }
 }
 
-static NativeBuildKind? ParseBuildKind(string? value)
+sealed class BuildOptionBag
 {
-	return value?.Trim().ToLowerInvariant() switch
+	readonly Dictionary<string, SingleValue> singleValues = new(StringComparer.Ordinal);
+	public List<string> IncludePatterns { get; } = [];
+	public List<string> ExcludePatterns { get; } = [];
+	public List<string> Defines { get; } = [];
+	public List<string> References { get; } = [];
+	public List<PackageSourceSpec> UseSources { get; } = [];
+	public List<PackageSpec> UsePackages { get; } = [];
+	public bool NoStdLib { get; private set; }
+	public bool ArtifactSpecified { get; private set; }
+	public NativeBuildKind? ArtifactKind { get; private set; }
+	Precedence? artifactPrecedence;
+	string? artifactSource;
+
+	public string? TargetName => Get("target");
+	public string? ProfileName => Get("profile");
+	public string? MemoryModelName => Get("memory-model");
+	public string? EmitKind => Get("emit");
+	public string? OutDir => Get("out-dir");
+	public string? BuildDir => Get("build-dir");
+	public string? ProjectName => Get("name");
+	public string? SubsystemName => Get("subsystem");
+	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
+	public bool Xml => Get("xml") == "true";
+	public bool HasBuildOnlyOptions => ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || Get("build-dir") is not null;
+
+	public void Apply(ParsedOptions options, Precedence precedence, string source, List<string> errors)
 	{
-		null or "" => null,
-		"exec" => NativeBuildKind.Exec,
-		"winexe" => NativeBuildKind.WinExe,
-		"static" => NativeBuildKind.Static,
-		"shared" => NativeBuildKind.Shared,
-		_ => null
-	};
+		foreach ((string key, string value) in options.SingleValues)
+			SetSingle(key, value, precedence, source, errors);
+		foreach (string pattern in options.IncludePatterns)
+			IncludePatterns.Add(pattern);
+		foreach (string pattern in options.ExcludePatterns)
+			ExcludePatterns.Add(pattern);
+		Defines.AddRange(options.Defines);
+		References.AddRange(options.References);
+		UseSources.AddRange(options.UseSources);
+		UsePackages.AddRange(options.UsePackages);
+		if (options.NoStdLib)
+			NoStdLib = true;
+		if (options.ArtifactSpecified)
+			SetArtifact(options.ArtifactKind, precedence, source, errors);
+	}
+
+	public void SetArtifact(NativeBuildKind? kind, string source, List<string> errors)
+	{
+		SetArtifact(kind, Precedence.CommandLine, source, errors);
+	}
+
+	void SetArtifact(NativeBuildKind? kind, Precedence precedence, string source, List<string> errors)
+	{
+		if (artifactPrecedence is Precedence existingPrecedence)
+		{
+			if (existingPrecedence == precedence && ArtifactKind != kind)
+				errors.Add($"{source}: --artifact conflicts with --artifact from {artifactSource}.");
+			if (existingPrecedence > precedence)
+				return;
+		}
+		ArtifactSpecified = true;
+		ArtifactKind = kind;
+		artifactPrecedence = precedence;
+		artifactSource = source;
+	}
+
+	void SetSingle(string key, string value, Precedence precedence, string source, List<string> errors)
+	{
+		if (singleValues.TryGetValue(key, out SingleValue existing))
+		{
+			if (existing.Precedence == precedence && existing.Value != value)
+				errors.Add($"{source}: --{key} conflicts with --{key} from {existing.Source}.");
+			if (existing.Precedence > precedence)
+				return;
+		}
+		singleValues[key] = new SingleValue(value, precedence, source);
+	}
+
+	string? Get(string key) => singleValues.TryGetValue(key, out SingleValue value) ? value.Value : null;
+
+	static MetadataVisibility? ParseMetadata(string value)
+	{
+		return value.Trim().ToLowerInvariant() switch
+		{
+			"none" => Camp.Compiler.MetadataVisibility.None,
+			"export" => Camp.Compiler.MetadataVisibility.Export,
+			"public" => Camp.Compiler.MetadataVisibility.Public,
+			"all" => Camp.Compiler.MetadataVisibility.All,
+			_ => null
+		};
+	}
+
+	readonly record struct SingleValue(string Value, Precedence Precedence, string Source);
+}
+
+sealed class ParsedOptions
+{
+	public List<string> Positionals { get; } = [];
+	public List<(string Key, string Value)> SingleValues { get; } = [];
+	public List<string> IncludePatterns { get; } = [];
+	public List<string> ExcludePatterns { get; } = [];
+	public List<string> Defines { get; } = [];
+	public List<string> References { get; } = [];
+	public List<PackageSourceSpec> UseSources { get; } = [];
+	public List<PackageSpec> UsePackages { get; } = [];
+	public bool NoStdLib { get; set; }
+	public bool ArtifactSpecified { get; set; }
+	public NativeBuildKind? ArtifactKind { get; set; }
+}
+
+static class CommandLineOptionParser
+{
+	public static ParsedOptions Parse(IReadOnlyList<string> tokens, bool allowPositionals, List<string> errors)
+	{
+		ParsedOptions result = new();
+		for (int i = 0; i < tokens.Count; i++)
+		{
+			string token = tokens[i];
+			switch (token)
+			{
+				case "--inspect":
+					errors.Add("--inspect has been replaced by 'dump <kind>'.");
+					i += HasValue(tokens, i) ? 1 : 0;
+					break;
+				case "--build":
+				case "-b":
+					errors.Add("--build/-b has been replaced by --artifact.");
+					i += HasValue(tokens, i) ? 1 : 0;
+					break;
+				case "--emit-metadata":
+					errors.Add("--emit-metadata has been replaced by --metadata.");
+					i += HasValue(tokens, i) ? 1 : 0;
+					break;
+				case "--target":
+				case "-t":
+					AddSingle(result, "target", RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--profile":
+				case "-p":
+					AddSingle(result, "profile", RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--memory-model":
+					AddSingle(result, "memory-model", RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--emit":
+					AddSingle(result, "emit", RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--metadata":
+					string metadata = RequiredValue(tokens, ref i, token, errors);
+					if (metadata is not ("none" or "export" or "public" or "all"))
+						errors.Add("--metadata expects none, export, public, or all.");
+					AddSingle(result, "metadata", metadata);
+					break;
+				case "--artifact":
+					string artifact = RequiredValue(tokens, ref i, token, errors);
+					result.ArtifactSpecified = true;
+					result.ArtifactKind = artifact switch
+					{
+						"none" => null,
+						"exec" => NativeBuildKind.Exec,
+						"static" => NativeBuildKind.Static,
+						"shared" => NativeBuildKind.Shared,
+						"winexe" => InvalidArtifact("winexe has been removed. Use --artifact exec --subsystem windows.", errors),
+						_ => InvalidArtifact("--artifact expects exec, static, shared, or none.", errors)
+					};
+					break;
+				case "--name":
+					AddSingle(result, "name", RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--subsystem":
+					AddSingle(result, "subsystem", RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--out-dir":
+					AddSingle(result, "out-dir", RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--build-dir":
+					AddSingle(result, "build-dir", RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--include":
+				case "-i":
+					result.IncludePatterns.Add(RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--exclude":
+					result.ExcludePatterns.Add(RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--define":
+				case "-d":
+					result.Defines.Add(RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--reference":
+					result.References.Add(RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--use":
+					result.UsePackages.Add(PackageSpec.Parse(RequiredValue(tokens, ref i, token, errors)));
+					break;
+				case "--use-source":
+					string name = RequiredValue(tokens, ref i, token, errors);
+					string? path = null;
+					if (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
+						path = tokens[++i];
+					result.UseSources.Add(new PackageSourceSpec(name, path));
+					break;
+				case "--nostdlib":
+					result.NoStdLib = true;
+					break;
+				case "--xml":
+					AddSingle(result, "xml", "true");
+					break;
+				default:
+					if (token.StartsWith("-", StringComparison.Ordinal))
+						errors.Add($"Unknown option '{token}'.");
+					else if (allowPositionals)
+						result.Positionals.Add(token);
+					else
+						errors.Add($"Unexpected build pragma argument '{token}'.");
+					break;
+			}
+		}
+		return result;
+	}
+
+	static bool HasValue(IReadOnlyList<string> tokens, int index) => index + 1 < tokens.Count && !tokens[index + 1].StartsWith("-", StringComparison.Ordinal);
+	static void AddSingle(ParsedOptions options, string key, string value) { if (!string.IsNullOrEmpty(value)) options.SingleValues.Add((key, value)); }
+	static string RequiredValue(IReadOnlyList<string> tokens, ref int index, string option, List<string> errors)
+	{
+		if (index + 1 >= tokens.Count || tokens[index + 1].StartsWith("-", StringComparison.Ordinal))
+		{
+			errors.Add($"{option} requires a value.");
+			return "";
+		}
+		return tokens[++index];
+	}
+	static NativeBuildKind? InvalidArtifact(string message, List<string> errors) { errors.Add(message); return null; }
+}
+
+static class BuildPragmaReader
+{
+	public static IEnumerable<PragmaLine> Read(string file, string workingDirectory, List<string> errors)
+	{
+		string fullPath = Path.GetFullPath(file, workingDirectory);
+		if (!File.Exists(fullPath))
+			yield break;
+
+		bool beforeCode = true;
+		int lineNumber = 0;
+		foreach (string line in File.ReadLines(fullPath))
+		{
+			lineNumber++;
+			string trimmed = line.TrimStart();
+			if (trimmed.StartsWith("#build", StringComparison.Ordinal))
+			{
+				if (!beforeCode)
+				{
+					errors.Add($"{Path.GetRelativePath(workingDirectory, fullPath)}({lineNumber},1): error: #build pragmas must appear in the file prelude before any non-comment token.");
+					continue;
+				}
+				yield return new PragmaLine(Split(trimmed["#build".Length..]), $"{Path.GetRelativePath(workingDirectory, fullPath)}:{lineNumber}");
+				continue;
+			}
+			if (IsPreludeTrivia(trimmed))
+				continue;
+			beforeCode = false;
+		}
+	}
+
+	static bool IsPreludeTrivia(string trimmed)
+	{
+		return trimmed.Length == 0
+			|| trimmed.StartsWith("//", StringComparison.Ordinal)
+			|| trimmed.StartsWith("/*", StringComparison.Ordinal)
+			|| trimmed.StartsWith("*", StringComparison.Ordinal)
+			|| trimmed.StartsWith("*/", StringComparison.Ordinal);
+	}
+
+	static List<string> Split(string text)
+	{
+		List<string> tokens = [];
+		StringBuilder current = new();
+		bool inQuote = false;
+		for (int i = 0; i < text.Length; i++)
+		{
+			char ch = text[i];
+			if (inQuote)
+			{
+				if (ch == '\\' && i + 1 < text.Length)
+					current.Append(text[++i]);
+				else if (ch == '"')
+					inQuote = false;
+				else
+					current.Append(ch);
+				continue;
+			}
+			if (char.IsWhiteSpace(ch))
+			{
+				if (current.Length > 0)
+				{
+					tokens.Add(current.ToString());
+					current.Clear();
+				}
+			}
+			else if (ch == '"')
+				inQuote = true;
+			else
+				current.Append(ch);
+		}
+		if (current.Length > 0)
+			tokens.Add(current.ToString());
+		return tokens;
+	}
+}
+
+static class Glob
+{
+	public static IEnumerable<string> Expand(string pattern, string workingDirectory)
+	{
+		string fullPattern = Path.GetFullPath(pattern, workingDirectory);
+		if (!HasWildcards(pattern))
+		{
+			if (File.Exists(fullPattern))
+				yield return fullPattern;
+			yield break;
+		}
+
+		string root = GetSearchRoot(fullPattern);
+		if (!Directory.Exists(root))
+			yield break;
+		string relativePattern = Normalize(Path.GetRelativePath(root, fullPattern));
+		foreach (string file in Directory.GetFiles(root, "*.camp", SearchOption.AllDirectories))
+			if (IsMatch(Normalize(Path.GetRelativePath(root, file)), relativePattern))
+				yield return file;
+	}
+
+	public static bool IsMatch(string path, string pattern)
+	{
+		return Regex.IsMatch(Normalize(path), "^" + Regex.Escape(Normalize(pattern)).Replace("\\*\\*", ".*", StringComparison.Ordinal).Replace("\\*", "[^/]*", StringComparison.Ordinal).Replace("\\?", "[^/]", StringComparison.Ordinal) + "$", RegexOptions.CultureInvariant);
+	}
+
+	static bool HasWildcards(string pattern) => pattern.IndexOfAny(['*', '?', '[']) >= 0;
+	static string GetSearchRoot(string fullPattern)
+	{
+		int wildcard = fullPattern.IndexOfAny(['*', '?', '[']);
+		string prefix = wildcard < 0 ? fullPattern : fullPattern[..wildcard];
+		string? directory = Directory.Exists(prefix) ? prefix : Path.GetDirectoryName(prefix);
+		while (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+			directory = Path.GetDirectoryName(directory);
+		return string.IsNullOrWhiteSpace(directory) ? Directory.GetCurrentDirectory() : directory;
+	}
+	static string Normalize(string path) => path.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+}
+
+sealed record PragmaLine(IReadOnlyList<string> Tokens, string SourceName);
+sealed record PackageSourceSpec(string Name, string? Path);
+
+sealed record PackageSpec(string Name, string? Version)
+{
+	public static PackageSpec Parse(string value)
+	{
+		string[] parts = value.Split('@', 2);
+		return new PackageSpec(parts[0], parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null);
+	}
+	public override string ToString() => Version is null ? Name : Name + "@" + Version;
+}
+
+sealed record SemVersion(int Major, int Minor, int Patch, string? Suffix) : IComparable<SemVersion>
+{
+	public static IComparer<SemVersion> Comparer { get; } = Comparer<SemVersion>.Create(static (left, right) => left.CompareTo(right));
+	public static SemVersion Parse(string value)
+	{
+		string[] suffixParts = value.Split('-', 2);
+		string[] parts = suffixParts[0].Split('.');
+		return new SemVersion(ParsePart(parts, 0), ParsePart(parts, 1), ParsePart(parts, 2), suffixParts.Length == 2 ? suffixParts[1] : null);
+	}
+	public int CompareTo(SemVersion? other)
+	{
+		if (other is null)
+			return 1;
+		int major = Major.CompareTo(other.Major);
+		if (major != 0) return major;
+		int minor = Minor.CompareTo(other.Minor);
+		if (minor != 0) return minor;
+		int patch = Patch.CompareTo(other.Patch);
+		if (patch != 0) return patch;
+		if (Suffix is null && other.Suffix is not null) return 1;
+		if (Suffix is not null && other.Suffix is null) return -1;
+		return string.Compare(Suffix, other.Suffix, StringComparison.Ordinal);
+	}
+	static int ParsePart(string[] parts, int index) => index < parts.Length && int.TryParse(parts[index], NumberStyles.None, CultureInfo.InvariantCulture, out int value) ? value : 0;
+}
+
+sealed class CliEnvironment
+{
+	public required string WorkingDirectory { get; init; }
+	public required string RuntimeRoot { get; init; }
+	public required string RepositoryRoot { get; init; }
+	public string GlobalCampPath => Path.Combine(RepositoryRoot, "lib", "global.camp");
+	public string GlobalPackageRoot => Path.Combine(RepositoryRoot, "pkg");
+	public string LocalPackageRoot => Path.Combine(WorkingDirectory, "pkg");
+
+	public static CliEnvironment Create()
+	{
+		string workingDirectory = Directory.GetCurrentDirectory();
+		string runtimeRoot = AppContext.BaseDirectory;
+		string repositoryRoot = FindRepositoryRoot(workingDirectory) ?? FindRepositoryRoot(runtimeRoot) ?? Path.GetFullPath(Path.Combine(runtimeRoot, ".."));
+		return new CliEnvironment
+		{
+			WorkingDirectory = workingDirectory,
+			RuntimeRoot = Path.Combine(repositoryRoot, "bin"),
+			RepositoryRoot = repositoryRoot
+		};
+	}
+
+	static string? FindRepositoryRoot(string start)
+	{
+		DirectoryInfo? directory = new DirectoryInfo(Path.GetFullPath(start));
+		while (directory is not null)
+		{
+			if (File.Exists(Path.Combine(directory.FullName, "src", "camplang.sln")) && Directory.Exists(Path.Combine(directory.FullName, "lib", "std", "src")))
+				return directory.FullName;
+			directory = directory.Parent;
+		}
+		return null;
+	}
+}
+
+enum CommandKind
+{
+	Build,
+	Run,
+	Dump
+}
+
+enum Precedence
+{
+	Global = 0,
+	Local = 1,
+	CommandLine = 2
 }
