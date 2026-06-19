@@ -65,6 +65,36 @@
               "content": "Sets the count."
             }
           ]
+        },
+        {
+          "id": "struct:Docs::Widget/function:getAt",
+          "name": "getAt",
+          "returnType": "nuint",
+          "property": true,
+          "propertyAccessor": "get",
+          "propertyName": "At",
+          "propertyIndexParams": [
+            "index"
+          ],
+          "parameters": [
+            {
+              "id": "struct:Docs::Widget/function:getAt/parameter:index",
+              "name": "index",
+              "type": "nuint",
+              "metadata": [
+                {
+                  "name": "summary",
+                  "content": "The value index."
+                }
+              ]
+            }
+          ],
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Gets a value by index."
+            }
+          ]
         }
       ],
       "metadata": [

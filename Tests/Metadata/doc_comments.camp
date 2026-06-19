@@ -14,6 +14,10 @@ export struct Widget
 	{
 		this.count = value;
 	}
+
+	/// Gets a value by index.
+	/// - index: The value index.
+	nuint getAt(nuint index) => index;
 }
 
 /// Example mode values.

@@ -329,7 +329,7 @@ public static class DocCommentTranslator
 					lines.Add(StripLineDocPrefix(current.Value));
 					range = new TokenRange(tokens, start, i - start + 1);
 					i = NextLineIndex(tokens, i + 1);
-					int lookahead = SkipWhitespaceOnlyLines(tokens, i);
+					int lookahead = SkipLineIndent(tokens, SkipWhitespaceOnlyLines(tokens, i));
 					if (lookahead < tokens.Count && tokens[lookahead].Class == TokenClass.LineComment && tokens[lookahead].Value.StartsWith("///", StringComparison.Ordinal))
 						i = lookahead;
 					else
@@ -364,6 +364,13 @@ public static class DocCommentTranslator
 		while (start < tokens.Count && tokens[start].Class != TokenClass.NewLine)
 			start++;
 		return start < tokens.Count ? start + 1 : start;
+	}
+
+	static int SkipLineIndent(TokenSequence tokens, int start)
+	{
+		while (start < tokens.Count && tokens[start].Class == TokenClass.Whitespace)
+			start++;
+		return start;
 	}
 
 	static int SkipWhitespaceOnlyLines(TokenSequence tokens, int start)
