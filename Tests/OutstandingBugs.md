@@ -2,16 +2,6 @@
 
 Next bug number: BUG-023.
 
-- **BUG-020:** Fixed arrays in lambdas and delegate contexts are not covered
-  enough. Priority: medium-high. Complexity: high. The proposal requires tests
-  for lambda/delegate interaction with fixed storage: accepting
-  `delegate void(byte[n]*)`, rejecting `delegate void(byte[n])`, capturing a
-  pointer-to-fixed-array, capturing a fixed-array span view under a scoped
-  lifetime, rejecting fixed-array capture-by-value, rejecting escaped delegates
-  that would retain stack fixed storage, and generated delegate context types
-  that contain fixed-array fields initialized from `default` or literals rather
-  than copied from an existing fixed array.
-
 - **BUG-021:** Fixed-array aggregate/generic edge coverage is incomplete.
   Priority: medium. Complexity: medium-high. Add tests for the proposal's
   remaining aggregate and generic cases: `Box<T: any>` accepting direct

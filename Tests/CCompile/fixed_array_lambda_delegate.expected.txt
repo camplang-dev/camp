@@ -1,0 +1,142 @@
+// file: fixed_array_lambda_delegate.c
+#include "fixed_array_lambda_delegate_private.h"
+
+/* Private file declarations. */
+static void __camp_delegate_main_lambda4(void *arg0, uint8_t (*arg1)[4]);
+static void invokeBlock(fn_void_voidPtr__byte_4_Ptr_ callback, void *callback_context, uint8_t (*block)[4]);
+static uint8_t readWith(fn_byte_voidPtr_ callback, void *callback_context);
+static uint8_t main_lambda0(void *context);
+static uintptr_t main_lambda1(void *context);
+static uint8_t main_lambda2(void *context);
+static uint8_t main_lambda3(void *context);
+static void main_lambda4(void *context, uint8_t (*block)[4]);
+
+static void __camp_delegate_main_lambda4(void *arg0, uint8_t (*arg1)[4])
+{
+	main_lambda4(arg0, arg1);
+}
+
+static void invokeBlock(fn_void_voidPtr__byte_4_Ptr_ callback, void *callback_context, uint8_t (*block)[4])
+{
+	callback(callback_context, block);
+}
+
+static uint8_t readWith(fn_byte_voidPtr_ callback, void *callback_context)
+{
+	return callback(callback_context);
+}
+
+int main(void)
+{
+	uint8_t data[4] = {1, 2, 3, 4};
+	invokeBlock(__camp_delegate_main_lambda4, NULL, &data);
+	uint8_t (*capturedPointer)[4] = &data;
+	main_lambdaContext0 _lambdaContext0;
+	_lambdaContext0.capture0_capturedPointer = &capturedPointer;
+	fn_byte_voidPtr_ readCapturedPointer = main_lambda0;
+	void *readCapturedPointer_context = &_lambdaContext0;
+	uint8_t *span = (uint8_t *)(data);
+	uintptr_t span_length = 4;
+	main_lambdaContext1 _lambdaContext1;
+	_lambdaContext1.capture0_span = &span;
+	_lambdaContext1.capture1_span_length = &span_length;
+	fn_nuint_voidPtr_ readSpanLength = main_lambda1;
+	void *readSpanLength_context = &_lambdaContext1;
+	main_lambdaContext2 _lambdaContext2;
+	_lambdaContext2.capture0_span = &span;
+	_lambdaContext2.capture1_span_length = &span_length;
+	fn_byte_voidPtr_ readSpanItem = main_lambda2;
+	void *readSpanItem_context = &_lambdaContext2;
+	fn_byte_voidPtr_ localFixedArray = main_lambda3;
+	void *localFixedArray_context = NULL;
+	return ((((int)(readWith((fn_byte_voidPtr_)readCapturedPointer, readCapturedPointer_context)) + (int)(readSpanLength(readSpanLength_context))) + (int)(readSpanItem(readSpanItem_context))) + (int)(localFixedArray(localFixedArray_context)));
+}
+
+static uint8_t main_lambda0(void *context)
+{
+	main_lambdaContext0 *lambdaContext = (main_lambdaContext0 *)(context);
+	return ((uint8_t *)(*(*lambdaContext->capture0_capturedPointer)))[1];
+}
+
+static uintptr_t main_lambda1(void *context)
+{
+	main_lambdaContext1 *lambdaContext = (main_lambdaContext1 *)(context);
+	return (*lambdaContext->capture1_span_length);
+}
+
+static uint8_t main_lambda2(void *context)
+{
+	main_lambdaContext2 *lambdaContext = (main_lambdaContext2 *)(context);
+	return (*lambdaContext->capture0_span)[0];
+}
+
+static uint8_t main_lambda3(void *context)
+{
+	uint8_t local[3] = {5, 6, 7};
+	return ((uint8_t *)(local))[2];
+}
+
+static void main_lambda4(void *context, uint8_t (*block)[4])
+{
+	((uint8_t *)(*block))[1] = (uint8_t)(9);
+}
+
+// file: fixed_array_lambda_delegate.h
+#ifndef FIXED_ARRAY_LAMBDA_DELEGATE_H_
+#define FIXED_ARRAY_LAMBDA_DELEGATE_H_
+
+#include "fixed_array_lambda_delegate_private.h"
+
+typedef uint8_t (* fn_byte_voidPtr_)(void *arg0);
+typedef uintptr_t (* fn_nuint_voidPtr_)(void *arg0);
+typedef void (* fn_void_voidPtr__byte_4_Ptr_)(void *arg0, uint8_t (*arg1)[4]);
+int main(void);
+
+#endif
+// file: fixed_array_lambda_delegate_private.h
+#ifndef FIXED_ARRAY_LAMBDA_DELEGATE_PRIVATE_H_
+#define FIXED_ARRAY_LAMBDA_DELEGATE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct main_lambdaContext0 main_lambdaContext0;
+typedef struct main_lambdaContext1 main_lambdaContext1;
+typedef struct main_lambdaContext2 main_lambdaContext2;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef uint8_t (* fn_byte_voidPtr_)(void *arg0);
+typedef uintptr_t (* fn_nuint_voidPtr_)(void *arg0);
+typedef void (* fn_void_voidPtr__byte_4_Ptr_)(void *arg0, uint8_t (*arg1)[4]);
+
+/* Layouts. */
+struct main_lambdaContext0
+{
+	uint8_t (**capture0_capturedPointer)[4];
+};
+struct main_lambdaContext1
+{
+	uint8_t **capture0_span;
+	uintptr_t *capture1_span_length;
+};
+struct main_lambdaContext2
+{
+	uint8_t **capture0_span;
+	uintptr_t *capture1_span_length;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: fixed_array_lambda_delegate.c

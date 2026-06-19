@@ -1,0 +1,36 @@
+void invokeBlock(delegate void(byte[4]* block) callback, byte[4]* block)
+{
+	callback(block);
+}
+
+byte readWith(delegate byte() callback)
+{
+	return callback();
+}
+
+export int main()
+{
+	fixed byte[4] data = [1, 2, 3, 4];
+	invokeBlock((byte[4]* block) =>
+	{
+		(*block)[1] = (byte)9;
+	}, &data);
+
+	byte[4]* capturedPointer = &data;
+	delegate byte() readCapturedPointer = () => (*capturedPointer)[1];
+
+	byte[] span = data;
+	delegate nuint() readSpanLength = () => span.length;
+	delegate byte() readSpanItem = () => span[0];
+
+	delegate byte() localFixedArray = () =>
+	{
+		fixed byte[3] local = [5, 6, 7];
+		return local[2];
+	};
+
+	return (int)readWith(readCapturedPointer)
+		+ (int)readSpanLength()
+		+ (int)readSpanItem()
+		+ (int)localFixedArray();
+}
