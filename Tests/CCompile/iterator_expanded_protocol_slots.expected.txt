@@ -1,0 +1,154 @@
+// file: iterator_expanded_protocol_slots.c
+#include "iterator_expanded_protocol_slots_private.h"
+
+/* Private file declarations. */
+static bool __camp_delegate_chunksIter_iter(void *arg0, uint8_t **arg1, uintptr_t *arg2);
+static chunksIter chunks(void);
+static int sumLengths(fn_bool_voidPtr__bytePtrPtr__nuintPtr_ values, void *values_context);
+static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length);
+static void chunksIter_op_delete(chunksIter *this);
+static void chunksIter_destroy(chunksIter *this);
+static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_length);
+
+static bool __camp_delegate_chunksIter_iter(void *arg0, uint8_t **arg1, uintptr_t *arg2)
+{
+	return chunksIter_iter(arg0, arg1, arg2);
+}
+
+static chunksIter chunks(void)
+{
+	return (chunksIter){ .__state = 0 };
+}
+
+static int sumLengths(fn_bool_voidPtr__bytePtrPtr__nuintPtr_ values, void *values_context)
+{
+	int total = 0;
+	{
+		bool (* _foreachIterCall0)(void *arg0, uint8_t **arg1, uintptr_t *arg2) = values;
+		void *_foreachIterContext1 = values_context;
+		uint8_t *_foreachCurrent2 = 0;
+		uintptr_t _foreachCurrent2_length = 0;
+		while (_foreachIterCall0(_foreachIterContext1, &_foreachCurrent2, &_foreachCurrent2_length))
+		{
+			uint8_t *value = _foreachCurrent2;
+			uintptr_t value_length = _foreachCurrent2_length;
+			total += (int)(value_length);
+__foreach_continue3: ;
+		}
+		_foreachIterCall0(_foreachIterContext1, NULL, NULL);
+__foreach_break4: ;
+	}
+	return total;
+}
+
+int main(void)
+{
+	chunksIter _iterState5 = chunks();
+	return ((sumLengths(__camp_delegate_chunksIter_iter, &_iterState5) == 5) ? 0 : 1);
+}
+
+static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	if ((this->__state == 2))
+	{
+		goto __iter_resume2;
+	}
+	__builtin_memcpy(this->first, (uint8_t[3]){1, 2, 3}, sizeof(this->first));
+	__builtin_memcpy(this->second, (uint8_t[2]){4, 5}, sizeof(this->second));
+	{
+		*current = ((uint8_t *)(this->first) + ((0 > 3) ? 3 : ((0 < 0) ? 0 : 0)));
+		*current_length = ((((3 > 3) ? 3 : ((3 < 0) ? 0 : 3)) >= ((0 > 3) ? 3 : ((0 < 0) ? 0 : 0))) ? (((3 > 3) ? 3 : ((3 < 0) ? 0 : 3)) - ((0 > 3) ? 3 : ((0 < 0) ? 0 : 0))) : 0);
+	}
+	this->__state = 1;
+	return true;
+__iter_resume1: ;
+	;
+	{
+		*current = ((uint8_t *)(this->second) + ((0 > 2) ? 2 : ((0 < 0) ? 0 : 0)));
+		*current_length = ((((2 > 2) ? 2 : ((2 < 0) ? 0 : 2)) >= ((0 > 2) ? 2 : ((0 < 0) ? 0 : 0))) ? (((2 > 2) ? 2 : ((2 < 0) ? 0 : 2)) - ((0 > 2) ? 2 : ((0 < 0) ? 0 : 0))) : 0);
+	}
+	this->__state = 2;
+	return true;
+__iter_resume2: ;
+	;
+	this->__state = -1;
+	return false;
+}
+
+static void chunksIter_op_delete(chunksIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static void chunksIter_destroy(chunksIter *this)
+{
+	chunksIter_op_delete(this);
+}
+
+static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_length)
+{
+	chunksIter *state = (chunksIter *)(ctx);
+	if ((current == NULL))
+	{
+		chunksIter_op_delete(state);
+		return false;
+	}
+	return chunksIter_next(state, current, current_length);
+}
+
+// file: iterator_expanded_protocol_slots.h
+#ifndef ITERATOR_EXPANDED_PROTOCOL_SLOTS_H_
+#define ITERATOR_EXPANDED_PROTOCOL_SLOTS_H_
+
+#include "iterator_expanded_protocol_slots_private.h"
+
+typedef bool (* fn_bool_voidPtr__bytePtrPtr__nuintPtr_)(void *arg0, uint8_t **arg1, uintptr_t *arg2);
+int main(void);
+
+#endif
+// file: iterator_expanded_protocol_slots_private.h
+#ifndef ITERATOR_EXPANDED_PROTOCOL_SLOTS_PRIVATE_H_
+#define ITERATOR_EXPANDED_PROTOCOL_SLOTS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct chunksIter chunksIter;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef bool (* fn_bool_voidPtr__bytePtrPtr__nuintPtr_)(void *arg0, uint8_t **arg1, uintptr_t *arg2);
+
+/* Layouts. */
+struct chunksIter
+{
+	int __state;
+	uint8_t first[3];
+	uint8_t second[2];
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: iterator_expanded_protocol_slots.c

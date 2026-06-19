@@ -365,7 +365,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		List<string> types = [];
 		foreach (string currentType in GetIteratorProtocolCurrentTypes(iter))
-			types.Add(AddPointer(currentType));
+			AddIteratorProtocolCurrentParameterTypes(currentType, types);
 		foreach (ParameterDefinition parameter in iter.Parameters)
 			if (parameter.Modifier == ParameterModifier.Thrown)
 				types.Add("thrown " + (parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type)));

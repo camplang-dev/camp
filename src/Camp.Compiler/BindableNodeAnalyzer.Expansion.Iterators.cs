@@ -686,13 +686,8 @@ public sealed partial class BindableNodeAnalyzer
 			Type = PointerTo(VoidType()),
 			ResolvedType = "void*"
 		};
-		ParameterDefinition current = new()
-		{
-			Name = "current",
-			Symbol = "current",
-			Type = PointerTo(CloneType(slots[0].Type) ?? TypeReferenceForResolvedName(slotType)),
-			ResolvedType = AddPointer(slotType)
-		};
+		List<ParameterDefinition> currentParameters = CreateIteratorProtocolCurrentParameters(slots[0], slotType);
+		ParameterDefinition currentArgument = CreateIteratorProtocolCurrentArgument(slots[0], slotType, currentParameters);
 		TypeReference statePointerType = PointerTo(TypeReferenceFor(state));
 		string statePointerResolvedType = AddPointer(state.Name);
 		DeclarationStatement stateLocal = CreateGeneratedLocal("state", statePointerResolvedType, statePointerType, new CastExpression
@@ -722,7 +717,7 @@ public sealed partial class BindableNodeAnalyzer
 						ResolvedType = "void",
 						Condition = new BinaryExpression
 						{
-							Left = CreateVariableReference(current, current.ResolvedType),
+							Left = CreateVariableReference(currentParameters[0], currentParameters[0].ResolvedType ?? ErrorType),
 							Operator = BinaryOperator.Equal,
 							Right = NullLiteral(),
 							ResolvedType = "bool"
@@ -757,8 +752,8 @@ public sealed partial class BindableNodeAnalyzer
 							{
 								new ArgumentExpression
 								{
-									Value = CreateVariableReference(current, current.ResolvedType),
-									ResolvedType = current.ResolvedType
+									Value = CreateVariableReference(currentArgument, currentArgument.ResolvedType ?? ErrorType),
+									ResolvedType = currentArgument.ResolvedType
 								}
 							},
 							ResolvedType = "bool"
@@ -768,8 +763,53 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		};
 		adapter.Parameters.Add(context);
-		adapter.Parameters.Add(current);
+		adapter.Parameters.AddRange(currentParameters);
 		AddIteratorFunction(state, adapter);
+	}
+
+	ParameterDefinition CreateIteratorProtocolCurrentArgument(ParameterDefinition slot, string slotType, List<ParameterDefinition> currentParameters)
+	{
+		ParameterDefinition current = new()
+		{
+			SourceSyntax = slot.SourceSyntax,
+			Name = "current",
+			Symbol = "current",
+			Type = PointerTo(CloneType(slot.Type) ?? TypeReferenceForResolvedName(slotType)),
+			ResolvedType = AddPointer(slotType)
+		};
+		if (TryGetParamsComponentShape(current.Type, current.ResolvedType, current.Name, out ParamsComponentShape shape) && shape.Components.Count == currentParameters.Count)
+			RegisterParamsExpansion(current, shape, currentParameters);
+		return current;
+	}
+
+	List<ParameterDefinition> CreateIteratorProtocolCurrentParameters(ParameterDefinition slot, string slotType)
+	{
+		List<ParameterDefinition> parameters = [];
+		if (TryGetParamsComponentShape(slot.Type, slot.ResolvedType ?? slotType, "current", out ParamsComponentShape shape) && shape.Components.Count > 1)
+		{
+			foreach (ParamsComponent component in shape.Components)
+			{
+				parameters.Add(new ParameterDefinition
+				{
+					SourceSyntax = slot.SourceSyntax,
+					Name = component.ExpandedName,
+					Symbol = component.ExpandedName,
+					Type = PointerTo(TypeReferenceForResolvedName(component.Type)),
+					ResolvedType = AddPointer(component.Type)
+				});
+			}
+			return parameters;
+		}
+
+		parameters.Add(new ParameterDefinition
+		{
+			SourceSyntax = slot.SourceSyntax,
+			Name = "current",
+			Symbol = "current",
+			Type = PointerTo(CloneType(slot.Type) ?? TypeReferenceForResolvedName(slotType)),
+			ResolvedType = AddPointer(slotType)
+		});
+		return parameters;
 	}
 
 	Statement CreateIteratorAdapterCleanup(TypeDefinition state, Expression stateReference, FunctionDefinition opDelete)

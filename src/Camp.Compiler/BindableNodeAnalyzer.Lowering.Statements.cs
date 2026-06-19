@@ -358,12 +358,28 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else
 		{
-			callLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIterCall"), callType, TypeReferenceForResolvedName(callType), call);
+			callLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIterCall"), callType, TypeReferenceForIteratorField(callType), call);
 			contextLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIterContext"), context.ResolvedType ?? "void*", TypeReferenceForResolvedName(context.ResolvedType ?? "void*"), context);
-			currentLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachCurrent"), elementType, TypeReferenceForResolvedName(elementType), new DefaultExpression { ResolvedType = elementType });
+			string currentLocalName = NewGeneratedLocalName("foreachCurrent");
+			currentLocal = CreateGeneratedLocal(currentLocalName, elementType, TypeReferenceForResolvedName(elementType), new DefaultExpression { ResolvedType = elementType });
 			statements.Add(callLocal);
 			statements.Add(contextLocal);
-			statements.Add(currentLocal);
+			if (TryGetParamsComponentShape(currentLocal.Target.Type, currentLocal.Target.ResolvedType, currentLocalName, out ParamsComponentShape currentShape)
+				&& currentShape.Components.Count > 1)
+			{
+				List<DeclarationTarget> currentTargets = [];
+				foreach (ParamsComponent component in currentShape.Components)
+				{
+					DeclarationStatement componentLocal = CreateGeneratedLocal(component.ExpandedName, component.Type, TypeReferenceForResolvedName(component.Type), new DefaultExpression { ResolvedType = component.Type });
+					statements.Add(componentLocal);
+					currentTargets.Add(componentLocal.Target);
+				}
+				RegisterParamsExpansion(currentLocal.Target, currentShape, currentTargets);
+			}
+			else
+			{
+				statements.Add(currentLocal);
+			}
 		}
 
 		DeclarationStatement loopValue = new()
@@ -377,6 +393,26 @@ public sealed partial class BindableNodeAnalyzer
 		loopValue.Target.ResolvedType = elementType;
 		foreach (string name in foreachStatement.Target.Names)
 			loopValue.Target.Names.Add(name);
+		List<Statement> loopValueStatements = [loopValue];
+		if (loopValue.Target.Names.Count == 1
+			&& TryGetParamsComponentShape(loopValue.Target.Type, loopValue.Target.ResolvedType, loopValue.Target.Names[0], out ParamsComponentShape loopValueShape)
+			&& TryCreateParamsComponentExpressions(CurrentReference(), out List<Expression> currentValueComponents)
+			&& currentValueComponents.Count == loopValueShape.Components.Count)
+		{
+			List<DeclarationTarget> loopValueTargets = [];
+			loopValueStatements = [];
+			for (int i = 0; i < loopValueShape.Components.Count; i++)
+			{
+				ParamsComponent component = loopValueShape.Components[i];
+				DeclarationStatement componentLocal = CreateGeneratedLocal(component.ExpandedName, component.Type, TypeReferenceForResolvedName(component.Type), currentValueComponents[i]);
+				componentLocal.SourceSyntax = loopValue.SourceSyntax;
+				componentLocal.Target.SourceSyntax = loopValue.Target.SourceSyntax;
+				loopValueStatements.Add(componentLocal);
+				loopValueTargets.Add(componentLocal.Target);
+			}
+			RegisterParamsExpansion(loopValue.Target, loopValueShape, loopValueTargets);
+			RegisterParamsExpansion(foreachStatement.Target, loopValueShape, loopValueTargets);
+		}
 
 		string continueLabel = NewGeneratedLabelName("foreach_continue");
 		string breakLabel = NewGeneratedLabelName("foreach_break");
@@ -392,7 +428,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		currentCleanupScopes.Add(iteratorCleanupScope);
 		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
-		List<Statement> bodyStatements = [loopValue];
+		List<Statement> bodyStatements = [.. loopValueStatements];
 		if (foreachStatement.Body is not null)
 			bodyStatements.Add(foreachStatement.Body);
 		RewriteStatementList(bodyStatements);
@@ -440,47 +476,82 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallExpression CreateIteratorProtocolCall(Expression call, Expression context, Expression current, SyntaxNode? syntax)
 	{
-		return new CallExpression
+		CallExpression result = new()
 		{
 			SourceSyntax = syntax,
 			Target = call,
 			ResolvedType = "bool",
 			Arguments =
 			{
-				new ArgumentExpression { SourceSyntax = syntax, Value = context, ResolvedType = context.ResolvedType },
-				new ArgumentExpression
-				{
-					SourceSyntax = syntax,
-					Value = new UnaryExpression
-					{
-						SourceSyntax = syntax,
-						Operator = UnaryOperator.AddressOf,
-						Operand = current,
-						ResolvedType = AddPointer(current.ResolvedType ?? ErrorType)
-					},
-					ResolvedType = AddPointer(current.ResolvedType ?? ErrorType)
-				}
+				new ArgumentExpression { SourceSyntax = syntax, Value = context, ResolvedType = context.ResolvedType }
 			}
+		};
+		if (TryGetCallableShape(call.ResolvedType, out CallableShape callable) && callable.Parameters.Count > 1)
+		{
+			if (TryCreateParamsComponentExpressions(current, out List<Expression> currentComponents) && callable.Parameters.Count == currentComponents.Count + 1)
+			{
+				for (int i = 0; i < currentComponents.Count; i++)
+					result.Arguments.Add(CreateIteratorProtocolCurrentArgument(currentComponents[i], callable.Parameters[i + 1], syntax));
+				return result;
+			}
+
+			result.Arguments.Add(CreateIteratorProtocolCurrentArgument(current, callable.Parameters[1], syntax));
+			return result;
+		}
+
+		result.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = current, ResolvedType = current.ResolvedType });
+		return result;
+	}
+
+	static ArgumentExpression CreateIteratorProtocolCurrentArgument(Expression value, string parameterType, SyntaxNode? syntax)
+	{
+		if (value.ResolvedType == parameterType)
+			return new ArgumentExpression { SourceSyntax = syntax, Value = value, ResolvedType = value.ResolvedType };
+
+		return new ArgumentExpression
+		{
+			SourceSyntax = syntax,
+			Value = new UnaryExpression
+			{
+				SourceSyntax = value.SourceSyntax,
+				Operator = UnaryOperator.AddressOf,
+				Operand = value,
+				ResolvedType = parameterType
+			},
+			ResolvedType = parameterType
 		};
 	}
 
 	Statement CreateIteratorProtocolCleanupStatement(Expression call, Expression context, SyntaxNode? syntax)
 	{
+		CallExpression cleanupCall = new()
+		{
+			SourceSyntax = syntax,
+			Target = call,
+			ResolvedType = "bool",
+			Arguments =
+			{
+				new ArgumentExpression { SourceSyntax = syntax, Value = context, ResolvedType = context.ResolvedType }
+			}
+		};
+		int nullArgumentCount = 1;
+		if (TryGetCallableShape(call.ResolvedType, out CallableShape callable) && callable.Parameters.Count > 1)
+			nullArgumentCount = callable.Parameters.Count - 1;
+		for (int i = 0; i < nullArgumentCount; i++)
+		{
+			cleanupCall.Arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = syntax,
+				Value = NullLiteral(syntax),
+				ResolvedType = "#NULL"
+			});
+		}
+
 		return new ExpressionStatement
 		{
 			SourceSyntax = syntax,
 			ResolvedType = "void",
-			Expression = new CallExpression
-			{
-				SourceSyntax = syntax,
-				Target = call,
-				ResolvedType = "bool",
-				Arguments =
-				{
-					new ArgumentExpression { SourceSyntax = syntax, Value = context, ResolvedType = context.ResolvedType },
-					new ArgumentExpression { SourceSyntax = syntax, Value = NullLiteral(syntax), ResolvedType = "#NULL" }
-				}
-			}
+			Expression = cleanupCall
 		};
 	}
 

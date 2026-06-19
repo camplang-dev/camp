@@ -66,10 +66,22 @@ public sealed partial class BindableNodeAnalyzer
 
 		parameterTypes = [];
 		foreach (string currentType in currentTypes)
-			parameterTypes.Add(AddPointer(currentType));
+			AddIteratorProtocolCurrentParameterTypes(currentType, parameterTypes);
 		if (!string.IsNullOrWhiteSpace(thrownType))
 			parameterTypes.Add("thrown " + thrownType);
 		return true;
+	}
+
+	static void AddIteratorProtocolCurrentParameterTypes(string currentType, List<string> parameterTypes)
+	{
+		if (TryGetArrayElementType(currentType) is string elementType)
+		{
+			parameterTypes.Add(AddPointer(AddPointer(elementType)));
+			parameterTypes.Add(AddPointer("nuint"));
+			return;
+		}
+
+		parameterTypes.Add(AddPointer(currentType));
 	}
 
 	static bool TryGetIteratorProtocolCurrentTypes(string type, out List<string>? currentTypes)

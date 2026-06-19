@@ -2,12 +2,6 @@
 
 Next bug number: BUG-023.
 
-- **BUG-017:** Iterator protocol adapters and iterator `foreach` lowering do not
-  fully support expanded yielded slot types such as `iter byte[]`. A generator
-  can lower a `next(byte** current, nuint* current_length)` shape, but the
-  generated `op_iter` adapter and `foreach` current-slot materialization still
-  need first-class expanded-slot forwarding.
-
 - **BUG-019:** Fixed-array span-view lifetime and component synthesis are not
   fully audited. Priority: high. Complexity: medium-high. Add tests for fixed
   arrays converting to `T[]` in all proposal-required component-synthesis

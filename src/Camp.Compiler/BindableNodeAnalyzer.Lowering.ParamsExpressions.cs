@@ -322,6 +322,12 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < valueComponents.Count; i++)
 		{
 			Expression valueComponent = valueComponents[i];
+			string parameterType = i == 0 ? firstParameterType : secondParameterType;
+			if (valueComponent.ResolvedType == parameterType)
+			{
+				components.Add(valueComponent);
+				continue;
+			}
 			components.Add(new UnaryExpression
 			{
 				SourceSyntax = valueComponent.SourceSyntax,

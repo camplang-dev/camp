@@ -1,0 +1,21 @@
+struct iter byte[] chunks()
+{
+	fixed byte[3] first = [1, 2, 3];
+	fixed byte[2] second = [4, 5];
+
+	yield first[..];
+	yield second[..];
+}
+
+int sumLengths(iter byte[] values)
+{
+	int total = 0;
+	foreach (byte[] value in values)
+		total += (int)value.length;
+	return total;
+}
+
+export int main()
+{
+	return sumLengths(chunks()) == 5 ? 0 : 1;
+}
