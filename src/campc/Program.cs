@@ -6,11 +6,189 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.CommandLine;
 using Camp.Compiler;
 
 CliEnvironment environment = CliEnvironment.Create();
-int exitCode = CampCli.Run(args, environment);
+RootCommand rootCommand = BuildCommandTree(environment, args);
+int exitCode = ContainsRemovedOption(args) ? CampCli.Run(args, environment) : rootCommand.Parse(args).Invoke();
 return exitCode;
+
+static bool ContainsRemovedOption(string[] args)
+{
+	return args.Any(static arg => arg is "--inspect" or "--build" or "-b" or "--emit-metadata");
+}
+
+static RootCommand BuildCommandTree(CliEnvironment environment, string[] originalArgs)
+{
+	RootCommand root = new("Camp compiler");
+	root.SetAction(_ => CampCli.Run(originalArgs, environment));
+
+	Command init = new("init", "Initialize a Camp project.");
+	init.SetAction(_ => CampCli.Run(originalArgs, environment));
+	root.Subcommands.Add(init);
+
+	Command build = new("build", "Compile, emit C, and optionally build a native artifact.");
+	build.Arguments.Add(SourcePatternsArgument());
+	AddBuildOptions(build, buildOnly: true);
+	build.SetAction(_ => CampCli.Run(originalArgs, environment));
+	root.Subcommands.Add(build);
+
+	Command run = new("run", "Build an executable and run it.");
+	run.Arguments.Add(SourcePatternsArgument());
+	AddBuildOptions(run, buildOnly: true);
+	run.SetAction(_ => CampCli.Run(originalArgs, environment));
+	root.Subcommands.Add(run);
+
+	Command dump = new("dump", "Print compiler intermediate output.");
+	dump.Arguments.Add(new Argument<string>("kind")
+	{
+		Description = "Dump kind: tokens, cst, ast, declarations, lowering, or metadata."
+	});
+	dump.Arguments.Add(SourcePatternsArgument());
+	AddBuildOptions(dump, buildOnly: false);
+	dump.SetAction(_ => CampCli.Run(originalArgs, environment));
+	root.Subcommands.Add(dump);
+
+	Command restore = new("restore", "Install missing packages used by source files.");
+	restore.Arguments.Add(SourcePatternsArgument());
+	restore.SetAction(_ => CampCli.Run(originalArgs, environment));
+	root.Subcommands.Add(restore);
+
+	Command pkg = new("pkg", "Manage package sources and package dependencies.");
+	AddPackageCommands(pkg, originalArgs, environment);
+	root.Subcommands.Add(pkg);
+
+	Command help = new("help", "Show help for campc or a command.");
+	help.Arguments.Add(new Argument<string?>("command")
+	{
+		Description = "Command to describe.",
+		Arity = ArgumentArity.ZeroOrOne
+	});
+	help.SetAction(parseResult =>
+	{
+		string? command = parseResult.GetValue<string?>("command");
+		string[] helpArgs = string.IsNullOrWhiteSpace(command) ? ["--help"] : [command!, "--help"];
+		return root.Parse(helpArgs).Invoke();
+	});
+	root.Subcommands.Add(help);
+
+	return root;
+}
+
+static Argument<List<string>> SourcePatternsArgument()
+{
+	return new Argument<List<string>>("pattern.camp")
+	{
+		Description = "Source file paths or glob patterns.",
+		Arity = ArgumentArity.ZeroOrMore
+	};
+}
+
+static void AddBuildOptions(Command command, bool buildOnly)
+{
+	command.Options.Add(new Option<List<string>>("--include", "-i")
+	{
+		Description = "Include Camp API header files or source patterns.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
+	command.Options.Add(new Option<List<string>>("--exclude")
+	{
+		Description = "Exclude source file patterns.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
+	command.Options.Add(new Option<string?>("--target", "-t") { Description = "Select the target." });
+	command.Options.Add(new Option<string?>("--profile", "-p") { Description = "Select DEBUG or RELEASE profile." });
+	command.Options.Add(new Option<string?>("--memory-model") { Description = "Select the target memory model." });
+	command.Options.Add(new Option<List<string>>("--define", "-d")
+	{
+		Description = "Define conditional compilation symbols.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
+	command.Options.Add(new Option<string?>("--emit") { Description = "Select the emitter, currently c99." });
+	command.Options.Add(new Option<bool>("--nostdlib") { Description = "Do not include the standard library package." });
+	command.Options.Add(new Option<List<string>>("--reference")
+	{
+		Description = "Reference a native static library during linking.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
+	command.Options.Add(new Option<List<string>>("--use")
+	{
+		Description = "Use an installed package, as pkg or pkg@version.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
+	command.Options.Add(new Option<List<string>>("--use-source")
+	{
+		Description = "Define a package source name and optional local path.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
+	command.Options.Add(new Option<string?>("--metadata") { Description = "Emit metadata: none, export, public, or all." });
+	command.Options.Add(new Option<bool>("--xml") { Description = "Use XML output for declarations or lowering dumps." });
+
+	if (!buildOnly)
+		return;
+
+	command.Options.Add(new Option<string?>("--artifact") { Description = "Native artifact: exec, static, shared, or none." });
+	command.Options.Add(new Option<string?>("--name") { Description = "Artifact/project name without extension." });
+	command.Options.Add(new Option<string?>("--subsystem") { Description = "Native subsystem, currently windows." });
+	command.Options.Add(new Option<string?>("--out-dir") { Description = "Directory for final artifacts." });
+	command.Options.Add(new Option<string?>("--build-dir") { Description = "Directory for generated C and intermediate files." });
+}
+
+static void AddPackageCommands(Command pkg, string[] originalArgs, CliEnvironment environment)
+{
+	Command addSource = new("add-source", "Add a package source to global.camp or a source file.");
+	addSource.Arguments.Add(new Argument<string>("name"));
+	addSource.Arguments.Add(new Argument<string>("local-folder"));
+	addSource.Options.Add(new Option<string?>("--local") { Description = "Source file to edit." });
+	addSource.Options.Add(new Option<bool>("--global") { Description = "Edit lib/global.camp." });
+	addSource.SetAction(_ => CampCli.Run(originalArgs, environment));
+	pkg.Subcommands.Add(addSource);
+
+	Command removeSource = new("remove-source", "Remove a package source.");
+	removeSource.Arguments.Add(new Argument<string>("name"));
+	removeSource.Options.Add(new Option<string?>("--local") { Description = "Source file to edit." });
+	removeSource.Options.Add(new Option<bool>("--global") { Description = "Edit lib/global.camp." });
+	removeSource.SetAction(_ => CampCli.Run(originalArgs, environment));
+	pkg.Subcommands.Add(removeSource);
+
+	Command search = new("search", "Search configured package sources.");
+	search.Arguments.Add(new Argument<string>("pkg"));
+	search.Options.Add(new Option<string?>("--source") { Description = "Restrict search to a named source." });
+	search.Options.Add(new Option<string?>("--local") { Description = "Also read sources from a local file." });
+	search.SetAction(_ => CampCli.Run(originalArgs, environment));
+	pkg.Subcommands.Add(search);
+
+	Command install = new("install", "Install a package from configured sources.");
+	install.Arguments.Add(new Argument<string>("pkg@ver"));
+	install.Options.Add(new Option<bool>("--global") { Description = "Install into the compiler package root." });
+	install.SetAction(_ => CampCli.Run(originalArgs, environment));
+	pkg.Subcommands.Add(install);
+
+	Command uninstall = new("uninstall", "Uninstall a package.");
+	uninstall.Arguments.Add(new Argument<string>("pkg@ver"));
+	uninstall.Options.Add(new Option<bool>("--global") { Description = "Remove from the compiler package root." });
+	uninstall.SetAction(_ => CampCli.Run(originalArgs, environment));
+	pkg.Subcommands.Add(uninstall);
+
+	Command add = new("add", "Add a package use pragma to a source file.");
+	add.Arguments.Add(new Argument<string>("pkg@ver"));
+	add.Arguments.Add(new Argument<string>("file.camp"));
+	add.SetAction(_ => CampCli.Run(originalArgs, environment));
+	pkg.Subcommands.Add(add);
+
+	Command remove = new("remove", "Remove a package use pragma from a source file.");
+	remove.Arguments.Add(new Argument<string>("pkg"));
+	remove.Arguments.Add(new Argument<string>("file.camp"));
+	remove.SetAction(_ => CampCli.Run(originalArgs, environment));
+	pkg.Subcommands.Add(remove);
+}
 
 sealed class CampCli
 {
@@ -164,6 +342,10 @@ sealed class CampCli
 
 		if (command == CommandKind.Dump && bag.HasBuildOnlyOptions)
 			errors.Add("dump does not accept --artifact, --name, --subsystem, --out-dir, or --build-dir.");
+		if (bag.SubsystemName is not null && bag.SubsystemName != "windows")
+			errors.Add($"Subsystem '{bag.SubsystemName}' is not valid. Expected windows.");
+		if (bag.SubsystemName is not null && bag.ArtifactSpecified && bag.ArtifactKind is not NativeBuildKind.Exec)
+			errors.Add("--subsystem can only be used with --artifact exec.");
 		if (command == CommandKind.Run)
 		{
 			if (!bag.ArtifactSpecified)
@@ -664,7 +846,7 @@ static class CommandLineOptionParser
 					AddSingle(result, "name", RequiredValue(tokens, ref i, token, errors));
 					break;
 				case "--subsystem":
-					AddSingle(result, "subsystem", RequiredValue(tokens, ref i, token, errors));
+					AddSingle(result, "subsystem", RequiredValue(tokens, ref i, token, errors).ToLowerInvariant());
 					break;
 				case "--out-dir":
 					AddSingle(result, "out-dir", RequiredValue(tokens, ref i, token, errors));
