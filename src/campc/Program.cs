@@ -110,13 +110,13 @@ static void AddBuildOptions(Command command, bool buildOnly)
 	});
 	command.Options.Add(new Option<string?>("--emit") { Description = "Select the emitter, currently c99." });
 	command.Options.Add(new Option<bool>("--nostdlib") { Description = "Do not include the standard library package." });
-	command.Options.Add(new Option<List<string>>("--reference")
+	command.Options.Add(new Option<List<string>>("--reference", "-r")
 	{
 		Description = "Reference a native static library during linking.",
 		Arity = ArgumentArity.ZeroOrMore,
 		AllowMultipleArgumentsPerToken = true
 	});
-	command.Options.Add(new Option<List<string>>("--use")
+	command.Options.Add(new Option<List<string>>("--use", "-u")
 	{
 		Description = "Use an installed package, as pkg or pkg@version.",
 		Arity = ArgumentArity.ZeroOrMore,
@@ -866,10 +866,13 @@ static class CommandLineOptionParser
 					result.Defines.Add(RequiredValue(tokens, ref i, token, errors));
 					break;
 				case "--reference":
-					result.References.Add(RequiredValue(tokens, ref i, token, errors));
+				case "-r":
+					result.References.AddRange(RequiredValues(tokens, ref i, token, errors));
 					break;
 				case "--use":
-					result.UsePackages.Add(PackageSpec.Parse(RequiredValue(tokens, ref i, token, errors)));
+				case "-u":
+					foreach (string package in RequiredValues(tokens, ref i, token, errors))
+						result.UsePackages.Add(PackageSpec.Parse(package));
 					break;
 				case "--use-source":
 					string name = RequiredValue(tokens, ref i, token, errors);
@@ -899,6 +902,19 @@ static class CommandLineOptionParser
 
 	static bool HasValue(IReadOnlyList<string> tokens, int index) => index + 1 < tokens.Count && !tokens[index + 1].StartsWith("-", StringComparison.Ordinal);
 	static void AddSingle(ParsedOptions options, string key, string value) { if (!string.IsNullOrEmpty(value)) options.SingleValues.Add((key, value)); }
+	static List<string> RequiredValues(IReadOnlyList<string> tokens, ref int index, string option, List<string> errors)
+	{
+		List<string> values = [];
+		while (index + 1 < tokens.Count && !tokens[index + 1].StartsWith("-", StringComparison.Ordinal))
+		{
+			index++;
+			values.Add(tokens[index]);
+		}
+		if (values.Count == 0)
+			errors.Add($"{option} requires at least one value.");
+		return values;
+	}
+
 	static string RequiredValue(IReadOnlyList<string> tokens, ref int index, string option, List<string> errors)
 	{
 		if (index + 1 >= tokens.Count || tokens[index + 1].StartsWith("-", StringComparison.Ordinal))

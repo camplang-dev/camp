@@ -36,6 +36,8 @@ public sealed class CommandLineTests
 		Assert.Equal(0, build.ExitCode);
 		Assert.Contains("--artifact", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--subsystem", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("-r, --reference", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("-u, --use", build.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -105,6 +107,66 @@ public sealed class CommandLineTests
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("Subsystem 'foobar' is not valid. Expected windows.", result.StdErr, StringComparison.Ordinal);
 		Assert.DoesNotContain("generated:", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Reference_alias_accepts_multiple_values()
+	{
+		string temp = CreateTempCase("reference_alias.camp", """
+			#build --nostdlib
+			#build --artifact exec
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", temp, "-r", "missing-one.a", "missing-two.a", "--build-dir", TempPath("reference-build"), "--out-dir", TempPath("reference-out"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("missing-one.a", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("missing-two.a", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Use_alias_accepts_multiple_values()
+	{
+		string temp = CreateTempCase("use_alias.camp", """
+			#build --nostdlib
+			#build --artifact none
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", temp, "-u", "missing-one@1.0.0", "missing-two@1.0.0");
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Package 'missing-one@1.0.0' is not installed.", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Build_pragmas_allow_multiple_references_after_switch()
+	{
+		string temp = CreateTempCase("reference_pragma_multi.camp", """
+			#build --nostdlib
+			#build --artifact exec
+			#build --reference missing-one.a missing-two.a
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", temp, "--build-dir", TempPath("reference-pragma-build"), "--out-dir", TempPath("reference-pragma-out"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("missing-one.a", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("missing-two.a", result.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
