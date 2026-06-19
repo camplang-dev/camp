@@ -708,7 +708,7 @@ public static class CompilerDriver
 				ProjectName = projectName,
 				Kind = request.BuildKind.Value,
 				SourceFiles = result.GeneratedSourceFiles,
-				Libraries = packageLibraries.Concat(request.References.Select(reference => Path.GetFullPath(reference, request.WorkingDirectory))).ToList()
+				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList()
 			});
 			foreach (string diagnostic in build.Diagnostics)
 				ErrorLine(diagnostic);
@@ -720,6 +720,24 @@ public static class CompilerDriver
 				OutLine("generated: " + Path.GetFileName(generated));
 			}
 			return 0;
+		}
+
+		string ResolveNativeReference(string reference, TargetDefinition target)
+		{
+			if (Path.IsPathRooted(reference) || reference.Contains(Path.DirectorySeparatorChar) || reference.Contains(Path.AltDirectorySeparatorChar))
+				return Path.GetFullPath(reference, request.WorkingDirectory);
+
+			string localPath = Path.GetFullPath(reference, request.WorkingDirectory);
+			if (File.Exists(localPath))
+				return localPath;
+
+			if (Path.HasExtension(reference))
+				return reference;
+
+			string staticExtension = target.GetArtifactValue("static_ext", ".a");
+			if (staticExtension.Equals(".lib", StringComparison.OrdinalIgnoreCase))
+				return reference + ".lib";
+			return "-l" + reference;
 		}
 
 		bool TryPrepareExecEntryPoint(Compilation compilation, out FunctionDefinition? entryPoint)

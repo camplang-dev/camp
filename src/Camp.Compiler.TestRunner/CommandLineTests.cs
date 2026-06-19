@@ -94,6 +94,34 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Include_pragmas_discovered_from_source_pragmas_contribute_build_pragmas()
+	{
+		string api = CreateTempCase("discovered_include_pragmas_api.camp", """
+			#build --reference missing-one.a missing-two.a
+
+			export extern void includedOnly();
+			""");
+		string source = CreateTempCase("discovered_include_pragmas_main.camp", $$"""
+			#build --nostdlib
+			#build --artifact exec
+			#build --include {{api}}
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--target", "clang-macos-x64", "--build-dir", TempPath("discovered-include-pragma-build"), "--out-dir", TempPath("discovered-include-pragma-out"));
+		string output = result.StdOut + result.StdErr;
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("missing-one.a", output, StringComparison.Ordinal);
+		Assert.Contains("missing-two.a", output, StringComparison.Ordinal);
+		Assert.DoesNotContain("discovered_include_pragmas_api.c", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Run_rejects_non_exec_artifact_before_building()
 	{
 		string temp = CreateTempCase("run_static.camp", """
@@ -145,11 +173,12 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", temp, "-r", "missing-one.a", "missing-two.a", "--build-dir", TempPath("reference-build"), "--out-dir", TempPath("reference-out"));
+		ProcessResult result = RunCampc("build", temp, "-r", "missing-one.a", "missing-two.a", "--target", "clang-macos-x64", "--build-dir", TempPath("reference-build"), "--out-dir", TempPath("reference-out"));
+		string output = result.StdOut + result.StdErr;
 
 		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains("missing-one.a", result.StdErr, StringComparison.Ordinal);
-		Assert.Contains("missing-two.a", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("missing-one.a", output, StringComparison.Ordinal);
+		Assert.Contains("missing-two.a", output, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -185,11 +214,12 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", temp, "--build-dir", TempPath("reference-pragma-build"), "--out-dir", TempPath("reference-pragma-out"));
+		ProcessResult result = RunCampc("build", temp, "--target", "clang-macos-x64", "--build-dir", TempPath("reference-pragma-build"), "--out-dir", TempPath("reference-pragma-out"));
+		string output = result.StdOut + result.StdErr;
 
 		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains("missing-one.a", result.StdErr, StringComparison.Ordinal);
-		Assert.Contains("missing-two.a", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("missing-one.a", output, StringComparison.Ordinal);
+		Assert.Contains("missing-two.a", output, StringComparison.Ordinal);
 	}
 
 	[Fact]

@@ -331,9 +331,17 @@ sealed class CampCli
 		ApplyGlobalPragmas(environment, bag, errors);
 
 		List<string> sourceFiles = ExpandSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory, errors);
-		List<string> includeFiles = ExpandSourcePatterns(cli.IncludePatterns, [], environment.WorkingDirectory, errors);
-		foreach (string file in sourceFiles.Concat(includeFiles))
-			ApplyFilePragmas(file, environment, bag, Precedence.Local, errors);
+		List<string> includeFiles = ExpandSourcePatterns(cli.IncludePatterns.Concat(bag.IncludePatterns).ToList(), [], environment.WorkingDirectory, errors);
+		HashSet<string> pragmaFilesRead = new(StringComparer.OrdinalIgnoreCase);
+		while (true)
+		{
+			List<string> filesToRead = sourceFiles.Concat(includeFiles).Where(pragmaFilesRead.Add).ToList();
+			if (filesToRead.Count == 0)
+				break;
+			foreach (string file in filesToRead)
+				ApplyFilePragmas(file, environment, bag, Precedence.Local, errors);
+			includeFiles = ExpandSourcePatterns(cli.IncludePatterns.Concat(bag.IncludePatterns).ToList(), [], environment.WorkingDirectory, errors);
+		}
 
 		bag.Apply(cli, Precedence.CommandLine, "command line", errors);
 		sourceFiles = ExpandSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory, errors);
