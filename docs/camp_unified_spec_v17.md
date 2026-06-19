@@ -6913,10 +6913,11 @@ campc library.camp --emit-metadata export
 campc library.camp --emit-metadata public
 ```
 
-Supported values are `none`, `export`, `public`, and `all`. Metadata defaults to
-`export` for static and shared library builds and to `none` for executable
+Supported values are `none`, `export`, `public`, and `all`. Metadata defaults
+to `export` for static and shared library builds and to `none` for executable
 builds and plain C-emission builds. When metadata is enabled, it is emitted as a
-deliverable named `<project>_api.json` beside the other output artifacts.
+deliverable named `<project>_api.json` beside the other output artifacts. The
+`all` view is the full source-level metadata view.
 
 Metadata JSON describes Camp declarations as programmers see them: names,
 symbols, visibility, generic parameters, fields, parameters, callable

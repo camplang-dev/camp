@@ -1,32 +1,32 @@
-// @emit-metadata public
+// @emit-metadata all
 export as Docs;
 
 /// Exported value.
 export int ExportedValue;
 
-/// Public helper.
+/// Public value.
 public int PublicValue;
 
-/// Private helper.
-int PrivateValue;
+/// File-local value.
+int LocalValue;
 
 /// Exported class.
 export abstract class ExportedClass
 {
-	/// Included in public metadata.
+	/// Exported class field.
 	int exportedClassField;
 }
 
 /// Public class.
 public abstract class PublicClass
 {
-	/// Included in public metadata.
+	/// Public class field.
 	int publicClassField;
 }
 
-/// Private class.
-abstract class PrivateClass
+/// File-local class.
+abstract class LocalClass
 {
-	/// Omitted from public metadata.
-	int privateClassField;
+	/// File-local class field.
+	int localClassField;
 }

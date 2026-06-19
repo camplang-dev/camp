@@ -146,7 +146,7 @@ public static class MetadataJsonSerializer
 			{
 				if (!ShouldEmit(definition))
 					continue;
-				WriteDefinition(json, definition);
+				WriteDefinition(json, definition, includeKind: true, includeVisibility: true);
 				emitted.Add(definition);
 			}
 			json.WriteEndArray();
@@ -170,7 +170,7 @@ public static class MetadataJsonSerializer
 				if (node is Definition definition)
 				{
 					json.WriteString("name", definition.Name);
-					if (!string.IsNullOrWhiteSpace(definition.Symbol))
+					if (!IsSameSymbol(definition))
 						json.WriteString("symbol", definition.Symbol);
 				}
 				else if (node is GenericParameter generic)
@@ -180,10 +180,10 @@ public static class MetadataJsonSerializer
 			json.WriteEndArray();
 		}
 
-		void WriteDefinition(Utf8JsonWriter json, Definition definition)
+		void WriteDefinition(Utf8JsonWriter json, Definition definition, bool includeKind, bool includeVisibility)
 		{
 			json.WriteStartObject();
-			WriteIdentity(json, definition);
+			WriteIdentity(json, definition, includeKind, includeVisibility);
 			switch (definition)
 			{
 				case AliasDefinition alias:
@@ -217,14 +217,16 @@ public static class MetadataJsonSerializer
 			json.WriteEndObject();
 		}
 
-		void WriteIdentity(Utf8JsonWriter json, Definition definition)
+		void WriteIdentity(Utf8JsonWriter json, Definition definition, bool includeKind, bool includeVisibility)
 		{
 			json.WriteString("id", GetId(definition));
-			json.WriteString("kind", GetKind(definition));
+			if (includeKind)
+				json.WriteString("kind", GetKind(definition));
 			json.WriteString("name", definition.Name);
-			if (!string.IsNullOrWhiteSpace(definition.Symbol))
+			if (!IsSameSymbol(definition))
 				json.WriteString("symbol", definition.Symbol);
-			json.WriteString("visibility", GetVisibility(definition));
+			if (includeVisibility && GetVisibility(definition) is string visibility)
+				json.WriteString("visibility", visibility);
 			if (!string.IsNullOrWhiteSpace(definition.Extern))
 				json.WriteBoolean("extern", true);
 		}
@@ -243,12 +245,13 @@ public static class MetadataJsonSerializer
 			{
 				case ClassDefinition classDefinition:
 					WriteTypes(json, "baseTypes", classDefinition.BaseTypes);
-					WriteDefinitionArray(json, "fields", classDefinition.Fields);
+					if (ShouldEmitClassFields(classDefinition))
+						WriteDefinitionArray(json, "fields", classDefinition.Fields, includeKind: false, includeVisibility: false);
 					WriteDefinitionArray(json, "functions", classDefinition.Functions);
 					break;
 				case StructDefinition structDefinition:
 					WriteTypes(json, "baseTypes", structDefinition.BaseTypes);
-					WriteDefinitionArray(json, "fields", structDefinition.Fields);
+					WriteDefinitionArray(json, "fields", structDefinition.Fields, includeKind: false, includeVisibility: false);
 					WriteDefinitionArray(json, "functions", structDefinition.Functions);
 					break;
 				case InterfaceDefinition interfaceDefinition:
@@ -257,13 +260,13 @@ public static class MetadataJsonSerializer
 					break;
 				case EnumDefinition enumDefinition:
 					WriteTypeProperty(json, "underlyingType", enumDefinition.UnderlyingType, enumDefinition.UnderlyingType?.ResolvedType);
-					WriteDefinitionArray(json, "values", enumDefinition.Values);
+					WriteDefinitionArray(json, "values", enumDefinition.Values, includeKind: false);
 					WriteDefinitionArray(json, "functions", enumDefinition.Functions);
 					break;
 				case NewtypeDefinition newtypeDefinition:
 					WriteTypeProperty(json, "underlyingType", newtypeDefinition.UnderlyingType, newtypeDefinition.ResolvedType);
-					WriteDefinitionArray(json, "parameters", newtypeDefinition.Parameters);
-					WriteDefinitionArray(json, "fields", newtypeDefinition.Fields);
+					WriteDefinitionArray(json, "parameters", newtypeDefinition.Parameters, includeKind: false, includeVisibility: false);
+					WriteDefinitionArray(json, "fields", newtypeDefinition.Fields, includeKind: false, includeVisibility: false);
 					WriteDefinitionArray(json, "functions", newtypeDefinition.Functions);
 					break;
 			}
@@ -289,7 +292,7 @@ public static class MetadataJsonSerializer
 					WriteGenericParameter(json, parameter);
 				json.WriteEndArray();
 			}
-			WriteDefinitionArray(json, "parameters", function.Parameters);
+			WriteDefinitionArray(json, "parameters", function.Parameters, includeKind: false, includeVisibility: false);
 		}
 
 		void WriteParameter(Utf8JsonWriter json, ParameterDefinition parameter)
@@ -307,22 +310,22 @@ public static class MetadataJsonSerializer
 		{
 			json.WriteStartObject();
 			json.WriteString("id", GetId(parameter));
-			json.WriteString("kind", "type-parameter");
 			json.WriteString("name", parameter.Name);
 			WriteTypeProperty(json, "constraint", parameter.Constraint, parameter.Constraint?.ResolvedType ?? "nint");
 			WriteMetadata(json, parameter.Attributes);
 			json.WriteEndObject();
 		}
 
-		void WriteDefinitionArray<T>(Utf8JsonWriter json, string propertyName, IReadOnlyList<T> definitions)
+		void WriteDefinitionArray<T>(Utf8JsonWriter json, string propertyName, IReadOnlyList<T> definitions, bool includeKind = false, bool includeVisibility = true)
 			where T : Definition
 		{
-			if (definitions.Count == 0)
+			List<T> sourceDefinitions = definitions.Where(static definition => !IsGeneratedDefinition(definition)).ToList();
+			if (sourceDefinitions.Count == 0)
 				return;
 			json.WriteStartArray(propertyName);
-			foreach (T definition in definitions)
+			foreach (T definition in sourceDefinitions)
 			{
-				WriteDefinition(json, definition);
+				WriteDefinition(json, definition, includeKind, includeVisibility);
 				emitted.Add(definition);
 			}
 			json.WriteEndArray();
@@ -457,11 +460,30 @@ public static class MetadataJsonSerializer
 
 		bool ShouldEmit(Definition definition)
 		{
+			if (IsGeneratedDefinition(definition))
+				return false;
+
 			return visibility switch
 			{
 				MetadataVisibility.None => false,
 				MetadataVisibility.Export => definition.Export is not null,
 				MetadataVisibility.Public => definition.Export is not null || definition.Public is not null,
+				MetadataVisibility.All => true,
+				_ => false
+			};
+		}
+
+		static bool IsGeneratedDefinition(Definition definition)
+		{
+			return definition.SourceSyntax is null;
+		}
+
+		bool ShouldEmitClassFields(ClassDefinition classDefinition)
+		{
+			return visibility switch
+			{
+				MetadataVisibility.Export => false,
+				MetadataVisibility.Public => classDefinition.Export is not null || classDefinition.Public is not null,
 				MetadataVisibility.All => true,
 				_ => false
 			};
@@ -504,13 +526,18 @@ public static class MetadataJsonSerializer
 			};
 		}
 
-		static string GetVisibility(Definition definition)
+		static string? GetVisibility(Definition definition)
 		{
 			if (definition.Export is not null)
 				return "export";
 			if (definition.Public is not null)
 				return "public";
-			return "private";
+			return null;
+		}
+
+		static bool IsSameSymbol(Definition definition)
+		{
+			return string.IsNullOrWhiteSpace(definition.Symbol) || definition.Symbol == definition.Name;
 		}
 
 		static string GetMetadataName(Definition definition)

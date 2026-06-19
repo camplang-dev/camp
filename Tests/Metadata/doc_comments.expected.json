@@ -15,15 +15,11 @@
       "id": "struct:Docs::Widget",
       "kind": "struct",
       "name": "Widget",
-      "symbol": "Widget",
       "visibility": "export",
       "fields": [
         {
           "id": "struct:Docs::Widget/field:count",
-          "kind": "field",
           "name": "count",
-          "symbol": "count",
-          "visibility": "private",
           "type": "int",
           "metadata": [
             {
@@ -43,6 +39,19 @@
       ]
     },
     {
+      "id": "class:Docs::ExportedClass",
+      "kind": "class",
+      "name": "ExportedClass",
+      "visibility": "export",
+      "metadata": [
+        {
+          "name": "summary",
+          "doc": true,
+          "content": "Exported class layout."
+        }
+      ]
+    },
+    {
       "id": "function:Docs::find",
       "kind": "function",
       "name": "find",
@@ -52,7 +61,6 @@
       "typeParameters": [
         {
           "id": "function:Docs::find/type-parameter:T",
-          "kind": "type-parameter",
           "name": "T",
           "constraint": "any",
           "metadata": [
@@ -67,10 +75,7 @@
       "parameters": [
         {
           "id": "function:Docs::find/parameter:this",
-          "kind": "receiver",
           "name": "this",
-          "symbol": "this",
-          "visibility": "private",
           "type": "const T[]",
           "metadata": [
             {
@@ -82,10 +87,7 @@
         },
         {
           "id": "function:Docs::find/parameter:value",
-          "kind": "parameter",
           "name": "value",
-          "symbol": "value",
-          "visibility": "private",
           "modifier": "in",
           "type": "T",
           "metadata": [
@@ -98,10 +100,7 @@
         },
         {
           "id": "function:Docs::find/parameter:start",
-          "kind": "parameter",
           "name": "start",
-          "symbol": "start",
-          "visibility": "private",
           "type": "nuint",
           "metadata": [
             {
@@ -116,10 +115,7 @@
         },
         {
           "id": "function:Docs::find/parameter:count",
-          "kind": "parameter",
           "name": "count",
-          "symbol": "count",
-          "visibility": "private",
           "type": "nuint",
           "metadata": [
             {
@@ -131,10 +127,7 @@
         },
         {
           "id": "function:Docs::find/parameter:sizeof_T",
-          "kind": "sizeof-parameter",
           "name": "sizeof_T",
-          "symbol": "sizeof_T",
-          "visibility": "private",
           "type": "nuint"
         }
       ],

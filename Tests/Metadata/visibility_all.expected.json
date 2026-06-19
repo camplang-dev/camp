@@ -6,7 +6,7 @@
     "namespace": "Docs"
   },
   "view": {
-    "visibility": "public",
+    "visibility": "all",
     "level": "source",
     "generated": false
   },
@@ -35,7 +35,20 @@
         {
           "name": "summary",
           "doc": true,
-          "content": "Public helper."
+          "content": "Public value."
+        }
+      ]
+    },
+    {
+      "id": "variable:Docs::LocalValue",
+      "kind": "variable",
+      "name": "LocalValue",
+      "type": "int",
+      "metadata": [
+        {
+          "name": "summary",
+          "doc": true,
+          "content": "File-local value."
         }
       ]
     },
@@ -53,7 +66,7 @@
             {
               "name": "summary",
               "doc": true,
-              "content": "Included in public metadata."
+              "content": "Exported class field."
             }
           ]
         }
@@ -80,7 +93,7 @@
             {
               "name": "summary",
               "doc": true,
-              "content": "Included in public metadata."
+              "content": "Public class field."
             }
           ]
         }
@@ -90,6 +103,32 @@
           "name": "summary",
           "doc": true,
           "content": "Public class."
+        }
+      ]
+    },
+    {
+      "id": "class:Docs::LocalClass",
+      "kind": "class",
+      "name": "LocalClass",
+      "fields": [
+        {
+          "id": "class:Docs::LocalClass/field:localClassField",
+          "name": "localClassField",
+          "type": "int",
+          "metadata": [
+            {
+              "name": "summary",
+              "doc": true,
+              "content": "File-local class field."
+            }
+          ]
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "doc": true,
+          "content": "File-local class."
         }
       ]
     }

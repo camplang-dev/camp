@@ -7,6 +7,13 @@ export struct Widget
 	int count;
 }
 
+/// Exported class layout.
+export abstract class ExportedClass
+{
+	/// Hidden in export metadata.
+	int hiddenField;
+}
+
 /// Finds [Widget] values.
 ///
 /// - T: Element type.
