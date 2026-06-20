@@ -1,0 +1,51 @@
+extern escaped char[] getEscaped();
+
+scoped char[] identity(char[] value)
+{
+	return value;
+}
+
+scoped(owner) char[] scopedTo(char[] owner, char[] value)
+{
+	return (scoped(owner))value;
+}
+
+unscoped(owner) char[] unscopedTo(char[] owner, char[] value)
+{
+	return (unscoped(owner))value;
+}
+
+class Buffer
+{
+	char[] items;
+
+	void setItems(unscoped char[] value)
+	{
+		this.items = value;
+	}
+
+	char[] getItems()
+	{
+		return this.items;
+	}
+
+	void getItemsOut(out char[] result)
+	{
+		result = this.items;
+	}
+}
+
+void facts()
+{
+	auto heap = getEscaped();
+	auto same = identity(heap);
+	auto scopedAnchored = scopedTo(heap, heap);
+	auto unscopedAnchored = unscopedTo(heap, heap);
+
+	Buffer buffer = init Buffer();
+	buffer.setItems(heap);
+	auto items = buffer.getItems();
+
+	char[] outItems = default;
+	buffer.getItemsOut(out outItems);
+}

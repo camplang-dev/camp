@@ -135,7 +135,8 @@ public sealed partial class BindableNodeAnalyzer
 					ReportAnyGenericCopy(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
 				if (EscapesLocalFixedArraySpan(scope.CurrentFunctionReturnType, returnStatement.Expression))
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Cannot return a span view to local fixed-size array storage.");
-				CheckAssignable(scope.CurrentFunctionReturnType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
+				string returnTargetType = GetLifetimeStructuralTargetType(scope.CurrentFunctionReturnType, returnStatement.Expression);
+				CheckAssignable(returnTargetType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				CheckLifetimeResult(returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, scope, "Return expression");
 				break;
 			}
@@ -148,7 +149,8 @@ public sealed partial class BindableNodeAnalyzer
 				string yieldedType = BodyAnalyzeExpression(yieldStatement.Expression, scope, typeScope, expected);
 				if (EscapesLocalFixedArraySpan(expected, yieldStatement.Expression))
 					Report(GetRange(yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax), "Cannot yield a span view to local fixed-size array storage.");
-				CheckAssignable(expected, yieldedType, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, "Yield expression");
+				string yieldTargetType = GetLifetimeStructuralTargetType(expected, yieldStatement.Expression);
+				CheckAssignable(yieldTargetType, yieldedType, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, "Yield expression");
 				CheckLifetimeResult(yieldStatement.Expression, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, scope, "Yield expression");
 				break;
 			}
@@ -1849,6 +1851,7 @@ public sealed partial class BindableNodeAnalyzer
 			AddExplicitHiddenParameters(parameters, callableParameters);
 		AnalyzeRangeAwareArguments(arguments, callableParameters, GetRangeReceiver(callTarget), scope, typeScope, fallbackSyntax);
 		int parameterIndex = 0;
+		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedLifetimeArguments = [];
 		for (int i = 0; i < arguments.Count; i++)
 		{
 			ParameterDefinition? parameter = parameterIndex < callableParameters.Count ? callableParameters[parameterIndex] : null;
@@ -1899,6 +1902,7 @@ public sealed partial class BindableNodeAnalyzer
 						if (CanLiftToOptional(actual, expected))
 							arguments[i].ResolvedType = expected;
 					}
+					analyzedLifetimeArguments.Add((arguments[i], analysisParameter));
 				}
 			if (ArrayLiteralConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex)
 				|| PrimitiveStringConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex, fallbackSyntax))
@@ -1911,6 +1915,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(fallbackSyntax ?? (arguments.Count > 0 ? arguments[^1].SourceSyntax : null)), "Call is missing required arguments.");
 		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
 			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
+		if (function is not null)
+			CheckLifetimeCallArguments(function, callTarget, analyzedLifetimeArguments, scope, fallbackSyntax);
 	}
 
 	bool TryGetLambdaTargetExpandedDelegateParameter(ParameterDefinition componentParameter, ArgumentExpression argument, out ParameterDefinition sourceParameter, out int componentCount)

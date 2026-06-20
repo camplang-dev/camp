@@ -1,0 +1,51 @@
+extern escaped char[] getEscaped();
+extern void free(escaped void* ptr);
+
+scoped char[] identity(char[] value)
+{
+	return value;
+}
+
+void choose(char[] a, char[] b, out char[] result)
+{
+	result = a;
+}
+
+class Buffer
+{
+	char[] items;
+
+	void setItems(unscoped char[] value)
+	{
+		this.items = value;
+	}
+
+	char[] getItems()
+	{
+		return this.items;
+	}
+
+	void getItemsOut(out char[] result)
+	{
+		result = this.items;
+	}
+}
+
+export int main()
+{
+	auto heap = getEscaped();
+	auto same = identity(heap);
+
+	Buffer buffer = init Buffer();
+	buffer.setItems(heap);
+	auto items = buffer.getItems();
+
+	char[] chosen = default;
+	choose(same, items, out chosen);
+
+	char[] outItems = default;
+	buffer.getItemsOut(out outItems);
+
+	free(same.elements);
+	return 0;
+}

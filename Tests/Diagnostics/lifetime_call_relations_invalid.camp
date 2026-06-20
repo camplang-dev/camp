@@ -1,0 +1,63 @@
+extern escaped char[] getEscaped();
+
+scoped char[] identity(char[] value)
+{
+	return value;
+}
+
+void needEscaped(escaped char[] value)
+{
+}
+
+void retain(unscoped char[] owner, unscoped(owner) char[] value)
+{
+}
+
+void choose(char[] value, out char[] result)
+{
+	result = value;
+}
+
+class Buffer
+{
+	char[] items;
+
+	char[] getItems()
+	{
+		return this.items;
+	}
+}
+
+char[] badScopedReturn()
+{
+	fixed char[16] storage = "hello";
+	auto result = identity(storage[..]);
+	return result;
+}
+
+char[] badInstanceReturn()
+{
+	Buffer buffer = init Buffer();
+	return buffer.getItems();
+}
+
+void badEscapedArgument()
+{
+	fixed char[16] storage = "hello";
+	needEscaped(storage[..]);
+}
+
+void badUnscopedArgument()
+{
+	fixed char[16] storage = "hello";
+	auto heap = getEscaped();
+	retain(heap, storage[..]);
+}
+
+char[] badOutReturn()
+{
+	fixed char[16] storage = "hello";
+	char[] result = default;
+	choose(storage[..], out result);
+	return result;
+}

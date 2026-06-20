@@ -750,8 +750,8 @@ Start enforcing lifetime rules for direct storage and result flow.
 - ~~Enforce pointer-form `delete` against the visible global `free`
   parameter contract when that contract is known.~~
 - ~~Enforce returned/yielded pointer-bearing values satisfy return/yield relation.~~
-- ~~Enforce fixed-array span return/yield through the general lifetime system,
-  replacing special-case checks where possible.~~
+- ~~Enforce fixed-array span returns through the general lifetime system,
+  while allowing iterator yields to rely on generator state lifting.~~
 - ~~Honor explicit lifetime casts as programmer assertions when checking
   assignment, return, yield, and delete flows.~~
 
@@ -835,7 +835,8 @@ delete ptr;
 - ~~Diagnostics for scoped parameter stored into global/static.~~
 - ~~Positive unscoped instance-method storage.~~
 - ~~Return diagnostics for local fixed-array spans.~~
-- ~~Yield diagnostics for local fixed-array spans.~~
+- ~~Iterator fixed-array span yields remain valid after generator state
+  lifting; direct returns are diagnosed.~~
 - ~~Pointer-form delete diagnostics driven by a `free(escaped void*)`
   signature.~~
 - ~~Positive and negative explicit lifetime cast diagnostics.~~
@@ -848,21 +849,22 @@ Implement signature-template substitution at call sites.
 
 ### Work Items
 
-- Build lifetime signatures for all callable declarations.
-- Apply anchorless `unscoped` parameter rule:
-  - argument must outlive all scoped arguments;
-  - in instance methods this includes receiver by default.
-- Apply instance-method unannotated return default as `unscoped(this)`.
-- Apply static/free unannotated return default as anchorless `unscoped`.
-- Apply the same defaults to pointer-bearing `out` parameters.
-- Apply `scoped` return substitution.
-- Apply `scoped(anchor)` and `unscoped(anchor)` substitution.
-- Apply equivalent `out` parameter substitution.
-- Preserve lifetime facts produced by explicit lifetime casts when they flow
-  into call arguments or out-parameter storage.
-- Track return const flow where directly provable.
-- Validate call arguments against parameter relations.
-- Produce diagnostics with call-site source ranges.
+- ~~Build lifetime signatures for all callable declarations.~~
+- ~~Apply anchorless `unscoped` parameter rule:~~
+  - ~~argument must outlive all scoped arguments;~~
+  - ~~in instance methods this includes receiver by default.~~
+- ~~Apply instance-method unannotated return default as `unscoped(this)`.~~
+- ~~Apply static/free unannotated return default as anchorless `unscoped`.~~
+- ~~Apply the same defaults to pointer-bearing `out` parameters.~~
+- ~~Apply `scoped` return substitution.~~
+- ~~Apply `scoped(anchor)` and `unscoped(anchor)` substitution.~~
+- ~~Apply equivalent `out` parameter substitution.~~
+- ~~Preserve lifetime facts produced by explicit lifetime casts when they flow
+  into call arguments or out-parameter storage.~~
+- Track return const flow where directly provable. Deferred to BUG-024 because
+  it is a type-refinement pass, not a lifetime fact substitution pass.
+- ~~Validate call arguments against parameter relations.~~
+- ~~Produce diagnostics with call-site source ranges.~~
 
 ### Completion Criteria
 
@@ -916,20 +918,20 @@ scoped input relation permits.
 
 ### Tests
 
-- Scoped return from escaped argument becomes escaped at call site.
-- Scoped return from local argument cannot escape.
-- Unannotated instance-method return tied to receiver.
-- Unannotated static return tied to scoped arguments.
-- Explicit `scoped(anchor)` return.
-- Explicit return `unscoped(anchor)`.
-- Unannotated pointer-bearing `out` parameter in an instance method tied to
-  receiver.
-- Unannotated pointer-bearing `out` parameter in a static/free function using
-  anchorless `unscoped`.
-- Explicit `scoped(anchor)` / `unscoped(anchor)` `out` parameter relation.
-- Explicit lifetime cast used to satisfy an `unscoped(anchor)` or `escaped`
-  parameter requirement.
-- Const flow positive and conservative negative tests.
+- ~~Scoped return from escaped argument becomes escaped at call site.~~
+- ~~Scoped return from local argument cannot escape.~~
+- ~~Unannotated instance-method return tied to receiver.~~
+- ~~Unannotated static return tied to scoped arguments.~~
+- ~~Explicit `scoped(anchor)` return.~~
+- ~~Explicit return `unscoped(anchor)`.~~
+- ~~Unannotated pointer-bearing `out` parameter in an instance method tied to
+  receiver.~~
+- ~~Unannotated pointer-bearing `out` parameter in a static/free function using
+  anchorless `unscoped`.~~
+- ~~Explicit `scoped(anchor)` / `unscoped(anchor)` `out` parameter relation.~~
+- ~~Explicit lifetime cast used to satisfy an `unscoped(anchor)` or `escaped`
+  parameter requirement.~~
+- Const flow positive and conservative negative tests. Deferred to BUG-024.
 
 ## Stage 5: Constructors, `init`, `new`, And Retained Values
 
@@ -1374,7 +1376,7 @@ stage uncovers a pre-existing unrelated compiler bug, log it in
 - scoped argument stored into `this`;
 - scoped argument stored into global/static;
 - local fixed-array span returned;
-- local fixed-array span yielded;
+- iterator fixed-array span yields stay valid after generator state lifting;
 - pointer-form delete of local address when the selected `free` contract
   requires escaped storage;
 - escaping lambda captures local by reference;

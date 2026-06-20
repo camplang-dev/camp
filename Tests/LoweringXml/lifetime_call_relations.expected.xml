@@ -1,0 +1,462 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module ResolvedType="#MODULE">
+  <Definitions>
+    <FunctionDefinition InvokerName="getEscaped" Name="getEscaped" Symbol="getEscaped" Extern="" ResolvedType="escaped char*">
+      <ReturnType Type="NamedTypeReference" Name="escaped char*" ResolvedType="escaped char*" />
+      <Parameters>
+        <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
+          <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
+        </ParameterDefinition>
+      </Parameters>
+    </FunctionDefinition>
+    <FunctionDefinition InvokerName="identity" Name="identity" Symbol="identity" ResolvedType="scoped char*">
+      <ReturnType Type="NamedTypeReference" Name="scoped char*" ResolvedType="scoped char*" />
+      <Parameters>
+        <ParameterDefinition Name="value" Symbol="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="value_length" Symbol="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
+          <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
+        </ParameterDefinition>
+      </Parameters>
+      <Body Type="BlockStatement" ResolvedType="void">
+        <Statements>
+          <BlockStatement ResolvedType="void">
+            <Statements>
+              <ExpressionStatement ResolvedType="void">
+                <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint">
+                  <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" />
+                  <Value Type="VariableReferenceExpression" Variable="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                </Expression>
+              </ExpressionStatement>
+              <ReturnStatement ResolvedType="void">
+                <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+              </ReturnStatement>
+            </Statements>
+          </BlockStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+    <FunctionDefinition InvokerName="scopedTo" Name="scopedTo" Symbol="scopedTo" ResolvedType="scoped(owner) char*">
+      <ReturnType Type="NamedTypeReference" Name="scoped(owner) char*" ResolvedType="scoped(owner) char*" />
+      <Parameters>
+        <ParameterDefinition Name="owner" Symbol="owner" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="owner_length" Symbol="owner_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="value" Symbol="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="value_length" Symbol="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
+          <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
+        </ParameterDefinition>
+      </Parameters>
+      <Body Type="BlockStatement" ResolvedType="void">
+        <Statements>
+          <BlockStatement ResolvedType="void">
+            <Statements>
+              <ExpressionStatement ResolvedType="void">
+                <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint">
+                  <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" />
+                  <Value Type="VariableReferenceExpression" Variable="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped(owner):explicit cast" />
+                </Expression>
+              </ExpressionStatement>
+              <ReturnStatement ResolvedType="void">
+                <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped(owner):explicit cast" />
+              </ReturnStatement>
+            </Statements>
+          </BlockStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+    <FunctionDefinition InvokerName="unscopedTo" Name="unscopedTo" Symbol="unscopedTo" ResolvedType="unscoped(owner) char*">
+      <ReturnType Type="NamedTypeReference" Name="unscoped(owner) char*" ResolvedType="unscoped(owner) char*" />
+      <Parameters>
+        <ParameterDefinition Name="owner" Symbol="owner" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="owner_length" Symbol="owner_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="value" Symbol="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="value_length" Symbol="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
+          <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
+        </ParameterDefinition>
+      </Parameters>
+      <Body Type="BlockStatement" ResolvedType="void">
+        <Statements>
+          <BlockStatement ResolvedType="void">
+            <Statements>
+              <ExpressionStatement ResolvedType="void">
+                <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint">
+                  <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" />
+                  <Value Type="VariableReferenceExpression" Variable="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="unscoped(owner):explicit cast" />
+                </Expression>
+              </ExpressionStatement>
+              <ReturnStatement ResolvedType="void">
+                <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="unscoped(owner):explicit cast" />
+              </ReturnStatement>
+            </Statements>
+          </BlockStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+    <ClassDefinition Name="Buffer" Symbol="Buffer" ResolvedType="Buffer">
+      <Fields>
+        <FieldDefinition Name="items" Symbol="items" ResolvedType="char*" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="unscoped:explicit" />
+        <FieldDefinition Name="items_length" Symbol="items_length" ResolvedType="nuint" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="unscoped:explicit" />
+      </Fields>
+      <Functions>
+        <FunctionDefinition InvokerName="setItems" ReceiverLifetimeBinding="scoped:default receiver" Name="setItems" Symbol="Buffer_setItems" ResolvedType="void">
+          <ReturnType Type="Void" ResolvedType="void" />
+          <Parameters>
+            <ParameterDefinition Name="value" Symbol="value" ResolvedType="unscoped char*" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+            <ParameterDefinition Name="value_length" Symbol="value_length" ResolvedType="nuint" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+          </Parameters>
+          <Body Type="BlockStatement" ResolvedType="void">
+            <Statements>
+              <BlockStatement ResolvedType="void">
+                <Statements>
+                  <ExpressionStatement ResolvedType="void">
+                    <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*" ValueLifetimeFact="unscoped:explicit">
+                      <Target Type="MemberReferenceExpression" Name="items" Member="items" ResolvedType="char*">
+                        <Target Type="ThisExpression" ResolvedType="Buffer*" />
+                      </Target>
+                      <Value Type="VariableReferenceExpression" Variable="value" ResolvedType="unscoped char*" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+                    </Expression>
+                  </ExpressionStatement>
+                  <ExpressionStatement ResolvedType="void">
+                    <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint" ValueLifetimeFact="unscoped:explicit">
+                      <Target Type="MemberReferenceExpression" Name="items_length" Member="items_length" ResolvedType="nuint">
+                        <Target Type="ThisExpression" ResolvedType="Buffer*" />
+                      </Target>
+                      <Value Type="VariableReferenceExpression" Variable="value_length" ResolvedType="nuint" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+                    </Expression>
+                  </ExpressionStatement>
+                </Statements>
+              </BlockStatement>
+            </Statements>
+          </Body>
+        </FunctionDefinition>
+        <FunctionDefinition InvokerName="getItems" ReceiverLifetimeBinding="scoped:default receiver" Name="getItems" Symbol="Buffer_getItems" ResolvedType="char*">
+          <ReturnType Type="NamedTypeReference" Name="char*" ResolvedType="char*" />
+          <Parameters>
+            <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
+              <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
+            </ParameterDefinition>
+          </Parameters>
+          <Body Type="BlockStatement" ResolvedType="void">
+            <Statements>
+              <BlockStatement ResolvedType="void">
+                <Statements>
+                  <ExpressionStatement ResolvedType="void">
+                    <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint">
+                      <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" />
+                      <Value Type="MemberReferenceExpression" Name="items_length" Member="items_length" ResolvedType="nuint">
+                        <Target Type="ThisExpression" ResolvedType="const Buffer*" />
+                      </Value>
+                    </Expression>
+                  </ExpressionStatement>
+                  <ReturnStatement ResolvedType="void">
+                    <Expression Type="MemberReferenceExpression" Name="items" Member="items" ResolvedType="char*">
+                      <Target Type="ThisExpression" ResolvedType="const Buffer*" />
+                    </Expression>
+                  </ReturnStatement>
+                </Statements>
+              </BlockStatement>
+            </Statements>
+          </Body>
+        </FunctionDefinition>
+        <FunctionDefinition InvokerName="getItemsOut" ReceiverLifetimeBinding="scoped:default receiver" Name="getItemsOut" Symbol="Buffer_getItemsOut" ResolvedType="void">
+          <ReturnType Type="Void" ResolvedType="void" />
+          <Parameters>
+            <ParameterDefinition Modifier="Out" Name="result" Symbol="result" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
+            <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
+          </Parameters>
+          <Body Type="BlockStatement" ResolvedType="void">
+            <Statements>
+              <BlockStatement ResolvedType="void">
+                <Statements>
+                  <ExpressionStatement ResolvedType="void">
+                    <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
+                      <Target Type="VariableReferenceExpression" Variable="result" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
+                      <Value Type="MemberReferenceExpression" Name="items" Member="items" ResolvedType="char*">
+                        <Target Type="ThisExpression" ResolvedType="Buffer*" />
+                      </Value>
+                    </Expression>
+                  </ExpressionStatement>
+                  <ExpressionStatement ResolvedType="void">
+                    <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint">
+                      <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
+                      <Value Type="MemberReferenceExpression" Name="items_length" Member="items_length" ResolvedType="nuint">
+                        <Target Type="ThisExpression" ResolvedType="Buffer*" />
+                      </Value>
+                    </Expression>
+                  </ExpressionStatement>
+                </Statements>
+              </BlockStatement>
+            </Statements>
+          </Body>
+        </FunctionDefinition>
+      </Functions>
+    </ClassDefinition>
+    <FunctionDefinition InvokerName="facts" Name="facts" Symbol="facts" ResolvedType="void">
+      <ReturnType Type="Void" ResolvedType="void" />
+      <Body Type="BlockStatement" ResolvedType="void">
+        <Statements>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call">
+            <Target Type="DeclarationTarget" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call">
+              <Names>
+                <Value>heap</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call">
+              <Names>
+                <Value>heap_length</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <ExpressionStatement ResolvedType="void">
+            <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="escaped char*">
+              <Target Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+              <Value Type="CallExpression" ResolvedType="escaped char*" ValueLifetimeFact="escaped:call">
+                <Target Type="MethodReferenceExpression" ResolvedType="fn escaped char[]()">
+                  <Candidates>
+                    <Function Name="getEscaped" ResolvedType="escaped char*" />
+                  </Candidates>
+                </Target>
+                <Arguments>
+                  <ArgumentExpression Modifier="Out" ResolvedType="nuint">
+                    <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                </Arguments>
+              </Value>
+            </Expression>
+          </ExpressionStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call">
+            <Target Type="DeclarationTarget" ResolvedType="char*" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call">
+              <Names>
+                <Value>same</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call">
+              <Names>
+                <Value>same_length</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <ExpressionStatement ResolvedType="void">
+            <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
+              <Target Type="VariableReferenceExpression" Variable="same" ResolvedType="char*" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call" />
+              <Value Type="CallExpression" ResolvedType="scoped char*" ValueLifetimeFact="escaped:call">
+                <Target Type="MethodReferenceExpression" ResolvedType="fn scoped char[](char[])">
+                  <Candidates>
+                    <Function Name="identity" ResolvedType="scoped char*" />
+                  </Candidates>
+                </Target>
+                <Arguments>
+                  <ArgumentExpression ResolvedType="escaped char*">
+                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                  <ArgumentExpression ResolvedType="nuint">
+                    <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                  <ArgumentExpression Modifier="Out" ResolvedType="nuint">
+                    <Value Type="VariableReferenceExpression" Variable="same_length" ResolvedType="nuint" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                </Arguments>
+              </Value>
+            </Expression>
+          </ExpressionStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call">
+            <Target Type="DeclarationTarget" ResolvedType="char*" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call">
+              <Names>
+                <Value>scopedAnchored</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call">
+              <Names>
+                <Value>scopedAnchored_length</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <ExpressionStatement ResolvedType="void">
+            <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
+              <Target Type="VariableReferenceExpression" Variable="scopedAnchored" ResolvedType="char*" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call" />
+              <Value Type="CallExpression" ResolvedType="scoped(owner) char*" ValueLifetimeFact="escaped:call">
+                <Target Type="MethodReferenceExpression" ResolvedType="fn scoped(owner) char[](char[], char[])">
+                  <Candidates>
+                    <Function Name="scopedTo" ResolvedType="scoped(owner) char*" />
+                  </Candidates>
+                </Target>
+                <Arguments>
+                  <ArgumentExpression ResolvedType="escaped char*">
+                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                  <ArgumentExpression ResolvedType="nuint">
+                    <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                  <ArgumentExpression ResolvedType="escaped char*">
+                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                  <ArgumentExpression ResolvedType="nuint">
+                    <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                  <ArgumentExpression Modifier="Out" ResolvedType="nuint">
+                    <Value Type="VariableReferenceExpression" Variable="scopedAnchored_length" ResolvedType="nuint" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                </Arguments>
+              </Value>
+            </Expression>
+          </ExpressionStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(unscopedAnchored):slot" ValueLifetimeFact="escaped:call">
+            <Target Type="DeclarationTarget" ResolvedType="unscoped char*" SlotLifetimeFact="scoped(unscopedAnchored):slot" ValueLifetimeFact="escaped:call">
+              <Names>
+                <Value>unscopedAnchored</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(unscopedAnchored):slot" ValueLifetimeFact="escaped:call">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(unscopedAnchored):slot" ValueLifetimeFact="escaped:call">
+              <Names>
+                <Value>unscopedAnchored_length</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <ExpressionStatement ResolvedType="void">
+            <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="unscoped char*">
+              <Target Type="VariableReferenceExpression" Variable="unscopedAnchored" ResolvedType="unscoped char*" SlotLifetimeFact="scoped(unscopedAnchored):slot" ValueLifetimeFact="escaped:call" />
+              <Value Type="CallExpression" ResolvedType="unscoped(owner) char*" ValueLifetimeFact="escaped:call">
+                <Target Type="MethodReferenceExpression" ResolvedType="fn unscoped(owner) char[](char[], char[])">
+                  <Candidates>
+                    <Function Name="unscopedTo" ResolvedType="unscoped(owner) char*" />
+                  </Candidates>
+                </Target>
+                <Arguments>
+                  <ArgumentExpression ResolvedType="escaped char*">
+                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                  <ArgumentExpression ResolvedType="nuint">
+                    <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                  <ArgumentExpression ResolvedType="escaped char*">
+                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                  <ArgumentExpression ResolvedType="nuint">
+                    <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                  <ArgumentExpression Modifier="Out" ResolvedType="nuint">
+                    <Value Type="VariableReferenceExpression" Variable="unscopedAnchored_length" ResolvedType="nuint" SlotLifetimeFact="scoped(unscopedAnchored):slot" ValueLifetimeFact="escaped:call" />
+                  </ArgumentExpression>
+                </Arguments>
+              </Value>
+            </Expression>
+          </ExpressionStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(buffer):slot" ValueLifetimeFact="scoped(buffer):slot">
+            <Target Type="DeclarationTarget" ResolvedType="Buffer" SlotLifetimeFact="scoped(buffer):slot" ValueLifetimeFact="scoped(buffer):slot">
+              <Type Type="TypeDefinitionReference" Name="Buffer" Definition="Buffer" ResolvedType="Buffer" />
+              <Names>
+                <Value>buffer</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <ExpressionStatement ResolvedType="void">
+            <Expression Type="CallExpression" ResolvedType="void">
+              <Target Type="MethodReferenceExpression" ResolvedType="fn void(Buffer*, unscoped char*, nuint)">
+                <Candidates>
+                  <Function Name="setItems" ResolvedType="void" />
+                </Candidates>
+              </Target>
+              <Arguments>
+                <ArgumentExpression ResolvedType="Buffer*">
+                  <Value Type="UnaryExpression" Operator="AddressOf" ResolvedType="Buffer*">
+                    <Operand Type="VariableReferenceExpression" Variable="buffer" ResolvedType="Buffer" SlotLifetimeFact="scoped(buffer):slot" ValueLifetimeFact="scoped(buffer):slot" />
+                  </Value>
+                </ArgumentExpression>
+                <ArgumentExpression ResolvedType="escaped char*">
+                  <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                </ArgumentExpression>
+                <ArgumentExpression ResolvedType="nuint">
+                  <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                </ArgumentExpression>
+              </Arguments>
+            </Expression>
+          </ExpressionStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="scoped(buffer):call">
+            <Target Type="DeclarationTarget" ResolvedType="char*" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="scoped(buffer):call">
+              <Names>
+                <Value>items</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="scoped(buffer):call">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="scoped(buffer):call">
+              <Names>
+                <Value>items_length</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <ExpressionStatement ResolvedType="void">
+            <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
+              <Target Type="VariableReferenceExpression" Variable="items" ResolvedType="char*" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="scoped(buffer):call" />
+              <Value Type="CallExpression" ResolvedType="char*" ValueLifetimeFact="scoped(buffer):call">
+                <Target Type="MethodReferenceExpression" ResolvedType="fn char*(Buffer*, out nuint)">
+                  <Candidates>
+                    <Function Name="getItems" ResolvedType="char*" />
+                  </Candidates>
+                </Target>
+                <Arguments>
+                  <ArgumentExpression ResolvedType="Buffer*">
+                    <Value Type="UnaryExpression" Operator="AddressOf" ResolvedType="Buffer*">
+                      <Operand Type="VariableReferenceExpression" Variable="buffer" ResolvedType="Buffer" SlotLifetimeFact="scoped(buffer):slot" ValueLifetimeFact="scoped(buffer):slot" />
+                    </Value>
+                  </ArgumentExpression>
+                  <ArgumentExpression Modifier="Out" ResolvedType="nuint">
+                    <Value Type="VariableReferenceExpression" Variable="items_length" ResolvedType="nuint" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="scoped(buffer):call" />
+                  </ArgumentExpression>
+                </Arguments>
+              </Value>
+            </Expression>
+          </ExpressionStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(outItems):slot" ValueLifetimeFact="default">
+            <Target Type="DeclarationTarget" ResolvedType="char*" SlotLifetimeFact="scoped(outItems):slot" ValueLifetimeFact="default">
+              <Names>
+                <Value>outItems</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="DefaultExpression" ResolvedType="char*" />
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(outItems):slot" ValueLifetimeFact="default">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(outItems):slot" ValueLifetimeFact="default">
+              <Names>
+                <Value>outItems_length</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="DefaultExpression" ResolvedType="nuint" />
+          </DeclarationStatement>
+          <ExpressionStatement ResolvedType="void">
+            <Expression Type="CallExpression" ResolvedType="void">
+              <Target Type="MethodReferenceExpression" ResolvedType="fn void(Buffer*, out char*, out nuint)">
+                <Candidates>
+                  <Function Name="getItemsOut" ResolvedType="void" />
+                </Candidates>
+              </Target>
+              <Arguments>
+                <ArgumentExpression ResolvedType="Buffer*">
+                  <Value Type="UnaryExpression" Operator="AddressOf" ResolvedType="Buffer*">
+                    <Operand Type="VariableReferenceExpression" Variable="buffer" ResolvedType="Buffer" SlotLifetimeFact="scoped(buffer):slot" ValueLifetimeFact="scoped(buffer):slot" />
+                  </Value>
+                </ArgumentExpression>
+                <ArgumentExpression Modifier="Out" ResolvedType="char*">
+                  <Value Type="VariableReferenceExpression" Variable="outItems" ResolvedType="char*" SlotLifetimeFact="scoped(outItems):slot" ValueLifetimeFact="default" />
+                </ArgumentExpression>
+                <ArgumentExpression Modifier="Out" ResolvedType="nuint">
+                  <Value Type="VariableReferenceExpression" Variable="outItems_length" ResolvedType="nuint" SlotLifetimeFact="scoped(outItems):slot" ValueLifetimeFact="default" />
+                </ArgumentExpression>
+              </Arguments>
+            </Expression>
+          </ExpressionStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+  </Definitions>
+</Module>

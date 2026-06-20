@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -6,10 +7,16 @@ namespace Camp.Compiler;
 public sealed partial class BindableNodeAnalyzer
 {
 	sealed record LifetimeFact(string Kind, IReadOnlyList<string> Anchors, string Source);
+	sealed record LifetimeCallContext(Dictionary<string, LifetimeFact> Anchors, List<LifetimeFact> ScopedInputs, LifetimeFact? Receiver);
 
 	static string MakeLifetimeFact(string kind, string? anchor, string source)
 	{
 		return new BoundLifetime(kind, string.IsNullOrWhiteSpace(anchor) ? [] : [anchor], source).ToString();
+	}
+
+	static string FormatLifetimeFact(LifetimeFact fact)
+	{
+		return new BoundLifetime(fact.Kind, fact.Anchors, fact.Source).ToString();
 	}
 
 	static bool TryParseLifetimeFact(string? text, out LifetimeFact fact)
@@ -122,7 +129,7 @@ public sealed partial class BindableNodeAnalyzer
 		string? name = declaration.Target.Names.Count == 1 ? declaration.Target.Names[0] : null;
 		string? slotFact = CreateDeclarationSlotLifetimeFact(name, declaration.Target.Type, declaration.Target.ResolvedType, declaration.IsFixedStorage, typeScope);
 		declaration.Target.SlotLifetimeFact = slotFact;
-		declaration.Target.ValueLifetimeFact = GetExpressionLifetimeFact(declaration.InitialValue) ?? slotFact;
+		declaration.Target.ValueLifetimeFact = declaration.IsFixedStorage ? slotFact : GetExpressionLifetimeFact(declaration.InitialValue) ?? slotFact;
 		declaration.SlotLifetimeFact = slotFact;
 		declaration.ValueLifetimeFact = declaration.Target.ValueLifetimeFact;
 	}
@@ -157,6 +164,13 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (fact is not null)
 			expression.ValueLifetimeFact = fact;
+	}
+
+	string GetLifetimeStructuralTargetType(string targetType, Expression? expression)
+	{
+		if (GetExpressionLifetimeFact(expression) is null)
+			return targetType;
+		return TryGetResolvedTypeLifetime(targetType, out _) ? StripLifetimeQualifiers(targetType) : targetType;
 	}
 
 	string? GetNamedExpressionLifetimeFact(NamedExpression named)
@@ -244,12 +258,316 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
 		{
-			string? returnFact = function.ReturnType?.LifetimeBinding ?? function.ReceiverLifetimeBinding;
-			if (returnFact is not null)
-				return returnFact + ":call";
+			LifetimeFact template = GetReturnLifetimeTemplate(function, resolvedType);
+			LifetimeCallContext context = BuildLifetimeCallContext(function, call.Target, GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(call.Target, function)), call.Arguments);
+			return SubstituteLifetimeTemplate(template, context, "call") is LifetimeFact fact ? FormatLifetimeFact(fact) : null;
 		}
 
 		return MakeLifetimeFact("unknown", null, "call");
+	}
+
+	LifetimeFact GetReturnLifetimeTemplate(FunctionDefinition function, string resolvedType)
+	{
+		if (function.ReturnType?.LifetimeBinding is string explicitReturn
+			&& TryParseLifetimeFact(explicitReturn, out LifetimeFact explicitFact))
+			return explicitFact;
+		if (TryGetResolvedTypeLifetime(function.ReturnType?.ResolvedType ?? resolvedType, out string lifetimeKind))
+			return new LifetimeFact(lifetimeKind, [], "return type");
+
+		if (IsReceiverBearingDeclaration(function))
+			return new LifetimeFact("unscoped", ["this"], "return default");
+
+		return new LifetimeFact("unscoped", [], "return default");
+	}
+
+	void CheckLifetimeCallArguments(FunctionDefinition function, Expression? callTarget, List<(ArgumentExpression Argument, ParameterDefinition Parameter)> arguments, BodyScope scope, SyntaxNode? fallbackSyntax)
+	{
+		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(callTarget, function));
+		LifetimeCallContext context = BuildLifetimeCallContext(function, callTarget, callableParameters, arguments.Select(pair => pair.Argument).ToList());
+		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in arguments)
+		{
+			if (parameter.Modifier == ParameterModifier.Out)
+			{
+				ApplyOutParameterLifetime(function, argument, parameter, context, scope, fallbackSyntax);
+				continue;
+			}
+			if (parameter.Modifier == ParameterModifier.Thrown || parameter.Modifier == ParameterModifier.Within)
+				continue;
+
+			CheckLifetimeParameterArgument(argument, parameter, context, scope, fallbackSyntax);
+		}
+	}
+
+	void CheckLifetimeParameterArgument(ArgumentExpression argument, ParameterDefinition parameter, LifetimeCallContext context, BodyScope scope, SyntaxNode? fallbackSyntax)
+	{
+		if (!IsPointerBearingResolvedType(argument.ResolvedType) && !IsPointerBearingResolvedType(parameter.ResolvedType))
+			return;
+
+		if (!TryParseLifetimeFact(GetExpressionLifetimeFact(argument.Value), out LifetimeFact actualFact))
+			return;
+		if (actualFact.Kind == "unknown")
+			return;
+
+		LifetimeFact template = GetParameterLifetimeTemplate(parameter);
+		List<LifetimeFact> requiredFacts = GetRequiredArgumentLifetimeFacts(template, context);
+		if (requiredFacts.Count == 0)
+			return;
+
+		foreach (LifetimeFact required in requiredFacts)
+		{
+			if (required.Kind == "unknown")
+				continue;
+			if (!ValueOutlivesFact(actualFact, required))
+				Report(GetRange(GetArgumentDiagnosticSyntax(argument, fallbackSyntax)), $"Argument cannot satisfy parameter lifetime '{FormatLifetimeRequirement(template)}'.");
+		}
+	}
+
+	void ApplyOutParameterLifetime(FunctionDefinition function, ArgumentExpression argument, ParameterDefinition parameter, LifetimeCallContext context, BodyScope scope, SyntaxNode? fallbackSyntax)
+	{
+		string outType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType;
+		if (!IsPointerBearingResolvedType(outType))
+			return;
+
+		LifetimeFact template = GetOutParameterLifetimeTemplate(function, parameter);
+		LifetimeFact? substituted = SubstituteLifetimeTemplate(template, context, "out");
+		if (substituted is null)
+			return;
+
+		string fact = FormatLifetimeFact(substituted);
+		if (argument.Target is not null)
+			argument.Target.ValueLifetimeFact = fact;
+		UpdateAssignmentLifetimeFact(argument.Value, fact);
+		if (argument.Target is not null)
+			argument.ValueLifetimeFact = fact;
+
+		if (TryGetEscapedOutTarget(argument, out Expression? targetExpression) && substituted.Kind != "escaped" && substituted.Kind != "unknown")
+			Report(GetRange(GetArgumentDiagnosticSyntax(argument, fallbackSyntax)), "Out argument cannot store a non-escaped pointer-bearing value in escaped storage.");
+		else if (targetExpression is not null && TryGetReceiverAnchoredStorageTarget(targetExpression, out string anchor) && !ValueOutlivesAnchor(substituted, anchor))
+			Report(GetRange(GetArgumentDiagnosticSyntax(argument, fallbackSyntax)), $"Out argument cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.");
+	}
+
+	LifetimeFact GetOutParameterLifetimeTemplate(FunctionDefinition function, ParameterDefinition parameter)
+	{
+		if (parameter.LifetimeBinding is string explicitLifetime
+			&& TryParseLifetimeFact(explicitLifetime, out LifetimeFact explicitFact))
+			return explicitFact;
+		if (TryGetResolvedTypeLifetime(parameter.ResolvedType, out string lifetimeKind))
+			return new LifetimeFact(lifetimeKind, [], "out type");
+
+		if (IsReceiverBearingDeclaration(function))
+			return new LifetimeFact("unscoped", ["this"], "out default");
+
+		return new LifetimeFact("unscoped", [], "out default");
+	}
+
+	static LifetimeFact GetParameterLifetimeTemplate(ParameterDefinition parameter)
+	{
+		if (parameter.LifetimeBinding is string explicitLifetime
+			&& TryParseLifetimeFact(explicitLifetime, out LifetimeFact explicitFact))
+			return explicitFact;
+		if (TryGetResolvedTypeLifetime(parameter.ResolvedType, out string lifetimeKind))
+			return new LifetimeFact(lifetimeKind, [], "parameter type");
+
+		return new LifetimeFact("scoped", string.IsNullOrWhiteSpace(parameter.Name) ? [] : [parameter.Name], "parameter default");
+	}
+
+	static bool TryGetResolvedTypeLifetime(string? resolvedType, out string lifetimeKind)
+	{
+		lifetimeKind = "";
+		if (string.IsNullOrWhiteSpace(resolvedType))
+			return false;
+
+		string type = resolvedType.Trim();
+		foreach (string keyword in new[] { "escaped", "unscoped", "scoped" })
+		{
+			if (type.StartsWith(keyword + " ", StringComparison.Ordinal)
+				|| type.StartsWith(keyword + "(", StringComparison.Ordinal)
+				|| type.EndsWith(" " + keyword, StringComparison.Ordinal))
+			{
+				lifetimeKind = keyword;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	LifetimeCallContext BuildLifetimeCallContext(FunctionDefinition function, Expression? callTarget, List<ParameterDefinition> callableParameters, List<ArgumentExpression> arguments)
+	{
+		Dictionary<string, LifetimeFact> anchors = new(StringComparer.Ordinal);
+		List<LifetimeFact> scopedInputs = [];
+		LifetimeFact? receiverFact = GetReceiverLifetimeFact(callTarget);
+		if (receiverFact is not null)
+		{
+			anchors["this"] = receiverFact;
+			if (IsReceiverScopedInput(function))
+				scopedInputs.Add(receiverFact);
+		}
+
+		int count = Math.Min(arguments.Count, callableParameters.Count);
+		for (int i = 0; i < count; i++)
+		{
+			ParameterDefinition parameter = callableParameters[i];
+			ArgumentExpression argument = arguments[i];
+			if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within)
+				continue;
+			if (!TryParseLifetimeFact(GetExpressionLifetimeFact(argument.Value), out LifetimeFact actualFact))
+				continue;
+			if (!string.IsNullOrWhiteSpace(parameter.Name))
+				anchors[parameter.Name] = actualFact;
+			if (GetParameterLifetimeTemplate(parameter).Kind == "scoped")
+				scopedInputs.Add(actualFact);
+		}
+
+		return new LifetimeCallContext(anchors, scopedInputs, receiverFact);
+	}
+
+	bool IsReceiverScopedInput(FunctionDefinition function)
+	{
+		if (!IsReceiverBearingDeclaration(function))
+			return false;
+		if (function.ReceiverLifetimeBinding is string receiverLifetime
+			&& TryParseLifetimeFact(receiverLifetime, out LifetimeFact receiverFact))
+			return receiverFact.Kind == "scoped";
+		return true;
+	}
+
+	LifetimeFact? GetReceiverLifetimeFact(Expression? callTarget)
+	{
+		Expression? receiver = callTarget switch
+		{
+			MemberExpression member => member.Target,
+			MemberReferenceExpression member => member.Target,
+			_ => null
+		};
+		return TryParseLifetimeFact(GetExpressionLifetimeFact(receiver), out LifetimeFact fact) ? fact : null;
+	}
+
+	static List<LifetimeFact> GetRequiredArgumentLifetimeFacts(LifetimeFact template, LifetimeCallContext context)
+	{
+		if (template.Kind == "escaped")
+			return [new LifetimeFact("escaped", [], "parameter requirement")];
+		if (template.Kind != "unscoped")
+			return [];
+		if (template.Anchors.Count == 0)
+			return [.. context.ScopedInputs];
+
+		List<LifetimeFact> required = [];
+		foreach (string anchor in template.Anchors)
+		{
+			if (context.Anchors.TryGetValue(anchor, out LifetimeFact? fact))
+				required.Add(fact);
+			else
+				required.Add(new LifetimeFact("unknown", [], "missing anchor"));
+		}
+		return required;
+	}
+
+	static LifetimeFact? SubstituteLifetimeTemplate(LifetimeFact template, LifetimeCallContext context, string source)
+	{
+		return template.Kind switch
+		{
+			"escaped" => new LifetimeFact("escaped", [], source),
+			"scoped" => SubstituteScopedTemplate(template, context, source),
+			"unscoped" => SubstituteUnscopedTemplate(template, context, source),
+			"unknown" => new LifetimeFact("unknown", [], source),
+			_ => null
+		};
+	}
+
+	static LifetimeFact SubstituteScopedTemplate(LifetimeFact template, LifetimeCallContext context, string source)
+	{
+		if (template.Anchors.Count > 0)
+			return CombineAnchorFacts(template.Anchors, context, source, preserveUnscoped: false);
+		return CombineScopedInputs(context.ScopedInputs, source);
+	}
+
+	static LifetimeFact SubstituteUnscopedTemplate(LifetimeFact template, LifetimeCallContext context, string source)
+	{
+		if (template.Anchors.Count > 0)
+			return CombineAnchorFacts(template.Anchors, context, source, preserveUnscoped: true);
+		return CombineScopedInputs(context.ScopedInputs, source);
+	}
+
+	static LifetimeFact CombineAnchorFacts(IReadOnlyList<string> anchors, LifetimeCallContext context, string source, bool preserveUnscoped)
+	{
+		List<LifetimeFact> facts = [];
+		foreach (string anchor in anchors)
+		{
+			if (!context.Anchors.TryGetValue(anchor, out LifetimeFact? fact))
+				return new LifetimeFact("unknown", [], source);
+			facts.Add(fact);
+		}
+		if (facts.Count == 1)
+			return NormalizeSubstitutedFact(facts[0], source, preserveUnscoped);
+		return CombineScopedInputs(facts, source);
+	}
+
+	static LifetimeFact CombineScopedInputs(IReadOnlyList<LifetimeFact> facts, string source)
+	{
+		List<LifetimeFact> useful = facts.Where(fact => fact.Kind != "null" && fact.Kind != "default").ToList();
+		if (useful.Count == 0)
+			return new LifetimeFact("unscoped", [], source);
+		if (useful.All(fact => fact.Kind == "escaped"))
+			return new LifetimeFact("escaped", [], source);
+		if (useful.Count == 1)
+			return NormalizeSubstitutedFact(useful[0], source, preserveUnscoped: false);
+
+		List<string> localAnchors = useful
+			.Where(fact => fact.Kind == "scoped" && fact.Anchors.Count == 1)
+			.Select(fact => fact.Anchors[0])
+			.Distinct(StringComparer.Ordinal)
+			.ToList();
+		if (localAnchors.Count == 1)
+			return new LifetimeFact("scoped", [localAnchors[0]], source);
+		return new LifetimeFact("unknown", [], source);
+	}
+
+	static LifetimeFact NormalizeSubstitutedFact(LifetimeFact fact, string source, bool preserveUnscoped)
+	{
+		return fact.Kind switch
+		{
+			"escaped" => new LifetimeFact("escaped", [], source),
+			"unscoped" when preserveUnscoped => new LifetimeFact("unscoped", fact.Anchors, source),
+			"unscoped" when fact.Anchors.Count == 0 => new LifetimeFact("unscoped", [], source),
+			"scoped" => new LifetimeFact("scoped", fact.Anchors, source),
+			"unknown" => new LifetimeFact("unknown", [], source),
+			_ => new LifetimeFact("unknown", [], source)
+		};
+	}
+
+	static bool ValueOutlivesFact(LifetimeFact actual, LifetimeFact required)
+	{
+		if (actual.Kind == "escaped" || actual.Kind == "unknown" || required.Kind == "unknown")
+			return true;
+		if (required.Kind == "escaped")
+			return actual.Kind == "escaped";
+		if (required.Anchors.Count == 0)
+			return actual.Kind is "escaped" or "unscoped";
+		if (actual.Kind == "unscoped" && actual.Anchors.Count == 0)
+			return true;
+		foreach (string anchor in required.Anchors)
+		{
+			if (actual.Anchors.Contains(anchor))
+				continue;
+			return false;
+		}
+		return actual.Kind is "scoped" or "unscoped";
+	}
+
+	static string FormatLifetimeRequirement(LifetimeFact template)
+	{
+		if (template.Anchors.Count == 0)
+			return template.Kind;
+		return $"{template.Kind}({string.Join(", ", template.Anchors)})";
+	}
+
+	bool TryGetEscapedOutTarget(ArgumentExpression argument, out Expression? targetExpression)
+	{
+		targetExpression = argument.Value;
+		if (targetExpression is null)
+			return false;
+		return TryGetEscapedStorageTarget(targetExpression);
 	}
 
 	void UpdateAssignmentLifetimeFact(Expression? target, string? valueFact)
@@ -289,6 +607,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (target is null || value is null)
 			return;
+		if (IsInsideGenericBody(scope))
+			return;
+		if (!IsPointerBearingResolvedType(value.ResolvedType))
+			return;
 
 		string? valueFactText = GetExpressionLifetimeFact(value);
 		if (!TryParseLifetimeFact(valueFactText, out LifetimeFact valueFact))
@@ -312,8 +634,17 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	static bool IsInsideGenericBody(BodyScope scope)
+	{
+		return scope.CurrentFunction.GenericParameters.Count > 0
+			|| scope.ContainingType?.GenericParameters.Count > 0;
+	}
+
 	void CheckLifetimeResult(Expression? value, SyntaxNode? syntax, BodyScope scope, string context)
 	{
+		if (!IsPointerBearingResolvedType(value?.ResolvedType))
+			return;
+
 		string? valueFactText = GetExpressionLifetimeFact(value);
 		if (!TryParseLifetimeFact(valueFactText, out LifetimeFact valueFact))
 			return;

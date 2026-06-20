@@ -1,0 +1,115 @@
+// file: lifetime_call_relations_valid.c
+#include "lifetime_call_relations_valid_private.h"
+
+/* Private file declarations. */
+char *getEscaped(uintptr_t *result_length);
+void free(void *ptr);
+static char *identity(char *value, uintptr_t value_length, uintptr_t *result_length);
+static void choose(char *a, uintptr_t a_length, char *b, uintptr_t b_length, char **result, uintptr_t *result_length);
+static void Buffer_setItems(Buffer *this, char *value, uintptr_t value_length);
+static char *Buffer_getItems(Buffer *this, uintptr_t *result_length);
+static void Buffer_getItemsOut(Buffer *this, char **result, uintptr_t *result_length);
+
+static char *identity(char *value, uintptr_t value_length, uintptr_t *result_length)
+{
+	{
+		(*result_length) = value_length;
+		return value;
+	}
+}
+
+static void choose(char *a, uintptr_t a_length, char *b, uintptr_t b_length, char **result, uintptr_t *result_length)
+{
+	{
+		(*result) = a;
+		(*result_length) = a_length;
+	}
+}
+
+static void Buffer_setItems(Buffer *this, char *value, uintptr_t value_length)
+{
+	{
+		this->items = value;
+		this->items_length = value_length;
+	}
+}
+
+static char *Buffer_getItems(Buffer *this, uintptr_t *result_length)
+{
+	{
+		(*result_length) = this->items_length;
+		return this->items;
+	}
+}
+
+static void Buffer_getItemsOut(Buffer *this, char **result, uintptr_t *result_length)
+{
+	{
+		(*result) = this->items;
+		(*result_length) = this->items_length;
+	}
+}
+
+int main(void)
+{
+	char *heap;
+	uintptr_t heap_length;
+	heap = getEscaped(&heap_length);
+	char *same;
+	uintptr_t same_length;
+	same = identity(heap, heap_length, &same_length);
+	Buffer buffer;
+	Buffer_setItems(&buffer, heap, heap_length);
+	char *items;
+	uintptr_t items_length;
+	items = Buffer_getItems(&buffer, &items_length);
+	char *chosen = 0;
+	uintptr_t chosen_length = 0;
+	choose(same, same_length, items, items_length, &chosen, &chosen_length);
+	char *outItems = 0;
+	uintptr_t outItems_length = 0;
+	Buffer_getItemsOut(&buffer, &outItems, &outItems_length);
+	free(same);
+	return 0;
+}
+
+// file: lifetime_call_relations_valid.h
+#ifndef LIFETIME_CALL_RELATIONS_VALID_H_
+#define LIFETIME_CALL_RELATIONS_VALID_H_
+
+#include "lifetime_call_relations_valid_private.h"
+
+int main(void);
+
+#endif
+// file: lifetime_call_relations_valid_private.h
+#ifndef LIFETIME_CALL_RELATIONS_VALID_PRIVATE_H_
+#define LIFETIME_CALL_RELATIONS_VALID_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Buffer Buffer;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Buffer
+{
+	char *items;
+	uintptr_t items_length;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifetime_call_relations_valid.c

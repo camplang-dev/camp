@@ -977,7 +977,6 @@ public sealed partial class BindableNodeAnalyzer
 		currentIteratorStateThisType = $"{state.Name}*";
 		try
 		{
-			ValidateIteratorYieldLifetimes(function.Body);
 			List<Statement> rewrittenStatements = RewriteIteratorBodyStatements(function.Body, lowering);
 			BlockStatement body = new() { ResolvedType = "void" };
 			body.Statements.AddRange(lowering.CreateResumeDispatch());
@@ -990,98 +989,6 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			currentIteratorStateThisType = previousIteratorStateThisType;
 		}
-	}
-
-	void ValidateIteratorYieldLifetimes(BlockStatement? body)
-	{
-		if (body is null)
-			return;
-
-		HashSet<string> fixedLocalNames = new(StringComparer.Ordinal);
-		foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(body))
-		{
-			if (!declaration.IsFixedStorage)
-				continue;
-			foreach (string name in declaration.Target.Names)
-				if (!string.IsNullOrWhiteSpace(name) && name != "_")
-					fixedLocalNames.Add(name);
-		}
-
-		if (fixedLocalNames.Count == 0)
-			return;
-
-		foreach (YieldStatement yield in EnumerateYieldStatements(body))
-		{
-			if (YieldReferencesFixedLocalSpan(yield.Expression, fixedLocalNames))
-				Report(GetRange(yield.Expression?.SourceSyntax ?? yield.SourceSyntax), "Cannot yield a span view to local fixed-size array storage.");
-		}
-	}
-
-	static IEnumerable<YieldStatement> EnumerateYieldStatements(Statement? statement)
-	{
-		switch (statement)
-		{
-			case null:
-				yield break;
-			case YieldStatement yield:
-				yield return yield;
-				yield break;
-			case BlockStatement block:
-				foreach (Statement child in block.Statements)
-					foreach (YieldStatement yield in EnumerateYieldStatements(child))
-						yield return yield;
-				yield break;
-			case IfStatement ifStatement:
-				foreach (YieldStatement yield in EnumerateYieldStatements(ifStatement.Body))
-					yield return yield;
-				foreach (YieldStatement yield in EnumerateYieldStatements(ifStatement.ElseBody))
-					yield return yield;
-				yield break;
-			case WhileStatement whileStatement:
-				foreach (YieldStatement yield in EnumerateYieldStatements(whileStatement.Body))
-					yield return yield;
-				yield break;
-			case DoWhileStatement doWhile:
-				foreach (YieldStatement yield in EnumerateYieldStatements(doWhile.Body))
-					yield return yield;
-				yield break;
-			case ForStatement forStatement:
-				foreach (YieldStatement yield in EnumerateYieldStatements(forStatement.Body))
-					yield return yield;
-				yield break;
-			case ForeachStatement foreachStatement:
-				foreach (YieldStatement yield in EnumerateYieldStatements(foreachStatement.Body))
-					yield return yield;
-				yield break;
-			case TryStatement tryStatement:
-				foreach (YieldStatement yield in EnumerateYieldStatements(tryStatement.Body))
-					yield return yield;
-				foreach (CatchStatement catchStatement in tryStatement.Catches)
-					foreach (YieldStatement yield in EnumerateYieldStatements(catchStatement.Body))
-						yield return yield;
-				foreach (YieldStatement yield in EnumerateYieldStatements(tryStatement.Finally))
-					yield return yield;
-				yield break;
-			case FinallyStatement finallyStatement:
-				foreach (YieldStatement yield in EnumerateYieldStatements(finallyStatement.Body))
-					yield return yield;
-				yield break;
-			case WithinStatement withinStatement:
-				foreach (YieldStatement yield in EnumerateYieldStatements(withinStatement.Body))
-					yield return yield;
-				yield break;
-		}
-	}
-
-	static bool YieldReferencesFixedLocalSpan(Expression? expression, HashSet<string> fixedLocalNames)
-	{
-		return expression switch
-		{
-			IndexExpression { Target: NamedExpression named } when fixedLocalNames.Contains(named.Name) => true,
-			CastExpression cast => YieldReferencesFixedLocalSpan(cast.Expression, fixedLocalNames),
-			ParenthesizedExpression parenthesized => YieldReferencesFixedLocalSpan(parenthesized.Expression, fixedLocalNames),
-			_ => false
-		};
 	}
 
 	List<Statement> RewriteIteratorBodyStatements(BlockStatement? body, IteratorBodyLowering lowering)
