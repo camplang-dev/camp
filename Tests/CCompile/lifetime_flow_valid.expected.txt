@@ -1,0 +1,79 @@
+// file: lifetime_flow_valid.c
+#include "lifetime_flow_valid_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void Holder_setText(Holder *this, const char *value, uintptr_t value_length);
+static char *trusted(void *owner, char *ptr, uintptr_t length, uintptr_t *result_length);
+
+static void Holder_setText(Holder *this, const char *value, uintptr_t value_length)
+{
+	{
+		this->text = value;
+		this->text_length = value_length;
+	}
+}
+
+static char *trusted(void *owner, char *ptr, uintptr_t length, uintptr_t *result_length)
+{
+	char *span = ptr;
+	uintptr_t span_length = length;
+	{
+		(*result_length) = span_length;
+		return span;
+	}
+}
+
+int main(void)
+{
+	Widget *ptr = (Widget *)(malloc(sizeof(Widget)));
+	free((void *)(ptr));
+	return 0;
+}
+
+// file: lifetime_flow_valid.h
+#ifndef LIFETIME_FLOW_VALID_H_
+#define LIFETIME_FLOW_VALID_H_
+
+#include "lifetime_flow_valid_private.h"
+
+int main(void);
+
+#endif
+// file: lifetime_flow_valid_private.h
+#ifndef LIFETIME_FLOW_VALID_PRIVATE_H_
+#define LIFETIME_FLOW_VALID_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Holder Holder;
+typedef struct Widget Widget;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Holder
+{
+	const char *text;
+	uintptr_t text_length;
+};
+struct Widget
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifetime_flow_valid.c

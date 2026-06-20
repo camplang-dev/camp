@@ -1,0 +1,29 @@
+extern escaped void* malloc(nuint size);
+extern void free(escaped void* ptr);
+
+class Holder
+{
+	const char[] text;
+
+	void setText(unscoped const char[] value)
+	{
+		this.text = value;
+	}
+}
+
+char[] trusted(escaped void* owner, char* ptr, nuint length)
+{
+	char[] span = { ptr, length };
+	return (unscoped(owner))span;
+}
+
+class Widget
+{
+}
+
+export int main()
+{
+	Widget* ptr = new Widget();
+	delete ptr;
+	return 0;
+}

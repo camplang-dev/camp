@@ -136,6 +136,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (EscapesLocalFixedArraySpan(scope.CurrentFunctionReturnType, returnStatement.Expression))
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Cannot return a span view to local fixed-size array storage.");
 				CheckAssignable(scope.CurrentFunctionReturnType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
+				CheckLifetimeResult(returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, scope, "Return expression");
 				break;
 			}
 
@@ -148,6 +149,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (EscapesLocalFixedArraySpan(expected, yieldStatement.Expression))
 					Report(GetRange(yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax), "Cannot yield a span view to local fixed-size array storage.");
 				CheckAssignable(expected, yieldedType, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, "Yield expression");
+				CheckLifetimeResult(yieldStatement.Expression, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, scope, "Yield expression");
 				break;
 			}
 
@@ -155,7 +157,10 @@ public sealed partial class BindableNodeAnalyzer
 				if (IsBaseDeleteExpression(deleteStatement.Expression))
 					AnalyzeBaseDeleteExpression(deleteStatement.Expression, scope);
 				else
+				{
 					BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
+					CheckLifetimeDeleteAgainstFree(deleteStatement.Expression, deleteStatement.Expression?.SourceSyntax ?? deleteStatement.SourceSyntax, scope);
+				}
 				break;
 
 			case TryStatement tryStatement:
@@ -1147,9 +1152,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeCastExpression(CastExpression cast, BodyScope scope, AnalysisScope typeScope)
 	{
-		string sourceType = BodyAnalyzeExpression(cast.Expression, scope, typeScope);
 		if (cast.Type is not null)
 			AnalyzeType(cast.Type, typeScope);
+		string targetType = cast.Type?.ResolvedType ?? ErrorType;
+		string structuralTargetType = ContainsLifetimeAnnotation(cast.Type) ? StripLifetimeQualifiers(targetType) : targetType;
+		string? expressionTargetType = cast.Expression is InitializerExpression or ArrayExpression ? structuralTargetType : null;
+		string sourceType = BodyAnalyzeExpression(cast.Expression, scope, typeScope, expressionTargetType);
 		if (cast.LifetimeCastKind is not null)
 		{
 			if (cast.LifetimeCastKind == "unscoped" && cast.LifetimeCastAnchors.Count == 0)
@@ -1163,10 +1171,9 @@ public sealed partial class BindableNodeAnalyzer
 			cast.LifetimeBinding = lifetimeBinding;
 		}
 
-		string targetType = cast.Type?.ResolvedType ?? ErrorType;
 		if ((cast.Type is null && cast.Kind != CastKind.Type) || cast.LifetimeCastKind is not null)
 			targetType = sourceType;
-		else if (!CanExplicitlyConvert(sourceType, targetType))
+		else if (!CanExplicitlyConvert(sourceType, structuralTargetType))
 		{
 			if (TryAnalyzeExplicitNumericLiteralNewtypeCast(cast.Expression, targetType, out bool literalCastAllowed, out string? literalCastDiagnostic))
 			{
@@ -3139,6 +3146,7 @@ public sealed partial class BindableNodeAnalyzer
 		else
 		{
 			CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
+			CheckLifetimeAssignment(assignment.Target, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, scope, "Assignment");
 		}
 		UpdateAssignmentLifetimeFact(assignment.Target, GetExpressionLifetimeFact(assignment.Value));
 		return targetType;

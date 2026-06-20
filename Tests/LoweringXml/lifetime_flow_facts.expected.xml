@@ -272,8 +272,8 @@
               <WhenFalse Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
             </InitialValue>
           </DeclarationStatement>
-          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
-            <Target Type="DeclarationTarget" ResolvedType="byte*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="unknown:new">
+            <Target Type="DeclarationTarget" ResolvedType="byte*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="unknown:new">
               <Names>
                 <Value>heap</Value>
               </Names>
@@ -301,8 +301,8 @@
               </Expression>
             </InitialValue>
           </DeclarationStatement>
-          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
-            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="unknown:new">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="unknown:new">
               <Names>
                 <Value>heap_length</Value>
               </Names>

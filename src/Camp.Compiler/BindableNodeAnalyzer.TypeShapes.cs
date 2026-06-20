@@ -352,6 +352,23 @@ public sealed partial class BindableNodeAnalyzer
 			: type;
 	}
 
+	static string StripLifetimeQualifiers(string type)
+	{
+		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
+			return type;
+
+		return TypeShapeParser.Format(StripLifetimeQualifiers(shape));
+	}
+
+	static TypeShape StripLifetimeQualifiers(TypeShape shape)
+	{
+		return shape with
+		{
+			Qualifiers = shape.Qualifiers with { Lifetime = LifetimeKind.Scoped },
+			Element = shape.Element is null ? null : StripLifetimeQualifiers(shape.Element)
+		};
+	}
+
 	static bool IsConstReceiverType(string? type)
 	{
 		if (!new TypeShapeParser(type ?? "").TryParse(out TypeShape shape))

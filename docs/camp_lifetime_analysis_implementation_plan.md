@@ -83,16 +83,23 @@ escaped class Window;
 escaped interface IService;
 ```
 
-Pointer-form `delete` requires an escaped pointer:
+Pointer-form `delete` is validated through the callable it lowers to. If the
+visible `free` function or allocator `free` method requires an escaped pointer,
+then the delete target must satisfy that signature:
 
 ```camp
+extern void free(escaped void* ptr);
+
 Widget local = init Widget();
 Widget* ptr = &local;
-delete ptr; // ERROR: pointer-form delete requires escaped storage
+delete ptr; // ERROR: cannot satisfy free's escaped pointer parameter
 ```
 
-`new` always produces an escaped result, even when an explicit allocator or
-arena is used. `escaped` only means "not stack storage".
+Likewise, `new` does not get a baked-in lifetime merely because it is `new`.
+The lifetime fact should come from the allocation function or allocator method
+that is actually called after lowering. Until the call-site relation stage can
+substitute those allocator signatures precisely, the compiler should treat some
+allocation results as unknown rather than guessing.
 
 ### `scoped`
 
@@ -323,7 +330,11 @@ or passing a `View` is checked through the lifetime of `text`.
 
 ### Constructors
 
-`new` always produces an escaped result.
+`new` does not have an intrinsic lifetime. Its result lifetime comes from the
+allocation function or allocator method selected by lowering. If that callee
+returns `escaped`, the allocation site is escaped. If the compiler cannot yet
+substitute that callee signature, the allocation result remains unknown until
+call-site relation solving can prove it.
 
 `init` constructs in existing storage. When a pointer-bearing local aggregate or
 context value is initialized, the local receives a fixed lifetime based on the
@@ -599,7 +610,7 @@ note: Parameter 'item' is retained by the receiver through an unscoped argument 
 ```
 
 ```text
-error: Pointer-form delete requires an escaped pointer, but '&local' refers to declaration-scope storage.
+error: Delete target cannot satisfy free parameter lifetime 'escaped'.
 ```
 
 ```text
@@ -731,21 +742,25 @@ Start enforcing lifetime rules for direct storage and result flow.
 
 ### Work Items
 
-- Check assignment into globals, static fields, instance fields, locals, array
+- ~~Check assignment into globals, static fields, instance fields, locals, array
   elements, fixed-array elements, materialized expanded values, and generated
-  context fields.
-- Reject storing scoped values into caller-context or escaped storage.
-- Permit unscoped relationships when the value outlives the destination anchor.
-- Enforce pointer-form `delete` requires escaped pointer.
-- Enforce returned/yielded pointer-bearing values satisfy return/yield relation.
-- Enforce fixed-array span return/yield through the general lifetime system,
-  replacing special-case checks where possible.
-- Honor explicit lifetime casts as programmer assertions when checking
-  assignment, return, yield, and delete flows.
+  context fields.~~
+- ~~Reject storing scoped values into caller-context or escaped storage.~~
+- ~~Permit unscoped relationships when the value outlives the destination anchor.~~
+- ~~Enforce pointer-form `delete` against the visible global `free`
+  parameter contract when that contract is known.~~
+- ~~Enforce returned/yielded pointer-bearing values satisfy return/yield relation.~~
+- ~~Enforce fixed-array span return/yield through the general lifetime system,
+  replacing special-case checks where possible.~~
+- ~~Honor explicit lifetime casts as programmer assertions when checking
+  assignment, return, yield, and delete flows.~~
+
+Allocator `free` validation remains part of Stage 4, where allocator-call
+substitution can identify the actual method signature selected by lowering.
 
 ### Completion Criteria
 
-This should fail:
+~~This should fail:~~
 
 ```camp
 class Holder
@@ -759,7 +774,7 @@ class Holder
 }
 ```
 
-This should pass:
+~~This should pass:~~
 
 ```camp
 class Holder
@@ -773,7 +788,7 @@ class Holder
 }
 ```
 
-This should fail:
+~~This should fail:~~
 
 ```camp
 char[] bad()
@@ -783,8 +798,8 @@ char[] bad()
 }
 ```
 
-This uses the escape hatch and should pass type/lifetime checking, while
-remaining a sharp tool that code review should question:
+~~This uses the escape hatch and should pass type/lifetime checking, while
+remaining a sharp tool that code review should question:~~
 
 ```camp
 char[] trusted(escaped void* owner, char* ptr, nuint length)
@@ -793,30 +808,39 @@ char[] trusted(escaped void* owner, char* ptr, nuint length)
 }
 ```
 
-This should fail:
+The exact inline expanded-initializer return form above type-checks after this
+stage, but C emission for that direct form is tracked separately as BUG-023.
+The Stage 3 CCompile regression uses the equivalent local materialization.
+
+~~This should fail:~~
 
 ```camp
 Widget local = init Widget();
+extern void free(escaped void* ptr);
 delete &local;
 ```
 
-This should pass:
+~~This should pass:~~
 
 ```camp
+extern escaped void* malloc(nuint size);
+extern void free(escaped void* ptr);
 Widget* ptr = new Widget();
 delete ptr;
 ```
 
 ### Tests
 
-- Diagnostics for scoped parameter stored into `this`.
-- Diagnostics for scoped parameter stored into global/static.
-- Positive unscoped instance-method storage.
-- Return diagnostics for local fixed-array spans.
-- Yield diagnostics for local fixed-array spans.
-- Pointer-form delete diagnostics.
-- Positive and negative explicit lifetime cast diagnostics.
-- Positive escaped new/delete smoke.
+- ~~Diagnostics for scoped parameter stored into `this`.~~
+- ~~Diagnostics for scoped parameter stored into global/static.~~
+- ~~Positive unscoped instance-method storage.~~
+- ~~Return diagnostics for local fixed-array spans.~~
+- ~~Yield diagnostics for local fixed-array spans.~~
+- ~~Pointer-form delete diagnostics driven by a `free(escaped void*)`
+  signature.~~
+- ~~Positive and negative explicit lifetime cast diagnostics.~~
+- ~~Positive allocation/delete smoke using source-level escaped allocation
+  signatures.~~
 
 ## Stage 4: Call-Site Relation Solving And Return Substitution
 
@@ -915,7 +939,8 @@ Implement constructor result lifetime rules and local aggregate lifetime fixing.
 
 - Determine which constructor parameters are retained into `this`.
 - Use constructor body assignment facts to compute result lifetime.
-- For `new`, always produce escaped result.
+- For `new`, derive the result lifetime from the selected allocation function
+  or allocator method signature.
 - For `init` and aggregate initialization of local pointer-bearing values, fix
   local value lifetime at first initialization.
 - Do not widen fixed local lifetime after later assignments.
@@ -1331,7 +1356,8 @@ stage uncovers a pre-existing unrelated compiler bug, log it in
 
 ### Positive Tests
 
-- escaped `new` result can be returned and deleted;
+- allocation results annotated by the selected allocator/free signatures can be
+  returned and deleted;
 - scoped borrow can be used during a call;
 - unscoped argument can be stored in receiver;
 - scoped return from escaped argument is treated as escaped at call site;
@@ -1349,7 +1375,8 @@ stage uncovers a pre-existing unrelated compiler bug, log it in
 - scoped argument stored into global/static;
 - local fixed-array span returned;
 - local fixed-array span yielded;
-- pointer-form delete of local address;
+- pointer-form delete of local address when the selected `free` contract
+  requires escaped storage;
 - escaping lambda captures local by reference;
 - escaped delegate capture does not silently compile before escaped delegates
   are implemented;

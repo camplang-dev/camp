@@ -1,0 +1,5 @@
+struct iter char[] badYield()
+{
+	fixed char[16] local = "hello";
+	yield local[..];
+}

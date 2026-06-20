@@ -1,12 +1,47 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	sealed record LifetimeFact(string Kind, IReadOnlyList<string> Anchors, string Source);
+
 	static string MakeLifetimeFact(string kind, string? anchor, string source)
 	{
 		return new BoundLifetime(kind, string.IsNullOrWhiteSpace(anchor) ? [] : [anchor], source).ToString();
+	}
+
+	static bool TryParseLifetimeFact(string? text, out LifetimeFact fact)
+	{
+		fact = new LifetimeFact("", [], "");
+		if (string.IsNullOrWhiteSpace(text))
+			return false;
+
+		string source = "";
+		string body = text;
+		int sourceIndex = text.IndexOf(':');
+		if (sourceIndex >= 0)
+		{
+			body = text[..sourceIndex];
+			source = text[(sourceIndex + 1)..];
+		}
+
+		string kind = body;
+		List<string> anchors = [];
+		int anchorStart = body.IndexOf('(');
+		if (anchorStart >= 0 && body.EndsWith(')'))
+		{
+			kind = body[..anchorStart];
+			string anchorText = body[(anchorStart + 1)..^1];
+			anchors.AddRange(anchorText.Split(',', System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries));
+		}
+
+		if (string.IsNullOrWhiteSpace(kind))
+			return false;
+
+		fact = new LifetimeFact(kind, anchors, source);
+		return true;
 	}
 
 	string? CreateDeclarationSlotLifetimeFact(string? name, TypeReference? type, string? resolvedType, bool isFixedStorage, AnalysisScope typeScope)
@@ -106,7 +141,7 @@ public sealed partial class BindableNodeAnalyzer
 			ParenthesizedExpression parenthesized => GetExpressionLifetimeFact(parenthesized.Expression),
 			CastExpression { LifetimeCastKind: not null } cast => cast.LifetimeBinding,
 			CastExpression cast => cast.LifetimeBinding ?? GetExpressionLifetimeFact(cast.Expression),
-			ConstructionExpression construction => GetConstructionLifetimeFact(construction),
+			ConstructionExpression construction => IsPointerBearingResolvedType(resolvedType) ? GetConstructionLifetimeFact(construction) : null,
 			WithinExpression within => GetExpressionLifetimeFact(within.Expression),
 			FinallyDeleteExpression finallyDelete => GetExpressionLifetimeFact(finallyDelete.Expression),
 			UnaryExpression unary => GetUnaryLifetimeFact(unary, resolvedType),
@@ -162,7 +197,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return construction.Kind switch
 		{
-			ConstructionKind.New => MakeLifetimeFact("escaped", null, "new"),
+			ConstructionKind.New => MakeLifetimeFact("unknown", null, "new"),
 			ConstructionKind.Init => MakeLifetimeFact("scoped", null, "init"),
 			_ => null
 		};
@@ -171,7 +206,15 @@ public sealed partial class BindableNodeAnalyzer
 	string? GetUnaryLifetimeFact(UnaryExpression unary, string resolvedType)
 	{
 		if (unary.Operator == UnaryOperator.AddressOf)
-			return GetExpressionLifetimeFact(unary.Operand) ?? MakeLifetimeFact("scoped", null, "address-of");
+		{
+			if (GetExpressionLifetimeFact(unary.Operand) is string operandFact)
+				return operandFact;
+			if (unary.Operand is not null
+				&& TryGetStorageNode(unary.Operand, out BindableNode? storage)
+				&& GetStorageLifetimeAnchor(storage) is string anchor)
+				return MakeLifetimeFact("scoped", anchor, "address-of");
+			return MakeLifetimeFact("scoped", null, "address-of");
+		}
 		if (IsPointerBearingResolvedType(resolvedType))
 			return GetExpressionLifetimeFact(unary.Operand);
 		return null;
@@ -240,5 +283,144 @@ public sealed partial class BindableNodeAnalyzer
 				storage = null;
 				return false;
 		}
+	}
+
+	void CheckLifetimeAssignment(Expression? target, Expression? value, SyntaxNode? syntax, BodyScope scope, string context)
+	{
+		if (target is null || value is null)
+			return;
+
+		string? valueFactText = GetExpressionLifetimeFact(value);
+		if (!TryParseLifetimeFact(valueFactText, out LifetimeFact valueFact))
+			return;
+
+		if (valueFact.Kind == "escaped")
+			return;
+		if (valueFact.Kind == "unknown")
+			return;
+
+		if (TryGetEscapedStorageTarget(target))
+		{
+			Report(GetRange(syntax), $"{context} cannot store a non-escaped pointer-bearing value in escaped storage.");
+			return;
+		}
+
+		if (TryGetReceiverAnchoredStorageTarget(target, out string? anchor))
+		{
+			if (!ValueOutlivesAnchor(valueFact, anchor))
+				Report(GetRange(syntax), $"{context} cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.");
+		}
+	}
+
+	void CheckLifetimeResult(Expression? value, SyntaxNode? syntax, BodyScope scope, string context)
+	{
+		string? valueFactText = GetExpressionLifetimeFact(value);
+		if (!TryParseLifetimeFact(valueFactText, out LifetimeFact valueFact))
+			return;
+
+		if (valueFact.Kind == "escaped" || valueFact.Kind == "unscoped")
+			return;
+
+		string? localAnchor = valueFact.Anchors.FirstOrDefault(anchor => IsLocalLifetimeAnchor(anchor, scope));
+		if (localAnchor is not null)
+			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to local storage '{localAnchor}'.");
+	}
+
+	void CheckLifetimeDeleteAgainstFree(Expression? expression, SyntaxNode? syntax, BodyScope scope)
+	{
+		if (!IsPointerBearingResolvedType(expression?.ResolvedType))
+			return;
+
+		FunctionDefinition? free = FindFreeFunction(syntax);
+		if (free is null)
+			return;
+
+		ParameterDefinition? pointerParameter = GetPatternValueParameters(free).FirstOrDefault();
+		if (pointerParameter?.LifetimeBinding is not string requiredLifetime)
+			return;
+
+		if (!TryParseLifetimeFact(requiredLifetime, out LifetimeFact requiredFact))
+			return;
+
+		if (requiredFact.Kind != "escaped")
+			return;
+
+		string? factText = GetExpressionLifetimeFact(expression);
+		if (!TryParseLifetimeFact(factText, out LifetimeFact actualFact))
+			return;
+		if (actualFact.Kind is "escaped" or "unknown")
+			return;
+
+		if (actualFact.Kind == "scoped" && actualFact.Anchors.Any(anchor => IsLocalLifetimeAnchor(anchor, scope)))
+			Report(GetRange(syntax), "Delete target cannot satisfy free parameter lifetime 'escaped'.");
+	}
+
+	bool TryGetEscapedStorageTarget(Expression target)
+	{
+		if (expressionRewrites.TryGetValue(target, out Expression? rewritten) && !ReferenceEquals(rewritten, target))
+			return TryGetEscapedStorageTarget(rewritten);
+
+		return target switch
+		{
+			VariableReferenceExpression { Variable: VariableDefinition } => true,
+			MemberReferenceExpression { Member: FieldDefinition { Modifier: FieldModifier.Static } } => true,
+			_ => false
+		};
+	}
+
+	bool TryGetReceiverAnchoredStorageTarget(Expression target, out string anchor)
+	{
+		anchor = "";
+		if (expressionRewrites.TryGetValue(target, out Expression? rewritten) && !ReferenceEquals(rewritten, target))
+			return TryGetReceiverAnchoredStorageTarget(rewritten, out anchor);
+
+		if (target is MemberReferenceExpression { Target: not null, Member: FieldDefinition { Modifier: not FieldModifier.Static } } member)
+		{
+			if (TryParseLifetimeFact(GetExpressionLifetimeFact(member.Target), out LifetimeFact targetFact)
+				&& targetFact.Anchors.Count == 1)
+			{
+				anchor = targetFact.Anchors[0];
+				return true;
+			}
+			anchor = "this";
+			return true;
+		}
+
+		if (target is IndexExpression index && GetExpressionLifetimeFact(index.Target) is string targetFactText
+			&& TryParseLifetimeFact(targetFactText, out LifetimeFact indexedTargetFact)
+			&& indexedTargetFact.Anchors.Count == 1)
+		{
+			anchor = indexedTargetFact.Anchors[0];
+			return true;
+		}
+
+		return false;
+	}
+
+	static bool ValueOutlivesAnchor(LifetimeFact valueFact, string anchor)
+	{
+		return valueFact.Kind == "escaped"
+			|| valueFact.Kind == "unscoped" && (valueFact.Anchors.Count == 0 || valueFact.Anchors.Contains(anchor));
+	}
+
+	bool IsLocalLifetimeAnchor(string anchor, BodyScope scope)
+	{
+		if (!scope.TryLookup(anchor, out BodySymbol symbol))
+			return false;
+
+		return symbol.Node is DeclarationStatement or DeclarationTarget or CatchStatement;
+	}
+
+	static string? GetStorageLifetimeAnchor(BindableNode? storage)
+	{
+		return storage switch
+		{
+			DeclarationStatement { Target.Names.Count: 1 } declaration => declaration.Target.Names[0],
+			DeclarationTarget { Names.Count: 1 } target => target.Names[0],
+			VariableDefinition variable => variable.Name,
+			FieldDefinition field => field.Name,
+			ParameterDefinition parameter => parameter.Name,
+			_ => null
+		};
 	}
 }

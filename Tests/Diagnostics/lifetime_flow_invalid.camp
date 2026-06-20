@@ -1,0 +1,33 @@
+char[] globalText;
+extern void free(escaped void* ptr);
+
+class Holder
+{
+	const char[] text;
+
+	void setText(const char[] value)
+	{
+		this.text = value;
+	}
+}
+
+void setGlobal(char[] value)
+{
+	globalText = value;
+}
+
+char[] badReturn()
+{
+	fixed char[16] local = "hello";
+	return local[..];
+}
+
+struct Widget
+{
+}
+
+void badDelete()
+{
+	Widget local = init Widget();
+	delete &local;
+}
