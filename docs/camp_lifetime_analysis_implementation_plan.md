@@ -679,35 +679,35 @@ Track value facts and slot constraints inside method bodies.
 
 ### Work Items
 
-- Add per-body lifetime state.
-- Track slot facts for parameters, receiver, locals, fields, globals, static
-  fields, generated frame fields, and `out` storage.
-- Track expression facts for literals, locals, fields, array components,
+- ~~Add per-body lifetime state.~~
+- ~~Track slot facts for parameters, receiver, locals, fields, globals, static
+  fields, generated frame fields, and `out` storage.~~
+- ~~Track expression facts for literals, locals, fields, array components,
   slicing, address-of, `new`, `init`, calls, explicit lifetime casts, lambdas,
-  and default/null.
-- Distinguish slot lifetime from current value lifetime.
-- Track reassignment of current value facts.
-- Add conservative fallback for unknown pointer-bearing generic values.
+  and default/null.~~
+- ~~Distinguish slot lifetime from current value lifetime.~~
+- ~~Track reassignment of current value facts.~~
+- ~~Add conservative fallback for unknown pointer-bearing generic values.~~
 
 ### Completion Criteria
 
-The compiler can identify the difference between:
+~~The compiler can identify the difference between:~~
 
 ```camp
 char[] local = escapedText;
 ```
 
-where `local` is a declaration-scope slot, but the current value is escaped.
+~~where `local` is a declaration-scope slot, but the current value is escaped.~~
 
-It can also update facts after reassignment:
+~~It can also update facts after reassignment:~~
 
 ```camp
 local = stackSpan;
 ```
 
-Now the current value fact is tied to `stackSpan`.
+~~Now the current value fact is tied to `stackSpan`.~~
 
-Examples that should be understood internally:
+~~Examples that should be understood internally:~~
 
 ```camp
 auto p = new byte[64];   // escaped T[]
@@ -718,12 +718,12 @@ auto forced = (escaped) storage[..]; // explicit assertion
 
 ### Tests
 
-- Debug metadata/golden tests for expression lifetime facts, if a suitable
-  internal view exists.
-- Expression-fact tests for `(scoped)`, `(escaped)`, and
-  `(unscoped(anchor))`.
-- CCompile regression tests proving lifetime metadata does not disturb lowering.
-- Diagnostics remain unchanged until enforcement stages.
+- ~~Debug metadata/golden tests for expression lifetime facts, if a suitable
+  internal view exists.~~
+- ~~Expression-fact tests for `(scoped)`, `(escaped)`, and
+  `(unscoped(anchor))`.~~
+- ~~CCompile regression tests proving lifetime metadata does not disturb lowering.~~
+- ~~Diagnostics remain unchanged until enforcement stages.~~
 
 ## Stage 3: Assignment, Storage, Return, Yield, And Delete Enforcement
 

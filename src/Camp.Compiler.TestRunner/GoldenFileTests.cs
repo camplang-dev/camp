@@ -64,6 +64,7 @@ public sealed class GoldenFileTests
 		{
 			"Ast" => GoldenFileTestKind.Ast,
 			"Declarations" => GoldenFileTestKind.Declarations,
+			"LoweringXml" => GoldenFileTestKind.LoweringXml,
 			"Lowering" => GoldenFileTestKind.Lowering,
 			"Diagnostics" => GoldenFileTestKind.Diagnostics,
 			"CEmit" => GoldenFileTestKind.CEmit,

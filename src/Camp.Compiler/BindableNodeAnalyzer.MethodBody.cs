@@ -23,6 +23,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
+			InitializeParameterLifetimeFacts(parameter, typeAndMethodScope);
 			if (!string.IsNullOrWhiteSpace(parameter.Name))
 				RegisterBodySymbol(scope, parameter.Name, parameter.ResolvedType ?? ErrorType, parameter, parameter.Type, parameter.ResolvedType);
 		}
@@ -348,6 +349,8 @@ public sealed partial class BindableNodeAnalyzer
 			ReportAnyGenericCopy(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax);
 		else if (declaration.InitialValue is not null && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+
+		InitializeLocalLifetimeFacts(declaration, typeScope);
 	}
 
 	bool RequiresAnyGenericCopy(string targetType, Expression? value, BodyScope scope)
@@ -711,6 +714,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 
 		expression.ResolvedType = type;
+		ApplyExpressionLifetimeFact(expression, type, scope, typeScope);
 		return type;
 	}
 
@@ -760,7 +764,9 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				SourceSyntax = named.SourceSyntax,
 				Variable = symbol.Node,
-				ResolvedType = symbol.Type
+				ResolvedType = symbol.Type,
+				SlotLifetimeFact = symbol.Node.SlotLifetimeFact,
+				ValueLifetimeFact = symbol.Node.ValueLifetimeFact ?? symbol.Node.SlotLifetimeFact
 			};
 			return symbol.Type;
 		}
@@ -774,7 +780,9 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				SourceSyntax = named.SourceSyntax,
 				Variable = globalSymbol.Node,
-				ResolvedType = type
+				ResolvedType = type,
+				SlotLifetimeFact = globalSymbol.Node.SlotLifetimeFact,
+				ValueLifetimeFact = globalSymbol.Node.ValueLifetimeFact ?? globalSymbol.Node.SlotLifetimeFact
 			};
 			return type;
 		}
@@ -3132,6 +3140,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
 		}
+		UpdateAssignmentLifetimeFact(assignment.Target, GetExpressionLifetimeFact(assignment.Value));
 		return targetType;
 	}
 

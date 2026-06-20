@@ -886,6 +886,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		for (int i = 0; i < targets.Count; i++)
 		{
+			string? valueLifetimeFact = GetExpressionLifetimeFact(values[i]);
+			UpdateAssignmentLifetimeFact(targets[i], valueLifetimeFact);
 			statements.Add(new ExpressionStatement
 			{
 				SourceSyntax = assignment.SourceSyntax,
@@ -896,7 +898,8 @@ public sealed partial class BindableNodeAnalyzer
 					Target = LowerExpression(targets[i]),
 					Operator = AssignmentOperator.Assign,
 					Value = LowerExpression(values[i]),
-					ResolvedType = targets[i].ResolvedType
+					ResolvedType = targets[i].ResolvedType,
+					ValueLifetimeFact = valueLifetimeFact
 				}
 			});
 		}
@@ -965,7 +968,11 @@ public sealed partial class BindableNodeAnalyzer
 				return TryCreateParamsComponentExpressions(parenthesized.Expression, out components);
 
 			case CastExpression { LifetimeCastKind: not null } cast:
-				return TryCreateParamsComponentExpressions(cast.Expression, out components);
+				if (!TryCreateParamsComponentExpressions(cast.Expression, out components))
+					return false;
+				foreach (Expression component in components)
+					component.ValueLifetimeFact = cast.LifetimeBinding ?? component.ValueLifetimeFact;
+				return true;
 
 			case ThisExpression
 				when currentRewriteFunction is not null
@@ -2031,7 +2038,7 @@ public sealed partial class BindableNodeAnalyzer
 			null => null,
 			LiteralExpression literal => new LiteralExpression { SourceSyntax = literal.SourceSyntax, Kind = literal.Kind, Text = literal.Text, Value = literal.Value, ResolvedType = literal.ResolvedType },
 			NamedExpression named => CloneNamedExpression(named),
-			VariableReferenceExpression variable => new VariableReferenceExpression { SourceSyntax = variable.SourceSyntax, Variable = variable.Variable, ResolvedType = variable.ResolvedType },
+			VariableReferenceExpression variable => new VariableReferenceExpression { SourceSyntax = variable.SourceSyntax, Variable = variable.Variable, ResolvedType = variable.ResolvedType, SlotLifetimeFact = variable.SlotLifetimeFact, ValueLifetimeFact = variable.ValueLifetimeFact },
 			ThisExpression thisExpression => new ThisExpression { SourceSyntax = thisExpression.SourceSyntax, ResolvedType = thisExpression.ResolvedType },
 			MemberReferenceExpression member => new MemberReferenceExpression
 			{

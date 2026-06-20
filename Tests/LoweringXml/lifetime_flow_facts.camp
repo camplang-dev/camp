@@ -1,0 +1,12 @@
+extern void* malloc(nuint size);
+
+void facts(char[] stackSpan, unscoped char[] owner)
+{
+	char[] local = (escaped)owner;
+	local = (unscoped(owner))stackSpan;
+
+	fixed byte[64] storage;
+	auto slice = storage[..];
+	auto forced = (escaped)storage[..];
+	auto heap = new byte[64];
+}

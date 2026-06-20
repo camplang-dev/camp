@@ -697,7 +697,9 @@ public sealed partial class BindableNodeAnalyzer
 			Public = source.Public,
 			Modifier = source.Modifier,
 			ResolvedType = component.Type,
-			DefaultValue = component.SourceParameter?.DefaultValue ?? (inheritDefaultValue ? source.DefaultValue : null)
+			DefaultValue = component.SourceParameter?.DefaultValue ?? (inheritDefaultValue ? source.DefaultValue : null),
+			SlotLifetimeFact = source.SlotLifetimeFact,
+			ValueLifetimeFact = source.ValueLifetimeFact
 		};
 	}
 
@@ -717,7 +719,9 @@ public sealed partial class BindableNodeAnalyzer
 			Extern = source.Extern,
 			Modifier = source.Modifier,
 			ResolvedType = component.Type,
-			InitialValue = initialValue
+			InitialValue = initialValue,
+			SlotLifetimeFact = source.SlotLifetimeFact,
+			ValueLifetimeFact = source.ValueLifetimeFact
 		};
 	}
 
@@ -732,7 +736,9 @@ public sealed partial class BindableNodeAnalyzer
 			Public = source.Public,
 			Extern = source.Extern,
 			ResolvedType = component.Type,
-			InitialValue = initialValue
+			InitialValue = initialValue,
+			SlotLifetimeFact = source.SlotLifetimeFact,
+			ValueLifetimeFact = source.ValueLifetimeFact
 		};
 	}
 
@@ -742,10 +748,14 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = source.SourceSyntax,
 			InitialValue = initialValue,
-			ResolvedType = source.ResolvedType
+			ResolvedType = source.ResolvedType,
+			SlotLifetimeFact = source.SlotLifetimeFact ?? source.Target.SlotLifetimeFact,
+			ValueLifetimeFact = source.ValueLifetimeFact ?? source.Target.ValueLifetimeFact
 		};
 		declaration.Target.SourceSyntax = source.Target.SourceSyntax;
 		declaration.Target.ResolvedType = component.Type;
+		declaration.Target.SlotLifetimeFact = declaration.SlotLifetimeFact;
+		declaration.Target.ValueLifetimeFact = declaration.ValueLifetimeFact;
 		declaration.Target.Names.Add(component.ExpandedName);
 		return declaration;
 	}

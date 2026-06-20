@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module ResolvedType="#MODULE">
+  <Definitions>
+    <FunctionDefinition InvokerName="malloc" Name="malloc" Symbol="malloc" Extern="" ResolvedType="void*">
+      <ReturnType Type="PointerTypeReference" ResolvedType="void*">
+        <ElementType Type="Void" ResolvedType="void" />
+      </ReturnType>
+      <Parameters>
+        <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="size" Symbol="size" ResolvedType="nuint">
+          <Type Type="NUInt" ResolvedType="nuint" />
+        </ParameterDefinition>
+      </Parameters>
+    </FunctionDefinition>
+    <FunctionDefinition InvokerName="facts" Name="facts" Symbol="facts" ResolvedType="void">
+      <ReturnType Type="Void" ResolvedType="void" />
+      <Parameters>
+        <ParameterDefinition Name="stackSpan" Symbol="stackSpan" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="stackSpan_length" Symbol="stackSpan_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="owner" Symbol="owner" ResolvedType="unscoped char*" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+        <ParameterDefinition Name="owner_length" Symbol="owner_length" ResolvedType="nuint" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+      </Parameters>
+      <Body Type="BlockStatement" ResolvedType="void">
+        <Statements>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(local):slot" ValueLifetimeFact="escaped:explicit cast">
+            <Target Type="DeclarationTarget" ResolvedType="char*" SlotLifetimeFact="scoped(local):slot" ValueLifetimeFact="unscoped(owner):explicit cast">
+              <Names>
+                <Value>local</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="VariableReferenceExpression" Variable="owner" ResolvedType="unscoped char*" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="escaped:explicit cast" />
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(local):slot" ValueLifetimeFact="escaped:explicit cast">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(local):slot" ValueLifetimeFact="unscoped(owner):explicit cast">
+              <Names>
+                <Value>local_length</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="VariableReferenceExpression" Variable="owner_length" ResolvedType="nuint" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="escaped:explicit cast" />
+          </DeclarationStatement>
+          <BlockStatement ResolvedType="void">
+            <Statements>
+              <ExpressionStatement ResolvedType="void">
+                <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*" ValueLifetimeFact="unscoped(owner):explicit cast">
+                  <Target Type="VariableReferenceExpression" Variable="local" ResolvedType="char*" SlotLifetimeFact="scoped(local):slot" ValueLifetimeFact="escaped:explicit cast" />
+                  <Value Type="VariableReferenceExpression" Variable="stackSpan" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="unscoped(owner):explicit cast" />
+                </Expression>
+              </ExpressionStatement>
+              <ExpressionStatement ResolvedType="void">
+                <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint" ValueLifetimeFact="unscoped(owner):explicit cast">
+                  <Target Type="VariableReferenceExpression" Variable="local_length" ResolvedType="nuint" SlotLifetimeFact="scoped(local):slot" ValueLifetimeFact="escaped:explicit cast" />
+                  <Value Type="VariableReferenceExpression" Variable="stackSpan_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="unscoped(owner):explicit cast" />
+                </Expression>
+              </ExpressionStatement>
+            </Statements>
+          </BlockStatement>
+          <DeclarationStatement IsFixedStorage="True" ResolvedType="void" SlotLifetimeFact="scoped(storage):slot" ValueLifetimeFact="scoped(storage):slot">
+            <Target Type="DeclarationTarget" ResolvedType="byte[64]" SlotLifetimeFact="scoped(storage):slot" ValueLifetimeFact="scoped(storage):slot">
+              <Type Type="FixedArrayTypeReference" Length="64" ResolvedType="byte[64]">
+                <ElementType Type="Byte" ResolvedType="byte" />
+                <LengthExpression Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+              </Type>
+              <Names>
+                <Value>storage</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(slice):slot" ValueLifetimeFact="scoped(storage):slot:slice">
+            <Target Type="DeclarationTarget" ResolvedType="byte*" SlotLifetimeFact="scoped(slice):slot" ValueLifetimeFact="scoped(storage):slot:slice">
+              <Names>
+                <Value>slice</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="BinaryExpression" Operator="Add" ResolvedType="byte*">
+              <Left Type="CastExpression" Kind="Type" ResolvedType="byte*">
+                <Type Type="PointerTypeReference" ResolvedType="byte*">
+                  <ElementType Type="Byte" ResolvedType="byte" />
+                </Type>
+                <Expression Type="VariableReferenceExpression" Variable="storage" ResolvedType="byte[64]" SlotLifetimeFact="scoped(storage):slot" ValueLifetimeFact="scoped(storage):slot" />
+              </Left>
+              <Right Type="ConditionalExpression" ResolvedType="nuint">
+                <Condition Type="BinaryExpression" Operator="GreaterThan" ResolvedType="bool">
+                  <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                  <Right Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                </Condition>
+                <WhenTrue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                <WhenFalse Type="ConditionalExpression" ResolvedType="nuint">
+                  <Condition Type="BinaryExpression" Operator="LessThan" ResolvedType="bool">
+                    <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <Right Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                  </Condition>
+                  <WhenTrue Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                  <WhenFalse Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                </WhenFalse>
+              </Right>
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(slice):slot" ValueLifetimeFact="scoped(storage):slot:slice">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(slice):slot" ValueLifetimeFact="scoped(storage):slot:slice">
+              <Names>
+                <Value>slice_length</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="ConditionalExpression" ResolvedType="nuint">
+              <Condition Type="BinaryExpression" Operator="GreaterThanOrEqual" ResolvedType="bool">
+                <Left Type="ConditionalExpression" ResolvedType="nuint">
+                  <Condition Type="BinaryExpression" Operator="GreaterThan" ResolvedType="bool">
+                    <Left Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                    <Right Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </Condition>
+                  <WhenTrue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  <WhenFalse Type="ConditionalExpression" ResolvedType="nuint">
+                    <Condition Type="BinaryExpression" Operator="LessThan" ResolvedType="bool">
+                      <Left Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                      <Right Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    </Condition>
+                    <WhenTrue Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <WhenFalse Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </WhenFalse>
+                </Left>
+                <Right Type="ConditionalExpression" ResolvedType="nuint">
+                  <Condition Type="BinaryExpression" Operator="GreaterThan" ResolvedType="bool">
+                    <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <Right Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </Condition>
+                  <WhenTrue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  <WhenFalse Type="ConditionalExpression" ResolvedType="nuint">
+                    <Condition Type="BinaryExpression" Operator="LessThan" ResolvedType="bool">
+                      <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                      <Right Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    </Condition>
+                    <WhenTrue Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <WhenFalse Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                  </WhenFalse>
+                </Right>
+              </Condition>
+              <WhenTrue Type="BinaryExpression" Operator="Subtract" ResolvedType="nuint">
+                <Left Type="ConditionalExpression" ResolvedType="nuint">
+                  <Condition Type="BinaryExpression" Operator="GreaterThan" ResolvedType="bool">
+                    <Left Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                    <Right Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </Condition>
+                  <WhenTrue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  <WhenFalse Type="ConditionalExpression" ResolvedType="nuint">
+                    <Condition Type="BinaryExpression" Operator="LessThan" ResolvedType="bool">
+                      <Left Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                      <Right Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    </Condition>
+                    <WhenTrue Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <WhenFalse Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </WhenFalse>
+                </Left>
+                <Right Type="ConditionalExpression" ResolvedType="nuint">
+                  <Condition Type="BinaryExpression" Operator="GreaterThan" ResolvedType="bool">
+                    <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <Right Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </Condition>
+                  <WhenTrue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  <WhenFalse Type="ConditionalExpression" ResolvedType="nuint">
+                    <Condition Type="BinaryExpression" Operator="LessThan" ResolvedType="bool">
+                      <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                      <Right Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    </Condition>
+                    <WhenTrue Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <WhenFalse Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                  </WhenFalse>
+                </Right>
+              </WhenTrue>
+              <WhenFalse Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(forced):slot" ValueLifetimeFact="escaped:explicit cast">
+            <Target Type="DeclarationTarget" ResolvedType="byte*" SlotLifetimeFact="scoped(forced):slot" ValueLifetimeFact="escaped:explicit cast">
+              <Names>
+                <Value>forced</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="BinaryExpression" Operator="Add" ResolvedType="byte*" ValueLifetimeFact="escaped:explicit cast">
+              <Left Type="CastExpression" Kind="Type" ResolvedType="byte*">
+                <Type Type="PointerTypeReference" ResolvedType="byte*">
+                  <ElementType Type="Byte" ResolvedType="byte" />
+                </Type>
+                <Expression Type="VariableReferenceExpression" Variable="storage" ResolvedType="byte[64]" SlotLifetimeFact="scoped(storage):slot" ValueLifetimeFact="scoped(storage):slot" />
+              </Left>
+              <Right Type="ConditionalExpression" ResolvedType="nuint">
+                <Condition Type="BinaryExpression" Operator="GreaterThan" ResolvedType="bool">
+                  <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                  <Right Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                </Condition>
+                <WhenTrue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                <WhenFalse Type="ConditionalExpression" ResolvedType="nuint">
+                  <Condition Type="BinaryExpression" Operator="LessThan" ResolvedType="bool">
+                    <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <Right Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                  </Condition>
+                  <WhenTrue Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                  <WhenFalse Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                </WhenFalse>
+              </Right>
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(forced):slot" ValueLifetimeFact="escaped:explicit cast">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(forced):slot" ValueLifetimeFact="escaped:explicit cast">
+              <Names>
+                <Value>forced_length</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="ConditionalExpression" ResolvedType="nuint" ValueLifetimeFact="escaped:explicit cast">
+              <Condition Type="BinaryExpression" Operator="GreaterThanOrEqual" ResolvedType="bool">
+                <Left Type="ConditionalExpression" ResolvedType="nuint">
+                  <Condition Type="BinaryExpression" Operator="GreaterThan" ResolvedType="bool">
+                    <Left Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                    <Right Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </Condition>
+                  <WhenTrue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  <WhenFalse Type="ConditionalExpression" ResolvedType="nuint">
+                    <Condition Type="BinaryExpression" Operator="LessThan" ResolvedType="bool">
+                      <Left Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                      <Right Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    </Condition>
+                    <WhenTrue Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <WhenFalse Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </WhenFalse>
+                </Left>
+                <Right Type="ConditionalExpression" ResolvedType="nuint">
+                  <Condition Type="BinaryExpression" Operator="GreaterThan" ResolvedType="bool">
+                    <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <Right Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </Condition>
+                  <WhenTrue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  <WhenFalse Type="ConditionalExpression" ResolvedType="nuint">
+                    <Condition Type="BinaryExpression" Operator="LessThan" ResolvedType="bool">
+                      <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                      <Right Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    </Condition>
+                    <WhenTrue Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <WhenFalse Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                  </WhenFalse>
+                </Right>
+              </Condition>
+              <WhenTrue Type="BinaryExpression" Operator="Subtract" ResolvedType="nuint">
+                <Left Type="ConditionalExpression" ResolvedType="nuint">
+                  <Condition Type="BinaryExpression" Operator="GreaterThan" ResolvedType="bool">
+                    <Left Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                    <Right Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </Condition>
+                  <WhenTrue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  <WhenFalse Type="ConditionalExpression" ResolvedType="nuint">
+                    <Condition Type="BinaryExpression" Operator="LessThan" ResolvedType="bool">
+                      <Left Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                      <Right Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    </Condition>
+                    <WhenTrue Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <WhenFalse Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </WhenFalse>
+                </Left>
+                <Right Type="ConditionalExpression" ResolvedType="nuint">
+                  <Condition Type="BinaryExpression" Operator="GreaterThan" ResolvedType="bool">
+                    <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <Right Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  </Condition>
+                  <WhenTrue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                  <WhenFalse Type="ConditionalExpression" ResolvedType="nuint">
+                    <Condition Type="BinaryExpression" Operator="LessThan" ResolvedType="bool">
+                      <Left Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                      <Right Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    </Condition>
+                    <WhenTrue Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                    <WhenFalse Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+                  </WhenFalse>
+                </Right>
+              </WhenTrue>
+              <WhenFalse Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="nuint" />
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
+            <Target Type="DeclarationTarget" ResolvedType="byte*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
+              <Names>
+                <Value>heap</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="CastExpression" Kind="Type" ResolvedType="byte*">
+              <Type Type="PointerTypeReference" ResolvedType="byte*">
+                <ElementType Type="Byte" ResolvedType="byte" />
+              </Type>
+              <Expression Type="CallExpression" ResolvedType="void*">
+                <Target Type="MethodReferenceExpression" ResolvedType="void*">
+                  <Candidates>
+                    <Function Name="malloc" ResolvedType="void*" />
+                  </Candidates>
+                </Target>
+                <Arguments>
+                  <ArgumentExpression ResolvedType="nuint">
+                    <Value Type="BinaryExpression" Operator="Multiply" ResolvedType="nuint">
+                      <Left Type="SizeOfExpression" ResolvedType="nuint">
+                        <Type Type="Byte" ResolvedType="byte" />
+                      </Left>
+                      <Right Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+                    </Value>
+                  </ArgumentExpression>
+                </Arguments>
+              </Expression>
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
+              <Names>
+                <Value>heap_length</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" />
+          </DeclarationStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+  </Definitions>
+</Module>

@@ -33,7 +33,9 @@ public sealed partial class BindableNodeAnalyzer
 		return new VariableReferenceExpression
 		{
 			Variable = variable,
-			ResolvedType = type
+			ResolvedType = type,
+			SlotLifetimeFact = variable.SlotLifetimeFact,
+			ValueLifetimeFact = variable.ValueLifetimeFact ?? variable.SlotLifetimeFact
 		};
 	}
 

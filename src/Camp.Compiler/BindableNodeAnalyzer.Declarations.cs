@@ -690,6 +690,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateNoLifetimeAnnotation(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "variable types");
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
+		InitializeVariableLifetimeFacts(definition, scope);
 		if (definition.InitialValue is not null && !IsValidFixedStorageInitializer(definition.Type, definition.InitialValue))
 			AnalyzeOptionalExpression(definition.InitialValue, scope);
 	}
@@ -742,6 +743,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (definition.Type is not null && IsAnyOrAnyConstrainedGeneric(definition.Type, scope))
 			Report(GetNameRange(definition), "Generic values constrained to any cannot be stored by value. Use T* or T: copyable.");
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
+		InitializeFieldLifetimeFacts(definition, scope);
 		if (definition.Modifier == FieldModifier.Static && definition.InitialValue is not null)
 		{
 			FunctionDefinition initializerContext = new()
@@ -1092,6 +1094,8 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeOptionalType(definition.Type, scope);
 		if (definition.Type?.LifetimeBinding is string explicitLifetime)
 			definition.LifetimeBinding = explicitLifetime;
+		else if (TryGetLifetimeAnnotation(definition.Type, out _, out _, out string? nestedLifetime) && nestedLifetime is not null)
+			definition.LifetimeBinding = nestedLifetime;
 		ValidateNoDirectFixedArrayType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
 
 		if (definition is WithinParameterDefinition && definition.Type is null)

@@ -7,6 +7,7 @@ public enum GoldenFileTestKind
 {
 	Ast,
 	Declarations,
+	LoweringXml,
 	Lowering,
 	Diagnostics,
 	CEmit,
@@ -35,6 +36,7 @@ public sealed class GoldenFileTestCase
 	{
 		GoldenFileTestKind.Ast => ".expected.xml",
 		GoldenFileTestKind.Declarations => ".expected.xml",
+		GoldenFileTestKind.LoweringXml => ".expected.xml",
 		GoldenFileTestKind.Lowering => ".expected.camp",
 		GoldenFileTestKind.Diagnostics => ".expected.txt",
 		GoldenFileTestKind.CEmit => ".expected.c",
@@ -50,6 +52,7 @@ public sealed class GoldenFileTestCase
 	{
 		GoldenFileTestKind.Ast => ".actual.xml",
 		GoldenFileTestKind.Declarations => ".actual.xml",
+		GoldenFileTestKind.LoweringXml => ".actual.xml",
 		GoldenFileTestKind.Lowering => ".actual.camp",
 		GoldenFileTestKind.Diagnostics => ".actual.txt",
 		GoldenFileTestKind.CEmit => ".actual.c",

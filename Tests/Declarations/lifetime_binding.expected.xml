@@ -28,7 +28,7 @@
     <FunctionDefinition InvokerName="borrow" Name="borrow" Symbol="borrow" ResolvedType="void">
       <ReturnType Type="Void" ResolvedType="void" />
       <Parameters>
-        <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="text" Symbol="text" ResolvedType="scoped(owner) char[]">
+        <ParameterDefinition LifetimeBinding="scoped(owner):explicit anchors" Name="text" Symbol="text" ResolvedType="scoped(owner) char[]">
           <Type Type="ArrayTypeReference" ResolvedType="scoped(owner) char[]">
             <ElementType Type="ScopedTypeReference" LifetimeBinding="scoped(owner):explicit anchors" ResolvedType="scoped(owner) char">
               <Anchors>
@@ -38,7 +38,7 @@
             </ElementType>
           </Type>
         </ParameterDefinition>
-        <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="owner" Symbol="owner" ResolvedType="unscoped char[]">
+        <ParameterDefinition LifetimeBinding="unscoped:explicit" Name="owner" Symbol="owner" ResolvedType="unscoped char[]">
           <Type Type="ArrayTypeReference" ResolvedType="unscoped char[]">
             <ElementType Type="UnscopedTypeReference" LifetimeBinding="unscoped:explicit" ResolvedType="unscoped char">
               <Type Type="Char" ResolvedType="char" />
@@ -64,7 +64,7 @@
         <FunctionDefinition InvokerName="set" ReceiverLifetimeBinding="scoped:default receiver" Name="set" Symbol="set" ResolvedType="void">
           <ReturnType Type="Void" ResolvedType="void" />
           <Parameters>
-            <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="value" Symbol="value" ResolvedType="unscoped const char[]">
+            <ParameterDefinition LifetimeBinding="unscoped:explicit" Name="value" Symbol="value" ResolvedType="unscoped const char[]">
               <Type Type="ArrayTypeReference" ResolvedType="unscoped const char[]">
                 <ElementType Type="UnscopedTypeReference" LifetimeBinding="unscoped:explicit" ResolvedType="unscoped const char">
                   <Type Type="ConstTypeReference" ResolvedType="const char">

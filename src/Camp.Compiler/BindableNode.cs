@@ -7,6 +7,8 @@ public abstract class BindableNode
 {
 	public SyntaxNode? SourceSyntax { get; set; }
 	public string? ResolvedType { get; set; }
+	public string? SlotLifetimeFact { get; set; }
+	public string? ValueLifetimeFact { get; set; }
 }
 
 public class Module : BindableNode
