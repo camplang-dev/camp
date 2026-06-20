@@ -1019,24 +1019,24 @@ capture semantics until the later deferred-callable stage.
 
 ### Work Items
 
-- Treat delegate/iter/once/async callable value lifetime as hidden context
+- ~~Treat delegate/iter/once/async callable value lifetime as hidden context
   lifetime in the shared model, even where some callable families are not yet
-  implemented.
-- Enforce callable explicit `this` qualifiers during method-reference
-  conversion.
-- Enforce callable ascription receiver lifetime rules.
-- Target-type lambdas using callable context lifetime.
-- Scoped delegates may capture locals by reference only within valid scope.
-- Reject conversions that would require escaped delegate support with a clear
+  implemented.~~
+- ~~Enforce callable explicit `this` qualifiers during method-reference
+  conversion.~~
+- ~~Enforce callable ascription receiver lifetime rules.~~
+- ~~Target-type lambdas using callable context lifetime.~~
+- ~~Scoped delegates may capture locals by reference only within valid scope.~~
+- ~~Reject conversions that would require escaped delegate support with a clear
   "escaped delegates are not implemented yet" diagnostic, rather than accepting
-  unsound code.
-- Preserve non-capturing lambda `fn` behavior.
-- Avoid putting unnecessary lifetime annotations on delegate newtype
-  declarations when the relationship belongs at the consuming argument.
+  unsound code.~~
+- ~~Preserve non-capturing lambda `fn` behavior.~~
+- ~~Avoid putting unnecessary lifetime annotations on delegate newtype
+  declarations when the relationship belongs at the consuming argument.~~
 
 ### Completion Criteria
 
-Scoped delegate capture:
+~~Scoped delegate capture:~~
 
 ```camp
 void runNow(delegate void() action)
@@ -1051,7 +1051,7 @@ void test()
 }
 ```
 
-Escaped delegate rejection:
+~~Escaped delegate rejection:~~
 
 ```camp
 void register(escaped delegate void() action);
@@ -1063,7 +1063,7 @@ void test()
 }
 ```
 
-Callable `this` contract:
+~~Callable `this` contract:~~
 
 ```camp
 newtype delegate nuint Formatter(const this, char[] buffer = default);
@@ -1077,16 +1077,16 @@ class Date
 }
 ```
 
-The method body is analyzed as `const this`.
+~~The method body is analyzed as `const this`.~~
 
 ### Tests
 
-- Scoped lambda local capture positive.
-- Escaped delegate use reports deferred-feature diagnostic.
-- Method reference to callable requiring `escaped this`.
-- Method reference to callable requiring `const this`.
-- Callable newtype ascription with explicit/implicit callable `this`.
-- Delegate argument lifetime specified at use site.
+- ~~Scoped lambda local capture positive.~~
+- ~~Escaped delegate use reports deferred-feature diagnostic.~~
+- ~~Method reference to callable requiring `escaped this`.~~
+- ~~Method reference to callable requiring `const this`.~~
+- ~~Callable newtype ascription with explicit/implicit callable `this`.~~
+- ~~Delegate argument lifetime specified at use site.~~
 
 ## Stage 7: Iterators And Generated Contexts
 

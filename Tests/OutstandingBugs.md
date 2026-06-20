@@ -1,6 +1,6 @@
 # Outstanding Bugs
 
-Next bug number: BUG-025.
+Next bug number: BUG-027.
 
 - **BUG-022:** Block doc comments using conventional multi-line `/** ... */`
   formatting need stronger parsing/stripping and focused tests. Priority:
@@ -25,3 +25,18 @@ Next bug number: BUG-025.
   mutability when the relationship proves it is derived from that argument.
   This should be implemented as a type-refinement pass with positive and
   conservative negative tests, not as a lifetime fact shortcut.
+
+- **BUG-025:** Exported and abstract function signatures reject lifetime
+  annotations in places where they should be valid signature annotations.
+  Priority: medium-high. Complexity: medium. For example,
+  `export abstract void free(escaped void* ptr);` currently reports a
+  misleading field-type lifetime diagnostic through API/header processing.
+  Std allocator declarations are temporarily left unannotated and trusted
+  boundaries use explicit lifetime casts instead.
+
+- **BUG-026:** Returning a lifetime-casted expanded value can drop hidden
+  return components during C emission. Priority: medium. Complexity: medium.
+  For example, returning `(escaped T[])bufferResult` from a function returning
+  `T[]` can emit only the pointer result and fail to assign the hidden length
+  result parameter. Returning an equivalent slice currently preserves the
+  expanded components and is used as a workaround.

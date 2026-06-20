@@ -535,6 +535,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsPointerBearingType(TypeReference? type, AnalysisScope scope)
 	{
+		return IsPointerBearingType(type, scope, []);
+	}
+
+	bool IsPointerBearingType(TypeReference? type, AnalysisScope scope, HashSet<TypeDefinition> visited)
+	{
 		if (type is null)
 			return false;
 
@@ -543,30 +548,38 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			PointerTypeReference => true,
 			ArrayTypeReference => true,
-			FixedArrayTypeReference fixedArray => IsPointerBearingType(fixedArray.ElementType, scope),
-			OptionalTypeReference optional => IsPointerBearingType(optional.ElementType, scope),
+			FixedArrayTypeReference fixedArray => IsPointerBearingType(fixedArray.ElementType, scope, visited),
+			OptionalTypeReference optional => IsPointerBearingType(optional.ElementType, scope, visited),
 			CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once or CallableKind.Async } => true,
 			IterTypeReference => true,
-			MaterializedStructTypeReference materialized => IsPointerBearingType(materialized.ParamsType, scope),
-			GroupedParamsTypeReference grouped => IsPointerBearingType(grouped.StructType, scope),
+			MaterializedStructTypeReference materialized => IsPointerBearingType(materialized.ParamsType, scope, visited),
+			GroupedParamsTypeReference grouped => IsPointerBearingType(grouped.StructType, scope, visited),
 			PrimitiveTypeReference { Type: PrimitiveType.String or PrimitiveType.WString or PrimitiveType.AString } => true,
 			NamedTypeReference named when scope.TryGetGenericParameter(named.Name, out _) => true,
 			GenericParameterTypeReference => true,
-			NamedTypeReference named when typeDefinitions.TryGetValue(BaseTypeName(named.ResolvedType ?? named.Name), out TypeDefinition? definition) => IsPointerBearingTypeDefinition(definition, scope),
-			TypeDefinitionReference { Definition: TypeDefinition definition } => IsPointerBearingTypeDefinition(definition, scope),
+			NamedTypeReference named when typeDefinitions.TryGetValue(BaseTypeName(named.ResolvedType ?? named.Name), out TypeDefinition? definition) => IsPointerBearingTypeDefinition(definition, scope, visited),
+			TypeDefinitionReference { Definition: TypeDefinition definition } => IsPointerBearingTypeDefinition(definition, scope, visited),
 			_ => false
 		};
 	}
 
 	bool IsPointerBearingTypeDefinition(TypeDefinition definition, AnalysisScope scope)
 	{
+		return IsPointerBearingTypeDefinition(definition, scope, []);
+	}
+
+	bool IsPointerBearingTypeDefinition(TypeDefinition definition, AnalysisScope scope, HashSet<TypeDefinition> visited)
+	{
 		return definition switch
 		{
 			ClassDefinition => true,
 			InterfaceDefinition => true,
-			StructDefinition structure => structure.Fields.Any(field => IsPointerBearingType(field.Type, scope)),
-			ParamsDefinition parameters => parameters.Components.Any(component => IsPointerBearingType(component.Type, scope)),
-			NewtypeDefinition newtype => IsPointerBearingType(newtype.UnderlyingType, scope) || newtype.Parameters.Count > 0,
+			StructDefinition structure => visited.Add(definition)
+				&& structure.Fields.Any(field => IsPointerBearingType(field.Type, scope, visited)),
+			ParamsDefinition parameters => visited.Add(definition)
+				&& parameters.Components.Any(component => IsPointerBearingType(component.Type, scope, visited)),
+			NewtypeDefinition newtype => visited.Add(definition)
+				&& (IsPointerBearingType(newtype.UnderlyingType, scope, visited) || newtype.Parameters.Count > 0),
 			_ => false
 		};
 	}

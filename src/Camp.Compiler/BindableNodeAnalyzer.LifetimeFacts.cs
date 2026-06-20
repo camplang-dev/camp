@@ -90,12 +90,28 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		string normalized = StripTopLevelValueQualifiers(type);
-		return normalized.Contains('*', System.StringComparison.Ordinal)
-			|| normalized.Contains("[]", System.StringComparison.Ordinal)
-			|| normalized.StartsWith("delegate ", System.StringComparison.Ordinal)
+		TypeShapeParser parser = new(normalized);
+		if (parser.TryParse(out TypeShape shape) && parser.IsEnd)
+			return IsPointerBearingResolvedShape(shape);
+
+		return normalized.StartsWith("delegate ", System.StringComparison.Ordinal)
 			|| normalized.StartsWith("iter ", System.StringComparison.Ordinal)
-			|| normalized is "string" or "astring" or "wstring"
-			|| normalized.EndsWith("?", System.StringComparison.Ordinal);
+			|| normalized is "string" or "astring" or "wstring";
+	}
+
+	static bool IsPointerBearingResolvedShape(TypeShape shape)
+	{
+		return shape.Kind switch
+		{
+			TypeShapeKind.Pointer => true,
+			TypeShapeKind.Array => true,
+			TypeShapeKind.FixedArray => shape.Element is not null && IsPointerBearingResolvedShape(shape.Element),
+			TypeShapeKind.Optional => shape.Element is not null && IsPointerBearingResolvedShape(shape.Element),
+			TypeShapeKind.Named => shape.Name is "string" or "astring" or "wstring"
+				|| shape.Name.StartsWith("delegate ", System.StringComparison.Ordinal)
+				|| shape.Name.StartsWith("iter ", System.StringComparison.Ordinal),
+			_ => false
+		};
 	}
 
 	bool IsLifetimePointerBearingResolvedType(string? type, BodyScope scope)

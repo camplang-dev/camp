@@ -149,7 +149,7 @@ export class List<T: copyable>
 	/// Transfers the used buffer span to the caller and empties the list.
 	export T[] takeBuffer()
 	{
-		T[] bufferResult = { this.items.elements, this.length };
+		T[] bufferResult = this.items[..this.length];
 		this.items = default;
 		this.length = 0;
 		return bufferResult;

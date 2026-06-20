@@ -7,8 +7,8 @@ export extern void free(void* ptr);
 export abstract class Allocator
 {
 	export abstract void* alloc(nuint size);
-	export abstract void* realloc(escaped void* ptr, nuint newSize);
-	export abstract void free(escaped void* ptr);
+	export abstract void* realloc(void* ptr, nuint newSize);
+	export abstract void free(void* ptr);
 }
 
 export virtual class HeapAllocator: Allocator
@@ -18,12 +18,12 @@ export virtual class HeapAllocator: Allocator
 		return malloc(size);
 	}
 	
-	export override void* realloc(escaped void* ptr, nuint newSize)
+	export override void* realloc(void* ptr, nuint newSize)
 	{
 		return realloc(ptr, newSize);
 	}
 	
-	export override void free(escaped void* ptr)
+	export override void free(void* ptr)
 	{
 		free(ptr);
 	}

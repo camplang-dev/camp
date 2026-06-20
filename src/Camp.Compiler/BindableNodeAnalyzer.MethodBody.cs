@@ -1315,7 +1315,6 @@ public sealed partial class BindableNodeAnalyzer
 		string inferredType = BuildCallableType(inferredKind, targetShape?.ReturnType ?? returnType, parameterTypes);
 		if (targetType is not null
 			&& TryGetLambdaCallableShape(targetType, out CallableShape expectedShape, out bool expectedEscaped)
-			&& !expectedEscaped
 			&& expectedShape.Kind is "fn" or "delegate"
 			&& CallableShapesCompatible(new CallableShape(expectedShape.Kind, expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This), expectedShape))
 			return targetType;
@@ -1902,7 +1901,11 @@ public sealed partial class BindableNodeAnalyzer
 					else
 					{
 						string structuralExpected = GetLifetimeStructuralTargetType(expected, arguments[i].Value);
-						CheckCallArgumentAssignable(structuralExpected, actual, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
+						bool deferredEscapedLambda = arguments[i].Value is LambdaExpression
+							&& ((TryGetLambdaCallableShape(expected, out _, out bool expectedEscapedLambda) && expectedEscapedLambda)
+								|| (TryGetLambdaCallableShape(actual, out _, out bool actualEscapedLambda) && actualEscapedLambda));
+						if (!deferredEscapedLambda)
+							CheckCallArgumentAssignable(structuralExpected, actual, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
 						if (CanLiftToOptional(actual, expected))
 							arguments[i].ResolvedType = expected;
 					}

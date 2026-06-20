@@ -39,18 +39,18 @@ export void copyFrom<T: copyable>(T[] this, const T[] source, sizeof(T))
 	source.copyTo<T>(destination);
 }
 
-export void resize<T: copyable>(T[]* this, nuint newSize, within allocator, sizeof(T))
+export void resize<T: copyable>(escaped T[]* this, nuint newSize, within allocator, sizeof(T))
 {
 	if (this.length == newSize)
 		return;
 
 	void* resized = allocator != null
-		? allocator.realloc(this.elements, newSize * sizeof(T))
-		: realloc(this.elements, newSize * sizeof(T));
+		? allocator.realloc((escaped void*)this.elements, newSize * sizeof(T))
+		: realloc((escaped void*)this.elements, newSize * sizeof(T));
 	if (resized == null && newSize != 0)
 		return;
 
-	this.elements = (T*)resized;
+	this.elements = (escaped T*)resized;
 	this.length = newSize;
 }
 
