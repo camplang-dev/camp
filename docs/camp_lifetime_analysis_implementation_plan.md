@@ -42,6 +42,23 @@ Lifetime annotations are intentionally sparse in source. The compiler should
 infer default lifetime relationships. The standard library and user code should
 not write annotations merely to restate defaults.
 
+Lifetime annotations are valid in only a small number of source positions:
+
+- method/function signatures, including return types, parameters, receiver
+  parameters, callable type references, and callable newtype signatures;
+- explicit casts;
+- `escaped class` and `escaped interface` declarations.
+
+They do not precede fields, global variables, local variables, or ordinary type
+uses. For example, a parameter may be declared `scoped const char[] value`, but a
+local variable should not be declared `scoped const char[] value`. The local
+slot and current-value facts are inferred by flow analysis instead.
+
+Future non-copyable generic constraint arguments may allow lifetime annotation
+syntax, but those rules are not settled. The parser may recognize the pattern
+for good diagnostics, but the compiler should reject it until the language
+rules are designed.
+
 ## Spec Semantics To Preserve
 
 ### `escaped`
@@ -59,9 +76,9 @@ It does not mean:
 Examples:
 
 ```camp
-escaped Widget* value;
-escaped char[] text;
-escaped delegate bool(int) predicate;
+escaped Widget* createWidget();
+void retain(escaped char[] text);
+void register(escaped delegate bool(int) predicate);
 escaped class Window;
 escaped interface IService;
 ```
@@ -198,6 +215,49 @@ bool tryGetSpan(const char[] this, out const char[] result)
 The `result` value is related to `this` by the same default relation as an
 ordinary returned span from an instance method.
 
+### Explicit Lifetime Casts
+
+Explicit lifetime casts are the intentional escape hatch for cases where the
+programmer knows a lifetime relationship that the compiler cannot prove. They
+are assertions to the compiler, not runtime conversions. They erase from emitted
+C just like other lifetime annotations.
+
+The supported cast forms are:
+
+```camp
+(scoped) value
+(unscoped(anchor)) value
+(escaped) value
+```
+
+They may also be combined with an ordinary type cast:
+
+```camp
+(escaped string) ptr
+(unscoped(this) const char[]) span
+```
+
+The meanings are:
+
+- `(scoped)` forces the expression to be treated as caller-context scoped.
+- `(unscoped(anchor))` forces the compiler to assume the expression lifetime is
+  equal to or longer than the named anchor. An explicit anchor is required in a
+  lifetime cast.
+- `(escaped)` forces the expression to be treated as escaped.
+
+These casts should be visibly reviewed in code. They are for carefully
+documented interop boundaries, low-level container internals, and other cases
+where the source program has information the compiler cannot derive. They
+should not be used to paper over ordinary lifetime diagnostics when a better
+signature, copy, allocation, or narrower scope would express the relationship.
+
+Invalid cast examples:
+
+```camp
+auto a = (unscoped) value;        // ERROR: cast requires an explicit anchor
+auto b = (unscoped(missing)) v;   // ERROR: anchor could not be resolved
+```
+
 ### Callee View Versus Caller View
 
 The callee sees a signature contract. The caller sees actual values.
@@ -214,7 +274,7 @@ At a call site, the compiler substitutes actual argument facts into the
 template:
 
 ```camp
-escaped char[] heapText = ...;
+auto heapText = getEscapedText(); // known escaped from the callee signature
 auto result = trim(heapText);
 // result is known escaped because heapText is known escaped.
 ```
@@ -310,8 +370,8 @@ on the callable value describe the hidden context pointer.
 For example:
 
 ```camp
-escaped delegate bool(int value) predicate;
-scoped delegate void() action;
+void retain(escaped delegate bool(int value) predicate);
+void invoke(scoped delegate void() action);
 ```
 
 The lifetime annotation is typically most useful where the delegate is consumed
@@ -456,6 +516,7 @@ Each expression receives a current value fact:
 - address-of local/fixed storage: declaration-scope;
 - call expression: result of substituting actual argument facts into callee
   return template;
+- explicit lifetime cast: asserted fact from the cast target;
 - lambda/method reference: callable context fact;
 - default/null: no retained pointer fact unless target type requires one.
 
@@ -492,6 +553,7 @@ At call sites:
    - static/free unannotated return defaults to anchorless `unscoped`;
    - `scoped` return substitutes scoped argument facts;
    - `scoped(anchor)` substitutes explicit anchor facts;
+   - `unscoped(anchor)` return substitutes explicit anchor facts;
    - `escaped` return produces escaped fact.
 5. Reduce fact sets with a hard cap. If a join becomes too complex, collapse to
    the narrowest conservative fact and keep a diagnostic breadcrumb.
@@ -554,7 +616,13 @@ yet enforcing all assignment/call flows.
 - Add semantic lifetime records independent of `ResolvedType` strings.
 - Bind `escaped`, `scoped`, and `unscoped` type references into lifetime facts.
 - Bind anchor identifiers to `this`, parameters, or other valid symbols.
+- Bind explicit lifetime casts, including `(scoped)`, `(escaped)`, and
+  `(unscoped(anchor))`.
 - Validate invalid anchors and invalid annotation placement.
+- Restrict lifetime annotations to signatures, casts, `escaped class`, and
+  `escaped interface`.
+- Reject bare `(unscoped)` lifetime casts because an explicit anchor is
+  required in casts.
 - Apply default parameter and receiver lifetimes.
 - Apply `escaped class` and `escaped interface` declaration-site defaults.
 - Apply callable explicit `this` lifetime qualifiers.
@@ -567,6 +635,10 @@ yet enforcing all assignment/call flows.
 - ~~Invalid anchors produce clear diagnostics.~~
 - ~~Lifetime annotations still erase from emitted C.~~
 - ~~Existing tests continue to pass.~~
+- Explicit lifetime casts bind to expression lifetime facts.
+- Lifetime annotations outside signatures/casts/escaped type declarations are
+  rejected with clear diagnostics.
+- `(unscoped)` casts without an explicit anchor are rejected.
 
 Examples:
 
@@ -593,7 +665,11 @@ escaped class Service
 
 - AST/API serialization for `scoped(anchor)` and `unscoped(anchor)`.
 - Diagnostics for unresolved anchors.
-- Diagnostics for `unscoped` on illegal declaration forms if any.
+- Diagnostics for lifetime annotations on fields, globals, locals, ordinary
+  type uses, and generic constraint arguments.
+- Diagnostics for `(unscoped)` casts without anchors and casts with unresolved
+  anchors.
+- Bound debug/declarations view for explicit lifetime casts.
 - Escaped class/interface default receiver binding.
 - Callable `this` lifetime binding for delegate and iter newtypes.
 
@@ -607,7 +683,8 @@ Track value facts and slot constraints inside method bodies.
 - Track slot facts for parameters, receiver, locals, fields, globals, static
   fields, generated frame fields, and `out` storage.
 - Track expression facts for literals, locals, fields, array components,
-  slicing, address-of, `new`, `init`, calls, lambdas, and default/null.
+  slicing, address-of, `new`, `init`, calls, explicit lifetime casts, lambdas,
+  and default/null.
 - Distinguish slot lifetime from current value lifetime.
 - Track reassignment of current value facts.
 - Add conservative fallback for unknown pointer-bearing generic values.
@@ -636,12 +713,15 @@ Examples that should be understood internally:
 auto p = new byte[64];   // escaped T[]
 fixed byte[64] storage;
 auto s = storage[..];    // declaration-scope view
+auto forced = (escaped) storage[..]; // explicit assertion
 ```
 
 ### Tests
 
 - Debug metadata/golden tests for expression lifetime facts, if a suitable
   internal view exists.
+- Expression-fact tests for `(scoped)`, `(escaped)`, and
+  `(unscoped(anchor))`.
 - CCompile regression tests proving lifetime metadata does not disturb lowering.
 - Diagnostics remain unchanged until enforcement stages.
 
@@ -660,6 +740,8 @@ Start enforcing lifetime rules for direct storage and result flow.
 - Enforce returned/yielded pointer-bearing values satisfy return/yield relation.
 - Enforce fixed-array span return/yield through the general lifetime system,
   replacing special-case checks where possible.
+- Honor explicit lifetime casts as programmer assertions when checking
+  assignment, return, yield, and delete flows.
 
 ### Completion Criteria
 
@@ -701,6 +783,16 @@ char[] bad()
 }
 ```
 
+This uses the escape hatch and should pass type/lifetime checking, while
+remaining a sharp tool that code review should question:
+
+```camp
+char[] trusted(escaped void* owner, char* ptr, nuint length)
+{
+    return (unscoped(owner) char[]){ ptr, length };
+}
+```
+
 This should fail:
 
 ```camp
@@ -723,6 +815,7 @@ delete ptr;
 - Return diagnostics for local fixed-array spans.
 - Yield diagnostics for local fixed-array spans.
 - Pointer-form delete diagnostics.
+- Positive and negative explicit lifetime cast diagnostics.
 - Positive escaped new/delete smoke.
 
 ## Stage 4: Call-Site Relation Solving And Return Substitution
@@ -741,6 +834,8 @@ Implement signature-template substitution at call sites.
 - Apply `scoped` return substitution.
 - Apply `scoped(anchor)` and `unscoped(anchor)` substitution.
 - Apply equivalent `out` parameter substitution.
+- Preserve lifetime facts produced by explicit lifetime casts when they flow
+  into call arguments or out-parameter storage.
 - Track return const flow where directly provable.
 - Validate call arguments against parameter relations.
 - Produce diagnostics with call-site source ranges.
@@ -753,7 +848,7 @@ escaped:
 ```camp
 scoped const char[] trim(const char[] text);
 
-escaped const char[] heapText = getEscapedText();
+auto heapText = getEscapedText(); // known escaped from the callee signature
 auto result = trim(heapText);
 delete result.elements; // not necessarily semantically desirable, but lifetime fact is escaped
 ```
@@ -808,6 +903,8 @@ scoped input relation permits.
 - Unannotated pointer-bearing `out` parameter in a static/free function using
   anchorless `unscoped`.
 - Explicit `scoped(anchor)` / `unscoped(anchor)` `out` parameter relation.
+- Explicit lifetime cast used to satisfy an `unscoped(anchor)` or `escaped`
+  parameter requirement.
 - Const flow positive and conservative negative tests.
 
 ## Stage 5: Constructors, `init`, `new`, And Retained Values
@@ -1140,6 +1237,10 @@ Make the feature usable.
 - Add diagnostic codes or stable message prefixes.
 - Add notes explaining inferred default relationships.
 - Add doc examples to the spec where implementation reveals ambiguity.
+- Document explicit lifetime casts as the escape hatch for relationships the
+  compiler cannot prove.
+- Document that lifetime annotations are allowed only in signatures, explicit
+  casts, and escaped type declarations.
 - Ensure metadata/API serializers preserve source annotations but do not expand
   inferred defaults into noisy source.
 
@@ -1164,6 +1265,8 @@ The diagnostic should explain:
 - Diagnostics golden tests with line/column ranges.
 - API/metadata tests ensuring inferred lifetimes do not pollute source output.
 - Regression tests for no duplicate/noisy annotations in generated `.camp` API.
+- Diagnostics and docs examples for invalid explicit lifetime casts and invalid
+  annotation placement.
 
 ## Later Stage: Escaped Delegates, Async, And Async Iterators
 
@@ -1301,12 +1404,11 @@ Loops should converge quickly:
 
 These should be confirmed before coding enforcement stages:
 
-1. Exact syntax and parser support for explicit `unscoped` return annotations.
-2. Whether `scoped` return without anchors should be serialized distinctly from
+1. Whether `scoped` return without anchors should be serialized distinctly from
    inferred defaults.
-3. How much const-flow preservation should be implemented in v1.
-4. Whether lifetime diagnostics should have stable numeric codes.
-5. Whether an internal `dump lifetimes` view should be added for testing and
+2. How much const-flow preservation should be implemented in v1.
+3. Whether lifetime diagnostics should have stable numeric codes.
+4. Whether an internal `dump lifetimes` view should be added for testing and
    future tooling development.
 
 The core semantics above should remain unchanged regardless of these choices.
