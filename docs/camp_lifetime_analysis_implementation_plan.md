@@ -13,7 +13,7 @@ analysis and relationship-proving system for pointer-bearing values.
 
 Camp lifetime annotations describe how long pointer-bearing values remain valid
 relative to call arguments, receivers, local scopes, escaped storage, delegate
-contexts, iterator frames, and async frames.
+contexts, iterator frames, and future async frames.
 
 The important question is:
 
@@ -34,14 +34,13 @@ context values, including:
 - materialized params values;
 - delegates and delegate-like callable values;
 - iterator frames;
-- async frames;
+- future async frames;
 - optionals whose payload contains pointers;
 - erased generic values after substitution.
 
 Lifetime annotations are intentionally sparse in source. The compiler should
-infer default lifetime relationships and the LSP should expose those facts to
-users. The standard library and user code should not write annotations merely to
-restate defaults.
+infer default lifetime relationships. The standard library and user code should
+not write annotations merely to restate defaults.
 
 ## Spec Semantics To Preserve
 
@@ -145,7 +144,8 @@ ordinary instance method.
 
 ### Return Defaults
 
-Return values are relationship templates, not final call-site facts.
+Return values and `out` parameters are relationship templates, not final
+call-site facts.
 
 For an instance method, an unannotated pointer or pointer-bearing return value is
 assumed to be `unscoped(this)`.
@@ -177,6 +177,26 @@ The same principle applies to constness where provable. If a function has a
 mutable value, the result may retain its mutable fact when the relationship is
 precise enough. For pointer-bearing aggregate values, this may not always be
 provable.
+
+`out` parameters follow the same lifetime semantics as return values. They
+produce caller-visible results through caller-provided storage instead of
+through the function's return slot. An unannotated pointer-bearing `out`
+parameter in an instance method therefore defaults to the same `unscoped(this)`
+relationship as an unannotated return value. In a static/free function, it
+defaults to anchorless `unscoped`.
+
+Example:
+
+```camp
+bool tryGetSpan(const char[] this, out const char[] result)
+{
+    result = this[..];
+    return true;
+}
+```
+
+The `result` value is related to `this` by the same default relation as an
+ordinary returned span from an instance method.
 
 ### Callee View Versus Caller View
 
@@ -316,6 +336,10 @@ Lambda capture behavior follows callable lifetime:
 - escaped delegate-like form: captures are copied into escaped context storage,
   and captured values are read-only from the closure state.
 
+The current compiler does not yet implement escaped delegates, `async`, or
+`async iter`. This plan prepares the shared lifetime model for those features,
+but their actual enforcement and tests are deferred to a later stage.
+
 ## Implementation Algorithm
 
 The compiler should not perform unbounded symbolic lifetime solving. The
@@ -418,7 +442,8 @@ Each variable-like storage location receives a slot constraint:
 - local variables: declaration-scope slot unless initialized to a
   pointer-bearing aggregate with a fixed inferred lifetime;
 - generated frames: frame lifetime;
-- `out` storage: caller-provided slot.
+- `out` storage: caller-provided slot that receives a result value with return
+  semantics.
 
 Each expression receives a current value fact:
 
@@ -712,8 +737,10 @@ Implement signature-template substitution at call sites.
   - in instance methods this includes receiver by default.
 - Apply instance-method unannotated return default as `unscoped(this)`.
 - Apply static/free unannotated return default as anchorless `unscoped`.
+- Apply the same defaults to pointer-bearing `out` parameters.
 - Apply `scoped` return substitution.
 - Apply `scoped(anchor)` and `unscoped(anchor)` substitution.
+- Apply equivalent `out` parameter substitution.
 - Track return const flow where directly provable.
 - Validate call arguments against parameter relations.
 - Produce diagnostics with call-site source ranges.
@@ -776,6 +803,11 @@ scoped input relation permits.
 - Unannotated static return tied to scoped arguments.
 - Explicit `scoped(anchor)` return.
 - Explicit return `unscoped(anchor)`.
+- Unannotated pointer-bearing `out` parameter in an instance method tied to
+  receiver.
+- Unannotated pointer-bearing `out` parameter in a static/free function using
+  anchorless `unscoped`.
+- Explicit `scoped(anchor)` / `unscoped(anchor)` `out` parameter relation.
 - Const flow positive and conservative negative tests.
 
 ## Stage 5: Constructors, `init`, `new`, And Retained Values
@@ -853,22 +885,25 @@ return list; // OK if return type permits escaped pointer
 - `new` escaped result facts.
 - `within allocator` constructor forwarding smoke.
 
-## Stage 6: Delegates, Lambdas, Method References, And Callable Newtypes
+## Stage 6: Scoped Delegates, Lambdas, Method References, And Callable Newtypes
 
-Apply lifetime analysis to callable contexts.
+Apply lifetime analysis to callable contexts that the compiler supports today.
+Prepare the representation for escaped delegates, but defer escaped delegate
+capture semantics until the later deferred-callable stage.
 
 ### Work Items
 
 - Treat delegate/iter/once/async callable value lifetime as hidden context
-  lifetime.
+  lifetime in the shared model, even where some callable families are not yet
+  implemented.
 - Enforce callable explicit `this` qualifiers during method-reference
   conversion.
 - Enforce callable ascription receiver lifetime rules.
 - Target-type lambdas using callable context lifetime.
 - Scoped delegates may capture locals by reference only within valid scope.
-- Escaped delegates copy captures into escaped context storage.
-- Captured values in escaped delegates are read-only.
-- Reject fixed-size array capture by value into escaped callable contexts.
+- Reject conversions that would require escaped delegate support with a clear
+  "escaped delegates are not implemented yet" diagnostic, rather than accepting
+  unsound code.
 - Preserve non-capturing lambda `fn` behavior.
 - Avoid putting unnecessary lifetime annotations on delegate newtype
   declarations when the relationship belongs at the consuming argument.
@@ -898,18 +933,7 @@ void register(escaped delegate void() action);
 void test()
 {
     int count = 0;
-    register(() => count++); // ERROR
-}
-```
-
-Escaped delegate copied capture:
-
-```camp
-void register(escaped delegate bool(int) predicate);
-
-void test(int threshold)
-{
-    register(value => value > threshold); // OK if threshold is copyable
+    register(() => count++); // ERROR: escaped delegates are not implemented yet
 }
 ```
 
@@ -932,15 +956,13 @@ The method body is analyzed as `const this`.
 ### Tests
 
 - Scoped lambda local capture positive.
-- Escaped lambda local capture negative.
-- Escaped lambda copyable capture positive.
-- Escaped lambda captured value readonly diagnostic.
+- Escaped delegate use reports deferred-feature diagnostic.
 - Method reference to callable requiring `escaped this`.
 - Method reference to callable requiring `const this`.
 - Callable newtype ascription with explicit/implicit callable `this`.
 - Delegate argument lifetime specified at use site.
 
-## Stage 7: Iterators, Async Frames, And Generated Contexts
+## Stage 7: Iterators And Generated Contexts
 
 Apply the container rule to generated frames.
 
@@ -952,9 +974,8 @@ Apply the container rule to generated frames.
 - `struct iter` and `class iter` differ by frame storage, but both participate
   in lifetime analysis.
 - Iterator `foreach` cleanup must preserve lifetime facts for yielded values.
-- Async suspension points require values used after suspension to outlive the
-  async frame.
-- Async/postponed context capture follows the same container rule.
+- Prepare shared generated-context hooks so async frames can use the same model
+  later, without implementing async lifetime enforcement in this stage.
 
 ### Completion Criteria
 
@@ -977,24 +998,12 @@ struct iter const char[] splitLines(unscoped const char[] text)
 }
 ```
 
-Async after suspension:
-
-```camp
-async void process(const char[] text)
-{
-    await something();
-    use(text); // ERROR unless text outlives async frame
-}
-```
-
 ### Tests
 
 - Generator retained scoped parameter negative.
 - Generator retained unscoped parameter positive.
 - Yield borrowed view lifetime diagnostics.
 - Nested foreach over iterator lifetime smoke.
-- Async suspension diagnostics for scoped values.
-- Async/postponed context capture tests when async lowering supports them.
 
 ## Stage 8: Generics And Erased Values
 
@@ -1010,7 +1019,7 @@ erased generic bodies.
 - Avoid forcing generic implementations such as `List<T>` to understand
   concrete pointer-bearing semantics internally.
 - Apply aggregate/container rules to `in T`, `out T`, return `T`, array
-  elements, optionals, delegates, iterator frames, and async frames.
+  elements, optionals, delegates, iterator frames, and future async frames.
 - Keep `in T` transport address scoped to the call.
 - Ensure `T: copyable` and `T: any` existing rules compose with lifetime checks.
 
@@ -1053,7 +1062,8 @@ Apply the policy to the stdlib without over-annotating defaults.
 
 Do not write explicit lifetime annotations merely to restate defaults.
 
-Prefer sparse signatures. The LSP should display inferred lifetime information.
+Prefer sparse signatures. Future tooling may display inferred lifetime
+information, but this plan does not require that support.
 
 Annotations should appear when:
 
@@ -1121,7 +1131,7 @@ context lifetime.
 - Console writer positive escaped/static context.
 - List of pointer-bearing values positive/negative tests.
 
-## Stage 10: Diagnostics, LSP, And Documentation Polish
+## Stage 10: Diagnostics And Documentation Polish
 
 Make the feature usable.
 
@@ -1129,8 +1139,6 @@ Make the feature usable.
 
 - Add diagnostic codes or stable message prefixes.
 - Add notes explaining inferred default relationships.
-- Add LSP hover support for inferred lifetime facts.
-- Add quick-info for function signatures showing inferred defaults.
 - Add doc examples to the spec where implementation reveals ambiguity.
 - Ensure metadata/API serializers preserve source annotations but do not expand
   inferred defaults into noisy source.
@@ -1151,15 +1159,50 @@ The diagnostic should explain:
 - whether `stringCopy`, `new`, or moving allocation outside the scope would fix
   it.
 
-Hover on `List.add` should show inferred lifetime facts without requiring the
-source signature to say `unscoped(this)`.
-
 ### Tests
 
 - Diagnostics golden tests with line/column ranges.
-- LSP snapshot tests if available.
 - API/metadata tests ensuring inferred lifetimes do not pollute source output.
 - Regression tests for no duplicate/noisy annotations in generated `.camp` API.
+
+## Later Stage: Escaped Delegates, Async, And Async Iterators
+
+The compiler does not currently implement escaped delegates, `async`, or
+`async iter`. The core lifetime model must be designed so these features can
+plug into it later, but this implementation plan defers their actual
+enforcement and tests.
+
+### Future Work Items
+
+- Implement escaped delegate context allocation/capture semantics.
+- Copy captures into escaped context storage.
+- Treat escaped delegate captures as read-only from inside the closure.
+- Reject non-escaped references captured into escaped delegate contexts unless
+  ordinary container rules prove the relationship safe.
+- Enforce fixed-size array capture restrictions for escaped callable contexts.
+- Apply generated-context lifetime rules to async frames.
+- Require values used after suspension to outlive the async frame.
+- Apply the same model to `async iter` frames and yielded values.
+- Add async/postponed context capture tests once async lowering exists.
+
+### Future Completion Examples
+
+```camp
+void register(escaped delegate bool(int value) predicate);
+
+void test(int threshold)
+{
+    register(value => value > threshold); // OK once escaped delegates exist
+}
+```
+
+```camp
+async void process(const char[] text)
+{
+    await something();
+    use(text); // ERROR unless text outlives async frame
+}
+```
 
 ## Suggested Rollout Order
 
@@ -1171,9 +1214,11 @@ The safest rollout is:
 4. Add call-site relation solving.
 5. Add constructor/local aggregate lifetime fixing.
 6. Add delegates/lambdas.
-7. Add iterators/async frames.
+7. Add iterator generated contexts.
 8. Add generics and stdlib hardening.
-9. Improve diagnostics and LSP display.
+9. Improve diagnostics and documentation.
+10. Later, add escaped delegates, async, and async iterators on top of the same
+   lifetime model.
 
 Each stage should land with tests and without weakening existing behavior. If a
 stage uncovers a pre-existing unrelated compiler bug, log it in
@@ -1191,7 +1236,8 @@ stage uncovers a pre-existing unrelated compiler bug, log it in
 - `List<int>` unaffected by lifetime checks;
 - `List<const char[]>` accepts values that outlive the list;
 - scoped delegate captures local by reference in valid scope;
-- escaped delegate captures copyable value into escaped context;
+- escaped delegate use reports a deferred-feature diagnostic until escaped
+  delegates are implemented;
 - `Array.resize` accepts escaped arrays and returns escaped arrays.
 
 ### Negative Tests
@@ -1202,7 +1248,8 @@ stage uncovers a pre-existing unrelated compiler bug, log it in
 - local fixed-array span yielded;
 - pointer-form delete of local address;
 - escaping lambda captures local by reference;
-- escaped delegate captures fixed-size array by value;
+- escaped delegate capture does not silently compile before escaped delegates
+  are implemented;
 - `in T` address returned;
 - stack span passed to API that retains relative to longer-lived receiver;
 - non-escaped `FileHandle` writer stored beyond handle lifetime.
@@ -1260,6 +1307,6 @@ These should be confirmed before coding enforcement stages:
 3. How much const-flow preservation should be implemented in v1.
 4. Whether lifetime diagnostics should have stable numeric codes.
 5. Whether an internal `dump lifetimes` view should be added for testing and
-   LSP development.
+   future tooling development.
 
 The core semantics above should remain unchanged regardless of these choices.
