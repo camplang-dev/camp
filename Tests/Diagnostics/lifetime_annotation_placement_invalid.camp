@@ -1,0 +1,11 @@
+scoped char[] globalText;
+
+class Holder<T: scoped any>
+{
+	scoped char[] fieldText;
+
+	void test()
+	{
+		scoped char[] localText = default;
+	}
+}

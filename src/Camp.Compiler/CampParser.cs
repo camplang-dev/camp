@@ -1551,10 +1551,21 @@ public sealed class CampParser
 			: null;
 
 		TypeSyntax? type = null;
-		if (castKeyword is null)
+		TypeDeclaratorSyntax? lifetimeDeclarator = null;
+		if (castKeyword is null && IsAny("escaped", "scoped", "unscoped"))
+		{
+			int lifetimeStart = index;
+			TypeDeclaratorSyntax? declarator = ParseTypeDeclarator();
+			if (declarator is not null && Is(")"))
+				lifetimeDeclarator = declarator;
+			else
+				index = lifetimeStart;
+		}
+
+		if (castKeyword is null && lifetimeDeclarator is null)
 			type = ParseType();
 
-		if ((castKeyword is null && type is null) || TakeIf(")") is not Token close || IsExpressionBoundary())
+		if ((castKeyword is null && type is null && lifetimeDeclarator is null) || TakeIf(")") is not Token close || IsExpressionBoundary())
 		{
 			index = start;
 			return null;
@@ -1571,6 +1582,7 @@ public sealed class CampParser
 		{
 			OpenParenToken = open,
 			Type = type,
+			LifetimeDeclarator = lifetimeDeclarator,
 			CastKeyword = castKeyword,
 			CloseParenToken = close,
 			Expression = expression

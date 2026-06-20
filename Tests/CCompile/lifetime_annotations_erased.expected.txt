@@ -6,6 +6,12 @@ static void use(char *text, uintptr_t text_length, char *owner, uintptr_t owner_
 
 static void use(char *text, uintptr_t text_length, char *owner, uintptr_t owner_length)
 {
+	char *scopedText = text;
+	uintptr_t scopedText_length = text_length;
+	char *anchoredText = text;
+	uintptr_t anchoredText_length = text_length;
+	char *escapedOwner = owner;
+	uintptr_t escapedOwner_length = owner_length;
 }
 
 int main(void)

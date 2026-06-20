@@ -964,6 +964,9 @@ public sealed partial class BindableNodeAnalyzer
 			case ParenthesizedExpression parenthesized:
 				return TryCreateParamsComponentExpressions(parenthesized.Expression, out components);
 
+			case CastExpression { LifetimeCastKind: not null } cast:
+				return TryCreateParamsComponentExpressions(cast.Expression, out components);
+
 			case ThisExpression
 				when currentRewriteFunction is not null
 					&& GetExplicitThisParameter(currentRewriteFunction) is ThisParameterDefinition thisParameter

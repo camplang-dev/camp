@@ -634,6 +634,7 @@ public class CastExpressionSyntax : PrimaryExpressionSyntax
 {
 	public Token? OpenParenToken { get; set; }
 	public TypeSyntax? Type { get; set; }
+	public TypeDeclaratorSyntax? LifetimeDeclarator { get; set; }
 	public Token? CastKeyword { get; set; }
 	public Token? CloseParenToken { get; set; }
 	public ExpressionSyntax? Expression { get; set; }

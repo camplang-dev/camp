@@ -676,6 +676,7 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetGenericParameterNameRange(parameter.SourceSyntax), $"Duplicate generic parameter name '{parameter.Name}'.");
 
 			AnalyzeOptionalType(parameter.Constraint, scope);
+			ValidateNoLifetimeAnnotation(parameter.Constraint, parameter.Constraint?.SourceSyntax ?? parameter.SourceSyntax, "generic constraints");
 			ValidateGenericParameterConstraint(parameter);
 		}
 	}
@@ -686,6 +687,7 @@ public sealed partial class BindableNodeAnalyzer
 		ApplySymbolAttribute(definition, allowSymbolAttribute, allowSymbolAttribute ? "variable" : "enum value");
 		CheckName(definition.Name, GetNameRange(definition), "variable");
 		AnalyzeOptionalType(definition.Type, scope);
+		ValidateNoLifetimeAnnotation(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "variable types");
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		if (definition.InitialValue is not null && !IsValidFixedStorageInitializer(definition.Type, definition.InitialValue))
@@ -733,6 +735,7 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(definition), "Exported or public fields must be explicitly marked static.");
 		CheckName(definition.Name, GetNameRange(definition), "field");
 		AnalyzeOptionalType(definition.Type, scope);
+		ValidateNoLifetimeAnnotation(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "field types");
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		if (containingType is NewtypeDefinition && definition.Modifier != FieldModifier.Static && IsDirectFixedArrayType(definition.Type))
 			Report(GetRange(definition.SourceSyntax), "Newtype instance fields may not use fixed-size array storage.");
@@ -1066,6 +1069,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalysisScope scope = new(parentScope);
 		foreach (GenericParameter parameter in definition.GenericParameters)
 			scope.GenericParameters[parameter.Name] = parameter;
+		RegisterFunctionLifetimeAnchors(definition, scope, containingType?.Name);
 		AnalyzeMethodBody(definition, scope, containingType);
 	}
 

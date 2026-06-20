@@ -1,0 +1,5 @@
+void test(char[] value)
+{
+	auto missingAnchor = (unscoped(missing))value;
+	auto missingCastAnchor = (unscoped)value;
+}

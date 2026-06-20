@@ -1,0 +1,2 @@
+tests/Diagnostics/lifetime_cast_invalid.camp(3,23): error: Lifetime anchor 'missing' could not be resolved.
+tests/Diagnostics/lifetime_cast_invalid.camp(4,27): error: unscoped lifetime casts require an explicit anchor.

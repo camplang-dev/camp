@@ -272,13 +272,17 @@ public sealed partial class BindableNodeBuilder
 
 	Expression BuildCastExpression(CastExpressionSyntax syntax, string context)
 	{
-		return new CastExpression
+		CastExpression expression = new()
 		{
 			SourceSyntax = syntax,
 			Type = syntax.Type is null ? null : BuildTypeReference(syntax.Type),
+			LifetimeCastKind = syntax.LifetimeDeclarator?.Keyword?.Value,
 			Kind = BuildCastKind(syntax),
 			Expression = BuildExpression(syntax.Expression, $"{context} cast operand")
 		};
+
+		AddAnchors(expression.LifetimeCastAnchors, syntax.LifetimeDeclarator?.AnchorList);
+		return expression;
 	}
 
 	Expression BuildConstructionExpression(ConstructionExpressionSyntax syntax, string context)

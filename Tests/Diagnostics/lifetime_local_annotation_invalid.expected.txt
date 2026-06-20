@@ -1,0 +1,1 @@
+tests/Diagnostics/lifetime_local_annotation_invalid.camp(3,9): error: Lifetime annotations are not valid on local variable types; use an explicit lifetime cast instead.

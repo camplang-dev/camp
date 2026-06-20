@@ -1,5 +1,8 @@
 void use(scoped(owner) char[] text, unscoped char[] owner)
 {
+	auto scopedText = (scoped)text;
+	auto anchoredText = (unscoped(owner))text;
+	auto escapedOwner = (escaped)owner;
 }
 
 export int main()

@@ -765,7 +765,10 @@ public sealed class BindableNodeCodeSerializer
 
 			case CastExpression cast:
 				writer.Write("(");
-				WriteType(cast.Type);
+				if (cast.LifetimeCastKind is not null)
+					WriteLifetimeCastDeclarator(cast);
+				else
+					WriteType(cast.Type);
 				writer.Write(")");
 				WriteExpression(cast.Expression, GetPrecedence(cast));
 				break;
@@ -1182,6 +1185,22 @@ public sealed class BindableNodeCodeSerializer
 			}
 			writer.Write(")");
 		}
+	}
+
+	void WriteLifetimeCastDeclarator(CastExpression cast)
+	{
+		writer.Write(cast.LifetimeCastKind);
+		if (cast.LifetimeCastAnchors.Count == 0)
+			return;
+
+		writer.Write("(");
+		for (int i = 0; i < cast.LifetimeCastAnchors.Count; i++)
+		{
+			if (i > 0)
+				writer.Write(", ");
+			writer.Write(cast.LifetimeCastAnchors[i]);
+		}
+		writer.Write(")");
 	}
 
 	void WriteType(TypeReference? type)

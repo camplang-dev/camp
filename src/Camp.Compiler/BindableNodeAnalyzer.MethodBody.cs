@@ -315,6 +315,7 @@ public sealed partial class BindableNodeAnalyzer
 	void BodyAnalyzeDeclarationStatement(DeclarationStatement declaration, BodyScope scope, AnalysisScope typeScope)
 	{
 		AnalyzeOptionalType(declaration.Target.Type, typeScope);
+		ValidateNoLifetimeAnnotation(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable types");
 		TryRewriteOmittedOutDeconstruction(declaration, scope, typeScope);
 		string targetType = declaration.Target.Type is AutoTypeReference or null
 			? TargetType
@@ -1141,9 +1142,21 @@ public sealed partial class BindableNodeAnalyzer
 		string sourceType = BodyAnalyzeExpression(cast.Expression, scope, typeScope);
 		if (cast.Type is not null)
 			AnalyzeType(cast.Type, typeScope);
+		if (cast.LifetimeCastKind is not null)
+		{
+			if (cast.LifetimeCastKind == "unscoped" && cast.LifetimeCastAnchors.Count == 0)
+				Report(GetRange(cast.SourceSyntax), "unscoped lifetime casts require an explicit anchor.");
+			BindCastLifetime(cast, cast.LifetimeCastKind, cast.LifetimeCastAnchors, typeScope, scope);
+		}
+		else if (TryGetLifetimeAnnotation(cast.Type, out string lifetimeKind, out IReadOnlyList<string> lifetimeAnchors, out string? lifetimeBinding))
+		{
+			if (lifetimeKind == "unscoped" && lifetimeAnchors.Count == 0)
+				Report(GetRange(cast.SourceSyntax), "unscoped lifetime casts require an explicit anchor.");
+			cast.LifetimeBinding = lifetimeBinding;
+		}
 
 		string targetType = cast.Type?.ResolvedType ?? ErrorType;
-		if (cast.Type is null && cast.Kind != CastKind.Type)
+		if ((cast.Type is null && cast.Kind != CastKind.Type) || cast.LifetimeCastKind is not null)
 			targetType = sourceType;
 		else if (!CanExplicitlyConvert(sourceType, targetType))
 		{

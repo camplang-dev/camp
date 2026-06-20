@@ -635,10 +635,10 @@ yet enforcing all assignment/call flows.
 - ~~Invalid anchors produce clear diagnostics.~~
 - ~~Lifetime annotations still erase from emitted C.~~
 - ~~Existing tests continue to pass.~~
-- Explicit lifetime casts bind to expression lifetime facts.
-- Lifetime annotations outside signatures/casts/escaped type declarations are
-  rejected with clear diagnostics.
-- `(unscoped)` casts without an explicit anchor are rejected.
+- ~~Explicit lifetime casts bind to expression lifetime facts.~~
+- ~~Lifetime annotations outside signatures/casts/escaped type declarations are
+  rejected with clear diagnostics.~~
+- ~~`(unscoped)` casts without an explicit anchor are rejected.~~
 
 Examples:
 

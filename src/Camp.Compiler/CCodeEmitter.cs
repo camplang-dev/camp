@@ -2085,6 +2085,7 @@ public static class CCodeEmitter
 				ThisExpression => FormatThisExpression(),
 				DefaultExpression defaultExpression => FormatDefaultExpression(defaultExpression),
 				ParenthesizedExpression parenthesized => "(" + FormatExpression(parenthesized.Expression) + ")",
+				CastExpression { LifetimeCastKind: not null } cast => FormatExpression(cast.Expression),
 				CastExpression cast => "(" + FormatType(cast.Type, "").Declaration.Trim() + ")(" + FormatExpression(cast.Expression) + ")",
 				SizeOfExpression sizeOf => FormatSizeOfExpression(sizeOf),
 				CallExpression call => FormatCallExpression(call),

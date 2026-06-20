@@ -95,6 +95,9 @@ public class ParenthesizedExpression : Expression
 public class CastExpression : Expression
 {
 	public TypeReference? Type { get; set; }
+	public string? LifetimeCastKind { get; set; }
+	public List<string> LifetimeCastAnchors { get; } = [];
+	public string? LifetimeBinding { get; set; }
 	public CastKind Kind { get; set; }
 	public Expression? Expression { get; set; }
 }

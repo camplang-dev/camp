@@ -208,6 +208,133 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	static bool ContainsLifetimeAnnotation(TypeReference? type)
+	{
+		return type switch
+		{
+			null => false,
+			EscapedTypeReference or ScopedTypeReference or UnscopedTypeReference => true,
+			AttributedTypeReference attributed => ContainsLifetimeAnnotation(attributed.Type),
+			GenericTypeReference generic => ContainsLifetimeAnnotation(generic.Type) || generic.TypeArguments.Any(ContainsLifetimeAnnotation),
+			ArrayTypeReference array => ContainsLifetimeAnnotation(array.ElementType),
+			FixedArrayTypeReference fixedArray => ContainsLifetimeAnnotation(fixedArray.ElementType),
+			OptionalTypeReference optional => ContainsLifetimeAnnotation(optional.ElementType),
+			PointerTypeReference pointer => ContainsLifetimeAnnotation(pointer.ElementType),
+			ConstTypeReference constType => ContainsLifetimeAnnotation(constType.Type),
+			VolatileTypeReference volatileType => ContainsLifetimeAnnotation(volatileType.Type),
+			CallableTypeReference callable => ContainsLifetimeAnnotation(callable.ReturnType) || callable.Parameters.Any(static parameter => ContainsLifetimeAnnotation(parameter.Type)),
+			TargetTypeSpecTypeReference targetSpec => ContainsLifetimeAnnotation(targetSpec.Type),
+			IterTypeReference iter => ContainsLifetimeAnnotation(iter.ElementType) || iter.Parameters.Any(static parameter => ContainsLifetimeAnnotation(parameter.Type)),
+			GroupedParamsTypeReference grouped => ContainsLifetimeAnnotation(grouped.StructType),
+			MaterializedStructTypeReference materialized => ContainsLifetimeAnnotation(materialized.ParamsType),
+			ThrownTypeReference thrown => ContainsLifetimeAnnotation(thrown.Type),
+			TypeDefinitionReference definition => definition.TypeArguments.Any(ContainsLifetimeAnnotation),
+			NamedTypeReference named => named.TypeArguments.Any(ContainsLifetimeAnnotation),
+			_ => false
+		};
+	}
+
+	bool TryGetLifetimeAnnotation(TypeReference? type, out string kind, out IReadOnlyList<string> anchors, out string? binding)
+	{
+		switch (type)
+		{
+			case EscapedTypeReference escaped:
+				kind = "escaped";
+				anchors = [];
+				binding = escaped.LifetimeBinding;
+				return true;
+
+			case ScopedTypeReference scoped:
+				kind = "scoped";
+				anchors = scoped.Anchors;
+				binding = scoped.LifetimeBinding;
+				return true;
+
+			case UnscopedTypeReference unscoped:
+				kind = "unscoped";
+				anchors = unscoped.Anchors;
+				binding = unscoped.LifetimeBinding;
+				return true;
+
+			case AttributedTypeReference attributed:
+				return TryGetLifetimeAnnotation(attributed.Type, out kind, out anchors, out binding);
+
+			case GenericTypeReference generic:
+				return TryGetLifetimeAnnotation(generic.Type, out kind, out anchors, out binding)
+					|| TryGetLifetimeAnnotation(generic.TypeArguments, out kind, out anchors, out binding);
+
+			case ArrayTypeReference array:
+				return TryGetLifetimeAnnotation(array.ElementType, out kind, out anchors, out binding);
+
+			case FixedArrayTypeReference fixedArray:
+				return TryGetLifetimeAnnotation(fixedArray.ElementType, out kind, out anchors, out binding);
+
+			case OptionalTypeReference optional:
+				return TryGetLifetimeAnnotation(optional.ElementType, out kind, out anchors, out binding);
+
+			case PointerTypeReference pointer:
+				return TryGetLifetimeAnnotation(pointer.ElementType, out kind, out anchors, out binding);
+
+			case ConstTypeReference constType:
+				return TryGetLifetimeAnnotation(constType.Type, out kind, out anchors, out binding);
+
+			case VolatileTypeReference volatileType:
+				return TryGetLifetimeAnnotation(volatileType.Type, out kind, out anchors, out binding);
+
+			case CallableTypeReference callable:
+				return TryGetLifetimeAnnotation(callable.ReturnType, out kind, out anchors, out binding)
+					|| TryGetLifetimeAnnotation(callable.Parameters.Select(static parameter => parameter.Type), out kind, out anchors, out binding);
+
+			case TargetTypeSpecTypeReference targetSpec:
+				return TryGetLifetimeAnnotation(targetSpec.Type, out kind, out anchors, out binding);
+
+			case IterTypeReference iter:
+				return TryGetLifetimeAnnotation(iter.ElementType, out kind, out anchors, out binding)
+					|| TryGetLifetimeAnnotation(iter.Parameters.Select(static parameter => parameter.Type), out kind, out anchors, out binding);
+
+			case GroupedParamsTypeReference grouped:
+				return TryGetLifetimeAnnotation(grouped.StructType, out kind, out anchors, out binding);
+
+			case MaterializedStructTypeReference materialized:
+				return TryGetLifetimeAnnotation(materialized.ParamsType, out kind, out anchors, out binding);
+
+			case ThrownTypeReference thrown:
+				return TryGetLifetimeAnnotation(thrown.Type, out kind, out anchors, out binding);
+
+			case TypeDefinitionReference definition:
+				return TryGetLifetimeAnnotation(definition.TypeArguments, out kind, out anchors, out binding);
+
+			case NamedTypeReference named:
+				return TryGetLifetimeAnnotation(named.TypeArguments, out kind, out anchors, out binding);
+
+			default:
+				kind = "";
+				anchors = [];
+				binding = null;
+				return false;
+		}
+	}
+
+	bool TryGetLifetimeAnnotation(IEnumerable<TypeReference?> types, out string kind, out IReadOnlyList<string> anchors, out string? binding)
+	{
+		foreach (TypeReference? type in types)
+			if (TryGetLifetimeAnnotation(type, out kind, out anchors, out binding))
+				return true;
+
+		kind = "";
+		anchors = [];
+		binding = null;
+		return false;
+	}
+
+	void ValidateNoLifetimeAnnotation(TypeReference? type, SyntaxNode? syntax, string context)
+	{
+		if (!ContainsLifetimeAnnotation(type))
+			return;
+
+		Report(GetRange(syntax ?? type?.SourceSyntax), $"Lifetime annotations are not valid on {context}; use an explicit lifetime cast instead.");
+	}
+
 	void BindLifetime(TypeReference type, string kind, IReadOnlyList<string> anchors, string source, AnalysisScope scope)
 	{
 		foreach (string anchor in anchors)
@@ -217,6 +344,17 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		type.LifetimeBinding = new BoundLifetime(kind, anchors, source).ToString();
+	}
+
+	void BindCastLifetime(CastExpression cast, string kind, IReadOnlyList<string> anchors, AnalysisScope scope, BodyScope? bodyScope = null)
+	{
+		foreach (string anchor in anchors)
+		{
+			if (!scope.ContainsLifetimeAnchor(anchor) && (bodyScope is null || !bodyScope.TryLookup(anchor, out _)))
+				Report(GetRange(cast.SourceSyntax), $"Lifetime anchor '{anchor}' could not be resolved.");
+		}
+
+		cast.LifetimeBinding = new BoundLifetime(kind, anchors, "explicit cast").ToString();
 	}
 
 	void BindParameterLifetime(ParameterDefinition parameter, string kind, IReadOnlyList<string> anchors, string source)
