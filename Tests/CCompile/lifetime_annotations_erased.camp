@@ -1,0 +1,9 @@
+void use(scoped(owner) char[] text, unscoped char[] owner)
+{
+}
+
+export int main()
+{
+	char[] value = default;
+	return 0;
+}

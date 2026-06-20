@@ -33,6 +33,17 @@ public sealed partial class BindableNodeAnalyzer
 	const string UsingType = "#USING";
 	const string VTableType = "#VTABLE";
 
+	sealed record BoundLifetime(string Kind, IReadOnlyList<string> Anchors, string Source)
+	{
+		public override string ToString()
+		{
+			string anchorText = Anchors.Count == 0 ? "" : $"({string.Join(", ", Anchors)})";
+			return string.IsNullOrWhiteSpace(Source)
+				? Kind + anchorText
+				: $"{Kind}{anchorText}:{Source}";
+		}
+	}
+
 	static readonly HashSet<string> ReservedWords = new(StringComparer.Ordinal)
 	{
 		"_", "abstract", "alias", "any", "as", "astring", "async", "auto", "bool", "break", "byte", "case", "catch",
@@ -800,6 +811,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		public Dictionary<string, GenericParameter> GenericParameters { get; } = new(StringComparer.Ordinal);
+		public Dictionary<string, BindableNode> LifetimeAnchors { get; } = new(StringComparer.Ordinal);
 
 		public bool ContainsGenericTypeName(string name)
 		{
@@ -816,6 +828,17 @@ public sealed partial class BindableNodeAnalyzer
 
 			parameter = null;
 			return false;
+		}
+
+		public void AddLifetimeAnchor(string name, BindableNode anchor)
+		{
+			if (!string.IsNullOrWhiteSpace(name))
+				LifetimeAnchors[name] = anchor;
+		}
+
+		public bool ContainsLifetimeAnchor(string name)
+		{
+			return LifetimeAnchors.ContainsKey(name) || (parent?.ContainsLifetimeAnchor(name) ?? false);
 		}
 	}
 }

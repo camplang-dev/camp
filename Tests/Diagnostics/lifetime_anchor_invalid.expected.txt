@@ -1,0 +1,1 @@
+tests/Diagnostics/lifetime_anchor_invalid.camp(1,26): error: Lifetime anchor 'missing' could not be resolved.

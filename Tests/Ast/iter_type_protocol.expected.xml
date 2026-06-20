@@ -3,11 +3,11 @@
   <Definitions>
     <EnumDefinition Name="RangeError" Symbol="RangeError">
       <Values>
-        <VariableDefinition Name="OK" Symbol="OK">
+        <VariableDefinition Name="OK" Symbol="RangeError_OK">
           <Type Type="NamedTypeReference" Name="RangeError" />
           <InitialValue Type="LiteralExpression" Kind="Number" Text="0" Value="0" />
         </VariableDefinition>
-        <VariableDefinition Name="BAD" Symbol="BAD">
+        <VariableDefinition Name="BAD" Symbol="RangeError_BAD">
           <Type Type="NamedTypeReference" Name="RangeError" />
         </VariableDefinition>
       </Values>

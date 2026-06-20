@@ -1,0 +1,3 @@
+void bad(scoped(missing) char[] text)
+{
+}

@@ -76,6 +76,7 @@ public class StructDefinition : TypeDefinition
 
 public class InterfaceDefinition : TypeDefinition
 {
+	public bool IsEscaped { get; set; }
 	public List<TypeReference> BaseTypes { get; } = [];
 	public List<FunctionDefinition> Functions { get; } = [];
 }
@@ -130,6 +131,7 @@ public class FunctionDefinition : Definition
 	public TypeReference? CallableAscriptionType { get; set; }
 	public NewtypeDefinition? CallableAscriptionNewtype { get; set; }
 	public ThisParameterDefinition? EffectiveThisParameter { get; set; }
+	public string? ReceiverLifetimeBinding { get; set; }
 	public TypeReference? AbiThisType { get; set; }
 	public TypeReference? ImplementationThisType { get; set; }
 	public List<GenericParameter> GenericParameters { get; } = [];
@@ -141,6 +143,7 @@ public class ParameterDefinition : Definition
 {
 	public ParameterModifier Modifier { get; set; }
 	public bool IsOverloadSelector { get; set; }
+	public string? LifetimeBinding { get; set; }
 	public TypeReference? Type { get; set; }
 	public Expression? DefaultValue { get; set; }
 }
@@ -179,6 +182,7 @@ public class AttributeConstructor : BindableNode
 
 public abstract class TypeReference : BindableNode
 {
+	public string? LifetimeBinding { get; set; }
 }
 
 public class NamedTypeReference : TypeReference

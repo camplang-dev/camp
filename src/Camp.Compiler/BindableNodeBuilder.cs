@@ -318,7 +318,7 @@ public sealed partial class BindableNodeBuilder
 		};
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
-		ApplyNonStructTypeDeclarators(definition, syntax.Declarators, "interface");
+		ApplyInterfaceDeclarators(definition, syntax.Declarators);
 
 		if (syntax.Type is not null)
 			Report(syntax.Type, "Interface declarations may not have a leading type.");
@@ -1005,6 +1005,45 @@ public sealed partial class BindableNodeBuilder
 
 				default:
 					Report(declarator, "Unknown class declarator.");
+					break;
+			}
+		}
+	}
+
+	void ApplyInterfaceDeclarators(InterfaceDefinition definition, List<TypeDeclarationDeclaratorSyntax>? declarators)
+	{
+		foreach (TypeDeclarationDeclaratorSyntax declarator in declarators ?? [])
+		{
+			switch (declarator.Keyword?.Value)
+			{
+				case "export":
+					SetVisibility(definition, declarator, "export");
+					break;
+
+				case "public":
+					SetVisibility(definition, declarator, "public");
+					break;
+
+				case "extern":
+					definition.Extern = SetNullableArgument(definition.Extern, "", declarator, "extern");
+					break;
+
+				case "escaped":
+					if (definition.IsEscaped)
+						Report(declarator, "Duplicate 'escaped' declarator.");
+
+					definition.IsEscaped = true;
+					break;
+
+				case "virtual":
+				case "abstract":
+				case "sealed":
+				case "fixed":
+					Report(declarator, $"'{declarator.Keyword.Value.Value}' is not a valid interface declarator.");
+					break;
+
+				default:
+					Report(declarator, "Unknown interface declarator.");
 					break;
 			}
 		}

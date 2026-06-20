@@ -563,10 +563,10 @@ yet enforcing all assignment/call flows.
 
 ### Completion Criteria
 
-- The compiler can report bound lifetime facts in an internal debug/test view.
-- Invalid anchors produce clear diagnostics.
-- Lifetime annotations still erase from emitted C.
-- Existing tests continue to pass.
+- ~~The compiler can report bound lifetime facts in an internal debug/test view.~~
+- ~~Invalid anchors produce clear diagnostics.~~
+- ~~Lifetime annotations still erase from emitted C.~~
+- ~~Existing tests continue to pass.~~
 
 Examples:
 

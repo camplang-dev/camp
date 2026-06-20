@@ -385,6 +385,7 @@ public sealed partial class BindableNodeAnalyzer
 		ApplySymbolAttribute(definition, allowed: false, "type");
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
+		RegisterParameterLifetimeAnchors(definition.Parameters, scope);
 		AnalyzeOptionalType(definition.UnderlyingType, scope);
 
 		foreach (ParameterDefinition parameter in definition.Parameters)
@@ -611,6 +612,48 @@ public sealed partial class BindableNodeAnalyzer
 			&& definition.Parameters[0] is ThisParameterDefinition { Name: "this" };
 	}
 
+	void RegisterFunctionLifetimeAnchors(FunctionDefinition definition, AnalysisScope scope, string? containingType)
+	{
+		if (containingType is not null || GetExplicitThisParameter(definition) is not null)
+			scope.AddLifetimeAnchor("this", definition);
+		RegisterParameterLifetimeAnchors(definition.Parameters, scope);
+	}
+
+	static void RegisterParameterLifetimeAnchors(List<ParameterDefinition> parameters, AnalysisScope scope)
+	{
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (!string.IsNullOrWhiteSpace(parameter.Name))
+				scope.AddLifetimeAnchor(parameter.Name, parameter);
+		}
+	}
+
+	void BindFunctionReceiverLifetime(FunctionDefinition definition, string? containingType)
+	{
+		ThisParameterDefinition? thisParameter = GetExplicitThisParameter(definition) ?? definition.EffectiveThisParameter;
+		if (containingType is null && thisParameter is null)
+			return;
+
+		ThisContract contract = GetThisContract(thisParameter);
+		string kind = string.IsNullOrWhiteSpace(contract.Lifetime)
+			? IsEscapedReceiverDefault(containingType) ? "escaped" : "scoped"
+			: contract.Lifetime;
+		string source = string.IsNullOrWhiteSpace(contract.Lifetime)
+			? kind == "escaped" ? "default escaped receiver" : "default receiver"
+			: "explicit receiver";
+		definition.ReceiverLifetimeBinding = new BoundLifetime(kind, [], source).ToString();
+
+		if (thisParameter is not null && thisParameter.LifetimeBinding is null)
+			BindDefaultReceiverLifetime(thisParameter, kind, source);
+	}
+
+	bool IsEscapedReceiverDefault(string? containingType)
+	{
+		if (containingType is null || !typeDefinitions.TryGetValue(containingType, out TypeDefinition? definition))
+			return false;
+		return definition is ClassDefinition { IsEscaped: true } or InterfaceDefinition { IsEscaped: true };
+	}
+
 	AnalysisScope CreateTypeScope(TypeDefinition definition, AnalysisScope parentScope)
 	{
 		AnalysisScope scope = new(parentScope);
@@ -731,6 +774,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalysisScope scope = new(parentScope);
 		foreach (GenericParameter parameter in definition.GenericParameters)
 			scope.GenericParameters[parameter.Name] = parameter;
+		RegisterFunctionLifetimeAnchors(definition, scope, containingType);
 
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
 
@@ -752,6 +796,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateIteratorGeneratorParameters(definition);
 		ValidateIndexAwareParameters(definition);
 		ValidateCallableAscription(definition, containingType);
+		BindFunctionReceiverLifetime(definition, containingType);
 
 		ValidateExpandedParameterNames(definition.Parameters);
 
@@ -1041,6 +1086,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (definition is not SizeOfParameterDefinition)
 			AnalyzeOptionalType(definition.Type, scope);
+		if (definition.Type?.LifetimeBinding is string explicitLifetime)
+			definition.LifetimeBinding = explicitLifetime;
 		ValidateNoDirectFixedArrayType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
 
 		if (definition is WithinParameterDefinition && definition.Type is null)
@@ -1050,6 +1097,12 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			AnalyzeOptionalType(vtableOf.InterfaceType, scope);
 			FinalizeVTableOfParameter(vtableOf, scope);
+		}
+		if (definition is ThisParameterDefinition thisParameter)
+		{
+			ThisContract contract = GetThisContract(thisParameter);
+			if (!string.IsNullOrWhiteSpace(contract.Lifetime))
+				BindParameterLifetime(thisParameter, contract.Lifetime, [], "explicit receiver");
 		}
 
 		if (definition.Modifier == ParameterModifier.Thrown && string.IsNullOrWhiteSpace(definition.Name))
@@ -1063,6 +1116,13 @@ public sealed partial class BindableNodeAnalyzer
 			: definition is VTableOfParameterDefinition vtableOfParameter
 				? VTableOfParameterType(vtableOfParameter)
 			: definition.Type?.ResolvedType ?? GetImplicitParameterType(definition);
+		if (definition.LifetimeBinding is null && definition is not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+		{
+			if (definition is WithinParameterDefinition)
+				BindParameterLifetime(definition, "unscoped", [], "default within");
+			else
+				BindDefaultParameterLifetime(definition, "default parameter");
+		}
 		ValidateGenericArgumentUse(definition.Type);
 		ValidateParameterPassing(definition, scope);
 		AnalyzeConstantExpression(definition.DefaultValue, scope, "Parameter default value", definition.ResolvedType);

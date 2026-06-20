@@ -9,7 +9,7 @@ static int main(void);
 static int mightThrow(Err *error)
 {
 	{
-		(*error) = BAD;
+		(*error) = Err_BAD;
 		return 0;
 	}
 }
@@ -31,7 +31,7 @@ static int main(void)
 {
 	Err error = 0;
 	int value = propagate(&error);
-	return ((error == BAD) ? value : 1);
+	return ((error == Err_BAD) ? value : 1);
 }
 
 // file: thrown_parameter_forwarding_private.h
@@ -47,8 +47,8 @@ static int main(void)
 /* Enums. */
 typedef enum Err
 {
-	OK = 0,
-	BAD
+	Err_OK = 0,
+	Err_BAD
 } Err;
 
 /* Newtypes. */

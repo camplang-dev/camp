@@ -4547,16 +4547,33 @@ public static class CCodeEmitter
 
 		static string RemoveTypeDecorators(string value)
 		{
+			value = RemoveLifetimeDecorator(value, "escaped");
+			value = RemoveLifetimeDecorator(value, "scoped");
+			value = RemoveLifetimeDecorator(value, "unscoped");
 			return value
 				.Replace("const ", "", StringComparison.Ordinal)
 				.Replace("volatile ", "", StringComparison.Ordinal)
-				.Replace("escaped ", "", StringComparison.Ordinal)
-				.Replace("scoped ", "", StringComparison.Ordinal)
-				.Replace("unscoped ", "", StringComparison.Ordinal)
 				.Replace("in ", "", StringComparison.Ordinal)
 				.Replace("*", "Ptr", StringComparison.Ordinal)
 				.Replace("[]", "Array", StringComparison.Ordinal)
 				.Replace("?", "Optional", StringComparison.Ordinal);
+		}
+
+		static string RemoveLifetimeDecorator(string value, string keyword)
+		{
+			if (value.StartsWith(keyword + " ", StringComparison.Ordinal))
+				return value[(keyword.Length + 1)..];
+			if (!value.StartsWith(keyword + "(", StringComparison.Ordinal))
+				return value;
+
+			int close = value.IndexOf(')', keyword.Length + 1);
+			if (close < 0)
+				return value;
+
+			int start = close + 1;
+			if (start < value.Length && value[start] == ' ')
+				start++;
+			return value[start..];
 		}
 
 		string CName(FunctionDefinition function)

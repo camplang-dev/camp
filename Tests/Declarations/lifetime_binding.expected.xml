@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module ResolvedType="#MODULE">
+  <Definitions>
+    <ClassDefinition IsEscaped="True" Name="EscapedBox" Symbol="EscapedBox" ResolvedType="EscapedBox">
+      <Functions>
+        <FunctionDefinition InvokerName="touch" ReceiverLifetimeBinding="escaped:default escaped receiver" Name="touch" Symbol="touch" ResolvedType="void">
+          <ReturnType Type="Void" ResolvedType="void" />
+          <Body Type="BlockStatement" ResolvedType="#UNRESOLVED" />
+        </FunctionDefinition>
+      </Functions>
+    </ClassDefinition>
+    <InterfaceDefinition IsEscaped="True" Name="Service" Symbol="Service" ResolvedType="Service">
+      <Functions>
+        <FunctionDefinition InvokerName="run" ReceiverLifetimeBinding="escaped:default escaped receiver" Name="run" Symbol="run" ResolvedType="void">
+          <ReturnType Type="Void" ResolvedType="void" />
+        </FunctionDefinition>
+      </Functions>
+    </InterfaceDefinition>
+    <ClassDefinition Name="Allocator" Symbol="Allocator" ResolvedType="Allocator" />
+    <NewtypeDefinition Name="EscapedCallback" Symbol="EscapedCallback" ResolvedType="EscapedCallback">
+      <UnderlyingType Type="CallableTypeReference" Kind="Delegate" ResolvedType="delegate void()">
+        <ReturnType Type="Void" ResolvedType="void" />
+      </UnderlyingType>
+      <Parameters>
+        <ThisParameterDefinition LifetimeBinding="escaped:explicit receiver" Name="this" Symbol="this" ResolvedType="#THIS" />
+      </Parameters>
+    </NewtypeDefinition>
+    <FunctionDefinition InvokerName="borrow" Name="borrow" Symbol="borrow" ResolvedType="void">
+      <ReturnType Type="Void" ResolvedType="void" />
+      <Parameters>
+        <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="text" Symbol="text" ResolvedType="scoped(owner) char[]">
+          <Type Type="ArrayTypeReference" ResolvedType="scoped(owner) char[]">
+            <ElementType Type="ScopedTypeReference" LifetimeBinding="scoped(owner):explicit anchors" ResolvedType="scoped(owner) char">
+              <Anchors>
+                <Value>owner</Value>
+              </Anchors>
+              <Type Type="Char" ResolvedType="char" />
+            </ElementType>
+          </Type>
+        </ParameterDefinition>
+        <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="owner" Symbol="owner" ResolvedType="unscoped char[]">
+          <Type Type="ArrayTypeReference" ResolvedType="unscoped char[]">
+            <ElementType Type="UnscopedTypeReference" LifetimeBinding="unscoped:explicit" ResolvedType="unscoped char">
+              <Type Type="Char" ResolvedType="char" />
+            </ElementType>
+          </Type>
+        </ParameterDefinition>
+      </Parameters>
+      <Body Type="BlockStatement" ResolvedType="#UNRESOLVED" />
+    </FunctionDefinition>
+    <FunctionDefinition InvokerName="useAllocator" Name="useAllocator" Symbol="useAllocator" ResolvedType="void">
+      <ReturnType Type="Void" ResolvedType="void" />
+      <Parameters>
+        <WithinParameterDefinition Modifier="Within" LifetimeBinding="unscoped:default within" Name="allocator" Symbol="allocator" ResolvedType="Allocator*">
+          <Type Type="PointerTypeReference" ResolvedType="Allocator*">
+            <ElementType Type="TypeDefinitionReference" Name="Allocator" Definition="Allocator" ResolvedType="Allocator" />
+          </Type>
+        </WithinParameterDefinition>
+      </Parameters>
+      <Body Type="BlockStatement" ResolvedType="#UNRESOLVED" />
+    </FunctionDefinition>
+    <ClassDefinition Name="Holder" Symbol="Holder" ResolvedType="Holder">
+      <Functions>
+        <FunctionDefinition InvokerName="set" ReceiverLifetimeBinding="scoped:default receiver" Name="set" Symbol="set" ResolvedType="void">
+          <ReturnType Type="Void" ResolvedType="void" />
+          <Parameters>
+            <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="value" Symbol="value" ResolvedType="unscoped const char[]">
+              <Type Type="ArrayTypeReference" ResolvedType="unscoped const char[]">
+                <ElementType Type="UnscopedTypeReference" LifetimeBinding="unscoped:explicit" ResolvedType="unscoped const char">
+                  <Type Type="ConstTypeReference" ResolvedType="const char">
+                    <Type Type="Char" ResolvedType="char" />
+                  </Type>
+                </ElementType>
+              </Type>
+            </ParameterDefinition>
+          </Parameters>
+          <Body Type="BlockStatement" ResolvedType="#UNRESOLVED" />
+        </FunctionDefinition>
+      </Functions>
+    </ClassDefinition>
+    <ClassDefinition Name="Formatter" Symbol="Formatter" ResolvedType="Formatter">
+      <Functions>
+        <FunctionDefinition InvokerName="format" ReceiverLifetimeBinding="escaped:explicit receiver" Name="format" Symbol="format" ResolvedType="void">
+          <ReturnType Type="Void" ResolvedType="void" />
+          <CallableAscriptionType Type="TypeDefinitionReference" Name="EscapedCallback" Definition="EscapedCallback" ResolvedType="EscapedCallback" />
+          <CallableAscriptionNewtype Type="NewtypeDefinition" Name="EscapedCallback" Symbol="EscapedCallback" ResolvedType="EscapedCallback">
+            <UnderlyingType Type="CallableTypeReference" Kind="Delegate" ResolvedType="delegate void()">
+              <ReturnType Type="Void" ResolvedType="void" />
+            </UnderlyingType>
+            <Parameters>
+              <ThisParameterDefinition LifetimeBinding="escaped:explicit receiver" Name="this" Symbol="this" ResolvedType="#THIS" />
+            </Parameters>
+          </CallableAscriptionNewtype>
+          <EffectiveThisParameter Type="ThisParameterDefinition" LifetimeBinding="escaped:explicit receiver" Name="this" Symbol="this" ResolvedType="Formatter* escaped" />
+          <Body Type="BlockStatement" ResolvedType="#UNRESOLVED" />
+        </FunctionDefinition>
+      </Functions>
+    </ClassDefinition>
+  </Definitions>
+</Module>

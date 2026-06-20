@@ -63,6 +63,7 @@ public sealed class GoldenFileTests
 		return folder switch
 		{
 			"Ast" => GoldenFileTestKind.Ast,
+			"Declarations" => GoldenFileTestKind.Declarations,
 			"Lowering" => GoldenFileTestKind.Lowering,
 			"Diagnostics" => GoldenFileTestKind.Diagnostics,
 			"CEmit" => GoldenFileTestKind.CEmit,

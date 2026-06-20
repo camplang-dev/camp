@@ -128,8 +128,8 @@ typedef struct rangeIter rangeIter;
 /* Enums. */
 typedef enum Err
 {
-	OK = 0,
-	FAILED
+	Err_OK = 0,
+	Err_FAILED
 } Err;
 
 /* Newtypes. */

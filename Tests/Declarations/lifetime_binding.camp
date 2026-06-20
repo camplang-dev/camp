@@ -1,0 +1,39 @@
+escaped class EscapedBox
+{
+	void touch()
+	{
+	}
+}
+
+escaped interface Service
+{
+	void run();
+}
+
+class Allocator
+{
+}
+
+newtype delegate void EscapedCallback(escaped this);
+
+void borrow(scoped(owner) char[] text, unscoped char[] owner)
+{
+}
+
+void useAllocator(within allocator)
+{
+}
+
+class Holder
+{
+	void set(unscoped const char[] value)
+	{
+	}
+}
+
+class Formatter
+{
+	void format() : EscapedCallback
+	{
+	}
+}

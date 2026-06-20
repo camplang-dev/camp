@@ -6,6 +6,7 @@ namespace Camp.Compiler.Tests;
 public enum GoldenFileTestKind
 {
 	Ast,
+	Declarations,
 	Lowering,
 	Diagnostics,
 	CEmit,
@@ -33,6 +34,7 @@ public sealed class GoldenFileTestCase
 	string ExpectedExtension => Kind switch
 	{
 		GoldenFileTestKind.Ast => ".expected.xml",
+		GoldenFileTestKind.Declarations => ".expected.xml",
 		GoldenFileTestKind.Lowering => ".expected.camp",
 		GoldenFileTestKind.Diagnostics => ".expected.txt",
 		GoldenFileTestKind.CEmit => ".expected.c",
@@ -47,6 +49,7 @@ public sealed class GoldenFileTestCase
 	string ActualExtension => Kind switch
 	{
 		GoldenFileTestKind.Ast => ".actual.xml",
+		GoldenFileTestKind.Declarations => ".actual.xml",
 		GoldenFileTestKind.Lowering => ".actual.camp",
 		GoldenFileTestKind.Diagnostics => ".actual.txt",
 		GoldenFileTestKind.CEmit => ".actual.c",

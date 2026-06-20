@@ -72,6 +72,7 @@ public static class GoldenFileTestRunner
 			Inspect = testCase.Kind switch
 			{
 				GoldenFileTestKind.Ast => CompilerInspectMode.Ast,
+				GoldenFileTestKind.Declarations => CompilerInspectMode.Declarations,
 				GoldenFileTestKind.Lowering => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.Diagnostics => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.Std => CompilerInspectMode.Lowering,
@@ -82,6 +83,7 @@ public static class GoldenFileTestRunner
 				GoldenFileTestKind.CCompile => null,
 				_ => throw new ArgumentOutOfRangeException()
 			},
+			Xml = testCase.Kind == GoldenFileTestKind.Declarations,
 			InspectApi = testCase.Kind == GoldenFileTestKind.Api,
 			EmitMetadata = testCase.Kind == GoldenFileTestKind.Metadata ? MetadataVisibility.Export : null
 		};

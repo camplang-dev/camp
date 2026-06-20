@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -142,16 +143,19 @@ public sealed partial class BindableNodeAnalyzer
 
 			case EscapedTypeReference escaped:
 				AnalyzeOptionalType(escaped.Type, scope);
+				BindLifetime(escaped, "escaped", [], "explicit", scope);
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case ScopedTypeReference scoped:
 				AnalyzeOptionalType(scoped.Type, scope);
+				BindLifetime(scoped, "scoped", scoped.Anchors, scoped.Anchors.Count == 0 ? "explicit" : "explicit anchors", scope);
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case UnscopedTypeReference unscoped:
 				AnalyzeOptionalType(unscoped.Type, scope);
+				BindLifetime(unscoped, "unscoped", unscoped.Anchors, unscoped.Anchors.Count == 0 ? "explicit" : "explicit anchors", scope);
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
@@ -202,6 +206,34 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = ErrorType;
 				break;
 		}
+	}
+
+	void BindLifetime(TypeReference type, string kind, IReadOnlyList<string> anchors, string source, AnalysisScope scope)
+	{
+		foreach (string anchor in anchors)
+		{
+			if (!scope.ContainsLifetimeAnchor(anchor))
+				Report(GetRange(type.SourceSyntax), $"Lifetime anchor '{anchor}' could not be resolved.");
+		}
+
+		type.LifetimeBinding = new BoundLifetime(kind, anchors, source).ToString();
+	}
+
+	void BindParameterLifetime(ParameterDefinition parameter, string kind, IReadOnlyList<string> anchors, string source)
+	{
+		parameter.LifetimeBinding = new BoundLifetime(kind, anchors, source).ToString();
+	}
+
+	void BindDefaultParameterLifetime(ParameterDefinition parameter, string source)
+	{
+		if (parameter.LifetimeBinding is null)
+			BindParameterLifetime(parameter, "scoped", [], source);
+	}
+
+	void BindDefaultReceiverLifetime(ParameterDefinition parameter, string kind, string source)
+	{
+		if (parameter.LifetimeBinding is null)
+			BindParameterLifetime(parameter, kind, [], source);
 	}
 
 	static bool TryApplyGenericTypeArguments(TypeReference? type, List<TypeReference> arguments, out TypeReference? appliedType)
@@ -361,6 +393,44 @@ public sealed partial class BindableNodeAnalyzer
 			or OptionalTypeReference
 			or CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once or CallableKind.Async }
 			or IterTypeReference;
+	}
+
+	bool IsPointerBearingType(TypeReference? type, AnalysisScope scope)
+	{
+		if (type is null)
+			return false;
+
+		type = UnwrapTypeDeclarators(type);
+		return type switch
+		{
+			PointerTypeReference => true,
+			ArrayTypeReference => true,
+			FixedArrayTypeReference fixedArray => IsPointerBearingType(fixedArray.ElementType, scope),
+			OptionalTypeReference optional => IsPointerBearingType(optional.ElementType, scope),
+			CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once or CallableKind.Async } => true,
+			IterTypeReference => true,
+			MaterializedStructTypeReference materialized => IsPointerBearingType(materialized.ParamsType, scope),
+			GroupedParamsTypeReference grouped => IsPointerBearingType(grouped.StructType, scope),
+			PrimitiveTypeReference { Type: PrimitiveType.String or PrimitiveType.WString or PrimitiveType.AString } => true,
+			NamedTypeReference named when scope.TryGetGenericParameter(named.Name, out _) => true,
+			GenericParameterTypeReference => true,
+			NamedTypeReference named when typeDefinitions.TryGetValue(BaseTypeName(named.ResolvedType ?? named.Name), out TypeDefinition? definition) => IsPointerBearingTypeDefinition(definition, scope),
+			TypeDefinitionReference { Definition: TypeDefinition definition } => IsPointerBearingTypeDefinition(definition, scope),
+			_ => false
+		};
+	}
+
+	bool IsPointerBearingTypeDefinition(TypeDefinition definition, AnalysisScope scope)
+	{
+		return definition switch
+		{
+			ClassDefinition => true,
+			InterfaceDefinition => true,
+			StructDefinition structure => structure.Fields.Any(field => IsPointerBearingType(field.Type, scope)),
+			ParamsDefinition parameters => parameters.Components.Any(component => IsPointerBearingType(component.Type, scope)),
+			NewtypeDefinition newtype => IsPointerBearingType(newtype.UnderlyingType, scope) || newtype.Parameters.Count > 0,
+			_ => false
+		};
 	}
 
 	static bool IsDirectFixedArrayType(TypeReference? type)

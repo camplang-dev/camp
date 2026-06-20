@@ -22,7 +22,7 @@ static void FileHandle_destroy(FileHandle *this)
 static FileHandle *openHandle(IoError *error)
 {
 	{
-		(*error) = FAILED;
+		(*error) = IoError_FAILED;
 		return 0;
 	}
 }
@@ -87,8 +87,8 @@ typedef struct FileHandle FileHandle;
 /* Enums. */
 typedef enum IoError
 {
-	OK = 0,
-	FAILED
+	IoError_OK = 0,
+	IoError_FAILED
 } IoError;
 
 /* Newtypes. */

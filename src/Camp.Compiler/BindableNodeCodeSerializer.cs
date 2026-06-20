@@ -198,6 +198,8 @@ public sealed class BindableNodeCodeSerializer
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
+		if (definition.IsEscaped)
+			writer.Write("escaped ");
 		writer.Write("interface ");
 		writer.Write(definition.Name);
 		WriteGenericParameters(definition.GenericParameters);
