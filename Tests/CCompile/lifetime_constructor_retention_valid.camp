@@ -1,0 +1,62 @@
+extern escaped void* malloc(nuint size);
+extern escaped char[] getEscaped();
+
+struct View
+{
+	const char[] text;
+
+	View(unscoped const char[] text)
+	{
+		this.text = text;
+	}
+}
+
+struct Scratch
+{
+	const char[] text;
+
+	Scratch(const char[] temporary)
+	{
+		nuint used = temporary.length;
+		this.text = getEscaped();
+	}
+}
+
+class Box
+{
+	int value;
+}
+
+View makeView(const char[] input)
+{
+	View view = init View(input);
+	return view;
+}
+
+Scratch makeScratch(const char[] input)
+{
+	Scratch scratch = init Scratch(input);
+	return scratch;
+}
+
+View makeAggregate(const char[] input)
+{
+	View view = { .text = input };
+	return view;
+}
+
+Box* makeBox()
+{
+	auto box = new Box();
+	return box;
+}
+
+export int main()
+{
+	fixed char[16] storage = "hello";
+	View view = makeView(storage[..]);
+	Scratch scratch = makeScratch(storage[..]);
+	View aggregate = makeAggregate(storage[..]);
+	Box* box = makeBox();
+	return (int)(view.text.length + scratch.text.length + aggregate.text.length + (box == null ? 0 : 1));
+}

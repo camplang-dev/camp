@@ -1,0 +1,4 @@
+tests/Diagnostics/lifetime_constructor_retention_invalid.camp(28,9): error: Return expression cannot return a pointer-bearing value tied to local storage 'local'.
+tests/Diagnostics/lifetime_constructor_retention_invalid.camp(35,9): error: Return expression cannot return a pointer-bearing value tied to local storage 'local'.
+tests/Diagnostics/lifetime_constructor_retention_invalid.camp(43,9): error: Return expression cannot return a pointer-bearing value tied to local storage 'local'.
+tests/Diagnostics/lifetime_constructor_retention_invalid.camp(50,9): error: Return expression cannot return a pointer-bearing value tied to local storage 'local'.

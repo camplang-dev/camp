@@ -1,0 +1,24 @@
+extern escaped void* malloc(nuint size);
+extern escaped char[] getEscaped();
+
+struct View
+{
+	const char[] text;
+
+	View(unscoped const char[] text)
+	{
+		this.text = text;
+	}
+}
+
+class Box
+{
+	int value;
+}
+
+void facts(const char[] input)
+{
+	View retained = init View(input);
+	View aggregate = { .text = input };
+	auto box = new Box();
+}

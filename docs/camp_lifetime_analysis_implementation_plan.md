@@ -939,21 +939,23 @@ Implement constructor result lifetime rules and local aggregate lifetime fixing.
 
 ### Work Items
 
-- Determine which constructor parameters are retained into `this`.
-- Use constructor body assignment facts to compute result lifetime.
-- For `new`, derive the result lifetime from the selected allocation function
-  or allocator method signature.
-- For `init` and aggregate initialization of local pointer-bearing values, fix
-  local value lifetime at first initialization.
-- Do not widen fixed local lifetime after later assignments.
-- Include trailing initializer syntax in retained-value analysis.
-- Respect scoped constructor parameters that are used but not retained.
-- Account for `within allocator` forwarding without requiring noisy source
-  annotations.
+- ~~Determine constructor result lifetime from the constructor parameter
+  contract and supplied pointer-bearing arguments. Constructor body changes do
+  not alter callsite lifetime analysis.~~
+- ~~For `new`, derive the result lifetime from the selected allocation function
+  or allocator method signature.~~
+- ~~For `init` and aggregate initialization of local pointer-bearing values, fix
+  local value lifetime at first initialization.~~
+- ~~Do not widen fixed local lifetime after later assignments.~~
+- ~~Include trailing initializer syntax in retained-value analysis.~~
+- ~~Respect scoped constructor parameters by tying the initialized value to the
+  supplied argument rather than inspecting how the constructor body uses it.~~
+- ~~Account for `within allocator` forwarding without requiring noisy source
+  annotations.~~
 
 ### Completion Criteria
 
-This should pass:
+~~This should pass:~~
 
 ```camp
 struct View
@@ -973,7 +975,7 @@ View make(const char[] input)
 }
 ```
 
-This should fail:
+~~This should fail:~~
 
 ```camp
 View bad()
@@ -984,7 +986,7 @@ View bad()
 }
 ```
 
-Later assignments do not widen a local:
+~~Later assignments do not widen a local:~~
 
 ```camp
 View view = init View(localSpan);
@@ -992,7 +994,7 @@ view.text = escapedSpan;
 return view; // still ERROR
 ```
 
-`new` result remains escaped:
+~~`new` result remains escaped:~~
 
 ```camp
 auto list = new List<int>();
@@ -1001,13 +1003,13 @@ return list; // OK if return type permits escaped pointer
 
 ### Tests
 
-- Constructor retained parameter positive/negative tests.
-- Scoped constructor parameter used temporarily does not narrow result.
-- Aggregate initializer lifetime fixing.
-- Trailing initializer lifetime fixing.
-- Later assignment does not widen local lifetime.
-- `new` escaped result facts.
-- `within allocator` constructor forwarding smoke.
+- ~~Constructor retained parameter positive/negative tests.~~
+- ~~Constructor body changes do not alter the result lifetime contract.~~
+- ~~Aggregate initializer lifetime fixing.~~
+- ~~Trailing initializer lifetime fixing.~~
+- ~~Later assignment does not widen local lifetime.~~
+- ~~`new` escaped result facts.~~
+- ~~`within allocator` constructor forwarding smoke.~~
 
 ## Stage 6: Scoped Delegates, Lambdas, Method References, And Callable Newtypes
 

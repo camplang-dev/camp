@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module ResolvedType="#MODULE">
+  <Definitions>
+    <FunctionDefinition InvokerName="malloc" Name="malloc" Symbol="malloc" Extern="" ResolvedType="escaped void*">
+      <ReturnType Type="PointerTypeReference" ResolvedType="escaped void*">
+        <ElementType Type="EscapedTypeReference" LifetimeBinding="escaped:explicit" ResolvedType="escaped void">
+          <Type Type="Void" ResolvedType="void" />
+        </ElementType>
+      </ReturnType>
+      <Parameters>
+        <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="size" Symbol="size" ResolvedType="nuint">
+          <Type Type="NUInt" ResolvedType="nuint" />
+        </ParameterDefinition>
+      </Parameters>
+    </FunctionDefinition>
+    <FunctionDefinition InvokerName="getEscaped" Name="getEscaped" Symbol="getEscaped" Extern="" ResolvedType="escaped char*">
+      <ReturnType Type="NamedTypeReference" Name="escaped char*" ResolvedType="escaped char*" />
+      <Parameters>
+        <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
+          <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
+        </ParameterDefinition>
+      </Parameters>
+    </FunctionDefinition>
+    <StructDefinition Name="View" Symbol="View" ResolvedType="View">
+      <Fields>
+        <FieldDefinition Name="text" Symbol="text" ResolvedType="const char*" SlotLifetimeFact="scoped(text):slot" ValueLifetimeFact="unscoped:explicit" />
+        <FieldDefinition Name="text_length" Symbol="text_length" ResolvedType="nuint" SlotLifetimeFact="scoped(text):slot" ValueLifetimeFact="unscoped:explicit" />
+      </Fields>
+      <Functions>
+        <FunctionDefinition Modifier="Constructor" InvokerName="View" ReceiverLifetimeBinding="scoped:default receiver" Name="View" Symbol="View" ResolvedType="View">
+          <Parameters>
+            <ParameterDefinition Name="text" Symbol="text" ResolvedType="unscoped const char*" />
+            <ParameterDefinition Name="text_length" Symbol="text_length" ResolvedType="nuint" />
+          </Parameters>
+        </FunctionDefinition>
+        <FunctionDefinition InvokerName="op_initnew" ReceiverLifetimeBinding="scoped:default receiver" Name="op_initnew" Symbol="View_op_initnew" ResolvedType="void">
+          <ReturnType Type="Void" ResolvedType="void" />
+          <Parameters>
+            <ParameterDefinition Name="text" Symbol="text" ResolvedType="unscoped const char*" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+            <ParameterDefinition Name="text_length" Symbol="text_length" ResolvedType="nuint" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+          </Parameters>
+          <Body Type="BlockStatement" ResolvedType="void">
+            <Statements>
+              <BlockStatement ResolvedType="void">
+                <Statements>
+                  <ExpressionStatement ResolvedType="void">
+                    <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="const char*" ValueLifetimeFact="unscoped:explicit">
+                      <Target Type="MemberReferenceExpression" Name="text" Member="text" ResolvedType="const char*">
+                        <Target Type="ThisExpression" ResolvedType="View*" />
+                      </Target>
+                      <Value Type="VariableReferenceExpression" Variable="text" ResolvedType="unscoped const char*" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+                    </Expression>
+                  </ExpressionStatement>
+                  <ExpressionStatement ResolvedType="void">
+                    <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint" ValueLifetimeFact="unscoped:explicit">
+                      <Target Type="MemberReferenceExpression" Name="text_length" Member="text_length" ResolvedType="nuint">
+                        <Target Type="ThisExpression" ResolvedType="View*" />
+                      </Target>
+                      <Value Type="VariableReferenceExpression" Variable="text_length" ResolvedType="nuint" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+                    </Expression>
+                  </ExpressionStatement>
+                </Statements>
+              </BlockStatement>
+            </Statements>
+          </Body>
+        </FunctionDefinition>
+        <FunctionDefinition Modifier="Static" InvokerName="create" ReceiverLifetimeBinding="scoped:default receiver" Name="create" Symbol="View_create" ResolvedType="View*">
+          <ReturnType Type="PointerTypeReference" ResolvedType="View*">
+            <ElementType Type="TypeDefinitionReference" Name="View" Definition="View" ResolvedType="View" />
+          </ReturnType>
+          <Parameters>
+            <ParameterDefinition Name="text" Symbol="text" ResolvedType="unscoped const char*" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+            <ParameterDefinition Name="text_length" Symbol="text_length" ResolvedType="nuint" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+          </Parameters>
+          <Body Type="BlockStatement" ResolvedType="void">
+            <Statements>
+              <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(#created0):slot" ValueLifetimeFact="escaped:call">
+                <Target Type="DeclarationTarget" ResolvedType="View*" SlotLifetimeFact="scoped(#created0):slot" ValueLifetimeFact="escaped:call">
+                  <Type Type="PointerTypeReference" ResolvedType="View*">
+                    <ElementType Type="TypeDefinitionReference" Name="View" Definition="View" ResolvedType="View" />
+                  </Type>
+                  <Names>
+                    <Value>#created0</Value>
+                  </Names>
+                </Target>
+                <InitialValue Type="CastExpression" Kind="Type" ResolvedType="View*" ValueLifetimeFact="escaped:call">
+                  <Type Type="PointerTypeReference" ResolvedType="View*">
+                    <ElementType Type="TypeDefinitionReference" Name="View" Definition="View" ResolvedType="View" />
+                  </Type>
+                  <Expression Type="CallExpression" ResolvedType="escaped void*" ValueLifetimeFact="escaped:call">
+                    <Target Type="MethodReferenceExpression" ResolvedType="fn escaped void*(nuint)">
+                      <Candidates>
+                        <Function Name="malloc" ResolvedType="escaped void*" />
+                      </Candidates>
+                    </Target>
+                    <Arguments>
+                      <ArgumentExpression ResolvedType="nuint">
+                        <Value Type="SizeOfExpression" ResolvedType="nuint">
+                          <Type Type="TypeDefinitionReference" Name="View" Definition="View" ResolvedType="View" />
+                        </Value>
+                      </ArgumentExpression>
+                    </Arguments>
+                  </Expression>
+                </InitialValue>
+              </DeclarationStatement>
+              <IfStatement ResolvedType="void">
+                <Condition Type="BinaryExpression" Operator="NotEqual" ResolvedType="bool">
+                  <Left Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" ValueLifetimeFact="escaped:call" />
+                  <Right Type="LiteralExpression" Kind="Null" Text="null" ResolvedType="#NULL" ValueLifetimeFact="null" />
+                </Condition>
+                <Body Type="ExpressionStatement" ResolvedType="void">
+                  <Expression Type="CallExpression" ResolvedType="void">
+                    <Target Type="MethodReferenceExpression" ResolvedType="fn void(View*, unscoped const char*, nuint)">
+                      <Candidates>
+                        <Function Name="op_initnew" ResolvedType="void" />
+                      </Candidates>
+                    </Target>
+                    <Arguments>
+                      <ArgumentExpression ResolvedType="View*">
+                        <Value Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" ValueLifetimeFact="escaped:call" />
+                      </ArgumentExpression>
+                      <ArgumentExpression ResolvedType="unscoped const char*">
+                        <Value Type="VariableReferenceExpression" Variable="text" ResolvedType="unscoped const char*" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+                      </ArgumentExpression>
+                      <ArgumentExpression ResolvedType="nuint">
+                        <Value Type="VariableReferenceExpression" Variable="text_length" ResolvedType="nuint" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+                      </ArgumentExpression>
+                    </Arguments>
+                  </Expression>
+                </Body>
+              </IfStatement>
+              <ReturnStatement ResolvedType="void">
+                <Expression Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" ValueLifetimeFact="escaped:call" />
+              </ReturnStatement>
+            </Statements>
+          </Body>
+        </FunctionDefinition>
+      </Functions>
+    </StructDefinition>
+    <ClassDefinition Name="Box" Symbol="Box" ResolvedType="Box">
+      <Fields>
+        <FieldDefinition Name="value" Symbol="value" ResolvedType="int">
+          <Type Type="Int" ResolvedType="int" />
+        </FieldDefinition>
+      </Fields>
+    </ClassDefinition>
+    <FunctionDefinition InvokerName="facts" Name="facts" Symbol="facts" ResolvedType="void">
+      <ReturnType Type="Void" ResolvedType="void" />
+      <Parameters>
+        <ParameterDefinition Name="input" Symbol="input" ResolvedType="const char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="input_length" Symbol="input_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+      </Parameters>
+      <Body Type="BlockStatement" ResolvedType="void">
+        <Statements>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(retained):slot" ValueLifetimeFact="scoped:init">
+            <Target Type="DeclarationTarget" ResolvedType="View" SlotLifetimeFact="scoped(retained):slot" ValueLifetimeFact="scoped:init">
+              <Type Type="TypeDefinitionReference" Name="View" Definition="View" ResolvedType="View" />
+              <Names>
+                <Value>retained</Value>
+              </Names>
+            </Target>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(aggregate):slot" ValueLifetimeFact="scoped:initializer">
+            <Target Type="DeclarationTarget" ResolvedType="View" SlotLifetimeFact="scoped(aggregate):slot" ValueLifetimeFact="scoped:initializer">
+              <Type Type="TypeDefinitionReference" Name="View" Definition="View" ResolvedType="View" />
+              <Names>
+                <Value>aggregate</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="InitializerExpression" ResolvedType="View" ValueLifetimeFact="scoped:initializer">
+              <Items>
+                <InitializerItem ResolvedType="const char[]">
+                  <Target Type="InitializerTarget" ResolvedType="#TARGET">
+                    <Parts>
+                      <InitializerTargetPart Name="text" ResolvedType="#TARGET" />
+                    </Parts>
+                  </Target>
+                  <Expression Type="VariableReferenceExpression" Variable="input" ResolvedType="const char[]" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                </InitializerItem>
+              </Items>
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(box):slot" ValueLifetimeFact="escaped:new">
+            <Target Type="DeclarationTarget" ResolvedType="Box*" SlotLifetimeFact="scoped(box):slot" ValueLifetimeFact="escaped:new">
+              <Type Type="AutoTypeReference" ResolvedType="#AUTO" />
+              <Names>
+                <Value>box</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="CastExpression" Kind="Type" ResolvedType="Box*">
+              <Type Type="PointerTypeReference" ResolvedType="Box*">
+                <ElementType Type="TypeDefinitionReference" Name="Box" Definition="Box" ResolvedType="Box" />
+              </Type>
+              <Expression Type="CallExpression" ResolvedType="escaped void*">
+                <Target Type="MethodReferenceExpression" ResolvedType="escaped void*">
+                  <Candidates>
+                    <Function Name="malloc" ResolvedType="escaped void*" />
+                  </Candidates>
+                </Target>
+                <Arguments>
+                  <ArgumentExpression ResolvedType="nuint">
+                    <Value Type="SizeOfExpression" ResolvedType="nuint">
+                      <Type Type="TypeDefinitionReference" Name="Box" Definition="Box" ResolvedType="Box" />
+                    </Value>
+                  </ArgumentExpression>
+                </Arguments>
+              </Expression>
+            </InitialValue>
+          </DeclarationStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+  </Definitions>
+</Module>

@@ -98,6 +98,19 @@ public sealed partial class BindableNodeAnalyzer
 			|| normalized.EndsWith("?", System.StringComparison.Ordinal);
 	}
 
+	bool IsLifetimePointerBearingResolvedType(string? type, BodyScope scope)
+	{
+		if (IsPointerBearingResolvedType(type))
+			return true;
+		string baseName = BaseTypeName(StripTopLevelValueQualifiers(type ?? ""));
+		if (string.IsNullOrWhiteSpace(baseName))
+			return false;
+		if (FindBodyGenericParameter(scope, baseName) is not null)
+			return true;
+		return typeDefinitions.TryGetValue(baseName, out TypeDefinition? definition)
+			&& IsPointerBearingTypeDefinition(definition, new AnalysisScope());
+	}
+
 	void InitializeParameterLifetimeFacts(ParameterDefinition parameter, AnalysisScope typeScope)
 	{
 		if (!IsLifetimeTrackedType(parameter.Type, parameter.ResolvedType, isFixedStorage: false, typeScope))
@@ -142,20 +155,20 @@ public sealed partial class BindableNodeAnalyzer
 			NamedExpression named => GetNamedExpressionLifetimeFact(named),
 			ThisExpression => scope.CurrentFunction.ReceiverLifetimeBinding ?? MakeLifetimeFact("scoped", "this", "receiver"),
 			LiteralExpression literal => GetLiteralLifetimeFact(literal),
-			DefaultExpression => IsPointerBearingResolvedType(resolvedType) ? "default" : null,
+			DefaultExpression => IsLifetimePointerBearingResolvedType(resolvedType, scope) ? "default" : null,
 			ArrayExpression => MakeLifetimeFact("scoped", null, "array literal"),
-			InitializerExpression => MakeLifetimeFact("scoped", null, "initializer"),
+			InitializerExpression initializer => GetInitializerLifetimeFact(initializer, resolvedType, scope),
 			ParenthesizedExpression parenthesized => GetExpressionLifetimeFact(parenthesized.Expression),
 			CastExpression { LifetimeCastKind: not null } cast => cast.LifetimeBinding,
 			CastExpression cast => cast.LifetimeBinding ?? GetExpressionLifetimeFact(cast.Expression),
-			ConstructionExpression construction => IsPointerBearingResolvedType(resolvedType) ? GetConstructionLifetimeFact(construction) : null,
-			WithinExpression within => GetExpressionLifetimeFact(within.Expression),
+			ConstructionExpression construction => IsLifetimePointerBearingResolvedType(resolvedType, scope) ? GetConstructionLifetimeFact(construction, resolvedType, scope) : null,
+			WithinExpression within => GetWithinExpressionLifetimeFact(within, resolvedType, scope),
 			FinallyDeleteExpression finallyDelete => GetExpressionLifetimeFact(finallyDelete.Expression),
-			UnaryExpression unary => GetUnaryLifetimeFact(unary, resolvedType),
+			UnaryExpression unary => GetUnaryLifetimeFact(unary, resolvedType, scope),
 			IndexExpression index => GetIndexLifetimeFact(index, resolvedType),
 			NamelessIndexerExpression indexer => GetExpressionLifetimeFact(indexer.Target),
-			MemberExpression member => GetMemberLifetimeFact(member, resolvedType),
-			CallExpression call => GetCallLifetimeFact(call, resolvedType),
+			MemberExpression member => GetMemberLifetimeFact(member, resolvedType, scope),
+			CallExpression call => GetCallLifetimeFact(call, resolvedType, scope),
 			LambdaExpression => MakeLifetimeFact("scoped", null, "lambda"),
 			AssignmentExpression assignment => GetExpressionLifetimeFact(assignment.Value),
 			ConditionalExpression conditional => GetExpressionLifetimeFact(conditional.WhenTrue) ?? GetExpressionLifetimeFact(conditional.WhenFalse),
@@ -207,17 +220,147 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static string? GetConstructionLifetimeFact(ConstructionExpression construction)
+	string? GetConstructionLifetimeFact(ConstructionExpression construction, string resolvedType, BodyScope scope)
 	{
 		return construction.Kind switch
 		{
-			ConstructionKind.New => MakeLifetimeFact("unknown", null, "new"),
-			ConstructionKind.Init => MakeLifetimeFact("scoped", null, "init"),
+			ConstructionKind.New => GetNewConstructionLifetimeFact(construction),
+			ConstructionKind.Init => GetInitConstructionLifetimeFact(construction, resolvedType, scope),
 			_ => null
 		};
 	}
 
-	string? GetUnaryLifetimeFact(UnaryExpression unary, string resolvedType)
+	string? GetNewConstructionLifetimeFact(ConstructionExpression construction)
+	{
+		FunctionDefinition? malloc = FindMallocFunction(construction.SourceSyntax);
+		return GetFunctionReturnLifetimeFact(malloc, "new") ?? MakeLifetimeFact("unknown", null, "new");
+	}
+
+	string? GetWithinExpressionLifetimeFact(WithinExpression within, string resolvedType, BodyScope scope)
+	{
+		if (within.Expression is ConstructionExpression { Kind: ConstructionKind.New }
+			&& IsLifetimePointerBearingResolvedType(resolvedType, scope))
+		{
+			FunctionDefinition? alloc = FindAllocatorPatternMethod(within.Context?.ResolvedType, "alloc", IsSingleIntegerValueParameter, within.SourceSyntax);
+			if (GetFunctionReturnLifetimeFact(alloc, "new") is string allocationFact)
+				return allocationFact;
+		}
+
+		return GetExpressionLifetimeFact(within.Expression);
+	}
+
+	string? GetFunctionReturnLifetimeFact(FunctionDefinition? function, string source)
+	{
+		if (function?.ReturnType?.LifetimeBinding is string explicitReturn)
+			return explicitReturn + ":" + source;
+		if (TryGetResolvedTypeLifetime(function?.ReturnType?.ResolvedType ?? function?.ResolvedType ?? "", out string lifetimeKind))
+			return MakeLifetimeFact(lifetimeKind, null, source);
+		return null;
+	}
+
+	string? GetInitConstructionLifetimeFact(ConstructionExpression construction, string resolvedType, BodyScope scope)
+	{
+		List<LifetimeFact> retainedFacts = [];
+		if (!constructionTargets.TryGetValue(construction, out FunctionDefinition? constructor))
+			constructor = FindConstructionInitNew(construction, resolvedType);
+		if (constructor is not null)
+		{
+			List<ParameterDefinition> parameters = GetCallableParameters(constructor.Parameters, false);
+			if (constructor.Modifier == FunctionModifier.Constructor)
+			{
+				if (FindConstructionInitNew(construction, resolvedType) is FunctionDefinition initNew)
+					parameters = GetCallableParameters(initNew.Parameters, false);
+			}
+			int count = Math.Min(parameters.Count, construction.Arguments.Count);
+			for (int i = 0; i < count; i++)
+			{
+				if (!IsLifetimePointerBearingResolvedType(parameters[i].ResolvedType, scope)
+					&& GetExpressionLifetimeFact(construction.Arguments[i].Value) is null)
+					continue;
+				if (TryParseLifetimeFact(GetExpressionLifetimeFact(construction.Arguments[i].Value), out LifetimeFact argumentFact))
+					retainedFacts.Add(argumentFact);
+			}
+		}
+
+		AddInitializerRetainedLifetimeFacts(construction.Initializer, resolvedType, scope, retainedFacts);
+		return CombineRetainedLifetimeFacts(retainedFacts) is LifetimeFact retained
+			? FormatLifetimeFact(new LifetimeFact(retained.Kind, retained.Anchors, "init"))
+			: null;
+	}
+
+	string? GetInitializerLifetimeFact(InitializerExpression initializer, string resolvedType, BodyScope scope)
+	{
+		List<LifetimeFact> retainedFacts = [];
+		AddInitializerRetainedLifetimeFacts(initializer, resolvedType, scope, retainedFacts);
+		return CombineRetainedLifetimeFacts(retainedFacts) is LifetimeFact retained
+			? FormatLifetimeFact(new LifetimeFact(retained.Kind, retained.Anchors, "initializer"))
+			: null;
+	}
+
+	FunctionDefinition? FindConstructionInitNew(ConstructionExpression construction, string resolvedType)
+	{
+		string typeName = BaseConstructedType(construction.Type?.ResolvedType ?? resolvedType);
+		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
+			return null;
+		return FindInitNewMethod(definition, construction.Arguments.Count)
+			?? GetTypeFunctions(definition).FirstOrDefault(function => function.Name == InitNewMethodName);
+	}
+
+	void AddInitializerRetainedLifetimeFacts(InitializerExpression? initializer, string resolvedType, BodyScope scope, List<LifetimeFact> retainedFacts)
+	{
+		if (initializer is null || !typeDefinitions.TryGetValue(BaseTypeName(resolvedType), out TypeDefinition? definition))
+			return;
+
+		List<FieldDefinition> fields = definition switch
+		{
+			StructDefinition structure => structure.Fields,
+			ClassDefinition classDefinition => classDefinition.Fields,
+			_ => []
+		};
+		int positionalIndex = 0;
+		foreach (InitializerItem item in initializer.Items)
+		{
+			FieldDefinition? field = null;
+			string? targetName = GetSingleInitializerTargetName(item.Target);
+			if (targetName is not null)
+				field = fields.FirstOrDefault(candidate => candidate.Name == targetName);
+			else if (positionalIndex < fields.Count)
+				field = fields[positionalIndex++];
+
+			if (field is null || !IsPointerBearingType(field.Type, new AnalysisScope()))
+				continue;
+			if (TryParseLifetimeFact(GetExpressionLifetimeFact(item.Expression), out LifetimeFact fact))
+				retainedFacts.Add(fact);
+		}
+	}
+
+	static LifetimeFact? CombineRetainedLifetimeFacts(List<LifetimeFact> facts)
+	{
+		List<LifetimeFact> relevant = facts
+			.Where(fact => fact.Kind is not ("default" or "null" or "unknown"))
+			.ToList();
+		if (relevant.Count == 0)
+			return null;
+		if (relevant.All(fact => fact.Kind == "escaped"))
+			return new LifetimeFact("escaped", [], "retained");
+
+		List<string> scopedAnchors = relevant
+			.Where(fact => fact.Kind == "scoped")
+			.SelectMany(fact => fact.Anchors)
+			.Distinct(StringComparer.Ordinal)
+			.ToList();
+		if (scopedAnchors.Count > 0 || relevant.Any(fact => fact.Kind == "scoped"))
+			return new LifetimeFact("scoped", scopedAnchors, "retained");
+
+		List<string> unscopedAnchors = relevant
+			.Where(fact => fact.Kind == "unscoped")
+			.SelectMany(fact => fact.Anchors)
+			.Distinct(StringComparer.Ordinal)
+			.ToList();
+		return new LifetimeFact("unscoped", unscopedAnchors, "retained");
+	}
+
+	string? GetUnaryLifetimeFact(UnaryExpression unary, string resolvedType, BodyScope scope)
 	{
 		if (unary.Operator == UnaryOperator.AddressOf)
 		{
@@ -229,7 +372,7 @@ public sealed partial class BindableNodeAnalyzer
 				return MakeLifetimeFact("scoped", anchor, "address-of");
 			return MakeLifetimeFact("scoped", null, "address-of");
 		}
-		if (IsPointerBearingResolvedType(resolvedType))
+		if (IsLifetimePointerBearingResolvedType(resolvedType, scope))
 			return GetExpressionLifetimeFact(unary.Operand);
 		return null;
 	}
@@ -242,18 +385,18 @@ public sealed partial class BindableNodeAnalyzer
 		return targetFact is not null ? targetFact + ":element" : null;
 	}
 
-	string? GetMemberLifetimeFact(MemberExpression member, string resolvedType)
+	string? GetMemberLifetimeFact(MemberExpression member, string resolvedType, BodyScope scope)
 	{
-		if (!IsPointerBearingResolvedType(resolvedType))
+		if (!IsLifetimePointerBearingResolvedType(resolvedType, scope))
 			return null;
 
 		string? targetFact = GetExpressionLifetimeFact(member.Target);
 		return targetFact is not null ? targetFact + ":member" : MakeLifetimeFact("scoped", null, "member");
 	}
 
-	string? GetCallLifetimeFact(CallExpression call, string resolvedType)
+	string? GetCallLifetimeFact(CallExpression call, string resolvedType, BodyScope scope)
 	{
-		if (!IsPointerBearingResolvedType(resolvedType))
+		if (!IsLifetimePointerBearingResolvedType(resolvedType, scope))
 			return null;
 
 		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
@@ -282,6 +425,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void CheckLifetimeCallArguments(FunctionDefinition function, Expression? callTarget, List<(ArgumentExpression Argument, ParameterDefinition Parameter)> arguments, BodyScope scope, SyntaxNode? fallbackSyntax)
 	{
+		if (function.Modifier == FunctionModifier.Constructor || function.Name == InitNewMethodName)
+			return;
+
 		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(callTarget, function));
 		LifetimeCallContext context = BuildLifetimeCallContext(function, callTarget, callableParameters, arguments.Select(pair => pair.Argument).ToList());
 		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in arguments)
@@ -294,13 +440,19 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter.Modifier == ParameterModifier.Thrown || parameter.Modifier == ParameterModifier.Within)
 				continue;
 
-			CheckLifetimeParameterArgument(argument, parameter, context, scope, fallbackSyntax);
+			CheckLifetimeParameterArgument(function, argument, parameter, context, scope, fallbackSyntax);
 		}
 	}
 
-	void CheckLifetimeParameterArgument(ArgumentExpression argument, ParameterDefinition parameter, LifetimeCallContext context, BodyScope scope, SyntaxNode? fallbackSyntax)
+	void CheckLifetimeParameterArgument(FunctionDefinition function, ArgumentExpression argument, ParameterDefinition parameter, LifetimeCallContext context, BodyScope scope, SyntaxNode? fallbackSyntax)
 	{
 		if (!IsPointerBearingResolvedType(argument.ResolvedType) && !IsPointerBearingResolvedType(parameter.ResolvedType))
+			return;
+		if (argument.Value is VariableReferenceExpression { Variable: ParameterDefinition argumentParameter }
+			&& ReferenceEquals(argumentParameter, parameter))
+			return;
+		if (argument.Value is NamedExpression { Qualifiers.Count: 0 } namedArgument
+			&& namedArgument.Name == parameter.Name)
 			return;
 
 		if (!TryParseLifetimeFact(GetExpressionLifetimeFact(argument.Value), out LifetimeFact actualFact))
@@ -309,6 +461,8 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		LifetimeFact template = GetParameterLifetimeTemplate(parameter);
+		if (function.Modifier == FunctionModifier.Constructor && template.Kind == "unscoped" && template.Anchors.Count == 0)
+			return;
 		List<LifetimeFact> requiredFacts = GetRequiredArgumentLifetimeFacts(template, context);
 		if (requiredFacts.Count == 0)
 			return;
@@ -609,7 +763,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		if (IsInsideGenericBody(scope))
 			return;
-		if (!IsPointerBearingResolvedType(value.ResolvedType))
+		if (!IsLifetimePointerBearingResolvedType(value.ResolvedType, scope))
 			return;
 
 		string? valueFactText = GetExpressionLifetimeFact(value);
@@ -642,7 +796,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void CheckLifetimeResult(Expression? value, SyntaxNode? syntax, BodyScope scope, string context)
 	{
-		if (!IsPointerBearingResolvedType(value?.ResolvedType))
+		if (!IsLifetimePointerBearingResolvedType(value?.ResolvedType, scope))
 			return;
 
 		string? valueFactText = GetExpressionLifetimeFact(value);

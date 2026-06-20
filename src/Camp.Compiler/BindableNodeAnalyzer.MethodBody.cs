@@ -8,6 +8,7 @@ public sealed partial class BindableNodeAnalyzer
 {
 	readonly Dictionary<Expression, bool> expressionConstants = [];
 	readonly Dictionary<CallExpression, FunctionDefinition> callTargets = [];
+	readonly Dictionary<ConstructionExpression, FunctionDefinition> constructionTargets = [];
 	readonly Dictionary<CallExpression, List<ParameterDefinition>> callableInvocationParameters = [];
 	readonly Dictionary<CallExpression, Dictionary<string, string>> callGenericSubstitutions = [];
 	readonly Dictionary<FunctionDefinition, Dictionary<string, LabelStatement>> functionLabels = [];
@@ -1205,6 +1206,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(construction.SourceSyntax), $"Cannot use init for incomplete type '{targetType}'. Use new instead.");
 		}
 		FunctionDefinition? constructor = LookupConstructor(targetType, construction.Arguments.Count);
+		if (constructor is not null)
+			constructionTargets[construction] = constructor;
 		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? [], scope, typeScope, construction.SourceSyntax);
 		BodyAnalyzeExpression(construction.ElementCount, scope, typeScope, "nuint");
 		if (construction.Initializer is not null)
@@ -1898,7 +1901,8 @@ public sealed partial class BindableNodeAnalyzer
 						CheckCallArgumentAssignable(actual, expected, argumentSyntax, "Out argument", function, genericSubstitutions, genericParameterNames);
 					else
 					{
-						CheckCallArgumentAssignable(expected, actual, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
+						string structuralExpected = GetLifetimeStructuralTargetType(expected, arguments[i].Value);
+						CheckCallArgumentAssignable(structuralExpected, actual, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
 						if (CanLiftToOptional(actual, expected))
 							arguments[i].ResolvedType = expected;
 					}

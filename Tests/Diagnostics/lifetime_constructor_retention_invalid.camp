@@ -1,0 +1,51 @@
+extern escaped char[] getEscaped();
+extern escaped void* malloc(nuint size);
+
+struct View
+{
+	const char[] text;
+
+	View(unscoped const char[] text)
+	{
+		this.text = text;
+	}
+}
+
+struct Scratch
+{
+	const char[] text;
+
+	Scratch(const char[] temporary)
+	{
+		this.text = getEscaped();
+	}
+}
+
+View badConstructor()
+{
+	fixed char[16] local = "hello";
+	View view = init View(local[..]);
+	return view;
+}
+
+View badAggregate()
+{
+	fixed char[16] local = "hello";
+	View view = { .text = local[..] };
+	return view;
+}
+
+View badLaterAssignmentDoesNotWiden()
+{
+	fixed char[16] local = "hello";
+	View view = init View(local[..]);
+	view.text = getEscaped();
+	return view;
+}
+
+Scratch badConstructorBodyDoesNotWiden()
+{
+	fixed char[16] local = "hello";
+	Scratch scratch = init Scratch(local[..]);
+	return scratch;
+}

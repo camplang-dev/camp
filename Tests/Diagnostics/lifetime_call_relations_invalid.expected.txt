@@ -1,7 +1,5 @@
 tests/Diagnostics/lifetime_call_relations_invalid.camp(35,9): error: Return expression cannot return a pointer-bearing value tied to local storage 'storage'.
 tests/Diagnostics/lifetime_call_relations_invalid.camp(41,24): error: Return expression cannot return a pointer-bearing value tied to local storage 'buffer'.
-tests/Diagnostics/lifetime_call_relations_invalid.camp(47,21): error: Argument cannot convert 'char[]' to 'escaped char[]'.
 tests/Diagnostics/lifetime_call_relations_invalid.camp(47,21): error: Argument cannot satisfy parameter lifetime 'escaped'.
-tests/Diagnostics/lifetime_call_relations_invalid.camp(54,22): error: Argument cannot convert 'char[]' to 'unscoped(owner) char[]'.
 tests/Diagnostics/lifetime_call_relations_invalid.camp(54,22): error: Argument cannot satisfy parameter lifetime 'unscoped(owner)'.
 tests/Diagnostics/lifetime_call_relations_invalid.camp(62,9): error: Return expression cannot return a pointer-bearing value tied to local storage 'storage'.

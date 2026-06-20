@@ -1,0 +1,136 @@
+// file: lifetime_constructor_retention_valid.c
+#include "lifetime_constructor_retention_valid_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+char *getEscaped(uintptr_t *result_length);
+static void View_op_initnew(View *this, const char *text, uintptr_t text_length);
+static View *View_create(const char *text, uintptr_t text_length);
+static void Scratch_op_initnew(Scratch *this, const char *temporary, uintptr_t temporary_length);
+static Scratch *Scratch_create(const char *temporary, uintptr_t temporary_length);
+static View makeView(const char *input, uintptr_t input_length);
+static Scratch makeScratch(const char *input, uintptr_t input_length);
+static View makeAggregate(const char *input, uintptr_t input_length);
+static Box *makeBox(void);
+
+static void View_op_initnew(View *this, const char *text, uintptr_t text_length)
+{
+	{
+		this->text = text;
+		this->text_length = text_length;
+	}
+}
+
+static View *View_create(const char *text, uintptr_t text_length)
+{
+	View *_created0 = (View *)(malloc(sizeof(View)));
+	if ((_created0 != NULL))
+	{
+		View_op_initnew(_created0, text, text_length);
+	}
+	return _created0;
+}
+
+static void Scratch_op_initnew(Scratch *this, const char *temporary, uintptr_t temporary_length)
+{
+	uintptr_t used = temporary_length;
+	{
+		this->text = getEscaped(&this->text_length);
+	}
+}
+
+static Scratch *Scratch_create(const char *temporary, uintptr_t temporary_length)
+{
+	Scratch *_created1 = (Scratch *)(malloc(sizeof(Scratch)));
+	if ((_created1 != NULL))
+	{
+		Scratch_op_initnew(_created1, temporary, temporary_length);
+	}
+	return _created1;
+}
+
+static View makeView(const char *input, uintptr_t input_length)
+{
+	View view;
+	return view;
+}
+
+static Scratch makeScratch(const char *input, uintptr_t input_length)
+{
+	Scratch scratch;
+	return scratch;
+}
+
+static View makeAggregate(const char *input, uintptr_t input_length)
+{
+	View view = (View){ .text = input };
+	return view;
+}
+
+static Box *makeBox(void)
+{
+	Box *box = (Box *)(malloc(sizeof(Box)));
+	return box;
+}
+
+int main(void)
+{
+	char storage[16] = "hello";
+	View view = makeView(((char *)(storage) + ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))), ((((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) >= ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) ? (((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) - ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) : 0));
+	Scratch scratch = makeScratch(((char *)(storage) + ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))), ((((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) >= ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) ? (((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) - ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) : 0));
+	View aggregate = makeAggregate(((char *)(storage) + ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))), ((((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) >= ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) ? (((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) - ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) : 0));
+	Box *box = makeBox();
+	return (int)(((((view.text_length + scratch.text_length) + aggregate.text_length) + (((box == NULL) ? 0 : 1)))));
+}
+
+// file: lifetime_constructor_retention_valid.h
+#ifndef LIFETIME_CONSTRUCTOR_RETENTION_VALID_H_
+#define LIFETIME_CONSTRUCTOR_RETENTION_VALID_H_
+
+#include "lifetime_constructor_retention_valid_private.h"
+
+int main(void);
+
+#endif
+// file: lifetime_constructor_retention_valid_private.h
+#ifndef LIFETIME_CONSTRUCTOR_RETENTION_VALID_PRIVATE_H_
+#define LIFETIME_CONSTRUCTOR_RETENTION_VALID_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct View View;
+typedef struct Scratch Scratch;
+typedef struct Box Box;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct View
+{
+	const char *text;
+	uintptr_t text_length;
+};
+struct Scratch
+{
+	const char *text;
+	uintptr_t text_length;
+};
+struct Box
+{
+	int value;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifetime_constructor_retention_valid.c
