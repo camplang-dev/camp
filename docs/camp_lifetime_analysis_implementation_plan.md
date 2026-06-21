@@ -46,13 +46,22 @@ Lifetime annotations are valid in only a small number of source positions:
 
 - method/function signatures, including return types, parameters, receiver
   parameters, callable type references, and callable newtype signatures;
+- `escaped` on struct and class fields;
 - explicit casts;
 - `escaped class` and `escaped interface` declarations.
 
-They do not precede fields, global variables, local variables, or ordinary type
-uses. For example, a parameter may be declared `scoped const char[] value`, but a
-local variable should not be declared `scoped const char[] value`. The local
-slot and current-value facts are inferred by flow analysis instead.
+`scoped` and `unscoped(...)` do not precede fields, global variables, local
+variables, or ordinary type uses. For example, a parameter may be declared
+`scoped const char[] value`, but a local variable should not be declared
+`scoped const char[] value`. The local slot and current-value facts are inferred
+by flow analysis instead.
+
+Field-level `escaped` is intentionally narrower. It is a storage contract for a
+specific struct/class field, equivalent in spirit to the escaped components
+already implied by escaped arrays, delegates, optionals, and `escaped class`.
+It allows a type to say that one pointer-bearing field must only ever contain
+escaped values without forcing every pointer-bearing field in the containing
+type to be escaped.
 
 Future non-copyable generic constraint arguments may allow lifetime annotation
 syntax, but those rules are not settled. The parser may recognize the pattern
@@ -327,6 +336,22 @@ struct View
 
 `View` is pointer-bearing. Returning, assigning, storing, capturing, yielding,
 or passing a `View` is checked through the lifetime of `text`.
+
+Field-level `escaped` strengthens the storage contract for one field:
+
+```camp
+class List<T: copyable>
+{
+    escaped T[] items;
+}
+```
+
+Assigning to `items` requires the assigned value to be proven escaped, or to be
+explicitly asserted with an `(escaped)` cast at a trusted boundary. Reading
+`items` produces an escaped value. For params values such as arrays, delegates,
+and optionals, the pointer-bearing component is the part governed by the field
+annotation. For aggregate field types, the annotation applies recursively to
+pointer-bearing contents according to the same aggregate/container rule.
 
 ### Constructors
 
@@ -1088,12 +1113,23 @@ class Date
 - ~~Callable newtype ascription with explicit/implicit callable `this`.~~
 - ~~Delegate argument lifetime specified at use site.~~
 
-## Stage 7: Iterators And Generated Contexts
+## Stage 7: Escaped Fields, Iterators, And Generated Contexts
 
-Apply the container rule to generated frames.
+Apply the container rule to explicit escaped fields and generated frames.
 
 ### Work Items
 
+- Allow `escaped` on struct/class fields only. Reject `scoped` and
+  `unscoped(...)` fields, reject lifetime annotations on locals/globals, and
+  reject `escaped` fields whose type is not pointer-bearing unless a later
+  diagnostics policy deliberately relaxes this.
+- Treat assignment into an `escaped` field as assignment into escaped storage:
+  the value assigned must be proven escaped or explicitly cast `(escaped)`.
+- Treat reads from an `escaped` field as escaped values, including synthesized
+  array/delegate/optional components.
+- Make `escaped class` equivalent to marking every pointer-bearing instance
+  field escaped, while still allowing ordinary classes to annotate individual
+  fields.
 - Treat generator state structs/classes as pointer-bearing context objects.
 - Lifted locals receive frame lifetime constraints.
 - Values crossing `yield` must outlive the iterator frame.
@@ -1104,6 +1140,34 @@ Apply the container rule to generated frames.
   later, without implementing async lifetime enforcement in this stage.
 
 ### Completion Criteria
+
+This should pass:
+
+```camp
+class Buffer
+{
+    escaped char[] data;
+
+    void replace(escaped char[] value)
+    {
+        this.data = value;
+    }
+}
+```
+
+This should fail:
+
+```camp
+class Buffer
+{
+    escaped char[] data;
+
+    void replace(char[] value)
+    {
+        this.data = value; // ERROR: scoped value cannot be stored in escaped field
+    }
+}
+```
 
 This should fail:
 
@@ -1126,6 +1190,10 @@ struct iter const char[] splitLines(unscoped const char[] text)
 
 ### Tests
 
+- Escaped field positive assignment and readback.
+- Scoped-to-escaped field assignment diagnostic.
+- Escaped class implicit field behavior matches explicit escaped fields.
+- Lifetime annotations other than `escaped` on fields are rejected.
 - Generator retained scoped parameter negative.
 - Generator retained unscoped parameter positive.
 - Yield borrowed view lifetime diagnostics.

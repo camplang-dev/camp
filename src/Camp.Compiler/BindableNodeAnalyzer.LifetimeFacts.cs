@@ -241,6 +241,7 @@ public sealed partial class BindableNodeAnalyzer
 		return construction.Kind switch
 		{
 			ConstructionKind.New => GetNewConstructionLifetimeFact(construction),
+			ConstructionKind.Init when construction.ElementCount is not null => GetInitArrayConstructionLifetimeFact(construction),
 			ConstructionKind.Init => GetInitConstructionLifetimeFact(construction, resolvedType, scope),
 			_ => null
 		};
@@ -250,6 +251,12 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		FunctionDefinition? malloc = FindMallocFunction(construction.SourceSyntax);
 		return GetFunctionReturnLifetimeFact(malloc, "new") ?? MakeLifetimeFact("unknown", null, "new");
+	}
+
+	string? GetInitArrayConstructionLifetimeFact(ConstructionExpression construction)
+	{
+		FunctionDefinition? malloc = FindMallocFunction(construction.SourceSyntax);
+		return GetFunctionReturnLifetimeFact(malloc, "init") ?? MakeLifetimeFact("unknown", null, "init");
 	}
 
 	string? GetWithinExpressionLifetimeFact(WithinExpression within, string resolvedType, BodyScope scope)
@@ -745,8 +752,25 @@ public sealed partial class BindableNodeAnalyzer
 		if (valueFact is null || target is null)
 			return;
 
+		UpdateAggregateComponentLifetimeFact(target, valueFact);
 		if (TryGetStorageNode(target, out BindableNode? storage) && storage is not null)
 			storage.ValueLifetimeFact = valueFact;
+	}
+
+	void UpdateAggregateComponentLifetimeFact(Expression target, string valueFact)
+	{
+		if (expressionRewrites.TryGetValue(target, out Expression? rewritten) && !ReferenceEquals(rewritten, target))
+		{
+			UpdateAggregateComponentLifetimeFact(rewritten, valueFact);
+			return;
+		}
+
+		if (target is not MemberReferenceExpression { Target: Expression aggregate, Member: ParameterDefinition } member)
+			return;
+		if (!IsPointerBearingResolvedType(member.ResolvedType ?? member.Member?.ResolvedType))
+			return;
+		if (TryGetStorageNode(aggregate, out BindableNode? aggregateStorage) && aggregateStorage is not null)
+			aggregateStorage.ValueLifetimeFact = valueFact;
 	}
 
 	bool TryGetStorageNode(Expression target, out BindableNode? storage)
