@@ -14,7 +14,7 @@ variables:
   storage_keywords: '\b(?:const|volatile|escaped|scoped|unscoped|in|out|thrown|overload|within|sizeof|vtableof)\b'
   constraint_keywords: '\b(?:implements|copyable)\b'
   statement_keywords: 'if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|init|new'
-  declaration_keywords: 'export|public|extern|static|virtual|override|sealed|abstract|fixed|alias'
+  declaration_keywords: 'export|public|extern|static|virtual|override|sealed|abstract|fixed|escaped|alias'
 
 contexts:
   main:
@@ -79,6 +79,19 @@ contexts:
         - meta_scope: meta.preprocessor.define.camp
         - match: '{{identifier}}'
           scope: entity.name.constant.preprocessor.camp
+        - match: $\n?
+          pop: true
+    - match: '^\s*(#)\s*(build)\b'
+      captures:
+        1: punctuation.definition.directive.camp
+        2: keyword.control.preprocessor.build.camp
+      push:
+        - meta_scope: meta.preprocessor.build.camp
+        - include: strings
+        - match: '--[A-Za-z][A-Za-z0-9-]*|-[A-Za-z]'
+          scope: variable.parameter.build-flag.camp
+        - match: '{{identifier}}'
+          scope: variable.other.build-value.camp
         - match: $\n?
           pop: true
 

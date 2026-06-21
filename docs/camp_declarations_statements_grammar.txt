@@ -15,6 +15,7 @@ compilation-unit:
 	(<preprocessor-directive> | <import-export-declaration> | <declaration>)*
 
 preprocessor-directive:
+	#build <build-argument-list>
 	#define <IDENT>
 	#undef <IDENT>
 	#if <preprocessor-expression>
@@ -42,6 +43,15 @@ preprocessor-expression:
 	<preprocessor-expression> (&& | '||') <preprocessor-expression>
 	'(' <preprocessor-expression> ')'
 
+build-argument-list:
+	<build-argument>*
+
+build-argument:
+	<IDENT>
+	<STRING>
+	<NUMBER>
+	<BUILD-TOKEN>
+
 type-declaration:
 	<attribute>* <type-declaration-declarator>* (struct|class|interface|enum|newtype) <type>? <IDENT> ['<' <generic-parameter-list> '>'] ['(' <parameter-list> ')'] [: <underlying-type-list>] (; | <type-declaration-scope>)
 
@@ -58,7 +68,7 @@ visibility-declarator:
 	export | public
 
 generic-parameter:
-	<attribute>* <IDENT> [: [implements] <type>]
+	<attribute>* <IDENT> [: (any | copyable | [implements] <type>)]
 
 type-declaration-scope:
 	'{' ([<enum-value-list> [; <declaration>*]] | <declaration>*) '}'
@@ -86,7 +96,7 @@ parameter-declarator:
 	<attribute>* [in | out | thrown | overload]
 
 type:
-	(fn|delegate|async|once) [<target-spec>] [<call-spec>] <type> '(' <parameter-list> ')'
+	(fn|delegate|once|iter|async|async iter) [<target-spec>] [<call-spec>] <type> '(' <parameter-list> ')'
 	<attribute> <type>
 	<type> '[' <expression>? ']'
 	<type> '?'
@@ -111,6 +121,10 @@ type-declarator:
 	escaped
 	scoped ['(' <IDENT-list> ')']
 	unscoped ['(' <IDENT-list> ')']
+
+Note: `scoped` and `unscoped(...)` lifetime annotations are valid only in
+method signatures and casts. `escaped` is also valid on class/interface
+declarations and fields.
 
 assignment:
 	= <expression> ;

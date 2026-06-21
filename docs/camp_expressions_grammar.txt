@@ -61,9 +61,15 @@ qualified-name:
 cast-expression:
 	'(' <type> ')' <unary-expression>
 	'(' <cast-keyword> ')' <unary-expression>
+	'(' <lifetime-cast> ')' <unary-expression>
 
 cast-keyword:
 	struct | class | delegate | fn | once | iter | async
+
+lifetime-cast:
+	scoped
+	escaped
+	unscoped '(' <IDENT> ')'
 
 sizeof-expression:
 	sizeof '(' <type> ')'

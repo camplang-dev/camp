@@ -1510,8 +1510,8 @@ Representative examples:
 
 ```camp
 scoped T[] slice<T: any>(const T[] this, @range nuint index = 0, nuint count = ^0, sizeof(T));
-scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
-T[] copy<T: copyable>(const T[] this, within allocator, sizeof(T));
+scoped T* getAddressOf<T: any>(T[] this, @index nuint index, sizeof(T));
+escaped T[] copyArray<T: copyable>(const T[] this, within allocator, sizeof(T));
 ```
 
 Copy-producing array APIs require copyable element types and `sizeof(T)`. They do not copy fixed-size arrays, fixed structs, or class elements by value.
@@ -5697,7 +5697,7 @@ This allows:
 Examples:
 
 ```camp
-scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
+scoped T* getAddressOf<T: any>(T[] this, @index nuint index, sizeof(T));
 uchar getChar(const char[] this, @index nuint unit);
 ```
 
@@ -5880,10 +5880,13 @@ Lifetime annotations may appear on:
 - explicit `this` parameters
 - class declarations
 - interface declarations
+- fields, only for the fine-grained `escaped` field form described below
 
 For a delegate-like callable value, lifetime annotations describe the lifetime of the hidden context pointer.
 
-Lifetime annotations are not written on individual fields. Aggregate and context lifetimes are expressed on the containing value instead.
+With one exception, lifetime annotations are not written on individual fields. Aggregate and context lifetimes are expressed on the containing value instead.
+
+The exception is an `escaped` field declaration. It marks the pointers contained in that field as escaped storage and requires assigned values to satisfy that escaped field contract. This is the field-level form of the same idea used by escaped arrays, escaped delegates, and `escaped class`: it does not introduce ownership by itself, but it does make the storage requirement visible at the field boundary.
 
 Storage-class specifiers such as `const`, `volatile`, `scoped`, `unscoped`, and
 `escaped` follow C-style placement: a specifier applies to the thing on its
@@ -6001,7 +6004,24 @@ A return value may also be annotated explicitly:
 
 Construction expressions use analogous result-lifetime checking even though constructors do not declare ordinary return values. The construction-specific rules are defined with `init` and `new`.
 
-### 4.1.9 Aggregate and container rule
+### 4.1.9 Explicit lifetime casts
+
+Explicit lifetime casts are the escape hatch for relationships the compiler cannot prove locally.
+
+```camp
+auto borrowed = (scoped)value;
+auto stored = (unscoped(owner))value;
+auto heapValue = (escaped)value;
+auto heapString = (escaped string)value;
+```
+
+`(scoped)` changes the expression to caller-context. `(unscoped(anchor))` asserts that the value is at least as long-lived as the named anchor. The anchor is required; bare `(unscoped)` is not a valid lifetime cast. `(escaped)` asserts that the value is not stack storage.
+
+These casts are programmer assertions. They do not allocate, copy, pin, or otherwise change the runtime value. Use them where an API boundary or low-level implementation proves a relation the compiler cannot derive from ordinary flow.
+
+Lifetime annotations in type positions are used in signatures and casts. They do not precede ordinary local declarations or globals. `escaped` is additionally allowed on class/interface declarations and on individual fields, as described above.
+
+### 4.1.10 Aggregate and container rule
 
 Pointer-bearing contents are treated as `unscoped` relative to their containing value by default.
 
@@ -6024,9 +6044,11 @@ A value therefore does not need to itself be a pointer in order to participate i
 
 This is what makes containers of `char[]`, `Span<T>`, delegate values, and other pointer-bearing values meaningful under the lifetime system.
 
-A pointer-bearing aggregate or context value has one lifetime for its contained pointers. Individual fields do not acquire separate lifetime annotations, even when those fields are nested inside other fields.
+A pointer-bearing aggregate or context value has one lifetime for its contained pointers unless a field explicitly uses the `escaped` field form. Without such a field annotation, individual fields do not acquire separate lifetime annotations, even when those fields are nested inside other fields.
 
 Assignment into a field or nested field is therefore checked as assignment into the containing value. A value may not be assigned into a field if that value is too narrow for the containing aggregate's current lifetime.
+
+For an `escaped` field, the assignment is checked against the field's escaped requirement. For every other pointer-bearing field, assignment is checked against the containing aggregate's current lifetime.
 
 This rule applies equally to structs, classes, expanded values, materialized `struct(T)` storage, arrays and fixed-size arrays whose elements contain pointers, optionals whose payload contains pointers, delegates, and compiler-generated context objects.
 
@@ -8788,8 +8810,8 @@ Representative surface:
 
 ```camp
 scoped T[] slice<T: any>(const T[] this, @range nuint index = 0, nuint count = ^0, sizeof(T));
-scoped T* addressOf<T: any>(T[] this, @index nuint index, sizeof(T));
-T[] copy<T: copyable>(const T[] this, within allocator, sizeof(T));
+scoped T* getAddressOf<T: any>(T[] this, @index nuint index, sizeof(T));
+escaped T[] copyArray<T: copyable>(const T[] this, within allocator, sizeof(T));
 ```
 
 The methods operate on the array's direct components. For a receiver named `items`, implementations use `items.elements` and `items.length`.
@@ -8826,7 +8848,7 @@ auto middle = values.slice(2..^1);
 Copy-producing array operations take an allocator:
 
 ```camp
-T[] copy<T: copyable>(const T[] this, within allocator, sizeof(T));
+escaped T[] copyArray<T: copyable>(const T[] this, within allocator, sizeof(T));
 ```
 
 The returned array owns the allocated element storage only according to the API contract that produced it. The array type itself is just pointer plus length. Copy-producing APIs require `T: copyable` because they copy element values.
@@ -9238,34 +9260,29 @@ The convenience methods `openRead(...)` and `openWrite(...)` return streams dire
 ### 7.2.5 `Console`
 
 The currently implemented console surface is a small static helper class for
-writing to standard output:
+reading from standard input and writing to standard output/error through stream
+helpers:
 
 ```camp
 export class Console
 {
-	export static void writeString(const char[] value);
-	export static void writeLine(const char[] value = default);
-	export static void writeBool(bool value);
-	export static void writeChar(char value);
-	export static void writeInt(int value);
-	export static void writeUInt(uint value);
-	export static void writeDouble(double value);
+	export static CharReader getReader();
+	export static CharWriter getWriter();
+	export static CharWriter getError();
 	
-	// These are planned:
-	
-	export static extern CharReader getReader();
-	export static extern AsyncCharReader getAsyncReader();
-
-	export static extern CharWriter getWriter();
-	export static extern AsyncCharWriter getAsyncWriter();
-
-	export static extern CharWriter getError();
-	export static extern AsyncCharWriter getAsyncError();
+	export static void write(overload const char[] value);
+	export static void write(overload string value);
+	export static void write(overload int value);
+	export static void writeLine(overload const char[] value);
+	export static void writeLine(overload string value);
+	export static void writeLine(overload int value);
+	export static char readChar();
+	export static escaped string readLine(within allocator);
 }
 ```
 
-Reader/writer console streams are planned library design and are described
-below as part of the broader stream model.
+Async console stream access is planned library design and is described below as
+part of the broader stream model.
 
 ### 7.2.6 Stream adapters
 
@@ -9322,17 +9339,19 @@ export async void writeAllAsync(AsyncByteWriter this, const byte[] value, thrown
 UTF-8 forms:
 
 ```camp
-export thrown(IoError) writeChar(CharWriter this, uchar value);
-export thrown(IoError) writeString(CharWriter this, char[] value);
-export thrown(IoError) writeLine(CharWriter this, char[] value = default);
+export void write(CharWriter this, overload char value);
+export void write(CharWriter this, overload const char[] value);
+export void write(CharWriter this, overload bool value);
+export void write(CharWriter this, overload int value);
+export void write(CharWriter this, overload uint value);
+export void write(CharWriter this, overload double value);
 
-export thrown(IoError) writeBool(CharWriter this, bool value);
-export thrown(IoError) writeInt(CharWriter this, int value);
-export thrown(IoError) writeLong(CharWriter this, long value);
-export thrown(IoError) writeUInt(CharWriter this, uint value);
-export thrown(IoError) writeULong(CharWriter this, ulong value);
-export thrown(IoError) writeFloat(CharWriter this, float value);
-export thrown(IoError) writeDouble(CharWriter this, double value);
+export bool tryWrite(CharWriter this, overload char value, thrown IoError);
+export bool tryWrite(CharWriter this, overload const char[] value, thrown IoError);
+export bool tryWrite(CharWriter this, overload int value, thrown IoError);
+
+export void writeLine(CharWriter this, overload const char[] value);
+export bool tryWriteLine(CharWriter this, overload const char[] value, thrown IoError);
 
 export async void writeStringAsync(AsyncCharWriter this, char[] value, thrown IoError);
 export async void writeLineAsync(AsyncCharWriter this, char[] value = default, thrown IoError);
@@ -9460,9 +9479,9 @@ void writeTextFile(const char[] path, thrown IoError)
 	auto writer = FileHandle.openWrite(path) finally delete;
 
 	writer.CharWriter.writeLine("hello, world");
-	writer.CharWriter.writeString("The answer is ");
-	writer.CharWriter.writeInt(42);
-	writer.CharWriter.writeLine();
+	writer.CharWriter.write("The answer is ");
+	writer.CharWriter.write(42);
+	writer.CharWriter.newLine();
 }
 ```
 
