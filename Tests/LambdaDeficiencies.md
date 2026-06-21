@@ -6,15 +6,6 @@ and Stage C work around escaped delegates and final cross-feature hardening.
 
 Next deficiency number: DEF-008.
 
-- **DEF-001:** Implement escaped delegate lambda lowering.
-  Stage: B. Priority: high. Complexity: high. The analyzer and lowering still
-  report `Escaped delegate lambdas are not implemented yet.` for escaped
-  delegate targets. Add lowering for escaped delegate lambdas that allocates a
-  context with the current allocator, copies permitted captures into that
-  context, returns the ordinary delegate components, and emits compilable C for
-  both direct escaped delegate variables and calls that receive escaped delegate
-  parameters.
-
 - **DEF-002:** Enforce escaped capture legality and read-only captured values.
   Stage: B. Priority: high. Complexity: medium-high. Escaped delegates should
   be allowed to capture only values that are valid to escape. Local values copied

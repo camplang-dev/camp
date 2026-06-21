@@ -1,1 +1,0 @@
-tests/Diagnostics/lambda_escaped_deferred.camp(8,12): error: Escaped delegate lambdas are not implemented yet.

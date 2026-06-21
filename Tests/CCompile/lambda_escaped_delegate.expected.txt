@@ -1,0 +1,76 @@
+// file: lambda_escaped_delegate.c
+#include "lambda_escaped_delegate_private.h"
+
+/* Private file declarations. */
+static int __camp_delegate_main_lambda0(void *arg0, int arg1);
+void *malloc(uintptr_t size);
+static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value);
+static int main_lambda0(void *context, int value);
+
+static int __camp_delegate_main_lambda0(void *arg0, int arg1)
+{
+	return main_lambda0(arg0, arg1);
+}
+
+static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value)
+{
+	return callback(callback_context, value);
+}
+
+int main(void)
+{
+	int offset = 40;
+	main_lambdaContext0 *_lambdaContext0 = (main_lambdaContext0 *)(malloc(sizeof(main_lambdaContext0)));
+	_lambdaContext0->capture0_offset = offset;
+	return apply(__camp_delegate_main_lambda0, _lambdaContext0, 2);
+}
+
+static int main_lambda0(void *context, int value)
+{
+	main_lambdaContext0 *lambdaContext = (main_lambdaContext0 *)(context);
+	return (value + lambdaContext->capture0_offset);
+}
+
+// file: lambda_escaped_delegate.h
+#ifndef LAMBDA_ESCAPED_DELEGATE_H_
+#define LAMBDA_ESCAPED_DELEGATE_H_
+
+#include "lambda_escaped_delegate_private.h"
+
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+int main(void);
+
+#endif
+// file: lambda_escaped_delegate_private.h
+#ifndef LAMBDA_ESCAPED_DELEGATE_PRIVATE_H_
+#define LAMBDA_ESCAPED_DELEGATE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct main_lambdaContext0 main_lambdaContext0;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+
+/* Layouts. */
+struct main_lambdaContext0
+{
+	int capture0_offset;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lambda_escaped_delegate.c

@@ -1,9 +1,0 @@
-void accept(escaped delegate void() callback)
-{
-}
-
-void main()
-{
-	int count = 0;
-	accept(() => count++);
-}

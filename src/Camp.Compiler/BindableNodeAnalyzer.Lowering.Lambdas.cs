@@ -6,7 +6,7 @@ namespace Camp.Compiler;
 public sealed partial class BindableNodeAnalyzer
 {
 	sealed record LambdaCapture(BindableNode Variable, string Name, string Type, FieldDefinition Field, bool IsThis = false);
-	sealed record LambdaContextInfo(StructDefinition Definition, List<LambdaCapture> Captures)
+	sealed record LambdaContextInfo(StructDefinition Definition, List<LambdaCapture> Captures, bool IsEscaped)
 	{
 		public DeclarationTarget? LocalTarget { get; set; }
 	}
@@ -56,12 +56,6 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(lambda.SourceSyntax), "Lambda lowering supports only fn or delegate targets.");
 			return lambda;
 		}
-		if (isEscaped)
-		{
-			Report(GetRange(lambda.SourceSyntax), "Escaped delegate lambdas are not implemented yet.");
-			return lambda;
-		}
-
 		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, currentRewriteFunction, FindCurrentRewriteContainingType(), reportUnsupported: true);
 		if (captures.Count > 0 && shape.Kind != "delegate")
 		{
@@ -73,7 +67,7 @@ public sealed partial class BindableNodeAnalyzer
 		LambdaContextInfo? contextInfo = null;
 		if (captures.Count > 0)
 		{
-			contextInfo = GetOrCreateLambdaContext(lambda, captures);
+			contextInfo = GetOrCreateLambdaContext(lambda, captures, isEscaped);
 			EnsureLambdaContextLocal(lambda, contextInfo, currentStatementPrefix);
 			if (contextInfo.LocalTarget is null)
 				return lambda;
@@ -146,7 +140,9 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = lambda.SourceSyntax,
 			Expression = contextInfo?.LocalTarget is null
 				? NullLiteral(lambda.SourceSyntax)
-				: new UnaryExpression
+				: contextInfo.IsEscaped
+					? CreateVariableReference(contextInfo.LocalTarget, contextInfo.LocalTarget.ResolvedType ?? contextInfo.Definition.Name + "*")
+					: new UnaryExpression
 				{
 					SourceSyntax = lambda.SourceSyntax,
 					Operator = UnaryOperator.AddressOf,
@@ -157,7 +153,7 @@ public sealed partial class BindableNodeAnalyzer
 		return initializer;
 	}
 
-	LambdaContextInfo GetOrCreateLambdaContext(LambdaExpression lambda, List<LambdaCapture> captures)
+	LambdaContextInfo GetOrCreateLambdaContext(LambdaExpression lambda, List<LambdaCapture> captures, bool isEscaped)
 	{
 		if (lambdaContexts.TryGetValue(lambda, out LambdaContextInfo? context))
 			return context;
@@ -182,14 +178,14 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = lambda.SourceSyntax,
 				Name = fieldName,
 				Symbol = fieldName,
-				Type = PointerTo(TypeReferenceForResolvedName(capture.Type)),
-				ResolvedType = AddPointer(capture.Type)
+				Type = isEscaped ? TypeReferenceForResolvedName(capture.Type) : PointerTo(TypeReferenceForResolvedName(capture.Type)),
+				ResolvedType = isEscaped ? capture.Type : AddPointer(capture.Type)
 			};
 			definition.Fields.Add(field);
 			contextCaptures.Add(capture with { Field = field });
 		}
 
-		context = new LambdaContextInfo(definition, contextCaptures);
+		context = new LambdaContextInfo(definition, contextCaptures, isEscaped);
 		lambdaContexts[lambda] = context;
 		generatedLambdaContextDefinitions.Add(definition);
 		return context;
@@ -215,8 +211,10 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
-		string typeName = context.Definition.Name;
-		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("lambdaContext"), typeName, TypeReferenceFor(context.Definition), initialValue: null);
+		string typeName = context.IsEscaped ? context.Definition.Name + "*" : context.Definition.Name;
+		TypeReference localType = context.IsEscaped ? PointerTo(TypeReferenceFor(context.Definition)) : TypeReferenceFor(context.Definition);
+		Expression? initialValue = context.IsEscaped ? CreateAllocCall(TypeReferenceFor(context.Definition), lambda.SourceSyntax) : null;
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("lambdaContext"), typeName, localType, initialValue);
 		context.LocalTarget = local.Target;
 		statements.Add(local);
 		foreach (LambdaCapture capture in context.Captures)
@@ -230,13 +228,15 @@ public sealed partial class BindableNodeAnalyzer
 					Member = capture.Field,
 					ResolvedType = capture.Field.ResolvedType
 				},
-				new UnaryExpression
-				{
-					SourceSyntax = lambda.SourceSyntax,
-					Operator = UnaryOperator.AddressOf,
-					Operand = CreateVariableReference(capture.Variable, capture.Type),
-					ResolvedType = AddPointer(capture.Type)
-				},
+				context.IsEscaped
+					? CreateVariableReference(capture.Variable, capture.Type)
+					: new UnaryExpression
+					{
+						SourceSyntax = lambda.SourceSyntax,
+						Operator = UnaryOperator.AddressOf,
+						Operand = CreateVariableReference(capture.Variable, capture.Type),
+						ResolvedType = AddPointer(capture.Type)
+					},
 				capture.Field.ResolvedType ?? ErrorType,
 				lambda.SourceSyntax));
 		}
@@ -244,12 +244,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	void PrepareLambdaContextLocal(LambdaExpression lambda, List<Statement> statements)
 	{
-		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind != "delegate" || isEscaped)
+		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind != "delegate")
 			return;
 		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, currentRewriteFunction, FindCurrentRewriteContainingType(), reportUnsupported: true);
 		if (captures.Count == 0)
 			return;
-		LambdaContextInfo context = GetOrCreateLambdaContext(lambda, captures);
+		LambdaContextInfo context = GetOrCreateLambdaContext(lambda, captures, isEscaped);
 		EnsureLambdaContextLocal(lambda, context, statements);
 	}
 
@@ -475,6 +475,17 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression CreateCapturedValueReference(LambdaCapture capture, DeclarationTarget contextLocal, SyntaxNode? syntax)
 	{
+		MemberReferenceExpression fieldReference = new()
+		{
+			SourceSyntax = syntax,
+			Target = CreateVariableReference(contextLocal, contextLocal.ResolvedType ?? ErrorType),
+			Name = capture.Field.Name,
+			Member = capture.Field,
+			ResolvedType = capture.Field.ResolvedType
+		};
+		if (capture.Field.ResolvedType == capture.Type)
+			return fieldReference;
+
 		return new ParenthesizedExpression
 		{
 			SourceSyntax = syntax,
@@ -483,14 +494,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				SourceSyntax = syntax,
 				Operator = UnaryOperator.PointerDereference,
-				Operand = new MemberReferenceExpression
-				{
-					SourceSyntax = syntax,
-					Target = CreateVariableReference(contextLocal, contextLocal.ResolvedType ?? ErrorType),
-					Name = capture.Field.Name,
-					Member = capture.Field,
-					ResolvedType = capture.Field.ResolvedType
-				},
+				Operand = fieldReference,
 				ResolvedType = capture.Type
 			},
 		};

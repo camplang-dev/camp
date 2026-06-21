@@ -1261,8 +1261,6 @@ public sealed partial class BindableNodeAnalyzer
 		CallableShape? targetShape = TryGetLambdaCallableShape(targetType, out CallableShape callableTarget, out bool targetIsEscaped) ? callableTarget : null;
 		if (targetShape is CallableShape targetCallable && targetCallable.Kind is not ("fn" or "delegate"))
 			Report(GetRange(lambda.SourceSyntax), "Lambdas can target only fn or delegate callable types.");
-		if (targetIsEscaped)
-			Report(GetRange(lambda.SourceSyntax), "Escaped delegate lambdas are not implemented yet.");
 		BodyScope lambdaScope = new(scope, scope.CurrentFunction, scope.ContainingType)
 		{
 			CurrentFunctionReturnType = targetShape?.ReturnType ?? TargetType,
