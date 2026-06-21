@@ -196,7 +196,9 @@ public sealed partial class BindableNodeAnalyzer
 			NamelessIndexerExpression indexer => GetExpressionLifetimeFact(indexer.Target),
 			MemberExpression member => GetMemberLifetimeFact(member, resolvedType, scope),
 			CallExpression call => GetCallLifetimeFact(call, resolvedType, scope),
-			LambdaExpression => MakeLifetimeFact("scoped", null, "lambda"),
+			LambdaExpression lambda => TryGetResolvedTypeLifetime(lambda.ResolvedType, out string lambdaLifetime)
+				? MakeLifetimeFact(lambdaLifetime, null, "lambda")
+				: MakeLifetimeFact("scoped", null, "lambda"),
 			AssignmentExpression assignment => GetExpressionLifetimeFact(assignment.Value),
 			ConditionalExpression conditional => GetExpressionLifetimeFact(conditional.WhenTrue) ?? GetExpressionLifetimeFact(conditional.WhenFalse),
 			_ => null

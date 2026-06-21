@@ -6,15 +6,6 @@ and Stage C work around escaped delegates and final cross-feature hardening.
 
 Next deficiency number: DEF-008.
 
-- **DEF-005:** Harden escaped lambda target typing with callable newtypes,
-  method references, and overloads. Stage: B/C. Priority: medium. Complexity:
-  medium. Existing scoped tests cover callable newtypes and overload-selection
-  restrictions. Escaped delegate targets need matching coverage: escaped
-  delegate newtypes, explicit target-typed calls, `auto` behavior when an
-  escaped target is or is not present, overload diagnostics for lambda
-  arguments, and bound method references used where an escaped delegate is
-  required.
-
 - **DEF-006:** Repeat the Stage A hardening matrix for escaped delegates and
   remove any Stage C gaps. Stage: C. Priority: medium-high. Complexity: high.
   Stage A has committed scoped coverage for block bodies, generic extension

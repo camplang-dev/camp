@@ -1,0 +1,2 @@
+tests/Diagnostics/lambda_escaped_overload_invalid.camp(15,15): error: Cannot select overload `choose` from a lambda argument. Call the typed overload entry explicitly.
+tests/Diagnostics/lambda_escaped_overload_invalid.camp(15,2): error: Multiple candidates found for call target 'choose'.

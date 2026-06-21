@@ -1,0 +1,17 @@
+void choose(overload escaped delegate bool(int) predicate)
+{
+}
+
+void choose(overload fn bool(int) predicate)
+{
+}
+
+void chooseEscaped(escaped delegate bool(int) predicate)
+{
+}
+
+void main()
+{
+	choose(value => true);
+	chooseEscaped(value => value > 0);
+}

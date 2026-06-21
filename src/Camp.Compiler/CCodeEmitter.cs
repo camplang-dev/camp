@@ -3131,6 +3131,13 @@ public static class CCodeEmitter
 				int space = type.LastIndexOf(' ');
 				type = space < 0 ? "" : type[..space].TrimEnd();
 			}
+			while (type.EndsWith(" escaped", StringComparison.Ordinal)
+				|| type.EndsWith(" scoped", StringComparison.Ordinal)
+				|| type.EndsWith(" unscoped", StringComparison.Ordinal))
+			{
+				int space = type.LastIndexOf(' ');
+				type = space < 0 ? "" : type[..space].TrimEnd();
+			}
 			return type;
 		}
 
@@ -4130,6 +4137,21 @@ public static class CCodeEmitter
 				if (type.EndsWith(" volatile", StringComparison.Ordinal))
 				{
 					trailingQualifiers.Insert(0, "volatile");
+					type = type[..^9].TrimEnd();
+					continue;
+				}
+				if (type.EndsWith(" escaped", StringComparison.Ordinal))
+				{
+					type = type[..^8].TrimEnd();
+					continue;
+				}
+				if (type.EndsWith(" scoped", StringComparison.Ordinal))
+				{
+					type = type[..^7].TrimEnd();
+					continue;
+				}
+				if (type.EndsWith(" unscoped", StringComparison.Ordinal))
+				{
 					type = type[..^9].TrimEnd();
 					continue;
 				}

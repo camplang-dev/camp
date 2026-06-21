@@ -1,0 +1,27 @@
+extern escaped void* malloc(nuint size);
+extern void free(escaped void* ptr);
+
+newtype delegate int Mapper(int value);
+
+void acceptMapper(escaped Mapper mapper)
+{
+}
+
+class Worker
+{
+	int adjust(escaped this, int value)
+	{
+		return value + 1;
+	}
+}
+
+void acceptWorker(escaped delegate int(int) mapper)
+{
+}
+
+void use(escaped Worker* worker)
+{
+	int offset = 2;
+	acceptMapper(value => value + offset);
+	acceptWorker(worker.adjust);
+}

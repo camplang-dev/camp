@@ -1,0 +1,85 @@
+// file: lambda_escaped_target_typing.c
+#include "lambda_escaped_target_typing_private.h"
+
+/* Private file declarations. */
+static int __camp_delegate_use_lambda0(void *arg0, int arg1);
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void acceptMapper(fn_int_voidPtr__int_ mapper, void *mapper_context);
+static int Worker_adjust(Worker *this, int value);
+static void acceptWorker(fn_int_voidPtr__int_ mapper, void *mapper_context);
+static void use(Worker *worker);
+static int use_lambda0(void *context, int value);
+
+static int __camp_delegate_use_lambda0(void *arg0, int arg1)
+{
+	return use_lambda0(arg0, arg1);
+}
+
+static void acceptMapper(fn_int_voidPtr__int_ mapper, void *mapper_context)
+{
+}
+
+static int Worker_adjust(Worker *this, int value)
+{
+	return (value + 1);
+}
+
+static void acceptWorker(fn_int_voidPtr__int_ mapper, void *mapper_context)
+{
+}
+
+static void use(Worker *worker)
+{
+	int offset = 2;
+	use_lambdaContext0 *_lambdaContext0 = (use_lambdaContext0 *)(malloc(sizeof(use_lambdaContext0)));
+	_lambdaContext0->capture0_offset = offset;
+	acceptMapper(__camp_delegate_use_lambda0, _lambdaContext0);
+	acceptWorker((fn_int_voidPtr__int_)Worker_adjust, (Worker *)(worker));
+}
+
+static int use_lambda0(void *context, int value)
+{
+	use_lambdaContext0 *lambdaContext = (use_lambdaContext0 *)(context);
+	return (value + lambdaContext->capture0_offset);
+}
+
+// file: lambda_escaped_target_typing_private.h
+#ifndef LAMBDA_ESCAPED_TARGET_TYPING_PRIVATE_H_
+#define LAMBDA_ESCAPED_TARGET_TYPING_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Worker Worker;
+typedef struct use_lambdaContext0 use_lambdaContext0;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef int (* Mapper)(int arg0);
+
+/* Callable typedefs. */
+typedef int (* fn_int_WorkerPtr_escaped__int_)(Worker *arg0, int arg1);
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+
+/* Layouts. */
+struct Worker
+{
+	char _camp_empty;
+};
+struct use_lambdaContext0
+{
+	int capture0_offset;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lambda_escaped_target_typing.c
