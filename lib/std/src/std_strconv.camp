@@ -1,11 +1,11 @@
 export as Std;
 
-export string copyString(const char[] this, within allocator)
+export escaped string copyString(const char[] this, within allocator)
 {
 	return (string)strconvCopyCharSpan(this.elements, this.length, allocator);
 }
 
-export wstring copyWString(const char[] this, within allocator)
+export escaped wstring copyWString(const char[] this, within allocator)
 {
 	nuint length = strconvCharLogicalLength(this.elements, this.length);
 	nuint outputLength = strconvUtf8ToUtf16Length(this.elements, length);
@@ -26,7 +26,7 @@ export wstring copyWString(const char[] this, within allocator)
 	return (wstring)buffer;
 }
 
-export astring copyAString(const char[] this, achar unrepresentable = '?', within allocator)
+export escaped astring copyAString(const char[] this, achar unrepresentable = '?', within allocator)
 {
 	nuint length = strconvCharLogicalLength(this.elements, this.length);
 	achar* buffer = strconvAllocateAChars(length + 1, allocator);
@@ -47,7 +47,7 @@ export astring copyAString(const char[] this, achar unrepresentable = '?', withi
 	return (astring)buffer;
 }
 
-export string copyString(const wchar[] this, within allocator)
+export escaped string copyString(const wchar[] this, within allocator)
 {
 	nuint length = strconvWCharLogicalLength(this.elements, this.length);
 	nuint outputLength = strconvUtf16ToUtf8Length(this.elements, length);
@@ -68,12 +68,12 @@ export string copyString(const wchar[] this, within allocator)
 	return (string)buffer;
 }
 
-export wstring copyWString(const wchar[] this, within allocator)
+export escaped wstring copyWString(const wchar[] this, within allocator)
 {
 	return (wstring)strconvCopyWCharSpan(this.elements, this.length, allocator);
 }
 
-export astring copyAString(const wchar[] this, achar unrepresentable = '?', within allocator)
+export escaped astring copyAString(const wchar[] this, achar unrepresentable = '?', within allocator)
 {
 	nuint length = strconvWCharLogicalLength(this.elements, this.length);
 	achar* buffer = strconvAllocateAChars(length + 1, allocator);
@@ -94,7 +94,7 @@ export astring copyAString(const wchar[] this, achar unrepresentable = '?', with
 	return (astring)buffer;
 }
 
-export string copyString(const achar[] this, within allocator)
+export escaped string copyString(const achar[] this, within allocator)
 {
 	nuint length = strconvACharLogicalLength(this.elements, this.length);
 	nuint outputLength = 0;
@@ -112,7 +112,7 @@ export string copyString(const achar[] this, within allocator)
 	return (string)buffer;
 }
 
-export wstring copyWString(const achar[] this, within allocator)
+export escaped wstring copyWString(const achar[] this, within allocator)
 {
 	nuint length = strconvACharLogicalLength(this.elements, this.length);
 	wchar* buffer = strconvAllocateWChars(length + 1, allocator);
@@ -125,7 +125,7 @@ export wstring copyWString(const achar[] this, within allocator)
 	return (wstring)buffer;
 }
 
-export astring copyAString(const achar[] this, achar unrepresentable = '?', within allocator)
+export escaped astring copyAString(const achar[] this, achar unrepresentable = '?', within allocator)
 {
 	return (astring)strconvCopyACharSpan(this.elements, this.length, allocator);
 }

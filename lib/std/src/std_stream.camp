@@ -297,7 +297,7 @@ export bool tryWrite(CharWriter this, overload double value, thrown IoError erro
 	return true;
 }
 
-string readCopy(CharReader this, bool stopAtNewline, within allocator, thrown IoError error)
+escaped string readCopy(CharReader this, bool stopAtNewline, within allocator, thrown IoError error)
 {
 	char* buffer = null;
 	nuint length = 0;
@@ -346,7 +346,7 @@ string readCopy(CharReader this, bool stopAtNewline, within allocator, thrown Io
 	return (string)buffer;
 }
 
-char* CharReader_growBuffer(char* buffer, nuint length, nuint capacity, within allocator, thrown IoError error)
+escaped char* CharReader_growBuffer(char* buffer, nuint length, nuint capacity, within allocator, thrown IoError error)
 {
 	nuint nextCapacity = capacity == 0 ? 64 : capacity * 2;
 	char[] nextArray = new char[nextCapacity];
@@ -372,12 +372,12 @@ export char readChar(CharReader this, thrown IoError error)
 	return buffer[0];
 }
 
-export string readLine(CharReader this, within allocator, thrown IoError error)
+export escaped string readLine(CharReader this, within allocator, thrown IoError error)
 {
 	return CharReader_readCopy(this, true, within allocator, catch error);
 }
 
-export string readToEnd(CharReader this, within allocator, thrown IoError error)
+export escaped string readToEnd(CharReader this, within allocator, thrown IoError error)
 {
 	return CharReader_readCopy(this, false, within allocator, catch error);
 }

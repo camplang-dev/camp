@@ -120,7 +120,7 @@ export class FileHandle
 		}
 	}
 	
-	export static FileHandle* open(string path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError error)
+	export static escaped FileHandle* open(string path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError error)
 	{
 		nint fileHandle = camp_io_file_open(path, FileHandle_access(access), FileHandle_mode(mode), FileHandle_options(options), out error);
 		if (fileHandle < 0)

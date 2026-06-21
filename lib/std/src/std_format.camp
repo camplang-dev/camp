@@ -1,6 +1,6 @@
 export newtype delegate nuint CharFormatter(const this, char[] buffer = default);
 
-export string copyString(CharFormatter this, within allocator)
+export escaped string copyString(CharFormatter this, within allocator)
 {
 	auto buf = new char[this() + 1];
 	this(buf);

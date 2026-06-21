@@ -130,5 +130,5 @@ export class Console
 	
 	export static char readChar() => Console.Reader.readChar(catch _);
 	
-	export static string readLine(within allocator) => Console.Reader.readLine(within allocator, catch _);
+	export static escaped string readLine(within allocator) => Console.Reader.readLine(within allocator, catch _);
 }

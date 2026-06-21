@@ -1287,11 +1287,11 @@ Annotations should appear when:
 
 ### Likely Stdlib Adjustments
 
-`std_array.camp`:
+`std_array.camp` uses the current in-place resize surface:
 
 ```camp
-export escaped T[] resize<T: copyable>(
-    escaped T[] this,
+export void resize<T: copyable>(
+    escaped T[]* this,
     nuint newSize,
     within allocator,
     sizeof(T));
@@ -1328,21 +1328,22 @@ context lifetime.
 
 ### Completion Criteria
 
-- Stdlib builds with lifetime enforcement enabled.
-- StdRun tests continue to pass.
-- `Array.resize` rejects stack spans and accepts escaped arrays.
-- `List<T>` remains idiomatic and sparse.
-- Copy APIs return escaped facts.
-- Stream/file reader-writer callable contexts cannot be used after their source
-  object is no longer valid.
+- ~~Stdlib builds with lifetime enforcement enabled.~~
+- ~~StdRun tests continue to pass.~~
+- ~~`Array.resize` rejects stack spans and accepts escaped arrays.~~
+- ~~`List<T>` remains idiomatic and sparse.~~
+- ~~Copy APIs return escaped facts.~~
+- ~~Stream/file reader-writer callable contexts cannot be used after their source
+  object is no longer valid.~~
 
 ### Tests
 
-- StdRun resize/list tests.
-- String copy and delete tests.
-- FileHandle writer lifetime diagnostics.
-- Console writer positive escaped/static context.
-- List of pointer-bearing values positive/negative tests.
+- ~~StdRun resize/list tests.~~
+- ~~String copy and delete tests.~~
+- ~~FileHandle writer lifetime diagnostics.~~ Covered by existing file smokes
+  and lifetime diagnostics; no new overlapping tests were added.
+- ~~Console writer positive escaped/static context.~~
+- ~~List of pointer-bearing values positive/negative tests.~~
 
 ## Stage 10: Diagnostics And Documentation Polish
 

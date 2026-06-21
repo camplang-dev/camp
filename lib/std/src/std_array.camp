@@ -6,7 +6,7 @@ export void clear<T: any>(T[] this, sizeof(T))
 		this[i] = default;
 }
 
-export T[] copyArray<T: copyable>(const T[] this, within allocator, sizeof(T))
+export escaped T[] copyArray<T: copyable>(const T[] this, within allocator, sizeof(T))
 {
 	T[] elements = new T[this.length];
 	this.copyTo<T>(elements);
