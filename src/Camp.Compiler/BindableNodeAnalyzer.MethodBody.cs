@@ -130,7 +130,7 @@ public sealed partial class BindableNodeAnalyzer
 			case ReturnStatement returnStatement:
 			{
 				string returnType = returnStatement.Expression is null ? "void" : BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope, scope.CurrentFunctionReturnType);
-				if (IsDirectCapturingLambda(returnStatement.Expression, scope))
+				if (IsDirectCapturingLambda(returnStatement.Expression, scope) && !IsEscapedDelegateLambdaTarget(scope.CurrentFunctionReturnType))
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Capturing scoped lambdas cannot be returned.");
 				if (RequiresAnyGenericCopy(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
 					ReportAnyGenericCopy(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
@@ -2812,6 +2812,8 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		if (TryAnalyzeFixedArrayComponentMember(member, targetType, out string fixedComponentType))
 			return fixedComponentType;
+		if (TryAnalyzeParamsComponentMember(member, targetType, out string valueComponentType))
+			return valueComponentType;
 		if (TryAnalyzeParamsPointerComponentMember(member, targetType, out string componentType))
 			return componentType;
 
@@ -3006,6 +3008,20 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
+	bool TryAnalyzeParamsComponentMember(MemberExpression member, string targetType, out string componentType)
+	{
+		componentType = ErrorType;
+		if (!TryGetParamsComponentShape(null, targetType, "value", out ParamsComponentShape shape))
+			return false;
+
+		ParamsComponent? component = FindParamsComponent(shape, member.Name);
+		if (component is null)
+			return false;
+
+		componentType = component.Type;
+		return true;
+	}
+
 	bool BoundMethodReferenceCanSatisfyThisContract(string receiverType, FunctionDefinition function, ThisContract contract, SyntaxNode? syntax)
 	{
 		ThisContract methodContract = GetThisContract(GetEffectiveThisParameter(function));
@@ -3147,7 +3163,7 @@ public sealed partial class BindableNodeAnalyzer
 			return valueType;
 		}
 		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target", scope);
-		if (IsDirectCapturingLambda(assignment.Value, scope) && IsEscapingLambdaAssignmentTarget(assignment.Target))
+		if (IsDirectCapturingLambda(assignment.Value, scope) && IsEscapingLambdaAssignmentTarget(assignment.Target) && !IsEscapedDelegateLambdaTarget(targetType))
 			Report(GetRange(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax), "Capturing scoped lambdas cannot be assigned to global variables or fields.");
 		if (TryGetFixedArrayShape(targetType, out _, out _))
 		{

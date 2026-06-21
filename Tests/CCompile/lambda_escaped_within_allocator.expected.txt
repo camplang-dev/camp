@@ -1,0 +1,87 @@
+// file: lambda_escaped_within_allocator.c
+#include "lambda_escaped_within_allocator_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void *Arena_alloc(Arena *this, uintptr_t size);
+static void Arena_free(Arena *this, void *ptr);
+static fn_int_voidPtr_ make(Arena *arena, int value, void **result_context);
+static void use(Arena *arena);
+static int make_lambda0(void *context);
+
+static void *Arena_alloc(Arena *this, uintptr_t size)
+{
+	return malloc(size);
+}
+
+static void Arena_free(Arena *this, void *ptr)
+{
+	free(ptr);
+}
+
+static fn_int_voidPtr_ make(Arena *arena, int value, void **result_context)
+{
+	Arena *_allocator0 = arena;
+	make_lambdaContext0 *_lambdaContext1 = (make_lambdaContext0 *)(((_allocator0 != NULL) ? Arena_alloc(_allocator0, sizeof(make_lambdaContext0)) : malloc(sizeof(make_lambdaContext0))));
+	_lambdaContext1->capture0_value = value;
+	{
+		(*result_context) = _lambdaContext1;
+		return make_lambda0;
+	}
+}
+
+static void use(Arena *arena)
+{
+	fn_int_voidPtr_ callback;
+	void *callback_context;
+	callback = make(arena, 5, &callback_context);
+	{
+		Arena *_allocator2 = arena;
+		((_allocator2 != NULL) ? Arena_free(_allocator2, (void *)(callback_context)) : free((void *)(callback_context)));
+	}
+}
+
+static int make_lambda0(void *context)
+{
+	make_lambdaContext0 *lambdaContext = (make_lambdaContext0 *)(context);
+	return lambdaContext->capture0_value;
+}
+
+// file: lambda_escaped_within_allocator_private.h
+#ifndef LAMBDA_ESCAPED_WITHIN_ALLOCATOR_PRIVATE_H_
+#define LAMBDA_ESCAPED_WITHIN_ALLOCATOR_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Arena Arena;
+typedef struct make_lambdaContext0 make_lambdaContext0;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_voidPtr_)(void *arg0);
+
+/* Layouts. */
+struct Arena
+{
+	char _camp_empty;
+};
+struct make_lambdaContext0
+{
+	int capture0_value;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lambda_escaped_within_allocator.c

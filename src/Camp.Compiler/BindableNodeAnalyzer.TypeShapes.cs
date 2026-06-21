@@ -354,10 +354,54 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string StripLifetimeQualifiers(string type)
 	{
+		string trimmed = type.Trim();
+		if (TryStripLeadingLifetimeQualifier(trimmed, out string strippedLeading))
+			return strippedLeading;
+		if (TryStripTrailingLifetimeQualifier(trimmed, out string strippedTrailing))
+			return strippedTrailing;
+
 		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
 			return type;
 
 		return TypeShapeParser.Format(StripLifetimeQualifiers(shape));
+	}
+
+	static bool TryStripLeadingLifetimeQualifier(string type, out string stripped)
+	{
+		foreach (string keyword in new[] { "escaped", "scoped", "unscoped" })
+		{
+			if (!type.StartsWith(keyword, StringComparison.Ordinal))
+				continue;
+			int index = keyword.Length;
+			if (index < type.Length && type[index] == '(')
+			{
+				int close = type.IndexOf(')', index + 1);
+				if (close < 0)
+					continue;
+				index = close + 1;
+			}
+			if (index >= type.Length || !char.IsWhiteSpace(type[index]))
+				continue;
+			stripped = type[index..].Trim();
+			return true;
+		}
+
+		stripped = type;
+		return false;
+	}
+
+	static bool TryStripTrailingLifetimeQualifier(string type, out string stripped)
+	{
+		foreach (string keyword in new[] { " escaped", " scoped", " unscoped" })
+		{
+			if (!type.EndsWith(keyword, StringComparison.Ordinal))
+				continue;
+			stripped = type[..^keyword.Length].Trim();
+			return true;
+		}
+
+		stripped = type;
+		return false;
 	}
 
 	static TypeShape StripLifetimeQualifiers(TypeShape shape)

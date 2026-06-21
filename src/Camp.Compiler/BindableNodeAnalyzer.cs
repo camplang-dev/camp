@@ -662,7 +662,9 @@ public sealed partial class BindableNodeAnalyzer
 	static string FormatTypeDeclarator(string keyword, TypeReference? inner)
 	{
 		string innerText = FormatTypeReference(inner);
-		return inner is PointerTypeReference or ArrayTypeReference or FixedArrayTypeReference or OptionalTypeReference or GenericTypeReference or CallableTypeReference
+		return inner is CallableTypeReference
+			? $"{keyword} {innerText}"
+			: inner is PointerTypeReference or ArrayTypeReference or FixedArrayTypeReference or OptionalTypeReference or GenericTypeReference
 			? $"{innerText} {keyword}"
 			: $"{keyword} {innerText}";
 	}

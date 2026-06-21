@@ -1,0 +1,14 @@
+extern escaped void* malloc(nuint size);
+extern void free(escaped void* ptr);
+
+escaped delegate int() makeCounter(int start)
+{
+	return () => start;
+}
+
+export int main()
+{
+	auto callback = makeCounter(7);
+	delete callback.context;
+	return 0;
+}

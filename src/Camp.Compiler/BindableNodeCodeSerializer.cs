@@ -1364,7 +1364,15 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteTypeDeclarator(string keyword, TypeReference? inner)
 	{
-		if (inner is PointerTypeReference or ArrayTypeReference or FixedArrayTypeReference or OptionalTypeReference or GenericTypeReference or CallableTypeReference)
+		if (inner is CallableTypeReference)
+		{
+			writer.Write(keyword);
+			writer.Write(" ");
+			WriteType(inner);
+			return;
+		}
+
+		if (inner is PointerTypeReference or ArrayTypeReference or FixedArrayTypeReference or OptionalTypeReference or GenericTypeReference)
 		{
 			WriteType(inner);
 			writer.Write(" ");

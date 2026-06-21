@@ -45,6 +45,13 @@ public sealed partial class BindableNodeAnalyzer
 		return TryGetCallableShape(normalized, out shape);
 	}
 
+	bool IsEscapedDelegateLambdaTarget(string? type)
+	{
+		return TryGetLambdaCallableShape(type, out CallableShape shape, out bool isEscaped)
+			&& isEscaped
+			&& shape.Kind == "delegate";
+	}
+
 	Expression LowerLambdaExpression(LambdaExpression lambda)
 	{
 		if (expressionRewrites.TryGetValue(lambda, out Expression? rewritten)

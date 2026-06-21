@@ -6,15 +6,6 @@ and Stage C work around escaped delegates and final cross-feature hardening.
 
 Next deficiency number: DEF-008.
 
-- **DEF-003:** Define escaped delegate context ownership and cleanup behavior.
-  Stage: B. Priority: high. Complexity: medium-high. Escaped lambda contexts
-  need a clear runtime ownership model: allocate with the same allocator
-  semantics as `new`, expose enough context shape for callers to eventually
-  `delete del.context`, and ensure generated context cleanup is valid for
-  fields that need cleanup. Add tests for explicit deletion of escaped delegate
-  contexts, creation inside `within (...)`, null allocation behavior, and
-  cleanup through `finally delete` once the delegate context is manually owned.
-
 - **DEF-004:** Harden escaped captures of expanded/materialized values.
   Stage: B. Priority: medium-high. Complexity: high. Scoped lambdas have tests
   for expanded captures and expanded returns, but escaped delegates need their

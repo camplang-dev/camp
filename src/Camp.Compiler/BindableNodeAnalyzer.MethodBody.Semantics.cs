@@ -112,6 +112,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == target || source == ErrorType || target == ErrorType || target == TargetType)
 			return true;
 
+		string structuralSource = StripLifetimeQualifiers(source);
+		string structuralTarget = StripLifetimeQualifiers(target);
+		if ((structuralSource != source || structuralTarget != target) && CanImplicitlyConvert(structuralSource, structuralTarget))
+			return true;
+
 		if (source == "#NULL" && TryParseTypeShape(target, out TypeShape nullTarget) && (nullTarget.IsPointer || nullTarget.IsOptional))
 			return true;
 

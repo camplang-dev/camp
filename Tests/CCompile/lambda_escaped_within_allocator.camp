@@ -1,0 +1,26 @@
+extern escaped void* malloc(nuint size);
+extern void free(escaped void* ptr);
+
+class Arena
+{
+	escaped void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(escaped void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+escaped delegate int() make(Arena* arena, int value)
+{
+	return within (arena) (() => value);
+}
+
+void use(Arena* arena)
+{
+	auto callback = make(arena, 5);
+	within (arena) delete callback.context;
+}

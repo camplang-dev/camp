@@ -117,6 +117,14 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (!string.IsNullOrWhiteSpace(resolvedType))
 		{
+			string structuralResolvedType = StripLifetimeQualifiers(resolvedType);
+			if (structuralResolvedType != resolvedType
+				&& TryBuildPendingParamsComponents(null, structuralResolvedType, prefix, out components, out kind, out typeName))
+			{
+				typeName = resolvedType;
+				return true;
+			}
+
 			if (typeDefinitions.TryGetValue(BaseTypeName(resolvedType), out TypeDefinition? nominalDefinition)
 				&& nominalDefinition is NewtypeDefinition { UnderlyingType: not null } newtypeDefinition
 				&& TryBuildPendingParamsComponents(newtypeDefinition.UnderlyingType, newtypeDefinition.UnderlyingType.ResolvedType, prefix, out components, out kind, out _)
