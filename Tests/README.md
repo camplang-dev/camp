@@ -6,6 +6,25 @@ Run the golden integration suite from `/src` with:
 dotnet test camplang.sln
 ```
 
+## Agent Test Workflow
+
+When the test project is already built, prefer `dotnet vstest` over
+`dotnet test` for targeted and repeated runs:
+
+```sh
+dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll
+```
+
+`dotnet vstest` runs the already-built test assembly directly and avoids most
+MSBuild project/solution evaluation. This matters for sandboxed agents because
+MSBuild may create local worker-node IPC/named pipes that the sandbox rejects
+with `SocketException (13): Permission denied`.
+
+Use `dotnet build src/camplang.sln` when source changes need to be compiled,
+then use `dotnet vstest` for repeated verification. Reserve `dotnet test` for
+full local validation, restore/build validation, coverage collection, or cases
+where MSBuild behavior itself is what you are testing.
+
 For a fast compiler-feedback pass from the repository root, run:
 
 ```sh
@@ -19,13 +38,20 @@ MSVC smoke tests. If the solution is already built, use:
 dotnet msbuild src/test-fast.proj -p:NoBuild=true
 ```
 
+Sandboxed agents should prefer the equivalent direct `vstest` form after a
+build:
+
+```sh
+CAMP_TEST_KIND=Ast,Declarations,LoweringXml,Lowering,Diagnostics,CEmit,CCompile,Api,Metadata,Std dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+```
+
 During compiler work, prefer targeted runs. Golden discovery supports these
 environment variables:
 
 ```sh
-CAMP_TEST_KIND=Metadata dotnet test src/camplang.sln --no-build
-CAMP_TEST_KIND=CCompile CAMP_TEST_CASE=generic_array dotnet test src/camplang.sln --no-build
-CAMP_TEST_CASE=generic_self_link dotnet test src/camplang.sln --no-build
+CAMP_TEST_KIND=Metadata dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+CAMP_TEST_KIND=CCompile CAMP_TEST_CASE=generic_array dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+CAMP_TEST_CASE=generic_self_link dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
 ```
 
 `CAMP_TEST_KIND` matches top-level test folders such as `Metadata`, `CCompile`,
