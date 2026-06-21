@@ -1,0 +1,4 @@
+struct iter const char[] splitFirst(unscoped const char[] text)
+{
+	yield text[..1];
+}

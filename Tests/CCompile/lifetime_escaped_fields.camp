@@ -1,0 +1,24 @@
+extern escaped char[] getEscaped();
+
+struct Buffer
+{
+	escaped char[] data;
+
+	void replace(escaped char[] value)
+	{
+		this.data = value;
+	}
+
+	escaped char[] getData()
+	{
+		return this.data;
+	}
+}
+
+int main()
+{
+	Buffer buffer = default;
+	buffer.replace(getEscaped());
+	char[] data = buffer.getData();
+	return (int)data.length;
+}

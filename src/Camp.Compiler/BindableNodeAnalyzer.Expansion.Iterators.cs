@@ -270,11 +270,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	string IteratorStateFieldType(ParameterDefinition parameter)
 	{
+		string resolvedType = ResolvedTypeForIteratorExpansion(parameter.Type, parameter.ResolvedType);
 		return parameter switch
 		{
 			SizeOfParameterDefinition => "nuint",
 			VTableOfParameterDefinition vtableOf => VTableOfParameterType(vtableOf),
-			_ => ResolvedTypeForIteratorExpansion(parameter.Type, parameter.ResolvedType)
+			_ => ContainsLifetimeAnnotation(parameter.Type) ? StripLifetimeQualifiers(resolvedType) : resolvedType
 		};
 	}
 
@@ -284,6 +285,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SizeOfParameterDefinition => NuintType(),
 			VTableOfParameterDefinition => TypeReferenceForResolvedName(resolvedType),
+			_ when ContainsLifetimeAnnotation(parameter.Type) => TypeReferenceForResolvedName(resolvedType),
 			_ => CloneType(parameter.Type) ?? TypeReferenceForResolvedName(resolvedType)
 		};
 	}
@@ -1011,6 +1013,7 @@ public sealed partial class BindableNodeAnalyzer
 		switch (statement)
 		{
 			case YieldStatement yield:
+				ValidateIteratorYieldLifetime(lowering.Function, yield.Expression, yield.Expression?.SourceSyntax ?? yield.SourceSyntax);
 				return lowering.CreateYield(yield.Expression);
 
 			case ReturnStatement:
@@ -1114,6 +1117,110 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return [statement];
 		}
+	}
+
+	void ValidateIteratorYieldLifetime(FunctionDefinition function, Expression? expression, SyntaxNode? syntax)
+	{
+		if (expression is null)
+			return;
+		string yieldedType = function.ReturnType is IterTypeReference iter ? iter.ElementType?.ResolvedType ?? iter.ResolvedType ?? ErrorType : function.ResolvedType ?? ErrorType;
+		if (!IsPointerBearingResolvedType(yieldedType))
+			return;
+
+		HashSet<string> scopedParameters = new(StringComparer.Ordinal);
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (string.IsNullOrWhiteSpace(parameter.Name))
+				continue;
+			string? lifetimeBinding = parameter.LifetimeBinding;
+			if (lifetimeBinding is null
+				&& TryGetLifetimeAnnotation(parameter.Type, out string lifetimeKind, out IReadOnlyList<string> lifetimeAnchors, out string? annotatedLifetime))
+				lifetimeBinding = annotatedLifetime ?? new BoundLifetime(lifetimeKind, lifetimeAnchors, "explicit parameter").ToString();
+			if (lifetimeBinding is null || lifetimeBinding.StartsWith("scoped", StringComparison.Ordinal))
+				scopedParameters.Add(parameter.Name);
+		}
+
+		HashSet<string> scopedLocals = new(StringComparer.Ordinal);
+		foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(function.Body))
+		{
+			if (declaration.Target.Names.Count != 1)
+				continue;
+			string name = declaration.Target.Names[0];
+			if (declaration.InitialValue is ConstructionExpression { Kind: ConstructionKind.Init, ElementCount: not null })
+				scopedLocals.Add(name);
+		}
+
+		if (ReferencesAnyName(expression, scopedLocals))
+		{
+			Report(GetRange(syntax ?? expression.SourceSyntax), "Yield expression cannot yield a pointer-bearing value tied to declaration-scope local storage.");
+			return;
+		}
+
+		if (ReferencesAnyName(expression, scopedParameters))
+			Report(GetRange(syntax ?? expression.SourceSyntax), "Yield expression cannot yield a pointer-bearing value that does not outlive the iterator frame.");
+	}
+
+	static bool ReferencesAnyName(Expression? expression, HashSet<string> names)
+	{
+		if (expression is null || names.Count == 0)
+			return false;
+
+		switch (expression)
+		{
+			case NamedExpression named:
+				return names.Contains(named.Name);
+			case VariableReferenceExpression variable:
+				string? referenceName = GetReferenceName(variable.Variable);
+				return !string.IsNullOrWhiteSpace(referenceName) && names.Contains(referenceName);
+			case ParenthesizedExpression parenthesized:
+				return ReferencesAnyName(parenthesized.Expression, names);
+			case CastExpression cast:
+				return ReferencesAnyName(cast.Expression, names);
+			case UnaryExpression unary:
+				return ReferencesAnyName(unary.Operand, names);
+			case BinaryExpression binary:
+				return ReferencesAnyName(binary.Left, names) || ReferencesAnyName(binary.Right, names);
+			case ConditionalExpression conditional:
+				return ReferencesAnyName(conditional.Condition, names)
+					|| ReferencesAnyName(conditional.WhenTrue, names)
+					|| ReferencesAnyName(conditional.WhenFalse, names);
+			case AssignmentExpression assignment:
+				return ReferencesAnyName(assignment.Target, names) || ReferencesAnyName(assignment.Value, names);
+			case CallExpression call:
+				return ReferencesAnyName(call.Target, names) || AnyArgumentReferencesName(call.Arguments, names);
+			case IndexExpression index:
+				return ReferencesAnyName(index.Target, names) || AnyArgumentReferencesName(index.Arguments, names);
+			case MemberExpression member:
+				return ReferencesAnyName(member.Target, names);
+			case MemberReferenceExpression member:
+				return ReferencesAnyName(member.Target, names);
+			case NamelessIndexerExpression indexer:
+				return ReferencesAnyName(indexer.Target, names) || AnyArgumentReferencesName(indexer.Arguments, names);
+			case ArrayExpression array:
+				foreach (Expression element in array.Elements)
+					if (ReferencesAnyName(element, names))
+						return true;
+				return false;
+			case InitializerExpression initializer:
+				foreach (InitializerItem item in initializer.Items)
+					if (ReferencesAnyName(item.Expression, names))
+						return true;
+				return false;
+			case FinallyDeleteExpression finallyDelete:
+				return ReferencesAnyName(finallyDelete.Expression, names);
+			case WithinExpression within:
+				return ReferencesAnyName(within.Context, names) || ReferencesAnyName(within.Expression, names);
+			default:
+				return false;
+		}
+	}
+
+	static bool AnyArgumentReferencesName(List<ArgumentExpression> arguments, HashSet<string> names)
+	{
+		foreach (ArgumentExpression argument in arguments)
+			if (ReferencesAnyName(argument.Value, names))
+				return true;
+		return false;
 	}
 
 	List<Statement> RewriteIteratorDeclaration(DeclarationStatement declaration, IteratorBodyLowering lowering)
@@ -1711,9 +1818,12 @@ public sealed partial class BindableNodeAnalyzer
 		readonly string yieldedType;
 		int nextState = 1;
 
+		public FunctionDefinition Function { get; }
+
 		public IteratorBodyLowering(BindableNodeAnalyzer analyzer, FunctionDefinition function, ParameterDefinition current, string yieldedType)
 		{
 			this.analyzer = analyzer;
+			Function = function;
 			this.current = current;
 			this.yieldedType = yieldedType;
 			cleanupStatements = analyzer.GetTopLevelIteratorFinallyStatements(function);

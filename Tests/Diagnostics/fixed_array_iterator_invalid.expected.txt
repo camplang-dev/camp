@@ -1,2 +1,3 @@
 tests/Diagnostics/fixed_array_iterator_invalid.camp(3,19): error: Iterator generator bodies cannot use init array construction; use fixed storage or new instead.
+tests/Diagnostics/fixed_array_iterator_invalid.camp(4,8): error: Yield expression cannot yield a pointer-bearing value tied to declaration-scope local storage.
 tests/Diagnostics/fixed_array_iterator_invalid.camp(7,13): error: Fixed-size array storage types are not valid as an iterator yield type; use a pointer to the fixed array or a span array instead.

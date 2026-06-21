@@ -144,13 +144,24 @@ public sealed partial class BindableNodeAnalyzer
 		definition.ValueLifetimeFact ??= fact;
 	}
 
-	void InitializeFieldLifetimeFacts(FieldDefinition definition, AnalysisScope scope)
+	void InitializeFieldLifetimeFacts(FieldDefinition definition, AnalysisScope scope, TypeDefinition? containingType)
 	{
-		string? fact = definition.Modifier == FieldModifier.Static
+		bool escapedInstanceField = definition.Modifier != FieldModifier.Static
+			&& IsLifetimeTrackedType(definition.Type, definition.ResolvedType, isFixedStorage: false, scope)
+			&& (IsEscapedField(definition) || containingType is ClassDefinition { IsEscaped: true });
+		string? fact = escapedInstanceField
+			? MakeLifetimeFact("escaped", definition.Name, "field")
+			: definition.Modifier == FieldModifier.Static
 			? CreateGlobalSlotLifetimeFact(definition.Name, definition.Type, definition.ResolvedType, scope)
 			: CreateDeclarationSlotLifetimeFact(definition.Name, definition.Type, definition.ResolvedType, isFixedStorage: false, scope);
 		definition.SlotLifetimeFact = fact;
 		definition.ValueLifetimeFact ??= fact;
+	}
+
+	static bool IsEscapedField(FieldDefinition definition)
+	{
+		return definition.LifetimeBinding is not null
+			|| definition.Type?.LifetimeBinding?.StartsWith("escaped", StringComparison.Ordinal) == true;
 	}
 
 	void InitializeLocalLifetimeFacts(DeclarationStatement declaration, AnalysisScope typeScope)
@@ -405,6 +416,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (!IsLifetimePointerBearingResolvedType(resolvedType, scope))
 			return null;
+		if (expressionRewrites.TryGetValue(member, out Expression? rewritten)
+			&& rewritten is MemberReferenceExpression { Member: FieldDefinition field }
+			&& IsEscapedStorage(field))
+			return MakeLifetimeFact("escaped", field.Name, "field");
 
 		string? targetFact = GetExpressionLifetimeFact(member.Target);
 		return targetFact is not null ? targetFact + ":member" : MakeLifetimeFact("scoped", null, "member");
@@ -844,6 +859,21 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to local storage '{localAnchor}'.");
 	}
 
+	void CheckLifetimeYield(Expression? value, SyntaxNode? syntax, BodyScope scope)
+	{
+		if (!IsLifetimePointerBearingResolvedType(value?.ResolvedType, scope))
+			return;
+
+		string? valueFactText = GetExpressionLifetimeFact(value);
+		if (!TryParseLifetimeFact(valueFactText, out LifetimeFact valueFact))
+			return;
+
+		if (valueFact.Kind is "escaped" or "unscoped" or "unknown")
+			return;
+
+		Report(GetRange(syntax), "Yield expression cannot yield a pointer-bearing value that does not outlive the iterator frame.");
+	}
+
 	void CheckLifetimeDeleteAgainstFree(Expression? expression, SyntaxNode? syntax, BodyScope scope)
 	{
 		if (!IsPointerBearingResolvedType(expression?.ResolvedType))
@@ -882,8 +912,15 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			VariableReferenceExpression { Variable: VariableDefinition } => true,
 			MemberReferenceExpression { Member: FieldDefinition { Modifier: FieldModifier.Static } } => true,
+			MemberReferenceExpression { Member: FieldDefinition field } when IsEscapedStorage(field) => true,
 			_ => false
 		};
+	}
+
+	static bool IsEscapedStorage(BindableNode? storage)
+	{
+		return storage?.SlotLifetimeFact?.StartsWith("escaped", StringComparison.Ordinal) == true
+			|| storage?.ValueLifetimeFact?.StartsWith("escaped", StringComparison.Ordinal) == true;
 	}
 
 	bool TryGetReceiverAnchoredStorageTarget(Expression target, out string anchor)

@@ -153,6 +153,7 @@ public sealed partial class BindableNodeAnalyzer
 				string yieldTargetType = GetLifetimeStructuralTargetType(expected, yieldStatement.Expression);
 				CheckAssignable(yieldTargetType, yieldedType, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, "Yield expression");
 				CheckLifetimeResult(yieldStatement.Expression, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, scope, "Yield expression");
+				CheckLifetimeYield(yieldStatement.Expression, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, scope);
 				break;
 			}
 

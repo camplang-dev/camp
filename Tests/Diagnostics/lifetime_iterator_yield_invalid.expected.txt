@@ -1,0 +1,4 @@
+tests/Diagnostics/lifetime_iterator_yield_invalid.camp(3,12): error: Yield expression cannot yield a pointer-bearing value that does not outlive the iterator frame.
+tests/Diagnostics/lifetime_iterator_yield_invalid.camp(8,17): error: Iterator generator bodies cannot use init array construction; use fixed storage or new instead.
+tests/Diagnostics/lifetime_iterator_yield_invalid.camp(9,8): error: Yield expression cannot yield a pointer-bearing value tied to declaration-scope local storage.
+tests/Diagnostics/lifetime_iterator_yield_invalid.camp(14,12): error: Yield expression cannot yield a pointer-bearing value that does not outlive the iterator frame.

@@ -171,6 +171,7 @@ public class FieldDefinition : Definition
 {
 	public FieldModifier Modifier { get; set; }
 	public bool IsFixedStorage { get; set; }
+	public string? LifetimeBinding { get; set; }
 	public TypeReference? Type { get; set; }
 	public Expression? InitialValue { get; set; }
 }

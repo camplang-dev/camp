@@ -1,0 +1,19 @@
+struct BadScopedField
+{
+	scoped char[] data;
+}
+
+struct BadUnscopedField
+{
+	unscoped char[] data;
+}
+
+struct BadScalarField
+{
+	escaped int value;
+}
+
+struct BadStaticField
+{
+	static escaped char[] data;
+}

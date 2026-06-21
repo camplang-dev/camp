@@ -1,4 +1,4 @@
 tests/Diagnostics/lifetime_annotation_placement_invalid.camp(1,8): error: Lifetime annotations are not valid on variable types; use an explicit lifetime cast instead.
 tests/Diagnostics/lifetime_annotation_placement_invalid.camp(3,24): error: Lifetime annotations are not valid on generic constraints; use an explicit lifetime cast instead.
 tests/Diagnostics/lifetime_annotation_placement_invalid.camp(3,24): error: Generic parameter 'T' must be constrained to any, copyable, an integral type, or implements Interface.
-tests/Diagnostics/lifetime_annotation_placement_invalid.camp(5,9): error: Lifetime annotations are not valid on field types; use an explicit lifetime cast instead.
+tests/Diagnostics/lifetime_annotation_placement_invalid.camp(5,9): error: Only 'escaped' lifetime annotations are valid on fields.

@@ -1,0 +1,15 @@
+struct iter const char[] badParameter(char[] text)
+{
+	yield text[..1];
+}
+
+struct iter const char[] badLocal()
+{
+	char[] local = init char[16];
+	yield local;
+}
+
+class iter const char[] badClassParameter(char[] text)
+{
+	yield text[..1];
+}

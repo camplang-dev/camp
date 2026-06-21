@@ -1127,25 +1127,30 @@ Apply the container rule to explicit escaped fields and generated frames.
 
 ### Work Items
 
-- Allow `escaped` on struct/class fields only. Reject `scoped` and
+- ~~Allow `escaped` on struct/class fields only. Reject `scoped` and
   `unscoped(...)` fields, reject lifetime annotations on locals/globals, and
   reject `escaped` fields whose type is not pointer-bearing unless a later
-  diagnostics policy deliberately relaxes this.
-- Treat assignment into an `escaped` field as assignment into escaped storage:
-  the value assigned must be proven escaped or explicitly cast `(escaped)`.
-- Treat reads from an `escaped` field as escaped values, including synthesized
-  array/delegate/optional components.
-- Make `escaped class` equivalent to marking every pointer-bearing instance
+  diagnostics policy deliberately relaxes this.~~
+- ~~Treat assignment into an `escaped` field as assignment into escaped storage:
+  the value assigned must be proven escaped or explicitly cast `(escaped)`.~~
+- ~~Treat reads from an `escaped` field as escaped values, including synthesized
+  array/delegate/optional components.~~
+- ~~Make `escaped class` equivalent to marking every pointer-bearing instance
   field escaped, while still allowing ordinary classes to annotate individual
-  fields.
-- Treat generator state structs/classes as pointer-bearing context objects.
-- Lifted locals receive frame lifetime constraints.
-- Values crossing `yield` must outlive the iterator frame.
-- `struct iter` and `class iter` differ by frame storage, but both participate
-  in lifetime analysis.
-- Iterator `foreach` cleanup must preserve lifetime facts for yielded values.
-- Prepare shared generated-context hooks so async frames can use the same model
-  later, without implementing async lifetime enforcement in this stage.
+  fields.~~
+- ~~Treat generator state structs/classes as pointer-bearing context objects.~~
+- ~~Lifted locals receive frame lifetime constraints.~~
+- ~~Values crossing `yield` must outlive the iterator frame.~~
+- ~~`struct iter` and `class iter` differ by frame storage, but both participate
+  in lifetime analysis.~~
+- ~~Iterator `foreach` cleanup must preserve lifetime facts for yielded values.~~
+- ~~Prepare shared generated-context hooks so async frames can use the same model
+  later, without implementing async lifetime enforcement in this stage.~~
+
+Stage 7 implementation note: concrete iterator `foreach` over an expanded
+params yield exposed a separate lowering/C-emission bug, now tracked as
+BUG-027. Protocol-shaped iterator `foreach` already has expanded-slot coverage;
+BUG-027 is not a lifetime-analysis blocker.
 
 ### Completion Criteria
 
@@ -1182,8 +1187,8 @@ This should fail:
 ```camp
 struct iter const char[] lines()
 {
-    fixed char[16] local = "hello";
-    yield local[..]; // ERROR: yielded view cannot outlive frame/step safely
+    char[] local = init char[16];
+    yield local; // ERROR: yielded view cannot outlive frame/step safely
 }
 ```
 
@@ -1198,14 +1203,14 @@ struct iter const char[] splitLines(unscoped const char[] text)
 
 ### Tests
 
-- Escaped field positive assignment and readback.
-- Scoped-to-escaped field assignment diagnostic.
-- Escaped class implicit field behavior matches explicit escaped fields.
-- Lifetime annotations other than `escaped` on fields are rejected.
-- Generator retained scoped parameter negative.
-- Generator retained unscoped parameter positive.
-- Yield borrowed view lifetime diagnostics.
-- Nested foreach over iterator lifetime smoke.
+- ~~Escaped field positive assignment and readback.~~
+- ~~Scoped-to-escaped field assignment diagnostic.~~
+- ~~Escaped class implicit field behavior matches explicit escaped fields.~~
+- ~~Lifetime annotations other than `escaped` on fields are rejected.~~
+- ~~Generator retained scoped parameter negative.~~
+- ~~Generator retained unscoped parameter positive.~~
+- ~~Yield borrowed view lifetime diagnostics.~~
+- ~~Nested foreach over iterator lifetime smoke.~~
 
 ## Stage 8: Generics And Erased Values
 

@@ -736,14 +736,14 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(definition), "Exported or public fields must be explicitly marked static.");
 		CheckName(definition.Name, GetNameRange(definition), "field");
 		AnalyzeOptionalType(definition.Type, scope);
-		ValidateNoLifetimeAnnotation(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "field types");
+		ValidateFieldLifetimeAnnotation(definition, scope, containingType);
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		if (containingType is NewtypeDefinition && definition.Modifier != FieldModifier.Static && IsDirectFixedArrayType(definition.Type))
 			Report(GetRange(definition.SourceSyntax), "Newtype instance fields may not use fixed-size array storage.");
 		if (definition.Type is not null && IsAnyOrAnyConstrainedGeneric(definition.Type, scope))
 			Report(GetNameRange(definition), "Generic values constrained to any cannot be stored by value. Use T* or T: copyable.");
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
-		InitializeFieldLifetimeFacts(definition, scope);
+		InitializeFieldLifetimeFacts(definition, scope, containingType);
 		if (definition.Modifier == FieldModifier.Static && definition.InitialValue is not null)
 		{
 			FunctionDefinition initializerContext = new()
@@ -764,6 +764,32 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			AnalyzeOptionalExpression(definition.InitialValue, scope);
 		}
+	}
+
+	void ValidateFieldLifetimeAnnotation(FieldDefinition definition, AnalysisScope scope, TypeDefinition? containingType)
+	{
+		if (!TryGetLifetimeAnnotation(definition.Type, out string kind, out IReadOnlyList<string> anchors, out string? binding))
+			return;
+
+		if (containingType is not ClassDefinition and not StructDefinition || definition.Modifier == FieldModifier.Static)
+		{
+			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "Lifetime annotations are only valid on struct and class instance fields.");
+			return;
+		}
+
+		if (kind != "escaped" || anchors.Count > 0)
+		{
+			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "Only 'escaped' lifetime annotations are valid on fields.");
+			return;
+		}
+
+		if (!IsLifetimeTrackedType(definition.Type, definition.Type?.ResolvedType, definition.IsFixedStorage, scope))
+		{
+			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "Field-level 'escaped' requires a pointer-bearing field type.");
+			return;
+		}
+
+		definition.LifetimeBinding = binding ?? new BoundLifetime("escaped", [], "explicit field").ToString();
 	}
 
 	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType)

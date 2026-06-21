@@ -1,6 +1,6 @@
 # Outstanding Bugs
 
-Next bug number: BUG-027.
+Next bug number: BUG-028.
 
 - **BUG-022:** Block doc comments using conventional multi-line `/** ... */`
   formatting need stronger parsing/stripping and focused tests. Priority:
@@ -40,3 +40,11 @@ Next bug number: BUG-027.
   `T[]` can emit only the pointer result and fail to assign the hidden length
   result parameter. Returning an equivalent slice currently preserves the
   expanded components and is used as a workaround.
+
+- **BUG-027:** `foreach` over a concrete iterator state that yields an expanded
+  params value can omit hidden current-slot component arguments. Priority:
+  medium. Complexity: medium. For example, directly enumerating a concrete
+  `splitFirstIter` that yields `const char[]` may call `next(&current)` instead
+  of `next(&current, &current_length)`, and then attempts to read `.length` from
+  the pointer variable. Protocol-shaped `iter` foreach already has coverage for
+  expanded slots; this bug is specific to the concrete iterator path.

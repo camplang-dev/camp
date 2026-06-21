@@ -1,0 +1,68 @@
+// file: lifetime_escaped_fields.c
+#include "lifetime_escaped_fields_private.h"
+
+/* Private file declarations. */
+char *getEscaped(uintptr_t *result_length);
+static void Buffer_replace(Buffer *this, char *value, uintptr_t value_length);
+static char *Buffer_getData(Buffer *this, uintptr_t *result_length);
+static int main(void);
+
+static void Buffer_replace(Buffer *this, char *value, uintptr_t value_length)
+{
+	{
+		this->data = value;
+		this->data_length = value_length;
+	}
+}
+
+static char *Buffer_getData(Buffer *this, uintptr_t *result_length)
+{
+	{
+		(*result_length) = this->data_length;
+		return this->data;
+	}
+}
+
+static int main(void)
+{
+	Buffer buffer = (Buffer){0};
+	char *_elements0;
+	uintptr_t _length1;
+	_elements0 = getEscaped(&_length1);
+	Buffer_replace(&buffer, _elements0, _length1);
+	char *data;
+	uintptr_t data_length;
+	data = Buffer_getData(&buffer, &data_length);
+	return (int)(data_length);
+}
+
+// file: lifetime_escaped_fields_private.h
+#ifndef LIFETIME_ESCAPED_FIELDS_PRIVATE_H_
+#define LIFETIME_ESCAPED_FIELDS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Buffer Buffer;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Buffer
+{
+	char *data;
+	uintptr_t data_length;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifetime_escaped_fields.c

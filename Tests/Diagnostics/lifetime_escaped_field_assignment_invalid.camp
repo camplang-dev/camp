@@ -1,0 +1,19 @@
+struct Buffer
+{
+	escaped char[] data;
+
+	void replace(char[] value)
+	{
+		this.data = value;
+	}
+}
+
+escaped class EscapedBuffer
+{
+	char[] data;
+
+	void replace(char[] value)
+	{
+		this.data = value;
+	}
+}

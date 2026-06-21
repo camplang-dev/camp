@@ -1,0 +1,4 @@
+tests/Diagnostics/lifetime_escaped_fields_invalid.camp(3,9): error: Only 'escaped' lifetime annotations are valid on fields.
+tests/Diagnostics/lifetime_escaped_fields_invalid.camp(8,11): error: Only 'escaped' lifetime annotations are valid on fields.
+tests/Diagnostics/lifetime_escaped_fields_invalid.camp(13,10): error: Field-level 'escaped' requires a pointer-bearing field type.
+tests/Diagnostics/lifetime_escaped_fields_invalid.camp(18,17): error: Lifetime annotations are only valid on struct and class instance fields.

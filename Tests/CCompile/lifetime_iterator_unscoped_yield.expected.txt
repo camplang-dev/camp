@@ -1,0 +1,92 @@
+// file: lifetime_iterator_unscoped_yield.c
+#include "lifetime_iterator_unscoped_yield_private.h"
+
+/* Private file declarations. */
+static splitFirstIter splitFirst(const char *text, uintptr_t text_length);
+static bool splitFirstIter_next(splitFirstIter *this, const char **current, uintptr_t *current_length);
+static void splitFirstIter_op_delete(splitFirstIter *this);
+static void splitFirstIter_destroy(splitFirstIter *this);
+static bool splitFirstIter_iter(void *ctx, const char **current, uintptr_t *current_length);
+
+static splitFirstIter splitFirst(const char *text, uintptr_t text_length)
+{
+	return (splitFirstIter){ .__state = 0, .text = text, .text_length = text_length };
+}
+
+static bool splitFirstIter_next(splitFirstIter *this, const char **current, uintptr_t *current_length)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	{
+		*current = (this->text + ((0 > this->text_length) ? this->text_length : ((0 < 0) ? 0 : 0)));
+		*current_length = ((((1 > this->text_length) ? this->text_length : ((1 < 0) ? 0 : 1)) >= ((0 > this->text_length) ? this->text_length : ((0 < 0) ? 0 : 0))) ? (((1 > this->text_length) ? this->text_length : ((1 < 0) ? 0 : 1)) - ((0 > this->text_length) ? this->text_length : ((0 < 0) ? 0 : 0))) : 0);
+	}
+	this->__state = 1;
+	return true;
+__iter_resume1: ;
+	;
+	this->__state = -1;
+	return false;
+}
+
+static void splitFirstIter_op_delete(splitFirstIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static void splitFirstIter_destroy(splitFirstIter *this)
+{
+	splitFirstIter_op_delete(this);
+}
+
+static bool splitFirstIter_iter(void *ctx, const char **current, uintptr_t *current_length)
+{
+	splitFirstIter *state = (splitFirstIter *)(ctx);
+	if ((current == NULL))
+	{
+		splitFirstIter_op_delete(state);
+		return false;
+	}
+	return splitFirstIter_next(state, current, current_length);
+}
+
+// file: lifetime_iterator_unscoped_yield_private.h
+#ifndef LIFETIME_ITERATOR_UNSCOPED_YIELD_PRIVATE_H_
+#define LIFETIME_ITERATOR_UNSCOPED_YIELD_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct splitFirstIter splitFirstIter;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct splitFirstIter
+{
+	int __state;
+	const char *text;
+	uintptr_t text_length;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifetime_iterator_unscoped_yield.c
