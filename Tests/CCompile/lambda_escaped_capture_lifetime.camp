@@ -1,0 +1,13 @@
+extern escaped void* malloc(nuint size);
+extern escaped int* getEscapedInt();
+
+int apply(escaped delegate int() callback)
+{
+	return callback();
+}
+
+export int main()
+{
+	int* value = getEscapedInt();
+	return apply(() => *value);
+}

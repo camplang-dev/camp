@@ -6,14 +6,6 @@ and Stage C work around escaped delegates and final cross-feature hardening.
 
 Next deficiency number: DEF-008.
 
-- **DEF-002:** Enforce escaped capture legality and read-only captured values.
-  Stage: B. Priority: high. Complexity: medium-high. Escaped delegates should
-  be allowed to capture only values that are valid to escape. Local values copied
-  into the escaped context become read-only from inside the lambda. Add
-  diagnostics/tests for capturing non-escaped pointers/references into escaped
-  contexts, mutating copied escaped captures, capturing `this` with insufficient
-  lifetime, and valid capture of escaped/copyable values.
-
 - **DEF-003:** Define escaped delegate context ownership and cleanup behavior.
   Stage: B. Priority: high. Complexity: medium-high. Escaped lambda contexts
   need a clear runtime ownership model: allocate with the same allocator

@@ -1,0 +1,29 @@
+void accept(escaped delegate int() callback)
+{
+}
+
+void captureStackArray()
+{
+	int[] values = [1, 2, 3];
+	accept(() => (int)values.length);
+}
+
+void mutateCapturedValue()
+{
+	int count = 0;
+	accept(() =>
+	{
+		count++;
+		return count;
+	});
+}
+
+class Box
+{
+	int value;
+
+	void captureThis()
+	{
+		accept(() => this.value);
+	}
+}

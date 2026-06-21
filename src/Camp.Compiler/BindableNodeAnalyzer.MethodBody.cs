@@ -1301,9 +1301,12 @@ public sealed partial class BindableNodeAnalyzer
 			block.ResolvedType = "void";
 			returnType = InferBlockReturnType(block, targetShape?.ReturnType);
 		}
-		bool hasCaptures = LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType);
+		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, scope.CurrentFunction, scope.ContainingType, reportUnsupported: true);
+		bool hasCaptures = captures.Count > 0;
 		if (hasCaptures && targetShape is CallableShape { Kind: "fn" })
 			Report(GetRange(lambda.SourceSyntax), "Capturing lambdas require a delegate target.");
+		if (targetIsEscaped)
+			ValidateEscapedLambdaCaptures(lambda, captures, scope);
 
 		List<string> parameterTypes = [];
 		for (int i = 0; i < lambda.Parameters.Count; i++)

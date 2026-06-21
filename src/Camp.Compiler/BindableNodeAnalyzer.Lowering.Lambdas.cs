@@ -5,7 +5,7 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
-	sealed record LambdaCapture(BindableNode Variable, string Name, string Type, FieldDefinition Field, bool IsThis = false);
+	sealed record LambdaCapture(BindableNode Variable, string Name, string Type, FieldDefinition Field, SyntaxNode? SourceSyntax, bool IsThis = false);
 	sealed record LambdaContextInfo(StructDefinition Definition, List<LambdaCapture> Captures, bool IsEscaped)
 	{
 		public DeclarationTarget? LocalTarget { get; set; }
@@ -611,6 +611,110 @@ public sealed partial class BindableNodeAnalyzer
 		return [.. captures.Values];
 	}
 
+	void ValidateEscapedLambdaCaptures(LambdaExpression lambda, List<LambdaCapture> captures, BodyScope scope)
+	{
+		foreach (LambdaCapture capture in captures)
+		{
+			string? factText = GetStorageValueLifetimeFact(capture.Variable);
+			if (capture.IsThis)
+			{
+				if (!TryParseLifetimeFact(factText, out LifetimeFact thisFact) || thisFact.Kind != "escaped")
+					Report(GetRange(capture.SourceSyntax ?? lambda.SourceSyntax), "Escaped delegate lambdas cannot capture 'this' unless the receiver is escaped.");
+				continue;
+			}
+
+			if (!IsLifetimePointerBearingResolvedType(capture.Type, scope))
+				continue;
+			if (!TryParseLifetimeFact(factText, out LifetimeFact fact) || fact.Kind != "escaped")
+				Report(GetRange(capture.SourceSyntax ?? lambda.SourceSyntax), $"Escaped delegate lambdas cannot capture '{capture.Name}' because its value is not escaped.");
+		}
+
+		ValidateEscapedLambdaReadOnlyCaptures(lambda.Body, captures);
+	}
+
+	void ValidateEscapedLambdaReadOnlyCaptures(Statement? statement, List<LambdaCapture> captures)
+	{
+		if (statement is null)
+			return;
+
+		switch (statement)
+		{
+			case ExpressionStatement expression:
+				ValidateEscapedLambdaReadOnlyCaptures(expression.Expression, captures);
+				break;
+			case DeclarationStatement declaration:
+				ValidateEscapedLambdaReadOnlyCaptures(declaration.InitialValue, captures);
+				break;
+			default:
+				foreach ((Statement? childStatement, Expression? childExpression) in LambdaStatementChildren(statement))
+				{
+					ValidateEscapedLambdaReadOnlyCaptures(childStatement, captures);
+					ValidateEscapedLambdaReadOnlyCaptures(childExpression, captures);
+				}
+				break;
+		}
+	}
+
+	void ValidateEscapedLambdaReadOnlyCaptures(Expression? expression, List<LambdaCapture> captures)
+	{
+		if (expression is null)
+			return;
+
+		switch (expression)
+		{
+			case AssignmentExpression assignment:
+				if (TryFindCapturedMutationRoot(assignment.Target, captures, out LambdaCapture? capture))
+					Report(GetRange(assignment.Target?.SourceSyntax ?? assignment.SourceSyntax), $"Captured value '{capture.Name}' is read-only inside an escaped delegate lambda.");
+				ValidateEscapedLambdaReadOnlyCaptures(assignment.Value, captures);
+				return;
+
+			case PostfixUpdateExpression postfix:
+				if (TryFindCapturedMutationRoot(postfix.Expression, captures, out LambdaCapture? postfixCapture))
+					Report(GetRange(postfix.Expression?.SourceSyntax ?? postfix.SourceSyntax), $"Captured value '{postfixCapture.Name}' is read-only inside an escaped delegate lambda.");
+				return;
+
+			case UnaryExpression { Operator: UnaryOperator.Increment or UnaryOperator.Decrement } unary:
+				if (TryFindCapturedMutationRoot(unary.Operand, captures, out LambdaCapture? unaryCapture))
+					Report(GetRange(unary.Operand?.SourceSyntax ?? unary.SourceSyntax), $"Captured value '{unaryCapture.Name}' is read-only inside an escaped delegate lambda.");
+				return;
+		}
+
+		foreach (Expression child in LambdaExpressionChildren(expression))
+			ValidateEscapedLambdaReadOnlyCaptures(child, captures);
+	}
+
+	bool TryFindCapturedMutationRoot(Expression? expression, List<LambdaCapture> captures, out LambdaCapture capture)
+	{
+		capture = null!;
+		if (expression is null)
+			return false;
+		if (TryGetCapturedVariable(expression, out BindableNode? variable)
+			&& FindCapture(captures, variable) is LambdaCapture direct)
+		{
+			capture = direct;
+			return true;
+		}
+
+		return expression switch
+		{
+			ParenthesizedExpression parenthesized => TryFindCapturedMutationRoot(parenthesized.Expression, captures, out capture),
+			MemberExpression member => TryFindCapturedMutationRoot(member.Target, captures, out capture),
+			MemberReferenceExpression member => TryFindCapturedMutationRoot(member.Target, captures, out capture),
+			IndexExpression index => TryFindCapturedMutationRoot(index.Target, captures, out capture),
+			NamelessIndexerExpression indexer => TryFindCapturedMutationRoot(indexer.Target, captures, out capture),
+			UnaryExpression { Operator: UnaryOperator.PointerDereference } unary => TryFindCapturedMutationRoot(unary.Operand, captures, out capture),
+			_ => false
+		};
+	}
+
+	static LambdaCapture? FindCapture(List<LambdaCapture> captures, BindableNode variable)
+	{
+		foreach (LambdaCapture capture in captures)
+			if (ReferenceEquals(capture.Variable, variable))
+				return capture;
+		return null;
+	}
+
 	static void CollectLambdaLocalNodes(Statement? statement, HashSet<BindableNode> localNodes)
 	{
 		switch (statement)
@@ -724,7 +828,7 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetRange(syntax), "Lambda capture has an unresolved type.");
 			return;
 		}
-		captures[variable] = new LambdaCapture(variable, name, type, new FieldDefinition(), isThis);
+		captures[variable] = new LambdaCapture(variable, name, type, new FieldDefinition(), syntax, isThis);
 	}
 
 	BindableNode? CreateLambdaThisCaptureNode(FunctionDefinition? currentFunction, TypeDefinition? containingType, SyntaxNode? syntax, bool reportUnsupported)
@@ -752,7 +856,9 @@ public sealed partial class BindableNodeAnalyzer
 			Name = "this",
 			Symbol = "this",
 			Type = TypeReferenceForResolvedName(receiverType),
-			ResolvedType = receiverType
+			ResolvedType = receiverType,
+			SlotLifetimeFact = currentFunction.ReceiverLifetimeBinding ?? MakeLifetimeFact("scoped", "this", "receiver"),
+			ValueLifetimeFact = currentFunction.ReceiverLifetimeBinding ?? MakeLifetimeFact("scoped", "this", "receiver")
 		};
 	}
 

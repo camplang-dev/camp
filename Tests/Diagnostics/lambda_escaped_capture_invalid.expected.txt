@@ -1,0 +1,3 @@
+tests/Diagnostics/lambda_escaped_capture_invalid.camp(8,20): error: Escaped delegate lambdas cannot capture 'values' because its value is not escaped.
+tests/Diagnostics/lambda_escaped_capture_invalid.camp(16,3): error: Captured value 'count' is read-only inside an escaped delegate lambda.
+tests/Diagnostics/lambda_escaped_capture_invalid.camp(27,16): error: Escaped delegate lambdas cannot capture 'this' unless the receiver is escaped.
