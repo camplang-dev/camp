@@ -6,15 +6,6 @@ and Stage C work around escaped delegates and final cross-feature hardening.
 
 Next deficiency number: DEF-008.
 
-- **DEF-004:** Harden escaped captures of expanded/materialized values.
-  Stage: B. Priority: medium-high. Complexity: high. Scoped lambdas have tests
-  for expanded captures and expanded returns, but escaped delegates need their
-  own rules. Add support/tests for capturing and returning expanded values such
-  as `T[]`, delegates, optionals, strings converted to spans, and callable
-  newtypes. The escaped context must store a coherent materialized value or
-  reject the capture with a clear diagnostic when a referenced view would not
-  remain valid.
-
 - **DEF-005:** Harden escaped lambda target typing with callable newtypes,
   method references, and overloads. Stage: B/C. Priority: medium. Complexity:
   medium. Existing scoped tests cover callable newtypes and overload-selection

@@ -364,6 +364,10 @@ public sealed partial class BindableNodeAnalyzer
 			&& FindThisCapture(context) is LambdaCapture thisCapture)
 			return CreateCapturedValueReference(thisCapture, contextLocal, expression.SourceSyntax);
 
+		if (expression is MemberExpression memberExpression
+			&& TryCreateCapturedParamsComponentReference(memberExpression.Target, memberExpression.Name, context, contextLocal, expression.SourceSyntax, out Expression? sourceComponentReference))
+			return sourceComponentReference;
+
 		if (expression is MemberReferenceExpression memberReference
 			&& TryCreateCapturedParamsComponentReference(memberReference.Target, memberReference.Name, context, contextLocal, expression.SourceSyntax, out Expression? componentReference))
 			return componentReference;
