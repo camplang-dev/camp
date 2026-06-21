@@ -6,6 +6,19 @@ Run the golden integration suite from `/src` with:
 dotnet test camplang.sln
 ```
 
+For a fast compiler-feedback pass from the repository root, run:
+
+```sh
+dotnet msbuild src/test-fast.proj
+```
+
+This runs golden tests only and skips `StdRun`, command-line process tests, and
+MSVC smoke tests. If the solution is already built, use:
+
+```sh
+dotnet msbuild src/test-fast.proj -p:NoBuild=true
+```
+
 During compiler work, prefer targeted runs. Golden discovery supports these
 environment variables:
 
@@ -18,7 +31,14 @@ CAMP_TEST_CASE=generic_self_link dotnet test src/camplang.sln --no-build
 `CAMP_TEST_KIND` matches top-level test folders such as `Metadata`, `CCompile`,
 `Lowering`, or `StdRun`. `CAMP_TEST_CASE` matches one or more comma-separated
 substrings of the repository-relative case path without the `.camp` extension.
-Use a full suite only for broad compiler changes or before larger commits.
+When either variable is set, command-line process tests skip themselves so the
+targeted golden run stays focused. Use a full suite only for broad compiler
+changes or before larger commits.
+
+`StdRun` tests share a standard-library package artifact cache under
+`tmp/golden-stdrun-packages` so the standard library is not rebuilt for every
+runtime case. If the std cache appears stale, deleting that directory forces a
+clean rebuild.
 
 Run tests and generate a console + HTML coverage report with:
 

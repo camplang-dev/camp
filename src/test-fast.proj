@@ -1,0 +1,15 @@
+<Project DefaultTargets="TestFast">
+  <PropertyGroup>
+    <NoBuild Condition="'$(NoBuild)' == ''">false</NoBuild>
+    <NoBuildArgument Condition="'$(NoBuild)' == 'true'">--no-build</NoBuildArgument>
+    <NoBuildArgument Condition="'$(NoBuild)' == 'True'">--no-build</NoBuildArgument>
+    <FastGoldenKinds>Ast,Declarations,LoweringXml,Lowering,Diagnostics,CEmit,CCompile,Api,Metadata,Std</FastGoldenKinds>
+  </PropertyGroup>
+
+  <Target Name="TestFast">
+    <Exec
+      WorkingDirectory="$(MSBuildThisFileDirectory)"
+      EnvironmentVariables="CAMP_TEST_KIND=$(FastGoldenKinds)"
+      Command="dotnet test &quot;$(MSBuildThisFileDirectory)camplang.sln&quot; $(NoBuildArgument) --filter &quot;FullyQualifiedName~GoldenFileTests&quot;" />
+  </Target>
+</Project>

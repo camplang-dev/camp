@@ -7,6 +7,12 @@ namespace Camp.Compiler.Tests;
 
 public sealed class CommandLineTests
 {
+	public CommandLineTests()
+	{
+		if (GoldenFilterActive())
+			Assert.Skip("Command-line tests are skipped when CAMP_TEST_KIND or CAMP_TEST_CASE targets golden tests.");
+	}
+
 	[Fact]
 	public void Root_command_requires_subcommand()
 	{
@@ -303,6 +309,12 @@ public sealed class CommandLineTests
 	}
 
 	static string Normalize(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
+
+	static bool GoldenFilterActive()
+	{
+		return !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CAMP_TEST_KIND"))
+			|| !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CAMP_TEST_CASE"));
+	}
 
 	readonly record struct ProcessResult(int ExitCode, string StdOut, string StdErr);
 }

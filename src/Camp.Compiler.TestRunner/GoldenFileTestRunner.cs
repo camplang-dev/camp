@@ -12,13 +12,16 @@ namespace Camp.Compiler.Tests;
 
 public static class GoldenFileTestRunner
 {
+	static readonly object StdRunCompilerLock = new();
+
 	public static void Run(GoldenFileTestCase testCase)
 	{
 		ArgumentNullException.ThrowIfNull(testCase);
 		if (testCase.Kind == GoldenFileTestKind.StdRun && OperatingSystem.IsWindows() && !MsvcAvailable())
 			Assert.Skip("StdRun executable golden tests require MSVC tools on Windows.");
 
-		CompilerResult result = CompilerDriver.Execute(CreateRequest(testCase));
+		CompilerRequest request = CreateRequest(testCase);
+		CompilerResult result = ExecuteCompiler(testCase, request);
 		string actual = Normalize(SelectOutput(testCase, result));
 		File.WriteAllText(testCase.ActualPath, actual);
 
@@ -60,9 +63,7 @@ public static class GoldenFileTestRunner
 			RuntimeRoot = Path.Combine(testCase.RepositoryRoot, "bin"),
 			TargetRoot = Path.Combine(testCase.RepositoryRoot, "targets"),
 			PackageSourceRoot = Path.Combine(testCase.RepositoryRoot, "lib"),
-			PackageArtifactRoot = testCase.Kind == GoldenFileTestKind.StdRun
-				? Path.Combine(GetBuildDirectory(testCase), "packages")
-				: Path.Combine(testCase.RepositoryRoot, "tmp", "golden-packages"),
+			PackageArtifactRoot = GetPackageArtifactRoot(testCase),
 			WorkingDirectory = testCase.RepositoryRoot,
 			TargetName = SelectTargetName(testCase.Kind),
 			NoStdLib = testCase.Kind is not (GoldenFileTestKind.Std or GoldenFileTestKind.StdRun),
@@ -91,6 +92,15 @@ public static class GoldenFileTestRunner
 		ApplyCaseOptions(testCase, request);
 		request.Files.Add(Path.GetRelativePath(testCase.RepositoryRoot, testCase.CasePath));
 		return request;
+	}
+
+	static CompilerResult ExecuteCompiler(GoldenFileTestCase testCase, CompilerRequest request)
+	{
+		if (testCase.Kind != GoldenFileTestKind.StdRun)
+			return CompilerDriver.Execute(request);
+
+		lock (StdRunCompilerLock)
+			return CompilerDriver.Execute(request);
 	}
 
 	static string SelectTargetName(GoldenFileTestKind kind)
@@ -301,6 +311,13 @@ public static class GoldenFileTestRunner
 			_ => "golden-cemit"
 		};
 		return Path.Combine(testCase.RepositoryRoot, "tmp", folder, caseName);
+	}
+
+	static string GetPackageArtifactRoot(GoldenFileTestCase testCase)
+	{
+		if (testCase.Kind == GoldenFileTestKind.StdRun)
+			return Path.Combine(testCase.RepositoryRoot, "tmp", "golden-stdrun-packages");
+		return Path.Combine(testCase.RepositoryRoot, "tmp", "golden-packages");
 	}
 
 	static string Normalize(string text)
