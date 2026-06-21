@@ -4216,6 +4216,7 @@ public static class CCodeEmitter
 
 		string FormatResolvedBaseType(string type)
 		{
+			type = StripTypeDecorators(type);
 			if (currentGenericTypeNames.Contains(type))
 				return "void";
 			if (genericParameterNames.Contains(type))
@@ -4364,7 +4365,7 @@ public static class CCodeEmitter
 		{
 			if (string.IsNullOrWhiteSpace(resolvedType))
 				return false;
-			string type = resolvedType.Trim();
+			string type = StripTypeDecorators(resolvedType);
 			if (type.Contains('*', StringComparison.Ordinal) || type.Contains("[]", StringComparison.Ordinal) || type.Contains('?', StringComparison.Ordinal))
 				return true;
 			if (type.StartsWith("const ", StringComparison.Ordinal) || type.StartsWith("volatile ", StringComparison.Ordinal))

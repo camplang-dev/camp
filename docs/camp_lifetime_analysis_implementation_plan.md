@@ -365,6 +365,12 @@ call-site relation solving can prove it.
 context value is initialized, the local receives a fixed lifetime based on the
 pointer-bearing values retained by the initialized value.
 
+`init T[n]` constructs declaration-scope array storage. A constant `n` may be
+emitted as ordinary fixed local stack storage; a non-constant `n` may be emitted
+with target-supported dynamic stack storage such as a VLA or `alloca`-equivalent.
+In either case, the resulting `T[]` value is scoped to the declaration and is
+not allocation-backed. Use `new T[n]` for allocator-backed array storage.
+
 Later assignments to fields do not widen that lifetime.
 
 ```camp
@@ -971,6 +977,8 @@ Implement constructor result lifetime rules and local aggregate lifetime fixing.
   or allocator method signature.~~
 - ~~For `init` and aggregate initialization of local pointer-bearing values, fix
   local value lifetime at first initialization.~~
+- ~~For `init T[n]`, treat the resulting array as declaration-scope storage,
+  not allocation-backed storage.~~
 - ~~Do not widen fixed local lifetime after later assignments.~~
 - ~~Include trailing initializer syntax in retained-value analysis.~~
 - ~~Respect scoped constructor parameters by tying the initialized value to the

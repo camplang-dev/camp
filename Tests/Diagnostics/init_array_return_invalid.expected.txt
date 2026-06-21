@@ -1,0 +1,2 @@
+tests/Diagnostics/init_array_return_invalid.camp(4,9): error: Return expression cannot return a pointer-bearing value tied to local storage 'buffer'.
+tests/Diagnostics/init_array_return_invalid.camp(10,9): error: Return expression cannot return a pointer-bearing value tied to local storage 'buffer'.

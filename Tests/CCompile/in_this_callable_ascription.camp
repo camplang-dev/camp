@@ -1,6 +1,6 @@
 newtype delegate nuint ByteFormatter(const this, char[] buffer = default);
 
-extern void* malloc(nuint size);
+extern escaped void* malloc(nuint size);
 extern void free(void* ptr);
 
 export int main()
@@ -30,9 +30,9 @@ nuint formatHex(in byte this, char[] buffer = default) : ByteFormatter
 	return 3;
 }
 
-string copyString(ByteFormatter this)
+escaped string copyString(ByteFormatter this)
 {
-	auto buffer = init char[this() + 1];
+	auto buffer = new char[this() + 1];
 	this(buffer);
 	return (string)buffer.elements;
 }
