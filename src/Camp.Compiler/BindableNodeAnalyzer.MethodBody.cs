@@ -134,11 +134,13 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Capturing scoped lambdas cannot be returned.");
 				if (RequiresAnyGenericCopy(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
 					ReportAnyGenericCopy(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
-				if (EscapesLocalFixedArraySpan(scope.CurrentFunctionReturnType, returnStatement.Expression))
+				bool fixedArraySpanEscape = EscapesLocalFixedArraySpan(scope.CurrentFunctionReturnType, returnStatement.Expression);
+				if (fixedArraySpanEscape)
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Cannot return a span view to local fixed-size array storage.");
 				string returnTargetType = GetLifetimeStructuralTargetType(scope.CurrentFunctionReturnType, returnStatement.Expression);
 				CheckAssignable(returnTargetType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
-				CheckLifetimeResult(returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, scope, "Return expression");
+				if (!fixedArraySpanEscape)
+					CheckLifetimeResult(returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, scope, "Return expression");
 				break;
 			}
 
@@ -148,11 +150,13 @@ public sealed partial class BindableNodeAnalyzer
 				if (scope.CurrentIteratorElementType is null)
 					Report(GetRange(yieldStatement.SourceSyntax), "Yield statements may only appear in iterator functions.");
 				string yieldedType = BodyAnalyzeExpression(yieldStatement.Expression, scope, typeScope, expected);
-				if (EscapesLocalFixedArraySpan(expected, yieldStatement.Expression))
+				bool fixedArraySpanEscape = EscapesLocalFixedArraySpan(expected, yieldStatement.Expression);
+				if (fixedArraySpanEscape)
 					Report(GetRange(yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax), "Cannot yield a span view to local fixed-size array storage.");
 				string yieldTargetType = GetLifetimeStructuralTargetType(expected, yieldStatement.Expression);
 				CheckAssignable(yieldTargetType, yieldedType, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, "Yield expression");
-				CheckLifetimeResult(yieldStatement.Expression, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, scope, "Yield expression");
+				if (!fixedArraySpanEscape)
+					CheckLifetimeResult(yieldStatement.Expression, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, scope, "Yield expression");
 				CheckLifetimeYield(yieldStatement.Expression, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, scope);
 				break;
 			}
@@ -1924,7 +1928,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
 			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
 		if (function is not null)
-			CheckLifetimeCallArguments(function, callTarget, analyzedLifetimeArguments, scope, fallbackSyntax);
+			CheckLifetimeCallArguments(function, callTarget, analyzedLifetimeArguments, scope, fallbackSyntax, genericSubstitutions);
 	}
 
 	bool TryGetLambdaTargetExpandedDelegateParameter(ParameterDefinition componentParameter, ArgumentExpression argument, out ParameterDefinition sourceParameter, out int componentCount)

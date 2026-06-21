@@ -1219,20 +1219,23 @@ erased generic bodies.
 
 ### Work Items
 
-- Treat `T` as potentially pointer-bearing unless constraints prove otherwise
-  or the operation is outside the generic body with concrete substitution.
-- Enforce lifetime policies outside generic types where type arguments are
-  known.
-- Avoid forcing generic implementations such as `List<T>` to understand
-  concrete pointer-bearing semantics internally.
-- Apply aggregate/container rules to `in T`, `out T`, return `T`, array
-  elements, optionals, delegates, iterator frames, and future async frames.
-- Keep `in T` transport address scoped to the call.
-- Ensure `T: copyable` and `T: any` existing rules compose with lifetime checks.
+- ~~Treat `T` as potentially pointer-bearing unless constraints prove otherwise
+  or the operation is outside the generic body with concrete substitution.~~
+- ~~Enforce lifetime policies outside generic types where type arguments are
+  known.~~
+- ~~Avoid forcing generic implementations such as `List<T>` to understand
+  concrete pointer-bearing semantics internally.~~
+- ~~Apply aggregate/container rules to `in T`, `out T`, return `T`, array
+  elements, optionals, and iterator frames.~~ Delegate context storage through
+  erased `T` is tracked separately as `BUG-028`; future async frames remain
+  deferred with async support.
+- ~~Keep `in T` transport address scoped to the call.~~
+- ~~Ensure `T: copyable` and `T: any` existing rules compose with lifetime
+  checks.~~
 
 ### Completion Criteria
 
-Generic list storage is validated at the call boundary:
+~~Generic list storage is validated at the call boundary:~~
 
 ```camp
 auto list = new List<const char[]>();
@@ -1240,10 +1243,11 @@ fixed char[16] local = "hello";
 list.add(local[..]); // depends on whether local outlives list; checked at call site
 ```
 
-Inside `List<T>`, the implementation copies/stores `T` according to the generic
-contract. It does not need to inspect the concrete pointer-bearing fields.
+~~Inside `List<T>`, the implementation copies/stores `T` according to the
+generic contract. It does not need to inspect the concrete pointer-bearing
+fields.~~
 
-`in T` transport cannot escape:
+~~`in T` transport cannot escape:~~
 
 ```camp
 T* bad<T: any>(in T value)
@@ -1254,12 +1258,14 @@ T* bad<T: any>(in T value)
 
 ### Tests
 
-- `List<const char[]>` positive/negative lifetime tests.
-- `List<int>` unaffected by pointer-bearing rules.
-- `in T` address escape diagnostic.
-- Generic delegate/context storage diagnostics.
-- Generic array element lifetime tests after substitution.
-- Existing generic array erasure tests continue to pass.
+- ~~`List<const char[]>` positive/negative lifetime tests.~~ Covered at the
+  generic call boundary with `const char[]` substitution.
+- ~~`List<int>` unaffected by pointer-bearing rules.~~ Covered with scalar
+  `choose<int>` substitution.
+- ~~`in T` address escape diagnostic.~~
+- Generic delegate/context storage diagnostics deferred as `BUG-028`.
+- ~~Generic array element lifetime tests after substitution.~~
+- ~~Existing generic array erasure tests continue to pass.~~
 
 ## Stage 9: Standard Library API Cleanup
 

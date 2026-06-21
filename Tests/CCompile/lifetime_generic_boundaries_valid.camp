@@ -1,0 +1,16 @@
+extern escaped char* getEscapedPointer();
+
+void choose<T: copyable>(T value, out T result)
+{
+	result = value;
+}
+
+int main()
+{
+	char* source = getEscapedPointer();
+	char* result = default;
+	choose<char*>(source, out result);
+	int number = 0;
+	choose<int>(7, out number);
+	return number;
+}

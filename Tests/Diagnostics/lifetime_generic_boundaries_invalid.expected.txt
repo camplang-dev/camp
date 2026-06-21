@@ -1,0 +1,2 @@
+tests/Diagnostics/lifetime_generic_boundaries_invalid.camp(5,9): error: Return expression cannot return a pointer-bearing value tied to in-parameter transport 'value'.
+tests/Diagnostics/lifetime_generic_boundaries_invalid.camp(16,38): error: Out argument cannot store a non-escaped pointer-bearing value in escaped storage.

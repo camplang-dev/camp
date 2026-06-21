@@ -1,5 +1,4 @@
 tests/Diagnostics/lifetime_flow_invalid.camp(10,15): error: Assignment cannot store a scoped pointer-bearing value in storage tied to 'this'.
 tests/Diagnostics/lifetime_flow_invalid.camp(16,15): error: Assignment cannot store a non-escaped pointer-bearing value in escaped storage.
 tests/Diagnostics/lifetime_flow_invalid.camp(22,14): error: Cannot return a span view to local fixed-size array storage.
-tests/Diagnostics/lifetime_flow_invalid.camp(22,14): error: Return expression cannot return a pointer-bearing value tied to local storage 'local'.
 tests/Diagnostics/lifetime_flow_invalid.camp(32,9): error: Delete target cannot satisfy free parameter lifetime 'escaped'.

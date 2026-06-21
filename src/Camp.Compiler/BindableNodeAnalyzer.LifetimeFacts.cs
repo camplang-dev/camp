@@ -391,6 +391,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (unary.Operator == UnaryOperator.AddressOf)
 		{
+			if (TryGetInParameterAnchor(unary.Operand, scope, out string inParameterAnchor))
+				return MakeLifetimeFact("scoped", inParameterAnchor, "in parameter address");
 			if (GetExpressionLifetimeFact(unary.Operand) is string operandFact)
 				return operandFact;
 			if (unary.Operand is not null
@@ -402,6 +404,32 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsLifetimePointerBearingResolvedType(resolvedType, scope))
 			return GetExpressionLifetimeFact(unary.Operand);
 		return null;
+	}
+
+	bool TryGetInParameterAnchor(Expression? expression, BodyScope scope, out string anchor)
+	{
+		anchor = "";
+		if (expression is null)
+			return false;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return TryGetInParameterAnchor(rewritten, scope, out anchor);
+
+		ParameterDefinition? parameter = null;
+		switch (expression)
+		{
+			case VariableReferenceExpression { Variable: ParameterDefinition candidate }:
+				parameter = candidate;
+				break;
+			case NamedExpression { Qualifiers.Count: 0 } named when scope.TryLookup(named.Name, out BodySymbol symbol):
+				parameter = symbol.Node as ParameterDefinition;
+				break;
+			case ParenthesizedExpression parenthesized:
+				return TryGetInParameterAnchor(parenthesized.Expression, scope, out anchor);
+		}
+		if (parameter is not { Modifier: ParameterModifier.In } || string.IsNullOrWhiteSpace(parameter.Name))
+			return false;
+		anchor = parameter.Name;
+		return true;
 	}
 
 	string? GetIndexLifetimeFact(IndexExpression index, string resolvedType)
@@ -454,7 +482,7 @@ public sealed partial class BindableNodeAnalyzer
 		return new LifetimeFact("unscoped", [], "return default");
 	}
 
-	void CheckLifetimeCallArguments(FunctionDefinition function, Expression? callTarget, List<(ArgumentExpression Argument, ParameterDefinition Parameter)> arguments, BodyScope scope, SyntaxNode? fallbackSyntax)
+	void CheckLifetimeCallArguments(FunctionDefinition function, Expression? callTarget, List<(ArgumentExpression Argument, ParameterDefinition Parameter)> arguments, BodyScope scope, SyntaxNode? fallbackSyntax, Dictionary<string, string>? substitutions)
 	{
 		if (function.Modifier == FunctionModifier.Constructor || function.Name == InitNewMethodName)
 			return;
@@ -465,19 +493,20 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameter.Modifier == ParameterModifier.Out)
 			{
-				ApplyOutParameterLifetime(function, argument, parameter, context, scope, fallbackSyntax);
+				ApplyOutParameterLifetime(function, argument, parameter, context, scope, fallbackSyntax, substitutions);
 				continue;
 			}
 			if (parameter.Modifier == ParameterModifier.Thrown || parameter.Modifier == ParameterModifier.Within)
 				continue;
 
-			CheckLifetimeParameterArgument(function, argument, parameter, context, scope, fallbackSyntax);
+			CheckLifetimeParameterArgument(function, argument, parameter, context, scope, fallbackSyntax, substitutions);
 		}
 	}
 
-	void CheckLifetimeParameterArgument(FunctionDefinition function, ArgumentExpression argument, ParameterDefinition parameter, LifetimeCallContext context, BodyScope scope, SyntaxNode? fallbackSyntax)
+	void CheckLifetimeParameterArgument(FunctionDefinition function, ArgumentExpression argument, ParameterDefinition parameter, LifetimeCallContext context, BodyScope scope, SyntaxNode? fallbackSyntax, Dictionary<string, string>? substitutions)
 	{
-		if (!IsPointerBearingResolvedType(argument.ResolvedType) && !IsPointerBearingResolvedType(parameter.ResolvedType))
+		string effectiveParameterType = SubstituteGenericType(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType, substitutions ?? []);
+		if (!IsLifetimePointerBearingResolvedType(argument.ResolvedType, scope) && !IsLifetimePointerBearingResolvedType(effectiveParameterType, scope))
 			return;
 		if (argument.Value is VariableReferenceExpression { Variable: ParameterDefinition argumentParameter }
 			&& ReferenceEquals(argumentParameter, parameter))
@@ -507,13 +536,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	void ApplyOutParameterLifetime(FunctionDefinition function, ArgumentExpression argument, ParameterDefinition parameter, LifetimeCallContext context, BodyScope scope, SyntaxNode? fallbackSyntax)
+	void ApplyOutParameterLifetime(FunctionDefinition function, ArgumentExpression argument, ParameterDefinition parameter, LifetimeCallContext context, BodyScope scope, SyntaxNode? fallbackSyntax, Dictionary<string, string>? substitutions)
 	{
-		string outType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType;
-		if (!IsPointerBearingResolvedType(outType))
+		string outType = SubstituteGenericType(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType, substitutions ?? []);
+		if (!IsLifetimePointerBearingResolvedType(outType, scope))
 			return;
 
-		LifetimeFact template = GetOutParameterLifetimeTemplate(function, parameter);
+		LifetimeFact template = GetOutParameterLifetimeTemplate(function, parameter, outType);
 		LifetimeFact? substituted = SubstituteLifetimeTemplate(template, context, "out");
 		if (substituted is null)
 			return;
@@ -531,12 +560,13 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(GetArgumentDiagnosticSyntax(argument, fallbackSyntax)), $"Out argument cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.");
 	}
 
-	LifetimeFact GetOutParameterLifetimeTemplate(FunctionDefinition function, ParameterDefinition parameter)
+	LifetimeFact GetOutParameterLifetimeTemplate(FunctionDefinition function, ParameterDefinition parameter, string effectiveType)
 	{
 		if (parameter.LifetimeBinding is string explicitLifetime
 			&& TryParseLifetimeFact(explicitLifetime, out LifetimeFact explicitFact))
 			return explicitFact;
-		if (TryGetResolvedTypeLifetime(parameter.ResolvedType, out string lifetimeKind))
+		if (TryGetResolvedTypeLifetime(effectiveType, out string lifetimeKind)
+			|| TryGetResolvedTypeLifetime(parameter.ResolvedType, out lifetimeKind))
 			return new LifetimeFact(lifetimeKind, [], "out type");
 
 		if (IsReceiverBearingDeclaration(function))
@@ -857,6 +887,9 @@ public sealed partial class BindableNodeAnalyzer
 		string? localAnchor = valueFact.Anchors.FirstOrDefault(anchor => IsLocalLifetimeAnchor(anchor, scope));
 		if (localAnchor is not null)
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to local storage '{localAnchor}'.");
+		string? inParameterAnchor = valueFact.Anchors.FirstOrDefault(anchor => IsInParameterLifetimeAnchor(anchor, scope));
+		if (inParameterAnchor is not null)
+			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to in-parameter transport '{inParameterAnchor}'.");
 	}
 
 	void CheckLifetimeYield(Expression? value, SyntaxNode? syntax, BodyScope scope)
@@ -964,6 +997,14 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		return symbol.Node is DeclarationStatement or DeclarationTarget or CatchStatement;
+	}
+
+	bool IsInParameterLifetimeAnchor(string anchor, BodyScope scope)
+	{
+		if (!scope.TryLookup(anchor, out BodySymbol symbol))
+			return false;
+
+		return symbol.Node is ParameterDefinition { Modifier: ParameterModifier.In };
 	}
 
 	static string? GetStorageLifetimeAnchor(BindableNode? storage)

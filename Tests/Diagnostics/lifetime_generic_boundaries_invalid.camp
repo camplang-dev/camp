@@ -1,0 +1,17 @@
+const char[] global;
+
+T* badInTransportEscape<T: any>(in T value)
+{
+	return &value;
+}
+
+void choose<T: copyable>(T value, out T result)
+{
+	result = value;
+}
+
+void badOutSubstitution()
+{
+	fixed char[16] local = "hello";
+	choose<const char[]>(local[..], out global);
+}

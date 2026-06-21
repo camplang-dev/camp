@@ -1,6 +1,15 @@
 # Outstanding Bugs
 
-Next bug number: BUG-028.
+Next bug number: BUG-029.
+
+- **BUG-028:** Generic lifetime substitution does not yet diagnose scoped
+  delegate context storage through erased `T`. Priority: medium-high.
+  Complexity: medium. Example:
+  `delegate bool(in int) globalPredicate; void choose<T: copyable>(T value, out T result) { result = value; } void bad() { delegate bool(in int) predicate = value => value > 0; choose<delegate bool(in int)>(predicate, out globalPredicate); }`
+  should report that a scoped delegate/context value cannot be stored in escaped
+  global storage after substituting `T`, analogous to the current
+  `const char[]` out-parameter diagnostic. This likely needs delegate context
+  lifetime facts to survive local materialization and generic out propagation.
 
 - **BUG-022:** Block doc comments using conventional multi-line `/** ... */`
   formatting need stronger parsing/stripping and focused tests. Priority:
