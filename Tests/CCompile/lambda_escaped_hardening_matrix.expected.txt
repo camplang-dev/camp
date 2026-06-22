@@ -1,0 +1,360 @@
+// file: lambda_escaped_hardening_matrix.c
+#include "lambda_escaped_hardening_matrix_private.h"
+
+/* Private file declarations. */
+static bool __camp_delegate_main_lambda2(void *arg0, int *arg1);
+static bool __camp_delegate_main_lambda3(void *arg0, int *arg1);
+static int __camp_delegate_main_lambda4(void *arg0);
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void fail(Err *error);
+static fn_int_voidPtr__int_ makeBlockAdder(int offset, void **result_context);
+static fn_nuint_voidPtr_ makeSpanLength(const char *span, uintptr_t span_length, void **result_context);
+static int Box_add(Box *this, int amount);
+static uintptr_t Array_countWhere(void *this, uintptr_t this_length, fn_bool_voidPtr__voidPtr_ predicate, void *predicate_context, uintptr_t sizeof_T);
+static filterIter IntArray_filter(int *this, uintptr_t this_length, fn_bool_voidPtr__int_ predicate, void *predicate_context);
+static int invoke(fn_int_voidPtr__int_ callback, void *callback_context, int value);
+static int invoke0(fn_int_voidPtr_ callback, void *callback_context);
+static bool filterIter_next(filterIter *this, int *current);
+static void filterIter_op_delete(filterIter *this);
+static void filterIter_destroy(filterIter *this);
+static bool filterIter_iter(void *ctx, int *current);
+static int makeBlockAdder_lambda0(void *context, int value);
+static uintptr_t makeSpanLength_lambda1(void *context);
+static bool main_lambda2(void *context, int *item);
+static bool main_lambda3(void *context, int *item);
+static int main_lambda4(void *context);
+
+static bool __camp_delegate_main_lambda2(void *arg0, int *arg1)
+{
+	return main_lambda2(arg0, arg1);
+}
+
+static bool __camp_delegate_main_lambda3(void *arg0, int *arg1)
+{
+	return main_lambda3(arg0, arg1);
+}
+
+static int __camp_delegate_main_lambda4(void *arg0)
+{
+	return main_lambda4(arg0);
+}
+
+static void fail(Err *error)
+{
+	{
+		(*error) = Err_ERR_BAD;
+		return;
+	}
+}
+
+static fn_int_voidPtr__int_ makeBlockAdder(int offset, void **result_context)
+{
+	makeBlockAdder_lambdaContext0 *_lambdaContext0 = (makeBlockAdder_lambdaContext0 *)(malloc(sizeof(makeBlockAdder_lambdaContext0)));
+	_lambdaContext0->capture0_offset = offset;
+	{
+		(*result_context) = _lambdaContext0;
+		return makeBlockAdder_lambda0;
+	}
+}
+
+static fn_nuint_voidPtr_ makeSpanLength(const char *span, uintptr_t span_length, void **result_context)
+{
+	makeSpanLength_lambdaContext1 *_lambdaContext5 = (makeSpanLength_lambdaContext1 *)(malloc(sizeof(makeSpanLength_lambdaContext1)));
+	_lambdaContext5->capture0_span = span;
+	_lambdaContext5->capture1_span_length = span_length;
+	{
+		(*result_context) = _lambdaContext5;
+		return makeSpanLength_lambda1;
+	}
+}
+
+static int Box_add(Box *this, int amount)
+{
+	return (this->value + amount);
+}
+
+static uintptr_t Array_countWhere(void *this, uintptr_t this_length, fn_bool_voidPtr__voidPtr_ predicate, void *predicate_context, uintptr_t sizeof_T)
+{
+	uintptr_t count = 0;
+	{
+		for (uintptr_t i = 0; (i < this_length); i++)
+		{
+			if (predicate(predicate_context, (void*)(((uint8_t*)this) + (i * sizeof_T))))
+			{
+				count++;
+			}
+__for_continue6: ;
+		}
+__for_break7: ;
+	}
+	return count;
+}
+
+static filterIter IntArray_filter(int *this, uintptr_t this_length, fn_bool_voidPtr__int_ predicate, void *predicate_context)
+{
+	return (filterIter){ .__state = 0, .__iter_this = this, .__iter_this_length = this_length, .predicate = predicate, .predicate_context = predicate_context };
+}
+
+static int invoke(fn_int_voidPtr__int_ callback, void *callback_context, int value)
+{
+	return callback(callback_context, value);
+}
+
+static int invoke0(fn_int_voidPtr_ callback, void *callback_context)
+{
+	return callback(callback_context);
+}
+
+int main(void)
+{
+	fn_int_voidPtr__int_ adder;
+	void *adder_context;
+	adder = makeBlockAdder(3, &adder_context);
+	int total = adder(adder_context, 7);
+	free((void *)(adder_context));
+	fn_nuint_voidPtr_ length;
+	void *length_context;
+	length = makeSpanLength("hello", 5, &length_context);
+	total = (total + (int)(length(length_context)));
+	free((void *)(length_context));
+	Box *box = (Box *)(malloc(sizeof(Box)));
+	box->value = 20;
+	total = (total + invoke((fn_int_voidPtr__int_)Box_add, (Box *)(box), 2));
+	free((void *)(box));
+	int threshold = 2;
+	int *values = (int []){1, 2, 3, 4};
+	uintptr_t values_length = 4;
+	main_lambdaContext2 *_lambdaContext8 = (main_lambdaContext2 *)(malloc(sizeof(main_lambdaContext2)));
+	_lambdaContext8->capture0_threshold = threshold;
+	total = (total + (int)(Array_countWhere(values, values_length, (fn_bool_voidPtr__voidPtr_)__camp_delegate_main_lambda2, _lambdaContext8, sizeof(int))));
+	main_lambdaContext3 *_lambdaContext9 = (main_lambdaContext3 *)(malloc(sizeof(main_lambdaContext3)));
+	_lambdaContext9->capture0_threshold = threshold;
+	{
+		filterIter _foreachIter10 = IntArray_filter(values, values_length, __camp_delegate_main_lambda3, _lambdaContext9);
+		int _foreachCurrent11 = 0;
+		while (filterIter_next(&_foreachIter10, &_foreachCurrent11))
+		{
+			int item = _foreachCurrent11;
+			total = (total + item);
+__foreach_continue12: ;
+		}
+		filterIter_op_delete(&_foreachIter10);
+__foreach_break13: ;
+	}
+	{
+		Err e;
+		{
+			fail(&e);
+			if ((e != 0))
+			{
+				goto __catch16;
+			}
+		}
+		goto __try_done14;
+__catch16: ;
+		{
+			main_lambdaContext4 *_lambdaContext17 = (main_lambdaContext4 *)(malloc(sizeof(main_lambdaContext4)));
+			_lambdaContext17->capture0_e = e;
+			total = (total + invoke0(__camp_delegate_main_lambda4, _lambdaContext17));
+		}
+		goto __try_done14;
+__try_done14: ;
+	}
+	return ((total == 58) ? 0 : 1);
+}
+
+static bool filterIter_next(filterIter *this, int *current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	this->i = 0;
+	{
+		for (; (this->i < this->__iter_this_length); this->i++)
+		{
+			this->item = this->__iter_this[this->i];
+			if (this->predicate(this->predicate_context, &(int){this->item}))
+			{
+				*current = this->item;
+				this->__state = 1;
+				return true;
+__iter_resume1: ;
+				;
+			}
+__for_continue18: ;
+		}
+__for_break19: ;
+	}
+	this->__state = -1;
+	return false;
+}
+
+static void filterIter_op_delete(filterIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static void filterIter_destroy(filterIter *this)
+{
+	filterIter_op_delete(this);
+}
+
+static bool filterIter_iter(void *ctx, int *current)
+{
+	filterIter *state = (filterIter *)(ctx);
+	if ((current == NULL))
+	{
+		filterIter_op_delete(state);
+		return false;
+	}
+	return filterIter_next(state, current);
+}
+
+static int makeBlockAdder_lambda0(void *context, int value)
+{
+	makeBlockAdder_lambdaContext0 *lambdaContext = (makeBlockAdder_lambdaContext0 *)(context);
+	int doubled = (value * 2);
+	{
+		int _return3 = 0;
+		{
+			{
+				_return3 = (doubled + lambdaContext->capture0_offset);
+				goto __cleanup4;
+			}
+		}
+__cleanup4: ;
+		{
+			int ignored = doubled;
+		}
+		return _return3;
+	}
+}
+
+static uintptr_t makeSpanLength_lambda1(void *context)
+{
+	makeSpanLength_lambdaContext1 *lambdaContext = (makeSpanLength_lambdaContext1 *)(context);
+	return lambdaContext->capture1_span_length;
+}
+
+static bool main_lambda2(void *context, int *item)
+{
+	main_lambdaContext2 *lambdaContext = (main_lambdaContext2 *)(context);
+	return ((*item) > lambdaContext->capture0_threshold);
+}
+
+static bool main_lambda3(void *context, int *item)
+{
+	main_lambdaContext3 *lambdaContext = (main_lambdaContext3 *)(context);
+	return ((*item) > lambdaContext->capture0_threshold);
+}
+
+static int main_lambda4(void *context)
+{
+	main_lambdaContext4 *lambdaContext = (main_lambdaContext4 *)(context);
+	return ((lambdaContext->capture0_e == Err_ERR_BAD) ? 5 : 0);
+}
+
+// file: lambda_escaped_hardening_matrix.h
+#ifndef LAMBDA_ESCAPED_HARDENING_MATRIX_H_
+#define LAMBDA_ESCAPED_HARDENING_MATRIX_H_
+
+#include "lambda_escaped_hardening_matrix_private.h"
+
+typedef bool (* fn_bool_voidPtr__voidPtr_)(void *arg0, void *arg1);
+typedef bool (* fn_bool_voidPtr__int_)(void *arg0, int *arg1);
+typedef int (* fn_int_BoxPtr_escaped__int_)(Box *arg0, int arg1);
+typedef int (* fn_int_voidPtr_)(void *arg0);
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+typedef uintptr_t (* fn_nuint_voidPtr_)(void *arg0);
+int main(void);
+
+#endif
+// file: lambda_escaped_hardening_matrix_private.h
+#ifndef LAMBDA_ESCAPED_HARDENING_MATRIX_PRIVATE_H_
+#define LAMBDA_ESCAPED_HARDENING_MATRIX_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Box Box;
+typedef struct filterIter filterIter;
+typedef struct makeBlockAdder_lambdaContext0 makeBlockAdder_lambdaContext0;
+typedef struct makeSpanLength_lambdaContext1 makeSpanLength_lambdaContext1;
+typedef struct main_lambdaContext2 main_lambdaContext2;
+typedef struct main_lambdaContext3 main_lambdaContext3;
+typedef struct main_lambdaContext4 main_lambdaContext4;
+
+/* Enums. */
+typedef enum Err
+{
+	Err_ERR_OK = 0,
+	Err_ERR_BAD
+} Err;
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef bool (* fn_bool_voidPtr__voidPtr_)(void *arg0, void *arg1);
+typedef bool (* fn_bool_voidPtr__int_)(void *arg0, int *arg1);
+typedef int (* fn_int_BoxPtr_escaped__int_)(Box *arg0, int arg1);
+typedef int (* fn_int_voidPtr_)(void *arg0);
+typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+typedef uintptr_t (* fn_nuint_voidPtr_)(void *arg0);
+
+/* Layouts. */
+struct Box
+{
+	int value;
+};
+struct filterIter
+{
+	int __state;
+	int *__iter_this;
+	uintptr_t __iter_this_length;
+	fn_bool_voidPtr__int_ predicate;
+	void *predicate_context;
+	uintptr_t i;
+	int item;
+};
+struct makeBlockAdder_lambdaContext0
+{
+	int capture0_offset;
+};
+struct makeSpanLength_lambdaContext1
+{
+	const char *capture0_span;
+	uintptr_t capture1_span_length;
+};
+struct main_lambdaContext2
+{
+	int capture0_threshold;
+};
+struct main_lambdaContext3
+{
+	int capture0_threshold;
+};
+struct main_lambdaContext4
+{
+	Err capture0_e;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lambda_escaped_hardening_matrix.c

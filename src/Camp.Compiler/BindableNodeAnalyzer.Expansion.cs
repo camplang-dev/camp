@@ -703,7 +703,11 @@ public sealed partial class BindableNodeAnalyzer
 			_ => null
 		};
 		if (function is null)
+		{
+			if (call.Target is not null && TryGetCallableShape(call.Target.ResolvedType, out CallableShape callable))
+				return callable.ReturnType;
 			return null;
+		}
 
 		return SubstituteGenericReturnType(function.ResolvedType, call.TypeArguments);
 	}

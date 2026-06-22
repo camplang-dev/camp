@@ -1,0 +1,78 @@
+// file: lambda_escaped_delegate_invocation.c
+#include "lambda_escaped_delegate_invocation_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static fn_int_voidPtr_ makeCounter(int start, void **result_context);
+static int makeCounter_lambda0(void *context);
+
+static fn_int_voidPtr_ makeCounter(int start, void **result_context)
+{
+	makeCounter_lambdaContext0 *_lambdaContext0 = (makeCounter_lambdaContext0 *)(malloc(sizeof(makeCounter_lambdaContext0)));
+	_lambdaContext0->capture0_start = start;
+	{
+		(*result_context) = _lambdaContext0;
+		return makeCounter_lambda0;
+	}
+}
+
+int main(void)
+{
+	fn_int_voidPtr_ callback;
+	void *callback_context;
+	callback = makeCounter(7, &callback_context);
+	int result = callback(callback_context);
+	free((void *)(callback_context));
+	return ((result == 7) ? 0 : 1);
+}
+
+static int makeCounter_lambda0(void *context)
+{
+	makeCounter_lambdaContext0 *lambdaContext = (makeCounter_lambdaContext0 *)(context);
+	return lambdaContext->capture0_start;
+}
+
+// file: lambda_escaped_delegate_invocation.h
+#ifndef LAMBDA_ESCAPED_DELEGATE_INVOCATION_H_
+#define LAMBDA_ESCAPED_DELEGATE_INVOCATION_H_
+
+#include "lambda_escaped_delegate_invocation_private.h"
+
+typedef int (* fn_int_voidPtr_)(void *arg0);
+int main(void);
+
+#endif
+// file: lambda_escaped_delegate_invocation_private.h
+#ifndef LAMBDA_ESCAPED_DELEGATE_INVOCATION_PRIVATE_H_
+#define LAMBDA_ESCAPED_DELEGATE_INVOCATION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct makeCounter_lambdaContext0 makeCounter_lambdaContext0;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_voidPtr_)(void *arg0);
+
+/* Layouts. */
+struct makeCounter_lambdaContext0
+{
+	int capture0_start;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lambda_escaped_delegate_invocation.c

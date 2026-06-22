@@ -354,6 +354,7 @@ public sealed partial class BindableNodeAnalyzer
 			Value = components[1],
 			ResolvedType = components[1].ResolvedType
 		});
+		call.ResolvedType = callable.ReturnType;
 		return true;
 	}
 
@@ -392,6 +393,7 @@ public sealed partial class BindableNodeAnalyzer
 			Value = components[1],
 			ResolvedType = components[1].ResolvedType
 		});
+		call.ResolvedType = callable.ReturnType;
 		return true;
 	}
 

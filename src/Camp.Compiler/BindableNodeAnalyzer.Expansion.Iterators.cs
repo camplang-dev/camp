@@ -285,7 +285,6 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SizeOfParameterDefinition => NuintType(),
 			VTableOfParameterDefinition => TypeReferenceForResolvedName(resolvedType),
-			_ when ContainsLifetimeAnnotation(parameter.Type) => TypeReferenceForResolvedName(resolvedType),
 			_ => CloneType(parameter.Type) ?? TypeReferenceForResolvedName(resolvedType)
 		};
 	}
