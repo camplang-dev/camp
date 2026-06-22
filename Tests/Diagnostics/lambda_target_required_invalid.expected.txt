@@ -1,0 +1,2 @@
+tests/Diagnostics/lambda_target_required_invalid.camp(3,22): error: Lambda parameter 'value' requires a target callable type or an explicit parameter type.
+tests/Diagnostics/lambda_target_required_invalid.camp(4,22): error: Lambda parameter 'value' requires a target callable type or an explicit parameter type.

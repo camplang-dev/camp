@@ -1,0 +1,25 @@
+extern escaped void* malloc(nuint size);
+
+int invokeScoped(delegate int() callback)
+{
+	return callback();
+}
+
+int invokeEscaped(escaped delegate int() callback)
+{
+	return callback();
+}
+
+int runNested(int seed)
+{
+	return invokeEscaped(() =>
+	{
+		int inner = seed + 1;
+		return invokeScoped(() => inner + seed);
+	});
+}
+
+export int main()
+{
+	return runNested(3) == 7 ? 0 : 1;
+}

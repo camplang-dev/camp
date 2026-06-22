@@ -1,0 +1,128 @@
+// file: lambda_nested_scoped_escaped.c
+#include "lambda_nested_scoped_escaped_private.h"
+
+/* Private file declarations. */
+static int __camp_delegate_runNested_lambda0(void *arg0);
+static int __camp_delegate_runNested_lambda0_lambda0(void *arg0);
+static int __camp_delegate_runNested_lambda0_1(void *arg0);
+static int __camp_delegate_runNested_lambda0_lambda0_1(void *arg0);
+static int __camp_delegate_runNested_lambda0_lambda0_2(void *arg0);
+void *malloc(uintptr_t size);
+static int invokeScoped(fn_int_voidPtr_ callback, void *callback_context);
+static int invokeEscaped(fn_int_voidPtr_ callback, void *callback_context);
+static int runNested(int seed);
+static int runNested_lambda0_lambda0(void *context);
+static int runNested_lambda0(void *context);
+
+static int __camp_delegate_runNested_lambda0(void *arg0)
+{
+	return runNested_lambda0(arg0);
+}
+
+static int __camp_delegate_runNested_lambda0_lambda0(void *arg0)
+{
+	return runNested_lambda0_lambda0(arg0);
+}
+
+static int __camp_delegate_runNested_lambda0_1(void *arg0)
+{
+	return runNested_lambda0(arg0);
+}
+
+static int __camp_delegate_runNested_lambda0_lambda0_1(void *arg0)
+{
+	return runNested_lambda0_lambda0(arg0);
+}
+
+static int __camp_delegate_runNested_lambda0_lambda0_2(void *arg0)
+{
+	return runNested_lambda0_lambda0(arg0);
+}
+
+static int invokeScoped(fn_int_voidPtr_ callback, void *callback_context)
+{
+	return callback(callback_context);
+}
+
+static int invokeEscaped(fn_int_voidPtr_ callback, void *callback_context)
+{
+	return callback(callback_context);
+}
+
+static int runNested(int seed)
+{
+	runNested_lambdaContext0 *_lambdaContext0 = (runNested_lambdaContext0 *)(malloc(sizeof(runNested_lambdaContext0)));
+	_lambdaContext0->capture0_seed = seed;
+	return invokeEscaped(__camp_delegate_runNested_lambda0_1, _lambdaContext0);
+}
+
+int main(void)
+{
+	return ((runNested(3) == 7) ? 0 : 1);
+}
+
+static int runNested_lambda0_lambda0(void *context)
+{
+	runNested_lambda0_lambdaContext1 *lambdaContext = (runNested_lambda0_lambdaContext1 *)(context);
+	return ((*lambdaContext->capture0_inner) + (*lambdaContext->capture1_lambdaContext)->capture0_seed);
+}
+
+static int runNested_lambda0(void *context)
+{
+	runNested_lambdaContext0 *lambdaContext = (runNested_lambdaContext0 *)(context);
+	int inner = (lambdaContext->capture0_seed + 1);
+	runNested_lambda0_lambdaContext1 _lambdaContext1;
+	_lambdaContext1.capture0_inner = &inner;
+	_lambdaContext1.capture1_lambdaContext = &lambdaContext;
+	return invokeScoped(__camp_delegate_runNested_lambda0_lambda0_2, &_lambdaContext1);
+}
+
+// file: lambda_nested_scoped_escaped.h
+#ifndef LAMBDA_NESTED_SCOPED_ESCAPED_H_
+#define LAMBDA_NESTED_SCOPED_ESCAPED_H_
+
+#include "lambda_nested_scoped_escaped_private.h"
+
+typedef int (* fn_int_voidPtr_)(void *arg0);
+int main(void);
+
+#endif
+// file: lambda_nested_scoped_escaped_private.h
+#ifndef LAMBDA_NESTED_SCOPED_ESCAPED_PRIVATE_H_
+#define LAMBDA_NESTED_SCOPED_ESCAPED_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct runNested_lambdaContext0 runNested_lambdaContext0;
+typedef struct runNested_lambda0_lambdaContext1 runNested_lambda0_lambdaContext1;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_voidPtr_)(void *arg0);
+
+/* Layouts. */
+struct runNested_lambdaContext0
+{
+	int capture0_seed;
+};
+struct runNested_lambda0_lambdaContext1
+{
+	int *capture0_inner;
+	runNested_lambdaContext0 **capture1_lambdaContext;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lambda_nested_scoped_escaped.c

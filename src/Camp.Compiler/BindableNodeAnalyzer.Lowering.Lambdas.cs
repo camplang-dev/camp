@@ -461,6 +461,9 @@ public sealed partial class BindableNodeAnalyzer
 			case ArgumentExpression argument:
 				argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
 				break;
+			case LambdaExpression lambda:
+				RewriteLambdaCaptureReferences(lambda.Body, context, contextLocal);
+				break;
 		}
 		return expression;
 	}
