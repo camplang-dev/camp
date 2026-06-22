@@ -6968,10 +6968,14 @@ Unspecified target specs may convert to explicit wider target specs when the
 selected target says that conversion is safe. Explicit casts may be used for
 compatible same-kind forms when an implicit conversion would be narrowing.
 
-### 5.1.12 Conditional compilation
+### 5.1.12 Preprocessor directives and conditional compilation
 
-Camp has C#-style conditional compilation. Symbols are either defined or not
-defined; they do not have values.
+Camp source files may contain preprocessor directives. These directives are
+processed before ordinary Camp parsing, and they affect either the source text
+that is parsed or the compiler configuration used for the current build.
+
+Conditional compilation uses C#-style symbols. Symbols are either defined or
+not defined; they do not have values.
 
 ```camp
 #define WINDOWS
@@ -6986,6 +6990,33 @@ export alias TCHAR = wchar;
 Supported directives are `#define`, `#undef`, `#if`, `#elif`, `#else`, and
 `#endif`. Conditions may use symbol names, `TRUE`, `!`, `&&`, `||`, and
 parentheses. Code in inactive branches is tokenized but not parsed as Camp code.
+
+Camp also recognizes `#build` directives in the file prelude. A `#build`
+directive contributes build options to the compiler invocation. Comments may
+appear before these directives, but ordinary declarations, imports, exports, and
+other preprocessor directives end the prelude for this purpose.
+
+The exact command-line option set is a compiler-tooling concern rather than a
+language rule, so the following examples are illustrative rather than normative:
+
+```camp
+// Prefer this target when this file is used as a build root.
+#build --target clang-macos-x64
+#build --profile release
+
+// Build this source as a shared library unless the command line overrides it.
+#build --artifact shared
+#build --metadata export
+
+export as MyLibrary;
+```
+
+System-wide defaults may also be supplied by tooling files such as
+`lib/global.camp`. When both global and source-file build directives are used,
+the compiler treats them as default command-line fragments and then applies the
+actual command line afterward. Whether repeated options are additive or
+overriding is defined by the compiler option itself, not by the `#build`
+directive syntax.
 
 ### 5.1.13 Public versus private generated views
 

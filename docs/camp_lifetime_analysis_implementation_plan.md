@@ -2,7 +2,7 @@
 
 This document is an implementation plan for Camp lifetime annotations and
 lifetime analysis. It is based on the current language spec
-(`camp_unified_spec_v17.md`) and the clarifications made during design
+(`camp_unified_spec_v18.md`) and the clarifications made during design
 discussion.
 
 The goal is to implement the source-language lifetime model described by the

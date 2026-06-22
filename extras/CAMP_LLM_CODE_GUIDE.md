@@ -21,10 +21,10 @@ Confidence labels:
 | Use `fixed struct` only for structs; `fixed class` is invalid. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs::ApplyStructDeclarators`; `ApplyClassDeclarators` |
 | Classes may be `virtual`, `abstract`, or `sealed`. Virtual methods require virtual/abstract classes; abstract methods require abstract classes. | `CONFIRMED_BY_TEST` | `tests/CCompile/virtual_interface_abi.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.DeclarationValidation.cs::ValidateClassVirtualMethods` |
 | Arrays, optionals, delegates, and iterators are compiler-expanded forms. They have dot components such as `.elements`, `.length`, `.value`, `.specified`, `.call`, `.context`. | `CONFIRMED_BY_TEST` | `tests/CCompile/expanded_forms.camp`; `tests/CCompile/expanded_return_iter_assignment.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.ParamsComponents.cs` |
-| `T[]` is a span-style expanded array value. `fixed T[n]` declarations create fixed-size inline array storage. Fixed-size arrays expose `.elements` and constant `.length`, can view-convert to `T[]`, and are not copyable values. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_span_views.camp`; `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v17.md::1.6.8`, `1.6.9` |
-| `T: any` is the erased non-copying generic constraint. `T: copyable` is required when generic code copies, assigns, stores, moves, returns, or otherwise transports `T` values by value; erased copying also needs `sizeof(T)` when the lowering requires a byte size. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v17.md::1.12.11`, `6.1.6`, `6.2.6` |
-| Namespace names should use PascalCase: `using Std;`, `using Std::Math;`, `export as Std;`, `export as Std::Math;`. Avoid lowercase namespace segments in generated Camp examples. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v17.md::5.1` |
-| Callable `newtype` ascription gives a function or method's natural callable reference form a named callable contract without changing direct calls, overloads, unbound references, generated symbols, callable lowering, or ABI representation. Receiverless declarations ascribe `fn`; receiver-bearing methods ascribe context-carrying `delegate` or `iter`. Explicit callable `this` qualifiers are part of that contract. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/callable_ascription_invalid.camp`; `tests/CCompile/callable_this_ascription*.camp`; `camp_unified_spec_v17.md::1.4.16`, `1.11`, `3.4.4` |
+| `T[]` is a span-style expanded array value. `fixed T[n]` declarations create fixed-size inline array storage. Fixed-size arrays expose `.elements` and constant `.length`, can view-convert to `T[]`, and are not copyable values. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_span_views.camp`; `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v18.md::1.6.8`, `1.6.9` |
+| `T: any` is the erased non-copying generic constraint. `T: copyable` is required when generic code copies, assigns, stores, moves, returns, or otherwise transports `T` values by value; erased copying also needs `sizeof(T)` when the lowering requires a byte size. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v18.md::1.12.11`, `6.1.6`, `6.2.6` |
+| Namespace names should use PascalCase: `using Std;`, `using Std::Math;`, `export as Std;`, `export as Std::Math;`. Avoid lowercase namespace segments in generated Camp examples. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v18.md::5.1` |
+| Callable `newtype` ascription gives a function or method's natural callable reference form a named callable contract without changing direct calls, overloads, unbound references, generated symbols, callable lowering, or ABI representation. Receiverless declarations ascribe `fn`; receiver-bearing methods ascribe context-carrying `delegate` or `iter`. Explicit callable `this` qualifiers are part of that contract. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/callable_ascription_invalid.camp`; `tests/CCompile/callable_this_ascription*.camp`; `camp_unified_spec_v18.md::1.4.16`, `1.11`, `3.4.4` |
 | Use `struct(T)` to materialize an expanded form when it must be a single stored value, especially arrays of expanded values. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.TypeBinding.cs::AnalyzeType` |
 | Construction/destruction is explicit: `init T(...)`, `new T(...)`, `delete valueOrPointer`, and `finally delete expr`. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifecycle_allocator.camp`; `tests/StdRun/pointer_new_array_finally_delete.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.Operators.cs` |
 | Error handling is explicit: thrown values use `thrown T` parameters, `throw value`, `try`/`catch`, and call-site `catch variable`. | `CONFIRMED_BY_TEST` | `tests/CCompile/thrown_parameter_forwarding.camp`; `tests/Lowering/throw_try_finally.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Flow.cs` |
@@ -36,7 +36,7 @@ Confidence labels:
 |---|---|---|---|
 | Identifier | ASCII letter or `_`, followed by ASCII letters, digits, or `_`. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::IsIdentifierStart`, `IsIdentifierPart` |
 | Attribute identifier | `@` followed by identifier start and identifier parts, e.g. `@range`, `@symbol("c_name")`. | `CONFIRMED_BY_TEST` | `tests/CCompile/slice_range_calls.camp`; `src/Camp.Compiler/CampTokenizer.cs::Tokenize` |
-| Reserved words | Cannot be used as ordinary identifiers; includes `_`, `abstract`, `alias`, `any`, `astring`, `async`, `auto`, `bool`, `class`, `copyable`, `delegate`, `escaped`, `extern`, `fixed`, `fn`, `foreach`, `implements`, `init`, `interface`, `iter`, `newtype`, `once`, `overload`, `params`, `scoped`, `thrown`, `unscoped`, `vtableof`, `within`, etc. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.cs::ReservedWords`; `src/Camp.Compiler/CampParser.cs::IsKeyword`; `camp_unified_spec_v17.md::6.1.6` |
+| Reserved words | Cannot be used as ordinary identifiers; includes `_`, `abstract`, `alias`, `any`, `astring`, `async`, `auto`, `bool`, `class`, `copyable`, `delegate`, `escaped`, `extern`, `fixed`, `fn`, `foreach`, `implements`, `init`, `interface`, `iter`, `newtype`, `once`, `overload`, `params`, `scoped`, `thrown`, `unscoped`, `vtableof`, `within`, etc. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.cs::ReservedWords`; `src/Camp.Compiler/CampParser.cs::IsKeyword`; `camp_unified_spec_v18.md::6.1.6` |
 | Line comment | `//` to end of line. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::Tokenize` |
 | Block comment | `/* ... */`, tokenized line by line; can span lines. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::ReadBlockCommentLine` |
 | Strings | `"..."`, `'...'`, or `` `...` `` are tokenized as string-class literals; backslash escapes consume next char. Single-quoted string with exactly one decoded char is a character literal. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::ReadString`; `src/Camp.Compiler/BindableNodeBuilder.Expressions.cs::BuildLiteralExpression` |
@@ -44,6 +44,7 @@ Confidence labels:
 | Numbers | Decimal integers/floats; `0x`/`0X` hex accepts ASCII letters/digits; decimal literals may end with ASCII letter suffixes. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::ReadNumber` |
 | Punctuation/operators | Single-character symbols include `~ ! % ^ & * ( ) + - = { } [ ] | ; : , . / < > ? $ #`. Multi-character operators are parsed from token sequences. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::Punctuation`; `src/Camp.Compiler/CampParser.cs::ReadOperator` |
 | Whitespace/newline | Horizontal whitespace and newlines are separate trivia tokens. Statements and declarations still normally require `;` or braces. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::Tokenize`; `src/Camp.Compiler/CampParser.cs` |
+| Preprocessor directives | `#define`, `#undef`, `#if`, `#elif`, `#else`, `#endif`, and prelude-only `#build` are recognized. `#build` examples may show compiler option fragments, but those option names are tooling behavior, not language syntax. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs`; `docs/camp_unified_spec_v18.md::5.1.12`; `docs/camp_declarations_statements_grammar.txt::preprocessor-directive` |
 
 Valid:
 
@@ -55,6 +56,19 @@ int value_1 = 0x10;
 char c = 'x';
 const char[] text = "hello";
 ```
+
+Build-prelude example:
+
+```camp
+// Comments may appear before build directives.
+#build --target clang-macos-x64
+#build --artifact shared
+
+export as MyLibrary;
+```
+
+Treat specific `#build` option names as examples of the current `campc`
+tooling. Do not describe them as normative language grammar.
 
 Invalid:
 
@@ -69,18 +83,18 @@ int class = 1;       // reserved word
 
 | Declaration | Syntax | Confidence | Evidence |
 |---|---|---|---|
-| Function | `[export|public|extern|async] ReturnType name<T...>(params) [: CallableNewtype] bodyOr;` | `CONFIRMED_BY_TEST` for ordinary functions; callable ascription is `SPEC_ONLY_OR_UNVERIFIED` | `tests/CEmit/basic_functions.camp`; `src/Camp.Compiler/CampParser.cs::ParseMemberDeclaration`; `camp_unified_spec_v17.md::1.4.16` |
-| Expression-bodied function | `ReturnType name(params) [: CallableNewtype] => expr;` | `CONFIRMED_BY_TEST` for ordinary expression bodies; callable ascription is `SPEC_ONLY_OR_UNVERIFIED` | `tests/CCompile/direct_function_delegate_thunk.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildFunctionBody`; `camp_unified_spec_v17.md::1.4.16` |
-| Method | Declared inside `struct`, `class`, `enum`, `newtype`, or `params` body. May use `: CallableNewtype` after the parameter list when the declaration family matches. If the callable newtype declares explicit callable `this`, omitted method `this` inherits those qualifiers. | `CONFIRMED_BY_COMPILER_CODE` for ordinary methods; callable ascription is `SPEC_ONLY_OR_UNVERIFIED` | `src/Camp.Compiler/BindableNodeBuilder.cs::BuildStructDefinition`, `BuildClassDefinition`, `AddMethodOnlyScope`; `camp_unified_spec_v17.md::1.4.16` |
-| Static method | `static ReturnType name(params) [: CallableNewtype] { ... }` inside type only; static methods are receiverless for callable ascription. | `CONFIRMED_BY_TEST` for ordinary static methods; callable ascription is `SPEC_ONLY_OR_UNVERIFIED` | `tests/CCompile/overload_basic.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::ApplyFunctionDeclarators`; `camp_unified_spec_v17.md::1.4.16` |
-| Global variable | `[export|public|extern] Type name [= expr];`; fixed-size array storage uses `fixed T[n] name [= initializer];` | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_storage.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildVariableDefinition`; `camp_unified_spec_v17.md::1.6.8` |
-| Field | `Type name;` or `static Type name;` inside `struct`/`class`; fixed-size array fields use `fixed T[n] name;`; `escaped` is valid on fields to require escaped pointer-bearing assignments. Fields cannot be `export`, `public`, `extern`, `virtual`, `override`, `sealed`, `abstract`, `async`. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_storage.camp`; `tests/CCompile/lifetime_escaped_fields.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::ApplyFieldDeclarators`; `camp_unified_spec_v17.md::1.6.8`, `2.2.1`, `4.1` |
+| Function | `[export|public|extern|async] ReturnType name<T...>(params) [: CallableNewtype] bodyOr;` | `CONFIRMED_BY_TEST` for ordinary functions; callable ascription is `SPEC_ONLY_OR_UNVERIFIED` | `tests/CEmit/basic_functions.camp`; `src/Camp.Compiler/CampParser.cs::ParseMemberDeclaration`; `camp_unified_spec_v18.md::1.4.16` |
+| Expression-bodied function | `ReturnType name(params) [: CallableNewtype] => expr;` | `CONFIRMED_BY_TEST` for ordinary expression bodies; callable ascription is `SPEC_ONLY_OR_UNVERIFIED` | `tests/CCompile/direct_function_delegate_thunk.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildFunctionBody`; `camp_unified_spec_v18.md::1.4.16` |
+| Method | Declared inside `struct`, `class`, `enum`, `newtype`, or `params` body. May use `: CallableNewtype` after the parameter list when the declaration family matches. If the callable newtype declares explicit callable `this`, omitted method `this` inherits those qualifiers. | `CONFIRMED_BY_COMPILER_CODE` for ordinary methods; callable ascription is `SPEC_ONLY_OR_UNVERIFIED` | `src/Camp.Compiler/BindableNodeBuilder.cs::BuildStructDefinition`, `BuildClassDefinition`, `AddMethodOnlyScope`; `camp_unified_spec_v18.md::1.4.16` |
+| Static method | `static ReturnType name(params) [: CallableNewtype] { ... }` inside type only; static methods are receiverless for callable ascription. | `CONFIRMED_BY_TEST` for ordinary static methods; callable ascription is `SPEC_ONLY_OR_UNVERIFIED` | `tests/CCompile/overload_basic.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::ApplyFunctionDeclarators`; `camp_unified_spec_v18.md::1.4.16` |
+| Global variable | `[export|public|extern] Type name [= expr];`; fixed-size array storage uses `fixed T[n] name [= initializer];` | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_storage.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildVariableDefinition`; `camp_unified_spec_v18.md::1.6.8` |
+| Field | `Type name;` or `static Type name;` inside `struct`/`class`; fixed-size array fields use `fixed T[n] name;`; `escaped` is valid on fields to require escaped pointer-bearing assignments. Fields cannot be `export`, `public`, `extern`, `virtual`, `override`, `sealed`, `abstract`, `async`. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_storage.camp`; `tests/CCompile/lifetime_escaped_fields.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::ApplyFieldDeclarators`; `camp_unified_spec_v18.md::1.6.8`, `2.2.1`, `4.1` |
 | Struct | `[export|public|extern|fixed] struct Name[: bases] { ... }` | `CONFIRMED_BY_TEST` | `tests/Ast/basic_struct.camp`; `tests/CCompile/struct_interface_indirect.camp` |
 | Class | `[export|public|extern|virtual|abstract|sealed|escaped] class Name[: baseOrInterfaces] { ... }` | `CONFIRMED_BY_TEST` | `tests/CCompile/virtual_interface_abi.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::ApplyClassDeclarators` |
 | Interface | `[export|public|extern] interface Name[: interfaces] { methodSigs; }` | `CONFIRMED_BY_TEST` | `tests/CCompile/struct_interface_indirect.camp`; `tests/CCompile/overload_interface.camp` |
 | Enum | `[export|public|extern] enum Name[: underlyingType] { A = 0, B }` | `CONFIRMED_BY_TEST` | `tests/CCompile/thrown_parameter_forwarding.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildEnumDefinition` |
 | Newtype value | `newtype Name: numericOrPointerType;` | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs::BuildNewtypeDefinition`, `IsValidValueNewtypeUnderlying` |
-| Newtype callable | `newtype fn Ret Name(params);`, `newtype delegate Ret Name([qualifiers this,] params);`, or `newtype iter T Name([qualifiers this]);` | `CONFIRMED_BY_TEST` | `tests/CCompile/expanded_return_iter_assignment.camp`; `tests/CCompile/callable_this_*.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildNewtypeDefinition`; `camp_unified_spec_v17.md::1.11` |
+| Newtype callable | `newtype fn Ret Name(params);`, `newtype delegate Ret Name([qualifiers this,] params);`, or `newtype iter T Name([qualifiers this]);` | `CONFIRMED_BY_TEST` | `tests/CCompile/expanded_return_iter_assignment.camp`; `tests/CCompile/callable_this_*.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildNewtypeDefinition`; `camp_unified_spec_v18.md::1.11` |
 | Alias | `[export|public] alias Name = Qualified::Target;` | `CONFIRMED_BY_TEST` | `tests/Api/alias_api.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::AddAliasDeclaration` |
 | Using | `using Namespace;`, `using Namespace as Alias;`, `using Namespace { A, B };` | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs::ParseUsingImportExportDeclaration`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildUsingDeclaration` |
 | Export namespace | `export as Namespace;` | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs::ParseExportImportExportDeclaration`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildImportExportDeclaration` |
@@ -190,7 +204,7 @@ struct Date
 }
 ```
 
-Confidence: `CONFIRMED_BY_TEST`; evidence: `tests/Diagnostics/callable_ascription_invalid.camp`; `tests/CCompile/callable_this_ascription*.camp`; `camp_unified_spec_v17.md::1.4.16`.
+Confidence: `CONFIRMED_BY_TEST`; evidence: `tests/Diagnostics/callable_ascription_invalid.camp`; `tests/CCompile/callable_this_ascription*.camp`; `camp_unified_spec_v18.md::1.4.16`.
 
 ### Lambdas And Escaped Delegates
 
@@ -292,7 +306,7 @@ export as std::math; // avoid lowercase namespace segments
 using std;
 ```
 
-Confidence: `SPEC_ONLY_OR_UNVERIFIED`; evidence: `camp_unified_spec_v17.md::5.1`.
+Confidence: `SPEC_ONLY_OR_UNVERIFIED`; evidence: `camp_unified_spec_v18.md::5.1`.
 
 ## 4. Types
 
@@ -311,7 +325,7 @@ Evidence: `src/Camp.Compiler/BindableNode.cs::PrimitiveType`; `src/Camp.Compiler
 | Generic | `Name<T, U>` | Generic args in `<...>`. | `CONFIRMED_BY_TEST` | `tests/CCompile/generic_new_constructed.camp` |
 | Pointer | `T*` | Explicit pointer type. | `CONFIRMED_BY_TEST` | Many tests, e.g. `tests/CCompile/lifecycle_allocator.camp` |
 | Array expanded form | `T[]` | Components: `elements: T*`, `length: nuint`. | `CONFIRMED_BY_TEST` | `tests/CCompile/expanded_forms.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.ParamsComponents.cs::AddArrayPendingComponents` |
-| Fixed-size array type | `T[n]`; declarations that create storage use `fixed T[n] name` | Inline storage for exactly `n` elements. Not a `T[]` and not compiler-expanded. Exposes `.elements` and constant `.length`; converts to `T[]`; direct value copy is invalid. `T[n]*` is a pointer to one fixed array object. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_span_views.camp`; `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v17.md::1.6.8` |
+| Fixed-size array type | `T[n]`; declarations that create storage use `fixed T[n] name` | Inline storage for exactly `n` elements. Not a `T[]` and not compiler-expanded. Exposes `.elements` and constant `.length`; converts to `T[]`; direct value copy is invalid. `T[n]*` is a pointer to one fixed array object. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_span_views.camp`; `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v18.md::1.6.8` |
 | Optional expanded form | `T?` | Components: `value: T`, `specified: bool`; direct `T??` rejected. | `CONFIRMED_BY_TEST` | `tests/CCompile/expanded_forms.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.TypeBinding.cs::AnalyzeType` |
 | Function pointer | `fn Ret(params)` | Not expanded as params component. `null` can convert to `fn`. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs::BuildCallableTypeReference`; `CanImplicitlyConvert` |
 | Delegate | `delegate Ret(params)` or `delegate Ret(qualifiers this, params)` | Expanded components: `call`, `context`. Explicit callable `this` qualifies the hidden context parameter. | `CONFIRMED_BY_TEST` | `tests/CCompile/direct_function_delegate_thunk.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.ParamsComponents.cs::AddDelegatePendingComponents` |
@@ -455,7 +469,7 @@ p1.data = p2.data; // ERROR
 p1.data = [1, 2];  // OK: initializer-pattern write
 ```
 
-Confidence: `SPEC_ONLY_OR_UNVERIFIED`; evidence: `camp_unified_spec_v17.md::1.6.8`, `1.12.4`, `2.2.1`, `3.9.5`.
+Confidence: `SPEC_ONLY_OR_UNVERIFIED`; evidence: `camp_unified_spec_v18.md::1.6.8`, `1.12.4`, `2.2.1`, `3.9.5`.
 
 ## 5. Expressions And Statements
 
@@ -471,16 +485,16 @@ Confidence: `SPEC_ONLY_OR_UNVERIFIED`; evidence: `camp_unified_spec_v17.md::1.6.
 | Catch argument | `f(catch error)` | `CONFIRMED_BY_TEST` | `tests/CCompile/thrown_parameter_forwarding.camp` |
 | Within argument | `f(within allocator)` | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs::ParseArgument`; `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.Expressions.cs::AddImplicitWithinArgument` |
 | Member access | `target.member` for values and pointers. | `CONFIRMED_BY_TEST` | `tests/CCompile/expanded_forms.camp`; `tests/Lowering/overload_property_and_base.camp` |
-| Function/method reference | `functionName`, `target.method`, `Type.method`, or canonical flattened symbols such as `Type_method` without `()` refer to callable declarations or values. A matching callable ascription gives only the matching natural reference form the named callable newtype instead of the ordinary anonymous callable type. Explicit callable `this` qualifiers are enforced for bound method conversions. | `CONFIRMED_BY_TEST` | `tests/CCompile/direct_function_delegate_thunk.camp`; `tests/CCompile/callable_this_*.camp`; `camp_unified_spec_v17.md::1.4.16`, `3.4.4` |
+| Function/method reference | `functionName`, `target.method`, `Type.method`, or canonical flattened symbols such as `Type_method` without `()` refer to callable declarations or values. A matching callable ascription gives only the matching natural reference form the named callable newtype instead of the ordinary anonymous callable type. Explicit callable `this` qualifiers are enforced for bound method conversions. | `CONFIRMED_BY_TEST` | `tests/CCompile/direct_function_delegate_thunk.camp`; `tests/CCompile/callable_this_*.camp`; `camp_unified_spec_v18.md::1.4.16`, `3.4.4` |
 | Property getter/setter | `obj.Value`, `obj.Value = x`, `obj.Value[arg]` map to `getValue`/`setValue` methods. | `CONFIRMED_BY_TEST` | `tests/Lowering/overload_property_and_base.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.Expressions.cs::TryRewritePropertySetterAssignment` |
 | Indexing | `arr[i]`, `ptr[i]`, `obj[indexArgs]` | `CONFIRMED_BY_TEST` | `tests/CCompile/array_literal_indexing.camp`; `tests/CCompile/slice_property_getter.camp` |
-| Fixed-size array operations | `fixed T[n] a`, `a[i]`, `a[start..end]`, `a.elements`, `a.length`, `&a`, `(*p)[i]`, `sizeof(T[n])`; no fixed-array value copy. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_span_views.camp`; `tests/CCompile/fixed_array_pointer_receivers.camp`; `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v17.md::1.6.8`, `3.9.5` |
+| Fixed-size array operations | `fixed T[n] a`, `a[i]`, `a[start..end]`, `a.elements`, `a.length`, `&a`, `(*p)[i]`, `sizeof(T[n])`; no fixed-array value copy. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_span_views.camp`; `tests/CCompile/fixed_array_pointer_receivers.camp`; `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v18.md::1.6.8`, `3.9.5` |
 | Range | `start..end`, `..end`, `start..`, `..`; from-end uses prefix `^`. | `CONFIRMED_BY_TEST` | `tests/CCompile/array_range_index.camp`; `src/Camp.Compiler/CampParser.cs::ParseRangeOrAssignmentExpression` |
 | Cast | `(Type)expr`, `(struct)expr`, `(class)expr`, `(params)expr` parsed; generate normal `(Type)expr` unless tests require special cast keyword. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs::TryParseCastExpression` |
-| Construction | `init T(args)`, `new T(args)`, `within (allocator) new T(args)`, array allocation `new T[count]`, and stack-array allocation `init T[count]`. `init T[n]` returns `T[]`, not `T[n]`; it is invalid inside generator bodies. | `CONFIRMED_BY_TEST` for existing construction; generator restriction is `SPEC_ONLY_OR_UNVERIFIED` | `tests/CCompile/lifecycle_allocator.camp`; `tests/StdRun/within_new_array_expression.camp`; `src/Camp.Compiler/CampParser.cs::TryParseConstructionExpression`; `camp_unified_spec_v17.md::4.4.1`, `5.2.4` |
+| Construction | `init T(args)`, `new T(args)`, `within (allocator) new T(args)`, array allocation `new T[count]`, and stack-array allocation `init T[count]`. `init T[n]` returns `T[]`, not `T[n]`; it is invalid inside generator bodies. | `CONFIRMED_BY_TEST` for existing construction; generator restriction is `SPEC_ONLY_OR_UNVERIFIED` | `tests/CCompile/lifecycle_allocator.camp`; `tests/StdRun/within_new_array_expression.camp`; `src/Camp.Compiler/CampParser.cs::TryParseConstructionExpression`; `camp_unified_spec_v18.md::4.4.1`, `5.2.4` |
 | Lambda | `(params) => expr` or `(params) => { ... }`; target-types to `fn` or `delegate`. Capturing scoped delegates store pointers to declaration-scope values. Escaped delegates allocate context storage and copy captures by value. | `CONFIRMED_BY_TEST` | `tests/CCompile/lambda_fn_stage1.camp`; `tests/CCompile/lambda_scoped_capture_stage3.camp`; `tests/CCompile/lambda_escaped_hardening_matrix.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.Lambdas.cs` |
 | Await/postpone | `await expr`, `postpone expr` parse as unary prefix operators. Generate cautiously; async semantics are partially implemented. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs::TryParseUnaryPrefix`; `src/Camp.Compiler/BindableNodeBuilder.Expressions.cs::BuildUnaryExpression`; `src/Camp.Compiler/BindableNodeAnalyzer.MethodBody.cs` |
-| `sizeof` | `sizeof(T)` expression or hidden parameter `sizeof(T)` in parameter list. `sizeof(int[8])` is valid and equals 32. Generic copy of `T` requires `T: copyable` plus `sizeof(T)` when erased lowering needs the size. | `CONFIRMED_BY_TEST` | `tests/CCompile/generic_new_sizeof_field.camp`; `tests/CCompile/fixed_array_const_lengths.camp`; `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.SizeOf.cs`; `camp_unified_spec_v17.md::1.6.8`, `6.2.6` |
+| `sizeof` | `sizeof(T)` expression or hidden parameter `sizeof(T)` in parameter list. `sizeof(int[8])` is valid and equals 32. Generic copy of `T` requires `T: copyable` plus `sizeof(T)` when erased lowering needs the size. | `CONFIRMED_BY_TEST` | `tests/CCompile/generic_new_sizeof_field.camp`; `tests/CCompile/fixed_array_const_lengths.camp`; `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.SizeOf.cs`; `camp_unified_spec_v18.md::1.6.8`, `6.2.6` |
 | `vtableof` | `vtableof(T: Interface)` expression or hidden parameter. | `CONFIRMED_BY_TEST` | `tests/Ast/future_syntax_surface.camp`; `tests/Lowering/vtableof_generic_dispatch.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.VTableOf.cs` |
 
 ### Statements
@@ -638,7 +652,7 @@ int bad()
 | `escaped` class and interface declarators are valid; `escaped struct` is invalid. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs::ApplyClassDeclarators`, `ApplyStructDeclarators`, `ApplyNonStructTypeDeclarators` |
 | `escaped` fields are valid and require assigned pointer-bearing values to satisfy escaped storage. `scoped`/`unscoped` fields, locals, and globals are invalid. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_escaped_fields.camp`; `tests/Diagnostics/lifetime_annotation_placement_invalid.camp`; `tests/Diagnostics/lifetime_escaped_field_assignment_invalid.camp` |
 | Explicit lifetime casts are available: `(scoped)value`, `(escaped)value`, `(unscoped(anchor))value`, and combined type/lifetime casts such as `(escaped string)value`. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/lifetime_cast_invalid.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.LifetimeFacts.cs` |
-| In an `escaped class`, an ascribed instance method must preserve the escaped receiver contract explicitly: the callable newtype declares `escaped this`, or the method declares `escaped this`. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v17.md::1.4.16`, `4.2.3` |
+| In an `escaped class`, an ascribed instance method must preserve the escaped receiver contract explicitly: the callable newtype declares `escaped this`, or the method declares `escaped this`. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v18.md::1.4.16`, `4.2.3` |
 | `within Allocator* allocator` may appear as a parameter modifier, and bare `within name` can be an implicit within parameter form. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifecycle_allocator.camp`; `src/Camp.Compiler/CampParser.cs::ParseParameter` |
 | `within (allocator) statement` or `within (allocator) new/init T(...)` supplies current allocator context. | `CONFIRMED_BY_TEST` | `tests/StdRun/within_new_array_expression.camp`; `src/Camp.Compiler/CampParser.cs::TryParseConstructionExpression` |
 | Allocation requires accessible `malloc(nuint)`/`free(void*)` or allocator methods `alloc(nuint)`/`free(void*)`. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.LoweringHelpers.cs::CreateAllocCallFromByteSize`, `CreateFreeCall` |
@@ -666,13 +680,13 @@ void use(within Allocator* allocator)
 | Rule | Confidence | Evidence |
 |---|---|---|
 | Generic declarations use `<T>` after type/function name. | `CONFIRMED_BY_TEST` | `tests/CCompile/generic_layout.camp`; `tests/CCompile/generic_new_constructed.camp` |
-| Generic constraints use colon syntax: `<T: any>`, `<T: copyable>`, or `<T: implements Interface>` depending on parsed `implements` keyword. | `CONFIRMED_BY_TEST` | `tests/CCompile/generic_erasure.camp`; `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Lowering/vtableof_generic_dispatch.camp`; `src/Camp.Compiler/CampParser.cs::ParseGenericParameter`; `camp_unified_spec_v17.md::6.1.6`, `6.2.6` |
+| Generic constraints use colon syntax: `<T: any>`, `<T: copyable>`, or `<T: implements Interface>` depending on parsed `implements` keyword. | `CONFIRMED_BY_TEST` | `tests/CCompile/generic_erasure.camp`; `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Lowering/vtableof_generic_dispatch.camp`; `src/Camp.Compiler/CampParser.cs::ParseGenericParameter`; `camp_unified_spec_v18.md::6.1.6`, `6.2.6` |
 | Generic parameter names must be unique. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.Declarations.cs::AnalyzeGenericParameters` |
-| Generic values constrained to `any` must be passed by reference and are non-copying. A `T: any` body may not copy, assign, return, store, move, or otherwise transport `T` values by value. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/overload_invalid.expected.txt`; `tests/CCompile/generic_erasure.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v17.md::6.2.5` |
-| `T: copyable` is stronger than `T: any`. It excludes direct class types, fixed structs, and fixed-size array value types. Pointer types remain copyable, including pointers to classes, fixed structs, and fixed-size arrays. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v17.md::6.1.6`, `6.2.6` |
-| A `T: copyable` type argument may satisfy a callee that requires the same `T: any`. A `T: any` type argument may not satisfy a callee or type that requires `T: copyable`. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v17.md::6.2.6` |
-| `sizeof(T)` hidden parameter support is implemented for generic allocation/layout. Under `T: any`, `sizeof(T)` permits enumeration, pointer indexing, size-based allocation, and default-fill, but never permits copying `T`. | `CONFIRMED_BY_TEST` | `tests/CCompile/generic_new_sizeof_field.camp`; `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.SizeOf.cs`; `camp_unified_spec_v17.md::6.2.7` |
-| A generic operation that copies a `T` value requires both `T: copyable` and an available `sizeof(T)` parameter when erased lowering needs the storage size. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v17.md::6.2.6`, `6.2.7` |
+| Generic values constrained to `any` must be passed by reference and are non-copying. A `T: any` body may not copy, assign, return, store, move, or otherwise transport `T` values by value. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/overload_invalid.expected.txt`; `tests/CCompile/generic_erasure.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v18.md::6.2.5` |
+| `T: copyable` is stronger than `T: any`. It excludes direct class types, fixed structs, and fixed-size array value types. Pointer types remain copyable, including pointers to classes, fixed structs, and fixed-size arrays. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v18.md::6.1.6`, `6.2.6` |
+| A `T: copyable` type argument may satisfy a callee that requires the same `T: any`. A `T: any` type argument may not satisfy a callee or type that requires `T: copyable`. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v18.md::6.2.6` |
+| `sizeof(T)` hidden parameter support is implemented for generic allocation/layout. Under `T: any`, `sizeof(T)` permits enumeration, pointer indexing, size-based allocation, and default-fill, but never permits copying `T`. | `CONFIRMED_BY_TEST` | `tests/CCompile/generic_new_sizeof_field.camp`; `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.SizeOf.cs`; `camp_unified_spec_v18.md::6.2.7` |
+| A generic operation that copies a `T` value requires both `T: copyable` and an available `sizeof(T)` parameter when erased lowering needs the storage size. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v18.md::6.2.6`, `6.2.7` |
 | `vtableof(T: Interface)` requires generic parameter `T` to be constrained to implement that interface. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.VTableOf.cs::ValidateVTableOfRequest` |
 | Generic types and functions lower by substitution/erasure patterns visible in C compile tests. | `CONFIRMED_BY_TEST` | `tests/CCompile/generic_erasure.camp`; `tests/CCompile/generic_scalar_erasure.camp`; `tests/CCompile/generic_iterator_param_erasure.camp` |
 
@@ -778,10 +792,10 @@ Generic standard-library types and methods that store, copy, move, compact, swap
 | Constructors | User constructor produces generated `#init_new` and `create`/allocation helpers. | `INFERRED_FROM_IMPLEMENTATION` | `src/Camp.Compiler/BindableNodeAnalyzer.Expansion.cs::CreateInitNewMethod`, `CreateCreateMethod` |
 | Destructors | User destructor produces generated delete/destroy helpers. | `INFERRED_FROM_IMPLEMENTATION` | `src/Camp.Compiler/BindableNodeAnalyzer.Expansion.cs::CreateDeleteMethod`, `CreateDestroyMethod` |
 | Arrays | `T[]` lowers as components/pair: `T* elements`, `nuint length`. | `CONFIRMED_BY_TEST` | `tests/CEmit/primitive_flattened_symbols.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.ParamsComponents.cs` |
-| Fixed-size arrays | `fixed T[n]` lowers to inline C array storage where C supports it, e.g. `uint8_t data[32]`. `T[n]*` lowers to pointer-to-array, e.g. `uint8_t (*p)[32]`. `T[n]` view-converts to `T[]` by synthesizing `{ elements, n }`. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_storage.camp`; `tests/CCompile/fixed_array_pointer_receivers.camp`; `tests/CCompile/fixed_array_span_views.camp`; `camp_unified_spec_v17.md::1.6.8` |
+| Fixed-size arrays | `fixed T[n]` lowers to inline C array storage where C supports it, e.g. `uint8_t data[32]`. `T[n]*` lowers to pointer-to-array, e.g. `uint8_t (*p)[32]`. `T[n]` view-converts to `T[]` by synthesizing `{ elements, n }`. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_storage.camp`; `tests/CCompile/fixed_array_pointer_receivers.camp`; `tests/CCompile/fixed_array_span_views.camp`; `camp_unified_spec_v18.md::1.6.8` |
 | Optionals | `T?` lowers as value plus bool specified. | `CONFIRMED_BY_TEST` | `tests/CCompile/expanded_forms.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.ParamsComponents.cs` |
 | Delegates | `delegate` lowers as call pointer taking context first plus context pointer. | `CONFIRMED_BY_TEST` | `tests/CCompile/direct_function_delegate_thunk.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.ParamsComponents.cs` |
-| Callable ascription | Uses the same ABI representation as the ascribed callable newtype's underlying form. It does not add wrappers, adapter thunks, hidden allocations, null contexts, direct-call rewrites, or generated symbols. Explicit callable `this` qualifiers affect type checking, not lowering. | `CONFIRMED_BY_TEST` | `tests/CCompile/callable_this*.camp`; `tests/CCompile/lambda_escaped_target_typing.camp`; `camp_unified_spec_v17.md::1.4.16`, `1.11` |
+| Callable ascription | Uses the same ABI representation as the ascribed callable newtype's underlying form. It does not add wrappers, adapter thunks, hidden allocations, null contexts, direct-call rewrites, or generated symbols. Explicit callable `this` qualifiers affect type checking, not lowering. | `CONFIRMED_BY_TEST` | `tests/CCompile/callable_this*.camp`; `tests/CCompile/lambda_escaped_target_typing.camp`; `camp_unified_spec_v18.md::1.4.16`, `1.11` |
 | Interfaces | Interface implementation generates vtable storage, thunks, and indirect structs for structs. | `CONFIRMED_BY_TEST` | `tests/CEmit/interface_vtable_exports.camp`; `tests/CCompile/struct_interface_indirect.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Expansion.cs` |
 | Iterators | `struct iter`/`class iter` generators lower to state plus `next` protocol. | `CONFIRMED_BY_TEST` | `tests/Lowering/iterator_generator_*.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Expansion.Iterators.cs` |
 
@@ -858,7 +872,7 @@ void initialize(Packet* packet)
 }
 ```
 
-Confidence: `SPEC_ONLY_OR_UNVERIFIED`; evidence: `camp_unified_spec_v17.md::1.6.8`.
+Confidence: `SPEC_ONLY_OR_UNVERIFIED`; evidence: `camp_unified_spec_v18.md::1.6.8`.
 
 ### Optional Parameter
 
@@ -908,7 +922,7 @@ struct Date
 
 The `const this` on `CharFormatter` is inherited by `Date.format`, so the method body is checked as a const receiver even though the method does not rewrite `const this` explicitly.
 
-Confidence: `SPEC_ONLY_OR_UNVERIFIED`; evidence: `camp_unified_spec_v17.md::1.4.16`.
+Confidence: `SPEC_ONLY_OR_UNVERIFIED`; evidence: `camp_unified_spec_v18.md::1.4.16`.
 
 ### Thrown Error
 
@@ -972,7 +986,7 @@ class List<T: copyable>
 
 Use `T: any` only for non-copying generic APIs. Copying under `T: copyable` still needs `sizeof(T)` when erased lowering requires the size.
 
-Confidence: `SPEC_ONLY_OR_UNVERIFIED`; evidence: `camp_unified_spec_v17.md::6.2.6`.
+Confidence: `SPEC_ONLY_OR_UNVERIFIED`; evidence: `camp_unified_spec_v18.md::6.2.6`.
 
 ### Namespace Export
 
@@ -995,19 +1009,19 @@ Confidence: `CONFIRMED_BY_COMPILER_CODE`; evidence: `src/Camp.Compiler/CampParse
 | Mixing ordinary and `overload` declarations in one family. | Make every declaration in family use `overload`, or make all names unique. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/overload_invalid.expected.txt` |
 | More than one overload selector. | One `overload` parameter only. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.Overloads.cs::AnalyzeOverloadDeclaration` |
 | `overload` on constructors/destructors, thrown params, defaulted params, or non-first ordinary param. | Put `overload` on first ordinary non-this value/out/in parameter without default. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/overload_invalid.camp`; `BindableNodeAnalyzer.Overloads.cs::AnalyzeOverloadDeclaration` |
-| Receiverless declarations ascribing `delegate`, `iter`, or another context-carrying callable `newtype`. | Use a named callable `newtype fn`, or make the declaration receiver-bearing when context is part of the callable contract. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v17.md::1.4.16` |
-| Receiver-bearing methods ascribing `fn`. | Use a named context-carrying callable `newtype` such as `delegate` or `iter`. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v17.md::1.4.16` |
-| Anonymous callable type after an ascription colon. | Use a named callable `newtype`, e.g. `: CharFormatter`, not `: delegate nuint(...)`. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v17.md::1.4.16` |
-| Explicit method `this` qualifiers that disagree with the ascribed callable newtype's explicit callable `this`. | Omit method `this` to inherit callable qualifiers, or write matching qualifiers exactly. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v17.md::1.4.16` |
-| Ascribed methods in `escaped class` without explicit `escaped this` on either the callable newtype or method. | Put `escaped this` on the callable newtype when the callable contract requires escaped context, or explicitly write `escaped this` on the method. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v17.md::1.4.16`, `4.2.3` |
-| Expecting callable ascription to affect direct calls, overload groups, `Date.format`, or `Date_format`. | Ascription affects only the matching natural callable reference form, such as `date.format` for receiver-bearing delegate/iter ascription. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v17.md::1.4.16` |
-| `CharFormatter` copy helpers that allocate `formatter() + 1` characters. | `CharFormatter` returns the required character count including the trailing null terminator; allocate exactly `new char[formatter()]`. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v17.md::1.4.16` |
+| Receiverless declarations ascribing `delegate`, `iter`, or another context-carrying callable `newtype`. | Use a named callable `newtype fn`, or make the declaration receiver-bearing when context is part of the callable contract. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v18.md::1.4.16` |
+| Receiver-bearing methods ascribing `fn`. | Use a named context-carrying callable `newtype` such as `delegate` or `iter`. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v18.md::1.4.16` |
+| Anonymous callable type after an ascription colon. | Use a named callable `newtype`, e.g. `: CharFormatter`, not `: delegate nuint(...)`. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v18.md::1.4.16` |
+| Explicit method `this` qualifiers that disagree with the ascribed callable newtype's explicit callable `this`. | Omit method `this` to inherit callable qualifiers, or write matching qualifiers exactly. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v18.md::1.4.16` |
+| Ascribed methods in `escaped class` without explicit `escaped this` on either the callable newtype or method. | Put `escaped this` on the callable newtype when the callable contract requires escaped context, or explicitly write `escaped this` on the method. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v18.md::1.4.16`, `4.2.3` |
+| Expecting callable ascription to affect direct calls, overload groups, `Date.format`, or `Date_format`. | Ascription affects only the matching natural callable reference form, such as `date.format` for receiver-bearing delegate/iter ascription. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v18.md::1.4.16` |
+| `CharFormatter` copy helpers that allocate `formatter() + 1` characters. | `CharFormatter` returns the required character count including the trailing null terminator; allocate exactly `new char[formatter()]`. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v18.md::1.4.16` |
 | Using `->`. | Always use `.` for member access. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::Punctuation`; no parser rule for `->` |
 | Arrays of expanded values: `int?[]`, `char[][]` where element is expanded. | `struct(int?)[]`, `struct(char[])[]`. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.TypeBinding.cs::AnalyzeType` |
-| Declaring fixed-size array storage without `fixed`: `byte[32] data;`. | Use `fixed byte[32] data;`. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v17.md::1.6.8` |
-| Passing or returning fixed-size arrays by value: `void f(byte[32] data)`, `fn byte[32]()`. | Use `byte[32]*` for whole-array storage or `byte[]` for a span view. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v17.md::1.6.8` |
-| Copying fixed-size arrays directly: `a = b`, `return packet.data`, `auto copy = packet.data`. | Write an initializer pattern into known storage (`a = [1, 2]`, `a = default`, `a = "text"`) or pass a pointer/span. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v17.md::1.6.8` |
-| Treating `T[n]*` as `T*`: `int x = values[0];` when `values: int[8]*`. | Dereference the whole fixed array first: `(*values)[0]`, or explicitly use `values[0][0]`. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_pointer_receivers.camp`; `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v17.md::1.6.8`, `3.9.5` |
+| Declaring fixed-size array storage without `fixed`: `byte[32] data;`. | Use `fixed byte[32] data;`. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v18.md::1.6.8` |
+| Passing or returning fixed-size arrays by value: `void f(byte[32] data)`, `fn byte[32]()`. | Use `byte[32]*` for whole-array storage or `byte[]` for a span view. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v18.md::1.6.8` |
+| Copying fixed-size arrays directly: `a = b`, `return packet.data`, `auto copy = packet.data`. | Write an initializer pattern into known storage (`a = [1, 2]`, `a = default`, `a = "text"`) or pass a pointer/span. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v18.md::1.6.8` |
+| Treating `T[n]*` as `T*`: `int x = values[0];` when `values: int[8]*`. | Dereference the whole fixed array first: `(*values)[0]`, or explicitly use `values[0][0]`. | `CONFIRMED_BY_TEST` | `tests/CCompile/fixed_array_pointer_receivers.camp`; `tests/Diagnostics/fixed_array_invalid.camp`; `camp_unified_spec_v18.md::1.6.8`, `3.9.5` |
 | Direct nested optional `T??`. | `struct(T?)?` if nesting is required. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.TypeBinding.cs::AnalyzeType` |
 | Interface fields or method bodies. | Interface method signatures only. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs::BuildInterfaceDefinition`, `BuildInterfaceFunctionDefinition` |
 | Nested type declarations in structs/classes/interfaces/enums/newtypes/params. | Declare types at top level. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs` type builders |
@@ -1017,10 +1031,10 @@ Confidence: `CONFIRMED_BY_COMPILER_CODE`; evidence: `src/Camp.Compiler/CampParse
 | Abstract method with body. | Use `virtual` with body or `abstract` with semicolon. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.DeclarationValidation.cs::ValidateFunctionModifiers` |
 | `foreach` over non-array/non-iterator source. | Use `T[]`, `iter T`, or iterator state with `bool next(T* outValue)`. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.MethodBody.Semantics.cs::GetForeachElementType` |
 | Async foreach. | Avoid; implementation reports async iterator foreach not implemented. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.MethodBody.Semantics.cs::GetForeachElementType` |
-| Generic containers that copy/move/store `T` declared as `T: any`, e.g. `class List<T: any>`. | Use `T: copyable` and require `sizeof(T)` where erased copying needs a size. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v17.md::6.2.6`, `8.4` |
-| Copying `T` under `T: any`, even with `sizeof(T)`. | Use `T: copyable` plus `sizeof(T)` when copying is required; use `T: any` only for non-copying access/enumeration/default-fill. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v17.md::6.2.5`, `6.2.7` |
-| Passing a `T: any` type parameter to a generic type or method requiring `T: copyable`. | Declare the caller with `T: copyable` if it needs copyable APIs. A `T: copyable` may flow to `T: any`, not the reverse. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v17.md::6.2.6` |
-| Lowercase namespace names such as `export as std::math;` or `using std;`. | Use PascalCase namespace segments: `export as Std::Math;`, `using Std;`. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v17.md::5.1` |
+| Generic containers that copy/move/store `T` declared as `T: any`, e.g. `class List<T: any>`. | Use `T: copyable` and require `sizeof(T)` where erased copying needs a size. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v18.md::6.2.6`, `8.4` |
+| Copying `T` under `T: any`, even with `sizeof(T)`. | Use `T: copyable` plus `sizeof(T)` when copying is required; use `T: any` only for non-copying access/enumeration/default-fill. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v18.md::6.2.5`, `6.2.7` |
+| Passing a `T: any` type parameter to a generic type or method requiring `T: copyable`. | Declare the caller with `T: copyable` if it needs copyable APIs. A `T: copyable` may flow to `T: any`, not the reverse. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `camp_unified_spec_v18.md::6.2.6` |
+| Lowercase namespace names such as `export as std::math;` or `using std;`. | Use PascalCase namespace segments: `export as Std::Math;`, `using Std;`. | `SPEC_ONLY_OR_UNVERIFIED` | `camp_unified_spec_v18.md::5.1` |
 | User-defined `params` declarations or `params(T)` type syntax. | Built-in arrays/options/delegates/iter or `struct(T)`. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs::BuildTypeDefinition`; `BuildTypeReference` |
 
 ## 14. LLM Generation Checklist
@@ -1053,17 +1067,21 @@ Before emitting Camp code:
 17. Use lambdas only where a callable target type is known. If a lambda has captures, target a `delegate`, not `fn`.
 18. Do not use lambda arguments to select an overload family; call the typed overload entry explicitly.
 19. For escaped delegate lambdas, capture only escaped pointer-bearing values, treat captured values as read-only, and delete owned `delegate.context` pointers when done.
-20. Use `within (allocator)` around escaped lambda creation when the context should be allocated through that allocator.
-21. For `CharFormatter`, the returned required count includes the trailing null terminator; allocate `formatter()` characters, not `formatter() + 1`.
-22. Do not create arrays of expanded values. Use `struct(T)` materialization.
-23. For classes with virtual methods, mark the class `virtual` or `abstract`; derived virtual-class children must be `virtual`, `abstract`, or `sealed`.
-24. Interfaces contain signatures only. Implement every interface method exactly.
-25. Constructors/destructors must match the containing type name and have no return type.
-26. Use `init T(...)` for existing storage and `new T(...)` for allocation. Pair owned values/pointers with `delete` or `finally delete`.
-27. In generator bodies, do not use `init T[n]` stack-array allocation; declare `fixed T[n]` storage instead when fixed state storage is needed.
-28. Use `within (allocator)` when constructors/destructors declare `within` allocator parameters.
-29. For thrown errors, declare `thrown E error`, call with `catch error`, or catch/rethrow explicitly.
-30. Use `foreach (T item in arrayOrIterator)` only for arrays, iterator protocols, or iterator states with `next`.
-31. Prefer top-level type declarations; do not nest types.
-32. Avoid reserved words and generated component-name collisions such as `items`, `items_length`, `callback_context`.
-33. If exporting C ABI, use `export`, `public`, `extern`, and optionally `@symbol("name")`; verify generated symbol names if overloads or methods are involved.
+20. Use preprocessor directives intentionally:
+   - Put `#build` only in the file prelude, before ordinary declarations and imports.
+   - Use `#define`/`#if` for conditional compilation, not runtime branching.
+   - When documenting or generating examples with `#build`, say that the shown flags are compiler-tooling examples rather than language-specified syntax.
+21. Use `within (allocator)` around escaped lambda creation when the context should be allocated through that allocator.
+22. For `CharFormatter`, the returned required count includes the trailing null terminator; allocate `formatter()` characters, not `formatter() + 1`.
+23. Do not create arrays of expanded values. Use `struct(T)` materialization.
+24. For classes with virtual methods, mark the class `virtual` or `abstract`; derived virtual-class children must be `virtual`, `abstract`, or `sealed`.
+25. Interfaces contain signatures only. Implement every interface method exactly.
+26. Constructors/destructors must match the containing type name and have no return type.
+27. Use `init T(...)` for existing storage and `new T(...)` for allocation. Pair owned values/pointers with `delete` or `finally delete`.
+28. In generator bodies, do not use `init T[n]` stack-array allocation; declare `fixed T[n]` storage instead when fixed state storage is needed.
+29. Use `within (allocator)` when constructors/destructors declare `within` allocator parameters.
+30. For thrown errors, declare `thrown E error`, call with `catch error`, or catch/rethrow explicitly.
+31. Use `foreach (T item in arrayOrIterator)` only for arrays, iterator protocols, or iterator states with `next`.
+32. Prefer top-level type declarations; do not nest types.
+33. Avoid reserved words and generated component-name collisions such as `items`, `items_length`, `callback_context`.
+34. If exporting C ABI, use `export`, `public`, `extern`, and optionally `@symbol("name")`; verify generated symbol names if overloads or methods are involved.
