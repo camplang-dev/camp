@@ -142,7 +142,7 @@ public sealed class MsvcCompileTests
 		CompilerResult result = Compile(source, NativeBuildKind.Shared);
 		AssertSuccess(result);
 		string privateHeader = File.ReadAllText(Path.Combine(GetCaseRoot("callspec"), "build", "callspec_private.h"));
-		Assert.Contains("typedef int32_t (* __stdcall Callback)(int32_t arg0);", privateHeader, StringComparison.Ordinal);
+		Assert.Contains("typedef int32_t (__stdcall * Callback)(int32_t arg0);", privateHeader, StringComparison.Ordinal);
 		Assert.Contains("int32_t __stdcall exportedCall", privateHeader, StringComparison.Ordinal);
 	}
 
