@@ -230,10 +230,10 @@ The attribute argument rules used by generated doc attributes are:
 The compiler emits metadata JSON with:
 
 ```text
-campc library.camp --emit-metadata export
-campc library.camp --emit-metadata public
-campc library.camp --emit-metadata all
-campc library.camp --emit-metadata none
+campc build library.camp --metadata export
+campc build library.camp --metadata public
+campc build library.camp --metadata all
+campc build library.camp --metadata none
 ```
 
 The option selects the metadata view:
@@ -461,6 +461,12 @@ Functions and methods may contain:
 - `parameters`: function parameters.
 - property companion fields.
 
+Type-bearing fields in metadata use source-level Camp spelling where a source
+type was written. This matters for features whose source contract is more
+specific than the lowered ABI type. For example, a receiver-preserving method
+has `"returnType": "this"`, and a class-relative factory may have
+`"returnType": "classtype*"`.
+
 Property-eligible methods are identified with `propertyName`.
 
 ```json
@@ -485,6 +491,9 @@ Parameters may contain:
 - `name`
 - `modifier`: `in`, `out`, `within`, or other current parameter modifiers.
 - `type`
+- `capability`: `sizeof`, `typenameof`, or another special capability marker
+  for explicit runtime generic support parameters.
+- `targetType`: source type named by a special capability parameter.
 - `defaultValue`: source expression text for a default value.
 - `overload`: `true` for overload selector parameters.
 - `interfaceType`: for `vtableof` parameters.
@@ -492,6 +501,22 @@ Parameters may contain:
 
 Default values are serialized as source text. They are not evaluated for
 metadata output.
+
+For special capability parameters, `type` is the ordinary ABI-carried value
+type, while `targetType` names the source type the capability describes. For
+example:
+
+```json
+{
+  "name": "typenameof_T",
+  "capability": "typenameof",
+  "type": "string",
+  "targetType": "T"
+}
+```
+
+Default values that use the type-name intrinsic are written using the current
+source spelling, such as `"defaultValue": "typenameof(classtype)"`.
 
 Generic type parameters may contain:
 
@@ -608,4 +633,3 @@ Use fenced examples for code:
 /// ```
 export void example();
 ````
-

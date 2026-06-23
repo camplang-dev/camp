@@ -1,0 +1,22 @@
+export as Meta;
+
+/// Receiver-preserving sample.
+export abstract class Fluent
+{
+	/// Returns the same receiver type.
+	export this retain()
+	{
+		return this;
+	}
+
+	/// Creates the static receiver type.
+	export static classtype* spawn(string typeName = typenameof(classtype))
+	{
+		return default;
+	}
+}
+
+/// Describes a generic type by name.
+export void describe<T: any>(typenameof(T), string displayName)
+{
+}

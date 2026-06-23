@@ -350,7 +350,20 @@ public static class MetadataJsonSerializer
 				json.WriteString("modifier", parameter.Modifier.ToString().ToLowerInvariant());
 			if (parameter.IsOverloadSelector)
 				json.WriteBoolean("overload", true);
-			WriteTypeProperty(json, "type", parameter.Type, parameter.ResolvedType);
+			if (parameter is SizeOfParameterDefinition)
+			{
+				json.WriteString("capability", "sizeof");
+				json.WriteString("type", "nuint");
+				WriteTypeProperty(json, "targetType", parameter.Type, parameter.Type?.ResolvedType);
+			}
+			else if (parameter is NameOfParameterDefinition)
+			{
+				json.WriteString("capability", "typenameof");
+				json.WriteString("type", "string");
+				WriteTypeProperty(json, "targetType", parameter.Type, parameter.Type?.ResolvedType);
+			}
+			else
+				WriteTypeProperty(json, "type", parameter.Type, parameter.ResolvedType);
 			if (parameter.DefaultValue is not null)
 				json.WriteString("defaultValue", SerializeExpression(parameter.DefaultValue));
 			if (parameter is VTableOfParameterDefinition vtable)
@@ -494,9 +507,11 @@ public static class MetadataJsonSerializer
 
 		static string FormatType(TypeReference? type, string? resolvedType)
 		{
-			return string.IsNullOrWhiteSpace(resolvedType)
-				? BindableNodeAnalyzer.FormatTypeReference(type)
-				: resolvedType!;
+			return type is not null
+				? BindableNodeCodeSerializer.SerializeType(type)
+				: string.IsNullOrWhiteSpace(resolvedType)
+					? BindableNodeAnalyzer.FormatTypeReference(type)
+					: resolvedType!;
 		}
 
 		void WriteMetadata(Utf8JsonWriter json, IReadOnlyList<AttributeConstructor> attributes)

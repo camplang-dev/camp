@@ -1,0 +1,97 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "Meta",
+    "namespace": "Meta"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "class:Meta::Fluent",
+      "kind": "class",
+      "name": "Fluent",
+      "visibility": "export",
+      "modifier": "abstract",
+      "functions": [
+        {
+          "id": "class:Meta::Fluent/function:retain",
+          "name": "retain",
+          "visibility": "export",
+          "returnType": "this",
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Returns the same receiver type."
+            }
+          ]
+        },
+        {
+          "id": "class:Meta::Fluent/function:spawn",
+          "name": "spawn",
+          "visibility": "export",
+          "modifier": "static",
+          "returnType": "classtype*",
+          "parameters": [
+            {
+              "id": "class:Meta::Fluent/function:spawn/parameter:typeName",
+              "name": "typeName",
+              "type": "string",
+              "defaultValue": "typenameof(classtype)"
+            }
+          ],
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Creates the static receiver type."
+            }
+          ]
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Receiver-preserving sample."
+        }
+      ]
+    },
+    {
+      "id": "function:Meta::describe",
+      "kind": "function",
+      "name": "describe",
+      "visibility": "export",
+      "returnType": "void",
+      "typeParameters": [
+        {
+          "id": "function:Meta::describe/type-parameter:T",
+          "name": "T",
+          "constraint": "any"
+        }
+      ],
+      "parameters": [
+        {
+          "id": "function:Meta::describe/parameter:typenameof_T",
+          "name": "typenameof_T",
+          "capability": "typenameof",
+          "type": "string",
+          "targetType": "T"
+        },
+        {
+          "id": "function:Meta::describe/parameter:displayName",
+          "name": "displayName",
+          "type": "string"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Describes a generic type by name."
+        }
+      ]
+    }
+  ]
+}

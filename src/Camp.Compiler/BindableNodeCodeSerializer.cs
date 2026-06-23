@@ -37,6 +37,14 @@ public sealed class BindableNodeCodeSerializer
 		serializer.WriteNode(node);
 	}
 
+	public static string SerializeType(TypeReference? type)
+	{
+		using StringWriter writer = new();
+		BindableNodeCodeSerializer serializer = new(writer, null);
+		serializer.WriteType(type);
+		return writer.ToString();
+	}
+
 	void WriteNode(BindableNode node)
 	{
 		switch (node)
@@ -55,6 +63,10 @@ public sealed class BindableNodeCodeSerializer
 
 			case Expression expression:
 				WriteExpression(expression);
+				break;
+
+			case TypeReference type:
+				WriteType(type);
 				break;
 		}
 	}

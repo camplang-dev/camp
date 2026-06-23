@@ -74,7 +74,7 @@
       "kind": "newtype",
       "name": "Handle",
       "visibility": "export",
-      "underlyingType": "Handle",
+      "underlyingType": "nint",
       "metadata": [
         {
           "name": "summary",
@@ -487,7 +487,9 @@
         {
           "id": "function:Docs::find/parameter:sizeof_T",
           "name": "sizeof_T",
-          "type": "nuint"
+          "capability": "sizeof",
+          "type": "nuint",
+          "targetType": "T"
         }
       ],
       "metadata": [
