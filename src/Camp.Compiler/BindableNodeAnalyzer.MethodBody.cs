@@ -731,7 +731,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			LiteralExpression literal => BodyAnalyzeLiteralExpression(literal, targetType),
 			NamedExpression named => BodyAnalyzeNamedExpression(named, scope, targetType),
-			VariableReferenceExpression variable => variable.Variable?.ResolvedType ?? ErrorType,
+			VariableReferenceExpression variable => BodyAnalyzeVariableReferenceExpression(variable),
 			MethodReferenceExpression method => BodyAnalyzeMethodReference(method),
 			TypeReferenceExpression typeReference => typeReference.Type?.ResolvedType ?? ErrorType,
 			ThisExpression thisExpression => BodyAnalyzeThisExpression(thisExpression, scope),
@@ -767,6 +767,14 @@ public sealed partial class BindableNodeAnalyzer
 		expression.ResolvedType = type;
 		ApplyExpressionLifetimeFact(expression, type, scope, typeScope);
 		return type;
+	}
+
+	static string BodyAnalyzeVariableReferenceExpression(VariableReferenceExpression variable)
+	{
+		variable.ResolvedType = variable.Variable?.ResolvedType ?? ErrorType;
+		variable.SlotLifetimeFact = variable.Variable?.SlotLifetimeFact;
+		variable.ValueLifetimeFact = variable.Variable?.ValueLifetimeFact ?? variable.Variable?.SlotLifetimeFact;
+		return variable.ResolvedType;
 	}
 
 	string BodyAnalyzeSymbolOfExpression(SymbolOfExpression expression)
@@ -1248,7 +1256,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Report(GetRange(construction.SourceSyntax), $"Cannot use init for incomplete type '{targetType}'. Use new instead.");
 		}
-		FunctionDefinition? constructor = LookupConstructor(targetType, construction.Arguments.Count);
+		FunctionDefinition? constructor = constructionTargets.TryGetValue(construction, out FunctionDefinition? existingConstructor)
+			? existingConstructor
+			: LookupConstructor(targetType, construction.Arguments.Count);
 		if (constructor is not null)
 			constructionTargets[construction] = constructor;
 		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? [], scope, typeScope, construction.SourceSyntax);
@@ -1450,7 +1460,9 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (TypeReference argument in call.TypeArguments)
 			AnalyzeType(argument, typeScope);
 
-		FunctionDefinition? function = ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
+		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? existingTarget)
+			? existingTarget
+			: ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
 		Dictionary<string, string> genericSubstitutions = [];
 		HashSet<string> genericParameterNames = [];
 		if (function is not null)
@@ -1905,17 +1917,16 @@ public sealed partial class BindableNodeAnalyzer
 		if (arguments.Count > callableParameters.Count || HasExplicitHiddenArgument(arguments))
 			AddExplicitHiddenParameters(parameters, callableParameters);
 		AnalyzeRangeAwareArguments(arguments, callableParameters, GetRangeReceiver(callTarget), scope, typeScope, fallbackSyntax);
-		int parameterIndex = 0;
 		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedLifetimeArguments = [];
+		bool[] suppliedParameters = new bool[callableParameters.Count];
+		bool tooManyArguments = false;
 		for (int i = 0; i < arguments.Count; i++)
 		{
-			ParameterDefinition? parameter = parameterIndex < callableParameters.Count ? callableParameters[parameterIndex] : null;
-			while (((parameter is SizeOfParameterDefinition or NameOfParameterDefinition) && IsExplicitHiddenArgument(arguments[i]))
-				|| (arguments[i].Modifier == ArgumentModifier.Catch && parameter is not null && IsWithinParameter(parameter)))
-			{
-				parameterIndex++;
-				parameter = parameterIndex < callableParameters.Count ? callableParameters[parameterIndex] : null;
-			}
+			ParameterDefinition? parameter = TryBindCallArgumentToParameter(arguments[i], callableParameters, suppliedParameters, fallbackSyntax, out int parameterIndex)
+				? callableParameters[parameterIndex]
+				: null;
+			if (parameter is null && string.IsNullOrWhiteSpace(arguments[i].Name))
+				tooManyArguments = true;
 			if (parameter is not null && parameter.ResolvedType is null)
 				AnalyzeParameterDefinition(parameter, typeScope);
 
@@ -1966,17 +1977,198 @@ public sealed partial class BindableNodeAnalyzer
 				}
 			if (ArrayLiteralConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex)
 				|| PrimitiveStringConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex, fallbackSyntax))
-				parameterIndex++;
-			parameterIndex += consumedExpandedComponents;
-			parameterIndex++;
+				MarkSuppliedParameter(suppliedParameters, parameterIndex + 1);
+			for (int componentIndex = 1; componentIndex <= consumedExpandedComponents; componentIndex++)
+				MarkSuppliedParameter(suppliedParameters, parameterIndex + componentIndex);
 		}
 
-		if (parameters.Count > 0 && parameterIndex < CountRequiredParameters(callableParameters, includeExplicitThis: true))
+		if (parameters.Count > 0 && HasMissingRequiredCallArgument(callableParameters, suppliedParameters))
 			Report(GetRange(fallbackSyntax ?? (arguments.Count > 0 ? arguments[^1].SourceSyntax : null)), "Call is missing required arguments.");
-		if (parameters.Count > 0 && arguments.Count > callableParameters.Count)
+		if (parameters.Count > 0 && tooManyArguments)
 			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
 		if (function is not null)
 			CheckLifetimeCallArguments(function, callTarget, analyzedLifetimeArguments, scope, fallbackSyntax, genericSubstitutions);
+	}
+
+	bool TryBindCallArgumentToParameter(ArgumentExpression argument, List<ParameterDefinition> callableParameters, bool[] suppliedParameters, SyntaxNode? fallbackSyntax, out int parameterIndex)
+	{
+		parameterIndex = -1;
+		if (!string.IsNullOrWhiteSpace(argument.Name))
+		{
+			parameterIndex = callableParameters.FindIndex(parameter => parameter.Name == argument.Name);
+			if (parameterIndex < 0)
+			{
+				Report(GetRange(argument.SourceSyntax ?? fallbackSyntax), $"No parameter named '{argument.Name}' exists for this call.");
+				return false;
+			}
+			if (suppliedParameters[parameterIndex])
+			{
+				Report(GetRange(argument.SourceSyntax ?? fallbackSyntax), $"Argument '{argument.Name}' was already supplied.");
+				return false;
+			}
+			suppliedParameters[parameterIndex] = true;
+			return true;
+		}
+
+		if (argument.Value is SizeOfExpression)
+		{
+			parameterIndex = FindNextUnsuppliedParameter(callableParameters, suppliedParameters, static parameter => parameter is SizeOfParameterDefinition);
+			if (parameterIndex >= 0)
+			{
+				suppliedParameters[parameterIndex] = true;
+				return true;
+			}
+		}
+		else if (argument.Value is NameOfExpression)
+		{
+			parameterIndex = FindNextUnsuppliedParameter(callableParameters, suppliedParameters, static parameter => parameter is NameOfParameterDefinition);
+			if (parameterIndex >= 0)
+			{
+				suppliedParameters[parameterIndex] = true;
+				return true;
+			}
+		}
+		else if (argument.Value is VTableOfExpression)
+		{
+			parameterIndex = FindNextUnsuppliedParameter(callableParameters, suppliedParameters, static parameter => parameter is VTableOfParameterDefinition);
+			if (parameterIndex >= 0)
+			{
+				suppliedParameters[parameterIndex] = true;
+				return true;
+			}
+		}
+		else if (argument.Modifier == ArgumentModifier.Catch)
+		{
+			parameterIndex = FindNextUnsuppliedParameter(callableParameters, suppliedParameters, static parameter => parameter.Modifier == ParameterModifier.Thrown);
+			if (parameterIndex >= 0)
+			{
+				suppliedParameters[parameterIndex] = true;
+				return true;
+			}
+		}
+		else if (argument.Value is WithinExpression { Expression: null })
+		{
+			parameterIndex = FindNextUnsuppliedParameter(callableParameters, suppliedParameters, IsWithinParameter);
+			if (parameterIndex >= 0)
+			{
+				suppliedParameters[parameterIndex] = true;
+				return true;
+			}
+		}
+		else if (IsNullArgumentExpression(argument))
+		{
+			parameterIndex = FindNextUnsuppliedParameter(callableParameters, suppliedParameters, IsWithinParameter);
+			if (parameterIndex >= 0)
+			{
+				suppliedParameters[parameterIndex] = true;
+				return true;
+			}
+		}
+		else if (GetGeneratedHiddenForwardingArgumentName(argument) is string generatedHiddenName
+			&& TryBindGeneratedHiddenForwardingArgument(generatedHiddenName, callableParameters, suppliedParameters, out parameterIndex))
+		{
+			return true;
+		}
+
+		parameterIndex = FindNextUnsuppliedPositionalParameter(callableParameters, suppliedParameters);
+		if (parameterIndex < 0)
+			parameterIndex = FindNextExplicitlySuppliedHiddenParameter(callableParameters, suppliedParameters);
+		if (parameterIndex < 0)
+			return false;
+		suppliedParameters[parameterIndex] = true;
+		return true;
+	}
+
+	static int FindNextUnsuppliedPositionalParameter(List<ParameterDefinition> callableParameters, bool[] suppliedParameters)
+	{
+		return FindNextUnsuppliedParameter(callableParameters, suppliedParameters, static parameter => !IsImplicitOnlyCallParameter(parameter) && parameter.Modifier is not ParameterModifier.Thrown && !IsWithinParameter(parameter));
+	}
+
+	static int FindNextExplicitlySuppliedHiddenParameter(List<ParameterDefinition> callableParameters, bool[] suppliedParameters)
+	{
+		return FindNextUnsuppliedParameter(callableParameters, suppliedParameters, IsGeneratedHiddenForwardingParameter);
+	}
+
+	static bool TryBindGeneratedHiddenForwardingArgument(string name, List<ParameterDefinition> callableParameters, bool[] suppliedParameters, out int parameterIndex)
+	{
+		parameterIndex = FindNextUnsuppliedParameter(
+			callableParameters,
+			suppliedParameters,
+			parameter => IsGeneratedHiddenForwardingParameter(parameter) && parameter.Name == name);
+		if (parameterIndex < 0)
+			return false;
+		suppliedParameters[parameterIndex] = true;
+		return true;
+	}
+
+	static string? GetGeneratedHiddenForwardingArgumentName(ArgumentExpression argument)
+	{
+		return argument.Value switch
+		{
+			NamedExpression { Qualifiers.Count: 0 } named => named.Name,
+			VariableReferenceExpression { Variable: Definition definition } => definition.Name,
+			_ => null
+		};
+	}
+
+	static bool IsGeneratedHiddenForwardingArgumentFor(ParameterDefinition parameter, ArgumentExpression argument)
+	{
+		return IsGeneratedHiddenForwardingParameter(parameter)
+			&& (GetGeneratedHiddenForwardingArgumentName(argument) == parameter.Name
+				|| parameter is SizeOfParameterDefinition
+					&& argument.Value is MemberExpression member
+					&& member.Name == "_" + parameter.Name
+				|| parameter is SizeOfParameterDefinition
+					&& argument.Value is MemberReferenceExpression memberReference
+					&& memberReference.Name == "_" + parameter.Name);
+	}
+
+	static bool IsNullArgumentExpression(ArgumentExpression argument)
+	{
+		return argument.Value is LiteralExpression { Kind: LiteralKind.Null }
+			|| argument.Value is NamedExpression { Qualifiers.Count: 0, Name: "null" };
+	}
+
+	static int FindNextUnsuppliedParameter(List<ParameterDefinition> callableParameters, bool[] suppliedParameters, Func<ParameterDefinition, bool> predicate)
+	{
+		for (int i = 0; i < callableParameters.Count; i++)
+			if (!suppliedParameters[i] && predicate(callableParameters[i]))
+				return i;
+		return -1;
+	}
+
+	static bool HasMissingRequiredCallArgument(List<ParameterDefinition> callableParameters, bool[] suppliedParameters)
+	{
+		for (int i = 0; i < callableParameters.Count; i++)
+		{
+			ParameterDefinition parameter = callableParameters[i];
+			if (suppliedParameters[i]
+				|| parameter.DefaultValue is not null
+				|| IsImplicitOnlyCallParameter(parameter)
+				|| parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
+				|| parameter is WithinParameterDefinition)
+				continue;
+			return true;
+		}
+		return false;
+	}
+
+	static bool IsImplicitOnlyCallParameter(ParameterDefinition parameter)
+	{
+		return parameter is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition;
+	}
+
+	static bool IsGeneratedHiddenForwardingParameter(ParameterDefinition parameter)
+	{
+		return IsImplicitOnlyCallParameter(parameter)
+			|| parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
+			|| parameter is WithinParameterDefinition;
+	}
+
+	static void MarkSuppliedParameter(bool[] suppliedParameters, int parameterIndex)
+	{
+		if (parameterIndex >= 0 && parameterIndex < suppliedParameters.Length)
+			suppliedParameters[parameterIndex] = true;
 	}
 
 	bool TryGetLambdaTargetExpandedDelegateParameter(ParameterDefinition componentParameter, ArgumentExpression argument, out ParameterDefinition sourceParameter, out int componentCount)
@@ -2150,7 +2342,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsExplicitHiddenArgument(ArgumentExpression argument)
 	{
-		return argument.Modifier == ArgumentModifier.Catch || argument.Value is WithinExpression { Expression: null };
+		return argument.Modifier == ArgumentModifier.Catch
+			|| argument.Value is WithinExpression { Expression: null }
+			|| argument.Value is SizeOfExpression
+			|| argument.Value is NameOfExpression
+			|| argument.Value is VTableOfExpression;
 	}
 
 	void InferGenericSubstitutions(string pattern, string actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
@@ -2316,9 +2512,32 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (ParameterDefinition parameter in parameters)
 		{
-			if (parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within || parameter is WithinParameterDefinition)
+			if (parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
+				|| parameter is WithinParameterDefinition
+					or SizeOfParameterDefinition
+					or NameOfParameterDefinition
+					or VTableOfParameterDefinition)
+			{
+				if (callableParameters.Contains(parameter))
+					continue;
 				callableParameters.Add(parameter);
+			}
 		}
+	}
+
+	int FindArgumentIndexForCallableParameter(List<ArgumentExpression> arguments, List<ParameterDefinition> callableParameters, int parameterIndex)
+	{
+		int currentParameter = 0;
+		for (int argumentIndex = 0; argumentIndex < arguments.Count; argumentIndex++)
+		{
+			if (currentParameter >= parameterIndex)
+				return argumentIndex;
+			int consumed = CountCallableParametersSatisfiedByArgument(arguments[argumentIndex], callableParameters, currentParameter);
+			if (parameterIndex < currentParameter + consumed)
+				return argumentIndex;
+			currentParameter += consumed;
+		}
+		return arguments.Count;
 	}
 
 	void EnsureFunctionSignatureAnalyzed(FunctionDefinition function, AnalysisScope scope)

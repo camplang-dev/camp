@@ -193,7 +193,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameters[i] is not SizeOfParameterDefinition sizeOf)
 				continue;
-			if (i < call.Arguments.Count && call.Arguments[i].Modifier == ArgumentModifier.None && call.Arguments[i].Value is not WithinExpression { Expression: null })
+			int argumentIndex = FindArgumentIndexForCallableParameter(call.Arguments, parameters, i);
+			if (argumentIndex < call.Arguments.Count
+				&& call.Arguments[argumentIndex].Modifier == ArgumentModifier.None
+				&& (call.Arguments[argumentIndex].Value is SizeOfExpression || IsGeneratedHiddenForwardingArgumentFor(sizeOf, call.Arguments[argumentIndex])))
 				continue;
 
 			string genericName = SizeOfTypeName(sizeOf.Type);
@@ -208,7 +211,7 @@ public sealed partial class BindableNodeAnalyzer
 					: TypeReferenceForResolvedName(concreteType),
 				ResolvedType = "nuint"
 			};
-			int insertIndex = Math.Min(i, call.Arguments.Count);
+			int insertIndex = Math.Min(argumentIndex, call.Arguments.Count);
 			call.Arguments.Insert(insertIndex, new ArgumentExpression
 			{
 				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,

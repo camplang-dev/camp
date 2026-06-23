@@ -1,0 +1,4 @@
+tests/Diagnostics/named_arguments_invalid.camp(11,12): error: Argument 'a' was already supplied.
+tests/Diagnostics/named_arguments_invalid.camp(12,15): error: Argument 'a' was already supplied.
+tests/Diagnostics/named_arguments_invalid.camp(13,9): error: No parameter named 'd' exists for this call.
+tests/Diagnostics/named_arguments_invalid.camp(14,10): error: Call is missing required arguments.

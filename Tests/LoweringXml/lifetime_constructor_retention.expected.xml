@@ -105,7 +105,7 @@
               </DeclarationStatement>
               <IfStatement ResolvedType="void">
                 <Condition Type="BinaryExpression" Operator="NotEqual" ResolvedType="bool">
-                  <Left Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" ValueLifetimeFact="escaped:call" />
+                  <Left Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" SlotLifetimeFact="scoped(#created0):slot" ValueLifetimeFact="escaped:call" />
                   <Right Type="LiteralExpression" Kind="Null" Text="null" ResolvedType="#NULL" ValueLifetimeFact="null" />
                 </Condition>
                 <Body Type="ExpressionStatement" ResolvedType="void">
@@ -117,7 +117,7 @@
                     </Target>
                     <Arguments>
                       <ArgumentExpression ResolvedType="View*">
-                        <Value Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" ValueLifetimeFact="escaped:call" />
+                        <Value Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" />
                       </ArgumentExpression>
                       <ArgumentExpression ResolvedType="unscoped const char*">
                         <Value Type="VariableReferenceExpression" Variable="text" ResolvedType="unscoped const char*" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
@@ -130,7 +130,7 @@
                 </Body>
               </IfStatement>
               <ReturnStatement ResolvedType="void">
-                <Expression Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" ValueLifetimeFact="escaped:call" />
+                <Expression Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" SlotLifetimeFact="scoped(#created0):slot" ValueLifetimeFact="escaped:call" />
               </ReturnStatement>
             </Statements>
           </Body>

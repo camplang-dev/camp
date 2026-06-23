@@ -93,6 +93,7 @@ public sealed partial class BindableNodeAnalyzer
 				AddImplicitNameOfArguments(call);
 				AddImplicitWithinArgument(call);
 				AddImplicitVTableOfArguments(call);
+				NormalizeWithinArgumentOrder(call);
 				for (int i = 0; i < call.Arguments.Count; i++)
 					call.Arguments[i] = LowerArgument(call.Arguments[i]);
 				bool loweredInterfaceCall = LowerInterfaceCall(call);
@@ -410,17 +411,37 @@ public sealed partial class BindableNodeAnalyzer
 			: callableInvocationParameters.TryGetValue(call, out List<ParameterDefinition>? foundParameters) ? GetCallableParameters(foundParameters) : [];
 		if (callableParameters.Count == 0)
 			return;
+		if (function is not null && (call.Arguments.Count > callableParameters.Count || HasExplicitHiddenArgument(call.Arguments) || HasWithinParameter(function) && call.Arguments.Exists(IsNullArgumentExpression)))
+			AddExplicitHiddenParameters(function.Parameters, callableParameters);
 
-		int argumentIndex = 0;
+		bool[] suppliedParameters = new bool[callableParameters.Count];
+		ArgumentExpression?[] argumentsByParameter = new ArgumentExpression?[callableParameters.Count];
+		HashSet<ArgumentExpression> boundArguments = [];
+		foreach (ArgumentExpression argument in call.Arguments.ToArray())
+		{
+			if (!TryBindCallArgumentToParameter(argument, callableParameters, suppliedParameters, call.SourceSyntax, out int parameterIndex))
+				continue;
+			boundArguments.Add(argument);
+			if (parameterIndex >= 0 && parameterIndex < argumentsByParameter.Length)
+			{
+				argumentsByParameter[parameterIndex] = argument;
+				int consumedParameters = CountCallableParametersSatisfiedByArgument(argument, callableParameters, parameterIndex);
+				for (int componentIndex = 1; componentIndex < consumedParameters; componentIndex++)
+					MarkSuppliedParameter(suppliedParameters, parameterIndex + componentIndex);
+			}
+		}
+
+		List<ArgumentExpression> orderedArguments = [];
 		for (int parameterIndex = 0; parameterIndex < callableParameters.Count; parameterIndex++)
 		{
 			ParameterDefinition parameter = callableParameters[parameterIndex];
 			if (parameter is SizeOfParameterDefinition)
 				continue;
-			if (argumentIndex < call.Arguments.Count && !IsExplicitHiddenArgument(call.Arguments[argumentIndex]))
+			if (argumentsByParameter[parameterIndex] is ArgumentExpression supplied
+				&& !(IsExplicitHiddenArgument(supplied) && IsImplicitOnlyCallParameter(parameter)))
 			{
-				int consumedParameters = CountCallableParametersSatisfiedByArgument(call.Arguments[argumentIndex], callableParameters, parameterIndex);
-				argumentIndex++;
+				orderedArguments.Add(supplied);
+				int consumedParameters = CountCallableParametersSatisfiedByArgument(supplied, callableParameters, parameterIndex);
 				parameterIndex += consumedParameters - 1;
 				continue;
 			}
@@ -432,13 +453,12 @@ public sealed partial class BindableNodeAnalyzer
 				&& TryGetClassTypeCallSiteName(call.Target, function, out string classTypeName))
 			{
 				Expression value = NameOfStringLiteral(BuildNameOfTypeValue(classTypeName), call.SourceSyntax ?? parameter.SourceSyntax);
-				call.Arguments.Insert(argumentIndex, new ArgumentExpression
+				orderedArguments.Add(new ArgumentExpression
 				{
 					SourceSyntax = call.SourceSyntax ?? parameter.SourceSyntax,
 					Value = value,
 					ResolvedType = "string"
 				});
-				argumentIndex++;
 				continue;
 			}
 			if (parameter.DefaultValue is UnaryExpression { Operator: UnaryOperator.FromEnd }
@@ -452,28 +472,32 @@ public sealed partial class BindableNodeAnalyzer
 					continue;
 				}
 
-				Expression count = argumentIndex > 0 && call.Arguments[argumentIndex - 1].Value is Expression index
+				Expression count = orderedArguments.Count > 0 && orderedArguments[^1].Value is Expression index
 					? CreateRangeCountExpression(index, CreateFromEndExpression((UnaryExpression)parameter.DefaultValue, length), parameter.DefaultValue.SourceSyntax)
 					: CreateFromEndExpression((UnaryExpression)parameter.DefaultValue, length);
-				call.Arguments.Insert(argumentIndex, new ArgumentExpression
+				orderedArguments.Add(new ArgumentExpression
 				{
 					SourceSyntax = call.SourceSyntax ?? parameter.SourceSyntax,
 					Value = count,
 					ResolvedType = "nuint"
 				});
-				argumentIndex++;
 				continue;
 			}
 
 			Expression? defaultValue = CloneDefaultArgumentExpression(parameter.DefaultValue);
-			call.Arguments.Insert(argumentIndex, new ArgumentExpression
+			orderedArguments.Add(new ArgumentExpression
 			{
 				SourceSyntax = call.SourceSyntax ?? parameter.SourceSyntax,
 				Value = defaultValue,
 				ResolvedType = defaultValue?.ResolvedType ?? parameter.ResolvedType
 			});
-			argumentIndex++;
 		}
+
+		foreach (ArgumentExpression argument in call.Arguments)
+			if (!orderedArguments.Contains(argument) && !boundArguments.Contains(argument))
+				orderedArguments.Add(argument);
+		call.Arguments.Clear();
+		call.Arguments.AddRange(orderedArguments);
 	}
 
 	int CountCallableParametersSatisfiedByArgument(ArgumentExpression argument, List<ParameterDefinition> callableParameters, int parameterIndex)

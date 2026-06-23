@@ -1,0 +1,10 @@
+void record(int a = 1, int b = 2, int c = 3)
+{
+}
+
+export int main()
+{
+	record(c: 30, a: 10);
+	record(100, c: 300);
+	return 0;
+}

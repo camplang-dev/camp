@@ -173,8 +173,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (HasExplicitWithinArgument(call.Arguments))
 			return;
 
-		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters);
-		int index = callableParameters.Count;
+		int index = CountArgumentsBeforeWithinParameter(function, call.Target);
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
 			if (parameter.Modifier == ParameterModifier.Thrown)
@@ -187,8 +186,25 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter.Modifier != ParameterModifier.Within && parameter is not WithinParameterDefinition)
 				continue;
 
-			int argumentIndex = System.Math.Min(index, call.Arguments.Count);
-			if (argumentIndex < call.Arguments.Count && IsWithinArgumentAlreadySupplied(call.Arguments[argumentIndex]))
+			List<ParameterDefinition> callableParameters = GetCallableParametersForCall(function, IncludeExplicitThisArgument(call.Target, function));
+			int argumentIndex = FindArgumentIndexForCallableParameter(call.Arguments, callableParameters, index);
+			int trailingExpandedReturnArguments = System.Math.Max(CountTrailingExpandedReturnArguments(call, function), CountTrailingOutArguments(call.Arguments));
+			if (trailingExpandedReturnArguments > 0)
+				argumentIndex = System.Math.Min(argumentIndex, System.Math.Max(0, call.Arguments.Count - trailingExpandedReturnArguments));
+			int suppliedWithinIndex = FindSuppliedWithinArgumentIndex(parameter, call.Arguments);
+			if (suppliedWithinIndex >= 0)
+			{
+				if (suppliedWithinIndex != argumentIndex)
+				{
+					ArgumentExpression supplied = call.Arguments[suppliedWithinIndex];
+					call.Arguments.RemoveAt(suppliedWithinIndex);
+					if (suppliedWithinIndex < argumentIndex)
+						argumentIndex--;
+					call.Arguments.Insert(argumentIndex, supplied);
+				}
+				return;
+			}
+			if (argumentIndex < call.Arguments.Count && IsWithinArgumentAlreadySupplied(parameter, call.Arguments[argumentIndex]))
 				return;
 
 			call.Arguments.Insert(argumentIndex, new ArgumentExpression
@@ -201,6 +217,97 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	void NormalizeWithinArgumentOrder(CallExpression call)
+	{
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !HasWithinParameter(function))
+			return;
+
+		ParameterDefinition? within = GetWithinParameter(function);
+		if (within is null)
+			return;
+
+		RemoveDuplicateWithinArguments(within, call.Arguments);
+		RemoveNullBeforeCapturedAllocator(call.Arguments);
+		int suppliedWithinIndex = FindSuppliedWithinArgumentIndex(within, call.Arguments);
+		if (suppliedWithinIndex <= 0)
+			return;
+
+		int insertionIndex = suppliedWithinIndex;
+		while (insertionIndex > 0 && call.Arguments[insertionIndex - 1].Modifier == ArgumentModifier.Out)
+			insertionIndex--;
+		if (insertionIndex == suppliedWithinIndex)
+			return;
+
+		ArgumentExpression supplied = call.Arguments[suppliedWithinIndex];
+		call.Arguments.RemoveAt(suppliedWithinIndex);
+		call.Arguments.Insert(insertionIndex, supplied);
+	}
+
+	void RemoveDuplicateWithinArguments(ParameterDefinition parameter, List<ArgumentExpression> arguments)
+	{
+		int keepIndex = -1;
+		for (int i = 0; i < arguments.Count; i++)
+		{
+			if (!IsWithinArgumentAlreadySupplied(parameter, arguments[i]))
+				continue;
+			if (keepIndex < 0 || IsNullArgumentExpression(arguments[keepIndex]) && !IsNullArgumentExpression(arguments[i]))
+				keepIndex = i;
+		}
+		if (keepIndex < 0)
+			return;
+		for (int i = arguments.Count - 1; i >= 0; i--)
+		{
+			if (i != keepIndex && IsWithinArgumentAlreadySupplied(parameter, arguments[i]))
+			{
+				arguments.RemoveAt(i);
+				if (i < keepIndex)
+					keepIndex--;
+			}
+		}
+	}
+
+	static void RemoveNullBeforeCapturedAllocator(List<ArgumentExpression> arguments)
+	{
+		for (int i = arguments.Count - 2; i >= 0; i--)
+		{
+			if (IsNullArgumentExpression(arguments[i]) && IsCapturedAllocatorArgument(arguments[i + 1]))
+				arguments.RemoveAt(i);
+		}
+	}
+
+	int CountTrailingExpandedReturnArguments(CallExpression call, FunctionDefinition function)
+	{
+		if (!TryGetExpandedReturnShape(call, function, out ParamsComponentShape shape)
+			|| shape.Components.Count <= 1)
+			return 0;
+		return shape.Components.Count - 1;
+	}
+
+	static int CountTrailingOutArguments(List<ArgumentExpression> arguments)
+	{
+		int count = 0;
+		for (int i = arguments.Count - 1; i >= 0; i--)
+		{
+			if (arguments[i].Modifier != ArgumentModifier.Out)
+				break;
+			count++;
+		}
+		return count;
+	}
+
+	int FindSuppliedWithinArgumentIndex(ParameterDefinition parameter, List<ArgumentExpression> arguments)
+	{
+		for (int i = 0; i < arguments.Count; i++)
+			if (IsWithinArgumentAlreadySupplied(parameter, arguments[i]))
+				return i;
+		return -1;
+	}
+
+	int CountArgumentsBeforeWithinParameter(FunctionDefinition function, Expression? callTarget)
+	{
+		return GetCallableParametersForCall(function, IncludeExplicitThisArgument(callTarget, function)).Count;
+	}
+
 	static bool HasExplicitWithinArgument(List<ArgumentExpression> arguments)
 	{
 		foreach (ArgumentExpression argument in arguments)
@@ -211,9 +318,28 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	static bool IsWithinArgumentAlreadySupplied(ArgumentExpression argument)
+	bool IsWithinArgumentAlreadySupplied(ParameterDefinition parameter, ArgumentExpression argument)
 	{
-		return argument.Modifier != ArgumentModifier.Catch || argument.Value is WithinExpression { Expression: null };
+		return argument.Value is WithinExpression
+			|| IsCurrentWithinArgument(argument)
+			|| IsCapturedAllocatorArgument(argument)
+			|| IsNullArgumentExpression(argument)
+			|| IsGeneratedHiddenForwardingArgumentFor(parameter, argument);
+	}
+
+	bool IsCurrentWithinArgument(ArgumentExpression argument)
+	{
+		return currentWithinContext is VariableReferenceExpression { Variable: Definition current }
+			&& argument.Value is VariableReferenceExpression { Variable: Definition supplied }
+			&& ReferenceEquals(current, supplied);
+	}
+
+	static bool IsCapturedAllocatorArgument(ArgumentExpression argument)
+	{
+		return argument.Value is VariableReferenceExpression { Variable: Definition { Name: string variableName } }
+				&& variableName.StartsWith("_allocator", StringComparison.Ordinal)
+			|| argument.Value is NamedExpression { Qualifiers.Count: 0, Name: string named }
+				&& named.StartsWith("_allocator", StringComparison.Ordinal);
 	}
 
 	Expression? LowerInterfaceConversion(TypeReference? targetType, Expression? value)
