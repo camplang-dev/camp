@@ -12,30 +12,25 @@ static const char *identityConst(const char *value, uintptr_t value_length, uint
 	}
 }
 
-int campmain(void)
+int main(void)
 {
 	char buffer[6] = "hello";
 	char *mutable = (char *)(buffer);
 	uintptr_t mutable_length = 6;
 	char *refined;
 	uintptr_t refined_length;
-	refined = identityConst(mutable, mutable_length, &refined_length);
+	refined = (char *)(identityConst(mutable, mutable_length, &refined_length));
 	refined[0] = 'H';
 	return ((refined[0] == 'H') ? 0 : 1);
 }
 
-
-int main(void)
-{
-	return campmain();
-}
 // file: lifetime_return_const_refinement.h
 #ifndef LIFETIME_RETURN_CONST_REFINEMENT_H_
 #define LIFETIME_RETURN_CONST_REFINEMENT_H_
 
 #include "lifetime_return_const_refinement_private.h"
 
-int campmain(void);
+int main(void);
 
 #endif
 // file: lifetime_return_const_refinement_private.h
@@ -55,7 +50,7 @@ int campmain(void);
 /* Layouts. */
 
 /* Function declarations. */
-int campmain(void);
+int main(void);
 
 /* Object declarations. */
 

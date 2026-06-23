@@ -885,12 +885,35 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
-		if (target is not MemberReferenceExpression { Target: Expression aggregate, Member: ParameterDefinition } member)
+		if (!TryGetAggregateComponentLifetimeTarget(target, out Expression? aggregate, out string? componentType) || aggregate is null)
 			return;
-		if (!IsPointerBearingResolvedType(member.ResolvedType ?? member.Member?.ResolvedType))
+		if (!IsPointerBearingResolvedType(componentType))
 			return;
 		if (TryGetStorageNode(aggregate, out BindableNode? aggregateStorage) && aggregateStorage is not null)
 			aggregateStorage.ValueLifetimeFact = valueFact;
+	}
+
+	bool TryGetAggregateComponentLifetimeTarget(Expression target, out Expression? aggregate, out string? componentType)
+	{
+		aggregate = null;
+		componentType = null;
+		if (target is MemberReferenceExpression { Target: Expression referenceTarget, Member: ParameterDefinition } member)
+		{
+			aggregate = referenceTarget;
+			componentType = member.ResolvedType ?? member.Member?.ResolvedType;
+			return true;
+		}
+
+		if (target is MemberExpression { Target: Expression memberTarget } sourceMember
+			&& TryGetParamsComponentShape(null, memberTarget.ResolvedType, "value", out ParamsComponentShape shape)
+			&& FindParamsComponent(shape, sourceMember.Name) is ParamsComponent component)
+		{
+			aggregate = memberTarget;
+			componentType = component.Type;
+			return true;
+		}
+
+		return false;
 	}
 
 	bool TryGetStorageNode(Expression target, out BindableNode? storage)

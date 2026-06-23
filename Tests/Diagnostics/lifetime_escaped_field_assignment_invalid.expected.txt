@@ -1,3 +1,2 @@
-tests/Diagnostics/lifetime_escaped_field_assignment_invalid.camp(7,15): error: Assignment cannot convert 'char[]' to 'escaped char[]'.
 tests/Diagnostics/lifetime_escaped_field_assignment_invalid.camp(7,15): error: Assignment cannot store a non-escaped pointer-bearing value in escaped storage.
 tests/Diagnostics/lifetime_escaped_field_assignment_invalid.camp(17,15): error: Assignment cannot store a non-escaped pointer-bearing value in escaped storage.

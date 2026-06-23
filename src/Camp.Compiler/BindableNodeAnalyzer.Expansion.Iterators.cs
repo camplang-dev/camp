@@ -285,6 +285,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SizeOfParameterDefinition => NuintType(),
 			VTableOfParameterDefinition => TypeReferenceForResolvedName(resolvedType),
+			_ when ContainsLifetimeAnnotation(parameter.Type) => TypeReferenceForIteratorField(resolvedType),
 			_ => CloneType(parameter.Type) ?? TypeReferenceForResolvedName(resolvedType)
 		};
 	}
@@ -492,10 +493,32 @@ public sealed partial class BindableNodeAnalyzer
 			for (int i = 0; i < callable.Parameters.Count; i++)
 			{
 				string parameterType = callable.Parameters[i];
+				ParameterModifier modifier = ParameterModifier.None;
+				if (parameterType.StartsWith("in ", StringComparison.Ordinal))
+				{
+					modifier = ParameterModifier.In;
+					parameterType = parameterType[3..].TrimStart();
+				}
+				else if (parameterType.StartsWith("out ", StringComparison.Ordinal))
+				{
+					modifier = ParameterModifier.Out;
+					parameterType = parameterType[4..].TrimStart();
+				}
+				else if (parameterType.StartsWith("thrown ", StringComparison.Ordinal))
+				{
+					modifier = ParameterModifier.Thrown;
+					parameterType = parameterType[7..].TrimStart();
+				}
+				else if (parameterType.StartsWith("within ", StringComparison.Ordinal))
+				{
+					modifier = ParameterModifier.Within;
+					parameterType = parameterType[7..].TrimStart();
+				}
 				reference.Parameters.Add(new ParameterDefinition
 				{
 					Name = "arg" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
 					Symbol = "arg" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
+					Modifier = modifier,
 					Type = TypeReferenceForIteratorField(parameterType),
 					ResolvedType = parameterType
 				});

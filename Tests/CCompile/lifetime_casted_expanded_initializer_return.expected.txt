@@ -12,7 +12,7 @@ static char *spanFrom(char *owner, uintptr_t owner_length, char *elements, uintp
 	}
 }
 
-int campmain(void)
+int main(void)
 {
 	char buffer[4] = "test";
 	char *owner = (char *)(buffer);
@@ -35,18 +35,13 @@ int campmain(void)
 	return 0;
 }
 
-
-int main(void)
-{
-	return campmain();
-}
 // file: lifetime_casted_expanded_initializer_return.h
 #ifndef LIFETIME_CASTED_EXPANDED_INITIALIZER_RETURN_H_
 #define LIFETIME_CASTED_EXPANDED_INITIALIZER_RETURN_H_
 
 #include "lifetime_casted_expanded_initializer_return_private.h"
 
-int campmain(void);
+int main(void);
 
 #endif
 // file: lifetime_casted_expanded_initializer_return_private.h
@@ -66,7 +61,7 @@ int campmain(void);
 /* Layouts. */
 
 /* Function declarations. */
-int campmain(void);
+int main(void);
 
 /* Object declarations. */
 

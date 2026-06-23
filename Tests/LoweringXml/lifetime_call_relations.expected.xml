@@ -198,7 +198,7 @@
       <Body Type="BlockStatement" ResolvedType="void">
         <Statements>
           <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call">
-            <Target Type="DeclarationTarget" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call">
+            <Target Type="DeclarationTarget" ResolvedType="char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call">
               <Names>
                 <Value>heap</Value>
               </Names>
@@ -212,9 +212,9 @@
             </Target>
           </DeclarationStatement>
           <ExpressionStatement ResolvedType="void">
-            <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="escaped char*">
-              <Target Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
-              <Value Type="CallExpression" ResolvedType="escaped char*" ValueLifetimeFact="escaped:call">
+            <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
+              <Target Type="VariableReferenceExpression" Variable="heap" ResolvedType="char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+              <Value Type="CallExpression" ResolvedType="escaped char[]" ValueLifetimeFact="escaped:call">
                 <Target Type="MethodReferenceExpression" ResolvedType="fn escaped char[]()">
                   <Candidates>
                     <Function Name="getEscaped" ResolvedType="escaped char*" />
@@ -245,15 +245,15 @@
           <ExpressionStatement ResolvedType="void">
             <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
               <Target Type="VariableReferenceExpression" Variable="same" ResolvedType="char*" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call" />
-              <Value Type="CallExpression" ResolvedType="scoped char*" ValueLifetimeFact="escaped:call">
+              <Value Type="CallExpression" ResolvedType="scoped char[]" ValueLifetimeFact="escaped:call">
                 <Target Type="MethodReferenceExpression" ResolvedType="fn scoped char[](char[])">
                   <Candidates>
                     <Function Name="identity" ResolvedType="scoped char*" />
                   </Candidates>
                 </Target>
                 <Arguments>
-                  <ArgumentExpression ResolvedType="escaped char*">
-                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  <ArgumentExpression ResolvedType="char*">
+                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
                   </ArgumentExpression>
                   <ArgumentExpression ResolvedType="nuint">
                     <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
@@ -282,21 +282,21 @@
           <ExpressionStatement ResolvedType="void">
             <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
               <Target Type="VariableReferenceExpression" Variable="scopedAnchored" ResolvedType="char*" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call" />
-              <Value Type="CallExpression" ResolvedType="scoped(owner) char*" ValueLifetimeFact="escaped:call">
+              <Value Type="CallExpression" ResolvedType="scoped(owner) char[]" ValueLifetimeFact="escaped:call">
                 <Target Type="MethodReferenceExpression" ResolvedType="fn scoped(owner) char[](char[], char[])">
                   <Candidates>
                     <Function Name="scopedTo" ResolvedType="scoped(owner) char*" />
                   </Candidates>
                 </Target>
                 <Arguments>
-                  <ArgumentExpression ResolvedType="escaped char*">
-                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  <ArgumentExpression ResolvedType="char*">
+                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
                   </ArgumentExpression>
                   <ArgumentExpression ResolvedType="nuint">
                     <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
                   </ArgumentExpression>
-                  <ArgumentExpression ResolvedType="escaped char*">
-                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  <ArgumentExpression ResolvedType="char*">
+                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
                   </ArgumentExpression>
                   <ArgumentExpression ResolvedType="nuint">
                     <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
@@ -309,7 +309,7 @@
             </Expression>
           </ExpressionStatement>
           <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(unscopedAnchored):slot" ValueLifetimeFact="escaped:call">
-            <Target Type="DeclarationTarget" ResolvedType="unscoped char*" SlotLifetimeFact="scoped(unscopedAnchored):slot" ValueLifetimeFact="escaped:call">
+            <Target Type="DeclarationTarget" ResolvedType="char*" SlotLifetimeFact="scoped(unscopedAnchored):slot" ValueLifetimeFact="escaped:call">
               <Names>
                 <Value>unscopedAnchored</Value>
               </Names>
@@ -323,23 +323,23 @@
             </Target>
           </DeclarationStatement>
           <ExpressionStatement ResolvedType="void">
-            <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="unscoped char*">
-              <Target Type="VariableReferenceExpression" Variable="unscopedAnchored" ResolvedType="unscoped char*" SlotLifetimeFact="scoped(unscopedAnchored):slot" ValueLifetimeFact="escaped:call" />
-              <Value Type="CallExpression" ResolvedType="unscoped(owner) char*" ValueLifetimeFact="escaped:call">
+            <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
+              <Target Type="VariableReferenceExpression" Variable="unscopedAnchored" ResolvedType="char*" SlotLifetimeFact="scoped(unscopedAnchored):slot" ValueLifetimeFact="escaped:call" />
+              <Value Type="CallExpression" ResolvedType="unscoped(owner) char[]" ValueLifetimeFact="escaped:call">
                 <Target Type="MethodReferenceExpression" ResolvedType="fn unscoped(owner) char[](char[], char[])">
                   <Candidates>
                     <Function Name="unscopedTo" ResolvedType="unscoped(owner) char*" />
                   </Candidates>
                 </Target>
                 <Arguments>
-                  <ArgumentExpression ResolvedType="escaped char*">
-                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  <ArgumentExpression ResolvedType="char*">
+                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
                   </ArgumentExpression>
                   <ArgumentExpression ResolvedType="nuint">
                     <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
                   </ArgumentExpression>
-                  <ArgumentExpression ResolvedType="escaped char*">
-                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                  <ArgumentExpression ResolvedType="char*">
+                    <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
                   </ArgumentExpression>
                   <ArgumentExpression ResolvedType="nuint">
                     <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
@@ -372,8 +372,8 @@
                     <Operand Type="VariableReferenceExpression" Variable="buffer" ResolvedType="Buffer" SlotLifetimeFact="scoped(buffer):slot" ValueLifetimeFact="scoped(buffer):slot" />
                   </Value>
                 </ArgumentExpression>
-                <ArgumentExpression ResolvedType="escaped char*">
-                  <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="escaped char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
+                <ArgumentExpression ResolvedType="char*">
+                  <Value Type="VariableReferenceExpression" Variable="heap" ResolvedType="char*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
                 </ArgumentExpression>
                 <ArgumentExpression ResolvedType="nuint">
                   <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
@@ -398,7 +398,7 @@
           <ExpressionStatement ResolvedType="void">
             <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
               <Target Type="VariableReferenceExpression" Variable="items" ResolvedType="char*" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="scoped(buffer):call" />
-              <Value Type="CallExpression" ResolvedType="char*" ValueLifetimeFact="scoped(buffer):call">
+              <Value Type="CallExpression" ResolvedType="char[]" ValueLifetimeFact="scoped(buffer):call">
                 <Target Type="MethodReferenceExpression" ResolvedType="fn char*(Buffer*, out nuint)">
                   <Candidates>
                     <Function Name="getItems" ResolvedType="char*" />

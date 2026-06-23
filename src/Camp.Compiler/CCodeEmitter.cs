@@ -2425,7 +2425,90 @@ public static class CCodeEmitter
 				if (NeedsGenericScalarCast(concreteReturnType))
 					return CastFromErasedGeneric(text, concreteReturnType);
 			}
+			if (TryGetCallResultCastType(call, function, genericSubstitutions, out string? castType))
+				return "(" + FormatResolvedType(castType!, "").Declaration.Trim() + ")(" + text + ")";
 			return text;
+		}
+
+		bool TryGetCallResultCastType(CallExpression call, FunctionDefinition? function, Dictionary<string, string> genericSubstitutions, out string? castType)
+		{
+			castType = null;
+			if (call.ResolvedType is not string callType || callType == "void")
+				return false;
+
+			string? declaredType = null;
+			if (function is not null)
+			{
+				declaredType = function.ResolvedType ?? function.ReturnType?.ResolvedType;
+				if (declaredType is not null && genericSubstitutions.Count > 0)
+					declaredType = SubstituteGenericTypeTokens(declaredType, genericSubstitutions);
+			}
+			else if (call.Target?.ResolvedType is string callableType
+				&& TryParseResolvedCallableType(callableType, out string callableReturnType, out _))
+			{
+				declaredType = callableReturnType;
+			}
+			if (declaredType is null)
+				return false;
+
+			string actualReturnType = FirstReturnComponentType(declaredType);
+			string expressionReturnType = FirstReturnComponentType(callType);
+			if (StripLifetimeOnly(actualReturnType) == StripLifetimeOnly(expressionReturnType))
+				return false;
+			if (!IsPointerLikeCArgumentType(actualReturnType) || !IsPointerLikeCArgumentType(expressionReturnType))
+				return false;
+
+			castType = expressionReturnType;
+			return true;
+		}
+
+		string FirstReturnComponentType(string type)
+		{
+			string lifetimePrefix = "";
+			string structural = type.Trim();
+			while (TryTakeLeadingLifetime(structural, out string? lifetime, out string? rest) && rest is not null)
+			{
+				lifetimePrefix += lifetime + " ";
+				structural = rest;
+			}
+			if (structural.EndsWith("[]", StringComparison.Ordinal))
+				return lifetimePrefix + structural[..^2].TrimEnd() + "*";
+			if (structural.EndsWith("?", StringComparison.Ordinal))
+				return lifetimePrefix + structural[..^1].TrimEnd();
+			return type;
+		}
+
+		static bool TryTakeLeadingLifetime(string type, out string? lifetime, out string? rest)
+		{
+			lifetime = null;
+			rest = null;
+			foreach (string keyword in new[] { "escaped", "scoped", "unscoped" })
+			{
+				if (type.StartsWith(keyword + " ", StringComparison.Ordinal))
+				{
+					lifetime = keyword;
+					rest = type[(keyword.Length + 1)..].TrimStart();
+					return true;
+				}
+				if (!type.StartsWith(keyword + "(", StringComparison.Ordinal))
+					continue;
+
+				int close = type.IndexOf(')', keyword.Length + 1);
+				if (close < 0)
+					continue;
+				lifetime = type[..(close + 1)];
+				rest = type[(close + 1)..].TrimStart();
+				return true;
+			}
+			return false;
+		}
+
+		static string StripLifetimeOnly(string type)
+		{
+			string result = type.Trim();
+			while (TryTakeLeadingLifetime(result, out _, out string? rest) && rest is not null)
+				result = rest;
+			return result;
 		}
 
 		string FormatAssignmentExpression(AssignmentExpression assignment)

@@ -1477,6 +1477,8 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		if (currentRewriteFunction is null || !expandedReturnShapes.TryGetValue(currentRewriteFunction, out ParamsComponentShape? shape))
 			return false;
+		if (TryRewriteExpandedReturnCall(statement, shape, out rewritten))
+			return true;
 		if (!TryCreateParamsComponentExpressions(statement.Expression, out List<Expression> components) || components.Count != shape.Components.Count)
 			return false;
 
@@ -1505,6 +1507,86 @@ public sealed partial class BindableNodeAnalyzer
 			Expression = components[0]
 		});
 		rewritten = CreateBlock(statements);
+		return true;
+	}
+
+	bool TryRewriteExpandedReturnCall(ReturnStatement statement, ParamsComponentShape shape, out Statement rewritten)
+	{
+		rewritten = statement;
+		if (statement.Expression is not CallExpression call)
+			return false;
+		if ((!TryGetExpandedReturnCallShape(call, out ParamsComponentShape? callShape) || callShape.Components.Count != shape.Components.Count)
+			&& !CallableInvocationMatchesExpandedReturnShape(call, shape))
+		{
+			return false;
+		}
+
+		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
+		{
+			AddImplicitDefaultArguments(call);
+			ExpandParamsArguments(call);
+			AddImplicitSizeOfArguments(call);
+			AddImplicitWithinArgument(call);
+			AddImplicitVTableOfArguments(call);
+			if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
+				&& IsInstanceInvocationFunction(function)
+				&& !IsPropertyGetterReference(member)
+				&& !IsPropertySetterReference(member)
+				&& FindContainingType(function) is not InterfaceDefinition)
+			{
+				RewriteInstanceInvocation(call, member, receiver, function);
+			}
+		}
+
+		for (int i = 1; i < shape.Components.Count; i++)
+		{
+			ParameterDefinition parameter = currentRewriteFunction!.Parameters[^ (shape.Components.Count - i)];
+			call.Arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = statement.SourceSyntax,
+				Modifier = ArgumentModifier.Out,
+				Value = CreateVariableReference(parameter, parameter.ResolvedType ?? shape.Components[i].Type),
+				ResolvedType = shape.Components[i].Type
+			});
+		}
+		preparedExpandedReturnCalls.Add(call);
+		call.ResolvedType = shape.Components[0].Type;
+		rewritten = new ReturnStatement
+		{
+			SourceSyntax = statement.SourceSyntax,
+			ResolvedType = "void",
+			Expression = call
+		};
+		return true;
+	}
+
+	bool TryGetExpandedReturnCallShape(CallExpression call, out ParamsComponentShape shape)
+	{
+		if (callTargets.TryGetValue(call, out FunctionDefinition? function)
+			&& TryGetExpandedReturnShape(call, function, out shape))
+		{
+			return true;
+		}
+		return TryGetParamsComponentShape(null, call.ResolvedType, "result", out shape);
+	}
+
+	bool CallableInvocationMatchesExpandedReturnShape(CallExpression call, ParamsComponentShape shape)
+	{
+		if (shape.Components.Count <= 1
+			|| !TryGetCallableShape(call.Target?.ResolvedType, out CallableShape callable)
+			|| callable.ReturnType != shape.Components[0].Type
+			|| callable.Parameters.Count < shape.Components.Count - 1)
+		{
+			return false;
+		}
+
+		int outStart = callable.Parameters.Count - (shape.Components.Count - 1);
+		for (int i = 1; i < shape.Components.Count; i++)
+		{
+			string expected = "out " + shape.Components[i].Type;
+			if (callable.Parameters[outStart + i - 1] != expected)
+				return false;
+		}
 		return true;
 	}
 

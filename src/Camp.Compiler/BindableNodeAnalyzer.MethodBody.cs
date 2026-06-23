@@ -2867,7 +2867,7 @@ public sealed partial class BindableNodeAnalyzer
 				&& TryGetCallableShape(targetCallableType, out CallableShape targetShape)
 				&& targetShape.This.HasThis)
 			{
-				if (BoundMethodReferenceCanSatisfyThisContract(lookupTargetType, function, targetShape.This, member.SourceSyntax))
+				if (BoundMethodReferenceCanSatisfyThisContract(member.Target, lookupTargetType, function, targetShape.This, member.SourceSyntax))
 					memberType = targetCallableType!;
 			}
 			if (!isTypeTarget
@@ -3028,7 +3028,7 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	bool BoundMethodReferenceCanSatisfyThisContract(string receiverType, FunctionDefinition function, ThisContract contract, SyntaxNode? syntax)
+	bool BoundMethodReferenceCanSatisfyThisContract(Expression? receiver, string receiverType, FunctionDefinition function, ThisContract contract, SyntaxNode? syntax)
 	{
 		ThisContract methodContract = GetThisContract(GetEffectiveThisParameter(function));
 		if (contract.IsConst && !methodContract.IsConst)
@@ -3041,12 +3041,19 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"Method reference '{GetCallableName(function)}' cannot satisfy callable target because the target requires volatile this.");
 			return false;
 		}
-		if (contract.IsEscaped && !CanImplicitlyConvert(receiverType, AddTopLevelLifetimeToReceiver(receiverType, "escaped")))
+		if (contract.IsEscaped && !ReceiverExpressionSatisfiesEscapedThis(receiver, receiverType))
 		{
 			Report(GetRange(syntax), $"Method reference '{GetCallableName(function)}' cannot satisfy callable target because the receiver does not satisfy escaped this.");
 			return false;
 		}
 		return true;
+	}
+
+	bool ReceiverExpressionSatisfiesEscapedThis(Expression? receiver, string receiverType)
+	{
+		if (TryParseLifetimeFact(GetExpressionLifetimeFact(receiver), out LifetimeFact fact))
+			return fact.Kind == "escaped";
+		return receiverType.TrimStart().StartsWith("escaped ", StringComparison.Ordinal);
 	}
 
 	bool IsTypeReferenceExpression(Expression? expression)
