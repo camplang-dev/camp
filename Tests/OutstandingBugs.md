@@ -19,14 +19,6 @@ Next bug number: BUG-030.
   `const char[]` out-parameter diagnostic. This likely needs delegate context
   lifetime facts to survive local materialization and generic out propagation.
 
-- **BUG-025:** Exported and abstract function signatures reject lifetime
-  annotations in places where they should be valid signature annotations.
-  Priority: medium-high. Complexity: medium. For example,
-  `export abstract void free(escaped void* ptr);` currently reports a
-  misleading field-type lifetime diagnostic through API/header processing.
-  Std allocator declarations are temporarily left unannotated and trusted
-  boundaries use explicit lifetime casts instead.
-
 - **BUG-026:** Returning a lifetime-casted expanded value can drop hidden
   return components during C emission. Priority: medium. Complexity: medium.
   For example, returning `(escaped T[])bufferResult` from a function returning

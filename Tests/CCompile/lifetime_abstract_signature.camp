@@ -1,0 +1,5 @@
+export abstract class Allocator
+{
+	export abstract escaped void* alloc(nuint size);
+	export abstract void free(escaped void* ptr);
+}

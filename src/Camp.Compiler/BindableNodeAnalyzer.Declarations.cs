@@ -768,7 +768,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateFieldLifetimeAnnotation(FieldDefinition definition, AnalysisScope scope, TypeDefinition? containingType)
 	{
-		if (!TryGetLifetimeAnnotation(definition.Type, out string kind, out IReadOnlyList<string> anchors, out string? binding))
+		if (!TryGetFieldLifetimeAnnotation(definition.Type, out string kind, out IReadOnlyList<string> anchors, out string? binding))
 			return;
 
 		if (containingType is not ClassDefinition and not StructDefinition || definition.Modifier == FieldModifier.Static)
@@ -790,6 +790,60 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		definition.LifetimeBinding = binding ?? new BoundLifetime("escaped", [], "explicit field").ToString();
+	}
+
+	bool TryGetFieldLifetimeAnnotation(TypeReference? type, out string kind, out IReadOnlyList<string> anchors, out string? binding)
+	{
+		switch (type)
+		{
+			case EscapedTypeReference escaped:
+				kind = "escaped";
+				anchors = [];
+				binding = escaped.LifetimeBinding;
+				return true;
+
+			case ScopedTypeReference scoped:
+				kind = "scoped";
+				anchors = scoped.Anchors;
+				binding = scoped.LifetimeBinding;
+				return true;
+
+			case UnscopedTypeReference unscoped:
+				kind = "unscoped";
+				anchors = unscoped.Anchors;
+				binding = unscoped.LifetimeBinding;
+				return true;
+
+			case AttributedTypeReference attributed:
+				return TryGetFieldLifetimeAnnotation(attributed.Type, out kind, out anchors, out binding);
+
+			case ConstTypeReference constType:
+				return TryGetFieldLifetimeAnnotation(constType.Type, out kind, out anchors, out binding);
+
+			case VolatileTypeReference volatileType:
+				return TryGetFieldLifetimeAnnotation(volatileType.Type, out kind, out anchors, out binding);
+
+			case TargetTypeSpecTypeReference targetSpec:
+				return TryGetFieldLifetimeAnnotation(targetSpec.Type, out kind, out anchors, out binding);
+
+			case PointerTypeReference pointer:
+				return TryGetFieldLifetimeAnnotation(pointer.ElementType, out kind, out anchors, out binding);
+
+			case ArrayTypeReference array:
+				return TryGetFieldLifetimeAnnotation(array.ElementType, out kind, out anchors, out binding);
+
+			case FixedArrayTypeReference fixedArray:
+				return TryGetFieldLifetimeAnnotation(fixedArray.ElementType, out kind, out anchors, out binding);
+
+			case OptionalTypeReference optional:
+				return TryGetFieldLifetimeAnnotation(optional.ElementType, out kind, out anchors, out binding);
+
+			default:
+				kind = "";
+				anchors = [];
+				binding = null;
+				return false;
+		}
 	}
 
 	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType)

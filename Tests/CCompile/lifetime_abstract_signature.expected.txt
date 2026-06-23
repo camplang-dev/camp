@@ -1,0 +1,70 @@
+// file: lifetime_abstract_signature.c
+#include "lifetime_abstract_signature_private.h"
+
+/* Private file declarations. */
+static _Allocator _Allocator__vt;
+
+static _Allocator _Allocator__vt = { .alloc = NULL, .free = NULL };
+void *Allocator_alloc(Allocator *this, uintptr_t size)
+{
+	return this->_vt->alloc(this, size);
+}
+
+void Allocator_free(Allocator *this, void *ptr)
+{
+	this->_vt->free(this, ptr);
+}
+
+// file: lifetime_abstract_signature.h
+#ifndef LIFETIME_ABSTRACT_SIGNATURE_H_
+#define LIFETIME_ABSTRACT_SIGNATURE_H_
+
+#include "lifetime_abstract_signature_private.h"
+
+typedef void *(* fn_escaped_voidPtr_AllocatorPtr__nuint_)(Allocator *arg0, uintptr_t arg1);
+typedef void (* fn_void_AllocatorPtr__escaped_voidPtr_)(Allocator *arg0, void *arg1);
+void *Allocator_alloc(Allocator *this, uintptr_t size);
+void Allocator_free(Allocator *this, void *ptr);
+
+#endif
+// file: lifetime_abstract_signature_private.h
+#ifndef LIFETIME_ABSTRACT_SIGNATURE_PRIVATE_H_
+#define LIFETIME_ABSTRACT_SIGNATURE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Allocator Allocator;
+typedef struct _Allocator _Allocator;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef void *(* fn_escaped_voidPtr_AllocatorPtr__nuint_)(Allocator *arg0, uintptr_t arg1);
+typedef void (* fn_void_AllocatorPtr__escaped_voidPtr_)(Allocator *arg0, void *arg1);
+
+/* Layouts. */
+struct Allocator
+{
+	_Allocator *_vt;
+};
+struct _Allocator
+{
+	void *(* alloc)(Allocator *ctx, uintptr_t size);
+	void (* free)(Allocator *ctx, void *ptr);
+};
+
+/* Function declarations. */
+void *Allocator_alloc(Allocator *this, uintptr_t size);
+void Allocator_free(Allocator *this, void *ptr);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifetime_abstract_signature.c
