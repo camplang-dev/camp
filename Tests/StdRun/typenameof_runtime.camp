@@ -1,0 +1,38 @@
+using Std;
+
+class Box<T: any>
+{
+	Box(typenameof(T))
+	{
+	}
+
+	string getTypeName()
+	{
+		return typenameof(T);
+	}
+}
+
+alias MyUInt = uint;
+
+void writeTypeName<T: any>(typenameof(T))
+{
+	Console.writeLine(typenameof(T));
+}
+
+void forwardTypeName<T: any>(typenameof(T))
+{
+	writeTypeName<T>();
+}
+
+export int main()
+{
+	auto box = new Box<int>();
+
+	Console.writeLine(typenameof(int));
+	Console.writeLine(typenameof(int[]));
+	Console.writeLine(typenameof(MyUInt));
+	forwardTypeName<int>();
+	Console.writeLine(box.TypeName);
+
+	return 0;
+}

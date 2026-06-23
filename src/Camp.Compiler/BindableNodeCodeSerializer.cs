@@ -806,7 +806,7 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case NameOfExpression nameOf:
-				writer.Write("nameof(");
+				writer.Write("typenameof(");
 				writer.Write(nameOf.Text);
 				writer.Write(")");
 				break;
@@ -1118,7 +1118,7 @@ public sealed class BindableNodeCodeSerializer
 		}
 		else if (parameter is NameOfParameterDefinition nameOf)
 		{
-			writer.Write("nameof(");
+			writer.Write("typenameof(");
 			WriteType(nameOf.Type);
 			writer.Write(")");
 		}

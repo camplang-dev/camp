@@ -1,0 +1,1 @@
+tests/Diagnostics/typenameof_invalid_operand.camp(4,21): error: typenameof(local) could not be resolved as a type.

@@ -1,0 +1,1 @@
+tests/Diagnostics/typenameof_invalid.camp(3,16): error: typenameof(T) requires parameter 'typenameof_T'.

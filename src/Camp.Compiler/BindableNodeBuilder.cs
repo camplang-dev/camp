@@ -1637,9 +1637,9 @@ public sealed partial class BindableNodeBuilder
 				return new NameOfParameterDefinition
 				{
 					SourceSyntax = nameOf,
-					Name = "nameof",
-					Symbol = "nameof",
-					Type = nameOf.Type is null ? MissingType(nameOf, "nameof parameter is missing a type.") : BuildTypeReference(nameOf.Type)
+					Name = "typenameof",
+					Symbol = "typenameof",
+					Type = nameOf.Type is null ? MissingType(nameOf, "typenameof parameter is missing a type.") : BuildTypeReference(nameOf.Type)
 				};
 
 			case VTableOfParameterSyntax vtableOf:

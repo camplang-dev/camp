@@ -1,6 +1,6 @@
 void missingCapability<T: any>()
 {
-	string name = nameof(T);
+	string name = typenameof(T);
 }
 
 export void main()

@@ -10,12 +10,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string NameOfParameterName(TypeReference? type)
 	{
-		return "nameof_" + SanitizeNameOfTypeName(NameOfTypeName(type));
+		return "typenameof_" + SanitizeNameOfTypeName(NameOfTypeName(type));
 	}
 
 	static string NameOfFieldName(TypeReference? type)
 	{
-		return "_nameof_" + SanitizeNameOfTypeName(NameOfTypeName(type));
+		return "_typenameof_" + SanitizeNameOfTypeName(NameOfTypeName(type));
 	}
 
 	static string NameOfTypeName(TypeReference? type)
@@ -66,7 +66,7 @@ public sealed partial class BindableNodeAnalyzer
 			return "string";
 		}
 
-		Report(GetRange(expression.SourceSyntax), $"nameof({expression.Text}) could not be resolved.");
+		Report(GetRange(expression.SourceSyntax), $"typenameof({expression.Text}) could not be resolved as a type.");
 		return ErrorType;
 	}
 
@@ -78,45 +78,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (operand.Length == 0)
 			return false;
 
-		if (operand == "this")
-		{
-			name = "this";
-			reference = GetExplicitThisParameter(scope.CurrentFunction) ?? scope.CurrentFunction.EffectiveThisParameter;
-			return true;
-		}
-
-		if (TryResolveNameOfMemberOperand(operand, scope, typeScope, syntax, out name, out reference))
-			return true;
-
 		if (TryResolveNameOfTypeOperand(operand, scope, typeScope, syntax, out name, out reference))
 			return true;
-
-		if (scope.TryLookup(operand, out BodySymbol symbol))
-		{
-			name = symbol.Name;
-			reference = symbol.Node;
-			return true;
-		}
-
-		List<FunctionDefinition> functions = LookupFunctions(operand, scope);
-		if (functions.Count == 1)
-		{
-			name = functions[0].Name;
-			reference = functions[0];
-			return true;
-		}
-		if (functions.Count > 1)
-		{
-			Report(GetRange(syntax), $"nameof({operand}) is ambiguous.");
-			return true;
-		}
-
-		if (LookupGlobalStorageSymbol(operand, syntax) is BodySymbol global)
-		{
-			name = global.Name;
-			reference = global.Node;
-			return true;
-		}
 
 		return false;
 	}
@@ -189,7 +152,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (!HasNameOfCapability(scope, resolved))
 			{
-				Report(GetRange(syntax), $"nameof({operand}) requires parameter '{NameOfParameterName(TypeReferenceForResolvedName(resolved))}'.");
+				Report(GetRange(syntax), $"typenameof({operand}) requires parameter '{NameOfParameterName(TypeReferenceForResolvedName(resolved))}'.");
 				return true;
 			}
 			name = "";
@@ -219,9 +182,24 @@ public sealed partial class BindableNodeAnalyzer
 			reference = type;
 			return operand;
 		}
-		if (TryParseTypeShape(operand, out TypeShape _))
+		if (TryParseTypeShape(operand, out TypeShape shape) && IsResolvableTypeNameShape(shape, scope))
 			return operand;
 		return ErrorType;
+	}
+
+	bool IsResolvableTypeNameShape(TypeShape shape, AnalysisScope scope)
+	{
+		if (shape.Element is not null)
+			return IsResolvableTypeNameShape(shape.Element, scope);
+
+		string baseName = BaseTypeName(shape.Name);
+		if (TryResolveAlias(baseName, AliasTargetKind.Type, null, out _))
+			return true;
+		if (TryGetPrimitiveType(baseName, out _))
+			return true;
+		if (scope.TryGetGenericParameter(baseName, out _))
+			return true;
+		return typeDefinitions.ContainsKey(baseName);
 	}
 
 	string BuildNameOfTypeValue(string resolvedType)

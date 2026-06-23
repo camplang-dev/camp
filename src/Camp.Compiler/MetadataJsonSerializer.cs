@@ -670,7 +670,7 @@ public static class MetadataJsonSerializer
 				ThisParameterDefinition => "receiver",
 				WithinParameterDefinition => "within-parameter",
 				SizeOfParameterDefinition => "sizeof-parameter",
-				NameOfParameterDefinition => "nameof-parameter",
+				NameOfParameterDefinition => "typenameof-parameter",
 				VTableOfParameterDefinition => "vtableof-parameter",
 				ParameterDefinition => "parameter",
 				GenericParameter => "type-parameter",

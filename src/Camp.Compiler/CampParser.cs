@@ -733,10 +733,10 @@ public sealed class CampParser
 			"do", "double", "else", "enum", "escaped", "export", "extern", "false", "finally",
 			"fixed", "float", "fn", "for", "foreach", "if", "implements", "in", "init", "int",
 			"interface", "iter", "long", "new", "newtype", "nint", "null", "nuint", "once", "out",
-			"nameof", "override", "params", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
+			"override", "params", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
 			"static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
 			"ulong", "unscoped", "ushort", "untyped", "using", "virtual", "void", "volatile",
-			"vtableof", "wchar", "while", "within", "wstring", "yield");
+			"vtableof", "wchar", "while", "within", "wstring", "yield", "typenameof");
 	}
 
 	bool CanTargetSpecBePartOfDeclarationType()
@@ -779,7 +779,7 @@ public sealed class CampParser
 				CloseParenToken = Expect(")")
 			};
 
-		if (Is("nameof"))
+		if (Is("typenameof"))
 			return new NameOfParameterSyntax
 			{
 				NameOfKeyword = Take(),
@@ -1455,7 +1455,7 @@ public sealed class CampParser
 				CloseParenToken = Expect(")")
 			};
 
-		if (Is("nameof"))
+		if (Is("typenameof"))
 			return ParseNameOfExpression();
 
 		if (Is("symbolof"))

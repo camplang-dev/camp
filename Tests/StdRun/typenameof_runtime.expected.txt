@@ -1,7 +1,6 @@
 exit: 0
 Int
 IntArray
-local
-value
+UInt
 Int
 Int
