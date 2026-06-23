@@ -8,6 +8,15 @@ dotnet test camplang.sln
 
 ## Agent Test Workflow
 
+### Commit Gate
+
+Use targeted tests while fixing a bug or implementing a feature, but do not
+commit until the full non-skipped test suite has passed at least once after the
+final change for that commit. Platform- or environment-skipped tests, such as
+MSVC-only tests on non-Windows machines, are acceptable skips. Failing tests,
+unexpected skips, and leftover `.actual.*` files must be resolved before the
+commit.
+
 When the test project is already built, prefer `dotnet vstest` over
 `dotnet test` for targeted and repeated runs:
 
