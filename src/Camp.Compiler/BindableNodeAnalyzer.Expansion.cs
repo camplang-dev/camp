@@ -696,6 +696,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	string? GetLoweredCallReturnType(CallExpression call)
 	{
+		if (!NeedsResolvedTypeRefresh(call.ResolvedType))
+			return call.ResolvedType;
+
 		FunctionDefinition? function = call.Target switch
 		{
 			MemberReferenceExpression { Member: FunctionDefinition memberFunction } => memberFunction,

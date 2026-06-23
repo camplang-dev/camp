@@ -1,0 +1,13 @@
+scoped const char[] identityConst(const char[] value)
+{
+	return value;
+}
+
+export int main()
+{
+	fixed char[6] buffer = "hello";
+	char[] mutable = buffer;
+	auto refined = identityConst(mutable);
+	refined[0] = 'H';
+	return refined[0] == 'H' ? 0 : 1;
+}

@@ -19,15 +19,6 @@ Next bug number: BUG-030.
   `const char[]` out-parameter diagnostic. This likely needs delegate context
   lifetime facts to survive local materialization and generic out propagation.
 
-- **BUG-024:** Stage 4 lifetime call-site substitution does not yet refine
-  return constness where the relationship is directly provable. Priority:
-  medium. Complexity: medium-high. Example: if a function returns
-  `scoped const char[]` from a single `const char[]` parameter, and the caller
-  passes a provably mutable `char[]`, the result should retain the caller-known
-  mutability when the relationship proves it is derived from that argument.
-  This should be implemented as a type-refinement pass with positive and
-  conservative negative tests, not as a lifetime fact shortcut.
-
 - **BUG-025:** Exported and abstract function signatures reject lifetime
   annotations in places where they should be valid signature annotations.
   Priority: medium-high. Complexity: medium. For example,

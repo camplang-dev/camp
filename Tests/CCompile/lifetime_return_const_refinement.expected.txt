@@ -1,0 +1,65 @@
+// file: lifetime_return_const_refinement.c
+#include "lifetime_return_const_refinement_private.h"
+
+/* Private file declarations. */
+static const char *identityConst(const char *value, uintptr_t value_length, uintptr_t *result_length);
+
+static const char *identityConst(const char *value, uintptr_t value_length, uintptr_t *result_length)
+{
+	{
+		(*result_length) = value_length;
+		return value;
+	}
+}
+
+int campmain(void)
+{
+	char buffer[6] = "hello";
+	char *mutable = (char *)(buffer);
+	uintptr_t mutable_length = 6;
+	char *refined;
+	uintptr_t refined_length;
+	refined = identityConst(mutable, mutable_length, &refined_length);
+	refined[0] = 'H';
+	return ((refined[0] == 'H') ? 0 : 1);
+}
+
+
+int main(void)
+{
+	return campmain();
+}
+// file: lifetime_return_const_refinement.h
+#ifndef LIFETIME_RETURN_CONST_REFINEMENT_H_
+#define LIFETIME_RETURN_CONST_REFINEMENT_H_
+
+#include "lifetime_return_const_refinement_private.h"
+
+int campmain(void);
+
+#endif
+// file: lifetime_return_const_refinement_private.h
+#ifndef LIFETIME_RETURN_CONST_REFINEMENT_PRIVATE_H_
+#define LIFETIME_RETURN_CONST_REFINEMENT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int campmain(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifetime_return_const_refinement.c
