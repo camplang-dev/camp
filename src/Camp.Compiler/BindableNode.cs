@@ -136,9 +136,19 @@ public class FunctionDefinition : Definition
 	public string? ReceiverLifetimeBinding { get; set; }
 	public TypeReference? AbiThisType { get; set; }
 	public TypeReference? ImplementationThisType { get; set; }
+	public InterfaceSlotInitializerKind InterfaceSlotInitializerKind { get; set; }
+	public Expression? InterfaceSlotInitializer { get; set; }
+	public FunctionDefinition? InterfaceSlotInitializerTarget { get; set; }
 	public List<GenericParameter> GenericParameters { get; } = [];
 	public List<ParameterDefinition> Parameters { get; } = [];
 	public BlockStatement? Body { get; set; }
+}
+
+public enum InterfaceSlotInitializerKind
+{
+	None,
+	Null,
+	Function
 }
 
 public class ParameterDefinition : Definition

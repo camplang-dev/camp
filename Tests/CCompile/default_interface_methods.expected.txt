@@ -1,0 +1,183 @@
+// file: default_interface_methods.c
+#include "default_interface_methods_private.h"
+
+/* Private file declarations. */
+static int ICounter_defaultGetValue(ICounter **this, int value);
+static int BasicCounter_required(BasicCounter *this, int value);
+static void BasicCounter_op_initnew(BasicCounter *this);
+static int CustomCounter_optional(CustomCounter *this, int value);
+static int CustomCounter_getValue(CustomCounter *this, int value);
+static int CustomCounter_required(CustomCounter *this, int value);
+static void CustomCounter_op_initnew(CustomCounter *this);
+static int StructCounter_required(StructCounter *this, int value);
+static int useCounter(ICounter **counter);
+static int BasicCounter_ICounter_required(ICounter **ctx, int value);
+static int CustomCounter_ICounter_optional(ICounter **ctx, int value);
+static int CustomCounter_ICounter_getValue(ICounter **ctx, int value);
+static int CustomCounter_ICounter_required(ICounter **ctx, int value);
+static int StructCounter_ICounter_required(ICounter **ctx, int value);
+static const ICounter BasicCounter_ICounter__storage;
+static const ICounter *BasicCounter_ICounter;
+static const ICounter CustomCounter_ICounter__storage;
+static const ICounter *CustomCounter_ICounter;
+static const ICounter StructCounter_ICounter__storage;
+static const ICounter *StructCounter_ICounter;
+
+static const ICounter BasicCounter_ICounter__storage = { .optional = NULL, .getValue = ICounter_defaultGetValue, .required = BasicCounter_ICounter_required };
+static const ICounter *BasicCounter_ICounter = &BasicCounter_ICounter__storage;
+static const ICounter CustomCounter_ICounter__storage = { .optional = CustomCounter_ICounter_optional, .getValue = CustomCounter_ICounter_getValue, .required = CustomCounter_ICounter_required };
+static const ICounter *CustomCounter_ICounter = &CustomCounter_ICounter__storage;
+static const ICounter StructCounter_ICounter__storage = { .optional = NULL, .getValue = ICounter_defaultGetValue, .required = StructCounter_ICounter_required };
+static const ICounter *StructCounter_ICounter = &StructCounter_ICounter__storage;
+static int ICounter_defaultGetValue(ICounter **this, int value)
+{
+	return (value + 10);
+}
+
+static int BasicCounter_required(BasicCounter *this, int value)
+{
+	return value;
+}
+
+static void BasicCounter_op_initnew(BasicCounter *this)
+{
+	this->_vt_ICounter = BasicCounter_ICounter;
+}
+
+static int CustomCounter_optional(CustomCounter *this, int value)
+{
+	return (value + 1);
+}
+
+static int CustomCounter_getValue(CustomCounter *this, int value)
+{
+	return (value + 20);
+}
+
+static int CustomCounter_required(CustomCounter *this, int value)
+{
+	return value;
+}
+
+static void CustomCounter_op_initnew(CustomCounter *this)
+{
+	this->_vt_ICounter = CustomCounter_ICounter;
+}
+
+static int StructCounter_required(StructCounter *this, int value)
+{
+	return value;
+}
+
+static int useCounter(ICounter **counter)
+{
+	int result = (*counter)->getValue(counter, 1);
+	if (((*counter)->optional != NULL))
+	{
+		result += (*counter)->optional(counter, 2);
+	}
+	return (result + (*counter)->required(counter, 3));
+}
+
+int main(void)
+{
+	return 0;
+}
+
+static int BasicCounter_ICounter_required(ICounter **ctx, int value)
+{
+	BasicCounter *instance = (BasicCounter *)(((uint8_t *)(ctx) - offsetof(BasicCounter, _vt_ICounter)));
+	return BasicCounter_required(instance, value);
+}
+
+static int CustomCounter_ICounter_optional(ICounter **ctx, int value)
+{
+	CustomCounter *instance = (CustomCounter *)(((uint8_t *)(ctx) - offsetof(CustomCounter, _vt_ICounter)));
+	return CustomCounter_optional(instance, value);
+}
+
+static int CustomCounter_ICounter_getValue(ICounter **ctx, int value)
+{
+	CustomCounter *instance = (CustomCounter *)(((uint8_t *)(ctx) - offsetof(CustomCounter, _vt_ICounter)));
+	return CustomCounter_getValue(instance, value);
+}
+
+static int CustomCounter_ICounter_required(ICounter **ctx, int value)
+{
+	CustomCounter *instance = (CustomCounter *)(((uint8_t *)(ctx) - offsetof(CustomCounter, _vt_ICounter)));
+	return CustomCounter_required(instance, value);
+}
+
+static int StructCounter_ICounter_required(ICounter **ctx, int value)
+{
+	ICounter_Indirect *indirect = (ICounter_Indirect *)(ctx);
+	StructCounter *instance = indirect->ctx;
+	return StructCounter_required(instance, value);
+}
+
+// file: default_interface_methods.h
+#ifndef DEFAULT_INTERFACE_METHODS_H_
+#define DEFAULT_INTERFACE_METHODS_H_
+
+#include "default_interface_methods_private.h"
+
+typedef int (* fn_int_ICounterPtrPtr__int_)(ICounter **arg0, int arg1);
+int main(void);
+
+#endif
+// file: default_interface_methods_private.h
+#ifndef DEFAULT_INTERFACE_METHODS_PRIVATE_H_
+#define DEFAULT_INTERFACE_METHODS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct ICounter ICounter;
+typedef struct BasicCounter BasicCounter;
+typedef struct CustomCounter CustomCounter;
+typedef struct StructCounter StructCounter;
+typedef struct ICounter_Indirect ICounter_Indirect;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Callable typedefs. */
+typedef int (* fn_int_ICounterPtrPtr__int_)(ICounter **arg0, int arg1);
+
+/* Layouts. */
+struct ICounter
+{
+	int (* optional)(ICounter **ctx, int value);
+	int (* getValue)(ICounter **ctx, int value);
+	int (* required)(ICounter **ctx, int value);
+};
+struct BasicCounter
+{
+	const ICounter *_vt_ICounter;
+};
+struct CustomCounter
+{
+	const ICounter *_vt_ICounter;
+};
+struct StructCounter
+{
+	char _camp_empty;
+};
+struct ICounter_Indirect
+{
+	const ICounter *_vt;
+	void *ctx;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: default_interface_methods.c

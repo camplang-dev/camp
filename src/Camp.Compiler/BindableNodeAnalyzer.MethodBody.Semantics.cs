@@ -120,7 +120,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == "#NULL" && TryParseTypeShape(target, out TypeShape nullTarget) && (nullTarget.IsPointer || nullTarget.IsOptional))
 			return true;
 
-		if (source == "#NULL" && TryGetCallableShape(target, out CallableShape nullCallableTarget) && nullCallableTarget.Kind == "fn")
+		if (source == "#NULL" && TryGetCallableShape(target, out _))
 			return true;
 
 		if (source == "#NULL" && IsPrimitiveStringType(target))

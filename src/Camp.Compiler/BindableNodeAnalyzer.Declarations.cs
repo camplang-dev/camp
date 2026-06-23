@@ -35,6 +35,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeGlobalInitializers(module);
 		ValidateDuplicateTopLevelSymbols(module);
 		AnalyzeInheritance();
+		AnalyzeInterfaceSlotInitializers(module);
 		AnalyzeImplementations();
 		AnalyzeExportVisibility(module);
 	}

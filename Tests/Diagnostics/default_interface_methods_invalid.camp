@@ -1,0 +1,20 @@
+interface IRequired
+{
+	int required(int value);
+	int optional(int value) = null;
+}
+
+class MissingRequired: IRequired
+{
+}
+
+int wrongDefault(int value)
+{
+	return value;
+}
+
+interface IWrongDefault
+{
+	int value(int value) = wrongDefault;
+	int invalidExpression(int value) = wrongDefault(1);
+}

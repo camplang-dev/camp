@@ -1,0 +1,7 @@
+export interface ICounter
+{
+	int optional(int value) = null;
+
+	int getValue(int value) = defaultGetValue;
+}
+export extern int defaultGetValue(ICounter* this, int value);

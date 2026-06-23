@@ -492,6 +492,11 @@ public sealed class BindableNodeCodeSerializer
 			writer.Write(" : ");
 			WriteType(definition.CallableAscriptionType);
 		}
+		if (definition.InterfaceSlotInitializer is not null)
+		{
+			writer.Write(" = ");
+			WriteExpression(definition.InterfaceSlotInitializer);
+		}
 
 		if (definition.Body is null || apiHeader && definition.Export is not null)
 		{

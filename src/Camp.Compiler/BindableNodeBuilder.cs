@@ -655,7 +655,7 @@ public sealed partial class BindableNodeBuilder
 		bool isInterface = false,
 		bool allowBodylessWithoutExtern = false)
 	{
-		if (syntax.Assignment is not null)
+		if (syntax.Assignment is not null && !isInterface)
 			Report(syntax.Assignment, "Methods may not have variable-style initializers.");
 
 		bool isDestructor = syntax.TildeToken is not null;
@@ -701,6 +701,9 @@ public sealed partial class BindableNodeBuilder
 		if (syntax.CallableAscriptionType is not null)
 			definition.CallableAscriptionType = BuildTypeReference(syntax.CallableAscriptionType, allowIteratorStorage: true);
 
+		if (isInterface && syntax.Assignment is not null)
+			definition.InterfaceSlotInitializer = BuildExpression(syntax.Assignment.Expression, "Interface method vtable initializer");
+
 		if (syntax.ParameterList is null)
 			Report(syntax, "Method declaration is missing a parameter list.");
 		else
@@ -712,9 +715,9 @@ public sealed partial class BindableNodeBuilder
 		if (isLifecycleMember)
 			ValidateLifecycleMember(definition, syntax, containingTypeName, isInterface, isConstructor);
 
-		if (syntax.SemicolonToken is not null)
+		if (syntax.SemicolonToken is not null || syntax.Assignment is not null)
 		{
-			if (definition.Extern is null && definition.Modifier != FunctionModifier.Abstract && !allowBodylessWithoutExtern)
+			if (syntax.SemicolonToken is not null && definition.Extern is null && definition.Modifier != FunctionModifier.Abstract && !allowBodylessWithoutExtern)
 				Report(syntax.SemicolonToken.Value.Range, "Method declarations without a body must be extern.");
 		}
 		else if (syntax.MethodBody is null)
@@ -882,8 +885,11 @@ public sealed partial class BindableNodeBuilder
 		if (definition is null)
 			return null;
 
-		if (syntax.SemicolonToken is null)
+		if (syntax.SemicolonToken is null && syntax.Assignment is null)
 			Report((SyntaxNode?)syntax.MethodBody ?? syntax, "Interface methods may not have bodies.");
+
+		if (definition.InterfaceSlotInitializer is not null && definition.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor)
+			Report((SyntaxNode?)syntax.Assignment ?? syntax, "Interface constructors and destructors may not declare vtable initializers.");
 
 		if (definition.Modifier == FunctionModifier.Static)
 			Report(syntax, "Interface methods may not be static.");

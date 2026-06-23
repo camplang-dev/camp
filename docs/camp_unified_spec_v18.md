@@ -4340,18 +4340,45 @@ class ExtraCalculator: ICalculator
 
 Camp does not infer implementation merely because method names and signatures happen to line up.
 
-### 2.4.8 Every declared interface entry is required in v1
+### 2.4.8 Required, optional, and defaulted interface entries
 
-Camp keeps the v1 interface model simple: every declared entry is required.
+An interface method without an initializer is required. A type that implements
+the interface must declare a matching member in the type body, unless an
+inherited implementation already satisfies the ordinary interface rules.
 
-That means:
+An ordinary interface method may also declare a vtable initializer after its
+signature:
 
-- missing required members in the type body are a compile error
-- conformance does not silently fill in null entries
-- inherited interface entries remain required
-- constructor and destructor entries, when declared, are also required
+```camp
+interface IThing
+{
+	int required(int value);
+	int optional(int value) = null;
+	int alsoOptional(int value) = default;
+	int getValue(int value) = getValueDefault;
+}
 
-Optional-entry designs were considered, but v1 does not use them.
+int getValueDefault(IThing* this, int value)
+{
+	return value;
+}
+```
+
+`= null` and `= default` make the slot optional. The slot still exists in the
+interface vtable, but an implementing type may omit the method; its generated
+vtable stores a null function pointer for that slot. Camp does not insert null
+checks when calling optional slots. Code that calls one should check the slot
+first when null is possible.
+
+`= functionName` makes the slot defaulted. The target must be a compile-time
+function reference to a free function, out-of-scope receiver function, or static
+method. It must match the source-level slot type exactly: for
+`interface I { R m(P); }`, the default target has the callable shape
+`fn R(I* this, P)`. If an implementing type declares a matching method, that
+implementation overrides the default target.
+
+Constructors and destructors remain required when declared. Interface vtable
+initializers are valid only on ordinary interface methods.
 
 ### 2.4.9 Lifetime annotations are part of interface method contracts
 

@@ -333,6 +333,7 @@ public static class MetadataJsonSerializer
 			WriteTypeProperty(json, "returnType", function.ReturnType, function.ResolvedType);
 			if (function.CallableAscriptionType is not null)
 				WriteTypeProperty(json, "ascription", function.CallableAscriptionType, function.CallableAscriptionType.ResolvedType);
+			WriteInterfaceSlotInitializer(json, function);
 			WritePropertyInfo(json, function);
 			if (function.GenericParameters.Count > 0)
 			{
@@ -342,6 +343,30 @@ public static class MetadataJsonSerializer
 				json.WriteEndArray();
 			}
 			WriteDefinitionArray(json, "parameters", function.Parameters, includeKind: false, includeVisibility: false);
+		}
+
+		void WriteInterfaceSlotInitializer(Utf8JsonWriter json, FunctionDefinition function)
+		{
+			if (function.InterfaceSlotInitializer is null)
+				return;
+
+			json.WriteStartObject("interfaceSlotInitializer");
+			string kind = function.InterfaceSlotInitializerKind switch
+			{
+				InterfaceSlotInitializerKind.Null => "null",
+				InterfaceSlotInitializerKind.Function => "function",
+				_ => "unresolved"
+			};
+			json.WriteString("kind", kind);
+			json.WriteString("source", SerializeExpression(function.InterfaceSlotInitializer));
+			if (function.InterfaceSlotInitializerTarget is FunctionDefinition target)
+			{
+				json.WriteString("target", target.Name);
+				if (!IsSameSymbol(target))
+					json.WriteString("targetSymbol", target.Symbol);
+				WriteReference(json, "targetRef", target);
+			}
+			json.WriteEndObject();
 		}
 
 		void WriteParameter(Utf8JsonWriter json, ParameterDefinition parameter)

@@ -193,10 +193,140 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (FunctionDefinition member in GetInterfaceMembers(interfaceDefinition))
 		{
+			if (member.InterfaceSlotInitializer is not null)
+				continue;
+
 			MethodSignature required = BuildMethodSignature(member);
 			if (!ContainsSignature(available, required))
 				Report(GetNameRange(implementation), $"Type '{implementation.Name}' does not implement interface member '{interfaceDefinition.Name}.{required.DisplayName}'.");
 		}
+	}
+
+	void AnalyzeInterfaceSlotInitializers(Module module)
+	{
+		foreach (Definition definition in module.Definitions)
+		{
+			if (definition is not InterfaceDefinition interfaceDefinition)
+				continue;
+
+			foreach (FunctionDefinition member in interfaceDefinition.Functions)
+				AnalyzeInterfaceSlotInitializer(module, interfaceDefinition, member);
+		}
+	}
+
+	void AnalyzeInterfaceSlotInitializer(Module module, InterfaceDefinition interfaceDefinition, FunctionDefinition member)
+	{
+		Expression? initializer = member.InterfaceSlotInitializer;
+		if (initializer is null)
+			return;
+
+		if (member.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor)
+		{
+			Report(GetRange(initializer.SourceSyntax), "Interface constructors and destructors may not declare vtable initializers.");
+			return;
+		}
+
+		if (IsNullInterfaceSlotInitializer(initializer))
+		{
+			member.InterfaceSlotInitializerKind = InterfaceSlotInitializerKind.Null;
+			initializer.ResolvedType = BuildInterfaceSourceSlotCallableType(interfaceDefinition, member);
+			return;
+		}
+
+		List<FunctionDefinition> candidates = ResolveInterfaceSlotInitializerCandidates(module, initializer);
+		if (candidates.Count == 0)
+		{
+			Report(GetRange(initializer.SourceSyntax), "Interface method vtable initializer must be null, default, a free function, or a static method.");
+			return;
+		}
+		if (candidates.Count > 1)
+		{
+			Report(GetRange(initializer.SourceSyntax), "Interface method vtable initializer is ambiguous.");
+			return;
+		}
+
+		FunctionDefinition target = candidates[0];
+		string expectedType = BuildInterfaceSourceSlotCallableType(interfaceDefinition, member);
+		string actualType = BuildFunctionValueType(target, isInstance: false);
+		if (!TryGetCallableShape(expectedType, out CallableShape expected)
+			|| !TryGetCallableShape(actualType, out CallableShape actual)
+			|| !CallableShapesCompatible(actual, expected))
+		{
+			Report(GetRange(initializer.SourceSyntax), $"Interface method initializer for '{interfaceDefinition.Name}.{GetCallableName(member)}' must match slot type '{expectedType}'.");
+			return;
+		}
+
+		member.InterfaceSlotInitializerKind = InterfaceSlotInitializerKind.Function;
+		member.InterfaceSlotInitializerTarget = target;
+		initializer.ResolvedType = expectedType;
+	}
+
+	static bool IsNullInterfaceSlotInitializer(Expression initializer)
+	{
+		return initializer is LiteralExpression { Kind: LiteralKind.Null }
+			|| initializer is DefaultExpression;
+	}
+
+	List<FunctionDefinition> ResolveInterfaceSlotInitializerCandidates(Module module, Expression initializer)
+	{
+		return initializer switch
+		{
+			NamedExpression named => ResolveInterfaceSlotFunctionCandidates(module, named.Name),
+			MemberExpression { Target: NamedExpression targetType } member => ResolveInterfaceSlotStaticMethodCandidates(targetType.Name, member.Name),
+			_ => []
+		};
+	}
+
+	List<FunctionDefinition> ResolveInterfaceSlotFunctionCandidates(Module module, string name)
+	{
+		List<FunctionDefinition> candidates = [];
+		foreach (Definition definition in module.Definitions)
+		{
+			if (definition is FunctionDefinition function && InterfaceSlotFunctionNameMatches(function, name))
+				candidates.Add(function);
+		}
+		return candidates;
+	}
+
+	List<FunctionDefinition> ResolveInterfaceSlotStaticMethodCandidates(string typeName, string methodName)
+	{
+		if (!typeDefinitions.TryGetValue(typeName, out TypeDefinition? typeDefinition))
+			return [];
+
+		List<FunctionDefinition> candidates = [];
+		foreach (FunctionDefinition function in GetTypeFunctions(typeDefinition))
+		{
+			if (function.Modifier == FunctionModifier.Static && InterfaceSlotFunctionNameMatches(function, methodName))
+				candidates.Add(function);
+		}
+		return candidates;
+	}
+
+	static bool InterfaceSlotFunctionNameMatches(FunctionDefinition function, string name)
+	{
+		return function.Name == name
+			|| function.Symbol == name
+			|| GetCallableName(function) == name;
+	}
+
+	static string BuildInterfaceSourceSlotCallableType(InterfaceDefinition owner, FunctionDefinition member)
+	{
+		List<string> parameters = [];
+		parameters.Add($"{owner.Name}*");
+		foreach (ParameterDefinition parameter in member.Parameters)
+		{
+			if (parameter is ThisParameterDefinition)
+				continue;
+			parameters.Add(parameter.Modifier switch
+			{
+				ParameterModifier.In => "in " + (parameter.ResolvedType ?? ErrorType),
+				ParameterModifier.Out => "out " + (parameter.ResolvedType ?? ErrorType),
+				ParameterModifier.Thrown => "thrown " + (parameter.ResolvedType ?? ErrorType),
+				ParameterModifier.Within => "within " + (parameter.ResolvedType ?? ErrorType),
+				_ => parameter.ResolvedType ?? ErrorType
+			});
+		}
+		return $"fn {member.ResolvedType ?? ErrorType}({string.Join(", ", parameters)})";
 	}
 
 	bool InterfaceRequiresConstructor(InterfaceDefinition definition)

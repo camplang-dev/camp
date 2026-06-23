@@ -2091,7 +2091,7 @@ public static class CCodeEmitter
 				NameOfExpression => UnsupportedExpression(expression),
 				CallExpression call => FormatCallExpression(call),
 				IndexExpression index => FormatIndexExpression(index),
-				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatExpression(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
+				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatInterfaceSlotMember(member.Target, member.Name) ?? FormatExpression(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
 				MemberReferenceExpression member => FormatMemberReference(member),
 				UnaryExpression unary => FormatUnaryExpression(unary),
 				PostfixUpdateExpression postfix => FormatExpression(postfix.Expression) + FormatUpdateOperator(postfix.Operator),
@@ -3391,6 +3391,11 @@ public static class CCodeEmitter
 		{
 			if (member.Member is FunctionDefinition function && (member.Target is null || containingTypes.TryGetValue(function, out TypeDefinition? owner) && owner is not InterfaceDefinition))
 				return CName(function);
+			if (member.Member is FunctionDefinition interfaceFunction
+				&& member.Target is not null
+				&& containingTypes.TryGetValue(interfaceFunction, out TypeDefinition? interfaceOwner)
+				&& interfaceOwner is InterfaceDefinition)
+				return "(*" + FormatExpression(member.Target) + ")->" + SanitizeIdentifier(BindableNodeAnalyzer.GetCallableName(interfaceFunction));
 			if (member.Member is VariableDefinition variable)
 				return CName(variable);
 			if (member.Member is FieldDefinition field)
@@ -3403,11 +3408,33 @@ public static class CCodeEmitter
 			string? expandedThisComponent = FormatExpandedThisComponent(member.Target, member.Name);
 			if (expandedThisComponent is not null)
 				return expandedThisComponent;
+			string? interfaceSlotMember = FormatInterfaceSlotMember(member.Target, member.Name);
+			if (interfaceSlotMember is not null)
+				return interfaceSlotMember;
 			string target = FormatExpression(member.Target);
 			if (member.Target is UnaryExpression { Operator: UnaryOperator.PointerDereference })
 				target = "(" + target + ")";
 			string separator = IsPointerMemberTarget(member.Target) ? "->" : ".";
 			return target + separator + SanitizeIdentifier(member.Name);
+		}
+
+		string? FormatInterfaceSlotMember(Expression? target, string name)
+		{
+			if (target is null)
+				return null;
+			string targetType = target.ResolvedType ?? "";
+			if (string.IsNullOrWhiteSpace(targetType) || !targetType.EndsWith("**", StringComparison.Ordinal))
+				return null;
+
+			string interfaceName = targetType[..^2].Trim();
+			foreach (Definition definition in GetDefinitions())
+			{
+				if (definition is StructDefinition interfaceStruct
+					&& interfaceStruct.Name == interfaceName
+					&& HasField(interfaceStruct, name))
+					return "(*" + FormatExpression(target) + ")->" + SanitizeIdentifier(name);
+			}
+			return null;
 		}
 
 		static bool IsPointerMemberTarget(Expression? target)

@@ -1,0 +1,58 @@
+interface ICounter
+{
+	int optional(int value) = null;
+	int getValue(int value) = defaultGetValue;
+	int required(int value);
+}
+
+int defaultGetValue(ICounter* this, int value)
+{
+	return value + 10;
+}
+
+class BasicCounter: ICounter
+{
+	int required(int value)
+	{
+		return value;
+	}
+}
+
+class CustomCounter: ICounter
+{
+	int optional(int value)
+	{
+		return value + 1;
+	}
+
+	int getValue(int value)
+	{
+		return value + 20;
+	}
+
+	int required(int value)
+	{
+		return value;
+	}
+}
+
+struct StructCounter: ICounter
+{
+	int required(int value)
+	{
+		return value;
+	}
+}
+
+int useCounter(ICounter* counter)
+{
+	int result = counter.getValue(1);
+	if (counter.optional != null)
+		result += counter.optional(2);
+	return result + counter.required(3);
+}
+
+export int main()
+{
+	return 0;
+}

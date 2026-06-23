@@ -462,6 +462,8 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if (lowering.DirectEntries)
 					continue;
+				if (member.InterfaceSlotInitializer is not null && FindImplementationMethod(lowering.Type, member) is null)
+					continue;
 
 				FunctionDefinition thunk = CreateInterfaceThunkDeclaration(lowering, implementedInterface, member);
 				module.Definitions.Add(thunk);
@@ -880,7 +882,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression CreateInterfaceVTableEntryReference(InterfaceImplementationLowering lowering, InterfaceDefinition interfaceDefinition, FunctionDefinition member)
 	{
-		if (lowering.DirectEntries && FindImplementationMethod(lowering.Type, member) is FunctionDefinition implementation)
+		FunctionDefinition? implementation = FindImplementationMethod(lowering.Type, member);
+		if (lowering.DirectEntries && implementation is not null)
 		{
 			EnsureImplementationMethodSymbol(lowering.Type, implementation);
 			MethodReferenceExpression reference = new()
@@ -889,6 +892,29 @@ public sealed partial class BindableNodeAnalyzer
 			};
 			reference.Candidates.Add(implementation);
 			return reference;
+		}
+
+		if (implementation is null && member.InterfaceSlotInitializer is not null)
+		{
+			if (member.InterfaceSlotInitializerKind == InterfaceSlotInitializerKind.Null)
+			{
+				return new LiteralExpression
+				{
+					Kind = LiteralKind.Null,
+					Text = "null",
+					ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
+				};
+			}
+
+			if (member.InterfaceSlotInitializerKind == InterfaceSlotInitializerKind.Function && member.InterfaceSlotInitializerTarget is not null)
+			{
+				MethodReferenceExpression reference = new()
+				{
+					ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
+				};
+				reference.Candidates.Add(member.InterfaceSlotInitializerTarget);
+				return reference;
+			}
 		}
 
 		MethodReferenceExpression thunk = new()

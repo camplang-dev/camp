@@ -68,7 +68,7 @@ public static class CompilerXmlSerializer
 			}
 			else if (value is BindableNode childNode)
 				element.Add(SerializeBindableNode(childNode, property.Name));
-			else if ((property.Name == "Modifier" || property.Name == "IteratorKind") && IsDefaultEnumValue(value))
+			else if ((property.Name == "Modifier" || property.Name == "IteratorKind" || property.Name == "InterfaceSlotInitializerKind") && IsDefaultEnumValue(value))
 				continue;
 			else if (value is false)
 				continue;
