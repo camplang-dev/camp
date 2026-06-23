@@ -16,6 +16,7 @@ static Box *Box_create(void)
 	Box *_created0 = (Box *)(malloc(sizeof(Box)));
 	if ((_created0 != NULL))
 	{
+		*_created0 = (Box){0};
 		Box_op_initnew(_created0);
 	}
 	return _created0;
@@ -26,6 +27,7 @@ static int main(void)
 	Box *box = (Box *)(malloc(sizeof(Box)));
 	if ((box != NULL))
 	{
+		*box = (Box){0};
 		Box_op_initnew(box);
 	}
 	return ((box != NULL) ? 0 : 1);

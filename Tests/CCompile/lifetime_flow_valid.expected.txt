@@ -28,6 +28,10 @@ static char *trusted(void *owner, char *ptr, uintptr_t length, uintptr_t *result
 int main(void)
 {
 	Widget *ptr = (Widget *)(malloc(sizeof(Widget)));
+	if ((ptr != NULL))
+	{
+		*ptr = (Widget){0};
+	}
 	free((void *)(ptr));
 	return 0;
 }

@@ -1,0 +1,63 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+void use(Escapes* value)
+{
+}
+
+struct MissingField
+{
+	int x;
+	int y;
+
+	MissingField()
+	{
+		this.x = 1;
+	}
+}
+
+struct Escapes
+{
+	int x;
+	int y;
+
+	Escapes()
+	{
+		this.x = 1;
+		use(this);
+		this.y = 2;
+	}
+}
+
+struct CallsMethod
+{
+	int x;
+	int y;
+
+	CallsMethod()
+	{
+		this.x = 1;
+		this.validate();
+		this.y = 2;
+	}
+
+	void validate()
+	{
+	}
+}
+
+struct WholeAssignment
+{
+	int x;
+	int y;
+
+	WholeAssignment(int value)
+	{
+		*this = { .x = value };
+		this.validate();
+	}
+
+	void validate()
+	{
+	}
+}

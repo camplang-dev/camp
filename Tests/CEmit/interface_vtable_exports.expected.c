@@ -26,6 +26,7 @@ Widget *Widget_create(void)
 	Widget *_created0 = (Widget *)(malloc(sizeof(Widget)));
 	if ((_created0 != NULL))
 	{
+		*_created0 = (Widget){0};
 		Widget_op_initnew(_created0);
 	}
 	return _created0;

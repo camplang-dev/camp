@@ -976,34 +976,25 @@ public sealed partial class BindableNodeAnalyzer
 		statements.Add(declaration);
 
 		Expression target = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? $"{typeName}*");
+		BlockStatement guardBody = new() { ResolvedType = "void" };
+		if (definition is ClassDefinition)
+			guardBody.Statements.Add(CreateZeroAllocatedInstanceStatement(target, construction.Type ?? TypeReferenceFor(definition), definition.Name, construction.SourceSyntax ?? declaration.SourceSyntax));
 		if (CreateVirtualTableAssignment(target, definition) is Expression vtableAssignment)
-		{
-			statements.Add(new ExpressionStatement
+			guardBody.Statements.Add(new ExpressionStatement
 			{
 				ResolvedType = "void",
 				Expression = vtableAssignment
 			});
-		}
-		if (initNew is null)
-			return true;
-
-		statements.Add(new IfStatement
-		{
-			SourceSyntax = construction.SourceSyntax,
-			ResolvedType = "void",
-			Condition = new BinaryExpression
-			{
-				Left = target,
-				Operator = BinaryOperator.NotEqual,
-				Right = new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "#NULL" },
-				ResolvedType = "bool"
-			},
-			Body = new ExpressionStatement
+		if (initNew is not null)
+			guardBody.Statements.Add(new ExpressionStatement
 			{
 				ResolvedType = "void",
 				Expression = CreateInitNewCall(target, initNew, construction.Arguments, construction.SourceSyntax, constructedType: construction.Type)
-			}
-		});
+			});
+		if (guardBody.Statements.Count == 0)
+			return true;
+
+		statements.Add(CreateNotNullGuard(target, guardBody, construction.SourceSyntax));
 		return true;
 	}
 

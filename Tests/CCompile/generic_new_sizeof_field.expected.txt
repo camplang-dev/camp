@@ -11,7 +11,13 @@ static Box *Box_create(uintptr_t sizeof_T);
 static Box *Box_copy(Box *this)
 {
 	Box *_created1;
-	return (_created1 = (Box *)(malloc(sizeof(Box))), Box_op_initnew(_created1, this->_sizeof_T), _created1);
+	_created1 = (Box *)(malloc(sizeof(Box)));
+	if ((_created1 != NULL))
+	{
+		*_created1 = (Box){0};
+		Box_op_initnew(_created1, this->_sizeof_T);
+	}
+	return _created1;
 }
 
 static void Box_op_initnew(Box *this, uintptr_t sizeof_T)
@@ -24,6 +30,7 @@ static Box *Box_create(uintptr_t sizeof_T)
 	Box *_created0 = (Box *)(malloc(sizeof(Box)));
 	if ((_created0 != NULL))
 	{
+		*_created0 = (Box){0};
 		Box_op_initnew(_created0, sizeof_T);
 	}
 	return _created0;

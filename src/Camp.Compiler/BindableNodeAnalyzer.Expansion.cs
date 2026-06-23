@@ -1507,6 +1507,14 @@ public sealed partial class BindableNodeAnalyzer
 			: CreateVariableReference(resolvedAllocatorLocal.Target, resolvedAllocatorLocal.Target.ResolvedType ?? allocatorParameter?.ResolvedType ?? "Allocator*");
 		DeclarationStatement local = CreateGeneratedLocal(localName, $"{type.Name}*", PointerTo(CloneType(typeReference)!), CreateAllocCall(typeReference, allocationAllocator, method.SourceSyntax));
 		body.Statements.Add(local);
+		BlockStatement guardBody = new() { ResolvedType = "void" };
+		if (type is ClassDefinition)
+			guardBody.Statements.Add(CreateZeroAllocatedInstanceStatement(CreateVariableReference(local.Target, $"{type.Name}*"), typeReference, type.Name, method.SourceSyntax));
+		guardBody.Statements.Add(new ExpressionStatement
+		{
+			ResolvedType = "void",
+			Expression = CreateInitNewCall(CreateVariableReference(local.Target, $"{type.Name}*"), initNew, method.ArgumentsFromParameters(skipAllocator: !HasWithinParameter(initNew)), method.SourceSyntax, allocatorParameter is null ? null : CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*"))
+		});
 		IfStatement guard = new()
 		{
 			ResolvedType = "void",
@@ -1517,11 +1525,7 @@ public sealed partial class BindableNodeAnalyzer
 				Right = new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "#NULL" },
 				ResolvedType = "bool"
 			},
-			Body = new ExpressionStatement
-			{
-				ResolvedType = "void",
-				Expression = CreateInitNewCall(CreateVariableReference(local.Target, $"{type.Name}*"), initNew, method.ArgumentsFromParameters(skipAllocator: !HasWithinParameter(initNew)), method.SourceSyntax, allocatorParameter is null ? null : CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*"))
-			}
+			Body = guardBody
 		};
 		body.Statements.Add(guard);
 		body.Statements.Add(new ReturnStatement

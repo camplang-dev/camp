@@ -27,6 +27,10 @@ void main()
 	first(&s);
 	second(&s, 1);
 	ClassThing* c = (ClassThing*)malloc(sizeof(ClassThing));
+	if (c != null)
+	{
+		*c = default(ClassThing);
+	}
 	first(c);
 	second(c, 2);
 }

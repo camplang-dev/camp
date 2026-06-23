@@ -108,25 +108,29 @@
                   <Left Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" SlotLifetimeFact="scoped(#created0):slot" ValueLifetimeFact="escaped:call" />
                   <Right Type="LiteralExpression" Kind="Null" Text="null" ResolvedType="#NULL" ValueLifetimeFact="null" />
                 </Condition>
-                <Body Type="ExpressionStatement" ResolvedType="void">
-                  <Expression Type="CallExpression" ResolvedType="void">
-                    <Target Type="MethodReferenceExpression" ResolvedType="fn void(View*, unscoped const char*, nuint)">
-                      <Candidates>
-                        <Function Name="op_initnew" ResolvedType="void" />
-                      </Candidates>
-                    </Target>
-                    <Arguments>
-                      <ArgumentExpression ResolvedType="View*">
-                        <Value Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" />
-                      </ArgumentExpression>
-                      <ArgumentExpression ResolvedType="unscoped const char*">
-                        <Value Type="VariableReferenceExpression" Variable="text" ResolvedType="unscoped const char*" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
-                      </ArgumentExpression>
-                      <ArgumentExpression ResolvedType="nuint">
-                        <Value Type="VariableReferenceExpression" Variable="text_length" ResolvedType="nuint" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
-                      </ArgumentExpression>
-                    </Arguments>
-                  </Expression>
+                <Body Type="BlockStatement" ResolvedType="void">
+                  <Statements>
+                    <ExpressionStatement ResolvedType="void">
+                      <Expression Type="CallExpression" ResolvedType="void">
+                        <Target Type="MethodReferenceExpression" ResolvedType="fn void(View*, unscoped const char*, nuint)">
+                          <Candidates>
+                            <Function Name="op_initnew" ResolvedType="void" />
+                          </Candidates>
+                        </Target>
+                        <Arguments>
+                          <ArgumentExpression ResolvedType="View*">
+                            <Value Type="VariableReferenceExpression" Variable="#created0" ResolvedType="View*" />
+                          </ArgumentExpression>
+                          <ArgumentExpression ResolvedType="unscoped const char*">
+                            <Value Type="VariableReferenceExpression" Variable="text" ResolvedType="unscoped const char*" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+                          </ArgumentExpression>
+                          <ArgumentExpression ResolvedType="nuint">
+                            <Value Type="VariableReferenceExpression" Variable="text_length" ResolvedType="nuint" SlotLifetimeFact="unscoped:explicit" ValueLifetimeFact="unscoped:explicit" />
+                          </ArgumentExpression>
+                        </Arguments>
+                      </Expression>
+                    </ExpressionStatement>
+                  </Statements>
                 </Body>
               </IfStatement>
               <ReturnStatement ResolvedType="void">
@@ -207,6 +211,26 @@
               </Expression>
             </InitialValue>
           </DeclarationStatement>
+          <IfStatement ResolvedType="void">
+            <Condition Type="BinaryExpression" Operator="NotEqual" ResolvedType="bool">
+              <Left Type="VariableReferenceExpression" Variable="box" ResolvedType="Box*" SlotLifetimeFact="scoped(box):slot" ValueLifetimeFact="escaped:new" />
+              <Right Type="LiteralExpression" Kind="Null" Text="null" ResolvedType="#NULL" />
+            </Condition>
+            <Body Type="BlockStatement" ResolvedType="void">
+              <Statements>
+                <ExpressionStatement ResolvedType="void">
+                  <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="Box">
+                    <Target Type="UnaryExpression" Operator="PointerDereference" ResolvedType="Box">
+                      <Operand Type="VariableReferenceExpression" Variable="box" ResolvedType="Box*" SlotLifetimeFact="scoped(box):slot" ValueLifetimeFact="escaped:new" />
+                    </Target>
+                    <Value Type="DefaultExpression" ResolvedType="Box">
+                      <Type Type="TypeDefinitionReference" Name="Box" Definition="Box" ResolvedType="Box" />
+                    </Value>
+                  </Expression>
+                </ExpressionStatement>
+              </Statements>
+            </Body>
+          </IfStatement>
         </Statements>
       </Body>
     </FunctionDefinition>

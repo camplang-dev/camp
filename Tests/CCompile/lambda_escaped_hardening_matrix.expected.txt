@@ -119,6 +119,10 @@ int main(void)
 	total = (total + (int)(length(length_context)));
 	free((void *)(length_context));
 	Box *box = (Box *)(malloc(sizeof(Box)));
+	if ((box != NULL))
+	{
+		*box = (Box){0};
+	}
 	box->value = 20;
 	total = (total + invoke((fn_int_voidPtr__int_)Box_add, (Box *)(box), 2));
 	free((void *)(box));

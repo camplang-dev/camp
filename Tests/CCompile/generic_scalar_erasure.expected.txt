@@ -34,6 +34,7 @@ static List *List_create(void)
 	List *_created0 = (List *)(malloc(sizeof(List)));
 	if ((_created0 != NULL))
 	{
+		*_created0 = (List){0};
 		List_op_initnew(_created0);
 	}
 	return _created0;
@@ -48,6 +49,7 @@ static int main(void)
 	List *numbers = (List *)(malloc(sizeof(List)));
 	if ((numbers != NULL))
 	{
+		*numbers = (List){0};
 		List_op_initnew(numbers);
 	}
 	List_add(numbers, (void *)(intptr_t)(1));

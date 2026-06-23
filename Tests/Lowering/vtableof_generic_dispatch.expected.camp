@@ -33,7 +33,10 @@ void main()
 {
 	Widget* widget = (Widget*)malloc(sizeof(Widget));
 	if (widget != null)
+	{
+		*widget = default(Widget);
 		Widget_op_initnew(widget);
+	}
 	Handle handle = {};
 	retainGeneric<Widget>(widget, Widget_IRef);
 	retainGeneric<Handle>(&handle, Handle_IRef);

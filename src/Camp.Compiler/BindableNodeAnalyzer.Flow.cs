@@ -10,7 +10,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (function.Body is null)
 			return;
 
-		FlowState state = new(function, bodyScope);
+		FlowState state = new(function, bodyScope, GetRequiredStructConstructorFields(function, bodyScope));
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
 			if (string.IsNullOrWhiteSpace(parameter.Name))
@@ -27,8 +27,21 @@ public sealed partial class BindableNodeAnalyzer
 			if (FunctionRequiresReturn(function))
 				Report(GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Function '{function.Name}' does not return a value on all paths.");
 
+			CheckStructConstructorFieldsAssigned(state, function.Body.SourceSyntax ?? function.SourceSyntax, "before constructor exits");
 			CheckOutParametersAssigned(function, state, function.Body.SourceSyntax ?? function.SourceSyntax);
 		}
+	}
+
+	List<FieldDefinition> GetRequiredStructConstructorFields(FunctionDefinition function, BodyScope bodyScope)
+	{
+		if (!IsConstructorLikeFunction(function) || bodyScope.ContainingType is not StructDefinition structDefinition)
+			return [];
+
+		List<FieldDefinition> fields = [];
+		foreach (FieldDefinition field in structDefinition.Fields)
+			if (field.Modifier != FieldModifier.Static)
+				fields.Add(field);
+		return fields;
 	}
 
 	static string InferBlockReturnType(BlockStatement block, string? targetReturnType)
@@ -127,6 +140,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			case ReturnStatement returnStatement:
 				FlowAnalyzeExpression(returnStatement.Expression, state);
+				CheckStructConstructorFieldsAssigned(state, returnStatement.SourceSyntax, "before constructor exits");
 				CheckOutParametersAssigned(state.Function, state, returnStatement.SourceSyntax);
 				state.Reachable = false;
 				break;
@@ -413,6 +427,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		FlowAnalyzeExpression(call.Target, state);
 		FlowAnalyzeArguments(call.Arguments, state);
+		CheckStructConstructorThisEscape(call, state);
 
 		if (!callTargets.TryGetValue(call, out FunctionDefinition? function))
 			return;
@@ -474,12 +489,20 @@ public sealed partial class BindableNodeAnalyzer
 					AssignExpressionTarget(item.Expression, state);
 				break;
 
+			case UnaryExpression { Operator: UnaryOperator.PointerDereference } unary when IsCurrentThisExpression(unary.Operand):
+				state.AssignAllStructFields();
+				break;
+
 			case MemberExpression member:
 				FlowAnalyzeExpression(member.Target, state);
+				if (TryGetCurrentThisStructField(member.Target, member.Name, state, out FieldDefinition? memberField))
+					state.AssignStructField(memberField);
 				break;
 
 			case MemberReferenceExpression member:
 				FlowAnalyzeExpression(member.Target, state);
+				if (member.Member is FieldDefinition field && IsCurrentThisExpression(member.Target))
+					state.AssignStructField(field);
 				break;
 
 			case IndexExpression index:
@@ -510,6 +533,87 @@ public sealed partial class BindableNodeAnalyzer
 			if (!state.IsAssigned(parameter.Name))
 				Report(GetRange(syntax ?? parameter.SourceSyntax), $"Out parameter '{parameter.Name}' must be assigned before returning.");
 		}
+	}
+
+	void CheckStructConstructorThisEscape(CallExpression call, FlowState state)
+	{
+		if (!state.RequiresStructFieldAssignment)
+			return;
+
+		if (IsThisInstanceCall(call.Target) || AnyArgumentPassesCurrentThis(call.Arguments))
+			CheckStructConstructorFieldsAssigned(state, call.SourceSyntax, "before 'this' is passed to another method");
+	}
+
+	bool IsThisInstanceCall(Expression? target)
+	{
+		target = UnwrapFlowExpression(target);
+		return target is MemberReferenceExpression memberReference && IsCurrentThisExpression(memberReference.Target)
+			|| target is MemberExpression member && IsCurrentThisExpression(member.Target);
+	}
+
+	bool AnyArgumentPassesCurrentThis(List<ArgumentExpression> arguments)
+	{
+		foreach (ArgumentExpression argument in arguments)
+			if (ExpressionPassesCurrentThis(argument.Value))
+				return true;
+		return false;
+	}
+
+	bool ExpressionPassesCurrentThis(Expression? expression)
+	{
+		expression = UnwrapFlowExpression(expression);
+		if (IsCurrentThisExpression(expression))
+			return true;
+
+		return expression is UnaryExpression { Operator: UnaryOperator.AddressOf or UnaryOperator.PointerDereference } unary
+			&& IsCurrentThisExpression(unary.Operand);
+	}
+
+	bool TryGetCurrentThisStructField(Expression? target, string name, FlowState state, out FieldDefinition field)
+	{
+		field = null!;
+		if (!IsCurrentThisExpression(target) || state.BodyScope.ContainingType is not StructDefinition structDefinition)
+			return false;
+
+		foreach (FieldDefinition candidate in structDefinition.Fields)
+		{
+			if (candidate.Modifier == FieldModifier.Static || candidate.Name != name)
+				continue;
+			field = candidate;
+			return true;
+		}
+		return false;
+	}
+
+	static Expression? UnwrapFlowExpression(Expression? expression)
+	{
+		while (true)
+		{
+			switch (expression)
+			{
+				case ParenthesizedExpression parenthesized:
+					expression = parenthesized.Expression;
+					continue;
+				case CastExpression cast:
+					expression = cast.Expression;
+					continue;
+				default:
+					return expression;
+			}
+		}
+	}
+
+	static bool IsCurrentThisExpression(Expression? expression)
+	{
+		expression = UnwrapFlowExpression(expression);
+		return expression is ThisExpression
+			|| expression is VariableReferenceExpression { Variable: ThisParameterDefinition };
+	}
+
+	void CheckStructConstructorFieldsAssigned(FlowState state, SyntaxNode? syntax, string context)
+	{
+		foreach (FieldDefinition field in state.UnassignedStructFields())
+			Report(GetRange(syntax ?? field.SourceSyntax), $"Struct field '{field.Name}' must be assigned {context}.");
 	}
 
 	void HandleThrownValue(string thrownType, SyntaxNode? syntax, FlowState state, bool exitsCurrentPath = true)
@@ -571,21 +675,27 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		readonly HashSet<string> declared;
 		readonly HashSet<string> assigned;
+		readonly List<FieldDefinition> requiredStructFields;
+		readonly HashSet<FieldDefinition> assignedStructFields;
 
-		public FlowState(FunctionDefinition function, BodyScope bodyScope)
+		public FlowState(FunctionDefinition function, BodyScope bodyScope, List<FieldDefinition> requiredStructFields)
 		{
 			Function = function;
 			BodyScope = bodyScope;
 			declared = [];
 			assigned = [];
+			this.requiredStructFields = requiredStructFields;
+			assignedStructFields = [];
 		}
 
-		FlowState(FunctionDefinition function, BodyScope bodyScope, HashSet<string> declared, HashSet<string> assigned, bool reachable, List<string> handlers)
+		FlowState(FunctionDefinition function, BodyScope bodyScope, HashSet<string> declared, HashSet<string> assigned, List<FieldDefinition> requiredStructFields, HashSet<FieldDefinition> assignedStructFields, bool reachable, List<string> handlers)
 		{
 			Function = function;
 			BodyScope = bodyScope;
 			this.declared = declared;
 			this.assigned = assigned;
+			this.requiredStructFields = requiredStructFields;
+			this.assignedStructFields = assignedStructFields;
 			Reachable = reachable;
 			Handlers = handlers;
 		}
@@ -594,6 +704,7 @@ public sealed partial class BindableNodeAnalyzer
 		public BodyScope BodyScope { get; }
 		public bool Reachable { get; set; } = true;
 		public List<string> Handlers { get; } = [];
+		public bool RequiresStructFieldAssignment => requiredStructFields.Count > 0;
 
 		public void Declare(string name, bool isAssigned)
 		{
@@ -620,9 +731,28 @@ public sealed partial class BindableNodeAnalyzer
 			return assigned.Contains(name);
 		}
 
+		public void AssignStructField(FieldDefinition field)
+		{
+			if (requiredStructFields.Contains(field))
+				assignedStructFields.Add(field);
+		}
+
+		public void AssignAllStructFields()
+		{
+			foreach (FieldDefinition field in requiredStructFields)
+				assignedStructFields.Add(field);
+		}
+
+		public IEnumerable<FieldDefinition> UnassignedStructFields()
+		{
+			foreach (FieldDefinition field in requiredStructFields)
+				if (!assignedStructFields.Contains(field))
+					yield return field;
+		}
+
 		public FlowState Clone()
 		{
-			return new FlowState(Function, BodyScope, [.. declared], [.. assigned], Reachable, [.. Handlers]);
+			return new FlowState(Function, BodyScope, [.. declared], [.. assigned], requiredStructFields, [.. assignedStructFields], Reachable, [.. Handlers]);
 		}
 
 		public void MergeBranches(FlowState first, FlowState second)
@@ -635,6 +765,7 @@ public sealed partial class BindableNodeAnalyzer
 			Reachable = false;
 			declared.Clear();
 			assigned.Clear();
+			assignedStructFields.Clear();
 
 			bool firstReachable = true;
 			foreach (FlowState branch in branches)
@@ -648,12 +779,15 @@ public sealed partial class BindableNodeAnalyzer
 						declared.Add(name);
 					foreach (string name in branch.assigned)
 						assigned.Add(name);
+					foreach (FieldDefinition field in branch.assignedStructFields)
+						assignedStructFields.Add(field);
 					firstReachable = false;
 				}
 				else
 				{
 					declared.IntersectWith(branch.declared);
 					assigned.IntersectWith(branch.assigned);
+					assignedStructFields.IntersectWith(branch.assignedStructFields);
 				}
 
 				Reachable = true;

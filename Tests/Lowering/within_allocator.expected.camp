@@ -34,7 +34,10 @@ class Object
 		Allocator* resolvedAllocator = allocator;
 		Object* __local0 = (Object*)(resolvedAllocator != null ? Allocator_alloc(resolvedAllocator, sizeof(Object)) : malloc(sizeof(Object)));
 		if (__local0 != null)
+		{
+			*__local0 = default(Object);
 			Object_op_initnew(__local0, allocator);
+		}
 		return __local0;
 	}
 
@@ -54,28 +57,43 @@ void acceptsAllocator(within Allocator* allocator)
 {
 	Object* nested = (Object*)(allocator != null ? Allocator_alloc(allocator, sizeof(Object)) : malloc(sizeof(Object)));
 	if (nested != null)
+	{
+		*nested = default(Object);
 		Object_op_initnew(nested, allocator);
+	}
 	(Object_op_delete(nested, allocator), allocator != null ? Allocator_free(allocator, (void*)nested) : free((void*)nested));
 }
 void main(Allocator* arena)
 {
 	Object* normal = (Object*)malloc(sizeof(Object));
 	if (normal != null)
+	{
+		*normal = default(Object);
 		Object_op_initnew(normal, null);
+	}
 	(Object_op_delete(normal, null), free((void*)normal));
 	{
 		Allocator* __local1 = arena;
 		{
 			Object* scopedObject = (Object*)(__local1 != null ? Allocator_alloc(__local1, sizeof(Object)) : malloc(sizeof(Object)));
 			if (scopedObject != null)
+			{
+				*scopedObject = default(Object);
 				Object_op_initnew(scopedObject, __local1);
+			}
 			acceptsAllocator(__local1);
 			(Object_op_delete(scopedObject, __local1), __local1 != null ? Allocator_free(__local1, (void*)scopedObject) : free((void*)scopedObject));
 		}
 	}
 	Allocator* __local2 = arena;
 	Object* __local3;
-	Object* expressionAllocated = (__local3 = (Object*)(__local2 != null ? Allocator_alloc(__local2, sizeof(Object)) : malloc(sizeof(Object))), Object_op_initnew(__local3, __local2), __local3);
+	__local3 = (Object*)(__local2 != null ? Allocator_alloc(__local2, sizeof(Object)) : malloc(sizeof(Object)));
+	if (__local3 != null)
+	{
+		*__local3 = default(Object);
+		Object_op_initnew(__local3, __local2);
+	}
+	Object* expressionAllocated = __local3;
 	{
 		Allocator* __local4 = arena;
 		(Object_op_delete(expressionAllocated, __local4), __local4 != null ? Allocator_free(__local4, (void*)expressionAllocated) : free((void*)expressionAllocated));

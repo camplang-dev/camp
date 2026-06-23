@@ -70,6 +70,10 @@ static View makeAggregate(const char *input, uintptr_t input_length)
 static Box *makeBox(void)
 {
 	Box *box = (Box *)(malloc(sizeof(Box)));
+	if ((box != NULL))
+	{
+		*box = (Box){0};
+	}
 	return box;
 }
 

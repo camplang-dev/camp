@@ -72,6 +72,7 @@ static Collector *Collector_create(uintptr_t sizeof_T)
 	Collector *_created0 = (Collector *)(malloc(sizeof(Collector)));
 	if ((_created0 != NULL))
 	{
+		*_created0 = (Collector){0};
 		Collector_op_initnew(_created0, sizeof_T);
 	}
 	return _created0;
@@ -84,6 +85,7 @@ int main(void)
 	Collector *collector = (Collector *)(malloc(sizeof(Collector)));
 	if ((collector != NULL))
 	{
+		*collector = (Collector){0};
 		Collector_op_initnew(collector, sizeof(int));
 	}
 	rangeIter _iterState6 = range(4, 7);

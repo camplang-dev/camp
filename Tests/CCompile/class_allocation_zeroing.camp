@@ -1,0 +1,29 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+export class Zeroed
+{
+	int value;
+	byte flag;
+
+	int getValue()
+	{
+		return this.value + this.flag;
+	}
+}
+
+export int main()
+{
+	Zeroed* direct = new Zeroed();
+	if (direct == null)
+		return 1;
+
+	Zeroed* helper = Zeroed.create();
+	if (helper == null)
+		return 2;
+
+	int result = direct.Value + helper.Value;
+	delete direct;
+	delete helper;
+	return result;
+}

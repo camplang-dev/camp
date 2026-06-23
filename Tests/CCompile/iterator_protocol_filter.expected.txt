@@ -36,9 +36,16 @@ static bool __camp_delegate_rangeIter_iter_1(void *arg0, int *arg1)
 static rangeIter *range(int first, int last)
 {
 	rangeIter *_iter0 = (rangeIter *)(malloc(sizeof(rangeIter)));
-	_iter0->__state = 0;
-	_iter0->first = first;
-	_iter0->last = last;
+	if ((_iter0 != NULL))
+	{
+		*_iter0 = (rangeIter){0};
+	}
+	if ((_iter0 != NULL))
+	{
+		_iter0->__state = 0;
+		_iter0->first = first;
+		_iter0->last = last;
+	}
 	return _iter0;
 }
 

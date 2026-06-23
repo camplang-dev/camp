@@ -19,7 +19,14 @@ static void cleanup(void)
 static valuesIter *values(void)
 {
 	valuesIter *_iter0 = (valuesIter *)(malloc(sizeof(valuesIter)));
-	_iter0->__state = 0;
+	if ((_iter0 != NULL))
+	{
+		*_iter0 = (valuesIter){0};
+	}
+	if ((_iter0 != NULL))
+	{
+		_iter0->__state = 0;
+	}
 	return _iter0;
 }
 

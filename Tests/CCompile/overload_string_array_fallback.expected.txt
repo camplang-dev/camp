@@ -28,6 +28,7 @@ static Writer *Writer_create(void)
 	Writer *_created0 = (Writer *)(malloc(sizeof(Writer)));
 	if ((_created0 != NULL))
 	{
+		*_created0 = (Writer){0};
 		Writer_op_initnew(_created0);
 	}
 	return _created0;

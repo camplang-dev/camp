@@ -15,6 +15,7 @@ ExportedConcrete *ExportedConcrete_create(void)
 	ExportedConcrete *_created0 = (ExportedConcrete *)(malloc(sizeof(ExportedConcrete)));
 	if ((_created0 != NULL))
 	{
+		*_created0 = (ExportedConcrete){0};
 		ExportedConcrete_op_initnew(_created0);
 	}
 	return _created0;

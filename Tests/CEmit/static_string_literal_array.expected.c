@@ -17,6 +17,7 @@ Console *Console_create(void)
 	Console *_created0 = (Console *)(malloc(sizeof(Console)));
 	if ((_created0 != NULL))
 	{
+		*_created0 = (Console){0};
 		Console_op_initnew(_created0);
 	}
 	return _created0;

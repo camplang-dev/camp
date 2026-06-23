@@ -28,19 +28,43 @@ int main(void)
 	uint8_t (*bytesPointer)[4] = &bytes;
 	FixedValue fixedValue = (FixedValue){0};
 	RefType *refValue = (RefType *)(malloc(sizeof(RefType)));
+	if ((refValue != NULL))
+	{
+		*refValue = (RefType){0};
+	}
 	PointerBox *byteBox = (PointerBox *)(malloc(sizeof(PointerBox)));
+	if ((byteBox != NULL))
+	{
+		*byteBox = (PointerBox){0};
+	}
 	PointerBox_set(byteBox, bytesPointer);
 	PointerBox *fixedBox = (PointerBox *)(malloc(sizeof(PointerBox)));
+	if ((fixedBox != NULL))
+	{
+		*fixedBox = (PointerBox){0};
+	}
 	PointerBox_set(fixedBox, &fixedValue);
 	PointerBox *refBox = (PointerBox *)(malloc(sizeof(PointerBox)));
+	if ((refBox != NULL))
+	{
+		*refBox = (PointerBox){0};
+	}
 	PointerBox_set(refBox, refValue);
 	InlineBuffer first = (InlineBuffer){0};
 	__builtin_memcpy(first.data, (uint8_t[4]){5, 6, 7, 8}, sizeof(first.data));
 	first.marker = 11;
 	InlineBuffer second = first;
 	ValueBox *valueBox = (ValueBox *)(malloc(sizeof(ValueBox)));
+	if ((valueBox != NULL))
+	{
+		*valueBox = (ValueBox){0};
+	}
 	ValueBox_set(valueBox, &second);
 	ValueBox *pointerValueBox = (ValueBox *)(malloc(sizeof(ValueBox)));
+	if ((pointerValueBox != NULL))
+	{
+		*pointerValueBox = (ValueBox){0};
+	}
 	ValueBox_set(pointerValueBox, &bytesPointer);
 	return (((((int)(((uint8_t *)(bytes))[1]) + fixedValue.value) + refValue->value) + (int)(((uint8_t *)(second.data))[2])) + second.marker);
 }

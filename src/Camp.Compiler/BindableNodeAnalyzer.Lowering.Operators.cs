@@ -175,7 +175,7 @@ public sealed partial class BindableNodeAnalyzer
 			return CreateCreateCall(CreateExternalCreateMethod(type, externInitNew), constructedType, arguments, syntax, resolvedType);
 
 		FunctionDefinition? initNew = FindInitNewMethod(type, arguments.Count);
-		if (initNew is null && !NeedsVirtualTableAssignment(type))
+		if (initNew is null && !NeedsVirtualTableAssignment(type) && type is not ClassDefinition)
 			return CreateAllocCall(typeReference, syntax);
 
 		string localName = NewGeneratedLocalName("created");
@@ -197,6 +197,27 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = localType
 			};
 		}
+		if (currentStatementPrefix is not null)
+		{
+			currentStatementPrefix.Add(CreateAssignmentStatement(localReference, CreateAllocCall(typeReference, syntax), localType, syntax));
+
+			BlockStatement guardBody = new() { ResolvedType = "void" };
+			if (type is ClassDefinition)
+				guardBody.Statements.Add(CreateZeroAllocatedInstanceStatement(localReference, typeReference, type.Name, syntax));
+			if (CreateVirtualTableAssignment(localReference, type) is Expression statementVTableAssignment)
+				guardBody.Statements.Add(new ExpressionStatement { ResolvedType = "void", Expression = statementVTableAssignment });
+			if (initNew is not null)
+				guardBody.Statements.Add(new ExpressionStatement
+				{
+					ResolvedType = "void",
+					Expression = CreateInitNewCall(localReference, initNew, arguments, syntax, constructedType: constructedType)
+				});
+			if (guardBody.Statements.Count > 0)
+				currentStatementPrefix.Add(CreateNotNullGuard(localReference, guardBody, syntax));
+
+			return localReference;
+		}
+
 		GroupedExpression grouped = new()
 		{
 			SourceSyntax = syntax,
@@ -213,6 +234,12 @@ public sealed partial class BindableNodeAnalyzer
 			},
 			ResolvedType = localType
 		});
+		if (type is ClassDefinition)
+			grouped.Items.Add(new GroupedExpressionItem
+			{
+				Expression = CreateZeroAllocatedInstanceExpression(localReference, typeReference, type.Name, syntax),
+				ResolvedType = type.Name
+			});
 		if (CreateVirtualTableAssignment(localReference, type) is Expression vtableAssignment)
 			grouped.Items.Add(new GroupedExpressionItem
 			{
@@ -231,6 +258,56 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = localType
 		});
 		return grouped;
+	}
+
+	IfStatement CreateNotNullGuard(Expression target, Statement body, SyntaxNode? syntax)
+	{
+		return new IfStatement
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Condition = new BinaryExpression
+			{
+				Left = target,
+				Operator = BinaryOperator.NotEqual,
+				Right = NullLiteral(syntax),
+				ResolvedType = "bool"
+			},
+			Body = body
+		};
+	}
+
+	ExpressionStatement CreateZeroAllocatedInstanceStatement(Expression pointer, TypeReference typeReference, string resolvedType, SyntaxNode? syntax)
+	{
+		return new ExpressionStatement
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Expression = CreateZeroAllocatedInstanceExpression(pointer, typeReference, resolvedType, syntax)
+		};
+	}
+
+	Expression CreateZeroAllocatedInstanceExpression(Expression pointer, TypeReference typeReference, string resolvedType, SyntaxNode? syntax)
+	{
+		return new AssignmentExpression
+		{
+			SourceSyntax = syntax,
+			Target = new UnaryExpression
+			{
+				SourceSyntax = syntax,
+				Operator = UnaryOperator.PointerDereference,
+				Operand = pointer,
+				ResolvedType = resolvedType
+			},
+			Operator = AssignmentOperator.Assign,
+			Value = new DefaultExpression
+			{
+				SourceSyntax = syntax,
+				Type = CloneType(typeReference),
+				ResolvedType = resolvedType
+			},
+			ResolvedType = resolvedType
+		};
 	}
 
 	CallExpression CreateCreateCall(FunctionDefinition create, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)

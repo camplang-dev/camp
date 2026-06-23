@@ -31,6 +31,7 @@ static Counter *Counter_create(int count)
 	Counter *_created0 = (Counter *)(malloc(sizeof(Counter)));
 	if ((_created0 != NULL))
 	{
+		*_created0 = (Counter){0};
 		Counter_op_initnew(_created0, count);
 	}
 	return _created0;
@@ -46,6 +47,7 @@ static int main(void)
 	Counter *c = (Counter *)(malloc(sizeof(Counter)));
 	if ((c != NULL))
 	{
+		*c = (Counter){0};
 		Counter_op_initnew(c, 10);
 	}
 	int v = readValue((IValue **)&c->_vt_IValue);

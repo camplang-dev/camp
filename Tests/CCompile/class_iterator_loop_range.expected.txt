@@ -13,9 +13,16 @@ static bool loopRangeIter_iter(void *ctx, int *current);
 static loopRangeIter *loopRange(int first, int last)
 {
 	loopRangeIter *_iter0 = (loopRangeIter *)(malloc(sizeof(loopRangeIter)));
-	_iter0->__state = 0;
-	_iter0->first = first;
-	_iter0->last = last;
+	if ((_iter0 != NULL))
+	{
+		*_iter0 = (loopRangeIter){0};
+	}
+	if ((_iter0 != NULL))
+	{
+		_iter0->__state = 0;
+		_iter0->first = first;
+		_iter0->last = last;
+	}
 	return _iter0;
 }
 

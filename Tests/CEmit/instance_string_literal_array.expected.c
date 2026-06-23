@@ -17,6 +17,7 @@ Logger *Logger_create(void)
 	Logger *_created0 = (Logger *)(malloc(sizeof(Logger)));
 	if ((_created0 != NULL))
 	{
+		*_created0 = (Logger){0};
 		Logger_op_initnew(_created0);
 	}
 	return _created0;

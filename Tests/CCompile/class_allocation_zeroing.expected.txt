@@ -1,0 +1,95 @@
+// file: class_allocation_zeroing.c
+#include "class_allocation_zeroing_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static int Zeroed_getValue(Zeroed *this);
+
+static int Zeroed_getValue(Zeroed *this)
+{
+	return (this->value + this->flag);
+}
+
+void Zeroed_op_initnew(Zeroed *this)
+{
+}
+
+Zeroed *Zeroed_create(void)
+{
+	Zeroed *_created0 = (Zeroed *)(malloc(sizeof(Zeroed)));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Zeroed){0};
+		Zeroed_op_initnew(_created0);
+	}
+	return _created0;
+}
+
+int main(void)
+{
+	Zeroed *direct = (Zeroed *)(malloc(sizeof(Zeroed)));
+	if ((direct != NULL))
+	{
+		*direct = (Zeroed){0};
+		Zeroed_op_initnew(direct);
+	}
+	if ((direct == NULL))
+	{
+		return 1;
+	}
+	Zeroed *helper = Zeroed_create();
+	if ((helper == NULL))
+	{
+		return 2;
+	}
+	int result = (Zeroed_getValue(direct) + Zeroed_getValue(helper));
+	free((void *)(direct));
+	free((void *)(helper));
+	return result;
+}
+
+// file: class_allocation_zeroing.h
+#ifndef CLASS_ALLOCATION_ZEROING_H_
+#define CLASS_ALLOCATION_ZEROING_H_
+
+#include "class_allocation_zeroing_private.h"
+
+void Zeroed_op_initnew(Zeroed *this);
+Zeroed *Zeroed_create(void);
+int main(void);
+
+#endif
+// file: class_allocation_zeroing_private.h
+#ifndef CLASS_ALLOCATION_ZEROING_PRIVATE_H_
+#define CLASS_ALLOCATION_ZEROING_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Zeroed Zeroed;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Zeroed
+{
+	int value;
+	uint8_t flag;
+};
+
+/* Function declarations. */
+void Zeroed_op_initnew(Zeroed *this);
+Zeroed *Zeroed_create(void);
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: class_allocation_zeroing.c

@@ -67,6 +67,7 @@ static Holder *Holder_create(Allocator *allocator)
 	Holder *_created1 = (Holder *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Holder)) : malloc(sizeof(Holder))));
 	if ((_created1 != NULL))
 	{
+		*_created1 = (Holder){0};
 		Holder_op_initnew(_created1, allocator);
 	}
 	return _created1;
@@ -93,6 +94,7 @@ static int main(void)
 			Holder *holder = (Holder *)(((_allocator2 != NULL) ? Allocator_alloc(_allocator2, sizeof(Holder)) : malloc(sizeof(Holder))));
 			if ((holder != NULL))
 			{
+				*holder = (Holder){0};
 				Holder_op_initnew(holder, _allocator2);
 			}
 			(Holder_op_delete(holder, _allocator2), ((_allocator2 != NULL) ? Allocator_free(_allocator2, (void *)(holder)) : free((void *)(holder))));

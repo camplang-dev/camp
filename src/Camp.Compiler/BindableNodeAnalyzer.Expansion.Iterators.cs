@@ -948,9 +948,10 @@ public sealed partial class BindableNodeAnalyzer
 		Expression localReference = CreateVariableReference(local.Target, local.Target.ResolvedType ?? $"{stateResolvedType}*");
 		BlockStatement body = new() { ResolvedType = "void" };
 		body.Statements.Add(local);
+		BlockStatement guardBody = new() { ResolvedType = "void" };
 		foreach (InitializerItem item in initializer.Items)
 		{
-			body.Statements.Add(new ExpressionStatement
+			guardBody.Statements.Add(new ExpressionStatement
 			{
 				ResolvedType = "void",
 				Expression = new AssignmentExpression
@@ -968,6 +969,7 @@ public sealed partial class BindableNodeAnalyzer
 				}
 			});
 		}
+		body.Statements.Add(CreateNotNullGuard(localReference, guardBody, function.SourceSyntax));
 		body.Statements.Add(new ReturnStatement
 		{
 			Expression = CreateVariableReference(local.Target, local.Target.ResolvedType ?? $"{stateResolvedType}*"),

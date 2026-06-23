@@ -557,15 +557,28 @@ public sealed partial class BindableNodeAnalyzer
 		if (CreateVirtualTableAssignment(target, classDefinition) is not Expression assignment)
 			return;
 
-		if (guardBody.Statements.Count > 0
-			&& guardBody.Statements[0] is ExpressionStatement { Expression: AssignmentExpression { Target: MemberReferenceExpression { Name: VirtualTableFieldName } } })
+		int insertIndex = guardBody.Statements.Count > 0 && IsZeroAllocatedInstanceStatement(guardBody.Statements[0]) ? 1 : 0;
+		if (guardBody.Statements.Count > insertIndex
+			&& guardBody.Statements[insertIndex] is ExpressionStatement { Expression: AssignmentExpression { Target: MemberReferenceExpression { Name: VirtualTableFieldName } } })
 			return;
 
-		guardBody.Statements.Insert(0, new ExpressionStatement
+		guardBody.Statements.Insert(insertIndex, new ExpressionStatement
 		{
 			ResolvedType = "void",
 			Expression = assignment
 		});
+	}
+
+	static bool IsZeroAllocatedInstanceStatement(Statement statement)
+	{
+		return statement is ExpressionStatement
+		{
+			Expression: AssignmentExpression
+			{
+				Target: UnaryExpression { Operator: UnaryOperator.PointerDereference },
+				Value: DefaultExpression
+			}
+		};
 	}
 
 	VirtualClassLowering GetRootVirtualLowering(VirtualClassLowering lowering)
