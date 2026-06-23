@@ -1951,6 +1951,9 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			if (analysisParameter is not null)
 				{
+					ParameterDefinition lifetimeParameter = TryGetExpandedSourceParameter(analysisParameter, out ParameterDefinition? expandedSourceParameter, out _)
+						? expandedSourceParameter
+						: analysisParameter;
 					if (analysisParameter.Modifier == ParameterModifier.Out && arguments[i].Modifier != ArgumentModifier.Out)
 						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Out parameters require an 'out' argument.");
 					if (analysisParameter.Modifier != ParameterModifier.Out && arguments[i].Modifier == ArgumentModifier.Out)
@@ -1973,7 +1976,7 @@ public sealed partial class BindableNodeAnalyzer
 						if (CanLiftToOptional(actual, expected))
 							arguments[i].ResolvedType = expected;
 					}
-					analyzedLifetimeArguments.Add((arguments[i], analysisParameter));
+					analyzedLifetimeArguments.Add((arguments[i], lifetimeParameter));
 				}
 			if (ArrayLiteralConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex)
 				|| PrimitiveStringConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex, fallbackSyntax))
@@ -2178,15 +2181,25 @@ public sealed partial class BindableNodeAnalyzer
 		if (argument.Value is not LambdaExpression)
 			return false;
 
+		if (!TryGetExpandedSourceParameter(componentParameter, out sourceParameter, out componentCount))
+			return false;
+		if (!TryGetParamsComponentShape(sourceParameter.Type, sourceParameter.ResolvedType, sourceParameter.Name, out ParamsComponentShape shape)
+			|| shape.Kind != ParamsComponentShapeKind.Delegate)
+			return false;
+
+		return componentCount > 1;
+	}
+
+	bool TryGetExpandedSourceParameter(ParameterDefinition componentParameter, out ParameterDefinition sourceParameter, out int componentCount)
+	{
+		sourceParameter = componentParameter;
+		componentCount = 0;
 		foreach ((BindableNode source, List<ParamsExpansionComponent> expansion) in paramsExpansions)
 		{
 			if (source is not ParameterDefinition parameter || expansion.Count == 0)
 				continue;
 			if (!ReferenceEquals(expansion[0].Node, componentParameter))
 				continue;
-			if (!TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape)
-				|| shape.Kind != ParamsComponentShapeKind.Delegate)
-				return false;
 
 			sourceParameter = parameter;
 			componentCount = expansion.Count;

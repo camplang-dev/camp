@@ -1,4 +1,5 @@
 const char[] global;
+delegate bool(in int) globalPredicate;
 
 T* badInTransportEscape<T: any>(in T value)
 {
@@ -14,4 +15,11 @@ void badOutSubstitution()
 {
 	fixed char[16] local = "hello";
 	choose<const char[]>(local[..], out global);
+}
+
+void badDelegateOutSubstitution()
+{
+	int minimum = 0;
+	delegate bool(in int) predicate = value => value > minimum;
+	choose<delegate bool(in int)>(predicate, out globalPredicate);
 }

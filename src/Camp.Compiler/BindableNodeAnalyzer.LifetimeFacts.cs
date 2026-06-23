@@ -7,7 +7,7 @@ namespace Camp.Compiler;
 public sealed partial class BindableNodeAnalyzer
 {
 	sealed record LifetimeFact(string Kind, IReadOnlyList<string> Anchors, string Source);
-	sealed record LifetimeCallContext(Dictionary<string, LifetimeFact> Anchors, List<LifetimeFact> ScopedInputs, LifetimeFact? Receiver);
+	sealed record LifetimeCallContext(Dictionary<string, LifetimeFact> Anchors, List<LifetimeFact> ScopedInputs, LifetimeFact? Receiver, Dictionary<string, List<LifetimeFact>> GenericInputs);
 
 	static string MakeLifetimeFact(string kind, string? anchor, string source)
 	{
@@ -89,14 +89,18 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(type) || type == ErrorType || type == TargetType)
 			return false;
 
+		string raw = type.Trim();
+		if (raw.StartsWith("delegate ", System.StringComparison.Ordinal)
+			|| raw.StartsWith("iter ", System.StringComparison.Ordinal)
+			|| raw is "string" or "astring" or "wstring")
+			return true;
+
 		string normalized = StripTopLevelValueQualifiers(type);
 		TypeShapeParser parser = new(normalized);
 		if (parser.TryParse(out TypeShape shape) && parser.IsEnd)
 			return IsPointerBearingResolvedShape(shape);
 
-		return normalized.StartsWith("delegate ", System.StringComparison.Ordinal)
-			|| normalized.StartsWith("iter ", System.StringComparison.Ordinal)
-			|| normalized is "string" or "astring" or "wstring";
+		return false;
 	}
 
 	static bool IsPointerBearingResolvedShape(TypeShape shape)
@@ -196,6 +200,7 @@ public sealed partial class BindableNodeAnalyzer
 			NamelessIndexerExpression indexer => GetExpressionLifetimeFact(indexer.Target),
 			MemberExpression member => GetMemberLifetimeFact(member, resolvedType, scope),
 			CallExpression call => GetCallLifetimeFact(call, resolvedType, scope),
+			LambdaExpression lambda when !LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType) => MakeLifetimeFact("escaped", null, "lambda"),
 			LambdaExpression lambda => TryGetResolvedTypeLifetime(lambda.ResolvedType, out string lambdaLifetime)
 				? MakeLifetimeFact(lambdaLifetime, null, "lambda")
 				: MakeLifetimeFact("scoped", null, "lambda"),
@@ -463,11 +468,21 @@ public sealed partial class BindableNodeAnalyzer
 		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
 		{
 			LifetimeFact template = GetReturnLifetimeTemplate(function, resolvedType);
-			LifetimeCallContext context = BuildLifetimeCallContext(function, call.Target, GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(call.Target, function)), call.Arguments);
+			List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(call.Target, function));
+			LifetimeCallContext context = BuildLifetimeCallContext(function, call.Target, callableParameters, ZipCallArguments(call.Arguments, callableParameters), substitutions: null, scope);
 			return SubstituteLifetimeTemplate(template, context, "call") is LifetimeFact fact ? FormatLifetimeFact(fact) : null;
 		}
 
 		return MakeLifetimeFact("unknown", null, "call");
+	}
+
+	static List<(ArgumentExpression Argument, ParameterDefinition Parameter)> ZipCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters)
+	{
+		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> pairs = [];
+		int count = Math.Min(arguments.Count, parameters.Count);
+		for (int i = 0; i < count; i++)
+			pairs.Add((arguments[i], parameters[i]));
+		return pairs;
 	}
 
 	string RefineCallReturnTypeFromLifetimeArguments(FunctionDefinition function, Expression? callTarget, List<ArgumentExpression> arguments, string returnType)
@@ -564,7 +579,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(callTarget, function));
-		LifetimeCallContext context = BuildLifetimeCallContext(function, callTarget, callableParameters, arguments.Select(pair => pair.Argument).ToList());
+		LifetimeCallContext context = BuildLifetimeCallContext(function, callTarget, callableParameters, arguments, substitutions, scope);
 		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in arguments)
 		{
 			if (parameter.Modifier == ParameterModifier.Out)
@@ -619,7 +634,9 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		LifetimeFact template = GetOutParameterLifetimeTemplate(function, parameter, outType);
-		LifetimeFact? substituted = SubstituteLifetimeTemplate(template, context, "out");
+		LifetimeFact? substituted = TryGetGenericOutInputLifetime(parameter, context, substitutions, out LifetimeFact genericInput)
+			? genericInput
+			: SubstituteLifetimeTemplate(template, context, "out");
 		if (substituted is null)
 			return;
 
@@ -689,10 +706,11 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	LifetimeCallContext BuildLifetimeCallContext(FunctionDefinition function, Expression? callTarget, List<ParameterDefinition> callableParameters, List<ArgumentExpression> arguments)
+	LifetimeCallContext BuildLifetimeCallContext(FunctionDefinition function, Expression? callTarget, List<ParameterDefinition> callableParameters, List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedArguments, Dictionary<string, string>? substitutions, BodyScope scope)
 	{
 		Dictionary<string, LifetimeFact> anchors = new(StringComparer.Ordinal);
 		List<LifetimeFact> scopedInputs = [];
+		Dictionary<string, List<LifetimeFact>> genericInputs = new(StringComparer.Ordinal);
 		LifetimeFact? receiverFact = GetReceiverLifetimeFact(callTarget);
 		if (receiverFact is not null)
 		{
@@ -701,6 +719,7 @@ public sealed partial class BindableNodeAnalyzer
 				scopedInputs.Add(receiverFact);
 		}
 
+		List<ArgumentExpression> arguments = analyzedArguments.Select(pair => pair.Argument).ToList();
 		int count = Math.Min(arguments.Count, callableParameters.Count);
 		for (int i = 0; i < count; i++)
 		{
@@ -708,7 +727,7 @@ public sealed partial class BindableNodeAnalyzer
 			ArgumentExpression argument = arguments[i];
 			if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within)
 				continue;
-			if (!TryParseLifetimeFact(GetExpressionLifetimeFact(argument.Value), out LifetimeFact actualFact))
+			if (!TryGetArgumentLifetimeFact(argument, out LifetimeFact actualFact))
 				continue;
 			if (!string.IsNullOrWhiteSpace(parameter.Name))
 				anchors[parameter.Name] = actualFact;
@@ -716,7 +735,64 @@ public sealed partial class BindableNodeAnalyzer
 				scopedInputs.Add(actualFact);
 		}
 
-		return new LifetimeCallContext(anchors, scopedInputs, receiverFact);
+		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in analyzedArguments)
+		{
+			if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within)
+				continue;
+			string parameterType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType;
+			if (!TryGetExactGenericPlaceholder(parameterType, substitutions, out string genericName))
+				continue;
+			if (!TryGetArgumentLifetimeFact(argument, out LifetimeFact actualFact)
+				|| actualFact.Kind is "unknown" or "null" or "default")
+			{
+				if (!substitutions!.TryGetValue(genericName, out string? substitutedType)
+					|| !IsLifetimePointerBearingResolvedType(substitutedType, scope))
+					continue;
+				actualFact = new LifetimeFact("scoped", [], "generic input");
+			}
+			if (!genericInputs.TryGetValue(genericName, out List<LifetimeFact>? facts))
+			{
+				facts = [];
+				genericInputs[genericName] = facts;
+			}
+			facts.Add(actualFact);
+		}
+
+		return new LifetimeCallContext(anchors, scopedInputs, receiverFact, genericInputs);
+	}
+
+	bool TryGetArgumentLifetimeFact(ArgumentExpression argument, out LifetimeFact fact)
+	{
+		return TryParseLifetimeFact(GetExpressionLifetimeFact(argument.Value), out fact)
+			|| TryParseLifetimeFact(argument.ValueLifetimeFact, out fact)
+			|| TryParseLifetimeFact(argument.Target?.ValueLifetimeFact, out fact);
+	}
+
+	static bool TryGetGenericOutInputLifetime(ParameterDefinition parameter, LifetimeCallContext context, Dictionary<string, string>? substitutions, out LifetimeFact fact)
+	{
+		fact = new LifetimeFact("", [], "");
+		string parameterType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType;
+		if (!TryGetExactGenericPlaceholder(parameterType, substitutions, out string genericName))
+			return false;
+		if (!context.GenericInputs.TryGetValue(genericName, out List<LifetimeFact>? facts) || facts.Count == 0)
+			return false;
+
+		fact = CombineScopedInputs(facts, "out generic");
+		return true;
+	}
+
+	static bool TryGetExactGenericPlaceholder(string type, Dictionary<string, string>? substitutions, out string genericName)
+	{
+		genericName = "";
+		if (substitutions is null || substitutions.Count == 0)
+			return false;
+
+		string normalized = StripTopLevelValueQualifiers(StripLifetimeQualifiers(type)).Trim();
+		if (!substitutions.ContainsKey(normalized))
+			return false;
+
+		genericName = normalized;
+		return true;
 	}
 
 	bool IsReceiverScopedInput(FunctionDefinition function)
@@ -943,6 +1019,8 @@ public sealed partial class BindableNodeAnalyzer
 	void CheckLifetimeAssignment(Expression? target, Expression? value, SyntaxNode? syntax, BodyScope scope, string context)
 	{
 		if (target is null || value is null)
+			return;
+		if (value is LambdaExpression)
 			return;
 		if (IsInsideGenericBody(scope))
 			return;
