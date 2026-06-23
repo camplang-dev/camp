@@ -42,6 +42,7 @@ public sealed class CommandLineTests
 		Assert.Equal(0, build.ExitCode);
 		Assert.Contains("--artifact", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--subsystem", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("-f, --framework", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("-r, --reference", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("-u, --use", build.StdOut, StringComparison.Ordinal);
 	}
@@ -185,6 +186,89 @@ public sealed class CommandLineTests
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("missing-one.a", output, StringComparison.Ordinal);
 		Assert.Contains("missing-two.a", output, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Framework_alias_accepts_multiple_values()
+	{
+		string temp = CreateTempCase("framework_alias.camp", """
+			#build --nostdlib
+			#build --artifact exec
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", temp, "-f", "MissingOne", "MissingTwo", "--target", "clang-macos-x64", "--build-dir", TempPath("framework-build"), "--out-dir", TempPath("framework-out"));
+		string output = result.StdOut + result.StdErr;
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("-framework MissingOne", output, StringComparison.Ordinal);
+		Assert.Contains("-framework MissingTwo", output, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Build_pragmas_allow_multiple_frameworks_after_switch()
+	{
+		string temp = CreateTempCase("framework_pragma_multi.camp", """
+			#build --nostdlib
+			#build --artifact exec
+			#build --framework MissingOne MissingTwo
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", temp, "--target", "clang-macos-x64", "--build-dir", TempPath("framework-pragma-build"), "--out-dir", TempPath("framework-pragma-out"));
+		string output = result.StdOut + result.StdErr;
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("-framework MissingOne", output, StringComparison.Ordinal);
+		Assert.Contains("-framework MissingTwo", output, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Frameworks_are_rejected_on_targets_that_do_not_allow_them()
+	{
+		string temp = CreateTempCase("framework_unsupported_target.camp", """
+			#build --nostdlib
+			#build --artifact exec
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", temp, "--target", "msvc-windows-x64", "--framework", "Cocoa");
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Target 'msvc-windows-x64' does not support framework linking.", result.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("Native build command", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Frameworks_are_rejected_for_static_artifacts()
+	{
+		string temp = CreateTempCase("framework_static.camp", """
+			#build --nostdlib
+			#build --artifact static
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", temp, "--target", "clang-macos-x64", "--framework", "Cocoa");
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("--framework cannot be used with --artifact static.", result.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("Native build command", result.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]

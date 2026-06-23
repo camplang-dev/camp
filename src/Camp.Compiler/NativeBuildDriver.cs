@@ -27,6 +27,7 @@ public sealed class NativeBuildOptions
 	public required NativeBuildKind Kind { get; init; }
 	public required IReadOnlyList<string> SourceFiles { get; init; }
 	public IReadOnlyList<string> Libraries { get; init; } = [];
+	public IReadOnlyList<string> Frameworks { get; init; } = [];
 }
 
 public sealed class NativeBuildResult
@@ -71,13 +72,31 @@ public static class NativeBuildDriver
 		if (!RunTemplate(options, BuildTemplateName(options.Kind), result, new Dictionary<string, string>(StringComparer.Ordinal)
 		{
 			["objects"] = string.Join(" ", objects.Select(Quote)),
-			["libs"] = string.Join(" ", options.Libraries.Select(Quote)),
+			["libs"] = BuildLinkLibraries(options),
 			["output"] = Quote(output)
 		}))
 			return result;
 
 		result.GeneratedFiles.Add(output);
 		return result;
+	}
+
+	public static bool IsValidFrameworkName(string name)
+	{
+		if (string.IsNullOrWhiteSpace(name) || name.StartsWith("-", StringComparison.Ordinal))
+			return false;
+		return name.All(static ch => char.IsLetterOrDigit(ch) || ch is '_' or '-' or '.');
+	}
+
+	static string BuildLinkLibraries(NativeBuildOptions options)
+	{
+		List<string> values = options.Libraries.Select(Quote).ToList();
+		foreach (string framework in options.Frameworks)
+		{
+			values.Add("-framework");
+			values.Add(Quote(framework));
+		}
+		return string.Join(" ", values);
 	}
 
 	static void DeleteExistingStaticArchive(string output, NativeBuildResult result)

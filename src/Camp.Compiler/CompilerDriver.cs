@@ -43,6 +43,7 @@ public sealed class CompilerRequest
 	public string? SubsystemName { get; set; }
 	public bool NoStdLib { get; set; }
 	public List<string> References { get; } = [];
+	public List<string> Frameworks { get; } = [];
 	public List<string> UsePackages { get; } = [];
 	public string RuntimeRoot { get; set; } = AppContext.BaseDirectory;
 	public string? TargetRoot { get; set; }
@@ -111,6 +112,8 @@ public static class CompilerDriver
 				return Error("--metadata cannot be combined with non-metadata dump commands, --inspect-api, or --xml.");
 
 			if (!TryCreateRuntimeContext(out RuntimeContext? context))
+				return 1;
+			if (!ValidateFrameworks(context!.Target))
 				return 1;
 
 			List<string> packageApiHeaders = [];
@@ -708,7 +711,8 @@ public static class CompilerDriver
 				ProjectName = projectName,
 				Kind = request.BuildKind.Value,
 				SourceFiles = result.GeneratedSourceFiles,
-				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList()
+				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
+				Frameworks = request.Frameworks
 			});
 			foreach (string diagnostic in build.Diagnostics)
 				ErrorLine(diagnostic);
@@ -738,6 +742,31 @@ public static class CompilerDriver
 			if (staticExtension.Equals(".lib", StringComparison.OrdinalIgnoreCase))
 				return reference + ".lib";
 			return "-l" + reference;
+		}
+
+		bool ValidateFrameworks(TargetDefinition target)
+		{
+			if (request.Frameworks.Count == 0 || request.BuildKind is null)
+				return true;
+			if (request.BuildKind == NativeBuildKind.Static)
+			{
+				ErrorLine("--framework cannot be used with --artifact static.");
+				return false;
+			}
+			if (!string.Equals(target.GetBuildTemplate("allow_frameworks"), "true", StringComparison.OrdinalIgnoreCase))
+			{
+				ErrorLine($"Target '{target.Name}' does not support framework linking.");
+				return false;
+			}
+			foreach (string framework in request.Frameworks)
+			{
+				if (!NativeBuildDriver.IsValidFrameworkName(framework))
+				{
+					ErrorLine($"Framework name '{framework}' is not valid.");
+					return false;
+				}
+			}
+			return true;
 		}
 
 		bool TryPrepareExecEntryPoint(Compilation compilation, out FunctionDefinition? entryPoint)

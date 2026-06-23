@@ -134,6 +134,12 @@ static void AddBuildOptions(Command command, bool buildOnly)
 	if (!buildOnly)
 		return;
 
+	command.Options.Add(new Option<List<string>>("--framework", "-f")
+	{
+		Description = "Link a native framework during native builds.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
 	command.Options.Add(new Option<string?>("--artifact") { Description = "Native artifact: exec, static, shared, or none." });
 	command.Options.Add(new Option<string?>("--name") { Description = "Artifact/project name without extension." });
 	command.Options.Add(new Option<string?>("--subsystem") { Description = "Native subsystem, currently windows." });
@@ -350,7 +356,7 @@ sealed class CampCli
 			errors.Add("At least one source file pattern is required.");
 
 		if (command == CommandKind.Dump && bag.HasBuildOnlyOptions)
-			errors.Add("dump does not accept --artifact, --name, --subsystem, --out-dir, or --build-dir.");
+			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, --out-dir, or --build-dir.");
 		if (bag.SubsystemName is not null && bag.SubsystemName != "windows")
 			errors.Add($"Subsystem '{bag.SubsystemName}' is not valid. Expected windows.");
 		if (bag.SubsystemName is not null && bag.ArtifactSpecified && bag.ArtifactKind is not NativeBuildKind.Exec)
@@ -385,6 +391,7 @@ sealed class CampCli
 		};
 		request.Defines.AddRange(bag.Defines);
 		request.References.AddRange(bag.References);
+		request.Frameworks.AddRange(bag.Frameworks);
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		request.IncludeFiles.AddRange(includeFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
@@ -694,6 +701,7 @@ sealed class BuildOptionBag
 	public List<string> ExcludePatterns { get; } = [];
 	public List<string> Defines { get; } = [];
 	public List<string> References { get; } = [];
+	public List<string> Frameworks { get; } = [];
 	public List<PackageSourceSpec> UseSources { get; } = [];
 	public List<PackageSpec> UsePackages { get; } = [];
 	public bool NoStdLib { get; private set; }
@@ -712,7 +720,7 @@ sealed class BuildOptionBag
 	public string? SubsystemName => Get("subsystem");
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
 	public bool Xml => Get("xml") == "true";
-	public bool HasBuildOnlyOptions => ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || Get("build-dir") is not null;
+	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || Get("build-dir") is not null;
 
 	public void Apply(ParsedOptions options, Precedence precedence, string source, List<string> errors)
 	{
@@ -724,6 +732,7 @@ sealed class BuildOptionBag
 			ExcludePatterns.Add(pattern);
 		Defines.AddRange(options.Defines);
 		References.AddRange(options.References);
+		Frameworks.AddRange(options.Frameworks);
 		UseSources.AddRange(options.UseSources);
 		UsePackages.AddRange(options.UsePackages);
 		if (options.NoStdLib)
@@ -789,6 +798,7 @@ sealed class ParsedOptions
 	public List<string> ExcludePatterns { get; } = [];
 	public List<string> Defines { get; } = [];
 	public List<string> References { get; } = [];
+	public List<string> Frameworks { get; } = [];
 	public List<PackageSourceSpec> UseSources { get; } = [];
 	public List<PackageSpec> UsePackages { get; } = [];
 	public bool NoStdLib { get; set; }
@@ -878,6 +888,10 @@ static class CommandLineOptionParser
 				case "--reference":
 				case "-r":
 					result.References.AddRange(RequiredValues(tokens, ref i, token, errors));
+					break;
+				case "--framework":
+				case "-f":
+					result.Frameworks.AddRange(RequiredValues(tokens, ref i, token, errors));
 					break;
 				case "--use":
 				case "-u":
