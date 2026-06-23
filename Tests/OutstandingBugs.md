@@ -19,13 +19,6 @@ Next bug number: BUG-030.
   `const char[]` out-parameter diagnostic. This likely needs delegate context
   lifetime facts to survive local materialization and generic out propagation.
 
-- **BUG-026:** Returning a lifetime-casted expanded value can drop hidden
-  return components during C emission. Priority: medium. Complexity: medium.
-  For example, returning `(escaped T[])bufferResult` from a function returning
-  `T[]` can emit only the pointer result and fail to assign the hidden length
-  result parameter. Returning an equivalent slice currently preserves the
-  expanded components and is used as a workaround.
-
 - **BUG-027:** `foreach` over a concrete iterator state that yields an expanded
   params value can omit hidden current-slot component arguments. Priority:
   medium. Complexity: medium. For example, directly enumerating a concrete

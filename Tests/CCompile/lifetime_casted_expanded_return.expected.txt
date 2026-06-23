@@ -1,0 +1,82 @@
+// file: lifetime_casted_expanded_return.c
+#include "lifetime_casted_expanded_return_private.h"
+
+/* Private file declarations. */
+static void *inner(void *value, uintptr_t value_length, uintptr_t sizeof_T, uintptr_t *result_length);
+static void *trustLocal(void *value, uintptr_t value_length, uintptr_t sizeof_T, uintptr_t *result_length);
+static void *trustCall(void *value, uintptr_t value_length, uintptr_t sizeof_T, uintptr_t *result_length);
+
+static void *inner(void *value, uintptr_t value_length, uintptr_t sizeof_T, uintptr_t *result_length)
+{
+	{
+		(*result_length) = value_length;
+		return value;
+	}
+}
+
+static void *trustLocal(void *value, uintptr_t value_length, uintptr_t sizeof_T, uintptr_t *result_length)
+{
+	{
+		(*result_length) = value_length;
+		return value;
+	}
+}
+
+static void *trustCall(void *value, uintptr_t value_length, uintptr_t sizeof_T, uintptr_t *result_length)
+{
+	void *_elements0;
+	uintptr_t _length1;
+	_elements0 = inner(value, value_length, sizeof_T, &_length1);
+	{
+		(*result_length) = _length1;
+		return _elements0;
+	}
+}
+
+int main(void)
+{
+	int values[3] = {1, 2, 3};
+	int *direct;
+	uintptr_t direct_length;
+	direct = trustLocal((int *)(values), 3, sizeof(int), &direct_length);
+	int *called;
+	uintptr_t called_length;
+	called = trustCall(direct, direct_length, sizeof(int), &called_length);
+	called[2] = 9;
+	return (((called_length == 3) && (called[2] == 9)) ? 0 : 1);
+}
+
+// file: lifetime_casted_expanded_return.h
+#ifndef LIFETIME_CASTED_EXPANDED_RETURN_H_
+#define LIFETIME_CASTED_EXPANDED_RETURN_H_
+
+#include "lifetime_casted_expanded_return_private.h"
+
+int main(void);
+
+#endif
+// file: lifetime_casted_expanded_return_private.h
+#ifndef LIFETIME_CASTED_EXPANDED_RETURN_PRIVATE_H_
+#define LIFETIME_CASTED_EXPANDED_RETURN_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifetime_casted_expanded_return.c

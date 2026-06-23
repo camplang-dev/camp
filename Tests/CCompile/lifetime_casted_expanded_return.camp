@@ -1,0 +1,23 @@
+T[] inner<T: any>(T[] value, sizeof(T))
+{
+	return value;
+}
+
+escaped T[] trustLocal<T: any>(T[] value, sizeof(T))
+{
+	return (escaped T[])value;
+}
+
+escaped T[] trustCall<T: any>(T[] value, sizeof(T))
+{
+	return (escaped T[])inner<T>(value);
+}
+
+export int main()
+{
+	fixed int[3] values = [1, 2, 3];
+	int[] direct = trustLocal<int>(values);
+	int[] called = trustCall<int>(direct);
+	called[2] = 9;
+	return called.length == 3 && called[2] == 9 ? 0 : 1;
+}
