@@ -1,0 +1,101 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "Docs",
+    "namespace": "Docs"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "function:Docs::blockFunction",
+      "kind": "function",
+      "name": "blockFunction",
+      "visibility": "export",
+      "returnType": "int",
+      "parameters": [
+        {
+          "id": "function:Docs::blockFunction/parameter:value",
+          "name": "value",
+          "type": "int",
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Value docs."
+            }
+          ]
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Block documented function."
+        },
+        {
+          "name": "returns",
+          "content": "Return docs."
+        }
+      ]
+    },
+    {
+      "id": "function:Docs::blockLiteralDocs",
+      "kind": "function",
+      "name": "blockLiteralDocs",
+      "visibility": "export",
+      "returnType": "void",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Uses \u0060[NotALink]\u0060, \u0060@summary\u0060, \u0060- value:\u0060, and \u0060%%s\u0060."
+        },
+        {
+          "name": "example",
+          "content": "\u0060\u0060\u0060camp\n/// [NotASymbol]\nprintf(\u0022%%s\u0022, text);\n\u0060\u0060\u0060"
+        }
+      ]
+    },
+    {
+      "id": "struct:Docs::BlockChildTargets",
+      "kind": "struct",
+      "name": "BlockChildTargets",
+      "visibility": "export",
+      "fields": [
+        {
+          "id": "struct:Docs::BlockChildTargets/field:count",
+          "name": "count",
+          "type": "int",
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Count field docs."
+            }
+          ]
+        }
+      ],
+      "functions": [
+        {
+          "id": "struct:Docs::BlockChildTargets/function:getCount",
+          "name": "getCount",
+          "returnType": "int",
+          "propertyName": "Count",
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Count getter docs."
+            }
+          ]
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Documents child targets."
+        }
+      ]
+    }
+  ]
+}

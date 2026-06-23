@@ -1,0 +1,30 @@
+export as Docs;
+
+/**
+ * Block documented function.
+ *
+ * - value: Value docs.
+ * @returns Return docs.
+ */
+export extern int blockFunction(int value);
+
+/**
+ * Uses `[NotALink]`, `@summary`, `- value:`, and `%s`.
+ * @example
+ * ```camp
+ * /// [NotASymbol]
+ * printf("%s", text);
+ * ```
+ */
+export extern void blockLiteralDocs();
+
+/**
+ * Documents child targets.
+ * - count: Count field docs.
+ * - getCount: Count getter docs.
+ */
+export struct BlockChildTargets
+{
+	int count;
+	int getCount() => this.count;
+}

@@ -352,7 +352,8 @@ public static class DocCommentTranslator
 					Token current = tokens[i];
 					if (current.Class != TokenClass.BlockComment)
 						break;
-					lines.Add(StripBlockDocPrefix(current.Value));
+					if (!IsBlockCommentStructuralNewLine(current.Value))
+						lines.Add(StripBlockDocPrefix(current.Value));
 					range = new TokenRange(tokens, start, i - start + 1);
 					if (current.Value.Contains("*/", StringComparison.Ordinal))
 						break;
@@ -433,6 +434,11 @@ public static class DocCommentTranslator
 		if (text.StartsWith(" ", StringComparison.Ordinal))
 			text = text[1..];
 		return text;
+	}
+
+	static bool IsBlockCommentStructuralNewLine(string value)
+	{
+		return value.AsSpan().Trim().Length == 0 && value.Contains('\n', StringComparison.Ordinal);
 	}
 
 	static List<NodeTarget> CollectTargets(Module module)
