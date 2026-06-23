@@ -592,6 +592,7 @@ public sealed partial class BindableNodeAnalyzer
 			AllocatorTypeReference => AllocatorType,
 			NamedTypeReference named => named.ResolvedType ?? BuildNamedTypeSourceName(named),
 			ClassTypeReference => "classtype",
+			ThisTypeReference => "this",
 			AttributedTypeReference attributed => FormatTypeReference(attributed.Type),
 			GenericTypeReference generic => generic.TypeArguments.Count == 0
 				? FormatTypeReference(generic.Type)

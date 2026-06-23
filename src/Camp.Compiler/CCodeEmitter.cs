@@ -3986,6 +3986,7 @@ public static class CCodeEmitter
 			{
 				GenericParameterTypeReference generic => generic.Name,
 				ClassTypeReference classType => IsValidResolvedType(classType.ResolvedType) ? classType.ResolvedType! : "#ERROR",
+				ThisTypeReference thisType => IsValidResolvedType(thisType.ResolvedType) ? thisType.ResolvedType! : "#ERROR",
 				NamedTypeReference named => IsValidResolvedType(named.ResolvedType) ? named.ResolvedType! : named.Name,
 				TypeDefinitionReference definition => IsValidResolvedType(definition.ResolvedType) ? definition.ResolvedType! : definition.Name,
 				PrimitiveTypeReference primitive => PrimitiveName(primitive.Type),
@@ -4101,6 +4102,7 @@ public static class CCodeEmitter
 				CallableTypeReference callable => new CType(FormatCallableDeclarator(callable, declarator)),
 				PrimitiveTypeReference primitive => FormatPrimitiveType(primitive.Type, declarator),
 				ClassTypeReference classType when ShouldFormatResolvedType(classType.ResolvedType) => FormatResolvedType(classType.ResolvedType!, declarator),
+				ThisTypeReference thisType when ShouldFormatResolvedType(thisType.ResolvedType) => FormatResolvedType(thisType.ResolvedType!, declarator),
 				TypeDefinitionReference definition => new CType(CTypeName(definition) + " " + declarator),
 				NamedTypeReference named when ShouldFormatResolvedType(named.ResolvedType) => FormatResolvedType(named.ResolvedType!, declarator),
 				NamedTypeReference named => new CType(CTypeName(named) + " " + declarator),

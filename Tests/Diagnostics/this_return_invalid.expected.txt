@@ -1,0 +1,6 @@
+tests/Diagnostics/this_return_invalid.camp(46,9): error: 'this' may be used only as a plain method return type.
+tests/Diagnostics/this_return_invalid.camp(1,1): error: 'this' may be used only as the return type of a receiver-bearing concrete method.
+tests/Diagnostics/this_return_invalid.camp(8,9): error: 'this' may be used only as the return type of a receiver-bearing concrete method.
+tests/Diagnostics/this_return_invalid.camp(16,2): error: 'this' may be used only as the return type of a receiver-bearing concrete method.
+tests/Diagnostics/this_return_invalid.camp(21,2): error: Only plain 'this' may be used as a receiver-preserving return type.
+tests/Diagnostics/this_return_invalid.camp(26,8): error: Only plain 'this' may be used as a receiver-preserving return type.

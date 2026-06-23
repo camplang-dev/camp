@@ -1,0 +1,46 @@
+this makeThing()
+{
+	return this;
+}
+
+class BadStatic
+{
+	static this make()
+	{
+		return this;
+	}
+}
+
+interface IFluent
+{
+	this next();
+}
+
+class BadNested
+{
+	this* getPointer()
+	{
+		return null;
+	}
+
+	const this getConst()
+	{
+		return this;
+	}
+}
+
+class BadBody
+{
+	this badOther(BadBody* other)
+	{
+		return other;
+	}
+
+	this badLocal()
+	{
+		BadBody* temp = this;
+		return temp;
+	}
+}
+
+newtype delegate this Formatter();

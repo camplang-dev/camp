@@ -1249,6 +1249,10 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write("classtype");
 				break;
 
+			case ThisTypeReference:
+				writer.Write("this");
+				break;
+
 			case AttributedTypeReference attributed:
 				if (attributed.Attribute is not null)
 				{

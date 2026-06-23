@@ -1,0 +1,13 @@
+class BadBody
+{
+	this badOther(BadBody* other)
+	{
+		return other;
+	}
+
+	this badLocal()
+	{
+		BadBody* temp = this;
+		return temp;
+	}
+}

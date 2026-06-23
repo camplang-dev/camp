@@ -388,9 +388,15 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
 		RegisterParameterLifetimeAnchors(definition.Parameters, scope);
 		AnalyzeOptionalType(definition.UnderlyingType, scope);
+		if (ContainsThisTypeReference(definition.UnderlyingType))
+			Report(GetRange(definition.UnderlyingType?.SourceSyntax ?? definition.SourceSyntax), "'this' may be used only as a plain method return type.");
 
 		foreach (ParameterDefinition parameter in definition.Parameters)
+		{
 			AnalyzeParameterDefinition(parameter, scope);
+			if (ContainsThisTypeReference(parameter.Type))
+				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
+		}
 		ValidateCallableNewtypeThisParameter(definition);
 
 		return scope;
@@ -417,9 +423,15 @@ public sealed partial class BindableNodeAnalyzer
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
 		AnalyzeOptionalType(definition.UnderlyingType, scope);
+		if (ContainsThisTypeReference(definition.UnderlyingType))
+			Report(GetRange(definition.UnderlyingType?.SourceSyntax ?? definition.SourceSyntax), "'this' may be used only as a plain method return type.");
 
 		foreach (ParameterDefinition component in definition.Components)
+		{
 			AnalyzeParameterDefinition(component, scope);
+			if (ContainsThisTypeReference(component.Type))
+				Report(GetRange(component.Type?.SourceSyntax ?? component.SourceSyntax), "'this' may be used only as a plain method return type.");
+		}
 
 		ValidateParamsComponentShape(definition);
 		foreach (FunctionDefinition function in definition.Functions)
@@ -677,6 +689,8 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetGenericParameterNameRange(parameter.SourceSyntax), $"Duplicate generic parameter name '{parameter.Name}'.");
 
 			AnalyzeOptionalType(parameter.Constraint, scope);
+			if (ContainsThisTypeReference(parameter.Constraint))
+				Report(GetRange(parameter.Constraint?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
 			ValidateNoLifetimeAnnotation(parameter.Constraint, parameter.Constraint?.SourceSyntax ?? parameter.SourceSyntax, "generic constraints");
 			ValidateGenericParameterConstraint(parameter);
 		}
@@ -690,6 +704,8 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeOptionalType(definition.Type, scope);
 		if (ContainsClassTypeReference(definition.Type))
 			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "'classtype' may not be used in global variable types.");
+		if (ContainsThisTypeReference(definition.Type))
+			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "'this' may be used only as a plain method return type.");
 		ValidateNoLifetimeAnnotation(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "variable types");
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
@@ -741,6 +757,8 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeOptionalType(definition.Type, scope);
 		if (ContainsClassTypeReference(definition.Type))
 			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "'classtype' may not be used in fields or static fields.");
+		if (ContainsThisTypeReference(definition.Type))
+			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "'this' may be used only as a plain method return type.");
 		ValidateFieldLifetimeAnnotation(definition, scope, containingType);
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		if (containingType is NewtypeDefinition && definition.Modifier != FieldModifier.Static && IsDirectFixedArrayType(definition.Type))
@@ -882,6 +900,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		for (int i = 0; i < definition.Parameters.Count; i++)
 			AnalyzeParameterDefinition(definition.Parameters[i], scope, allowThisName: IsExtensionThisParameter(definition, containingType, i));
+		foreach (ParameterDefinition parameter in definition.Parameters)
+			if (ContainsThisTypeReference(parameter.Type))
+				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
 		AnalyzeOverloadDeclaration(definition, containingType);
 		ValidateIteratorGeneratorParameters(definition);
 		ValidateIndexAwareParameters(definition);
@@ -892,10 +913,44 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (containingType is not null && (GetExplicitThisParameter(definition) ?? definition.EffectiveThisParameter) is ThisParameterDefinition memberThisParameter)
 			memberThisParameter.ResolvedType = ApplyThisDeclarators($"{containingType}*", memberThisParameter);
+		FinalizeThisReturnType(definition, containingType);
 		if (containingType is null && !definition.SymbolOverridden && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
 			definition.Symbol = BuildExtensionFunctionSymbol(GetCallableName(definition), thisParameter.ResolvedType ?? ErrorType, definition);
 		else if (containingType is null && !definition.SymbolOverridden && HasOverloadSelector(definition))
 			definition.Symbol = GetCallableName(definition);
+	}
+
+	void FinalizeThisReturnType(FunctionDefinition definition, string? containingType)
+	{
+		if (!ContainsThisTypeReference(definition.ReturnType))
+			return;
+
+		SyntaxNode? syntax = definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax;
+		if (definition.ReturnType is not ThisTypeReference)
+		{
+			Report(GetRange(syntax), "Only plain 'this' may be used as a receiver-preserving return type.");
+			return;
+		}
+
+		ThisParameterDefinition? receiver = GetExplicitThisParameter(definition) ?? definition.EffectiveThisParameter;
+		TypeDefinition? owner = containingType is null || !typeDefinitions.TryGetValue(containingType, out TypeDefinition? ownerDefinition)
+			? null
+			: ownerDefinition;
+
+		bool invalidLifecycle = definition.Modifier is FunctionModifier.Static or FunctionModifier.Constructor or FunctionModifier.Destructor || IsDestructorFunction(definition);
+		bool invalidOwner = owner is InterfaceDefinition || owner is NewtypeDefinition newtype && GetCallableNewtypeFamily(newtype) != "value";
+		if (invalidLifecycle || invalidOwner || receiver is null && owner is null)
+		{
+			Report(GetRange(syntax), "'this' may be used only as the return type of a receiver-bearing concrete method.");
+			definition.ResolvedType = ErrorType;
+			return;
+		}
+
+		if (owner is not null)
+			definition.ResolvedType = BuildEffectiveReceiverType($"{owner.Name}*", definition, isPropertyGetterSyntax: false);
+		else if (receiver is not null)
+			definition.ResolvedType = receiver.ResolvedType ?? ErrorType;
+		definition.ReturnType.ResolvedType = definition.ResolvedType;
 	}
 
 	void ValidateCallableAscription(FunctionDefinition definition, string? containingType)

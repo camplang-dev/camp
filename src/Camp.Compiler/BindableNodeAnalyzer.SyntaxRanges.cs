@@ -124,6 +124,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return type switch
 		{
+			ThisTypeSyntax thisType => thisType.ThisKeyword?.Range,
 			CallableTypeSyntax callable => callable.CallableKeyword?.Range,
 			AttributedTypeSyntax attributed => GetRange(attributed.Attribute) ?? GetRange(attributed.Type),
 			ArrayTypeSyntax array => GetRange(array.ElementType) ?? array.OpenBracketToken?.Range,

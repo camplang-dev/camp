@@ -612,6 +612,9 @@ public sealed class CampParser
 		if (IsAny(TypeDeclaratorKeywords))
 			return new DeclaratorTypeSyntax { Declarator = ParseTypeDeclarator(), Type = ParseTypePrefix() };
 
+		if (Is("this"))
+			return new ThisTypeSyntax { ThisKeyword = Take() };
+
 		if (IsPossibleTargetSpecIdentifier())
 			return new TargetTypeSpecTypeSyntax { Specifier = Take(), Type = ParseTypePrefix(), IsPrefix = true };
 

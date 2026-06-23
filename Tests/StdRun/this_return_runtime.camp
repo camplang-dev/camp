@@ -1,0 +1,34 @@
+using Std;
+
+class Builder
+{
+	int count;
+
+	this add(int value)
+	{
+		this.count = this.count + value;
+		return this;
+	}
+
+	this addTwo()
+	{
+		return this.add(2);
+	}
+
+	int getCount()
+	{
+		return this.count;
+	}
+}
+
+class FancyBuilder: Builder
+{
+}
+
+export int main()
+{
+	auto builder = new FancyBuilder();
+	FancyBuilder* same = builder.add(3).addTwo();
+	Console.writeLine(same.Count);
+	return 0;
+}

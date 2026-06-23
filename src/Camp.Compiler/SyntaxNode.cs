@@ -200,6 +200,11 @@ public abstract class TypeSyntax : SyntaxNode
 {
 }
 
+public class ThisTypeSyntax : TypeSyntax
+{
+	public Token? ThisKeyword { get; set; }
+}
+
 public class CallableTypeSyntax : TypeSyntax
 {
 	public Token? CallableKeyword { get; set; }

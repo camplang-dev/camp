@@ -50,6 +50,10 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				break;
 
+			case ThisTypeReference:
+				type.ResolvedType = "this";
+				break;
+
 			case NamedTypeReference named:
 				foreach (TypeReference argument in named.TypeArguments)
 					AnalyzeType(argument, scope);
@@ -255,6 +259,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			null => false,
 			ClassTypeReference => true,
+			ThisTypeReference => false,
 			AttributedTypeReference attributed => ContainsClassTypeReference(attributed.Type),
 			GenericTypeReference generic => ContainsClassTypeReference(generic.Type) || generic.TypeArguments.Any(ContainsClassTypeReference),
 			ArrayTypeReference array => ContainsClassTypeReference(array.ElementType),
@@ -271,6 +276,35 @@ public sealed partial class BindableNodeAnalyzer
 			ThrownTypeReference thrown => ContainsClassTypeReference(thrown.Type),
 			TypeDefinitionReference definition => definition.TypeArguments.Any(ContainsClassTypeReference),
 			NamedTypeReference named => named.TypeArguments.Any(ContainsClassTypeReference),
+			_ => false
+		};
+	}
+
+	static bool ContainsThisTypeReference(TypeReference? type)
+	{
+		return type switch
+		{
+			null => false,
+			ThisTypeReference => true,
+			AttributedTypeReference attributed => ContainsThisTypeReference(attributed.Type),
+			GenericTypeReference generic => ContainsThisTypeReference(generic.Type) || generic.TypeArguments.Any(ContainsThisTypeReference),
+			ArrayTypeReference array => ContainsThisTypeReference(array.ElementType),
+			FixedArrayTypeReference fixedArray => ContainsThisTypeReference(fixedArray.ElementType),
+			OptionalTypeReference optional => ContainsThisTypeReference(optional.ElementType),
+			PointerTypeReference pointer => ContainsThisTypeReference(pointer.ElementType),
+			ConstTypeReference constType => ContainsThisTypeReference(constType.Type),
+			VolatileTypeReference volatileType => ContainsThisTypeReference(volatileType.Type),
+			EscapedTypeReference escaped => ContainsThisTypeReference(escaped.Type),
+			ScopedTypeReference scoped => ContainsThisTypeReference(scoped.Type),
+			UnscopedTypeReference unscoped => ContainsThisTypeReference(unscoped.Type),
+			CallableTypeReference callable => ContainsThisTypeReference(callable.ReturnType) || callable.Parameters.Any(static parameter => ContainsThisTypeReference(parameter.Type)),
+			TargetTypeSpecTypeReference targetSpec => ContainsThisTypeReference(targetSpec.Type),
+			IterTypeReference iter => ContainsThisTypeReference(iter.ElementType) || iter.Parameters.Any(static parameter => ContainsThisTypeReference(parameter.Type)),
+			GroupedParamsTypeReference grouped => ContainsThisTypeReference(grouped.StructType),
+			MaterializedStructTypeReference materialized => ContainsThisTypeReference(materialized.ParamsType),
+			ThrownTypeReference thrown => ContainsThisTypeReference(thrown.Type),
+			TypeDefinitionReference definition => definition.TypeArguments.Any(ContainsThisTypeReference),
+			NamedTypeReference named => named.TypeArguments.Any(ContainsThisTypeReference),
 			_ => false
 		};
 	}

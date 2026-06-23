@@ -1331,6 +1331,9 @@ public sealed partial class BindableNodeBuilder
 	{
 		switch (syntax)
 		{
+			case ThisTypeSyntax thisType:
+				return new ThisTypeReference { SourceSyntax = thisType };
+
 			case CallableTypeSyntax callable:
 				return BuildCallableTypeReference(callable);
 

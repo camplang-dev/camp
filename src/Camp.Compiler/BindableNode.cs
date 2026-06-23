@@ -221,6 +221,10 @@ public class ClassTypeReference : TypeReference
 	public ClassDefinition? Definition { get; set; }
 }
 
+public class ThisTypeReference : TypeReference
+{
+}
+
 public class AttributedTypeReference : TypeReference
 {
 	public AttributeConstructor? Attribute { get; set; }

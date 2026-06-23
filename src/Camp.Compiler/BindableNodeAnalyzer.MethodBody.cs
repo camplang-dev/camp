@@ -53,6 +53,7 @@ public sealed partial class BindableNodeAnalyzer
 		BodyScope blockScope = new(scope, scope.CurrentFunction, scope.ContainingType)
 		{
 			CurrentFunctionReturnType = scope.CurrentFunctionReturnType,
+			CurrentFunctionSourceReturnType = scope.CurrentFunctionSourceReturnType,
 			CurrentIteratorElementType = scope.CurrentIteratorElementType
 		};
 
@@ -130,8 +131,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			case ReturnStatement returnStatement:
 			{
-				string returnTargetSourceType = scope.CurrentFunctionSourceReturnType ?? scope.CurrentFunctionReturnType;
+				bool returnsThis = scope.CurrentFunction.ReturnType is ThisTypeReference;
+				string returnTargetSourceType = returnsThis ? scope.CurrentFunctionReturnType : scope.CurrentFunctionSourceReturnType ?? scope.CurrentFunctionReturnType;
 				string returnType = returnStatement.Expression is null ? "void" : BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope, returnTargetSourceType);
+				if (returnsThis && !IsValidThisReturnExpression(returnStatement.Expression))
+					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "A method returning 'this' must return 'this' or a chain of 'this'-returning instance calls on 'this'.");
 				if (IsDirectCapturingLambda(returnStatement.Expression, scope) && !IsEscapedDelegateLambdaTarget(scope.CurrentFunctionReturnType))
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Capturing scoped lambdas cannot be returned.");
 				if (RequiresAnyGenericCopy(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
@@ -194,6 +198,37 @@ public sealed partial class BindableNodeAnalyzer
 				BodyAnalyzeOptionalStatement(withinStatement.Body, scope, typeScope);
 				break;
 		}
+	}
+
+	bool IsValidThisReturnExpression(Expression? expression)
+	{
+		expression = UnwrapParenthesizedExpression(expression);
+		if (expression is ThisExpression)
+			return true;
+
+		return expression is CallExpression call
+			&& callTargets.TryGetValue(call, out FunctionDefinition? function)
+			&& function.ReturnType is ThisTypeReference
+			&& IsThisReturnCallTarget(call.Target);
+	}
+
+	bool IsThisReturnCallTarget(Expression? target)
+	{
+		target = UnwrapParenthesizedExpression(target);
+		return target switch
+		{
+			MemberExpression member => IsValidThisReturnExpression(member.Target),
+			MemberReferenceExpression member => IsValidThisReturnExpression(member.Target),
+			NamedExpression => true,
+			_ => false
+		};
+	}
+
+	static Expression? UnwrapParenthesizedExpression(Expression? expression)
+	{
+		while (expression is ParenthesizedExpression parenthesized)
+			expression = parenthesized.Expression;
+		return expression;
 	}
 
 	void BodyAnalyzeOptionalStatement(Statement? statement, BodyScope scope, AnalysisScope typeScope)
@@ -1445,6 +1480,8 @@ public sealed partial class BindableNodeAnalyzer
 		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments, genericSubstitutions);
 		if (function is not null)
 			returnType = RefineClassTypeCallReturn(function, call.Target, returnType);
+		if (function is not null)
+			returnType = RefineThisTypeCallReturn(function, call.Target, returnType);
 		if (function is not null)
 			returnType = RefineCallReturnTypeFromLifetimeArguments(function, call.Target, call.Arguments, returnType);
 		if (targetType is not null)

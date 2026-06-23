@@ -1,0 +1,2 @@
+tests/Diagnostics/this_return_body_invalid.camp(5,10): error: A method returning 'this' must return 'this' or a chain of 'this'-returning instance calls on 'this'.
+tests/Diagnostics/this_return_body_invalid.camp(11,10): error: A method returning 'this' must return 'this' or a chain of 'this'-returning instance calls on 'this'.
