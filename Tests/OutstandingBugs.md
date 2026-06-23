@@ -19,14 +19,6 @@ Next bug number: BUG-030.
   `const char[]` out-parameter diagnostic. This likely needs delegate context
   lifetime facts to survive local materialization and generic out propagation.
 
-- **BUG-023:** Returning a casted expanded initializer such as
-  `return (unscoped(owner) char[]){ ptr, length };` type-checks but emits
-  invalid C (`return (char *)({ ptr, length });`). Priority: medium.
-  Complexity: medium. The equivalent local materialization works:
-  `char[] result = { ptr, length }; return (unscoped(owner))result;`. A later
-  emitter/lowering pass should lower expanded initializer return values through
-  normal expanded return component assignments before C emission.
-
 - **BUG-024:** Stage 4 lifetime call-site substitution does not yet refine
   return constness where the relationship is directly provable. Priority:
   medium. Complexity: medium-high. Example: if a function returns

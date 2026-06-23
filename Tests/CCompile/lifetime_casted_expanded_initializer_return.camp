@@ -1,0 +1,21 @@
+char[] spanFrom(char[] owner, char* elements, nuint length)
+{
+	return (unscoped(owner) char[]){ elements, length };
+}
+
+export int main()
+{
+	fixed char[4] buffer = "test";
+	char[] owner = buffer;
+	owner[0] = 't';
+	owner[1] = 'e';
+	owner[2] = 's';
+	owner[3] = 't';
+
+	char[] span = spanFrom(owner, owner.elements, 3);
+	if (span.length != 3)
+		return 1;
+	if (span[2] != 's')
+		return 2;
+	return 0;
+}

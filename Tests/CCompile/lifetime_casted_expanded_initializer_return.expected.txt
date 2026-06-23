@@ -1,0 +1,76 @@
+// file: lifetime_casted_expanded_initializer_return.c
+#include "lifetime_casted_expanded_initializer_return_private.h"
+
+/* Private file declarations. */
+static char *spanFrom(char *owner, uintptr_t owner_length, char *elements, uintptr_t length, uintptr_t *result_length);
+
+static char *spanFrom(char *owner, uintptr_t owner_length, char *elements, uintptr_t length, uintptr_t *result_length)
+{
+	{
+		(*result_length) = length;
+		return elements;
+	}
+}
+
+int campmain(void)
+{
+	char buffer[4] = "test";
+	char *owner = (char *)(buffer);
+	uintptr_t owner_length = 4;
+	owner[0] = 't';
+	owner[1] = 'e';
+	owner[2] = 's';
+	owner[3] = 't';
+	char *span;
+	uintptr_t span_length;
+	span = spanFrom(owner, owner_length, owner, 3, &span_length);
+	if ((span_length != 3))
+	{
+		return 1;
+	}
+	if ((span[2] != 's'))
+	{
+		return 2;
+	}
+	return 0;
+}
+
+
+int main(void)
+{
+	return campmain();
+}
+// file: lifetime_casted_expanded_initializer_return.h
+#ifndef LIFETIME_CASTED_EXPANDED_INITIALIZER_RETURN_H_
+#define LIFETIME_CASTED_EXPANDED_INITIALIZER_RETURN_H_
+
+#include "lifetime_casted_expanded_initializer_return_private.h"
+
+int campmain(void);
+
+#endif
+// file: lifetime_casted_expanded_initializer_return_private.h
+#ifndef LIFETIME_CASTED_EXPANDED_INITIALIZER_RETURN_PRIVATE_H_
+#define LIFETIME_CASTED_EXPANDED_INITIALIZER_RETURN_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int campmain(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifetime_casted_expanded_initializer_return.c

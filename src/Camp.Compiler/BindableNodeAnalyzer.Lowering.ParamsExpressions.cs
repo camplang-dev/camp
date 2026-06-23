@@ -974,6 +974,13 @@ public sealed partial class BindableNodeAnalyzer
 					component.ValueLifetimeFact = cast.LifetimeBinding ?? component.ValueLifetimeFact;
 				return true;
 
+			case CastExpression { Type: not null } cast when ContainsLifetimeAnnotation(cast.Type):
+				if (!TryCreateParamsComponentExpressions(cast.Expression, out components))
+					return false;
+				foreach (Expression component in components)
+					component.ValueLifetimeFact = cast.LifetimeBinding ?? component.ValueLifetimeFact;
+				return true;
+
 			case ThisExpression
 				when currentRewriteFunction is not null
 					&& GetExplicitThisParameter(currentRewriteFunction) is ThisParameterDefinition thisParameter
