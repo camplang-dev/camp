@@ -2814,10 +2814,10 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		if (TryAnalyzeFixedArrayComponentMember(member, targetType, out string fixedComponentType))
 			return fixedComponentType;
-		if (TryAnalyzeParamsComponentMember(member, targetType, out string valueComponentType))
-			return valueComponentType;
 		if (TryAnalyzeParamsPointerComponentMember(member, targetType, out string componentType))
 			return componentType;
+		if (TryAnalyzeParamsComponentMember(member, targetType, out string valueComponentType))
+			return valueComponentType;
 
 		bool isTypeTarget = IsTypeReferenceExpression(member.Target);
 		List<BodySymbol> members = isTypeTarget
@@ -3013,6 +3013,10 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryAnalyzeParamsComponentMember(MemberExpression member, string targetType, out string componentType)
 	{
 		componentType = ErrorType;
+		if (TryGetPointerElementType(targetType) is string pointedType
+			&& TryGetParamsComponentShape(null, pointedType, "value", out _))
+			return false;
+
 		if (!TryGetParamsComponentShape(null, targetType, "value", out ParamsComponentShape shape))
 			return false;
 
