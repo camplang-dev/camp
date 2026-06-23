@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Camp.Compiler;
@@ -505,6 +506,51 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (definition.Modifier == FunctionModifier.Virtual && definition.Body is null && !IsDestructorFunction(definition))
 			Report(GetNameRange(definition), "Virtual methods must have a body; use abstract for bodyless dispatch slots.");
+
+		ValidateClassTypeFunctionUse(definition, participatesInVirtualDispatch);
+	}
+
+	void ValidateClassTypeFunctionUse(FunctionDefinition definition, bool participatesInVirtualDispatch)
+	{
+		if (participatesInVirtualDispatch && ContainsClassTypeInNestedCallable(definition.ReturnType))
+			Report(GetRange(definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax), "'classtype' may not appear inside nested callable types.");
+
+		foreach (ParameterDefinition parameter in definition.Parameters)
+		{
+			if (participatesInVirtualDispatch && ContainsClassTypeInNestedCallable(parameter.Type))
+				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'classtype' may not appear inside nested callable types.");
+
+			if (participatesInVirtualDispatch
+				&& parameter.Modifier != ParameterModifier.Out
+				&& parameter is not ThisParameterDefinition
+				&& ContainsClassTypeReference(parameter.Type))
+				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "Virtual and abstract methods may use 'classtype' only in return types or out parameter types.");
+		}
+	}
+
+	static bool ContainsClassTypeInNestedCallable(TypeReference? type)
+	{
+		return type switch
+		{
+			null => false,
+			CallableTypeReference callable => ContainsClassTypeReference(callable),
+			IterTypeReference iter when ContainsClassTypeReference(iter) => true,
+			AttributedTypeReference attributed => ContainsClassTypeInNestedCallable(attributed.Type),
+			GenericTypeReference generic => ContainsClassTypeInNestedCallable(generic.Type) || generic.TypeArguments.Any(ContainsClassTypeInNestedCallable),
+			ArrayTypeReference array => ContainsClassTypeInNestedCallable(array.ElementType),
+			FixedArrayTypeReference fixedArray => ContainsClassTypeInNestedCallable(fixedArray.ElementType),
+			OptionalTypeReference optional => ContainsClassTypeInNestedCallable(optional.ElementType),
+			PointerTypeReference pointer => ContainsClassTypeInNestedCallable(pointer.ElementType),
+			ConstTypeReference constType => ContainsClassTypeInNestedCallable(constType.Type),
+			VolatileTypeReference volatileType => ContainsClassTypeInNestedCallable(volatileType.Type),
+			TargetTypeSpecTypeReference targetSpec => ContainsClassTypeInNestedCallable(targetSpec.Type),
+			GroupedParamsTypeReference grouped => ContainsClassTypeInNestedCallable(grouped.StructType),
+			MaterializedStructTypeReference materialized => ContainsClassTypeInNestedCallable(materialized.ParamsType),
+			ThrownTypeReference thrown => ContainsClassTypeInNestedCallable(thrown.Type),
+			TypeDefinitionReference definition => definition.TypeArguments.Any(ContainsClassTypeInNestedCallable),
+			NamedTypeReference named => named.TypeArguments.Any(ContainsClassTypeInNestedCallable),
+			_ => false
+		};
 	}
 
 	static bool IsGeneratedLifecycleMethodName(string name)

@@ -1245,6 +1245,10 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write("Allocator*");
 				break;
 
+			case ClassTypeReference:
+				writer.Write("classtype");
+				break;
+
 			case AttributedTypeReference attributed:
 				if (attributed.Attribute is not null)
 				{

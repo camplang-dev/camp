@@ -426,6 +426,21 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			if (parameter.DefaultValue is null)
 				continue;
+			if (function is not null
+				&& parameter.DefaultValue is NameOfExpression { Text: string text }
+				&& text.Trim() == "classtype"
+				&& TryGetClassTypeCallSiteName(call.Target, function, out string classTypeName))
+			{
+				Expression value = NameOfStringLiteral(BuildNameOfTypeValue(classTypeName), call.SourceSyntax ?? parameter.SourceSyntax);
+				call.Arguments.Insert(argumentIndex, new ArgumentExpression
+				{
+					SourceSyntax = call.SourceSyntax ?? parameter.SourceSyntax,
+					Value = value,
+					ResolvedType = "string"
+				});
+				argumentIndex++;
+				continue;
+			}
 			if (parameter.DefaultValue is UnaryExpression { Operator: UnaryOperator.FromEnd }
 				&& parameterIndex > 0
 				&& HasAttribute(callableParameters[parameterIndex - 1].Attributes, "@range"))

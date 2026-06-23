@@ -3985,6 +3985,7 @@ public static class CCodeEmitter
 			return type switch
 			{
 				GenericParameterTypeReference generic => generic.Name,
+				ClassTypeReference classType => IsValidResolvedType(classType.ResolvedType) ? classType.ResolvedType! : "#ERROR",
 				NamedTypeReference named => IsValidResolvedType(named.ResolvedType) ? named.ResolvedType! : named.Name,
 				TypeDefinitionReference definition => IsValidResolvedType(definition.ResolvedType) ? definition.ResolvedType! : definition.Name,
 				PrimitiveTypeReference primitive => PrimitiveName(primitive.Type),
@@ -4099,6 +4100,7 @@ public static class CCodeEmitter
 				OptionalTypeReference optional => FormatType(optional.ElementType, declarator),
 				CallableTypeReference callable => new CType(FormatCallableDeclarator(callable, declarator)),
 				PrimitiveTypeReference primitive => FormatPrimitiveType(primitive.Type, declarator),
+				ClassTypeReference classType when ShouldFormatResolvedType(classType.ResolvedType) => FormatResolvedType(classType.ResolvedType!, declarator),
 				TypeDefinitionReference definition => new CType(CTypeName(definition) + " " + declarator),
 				NamedTypeReference named when ShouldFormatResolvedType(named.ResolvedType) => FormatResolvedType(named.ResolvedType!, declarator),
 				NamedTypeReference named => new CType(CTypeName(named) + " " + declarator),

@@ -591,6 +591,7 @@ public sealed partial class BindableNodeAnalyzer
 			GenericParameterTypeReference genericParameter => genericParameter.Name,
 			AllocatorTypeReference => AllocatorType,
 			NamedTypeReference named => named.ResolvedType ?? BuildNamedTypeSourceName(named),
+			ClassTypeReference => "classtype",
 			AttributedTypeReference attributed => FormatTypeReference(attributed.Type),
 			GenericTypeReference generic => generic.TypeArguments.Count == 0
 				? FormatTypeReference(generic.Type)
@@ -816,6 +817,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		public Dictionary<string, GenericParameter> GenericParameters { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, BindableNode> LifetimeAnchors { get; } = new(StringComparer.Ordinal);
+		public TypeDefinition? ContainingType { get; set; }
 
 		public bool ContainsGenericTypeName(string name)
 		{
@@ -832,6 +834,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			parameter = null;
 			return false;
+		}
+
+		public TypeDefinition? GetContainingType()
+		{
+			return ContainingType ?? parent?.GetContainingType();
 		}
 
 		public void AddLifetimeAnchor(string name, BindableNode anchor)

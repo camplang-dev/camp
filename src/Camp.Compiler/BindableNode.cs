@@ -216,6 +216,11 @@ public class AllocatorTypeReference : TypeReference
 {
 }
 
+public class ClassTypeReference : TypeReference
+{
+	public ClassDefinition? Definition { get; set; }
+}
+
 public class AttributedTypeReference : TypeReference
 {
 	public AttributeConstructor? Attribute { get; set; }

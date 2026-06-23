@@ -37,6 +37,19 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = AllocatorType;
 				break;
 
+			case ClassTypeReference classType:
+				if (scope.GetContainingType() is ClassDefinition classDefinition)
+				{
+					classType.Definition = classDefinition;
+					type.ResolvedType = classDefinition.Name;
+				}
+				else
+				{
+					Report(GetRange(type.SourceSyntax), "'classtype' is valid only inside class declarations.");
+					type.ResolvedType = $"{UnresolvedType}(classtype)";
+				}
+				break;
+
 			case NamedTypeReference named:
 				foreach (TypeReference argument in named.TypeArguments)
 					AnalyzeType(argument, scope);
@@ -110,7 +123,9 @@ public sealed partial class BindableNodeAnalyzer
 
 			case PointerTypeReference pointer:
 				AnalyzeOptionalType(pointer.ElementType, scope);
-				type.ResolvedType = FormatTypeReference(type);
+				type.ResolvedType = pointer.ElementType is ClassTypeReference
+					? $"{pointer.ElementType.ResolvedType}*"
+					: FormatTypeReference(type);
 				break;
 
 			case ConstTypeReference constType:
@@ -230,6 +245,32 @@ public sealed partial class BindableNodeAnalyzer
 			ThrownTypeReference thrown => ContainsLifetimeAnnotation(thrown.Type),
 			TypeDefinitionReference definition => definition.TypeArguments.Any(ContainsLifetimeAnnotation),
 			NamedTypeReference named => named.TypeArguments.Any(ContainsLifetimeAnnotation),
+			_ => false
+		};
+	}
+
+	static bool ContainsClassTypeReference(TypeReference? type)
+	{
+		return type switch
+		{
+			null => false,
+			ClassTypeReference => true,
+			AttributedTypeReference attributed => ContainsClassTypeReference(attributed.Type),
+			GenericTypeReference generic => ContainsClassTypeReference(generic.Type) || generic.TypeArguments.Any(ContainsClassTypeReference),
+			ArrayTypeReference array => ContainsClassTypeReference(array.ElementType),
+			FixedArrayTypeReference fixedArray => ContainsClassTypeReference(fixedArray.ElementType),
+			OptionalTypeReference optional => ContainsClassTypeReference(optional.ElementType),
+			PointerTypeReference pointer => ContainsClassTypeReference(pointer.ElementType),
+			ConstTypeReference constType => ContainsClassTypeReference(constType.Type),
+			VolatileTypeReference volatileType => ContainsClassTypeReference(volatileType.Type),
+			CallableTypeReference callable => ContainsClassTypeReference(callable.ReturnType) || callable.Parameters.Any(static parameter => ContainsClassTypeReference(parameter.Type)),
+			TargetTypeSpecTypeReference targetSpec => ContainsClassTypeReference(targetSpec.Type),
+			IterTypeReference iter => ContainsClassTypeReference(iter.ElementType) || iter.Parameters.Any(static parameter => ContainsClassTypeReference(parameter.Type)),
+			GroupedParamsTypeReference grouped => ContainsClassTypeReference(grouped.StructType),
+			MaterializedStructTypeReference materialized => ContainsClassTypeReference(materialized.ParamsType),
+			ThrownTypeReference thrown => ContainsClassTypeReference(thrown.Type),
+			TypeDefinitionReference definition => definition.TypeArguments.Any(ContainsClassTypeReference),
+			NamedTypeReference named => named.TypeArguments.Any(ContainsClassTypeReference),
 			_ => false
 		};
 	}

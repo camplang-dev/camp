@@ -1566,6 +1566,9 @@ public sealed partial class BindableNodeBuilder
 		if ((syntax.Qualifiers is null || syntax.Qualifiers.Count == 0) && name == "copyable")
 			return new CopyableTypeReference { SourceSyntax = syntax };
 
+		if ((syntax.Qualifiers is null || syntax.Qualifiers.Count == 0) && name == "classtype")
+			return new ClassTypeReference { SourceSyntax = syntax };
+
 		NamedTypeReference type = new()
 		{
 			SourceSyntax = syntax,

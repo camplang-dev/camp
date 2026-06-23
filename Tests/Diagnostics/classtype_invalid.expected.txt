@@ -1,0 +1,10 @@
+tests/Diagnostics/classtype_invalid.camp(1,1): error: 'classtype' is valid only inside class declarations.
+tests/Diagnostics/classtype_invalid.camp(1,1): error: 'classtype' may not be used in global variable types.
+tests/Diagnostics/classtype_invalid.camp(5,2): error: 'classtype' is valid only inside class declarations.
+tests/Diagnostics/classtype_invalid.camp(5,2): error: 'classtype' may not be used in fields or static fields.
+tests/Diagnostics/classtype_invalid.camp(10,2): error: 'classtype' may not be used in fields or static fields.
+tests/Diagnostics/classtype_invalid.camp(11,9): error: 'classtype' may not be used in fields or static fields.
+tests/Diagnostics/classtype_invalid.camp(16,2): error: 'classtype' is valid only inside class declarations.
+tests/Diagnostics/classtype_invalid.camp(21,24): error: Virtual and abstract methods may use 'classtype' only in return types or out parameter types.
+tests/Diagnostics/classtype_invalid.camp(21,24): error: 'classtype' is valid only inside class declarations.
+tests/Diagnostics/classtype_invalid.camp(1,1): (no line,column) error: 'classtype' may not be used in fields or static fields.

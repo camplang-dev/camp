@@ -23,6 +23,7 @@ public sealed partial class BindableNodeAnalyzer
 		return type?.ResolvedType ?? type switch
 		{
 			GenericParameterTypeReference generic => generic.Name,
+			ClassTypeReference => "classtype",
 			NamedTypeReference named => named.Name,
 			TypeDefinitionReference definition => definition.Name,
 			_ => ErrorType
@@ -160,7 +161,8 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		name = BuildNameOfTypeValue(resolved);
+		if (resolved != "classtype")
+			name = BuildNameOfTypeValue(resolved);
 		return true;
 	}
 
@@ -169,6 +171,12 @@ public sealed partial class BindableNodeAnalyzer
 		reference = null;
 		if (TryResolveAlias(operand, AliasTargetKind.Type, null, out AliasDefinition? alias))
 			operand = alias!.ResolvedTargetName;
+
+		if (operand == "classtype" && scope.GetContainingType() is ClassDefinition classDefinition)
+		{
+			reference = classDefinition;
+			return "classtype";
+		}
 
 		if (TryGetPrimitiveType(operand, out _))
 			return operand;
@@ -378,6 +386,48 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = "string"
 			});
 		}
+	}
+
+	bool TryGetClassTypeCallSiteName(Expression? callTarget, FunctionDefinition function, out string classTypeName)
+	{
+		classTypeName = "";
+		if (FindContainingType(function) is not ClassDefinition owner)
+			return false;
+
+		classTypeName = owner.Name;
+		Expression? memberTarget = callTarget switch
+		{
+			MemberExpression member => member.Target,
+			MemberReferenceExpression memberReference => memberReference.Target,
+			_ => null
+		};
+		if (memberTarget is not null)
+		{
+			string? targetType = memberTarget.ResolvedType;
+			if (targetType is null && expressionRewrites.TryGetValue(memberTarget, out Expression? rewritten))
+				targetType = rewritten.ResolvedType;
+			string targetClass = TryGetPointerElementType(targetType) ?? targetType ?? "";
+			if (GetTypeDefinition(targetClass) is ClassDefinition classDefinition
+				&& IsClassOrDerivedFrom(classDefinition, owner))
+				classTypeName = classDefinition.Name;
+		}
+		return true;
+	}
+
+	bool IsClassOrDerivedFrom(ClassDefinition candidate, ClassDefinition ancestor)
+	{
+		if (ReferenceEquals(candidate, ancestor))
+			return true;
+		if (!typeInfos.TryGetValue(candidate, out TypeAnalysisInfo? info))
+			return false;
+		foreach (TypeDefinition baseType in info.BaseTypes)
+		{
+			if (ReferenceEquals(baseType, ancestor))
+				return true;
+			if (baseType is ClassDefinition baseClass && IsClassOrDerivedFrom(baseClass, ancestor))
+				return true;
+		}
+		return false;
 	}
 
 	static string SubstituteNameOfTypeName(string typeName, Dictionary<string, string> substitutions)

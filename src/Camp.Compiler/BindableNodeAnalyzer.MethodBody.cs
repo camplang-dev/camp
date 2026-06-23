@@ -20,6 +20,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		BodyScope scope = new(null, function, containingType);
 		scope.CurrentFunctionReturnType = IsLifecycleFunction(function) ? "void" : function.ResolvedType ?? ErrorType;
+		scope.CurrentFunctionSourceReturnType = IsLifecycleFunction(function) ? "void" : FormatTypeReference(function.ReturnType);
 		scope.CurrentIteratorElementType = function.IteratorKind == IteratorKind.None ? null : GetIteratorElementType(function.ReturnType);
 
 		foreach (ParameterDefinition parameter in function.Parameters)
@@ -129,7 +130,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			case ReturnStatement returnStatement:
 			{
-				string returnType = returnStatement.Expression is null ? "void" : BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope, scope.CurrentFunctionReturnType);
+				string returnTargetSourceType = scope.CurrentFunctionSourceReturnType ?? scope.CurrentFunctionReturnType;
+				string returnType = returnStatement.Expression is null ? "void" : BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope, returnTargetSourceType);
 				if (IsDirectCapturingLambda(returnStatement.Expression, scope) && !IsEscapedDelegateLambdaTarget(scope.CurrentFunctionReturnType))
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Capturing scoped lambdas cannot be returned.");
 				if (RequiresAnyGenericCopy(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
@@ -137,7 +139,7 @@ public sealed partial class BindableNodeAnalyzer
 				bool fixedArraySpanEscape = EscapesLocalFixedArraySpan(scope.CurrentFunctionReturnType, returnStatement.Expression);
 				if (fixedArraySpanEscape)
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Cannot return a span view to local fixed-size array storage.");
-				string returnTargetType = GetLifetimeStructuralTargetType(scope.CurrentFunctionReturnType, returnStatement.Expression);
+				string returnTargetType = GetLifetimeStructuralTargetType(returnTargetSourceType, returnStatement.Expression);
 				CheckAssignable(returnTargetType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				if (!fixedArraySpanEscape)
 					CheckLifetimeResult(returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, scope, "Return expression");
@@ -1442,6 +1444,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments, genericSubstitutions);
 		if (function is not null)
+			returnType = RefineClassTypeCallReturn(function, call.Target, returnType);
+		if (function is not null)
 			returnType = RefineCallReturnTypeFromLifetimeArguments(function, call.Target, call.Arguments, returnType);
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
@@ -1764,7 +1768,10 @@ public sealed partial class BindableNodeAnalyzer
 				string lookupTargetType = TryGetImplicitIteratorProtocolType(member.Target, targetType, out string iteratorProtocolType)
 					? iteratorProtocolType
 					: targetType;
-				List<FunctionDefinition> functions = LookupMemberFunctions(lookupTargetType, member.Name, member.SourceSyntax);
+				bool isTypeTarget = IsTypeReferenceExpression(member.Target);
+				List<FunctionDefinition> functions = isTypeTarget
+					? LookupStaticMemberFunctions(lookupTargetType, member.Name, member.SourceSyntax)
+					: LookupMemberFunctions(lookupTargetType, member.Name, member.SourceSyntax);
 				if (functions.Count == 0)
 					functions = LookupGenericConstraintMemberFunctions(lookupTargetType, member.Name, scope, member.SourceSyntax);
 				if (functions.Count > 1 && TrySelectOverload(member.Name, functions, arguments ?? [], scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedMember)
@@ -3311,6 +3318,7 @@ public sealed partial class BindableNodeAnalyzer
 		public FunctionDefinition CurrentFunction { get; } = currentFunction;
 		public TypeDefinition? ContainingType { get; } = containingType;
 		public string CurrentFunctionReturnType { get; set; } = ErrorType;
+		public string? CurrentFunctionSourceReturnType { get; set; }
 		public string? CurrentIteratorElementType { get; set; }
 		public Dictionary<string, BodySymbol> Symbols { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, BodySymbol> MemberSymbols { get; } = new(StringComparer.Ordinal);

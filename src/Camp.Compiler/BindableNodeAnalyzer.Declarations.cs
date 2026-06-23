@@ -657,7 +657,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	AnalysisScope CreateTypeScope(TypeDefinition definition, AnalysisScope parentScope)
 	{
-		AnalysisScope scope = new(parentScope);
+		AnalysisScope scope = new(parentScope) { ContainingType = definition };
 		foreach (GenericParameter parameter in definition.GenericParameters)
 			scope.GenericParameters[parameter.Name] = parameter;
 
@@ -688,6 +688,8 @@ public sealed partial class BindableNodeAnalyzer
 		ApplySymbolAttribute(definition, allowSymbolAttribute, allowSymbolAttribute ? "variable" : "enum value");
 		CheckName(definition.Name, GetNameRange(definition), "variable");
 		AnalyzeOptionalType(definition.Type, scope);
+		if (ContainsClassTypeReference(definition.Type))
+			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "'classtype' may not be used in global variable types.");
 		ValidateNoLifetimeAnnotation(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "variable types");
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
@@ -737,6 +739,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(definition), "Exported or public fields must be explicitly marked static.");
 		CheckName(definition.Name, GetNameRange(definition), "field");
 		AnalyzeOptionalType(definition.Type, scope);
+		if (ContainsClassTypeReference(definition.Type))
+			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "'classtype' may not be used in fields or static fields.");
 		ValidateFieldLifetimeAnnotation(definition, scope, containingType);
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		if (containingType is NewtypeDefinition && definition.Modifier != FieldModifier.Static && IsDirectFixedArrayType(definition.Type))

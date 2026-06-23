@@ -135,6 +135,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (CanConvertIteratorStateToProtocol(source, target))
 			return true;
 
+		if (CanConvertToClassTypeContract(source, target))
+			return true;
+
 		if (source == "#NULL" && target == AllocatorType)
 			return true;
 
@@ -181,6 +184,13 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		return targetCurrentTypes.Count == 1 && CanImplicitlyConvert(elementType, targetCurrentTypes[0]);
+	}
+
+	static bool CanConvertToClassTypeContract(string source, string target)
+	{
+		if (TryGetPointerElementType(target) is not string targetElement || targetElement != "classtype")
+			return false;
+		return TryGetPointerElementType(source) is not null;
 	}
 
 	bool CanLiftToOptional(string source, string target)
@@ -995,6 +1005,18 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		AddExtensionMemberFunctions(callable, targetType, name, referenceSyntax);
 		return callable;
+	}
+
+	List<FunctionDefinition> LookupStaticMemberFunctions(string targetType, string name, SyntaxNode? referenceSyntax)
+	{
+		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
+			return [];
+
+		List<FunctionDefinition> functions = [];
+		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
+			if (function.Modifier == FunctionModifier.Static)
+				functions.Add(function);
+		return functions;
 	}
 
 	List<FunctionDefinition> LookupGenericConstraintMemberFunctions(string targetType, string name, BodyScope scope, SyntaxNode? referenceSyntax)

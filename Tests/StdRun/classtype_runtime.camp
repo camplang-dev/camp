@@ -1,0 +1,27 @@
+using Std;
+
+class Control
+{
+	static classtype* create(string typeName = typenameof(classtype))
+	{
+		Console.writeLine(typeName);
+		return (classtype*)new Control();
+	}
+
+	classtype* self()
+	{
+		return this;
+	}
+}
+
+class Button: Control
+{
+}
+
+export int main()
+{
+	Button* button = Button.create();
+	Button* self = button.self();
+	Console.writeLine(typenameof(Button));
+	return 0;
+}

@@ -1,0 +1,22 @@
+classtype* globalValue;
+
+struct Holder
+{
+	classtype* value;
+}
+
+class Control
+{
+	classtype* parent;
+	static classtype* shared;
+}
+
+interface IControl
+{
+	classtype* getValue();
+}
+
+abstract class Node
+{
+	abstract void compare(classtype* other);
+}
