@@ -537,6 +537,7 @@ public sealed partial class BindableNodeAnalyzer
 			ThisParameterDefinition => ThisType,
 			WithinParameterDefinition => ErrorType,
 			SizeOfParameterDefinition => "nuint",
+			NameOfParameterDefinition => "string",
 			VTableOfParameterDefinition => VTableType,
 			_ => ErrorType
 		};
@@ -545,6 +546,7 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsUserNamedParameter(ParameterDefinition definition)
 	{
 		return definition is not ThisParameterDefinition
+			and not NameOfParameterDefinition
 			and not VTableOfParameterDefinition;
 	}
 

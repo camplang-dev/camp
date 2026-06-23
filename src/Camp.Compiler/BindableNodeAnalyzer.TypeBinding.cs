@@ -676,7 +676,7 @@ public sealed partial class BindableNodeAnalyzer
 		int thrownCount = 0;
 		foreach (ParameterDefinition parameter in iter.Parameters)
 		{
-			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition or WithinParameterDefinition
+			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition or WithinParameterDefinition
 				|| parameter.Modifier is ParameterModifier.In or ParameterModifier.Out or ParameterModifier.Within)
 			{
 				Report(GetIteratorSlotRange(parameter), "Iterator result slots may only be yielded value slots or a thrown slot.");

@@ -805,6 +805,12 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write(")");
 				break;
 
+			case NameOfExpression nameOf:
+				writer.Write("nameof(");
+				writer.Write(nameOf.Text);
+				writer.Write(")");
+				break;
+
 			case LambdaExpression lambda:
 				WriteLambda(lambda);
 				break;
@@ -1108,6 +1114,12 @@ public sealed class BindableNodeCodeSerializer
 		{
 			writer.Write("sizeof(");
 			WriteType(sizeOf.Type);
+			writer.Write(")");
+		}
+		else if (parameter is NameOfParameterDefinition nameOf)
+		{
+			writer.Write("nameof(");
+			WriteType(nameOf.Type);
 			writer.Write(")");
 		}
 		else if (parameter is VTableOfParameterDefinition vtable)

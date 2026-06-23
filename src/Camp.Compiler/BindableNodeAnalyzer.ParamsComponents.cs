@@ -411,7 +411,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<string> types = [];
 		foreach (ParameterDefinition parameter in parameters)
 		{
-			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
 				continue;
 			if (TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape))
 			{

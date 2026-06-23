@@ -132,6 +132,13 @@ public class VTableOfExpression : Expression
 	public TypeReference? InterfaceType { get; set; }
 }
 
+public class NameOfExpression : Expression
+{
+	public string Text { get; set; } = "";
+	public string? Value { get; set; }
+	public BindableNode? Reference { get; set; }
+}
+
 public class LambdaExpression : Expression
 {
 	public List<LambdaParameter> Parameters { get; } = [];

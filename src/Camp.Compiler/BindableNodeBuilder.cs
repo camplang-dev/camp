@@ -1633,6 +1633,15 @@ public sealed partial class BindableNodeBuilder
 					Type = sizeOf.Type is null ? MissingType(sizeOf, "sizeof parameter is missing a type.") : BuildTypeReference(sizeOf.Type)
 				};
 
+			case NameOfParameterSyntax nameOf:
+				return new NameOfParameterDefinition
+				{
+					SourceSyntax = nameOf,
+					Name = "nameof",
+					Symbol = "nameof",
+					Type = nameOf.Type is null ? MissingType(nameOf, "nameof parameter is missing a type.") : BuildTypeReference(nameOf.Type)
+				};
+
 			case VTableOfParameterSyntax vtableOf:
 				return new VTableOfParameterDefinition
 				{
@@ -1856,6 +1865,7 @@ public sealed partial class BindableNodeBuilder
 			WithinParameterSyntax parameter => parameter.WithinKeyword?.Range,
 			ThisParameterSyntax parameter => parameter.ThisKeyword?.Range,
 			SizeOfParameterSyntax parameter => parameter.SizeOfKeyword?.Range,
+			NameOfParameterSyntax parameter => parameter.NameOfKeyword?.Range,
 			VTableOfParameterSyntax parameter => parameter.VTableOfKeyword?.Range,
 			ParameterDeclaratorSyntax declarator => declarator.Keyword?.Range,
 			TypeSyntax type => GetTypeRange(type),
@@ -1917,6 +1927,7 @@ public sealed partial class BindableNodeBuilder
 			ConstructionExpressionSyntax construction => construction.WithinKeyword?.Range ?? construction.Keyword?.Range,
 			SizeOfExpressionSyntax sizeOf => sizeOf.SizeOfKeyword?.Range,
 			VTableOfExpressionSyntax vtableOf => vtableOf.VTableOfKeyword?.Range,
+			NameOfExpressionSyntax nameOf => nameOf.NameOfKeyword?.Range,
 			SymbolOfExpressionSyntax symbolOf => symbolOf.SymbolOfKeyword?.Range,
 			InitializerListSyntax initializer => initializer.OpenBraceToken?.Range,
 			CommaExpressionSyntax comma => comma.Expressions is [ExpressionSyntax first, ..] ? GetRange(first) : null,

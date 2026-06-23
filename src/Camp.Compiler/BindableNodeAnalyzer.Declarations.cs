@@ -295,6 +295,7 @@ public sealed partial class BindableNodeAnalyzer
 				AnalyzeFunctionDefinition(function, scope, definition.Name);
 			ValidateDuplicateMethodNames(definition.Functions);
 			GenerateSizeOfFields(definition);
+		GenerateNameOfFields(definition);
 		GenerateVTableOfFields(definition);
 		ValidateExpandedFieldNames(definition.Fields);
 		ValidateFlexibleArrayMembers(definition.Fields, allowFlexibleArrayMember: false);
@@ -1170,7 +1171,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsUserNamedParameter(definition) && !(allowThisName && definition.Name == "this"))
 			CheckName(definition.Name, GetNameRange(definition), "parameter");
 
-		if (definition is not SizeOfParameterDefinition)
+		if (definition is not SizeOfParameterDefinition and not NameOfParameterDefinition)
 			AnalyzeOptionalType(definition.Type, scope);
 		if (definition.Type?.LifetimeBinding is string explicitLifetime)
 			definition.LifetimeBinding = explicitLifetime;
@@ -1186,6 +1187,8 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeOptionalType(vtableOf.InterfaceType, scope);
 			FinalizeVTableOfParameter(vtableOf, scope);
 		}
+		if (definition is NameOfParameterDefinition nameOf)
+			FinalizeNameOfParameter(nameOf, scope);
 		if (definition is ThisParameterDefinition thisParameter)
 		{
 			ThisContract contract = GetThisContract(thisParameter);
@@ -1201,10 +1204,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		definition.ResolvedType = definition is SizeOfParameterDefinition
 			? GetImplicitParameterType(definition)
+			: definition is NameOfParameterDefinition
+				? GetImplicitParameterType(definition)
 			: definition is VTableOfParameterDefinition vtableOfParameter
 				? VTableOfParameterType(vtableOfParameter)
 			: definition.Type?.ResolvedType ?? GetImplicitParameterType(definition);
-		if (definition.LifetimeBinding is null && definition is not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+		if (definition.LifetimeBinding is null && definition is not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition)
 		{
 			if (definition is WithinParameterDefinition)
 				BindParameterLifetime(definition, "unscoped", [], "default within");

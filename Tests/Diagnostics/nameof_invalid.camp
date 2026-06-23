@@ -1,0 +1,9 @@
+void missingCapability<T: any>()
+{
+	string name = nameof(T);
+}
+
+export void main()
+{
+	missingCapability<int>();
+}

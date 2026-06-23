@@ -226,6 +226,10 @@ public sealed partial class BindableNodeAnalyzer
 				expression.ResolvedType = VTableType;
 				break;
 
+			case NameOfExpression:
+				expression.ResolvedType = "string";
+				break;
+
 			case LambdaExpression lambda:
 				foreach (LambdaParameter parameter in lambda.Parameters)
 				{

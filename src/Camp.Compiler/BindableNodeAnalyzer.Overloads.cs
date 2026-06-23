@@ -97,6 +97,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (firstOrdinaryIndex < 0
 				&& parameter is not SizeOfParameterDefinition
+				&& parameter is not NameOfParameterDefinition
 				&& parameter is not VTableOfParameterDefinition
 				&& parameter is not WithinParameterDefinition
 				&& parameter.Modifier is not ParameterModifier.Within and not ParameterModifier.Thrown)

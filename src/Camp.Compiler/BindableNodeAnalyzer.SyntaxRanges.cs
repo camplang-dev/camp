@@ -156,6 +156,7 @@ public sealed partial class BindableNodeAnalyzer
 			ConstructionExpressionSyntax construction => construction.WithinKeyword?.Range ?? construction.Keyword?.Range,
 			SizeOfExpressionSyntax sizeOf => sizeOf.SizeOfKeyword?.Range,
 			VTableOfExpressionSyntax vtableOf => vtableOf.VTableOfKeyword?.Range,
+			NameOfExpressionSyntax nameOf => nameOf.NameOfKeyword?.Range,
 			SymbolOfExpressionSyntax symbolOf => symbolOf.SymbolOfKeyword?.Range,
 			InitializerListSyntax initializer => initializer.OpenBraceToken?.Range,
 			CommaExpressionSyntax comma => comma.Expressions is [ExpressionSyntax first, ..] ? GetRange(first) : null,

@@ -101,6 +101,9 @@ public sealed partial class BindableNodeBuilder
 					InterfaceType = vtableOf.InterfaceType is null ? MissingType(vtableOf, "vtableof expression is missing an interface type.") : BuildTypeReference(vtableOf.InterfaceType)
 				};
 
+			case NameOfExpressionSyntax nameOf:
+				return BuildNameOfExpression(nameOf);
+
 			case SymbolOfExpressionSyntax symbolOf:
 				return BuildSymbolOfExpression(symbolOf);
 
@@ -116,6 +119,15 @@ public sealed partial class BindableNodeBuilder
 		}
 	}
 
+	NameOfExpression BuildNameOfExpression(NameOfExpressionSyntax syntax)
+	{
+		return new NameOfExpression
+		{
+			SourceSyntax = syntax,
+			Text = FormatNameOperandTokens(syntax.Tokens)
+		};
+	}
+
 	SymbolOfExpression BuildSymbolOfExpression(SymbolOfExpressionSyntax syntax)
 	{
 		StringBuilder builder = new();
@@ -126,6 +138,27 @@ public sealed partial class BindableNodeBuilder
 			SourceSyntax = syntax,
 			Text = builder.ToString()
 		};
+	}
+
+	static string FormatNameOperandTokens(IReadOnlyList<Token> tokens)
+	{
+		StringBuilder builder = new();
+		Token? previous = null;
+		foreach (Token token in tokens)
+		{
+			if (previous is Token prior && NeedsNameOperandSpace(prior, token))
+				builder.Append(' ');
+			builder.Append(token.Value);
+			previous = token;
+		}
+		return builder.ToString();
+	}
+
+	static bool NeedsNameOperandSpace(Token previous, Token current)
+	{
+		bool previousWord = previous.Class is TokenClass.Identifier or TokenClass.Number;
+		bool currentWord = current.Class is TokenClass.Identifier or TokenClass.Number;
+		return previousWord && currentWord;
 	}
 
 	LiteralExpression? BuildLiteralExpression(LiteralExpressionSyntax syntax)

@@ -147,7 +147,7 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < parameters.Count; i++)
 		{
 			ParameterDefinition parameter = parameters[i];
-			if (parameter is WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition
+			if (parameter is WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition
 				|| parameter is ThisParameterDefinition && !ShouldExpandThisParameter(function, parameter))
 				continue;
 			if (!TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape))
@@ -369,6 +369,7 @@ public sealed partial class BindableNodeAnalyzer
 			AddImplicitDefaultArguments(call);
 			ExpandParamsArguments(call);
 			AddImplicitSizeOfArguments(call);
+			AddImplicitNameOfArguments(call);
 			AddImplicitWithinArgument(call);
 			AddImplicitVTableOfArguments(call);
 			((DeclarationStatement)declarations[0]).InitialValue = null;
@@ -441,6 +442,7 @@ public sealed partial class BindableNodeAnalyzer
 		AddImplicitDefaultArguments(call);
 		ExpandParamsArguments(call);
 		AddImplicitSizeOfArguments(call);
+		AddImplicitNameOfArguments(call);
 		AddImplicitWithinArgument(call);
 		AddImplicitVTableOfArguments(call);
 

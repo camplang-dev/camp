@@ -2088,6 +2088,7 @@ public static class CCodeEmitter
 				CastExpression { LifetimeCastKind: not null } cast => FormatExpression(cast.Expression),
 				CastExpression cast => "(" + FormatType(cast.Type, "").Declaration.Trim() + ")(" + FormatExpression(cast.Expression) + ")",
 				SizeOfExpression sizeOf => FormatSizeOfExpression(sizeOf),
+				NameOfExpression => UnsupportedExpression(expression),
 				CallExpression call => FormatCallExpression(call),
 				IndexExpression index => FormatIndexExpression(index),
 				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatExpression(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
@@ -3167,7 +3168,7 @@ public static class CCodeEmitter
 					continue;
 				}
 
-				if (parameter is SizeOfParameterDefinition or VTableOfParameterDefinition)
+				if (parameter is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
 				{
 					yield return parameter;
 					continue;

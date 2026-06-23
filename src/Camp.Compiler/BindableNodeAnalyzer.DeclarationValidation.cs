@@ -579,7 +579,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateParameterPassing(ParameterDefinition parameter, AnalysisScope scope)
 	{
-		if (parameter is not { Type: TypeReference type } || parameter is ThisParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+		if (parameter is not { Type: TypeReference type } || parameter is ThisParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
 			return;
 
 		if (parameter.Modifier is ParameterModifier.In or ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within)

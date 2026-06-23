@@ -1,0 +1,1 @@
+tests/Diagnostics/nameof_invalid.camp(3,16): error: nameof(T) requires parameter 'nameof_T'.

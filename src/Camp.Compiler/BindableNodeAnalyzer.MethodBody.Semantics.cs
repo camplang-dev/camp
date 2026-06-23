@@ -1770,7 +1770,7 @@ public sealed partial class BindableNodeAnalyzer
 				&& parameter.Modifier is not ParameterModifier.Thrown and not ParameterModifier.Within
 				&& (includeExplicitThis || parameter is not ThisParameterDefinition)
 				&& index >= expandedThisCount
-				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+				&& parameter is not WithinParameterDefinition and not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition)
 				count++;
 			index++;
 		}
@@ -1850,7 +1850,7 @@ public sealed partial class BindableNodeAnalyzer
 			ParameterDefinition parameter = parameters[i];
 			if (parameter.DefaultValue is null
 				&& parameter.Modifier is not ParameterModifier.Out and not ParameterModifier.Thrown
-				&& parameter is not ThisParameterDefinition and not WithinParameterDefinition and not SizeOfParameterDefinition and not VTableOfParameterDefinition)
+				&& parameter is not ThisParameterDefinition and not WithinParameterDefinition and not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition)
 				count++;
 		}
 

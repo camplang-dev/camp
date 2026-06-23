@@ -1526,6 +1526,7 @@ public sealed partial class BindableNodeAnalyzer
 			AddImplicitDefaultArguments(call);
 			ExpandParamsArguments(call);
 			AddImplicitSizeOfArguments(call);
+			AddImplicitNameOfArguments(call);
 			AddImplicitWithinArgument(call);
 			AddImplicitVTableOfArguments(call);
 			if (call.Target is MemberReferenceExpression { Target: Expression receiver } member

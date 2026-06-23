@@ -670,6 +670,7 @@ public static class MetadataJsonSerializer
 				ThisParameterDefinition => "receiver",
 				WithinParameterDefinition => "within-parameter",
 				SizeOfParameterDefinition => "sizeof-parameter",
+				NameOfParameterDefinition => "nameof-parameter",
 				VTableOfParameterDefinition => "vtableof-parameter",
 				ParameterDefinition => "parameter",
 				GenericParameter => "type-parameter",
@@ -887,7 +888,7 @@ public static class MetadataJsonSerializer
 			List<string> names = [];
 			foreach (ParameterDefinition parameter in parameters)
 			{
-				if (parameter is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition)
+				if (parameter is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
 					continue;
 				if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 					continue;

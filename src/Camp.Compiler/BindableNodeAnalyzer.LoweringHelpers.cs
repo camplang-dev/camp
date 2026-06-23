@@ -118,7 +118,7 @@ public sealed partial class BindableNodeAnalyzer
 		int callable = 0;
 		foreach (ParameterDefinition parameter in parameters)
 		{
-			if (IsHiddenParameter(parameter))
+			if (IsHiddenParameter(parameter) || IsSpecialCapabilityParameter(parameter))
 				continue;
 
 			callable++;
@@ -133,6 +133,11 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
 			|| parameter is WithinParameterDefinition;
+	}
+
+	static bool IsSpecialCapabilityParameter(ParameterDefinition parameter)
+	{
+		return parameter is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition;
 	}
 
 	static bool HasWithinParameter(FunctionDefinition function)
@@ -284,6 +289,7 @@ public sealed partial class BindableNodeAnalyzer
 			ThisParameterDefinition => new ThisParameterDefinition(),
 			WithinParameterDefinition => new WithinParameterDefinition(),
 			SizeOfParameterDefinition => new SizeOfParameterDefinition(),
+			NameOfParameterDefinition => new NameOfParameterDefinition(),
 			VTableOfParameterDefinition vtableOf => new VTableOfParameterDefinition { InterfaceType = CloneType(vtableOf.InterfaceType) },
 			_ => new ParameterDefinition()
 		};

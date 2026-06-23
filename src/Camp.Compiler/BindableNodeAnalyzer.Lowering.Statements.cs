@@ -83,6 +83,7 @@ public sealed partial class BindableNodeAnalyzer
 		currentFunctionReturnTarget = null;
 		currentFunctionReturnType = function.ResolvedType ?? "void";
 		InsertSizeOfFieldAssignments(function, containingType);
+		InsertNameOfFieldAssignments(function, containingType);
 		InsertVTableOfFieldAssignments(function, containingType);
 		InsertCreateVirtualTableAssignment(function, containingType);
 		function.Body = RewriteFunctionBody(function.Body);

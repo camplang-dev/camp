@@ -1,0 +1,49 @@
+using Std;
+
+class Box<T: any>
+{
+	Box(nameof(T))
+	{
+	}
+
+	string getTypeName()
+	{
+		return nameof(T);
+	}
+}
+
+class Sample
+{
+	int value;
+
+	string getValueName()
+	{
+		return nameof(this.value);
+	}
+}
+
+void writeTypeName<T: any>(nameof(T))
+{
+	Console.writeLine(nameof(T));
+}
+
+void forwardTypeName<T: any>(nameof(T))
+{
+	writeTypeName<T>();
+}
+
+export int main()
+{
+	int local = 0;
+	auto sample = new Sample();
+	auto box = new Box<int>();
+
+	Console.writeLine(nameof(int));
+	Console.writeLine(nameof(int[]));
+	Console.writeLine(nameof(local));
+	Console.writeLine(sample.ValueName);
+	forwardTypeName<int>();
+	Console.writeLine(box.TypeName);
+
+	return 0;
+}

@@ -250,6 +250,7 @@ public sealed partial class BindableNodeAnalyzer
 			createCall.Arguments.Add(argument);
 		callTargets[createCall] = create;
 		AddImplicitSizeOfArguments(createCall, create, constructedType);
+		AddImplicitNameOfArguments(createCall, create, constructedType);
 		AddImplicitVTableOfArguments(createCall, create, constructedType);
 		if (HasWithinParameter(create))
 		{
@@ -466,6 +467,7 @@ public sealed partial class BindableNodeAnalyzer
 		AddImplicitDefaultArguments(call);
 		ExpandParamsArguments(call);
 		AddImplicitSizeOfArguments(call, initNew, constructedType);
+		AddImplicitNameOfArguments(call, initNew, constructedType);
 		AddImplicitVTableOfArguments(call, initNew, constructedType);
 		if (HasWithinParameter(initNew))
 		{

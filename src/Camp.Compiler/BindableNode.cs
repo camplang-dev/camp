@@ -167,6 +167,10 @@ public class VTableOfParameterDefinition : ParameterDefinition
 	public TypeReference? InterfaceType { get; set; }
 }
 
+public class NameOfParameterDefinition : ParameterDefinition
+{
+}
+
 public class FieldDefinition : Definition
 {
 	public FieldModifier Modifier { get; set; }

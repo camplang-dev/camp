@@ -733,7 +733,7 @@ public sealed class CampParser
 			"do", "double", "else", "enum", "escaped", "export", "extern", "false", "finally",
 			"fixed", "float", "fn", "for", "foreach", "if", "implements", "in", "init", "int",
 			"interface", "iter", "long", "new", "newtype", "nint", "null", "nuint", "once", "out",
-			"override", "params", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
+			"nameof", "override", "params", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
 			"static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
 			"ulong", "unscoped", "ushort", "untyped", "using", "virtual", "void", "volatile",
 			"vtableof", "wchar", "while", "within", "wstring", "yield");
@@ -774,6 +774,15 @@ public sealed class CampParser
 			return new SizeOfParameterSyntax
 			{
 				SizeOfKeyword = Take(),
+				OpenParenToken = Expect("("),
+				Type = ParseType(),
+				CloseParenToken = Expect(")")
+			};
+
+		if (Is("nameof"))
+			return new NameOfParameterSyntax
+			{
+				NameOfKeyword = Take(),
 				OpenParenToken = Expect("("),
 				Type = ParseType(),
 				CloseParenToken = Expect(")")
@@ -1446,6 +1455,9 @@ public sealed class CampParser
 				CloseParenToken = Expect(")")
 			};
 
+		if (Is("nameof"))
+			return ParseNameOfExpression();
+
 		if (Is("symbolof"))
 			return ParseSymbolOfExpression();
 
@@ -1462,6 +1474,24 @@ public sealed class CampParser
 			return ParseInitializerList();
 
 		return ParseQualifiedNameExpression();
+	}
+
+	NameOfExpressionSyntax ParseNameOfExpression()
+	{
+		NameOfExpressionSyntax syntax = new()
+		{
+			NameOfKeyword = Take(),
+			OpenParenToken = Expect("(")
+		};
+
+		while (!AtEnd && !Is(")"))
+		{
+			if (Take() is Token token)
+				syntax.Tokens.Add(token);
+		}
+
+		syntax.CloseParenToken = Expect(")");
+		return syntax;
 	}
 
 	SymbolOfExpressionSyntax ParseSymbolOfExpression()

@@ -708,6 +708,7 @@ public sealed partial class BindableNodeAnalyzer
 			WithinExpression within => BodyAnalyzeWithinExpression(within, scope, typeScope, targetType),
 			SizeOfExpression sizeOf => BodyAnalyzeSizeOfExpression(sizeOf, typeScope),
 			VTableOfExpression vtableOf => BodyAnalyzeVTableOfExpression(vtableOf, typeScope),
+			NameOfExpression nameOf => BodyAnalyzeNameOfExpression(nameOf, scope, typeScope),
 			SymbolOfExpression symbolOf => BodyAnalyzeSymbolOfExpression(symbolOf),
 			LambdaExpression lambda => BodyAnalyzeLambdaExpression(lambda, scope, typeScope, targetType),
 			ArgumentExpression argument => BodyAnalyzeArgumentExpression(argument, scope, typeScope, targetType),
@@ -1865,7 +1866,7 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < arguments.Count; i++)
 		{
 			ParameterDefinition? parameter = parameterIndex < callableParameters.Count ? callableParameters[parameterIndex] : null;
-			while ((parameter is SizeOfParameterDefinition && IsExplicitHiddenArgument(arguments[i]))
+			while (((parameter is SizeOfParameterDefinition or NameOfParameterDefinition) && IsExplicitHiddenArgument(arguments[i]))
 				|| (arguments[i].Modifier == ArgumentModifier.Catch && parameter is not null && IsWithinParameter(parameter)))
 			{
 				parameterIndex++;

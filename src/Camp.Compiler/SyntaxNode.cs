@@ -172,6 +172,14 @@ public class SizeOfParameterSyntax : ParameterSyntax
 	public Token? CloseParenToken { get; set; }
 }
 
+public class NameOfParameterSyntax : ParameterSyntax
+{
+	public Token? NameOfKeyword { get; set; }
+	public Token? OpenParenToken { get; set; }
+	public TypeSyntax? Type { get; set; }
+	public Token? CloseParenToken { get; set; }
+}
+
 public class VTableOfParameterSyntax : ParameterSyntax
 {
 	public Token? VTableOfKeyword { get; set; }
@@ -672,6 +680,14 @@ public class VTableOfExpressionSyntax : PrimaryExpressionSyntax
 	public TypeSyntax? Type { get; set; }
 	public Token? ColonToken { get; set; }
 	public TypeSyntax? InterfaceType { get; set; }
+	public Token? CloseParenToken { get; set; }
+}
+
+public class NameOfExpressionSyntax : PrimaryExpressionSyntax
+{
+	public Token? NameOfKeyword { get; set; }
+	public Token? OpenParenToken { get; set; }
+	public List<Token> Tokens { get; } = [];
 	public Token? CloseParenToken { get; set; }
 }
 
