@@ -653,6 +653,8 @@ public static class MetadataJsonSerializer
 		{
 			if (IsGeneratedDefinition(definition))
 				return false;
+			if (IsApiHeaderDefinition(definition))
+				return false;
 
 			return visibility switch
 			{
@@ -662,6 +664,11 @@ public static class MetadataJsonSerializer
 				MetadataVisibility.All => true,
 				_ => false
 			};
+		}
+
+		bool IsApiHeaderDefinition(Definition definition)
+		{
+			return compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) && owner.IsApiHeader;
 		}
 
 		static bool IsGeneratedDefinition(Definition definition)

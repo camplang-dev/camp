@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text.Json;
 using Xunit;
 
 namespace Camp.Compiler.Tests;
@@ -98,6 +100,35 @@ public sealed class CommandLineTests
 		Assert.Contains("generated: include_pragmas_main.c", result.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("include_pragmas_api.c", result.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("_api.camp", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Metadata_omits_standard_library_declarations()
+	{
+		string temp = CreateTempCase("metadata_std_filter.camp", """
+			using Std;
+
+			export int meaning()
+			{
+				Console.writeLine("hi");
+				return 42;
+			}
+			""");
+		string outDir = TempPath("metadata-std-filter-out");
+
+		ProcessResult result = RunCampc("build", temp, "--artifact", "none", "--metadata", "export", "--out-dir", outDir, "--name", "metadata_std_filter");
+
+		Assert.Equal(0, result.ExitCode);
+		string metadataPath = Path.Combine(outDir, "metadata_std_filter_api.json");
+		using JsonDocument metadata = JsonDocument.Parse(File.ReadAllText(metadataPath));
+		string[] declarationNames = metadata.RootElement.GetProperty("declarations")
+			.EnumerateArray()
+			.Select(static declaration => declaration.GetProperty("name").GetString() ?? "")
+			.ToArray();
+		Assert.Contains("meaning", declarationNames);
+		Assert.DoesNotContain("Console", declarationNames);
+		Assert.DoesNotContain("Allocator", declarationNames);
+		Assert.DoesNotContain("malloc", declarationNames);
 	}
 
 	[Fact]
