@@ -625,6 +625,71 @@ void clear();
 
 When a routine needs to produce several result values, it uses `out` parameters. Call-site deconstruction can bind those result slots without introducing a general tuple value.
 
+#### Receiver-preserving `this` returns
+
+An instance method or out-of-scope receiver method may use plain `this` as its
+return type:
+
+```camp
+class Builder
+{
+	this append(const char[] text)
+	{
+		this.write(text);
+		return this;
+	}
+}
+
+this normalize(Rect* this)
+{
+	return this;
+}
+```
+
+This means the method returns the receiver itself. At a call site, the result
+has the same static receiver type used for the call, including pointer shape,
+constness, and lifetime facts known for that receiver.
+
+```camp
+Builder* builder = new Builder();
+Builder* same = builder.append("hello");
+```
+
+For v1, a method returning `this` may return only:
+
+- `this`;
+- a call on `this` to another method whose source return type is also `this`;
+- a chain made only of those calls.
+
+```camp
+this prepare()
+{
+	return this.reset().retain();
+}
+```
+
+This deliberately rejects returning another parameter or a local alias, even if
+that value happens to contain the receiver:
+
+```camp
+this bad(Builder* other)
+{
+	return other; // ERROR
+}
+```
+
+Plain `this` is not a general type constructor. It may not be used as a
+parameter type, field type, callable slot, `this*`, `this[]`, or `const this`.
+Use `classtype` or an explicit type when a composable type form is needed.
+
+Static methods, free functions without a receiver, constructors, destructors,
+interface methods, and callable `newtype` declarations may not return `this`.
+
+Virtual and abstract methods may return `this`; an override of such a method
+also declares `this` as its return type. The ABI return type is the ordinary
+lowered receiver type for the declaring slot, while source callers keep the
+receiver-preserving type.
+
 ### 1.4.4 Overload parameters
 
 Camp supports a narrow overload model. A parameter marked `overload` is part of
@@ -3300,6 +3365,58 @@ A static method's symbol is the declaring type name, followed by `_`, followed b
 
 When an expression begins with `TypeName.`, or with a namespace-qualified type name followed by `.`, the type name must resolve to a known type. Static lookup then includes visible no-receiver functions whose symbols begin with `TypeName_`; the member name is the portion after the underscore.
 
+#### Class-relative `classtype`
+
+Inside a `class` declaration, `classtype` is a class-relative type form. It is
+useful for factories and fluent APIs that should preserve the static class used
+at the call site.
+
+```camp
+class Control
+{
+	static classtype* create(string typeName = typenameof(classtype))
+	{
+		return (classtype*)new Control();
+	}
+
+	classtype* self()
+	{
+		return this;
+	}
+}
+
+class Button: Control
+{
+}
+
+Button* button = Button.create();
+Button* same = button.self();
+```
+
+In the ABI, `classtype` lowers to the enclosing class type. At source call
+sites, results containing `classtype` are rebound according to the class used
+for member lookup. A call through `Control` produces `Control`-shaped source
+types; a call through `Button` produces `Button`-shaped source types.
+
+Unlike `this`, `classtype` is composable in allowed method signatures and local
+types:
+
+```camp
+classtype* getParent();
+void addChild(classtype* child);
+iter classtype* descendants();
+```
+
+`classtype` is valid only inside class declarations. It may not be used in
+fields, static fields, globals, aliases, callable newtypes, interfaces, structs,
+or enum declarations outside method bodies. For virtual and abstract methods,
+`classtype` is allowed only in result positions such as return types and `out`
+parameters; this avoids misleading contravariant input positions.
+
+`typenameof(classtype)` is not a general expression. It is valid as a default
+parameter value, where the caller supplies the static class name after ordinary
+class-relative binding.
+
 ### 2.2.6 Constructors: unified surface syntax
 
 Camp uses dedicated constructor syntax for both structs and classes:
@@ -4930,6 +5047,42 @@ When an expression becomes hard to read, parenthesize it. This is especially adv
 - nested property/indexer access
 - `await` with chained member access
 - range-like slice expressions
+
+### 3.2.6 `typenameof(...)`
+
+`typenameof(T)` is a compile-time type-name capability. It produces the
+source-level Camp name of a type as a `string` value. The operand must be a type,
+qualified type name, primitive type, type alias, generic type parameter, or
+`classtype` in the limited default-argument form described in the class section.
+
+```camp
+Console.writeLine(typenameof(int));      // Int
+Console.writeLine(typenameof(int[]));    // IntArray
+Console.writeLine(typenameof(MyAlias));
+```
+
+`typenameof(...)` is intentionally not an expression-name reflection feature.
+It does not accept local variables, fields, arbitrary expressions, or runtime
+values:
+
+```camp
+int value = 0;
+string name = typenameof(value); // ERROR
+```
+
+For generic type parameters, `typenameof(T)` is represented as a hidden
+call-site-supplied capability parameter. A generic function that uses it must
+declare that capability:
+
+```camp
+void writeTypeName<T: any>(typenameof(T))
+{
+	Console.writeLine(typenameof(T));
+}
+```
+
+This keeps runtime reflection out of the language while still allowing generic
+code to receive an explicit type-name capability when it needs one.
 
 ## 3.3 Type Inference and Target Typing
 

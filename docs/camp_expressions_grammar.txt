@@ -50,6 +50,7 @@ primary-expression:
 	<construction-expression>
 	<sizeof-expression>
 	<vtableof-expression>
+	<typenameof-expression>
 	<symbolof-expression>
 
 literal:
@@ -76,6 +77,9 @@ sizeof-expression:
 
 vtableof-expression:
 	vtableof '(' <type> : <type> ')'
+
+typenameof-expression:
+	typenameof '(' <type> ')'
 
 symbolof-expression:
 	symbolof '(' <qualified-name> ')'

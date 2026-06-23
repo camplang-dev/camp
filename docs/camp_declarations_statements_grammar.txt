@@ -90,6 +90,7 @@ parameter:
 	within <IDENT>
 	<type-declarator>* this
 	sizeof '(' <type> ')'
+	typenameof '(' <type> ')'
 	vtableof '(' <type> : <type> ')'
 
 parameter-declarator:
@@ -107,6 +108,8 @@ type:
 	struct '(' <type> ')'
 	thrown '(' <type> ')'
 	<type-declarator> <type>
+	this
+	classtype
 	<qualifier>* <IDENT>
 
 call-spec:
