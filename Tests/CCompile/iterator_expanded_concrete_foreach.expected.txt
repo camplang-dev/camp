@@ -1,0 +1,125 @@
+// file: iterator_expanded_concrete_foreach.c
+#include "iterator_expanded_concrete_foreach_private.h"
+
+/* Private file declarations. */
+static splitFirstIter splitFirst(const char *text, uintptr_t text_length);
+static bool splitFirstIter_next(splitFirstIter *this, const char **current, uintptr_t *current_length);
+static void splitFirstIter_op_delete(splitFirstIter *this);
+static void splitFirstIter_destroy(splitFirstIter *this);
+static bool splitFirstIter_iter(void *ctx, const char **current, uintptr_t *current_length);
+
+static splitFirstIter splitFirst(const char *text, uintptr_t text_length)
+{
+	return (splitFirstIter){ .__state = 0, .text = text, .text_length = text_length };
+}
+
+int main(void)
+{
+	const char *text = "abc";
+	uintptr_t text_length = 3;
+	splitFirstIter parts = splitFirst(text, text_length);
+	uintptr_t total = 0;
+	{
+		splitFirstIter _foreachIter0 = parts;
+		const char *_foreachCurrent1 = 0;
+		uintptr_t _foreachCurrent1_length = 0;
+		while (splitFirstIter_next(&_foreachIter0, &_foreachCurrent1, &_foreachCurrent1_length))
+		{
+			const char *part = _foreachCurrent1;
+			uintptr_t part_length = _foreachCurrent1_length;
+			total += part_length;
+__foreach_continue2: ;
+		}
+		splitFirstIter_op_delete(&_foreachIter0);
+__foreach_break3: ;
+	}
+	return ((total == 1) ? 0 : 1);
+}
+
+static bool splitFirstIter_next(splitFirstIter *this, const char **current, uintptr_t *current_length)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	{
+		*current = (this->text + ((0 > this->text_length) ? this->text_length : ((0 < 0) ? 0 : 0)));
+		*current_length = ((((1 > this->text_length) ? this->text_length : ((1 < 0) ? 0 : 1)) >= ((0 > this->text_length) ? this->text_length : ((0 < 0) ? 0 : 0))) ? (((1 > this->text_length) ? this->text_length : ((1 < 0) ? 0 : 1)) - ((0 > this->text_length) ? this->text_length : ((0 < 0) ? 0 : 0))) : 0);
+	}
+	this->__state = 1;
+	return true;
+__iter_resume1: ;
+	;
+	this->__state = -1;
+	return false;
+}
+
+static void splitFirstIter_op_delete(splitFirstIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static void splitFirstIter_destroy(splitFirstIter *this)
+{
+	splitFirstIter_op_delete(this);
+}
+
+static bool splitFirstIter_iter(void *ctx, const char **current, uintptr_t *current_length)
+{
+	splitFirstIter *state = (splitFirstIter *)(ctx);
+	if ((current == NULL))
+	{
+		splitFirstIter_op_delete(state);
+		return false;
+	}
+	return splitFirstIter_next(state, current, current_length);
+}
+
+// file: iterator_expanded_concrete_foreach.h
+#ifndef ITERATOR_EXPANDED_CONCRETE_FOREACH_H_
+#define ITERATOR_EXPANDED_CONCRETE_FOREACH_H_
+
+#include "iterator_expanded_concrete_foreach_private.h"
+
+int main(void);
+
+#endif
+// file: iterator_expanded_concrete_foreach_private.h
+#ifndef ITERATOR_EXPANDED_CONCRETE_FOREACH_PRIVATE_H_
+#define ITERATOR_EXPANDED_CONCRETE_FOREACH_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct splitFirstIter splitFirstIter;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct splitFirstIter
+{
+	int __state;
+	const char *text;
+	uintptr_t text_length;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: iterator_expanded_concrete_foreach.c

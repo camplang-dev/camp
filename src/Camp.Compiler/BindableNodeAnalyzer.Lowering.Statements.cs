@@ -678,7 +678,8 @@ public sealed partial class BindableNodeAnalyzer
 			: LowerExpression(foreachStatement.Source);
 		FunctionDefinition next = foreachStatement.IteratorNext!;
 		string iteratorType = source?.ResolvedType ?? ErrorType;
-		string elementType = foreachStatement.Target.ResolvedType ?? TryGetPointerElementType(GetCallableParameters(next.Parameters)[0].ResolvedType) ?? ErrorType;
+		List<ParameterDefinition> nextParameters = GetCallableParameters(next.Parameters);
+		string elementType = foreachStatement.Target.ResolvedType ?? TryGetPointerElementType(nextParameters.Count > 0 ? nextParameters[0].ResolvedType : null) ?? ErrorType;
 		bool useLiftedState = iteratorForeachStates.TryGetValue(foreachStatement, out IteratorForeachStateFields? stateFields);
 		DeclarationStatement? iteratorLocal = null;
 		DeclarationStatement? currentLocal = null;
@@ -717,9 +718,25 @@ public sealed partial class BindableNodeAnalyzer
 		else
 		{
 			iteratorLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIter"), iteratorType, TypeReferenceForResolvedName(iteratorType), source);
-			currentLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachCurrent"), elementType, TypeReferenceForResolvedName(elementType), new DefaultExpression { ResolvedType = elementType });
+			string currentLocalName = NewGeneratedLocalName("foreachCurrent");
+			currentLocal = CreateGeneratedLocal(currentLocalName, elementType, TypeReferenceForResolvedName(elementType), new DefaultExpression { ResolvedType = elementType });
 			setupStatements.Add(iteratorLocal);
-			setupStatements.Add(currentLocal);
+			if (TryGetParamsComponentShape(currentLocal.Target.Type, currentLocal.Target.ResolvedType, currentLocalName, out ParamsComponentShape currentShape)
+				&& currentShape.Components.Count > 1)
+			{
+				List<DeclarationTarget> currentTargets = [];
+				foreach (ParamsComponent component in currentShape.Components)
+				{
+					DeclarationStatement componentLocal = CreateGeneratedLocal(component.ExpandedName, component.Type, TypeReferenceForResolvedName(component.Type), new DefaultExpression { ResolvedType = component.Type });
+					setupStatements.Add(componentLocal);
+					currentTargets.Add(componentLocal.Target);
+				}
+				RegisterParamsExpansion(currentLocal.Target, currentShape, currentTargets);
+			}
+			else
+			{
+				setupStatements.Add(currentLocal);
+			}
 		}
 		Expression IteratorReference()
 		{
@@ -745,6 +762,26 @@ public sealed partial class BindableNodeAnalyzer
 		loopValue.Target.ResolvedType = elementType;
 		foreach (string name in foreachStatement.Target.Names)
 			loopValue.Target.Names.Add(name);
+		List<Statement> loopValueStatements = [loopValue];
+		if (loopValue.Target.Names.Count == 1
+			&& TryGetParamsComponentShape(loopValue.Target.Type, loopValue.Target.ResolvedType, loopValue.Target.Names[0], out ParamsComponentShape loopValueShape)
+			&& TryCreateParamsComponentExpressions(CurrentReference(), out List<Expression> currentValueComponents)
+			&& currentValueComponents.Count == loopValueShape.Components.Count)
+		{
+			List<DeclarationTarget> loopValueTargets = [];
+			loopValueStatements = [];
+			for (int i = 0; i < loopValueShape.Components.Count; i++)
+			{
+				ParamsComponent component = loopValueShape.Components[i];
+				DeclarationStatement componentLocal = CreateGeneratedLocal(component.ExpandedName, component.Type, TypeReferenceForResolvedName(component.Type), currentValueComponents[i]);
+				componentLocal.SourceSyntax = loopValue.SourceSyntax;
+				componentLocal.Target.SourceSyntax = loopValue.Target.SourceSyntax;
+				loopValueStatements.Add(componentLocal);
+				loopValueTargets.Add(componentLocal.Target);
+			}
+			RegisterParamsExpansion(loopValue.Target, loopValueShape, loopValueTargets);
+			RegisterParamsExpansion(foreachStatement.Target, loopValueShape, loopValueTargets);
+		}
 
 		string continueLabel = NewGeneratedLabelName("foreach_continue");
 		string breakLabel = NewGeneratedLabelName("foreach_break");
@@ -760,7 +797,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		currentCleanupScopes.Add(iteratorCleanupScope);
 		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
-		List<Statement> bodyStatements = [loopValue];
+		List<Statement> bodyStatements = [.. loopValueStatements];
 		if (foreachStatement.Body is not null)
 			bodyStatements.Add(foreachStatement.Body);
 		RewriteStatementList(bodyStatements);
@@ -780,23 +817,18 @@ public sealed partial class BindableNodeAnalyzer
 				Member = next,
 				ResolvedType = BuildFunctionValueType(next, isInstance: true)
 			},
-			ResolvedType = "bool",
-			Arguments =
-			{
-				new ArgumentExpression
-				{
-					SourceSyntax = foreachStatement.SourceSyntax,
-					Value = new UnaryExpression
-					{
-						SourceSyntax = foreachStatement.SourceSyntax,
-						Operator = UnaryOperator.AddressOf,
-						Operand = CurrentReference(),
-						ResolvedType = $"{elementType}*"
-					},
-					ResolvedType = $"{elementType}*"
-				}
-			}
+			ResolvedType = "bool"
 		};
+		if (TryCreateParamsComponentExpressions(CurrentReference(), out List<Expression> currentComponents) && nextParameters.Count == currentComponents.Count)
+		{
+			for (int i = 0; i < currentComponents.Count; i++)
+				nextCall.Arguments.Add(CreateIteratorProtocolCurrentArgument(currentComponents[i], nextParameters[i].ResolvedType ?? ErrorType, foreachStatement.SourceSyntax));
+		}
+		else
+		{
+			string currentParameterType = nextParameters.Count > 0 ? nextParameters[0].ResolvedType ?? $"{elementType}*" : $"{elementType}*";
+			nextCall.Arguments.Add(CreateIteratorProtocolCurrentArgument(CurrentReference(), currentParameterType, foreachStatement.SourceSyntax));
+		}
 		WhileStatement loop = new()
 		{
 			SourceSyntax = foreachStatement.SourceSyntax,

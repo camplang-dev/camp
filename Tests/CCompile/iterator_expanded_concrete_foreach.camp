@@ -1,0 +1,14 @@
+struct iter const char[] splitFirst(unscoped const char[] text)
+{
+	yield text[..1];
+}
+
+export int main()
+{
+	const char[] text = "abc";
+	splitFirstIter parts = splitFirst(text);
+	nuint total = 0;
+	foreach (const char[] part in parts)
+		total += part.length;
+	return total == 1 ? 0 : 1;
+}

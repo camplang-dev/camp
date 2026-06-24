@@ -9,11 +9,3 @@ Next bug number: BUG-030.
   that the C emitter rejects. Work around with explicit index loops until the
   generic-array and generator-body foreach lowering paths share the ordinary
   array lowering machinery.
-
-- **BUG-027:** `foreach` over a concrete iterator state that yields an expanded
-  params value can omit hidden current-slot component arguments. Priority:
-  medium. Complexity: medium. For example, directly enumerating a concrete
-  `splitFirstIter` that yields `const char[]` may call `next(&current)` instead
-  of `next(&current, &current_length)`, and then attempts to read `.length` from
-  the pointer variable. Protocol-shaped `iter` foreach already has coverage for
-  expanded slots; this bug is specific to the concrete iterator path.
