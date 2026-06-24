@@ -643,13 +643,18 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryRewritePropertySetterAssignment(AssignmentExpression assignment, out Expression? rewritten)
 	{
 		rewritten = null;
-		switch (assignment.Target)
+		Expression? target = assignment.Target is null ? null : RewriteExpression(assignment.Target);
+		switch (target)
 		{
 			case MemberReferenceExpression setter when IsPropertySetterReference(setter):
 				rewritten = RewritePropertySetterAssignment(setter, [], assignment);
 				return true;
 
 			case IndexExpression { Target: MemberReferenceExpression setter } index when IsPropertySetterReference(setter):
+				rewritten = RewritePropertySetterAssignment(setter, index.Arguments, assignment);
+				return true;
+
+			case IndexExpression { Target: not null } index when RewriteExpression(index.Target) is MemberReferenceExpression setter && IsPropertySetterReference(setter):
 				rewritten = RewritePropertySetterAssignment(setter, index.Arguments, assignment);
 				return true;
 
@@ -661,7 +666,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryRewritePropertySetterAssignmentStatement(AssignmentExpression assignment, out Expression? rewritten)
 	{
 		rewritten = null;
-		switch (assignment.Target)
+		Expression? target = assignment.Target is null ? null : RewriteExpression(assignment.Target);
+		switch (target)
 		{
 			case MemberReferenceExpression setter when IsPropertySetterReference(setter):
 				rewritten = RewritePropertySetterCall(setter, [], assignment.Value);
@@ -671,9 +677,23 @@ public sealed partial class BindableNodeAnalyzer
 				rewritten = RewritePropertySetterCall(setter, index.Arguments, assignment.Value);
 				return true;
 
+			case IndexExpression { Target: not null } index when RewriteExpression(index.Target) is MemberReferenceExpression setter && IsPropertySetterReference(setter):
+				rewritten = RewritePropertySetterCall(setter, index.Arguments, assignment.Value);
+				return true;
+
 			default:
 				return false;
 		}
+	}
+
+	bool TryRewriteDiscardedPropertySetterAssignment(Expression? expression, out Expression? rewritten)
+	{
+		rewritten = null;
+		while (expression is ParenthesizedExpression parenthesized)
+			expression = parenthesized.Expression;
+
+		return expression is AssignmentExpression assignment
+			&& TryRewritePropertySetterAssignmentStatement(assignment, out rewritten);
 	}
 
 	Expression RewritePropertySetterAssignment(MemberReferenceExpression setter, List<ArgumentExpression> arguments, AssignmentExpression assignment)

@@ -32,8 +32,7 @@ static const char *Mail_works(Mail *this)
 
 static void Mail_alsoWorks(Mail *this)
 {
-	const char *_propertyValue1 = "test3";
-	((Mail_setMessage(this, _propertyValue1), _propertyValue1));
+	Mail_setMessage(this, "test3");
 }
 
 int main(void)
