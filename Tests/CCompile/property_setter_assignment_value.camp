@@ -1,0 +1,24 @@
+extern void* malloc(nuint size);
+
+class Mail
+{
+	string message;
+
+	void setMessage(unscoped string message) => this.message = message;
+	string getMessage() => this.message;
+
+	string fails() => (this.Message = "test1");
+
+	string works() => (this.message = "test2");
+
+	void alsoWorks() => (this.Message = "test3");
+}
+
+export int main()
+{
+	auto mail = new Mail();
+	string result1 = mail.fails();
+	string result2 = mail.works();
+	mail.alsoWorks();
+	return result1[0] == 't' && result2[0] == 't' ? 0 : 1;
+}

@@ -646,6 +646,24 @@ public sealed partial class BindableNodeAnalyzer
 		switch (assignment.Target)
 		{
 			case MemberReferenceExpression setter when IsPropertySetterReference(setter):
+				rewritten = RewritePropertySetterAssignment(setter, [], assignment);
+				return true;
+
+			case IndexExpression { Target: MemberReferenceExpression setter } index when IsPropertySetterReference(setter):
+				rewritten = RewritePropertySetterAssignment(setter, index.Arguments, assignment);
+				return true;
+
+			default:
+				return false;
+		}
+	}
+
+	bool TryRewritePropertySetterAssignmentStatement(AssignmentExpression assignment, out Expression? rewritten)
+	{
+		rewritten = null;
+		switch (assignment.Target)
+		{
+			case MemberReferenceExpression setter when IsPropertySetterReference(setter):
 				rewritten = RewritePropertySetterCall(setter, [], assignment.Value);
 				return true;
 
@@ -656,6 +674,36 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return false;
 		}
+	}
+
+	Expression RewritePropertySetterAssignment(MemberReferenceExpression setter, List<ArgumentExpression> arguments, AssignmentExpression assignment)
+	{
+		if (currentStatementPrefix is null || assignment.Value is null)
+			return RewritePropertySetterCall(setter, arguments, assignment.Value);
+
+		string valueType = assignment.Value.ResolvedType ?? assignment.ResolvedType ?? ErrorType;
+		Expression loweredValue = LowerExpression(assignment.Value) ?? assignment.Value;
+		DeclarationStatement valueLocal = CreateGeneratedLocal(NewGeneratedLocalName("propertyValue"), valueType, TypeReferenceForResolvedName(valueType), loweredValue);
+		currentStatementPrefix.Add(valueLocal);
+
+		VariableReferenceExpression valueReference = CreateVariableReference(valueLocal.Target, valueType);
+		Expression setterCall = RewritePropertySetterCall(setter, arguments, valueReference);
+		GroupedExpression grouped = new()
+		{
+			SourceSyntax = assignment.SourceSyntax,
+			ResolvedType = assignment.ResolvedType ?? valueType
+		};
+		grouped.Items.Add(new GroupedExpressionItem
+		{
+			Expression = setterCall,
+			ResolvedType = setterCall.ResolvedType
+		});
+		grouped.Items.Add(new GroupedExpressionItem
+		{
+			Expression = CreateVariableReference(valueLocal.Target, valueType),
+			ResolvedType = valueType
+		});
+		return grouped;
 	}
 
 }

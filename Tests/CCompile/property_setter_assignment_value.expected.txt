@@ -1,0 +1,90 @@
+// file: property_setter_assignment_value.c
+#include "property_setter_assignment_value_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+static void Mail_setMessage(Mail *this, const char *message);
+static const char *Mail_getMessage(Mail *this);
+static const char *Mail_fails(Mail *this);
+static const char *Mail_works(Mail *this);
+static void Mail_alsoWorks(Mail *this);
+
+static void Mail_setMessage(Mail *this, const char *message)
+{
+	this->message = message;
+}
+
+static const char *Mail_getMessage(Mail *this)
+{
+	return this->message;
+}
+
+static const char *Mail_fails(Mail *this)
+{
+	const char *_propertyValue0 = "test1";
+	return ((Mail_setMessage(this, _propertyValue0), _propertyValue0));
+}
+
+static const char *Mail_works(Mail *this)
+{
+	return (this->message = "test2");
+}
+
+static void Mail_alsoWorks(Mail *this)
+{
+	const char *_propertyValue1 = "test3";
+	((Mail_setMessage(this, _propertyValue1), _propertyValue1));
+}
+
+int main(void)
+{
+	Mail *mail = (Mail *)(malloc(sizeof(Mail)));
+	if ((mail != NULL))
+	{
+		*mail = (Mail){0};
+	}
+	const char *result1 = Mail_fails(mail);
+	const char *result2 = Mail_works(mail);
+	Mail_alsoWorks(mail);
+	return (((result1[0] == 't') && (result2[0] == 't')) ? 0 : 1);
+}
+
+// file: property_setter_assignment_value.h
+#ifndef PROPERTY_SETTER_ASSIGNMENT_VALUE_H_
+#define PROPERTY_SETTER_ASSIGNMENT_VALUE_H_
+
+#include "property_setter_assignment_value_private.h"
+
+int main(void);
+
+#endif
+// file: property_setter_assignment_value_private.h
+#ifndef PROPERTY_SETTER_ASSIGNMENT_VALUE_PRIVATE_H_
+#define PROPERTY_SETTER_ASSIGNMENT_VALUE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Mail Mail;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Mail
+{
+	const char *message;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: property_setter_assignment_value.c

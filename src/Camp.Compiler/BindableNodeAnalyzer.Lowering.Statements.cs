@@ -140,6 +140,11 @@ public sealed partial class BindableNodeAnalyzer
 			case ExpressionStatement expression:
 				if (expression.Expression is AssignmentExpression assignment && TryRewriteParamsAssignment(assignment, out List<Statement>? assignmentStatements))
 					return CreateBlock(assignmentStatements);
+				if (expression.Expression is AssignmentExpression propertyAssignment && TryRewritePropertySetterAssignmentStatement(propertyAssignment, out Expression? setterCall))
+				{
+					expression.Expression = setterCall;
+					break;
+				}
 				expression.Expression = LowerExpression(expression.Expression);
 				if (expression.Expression is UnaryExpression { Operator: UnaryOperator.Throw } throwExpression)
 					return CreateBlock(CreateThrowTransfer(throwExpression.Operand, throwExpression.SourceSyntax));
