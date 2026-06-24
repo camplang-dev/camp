@@ -1,0 +1,11 @@
+const int DEFAULT_SHOW = 5;
+
+int show(int command = DEFAULT_SHOW)
+{
+	return command;
+}
+
+export int run()
+{
+	return show();
+}

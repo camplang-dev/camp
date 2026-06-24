@@ -261,10 +261,70 @@ public static class CCodeEmitter
 				description += $" referencing {variableReference.Variable.GetType().Name} '{variableType}'";
 		}
 
-		if (node.SourceSyntax is not null && TryGetSourceRange(node.SourceSyntax, out TokenRange range))
+		if (TryGetNodeSourceRange(node, out TokenRange range))
 			description += $" at {range.StartLineNumber},{range.StartColumn}";
+		else if (TryGetSerializedNodeSnippet(node, out string snippet))
+			description += $" near `{snippet}`";
 
 		return description;
+	}
+
+	static bool TryGetNodeSourceRange(BindableNode node, out TokenRange range)
+	{
+		if (node.SourceSyntax is not null && TryGetSourceRange(node.SourceSyntax, out range))
+			return true;
+
+		foreach (BindableNode child in EnumerateNodes(node, []))
+		{
+			if (child == node || child.SourceSyntax is null)
+				continue;
+			if (TryGetSourceRange(child.SourceSyntax, out range))
+				return true;
+		}
+
+		range = default;
+		return false;
+	}
+
+	static bool TryGetSerializedNodeSnippet(BindableNode node, out string snippet)
+	{
+		try
+		{
+			using StringWriter writer = new();
+			BindableNodeCodeSerializer.Serialize(node, writer);
+			snippet = CollapseWhitespace(writer.ToString());
+			if (snippet.Length > 120)
+				snippet = snippet[..117] + "...";
+			return snippet.Length > 0;
+		}
+		catch
+		{
+			snippet = "";
+			return false;
+		}
+	}
+
+	static string CollapseWhitespace(string value)
+	{
+		StringBuilder builder = new(value.Length);
+		bool pendingSpace = false;
+		foreach (char ch in value)
+		{
+			if (char.IsWhiteSpace(ch))
+			{
+				pendingSpace = builder.Length > 0;
+				continue;
+			}
+
+			if (pendingSpace)
+			{
+				builder.Append(' ');
+				pendingSpace = false;
+			}
+			builder.Append(ch);
+		}
+
+		return builder.ToString();
 	}
 
 	static bool TryGetSourceRange(SyntaxNode syntax, out TokenRange range)

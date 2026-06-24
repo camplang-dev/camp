@@ -485,11 +485,12 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			Expression? defaultValue = CloneDefaultArgumentExpression(parameter.DefaultValue);
+			string? defaultType = defaultValue?.ResolvedType;
 			orderedArguments.Add(new ArgumentExpression
 			{
 				SourceSyntax = call.SourceSyntax ?? parameter.SourceSyntax,
 				Value = defaultValue,
-				ResolvedType = defaultValue?.ResolvedType ?? parameter.ResolvedType
+				ResolvedType = IsInvalidDefaultArgumentType(defaultType) ? parameter.ResolvedType : defaultType ?? parameter.ResolvedType
 			});
 		}
 
@@ -610,6 +611,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression? CloneDefaultArgumentExpression(Expression? expression)
 	{
+		if (expression is not null && expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return CloneDefaultArgumentExpression(rewritten);
+
 		return expression switch
 		{
 			null => null,
@@ -626,6 +630,14 @@ public sealed partial class BindableNodeAnalyzer
 			MemberReferenceExpression member => new MemberReferenceExpression { SourceSyntax = member.SourceSyntax, Target = CloneDefaultArgumentExpression(member.Target), Name = member.Name, Member = member.Member, ResolvedType = member.ResolvedType },
 			_ => expression
 		};
+	}
+
+	static bool IsInvalidDefaultArgumentType(string? type)
+	{
+		return string.IsNullOrWhiteSpace(type)
+			|| type == ErrorType
+			|| type == UnresolvedType
+			|| type.StartsWith(UnresolvedType + "(", StringComparison.Ordinal);
 	}
 
 	bool TryRewritePropertySetterAssignment(AssignmentExpression assignment, out Expression? rewritten)
