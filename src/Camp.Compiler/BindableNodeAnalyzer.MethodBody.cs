@@ -375,6 +375,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (declaration.Target.Type is AutoTypeReference
 			&& TryGetImplicitIteratorProtocolType(declaration.InitialValue, initialType, out string iteratorProtocolType))
 			initialType = iteratorProtocolType;
+		if (declaration.InitialValue is not null
+			&& declaration.Target.Type is AutoTypeReference or null
+			&& initialType == "void")
+		{
+			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Auto declaration cannot infer a type from a void expression.");
+		}
 		if (declaration.InitialValue is InitializerExpression
 			&& declaration.Target.Type is AutoTypeReference or null
 			&& declaration.Target.Names.Count == 1)

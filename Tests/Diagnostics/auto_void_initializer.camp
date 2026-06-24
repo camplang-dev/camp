@@ -1,0 +1,8 @@
+void test()
+{
+}
+
+export void main()
+{
+	auto result3 = test();
+}

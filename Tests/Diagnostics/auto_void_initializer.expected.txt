@@ -1,0 +1,1 @@
+tests/Diagnostics/auto_void_initializer.camp(7,21): error: Auto declaration cannot infer a type from a void expression.
