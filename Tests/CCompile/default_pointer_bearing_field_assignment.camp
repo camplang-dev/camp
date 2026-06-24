@@ -1,0 +1,25 @@
+struct PointerBearing
+{
+	int* inner;
+}
+
+class Test
+{
+	int* pointer;
+	PointerBearing bearing;
+
+	void assignPointer()
+	{
+		this.pointer = default;
+	}
+
+	void assignPointerBearing()
+	{
+		this.bearing = default;
+	}
+}
+
+export int main()
+{
+	return 0;
+}

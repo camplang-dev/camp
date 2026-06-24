@@ -1,0 +1,67 @@
+// file: default_pointer_bearing_field_assignment.c
+#include "default_pointer_bearing_field_assignment_private.h"
+
+/* Private file declarations. */
+static void Test_assignPointer(Test *this);
+static void Test_assignPointerBearing(Test *this);
+
+static void Test_assignPointer(Test *this)
+{
+	this->pointer = 0;
+}
+
+static void Test_assignPointerBearing(Test *this)
+{
+	this->bearing = (PointerBearing){0};
+}
+
+int main(void)
+{
+	return 0;
+}
+
+// file: default_pointer_bearing_field_assignment.h
+#ifndef DEFAULT_POINTER_BEARING_FIELD_ASSIGNMENT_H_
+#define DEFAULT_POINTER_BEARING_FIELD_ASSIGNMENT_H_
+
+#include "default_pointer_bearing_field_assignment_private.h"
+
+int main(void);
+
+#endif
+// file: default_pointer_bearing_field_assignment_private.h
+#ifndef DEFAULT_POINTER_BEARING_FIELD_ASSIGNMENT_PRIVATE_H_
+#define DEFAULT_POINTER_BEARING_FIELD_ASSIGNMENT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct PointerBearing PointerBearing;
+typedef struct Test Test;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct PointerBearing
+{
+	int *inner;
+};
+struct Test
+{
+	int *pointer;
+	PointerBearing bearing;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: default_pointer_bearing_field_assignment.c

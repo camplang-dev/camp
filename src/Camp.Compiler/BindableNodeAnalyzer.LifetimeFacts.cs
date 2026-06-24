@@ -1035,6 +1035,8 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		if (valueFact.Kind == "unknown")
 			return;
+		if (valueFact.Kind is "default" or "null")
+			return;
 
 		if (TryGetEscapedStorageTarget(target))
 		{
