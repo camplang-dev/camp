@@ -1,0 +1,52 @@
+// file: extern_class_inheritance_lifecycle.c
+#include "extern_class_inheritance_lifecycle_private.h"
+
+/* Private file declarations. */
+NativeBase *NativeBase_create(void);
+void NativeBase_op_delete(NativeBase *this);
+NativeChild *NativeChild_create(void);
+void NativeChild_op_delete(NativeChild *this);
+
+int main(void)
+{
+	NativeChild *child = NativeChild_create();
+	NativeChild_op_delete(child);
+	return 0;
+}
+
+// file: extern_class_inheritance_lifecycle.h
+#ifndef EXTERN_CLASS_INHERITANCE_LIFECYCLE_H_
+#define EXTERN_CLASS_INHERITANCE_LIFECYCLE_H_
+
+#include "extern_class_inheritance_lifecycle_private.h"
+
+int main(void);
+
+#endif
+// file: extern_class_inheritance_lifecycle_private.h
+#ifndef EXTERN_CLASS_INHERITANCE_LIFECYCLE_PRIVATE_H_
+#define EXTERN_CLASS_INHERITANCE_LIFECYCLE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct NativeBase NativeBase;
+typedef struct NativeChild NativeChild;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: extern_class_inheritance_lifecycle.c

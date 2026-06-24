@@ -1,0 +1,18 @@
+extern class NativeBase
+{
+	extern NativeBase();
+	extern ~NativeBase();
+}
+
+extern class NativeChild : NativeBase
+{
+	extern NativeChild();
+	extern ~NativeChild();
+}
+
+export int main()
+{
+	auto child = new NativeChild();
+	delete child;
+	return 0;
+}
