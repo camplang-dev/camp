@@ -3329,8 +3329,16 @@ public sealed partial class BindableNodeAnalyzer
 	bool ReceiverExpressionSatisfiesEscapedThis(Expression? receiver, string receiverType)
 	{
 		if (TryParseLifetimeFact(GetExpressionLifetimeFact(receiver), out LifetimeFact fact))
-			return fact.Kind == "escaped";
-		return receiverType.TrimStart().StartsWith("escaped ", StringComparison.Ordinal);
+		{
+			if (fact.Kind == "escaped")
+				return true;
+		}
+		if (receiverType.TrimStart().StartsWith("escaped ", StringComparison.Ordinal))
+			return true;
+
+		string receiverDefinitionName = BaseTypeName(StripLifetimeQualifiers(TryGetPointerElementType(receiverType) ?? receiverType));
+		return typeDefinitions.TryGetValue(receiverDefinitionName, out TypeDefinition? definition)
+			&& definition is ClassDefinition { IsEscaped: true } or InterfaceDefinition { IsEscaped: true };
 	}
 
 	bool IsTypeReferenceExpression(Expression? expression)

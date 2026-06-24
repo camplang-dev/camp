@@ -1,4 +1,7 @@
 newtype delegate nuint CharFormatter(const this, char[] buffer);
+newtype delegate void EscapedDelegate(escaped this);
+
+extern void* malloc(nuint size);
 
 class Date
 {
@@ -11,9 +14,25 @@ class Date
 	}
 }
 
+escaped class Test
+{
+	void increment() : EscapedDelegate
+	{
+	}
+
+	void incrementExplicit(escaped this) : EscapedDelegate
+	{
+	}
+}
+
 export int main()
 {
 	const Date d = init Date();
 	CharFormatter f = d.format;
+	auto test = new Test();
+	EscapedDelegate e1 = test.increment;
+	auto e2 = test.increment;
+	EscapedDelegate e3 = e2;
+	EscapedDelegate e4 = test.incrementExplicit;
 	return 0;
 }
