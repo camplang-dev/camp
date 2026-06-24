@@ -2736,16 +2736,23 @@ Camp uses `struct` for ordinary data and `class` for objects with identity.
 | Pointer spelling | explicit when needed | explicit when needed | always explicit |
 | Inheritance | none | none | single inheritance |
 | Virtual dispatch | never | never | optional and explicit |
-| Interfaces | may implement | may implement | may implement |
+| Interfaces | may implement | may implement | may implement, unless `extern` |
 | Exported layout | visible | visible | opaque |
 | Hidden `_vt` field | never | never | only for `virtual class` / `abstract class` |
 | Hidden interface fields | never | never | one per declared implemented interface |
-| Constructors | zero or one explicit constructor | zero or one explicit constructor | one explicit constructor, or implicit parameterless constructor |
-| Destructors | optional | optional | optional |
-| `init` | allowed | allowed | allowed |
-| `new` | allowed | allowed | allowed |
+| Constructors | zero or one explicit constructor | zero or one explicit constructor | one explicit constructor, or implicit parameterless constructor; `extern class` constructors must be `extern` |
+| Destructors | optional | optional | optional; `extern class` destructors must be `extern` |
+| `init` | allowed | allowed | allowed except for `extern class` |
+| `new` | allowed | allowed | allowed for ordinary classes; `extern class` requires an extern create surface |
 
 The last two rows matter because they dispel a common wrong intuition. A `class` is not “the heap kind,” and a `struct` is not “the stack kind.” Both can be created in existing storage or allocated storage. The difference is value model, layout visibility, and copyability.
+
+An `extern class` is the exception to the ordinary class storage rule. It names
+a foreign opaque object type whose storage layout is not known to Camp.
+`extern class` values are always handled through pointers and external callable
+surfaces. Because they denote foreign object identities rather than local value
+storage, `extern class` pointer values are treated as escaped for lifetime
+analysis.
 
 ### 2.1.2 `struct`: plain value type
 
@@ -3172,6 +3179,36 @@ Class fields are part of the concrete object layout, but exported class layout i
 
 This means Camp code inside the defining module may know a class’s full field layout while outside C consumers see only an opaque type.
 
+#### Extern class fields
+
+An `extern class` has no Camp-owned layout. It may not declare instance fields.
+
+Static fields are allowed because they are not part of the instance layout.
+They may be `extern` declarations for data supplied by another library, or
+ordinary Camp-side static fields used by helper code.
+
+```camp
+extern class NativeWindow
+{
+	extern static int OpenCount;
+	static int HelperCache = 0;
+}
+```
+
+Source code may store pointers to an `extern class`, but it may not store direct
+instances or arrays of direct instances:
+
+```camp
+extern class NativeWindow
+{
+}
+
+NativeWindow* handle;      // OK
+NativeWindow value;        // ERROR: opaque class value storage
+NativeWindow[] values;     // ERROR: array of opaque class values
+NativeWindow*[16] handles; // OK: fixed array of pointers
+```
+
 ### 2.2.2 Methods
 
 A method is an ordinary function associated with a receiver type.
@@ -3207,6 +3244,24 @@ void increment(Counter* this)
 The `this` parameter is the receiver. It is not a modifier and it does not have another source-level name.
 
 A type is complete at the end of its declaration. Fields, constructors, destructors, interface methods, and `abstract`, `virtual`, `override`, and `sealed` methods must be declared in the type body. Methods declared outside the type body are ordinary receiver methods; they do not affect layout, vtable order, or interface conformance.
+
+An `extern class` may declare ordinary non-extern methods. Such methods are
+Camp-side helpers or thunks written in Camp that operate on the opaque pointer
+through visible extern functions. Every constructor or destructor declared in
+an `extern class` must be `extern`; ordinary helper methods do not have that
+requirement.
+
+```camp
+extern class NativeWindow
+{
+	extern void close();
+
+	void closeQuietly()
+	{
+		this.close();
+	}
+}
+```
 
 ### 2.2.3 Method-like invocation
 
@@ -3542,6 +3597,24 @@ TokenCache()
 }
 ```
 
+This implicit constructor rule does not apply to `extern class`. An extern
+class has no Camp-owned storage to initialize. If an extern class is
+constructible from Camp, it declares an `extern` constructor, which represents
+an external create function. The compiler does not generate an `op_initnew`
+initializer for an extern class.
+
+```camp
+extern class NativeWindow
+{
+	extern NativeWindow();
+}
+
+auto window = new NativeWindow(); // calls NativeWindow_create()
+```
+
+An `extern class` constructor may not have a Camp body. A non-extern constructor
+inside an `extern class` is an error.
+
 ### 2.2.9 Base constructor invocation
 
 A derived class constructor may call the base constructor using `base(...)`.
@@ -3578,6 +3651,13 @@ Rules:
 - if the base has an accessible parameterless constructor, omission means that constructor is used
 
 Structs do not have base chaining because structs do not inherit.
+
+Extern class inheritance is foreign opaque inheritance. An `extern class` may
+inherit only from another `extern class`, and a non-extern class may inherit
+only from another non-extern class. Camp does not synthesize base constructor
+calls, `op_initnew` methods, hidden layout, or allocation logic for an extern
+class hierarchy. Construction remains a call to the most-derived external
+create surface.
 
 ### 2.2.10 Destructors: unified surface syntax
 
@@ -3685,6 +3765,12 @@ Class destruction is conceptually split into two layers at the ABI level:
 - destruction plus deallocation of instance storage
 
 Source code still uses the ordinary destructor declaration surface.
+
+For an `extern class`, a destructor declaration must be `extern`. It represents
+an external destruction entry point for the foreign object. Camp does not
+generate a deallocation wrapper for an extern class destructor; `delete` on an
+extern class pointer calls the extern delete surface and does not append an
+allocator or `free(...)` call.
 
 ### 2.2.13 Raw value formation versus construction
 
@@ -3920,6 +4006,18 @@ For a class `TypeName`:
 | `TypeName_op_delete` | destruction without deallocation |
 | `TypeName_destroy` | destruction plus deallocation |
 
+For an `extern class`, these ordinary managed-class helper rules are narrowed:
+
+| Surface | Meaning |
+|---|---|
+| `TypeName_create` | external creation function represented by an `extern` constructor |
+| `TypeName_op_delete` | external destruction function represented by an `extern` destructor |
+
+The compiler does not generate `TypeName_op_initnew`, hidden layout
+initialization, allocation, `free(...)`, or `TypeName_destroy` for an extern
+class. This remains true for an extern class that inherits from another extern
+class.
+
 ### 2.2.20 Helper meaning
 
 These helper names are not arbitrary. They reflect the exact lifecycle split Camp preserves.
@@ -3938,6 +4036,10 @@ Widget local = init Widget();
 Widget* heap = new Widget();
 delete heap;
 ```
+
+For an `extern class`, ordinary Camp code still writes `new` and `delete`, but
+the operation is only valid when the corresponding extern create/delete surface
+exists.
 
 ## 2.3 Virtual and Abstract Types
 
@@ -6376,8 +6478,12 @@ extern void* malloc(nuint size);
 extern void free(void* ptr);
 ```
 
-`malloc` must take a single integer byte count. `free` must accept `void*`.
-This keeps allocation independent from any particular standard library.
+`malloc` must take a single integer byte count. `free` must accept the pointer
+type being deleted under ordinary Camp conversion and lifetime rules. In
+practice, most fallback declarations use `void*`, but a platform or library may
+write a more specific type or lifetime contract. This keeps allocation
+independent from any particular standard library while letting the declaration
+control what may be freed.
 
 Allocation failure is represented by `null`. The compiler-generated `new`
 lowering checks for `null` before invoking the constructor.
@@ -6753,18 +6859,29 @@ within(arena) delete dialog;
 
 If the destructor itself declares `within`, that allocator is also forwarded into the destructor call.
 
-### 4.4.7 Pointer-form `delete` requires an escaped pointer
+### 4.4.7 Pointer-form `delete` follows the free contract
 
-A pointer operand for deallocating pointer-form `delete` must be `escaped`.
+A pointer operand for deallocating pointer-form `delete` must be accepted by the
+selected deallocation function:
+
+- the current allocator's `free` method, when an allocator context is used;
+- otherwise the visible fallback `free(...)` function.
+
+This is intentionally not a special lifetime rule baked into the `delete`
+operator. If the selected `free` method accepts only `escaped void*`, then a
+scoped pointer is rejected because it cannot be passed to that method. If a
+custom allocator exposes a narrower or different accepted type, the ordinary
+call compatibility rules decide whether the delete operation is valid.
 
 ```camp
 Window local = init Window(800, 600);
 Window* p = &local;
 
-delete p;   // ERROR
+delete p;   // ERROR when the selected free surface requires escaped storage
 ```
 
-The pointer does not denote escaped storage, so pointer-form `delete` is invalid even if the pointed-to type has a destructor.
+The pointer does not satisfy the selected deallocation surface, so pointer-form
+`delete` is invalid even if the pointed-to type has a destructor.
 
 By contrast, deleting the value itself is valid:
 
