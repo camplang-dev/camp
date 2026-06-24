@@ -1,5 +1,6 @@
 newtype delegate nuint CharFormatter(const this, char[] buffer);
 newtype delegate void EscapedDelegate(escaped this);
+newtype delegate void NormalDelegate();
 
 extern void* malloc(nuint size);
 
@@ -23,6 +24,10 @@ escaped class Test
 	void incrementExplicit(escaped this) : EscapedDelegate
 	{
 	}
+
+	void normal() : NormalDelegate
+	{
+	}
 }
 
 export int main()
@@ -34,5 +39,8 @@ export int main()
 	auto e2 = test.increment;
 	EscapedDelegate e3 = e2;
 	EscapedDelegate e4 = test.incrementExplicit;
+	NormalDelegate n1 = test.normal;
+	auto n2 = test.normal;
+	NormalDelegate n3 = n2;
 	return 0;
 }

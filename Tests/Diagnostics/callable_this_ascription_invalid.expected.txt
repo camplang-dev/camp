@@ -1,4 +1,2 @@
 tests/Diagnostics/callable_this_ascription_invalid.camp(1,23): error: fn newtype 'BadFn' may not declare a this parameter.
 tests/Diagnostics/callable_this_ascription_invalid.camp(21,23): error: Explicit this qualifiers on declaration 'format' do not match callable ascription target 'CharFormatter'.
-tests/Diagnostics/callable_this_ascription_invalid.camp(43,15): error: Ascribed method 'run' in escaped class 'MissingEscapedService' must explicitly carry escaped this on the callable newtype or on the method.
-tests/Diagnostics/callable_this_ascription_invalid.camp(50,15): error: Ascribed method 'run' in escaped class 'ConstOnlyService' must explicitly carry escaped this on the callable newtype or on the method.

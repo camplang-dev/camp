@@ -1098,15 +1098,6 @@ public sealed partial class BindableNodeAnalyzer
 			definition.EffectiveThisParameter.Attributes.AddRange(callableThis.Attributes);
 		}
 
-		if (containingType is not null
-			&& typeDefinitions.TryGetValue(containingType, out TypeDefinition? type)
-			&& type is ClassDefinition { IsEscaped: true })
-		{
-			bool callableCarriesEscaped = callableContract.IsEscaped;
-			bool explicitCarriesEscaped = explicitContract.IsEscaped;
-			if (!callableCarriesEscaped && !explicitCarriesEscaped)
-				Report(GetRange(syntax), $"Ascribed method '{declarationName}' in escaped class '{containingType}' must explicitly carry escaped this on the callable newtype or on the method.");
-		}
 	}
 
 	string BuildCallableAscriptionSourceType(FunctionDefinition definition, string family, bool receiverBearing)

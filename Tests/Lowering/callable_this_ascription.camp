@@ -1,6 +1,7 @@
 newtype delegate nuint CharFormatter(const this, char[] buffer);
 newtype delegate void EscapedCallback(escaped this);
 newtype delegate void Callback();
+newtype delegate void NormalCallback();
 
 class Date
 {
@@ -25,6 +26,10 @@ escaped class Service
 	}
 
 	void runExplicit(escaped this) : Callback
+	{
+	}
+
+	void normal() : NormalCallback
 	{
 	}
 }
