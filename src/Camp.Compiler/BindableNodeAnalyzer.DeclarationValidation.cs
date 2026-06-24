@@ -57,13 +57,19 @@ public sealed partial class BindableNodeAnalyzer
 
 			switch (definition)
 			{
-				case ClassDefinition:
+				case ClassDefinition baseClass:
 					baseClassCount++;
 					if (baseClassCount > 1)
 						Report(GetRange(baseType.SourceSyntax), $"{ownerKind} '{owner.Name}' may only declare one base class.");
+					if (owner is ClassDefinition ownerClass && ownerClass.Extern is not null != (baseClass.Extern is not null))
+						Report(GetRange(baseType.SourceSyntax), ownerClass.Extern is not null
+							? "Extern classes may only inherit from extern classes."
+							: "Non-extern classes may only inherit from non-extern classes.");
 					break;
 
 				case InterfaceDefinition:
+					if (owner is ClassDefinition { Extern: not null })
+						Report(GetRange(baseType.SourceSyntax), "Extern classes may not implement interfaces.");
 					break;
 
 				default:
@@ -156,6 +162,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeClassImplementations(ClassDefinition definition)
 	{
+		ValidateExternClass(definition);
+		if (definition.Extern is not null)
+			return;
+
 		ValidateClassVirtualMethods(definition);
 		ValidateInheritedMethodNames(definition);
 
@@ -184,6 +194,31 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (InterfaceDefinition interfaceDefinition in GetImplementedInterfaces(definition))
 			EnsureInterfaceImplemented(definition, interfaceDefinition, available);
+	}
+
+	void ValidateExternClass(ClassDefinition definition)
+	{
+		if (definition.Extern is null)
+			return;
+
+		if (definition.Modifier is ClassModifier.Virtual or ClassModifier.Abstract or ClassModifier.Sealed)
+			Report(GetNameRange(definition), "Extern classes may not be virtual, abstract, or sealed.");
+
+		foreach (FieldDefinition field in definition.Fields)
+		{
+			if (field.SourceSyntax is null)
+				continue;
+			if (field.Modifier != FieldModifier.Static)
+				Report(GetNameRange(field), "Extern classes may not declare instance fields.");
+		}
+
+		foreach (FunctionDefinition function in definition.Functions)
+		{
+			if (function.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract or FunctionModifier.Override or FunctionModifier.Sealed)
+				Report(GetNameRange(function), "Extern class methods may not be virtual, abstract, override, or sealed.");
+			if ((function.Modifier == FunctionModifier.Constructor || IsDestructorFunction(function)) && function.Extern is null)
+				Report(GetNameRange(function), "Extern class constructors and destructors must be extern.");
+		}
 	}
 
 	void EnsureInterfaceImplemented(TypeDefinition implementation, InterfaceDefinition interfaceDefinition, List<MethodSignature> available)
@@ -764,7 +799,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsAnyOrAnyConstrainedGeneric(type, scope))
 			Report(GetNameRange(parameter), "Generic values constrained to any must be passed by reference.");
 
-		if (IsFixedOrClassLikeType(type))
+		if (!IsDirectExternClassType(type) && IsFixedOrClassLikeType(type))
 			Report(GetNameRange(parameter), "Fixed structs and classes must be passed by reference.");
 	}
 

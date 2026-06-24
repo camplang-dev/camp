@@ -179,7 +179,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteLineBlock(() =>
 		{
 			if (apiHeader)
-				WriteApiClassMembers(definition.Fields, definition.Functions);
+				WriteApiClassMembers(definition, definition.Fields, definition.Functions);
 			else
 				WriteMembers(definition.Fields, definition.Functions);
 		});
@@ -364,7 +364,17 @@ public sealed class BindableNodeCodeSerializer
 		WriteApiFunctions(functions);
 	}
 
+	void WriteApiClassMembers(ClassDefinition definition, List<FieldDefinition> fields, List<FunctionDefinition> functions)
+	{
+		WriteApiClassMembers(definition, fields, functions, allowSyntheticConstructor: true);
+	}
+
 	void WriteApiClassMembers(List<FieldDefinition> fields, List<FunctionDefinition> functions)
+	{
+		WriteApiClassMembers(null, fields, functions, allowSyntheticConstructor: false);
+	}
+
+	void WriteApiClassMembers(ClassDefinition? definition, List<FieldDefinition> fields, List<FunctionDefinition> functions, bool allowSyntheticConstructor)
 	{
 		bool wrote = false;
 		foreach (FieldDefinition field in fields)
@@ -375,9 +385,40 @@ public sealed class BindableNodeCodeSerializer
 			wrote = true;
 		}
 
+		bool hasSyntheticConstructor = allowSyntheticConstructor
+			&& definition is not null
+			&& ShouldWriteSyntheticApiConstructor(definition, functions);
+		if (wrote && (HasExportedFunction(functions) || hasSyntheticConstructor))
+			writer.WriteLine();
+		if (hasSyntheticConstructor)
+		{
+			WriteIndent();
+			writer.Write("export extern ");
+			writer.Write(definition!.Name);
+			writer.WriteLine("();");
+			wrote = true;
+		}
 		if (wrote && HasExportedFunction(functions))
 			writer.WriteLine();
 		WriteApiFunctions(functions);
+	}
+
+	static bool ShouldWriteSyntheticApiConstructor(ClassDefinition definition, List<FunctionDefinition> functions)
+	{
+		if (definition.Export is null
+			|| definition.Extern is not null
+			|| definition.Modifier == ClassModifier.Abstract)
+		{
+			return false;
+		}
+
+		foreach (FunctionDefinition function in functions)
+		{
+			if (function.Modifier == FunctionModifier.Constructor && function.Export is not null)
+				return false;
+		}
+
+		return true;
 	}
 
 	void WriteApiFunctions(List<FunctionDefinition> functions)
@@ -1032,7 +1073,6 @@ public sealed class BindableNodeCodeSerializer
 
 		return definition switch
 		{
-			ClassDefinition => true,
 			FunctionDefinition function => IsLifecycleFunction(function) || function.Body is not null,
 			VariableDefinition variable => !IsConstantVariableDefinition(variable),
 			_ => false

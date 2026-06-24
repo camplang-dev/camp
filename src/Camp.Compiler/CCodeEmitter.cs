@@ -629,7 +629,7 @@ public static class CCodeEmitter
 			foreach (VariableDefinition variable in privateVariables)
 				WriteVariableDeclaration(writer, variable, storage: variable.Extern is not null ? "extern" : "static");
 			foreach (FieldDefinition field in privateStaticFields)
-				WriteFieldStorageDeclaration(writer, field, storage: "static");
+				WriteFieldStorageDeclaration(writer, field, storage: field.Extern is not null ? "extern" : "static");
 		}
 
 		public void WriteSourceFileDefinitions(TextWriter writer, SourceFile file)
@@ -656,6 +656,8 @@ public static class CCodeEmitter
 
 			foreach (FieldDefinition field in GetAllStaticFields(definitions))
 			{
+				if (field.Extern is not null)
+					continue;
 				WriteFieldStorageDefinition(writer, field, storage: IsExternallyVisible(field) ? null : "static");
 				wrote = true;
 			}
@@ -1546,7 +1548,8 @@ public static class CCodeEmitter
 					WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
 					break;
 				case ClassDefinition classDefinition:
-					WriteFieldLayout(writer, classDefinition, GetClassLayoutFields(classDefinition));
+					if (classDefinition.Extern is null)
+						WriteFieldLayout(writer, classDefinition, GetClassLayoutFields(classDefinition));
 					break;
 				case InterfaceDefinition interfaceDefinition:
 					WriteInterfaceLayout(writer, interfaceDefinition);

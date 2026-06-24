@@ -1,0 +1,13 @@
+tests/Diagnostics/extern_class_invalid.camp(60,2): error: Extern class types are opaque and are not valid as field storage; use a pointer instead.
+tests/Diagnostics/extern_class_invalid.camp(61,2): error: Arrays of extern class values are not supported; use arrays of pointers instead.
+tests/Diagnostics/extern_class_invalid.camp(62,8): error: Arrays of extern class values are not supported; use arrays of pointers instead.
+tests/Diagnostics/extern_class_invalid.camp(65,13): error: Extern class types are opaque and are not valid as a parameter type; use a pointer instead.
+tests/Diagnostics/extern_class_invalid.camp(69,1): error: Extern class types are opaque and are not valid as a function return type; use a pointer instead.
+tests/Diagnostics/extern_class_invalid.camp(41,32): error: Extern classes may not implement interfaces.
+tests/Diagnostics/extern_class_invalid.camp(46,28): error: Extern classes may only inherit from extern classes.
+tests/Diagnostics/extern_class_invalid.camp(50,22): error: Non-extern classes may only inherit from non-extern classes.
+tests/Diagnostics/extern_class_invalid.camp(14,22): error: Extern classes may not be virtual, abstract, or sealed.
+tests/Diagnostics/extern_class_invalid.camp(20,6): error: Extern classes may not declare instance fields.
+tests/Diagnostics/extern_class_invalid.camp(25,2): error: Extern class constructors and destructors must be extern.
+tests/Diagnostics/extern_class_invalid.camp(29,3): error: Extern class constructors and destructors must be extern.
+tests/Diagnostics/extern_class_invalid.camp(36,15): error: Extern class methods may not be virtual, abstract, override, or sealed.

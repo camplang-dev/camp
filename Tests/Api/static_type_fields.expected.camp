@@ -1,6 +1,8 @@
-export extern class ClassFields
+export class ClassFields
 {
 	export static const int LIMIT = 12;
+
+	export extern ClassFields();
 }
 
 export struct StructFields

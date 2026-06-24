@@ -2,8 +2,6 @@ export extern class Opaque
 {
 	export extern Opaque();
 
-	export extern void op_initnew();
-
 	export extern static Opaque* create();
 }
 void main()

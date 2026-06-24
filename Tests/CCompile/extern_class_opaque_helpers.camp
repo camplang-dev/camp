@@ -1,0 +1,23 @@
+extern class Opaque
+{
+	extern Opaque();
+	extern ~Opaque();
+
+	extern void close();
+
+	void helper()
+	{
+		this.close();
+	}
+
+	extern static int SharedCount;
+	static int LocalCount = 0;
+}
+
+export int main()
+{
+	auto value = new Opaque();
+	value.helper();
+	delete value;
+	return 0;
+}

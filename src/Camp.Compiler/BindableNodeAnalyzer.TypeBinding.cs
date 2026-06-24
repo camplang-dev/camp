@@ -684,6 +684,41 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"Fixed-size array storage types are not valid as {usage}; use a pointer to the fixed array or a span array instead.");
 	}
 
+	void ValidateNoDirectExternClassType(TypeReference? type, SyntaxNode? syntax, string usage)
+	{
+		if (IsDirectExternClassType(type))
+			Report(GetRange(syntax), $"Extern class types are opaque and are not valid as {usage}; use a pointer instead.");
+	}
+
+	void ValidateNoExternClassArrayElement(TypeReference? type, SyntaxNode? syntax)
+	{
+		type = type is null ? null : UnwrapTypeDeclarators(type);
+		TypeReference? elementType = type switch
+		{
+			ArrayTypeReference array => array.ElementType,
+			FixedArrayTypeReference fixedArray => fixedArray.ElementType,
+			_ => null
+		};
+		if (IsDirectExternClassType(elementType))
+			Report(GetRange(syntax), "Arrays of extern class values are not supported; use arrays of pointers instead.");
+	}
+
+	bool IsDirectExternClassType(TypeReference? type)
+	{
+		if (type is null)
+			return false;
+		type = UnwrapTypeDeclarators(type);
+			string? name = type switch
+			{
+				NamedTypeReference named => BaseTypeName(named.ResolvedType ?? named.Name),
+				TypeDefinitionReference { Definition: TypeDefinition referencedDefinition } => referencedDefinition.Name,
+				_ => null
+			};
+			return !string.IsNullOrWhiteSpace(name)
+				&& typeDefinitions.TryGetValue(name, out TypeDefinition? resolvedDefinition)
+				&& resolvedDefinition is ClassDefinition { Extern: not null };
+		}
+
 	void ValidateTargetCallSpec(string? callSpec, SyntaxNode? syntax)
 	{
 		if (string.IsNullOrWhiteSpace(callSpec))

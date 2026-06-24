@@ -1,0 +1,60 @@
+// file: extern_class_opaque_helpers.c
+#include "extern_class_opaque_helpers_private.h"
+
+/* Private file declarations. */
+void Opaque_close(Opaque *this);
+static void Opaque_helper(Opaque *this);
+Opaque *Opaque_create(void);
+void Opaque_op_delete(Opaque *this);
+extern int Opaque_SharedCount;
+static int Opaque_LocalCount;
+
+static int Opaque_LocalCount = 0;
+static void Opaque_helper(Opaque *this)
+{
+	Opaque_close(this);
+}
+
+int main(void)
+{
+	Opaque *value = Opaque_create();
+	Opaque_helper(value);
+	Opaque_op_delete(value);
+	return 0;
+}
+
+// file: extern_class_opaque_helpers.h
+#ifndef EXTERN_CLASS_OPAQUE_HELPERS_H_
+#define EXTERN_CLASS_OPAQUE_HELPERS_H_
+
+#include "extern_class_opaque_helpers_private.h"
+
+int main(void);
+
+#endif
+// file: extern_class_opaque_helpers_private.h
+#ifndef EXTERN_CLASS_OPAQUE_HELPERS_PRIVATE_H_
+#define EXTERN_CLASS_OPAQUE_HELPERS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Opaque Opaque;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: extern_class_opaque_helpers.c

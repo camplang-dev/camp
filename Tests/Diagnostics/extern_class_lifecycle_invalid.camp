@@ -1,0 +1,10 @@
+extern class Opaque
+{
+}
+
+export int main()
+{
+	auto missingCreate = new Opaque();
+	delete missingCreate;
+	return 0;
+}

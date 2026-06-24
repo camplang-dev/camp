@@ -1682,6 +1682,38 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
+	FunctionDefinition? LookupCreateMethod(string targetType, int argumentCount)
+	{
+		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
+			return null;
+
+		foreach (FunctionDefinition function in GetTypeFunctions(type))
+		{
+			if (function.Name == CreateMethodName && CanCallWithArgumentCount(function.Parameters, argumentCount))
+				return function;
+		}
+
+		return null;
+	}
+
+	void ValidateExternClassDelete(Expression? expression, string targetType)
+	{
+		string deletedType = TryGetPointerElementType(targetType) ?? targetType;
+		if (!typeDefinitions.TryGetValue(BaseTypeName(deletedType), out TypeDefinition? definition)
+			|| definition is not ClassDefinition { Extern: not null } externClass)
+		{
+			return;
+		}
+
+		foreach (FunctionDefinition function in GetTypeFunctions(externClass))
+		{
+			if (function.Name == DeleteMethodName || IsDestructorFunction(function))
+				return;
+		}
+
+		Report(GetRange(expression?.SourceSyntax), $"delete requires an explicit destructor for extern class '{externClass.Name}'.");
+	}
+
 	static FunctionDefinition? FindGeneratedInitNewMethod(TypeDefinition? type)
 	{
 		if (type is null)

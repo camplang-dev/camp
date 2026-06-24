@@ -292,14 +292,17 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FieldDefinition field in definition.Fields)
 			AnalyzeFieldDefinition(field, scope, definition);
 
-			foreach (FunctionDefinition function in definition.Functions)
-				AnalyzeFunctionDefinition(function, scope, definition.Name);
-			ValidateDuplicateMethodNames(definition.Functions);
+		foreach (FunctionDefinition function in definition.Functions)
+			AnalyzeFunctionDefinition(function, scope, definition.Name);
+		ValidateDuplicateMethodNames(definition.Functions);
+		if (definition.Extern is null)
+		{
 			GenerateSizeOfFields(definition);
-		GenerateNameOfFields(definition);
-		GenerateVTableOfFields(definition);
-		ValidateExpandedFieldNames(definition.Fields);
-		ValidateFlexibleArrayMembers(definition.Fields, allowFlexibleArrayMember: false);
+			GenerateNameOfFields(definition);
+			GenerateVTableOfFields(definition);
+			ValidateExpandedFieldNames(definition.Fields);
+			ValidateFlexibleArrayMembers(definition.Fields, allowFlexibleArrayMember: false);
+		}
 	}
 
 	void AnalyzeStructDefinition(StructDefinition definition, AnalysisScope parentScope)
@@ -665,7 +668,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (containingType is null || !typeDefinitions.TryGetValue(containingType, out TypeDefinition? definition))
 			return false;
-		return definition is ClassDefinition { IsEscaped: true } or InterfaceDefinition { IsEscaped: true };
+		return definition is ClassDefinition { IsEscaped: true } or ClassDefinition { Extern: not null } or InterfaceDefinition { IsEscaped: true };
 	}
 
 	AnalysisScope CreateTypeScope(TypeDefinition definition, AnalysisScope parentScope)
@@ -709,6 +712,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "'this' may be used only as a plain method return type.");
 		ValidateNoLifetimeAnnotation(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "variable types");
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
+		ValidateNoDirectExternClassType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "global variable storage");
+		ValidateNoExternClassArrayElement(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		InitializeVariableLifetimeFacts(definition, scope);
 		if (definition.InitialValue is not null && !IsValidFixedStorageInitializer(definition.Type, definition.InitialValue))
@@ -754,6 +759,8 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if ((definition.Export is not null || definition.Public is not null) && definition.Modifier != FieldModifier.Static)
 			Report(GetNameRange(definition), "Exported or public fields must be explicitly marked static.");
+		if (definition.Extern is not null && definition.Modifier != FieldModifier.Static)
+			Report(GetNameRange(definition), "Extern fields must be explicitly marked static.");
 		CheckName(definition.Name, GetNameRange(definition), "field");
 		AnalyzeOptionalType(definition.Type, scope);
 		if (ContainsClassTypeReference(definition.Type))
@@ -762,6 +769,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "'this' may be used only as a plain method return type.");
 		ValidateFieldLifetimeAnnotation(definition, scope, containingType);
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
+		ValidateNoDirectExternClassType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, definition.Modifier == FieldModifier.Static ? "static field storage" : "field storage");
+		ValidateNoExternClassArrayElement(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		if (containingType is NewtypeDefinition && definition.Modifier != FieldModifier.Static && IsDirectFixedArrayType(definition.Type))
 			Report(GetRange(definition.SourceSyntax), "Newtype instance fields may not use fixed-size array storage.");
 		if (definition.Type is not null && IsAnyOrAnyConstrainedGeneric(definition.Type, scope))
@@ -894,6 +903,8 @@ public sealed partial class BindableNodeAnalyzer
 		else
 			definition.ResolvedType = AnalyzeOptionalType(definition.ReturnType, scope) ?? ErrorType;
 		ValidateNoDirectFixedArrayType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
+		ValidateNoDirectExternClassType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
+		ValidateNoExternClassArrayElement(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax);
 		AnalyzeOptionalType(definition.CallableAscriptionType, scope);
 
 		ValidateFunctionModifiers(definition);
@@ -1229,6 +1240,8 @@ public sealed partial class BindableNodeAnalyzer
 		else if (TryGetLifetimeAnnotation(definition.Type, out _, out _, out string? nestedLifetime) && nestedLifetime is not null)
 			definition.LifetimeBinding = nestedLifetime;
 		ValidateNoDirectFixedArrayType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
+		ValidateNoDirectExternClassType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
+		ValidateNoExternClassArrayElement(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 
 		if (definition is WithinParameterDefinition && definition.Type is null)
 			BindImplicitWithinParameterType(definition, scope);

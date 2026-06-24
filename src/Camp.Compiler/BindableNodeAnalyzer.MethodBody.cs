@@ -172,7 +172,8 @@ public sealed partial class BindableNodeAnalyzer
 					AnalyzeBaseDeleteExpression(deleteStatement.Expression, scope);
 				else
 				{
-					BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
+					string deleteType = BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
+					ValidateExternClassDelete(deleteStatement.Expression, deleteType);
 					CheckLifetimeDeleteAgainstFree(deleteStatement.Expression, deleteStatement.Expression?.SourceSyntax ?? deleteStatement.SourceSyntax, scope);
 				}
 				break;
@@ -398,6 +399,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		BodyAnalyzeDeclarationTarget(declaration.Target, scope, typeScope, initialType);
 		ValidateFixedStorageMarker(declaration.Target.Type, declaration.IsFixedStorage, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
+		ValidateNoDirectExternClassType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable storage");
+		ValidateNoExternClassArrayElement(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 
 		if (declaration.InitialValue is not null && IsDirectFixedArrayType(declaration.Target.Type) && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Fixed-size arrays cannot be copied by value; initialize them with an array literal, string literal, or default.");
@@ -1265,9 +1268,18 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? constructor = constructionTargets.TryGetValue(construction, out FunctionDefinition? existingConstructor)
 			? existingConstructor
 			: LookupConstructor(targetType, construction.Arguments.Count);
+		FunctionDefinition? create = construction.Kind == ConstructionKind.New ? LookupCreateMethod(targetType, construction.Arguments.Count) : null;
+		if (construction.Kind == ConstructionKind.New
+			&& typeDefinitions.TryGetValue(BaseConstructedType(targetType), out TypeDefinition? newDefinition)
+			&& newDefinition is ClassDefinition { Extern: not null }
+			&& constructor is null
+			&& create is null)
+		{
+			Report(GetRange(construction.SourceSyntax), $"Cannot allocate extern class '{targetType}' without an extern constructor or create method.");
+		}
 		if (constructor is not null)
 			constructionTargets[construction] = constructor;
-		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? [], scope, typeScope, construction.SourceSyntax);
+		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? create?.Parameters ?? [], scope, typeScope, construction.SourceSyntax);
 		BodyAnalyzeExpression(construction.ElementCount, scope, typeScope, "nuint");
 		if (construction.Initializer is not null)
 			BodyAnalyzeInitializerExpression(construction.Initializer, scope, typeScope, targetType);
@@ -3344,7 +3356,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		string receiverDefinitionName = BaseTypeName(StripLifetimeQualifiers(TryGetPointerElementType(receiverType) ?? receiverType));
 		return typeDefinitions.TryGetValue(receiverDefinitionName, out TypeDefinition? definition)
-			&& definition is ClassDefinition { IsEscaped: true } or InterfaceDefinition { IsEscaped: true };
+			&& definition is ClassDefinition { IsEscaped: true } or ClassDefinition { Extern: not null } or InterfaceDefinition { IsEscaped: true };
 	}
 
 	bool IsTypeReferenceExpression(Expression? expression)

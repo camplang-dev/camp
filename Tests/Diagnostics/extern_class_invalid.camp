@@ -1,0 +1,77 @@
+interface Contract
+{
+	void run();
+}
+
+extern class NativeBase
+{
+}
+
+class ManagedBase
+{
+}
+
+extern virtual class VirtualNative
+{
+}
+
+extern class FieldNative
+{
+	int value;
+}
+
+extern class LifecycleNative
+{
+	LifecycleNative()
+	{
+	}
+
+	~LifecycleNative()
+	{
+	}
+}
+
+extern class VirtualMethodNative
+{
+	virtual void run()
+	{
+	}
+}
+
+extern class InterfaceNative : Contract
+{
+	extern void run();
+}
+
+extern class MixedNative : ManagedBase
+{
+}
+
+class MixedManaged : NativeBase
+{
+}
+
+extern class Opaque
+{
+}
+
+struct Holder
+{
+	Opaque value;
+	Opaque[] values;
+	fixed Opaque[2] fixedValues;
+}
+
+void accept(Opaque value)
+{
+}
+
+Opaque makeOpaque()
+{
+	return default;
+}
+
+export int main()
+{
+	return 0;
+}

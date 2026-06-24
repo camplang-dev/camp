@@ -1384,6 +1384,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (type is ClassDefinition classDefinition
 			&& classDefinition.Export is not null
+			&& classDefinition.Extern is null
 			&& classDefinition.Modifier != ClassModifier.Abstract
 			&& !HasConstructor(functions))
 		{
@@ -1395,12 +1396,20 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (function.Modifier == FunctionModifier.Constructor)
 			{
-				FunctionDefinition initNew = CreateInitNewMethod(type, function);
-				generated.Add(initNew);
-				if (type is not ClassDefinition { Modifier: ClassModifier.Abstract })
+				if (type is ClassDefinition { Extern: not null })
 				{
-					FunctionDefinition create = CreateCreateMethod(type, function, initNew);
-					generated.Add(create);
+					if (function.Extern is not null)
+						generated.Add(CreateCreateMethod(type, function, function));
+				}
+				else
+				{
+					FunctionDefinition initNew = CreateInitNewMethod(type, function);
+					generated.Add(initNew);
+					if (type is not ClassDefinition { Modifier: ClassModifier.Abstract })
+					{
+						FunctionDefinition create = CreateCreateMethod(type, function, initNew);
+						generated.Add(create);
+					}
 				}
 				function.Body = null;
 			}
@@ -1408,7 +1417,8 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				FunctionDefinition opDelete = CreateDeleteMethod(type, function);
 				generated.Add(opDelete);
-				if (function.Modifier is not FunctionModifier.Override and not FunctionModifier.Sealed)
+				if (type is not ClassDefinition { Extern: not null }
+					&& function.Modifier is not FunctionModifier.Override and not FunctionModifier.Sealed)
 				{
 					FunctionDefinition destroy = CreateDestroyMethod(type, function, opDelete);
 					generated.Add(destroy);

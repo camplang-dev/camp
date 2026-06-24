@@ -1175,6 +1175,9 @@ public sealed partial class BindableNodeBuilder
 					break;
 
 				case "extern":
+					definition.Extern = SetNullableArgument(definition.Extern, "", declarator, "extern");
+					break;
+
 				case "virtual":
 				case "override":
 				case "sealed":

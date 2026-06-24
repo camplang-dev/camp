@@ -1,10 +1,11 @@
-export extern class Resource
+export class Resource
 {
 	export extern Resource();
 
 	export extern void op_delete();
 }
 
-export extern class DefaultConstructed
+export class DefaultConstructed
 {
+	export extern DefaultConstructed();
 }

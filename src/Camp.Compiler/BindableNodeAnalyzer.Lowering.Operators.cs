@@ -174,6 +174,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (type is ClassDefinition { Extern: not null } && FindExternInitNewMethod(type, arguments.Count) is FunctionDefinition externInitNew)
 			return CreateCreateCall(CreateExternalCreateMethod(type, externInitNew), constructedType, arguments, syntax, resolvedType);
 
+		if (type is ClassDefinition { Extern: not null })
+		{
+			Report(GetRange(syntax), $"Cannot allocate extern class '{type.Name}' without an extern constructor or create method.");
+			return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = resolvedType ?? $"{type.Name}*" };
+		}
+
 		FunctionDefinition? initNew = FindInitNewMethod(type, arguments.Count);
 		if (initNew is null && !NeedsVirtualTableAssignment(type) && type is not ClassDefinition)
 			return CreateAllocCall(typeReference, syntax);
@@ -415,19 +421,26 @@ public sealed partial class BindableNodeAnalyzer
 			&& thisType is ClassDefinition;
 		string deletedType = elementType ?? primitiveStringElementType ?? targetType;
 		FunctionDefinition? opDelete = FindDeleteMethod(deletedType);
-		if (opDelete is null
-			&& typeDefinitions.TryGetValue(BaseTypeName(deletedType), out TypeDefinition? deletedDefinition))
-			opDelete = FindCallableDeleteMethod(deletedDefinition, target?.SourceSyntax);
+		TypeDefinition? deletedDefinition = null;
+		if (typeDefinitions.TryGetValue(BaseTypeName(deletedType), out TypeDefinition? foundDeletedDefinition))
+		{
+			deletedDefinition = foundDeletedDefinition;
+			if (opDelete is null)
+				opDelete = FindCallableDeleteMethod(deletedDefinition, target?.SourceSyntax);
+		}
 
 		if (!isPointer && !isThisPointer && !isArray && opDelete is null)
 			Report(target?.SourceSyntax, $"delete requires a pointer or a type with a destructor, not '{targetType}'.");
+		if (deletedDefinition is ClassDefinition { Extern: not null } && opDelete is null)
+			Report(target?.SourceSyntax, $"delete requires an explicit destructor for extern class '{deletedDefinition.Name}'.");
 		if (target is null)
 			return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" };
 
 		if (isArray)
 			return CreateFreeCall(CreateArrayElementsAccess(target));
 
-		return CreateDeleteExpression(target, opDelete, isPointer || isThisPointer);
+		bool deallocate = (isPointer || isThisPointer) && deletedDefinition is not ClassDefinition { Extern: not null };
+		return CreateDeleteExpression(target, opDelete, deallocate);
 	}
 
 	FunctionDefinition? FindCallableDeleteMethod(TypeDefinition type, SyntaxNode? referenceSyntax)

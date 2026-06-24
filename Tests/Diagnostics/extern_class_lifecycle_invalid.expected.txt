@@ -1,0 +1,2 @@
+tests/Diagnostics/extern_class_lifecycle_invalid.camp(7,23): error: Cannot allocate extern class 'Opaque' without an extern constructor or create method.
+tests/Diagnostics/extern_class_lifecycle_invalid.camp(8,9): error: delete requires an explicit destructor for extern class 'Opaque'.
