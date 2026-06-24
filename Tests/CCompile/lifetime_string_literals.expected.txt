@@ -1,0 +1,80 @@
+// file: lifetime_string_literals.c
+#include "lifetime_string_literals_private.h"
+
+/* Private file declarations. */
+static void acceptEscapedString(const char *value);
+static void acceptUnscopedString(const char *value);
+static void acceptScopedString(const char *value);
+static void acceptEscapedSpan(const char *value, uintptr_t value_length);
+static void acceptUnscopedSpan(const char *value, uintptr_t value_length);
+static void acceptScopedSpan(const char *value, uintptr_t value_length);
+
+static void acceptEscapedString(const char *value)
+{
+}
+
+static void acceptUnscopedString(const char *value)
+{
+}
+
+static void acceptScopedString(const char *value)
+{
+}
+
+static void acceptEscapedSpan(const char *value, uintptr_t value_length)
+{
+}
+
+static void acceptUnscopedSpan(const char *value, uintptr_t value_length)
+{
+}
+
+static void acceptScopedSpan(const char *value, uintptr_t value_length)
+{
+}
+
+int main(void)
+{
+	acceptEscapedString("one");
+	acceptUnscopedString("two");
+	acceptScopedString("three");
+	acceptEscapedSpan("four", 4);
+	acceptUnscopedSpan("five", 4);
+	acceptScopedSpan("six", 3);
+	return 0;
+}
+
+// file: lifetime_string_literals.h
+#ifndef LIFETIME_STRING_LITERALS_H_
+#define LIFETIME_STRING_LITERALS_H_
+
+#include "lifetime_string_literals_private.h"
+
+int main(void);
+
+#endif
+// file: lifetime_string_literals_private.h
+#ifndef LIFETIME_STRING_LITERALS_PRIVATE_H_
+#define LIFETIME_STRING_LITERALS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifetime_string_literals.c

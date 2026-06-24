@@ -2193,6 +2193,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsStringLiteralTargetType(string? type)
 	{
+		type = StripLifetimeQualifiers(type ?? "");
 		return type is "string"
 			or "wstring"
 			or "astring"

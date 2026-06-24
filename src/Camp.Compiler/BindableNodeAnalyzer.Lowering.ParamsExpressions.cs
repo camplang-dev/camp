@@ -1720,6 +1720,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		elementType = "";
 		isConst = false;
+		type = StripLifetimeQualifiers(type);
 		if (!type.EndsWith("[]", System.StringComparison.Ordinal))
 			return false;
 

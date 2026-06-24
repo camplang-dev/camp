@@ -1,0 +1,35 @@
+void acceptEscapedString(escaped string value)
+{
+}
+
+void acceptUnscopedString(unscoped string value)
+{
+}
+
+void acceptScopedString(scoped string value)
+{
+}
+
+void acceptEscapedSpan(escaped const char[] value)
+{
+}
+
+void acceptUnscopedSpan(unscoped const char[] value)
+{
+}
+
+void acceptScopedSpan(scoped const char[] value)
+{
+}
+
+export int main()
+{
+	acceptEscapedString("one");
+	acceptUnscopedString("two");
+	acceptScopedString("three");
+	acceptEscapedSpan("four");
+	acceptUnscopedSpan("five");
+	acceptScopedSpan("six");
+
+	return 0;
+}
