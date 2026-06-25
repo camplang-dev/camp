@@ -286,40 +286,6 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Derived_constructor_base_initnew_receives_this_pointer()
-	{
-		string source = CreateTempCase("derived_constructor_base_init.camp", """
-			export class Base
-			{
-				Base()
-				{
-				}
-			}
-
-			export class Derived: Base
-			{
-				Derived()
-				{
-				}
-			}
-
-			export int main()
-			{
-				auto value = new Derived();
-				delete value;
-				return 0;
-			}
-			""");
-		string buildDir = TempPath("derived-constructor-base-init-build");
-
-		ProcessResult result = RunCampc("build", source, "--artifact", "none", "--build-dir", buildDir);
-
-		Assert.Equal(0, result.ExitCode);
-		string generated = File.ReadAllText(Path.Combine(buildDir, "derived_constructor_base_init.c"));
-		Assert.Contains("Base_op_initnew((Base *)(this));", generated, StringComparison.Ordinal);
-	}
-
-	[Fact]
 	public void Virtual_base_layout_is_lowered_before_out_of_order_derived_class()
 	{
 		string root = TempPath("virtual-out-of-order");

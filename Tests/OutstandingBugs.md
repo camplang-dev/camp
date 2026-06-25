@@ -1,6 +1,6 @@
 # Outstanding Bugs
 
-Next bug number: BUG-030.
+Next bug number: BUG-031.
 
 - **BUG-029:** Some `foreach` forms still reach C emission instead of lowering
   when combined with generic or generator contexts. A generic function iterating
@@ -9,3 +9,11 @@ Next bug number: BUG-030.
   that the C emitter rejects. Work around with explicit index loops until the
   generic-array and generator-body foreach lowering paths share the ordinary
   array lowering machinery.
+
+- **BUG-030:** Derived class constructors emit an invalid base-constructor call
+  in C. When a class derives from another ordinary class, both explicit and
+  synthesized derived constructors can emit `Base_op_initnew()` without passing
+  the derived `this` pointer converted to the base type. Clang and MSVC reject
+  the generated C with "too few arguments for call." Work around by avoiding
+  inheritance in native-built classes until base constructor emission passes the
+  receiver.
