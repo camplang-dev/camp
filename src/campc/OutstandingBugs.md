@@ -30,14 +30,6 @@ Next bug number: CAMPC-008.
   active project-reference stack and report a direct diagnostic that names the
   cycle.
 
-- **CAMPC-006:** Derived class constructors emit an invalid base-constructor
-  call in C. When a class derives from another ordinary class, both explicit and
-  synthesized derived constructors can emit `Base_op_initnew()` without passing
-  the derived `this` pointer converted to the base type. MSVC rejects the
-  generated C with "too few arguments for call." Work around by avoiding
-  inheritance in native-built classes until base constructor emission passes the
-  receiver.
-
 - **CAMPC-007:** Native link dependencies from packages are not propagated to
   final consumers. A library or executable that uses `ext-win32` gets the
   package API/static artifact, but the package's `#build --reference user32 gdi32
