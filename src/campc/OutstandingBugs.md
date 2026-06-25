@@ -17,13 +17,6 @@ Next bug number: CAMPC-006.
   live and revised frequently. Add package-management behavior that understands
   live source roots without requiring a publish/version cycle.
 
-- **CAMPC-003:** Project references need validation against the real Windows
-  native toolchains. The API-only path is covered by tests, but the static
-  library path still needs to be exercised with MSVC targets such as
-  `msvc-windows-x86` and `msvc-windows-x64`. Confirm that target-qualified
-  include files and libraries are produced and consumed correctly by a sample
-  application, and fix any archiver/linker integration gaps that appear.
-
 - **CAMPC-004:** Transitive project references are not covered by a focused
   regression test. A sample layout where app references library B, and library B
   references library A, should build without the app needing to repeat B's

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -174,6 +175,62 @@ public sealed class CommandLineTests
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: project_reference_app.c", result.StdOut, StringComparison.Ordinal);
 		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "default", "DEBUG", "sample-lib_api.camp")));
+	}
+
+	[Fact]
+	[Trait("Category", "MsvcCompile")]
+	public void Project_reference_links_native_static_library_with_msvc()
+	{
+		if (!MsvcAvailable())
+			Assert.Skip("MSVC tools are not available on PATH.");
+		string root = TempPath("project-reference-msvc");
+		string libraryRoot = Path.Combine(root, "sample-lib");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "sample-app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			export int add(int left, int right)
+			{
+				return left + right;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
+			--nostdlib
+			--name sample-lib
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "sample-app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name sample-app
+
+			export int main()
+			{
+				return add(20, 22) - 42;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			"msvc-windows-x64",
+			"--project-reference",
+			libraryRoot,
+			"--build-dir",
+			Path.Combine(appRoot, "obj"),
+			"--out-dir",
+			Path.Combine(appRoot, "bin"));
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("generated: sample-app.exe", result.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", "msvc-windows-x64", "default", "DEBUG", "sample-lib.lib")));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", "msvc-windows-x64", "default", "DEBUG", "sample-lib_api.camp")));
+		Assert.True(File.Exists(Path.Combine(appRoot, "obj", "sample_lib_api.h")));
+		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", "sample-app.exe"));
+		Assert.Equal(0, run.ExitCode);
+		Assert.Equal("", run.StdErr);
 	}
 
 	[Fact]
@@ -553,6 +610,57 @@ public sealed class CommandLineTests
 		string stderr = process.StandardError.ReadToEnd();
 		process.WaitForExit();
 		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
+	}
+
+	static ProcessResult RunExecutable(string executable)
+	{
+		ProcessStartInfo info = new()
+		{
+			FileName = executable,
+			WorkingDirectory = FindRepositoryRoot(),
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+
+		using Process process = new() { StartInfo = info };
+		process.Start();
+		string stdout = process.StandardOutput.ReadToEnd();
+		string stderr = process.StandardError.ReadToEnd();
+		process.WaitForExit();
+		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
+	}
+
+	static bool MsvcAvailable()
+	{
+		return OperatingSystem.IsWindows() && ToolAvailable("cl") && ToolAvailable("lib");
+	}
+
+	static bool ToolAvailable(string tool)
+	{
+		string[] extensions = (Environment.GetEnvironmentVariable("PATHEXT") ?? ".COM;.EXE;.BAT;.CMD")
+			.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+		foreach (string directory in GetPathValues().SelectMany(static value => value.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)))
+		{
+			string trimmed = directory.Trim();
+			if (File.Exists(Path.Combine(trimmed, tool)))
+				return true;
+			foreach (string extension in extensions)
+			{
+				if (File.Exists(Path.Combine(trimmed, tool + extension)))
+					return true;
+			}
+		}
+		return false;
+	}
+
+	static IEnumerable<string> GetPathValues()
+	{
+		foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+		{
+			if (entry.Key is string key && key.Equals("PATH", StringComparison.OrdinalIgnoreCase) && entry.Value is string value)
+				yield return value;
+		}
 	}
 
 	static string CreateTempCase(string name, string text)

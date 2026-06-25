@@ -142,7 +142,7 @@ public sealed class MsvcCompileTests
 		CompilerResult result = Compile(source, NativeBuildKind.Shared);
 		AssertSuccess(result);
 		string privateHeader = File.ReadAllText(Path.Combine(GetCaseRoot("callspec"), "build", "callspec_private.h"));
-		Assert.Contains("typedef int32_t (__stdcall * Callback)(int32_t arg0);", privateHeader, StringComparison.Ordinal);
+		Assert.Contains("typedef int32_t (__stdcall * Callback)(int32_t value);", privateHeader, StringComparison.Ordinal);
 		Assert.Contains("int32_t __stdcall exportedCall", privateHeader, StringComparison.Ordinal);
 	}
 
@@ -155,7 +155,7 @@ public sealed class MsvcCompileTests
 	{
 		string[] extensions = (Environment.GetEnvironmentVariable("PATHEXT") ?? ".COM;.EXE;.BAT;.CMD")
 			.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-		foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+		foreach (string directory in GetPathValues().SelectMany(static value => value.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)))
 		{
 			string trimmed = directory.Trim();
 			if (File.Exists(Path.Combine(trimmed, tool)))
@@ -167,6 +167,15 @@ public sealed class MsvcCompileTests
 			}
 		}
 		return CommandResolves(tool);
+	}
+
+	static IEnumerable<string> GetPathValues()
+	{
+		foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+		{
+			if (entry.Key is string key && key.Equals("PATH", StringComparison.OrdinalIgnoreCase) && entry.Value is string value)
+				yield return value;
+		}
 	}
 
 	static bool CommandResolves(string tool)
