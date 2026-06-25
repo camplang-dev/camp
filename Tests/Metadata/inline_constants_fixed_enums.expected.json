@@ -20,6 +20,15 @@
       "value": 9
     },
     {
+      "id": "variable:INVALID_FILE_SIZE",
+      "kind": "variable",
+      "name": "INVALID_FILE_SIZE",
+      "visibility": "export",
+      "type": "uint",
+      "inline": true,
+      "value": 4294967295
+    },
+    {
       "id": "variable:INTERNAL_NAME",
       "kind": "variable",
       "name": "INTERNAL_NAME",

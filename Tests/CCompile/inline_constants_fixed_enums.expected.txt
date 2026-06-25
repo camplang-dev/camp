@@ -11,6 +11,10 @@ const uint32_t MIN_PLAYERS = 1;
 int main(void)
 {
 	uint32_t total = ((((MAX_PLAYERS + INTERNAL_LIMIT) + Limits_DEFAULT_CAPACITY) + (uint32_t)(Difficulty_HARD)) + MIN_PLAYERS);
+	if ((INVALID_FILE_SIZE != 4294967295u))
+	{
+		return 2;
+	}
 	if ((((NO_WIDGET != NULL) || (NO_CALLBACK != NULL)) || (APP_NAME == NULL)))
 	{
 		return 1;
@@ -27,6 +31,7 @@ int main(void)
 typedef void (* fn_void__)(void);
 int main(void);
 #define MAX_PLAYERS ((uint32_t)9)
+#define INVALID_FILE_SIZE ((uint32_t)4294967295)
 extern const uint32_t MIN_PLAYERS;
 
 #endif
@@ -52,6 +57,7 @@ typedef uint16_t Difficulty;
 /* Constants. */
 #define INTERNAL_LIMIT ((uint32_t)20)
 #define MAX_PLAYERS ((uint32_t)9)
+#define INVALID_FILE_SIZE ((uint32_t)4294967295)
 
 /* Callable typedefs. */
 typedef void (* fn_void__)(void);

@@ -1,6 +1,7 @@
 inline uint MAX_DEVICES = 10;
 public inline uint INTERNAL_LIMIT = MAX_DEVICES * 2;
 export inline uint MAX_PLAYERS = MAX_DEVICES - 1;
+export inline uint INVALID_FILE_SIZE = 0xFFFFFFFF;
 export const uint MIN_PLAYERS = 1;
 
 class Widget
@@ -26,6 +27,8 @@ export enum DifficultyLevel: ushort
 export int main()
 {
 	uint total = MAX_PLAYERS + INTERNAL_LIMIT + Limits.DEFAULT_CAPACITY + (uint)DifficultyLevel.HARD + MIN_PLAYERS;
+	if (INVALID_FILE_SIZE != 4294967295u)
+		return 2;
 	if (NO_WIDGET != null || NO_CALLBACK != null || APP_NAME == null)
 		return 1;
 	return (int)total;

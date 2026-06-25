@@ -1010,10 +1010,7 @@ public static class MetadataJsonSerializer
 				value = ulongValue;
 				return true;
 			}
-			string text = literal.Text.TrimEnd('u', 'U');
-			if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-				return BigInteger.TryParse(text[2..], System.Globalization.NumberStyles.AllowHexSpecifier, System.Globalization.CultureInfo.InvariantCulture, out value);
-			return BigInteger.TryParse(text, out value);
+			return NumericLiteralParser.TryParseIntegerConstant(literal.Text, out value);
 		}
 
 		static bool TryEvaluateUnaryIntegerExpression(UnaryExpression unary, IReadOnlyDictionary<string, BigInteger> namedValues, out BigInteger value)

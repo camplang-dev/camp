@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Numerics;
 
 namespace Camp.Compiler;
@@ -421,12 +420,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool TryParseIntegerConstantValue(string text, out BigInteger value)
 	{
-		text = text.Replace("_", "", StringComparison.Ordinal).Trim();
-		while (text.Length > 0 && char.IsLetter(text[^1]) && text[^1] is not 'x' and not 'X')
-			text = text[..^1];
-		if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-			return BigInteger.TryParse(text[2..], NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out value);
-		return BigInteger.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+		return NumericLiteralParser.TryParseIntegerConstant(text, out value);
 	}
 
 	bool IsAllowedInlineScalarType(string type)

@@ -583,17 +583,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(text))
 			return false;
 
-		text = text.Replace("_", "", System.StringComparison.Ordinal).Trim();
-		if (text.Length == 0)
+		if (!NumericLiteralParser.TryParseIntegerMagnitude(text, out System.Numerics.BigInteger magnitude)
+			|| magnitude > long.MaxValue)
 			return false;
 
-		while (text.Length > 0 && char.IsLetter(text[^1]) && text[^1] is not 'x' and not 'X')
-			text = text[..^1];
-
-		if (text.StartsWith("0x", System.StringComparison.OrdinalIgnoreCase))
-			return long.TryParse(text[2..], System.Globalization.NumberStyles.AllowHexSpecifier, System.Globalization.CultureInfo.InvariantCulture, out value);
-
-		return long.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out value);
+		value = (long)magnitude;
+		return true;
 	}
 
 	static bool IsExpandedFormType(TypeReference? type)
