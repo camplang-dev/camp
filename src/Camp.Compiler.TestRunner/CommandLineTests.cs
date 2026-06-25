@@ -134,6 +134,58 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Build_treats_bare_campbuild_file_as_response_file()
+	{
+		string root = TempPath("bare-campbuild-file");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			--name bare_sample
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampc("build", buildFile, "--build-dir", TempPath("bare-campbuild-file-build"));
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Build_treats_extensionless_bare_campbuild_name_as_response_file()
+	{
+		string root = TempPath("bare-campbuild-extensionless");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			--name bare_sample_extensionless
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampc("build", Path.Combine(root, "sample"), "--build-dir", TempPath("bare-campbuild-extensionless-build"));
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Project_reference_builds_static_library_and_includes_api()
 	{
 		string root = TempPath("project-reference");

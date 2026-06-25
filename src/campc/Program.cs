@@ -343,6 +343,11 @@ sealed class CampCli
 		request = null;
 		errors = [];
 
+		if (command == CommandKind.Build)
+			args = ResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray();
+		if (errors.Count > 0)
+			return false;
+
 		ParsedOptions cli = CommandLineOptionParser.Parse(args, allowPositionals: true, errors);
 		if (errors.Count > 0)
 			return false;
@@ -1238,6 +1243,52 @@ static class ResponseFileExpander
 	public static List<string> Expand(IReadOnlyList<string> args, string workingDirectory, List<string> errors)
 	{
 		return Expand(args, workingDirectory, errors, []);
+	}
+
+	public static List<string> ExpandBareBuildFiles(IReadOnlyList<string> args, string workingDirectory, List<string> errors)
+	{
+		List<string> expanded = [];
+		for (int i = 0; i < args.Count; i++)
+		{
+			string arg = args[i];
+			expanded.AddRange(IsBareBuildFileArgument(args, i, workingDirectory)
+				? Expand(["@" + arg], workingDirectory, errors)
+				: [arg]);
+		}
+		return expanded;
+	}
+
+	static bool IsBareBuildFileArgument(IReadOnlyList<string> args, int index, string workingDirectory)
+	{
+		string arg = args[index];
+		if (arg.StartsWith("-", StringComparison.Ordinal) || IsOptionValue(args, index))
+			return false;
+		string responseFile = ResolveResponseFile(arg, workingDirectory);
+		return File.Exists(responseFile) && Path.GetExtension(responseFile).Equals(".campbuild", StringComparison.OrdinalIgnoreCase);
+	}
+
+	static bool IsOptionValue(IReadOnlyList<string> args, int index)
+	{
+		for (int i = index - 1; i >= 0; i--)
+		{
+			string token = args[i];
+			if (!token.StartsWith("-", StringComparison.Ordinal))
+				continue;
+			if (token is "--reference" or "-r" or "--framework" or "-f")
+				return true;
+			return index - i <= OptionValueCount(token);
+		}
+		return false;
+	}
+
+	static int OptionValueCount(string option)
+	{
+		return option switch
+		{
+			"--target" or "-t" or "--profile" or "-p" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
+			"--use-source" => 2,
+			_ => 0
+		};
 	}
 
 	static List<string> Expand(IReadOnlyList<string> args, string workingDirectory, List<string> errors, HashSet<string> responseStack)
