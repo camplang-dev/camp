@@ -1037,17 +1037,17 @@ static class CommandLineOptionParser
 					AddSingle(result, "subsystem", RequiredValue(tokens, ref i, token, errors).ToLowerInvariant());
 					break;
 				case "--out-dir":
-					AddSingle(result, "out-dir", RequiredValue(tokens, ref i, token, errors));
+					AddSingle(result, "out-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--build-dir":
-					AddSingle(result, "build-dir", RequiredValue(tokens, ref i, token, errors));
+					AddSingle(result, "build-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--include":
 				case "-i":
-					result.IncludePatterns.Add(RequiredValue(tokens, ref i, token, errors));
+					result.IncludePatterns.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--exclude":
-					result.ExcludePatterns.Add(RequiredValue(tokens, ref i, token, errors));
+					result.ExcludePatterns.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--define":
 				case "-d":
@@ -1055,7 +1055,7 @@ static class CommandLineOptionParser
 					break;
 				case "--reference":
 				case "-r":
-					result.References.AddRange(RequiredValues(tokens, ref i, token, errors));
+					result.References.AddRange(RequiredValues(tokens, ref i, token, errors).Select(PathArguments.NormalizeIfPathLike));
 					break;
 				case "--framework":
 				case "-f":
@@ -1067,13 +1067,13 @@ static class CommandLineOptionParser
 						result.UsePackages.Add(PackageSpec.Parse(package));
 					break;
 				case "--project-reference":
-					result.ProjectReferences.AddRange(RequiredValues(tokens, ref i, token, errors));
+					result.ProjectReferences.AddRange(RequiredValues(tokens, ref i, token, errors).Select(PathArguments.Normalize));
 					break;
 				case "--use-source":
 					string name = RequiredValue(tokens, ref i, token, errors);
 					string? path = null;
 					if (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
-						path = tokens[++i];
+						path = PathArguments.Normalize(tokens[++i]);
 					result.UseSources.Add(new PackageSourceSpec(name, path));
 					break;
 				case "--nostdlib":
@@ -1086,7 +1086,7 @@ static class CommandLineOptionParser
 					if (token.StartsWith("-", StringComparison.Ordinal))
 						errors.Add($"Unknown option '{token}'.");
 					else if (allowPositionals)
-						result.Positionals.Add(token);
+						result.Positionals.Add(PathArguments.Normalize(token));
 					else
 						errors.Add($"Unexpected build pragma argument '{token}'.");
 					break;
@@ -1120,6 +1120,32 @@ static class CommandLineOptionParser
 		return tokens[++index];
 	}
 	static NativeBuildKind? InvalidArtifact(string message, List<string> errors) { errors.Add(message); return null; }
+}
+
+static class PathArguments
+{
+	public static string Normalize(string value)
+	{
+		return OperatingSystem.IsWindows()
+			? value.Replace('/', Path.DirectorySeparatorChar)
+			: value;
+	}
+
+	public static string NormalizeIfPathLike(string value)
+	{
+		return LooksLikePath(value) ? Normalize(value) : value;
+	}
+
+	public static bool LooksLikePath(string value)
+	{
+		return value.Contains("/", StringComparison.Ordinal)
+			|| value.Contains("\\", StringComparison.Ordinal)
+			|| value.Contains("*", StringComparison.Ordinal)
+			|| value.Contains("?", StringComparison.Ordinal)
+			|| value.StartsWith(".", StringComparison.Ordinal)
+			|| value.EndsWith(".camp", StringComparison.OrdinalIgnoreCase)
+			|| value.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase);
+	}
 }
 
 static class BuildPragmaReader
@@ -1315,14 +1341,16 @@ static class ResponseFileExpander
 
 	static string RebaseSourcePattern(string value, string baseDirectory)
 	{
-		if (Path.IsPathRooted(value) || !LooksLikePath(value))
+		value = PathArguments.Normalize(value);
+		if (Path.IsPathRooted(value) || !PathArguments.LooksLikePath(value))
 			return value;
 		return Path.GetFullPath(value, baseDirectory);
 	}
 
 	static string RebaseReferenceLikeValue(string value, string baseDirectory)
 	{
-		if (Path.IsPathRooted(value) || !LooksLikePath(value))
+		value = PathArguments.NormalizeIfPathLike(value);
+		if (Path.IsPathRooted(value) || !PathArguments.LooksLikePath(value))
 			return value;
 		if (!value.Contains(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal) && !value.Contains(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal) && !value.StartsWith(".", StringComparison.Ordinal))
 			return value;
@@ -1331,17 +1359,8 @@ static class ResponseFileExpander
 
 	static string RebasePathValue(string value, string baseDirectory)
 	{
+		value = PathArguments.Normalize(value);
 		return Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
-	}
-
-	static bool LooksLikePath(string value)
-	{
-		return value.Contains(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
-			|| value.Contains(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal)
-			|| value.Contains("*", StringComparison.Ordinal)
-			|| value.Contains("?", StringComparison.Ordinal)
-			|| value.StartsWith(".", StringComparison.Ordinal)
-			|| value.EndsWith(".camp", StringComparison.OrdinalIgnoreCase);
 	}
 
 	static List<string> Split(string text)

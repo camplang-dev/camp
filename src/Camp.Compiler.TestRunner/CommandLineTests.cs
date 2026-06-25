@@ -184,6 +184,7 @@ public sealed class CommandLineTests
 		string packageSource = Path.Combine(sourceRoot, "live-demo", "src");
 		Directory.CreateDirectory(packageSource);
 		string packageFile = Path.Combine(packageSource, "demo.camp");
+		string sourceRootArgument = sourceRoot.Replace('\\', '/');
 		File.WriteAllText(packageFile, """
 			export int liveValue()
 			{
@@ -193,7 +194,7 @@ public sealed class CommandLineTests
 		string app = CreateTempCase("live_use_source_app.camp", $$"""
 			#build --nostdlib
 			#build --artifact none
-			#build --use-source local "{{sourceRoot}}"
+			#build --use-source local "{{sourceRootArgument}}"
 			#build --use live-demo
 
 			export int main()
@@ -217,7 +218,7 @@ public sealed class CommandLineTests
 		File.WriteAllText(app, $$"""
 			#build --nostdlib
 			#build --artifact none
-			#build --use-source local "{{sourceRoot}}"
+			#build --use-source local "{{sourceRootArgument}}"
 			#build --use live-demo
 
 			export int main()
