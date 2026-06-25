@@ -1,0 +1,102 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "inline_constants_fixed_enums"
+  },
+  "view": {
+    "visibility": "all",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "variable:MAX_PLAYERS",
+      "kind": "variable",
+      "name": "MAX_PLAYERS",
+      "visibility": "export",
+      "type": "uint",
+      "inline": true,
+      "value": 9
+    },
+    {
+      "id": "variable:INTERNAL_NAME",
+      "kind": "variable",
+      "name": "INTERNAL_NAME",
+      "visibility": "public",
+      "type": "string",
+      "inline": true,
+      "value": "Camp"
+    },
+    {
+      "id": "variable:PRIVATE_LIMIT",
+      "kind": "variable",
+      "name": "PRIVATE_LIMIT",
+      "type": "uint",
+      "inline": true,
+      "value": 10
+    },
+    {
+      "id": "struct:Limits",
+      "kind": "struct",
+      "name": "Limits",
+      "visibility": "export",
+      "fields": [
+        {
+          "id": "struct:Limits/field:DEFAULT_CAPACITY",
+          "name": "DEFAULT_CAPACITY",
+          "symbol": "Limits_DEFAULT_CAPACITY",
+          "type": "uint",
+          "inline": true,
+          "value": 16,
+          "static": true
+        },
+        {
+          "id": "struct:Limits/field:EXPORTED_CAPACITY",
+          "name": "EXPORTED_CAPACITY",
+          "symbol": "Limits_EXPORTED_CAPACITY",
+          "type": "uint",
+          "inline": true,
+          "value": 32,
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "enum:DifficultyLevel",
+      "kind": "enum",
+      "name": "DifficultyLevel",
+      "symbol": "Difficulty",
+      "visibility": "export",
+      "underlyingType": "ushort",
+      "values": [
+        {
+          "id": "enum:DifficultyLevel/value:EASY",
+          "name": "EASY",
+          "symbol": "DIFFICULTY_EASY",
+          "type": "DifficultyLevel",
+          "value": 0,
+          "metadata": [
+            {
+              "name": "symbol",
+              "content": "DIFFICULTY_EASY"
+            }
+          ]
+        },
+        {
+          "id": "enum:DifficultyLevel/value:HARD",
+          "name": "HARD",
+          "symbol": "Difficulty_HARD",
+          "type": "DifficultyLevel",
+          "value": 100
+        }
+      ],
+      "metadata": [
+        {
+          "name": "symbol",
+          "content": "Difficulty"
+        }
+      ]
+    }
+  ]
+}

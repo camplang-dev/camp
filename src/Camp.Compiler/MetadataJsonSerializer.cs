@@ -220,6 +220,11 @@ public static class MetadataJsonSerializer
 					break;
 				case FieldDefinition field:
 					WriteTypeProperty(json, "type", field.Type, field.ResolvedType);
+					if (field.IsInline)
+					{
+						json.WriteBoolean("inline", true);
+						WriteConstantValue(json, "value", field.ConstantValue);
+					}
 					if (field.Modifier == FieldModifier.Static)
 						json.WriteBoolean("static", true);
 					if (field.IsFixedStorage)
@@ -398,7 +403,12 @@ public static class MetadataJsonSerializer
 		void WriteVariable(Utf8JsonWriter json, VariableDefinition variable, BigInteger? enumValue)
 		{
 			WriteTypeProperty(json, "type", variable.Type, variable.ResolvedType);
-			if (enumValue is not null)
+			if (variable.IsInline)
+			{
+				json.WriteBoolean("inline", true);
+				WriteConstantValue(json, "value", variable.ConstantValue);
+			}
+			else if (enumValue is not null)
 				WriteInteger(json, "value", enumValue.Value);
 			if (variable.IsFixedStorage)
 				json.WriteBoolean("fixed", true);
@@ -410,17 +420,10 @@ public static class MetadataJsonSerializer
 			if (sourceDefinitions.Count == 0)
 				return;
 
-			Dictionary<string, BigInteger> valuesByName = new(StringComparer.Ordinal);
-			BigInteger nextValue = BigInteger.Zero;
 			json.WriteStartArray("values");
 			foreach (VariableDefinition value in sourceDefinitions)
 			{
-				BigInteger numericValue = nextValue;
-				if (TryEvaluateIntegerExpression(value.InitialValue, valuesByName, out BigInteger explicitValue))
-					numericValue = explicitValue;
-				valuesByName[value.Name] = numericValue;
-				valuesByName[value.Symbol] = numericValue;
-				nextValue = numericValue + BigInteger.One;
+				BigInteger numericValue = value.ConstantValue is ConstantValue.Integer integer ? integer.Value : BigInteger.Zero;
 
 				json.WriteStartObject();
 				WriteIdentity(json, value, includeKind: false, includeVisibility: false);
@@ -430,6 +433,29 @@ public static class MetadataJsonSerializer
 				emitted.Add(value);
 			}
 			json.WriteEndArray();
+		}
+
+		static void WriteConstantValue(Utf8JsonWriter json, string propertyName, ConstantValue? value)
+		{
+			switch (value)
+			{
+				case ConstantValue.Integer integer:
+					WriteInteger(json, propertyName, integer.Value);
+					break;
+				case ConstantValue.Boolean boolean:
+					json.WriteBoolean(propertyName, boolean.Value);
+					break;
+				case ConstantValue.String text:
+					json.WriteString(propertyName, text.Value);
+					break;
+				case ConstantValue.Character text:
+					json.WriteString(propertyName, text.Value);
+					break;
+				case ConstantValue.Null:
+				case null:
+					json.WriteNull(propertyName);
+					break;
+			}
 		}
 
 		void WritePropertyInfo(Utf8JsonWriter json, FunctionDefinition function)

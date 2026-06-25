@@ -461,6 +461,8 @@ public sealed class BindableNodeCodeSerializer
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
+		if (definition.IsInline)
+			writer.Write("inline ");
 		if (definition.IsFixedStorage)
 			writer.Write("fixed ");
 		WriteTypeOrResolved(definition.Type, definition.ResolvedType);
@@ -479,7 +481,9 @@ public sealed class BindableNodeCodeSerializer
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
-		if (definition.Modifier != FieldModifier.None)
+		if (definition.IsInline)
+			writer.Write("inline ");
+		else if (definition.Modifier != FieldModifier.None)
 			writer.Write($"{Lower(definition.Modifier)} ");
 		if (definition.IsFixedStorage)
 			writer.Write("fixed ");
@@ -564,7 +568,8 @@ public sealed class BindableNodeCodeSerializer
 
 	static bool IsConstantVariableDefinition(VariableDefinition definition)
 	{
-		return definition.Type is ConstTypeReference
+		return definition.IsInline
+			|| definition.Type is ConstTypeReference
 			|| (definition.ResolvedType is string type && type.StartsWith("const ", StringComparison.Ordinal));
 	}
 

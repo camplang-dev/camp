@@ -300,11 +300,9 @@ typedef struct main_lambdaContext3 main_lambdaContext3;
 typedef struct main_lambdaContext4 main_lambdaContext4;
 
 /* Enums. */
-typedef enum Err
-{
-	Err_ERR_OK = 0,
-	Err_ERR_BAD
-} Err;
+typedef uint32_t Err;
+#define Err_ERR_OK ((Err)0)
+#define Err_ERR_BAD ((Err)1)
 
 /* Newtypes. */
 

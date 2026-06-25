@@ -32,12 +32,10 @@ int main(void);
 /* Forward declarations. */
 
 /* Enums. */
-typedef enum FileMode
-{
-	FileMode_OPEN_EXISTING,
-	FileMode_CREATE = 7,
-	FileMode_APPEND
-} FileMode;
+typedef uint32_t FileMode;
+#define FileMode_OPEN_EXISTING ((FileMode)0)
+#define FileMode_CREATE ((FileMode)7)
+#define FileMode_APPEND ((FileMode)8)
 
 /* Newtypes. */
 

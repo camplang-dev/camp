@@ -31,11 +31,9 @@ static int main(void)
 /* Forward declarations. */
 
 /* Enums. */
-typedef enum MyError
-{
-	MyError_NONE,
-	MyError_FAIL
-} MyError;
+typedef uint32_t MyError;
+#define MyError_NONE ((MyError)0)
+#define MyError_FAIL ((MyError)1)
 
 /* Newtypes. */
 typedef void (* ErrorHandler)(MyError *arg0);

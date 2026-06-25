@@ -45,11 +45,9 @@ static int main(void)
 /* Forward declarations. */
 
 /* Enums. */
-typedef enum Err
-{
-	Err_OK = 0,
-	Err_BAD
-} Err;
+typedef uint32_t Err;
+#define Err_OK ((Err)0)
+#define Err_BAD ((Err)1)
 
 /* Newtypes. */
 

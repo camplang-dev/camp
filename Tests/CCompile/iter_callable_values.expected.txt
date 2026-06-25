@@ -126,11 +126,9 @@ typedef struct Source Source;
 typedef struct rangeIter rangeIter;
 
 /* Enums. */
-typedef enum Err
-{
-	Err_OK = 0,
-	Err_FAILED
-} Err;
+typedef uint32_t Err;
+#define Err_OK ((Err)0)
+#define Err_FAILED ((Err)1)
 
 /* Newtypes. */
 typedef bool (* Puller)(void *arg0, int *arg1, Err *arg2);

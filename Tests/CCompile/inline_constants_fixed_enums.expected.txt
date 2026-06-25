@@ -1,0 +1,77 @@
+// file: inline_constants_fixed_enums.c
+#include "inline_constants_fixed_enums_private.h"
+
+
+#define MAX_DEVICES ((uint32_t)10)
+#define NO_WIDGET ((Widget *)0)
+#define NO_CALLBACK ((void (*)(void))0)
+#define APP_NAME ((const char *)"Camp")
+#define Limits_DEFAULT_CAPACITY ((uint32_t)16)
+const uint32_t MIN_PLAYERS = 1;
+int main(void)
+{
+	uint32_t total = ((((MAX_PLAYERS + INTERNAL_LIMIT) + Limits_DEFAULT_CAPACITY) + (uint32_t)(Difficulty_HARD)) + MIN_PLAYERS);
+	if ((((NO_WIDGET != NULL) || (NO_CALLBACK != NULL)) || (APP_NAME == NULL)))
+	{
+		return 1;
+	}
+	return (int)(total);
+}
+
+// file: inline_constants_fixed_enums.h
+#ifndef INLINE_CONSTANTS_FIXED_ENUMS_H_
+#define INLINE_CONSTANTS_FIXED_ENUMS_H_
+
+#include "inline_constants_fixed_enums_private.h"
+
+typedef void (* fn_void__)(void);
+int main(void);
+#define MAX_PLAYERS ((uint32_t)9)
+extern const uint32_t MIN_PLAYERS;
+
+#endif
+// file: inline_constants_fixed_enums_private.h
+#ifndef INLINE_CONSTANTS_FIXED_ENUMS_PRIVATE_H_
+#define INLINE_CONSTANTS_FIXED_ENUMS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Widget Widget;
+typedef struct Limits Limits;
+
+/* Enums. */
+typedef uint16_t Difficulty;
+#define DIFFICULTY_EASY ((Difficulty)0)
+#define Difficulty_HARD ((Difficulty)100)
+
+/* Newtypes. */
+
+/* Constants. */
+#define INTERNAL_LIMIT ((uint32_t)20)
+#define MAX_PLAYERS ((uint32_t)9)
+
+/* Callable typedefs. */
+typedef void (* fn_void__)(void);
+
+/* Layouts. */
+struct Widget
+{
+	char _camp_empty;
+};
+struct Limits
+{
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+extern const uint32_t MIN_PLAYERS;
+
+
+#endif
+// compile
+compiled: inline_constants_fixed_enums.c

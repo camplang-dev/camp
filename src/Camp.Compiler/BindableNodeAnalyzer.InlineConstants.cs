@@ -135,7 +135,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		try
 		{
-			return TryEvaluateInlineConstantCore(expression, targetType, visiting, out value);
+			return TryEvaluateInlineConstantCore(owner, expression, targetType, visiting, out value);
 		}
 		finally
 		{
@@ -143,50 +143,88 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	bool TryEvaluateInlineConstantCore(Expression expression, string? targetType, HashSet<BindableNode> visiting, out ConstantValue? value)
+	bool TryEvaluateInlineConstantCore(BindableNode owner, Expression expression, string? targetType, HashSet<BindableNode> visiting, out ConstantValue? value)
 	{
 		value = null;
 		if (expressionRewrites.TryGetValue(expression, out Expression? rewrite))
-			return TryEvaluateInlineConstantCore(rewrite, targetType, visiting, out value);
-		switch (expression)
+			return TryEvaluateInlineConstantCore(owner, rewrite, targetType, visiting, out value);
+		bool evaluated = expression switch
 		{
-			case LiteralExpression literal:
-				return TryEvaluateLiteralConstant(literal, targetType, out value);
+			LiteralExpression literal => TryEvaluateLiteralConstant(literal, targetType, out value),
 
-			case DefaultExpression:
-				value = IsStringLikeInlineType(targetType) ? new ConstantValue.Null() : new ConstantValue.Integer(BigInteger.Zero);
-				return true;
+			DefaultExpression => TryEvaluateDefaultConstant(targetType, out value),
 
-			case ParenthesizedExpression parenthesized:
-				return parenthesized.Expression is not null && TryEvaluateInlineConstantCore(parenthesized.Expression, targetType, visiting, out value);
+			ParenthesizedExpression parenthesized =>
+				parenthesized.Expression is not null && TryEvaluateInlineConstantCore(owner, parenthesized.Expression, targetType, visiting, out value),
 
-			case CastExpression cast:
-				return cast.Expression is not null && TryEvaluateInlineConstantCore(cast.Expression, cast.Type?.ResolvedType ?? targetType, visiting, out value);
+			CastExpression cast =>
+				cast.Expression is not null && TryEvaluateInlineConstantCore(owner, cast.Expression, cast.Type?.ResolvedType ?? targetType, visiting, out value),
 
-			case UnaryExpression unary:
-				return TryEvaluateUnaryConstant(unary, targetType, visiting, out value);
+			UnaryExpression unary => TryEvaluateUnaryConstant(owner, unary, targetType, visiting, out value),
 
-			case BinaryExpression binary:
-				return TryEvaluateBinaryConstant(binary, targetType, visiting, out value);
+			BinaryExpression binary => TryEvaluateBinaryConstant(owner, binary, targetType, visiting, out value),
 
-			case VariableReferenceExpression { Variable: VariableDefinition variable }:
-				return TryEvaluateVariableReferenceConstant(variable, visiting, out value);
+			VariableReferenceExpression { Variable: VariableDefinition variable } =>
+				TryEvaluateVariableReferenceConstant(variable, visiting, out value),
 
-			case VariableReferenceExpression { Variable: FieldDefinition field }:
-				return TryEvaluateFieldReferenceConstant(field, visiting, out value);
+			VariableReferenceExpression { Variable: FieldDefinition field } =>
+				TryEvaluateFieldReferenceConstant(field, visiting, out value),
 
-			case NamedExpression named when TryResolveNamedConstantReference(named, out BindableNode? node):
-				return node switch
-				{
-					VariableDefinition variable => TryEvaluateVariableReferenceConstant(variable, visiting, out value),
-					FieldDefinition field => TryEvaluateFieldReferenceConstant(field, visiting, out value),
-					_ => false
-				};
+			NamedExpression named when TryResolveNamedConstantReference(named, owner, out BindableNode? node) =>
+				TryEvaluateNamedConstantReference(named, node, visiting, out value),
 
-			default:
-				Report(GetRange(expression.SourceSyntax), "Inline constant initializer must be a compile-time constant expression.");
-				return false;
-		}
+			_ => ReportNonConstantExpression(expression)
+		};
+
+		if (evaluated)
+			MarkConstantExpressionResolved(expression, targetType, value);
+		return evaluated;
+	}
+
+	bool TryEvaluateDefaultConstant(string? targetType, out ConstantValue? value)
+	{
+		value = IsStringLikeInlineType(targetType) ? new ConstantValue.Null() : new ConstantValue.Integer(BigInteger.Zero);
+		return true;
+	}
+
+	bool TryEvaluateNamedConstantReference(NamedExpression named, BindableNode? node, HashSet<BindableNode> visiting, out ConstantValue? value)
+	{
+		bool result = node switch
+		{
+			VariableDefinition variable => TryEvaluateVariableReferenceConstant(variable, visiting, out value),
+			FieldDefinition field => TryEvaluateFieldReferenceConstant(field, visiting, out value),
+			_ => TryEvaluateUnknownNamedConstant(out value)
+		};
+		if (result && node is not null)
+			named.ResolvedType = node.ResolvedType;
+		return result;
+	}
+
+	static bool TryEvaluateUnknownNamedConstant(out ConstantValue? value)
+	{
+		value = null;
+		return false;
+	}
+
+	bool ReportNonConstantExpression(Expression expression)
+	{
+		Report(GetRange(expression.SourceSyntax), "Inline constant initializer must be a compile-time constant expression.");
+		return false;
+	}
+
+	static void MarkConstantExpressionResolved(Expression expression, string? targetType, ConstantValue? value)
+	{
+		if (!string.IsNullOrWhiteSpace(targetType) && (string.IsNullOrWhiteSpace(expression.ResolvedType) || expression.ResolvedType == ErrorType || expression.ResolvedType == UnresolvedType))
+			expression.ResolvedType = targetType;
+		else if (string.IsNullOrWhiteSpace(expression.ResolvedType) || expression.ResolvedType == ErrorType || expression.ResolvedType == UnresolvedType)
+			expression.ResolvedType = value switch
+			{
+				ConstantValue.Boolean => "bool",
+				ConstantValue.String => "string",
+				ConstantValue.Character => "char",
+				ConstantValue.Null => "null",
+				_ => "int"
+			};
 	}
 
 	bool TryEvaluateLiteralConstant(LiteralExpression literal, string? targetType, out ConstantValue? value)
@@ -211,11 +249,31 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	bool TryResolveNamedConstantReference(NamedExpression named, out BindableNode? node)
+	bool TryResolveNamedConstantReference(NamedExpression named, BindableNode owner, out BindableNode? node)
 	{
 		node = null;
 		if (named.Qualifiers.Count == 0)
 		{
+			if (TryFindContainingType(owner, out TypeDefinition? containingType) && containingType is not null)
+			{
+				foreach (FieldDefinition field in GetTypeFields(containingType))
+					if (field.Modifier == FieldModifier.Static && (field.Name == named.Name || field.Symbol == named.Name))
+					{
+						node = field;
+						return true;
+					}
+
+				if (containingType is EnumDefinition enumDefinition)
+				{
+					foreach (VariableDefinition value in enumDefinition.Values)
+						if (value.Name == named.Name || value.Symbol == named.Name)
+						{
+							node = value;
+							return true;
+						}
+				}
+			}
+
 			foreach (Definition definition in currentModule?.Definitions ?? [])
 				if (definition is VariableDefinition variable && (variable.Name == named.Name || variable.Symbol == named.Name))
 				{
@@ -235,10 +293,37 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	bool TryEvaluateUnaryConstant(UnaryExpression unary, string? targetType, HashSet<BindableNode> visiting, out ConstantValue? value)
+	bool TryFindContainingType(BindableNode owner, out TypeDefinition? type)
+	{
+		type = null;
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			switch (definition)
+			{
+				case ClassDefinition classDefinition when owner is FieldDefinition field && classDefinition.Fields.Contains(field):
+					type = classDefinition;
+					return true;
+
+				case StructDefinition structDefinition when owner is FieldDefinition field && structDefinition.Fields.Contains(field):
+					type = structDefinition;
+					return true;
+
+				case NewtypeDefinition newtypeDefinition when owner is FieldDefinition field && newtypeDefinition.Fields.Contains(field):
+					type = newtypeDefinition;
+					return true;
+
+				case EnumDefinition enumDefinition when owner is VariableDefinition value && enumDefinition.Values.Contains(value):
+					type = enumDefinition;
+					return true;
+			}
+		}
+		return false;
+	}
+
+	bool TryEvaluateUnaryConstant(BindableNode owner, UnaryExpression unary, string? targetType, HashSet<BindableNode> visiting, out ConstantValue? value)
 	{
 		value = null;
-		if (unary.Operand is null || !TryEvaluateInlineConstantCore(unary.Operand, targetType, visiting, out ConstantValue? operand))
+		if (unary.Operand is null || !TryEvaluateInlineConstantCore(owner, unary.Operand, targetType, visiting, out ConstantValue? operand))
 			return false;
 		if (operand is not ConstantValue.Integer integer)
 		{
@@ -260,13 +345,13 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	bool TryEvaluateBinaryConstant(BinaryExpression binary, string? targetType, HashSet<BindableNode> visiting, out ConstantValue? value)
+	bool TryEvaluateBinaryConstant(BindableNode owner, BinaryExpression binary, string? targetType, HashSet<BindableNode> visiting, out ConstantValue? value)
 	{
 		value = null;
 		if (binary.Left is null
 			|| binary.Right is null
-			|| !TryEvaluateInlineConstantCore(binary.Left, targetType, visiting, out ConstantValue? left)
-			|| !TryEvaluateInlineConstantCore(binary.Right, targetType, visiting, out ConstantValue? right))
+			|| !TryEvaluateInlineConstantCore(owner, binary.Left, targetType, visiting, out ConstantValue? left)
+			|| !TryEvaluateInlineConstantCore(owner, binary.Right, targetType, visiting, out ConstantValue? right))
 			return false;
 		if (left is not ConstantValue.Integer leftInteger || right is not ConstantValue.Integer rightInteger)
 		{

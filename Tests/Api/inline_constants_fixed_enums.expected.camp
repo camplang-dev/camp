@@ -1,0 +1,13 @@
+export inline uint MAX_PLAYERS = 9;
+
+export struct Limits
+{
+	export inline uint EXPORTED_CAPACITY = DEFAULT_CAPACITY * 2;
+}
+
+@symbol("Difficulty")
+export enum DifficultyLevel : ushort
+{
+	EASY,
+	HARD = EASY + 100
+}

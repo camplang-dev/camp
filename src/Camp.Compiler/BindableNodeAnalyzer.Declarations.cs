@@ -283,7 +283,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeClassDefinition(ClassDefinition definition, AnalysisScope parentScope)
 	{
-		ApplySymbolAttribute(definition, allowed: true, "enum");
+		ApplySymbolAttribute(definition, allowed: false, "type");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
@@ -341,7 +341,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeEnumDefinition(EnumDefinition definition, AnalysisScope parentScope)
 	{
-		ApplySymbolAttribute(definition, allowed: false, "type");
+		ApplySymbolAttribute(definition, allowed: true, "enum");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);

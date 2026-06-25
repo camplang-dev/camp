@@ -577,6 +577,23 @@ public static class CCodeEmitter
 					WriteNewtypeDefinition(writer, newtype, exportedOnly: false);
 			});
 
+			List<VariableDefinition> inlineVariables = definitions.OfType<VariableDefinition>()
+				.Where(static variable => variable.IsInline && IsExternallyVisible(variable))
+				.ToList();
+			List<FieldDefinition> inlineFields = GetAllStaticFields(definitions)
+				.Where(static field => field.IsInline && IsExternallyVisible(field))
+				.ToList();
+			if (inlineVariables.Count > 0 || inlineFields.Count > 0)
+			{
+				WriteSection(writer, "Constants", () =>
+				{
+					foreach (VariableDefinition variable in inlineVariables)
+						WriteInlineConstantMacro(writer, variable);
+					foreach (FieldDefinition field in inlineFields)
+						WriteInlineConstantMacro(writer, field);
+				});
+			}
+
 			List<string> callableTypes = CollectResolvedCallableTypes(definitions).ToList();
 			if (callableTypes.Count > 0)
 			{
@@ -601,9 +618,9 @@ public static class CCodeEmitter
 
 			WriteSection(writer, "Object declarations", () =>
 			{
-				foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(IsExternallyVisible))
+				foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => !variable.IsInline && IsExternallyVisible(variable)))
 					WriteVariableDeclaration(writer, variable, storage: "extern");
-				foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(IsExternallyVisible))
+				foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => !field.IsInline && IsExternallyVisible(field)))
 					WriteFieldStorageDeclaration(writer, field, storage: "extern");
 			});
 		}
@@ -614,8 +631,8 @@ public static class CCodeEmitter
 			emittedNames.Clear();
 			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
 			List<FunctionDefinition> privateFunctions = GetAllFunctions(definitions).Where(static function => !IsExternallyVisible(function)).ToList();
-			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(static variable => !IsExternallyVisible(variable)).ToList();
-			List<FieldDefinition> privateStaticFields = GetAllStaticFields(definitions).Where(static field => !IsExternallyVisible(field)).ToList();
+			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(static variable => !variable.IsInline && !IsExternallyVisible(variable)).ToList();
+			List<FieldDefinition> privateStaticFields = GetAllStaticFields(definitions).Where(static field => !field.IsInline && !IsExternallyVisible(field)).ToList();
 			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
 
 			if (privateFunctions.Count == 0 && privateVariables.Count == 0 && privateStaticFields.Count == 0 && delegateThunks.Count == 0)
@@ -640,6 +657,17 @@ public static class CCodeEmitter
 			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
 			bool wrote = false;
 
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.IsInline && !IsExternallyVisible(variable)))
+			{
+				WriteInlineConstantMacro(writer, variable);
+				wrote = true;
+			}
+			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.IsInline && !IsExternallyVisible(field)))
+			{
+				WriteInlineConstantMacro(writer, field);
+				wrote = true;
+			}
+
 			foreach (DelegateThunk thunk in delegateThunks)
 			{
 				WriteDelegateThunkDefinition(writer, thunk);
@@ -648,7 +676,7 @@ public static class CCodeEmitter
 
 			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>())
 			{
-				if (variable.Extern is not null)
+				if (variable.Extern is not null || variable.IsInline)
 					continue;
 				WriteVariableDefinition(writer, variable, storage: IsExternallyVisible(variable) ? null : "static");
 				wrote = true;
@@ -656,7 +684,7 @@ public static class CCodeEmitter
 
 			foreach (FieldDefinition field in GetAllStaticFields(definitions))
 			{
-				if (field.Extern is not null)
+				if (field.Extern is not null || field.IsInline)
 					continue;
 				WriteFieldStorageDefinition(writer, field, storage: IsExternallyVisible(field) ? null : "static");
 				wrote = true;
@@ -724,12 +752,23 @@ public static class CCodeEmitter
 				wrote = true;
 			}
 
-			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null))
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null && variable.IsInline))
+			{
+				WriteInlineConstantMacro(writer, variable);
+				wrote = true;
+			}
+			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null && field.IsInline))
+			{
+				WriteInlineConstantMacro(writer, field);
+				wrote = true;
+			}
+
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null && !variable.IsInline))
 			{
 				WriteVariableDeclaration(writer, variable, storage: "extern");
 				wrote = true;
 			}
-			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null))
+			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null && !field.IsInline))
 			{
 				WriteFieldStorageDeclaration(writer, field, storage: "extern");
 				wrote = true;
@@ -789,14 +828,25 @@ public static class CCodeEmitter
 				wrote = true;
 			}
 
-			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null))
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null && variable.IsInline))
+			{
+				WriteInlineConstantMacro(writer, variable);
+				wrote = true;
+			}
+			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null && field.IsInline))
+			{
+				WriteInlineConstantMacro(writer, field);
+				wrote = true;
+			}
+
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null && !variable.IsInline))
 			{
 				if (IsGeneratedVTableVariable(variable))
 					continue;
 				WriteVariableDeclaration(writer, variable, storage: "extern");
 				wrote = true;
 			}
-			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null))
+			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null && !field.IsInline))
 			{
 				WriteFieldStorageDeclaration(writer, field, storage: "extern");
 				wrote = true;
@@ -1524,20 +1574,78 @@ public static class CCodeEmitter
 			if (!emittedNames.Add("enum:" + name))
 				return;
 
-			writer.WriteLine("typedef enum " + name);
-			writer.WriteLine("{");
-			for (int i = 0; i < definition.Values.Count; i++)
+			TypeReference underlying = definition.UnderlyingType ?? new PrimitiveTypeReference { Type = PrimitiveType.UInt, ResolvedType = "uint" };
+			writer.WriteLine("typedef " + FormatTypeOrResolved(underlying, underlying.ResolvedType ?? "uint", name).Declaration + ";");
+			foreach (VariableDefinition value in definition.Values)
+				writer.WriteLine("#define " + CName(value) + " ((" + name + ")" + FormatConstantValue(value.ConstantValue) + ")");
+		}
+
+		void WriteInlineConstantMacro(TextWriter writer, VariableDefinition variable)
+		{
+			string type = FormatTypeOrResolved(variable.Type, variable.ResolvedType, "").Declaration.Trim();
+			writer.WriteLine("#define " + CName(variable) + " ((" + type + ")" + FormatConstantValue(variable.ConstantValue) + ")");
+		}
+
+		void WriteInlineConstantMacro(TextWriter writer, FieldDefinition field)
+		{
+			string type = FormatTypeOrResolved(field.Type, field.ResolvedType, "").Declaration.Trim();
+			writer.WriteLine("#define " + CName(field) + " ((" + type + ")" + FormatConstantValue(field.ConstantValue) + ")");
+		}
+
+		static string FormatConstantValue(ConstantValue? value)
+		{
+			return value switch
 			{
-				VariableDefinition value = definition.Values[i];
-				writer.Write("\t" + CName(value));
-				string? initializer = FormatConstantExpression(value.InitialValue);
-				if (initializer is not null)
-					writer.Write(" = " + initializer);
-				if (i + 1 < definition.Values.Count)
-					writer.Write(",");
-				writer.WriteLine();
+				ConstantValue.Integer integer => integer.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+				ConstantValue.Boolean boolean => boolean.Value ? "1" : "0",
+				ConstantValue.String text => FormatCStringLiteral(text.Value),
+				ConstantValue.Character text => FormatCCharacterLiteral(text.Value),
+				ConstantValue.Null => "0",
+				_ => "0"
+			};
+		}
+
+		static string FormatCStringLiteral(string value)
+		{
+			return "\"" + EscapeCString(value, quote: '"') + "\"";
+		}
+
+		static string FormatCCharacterLiteral(string value)
+		{
+			return "'" + EscapeCString(value, quote: '\'') + "'";
+		}
+
+		static string EscapeCString(string value, char quote)
+		{
+			System.Text.StringBuilder builder = new();
+			foreach (char ch in value)
+			{
+				switch (ch)
+				{
+					case '\\':
+						builder.Append("\\\\");
+						break;
+					case '\0':
+						builder.Append("\\0");
+						break;
+					case '\n':
+						builder.Append("\\n");
+						break;
+					case '\r':
+						builder.Append("\\r");
+						break;
+					case '\t':
+						builder.Append("\\t");
+						break;
+					default:
+						if (ch == quote)
+							builder.Append('\\').Append(ch);
+						else
+							builder.Append(ch);
+						break;
+				}
 			}
-			writer.WriteLine("} " + name + ";");
+			return builder.ToString();
 		}
 
 		void WriteLayoutDefinition(TextWriter writer, TypeDefinition type)

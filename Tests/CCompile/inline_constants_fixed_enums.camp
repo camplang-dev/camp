@@ -1,0 +1,32 @@
+inline uint MAX_DEVICES = 10;
+public inline uint INTERNAL_LIMIT = MAX_DEVICES * 2;
+export inline uint MAX_PLAYERS = MAX_DEVICES - 1;
+export const uint MIN_PLAYERS = 1;
+
+class Widget
+{
+}
+
+inline Widget* NO_WIDGET = null;
+inline fn void() NO_CALLBACK = default;
+inline string APP_NAME = "Camp";
+
+struct Limits
+{
+	inline uint DEFAULT_CAPACITY = 16;
+}
+
+@symbol("Difficulty")
+export enum DifficultyLevel: ushort
+{
+	@symbol("DIFFICULTY_EASY") EASY,
+	HARD = EASY + 100
+}
+
+export int main()
+{
+	uint total = MAX_PLAYERS + INTERNAL_LIMIT + Limits.DEFAULT_CAPACITY + (uint)DifficultyLevel.HARD + MIN_PLAYERS;
+	if (NO_WIDGET != null || NO_CALLBACK != null || APP_NAME == null)
+		return 1;
+	return (int)total;
+}

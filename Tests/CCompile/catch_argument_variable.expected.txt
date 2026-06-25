@@ -85,11 +85,9 @@ __cleanup2: ;
 typedef struct FileHandle FileHandle;
 
 /* Enums. */
-typedef enum IoError
-{
-	IoError_OK = 0,
-	IoError_FAILED
-} IoError;
+typedef uint32_t IoError;
+#define IoError_OK ((IoError)0)
+#define IoError_FAILED ((IoError)1)
 
 /* Newtypes. */
 
