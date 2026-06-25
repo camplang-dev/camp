@@ -2617,19 +2617,19 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetAccessibleParameterlessConstructor(baseClass, out FunctionDefinition? parameterlessConstructor))
 		{
 			if (parameterlessConstructor is not null)
-				InsertImplicitBaseConstructorCall(function.Body, parameterlessConstructor);
+				InsertImplicitBaseConstructorCall(function.Body, containingClass, baseClass, parameterlessConstructor);
 			return;
 		}
 
 		Report(GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Constructor for class '{containingClass.Name}' must invoke a base constructor because base class '{baseClass.Name}' has no accessible parameterless constructor.");
 	}
 
-	void InsertImplicitBaseConstructorCall(BlockStatement body, FunctionDefinition constructor)
+	void InsertImplicitBaseConstructorCall(BlockStatement body, ClassDefinition containingClass, ClassDefinition baseClass, FunctionDefinition constructor)
 	{
 		FunctionDefinition? initNew = FindGeneratedInitNewMethod(FindContainingType(constructor));
 		CallExpression call = new()
 		{
-			Target = CreateBaseInitNewReference(constructor, initNew),
+			Target = CreateBaseInitNewReference(constructor, initNew, containingClass, baseClass),
 			ResolvedType = "void"
 		};
 		if (initNew is not null)
@@ -2642,14 +2642,30 @@ public sealed partial class BindableNodeAnalyzer
 		});
 	}
 
-	static MethodReferenceExpression CreateBaseInitNewReference(FunctionDefinition constructor, FunctionDefinition? initNew)
+	MemberReferenceExpression CreateBaseInitNewReference(FunctionDefinition constructor, FunctionDefinition? initNew, ClassDefinition containingClass, ClassDefinition baseClass)
 	{
-		MethodReferenceExpression reference = new()
+		FunctionDefinition target = initNew ?? constructor;
+		MemberReferenceExpression reference = new()
 		{
-			ResolvedType = "void"
+			Target = CreateBaseThisReceiver(containingClass, baseClass, constructor.SourceSyntax),
+			Name = target.Name,
+			Member = target,
+			ResolvedType = BuildFunctionValueType(target, isInstance: true)
 		};
-		reference.Candidates.Add(initNew ?? constructor);
+		reference.Candidates.Add(target);
 		return reference;
+	}
+
+	static CastExpression CreateBaseThisReceiver(ClassDefinition containingClass, ClassDefinition baseClass, SyntaxNode? syntax)
+	{
+		return new CastExpression
+		{
+			SourceSyntax = syntax,
+			Kind = CastKind.Type,
+			Type = PointerTo(TypeReferenceFor(baseClass)),
+			Expression = new ThisExpression { SourceSyntax = syntax, ResolvedType = $"{containingClass.Name}*" },
+			ResolvedType = $"{baseClass.Name}*"
+		};
 	}
 
 	static Expression? GetFirstConstructorAction(BlockStatement body)
@@ -2990,7 +3006,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		FunctionDefinition? initNew = FindGeneratedInitNewMethod(baseClass);
 		target.ResolvedType = "void";
-		MethodReferenceExpression reference = CreateBaseInitNewReference(constructor, initNew);
+		MemberReferenceExpression reference = CreateBaseInitNewReference(constructor, initNew, containingClass, baseClass);
 		reference.SourceSyntax = target.SourceSyntax;
 		expressionRewrites[target] = reference;
 		return initNew ?? constructor;
