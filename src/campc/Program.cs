@@ -10,8 +10,16 @@ using System.CommandLine;
 using Camp.Compiler;
 
 CliEnvironment environment = CliEnvironment.Create();
-RootCommand rootCommand = BuildCommandTree(environment, args);
-int exitCode = ContainsRemovedOption(args) ? CampCli.Run(args, environment) : rootCommand.Parse(args).Invoke();
+List<string> startupErrors = [];
+string[] expandedArgs = ResponseFileExpander.Expand(args, environment.WorkingDirectory, startupErrors).ToArray();
+if (startupErrors.Count > 0)
+{
+	foreach (string error in startupErrors)
+		Console.Error.WriteLine(error);
+	return 1;
+}
+RootCommand rootCommand = BuildCommandTree(environment, expandedArgs);
+int exitCode = ContainsRemovedOption(expandedArgs) ? CampCli.Run(expandedArgs, environment) : rootCommand.Parse(expandedArgs).Invoke();
 return exitCode;
 
 static bool ContainsRemovedOption(string[] args)
@@ -1020,6 +1028,197 @@ static class BuildPragmaReader
 				inQuote = true;
 			else
 				current.Append(ch);
+		}
+		if (current.Length > 0)
+			tokens.Add(current.ToString());
+		return tokens;
+	}
+}
+
+static class ResponseFileExpander
+{
+	static readonly HashSet<string> PathValueOptions = new(StringComparer.Ordinal)
+	{
+		"--include",
+		"-i",
+		"--exclude",
+		"--out-dir",
+		"--build-dir",
+		"--local"
+	};
+
+	public static List<string> Expand(IReadOnlyList<string> args, string workingDirectory, List<string> errors)
+	{
+		return Expand(args, workingDirectory, errors, []);
+	}
+
+	static List<string> Expand(IReadOnlyList<string> args, string workingDirectory, List<string> errors, HashSet<string> responseStack)
+	{
+		List<string> expanded = [];
+		foreach (string arg in args)
+		{
+			if (!arg.StartsWith('@') || arg == "@")
+			{
+				expanded.Add(arg);
+				continue;
+			}
+
+			string responseFile = ResolveResponseFile(arg[1..], workingDirectory);
+			if (!File.Exists(responseFile))
+			{
+				errors.Add($"Response file '{arg[1..]}' could not be found.");
+				continue;
+			}
+			if (!responseStack.Add(responseFile))
+			{
+				errors.Add($"Response file '{responseFile}' includes itself recursively.");
+				continue;
+			}
+
+			string responseDirectory = Path.GetDirectoryName(responseFile)!;
+			List<string> tokens = TokenizeResponseFile(responseFile, errors);
+			expanded.AddRange(RebasePathArguments(Expand(tokens, responseDirectory, errors, responseStack), responseDirectory));
+			responseStack.Remove(responseFile);
+		}
+		return expanded;
+	}
+
+	static string ResolveResponseFile(string value, string workingDirectory)
+	{
+		string candidate = Path.GetFullPath(value, workingDirectory);
+		if (File.Exists(candidate) || Path.HasExtension(candidate))
+			return candidate;
+		string campbuild = candidate + ".campbuild";
+		if (File.Exists(campbuild))
+			return campbuild;
+		return candidate;
+	}
+
+	static List<string> TokenizeResponseFile(string file, List<string> errors)
+	{
+		try
+		{
+			return Split(File.ReadAllText(file));
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+		{
+			errors.Add($"{file}: {ex.Message}");
+			return [];
+		}
+	}
+
+	static List<string> RebasePathArguments(IReadOnlyList<string> tokens, string baseDirectory)
+	{
+		List<string> result = [];
+		for (int i = 0; i < tokens.Count; i++)
+		{
+			string token = tokens[i];
+			result.Add(token);
+
+			if (token is "--reference" or "-r" or "--framework" or "-f" or "--use")
+			{
+				while (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
+					result.Add(RebaseReferenceLikeValue(tokens[++i], baseDirectory));
+				continue;
+			}
+
+			if (token == "--use-source")
+			{
+				if (i + 1 < tokens.Count)
+					result.Add(tokens[++i]);
+				if (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
+					result.Add(RebasePathValue(tokens[++i], baseDirectory));
+				continue;
+			}
+
+			if (PathValueOptions.Contains(token) && i + 1 < tokens.Count)
+			{
+				result.Add(RebasePathValue(tokens[++i], baseDirectory));
+				continue;
+			}
+
+			if (!token.StartsWith("-", StringComparison.Ordinal))
+				result[^1] = RebaseSourcePattern(token, baseDirectory);
+		}
+		return result;
+	}
+
+	static string RebaseSourcePattern(string value, string baseDirectory)
+	{
+		if (Path.IsPathRooted(value) || !LooksLikePath(value))
+			return value;
+		return Path.GetFullPath(value, baseDirectory);
+	}
+
+	static string RebaseReferenceLikeValue(string value, string baseDirectory)
+	{
+		if (Path.IsPathRooted(value) || !LooksLikePath(value))
+			return value;
+		if (!value.Contains(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal) && !value.Contains(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal) && !value.StartsWith(".", StringComparison.Ordinal))
+			return value;
+		return Path.GetFullPath(value, baseDirectory);
+	}
+
+	static string RebasePathValue(string value, string baseDirectory)
+	{
+		return Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
+	}
+
+	static bool LooksLikePath(string value)
+	{
+		return value.Contains(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+			|| value.Contains(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+			|| value.Contains("*", StringComparison.Ordinal)
+			|| value.Contains("?", StringComparison.Ordinal)
+			|| value.StartsWith(".", StringComparison.Ordinal)
+			|| value.EndsWith(".camp", StringComparison.OrdinalIgnoreCase);
+	}
+
+	static List<string> Split(string text)
+	{
+		List<string> tokens = [];
+		StringBuilder current = new();
+		bool inQuote = false;
+		bool atTokenStart = true;
+		for (int i = 0; i < text.Length; i++)
+		{
+			char ch = text[i];
+			if (inQuote)
+			{
+				if (ch == '\\' && i + 1 < text.Length && text[i + 1] is '"' or '\\')
+					current.Append(text[++i]);
+				else if (ch == '"')
+					inQuote = false;
+				else
+					current.Append(ch);
+				continue;
+			}
+			if (ch == '#' && atTokenStart)
+			{
+				while (i < text.Length && text[i] is not '\r' and not '\n')
+					i++;
+				atTokenStart = true;
+				continue;
+			}
+			if (char.IsWhiteSpace(ch))
+			{
+				if (current.Length > 0)
+				{
+					tokens.Add(current.ToString());
+					current.Clear();
+				}
+				atTokenStart = true;
+			}
+			else if (ch == '"')
+			{
+				inQuote = true;
+				atTokenStart = false;
+			}
+			else
+			{
+				current.Append(ch);
+				atTokenStart = false;
+			}
 		}
 		if (current.Length > 0)
 			tokens.Add(current.ToString());

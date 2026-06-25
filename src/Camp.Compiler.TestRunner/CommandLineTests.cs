@@ -80,6 +80,59 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Response_file_expands_build_arguments_relative_to_response_file()
+	{
+		string root = TempPath("response-file-project");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			--name sample
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampc("build", "@" + buildFile, "--build-dir", TempPath("response-file-build"));
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("_api.camp", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Response_file_name_can_omit_campbuild_extension()
+	{
+		string root = TempPath("response-file-extension");
+		Directory.CreateDirectory(root);
+		string source = Path.Combine(root, "main.camp");
+		File.WriteAllText(source, """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, $"""
+			--nostdlib
+			--artifact none
+			--name sample_extension
+			"{source}"
+			""");
+
+		ProcessResult result = RunCampc("build", "@" + Path.Combine(root, "sample"), "--build-dir", TempPath("response-file-extension-build"));
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Include_files_contribute_build_pragmas_without_becoming_project_sources()
 	{
 		string api = CreateTempCase("include_pragmas_api.camp", """

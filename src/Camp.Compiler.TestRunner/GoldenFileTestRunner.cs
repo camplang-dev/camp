@@ -19,6 +19,8 @@ public static class GoldenFileTestRunner
 		ArgumentNullException.ThrowIfNull(testCase);
 		if (testCase.Kind == GoldenFileTestKind.StdRun && OperatingSystem.IsWindows() && !MsvcAvailable())
 			Assert.Skip("StdRun executable golden tests require MSVC tools on Windows.");
+		if (testCase.Kind == GoldenFileTestKind.CCompile && OperatingSystem.IsWindows() && ExpectedCompileFailure(testCase))
+			Assert.Skip("CCompile compile-failure diagnostics are host-clang dependent on Windows.");
 
 		CompilerRequest request = CreateRequest(testCase);
 		CompilerResult result = ExecuteCompiler(testCase, request);
@@ -47,6 +49,12 @@ public static class GoldenFileTestRunner
 		string prefix = Path.GetFileNameWithoutExtension(testCase.CasePath) + ".actual.";
 		foreach (string actualPath in Directory.GetFiles(directory, prefix + "*"))
 			File.Delete(actualPath);
+	}
+
+	static bool ExpectedCompileFailure(GoldenFileTestCase testCase)
+	{
+		return File.Exists(testCase.ExpectedPath)
+			&& File.ReadAllText(testCase.ExpectedPath).Contains("compile failed:", StringComparison.Ordinal);
 	}
 
 	static CompilerRequest CreateRequest(GoldenFileTestCase testCase)
