@@ -29,6 +29,15 @@
       "value": 4294967295
     },
     {
+      "id": "variable:WM_GETTEXTLENGTH",
+      "kind": "variable",
+      "name": "WM_GETTEXTLENGTH",
+      "visibility": "export",
+      "type": "uint",
+      "inline": true,
+      "value": 14
+    },
+    {
       "id": "variable:INTERNAL_NAME",
       "kind": "variable",
       "name": "INTERNAL_NAME",

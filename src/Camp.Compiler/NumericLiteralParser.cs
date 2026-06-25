@@ -17,8 +17,7 @@ static class NumericLiteralParser
 		unsignedSuffix = false;
 		if (string.IsNullOrWhiteSpace(text)
 			|| text.Contains('.', StringComparison.Ordinal)
-			|| text.Contains('p', StringComparison.OrdinalIgnoreCase)
-			|| text.Contains('e', StringComparison.OrdinalIgnoreCase))
+			|| text.Contains('p', StringComparison.OrdinalIgnoreCase))
 			return false;
 
 		string coreText = text.Replace("_", "", StringComparison.Ordinal).Trim();
@@ -43,6 +42,10 @@ static class NumericLiteralParser
 		{
 			radix = 2;
 			start = 2;
+		}
+		else if (coreText.Contains('e', StringComparison.OrdinalIgnoreCase))
+		{
+			return false;
 		}
 
 		if (start >= coreText.Length)

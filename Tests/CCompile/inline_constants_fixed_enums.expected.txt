@@ -15,6 +15,10 @@ int main(void)
 	{
 		return 2;
 	}
+	if ((WM_GETTEXTLENGTH != 14u))
+	{
+		return 3;
+	}
 	if ((((NO_WIDGET != NULL) || (NO_CALLBACK != NULL)) || (APP_NAME == NULL)))
 	{
 		return 1;
@@ -32,6 +36,7 @@ typedef void (* fn_void__)(void);
 int main(void);
 #define MAX_PLAYERS ((uint32_t)9)
 #define INVALID_FILE_SIZE ((uint32_t)4294967295)
+#define WM_GETTEXTLENGTH ((uint32_t)14)
 extern const uint32_t MIN_PLAYERS;
 
 #endif
@@ -58,6 +63,7 @@ typedef uint16_t Difficulty;
 #define INTERNAL_LIMIT ((uint32_t)20)
 #define MAX_PLAYERS ((uint32_t)9)
 #define INVALID_FILE_SIZE ((uint32_t)4294967295)
+#define WM_GETTEXTLENGTH ((uint32_t)14)
 
 /* Callable typedefs. */
 typedef void (* fn_void__)(void);

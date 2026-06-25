@@ -1,5 +1,6 @@
 export inline uint MAX_PLAYERS = 9;
 export inline uint INVALID_FILE_SIZE = 0xFFFFFFFF;
+export inline uint WM_GETTEXTLENGTH = 0x000E;
 public inline uint INTERNAL_LIMIT = 20;
 inline uint PRIVATE_LIMIT = 30;
 
