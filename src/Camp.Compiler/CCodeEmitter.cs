@@ -4835,6 +4835,8 @@ public static class CCodeEmitter
 
 		CType FormatTypeOrResolved(TypeReference? type, string? resolvedType, string declarator)
 		{
+			if (type is AutoTypeReference && !string.IsNullOrWhiteSpace(resolvedType))
+				return FormatResolvedType(resolvedType!, declarator);
 			if (type is CallableTypeReference)
 				return FormatType(type, declarator);
 			if (ContainsFixedArrayTypeReference(type))

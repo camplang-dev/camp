@@ -1491,7 +1491,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool ReceiverCanCallFunction(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
 	{
 		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
-		string actualType = StripTopLevelConstForReceiver(targetType);
+		string actualType = StripLifetimeQualifiers(StripTopLevelConstForReceiver(targetType));
+		receiverType = StripLifetimeQualifiers(receiverType);
 		if (WouldDecayFixedArrayStorageToPointerReceiver(actualType, receiverType))
 			return false;
 		if (CanImplicitlyConvert(actualType, receiverType))
@@ -1975,7 +1976,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string? TryGetPointerElementType(string? type)
 	{
-		return new TypeShapeParser(type ?? "").TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Pointer
+		return new TypeShapeParser(StripLifetimeQualifiers(type ?? "")).TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Pointer
 			? TypeShapeParser.Format(shape.Element)
 			: null;
 	}

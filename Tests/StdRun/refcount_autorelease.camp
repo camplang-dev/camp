@@ -1,0 +1,65 @@
+using Std;
+
+export escaped interface IRefCount
+{
+	void retain();
+	void release();
+}
+
+struct PendingRelease
+{
+	IRefCount* context;
+	fn void(IRefCount* context) release;
+}
+
+List<PendingRelease>* pendingReleases;
+int released;
+
+export escaped T* autorelease<T: implements IRefCount>(
+	escaped T* this,
+	vtableof(T: IRefCount))
+{
+	if (pendingReleases == null)
+		pendingReleases = new List<PendingRelease>();
+
+	PendingRelease pending =
+	{
+		(IRefCount*)this,
+		vtableof(T: IRefCount).release
+	};
+	pendingReleases.add(pending);
+	return this;
+}
+
+export void emptyAutoreleasePool()
+{
+	if (pendingReleases != null)
+	{
+		while (pendingReleases.Length > 0)
+		{
+			auto last = pendingReleases.Item[^1];
+			pendingReleases.remove(^1);
+			last.release(last.context);
+		}
+	}
+}
+
+class Thing: IRefCount
+{
+	void retain()
+	{
+	}
+
+	void release()
+	{
+		released++;
+	}
+}
+
+export int main()
+{
+	auto thing = new Thing();
+	thing.autorelease();
+	emptyAutoreleasePool();
+	return released - 1;
+}
