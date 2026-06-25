@@ -2409,7 +2409,7 @@ public static class CCodeEmitter
 				CastExpression { LifetimeCastKind: not null } cast => FormatExpression(cast.Expression),
 				CastExpression cast => "(" + FormatType(cast.Type, "").Declaration.Trim() + ")(" + FormatExpression(cast.Expression) + ")",
 				SizeOfExpression sizeOf => FormatSizeOfExpression(sizeOf),
-				NameOfExpression => UnsupportedExpression(expression),
+				NameOfExpression nameOf => FormatNameOfExpression(nameOf),
 				CallExpression call => FormatCallExpression(call),
 				IndexExpression index => FormatIndexExpression(index),
 				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatInterfaceSlotMember(member.Target, member.Name) ?? FormatExpression(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
@@ -4226,6 +4226,40 @@ public static class CCodeEmitter
 				LiteralKind.Null => "NULL",
 				_ => "0"
 			};
+		}
+
+		string FormatNameOfExpression(NameOfExpression nameOf)
+		{
+			if (nameOf.Value is not string value)
+				return UnsupportedExpression(nameOf);
+			LiteralExpression literal = new()
+			{
+				SourceSyntax = nameOf.SourceSyntax,
+				Kind = LiteralKind.String,
+				Text = FormatCampStringLiteral(value),
+				Value = value,
+				ResolvedType = nameOf.ResolvedType
+			};
+			return FormatLiteral(literal);
+		}
+
+		static string FormatCampStringLiteral(string value)
+		{
+			StringBuilder builder = new("\"");
+			foreach (char ch in value)
+			{
+				builder.Append(ch switch
+				{
+					'\\' => "\\\\",
+					'"' => "\\\"",
+					'\n' => "\\n",
+					'\r' => "\\r",
+					'\t' => "\\t",
+					_ => ch
+				});
+			}
+			builder.Append('"');
+			return builder.ToString();
 		}
 
 		static bool IsWideStringLiteralType(string? type)

@@ -442,13 +442,14 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsValidFixedStorageInitializer(TypeReference? targetType, Expression value)
 	{
 		return IsDirectFixedArrayType(targetType)
-			&& value is ArrayExpression or DefaultExpression or LiteralExpression { Kind: LiteralKind.String };
+			&& value is ArrayExpression or DefaultExpression or LiteralExpression { Kind: LiteralKind.String } or NameOfExpression;
 	}
 
 	static bool IsValidFixedStorageAssignmentValue(string targetType, Expression? value)
 	{
 		return value is ArrayExpression or DefaultExpression
-			|| value is LiteralExpression { Kind: LiteralKind.String } && IsFixedCharacterArrayType(targetType);
+			|| value is LiteralExpression { Kind: LiteralKind.String } && IsFixedCharacterArrayType(targetType)
+			|| value is NameOfExpression && IsFixedCharacterArrayType(targetType);
 	}
 
 	bool TryGetImplicitIteratorProtocolType(Expression? expression, string initialType, out string iteratorProtocolType)
@@ -754,7 +755,7 @@ public sealed partial class BindableNodeAnalyzer
 			WithinExpression within => BodyAnalyzeWithinExpression(within, scope, typeScope, targetType),
 			SizeOfExpression sizeOf => BodyAnalyzeSizeOfExpression(sizeOf, typeScope),
 			VTableOfExpression vtableOf => BodyAnalyzeVTableOfExpression(vtableOf, typeScope),
-			NameOfExpression nameOf => BodyAnalyzeNameOfExpression(nameOf, scope, typeScope),
+			NameOfExpression nameOf => BodyAnalyzeNameOfExpression(nameOf, scope, typeScope, targetType),
 			SymbolOfExpression symbolOf => BodyAnalyzeSymbolOfExpression(symbolOf),
 			LambdaExpression lambda => BodyAnalyzeLambdaExpression(lambda, scope, typeScope, targetType),
 			ArgumentExpression argument => BodyAnalyzeArgumentExpression(argument, scope, typeScope, targetType),

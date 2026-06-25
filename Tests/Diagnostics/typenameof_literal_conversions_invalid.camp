@@ -1,0 +1,5 @@
+export int main()
+{
+	fixed char[2] storage = typenameof(uint);
+	return 0;
+}

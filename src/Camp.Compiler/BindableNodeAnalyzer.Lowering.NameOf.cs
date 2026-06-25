@@ -56,12 +56,17 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 	}
 
-	string BodyAnalyzeNameOfExpression(NameOfExpression expression, BodyScope scope, AnalysisScope typeScope)
+	string BodyAnalyzeNameOfExpression(NameOfExpression expression, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
 		if (TryResolveNameOfOperand(expression.Text, scope, typeScope, expression.SourceSyntax, out string name, out BindableNode? reference))
 		{
 			if (name.Length > 0)
+			{
 				expression.Value = name;
+				expression.Reference = reference;
+				expressionConstants[expression] = true;
+				return GetStringLiteralType(NameOfStringLiteral(name, expression.SourceSyntax), targetType);
+			}
 			expression.Reference = reference;
 			expressionConstants[expression] = true;
 			return "string";
@@ -317,7 +322,7 @@ public sealed partial class BindableNodeAnalyzer
 	Expression LowerNameOfExpression(NameOfExpression nameOf)
 	{
 		if (nameOf.Value is string concreteName)
-			return NameOfStringLiteral(concreteName, nameOf.SourceSyntax);
+			return NameOfStringLiteral(concreteName, nameOf.SourceSyntax, nameOf.ResolvedType);
 
 		string typeName = nameOf.Text.Trim();
 		if (FindNameOfParameter(currentRewriteFunction, typeName) is NameOfParameterDefinition parameter)
@@ -445,7 +450,7 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	static LiteralExpression NameOfStringLiteral(string value, SyntaxNode? syntax)
+	static LiteralExpression NameOfStringLiteral(string value, SyntaxNode? syntax, string? resolvedType = null)
 	{
 		return new LiteralExpression
 		{
@@ -453,7 +458,7 @@ public sealed partial class BindableNodeAnalyzer
 			Kind = LiteralKind.String,
 			Text = QuoteCampString(value),
 			Value = value,
-			ResolvedType = "string"
+			ResolvedType = resolvedType ?? "string"
 		};
 	}
 

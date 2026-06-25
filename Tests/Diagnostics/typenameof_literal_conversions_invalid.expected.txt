@@ -1,0 +1,1 @@
+tests/Diagnostics/typenameof_literal_conversions_invalid.camp(3,26): error: String literal contains too many code units for char[2].

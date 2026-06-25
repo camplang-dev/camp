@@ -1,0 +1,65 @@
+// file: typenameof_literal_conversions.c
+#include "typenameof_literal_conversions_private.h"
+
+
+int main(void)
+{
+	const char *name = "Int";
+	const char *asciiName = "Int";
+	const uint16_t *wideName = ((const uint16_t[]){0x0049, 0x006E, 0x0074, 0});
+	const char *span = "Int";
+	uintptr_t span_length = 3;
+	const char *asciiSpan = "Int";
+	uintptr_t asciiSpan_length = 3;
+	const uint16_t *wideSpan = ((const uint16_t[]){0x0049, 0x006E, 0x0074, 0});
+	uintptr_t wideSpan_length = 3;
+	char storage[8] = "Int";
+	if ((((name == NULL) || (asciiName == NULL)) || (wideName == NULL)))
+	{
+		return 1;
+	}
+	if ((((span_length != 3) || (asciiSpan_length != 3)) || (wideSpan_length != 3)))
+	{
+		return 2;
+	}
+	if ((((((char *)(storage))[0] != 'i') || (((char *)(storage))[1] != 'n')) || (((char *)(storage))[2] != 't')))
+	{
+		return 3;
+	}
+	return 0;
+}
+
+// file: typenameof_literal_conversions.h
+#ifndef TYPENAMEOF_LITERAL_CONVERSIONS_H_
+#define TYPENAMEOF_LITERAL_CONVERSIONS_H_
+
+#include "typenameof_literal_conversions_private.h"
+
+int main(void);
+
+#endif
+// file: typenameof_literal_conversions_private.h
+#ifndef TYPENAMEOF_LITERAL_CONVERSIONS_PRIVATE_H_
+#define TYPENAMEOF_LITERAL_CONVERSIONS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: typenameof_literal_conversions.c

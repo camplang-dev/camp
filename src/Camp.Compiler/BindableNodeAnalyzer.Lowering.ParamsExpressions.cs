@@ -1088,6 +1088,9 @@ public sealed partial class BindableNodeAnalyzer
 			case LiteralExpression { Kind: LiteralKind.String } literal:
 				return TryCreateStringParamsComponentExpressions(literal, out components);
 
+			case NameOfExpression { Value: string value } nameOf:
+				return TryCreateStringParamsComponentExpressions(NameOfStringLiteral(value, nameOf.SourceSyntax, nameOf.ResolvedType), out components);
+
 			case UnaryExpression { Operator: UnaryOperator.AddressOf } addressOf
 				when TryCreateParamsComponentExpressions(addressOf.Operand, out List<Expression> addressed):
 				foreach (Expression component in addressed)

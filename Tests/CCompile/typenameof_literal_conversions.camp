@@ -1,0 +1,18 @@
+export int main()
+{
+	string name = typenameof(int);
+	astring asciiName = typenameof(int);
+	wstring wideName = typenameof(int);
+	const char[] span = typenameof(int);
+	const achar[] asciiSpan = typenameof(int);
+	const wchar[] wideSpan = typenameof(int);
+	fixed char[8] storage = typenameof(int);
+
+	if (name == null || asciiName == null || wideName == null)
+		return 1;
+	if (span.length != 3 || asciiSpan.length != 3 || wideSpan.length != 3)
+		return 2;
+	if (storage[0] != 'i' || storage[1] != 'n' || storage[2] != 't')
+		return 3;
+	return 0;
+}
