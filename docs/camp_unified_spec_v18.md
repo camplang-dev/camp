@@ -2154,11 +2154,9 @@ void callForeign(string text);
 
 ## 1.10 Enum Types
 
-An enum introduces a nominal type whose values are named constants.
-
-The current source documents use enums extensively for status codes, modes, flags-like choices, and protocol states.
-
-Examples:
+An enum introduces a nominal integer type whose values are named constants.
+Enums are useful for mode switches, state machines, status codes, error
+categories, and option selection.
 
 ```camp
 enum HttpMethod
@@ -2183,47 +2181,38 @@ enum HttpError
 }
 ```
 
-### 1.10.1 Purpose
+### 1.10.1 Declaration And Underlying Type
 
-Use an enum when a value belongs to a closed named set and the names themselves carry meaning.
-
-Enums are especially useful for:
-
-- mode switches
-- state machines
-- status codes
-- error categories
-- option selection
-
-### 1.10.2 Declaration
-
-An enum declaration lists members inside braces.
-
-Members may be:
-
-- plain names
-- or explicitly assigned values where useful
-
-Examples in the design documents include both styles.
-
-### 1.10.3 Explicit values
-
-Explicit member values are especially useful for status enums:
+An enum declaration lists members inside braces. Members may be plain names or
+explicitly assigned constant values.
 
 ```camp
-enum LookupError
+export enum FileMode: ushort
 {
-	OK = 0,
-	E_NOT_FOUND,
-	E_DUPLICATE
+	OPEN_EXISTING,
+	CREATE = 7,
+	APPEND
 }
 ```
 
-That aligns naturally with Camp's ordinary success-code convention, where the default value of the status type means success.
+If the underlying type is omitted, it is `uint`. An explicit underlying type
+may be `sbyte`, `byte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`,
+`nint`, or `nuint`.
 
-### 1.10.4 Enums in APIs
+Member values are evaluated as Camp constant expressions and then checked
+against the enum's underlying type. Auto-increment continues from the previous
+member value. Negative values are invalid for unsigned underlying types, and
+overflow is an error.
 
-Enums appear naturally in signatures, structs, and expanded values:
+```camp
+enum Small: byte { A = 255, B } // ERROR: B would be 256
+enum U: uint { BAD = -1 }       // ERROR: unsigned enum
+```
+
+### 1.10.2 Enums In APIs
+
+Enums appear naturally in signatures, structs, expanded values, and status
+parameters:
 
 ```camp
 struct HttpRequestOptions
@@ -2235,24 +2224,39 @@ struct HttpRequestOptions
 }
 ```
 
-Because enums are ordinary named types, they make such declarations much easier to read than raw integers would.
+Because enums are ordinary named types, they make such declarations much easier
+to read than raw integers would.
 
-### 1.10.5 Enums and defaults
+When an enum is used as an error or status type, it is common and advisable to
+assign the success member the value `0`. Camp's error-handling model does not
+require every enum to be a status enum, but when an enum is used in that role,
+aligning success with the default value is the natural fit.
 
-When an enum is used as an error or status type, it is common and advisable to assign the success member the value `0`.
+### 1.10.3 C Representation
 
-Camp's error-handling model does not require every enum to be a status enum, but when an enum *is* used in that role, aligning success with the default value is the natural fit.
+Camp enums do not emit native C `enum` declarations. Generated C uses a typedef
+of the fixed underlying representation plus typed member macros. This keeps the
+ABI size precise on every target.
 
-### 1.10.6 What this section does not assume
+```camp
+@symbol("Difficulty")
+export enum DifficultyLevel: ushort
+{
+	@symbol("DIFFICULTY_EASY") EASY,
+	HARD = EASY + 100
+}
+```
 
-The current source set uses enums heavily, but does not yet give them a dedicated standalone spec page. Accordingly, this section defines only what is already stable and visible in the source material:
+emits C shaped like:
 
-- enums are nominal named sets of constants
-- members may have explicit values
-- enums are used directly in ordinary type positions
-- status enums commonly align `OK = 0` with Camp's ordinary success convention
+```c
+typedef uint16_t Difficulty;
+#define DIFFICULTY_EASY ((Difficulty)0)
+#define Difficulty_HARD ((Difficulty)100)
+```
 
-More detailed representation rules, if any, should be added only when they are intentionally fixed.
+`@symbol` on the enum type overrides the typedef name and the default member
+macro prefix. `@symbol` on an enum member overrides the full member macro name.
 
 ## 1.11 `newtype`
 
@@ -7161,10 +7165,63 @@ exported aliases, but generated C uses the resolved underlying name.
 Alias targets are names, not full type expressions. For example, aliasing
 `TCHAR` is valid; aliasing `char[]` is not.
 
-### 5.1.8 Symbol overrides
+### 5.1.8 Inline Constants
+
+An `inline` declaration introduces a typed compile-time constant binding. It
+has no storage, address, linkage, assignable location, or `out` identity.
+
+```camp
+inline uint MAX_DEVICES = 10;
+public inline uint INTERNAL_LIMIT = MAX_DEVICES * 2;
+export inline uint MAX_PLAYERS = MAX_DEVICES - 1;
+inline string APP_NAME = "Camp";
+```
+
+`inline` is valid at file scope and inside `struct`, `class`, and `newtype`
+bodies. Type-scoped inline constants are associated with the type, but they are
+not instance fields and do not affect layout.
+
+```camp
+struct ListDefaults
+{
+	inline uint INITIAL_CAPACITY = 8;
+}
+```
+
+The initializer is required and must be a compile-time constant expression
+that the compiler can evaluate with Camp semantics. It may use literals,
+`default`, enum values, visible inline constants, casts among allowed constant
+types, valid `sizeof(ConcreteType)` expressions, and string literals for
+string-like targets.
+
+Inline constants are intentionally narrower than arbitrary C macros. They may
+use scalar primitives, enums, value newtypes over scalar or pointer
+representations, pointer and `fn` null/default constants, and string-like
+constants. They may not be aggregate values, fixed-size arrays, expanded forms,
+or mutable string literal destinations.
+
+```camp
+inline uint A = 10;
+inline uint B = A + 5;      // OK, value 15
+inline Widget* NONE = null; // OK
+inline char* BAD = "text";  // ERROR: mutable string destination
+```
+
+Generated C emits inline constants as typed `#define` macros. `export inline`
+constants appear in the public C header, `public inline` constants appear in
+the generated private header, and private file-scope inline constants appear at
+the top of the generated `.c` file that owns them. `export const` remains an
+addressable storage object and is not also emitted as a macro.
+
+`@symbol("Name")` may override the macro symbol. For a type-scoped inline
+constant, the default symbol is `ContainingTypeSymbol_MEMBER`; an inline
+constant's own `@symbol` overrides the full macro symbol.
+
+### 5.1.9 Symbol overrides
 
 The built-in `@symbol("Name")` attribute changes the canonical flattened symbol
-for a function or variable.
+for a function, variable, static field, inline constant, enum type, or enum
+member when that declaration kind supports symbol overrides.
 
 ```camp
 @symbol("SetWindowTextA")
@@ -7185,7 +7242,7 @@ the canonical symbol name, so direct calls to the old compiler-generated
 flattened name are not valid. Exported declarations preserve `@symbol` in Camp
 API output; generated C uses the overridden name.
 
-### 5.1.9 Doc comments and metadata attributes
+### 5.1.10 Doc comments and metadata attributes
 
 Camp supports doc comments as a convenient source form for metadata attributes.
 Doc comments attach to the immediately following declaration or declaration
@@ -7222,14 +7279,14 @@ by the compiler so documentation links refer to real visible declarations.
 Metadata attributes are source-level information. Exported Camp API output
 preserves them, while generated C and C API headers omit documentation for now.
 
-### 5.1.10 Metadata JSON output
+### 5.1.11 Metadata JSON output
 
 The compiler can emit a source-level metadata JSON file for documentation tools,
 editors, and external generators:
 
 ```text
-campc library.camp --emit-metadata export
-campc library.camp --emit-metadata public
+campc build library.camp --metadata export
+campc build library.camp --metadata public
 ```
 
 Supported values are `none`, `export`, `public`, and `all`. Metadata defaults
@@ -7240,10 +7297,13 @@ deliverable named `<project>_api.json` beside the other output artifacts. The
 
 Metadata JSON describes Camp declarations as programmers see them: names,
 symbols, visibility, generic parameters, fields, parameters, callable
-ascriptions, aliases, and metadata attributes. It is not a lowered C ABI dump
-and does not include generated helper declarations by default.
+ascriptions, aliases, inline constants, enum values, and metadata attributes.
+Inline constants include `inline: true` and their precomputed `value`; ordinary
+variables, including `const` variables, do not get a computed metadata value.
+It is not a lowered C ABI dump and does not include generated helper
+declarations by default.
 
-### 5.1.11 Target callspecs and typespecs
+### 5.1.12 Target callspecs and typespecs
 
 Some targets define calling-convention and pointer/memory-model specifiers.
 Camp accepts those specifiers in fixed type and callable positions and validates

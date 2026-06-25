@@ -410,6 +410,8 @@ Interface implementation metadata looks like this:
 the class or struct implementation.
 
 Enums contain `values`. Enum values include their computed numeric `value`.
+The value is the Camp-computed value after applying explicit initializers,
+auto-increment, and the enum's underlying type checks.
 
 ```json
 {
@@ -523,6 +525,50 @@ Generic type parameters may contain:
 - `name`
 - `constraint`
 - `metadata`
+
+## Inline Constant Metadata
+
+Inline constants are emitted as variable or field records with:
+
+- `inline`: `true`
+- `value`: the compiler-computed constant value
+
+Ordinary variables, including `const` variables, do not include a computed
+`value` property. Enum values are the other declaration child that includes a
+computed `value`.
+
+Example:
+
+```json
+{
+  "kind": "variable",
+  "name": "MAX_PLAYERS",
+  "type": "uint",
+  "inline": true,
+  "value": 9
+}
+```
+
+Type-scoped inline constants appear in the owning type's `fields` array because
+they are source-level members of that type. They also carry `static: true`,
+because they have no per-instance storage.
+
+```json
+{
+  "kind": "struct",
+  "name": "Limits",
+  "fields": [
+    {
+      "name": "DEFAULT_CAPACITY",
+      "symbol": "Limits_DEFAULT_CAPACITY",
+      "type": "uint",
+      "inline": true,
+      "value": 16,
+      "static": true
+    }
+  ]
+}
+```
 
 ## Alias Metadata
 

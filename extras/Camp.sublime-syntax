@@ -14,7 +14,7 @@ variables:
   storage_keywords: '\b(?:const|volatile|escaped|scoped|unscoped|in|out|thrown|overload|within|sizeof|typenameof|vtableof)\b'
   constraint_keywords: '\b(?:implements|copyable)\b'
   statement_keywords: 'if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|init|new'
-  declaration_keywords: 'export|public|extern|static|virtual|override|sealed|abstract|fixed|escaped|alias'
+  declaration_keywords: 'export|public|extern|static|virtual|override|sealed|abstract|fixed|escaped|inline|alias'
 
 contexts:
   main:
