@@ -69,8 +69,8 @@ typedef void (* fn_void_IWriterPtrPtr__string_)(IWriter **arg0, const char *arg1
 /* Layouts. */
 struct IWriter
 {
-	void (* writeInt)(IWriter **ctx, int value);
-	void (* writeString)(IWriter **ctx, const char *value);
+	void (* writeInt)(IWriter **arg0, int arg1);
+	void (* writeString)(IWriter **arg0, const char *arg1);
 };
 struct ConsoleWriter
 {

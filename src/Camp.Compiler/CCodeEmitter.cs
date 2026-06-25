@@ -1537,11 +1537,19 @@ public static class CCodeEmitter
 		void WriteCallableAliasTypedef(TextWriter writer, string resolvedType)
 		{
 			string name = CTypeName(resolvedType);
-			if (!emittedNames.Add("callable-typedef:" + name))
-				return;
 			if (!TryParseResolvedCallableType(resolvedType, out string returnType, out List<string> parameterTypes, out string? targetSpec, out string? callSpec))
 				return;
 
+			if (TryGetExpandedStorageComponentsForC(returnType, out List<(string Name, string Type)> components)
+				&& components.Count > 0
+				&& IsResolvedCallableType(components[0].Type)
+				&& components[0].Type != resolvedType)
+			{
+				WriteCallableAliasTypedef(writer, components[0].Type);
+			}
+
+			if (!emittedNames.Add("callable-typedef:" + name))
+				return;
 			writer.WriteLine("typedef " + FormatInlineResolvedFunctionPointer(returnType, parameterTypes, name, targetSpec, callSpec) + ";");
 		}
 
@@ -2309,9 +2317,91 @@ public static class CCodeEmitter
 		{
 			if (string.IsNullOrWhiteSpace(resolvedType))
 				return false;
-			return TryGetArrayElementOnly(resolvedType, out _)
-				|| TryGetOptionalElementOnly(resolvedType, out _)
-				|| TryParseExpandedCallableStorageType(resolvedType, out _, out _);
+			return TryGetExpandedStorageComponentsForC(resolvedType, out List<(string Name, string Type)> components)
+				&& components.Count > 1;
+		}
+
+		bool TryGetExpandedStorageComponentsForC(string? resolvedType, out List<(string Name, string Type)> components)
+		{
+			components = [];
+			if (string.IsNullOrWhiteSpace(resolvedType))
+				return false;
+
+			string type = resolvedType.Trim();
+			if (TryGetArrayElementOnly(type, out string arrayElementType))
+			{
+				components.Add(("elements", arrayElementType + "*"));
+				components.Add(("length", "nuint"));
+				return true;
+			}
+			if (TryGetOptionalElementOnly(type, out string optionalElementType))
+			{
+				components.Add(("value", optionalElementType));
+				components.Add(("specified", "bool"));
+				return true;
+			}
+			if (TryParseExpandedCallableStorageType(type, out string callableReturnType, out List<string> callableParameterTypes, out string? callableTargetSpec, out string? callableCallSpec))
+			{
+				string specs = "";
+				if (!string.IsNullOrWhiteSpace(callableTargetSpec))
+					specs += " " + callableTargetSpec;
+				if (!string.IsNullOrWhiteSpace(callableCallSpec))
+					specs += " " + callableCallSpec;
+				components.Add(("call", "fn" + specs + " " + callableReturnType + "(" + string.Join(", ", ["void*", .. callableParameterTypes]) + ")"));
+				components.Add(("context", "void*"));
+				return true;
+			}
+			if (TryGetCallableNewtypeStorageComponentsForC(type, out components))
+				return true;
+
+			return false;
+		}
+
+		bool TryGetCallableNewtypeStorageComponentsForC(string resolvedType, out List<(string Name, string Type)> components)
+		{
+			components = [];
+			string baseName = BaseResolvedTypeName(resolvedType);
+			foreach (Definition definition in GetProjectDefinitions())
+			{
+				if (definition is not NewtypeDefinition newtypeDefinition || newtypeDefinition.Name != baseName)
+					continue;
+				if (newtypeDefinition.UnderlyingType is CallableTypeReference callable
+					&& callable.Kind is CallableKind.Delegate or CallableKind.Once)
+				{
+					string returnType = callable.ReturnType?.ResolvedType ?? ResolvedTypeForC(callable.ReturnType, callable.ReturnType?.ResolvedType);
+					List<string> parameterTypes = ["void*", .. GetExpandedCallableParameterTypesForC(newtypeDefinition.Parameters)];
+					ExpandResolvedCallableReturnForC(ref returnType, parameterTypes);
+					string specs = "";
+					if (!string.IsNullOrWhiteSpace(callable.TargetSpec))
+						specs += " " + callable.TargetSpec;
+					if (!string.IsNullOrWhiteSpace(callable.CallSpec))
+						specs += " " + callable.CallSpec;
+					components.Add(("call", "fn" + specs + " " + returnType + "(" + string.Join(", ", parameterTypes) + ")"));
+					components.Add(("context", "void*"));
+					return true;
+				}
+				string? storageType = newtypeDefinition.UnderlyingType?.ResolvedType;
+				if (string.IsNullOrWhiteSpace(storageType))
+					return false;
+				return TryGetExpandedStorageComponentsForC(storageType, out components);
+			}
+			return false;
+		}
+
+		static string BaseResolvedTypeName(string type)
+		{
+			type = type.Trim();
+			while (type.EndsWith("*", StringComparison.Ordinal) || type.EndsWith("?", StringComparison.Ordinal))
+				type = type[..^1].TrimEnd();
+			if (type.EndsWith("[]", StringComparison.Ordinal))
+				type = type[..^2].TrimEnd();
+			int generic = type.IndexOf('<', StringComparison.Ordinal);
+			if (generic >= 0)
+				type = type[..generic].TrimEnd();
+			int space = type.LastIndexOf(' ');
+			if (space >= 0)
+				type = type[(space + 1)..].TrimStart();
+			return type;
 		}
 
 		string FormatMaterializedArrayStructType(string elementType)
@@ -2341,7 +2431,19 @@ public static class CCodeEmitter
 
 		string FormatInlineResolvedFunctionPointer(string returnType, List<string> parameterTypes, string declarator, string? targetSpec = null, string? callSpec = null)
 		{
+			ExpandResolvedCallableReturnForC(ref returnType, parameterTypes);
 			return FormatResolvedType(returnType, FormatFunctionPointerDeclarator(declarator, targetSpec, callSpec)).Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
+		}
+
+		bool ExpandResolvedCallableReturnForC(ref string returnType, List<string> parameterTypes)
+		{
+			if (!TryGetExpandedStorageComponentsForC(returnType, out List<(string Name, string Type)> components) || components.Count <= 1)
+				return false;
+
+			returnType = components[0].Type;
+			for (int i = 1; i < components.Count; i++)
+				parameterTypes.Add("out " + components[i].Type);
+			return true;
 		}
 
 		string FormatFunctionPointerDeclarator(string name, string? targetSpec = null, string? callSpec = null)
@@ -4134,7 +4236,11 @@ public static class CCodeEmitter
 				return FormatCallableTypedef(callable, name);
 
 			string declarator = FormatFunctionPointerDeclarator(name, callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), callable.CallSpec);
-			return "typedef " + FormatType(callable.ReturnType, declarator).Declaration + "(" + FormatResolvedParameterList(GetExpandedCallableParameterTypesForC(parameters)) + ")";
+			string returnType = callable.ReturnType?.ResolvedType ?? ResolvedTypeForC(callable.ReturnType, callable.ReturnType?.ResolvedType);
+			List<string> parameterTypes = GetExpandedCallableParameterTypesForC(parameters);
+			if (!ExpandResolvedCallableReturnForC(ref returnType, parameterTypes))
+				return "typedef " + FormatType(callable.ReturnType, declarator).Declaration + FormatParameters(parameters);
+			return "typedef " + FormatResolvedType(returnType, declarator).Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
 		}
 
 		string FormatIterTypedef(IterTypeReference iter, List<ParameterDefinition> parameters, string name)
@@ -4278,7 +4384,11 @@ public static class CCodeEmitter
 		string FormatCallableDeclarator(CallableTypeReference callable, string name)
 		{
 			string declarator = FormatFunctionPointerDeclarator(name, callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), callable.CallSpec);
-			return FormatType(callable.ReturnType, declarator).Declaration + FormatParameters(callable.Parameters);
+			string returnType = callable.ReturnType?.ResolvedType ?? ResolvedTypeForC(callable.ReturnType, callable.ReturnType?.ResolvedType);
+			List<string> parameterTypes = GetExpandedCallableParameterTypesForC(callable.Parameters);
+			if (!ExpandResolvedCallableReturnForC(ref returnType, parameterTypes))
+				return FormatType(callable.ReturnType, declarator).Declaration + FormatParameters(callable.Parameters);
+			return FormatResolvedType(returnType, declarator).Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
 		}
 
 		CType FormatType(TypeReference? type, string declarator)
@@ -4378,6 +4488,8 @@ public static class CCodeEmitter
 			string type = resolvedType.Trim();
 			if (type.StartsWith("struct(", StringComparison.Ordinal) && type.EndsWith(")", StringComparison.Ordinal))
 				return FormatStorageResolvedType(type[7..^1], declarator);
+			if (TryParseResolvedCallableType(type, out _, out _))
+				return new CType(CTypeName(type) + " " + declarator);
 
 			List<string> qualifiers = [];
 			List<string> trailingQualifiers = [];

@@ -83,7 +83,7 @@ typedef int (* fn_int_IValuePtrPtr_)(IValue **arg0);
 /* Layouts. */
 struct IValue
 {
-	int (* value)(IValue **ctx);
+	int (* value)(IValue **arg0);
 };
 struct Counter
 {

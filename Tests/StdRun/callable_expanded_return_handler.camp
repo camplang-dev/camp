@@ -1,0 +1,32 @@
+using Std;
+
+newtype delegate void WindowEventHandler(Window* sender);
+
+escaped class Window
+{
+	WindowState* windowState;
+
+	void raiseHandler(fn WindowEventHandler(WindowState*) chooseHandler)
+	{
+		WindowEventHandler handler = chooseHandler(this.windowState);
+		if (handler != default)
+			handler(this);
+	}
+}
+
+escaped class WindowState
+{
+	WindowEventHandler click;
+	WindowEventHandler destroy;
+}
+
+export int main()
+{
+	auto window = new Window();
+	window.windowState = new WindowState();
+	window.windowState.click = (sender) => { Console.writeLine("click"); };
+	window.windowState.destroy = (sender) => { Console.writeLine("destroy"); };
+
+	window.raiseHandler(state => state.click);
+	return 0;
+}

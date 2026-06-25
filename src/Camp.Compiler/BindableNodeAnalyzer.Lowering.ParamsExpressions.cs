@@ -2004,9 +2004,25 @@ public sealed partial class BindableNodeAnalyzer
 			return TryCreateExpandedReturnCallComponents(call, functionShape, out components);
 		}
 
+		if (TryGetCallableExpandedReturnShape(call, null, out ParamsComponentShape callableShape))
+			return TryCreateExpandedReturnCallComponents(call, callableShape, out components);
+
 		if (!TryGetParamsComponentShape(null, call.ResolvedType, "result", out ParamsComponentShape shape) || shape.Components.Count <= 1)
 			return false;
 		return TryCreateExpandedReturnCallComponents(call, shape, out components);
+	}
+
+	bool TryGetCallableExpandedReturnShape(CallExpression call, ParamsComponentShape? targetShape, out ParamsComponentShape shape)
+	{
+		shape = targetShape ?? new ParamsComponentShape(ParamsComponentShapeKind.Structural, "", []);
+		if (!TryGetCallableShape(call.Target?.ResolvedType, out CallableShape callable))
+			return false;
+		string returnType = callable.ReturnType;
+		if (string.IsNullOrWhiteSpace(returnType) || returnType == "void")
+			return false;
+		if (targetShape is not null && targetShape.TypeName == returnType && targetShape.Components.Count > 1)
+			return true;
+		return TryGetParamsComponentShape(null, returnType, "result", out shape) && shape.Components.Count > 1;
 	}
 
 	bool TryCreateExpandedReturnCallComponents(CallExpression call, ParamsComponentShape shape, out List<Expression> components)

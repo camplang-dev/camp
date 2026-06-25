@@ -7,8 +7,8 @@ static bool __camp_delegate_rangeIter_iter_1(void *arg0, int *arg1);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static rangeIter *range(int first, int last);
-static applyPredicateIter applyPredicate(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int camp));
-static applyPredicateExplicitIter applyPredicateExplicit(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int camp));
+static applyPredicateIter applyPredicate(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int arg0));
+static applyPredicateExplicitIter applyPredicateExplicit(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int arg0));
 static bool isEven(int number);
 static bool rangeIter_next(rangeIter *this, int *current);
 static void rangeIter_op_delete(rangeIter *this);
@@ -49,12 +49,12 @@ static rangeIter *range(int first, int last)
 	return _iter0;
 }
 
-static applyPredicateIter applyPredicate(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int camp))
+static applyPredicateIter applyPredicate(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int arg0))
 {
 	return (applyPredicateIter){ .__state = 0, .inner = inner, .inner_context = inner_context, .predicate = predicate };
 }
 
-static applyPredicateExplicitIter applyPredicateExplicit(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int camp))
+static applyPredicateExplicitIter applyPredicateExplicit(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int arg0))
 {
 	return (applyPredicateExplicitIter){ .__state = 0, .inner = inner, .inner_context = inner_context, .predicate = predicate };
 }
@@ -307,7 +307,7 @@ struct applyPredicateIter
 	int __state;
 	fn_bool_voidPtr__intPtr_ inner;
 	void *inner_context;
-	bool (* predicate)(int camp);
+	bool (* predicate)(int arg0);
 	bool (* __foreachIterCall0)(void *arg0, int *arg1);
 	void *__foreachIterContext0;
 	int __foreachCurrent0;
@@ -317,7 +317,7 @@ struct applyPredicateExplicitIter
 	int __state;
 	fn_bool_voidPtr__intPtr_ inner;
 	void *inner_context;
-	bool (* predicate)(int camp);
+	bool (* predicate)(int arg0);
 	int value;
 };
 

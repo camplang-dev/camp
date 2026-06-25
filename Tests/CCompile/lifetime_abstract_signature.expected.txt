@@ -54,8 +54,8 @@ struct Allocator
 };
 struct _Allocator
 {
-	void *(* alloc)(Allocator *ctx, uintptr_t size);
-	void (* free)(Allocator *ctx, void *ptr);
+	void *(* alloc)(Allocator *arg0, uintptr_t arg1);
+	void (* free)(Allocator *arg0, void *arg1);
 };
 
 /* Function declarations. */

@@ -2,12 +2,12 @@
 #include "lambda_fn_stage1_private.h"
 
 /* Private file declarations. */
-static int apply(int (* callback)(int camp), int value);
+static int apply(int (* callback)(int arg0), int value);
 static bool check(Predicate predicate, int value);
 static int main_lambda0(int x);
 static bool main_lambda1(int value);
 
-static int apply(int (* callback)(int camp), int value)
+static int apply(int (* callback)(int arg0), int value)
 {
 	return callback(value);
 }
@@ -19,7 +19,7 @@ static bool check(Predicate predicate, int value)
 
 int main(void)
 {
-	int (* inc)(int camp) = main_lambda0;
+	int (* inc)(int arg0) = main_lambda0;
 	Predicate isPositive = main_lambda1;
 	return (((apply((fn_int_int_)inc, 4) == 5) && check(isPositive, 2)) ? 0 : 1);
 }

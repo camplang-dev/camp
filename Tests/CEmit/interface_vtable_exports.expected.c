@@ -88,7 +88,7 @@ typedef void (* fn_void_IRefPtrPtr_)(IRef **arg0);
 /* Layouts. */
 struct IRef
 {
-	void (* retain)(IRef **ctx);
+	void (* retain)(IRef **arg0);
 };
 struct Widget
 {

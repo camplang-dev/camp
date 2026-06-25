@@ -107,8 +107,8 @@ struct Counter
 };
 struct _Allocator
 {
-	void *(* alloc)(Allocator *ctx, uintptr_t size);
-	void (* free)(Allocator *ctx, void *ptr);
+	void *(* alloc)(Allocator *arg0, uintptr_t arg1);
+	void (* free)(Allocator *arg0, void *arg1);
 };
 struct _HeapAllocator
 {
@@ -116,7 +116,7 @@ struct _HeapAllocator
 };
 struct _BaseCounter
 {
-	int (* value)(BaseCounter *ctx);
+	int (* value)(BaseCounter *arg0);
 };
 struct _Counter
 {

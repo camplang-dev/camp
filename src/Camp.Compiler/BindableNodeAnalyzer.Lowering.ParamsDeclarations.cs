@@ -398,6 +398,36 @@ public sealed partial class BindableNodeAnalyzer
 				}
 			});
 		}
+		else if (initialValue is CallExpression callableCall
+			&& TryGetCallableExpandedReturnShape(callableCall, shape, out ParamsComponentShape callableReturnShape)
+			&& callableReturnShape.Components.Count == shape.Components.Count)
+		{
+			ExpandParamsArguments(callableCall);
+			((DeclarationStatement)declarations[0]).InitialValue = null;
+			for (int i = 1; i < targets.Count; i++)
+			{
+				callableCall.Arguments.Add(new ArgumentExpression
+				{
+					SourceSyntax = declaration.SourceSyntax,
+					Modifier = ArgumentModifier.Out,
+					Value = CreateVariableReference(targets[i], shape.Components[i].Type),
+					ResolvedType = shape.Components[i].Type
+				});
+			}
+			declarations.Add(new ExpressionStatement
+			{
+				SourceSyntax = declaration.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = declaration.SourceSyntax,
+					Target = CreateVariableReference(targets[0], shape.Components[0].Type),
+					Operator = AssignmentOperator.Assign,
+					Value = callableCall,
+					ResolvedType = shape.Components[0].Type
+				}
+			});
+		}
 		RegisterParamsExpansion(declaration.Target, shape, targets);
 		if (finallyDelete && targets.Count > 0)
 		{

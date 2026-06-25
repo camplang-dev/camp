@@ -69,7 +69,7 @@ struct ExportedAbstract
 };
 struct _ExportedAbstract
 {
-	void (* use)(ExportedAbstract *ctx);
+	void (* use)(ExportedAbstract *arg0);
 };
 
 /* Function declarations. */
