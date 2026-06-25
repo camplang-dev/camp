@@ -1,31 +1,31 @@
-export const byte Byte_MIN = (byte)0;
-export const byte Byte_MAX = (byte)255;
+export inline byte Byte_MIN = (byte)0;
+export inline byte Byte_MAX = (byte)255;
 
-export const sbyte SByte_MIN = (sbyte)-128;
-export const sbyte SByte_MAX = (sbyte)127;
+export inline sbyte SByte_MIN = (sbyte)-128;
+export inline sbyte SByte_MAX = (sbyte)127;
 
-export const short Short_MIN = (short)-32768;
-export const short Short_MAX = (short)32767;
+export inline short Short_MIN = (short)-32768;
+export inline short Short_MAX = (short)32767;
 
-export const ushort UShort_MIN = (ushort)0;
-export const ushort UShort_MAX = (ushort)65535;
+export inline ushort UShort_MIN = (ushort)0;
+export inline ushort UShort_MAX = (ushort)65535;
 
-export const int Int_MIN = -2147483647 - 1;
-export const int Int_MAX = 2147483647;
+export inline int Int_MIN = -2147483647 - 1;
+export inline int Int_MAX = 2147483647;
 
-export const uint UInt_MIN = (uint)0;
-export const uint UInt_MAX = (uint)4294967295;
+export inline uint UInt_MIN = (uint)0;
+export inline uint UInt_MAX = (uint)4294967295;
 
-export const long Long_MIN = (long)-9223372036854775807 - 1;
-export const long Long_MAX = (long)9223372036854775807;
+export inline long Long_MIN = (long)-9223372036854775807 - 1;
+export inline long Long_MAX = (long)9223372036854775807;
 
-export const ulong ULong_MIN = (ulong)0;
-export const ulong ULong_MAX = (ulong)18446744073709551615;
+export inline ulong ULong_MIN = (ulong)0;
+export inline ulong ULong_MAX = (ulong)18446744073709551615;
 
-export const nint NInt_MIN = -(nint)((nuint)1 << (((nuint)sizeof(nint) * 8) - 1));
-export const nint NInt_MAX = (nint)(((nuint)1 << (((nuint)sizeof(nint) * 8) - 1)) - 1);
-export const nuint NUInt_MIN = (nuint)0;
-export const nuint NUInt_MAX = ((((nuint)1 << (((nuint)sizeof(nuint) * 8) - 1)) - 1) * 2) + 1;
+export inline nint NInt_MIN = -(nint)((nuint)1 << (((nuint)sizeof(nint) * 8) - 1));
+export inline nint NInt_MAX = (nint)(((nuint)1 << (((nuint)sizeof(nint) * 8) - 1)) - 1);
+export inline nuint NUInt_MIN = (nuint)0;
+export inline nuint NUInt_MAX = ((((nuint)1 << (((nuint)sizeof(nuint) * 8) - 1)) - 1) * 2) + 1;
 
 export byte abs(overload sbyte value) => value < 0 ? (byte)-value : (byte)value;
 

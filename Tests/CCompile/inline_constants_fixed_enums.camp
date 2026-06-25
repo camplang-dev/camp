@@ -3,6 +3,8 @@ public inline uint INTERNAL_LIMIT = MAX_DEVICES * 2;
 export inline uint MAX_PLAYERS = MAX_DEVICES - 1;
 export inline uint INVALID_FILE_SIZE = 0xFFFFFFFF;
 export inline uint WM_GETTEXTLENGTH = 0x000E;
+export inline nuint NATIVE_BYTES = sizeof(nuint);
+export inline nuint NATIVE_BITS = sizeof(nuint) * 8;
 export const uint MIN_PLAYERS = 1;
 
 class Widget
@@ -32,6 +34,8 @@ export int main()
 		return 2;
 	if (WM_GETTEXTLENGTH != 14u)
 		return 3;
+	if (NATIVE_BITS != NATIVE_BYTES * 8)
+		return 4;
 	if (NO_WIDGET != null || NO_CALLBACK != null || APP_NAME == null)
 		return 1;
 	return (int)total;

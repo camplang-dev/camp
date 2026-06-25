@@ -38,6 +38,15 @@
       "value": 14
     },
     {
+      "id": "variable:NATIVE_BYTES",
+      "kind": "variable",
+      "name": "NATIVE_BYTES",
+      "visibility": "export",
+      "type": "nuint",
+      "inline": true,
+      "value": 4
+    },
+    {
       "id": "variable:INTERNAL_NAME",
       "kind": "variable",
       "name": "INTERNAL_NAME",

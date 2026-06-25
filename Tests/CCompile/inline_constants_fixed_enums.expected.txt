@@ -19,6 +19,10 @@ int main(void)
 	{
 		return 3;
 	}
+	if ((NATIVE_BITS != (NATIVE_BYTES * 8)))
+	{
+		return 4;
+	}
 	if ((((NO_WIDGET != NULL) || (NO_CALLBACK != NULL)) || (APP_NAME == NULL)))
 	{
 		return 1;
@@ -36,6 +40,8 @@ int main(void);
 #define MAX_PLAYERS ((uint32_t)9)
 #define INVALID_FILE_SIZE ((uint32_t)4294967295)
 #define WM_GETTEXTLENGTH ((uint32_t)14)
+#define NATIVE_BYTES ((uintptr_t)4)
+#define NATIVE_BITS ((uintptr_t)32)
 extern const uint32_t MIN_PLAYERS;
 
 #endif
@@ -63,6 +69,8 @@ typedef uint16_t Difficulty;
 #define MAX_PLAYERS ((uint32_t)9)
 #define INVALID_FILE_SIZE ((uint32_t)4294967295)
 #define WM_GETTEXTLENGTH ((uint32_t)14)
+#define NATIVE_BYTES ((uintptr_t)4)
+#define NATIVE_BITS ((uintptr_t)32)
 
 /* Layouts. */
 struct Widget

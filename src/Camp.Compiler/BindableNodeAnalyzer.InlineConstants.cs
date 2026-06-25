@@ -159,6 +159,8 @@ public sealed partial class BindableNodeAnalyzer
 			CastExpression cast =>
 				cast.Expression is not null && TryEvaluateInlineConstantCore(owner, cast.Expression, cast.Type?.ResolvedType ?? targetType, visiting, out value),
 
+			SizeOfExpression sizeOf => TryEvaluateSizeOfConstant(sizeOf, out value),
+
 			UnaryExpression unary => TryEvaluateUnaryConstant(owner, unary, targetType, visiting, out value),
 
 			BinaryExpression binary => TryEvaluateBinaryConstant(owner, binary, targetType, visiting, out value),
@@ -246,6 +248,99 @@ public sealed partial class BindableNodeAnalyzer
 		else
 			Report(GetRange(literal.SourceSyntax), "Literal is not valid for this inline constant type.");
 		return false;
+	}
+
+	bool TryEvaluateSizeOfConstant(SizeOfExpression sizeOf, out ConstantValue? value)
+	{
+		value = null;
+		if (TryGetInlineSizeOfBytes(sizeOf.Type, sizeOf.Type?.ResolvedType, out BigInteger bytes))
+		{
+			value = new ConstantValue.Integer(bytes);
+			return true;
+		}
+
+		Report(GetRange(sizeOf.SourceSyntax), "sizeof() in an inline constant requires a primitive, pointer, fixed-size array, or string-like type.");
+		return false;
+	}
+
+	bool TryGetInlineSizeOfBytes(TypeReference? type, string? resolvedType, out BigInteger bytes)
+	{
+		bytes = BigInteger.Zero;
+		resolvedType = StripTopLevelValueQualifiers(resolvedType ?? type?.ResolvedType ?? "");
+
+		switch (type)
+		{
+			case AttributedTypeReference attributed:
+				return TryGetInlineSizeOfBytes(attributed.Type, attributed.Type?.ResolvedType ?? resolvedType, out bytes);
+			case ConstTypeReference constant:
+				return TryGetInlineSizeOfBytes(constant.Type, constant.Type?.ResolvedType ?? resolvedType, out bytes);
+			case VolatileTypeReference vol:
+				return TryGetInlineSizeOfBytes(vol.Type, vol.Type?.ResolvedType ?? resolvedType, out bytes);
+			case EscapedTypeReference escaped:
+				return TryGetInlineSizeOfBytes(escaped.Type, escaped.Type?.ResolvedType ?? resolvedType, out bytes);
+			case ScopedTypeReference scoped:
+				return TryGetInlineSizeOfBytes(scoped.Type, scoped.Type?.ResolvedType ?? resolvedType, out bytes);
+			case UnscopedTypeReference unscoped:
+				return TryGetInlineSizeOfBytes(unscoped.Type, unscoped.Type?.ResolvedType ?? resolvedType, out bytes);
+			case PointerTypeReference:
+			case ArrayTypeReference:
+			case CallableTypeReference:
+			case IterTypeReference:
+			case ClassTypeReference:
+			case ThisTypeReference:
+				bytes = GetPointerSizeBytes();
+				return true;
+			case FixedArrayTypeReference fixedArray:
+				if (fixedArray.Length is not long length || length < 0 || !TryGetInlineSizeOfBytes(fixedArray.ElementType, fixedArray.ElementType?.ResolvedType, out BigInteger elementBytes))
+					return false;
+				bytes = elementBytes * length;
+				return true;
+			case PrimitiveTypeReference primitive:
+				return TryGetPrimitiveInlineSizeOfBytes(GetPrimitiveTypeName(primitive.Type), out bytes);
+			case NamedTypeReference named:
+				if (TryGetPrimitiveInlineSizeOfBytes(named.Name, out bytes))
+					return true;
+				break;
+			case TypeDefinitionReference definition:
+				if (definition.Definition is NewtypeDefinition newtypeDefinition)
+					return TryGetInlineSizeOfBytes(newtypeDefinition.UnderlyingType, newtypeDefinition.UnderlyingType?.ResolvedType, out bytes);
+				break;
+		}
+
+		if (TryGetPointerElementType(resolvedType) is not null
+			|| TryGetArrayElementType(resolvedType) is not null
+			|| IsPrimitiveStringType(resolvedType)
+			|| resolvedType.StartsWith("fn ", StringComparison.Ordinal)
+			|| resolvedType.StartsWith("delegate ", StringComparison.Ordinal)
+			|| resolvedType.StartsWith("iter ", StringComparison.Ordinal))
+		{
+			bytes = GetPointerSizeBytes();
+			return true;
+		}
+
+		return TryGetPrimitiveInlineSizeOfBytes(resolvedType, out bytes);
+	}
+
+	bool TryGetPrimitiveInlineSizeOfBytes(string type, out BigInteger bytes)
+	{
+		bytes = BigInteger.Zero;
+		type = StripTopLevelValueQualifiers(type);
+		bytes = type switch
+		{
+			"bool" or "byte" or "sbyte" or "char" or "achar" => 1,
+			"short" or "ushort" or "wchar" => 2,
+			"int" or "uint" or "float" or "uchar" => 4,
+			"long" or "ulong" or "double" => 8,
+			"nint" or "nuint" => GetPointerSizeBytes(),
+			"string" or "wstring" or "astring" => GetPointerSizeBytes(),
+			_ => BigInteger.Zero
+		};
+		return bytes > BigInteger.Zero;
+	}
+
+	BigInteger GetPointerSizeBytes()
+	{
+		return (selectedTarget?.GetPointerWidth(null, selectedMemoryModel, functionPointer: false) ?? 32) / 8;
 	}
 
 	bool TryResolveNamedConstantReference(NamedExpression named, BindableNode owner, out BindableNode? node)
