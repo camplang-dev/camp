@@ -136,6 +136,12 @@ static void AddBuildOptions(Command command, bool buildOnly)
 		Arity = ArgumentArity.ZeroOrMore,
 		AllowMultipleArgumentsPerToken = true
 	});
+	command.Options.Add(new Option<List<string>>("--project-reference")
+	{
+		Description = "Build and reference another Camp project response file.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
 	command.Options.Add(new Option<string?>("--metadata") { Description = "Emit metadata: none, export, public, or all." });
 	command.Options.Add(new Option<bool>("--xml") { Description = "Use XML output for declarations or lowering dumps." });
 
@@ -401,9 +407,159 @@ sealed class CampCli
 		request.References.AddRange(bag.References);
 		request.Frameworks.AddRange(bag.Frameworks);
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
+		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, out List<string> projectApiHeaders, out List<string> projectLibraries, errors))
+			return false;
+		foreach (string projectApiHeader in projectApiHeaders)
+			includeFiles.Add(projectApiHeader);
+		request.References.AddRange(projectLibraries);
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		request.IncludeFiles.AddRange(includeFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		return true;
+	}
+
+	static bool TryBuildProjectReferences(IReadOnlyList<string> projectReferences, CompilerRequest consumerRequest, CliEnvironment environment, out List<string> apiHeaders, out List<string> libraries, List<string> errors)
+	{
+		apiHeaders = [];
+		libraries = [];
+		bool requireLibrary = consumerRequest.BuildKind is not null;
+		foreach (string projectReference in projectReferences)
+		{
+			if (!TryResolveProjectReference(projectReference, environment.WorkingDirectory, out string? buildFile, out string? error))
+			{
+				errors.Add(error!);
+				continue;
+			}
+
+			List<string> responseErrors = [];
+			List<string> projectArgs = ResponseFileExpander.Expand(["@" + buildFile!], environment.WorkingDirectory, responseErrors);
+			errors.AddRange(responseErrors);
+			if (responseErrors.Count > 0)
+				continue;
+
+			string projectDirectory = Path.GetDirectoryName(buildFile!)!;
+			string memoryModelName = string.IsNullOrWhiteSpace(consumerRequest.MemoryModelName) ? "default" : consumerRequest.MemoryModelName!;
+			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", consumerRequest.TargetName, memoryModelName, consumerRequest.ProfileName);
+			string projectBuildDirectory = Path.Combine(projectDirectory, "obj", consumerRequest.TargetName, memoryModelName, consumerRequest.ProfileName);
+			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
+			projectArgs.AddRange(["--target", consumerRequest.TargetName]);
+			projectArgs.AddRange(["--profile", consumerRequest.ProfileName]);
+			if (!string.IsNullOrWhiteSpace(consumerRequest.MemoryModelName))
+				projectArgs.AddRange(["--memory-model", consumerRequest.MemoryModelName!]);
+			projectArgs.AddRange(["--artifact", "static"]);
+			projectArgs.AddRange(["--out-dir", projectOutputDirectory]);
+			projectArgs.AddRange(["--build-dir", projectBuildDirectory]);
+
+			if (!TryBuildRequest(projectArgs.ToArray(), environment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors))
+			{
+				foreach (string projectError in projectErrors)
+					errors.Add($"{projectReference}: {projectError}");
+				continue;
+			}
+
+			CompilerResult result = CompilerDriver.Execute(projectRequest!);
+			string? apiHeader = result.GeneratedFiles.FirstOrDefault(static path => path.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
+			string? library = result.GeneratedFiles.FirstOrDefault(path => IsStaticLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot));
+			if (result.ExitCode != 0)
+			{
+				if (!requireLibrary && apiHeader is not null)
+				{
+					apiHeaders.Add(apiHeader);
+					continue;
+				}
+				errors.Add($"{projectReference}: project reference build failed.");
+				if (!string.IsNullOrWhiteSpace(result.StdErr))
+					errors.Add(result.StdErr.TrimEnd());
+				if (!string.IsNullOrWhiteSpace(result.StdOut))
+					errors.Add(result.StdOut.TrimEnd());
+				continue;
+			}
+
+			if (apiHeader is null || requireLibrary && library is null)
+			{
+				errors.Add(requireLibrary
+					? $"{projectReference}: project reference did not produce a Camp API header and static library."
+					: $"{projectReference}: project reference did not produce a Camp API header.");
+				continue;
+			}
+			apiHeaders.Add(apiHeader);
+			if (library is not null)
+				libraries.Add(library);
+		}
+		return errors.Count == 0;
+	}
+
+	static bool TryResolveProjectReference(string value, string workingDirectory, out string? buildFile, out string? error)
+	{
+		buildFile = null;
+		error = null;
+		string fullPath = Path.GetFullPath(value, workingDirectory);
+		if (File.Exists(fullPath))
+		{
+			buildFile = fullPath;
+			return true;
+		}
+		if (!Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
+		{
+			buildFile = fullPath + ".campbuild";
+			return true;
+		}
+		if (Directory.Exists(fullPath))
+		{
+			string preferred = Path.Combine(fullPath, Path.GetFileName(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) + ".campbuild");
+			if (File.Exists(preferred))
+			{
+				buildFile = preferred;
+				return true;
+			}
+			string[] candidates = Directory.GetFiles(fullPath, "*.campbuild").OrderBy(static path => path, StringComparer.Ordinal).ToArray();
+			if (candidates.Length == 1)
+			{
+				buildFile = candidates[0];
+				return true;
+			}
+			error = candidates.Length == 0
+				? $"Project reference '{value}' does not contain a .campbuild file."
+				: $"Project reference '{value}' contains multiple .campbuild files. Specify one explicitly.";
+			return false;
+		}
+		error = $"Project reference '{value}' could not be found.";
+		return false;
+	}
+
+	static List<string> RemoveProjectReferenceOverrideOptions(IReadOnlyList<string> args)
+	{
+		HashSet<string> removeValueOptions = new(StringComparer.Ordinal)
+		{
+			"--target",
+			"-t",
+			"--profile",
+			"-p",
+			"--memory-model",
+			"--artifact",
+			"--out-dir",
+			"--build-dir"
+		};
+		List<string> result = [];
+		for (int i = 0; i < args.Count; i++)
+		{
+			if (removeValueOptions.Contains(args[i]))
+			{
+				if (i + 1 < args.Count)
+					i++;
+				continue;
+			}
+			result.Add(args[i]);
+		}
+		return result;
+	}
+
+	static bool IsStaticLibrary(string path, string targetName, string runtimeRoot)
+	{
+		string targetRoot = Path.GetFullPath(Path.Combine(runtimeRoot, "..", "targets"));
+		if (!TargetCatalog.TryLoad(targetRoot, out TargetCatalog? catalog, out _) || !catalog!.TryGetTarget(targetName, out TargetDefinition? target))
+			return Path.GetExtension(path) is ".a" or ".lib";
+		string extension = target!.GetArtifactValue("static_ext", ".a");
+		return Path.GetExtension(path).Equals(extension, StringComparison.OrdinalIgnoreCase);
 	}
 
 	static void ApplyGlobalPragmas(CliEnvironment environment, BuildOptionBag bag, List<string> errors)
@@ -712,6 +868,7 @@ sealed class BuildOptionBag
 	public List<string> Frameworks { get; } = [];
 	public List<PackageSourceSpec> UseSources { get; } = [];
 	public List<PackageSpec> UsePackages { get; } = [];
+	public List<string> ProjectReferences { get; } = [];
 	public bool NoStdLib { get; private set; }
 	public bool ArtifactSpecified { get; private set; }
 	public NativeBuildKind? ArtifactKind { get; private set; }
@@ -728,7 +885,7 @@ sealed class BuildOptionBag
 	public string? SubsystemName => Get("subsystem");
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
 	public bool Xml => Get("xml") == "true";
-	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || Get("build-dir") is not null;
+	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || Get("build-dir") is not null;
 
 	public void Apply(ParsedOptions options, Precedence precedence, string source, List<string> errors)
 	{
@@ -743,6 +900,7 @@ sealed class BuildOptionBag
 		Frameworks.AddRange(options.Frameworks);
 		UseSources.AddRange(options.UseSources);
 		UsePackages.AddRange(options.UsePackages);
+		ProjectReferences.AddRange(options.ProjectReferences);
 		if (options.NoStdLib)
 			NoStdLib = true;
 		if (options.ArtifactSpecified)
@@ -809,6 +967,7 @@ sealed class ParsedOptions
 	public List<string> Frameworks { get; } = [];
 	public List<PackageSourceSpec> UseSources { get; } = [];
 	public List<PackageSpec> UsePackages { get; } = [];
+	public List<string> ProjectReferences { get; } = [];
 	public bool NoStdLib { get; set; }
 	public bool ArtifactSpecified { get; set; }
 	public NativeBuildKind? ArtifactKind { get; set; }
@@ -905,6 +1064,9 @@ static class CommandLineOptionParser
 				case "-u":
 					foreach (string package in RequiredValues(tokens, ref i, token, errors))
 						result.UsePackages.Add(PackageSpec.Parse(package));
+					break;
+				case "--project-reference":
+					result.ProjectReferences.AddRange(RequiredValues(tokens, ref i, token, errors));
 					break;
 				case "--use-source":
 					string name = RequiredValue(tokens, ref i, token, errors);
@@ -1119,6 +1281,13 @@ static class ResponseFileExpander
 			{
 				while (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
 					result.Add(RebaseReferenceLikeValue(tokens[++i], baseDirectory));
+				continue;
+			}
+
+			if (token == "--project-reference")
+			{
+				while (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
+					result.Add(RebasePathValue(tokens[++i], baseDirectory));
 				continue;
 			}
 

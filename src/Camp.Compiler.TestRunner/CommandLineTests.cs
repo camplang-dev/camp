@@ -133,6 +133,50 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Project_reference_builds_static_library_and_includes_api()
+	{
+		string root = TempPath("project-reference");
+		string libraryRoot = Path.Combine(root, "sample-lib");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		Directory.CreateDirectory(librarySource);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			export int add(int left, int right)
+			{
+				return left + right;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
+			--nostdlib
+			--name sample-lib
+			src/*.camp
+			""");
+
+		string app = CreateTempCase("project_reference_app.camp", """
+			#build --nostdlib
+			#build --artifact none
+
+			export int main()
+			{
+				return add(1, 2) - 3;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			"clang-macos-x64",
+			"--project-reference",
+			libraryRoot,
+			"--build-dir",
+			TempPath("project-reference-build"));
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("generated: project_reference_app.c", result.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "default", "DEBUG", "sample-lib_api.camp")));
+	}
+
+	[Fact]
 	public void Include_files_contribute_build_pragmas_without_becoming_project_sources()
 	{
 		string api = CreateTempCase("include_pragmas_api.camp", """
