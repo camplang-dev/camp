@@ -29,26 +29,26 @@ static void Test_normal(Test *this)
 int main(void)
 {
 	const Date d;
-	fn_nuint_voidPtr__charPtr__nuint_ f = (uintptr_t (*)(void *arg0, char *arg1, uintptr_t arg2))Date_format;
+	uintptr_t (* f)(void *arg0, char *arg1, uintptr_t arg2) = (uintptr_t (*)(void *arg0, char *arg1, uintptr_t arg2))Date_format;
 	void *f_context = (void *)(&d);
 	Test *test = (Test *)(malloc(sizeof(Test)));
 	if ((test != NULL))
 	{
 		*test = (Test){0};
 	}
-	fn_void_voidPtr_ e1 = (void (*)(void *arg0))Test_increment;
+	void (* e1)(void *arg0) = (void (*)(void *arg0))Test_increment;
 	void *e1_context = (void *)((Test *)(test));
-	fn_void_voidPtr_ e2 = (void (*)(void *arg0))Test_increment;
+	void (* e2)(void *arg0) = (void (*)(void *arg0))Test_increment;
 	void *e2_context = (void *)((Test *)(test));
-	fn_void_voidPtr_ e3 = e2;
+	void (* e3)(void *arg0) = e2;
 	void *e3_context = e2_context;
-	fn_void_voidPtr_ e4 = (void (*)(void *arg0))Test_incrementExplicit;
+	void (* e4)(void *arg0) = (void (*)(void *arg0))Test_incrementExplicit;
 	void *e4_context = (void *)((Test *)(test));
-	fn_void_voidPtr_ n1 = (void (*)(void *arg0))Test_normal;
+	void (* n1)(void *arg0) = (void (*)(void *arg0))Test_normal;
 	void *n1_context = (void *)(test);
-	fn_void_voidPtr_ n2 = (void (*)(void *arg0))Test_normal;
+	void (* n2)(void *arg0) = (void (*)(void *arg0))Test_normal;
 	void *n2_context = (void *)(test);
-	fn_void_voidPtr_ n3 = n2;
+	void (* n3)(void *arg0) = n2;
 	void *n3_context = n2_context;
 	return 0;
 }
@@ -59,8 +59,6 @@ int main(void)
 
 #include "callable_this_ascription_private.h"
 
-typedef uintptr_t (* fn_nuint_voidPtr__charPtr__nuint_)(void *arg0, char *arg1, uintptr_t arg2);
-typedef void (* fn_void_voidPtr_)(void *arg0);
 int main(void);
 
 #endif
@@ -79,13 +77,9 @@ typedef struct Test Test;
 /* Enums. */
 
 /* Newtypes. */
-typedef uintptr_t (* CharFormatter)(char *arg0, uintptr_t arg1);
-typedef void (* EscapedDelegate)(void);
-typedef void (* NormalDelegate)(void);
-
-/* Callable typedefs. */
-typedef uintptr_t (* fn_nuint_voidPtr__charPtr__nuint_)(void *arg0, char *arg1, uintptr_t arg2);
-typedef void (* fn_void_voidPtr_)(void *arg0);
+typedef uintptr_t (* CharFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
+typedef void (* EscapedDelegate)(void *context);
+typedef void (* NormalDelegate)(void *context);
 
 /* Layouts. */
 struct Date

@@ -77,13 +77,10 @@ typedef struct Counter Counter;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef int (* fn_int_IValuePtrPtr_)(IValue **arg0);
-
 /* Layouts. */
 struct IValue
 {
-	int (* value)(IValue **arg0);
+	int (* value)(IValue **ctx);
 };
 struct Counter
 {

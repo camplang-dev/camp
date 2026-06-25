@@ -3,8 +3,8 @@
 
 /* Private file declarations. */
 static void __camp_delegate_main_lambda4(void *arg0, uint8_t (*arg1)[4]);
-static void invokeBlock(fn_void_voidPtr__byte_4_Ptr_ callback, void *callback_context, uint8_t (*block)[4]);
-static uint8_t readWith(fn_byte_voidPtr_ callback, void *callback_context);
+static void invokeBlock(void (* callback)(void *arg0, uint8_t (*arg1)[4]), void *callback_context, uint8_t (*block)[4]);
+static uint8_t readWith(uint8_t (* callback)(void *arg0), void *callback_context);
 static uint8_t main_lambda0(void *context);
 static uintptr_t main_lambda1(void *context);
 static uint8_t main_lambda2(void *context);
@@ -16,12 +16,12 @@ static void __camp_delegate_main_lambda4(void *arg0, uint8_t (*arg1)[4])
 	main_lambda4(arg0, arg1);
 }
 
-static void invokeBlock(fn_void_voidPtr__byte_4_Ptr_ callback, void *callback_context, uint8_t (*block)[4])
+static void invokeBlock(void (* callback)(void *arg0, uint8_t (*arg1)[4]), void *callback_context, uint8_t (*block)[4])
 {
 	callback(callback_context, block);
 }
 
-static uint8_t readWith(fn_byte_voidPtr_ callback, void *callback_context)
+static uint8_t readWith(uint8_t (* callback)(void *arg0), void *callback_context)
 {
 	return callback(callback_context);
 }
@@ -33,23 +33,23 @@ int main(void)
 	uint8_t (*capturedPointer)[4] = &data;
 	main_lambdaContext0 _lambdaContext0;
 	_lambdaContext0.capture0_capturedPointer = &capturedPointer;
-	fn_byte_voidPtr_ readCapturedPointer = main_lambda0;
+	uint8_t (* readCapturedPointer)(void *arg0) = main_lambda0;
 	void *readCapturedPointer_context = &_lambdaContext0;
 	uint8_t *span = (uint8_t *)(data);
 	uintptr_t span_length = 4;
 	main_lambdaContext1 _lambdaContext1;
 	_lambdaContext1.capture0_span = &span;
 	_lambdaContext1.capture1_span_length = &span_length;
-	fn_nuint_voidPtr_ readSpanLength = main_lambda1;
+	uintptr_t (* readSpanLength)(void *arg0) = main_lambda1;
 	void *readSpanLength_context = &_lambdaContext1;
 	main_lambdaContext2 _lambdaContext2;
 	_lambdaContext2.capture0_span = &span;
 	_lambdaContext2.capture1_span_length = &span_length;
-	fn_byte_voidPtr_ readSpanItem = main_lambda2;
+	uint8_t (* readSpanItem)(void *arg0) = main_lambda2;
 	void *readSpanItem_context = &_lambdaContext2;
-	fn_byte_voidPtr_ localFixedArray = main_lambda3;
+	uint8_t (* localFixedArray)(void *arg0) = main_lambda3;
 	void *localFixedArray_context = NULL;
-	return ((((int)(readWith((fn_byte_voidPtr_)readCapturedPointer, readCapturedPointer_context)) + (int)(readSpanLength(readSpanLength_context))) + (int)(readSpanItem(readSpanItem_context))) + (int)(localFixedArray(localFixedArray_context)));
+	return ((((int)(readWith((uint8_t (*)(void *arg0))readCapturedPointer, readCapturedPointer_context)) + (int)(readSpanLength(readSpanLength_context))) + (int)(readSpanItem(readSpanItem_context))) + (int)(localFixedArray(localFixedArray_context)));
 }
 
 static uint8_t main_lambda0(void *context)
@@ -87,9 +87,6 @@ static void main_lambda4(void *context, uint8_t (*block)[4])
 
 #include "fixed_array_lambda_delegate_private.h"
 
-typedef uint8_t (* fn_byte_voidPtr_)(void *arg0);
-typedef uintptr_t (* fn_nuint_voidPtr_)(void *arg0);
-typedef void (* fn_void_voidPtr__byte_4_Ptr_)(void *arg0, uint8_t (*arg1)[4]);
 int main(void);
 
 #endif
@@ -109,11 +106,6 @@ typedef struct main_lambdaContext2 main_lambdaContext2;
 /* Enums. */
 
 /* Newtypes. */
-
-/* Callable typedefs. */
-typedef uint8_t (* fn_byte_voidPtr_)(void *arg0);
-typedef uintptr_t (* fn_nuint_voidPtr_)(void *arg0);
-typedef void (* fn_void_voidPtr__byte_4_Ptr_)(void *arg0, uint8_t (*arg1)[4]);
 
 /* Layouts. */
 struct main_lambdaContext0

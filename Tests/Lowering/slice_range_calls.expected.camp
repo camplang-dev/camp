@@ -1,4 +1,4 @@
-scoped const int* slice(const int[] this, @range nuint index = 0, nuint count = ^0, out nuint result_length)
+scoped const int[] slice(const int[] this, @range nuint index = 0, nuint count = ^0, out nuint result_length)
 {
 	const int* sliceResult;
 	nuint sliceResult_length;

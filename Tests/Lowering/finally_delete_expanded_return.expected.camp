@@ -3,7 +3,7 @@ extern void free(void* ptr);
 void consume(const char* value, nuint value_length)
 {
 }
-char* take(nuint length, out nuint result_length)
+char[] take(nuint length, out nuint result_length)
 {
 	char* result = (char*)malloc(sizeof(char) * length);
 	nuint result_length = length;

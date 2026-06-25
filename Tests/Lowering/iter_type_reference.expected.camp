@@ -3,14 +3,14 @@ enum RangeError : uint
 	OK = 0,
 	BAD
 }
-fn bool(void*, int*, thrown RangeError) getRange(out void* result_context)
+iter(int, thrown RangeError) getRange(out void* result_context)
 {
 	{
 		result_context = default;
 		return default;
 	}
 }
-async fn bool(void*, const char[]?*) getLines(out void* result_context)
+async iter(const char[]?) getLines(out void* result_context)
 {
 	{
 		result_context = default;

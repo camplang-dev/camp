@@ -1,7 +1,7 @@
 using Std;
 
-export extern fn bool(void*, nuint*, byte*, nuint) getWriter(out void* result_context);
-export void writeSample(fn bool(void*, nuint*, char*, nuint) writer, void* writer_context, thrown IoError error)
+export extern ByteWriter getWriter(out void* result_context);
+export void writeSample(CharWriter writer, void* writer_context, thrown IoError error)
 {
 	CharWriter_writeLineCharArray(writer, writer_context, "sample", 6);
 }

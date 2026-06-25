@@ -3,8 +3,8 @@
 
 /* Private file declarations. */
 static int __camp_delegate_main_lambda2(void *arg0, int arg1);
-static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value);
-static bool check(fn_bool_voidPtr__int_ predicate, void *predicate_context, int value);
+static int apply(int (* callback)(void *arg0, int arg1), void *callback_context, int value);
+static bool check(Predicate predicate, void *predicate_context, int value);
 static int main_lambda0(void *context, int value);
 static bool main_lambda1(void *context, int value);
 static int main_lambda2(void *context, int value);
@@ -14,24 +14,24 @@ static int __camp_delegate_main_lambda2(void *arg0, int arg1)
 	return main_lambda2(arg0, arg1);
 }
 
-static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value)
+static int apply(int (* callback)(void *arg0, int arg1), void *callback_context, int value)
 {
 	return callback(callback_context, value);
 }
 
-static bool check(fn_bool_voidPtr__int_ predicate, void *predicate_context, int value)
+static bool check(Predicate predicate, void *predicate_context, int value)
 {
 	return predicate(predicate_context, value);
 }
 
 int main(void)
 {
-	fn_int_voidPtr__int_ increment = main_lambda0;
+	int (* increment)(void *arg0, int arg1) = main_lambda0;
 	void *increment_context = NULL;
-	fn_bool_voidPtr__int_ positive = main_lambda1;
+	bool (* positive)(void *arg0, int arg1) = main_lambda1;
 	void *positive_context = NULL;
 	int direct = apply(__camp_delegate_main_lambda2, NULL, 21);
-	return ((((apply((fn_int_voidPtr__int_)increment, increment_context, 4) == 5) && check((fn_bool_voidPtr__int_)positive, positive_context, 2)) && (direct == 42)) ? 0 : 1);
+	return ((((apply((int (*)(void *arg0, int arg1))increment, increment_context, 4) == 5) && check((Predicate)positive, positive_context, 2)) && (direct == 42)) ? 0 : 1);
 }
 
 static int main_lambda0(void *context, int value)
@@ -55,8 +55,6 @@ static int main_lambda2(void *context, int value)
 
 #include "lambda_delegate_stage2_private.h"
 
-typedef bool (* fn_bool_voidPtr__int_)(void *arg0, int arg1);
-typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
 int main(void);
 
 #endif
@@ -73,11 +71,7 @@ int main(void);
 /* Enums. */
 
 /* Newtypes. */
-typedef bool (* Predicate)(int arg0);
-
-/* Callable typedefs. */
-typedef bool (* fn_bool_voidPtr__int_)(void *arg0, int arg1);
-typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+typedef bool (* Predicate)(void *context, int value);
 
 /* Layouts. */
 

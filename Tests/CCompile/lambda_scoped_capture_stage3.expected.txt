@@ -3,7 +3,7 @@
 
 /* Private file declarations. */
 static int __camp_delegate_main_lambda2(void *arg0, int arg1);
-static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value);
+static int apply(int (* callback)(void *arg0, int arg1), void *callback_context, int value);
 static int main_lambda0(void *context, int value);
 static void main_lambda1(void *context);
 static int main_lambda2(void *context, int value);
@@ -13,7 +13,7 @@ static int __camp_delegate_main_lambda2(void *arg0, int arg1)
 	return main_lambda2(arg0, arg1);
 }
 
-static int apply(fn_int_voidPtr__int_ callback, void *callback_context, int value)
+static int apply(int (* callback)(void *arg0, int arg1), void *callback_context, int value)
 {
 	return callback(callback_context, value);
 }
@@ -23,13 +23,13 @@ int main(void)
 	int offset = 10;
 	main_lambdaContext0 _lambdaContext0;
 	_lambdaContext0.capture0_offset = &offset;
-	fn_int_voidPtr__int_ addOffset = main_lambda0;
+	int (* addOffset)(void *arg0, int arg1) = main_lambda0;
 	void *addOffset_context = &_lambdaContext0;
 	offset = 20;
 	int count = 0;
 	main_lambdaContext1 _lambdaContext1;
 	_lambdaContext1.capture0_count = &count;
-	fn_void_voidPtr_ increment = main_lambda1;
+	void (* increment)(void *arg0) = main_lambda1;
 	void *increment_context = &_lambdaContext1;
 	increment(increment_context);
 	increment(increment_context);
@@ -63,8 +63,6 @@ static int main_lambda2(void *context, int value)
 
 #include "lambda_scoped_capture_stage3_private.h"
 
-typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
-typedef void (* fn_void_voidPtr_)(void *arg0);
 int main(void);
 
 #endif
@@ -84,10 +82,6 @@ typedef struct main_lambdaContext2 main_lambdaContext2;
 /* Enums. */
 
 /* Newtypes. */
-
-/* Callable typedefs. */
-typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
-typedef void (* fn_void_voidPtr_)(void *arg0);
 
 /* Layouts. */
 struct main_lambdaContext0

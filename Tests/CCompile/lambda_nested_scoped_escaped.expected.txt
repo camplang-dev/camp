@@ -8,8 +8,8 @@ static int __camp_delegate_runNested_lambda0_1(void *arg0);
 static int __camp_delegate_runNested_lambda0_lambda0_1(void *arg0);
 static int __camp_delegate_runNested_lambda0_lambda0_2(void *arg0);
 void *malloc(uintptr_t size);
-static int invokeScoped(fn_int_voidPtr_ callback, void *callback_context);
-static int invokeEscaped(fn_int_voidPtr_ callback, void *callback_context);
+static int invokeScoped(int (* callback)(void *arg0), void *callback_context);
+static int invokeEscaped(int (* callback)(void *arg0), void *callback_context);
 static int runNested(int seed);
 static int runNested_lambda0_lambda0(void *context);
 static int runNested_lambda0(void *context);
@@ -39,12 +39,12 @@ static int __camp_delegate_runNested_lambda0_lambda0_2(void *arg0)
 	return runNested_lambda0_lambda0(arg0);
 }
 
-static int invokeScoped(fn_int_voidPtr_ callback, void *callback_context)
+static int invokeScoped(int (* callback)(void *arg0), void *callback_context)
 {
 	return callback(callback_context);
 }
 
-static int invokeEscaped(fn_int_voidPtr_ callback, void *callback_context)
+static int invokeEscaped(int (* callback)(void *arg0), void *callback_context)
 {
 	return callback(callback_context);
 }
@@ -83,7 +83,6 @@ static int runNested_lambda0(void *context)
 
 #include "lambda_nested_scoped_escaped_private.h"
 
-typedef int (* fn_int_voidPtr_)(void *arg0);
 int main(void);
 
 #endif
@@ -102,9 +101,6 @@ typedef struct runNested_lambda0_lambdaContext1 runNested_lambda0_lambdaContext1
 /* Enums. */
 
 /* Newtypes. */
-
-/* Callable typedefs. */
-typedef int (* fn_int_voidPtr_)(void *arg0);
 
 /* Layouts. */
 struct runNested_lambdaContext0

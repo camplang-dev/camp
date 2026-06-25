@@ -1,7 +1,7 @@
 newtype fn bool ParseInt(const char[] text, out int value);
 
 newtype delegate int DateFormatter(int adjust = 4);
-int plusOne(fn int(void*, int) this, void* this_context)
+int plusOne(DateFormatter this, void* this_context)
 {
 	return this(this_context, 4) + 1;
 }

@@ -5,7 +5,7 @@
 static int __camp_delegate_main_lambda0(void *arg0);
 void *malloc(uintptr_t size);
 int *getEscapedInt(void);
-static int apply(fn_int_voidPtr_ callback, void *callback_context);
+static int apply(int (* callback)(void *arg0), void *callback_context);
 static int main_lambda0(void *context);
 
 static int __camp_delegate_main_lambda0(void *arg0)
@@ -13,7 +13,7 @@ static int __camp_delegate_main_lambda0(void *arg0)
 	return main_lambda0(arg0);
 }
 
-static int apply(fn_int_voidPtr_ callback, void *callback_context)
+static int apply(int (* callback)(void *arg0), void *callback_context)
 {
 	return callback(callback_context);
 }
@@ -38,7 +38,6 @@ static int main_lambda0(void *context)
 
 #include "lambda_escaped_capture_lifetime_private.h"
 
-typedef int (* fn_int_voidPtr_)(void *arg0);
 int main(void);
 
 #endif
@@ -56,9 +55,6 @@ typedef struct main_lambdaContext0 main_lambdaContext0;
 /* Enums. */
 
 /* Newtypes. */
-
-/* Callable typedefs. */
-typedef int (* fn_int_voidPtr_)(void *arg0);
 
 /* Layouts. */
 struct main_lambdaContext0

@@ -3,7 +3,7 @@
 
 /* Private file declarations. */
 static void __camp_delegate_fill(void *arg0, uint8_t (*arg1)[4]);
-static void accept(fn_void_voidPtr__byte_4_Ptr_ callback, void *callback_context, uint8_t (*block)[4]);
+static void accept(BlockCallback callback, void *callback_context, uint8_t (*block)[4]);
 static void fill(uint8_t (*block)[4]);
 
 static void __camp_delegate_fill(void *arg0, uint8_t (*arg1)[4])
@@ -12,7 +12,7 @@ static void __camp_delegate_fill(void *arg0, uint8_t (*arg1)[4])
 	fill(arg1);
 }
 
-static void accept(fn_void_voidPtr__byte_4_Ptr_ callback, void *callback_context, uint8_t (*block)[4])
+static void accept(BlockCallback callback, void *callback_context, uint8_t (*block)[4])
 {
 	callback(callback_context, block);
 }
@@ -35,8 +35,6 @@ int main(void)
 
 #include "fixed_array_pointer_callable_private.h"
 
-typedef void (* fn_void_byte_4_Ptr_)(uint8_t (*arg0)[4]);
-typedef void (* fn_void_voidPtr__byte_4_Ptr_)(void *arg0, uint8_t (*arg1)[4]);
 int main(void);
 
 #endif
@@ -53,11 +51,7 @@ int main(void);
 /* Enums. */
 
 /* Newtypes. */
-typedef void (* BlockCallback)(uint8_t (*arg0)[4]);
-
-/* Callable typedefs. */
-typedef void (* fn_void_byte_4_Ptr_)(uint8_t (*arg0)[4]);
-typedef void (* fn_void_voidPtr__byte_4_Ptr_)(void *arg0, uint8_t (*arg1)[4]);
+typedef void (* BlockCallback)(void *context, uint8_t (*block)[4]);
 
 /* Layouts. */
 

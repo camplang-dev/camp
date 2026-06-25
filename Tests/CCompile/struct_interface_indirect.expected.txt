@@ -44,13 +44,10 @@ typedef struct IRef_Indirect IRef_Indirect;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef void (* fn_void_IRefPtrPtr_)(IRef **arg0);
-
 /* Layouts. */
 struct IRef
 {
-	void (* retain)(IRef **arg0);
+	void (* retain)(IRef **ctx);
 };
 struct Handle
 {

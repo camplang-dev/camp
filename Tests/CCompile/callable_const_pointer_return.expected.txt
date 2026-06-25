@@ -6,8 +6,8 @@ static const char *__camp_delegate_getLiteral(void *arg0);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static const char *getLiteral(void);
-static const char *callGetter(fn_charPtr_voidPtr_ getter, void *getter_context);
-static const char *callCGetter(fn__msabi_charPtr_voidPtr_ getter, void *getter_context);
+static const char *callGetter(Getter getter, void *getter_context);
+static const char *callCGetter(CGetter getter, void *getter_context);
 static int main(void);
 
 static const char *__camp_delegate_getLiteral(void *arg0)
@@ -21,12 +21,12 @@ static const char *getLiteral(void)
 	return "hello";
 }
 
-static const char *callGetter(fn_charPtr_voidPtr_ getter, void *getter_context)
+static const char *callGetter(Getter getter, void *getter_context)
 {
 	return getter(getter_context);
 }
 
-static const char *callCGetter(fn__msabi_charPtr_voidPtr_ getter, void *getter_context)
+static const char *callCGetter(CGetter getter, void *getter_context)
 {
 	return getter(getter_context);
 }
@@ -50,13 +50,8 @@ static int main(void)
 /* Enums. */
 
 /* Newtypes. */
-typedef const char *(* Getter)(void);
-typedef const char *(__attribute__((ms_abi)) * CGetter)(void);
-
-/* Callable typedefs. */
-typedef const char *(__attribute__((ms_abi)) * fn__msabi_charPtr_voidPtr_)(void *arg0);
-typedef const char *(* fn_charPtr__)(void);
-typedef const char *(* fn_charPtr_voidPtr_)(void *arg0);
+typedef const char *(* Getter)(void *context);
+typedef const char *(__attribute__((ms_abi)) * CGetter)(void *context);
 
 /* Layouts. */
 

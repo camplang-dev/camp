@@ -32,7 +32,6 @@ void ExportedAbstract_use(ExportedAbstract *this)
 
 #include "exported_default_constructor_private.h"
 
-typedef void (* fn_void_ExportedAbstractPtr_)(ExportedAbstract *arg0);
 void ExportedConcrete_op_initnew(ExportedConcrete *this);
 ExportedConcrete *ExportedConcrete_create(void);
 void ExportedAbstract_use(ExportedAbstract *this);
@@ -55,9 +54,6 @@ typedef struct _ExportedAbstract _ExportedAbstract;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef void (* fn_void_ExportedAbstractPtr_)(ExportedAbstract *arg0);
-
 /* Layouts. */
 struct ExportedConcrete
 {
@@ -69,7 +65,7 @@ struct ExportedAbstract
 };
 struct _ExportedAbstract
 {
-	void (* use)(ExportedAbstract *arg0);
+	void (* use)(ExportedAbstract *ctx);
 };
 
 /* Function declarations. */

@@ -5,7 +5,7 @@
 static int __camp_delegate_callbackFn(void *arg0, int *arg1);
 void *malloc(uintptr_t size);
 void free(void *ptr);
-static int invoke(fn_int_voidPtr__withintPtr_ callback, void *callback_context, int *allocator);
+static int invoke(int (* callback)(void *arg0, int *arg1), void *callback_context, int *allocator);
 static int callbackFn(int *allocator);
 static int main(void);
 
@@ -15,7 +15,7 @@ static int __camp_delegate_callbackFn(void *arg0, int *arg1)
 	return callbackFn(arg1);
 }
 
-static int invoke(fn_int_voidPtr__withintPtr_ callback, void *callback_context, int *allocator)
+static int invoke(int (* callback)(void *arg0, int *arg1), void *callback_context, int *allocator)
 {
 	return callback(callback_context, allocator);
 }
@@ -45,10 +45,6 @@ static int main(void)
 /* Enums. */
 
 /* Newtypes. */
-
-/* Callable typedefs. */
-typedef int (* fn_int_voidPtr__withintPtr_)(void *arg0, int *arg1);
-typedef int (* fn_int_withintPtr_)(int *arg0);
 
 /* Layouts. */
 

@@ -31,7 +31,7 @@ static bool Source_pull(Source *this, int *current, Err *error)
 int main(void)
 {
 	rangeIter _iterState0 = range(1, 1);
-	fn_bool_voidPtr__intPtr_ values = rangeIter_iter;
+	bool (* values)(void *arg0, int *arg1) = rangeIter_iter;
 	void *values_context = (void *)(&_iterState0);
 	int current = 0;
 	if (!values(values_context, &current))
@@ -40,7 +40,7 @@ int main(void)
 	}
 	values(values_context, NULL);
 	Source source = (Source){0};
-	fn_bool_voidPtr__intPtr__thrown_Err_ puller = (bool (*)(void *arg0, int *arg1, Err *arg2))Source_pull;
+	bool (* puller)(void *arg0, int *arg1, Err *arg2) = (bool (*)(void *arg0, int *arg1, Err *arg2))Source_pull;
 	void *puller_context = (void *)(&source);
 	Err error = 0;
 	int pulled = 0;
@@ -108,8 +108,6 @@ static bool rangeIter_iter(void *ctx, int *current)
 
 #include "iter_callable_values_private.h"
 
-typedef bool (* fn_bool_voidPtr__intPtr_)(void *arg0, int *arg1);
-typedef bool (* fn_bool_voidPtr__intPtr__thrown_Err_)(void *arg0, int *arg1, Err *arg2);
 int main(void);
 
 #endif
@@ -131,11 +129,7 @@ typedef uint32_t Err;
 #define Err_FAILED ((Err)1)
 
 /* Newtypes. */
-typedef bool (* Puller)(void *arg0, int *arg1, Err *arg2);
-
-/* Callable typedefs. */
-typedef bool (* fn_bool_voidPtr__intPtr_)(void *arg0, int *arg1);
-typedef bool (* fn_bool_voidPtr__intPtr__thrown_Err_)(void *arg0, int *arg1, Err *arg2);
+typedef bool (* Puller)(void *context, int *current, Err *error);
 
 /* Layouts. */
 struct Source

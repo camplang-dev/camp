@@ -4,12 +4,12 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 void free(void *ptr);
-static fn_void_voidPtr_ Window_getEventHandler(Window *this, void **result_context);
+static WindowEventHandler Window_getEventHandler(Window *this, void **result_context);
 static void main_lambda0(void *context);
 
-static fn_void_voidPtr_ Window_getEventHandler(Window *this, void **result_context)
+static WindowEventHandler Window_getEventHandler(Window *this, void **result_context)
 {
-	fn_void_voidPtr_ handler = this->windowState->eventHandler;
+	void (* handler)(void *arg0) = this->windowState->eventHandler;
 	void *handler_context = this->windowState->eventHandler_context;
 	{
 		(*result_context) = handler_context;
@@ -35,7 +35,7 @@ int main(void)
 		window->windowState->eventHandler = main_lambda0;
 		window->windowState->eventHandler_context = NULL;
 	}
-	fn_void_voidPtr_ _call1;
+	void (* _call1)(void *arg0);
 	void *_context2;
 	_call1 = Window_getEventHandler(window, &_context2);
 	if ((_call1 == 0))
@@ -55,7 +55,6 @@ static void main_lambda0(void *context)
 
 #include "delegate_field_property_default_private.h"
 
-typedef void (* fn_void_voidPtr_)(void *arg0);
 int main(void);
 
 #endif
@@ -74,10 +73,7 @@ typedef struct WindowState WindowState;
 /* Enums. */
 
 /* Newtypes. */
-typedef void (* WindowEventHandler)(void);
-
-/* Callable typedefs. */
-typedef void (* fn_void_voidPtr_)(void *arg0);
+typedef void (* WindowEventHandler)(void *context);
 
 /* Layouts. */
 struct Window
@@ -86,7 +82,7 @@ struct Window
 };
 struct WindowState
 {
-	fn_void_voidPtr_ eventHandler;
+	void (* eventHandler)(void *arg0);
 	void *eventHandler_context;
 };
 

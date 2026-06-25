@@ -4,15 +4,15 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 void free(void *ptr);
-static fn_nuint_voidPtr_ makeSpanCount(void **result_context);
-static fn_int_voidPtr_ makeOptionalReader(void **result_context);
-static fn_int_voidPtr_ makeDelegateReader(void **result_context);
+static Count makeSpanCount(void **result_context);
+static int (* makeOptionalReader)(void *arg0)(void **result_context);
+static int (* makeDelegateReader)(void *arg0)(void **result_context);
 static int makeDelegateReader_lambda0(void *context, int value);
 static uintptr_t makeSpanCount_lambda1(void *context);
 static int makeOptionalReader_lambda2(void *context);
 static int makeDelegateReader_lambda3(void *context);
 
-static fn_nuint_voidPtr_ makeSpanCount(void **result_context)
+static Count makeSpanCount(void **result_context)
 {
 	const char *span = "hello";
 	uintptr_t span_length = 5;
@@ -25,7 +25,7 @@ static fn_nuint_voidPtr_ makeSpanCount(void **result_context)
 	}
 }
 
-static fn_int_voidPtr_ makeOptionalReader(void **result_context)
+static int (* makeOptionalReader)(void *arg0)(void **result_context)
 {
 	int value = 7;
 	bool value_specified = true;
@@ -38,9 +38,9 @@ static fn_int_voidPtr_ makeOptionalReader(void **result_context)
 	}
 }
 
-static fn_int_voidPtr_ makeDelegateReader(void **result_context)
+static int (* makeDelegateReader)(void *arg0)(void **result_context)
 {
-	fn_int_voidPtr__int_ mapper = makeDelegateReader_lambda0;
+	int (* mapper)(void *arg0, int arg1) = makeDelegateReader_lambda0;
 	void *mapper_context = NULL;
 	makeDelegateReader_lambdaContext2 *_lambdaContext2 = (makeDelegateReader_lambdaContext2 *)(malloc(sizeof(makeDelegateReader_lambdaContext2)));
 	_lambdaContext2->capture0_mapper = mapper;
@@ -53,15 +53,15 @@ static fn_int_voidPtr_ makeDelegateReader(void **result_context)
 
 int main(void)
 {
-	fn_nuint_voidPtr_ spanCount;
+	uintptr_t (* spanCount)(void *arg0);
 	void *spanCount_context;
 	spanCount = makeSpanCount(&spanCount_context);
 	free((void *)(spanCount_context));
-	fn_int_voidPtr_ optionalReader;
+	int (* optionalReader)(void *arg0);
 	void *optionalReader_context;
 	optionalReader = makeOptionalReader(&optionalReader_context);
 	free((void *)(optionalReader_context));
-	fn_int_voidPtr_ delegateReader;
+	int (* delegateReader)(void *arg0);
 	void *delegateReader_context;
 	delegateReader = makeDelegateReader(&delegateReader_context);
 	free((void *)(delegateReader_context));
@@ -97,9 +97,6 @@ static int makeDelegateReader_lambda3(void *context)
 
 #include "lambda_escaped_expanded_captures_private.h"
 
-typedef int (* fn_int_voidPtr_)(void *arg0);
-typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
-typedef uintptr_t (* fn_nuint_voidPtr_)(void *arg0);
 int main(void);
 
 #endif
@@ -119,12 +116,7 @@ typedef struct makeDelegateReader_lambdaContext2 makeDelegateReader_lambdaContex
 /* Enums. */
 
 /* Newtypes. */
-typedef uintptr_t (* Count)(void);
-
-/* Callable typedefs. */
-typedef int (* fn_int_voidPtr_)(void *arg0);
-typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
-typedef uintptr_t (* fn_nuint_voidPtr_)(void *arg0);
+typedef uintptr_t (* Count)(void *context);
 
 /* Layouts. */
 struct makeSpanCount_lambdaContext0
@@ -139,7 +131,7 @@ struct makeOptionalReader_lambdaContext1
 };
 struct makeDelegateReader_lambdaContext2
 {
-	fn_int_voidPtr__int_ capture0_mapper;
+	int (* capture0_mapper)(void *arg0, int arg1);
 	void *capture1_mapper_context;
 };
 
@@ -151,4 +143,25 @@ int main(void);
 
 #endif
 // compile
-compiled: lambda_escaped_expanded_captures.c
+compile failed: lambda_escaped_expanded_captures.c
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_expanded_captures/lambda_escaped_expanded_captures.c:7:34: error: function cannot return function type 'int (void **)'
+    7 | static int (* makeOptionalReader)(void *arg0)(void **result_context);
+      |                                  ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_expanded_captures/lambda_escaped_expanded_captures.c:8:34: error: function cannot return function type 'int (void **)'
+    8 | static int (* makeDelegateReader)(void *arg0)(void **result_context);
+      |                                  ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_expanded_captures/lambda_escaped_expanded_captures.c:27:34: error: function cannot return function type 'int (void **)'
+   27 | static int (* makeOptionalReader)(void *arg0)(void **result_context)
+      |                                  ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_expanded_captures/lambda_escaped_expanded_captures.c:27:69: error: expected ';' after top level declarator
+   27 | static int (* makeOptionalReader)(void *arg0)(void **result_context)
+      |                                                                     ^
+      |                                                                     ;
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_expanded_captures/lambda_escaped_expanded_captures.c:40:34: error: function cannot return function type 'int (void **)'
+   40 | static int (* makeDelegateReader)(void *arg0)(void **result_context)
+      |                                  ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_expanded_captures/lambda_escaped_expanded_captures.c:40:69: error: expected ';' after top level declarator
+   40 | static int (* makeDelegateReader)(void *arg0)(void **result_context)
+      |                                                                     ^
+      |                                                                     ;
+6 errors generated.

@@ -4,7 +4,7 @@
 /* Private file declarations. */
 static bool __camp_delegate_chunksIter_iter(void *arg0, uint8_t **arg1, uintptr_t *arg2);
 static chunksIter chunks(void);
-static int sumLengths(fn_bool_voidPtr__bytePtrPtr__nuintPtr_ values, void *values_context);
+static int sumLengths(bool (* values)(void *arg0, uint8_t **arg1, uintptr_t *arg2), void *values_context);
 static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length);
 static void chunksIter_op_delete(chunksIter *this);
 static void chunksIter_destroy(chunksIter *this);
@@ -20,7 +20,7 @@ static chunksIter chunks(void)
 	return (chunksIter){ .__state = 0 };
 }
 
-static int sumLengths(fn_bool_voidPtr__bytePtrPtr__nuintPtr_ values, void *values_context)
+static int sumLengths(bool (* values)(void *arg0, uint8_t **arg1, uintptr_t *arg2), void *values_context)
 {
 	int total = 0;
 	{
@@ -113,7 +113,6 @@ static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_len
 
 #include "iterator_expanded_protocol_slots_private.h"
 
-typedef bool (* fn_bool_voidPtr__bytePtrPtr__nuintPtr_)(void *arg0, uint8_t **arg1, uintptr_t *arg2);
 int main(void);
 
 #endif
@@ -131,9 +130,6 @@ typedef struct chunksIter chunksIter;
 /* Enums. */
 
 /* Newtypes. */
-
-/* Callable typedefs. */
-typedef bool (* fn_bool_voidPtr__bytePtrPtr__nuintPtr_)(void *arg0, uint8_t **arg1, uintptr_t *arg2);
 
 /* Layouts. */
 struct chunksIter

@@ -7,8 +7,8 @@ static bool __camp_delegate_rangeIter_iter_1(void *arg0, int *arg1);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static rangeIter range(int first, int last);
-static uintptr_t countIterator(fn_bool_voidPtr__voidPtr_ values, void *values_context, uintptr_t sizeof_T);
-static void Collector_addEach(Collector *this, fn_bool_voidPtr__voidPtr_ values, void *values_context);
+static uintptr_t countIterator(bool (* values)(void *arg0, void *arg1), void *values_context, uintptr_t sizeof_T);
+static void Collector_addEach(Collector *this, bool (* values)(void *arg0, void *arg1), void *values_context);
 static void Collector_op_initnew(Collector *this, uintptr_t sizeof_T);
 static Collector *Collector_create(uintptr_t sizeof_T);
 static bool rangeIter_next(rangeIter *this, int *current);
@@ -31,7 +31,7 @@ static rangeIter range(int first, int last)
 	return (rangeIter){ .__state = 0, .first = first, .last = last };
 }
 
-static uintptr_t countIterator(fn_bool_voidPtr__voidPtr_ values, void *values_context, uintptr_t sizeof_T)
+static uintptr_t countIterator(bool (* values)(void *arg0, void *arg1), void *values_context, uintptr_t sizeof_T)
 {
 	uint8_t *current = __builtin_alloca(sizeof_T);
 	__builtin_memset(current, 0, sizeof_T);
@@ -47,7 +47,7 @@ __while_break2: ;
 	return count;
 }
 
-static void Collector_addEach(Collector *this, fn_bool_voidPtr__voidPtr_ values, void *values_context)
+static void Collector_addEach(Collector *this, bool (* values)(void *arg0, void *arg1), void *values_context)
 {
 	uint8_t *current = __builtin_alloca(this->_sizeof_T);
 	__builtin_memset(current, 0, this->_sizeof_T);
@@ -81,7 +81,7 @@ static Collector *Collector_create(uintptr_t sizeof_T)
 int main(void)
 {
 	rangeIter _iterState5 = range(1, 3);
-	uintptr_t methodCount = countIterator((fn_bool_voidPtr__voidPtr_)__camp_delegate_rangeIter_iter, &_iterState5, sizeof(int));
+	uintptr_t methodCount = countIterator((bool (*)(void *arg0, void *arg1))__camp_delegate_rangeIter_iter, &_iterState5, sizeof(int));
 	Collector *collector = (Collector *)(malloc(sizeof(Collector)));
 	if ((collector != NULL))
 	{
@@ -89,7 +89,7 @@ int main(void)
 		Collector_op_initnew(collector, sizeof(int));
 	}
 	rangeIter _iterState6 = range(4, 7);
-	Collector_addEach(collector, (fn_bool_voidPtr__voidPtr_)__camp_delegate_rangeIter_iter_1, &_iterState6);
+	Collector_addEach(collector, (bool (*)(void *arg0, void *arg1))__camp_delegate_rangeIter_iter_1, &_iterState6);
 	return ((((methodCount == 3) && (collector->count == 4))) ? 0 : 1);
 }
 
@@ -150,8 +150,6 @@ static bool rangeIter_iter(void *ctx, int *current)
 
 #include "generic_iter_transport_private.h"
 
-typedef bool (* fn_bool_voidPtr__voidPtr_)(void *arg0, void *arg1);
-typedef bool (* fn_bool_voidPtr__intPtr_)(void *arg0, int *arg1);
 int main(void);
 
 #endif
@@ -170,10 +168,6 @@ typedef struct rangeIter rangeIter;
 /* Enums. */
 
 /* Newtypes. */
-
-/* Callable typedefs. */
-typedef bool (* fn_bool_voidPtr__voidPtr_)(void *arg0, void *arg1);
-typedef bool (* fn_bool_voidPtr__intPtr_)(void *arg0, int *arg1);
 
 /* Layouts. */
 struct Collector

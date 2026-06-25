@@ -7,8 +7,8 @@ static bool __camp_delegate_rangeIter_iter_1(void *arg0, int *arg1);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static rangeIter *range(int first, int last);
-static applyPredicateIter applyPredicate(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int arg0));
-static applyPredicateExplicitIter applyPredicateExplicit(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int arg0));
+static applyPredicateIter applyPredicate(bool (* inner)(void *arg0, int *arg1), void *inner_context, bool (* predicate)(int camp));
+static applyPredicateExplicitIter applyPredicateExplicit(bool (* inner)(void *arg0, int *arg1), void *inner_context, bool (* predicate)(int camp));
 static bool isEven(int number);
 static bool rangeIter_next(rangeIter *this, int *current);
 static void rangeIter_op_delete(rangeIter *this);
@@ -49,12 +49,12 @@ static rangeIter *range(int first, int last)
 	return _iter0;
 }
 
-static applyPredicateIter applyPredicate(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int arg0))
+static applyPredicateIter applyPredicate(bool (* inner)(void *arg0, int *arg1), void *inner_context, bool (* predicate)(int camp))
 {
 	return (applyPredicateIter){ .__state = 0, .inner = inner, .inner_context = inner_context, .predicate = predicate };
 }
 
-static applyPredicateExplicitIter applyPredicateExplicit(fn_bool_voidPtr__intPtr_ inner, void *inner_context, bool (* predicate)(int arg0))
+static applyPredicateExplicitIter applyPredicateExplicit(bool (* inner)(void *arg0, int *arg1), void *inner_context, bool (* predicate)(int camp))
 {
 	return (applyPredicateExplicitIter){ .__state = 0, .inner = inner, .inner_context = inner_context, .predicate = predicate };
 }
@@ -67,7 +67,7 @@ static bool isEven(int number)
 void run(void)
 {
 	{
-		applyPredicateIter _foreachIter1 = applyPredicate(__camp_delegate_rangeIter_iter, range(2, 10), (fn_bool_int_)isEven);
+		applyPredicateIter _foreachIter1 = applyPredicate(__camp_delegate_rangeIter_iter, range(2, 10), (bool (*)(int camp))isEven);
 		int _foreachCurrent2 = 0;
 		while (applyPredicateIter_next(&_foreachIter1, &_foreachCurrent2))
 		{
@@ -80,7 +80,7 @@ __foreach_continue3: ;
 __foreach_break4: ;
 	}
 	{
-		applyPredicateExplicitIter _foreachIter5 = applyPredicateExplicit(__camp_delegate_rangeIter_iter_1, range(22, 30), (fn_bool_int_)isEven);
+		applyPredicateExplicitIter _foreachIter5 = applyPredicateExplicit(__camp_delegate_rangeIter_iter_1, range(22, 30), (bool (*)(int camp))isEven);
 		int _foreachCurrent6 = 0;
 		while (applyPredicateExplicitIter_next(&_foreachIter5, &_foreachCurrent6))
 		{
@@ -268,8 +268,6 @@ static bool applyPredicateExplicitIter_iter(void *ctx, int *current)
 
 #include "iterator_protocol_filter_private.h"
 
-typedef bool (* fn_bool_int_)(int arg0);
-typedef bool (* fn_bool_voidPtr__intPtr_)(void *arg0, int *arg1);
 void run(void);
 
 #endif
@@ -290,10 +288,6 @@ typedef struct applyPredicateExplicitIter applyPredicateExplicitIter;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef bool (* fn_bool_int_)(int arg0);
-typedef bool (* fn_bool_voidPtr__intPtr_)(void *arg0, int *arg1);
-
 /* Layouts. */
 struct rangeIter
 {
@@ -305,9 +299,9 @@ struct rangeIter
 struct applyPredicateIter
 {
 	int __state;
-	fn_bool_voidPtr__intPtr_ inner;
+	bool (* inner)(void *arg0, int *arg1);
 	void *inner_context;
-	bool (* predicate)(int arg0);
+	bool (* predicate)(int camp);
 	bool (* __foreachIterCall0)(void *arg0, int *arg1);
 	void *__foreachIterContext0;
 	int __foreachCurrent0;
@@ -315,9 +309,9 @@ struct applyPredicateIter
 struct applyPredicateExplicitIter
 {
 	int __state;
-	fn_bool_voidPtr__intPtr_ inner;
+	bool (* inner)(void *arg0, int *arg1);
 	void *inner_context;
-	bool (* predicate)(int arg0);
+	bool (* predicate)(int camp);
 	int value;
 };
 

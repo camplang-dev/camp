@@ -2,7 +2,7 @@
 <Module ResolvedType="#MODULE">
   <Definitions>
     <FunctionDefinition InvokerName="getEscaped" Name="getEscaped" Symbol="getEscaped" Extern="" ResolvedType="escaped char*">
-      <ReturnType Type="NamedTypeReference" Name="escaped char*" ResolvedType="escaped char*" />
+      <ReturnType Type="NamedTypeReference" Name="escaped char[]" ResolvedType="escaped char*" />
       <Parameters>
         <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
           <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
@@ -10,7 +10,7 @@
       </Parameters>
     </FunctionDefinition>
     <FunctionDefinition InvokerName="identity" Name="identity" Symbol="identity" ResolvedType="scoped char*">
-      <ReturnType Type="NamedTypeReference" Name="scoped char*" ResolvedType="scoped char*" />
+      <ReturnType Type="NamedTypeReference" Name="scoped char[]" ResolvedType="scoped char*" />
       <Parameters>
         <ParameterDefinition Name="value" Symbol="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
         <ParameterDefinition Name="value_length" Symbol="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
@@ -37,7 +37,7 @@
       </Body>
     </FunctionDefinition>
     <FunctionDefinition InvokerName="scopedTo" Name="scopedTo" Symbol="scopedTo" ResolvedType="scoped(owner) char*">
-      <ReturnType Type="NamedTypeReference" Name="scoped(owner) char*" ResolvedType="scoped(owner) char*" />
+      <ReturnType Type="NamedTypeReference" Name="scoped char[]" ResolvedType="scoped(owner) char*" />
       <Parameters>
         <ParameterDefinition Name="owner" Symbol="owner" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
         <ParameterDefinition Name="owner_length" Symbol="owner_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
@@ -66,7 +66,7 @@
       </Body>
     </FunctionDefinition>
     <FunctionDefinition InvokerName="unscopedTo" Name="unscopedTo" Symbol="unscopedTo" ResolvedType="unscoped(owner) char*">
-      <ReturnType Type="NamedTypeReference" Name="unscoped(owner) char*" ResolvedType="unscoped(owner) char*" />
+      <ReturnType Type="NamedTypeReference" Name="unscoped char[]" ResolvedType="unscoped(owner) char*" />
       <Parameters>
         <ParameterDefinition Name="owner" Symbol="owner" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
         <ParameterDefinition Name="owner_length" Symbol="owner_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
@@ -132,7 +132,7 @@
           </Body>
         </FunctionDefinition>
         <FunctionDefinition InvokerName="getItems" ReceiverLifetimeBinding="scoped:default receiver" Name="getItems" Symbol="Buffer_getItems" ResolvedType="char*">
-          <ReturnType Type="NamedTypeReference" Name="char*" ResolvedType="char*" />
+          <ReturnType Type="NamedTypeReference" Name="char[]" ResolvedType="char*" />
           <Parameters>
             <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
               <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />

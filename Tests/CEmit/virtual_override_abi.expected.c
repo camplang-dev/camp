@@ -83,11 +83,6 @@ typedef struct _Counter _Counter;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef int (* fn_int_BaseCounterPtr_)(BaseCounter *arg0);
-typedef void (* fn_void_AllocatorPtr__voidPtr_)(Allocator *arg0, void *arg1);
-typedef void *(* fn_voidPtr_AllocatorPtr__nuint_)(Allocator *arg0, uintptr_t arg1);
-
 /* Layouts. */
 struct Allocator
 {
@@ -107,8 +102,8 @@ struct Counter
 };
 struct _Allocator
 {
-	void *(* alloc)(Allocator *arg0, uintptr_t arg1);
-	void (* free)(Allocator *arg0, void *arg1);
+	void *(* alloc)(Allocator *ctx, uintptr_t size);
+	void (* free)(Allocator *ctx, void *ptr);
 };
 struct _HeapAllocator
 {
@@ -116,7 +111,7 @@ struct _HeapAllocator
 };
 struct _BaseCounter
 {
-	int (* value)(BaseCounter *arg0);
+	int (* value)(BaseCounter *ctx);
 };
 struct _Counter
 {

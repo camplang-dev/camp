@@ -121,7 +121,6 @@ static int StructCounter_ICounter_required(ICounter **ctx, int value)
 
 #include "default_interface_methods_private.h"
 
-typedef int (* fn_int_ICounterPtrPtr__int_)(ICounter **arg0, int arg1);
 int main(void);
 
 #endif
@@ -144,15 +143,12 @@ typedef struct ICounter_Indirect ICounter_Indirect;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef int (* fn_int_ICounterPtrPtr__int_)(ICounter **arg0, int arg1);
-
 /* Layouts. */
 struct ICounter
 {
-	int (* optional)(ICounter **arg0, int arg1);
-	int (* getValue)(ICounter **arg0, int arg1);
-	int (* required)(ICounter **arg0, int arg1);
+	int (* optional)(ICounter **ctx, int value);
+	int (* getValue)(ICounter **ctx, int value);
+	int (* required)(ICounter **ctx, int value);
 };
 struct BasicCounter
 {

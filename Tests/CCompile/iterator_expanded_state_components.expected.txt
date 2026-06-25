@@ -3,7 +3,7 @@
 
 /* Private file declarations. */
 static int __camp_delegate_doubleIt(void *arg0, int arg1);
-static mapValuesIter mapValues(int *values, uintptr_t values_length, fn_int_voidPtr__int_ map, void *map_context);
+static mapValuesIter mapValues(int *values, uintptr_t values_length, int (* map)(void *arg0, int arg1), void *map_context);
 static int doubleIt(int value);
 static bool mapValuesIter_next(mapValuesIter *this, int *current);
 static void mapValuesIter_op_delete(mapValuesIter *this);
@@ -16,7 +16,7 @@ static int __camp_delegate_doubleIt(void *arg0, int arg1)
 	return doubleIt(arg1);
 }
 
-static mapValuesIter mapValues(int *values, uintptr_t values_length, fn_int_voidPtr__int_ map, void *map_context)
+static mapValuesIter mapValues(int *values, uintptr_t values_length, int (* map)(void *arg0, int arg1), void *map_context)
 {
 	return (mapValuesIter){ .__state = 0, .values = values, .values_length = values_length, .map = map, .map_context = map_context };
 }
@@ -103,8 +103,6 @@ static bool mapValuesIter_iter(void *ctx, int *current)
 
 #include "iterator_expanded_state_components_private.h"
 
-typedef int (* fn_int_int_)(int arg0);
-typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
 int main(void);
 
 #endif
@@ -123,17 +121,13 @@ typedef struct mapValuesIter mapValuesIter;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef int (* fn_int_int_)(int arg0);
-typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
-
 /* Layouts. */
 struct mapValuesIter
 {
 	int __state;
 	int *values;
 	uintptr_t values_length;
-	fn_int_voidPtr__int_ map;
+	int (* map)(void *arg0, int arg1);
 	void *map_context;
 	uintptr_t i;
 };

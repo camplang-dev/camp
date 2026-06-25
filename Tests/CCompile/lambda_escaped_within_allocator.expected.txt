@@ -6,7 +6,7 @@ void *malloc(uintptr_t size);
 void free(void *ptr);
 static void *Arena_alloc(Arena *this, uintptr_t size);
 static void Arena_free(Arena *this, void *ptr);
-static fn_int_voidPtr_ make(Arena *arena, int value, void **result_context);
+static int (* make)(void *arg0)(Arena *arena, int value, void **result_context);
 static void use(Arena *arena);
 static int make_lambda0(void *context);
 
@@ -20,7 +20,7 @@ static void Arena_free(Arena *this, void *ptr)
 	free(ptr);
 }
 
-static fn_int_voidPtr_ make(Arena *arena, int value, void **result_context)
+static int (* make)(void *arg0)(Arena *arena, int value, void **result_context)
 {
 	Arena *_allocator0 = arena;
 	make_lambdaContext0 *_lambdaContext1 = (make_lambdaContext0 *)(((_allocator0 != NULL) ? Arena_alloc(_allocator0, sizeof(make_lambdaContext0)) : malloc(sizeof(make_lambdaContext0))));
@@ -33,7 +33,7 @@ static fn_int_voidPtr_ make(Arena *arena, int value, void **result_context)
 
 static void use(Arena *arena)
 {
-	fn_int_voidPtr_ callback;
+	int (* callback)(void *arg0);
 	void *callback_context;
 	callback = make(arena, 5, &callback_context);
 	{
@@ -64,9 +64,6 @@ typedef struct make_lambdaContext0 make_lambdaContext0;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef int (* fn_int_voidPtr_)(void *arg0);
-
 /* Layouts. */
 struct Arena
 {
@@ -84,4 +81,15 @@ struct make_lambdaContext0
 
 #endif
 // compile
-compiled: lambda_escaped_within_allocator.c
+compile failed: lambda_escaped_within_allocator.c
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_within_allocator/lambda_escaped_within_allocator.c:8:20: error: function cannot return function type 'int (Arena *, int, void **)' (aka 'int (struct Arena *, int, void **)')
+    8 | static int (* make)(void *arg0)(Arena *arena, int value, void **result_context);
+      |                    ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_within_allocator/lambda_escaped_within_allocator.c:22:20: error: function cannot return function type 'int (Arena *, int, void **)' (aka 'int (struct Arena *, int, void **)')
+   22 | static int (* make)(void *arg0)(Arena *arena, int value, void **result_context)
+      |                    ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_within_allocator/lambda_escaped_within_allocator.c:22:80: error: expected ';' after top level declarator
+   22 | static int (* make)(void *arg0)(Arena *arena, int value, void **result_context)
+      |                                                                                ^
+      |                                                                                ;
+3 errors generated.

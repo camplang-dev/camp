@@ -2,11 +2,11 @@
 #include "callable_enum_typedef_order_private.h"
 
 /* Private file declarations. */
-static void invoke(void (* handler)(MyError *arg0));
+static void invoke(void (* handler)(MyError *error));
 static void handle(MyError *error);
 static int main(void);
 
-static void invoke(void (* handler)(MyError *arg0))
+static void invoke(void (* handler)(MyError *error))
 {
 }
 
@@ -16,7 +16,7 @@ static void handle(MyError *error)
 
 static int main(void)
 {
-	invoke((fn_void_thrown_MyError_)handle);
+	invoke((void (*)(MyError *error))handle);
 	return 0;
 }
 
@@ -36,10 +36,7 @@ typedef uint32_t MyError;
 #define MyError_FAIL ((MyError)1)
 
 /* Newtypes. */
-typedef void (* ErrorHandler)(MyError *arg0);
-
-/* Callable typedefs. */
-typedef void (* fn_void_thrown_MyError_)(MyError *arg0);
+typedef void (* ErrorHandler)(void *context, MyError *error);
 
 /* Layouts. */
 

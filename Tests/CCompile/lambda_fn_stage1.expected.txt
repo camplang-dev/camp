@@ -2,12 +2,12 @@
 #include "lambda_fn_stage1_private.h"
 
 /* Private file declarations. */
-static int apply(int (* callback)(int arg0), int value);
+static int apply(int (* callback)(int camp), int value);
 static bool check(Predicate predicate, int value);
 static int main_lambda0(int x);
 static bool main_lambda1(int value);
 
-static int apply(int (* callback)(int arg0), int value)
+static int apply(int (* callback)(int camp), int value)
 {
 	return callback(value);
 }
@@ -19,9 +19,9 @@ static bool check(Predicate predicate, int value)
 
 int main(void)
 {
-	int (* inc)(int arg0) = main_lambda0;
+	int (* inc)(int camp) = main_lambda0;
 	Predicate isPositive = main_lambda1;
-	return (((apply((fn_int_int_)inc, 4) == 5) && check(isPositive, 2)) ? 0 : 1);
+	return (((apply((int (*)(int camp))inc, 4) == 5) && check(isPositive, 2)) ? 0 : 1);
 }
 
 static int main_lambda0(int x)
@@ -40,7 +40,6 @@ static bool main_lambda1(int value)
 
 #include "lambda_fn_stage1_private.h"
 
-typedef int (* fn_int_int_)(int arg0);
 int main(void);
 
 #endif
@@ -57,10 +56,7 @@ int main(void);
 /* Enums. */
 
 /* Newtypes. */
-typedef bool (* Predicate)(int arg0);
-
-/* Callable typedefs. */
-typedef int (* fn_int_int_)(int arg0);
+typedef bool (* Predicate)(int value);
 
 /* Layouts. */
 

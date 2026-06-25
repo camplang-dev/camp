@@ -85,7 +85,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		expandedReturnShapes[function] = shape;
 		ParamsComponent first = shape.Components[0];
-		function.ReturnType = new NamedTypeReference { Name = first.Type, ResolvedType = first.Type };
+		function.ReturnType = new NamedTypeReference
+		{
+			Name = GetTypeReferenceName(function.ReturnType) ?? first.Type,
+			ResolvedType = first.Type,
+			SourceSyntax = function.ReturnType.SourceSyntax
+		};
 		function.ResolvedType = first.Type;
 
 		for (int i = 1; i < shape.Components.Count; i++)
@@ -721,6 +726,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	ParameterDefinition CreateExpandedParameter(ParameterDefinition source, ParamsComponent component, bool inheritDefaultValue)
 	{
+		string? sourceTypeName = component.Name == "call" ? GetTypeReferenceName(source.Type) : null;
 		return new ParameterDefinition
 		{
 			SourceSyntax = source.SourceSyntax,
@@ -728,6 +734,7 @@ public sealed partial class BindableNodeAnalyzer
 			Symbol = component.ExpandedName,
 			Public = source.Public,
 			Modifier = source.Modifier,
+			Type = sourceTypeName is null ? null : new NamedTypeReference { Name = sourceTypeName, ResolvedType = component.Type, SourceSyntax = source.Type?.SourceSyntax },
 			ResolvedType = component.Type,
 			DefaultValue = component.SourceParameter?.DefaultValue ?? (inheritDefaultValue ? source.DefaultValue : null),
 			SlotLifetimeFact = source.SlotLifetimeFact,

@@ -21,8 +21,6 @@ void Allocator_free(Allocator *this, void *ptr)
 
 #include "lifetime_abstract_signature_private.h"
 
-typedef void *(* fn_escaped_voidPtr_AllocatorPtr__nuint_)(Allocator *arg0, uintptr_t arg1);
-typedef void (* fn_void_AllocatorPtr__escaped_voidPtr_)(Allocator *arg0, void *arg1);
 void *Allocator_alloc(Allocator *this, uintptr_t size);
 void Allocator_free(Allocator *this, void *ptr);
 
@@ -43,10 +41,6 @@ typedef struct _Allocator _Allocator;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef void *(* fn_escaped_voidPtr_AllocatorPtr__nuint_)(Allocator *arg0, uintptr_t arg1);
-typedef void (* fn_void_AllocatorPtr__escaped_voidPtr_)(Allocator *arg0, void *arg1);
-
 /* Layouts. */
 struct Allocator
 {
@@ -54,8 +48,8 @@ struct Allocator
 };
 struct _Allocator
 {
-	void *(* alloc)(Allocator *arg0, uintptr_t arg1);
-	void (* free)(Allocator *arg0, void *arg1);
+	void *(* alloc)(Allocator *ctx, uintptr_t size);
+	void (* free)(Allocator *ctx, void *ptr);
 };
 
 /* Function declarations. */

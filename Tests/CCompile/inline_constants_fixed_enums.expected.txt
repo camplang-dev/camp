@@ -32,7 +32,6 @@ int main(void)
 
 #include "inline_constants_fixed_enums_private.h"
 
-typedef void (* fn_void__)(void);
 int main(void);
 #define MAX_PLAYERS ((uint32_t)9)
 #define INVALID_FILE_SIZE ((uint32_t)4294967295)
@@ -64,9 +63,6 @@ typedef uint16_t Difficulty;
 #define MAX_PLAYERS ((uint32_t)9)
 #define INVALID_FILE_SIZE ((uint32_t)4294967295)
 #define WM_GETTEXTLENGTH ((uint32_t)14)
-
-/* Callable typedefs. */
-typedef void (* fn_void__)(void);
 
 /* Layouts. */
 struct Widget

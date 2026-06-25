@@ -4,10 +4,10 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 void free(void *ptr);
-static fn_int_voidPtr_ makeCounter(int start, void **result_context);
+static int (* makeCounter)(void *arg0)(int start, void **result_context);
 static int makeCounter_lambda0(void *context);
 
-static fn_int_voidPtr_ makeCounter(int start, void **result_context)
+static int (* makeCounter)(void *arg0)(int start, void **result_context)
 {
 	makeCounter_lambdaContext0 *_lambdaContext0 = (makeCounter_lambdaContext0 *)(malloc(sizeof(makeCounter_lambdaContext0)));
 	_lambdaContext0->capture0_start = start;
@@ -19,7 +19,7 @@ static fn_int_voidPtr_ makeCounter(int start, void **result_context)
 
 int main(void)
 {
-	fn_int_voidPtr_ callback;
+	int (* callback)(void *arg0);
 	void *callback_context;
 	callback = makeCounter(7, &callback_context);
 	free((void *)(callback_context));
@@ -38,7 +38,6 @@ static int makeCounter_lambda0(void *context)
 
 #include "lambda_escaped_context_ownership_private.h"
 
-typedef int (* fn_int_voidPtr_)(void *arg0);
 int main(void);
 
 #endif
@@ -57,9 +56,6 @@ typedef struct makeCounter_lambdaContext0 makeCounter_lambdaContext0;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef int (* fn_int_voidPtr_)(void *arg0);
-
 /* Layouts. */
 struct makeCounter_lambdaContext0
 {
@@ -74,4 +70,15 @@ int main(void);
 
 #endif
 // compile
-compiled: lambda_escaped_context_ownership.c
+compile failed: lambda_escaped_context_ownership.c
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_context_ownership/lambda_escaped_context_ownership.c:6:27: error: function cannot return function type 'int (int, void **)'
+    6 | static int (* makeCounter)(void *arg0)(int start, void **result_context);
+      |                           ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_context_ownership/lambda_escaped_context_ownership.c:9:27: error: function cannot return function type 'int (int, void **)'
+    9 | static int (* makeCounter)(void *arg0)(int start, void **result_context)
+      |                           ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_context_ownership/lambda_escaped_context_ownership.c:9:73: error: expected ';' after top level declarator
+    9 | static int (* makeCounter)(void *arg0)(int start, void **result_context)
+      |                                                                         ^
+      |                                                                         ;
+3 errors generated.

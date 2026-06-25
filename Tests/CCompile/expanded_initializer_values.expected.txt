@@ -60,7 +60,7 @@ int main(void)
 	{
 		return 4;
 	}
-	fn_int_voidPtr__int__int_ comparer = compareInt;
+	int (* comparer)(void *arg0, int *arg1, int *arg2) = compareInt;
 	void *comparer_context = NULL;
 	int left = 1;
 	int right = 2;
@@ -77,7 +77,6 @@ int main(void)
 
 #include "expanded_initializer_values_private.h"
 
-typedef int (* fn_int_voidPtr__int__int_)(void *arg0, int *arg1, int *arg2);
 int main(void);
 
 #endif
@@ -94,9 +93,6 @@ int main(void);
 /* Enums. */
 
 /* Newtypes. */
-
-/* Callable typedefs. */
-typedef int (* fn_int_voidPtr__int__int_)(void *arg0, int *arg1, int *arg2);
 
 /* Layouts. */
 

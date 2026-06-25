@@ -55,7 +55,6 @@ static void Handle_IRef_retain(IRef **ctx)
 
 #include "interface_vtable_exports_private.h"
 
-typedef void (* fn_void_IRefPtrPtr_)(IRef **arg0);
 void Widget_retain(Widget *this);
 void Widget_op_initnew(Widget *this);
 Widget *Widget_create(void);
@@ -82,13 +81,10 @@ typedef struct IRef_Indirect IRef_Indirect;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef void (* fn_void_IRefPtrPtr_)(IRef **arg0);
-
 /* Layouts. */
 struct IRef
 {
-	void (* retain)(IRef **arg0);
+	void (* retain)(IRef **ctx);
 };
 struct Widget
 {

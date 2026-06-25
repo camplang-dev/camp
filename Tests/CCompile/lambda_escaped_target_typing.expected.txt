@@ -5,9 +5,9 @@
 static int __camp_delegate_use_lambda0(void *arg0, int arg1);
 void *malloc(uintptr_t size);
 void free(void *ptr);
-static void acceptMapper(fn_int_voidPtr__int_ mapper, void *mapper_context);
+static void acceptMapper(Mapper mapper, void *mapper_context);
 static int Worker_adjust(Worker *this, int value);
-static void acceptWorker(fn_int_voidPtr__int_ mapper, void *mapper_context);
+static void acceptWorker(int (* mapper)(void *arg0, int arg1), void *mapper_context);
 static void use(Worker *worker);
 static int use_lambda0(void *context, int value);
 
@@ -16,7 +16,7 @@ static int __camp_delegate_use_lambda0(void *arg0, int arg1)
 	return use_lambda0(arg0, arg1);
 }
 
-static void acceptMapper(fn_int_voidPtr__int_ mapper, void *mapper_context)
+static void acceptMapper(Mapper mapper, void *mapper_context)
 {
 }
 
@@ -25,7 +25,7 @@ static int Worker_adjust(Worker *this, int value)
 	return (value + 1);
 }
 
-static void acceptWorker(fn_int_voidPtr__int_ mapper, void *mapper_context)
+static void acceptWorker(int (* mapper)(void *arg0, int arg1), void *mapper_context)
 {
 }
 
@@ -35,7 +35,7 @@ static void use(Worker *worker)
 	use_lambdaContext0 *_lambdaContext0 = (use_lambdaContext0 *)(malloc(sizeof(use_lambdaContext0)));
 	_lambdaContext0->capture0_offset = offset;
 	acceptMapper(__camp_delegate_use_lambda0, _lambdaContext0);
-	acceptWorker((fn_int_voidPtr__int_)Worker_adjust, (Worker *)(worker));
+	acceptWorker((int (*)(void *arg0, int arg1))Worker_adjust, (Worker *)(worker));
 }
 
 static int use_lambda0(void *context, int value)
@@ -59,11 +59,7 @@ typedef struct use_lambdaContext0 use_lambdaContext0;
 /* Enums. */
 
 /* Newtypes. */
-typedef int (* Mapper)(int arg0);
-
-/* Callable typedefs. */
-typedef int (* fn_int_WorkerPtr_escaped__int_)(Worker *arg0, int arg1);
-typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
+typedef int (* Mapper)(void *context, int value);
 
 /* Layouts. */
 struct Worker

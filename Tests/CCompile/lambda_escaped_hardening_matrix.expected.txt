@@ -8,13 +8,13 @@ static int __camp_delegate_main_lambda4(void *arg0);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static void fail(Err *error);
-static fn_int_voidPtr__int_ makeBlockAdder(int offset, void **result_context);
-static fn_nuint_voidPtr_ makeSpanLength(const char *span, uintptr_t span_length, void **result_context);
+static int (* makeBlockAdder)(void *arg0, int arg1)(int offset, void **result_context);
+static uintptr_t (* makeSpanLength)(void *arg0)(const char *span, uintptr_t span_length, void **result_context);
 static int Box_add(Box *this, int amount);
-static uintptr_t Array_countWhere(void *this, uintptr_t this_length, fn_bool_voidPtr__voidPtr_ predicate, void *predicate_context, uintptr_t sizeof_T);
-static filterIter IntArray_filter(int *this, uintptr_t this_length, fn_bool_voidPtr__int_ predicate, void *predicate_context);
-static int invoke(fn_int_voidPtr__int_ callback, void *callback_context, int value);
-static int invoke0(fn_int_voidPtr_ callback, void *callback_context);
+static uintptr_t Array_countWhere(void *this, uintptr_t this_length, bool (* predicate)(void *arg0, void *arg1), void *predicate_context, uintptr_t sizeof_T);
+static filterIter IntArray_filter(int *this, uintptr_t this_length, bool (* predicate)(void *arg0, int *arg1), void *predicate_context);
+static int invoke(int (* callback)(void *arg0, int arg1), void *callback_context, int value);
+static int invoke0(int (* callback)(void *arg0), void *callback_context);
 static bool filterIter_next(filterIter *this, int *current);
 static void filterIter_op_delete(filterIter *this);
 static void filterIter_destroy(filterIter *this);
@@ -48,7 +48,7 @@ static void fail(Err *error)
 	}
 }
 
-static fn_int_voidPtr__int_ makeBlockAdder(int offset, void **result_context)
+static int (* makeBlockAdder)(void *arg0, int arg1)(int offset, void **result_context)
 {
 	makeBlockAdder_lambdaContext0 *_lambdaContext0 = (makeBlockAdder_lambdaContext0 *)(malloc(sizeof(makeBlockAdder_lambdaContext0)));
 	_lambdaContext0->capture0_offset = offset;
@@ -58,7 +58,7 @@ static fn_int_voidPtr__int_ makeBlockAdder(int offset, void **result_context)
 	}
 }
 
-static fn_nuint_voidPtr_ makeSpanLength(const char *span, uintptr_t span_length, void **result_context)
+static uintptr_t (* makeSpanLength)(void *arg0)(const char *span, uintptr_t span_length, void **result_context)
 {
 	makeSpanLength_lambdaContext1 *_lambdaContext5 = (makeSpanLength_lambdaContext1 *)(malloc(sizeof(makeSpanLength_lambdaContext1)));
 	_lambdaContext5->capture0_span = span;
@@ -74,7 +74,7 @@ static int Box_add(Box *this, int amount)
 	return (this->value + amount);
 }
 
-static uintptr_t Array_countWhere(void *this, uintptr_t this_length, fn_bool_voidPtr__voidPtr_ predicate, void *predicate_context, uintptr_t sizeof_T)
+static uintptr_t Array_countWhere(void *this, uintptr_t this_length, bool (* predicate)(void *arg0, void *arg1), void *predicate_context, uintptr_t sizeof_T)
 {
 	uintptr_t count = 0;
 	{
@@ -91,29 +91,29 @@ __for_break7: ;
 	return count;
 }
 
-static filterIter IntArray_filter(int *this, uintptr_t this_length, fn_bool_voidPtr__int_ predicate, void *predicate_context)
+static filterIter IntArray_filter(int *this, uintptr_t this_length, bool (* predicate)(void *arg0, int *arg1), void *predicate_context)
 {
 	return (filterIter){ .__state = 0, .__iter_this = this, .__iter_this_length = this_length, .predicate = predicate, .predicate_context = predicate_context };
 }
 
-static int invoke(fn_int_voidPtr__int_ callback, void *callback_context, int value)
+static int invoke(int (* callback)(void *arg0, int arg1), void *callback_context, int value)
 {
 	return callback(callback_context, value);
 }
 
-static int invoke0(fn_int_voidPtr_ callback, void *callback_context)
+static int invoke0(int (* callback)(void *arg0), void *callback_context)
 {
 	return callback(callback_context);
 }
 
 int main(void)
 {
-	fn_int_voidPtr__int_ adder;
+	int (* adder)(void *arg0, int arg1);
 	void *adder_context;
 	adder = makeBlockAdder(3, &adder_context);
 	int total = adder(adder_context, 7);
 	free((void *)(adder_context));
-	fn_nuint_voidPtr_ length;
+	uintptr_t (* length)(void *arg0);
 	void *length_context;
 	length = makeSpanLength("hello", 5, &length_context);
 	total = (total + (int)(length(length_context)));
@@ -124,14 +124,14 @@ int main(void)
 		*box = (Box){0};
 	}
 	box->value = 20;
-	total = (total + invoke((fn_int_voidPtr__int_)Box_add, (Box *)(box), 2));
+	total = (total + invoke((int (*)(void *arg0, int arg1))Box_add, (Box *)(box), 2));
 	free((void *)(box));
 	int threshold = 2;
 	int *values = (int []){1, 2, 3, 4};
 	uintptr_t values_length = 4;
 	main_lambdaContext2 *_lambdaContext8 = (main_lambdaContext2 *)(malloc(sizeof(main_lambdaContext2)));
 	_lambdaContext8->capture0_threshold = threshold;
-	total = (total + (int)(Array_countWhere(values, values_length, (fn_bool_voidPtr__voidPtr_)__camp_delegate_main_lambda2, _lambdaContext8, sizeof(int))));
+	total = (total + (int)(Array_countWhere(values, values_length, (bool (*)(void *arg0, void *arg1))__camp_delegate_main_lambda2, _lambdaContext8, sizeof(int))));
 	main_lambdaContext3 *_lambdaContext9 = (main_lambdaContext3 *)(malloc(sizeof(main_lambdaContext3)));
 	_lambdaContext9->capture0_threshold = threshold;
 	{
@@ -273,12 +273,6 @@ static int main_lambda4(void *context)
 
 #include "lambda_escaped_hardening_matrix_private.h"
 
-typedef bool (* fn_bool_voidPtr__voidPtr_)(void *arg0, void *arg1);
-typedef bool (* fn_bool_voidPtr__int_)(void *arg0, int *arg1);
-typedef int (* fn_int_BoxPtr_escaped__int_)(Box *arg0, int arg1);
-typedef int (* fn_int_voidPtr_)(void *arg0);
-typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
-typedef uintptr_t (* fn_nuint_voidPtr_)(void *arg0);
 int main(void);
 
 #endif
@@ -306,14 +300,6 @@ typedef uint32_t Err;
 
 /* Newtypes. */
 
-/* Callable typedefs. */
-typedef bool (* fn_bool_voidPtr__voidPtr_)(void *arg0, void *arg1);
-typedef bool (* fn_bool_voidPtr__int_)(void *arg0, int *arg1);
-typedef int (* fn_int_BoxPtr_escaped__int_)(Box *arg0, int arg1);
-typedef int (* fn_int_voidPtr_)(void *arg0);
-typedef int (* fn_int_voidPtr__int_)(void *arg0, int arg1);
-typedef uintptr_t (* fn_nuint_voidPtr_)(void *arg0);
-
 /* Layouts. */
 struct Box
 {
@@ -324,7 +310,7 @@ struct filterIter
 	int __state;
 	int *__iter_this;
 	uintptr_t __iter_this_length;
-	fn_bool_voidPtr__int_ predicate;
+	bool (* predicate)(void *arg0, int *arg1);
 	void *predicate_context;
 	uintptr_t i;
 	int item;
@@ -359,4 +345,55 @@ int main(void);
 
 #endif
 // compile
-compiled: lambda_escaped_hardening_matrix.c
+compile failed: lambda_escaped_hardening_matrix.c
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:10:30: error: function cannot return function type 'int (int, void **)'
+   10 | static int (* makeBlockAdder)(void *arg0, int arg1)(int offset, void **result_context);
+      |                              ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:11:36: error: function cannot return function type 'uintptr_t (const char *, uintptr_t, void **)' (aka 'unsigned long (const char *, unsigned long, void **)')
+   11 | static uintptr_t (* makeSpanLength)(void *arg0)(const char *span, uintptr_t span_length, void **result_context);
+      |                                    ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:50:30: error: function cannot return function type 'int (int, void **)'
+   50 | static int (* makeBlockAdder)(void *arg0, int arg1)(int offset, void **result_context)
+      |                              ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:50:87: error: expected ';' after top level declarator
+   50 | static int (* makeBlockAdder)(void *arg0, int arg1)(int offset, void **result_context)
+      |                                                                                       ^
+      |                                                                                       ;
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:60:36: error: function cannot return function type 'uintptr_t (const char *, uintptr_t, void **)' (aka 'unsigned long (const char *, unsigned long, void **)')
+   60 | static uintptr_t (* makeSpanLength)(void *arg0)(const char *span, uintptr_t span_length, void **result_context)
+      |                                    ^
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:60:112: error: expected ';' after top level declarator
+   60 | static uintptr_t (* makeSpanLength)(void *arg0)(const char *span, uintptr_t span_length, void **result_context)
+      |                                                                                                                ^
+      |                                                                                                                ;
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:172:21: warning: equality comparison with extraneous parentheses [-Wparentheses-equality]
+  172 |         if ((this->__state == -1))
+      |              ~~~~~~~~~~~~~~^~~~~
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:172:21: note: remove extraneous parentheses around the comparison to silence this warning
+  172 |         if ((this->__state == -1))
+      |             ~              ^    ~
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:172:21: note: use '=' to turn this equality comparison into an assignment
+  172 |         if ((this->__state == -1))
+      |                            ^~
+      |                            =
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:176:21: warning: equality comparison with extraneous parentheses [-Wparentheses-equality]
+  176 |         if ((this->__state == 1))
+      |              ~~~~~~~~~~~~~~^~~~
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:176:21: note: remove extraneous parentheses around the comparison to silence this warning
+  176 |         if ((this->__state == 1))
+      |             ~              ^   ~
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:176:21: note: use '=' to turn this equality comparison into an assignment
+  176 |         if ((this->__state == 1))
+      |                            ^~
+      |                            =
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:217:15: warning: equality comparison with extraneous parentheses [-Wparentheses-equality]
+  217 |         if ((current == NULL))
+      |              ~~~~~~~~^~~~~~~
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:217:15: note: remove extraneous parentheses around the comparison to silence this warning
+  217 |         if ((current == NULL))
+      |             ~        ^      ~
+/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:217:15: note: use '=' to turn this equality comparison into an assignment
+  217 |         if ((current == NULL))
+      |                      ^~
+      |                      =
+3 warnings and 6 errors generated.

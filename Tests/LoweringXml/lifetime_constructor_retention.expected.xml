@@ -14,7 +14,7 @@
       </Parameters>
     </FunctionDefinition>
     <FunctionDefinition InvokerName="getEscaped" Name="getEscaped" Symbol="getEscaped" Extern="" ResolvedType="escaped char*">
-      <ReturnType Type="NamedTypeReference" Name="escaped char*" ResolvedType="escaped char*" />
+      <ReturnType Type="NamedTypeReference" Name="escaped char[]" ResolvedType="escaped char*" />
       <Parameters>
         <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
           <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
