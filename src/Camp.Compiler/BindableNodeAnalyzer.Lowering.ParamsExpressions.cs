@@ -1053,6 +1053,10 @@ public sealed partial class BindableNodeAnalyzer
 				components.Add(component);
 				return true;
 
+			case MemberExpression { Target: not null } member
+				when TryCreateSourceMemberParamsComponentExpressions(member, out components):
+				return true;
+
 			case CallExpression call when TryCreateExpandedReturnCallComponents(call, out components):
 				return true;
 
@@ -1117,6 +1121,42 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return false;
 		}
+	}
+
+	bool TryCreateSourceMemberParamsComponentExpressions(MemberExpression member, out List<Expression> components)
+	{
+		return TryCreateSourceMemberParamsComponentExpressions(member.Target, member.Name, member.ResolvedType, member.SourceSyntax, out components);
+	}
+
+	bool TryCreateSourceMemberParamsComponentExpressions(MemberExpression member, string? paramsType, out List<Expression> components)
+	{
+		return TryCreateSourceMemberParamsComponentExpressions(member.Target, member.Name, paramsType, member.SourceSyntax, out components);
+	}
+
+	bool TryCreateSourceMemberParamsComponentExpressions(MemberReferenceExpression member, string? paramsType, out List<Expression> components)
+	{
+		return TryCreateSourceMemberParamsComponentExpressions(member.Target, member.Name, paramsType, member.SourceSyntax, out components);
+	}
+
+	bool TryCreateSourceMemberParamsComponentExpressions(Expression? target, string name, string? paramsType, SyntaxNode? sourceSyntax, out List<Expression> components)
+	{
+		components = [];
+		if (target is null
+			|| !TryGetParamsComponentShape(null, paramsType, name, out ParamsComponentShape shape)
+			|| shape.Components.Count <= 1)
+			return false;
+
+		foreach (ParamsComponent component in shape.Components)
+		{
+			components.Add(new MemberExpression
+			{
+				SourceSyntax = sourceSyntax,
+				Target = CloneParamsExpansionExpression(target),
+				Name = component.ExpandedName,
+				ResolvedType = component.Type
+			});
+		}
+		return true;
 	}
 
 	bool TryCreateInitializerParamsComponentExpressions(InitializerExpression initializer, out List<Expression> components)

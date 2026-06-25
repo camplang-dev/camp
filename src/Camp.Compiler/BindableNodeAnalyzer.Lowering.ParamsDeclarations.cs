@@ -793,6 +793,22 @@ public sealed partial class BindableNodeAnalyzer
 			return values;
 		}
 
+		if (initialValue is MemberExpression { Target: not null } member
+			&& TryCreateSourceMemberParamsComponentExpressions(member, shape.TypeName, out components)
+			&& components.Count == shape.Components.Count)
+		{
+			values.AddRange(components);
+			return values;
+		}
+
+		if (initialValue is MemberReferenceExpression { Target: not null } memberReference
+			&& TryCreateSourceMemberParamsComponentExpressions(memberReference, shape.TypeName, out components)
+			&& components.Count == shape.Components.Count)
+		{
+			values.AddRange(components);
+			return values;
+		}
+
 		if (initialValue is not null && shape.Kind == ParamsComponentShapeKind.Optional && shape.Components.Count == 2)
 		{
 			values.Add(initialValue);

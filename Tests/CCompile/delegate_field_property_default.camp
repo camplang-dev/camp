@@ -1,0 +1,32 @@
+extern escaped void* malloc(nuint size);
+extern void free(escaped void* ptr);
+
+export newtype delegate void WindowEventHandler();
+
+escaped class Window
+{
+	WindowState* windowState;
+
+	WindowEventHandler getEventHandler()
+	{
+		auto handler = this.windowState.eventHandler;
+		return handler;
+	}
+}
+
+escaped class WindowState
+{
+	WindowEventHandler eventHandler;
+}
+
+export int main()
+{
+	auto window = new Window();
+	window.windowState = new WindowState();
+	window.windowState.eventHandler = () => { };
+
+	if (window.EventHandler == default)
+		return 1;
+
+	return 0;
+}

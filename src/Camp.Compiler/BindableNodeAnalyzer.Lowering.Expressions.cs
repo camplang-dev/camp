@@ -165,8 +165,8 @@ public sealed partial class BindableNodeAnalyzer
 				return RewriteFinallyDeleteExpression(finallyDelete);
 
 			case BinaryExpression binary:
-				binary.Left = LowerExpression(binary.Left);
-				binary.Right = LowerExpression(binary.Right);
+				binary.Left = LowerScalarExpression(binary.Left);
+				binary.Right = LowerScalarExpression(binary.Right);
 				break;
 
 			case AssignmentExpression assignment:
@@ -199,6 +199,16 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return expression;
+	}
+
+	Expression? LowerScalarExpression(Expression? expression)
+	{
+		Expression? lowered = LowerExpression(expression);
+		if (lowered is not null
+			&& TryCreateParamsComponentExpressions(lowered, out List<Expression> components)
+			&& components.Count > 1)
+			return LowerExpression(components[0]);
+		return lowered;
 	}
 
 	bool TryRewriteMaterializedGenericIndexedMemberAccess(MemberExpression member, out Expression expression)
