@@ -291,6 +291,44 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Response_file_use_option_does_not_consume_source_patterns()
+	{
+		string root = TempPath("response-use-source-pattern");
+		string sourceRoot = Path.Combine(root, "packages");
+		string packageSource = Path.Combine(sourceRoot, "live-demo", "src");
+		string appRoot = Path.Combine(root, "app");
+		string appSource = Path.Combine(appRoot, "src");
+		Directory.CreateDirectory(packageSource);
+		Directory.CreateDirectory(appSource);
+		File.WriteAllText(Path.Combine(packageSource, "demo.camp"), """
+			export int liveValue()
+			{
+				return 42;
+			}
+			""");
+		File.WriteAllText(Path.Combine(appSource, "main.camp"), """
+			export int main()
+			{
+				return liveValue() - 42;
+			}
+			""");
+		string buildFile = Path.Combine(appRoot, "app.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			--name app
+			--use-source local ../packages
+			--use live-demo
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampc("build", "@" + buildFile);
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Include_files_contribute_build_pragmas_without_becoming_project_sources()
 	{
 		string api = CreateTempCase("include_pragmas_api.camp", """

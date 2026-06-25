@@ -124,23 +124,23 @@ static void AddBuildOptions(Command command, bool buildOnly)
 		Arity = ArgumentArity.ZeroOrMore,
 		AllowMultipleArgumentsPerToken = true
 	});
-	command.Options.Add(new Option<List<string>>("--use", "-u")
+	command.Options.Add(new Option<string>("--use", "-u")
 	{
 		Description = "Use an installed package, as pkg or pkg@version.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
+		Arity = ArgumentArity.ExactlyOne,
+		AllowMultipleArgumentsPerToken = false
 	});
-	command.Options.Add(new Option<List<string>>("--use-source")
+	command.Options.Add(new Option<string[]>("--use-source")
 	{
 		Description = "Define a package source name and optional local path.",
-		Arity = ArgumentArity.ZeroOrMore,
+		Arity = new ArgumentArity(2, 2),
 		AllowMultipleArgumentsPerToken = true
 	});
-	command.Options.Add(new Option<List<string>>("--project-reference")
+	command.Options.Add(new Option<string>("--project-reference")
 	{
 		Description = "Build and reference another Camp project response file.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
+		Arity = ArgumentArity.ExactlyOne,
+		AllowMultipleArgumentsPerToken = false
 	});
 	command.Options.Add(new Option<string?>("--metadata") { Description = "Emit metadata: none, export, public, or all." });
 	command.Options.Add(new Option<bool>("--xml") { Description = "Use XML output for declarations or lowering dumps." });
@@ -1063,11 +1063,10 @@ static class CommandLineOptionParser
 					break;
 				case "--use":
 				case "-u":
-					foreach (string package in RequiredValues(tokens, ref i, token, errors))
-						result.UsePackages.Add(PackageSpec.Parse(package));
+					result.UsePackages.Add(PackageSpec.Parse(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--project-reference":
-					result.ProjectReferences.AddRange(RequiredValues(tokens, ref i, token, errors).Select(PathArguments.Normalize));
+					result.ProjectReferences.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--use-source":
 					string name = RequiredValue(tokens, ref i, token, errors);
@@ -1304,7 +1303,7 @@ static class ResponseFileExpander
 			string token = tokens[i];
 			result.Add(token);
 
-			if (token is "--reference" or "-r" or "--framework" or "-f" or "--use")
+			if (token is "--reference" or "-r" or "--framework" or "-f")
 			{
 				while (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
 					result.Add(RebaseReferenceLikeValue(tokens[++i], baseDirectory));
