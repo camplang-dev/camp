@@ -177,6 +177,62 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Use_source_resolves_live_unversioned_package_sources()
+	{
+		string root = TempPath("live-use-source");
+		string sourceRoot = Path.Combine(root, "packages");
+		string packageSource = Path.Combine(sourceRoot, "live-demo", "src");
+		Directory.CreateDirectory(packageSource);
+		string packageFile = Path.Combine(packageSource, "demo.camp");
+		File.WriteAllText(packageFile, """
+			export int liveValue()
+			{
+				return 1;
+			}
+			""");
+		string app = CreateTempCase("live_use_source_app.camp", $$"""
+			#build --nostdlib
+			#build --artifact none
+			#build --use-source local "{{sourceRoot}}"
+			#build --use live-demo
+
+			export int main()
+			{
+				return liveValue() - 1;
+			}
+			""");
+
+		ProcessResult first = RunCampc("build", app, "--build-dir", TempPath("live-use-source-build-1"));
+
+		Assert.Equal(0, first.ExitCode);
+		Assert.Contains("generated: live_use_source_app.c", first.StdOut, StringComparison.Ordinal);
+
+		File.WriteAllText(packageFile, """
+			export int liveChanged()
+			{
+				return 2;
+			}
+			""");
+		File.SetLastWriteTimeUtc(packageFile, DateTime.UtcNow.AddSeconds(5));
+		File.WriteAllText(app, $$"""
+			#build --nostdlib
+			#build --artifact none
+			#build --use-source local "{{sourceRoot}}"
+			#build --use live-demo
+
+			export int main()
+			{
+				return liveChanged() - 2;
+			}
+			""");
+
+		ProcessResult second = RunCampc("build", app, "--build-dir", TempPath("live-use-source-build-2"));
+
+		Assert.Equal(0, second.ExitCode);
+		Assert.Contains("generated: live_use_source_app.c", second.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Include_files_contribute_build_pragmas_without_becoming_project_sources()
 	{
 		string api = CreateTempCase("include_pragmas_api.camp", """

@@ -407,6 +407,7 @@ sealed class CampCli
 		request.References.AddRange(bag.References);
 		request.Frameworks.AddRange(bag.Frameworks);
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
+		request.UseSourceRoots.AddRange(bag.UseSources.Where(static source => !string.IsNullOrWhiteSpace(source.Path)).Select(source => Path.GetFullPath(source.Path!, environment.WorkingDirectory)));
 		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, out List<string> projectApiHeaders, out List<string> projectLibraries, errors))
 			return false;
 		foreach (string projectApiHeader in projectApiHeaders)
@@ -1170,7 +1171,7 @@ static class BuildPragmaReader
 			char ch = text[i];
 			if (inQuote)
 			{
-				if (ch == '\\' && i + 1 < text.Length)
+				if (ch == '\\' && i + 1 < text.Length && text[i + 1] is '"' or '\\')
 					current.Append(text[++i]);
 				else if (ch == '"')
 					inQuote = false;

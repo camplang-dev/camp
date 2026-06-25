@@ -45,6 +45,7 @@ public sealed class CompilerRequest
 	public List<string> References { get; } = [];
 	public List<string> Frameworks { get; } = [];
 	public List<string> UsePackages { get; } = [];
+	public List<string> UseSourceRoots { get; } = [];
 	public string RuntimeRoot { get; set; } = AppContext.BaseDirectory;
 	public string? TargetRoot { get; set; }
 	public string? PackageSourceRoot { get; set; }
@@ -483,6 +484,8 @@ public static class CompilerDriver
 			sourceDirectory = null;
 			artifactRoot = null;
 			resolvedVersion = null;
+			if (TryFindLiveSourcePackage(packageName, requestedVersion, out sourceDirectory, out artifactRoot, out resolvedVersion))
+				return true;
 			foreach ((string installRoot, string outputRoot) in GetInstalledPackageRoots())
 			{
 				string packageDirectory = Path.Combine(installRoot, packageName);
@@ -502,6 +505,49 @@ public static class CompilerDriver
 					continue;
 				sourceDirectory = candidate;
 				artifactRoot = outputRoot;
+				resolvedVersion = version;
+				return true;
+			}
+			return false;
+		}
+
+		bool TryFindLiveSourcePackage(string packageName, string? requestedVersion, out string? sourceDirectory, out string? artifactRoot, out string? resolvedVersion)
+		{
+			sourceDirectory = null;
+			artifactRoot = null;
+			resolvedVersion = null;
+			foreach (string root in request.UseSourceRoots)
+			{
+				string sourceRoot = Path.GetFullPath(root, request.WorkingDirectory);
+				if (requestedVersion is null)
+				{
+					string unversioned = Path.Combine(sourceRoot, packageName, "src");
+					if (Directory.Exists(unversioned))
+					{
+						sourceDirectory = unversioned;
+						artifactRoot = Path.Combine(request.WorkingDirectory, "bin", "pkg-source");
+						resolvedVersion = "live";
+						return true;
+					}
+				}
+
+				string packageDirectory = Path.Combine(sourceRoot, packageName);
+				if (!Directory.Exists(packageDirectory))
+					continue;
+				string? version = requestedVersion;
+				if (version is null)
+					version = Directory.GetDirectories(packageDirectory)
+						.Select(Path.GetFileName)
+						.Where(static value => !string.IsNullOrWhiteSpace(value))
+						.OrderByDescending(static value => PackageVersion.Parse(value!), PackageVersion.Comparer)
+						.FirstOrDefault();
+				if (version is null)
+					continue;
+				string candidate = Path.Combine(packageDirectory, version, "src");
+				if (!Directory.Exists(candidate))
+					continue;
+				sourceDirectory = candidate;
+				artifactRoot = Path.Combine(request.WorkingDirectory, "bin", "pkg-source");
 				resolvedVersion = version;
 				return true;
 			}
@@ -590,6 +636,7 @@ public static class CompilerDriver
 				NoStdLib = true
 			};
 			packageRequest.Files.AddRange(sourceFiles);
+			packageRequest.UseSourceRoots.AddRange(request.UseSourceRoots);
 			if (!TryLoadCompilation(packageRequest.Files, [], context, out Compilation packageCompilation))
 				return false;
 
