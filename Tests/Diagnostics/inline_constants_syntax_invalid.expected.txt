@@ -1,0 +1,2 @@
+tests/Diagnostics/inline_constants_syntax_invalid.camp(1,7): error: 'const inline' is invalid; write 'inline const ...' instead.
+tests/Diagnostics/inline_constants_syntax_invalid.camp(5,2): error: Local inline constant declarations are not supported.

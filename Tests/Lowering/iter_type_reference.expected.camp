@@ -1,4 +1,4 @@
-enum RangeError
+enum RangeError : uint
 {
 	OK = 0,
 	BAD

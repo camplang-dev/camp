@@ -1,4 +1,4 @@
-enum Err
+enum Err : uint
 {
 	OK = 0,
 	BAD

@@ -1,0 +1,6 @@
+const inline uint BAD_ORDER = 1;
+
+void invalidLocal()
+{
+	inline uint LOCAL = 1;
+}

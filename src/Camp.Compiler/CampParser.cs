@@ -9,7 +9,7 @@ public sealed class CampParser
 {
 	static readonly string[] TypeDeclarationKeywords = ["struct", "class", "interface", "params", "enum", "newtype"];
 	static readonly string[] TypeDeclarationDeclarators = ["export", "public", "extern", "virtual", "sealed", "abstract", "fixed", "escaped"];
-	static readonly string[] MemberDeclarators = ["export", "public", "extern", "static", "virtual", "override", "sealed", "abstract", "async", "fixed"];
+	static readonly string[] MemberDeclarators = ["export", "public", "extern", "static", "virtual", "override", "sealed", "abstract", "async", "fixed", "inline"];
 	static readonly string[] ParameterDeclaratorKeywords = ["overload", "in", "out", "thrown"];
 	static readonly string[] TypeDeclaratorKeywords = ["const", "volatile", "escaped", "scoped", "unscoped"];
 	static readonly string[] StatementKeywords = ["if", "do", "while", "for", "else", "yield", "return", "continue", "break", "switch", "within", "try", "catch", "finally", "foreach", "delete", "goto", "throw"];
@@ -317,11 +317,16 @@ public sealed class CampParser
 
 	EnumValueSyntax? ParseEnumValue()
 	{
+		List<AttributeSyntax>? attributes = ParseAttributes();
 		Token? identifier = TakeIdentifier();
 		if (identifier is null)
+		{
+			if (attributes is not null)
+				Report(Current, "Enum value attribute is missing a value name.");
 			return null;
+		}
 
-		EnumValueSyntax syntax = new() { Identifier = identifier };
+		EnumValueSyntax syntax = new() { Attributes = attributes, Identifier = identifier };
 
 		if (TakeIf("=") is Token equals)
 		{
@@ -350,12 +355,26 @@ public sealed class CampParser
 		if (IsPossibleLeadingCallSpecIdentifier())
 			syntax.CallSpec = Take();
 
-		int typeStart = index;
-		TypeSyntax? type = ParseType(requireIdentifierAfterTerminalTargetSpec: true);
-		if (type is not null && LooksLikeMemberName())
-			syntax.Type = type;
+		if (Is("const") && PeekValue(1) == "inline")
+		{
+			Token constKeyword = Take()!.Value;
+			Report(Current, "'const inline' is invalid; write 'inline const ...' instead.");
+			Token? inlineKeyword = Take();
+			syntax.Declarators ??= [];
+			syntax.Declarators.Add(new MemberDeclaratorSyntax { Keyword = inlineKeyword });
+			TypeSyntax? innerType = ParseType(requireIdentifierAfterTerminalTargetSpec: true);
+			if (innerType is not null && LooksLikeMemberName())
+				syntax.Type = new DeclaratorTypeSyntax { Declarator = new TypeDeclaratorSyntax { Keyword = constKeyword }, Type = innerType };
+		}
 		else
-			index = typeStart;
+		{
+			int typeStart = index;
+			TypeSyntax? type = ParseType(requireIdentifierAfterTerminalTargetSpec: true);
+			if (type is not null && LooksLikeMemberName())
+				syntax.Type = type;
+			else
+				index = typeStart;
+		}
 
 		syntax.TildeToken = TakeIf("~");
 		syntax.Identifier = ExpectIdentifier();
@@ -1106,6 +1125,11 @@ public sealed class CampParser
 
 	DeclarationTargetSyntax? ParseDeclarationTarget()
 	{
+		if (Is("inline"))
+		{
+			Report(Current, "Local inline constant declarations are not supported.");
+			Take();
+		}
 		Token? fixedKeyword = TakeIf("fixed");
 		if (Is("auto"))
 		{

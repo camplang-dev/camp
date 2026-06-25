@@ -1,0 +1,44 @@
+extern inline uint EXTERN_INLINE = 1;
+inline uint MISSING_INITIALIZER;
+
+const uint STORAGE = 1;
+inline uint STORAGE_REF = STORAGE;
+
+inline uint A = B;
+inline uint B = A;
+
+struct Point
+{
+	int x;
+	int y;
+}
+
+inline Point BAD_AGGREGATE = default;
+inline int[] BAD_ARRAY = default;
+inline byte[4]* BAD_FIXED_POINTER = null;
+inline char* BAD_MUTABLE_STRING = "bad";
+
+enum BadUnderlying: float
+{
+	A
+}
+
+enum TooSmall: byte
+{
+	A = 255,
+	B
+}
+
+enum NegativeUnsigned: uint
+{
+	BAD = -1
+}
+
+enum SymbolCollide: byte
+{
+	@symbol("DUPLICATE") A,
+	@symbol("DUPLICATE") B
+}
+
+@symbol("CONFIG_H_")
+inline uint BAD_HEADER_SYMBOL = 1;

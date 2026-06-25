@@ -213,6 +213,7 @@
       "kind": "enum",
       "name": "Mode",
       "visibility": "export",
+      "underlyingType": "uint",
       "values": [
         {
           "id": "enum:Docs::Mode/value:First",

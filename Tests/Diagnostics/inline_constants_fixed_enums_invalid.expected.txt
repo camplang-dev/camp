@@ -1,0 +1,15 @@
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(1,20): error: Inline constants cannot be extern.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(2,13): error: Inline constants require an initializer.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(19,35): error: String literal cannot implicitly convert to mutable type 'char*'.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(4,12): error: Inline constant initializer cannot reference storage variable 'STORAGE'.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(7,17): error: Inline constant initializer has a dependency cycle.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(8,17): error: Inline constant initializer has a dependency cycle.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(16,14): error: Inline constant type 'Point' is not supported. Inline constants may only use scalar, enum, scalar/pointer newtype, pointer-null, fn-null, or string-like types.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(17,14): error: Inline constant type 'int[]' is not supported. Inline constants may only use scalar, enum, scalar/pointer newtype, pointer-null, fn-null, or string-like types.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(18,17): error: Inline constant type 'byte[4]*' is not supported. Inline constants may only use scalar, enum, scalar/pointer newtype, pointer-null, fn-null, or string-like types.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(19,35): error: String literals may initialize only string, wstring, astring, or const character pointer inline constants.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(21,21): error: Enum underlying type must be one of: sbyte, byte, short, ushort, int, uint, long, ulong, nint, or nuint.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(29,2): error: Enum value 'B' is outside the range of underlying type 'byte'.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(34,8): error: Enum value 'BAD' cannot be negative because enum 'NegativeUnsigned' uses unsigned underlying type 'uint'.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(40,23): error: Duplicate generated symbol name 'DUPLICATE'.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(44,13): error: Inline constant symbol 'CONFIG_H_' must not end with '_H_'.

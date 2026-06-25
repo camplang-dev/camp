@@ -414,6 +414,8 @@ public sealed partial class BindableNodeBuilder
 			Type = new NamedTypeReference { SourceSyntax = syntax, Name = enumName }
 		};
 
+		ApplyDefinitionAttributes(definition, syntax.Attributes);
+
 		if (syntax.Expression is not null)
 			definition.InitialValue = BuildExpression(syntax.Expression, "Enum value initializer");
 
@@ -1132,6 +1134,10 @@ public sealed partial class BindableNodeBuilder
 					definition.IsFixedStorage = true;
 					break;
 
+				case "inline":
+					definition.IsInline = true;
+					break;
+
 				case "static":
 					if (isGlobal)
 						Report(declarator, "'static' is not valid on a global variable.");
@@ -1164,6 +1170,10 @@ public sealed partial class BindableNodeBuilder
 
 				case "fixed":
 					definition.IsFixedStorage = true;
+					break;
+
+				case "inline":
+					definition.IsInline = true;
 					break;
 
 				case "export":
@@ -1274,6 +1284,10 @@ public sealed partial class BindableNodeBuilder
 						SetFunctionModifier(definition, FunctionModifier.Abstract, declarator, "abstract");
 					else
 						Report(declarator, "'abstract' is not valid on this method declaration.");
+					break;
+
+				case "inline":
+					Report(declarator, "'inline' is not valid on a method declaration.");
 					break;
 
 				case "async":

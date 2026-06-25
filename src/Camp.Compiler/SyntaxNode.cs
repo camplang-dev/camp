@@ -809,6 +809,7 @@ public class ArgumentListSyntax : SyntaxNode
 
 public class EnumValueSyntax : SyntaxNode
 {
+	public List<AttributeSyntax>? Attributes { get; set; }
 	public Token? Identifier { get; set; }
 	public Token? EqualsToken { get; set; }
 	public ExpressionSyntax? Expression { get; set; }

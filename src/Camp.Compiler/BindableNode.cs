@@ -90,6 +90,15 @@ public class EnumDefinition : TypeDefinition
 	public List<FunctionDefinition> Functions { get; } = [];
 }
 
+public abstract record ConstantValue
+{
+	public sealed record Integer(System.Numerics.BigInteger Value) : ConstantValue;
+	public sealed record Boolean(bool Value) : ConstantValue;
+	public sealed record String(string Value) : ConstantValue;
+	public sealed record Character(string Value) : ConstantValue;
+	public sealed record Null : ConstantValue;
+}
+
 public class NewtypeDefinition : TypeDefinition
 {
 	public IteratorKind IteratorKind { get; set; }
@@ -116,9 +125,11 @@ public class GenericParameter : BindableNode
 
 public class VariableDefinition : Definition
 {
+	public bool IsInline { get; set; }
 	public bool IsFixedStorage { get; set; }
 	public TypeReference? Type { get; set; }
 	public Expression? InitialValue { get; set; }
+	public ConstantValue? ConstantValue { get; set; }
 }
 
 public class FunctionDefinition : Definition
@@ -184,10 +195,12 @@ public class NameOfParameterDefinition : ParameterDefinition
 public class FieldDefinition : Definition
 {
 	public FieldModifier Modifier { get; set; }
+	public bool IsInline { get; set; }
 	public bool IsFixedStorage { get; set; }
 	public string? LifetimeBinding { get; set; }
 	public TypeReference? Type { get; set; }
 	public Expression? InitialValue { get; set; }
+	public ConstantValue? ConstantValue { get; set; }
 }
 
 public class AttributeConstructor : BindableNode

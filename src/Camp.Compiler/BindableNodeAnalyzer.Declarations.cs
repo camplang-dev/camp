@@ -33,6 +33,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		ValidateTopLevelOverloadFamilies(module);
 		AnalyzeGlobalInitializers(module);
+		AnalyzeInlineConstantsAndEnumValues(module);
 		ValidateDuplicateTopLevelSymbols(module);
 		AnalyzeInheritance();
 		AnalyzeInterfaceSlotInitializers(module);
@@ -282,7 +283,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeClassDefinition(ClassDefinition definition, AnalysisScope parentScope)
 	{
-		ApplySymbolAttribute(definition, allowed: false, "type");
+		ApplySymbolAttribute(definition, allowed: true, "enum");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
@@ -348,7 +349,11 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateNoDirectFixedArrayType(definition.UnderlyingType, definition.UnderlyingType?.SourceSyntax ?? definition.SourceSyntax, "a newtype underlying type");
 
 		foreach (VariableDefinition value in definition.Values)
-			AnalyzeVariableDefinition(value, scope, allowSymbolAttribute: false);
+		{
+			AnalyzeVariableDefinition(value, scope, allowSymbolAttribute: true);
+			if (!value.SymbolOverridden)
+				value.Symbol = definition.Symbol + "_" + value.Name;
+		}
 
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, scope, definition.Name);
@@ -705,6 +710,10 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeAttributes(definition.Attributes);
 		ApplySymbolAttribute(definition, allowSymbolAttribute, allowSymbolAttribute ? "variable" : "enum value");
 		CheckName(definition.Name, GetNameRange(definition), "variable");
+		if (definition.IsInline && definition.Extern is not null)
+			Report(GetNameRange(definition), "Inline constants cannot be extern.");
+		if (definition.IsInline && definition.InitialValue is null)
+			Report(GetNameRange(definition), "Inline constants require an initializer.");
 		AnalyzeOptionalType(definition.Type, scope);
 		if (ContainsClassTypeReference(definition.Type))
 			Report(GetRange(definition.Type?.SourceSyntax ?? definition.SourceSyntax), "'classtype' may not be used in global variable types.");
@@ -747,6 +756,8 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeFieldDefinition(FieldDefinition definition, AnalysisScope scope, TypeDefinition? containingType)
 	{
 		AnalyzeAttributes(definition.Attributes);
+		if (definition.IsInline)
+			definition.Modifier = FieldModifier.Static;
 		if (definition.Modifier == FieldModifier.Static && containingType is not null)
 		{
 			ApplySymbolAttribute(definition, allowed: true, "static field");
@@ -761,6 +772,10 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(definition), "Exported or public fields must be explicitly marked static.");
 		if (definition.Extern is not null && definition.Modifier != FieldModifier.Static)
 			Report(GetNameRange(definition), "Extern fields must be explicitly marked static.");
+		if (definition.IsInline && definition.Extern is not null)
+			Report(GetNameRange(definition), "Inline constants cannot be extern.");
+		if (definition.IsInline && definition.InitialValue is null)
+			Report(GetNameRange(definition), "Inline constants require an initializer.");
 		CheckName(definition.Name, GetNameRange(definition), "field");
 		AnalyzeOptionalType(definition.Type, scope);
 		if (ContainsClassTypeReference(definition.Type))

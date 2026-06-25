@@ -2133,12 +2133,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsConstantVariable(VariableDefinition variable)
 	{
-		return IsConstType(variable.Type) || IsConstQualified(variable.Type?.ResolvedType);
+		return variable.IsInline || IsConstType(variable.Type) || IsConstQualified(variable.Type?.ResolvedType);
 	}
 
 	static bool IsConstantField(FieldDefinition field)
 	{
-		return IsConstType(field.Type) || IsConstQualified(field.Type?.ResolvedType);
+		return field.IsInline || IsConstType(field.Type) || IsConstQualified(field.Type?.ResolvedType);
 	}
 
 	static bool IsConstType(TypeReference? type)

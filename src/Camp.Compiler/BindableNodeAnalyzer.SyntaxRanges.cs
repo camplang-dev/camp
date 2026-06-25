@@ -93,6 +93,7 @@ public sealed partial class BindableNodeAnalyzer
 			TypeDeclarationDeclaratorSyntax declarator => declarator.Keyword?.Range,
 			GenericParameterSyntax parameter => parameter.Identifier?.Range,
 			TypeDeclarationScopeSyntax scope => scope.OpenBraceToken?.Range,
+			EnumValueSyntax enumValue => enumValue.Identifier?.Range,
 			DeclarationSyntax declaration => GetRange(declaration.TypeDeclaration) ?? GetRange(declaration.MemberDeclaration),
 			MemberDeclarationSyntax declaration => declaration.Identifier?.Range ?? declaration.TildeToken?.Range,
 			MemberDeclaratorSyntax declarator => declarator.Keyword?.Range,

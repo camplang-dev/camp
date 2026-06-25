@@ -50,7 +50,7 @@ public sealed partial class BindableNodeAnalyzer
 		"char", "class", "const", "continue", "copyable", "default", "delegate", "delete", "do", "double",
 		"else", "enum", "escaped", "export", "extern", "false", "finally", "fixed", "float",
 		"fn", "for", "foreach", "if", "implements", "in", "init", "int", "interface", "iter",
-		"long", "new", "newtype", "nint", "null", "nuint", "once", "out", "overload", "override", "params", "public",
+		"inline", "long", "new", "newtype", "nint", "null", "nuint", "once", "out", "overload", "override", "params", "public",
 		"return", "sbyte", "scoped", "sealed", "short", "sizeof", "static", "string", "struct", "switch",
 		"this", "thrown", "true", "try", "uchar", "uint", "ulong", "unscoped", "ushort", "untyped",
 		"using", "virtual", "void", "volatile", "vtableof", "wchar", "while", "within", "wstring", "yield"
