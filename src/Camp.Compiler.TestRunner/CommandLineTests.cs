@@ -320,6 +320,101 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Virtual_base_layout_is_lowered_before_out_of_order_derived_class()
+	{
+		string root = TempPath("virtual-out-of-order");
+		Directory.CreateDirectory(root);
+		string derived = Path.Combine(root, "derived.camp");
+		string baseFile = Path.Combine(root, "base.camp");
+		File.WriteAllText(derived, """
+			export sealed class Derived: Base
+			{
+				export override int value()
+				{
+					return 2;
+				}
+			}
+			""");
+		File.WriteAllText(baseFile, """
+			export virtual class Base
+			{
+				export virtual int value()
+				{
+					return 1;
+				}
+			}
+			""");
+		string buildDir = TempPath("virtual-out-of-order-build");
+
+		ProcessResult result = RunCampc("build", derived, baseFile, "--artifact", "none", "--build-dir", buildDir);
+
+		Assert.Equal(0, result.ExitCode);
+		string privateHeader = Directory.GetFiles(buildDir, "*_private.h").Single();
+		string header = File.ReadAllText(privateHeader);
+		Assert.Contains("_Base *_vt;", header, StringComparison.Ordinal);
+		Assert.DoesNotContain("_Derived *_vt;", header, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Project_reference_api_uses_inherited_virtual_surface_for_overrides()
+	{
+		string root = TempPath("project-reference-virtual-api");
+		string libraryRoot = Path.Combine(root, "widgets");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		Directory.CreateDirectory(librarySource);
+		File.WriteAllText(Path.Combine(librarySource, "alloc.camp"), """
+			export extern void* malloc(nuint size);
+			export extern void free(void* ptr);
+			""");
+		File.WriteAllText(Path.Combine(librarySource, "button.camp"), """
+			export sealed escaped class Button: Control
+			{
+				export override int value()
+				{
+					return 2;
+				}
+			}
+			""");
+		File.WriteAllText(Path.Combine(librarySource, "control.camp"), """
+			export virtual escaped class Control
+			{
+				export virtual int value()
+				{
+					return 1;
+				}
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "widgets.campbuild"), """
+			--nostdlib
+			--name widgets
+			src/*.camp
+			""");
+		string app = CreateTempCase("project_reference_virtual_api_app.camp", """
+			#build --nostdlib
+			#build --artifact none
+
+			export int readButton(Button* button)
+			{
+				Control* control = button;
+				return control.value() - 2;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			"clang-macos-x64",
+			"--project-reference",
+			libraryRoot,
+			"--build-dir",
+			TempPath("project-reference-virtual-api-build"));
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("generated: project_reference_virtual_api_app.c", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Use_source_resolves_live_unversioned_package_sources()
 	{
 		string root = TempPath("live-use-source");

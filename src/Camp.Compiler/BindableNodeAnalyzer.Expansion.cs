@@ -18,7 +18,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	void GenerateVirtualClassDeclarations(Module module, ClassDefinition classDefinition)
 	{
+		if (virtualClassLowerings.ContainsKey(classDefinition))
+			return;
+
 		ClassDefinition? baseClass = GetDirectBaseClass(classDefinition);
+		if (baseClass is not null && IsVirtualClassParticipant(baseClass) && !virtualClassLowerings.ContainsKey(baseClass))
+			GenerateVirtualClassDeclarations(module, baseClass);
+
 		VirtualClassLowering? baseLowering = baseClass is not null && virtualClassLowerings.TryGetValue(baseClass, out VirtualClassLowering? foundBase)
 			? foundBase
 			: null;

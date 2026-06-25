@@ -433,6 +433,8 @@ public sealed class BindableNodeCodeSerializer
 		{
 			if (apiHeader && function.Export is null)
 				continue;
+			if (apiHeader && IsGeneratedApiImplementationDetail(function))
+				continue;
 			if (wrote)
 				writer.WriteLine();
 			WriteFunctionDefinition(function);
@@ -440,10 +442,25 @@ public sealed class BindableNodeCodeSerializer
 		}
 	}
 
+	static bool IsGeneratedApiImplementationDetail(FunctionDefinition function)
+	{
+		return IsGeneratedConstructorLifecycleFunction(function) || IsGeneratedVirtualImplementationFunction(function);
+	}
+
+	static bool IsGeneratedConstructorLifecycleFunction(FunctionDefinition function)
+	{
+		return function.Name is "op_initnew" or "create";
+	}
+
+	static bool IsGeneratedVirtualImplementationFunction(FunctionDefinition function)
+	{
+		return function.Name.StartsWith("_", StringComparison.Ordinal) && function.Symbol.Contains("__", StringComparison.Ordinal);
+	}
+
 	static bool HasExportedFunction(List<FunctionDefinition> functions)
 	{
 		foreach (FunctionDefinition function in functions)
-			if (function.Export is not null)
+			if (function.Export is not null && !IsGeneratedApiImplementationDetail(function))
 				return true;
 		return false;
 	}
@@ -1078,7 +1095,7 @@ public sealed class BindableNodeCodeSerializer
 
 		return definition switch
 		{
-			FunctionDefinition function => IsLifecycleFunction(function) || function.Body is not null,
+			FunctionDefinition function => IsLifecycleFunction(function) || function.Body is not null || function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed,
 			VariableDefinition variable => !IsConstantVariableDefinition(variable),
 			_ => false
 		};
