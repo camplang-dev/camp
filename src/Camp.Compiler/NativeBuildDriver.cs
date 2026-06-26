@@ -43,6 +43,9 @@ public static class NativeBuildDriver
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		NativeBuildResult result = new();
+		if (!ValidateToolchain(options, result))
+			return result;
+
 		Directory.CreateDirectory(options.BuildDirectory);
 		Directory.CreateDirectory(options.OutputDirectory);
 
@@ -141,6 +144,45 @@ public static class NativeBuildDriver
 				result.Diagnostics.Add($"Target '{options.Target.Name}' does not define a [build] {name} template.");
 		}
 		return result.Success;
+	}
+
+	static bool ValidateToolchain(NativeBuildOptions options, NativeBuildResult result)
+	{
+		if (!OperatingSystem.IsWindows())
+			return true;
+		if (!options.Target.Toolchain.TryGetValue("msvc_arch", out string? expected) || string.IsNullOrWhiteSpace(expected))
+			return true;
+
+		expected = NormalizeMsvcArchitecture(expected) ?? expected.Trim();
+		string? actual = GetVisualStudioTargetArchitecture();
+		if (actual is null || string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+			return true;
+
+		result.Diagnostics.Add($"Target '{options.Target.Name}' requires MSVC target architecture '{expected}', but the current Visual Studio environment targets '{actual}'. Run vcvarsall.bat {expected} or use --target msvc-windows-{actual}.");
+		return false;
+	}
+
+	static string? GetVisualStudioTargetArchitecture()
+	{
+		string? value = Environment.GetEnvironmentVariable("VSCMD_ARG_TGT_ARCH");
+		if (!string.IsNullOrWhiteSpace(value))
+			return NormalizeMsvcArchitecture(value);
+		value = Environment.GetEnvironmentVariable("Platform");
+		return string.IsNullOrWhiteSpace(value) ? null : NormalizeMsvcArchitecture(value);
+	}
+
+	static string? NormalizeMsvcArchitecture(string value)
+	{
+		return value.Trim().ToLowerInvariant() switch
+		{
+			"amd64" => "x64",
+			"x64" => "x64",
+			"x86" => "x86",
+			"win32" => "x86",
+			string other when other.EndsWith("_x86", StringComparison.Ordinal) => "x86",
+			string other when other.EndsWith("_amd64", StringComparison.Ordinal) => "x64",
+			_ => null
+		};
 	}
 
 	static string BuildTemplateName(NativeBuildKind kind)

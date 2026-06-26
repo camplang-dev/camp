@@ -463,6 +463,38 @@ public sealed class CommandLineTests
 
 	[Fact]
 	[Trait("Category", "MsvcCompile")]
+	public void Msvc_target_architecture_must_match_visual_studio_environment()
+	{
+		if (!OperatingSystem.IsWindows())
+			Assert.Skip("MSVC environment validation only applies on Windows.");
+		string temp = CreateTempCase("msvc-architecture-mismatch/main.camp", """
+			export int value()
+			{
+				return 1;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			new Dictionary<string, string?> { ["VSCMD_ARG_TGT_ARCH"] = "x86" },
+			"build",
+			temp,
+			"--nostdlib",
+			"--artifact",
+			"static",
+			"--target",
+			"msvc-windows-x64",
+			"--build-dir",
+			TempPath("msvc-architecture-mismatch-build"),
+			"--out-dir",
+			TempPath("msvc-architecture-mismatch-out"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Target 'msvc-windows-x64' requires MSVC target architecture 'x64'", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("current Visual Studio environment targets 'x86'", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Category", "MsvcCompile")]
 	public void Project_reference_links_native_static_library_with_msvc()
 	{
 		if (!MsvcAvailable())
@@ -1099,6 +1131,11 @@ public sealed class CommandLineTests
 
 	static ProcessResult RunCampc(params string[] arguments)
 	{
+		return RunCampc(null, arguments);
+	}
+
+	static ProcessResult RunCampc(IReadOnlyDictionary<string, string?>? environmentVariables, params string[] arguments)
+	{
 		string repositoryRoot = FindRepositoryRoot();
 		string executable = Path.Combine(repositoryRoot, "bin", OperatingSystem.IsWindows() ? "campc.exe" : "campc");
 		ProcessStartInfo info = new()
@@ -1111,6 +1148,16 @@ public sealed class CommandLineTests
 		};
 		foreach (string argument in arguments)
 			info.ArgumentList.Add(argument);
+		if (environmentVariables is not null)
+		{
+			foreach ((string key, string? value) in environmentVariables)
+			{
+				if (value is null)
+					info.Environment.Remove(key);
+				else
+					info.Environment[key] = value;
+			}
+		}
 
 		using Process process = new() { StartInfo = info };
 		process.Start();
