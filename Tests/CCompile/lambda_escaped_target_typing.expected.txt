@@ -62,13 +62,13 @@ typedef struct use_lambdaContext0 use_lambdaContext0;
 typedef int (* Mapper)(void *context, int value);
 
 /* Layouts. */
-struct Worker
-{
-	char _camp_empty;
-};
 struct use_lambdaContext0
 {
 	int capture0_offset;
+};
+struct Worker
+{
+	char _camp_empty;
 };
 
 /* Function declarations. */

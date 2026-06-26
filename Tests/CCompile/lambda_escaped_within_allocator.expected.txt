@@ -65,13 +65,13 @@ typedef struct make_lambdaContext0 make_lambdaContext0;
 /* Newtypes. */
 
 /* Layouts. */
-struct Arena
-{
-	char _camp_empty;
-};
 struct make_lambdaContext0
 {
 	int capture0_value;
+};
+struct Arena
+{
+	char _camp_empty;
 };
 
 /* Function declarations. */

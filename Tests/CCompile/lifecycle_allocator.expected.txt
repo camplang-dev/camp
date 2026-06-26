@@ -124,13 +124,13 @@ typedef struct Holder Holder;
 /* Newtypes. */
 
 /* Layouts. */
-struct Allocator
-{
-	char _camp_empty;
-};
 struct Buffer
 {
 	int *item;
+};
+struct Allocator
+{
+	char _camp_empty;
 };
 struct Holder
 {

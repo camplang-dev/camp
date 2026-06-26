@@ -84,22 +84,6 @@ typedef struct _Counter _Counter;
 /* Newtypes. */
 
 /* Layouts. */
-struct Allocator
-{
-	_Allocator *_vt;
-};
-struct HeapAllocator
-{
-	_Allocator *_vt;
-};
-struct BaseCounter
-{
-	_BaseCounter *_vt;
-};
-struct Counter
-{
-	_BaseCounter *_vt;
-};
 struct _Allocator
 {
 	void *(* alloc)(Allocator *ctx, uintptr_t size);
@@ -116,6 +100,22 @@ struct _BaseCounter
 struct _Counter
 {
 	_BaseCounter BaseCounter;
+};
+struct Allocator
+{
+	_Allocator *_vt;
+};
+struct HeapAllocator
+{
+	_Allocator *_vt;
+};
+struct BaseCounter
+{
+	_BaseCounter *_vt;
+};
+struct Counter
+{
+	_BaseCounter *_vt;
 };
 
 /* Function declarations. */

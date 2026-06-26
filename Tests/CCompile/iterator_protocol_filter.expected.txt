@@ -289,13 +289,6 @@ typedef struct applyPredicateExplicitIter applyPredicateExplicitIter;
 /* Newtypes. */
 
 /* Layouts. */
-struct rangeIter
-{
-	int __state;
-	int first;
-	int last;
-	int i;
-};
 struct applyPredicateIter
 {
 	int __state;
@@ -313,6 +306,13 @@ struct applyPredicateExplicitIter
 	void *inner_context;
 	bool (* predicate)(int camp);
 	int value;
+};
+struct rangeIter
+{
+	int __state;
+	int first;
+	int last;
+	int i;
 };
 
 /* Function declarations. */

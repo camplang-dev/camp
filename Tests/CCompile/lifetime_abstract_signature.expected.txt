@@ -42,14 +42,14 @@ typedef struct _Allocator _Allocator;
 /* Newtypes. */
 
 /* Layouts. */
-struct Allocator
-{
-	_Allocator *_vt;
-};
 struct _Allocator
 {
 	void *(* alloc)(Allocator *ctx, uintptr_t size);
 	void (* free)(Allocator *ctx, void *ptr);
+};
+struct Allocator
+{
+	_Allocator *_vt;
 };
 
 /* Function declarations. */

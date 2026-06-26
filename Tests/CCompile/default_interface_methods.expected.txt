@@ -166,14 +166,6 @@ struct ICounter
 	int (* getValue)(ICounter **ctx, int value);
 	int (* required)(ICounter **ctx, int value);
 };
-struct BasicCounter
-{
-	const ICounter *_vt_ICounter;
-};
-struct CustomCounter
-{
-	const ICounter *_vt_ICounter;
-};
 struct StructCounter
 {
 	char _camp_empty;
@@ -182,6 +174,14 @@ struct ICounter_Indirect
 {
 	const ICounter *_vt;
 	void *ctx;
+};
+struct BasicCounter
+{
+	const ICounter *_vt_ICounter;
+};
+struct CustomCounter
+{
+	const ICounter *_vt_ICounter;
 };
 
 /* Function declarations. */

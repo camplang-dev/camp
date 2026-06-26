@@ -46,12 +46,12 @@ typedef struct Holder Holder;
 typedef int Id;
 
 /* Layouts. */
-struct Counter
-{
-};
 struct Holder
 {
 	int value;
+};
+struct Counter
+{
 };
 
 /* Function declarations. */

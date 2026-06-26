@@ -1,0 +1,73 @@
+// file: class_struct_field_layout_order.c
+#include "class_struct_field_layout_order_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void Holder_op_initnew(Holder *this, int number);
+static Holder *Holder_create(int number);
+static int main(void);
+
+static void Holder_op_initnew(Holder *this, int number)
+{
+	this->value.number = number;
+}
+
+static Holder *Holder_create(int number)
+{
+	Holder *_created0 = (Holder *)(malloc(sizeof(Holder)));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Holder){0};
+		Holder_op_initnew(_created0, number);
+	}
+	return _created0;
+}
+
+static int main(void)
+{
+	Holder *holder = (Holder *)(malloc(sizeof(Holder)));
+	if ((holder != NULL))
+	{
+		*holder = (Holder){0};
+		Holder_op_initnew(holder, 42);
+	}
+	int result = holder->value.number;
+	free((void *)(holder));
+	return (result - 42);
+}
+
+// file: class_struct_field_layout_order_private.h
+#ifndef CLASS_STRUCT_FIELD_LAYOUT_ORDER_PRIVATE_H_
+#define CLASS_STRUCT_FIELD_LAYOUT_ORDER_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Holder Holder;
+typedef struct Pair Pair;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Pair
+{
+	int number;
+};
+struct Holder
+{
+	Pair value;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: class_struct_field_layout_order.c

@@ -98,10 +98,6 @@ typedef struct ValueBox ValueBox;
 /* Newtypes. */
 
 /* Layouts. */
-struct RefType
-{
-	int value;
-};
 struct FixedValue
 {
 	int value;
@@ -110,6 +106,10 @@ struct InlineBuffer
 {
 	uint8_t data[4];
 	int marker;
+};
+struct RefType
+{
+	int value;
 };
 struct PointerBox
 {

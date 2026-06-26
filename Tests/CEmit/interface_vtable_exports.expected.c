@@ -100,10 +100,6 @@ struct IRef
 {
 	void (* retain)(IRef **ctx);
 };
-struct Widget
-{
-	const IRef *_vt_IRef;
-};
 struct Handle
 {
 	char _camp_empty;
@@ -112,6 +108,10 @@ struct IRef_Indirect
 {
 	const IRef *_vt;
 	void *ctx;
+};
+struct Widget
+{
+	const IRef *_vt_IRef;
 };
 
 /* Function declarations. */

@@ -594,11 +594,13 @@ public static class CCodeEmitter
 				});
 			}
 
-			WriteSection(writer, "Layouts", () =>
-			{
-				foreach (TypeDefinition type in definitions.OfType<TypeDefinition>())
-					WriteLayoutDefinition(writer, type);
-			});
+				WriteSection(writer, "Layouts", () =>
+				{
+					foreach (StructDefinition structDefinition in definitions.OfType<StructDefinition>())
+						WriteLayoutDefinition(writer, structDefinition);
+					foreach (TypeDefinition type in definitions.OfType<TypeDefinition>().Where(static type => type is not StructDefinition))
+						WriteLayoutDefinition(writer, type);
+				});
 
 			WriteSection(writer, "Function declarations", () =>
 			{

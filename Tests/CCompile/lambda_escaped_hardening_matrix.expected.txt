@@ -301,10 +301,6 @@ typedef uint32_t Err;
 /* Newtypes. */
 
 /* Layouts. */
-struct Box
-{
-	int value;
-};
 struct filterIter
 {
 	int __state;
@@ -335,6 +331,10 @@ struct main_lambdaContext3
 struct main_lambdaContext4
 {
 	Err capture0_e;
+};
+struct Box
+{
+	int value;
 };
 
 /* Function declarations. */

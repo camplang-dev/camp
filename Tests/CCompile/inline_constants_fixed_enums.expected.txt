@@ -73,12 +73,12 @@ typedef uint16_t Difficulty;
 #define NATIVE_BITS ((uintptr_t)32)
 
 /* Layouts. */
+struct Limits
+{
+};
 struct Widget
 {
 	char _camp_empty;
-};
-struct Limits
-{
 };
 
 /* Function declarations. */

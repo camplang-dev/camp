@@ -61,6 +61,10 @@ typedef struct _ExportedAbstract _ExportedAbstract;
 /* Newtypes. */
 
 /* Layouts. */
+struct _ExportedAbstract
+{
+	void (* use)(ExportedAbstract *ctx);
+};
 struct ExportedConcrete
 {
 	int value;
@@ -68,10 +72,6 @@ struct ExportedConcrete
 struct ExportedAbstract
 {
 	_ExportedAbstract *_vt;
-};
-struct _ExportedAbstract
-{
-	void (* use)(ExportedAbstract *ctx);
 };
 
 /* Function declarations. */

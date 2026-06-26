@@ -1,0 +1,25 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Holder
+{
+	Pair value;
+
+	Holder(int number)
+	{
+		this.value.number = number;
+	}
+}
+
+struct Pair
+{
+	int number;
+}
+
+int main()
+{
+	auto holder = new Holder(42);
+	int result = holder.value.number;
+	delete holder;
+	return result - 42;
+}

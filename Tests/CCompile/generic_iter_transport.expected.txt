@@ -170,17 +170,17 @@ typedef struct rangeIter rangeIter;
 /* Newtypes. */
 
 /* Layouts. */
-struct Collector
-{
-	uintptr_t count;
-	uintptr_t _sizeof_T;
-};
 struct rangeIter
 {
 	int __state;
 	int first;
 	int last;
 	int i;
+};
+struct Collector
+{
+	uintptr_t count;
+	uintptr_t _sizeof_T;
 };
 
 /* Function declarations. */
