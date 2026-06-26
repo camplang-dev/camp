@@ -15,6 +15,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<InterfaceDefinition, StructDefinition> loweredInterfaceStructs = [];
 	readonly Dictionary<InterfaceDefinition, StructDefinition> interfaceIndirectStructs = [];
 	readonly List<Definition> generatedInterfaceDefinitions = [];
+	readonly HashSet<ClassDefinition> generatedClassInterfaceDeclarations = [];
 	readonly List<StructDefinition> generatedLambdaContextDefinitions = [];
 	readonly List<FunctionDefinition> generatedLambdaDefinitions = [];
 	const string InitNewMethodName = "op_initnew";

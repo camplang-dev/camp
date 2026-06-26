@@ -1,0 +1,39 @@
+using Std;
+
+interface IPet
+{
+	void feed(int amount);
+}
+
+class Pet: IPet
+{
+	void feed(int amount)
+	{
+		Console.writeLine(amount);
+	}
+}
+
+class Dog: Pet
+{
+}
+
+void feedNonGeneric(IPet* pet, int amount)
+{
+	pet.feed(amount);
+}
+
+this feedGeneric<T: implements IPet>(T* this, int amount, vtableof(T: IPet))
+{
+	this.feed(amount);
+	return this;
+}
+
+export void main()
+{
+	auto dog = new Dog().feedGeneric(1);
+	dog.feed(2);
+	feedNonGeneric(dog, 3);
+	dog.feedGeneric(4);
+	IPet* pet = dog;
+	pet.feed(5);
+}

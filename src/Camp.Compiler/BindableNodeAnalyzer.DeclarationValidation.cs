@@ -119,21 +119,21 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<TypeDefinition> GetDirectBaseClasses(TypeDefinition definition)
 	{
-		if (!typeInfos.TryGetValue(definition, out TypeAnalysisInfo? info))
-			yield break;
-
-		bool foundRegisteredBase = false;
-		foreach (TypeDefinition baseType in info.BaseTypes)
+		if (typeInfos.TryGetValue(definition, out TypeAnalysisInfo? info))
 		{
-			if (baseType is ClassDefinition)
+			bool foundRegisteredBase = false;
+			foreach (TypeDefinition baseType in info.BaseTypes)
 			{
-				foundRegisteredBase = true;
-				yield return baseType;
+				if (baseType is ClassDefinition)
+				{
+					foundRegisteredBase = true;
+					yield return baseType;
+				}
 			}
-		}
 
-		if (foundRegisteredBase)
-			yield break;
+			if (foundRegisteredBase)
+				yield break;
+		}
 
 		IEnumerable<TypeReference> baseTypes = definition switch
 		{
@@ -521,6 +521,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<InterfaceDefinition> GetImplementedInterfaces(TypeDefinition definition)
 	{
+		return GetImplementedInterfaces(definition, []);
+	}
+
+	IEnumerable<InterfaceDefinition> GetImplementedInterfaces(TypeDefinition definition, HashSet<TypeDefinition> seenTypes)
+	{
+		if (!seenTypes.Add(definition))
+			yield break;
+
 		if (!typeInfos.TryGetValue(definition, out TypeAnalysisInfo? info))
 			yield break;
 
@@ -532,6 +540,12 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (InterfaceDefinition inherited in GetBaseInterfaces(interfaceDefinition))
 					yield return inherited;
 			}
+		}
+
+		foreach (TypeDefinition baseClass in GetDirectBaseClasses(definition))
+		{
+			foreach (InterfaceDefinition inherited in GetImplementedInterfaces(baseClass, seenTypes))
+				yield return inherited;
 		}
 	}
 

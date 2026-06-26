@@ -339,6 +339,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	void GenerateClassInterfaceDeclarations(Module module, ClassDefinition classDefinition, Dictionary<string, InterfaceDefinition> interfaces)
 	{
+		if (!generatedClassInterfaceDeclarations.Add(classDefinition))
+			return;
+
+		ClassDefinition? baseClass = GetDirectBaseClass(classDefinition);
+		if (baseClass is not null)
+			GenerateClassInterfaceDeclarations(module, baseClass, interfaces);
+
 		List<InterfaceImplementationLowering> implementations = [];
 		int interfaceIndex = classDefinition.Fields.Count > 0 && classDefinition.Fields[0].Name == VirtualTableFieldName ? 1 : 0;
 		foreach (TypeReference baseType in classDefinition.BaseTypes)
@@ -394,6 +401,31 @@ public sealed partial class BindableNodeAnalyzer
 			EnsureInterfaceInitNewMethod(classDefinition);
 			classInterfaceLowerings[classDefinition] = implementations;
 		}
+
+		EnsureInheritedInitNewMethod(classDefinition, baseClass);
+	}
+
+	void EnsureInheritedInitNewMethod(ClassDefinition classDefinition, ClassDefinition? baseClass)
+	{
+		if (baseClass is null || FindGeneratedInitNewMethod(baseClass) is not FunctionDefinition baseInitNew)
+			return;
+
+		EnsureInterfaceInitNewMethod(classDefinition);
+		FunctionDefinition? initNew = FindGeneratedInitNewMethod(classDefinition);
+		if (initNew?.Body is null || initNew.Body.Statements.Count > 0)
+			return;
+
+		CallExpression call = new()
+		{
+			Target = CreateBaseInitNewReference(baseInitNew, baseInitNew, classDefinition, baseClass),
+			ResolvedType = "void"
+		};
+		callTargets[call] = baseInitNew;
+		initNew.Body.Statements.Add(new ExpressionStatement
+		{
+			Expression = call,
+			ResolvedType = "void"
+		});
 	}
 
 	void GenerateStructInterfaceDeclarations(Module module, StructDefinition structDefinition, Dictionary<string, InterfaceDefinition> interfaces)

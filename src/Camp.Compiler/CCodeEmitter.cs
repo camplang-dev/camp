@@ -3937,7 +3937,7 @@ public static class CCodeEmitter
 				&& member.Target is not null
 				&& containingTypes.TryGetValue(interfaceFunction, out TypeDefinition? interfaceOwner)
 				&& interfaceOwner is InterfaceDefinition)
-				return "(*" + FormatExpression(member.Target) + ")->" + SanitizeIdentifier(BindableNodeAnalyzer.GetCallableName(interfaceFunction));
+				return FormatInterfaceFunctionMemberReference(member.Target, interfaceFunction);
 			if (member.Member is VariableDefinition variable)
 				return CName(variable);
 			if (member.Member is FieldDefinition field)
@@ -3960,23 +3960,62 @@ public static class CCodeEmitter
 			return target + separator + SanitizeIdentifier(member.Name);
 		}
 
+		string FormatInterfaceFunctionMemberReference(Expression target, FunctionDefinition function)
+		{
+			string name = SanitizeIdentifier(BindableNodeAnalyzer.GetCallableName(function));
+			if (target is UnaryExpression { Operator: UnaryOperator.PointerDereference, Operand: Expression operand }
+				&& operand.ResolvedType is string operandType
+				&& !operandType.TrimEnd().EndsWith("**", StringComparison.Ordinal))
+				return FormatExpression(operand) + "->" + name;
+			return "(*" + FormatExpression(target) + ")->" + name;
+		}
+
 		string? FormatInterfaceSlotMember(Expression? target, string name)
 		{
 			if (target is null)
 				return null;
+			if (target is UnaryExpression { Operator: UnaryOperator.PointerDereference, Operand: Expression operand }
+				&& TryGetPointerElementType(operand.ResolvedType, out string operandElementType)
+				&& TryFindInterfaceStruct(InterfaceStructNameFromPointerElement(operandElementType), name, out _))
+			{
+				string formattedOperand = FormatExpression(operand);
+				return operand.ResolvedType?.TrimEnd().EndsWith("**", StringComparison.Ordinal) == true
+					? "(*" + formattedOperand + ")->" + SanitizeIdentifier(name)
+					: formattedOperand + "->" + SanitizeIdentifier(name);
+			}
+
 			string targetType = target.ResolvedType ?? "";
 			if (string.IsNullOrWhiteSpace(targetType) || !targetType.EndsWith("**", StringComparison.Ordinal))
 				return null;
 
 			string interfaceName = targetType[..^2].Trim();
+			return TryFindInterfaceStruct(interfaceName, name, out _)
+				? "(*" + FormatExpression(target) + ")->" + SanitizeIdentifier(name)
+				: null;
+		}
+
+		static string InterfaceStructNameFromPointerElement(string type)
+		{
+			type = StripTopLevelConstForC(type);
+			return TryGetPointerElementType(type, out string elementType)
+				? StripTopLevelConstForC(elementType)
+				: type;
+		}
+
+		bool TryFindInterfaceStruct(string interfaceName, string fieldName, out StructDefinition? interfaceStruct)
+		{
+			interfaceStruct = null;
 			foreach (Definition definition in GetDefinitions())
 			{
-				if (definition is StructDefinition interfaceStruct
-					&& interfaceStruct.Name == interfaceName
-					&& HasField(interfaceStruct, name))
-					return "(*" + FormatExpression(target) + ")->" + SanitizeIdentifier(name);
+				if (definition is StructDefinition candidate
+					&& candidate.Name == interfaceName
+					&& HasField(candidate, fieldName))
+				{
+					interfaceStruct = candidate;
+					return true;
+				}
 			}
-			return null;
+			return false;
 		}
 
 		static bool IsPointerMemberTarget(Expression? target)

@@ -125,7 +125,7 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = member.Target.SourceSyntax,
 				Operator = UnaryOperator.PointerDereference,
 				Operand = member.Target,
-				ResolvedType = $"{interfaceDefinition.Name}*"
+				ResolvedType = TryGetPointerElementType(member.Target.ResolvedType ?? "") ?? $"{interfaceDefinition.Name}*"
 			},
 			Name = GetCallableName(function),
 			Member = function,
@@ -684,17 +684,30 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryFindInterfaceLowering(ClassDefinition classDefinition, InterfaceDefinition targetInterface, out InterfaceImplementationLowering? lowering)
 	{
-		lowering = null;
-		if (!classInterfaceLowerings.TryGetValue(classDefinition, out List<InterfaceImplementationLowering>? lowerings))
-			return false;
+		return TryFindInterfaceLowering(classDefinition, targetInterface, [], out lowering);
+	}
 
-		foreach (InterfaceImplementationLowering candidate in lowerings)
+	bool TryFindInterfaceLowering(ClassDefinition classDefinition, InterfaceDefinition targetInterface, HashSet<ClassDefinition> seen, out InterfaceImplementationLowering? lowering)
+	{
+		lowering = null;
+		if (!seen.Add(classDefinition))
+			return false;
+		if (classInterfaceLowerings.TryGetValue(classDefinition, out List<InterfaceImplementationLowering>? lowerings))
 		{
-			if (ReferenceEquals(candidate.Interface, targetInterface) || InterfaceContainsBase(candidate.Interface, targetInterface))
+			foreach (InterfaceImplementationLowering candidate in lowerings)
 			{
-				lowering = candidate;
-				return true;
+				if (ReferenceEquals(candidate.Interface, targetInterface) || InterfaceContainsBase(candidate.Interface, targetInterface))
+				{
+					lowering = candidate;
+					return true;
+				}
 			}
+		}
+
+		foreach (TypeDefinition baseType in GetDirectBaseClasses(classDefinition))
+		{
+			if (baseType is ClassDefinition baseClass && TryFindInterfaceLowering(baseClass, targetInterface, seen, out lowering))
+				return true;
 		}
 		return false;
 	}

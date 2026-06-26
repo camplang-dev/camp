@@ -2614,6 +2614,16 @@ public sealed partial class BindableNodeAnalyzer
 		if (baseClass is null || hasBaseCall)
 			return;
 
+		if (IsGeneratedBaseInitCall(firstAction, baseClass))
+			return;
+
+		FunctionDefinition? baseInitNew = FindGeneratedInitNewMethod(baseClass);
+		if (baseInitNew is not null)
+		{
+			InsertImplicitBaseConstructorCall(function.Body, containingClass, baseClass, baseInitNew);
+			return;
+		}
+
 		if (TryGetAccessibleParameterlessConstructor(baseClass, out FunctionDefinition? parameterlessConstructor))
 		{
 			if (parameterlessConstructor is not null)
@@ -2622,6 +2632,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		Report(GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Constructor for class '{containingClass.Name}' must invoke a base constructor because base class '{baseClass.Name}' has no accessible parameterless constructor.");
+	}
+
+	bool IsGeneratedBaseInitCall(Expression? expression, ClassDefinition baseClass)
+	{
+		return expression is CallExpression { Target: MemberReferenceExpression { Member: FunctionDefinition member } }
+			&& member.Name == InitNewMethodName
+			&& ReferenceEquals(FindContainingType(member), baseClass);
 	}
 
 	void InsertImplicitBaseConstructorCall(BlockStatement body, ClassDefinition containingClass, ClassDefinition baseClass, FunctionDefinition constructor)
