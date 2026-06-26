@@ -463,6 +463,7 @@ sealed class CampCli
 			}
 
 			CompilerResult result = CompilerDriver.Execute(projectRequest!);
+			WriteProjectReferenceOutput(projectReference, result.StdOut);
 			string? apiHeader = result.GeneratedFiles.FirstOrDefault(static path => path.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
 			string? library = result.GeneratedFiles.FirstOrDefault(path => IsStaticLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot));
 			if (result.ExitCode != 0)
@@ -492,6 +493,17 @@ sealed class CampCli
 				libraries.Add(library);
 		}
 		return errors.Count == 0;
+	}
+
+	static void WriteProjectReferenceOutput(string projectReference, string output)
+	{
+		if (string.IsNullOrWhiteSpace(output))
+			return;
+		foreach (string line in output.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n'))
+		{
+			if (!string.IsNullOrWhiteSpace(line))
+				Console.Out.WriteLine($"{projectReference}: {line}");
+		}
 	}
 
 	static bool TryResolveProjectReference(string value, string workingDirectory, out string? buildFile, out string? error)

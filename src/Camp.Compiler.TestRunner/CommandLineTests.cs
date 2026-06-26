@@ -410,6 +410,88 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	[Trait("Category", "MsvcCompile")]
+	public void Project_reference_rebuilds_native_static_library_when_source_changes()
+	{
+		if (!MsvcAvailable())
+			Assert.Skip("MSVC tools are not available on PATH.");
+		string root = TempPath("project-reference-msvc-rebuild");
+		string libraryRoot = Path.Combine(root, "sample-lib");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "sample-app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		string libraryFile = Path.Combine(librarySource, "library.camp");
+		File.WriteAllText(libraryFile, """
+			export int getValue()
+			{
+				return 1;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
+			--nostdlib
+			--name sample-lib
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "sample-app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name sample-app
+
+			export int main()
+			{
+				return getValue();
+			}
+			""");
+		string libraryPath = Path.Combine(libraryRoot, "bin", "msvc-windows-x64", "default", "DEBUG", "sample-lib.lib");
+		string executablePath = Path.Combine(appRoot, "bin", "sample-app.exe");
+
+		ProcessResult firstBuild = RunCampc(
+			"build",
+			app,
+			"--target",
+			"msvc-windows-x64",
+			"--project-reference",
+			libraryRoot,
+			"--build-dir",
+			Path.Combine(appRoot, "obj"),
+			"--out-dir",
+			Path.Combine(appRoot, "bin"));
+
+		Assert.Equal(0, firstBuild.ExitCode);
+		Assert.Contains($"{libraryRoot}: generated: sample-lib.lib", firstBuild.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(libraryPath));
+		DateTime firstLibraryWrite = File.GetLastWriteTimeUtc(libraryPath);
+		ProcessResult firstRun = RunExecutable(executablePath);
+		Assert.Equal(1, firstRun.ExitCode);
+
+		File.WriteAllText(libraryFile, """
+			export int getValue()
+			{
+				return 2;
+			}
+			""");
+
+		ProcessResult secondBuild = RunCampc(
+			"build",
+			app,
+			"--target",
+			"msvc-windows-x64",
+			"--project-reference",
+			libraryRoot,
+			"--build-dir",
+			Path.Combine(appRoot, "obj"),
+			"--out-dir",
+			Path.Combine(appRoot, "bin"));
+
+		Assert.Equal(0, secondBuild.ExitCode);
+		Assert.Contains($"{libraryRoot}: generated: sample-lib.lib", secondBuild.StdOut, StringComparison.Ordinal);
+		Assert.True(File.GetLastWriteTimeUtc(libraryPath) >= firstLibraryWrite);
+		ProcessResult secondRun = RunExecutable(executablePath);
+		Assert.Equal(2, secondRun.ExitCode);
+	}
+
+	[Fact]
 	public void Virtual_base_layout_is_lowered_before_out_of_order_derived_class()
 	{
 		string root = TempPath("virtual-out-of-order");
