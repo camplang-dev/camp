@@ -7,7 +7,7 @@
   },
   "view": {
     "visibility": "export",
-    "level": "source",
+    "level": "api",
     "generated": false
   },
   "declarations": [

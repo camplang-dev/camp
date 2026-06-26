@@ -37,6 +37,8 @@ public static class MetadataJsonSerializer
 		readonly Dictionary<string, TypeDefinition> typeDefinitions = new(StringComparer.Ordinal);
 		readonly Dictionary<string, Definition> symbols = new(StringComparer.Ordinal);
 
+		bool IsExportApiView => visibility == MetadataVisibility.Export;
+
 		public Writer(Compilation compilation, Module module, MetadataVisibility visibility)
 		{
 			this.compilation = compilation;
@@ -145,7 +147,7 @@ public static class MetadataJsonSerializer
 		{
 			json.WriteStartObject("view");
 			json.WriteString("visibility", visibility.ToString().ToLowerInvariant());
-			json.WriteString("level", "source");
+			json.WriteString("level", IsExportApiView ? "api" : "source");
 			json.WriteBoolean("generated", false);
 			json.WriteEndObject();
 		}
@@ -245,7 +247,7 @@ public static class MetadataJsonSerializer
 				json.WriteString("symbol", definition.Symbol);
 			if (includeVisibility && GetVisibility(definition) is string visibility)
 				json.WriteString("visibility", visibility);
-			if (!string.IsNullOrWhiteSpace(definition.Extern))
+			if (ShouldWriteExtern(definition))
 				json.WriteBoolean("extern", true);
 		}
 
@@ -262,21 +264,26 @@ public static class MetadataJsonSerializer
 			switch (type)
 			{
 				case ClassDefinition classDefinition:
-					if (classDefinition.Modifier != ClassModifier.None)
+					if (!IsExportApiView && classDefinition.Modifier != ClassModifier.None)
 						json.WriteString("modifier", classDefinition.Modifier.ToString().ToLowerInvariant());
-					WriteTypes(json, "baseTypes", classDefinition.BaseTypes);
-					WriteImplementedInterfaces(json, classDefinition.BaseTypes, classDefinition);
+					IReadOnlyList<TypeReference> classBaseTypes = IsExportApiView
+						? GetApiBaseTypes(classDefinition.BaseTypes, classDefinition.LoweredInterfaceBaseTypes)
+						: classDefinition.BaseTypes;
+					WriteTypes(json, "baseTypes", classBaseTypes);
+					WriteImplementedInterfaces(json, classBaseTypes, classDefinition);
 					if (ShouldEmitClassFields(classDefinition))
-						WriteDefinitionArray(json, "fields", classDefinition.Fields, includeKind: false, includeVisibility: false);
-					WriteDefinitionArray(json, "functions", classDefinition.Functions);
+						WriteFieldArray(json, "fields", classDefinition.Fields, classFields: true);
+					WriteFunctionArray(json, "functions", classDefinition);
 					break;
 				case StructDefinition structDefinition:
 					if (structDefinition.Modifier != StructModifier.None)
 						json.WriteString("modifier", structDefinition.Modifier.ToString().ToLowerInvariant());
-					WriteTypes(json, "baseTypes", structDefinition.BaseTypes);
-					WriteImplementedInterfaces(json, structDefinition.BaseTypes, structDefinition);
-					WriteDefinitionArray(json, "fields", structDefinition.Fields, includeKind: false, includeVisibility: false);
-					WriteDefinitionArray(json, "functions", structDefinition.Functions);
+					IReadOnlyList<TypeReference> structBaseTypes = IsExportApiView ? [] : structDefinition.BaseTypes;
+					WriteTypes(json, "baseTypes", structBaseTypes);
+					if (!IsExportApiView)
+						WriteImplementedInterfaces(json, structDefinition.BaseTypes, structDefinition);
+					WriteFieldArray(json, "fields", structDefinition.Fields, classFields: false);
+					WriteFunctionArray(json, "functions", structDefinition.Functions);
 					break;
 				case InterfaceDefinition interfaceDefinition:
 					WriteTypes(json, "baseTypes", interfaceDefinition.BaseTypes);
@@ -285,7 +292,7 @@ public static class MetadataJsonSerializer
 				case EnumDefinition enumDefinition:
 					WriteTypeProperty(json, "underlyingType", enumDefinition.UnderlyingType, enumDefinition.UnderlyingType?.ResolvedType);
 					WriteEnumValues(json, enumDefinition);
-					WriteDefinitionArray(json, "functions", enumDefinition.Functions);
+					WriteFunctionArray(json, "functions", enumDefinition.Functions);
 					break;
 				case NewtypeDefinition newtypeDefinition:
 					if (IsCallableNewtype(newtypeDefinition))
@@ -294,7 +301,7 @@ public static class MetadataJsonSerializer
 						WriteTypeProperty(json, "underlyingType", newtypeDefinition.UnderlyingType, newtypeDefinition.ResolvedType);
 					WriteDefinitionArray(json, "parameters", newtypeDefinition.Parameters, includeKind: false, includeVisibility: false);
 					WriteDefinitionArray(json, "fields", newtypeDefinition.Fields, includeKind: false, includeVisibility: false);
-					WriteDefinitionArray(json, "functions", newtypeDefinition.Functions);
+					WriteFunctionArray(json, "functions", newtypeDefinition.Functions);
 					break;
 			}
 		}
@@ -331,7 +338,7 @@ public static class MetadataJsonSerializer
 				json.WriteString("iterator", function.IteratorKind.ToString().ToLowerInvariant());
 			if (function.IsAsync)
 				json.WriteBoolean("async", true);
-			if (function.Modifier != FunctionModifier.None)
+			if (ShouldWriteFunctionModifier(function))
 				json.WriteString("modifier", function.Modifier.ToString().ToLowerInvariant());
 			if (!string.IsNullOrWhiteSpace(function.CallSpec))
 				json.WriteString("callspec", function.CallSpec);
@@ -539,6 +546,94 @@ public static class MetadataJsonSerializer
 			json.WriteEndArray();
 		}
 
+		void WriteFieldArray(Utf8JsonWriter json, string propertyName, IReadOnlyList<FieldDefinition> fields, bool classFields)
+		{
+			List<FieldDefinition> filtered = fields
+				.Where(field => !IsGeneratedDefinition(field) && ShouldEmitFieldMember(field, classFields))
+				.ToList();
+			if (filtered.Count == 0)
+				return;
+
+			json.WriteStartArray(propertyName);
+			foreach (FieldDefinition field in filtered)
+			{
+				WriteDefinition(json, field, includeKind: false, includeVisibility: false);
+				emitted.Add(field);
+			}
+			json.WriteEndArray();
+		}
+
+		void WriteFunctionArray(Utf8JsonWriter json, string propertyName, IReadOnlyList<FunctionDefinition> functions)
+		{
+			WriteFunctionArray(json, propertyName, classDefinition: null, functions);
+		}
+
+		void WriteFunctionArray(Utf8JsonWriter json, string propertyName, ClassDefinition classDefinition)
+		{
+			WriteFunctionArray(json, propertyName, classDefinition, classDefinition.Functions);
+		}
+
+		void WriteFunctionArray(Utf8JsonWriter json, string propertyName, ClassDefinition? classDefinition, IReadOnlyList<FunctionDefinition> functions)
+		{
+			List<FunctionDefinition> filtered = functions
+				.Where(function => !IsGeneratedDefinition(function) && ShouldEmitFunctionMember(function))
+				.ToList();
+			List<InterfaceDefinition> interfaceAccessors = IsExportApiView && classDefinition is not null ? GetApiInterfaceAccessors(classDefinition) : [];
+			bool syntheticConstructor = IsExportApiView && classDefinition is not null && ShouldWriteSyntheticApiConstructor(classDefinition, functions);
+			bool syntheticDestructor = IsExportApiView && classDefinition is not null && ShouldWriteSyntheticApiDestructor(classDefinition, functions);
+			if (filtered.Count == 0 && interfaceAccessors.Count == 0 && !syntheticConstructor && !syntheticDestructor)
+				return;
+
+			json.WriteStartArray(propertyName);
+			if (syntheticConstructor)
+				WriteSyntheticConstructor(json, classDefinition!);
+			if (syntheticDestructor)
+				WriteSyntheticDestructor(json, classDefinition!);
+			foreach (InterfaceDefinition interfaceDefinition in interfaceAccessors)
+				WriteSyntheticInterfaceAccessor(json, classDefinition!, interfaceDefinition);
+			foreach (FunctionDefinition function in filtered)
+			{
+				WriteDefinition(json, function, includeKind: false, includeVisibility: true);
+				emitted.Add(function);
+			}
+			json.WriteEndArray();
+		}
+
+		void WriteSyntheticConstructor(Utf8JsonWriter json, ClassDefinition definition)
+		{
+			json.WriteStartObject();
+			json.WriteString("id", GetId(definition) + "/function:" + definition.Name);
+			json.WriteString("name", definition.Name);
+			json.WriteString("visibility", "export");
+			json.WriteBoolean("extern", true);
+			json.WriteString("modifier", "constructor");
+			json.WriteEndObject();
+		}
+
+		void WriteSyntheticDestructor(Utf8JsonWriter json, ClassDefinition definition)
+		{
+			json.WriteStartObject();
+			json.WriteString("id", GetId(definition) + "/function:~" + definition.Name);
+			json.WriteString("name", "~" + definition.Name);
+			json.WriteString("visibility", "export");
+			json.WriteBoolean("extern", true);
+			json.WriteString("modifier", "destructor");
+			json.WriteEndObject();
+		}
+
+		void WriteSyntheticInterfaceAccessor(Utf8JsonWriter json, ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)
+		{
+			json.WriteStartObject();
+			json.WriteString("id", GetId(classDefinition) + "/function:get" + interfaceDefinition.Name);
+			json.WriteString("name", "get" + interfaceDefinition.Name);
+			json.WriteString("visibility", "export");
+			json.WriteBoolean("extern", true);
+			json.WriteString("returnType", interfaceDefinition.Name + "*");
+			json.WriteString("propertyName", interfaceDefinition.Name);
+			WriteReference(json, "interfaceRef", interfaceDefinition);
+			json.WriteEndObject();
+		}
+
 		void WriteTypes(Utf8JsonWriter json, string propertyName, IReadOnlyList<TypeReference> types)
 		{
 			if (types.Count == 0)
@@ -692,6 +787,20 @@ public static class MetadataJsonSerializer
 			};
 		}
 
+		bool ShouldWriteExtern(Definition definition)
+		{
+			if (!string.IsNullOrWhiteSpace(definition.Extern))
+				return true;
+			if (!IsExportApiView)
+				return false;
+			return definition switch
+			{
+				ClassDefinition classDefinition => classDefinition.Export is not null,
+				FunctionDefinition function => function.Export is not null,
+				_ => false
+			};
+		}
+
 		bool IsApiHeaderDefinition(Definition definition)
 		{
 			return compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) && owner.IsApiHeader;
@@ -706,11 +815,122 @@ public static class MetadataJsonSerializer
 		{
 			return visibility switch
 			{
-				MetadataVisibility.Export => false,
+				MetadataVisibility.Export => classDefinition.Fields.Any(static field => field.Modifier == FieldModifier.Static && field.Export is not null),
 				MetadataVisibility.Public => classDefinition.Export is not null || classDefinition.Public is not null,
 				MetadataVisibility.All => true,
 				_ => false
 			};
+		}
+
+		bool ShouldEmitFieldMember(FieldDefinition field, bool classFields)
+		{
+			if (!IsExportApiView)
+				return true;
+			if (classFields)
+				return field.Modifier == FieldModifier.Static && field.Export is not null;
+			return field.Modifier != FieldModifier.Static || field.Export is not null;
+		}
+
+		bool ShouldEmitFunctionMember(FunctionDefinition function)
+		{
+			if (!IsExportApiView)
+				return true;
+			if (function.Export is null)
+				return false;
+			if (IsGeneratedApiImplementationDetail(function))
+				return false;
+			if (IsOverriddenApiMethod(function))
+				return false;
+			return true;
+		}
+
+		bool ShouldWriteFunctionModifier(FunctionDefinition definition)
+		{
+			if (!IsExportApiView)
+				return definition.Modifier != FunctionModifier.None;
+
+			return definition.Modifier is not (FunctionModifier.None or FunctionModifier.Virtual or FunctionModifier.Abstract);
+		}
+
+		static bool IsGeneratedApiImplementationDetail(FunctionDefinition function)
+		{
+			return IsGeneratedConstructorLifecycleFunction(function) || IsGeneratedVirtualImplementationFunction(function);
+		}
+
+		static bool IsGeneratedConstructorLifecycleFunction(FunctionDefinition function)
+		{
+			return function.Name is "op_initnew" or "create" or "op_delete" or "destroy";
+		}
+
+		static bool IsGeneratedVirtualImplementationFunction(FunctionDefinition function)
+		{
+			return function.Name.StartsWith("_", StringComparison.Ordinal) && function.Symbol.Contains("__", StringComparison.Ordinal);
+		}
+
+		static bool IsOverriddenApiMethod(FunctionDefinition function)
+		{
+			return function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed;
+		}
+
+		static bool ShouldWriteSyntheticApiConstructor(ClassDefinition definition, IReadOnlyList<FunctionDefinition> functions)
+		{
+			if (definition.Export is null
+				|| definition.Extern is not null
+				|| definition.Modifier == ClassModifier.Abstract)
+			{
+				return false;
+			}
+
+			foreach (FunctionDefinition function in functions)
+			{
+				if (function.Modifier == FunctionModifier.Constructor && function.Export is not null)
+					return false;
+			}
+
+			return true;
+		}
+
+		static bool ShouldWriteSyntheticApiDestructor(ClassDefinition definition, IReadOnlyList<FunctionDefinition> functions)
+		{
+			if (definition.Export is null
+				|| definition.Extern is not null
+				|| definition.Modifier == ClassModifier.Abstract)
+			{
+				return false;
+			}
+
+			foreach (FunctionDefinition function in functions)
+			{
+				if (function.Modifier == FunctionModifier.Destructor && function.Export is not null)
+					return false;
+			}
+
+			return true;
+		}
+
+		List<InterfaceDefinition> GetApiInterfaceAccessors(ClassDefinition definition)
+		{
+			List<InterfaceDefinition> interfaces = [];
+			foreach (TypeReference baseType in definition.BaseTypes)
+			{
+				if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? interfaceDefinition)
+					&& interfaceDefinition is not null
+					&& interfaceDefinition.Export is not null)
+				{
+					interfaces.Add(interfaceDefinition);
+				}
+			}
+			return interfaces;
+		}
+
+		static List<TypeReference> GetApiBaseTypes(List<TypeReference> baseTypes, List<TypeReference> loweredInterfaceBaseTypes)
+		{
+			if (loweredInterfaceBaseTypes.Count == 0)
+				return baseTypes;
+
+			List<TypeReference> types = [.. baseTypes];
+			types.AddRange(loweredInterfaceBaseTypes);
+			return types;
 		}
 
 		string GetTopLevelId(Definition definition)

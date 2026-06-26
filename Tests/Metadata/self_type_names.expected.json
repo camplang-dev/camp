@@ -7,7 +7,7 @@
   },
   "view": {
     "visibility": "export",
-    "level": "source",
+    "level": "api",
     "generated": false
   },
   "declarations": [
@@ -16,12 +16,13 @@
       "kind": "class",
       "name": "Fluent",
       "visibility": "export",
-      "modifier": "abstract",
+      "extern": true,
       "functions": [
         {
           "id": "class:Meta::Fluent/function:retain",
           "name": "retain",
           "visibility": "export",
+          "extern": true,
           "returnType": "this",
           "metadata": [
             {
@@ -34,6 +35,7 @@
           "id": "class:Meta::Fluent/function:spawn",
           "name": "spawn",
           "visibility": "export",
+          "extern": true,
           "modifier": "static",
           "returnType": "classtype*",
           "parameters": [
@@ -64,6 +66,7 @@
       "kind": "function",
       "name": "describe",
       "visibility": "export",
+      "extern": true,
       "returnType": "void",
       "typeParameters": [
         {

@@ -1,5 +1,8 @@
 export as Docs;
 
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
 /// Function callback.
 export newtype fn _cdecl int Callback(int value);
 
@@ -75,6 +78,23 @@ export interface Drawable
 export struct Shape : Drawable
 {
 	void draw()
+	{
+	}
+}
+
+/// Clickable interface.
+export interface Clickable
+{
+	void click();
+}
+
+/// Exported concrete button.
+export class Button : Clickable
+{
+	/// Hidden in export metadata.
+	int state;
+
+	void click()
 	{
 	}
 }
