@@ -1,0 +1,6 @@
+export class Button
+{
+	export void setClick(escaped delegate void(Button* sender) click)
+	{
+	}
+}

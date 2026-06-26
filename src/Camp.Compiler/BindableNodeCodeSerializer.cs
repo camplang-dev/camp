@@ -1250,7 +1250,34 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteParameterList(List<ParameterDefinition> parameters)
 	{
-		WriteDelimited("(", ")", parameters, WriteParameter);
+		WriteDelimited("(", ")", apiHeader ? FilterApiParameters(parameters) : parameters, WriteParameter);
+	}
+
+	static List<ParameterDefinition> FilterApiParameters(List<ParameterDefinition> parameters)
+	{
+		List<ParameterDefinition> result = [];
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			ParameterDefinition? previous = result.Count == 0 ? null : result[^1];
+			if (IsGeneratedCallableContextParameter(parameter, previous))
+				continue;
+			result.Add(parameter);
+		}
+		return result;
+	}
+
+	static bool IsGeneratedCallableContextParameter(ParameterDefinition parameter, ParameterDefinition? previous)
+	{
+		return previous is not null
+			&& !string.IsNullOrWhiteSpace(previous.Name)
+			&& parameter.Name == previous.Name + "_context"
+			&& IsVoidPointerParameter(parameter);
+	}
+
+	static bool IsVoidPointerParameter(ParameterDefinition parameter)
+	{
+		return parameter.Type is PointerTypeReference { ElementType: PrimitiveTypeReference { Type: PrimitiveType.Untyped } }
+			|| parameter.ResolvedType == "void*";
 	}
 
 	void WriteIterType(IterTypeReference iter)

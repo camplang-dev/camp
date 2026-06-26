@@ -1,0 +1,8 @@
+export extern class Button
+{
+	export extern Button();
+
+	export extern ~Button();
+
+	export extern void setClick(escaped delegate void(Button* sender) click);
+}
