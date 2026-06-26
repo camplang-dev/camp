@@ -64,6 +64,7 @@ public class ClassDefinition : TypeDefinition
 	public ClassModifier Modifier { get; set; }
 	public bool IsEscaped { get; set; }
 	public List<TypeReference> BaseTypes { get; } = [];
+	public List<TypeReference> LoweredInterfaceBaseTypes { get; } = [];
 	public List<FieldDefinition> Fields { get; } = [];
 	public List<FunctionDefinition> Functions { get; } = [];
 }
@@ -72,6 +73,7 @@ public class StructDefinition : TypeDefinition
 {
 	public StructModifier Modifier { get; set; }
 	public List<TypeReference> BaseTypes { get; } = [];
+	public List<TypeReference> LoweredInterfaceBaseTypes { get; } = [];
 	public List<FieldDefinition> Fields { get; } = [];
 	public List<FunctionDefinition> Functions { get; } = [];
 }

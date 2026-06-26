@@ -175,7 +175,7 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write("class ");
 		writer.Write(definition.Name);
 		WriteGenericParameters(definition.GenericParameters);
-		WriteBaseTypes(definition.BaseTypes);
+		WriteBaseTypes(apiHeader ? ApiBaseTypes(definition.BaseTypes, definition.LoweredInterfaceBaseTypes) : definition.BaseTypes);
 		WriteLineBlock(() =>
 		{
 			if (apiHeader)
@@ -195,7 +195,7 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write("struct ");
 		writer.Write(definition.Name);
 		WriteGenericParameters(definition.GenericParameters);
-		WriteBaseTypes(definition.BaseTypes);
+		WriteBaseTypes(apiHeader ? ApiBaseTypes(definition.BaseTypes, definition.LoweredInterfaceBaseTypes) : definition.BaseTypes);
 		WriteLineBlock(() =>
 		{
 			if (apiHeader)
@@ -1124,6 +1124,16 @@ public sealed class BindableNodeCodeSerializer
 				WriteType(parameter.Constraint);
 			}
 		});
+	}
+
+	static List<TypeReference> ApiBaseTypes(List<TypeReference> baseTypes, List<TypeReference> loweredInterfaceBaseTypes)
+	{
+		if (loweredInterfaceBaseTypes.Count == 0)
+			return baseTypes;
+
+		List<TypeReference> types = [.. baseTypes];
+		types.AddRange(loweredInterfaceBaseTypes);
+		return types;
 	}
 
 	void WriteBaseTypes(List<TypeReference> types)

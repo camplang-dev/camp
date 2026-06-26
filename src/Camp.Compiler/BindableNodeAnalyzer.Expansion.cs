@@ -760,7 +760,10 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = classDefinition.BaseTypes.Count - 1; i >= 0; i--)
 		{
 			if (TryGetInterfaceDefinition(classDefinition.BaseTypes[i], out _))
+			{
+				classDefinition.LoweredInterfaceBaseTypes.Insert(0, classDefinition.BaseTypes[i]);
 				classDefinition.BaseTypes.RemoveAt(i);
+			}
 		}
 	}
 
@@ -769,7 +772,10 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = structDefinition.BaseTypes.Count - 1; i >= 0; i--)
 		{
 			if (TryGetInterfaceDefinition(structDefinition.BaseTypes[i], out _))
+			{
+				structDefinition.LoweredInterfaceBaseTypes.Insert(0, structDefinition.BaseTypes[i]);
 				structDefinition.BaseTypes.RemoveAt(i);
+			}
 		}
 	}
 

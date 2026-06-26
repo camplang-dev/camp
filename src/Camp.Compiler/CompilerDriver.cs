@@ -1050,6 +1050,7 @@ public static class CompilerDriver
 		static Module BuildApiOutputModule(Compilation compilation)
 		{
 			Module output = new() { ResolvedType = compilation.SharedModule?.ResolvedType };
+			HashSet<string> usingKeys = [];
 			foreach (SourceFile file in compilation.Files)
 			{
 				if (file.IsApiHeader || file.BindableTree is not Module module)
@@ -1057,11 +1058,22 @@ public static class CompilerDriver
 				output.SourceSyntax ??= module.SourceSyntax;
 				output.ExportAs ??= module.ExportAs;
 				foreach (UsingDeclaration usingDeclaration in module.Usings)
-					output.Usings.Add(usingDeclaration);
+				{
+					if (usingKeys.Add(UsingDeclarationKey(usingDeclaration)))
+						output.Usings.Add(usingDeclaration);
+				}
 				foreach (Definition definition in module.Definitions)
 					output.Definitions.Add(definition);
 			}
 			return output;
+		}
+
+		static string UsingDeclarationKey(UsingDeclaration usingDeclaration)
+		{
+			return string.Join('\u001f',
+				usingDeclaration.Name ?? "",
+				usingDeclaration.Alias ?? "",
+				string.Join('\u001e', usingDeclaration.SelectedNames));
 		}
 
 		static Module BuildOutputModule(Compilation compilation, SourceFile file)

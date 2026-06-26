@@ -290,6 +290,11 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(root);
 		string source = Path.Combine(root, "refcount.camp");
 		File.WriteAllText(source, """
+			using Std;
+
+			extern void* malloc(nuint size);
+			extern void free(void* pointer);
+
 			export escaped interface IRefCount
 			{
 				void retain();
@@ -302,12 +307,33 @@ public sealed class CommandLineTests
 			{
 				return this;
 			}
+
+			export class RefThing: IRefCount
+			{
+				void retain() {}
+				void release() {}
+			}
+			""");
+		string secondSource = Path.Combine(root, "consumer.camp");
+		File.WriteAllText(secondSource, """
+			using Std;
+
+			export interface INamed
+			{
+				string getName();
+			}
+
+			export struct NamedRef: INamed
+			{
+				string getName() => "named";
+			}
 			""");
 
 		string outDir = TempPath("implements-api-out");
 		ProcessResult result = RunCampc(
 			"build",
 			source,
+			secondSource,
 			"--nostdlib",
 			"--artifact",
 			"static",
@@ -322,6 +348,9 @@ public sealed class CommandLineTests
 		string api = File.ReadAllText(Path.Combine(outDir, "refcount_api.camp"));
 		Assert.Contains("autorelease<T: implements IRefCount>", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("autorelease<T: IRefCount>", api, StringComparison.Ordinal);
+		Assert.Contains("export class RefThing : IRefCount", api, StringComparison.Ordinal);
+		Assert.Contains("export struct NamedRef : INamed", api, StringComparison.Ordinal);
+		Assert.Equal(1, CountOccurrences(api, "using Std;"));
 	}
 
 	[Fact]
@@ -966,6 +995,18 @@ public sealed class CommandLineTests
 	}
 
 	static string Normalize(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
+
+	static int CountOccurrences(string text, string value)
+	{
+		int count = 0;
+		int index = 0;
+		while ((index = text.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+		{
+			count++;
+			index += value.Length;
+		}
+		return count;
+	}
 
 	static bool GoldenFilterActive()
 	{
