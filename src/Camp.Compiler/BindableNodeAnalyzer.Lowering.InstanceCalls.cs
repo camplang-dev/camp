@@ -58,13 +58,27 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression RewriteInstanceMethodDelegate(MemberReferenceExpression member)
 	{
-		FunctionDefinition function = (FunctionDefinition)member.Member!;
-		Expression receiver = member.Target!;
 		GroupedExpression grouped = new()
 		{
 			SourceSyntax = member.SourceSyntax,
 			ResolvedType = member.ResolvedType
 		};
+
+		if (TryCreateInterfaceMethodDelegateComponents(member, out List<Expression> interfaceComponents))
+		{
+			foreach (Expression component in interfaceComponents)
+			{
+				grouped.Items.Add(new GroupedExpressionItem
+				{
+					Expression = component,
+					ResolvedType = component.ResolvedType
+				});
+			}
+			return grouped;
+		}
+
+		FunctionDefinition function = (FunctionDefinition)member.Member!;
+		Expression receiver = member.Target!;
 		grouped.Items.Add(new GroupedExpressionItem
 		{
 			Expression = CreateFlattenedMethodReference(member, receiver, function),

@@ -139,6 +139,70 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
+	bool TryCreateInterfaceMethodDelegateComponents(MemberReferenceExpression member, out List<Expression> components)
+	{
+		components = [];
+		if (member is not { Target: Expression receiver, Member: FunctionDefinition function })
+			return false;
+		if (FindContainingType(function) is not InterfaceDefinition interfaceDefinition)
+			return false;
+		if (function.Modifier == FunctionModifier.Constructor)
+			return false;
+
+		Expression vtable = receiver;
+		Expression context = receiver;
+		if (IsInterfaceInstanceReceiver(context.ResolvedType, interfaceDefinition) || !TryGetGenericReceiverTypeName(context.ResolvedType, out string genericName))
+			return false;
+
+		vtable = LowerVTableOfExpression(new VTableOfExpression
+		{
+			SourceSyntax = member.SourceSyntax,
+			Type = new GenericParameterTypeReference { Name = genericName, ResolvedType = genericName },
+			InterfaceType = InterfaceType(interfaceDefinition),
+			ResolvedType = interfaceDefinition.Name + "*"
+		});
+		context = new CastExpression
+		{
+			SourceSyntax = context.SourceSyntax,
+			Kind = CastKind.Type,
+			Type = PointerTo(PointerTo(InterfaceType(interfaceDefinition))),
+			Expression = context,
+			ResolvedType = interfaceDefinition.Name + "**"
+		};
+
+		Expression slot = new MemberExpression
+		{
+			SourceSyntax = member.SourceSyntax,
+			Target = vtable,
+			Name = GetCallableName(function),
+			ResolvedType = BuildFlattenedFunctionValueType(function, $"{interfaceDefinition.Name}**")
+		};
+		if (TryGetParamsComponentShape(null, member.ResolvedType, "value", out ParamsComponentShape delegateShape)
+			&& delegateShape.Components.Count > 0
+			&& slot.ResolvedType != delegateShape.Components[0].Type)
+		{
+			slot = new CastExpression
+			{
+				SourceSyntax = member.SourceSyntax,
+				Kind = CastKind.Type,
+				Type = TypeReferenceForResolvedName(delegateShape.Components[0].Type),
+				Expression = slot,
+				ResolvedType = delegateShape.Components[0].Type
+			};
+		}
+
+		components.Add(slot);
+		components.Add(new CastExpression
+		{
+			SourceSyntax = receiver.SourceSyntax,
+			Kind = CastKind.Type,
+			Type = TypeReferenceForResolvedName("void*"),
+			Expression = context,
+			ResolvedType = "void*"
+		});
+		return true;
+	}
+
 	static bool IsInterfaceInstanceReceiver(string? type, InterfaceDefinition interfaceDefinition)
 	{
 		return type == interfaceDefinition.Name + "**" || TryGetPointerElementType(type ?? "") == interfaceDefinition.Name;

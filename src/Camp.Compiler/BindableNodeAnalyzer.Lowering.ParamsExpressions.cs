@@ -1036,6 +1036,10 @@ public sealed partial class BindableNodeAnalyzer
 				components.Add(CreateDelegateContextExpression(member.Target, function));
 				return true;
 
+			case MemberReferenceExpression { Target: not null, Member: FunctionDefinition } member
+				when TryCreateInterfaceMethodDelegateComponents(member, out components):
+				return true;
+
 			case VariableReferenceExpression variable
 				when TryCreateIteratorProtocolComponentsFromExpandedCall(variable, out components):
 				return true;

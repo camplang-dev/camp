@@ -6,13 +6,7 @@ export escaped interface IRefCount
 	void release();
 }
 
-struct PendingRelease
-{
-	IRefCount* context;
-	fn void(IRefCount* context) release;
-}
-
-List<PendingRelease>* pendingReleases;
+List<delegate void()>* pendingReleases;
 int released;
 
 export escaped T* autorelease<T: implements IRefCount>(
@@ -20,14 +14,9 @@ export escaped T* autorelease<T: implements IRefCount>(
 	vtableof(T: IRefCount))
 {
 	if (pendingReleases == null)
-		pendingReleases = new List<PendingRelease>();
+		pendingReleases = new List<delegate void()>();
 
-	PendingRelease pending =
-	{
-		(IRefCount*)this,
-		vtableof(T: IRefCount).release
-	};
-	pendingReleases.add(pending);
+	pendingReleases.add(this.release);
 	return this;
 }
 
@@ -39,7 +28,7 @@ export void emptyAutoreleasePool()
 		{
 			auto last = pendingReleases.Item[^1];
 			pendingReleases.remove(^1);
-			last.release(last.context);
+			last();
 		}
 	}
 }
