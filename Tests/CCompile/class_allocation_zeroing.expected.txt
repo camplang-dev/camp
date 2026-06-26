@@ -26,6 +26,11 @@ Zeroed *Zeroed_create(void)
 	return _created0;
 }
 
+void Zeroed_destroy(Zeroed *this)
+{
+	free((void *)(this));
+}
+
 int main(void)
 {
 	Zeroed *direct = (Zeroed *)(malloc(sizeof(Zeroed)));
@@ -57,6 +62,7 @@ int main(void)
 
 void Zeroed_op_initnew(Zeroed *this);
 Zeroed *Zeroed_create(void);
+void Zeroed_destroy(Zeroed *this);
 int main(void);
 
 #endif
@@ -85,6 +91,7 @@ struct Zeroed
 /* Function declarations. */
 void Zeroed_op_initnew(Zeroed *this);
 Zeroed *Zeroed_create(void);
+void Zeroed_destroy(Zeroed *this);
 int main(void);
 
 /* Object declarations. */

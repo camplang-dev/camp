@@ -1459,6 +1459,14 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			else if (IsDestructorFunction(function))
 			{
+				if (type is ClassDefinition { Extern: not null })
+				{
+					if (function.Extern is not null)
+						generated.Add(CreateExternDestroyMethod(type, function));
+					function.Body = null;
+					continue;
+				}
+
 				FunctionDefinition opDelete = CreateDeleteMethod(type, function);
 				generated.Add(opDelete);
 				if (type is not ClassDefinition { Extern: not null }
@@ -1471,7 +1479,34 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
+		if (type is ClassDefinition exportedClass
+			&& exportedClass.Export is not null
+			&& exportedClass.Extern is null
+			&& exportedClass.Modifier != ClassModifier.Abstract
+			&& !HasDestructor(functions)
+			&& !HasDestroyMethod(functions)
+			&& !HasDestroyMethod(generated))
+		{
+			generated.Add(CreateImplicitExportedDestroyMethod(exportedClass));
+		}
+
 		functions.AddRange(generated);
+	}
+
+	static bool HasDestructor(List<FunctionDefinition> functions)
+	{
+		foreach (FunctionDefinition function in functions)
+			if (IsDestructorFunction(function))
+				return true;
+		return false;
+	}
+
+	static bool HasDestroyMethod(List<FunctionDefinition> functions)
+	{
+		foreach (FunctionDefinition function in functions)
+			if (function.Name == DestroyMethodName)
+				return true;
+		return false;
 	}
 
 	static bool HasConstructor(List<FunctionDefinition> functions)
@@ -1606,6 +1641,37 @@ public sealed partial class BindableNodeAnalyzer
 			Body = destructor.Body
 		};
 		CopyLifecycleParameters(destructor.Parameters, method.Parameters);
+		return method;
+	}
+
+	FunctionDefinition CreateExternDestroyMethod(TypeDefinition type, FunctionDefinition destructor)
+	{
+		FunctionDefinition method = new()
+		{
+			SourceSyntax = destructor.SourceSyntax,
+			Name = DestroyMethodName,
+			Symbol = $"{type.Name}_{DestroyMethodName}",
+			Export = destructor.Export,
+			Public = destructor.Public,
+			Extern = destructor.Extern,
+			ReturnType = VoidType(),
+			ResolvedType = "void"
+		};
+		CopyLifecycleParameters(destructor.Parameters, method.Parameters);
+		return method;
+	}
+
+	FunctionDefinition CreateImplicitExportedDestroyMethod(ClassDefinition type)
+	{
+		FunctionDefinition method = new()
+		{
+			Name = DestroyMethodName,
+			Symbol = $"{type.Name}_{DestroyMethodName}",
+			Export = type.Export,
+			Public = type.Public,
+			ReturnType = VoidType(),
+			ResolvedType = "void"
+		};
 		return method;
 	}
 

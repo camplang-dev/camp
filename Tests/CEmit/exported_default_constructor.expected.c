@@ -21,6 +21,11 @@ ExportedConcrete *ExportedConcrete_create(void)
 	return _created0;
 }
 
+void ExportedConcrete_destroy(ExportedConcrete *this)
+{
+	free((void *)(this));
+}
+
 void ExportedAbstract_use(ExportedAbstract *this)
 {
 	this->_vt->use(this);
@@ -34,6 +39,7 @@ void ExportedAbstract_use(ExportedAbstract *this)
 
 void ExportedConcrete_op_initnew(ExportedConcrete *this);
 ExportedConcrete *ExportedConcrete_create(void);
+void ExportedConcrete_destroy(ExportedConcrete *this);
 void ExportedAbstract_use(ExportedAbstract *this);
 
 #endif
@@ -71,6 +77,7 @@ struct _ExportedAbstract
 /* Function declarations. */
 void ExportedConcrete_op_initnew(ExportedConcrete *this);
 ExportedConcrete *ExportedConcrete_create(void);
+void ExportedConcrete_destroy(ExportedConcrete *this);
 void ExportedAbstract_use(ExportedAbstract *this);
 
 /* Object declarations. */

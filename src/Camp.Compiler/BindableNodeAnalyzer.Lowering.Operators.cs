@@ -420,13 +420,18 @@ public sealed partial class BindableNodeAnalyzer
 			&& typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? thisType)
 			&& thisType is ClassDefinition;
 		string deletedType = elementType ?? primitiveStringElementType ?? targetType;
-		FunctionDefinition? opDelete = FindDeleteMethod(deletedType);
+		FunctionDefinition? opDelete = null;
 		TypeDefinition? deletedDefinition = null;
 		if (typeDefinitions.TryGetValue(BaseTypeName(deletedType), out TypeDefinition? foundDeletedDefinition))
 		{
 			deletedDefinition = foundDeletedDefinition;
-			if (opDelete is null)
-				opDelete = FindCallableDeleteMethod(deletedDefinition, target?.SourceSyntax);
+			opDelete = deletedDefinition is ClassDefinition { Extern: not null }
+				? FindDestroyMethod(deletedDefinition)
+				: FindDeleteMethod(deletedDefinition) ?? FindCallableDeleteMethod(deletedDefinition, target?.SourceSyntax);
+		}
+		else
+		{
+			opDelete = FindDeleteMethod(deletedType);
 		}
 
 		if (!isPointer && !isThisPointer && !isArray && opDelete is null)

@@ -3,14 +3,14 @@
 
 /* Private file declarations. */
 NativeBase *NativeBase_create(void);
-void NativeBase_op_delete(NativeBase *this);
+void NativeBase_destroy(NativeBase *this);
 NativeChild *NativeChild_create(void);
-void NativeChild_op_delete(NativeChild *this);
+void NativeChild_destroy(NativeChild *this);
 
 int main(void)
 {
 	NativeChild *child = NativeChild_create();
-	NativeChild_op_delete(child);
+	NativeChild_destroy(child);
 	return 0;
 }
 

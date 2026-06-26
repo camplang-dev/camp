@@ -98,6 +98,32 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
+	FunctionDefinition? FindDestroyMethod(TypeDefinition type)
+	{
+		if (type is ClassDefinition classDefinition)
+		{
+			foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
+				foreach (FunctionDefinition candidateFunction in candidateClass.Functions)
+					if (candidateFunction.Name == DestroyMethodName)
+						return candidateFunction;
+			foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
+				foreach (FunctionDefinition candidateFunction in candidateClass.Functions)
+					if (IsDestructorFunction(candidateFunction))
+						return candidateFunction;
+		}
+		else
+		{
+			foreach (FunctionDefinition function in GetFunctions(type))
+				if (function.Name == DestroyMethodName)
+					return function;
+			foreach (FunctionDefinition function in GetFunctions(type))
+				if (IsDestructorFunction(function))
+					return function;
+		}
+
+		return null;
+	}
+
 	static IEnumerable<FunctionDefinition> GetFunctions(TypeDefinition type)
 	{
 		return type switch
@@ -540,6 +566,17 @@ public sealed partial class BindableNodeAnalyzer
 			Target = free is null ? new NamedExpression { SourceSyntax = syntax, Name = "free", ResolvedType = "fn void(void*)" } : CreateMethodReference(free, "void")
 		};
 		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = pointer, ResolvedType = pointer.ResolvedType });
+		return call;
+	}
+
+	static CallExpression CreateUncheckedGlobalFreeCall(Expression pointer)
+	{
+		CallExpression call = new()
+		{
+			ResolvedType = "void",
+			Target = new NamedExpression { Name = "free", ResolvedType = "fn void(void*)" }
+		};
+		call.Arguments.Add(new ArgumentExpression { Value = pointer, ResolvedType = pointer.ResolvedType });
 		return call;
 	}
 

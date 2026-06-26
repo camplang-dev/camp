@@ -1832,7 +1832,9 @@ public sealed partial class BindableNodeAnalyzer
 				if (member.Target is NamedExpression { Qualifiers.Count: 0, Name: "base" })
 					return ResolveBaseMemberCallTarget(member, scope, typeScope, arguments ?? []);
 
-				string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
+				string targetType = TryAnalyzeMemberTypeTarget(member.Target, scope, out string typeTarget)
+					? typeTarget
+					: BodyAnalyzeExpression(member.Target, scope, typeScope);
 				string lookupTargetType = TryGetImplicitIteratorProtocolType(member.Target, targetType, out string iteratorProtocolType)
 					? iteratorProtocolType
 					: targetType;
@@ -3135,7 +3137,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope, string? targetCallableType = null)
 	{
-		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
+		string targetType = TryAnalyzeMemberTypeTarget(member.Target, scope, out string typeTarget)
+			? typeTarget
+			: BodyAnalyzeExpression(member.Target, scope, typeScope);
 		string lookupTargetType = TryGetImplicitIteratorProtocolType(member.Target, targetType, out string iteratorProtocolType)
 			? iteratorProtocolType
 			: targetType;
@@ -3553,6 +3557,40 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsDiscardExpression(Expression? expression)
 	{
 		return expression is NamedExpression { Qualifiers.Count: 0, Name: "_" };
+	}
+
+	bool TryAnalyzeMemberTypeTarget(Expression? target, BodyScope scope, out string type)
+	{
+		type = ErrorType;
+		if (target is not NamedExpression { Qualifiers.Count: 0 } named)
+			return false;
+		if (scope.TryLookup(named.Name, out _) || LookupGlobalStorageSymbol(named.Name, named.SourceSyntax) is not null)
+			return false;
+
+		string typeName = named.Name;
+		if (TryResolveAlias(named.Name, AliasTargetKind.Type, named.SourceSyntax, out AliasDefinition? alias))
+			typeName = alias!.ResolvedTargetName;
+		if (!typeDefinitions.TryGetValue(typeName, out TypeDefinition? typeDefinition))
+			return false;
+		if (!IsDefinitionVisible(typeDefinition, named.SourceSyntax))
+			return false;
+
+		TypeDefinitionReference typeReference = new()
+		{
+			SourceSyntax = named.SourceSyntax,
+			Name = typeDefinition.Name,
+			Definition = typeDefinition,
+			ResolvedType = typeDefinition.ResolvedType ?? typeDefinition.Name
+		};
+		TypeReferenceExpression expression = new()
+		{
+			SourceSyntax = named.SourceSyntax,
+			Type = typeReference,
+			ResolvedType = typeReference.ResolvedType
+		};
+		expressionRewrites[named] = expression;
+		type = expression.ResolvedType ?? ErrorType;
+		return true;
 	}
 
 	bool IsParamsComponentMemberReference(Expression? expression)

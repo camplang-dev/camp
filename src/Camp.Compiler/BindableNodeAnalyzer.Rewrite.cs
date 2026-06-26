@@ -125,6 +125,7 @@ public sealed partial class BindableNodeAnalyzer
 		CompleteInterfaceDeclarations(module);
 		LowerSourceInterfaceTypes(module);
 		ExpandParamsDeclarations(module);
+		CompleteImplicitDestroyBodies(module);
 		foreach (Definition definition in module.Definitions)
 			RewriteDefinition(definition);
 		foreach (StructDefinition context in generatedLambdaContextDefinitions)
@@ -133,6 +134,40 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(lambda);
 		RefreshLoweredResolvedTypes(module);
 		LowerInterfaceDefinitions(module);
+	}
+
+	void CompleteImplicitDestroyBodies(Module module)
+	{
+		foreach (Definition definition in module.Definitions)
+		{
+			if (definition is not ClassDefinition classDefinition)
+				continue;
+			foreach (FunctionDefinition function in classDefinition.Functions)
+			{
+				if (function.Name != DestroyMethodName
+					|| function.Body is not null
+					|| function.Extern is not null
+					|| function.SourceSyntax is not null)
+				{
+					continue;
+				}
+
+				ThisExpression target = new() { ResolvedType = $"{classDefinition.Name}*" };
+				CastExpression pointer = new()
+				{
+					Kind = CastKind.Type,
+					Type = PointerTo(VoidType()),
+					Expression = target,
+					ResolvedType = "void*"
+				};
+				function.Body = new BlockStatement { ResolvedType = "void" };
+				function.Body.Statements.Add(new ExpressionStatement
+				{
+					ResolvedType = "void",
+					Expression = CreateUncheckedGlobalFreeCall(pointer)
+				});
+			}
+		}
 	}
 
 }

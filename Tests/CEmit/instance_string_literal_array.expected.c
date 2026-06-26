@@ -23,6 +23,11 @@ Logger *Logger_create(void)
 	return _created0;
 }
 
+void Logger_destroy(Logger *this)
+{
+	free((void *)(this));
+}
+
 int main(void)
 {
 	Logger *logger = 0;
@@ -39,6 +44,7 @@ int main(void)
 void Logger_log(Logger *this, const char *value, uintptr_t value_length);
 void Logger_op_initnew(Logger *this);
 Logger *Logger_create(void);
+void Logger_destroy(Logger *this);
 int main(void);
 
 #endif
@@ -67,6 +73,7 @@ struct Logger
 void Logger_log(Logger *this, const char *value, uintptr_t value_length);
 void Logger_op_initnew(Logger *this);
 Logger *Logger_create(void);
+void Logger_destroy(Logger *this);
 int main(void);
 
 /* Object declarations. */

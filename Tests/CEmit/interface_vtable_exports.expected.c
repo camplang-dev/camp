@@ -32,6 +32,11 @@ Widget *Widget_create(void)
 	return _created0;
 }
 
+void Widget_destroy(Widget *this)
+{
+	free((void *)(this));
+}
+
 void Handle_retain(Handle *this)
 {
 }
@@ -58,6 +63,7 @@ static void Handle_IRef_retain(IRef **ctx)
 void Widget_retain(Widget *this);
 void Widget_op_initnew(Widget *this);
 Widget *Widget_create(void);
+void Widget_destroy(Widget *this);
 void Handle_retain(Handle *this);
 extern const IRef *Widget_IRef;
 extern const IRef *Handle_IRef;
@@ -104,6 +110,7 @@ struct IRef_Indirect
 void Widget_retain(Widget *this);
 void Widget_op_initnew(Widget *this);
 Widget *Widget_create(void);
+void Widget_destroy(Widget *this);
 void Handle_retain(Handle *this);
 
 /* Object declarations. */

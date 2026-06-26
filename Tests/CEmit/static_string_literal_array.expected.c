@@ -23,6 +23,11 @@ Console *Console_create(void)
 	return _created0;
 }
 
+void Console_destroy(Console *this)
+{
+	free((void *)(this));
+}
+
 int main(void)
 {
 	Console_writeLine("hello", 5);
@@ -38,6 +43,7 @@ int main(void)
 void Console_writeLine(const char *value, uintptr_t value_length);
 void Console_op_initnew(Console *this);
 Console *Console_create(void);
+void Console_destroy(Console *this);
 int main(void);
 
 #endif
@@ -66,6 +72,7 @@ struct Console
 void Console_writeLine(const char *value, uintptr_t value_length);
 void Console_op_initnew(Console *this);
 Console *Console_create(void);
+void Console_destroy(Console *this);
 int main(void);
 
 /* Object declarations. */

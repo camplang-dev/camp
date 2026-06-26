@@ -348,7 +348,7 @@ public sealed class CommandLineTests
 		string api = File.ReadAllText(Path.Combine(outDir, "refcount_api.camp"));
 		Assert.Contains("autorelease<T: implements IRefCount>", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("autorelease<T: IRefCount>", api, StringComparison.Ordinal);
-		Assert.Contains("export class RefThing : IRefCount", api, StringComparison.Ordinal);
+		Assert.Contains("export extern class RefThing : IRefCount", api, StringComparison.Ordinal);
 		Assert.Contains("export struct NamedRef : INamed", api, StringComparison.Ordinal);
 		Assert.Equal(1, CountOccurrences(api, "using Std;"));
 	}
@@ -584,6 +584,15 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: project_reference_virtual_api_app.c", result.StdOut, StringComparison.Ordinal);
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "default", "DEBUG", "widgets_api.camp"));
+		Assert.Contains("export escaped extern class Control", api, StringComparison.Ordinal);
+		Assert.Contains("export escaped extern class Button : Control", api, StringComparison.Ordinal);
+		Assert.Contains("export extern int value();", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("virtual class", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("sealed escaped class", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("virtual int value", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("override int value", api, StringComparison.Ordinal);
+		Assert.Equal(1, CountOccurrences(api, "int value();"));
 	}
 
 	[Fact]

@@ -170,7 +170,9 @@ public sealed class BindableNodeCodeSerializer
 		WriteDefinitionPrefix(definition);
 		if (definition.IsEscaped)
 			writer.Write("escaped ");
-		if (definition.Modifier != ClassModifier.None)
+		if (apiHeader && definition.Export is not null)
+			writer.Write("extern ");
+		if ((!apiHeader || definition.Export is null) && definition.Modifier != ClassModifier.None)
 			writer.Write($"{Lower(definition.Modifier)} ");
 		writer.Write("class ");
 		writer.Write(definition.Name);
@@ -388,12 +390,25 @@ public sealed class BindableNodeCodeSerializer
 		bool hasSyntheticConstructor = allowSyntheticConstructor
 			&& definition is not null
 			&& ShouldWriteSyntheticApiConstructor(definition, functions);
-		if (wrote && (HasExportedFunction(functions) || hasSyntheticConstructor))
+		bool hasSyntheticDelete = allowSyntheticConstructor
+			&& definition is not null
+			&& ShouldWriteSyntheticApiDestructor(definition, functions);
+		if (wrote && (HasExportedFunction(functions) || hasSyntheticConstructor || hasSyntheticDelete))
 			writer.WriteLine();
 		if (hasSyntheticConstructor)
 		{
 			WriteIndent();
 			writer.Write("export extern ");
+			writer.Write(definition!.Name);
+			writer.WriteLine("();");
+			wrote = true;
+		}
+		if (hasSyntheticDelete)
+		{
+			if (wrote)
+				writer.WriteLine();
+			WriteIndent();
+			writer.Write("export extern ~");
 			writer.Write(definition!.Name);
 			writer.WriteLine("();");
 			wrote = true;
@@ -421,6 +436,24 @@ public sealed class BindableNodeCodeSerializer
 		return true;
 	}
 
+	static bool ShouldWriteSyntheticApiDestructor(ClassDefinition definition, List<FunctionDefinition> functions)
+	{
+		if (definition.Export is null)
+			return false;
+		if (definition.Extern is not null)
+			return false;
+		if (definition.Modifier == ClassModifier.Abstract)
+			return false;
+
+		foreach (FunctionDefinition function in functions)
+		{
+			if (function.Modifier == FunctionModifier.Destructor && function.Export is not null)
+				return false;
+		}
+
+		return true;
+	}
+
 	void WriteApiFunctions(List<FunctionDefinition> functions)
 	{
 		WriteApiAwareFunctions(functions);
@@ -434,6 +467,8 @@ public sealed class BindableNodeCodeSerializer
 			if (apiHeader && function.Export is null)
 				continue;
 			if (apiHeader && IsGeneratedApiImplementationDetail(function))
+				continue;
+			if (apiHeader && IsOverriddenApiMethod(function))
 				continue;
 			if (wrote)
 				writer.WriteLine();
@@ -449,7 +484,7 @@ public sealed class BindableNodeCodeSerializer
 
 	static bool IsGeneratedConstructorLifecycleFunction(FunctionDefinition function)
 	{
-		return function.Name is "op_initnew" or "create";
+		return function.Name is "op_initnew" or "create" or "op_delete" or "destroy";
 	}
 
 	static bool IsGeneratedVirtualImplementationFunction(FunctionDefinition function)
@@ -460,9 +495,14 @@ public sealed class BindableNodeCodeSerializer
 	static bool HasExportedFunction(List<FunctionDefinition> functions)
 	{
 		foreach (FunctionDefinition function in functions)
-			if (function.Export is not null && !IsGeneratedApiImplementationDetail(function))
+			if (function.Export is not null && !IsGeneratedApiImplementationDetail(function) && !IsOverriddenApiMethod(function))
 				return true;
 		return false;
+	}
+
+	static bool IsOverriddenApiMethod(FunctionDefinition function)
+	{
+		return function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed;
 	}
 
 	static bool HasApiStaticField(List<FieldDefinition> fields)
@@ -521,12 +561,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
 		WriteCallSpec(definition.CallSpec);
-		if (apiHeader && definition.Modifier == FunctionModifier.Destructor)
-		{
-			WriteTypeOrResolved(definition.ReturnType, definition.ResolvedType);
-			writer.Write(" op_delete");
-		}
-		else if (definition.Modifier == FunctionModifier.Constructor)
+		if (definition.Modifier == FunctionModifier.Constructor)
 		{
 			writer.Write(definition.Name);
 		}
@@ -536,7 +571,7 @@ public sealed class BindableNodeCodeSerializer
 		}
 		else
 		{
-			if (definition.Modifier != FunctionModifier.None)
+			if (ShouldWriteFunctionModifier(definition))
 				writer.Write($"{Lower(definition.Modifier)} ");
 			if (definition.IsAsync)
 				writer.Write("async ");
@@ -1095,7 +1130,7 @@ public sealed class BindableNodeCodeSerializer
 
 		return definition switch
 		{
-			FunctionDefinition function => IsLifecycleFunction(function) || function.Body is not null || function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed,
+			FunctionDefinition function => function.Export is not null || IsLifecycleFunction(function) || function.Body is not null || function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed,
 			VariableDefinition variable => !IsConstantVariableDefinition(variable),
 			_ => false
 		};
@@ -1104,6 +1139,14 @@ public sealed class BindableNodeCodeSerializer
 	static bool IsLifecycleFunction(FunctionDefinition definition)
 	{
 		return definition.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor;
+	}
+
+	bool ShouldWriteFunctionModifier(FunctionDefinition definition)
+	{
+		if (!apiHeader)
+			return definition.Modifier != FunctionModifier.None;
+
+		return definition.Modifier is not (FunctionModifier.None or FunctionModifier.Virtual or FunctionModifier.Abstract);
 	}
 
 	void WriteGenericParameters(List<GenericParameter> parameters)

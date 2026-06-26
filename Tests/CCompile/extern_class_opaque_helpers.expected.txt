@@ -5,7 +5,7 @@
 void Opaque_close(Opaque *this);
 static void Opaque_helper(Opaque *this);
 Opaque *Opaque_create(void);
-void Opaque_op_delete(Opaque *this);
+void Opaque_destroy(Opaque *this);
 extern int Opaque_SharedCount;
 static int Opaque_LocalCount;
 
@@ -19,7 +19,7 @@ int main(void)
 {
 	Opaque *value = Opaque_create();
 	Opaque_helper(value);
-	Opaque_op_delete(value);
+	Opaque_destroy(value);
 	return 0;
 }
 
