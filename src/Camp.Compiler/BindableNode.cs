@@ -73,6 +73,7 @@ public class ClassDefinition : TypeDefinition
 public class StructDefinition : TypeDefinition
 {
 	public StructModifier Modifier { get; set; }
+	public InterfaceDefinition? SourceInterface { get; set; }
 	public List<TypeReference> BaseTypes { get; } = [];
 	public List<TypeReference> LoweredInterfaceBaseTypes { get; } = [];
 	public List<FieldDefinition> Fields { get; } = [];

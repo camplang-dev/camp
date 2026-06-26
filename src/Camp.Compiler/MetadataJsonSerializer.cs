@@ -93,6 +93,12 @@ public static class MetadataJsonSerializer
 					IndexChildren(id, "field", classDefinition.Fields);
 					IndexChildren(id, "function", classDefinition.Functions);
 					break;
+				case StructDefinition { SourceInterface: not null } structDefinition:
+					ids[structDefinition.SourceInterface] = id;
+					foreach (GenericParameter parameter in structDefinition.SourceInterface.GenericParameters)
+						ids[parameter] = id + "/type-parameter:" + parameter.Name;
+					IndexChildren(id, "function", structDefinition.SourceInterface.Functions);
+					break;
 				case StructDefinition structDefinition:
 					IndexChildren(id, "field", structDefinition.Fields);
 					IndexChildren(id, "function", structDefinition.Functions);
@@ -160,7 +166,7 @@ public static class MetadataJsonSerializer
 				if (!ShouldEmit(definition))
 					continue;
 				WriteDefinition(json, definition, includeKind: true, includeVisibility: true);
-				emitted.Add(definition);
+				MarkEmitted(definition);
 			}
 			json.WriteEndArray();
 		}
@@ -208,6 +214,11 @@ public static class MetadataJsonSerializer
 					if (TryResolveAliasTargetDefinition(alias, out Definition? targetDefinition) && targetDefinition is not null)
 						WriteReference(json, "targetRef", targetDefinition);
 					break;
+				case StructDefinition { SourceInterface: not null } structDefinition:
+					WriteSourceInterfaceDefinition(json, structDefinition.SourceInterface);
+					WriteMetadata(json, structDefinition.SourceInterface.Attributes);
+					json.WriteEndObject();
+					return;
 				case TypeDefinition type:
 					WriteTypeDefinition(json, type);
 					break;
@@ -304,6 +315,19 @@ public static class MetadataJsonSerializer
 					WriteFunctionArray(json, "functions", newtypeDefinition.Functions);
 					break;
 			}
+		}
+
+		void WriteSourceInterfaceDefinition(Utf8JsonWriter json, InterfaceDefinition interfaceDefinition)
+		{
+			if (interfaceDefinition.GenericParameters.Count > 0)
+			{
+				json.WriteStartArray("typeParameters");
+				foreach (GenericParameter parameter in interfaceDefinition.GenericParameters)
+					WriteGenericParameter(json, parameter);
+				json.WriteEndArray();
+			}
+			WriteTypes(json, "baseTypes", interfaceDefinition.BaseTypes);
+			WriteDefinitionArray(json, "functions", interfaceDefinition.Functions);
 		}
 
 		static bool IsCallableNewtype(NewtypeDefinition definition)
@@ -541,9 +565,16 @@ public static class MetadataJsonSerializer
 			foreach (T definition in sourceDefinitions)
 			{
 				WriteDefinition(json, definition, includeKind, includeVisibility);
-				emitted.Add(definition);
+				MarkEmitted(definition);
 			}
 			json.WriteEndArray();
+		}
+
+		void MarkEmitted(Definition definition)
+		{
+			emitted.Add(definition);
+			if (definition is StructDefinition { SourceInterface: not null } structDefinition)
+				emitted.Add(structDefinition.SourceInterface);
 		}
 
 		void WriteFieldArray(Utf8JsonWriter json, string propertyName, IReadOnlyList<FieldDefinition> fields, bool classFields)
@@ -952,6 +983,7 @@ public static class MetadataJsonSerializer
 			{
 				AliasDefinition => "alias",
 				ClassDefinition => "class",
+				StructDefinition { SourceInterface: not null } => "interface",
 				StructDefinition => "struct",
 				InterfaceDefinition => "interface",
 				EnumDefinition => "enum",
@@ -1042,16 +1074,20 @@ public static class MetadataJsonSerializer
 			if (type is NamedTypeReference named
 				&& named.Qualifiers.Count == 0
 				&& typeDefinitions.TryGetValue(named.Name, out TypeDefinition? typeDefinition)
-				&& typeDefinition is InterfaceDefinition found)
+				&& (typeDefinition is InterfaceDefinition || typeDefinition is StructDefinition { SourceInterface: not null }))
 			{
-				definition = found;
+				definition = typeDefinition is InterfaceDefinition found
+					? found
+					: ((StructDefinition)typeDefinition).SourceInterface;
 				return true;
 			}
 			if (!string.IsNullOrWhiteSpace(type.ResolvedType)
 				&& typeDefinitions.TryGetValue(type.ResolvedType, out TypeDefinition? resolvedDefinition)
-				&& resolvedDefinition is InterfaceDefinition resolvedInterface)
+				&& (resolvedDefinition is InterfaceDefinition || resolvedDefinition is StructDefinition { SourceInterface: not null }))
 			{
-				definition = resolvedInterface;
+				definition = resolvedDefinition is InterfaceDefinition resolvedInterface
+					? resolvedInterface
+					: ((StructDefinition)resolvedDefinition).SourceInterface;
 				return true;
 			}
 			definition = null;

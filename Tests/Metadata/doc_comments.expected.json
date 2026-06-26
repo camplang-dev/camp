@@ -230,10 +230,23 @@
       ]
     },
     {
-      "id": "struct:Docs::Drawable",
-      "kind": "struct",
+      "id": "interface:Docs::Drawable",
+      "kind": "interface",
       "name": "Drawable",
-      "visibility": "export"
+      "visibility": "export",
+      "functions": [
+        {
+          "id": "interface:Docs::Drawable/function:draw",
+          "name": "draw",
+          "returnType": "void"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Drawable interface."
+        }
+      ]
     },
     {
       "id": "struct:Docs::Shape",
@@ -248,10 +261,23 @@
       ]
     },
     {
-      "id": "struct:Docs::Clickable",
-      "kind": "struct",
+      "id": "interface:Docs::Clickable",
+      "kind": "interface",
       "name": "Clickable",
-      "visibility": "export"
+      "visibility": "export",
+      "functions": [
+        {
+          "id": "interface:Docs::Clickable/function:click",
+          "name": "click",
+          "returnType": "void"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Clickable interface."
+        }
+      ]
     },
     {
       "id": "class:Docs::Button",
@@ -265,6 +291,7 @@
       "interfaces": [
         {
           "type": "Clickable",
+          "ref": "interface:Docs::Clickable",
           "symbol": "Button_Clickable"
         }
       ],

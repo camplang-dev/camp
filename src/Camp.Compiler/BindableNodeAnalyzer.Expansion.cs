@@ -916,6 +916,7 @@ public sealed partial class BindableNodeAnalyzer
 		StructDefinition lowered = new()
 		{
 			SourceSyntax = definition.SourceSyntax,
+			SourceInterface = definition,
 			Name = definition.Name,
 			Symbol = definition.Symbol,
 			Export = definition.Export,
