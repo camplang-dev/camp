@@ -1,0 +1,24 @@
+export interface IValue
+{
+	export int value();
+}
+
+export class Counter : IValue
+{
+	export int value()
+	{
+		return 1;
+	}
+}
+
+export extern class NativeCounter : IValue
+{
+}
+
+export struct ValueCounter : IValue
+{
+	export int value()
+	{
+		return 2;
+	}
+}

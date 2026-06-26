@@ -170,7 +170,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteDefinitionPrefix(definition);
 		if (definition.IsEscaped)
 			writer.Write("escaped ");
-		if (apiHeader && definition.Export is not null)
+		if (apiHeader && definition.Export is not null && definition.Extern is null)
 			writer.Write("extern ");
 		if ((!apiHeader || definition.Export is null) && definition.Modifier != ClassModifier.None)
 			writer.Write($"{Lower(definition.Modifier)} ");
@@ -197,7 +197,7 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write("struct ");
 		writer.Write(definition.Name);
 		WriteGenericParameters(definition.GenericParameters);
-		WriteBaseTypes(apiHeader ? ApiBaseTypes(definition.BaseTypes, definition.LoweredInterfaceBaseTypes) : definition.BaseTypes);
+		WriteBaseTypes(apiHeader ? [] : definition.BaseTypes);
 		WriteLineBlock(() =>
 		{
 			if (apiHeader)

@@ -68,8 +68,6 @@ public sealed partial class BindableNodeAnalyzer
 					break;
 
 				case InterfaceDefinition:
-					if (owner is ClassDefinition { Extern: not null })
-						Report(GetRange(baseType.SourceSyntax), "Extern classes may not implement interfaces.");
 					break;
 
 				default:

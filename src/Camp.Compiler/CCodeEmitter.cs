@@ -815,7 +815,7 @@ public static class CCodeEmitter
 
 			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null && !variable.IsInline))
 			{
-				if (IsGeneratedVTableVariable(variable))
+				if (IsGeneratedVTableStorageVariable(variable))
 					continue;
 				WriteVariableDeclaration(writer, variable, storage: "extern");
 				wrote = true;
@@ -1174,12 +1174,10 @@ public static class CCodeEmitter
 			return definition.Export is not null || definition.Public is not null;
 		}
 
-		static bool IsGeneratedVTableVariable(VariableDefinition variable)
+		static bool IsGeneratedVTableStorageVariable(VariableDefinition variable)
 		{
-			return variable.Name.Contains("__vt", StringComparison.Ordinal)
-				|| variable.Symbol.Contains("__vt", StringComparison.Ordinal)
-				|| variable.Name.EndsWith("_vt", StringComparison.Ordinal)
-				|| variable.Symbol.EndsWith("_vt", StringComparison.Ordinal);
+			return variable.Name.EndsWith("__storage", StringComparison.Ordinal)
+				|| variable.Symbol.EndsWith("__storage", StringComparison.Ordinal);
 		}
 
 		IEnumerable<Definition> GetDefinitions()

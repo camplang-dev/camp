@@ -318,8 +318,7 @@
       "interfaces": [
         {
           "type": "Drawable",
-          "ref": "struct:Docs::Drawable",
-          "symbol": "Shape_Drawable"
+          "ref": "struct:Docs::Drawable"
         }
       ],
       "functions": [

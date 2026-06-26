@@ -7,11 +7,12 @@ static void Widget_IRef_retain(IRef **ctx);
 static void Handle_IRef_retain(IRef **ctx);
 static const IRef Widget_IRef__storage;
 static const IRef Handle_IRef__storage;
+static const IRef *Handle_IRef;
 
 static const IRef Widget_IRef__storage = { .retain = Widget_IRef_retain };
 const IRef *Widget_IRef = &Widget_IRef__storage;
 static const IRef Handle_IRef__storage = { .retain = Handle_IRef_retain };
-const IRef *Handle_IRef = &Handle_IRef__storage;
+static const IRef *Handle_IRef = &Handle_IRef__storage;
 void Widget_retain(Widget *this)
 {
 }
@@ -72,7 +73,6 @@ void Widget_destroy(Widget *this);
 IRef **Widget_getIRef(Widget *this);
 void Handle_retain(Handle *this);
 extern const IRef *Widget_IRef;
-extern const IRef *Handle_IRef;
 
 #endif
 // file: interface_vtable_exports_private.h
@@ -122,7 +122,6 @@ void Handle_retain(Handle *this);
 
 /* Object declarations. */
 extern const IRef *Widget_IRef;
-extern const IRef *Handle_IRef;
 
 
 #endif

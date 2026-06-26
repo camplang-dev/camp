@@ -1,0 +1,74 @@
+// file: interface_extern_class_conversion.c
+#include "interface_extern_class_conversion_private.h"
+
+/* Private file declarations. */
+static int readValue(IValue **value);
+static int readGeneric(void *value, const IValue *vtableof_T_IValue);
+
+static int readValue(IValue **value)
+{
+	return (*value)->value(value);
+}
+
+static int readGeneric(void *value, const IValue *vtableof_T_IValue)
+{
+	return vtableof_T_IValue->value((IValue **)(value));
+}
+
+int main(void)
+{
+	NativeCounter *counter = 0;
+	IValue **assigned = NativeCounter_getIValue(counter);
+	int result = readValue(NativeCounter_getIValue(counter));
+	result += readValue(assigned);
+	result += readValue(NativeCounter_getIValue(counter));
+	result += readValue(NativeCounter_getIValue(counter));
+	result += readValue(NativeCounter_getIValue(counter));
+	result += readGeneric(counter, NativeCounter_IValue);
+	return result;
+}
+
+// file: interface_extern_class_conversion.h
+#ifndef INTERFACE_EXTERN_CLASS_CONVERSION_H_
+#define INTERFACE_EXTERN_CLASS_CONVERSION_H_
+
+#include "interface_extern_class_conversion_private.h"
+
+IValue **NativeCounter_getIValue(NativeCounter *this);
+int main(void);
+extern const IValue *NativeCounter_IValue;
+
+#endif
+// file: interface_extern_class_conversion_private.h
+#ifndef INTERFACE_EXTERN_CLASS_CONVERSION_PRIVATE_H_
+#define INTERFACE_EXTERN_CLASS_CONVERSION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IValue IValue;
+typedef struct NativeCounter NativeCounter;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct IValue
+{
+	int (* value)(IValue **ctx);
+};
+
+/* Function declarations. */
+IValue **NativeCounter_getIValue(NativeCounter *this);
+int main(void);
+
+/* Object declarations. */
+extern const IValue *NativeCounter_IValue;
+
+
+#endif
+// compile
+compiled: interface_extern_class_conversion.c

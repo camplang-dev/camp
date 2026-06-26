@@ -349,7 +349,8 @@ public sealed class CommandLineTests
 		Assert.Contains("autorelease<T: implements IRefCount>", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("autorelease<T: IRefCount>", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class RefThing : IRefCount", api, StringComparison.Ordinal);
-		Assert.Contains("export struct NamedRef : INamed", api, StringComparison.Ordinal);
+		Assert.Contains("export struct NamedRef", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("export struct NamedRef : INamed", api, StringComparison.Ordinal);
 		Assert.Equal(1, CountOccurrences(api, "using Std;"));
 	}
 

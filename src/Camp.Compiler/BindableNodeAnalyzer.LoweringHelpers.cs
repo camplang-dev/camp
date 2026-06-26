@@ -787,7 +787,7 @@ public sealed partial class BindableNodeAnalyzer
 		diagnostics.Add(new AnalysisDiagnostic(GetRange(syntax), message));
 	}
 
-	sealed record InterfaceImplementationLowering(TypeDefinition Type, InterfaceDefinition Interface, FieldDefinition? Field, VariableDefinition VTable, VariableDefinition VTableStorage, bool DirectEntries, bool IsStruct);
+	sealed record InterfaceImplementationLowering(TypeDefinition Type, InterfaceDefinition Interface, FieldDefinition? Field, VariableDefinition VTable, VariableDefinition VTableStorage, bool DirectEntries, bool IsStruct, bool IsExternClass = false);
 
 	sealed record InterfaceThunkLowering(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member);
 

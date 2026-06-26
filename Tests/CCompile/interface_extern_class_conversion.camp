@@ -1,0 +1,31 @@
+export interface IValue
+{
+	int value();
+}
+
+export extern class NativeCounter : IValue
+{
+}
+
+int readValue(IValue* value)
+{
+	return value.value();
+}
+
+int readGeneric<T: implements IValue>(T* value, vtableof(T: IValue))
+{
+	return value.value();
+}
+
+export int main()
+{
+	NativeCounter* counter = default;
+	IValue* assigned = counter;
+	int result = readValue(counter);
+	result += readValue(assigned);
+	result += readValue((IValue*)counter);
+	result += readValue(counter.IValue);
+	result += readValue(counter.getIValue());
+	result += readGeneric<NativeCounter>(counter);
+	return result;
+}

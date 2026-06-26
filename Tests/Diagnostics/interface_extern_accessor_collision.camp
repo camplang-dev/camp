@@ -1,0 +1,14 @@
+interface IValue
+{
+	int value();
+}
+
+extern class NativeCounter : IValue
+{
+	extern IValue* getIValue();
+}
+
+export int main()
+{
+	return 0;
+}

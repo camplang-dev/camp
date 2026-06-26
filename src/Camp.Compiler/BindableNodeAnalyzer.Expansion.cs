@@ -353,6 +353,34 @@ public sealed partial class BindableNodeAnalyzer
 			if (!TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
 				continue;
 
+			if (classDefinition.Extern is not null)
+			{
+				VariableDefinition externVTable = new()
+				{
+					Name = InterfaceVTableName(classDefinition, interfaceDefinition),
+					Symbol = InterfaceVTableName(classDefinition, interfaceDefinition),
+					Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
+					Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null,
+					Extern = "extern",
+					Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
+					ResolvedType = "const " + interfaceDefinition.Name + "*"
+				};
+				module.Definitions.Add(externVTable);
+				generatedInterfaceDefinitions.Add(externVTable);
+
+				VariableDefinition externStoragePlaceholder = new()
+				{
+					Name = InterfaceVTableName(classDefinition, interfaceDefinition) + "__storage",
+					Symbol = InterfaceVTableName(classDefinition, interfaceDefinition) + "__storage",
+					Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name },
+					ResolvedType = "const " + interfaceDefinition.Name
+				};
+				InterfaceImplementationLowering externLowering = new(classDefinition, interfaceDefinition, Field: null, externVTable, externStoragePlaceholder, DirectEntries: false, IsStruct: false, IsExternClass: true);
+				implementations.Add(externLowering);
+				classDefinition.Functions.Add(CreateInterfaceAccessorDeclaration(classDefinition, externLowering));
+				continue;
+			}
+
 			FieldDefinition field = new()
 			{
 				Name = InterfaceFieldName(interfaceDefinition),
@@ -399,7 +427,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (implementations.Count > 0)
 		{
-			EnsureInterfaceInitNewMethod(classDefinition);
+			if (classDefinition.Extern is null)
+				EnsureInterfaceInitNewMethod(classDefinition);
 			classInterfaceLowerings[classDefinition] = implementations;
 		}
 
@@ -416,6 +445,7 @@ public sealed partial class BindableNodeAnalyzer
 			Symbol = classDefinition.Name + "_" + InterfaceAccessorName(interfaceDefinition),
 			Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
 			Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null,
+			Extern = lowering.IsExternClass ? "extern" : null,
 			ReturnType = sourceReturnType,
 			ResolvedType = $"{interfaceDefinition.Name}**"
 		};
@@ -468,8 +498,6 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				Name = InterfaceVTableName(structDefinition, interfaceDefinition),
 				Symbol = InterfaceVTableName(structDefinition, interfaceDefinition),
-				Export = structDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
-				Public = (structDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(structDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null,
 				Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
 				ResolvedType = "const " + interfaceDefinition.Name + "*",
 				InitialValue = new UnaryExpression
@@ -559,12 +587,16 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (InterfaceImplementationLowering lowering in lowerings)
 			{
-				lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface);
+				if (!lowering.IsExternClass)
+					lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface);
 				RefreshInterfaceAccessorAbiType(classDefinition, lowering.Interface);
 			}
 
 			for (int i = lowerings.Count - 1; i >= 0; i--)
-				InsertInterfaceVTableInitialization(classDefinition, lowerings[i]);
+			{
+				if (!lowerings[i].IsExternClass)
+					InsertInterfaceVTableInitialization(classDefinition, lowerings[i]);
+			}
 		}
 
 		foreach ((StructDefinition _, List<InterfaceImplementationLowering> lowerings) in structInterfaceLowerings)
@@ -588,11 +620,13 @@ public sealed partial class BindableNodeAnalyzer
 			function.ResolvedType = $"{interfaceDefinition.Name}**";
 			if (function.ReturnType is not null)
 				function.ReturnType.ResolvedType = $"{interfaceDefinition.Name}**";
-			if (function.Body is null && classInterfaceLowerings.TryGetValue(classDefinition, out List<InterfaceImplementationLowering>? lowerings))
+			if (function.Body is null && function.Extern is null && classInterfaceLowerings.TryGetValue(classDefinition, out List<InterfaceImplementationLowering>? lowerings))
 			{
 				foreach (InterfaceImplementationLowering lowering in lowerings)
 				{
 					if (!ReferenceEquals(lowering.Interface, interfaceDefinition))
+						continue;
+					if (lowering.Field is null)
 						continue;
 					function.Body = new BlockStatement
 					{
