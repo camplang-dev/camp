@@ -1119,6 +1119,8 @@ public sealed class BindableNodeCodeSerializer
 			if (parameter.Constraint is not null)
 			{
 				writer.Write(": ");
+				if (parameter.RequiresImplementation)
+					writer.Write("implements ");
 				WriteType(parameter.Constraint);
 			}
 		});

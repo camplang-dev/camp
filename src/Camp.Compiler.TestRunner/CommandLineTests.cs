@@ -230,6 +230,47 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Library_api_preserves_implements_generic_constraints()
+	{
+		string root = TempPath("implements-api");
+		Directory.CreateDirectory(root);
+		string source = Path.Combine(root, "refcount.camp");
+		File.WriteAllText(source, """
+			export escaped interface IRefCount
+			{
+				void retain();
+				void release();
+			}
+
+			export escaped T* autorelease<T: implements IRefCount>(
+				escaped T* this,
+				vtableof(T: IRefCount))
+			{
+				return this;
+			}
+			""");
+
+		string outDir = TempPath("implements-api-out");
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--nostdlib",
+			"--artifact",
+			"static",
+			"--name",
+			"refcount",
+			"--out-dir",
+			outDir,
+			"--build-dir",
+			TempPath("implements-api-build"));
+
+		Assert.Equal(0, result.ExitCode);
+		string api = File.ReadAllText(Path.Combine(outDir, "refcount_api.camp"));
+		Assert.Contains("autorelease<T: implements IRefCount>", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("autorelease<T: IRefCount>", api, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	[Trait("Category", "MsvcCompile")]
 	public void Project_reference_links_native_static_library_with_msvc()
 	{
