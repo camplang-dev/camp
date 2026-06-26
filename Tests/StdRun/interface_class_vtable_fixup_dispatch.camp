@@ -1,0 +1,52 @@
+using Std;
+
+interface IProbe
+{
+	int read();
+}
+
+virtual class Root
+{
+	virtual int anchor()
+	{
+		return 0;
+	}
+}
+
+virtual class Probe: Root, IProbe
+{
+	int expected;
+
+	Probe(int expected)
+	{
+		this.expected = expected;
+	}
+
+	override int anchor()
+	{
+		return 1;
+	}
+
+	int read()
+	{
+		return this.expected;
+	}
+}
+
+int readViaInterface(IProbe* probe)
+{
+	return probe.read();
+}
+
+int readViaVTable<T: implements IProbe>(T* probe, vtableof(T: IProbe))
+{
+	return probe.read();
+}
+
+export void main()
+{
+	auto probe = new Probe(314);
+	Console.writeLine(readViaVTable(probe));
+	IProbe* interfaceProbe = probe;
+	Console.writeLine(readViaInterface(interfaceProbe));
+}

@@ -4151,7 +4151,12 @@ public static class CCodeEmitter
 			List<string> items = [];
 			foreach (InitializerItem item in initializer.Items)
 			{
-				string value = item.Expression is ArrayExpression ? FormatFixedArrayInitializer(item.Expression) : FormatExpression(item.Expression);
+				string value = item.Expression switch
+				{
+					null => "0",
+					ArrayExpression array => FormatFixedArrayInitializer(array),
+					_ => FormatAssignmentValueForTarget(item.ResolvedType, item.Expression)
+				};
 				string? target = FormatInitializerTarget(item.Target);
 				items.Add(target is null ? value : "." + target + " = " + value);
 			}

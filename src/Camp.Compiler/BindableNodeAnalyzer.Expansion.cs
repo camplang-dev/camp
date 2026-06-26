@@ -375,7 +375,7 @@ public sealed partial class BindableNodeAnalyzer
 					Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name },
 					ResolvedType = "const " + interfaceDefinition.Name
 				};
-				InterfaceImplementationLowering externLowering = new(classDefinition, interfaceDefinition, Field: null, externVTable, externStoragePlaceholder, DirectEntries: false, IsStruct: false, IsExternClass: true);
+					InterfaceImplementationLowering externLowering = new(classDefinition, interfaceDefinition, Field: null, externVTable, externStoragePlaceholder, ObjectVTableStorage: null, DirectEntries: false, IsStruct: false, IsExternClass: true);
 				implementations.Add(externLowering);
 				if (FindImportedInterfaceAccessor(classDefinition, interfaceDefinition) is null)
 					classDefinition.Functions.Add(CreateInterfaceAccessorDeclaration(classDefinition, externLowering));
@@ -401,6 +401,16 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(vtableStorage);
 			generatedInterfaceDefinitions.Add(vtableStorage);
 
+			VariableDefinition objectVTableStorage = new()
+				{
+					Name = InterfaceVTableName(classDefinition, interfaceDefinition) + "__object_storage",
+					Symbol = InterfaceVTableName(classDefinition, interfaceDefinition) + "__object_storage",
+					Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name },
+					ResolvedType = "const " + interfaceDefinition.Name
+				};
+			module.Definitions.Add(objectVTableStorage);
+			generatedInterfaceDefinitions.Add(objectVTableStorage);
+
 			VariableDefinition vtable = new()
 			{
 				Name = InterfaceVTableName(classDefinition, interfaceDefinition),
@@ -419,7 +429,7 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(vtable);
 			generatedInterfaceDefinitions.Add(vtable);
 
-			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, vtableStorage, DirectEntries: false, IsStruct: false);
+			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, vtableStorage, objectVTableStorage, DirectEntries: false, IsStruct: false);
 			implementations.Add(lowering);
 			classDefinition.Functions.Add(CreateInterfaceAccessorDeclaration(classDefinition, lowering));
 			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
@@ -525,7 +535,7 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(vtable);
 			generatedInterfaceDefinitions.Add(vtable);
 
-			InterfaceImplementationLowering lowering = new(structDefinition, interfaceDefinition, Field: null, vtable, vtableStorage, DirectEntries: false, IsStruct: true);
+			InterfaceImplementationLowering lowering = new(structDefinition, interfaceDefinition, Field: null, vtable, vtableStorage, ObjectVTableStorage: null, DirectEntries: false, IsStruct: true);
 			implementations.Add(lowering);
 			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
 		}
@@ -601,11 +611,15 @@ public sealed partial class BindableNodeAnalyzer
 		foreach ((ClassDefinition classDefinition, List<InterfaceImplementationLowering> lowerings) in classInterfaceLowerings)
 		{
 			foreach (InterfaceImplementationLowering lowering in lowerings)
-			{
+				{
 				if (!lowering.IsExternClass)
-					lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface);
+					{
+						lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface, directEntries: true);
+						if (lowering.ObjectVTableStorage is not null)
+							lowering.ObjectVTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface, directEntries: false);
+				}
 				RefreshInterfaceAccessorAbiType(classDefinition, lowering.Interface);
-			}
+				}
 
 			for (int i = lowerings.Count - 1; i >= 0; i--)
 			{
@@ -617,7 +631,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach ((StructDefinition _, List<InterfaceImplementationLowering> lowerings) in structInterfaceLowerings)
 		{
 			foreach (InterfaceImplementationLowering lowering in lowerings)
-				lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface);
+				lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface, directEntries: false);
 		}
 
 		foreach ((FunctionDefinition thunk, InterfaceThunkLowering lowering) in interfaceThunkLowerings)
@@ -637,7 +651,7 @@ public sealed partial class BindableNodeAnalyzer
 				function.ReturnType.ResolvedType = $"{interfaceDefinition.Name}**";
 			if (function.Body is null && function.Extern is null && classInterfaceLowerings.TryGetValue(classDefinition, out List<InterfaceImplementationLowering>? lowerings))
 			{
-				foreach (InterfaceImplementationLowering lowering in lowerings)
+			foreach (InterfaceImplementationLowering lowering in lowerings)
 				{
 					if (!ReferenceEquals(lowering.Interface, interfaceDefinition))
 						continue;
@@ -660,7 +674,7 @@ public sealed partial class BindableNodeAnalyzer
 								ResolvedType = "void"
 							}
 						}
-					};
+				};
 					break;
 				}
 			}
@@ -1008,7 +1022,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	InitializerExpression CreateInterfaceVTableInitializer(InterfaceImplementationLowering lowering, InterfaceDefinition interfaceDefinition)
+	InitializerExpression CreateInterfaceVTableInitializer(InterfaceImplementationLowering lowering, InterfaceDefinition interfaceDefinition, bool directEntries)
 	{
 		InitializerExpression initializer = new()
 		{
@@ -1021,7 +1035,7 @@ public sealed partial class BindableNodeAnalyzer
 				initializer.Items.Add(new InitializerItem
 				{
 					Target = InitializerTargetFor(baseInterface.Name),
-					Expression = CreateInterfaceVTableInitializer(lowering, baseInterface),
+					Expression = CreateInterfaceVTableInitializer(lowering, baseInterface, directEntries),
 					ResolvedType = baseInterface.Name
 				});
 			}
@@ -1032,22 +1046,22 @@ public sealed partial class BindableNodeAnalyzer
 			initializer.Items.Add(new InitializerItem
 			{
 				Target = InitializerTargetFor(GetInterfaceEntryName(member)),
-				Expression = CreateInterfaceVTableEntryReference(lowering, interfaceDefinition, member),
+					Expression = CreateInterfaceVTableEntryReference(lowering, interfaceDefinition, member, directEntries),
 				ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
 			});
 		}
 		return initializer;
 	}
 
-	Expression CreateInterfaceVTableEntryReference(InterfaceImplementationLowering lowering, InterfaceDefinition interfaceDefinition, FunctionDefinition member)
+	Expression CreateInterfaceVTableEntryReference(InterfaceImplementationLowering lowering, InterfaceDefinition interfaceDefinition, FunctionDefinition member, bool directEntries)
 	{
 		FunctionDefinition? implementation = FindImplementationMethod(lowering.Type, member);
-		if (lowering.DirectEntries && implementation is not null)
+		if (directEntries && implementation is not null)
 		{
 			EnsureImplementationMethodSymbol(lowering.Type, implementation);
 			MethodReferenceExpression reference = new()
 			{
-				ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
+				ResolvedType = BuildFlattenedFunctionValueType(implementation, $"{lowering.Type.Name}*")
 			};
 			reference.Candidates.Add(implementation);
 			return reference;
@@ -1191,7 +1205,7 @@ public sealed partial class BindableNodeAnalyzer
 							},
 							ResolvedType = "nuint"
 						}
-					}
+				}
 				},
 				ResolvedType = "byte*"
 			}
@@ -1215,18 +1229,37 @@ public sealed partial class BindableNodeAnalyzer
 						Target = new ThisExpression { ResolvedType = classDefinition.Name },
 						Name = lowering.Field!.Name,
 						Member = lowering.Field,
-						ResolvedType = lowering.Field.ResolvedType
-					},
+					ResolvedType = lowering.Field.ResolvedType
+						},
 					Operator = AssignmentOperator.Assign,
-					Value = new VariableReferenceExpression
-					{
-						Variable = lowering.VTable,
-						ResolvedType = lowering.VTable.ResolvedType
-					},
+					Value = CreateObjectInterfaceVTableReference(lowering),
 					ResolvedType = lowering.Field.ResolvedType
 				}
-			});
+				});
+			}
 		}
+
+	Expression CreateObjectInterfaceVTableReference(InterfaceImplementationLowering lowering)
+	{
+		if (lowering.ObjectVTableStorage is null)
+		{
+			return new VariableReferenceExpression
+			{
+				Variable = lowering.VTable,
+				ResolvedType = lowering.VTable.ResolvedType
+			};
+		}
+
+		return new UnaryExpression
+		{
+			Operator = UnaryOperator.AddressOf,
+			Operand = new VariableReferenceExpression
+			{
+				Variable = lowering.ObjectVTableStorage,
+				ResolvedType = lowering.ObjectVTableStorage.ResolvedType
+			},
+			ResolvedType = lowering.VTable.ResolvedType
+		};
 	}
 
 	bool TryGetDirectInterface(TypeReference type, Dictionary<string, InterfaceDefinition> interfaces, out InterfaceDefinition? interfaceDefinition)
@@ -1573,7 +1606,7 @@ public sealed partial class BindableNodeAnalyzer
 					{
 						FunctionDefinition create = CreateCreateMethod(type, function, initNew);
 						generated.Add(create);
-					}
+				}
 				}
 				function.Body = null;
 			}

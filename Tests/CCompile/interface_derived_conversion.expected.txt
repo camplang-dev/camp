@@ -13,9 +13,11 @@ static IValue **asValue(DerivedCounter *value);
 static int main(void);
 static int BaseCounter_IValue_value(IValue **ctx);
 static const IValue BaseCounter_IValue__storage;
+static const IValue BaseCounter_IValue__object_storage;
 static const IValue *BaseCounter_IValue;
 
-static const IValue BaseCounter_IValue__storage = { .value = BaseCounter_IValue_value };
+static const IValue BaseCounter_IValue__storage = { .value = (int (*)(IValue **arg0))BaseCounter_value };
+static const IValue BaseCounter_IValue__object_storage = { .value = BaseCounter_IValue_value };
 static const IValue *BaseCounter_IValue = &BaseCounter_IValue__storage;
 static int BaseCounter_value(BaseCounter *this)
 {
@@ -29,7 +31,7 @@ static IValue **BaseCounter_getIValue(BaseCounter *this)
 
 static void BaseCounter_op_initnew(BaseCounter *this)
 {
-	this->_vt_IValue = BaseCounter_IValue;
+	this->_vt_IValue = &BaseCounter_IValue__object_storage;
 }
 
 static void DerivedCounter_op_initnew(DerivedCounter *this)

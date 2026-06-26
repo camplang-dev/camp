@@ -19,15 +19,19 @@ static int CustomCounter_ICounter_getValue(ICounter **ctx, int value);
 static int CustomCounter_ICounter_required(ICounter **ctx, int value);
 static int StructCounter_ICounter_required(ICounter **ctx, int value);
 static const ICounter BasicCounter_ICounter__storage;
+static const ICounter BasicCounter_ICounter__object_storage;
 static const ICounter *BasicCounter_ICounter;
 static const ICounter CustomCounter_ICounter__storage;
+static const ICounter CustomCounter_ICounter__object_storage;
 static const ICounter *CustomCounter_ICounter;
 static const ICounter StructCounter_ICounter__storage;
 static const ICounter *StructCounter_ICounter;
 
-static const ICounter BasicCounter_ICounter__storage = { .optional = NULL, .getValue = ICounter_defaultGetValue, .required = BasicCounter_ICounter_required };
+static const ICounter BasicCounter_ICounter__storage = { .optional = NULL, .getValue = ICounter_defaultGetValue, .required = (int (*)(ICounter **arg0, int arg1))BasicCounter_required };
+static const ICounter BasicCounter_ICounter__object_storage = { .optional = NULL, .getValue = ICounter_defaultGetValue, .required = BasicCounter_ICounter_required };
 static const ICounter *BasicCounter_ICounter = &BasicCounter_ICounter__storage;
-static const ICounter CustomCounter_ICounter__storage = { .optional = CustomCounter_ICounter_optional, .getValue = CustomCounter_ICounter_getValue, .required = CustomCounter_ICounter_required };
+static const ICounter CustomCounter_ICounter__storage = { .optional = (int (*)(ICounter **arg0, int arg1))CustomCounter_optional, .getValue = (int (*)(ICounter **arg0, int arg1))CustomCounter_getValue, .required = (int (*)(ICounter **arg0, int arg1))CustomCounter_required };
+static const ICounter CustomCounter_ICounter__object_storage = { .optional = CustomCounter_ICounter_optional, .getValue = CustomCounter_ICounter_getValue, .required = CustomCounter_ICounter_required };
 static const ICounter *CustomCounter_ICounter = &CustomCounter_ICounter__storage;
 static const ICounter StructCounter_ICounter__storage = { .optional = NULL, .getValue = ICounter_defaultGetValue, .required = StructCounter_ICounter_required };
 static const ICounter *StructCounter_ICounter = &StructCounter_ICounter__storage;
@@ -48,7 +52,7 @@ static ICounter **BasicCounter_getICounter(BasicCounter *this)
 
 static void BasicCounter_op_initnew(BasicCounter *this)
 {
-	this->_vt_ICounter = BasicCounter_ICounter;
+	this->_vt_ICounter = &BasicCounter_ICounter__object_storage;
 }
 
 static int CustomCounter_optional(CustomCounter *this, int value)
@@ -73,7 +77,7 @@ static ICounter **CustomCounter_getICounter(CustomCounter *this)
 
 static void CustomCounter_op_initnew(CustomCounter *this)
 {
-	this->_vt_ICounter = CustomCounter_ICounter;
+	this->_vt_ICounter = &CustomCounter_ICounter__object_storage;
 }
 
 static int StructCounter_required(StructCounter *this, int value)

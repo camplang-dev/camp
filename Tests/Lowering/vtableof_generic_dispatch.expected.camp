@@ -20,7 +20,7 @@ class Widget
 
 	void op_initnew()
 	{
-		this._vt_IRef = Widget_IRef;
+		this._vt_IRef = &Widget_IRef__object_storage;
 	}
 }
 
@@ -46,7 +46,8 @@ void main()
 	retainGeneric<Widget>(widget, Widget_IRef);
 	retainGeneric<Handle>(&handle, Handle_IRef);
 }
-const IRef Widget_IRef__storage = {.retain = Widget_IRef_retain};
+const IRef Widget_IRef__storage = {.retain = Widget_retain};
+const IRef Widget_IRef__object_storage = {.retain = Widget_IRef_retain};
 const IRef* Widget_IRef = &Widget_IRef__storage;
 void Widget_IRef_retain(IRef** ctx)
 {
