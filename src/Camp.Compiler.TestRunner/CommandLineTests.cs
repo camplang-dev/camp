@@ -463,6 +463,81 @@ public sealed class CommandLineTests
 
 	[Fact]
 	[Trait("Category", "MsvcCompile")]
+	public void Default_windows_target_follows_visual_studio_environment()
+	{
+		if (!OperatingSystem.IsWindows())
+			Assert.Skip("MSVC default target selection only applies on Windows.");
+		string temp = CreateTempCase("msvc-default-target/main.camp", """
+			#if WIN32
+			export int selectedTarget()
+			{
+				return 86;
+			}
+			#endif
+
+			#if WIN64
+			export int selectedTarget()
+			{
+				return 64;
+			}
+			#endif
+			""");
+
+		ProcessResult x86 = RunCampc(
+			new Dictionary<string, string?> { ["VSCMD_ARG_TGT_ARCH"] = "x86", ["Platform"] = null },
+			"dump",
+			"declarations",
+			temp,
+			"--nostdlib");
+		ProcessResult x64 = RunCampc(
+			new Dictionary<string, string?> { ["VSCMD_ARG_TGT_ARCH"] = "x64", ["Platform"] = null },
+			"dump",
+			"declarations",
+			temp,
+			"--nostdlib");
+
+		Assert.Equal(0, x86.ExitCode);
+		Assert.Contains("return 86", x86.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("return 64", x86.StdOut, StringComparison.Ordinal);
+		Assert.Equal(0, x64.ExitCode);
+		Assert.Contains("return 64", x64.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("return 86", x64.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Category", "MsvcCompile")]
+	public void Msvc_target_requires_loaded_visual_studio_environment()
+	{
+		if (!OperatingSystem.IsWindows())
+			Assert.Skip("MSVC environment validation only applies on Windows.");
+		string temp = CreateTempCase("msvc-environment-missing/main.camp", """
+			export int value()
+			{
+				return 1;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			new Dictionary<string, string?> { ["VSCMD_ARG_TGT_ARCH"] = null, ["Platform"] = null },
+			"build",
+			temp,
+			"--nostdlib",
+			"--artifact",
+			"static",
+			"--target",
+			"msvc-windows-x64",
+			"--build-dir",
+			TempPath("msvc-environment-missing-build"),
+			"--out-dir",
+			TempPath("msvc-environment-missing-out"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Target 'msvc-windows-x64' requires a Visual Studio C++ environment", result.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("Native build command failed", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Category", "MsvcCompile")]
 	public void Msvc_target_architecture_must_match_visual_studio_environment()
 	{
 		if (!OperatingSystem.IsWindows())

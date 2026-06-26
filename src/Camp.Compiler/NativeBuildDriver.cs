@@ -153,36 +153,18 @@ public static class NativeBuildDriver
 		if (!options.Target.Toolchain.TryGetValue("msvc_arch", out string? expected) || string.IsNullOrWhiteSpace(expected))
 			return true;
 
-		expected = NormalizeMsvcArchitecture(expected) ?? expected.Trim();
-		string? actual = GetVisualStudioTargetArchitecture();
-		if (actual is null || string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+		expected = MsvcEnvironment.NormalizeArchitecture(expected) ?? expected.Trim();
+		string? actual = MsvcEnvironment.TargetArchitecture;
+		if (actual is null)
+		{
+			result.Diagnostics.Add($"Target '{options.Target.Name}' requires a Visual Studio C++ environment, but none appears to be loaded. Run vcvarsall.bat {expected}, open a matching Developer Command Prompt, or pass --target for the MSVC architecture you loaded.");
+			return false;
+		}
+		if (string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
 			return true;
 
 		result.Diagnostics.Add($"Target '{options.Target.Name}' requires MSVC target architecture '{expected}', but the current Visual Studio environment targets '{actual}'. Run vcvarsall.bat {expected} or use --target msvc-windows-{actual}.");
 		return false;
-	}
-
-	static string? GetVisualStudioTargetArchitecture()
-	{
-		string? value = Environment.GetEnvironmentVariable("VSCMD_ARG_TGT_ARCH");
-		if (!string.IsNullOrWhiteSpace(value))
-			return NormalizeMsvcArchitecture(value);
-		value = Environment.GetEnvironmentVariable("Platform");
-		return string.IsNullOrWhiteSpace(value) ? null : NormalizeMsvcArchitecture(value);
-	}
-
-	static string? NormalizeMsvcArchitecture(string value)
-	{
-		return value.Trim().ToLowerInvariant() switch
-		{
-			"amd64" => "x64",
-			"x64" => "x64",
-			"x86" => "x86",
-			"win32" => "x86",
-			string other when other.EndsWith("_x86", StringComparison.Ordinal) => "x86",
-			string other when other.EndsWith("_amd64", StringComparison.Ordinal) => "x64",
-			_ => null
-		};
 	}
 
 	static string BuildTemplateName(NativeBuildKind kind)
