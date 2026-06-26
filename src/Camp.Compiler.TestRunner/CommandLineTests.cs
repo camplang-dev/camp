@@ -186,6 +186,60 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Run_treats_bare_campbuild_file_as_response_file()
+	{
+		string root = TempPath("run-bare-campbuild-file");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact static
+			--name run_bare_sample
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampc("run", buildFile, "--build-dir", TempPath("run-bare-campbuild-file-build"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("run requires --artifact exec", result.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("At least one source file pattern is required", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Run_treats_extensionless_bare_campbuild_name_as_response_file()
+	{
+		string root = TempPath("run-bare-campbuild-extensionless");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact static
+			--name run_bare_sample_extensionless
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampc("run", Path.Combine(root, "sample"), "--build-dir", TempPath("run-bare-campbuild-extensionless-build"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("run requires --artifact exec", result.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("At least one source file pattern is required", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Project_reference_builds_static_library_and_includes_api()
 	{
 		string root = TempPath("project-reference");

@@ -343,7 +343,7 @@ sealed class CampCli
 		request = null;
 		errors = [];
 
-		if (command == CommandKind.Build)
+		if (command is CommandKind.Build or CommandKind.Run)
 			args = ResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray();
 		if (errors.Count > 0)
 			return false;
