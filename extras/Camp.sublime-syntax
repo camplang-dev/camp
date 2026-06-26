@@ -88,9 +88,9 @@ contexts:
         3: variable.parameter.documentation.camp
         4: punctuation.separator.key-value.documentation.camp
     - match: '@(?:summary|remarks|returns|example|see|deprecated)\b'
-      scope: storage.type.annotation.documentation.camp
+      scope: storage.type.annotation.documentation.known.camp
     - match: '@{{identifier}}\b'
-      scope: invalid.deprecated.unknown-annotation.documentation.camp
+      scope: storage.type.annotation.documentation.camp
     - match: '(\[)([^\]\n`]+)(\])'
       captures:
         1: punctuation.definition.reference.documentation.begin.camp
