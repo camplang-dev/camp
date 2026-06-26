@@ -1,0 +1,41 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+interface IValue
+{
+	int value();
+}
+
+class BaseCounter: IValue
+{
+	int value()
+	{
+		return 7;
+	}
+}
+
+class DerivedCounter: BaseCounter
+{
+}
+
+int readValue(IValue* value)
+{
+	return value.value();
+}
+
+IValue* asValue(DerivedCounter* value)
+{
+	return value;
+}
+
+int main()
+{
+	auto counter = new DerivedCounter();
+	int result = readValue(counter);
+	IValue* assigned = counter;
+	result += readValue(assigned);
+	result += readValue((IValue*)counter);
+	result += readValue(asValue(counter));
+	delete counter;
+	return result - 28;
+}

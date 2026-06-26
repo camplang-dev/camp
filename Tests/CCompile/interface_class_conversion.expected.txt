@@ -9,6 +9,7 @@ static void Counter_op_initnew(Counter *this, int count);
 static Counter *Counter_create(int count);
 static IValue **Counter_getIValue(Counter *this);
 static int readValue(IValue **counter);
+static IValue **asValue(Counter *counter);
 static int main(void);
 static int Counter_IValue_value(IValue **ctx);
 static const IValue Counter_IValue__storage;
@@ -48,6 +49,11 @@ static int readValue(IValue **counter)
 	return (*counter)->value(counter);
 }
 
+static IValue **asValue(Counter *counter)
+{
+	return Counter_getIValue(counter);
+}
+
 static int main(void)
 {
 	Counter *c = (Counter *)(malloc(sizeof(Counter)));
@@ -56,9 +62,13 @@ static int main(void)
 		*c = (Counter){0};
 		Counter_op_initnew(c, 10);
 	}
-	int v = readValue((IValue **)&c->_vt_IValue);
+	int v = readValue(Counter_getIValue(c));
+	IValue **assigned = Counter_getIValue(c);
+	v += readValue(assigned);
+	v += readValue(Counter_getIValue(c));
+	v += readValue(asValue(c));
 	free((void *)(c));
-	return (v - 10);
+	return (v - 40);
 }
 
 static int Counter_IValue_value(IValue **ctx)

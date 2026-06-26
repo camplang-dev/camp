@@ -227,6 +227,7 @@ public sealed partial class BindableNodeAnalyzer
 				returnStatement.Expression = returnStatement.Expression is not null && ContainsUncaughtThrow(returnStatement.Expression)
 					? HoistThrowingExpression(returnStatement.Expression)
 					: LowerExpression(returnStatement.Expression);
+				returnStatement.Expression = LowerInterfaceConversion(currentRewriteFunction?.ReturnType, returnStatement.Expression);
 				if (TryRewriteExpandedReturn(returnStatement, out Statement? expandedReturn))
 					return PrependThrownParameterClear(WithPendingCleanups(expandedReturn), returnStatement.SourceSyntax);
 				return PrependThrownParameterClear(WithPendingCleanups(returnStatement), returnStatement.SourceSyntax);

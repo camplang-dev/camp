@@ -1,0 +1,111 @@
+// file: interface_derived_conversion.c
+#include "interface_derived_conversion_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static int BaseCounter_value(BaseCounter *this);
+static IValue **BaseCounter_getIValue(BaseCounter *this);
+static void BaseCounter_op_initnew(BaseCounter *this);
+static void DerivedCounter_op_initnew(DerivedCounter *this);
+static int readValue(IValue **value);
+static IValue **asValue(DerivedCounter *value);
+static int main(void);
+static int BaseCounter_IValue_value(IValue **ctx);
+static const IValue BaseCounter_IValue__storage;
+static const IValue *BaseCounter_IValue;
+
+static const IValue BaseCounter_IValue__storage = { .value = BaseCounter_IValue_value };
+static const IValue *BaseCounter_IValue = &BaseCounter_IValue__storage;
+static int BaseCounter_value(BaseCounter *this)
+{
+	return 7;
+}
+
+static IValue **BaseCounter_getIValue(BaseCounter *this)
+{
+	return (IValue **)(&this->_vt_IValue);
+}
+
+static void BaseCounter_op_initnew(BaseCounter *this)
+{
+	this->_vt_IValue = BaseCounter_IValue;
+}
+
+static void DerivedCounter_op_initnew(DerivedCounter *this)
+{
+	BaseCounter_op_initnew((BaseCounter *)(this));
+}
+
+static int readValue(IValue **value)
+{
+	return (*value)->value(value);
+}
+
+static IValue **asValue(DerivedCounter *value)
+{
+	return BaseCounter_getIValue((BaseCounter *)(value));
+}
+
+static int main(void)
+{
+	DerivedCounter *counter = (DerivedCounter *)(malloc(sizeof(DerivedCounter)));
+	if ((counter != NULL))
+	{
+		*counter = (DerivedCounter){0};
+		DerivedCounter_op_initnew(counter);
+	}
+	int result = readValue(BaseCounter_getIValue((BaseCounter *)(counter)));
+	IValue **assigned = BaseCounter_getIValue((BaseCounter *)(counter));
+	result += readValue(assigned);
+	result += readValue(BaseCounter_getIValue((BaseCounter *)(counter)));
+	result += readValue(asValue(counter));
+	free((void *)(counter));
+	return (result - 28);
+}
+
+static int BaseCounter_IValue_value(IValue **ctx)
+{
+	BaseCounter *instance = (BaseCounter *)(((uint8_t *)(ctx) - offsetof(BaseCounter, _vt_IValue)));
+	return BaseCounter_value(instance);
+}
+
+// file: interface_derived_conversion_private.h
+#ifndef INTERFACE_DERIVED_CONVERSION_PRIVATE_H_
+#define INTERFACE_DERIVED_CONVERSION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IValue IValue;
+typedef struct BaseCounter BaseCounter;
+typedef struct DerivedCounter DerivedCounter;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct IValue
+{
+	int (* value)(IValue **ctx);
+};
+struct BaseCounter
+{
+	const IValue *_vt_IValue;
+};
+struct DerivedCounter
+{
+	const IValue *_vt_IValue;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: interface_derived_conversion.c

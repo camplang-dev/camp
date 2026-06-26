@@ -26,10 +26,19 @@ int readValue(IValue* counter)
 	return counter.value();
 }
 
+IValue* asValue(Counter* counter)
+{
+	return counter;
+}
+
 int main()
 {
 	auto c = new Counter(10);
 	int v = readValue(c);
+	IValue* assigned = c;
+	v += readValue(assigned);
+	v += readValue((IValue*)c);
+	v += readValue(asValue(c));
 	delete c;
-	return v - 10;
+	return v - 40;
 }

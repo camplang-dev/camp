@@ -729,6 +729,10 @@ public sealed partial class BindableNodeAnalyzer
 				variable.ResolvedType = variable.Type.ResolvedType;
 				break;
 
+			case FunctionDefinition function when function.ReturnType is not null:
+				function.ResolvedType = function.ReturnType.ResolvedType;
+				break;
+
 			case DeclarationTarget target when target.Type is not null && target.Type is not AutoTypeReference:
 				target.ResolvedType = target.Type.ResolvedType;
 				break;
@@ -797,9 +801,6 @@ public sealed partial class BindableNodeAnalyzer
 
 	string? GetLoweredCallReturnType(CallExpression call)
 	{
-		if (!NeedsResolvedTypeRefresh(call.ResolvedType))
-			return call.ResolvedType;
-
 		FunctionDefinition? function = call.Target switch
 		{
 			MemberReferenceExpression { Member: FunctionDefinition memberFunction } => memberFunction,
@@ -808,11 +809,15 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		if (function is null)
 		{
+			if (!NeedsResolvedTypeRefresh(call.ResolvedType))
+				return call.ResolvedType;
 			if (call.Target is not null && TryGetCallableShape(call.Target.ResolvedType, out CallableShape callable))
 				return callable.ReturnType;
 			return null;
 		}
 
+		if (!NeedsResolvedTypeRefresh(call.ResolvedType) && !IsInterfacePointerType(function.ReturnType))
+			return call.ResolvedType;
 		return SubstituteGenericReturnType(function.ResolvedType, call.TypeArguments);
 	}
 

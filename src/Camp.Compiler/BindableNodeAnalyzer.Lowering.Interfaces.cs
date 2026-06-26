@@ -427,7 +427,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& TryFindInterfaceLowering(classDefinition, targetInterface, out InterfaceImplementationLowering? lowering)
 			&& lowering is not null)
 		{
-			return lowering.Field is null ? value : AddressOfInterfaceField(value, lowering.Field);
+			return CreateClassInterfaceConversion(value, classDefinition, targetInterface, lowering);
 		}
 
 		if (typeDefinitions.TryGetValue(BaseTypeName(sourceType), out TypeDefinition? sourceTypeDefinition)
@@ -453,6 +453,57 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return value;
+	}
+
+	Expression CreateClassInterfaceConversion(Expression value, ClassDefinition sourceClass, InterfaceDefinition targetInterface, InterfaceImplementationLowering lowering)
+	{
+		FunctionDefinition? accessor = FindInterfaceAccessorFunction(lowering.Type, targetInterface);
+		if (accessor is null)
+			return lowering.Field is null ? value : AddressOfInterfaceField(value, lowering.Field);
+
+		Expression receiver = value;
+		if (!ReferenceEquals(sourceClass, lowering.Type))
+		{
+			receiver = new CastExpression
+			{
+				Kind = CastKind.Type,
+				Type = PointerTo(InterfaceType(lowering.Type)),
+				Expression = value,
+				ResolvedType = $"{lowering.Type.Name}*"
+			};
+		}
+
+		MethodReferenceExpression target = new()
+		{
+			ResolvedType = BuildFunctionValueType(accessor, isInstance: false)
+		};
+		target.Candidates.Add(accessor);
+		return new CallExpression
+		{
+			Target = target,
+			Arguments =
+			{
+				new ArgumentExpression
+				{
+					Value = receiver,
+					ResolvedType = receiver.ResolvedType
+				}
+			},
+			ResolvedType = accessor.ResolvedType
+		};
+	}
+
+	FunctionDefinition? FindInterfaceAccessorFunction(TypeDefinition type, InterfaceDefinition targetInterface)
+	{
+		if (type is not ClassDefinition classDefinition)
+			return null;
+		string name = InterfaceAccessorName(targetInterface);
+		foreach (FunctionDefinition function in classDefinition.Functions)
+		{
+			if (function.Name == name)
+				return function;
+		}
+		return null;
 	}
 
 	bool IsInterfacePointerType(TypeReference? type)
