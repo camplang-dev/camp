@@ -17,6 +17,11 @@ int readGeneric<T: implements IValue>(T* value, vtableof(T: IValue))
 	return value.value();
 }
 
+int readConcrete(vtableof(NativeCounter: IValue))
+{
+	return 0;
+}
+
 export int main()
 {
 	NativeCounter* counter = default;
@@ -27,5 +32,6 @@ export int main()
 	result += readValue(counter.IValue);
 	result += readValue(counter.getIValue());
 	result += readGeneric<NativeCounter>(counter);
+	result += readConcrete();
 	return result;
 }

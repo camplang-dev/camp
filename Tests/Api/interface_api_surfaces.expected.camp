@@ -1,6 +1,6 @@
 export interface IValue
 {
-	export extern int value();
+	export int value();
 }
 
 export extern class Counter : IValue

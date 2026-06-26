@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -63,7 +64,14 @@ public sealed partial class BindableNodeAnalyzer
 			: FindGenericParameter(scope, genericName);
 		if (genericParameter is null)
 		{
-			Report(GetRange(syntax), $"vtableof requires a generic type parameter constrained with 'implements', not '{type?.ResolvedType ?? genericName}'.");
+			if (TryGetConcreteVTableOfType(type, out TypeDefinition? concreteType) && concreteType is not null)
+			{
+				if (!ConcreteTypeImplementsInterface(concreteType, interfaceDefinition))
+					Report(GetRange(syntax), $"Type '{concreteType.Name}' does not implement interface '{interfaceDefinition.Name}'.");
+				return;
+			}
+
+			Report(GetRange(syntax), $"vtableof requires a generic type parameter constrained with 'implements' or a concrete type that implements the interface, not '{type?.ResolvedType ?? genericName}'.");
 			return;
 		}
 		if (!genericParameter.RequiresImplementation)
@@ -87,6 +95,52 @@ public sealed partial class BindableNodeAnalyzer
 			&& TryGetInterfaceDefinition(parameter.Constraint, out InterfaceDefinition? constraintInterface)
 			&& constraintInterface is not null
 			&& InterfaceContainsBase(constraintInterface, interfaceDefinition);
+	}
+
+	bool TryGetConcreteVTableOfType(TypeReference? type, out TypeDefinition? definition)
+	{
+		definition = null;
+		type = type is null ? null : UnwrapTypeDeclarators(type);
+		return type switch
+		{
+			TypeDefinitionReference { Definition: TypeDefinition typeDefinition } => (definition = typeDefinition) is not null,
+			NamedTypeReference named => TryGetNamedTypeDefinition(named, out definition) && definition is not null,
+			_ => false
+		};
+	}
+
+	bool ConcreteTypeImplementsInterface(TypeDefinition type, InterfaceDefinition interfaceDefinition)
+	{
+		switch (type)
+		{
+			case ClassDefinition classDefinition:
+				foreach (TypeReference baseType in classDefinition.LoweredInterfaceBaseTypes.Concat(classDefinition.BaseTypes))
+				{
+					if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? implementedInterface)
+						&& implementedInterface is not null
+						&& InterfaceContainsBase(implementedInterface, interfaceDefinition))
+						return true;
+				}
+				foreach (TypeDefinition baseType in GetDirectBaseClasses(classDefinition))
+				{
+					if (baseType is ClassDefinition baseClass && ConcreteTypeImplementsInterface(baseClass, interfaceDefinition))
+						return true;
+				}
+				return false;
+
+			case StructDefinition structDefinition:
+				foreach (TypeReference baseType in structDefinition.LoweredInterfaceBaseTypes.Concat(structDefinition.BaseTypes))
+				{
+					if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? implementedInterface)
+						&& implementedInterface is not null
+						&& InterfaceContainsBase(implementedInterface, interfaceDefinition))
+						return true;
+				}
+				return false;
+
+			default:
+				return false;
+		}
 	}
 
 	static string VTablePointerType(TypeReference? interfaceType)
@@ -165,7 +219,15 @@ public sealed partial class BindableNodeAnalyzer
 	Expression LowerVTableOfExpression(VTableOfExpression vtableOf)
 	{
 		if (!IsGenericVTableOf(vtableOf, out string genericName, out string interfaceName))
-			return vtableOf;
+		{
+			string concreteType = VTableOfTypeName(vtableOf.Type);
+			return CreateConcreteVTableExpression(concreteType, new VTableOfParameterDefinition
+			{
+				Type = vtableOf.Type,
+				InterfaceType = vtableOf.InterfaceType,
+				ResolvedType = VTablePointerType(vtableOf.InterfaceType)
+			}, vtableOf.SourceSyntax);
+		}
 
 		if (FindVTableOfParameter(currentRewriteFunction, genericName, interfaceName) is VTableOfParameterDefinition parameter)
 			return CreateVariableReference(parameter, parameter.ResolvedType ?? VTablePointerType(parameter.InterfaceType));
@@ -190,10 +252,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		genericName = "";
 		interfaceName = VTableOfTypeName(vtableOf.InterfaceType);
-		string name = VTableOfTypeName(vtableOf.Type);
-		if (!string.IsNullOrWhiteSpace(name) && name != ErrorType)
+		if (vtableOf.Type is GenericParameterTypeReference)
 		{
-			genericName = name;
+			genericName = VTableOfTypeName(vtableOf.Type);
 			return true;
 		}
 		return false;

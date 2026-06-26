@@ -20,6 +20,7 @@ public sealed class BindableNodeCodeSerializer
 	readonly Dictionary<BindableNode, string> generatedNames = new();
 	int indent;
 	int generatedLocalIndex;
+	bool writingInterfaceMembers;
 
 	BindableNodeCodeSerializer(TextWriter writer, BindableNodeCodeSerializerOptions? options)
 	{
@@ -221,6 +222,8 @@ public sealed class BindableNodeCodeSerializer
 		WriteLineBlock(() =>
 		{
 			bool wrote = false;
+			bool previousWritingInterfaceMembers = writingInterfaceMembers;
+			writingInterfaceMembers = true;
 			foreach (FunctionDefinition function in definition.Functions)
 			{
 				if (wrote)
@@ -228,6 +231,7 @@ public sealed class BindableNodeCodeSerializer
 				WriteFunctionDefinition(function);
 				wrote = true;
 			}
+			writingInterfaceMembers = previousWritingInterfaceMembers;
 		});
 	}
 
@@ -1152,8 +1156,10 @@ public sealed class BindableNodeCodeSerializer
 
 	bool ShouldWriteExternPrefix(Definition definition)
 	{
+		if (writingInterfaceMembers)
+			return false;
 		if (definition.Extern is not null)
-			return true;
+			return !writingInterfaceMembers;
 		if (!apiHeader || definition.Export is null)
 			return false;
 

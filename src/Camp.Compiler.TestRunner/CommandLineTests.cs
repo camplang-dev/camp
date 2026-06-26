@@ -355,6 +355,113 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Project_reference_consumes_exported_interface_accessors_and_vtables()
+	{
+		string root = TempPath("project-reference-interface-accessors");
+		string libraryRoot = Path.Combine(root, "interfaces");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "interfaces.camp"), """
+			extern void* malloc(nuint size);
+			extern void free(void* pointer);
+
+			export interface IValue
+			{
+				export int value();
+			}
+
+			export class Counter: IValue
+			{
+				int value()
+				{
+					return 1;
+				}
+			}
+
+			export extern class NativeCounter: IValue
+			{
+			}
+
+			export extern class NativeDerived: NativeCounter
+			{
+			}
+
+			export struct StructCounter: IValue
+			{
+				int value()
+				{
+					return 2;
+				}
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "interfaces.campbuild"), """
+			--nostdlib
+			--name interfaces
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name interface-app
+
+			int readValue(IValue* value)
+			{
+				return value.value();
+			}
+
+			int readGeneric<T: implements IValue>(T* value, vtableof(T: IValue))
+			{
+				return value.value();
+			}
+
+			export int main()
+			{
+				auto counter = new Counter() finally delete;
+				int total = 0;
+				IValue* assigned = counter;
+				total += readValue(assigned);
+				total += readValue((IValue*)counter);
+				total += readValue(counter.IValue);
+				total += readValue(counter.getIValue());
+				total += readGeneric<Counter>(counter);
+				return total == 5 ? 0 : total;
+			}
+			""");
+		string outDir = Path.Combine(appRoot, "bin");
+		string buildDir = Path.Combine(appRoot, "obj");
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			"clang-macos-x64",
+			"--project-reference",
+			libraryRoot,
+			"--build-dir",
+			buildDir,
+			"--out-dir",
+			outDir);
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("generated: interface-app", result.StdOut, StringComparison.Ordinal);
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "default", "DEBUG", "interfaces_api.camp"));
+		Assert.Contains("export extern class Counter : IValue", api, StringComparison.Ordinal);
+		Assert.Contains("export extern IValue* getIValue();", api, StringComparison.Ordinal);
+		Assert.Contains("export extern class NativeCounter : IValue", api, StringComparison.Ordinal);
+		Assert.Contains("export extern class NativeDerived : NativeCounter", api, StringComparison.Ordinal);
+		Assert.Contains("export struct StructCounter", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("export struct StructCounter : IValue", api, StringComparison.Ordinal);
+		string cApi = File.ReadAllText(Path.Combine(buildDir, "interfaces_api.h"));
+		Assert.Contains("extern const IValue *Counter_IValue;", cApi, StringComparison.Ordinal);
+		Assert.DoesNotContain("StructCounter_IValue", cApi, StringComparison.Ordinal);
+		ProcessResult run = RunExecutable(Path.Combine(outDir, "interface-app"));
+		Assert.Equal(0, run.ExitCode);
+		Assert.Equal("", run.StdErr);
+	}
+
+	[Fact]
 	[Trait("Category", "MsvcCompile")]
 	public void Project_reference_links_native_static_library_with_msvc()
 	{

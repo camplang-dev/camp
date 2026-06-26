@@ -4,6 +4,7 @@
 /* Private file declarations. */
 static int readValue(IValue **value);
 static int readGeneric(void *value, const IValue *vtableof_T_IValue);
+static int readConcrete(const IValue *vtableof_NativeCounter_IValue);
 
 static int readValue(IValue **value)
 {
@@ -13,6 +14,11 @@ static int readValue(IValue **value)
 static int readGeneric(void *value, const IValue *vtableof_T_IValue)
 {
 	return vtableof_T_IValue->value((IValue **)(value));
+}
+
+static int readConcrete(const IValue *vtableof_NativeCounter_IValue)
+{
+	return 0;
 }
 
 int main(void)
@@ -25,6 +31,7 @@ int main(void)
 	result += readValue(NativeCounter_getIValue(counter));
 	result += readValue(NativeCounter_getIValue(counter));
 	result += readGeneric(counter, NativeCounter_IValue);
+	result += readConcrete(NativeCounter_IValue);
 	return result;
 }
 

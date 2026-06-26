@@ -117,6 +117,7 @@ public static class CompilationPipeline
 
 			foreach (Definition definition in fileModule.Definitions)
 			{
+				MarkApiHeaderDefinition(definition, file.IsApiHeader);
 				module.Definitions.Add(definition);
 				compilation.DefinitionOwners[definition] = file;
 				module.DefinitionSources[definition] = file.Tokens;
@@ -124,6 +125,51 @@ public static class CompilationPipeline
 		}
 
 		return module;
+	}
+
+	static void MarkApiHeaderDefinition(Definition definition, bool isApiHeader)
+	{
+		definition.IsApiHeader = isApiHeader;
+		switch (definition)
+		{
+			case ClassDefinition classDefinition:
+				foreach (FieldDefinition field in classDefinition.Fields)
+					MarkApiHeaderDefinition(field, isApiHeader);
+				foreach (FunctionDefinition function in classDefinition.Functions)
+					MarkApiHeaderDefinition(function, isApiHeader);
+				break;
+
+			case StructDefinition structDefinition:
+				foreach (FieldDefinition field in structDefinition.Fields)
+					MarkApiHeaderDefinition(field, isApiHeader);
+				foreach (FunctionDefinition function in structDefinition.Functions)
+					MarkApiHeaderDefinition(function, isApiHeader);
+				break;
+
+			case InterfaceDefinition interfaceDefinition:
+				foreach (FunctionDefinition function in interfaceDefinition.Functions)
+					MarkApiHeaderDefinition(function, isApiHeader);
+				break;
+
+			case EnumDefinition enumDefinition:
+				foreach (VariableDefinition value in enumDefinition.Values)
+					MarkApiHeaderDefinition(value, isApiHeader);
+				foreach (FunctionDefinition function in enumDefinition.Functions)
+					MarkApiHeaderDefinition(function, isApiHeader);
+				break;
+
+			case NewtypeDefinition newtypeDefinition:
+				foreach (FieldDefinition field in newtypeDefinition.Fields)
+					MarkApiHeaderDefinition(field, isApiHeader);
+				foreach (FunctionDefinition function in newtypeDefinition.Functions)
+					MarkApiHeaderDefinition(function, isApiHeader);
+				break;
+
+			case ParamsDefinition paramsDefinition:
+				foreach (FunctionDefinition function in paramsDefinition.Functions)
+					MarkApiHeaderDefinition(function, isApiHeader);
+				break;
+		}
 	}
 
 	static void AssignGeneratedDefinitionOwners(Compilation compilation)

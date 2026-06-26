@@ -1,0 +1,17 @@
+interface IValue
+{
+	int value();
+}
+
+extern class NativeCounter
+{
+}
+
+void read(vtableof(NativeCounter: IValue))
+{
+}
+
+export int main()
+{
+	return 0;
+}

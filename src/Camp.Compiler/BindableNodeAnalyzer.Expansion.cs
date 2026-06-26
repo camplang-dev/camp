@@ -377,7 +377,8 @@ public sealed partial class BindableNodeAnalyzer
 				};
 				InterfaceImplementationLowering externLowering = new(classDefinition, interfaceDefinition, Field: null, externVTable, externStoragePlaceholder, DirectEntries: false, IsStruct: false, IsExternClass: true);
 				implementations.Add(externLowering);
-				classDefinition.Functions.Add(CreateInterfaceAccessorDeclaration(classDefinition, externLowering));
+				if (FindImportedInterfaceAccessor(classDefinition, interfaceDefinition) is null)
+					classDefinition.Functions.Add(CreateInterfaceAccessorDeclaration(classDefinition, externLowering));
 				continue;
 			}
 
@@ -450,6 +451,20 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = $"{interfaceDefinition.Name}**"
 		};
 		return accessor;
+	}
+
+	FunctionDefinition? FindImportedInterfaceAccessor(ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)
+	{
+		string accessorName = InterfaceAccessorName(interfaceDefinition);
+		string accessorSymbol = classDefinition.Name + "_" + accessorName;
+		foreach (FunctionDefinition function in classDefinition.Functions)
+		{
+			if (!function.IsApiHeader || function.Extern is null)
+				continue;
+			if (function.Name == accessorName)
+				return function;
+		}
+		return null;
 	}
 
 	void EnsureInheritedInitNewMethod(ClassDefinition classDefinition, ClassDefinition? baseClass)
@@ -614,7 +629,7 @@ public sealed partial class BindableNodeAnalyzer
 		string accessorName = InterfaceAccessorName(interfaceDefinition);
 		foreach (FunctionDefinition function in classDefinition.Functions)
 		{
-			if (function.Name != accessorName || function.SourceSyntax is not null)
+			if (function.Name != accessorName || function.SourceSyntax is not null && !function.IsApiHeader)
 				continue;
 
 			function.ResolvedType = $"{interfaceDefinition.Name}**";

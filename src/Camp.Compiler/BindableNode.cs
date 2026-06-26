@@ -35,6 +35,7 @@ public abstract class Definition : BindableNode
 	public string? Export { get; set; }
 	public string? Public { get; set; }
 	public string? Extern { get; set; }
+	public bool IsApiHeader { get; set; }
 }
 
 public abstract class TypeDefinition : Definition

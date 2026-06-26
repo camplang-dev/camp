@@ -1,1 +1,1 @@
-tests/Diagnostics/vtableof_invalid_string.camp(6,14): error: vtableof requires a generic type parameter constrained with 'implements', not 'string'.
+tests/Diagnostics/vtableof_invalid_string.camp(6,14): error: vtableof requires a generic type parameter constrained with 'implements' or a concrete type that implements the interface, not 'string'.

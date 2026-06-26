@@ -1263,9 +1263,12 @@ public sealed partial class BindableNodeAnalyzer
 			definition.LifetimeBinding = explicitLifetime;
 		else if (TryGetLifetimeAnnotation(definition.Type, out _, out _, out string? nestedLifetime) && nestedLifetime is not null)
 			definition.LifetimeBinding = nestedLifetime;
-		ValidateNoDirectFixedArrayType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
-		ValidateNoDirectExternClassType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
-		ValidateNoExternClassArrayElement(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
+		if (definition is not VTableOfParameterDefinition)
+		{
+			ValidateNoDirectFixedArrayType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
+			ValidateNoDirectExternClassType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
+			ValidateNoExternClassArrayElement(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
+		}
 
 		if (definition is WithinParameterDefinition && definition.Type is null)
 			BindImplicitWithinParameterType(definition, scope);

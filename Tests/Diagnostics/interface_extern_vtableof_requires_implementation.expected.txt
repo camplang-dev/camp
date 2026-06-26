@@ -1,0 +1,1 @@
+tests/Diagnostics/interface_extern_vtableof_requires_implementation.camp(10,11): error: Type 'NativeCounter' does not implement interface 'IValue'.
