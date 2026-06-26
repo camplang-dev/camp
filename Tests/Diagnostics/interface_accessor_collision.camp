@@ -1,0 +1,17 @@
+interface IValue
+{
+	int value();
+}
+
+class Counter: IValue
+{
+	int value()
+	{
+		return 10;
+	}
+
+	IValue* getIValue()
+	{
+		return default;
+	}
+}

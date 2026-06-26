@@ -1,0 +1,15 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+export interface IValue
+{
+	int value();
+}
+
+export class Counter: IValue
+{
+	int value()
+	{
+		return 10;
+	}
+}

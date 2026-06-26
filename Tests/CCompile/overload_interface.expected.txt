@@ -4,6 +4,7 @@
 /* Private file declarations. */
 static void ConsoleWriter_writeInt(ConsoleWriter *this, int value);
 static void ConsoleWriter_writeString(ConsoleWriter *this, const char *value);
+static IWriter **ConsoleWriter_getIWriter(ConsoleWriter *this);
 static void ConsoleWriter_op_initnew(ConsoleWriter *this);
 static void run(IWriter **writer, ConsoleWriter *concrete);
 static void ConsoleWriter_IWriter_writeInt(IWriter **ctx, int value);
@@ -19,6 +20,11 @@ static void ConsoleWriter_writeInt(ConsoleWriter *this, int value)
 
 static void ConsoleWriter_writeString(ConsoleWriter *this, const char *value)
 {
+}
+
+static IWriter **ConsoleWriter_getIWriter(ConsoleWriter *this)
+{
+	return (IWriter **)(&this->_vt_IWriter);
 }
 
 static void ConsoleWriter_op_initnew(ConsoleWriter *this)

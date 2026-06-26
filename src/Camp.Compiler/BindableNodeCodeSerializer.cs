@@ -393,7 +393,8 @@ public sealed class BindableNodeCodeSerializer
 		bool hasSyntheticDelete = allowSyntheticConstructor
 			&& definition is not null
 			&& ShouldWriteSyntheticApiDestructor(definition, functions);
-		if (wrote && (HasExportedFunction(functions) || hasSyntheticConstructor || hasSyntheticDelete))
+		List<InterfaceDefinition> interfaceAccessors = apiHeader && definition is not null ? GetApiInterfaceAccessors(definition) : [];
+		if (wrote && (HasExportedFunction(functions) || hasSyntheticConstructor || hasSyntheticDelete || interfaceAccessors.Count > 0))
 			writer.WriteLine();
 		if (hasSyntheticConstructor)
 		{
@@ -413,9 +414,36 @@ public sealed class BindableNodeCodeSerializer
 			writer.WriteLine("();");
 			wrote = true;
 		}
+		foreach (InterfaceDefinition interfaceDefinition in interfaceAccessors)
+		{
+			if (wrote)
+				writer.WriteLine();
+			WriteIndent();
+			writer.Write("export extern ");
+			writer.Write(interfaceDefinition.Name);
+			writer.Write("* ");
+			writer.Write("get");
+			writer.Write(interfaceDefinition.Name);
+			writer.WriteLine("();");
+			wrote = true;
+		}
 		if (wrote && HasExportedFunction(functions))
 			writer.WriteLine();
 		WriteApiFunctions(functions);
+	}
+
+	static List<InterfaceDefinition> GetApiInterfaceAccessors(ClassDefinition definition)
+	{
+		List<InterfaceDefinition> interfaces = [];
+		foreach (TypeReference baseType in definition.BaseTypes)
+		{
+			if (baseType is TypeDefinitionReference { Definition: InterfaceDefinition interfaceDefinition }
+				&& interfaceDefinition.Export is not null)
+			{
+				interfaces.Add(interfaceDefinition);
+			}
+		}
+		return interfaces;
 	}
 
 	static bool ShouldWriteSyntheticApiConstructor(ClassDefinition definition, List<FunctionDefinition> functions)
@@ -577,7 +605,8 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write("async ");
 			if (definition.IteratorKind != IteratorKind.None)
 				writer.Write($"{Lower(definition.IteratorKind)} ");
-			WriteTypeOrResolved(definition.ReturnType, definition.ResolvedType);
+			if (!TryWriteApiInterfaceAccessorReturnType(definition))
+				WriteTypeOrResolved(definition.ReturnType, definition.ResolvedType);
 			writer.Write(" ");
 			writer.Write(definition.Name);
 		}
@@ -1147,6 +1176,26 @@ public sealed class BindableNodeCodeSerializer
 			return definition.Modifier != FunctionModifier.None;
 
 		return definition.Modifier is not (FunctionModifier.None or FunctionModifier.Virtual or FunctionModifier.Abstract);
+	}
+
+	bool TryWriteApiInterfaceAccessorReturnType(FunctionDefinition definition)
+	{
+		if (!apiHeader || definition.SourceSyntax is not null || !definition.Name.StartsWith("get", StringComparison.Ordinal))
+			return false;
+		if (definition.ReturnType is not PointerTypeReference
+			{
+				ElementType: PointerTypeReference
+				{
+					ElementType: TypeDefinitionReference { Definition: InterfaceDefinition } interfaceType
+				}
+			})
+		{
+			return false;
+		}
+
+		WriteType(interfaceType);
+		writer.Write("*");
+		return true;
 	}
 
 	void WriteGenericParameters(List<GenericParameter> parameters)

@@ -392,6 +392,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, vtableStorage, DirectEntries: false, IsStruct: false);
 			implementations.Add(lowering);
+			classDefinition.Functions.Add(CreateInterfaceAccessorDeclaration(classDefinition, lowering));
 			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
 			interfaceIndex++;
 		}
@@ -403,6 +404,22 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		EnsureInheritedInitNewMethod(classDefinition, baseClass);
+	}
+
+	FunctionDefinition CreateInterfaceAccessorDeclaration(ClassDefinition classDefinition, InterfaceImplementationLowering lowering)
+	{
+		InterfaceDefinition interfaceDefinition = lowering.Interface;
+		TypeReference sourceReturnType = InterfaceInstanceType(interfaceDefinition);
+		FunctionDefinition accessor = new()
+		{
+			Name = InterfaceAccessorName(interfaceDefinition),
+			Symbol = classDefinition.Name + "_" + InterfaceAccessorName(interfaceDefinition),
+			Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
+			Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null,
+			ReturnType = sourceReturnType,
+			ResolvedType = $"{interfaceDefinition.Name}**"
+		};
+		return accessor;
 	}
 
 	void EnsureInheritedInitNewMethod(ClassDefinition classDefinition, ClassDefinition? baseClass)
@@ -541,7 +558,10 @@ public sealed partial class BindableNodeAnalyzer
 		foreach ((ClassDefinition classDefinition, List<InterfaceImplementationLowering> lowerings) in classInterfaceLowerings)
 		{
 			foreach (InterfaceImplementationLowering lowering in lowerings)
+			{
 				lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface);
+				RefreshInterfaceAccessorAbiType(classDefinition, lowering.Interface);
+			}
 
 			for (int i = lowerings.Count - 1; i >= 0; i--)
 				InsertInterfaceVTableInitialization(classDefinition, lowerings[i]);
@@ -555,6 +575,47 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach ((FunctionDefinition thunk, InterfaceThunkLowering lowering) in interfaceThunkLowerings)
 			thunk.Body = CreateInterfaceThunkBody(thunk, lowering);
+	}
+
+	void RefreshInterfaceAccessorAbiType(ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)
+	{
+		string accessorName = InterfaceAccessorName(interfaceDefinition);
+		foreach (FunctionDefinition function in classDefinition.Functions)
+		{
+			if (function.Name != accessorName || function.SourceSyntax is not null)
+				continue;
+
+			function.ResolvedType = $"{interfaceDefinition.Name}**";
+			if (function.ReturnType is not null)
+				function.ReturnType.ResolvedType = $"{interfaceDefinition.Name}**";
+			if (function.Body is null && classInterfaceLowerings.TryGetValue(classDefinition, out List<InterfaceImplementationLowering>? lowerings))
+			{
+				foreach (InterfaceImplementationLowering lowering in lowerings)
+				{
+					if (!ReferenceEquals(lowering.Interface, interfaceDefinition))
+						continue;
+					function.Body = new BlockStatement
+					{
+						ResolvedType = "void",
+						Statements =
+						{
+							new ReturnStatement
+							{
+								Expression = new CastExpression
+								{
+									Kind = CastKind.Type,
+									Type = InterfaceInstanceType(interfaceDefinition),
+									Expression = AddressOfInterfaceField(new ThisExpression { ResolvedType = classDefinition.Name }, lowering.Field!),
+									ResolvedType = $"{interfaceDefinition.Name}**"
+								},
+								ResolvedType = "void"
+							}
+						}
+					};
+					break;
+				}
+			}
+		}
 	}
 
 	void LowerInterfaceDefinitions(Module module)
@@ -1247,6 +1308,11 @@ public sealed partial class BindableNodeAnalyzer
 	static string InterfaceVTableName(TypeDefinition type, InterfaceDefinition interfaceDefinition)
 	{
 		return type.Name + "_" + interfaceDefinition.Name;
+	}
+
+	static string InterfaceAccessorName(InterfaceDefinition interfaceDefinition)
+	{
+		return "get" + interfaceDefinition.Name;
 	}
 
 	static string InterfaceIndirectName(InterfaceDefinition interfaceDefinition)

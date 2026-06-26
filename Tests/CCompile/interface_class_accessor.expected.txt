@@ -1,5 +1,5 @@
-// file: interface_class_conversion.c
-#include "interface_class_conversion_private.h"
+// file: interface_class_accessor.c
+#include "interface_class_accessor_private.h"
 
 /* Private file declarations. */
 void *malloc(uintptr_t size);
@@ -56,9 +56,11 @@ static int main(void)
 		*c = (Counter){0};
 		Counter_op_initnew(c, 10);
 	}
-	int v = readValue((IValue **)&c->_vt_IValue);
+	int v = readValue(Counter_getIValue(c));
+	v += readValue(Counter_getIValue(c));
+	v += readValue(Counter_getIValue(c));
 	free((void *)(c));
-	return (v - 10);
+	return (v - 30);
 }
 
 static int Counter_IValue_value(IValue **ctx)
@@ -67,9 +69,9 @@ static int Counter_IValue_value(IValue **ctx)
 	return Counter_value(instance);
 }
 
-// file: interface_class_conversion_private.h
-#ifndef INTERFACE_CLASS_CONVERSION_PRIVATE_H_
-#define INTERFACE_CLASS_CONVERSION_PRIVATE_H_
+// file: interface_class_accessor_private.h
+#ifndef INTERFACE_CLASS_ACCESSOR_PRIVATE_H_
+#define INTERFACE_CLASS_ACCESSOR_PRIVATE_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -101,4 +103,4 @@ struct Counter
 
 #endif
 // compile
-compiled: interface_class_conversion.c
+compiled: interface_class_accessor.c

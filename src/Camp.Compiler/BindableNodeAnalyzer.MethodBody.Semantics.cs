@@ -165,6 +165,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsClassToInterfaceConversion(source, target) || IsStructToInterfaceConversion(source, target) || IsInterfaceUpcast(source, target))
 			return true;
 
+		if (IsLoweredInterfacePointerConversion(source, target))
+			return true;
+
 		if (IsNewtypeOrEnumBoundary(source, target))
 			return false;
 
@@ -335,6 +338,16 @@ public sealed partial class BindableNodeAnalyzer
 			&& typeDefinitions.TryGetValue(BaseTypeName(targetElement), out TypeDefinition? targetType)
 			&& targetType is InterfaceDefinition targetInterface
 			&& InterfaceInheritsFrom(sourceInterface, targetInterface);
+	}
+
+	bool IsLoweredInterfacePointerConversion(string source, string target)
+	{
+		string? targetElement = TryGetPointerElementType(target);
+		if (targetElement is null)
+			return false;
+		return typeDefinitions.TryGetValue(BaseTypeName(targetElement), out TypeDefinition? targetType)
+			&& targetType is InterfaceDefinition
+			&& source == targetElement + "**";
 	}
 
 	bool ClassImplementsInterface(ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)

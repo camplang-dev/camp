@@ -13,6 +13,11 @@ class Widget
 	{
 	}
 
+	IRef** getIRef()
+	{
+		return (IRef**)&this._vt_IRef;
+	}
+
 	void op_initnew()
 	{
 		this._vt_IRef = Widget_IRef;

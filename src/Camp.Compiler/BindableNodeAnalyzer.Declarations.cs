@@ -451,7 +451,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateDuplicateMethodNames(List<FunctionDefinition> functions)
 	{
 		Dictionary<string, List<FunctionDefinition>> invokers = new(StringComparer.Ordinal);
-		HashSet<string> callableNames = new(StringComparer.Ordinal);
+		Dictionary<string, FunctionDefinition> callableNames = new(StringComparer.Ordinal);
 		foreach (FunctionDefinition function in functions)
 		{
 			string name = GetInvokerName(function);
@@ -466,8 +466,17 @@ public sealed partial class BindableNodeAnalyzer
 			family.Add(function);
 
 			string callableName = GetCallableName(function);
-			if (!string.IsNullOrWhiteSpace(callableName) && !callableNames.Add(callableName))
-				Report(GetNameRange(function), $"Duplicate method name '{callableName}'.");
+			if (string.IsNullOrWhiteSpace(callableName))
+				continue;
+			if (callableNames.TryGetValue(callableName, out FunctionDefinition? existing))
+			{
+				FunctionDefinition reportTarget = function.SourceSyntax is null && existing.SourceSyntax is not null ? existing : function;
+				Report(GetNameRange(reportTarget), $"Duplicate method name '{callableName}'.");
+			}
+			else
+			{
+				callableNames[callableName] = function;
+			}
 		}
 
 		foreach ((string invoker, List<FunctionDefinition> family) in invokers)

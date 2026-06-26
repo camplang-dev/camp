@@ -414,8 +414,12 @@ public sealed partial class BindableNodeAnalyzer
 			return value;
 
 		string sourceType = value.ResolvedType ?? "";
-		if (sourceType == targetPointer.ResolvedType || TryGetPointerElementType(sourceType) == targetInterface.Name)
+		if (sourceType == targetPointer.ResolvedType
+			|| sourceType == targetInterface.Name + "**"
+			|| TryGetPointerElementType(sourceType) == targetInterface.Name)
+		{
 			return value;
+		}
 
 		if (TryGetPointerElementType(sourceType) is string className
 			&& typeDefinitions.TryGetValue(BaseTypeName(className), out TypeDefinition? typeDefinition)

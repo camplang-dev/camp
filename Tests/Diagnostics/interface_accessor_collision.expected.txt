@@ -1,0 +1,1 @@
+tests/Diagnostics/interface_accessor_collision.camp(13,10): error: Duplicate method name 'getIValue'.

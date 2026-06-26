@@ -1,0 +1,37 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+interface IValue
+{
+	int value();
+}
+
+class Counter: IValue
+{
+	int count;
+
+	Counter(int count = 0)
+	{
+		this.count = count;
+	}
+
+	int value()
+	{
+		return this.count;
+	}
+}
+
+int readValue(IValue* counter)
+{
+	return counter.value();
+}
+
+int main()
+{
+	auto c = new Counter(10);
+	int v = readValue(c.getIValue());
+	v += readValue(c.IValue);
+	v += readValue(Counter_getIValue(c));
+	delete c;
+	return v - 30;
+}

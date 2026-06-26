@@ -37,6 +37,11 @@ void Widget_destroy(Widget *this)
 	free((void *)(this));
 }
 
+IRef **Widget_getIRef(Widget *this)
+{
+	return (IRef **)(&this->_vt_IRef);
+}
+
 void Handle_retain(Handle *this)
 {
 }
@@ -64,6 +69,7 @@ void Widget_retain(Widget *this);
 void Widget_op_initnew(Widget *this);
 Widget *Widget_create(void);
 void Widget_destroy(Widget *this);
+IRef **Widget_getIRef(Widget *this);
 void Handle_retain(Handle *this);
 extern const IRef *Widget_IRef;
 extern const IRef *Handle_IRef;
@@ -111,6 +117,7 @@ void Widget_retain(Widget *this);
 void Widget_op_initnew(Widget *this);
 Widget *Widget_create(void);
 void Widget_destroy(Widget *this);
+IRef **Widget_getIRef(Widget *this);
 void Handle_retain(Handle *this);
 
 /* Object declarations. */
