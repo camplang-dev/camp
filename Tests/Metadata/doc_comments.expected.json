@@ -381,6 +381,27 @@
       ]
     },
     {
+      "id": "function:Docs::useFormatter",
+      "kind": "function",
+      "name": "useFormatter",
+      "visibility": "export",
+      "extern": true,
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:Docs::useFormatter/parameter:formatter",
+          "name": "formatter",
+          "type": "Formatter"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Uses a formatter callback."
+        }
+      ]
+    },
+    {
       "id": "function:Docs::literalDocs",
       "kind": "function",
       "name": "literalDocs",

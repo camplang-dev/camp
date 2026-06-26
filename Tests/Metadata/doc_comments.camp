@@ -111,6 +111,9 @@ export alias HelperAlias = helper;
 /// Helper function.
 export extern void helper();
 
+/// Uses a formatter callback.
+export extern void useFormatter(Formatter formatter);
+
 /// Uses `[NotALink]`, `@summary`, `- value:`, and `%s`.
 /// @example
 /// ```camp

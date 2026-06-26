@@ -378,7 +378,7 @@ public static class MetadataJsonSerializer
 					WriteGenericParameter(json, parameter);
 				json.WriteEndArray();
 			}
-			WriteDefinitionArray(json, "parameters", function.Parameters, includeKind: false, includeVisibility: false);
+			WriteParameterArray(json, "parameters", function.Parameters);
 		}
 
 		void WriteInterfaceSlotInitializer(Utf8JsonWriter json, FunctionDefinition function)
@@ -568,6 +568,51 @@ public static class MetadataJsonSerializer
 				MarkEmitted(definition);
 			}
 			json.WriteEndArray();
+		}
+
+		void WriteParameterArray(Utf8JsonWriter json, string propertyName, IReadOnlyList<ParameterDefinition> parameters)
+		{
+			List<ParameterDefinition> filtered = FilterApiParameters(parameters);
+			if (filtered.Count == 0)
+				return;
+
+			json.WriteStartArray(propertyName);
+			foreach (ParameterDefinition parameter in filtered)
+			{
+				WriteDefinition(json, parameter, includeKind: false, includeVisibility: false);
+				emitted.Add(parameter);
+			}
+			json.WriteEndArray();
+		}
+
+		List<ParameterDefinition> FilterApiParameters(IReadOnlyList<ParameterDefinition> parameters)
+		{
+			if (!IsExportApiView)
+				return [.. parameters];
+
+			List<ParameterDefinition> result = [];
+			foreach (ParameterDefinition parameter in parameters)
+			{
+				ParameterDefinition? previous = result.Count == 0 ? null : result[^1];
+				if (IsGeneratedCallableContextParameter(parameter, previous))
+					continue;
+				result.Add(parameter);
+			}
+			return result;
+		}
+
+		static bool IsGeneratedCallableContextParameter(ParameterDefinition parameter, ParameterDefinition? previous)
+		{
+			return previous is not null
+				&& !string.IsNullOrWhiteSpace(previous.Name)
+				&& parameter.Name == previous.Name + "_context"
+				&& IsVoidPointerParameter(parameter);
+		}
+
+		static bool IsVoidPointerParameter(ParameterDefinition parameter)
+		{
+			return parameter.Type is PointerTypeReference { ElementType: PrimitiveTypeReference { Type: PrimitiveType.Untyped } }
+				|| parameter.ResolvedType == "void*";
 		}
 
 		void MarkEmitted(Definition definition)
