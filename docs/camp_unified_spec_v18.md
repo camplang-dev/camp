@@ -2740,7 +2740,7 @@ Camp uses `struct` for ordinary data and `class` for objects with identity.
 | Pointer spelling | explicit when needed | explicit when needed | always explicit |
 | Inheritance | none | none | single inheritance |
 | Virtual dispatch | never | never | optional and explicit |
-| Interfaces | may implement | may implement | may implement, unless `extern` |
+| Interfaces | may implement | may implement; an `extern class` may declare an imported interface contract | may implement |
 | Exported layout | visible | visible | opaque |
 | Hidden `_vt` field | never | never | only for `virtual class` / `abstract class` |
 | Hidden interface fields | never | never | one per declared implemented interface |
@@ -2757,6 +2757,11 @@ a foreign opaque object type whose storage layout is not known to Camp.
 surfaces. Because they denote foreign object identities rather than local value
 storage, `extern class` pointer values are treated as escaped for lifetime
 analysis.
+
+An `extern class` may list implemented interfaces. For an extern class, this
+does not cause Camp to generate interface fields or re-implement the interface.
+It states that the foreign type exposes the expected interface accessor surface
+and, where needed, the direct interface vtable used by `vtableof(...)`.
 
 ### 2.1.2 `struct`: plain value type
 
@@ -4568,7 +4573,33 @@ For each declared implemented interface, the compiler generates a standalone vta
 
 - `TypeName_InterfaceName`
 
-The compiler also assigns the hidden interface fields during typed construction, before user constructor body execution.
+This standalone vtable is the **direct** implementation vtable. Its entries call
+the concrete implementation methods directly and are the values supplied for
+`vtableof(TypeName: InterfaceName)`.
+
+The compiler also generates a separate stored interface vtable when the
+interface value needs fixup thunks. That stored vtable is assigned to the hidden
+interface field during typed construction, before user constructor body
+execution. The stored fixup vtable is not exported as a standalone symbol.
+
+For each exported class/interface implementation, the compiler also generates a
+method named as if the class declared:
+
+```camp
+InterfaceName* getInterfaceName()
+{
+	...
+}
+```
+
+The method returns the address of the stored interface-vtable field and is the
+ordinary source surface used by `value.InterfaceName`, `value.getInterfaceName()`,
+explicit casts to `InterfaceName*`, and implicit class-to-interface conversion.
+Its visibility follows the implemented interface visibility.
+
+An `extern class` that declares an implemented interface imports this accessor
+contract instead of generating fields. User code may not explicitly declare the
+generated accessor in the extern class body.
 
 ### 2.4.13 Class-to-interface conversion
 
@@ -4583,7 +4614,10 @@ int sum = iface.add(4, 6);
 
 No heap boxing is introduced. The resulting interface pointer refers to the class's stored interface-specific vtable-pointer field.
 
-If the implementing interface field is at offset zero in the object layout, vtable entries may call concrete methods directly using a compatible receiver shape. Otherwise, the vtable entry uses a fixup thunk.
+Source conversion is modeled as a call to the generated interface accessor. The
+accessor returns a pointer to the stored interface vtable slot inside the object.
+Calls through the resulting interface pointer use the stored vtable, whose
+entries perform any needed fixup before calling the concrete implementation.
 
 A fixup thunk:
 
@@ -4665,8 +4699,8 @@ class MemoryDocument
 
 	MemoryDocument(char[] name, byte[] data)
 	{
-		this._vt_Seekable = &MemoryDocument_Seekable;
-		this._vt_NamedResource = &MemoryDocument_NamedResource;
+		this._vt_Seekable = &MemoryDocument_Seekable_Object;
+		this._vt_NamedResource = &MemoryDocument_NamedResource_Object;
 
 		this.name = name.stringCopy();
 		this.data = data;
@@ -4682,26 +4716,27 @@ class MemoryDocument
 }
 ```
 
-The first declared interface can use direct vtable entries when its slot is at offset zero:
+The exported direct vtable for `vtableof(MemoryDocument: Seekable)` calls the
+implementation methods directly:
 
 ```camp
 Seekable MemoryDocument_Seekable =
 {
 	.Readable =
 	{
-		.read = (fn nuint(Readable** ctx, byte[] buffer))MemoryDocument_read,
-		.getEndOfFile = (fn bool(Readable** ctx))MemoryDocument_getEndOfFile,
+		.read = MemoryDocument_read,
+		.getEndOfFile = MemoryDocument_getEndOfFile,
 	},
 
-	.seek = (fn void(Seekable** ctx, nuint position))MemoryDocument_seek,
-	.getPosition = (fn nuint(Seekable** ctx))MemoryDocument_getPosition,
+	.seek = MemoryDocument_seek,
+	.getPosition = MemoryDocument_getPosition,
 };
 ```
 
-A later declared interface uses fixup entries:
+The hidden stored vtable used by interface values may use fixup entries:
 
 ```camp
-NamedResource MemoryDocument_NamedResource =
+NamedResource MemoryDocument_NamedResource_Object =
 {
 	.getName = MemoryDocument_NamedResource_getName,
 	.rename = MemoryDocument_NamedResource_rename,
@@ -4729,9 +4764,9 @@ An interface value is the address of the stored vtable-pointer field:
 ```camp
 MemoryDocument document = init MemoryDocument("notes.txt", bytes) finally delete;
 
-Seekable** seekable = &document._vt_Seekable;
-Readable** readable = (Readable**)&document._vt_Seekable;
-NamedResource** named = &document._vt_NamedResource;
+Seekable** seekable = document.getSeekable();
+Readable** readable = (Readable**)document.getSeekable();
+NamedResource** named = document.getNamedResource();
 
 seekable.seek(seekable, 0);
 readable.read(readable, buffer);
@@ -4748,7 +4783,10 @@ If a base class implements an interface and derived classes are meant to customi
 - the implementing methods are virtual when customization is intended
 - derived classes override those methods
 
-Re-implementing an already-implemented interface again in a derived class is discouraged.
+Re-implementing an already-implemented interface again in a derived class is
+not allowed. A derived class remains convertible to the interface through the
+base implementation. If the base class wants derived classes to customize the
+behavior, the implementing methods should be virtual.
 
 ### 2.4.16 Struct implementation of interfaces
 
@@ -6307,7 +6345,36 @@ These casts are programmer assertions. They do not allocate, copy, pin, or other
 
 Lifetime annotations in type positions are used in signatures and casts. They do not precede ordinary local declarations or globals. `escaped` is additionally allowed on class/interface declarations and on individual fields, as described above.
 
-### 4.1.10 Aggregate and container rule
+### 4.1.10 Dependent constness with `constof(anchor)`
+
+`constof(anchor)` is a source-level dependent const qualifier. It means the
+constness of a type position follows the constness of another parameter or
+receiver named by `anchor`.
+
+```camp
+constof(source) char* first(const char[] source);
+constof(this) char* data(const this);
+```
+
+The anchor must be a receiver or non-output parameter in the same signature. It
+may not be an `out`, `thrown`, or `within` parameter, and it may not itself
+depend on another `constof(...)` anchor. In v1, the anchor must expose exactly
+one ordinary const slot so the relationship is unambiguous. The built-in
+`string`, `astring`, and `wstring` primitives count as const data for this
+purpose.
+
+Inside the callee, `constof(anchor)` is checked like ordinary `const`, because
+the implementation must be valid for the const case. Camp API headers and
+source metadata preserve the `constof(anchor)` spelling so Camp-aware callers
+and tools can see the dependency. C output erases it to ordinary `const`;
+`constof` does not change ABI layout, symbol names, or generated storage.
+
+Call-site substitution, provenance checking for produced results, and explicit
+`constof(anchor)` casts are part of the full dependent-constness model. They are
+introduced as compiler support matures; the source spelling and anchor
+validation rules above are the stable signature surface.
+
+### 4.1.11 Aggregate and container rule
 
 Pointer-bearing contents are treated as `unscoped` relative to their containing value by default.
 
