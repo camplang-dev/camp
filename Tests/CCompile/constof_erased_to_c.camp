@@ -1,0 +1,17 @@
+constof(source) char* first(const char[] source)
+{
+	return source.elements;
+}
+
+constof(this) char* spanFirst(const char[] this)
+{
+	return this.elements;
+}
+
+export int main()
+{
+	const char[] text = "hello";
+	const char* one = first(text);
+	const char* two = text.spanFirst();
+	return one == two ? 0 : 1;
+}

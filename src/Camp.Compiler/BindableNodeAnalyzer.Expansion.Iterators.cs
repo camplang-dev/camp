@@ -1765,6 +1765,7 @@ public sealed partial class BindableNodeAnalyzer
 			null => ErrorType,
 			AttributedTypeReference attributed => ResolvedTypeForIteratorExpansion(attributed.Type, attributed.ResolvedType),
 			ConstTypeReference constant => "const " + ResolvedTypeForIteratorExpansion(constant.Type, constant.ResolvedType),
+			ConstOfTypeReference constOf => "const " + ResolvedTypeForIteratorExpansion(constOf.Type, constOf.ResolvedType),
 			PointerTypeReference pointer => AddPointer(ResolvedTypeForIteratorExpansion(pointer.ElementType, pointer.ElementType?.ResolvedType)),
 			ArrayTypeReference array => ResolvedTypeForIteratorExpansion(array.ElementType, array.ElementType?.ResolvedType) + "[]",
 			OptionalTypeReference optional => ResolvedTypeForIteratorExpansion(optional.ElementType, optional.ElementType?.ResolvedType) + "?",

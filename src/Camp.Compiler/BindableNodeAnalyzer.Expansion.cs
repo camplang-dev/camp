@@ -1471,6 +1471,7 @@ public sealed partial class BindableNodeAnalyzer
 			OptionalTypeReference { ElementType: not null } optional => GetTypeReferenceName(optional.ElementType) + "?",
 			PointerTypeReference { ElementType: not null } pointer => GetTypeReferenceName(pointer.ElementType) + "*",
 			ConstTypeReference { Type: not null } constant => "const " + GetTypeReferenceName(constant.Type),
+			ConstOfTypeReference { Type: not null } constOf => "const " + GetTypeReferenceName(constOf.Type),
 			VolatileTypeReference { Type: not null } vol => "volatile " + GetTypeReferenceName(vol.Type),
 			EscapedTypeReference { Type: not null } escaped => "escaped " + GetTypeReferenceName(escaped.Type),
 			ScopedTypeReference { Type: not null } scoped => "scoped " + GetTypeReferenceName(scoped.Type),

@@ -1,0 +1,8 @@
+tests/Diagnostics/constof_invalid_anchors.camp(3,25): error: constof anchor 'missing' could not be resolved.
+tests/Diagnostics/constof_invalid_anchors.camp(5,24): error: constof anchor 'source' must have an ordinary const type slot.
+tests/Diagnostics/constof_invalid_anchors.camp(7,24): error: constof anchor 'result' must be a receiver or non-output parameter.
+tests/Diagnostics/constof_invalid_anchors.camp(9,23): error: constof anchor 'error' must be a receiver or non-output parameter.
+tests/Diagnostics/constof_invalid_anchors.camp(11,27): error: constof anchor 'allocator' must be a receiver or non-output parameter.
+tests/Diagnostics/constof_invalid_anchors.camp(13,24): error: constof anchor 'source' cannot itself depend on constof.
+tests/Diagnostics/constof_invalid_anchors.camp(15,24): error: constof anchor 'source' has more than one ordinary const type slot; v1 requires an unambiguous anchor.
+tests/Diagnostics/constof_invalid_anchors.camp(17,22): error: constof anchor 'this' could not be resolved.

@@ -655,6 +655,7 @@ public sealed class BindableNodeCodeSerializer
 	{
 		return definition.IsInline
 			|| definition.Type is ConstTypeReference
+			|| definition.Type is ConstOfTypeReference
 			|| (definition.ResolvedType is string type && type.StartsWith("const ", StringComparison.Ordinal));
 	}
 
@@ -1505,6 +1506,10 @@ public sealed class BindableNodeCodeSerializer
 
 			case ConstTypeReference constant:
 				WriteTypeDeclarator("const", constant.Type);
+				break;
+
+			case ConstOfTypeReference constOf:
+				WriteTypeDeclarator($"constof({constOf.AnchorName})", constOf.Type);
 				break;
 
 			case VolatileTypeReference vol:

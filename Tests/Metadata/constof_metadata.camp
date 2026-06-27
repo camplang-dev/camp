@@ -1,0 +1,13 @@
+export as ConstOfMetadata;
+
+export struct Box<T>
+{
+	T value;
+}
+
+/// Returns a source-dependent pointer.
+export extern constof(source) char* first(const char[] source);
+
+export extern Box<constof(source) char*> genericForm(const char[] source);
+
+export newtype delegate constof(source) char* Picker(const char[] source);

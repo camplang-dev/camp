@@ -1,0 +1,23 @@
+export as ConstOfApi;
+
+export struct Box<T>
+{
+	T value;
+}
+
+export extern class ConstOfHolder
+{
+	export extern ~ConstOfHolder();
+
+	export extern ConstOfHolder();
+
+	export extern constof(source) char* first(const char[] source);
+
+	export extern char* constof(source) suffixForm(const char[] source);
+
+	export extern Box<constof(source) char*> genericForm(const char[] source);
+
+	export extern constof(this) char* receiverFirst(const this);
+}
+
+export newtype delegate constof(source) char* Picker(const char[] source);

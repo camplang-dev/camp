@@ -47,7 +47,7 @@ public sealed partial class BindableNodeAnalyzer
 	static readonly HashSet<string> ReservedWords = new(StringComparer.Ordinal)
 	{
 		"_", "abstract", "alias", "any", "as", "astring", "async", "auto", "bool", "break", "byte", "case", "catch",
-		"char", "class", "const", "continue", "copyable", "default", "delegate", "delete", "do", "double",
+		"char", "class", "const", "constof", "continue", "copyable", "default", "delegate", "delete", "do", "double",
 		"else", "enum", "escaped", "export", "extern", "false", "finally", "fixed", "float",
 		"fn", "for", "foreach", "if", "implements", "in", "init", "int", "interface", "iter",
 		"inline", "long", "new", "newtype", "nint", "null", "nuint", "once", "out", "overload", "override", "params", "public",
@@ -194,6 +194,7 @@ public sealed partial class BindableNodeAnalyzer
 			type = type switch
 			{
 				ConstTypeReference { Type: not null } constType => constType.Type,
+				ConstOfTypeReference { Type: not null } constOfType => constOfType.Type,
 				VolatileTypeReference { Type: not null } volatileType => volatileType.Type,
 				EscapedTypeReference { Type: not null } escapedType => escapedType.Type,
 				ScopedTypeReference { Type: not null } scopedType => scopedType.Type,
@@ -203,7 +204,7 @@ public sealed partial class BindableNodeAnalyzer
 				_ => type
 			};
 
-			if (type is not ConstTypeReference and not VolatileTypeReference and not EscapedTypeReference and not ScopedTypeReference and not UnscopedTypeReference and not TargetTypeSpecTypeReference and not AttributedTypeReference)
+			if (type is not ConstTypeReference and not ConstOfTypeReference and not VolatileTypeReference and not EscapedTypeReference and not ScopedTypeReference and not UnscopedTypeReference and not TargetTypeSpecTypeReference and not AttributedTypeReference)
 				return type;
 		}
 	}
@@ -602,6 +603,7 @@ public sealed partial class BindableNodeAnalyzer
 			OptionalTypeReference optional => $"{FormatTypeReference(optional.ElementType)}?",
 			PointerTypeReference pointer => $"{FormatTypeReference(pointer.ElementType)}*",
 			ConstTypeReference constant => FormatTypeDeclarator("const", constant.Type),
+			ConstOfTypeReference constOf => FormatTypeDeclarator("const", constOf.Type),
 			VolatileTypeReference vol => FormatTypeDeclarator("volatile", vol.Type),
 			AnyTypeReference => "any",
 			CopyableTypeReference => "copyable",

@@ -291,6 +291,13 @@ public class ConstTypeReference : TypeReference
 	public TypeReference? Type { get; set; }
 }
 
+public class ConstOfTypeReference : TypeReference
+{
+	public string AnchorName { get; set; } = "";
+	public ParameterDefinition? Anchor { get; set; }
+	public TypeReference? Type { get; set; }
+}
+
 public class VolatileTypeReference : TypeReference
 {
 	public TypeReference? Type { get; set; }

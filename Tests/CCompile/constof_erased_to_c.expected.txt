@@ -1,0 +1,60 @@
+// file: constof_erased_to_c.c
+#include "constof_erased_to_c_private.h"
+
+/* Private file declarations. */
+static const char *first(const char *source, uintptr_t source_length);
+static const char *CharArray_spanFirst(const char *this, uintptr_t this_length);
+
+static const char *first(const char *source, uintptr_t source_length)
+{
+	return source;
+}
+
+static const char *CharArray_spanFirst(const char *this, uintptr_t this_length)
+{
+	return this;
+}
+
+int main(void)
+{
+	const char *text = "hello";
+	uintptr_t text_length = 5;
+	const char *one = first(text, text_length);
+	const char *two = CharArray_spanFirst(text, text_length);
+	return ((one == two) ? 0 : 1);
+}
+
+// file: constof_erased_to_c.h
+#ifndef CONSTOF_ERASED_TO_C_H_
+#define CONSTOF_ERASED_TO_C_H_
+
+#include "constof_erased_to_c_private.h"
+
+int main(void);
+
+#endif
+// file: constof_erased_to_c_private.h
+#ifndef CONSTOF_ERASED_TO_C_PRIVATE_H_
+#define CONSTOF_ERASED_TO_C_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: constof_erased_to_c.c

@@ -11,7 +11,7 @@ public sealed class CampParser
 	static readonly string[] TypeDeclarationDeclarators = ["export", "public", "extern", "virtual", "sealed", "abstract", "fixed", "escaped"];
 	static readonly string[] MemberDeclarators = ["export", "public", "extern", "static", "virtual", "override", "sealed", "abstract", "async", "fixed", "inline"];
 	static readonly string[] ParameterDeclaratorKeywords = ["overload", "in", "out", "thrown"];
-	static readonly string[] TypeDeclaratorKeywords = ["const", "volatile", "escaped", "scoped", "unscoped"];
+	static readonly string[] TypeDeclaratorKeywords = ["const", "constof", "volatile", "escaped", "scoped", "unscoped"];
 	static readonly string[] StatementKeywords = ["if", "do", "while", "for", "else", "yield", "return", "continue", "break", "switch", "within", "try", "catch", "finally", "foreach", "delete", "goto", "throw"];
 
 	readonly TokenSequence tokens;
@@ -712,7 +712,7 @@ public sealed class CampParser
 
 		TypeDeclaratorSyntax syntax = new() { Keyword = Take() };
 
-		if ((syntax.Keyword?.Value is "scoped" or "unscoped") && Is("("))
+		if ((syntax.Keyword?.Value is "constof" or "scoped" or "unscoped") && Is("("))
 		{
 			syntax.OpenParenToken = Take();
 			syntax.AnchorList = ParseIdentList(")");

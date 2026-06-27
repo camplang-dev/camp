@@ -1314,6 +1314,9 @@ public static class CCodeEmitter
 					case ConstTypeReference constant:
 						AddType(constant.Type, constant.Type?.ResolvedType);
 						break;
+					case ConstOfTypeReference constOf:
+						AddType(constOf.Type, constOf.Type?.ResolvedType);
+						break;
 					case VolatileTypeReference vol:
 						AddType(vol.Type, vol.Type?.ResolvedType);
 						break;
@@ -1700,6 +1703,7 @@ public static class CCodeEmitter
 				GenericTypeReference generic => ResolveTypeDefinitionName(generic.Type),
 				PointerTypeReference pointer => ResolveTypeDefinitionName(pointer.ElementType),
 				ConstTypeReference constant => ResolveTypeDefinitionName(constant.Type),
+				ConstOfTypeReference constOf => ResolveTypeDefinitionName(constOf.Type),
 				VolatileTypeReference vol => ResolveTypeDefinitionName(vol.Type),
 				EscapedTypeReference escaped => ResolveTypeDefinitionName(escaped.Type),
 				ScopedTypeReference scoped => ResolveTypeDefinitionName(scoped.Type),
@@ -1911,6 +1915,8 @@ public static class CCodeEmitter
 				}
 				case ConstTypeReference constant:
 					return TryGetTypeReferenceStorageComponentsForC(constant.Type, out components);
+				case ConstOfTypeReference constOf:
+					return TryGetTypeReferenceStorageComponentsForC(constOf.Type, out components);
 				case VolatileTypeReference vol:
 					return TryGetTypeReferenceStorageComponentsForC(vol.Type, out components);
 				case EscapedTypeReference escaped:
@@ -1935,6 +1941,7 @@ public static class CCodeEmitter
 				TypeDefinitionReference reference => reference.Name,
 				GenericTypeReference generic => TypeReferenceName(generic.Type),
 				ConstTypeReference constant => TypeReferenceName(constant.Type),
+				ConstOfTypeReference constOf => TypeReferenceName(constOf.Type),
 				VolatileTypeReference vol => TypeReferenceName(vol.Type),
 				EscapedTypeReference escaped => TypeReferenceName(escaped.Type),
 				ScopedTypeReference scoped => TypeReferenceName(scoped.Type),
@@ -4662,6 +4669,7 @@ public static class CCodeEmitter
 				TypeDefinitionReference definition => IsValidResolvedType(definition.ResolvedType) ? definition.ResolvedType! : definition.Name,
 				PrimitiveTypeReference primitive => PrimitiveName(primitive.Type),
 				ConstTypeReference constant => "const " + ResolvedTypeForC(constant.Type, constant.Type?.ResolvedType),
+				ConstOfTypeReference constOf => "const " + ResolvedTypeForC(constOf.Type, constOf.Type?.ResolvedType),
 				PointerTypeReference pointer => PointerTypeName(ResolvedTypeForC(pointer.ElementType, pointer.ElementType?.ResolvedType)),
 				ArrayTypeReference array => ResolvedTypeForC(array.ElementType, array.ElementType?.ResolvedType) + "[]",
 				OptionalTypeReference optional => ResolvedTypeForC(optional.ElementType, optional.ElementType?.ResolvedType) + "?",
@@ -4848,6 +4856,7 @@ public static class CCodeEmitter
 				null => new CType("void " + declarator),
 				AttributedTypeReference attributed => FormatType(attributed.Type, declarator),
 				ConstTypeReference constant => FormatQualifiedType("const", constant.Type, declarator),
+				ConstOfTypeReference constOf => FormatQualifiedType("const", constOf.Type, declarator),
 				VolatileTypeReference vol => FormatQualifiedType("volatile", vol.Type, declarator),
 				EscapedTypeReference escaped => FormatType(escaped.Type, declarator),
 				ScopedTypeReference scoped => FormatType(scoped.Type, declarator),
@@ -4909,6 +4918,7 @@ public static class CCodeEmitter
 				FixedArrayTypeReference => true,
 				AttributedTypeReference attributed => ContainsFixedArrayTypeReference(attributed.Type),
 				ConstTypeReference constant => ContainsFixedArrayTypeReference(constant.Type),
+				ConstOfTypeReference constOf => ContainsFixedArrayTypeReference(constOf.Type),
 				VolatileTypeReference vol => ContainsFixedArrayTypeReference(vol.Type),
 				EscapedTypeReference escaped => ContainsFixedArrayTypeReference(escaped.Type),
 				ScopedTypeReference scoped => ContainsFixedArrayTypeReference(scoped.Type),

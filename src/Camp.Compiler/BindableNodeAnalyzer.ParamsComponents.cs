@@ -304,7 +304,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool HasConstValueQualifier(TypeReference? type, string? resolvedType)
 	{
-		if (type is ConstTypeReference)
+		if (type is ConstTypeReference or ConstOfTypeReference)
 			return true;
 		if (!string.IsNullOrWhiteSpace(resolvedType) && new TypeShapeParser(resolvedType).TryParse(out TypeShape shape))
 			return shape.Qualifiers.IsConst;

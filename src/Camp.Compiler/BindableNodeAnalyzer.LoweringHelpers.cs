@@ -362,6 +362,7 @@ public sealed partial class BindableNodeAnalyzer
 			OptionalTypeReference optional => new OptionalTypeReference { ElementType = CloneType(optional.ElementType) },
 			PointerTypeReference pointer => new PointerTypeReference { ElementType = CloneType(pointer.ElementType) },
 			ConstTypeReference constant => new ConstTypeReference { Type = CloneType(constant.Type) },
+			ConstOfTypeReference constOf => new ConstOfTypeReference { AnchorName = constOf.AnchorName, Anchor = constOf.Anchor, Type = CloneType(constOf.Type) },
 			VolatileTypeReference vol => new VolatileTypeReference { Type = CloneType(vol.Type) },
 			AnyTypeReference => new AnyTypeReference(),
 			AutoTypeReference => new AutoTypeReference(),

@@ -407,6 +407,7 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
 		}
 		ValidateCallableNewtypeThisParameter(definition);
+		ValidateNewtypeConstOfAnchors(definition);
 
 		return scope;
 	}
@@ -877,6 +878,9 @@ public sealed partial class BindableNodeAnalyzer
 			case ConstTypeReference constType:
 				return TryGetFieldLifetimeAnnotation(constType.Type, out kind, out anchors, out binding);
 
+			case ConstOfTypeReference constOf:
+				return TryGetFieldLifetimeAnnotation(constOf.Type, out kind, out anchors, out binding);
+
 			case VolatileTypeReference volatileType:
 				return TryGetFieldLifetimeAnnotation(volatileType.Type, out kind, out anchors, out binding);
 
@@ -950,6 +954,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (containingType is not null && (GetExplicitThisParameter(definition) ?? definition.EffectiveThisParameter) is ThisParameterDefinition memberThisParameter)
 			memberThisParameter.ResolvedType = ApplyThisDeclarators($"{containingType}*", memberThisParameter);
 		FinalizeThisReturnType(definition, containingType);
+		ValidateFunctionConstOfAnchors(definition);
 		if (containingType is null && !definition.SymbolOverridden && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
 			definition.Symbol = BuildExtensionFunctionSymbol(GetCallableName(definition), thisParameter.ResolvedType ?? ErrorType, definition);
 		else if (containingType is null && !definition.SymbolOverridden && HasOverloadSelector(definition))

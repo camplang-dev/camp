@@ -1553,6 +1553,16 @@ public sealed partial class BindableNodeBuilder
 			case "const":
 				return new ConstTypeReference { SourceSyntax = syntax, Type = inner };
 
+			case "constof":
+			{
+				ConstOfTypeReference constOf = new() { SourceSyntax = syntax, Type = inner };
+				if (declarator.AnchorList is { Identifiers.Count: 1 })
+					constOf.AnchorName = declarator.AnchorList.Identifiers[0].Value;
+				else
+					Report(declarator, "constof requires exactly one anchor parameter.");
+				return constOf;
+			}
+
 			case "volatile":
 				return new VolatileTypeReference { SourceSyntax = syntax, Type = inner };
 
@@ -1743,6 +1753,7 @@ public sealed partial class BindableNodeBuilder
 			PrimitiveTypeReference { Type: PrimitiveType.Byte or PrimitiveType.SByte or PrimitiveType.UShort or PrimitiveType.Short or PrimitiveType.UInt or PrimitiveType.Int or PrimitiveType.ULong or PrimitiveType.Long or PrimitiveType.NUInt or PrimitiveType.NInt or PrimitiveType.Float or PrimitiveType.Double or PrimitiveType.Char or PrimitiveType.WChar or PrimitiveType.AChar or PrimitiveType.UChar } => true,
 			PointerTypeReference => true,
 			ConstTypeReference { Type: not null } constType => IsValidValueNewtypeUnderlying(constType.Type),
+			ConstOfTypeReference { Type: not null } constOf => IsValidValueNewtypeUnderlying(constOf.Type),
 			VolatileTypeReference { Type: not null } volatileType => IsValidValueNewtypeUnderlying(volatileType.Type),
 			EscapedTypeReference { Type: not null } escapedType => IsValidValueNewtypeUnderlying(escapedType.Type),
 			ScopedTypeReference { Type: not null } scopedType => IsValidValueNewtypeUnderlying(scopedType.Type),

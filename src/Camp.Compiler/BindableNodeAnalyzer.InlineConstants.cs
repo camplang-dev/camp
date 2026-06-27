@@ -274,6 +274,8 @@ public sealed partial class BindableNodeAnalyzer
 				return TryGetInlineSizeOfBytes(attributed.Type, attributed.Type?.ResolvedType ?? resolvedType, out bytes);
 			case ConstTypeReference constant:
 				return TryGetInlineSizeOfBytes(constant.Type, constant.Type?.ResolvedType ?? resolvedType, out bytes);
+			case ConstOfTypeReference constOf:
+				return TryGetInlineSizeOfBytes(constOf.Type, constOf.Type?.ResolvedType ?? resolvedType, out bytes);
 			case VolatileTypeReference vol:
 				return TryGetInlineSizeOfBytes(vol.Type, vol.Type?.ResolvedType ?? resolvedType, out bytes);
 			case EscapedTypeReference escaped:

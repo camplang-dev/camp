@@ -1,0 +1,17 @@
+using Std;
+
+extern constof(missing) char* unknown(const char[] source);
+
+extern constof(source) char* mutableAnchor(char[] source);
+
+extern constof(result) char* outAnchor(out const char[] result);
+
+extern constof(error) char* thrownAnchor(thrown const char[] error);
+
+extern constof(allocator) char* withinAnchor(within int allocator);
+
+extern constof(source) char* dependentAnchor(constof(other) char* source, const char[] other);
+
+extern constof(source) char* ambiguousAnchor(const string source);
+
+extern constof(this) char* noReceiver(const char[] source);

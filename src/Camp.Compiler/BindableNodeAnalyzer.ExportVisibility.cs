@@ -251,6 +251,11 @@ public sealed partial class BindableNodeAnalyzer
 					yield return child;
 				break;
 
+			case ConstOfTypeReference { Type: not null } constOfType:
+				foreach (NamedTypeReference child in GetNamedTypes(constOfType.Type))
+					yield return child;
+				break;
+
 			case VolatileTypeReference { Type: not null } volatileType:
 				foreach (NamedTypeReference child in GetNamedTypes(volatileType.Type))
 					yield return child;

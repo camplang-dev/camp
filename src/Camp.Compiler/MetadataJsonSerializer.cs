@@ -1173,13 +1173,14 @@ public static class MetadataJsonSerializer
 				type = type switch
 				{
 					ConstTypeReference { Type: not null } constant => constant.Type,
+					ConstOfTypeReference { Type: not null } constOf => constOf.Type,
 					VolatileTypeReference { Type: not null } vol => vol.Type,
 					EscapedTypeReference { Type: not null } escaped => escaped.Type,
 					ScopedTypeReference { Type: not null } scoped => scoped.Type,
 					UnscopedTypeReference { Type: not null } unscoped => unscoped.Type,
 					_ => type
 				};
-				if (type is not ConstTypeReference and not VolatileTypeReference and not EscapedTypeReference and not ScopedTypeReference and not UnscopedTypeReference)
+				if (type is not ConstTypeReference and not ConstOfTypeReference and not VolatileTypeReference and not EscapedTypeReference and not ScopedTypeReference and not UnscopedTypeReference)
 					return type;
 			}
 		}

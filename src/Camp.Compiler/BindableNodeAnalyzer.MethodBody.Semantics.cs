@@ -2160,6 +2160,7 @@ public sealed partial class BindableNodeAnalyzer
 		return type switch
 		{
 			ConstTypeReference => true,
+			ConstOfTypeReference => true,
 			AttributedTypeReference attributed => IsConstType(attributed.Type),
 			_ => false
 		};

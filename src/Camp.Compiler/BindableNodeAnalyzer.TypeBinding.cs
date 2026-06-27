@@ -137,6 +137,11 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
+			case ConstOfTypeReference constOf:
+				AnalyzeOptionalType(constOf.Type, scope);
+				type.ResolvedType = FormatTypeReference(new ConstTypeReference { Type = constOf.Type });
+				break;
+
 			case VolatileTypeReference volatileType:
 				AnalyzeOptionalType(volatileType.Type, scope);
 				type.ResolvedType = FormatTypeReference(type);
@@ -240,6 +245,7 @@ public sealed partial class BindableNodeAnalyzer
 			OptionalTypeReference optional => ContainsLifetimeAnnotation(optional.ElementType),
 			PointerTypeReference pointer => ContainsLifetimeAnnotation(pointer.ElementType),
 			ConstTypeReference constType => ContainsLifetimeAnnotation(constType.Type),
+			ConstOfTypeReference constOf => ContainsLifetimeAnnotation(constOf.Type),
 			VolatileTypeReference volatileType => ContainsLifetimeAnnotation(volatileType.Type),
 			CallableTypeReference callable => ContainsLifetimeAnnotation(callable.ReturnType) || callable.Parameters.Any(static parameter => ContainsLifetimeAnnotation(parameter.Type)),
 			TargetTypeSpecTypeReference targetSpec => ContainsLifetimeAnnotation(targetSpec.Type),
@@ -267,6 +273,7 @@ public sealed partial class BindableNodeAnalyzer
 			OptionalTypeReference optional => ContainsClassTypeReference(optional.ElementType),
 			PointerTypeReference pointer => ContainsClassTypeReference(pointer.ElementType),
 			ConstTypeReference constType => ContainsClassTypeReference(constType.Type),
+			ConstOfTypeReference constOf => ContainsClassTypeReference(constOf.Type),
 			VolatileTypeReference volatileType => ContainsClassTypeReference(volatileType.Type),
 			CallableTypeReference callable => ContainsClassTypeReference(callable.ReturnType) || callable.Parameters.Any(static parameter => ContainsClassTypeReference(parameter.Type)),
 			TargetTypeSpecTypeReference targetSpec => ContainsClassTypeReference(targetSpec.Type),
@@ -293,6 +300,7 @@ public sealed partial class BindableNodeAnalyzer
 			OptionalTypeReference optional => ContainsThisTypeReference(optional.ElementType),
 			PointerTypeReference pointer => ContainsThisTypeReference(pointer.ElementType),
 			ConstTypeReference constType => ContainsThisTypeReference(constType.Type),
+			ConstOfTypeReference constOf => ContainsThisTypeReference(constOf.Type),
 			VolatileTypeReference volatileType => ContainsThisTypeReference(volatileType.Type),
 			EscapedTypeReference escaped => ContainsThisTypeReference(escaped.Type),
 			ScopedTypeReference scoped => ContainsThisTypeReference(scoped.Type),
@@ -352,6 +360,9 @@ public sealed partial class BindableNodeAnalyzer
 
 			case ConstTypeReference constType:
 				return TryGetLifetimeAnnotation(constType.Type, out kind, out anchors, out binding);
+
+			case ConstOfTypeReference constOf:
+				return TryGetLifetimeAnnotation(constOf.Type, out kind, out anchors, out binding);
 
 			case VolatileTypeReference volatileType:
 				return TryGetLifetimeAnnotation(volatileType.Type, out kind, out anchors, out binding);
@@ -470,6 +481,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			AttributedTypeReference attributed => attributed.Type,
 			ConstTypeReference constant => constant.Type,
+			ConstOfTypeReference constOf => constOf.Type,
 			VolatileTypeReference vol => vol.Type,
 			EscapedTypeReference escaped => escaped.Type,
 			ScopedTypeReference scoped => scoped.Type,
