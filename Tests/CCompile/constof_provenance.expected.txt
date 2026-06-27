@@ -1,0 +1,95 @@
+// file: constof_provenance.c
+#include "constof_provenance_private.h"
+
+/* Private file declarations. */
+static const int *firstElement(const int *source, uintptr_t source_length);
+static const int *firstElementFromCall(const int *source, uintptr_t source_length);
+static const int *firstElementFromCast(const int *source, uintptr_t source_length, int *fallback);
+static void getFirstElement(const int *source, uintptr_t source_length, const int **result);
+static const int *pairValue(const Pair *source);
+
+static const int *firstElement(const int *source, uintptr_t source_length)
+{
+	const int *local = &source[0];
+	return local;
+}
+
+static const int *firstElementFromCall(const int *source, uintptr_t source_length)
+{
+	return firstElement(source, source_length);
+}
+
+static const int *firstElementFromCast(const int *source, uintptr_t source_length, int *fallback)
+{
+	return (const int *)(fallback);
+}
+
+static void getFirstElement(const int *source, uintptr_t source_length, const int **result)
+{
+	(*result) = &source[0];
+}
+
+static const int *pairValue(const Pair *source)
+{
+	return &source->value;
+}
+
+int main(void)
+{
+	int *values = (int []){10, 20, 30};
+	uintptr_t values_length = 3;
+	const int *readonlyValues = values;
+	uintptr_t readonlyValues_length = values_length;
+	Pair pair = (Pair){ 40 };
+	int *mutableA = (int *)(firstElement(values, values_length));
+	const int *readonlyA = firstElement(readonlyValues, readonlyValues_length);
+	int *mutableB = (int *)(firstElementFromCall(values, values_length));
+	const int *readonlyB = firstElementFromCall(readonlyValues, readonlyValues_length);
+	int *mutableC = 0;
+	getFirstElement(values, values_length, (const int **)&mutableC);
+	const int *readonlyC = 0;
+	getFirstElement(readonlyValues, readonlyValues_length, &readonlyC);
+	int *mutableD = (int *)(pairValue(&pair));
+	int *mutableE = (int *)(firstElementFromCast(values, values_length, &values[2]));
+	return (((((((((*mutableA == 10) && (*readonlyA == 10)) && (*mutableB == 10)) && (*readonlyB == 10)) && (*mutableC == 10)) && (*readonlyC == 10)) && (*mutableD == 40)) && (*mutableE == 30)) ? 0 : 1);
+}
+
+// file: constof_provenance.h
+#ifndef CONSTOF_PROVENANCE_H_
+#define CONSTOF_PROVENANCE_H_
+
+#include "constof_provenance_private.h"
+
+int main(void);
+
+#endif
+// file: constof_provenance_private.h
+#ifndef CONSTOF_PROVENANCE_PRIVATE_H_
+#define CONSTOF_PROVENANCE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Pair Pair;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Pair
+{
+	int value;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: constof_provenance.c

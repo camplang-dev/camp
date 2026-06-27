@@ -13,17 +13,17 @@ static uintptr_t String_getLength(const char *this);
 
 static const int *firstInt(const int *source, uintptr_t source_length)
 {
-	return 0;
+	return source;
 }
 
 static const void *firstGeneric(const void *source, uintptr_t source_length, uintptr_t sizeof_T)
 {
-	return 0;
+	return source;
 }
 
 static void getFirstInt(const int *source, uintptr_t source_length, const int **result)
 {
-	(*result) = 0;
+	(*result) = source;
 }
 
 static void requireSameConstness(const int *source, uintptr_t source_length, const int *other, uintptr_t other_length)
@@ -91,7 +91,7 @@ int main(void)
 	const char *stringChars = firstChar(text, String_getLength(text));
 	CharPicker picker = pickChar;
 	const char *picked = picker("picked", 6);
-	return (((((((((((((mutablePointer == 0) && (readonlyPointer == 0)) && (genericMutablePointer == 0)) && (genericReadonlyPointer == 0)) && (mutableChars != 0)) && (readonlyChars != 0)) && (receiverMutableChars != 0)) && (receiverReadonlyChars != 0)) && (literalChars != 0)) && (nameChars != 0)) && (stringChars != 0)) && (picked != 0)) ? 0 : 1);
+	return (((((((((((((mutablePointer != 0) && (readonlyPointer != 0)) && (genericMutablePointer != 0)) && (genericReadonlyPointer != 0)) && (mutableChars != 0)) && (readonlyChars != 0)) && (receiverMutableChars != 0)) && (receiverReadonlyChars != 0)) && (literalChars != 0)) && (nameChars != 0)) && (stringChars != 0)) && (picked != 0)) ? 0 : 1);
 }
 
 // file: constof_callsite_substitution.h

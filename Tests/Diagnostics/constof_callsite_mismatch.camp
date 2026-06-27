@@ -4,7 +4,7 @@ void requireSameConstness(const int* source, constof(source) int* other)
 
 void getFirstInt(const int[] source, out constof(source) int* result)
 {
-	result = default;
+	result = source.elements;
 }
 
 scoped(source) const int* legacyLifetimeConst(const int[] source)

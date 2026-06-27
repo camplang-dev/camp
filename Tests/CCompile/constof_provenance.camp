@@ -1,0 +1,59 @@
+struct Pair
+{
+	int value;
+}
+
+constof(source) int* firstElement(const int[] source)
+{
+	constof(source) int* local = &source[0];
+	return local;
+}
+
+constof(source) int* firstElementFromCall(const int[] source)
+{
+	return firstElement(source);
+}
+
+constof(source) int* firstElementFromCast(const int[] source, int* fallback)
+{
+	return (constof(source) int*)fallback;
+}
+
+void getFirstElement(const int[] source, out constof(source) int* result)
+{
+	result = &source[0];
+}
+
+constof(source) int* pairValue(const Pair* source)
+{
+	return &source.value;
+}
+
+export int main()
+{
+	int[] values = [10, 20, 30];
+	const int[] readonlyValues = values;
+	Pair pair = { 40 };
+
+	int* mutableA = firstElement(values);
+	const int* readonlyA = firstElement(readonlyValues);
+	int* mutableB = firstElementFromCall(values);
+	const int* readonlyB = firstElementFromCall(readonlyValues);
+	int* mutableC = default;
+	getFirstElement(values, out mutableC);
+	const int* readonlyC = default;
+	getFirstElement(readonlyValues, out readonlyC);
+	int* mutableD = pairValue(&pair);
+	int* mutableE = firstElementFromCast(values, &values[2]);
+
+	return *mutableA == 10
+		&& *readonlyA == 10
+		&& *mutableB == 10
+		&& *readonlyB == 10
+		&& *mutableC == 10
+		&& *readonlyC == 10
+		&& *mutableD == 40
+		&& *mutableE == 30
+		? 0
+		: 1;
+}

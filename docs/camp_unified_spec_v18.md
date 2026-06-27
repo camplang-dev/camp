@@ -6348,8 +6348,8 @@ Lifetime annotations in type positions are used in signatures and casts. They do
 ### 4.1.10 Dependent constness with `constof(anchor)`
 
 `constof(anchor)` is a source-level dependent const qualifier. It means the
-constness of a type position follows the constness of another parameter or
-receiver named by `anchor`.
+caller-visible constness of a type position follows the constness of another
+parameter or receiver named by `anchor`.
 
 ```camp
 constof(source) char* first(const char[] source);
@@ -6364,15 +6364,40 @@ one ordinary const slot so the relationship is unambiguous. The built-in
 purpose.
 
 Inside the callee, `constof(anchor)` is checked like ordinary `const`, because
-the implementation must be valid for the const case. Camp API headers and
-source metadata preserve the `constof(anchor)` spelling so Camp-aware callers
-and tools can see the dependency. C output erases it to ordinary `const`;
-`constof` does not change ABI layout, symbol names, or generated storage.
+the implementation must be valid for the const case. At each call site, the
+compiler substitutes the anchor actual's constness into every `constof(anchor)`
+slot in the callable surface. A mutable anchor actual produces a mutable result
+or parameter position; a const anchor actual produces a const one. String
+primitives, string literals, and string-literal-like intrinsics such as
+`typenameof(...)` are considered const for this purpose.
 
-Call-site substitution, provenance checking for produced results, and explicit
-`constof(anchor)` casts are part of the full dependent-constness model. They are
-introduced as compiler support matures; the source spelling and anchor
-validation rules above are the stable signature surface.
+For non-output parameters containing `constof(anchor)`, the actual argument must
+have the same static constness as the anchor actual before conversion. For
+returns and `out` parameters containing `constof(anchor)`, the implementation
+must return or assign a value derived from the anchor, a direct view or
+subobject of the anchor, another value constrained with the same `constof`
+anchor, or a call result that preserves that relation. When the compiler cannot
+prove the relation, an explicit cast such as `(constof(source) char*)value`
+asserts it.
+
+```camp
+constof(source) char* first(const char[] source)
+{
+	return source.elements; // derived from source
+}
+
+void getFirst(const char[] source, out constof(source) char* result)
+{
+	result = source.elements;
+}
+```
+
+`constof` is independent of lifetime annotations. Use `scoped(anchor)` or
+`unscoped(anchor)` to describe lifetime, and `constof(anchor)` to describe
+caller-visible constness. Camp API headers and source metadata preserve the
+`constof(anchor)` spelling so Camp-aware callers and tools can see the
+dependency. C output erases it to ordinary `const`; `constof` does not change
+ABI layout, symbol names, or generated storage.
 
 ### 4.1.11 Aggregate and container rule
 

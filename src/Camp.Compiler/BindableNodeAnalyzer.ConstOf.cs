@@ -433,6 +433,188 @@ public sealed partial class BindableNodeAnalyzer
 		return expression is LiteralExpression { Kind: LiteralKind.String } or NameOfExpression;
 	}
 
+	void CheckConstOfProducedResult(TypeReference? targetType, Expression? expression, SyntaxNode? syntax, string context)
+	{
+		if (targetType is null || expression is null || !ContainsConstOfTypeReference(targetType))
+			return;
+		foreach (string anchor in GetConstOfAnchorNames(targetType).Distinct(System.StringComparer.Ordinal))
+		{
+			if (!ExpressionSatisfiesConstOfAnchor(expression, anchor))
+				Report(GetRange(syntax), $"{context} with constof({anchor}) must be derived from '{anchor}' or use an explicit constof({anchor}) cast.");
+		}
+	}
+
+	static IEnumerable<string> GetConstOfAnchorNames(TypeReference? type)
+	{
+		if (type is null)
+			yield break;
+		switch (type)
+		{
+			case ConstOfTypeReference constOf:
+				yield return constOf.AnchorName;
+				foreach (string anchor in GetConstOfAnchorNames(constOf.Type))
+					yield return anchor;
+				break;
+			case AttributedTypeReference attributed:
+				foreach (string anchor in GetConstOfAnchorNames(attributed.Type))
+					yield return anchor;
+				break;
+			case GenericTypeReference generic:
+				foreach (string anchor in GetConstOfAnchorNames(generic.Type))
+					yield return anchor;
+				foreach (TypeReference argument in generic.TypeArguments)
+					foreach (string anchor in GetConstOfAnchorNames(argument))
+						yield return anchor;
+				break;
+			case ArrayTypeReference array:
+				foreach (string anchor in GetConstOfAnchorNames(array.ElementType))
+					yield return anchor;
+				break;
+			case FixedArrayTypeReference fixedArray:
+				foreach (string anchor in GetConstOfAnchorNames(fixedArray.ElementType))
+					yield return anchor;
+				break;
+			case OptionalTypeReference optional:
+				foreach (string anchor in GetConstOfAnchorNames(optional.ElementType))
+					yield return anchor;
+				break;
+			case PointerTypeReference pointer:
+				foreach (string anchor in GetConstOfAnchorNames(pointer.ElementType))
+					yield return anchor;
+				break;
+			case ConstTypeReference constant:
+				foreach (string anchor in GetConstOfAnchorNames(constant.Type))
+					yield return anchor;
+				break;
+			case VolatileTypeReference vol:
+				foreach (string anchor in GetConstOfAnchorNames(vol.Type))
+					yield return anchor;
+				break;
+			case EscapedTypeReference escaped:
+				foreach (string anchor in GetConstOfAnchorNames(escaped.Type))
+					yield return anchor;
+				break;
+			case ScopedTypeReference scoped:
+				foreach (string anchor in GetConstOfAnchorNames(scoped.Type))
+					yield return anchor;
+				break;
+			case UnscopedTypeReference unscoped:
+				foreach (string anchor in GetConstOfAnchorNames(unscoped.Type))
+					yield return anchor;
+				break;
+			case TargetTypeSpecTypeReference targetSpec:
+				foreach (string anchor in GetConstOfAnchorNames(targetSpec.Type))
+					yield return anchor;
+				break;
+			case CallableTypeReference callable:
+				foreach (string anchor in GetConstOfAnchorNames(callable.ReturnType))
+					yield return anchor;
+				foreach (ParameterDefinition parameter in callable.Parameters)
+					foreach (string anchor in GetConstOfAnchorNames(parameter.Type))
+						yield return anchor;
+				break;
+			case IterTypeReference iter:
+				foreach (string anchor in GetConstOfAnchorNames(iter.ElementType))
+					yield return anchor;
+				foreach (ParameterDefinition parameter in iter.Parameters)
+					foreach (string anchor in GetConstOfAnchorNames(parameter.Type))
+						yield return anchor;
+				break;
+			case GroupedParamsTypeReference grouped:
+				foreach (string anchor in GetConstOfAnchorNames(grouped.StructType))
+					yield return anchor;
+				break;
+			case MaterializedStructTypeReference materialized:
+				foreach (string anchor in GetConstOfAnchorNames(materialized.ParamsType))
+					yield return anchor;
+				break;
+			case ThrownTypeReference thrown:
+				foreach (string anchor in GetConstOfAnchorNames(thrown.Type))
+					yield return anchor;
+				break;
+			case TypeDefinitionReference definition:
+				foreach (TypeReference argument in definition.TypeArguments)
+					foreach (string anchor in GetConstOfAnchorNames(argument))
+						yield return anchor;
+				break;
+			case NamedTypeReference named:
+				foreach (TypeReference argument in named.TypeArguments)
+					foreach (string anchor in GetConstOfAnchorNames(argument))
+						yield return anchor;
+				break;
+		}
+	}
+
+	bool ExpressionSatisfiesConstOfAnchor(Expression? expression, string anchor)
+	{
+		expression = UnwrapParenthesizedExpression(expression);
+		if (expression is not null && expressionRewrites.TryGetValue(expression, out Expression? rewrite) && !ReferenceEquals(rewrite, expression))
+			return ExpressionSatisfiesConstOfAnchor(rewrite, anchor);
+		return expression switch
+		{
+			null => false,
+			CastExpression cast when TypeReferencesConstOfAnchor(cast.Type, anchor) => true,
+			CastExpression cast => ExpressionSatisfiesConstOfAnchor(cast.Expression, anchor),
+			VariableReferenceExpression { Variable: ParameterDefinition parameter } => parameter.Name == anchor,
+			VariableReferenceExpression { Variable: DeclarationTarget target } => TypeReferencesConstOfAnchor(target.Type, anchor),
+			VariableReferenceExpression { Variable: VariableDefinition variable } => TypeReferencesConstOfAnchor(variable.Type, anchor),
+			NamedExpression { Qualifiers.Count: 0 } named => named.Name == anchor,
+			ThisExpression => anchor == "this",
+			MemberExpression member => ExpressionSatisfiesConstOfAnchor(member.Target, anchor),
+			MemberReferenceExpression member => ExpressionSatisfiesConstOfAnchor(member.Target, anchor),
+			IndexExpression index => ExpressionSatisfiesConstOfAnchor(index.Target, anchor),
+			NamelessIndexerExpression indexer => ExpressionSatisfiesConstOfAnchor(indexer.Target, anchor),
+			UnaryExpression { Operator: UnaryOperator.AddressOf or UnaryOperator.PointerDereference } unary => ExpressionSatisfiesConstOfAnchor(unary.Operand, anchor),
+			AssignmentExpression assignment => ExpressionSatisfiesConstOfAnchor(assignment.Value, anchor),
+			CallExpression call => CallExpressionSatisfiesConstOfAnchor(call, anchor),
+			_ => false
+		};
+	}
+
+	bool CallExpressionSatisfiesConstOfAnchor(CallExpression call, string anchor)
+	{
+		if (!callTargets.TryGetValue(call, out FunctionDefinition? function))
+			return false;
+		foreach (string sourceAnchor in GetConstOfAnchorNames(function.ReturnType))
+		{
+			if (TryGetCallAnchorExpression(call, function, sourceAnchor, out Expression? argument)
+				&& ExpressionSatisfiesConstOfAnchor(argument, anchor))
+				return true;
+		}
+		return false;
+	}
+
+	bool TryGetCallAnchorExpression(CallExpression call, FunctionDefinition function, string sourceAnchor, out Expression? expression)
+	{
+		expression = null;
+		if (sourceAnchor == "this")
+		{
+			expression = call.Target switch
+			{
+				MemberExpression member => member.Target,
+				MemberReferenceExpression member => member.Target,
+				_ => null
+			};
+			if (expression is not null)
+				return true;
+		}
+
+		List<ParameterDefinition> parameters = function.Parameters;
+		int parameterIndex = parameters.FindIndex(parameter => parameter.Name == sourceAnchor);
+		if (parameterIndex < 0 || parameterIndex >= call.Arguments.Count)
+			return false;
+		expression = call.Arguments[parameterIndex].Value;
+		return expression is not null;
+	}
+
+	static bool TypeReferencesConstOfAnchor(TypeReference? type, string anchor)
+	{
+		foreach (string candidate in GetConstOfAnchorNames(type))
+			if (candidate == anchor)
+				return true;
+		return false;
+	}
+
 	string SubstituteConstOfResolvedType(TypeReference? sourceType, string resolvedType, Dictionary<string, bool> anchors, Dictionary<string, string>? genericSubstitutions = null)
 	{
 		if (sourceType is null || !ContainsConstOfTypeReference(sourceType))

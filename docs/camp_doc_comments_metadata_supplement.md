@@ -469,6 +469,12 @@ specific than the lowered ABI type. For example, a receiver-preserving method
 has `"returnType": "this"`, and a class-relative factory may have
 `"returnType": "classtype*"`.
 
+Dependent constness is also preserved in source spelling. A type such as
+`constof(source) char*` remains `"constof(source) char*"` in metadata so tools
+can recover the anchor relationship. C and ABI output erase `constof(anchor)` to
+ordinary `const`, but metadata describes the Camp source contract, not the
+erased C view.
+
 Property-eligible methods are identified with `propertyName`.
 
 ```json

@@ -145,6 +145,7 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Cannot return a span view to local fixed-size array storage.");
 				string returnTargetType = GetLifetimeStructuralTargetType(returnTargetSourceType, returnStatement.Expression);
 				CheckAssignable(returnTargetType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
+				CheckConstOfProducedResult(scope.CurrentFunction.ReturnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				if (!fixedArraySpanEscape)
 					CheckLifetimeResult(returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, scope, "Return expression");
 				break;
@@ -407,7 +408,11 @@ public sealed partial class BindableNodeAnalyzer
 		else if (declaration.InitialValue is not null && RequiresAnyGenericCopy(declaration.Target.ResolvedType ?? ErrorType, declaration.InitialValue, scope))
 			ReportAnyGenericCopy(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax);
 		else if (declaration.InitialValue is not null && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
+		{
 			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+			if (ContainsConstOfTypeReference(declaration.Target.Type))
+				CheckConstOfProducedResult(declaration.Target.Type, declaration.InitialValue, declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax, "Declaration initializer");
+		}
 
 		InitializeLocalLifetimeFacts(declaration, typeScope);
 	}
@@ -3568,10 +3573,24 @@ public sealed partial class BindableNodeAnalyzer
 		else
 		{
 			CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
+			if (TryGetOutParameterConstOfType(assignment.Target, out TypeReference? outConstOfType))
+				CheckConstOfProducedResult(outConstOfType, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, "Out assignment");
 			CheckLifetimeAssignment(assignment.Target, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, scope, "Assignment");
 		}
 		UpdateAssignmentLifetimeFact(assignment.Target, GetExpressionLifetimeFact(assignment.Value));
 		return targetType;
+	}
+
+	bool TryGetOutParameterConstOfType(Expression? target, out TypeReference? type)
+	{
+		if (target is not null && expressionRewrites.TryGetValue(target, out Expression? rewrite))
+			target = rewrite;
+		type = target switch
+		{
+			VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.Out } parameter } => parameter.Type,
+			_ => null
+		};
+		return ContainsConstOfTypeReference(type);
 	}
 
 	bool IsEscapingLambdaAssignmentTarget(Expression? target)

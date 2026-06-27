@@ -1,0 +1,2 @@
+tests/Diagnostics/constof_provenance_invalid.camp(3,9): error: Return expression with constof(source) must be derived from 'source' or use an explicit constof(source) cast.
+tests/Diagnostics/constof_provenance_invalid.camp(8,11): error: Out assignment with constof(source) must be derived from 'source' or use an explicit constof(source) cast.

@@ -120,6 +120,7 @@ target-spec:
 
 type-declarator:
 	const
+	constof '(' <IDENT> ')'
 	volatile
 	escaped
 	scoped ['(' <IDENT-list> ')']

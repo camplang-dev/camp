@@ -11,7 +11,7 @@ variables:
   target_spec: '_[a-z][A-Za-z0-9_]*'
   type_keywords: '\b(?:any|auto|bool|byte|sbyte|ushort|short|uint|int|ulong|long|nuint|nint|float|double|char|wchar|achar|uchar|void|string|wstring|astring|classtype)\b'
   type_forms: '\b(?:fn|delegate|async|once|iter|thrown|struct|class)\b'
-  storage_keywords: '\b(?:const|volatile|escaped|scoped|unscoped|in|out|thrown|overload|within)\b'
+  storage_keywords: '\b(?:const|constof|volatile|escaped|scoped|unscoped|in|out|thrown|overload|within)\b'
   intrinsic_keywords: '\b(?:sizeof|typenameof|vtableof)\b'
   constraint_keywords: '\b(?:implements|copyable)\b'
   statement_keywords: 'if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|init|new'

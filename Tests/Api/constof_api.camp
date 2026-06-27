@@ -5,31 +5,19 @@ export struct Box<T>
 	T value;
 }
 
-export class ConstOfHolder
+export extern class ConstOfHolder
 {
-	export ConstOfHolder()
-	{
-	}
+	export extern ~ConstOfHolder();
 
-	export constof(source) char* first(const char[] source)
-	{
-		return default;
-	}
+	export extern ConstOfHolder();
 
-	export char* constof(source) suffixForm(const char[] source)
-	{
-		return default;
-	}
+	export extern constof(source) char* first(const char[] source);
 
-	export Box<constof(source) char*> genericForm(const char[] source)
-	{
-		return default;
-	}
+	export extern char* constof(source) suffixForm(const char[] source);
 
-	export constof(this) char* receiverFirst(const this)
-	{
-		return default;
-	}
+	export extern Box<constof(source) char*> genericForm(const char[] source);
+
+	export extern constof(this) char* receiverFirst(const this);
 }
 
 export newtype delegate constof(source) char* Picker(const char[] source);

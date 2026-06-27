@@ -1,16 +1,16 @@
 constof(source) int* firstInt(const int[] source)
 {
-	return default;
+	return source.elements;
 }
 
 constof(source) T* firstGeneric<T: any>(const T[] source, sizeof(T))
 {
-	return default;
+	return source.elements;
 }
 
 void getFirstInt(const int[] source, out constof(source) int* result)
 {
-	result = default;
+	result = source.elements;
 }
 
 void requireSameConstness(const int[] source, constof(source) int[] other)
@@ -78,10 +78,10 @@ export int main()
 	CharPicker picker = pickChar;
 	const char* picked = picker("picked");
 
-	return mutablePointer == default
-		&& readonlyPointer == default
-		&& genericMutablePointer == default
-		&& genericReadonlyPointer == default
+	return mutablePointer != default
+		&& readonlyPointer != default
+		&& genericMutablePointer != default
+		&& genericReadonlyPointer != default
 		&& mutableChars != default
 		&& readonlyChars != default
 		&& receiverMutableChars != default

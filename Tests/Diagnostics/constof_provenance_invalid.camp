@@ -1,0 +1,18 @@
+constof(source) int* badReturn(const int[] source, int* other)
+{
+	return other;
+}
+
+void badOut(const int[] source, int* other, out constof(source) int* result)
+{
+	result = other;
+}
+
+export int main()
+{
+	int[] values = [1, 2];
+	int other = 3;
+	int* pointer = badReturn(values, &other);
+	badOut(values, &other, out pointer);
+	return 0;
+}
