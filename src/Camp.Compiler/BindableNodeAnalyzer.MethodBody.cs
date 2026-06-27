@@ -1502,13 +1502,17 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			return callableReturnType;
 		}
-		AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function, call.Target);
+		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function, call.Target);
+		if (function is not null)
+			AddReceiverConstOfAnchorFact(call.Target, function, constOfAnchors);
 		if (function is not null)
 			ValidateGenericCallSubstitutionConstraints(function, genericSubstitutions, scope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
 		if (function is not null)
 			callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
 
 		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments, genericSubstitutions);
+		if (function is not null)
+			returnType = SubstituteConstOfResolvedType(function.ReturnType, returnType, constOfAnchors, genericSubstitutions);
 		if (function is not null)
 			returnType = RefineClassTypeCallReturn(function, call.Target, returnType);
 		if (function is not null)
@@ -1562,11 +1566,31 @@ public sealed partial class BindableNodeAnalyzer
 			: CreateStructuralCallableParameters(callable.Parameters);
 
 		callableInvocationParameters[call] = parameters;
-		AnalyzeCallArguments(call.Arguments, parameters, scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
-		returnType = callable.ReturnType;
+		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(call.Arguments, parameters, scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
+		returnType = SubstituteCallableConstOfReturnType(callableType, callable.ReturnType, constOfAnchors);
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
 		return true;
+	}
+
+	void AddReceiverConstOfAnchorFact(Expression? target, FunctionDefinition function, Dictionary<string, bool> anchors)
+	{
+		Expression? receiver = target switch
+		{
+			MemberExpression member => member.Target,
+			MemberReferenceExpression member => member.Target,
+			_ => null
+		};
+		if (receiver is null || GetExplicitThisParameter(function) is not ParameterDefinition thisParameter || string.IsNullOrWhiteSpace(thisParameter.Name))
+			return;
+		ArgumentExpression receiverArgument = new()
+		{
+			SourceSyntax = receiver.SourceSyntax,
+			Value = receiver,
+			ResolvedType = receiver.ResolvedType
+		};
+		if (TryGetConstOfActualSlot(thisParameter, receiverArgument, out bool isConst))
+			anchors[thisParameter.Name] = isConst;
 	}
 
 	bool TryGetCallableNewtypeParameters(string callableType, List<ArgumentExpression> arguments, out List<ParameterDefinition>? parameters)
@@ -1928,7 +1952,7 @@ public sealed partial class BindableNodeAnalyzer
 		return implementation;
 	}
 
-	void AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null, bool includeExplicitThis = false, Dictionary<string, string>? genericSubstitutions = null, HashSet<string>? genericParameterNames = null, FunctionDefinition? function = null, Expression? callTarget = null)
+	Dictionary<string, bool> AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null, bool includeExplicitThis = false, Dictionary<string, string>? genericSubstitutions = null, HashSet<string>? genericParameterNames = null, FunctionDefinition? function = null, Expression? callTarget = null)
 	{
 		genericSubstitutions ??= [];
 		genericParameterNames ??= [];
@@ -1939,6 +1963,8 @@ public sealed partial class BindableNodeAnalyzer
 			AddExplicitHiddenParameters(parameters, callableParameters);
 		AnalyzeRangeAwareArguments(arguments, callableParameters, GetRangeReceiver(callTarget), scope, typeScope, fallbackSyntax);
 		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedLifetimeArguments = [];
+		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedConstOfArguments = [];
+		Dictionary<string, bool> constOfAnchorsInProgress = new(System.StringComparer.Ordinal);
 		bool[] suppliedParameters = new bool[callableParameters.Count];
 		bool tooManyArguments = false;
 		for (int i = 0; i < arguments.Count; i++)
@@ -1969,6 +1995,9 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				InferGenericSubstitutions(analysisParameter.ResolvedType ?? ErrorType, actual, genericSubstitutions, genericParameterNames);
 				expected = SubstituteGenericType(analysisParameter.ResolvedType ?? ErrorType, genericSubstitutions);
+				if (TryGetConstOfActualSlot(analysisParameter, arguments[i], out bool anchorIsConst) && !string.IsNullOrWhiteSpace(analysisParameter.Name))
+					constOfAnchorsInProgress[analysisParameter.Name] = anchorIsConst;
+				expected = SubstituteConstOfResolvedType(analysisParameter.Type, expected, constOfAnchorsInProgress, genericSubstitutions);
 			}
 			if (analysisParameter is not null)
 				{
@@ -1998,6 +2027,7 @@ public sealed partial class BindableNodeAnalyzer
 							arguments[i].ResolvedType = expected;
 					}
 					analyzedLifetimeArguments.Add((arguments[i], lifetimeParameter));
+					analyzedConstOfArguments.Add((arguments[i], analysisParameter));
 				}
 			if (ArrayLiteralConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex)
 				|| PrimitiveStringConsumesLengthParameter(arguments[i], parameter, callableParameters, parameterIndex, fallbackSyntax))
@@ -2012,6 +2042,9 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
 		if (function is not null)
 			CheckLifetimeCallArguments(function, callTarget, analyzedLifetimeArguments, scope, fallbackSyntax, genericSubstitutions);
+		Dictionary<string, bool> constOfAnchors = BuildConstOfCallAnchorFacts(analyzedConstOfArguments);
+		CheckConstOfCallArguments(analyzedConstOfArguments, constOfAnchors, fallbackSyntax);
+		return constOfAnchors;
 	}
 
 	bool TryBindCallArgumentToParameter(ArgumentExpression argument, List<ParameterDefinition> callableParameters, bool[] suppliedParameters, SyntaxNode? fallbackSyntax, out int parameterIndex)

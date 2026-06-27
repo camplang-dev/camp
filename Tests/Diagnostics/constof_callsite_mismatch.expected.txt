@@ -1,0 +1,7 @@
+tests/Diagnostics/constof_callsite_mismatch.camp(23,37): error: Argument cannot convert 'const int*' to 'int*'.
+tests/Diagnostics/constof_callsite_mismatch.camp(23,37): error: Argument constness is const, but constof anchor 'source' requires mutable.
+tests/Diagnostics/constof_callsite_mismatch.camp(24,38): error: Argument constness is mutable, but constof anchor 'source' requires const.
+tests/Diagnostics/constof_callsite_mismatch.camp(27,34): error: Out argument cannot convert 'const int*' to 'int*'.
+tests/Diagnostics/constof_callsite_mismatch.camp(27,34): error: Argument constness is mutable, but constof anchor 'source' requires const.
+tests/Diagnostics/constof_callsite_mismatch.camp(29,35): error: Call result cannot convert 'scoped(source) const int*' to 'int*'.
+tests/Diagnostics/constof_callsite_mismatch.camp(29,35): error: Declaration initializer cannot convert 'scoped(source) const int*' to 'int*'.

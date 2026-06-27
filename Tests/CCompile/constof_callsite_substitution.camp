@@ -1,0 +1,95 @@
+constof(source) int* firstInt(const int[] source)
+{
+	return default;
+}
+
+constof(source) T* firstGeneric<T: any>(const T[] source, sizeof(T))
+{
+	return default;
+}
+
+void getFirstInt(const int[] source, out constof(source) int* result)
+{
+	result = default;
+}
+
+void requireSameConstness(const int[] source, constof(source) int[] other)
+{
+}
+
+constof(source) char* firstChar(const char[] source)
+{
+	return source.elements;
+}
+
+constof(this) char* firstReceiverChar(const char[] this)
+{
+	return this.elements;
+}
+
+newtype fn constof(source) char* CharPicker(const char[] source);
+
+constof(source) char* pickChar(const char[] source) : CharPicker
+{
+	return source.elements;
+}
+
+nuint getLength(string this)
+{
+	nuint length = 0;
+	while (this[length] != '\0')
+		length++;
+	return length;
+}
+
+export int main()
+{
+	int[] values = [1, 2, 3];
+	const int[] readonlyValues = values;
+
+	int* mutablePointer = firstInt(values);
+	const int* readonlyPointer = firstInt(readonlyValues);
+	int* genericMutablePointer = firstGeneric<int>(values);
+	const int* genericReadonlyPointer = firstGeneric<int>(readonlyValues);
+
+	getFirstInt(values, out mutablePointer);
+	getFirstInt(readonlyValues, out readonlyPointer);
+
+	requireSameConstness(values, values);
+	requireSameConstness(readonlyValues, readonlyValues);
+
+	fixed char[8] buffer = "hi";
+	char[] bufferView = buffer;
+	buffer[0] = 'h';
+	buffer[1] = 'i';
+	buffer[2] = '\0';
+	const char[] readonlyBuffer = bufferView;
+
+	char* mutableChars = firstChar(bufferView);
+	const char* readonlyChars = firstChar(readonlyBuffer);
+	char* receiverMutableChars = bufferView.firstReceiverChar();
+	const char* receiverReadonlyChars = readonlyBuffer.firstReceiverChar();
+
+	const char* literalChars = firstChar("literal");
+	const char* nameChars = firstChar(typenameof(int));
+	string text = "text";
+	const char* stringChars = firstChar(text);
+
+	CharPicker picker = pickChar;
+	const char* picked = picker("picked");
+
+	return mutablePointer == default
+		&& readonlyPointer == default
+		&& genericMutablePointer == default
+		&& genericReadonlyPointer == default
+		&& mutableChars != default
+		&& readonlyChars != default
+		&& receiverMutableChars != default
+		&& receiverReadonlyChars != default
+		&& literalChars != default
+		&& nameChars != default
+		&& stringChars != default
+		&& picked != default
+		? 0
+		: 1;
+}

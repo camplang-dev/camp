@@ -1,4 +1,4 @@
-scoped const char[] identityConst(const char[] value)
+scoped(value) constof(value) char[] identityConst(const char[] value)
 {
 	return value;
 }

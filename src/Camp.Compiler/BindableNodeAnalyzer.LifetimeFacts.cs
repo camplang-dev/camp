@@ -487,70 +487,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string RefineCallReturnTypeFromLifetimeArguments(FunctionDefinition function, Expression? callTarget, List<ArgumentExpression> arguments, string returnType)
 	{
-		string structuralReturnType = StripLifetimeQualifiers(returnType);
-		string mutableReturnType = StripConstFromLifetimeRefinementShape(structuralReturnType);
-		if (mutableReturnType == structuralReturnType)
-			return returnType;
-
-		LifetimeFact template = GetReturnLifetimeTemplate(function, returnType);
-		if (template.Kind != "scoped")
-			return returnType;
-
-		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(callTarget, function));
-		if (function is not null && IncludeExplicitThisArgument(callTarget, function) && GetExplicitThisParameter(function) is null && IsInstanceFunction(function) && FindContainingType(function) is TypeDefinition containingType)
-			callableParameters.Insert(0, CreateImplicitThisParameter(containingType));
-
-		List<(ParameterDefinition Parameter, ArgumentExpression Argument)> scopedInputs = [];
-		int count = Math.Min(arguments.Count, callableParameters.Count);
-		for (int i = 0; i < count; i++)
-		{
-			ParameterDefinition parameter = callableParameters[i];
-			if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within)
-				continue;
-			if (template.Anchors.Count > 0 && (string.IsNullOrWhiteSpace(parameter.Name) || !template.Anchors.Contains(parameter.Name)))
-				continue;
-			if (template.Anchors.Count == 0 && GetParameterLifetimeTemplate(parameter).Kind != "scoped")
-				continue;
-			scopedInputs.Add((parameter, arguments[i]));
-		}
-
-		if (scopedInputs.Count != 1)
-			return returnType;
-
-		string actualType = scopedInputs[0].Argument.ResolvedType ?? scopedInputs[0].Argument.Value?.ResolvedType ?? ErrorType;
-		if (actualType == ErrorType || actualType == TargetType || IsConstQualified(actualType))
-			return returnType;
-		string actualComparisonType = TryGetArrayElementType(structuralReturnType) is not null
-			? actualType
-			: GetLifetimeRefinementTransportType(actualType);
-		if (!CanImplicitlyConvert(actualComparisonType, structuralReturnType) || !CanImplicitlyConvert(actualComparisonType, mutableReturnType))
-			return returnType;
-
-		return mutableReturnType;
-	}
-
-	static string GetLifetimeRefinementTransportType(string type)
-	{
-		return TryGetArrayElementType(type) is string elementType
-			? AddPointer(elementType)
-			: type;
-	}
-
-	static string StripConstFromLifetimeRefinementShape(string type)
-	{
-		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
-			return StripConstFromShape(type);
-
-		return TypeShapeParser.Format(StripConstFromLifetimeRefinementShape(shape));
-	}
-
-	static TypeShape StripConstFromLifetimeRefinementShape(TypeShape shape)
-	{
-		return shape with
-		{
-			Qualifiers = shape.Qualifiers with { IsConst = false },
-			Element = shape.Element is null ? null : StripConstFromLifetimeRefinementShape(shape.Element)
-		};
+		return returnType;
 	}
 
 	LifetimeFact GetReturnLifetimeTemplate(FunctionDefinition function, string resolvedType)

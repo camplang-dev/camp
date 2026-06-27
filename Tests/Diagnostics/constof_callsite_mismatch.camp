@@ -1,0 +1,30 @@
+void requireSameConstness(const int* source, constof(source) int* other)
+{
+}
+
+void getFirstInt(const int[] source, out constof(source) int* result)
+{
+	result = default;
+}
+
+scoped(source) const int* legacyLifetimeConst(const int[] source)
+{
+	return default;
+}
+
+export void main()
+{
+	int value = 1;
+	int* mutableValue = &value;
+	const int* readonlyValue = &value;
+	int[] values = [1, 2, 3];
+	const int[] readonlyValues = values;
+
+	requireSameConstness(mutableValue, readonlyValue);
+	requireSameConstness(readonlyValue, mutableValue);
+
+	int* mutablePointer = default;
+	getFirstInt(readonlyValues, out mutablePointer);
+
+	int* legacy = legacyLifetimeConst(values);
+}

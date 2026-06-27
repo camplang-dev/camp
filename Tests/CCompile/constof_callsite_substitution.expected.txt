@@ -1,0 +1,131 @@
+// file: constof_callsite_substitution.c
+#include "constof_callsite_substitution_private.h"
+
+/* Private file declarations. */
+static const int *firstInt(const int *source, uintptr_t source_length);
+static const void *firstGeneric(const void *source, uintptr_t source_length, uintptr_t sizeof_T);
+static void getFirstInt(const int *source, uintptr_t source_length, const int **result);
+static void requireSameConstness(const int *source, uintptr_t source_length, const int *other, uintptr_t other_length);
+static const char *firstChar(const char *source, uintptr_t source_length);
+static const char *CharArray_firstReceiverChar(const char *this, uintptr_t this_length);
+static const char *pickChar(const char *source, uintptr_t source_length);
+static uintptr_t String_getLength(const char *this);
+
+static const int *firstInt(const int *source, uintptr_t source_length)
+{
+	return 0;
+}
+
+static const void *firstGeneric(const void *source, uintptr_t source_length, uintptr_t sizeof_T)
+{
+	return 0;
+}
+
+static void getFirstInt(const int *source, uintptr_t source_length, const int **result)
+{
+	(*result) = 0;
+}
+
+static void requireSameConstness(const int *source, uintptr_t source_length, const int *other, uintptr_t other_length)
+{
+}
+
+static const char *firstChar(const char *source, uintptr_t source_length)
+{
+	return source;
+}
+
+static const char *CharArray_firstReceiverChar(const char *this, uintptr_t this_length)
+{
+	return this;
+}
+
+static const char *pickChar(const char *source, uintptr_t source_length)
+{
+	return source;
+}
+
+static uintptr_t String_getLength(const char *this)
+{
+	uintptr_t length = 0;
+	{
+		while ((this[length] != '\0'))
+		{
+			length++;
+__while_continue0: ;
+		}
+__while_break1: ;
+	}
+	return length;
+}
+
+int main(void)
+{
+	int *values = (int []){1, 2, 3};
+	uintptr_t values_length = 3;
+	const int *readonlyValues = values;
+	uintptr_t readonlyValues_length = values_length;
+	int *mutablePointer = (int *)(firstInt(values, values_length));
+	const int *readonlyPointer = firstInt(readonlyValues, readonlyValues_length);
+	int *genericMutablePointer = (int *)(firstGeneric(values, values_length, sizeof(int)));
+	const int *genericReadonlyPointer = firstGeneric(readonlyValues, readonlyValues_length, sizeof(int));
+	getFirstInt(values, values_length, (const int **)&mutablePointer);
+	getFirstInt(readonlyValues, readonlyValues_length, &readonlyPointer);
+	requireSameConstness(values, values_length, values, values_length);
+	requireSameConstness(readonlyValues, readonlyValues_length, readonlyValues, readonlyValues_length);
+	char buffer[8] = "hi";
+	char *bufferView = (char *)(buffer);
+	uintptr_t bufferView_length = 8;
+	((char *)(buffer))[0] = 'h';
+	((char *)(buffer))[1] = 'i';
+	((char *)(buffer))[2] = '\0';
+	const char *readonlyBuffer = bufferView;
+	uintptr_t readonlyBuffer_length = bufferView_length;
+	char *mutableChars = (char *)(firstChar(bufferView, bufferView_length));
+	const char *readonlyChars = firstChar(readonlyBuffer, readonlyBuffer_length);
+	char *receiverMutableChars = (char *)(CharArray_firstReceiverChar(bufferView, bufferView_length));
+	const char *receiverReadonlyChars = CharArray_firstReceiverChar(readonlyBuffer, readonlyBuffer_length);
+	const char *literalChars = firstChar("literal", 7);
+	const char *nameChars = firstChar("Int", 3);
+	const char *text = "text";
+	const char *stringChars = firstChar(text, String_getLength(text));
+	CharPicker picker = pickChar;
+	const char *picked = picker("picked", 6);
+	return (((((((((((((mutablePointer == 0) && (readonlyPointer == 0)) && (genericMutablePointer == 0)) && (genericReadonlyPointer == 0)) && (mutableChars != 0)) && (readonlyChars != 0)) && (receiverMutableChars != 0)) && (receiverReadonlyChars != 0)) && (literalChars != 0)) && (nameChars != 0)) && (stringChars != 0)) && (picked != 0)) ? 0 : 1);
+}
+
+// file: constof_callsite_substitution.h
+#ifndef CONSTOF_CALLSITE_SUBSTITUTION_H_
+#define CONSTOF_CALLSITE_SUBSTITUTION_H_
+
+#include "constof_callsite_substitution_private.h"
+
+int main(void);
+
+#endif
+// file: constof_callsite_substitution_private.h
+#ifndef CONSTOF_CALLSITE_SUBSTITUTION_PRIVATE_H_
+#define CONSTOF_CALLSITE_SUBSTITUTION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+typedef const char *(* CharPicker)(const char *source, uintptr_t source_length);
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: constof_callsite_substitution.c

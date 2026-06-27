@@ -3333,6 +3333,7 @@ public static class CCodeEmitter
 				return genericElementAddress;
 			if (argument.Modifier == ArgumentModifier.None
 				&& parameter?.Modifier != ParameterModifier.In
+				&& parameter is not SizeOfParameterDefinition
 				&& TryGetConcreteGenericType(rawExpectedParameterType, genericSubstitutions, out string? concreteType)
 				&& NeedsGenericScalarCast(concreteType))
 				value = CastToErasedGeneric(value, concreteType);
@@ -3373,9 +3374,44 @@ public static class CCodeEmitter
 			return argument.Modifier switch
 			{
 				ArgumentModifier.Out or ArgumentModifier.Catch when TryFormatForwardedOutArgument(argument.Value, out string forwarded) => forwarded,
-				ArgumentModifier.Out or ArgumentModifier.Catch => "&" + value,
+				ArgumentModifier.Out or ArgumentModifier.Catch => FormatOutArgument(value, GetOutArgumentStorageType(argument.Value) ?? argument.Value?.ResolvedType, expectedParameterType),
 				_ => value
 			};
+		}
+
+		static string? GetOutArgumentStorageType(Expression? expression)
+		{
+			return expression switch
+			{
+				VariableReferenceExpression { Variable: Definition definition } => definition.ResolvedType,
+				MemberReferenceExpression { Member: Definition definition } => definition.ResolvedType,
+				_ => null
+			};
+		}
+
+		string FormatOutArgument(string value, string? valueType, string? expectedParameterType)
+		{
+			string address = "&" + value;
+			if (string.IsNullOrWhiteSpace(valueType) || string.IsNullOrWhiteSpace(expectedParameterType))
+				return address;
+			if (!IsResolvedPointerType(valueType) && !IsResolvedPointerType(expectedParameterType))
+				return address;
+			string valuePointerType = AddResolvedPointer(valueType);
+			string expectedPointerType = AddResolvedPointer(expectedParameterType);
+			if (valuePointerType == expectedPointerType
+				|| !ShouldCastPointerArgument(valuePointerType, expectedPointerType) && !IsResolvedPointerType(expectedPointerType))
+				return address;
+			return "(" + FormatResolvedType(expectedPointerType, "").Declaration.Trim() + ")" + address;
+		}
+
+		static string AddResolvedPointer(string type)
+		{
+			return type.Trim() + "*";
+		}
+
+		static bool IsResolvedPointerType(string type)
+		{
+			return type.TrimEnd().EndsWith("*", StringComparison.Ordinal);
 		}
 
 		bool ContainsGenericParameterTypeName(string type)

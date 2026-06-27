@@ -250,4 +250,328 @@ public sealed partial class BindableNodeAnalyzer
 			_ => 0
 		};
 	}
+
+	Dictionary<string, bool> BuildConstOfCallAnchorFacts(List<(ArgumentExpression Argument, ParameterDefinition Parameter)> arguments)
+	{
+		Dictionary<string, bool> anchors = new(System.StringComparer.Ordinal);
+		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in arguments)
+		{
+			if (string.IsNullOrWhiteSpace(parameter.Name) || anchors.ContainsKey(parameter.Name))
+				continue;
+			if (TryGetConstOfActualSlot(parameter, argument, out bool isConst))
+				anchors[parameter.Name] = isConst;
+		}
+		return anchors;
+	}
+
+	void CheckConstOfCallArguments(List<(ArgumentExpression Argument, ParameterDefinition Parameter)> arguments, Dictionary<string, bool> anchors, SyntaxNode? fallbackSyntax)
+	{
+		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in arguments)
+			CheckConstOfCallArgument(parameter.Type, argument, anchors, fallbackSyntax);
+	}
+
+	void CheckConstOfCallArgument(TypeReference? expectedType, ArgumentExpression argument, Dictionary<string, bool> anchors, SyntaxNode? fallbackSyntax)
+	{
+		if (expectedType is null || !ContainsConstOfTypeReference(expectedType))
+			return;
+		if (!TryParseTypeShape(argument.ResolvedType ?? argument.Value?.ResolvedType ?? ErrorType, out TypeShape actualShape))
+			return;
+		foreach ((string anchorName, bool expectedConst, bool actualConst) in GetConstOfSlotComparisons(expectedType, actualShape, anchors))
+		{
+			if (expectedConst != actualConst)
+			{
+				SyntaxNode? syntax = GetExpressionDiagnosticSyntax(argument.Value) ?? argument.SourceSyntax;
+				if (syntax is null)
+					continue;
+				string expectedText = expectedConst ? "const" : "mutable";
+				string actualText = actualConst ? "const" : "mutable";
+				Report(GetRange(syntax), $"Argument constness is {actualText}, but constof anchor '{anchorName}' requires {expectedText}.");
+			}
+		}
+	}
+
+	IEnumerable<(string AnchorName, bool ExpectedConst, bool ActualConst)> GetConstOfSlotComparisons(TypeReference? expectedType, TypeShape actualShape, Dictionary<string, bool> anchors)
+	{
+		if (expectedType is null)
+			yield break;
+
+		switch (expectedType)
+		{
+			case ConstOfTypeReference constOf:
+				if (anchors.TryGetValue(constOf.AnchorName, out bool expectedConst))
+					yield return (constOf.AnchorName, expectedConst, actualShape.Qualifiers.IsConst);
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(constOf.Type, actualShape, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+			case ConstTypeReference constant:
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(constant.Type, actualShape, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+			case ArrayTypeReference array when actualShape.Kind == TypeShapeKind.Array && actualShape.Element is not null:
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(array.ElementType, actualShape.Element, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+			case FixedArrayTypeReference fixedArray when actualShape.Kind == TypeShapeKind.FixedArray && actualShape.Element is not null:
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(fixedArray.ElementType, actualShape.Element, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+			case OptionalTypeReference optional when actualShape.Kind == TypeShapeKind.Optional && actualShape.Element is not null:
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(optional.ElementType, actualShape.Element, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+			case PointerTypeReference pointer when actualShape.Kind == TypeShapeKind.Pointer && actualShape.Element is not null:
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(pointer.ElementType, actualShape.Element, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+			case AttributedTypeReference attributed:
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(attributed.Type, actualShape, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+			case VolatileTypeReference vol:
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(vol.Type, actualShape, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+			case EscapedTypeReference escaped:
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(escaped.Type, actualShape, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+			case ScopedTypeReference scoped:
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(scoped.Type, actualShape, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+			case UnscopedTypeReference unscoped:
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(unscoped.Type, actualShape, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+			case TargetTypeSpecTypeReference targetSpec:
+				foreach ((string anchorName, bool expected, bool actual) in GetConstOfSlotComparisons(targetSpec.Type, actualShape, anchors))
+					yield return (anchorName, expected, actual);
+				break;
+		}
+	}
+
+	bool TryGetConstOfActualSlot(ParameterDefinition parameter, ArgumentExpression argument, out bool isConst)
+	{
+		isConst = false;
+		if (IsStringLiteralLikeExpression(argument.Value))
+		{
+			isConst = true;
+			return true;
+		}
+		if (IsPrimitiveStringType(argument.ResolvedType ?? argument.Value?.ResolvedType))
+		{
+			isConst = true;
+			return true;
+		}
+		if (!TryParseTypeShape(argument.ResolvedType ?? argument.Value?.ResolvedType ?? ErrorType, out TypeShape actualShape))
+			return false;
+		if (parameter.Type is null
+			&& TryParseTypeShape(parameter.ResolvedType ?? ErrorType, out TypeShape parameterShape)
+			&& TryGetConstOfActualSlot(parameterShape, actualShape, out isConst))
+			return true;
+		return TryGetConstOfActualSlot(parameter.Type, actualShape, out isConst);
+	}
+
+	static bool TryGetConstOfActualSlot(TypeShape parameterShape, TypeShape actualShape, out bool isConst)
+	{
+		isConst = false;
+		if (parameterShape.Qualifiers.IsConst)
+		{
+			isConst = actualShape.Qualifiers.IsConst;
+			return true;
+		}
+		if (parameterShape.Element is not null && actualShape.Element is not null)
+			return TryGetConstOfActualSlot(parameterShape.Element, actualShape.Element, out isConst);
+		return false;
+	}
+
+	static bool TryGetConstOfActualSlot(TypeReference? anchorType, TypeShape actualShape, out bool isConst)
+	{
+		isConst = false;
+		if (anchorType is null)
+			return false;
+
+		switch (anchorType)
+		{
+			case PrimitiveTypeReference { Type: PrimitiveType.String or PrimitiveType.AString or PrimitiveType.WString }:
+			case NamedTypeReference { Name: "string" or "astring" or "wstring" }:
+			case TypeDefinitionReference { Name: "string" or "astring" or "wstring" }:
+				isConst = true;
+				return true;
+			case ConstTypeReference:
+				isConst = actualShape.Qualifiers.IsConst || actualShape.Element?.Qualifiers.IsConst == true;
+				return true;
+			case ConstOfTypeReference:
+				return false;
+			case ArrayTypeReference array when actualShape.Kind == TypeShapeKind.Array && actualShape.Element is not null:
+				return TryGetConstOfActualSlot(array.ElementType, actualShape.Element, out isConst);
+			case FixedArrayTypeReference fixedArray when actualShape.Kind == TypeShapeKind.FixedArray && actualShape.Element is not null:
+				return TryGetConstOfActualSlot(fixedArray.ElementType, actualShape.Element, out isConst);
+			case OptionalTypeReference optional when actualShape.Kind == TypeShapeKind.Optional && actualShape.Element is not null:
+				return TryGetConstOfActualSlot(optional.ElementType, actualShape.Element, out isConst);
+			case PointerTypeReference pointer when actualShape.Kind == TypeShapeKind.Pointer && actualShape.Element is not null:
+				return TryGetConstOfActualSlot(pointer.ElementType, actualShape.Element, out isConst);
+			case AttributedTypeReference attributed:
+				return TryGetConstOfActualSlot(attributed.Type, actualShape, out isConst);
+			case VolatileTypeReference vol:
+				return TryGetConstOfActualSlot(vol.Type, actualShape, out isConst);
+			case EscapedTypeReference escaped:
+				return TryGetConstOfActualSlot(escaped.Type, actualShape, out isConst);
+			case ScopedTypeReference scoped:
+				return TryGetConstOfActualSlot(scoped.Type, actualShape, out isConst);
+			case UnscopedTypeReference unscoped:
+				return TryGetConstOfActualSlot(unscoped.Type, actualShape, out isConst);
+			case TargetTypeSpecTypeReference targetSpec:
+				return TryGetConstOfActualSlot(targetSpec.Type, actualShape, out isConst);
+			default:
+				return false;
+		}
+	}
+
+	static bool IsStringLiteralLikeExpression(Expression? expression)
+	{
+		return expression is LiteralExpression { Kind: LiteralKind.String } or NameOfExpression;
+	}
+
+	string SubstituteConstOfResolvedType(TypeReference? sourceType, string resolvedType, Dictionary<string, bool> anchors, Dictionary<string, string>? genericSubstitutions = null)
+	{
+		if (sourceType is null || !ContainsConstOfTypeReference(sourceType))
+			return resolvedType;
+		TypeReference substituted = SubstituteConstOfTypeReference(sourceType, anchors);
+		return SubstituteGenericType(FormatTypeReference(substituted), genericSubstitutions ?? []);
+	}
+
+	string SubstituteCallableConstOfReturnType(string callableType, string resolvedReturnType, Dictionary<string, bool> anchors)
+	{
+		if (!typeDefinitions.TryGetValue(BaseTypeName(callableType), out TypeDefinition? definition)
+			|| definition is not NewtypeDefinition newtype)
+			return resolvedReturnType;
+		TypeReference? returnType = newtype.UnderlyingType switch
+		{
+			CallableTypeReference callable => callable.ReturnType,
+			IterTypeReference iter => iter.ElementType,
+			_ => null
+		};
+		return SubstituteConstOfResolvedType(returnType, resolvedReturnType, anchors);
+	}
+
+	static TypeReference SubstituteConstOfTypeReference(TypeReference type, Dictionary<string, bool> anchors)
+	{
+		return type switch
+		{
+			ConstOfTypeReference constOf => anchors.TryGetValue(constOf.AnchorName, out bool isConst) && isConst
+				? new ConstTypeReference { Type = SubstituteConstOfTypeReference(constOf.Type ?? new PrimitiveTypeReference { Type = PrimitiveType.Void }, anchors) }
+				: SubstituteConstOfTypeReference(constOf.Type ?? new PrimitiveTypeReference { Type = PrimitiveType.Void }, anchors),
+			AttributedTypeReference attributed => new AttributedTypeReference { Type = attributed.Type is null ? null : SubstituteConstOfTypeReference(attributed.Type, anchors) },
+			GenericTypeReference generic => CloneGenericWithConstOf(generic, anchors),
+			ArrayTypeReference array => new ArrayTypeReference { ElementType = array.ElementType is null ? null : SubstituteConstOfTypeReference(array.ElementType, anchors) },
+			FixedArrayTypeReference fixedArray => new FixedArrayTypeReference
+			{
+				ElementType = fixedArray.ElementType is null ? null : SubstituteConstOfTypeReference(fixedArray.ElementType, anchors),
+				Length = fixedArray.Length
+			},
+			OptionalTypeReference optional => new OptionalTypeReference { ElementType = optional.ElementType is null ? null : SubstituteConstOfTypeReference(optional.ElementType, anchors) },
+			PointerTypeReference pointer => new PointerTypeReference { ElementType = pointer.ElementType is null ? null : SubstituteConstOfTypeReference(pointer.ElementType, anchors) },
+			ConstTypeReference constant => new ConstTypeReference { Type = constant.Type is null ? null : SubstituteConstOfTypeReference(constant.Type, anchors) },
+			VolatileTypeReference vol => new VolatileTypeReference { Type = vol.Type is null ? null : SubstituteConstOfTypeReference(vol.Type, anchors) },
+			EscapedTypeReference escaped => new EscapedTypeReference { Type = escaped.Type is null ? null : SubstituteConstOfTypeReference(escaped.Type, anchors) },
+			ScopedTypeReference scoped => new ScopedTypeReference { Type = scoped.Type is null ? null : SubstituteConstOfTypeReference(scoped.Type, anchors) },
+			UnscopedTypeReference unscoped => new UnscopedTypeReference { Type = unscoped.Type is null ? null : SubstituteConstOfTypeReference(unscoped.Type, anchors) },
+			TargetTypeSpecTypeReference targetSpec => new TargetTypeSpecTypeReference
+			{
+				Specifier = targetSpec.Specifier,
+				IsPrefix = targetSpec.IsPrefix,
+				Type = targetSpec.Type is null ? null : SubstituteConstOfTypeReference(targetSpec.Type, anchors)
+			},
+			CallableTypeReference callable => CloneCallableWithConstOf(callable, anchors),
+			IterTypeReference iter => CloneIterWithConstOf(iter, anchors),
+			GroupedParamsTypeReference grouped => new GroupedParamsTypeReference { StructType = grouped.StructType is null ? null : SubstituteConstOfTypeReference(grouped.StructType, anchors) },
+			MaterializedStructTypeReference materialized => new MaterializedStructTypeReference { ParamsType = materialized.ParamsType is null ? null : SubstituteConstOfTypeReference(materialized.ParamsType, anchors) },
+			ThrownTypeReference thrown => new ThrownTypeReference { Type = thrown.Type is null ? null : SubstituteConstOfTypeReference(thrown.Type, anchors) },
+			TypeDefinitionReference definition => CloneTypeDefinitionWithConstOf(definition, anchors),
+			NamedTypeReference named => CloneNamedWithConstOf(named, anchors),
+			PrimitiveTypeReference primitive => new PrimitiveTypeReference { Type = primitive.Type },
+			_ => type
+		};
+	}
+
+	static GenericTypeReference CloneGenericWithConstOf(GenericTypeReference generic, Dictionary<string, bool> anchors)
+	{
+		GenericTypeReference clone = new()
+		{
+			Type = generic.Type is null ? null : SubstituteConstOfTypeReference(generic.Type, anchors)
+		};
+		foreach (TypeReference argument in generic.TypeArguments)
+			clone.TypeArguments.Add(SubstituteConstOfTypeReference(argument, anchors));
+		return clone;
+	}
+
+	static TypeDefinitionReference CloneTypeDefinitionWithConstOf(TypeDefinitionReference definition, Dictionary<string, bool> anchors)
+	{
+		TypeDefinitionReference clone = new()
+		{
+			Definition = definition.Definition,
+			Name = definition.Name
+		};
+		foreach (TypeReference argument in definition.TypeArguments)
+			clone.TypeArguments.Add(SubstituteConstOfTypeReference(argument, anchors));
+		return clone;
+	}
+
+	static NamedTypeReference CloneNamedWithConstOf(NamedTypeReference named, Dictionary<string, bool> anchors)
+	{
+		NamedTypeReference clone = new()
+		{
+			Name = named.Name
+		};
+		foreach (TypeReference argument in named.TypeArguments)
+			clone.TypeArguments.Add(SubstituteConstOfTypeReference(argument, anchors));
+		foreach (string qualifier in named.Qualifiers)
+			clone.Qualifiers.Add(qualifier);
+		return clone;
+	}
+
+	static CallableTypeReference CloneCallableWithConstOf(CallableTypeReference callable, Dictionary<string, bool> anchors)
+	{
+		CallableTypeReference clone = new()
+		{
+			Kind = callable.Kind,
+			TargetSpec = callable.TargetSpec,
+			CallSpec = callable.CallSpec,
+			ReturnType = callable.ReturnType is null ? null : SubstituteConstOfTypeReference(callable.ReturnType, anchors)
+		};
+		foreach (ParameterDefinition parameter in callable.Parameters)
+			clone.Parameters.Add(CloneParameterWithConstOf(parameter, anchors));
+		return clone;
+	}
+
+	static IterTypeReference CloneIterWithConstOf(IterTypeReference iter, Dictionary<string, bool> anchors)
+	{
+		IterTypeReference clone = new()
+		{
+			IsAsync = iter.IsAsync,
+			ElementType = iter.ElementType is null ? null : SubstituteConstOfTypeReference(iter.ElementType, anchors)
+		};
+		foreach (ParameterDefinition parameter in iter.Parameters)
+			clone.Parameters.Add(CloneParameterWithConstOf(parameter, anchors));
+		return clone;
+	}
+
+	static ParameterDefinition CloneParameterWithConstOf(ParameterDefinition parameter, Dictionary<string, bool> anchors)
+	{
+		ParameterDefinition clone = parameter switch
+		{
+			ThisParameterDefinition => new ThisParameterDefinition(),
+			SizeOfParameterDefinition => new SizeOfParameterDefinition(),
+			VTableOfParameterDefinition => new VTableOfParameterDefinition(),
+			NameOfParameterDefinition => new NameOfParameterDefinition(),
+			WithinParameterDefinition => new WithinParameterDefinition(),
+			_ => new ParameterDefinition()
+		};
+		clone.Name = parameter.Name;
+		clone.Modifier = parameter.Modifier;
+		clone.Type = parameter.Type is null ? null : SubstituteConstOfTypeReference(parameter.Type, anchors);
+		clone.ResolvedType = clone.Type is null ? parameter.ResolvedType : FormatTypeReference(clone.Type);
+		return clone;
+	}
 }
