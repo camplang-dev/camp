@@ -112,6 +112,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (source == target || source == ErrorType || target == ErrorType || target == TargetType)
 			return true;
 
+		string erasedConstOfSource = EraseConstOfQualifiers(source);
+		string erasedConstOfTarget = EraseConstOfQualifiers(target);
+		if ((erasedConstOfSource != source || erasedConstOfTarget != target)
+			&& CanImplicitlyConvert(erasedConstOfSource, erasedConstOfTarget))
+			return true;
+
 		string structuralSource = StripLifetimeQualifiers(source);
 		string structuralTarget = StripLifetimeQualifiers(target);
 		if ((structuralSource != source || structuralTarget != target) && CanImplicitlyConvert(structuralSource, structuralTarget))
@@ -175,6 +181,29 @@ public sealed partial class BindableNodeAnalyzer
 			return CanImplicitlyConvertShape(sourceShape, targetShape);
 
 		return IsNumericType(source) && IsNumericType(target) && NumericRank(source) <= NumericRank(target);
+	}
+
+	static string EraseConstOfQualifiers(string type)
+	{
+		const string prefix = "constof(";
+		int start = type.IndexOf(prefix, StringComparison.Ordinal);
+		if (start < 0)
+			return type;
+
+		System.Text.StringBuilder builder = new(type.Length);
+		int index = 0;
+		while (start >= 0)
+		{
+			builder.Append(type, index, start - index);
+			int close = type.IndexOf(')', start + prefix.Length);
+			if (close < 0)
+				return type;
+			builder.Append("const");
+			index = close + 1;
+			start = type.IndexOf(prefix, index, StringComparison.Ordinal);
+		}
+		builder.Append(type, index, type.Length - index);
+		return builder.ToString();
 	}
 
 	bool CanConvertIteratorStateToProtocol(string source, string target)
@@ -399,7 +428,8 @@ public sealed partial class BindableNodeAnalyzer
 			&& TryParseTypeShape(target, out TypeShape explicitTargetShape)
 			&& (CanExplicitlyConvertTargetSpecShape(explicitSourceShape, explicitTargetShape)
 				|| CanExplicitlyConvertPointerNaturalInteger(explicitSourceShape, explicitTargetShape)
-				|| CanExplicitlyConvertUntypedPointer(explicitSourceShape, explicitTargetShape)))
+				|| CanExplicitlyConvertUntypedPointer(explicitSourceShape, explicitTargetShape)
+				|| CanExplicitlyConvertConstShape(explicitSourceShape, explicitTargetShape)))
 			return true;
 
 		if (CanExplicitlyConvertCallableNaturalInteger(source, target))
@@ -2028,6 +2058,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (types.Count == 0)
 			return ErrorType;
 
+		for (int i = 0; i < types.Count; i++)
+			types[i] = EraseConstOfQualifiers(types[i]);
 		string best = types[0];
 		foreach (string type in types)
 		{

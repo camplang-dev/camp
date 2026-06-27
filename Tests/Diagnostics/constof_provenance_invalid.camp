@@ -1,18 +1,40 @@
-constof(source) int* badReturn(const int[] source, int* other)
+newtype IntPtr: const int*;
+
+constof(source) int* firstElement(const int[] source)
 {
-	return other;
+	return source.elements;
 }
 
-void badOut(const int[] source, int* other, out constof(source) int* result)
+void constToConstOf(const int[] source, const int* pointer)
 {
-	result = other;
+	constof(source) int* bad = pointer;
 }
 
-export int main()
+void constOfToMutable(const int[] source)
 {
-	int[] values = [1, 2];
-	int other = 3;
-	int* pointer = badReturn(values, &other);
-	badOut(values, &other, out pointer);
-	return 0;
+	constof(source) int* dependent = firstElement(source);
+	int* bad = dependent;
+}
+
+void differentAnchor(const int[] left, const int[] right)
+{
+	constof(left) int* dependent = firstElement(left);
+	constof(right) int* bad = dependent;
+}
+
+void commonTypeIsOrdinaryConst(const int[] source, const int* pointer, bool condition)
+{
+	constof(source) int* dependent = firstElement(source);
+	auto common = condition ? dependent : pointer;
+	constof(source) int* bad = common;
+}
+
+void nominalBoundary(const int[] source)
+{
+	constof(source) int* dependent = firstElement(source);
+	IntPtr bad = dependent;
+}
+
+export void main()
+{
 }

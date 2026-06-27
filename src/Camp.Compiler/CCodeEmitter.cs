@@ -249,6 +249,8 @@ public static class CCodeEmitter
 		string description = node.GetType().Name;
 		if (node is NamedExpression named)
 			description += $" '{named.Name}'";
+		else if (node is DeclarationTarget declarationTarget)
+			description += $" '{string.Join(", ", declarationTarget.Names)}'";
 		else if (node is VariableReferenceExpression variableReference)
 		{
 			description += variableReference.Variable switch

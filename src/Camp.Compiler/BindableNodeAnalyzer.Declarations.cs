@@ -759,7 +759,11 @@ public sealed partial class BindableNodeAnalyzer
 			string targetType = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
 			string initialType = BodyAnalyzeExpression(variable.InitialValue, scope, typeScope, targetType);
 			if (!IsValidFixedStorageInitializer(variable.Type, variable.InitialValue))
+			{
 				CheckAssignable(targetType, initialType, variable.InitialValue.SourceSyntax ?? variable.SourceSyntax, "Global initializer");
+				if (ContainsConstOfTypeReference(variable.Type))
+					CheckConstOfProducedResult(variable.Type, variable.InitialValue, variable.InitialValue.SourceSyntax ?? variable.SourceSyntax, "Global initializer");
+			}
 		}
 	}
 
@@ -816,7 +820,11 @@ public sealed partial class BindableNodeAnalyzer
 			string targetType = definition.ResolvedType ?? definition.Type?.ResolvedType ?? ErrorType;
 			string initialType = BodyAnalyzeExpression(definition.InitialValue, bodyScope, scope, targetType);
 			if (!IsValidFixedStorageInitializer(definition.Type, definition.InitialValue))
+			{
 				CheckAssignable(targetType, initialType, definition.InitialValue.SourceSyntax ?? definition.SourceSyntax, "Static field initializer");
+				if (ContainsConstOfTypeReference(definition.Type))
+					CheckConstOfProducedResult(definition.Type, definition.InitialValue, definition.InitialValue.SourceSyntax ?? definition.SourceSyntax, "Static field initializer");
+			}
 		}
 		else
 		{

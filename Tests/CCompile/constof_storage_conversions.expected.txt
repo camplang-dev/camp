@@ -1,0 +1,68 @@
+// file: constof_storage_conversions.c
+#include "constof_storage_conversions_private.h"
+
+/* Private file declarations. */
+static const int *firstElement(const int *source, uintptr_t source_length);
+static void assignStorage(const int *source, uintptr_t source_length, int *mutablePtr, const int *constPtr, int *total);
+
+static const int *firstElement(const int *source, uintptr_t source_length)
+{
+	return source;
+}
+
+static void assignStorage(const int *source, uintptr_t source_length, int *mutablePtr, const int *constPtr, int *total)
+{
+	const int *fromMutable = mutablePtr;
+	const int *widened = fromMutable;
+	const int *fromSameAnchor = firstElement(source, source_length);
+	const int *fromCast = (const int *)(constPtr);
+	int *explicitlyMutable = (int *)(fromSameAnchor);
+	const int *common = (true ? fromSameAnchor : constPtr);
+	const int *commonConst = common;
+	(*total) = (((((*fromMutable + *widened) + *fromSameAnchor) + *fromCast) + *explicitlyMutable) + *commonConst);
+}
+
+int main(void)
+{
+	int *values = (int []){10, 20, 30};
+	uintptr_t values_length = 3;
+	int fallback = 5;
+	int total = 0;
+	assignStorage(values, values_length, &values[1], &fallback, &total);
+	return ((total == 75) ? 0 : 1);
+}
+
+// file: constof_storage_conversions.h
+#ifndef CONSTOF_STORAGE_CONVERSIONS_H_
+#define CONSTOF_STORAGE_CONVERSIONS_H_
+
+#include "constof_storage_conversions_private.h"
+
+int main(void);
+
+#endif
+// file: constof_storage_conversions_private.h
+#ifndef CONSTOF_STORAGE_CONVERSIONS_PRIVATE_H_
+#define CONSTOF_STORAGE_CONVERSIONS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: constof_storage_conversions.c

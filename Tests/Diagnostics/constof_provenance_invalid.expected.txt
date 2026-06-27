@@ -1,2 +1,5 @@
-tests/Diagnostics/constof_provenance_invalid.camp(3,9): error: Return expression with constof(source) must be derived from 'source' or use an explicit constof(source) cast.
-tests/Diagnostics/constof_provenance_invalid.camp(8,11): error: Out assignment with constof(source) must be derived from 'source' or use an explicit constof(source) cast.
+tests/Diagnostics/constof_provenance_invalid.camp(10,29): error: Declaration initializer with constof(source) must be derived from 'source' or use an explicit constof(source) cast.
+tests/Diagnostics/constof_provenance_invalid.camp(16,13): error: Declaration initializer cannot convert 'const int*' to 'int*'.
+tests/Diagnostics/constof_provenance_invalid.camp(22,28): error: Declaration initializer with constof(right) must be derived from 'right' or use an explicit constof(right) cast.
+tests/Diagnostics/constof_provenance_invalid.camp(29,29): error: Declaration initializer with constof(source) must be derived from 'source' or use an explicit constof(source) cast.
+tests/Diagnostics/constof_provenance_invalid.camp(35,15): error: Declaration initializer cannot convert 'const int*' to 'IntPtr'.

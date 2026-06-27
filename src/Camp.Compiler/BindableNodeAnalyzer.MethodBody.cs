@@ -3573,21 +3573,26 @@ public sealed partial class BindableNodeAnalyzer
 		else
 		{
 			CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
-			if (TryGetOutParameterConstOfType(assignment.Target, out TypeReference? outConstOfType))
-				CheckConstOfProducedResult(outConstOfType, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, "Out assignment");
+			if (TryGetAssignmentTargetConstOfType(assignment.Target, out TypeReference? constOfType))
+				CheckConstOfProducedResult(constOfType, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, "Assignment");
 			CheckLifetimeAssignment(assignment.Target, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, scope, "Assignment");
 		}
 		UpdateAssignmentLifetimeFact(assignment.Target, GetExpressionLifetimeFact(assignment.Value));
 		return targetType;
 	}
 
-	bool TryGetOutParameterConstOfType(Expression? target, out TypeReference? type)
+	bool TryGetAssignmentTargetConstOfType(Expression? target, out TypeReference? type)
 	{
 		if (target is not null && expressionRewrites.TryGetValue(target, out Expression? rewrite))
 			target = rewrite;
 		type = target switch
 		{
-			VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.Out } parameter } => parameter.Type,
+			VariableReferenceExpression { Variable: ParameterDefinition parameter } => parameter.Type,
+			VariableReferenceExpression { Variable: VariableDefinition variable } => variable.Type,
+			VariableReferenceExpression { Variable: DeclarationTarget declaration } => declaration.Type,
+			MemberReferenceExpression { Member: FieldDefinition field } => field.Type,
+			MemberReferenceExpression { Member: ParameterDefinition parameter } => parameter.Type,
+			MemberReferenceExpression { Member: VariableDefinition variable } => variable.Type,
 			_ => null
 		};
 		return ContainsConstOfTypeReference(type);
@@ -3682,7 +3687,7 @@ public sealed partial class BindableNodeAnalyzer
 		string trueType = BodyAnalyzeExpression(conditional.WhenTrue, scope, typeScope, targetType);
 		string falseType = BodyAnalyzeExpression(conditional.WhenFalse, scope, typeScope, targetType);
 		expressionConstants[conditional] = IsConstant(conditional.Condition) && IsConstant(conditional.WhenTrue) && IsConstant(conditional.WhenFalse);
-		if (targetType is not null)
+		if (targetType is not null && targetType != TargetType)
 		{
 			CheckAssignable(targetType, trueType, conditional.WhenTrue?.SourceSyntax, "Conditional expression");
 			CheckAssignable(targetType, falseType, conditional.WhenFalse?.SourceSyntax, "Conditional expression");

@@ -197,6 +197,35 @@ public sealed partial class BindableNodeAnalyzer
 			|| IsUntypedPointerShape(target) && source.Kind == TypeShapeKind.Pointer;
 	}
 
+	bool CanExplicitlyConvertConstShape(TypeShape source, TypeShape target)
+	{
+		TypeShape stripped = StripConstQualifiers(source);
+		return stripped != source && TypeShapesSameIgnoringLifetime(stripped, target);
+	}
+
+	static TypeShape StripConstQualifiers(TypeShape shape)
+	{
+		return shape with
+		{
+			Qualifiers = shape.Qualifiers with { IsConst = false },
+			Element = shape.Element is null ? null : StripConstQualifiers(shape.Element)
+		};
+	}
+
+	static bool TypeShapesSameIgnoringLifetime(TypeShape source, TypeShape target)
+	{
+		if (source.Kind != target.Kind
+			|| source.Name != target.Name
+			|| source.TargetSpec != target.TargetSpec
+			|| source.Length != target.Length
+			|| source.Qualifiers.IsConst != target.Qualifiers.IsConst
+			|| source.Qualifiers.IsVolatile != target.Qualifiers.IsVolatile)
+			return false;
+		if (source.Element is null || target.Element is null)
+			return source.Element is null && target.Element is null;
+		return TypeShapesSameIgnoringLifetime(source.Element, target.Element);
+	}
+
 	bool CanExplicitlyConvertUntypedPointerToCallable(TypeShape source, string target)
 	{
 		return IsUntypedPointerShape(source) && TryGetCallableShape(target, out _);

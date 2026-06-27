@@ -439,8 +439,56 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		foreach (string anchor in GetConstOfAnchorNames(targetType).Distinct(System.StringComparer.Ordinal))
 		{
-			if (!ExpressionSatisfiesConstOfAnchor(expression, anchor))
+			if (!ExpressionSatisfiesConstOfAnchor(expression, anchor)
+				&& !ExpressionProvidesMutableConstOfSlot(targetType, expression, anchor))
 				Report(GetRange(syntax), $"{context} with constof({anchor}) must be derived from '{anchor}' or use an explicit constof({anchor}) cast.");
+		}
+	}
+
+	bool ExpressionProvidesMutableConstOfSlot(TypeReference targetType, Expression expression, string anchor)
+	{
+		string actualType = expression.ResolvedType ?? ErrorType;
+		if (actualType == ErrorType || actualType == TargetType)
+			return false;
+		if (!TryParseTypeShape(actualType, out TypeShape actualShape))
+			return false;
+		return TypeReferenceConstOfSlotIsMutable(targetType, actualShape, anchor);
+	}
+
+	static bool TypeReferenceConstOfSlotIsMutable(TypeReference? targetType, TypeShape actualShape, string anchor)
+	{
+		if (targetType is null)
+			return false;
+
+		switch (targetType)
+		{
+			case ConstOfTypeReference constOf:
+				return constOf.AnchorName == anchor && !actualShape.Qualifiers.IsConst
+					|| TypeReferenceConstOfSlotIsMutable(constOf.Type, actualShape, anchor);
+			case AttributedTypeReference attributed:
+				return TypeReferenceConstOfSlotIsMutable(attributed.Type, actualShape, anchor);
+			case ConstTypeReference constant:
+				return TypeReferenceConstOfSlotIsMutable(constant.Type, actualShape, anchor);
+			case VolatileTypeReference vol:
+				return TypeReferenceConstOfSlotIsMutable(vol.Type, actualShape, anchor);
+			case EscapedTypeReference escaped:
+				return TypeReferenceConstOfSlotIsMutable(escaped.Type, actualShape, anchor);
+			case ScopedTypeReference scoped:
+				return TypeReferenceConstOfSlotIsMutable(scoped.Type, actualShape, anchor);
+			case UnscopedTypeReference unscoped:
+				return TypeReferenceConstOfSlotIsMutable(unscoped.Type, actualShape, anchor);
+			case TargetTypeSpecTypeReference targetSpec:
+				return TypeReferenceConstOfSlotIsMutable(targetSpec.Type, actualShape, anchor);
+			case PointerTypeReference pointer when actualShape.Kind == TypeShapeKind.Pointer && actualShape.Element is not null:
+				return TypeReferenceConstOfSlotIsMutable(pointer.ElementType, actualShape.Element, anchor);
+			case ArrayTypeReference array when actualShape.Kind == TypeShapeKind.Array && actualShape.Element is not null:
+				return TypeReferenceConstOfSlotIsMutable(array.ElementType, actualShape.Element, anchor);
+			case FixedArrayTypeReference fixedArray when actualShape.Kind == TypeShapeKind.FixedArray && actualShape.Element is not null:
+				return TypeReferenceConstOfSlotIsMutable(fixedArray.ElementType, actualShape.Element, anchor);
+			case OptionalTypeReference optional when actualShape.Kind == TypeShapeKind.Optional && actualShape.Element is not null:
+				return TypeReferenceConstOfSlotIsMutable(optional.ElementType, actualShape.Element, anchor);
+			default:
+				return false;
 		}
 	}
 
