@@ -1,0 +1,4 @@
+tests/Diagnostics/constof_signature_variance_invalid.camp(4,47): error: Callable ascription target 'DepGetter' is not compatible with declaration 'getConstOnly'.
+tests/Diagnostics/constof_signature_variance_invalid.camp(9,74): error: Callable ascription target 'ConstConsumer' is not compatible with declaration 'consumeDependent'.
+tests/Diagnostics/constof_signature_variance_invalid.camp(18,7): error: Type 'BadGetter' does not implement interface member 'IDepGetter.get(None:const int[])'.
+tests/Diagnostics/constof_signature_variance_invalid.camp(36,22): error: Override method 'pick' must match an inherited virtual or abstract method.

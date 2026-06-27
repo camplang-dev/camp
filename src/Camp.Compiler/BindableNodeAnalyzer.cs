@@ -214,6 +214,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<string> parameterTypes = [];
 		string receiverContract = "";
 		bool isLifecycleMember = function.Modifier == FunctionModifier.Constructor || IsDestructorFunction(function);
+		Dictionary<string, string> anchors = BuildSignatureAnchorMap(function.Parameters);
 
 		for (int i = 0; i < function.Parameters.Count; i++)
 		{
@@ -221,16 +222,17 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter is ThisParameterDefinition)
 			{
 				receiverContract = GetReceiverContract(parameter);
+				anchors["this"] = "this";
 				continue;
 			}
 
 			if (isLifecycleMember && i == function.Parameters.Count - 1 && IsWithinParameter(parameter))
 				continue;
 
-			parameterTypes.Add($"{parameter.Modifier}:{parameter.ResolvedType ?? ErrorType}");
+			parameterTypes.Add($"{parameter.Modifier}:{(parameter.Type is null ? parameter.ResolvedType ?? ErrorType : FormatSignatureTypeReference(parameter.Type, anchors))}");
 		}
 
-		return new MethodSignature(GetSignatureName(function), GetSignatureReturnType(function), receiverContract, parameterTypes);
+		return new MethodSignature(GetSignatureName(function), GetSignatureReturnType(function, anchors), receiverContract, parameterTypes);
 	}
 
 	static string GetSignatureName(FunctionDefinition function)
@@ -247,12 +249,12 @@ public sealed partial class BindableNodeAnalyzer
 		return string.IsNullOrWhiteSpace(function.FullCallableName) ? function.Name : function.FullCallableName;
 	}
 
-	static string GetSignatureReturnType(FunctionDefinition function)
+	static string GetSignatureReturnType(FunctionDefinition function, Dictionary<string, string> anchors)
 	{
 		return function.Modifier switch
 		{
 			FunctionModifier.Constructor => "#INSTANCE",
-			_ => IsDestructorFunction(function) ? "void" : function.ResolvedType ?? ErrorType
+			_ => IsDestructorFunction(function) ? "void" : function.ReturnType is null ? function.ResolvedType ?? ErrorType : FormatSignatureTypeReference(function.ReturnType, anchors)
 		};
 	}
 

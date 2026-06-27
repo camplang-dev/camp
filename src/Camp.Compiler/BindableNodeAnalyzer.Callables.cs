@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -222,6 +223,71 @@ public sealed partial class BindableNodeAnalyzer
 		return CallableShapesCompatible(source, target, compareThis: false);
 	}
 
+	bool CallableShapesCompatibleWithConstOfVariance(CallableShape source, CallableShape target, bool compareThis = true, bool expandParams = true)
+	{
+		if (expandParams)
+		{
+			source = ExpandCallableShape(source);
+			target = ExpandCallableShape(target);
+		}
+
+		if (source.Parameters.Count != target.Parameters.Count)
+			return false;
+		if (source.Spec != target.Spec
+			|| source.CallSpec != target.CallSpec
+			|| compareThis && source.This != target.This)
+			return false;
+		if (!CallableSlotTypesCompatible(source.ReturnType, target.ReturnType, outputPosition: true))
+			return false;
+
+		for (int i = 0; i < source.Parameters.Count; i++)
+		{
+			CallableSlot sourceSlot = ParseCallableSlot(source.Parameters[i]);
+			CallableSlot targetSlot = ParseCallableSlot(target.Parameters[i]);
+			if (sourceSlot.Modifier != targetSlot.Modifier)
+				return false;
+			if (sourceSlot.Modifier == "thrown")
+			{
+				if (sourceSlot.Type != targetSlot.Type)
+					return false;
+				continue;
+			}
+
+			bool outputPosition = sourceSlot.Modifier == "out";
+			if (!CallableSlotTypesCompatible(sourceSlot.Type, targetSlot.Type, outputPosition))
+				return false;
+		}
+
+		return true;
+	}
+
+	static bool CallableSlotTypesCompatible(string source, string target, bool outputPosition)
+	{
+		if (source == target)
+			return true;
+
+		string erasedSource = EraseConstOfQualifiers(source);
+		string erasedTarget = EraseConstOfQualifiers(target);
+		if (source != erasedSource && erasedSource == target)
+			return outputPosition;
+		if (target != erasedTarget && source == erasedTarget)
+			return !outputPosition;
+		return false;
+	}
+
+	readonly record struct CallableSlot(string Modifier, string Type);
+
+	static CallableSlot ParseCallableSlot(string text)
+	{
+		foreach (string modifier in new[] { "out", "in", "thrown", "within" })
+		{
+			string prefix = modifier + " ";
+			if (text.StartsWith(prefix, StringComparison.Ordinal))
+				return new CallableSlot(modifier, text[prefix.Length..]);
+		}
+		return new CallableSlot("", text);
+	}
+
 	bool CallableShapesCompatible(CallableShape source, CallableShape target, bool compareThis)
 	{
 		source = ExpandCallableShape(source);
@@ -245,6 +311,145 @@ public sealed partial class BindableNodeAnalyzer
 	CallableShape ExpandCallableShape(CallableShape shape)
 	{
 		return new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, GetExpandedCallableParameterTypes(shape.Parameters), shape.This);
+	}
+
+	CallableShape BuildFunctionSourceCallableShape(FunctionDefinition function, bool isInstance, string? kindOverride = null)
+	{
+		Dictionary<string, string> anchors = BuildSignatureAnchorMap(function.Parameters);
+		if ((GetExplicitThisParameter(function) ?? function.EffectiveThisParameter) is ThisParameterDefinition)
+			anchors["this"] = "this";
+
+		string kind = kindOverride ?? (isInstance ? "delegate" : "fn");
+		List<string> parameters = [];
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (isInstance && parameter is ThisParameterDefinition)
+				continue;
+			parameters.Add(FormatSignatureParameter(parameter, anchors));
+		}
+
+		return new CallableShape(kind, null, function.CallSpec, FormatSignatureTypeReference(function.ReturnType, anchors), parameters, GetThisContract(GetExplicitThisParameter(function) ?? function.EffectiveThisParameter));
+	}
+
+	bool TryBuildNewtypeSourceCallableShape(NewtypeDefinition definition, out CallableShape shape)
+	{
+		shape = default;
+		Dictionary<string, string> anchors = BuildSignatureAnchorMap(definition.Parameters);
+		if (GetCallableNewtypeThisParameter(definition) is not null)
+			anchors["this"] = "this";
+		ThisContract thisContract = GetCallableNewtypeThisContract(definition);
+
+		if (definition.UnderlyingType is CallableTypeReference callable)
+		{
+			shape = new CallableShape(GetCallableKindName(callable.Kind), callable.TargetSpec, callable.CallSpec, FormatSignatureTypeReference(callable.ReturnType, anchors), [.. definition.Parameters.Where(parameter => parameter is not ThisParameterDefinition).Select(parameter => FormatSignatureParameter(parameter, anchors))], thisContract);
+			return true;
+		}
+
+		if (definition.UnderlyingType is IterTypeReference iter)
+		{
+			List<string> parameters = GetSourceIteratorProtocolParameterTypes(iter, anchors);
+			parameters.AddRange(definition.Parameters.Where(parameter => parameter is not ThisParameterDefinition).Select(parameter => FormatSignatureParameter(parameter, anchors)));
+			shape = new CallableShape(iter.IsAsync ? "async iter" : "iter", null, null, "bool", parameters, thisContract);
+			return true;
+		}
+
+		return false;
+	}
+
+	CallableShape BuildInterfaceSourceSlotCallableShape(InterfaceDefinition owner, FunctionDefinition member)
+	{
+		Dictionary<string, string> anchors = BuildSignatureAnchorMap(member.Parameters);
+		List<string> parameters = [$"{owner.Name}*"];
+		foreach (ParameterDefinition parameter in member.Parameters)
+		{
+			if (parameter is ThisParameterDefinition)
+				continue;
+			parameters.Add(FormatSignatureParameter(parameter, anchors));
+		}
+		return new CallableShape("fn", null, member.CallSpec, FormatSignatureTypeReference(member.ReturnType, anchors), parameters);
+	}
+
+	static Dictionary<string, string> BuildSignatureAnchorMap(List<ParameterDefinition> parameters)
+	{
+		Dictionary<string, string> anchors = new(StringComparer.Ordinal);
+		int index = 0;
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (!string.IsNullOrWhiteSpace(parameter.Name))
+				anchors[parameter.Name] = "#" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+			index++;
+		}
+		return anchors;
+	}
+
+	static string FormatSignatureParameter(ParameterDefinition parameter, Dictionary<string, string> anchors)
+	{
+		string type = parameter.Type is null ? parameter.ResolvedType ?? ErrorType : FormatSignatureTypeReference(parameter.Type, anchors);
+		return parameter.Modifier switch
+		{
+			ParameterModifier.In => "in " + type,
+			ParameterModifier.Out => "out " + type,
+			ParameterModifier.Thrown => "thrown " + type,
+			ParameterModifier.Within => "within " + type,
+			_ => type
+		};
+	}
+
+	static List<string> GetSourceIteratorProtocolParameterTypes(IterTypeReference iter, Dictionary<string, string> anchors)
+	{
+		List<string> parameters = [];
+		if (iter.Parameters.Count == 0)
+		{
+			AddIteratorProtocolCurrentParameterTypes(FormatSignatureTypeReference(iter.ElementType, anchors), parameters);
+			return parameters;
+		}
+
+		foreach (ParameterDefinition parameter in iter.Parameters)
+		{
+			string type = parameter.Type is null ? parameter.ResolvedType ?? ErrorType : FormatSignatureTypeReference(parameter.Type, anchors);
+			if (parameter.Modifier == ParameterModifier.Thrown)
+				parameters.Add("thrown " + type);
+			else
+				AddIteratorProtocolCurrentParameterTypes(type, parameters);
+		}
+		return parameters;
+	}
+
+	static string FormatSignatureTypeReference(TypeReference? type, Dictionary<string, string> anchors)
+	{
+		return type switch
+		{
+			null => ErrorType,
+			ConstOfTypeReference constOf => FormatTypeDeclarator("constof(" + (anchors.TryGetValue(constOf.AnchorName, out string? mapped) ? mapped : constOf.AnchorName) + ")", constOf.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(constOf.Type, anchors))),
+			AttributedTypeReference attributed => FormatSignatureTypeReference(attributed.Type, anchors),
+			GenericTypeReference generic => generic.TypeArguments.Count == 0
+				? FormatSignatureTypeReference(generic.Type, anchors)
+				: $"{FormatSignatureTypeReference(generic.Type, anchors)}<{string.Join(", ", generic.TypeArguments.Select(argument => FormatSignatureTypeReference(argument, anchors)))}>",
+			ArrayTypeReference array => $"{FormatSignatureTypeReference(array.ElementType, anchors)}[]",
+			FixedArrayTypeReference fixedArray => $"{FormatSignatureTypeReference(fixedArray.ElementType, anchors)}[{FormatFixedArrayLength(fixedArray)}]",
+			OptionalTypeReference optional => $"{FormatSignatureTypeReference(optional.ElementType, anchors)}?",
+			PointerTypeReference pointer => $"{FormatSignatureTypeReference(pointer.ElementType, anchors)}*",
+			ConstTypeReference constant => FormatTypeDeclarator("const", constant.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(constant.Type, anchors))),
+			VolatileTypeReference vol => FormatTypeDeclarator("volatile", vol.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(vol.Type, anchors))),
+			EscapedTypeReference escaped => FormatTypeDeclarator("escaped", escaped.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(escaped.Type, anchors))),
+			ScopedTypeReference scoped => FormatTypeDeclarator(BuildAnchoredDeclarator("scoped", scoped.Anchors), scoped.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(scoped.Type, anchors))),
+			UnscopedTypeReference unscoped => FormatTypeDeclarator(BuildAnchoredDeclarator("unscoped", unscoped.Anchors), unscoped.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(unscoped.Type, anchors))),
+			TargetTypeSpecTypeReference targetSpec => $"{FormatSignatureTypeReference(targetSpec.Type, anchors)} {targetSpec.Specifier}",
+			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)}{FormatCallSpec(callable.TargetSpec)}{FormatCallSpec(callable.CallSpec)} {FormatSignatureTypeReference(callable.ReturnType, anchors)}({string.Join(", ", callable.Parameters.Select(parameter => FormatSignatureParameter(parameter, anchors)))})",
+			IterTypeReference iter => $"{(iter.IsAsync ? "async iter" : "iter")}({string.Join(", ", iter.Parameters.Select(parameter => FormatSignatureParameter(parameter, anchors)))})",
+			GroupedParamsTypeReference grouped => $"params({FormatSignatureTypeReference(grouped.StructType, anchors)})",
+			MaterializedStructTypeReference materialized => $"struct({FormatSignatureTypeReference(materialized.ParamsType, anchors)})",
+			ThrownTypeReference thrown => $"thrown({FormatSignatureTypeReference(thrown.Type, anchors)})",
+			_ => type.ResolvedType ?? FormatTypeReference(type)
+		};
+	}
+
+	sealed class RawFormattedTypeReference : TypeReference
+	{
+		public RawFormattedTypeReference(string text)
+		{
+			ResolvedType = text;
+		}
 	}
 
 	static string? GetLambdaParameterSymbolName(LambdaParameter parameter)

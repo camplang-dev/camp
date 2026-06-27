@@ -1,0 +1,22 @@
+newtype delegate constof(this) int* FieldGetter(const this);
+
+struct Box
+{
+	int value;
+
+	constof(this) int* getValue(const this) : FieldGetter
+	{
+		return &this.value;
+	}
+}
+
+export int main()
+{
+	Box mutableBox = { 12 };
+	const Box readonlyBox = { 30 };
+	FieldGetter mutableGetter = mutableBox.getValue;
+	FieldGetter readonlyGetter = readonlyBox.getValue;
+	const int* mutableValue = mutableGetter();
+	const int* readonlyValue = readonlyGetter();
+	return *mutableValue + *readonlyValue == 42 ? 0 : 1;
+}

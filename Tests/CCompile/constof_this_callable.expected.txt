@@ -1,0 +1,64 @@
+// file: constof_this_callable.c
+#include "constof_this_callable_private.h"
+
+/* Private file declarations. */
+static const int *Box_getValue(const Box *this);
+
+static const int *Box_getValue(const Box *this)
+{
+	return &this->value;
+}
+
+int main(void)
+{
+	Box mutableBox = (Box){ 12 };
+	const Box readonlyBox = (const Box){ 30 };
+	const int *(* mutableGetter)(void *arg0) = (const int *(*)(void *arg0))Box_getValue;
+	void *mutableGetter_context = (void *)(&mutableBox);
+	const int *(* readonlyGetter)(void *arg0) = (const int *(*)(void *arg0))Box_getValue;
+	void *readonlyGetter_context = (void *)(&readonlyBox);
+	const int *mutableValue = mutableGetter(mutableGetter_context);
+	const int *readonlyValue = readonlyGetter(readonlyGetter_context);
+	return (((*mutableValue + *readonlyValue) == 42) ? 0 : 1);
+}
+
+// file: constof_this_callable.h
+#ifndef CONSTOF_THIS_CALLABLE_H_
+#define CONSTOF_THIS_CALLABLE_H_
+
+#include "constof_this_callable_private.h"
+
+int main(void);
+
+#endif
+// file: constof_this_callable_private.h
+#ifndef CONSTOF_THIS_CALLABLE_PRIVATE_H_
+#define CONSTOF_THIS_CALLABLE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Box Box;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef const int *(* FieldGetter)(const void *context);
+
+/* Layouts. */
+struct Box
+{
+	int value;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: constof_this_callable.c

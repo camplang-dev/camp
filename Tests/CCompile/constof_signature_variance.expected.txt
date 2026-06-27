@@ -1,0 +1,108 @@
+// file: constof_signature_variance.c
+#include "constof_signature_variance_private.h"
+
+/* Private file declarations. */
+static const int *Getter_get(Getter *this, const int *source, uintptr_t source_length);
+static const int *getInterior(const int *source, uintptr_t source_length);
+static const int *getByPosition(const int *source, uintptr_t source_length);
+static void consumeConst(const int *source, uintptr_t source_length, const int *other, uintptr_t other_length);
+static const int *Getter_IConstGetter_get(IConstGetter **ctx, const int *source, uintptr_t source_length);
+static const IConstGetter Getter_IConstGetter__storage;
+static const IConstGetter *Getter_IConstGetter;
+
+static const IConstGetter Getter_IConstGetter__storage = { .get = Getter_IConstGetter_get };
+static const IConstGetter *Getter_IConstGetter = &Getter_IConstGetter__storage;
+static const int *Getter_get(Getter *this, const int *source, uintptr_t source_length)
+{
+	return source;
+}
+
+static const int *getInterior(const int *source, uintptr_t source_length)
+{
+	return source;
+}
+
+static const int *getByPosition(const int *source, uintptr_t source_length)
+{
+	return source;
+}
+
+static void consumeConst(const int *source, uintptr_t source_length, const int *other, uintptr_t other_length)
+{
+}
+
+int main(void)
+{
+	int *values = (int []){9, 8, 7};
+	uintptr_t values_length = 3;
+	const int *readonly = values;
+	uintptr_t readonly_length = values_length;
+	const int *(* getter)(const int *camp) = (const int *(*)(const int *arg0))getInterior;
+	ConstGetter ascribedGetter = getInterior;
+	PositionGetter positionGetter = getByPosition;
+	DepConsumer consumer = consumeConst;
+	Getter object = (Getter){ 0 };
+	const int *fromInterface = Getter_get(&object, readonly, readonly_length);
+	return ((((*getInterior(readonly, readonly_length) + *getByPosition(readonly, readonly_length)) + *fromInterface) == 27) ? 0 : 1);
+}
+
+static const int *Getter_IConstGetter_get(IConstGetter **ctx, const int *source, uintptr_t source_length)
+{
+	IConstGetter_Indirect *indirect = (IConstGetter_Indirect *)(ctx);
+	Getter *instance = indirect->ctx;
+	return Getter_get(instance, source, source_length);
+}
+
+// file: constof_signature_variance.h
+#ifndef CONSTOF_SIGNATURE_VARIANCE_H_
+#define CONSTOF_SIGNATURE_VARIANCE_H_
+
+#include "constof_signature_variance_private.h"
+
+int main(void);
+
+#endif
+// file: constof_signature_variance_private.h
+#ifndef CONSTOF_SIGNATURE_VARIANCE_PRIVATE_H_
+#define CONSTOF_SIGNATURE_VARIANCE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IConstGetter IConstGetter;
+typedef struct Getter Getter;
+typedef struct IConstGetter_Indirect IConstGetter_Indirect;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef const int *(* ConstGetter)(const int *source, uintptr_t source_length);
+typedef const int *(* PositionGetter)(const int *items, uintptr_t items_length);
+typedef void (* DepConsumer)(const int *source, uintptr_t source_length, const int *other, uintptr_t other_length);
+
+/* Layouts. */
+struct IConstGetter
+{
+	const int *(* get)(IConstGetter **ctx, const int *source, uintptr_t source_length);
+};
+struct Getter
+{
+	char _camp_empty;
+};
+struct IConstGetter_Indirect
+{
+	const IConstGetter *_vt;
+	void *ctx;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: constof_signature_variance.c

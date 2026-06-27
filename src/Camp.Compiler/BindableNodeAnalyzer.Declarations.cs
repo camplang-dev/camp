@@ -1067,15 +1067,16 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateCallableAscriptionThisContract(definition, containingType, newtypeDefinition, family, syntax, declarationName);
 
 		string sourceType = BuildCallableAscriptionSourceType(definition, family, receiverBearing);
-		bool sourceShapeAvailable = TryGetCallableShape(sourceType, out CallableShape sourceShape);
-		bool targetShapeAvailable = TryGetCallableShape(newtypeDefinition.Name, out CallableShape targetShape);
+		CallableShape sourceShape = BuildFunctionSourceCallableShape(definition, receiverBearing, family);
+		bool sourceShapeAvailable = true;
+		bool targetShapeAvailable = TryBuildNewtypeSourceCallableShape(newtypeDefinition, out CallableShape targetShape);
 		if (!sourceShapeAvailable
 			|| !targetShapeAvailable
-			|| !CallableShapesCompatibleIgnoringThis(sourceShape, targetShape))
+			|| !CallableShapesCompatibleWithConstOfVariance(sourceShape, targetShape, compareThis: false, expandParams: false))
 		{
 			if (sourceShapeAvailable
 				&& targetShapeAvailable
-				&& CallableShapesCompatibleIgnoringThis(sourceShape with { Spec = targetShape.Spec, CallSpec = targetShape.CallSpec }, targetShape)
+				&& CallableShapesCompatibleWithConstOfVariance(sourceShape with { Spec = targetShape.Spec, CallSpec = targetShape.CallSpec }, targetShape, compareThis: false, expandParams: false)
 				&& CallableSpecsDiffer(sourceShape, targetShape))
 			{
 				string actual = CallableSpecDescription(sourceShape);

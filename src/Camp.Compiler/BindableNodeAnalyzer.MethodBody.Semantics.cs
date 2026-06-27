@@ -160,7 +160,7 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 
 		if (TryGetCallableShape(source, out CallableShape sourceCallable) && TryGetCallableShape(target, out CallableShape targetCallable))
-			return CallableShapesCompatible(sourceCallable, targetCallable);
+			return CallableShapesCompatibleWithConstOfVariance(sourceCallable, targetCallable);
 
 		if (CanCopyConstValue(source, target))
 			return true;

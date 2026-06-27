@@ -1,0 +1,46 @@
+newtype fn const int* ConstGetter(const int[] source);
+newtype fn constof(items) int* PositionGetter(const int[] items);
+newtype fn void DepConsumer(const int[] source, constof(source) int[] other);
+
+interface IConstGetter
+{
+	const int* get(const int[] source);
+}
+
+struct Getter: IConstGetter
+{
+	constof(source) int* get(const int[] source)
+	{
+		return source.elements;
+	}
+}
+
+constof(source) int* getInterior(const int[] source) : ConstGetter
+{
+	return source.elements;
+}
+
+constof(source) int* getByPosition(const int[] source) : PositionGetter
+{
+	return source.elements;
+}
+
+void consumeConst(const int[] source, const int[] other) : DepConsumer
+{
+}
+
+export int main()
+{
+	int[] values = [9, 8, 7];
+	const int[] readonly = values;
+	fn const int*(const int[]) getter = getInterior;
+	ConstGetter ascribedGetter = getInterior;
+	PositionGetter positionGetter = getByPosition;
+	DepConsumer consumer = consumeConst;
+	Getter object = {};
+	const int* fromInterface = object.get(readonly);
+
+	return *getInterior(readonly)
+		+ *getByPosition(readonly)
+		+ *fromInterface == 27 ? 0 : 1;
+}

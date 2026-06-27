@@ -281,9 +281,16 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition target = candidates[0];
 		string expectedType = BuildInterfaceSourceSlotCallableType(interfaceDefinition, member);
 		string actualType = BuildFunctionValueType(target, isInstance: false);
-		if (!TryGetCallableShape(expectedType, out CallableShape expected)
-			|| !TryGetCallableShape(actualType, out CallableShape actual)
-			|| !CallableShapesCompatible(actual, expected))
+		CallableShape expected = BuildInterfaceSourceSlotCallableShape(interfaceDefinition, member);
+		CallableShape actual = BuildFunctionSourceCallableShape(target, isInstance: false);
+		bool compatible = CallableShapesCompatibleWithConstOfVariance(actual, expected, expandParams: false);
+		if (!compatible
+			&& TryGetCallableShape(actualType, out CallableShape resolvedActual)
+			&& TryGetCallableShape(expectedType, out CallableShape resolvedExpected))
+		{
+			compatible = CallableShapesCompatibleWithConstOfVariance(resolvedActual, resolvedExpected);
+		}
+		if (!compatible)
 		{
 			Report(GetRange(initializer.SourceSyntax), $"Interface method initializer for '{interfaceDefinition.Name}.{GetCallableName(member)}' must match slot type '{expectedType}'.");
 			return;
@@ -647,11 +654,46 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (MethodSignature signature in signatures)
 		{
-			if (signature.Equals(required))
+			if (MethodSignatureCompatibleWithConstOfVariance(signature, required))
 				return true;
 		}
 
 		return false;
+	}
+
+	static bool MethodSignatureCompatibleWithConstOfVariance(MethodSignature candidate, MethodSignature target)
+	{
+		if (candidate.Name != target.Name
+			|| candidate.ReceiverContract != target.ReceiverContract
+			|| candidate.ParameterTypes.Count != target.ParameterTypes.Count
+			|| !CallableSlotTypesCompatible(candidate.ReturnType, target.ReturnType, outputPosition: true))
+			return false;
+
+		for (int i = 0; i < candidate.ParameterTypes.Count; i++)
+		{
+			CallableSlot candidateSlot = ParseMethodSignatureSlot(candidate.ParameterTypes[i]);
+			CallableSlot targetSlot = ParseMethodSignatureSlot(target.ParameterTypes[i]);
+			if (candidateSlot.Modifier != targetSlot.Modifier)
+				return false;
+			if (candidateSlot.Modifier == "Thrown")
+			{
+				if (candidateSlot.Type != targetSlot.Type)
+					return false;
+				continue;
+			}
+			bool outputPosition = candidateSlot.Modifier == "Out";
+			if (!CallableSlotTypesCompatible(candidateSlot.Type, targetSlot.Type, outputPosition))
+				return false;
+		}
+		return true;
+	}
+
+	static CallableSlot ParseMethodSignatureSlot(string text)
+	{
+		int separator = text.IndexOf(':', StringComparison.Ordinal);
+		return separator < 0
+			? new CallableSlot("", text)
+			: new CallableSlot(text[..separator], text[(separator + 1)..]);
 	}
 
 	static bool ContainsOverrideSignature(List<FunctionDefinition> functions, MethodSignature required)

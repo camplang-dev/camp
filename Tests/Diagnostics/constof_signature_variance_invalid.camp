@@ -1,0 +1,44 @@
+newtype fn constof(source) int* DepGetter(const int[] source);
+newtype fn void ConstConsumer(const int[] source, const int[] other);
+
+const int* getConstOnly(const int[] source) : DepGetter
+{
+	return source.elements;
+}
+
+void consumeDependent(const int[] source, constof(source) int[] other) : ConstConsumer
+{
+}
+
+interface IDepGetter
+{
+	constof(source) int* get(const int[] source);
+}
+
+class BadGetter: IDepGetter
+{
+	const int* get(const int[] source)
+	{
+		return source.elements;
+	}
+}
+
+virtual class Base
+{
+	virtual constof(source) int* pick(const int[] source)
+	{
+		return source.elements;
+	}
+}
+
+sealed class Derived: Base
+{
+	override const int* pick(const int[] source)
+	{
+		return source.elements;
+	}
+}
+
+export void main()
+{
+}
