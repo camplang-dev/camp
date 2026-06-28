@@ -4,7 +4,7 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 static void PointerBox_set(PointerBox *this, void *value);
-static void *PointerBox_getValue(PointerBox *this);
+static void *PointerBox_getValue(const PointerBox *this);
 static void ValueBox_set(ValueBox *this, void *value);
 
 static void PointerBox_set(PointerBox *this, void *value)
@@ -12,7 +12,7 @@ static void PointerBox_set(PointerBox *this, void *value)
 	this->value = value;
 }
 
-static void *PointerBox_getValue(PointerBox *this)
+static void *PointerBox_getValue(const PointerBox *this)
 {
 	return this->value;
 }

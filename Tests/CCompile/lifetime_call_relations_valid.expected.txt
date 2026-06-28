@@ -7,8 +7,8 @@ void free(void *ptr);
 static char *identity(char *value, uintptr_t value_length, uintptr_t *result_length);
 static void choose(char *a, uintptr_t a_length, char *b, uintptr_t b_length, char **result, uintptr_t *result_length);
 static void Buffer_setItems(Buffer *this, char *value, uintptr_t value_length);
-static char *Buffer_getItems(Buffer *this, uintptr_t *result_length);
-static void Buffer_getItemsOut(Buffer *this, char **result, uintptr_t *result_length);
+static char *Buffer_getItems(const Buffer *this, uintptr_t *result_length);
+static void Buffer_getItemsOut(const Buffer *this, char **result, uintptr_t *result_length);
 
 static char *identity(char *value, uintptr_t value_length, uintptr_t *result_length)
 {
@@ -34,7 +34,7 @@ static void Buffer_setItems(Buffer *this, char *value, uintptr_t value_length)
 	}
 }
 
-static char *Buffer_getItems(Buffer *this, uintptr_t *result_length)
+static char *Buffer_getItems(const Buffer *this, uintptr_t *result_length)
 {
 	{
 		(*result_length) = this->items_length;
@@ -42,7 +42,7 @@ static char *Buffer_getItems(Buffer *this, uintptr_t *result_length)
 	}
 }
 
-static void Buffer_getItemsOut(Buffer *this, char **result, uintptr_t *result_length)
+static void Buffer_getItemsOut(const Buffer *this, char **result, uintptr_t *result_length)
 {
 	{
 		(*result) = this->items;

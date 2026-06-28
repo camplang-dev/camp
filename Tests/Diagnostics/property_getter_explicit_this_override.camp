@@ -1,0 +1,16 @@
+class Counter
+{
+	int value;
+
+	int getValue(this)
+	{
+		this.value = 1;
+		return this.value;
+	}
+}
+
+void test(const Counter* counter)
+{
+	_ = counter.Value;
+	_ = counter.getValue();
+}

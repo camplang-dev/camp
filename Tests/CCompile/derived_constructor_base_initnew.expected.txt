@@ -4,14 +4,14 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 void free(void *ptr);
-static int BaseWithArgument_getValue(BaseWithArgument *this);
+static int BaseWithArgument_getValue(const BaseWithArgument *this);
 static void BaseWithArgument_op_initnew(BaseWithArgument *this, int value);
 static BaseWithArgument *BaseWithArgument_create(int value);
 static void DerivedWithExplicitBase_op_initnew(DerivedWithExplicitBase *this);
 static DerivedWithExplicitBase *DerivedWithExplicitBase_create(void);
 static int main(void);
 
-static int BaseWithArgument_getValue(BaseWithArgument *this)
+static int BaseWithArgument_getValue(const BaseWithArgument *this)
 {
 	return this->value;
 }
@@ -61,7 +61,7 @@ static int main(void)
 	{
 		*generatedBase = (DerivedWithGeneratedConstructor){0};
 	}
-	int result = BaseWithArgument_getValue((BaseWithArgument *)(explicitBase));
+	int result = BaseWithArgument_getValue((const BaseWithArgument *)(explicitBase));
 	free((void *)(explicitBase));
 	free((void *)(generatedBase));
 	return (result - 11);

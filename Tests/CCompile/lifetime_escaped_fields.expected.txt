@@ -4,7 +4,7 @@
 /* Private file declarations. */
 char *getEscaped(uintptr_t *result_length);
 static void Buffer_replace(Buffer *this, char *value, uintptr_t value_length);
-static char *Buffer_getData(Buffer *this, uintptr_t *result_length);
+static char *Buffer_getData(const Buffer *this, uintptr_t *result_length);
 static int main(void);
 
 static void Buffer_replace(Buffer *this, char *value, uintptr_t value_length)
@@ -15,7 +15,7 @@ static void Buffer_replace(Buffer *this, char *value, uintptr_t value_length)
 	}
 }
 
-static char *Buffer_getData(Buffer *this, uintptr_t *result_length)
+static char *Buffer_getData(const Buffer *this, uintptr_t *result_length)
 {
 	{
 		(*result_length) = this->data_length;

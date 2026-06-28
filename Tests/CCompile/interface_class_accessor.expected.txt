@@ -7,7 +7,7 @@ void free(void *ptr);
 static int Counter_value(Counter *this);
 static void Counter_op_initnew(Counter *this, int count);
 static Counter *Counter_create(int count);
-static IValue **Counter_getIValue(Counter *this);
+static IValue **Counter_getIValue(const Counter *this);
 static int readValue(IValue **counter);
 static int main(void);
 static int Counter_IValue_value(IValue **ctx);
@@ -40,7 +40,7 @@ static Counter *Counter_create(int count)
 	return _created0;
 }
 
-static IValue **Counter_getIValue(Counter *this)
+static IValue **Counter_getIValue(const Counter *this)
 {
 	return (IValue **)(&this->_vt_IValue);
 }
@@ -58,8 +58,8 @@ static int main(void)
 		*c = (Counter){0};
 		Counter_op_initnew(c, 10);
 	}
-	int v = readValue(Counter_getIValue(c));
-	v += readValue(Counter_getIValue(c));
+	int v = readValue(Counter_getIValue((const Counter *)(c)));
+	v += readValue(Counter_getIValue((const Counter *)(c)));
 	v += readValue(Counter_getIValue(c));
 	free((void *)(c));
 	return (v - 30);

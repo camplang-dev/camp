@@ -704,7 +704,7 @@ public static class MetadataJsonSerializer
 			json.WriteString("name", "get" + interfaceDefinition.Name);
 			json.WriteString("visibility", "export");
 			json.WriteBoolean("extern", true);
-			json.WriteString("returnType", interfaceDefinition.Name + "*");
+			json.WriteString("returnType", "constof(this) " + interfaceDefinition.Name + "*");
 			json.WriteString("propertyName", interfaceDefinition.Name);
 			WriteReference(json, "interfaceRef", interfaceDefinition);
 			json.WriteEndObject();

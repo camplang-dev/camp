@@ -4,29 +4,29 @@
 
 int publicOffset = 7;
 int exportedOffset = 11;
-int InternalValue_getValue(InternalValue *this)
+int InternalValue_getValue(const InternalValue *this)
 {
 	return this->value;
 }
 
-int ExportedValue_getValue(ExportedValue *this)
+int ExportedValue_getValue(const ExportedValue *this)
 {
 	return this->value;
 }
 
-int ExportedValue_getHiddenValue(ExportedValue *this)
+int ExportedValue_getHiddenValue(const ExportedValue *this)
 {
 	return (this->value + publicOffset);
 }
 
 int internalAdd(InternalValue *value)
 {
-	return (InternalValue_getValue(value) + publicOffset);
+	return (InternalValue_getValue((const InternalValue *)(value)) + publicOffset);
 }
 
 int exportedAdd(ExportedValue *value)
 {
-	return ((ExportedValue_getValue(value) + ExportedValue_getHiddenValue(value)) + exportedOffset);
+	return ((ExportedValue_getValue((const ExportedValue *)(value)) + ExportedValue_getHiddenValue((const ExportedValue *)(value))) + exportedOffset);
 }
 
 int run(void)
@@ -42,7 +42,7 @@ int run(void)
 
 #include "public_visibility_private.h"
 
-int ExportedValue_getValue(ExportedValue *this);
+int ExportedValue_getValue(const ExportedValue *this);
 int exportedAdd(ExportedValue *value);
 int run(void);
 extern int exportedOffset;
@@ -75,9 +75,9 @@ struct ExportedValue
 };
 
 /* Function declarations. */
-int InternalValue_getValue(InternalValue *this);
-int ExportedValue_getValue(ExportedValue *this);
-int ExportedValue_getHiddenValue(ExportedValue *this);
+int InternalValue_getValue(const InternalValue *this);
+int ExportedValue_getValue(const ExportedValue *this);
+int ExportedValue_getHiddenValue(const ExportedValue *this);
 int internalAdd(InternalValue *value);
 int exportedAdd(ExportedValue *value);
 int run(void);

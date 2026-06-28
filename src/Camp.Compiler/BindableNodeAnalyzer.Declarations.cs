@@ -644,6 +644,26 @@ public sealed partial class BindableNodeAnalyzer
 			&& definition.Parameters[0] is ThisParameterDefinition { Name: "this" };
 	}
 
+	static void ApplyImplicitGetterThisParameter(FunctionDefinition definition, string? containingType)
+	{
+		if (containingType is null
+			|| definition.Modifier is FunctionModifier.Static or FunctionModifier.Constructor or FunctionModifier.Destructor
+			|| IsDestructorFunction(definition)
+			|| GetExplicitThisParameter(definition) is not null
+			|| definition.EffectiveThisParameter is not null
+			|| !IsPropertyGetterFunction(definition))
+		{
+			return;
+		}
+
+		definition.EffectiveThisParameter = new ThisParameterDefinition
+		{
+			Name = "this",
+			Symbol = "this"
+		};
+		definition.EffectiveThisParameter.Attributes.Add(new AttributeConstructor { Name = "const" });
+	}
+
 	void RegisterFunctionLifetimeAnchors(FunctionDefinition definition, AnalysisScope scope, string? containingType)
 	{
 		if (containingType is not null || GetExplicitThisParameter(definition) is not null)
@@ -921,6 +941,7 @@ public sealed partial class BindableNodeAnalyzer
 		ApplySymbolAttribute(definition, allowed: true, "function");
 		CheckName(definition.Name.TrimStart('~'), GetNameRange(definition), "function");
 		NormalizeExtensionThisParameter(definition, containingType);
+		ApplyImplicitGetterThisParameter(definition, containingType);
 		if (!string.IsNullOrWhiteSpace(definition.CallSpec))
 			definition.CallSpec = ResolveCallSpecAlias(definition.CallSpec, definition.SourceSyntax);
 		ValidateTargetCallSpec(definition.CallSpec, definition.SourceSyntax);

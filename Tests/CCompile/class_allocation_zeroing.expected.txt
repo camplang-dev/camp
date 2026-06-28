@@ -4,9 +4,9 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 void free(void *ptr);
-static int Zeroed_getValue(Zeroed *this);
+static int Zeroed_getValue(const Zeroed *this);
 
-static int Zeroed_getValue(Zeroed *this)
+static int Zeroed_getValue(const Zeroed *this)
 {
 	return (this->value + this->flag);
 }
@@ -48,7 +48,7 @@ int main(void)
 	{
 		return 2;
 	}
-	int result = (Zeroed_getValue(direct) + Zeroed_getValue(helper));
+	int result = (Zeroed_getValue((const Zeroed *)(direct)) + Zeroed_getValue((const Zeroed *)(helper)));
 	free((void *)(direct));
 	free((void *)(helper));
 	return result;

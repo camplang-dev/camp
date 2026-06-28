@@ -4586,7 +4586,7 @@ For each exported class/interface implementation, the compiler also generates a
 method named as if the class declared:
 
 ```camp
-InterfaceName* getInterfaceName()
+constof(this) InterfaceName* getInterfaceName()
 {
 	...
 }
@@ -4595,7 +4595,10 @@ InterfaceName* getInterfaceName()
 The method returns the address of the stored interface-vtable field and is the
 ordinary source surface used by `value.InterfaceName`, `value.getInterfaceName()`,
 explicit casts to `InterfaceName*`, and implicit class-to-interface conversion.
-Its visibility follows the implemented interface visibility.
+Its visibility follows the implemented interface visibility. Like other
+getter-compatible methods, its implicit receiver is `const this`, and
+`constof(this)` makes the constness of the resulting interface pointer follow the
+class receiver.
 
 An `extern class` that declares an implemented interface imports this accessor
 contract instead of generating fields. User code may not explicitly declare the
@@ -5537,8 +5540,12 @@ Additional rules:
 - a getter used via property syntax may not be an iterator
 - a nameless getter still needs at least one ordinary parameter; `get(thrown E)` would imply `obj.[]`, which is not allowed
 
-If a property getter omits an explicit receiver, its implicit `this` is `const`.
-Setter receivers and ordinary method receivers remain mutable by default.
+If a type-owned property getter omits an explicit receiver, its implicit `this`
+is `const`. This applies to class, struct, interface, and newtype instance
+getters, including compiler-generated interface accessors. A typed extension
+receiver such as `T* this` is already explicit and keeps its written qualifiers.
+An explicit `this` receiver on a getter overrides the default. Setter receivers
+and ordinary method receivers remain mutable by default.
 
 A method that fails these requirements is still a valid ordinary method. It is simply not eligible for property syntax.
 

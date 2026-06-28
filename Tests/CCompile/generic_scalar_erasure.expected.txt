@@ -4,7 +4,7 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 static void List_add(List *this, void* item);
-static void* List_getItem(List *this, uintptr_t index);
+static void* List_getItem(const List *this, uintptr_t index);
 static void List_op_initnew(List *this);
 static List *List_create(void);
 static void acceptInt(int value);
@@ -15,7 +15,7 @@ static void List_add(List *this, void* item)
 	this->items[this->count++] = item;
 }
 
-static void* List_getItem(List *this, uintptr_t index)
+static void* List_getItem(const List *this, uintptr_t index)
 {
 	return this->items[index];
 }
@@ -53,7 +53,7 @@ static int main(void)
 		List_op_initnew(numbers);
 	}
 	List_add(numbers, (void *)(intptr_t)(1));
-	acceptInt((int)(intptr_t)(List_getItem(numbers, 0)));
+	acceptInt((int)(intptr_t)(List_getItem((const List *)(numbers), 0)));
 	return 0;
 }
 

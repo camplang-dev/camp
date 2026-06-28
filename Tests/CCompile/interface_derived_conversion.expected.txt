@@ -5,7 +5,7 @@
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static int BaseCounter_value(BaseCounter *this);
-static IValue **BaseCounter_getIValue(BaseCounter *this);
+static IValue **BaseCounter_getIValue(const BaseCounter *this);
 static void BaseCounter_op_initnew(BaseCounter *this);
 static void DerivedCounter_op_initnew(DerivedCounter *this);
 static int readValue(IValue **value);
@@ -24,7 +24,7 @@ static int BaseCounter_value(BaseCounter *this)
 	return 7;
 }
 
-static IValue **BaseCounter_getIValue(BaseCounter *this)
+static IValue **BaseCounter_getIValue(const BaseCounter *this)
 {
 	return (IValue **)(&this->_vt_IValue);
 }

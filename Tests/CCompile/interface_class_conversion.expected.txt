@@ -7,7 +7,7 @@ void free(void *ptr);
 static int Counter_value(Counter *this);
 static void Counter_op_initnew(Counter *this, int count);
 static Counter *Counter_create(int count);
-static IValue **Counter_getIValue(Counter *this);
+static IValue **Counter_getIValue(const Counter *this);
 static int readValue(IValue **counter);
 static IValue **asValue(Counter *counter);
 static int main(void);
@@ -41,7 +41,7 @@ static Counter *Counter_create(int count)
 	return _created0;
 }
 
-static IValue **Counter_getIValue(Counter *this)
+static IValue **Counter_getIValue(const Counter *this)
 {
 	return (IValue **)(&this->_vt_IValue);
 }

@@ -1103,6 +1103,8 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if ((GetSignatureName(function) == name || function.Name == name) && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
 					members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), function));
+				if (function.Name == "get" + name && function.Parameters.Count == 0 && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
+					members.Add(new BodySymbol(name, GetGetterMemberType(targetType, function, referenceSyntax), function));
 			}
 			return members;
 		}
@@ -1114,7 +1116,7 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (FunctionDefinition getter in LookupExtensionFunctions(targetType, "get" + name, referenceSyntax))
 			{
 				if (CanCallWithArgumentCount(getter.Parameters, 0))
-					members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+					members.Add(new BodySymbol(name, GetGetterMemberType(targetType, getter, referenceSyntax), getter));
 			}
 			return members;
 		}
@@ -1167,15 +1169,22 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
 		{
 			if (getter.Parameters.Count == 0 && ReceiverCanCallFunction(targetType, getter, isPropertyGetterSyntax: true))
-				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+				members.Add(new BodySymbol(name, GetGetterMemberType(targetType, getter, referenceSyntax), getter));
 		}
 		foreach (FunctionDefinition getter in LookupExtensionFunctions(targetType, "get" + name, referenceSyntax))
 		{
 			if (CanCallWithArgumentCount(getter.Parameters, 0))
-				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+				members.Add(new BodySymbol(name, GetGetterMemberType(targetType, getter, referenceSyntax), getter));
 		}
 
 		return members;
+	}
+
+	string GetGetterMemberType(string targetType, FunctionDefinition getter, SyntaxNode? syntax)
+	{
+		Dictionary<string, bool> constOfAnchors = [];
+		AddReceiverConstOfAnchorFact(targetType, getter, constOfAnchors, syntax);
+		return SubstituteConstOfResolvedType(getter.ReturnType, getter.ResolvedType ?? ErrorType, constOfAnchors);
 	}
 
 	List<BodySymbol> LookupStaticMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax)
@@ -1326,7 +1335,7 @@ public sealed partial class BindableNodeAnalyzer
 			return exactReceiverFunctions;
 		if (incompatibleExactReceiverFunctions.Count > 0)
 		{
-			Report(GetRange(referenceSyntax), $"Member '{name}' exists on type '{targetType}', but its this parameter is not compatible with that receiver.");
+			Report(GetRange(referenceSyntax), ReceiverIncompatibilityMessage("Member", name, targetType));
 			return incompatibleExactReceiverFunctions;
 		}
 		return exactPrimitiveStringFunctions.Count > 0 ? exactPrimitiveStringFunctions : functions;
@@ -1424,8 +1433,10 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				Dictionary<string, string> genericSubstitutions = [];
 				AddReceiverTypeGenericSubstitutions(targetType, getter, genericSubstitutions);
-				AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope, member.SourceSyntax, genericSubstitutions: genericSubstitutions, genericParameterNames: GetFunctionGenericParameterNames(getter), callTarget: member);
+				Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope, member.SourceSyntax, genericSubstitutions: genericSubstitutions, genericParameterNames: GetFunctionGenericParameterNames(getter), callTarget: member);
+				AddReceiverConstOfAnchorFact(targetType, getter, constOfAnchors, member.Target?.SourceSyntax);
 				member.ResolvedType = SubstituteGenericType(getter.ResolvedType ?? ErrorType, genericSubstitutions);
+				member.ResolvedType = SubstituteConstOfResolvedType(getter.ReturnType, member.ResolvedType, constOfAnchors, genericSubstitutions);
 				expressionRewrites[member] = CreateMemberReference(member, member.Target, member.ResolvedType, getter);
 				propertyType = member.ResolvedType;
 				return true;
@@ -1434,7 +1445,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (getterReceiverMismatch)
 		{
-			Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' exists on type '{targetType}', but its getter's this parameter is not compatible with that receiver.");
+			Report(GetRange(member.SourceSyntax), PropertyReceiverIncompatibilityMessage(member.Name, targetType, "getter"));
 			foreach (ArgumentExpression argument in arguments)
 				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
 			return true;
@@ -1512,7 +1523,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (setterReceiverMismatch)
 		{
-			Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' exists on type '{targetType}', but its setter's this parameter is not compatible with that receiver.");
+			Report(GetRange(member.SourceSyntax), PropertyReceiverIncompatibilityMessage(member.Name, targetType, "setter"));
 			if (value is not null)
 				BodyAnalyzeExpression(value, scope, typeScope);
 			foreach (ArgumentExpression argument in arguments)
@@ -1669,6 +1680,28 @@ public sealed partial class BindableNodeAnalyzer
 			&& function.ResolvedType != "void";
 	}
 
+	static string ReceiverIncompatibilityMessage(string subject, string name, string targetType)
+	{
+		string message = $"{subject} '{name}' exists on type '{targetType}', but its this parameter is not compatible with that receiver.";
+		if (IsPropertyGetterName(name))
+			message += " Getter-accessor-compatible methods use 'const this' by default when they omit an explicit receiver; declare an explicit 'this' parameter to override that default.";
+		return message;
+	}
+
+	static string PropertyReceiverIncompatibilityMessage(string name, string targetType, string accessorKind)
+	{
+		string message = $"Property '{name}' exists on type '{targetType}', but its {accessorKind}'s this parameter is not compatible with that receiver.";
+		if (accessorKind == "getter")
+			message += " Getter-accessor-compatible methods use 'const this' by default when they omit an explicit receiver; declare an explicit 'this' parameter to override that default.";
+		return message;
+	}
+
+	static bool IsPropertyGetterName(string name)
+	{
+		return name.StartsWith("get", StringComparison.Ordinal)
+			&& name.Length > "get".Length;
+	}
+
 	static ThisParameterDefinition? GetExplicitThisParameter(FunctionDefinition function)
 	{
 		foreach (ParameterDefinition parameter in function.Parameters)
@@ -1687,6 +1720,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string ApplyThisDeclarators(string receiverType, ThisParameterDefinition thisParameter)
 	{
+		if (HasInternalThisDeclarator(thisParameter, "const"))
+			receiverType = AddConstToReceiverInstance(receiverType);
+
 		if (thisParameter.SourceSyntax is not ThisParameterSyntax { Declarators: not null } syntax)
 			return receiverType;
 

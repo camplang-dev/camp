@@ -472,7 +472,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameter is null)
 			return default;
 
-		bool isConst = parameter.Modifier == ParameterModifier.In;
+		bool isConst = parameter.Modifier == ParameterModifier.In || HasInternalThisDeclarator(parameter, "const");
 		bool isVolatile = false;
 		string lifetime = "";
 		if (parameter.SourceSyntax is ThisParameterSyntax { Declarators: not null } syntax)
@@ -497,6 +497,14 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return new ThisContract(true, isConst, isVolatile, lifetime);
+	}
+
+	static bool HasInternalThisDeclarator(ThisParameterDefinition parameter, string name)
+	{
+		foreach (AttributeConstructor attribute in parameter.Attributes)
+			if (attribute.Name == name)
+				return true;
+		return false;
 	}
 
 	static ThisParameterDefinition? GetCallableNewtypeThisParameter(NewtypeDefinition definition)

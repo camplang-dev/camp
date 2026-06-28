@@ -4,7 +4,7 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 static void Mail_setMessage(Mail *this, const char *message);
-static const char *Mail_getMessage(Mail *this);
+static const char *Mail_getMessage(const Mail *this);
 static const char *Mail_fails(Mail *this);
 static const char *Mail_works(Mail *this);
 static void Mail_alsoWorks(Mail *this);
@@ -14,7 +14,7 @@ static void Mail_setMessage(Mail *this, const char *message)
 	this->message = message;
 }
 
-static const char *Mail_getMessage(Mail *this)
+static const char *Mail_getMessage(const Mail *this)
 {
 	return this->message;
 }

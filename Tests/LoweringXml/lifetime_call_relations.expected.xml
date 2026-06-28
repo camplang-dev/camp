@@ -133,6 +133,11 @@
         </FunctionDefinition>
         <FunctionDefinition InvokerName="getItems" ReceiverLifetimeBinding="scoped:default receiver" Name="getItems" Symbol="Buffer_getItems" ResolvedType="char*">
           <ReturnType Type="NamedTypeReference" Name="char[]" ResolvedType="char*" />
+          <EffectiveThisParameter Type="ThisParameterDefinition" LifetimeBinding="scoped:default receiver" Name="this" Symbol="this" ResolvedType="const Buffer*">
+            <Attributes>
+              <AttributeConstructor Name="const" ResolvedType="#UNRESOLVED" />
+            </Attributes>
+          </EffectiveThisParameter>
           <Parameters>
             <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
               <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
@@ -162,6 +167,11 @@
         </FunctionDefinition>
         <FunctionDefinition InvokerName="getItemsOut" ReceiverLifetimeBinding="scoped:default receiver" Name="getItemsOut" Symbol="Buffer_getItemsOut" ResolvedType="void">
           <ReturnType Type="Void" ResolvedType="void" />
+          <EffectiveThisParameter Type="ThisParameterDefinition" LifetimeBinding="scoped:default receiver" Name="this" Symbol="this" ResolvedType="const Buffer*">
+            <Attributes>
+              <AttributeConstructor Name="const" ResolvedType="#UNRESOLVED" />
+            </Attributes>
+          </EffectiveThisParameter>
           <Parameters>
             <ParameterDefinition Modifier="Out" Name="result" Symbol="result" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
             <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
@@ -174,7 +184,7 @@
                     <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
                       <Target Type="VariableReferenceExpression" Variable="result" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
                       <Value Type="MemberReferenceExpression" Name="items" Member="items" ResolvedType="char*">
-                        <Target Type="ThisExpression" ResolvedType="Buffer*" />
+                        <Target Type="ThisExpression" ResolvedType="const Buffer*" />
                       </Value>
                     </Expression>
                   </ExpressionStatement>
@@ -182,7 +192,7 @@
                     <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint">
                       <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
                       <Value Type="MemberReferenceExpression" Name="items_length" Member="items_length" ResolvedType="nuint">
-                        <Target Type="ThisExpression" ResolvedType="Buffer*" />
+                        <Target Type="ThisExpression" ResolvedType="const Buffer*" />
                       </Value>
                     </Expression>
                   </ExpressionStatement>
@@ -399,14 +409,14 @@
             <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
               <Target Type="VariableReferenceExpression" Variable="items" ResolvedType="char*" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="scoped(buffer):call" />
               <Value Type="CallExpression" ResolvedType="char[]" ValueLifetimeFact="scoped(buffer):call">
-                <Target Type="MethodReferenceExpression" ResolvedType="fn char*(Buffer*, out nuint)">
+                <Target Type="MethodReferenceExpression" ResolvedType="fn char*(const Buffer*, out nuint)">
                   <Candidates>
                     <Function Name="getItems" ResolvedType="char*" />
                   </Candidates>
                 </Target>
                 <Arguments>
-                  <ArgumentExpression ResolvedType="Buffer*">
-                    <Value Type="UnaryExpression" Operator="AddressOf" ResolvedType="Buffer*">
+                  <ArgumentExpression ResolvedType="const Buffer*">
+                    <Value Type="UnaryExpression" Operator="AddressOf" ResolvedType="const Buffer*">
                       <Operand Type="VariableReferenceExpression" Variable="buffer" ResolvedType="Buffer" SlotLifetimeFact="scoped(buffer):slot" ValueLifetimeFact="scoped(buffer):slot" />
                     </Value>
                   </ArgumentExpression>
@@ -435,14 +445,14 @@
           </DeclarationStatement>
           <ExpressionStatement ResolvedType="void">
             <Expression Type="CallExpression" ResolvedType="void">
-              <Target Type="MethodReferenceExpression" ResolvedType="fn void(Buffer*, out char*, out nuint)">
+              <Target Type="MethodReferenceExpression" ResolvedType="fn void(const Buffer*, out char*, out nuint)">
                 <Candidates>
                   <Function Name="getItemsOut" ResolvedType="void" />
                 </Candidates>
               </Target>
               <Arguments>
-                <ArgumentExpression ResolvedType="Buffer*">
-                  <Value Type="UnaryExpression" Operator="AddressOf" ResolvedType="Buffer*">
+                <ArgumentExpression ResolvedType="const Buffer*">
+                  <Value Type="UnaryExpression" Operator="AddressOf" ResolvedType="const Buffer*">
                     <Operand Type="VariableReferenceExpression" Variable="buffer" ResolvedType="Buffer" SlotLifetimeFact="scoped(buffer):slot" ValueLifetimeFact="scoped(buffer):slot" />
                   </Value>
                 </ArgumentExpression>

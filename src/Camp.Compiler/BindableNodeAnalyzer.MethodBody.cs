@@ -1741,13 +1741,26 @@ public sealed partial class BindableNodeAnalyzer
 			MemberReferenceExpression member => member.Target,
 			_ => null
 		};
-		if (receiver is null || GetExplicitThisParameter(function) is not ParameterDefinition thisParameter || string.IsNullOrWhiteSpace(thisParameter.Name))
+		if (receiver is null || GetEffectiveThisParameter(function) is not ParameterDefinition thisParameter || string.IsNullOrWhiteSpace(thisParameter.Name))
 			return;
 		ArgumentExpression receiverArgument = new()
 		{
 			SourceSyntax = receiver.SourceSyntax,
 			Value = receiver,
 			ResolvedType = receiver.ResolvedType
+		};
+		if (TryGetConstOfActualSlot(thisParameter, receiverArgument, out bool isConst))
+			anchors[thisParameter.Name] = isConst;
+	}
+
+	void AddReceiverConstOfAnchorFact(string receiverType, FunctionDefinition function, Dictionary<string, bool> anchors, SyntaxNode? syntax = null)
+	{
+		if (GetEffectiveThisParameter(function) is not ParameterDefinition thisParameter || string.IsNullOrWhiteSpace(thisParameter.Name))
+			return;
+		ArgumentExpression receiverArgument = new()
+		{
+			SourceSyntax = syntax,
+			ResolvedType = receiverType
 		};
 		if (TryGetConstOfActualSlot(thisParameter, receiverArgument, out bool isConst))
 			anchors[thisParameter.Name] = isConst;
@@ -2045,7 +2058,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (functions.Count > 1)
 					Report(GetRange(member.SourceSyntax), $"Multiple candidates found for member call '{member.Name}'.");
 				else if (GetTypeDefinition(lookupTargetType) is TypeDefinition receiverType && HasMemberFunctionWithIncompatibleReceiver(receiverType, lookupTargetType, member.Name, member.SourceSyntax))
-					Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' exists on type '{lookupTargetType}', but its this parameter is not compatible with that receiver.");
+					Report(GetRange(member.SourceSyntax), ReceiverIncompatibilityMessage("Member", member.Name, lookupTargetType));
 				else
 					BodyAnalyzeMemberExpression(member, scope, typeScope);
 				return null;
@@ -3359,7 +3372,7 @@ public sealed partial class BindableNodeAnalyzer
 				return ErrorType;
 			if (GetTypeDefinition(lookupTargetType) is TypeDefinition type && HasPropertyGetterWithIncompatibleReceiver(type, lookupTargetType, member.Name, member.SourceSyntax))
 			{
-				Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' exists on type '{lookupTargetType}', but its getter's this parameter is not compatible with that receiver.");
+				Report(GetRange(member.SourceSyntax), PropertyReceiverIncompatibilityMessage(member.Name, lookupTargetType, "getter"));
 				return ErrorType;
 			}
 			if (GetTypeDefinition(lookupTargetType) is TypeDefinition setterType && LookupPropertySetters(setterType, member.Name, member.SourceSyntax).Count > 0)

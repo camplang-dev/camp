@@ -1,0 +1,32 @@
+interface IValue
+{
+	int getValue();
+}
+
+class Counter: IValue
+{
+	int value;
+
+	Counter(int value)
+	{
+		this.value = value;
+	}
+
+	int getValue()
+	{
+		return this.value;
+	}
+}
+
+export int main()
+{
+	auto counter = new Counter(21);
+	const Counter* constCounter = counter;
+	_ = constCounter.IValue;
+	IValue* mutableValue = counter.IValue;
+
+	int total = mutableValue.getValue() + mutableValue.getValue();
+
+	delete counter;
+	return total == 42 ? 0 : 1;
+}

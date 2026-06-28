@@ -1,0 +1,108 @@
+// file: property_getter_implicit_const_this.c
+#include "property_getter_implicit_const_this_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static int Pair_getValue(const Pair *this);
+static int Holder_getValue(const Holder *this);
+static void Holder_op_initnew(Holder *this, int value);
+static Holder *Holder_create(int value);
+static int Count_getValue(const Count *this);
+
+int main(void)
+{
+	Pair pair = (Pair){ 10 };
+	const Pair constPair = (const Pair){ 20 };
+	Holder *holder = (Holder *)(malloc(sizeof(Holder)));
+	if ((holder != NULL))
+	{
+		*holder = (Holder){0};
+		Holder_op_initnew(holder, 30);
+	}
+	const Holder *constHolder = holder;
+	Count count = (Count)(40);
+	const Count constCount = (Count)(50);
+	int total = (Pair_getValue(&pair) + Pair_getValue(&constPair));
+	total += (Holder_getValue((const Holder *)(holder)) + Holder_getValue(constHolder));
+	total += (Count_getValue(&count) + Count_getValue(&constCount));
+	free((void *)(holder));
+	return ((total == 150) ? 0 : 1);
+}
+
+static int Pair_getValue(const Pair *this)
+{
+	return this->value;
+}
+
+static int Holder_getValue(const Holder *this)
+{
+	return this->value;
+}
+
+static void Holder_op_initnew(Holder *this, int value)
+{
+	this->value = value;
+}
+
+static Holder *Holder_create(int value)
+{
+	Holder *_created0 = (Holder *)(malloc(sizeof(Holder)));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Holder){0};
+		Holder_op_initnew(_created0, value);
+	}
+	return _created0;
+}
+
+static int Count_getValue(const Count *this)
+{
+	return (int)(*this);
+}
+
+// file: property_getter_implicit_const_this.h
+#ifndef PROPERTY_GETTER_IMPLICIT_CONST_THIS_H_
+#define PROPERTY_GETTER_IMPLICIT_CONST_THIS_H_
+
+#include "property_getter_implicit_const_this_private.h"
+
+int main(void);
+
+#endif
+// file: property_getter_implicit_const_this_private.h
+#ifndef PROPERTY_GETTER_IMPLICIT_CONST_THIS_PRIVATE_H_
+#define PROPERTY_GETTER_IMPLICIT_CONST_THIS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Pair Pair;
+typedef struct Holder Holder;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef int Count;
+
+/* Layouts. */
+struct Pair
+{
+	int value;
+};
+struct Holder
+{
+	int value;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: property_getter_implicit_const_this.c

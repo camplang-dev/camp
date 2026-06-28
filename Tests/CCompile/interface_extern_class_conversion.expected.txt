@@ -28,8 +28,8 @@ int main(void)
 	int result = readValue(NativeCounter_getIValue(counter));
 	result += readValue(assigned);
 	result += readValue(NativeCounter_getIValue(counter));
-	result += readValue(NativeCounter_getIValue(counter));
-	result += readValue(NativeCounter_getIValue(counter));
+	result += readValue(NativeCounter_getIValue((const NativeCounter *)(counter)));
+	result += readValue(NativeCounter_getIValue((const NativeCounter *)(counter)));
 	result += readGeneric(counter, NativeCounter_IValue);
 	result += readConcrete(NativeCounter_IValue);
 	return result;
@@ -41,7 +41,7 @@ int main(void)
 
 #include "interface_extern_class_conversion_private.h"
 
-IValue **NativeCounter_getIValue(NativeCounter *this);
+IValue **NativeCounter_getIValue(const NativeCounter *this);
 int main(void);
 extern const IValue *NativeCounter_IValue;
 
@@ -69,7 +69,7 @@ struct IValue
 };
 
 /* Function declarations. */
-IValue **NativeCounter_getIValue(NativeCounter *this);
+IValue **NativeCounter_getIValue(const NativeCounter *this);
 int main(void);
 
 /* Object declarations. */

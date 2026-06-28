@@ -4,12 +4,12 @@
 /* Private file declarations. */
 static int ICounter_defaultGetValue(ICounter **this, int value);
 static int BasicCounter_required(BasicCounter *this, int value);
-static ICounter **BasicCounter_getICounter(BasicCounter *this);
+static ICounter **BasicCounter_getICounter(const BasicCounter *this);
 static void BasicCounter_op_initnew(BasicCounter *this);
 static int CustomCounter_optional(CustomCounter *this, int value);
-static int CustomCounter_getValue(CustomCounter *this, int value);
+static int CustomCounter_getValue(const CustomCounter *this, int value);
 static int CustomCounter_required(CustomCounter *this, int value);
-static ICounter **CustomCounter_getICounter(CustomCounter *this);
+static ICounter **CustomCounter_getICounter(const CustomCounter *this);
 static void CustomCounter_op_initnew(CustomCounter *this);
 static int StructCounter_required(StructCounter *this, int value);
 static int useCounter(ICounter **counter);
@@ -45,7 +45,7 @@ static int BasicCounter_required(BasicCounter *this, int value)
 	return value;
 }
 
-static ICounter **BasicCounter_getICounter(BasicCounter *this)
+static ICounter **BasicCounter_getICounter(const BasicCounter *this)
 {
 	return (ICounter **)(&this->_vt_ICounter);
 }
@@ -60,7 +60,7 @@ static int CustomCounter_optional(CustomCounter *this, int value)
 	return (value + 1);
 }
 
-static int CustomCounter_getValue(CustomCounter *this, int value)
+static int CustomCounter_getValue(const CustomCounter *this, int value)
 {
 	return (value + 20);
 }
@@ -70,7 +70,7 @@ static int CustomCounter_required(CustomCounter *this, int value)
 	return value;
 }
 
-static ICounter **CustomCounter_getICounter(CustomCounter *this)
+static ICounter **CustomCounter_getICounter(const CustomCounter *this)
 {
 	return (ICounter **)(&this->_vt_ICounter);
 }
@@ -115,7 +115,7 @@ static int CustomCounter_ICounter_optional(ICounter **ctx, int value)
 static int CustomCounter_ICounter_getValue(ICounter **ctx, int value)
 {
 	CustomCounter *instance = (CustomCounter *)(((uint8_t *)(ctx) - offsetof(CustomCounter, _vt_ICounter)));
-	return CustomCounter_getValue(instance, value);
+	return CustomCounter_getValue((const CustomCounter *)(instance), value);
 }
 
 static int CustomCounter_ICounter_required(ICounter **ctx, int value)

@@ -4,10 +4,10 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 void free(void *ptr);
-static WindowEventHandler Window_getEventHandler(Window *this, void **result_context);
+static WindowEventHandler Window_getEventHandler(const Window *this, void **result_context);
 static void main_lambda0(void *context);
 
-static WindowEventHandler Window_getEventHandler(Window *this, void **result_context)
+static WindowEventHandler Window_getEventHandler(const Window *this, void **result_context)
 {
 	void (* handler)(void *arg0) = this->windowState->eventHandler;
 	void *handler_context = this->windowState->eventHandler_context;
@@ -37,7 +37,7 @@ int main(void)
 	}
 	void (* _call1)(void *arg0);
 	void *_context2;
-	_call1 = Window_getEventHandler(window, &_context2);
+	_call1 = Window_getEventHandler((const Window *)(window), &_context2);
 	if ((_call1 == 0))
 	{
 		return 1;

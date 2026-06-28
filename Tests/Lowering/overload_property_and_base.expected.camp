@@ -64,8 +64,8 @@ void main(ConsoleWriter* writer, Item* item)
 	Writer_writeString((Writer*)writer, "x");
 	Item_setValueInt(item, 1);
 	Item_setValueString(item, "x");
-	auto a = Item_getValueInt(item, 2);
-	auto b = Item_getValueString(item, "y");
+	auto a = Item_getValueInt((const Item*)item, 2);
+	auto b = Item_getValueString((const Item*)item, "y");
 }
 
 struct _Writer

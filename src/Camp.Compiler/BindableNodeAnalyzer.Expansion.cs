@@ -449,7 +449,12 @@ public sealed partial class BindableNodeAnalyzer
 	FunctionDefinition CreateInterfaceAccessorDeclaration(ClassDefinition classDefinition, InterfaceImplementationLowering lowering)
 	{
 		InterfaceDefinition interfaceDefinition = lowering.Interface;
-		TypeReference sourceReturnType = InterfaceInstanceType(interfaceDefinition);
+		TypeReference sourceReturnType = PointerTo(new ConstOfTypeReference
+		{
+			AnchorName = "this",
+			Type = InterfaceType(interfaceDefinition),
+			ResolvedType = "const " + interfaceDefinition.Name
+		});
 		FunctionDefinition accessor = new()
 		{
 			Name = InterfaceAccessorName(interfaceDefinition),
@@ -460,6 +465,13 @@ public sealed partial class BindableNodeAnalyzer
 			ReturnType = sourceReturnType,
 			ResolvedType = $"{interfaceDefinition.Name}**"
 		};
+		accessor.EffectiveThisParameter = new ThisParameterDefinition
+		{
+			Name = "this",
+			Symbol = "this",
+			ResolvedType = "const " + classDefinition.Name + "*"
+		};
+		accessor.EffectiveThisParameter.Attributes.Add(new AttributeConstructor { Name = "const" });
 		return accessor;
 	}
 

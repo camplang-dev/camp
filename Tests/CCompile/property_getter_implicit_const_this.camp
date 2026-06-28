@@ -1,0 +1,52 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+export int main()
+{
+	Pair pair = { 10 };
+	const Pair constPair = { 20 };
+	auto holder = new Holder(30);
+	const Holder* constHolder = holder;
+	Count count = (Count)40;
+	const Count constCount = (Count)50;
+
+	int total = pair.Value + constPair.Value;
+	total += holder.Value + constHolder.getValue();
+	total += count.Value + constCount.getValue();
+
+	delete holder;
+	return total == 150 ? 0 : 1;
+}
+
+struct Pair
+{
+	int value;
+
+	int getValue()
+	{
+		return this.value;
+	}
+}
+
+class Holder
+{
+	int value;
+
+	Holder(int value)
+	{
+		this.value = value;
+	}
+
+	int getValue()
+	{
+		return this.value;
+	}
+}
+
+newtype Count: int
+{
+	int getValue()
+	{
+		return (int)*this;
+	}
+}

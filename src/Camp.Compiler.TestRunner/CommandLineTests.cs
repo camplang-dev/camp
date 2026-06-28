@@ -448,7 +448,7 @@ public sealed class CommandLineTests
 		Assert.Contains("generated: interface-app", result.StdOut, StringComparison.Ordinal);
 		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "default", "DEBUG", "interfaces_api.camp"));
 		Assert.Contains("export extern class Counter : IValue", api, StringComparison.Ordinal);
-		Assert.Contains("export extern IValue* getIValue();", api, StringComparison.Ordinal);
+		Assert.Contains("export extern constof(this) IValue* getIValue();", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeCounter : IValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeDerived : NativeCounter", api, StringComparison.Ordinal);
 		Assert.Contains("export struct StructCounter", api, StringComparison.Ordinal);

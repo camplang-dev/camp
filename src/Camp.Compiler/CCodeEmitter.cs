@@ -541,6 +541,7 @@ public static class CCodeEmitter
 	{
 		readonly HashSet<string> emittedNames = new(StringComparer.Ordinal);
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
+		readonly HashSet<string> interfaceNames = BuildInterfaceNameSet(compilation);
 		readonly HashSet<string> genericParameterNames = BuildGenericParameterNameSet(compilation);
 		readonly HashSet<string> anyGenericParameterNames = BuildAnyGenericParameterNameSet(compilation);
 		readonly HashSet<string> currentGenericTypeNames = new(StringComparer.Ordinal);
@@ -1426,6 +1427,15 @@ public static class CCodeEmitter
 				foreach (GenericParameter parameter in function.GenericParameters)
 					names.Add(parameter.Name);
 			}
+		}
+
+		static HashSet<string> BuildInterfaceNameSet(Compilation compilation)
+		{
+			HashSet<string> names = new(StringComparer.Ordinal);
+			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+				if (definition is InterfaceDefinition interfaceDefinition)
+					names.Add(interfaceDefinition.Name);
+			return names;
 		}
 
 		static HashSet<string> BuildAnyGenericParameterNameSet(Compilation compilation)
@@ -2416,7 +2426,7 @@ public static class CCodeEmitter
 				DefaultExpression defaultExpression => FormatDefaultExpression(defaultExpression),
 				ParenthesizedExpression parenthesized => "(" + FormatExpression(parenthesized.Expression) + ")",
 				CastExpression { LifetimeCastKind: not null } cast => FormatExpression(cast.Expression),
-				CastExpression cast => "(" + FormatType(cast.Type, "").Declaration.Trim() + ")(" + FormatExpression(cast.Expression) + ")",
+				CastExpression cast => FormatCastExpression(cast),
 				SizeOfExpression sizeOf => FormatSizeOfExpression(sizeOf),
 				NameOfExpression nameOf => FormatNameOfExpression(nameOf),
 				CallExpression call => FormatCallExpression(call),
@@ -2442,6 +2452,66 @@ public static class CCodeEmitter
 				FinallyDeleteExpression finallyDelete => FormatExpression(finallyDelete.Expression),
 				_ => UnsupportedExpression(expression)
 			};
+		}
+
+		string FormatCastExpression(CastExpression cast)
+		{
+			string type = TryGetInterfacePointerCastType(cast.Type, out string interfaceName)
+				? CTypeName(interfaceName) + " **"
+				: FormatType(cast.Type, "").Declaration.Trim();
+			return "(" + type + ")(" + FormatExpression(cast.Expression) + ")";
+		}
+
+		bool TryGetInterfacePointerCastType(TypeReference? type, out string interfaceName)
+		{
+			interfaceName = "";
+			type = StripTypeDecorators(type);
+			if (type is TypeDefinitionReference { Definition: InterfaceDefinition directDefinition })
+			{
+				interfaceName = directDefinition.Name;
+				return true;
+			}
+			if (type is NamedTypeReference directNamed && IsInterfaceResolvedName(directNamed.ResolvedType ?? directNamed.Name))
+			{
+				interfaceName = directNamed.ResolvedType ?? directNamed.Name;
+				return true;
+			}
+			if (type is not PointerTypeReference pointer)
+				return false;
+
+			TypeReference? element = StripTypeDecorators(pointer.ElementType);
+			if (element is TypeDefinitionReference { Definition: InterfaceDefinition definition })
+			{
+				interfaceName = definition.Name;
+				return true;
+			}
+			if (element is NamedTypeReference named && IsInterfaceResolvedName(named.ResolvedType ?? named.Name))
+			{
+				interfaceName = named.ResolvedType ?? named.Name;
+				return true;
+			}
+			return false;
+		}
+
+		static TypeReference? StripTypeDecorators(TypeReference? type)
+		{
+			while (true)
+			{
+				type = type switch
+				{
+					AttributedTypeReference attributed => attributed.Type,
+					ConstTypeReference constant => constant.Type,
+					ConstOfTypeReference constOf => constOf.Type,
+					VolatileTypeReference vol => vol.Type,
+					EscapedTypeReference escaped => escaped.Type,
+					ScopedTypeReference scoped => scoped.Type,
+					UnscopedTypeReference unscoped => unscoped.Type,
+					TargetTypeSpecTypeReference targetSpec => targetSpec.Type,
+					_ => type
+				};
+				if (type is not (AttributedTypeReference or ConstTypeReference or ConstOfTypeReference or VolatileTypeReference or EscapedTypeReference or ScopedTypeReference or UnscopedTypeReference or TargetTypeSpecTypeReference))
+					return type;
+			}
 		}
 
 		string FormatDefaultExpression(DefaultExpression expression)
@@ -3004,6 +3074,10 @@ public static class CCodeEmitter
 			string expressionReturnType = FirstReturnComponentType(callType);
 			if (StripLifetimeOnly(actualReturnType) == StripLifetimeOnly(expressionReturnType))
 				return false;
+			if (function?.ReturnType is not null && TryGetInterfacePointerCastType(function.ReturnType, out _))
+				return false;
+			if (NormalizeInterfaceInstanceResolvedType(actualReturnType) == NormalizeInterfaceInstanceResolvedType(expressionReturnType))
+				return false;
 			if (!IsPointerLikeCArgumentType(actualReturnType) || !IsPointerLikeCArgumentType(expressionReturnType))
 				return false;
 
@@ -3058,6 +3132,25 @@ public static class CCodeEmitter
 			while (TryTakeLeadingLifetime(result, out _, out string? rest) && rest is not null)
 				result = rest;
 			return result;
+		}
+
+		string NormalizeInterfaceInstanceResolvedType(string type)
+		{
+			string normalized = StripLifetimeOnly(type).Trim();
+			while (normalized.StartsWith("const ", StringComparison.Ordinal))
+				normalized = normalized[6..].TrimStart();
+			while (normalized.EndsWith(" const", StringComparison.Ordinal))
+				normalized = normalized[..^6].TrimEnd();
+
+			int pointerCount = 0;
+			while (normalized.EndsWith("*", StringComparison.Ordinal))
+			{
+				pointerCount++;
+				normalized = normalized[..^1].TrimEnd();
+			}
+			if (IsInterfaceResolvedName(normalized) && pointerCount is 0 or 1 or 2)
+				return normalized + "**";
+			return type;
 		}
 
 		string FormatAssignmentExpression(AssignmentExpression assignment)
@@ -3370,7 +3463,7 @@ public static class CCodeEmitter
 				&& expectedParameterType is not null
 				&& argument.Value?.ResolvedType is string valueType
 				&& ShouldCastPointerArgument(valueType, expectedParameterType))
-				value = "(" + FormatTypeOrResolved(parameter?.Type, expectedParameterType, "").Declaration.Trim() + ")" + value;
+				value = "(" + FormatParameterArgumentCastType(parameter?.Type, expectedParameterType) + ")" + value;
 			if (argument.Modifier == ArgumentModifier.None && parameter?.Modifier == ParameterModifier.In)
 				return FormatInArgument(argument.Value, value, TryGetConcreteGenericType(expectedParameterType, genericSubstitutions, out string? concreteInType) ? concreteInType : expectedParameterType);
 			return argument.Modifier switch
@@ -3379,6 +3472,13 @@ public static class CCodeEmitter
 				ArgumentModifier.Out or ArgumentModifier.Catch => FormatOutArgument(value, GetOutArgumentStorageType(argument.Value) ?? argument.Value?.ResolvedType, expectedParameterType),
 				_ => value
 			};
+		}
+
+		string FormatParameterArgumentCastType(TypeReference? parameterType, string expectedParameterType)
+		{
+			if (TryGetInterfacePointerCastType(parameterType, out string interfaceName))
+				return CTypeName(interfaceName) + " **";
+			return FormatTypeOrResolved(parameterType, expectedParameterType, "").Declaration.Trim();
 		}
 
 		static string? GetOutArgumentStorageType(Expression? expression)
@@ -5087,6 +5187,8 @@ public static class CCodeEmitter
 				if (qualifiers.Remove("const"))
 					trailingQualifiers.Insert(0, "const");
 			}
+			if (pointerCount == 1 && IsInterfaceResolvedName(type))
+				pointerCount++;
 
 			bool isGenericType = currentGenericTypeNames.Contains(type) || genericParameterNames.Contains(type);
 			if (isGenericType && !anyGenericParameterNames.Contains(type) && pointerCount > 0 && currentArrayElementComponentNames.Contains(declarator))
@@ -5108,6 +5210,13 @@ public static class CCodeEmitter
 				return FormatResolvedFixedArrayType(qualifierPart + fixedBaseType, fixedLengths, pointerDeclarator);
 			string cType = isGenericType && pointerCount == 0 ? "void*" : FormatResolvedBaseType(type);
 			return new CType(qualifierPart + cType + " " + pointerDeclarator);
+		}
+
+		bool IsInterfaceResolvedName(string type)
+		{
+			int generic = type.IndexOf('<', StringComparison.Ordinal);
+			string name = generic < 0 ? type : type[..generic];
+			return interfaceNames.Contains(name);
 		}
 
 		CType FormatResolvedFixedArrayType(string baseType, List<long> lengths, string declarator)

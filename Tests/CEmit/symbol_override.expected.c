@@ -13,7 +13,7 @@ static int privateImpl(void)
 	return 3;
 }
 
-int ControlValue(Control *this)
+int ControlValue(const Control *this)
 {
 	return 7;
 }
@@ -51,7 +51,7 @@ int main(void)
 
 #include "symbol_override_private.h"
 
-int ControlValue(Control *this);
+int ControlValue(const Control *this);
 int ComputeControlDefaultSize(void);
 int main(void);
 extern int MyLibSomeValue;
@@ -79,7 +79,7 @@ struct Control
 };
 
 /* Function declarations. */
-int ControlValue(Control *this);
+int ControlValue(const Control *this);
 int ComputeControlDefaultSize(void);
 int main(void);
 
