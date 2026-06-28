@@ -1967,6 +1967,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IncludeExplicitThisArgument(Expression? target, FunctionDefinition? function)
 	{
+		if (target is NamedExpression { Qualifiers.Count: 0, Name: "base" })
+			return false;
 		return function is not null
 			&& (GetExplicitThisParameter(function) is not null || HasExpandedThisParameters(function.Parameters) || IsInstanceFunction(function))
 			&& target is not MemberExpression and not MemberReferenceExpression;

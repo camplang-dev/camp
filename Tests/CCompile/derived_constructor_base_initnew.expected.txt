@@ -1,0 +1,113 @@
+// file: derived_constructor_base_initnew.c
+#include "derived_constructor_base_initnew_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static int BaseWithArgument_getValue(BaseWithArgument *this);
+static void BaseWithArgument_op_initnew(BaseWithArgument *this, int value);
+static BaseWithArgument *BaseWithArgument_create(int value);
+static void DerivedWithExplicitBase_op_initnew(DerivedWithExplicitBase *this);
+static DerivedWithExplicitBase *DerivedWithExplicitBase_create(void);
+static int main(void);
+
+static int BaseWithArgument_getValue(BaseWithArgument *this)
+{
+	return this->value;
+}
+
+static void BaseWithArgument_op_initnew(BaseWithArgument *this, int value)
+{
+	this->value = value;
+}
+
+static BaseWithArgument *BaseWithArgument_create(int value)
+{
+	BaseWithArgument *_created0 = (BaseWithArgument *)(malloc(sizeof(BaseWithArgument)));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (BaseWithArgument){0};
+		BaseWithArgument_op_initnew(_created0, value);
+	}
+	return _created0;
+}
+
+static void DerivedWithExplicitBase_op_initnew(DerivedWithExplicitBase *this)
+{
+	BaseWithArgument_op_initnew((BaseWithArgument *)(this), 11);
+}
+
+static DerivedWithExplicitBase *DerivedWithExplicitBase_create(void)
+{
+	DerivedWithExplicitBase *_created1 = (DerivedWithExplicitBase *)(malloc(sizeof(DerivedWithExplicitBase)));
+	if ((_created1 != NULL))
+	{
+		*_created1 = (DerivedWithExplicitBase){0};
+		DerivedWithExplicitBase_op_initnew(_created1);
+	}
+	return _created1;
+}
+
+static int main(void)
+{
+	DerivedWithExplicitBase *explicitBase = (DerivedWithExplicitBase *)(malloc(sizeof(DerivedWithExplicitBase)));
+	if ((explicitBase != NULL))
+	{
+		*explicitBase = (DerivedWithExplicitBase){0};
+		DerivedWithExplicitBase_op_initnew(explicitBase);
+	}
+	DerivedWithGeneratedConstructor *generatedBase = (DerivedWithGeneratedConstructor *)(malloc(sizeof(DerivedWithGeneratedConstructor)));
+	if ((generatedBase != NULL))
+	{
+		*generatedBase = (DerivedWithGeneratedConstructor){0};
+	}
+	int result = BaseWithArgument_getValue((BaseWithArgument *)(explicitBase));
+	free((void *)(explicitBase));
+	free((void *)(generatedBase));
+	return (result - 11);
+}
+
+// file: derived_constructor_base_initnew_private.h
+#ifndef DERIVED_CONSTRUCTOR_BASE_INITNEW_PRIVATE_H_
+#define DERIVED_CONSTRUCTOR_BASE_INITNEW_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct BaseWithArgument BaseWithArgument;
+typedef struct DerivedWithExplicitBase DerivedWithExplicitBase;
+typedef struct BaseWithGeneratedConstructor BaseWithGeneratedConstructor;
+typedef struct DerivedWithGeneratedConstructor DerivedWithGeneratedConstructor;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct BaseWithArgument
+{
+	int value;
+};
+struct DerivedWithExplicitBase
+{
+	int value;
+};
+struct BaseWithGeneratedConstructor
+{
+	char _camp_empty;
+};
+struct DerivedWithGeneratedConstructor
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: derived_constructor_base_initnew.c

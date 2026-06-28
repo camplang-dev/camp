@@ -1,0 +1,43 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class BaseWithArgument
+{
+	int value;
+
+	BaseWithArgument(int value)
+	{
+		this.value = value;
+	}
+
+	int getValue()
+	{
+		return this.value;
+	}
+}
+
+class DerivedWithExplicitBase: BaseWithArgument
+{
+	DerivedWithExplicitBase()
+	{
+		base(11);
+	}
+}
+
+class BaseWithGeneratedConstructor
+{
+}
+
+class DerivedWithGeneratedConstructor: BaseWithGeneratedConstructor
+{
+}
+
+int main()
+{
+	auto explicitBase = new DerivedWithExplicitBase();
+	auto generatedBase = new DerivedWithGeneratedConstructor();
+	int result = explicitBase.Value;
+	delete explicitBase;
+	delete generatedBase;
+	return result - 11;
+}
