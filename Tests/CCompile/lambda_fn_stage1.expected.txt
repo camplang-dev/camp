@@ -21,7 +21,7 @@ int main(void)
 {
 	int (* inc)(int camp) = main_lambda0;
 	Predicate isPositive = main_lambda1;
-	return (((apply((int (*)(int camp))inc, 4) == 5) && check(isPositive, 2)) ? 0 : 1);
+	return (((apply((int (*)(int arg0))inc, 4) == 5) && check(isPositive, 2)) ? 0 : 1);
 }
 
 static int main_lambda0(int x)

@@ -175,7 +175,7 @@ public sealed partial class BindableNodeAnalyzer
 			return null;
 
 		List<ParameterDefinition> parameters = [];
-		foreach (string parameterType in shape.Parameters)
+		foreach (string parameterType in GetExpandedCallableParameterTypes(shape.Parameters))
 			parameters.Add(CreateCallableShapeParameter(parameterType));
 		return parameters;
 	}

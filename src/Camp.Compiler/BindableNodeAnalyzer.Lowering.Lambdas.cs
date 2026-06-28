@@ -87,20 +87,21 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		FunctionDefinition function = CreateLambdaFunction(lambda, loweringShape, delegateTarget);
-		ExpandParamsFunctionDeclarations(function);
+		List<ParameterDefinition> sourceParameters = [.. function.Parameters];
 		int parameterOffset = delegateTarget ? 1 : 0;
-		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, function.Parameters, parameterOffset);
+		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, sourceParameters, parameterOffset);
+		ExpandParamsFunctionDeclarations(function);
 		if (contextInfo is not null)
 			RewriteLambdaCaptureReferences(function, contextInfo);
 		RewriteFunction(function, containingType: null);
 		function.ResolvedType = EraseConstOfQualifiers(function.ResolvedType ?? loweringShape.ReturnType);
 		if (function.ReturnType is not null)
 			function.ReturnType.ResolvedType = function.ResolvedType;
-		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, function.Parameters, parameterOffset);
+		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, sourceParameters, parameterOffset);
 		generatedLambdaDefinitions.Add(function);
 		Expression result = delegateTarget
 			? CreateDelegateLambdaInitializer(lambda, function, contextInfo)
-			: CreateMethodReference(function, lambda.ResolvedType ?? BuildFunctionValueType(function, isInstance: false));
+			: CreateMethodReference(function, BuildFunctionValueType(function, isInstance: false));
 		expressionRewrites[lambda] = result;
 		return result;
 	}

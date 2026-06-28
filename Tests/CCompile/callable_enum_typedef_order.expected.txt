@@ -16,7 +16,7 @@ static void handle(MyError *error)
 
 static int main(void)
 {
-	invoke((void (*)(MyError *error))handle);
+	invoke((void (*)(MyError *arg0))handle);
 	return 0;
 }
 

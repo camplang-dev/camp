@@ -1,0 +1,31 @@
+using Std;
+
+newtype fn nuint ArrayScore(const byte[] first, const byte[] second);
+newtype delegate nuint ArrayScoreDelegate(const byte[] first, const byte[] second);
+
+nuint scoreWithFn(ArrayScore scorer, const byte[] first, const byte[] second)
+{
+	return scorer(first, second);
+}
+
+nuint scoreWithDelegate(ArrayScoreDelegate scorer, const byte[] first, const byte[] second)
+{
+	return scorer(first, second);
+}
+
+export int main()
+{
+	const byte[] first = [5, 6];
+	const byte[] second = [7, 8, 9];
+
+	ArrayScore scorer = (left, right) =>
+		left.length * 100 + right.length * 10 + (nuint)left.elements[0] + (nuint)right.elements[1];
+	ArrayScoreDelegate delegateScorer = (left, right) =>
+		left.length * 1000 + right.length * 100 + (nuint)left.elements[1] + (nuint)right.elements[2];
+	auto autoScorer = (const byte[] items) => items.length * 10 + (nuint)items.elements[0];
+
+	Console.writeLine(scoreWithFn(scorer, first, second));
+	Console.writeLine(scoreWithDelegate(delegateScorer, first, second));
+	Console.writeLine(autoScorer(second));
+	return 0;
+}

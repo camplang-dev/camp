@@ -4881,10 +4881,15 @@ public static class CCodeEmitter
 		{
 			string declarator = FormatFunctionPointerDeclarator(name, callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), callable.CallSpec);
 			string returnType = callable.ReturnType?.ResolvedType ?? ResolvedTypeForC(callable.ReturnType, callable.ReturnType?.ResolvedType);
-			List<string> parameterTypes = GetExpandedCallableParameterTypesForC(callable.Parameters);
-			if (!ExpandResolvedCallableReturnForC(ref returnType, parameterTypes))
-				return FormatType(callable.ReturnType, declarator).Declaration + FormatParameters(callable.Parameters);
-			return FormatResolvedType(returnType, declarator).Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
+			if (string.IsNullOrWhiteSpace(name))
+			{
+				List<string> anonymousParameterTypes = GetExpandedCallableParameterTypesForC(callable.Parameters);
+				ExpandResolvedCallableReturnForC(ref returnType, anonymousParameterTypes);
+				return FormatResolvedType(returnType, declarator).Declaration + "(" + FormatResolvedParameterList(anonymousParameterTypes) + ")";
+			}
+			List<(string Type, string Name)> parameterTypes = GetNamedCallableNewtypeParameterTypesForC(callable, callable.Parameters);
+			ExpandResolvedCallableReturnForC(ref returnType, parameterTypes);
+			return FormatResolvedType(returnType, declarator).Declaration + "(" + FormatResolvedNamedParameterList(parameterTypes) + ")";
 		}
 
 		CType FormatType(TypeReference? type, string declarator)
@@ -5337,7 +5342,48 @@ public static class CCodeEmitter
 				return true;
 			foreach (string parameter in SplitTopLevel(parameterText, ','))
 				parameterTypes.Add(parameter.Trim());
+			parameterTypes = GetExpandedResolvedCallableParameterTypesForC(parameterTypes);
 			return true;
+		}
+
+		List<string> GetExpandedResolvedCallableParameterTypesForC(List<string> parameterTypes)
+		{
+			List<string> expanded = [];
+			foreach (string parameterType in parameterTypes)
+			{
+				string type = parameterType.Trim();
+				if (TryGetArrayElementOnly(type, out string arrayElementType))
+				{
+					expanded.Add(arrayElementType + "*");
+					expanded.Add("nuint");
+					continue;
+				}
+				if (TryGetOptionalElementOnly(type, out string optionalElementType))
+				{
+					expanded.Add(optionalElementType);
+					expanded.Add("bool");
+					continue;
+				}
+				if (TryGetCallableNewtypeStorageComponentsByPrimaryTypeForC(type, out List<(string Name, string Type)> callableNewtypeComponents))
+				{
+					foreach ((_, string componentType) in callableNewtypeComponents)
+						expanded.Add(componentType);
+					continue;
+				}
+				if (TryParseExpandedCallableStorageType(type, out string callableReturnType, out List<string> callableParameterTypes, out string? callableTargetSpec, out string? callableCallSpec))
+				{
+					string specs = "";
+					if (!string.IsNullOrWhiteSpace(callableTargetSpec))
+						specs += " " + callableTargetSpec;
+					if (!string.IsNullOrWhiteSpace(callableCallSpec))
+						specs += " " + callableCallSpec;
+					expanded.Add("fn" + specs + " " + callableReturnType + "(" + string.Join(", ", ["void*", .. callableParameterTypes]) + ")");
+					expanded.Add("void*");
+					continue;
+				}
+				expanded.Add(type);
+			}
+			return expanded;
 		}
 
 		string StripLeadingCallableSpecs(string prefix, out string? targetSpec, out string? callSpec)

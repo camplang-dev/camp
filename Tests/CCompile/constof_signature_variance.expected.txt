@@ -37,7 +37,7 @@ int main(void)
 	uintptr_t values_length = 3;
 	const int *readonly = values;
 	uintptr_t readonly_length = values_length;
-	const int *(* getter)(const int *camp) = (const int *(*)(const int *arg0))getInterior;
+	const int *(* getter)(const int *camp, uintptr_t camp_length) = (const int *(*)(const int *arg0, uintptr_t arg1))getInterior;
 	ConstGetter ascribedGetter = getInterior;
 	PositionGetter positionGetter = getByPosition;
 	DepConsumer consumer = consumeConst;
