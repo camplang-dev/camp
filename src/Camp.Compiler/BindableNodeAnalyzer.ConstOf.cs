@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -441,6 +442,17 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (!ExpressionSatisfiesConstOfAnchor(expression, anchor)
 				&& !ExpressionProvidesMutableConstOfSlot(targetType, expression, anchor))
+					Report(GetRange(syntax), $"{context} with constof({anchor}) must be derived from '{anchor}' or use an explicit constof({anchor}) cast.");
+			}
+	}
+
+	void CheckConstOfProducedResult(string? targetType, Expression? expression, SyntaxNode? syntax, string context)
+	{
+		if (targetType is null || expression is null || !targetType.Contains("constof(", StringComparison.Ordinal))
+			return;
+		foreach (string anchor in GetConstOfAnchorNames(targetType).Distinct(System.StringComparer.Ordinal))
+		{
+			if (!ExpressionSatisfiesConstOfAnchor(expression, anchor))
 				Report(GetRange(syntax), $"{context} with constof({anchor}) must be derived from '{anchor}' or use an explicit constof({anchor}) cast.");
 		}
 	}
@@ -590,6 +602,26 @@ public sealed partial class BindableNodeAnalyzer
 					foreach (string anchor in GetConstOfAnchorNames(argument))
 						yield return anchor;
 				break;
+		}
+	}
+
+	static IEnumerable<string> GetConstOfAnchorNames(string type)
+	{
+		const string marker = "constof(";
+		int index = 0;
+		while (index < type.Length)
+		{
+			int start = type.IndexOf(marker, index, StringComparison.Ordinal);
+			if (start < 0)
+				yield break;
+			int anchorStart = start + marker.Length;
+			int anchorEnd = type.IndexOf(')', anchorStart);
+			if (anchorEnd < 0)
+				yield break;
+			string anchor = type[anchorStart..anchorEnd].Trim();
+			if (!string.IsNullOrWhiteSpace(anchor))
+				yield return anchor;
+			index = anchorEnd + 1;
 		}
 	}
 

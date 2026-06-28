@@ -42,6 +42,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (normalized.EndsWith(" unscoped", StringComparison.Ordinal))
 			normalized = normalized[..^" unscoped".Length].Trim();
 
+		if (typeDefinitions.TryGetValue(BaseTypeName(normalized), out TypeDefinition? definition)
+			&& definition is NewtypeDefinition newtypeDefinition
+			&& TryBuildNewtypeSourceCallableShape(newtypeDefinition, out shape))
+			return true;
+
 		return TryGetCallableShape(normalized, out shape);
 	}
 
@@ -63,6 +68,7 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(lambda.SourceSyntax), "Lambda lowering supports only fn or delegate targets.");
 			return lambda;
 		}
+		CallableShape loweringShape = EraseConstOfCallableShape(TryGetCallableShape(lambda.ResolvedType, out CallableShape abiShape) ? abiShape : shape);
 		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, currentRewriteFunction, FindCurrentRewriteContainingType(), reportUnsupported: true);
 		if (captures.Count > 0 && shape.Kind != "delegate")
 		{
@@ -80,13 +86,16 @@ public sealed partial class BindableNodeAnalyzer
 				return lambda;
 		}
 
-		FunctionDefinition function = CreateLambdaFunction(lambda, shape, delegateTarget);
+		FunctionDefinition function = CreateLambdaFunction(lambda, loweringShape, delegateTarget);
 		ExpandParamsFunctionDeclarations(function);
 		int parameterOffset = delegateTarget ? 1 : 0;
 		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, function.Parameters, parameterOffset);
 		if (contextInfo is not null)
 			RewriteLambdaCaptureReferences(function, contextInfo);
 		RewriteFunction(function, containingType: null);
+		function.ResolvedType = EraseConstOfQualifiers(function.ResolvedType ?? loweringShape.ReturnType);
+		if (function.ReturnType is not null)
+			function.ReturnType.ResolvedType = function.ResolvedType;
 		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, function.Parameters, parameterOffset);
 		generatedLambdaDefinitions.Add(function);
 		Expression result = delegateTarget
@@ -96,8 +105,21 @@ public sealed partial class BindableNodeAnalyzer
 		return result;
 	}
 
+	static CallableShape EraseConstOfCallableShape(CallableShape shape)
+	{
+		List<string> parameters = [];
+		foreach (string parameter in shape.Parameters)
+		{
+			CallableSlot slot = ParseCallableSlot(parameter);
+			string type = EraseConstOfQualifiers(slot.Type);
+			parameters.Add(string.IsNullOrWhiteSpace(slot.Modifier) ? type : slot.Modifier + " " + type);
+		}
+		return shape with { ReturnType = EraseConstOfQualifiers(shape.ReturnType), Parameters = parameters };
+	}
+
 	FunctionDefinition CreateLambdaFunction(LambdaExpression lambda, CallableShape shape, bool includeDelegateContext)
 	{
+		shape = EraseConstOfCallableShape(shape);
 		string owner = GetLambdaOwnerName();
 		string name = owner + "_lambda" + generatedLambdaDefinitions.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
 		FunctionDefinition function = new()

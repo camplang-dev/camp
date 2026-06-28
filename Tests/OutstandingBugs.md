@@ -1,6 +1,6 @@
 # Outstanding Bugs
 
-Next bug number: BUG-032.
+Next bug number: BUG-033.
 
 - **BUG-029:** Some `foreach` forms still reach C emission instead of lowering
   when combined with generic or generator contexts. A generic function iterating
@@ -25,3 +25,12 @@ Next bug number: BUG-032.
   introduced on a derived class. Until this is validated, avoid declaring
   optional-interface-shaped methods on derived classes when the base class
   implements that interface.
+
+- **BUG-032:** Lambda lowering mishandles expanded array parameters in generated
+  lambda functions. A lambda targeting or inferring a callable with `T[]`
+  parameters can generate a C function with expanded pointer/length parameters,
+  but references such as `items.elements` or later expanded parameters can bind
+  to the wrong generated component, and auto-lambda callable storage can format
+  the function pointer type without the hidden length arguments. Work around by
+  avoiding expanded params in lambda signatures until lambda parameter expansion
+  shares the normal function/params lowering machinery.

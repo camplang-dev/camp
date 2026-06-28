@@ -6380,6 +6380,17 @@ anchor, or a call result that preserves that relation. When the compiler cannot
 prove the relation, an explicit cast such as `(constof(source) char*)value`
 asserts it.
 
+Ordinary storage conversions are deliberately narrower than explicit casts.
+A mutable value may be stored in a matching `constof(anchor)` slot, a
+`constof(anchor)` value may be stored in ordinary `const` storage, and a
+`constof(anchor)` value may be stored in another slot with the same anchor.
+Ordinary `const` does not convert back to `constof(anchor)`, `constof(anchor)`
+does not convert to mutable storage, and different `constof` anchors do not
+convert to each other without an explicit cast. When a conditional or other
+un-targeted common-type expression has to choose between dependent and ordinary
+constness, it widens to ordinary `const`; the compiler does not invent a
+dependent `constof(...)` type without a target.
+
 ```camp
 constof(source) char* first(const char[] source)
 {
@@ -6398,6 +6409,15 @@ caller-visible constness. Camp API headers and source metadata preserve the
 `constof(anchor)` spelling so Camp-aware callers and tools can see the
 dependency. C output erases it to ordinary `const`; `constof` does not change
 ABI layout, symbol names, or generated storage.
+
+Callable signature compatibility compares `constof` anchors by the parameter or
+receiver they name, not merely by spelling. For ordinary callable compatibility,
+produced positions such as return values and `out` payloads are covariant: a
+candidate that returns `constof(source) T*` can satisfy a target that only
+requires `const T*`. Consumed positions are contravariant: a candidate accepting
+ordinary `const T*` can satisfy a target that accepts only
+`constof(source) T*`. Virtual and abstract overrides remain exact; changing
+ordinary `const` to or from `constof(anchor)` changes the override contract.
 
 ### 4.1.11 Aggregate and container rule
 
@@ -8275,6 +8295,17 @@ If the target is a non-capturing plain function type, the lambda becomes an `fn`
 
 If the target requires a delegate and the lambda does not need context, Camp forms a delegate whose context is `null`.
 
+When the target callable uses `constof(anchor)`, omitted lambda parameter types
+inherit the full target parameter type. Explicitly typed lambda parameters are
+checked against the target using the same callable signature compatibility rules
+as function and delegate assignment. A lambda body that produces a
+`constof(anchor)` result follows the same provenance rule as a function body:
+the value must come from the lambda parameter named by the anchor, from a direct
+view of it, from another value constrained by the same anchor, or from an
+explicit `constof(anchor)` cast. A `constof` anchor inside a lambda refers only
+to the lambda's own parameters or explicit callable `this`, not to enclosing
+function parameters or captured locals.
+
 ### 5.5.2 `auto` with lambdas
 
 A lambda may also be assigned to `auto`.
@@ -8294,6 +8325,11 @@ auto parser = tryParseInt; // IntParser
 ```
 
 This keeps the distinction between plain functions and context-carrying callables visible when no target type is present, while still preserving nominal callable types that are stated at the declaration site.
+
+An `auto` lambda does not infer dependent constness merely because its body
+returns a value derived from one of its parameters. It infers `constof(...)` only
+when the lambda's explicit parameter types or return expressions use
+`constof(...)`, usually through an explicit cast.
 
 ### 5.5.3 Capturing lambdas
 

@@ -185,6 +185,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string EraseConstOfQualifiers(string type)
 	{
+		type = System.Text.RegularExpressions.Regex.Replace(type, @"\bconstof\s*\([^)]*\)", "const");
+		type = System.Text.RegularExpressions.Regex.Replace(type, @"\bconstof\s+", "const ");
 		const string prefix = "constof(";
 		int start = type.IndexOf(prefix, StringComparison.Ordinal);
 		if (start < 0)

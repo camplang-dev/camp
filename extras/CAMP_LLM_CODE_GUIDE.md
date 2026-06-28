@@ -236,6 +236,11 @@ Rules:
 - Nested scoped lambdas inside escaped lambdas are supported; the scoped nested
   context may point at the surrounding escaped lambda context while the outer
   lambda invocation is active.
+- Target-typed lambda parameters inherit `constof(anchor)` from the target
+  callable. Explicit lambda parameter types are checked with the ordinary
+  callable signature variance rules. `constof` anchors inside a lambda name the
+  lambda's own parameters or explicit callable `this`, not enclosing function
+  parameters or captured locals.
 
 Valid:
 
@@ -341,7 +346,7 @@ Evidence: `src/Camp.Compiler/BindableNode.cs::PrimitiveType`; `src/Camp.Compiler
 | Generator return | `struct iter T f()` or `class iter T f()` | Function return modifier for generated iterator state. | `CONFIRMED_BY_TEST` | `tests/Lowering/iterator_generator_multiple_yields.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::GetIteratorKind` |
 | Materialized expanded form | `struct(T[])`, `struct(T?)`, `struct(delegate Ret(...))`, `struct(iter T)` | Only valid for expanded array/optional/delegate/iter forms. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.TypeBinding.cs::AnalyzeType` |
 | Thrown return form | `thrown(T)` | Parsed/analyzed as a type; flow treats return type `thrown(E)` as rethrow-compatible. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs::ParseTypePrefix`; `src/Camp.Compiler/BindableNodeAnalyzer.Flow.cs::GetFunctionThrownType` |
-| Type declarators | `const T`, `constof(anchor) T`, `volatile T`, `escaped T`, `scoped T`, `scoped(anchor) T`, `unscoped T`, `unscoped(anchor) T` | Prefix and postfix forms parse, but target-specific specifiers must appear after type forms. `constof(anchor)` is source-level dependent constness: anchors are validated, callees see ordinary `const`, call sites substitute the anchor actual's constness, produced returns/`out` values need anchor provenance or an explicit `constof(anchor)` cast, Camp API/metadata preserve the spelling, and C erases it to ordinary `const`. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs::ParseTypeDeclarator`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildDeclaratorTypeReference`; `src/Camp.Compiler/BindableNodeAnalyzer.ConstOf.cs`; `src/Camp.Compiler/BindableNodeAnalyzer.TypeBinding.cs::ValidateTargetTypeSpec` |
+| Type declarators | `const T`, `constof(anchor) T`, `volatile T`, `escaped T`, `scoped T`, `scoped(anchor) T`, `unscoped T`, `unscoped(anchor) T` | Prefix and postfix forms parse, but target-specific specifiers must appear after type forms. `constof(anchor)` is source-level dependent constness: anchors are validated, callees see ordinary `const`, call sites substitute the anchor actual's constness, produced returns/`out` values need anchor provenance or an explicit `constof(anchor)` cast, Camp API/metadata preserve the spelling, and C erases it to ordinary `const`. Storage conversion allows mutable-to-`constof`, `constof`-to-ordinary-`const`, and same-anchor `constof`, but not ordinary-`const`-to-`constof`, `constof`-to-mutable, or different anchors without an explicit cast. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs::ParseTypeDeclarator`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildDeclaratorTypeReference`; `src/Camp.Compiler/BindableNodeAnalyzer.ConstOf.cs`; `src/Camp.Compiler/BindableNodeAnalyzer.TypeBinding.cs::ValidateTargetTypeSpec` |
 
 Valid:
 
@@ -656,6 +661,7 @@ int bad()
 | Rule | Confidence | Evidence |
 |---|---|---|
 | Type declarators `scoped`, `escaped`, `unscoped`, and `constof` are implemented. `scoped(...)`, `unscoped(...)`, and `constof(...)` carry anchor identifiers. `scoped`/`unscoped` describe lifetime; `constof` describes caller-visible constness and should not be substituted by lifetime rules. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs::ParseTypeDeclarator`; `src/Camp.Compiler/BindableNodeBuilder.cs::BuildDeclaratorTypeReference`; `src/Camp.Compiler/BindableNodeAnalyzer.ConstOf.cs` |
+| Callable signature compatibility treats `constof` outputs covariantly and inputs contravariantly for ordinary callable assignment/ascription/interface checks. Virtual and abstract overrides remain exact. | `CONFIRMED_BY_TEST` | `tests/CCompile/constof_signature_variance.camp`; `tests/Diagnostics/constof_signature_variance_invalid.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Callables.cs::CallableShapesCompatibleWithConstOfVariance` |
 | Lifetime conversion is ordered: source lifetime must be at least target lifetime under the implementation's `Scoped < Unscoped < Escaped` enum. | `INFERRED_FROM_IMPLEMENTATION` | `src/Camp.Compiler/BindableNodeAnalyzer.TypeShapes.cs::LifetimeKind`, `QualifiersCanConvert` |
 | `escaped` class and interface declarators are valid; `escaped struct` is invalid. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs::ApplyClassDeclarators`, `ApplyStructDeclarators`, `ApplyNonStructTypeDeclarators` |
 | `escaped` fields are valid and require assigned pointer-bearing values to satisfy escaped storage. `scoped`/`unscoped` fields, locals, and globals are invalid. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_escaped_fields.camp`; `tests/Diagnostics/lifetime_annotation_placement_invalid.camp`; `tests/Diagnostics/lifetime_escaped_field_assignment_invalid.camp` |

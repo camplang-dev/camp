@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -146,6 +147,9 @@ public sealed partial class BindableNodeAnalyzer
 				string returnTargetType = GetLifetimeStructuralTargetType(returnTargetSourceType, returnStatement.Expression);
 				CheckAssignable(returnTargetType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				CheckConstOfProducedResult(scope.CurrentFunction.ReturnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
+				if (scope.CurrentFunctionSourceReturnType is string sourceReturnType
+					&& sourceReturnType != FormatTypeReference(scope.CurrentFunction.ReturnType))
+					CheckConstOfProducedResult(sourceReturnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				if (!fixedArraySpanEscape)
 					CheckLifetimeResult(returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, scope, "Return expression");
 				break;
@@ -373,7 +377,10 @@ public sealed partial class BindableNodeAnalyzer
 		string targetType = declaration.Target.Type is AutoTypeReference or null
 			? TargetType
 			: declaration.Target.Type.ResolvedType ?? ErrorType;
-		string initialType = declaration.InitialValue is null ? TargetType : BodyAnalyzeExpression(declaration.InitialValue, scope, typeScope, targetType);
+		string initialTargetType = declaration.InitialValue is LambdaExpression && declaration.Target.Type is not null and not AutoTypeReference
+			? FormatLambdaTargetType(declaration.Target.Type)
+			: targetType;
+		string initialType = declaration.InitialValue is null ? TargetType : BodyAnalyzeExpression(declaration.InitialValue, scope, typeScope, initialTargetType);
 		if (declaration.Target.Type is AutoTypeReference
 			&& TryGetImplicitIteratorProtocolType(declaration.InitialValue, initialType, out string iteratorProtocolType))
 			initialType = iteratorProtocolType;
@@ -1333,9 +1340,13 @@ public sealed partial class BindableNodeAnalyzer
 		CallableShape? targetShape = TryGetLambdaCallableShape(targetType, out CallableShape callableTarget, out bool targetIsEscaped) ? callableTarget : null;
 		if (targetShape is CallableShape targetCallable && targetCallable.Kind is not ("fn" or "delegate"))
 			Report(GetRange(lambda.SourceSyntax), "Lambdas can target only fn or delegate callable types.");
+		string lambdaSourceReturnType = targetShape is CallableShape lambdaTarget
+			? LambdaSourceReturnType(lambdaTarget.ReturnType, lambda)
+			: TargetType;
 		BodyScope lambdaScope = new(scope, scope.CurrentFunction, scope.ContainingType)
 		{
 			CurrentFunctionReturnType = targetShape?.ReturnType ?? TargetType,
+			CurrentFunctionSourceReturnType = lambdaSourceReturnType,
 			CurrentIteratorElementType = null
 		};
 
@@ -1356,17 +1367,21 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter.Parameter is null && parameterSlot == TargetType)
 				Report(GetRange(lambda.SourceSyntax), $"Lambda parameter '{GetLambdaParameterSymbolName(parameter) ?? i.ToString(CultureInfo.InvariantCulture)}' requires a target callable type or an explicit parameter type.");
 
-			if (targetShape is CallableShape expected && i < expected.Parameters.Count && parameterSlot != TargetType && parameterSlot != expected.Parameters[i])
-				Report(GetRange(parameter.SourceSyntax), $"Lambda parameter type '{parameterSlot}' does not match target parameter type '{expected.Parameters[i]}'.");
+			if (targetShape is CallableShape expected
+				&& i < expected.Parameters.Count
+				&& parameterSlot != TargetType
+				&& !CallableLambdaInputSlotCompatible(parameterSlot, expected.Parameters[i]))
+				Report(GetRange(parameter.Parameter?.Type?.SourceSyntax ?? parameter.SourceSyntax ?? lambda.SourceSyntax), $"Lambda parameter type '{parameterSlot}' does not match target parameter type '{expected.Parameters[i]}'.");
 
 			string? parameterName = GetLambdaParameterSymbolName(parameter);
 			if (!string.IsNullOrWhiteSpace(parameterName))
-				lambdaScope.Symbols[parameterName] = new BodySymbol(parameterName, parameter.ResolvedType, parameter);
+				RegisterBodySymbol(lambdaScope, parameterName, parameter.ResolvedType, parameter, parameter.Parameter?.Type, parameter.ResolvedType, parameter.SourceSyntax);
 		}
 
 		string returnType = "void";
 		if (lambda.Body is BlockStatement block)
 		{
+			ValidateLambdaConstOfAnchors(lambda, block);
 			RewriteVoidLambdaExpressionBody(block, targetShape?.ReturnType);
 			BodyAnalyzeBlock(block.Statements, lambdaScope, typeScope);
 			BindStatementLabels(block.Statements);
@@ -1394,10 +1409,150 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType is not null
 			&& TryGetLambdaCallableShape(targetType, out CallableShape expectedShape, out bool expectedEscaped)
 			&& expectedShape.Kind is "fn" or "delegate"
-			&& CallableShapesCompatible(new CallableShape(expectedShape.Kind, expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This), expectedShape))
+			&& CallableShapesCompatibleWithConstOfVariance(new CallableShape(expectedShape.Kind, expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This), expectedShape))
 			return targetType;
 
 		return inferredType;
+	}
+
+	void ValidateLambdaConstOfAnchors(LambdaExpression lambda, BlockStatement block)
+	{
+		HashSet<string> anchors = new(StringComparer.Ordinal);
+		foreach (LambdaParameter parameter in lambda.Parameters)
+		{
+			string? name = GetLambdaParameterSymbolName(parameter);
+			if (!string.IsNullOrWhiteSpace(name))
+				anchors.Add(name);
+		}
+
+		foreach ((Statement? statement, Expression? expression) in LambdaStatementChildren(block))
+		{
+			if (statement is not null)
+				ValidateLambdaConstOfAnchors(lambda, statement, anchors);
+			if (expression is not null)
+				ValidateLambdaConstOfAnchors(lambda, expression, anchors);
+		}
+	}
+
+	void ValidateLambdaConstOfAnchors(LambdaExpression lambda, Statement statement, HashSet<string> anchors)
+	{
+		foreach ((Statement? childStatement, Expression? childExpression) in LambdaStatementChildren(statement))
+		{
+			if (childStatement is not null)
+				ValidateLambdaConstOfAnchors(lambda, childStatement, anchors);
+			if (childExpression is not null)
+				ValidateLambdaConstOfAnchors(lambda, childExpression, anchors);
+		}
+	}
+
+	void ValidateLambdaConstOfAnchors(LambdaExpression lambda, Expression expression, HashSet<string> anchors)
+	{
+		switch (expression)
+		{
+			case CastExpression cast:
+				ValidateLambdaConstOfAnchors(lambda, cast.Type, anchors);
+				break;
+		}
+
+		foreach (Expression child in LambdaExpressionChildren(expression))
+			ValidateLambdaConstOfAnchors(lambda, child, anchors);
+	}
+
+	void ValidateLambdaConstOfAnchors(LambdaExpression lambda, TypeReference? type, HashSet<string> anchors)
+	{
+		switch (type)
+		{
+			case null:
+				return;
+			case ConstOfTypeReference constOf:
+				if (constOf.AnchorName != "this" && !anchors.Contains(constOf.AnchorName))
+					Report(GetRange(constOf.SourceSyntax ?? lambda.SourceSyntax), $"constof anchor '{constOf.AnchorName}' is not valid in this lambda; constof anchors inside lambdas must name lambda parameters.");
+				ValidateLambdaConstOfAnchors(lambda, constOf.Type, anchors);
+				break;
+			case PointerTypeReference pointer:
+				ValidateLambdaConstOfAnchors(lambda, pointer.ElementType, anchors);
+				break;
+			case ArrayTypeReference array:
+				ValidateLambdaConstOfAnchors(lambda, array.ElementType, anchors);
+				break;
+			case FixedArrayTypeReference fixedArray:
+				ValidateLambdaConstOfAnchors(lambda, fixedArray.ElementType, anchors);
+				break;
+			case OptionalTypeReference optional:
+				ValidateLambdaConstOfAnchors(lambda, optional.ElementType, anchors);
+				break;
+			case ConstTypeReference constant:
+				ValidateLambdaConstOfAnchors(lambda, constant.Type, anchors);
+				break;
+			case VolatileTypeReference vol:
+				ValidateLambdaConstOfAnchors(lambda, vol.Type, anchors);
+				break;
+			case EscapedTypeReference escaped:
+				ValidateLambdaConstOfAnchors(lambda, escaped.Type, anchors);
+				break;
+			case ScopedTypeReference scoped:
+				ValidateLambdaConstOfAnchors(lambda, scoped.Type, anchors);
+				break;
+			case UnscopedTypeReference unscoped:
+				ValidateLambdaConstOfAnchors(lambda, unscoped.Type, anchors);
+				break;
+			case GenericTypeReference generic:
+				ValidateLambdaConstOfAnchors(lambda, generic.Type, anchors);
+				foreach (TypeReference argument in generic.TypeArguments)
+					ValidateLambdaConstOfAnchors(lambda, argument, anchors);
+				break;
+			case CallableTypeReference callable:
+				ValidateLambdaConstOfAnchors(lambda, callable.ReturnType, anchors);
+				foreach (ParameterDefinition parameter in callable.Parameters)
+					ValidateLambdaConstOfAnchors(lambda, parameter.Type, anchors);
+				break;
+			case IterTypeReference iter:
+				ValidateLambdaConstOfAnchors(lambda, iter.ElementType, anchors);
+				foreach (ParameterDefinition parameter in iter.Parameters)
+					ValidateLambdaConstOfAnchors(lambda, parameter.Type, anchors);
+				break;
+			case TargetTypeSpecTypeReference targetSpec:
+				ValidateLambdaConstOfAnchors(lambda, targetSpec.Type, anchors);
+				break;
+			case GroupedParamsTypeReference grouped:
+				ValidateLambdaConstOfAnchors(lambda, grouped.StructType, anchors);
+				break;
+			case MaterializedStructTypeReference materialized:
+				ValidateLambdaConstOfAnchors(lambda, materialized.ParamsType, anchors);
+				break;
+			case ThrownTypeReference thrown:
+				ValidateLambdaConstOfAnchors(lambda, thrown.Type, anchors);
+				break;
+		}
+	}
+
+	static bool CallableLambdaInputSlotCompatible(string source, string target)
+	{
+		CallableSlot sourceSlot = ParseCallableSlot(source);
+		CallableSlot targetSlot = ParseCallableSlot(target);
+		return sourceSlot.Modifier == targetSlot.Modifier
+			&& CallableSlotTypesCompatible(sourceSlot.Type, targetSlot.Type, outputPosition: sourceSlot.Modifier == "out");
+	}
+
+	static string LambdaSourceReturnType(string returnType, LambdaExpression lambda)
+	{
+		string result = returnType;
+		for (int i = 0; i < lambda.Parameters.Count; i++)
+		{
+			string? name = GetLambdaParameterSymbolName(lambda.Parameters[i]);
+			if (!string.IsNullOrWhiteSpace(name))
+				result = result.Replace("constof(#" + i.ToString(CultureInfo.InvariantCulture) + ")", "constof(" + name + ")", StringComparison.Ordinal);
+		}
+		return result;
+	}
+
+	string FormatLambdaTargetType(TypeReference type)
+	{
+		if (type is NamedTypeReference named && !string.IsNullOrWhiteSpace(named.Name))
+			return named.TypeArguments.Count == 0
+				? named.Name
+				: named.Name + "<" + string.Join(", ", named.TypeArguments.Select(FormatTypeReference)) + ">";
+		return FormatTypeReference(type);
 	}
 
 	static void RewriteVoidLambdaExpressionBody(BlockStatement block, string? targetReturnType)

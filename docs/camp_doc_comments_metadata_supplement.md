@@ -475,6 +475,12 @@ can recover the anchor relationship. C and ABI output erase `constof(anchor)` to
 ordinary `const`, but metadata describes the Camp source contract, not the
 erased C view.
 
+For callable signatures, `constof(anchor)` anchors are source-level names in the
+metadata view. Consumers comparing two callable signatures should resolve those
+anchor names against the containing parameter list or receiver instead of
+comparing raw text only; a declaration may rename `source` to `buffer` while
+preserving the same positional dependent-const contract.
+
 Property-eligible methods are identified with `propertyName`.
 
 ```json

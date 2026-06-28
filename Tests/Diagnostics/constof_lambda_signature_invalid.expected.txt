@@ -1,0 +1,3 @@
+tests/Diagnostics/constof_lambda_signature_invalid.camp(9,53): error: Lambda parameter type 'byte*' does not match target parameter type 'constof(#0) byte*'.
+tests/Diagnostics/constof_lambda_signature_invalid.camp(9,66): error: Declaration initializer cannot convert 'fn void(const byte*, byte*)' to 'ByteDepConsumer'.
+tests/Diagnostics/constof_lambda_signature_invalid.camp(15,26): error: constof anchor 'outer' is not valid in this lambda; constof anchors inside lambdas must name lambda parameters.

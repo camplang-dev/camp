@@ -1,0 +1,37 @@
+newtype fn void ByteDepConsumer(
+	const byte* source,
+	constof(source) byte* other);
+
+export int main()
+{
+	byte[] values = [7, 8, 9];
+	const byte* constValues = values.elements;
+
+	ByteDepConsumer inferredConsumer = (source, other) =>
+	{
+		const byte* p = other;
+	};
+
+	ByteDepConsumer explicitConstConsumer = (const byte* source, const byte* other) =>
+	{
+		const byte* p = other;
+	};
+
+	auto autoConsumer = (const byte* source, constof(source) byte* other) =>
+	{
+		return 0;
+	};
+
+	auto autoFinder = (const byte* source) =>
+	{
+		return (constof(source) byte*)source;
+	};
+
+	inferredConsumer(constValues, constValues);
+	explicitConstConsumer(constValues, constValues);
+	autoConsumer(constValues, constValues);
+
+	const byte* found1 = autoFinder(constValues);
+
+	return ((int)found1[0] == 7 && (int)found1[1] == 8) ? 0 : 1;
+}

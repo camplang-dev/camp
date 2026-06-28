@@ -1,0 +1,23 @@
+newtype fn void ByteDepConsumer(
+	const byte* source,
+	constof(source) byte* other);
+
+newtype fn constof(source) byte* Finder(const byte* source);
+
+void outer(const byte* outer)
+{
+	ByteDepConsumer badConsumer = (const byte* source, byte* other) =>
+	{
+	};
+
+	auto badAnchor = () =>
+	{
+		return (constof(outer) byte*)null;
+	};
+
+	auto provenanceOnly = (const byte* source) =>
+	{
+		return source;
+	};
+	Finder badFinder = provenanceOnly;
+}
