@@ -15,7 +15,7 @@ Every stage must:
 - log unrelated non-trivial pre-existing bugs in `tests/OutstandingBugs.md`
   instead of detouring into large fixes.
 
-## 1. Centralize Callable Shape Logic
+## ~~1. Centralize Callable Shape Logic~~
 
 Summary: Replace the current scattered/string-heavy callable shape handling with
 one authoritative callable-shape service. This is the highest value first step
@@ -51,11 +51,11 @@ Success outcomes:
 
 Completion checklist:
 
-- [ ] Shared callable shape service introduced.
-- [ ] Existing callable shape call sites migrated.
-- [ ] Targeted callable/ascription/lambda/interface tests pass.
-- [ ] Full suite passes.
-- [ ] Stage committed and this section struck through.
+- [x] ~~Shared callable shape service introduced.~~
+- [x] ~~Existing callable shape call sites migrated.~~
+- [x] ~~Targeted callable/ascription/lambda/interface tests pass.~~
+- [x] ~~Full suite passes.~~
+- [x] ~~Stage committed and this section struck through.~~
 
 ## 2. Centralize Expanded-Form Handling
 
@@ -408,4 +408,3 @@ Completion checklist:
 - [ ] Dense ABI semantic test added.
 - [ ] Full suite passes.
 - [ ] Stage committed and this section struck through.
-

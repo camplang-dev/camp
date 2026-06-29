@@ -8,12 +8,7 @@ public sealed partial class BindableNodeAnalyzer
 {
 	static string BuildCallableType(string kind, string returnType, List<string> parameters, string? targetSpec = null, string? callSpec = null)
 	{
-		string specs = "";
-		if (!string.IsNullOrWhiteSpace(targetSpec))
-			specs += " " + targetSpec;
-		if (!string.IsNullOrWhiteSpace(callSpec))
-			specs += " " + callSpec;
-		return $"{kind}{specs} {returnType}({string.Join(", ", parameters)})";
+		return CallableShapeService.BuildCallableType(kind, returnType, parameters, targetSpec, callSpec);
 	}
 
 	bool TryGetCallableShape(string? type, out CallableShape shape)
@@ -122,46 +117,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool TryParseCallableShape(string type, out CallableShape shape)
 	{
-		shape = default;
-		string kind;
-		string remainder;
-		if (type.StartsWith("fn ", StringComparison.Ordinal))
-		{
-			kind = "fn";
-			remainder = type["fn ".Length..];
-		}
-		else if (type.StartsWith("delegate ", StringComparison.Ordinal))
-		{
-			kind = "delegate";
-			remainder = type["delegate ".Length..];
-		}
-		else if (type.StartsWith("async ", StringComparison.Ordinal))
-		{
-			kind = "async";
-			remainder = type["async ".Length..];
-		}
-		else if (type.StartsWith("once ", StringComparison.Ordinal))
-		{
-			kind = "once";
-			remainder = type["once ".Length..];
-		}
-		else
-		{
-			return false;
-		}
-
-		int open = remainder.IndexOf('(', StringComparison.Ordinal);
-		int close = remainder.LastIndexOf(')');
-		if (open < 0 || close < open)
-			return false;
-
-		string signaturePrefix = remainder[..open].Trim();
-		List<string> specs = SplitCallableSpecs(ref signaturePrefix);
-
-		string returnType = signaturePrefix;
-		string parametersText = remainder[(open + 1)..close].Trim();
-		shape = new CallableShape(kind, specs.Count > 0 ? specs[0] : null, specs.Count > 1 ? specs[1] : null, returnType, SplitCallableParameterTypes(parametersText));
-		return true;
+		return CallableShapeService.TryParseCallableShape(type, out shape);
 	}
 
 	IEnumerable<string> GetCallableParameterTypeNames(IEnumerable<ParameterDefinition> parameters)
@@ -171,46 +127,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	static List<string> SplitCallableSpecs(ref string text)
 	{
-		List<string> specs = [];
-		while (true)
-		{
-			int space = text.IndexOf(' ');
-			if (space <= 0)
-				return specs;
-
-			string candidate = text[..space];
-			if (!candidate.StartsWith("_", StringComparison.Ordinal))
-				return specs;
-
-			specs.Add(candidate);
-			text = text[(space + 1)..].TrimStart();
-		}
+		return CallableShapeService.SplitCallableSpecs(ref text);
 	}
 
 	static List<string> SplitCallableParameterTypes(string parametersText)
 	{
-		List<string> parameters = [];
-		if (string.IsNullOrWhiteSpace(parametersText))
-			return parameters;
-
-		int start = 0;
-		int depth = 0;
-		for (int i = 0; i < parametersText.Length; i++)
-		{
-			char c = parametersText[i];
-			if (c is '(' or '<' or '[')
-				depth++;
-			else if (c is ')' or '>' or ']')
-				depth--;
-			else if (c == ',' && depth == 0)
-			{
-				parameters.Add(parametersText[start..i].Trim());
-				start = i + 1;
-			}
-		}
-
-		parameters.Add(parametersText[start..].Trim());
-		return parameters;
+		return CallableShapeService.SplitCallableParameterTypes(parametersText);
 	}
 
 	bool CallableShapesCompatible(CallableShape source, CallableShape target)
@@ -231,61 +153,17 @@ public sealed partial class BindableNodeAnalyzer
 			target = ExpandCallableShape(target);
 		}
 
-		if (source.Parameters.Count != target.Parameters.Count)
-			return false;
-		if (source.Spec != target.Spec
-			|| source.CallSpec != target.CallSpec
-			|| compareThis && source.This != target.This)
-			return false;
-		if (!CallableSlotTypesCompatible(source.ReturnType, target.ReturnType, outputPosition: true))
-			return false;
-
-		for (int i = 0; i < source.Parameters.Count; i++)
-		{
-			CallableSlot sourceSlot = ParseCallableSlot(source.Parameters[i]);
-			CallableSlot targetSlot = ParseCallableSlot(target.Parameters[i]);
-			if (sourceSlot.Modifier != targetSlot.Modifier)
-				return false;
-			if (sourceSlot.Modifier == "thrown")
-			{
-				if (sourceSlot.Type != targetSlot.Type)
-					return false;
-				continue;
-			}
-
-			bool outputPosition = sourceSlot.Modifier == "out";
-			if (!CallableSlotTypesCompatible(sourceSlot.Type, targetSlot.Type, outputPosition))
-				return false;
-		}
-
-		return true;
+		return CallableShapeService.CompatibleWithConstOfVariance(source, target, compareThis, EraseConstOfQualifiers);
 	}
 
 	static bool CallableSlotTypesCompatible(string source, string target, bool outputPosition)
 	{
-		if (source == target)
-			return true;
-
-		string erasedSource = EraseConstOfQualifiers(source);
-		string erasedTarget = EraseConstOfQualifiers(target);
-		if (source != erasedSource && erasedSource == target)
-			return outputPosition;
-		if (target != erasedTarget && source == erasedTarget)
-			return !outputPosition;
-		return false;
+		return CallableShapeService.SlotTypesCompatible(source, target, outputPosition, EraseConstOfQualifiers);
 	}
-
-	readonly record struct CallableSlot(string Modifier, string Type);
 
 	static CallableSlot ParseCallableSlot(string text)
 	{
-		foreach (string modifier in new[] { "out", "in", "thrown", "within" })
-		{
-			string prefix = modifier + " ";
-			if (text.StartsWith(prefix, StringComparison.Ordinal))
-				return new CallableSlot(modifier, text[prefix.Length..]);
-		}
-		return new CallableSlot("", text);
+		return CallableShapeService.ParseCallableSlot(text);
 	}
 
 	bool CallableShapesCompatible(CallableShape source, CallableShape target, bool compareThis)
@@ -293,19 +171,7 @@ public sealed partial class BindableNodeAnalyzer
 		source = ExpandCallableShape(source);
 		target = ExpandCallableShape(target);
 
-		if (source.Parameters.Count != target.Parameters.Count)
-			return false;
-
-		for (int i = 0; i < source.Parameters.Count; i++)
-		{
-			if (source.Parameters[i] != target.Parameters[i])
-				return false;
-		}
-
-		return source.Spec == target.Spec
-			&& source.CallSpec == target.CallSpec
-			&& source.ReturnType == target.ReturnType
-			&& (!compareThis || source.This == target.This);
+		return CallableShapeService.Compatible(source, target, compareThis);
 	}
 
 	CallableShape ExpandCallableShape(CallableShape shape)
@@ -455,16 +321,6 @@ public sealed partial class BindableNodeAnalyzer
 	static string? GetLambdaParameterSymbolName(LambdaParameter parameter)
 	{
 		return parameter.Name ?? parameter.Parameter?.Name;
-	}
-
-	readonly record struct CallableShape(string Kind, string? Spec, string? CallSpec, string ReturnType, List<string> Parameters, ThisContract This = default)
-	{
-	}
-
-	readonly record struct ThisContract(bool HasThis, bool IsConst, bool IsVolatile, string Lifetime)
-	{
-		public bool IsEscaped => Lifetime == "escaped";
-		public bool IsDefault => !HasThis;
 	}
 
 	static ThisContract GetThisContract(ThisParameterDefinition? parameter)
