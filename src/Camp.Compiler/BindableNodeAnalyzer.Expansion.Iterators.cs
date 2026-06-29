@@ -1671,6 +1671,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddIteratorField(TypeDefinition type, FieldDefinition field, string? sourceName = null)
 	{
+		generatedDeclarations.Mark(field, GeneratedDeclarationCategory.Iterator, "iterator state field", type);
 		switch (type)
 		{
 			case ClassDefinition classDefinition:

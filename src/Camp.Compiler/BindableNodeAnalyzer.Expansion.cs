@@ -90,13 +90,11 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		classDefinition.Functions.AddRange(generated);
 
-		VariableDefinition vtable = new()
-		{
-			Name = VirtualTableVariableName(classDefinition),
-			Symbol = VirtualTableVariableName(classDefinition),
-			Type = TypeReferenceFor(vtableType),
-			ResolvedType = vtableType.Name
-		};
+		VariableDefinition vtable = generatedDeclarations.Variable(GeneratedDeclarationCategory.VirtualDispatch, "virtual class vtable", classDefinition);
+		vtable.Name = VirtualTableVariableName(classDefinition);
+		vtable.Symbol = VirtualTableVariableName(classDefinition);
+		vtable.Type = TypeReferenceFor(vtableType);
+		vtable.ResolvedType = vtableType.Name;
 		lowering.VTable = vtable;
 
 		module.Definitions.Add(vtableType);
@@ -382,49 +380,41 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
-			FieldDefinition field = new()
-			{
-				Name = InterfaceFieldName(interfaceDefinition),
-				Symbol = InterfaceFieldName(interfaceDefinition),
-				Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
-				ResolvedType = "const " + interfaceDefinition.Name + "*"
-			};
+			FieldDefinition field = generatedDeclarations.Field(GeneratedDeclarationCategory.Interface, "interface vtable field", classDefinition);
+			field.Name = InterfaceFieldName(interfaceDefinition);
+			field.Symbol = InterfaceFieldName(interfaceDefinition);
+			field.Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name });
+			field.ResolvedType = "const " + interfaceDefinition.Name + "*";
 			classDefinition.Fields.Insert(interfaceIndex, field);
 
-			VariableDefinition vtableStorage = new()
-			{
-				Name = InterfaceVTableName(classDefinition, interfaceDefinition) + "__storage",
-				Symbol = InterfaceVTableName(classDefinition, interfaceDefinition) + "__storage",
-				Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name },
-				ResolvedType = "const " + interfaceDefinition.Name
-			};
+			VariableDefinition vtableStorage = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface vtable storage", classDefinition);
+			vtableStorage.Name = InterfaceVTableName(classDefinition, interfaceDefinition) + "__storage";
+			vtableStorage.Symbol = InterfaceVTableName(classDefinition, interfaceDefinition) + "__storage";
+			vtableStorage.Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name };
+			vtableStorage.ResolvedType = "const " + interfaceDefinition.Name;
 			module.Definitions.Add(vtableStorage);
 			generatedInterfaceDefinitions.Add(vtableStorage);
 
-			VariableDefinition objectVTableStorage = new()
-				{
-					Name = InterfaceVTableName(classDefinition, interfaceDefinition) + "__object_storage",
-					Symbol = InterfaceVTableName(classDefinition, interfaceDefinition) + "__object_storage",
-					Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name },
-					ResolvedType = "const " + interfaceDefinition.Name
-				};
+			VariableDefinition objectVTableStorage = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface object vtable storage", classDefinition);
+			objectVTableStorage.Name = InterfaceVTableName(classDefinition, interfaceDefinition) + "__object_storage";
+			objectVTableStorage.Symbol = InterfaceVTableName(classDefinition, interfaceDefinition) + "__object_storage";
+			objectVTableStorage.Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name };
+			objectVTableStorage.ResolvedType = "const " + interfaceDefinition.Name;
 			module.Definitions.Add(objectVTableStorage);
 			generatedInterfaceDefinitions.Add(objectVTableStorage);
 
-			VariableDefinition vtable = new()
+			VariableDefinition vtable = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface vtable export", classDefinition);
+			vtable.Name = InterfaceVTableName(classDefinition, interfaceDefinition);
+			vtable.Symbol = InterfaceVTableName(classDefinition, interfaceDefinition);
+			vtable.Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null;
+			vtable.Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null;
+			vtable.Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name });
+			vtable.ResolvedType = "const " + interfaceDefinition.Name + "*";
+			vtable.InitialValue = new UnaryExpression
 			{
-				Name = InterfaceVTableName(classDefinition, interfaceDefinition),
-				Symbol = InterfaceVTableName(classDefinition, interfaceDefinition),
-				Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
-				Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null,
-				Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
-				ResolvedType = "const " + interfaceDefinition.Name + "*",
-				InitialValue = new UnaryExpression
-				{
-					Operator = UnaryOperator.AddressOf,
-					Operand = new VariableReferenceExpression { Variable = vtableStorage, ResolvedType = vtableStorage.ResolvedType },
-					ResolvedType = "const " + interfaceDefinition.Name + "*"
-				}
+				Operator = UnaryOperator.AddressOf,
+				Operand = new VariableReferenceExpression { Variable = vtableStorage, ResolvedType = vtableStorage.ResolvedType },
+				ResolvedType = "const " + interfaceDefinition.Name + "*"
 			};
 			module.Definitions.Add(vtable);
 			generatedInterfaceDefinitions.Add(vtable);
@@ -455,16 +445,14 @@ public sealed partial class BindableNodeAnalyzer
 			Type = InterfaceType(interfaceDefinition),
 			ResolvedType = "const " + interfaceDefinition.Name
 		});
-		FunctionDefinition accessor = new()
-		{
-			Name = InterfaceAccessorName(interfaceDefinition),
-			Symbol = classDefinition.Name + "_" + InterfaceAccessorName(interfaceDefinition),
-			Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
-			Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null,
-			Extern = lowering.IsExternClass ? "extern" : null,
-			ReturnType = sourceReturnType,
-			ResolvedType = $"{interfaceDefinition.Name}**"
-		};
+		FunctionDefinition accessor = generatedDeclarations.Function(GeneratedDeclarationCategory.Interface, "interface accessor", classDefinition);
+		accessor.Name = InterfaceAccessorName(interfaceDefinition);
+		accessor.Symbol = classDefinition.Name + "_" + InterfaceAccessorName(interfaceDefinition);
+		accessor.Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null;
+		accessor.Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null;
+		accessor.Extern = lowering.IsExternClass ? "extern" : null;
+		accessor.ReturnType = sourceReturnType;
+		accessor.ResolvedType = $"{interfaceDefinition.Name}**";
 		accessor.EffectiveThisParameter = new ThisParameterDefinition
 		{
 			Name = "this",
@@ -521,28 +509,24 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			EnsureInterfaceIndirectStruct(module, interfaceDefinition);
-			VariableDefinition vtableStorage = new()
-			{
-				Name = InterfaceVTableName(structDefinition, interfaceDefinition) + "__storage",
-				Symbol = InterfaceVTableName(structDefinition, interfaceDefinition) + "__storage",
-				Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name },
-				ResolvedType = "const " + interfaceDefinition.Name
-			};
+			VariableDefinition vtableStorage = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface vtable storage", structDefinition);
+			vtableStorage.Name = InterfaceVTableName(structDefinition, interfaceDefinition) + "__storage";
+			vtableStorage.Symbol = InterfaceVTableName(structDefinition, interfaceDefinition) + "__storage";
+			vtableStorage.Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name };
+			vtableStorage.ResolvedType = "const " + interfaceDefinition.Name;
 			module.Definitions.Add(vtableStorage);
 			generatedInterfaceDefinitions.Add(vtableStorage);
 
-			VariableDefinition vtable = new()
+			VariableDefinition vtable = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface vtable export", structDefinition);
+			vtable.Name = InterfaceVTableName(structDefinition, interfaceDefinition);
+			vtable.Symbol = InterfaceVTableName(structDefinition, interfaceDefinition);
+			vtable.Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name });
+			vtable.ResolvedType = "const " + interfaceDefinition.Name + "*";
+			vtable.InitialValue = new UnaryExpression
 			{
-				Name = InterfaceVTableName(structDefinition, interfaceDefinition),
-				Symbol = InterfaceVTableName(structDefinition, interfaceDefinition),
-				Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
-				ResolvedType = "const " + interfaceDefinition.Name + "*",
-				InitialValue = new UnaryExpression
-				{
-					Operator = UnaryOperator.AddressOf,
-					Operand = new VariableReferenceExpression { Variable = vtableStorage, ResolvedType = vtableStorage.ResolvedType },
-					ResolvedType = "const " + interfaceDefinition.Name + "*"
-				}
+				Operator = UnaryOperator.AddressOf,
+				Operand = new VariableReferenceExpression { Variable = vtableStorage, ResolvedType = vtableStorage.ResolvedType },
+				ResolvedType = "const " + interfaceDefinition.Name + "*"
 			};
 			module.Definitions.Add(vtable);
 			generatedInterfaceDefinitions.Add(vtable);
@@ -564,14 +548,13 @@ public sealed partial class BindableNodeAnalyzer
 				return;
 		}
 
-		classDefinition.Functions.Add(new FunctionDefinition
-		{
-			Name = InitNewMethodName,
-			Symbol = $"{classDefinition.Name}_{InitNewMethodName}",
-			ReturnType = VoidType(),
-			ResolvedType = "void",
-			Body = new BlockStatement { ResolvedType = "void" }
-		});
+		FunctionDefinition initNew = generatedDeclarations.Function(GeneratedDeclarationCategory.Interface, "interface init-new helper", classDefinition);
+		initNew.Name = InitNewMethodName;
+		initNew.Symbol = $"{classDefinition.Name}_{InitNewMethodName}";
+		initNew.ReturnType = VoidType();
+		initNew.ResolvedType = "void";
+		initNew.Body = new BlockStatement { ResolvedType = "void" };
+		classDefinition.Functions.Add(initNew);
 	}
 
 	void GenerateInterfaceThunks(Module module, InterfaceImplementationLowering lowering, InterfaceDefinition interfaceDefinition, Dictionary<string, InterfaceDefinition> interfaces)
@@ -595,13 +578,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition CreateInterfaceThunkDeclaration(InterfaceImplementationLowering lowering, InterfaceDefinition entryInterface, FunctionDefinition member)
 	{
-		FunctionDefinition thunk = new()
-		{
-			Name = InterfaceThunkName(lowering.Type, entryInterface, member),
-			Symbol = InterfaceThunkName(lowering.Type, entryInterface, member),
-			ReturnType = CloneType(member.ReturnType) ?? VoidType(),
-			ResolvedType = GetInterfaceEntryReturnType(member, lowering.Type)
-		};
+		FunctionDefinition thunk = generatedDeclarations.Function(GeneratedDeclarationCategory.Interface, "interface thunk", member);
+		thunk.Name = InterfaceThunkName(lowering.Type, entryInterface, member);
+		thunk.Symbol = InterfaceThunkName(lowering.Type, entryInterface, member);
+		thunk.ReturnType = CloneType(member.ReturnType) ?? VoidType();
+		thunk.ResolvedType = GetInterfaceEntryReturnType(member, lowering.Type);
 		thunk.Parameters.Add(new ParameterDefinition
 		{
 			Name = "ctx",
@@ -1686,37 +1667,34 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition CreateImplicitExportedParameterlessConstructor(ClassDefinition classDefinition)
 	{
-		return new FunctionDefinition
+		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "implicit exported parameterless constructor", classDefinition);
+		method.SourceSyntax = classDefinition.SourceSyntax;
+		method.Name = classDefinition.Name;
+		method.Symbol = classDefinition.Name;
+		method.Export = "export";
+		method.Modifier = FunctionModifier.Constructor;
+		method.ReturnType = TypeReferenceFor(classDefinition);
+		method.ResolvedType = classDefinition.Name;
+		method.Body = new BlockStatement
 		{
 			SourceSyntax = classDefinition.SourceSyntax,
-			Name = classDefinition.Name,
-			Symbol = classDefinition.Name,
-			Export = "export",
-			Modifier = FunctionModifier.Constructor,
-			ReturnType = TypeReferenceFor(classDefinition),
-			ResolvedType = classDefinition.Name,
-			Body = new BlockStatement
-			{
-				SourceSyntax = classDefinition.SourceSyntax,
-				ResolvedType = "void"
-			}
+			ResolvedType = "void"
 		};
+		return method;
 	}
 
 	FunctionDefinition CreateInitNewMethod(TypeDefinition type, FunctionDefinition constructor)
 	{
-		FunctionDefinition method = new()
-		{
-			SourceSyntax = constructor.SourceSyntax,
-			Name = InitNewMethodName,
-			Symbol = $"{type.Name}_{InitNewMethodName}",
-			Export = constructor.Export,
-			Public = constructor.Public,
-			Extern = constructor.Extern,
-			ReturnType = VoidType(),
-			ResolvedType = "void",
-			Body = constructor.Body
-		};
+		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "constructor init-new helper", constructor);
+		method.SourceSyntax = constructor.SourceSyntax;
+		method.Name = InitNewMethodName;
+		method.Symbol = $"{type.Name}_{InitNewMethodName}";
+		method.Export = constructor.Export;
+		method.Public = constructor.Public;
+		method.Extern = constructor.Extern;
+		method.ReturnType = VoidType();
+		method.ResolvedType = "void";
+		method.Body = constructor.Body;
 		CopyLifecycleParameters(constructor.Parameters, method.Parameters);
 		if (HasWithinParameter(method) && method.Body is BlockStatement block)
 			block.Statements.Insert(0, CreateResolvedAllocatorLocal(GetWithinParameter(method)));
@@ -1726,18 +1704,16 @@ public sealed partial class BindableNodeAnalyzer
 	FunctionDefinition CreateCreateMethod(TypeDefinition type, FunctionDefinition constructor, FunctionDefinition initNew)
 	{
 		TypeReference typeReference = TypeReferenceFor(type);
-		FunctionDefinition method = new()
-		{
-			SourceSyntax = constructor.SourceSyntax,
-			Name = CreateMethodName,
-			Symbol = $"{type.Name}_{CreateMethodName}",
-			Export = constructor.Export,
-			Public = constructor.Public,
-			Extern = constructor.Extern,
-			Modifier = FunctionModifier.Static,
-			ReturnType = PointerTo(CloneType(typeReference)!),
-			ResolvedType = $"{type.Name}*"
-		};
+		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "constructor create helper", constructor);
+		method.SourceSyntax = constructor.SourceSyntax;
+		method.Name = CreateMethodName;
+		method.Symbol = $"{type.Name}_{CreateMethodName}";
+		method.Export = constructor.Export;
+		method.Public = constructor.Public;
+		method.Extern = constructor.Extern;
+		method.Modifier = FunctionModifier.Static;
+		method.ReturnType = PointerTo(CloneType(typeReference)!);
+		method.ResolvedType = $"{type.Name}*";
 		CopyLifecycleParameters(constructor.Parameters, method.Parameters);
 		bool createWithAllocator = HasWithinParameter(method) || HasCreateWithAllocatorAttribute(type);
 		if (createWithAllocator && !HasWithinParameter(method))
@@ -1794,51 +1770,45 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition CreateDeleteMethod(TypeDefinition type, FunctionDefinition destructor)
 	{
-		FunctionDefinition method = new()
-		{
-			SourceSyntax = destructor.SourceSyntax,
-			Name = DeleteMethodName,
-			Symbol = $"{type.Name}_op_delete",
-			Export = destructor.Export,
-			Public = destructor.Public,
-			Extern = destructor.Extern,
-			Modifier = GetDeleteMethodModifier(destructor),
-			ReturnType = VoidType(),
-			ResolvedType = "void",
-			Body = destructor.Body
-		};
+		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "destructor delete helper", destructor);
+		method.SourceSyntax = destructor.SourceSyntax;
+		method.Name = DeleteMethodName;
+		method.Symbol = $"{type.Name}_op_delete";
+		method.Export = destructor.Export;
+		method.Public = destructor.Public;
+		method.Extern = destructor.Extern;
+		method.Modifier = GetDeleteMethodModifier(destructor);
+		method.ReturnType = VoidType();
+		method.ResolvedType = "void";
+		method.Body = destructor.Body;
 		CopyLifecycleParameters(destructor.Parameters, method.Parameters);
 		return method;
 	}
 
 	FunctionDefinition CreateExternDestroyMethod(TypeDefinition type, FunctionDefinition destructor)
 	{
-		FunctionDefinition method = new()
-		{
-			SourceSyntax = destructor.SourceSyntax,
-			Name = DestroyMethodName,
-			Symbol = $"{type.Name}_{DestroyMethodName}",
-			Export = destructor.Export,
-			Public = destructor.Public,
-			Extern = destructor.Extern,
-			ReturnType = VoidType(),
-			ResolvedType = "void"
-		};
+		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "extern destructor destroy helper", destructor);
+		method.SourceSyntax = destructor.SourceSyntax;
+		method.Name = DestroyMethodName;
+		method.Symbol = $"{type.Name}_{DestroyMethodName}";
+		method.Export = destructor.Export;
+		method.Public = destructor.Public;
+		method.Extern = destructor.Extern;
+		method.ReturnType = VoidType();
+		method.ResolvedType = "void";
 		CopyLifecycleParameters(destructor.Parameters, method.Parameters);
 		return method;
 	}
 
 	FunctionDefinition CreateImplicitExportedDestroyMethod(ClassDefinition type)
 	{
-		FunctionDefinition method = new()
-		{
-			Name = DestroyMethodName,
-			Symbol = $"{type.Name}_{DestroyMethodName}",
-			Export = type.Export,
-			Public = type.Public,
-			ReturnType = VoidType(),
-			ResolvedType = "void"
-		};
+		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "implicit exported destroy helper", type);
+		method.Name = DestroyMethodName;
+		method.Symbol = $"{type.Name}_{DestroyMethodName}";
+		method.Export = type.Export;
+		method.Public = type.Public;
+		method.ReturnType = VoidType();
+		method.ResolvedType = "void";
 		return method;
 	}
 
@@ -1854,17 +1824,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition CreateDestroyMethod(TypeDefinition type, FunctionDefinition destructor, FunctionDefinition opDelete)
 	{
-		FunctionDefinition method = new()
-		{
-			SourceSyntax = destructor.SourceSyntax,
-			Name = DestroyMethodName,
-			Symbol = $"{type.Name}_{DestroyMethodName}",
-			Export = destructor.Export,
-			Public = destructor.Public,
-			Extern = destructor.Extern,
-			ReturnType = VoidType(),
-			ResolvedType = "void"
-		};
+		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "destructor destroy helper", destructor);
+		method.SourceSyntax = destructor.SourceSyntax;
+		method.Name = DestroyMethodName;
+		method.Symbol = $"{type.Name}_{DestroyMethodName}";
+		method.Export = destructor.Export;
+		method.Public = destructor.Public;
+		method.Extern = destructor.Extern;
+		method.ReturnType = VoidType();
+		method.ResolvedType = "void";
 		bool destroyWithAllocator = HasWithinParameter(destructor) || HasCreateWithAllocatorAttribute(type);
 		if (destroyWithAllocator)
 			method.Parameters.Add(CreateAllocatorParameter());

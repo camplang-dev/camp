@@ -36,7 +36,21 @@ public abstract class Definition : BindableNode
 	public string? Public { get; set; }
 	public string? Extern { get; set; }
 	public bool IsApiHeader { get; set; }
+	internal GeneratedDeclarationInfo? GeneratedInfo { get; set; }
 }
+
+internal enum GeneratedDeclarationCategory
+{
+	None,
+	Lifecycle,
+	Interface,
+	Iterator,
+	Lambda,
+	VirtualDispatch,
+	GenericCapability
+}
+
+internal sealed record GeneratedDeclarationInfo(GeneratedDeclarationCategory Category, string Reason, Definition? Source);
 
 public abstract class TypeDefinition : Definition
 {

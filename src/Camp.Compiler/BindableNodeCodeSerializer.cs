@@ -511,7 +511,9 @@ public sealed class BindableNodeCodeSerializer
 
 	static bool IsGeneratedApiImplementationDetail(FunctionDefinition function)
 	{
-		return IsGeneratedConstructorLifecycleFunction(function) || IsGeneratedVirtualImplementationFunction(function);
+		return function.GeneratedInfo?.Category == GeneratedDeclarationCategory.VirtualDispatch
+			|| IsGeneratedConstructorLifecycleFunction(function)
+			|| IsGeneratedVirtualImplementationFunction(function);
 	}
 
 	static bool IsGeneratedConstructorLifecycleFunction(FunctionDefinition function)

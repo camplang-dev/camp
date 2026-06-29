@@ -217,7 +217,7 @@ Completion checklist:
 - [x] ~~Full suite passes.~~
 - [x] ~~Stage committed and this section struck through.~~
 
-## 6. Create A Generated Declaration Factory
+## ~~6. Create A Generated Declaration Factory~~
 
 Summary: Route generated constructors, destructors, create/destroy helpers,
 interface accessors, vtables, iterator state/methods, lambda helpers, `sizeof`,
@@ -248,11 +248,11 @@ Success outcomes:
 
 Completion checklist:
 
-- [ ] Generated declaration factory introduced.
-- [ ] Lifecycle and at least two other generated declaration families migrated.
-- [ ] Generated declaration provenance/category available to serializers.
-- [ ] Full suite passes.
-- [ ] Stage committed and this section struck through.
+- [x] ~~Generated declaration factory introduced.~~
+- [x] ~~Lifecycle and at least two other generated declaration families migrated.~~
+- [x] ~~Generated declaration provenance/category available to serializers.~~
+- [x] ~~Full suite passes.~~
+- [x] ~~Stage committed and this section struck through.~~
 
 ## 7. Preserve Source Provenance On Generated And Lowered Nodes
 

@@ -58,7 +58,7 @@ public sealed class SemanticTests
 	public void Lowered_semantics_expose_symbols_and_generated_interface_accessors()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
-			interface IFace
+			export interface IFace
 			{
 				int getValue();
 			}
@@ -111,5 +111,36 @@ public sealed class SemanticTests
 
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 		Assert.Contains(SemanticCompiler.Descendants<FunctionDefinition>(compilation.Module), static function => function.Symbol.Contains("lambda", System.StringComparison.OrdinalIgnoreCase));
+	}
+
+	[Fact]
+	public void Generated_declarations_record_category_and_reason()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			export interface IFace
+			{
+				int getValue();
+			}
+
+			extern void* malloc(nuint size);
+
+			export class Box: IFace
+			{
+				int value;
+				int getValue() => this.value;
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		TypeDefinition box = SemanticCompiler.Type(compilation, "Box");
+		FunctionDefinition create = SemanticCompiler.Method(box, "create");
+		Assert.Equal(GeneratedDeclarationCategory.Lifecycle, create.GeneratedInfo?.Category);
+		Assert.Equal("constructor create helper", create.GeneratedInfo?.Reason);
+
+		FunctionDefinition accessor = SemanticCompiler.Descendants<FunctionDefinition>(compilation.Module).Single(function => function.Symbol == "Box_getIFace");
+		Assert.Equal(GeneratedDeclarationCategory.Interface, accessor.GeneratedInfo?.Category);
+
+		FieldDefinition interfaceField = SemanticCompiler.Descendants<FieldDefinition>(box).Single(field => field.Symbol == "_vt_IFace");
+		Assert.Equal(GeneratedDeclarationCategory.Interface, interfaceField.GeneratedInfo?.Category);
 	}
 }

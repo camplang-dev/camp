@@ -70,6 +70,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly List<AnalysisDiagnostic> diagnostics = [];
 	readonly Dictionary<string, TypeDefinition> typeDefinitions = new(StringComparer.Ordinal);
+	readonly GeneratedDeclarationFactory generatedDeclarations = new();
 	readonly Dictionary<string, AliasDefinition> aliasDefinitions = new(StringComparer.Ordinal);
 	readonly Dictionary<TypeDefinition, TypeAnalysisInfo> typeInfos = [];
 	readonly Dictionary<Expression, Expression> expressionRewrites = [];
