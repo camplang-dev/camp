@@ -447,7 +447,7 @@ internal sealed class TargetSections
 		if (string.IsNullOrWhiteSpace(include))
 			return;
 
-		foreach (string item in include.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+		foreach (string item in include.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
 		{
 			if (!Includes.Contains(item, StringComparer.Ordinal))
 				Includes.Add(item);
