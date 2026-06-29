@@ -1207,14 +1207,6 @@ public sealed partial class BindableNodeAnalyzer
 		return item.Expression?.SourceSyntax ?? item.Target?.SourceSyntax ?? item.SourceSyntax;
 	}
 
-	ParamsComponent? FindParamsComponent(ParamsComponentShape shape, string name)
-	{
-		foreach (ParamsComponent component in shape.Components)
-			if (component.Name == name)
-				return component;
-		return null;
-	}
-
 	void BodyAnalyzeInitializerTarget(InitializerTarget target, BodyScope scope, AnalysisScope typeScope)
 	{
 		target.ResolvedType = TargetType;

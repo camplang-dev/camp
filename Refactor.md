@@ -57,7 +57,7 @@ Completion checklist:
 - [x] ~~Full suite passes.~~
 - [x] ~~Stage committed and this section struck through.~~
 
-## 2. Centralize Expanded-Form Handling
+## ~~2. Centralize Expanded-Form Handling~~
 
 Summary: Consolidate arrays, delegates, optionals, iterators, materialized params,
 hidden components, and hidden arguments behind one expanded-form service. The
@@ -94,11 +94,11 @@ Success outcomes:
 
 Completion checklist:
 
-- [ ] Expanded-form service introduced.
-- [ ] Main lowering call sites migrated.
-- [ ] Targeted expanded-form, delegate, array, iterator, and lambda tests pass.
-- [ ] Full suite passes.
-- [ ] Stage committed and this section struck through.
+- [x] ~~Expanded-form service introduced.~~
+- [x] ~~Main lowering call sites migrated.~~
+- [x] ~~Targeted expanded-form, delegate, array, iterator, and lambda tests pass.~~
+- [x] ~~Full suite passes.~~
+- [x] ~~Stage committed and this section struck through.~~
 
 ## 3. Add Semantic Test Helpers
 

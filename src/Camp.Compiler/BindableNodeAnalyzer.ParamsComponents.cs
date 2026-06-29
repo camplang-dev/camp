@@ -1,40 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
-	enum ParamsComponentShapeKind
-	{
-		Nominal,
-		Structural,
-		Array,
-		Optional,
-		Delegate,
-		Iter
-	}
-
-	sealed record ParamsComponentShape(ParamsComponentShapeKind Kind, string TypeName, List<ParamsComponent> Components);
-
-	sealed record ParamsComponent(
-		string Name,
-		string Type,
-		string ExpandedName,
-		ParameterDefinition? SourceParameter,
-		ParamsComponentShapeKind SourceKind);
-
-	readonly record struct ParamsNamePart(string Name, bool PreferNoSuffix);
-
-	sealed record PendingParamsComponent(
-		string Name,
-		string Type,
-		List<ParamsNamePart> NameParts,
-		ParameterDefinition? SourceParameter,
-		ParamsComponentShapeKind SourceKind);
-
-	sealed record ParamsExpansionComponent(string SourceName, string Name, string Type, BindableNode Node);
-
 	readonly Dictionary<BindableNode, List<ParamsExpansionComponent>> paramsExpansions = [];
 	readonly Dictionary<FunctionDefinition, ParamsComponentShape> expandedReturnShapes = [];
 	readonly HashSet<CallExpression> preparedExpandedReturnCalls = [];
@@ -47,9 +18,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryGetParamsComponentShape(type, resolvedType, sourceName, out ParamsComponentShape shape))
 			return names;
 
-		foreach (ParamsComponent component in shape.Components)
-			names.Add(component.ExpandedName);
-		return names;
+		return ExpandedFormService.GetExpandedComponentNames(shape);
 	}
 
 	bool TryGetParamsComponentShape(TypeReference? type, string baseName, out ParamsComponentShape shape)
@@ -66,6 +35,11 @@ public sealed partial class BindableNodeAnalyzer
 		shape = new ParamsComponentShape(kind, typeName, FinalizeParamsComponents(pending));
 		shape = ApplyParamsValueQualifiers(shape, type, resolvedType);
 		return shape.Components.Count > 0;
+	}
+
+	static ParamsComponent? FindParamsComponent(ParamsComponentShape shape, string name)
+	{
+		return ExpandedFormService.FindComponent(shape, name);
 	}
 
 	bool TryBuildPendingParamsComponents(
@@ -382,74 +356,17 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<string> GetExpandedCallableParameterTypes(List<ParameterDefinition> parameters)
 	{
-		List<string> types = [];
-		foreach (ParameterDefinition parameter in GetCallableParameters(parameters))
-		{
-			if (TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape))
-			{
-				foreach (ParamsComponent component in shape.Components)
-					types.Add(component.Type);
-			}
-			else
-			{
-				string parameterType = parameter.ResolvedType ?? ErrorType;
-				types.Add(parameter.Modifier switch
-				{
-					ParameterModifier.In => "in " + parameterType,
-					ParameterModifier.Out => "out " + parameterType,
-					ParameterModifier.Thrown => "thrown " + parameterType,
-					ParameterModifier.Within => "within " + parameterType,
-					_ => parameterType
-				});
-			}
-		}
-		return types;
+		return ExpandedFormService.GetExpandedCallableParameterTypes(GetCallableParameters(parameters), TryGetParamsComponentShape);
 	}
 
 	List<string> GetExpandedDeclaredCallableParameterTypes(List<ParameterDefinition> parameters)
 	{
-		List<string> types = [];
-		foreach (ParameterDefinition parameter in parameters)
-		{
-			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
-				continue;
-			if (TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape))
-			{
-				foreach (ParamsComponent component in shape.Components)
-					types.Add(component.Type);
-			}
-			else
-			{
-				string parameterType = parameter.ResolvedType ?? ErrorType;
-				types.Add(parameter.Modifier switch
-				{
-					ParameterModifier.In => "in " + parameterType,
-					ParameterModifier.Out => "out " + parameterType,
-					ParameterModifier.Thrown => "thrown " + parameterType,
-					ParameterModifier.Within => "within " + parameterType,
-					_ => parameterType
-				});
-			}
-		}
-		return types;
+		return ExpandedFormService.GetExpandedCallableParameterTypes(parameters.Where(static parameter => parameter is not ThisParameterDefinition and not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition), TryGetParamsComponentShape);
 	}
 
 	List<string> GetExpandedCallableParameterTypes(List<string> parameterTypes)
 	{
-		List<string> types = [];
-		foreach (string parameterType in parameterTypes)
-		{
-			if (TryGetParamsComponentShape(null, parameterType, "arg", out ParamsComponentShape shape))
-			{
-				foreach (ParamsComponent component in shape.Components)
-					types.Add(component.Type);
-			}
-			else
-			{
-				types.Add(parameterType);
-			}
-		}
-		return types;
+		return ExpandedFormService.GetExpandedCallableParameterTypes(parameterTypes, TryGetParamsComponentShape);
 	}
 
 	List<ParamsComponent> FinalizeParamsComponents(List<PendingParamsComponent> pending)
