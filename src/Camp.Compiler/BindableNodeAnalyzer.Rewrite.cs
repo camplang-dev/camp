@@ -58,13 +58,7 @@ public sealed partial class BindableNodeAnalyzer
 	internal static DeclarationExpansionResult ExpandDeclarations(Module module, TargetDefinition? selectedTarget, string? selectedMemoryModel)
 	{
 		BindableNodeAnalyzer analyzer = new(selectedTarget, selectedMemoryModel);
-		analyzer.currentModule = module;
-		analyzer.CollectTypeNames(module);
-		analyzer.PrecomputeOverloadCallableNames(module);
-		analyzer.GenerateIteratorDeclarations(module);
-		analyzer.GenerateLifecycleMethods(module);
-		analyzer.GenerateVirtualDeclarations(module);
-		analyzer.GenerateInterfaceDeclarations(module);
+		analyzer.RunAnalyzerPass(AnalyzerPass.DeclarationExpansion, module);
 		return new DeclarationExpansionResult(module, analyzer.diagnostics, analyzer);
 	}
 
@@ -87,8 +81,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		ArgumentNullException.ThrowIfNull(expansion);
 		BindableNodeAnalyzer analyzer = expansion.Analyzer;
-		analyzer.AnalyzeDeclarations(expansion.Module);
-		analyzer.ApplyNodeRewrites(expansion.Module);
+		analyzer.RunAnalyzerPass(AnalyzerPass.DeclarationAnalysis, expansion.Module);
+		analyzer.RunAnalyzerPass(AnalyzerPass.NodeRewriteApplication, expansion.Module);
 		analyzer.FillMissingResolvedTypes(expansion.Module);
 		return new AnalysisResult(expansion.Module, analyzer.diagnostics);
 	}
@@ -103,17 +97,17 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		ArgumentNullException.ThrowIfNull(expansion);
 		BindableNodeAnalyzer analyzer = expansion.Analyzer;
-		analyzer.AnalyzeDeclarations(expansion.Module);
+		analyzer.RunAnalyzerPass(AnalyzerPass.DeclarationAnalysis, expansion.Module);
 		if (analyzer.diagnostics.Count == 0)
-			analyzer.AnalyzeMethodBodies(expansion.Module);
-		analyzer.ApplyNodeRewrites(expansion.Module);
+			analyzer.RunAnalyzerPass(AnalyzerPass.MethodBodyAnalysis, expansion.Module);
+		analyzer.RunAnalyzerPass(AnalyzerPass.NodeRewriteApplication, expansion.Module);
 		analyzer.FillMissingResolvedTypes(expansion.Module);
 		AnalysisResult analysis = new(expansion.Module, analyzer.diagnostics);
 		if (analysis.Diagnostics.Count > 0)
 			return new LoweringResult(analysis.Module, analysis.Diagnostics);
 
 		analyzer.allocatorSurfaceValidationEnabled = true;
-		analyzer.RewriteModule(expansion.Module);
+		analyzer.RunAnalyzerPass(AnalyzerPass.LoweringRewrite, expansion.Module);
 		analyzer.FillMissingResolvedTypes(expansion.Module);
 		return new LoweringResult(expansion.Module, analyzer.diagnostics);
 	}

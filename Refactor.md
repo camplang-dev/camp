@@ -328,7 +328,7 @@ Completion checklist:
 - [x] ~~Full suite passes.~~
 - [x] ~~Stage committed and this section struck through.~~
 
-## 9. Clarify Semantic Analysis Pass Boundaries
+## ~~9. Clarify Semantic Analysis Pass Boundaries~~
 
 Summary: Make the analyzer pipeline easier to reason about by naming and
 separating pass responsibilities without a wholesale rewrite. Current partial
@@ -361,11 +361,11 @@ Success outcomes:
 
 Completion checklist:
 
-- [ ] Analyzer pass order documented.
-- [ ] Pass orchestration extracted or named clearly.
-- [ ] No behavioral changes except intentional bug fixes.
-- [ ] Full suite passes.
-- [ ] Stage committed and this section struck through.
+- [x] ~~Analyzer pass order documented.~~
+- [x] ~~Pass orchestration extracted or named clearly.~~
+- [x] ~~No behavioral changes except intentional bug fixes.~~
+- [x] ~~Full suite passes.~~
+- [x] ~~Stage committed and this section struck through.~~
 
 ## 10. Begin A Backend ABI Surface Model
 

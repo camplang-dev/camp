@@ -100,6 +100,29 @@ public sealed class SemanticTests
 	}
 
 	[Fact]
+	public void Declaration_expansion_exposes_generated_declarations_without_lowering_helpers()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileDeclarations("""
+			extern void* malloc(nuint size);
+
+			export class Box
+			{
+				int value;
+			}
+
+			void run()
+			{
+				delegate int(int value) doubleValue = value => value * 2;
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		TypeDefinition box = SemanticCompiler.Type(compilation, "Box");
+		Assert.Contains(SemanticCompiler.Descendants<FunctionDefinition>(box), static function => function.Name == "create");
+		Assert.DoesNotContain(SemanticCompiler.Descendants<FunctionDefinition>(compilation.Module), static function => function.Symbol.Contains("lambda", System.StringComparison.OrdinalIgnoreCase));
+	}
+
+	[Fact]
 	public void Lowered_semantics_expose_lambda_helpers_without_golden_files()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""

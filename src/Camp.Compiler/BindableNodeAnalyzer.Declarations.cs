@@ -7,10 +7,10 @@ public sealed partial class BindableNodeAnalyzer
 {
 	void AnalyzeModule(Module module)
 	{
-		AnalyzeDeclarations(module);
+		RunAnalyzerPass(AnalyzerPass.DeclarationAnalysis, module);
 		if (diagnostics.Count == 0)
-			AnalyzeMethodBodies(module);
-		ApplyNodeRewrites(module);
+			RunAnalyzerPass(AnalyzerPass.MethodBodyAnalysis, module);
+		RunAnalyzerPass(AnalyzerPass.NodeRewriteApplication, module);
 	}
 
 	void AnalyzeDeclarations(Module module)
