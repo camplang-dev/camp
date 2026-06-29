@@ -15,6 +15,8 @@ public static class CompilerDefaults
 					return "msvc-windows-" + visualStudioTargetArchitecture;
 				return Environment.Is64BitOperatingSystem ? "msvc-windows-x64" : "msvc-windows-x86";
 			}
+			if (OperatingSystem.IsLinux())
+				return "gcc-linux-x64";
 			return "clang-macos-x64";
 		}
 	}

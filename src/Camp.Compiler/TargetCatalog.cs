@@ -474,10 +474,11 @@ internal sealed class TargetSections
 
 		foreach (KeyData key in data.Sections.GetSectionData(sectionName).Keys)
 		{
+			string keyName = key.KeyName == "default" ? "" : key.KeyName;
 			string value = key.Value.Trim();
 			if (!int.TryParse(value, out int width) || width is not (16 or 32 or 64))
 				throw new InvalidDataException($"[{sectionName}] '{key.KeyName}' must be one of 16, 32, or 64.");
-			target[key.KeyName] = width;
+			target[keyName] = width;
 		}
 	}
 

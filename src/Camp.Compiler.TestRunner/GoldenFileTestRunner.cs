@@ -19,8 +19,8 @@ public static class GoldenFileTestRunner
 		ArgumentNullException.ThrowIfNull(testCase);
 		if (testCase.Kind == GoldenFileTestKind.StdRun && OperatingSystem.IsWindows() && !MsvcAvailable())
 			Assert.Skip("StdRun executable golden tests require MSVC tools on Windows.");
-		if (testCase.Kind == GoldenFileTestKind.CCompile && OperatingSystem.IsWindows() && ExpectedCompileFailure(testCase))
-			Assert.Skip("CCompile compile-failure diagnostics are host-clang dependent on Windows.");
+		if (testCase.Kind == GoldenFileTestKind.CCompile && !OperatingSystem.IsMacOS() && ExpectedCompileFailure(testCase))
+			Assert.Skip("CCompile compile-failure diagnostics are host-clang dependent.");
 
 		CompilerRequest request = CreateRequest(testCase);
 		CompilerResult result = ExecuteCompiler(testCase, request);
@@ -113,7 +113,7 @@ public static class GoldenFileTestRunner
 
 	static string SelectTargetName(GoldenFileTestKind kind)
 	{
-		if (kind == GoldenFileTestKind.StdRun && OperatingSystem.IsWindows())
+		if (kind == GoldenFileTestKind.StdRun && (OperatingSystem.IsWindows() || OperatingSystem.IsLinux()))
 			return CompilerDefaults.TargetName;
 		return "clang-macos-x64";
 	}
@@ -225,19 +225,7 @@ public static class GoldenFileTestRunner
 		foreach (string sourceFile in sourceFiles)
 		{
 			string objectFile = Path.Combine(objectDirectory, Path.GetFileNameWithoutExtension(sourceFile) + ".o");
-			ProcessResult compile = RunProcess(
-				"clang",
-				[
-					"-std=c99",
-					"-Werror=incompatible-pointer-types",
-					"-Werror=typedef-redefinition",
-					"-Werror=c23-extensions",
-					"-c",
-					sourceFile,
-					"-o",
-					objectFile
-				],
-				testCase.RepositoryRoot);
+			ProcessResult compile = RunProcess(HostCCompiler(), HostCCompilerArguments(sourceFile, objectFile), testCase.RepositoryRoot);
 			if (compile.ExitCode == 0)
 			{
 				builder.AppendLine("compiled: " + Path.GetFileName(sourceFile));
@@ -290,6 +278,32 @@ public static class GoldenFileTestRunner
 		}
 	}
 
+	static string HostCCompiler()
+	{
+		if (ToolAvailable("clang"))
+			return "clang";
+		return "gcc";
+	}
+
+	static string[] HostCCompilerArguments(string sourceFile, string objectFile)
+	{
+		List<string> arguments =
+			[
+				"-std=c99",
+				"-Werror=incompatible-pointer-types",
+				"-c",
+				sourceFile,
+				"-o",
+			objectFile
+		];
+		if (HostCCompiler() == "clang")
+		{
+			arguments.Insert(2, "-Werror=typedef-redefinition");
+			arguments.Insert(3, "-Werror=c23-extensions");
+		}
+		return [.. arguments];
+	}
+
 	static string ReadGeneratedFiles(GoldenFileTestCase testCase)
 	{
 		string buildDirectory = GetBuildDirectory(testCase);
@@ -331,6 +345,7 @@ public static class GoldenFileTestRunner
 	static string Normalize(string text)
 	{
 		text = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
+		text = text.Replace("Tests/", "tests/", StringComparison.Ordinal);
 		if (text.Length > 0 && !text.EndsWith('\n'))
 			text += "\n";
 		return text;

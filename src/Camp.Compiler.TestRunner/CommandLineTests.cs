@@ -28,7 +28,7 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Old_inspect_option_reports_migration_error()
 	{
-		ProcessResult result = RunCampc("--inspect", "lowering", "tests/Lowering/default_arguments.camp");
+		ProcessResult result = RunCampc("--inspect", "lowering", "Tests/Lowering/default_arguments.camp");
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("replaced by subcommands", result.StdErr, StringComparison.Ordinal);
@@ -53,7 +53,7 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Dump_lowering_prints_to_stdout()
 	{
-		ProcessResult result = RunCampc("dump", "lowering", "tests/Lowering/default_arguments.camp", "--nostdlib");
+		ProcessResult result = RunCampc("dump", "lowering", "Tests/Lowering/default_arguments.camp", "--nostdlib");
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("addDefault", result.StdOut, StringComparison.Ordinal);
@@ -979,7 +979,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--target", "clang-macos-x64", "--build-dir", TempPath("discovered-include-pragma-build"), "--out-dir", TempPath("discovered-include-pragma-out"));
+		ProcessResult result = RunCampc("build", source, "--target", NativeTargetForHost(), "--build-dir", TempPath("discovered-include-pragma-build"), "--out-dir", TempPath("discovered-include-pragma-out"));
 		string output = result.StdOut + result.StdErr;
 
 		Assert.NotEqual(0, result.ExitCode);
@@ -1040,7 +1040,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", temp, "-r", "missing-one.a", "missing-two.a", "--target", "clang-macos-x64", "--build-dir", TempPath("reference-build"), "--out-dir", TempPath("reference-out"));
+		ProcessResult result = RunCampc("build", temp, "-r", "missing-one.a", "missing-two.a", "--target", NativeTargetForHost(), "--build-dir", TempPath("reference-build"), "--out-dir", TempPath("reference-out"));
 		string output = result.StdOut + result.StdErr;
 
 		Assert.NotEqual(0, result.ExitCode);
@@ -1051,6 +1051,8 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Framework_alias_accepts_multiple_values()
 	{
+		if (!OperatingSystem.IsMacOS())
+			Assert.Skip("Framework linker flag shape is only valid on macOS targets.");
 		string temp = CreateTempCase("framework_alias.camp", """
 			#build --nostdlib
 			#build --artifact exec
@@ -1072,6 +1074,8 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Build_pragmas_allow_multiple_frameworks_after_switch()
 	{
+		if (!OperatingSystem.IsMacOS())
+			Assert.Skip("Framework linker flag shape is only valid on macOS targets.");
 		string temp = CreateTempCase("framework_pragma_multi.camp", """
 			#build --nostdlib
 			#build --artifact exec
@@ -1164,7 +1168,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", temp, "--target", "clang-macos-x64", "--build-dir", TempPath("reference-pragma-build"), "--out-dir", TempPath("reference-pragma-out"));
+		ProcessResult result = RunCampc("build", temp, "--target", NativeTargetForHost(), "--build-dir", TempPath("reference-pragma-build"), "--out-dir", TempPath("reference-pragma-out"));
 		string output = result.StdOut + result.StdErr;
 
 		Assert.NotEqual(0, result.ExitCode);
@@ -1188,6 +1192,62 @@ public sealed class CommandLineTests
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("does not define a [build] winexe template", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Gcc_linux_x64_target_builds_executable_on_linux()
+	{
+		if (!OperatingSystem.IsLinux())
+			Assert.Skip("Linux GCC target smoke tests only run on Linux.");
+		if (!GccCanLink("-m64"))
+			Assert.Skip("gcc -m64 cannot link a native executable on this host.");
+
+		string temp = CreateTempCase("gcc_linux_x64.camp", """
+			#build --nostdlib
+			#build --artifact exec
+			#build --name gcc-linux-x64-smoke
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string outDir = TempPath("gcc-linux-x64-out");
+
+		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x64", "--build-dir", TempPath("gcc-linux-x64-build"), "--out-dir", outDir);
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("generated: gcc-linux-x64-smoke", result.StdOut, StringComparison.Ordinal);
+		ProcessResult run = RunExecutable(Path.Combine(outDir, "gcc-linux-x64-smoke"));
+		Assert.Equal(0, run.ExitCode);
+	}
+
+	[Fact]
+	public void Gcc_linux_x86_target_builds_executable_on_linux_when_multilib_is_available()
+	{
+		if (!OperatingSystem.IsLinux())
+			Assert.Skip("Linux GCC target smoke tests only run on Linux.");
+		if (!GccCanLink("-m32"))
+			Assert.Skip("gcc -m32 cannot link a native executable on this host.");
+
+		string temp = CreateTempCase("gcc_linux_x86.camp", """
+			#build --nostdlib
+			#build --artifact exec
+			#build --name gcc-linux-x86-smoke
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string outDir = TempPath("gcc-linux-x86-out");
+
+		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x86", "--build-dir", TempPath("gcc-linux-x86-build"), "--out-dir", outDir);
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("generated: gcc-linux-x86-smoke", result.StdOut, StringComparison.Ordinal);
+		ProcessResult run = RunExecutable(Path.Combine(outDir, "gcc-linux-x86-smoke"));
+		Assert.Equal(0, run.ExitCode);
 	}
 
 	[Fact]
@@ -1264,6 +1324,26 @@ public sealed class CommandLineTests
 		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
 	}
 
+	static ProcessResult RunProcess(string executable, IReadOnlyList<string> arguments, string workingDirectory)
+	{
+		ProcessStartInfo info = new(executable)
+		{
+			WorkingDirectory = workingDirectory,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+		foreach (string argument in arguments)
+			info.ArgumentList.Add(argument);
+
+		using Process process = new() { StartInfo = info };
+		process.Start();
+		string stdout = process.StandardOutput.ReadToEnd();
+		string stderr = process.StandardError.ReadToEnd();
+		process.WaitForExit();
+		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
+	}
+
 	static void AssertCommandSucceeded(ProcessResult result)
 	{
 		Assert.True(result.ExitCode == 0, $"Expected exit code 0 but got {result.ExitCode}.\nSTDOUT:\n{result.StdOut}\nSTDERR:\n{result.StdErr}");
@@ -1271,6 +1351,8 @@ public sealed class CommandLineTests
 
 	static string NativeTargetForHost()
 	{
+		if (OperatingSystem.IsLinux())
+			return "gcc-linux-x64";
 		if (!OperatingSystem.IsWindows())
 			return "clang-macos-x64";
 		if (!MsvcAvailable())
@@ -1286,6 +1368,20 @@ public sealed class CommandLineTests
 	static bool MsvcAvailable()
 	{
 		return OperatingSystem.IsWindows() && MsvcEnvironment.TargetArchitecture is "x64" or "x86" && ToolAvailable("cl") && ToolAvailable("lib");
+	}
+
+	static bool GccCanLink(string architectureFlag)
+	{
+		if (!ToolAvailable("gcc"))
+			return false;
+
+		string root = TempPath("gcc-link-smoke-" + architectureFlag.TrimStart('-'));
+		Directory.CreateDirectory(root);
+		string source = Path.Combine(root, "main.c");
+		string output = Path.Combine(root, "main");
+		File.WriteAllText(source, "int main(void) { return 0; }\n");
+		ProcessResult result = RunProcess("gcc", [architectureFlag, source, "-o", output], root);
+		return result.ExitCode == 0 && File.Exists(output);
 	}
 
 	static bool ToolAvailable(string tool)
