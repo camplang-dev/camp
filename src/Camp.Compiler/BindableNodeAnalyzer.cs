@@ -8,7 +8,7 @@ using System.Text;
 
 namespace Camp.Compiler;
 
-public sealed record AnalysisDiagnostic(TokenRange? Range, string Message);
+public sealed record AnalysisDiagnostic(TokenRange? Range, string Message, string? Code = null, DiagnosticSeverity Severity = DiagnosticSeverity.Error);
 
 public sealed class AnalysisResult(Module Module, IReadOnlyList<AnalysisDiagnostic> Diagnostics)
 {
@@ -520,17 +520,17 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (ReservedWords.Contains(name))
 		{
-			Report(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is reserved.");
+			Report(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is reserved.", DiagnosticCodes.ReservedIdentifier);
 			return;
 		}
 
 		if (CReservedWords.Contains(name))
-			Report(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is a reserved C word.");
+			Report(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is a reserved C word.", DiagnosticCodes.ReservedIdentifier);
 	}
 
-	void Report(TokenRange? range, string message)
+	void Report(TokenRange? range, string message, string? code = null)
 	{
-		diagnostics.Add(new AnalysisDiagnostic(range, message));
+		diagnostics.Add(new AnalysisDiagnostic(range, message, code));
 	}
 
 	static string GetImplicitParameterType(ParameterDefinition definition)

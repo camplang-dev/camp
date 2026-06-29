@@ -783,9 +783,9 @@ public sealed partial class BindableNodeAnalyzer
 		return BaseTypeName(constructed);
 	}
 
-	void Report(SyntaxNode? syntax, string message)
+	void Report(SyntaxNode? syntax, string message, string? code = null)
 	{
-		diagnostics.Add(new AnalysisDiagnostic(GetRange(syntax), message));
+		diagnostics.Add(new AnalysisDiagnostic(GetRange(syntax), message, code));
 	}
 
 	sealed record InterfaceImplementationLowering(TypeDefinition Type, InterfaceDefinition Interface, FieldDefinition? Field, VariableDefinition VTable, VariableDefinition VTableStorage, VariableDefinition? ObjectVTableStorage, bool DirectEntries, bool IsStruct, bool IsExternClass = false);

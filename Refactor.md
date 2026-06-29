@@ -140,7 +140,7 @@ Completion checklist:
 - [x] ~~Full suite passes.~~
 - [x] ~~Stage committed and this section struck through.~~
 
-## 4. Introduce Stable Diagnostic Codes
+## ~~4. Introduce Stable Diagnostic Codes~~
 
 Summary: Add structured diagnostic codes while preserving current diagnostic
 messages. This prepares for LSP and makes tests less brittle without forcing a
@@ -172,12 +172,12 @@ Success outcomes:
 
 Completion checklist:
 
-- [ ] Shared diagnostic data shape introduced.
-- [ ] Representative diagnostics use stable codes.
-- [ ] Existing diagnostic output compatibility preserved or intentionally
-      updated.
-- [ ] Full suite passes.
-- [ ] Stage committed and this section struck through.
+- [x] ~~Shared diagnostic data shape introduced.~~
+- [x] ~~Representative diagnostics use stable codes.~~
+- [x] ~~Existing diagnostic output compatibility preserved or intentionally
+      updated.~~
+- [x] ~~Full suite passes.~~
+- [x] ~~Stage committed and this section struck through.~~
 
 ## 5. Separate Source Symbols From ABI Symbols
 

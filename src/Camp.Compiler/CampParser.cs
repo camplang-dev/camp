@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Camp.Compiler;
 
-public sealed record ParseDiagnostic(TokenRange? Range, string Message);
+public sealed record ParseDiagnostic(TokenRange? Range, string Message, string? Code = null, DiagnosticSeverity Severity = DiagnosticSeverity.Error);
 
 public sealed class CampParser
 {
@@ -1700,7 +1700,7 @@ public sealed class CampParser
 			syntax.Expression = ParseExpressionItem();
 
 			if (syntax.Expression is AssignmentExpressionSyntax { Operator: not null })
-				diagnostics.Add(new ParseDiagnostic(new TokenRange(tokens, start, 1), "Initializer assignments must start with '.'."));
+				diagnostics.Add(new ParseDiagnostic(new TokenRange(tokens, start, 1), "Initializer assignments must start with '.'.", DiagnosticCodes.InitializerAssignmentRequiresDot));
 		}
 
 		return syntax.Expression is null && syntax.Target is null ? null : syntax;

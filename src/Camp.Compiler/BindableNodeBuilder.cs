@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Camp.Compiler;
 
-public sealed record BindDiagnostic(TokenRange? Range, string Message);
+public sealed record BindDiagnostic(TokenRange? Range, string Message, string? Code = null, DiagnosticSeverity Severity = DiagnosticSeverity.Error);
 
 public sealed class BindResult(Module Module, IReadOnlyList<BindDiagnostic> Diagnostics)
 {
@@ -1878,9 +1878,9 @@ public sealed partial class BindableNodeBuilder
 		Report(GetRange(syntax), message);
 	}
 
-	void Report(TokenRange? range, string message)
+	void Report(TokenRange? range, string message, string? code = null)
 	{
-		diagnostics.Add(new BindDiagnostic(range, message));
+		diagnostics.Add(new BindDiagnostic(range, message, code));
 	}
 
 	static TokenRange? GetRange(SyntaxNode syntax)

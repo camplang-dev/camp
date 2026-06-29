@@ -388,7 +388,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& declaration.Target.Type is AutoTypeReference or null
 			&& initialType == "void")
 		{
-			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Auto declaration cannot infer a type from a void expression.");
+			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Auto declaration cannot infer a type from a void expression.", DiagnosticCodes.AutoCannotInferVoid);
 		}
 		if (declaration.InitialValue is InitializerExpression
 			&& declaration.Target.Type is AutoTypeReference or null

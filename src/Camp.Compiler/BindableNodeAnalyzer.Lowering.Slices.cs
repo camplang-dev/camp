@@ -52,7 +52,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (!HasAttribute(parameter.Attributes, "@range"))
 				{
 					SyntaxNode? syntax = range.SourceSyntax ?? arguments[i].SourceSyntax ?? fallbackSyntax;
-					Report(GetRange(syntax), "Range argument requires an @range parameter.");
+					Report(GetRange(syntax), "Range argument requires an @range parameter.", DiagnosticCodes.RangeRequiresRangeParameter);
 					arguments[i].Value = ErrorExpression(ErrorType, syntax);
 					arguments[i].ResolvedType = ErrorType;
 					if (i + 1 < callableParameters.Count)

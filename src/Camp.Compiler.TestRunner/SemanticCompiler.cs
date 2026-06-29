@@ -13,6 +13,9 @@ public sealed class SemanticCompilation
 	public required Compilation Compilation { get; init; }
 	public required Module Module { get; init; }
 	public required IReadOnlyList<string> Diagnostics { get; init; }
+	public required IReadOnlyList<ParseDiagnostic> ParseDiagnostics { get; init; }
+	public required IReadOnlyList<BindDiagnostic> BindDiagnostics { get; init; }
+	public required IReadOnlyList<AnalysisDiagnostic> AnalysisDiagnostics { get; init; }
 }
 
 public static class SemanticCompiler
@@ -89,7 +92,10 @@ public static class SemanticCompiler
 		{
 			Compilation = compilation,
 			Module = module,
-			Diagnostics = CollectDiagnostics(compilation)
+			Diagnostics = CollectDiagnostics(compilation),
+			ParseDiagnostics = compilation.Files.SelectMany(static file => file.ParseDiagnostics).ToList(),
+			BindDiagnostics = compilation.Files.SelectMany(static file => file.BindDiagnostics).ToList(),
+			AnalysisDiagnostics = CollectAnalysisDiagnostics(compilation)
 		};
 	}
 
@@ -105,6 +111,16 @@ public static class SemanticCompiler
 			diagnostics.AddRange(compilation.DeclarationExpansion.Diagnostics.Select(static diagnostic => diagnostic.ToString()));
 		if (compilation.Lowering is not null)
 			diagnostics.AddRange(compilation.Lowering.Diagnostics.Select(static diagnostic => diagnostic.ToString()));
+		return diagnostics;
+	}
+
+	static IReadOnlyList<AnalysisDiagnostic> CollectAnalysisDiagnostics(Compilation compilation)
+	{
+		List<AnalysisDiagnostic> diagnostics = [];
+		if (compilation.DeclarationExpansion is not null)
+			diagnostics.AddRange(compilation.DeclarationExpansion.Diagnostics);
+		if (compilation.Lowering is not null)
+			diagnostics.AddRange(compilation.Lowering.Diagnostics);
 		return diagnostics;
 	}
 
