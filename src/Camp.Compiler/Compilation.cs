@@ -190,6 +190,8 @@ public static class CompilationPipeline
 		{
 			if (compilation.DefinitionOwners.ContainsKey(definition))
 				continue;
+			if (TryAssignGeneratedDefinitionOwnerFromProvenance(compilation, definition))
+				continue;
 
 			foreach ((SourceFile file, HashSet<string> names) in ownedNames)
 			{
@@ -201,6 +203,41 @@ public static class CompilationPipeline
 				}
 			}
 		}
+	}
+
+	static bool TryAssignGeneratedDefinitionOwnerFromProvenance(Compilation compilation, Definition definition)
+	{
+		if (definition.Provenance?.SourceSyntax is not SyntaxNode syntax)
+			return false;
+		if (!TryGetRange(syntax, out TokenRange range))
+			return false;
+
+		foreach (SourceFile file in compilation.Files)
+		{
+			if (!ReferenceEquals(file.Tokens, range.Sequence))
+				continue;
+			compilation.DefinitionOwners[definition] = file;
+			compilation.SharedModule!.DefinitionSources[definition] = file.Tokens;
+			return true;
+		}
+		return false;
+	}
+
+	static bool TryGetRange(SyntaxNode syntax, out TokenRange range)
+	{
+		foreach (System.Reflection.PropertyInfo property in syntax.GetType().GetProperties())
+		{
+			object? value = property.GetValue(syntax);
+			if (value is TokenRange direct)
+			{
+				range = direct;
+				return true;
+			}
+			if (value is SyntaxNode child && TryGetRange(child, out range))
+				return true;
+		}
+		range = default;
+		return false;
 	}
 
 	static bool GeneratedNameBelongsToFile(string name, HashSet<string> ownedNames)

@@ -275,12 +275,16 @@ public static class CCodeEmitter
 	{
 		if (node.SourceSyntax is not null && TryGetSourceRange(node.SourceSyntax, out range))
 			return true;
+		if (node.Provenance?.SourceSyntax is not null && TryGetSourceRange(node.Provenance.SourceSyntax, out range))
+			return true;
 
 		foreach (BindableNode child in EnumerateNodes(node, []))
 		{
-			if (child == node || child.SourceSyntax is null)
+			if (child == node)
 				continue;
-			if (TryGetSourceRange(child.SourceSyntax, out range))
+			if (child.SourceSyntax is not null && TryGetSourceRange(child.SourceSyntax, out range))
+				return true;
+			if (child.Provenance?.SourceSyntax is not null && TryGetSourceRange(child.Provenance.SourceSyntax, out range))
 				return true;
 		}
 

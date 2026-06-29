@@ -20,8 +20,10 @@ public sealed partial class BindableNodeAnalyzer
 		DeclarationStatement declaration = new()
 		{
 			InitialValue = initialValue,
-			ResolvedType = "void"
+			ResolvedType = "void",
+			Provenance = new NodeProvenance(initialValue?.SourceSyntax, currentRewriteFunction is null ? null : SymbolNameService.SymbolName(currentRewriteFunction).Value, "generated local", GeneratedDeclarationCategory.None, currentRewriteFunction?.Export is not null ? "export" : currentRewriteFunction?.Public is not null ? "public" : null)
 		};
+		declaration.Target.Provenance = declaration.Provenance;
 		declaration.Target.Type = type;
 		declaration.Target.ResolvedType = typeName;
 		declaration.Target.Names.Add(name);

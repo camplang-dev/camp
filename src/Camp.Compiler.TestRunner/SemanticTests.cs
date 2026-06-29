@@ -136,11 +136,32 @@ public sealed class SemanticTests
 		FunctionDefinition create = SemanticCompiler.Method(box, "create");
 		Assert.Equal(GeneratedDeclarationCategory.Lifecycle, create.GeneratedInfo?.Category);
 		Assert.Equal("constructor create helper", create.GeneratedInfo?.Reason);
+		Assert.Equal(GeneratedDeclarationCategory.Lifecycle, create.Provenance?.Category);
+		Assert.Equal("Box", create.Provenance?.SourceSymbol);
 
 		FunctionDefinition accessor = SemanticCompiler.Descendants<FunctionDefinition>(compilation.Module).Single(function => function.Symbol == "Box_getIFace");
 		Assert.Equal(GeneratedDeclarationCategory.Interface, accessor.GeneratedInfo?.Category);
+		Assert.Equal("interface accessor", accessor.Provenance?.GeneratedReason);
 
 		FieldDefinition interfaceField = SemanticCompiler.Descendants<FieldDefinition>(box).Single(field => field.Symbol == "_vt_IFace");
 		Assert.Equal(GeneratedDeclarationCategory.Interface, interfaceField.GeneratedInfo?.Category);
+		Assert.Equal(GeneratedDeclarationCategory.Interface, interfaceField.Provenance?.Category);
+	}
+
+	[Fact]
+	public void Lowered_generated_locals_record_provenance()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			void run()
+			{
+				int[] values = [1, 2, 3];
+				foreach (int value in values)
+				{
+				}
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		Assert.Contains(SemanticCompiler.Descendants<DeclarationStatement>(compilation.Module), static declaration => declaration.Provenance?.GeneratedReason == "generated local");
 	}
 }

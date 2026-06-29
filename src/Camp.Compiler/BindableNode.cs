@@ -9,6 +9,7 @@ public abstract class BindableNode
 	public string? ResolvedType { get; set; }
 	public string? SlotLifetimeFact { get; set; }
 	public string? ValueLifetimeFact { get; set; }
+	internal NodeProvenance? Provenance { get; set; }
 }
 
 public class Module : BindableNode
@@ -51,6 +52,13 @@ internal enum GeneratedDeclarationCategory
 }
 
 internal sealed record GeneratedDeclarationInfo(GeneratedDeclarationCategory Category, string Reason, Definition? Source);
+
+internal sealed record NodeProvenance(
+	SyntaxNode? SourceSyntax,
+	string? SourceSymbol,
+	string? GeneratedReason,
+	GeneratedDeclarationCategory Category = GeneratedDeclarationCategory.None,
+	string? UserFacingVisibility = null);
 
 public abstract class TypeDefinition : Definition
 {

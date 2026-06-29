@@ -254,7 +254,7 @@ Completion checklist:
 - [x] ~~Full suite passes.~~
 - [x] ~~Stage committed and this section struck through.~~
 
-## 7. Preserve Source Provenance On Generated And Lowered Nodes
+## ~~7. Preserve Source Provenance On Generated And Lowered Nodes~~
 
 Summary: Add consistent provenance metadata to generated/lowered nodes so
 diagnostics, metadata, API serialization, and future LSP features can explain
@@ -284,11 +284,11 @@ Success outcomes:
 
 Completion checklist:
 
-- [ ] Provenance model introduced.
-- [ ] Major generated declaration paths set provenance.
-- [ ] At least one serializer/filter path consumes provenance.
-- [ ] Full suite passes.
-- [ ] Stage committed and this section struck through.
+- [x] ~~Provenance model introduced.~~
+- [x] ~~Major generated declaration paths set provenance.~~
+- [x] ~~At least one serializer/filter path consumes provenance.~~
+- [x] ~~Full suite passes.~~
+- [x] ~~Stage committed and this section struck through.~~
 
 ## 8. Extract Target Capability Checks
 

@@ -31,6 +31,23 @@ internal sealed class GeneratedDeclarationFactory
 		where T : Definition
 	{
 		definition.GeneratedInfo = new GeneratedDeclarationInfo(category, reason, source);
+		definition.Provenance = new NodeProvenance(source?.SourceSyntax, SourceSymbol(source), reason, category, Visibility(definition, source));
 		return definition;
+	}
+
+	static string? SourceSymbol(Definition? source)
+	{
+		if (source is null)
+			return null;
+		return string.IsNullOrWhiteSpace(source.Symbol) ? source.Name : source.Symbol;
+	}
+
+	static string? Visibility(Definition definition, Definition? source)
+	{
+		if (definition.Export is not null || source?.Export is not null)
+			return "export";
+		if (definition.Public is not null || source?.Public is not null)
+			return "public";
+		return null;
 	}
 }
