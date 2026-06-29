@@ -544,6 +544,7 @@ public static class CCodeEmitter
 	sealed class CDeclarationWriter(Compilation compilation, CEmissionOptions options, CEmissionResult result)
 	{
 		readonly HashSet<string> emittedNames = new(StringComparer.Ordinal);
+		readonly AbiSurface abiSurface = AbiSurface.Build(compilation);
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
 		readonly HashSet<string> interfaceNames = BuildInterfaceNameSet(compilation);
 		readonly HashSet<string> genericParameterNames = BuildGenericParameterNameSet(compilation);
@@ -811,25 +812,33 @@ public static class CCodeEmitter
 				wrote = true;
 			}
 
-			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null && variable.IsInline))
+			foreach (VariableDefinition variable in abiSurface.ExportedVariables
+				.Where(static variable => variable.Definition is VariableDefinition { IsInline: true })
+				.Select(static variable => (VariableDefinition)variable.Definition))
 			{
 				WriteInlineConstantMacro(writer, variable);
 				wrote = true;
 			}
-			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null && field.IsInline))
+			foreach (FieldDefinition field in abiSurface.ExportedVariables
+				.Where(static variable => variable.Definition is FieldDefinition { IsInline: true })
+				.Select(static variable => (FieldDefinition)variable.Definition))
 			{
 				WriteInlineConstantMacro(writer, field);
 				wrote = true;
 			}
 
-			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null && !variable.IsInline))
+			foreach (VariableDefinition variable in abiSurface.ExportedVariables
+				.Where(static variable => variable.Definition is VariableDefinition { IsInline: false })
+				.Select(static variable => (VariableDefinition)variable.Definition))
 			{
 				if (IsGeneratedVTableStorageVariable(variable))
 					continue;
 				WriteVariableDeclaration(writer, variable, storage: "extern");
 				wrote = true;
 			}
-			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null && !field.IsInline))
+			foreach (FieldDefinition field in abiSurface.ExportedVariables
+				.Where(static variable => variable.Definition is FieldDefinition { IsInline: false })
+				.Select(static variable => (FieldDefinition)variable.Definition))
 			{
 				WriteFieldStorageDeclaration(writer, field, storage: "extern");
 				wrote = true;

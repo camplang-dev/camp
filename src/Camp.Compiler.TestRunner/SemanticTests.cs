@@ -8,6 +8,65 @@ namespace Camp.Compiler.Tests;
 public sealed class SemanticTests
 {
 	[Fact]
+	public void Abi_surface_exposes_exported_symbols_and_expanded_parameters()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			export interface IFace
+			{
+				int getValue();
+			}
+
+			export struct Pair
+			{
+				int left;
+				int right;
+			}
+
+			export enum Mode
+			{
+				ONE,
+				TWO
+			}
+
+			export newtype Id: int;
+
+			extern void* malloc(nuint size);
+
+			export class Box: IFace
+			{
+				int value;
+				int getValue() => this.value;
+			}
+
+			export inline uint MAGIC = 42;
+			export int globalCount;
+
+			@symbol("Native_sum")
+			export int sum(const int[] values)
+			{
+				return (int)values.length;
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		AbiSurface surface = AbiSurface.Build(compilation.Compilation);
+
+		Assert.Contains(surface.Types, static type => type is { Name: "IFace", Kind: AbiDeclarationKind.Interface, Visibility: AbiVisibility.Export });
+		Assert.Contains(surface.Types, static type => type is { Name: "Box", Kind: AbiDeclarationKind.Class, Visibility: AbiVisibility.Export });
+		Assert.Contains(surface.Types, static type => type is { Name: "Pair", Kind: AbiDeclarationKind.Struct, Visibility: AbiVisibility.Export });
+		Assert.Contains(surface.Types, static type => type is { Name: "Mode", Kind: AbiDeclarationKind.Enum, Visibility: AbiVisibility.Export });
+		Assert.Contains(surface.Types, static type => type is { Name: "Id", Kind: AbiDeclarationKind.Newtype, Visibility: AbiVisibility.Export });
+		Assert.Contains(surface.Variables, static variable => variable is { Name: "MAGIC", Kind: AbiDeclarationKind.Constant, Type: "uint", Visibility: AbiVisibility.Export });
+		Assert.Contains(surface.Variables, static variable => variable is { Name: "globalCount", Kind: AbiDeclarationKind.Variable, Type: "int", Visibility: AbiVisibility.Export });
+
+		AbiFunction sum = Assert.Single(surface.Functions, static function => function.Name == "sum");
+		Assert.Equal("Native_sum", sum.Symbol);
+		Assert.Equal("int", sum.ReturnType);
+		Assert.Equal(["const int*", "nuint"], sum.ExpandedParameterTypes);
+		Assert.Contains(surface.Functions, static function => function.Symbol == "Box_getIFace");
+	}
+
+	[Fact]
 	public void Callable_shapes_preserve_callspecs_and_constof_variance()
 	{
 		Assert.True(CallableShapeService.TryParseCallableShape("fn _stdcall int(int)", out CallableShape source));

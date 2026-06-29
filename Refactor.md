@@ -367,7 +367,7 @@ Completion checklist:
 - [x] ~~Full suite passes.~~
 - [x] ~~Stage committed and this section struck through.~~
 
-## 10. Begin A Backend ABI Surface Model
+## ~~10. Begin A Backend ABI Surface Model~~
 
 Summary: Introduce the first backend-neutral ABI/export surface model, starting
 with declarations needed by C headers and metadata. This is the bridge toward
@@ -403,8 +403,8 @@ Success outcomes:
 
 Completion checklist:
 
-- [ ] Initial `AbiSurface` model introduced.
-- [ ] C header generation consumes one safe slice of `AbiSurface`.
-- [ ] Dense ABI semantic test added.
-- [ ] Full suite passes.
-- [ ] Stage committed and this section struck through.
+- [x] ~~Initial `AbiSurface` model introduced.~~
+- [x] ~~C header generation consumes one safe slice of `AbiSurface`.~~
+- [x] ~~Dense ABI semantic test added.~~
+- [x] ~~Full suite passes.~~
+- [x] ~~Stage committed and this section struck through.~~
