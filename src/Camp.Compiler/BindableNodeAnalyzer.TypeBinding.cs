@@ -161,7 +161,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			case PrimitiveTypeReference primitive:
 				type.ResolvedType = GetPrimitiveTypeName(primitive.Type);
-				if (selectedTarget?.IsPrimitiveUnsupported(type.ResolvedType) == true)
+				if (selectedTarget?.Capabilities.IsPrimitiveUnsupported(type.ResolvedType) == true)
 					Report(GetRange(type.SourceSyntax), $"Primitive type '{type.ResolvedType}' is not supported by target '{selectedTarget.Name}'.");
 				break;
 
@@ -732,7 +732,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		callSpec = ResolveCallSpecAlias(callSpec, syntax);
-		if (selectedTarget is null || !selectedTarget.HasCallSpec(callSpec))
+		if (selectedTarget is null || !selectedTarget.Capabilities.HasCallSpec(callSpec))
 			Report(GetRange(syntax), $"Callspec '{callSpec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
 	}
 
@@ -761,7 +761,7 @@ public sealed partial class BindableNodeAnalyzer
 				? typeAlias!.ResolvedTargetName
 				: spec;
 
-		if (selectedTarget?.HasCallSpec(spec) == true)
+		if (selectedTarget?.Capabilities.HasCallSpec(spec) == true)
 		{
 			if (callSpec is not null && callSpec != spec)
 				Report(GetRange(syntax), $"Callable type has multiple callspecs: '{callSpec}' and '{spec}'.");
@@ -769,7 +769,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
-		if (selectedTarget?.HasTypeSpec(spec) == true)
+		if (selectedTarget?.Capabilities.HasTypeSpec(spec) == true)
 		{
 			if (targetSpec is not null && targetSpec != spec)
 				Report(GetRange(syntax), $"Callable type has multiple target typespecs: '{targetSpec}' and '{spec}'.");
@@ -832,7 +832,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		typeSpec.Specifier = ResolveTypeSpecAlias(typeSpec.Specifier, typeSpec.SourceSyntax);
-		if (selectedTarget is null || !selectedTarget.HasTypeSpec(typeSpec.Specifier))
+		if (selectedTarget is null || !selectedTarget.Capabilities.HasTypeSpec(typeSpec.Specifier))
 		{
 			Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
 			return;
@@ -859,7 +859,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string sourceName = BuildNamedTypeSourceName(named);
 
-		if (named.Qualifiers.Count == 0 && selectedTarget is not null && selectedTarget.HasTypeSpec(named.Name))
+		if (named.Qualifiers.Count == 0 && selectedTarget is not null && selectedTarget.Capabilities.HasTypeSpec(named.Name))
 		{
 			Report(GetRange(named.SourceSyntax), $"Typespec '{named.Name}' must appear after the type form it modifies.");
 			return $"{UnresolvedType}({sourceName})";

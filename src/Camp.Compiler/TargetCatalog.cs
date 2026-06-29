@@ -171,6 +171,7 @@ public sealed class TargetDefinition
 		BaseName = baseName;
 		Path = path;
 		Sections = sections;
+		Capabilities = new TargetCapabilities(this);
 	}
 
 	public string Name { get; }
@@ -191,6 +192,7 @@ public sealed class TargetDefinition
 	public IReadOnlyDictionary<string, string> BuildTemplates => Sections.BuildTemplates;
 	public IReadOnlyDictionary<string, string> CEmitter => Sections.CEmitter;
 	public IReadOnlyDictionary<string, TargetProfileBuild> Profiles => Sections.Profiles;
+	public TargetCapabilities Capabilities { get; }
 
 	public bool HasCallSpec(string name)
 	{
@@ -283,6 +285,73 @@ public sealed class TargetDefinition
 		if (target is null)
 			return HasTypeSpec(source);
 		return HasTypeSpec(source) && HasTypeSpec(target);
+	}
+}
+
+public sealed class TargetCapabilities
+{
+	readonly TargetDefinition target;
+
+	internal TargetCapabilities(TargetDefinition target)
+	{
+		this.target = target;
+	}
+
+	public bool SupportsFrameworkLinking => string.Equals(GetBuildTemplate("allow_frameworks"), "true", StringComparison.OrdinalIgnoreCase);
+
+	public bool HasCallSpec(string name)
+	{
+		return target.HasCallSpec(name);
+	}
+
+	public bool HasTypeSpec(string name)
+	{
+		return target.HasTypeSpec(name);
+	}
+
+	public bool IsPrimitiveUnsupported(string name)
+	{
+		return target.IsPrimitiveUnsupported(name);
+	}
+
+	public string? GetPrimitiveCSpelling(string name)
+	{
+		return target.GetPrimitiveCSpelling(name);
+	}
+
+	public string GetArtifactValue(string name, string defaultValue = "")
+	{
+		return target.GetArtifactValue(name, defaultValue);
+	}
+
+	public string GetTool(string name)
+	{
+		return target.GetTool(name);
+	}
+
+	public string? GetBuildTemplate(string name)
+	{
+		return target.GetBuildTemplate(name);
+	}
+
+	public string GetCEmitterValue(string name, string defaultValue = "")
+	{
+		return target.GetCEmitterValue(name, defaultValue);
+	}
+
+	public int GetNaturalIntegerWidth(string? typeSpec)
+	{
+		return target.GetNaturalIntegerWidth(typeSpec);
+	}
+
+	public int GetPointerWidth(string? typeSpec, string? memoryModelName, bool functionPointer)
+	{
+		return target.GetPointerWidth(typeSpec, memoryModelName, functionPointer);
+	}
+
+	public string? GetMemoryModelDefault(string? memoryModelName, bool functionPointer)
+	{
+		return target.GetMemoryModelDefault(memoryModelName, functionPointer);
 	}
 }
 

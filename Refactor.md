@@ -290,7 +290,7 @@ Completion checklist:
 - [x] ~~Full suite passes.~~
 - [x] ~~Stage committed and this section struck through.~~
 
-## 8. Extract Target Capability Checks
+## ~~8. Extract Target Capability Checks~~
 
 Summary: Move target/platform/backend capability decisions into a clear target
 capability layer. Start small with existing target data such as framework
@@ -322,11 +322,11 @@ Success outcomes:
 
 Completion checklist:
 
-- [ ] `TargetCapabilities` introduced.
-- [ ] Existing framework/native/callspec-width checks migrated.
-- [ ] Target/command-line tests pass.
-- [ ] Full suite passes.
-- [ ] Stage committed and this section struck through.
+- [x] ~~`TargetCapabilities` introduced.~~
+- [x] ~~Existing framework/native/callspec-width checks migrated.~~
+- [x] ~~Target/command-line tests pass.~~
+- [x] ~~Full suite passes.~~
+- [x] ~~Stage committed and this section struck through.~~
 
 ## 9. Clarify Semantic Analysis Pass Boundaries
 

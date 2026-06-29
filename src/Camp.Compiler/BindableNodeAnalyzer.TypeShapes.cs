@@ -253,18 +253,18 @@ public sealed partial class BindableNodeAnalyzer
 
 	int GetNaturalIntegerWidth(TypeShape shape)
 	{
-		return selectedTarget?.GetNaturalIntegerWidth(shape.TargetSpec) ?? 32;
+		return selectedTarget?.Capabilities.GetNaturalIntegerWidth(shape.TargetSpec) ?? 32;
 	}
 
 	int GetObjectPointerWidth(TypeShape shape)
 	{
-		return selectedTarget?.GetPointerWidth(shape.TargetSpec, selectedMemoryModel, functionPointer: false) ?? 32;
+		return selectedTarget?.Capabilities.GetPointerWidth(shape.TargetSpec, selectedMemoryModel, functionPointer: false) ?? 32;
 	}
 
 	int GetFunctionPointerWidth(CallableShape shape)
 	{
-		string? targetSpec = shape.Spec is not null && selectedTarget?.HasTypeSpec(shape.Spec) == true ? shape.Spec : null;
-		return selectedTarget?.GetPointerWidth(targetSpec, selectedMemoryModel, functionPointer: true) ?? 32;
+		string? targetSpec = shape.Spec is not null && selectedTarget?.Capabilities.HasTypeSpec(shape.Spec) == true ? shape.Spec : null;
+		return selectedTarget?.Capabilities.GetPointerWidth(targetSpec, selectedMemoryModel, functionPointer: true) ?? 32;
 	}
 
 	static bool QualifiersCanConvert(TypeQualifiers source, TypeQualifiers target, bool protectedByConstTarget, int pointerDepth)

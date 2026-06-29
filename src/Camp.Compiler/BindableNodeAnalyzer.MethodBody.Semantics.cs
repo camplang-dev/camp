@@ -570,8 +570,8 @@ public sealed partial class BindableNodeAnalyzer
 			"int" => SignedBounds(32, out min, out max),
 			"ulong" => UnsignedBounds(64, out min, out max),
 			"long" => SignedBounds(64, out min, out max),
-			"nuint" => UnsignedBounds(selectedTarget?.GetNaturalIntegerWidth(targetSpec) ?? 32, out min, out max),
-			"nint" => SignedBounds(selectedTarget?.GetNaturalIntegerWidth(targetSpec) ?? 32, out min, out max),
+			"nuint" => UnsignedBounds(selectedTarget?.Capabilities.GetNaturalIntegerWidth(targetSpec) ?? 32, out min, out max),
+			"nint" => SignedBounds(selectedTarget?.Capabilities.GetNaturalIntegerWidth(targetSpec) ?? 32, out min, out max),
 			_ => false
 		};
 	}

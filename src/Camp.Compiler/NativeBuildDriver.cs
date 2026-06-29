@@ -55,7 +55,7 @@ public static class NativeBuildDriver
 		List<string> objects = [];
 		foreach (string source in options.SourceFiles)
 		{
-			string objectPath = Path.Combine(options.BuildDirectory, Path.GetFileNameWithoutExtension(source) + options.Target.GetArtifactValue("object_ext", ".o"));
+			string objectPath = Path.Combine(options.BuildDirectory, Path.GetFileNameWithoutExtension(source) + options.Target.Capabilities.GetArtifactValue("object_ext", ".o"));
 			if (!RunTemplate(options, "compile", result, new Dictionary<string, string>(StringComparer.Ordinal)
 			{
 				["source"] = Quote(source),
@@ -119,18 +119,18 @@ public static class NativeBuildDriver
 	{
 		string prefix = options.Kind switch
 		{
-			NativeBuildKind.Exec => options.Target.GetArtifactValue("exec_prefix"),
-			NativeBuildKind.WinExe => options.Target.GetArtifactValue("exec_prefix"),
-			NativeBuildKind.Static => options.Target.GetArtifactValue("static_prefix", "lib"),
-			NativeBuildKind.Shared => options.Target.GetArtifactValue("shared_prefix", "lib"),
+			NativeBuildKind.Exec => options.Target.Capabilities.GetArtifactValue("exec_prefix"),
+			NativeBuildKind.WinExe => options.Target.Capabilities.GetArtifactValue("exec_prefix"),
+			NativeBuildKind.Static => options.Target.Capabilities.GetArtifactValue("static_prefix", "lib"),
+			NativeBuildKind.Shared => options.Target.Capabilities.GetArtifactValue("shared_prefix", "lib"),
 			_ => ""
 		};
 		string extension = options.Kind switch
 		{
-			NativeBuildKind.Exec => options.Target.GetArtifactValue("exec_ext"),
-			NativeBuildKind.WinExe => options.Target.GetArtifactValue("exec_ext"),
-			NativeBuildKind.Static => options.Target.GetArtifactValue("static_ext", ".a"),
-			NativeBuildKind.Shared => options.Target.GetArtifactValue("shared_ext", ".so"),
+			NativeBuildKind.Exec => options.Target.Capabilities.GetArtifactValue("exec_ext"),
+			NativeBuildKind.WinExe => options.Target.Capabilities.GetArtifactValue("exec_ext"),
+			NativeBuildKind.Static => options.Target.Capabilities.GetArtifactValue("static_ext", ".a"),
+			NativeBuildKind.Shared => options.Target.Capabilities.GetArtifactValue("shared_ext", ".so"),
 			_ => ""
 		};
 		return Path.Combine(options.OutputDirectory, prefix + options.ProjectName + extension);
@@ -140,7 +140,7 @@ public static class NativeBuildDriver
 	{
 		foreach (string name in new[] { "compile", BuildTemplateName(options.Kind) })
 		{
-			if (options.Target.GetBuildTemplate(name) is null)
+			if (options.Target.Capabilities.GetBuildTemplate(name) is null)
 				result.Diagnostics.Add($"Target '{options.Target.Name}' does not define a [build] {name} template.");
 		}
 		return result.Success;
@@ -181,11 +181,11 @@ public static class NativeBuildDriver
 
 	static bool RunTemplate(NativeBuildOptions options, string templateName, NativeBuildResult result, Dictionary<string, string> values)
 	{
-		string template = options.Target.GetBuildTemplate(templateName)!;
+		string template = options.Target.Capabilities.GetBuildTemplate(templateName)!;
 		TargetProfileBuild profile = options.Target.GetProfileBuild(options.ProfileName);
-		values["cc"] = Quote(options.Target.GetTool("cc"));
-		values["ar"] = Quote(options.Target.GetTool("ar"));
-		values["ld"] = Quote(options.Target.GetTool("ld"));
+		values["cc"] = Quote(options.Target.Capabilities.GetTool("cc"));
+		values["ar"] = Quote(options.Target.Capabilities.GetTool("ar"));
+		values["ld"] = Quote(options.Target.Capabilities.GetTool("ld"));
 		values["profile_cflags"] = profile.CFlags;
 		values["profile_ldflags"] = profile.LdFlags;
 		values["build_cflags"] = GetBuildCFlags(options);
@@ -198,10 +198,10 @@ public static class NativeBuildDriver
 	{
 		return options.Kind switch
 		{
-			NativeBuildKind.Shared => options.Target.GetCEmitterValue("shared_cflags"),
-			NativeBuildKind.Static => options.Target.GetCEmitterValue("static_cflags"),
-			NativeBuildKind.Exec => options.Target.GetCEmitterValue("exec_cflags"),
-			NativeBuildKind.WinExe => options.Target.GetCEmitterValue("exec_cflags"),
+			NativeBuildKind.Shared => options.Target.Capabilities.GetCEmitterValue("shared_cflags"),
+			NativeBuildKind.Static => options.Target.Capabilities.GetCEmitterValue("static_cflags"),
+			NativeBuildKind.Exec => options.Target.Capabilities.GetCEmitterValue("exec_cflags"),
+			NativeBuildKind.WinExe => options.Target.Capabilities.GetCEmitterValue("exec_cflags"),
 			_ => ""
 		};
 	}

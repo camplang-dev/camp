@@ -200,14 +200,14 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		if (alias.TargetQualifiers.Count == 0 && selectedTarget?.HasCallSpec(alias.TargetName) == true)
+		if (alias.TargetQualifiers.Count == 0 && selectedTarget?.Capabilities.HasCallSpec(alias.TargetName) == true)
 		{
 			alias.TargetKind = AliasTargetKind.CallSpec;
 			alias.ResolvedTargetName = alias.TargetName;
 			return true;
 		}
 
-		if (alias.TargetQualifiers.Count == 0 && selectedTarget?.HasTypeSpec(alias.TargetName) == true)
+		if (alias.TargetQualifiers.Count == 0 && selectedTarget?.Capabilities.HasTypeSpec(alias.TargetName) == true)
 		{
 			alias.TargetKind = AliasTargetKind.TypeSpec;
 			alias.ResolvedTargetName = alias.TargetName;

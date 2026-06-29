@@ -557,7 +557,7 @@ public static class CCodeEmitter
 		FunctionDefinition? currentFunction;
 		bool currentFunctionHasLabels;
 		readonly string sharedExportPrefix = options.BuildKind is NativeBuildKind.Shared
-			? compilation.Target?.GetCEmitterValue("dll_export_prefix") ?? ""
+			? compilation.Target?.Capabilities.GetCEmitterValue("dll_export_prefix") ?? ""
 			: "";
 
 		public void WritePrivateHeaderDeclarations(TextWriter writer)
@@ -2345,13 +2345,13 @@ public static class CCodeEmitter
 
 		string FormatAlloca(string size)
 		{
-			string alloca = compilation.Target?.GetCEmitterValue("alloca", "__builtin_alloca") ?? "__builtin_alloca";
+			string alloca = compilation.Target?.Capabilities.GetCEmitterValue("alloca", "__builtin_alloca") ?? "__builtin_alloca";
 			return alloca + "(" + size + ")";
 		}
 
 		string FormatMemoryCall(string operation, params string[] arguments)
 		{
-			string functionName = compilation.Target?.GetCEmitterValue(operation, "__builtin_" + operation) ?? "__builtin_" + operation;
+			string functionName = compilation.Target?.Capabilities.GetCEmitterValue(operation, "__builtin_" + operation) ?? "__builtin_" + operation;
 			return functionName + "(" + string.Join(", ", arguments) + ")";
 		}
 
@@ -5270,13 +5270,13 @@ public static class CCodeEmitter
 			return type switch
 			{
 				"void" => "void",
-				"bool" => compilation.Target?.GetPrimitiveCSpelling("bool") ?? "bool",
+				"bool" => compilation.Target?.Capabilities.GetPrimitiveCSpelling("bool") ?? "bool",
 				"string" => "const char",
 				"wstring" => "const uint16_t",
 				"astring" => "const char",
 				"untyped" => "void",
 				"sbyte" or "byte" or "short" or "ushort" or "int" or "uint" or "long" or "ulong" or "nint" or "nuint" or "float" or "double" or "char" or "wchar" or "achar" or "uchar"
-					=> compilation.Target?.GetPrimitiveCSpelling(type) ?? type,
+					=> compilation.Target?.Capabilities.GetPrimitiveCSpelling(type) ?? type,
 				_ => CTypeName(type)
 			};
 		}
@@ -5342,7 +5342,7 @@ public static class CCodeEmitter
 				return FormatDataPointerPrimitive("const char", declarator);
 			if (primitive == PrimitiveType.Untyped)
 				return new CType("void " + declarator);
-			return new CType((compilation.Target?.GetPrimitiveCSpelling(name) ?? name) + " " + declarator);
+			return new CType((compilation.Target?.Capabilities.GetPrimitiveCSpelling(name) ?? name) + " " + declarator);
 		}
 
 		CType FormatDataPointerPrimitive(string elementType, string declarator)
@@ -5354,7 +5354,7 @@ public static class CCodeEmitter
 
 		string? GetDefaultTargetTypeSpec(bool functionPointer)
 		{
-			return compilation.Target?.GetMemoryModelDefault(compilation.MemoryModelName, functionPointer);
+			return compilation.Target?.Capabilities.GetMemoryModelDefault(compilation.MemoryModelName, functionPointer);
 		}
 
 		string FormatCallSpec(string? spec)
@@ -5524,12 +5524,12 @@ public static class CCodeEmitter
 
 		bool TryClassifyCallablePrefixSpec(string candidate, out CallablePrefixSpecKind kind)
 		{
-			if (compilation.Target?.HasTypeSpec(candidate) == true)
+			if (compilation.Target?.Capabilities.HasTypeSpec(candidate) == true)
 			{
 				kind = CallablePrefixSpecKind.TargetSpec;
 				return true;
 			}
-			if (compilation.Target?.HasCallSpec(candidate) == true)
+			if (compilation.Target?.Capabilities.HasCallSpec(candidate) == true)
 			{
 				kind = CallablePrefixSpecKind.CallSpec;
 				return true;

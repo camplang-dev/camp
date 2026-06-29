@@ -785,7 +785,7 @@ public static class CompilerDriver
 			if (Path.HasExtension(reference))
 				return reference;
 
-			string staticExtension = target.GetArtifactValue("static_ext", ".a");
+			string staticExtension = target.Capabilities.GetArtifactValue("static_ext", ".a");
 			if (staticExtension.Equals(".lib", StringComparison.OrdinalIgnoreCase))
 				return reference + ".lib";
 			return "-l" + reference;
@@ -800,7 +800,7 @@ public static class CompilerDriver
 				ErrorLine("--framework cannot be used with --artifact static.");
 				return false;
 			}
-			if (!string.Equals(target.GetBuildTemplate("allow_frameworks"), "true", StringComparison.OrdinalIgnoreCase))
+			if (!target.Capabilities.SupportsFrameworkLinking)
 			{
 				ErrorLine($"Target '{target.Name}' does not support framework linking.");
 				return false;
