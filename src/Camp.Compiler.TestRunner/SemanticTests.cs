@@ -83,6 +83,23 @@ public sealed class SemanticTests
 	}
 
 	[Fact]
+	public void Symbol_name_service_distinguishes_source_callable_and_abi_names()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			@symbol("Native_add")
+			int add(overload int left, int right) => left + right;
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		FunctionDefinition add = SemanticCompiler.Function(compilation, "add");
+		Assert.Equal(new DeclarationName(DeclarationNameKind.Source, "add"), SymbolNameService.SourceName(add));
+		Assert.Equal(new DeclarationName(DeclarationNameKind.Callable, "addInt"), SymbolNameService.CallableName(add));
+		Assert.Equal(new DeclarationName(DeclarationNameKind.Invoker, "add"), SymbolNameService.InvokerName(add));
+		Assert.Equal(new DeclarationName(DeclarationNameKind.Symbol, "Native_add"), SymbolNameService.SymbolName(add));
+		Assert.Contains(SymbolNameService.TopLevelSymbolNames(add, static _ => null), name => name.Value == "Native_add");
+	}
+
+	[Fact]
 	public void Lowered_semantics_expose_lambda_helpers_without_golden_files()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""

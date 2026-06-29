@@ -490,32 +490,23 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateDuplicateTopLevelSymbols(Module module)
 	{
-		Dictionary<string, Definition> symbols = new(StringComparer.Ordinal);
-		Dictionary<string, string> componentSymbols = new(StringComparer.Ordinal);
+		SymbolCollisionSet collisions = new();
 		foreach (Definition definition in module.Definitions)
 		{
-			foreach (string symbol in GetDefinitionSymbolNames(definition))
+			foreach (DeclarationName name in GetDefinitionSymbolNames(definition))
 			{
-				if (string.IsNullOrWhiteSpace(symbol))
-					continue;
-
-				if (componentSymbols.TryGetValue(symbol, out string? componentOwner))
-					Report(GetNameRange(definition), $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
-
-				if (symbols.TryGetValue(symbol, out Definition? existing) && !ReferenceEquals(existing, definition))
-					Report(GetNameRange(definition), $"Duplicate symbol name '{symbol}'.");
-				else
-					symbols[symbol] = definition;
+				if (!collisions.TryAddSymbol(name.Value, definition, out string? componentOwner))
+					Report(GetNameRange(definition), componentOwner is null
+						? $"Duplicate symbol name '{name.Value}'."
+						: $"Symbol '{name.Value}' is already declared in this scope as a component of '{componentOwner}'.");
 			}
 
 			foreach (string componentName in GetDefinitionComponentSymbolNames(definition))
 			{
 				if (componentName == definition.Name)
 					continue;
-				if (symbols.ContainsKey(componentName) || componentSymbols.ContainsKey(componentName))
+				if (!collisions.TryAddComponent(componentName, definition.Name))
 					Report(GetNameRange(definition), $"Symbol '{componentName}' is already declared in this scope as a component of '{definition.Name}'.");
-				else
-					componentSymbols[componentName] = definition.Name;
 			}
 		}
 
@@ -527,22 +518,17 @@ public sealed partial class BindableNodeAnalyzer
 					continue;
 
 				string symbol = field.Symbol;
-				if (componentSymbols.TryGetValue(symbol, out string? componentOwner))
-					Report(GetNameRange(field), $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
-
-				if (symbols.TryGetValue(symbol, out Definition? existing) && !ReferenceEquals(existing, field))
-					Report(GetNameRange(field), $"Duplicate symbol name '{symbol}'.");
-				else
-					symbols[symbol] = field;
+				if (!collisions.TryAddSymbol(symbol, field, out string? componentOwner))
+					Report(GetNameRange(field), componentOwner is null
+						? $"Duplicate symbol name '{symbol}'."
+						: $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
 
 				foreach (string componentName in GetPotentialParamsComponentNames(field.Type, field.ResolvedType, field.Symbol))
 				{
 					if (componentName == field.Symbol)
 						continue;
-					if (symbols.ContainsKey(componentName) || componentSymbols.ContainsKey(componentName))
+					if (!collisions.TryAddComponent(componentName, field.Name))
 						Report(GetNameRange(field), $"Symbol '{componentName}' is already declared in this scope as a component of '{field.Name}'.");
-					else
-						componentSymbols[componentName] = field.Name;
 				}
 			}
 
@@ -552,13 +538,10 @@ public sealed partial class BindableNodeAnalyzer
 					continue;
 
 				string symbol = function.Symbol;
-				if (componentSymbols.TryGetValue(symbol, out string? componentOwner))
-					Report(GetNameRange(function), $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
-
-				if (symbols.TryGetValue(symbol, out Definition? existing) && !ReferenceEquals(existing, function))
-					Report(GetNameRange(function), $"Duplicate symbol name '{symbol}'.");
-				else
-					symbols[symbol] = function;
+				if (!collisions.TryAddSymbol(symbol, function, out string? componentOwner))
+					Report(GetNameRange(function), componentOwner is null
+						? $"Duplicate symbol name '{symbol}'."
+						: $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
 			}
 		}
 	}
@@ -572,17 +555,9 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	IEnumerable<string> GetDefinitionSymbolNames(Definition definition)
+	IEnumerable<DeclarationName> GetDefinitionSymbolNames(Definition definition)
 	{
-		if (!string.IsNullOrWhiteSpace(definition.Symbol))
-			yield return definition.Symbol;
-
-		if (definition is FunctionDefinition function
-			&& !string.IsNullOrWhiteSpace(function.FullCallableName)
-			&& function.FullCallableName != definition.Symbol
-			&& !function.SymbolOverridden
-			&& GetExplicitThisParameter(function) is null)
-			yield return function.FullCallableName;
+		return SymbolNameService.TopLevelSymbolNames(definition, GetExplicitThisParameter);
 	}
 
 	void ValidateExpandedFieldNames(List<FieldDefinition> fields)

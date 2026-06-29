@@ -138,7 +138,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string GetInvokerName(FunctionDefinition function)
 	{
-		return string.IsNullOrWhiteSpace(function.InvokerName) ? function.Name : function.InvokerName;
+		return SymbolNameService.InvokerName(function).Value;
 	}
 
 	static bool IsOverloadFamily(List<FunctionDefinition> functions)

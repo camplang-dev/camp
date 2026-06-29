@@ -1390,7 +1390,7 @@ public static class MetadataJsonSerializer
 
 		static bool IsSameSymbol(Definition definition)
 		{
-			return string.IsNullOrWhiteSpace(definition.Symbol) || definition.Symbol == definition.Name;
+			return SymbolNameService.IsSameSymbol(definition);
 		}
 
 		static string GetMetadataName(Definition definition)

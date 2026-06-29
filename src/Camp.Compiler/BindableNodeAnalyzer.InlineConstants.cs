@@ -599,12 +599,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateInlineAndEnumSymbols(Module module)
 	{
-		Dictionary<string, BindableNode> generatedSymbols = new(StringComparer.Ordinal);
+		SymbolCollisionSet generatedSymbols = new();
 		foreach (Definition definition in module.Definitions)
 			ValidateInlineAndEnumSymbols(definition, generatedSymbols);
 	}
 
-	void ValidateInlineAndEnumSymbols(Definition definition, Dictionary<string, BindableNode> generatedSymbols)
+	void ValidateInlineAndEnumSymbols(Definition definition, SymbolCollisionSet generatedSymbols)
 	{
 		switch (definition)
 		{
@@ -632,22 +632,20 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	void ValidateInlineFieldSymbols(IEnumerable<FieldDefinition> fields, Dictionary<string, BindableNode> generatedSymbols)
+	void ValidateInlineFieldSymbols(IEnumerable<FieldDefinition> fields, SymbolCollisionSet generatedSymbols)
 	{
 		foreach (FieldDefinition field in fields)
 			if (field.IsInline)
 				ValidateGeneratedMacroSymbol(field.Symbol, field, generatedSymbols);
 	}
 
-	void ValidateGeneratedMacroSymbol(string symbol, BindableNode node, Dictionary<string, BindableNode> generatedSymbols)
+	void ValidateGeneratedMacroSymbol(string symbol, BindableNode node, SymbolCollisionSet generatedSymbols)
 	{
 		if (string.IsNullOrWhiteSpace(symbol))
 			return;
 		if (symbol.EndsWith("_H_", StringComparison.Ordinal) && node is VariableDefinition or FieldDefinition)
 			Report(GetNameRange((Definition)node), $"Inline constant symbol '{symbol}' must not end with '_H_'.");
-		if (generatedSymbols.TryGetValue(symbol, out BindableNode? existing) && !ReferenceEquals(existing, node))
+		if (node is Definition definition && !generatedSymbols.TryAddSymbol(symbol, definition, out _))
 			Report(GetNameRange((Definition)node), $"Duplicate generated symbol name '{symbol}'.");
-		else
-			generatedSymbols[symbol] = node;
 	}
 }

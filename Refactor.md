@@ -179,7 +179,7 @@ Completion checklist:
 - [x] ~~Full suite passes.~~
 - [x] ~~Stage committed and this section struck through.~~
 
-## 5. Separate Source Symbols From ABI Symbols
+## ~~5. Separate Source Symbols From ABI Symbols~~
 
 Summary: Make naming explicit by distinguishing source names, callable names,
 flattened symbols, `@symbol` overrides, exported API names, and C identifiers.
@@ -211,11 +211,11 @@ Success outcomes:
 
 Completion checklist:
 
-- [ ] Symbol/name model introduced.
-- [ ] Collision checks route through shared helpers.
-- [ ] Representative symbol semantic tests pass.
-- [ ] Full suite passes.
-- [ ] Stage committed and this section struck through.
+- [x] ~~Symbol/name model introduced.~~
+- [x] ~~Collision checks route through shared helpers.~~
+- [x] ~~Representative symbol semantic tests pass.~~
+- [x] ~~Full suite passes.~~
+- [x] ~~Stage committed and this section struck through.~~
 
 ## 6. Create A Generated Declaration Factory
 

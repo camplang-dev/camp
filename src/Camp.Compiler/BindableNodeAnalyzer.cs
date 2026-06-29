@@ -246,7 +246,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	internal static string GetCallableName(FunctionDefinition function)
 	{
-		return string.IsNullOrWhiteSpace(function.FullCallableName) ? function.Name : function.FullCallableName;
+		return SymbolNameService.CallableName(function).Value;
 	}
 
 	static string GetSignatureReturnType(FunctionDefinition function, Dictionary<string, string> anchors)
