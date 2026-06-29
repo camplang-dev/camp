@@ -991,8 +991,15 @@ public sealed partial class BindableNodeAnalyzer
 
 			case ThisExpression thisExpression
 				when currentRewriteFunction is not null
-					&& TryGetParamsComponentShape(null, thisExpression.ResolvedType, "this", out ParamsComponentShape shape):
-				return TryCreateCurrentThisParameterComponents(shape, out components);
+					&& TryGetParamsComponentShape(null, thisExpression.ResolvedType, "this", out ParamsComponentShape shape)
+					&& TryCreateCurrentThisParameterComponents(shape, out components):
+				return true;
+
+			case ThisExpression thisExpression
+				when currentRewriteFunction is not null
+					&& TryGetParamsComponentShape(null, thisExpression.ResolvedType, "this", out ParamsComponentShape shape)
+					&& TryCreateSourceArrayThisComponents(shape, out components):
+				return true;
 
 			case NamedExpression named
 				when TryCreateNamedParamsComponentExpressions(named, out components):
@@ -1271,6 +1278,43 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return components.Count > 0;
+	}
+
+	bool TryCreateSourceArrayThisComponents(ParamsComponentShape shape, out List<Expression> components)
+	{
+		components = [];
+		if (currentRewriteFunction is null
+			|| shape.Components.Count != 2
+			|| shape.Components[0].ExpandedName != "this"
+			|| shape.Components[1].ExpandedName != "this_length")
+			return false;
+
+		ParameterDefinition? thisParameter = null;
+		foreach (ParameterDefinition candidate in currentRewriteFunction.Parameters)
+		{
+			if (candidate.Name == "this")
+			{
+				thisParameter = candidate;
+				break;
+			}
+		}
+		if (thisParameter is null)
+			return false;
+
+		string? elementType = TryGetArrayElementType(thisParameter.ResolvedType ?? thisParameter.Type?.ResolvedType);
+		if (elementType is null && thisParameter.Type is not null && UnwrapTypeDeclarators(thisParameter.Type) is ArrayTypeReference arrayType)
+			elementType = FormatTypeReference(arrayType.ElementType);
+		if (elementType is null)
+			return false;
+
+		components.Add(CreateVariableReference(thisParameter, AddPointer(elementType)));
+		components.Add(new NamedExpression
+		{
+			SourceSyntax = thisParameter.SourceSyntax,
+			Name = "this_length",
+			ResolvedType = shape.Components[1].Type
+		});
+		return true;
 	}
 
 	bool TryCreateIteratorProtocolComponentsFromExpandedCall(Expression expression, out List<Expression> components)
@@ -1781,6 +1825,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		components = [];
 		if (index.Target is ArrayExpression)
+			return false;
+		string resultType = StripTopLevelValueQualifiers(index.ResolvedType ?? "");
+		if (resultType == BaseTypeName(resultType) && IsCurrentGenericParameter(resultType))
 			return false;
 		if (index.Target is MemberExpression propertyMember
 			&& TryCreateMaterializedGenericPropertyGetterReference(propertyMember, out MemberReferenceExpression? propertyGetter))

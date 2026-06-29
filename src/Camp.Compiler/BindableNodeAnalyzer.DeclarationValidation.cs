@@ -166,6 +166,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		ValidateClassVirtualMethods(definition);
 		ValidateInheritedMethodNames(definition);
+		ValidateDerivedOptionalInterfaceMethods(definition);
 
 		List<MethodSignature> available = GetClassMethodSignatures(definition);
 
@@ -482,6 +483,46 @@ public sealed partial class BindableNodeAnalyzer
 
 				Report(GetNameRange(function), $"Duplicate method name '{GetDuplicateMethodDisplayName(signature)}' inherited from base class.");
 				break;
+			}
+		}
+	}
+
+	void ValidateDerivedOptionalInterfaceMethods(ClassDefinition definition)
+	{
+		List<MethodSignature> inheritedClassSignatures = GetInheritedClassMethods(definition)
+			.Select(BuildMethodSignature)
+			.ToList();
+		HashSet<string> reported = [];
+
+		foreach (TypeDefinition baseType in GetDirectBaseClasses(definition))
+		{
+			if (baseType is not ClassDefinition baseClass)
+				continue;
+
+			foreach (InterfaceDefinition interfaceDefinition in GetImplementedInterfaces(baseClass))
+			{
+				foreach (FunctionDefinition member in GetInterfaceMembers(interfaceDefinition))
+				{
+					if (member.InterfaceSlotInitializer is null)
+						continue;
+
+					MethodSignature optionalSignature = BuildMethodSignature(member);
+					if (ContainsSignature(inheritedClassSignatures, optionalSignature))
+						continue;
+
+					foreach (FunctionDefinition function in definition.Functions)
+					{
+						MethodSignature declaredSignature = BuildMethodSignature(function);
+						if (!MethodSignatureCompatibleWithConstOfVariance(declaredSignature, optionalSignature))
+							continue;
+
+						string key = $"{function.Name}|{interfaceDefinition.Name}|{optionalSignature.DisplayName}";
+						if (!reported.Add(key))
+							continue;
+
+						Report(GetNameRange(function), $"Method '{declaredSignature.DisplayName}' cannot be declared here because it would implement optional interface member '{interfaceDefinition.Name}.{optionalSignature.DisplayName}' inherited through base class '{baseClass.Name}'. Optional interface members inherited through a base class cannot be introduced in derived classes.");
+					}
+				}
 			}
 		}
 	}

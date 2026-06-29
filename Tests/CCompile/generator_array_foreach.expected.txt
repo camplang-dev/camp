@@ -1,0 +1,147 @@
+// file: generator_array_foreach.c
+#include "generator_array_foreach_private.h"
+
+/* Private file declarations. */
+static duplicateIter duplicate(int *values, uintptr_t values_length);
+static bool duplicateIter_next(duplicateIter *this, int *current);
+static void duplicateIter_op_delete(duplicateIter *this);
+static void duplicateIter_destroy(duplicateIter *this);
+static bool duplicateIter_iter(void *ctx, int *current);
+
+static duplicateIter duplicate(int *values, uintptr_t values_length)
+{
+	return (duplicateIter){ .__state = 0, .values = values, .values_length = values_length };
+}
+
+int main(void)
+{
+	int *values = (int []){1, 2, 3};
+	uintptr_t values_length = 3;
+	int total = 0;
+	{
+		duplicateIter _foreachIter0 = duplicate(values, values_length);
+		int _foreachCurrent1 = 0;
+		while (duplicateIter_next(&_foreachIter0, &_foreachCurrent1))
+		{
+			int item = _foreachCurrent1;
+			total += item;
+__foreach_continue2: ;
+		}
+		duplicateIter_op_delete(&_foreachIter0);
+__foreach_break3: ;
+	}
+	return ((total == 12) ? 0 : 1);
+}
+
+static bool duplicateIter_next(duplicateIter *this, int *current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	if ((this->__state == 2))
+	{
+		goto __iter_resume2;
+	}
+	{
+		this->__foreachElements0 = this->values;
+		this->__foreachLength0 = this->values_length;
+		this->__foreachIndex0 = 0;
+		while ((this->__foreachIndex0 < this->__foreachLength0))
+		{
+			int item = this->__foreachElements0[this->__foreachIndex0];
+			{
+				*current = item;
+				this->__state = 1;
+				return true;
+__iter_resume1: ;
+				;
+				*current = item;
+				this->__state = 2;
+				return true;
+__iter_resume2: ;
+				;
+			}
+__foreach_continue4: ;
+			this->__foreachIndex0++;
+		}
+__foreach_break5: ;
+	}
+	this->__state = -1;
+	return false;
+}
+
+static void duplicateIter_op_delete(duplicateIter *this)
+{
+	if ((this->__state != -1))
+	{
+		{
+		}
+		this->__state = -1;
+	}
+}
+
+static void duplicateIter_destroy(duplicateIter *this)
+{
+	duplicateIter_op_delete(this);
+}
+
+static bool duplicateIter_iter(void *ctx, int *current)
+{
+	duplicateIter *state = (duplicateIter *)(ctx);
+	if ((current == NULL))
+	{
+		duplicateIter_op_delete(state);
+		return false;
+	}
+	return duplicateIter_next(state, current);
+}
+
+// file: generator_array_foreach.h
+#ifndef GENERATOR_ARRAY_FOREACH_H_
+#define GENERATOR_ARRAY_FOREACH_H_
+
+#include "generator_array_foreach_private.h"
+
+int main(void);
+
+#endif
+// file: generator_array_foreach_private.h
+#ifndef GENERATOR_ARRAY_FOREACH_PRIVATE_H_
+#define GENERATOR_ARRAY_FOREACH_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct duplicateIter duplicateIter;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct duplicateIter
+{
+	int __state;
+	int *values;
+	uintptr_t values_length;
+	int *__foreachElements0;
+	uintptr_t __foreachLength0;
+	uintptr_t __foreachIndex0;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generator_array_foreach.c

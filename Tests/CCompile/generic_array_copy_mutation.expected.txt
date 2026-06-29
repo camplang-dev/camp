@@ -38,9 +38,7 @@ static void copyTo(const void *source, uintptr_t source_length, void *destinatio
 	{
 		for (uintptr_t i = 0; (i < count); i++)
 		{
-			{
-				__builtin_memmove((void*)(((uint8_t*)destination) + (i * sizeof_T)), (void*)(((const uint8_t*)source) + (i * sizeof_T)), sizeof_T);
-			}
+			__builtin_memmove((void*)(((uint8_t*)destination) + (i * sizeof_T)), (void*)(((const uint8_t*)source) + (i * sizeof_T)), sizeof_T);
 __for_continue2: ;
 		}
 __for_break3: ;
@@ -57,9 +55,7 @@ static void copyFrom(void *destination, uintptr_t destination_length, const void
 	{
 		for (uintptr_t i = 0; (i < count); i++)
 		{
-			{
-				__builtin_memmove((void*)(((uint8_t*)destination) + (i * sizeof_T)), (void*)(((const uint8_t*)source) + (i * sizeof_T)), sizeof_T);
-			}
+			__builtin_memmove((void*)(((uint8_t*)destination) + (i * sizeof_T)), (void*)(((const uint8_t*)source) + (i * sizeof_T)), sizeof_T);
 __for_continue4: ;
 		}
 __for_break5: ;
@@ -79,9 +75,7 @@ static void reverse(void *values, uintptr_t values_length, uintptr_t sizeof_T)
 		{
 			uint8_t *temp = __builtin_alloca(sizeof_T);
 			__builtin_memcpy(temp, (void*)(((uint8_t*)values) + (left * sizeof_T)), sizeof_T);
-			{
-				__builtin_memmove((void*)(((uint8_t*)values) + (left * sizeof_T)), (void*)(((uint8_t*)values) + (right * sizeof_T)), sizeof_T);
-			}
+			__builtin_memmove((void*)(((uint8_t*)values) + (left * sizeof_T)), (void*)(((uint8_t*)values) + (right * sizeof_T)), sizeof_T);
 			__builtin_memmove((void*)(((uint8_t*)values) + (right * sizeof_T)), temp, sizeof_T);
 			left++;
 			right--;
@@ -106,9 +100,7 @@ static void sort(void *values, uintptr_t values_length, int (* compare)(void *ar
 				{
 					uint8_t *temp = __builtin_alloca(sizeof_T);
 					__builtin_memcpy(temp, (void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), sizeof_T);
-					{
-						__builtin_memmove((void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), (void*)(((uint8_t*)values) + (j * sizeof_T)), sizeof_T);
-					}
+					__builtin_memmove((void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), (void*)(((uint8_t*)values) + (j * sizeof_T)), sizeof_T);
 					__builtin_memmove((void*)(((uint8_t*)values) + (j * sizeof_T)), temp, sizeof_T);
 					j--;
 __while_continue10: ;

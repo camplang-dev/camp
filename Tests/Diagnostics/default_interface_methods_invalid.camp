@@ -18,3 +18,25 @@ interface IWrongDefault
 	int value(int value) = wrongDefault;
 	int invalidExpression(int value) = wrongDefault(1);
 }
+
+interface IBaseOptional
+{
+	int inheritedOptional(int value) = null;
+	int inheritedRequired(int value);
+}
+
+class BaseOptional: IBaseOptional
+{
+	int inheritedRequired(int value)
+	{
+		return value;
+	}
+}
+
+class DerivedOptional: BaseOptional
+{
+	int inheritedOptional(int value)
+	{
+		return value;
+	}
+}

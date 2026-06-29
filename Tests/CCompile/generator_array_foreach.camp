@@ -1,0 +1,17 @@
+struct iter int duplicate(int[] values)
+{
+	foreach (auto item in values)
+	{
+		yield item;
+		yield item;
+	}
+}
+
+export int main()
+{
+	int[] values = [1, 2, 3];
+	int total = 0;
+	foreach (auto item in duplicate(values))
+		total += item;
+	return total == 12 ? 0 : 1;
+}

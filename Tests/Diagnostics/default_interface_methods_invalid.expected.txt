@@ -1,3 +1,4 @@
 tests/Diagnostics/default_interface_methods_invalid.camp(18,25): error: Interface method initializer for 'IWrongDefault.value' must match slot type 'fn int(IWrongDefault*, int)'.
 tests/Diagnostics/default_interface_methods_invalid.camp(19,49): error: Interface method vtable initializer must be null, default, a free function, or a static method.
 tests/Diagnostics/default_interface_methods_invalid.camp(7,7): error: Type 'MissingRequired' does not implement interface member 'IRequired.required(None:int)'.
+tests/Diagnostics/default_interface_methods_invalid.camp(38,6): error: Method 'inheritedOptional(None:int)' cannot be declared here because it would implement optional interface member 'IBaseOptional.inheritedOptional(None:int)' inherited through base class 'BaseOptional'. Optional interface members inherited through a base class cannot be introduced in derived classes.

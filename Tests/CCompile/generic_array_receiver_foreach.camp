@@ -1,0 +1,15 @@
+export int sumGeneric<T: any>(T[] this, delegate int(in T item) valueOf, sizeof(T))
+{
+	int total = 0;
+	foreach (auto item in this)
+		total += valueOf(item);
+	return total;
+}
+
+int valueOfInt(in int item) => item;
+
+export int main()
+{
+	int[] values = [1, 2, 3];
+	return values.sumGeneric(valueOfInt) == 6 ? 0 : 1;
+}
