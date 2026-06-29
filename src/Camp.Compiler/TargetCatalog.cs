@@ -182,6 +182,7 @@ public sealed class TargetDefinition
 	public IReadOnlyDictionary<string, string> TypeSpecs => Sections.TypeSpecs;
 	public IReadOnlyDictionary<string, string> CTypes => Sections.CTypes;
 	public IReadOnlyDictionary<string, string> Defines => Sections.Defines;
+	public IReadOnlyDictionary<string, string> TargetCapabilities => Sections.Capabilities;
 	public IReadOnlyDictionary<string, int> NaturalIntegerWidths => Sections.NaturalIntegerWidths;
 	public IReadOnlyDictionary<string, int> PointerWidths => Sections.PointerWidths;
 	public IReadOnlyDictionary<string, TargetMemoryModel> MemoryModels => Sections.MemoryModels;
@@ -227,6 +228,11 @@ public sealed class TargetDefinition
 	public string? GetBuildTemplate(string name)
 	{
 		return Sections.BuildTemplates.TryGetValue(name, out string? value) && !string.IsNullOrWhiteSpace(value) ? value : null;
+	}
+
+	public string GetCapabilityValue(string name, string defaultValue = "")
+	{
+		return Sections.Capabilities.TryGetValue(name, out string? value) && !string.IsNullOrWhiteSpace(value) ? value : defaultValue;
 	}
 
 	public string GetCEmitterValue(string name, string defaultValue = "")
@@ -297,7 +303,13 @@ public sealed class TargetCapabilities
 		this.target = target;
 	}
 
-	public bool SupportsFrameworkLinking => string.Equals(GetBuildTemplate("allow_frameworks"), "true", StringComparison.OrdinalIgnoreCase);
+	public string Platform => GetCapabilityValue("platform");
+	public string Compiler => GetCapabilityValue("compiler");
+	public string CSourceExtension => GetCapabilityValue("c_source_ext", ".c");
+	public string ObjectiveCSourceExtension => GetCapabilityValue("objc_source_ext", ".m");
+	public bool SupportsFrameworks => GetBooleanCapability("supports_frameworks", legacyBuildTemplate: "allow_frameworks");
+	public bool SupportsFrameworkLinking => SupportsFrameworks;
+	public bool SupportsObjectiveC => GetBooleanCapability("supports_objc");
 
 	public bool HasCallSpec(string name)
 	{
@@ -334,6 +346,11 @@ public sealed class TargetCapabilities
 		return target.GetBuildTemplate(name);
 	}
 
+	public string GetCapabilityValue(string name, string defaultValue = "")
+	{
+		return target.GetCapabilityValue(name, defaultValue);
+	}
+
 	public string GetCEmitterValue(string name, string defaultValue = "")
 	{
 		return target.GetCEmitterValue(name, defaultValue);
@@ -353,12 +370,21 @@ public sealed class TargetCapabilities
 	{
 		return target.GetMemoryModelDefault(memoryModelName, functionPointer);
 	}
+
+	bool GetBooleanCapability(string name, string? legacyBuildTemplate = null)
+	{
+		string value = GetCapabilityValue(name);
+		if (!string.IsNullOrWhiteSpace(value))
+			return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+		return legacyBuildTemplate is not null && string.Equals(GetBuildTemplate(legacyBuildTemplate), "true", StringComparison.OrdinalIgnoreCase);
+	}
 }
 
 internal sealed class TargetSections
 {
 	public Dictionary<string, string> CallSpecs { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> TypeSpecs { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, string> Capabilities { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> CTypes { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> Defines { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, int> NaturalIntegerWidths { get; } = new(StringComparer.Ordinal);
@@ -377,6 +403,7 @@ internal sealed class TargetSections
 		Includes.AddRange(source.Includes);
 		CopySection(source.Defines, Defines);
 		CopySection(source.CallSpecs, CallSpecs);
+		CopySection(source.Capabilities, Capabilities);
 		CopyTypeSpecSection(source.TypeSpecs, source.TypeSpecOrder);
 		CopySection(source.CTypes, CTypes);
 		CopySection(source.NaturalIntegerWidths, NaturalIntegerWidths);
@@ -393,6 +420,7 @@ internal sealed class TargetSections
 	{
 		MergeSection(data, "callspec", CallSpecs);
 		MergeTargetSection(data);
+		MergeSection(data, "capability", Capabilities);
 		MergeSection(data, "define", Defines);
 		MergeTypeSpecSection(data);
 		MergeSection(data, "ctype", CTypes);
