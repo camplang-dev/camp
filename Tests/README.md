@@ -101,3 +101,9 @@ the actual file, and fails.
 When a compiler change intentionally changes output, inspect the `.actual.*` file
 and manually copy or merge its content into the matching `.expected.*` file. There
 is no automatic bless/update-baselines mode.
+
+Prefer semantic unit tests in `src/Camp.Compiler.TestRunner/SemanticTests.cs`
+when the behavior under test is a small compiler fact, such as a callable shape,
+an expanded ABI parameter list, a generated helper symbol, or a metadata/API
+visibility decision. Prefer golden files when the exact emitted text is the
+behavior being protected or when a whole compiler phase output needs review.

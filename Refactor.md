@@ -100,7 +100,7 @@ Completion checklist:
 - [x] ~~Full suite passes.~~
 - [x] ~~Stage committed and this section struck through.~~
 
-## 3. Add Semantic Test Helpers
+## ~~3. Add Semantic Test Helpers~~
 
 Summary: Add tests that assert compiler semantic facts directly instead of only
 checking large goldens. Keep the existing golden system, but add helper APIs for
@@ -134,11 +134,11 @@ Success outcomes:
 
 Completion checklist:
 
-- [ ] Semantic test helper added.
-- [ ] Initial dense semantic tests added.
-- [ ] Test guidance documented in existing test instructions.
-- [ ] Full suite passes.
-- [ ] Stage committed and this section struck through.
+- [x] ~~Semantic test helper added.~~
+- [x] ~~Initial dense semantic tests added.~~
+- [x] ~~Test guidance documented in existing test instructions.~~
+- [x] ~~Full suite passes.~~
+- [x] ~~Stage committed and this section struck through.~~
 
 ## 4. Introduce Stable Diagnostic Codes
 
