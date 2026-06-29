@@ -431,12 +431,13 @@ public sealed class CommandLineTests
 			""");
 		string outDir = Path.Combine(appRoot, "bin");
 		string buildDir = Path.Combine(appRoot, "obj");
+		string target = NativeTargetForHost();
 
 		ProcessResult result = RunCampc(
 			"build",
 			app,
 			"--target",
-			"clang-macos-x64",
+			target,
 			"--project-reference",
 			libraryRoot,
 			"--build-dir",
@@ -444,9 +445,9 @@ public sealed class CommandLineTests
 			"--out-dir",
 			outDir);
 
-		Assert.Equal(0, result.ExitCode);
+		AssertCommandSucceeded(result);
 		Assert.Contains("generated: interface-app", result.StdOut, StringComparison.Ordinal);
-		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "default", "DEBUG", "interfaces_api.camp"));
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", target, "default", "DEBUG", "interfaces_api.camp"));
 		Assert.Contains("export extern class Counter : IValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern constof(this) IValue* getIValue();", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeCounter : IValue", api, StringComparison.Ordinal);
@@ -456,7 +457,7 @@ public sealed class CommandLineTests
 		string cApi = File.ReadAllText(Path.Combine(buildDir, "interfaces_api.h"));
 		Assert.Contains("extern const IValue *Counter_IValue;", cApi, StringComparison.Ordinal);
 		Assert.DoesNotContain("StructCounter_IValue", cApi, StringComparison.Ordinal);
-		ProcessResult run = RunExecutable(Path.Combine(outDir, "interface-app"));
+		ProcessResult run = RunExecutable(Path.Combine(outDir, "interface-app" + ExecutableExtensionForHost()));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);
 	}
@@ -601,12 +602,13 @@ public sealed class CommandLineTests
 				return add(20, 22) - 42;
 			}
 			""");
+		string target = NativeTargetForHost();
 
 		ProcessResult result = RunCampc(
 			"build",
 			app,
 			"--target",
-			"msvc-windows-x64",
+			target,
 			"--project-reference",
 			libraryRoot,
 			"--build-dir",
@@ -614,10 +616,10 @@ public sealed class CommandLineTests
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
-		Assert.Equal(0, result.ExitCode);
+		AssertCommandSucceeded(result);
 		Assert.Contains("generated: sample-app.exe", result.StdOut, StringComparison.Ordinal);
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", "msvc-windows-x64", "default", "DEBUG", "sample-lib.lib")));
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", "msvc-windows-x64", "default", "DEBUG", "sample-lib_api.camp")));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "default", "DEBUG", "sample-lib.lib")));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "default", "DEBUG", "sample-lib_api.camp")));
 		Assert.True(File.Exists(Path.Combine(appRoot, "obj", "sample_lib_api.h")));
 		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", "sample-app.exe"));
 		Assert.Equal(0, run.ExitCode);
@@ -658,14 +660,15 @@ public sealed class CommandLineTests
 				return getValue();
 			}
 			""");
-		string libraryPath = Path.Combine(libraryRoot, "bin", "msvc-windows-x64", "default", "DEBUG", "sample-lib.lib");
+		string target = NativeTargetForHost();
+		string libraryPath = Path.Combine(libraryRoot, "bin", target, "default", "DEBUG", "sample-lib.lib");
 		string executablePath = Path.Combine(appRoot, "bin", "sample-app.exe");
 
 		ProcessResult firstBuild = RunCampc(
 			"build",
 			app,
 			"--target",
-			"msvc-windows-x64",
+			target,
 			"--project-reference",
 			libraryRoot,
 			"--build-dir",
@@ -673,7 +676,7 @@ public sealed class CommandLineTests
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
-		Assert.Equal(0, firstBuild.ExitCode);
+		AssertCommandSucceeded(firstBuild);
 		Assert.Contains($"{libraryRoot}: generated: sample-lib.lib", firstBuild.StdOut, StringComparison.Ordinal);
 		Assert.True(File.Exists(libraryPath));
 		DateTime firstLibraryWrite = File.GetLastWriteTimeUtc(libraryPath);
@@ -691,7 +694,7 @@ public sealed class CommandLineTests
 			"build",
 			app,
 			"--target",
-			"msvc-windows-x64",
+			target,
 			"--project-reference",
 			libraryRoot,
 			"--build-dir",
@@ -699,7 +702,7 @@ public sealed class CommandLineTests
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
-		Assert.Equal(0, secondBuild.ExitCode);
+		AssertCommandSucceeded(secondBuild);
 		Assert.Contains($"{libraryRoot}: generated: sample-lib.lib", secondBuild.StdOut, StringComparison.Ordinal);
 		Assert.True(File.GetLastWriteTimeUtc(libraryPath) >= firstLibraryWrite);
 		ProcessResult secondRun = RunExecutable(executablePath);
@@ -1261,9 +1264,28 @@ public sealed class CommandLineTests
 		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
 	}
 
+	static void AssertCommandSucceeded(ProcessResult result)
+	{
+		Assert.True(result.ExitCode == 0, $"Expected exit code 0 but got {result.ExitCode}.\nSTDOUT:\n{result.StdOut}\nSTDERR:\n{result.StdErr}");
+	}
+
+	static string NativeTargetForHost()
+	{
+		if (!OperatingSystem.IsWindows())
+			return "clang-macos-x64";
+		if (!MsvcAvailable())
+			Assert.Skip("MSVC tools and target architecture are not available.");
+		return CompilerDefaults.TargetName;
+	}
+
+	static string ExecutableExtensionForHost()
+	{
+		return OperatingSystem.IsWindows() ? ".exe" : "";
+	}
+
 	static bool MsvcAvailable()
 	{
-		return OperatingSystem.IsWindows() && ToolAvailable("cl") && ToolAvailable("lib");
+		return OperatingSystem.IsWindows() && MsvcEnvironment.TargetArchitecture is "x64" or "x86" && ToolAvailable("cl") && ToolAvailable("lib");
 	}
 
 	static bool ToolAvailable(string tool)
