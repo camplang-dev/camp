@@ -1,0 +1,11 @@
+// @ target msvc-win16-x86
+// @ memory-model large
+
+export void targetSpecs(
+	fn _near _pascal nint() nearFunction,
+	fn _far _pascal nint() farFunction,
+	fn* _near nearRaw)
+{
+	fn _near _pascal nint() badCast = (unsafe fn _near _pascal nint())farFunction;
+	fn* _far farRaw = (fn* _far)nearRaw;
+}

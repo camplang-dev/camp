@@ -1,0 +1,10 @@
+// @ target msvc-win16-x86
+// @ memory-model large
+
+export void targetSpecs(
+	fn* _near nearRaw,
+	fn _near _pascal nint() nearFunction)
+{
+	fn* _far farRaw = (fn* _far)nearRaw;
+	fn _near _pascal nint() sameFunction = nearFunction;
+}

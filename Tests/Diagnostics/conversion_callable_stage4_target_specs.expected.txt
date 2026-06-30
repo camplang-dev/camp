@@ -1,0 +1,1 @@
+tests/Diagnostics/conversion_callable_stage4_target_specs.camp(9,36): error: Callable signatures are not ABI-slot compatible; use an unsafe cast or an 'fn*' fence.

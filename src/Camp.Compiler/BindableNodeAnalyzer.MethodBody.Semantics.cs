@@ -29,6 +29,10 @@ public sealed partial class BindableNodeAnalyzer
 		InterfaceSlotFabrication,
 		FunctionPointerInteger,
 		TargetSpecPolicy,
+		FunctionDataCrossing,
+		CallableSignature,
+		CallableLifetime,
+		DelegateInvariant,
 		Invalid
 	}
 
@@ -147,6 +151,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (TryClassifyConstructedTypeRewrite(source, target, out ConversionClassification constructedRewrite))
 			return constructedRewrite;
+
+		if (TryClassifyCallableConversion(source, target, out ConversionClassification callable))
+			return callable;
 
 		if (CanImplicitlyConvertCore(source, target))
 			return new ConversionClassification(ConversionLevel.Implicit, ConversionReason.None);
@@ -512,9 +519,6 @@ public sealed partial class BindableNodeAnalyzer
 				|| CanExplicitlyConvertConstShape(explicitSourceShape, explicitTargetShape)))
 			return true;
 
-		if (CanExplicitlyConvertCallableNaturalInteger(source, target))
-			return true;
-
 		if (TryParseTypeShape(source, out TypeShape untypedSourceShape)
 			&& CanExplicitlyConvertUntypedPointerToCallable(untypedSourceShape, target))
 			return true;
@@ -528,11 +532,25 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryClassifyRawCarrierOrPointerConversion(string source, string target, out ConversionClassification classification)
 	{
 		classification = default;
-		if (!TryParseTypeShape(source, out TypeShape sourceShape) || !TryParseTypeShape(target, out TypeShape targetShape))
+		bool sourceIsCallable = TryGetCallableShape(source, out CallableShape sourceCallable);
+		bool targetIsCallable = TryGetCallableShape(target, out CallableShape targetCallable);
+		bool sourceParsed = TryParseTypeShape(source, out TypeShape sourceShape);
+		bool targetParsed = TryParseTypeShape(target, out TypeShape targetShape);
+		if (!sourceParsed && !sourceIsCallable || !targetParsed && !targetIsCallable)
 			return false;
 
-		if (TryClassifyTargetSpecPolicy(sourceShape, targetShape, out classification))
+		if (sourceParsed && targetParsed && TryClassifyTargetSpecPolicy(sourceShape, targetShape, out classification))
 			return true;
+
+		if (sourceIsCallable && sourceCallable.Kind != "fn" && (IsUntypedScalarShape(targetShape) || IsRawFunctionPointerShape(targetShape) || IsNaturalIntegerShape(targetShape))
+			|| targetIsCallable && targetCallable.Kind != "fn" && (IsUntypedScalarShape(sourceShape) || IsRawFunctionPointerShape(sourceShape) || IsNaturalIntegerShape(sourceShape)))
+		{
+			classification = new ConversionClassification(
+				ConversionLevel.ReconstructRequired,
+				ConversionReason.DelegateInvariant,
+				"Delegate values cannot be cast to 'fn*'; rebuild the delegate or cast its call component.");
+			return true;
+		}
 
 		if (IsUntypedScalarShape(sourceShape) && IsRepresentableRawCarrierTarget(targetShape, target))
 		{
@@ -555,13 +573,38 @@ public sealed partial class BindableNodeAnalyzer
 					"Function pointer values do not portably convert to natural integers; use 'fn*' or 'untyped' as the raw carrier.");
 				return true;
 			}
-			if (TryGetCallableShape(source, out _) && IsRawFunctionPointerShape(targetShape)
-				|| IsRawFunctionPointerShape(sourceShape) && TryGetCallableShape(target, out _)
+			if (targetShape.Kind == TypeShapeKind.Pointer || sourceShape.Kind == TypeShapeKind.Pointer
+				|| sourceIsCallable && targetShape.Kind == TypeShapeKind.Pointer
+				|| sourceShape.Kind == TypeShapeKind.Pointer && targetIsCallable)
+			{
+				classification = new ConversionClassification(
+					ConversionLevel.Unsafe,
+					ConversionReason.FunctionDataCrossing,
+					"Function pointer to data pointer conversion requires unsafe; use 'fn*' to erase only the function signature.");
+				return true;
+			}
+			if (sourceIsCallable && IsRawFunctionPointerShape(targetShape)
+				|| IsRawFunctionPointerShape(sourceShape) && targetIsCallable
 				|| IsRawFunctionPointerShape(sourceShape) && IsRawFunctionPointerShape(targetShape))
 			{
 				classification = new ConversionClassification(ConversionLevel.Explicit, ConversionReason.None);
 				return true;
 			}
+		}
+
+		if (sourceIsCallable && (IsNaturalIntegerShape(targetShape) || targetShape.Kind == TypeShapeKind.Pointer)
+			|| targetIsCallable && (IsNaturalIntegerShape(sourceShape) || sourceShape.Kind == TypeShapeKind.Pointer))
+		{
+			ConversionLevel level = sourceShape.Kind == TypeShapeKind.Pointer || targetShape.Kind == TypeShapeKind.Pointer
+				? ConversionLevel.Unsafe
+				: ConversionLevel.Forbidden;
+			classification = new ConversionClassification(
+				level,
+				level == ConversionLevel.Unsafe ? ConversionReason.FunctionDataCrossing : ConversionReason.FunctionPointerInteger,
+				level == ConversionLevel.Unsafe
+					? "Function pointer to data pointer conversion requires unsafe; use 'fn*' to erase only the function signature."
+					: "Function pointer values do not portably convert to natural integers; use 'fn*' or 'untyped' as the raw carrier.");
+			return true;
 		}
 
 		if (sourceShape.Kind == TypeShapeKind.Pointer && IsNaturalIntegerShape(targetShape)
@@ -738,6 +781,199 @@ public sealed partial class BindableNodeAnalyzer
 			|| IsNaturalIntegerShape(shape)
 			|| IsNumericType(type)
 			|| TryGetCallableShape(type, out _);
+	}
+
+	bool TryClassifyCallableConversion(string source, string target, out ConversionClassification classification)
+	{
+		classification = default;
+		if (!TryGetCallableShape(source, out CallableShape sourceCallable)
+			|| !TryGetCallableShape(target, out CallableShape targetCallable))
+			return false;
+
+		sourceCallable = ExpandCallableShape(sourceCallable);
+		targetCallable = ExpandCallableShape(targetCallable);
+
+		if (sourceCallable.Kind != targetCallable.Kind && !(sourceCallable.Kind == "fn" && targetCallable.Kind == "delegate"))
+		{
+			classification = new ConversionClassification(
+				sourceCallable.Kind == "delegate" || targetCallable.Kind == "delegate" ? ConversionLevel.ReconstructRequired : ConversionLevel.Forbidden,
+				sourceCallable.Kind == "delegate" || targetCallable.Kind == "delegate" ? ConversionReason.DelegateInvariant : ConversionReason.CallableSignature,
+				sourceCallable.Kind == "delegate" || targetCallable.Kind == "delegate"
+					? "Delegate values cannot change callable carrier; rebuild the delegate or cast its call component."
+					: null);
+			return true;
+		}
+
+		if (CallableShapesAbiSlotCompatible(sourceCallable, targetCallable, out bool lifetimeOnlyDifference))
+		{
+			classification = lifetimeOnlyDifference
+				? new ConversionClassification(
+					ConversionLevel.Unsafe,
+					ConversionReason.CallableLifetime,
+					"Cast changes callable lifetime contract; write 'unsafe' to acknowledge the hidden context/result lifetime change.")
+				: new ConversionClassification(ConversionLevel.Implicit, ConversionReason.None);
+			return true;
+		}
+
+		bool fenceRequired = CallableSignatureNeedsFence(sourceCallable, targetCallable);
+		classification = new ConversionClassification(
+			fenceRequired ? ConversionLevel.FenceRequired : ConversionLevel.Unsafe,
+			ConversionReason.CallableSignature,
+			"Callable signatures are not ABI-slot compatible; use an unsafe cast or an 'fn*' fence.");
+		return true;
+	}
+
+	bool CallableSignatureNeedsFence(CallableShape source, CallableShape target)
+	{
+		if (source.CallSpec != target.CallSpec || !CallableSpecsAbiSlotCompatible(source.Spec, target.Spec))
+			return true;
+		if (CallableSlotNeedsFence(source.ReturnType, target.ReturnType))
+			return true;
+		for (int i = 0; i < Math.Min(source.Parameters.Count, target.Parameters.Count); i++)
+		{
+			CallableSlot sourceSlot = ParseCallableSlot(source.Parameters[i]);
+			CallableSlot targetSlot = ParseCallableSlot(target.Parameters[i]);
+			if (sourceSlot.Modifier != targetSlot.Modifier)
+				continue;
+			if (CallableSlotNeedsFence(sourceSlot.Type, targetSlot.Type))
+				return true;
+		}
+		return false;
+	}
+
+	bool CallableSlotNeedsFence(string source, string target)
+	{
+		if (!TryParseTypeShape(source, out TypeShape sourceShape) || !TryParseTypeShape(target, out TypeShape targetShape))
+			return false;
+		return CallableTypeShapeNeedsFence(sourceShape, targetShape);
+	}
+
+	bool CallableTypeShapeNeedsFence(TypeShape source, TypeShape target)
+	{
+		if (source.TargetSpec != target.TargetSpec && !CallableSpecsAbiSlotCompatible(source.TargetSpec, target.TargetSpec))
+			return true;
+		if (source.Element is null || target.Element is null)
+			return false;
+		return CallableTypeShapeNeedsFence(source.Element, target.Element);
+	}
+
+	bool CallableShapesAbiSlotCompatible(CallableShape source, CallableShape target, out bool lifetimeOnlyDifference)
+	{
+		lifetimeOnlyDifference = false;
+		if (source.Parameters.Count != target.Parameters.Count)
+			return false;
+		if (source.CallSpec != target.CallSpec)
+			return false;
+		if (!CallableSpecsAbiSlotCompatible(source.Spec, target.Spec))
+			return false;
+		if (!ThisContractsAbiSlotCompatible(source.This, target.This, ref lifetimeOnlyDifference))
+			return false;
+		if (!CallableSlotAbiCompatible(source.ReturnType, target.ReturnType, outputPosition: true, ref lifetimeOnlyDifference))
+			return false;
+
+		for (int i = 0; i < source.Parameters.Count; i++)
+		{
+			CallableSlot sourceSlot = ParseCallableSlot(source.Parameters[i]);
+			CallableSlot targetSlot = ParseCallableSlot(target.Parameters[i]);
+			if (sourceSlot.Modifier != targetSlot.Modifier)
+				return false;
+			if (sourceSlot.Modifier == "thrown")
+			{
+				if (sourceSlot.Type != targetSlot.Type)
+					return false;
+				continue;
+			}
+
+			bool outputPosition = sourceSlot.Modifier == "out";
+			if (!CallableSlotAbiCompatible(sourceSlot.Type, targetSlot.Type, outputPosition, ref lifetimeOnlyDifference))
+				return false;
+		}
+
+		return true;
+	}
+
+	bool CallableSpecsAbiSlotCompatible(string? sourceSpec, string? targetSpec)
+	{
+		if (sourceSpec == targetSpec)
+			return true;
+		if (selectedTarget is null)
+			return false;
+		return selectedTarget.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, sourceSpec, targetSpec) == TargetConversionLevel.Implicit;
+	}
+
+	bool CallableSlotAbiCompatible(string source, string target, bool outputPosition, ref bool lifetimeOnlyDifference)
+	{
+		if (CallableSlotTypesCompatible(source, target, outputPosition))
+			return true;
+		if (CallableSlotTypesSameIgnoringLifetime(source, target, outputPosition))
+		{
+			lifetimeOnlyDifference = true;
+			return true;
+		}
+		if (!TryParseTypeShape(source, out TypeShape sourceShape) || !TryParseTypeShape(target, out TypeShape targetShape))
+			return false;
+		return CallableTypeShapeAbiCompatible(sourceShape, targetShape, outputPosition, ref lifetimeOnlyDifference);
+	}
+
+	bool CallableTypeShapeAbiCompatible(TypeShape source, TypeShape target, bool outputPosition, ref bool lifetimeOnlyDifference)
+	{
+		if (TypeShapeParser.Format(source) == TypeShapeParser.Format(target))
+			return true;
+		if (source.Kind != target.Kind || source.Name != target.Name || source.Length != target.Length)
+			return false;
+		if (source.TargetSpec != target.TargetSpec
+			&& selectedTarget?.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, source.TargetSpec, target.TargetSpec) != TargetConversionLevel.Implicit)
+			return false;
+		if (!CallableQualifiersCompatible(source.Qualifiers, target.Qualifiers, outputPosition, ref lifetimeOnlyDifference))
+			return false;
+		if (source.Element is null || target.Element is null)
+			return source.Element is null && target.Element is null;
+		return CallableTypeShapeAbiCompatible(source.Element, target.Element, outputPosition, ref lifetimeOnlyDifference);
+	}
+
+	static bool CallableQualifiersCompatible(TypeQualifiers source, TypeQualifiers target, bool outputPosition, ref bool lifetimeOnlyDifference)
+	{
+		if (source.IsVolatile != target.IsVolatile)
+			return false;
+		if (source.IsConst != target.IsConst)
+		{
+			if (outputPosition && source.IsConst && !target.IsConst)
+				return false;
+			if (!outputPosition && !source.IsConst && target.IsConst)
+				return false;
+		}
+		if (source.Lifetime != target.Lifetime)
+			lifetimeOnlyDifference = true;
+		return true;
+	}
+
+	static bool CallableSlotTypesSameIgnoringLifetime(string source, string target, bool outputPosition)
+	{
+		if (!TryParseTypeShapeStatic(source, out TypeShape sourceShape) || !TryParseTypeShapeStatic(target, out TypeShape targetShape))
+			return false;
+		sourceShape = StripLifetimeQualifiers(sourceShape);
+		targetShape = StripLifetimeQualifiers(targetShape);
+		return TypeShapeParser.Format(sourceShape) == TypeShapeParser.Format(targetShape);
+	}
+
+	static bool TryParseTypeShapeStatic(string? type, out TypeShape shape)
+	{
+		TypeShapeParser parser = new(type ?? "");
+		return parser.TryParse(out shape) && parser.IsEnd;
+	}
+
+	static bool ThisContractsAbiSlotCompatible(ThisContract source, ThisContract target, ref bool lifetimeOnlyDifference)
+	{
+		if (source == target)
+			return true;
+		if (source.HasThis != target.HasThis || source.IsConst != target.IsConst || source.IsVolatile != target.IsVolatile)
+			return false;
+		if (source.Lifetime != target.Lifetime)
+		{
+			lifetimeOnlyDifference = true;
+			return true;
+		}
+		return false;
 	}
 
 	static bool IsUntypedScalarShape(TypeShape shape)

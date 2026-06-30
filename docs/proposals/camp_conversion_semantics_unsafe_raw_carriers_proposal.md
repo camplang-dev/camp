@@ -343,12 +343,12 @@ Goal: implement the function-pointer side of the semantics: `fn*`, direct callab
 
 ### Completion Criteria
 
-- [ ] `fn*` conversion and emission works as the function-pointer fence.
-- [ ] Direct callable compatibility uses ABI-slot variance, not ordinary value conversion.
-- [ ] Callable lifetime changes require `unsafe`.
-- [ ] Delegate values remain invariant and cannot be cast as whole values to scalar raw carriers.
-- [ ] Callable diagnostics distinguish unsafe-required from fence-required from reconstruct-required.
-- [ ] Full non-skipped suite passes and the stage is committed.
+- [x] ~~`fn*` conversion and emission works as the function-pointer fence.~~
+- [x] ~~Direct callable compatibility uses ABI-slot variance, not ordinary value conversion.~~
+- [x] ~~Callable lifetime changes require `unsafe`.~~
+- [x] ~~Delegate values remain invariant and cannot be cast as whole values to scalar raw carriers.~~
+- [x] ~~Callable diagnostics distinguish unsafe-required from fence-required from reconstruct-required.~~
+- [x] ~~Full non-skipped suite passes and the stage is committed.~~
 
 ## Stage 5: Multivalue Hardening, Standard Library Migration, Docs, And Final Audit
 

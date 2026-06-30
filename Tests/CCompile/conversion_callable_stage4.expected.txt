@@ -1,0 +1,83 @@
+// file: conversion_callable_stage4.c
+#include "conversion_callable_stage4_private.h"
+
+/* Private file declarations. */
+static int plusOne(int value);
+static int plusLong(int64_t value);
+static int consumeConst(const int *value);
+static int readScoped(int *value);
+static void acceptEscaped(int (* reader)(int *camp));
+
+static int plusOne(int value)
+{
+	return (value + 1);
+}
+
+static int plusLong(int64_t value)
+{
+	return ((int)(value) + 2);
+}
+
+static int consumeConst(const int *value)
+{
+	return *value;
+}
+
+static int readScoped(int *value)
+{
+	return *value;
+}
+
+static void acceptEscaped(int (* reader)(int *camp))
+{
+}
+
+int main(void)
+{
+	int (* plus)(int camp) = plusOne;
+	void (* raw)(void) = (void (*)(void))(plus);
+	int (* restored)(int camp) = (int (*)(int arg0))(raw);
+	uintptr_t erased = (uintptr_t)(raw);
+	int (* restoredAgain)(int camp) = (int (*)(int arg0))(erased);
+	int (* rewritten)(int camp) = (int (*)(int arg0))(plusLong);
+	int (* mutableInput)(int *camp) = (int (*)(int *arg0))consumeConst;
+	acceptEscaped((int (*)(int *arg0))(int (*)(int *arg0))(readScoped));
+	int value = 5;
+	int total = (((restored(1) + restoredAgain(1)) + rewritten(1)) + mutableInput(&value));
+	return ((total == 13) ? 0 : 1);
+}
+
+// file: conversion_callable_stage4.h
+#ifndef CONVERSION_CALLABLE_STAGE4_H_
+#define CONVERSION_CALLABLE_STAGE4_H_
+
+#include "conversion_callable_stage4_private.h"
+
+int main(void);
+
+#endif
+// file: conversion_callable_stage4_private.h
+#ifndef CONVERSION_CALLABLE_STAGE4_PRIVATE_H_
+#define CONVERSION_CALLABLE_STAGE4_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: conversion_callable_stage4.c

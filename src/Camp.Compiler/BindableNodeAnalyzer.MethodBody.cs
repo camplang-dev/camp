@@ -1223,7 +1223,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (cast.Type is not null)
 			AnalyzeType(cast.Type, typeScope);
 		string targetType = cast.Type?.ResolvedType ?? ErrorType;
-		string structuralTargetType = ContainsLifetimeAnnotation(cast.Type) ? StripLifetimeQualifiers(targetType) : targetType;
+		string structuralTargetType = ContainsLifetimeAnnotation(cast.Type) && !TryGetCallableShape(targetType, out _)
+			? StripLifetimeQualifiers(targetType)
+			: targetType;
 		string? expressionTargetType = cast.Expression is InitializerExpression or ArrayExpression ? structuralTargetType : null;
 		string sourceType = BodyAnalyzeExpression(cast.Expression, scope, typeScope, expressionTargetType);
 		if (cast.LifetimeCastKind is not null)

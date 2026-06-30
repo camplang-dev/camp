@@ -1,0 +1,21 @@
+int plusOne(int value) => value + 1;
+int plusLong(long value) => (int)value + 2;
+int consumeConst(const int* value) => *value;
+int readScoped(scoped int* value) => *value;
+void acceptEscaped(fn int(escaped int*) reader) {}
+
+export int main()
+{
+	fn int(int) plus = plusOne;
+	fn* raw = (fn*)plus;
+	fn int(int) restored = (fn int(int))raw;
+	untyped erased = (untyped)raw;
+	fn int(int) restoredAgain = (fn int(int))erased;
+	fn int(int) rewritten = (unsafe fn int(int))plusLong;
+	fn int(int*) mutableInput = consumeConst;
+	acceptEscaped((unsafe fn int(escaped int*))readScoped);
+
+	int value = 5;
+	int total = restored(1) + restoredAgain(1) + rewritten(1) + mutableInput(&value);
+	return total == 13 ? 0 : 1;
+}

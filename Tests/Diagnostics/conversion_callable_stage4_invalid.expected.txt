@@ -1,0 +1,6 @@
+tests/Diagnostics/conversion_callable_stage4_invalid.camp(15,2): error: Raw function pointer 'fn*' is not callable; cast it to a concrete fn type first.
+tests/Diagnostics/conversion_callable_stage4_invalid.camp(16,15): error: Function pointer to data pointer conversion requires unsafe; use 'fn*' to erase only the function signature.
+tests/Diagnostics/conversion_callable_stage4_invalid.camp(17,15): error: Function pointer values do not portably convert to natural integers; use 'fn*' or 'untyped' as the raw carrier.
+tests/Diagnostics/conversion_callable_stage4_invalid.camp(18,29): error: Callable signatures are not ABI-slot compatible; use an unsafe cast or an 'fn*' fence.
+tests/Diagnostics/conversion_callable_stage4_invalid.camp(19,20): error: Delegate values cannot be cast to 'fn*'; rebuild the delegate or cast its call component.
+tests/Diagnostics/conversion_callable_stage4_invalid.camp(20,16): error: Cast changes callable lifetime contract; write 'unsafe' to acknowledge the hidden context/result lifetime change.

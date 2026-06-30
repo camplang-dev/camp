@@ -1,0 +1,21 @@
+newtype delegate void Callback();
+
+int plusOne(int value) => value + 1;
+int plusLong(long value) => (int)value + 2;
+int readScoped(scoped int* value) => *value;
+void acceptEscaped(fn int(escaped int*) reader) {}
+
+export void main()
+{
+	fn int(int) plus = plusOne;
+	fn int(long) longs = plusLong;
+	fn* raw = (fn*)plus;
+	delegate void() callback = () => { };
+
+	raw();
+	void* data = (void*)plus;
+	nuint bits = (nuint)plus;
+	fn int(int) badSignature = (fn int(int))longs;
+	fn* badDelegate = (fn*)callback;
+	acceptEscaped((fn int(escaped int*))readScoped);
+}

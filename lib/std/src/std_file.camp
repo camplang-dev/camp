@@ -229,7 +229,7 @@ export class FileHandle
 	export CharReader getCharReader()
 	{
 		ByteReader byteReader = this.ByteReader;
-		return { (fn bool(void*, nuint*, char*, nuint))byteReader.call, byteReader.context };
+		return { (unsafe fn bool(void*, nuint*, char*, nuint))byteReader.call, byteReader.context };
 	}
 	
 	export ByteWriter getByteWriter()
@@ -240,7 +240,7 @@ export class FileHandle
 	export CharWriter getCharWriter()
 	{
 		ByteWriter byteWriter = this.ByteWriter;
-		return { (fn bool(void*, nuint*, char*, nuint))byteWriter.call, byteWriter.context };
+		return { (unsafe fn bool(void*, nuint*, char*, nuint))byteWriter.call, byteWriter.context };
 	}
 	
 	// export AsyncByteReader getAsyncReader();

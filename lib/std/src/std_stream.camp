@@ -58,32 +58,32 @@ export newtype iter nuint ACharWriter(achar[] buffer);
 
 export CharReader getCharReader(ByteReader this)
 {
-	return { (fn bool(void*, nuint*, char*, nuint))this.call, this.context };
+	return { (unsafe fn bool(void*, nuint*, char*, nuint))this.call, this.context };
 }
 
 export WCharReader getWCharReader(ByteReader this)
 {
-	return { (fn bool(void*, nuint*, wchar*, nuint))this.call, this.context };
+	return { (unsafe fn bool(void*, nuint*, wchar*, nuint))this.call, this.context };
 }
 
 export ACharReader getACharReader(ByteReader this)
 {
-	return { (fn bool(void*, nuint*, achar*, nuint))this.call, this.context };
+	return { (unsafe fn bool(void*, nuint*, achar*, nuint))this.call, this.context };
 }
 
 export CharWriter getCharWriter(ByteWriter this)
 {
-	return { (fn bool(void*, nuint*, char*, nuint))this.call, this.context };
+	return { (unsafe fn bool(void*, nuint*, char*, nuint))this.call, this.context };
 }
 
 export WCharWriter getWCharWriter(ByteWriter this)
 {
-	return { (fn bool(void*, nuint*, wchar*, nuint))this.call, this.context };
+	return { (unsafe fn bool(void*, nuint*, wchar*, nuint))this.call, this.context };
 }
 
 export ACharWriter getACharWriter(ByteWriter this)
 {
-	return { (fn bool(void*, nuint*, achar*, nuint))this.call, this.context };
+	return { (unsafe fn bool(void*, nuint*, achar*, nuint))this.call, this.context };
 }
 
 // export AsyncCharReader getCharReader(AsyncByteReader this);
