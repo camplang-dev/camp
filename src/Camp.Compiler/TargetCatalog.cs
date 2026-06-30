@@ -300,10 +300,12 @@ public sealed class TargetDefinition
 		if (source is not null && target is not null
 			&& Sections.ConversionPolicy.TryGetValue(new TargetConversionPolicyKey(carrier, source, target), out TargetConversionLevel configured))
 			return configured;
+		if (carrier == TargetConversionCarrier.AbiSlot)
+			return TargetConversionLevel.Forbidden;
 		if (CanWidenTypeSpec(source, target))
-			return carrier == TargetConversionCarrier.AbiSlot ? TargetConversionLevel.Compatible : TargetConversionLevel.Implicit;
+			return TargetConversionLevel.Implicit;
 		if (AreTypeSpecsCompatible(source, target))
-			return carrier == TargetConversionCarrier.AbiSlot ? TargetConversionLevel.Forbidden : TargetConversionLevel.Explicit;
+			return TargetConversionLevel.Explicit;
 		return TargetConversionLevel.Forbidden;
 	}
 }

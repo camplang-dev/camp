@@ -72,7 +72,7 @@ public sealed class TargetCapabilityTests
 		Assert.Equal(TargetConversionLevel.Unsafe, win16.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.DataPointer, "_far", "_near"));
 		Assert.Equal(TargetConversionLevel.Explicit, win16.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.FunctionPointer, "_near", "_far"));
 		Assert.Equal(TargetConversionLevel.Unsafe, win16.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.NaturalInteger, "_huge", "_near"));
-		Assert.Equal(TargetConversionLevel.Compatible, win16.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, "_far", "_huge"));
+		Assert.Equal(TargetConversionLevel.Forbidden, win16.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, "_near", "_far"));
 		Assert.Equal(TargetConversionLevel.Forbidden, win16.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, "_huge", "_near"));
 	}
 
@@ -145,6 +145,36 @@ _stdcall->_near=implicit
 """);
 			Assert.False(TargetCatalog.TryLoad(root, out _, out error));
 			Assert.Contains("references callspec '_stdcall'; conversion policies require typespecs.", error);
+		}
+		finally
+		{
+			if (Directory.Exists(root))
+				Directory.Delete(root, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Target_conversion_policy_allows_explicit_abi_slot_compatibility()
+	{
+		string root = Path.Combine(Path.GetTempPath(), "camp-target-policy-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(root);
+		try
+		{
+			WriteTarget(root, "abi.ini", """
+[target]
+name=abi
+
+[typespec]
+_small=
+_large=
+
+[conversion.abi_slot]
+_small->_large=compatible
+""");
+			Assert.True(TargetCatalog.TryLoad(root, out TargetCatalog? catalog, out string? error), error);
+			Assert.True(catalog!.TryGetTarget("abi", out TargetDefinition? target));
+			Assert.Equal(TargetConversionLevel.Compatible, target!.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, "_small", "_large"));
+			Assert.Equal(TargetConversionLevel.Forbidden, target.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, "_large", "_small"));
 		}
 		finally
 		{
