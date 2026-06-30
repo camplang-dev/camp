@@ -967,7 +967,7 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		if (selectedTarget is null)
 			return false;
-		return selectedTarget.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, sourceSpec, targetSpec) == TargetConversionLevel.Implicit;
+		return selectedTarget.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, sourceSpec, targetSpec) == TargetConversionLevel.Compatible;
 	}
 
 	bool CallableSlotAbiCompatible(string source, string target, bool outputPosition, ref bool lifetimeOnlyDifference)
@@ -991,7 +991,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (source.Kind != target.Kind || source.Name != target.Name || source.Length != target.Length)
 			return false;
 		if (source.TargetSpec != target.TargetSpec
-			&& selectedTarget?.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, source.TargetSpec, target.TargetSpec) != TargetConversionLevel.Implicit)
+			&& selectedTarget?.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, source.TargetSpec, target.TargetSpec) != TargetConversionLevel.Compatible)
 			return false;
 		if (!CallableQualifiersCompatible(source.Qualifiers, target.Qualifiers, outputPosition, ref lifetimeOnlyDifference))
 			return false;

@@ -1,9 +1,9 @@
 # Camp Conversion Semantics Implementation Proposal
 
-Status: proposed
+Status: accepted
 Source semantics document: `docs/camp_conversion_semantics_draft_v4.md`
 Audience: implementation agents working in the Camp compiler
-Final disposition: when fully implemented and verified, move this file to `docs/proposals/accepted/` with all completion criteria struck through.
+Final disposition: implemented and verified; this file has been moved to `docs/proposals/accepted/` with completion criteria struck through.
 
 ## Summary
 
@@ -426,7 +426,7 @@ Goal: finish the non-tunneling surfaces, update affected code/tests/docs, and ve
 - [x] ~~Final audit maps every section of `camp_conversion_semantics_draft_v4.md` to implementation or tests.~~
 - [x] ~~No `.actual` files remain.~~
 - [x] ~~macOS, Windows/MSVC, and Linux/WSL full non-skipped suites pass.~~
-- [ ] This proposal is moved to `docs/proposals/accepted/` with completed criteria struck through.
+- [x] ~~This proposal is moved to `docs/proposals/accepted/` with completed criteria struck through.~~
 - [x] ~~Final stage is committed.~~
 
 ## Suggested Diagnostic Style Guide
