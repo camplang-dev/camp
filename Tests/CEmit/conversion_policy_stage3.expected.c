@@ -2,11 +2,11 @@
 #include "conversion_policy_stage3_private.h"
 
 
-void policy(bytePtr__near nearBytes, bytePtr__far farBytes, void (* __near nearFn)(void), int nearIndex __near, unsigned char * __far nearItems, unsigned int nearItems_length)
+void policy(unsigned char * __near nearBytes, unsigned char * __far farBytes, void (* __near nearFn)(void), int nearIndex __near, unsigned char * __far nearItems, unsigned int nearItems_length)
 {
-	bytePtr__far widenedBytes = nearBytes;
-	bytePtr__near narrowedBytes = (unsigned char * __far  __near)(farBytes);
-	void (* __far widenedFn)(void) = (void (* __far  __far)(void))(nearFn);
+	unsigned char * __far widenedBytes = nearBytes;
+	unsigned char * __near narrowedBytes = (unsigned char * __near)(farBytes);
+	void (* __far widenedFn)(void) = (void (* __far)(void))(nearFn);
 	int widenedIndex __far = nearIndex;
 	int narrowedIndex __near = (int  __near)(widenedIndex);
 	unsigned char * __far widenedItems = nearItems;
@@ -19,7 +19,7 @@ void policy(bytePtr__near nearBytes, bytePtr__far farBytes, void (* __near nearF
 
 #include "conversion_policy_stage3_private.h"
 
-void policy(bytePtr__near nearBytes, bytePtr__far farBytes, void (* __near nearFn)(void), int nearIndex __near, unsigned char * __far nearItems, unsigned int nearItems_length);
+void policy(unsigned char * __near nearBytes, unsigned char * __far farBytes, void (* __near nearFn)(void), int nearIndex __near, unsigned char * __far nearItems, unsigned int nearItems_length);
 
 #endif
 // file: conversion_policy_stage3_private.h
@@ -37,7 +37,7 @@ void policy(bytePtr__near nearBytes, bytePtr__far farBytes, void (* __near nearF
 /* Layouts. */
 
 /* Function declarations. */
-void policy(bytePtr__near nearBytes, bytePtr__far farBytes, void (* __near nearFn)(void), int nearIndex __near, unsigned char * __far nearItems, unsigned int nearItems_length);
+void policy(unsigned char * __near nearBytes, unsigned char * __far farBytes, void (* __near nearFn)(void), int nearIndex __near, unsigned char * __far nearItems, unsigned int nearItems_length);
 
 /* Object declarations. */
 

@@ -5037,7 +5037,7 @@ public static class CCodeEmitter
 				UnscopedTypeReference unscoped => FormatType(unscoped.Type, declarator),
 				TargetTypeSpecTypeReference targetSpec => FormatTargetSpecType(targetSpec, declarator),
 				PointerTypeReference pointer => FormatPointerType(pointer, declarator),
-				ArrayTypeReference array => FormatType(array.ElementType, "*" + declarator),
+				ArrayTypeReference array => FormatType(array.ElementType, FormatDataPointerDeclarator(declarator, explicitTargetSpec: null)),
 				FixedArrayTypeReference fixedArray => FormatFixedArrayType(fixedArray, declarator),
 				OptionalTypeReference optional => FormatType(optional.ElementType, declarator),
 				RawFunctionPointerTypeReference => new CType(FormatInlineResolvedFunctionPointer("void", new List<string>(), declarator, GetDefaultTargetTypeSpec(functionPointer: true), null)),
@@ -5204,6 +5204,7 @@ public static class CCodeEmitter
 				break;
 			}
 
+			string? explicitTargetSpec = TryStripTrailingResolvedTargetSpec(ref type);
 			int pointerCount = 0;
 			while (type.EndsWith("*", StringComparison.Ordinal))
 			{
@@ -5230,7 +5231,7 @@ public static class CCodeEmitter
 			if (isGenericType && !anyGenericParameterNames.Contains(type) && pointerCount > 0 && currentArrayElementComponentNames.Contains(declarator))
 				pointerCount++;
 			string pointerPart = pointerCount == 0 ? "" : new string('*', pointerCount);
-			string targetSpec = pointerPart.Length == 0 ? "" : FormatTypeSpec(GetDefaultTargetTypeSpec(functionPointer: false));
+			string targetSpec = pointerPart.Length == 0 ? "" : FormatTypeSpec(explicitTargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: false));
 			if (targetSpec.Length > 0)
 				pointerPart += " " + targetSpec;
 			if (pointerPart.Length > 0 && trailingQualifiers.Count > 0)
@@ -5242,10 +5243,28 @@ public static class CCodeEmitter
 				string separator = pointerPart.EndsWith("*", StringComparison.Ordinal) || declarator.Length == 0 ? "" : " ";
 				pointerDeclarator = pointerPart + separator + declarator;
 			}
+			else if (explicitTargetSpec is not null)
+			{
+				string spec = FormatTypeSpec(explicitTargetSpec);
+				if (spec.Length > 0)
+					pointerDeclarator = string.IsNullOrWhiteSpace(pointerDeclarator) ? spec : pointerDeclarator + " " + spec;
+			}
 			if (TrySplitFixedArrayType(type, out string fixedBaseType, out List<long> fixedLengths))
 				return FormatResolvedFixedArrayType(qualifierPart + fixedBaseType, fixedLengths, pointerDeclarator);
 			string cType = isGenericType && pointerCount == 0 ? "void*" : FormatResolvedBaseType(type);
 			return new CType(qualifierPart + cType + " " + pointerDeclarator);
+		}
+
+		string? TryStripTrailingResolvedTargetSpec(ref string type)
+		{
+			int space = type.LastIndexOf(' ');
+			if (space < 0 || space == type.Length - 1)
+				return null;
+			string candidate = type[(space + 1)..].Trim();
+			if (compilation.Target?.Capabilities.HasTypeSpec(candidate) != true)
+				return null;
+			type = type[..space].TrimEnd();
+			return candidate;
 		}
 
 		bool IsInterfaceResolvedName(string type)
@@ -5331,19 +5350,29 @@ public static class CCodeEmitter
 			string cSpec = FormatTypeSpec(targetSpec.Specifier);
 			if (cSpec.Length == 0)
 				return FormatType(targetSpec.Type, declarator);
+			if (targetSpec.Type is PointerTypeReference pointer)
+				return FormatPointerType(pointer, declarator, targetSpec.Specifier);
+			if (targetSpec.Type is ArrayTypeReference array)
+				return FormatType(array.ElementType, FormatDataPointerDeclarator(declarator, targetSpec.Specifier));
+			if (targetSpec.Type is RawFunctionPointerTypeReference)
+				return new CType(FormatInlineResolvedFunctionPointer("void", new List<string>(), declarator, targetSpec.Specifier, null));
 			return FormatType(targetSpec.Type, declarator + " " + cSpec);
 		}
 
-		CType FormatPointerType(PointerTypeReference pointer, string declarator)
+		CType FormatPointerType(PointerTypeReference pointer, string declarator, string? explicitTargetSpec = null)
 		{
-			string targetSpec = FormatTypeSpec(GetDefaultTargetTypeSpec(functionPointer: false));
-			if (targetSpec.Length > 0)
-				declarator = "* " + targetSpec + " " + declarator;
-			else
-				declarator = "*" + declarator;
+			declarator = FormatDataPointerDeclarator(declarator, explicitTargetSpec);
 			if (pointer.ElementType is PrimitiveTypeReference { Type: PrimitiveType.Untyped })
 				return new CType("void " + declarator);
 			return FormatType(pointer.ElementType, declarator);
+		}
+
+		string FormatDataPointerDeclarator(string declarator, string? explicitTargetSpec)
+		{
+			string targetSpec = FormatTypeSpec(explicitTargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: false));
+			if (targetSpec.Length > 0)
+				return "* " + targetSpec + " " + declarator;
+			return "*" + declarator;
 		}
 
 		CType FormatFixedArrayType(FixedArrayTypeReference fixedArray, string declarator)
