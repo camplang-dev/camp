@@ -67,3 +67,9 @@ export nuint max(overload nuint left, nuint right) => left > right ? left : righ
 
 export uchar min(overload uchar left, uchar right) => left < right ? left : right;
 export uchar max(overload uchar left, uchar right) => left > right ? left : right;
+
+export float min(overload float left, float right) => left < right ? left : right;
+export float max(overload float left, float right) => left > right ? left : right;
+
+export double min(overload double left, double right) => left < right ? left : right;
+export double max(overload double left, double right) => left > right ? left : right;

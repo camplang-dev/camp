@@ -1,0 +1,23 @@
+using Std;
+using Std::Math;
+
+export int main()
+{
+	if (min((double)2, (double)3) != 2.0)
+		return 1;
+	if (max((double)2, (double)3) != 3.0)
+		return 2;
+	if (min((double)4, min((double)2, (double)3)) != 2.0)
+		return 3;
+	if (max((double)4, max((double)2, (double)3)) != 4.0)
+		return 4;
+	if (min((float)2, (float)3) != (float)2)
+		return 5;
+	if (max((float)2, (float)3) != (float)3)
+		return 6;
+	if (min((float)4, min((float)2, (float)3)) != (float)2)
+		return 7;
+	if (max((float)4, max((float)2, (float)3)) != (float)4)
+		return 8;
+	return 0;
+}
