@@ -1253,6 +1253,10 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetRange(cast.SourceSyntax), $"Invalid cast from '{sourceType}' to '{targetType}'.");
 			}
 		}
+		else if (cast.Unsafe)
+		{
+			Warn(cast.SourceSyntax, "unsafe is not required for this cast; the conversion is ordinary explicit.");
+		}
 
 		expressionConstants[cast] = IsConstant(cast.Expression);
 		return targetType;
@@ -1654,6 +1658,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			return callableReturnType;
 		}
+		else if (IsRawFunctionPointerType(call.Target?.ResolvedType))
+		{
+			Report(GetRange(call.Target?.SourceSyntax ?? call.SourceSyntax), "Raw function pointer 'fn*' is not callable; cast it to a concrete fn type first.");
+		}
 		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function, call.Target);
 		if (function is not null)
 			AddReceiverConstOfAnchorFact(call.Target, function, constOfAnchors);
@@ -1723,6 +1731,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
 		return true;
+	}
+
+	static bool IsRawFunctionPointerType(string? type)
+	{
+		return type == "fn*" || type?.StartsWith("fn* ", StringComparison.Ordinal) == true;
 	}
 
 	void AddReceiverConstOfAnchorFact(Expression? target, FunctionDefinition function, Dictionary<string, bool> anchors)

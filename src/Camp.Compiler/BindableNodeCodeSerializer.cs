@@ -917,6 +917,8 @@ public sealed class BindableNodeCodeSerializer
 
 			case CastExpression cast:
 				writer.Write("(");
+				if (cast.Unsafe)
+					writer.Write("unsafe ");
 				if (cast.LifetimeCastKind is not null)
 					WriteLifetimeCastDeclarator(cast);
 				else
@@ -1551,6 +1553,10 @@ public sealed class BindableNodeCodeSerializer
 				WriteType(targetSpec.Type);
 				writer.Write(" ");
 				writer.Write(targetSpec.Specifier);
+				break;
+
+			case RawFunctionPointerTypeReference:
+				writer.Write("fn*");
 				break;
 
 			case CallableTypeReference callable:

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -9,7 +10,7 @@ public sealed class BindResult(Module Module, IReadOnlyList<BindDiagnostic> Diag
 {
 	public Module Module { get; } = Module;
 	public IReadOnlyList<BindDiagnostic> Diagnostics { get; } = Diagnostics;
-	public bool Success => Diagnostics.Count == 0;
+	public bool Success => !Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 }
 
 public sealed partial class BindableNodeBuilder
@@ -1359,6 +1360,9 @@ public sealed partial class BindableNodeBuilder
 
 			case CallableTypeSyntax callable:
 				return BuildCallableTypeReference(callable);
+
+			case RawFunctionPointerTypeSyntax rawFunctionPointer:
+				return new RawFunctionPointerTypeReference { SourceSyntax = rawFunctionPointer };
 
 			case AttributedTypeSyntax attributed:
 				return new AttributedTypeReference

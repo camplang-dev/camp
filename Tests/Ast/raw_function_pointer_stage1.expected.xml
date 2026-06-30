@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module>
+  <Definitions>
+    <FunctionDefinition Name="main" Symbol="main" Export="">
+      <ReturnType Type="Int" />
+      <Body Type="BlockStatement">
+        <Statements>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="RawFunctionPointerTypeReference" />
+              <Names>
+                <Value>raw</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="DefaultExpression" />
+          </DeclarationStatement>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="PointerTypeReference">
+                <ElementType Type="Void" />
+              </Type>
+              <Names>
+                <Value>data</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="CastExpression" Unsafe="True" Kind="Type">
+              <Type Type="PointerTypeReference">
+                <ElementType Type="Void" />
+              </Type>
+              <Expression Type="NamedExpression" Name="raw" />
+            </InitialValue>
+          </DeclarationStatement>
+          <ReturnStatement>
+            <Expression Type="ConditionalExpression">
+              <Condition Type="BinaryExpression" Operator="Equal">
+                <Left Type="NamedExpression" Name="data" />
+                <Right Type="DefaultExpression" />
+              </Condition>
+              <WhenTrue Type="LiteralExpression" Kind="Number" Text="0" Value="0" />
+              <WhenFalse Type="LiteralExpression" Kind="Number" Text="1" Value="1" />
+            </Expression>
+          </ReturnStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+  </Definitions>
+</Module>

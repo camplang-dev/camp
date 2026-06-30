@@ -1,0 +1,48 @@
+// file: raw_function_pointer_stage1.c
+#include "raw_function_pointer_stage1_private.h"
+
+/* Private file declarations. */
+void (* getRaw(void))(void);
+void consumeRaw(void (* value)(void));
+
+int main(void)
+{
+	void (* raw)(void) = getRaw();
+	consumeRaw(raw);
+	return 0;
+}
+
+// file: raw_function_pointer_stage1.h
+#ifndef RAW_FUNCTION_POINTER_STAGE1_H_
+#define RAW_FUNCTION_POINTER_STAGE1_H_
+
+#include "raw_function_pointer_stage1_private.h"
+
+int main(void);
+
+#endif
+// file: raw_function_pointer_stage1_private.h
+#ifndef RAW_FUNCTION_POINTER_STAGE1_PRIVATE_H_
+#define RAW_FUNCTION_POINTER_STAGE1_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: raw_function_pointer_stage1.c

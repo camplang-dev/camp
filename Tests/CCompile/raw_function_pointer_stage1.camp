@@ -1,0 +1,9 @@
+extern fn* getRaw();
+extern void consumeRaw(fn* value);
+
+export int main()
+{
+	fn* raw = getRaw();
+	consumeRaw(raw);
+	return 0;
+}

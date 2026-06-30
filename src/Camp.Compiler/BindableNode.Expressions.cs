@@ -98,6 +98,7 @@ public class CastExpression : Expression
 	public string? LifetimeCastKind { get; set; }
 	public List<string> LifetimeCastAnchors { get; } = [];
 	public string? LifetimeBinding { get; set; }
+	public bool Unsafe { get; set; }
 	public CastKind Kind { get; set; }
 	public Expression? Expression { get; set; }
 }

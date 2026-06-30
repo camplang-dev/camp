@@ -991,7 +991,7 @@ public static class CompilerDriver
 			bool success = CompilationPipeline.Parse(compilation);
 			foreach (SourceFile file in compilation.Files)
 				foreach (ParseDiagnostic diagnostic in file.ParseDiagnostics)
-					PrintDiagnostic(file.Path, diagnostic.Range, diagnostic.Message);
+					PrintDiagnostic(file.Path, diagnostic.Range, diagnostic.Message, diagnostic.Severity);
 			return success;
 		}
 
@@ -1001,9 +1001,9 @@ public static class CompilerDriver
 			foreach (SourceFile file in compilation.Files)
 			{
 				foreach (ParseDiagnostic diagnostic in file.ParseDiagnostics)
-					PrintDiagnostic(file.Path, diagnostic.Range, diagnostic.Message);
+					PrintDiagnostic(file.Path, diagnostic.Range, diagnostic.Message, diagnostic.Severity);
 				foreach (BindDiagnostic diagnostic in file.BindDiagnostics)
-					PrintDiagnostic(file.Path, diagnostic.Range, diagnostic.Message);
+					PrintDiagnostic(file.Path, diagnostic.Range, diagnostic.Message, diagnostic.Severity);
 			}
 			return success;
 		}
@@ -1028,23 +1028,23 @@ public static class CompilerDriver
 			foreach (SourceFile file in compilation.Files)
 			{
 				foreach (ParseDiagnostic diagnostic in file.ParseDiagnostics)
-					PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, printed);
+					PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, diagnostic.Severity, printed);
 				foreach (BindDiagnostic diagnostic in file.BindDiagnostics)
-					PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, printed);
+					PrintDiagnosticOnce(file.Path, diagnostic.Range, diagnostic.Message, diagnostic.Severity, printed);
 			}
 			if (compilation.DeclarationExpansion is not null && compilation.Lowering is null)
 				foreach (AnalysisDiagnostic diagnostic in compilation.DeclarationExpansion.Diagnostics)
-					PrintDiagnosticOnce(GetDiagnosticFilename(compilation, diagnostic.Range), diagnostic.Range, diagnostic.Message, printed);
+					PrintDiagnosticOnce(GetDiagnosticFilename(compilation, diagnostic.Range), diagnostic.Range, diagnostic.Message, diagnostic.Severity, printed);
 			if (compilation.Lowering is not null)
 				foreach (AnalysisDiagnostic diagnostic in compilation.Lowering.Diagnostics)
-					PrintDiagnosticOnce(GetDiagnosticFilename(compilation, diagnostic.Range), diagnostic.Range, diagnostic.Message, printed);
+					PrintDiagnosticOnce(GetDiagnosticFilename(compilation, diagnostic.Range), diagnostic.Range, diagnostic.Message, diagnostic.Severity, printed);
 		}
 
 		bool PrintAnalysisDiagnostics(Compilation compilation, IReadOnlyList<AnalysisDiagnostic> diagnostics)
 		{
 			foreach (AnalysisDiagnostic diagnostic in diagnostics)
-				PrintDiagnostic(GetDiagnosticFilename(compilation, diagnostic.Range), diagnostic.Range, diagnostic.Message);
-			return diagnostics.Count == 0;
+				PrintDiagnostic(GetDiagnosticFilename(compilation, diagnostic.Range), diagnostic.Range, diagnostic.Message, diagnostic.Severity);
+			return !diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 		}
 
 		static Module BuildApiOutputModule(Compilation compilation)
@@ -1131,19 +1131,20 @@ public static class CompilerDriver
 			document.Save(writer);
 		}
 
-		void PrintDiagnostic(string filename, TokenRange? range, string message)
+		void PrintDiagnostic(string filename, TokenRange? range, string message, DiagnosticSeverity severity = DiagnosticSeverity.Error)
 		{
+			string severityText = severity.ToString().ToLowerInvariant();
 			if (range is TokenRange tokenRange)
-				ErrorLine($"{filename}({tokenRange.StartLineNumber},{tokenRange.StartColumn}): error: {message}");
+				ErrorLine($"{filename}({tokenRange.StartLineNumber},{tokenRange.StartColumn}): {severityText}: {message}");
 			else
-				ErrorLine($"{filename}(1,1): (no line,column) error: {message}");
+				ErrorLine($"{filename}(1,1): (no line,column) {severityText}: {message}");
 		}
 
-		void PrintDiagnosticOnce(string filename, TokenRange? range, string message, HashSet<string> printed)
+		void PrintDiagnosticOnce(string filename, TokenRange? range, string message, DiagnosticSeverity severity, HashSet<string> printed)
 		{
-			string key = range is TokenRange r ? $"{filename}:{r.StartLineNumber}:{r.StartColumn}:{message}" : $"{filename}:::${message}";
+			string key = range is TokenRange r ? $"{filename}:{r.StartLineNumber}:{r.StartColumn}:{severity}:{message}" : $"{filename}:::{severity}:${message}";
 			if (printed.Add(key))
-				PrintDiagnostic(filename, range, message);
+				PrintDiagnostic(filename, range, message, severity);
 		}
 
 		static string GetDiagnosticFilename(Compilation compilation, TokenRange? range)

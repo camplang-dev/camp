@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -7,7 +8,7 @@ public sealed class LoweringResult(Module module, IReadOnlyList<AnalysisDiagnost
 {
 	public Module Module { get; } = module;
 	public IReadOnlyList<AnalysisDiagnostic> Diagnostics { get; } = diagnostics;
-	public bool Success => Diagnostics.Count == 0;
+	public bool Success => !Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 }
 
 public static class BindableNodeLowerer

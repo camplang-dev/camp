@@ -310,6 +310,7 @@ public sealed partial class BindableNodeBuilder
 			SourceSyntax = syntax,
 			Type = syntax.Type is null ? null : BuildTypeReference(syntax.Type),
 			LifetimeCastKind = syntax.LifetimeDeclarator?.Keyword?.Value,
+			Unsafe = syntax.UnsafeKeyword is not null,
 			Kind = BuildCastKind(syntax),
 			Expression = BuildExpression(syntax.Expression, $"{context} cast operand")
 		};

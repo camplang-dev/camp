@@ -1,0 +1,36 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "RawFunctionStage1",
+    "namespace": "RawFunctionStage1"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "function:RawFunctionStage1::consumeRaw",
+      "kind": "function",
+      "name": "consumeRaw",
+      "visibility": "export",
+      "extern": true,
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:RawFunctionStage1::consumeRaw/parameter:value",
+          "name": "value",
+          "type": "fn*"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Accepts a raw function pointer."
+        }
+      ]
+    }
+  ]
+}

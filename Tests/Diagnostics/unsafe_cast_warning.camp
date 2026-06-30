@@ -1,0 +1,6 @@
+export int main()
+{
+	int value = 1;
+	long widened = (unsafe long)value;
+	return (int)widened;
+}

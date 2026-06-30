@@ -1,0 +1,1 @@
+tests/Diagnostics/unsafe_cast_warning.camp(4,17): warning: unsafe is not required for this cast; the conversion is ordinary explicit.

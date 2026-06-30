@@ -368,6 +368,10 @@ public class CallableTypeReference : TypeReference
 	public List<ParameterDefinition> Parameters { get; } = [];
 }
 
+public class RawFunctionPointerTypeReference : TypeReference
+{
+}
+
 public class TargetTypeSpecTypeReference : TypeReference
 {
 	public string Specifier { get; set; } = "";

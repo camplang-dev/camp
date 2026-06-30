@@ -14,7 +14,7 @@ public sealed class AnalysisResult(Module Module, IReadOnlyList<AnalysisDiagnost
 {
 	public Module Module { get; } = Module;
 	public IReadOnlyList<AnalysisDiagnostic> Diagnostics { get; } = Diagnostics;
-	public bool Success => Diagnostics.Count == 0;
+	public bool Success => !Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 }
 
 public sealed partial class BindableNodeAnalyzer
@@ -53,7 +53,7 @@ public sealed partial class BindableNodeAnalyzer
 		"inline", "long", "new", "newtype", "nint", "null", "nuint", "once", "out", "overload", "override", "params", "public",
 		"return", "sbyte", "scoped", "sealed", "short", "sizeof", "static", "string", "struct", "switch",
 		"this", "thrown", "true", "try", "uchar", "uint", "ulong", "unscoped", "ushort", "untyped",
-		"using", "virtual", "void", "volatile", "vtableof", "wchar", "while", "within", "wstring", "yield"
+		"unsafe", "using", "virtual", "void", "volatile", "vtableof", "wchar", "while", "within", "wstring", "yield"
 	};
 
 	static readonly HashSet<string> CReservedWords = new(StringComparer.Ordinal)
@@ -199,10 +199,10 @@ public sealed partial class BindableNodeAnalyzer
 				VolatileTypeReference { Type: not null } volatileType => volatileType.Type,
 				EscapedTypeReference { Type: not null } escapedType => escapedType.Type,
 				ScopedTypeReference { Type: not null } scopedType => scopedType.Type,
-				UnscopedTypeReference { Type: not null } unscopedType => unscopedType.Type,
-				TargetTypeSpecTypeReference { Type: not null } targetSpec => targetSpec.Type,
-				AttributedTypeReference { Type: not null } attributedType => attributedType.Type,
-				_ => type
+			UnscopedTypeReference { Type: not null } unscopedType => unscopedType.Type,
+			TargetTypeSpecTypeReference { Type: not null } targetSpec => targetSpec.Type,
+			AttributedTypeReference { Type: not null } attributedType => attributedType.Type,
+			_ => type
 			};
 
 			if (type is not ConstTypeReference and not ConstOfTypeReference and not VolatileTypeReference and not EscapedTypeReference and not ScopedTypeReference and not UnscopedTypeReference and not TargetTypeSpecTypeReference and not AttributedTypeReference)
@@ -616,6 +616,7 @@ public sealed partial class BindableNodeAnalyzer
 			ScopedTypeReference scoped => FormatTypeDeclarator(BuildAnchoredDeclarator("scoped", scoped.Anchors), scoped.Type),
 			UnscopedTypeReference unscoped => FormatTypeDeclarator(BuildAnchoredDeclarator("unscoped", unscoped.Anchors), unscoped.Type),
 			TargetTypeSpecTypeReference targetSpec => $"{FormatTypeReference(targetSpec.Type)} {targetSpec.Specifier}",
+			RawFunctionPointerTypeReference => "fn*",
 			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)}{FormatCallSpec(callable.TargetSpec)}{FormatCallSpec(callable.CallSpec)} {FormatTypeReference(callable.ReturnType)}({string.Join(", ", GetParameterTypeNames(callable.Parameters))})",
 			IterTypeReference iter => FormatIterTypeReference(iter),
 			GroupedParamsTypeReference grouped => $"params({FormatTypeReference(grouped.StructType)})",

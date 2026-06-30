@@ -580,6 +580,9 @@ public sealed class CampParser
 		if (Is("async") && PeekValue(1) == "iter")
 			return ParseIterType(asyncKeyword: Take(), storageKeyword: null);
 
+		if (Is("fn") && PeekValue(1) == "*")
+			return new RawFunctionPointerTypeSyntax { FnKeyword = Take(), StarToken = Expect("*") };
+
 		if (IsAny("fn", "delegate", "async", "once"))
 		{
 			CallableTypeSyntax callable = new()
@@ -757,7 +760,7 @@ public sealed class CampParser
 			"interface", "iter", "long", "new", "newtype", "nint", "null", "nuint", "once", "out",
 			"override", "params", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
 			"static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
-			"ulong", "unscoped", "ushort", "untyped", "using", "virtual", "void", "volatile",
+			"ulong", "unscoped", "unsafe", "ushort", "untyped", "using", "virtual", "void", "volatile",
 			"vtableof", "wchar", "while", "within", "wstring", "yield", "typenameof");
 	}
 
@@ -1603,6 +1606,7 @@ public sealed class CampParser
 		if (open is null)
 			return null;
 
+		Token? unsafeKeyword = TakeIf("unsafe");
 		Token? castKeyword = IsAny("params", "struct", "class")
 			? Take()
 			: null;
@@ -1638,6 +1642,7 @@ public sealed class CampParser
 		return new CastExpressionSyntax
 		{
 			OpenParenToken = open,
+			UnsafeKeyword = unsafeKeyword,
 			Type = type,
 			LifetimeDeclarator = lifetimeDeclarator,
 			CastKeyword = castKeyword,

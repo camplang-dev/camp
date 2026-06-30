@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -51,7 +52,7 @@ public static class CompilationPipeline
 		{
 			file.SyntaxTree = CampParser.Parse(file.Tokens!, out IReadOnlyList<ParseDiagnostic> diagnostics);
 			file.ParseDiagnostics = [.. file.PreprocessDiagnostics, .. diagnostics];
-			if (file.ParseDiagnostics.Count > 0)
+			if (file.ParseDiagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 				success = false;
 		}
 		return success;
@@ -68,9 +69,9 @@ public static class CompilationPipeline
 		{
 			file.BindableTree = BindableNodeBuilder.Build(file.SyntaxTree!, out IReadOnlyList<BindDiagnostic> diagnostics);
 			file.BindDiagnostics = [.. diagnostics, .. DocCommentTranslator.Apply(file)];
-			if (diagnostics.Count > 0)
+			if (diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 				success = false;
-			if (file.BindDiagnostics.Count > diagnostics.Count)
+			if (file.BindDiagnostics.Skip(diagnostics.Count).Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 				success = false;
 		}
 		if (success)
@@ -87,7 +88,7 @@ public static class CompilationPipeline
 		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!, compilation.Target, compilation.MemoryModelName);
 		compilation.SharedModule = compilation.DeclarationExpansion.Module;
 		AssignGeneratedDefinitionOwners(compilation);
-		return compilation.DeclarationExpansion.Diagnostics.Count == 0;
+		return compilation.DeclarationExpansion.Success;
 	}
 
 	public static bool Lower(Compilation compilation)
@@ -99,7 +100,7 @@ public static class CompilationPipeline
 		compilation.Lowering = BindableNodeLowerer.Lower(compilation.DeclarationExpansion!);
 		compilation.SharedModule = compilation.Lowering.Module;
 		AssignGeneratedDefinitionOwners(compilation);
-		return compilation.Lowering.Diagnostics.Count == 0;
+		return compilation.Lowering.Success;
 	}
 
 	static Module BuildSharedModule(Compilation compilation)

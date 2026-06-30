@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -8,7 +9,7 @@ public sealed class DeclarationExpansionResult(Module module, IReadOnlyList<Anal
 	public Module Module { get; } = module;
 	public IReadOnlyList<AnalysisDiagnostic> Diagnostics { get; } = diagnostics;
 	internal BindableNodeAnalyzer Analyzer { get; } = analyzer;
-	public bool Success => Diagnostics.Count == 0;
+	public bool Success => !Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 }
 
 public static class BindableNodeExpander

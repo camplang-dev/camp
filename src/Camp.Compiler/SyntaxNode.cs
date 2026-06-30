@@ -214,6 +214,12 @@ public class CallableTypeSyntax : TypeSyntax
 	public ParameterListSyntax? ParameterList { get; set; }
 }
 
+public class RawFunctionPointerTypeSyntax : TypeSyntax
+{
+	public Token? FnKeyword { get; set; }
+	public Token? StarToken { get; set; }
+}
+
 public class AttributedTypeSyntax : TypeSyntax
 {
 	public AttributeSyntax? Attribute { get; set; }
@@ -646,6 +652,7 @@ public class ArrayExpressionSyntax : PrimaryExpressionSyntax
 public class CastExpressionSyntax : PrimaryExpressionSyntax
 {
 	public Token? OpenParenToken { get; set; }
+	public Token? UnsafeKeyword { get; set; }
 	public TypeSyntax? Type { get; set; }
 	public TypeDeclaratorSyntax? LifetimeDeclarator { get; set; }
 	public Token? CastKeyword { get; set; }

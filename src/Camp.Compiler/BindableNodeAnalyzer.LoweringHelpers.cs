@@ -373,6 +373,7 @@ public sealed partial class BindableNodeAnalyzer
 			ScopedTypeReference scoped => CloneScoped(scoped),
 			UnscopedTypeReference unscoped => CloneUnscoped(unscoped),
 			TargetTypeSpecTypeReference targetSpec => new TargetTypeSpecTypeReference { Specifier = targetSpec.Specifier, Type = CloneType(targetSpec.Type), IsPrefix = targetSpec.IsPrefix },
+			RawFunctionPointerTypeReference => new RawFunctionPointerTypeReference(),
 			CallableTypeReference callable => CloneCallable(callable),
 			IterTypeReference iter => CloneIter(iter),
 			GroupedParamsTypeReference grouped => new GroupedParamsTypeReference { StructType = CloneType(grouped.StructType) },
@@ -788,6 +789,11 @@ public sealed partial class BindableNodeAnalyzer
 	void Report(SyntaxNode? syntax, string message, string? code = null)
 	{
 		diagnostics.Add(new AnalysisDiagnostic(GetRange(syntax), message, code));
+	}
+
+	void Warn(SyntaxNode? syntax, string message, string? code = null)
+	{
+		diagnostics.Add(new AnalysisDiagnostic(GetRange(syntax), message, code, DiagnosticSeverity.Warning));
 	}
 
 	sealed record InterfaceImplementationLowering(TypeDefinition Type, InterfaceDefinition Interface, FieldDefinition? Field, VariableDefinition VTable, VariableDefinition VTableStorage, VariableDefinition? ObjectVTableStorage, bool DirectEntries, bool IsStruct, bool IsExternClass = false);

@@ -1,0 +1,6 @@
+export int main()
+{
+	fn* raw = default;
+	void* data = (unsafe void*)raw;
+	return data == default ? 0 : 1;
+}

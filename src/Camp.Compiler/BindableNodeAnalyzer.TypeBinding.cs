@@ -189,6 +189,10 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
+			case RawFunctionPointerTypeReference:
+				type.ResolvedType = "fn*";
+				break;
+
 			case CallableTypeReference callable:
 				ValidateCallableSpec(callable);
 				AnalyzeOptionalType(callable.ReturnType, scope);
@@ -831,6 +835,23 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(typeSpec.Specifier))
 			return;
 
+		if (typeSpec.Type is PrimitiveTypeReference { Type: PrimitiveType.Untyped })
+		{
+			Report(GetRange(typeSpec.SourceSyntax), "Raw carrier 'untyped' cannot have target specifiers.");
+			return;
+		}
+
+		if (selectedTarget?.Capabilities.HasCallSpec(typeSpec.Specifier) == true)
+		{
+			if (typeSpec.Type is RawFunctionPointerTypeReference)
+			{
+				Report(GetRange(typeSpec.SourceSyntax), $"Callspec '{typeSpec.Specifier}' cannot be applied to 'fn*'; use a concrete fn type.");
+				return;
+			}
+			Report(GetRange(typeSpec.SourceSyntax), $"Callspec '{typeSpec.Specifier}' cannot be applied to data-pointer or integer carrier type.");
+			return;
+		}
+
 		typeSpec.Specifier = ResolveTypeSpecAlias(typeSpec.Specifier, typeSpec.SourceSyntax);
 		if (selectedTarget is null || !selectedTarget.Capabilities.HasTypeSpec(typeSpec.Specifier))
 		{
@@ -849,7 +870,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		inner = UnwrapTypeDeclarators(inner ?? typeSpec);
-		if (inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or CallableTypeReference or GenericTypeReference)
+		if (inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or CallableTypeReference or RawFunctionPointerTypeReference or GenericTypeReference)
 			return;
 
 		Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' cannot be applied to type '{FormatTypeReference(typeSpec.Type)}'.");

@@ -1,0 +1,10 @@
+void invalidSpecs(fn* _sysv badFn, void* _sysv badData, untyped _sysv badRaw)
+{
+}
+
+export int main()
+{
+	fn* raw = default;
+	raw();
+	return 0;
+}

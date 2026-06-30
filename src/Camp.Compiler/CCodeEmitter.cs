@@ -1867,7 +1867,11 @@ public static class CCodeEmitter
 		string FormatFunctionSignature(FunctionDefinition function, string name)
 		{
 			if (!TryGetFunctionReturnStorageComponentsForC(function, out List<(string Name, string Type)> components) || components.Count <= 1)
+			{
+				if (function.ReturnType is RawFunctionPointerTypeReference || IsRawFunctionPointerResolvedType(function.ResolvedType))
+					return FormatInlineResolvedFunctionPointer("void", new List<string>(), name + FormatParameters(function), GetRawFunctionPointerTargetSpec(function), null);
 				return FormatTypeOrResolved(function.ReturnType, function.ResolvedType, name).Declaration + FormatParameters(function);
+			}
 
 			List<string> parameters = FormatFunctionParameterParts(function);
 			for (int i = 1; i < components.Count; i++)
@@ -1880,6 +1884,20 @@ public static class CCodeEmitter
 			string parameterList = parameters.Count == 0 ? "void" : string.Join(", ", parameters);
 			string returnType = FormatFunctionPrimaryReturnComponentType(function, components[0]);
 			return FormatResolvedType(returnType, name + "(" + parameterList + ")").Declaration;
+		}
+
+		string? GetRawFunctionPointerTargetSpec(FunctionDefinition function)
+		{
+			string? resolvedType = function.ResolvedType?.Trim();
+			if (resolvedType?.StartsWith("fn* ", StringComparison.Ordinal) == true)
+				return resolvedType["fn* ".Length..].Trim();
+			return GetDefaultTargetTypeSpec(functionPointer: true);
+		}
+
+		static bool IsRawFunctionPointerResolvedType(string? type)
+		{
+			type = type?.Trim();
+			return type == "fn*" || type?.StartsWith("fn* ", StringComparison.Ordinal) == true;
 		}
 
 		string FormatFunctionPrimaryReturnComponentType(FunctionDefinition function, (string Name, string Type) component)
@@ -5022,6 +5040,7 @@ public static class CCodeEmitter
 				ArrayTypeReference array => FormatType(array.ElementType, "*" + declarator),
 				FixedArrayTypeReference fixedArray => FormatFixedArrayType(fixedArray, declarator),
 				OptionalTypeReference optional => FormatType(optional.ElementType, declarator),
+				RawFunctionPointerTypeReference => new CType(FormatInlineResolvedFunctionPointer("void", new List<string>(), declarator, GetDefaultTargetTypeSpec(functionPointer: true), null)),
 				CallableTypeReference callable => new CType(FormatCallableDeclarator(callable, declarator)),
 				PrimitiveTypeReference primitive => FormatPrimitiveType(primitive.Type, declarator),
 				ClassTypeReference classType when ShouldFormatResolvedType(classType.ResolvedType) => FormatResolvedType(classType.ResolvedType!, declarator),
@@ -5111,6 +5130,10 @@ public static class CCodeEmitter
 		CType FormatResolvedType(string resolvedType, string declarator)
 		{
 			string type = resolvedType.Trim();
+			if (type == "fn*")
+				return new CType(FormatInlineResolvedFunctionPointer("void", new List<string>(), declarator, GetDefaultTargetTypeSpec(functionPointer: true), null));
+			if (type.StartsWith("fn* ", StringComparison.Ordinal))
+				return new CType(FormatInlineResolvedFunctionPointer("void", new List<string>(), declarator, type["fn* ".Length..].Trim(), null));
 			if (type.StartsWith("struct(", StringComparison.Ordinal) && type.EndsWith(")", StringComparison.Ordinal))
 				return FormatStorageResolvedType(type[7..^1], declarator);
 			if (TryParseResolvedCallableType(type, out string callableReturnType, out List<string> callableParameterTypes, out string? callableTargetSpec, out string? callableCallSpec))
@@ -5297,7 +5320,7 @@ public static class CCodeEmitter
 
 		CType FormatQualifiedType(string qualifier, TypeReference? inner, string declarator)
 		{
-			if (inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or GenericTypeReference or CallableTypeReference or TargetTypeSpecTypeReference)
+			if (inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or GenericTypeReference or RawFunctionPointerTypeReference or CallableTypeReference or TargetTypeSpecTypeReference)
 				return FormatType(inner, declarator + " " + qualifier);
 			CType formatted = FormatType(inner, declarator);
 			return new CType(qualifier + " " + formatted.Declaration);
