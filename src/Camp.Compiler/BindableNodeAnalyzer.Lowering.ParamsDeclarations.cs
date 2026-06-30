@@ -815,11 +815,13 @@ public sealed partial class BindableNodeAnalyzer
 			&& shape.Kind == ParamsComponentShapeKind.Array
 			&& shape.Components.Count == 2)
 		{
-			values.Add(CreateAllocCall(
-				construction.Type,
-				allocator ?? (deferCurrentAllocator ? new CurrentAllocatorExpression { SourceSyntax = construction.SourceSyntax, ResolvedType = "Allocator*" } : null),
-				construction.SourceSyntax,
-				construction.ElementCount));
+			values.Add(construction.Kind == ConstructionKind.Init
+				? CreateStackAllocCall(construction.Type, construction.SourceSyntax, construction.ElementCount)
+				: CreateAllocCall(
+					construction.Type,
+					allocator ?? (deferCurrentAllocator ? new CurrentAllocatorExpression { SourceSyntax = construction.SourceSyntax, ResolvedType = "Allocator*" } : null),
+					construction.SourceSyntax,
+					construction.ElementCount));
 			values.Add(construction.ElementCount);
 			return values;
 		}

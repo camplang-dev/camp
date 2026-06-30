@@ -116,6 +116,11 @@ public class CurrentAllocatorExpression : Expression
 {
 }
 
+public class StackAllocExpression : Expression
+{
+	public Expression? Size { get; set; }
+}
+
 public class WithinExpression : Expression
 {
 	public Expression? Context { get; set; }

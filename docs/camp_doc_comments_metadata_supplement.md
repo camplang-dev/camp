@@ -469,6 +469,13 @@ specific than the lowered ABI type. For example, a receiver-preserving method
 has `"returnType": "this"`, and a class-relative factory may have
 `"returnType": "classtype*"`.
 
+Raw carriers and target-defined specifiers are likewise preserved as source
+spelling. A raw function-pointer type such as `fn*` or `fn* _far` remains
+visible as that type string in metadata, and concrete callable types preserve
+their callspecs and target specifiers. Metadata consumers should treat this as
+the Camp source contract; the C emitter may format the same contract using a
+target-specific declarator shape.
+
 Dependent constness is also preserved in source spelling. A type such as
 `constof(source) char*` remains `"constof(source) char*"` in metadata so tools
 can recover the anchor relationship. C and ABI output erase `constof(anchor)` to

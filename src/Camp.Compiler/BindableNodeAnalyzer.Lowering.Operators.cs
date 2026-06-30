@@ -153,7 +153,7 @@ public sealed partial class BindableNodeAnalyzer
 		TypeReference? type = construction.Type;
 		string typeName = BaseConstructedType(type?.ResolvedType ?? construction.ResolvedType);
 		if (construction.ElementCount is not null && type is not null)
-			return CreateArrayConstruction(type, construction.ElementCount, construction.SourceSyntax, construction.ResolvedType);
+			return CreateArrayConstruction(type, construction.ElementCount, construction.Kind, construction.SourceSyntax, construction.ResolvedType);
 		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
 			return construction;
 
@@ -488,6 +488,24 @@ public sealed partial class BindableNodeAnalyzer
 		return CreateAllocCall(type, CurrentAllocator(), syntax);
 	}
 
+	Expression CreateStackAllocCall(TypeReference type, SyntaxNode? syntax, Expression? length = null)
+	{
+		Expression size = CreateAllocationSizeExpression(type, length, syntax);
+		return new CastExpression
+		{
+			SourceSyntax = syntax,
+			Kind = CastKind.Type,
+			Type = PointerTo(CloneType(type)!),
+			Expression = new StackAllocExpression
+			{
+				SourceSyntax = syntax,
+				Size = size,
+				ResolvedType = "void*"
+			},
+			ResolvedType = $"{type.ResolvedType}*"
+		};
+	}
+
 	Expression CreateAllocCall(TypeReference type, Expression? allocator, SyntaxNode? syntax, Expression? length = null)
 	{
 		Expression size = CreateAllocationSizeExpression(type, length, syntax);
@@ -655,7 +673,7 @@ public sealed partial class BindableNodeAnalyzer
 		return grouped;
 	}
 
-	Expression CreateArrayConstruction(TypeReference elementType, Expression length, SyntaxNode? syntax, string? resolvedType)
+	Expression CreateArrayConstruction(TypeReference elementType, Expression length, ConstructionKind kind, SyntaxNode? syntax, string? resolvedType)
 	{
 		length = CaptureArrayConstructionLength(length);
 		GroupedExpression grouped = new()
@@ -667,7 +685,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Name = "elements",
 			ResolvedType = $"{elementType.ResolvedType}*",
-			Expression = CreateAllocCall(elementType, CurrentAllocator(), syntax, length)
+			Expression = kind == ConstructionKind.Init
+				? CreateStackAllocCall(elementType, syntax, length)
+				: CreateAllocCall(elementType, CurrentAllocator(), syntax, length)
 		});
 		grouped.Items.Add(new GroupedExpressionItem
 		{

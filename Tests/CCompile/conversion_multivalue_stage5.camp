@@ -1,0 +1,16 @@
+export int main()
+{
+	int? small = 12;
+	long? widened = (long?)small;
+	if (!widened.specified || widened.value != 12)
+		return 1;
+
+	byte[] bytes = init byte[3];
+	const byte[] readonlyBytes = bytes;
+	byte[] mutableAgain = (unsafe byte[])readonlyBytes;
+	mutableAgain[0] = 7;
+	if (bytes[0] != 7)
+		return 2;
+
+	return 0;
+}

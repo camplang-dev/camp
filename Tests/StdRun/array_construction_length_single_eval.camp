@@ -18,7 +18,6 @@ export int main(string[] args)
 	char[] initBuffer = init char[nextLength()];
 	if (calls != 2)
 		return calls;
-	delete initBuffer;
 
 	return 0;
 }

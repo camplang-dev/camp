@@ -1,0 +1,28 @@
+class Box<T>
+{
+}
+
+void rewriteArray(byte[] bytes)
+{
+	uint[] words = (uint[])bytes;
+}
+
+void rewriteOptional(byte[]? maybeBytes)
+{
+	uint[]? maybeWords = (uint[]?)maybeBytes;
+}
+
+void rewriteDelegate(delegate void(byte* value) callback)
+{
+	delegate void(void* value) erased = (delegate void(void*))callback;
+}
+
+void rewriteGeneric(Box<int>* values)
+{
+	Box<uint>* rewritten = (Box<uint>*)values;
+}
+
+void hiddenSizeOfDoesNotHelp<T: any>(Box<T>* values, sizeof(T))
+{
+	Box<int>* rewritten = (unsafe Box<int>*)values;
+}

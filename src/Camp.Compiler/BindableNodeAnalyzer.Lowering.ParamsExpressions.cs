@@ -981,6 +981,10 @@ public sealed partial class BindableNodeAnalyzer
 					component.ValueLifetimeFact = cast.LifetimeBinding ?? component.ValueLifetimeFact;
 				return true;
 
+			case CastExpression { Type: not null } cast
+				when TryCreateCastParamsComponentExpressions(cast, out components):
+				return true;
+
 			case ThisExpression
 				when currentRewriteFunction is not null
 					&& GetExplicitThisParameter(currentRewriteFunction) is ThisParameterDefinition thisParameter
@@ -1135,6 +1139,38 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return false;
 		}
+	}
+
+	bool TryCreateCastParamsComponentExpressions(CastExpression cast, out List<Expression> components)
+	{
+		components = [];
+		if (!TryGetParamsComponentShape(cast.Type, cast.ResolvedType, "value", out ParamsComponentShape targetShape)
+			|| targetShape.Components.Count <= 1
+			|| !TryCreateParamsComponentExpressions(cast.Expression, out List<Expression> sourceComponents)
+			|| sourceComponents.Count != targetShape.Components.Count)
+			return false;
+
+		for (int i = 0; i < sourceComponents.Count; i++)
+		{
+			Expression component = sourceComponents[i];
+			string targetType = targetShape.Components[i].Type;
+			if (component.ResolvedType == targetType)
+			{
+				components.Add(component);
+				continue;
+			}
+
+			components.Add(new CastExpression
+			{
+				SourceSyntax = cast.SourceSyntax,
+				Kind = CastKind.Type,
+				Type = TypeReferenceForResolvedName(targetType),
+				Expression = component,
+				Unsafe = cast.Unsafe,
+				ResolvedType = targetType
+			});
+		}
+		return true;
 	}
 
 	bool TryCreateSourceMemberParamsComponentExpressions(MemberExpression member, out List<Expression> components)

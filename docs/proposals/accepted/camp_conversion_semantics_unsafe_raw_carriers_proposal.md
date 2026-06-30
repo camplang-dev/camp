@@ -420,14 +420,14 @@ Goal: finish the non-tunneling surfaces, update affected code/tests/docs, and ve
 
 ### Completion Criteria
 
-- [ ] Arrays, optionals, delegates, and generics obey non-tunneling/reconstruct rules.
-- [ ] Standard library and existing tests are updated for `unsafe`, fences, or reconstruction.
-- [ ] Metadata/API/grammar/spec/LLM guide/Sublime syntax are updated.
-- [ ] Final audit maps every section of `camp_conversion_semantics_draft_v4.md` to implementation or tests.
-- [ ] No `.actual` files remain.
-- [ ] macOS, Windows/MSVC, and Linux/WSL full non-skipped suites pass.
+- [x] ~~Arrays, optionals, delegates, and generics obey non-tunneling/reconstruct rules.~~
+- [x] ~~Standard library and existing tests are updated for `unsafe`, fences, or reconstruction.~~
+- [x] ~~Metadata/API/grammar/spec/LLM guide/Sublime syntax are updated.~~
+- [x] ~~Final audit maps every section of `camp_conversion_semantics_draft_v4.md` to implementation or tests.~~
+- [x] ~~No `.actual` files remain.~~
+- [x] ~~macOS, Windows/MSVC, and Linux/WSL full non-skipped suites pass.~~
 - [ ] This proposal is moved to `docs/proposals/accepted/` with completed criteria struck through.
-- [ ] Final stage is committed.
+- [x] ~~Final stage is committed.~~
 
 ## Suggested Diagnostic Style Guide
 

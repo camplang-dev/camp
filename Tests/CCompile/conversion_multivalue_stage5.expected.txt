@@ -1,0 +1,62 @@
+// file: conversion_multivalue_stage5.c
+#include "conversion_multivalue_stage5_private.h"
+
+
+int main(void)
+{
+	int small = 12;
+	bool small_specified = true;
+	int64_t widened = (int64_t)(small);
+	bool widened_specified = small_specified;
+	if ((!widened_specified || (widened != 12)))
+	{
+		return 1;
+	}
+	uint8_t *bytes = (uint8_t *)(__builtin_alloca((sizeof(uint8_t) * 3)));
+	uintptr_t bytes_length = 3;
+	const uint8_t *readonlyBytes = bytes;
+	uintptr_t readonlyBytes_length = bytes_length;
+	uint8_t *mutableAgain = (uint8_t *)(readonlyBytes);
+	uintptr_t mutableAgain_length = readonlyBytes_length;
+	mutableAgain[0] = 7;
+	if ((bytes[0] != 7))
+	{
+		return 2;
+	}
+	return 0;
+}
+
+// file: conversion_multivalue_stage5.h
+#ifndef CONVERSION_MULTIVALUE_STAGE5_H_
+#define CONVERSION_MULTIVALUE_STAGE5_H_
+
+#include "conversion_multivalue_stage5_private.h"
+
+int main(void);
+
+#endif
+// file: conversion_multivalue_stage5_private.h
+#ifndef CONVERSION_MULTIVALUE_STAGE5_PRIVATE_H_
+#define CONVERSION_MULTIVALUE_STAGE5_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: conversion_multivalue_stage5.c

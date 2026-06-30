@@ -2523,6 +2523,45 @@ The stable pattern across the language is:
 
 The result is a conversion model that is practical, but not eager to guess.
 
+Camp distinguishes four explicit conversion situations:
+
+| Kind | Spelling | Meaning |
+| --- | --- | --- |
+| ordinary explicit | `(T)value` | The source and target are known related forms, but the conversion crosses a boundary that should be visible in source. |
+| unsafe direct | `(unsafe T)value` | The conversion is still a direct typed cast, but it breaks a contract normally protected by the type system, such as removing `const`, changing physical pointer depth, downcasting a class pointer, or changing a callable lifetime contract. |
+| raw fence | `(T)(void*)value`, `(T)(fn*)value`, `(T)(untyped)value` | The programmer deliberately erases type information through a raw carrier before recovering a target type. |
+| reconstruction | `{ ... }`, helper call, or explicit component construction | The source and target are not one value conversion; the program must build a new value with the desired shape. |
+
+`unsafe` is a cast marker, not a general expression modifier:
+
+```camp
+const byte* readonly = ...;
+byte* writable = (unsafe byte*)readonly;
+```
+
+Writing `unsafe` where the conversion is only ordinary explicit is allowed but
+unnecessary, and the compiler may warn.
+
+Raw carriers are deliberately separated:
+
+- `void*` is the raw carrier for data pointers.
+- `fn*` is the raw carrier for function pointers.
+- `untyped` is the universal scalar fence.
+
+`fn*` is not callable. Cast it back to a concrete `fn` type before calling:
+
+```camp
+fn int(int) callback = ...;
+fn* raw = (fn*)callback;
+int result = ((fn int(int))raw)(42);
+```
+
+Target-defined pointer representation specifiers, such as `_near`, `_far`, or
+`_huge`, participate in conversion only where the selected target defines a
+policy for that carrier family. These policies apply to values at conversion
+boundaries; they do not rewrite type arguments, array element types, delegate
+signatures, or function signatures.
+
 ### 1.12.2 Primitive character conversions
 
 The built-in character conversion chain is:
@@ -2615,7 +2654,37 @@ byte[] view = stored;
 
 This value conversion does not collapse pointer identity. Storage identity remains real.
 
-### 1.12.6 Newtype conversions
+### 1.12.6 Expanded and constructed conversion boundaries
+
+Expanded and constructed values are not rewritten merely because their parts
+could be converted individually.
+
+Arrays are invariant in their element type. Adding `const` to the element view
+is an ordinary implicit view conversion, and removing it requires `unsafe`, but
+changing the element type or element representation requires reconstruction:
+
+```camp
+byte[] bytes = ...;
+const byte[] readonly = bytes;              // OK
+byte[] mutable = (unsafe byte[])readonly;   // OK: removes const from the view
+uint[] words = (uint[])bytes;               // ERROR: reconstruct instead
+```
+
+Optionals may lift a payload conversion only when the payload conversion itself
+is available at the same cast safety level. If the payload would require
+reconstruction, the optional must be rebuilt.
+
+Delegate values are expanded context-carrying values and are invariant as whole
+values. A cast does not rewrite the callable signature inside a delegate. If a
+program needs a different signature, rebuild the delegate value or cast the call
+component deliberately.
+
+Constructed generic types are invariant in their type arguments. Hidden generic
+capabilities such as `sizeof(T)` and `vtableof(T: Interface)` describe how the
+generic body may operate on `T`; they do not make `Container<T>` convertible to
+`Container<U>`.
+
+### 1.12.7 Newtype conversions
 
 Crossing a `newtype` boundary is explicit only unless a specific built-in rule says otherwise.
 
@@ -2628,13 +2697,13 @@ uint raw = (uint)id;
 
 There is no implicit conversion in either direction, and sibling `newtype`s over the same base type remain distinct.
 
-### 1.12.7 No implicit optional unwrapping
+### 1.12.8 No implicit optional unwrapping
 
 There is no implicit conversion from `T?` to `T`.
 
 Presence must be checked explicitly through the `.specified` component, and the payload is read explicitly through the `.value` component.
 
-### 1.12.8 No implicit owning conversion from counted text
+### 1.12.9 No implicit owning conversion from counted text
 
 A counted character array does not implicitly become an allocated zero-terminated string.
 
@@ -2645,7 +2714,7 @@ string owned = view; // ERROR: not an implicit conversion
 
 Ownership-changing or terminator-producing operations are expected to be explicit and usually allocation-bearing.
 
-### 1.12.9 No implicit aggregate address formation
+### 1.12.10 No implicit aggregate address formation
 
 An expanded value does not implicitly materialize itself merely because code asks for a pointer-shaped use that truly requires one whole-object address.
 
@@ -2659,13 +2728,13 @@ useArrayStoragePointer(&temp);
 
 This rule prevents a large class of hidden temporary-creation behavior.
 
-### 1.12.10 Conversions and deletion are independent
+### 1.12.11 Conversions and deletion are independent
 
 Delete availability is not a conversion rule.
 
 In particular, a primitive string type's pointer-shaped representation does not imply ownership. APIs that allocate string storage must define the matching release operation explicitly.
 
-### 1.12.11 Conversions in generic code
+### 1.12.12 Conversions in generic code
 
 Generics add one important wrinkle.
 

@@ -1,1 +1,0 @@
-tests/Diagnostics/generic_array_inference_slice_calls.camp(12,17): error: Allocation requires an accessible function named 'malloc' that takes a single integer parameter.

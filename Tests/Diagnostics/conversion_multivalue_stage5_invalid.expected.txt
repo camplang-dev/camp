@@ -1,0 +1,5 @@
+tests/Diagnostics/conversion_multivalue_stage5_invalid.camp(7,17): error: Array casts cannot change element type from 'byte' to 'uint'; reconstruct the array with explicit elements and length.
+tests/Diagnostics/conversion_multivalue_stage5_invalid.camp(12,23): error: Optional payload conversion would require reconstruction; rebuild the optional value.
+tests/Diagnostics/conversion_multivalue_stage5_invalid.camp(17,38): error: Delegate values cannot change callable signature; rebuild the delegate or cast its call component.
+tests/Diagnostics/conversion_multivalue_stage5_invalid.camp(22,25): error: Generic arguments are invariant; value conversions do not rewrite 'Box<T>' arguments.
+tests/Diagnostics/conversion_multivalue_stage5_invalid.camp(27,24): error: Generic arguments are invariant; value conversions do not rewrite 'Box<T>' arguments.

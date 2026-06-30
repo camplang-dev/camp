@@ -2460,6 +2460,7 @@ public static class CCodeEmitter
 				CastExpression cast => FormatCastExpression(cast),
 				SizeOfExpression sizeOf => FormatSizeOfExpression(sizeOf),
 				NameOfExpression nameOf => FormatNameOfExpression(nameOf),
+				StackAllocExpression stackAlloc => FormatAlloca(FormatExpression(stackAlloc.Size)),
 				CallExpression call => FormatCallExpression(call),
 				IndexExpression index => FormatIndexExpression(index),
 				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatInterfaceSlotMember(member.Target, member.Name) ?? FormatExpression(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),

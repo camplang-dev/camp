@@ -33,6 +33,8 @@ public sealed partial class BindableNodeAnalyzer
 		CallableSignature,
 		CallableLifetime,
 		DelegateInvariant,
+		MultivalueReconstruct,
+		GenericInvariant,
 		Invalid
 	}
 
@@ -174,12 +176,38 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		if (sourceShape.Kind == TypeShapeKind.Array && targetShape.Kind == TypeShapeKind.Array
-			&& !TypeShapesSameIgnoringAllQualifiers(sourceShape.Element, targetShape.Element))
+			&& !TypeShapesSameIgnoringValueQualifiers(sourceShape.Element, targetShape.Element))
 		{
 			classification = new ConversionClassification(
 				ConversionLevel.ReconstructRequired,
-				ConversionReason.FamilyCrossing,
-				$"Cannot rewrite array element type from '{TypeShapeParser.Format(sourceShape.Element)}' to '{TypeShapeParser.Format(targetShape.Element)}'; reconstruct the array with converted elements.");
+				ConversionReason.MultivalueReconstruct,
+				$"Array casts cannot change element type from '{TypeShapeParser.Format(sourceShape.Element)}' to '{TypeShapeParser.Format(targetShape.Element)}'; reconstruct the array with explicit elements and length.");
+			return true;
+		}
+
+		if (sourceShape.Kind == TypeShapeKind.Optional && targetShape.Kind == TypeShapeKind.Optional
+			&& sourceShape.Element is not null && targetShape.Element is not null)
+		{
+			ConversionClassification payload = ClassifyConversion(TypeShapeParser.Format(sourceShape.Element), TypeShapeParser.Format(targetShape.Element));
+			classification = payload.Level switch
+			{
+				ConversionLevel.Implicit => new ConversionClassification(ConversionLevel.Implicit, ConversionReason.None),
+				ConversionLevel.Explicit => new ConversionClassification(ConversionLevel.Explicit, ConversionReason.None),
+				ConversionLevel.Unsafe => new ConversionClassification(ConversionLevel.Unsafe, payload.Reason, payload.Diagnostic),
+				_ => new ConversionClassification(
+					ConversionLevel.ReconstructRequired,
+					ConversionReason.MultivalueReconstruct,
+					"Optional payload conversion would require reconstruction; rebuild the optional value.")
+			};
+			return true;
+		}
+
+		if (IsConstructedGenericArgumentRewrite(sourceShape, targetShape))
+		{
+			classification = new ConversionClassification(
+				ConversionLevel.ReconstructRequired,
+				ConversionReason.GenericInvariant,
+				$"Generic arguments are invariant; value conversions do not rewrite '{DescribeConstructedGenericShape(targetShape)}' arguments.");
 			return true;
 		}
 
@@ -619,10 +647,33 @@ public sealed partial class BindableNodeAnalyzer
 		if (sourceShape.Kind == TypeShapeKind.Array && targetShape.Kind == TypeShapeKind.Array
 			&& !TypeShapesSameIgnoringLifetime(sourceShape, targetShape))
 		{
+			if (!TypeShapesSameIgnoringValueQualifiers(sourceShape.Element, targetShape.Element))
+			{
+				classification = new ConversionClassification(
+					ConversionLevel.ReconstructRequired,
+					ConversionReason.MultivalueReconstruct,
+					$"Array casts cannot change element type from '{TypeShapeParser.Format(sourceShape.Element)}' to '{TypeShapeParser.Format(targetShape.Element)}'; reconstruct the array with explicit elements and length.");
+				return true;
+			}
+			if (ContainsQualifierRemoval(sourceShape, targetShape, static qualifiers => qualifiers.IsConst))
+			{
+				classification = new ConversionClassification(
+					ConversionLevel.Unsafe,
+					ConversionReason.ConstRemoval,
+					"Cast removes const from array element view; write 'unsafe' to acknowledge mutable access.");
+				return true;
+			}
+			if (ContainsQualifierRemoval(sourceShape, targetShape, static qualifiers => qualifiers.IsVolatile))
+			{
+				classification = new ConversionClassification(
+					ConversionLevel.Unsafe,
+					ConversionReason.VolatileRemoval,
+					"Cast removes volatile from array element view; write 'unsafe' to acknowledge volatile access removal.");
+				return true;
+			}
 			classification = new ConversionClassification(
-				ConversionLevel.ReconstructRequired,
-				ConversionReason.FamilyCrossing,
-				$"Cannot rewrite array element type from '{TypeShapeParser.Format(sourceShape.Element)}' to '{TypeShapeParser.Format(targetShape.Element)}'; reconstruct the array with converted elements.");
+				ConversionLevel.Explicit,
+				ConversionReason.None);
 			return true;
 		}
 
@@ -667,6 +718,15 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (IsClassPointerElement(sourceBase) && IsClassPointerElement(targetBase))
 		{
+			if (IsConstructedGenericArgumentRewrite(sourceBase, targetBase))
+			{
+				classification = new ConversionClassification(
+					ConversionLevel.FenceRequired,
+					ConversionReason.GenericInvariant,
+					$"Generic arguments are invariant; value conversions do not rewrite '{DescribeConstructedGenericShape(targetBase)}' arguments.");
+				return true;
+			}
+
 			classification = ClassifyClassPointerConversion(sourceBase, targetBase);
 			return true;
 		}
@@ -812,6 +872,15 @@ public sealed partial class BindableNodeAnalyzer
 					ConversionReason.CallableLifetime,
 					"Cast changes callable lifetime contract; write 'unsafe' to acknowledge the hidden context/result lifetime change.")
 				: new ConversionClassification(ConversionLevel.Implicit, ConversionReason.None);
+			return true;
+		}
+
+		if (sourceCallable.Kind == "delegate" || targetCallable.Kind == "delegate")
+		{
+			classification = new ConversionClassification(
+				ConversionLevel.ReconstructRequired,
+				ConversionReason.DelegateInvariant,
+				"Delegate values cannot change callable signature; rebuild the delegate or cast its call component.");
 			return true;
 		}
 
@@ -1028,6 +1097,43 @@ public sealed partial class BindableNodeAnalyzer
 			|| source.Length != target.Length)
 			return false;
 		return TypeShapesSameIgnoringAllQualifiers(source.Element, target.Element);
+	}
+
+	static bool TypeShapesSameIgnoringValueQualifiers(TypeShape? source, TypeShape? target)
+	{
+		if (source is null || target is null)
+			return source is null && target is null;
+		return TypeShapeParser.Format(StripValueQualifiers(source)) == TypeShapeParser.Format(StripValueQualifiers(target));
+	}
+
+	static TypeShape StripValueQualifiers(TypeShape shape)
+	{
+		return shape with
+		{
+			Qualifiers = TypeQualifiers.None,
+			Element = shape.Element is null ? null : StripValueQualifiers(shape.Element)
+		};
+	}
+
+	static bool IsConstructedGenericArgumentRewrite(TypeShape source, TypeShape target)
+	{
+		if (source.Kind != target.Kind || source.Kind != TypeShapeKind.Named)
+			return false;
+		if (source.Name == target.Name)
+			return false;
+		if (BaseTypeName(source.Name) != BaseTypeName(target.Name))
+			return false;
+		return ExtractConstructedTypeArguments(source.Name).Count > 0
+			|| ExtractConstructedTypeArguments(target.Name).Count > 0;
+	}
+
+	static string DescribeConstructedGenericShape(TypeShape shape)
+	{
+		string name = BaseTypeName(shape.Name);
+		List<string> arguments = ExtractConstructedTypeArguments(shape.Name);
+		if (arguments.Count == 0)
+			return name;
+		return $"{name}<{string.Join(", ", arguments.ConvertAll(static _ => "T"))}>";
 	}
 
 	bool IsClassPointerElement(TypeShape shape)

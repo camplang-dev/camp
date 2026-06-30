@@ -97,6 +97,7 @@ parameter-declarator:
 	<attribute>* [in | out | thrown | overload]
 
 type:
+	fn '*' [<target-spec>]
 	(fn|delegate|once|iter|async|async iter) [<target-spec>] [<call-spec>] <type> '(' <parameter-list> ')'
 	<attribute> <type>
 	<type> '[' <expression>? ']'

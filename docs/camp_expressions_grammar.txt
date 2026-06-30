@@ -61,6 +61,7 @@ qualified-name:
 
 cast-expression:
 	'(' <type> ')' <unary-expression>
+	'(' unsafe <type> ')' <unary-expression>
 	'(' <cast-keyword> ')' <unary-expression>
 	'(' <lifetime-cast> ')' <unary-expression>
 
