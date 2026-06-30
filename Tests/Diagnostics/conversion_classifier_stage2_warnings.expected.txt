@@ -1,0 +1,3 @@
+tests/Diagnostics/conversion_classifier_stage2_warnings.camp(17,17): warning: unsafe is not required for this cast; the conversion is ordinary explicit.
+tests/Diagnostics/conversion_classifier_stage2_warnings.camp(18,15): warning: unsafe is not required for this cast; the conversion is ordinary explicit.
+tests/Diagnostics/conversion_classifier_stage2_warnings.camp(19,23): warning: unsafe is not required for this cast; the conversion is ordinary explicit.

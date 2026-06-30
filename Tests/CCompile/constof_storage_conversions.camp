@@ -9,7 +9,7 @@ void assignStorage(const int[] source, int* mutablePtr, const int* constPtr, out
 	const int* widened = fromMutable;
 	constof(source) int* fromSameAnchor = firstElement(source);
 	constof(source) int* fromCast = (constof(source) int*)constPtr;
-	int* explicitlyMutable = (int*)fromSameAnchor;
+	int* explicitlyMutable = (unsafe int*)fromSameAnchor;
 	auto common = true ? fromSameAnchor : constPtr;
 	const int* commonConst = common;
 

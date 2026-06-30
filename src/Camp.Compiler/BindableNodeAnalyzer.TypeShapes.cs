@@ -12,7 +12,8 @@ public sealed partial class BindableNodeAnalyzer
 		Pointer,
 		Array,
 		FixedArray,
-		Optional
+		Optional,
+		RawFunctionPointer
 	}
 
 	readonly record struct TypeQualifiers(bool IsConst, bool IsVolatile, LifetimeKind Lifetime)
@@ -664,6 +665,13 @@ public sealed partial class BindableNodeAnalyzer
 				return false;
 			}
 
+			if (text.AsSpan(index).StartsWith("fn*", StringComparison.Ordinal))
+			{
+				index += 3;
+				shape = new TypeShape(TypeShapeKind.RawFunctionPointer, "", null, prefix);
+				return true;
+			}
+
 			string name = ReadTypeName();
 			if (name.Length == 0)
 			{
@@ -776,6 +784,7 @@ public sealed partial class BindableNodeAnalyzer
 				TypeShapeKind.Array => Format(shape.Element) + "[]",
 				TypeShapeKind.FixedArray => FormatFixedArray(shape),
 				TypeShapeKind.Optional => Format(shape.Element) + "?",
+				TypeShapeKind.RawFunctionPointer => "fn*",
 				_ => shape.Name
 			};
 

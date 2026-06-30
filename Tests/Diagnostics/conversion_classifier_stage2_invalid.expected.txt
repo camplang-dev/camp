@@ -1,0 +1,7 @@
+tests/Diagnostics/conversion_classifier_stage2_invalid.camp(35,23): error: Cast removes const; write '(unsafe T*)' to acknowledge mutable access.
+tests/Diagnostics/conversion_classifier_stage2_invalid.camp(36,25): error: Cast changes pointer indirection depth; write 'unsafe' or use a matching-depth fence.
+tests/Diagnostics/conversion_classifier_stage2_invalid.camp(37,31): error: Cannot directly cast 'byte*' to 'PacketHeader*'; cast through 'void*' to erase the data-pointer family.
+tests/Diagnostics/conversion_classifier_stage2_invalid.camp(38,21): error: Cast from base class 'Base' to derived class 'Derived' requires unsafe.
+tests/Diagnostics/conversion_classifier_stage2_invalid.camp(39,25): error: Classes 'Base' and 'Unrelated' do not share a constructed base; use a raw fence before casting.
+tests/Diagnostics/conversion_classifier_stage2_invalid.camp(40,23): error: Cast would invent an interface slot for 'IThing'; use an unsafe raw fence or an explicit conversion helper.
+tests/Diagnostics/conversion_classifier_stage2_invalid.camp(41,18): error: Function pointer values do not portably convert to natural integers; use 'fn*' or 'untyped' as the raw carrier.

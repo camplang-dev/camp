@@ -1,0 +1,82 @@
+// file: conversion_classifier_stage2.c
+#include "conversion_classifier_stage2_private.h"
+
+/* Private file declarations. */
+void (* getRawFn(void))(void);
+void consumeRawFn(void (* value)(void));
+
+int main(void)
+{
+	uint8_t *bytes = 0;
+	const uint8_t *constBytes = bytes;
+	uint8_t *mutableBytes = (uint8_t *)(constBytes);
+	uint8_t **twoLevelBytes = (uint8_t **)(bytes);
+	void *rawData = (void *)(bytes);
+	PacketHeader *headerFromRaw = (PacketHeader *)(rawData);
+	PacketHeader *packet = 0;
+	OtherHeader *other = (OtherHeader *)(packet);
+	uintptr_t bits = (uintptr_t)(bytes);
+	uint8_t *bytesAgain = (uint8_t *)(bits);
+	uintptr_t erased = (uintptr_t)(bytes);
+	PacketHeader *restored = (PacketHeader *)(erased);
+	void (* rawFn)(void) = getRawFn();
+	consumeRawFn(rawFn);
+	Base *base = 0;
+	Derived *derivedAgain = (Derived *)(base);
+	return (((((((((mutableBytes == 0) || (twoLevelBytes == 0)) || (headerFromRaw == 0)) || (other == 0)) || (bytesAgain == 0)) || (restored == 0)) || (rawFn == 0)) || (derivedAgain == 0)) ? 0 : 0);
+}
+
+// file: conversion_classifier_stage2.h
+#ifndef CONVERSION_CLASSIFIER_STAGE2_H_
+#define CONVERSION_CLASSIFIER_STAGE2_H_
+
+#include "conversion_classifier_stage2_private.h"
+
+int main(void);
+
+#endif
+// file: conversion_classifier_stage2_private.h
+#ifndef CONVERSION_CLASSIFIER_STAGE2_PRIVATE_H_
+#define CONVERSION_CLASSIFIER_STAGE2_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct PacketHeader PacketHeader;
+typedef struct OtherHeader OtherHeader;
+typedef struct Base Base;
+typedef struct Derived Derived;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct PacketHeader
+{
+	int tag;
+};
+struct OtherHeader
+{
+	int tag;
+};
+struct Base
+{
+	char _camp_empty;
+};
+struct Derived
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: conversion_classifier_stage2.c

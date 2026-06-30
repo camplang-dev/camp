@@ -1,0 +1,42 @@
+struct PacketHeader
+{
+	int tag;
+}
+
+class Base
+{
+}
+
+class Derived: Base
+{
+}
+
+class Unrelated
+{
+}
+
+interface IThing
+{
+}
+
+class Plain
+{
+}
+
+export void main()
+{
+	const byte* constBytes = default;
+	byte* bytes = default;
+	PacketHeader* packet = default;
+	Base* base = default;
+	Plain* plain = default;
+	fn* rawFn = default;
+
+	byte* mutableBytes = (byte*)constBytes;
+	byte** twoLevelBytes = (byte**)bytes;
+	PacketHeader* directHeader = (PacketHeader*)bytes;
+	Derived* derived = (Derived*)base;
+	Unrelated* unrelated = (Unrelated*)base;
+	IThing* fabricated = (IThing*)plain;
+	nuint badBits = (nuint)rawFn;
+}

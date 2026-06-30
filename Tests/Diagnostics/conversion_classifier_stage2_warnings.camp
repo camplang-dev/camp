@@ -1,0 +1,22 @@
+struct PacketHeader
+{
+	int tag;
+}
+
+struct OtherHeader
+{
+	int tag;
+}
+
+export int main()
+{
+	int value = 1;
+	byte* bytes = default;
+	PacketHeader* packet = default;
+
+	long widened = (unsafe long)value;
+	nuint bits = (unsafe nuint)bytes;
+	OtherHeader* other = (unsafe OtherHeader*)packet;
+
+	return (int)widened + (bits == default ? 0 : 0) + (other == default ? 0 : 0);
+}

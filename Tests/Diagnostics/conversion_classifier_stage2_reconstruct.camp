@@ -1,0 +1,5 @@
+export void main()
+{
+	byte*[] bytePointers = default;
+	void*[] voidPointers = (void*[])bytePointers;
+}

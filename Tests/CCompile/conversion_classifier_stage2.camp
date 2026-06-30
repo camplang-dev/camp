@@ -1,0 +1,48 @@
+struct PacketHeader
+{
+	int tag;
+}
+
+struct OtherHeader
+{
+	int tag;
+}
+
+class Base
+{
+}
+
+class Derived: Base
+{
+}
+
+extern fn* getRawFn();
+extern void consumeRawFn(fn* value);
+
+export int main()
+{
+	byte* bytes = default;
+	const byte* constBytes = bytes;
+	byte* mutableBytes = (unsafe byte*)constBytes;
+	byte** twoLevelBytes = (unsafe byte**)bytes;
+
+	void* rawData = (void*)bytes;
+	PacketHeader* headerFromRaw = (PacketHeader*)rawData;
+
+	PacketHeader* packet = default;
+	OtherHeader* other = (OtherHeader*)packet;
+
+	nuint bits = (nuint)bytes;
+	byte* bytesAgain = (byte*)bits;
+
+	untyped erased = (untyped)bytes;
+	PacketHeader* restored = (PacketHeader*)erased;
+
+	fn* rawFn = getRawFn();
+	consumeRawFn(rawFn);
+
+	Base* base = default;
+	Derived* derivedAgain = (unsafe Derived*)base;
+
+	return mutableBytes == default || twoLevelBytes == default || headerFromRaw == default || other == default || bytesAgain == default || restored == default || rawFn == default || derivedAgain == default ? 0 : 0;
+}

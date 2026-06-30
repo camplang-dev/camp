@@ -192,13 +192,13 @@ Goal: replace boolean conversion answers with a classifier capable of producing 
 
 ### Completion Criteria
 
-- [ ] A central classifier reports conversion level and reason.
-- [ ] Existing implicit-conversion behavior uses the classifier without broad regressions.
-- [ ] Ordinary casts reject conversions that require `unsafe`.
-- [ ] `unsafe` casts accept unsafe conversions and warn when unnecessary.
-- [ ] Fence-required and reconstruct-required diagnostics name the needed strategy.
-- [ ] Data-pointer, class, interface, integer-carrier, and `untyped` tests cover positive and negative cases.
-- [ ] Full non-skipped suite passes and the stage is committed.
+- [x] ~~A central classifier reports conversion level and reason.~~
+- [x] ~~Existing implicit-conversion behavior uses the classifier without broad regressions.~~
+- [x] ~~Ordinary casts reject conversions that require `unsafe`.~~
+- [x] ~~`unsafe` casts accept unsafe conversions and warn when unnecessary.~~
+- [x] ~~Fence-required and reconstruct-required diagnostics name the needed strategy.~~
+- [x] ~~Data-pointer, class, interface, integer-carrier, and `untyped` tests cover positive and negative cases.~~
+- [x] ~~Full non-skipped suite passes and the stage is committed.~~
 
 ## Stage 3: Target-Defined Typespec Conversion Policy
 

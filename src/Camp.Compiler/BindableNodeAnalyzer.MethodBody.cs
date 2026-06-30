@@ -1241,21 +1241,30 @@ public sealed partial class BindableNodeAnalyzer
 
 		if ((cast.Type is null && cast.Kind != CastKind.Type) || cast.LifetimeCastKind is not null)
 			targetType = sourceType;
-		else if (!CanExplicitlyConvert(sourceType, structuralTargetType))
+		else
 		{
-			if (TryAnalyzeExplicitNumericLiteralNewtypeCast(cast.Expression, targetType, out bool literalCastAllowed, out string? literalCastDiagnostic))
+			ConversionClassification conversion = ClassifyConversion(sourceType, structuralTargetType);
+			if (!cast.Unsafe && conversion.Level == ConversionLevel.Unsafe)
 			{
-				if (!literalCastAllowed && literalCastDiagnostic is not null)
-					Report(GetRange(cast.Expression?.SourceSyntax ?? cast.SourceSyntax), literalCastDiagnostic);
+				Report(GetRange(cast.SourceSyntax), conversion.Diagnostic ?? $"Cast from '{sourceType}' to '{targetType}' requires unsafe.");
 			}
-			else
+			else if (conversion.Level is ConversionLevel.FenceRequired or ConversionLevel.ReconstructRequired or ConversionLevel.Forbidden
+				|| !cast.Unsafe && conversion.Level is not ConversionLevel.Implicit and not ConversionLevel.Explicit)
 			{
-				Report(GetRange(cast.SourceSyntax), $"Invalid cast from '{sourceType}' to '{targetType}'.");
+				if (TryAnalyzeExplicitNumericLiteralNewtypeCast(cast.Expression, targetType, out bool literalCastAllowed, out string? literalCastDiagnostic))
+				{
+					if (!literalCastAllowed && literalCastDiagnostic is not null)
+						Report(GetRange(cast.Expression?.SourceSyntax ?? cast.SourceSyntax), literalCastDiagnostic);
+				}
+				else
+				{
+					Report(GetRange(cast.SourceSyntax), conversion.Diagnostic ?? $"Invalid cast from '{sourceType}' to '{targetType}'.");
+				}
 			}
-		}
-		else if (cast.Unsafe)
-		{
-			Warn(cast.SourceSyntax, "unsafe is not required for this cast; the conversion is ordinary explicit.");
+			else if (cast.Unsafe && conversion.IsOrdinary)
+			{
+				Warn(cast.SourceSyntax, "unsafe is not required for this cast; the conversion is ordinary explicit.");
+			}
 		}
 
 		expressionConstants[cast] = IsConstant(cast.Expression);

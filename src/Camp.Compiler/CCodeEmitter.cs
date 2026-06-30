@@ -5306,7 +5306,7 @@ public static class CCodeEmitter
 				"string" => "const char",
 				"wstring" => "const uint16_t",
 				"astring" => "const char",
-				"untyped" => "void",
+				"untyped" => "uintptr_t",
 				"sbyte" or "byte" or "short" or "ushort" or "int" or "uint" or "long" or "ulong" or "nint" or "nuint" or "float" or "double" or "char" or "wchar" or "achar" or "uchar"
 					=> compilation.Target?.Capabilities.GetPrimitiveCSpelling(type) ?? type,
 				_ => CTypeName(type)
@@ -5373,7 +5373,7 @@ public static class CCodeEmitter
 			if (primitive == PrimitiveType.AString)
 				return FormatDataPointerPrimitive("const char", declarator);
 			if (primitive == PrimitiveType.Untyped)
-				return new CType("void " + declarator);
+				return new CType("uintptr_t " + declarator);
 			return new CType((compilation.Target?.Capabilities.GetPrimitiveCSpelling(name) ?? name) + " " + declarator);
 		}
 

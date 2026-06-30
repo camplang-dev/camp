@@ -1,0 +1,1 @@
+tests/Diagnostics/conversion_classifier_stage2_reconstruct.camp(4,25): error: Cannot rewrite array element type from 'byte*' to 'void*'; reconstruct the array with converted elements.

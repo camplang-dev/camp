@@ -101,7 +101,7 @@ export bool tryWriteAll(ByteWriter this, const byte[] value, thrown IoError erro
 		const byte[] remaining = { &value.elements[offset], value.length - offset };
 		
 		nuint written = 0;
-		if (!this(&written, (byte*)remaining.elements, remaining.length))
+			if (!this(&written, (unsafe byte*)remaining.elements, remaining.length))
 			throw IO;
 		if (written == 0)
 			throw IO;
@@ -119,7 +119,7 @@ export bool tryWrite(CharWriter this, overload char value, thrown IoError error)
 {
 	const char[] buffer = [value];
 	nuint written = 0;
-	if (!this(&written, (char*)buffer.elements, buffer.length) || written != 1)
+	if (!this(&written, (unsafe char*)buffer.elements, buffer.length) || written != 1)
 		throw IO;
 	return true;
 }
@@ -141,7 +141,7 @@ export bool tryWrite(CharWriter this, overload const char[] value, thrown IoErro
 		const char[] remaining = { &value.elements[offset], writeLength - offset };
 		
 		nuint written = 0;
-		if (!this(&written, (char*)remaining.elements, remaining.length))
+			if (!this(&written, (unsafe char*)remaining.elements, remaining.length))
 			throw IO;
 		if (written == 0)
 			throw IO;

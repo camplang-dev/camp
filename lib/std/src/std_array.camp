@@ -21,7 +21,7 @@ export void copyTo<T: copyable>(const T[] this, T[] destination, sizeof(T))
 	if (count == 0)
 		return;
 
-	if ((byte*)destination.elements < (byte*)this.elements)
+	if ((const byte*)(const void*)destination.elements < (const byte*)(const void*)this.elements)
 	{
 		for (nuint i = 0; i < count; i++)
 			destination[i] = this[i];
