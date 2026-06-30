@@ -268,12 +268,12 @@ Goal: make target-specific conversion policy explicit and apply it at value boun
 
 ### Completion Criteria
 
-- [ ] Target metadata can express conversion levels per carrier.
-- [ ] Existing targets continue to load; current behavior is either preserved or deliberately updated.
-- [ ] Typespec conversions apply at value boundaries only.
-- [ ] Array/generic/delegate/function signature tunneling is rejected with specific diagnostics.
-- [ ] `_near`/`_far`/`_huge` coverage reaches CEmit/API/lowering without compile/run requirements.
-- [ ] Full non-skipped suite passes and the stage is committed.
+- [x] ~~Target metadata can express conversion levels per carrier.~~
+- [x] ~~Existing targets continue to load; current behavior is either preserved or deliberately updated.~~
+- [x] ~~Typespec conversions apply at value boundaries only.~~
+- [x] ~~Array/generic/delegate/function signature tunneling is rejected with specific diagnostics.~~
+- [x] ~~`_near`/`_far`/`_huge` coverage reaches CEmit/API/lowering without compile/run requirements.~~
+- [x] ~~Full non-skipped suite passes and the stage is committed.~~
 
 ## Stage 4: Callable, `fn*`, Callable Newtype, And Delegate Rules
 

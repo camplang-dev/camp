@@ -62,12 +62,108 @@ public sealed class TargetCapabilityTests
 		Assert.Equal(".so", linuxX86.Capabilities.GetArtifactValue("shared_ext"));
 	}
 
+	[Fact]
+	public void Target_conversion_policy_classifies_typespec_edges()
+	{
+		TargetCatalog catalog = LoadCatalog();
+		Assert.True(catalog.TryGetTarget("msvc-win16-x86", out TargetDefinition? win16));
+
+		Assert.Equal(TargetConversionLevel.Implicit, win16!.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.DataPointer, "_near", "_far"));
+		Assert.Equal(TargetConversionLevel.Unsafe, win16.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.DataPointer, "_far", "_near"));
+		Assert.Equal(TargetConversionLevel.Explicit, win16.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.FunctionPointer, "_near", "_far"));
+		Assert.Equal(TargetConversionLevel.Unsafe, win16.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.NaturalInteger, "_huge", "_near"));
+		Assert.Equal(TargetConversionLevel.Compatible, win16.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, "_far", "_huge"));
+		Assert.Equal(TargetConversionLevel.Forbidden, win16.Capabilities.ClassifyTypeSpecConversion(TargetConversionCarrier.AbiSlot, "_huge", "_near"));
+	}
+
+	[Fact]
+	public void Target_conversion_policy_rejects_invalid_entries()
+	{
+		string root = Path.Combine(Path.GetTempPath(), "camp-target-policy-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(root);
+		try
+		{
+			WriteTarget(root, "missing.ini", """
+[target]
+name=missing
+
+[typespec]
+_near=__near
+
+[conversion.data_pointer]
+_near->_missing=implicit
+""");
+			Assert.False(TargetCatalog.TryLoad(root, out _, out string? error));
+			Assert.Contains("Target conversion '_near->_missing' references unknown typespec '_missing'.", error);
+
+			Directory.Delete(root, recursive: true);
+			Directory.CreateDirectory(root);
+			WriteTarget(root, "level.ini", """
+[target]
+name=level
+
+[typespec]
+_near=__near
+_far=__far
+
+[conversion.data_pointer]
+_near->_far=maybe
+""");
+			Assert.False(TargetCatalog.TryLoad(root, out _, out error));
+			Assert.Contains("uses unknown conversion level 'maybe'", error);
+
+			Directory.Delete(root, recursive: true);
+			Directory.CreateDirectory(root);
+			WriteTarget(root, "compatible.ini", """
+[target]
+name=compatible
+
+[typespec]
+_near=__near
+_far=__far
+
+[conversion.data_pointer]
+_near->_far=compatible
+""");
+			Assert.False(TargetCatalog.TryLoad(root, out _, out error));
+			Assert.Contains("Conversion level 'compatible' is only valid in [conversion.abi_slot].", error);
+
+			Directory.Delete(root, recursive: true);
+			Directory.CreateDirectory(root);
+			WriteTarget(root, "callspec.ini", """
+[target]
+name=callspec
+
+[callspec]
+_stdcall=__stdcall
+
+[typespec]
+_near=__near
+
+[conversion.data_pointer]
+_stdcall->_near=implicit
+""");
+			Assert.False(TargetCatalog.TryLoad(root, out _, out error));
+			Assert.Contains("references callspec '_stdcall'; conversion policies require typespecs.", error);
+		}
+		finally
+		{
+			if (Directory.Exists(root))
+				Directory.Delete(root, recursive: true);
+		}
+	}
+
 	static TargetCatalog LoadCatalog()
 	{
 		string targetsDirectory = Path.Combine(FindRepositoryRoot(), "targets");
 		if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out string? error))
 			throw new InvalidOperationException(error ?? "Target catalog could not be loaded.");
 		return catalog!;
+	}
+
+	static void WriteTarget(string root, string name, string content)
+	{
+		File.WriteAllText(Path.Combine(root, name), content.Replace("\r\n", "\n"));
 	}
 
 	static string FindRepositoryRoot()

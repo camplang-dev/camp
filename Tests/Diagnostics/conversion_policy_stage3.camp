@@ -1,0 +1,19 @@
+// @ target msvc-win16-x86
+// @ memory-model large
+
+struct Box<T>
+{
+	T value;
+}
+
+void policyDiagnostics(
+	byte* _far farBytes,
+	nint _far farIndex,
+	byte* _near[] nearPointers,
+	Box<byte* _near>* nearBox)
+{
+	byte* _near badBytes = (byte* _near)farBytes;
+	nint _near badIndex = (nint _near)farIndex;
+	byte* _far[] badPointers = (byte* _far[])nearPointers;
+	Box<byte* _far>* badBox = (Box<byte* _far>*)nearBox;
+}

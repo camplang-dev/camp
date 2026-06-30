@@ -134,6 +134,10 @@ public static class GoldenFileTestRunner
 			else if (option.StartsWith("emit-metadata ", StringComparison.OrdinalIgnoreCase)
 				&& Enum.TryParse(option["emit-metadata ".Length..], ignoreCase: true, out MetadataVisibility visibility))
 				request.EmitMetadata = visibility;
+			else if (option.StartsWith("target ", StringComparison.OrdinalIgnoreCase))
+				request.TargetName = option["target ".Length..].Trim();
+			else if (option.StartsWith("memory-model ", StringComparison.OrdinalIgnoreCase))
+				request.MemoryModelName = option["memory-model ".Length..].Trim();
 		}
 	}
 

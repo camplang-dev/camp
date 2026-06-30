@@ -1,0 +1,17 @@
+// @ target msvc-win16-x86
+// @ memory-model large
+
+export void policy(
+	byte* _near nearBytes,
+	byte* _far farBytes,
+	fn* _near nearFn,
+	nint _near nearIndex,
+	byte[] _near nearItems)
+{
+	byte* _far widenedBytes = nearBytes;
+	byte* _near narrowedBytes = (unsafe byte* _near)farBytes;
+	fn* _far widenedFn = (fn* _far)nearFn;
+	nint _far widenedIndex = nearIndex;
+	nint _near narrowedIndex = (unsafe nint _near)widenedIndex;
+	byte[] _far widenedItems = nearItems;
+}

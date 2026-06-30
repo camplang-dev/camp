@@ -55,7 +55,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (source.Kind == TypeShapeKind.Named && target.Kind == TypeShapeKind.Named)
 		{
-			if (!TargetSpecsCanImplicitlyConvert(source.TargetSpec, target.TargetSpec))
+			TargetConversionCarrier carrier = IsNaturalIntegerShape(source) && IsNaturalIntegerShape(target)
+				? TargetConversionCarrier.NaturalInteger
+				: TargetConversionCarrier.DataPointer;
+			if (!TargetSpecsCanImplicitlyConvert(source.TargetSpec, target.TargetSpec, carrier))
 				return false;
 			if (!QualifiersCanConvert(source.Qualifiers, target.Qualifiers, protectedByConstTarget, pointerDepth))
 				return false;
@@ -65,7 +68,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (!QualifiersCanConvert(source.Qualifiers, target.Qualifiers, protectedByConstTarget, pointerDepth))
 			return false;
-		if (!TargetSpecsCanImplicitlyConvert(source.TargetSpec, target.TargetSpec))
+		if (!TargetSpecsCanImplicitlyConvert(source.TargetSpec, target.TargetSpec, GetTargetSpecCarrier(source, target)))
 			return false;
 
 		if (source.Kind == TypeShapeKind.Pointer
@@ -116,22 +119,23 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	bool TargetSpecsCanImplicitlyConvert(string? source, string? target)
+	bool TargetSpecsCanImplicitlyConvert(string? source, string? target, TargetConversionCarrier carrier = TargetConversionCarrier.DataPointer)
 	{
 		if (source == target)
 			return true;
 		if (selectedTarget is null)
 			return source is null && target is null;
-		return selectedTarget.CanWidenTypeSpec(source, target);
+		return selectedTarget.ClassifyTypeSpecConversion(carrier, source, target) == TargetConversionLevel.Implicit;
 	}
 
-	bool TargetSpecsAreExplicitlyCompatible(string? source, string? target)
+	bool TargetSpecsAreExplicitlyCompatible(string? source, string? target, TargetConversionCarrier carrier = TargetConversionCarrier.DataPointer)
 	{
 		if (source == target)
 			return true;
 		if (selectedTarget is null)
 			return source is null && target is null;
-		return selectedTarget.AreTypeSpecsCompatible(source, target);
+		TargetConversionLevel level = selectedTarget.ClassifyTypeSpecConversion(carrier, source, target);
+		return level is TargetConversionLevel.Implicit or TargetConversionLevel.Explicit or TargetConversionLevel.Unsafe or TargetConversionLevel.Fence;
 	}
 
 	bool CanExplicitlyConvertTargetSpecShape(TypeShape source, TypeShape target)
@@ -145,7 +149,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (source.Kind != target.Kind)
 			return false;
-		if (!TargetSpecsAreExplicitlyCompatible(source.TargetSpec, target.TargetSpec))
+		if (!TargetSpecsAreExplicitlyCompatible(source.TargetSpec, target.TargetSpec, GetTargetSpecCarrier(source, target)))
 			return false;
 
 		hasTargetSpec = hasTargetSpec || source.TargetSpec is not null || target.TargetSpec is not null;
@@ -160,6 +164,15 @@ public sealed partial class BindableNodeAnalyzer
 	static bool ContainsTargetSpec(TypeShape shape)
 	{
 		return shape.TargetSpec is not null || shape.Element is not null && ContainsTargetSpec(shape.Element);
+	}
+
+	static TargetConversionCarrier GetTargetSpecCarrier(TypeShape source, TypeShape target)
+	{
+		if (source.Kind == TypeShapeKind.RawFunctionPointer || target.Kind == TypeShapeKind.RawFunctionPointer)
+			return TargetConversionCarrier.FunctionPointer;
+		if (IsNaturalIntegerShape(source) && IsNaturalIntegerShape(target))
+			return TargetConversionCarrier.NaturalInteger;
+		return TargetConversionCarrier.DataPointer;
 	}
 
 	bool CanExplicitlyConvertPointerNaturalInteger(TypeShape source, TypeShape target)

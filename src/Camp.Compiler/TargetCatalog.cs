@@ -292,6 +292,38 @@ public sealed class TargetDefinition
 			return HasTypeSpec(source);
 		return HasTypeSpec(source) && HasTypeSpec(target);
 	}
+
+	public TargetConversionLevel ClassifyTypeSpecConversion(TargetConversionCarrier carrier, string? source, string? target)
+	{
+		if (source == target)
+			return carrier == TargetConversionCarrier.AbiSlot ? TargetConversionLevel.Compatible : TargetConversionLevel.Implicit;
+		if (source is not null && target is not null
+			&& Sections.ConversionPolicy.TryGetValue(new TargetConversionPolicyKey(carrier, source, target), out TargetConversionLevel configured))
+			return configured;
+		if (CanWidenTypeSpec(source, target))
+			return carrier == TargetConversionCarrier.AbiSlot ? TargetConversionLevel.Compatible : TargetConversionLevel.Implicit;
+		if (AreTypeSpecsCompatible(source, target))
+			return carrier == TargetConversionCarrier.AbiSlot ? TargetConversionLevel.Forbidden : TargetConversionLevel.Explicit;
+		return TargetConversionLevel.Forbidden;
+	}
+}
+
+public enum TargetConversionCarrier
+{
+	DataPointer,
+	FunctionPointer,
+	NaturalInteger,
+	AbiSlot
+}
+
+public enum TargetConversionLevel
+{
+	Implicit,
+	Explicit,
+	Unsafe,
+	Fence,
+	Forbidden,
+	Compatible
 }
 
 public sealed class TargetCapabilities
@@ -371,6 +403,11 @@ public sealed class TargetCapabilities
 		return target.GetMemoryModelDefault(memoryModelName, functionPointer);
 	}
 
+	public TargetConversionLevel ClassifyTypeSpecConversion(TargetConversionCarrier carrier, string? source, string? destination)
+	{
+		return target.ClassifyTypeSpecConversion(carrier, source, destination);
+	}
+
 	bool GetBooleanCapability(string name, string? legacyBuildTemplate = null)
 	{
 		string value = GetCapabilityValue(name);
@@ -397,6 +434,7 @@ internal sealed class TargetSections
 	public Dictionary<string, string> BuildTemplates { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> CEmitter { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, TargetProfileBuild> Profiles { get; } = new(StringComparer.Ordinal);
+	public Dictionary<TargetConversionPolicyKey, TargetConversionLevel> ConversionPolicy { get; } = new();
 
 	public void CopyFrom(TargetSections source)
 	{
@@ -414,6 +452,7 @@ internal sealed class TargetSections
 		CopySection(source.BuildTemplates, BuildTemplates);
 		CopySection(source.CEmitter, CEmitter);
 		CopySection(source.Profiles, Profiles);
+		CopyDictionary(source.ConversionPolicy, ConversionPolicy);
 	}
 
 	public void MergeFrom(IniData data)
@@ -432,6 +471,7 @@ internal sealed class TargetSections
 		MergeSection(data, "build", BuildTemplates);
 		MergeSection(data, "cemit", CEmitter);
 		MergeProfileSections(data);
+		MergeConversionPolicySections(data);
 		ValidateTargetMetadata();
 	}
 
@@ -454,6 +494,13 @@ internal sealed class TargetSections
 	static void CopySection<T>(Dictionary<string, T> source, Dictionary<string, T> target)
 	{
 		foreach ((string key, T value) in source)
+			target[key] = value;
+	}
+
+	static void CopyDictionary<TKey, TValue>(Dictionary<TKey, TValue> source, Dictionary<TKey, TValue> target)
+		where TKey : notnull
+	{
+		foreach ((TKey key, TValue value) in source)
 			target[key] = value;
 	}
 
@@ -539,6 +586,63 @@ internal sealed class TargetSections
 		}
 	}
 
+	void MergeConversionPolicySections(IniData data)
+	{
+		foreach (SectionData section in data.Sections)
+		{
+			if (!section.SectionName.StartsWith("conversion.", StringComparison.Ordinal))
+				continue;
+			string carrierName = section.SectionName["conversion.".Length..].Trim();
+			TargetConversionCarrier carrier = carrierName switch
+			{
+				"data_pointer" => TargetConversionCarrier.DataPointer,
+				"function_pointer" => TargetConversionCarrier.FunctionPointer,
+				"nint" => TargetConversionCarrier.NaturalInteger,
+				"abi_slot" => TargetConversionCarrier.AbiSlot,
+				_ => throw new InvalidDataException($"Unsupported target conversion carrier '{carrierName}'.")
+			};
+
+			foreach (KeyData key in section.Keys)
+			{
+				string[] specs = key.KeyName.Split("->", 2, StringSplitOptions.TrimEntries);
+				if (specs.Length != 2 || string.IsNullOrWhiteSpace(specs[0]) || string.IsNullOrWhiteSpace(specs[1]))
+					throw new InvalidDataException($"Target conversion '{key.KeyName}' must use '<source>-><target>' syntax.");
+				string source = specs[0];
+				string target = specs[1];
+				ValidateConversionPolicySpec(key.KeyName, source);
+				ValidateConversionPolicySpec(key.KeyName, target);
+
+				string levelName = key.Value.Trim();
+				TargetConversionLevel level = levelName switch
+				{
+					"implicit" => TargetConversionLevel.Implicit,
+					"explicit" => TargetConversionLevel.Explicit,
+					"unsafe" => TargetConversionLevel.Unsafe,
+					"fence" => TargetConversionLevel.Fence,
+					"forbidden" => TargetConversionLevel.Forbidden,
+					"compatible" => TargetConversionLevel.Compatible,
+					_ => throw new InvalidDataException($"Target conversion policy '{key.KeyName}={levelName}' uses unknown conversion level '{levelName}'.")
+				};
+
+				if (level == TargetConversionLevel.Compatible && carrier != TargetConversionCarrier.AbiSlot)
+					throw new InvalidDataException("Conversion level 'compatible' is only valid in [conversion.abi_slot].");
+				if (carrier == TargetConversionCarrier.AbiSlot && level != TargetConversionLevel.Compatible && level != TargetConversionLevel.Forbidden)
+					throw new InvalidDataException("[conversion.abi_slot] entries must use 'compatible' or 'forbidden'.");
+
+				ConversionPolicy[new TargetConversionPolicyKey(carrier, source, target)] = level;
+			}
+		}
+	}
+
+	void ValidateConversionPolicySpec(string conversion, string spec)
+	{
+		if (TypeSpecs.ContainsKey(spec))
+			return;
+		if (CallSpecs.ContainsKey(spec))
+			throw new InvalidDataException($"Target conversion '{conversion}' references callspec '{spec}'; conversion policies require typespecs.");
+		throw new InvalidDataException($"Target conversion '{conversion}' references unknown typespec '{spec}'.");
+	}
+
 	void ValidateTargetMetadata()
 	{
 		foreach (string key in NaturalIntegerWidths.Keys)
@@ -569,3 +673,5 @@ public sealed record TargetProfileBuild(string CFlags, string LdFlags)
 {
 	public static TargetProfileBuild Empty { get; } = new("", "");
 }
+
+public sealed record TargetConversionPolicyKey(TargetConversionCarrier Carrier, string Source, string Target);

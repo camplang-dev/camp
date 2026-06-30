@@ -28,6 +28,7 @@ public sealed partial class BindableNodeAnalyzer
 		UnrelatedClass,
 		InterfaceSlotFabrication,
 		FunctionPointerInteger,
+		TargetSpecPolicy,
 		Invalid
 	}
 
@@ -530,6 +531,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryParseTypeShape(source, out TypeShape sourceShape) || !TryParseTypeShape(target, out TypeShape targetShape))
 			return false;
 
+		if (TryClassifyTargetSpecPolicy(sourceShape, targetShape, out classification))
+			return true;
+
 		if (IsUntypedScalarShape(sourceShape) && IsRepresentableRawCarrierTarget(targetShape, target))
 		{
 			classification = new ConversionClassification(ConversionLevel.Explicit, ConversionReason.None);
@@ -626,6 +630,14 @@ public sealed partial class BindableNodeAnalyzer
 
 		PointerFamily sourceFamily = GetPointerFamily(sourceBase);
 		PointerFamily targetFamily = GetPointerFamily(targetBase);
+		if (IsGenericTargetSpecRewrite(sourceBase, targetBase))
+		{
+			classification = new ConversionClassification(
+				ConversionLevel.ReconstructRequired,
+				ConversionReason.FamilyCrossing,
+				"Typespec value conversions do not apply to generic arguments; reconstruct the value.");
+			return true;
+		}
 		if (sourceFamily == targetFamily && sourceFamily is PointerFamily.Primitive or PointerFamily.Struct or PointerFamily.Interface or PointerFamily.Unknown)
 		{
 			classification = new ConversionClassification(ConversionLevel.Explicit, ConversionReason.None);
@@ -647,6 +659,66 @@ public sealed partial class BindableNodeAnalyzer
 			ConversionReason.FamilyCrossing,
 			$"Cannot directly cast '{source}' to '{target}'; cast through 'void*' to erase the data-pointer family.");
 		return true;
+	}
+
+	bool TryClassifyTargetSpecPolicy(TypeShape sourceShape, TypeShape targetShape, out ConversionClassification classification)
+	{
+		classification = default;
+		if (selectedTarget is null || sourceShape.TargetSpec == targetShape.TargetSpec)
+			return false;
+
+		TargetConversionCarrier? carrier = GetDirectTargetSpecCarrier(sourceShape, targetShape);
+		if (carrier is null)
+			return false;
+
+		TargetConversionLevel level = selectedTarget.ClassifyTypeSpecConversion(carrier.Value, sourceShape.TargetSpec, targetShape.TargetSpec);
+		classification = level switch
+		{
+			TargetConversionLevel.Implicit => new ConversionClassification(ConversionLevel.Implicit, ConversionReason.TargetSpecPolicy),
+			TargetConversionLevel.Explicit => new ConversionClassification(ConversionLevel.Explicit, ConversionReason.TargetSpecPolicy),
+			TargetConversionLevel.Unsafe => new ConversionClassification(
+				ConversionLevel.Unsafe,
+				ConversionReason.TargetSpecPolicy,
+				$"Target '{selectedTarget.Name}' requires unsafe for '{DescribeTargetSpec(sourceShape.TargetSpec)}' to '{DescribeTargetSpec(targetShape.TargetSpec)}' {DescribeTargetSpecCarrier(carrier.Value)} conversion."),
+			TargetConversionLevel.Fence => new ConversionClassification(
+				ConversionLevel.FenceRequired,
+				ConversionReason.TargetSpecPolicy,
+				$"Target does not define a typed conversion from '{DescribeTargetSpec(sourceShape.TargetSpec)}' to '{DescribeTargetSpec(targetShape.TargetSpec)}'; use 'untyped' for a raw escape."),
+			_ => new ConversionClassification(
+				ConversionLevel.Forbidden,
+				ConversionReason.TargetSpecPolicy,
+				$"Target '{selectedTarget.Name}' forbids '{DescribeTargetSpec(sourceShape.TargetSpec)}' to '{DescribeTargetSpec(targetShape.TargetSpec)}' {DescribeTargetSpecCarrier(carrier.Value)} conversion.")
+		};
+		return true;
+	}
+
+	static TargetConversionCarrier? GetDirectTargetSpecCarrier(TypeShape sourceShape, TypeShape targetShape)
+	{
+		if (sourceShape.Kind == TypeShapeKind.Pointer && targetShape.Kind == TypeShapeKind.Pointer
+			|| sourceShape.Kind == TypeShapeKind.Array && targetShape.Kind == TypeShapeKind.Array
+			|| sourceShape.Kind == TypeShapeKind.FixedArray && targetShape.Kind == TypeShapeKind.Array)
+			return TargetConversionCarrier.DataPointer;
+		if (sourceShape.Kind == TypeShapeKind.RawFunctionPointer && targetShape.Kind == TypeShapeKind.RawFunctionPointer)
+			return TargetConversionCarrier.FunctionPointer;
+		if (IsNaturalIntegerShape(sourceShape) && IsNaturalIntegerShape(targetShape))
+			return TargetConversionCarrier.NaturalInteger;
+		return null;
+	}
+
+	static string DescribeTargetSpec(string? spec)
+	{
+		return spec ?? "default";
+	}
+
+	static string DescribeTargetSpecCarrier(TargetConversionCarrier carrier)
+	{
+		return carrier switch
+		{
+			TargetConversionCarrier.DataPointer => "data-pointer",
+			TargetConversionCarrier.FunctionPointer => "function-pointer",
+			TargetConversionCarrier.NaturalInteger => "natural-integer",
+			_ => "ABI-slot"
+		};
 	}
 
 	enum PointerFamily
@@ -749,6 +821,29 @@ public sealed partial class BindableNodeAnalyzer
 			};
 		}
 		return PointerFamily.Unknown;
+	}
+
+	bool IsGenericTargetSpecRewrite(TypeShape source, TypeShape target)
+	{
+		if (source.Kind != TypeShapeKind.Named || target.Kind != TypeShapeKind.Named)
+			return false;
+		if (source.Name == target.Name || BaseTypeName(source.Name) != BaseTypeName(target.Name))
+			return false;
+		if (!source.Name.Contains('<', StringComparison.Ordinal) || !target.Name.Contains('<', StringComparison.Ordinal))
+			return false;
+		if (selectedTarget is null)
+			return ContainsPotentialTargetSpec(source.Name) || ContainsPotentialTargetSpec(target.Name);
+		foreach (string spec in selectedTarget.TypeSpecOrder)
+		{
+			if (source.Name.Contains(spec, StringComparison.Ordinal) || target.Name.Contains(spec, StringComparison.Ordinal))
+				return true;
+		}
+		return false;
+	}
+
+	static bool ContainsPotentialTargetSpec(string name)
+	{
+		return name.Contains('_', StringComparison.Ordinal);
 	}
 
 	ConversionClassification ClassifyClassPointerConversion(TypeShape source, TypeShape target)

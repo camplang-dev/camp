@@ -1,0 +1,4 @@
+tests/Diagnostics/conversion_policy_stage3.camp(15,25): error: Target 'msvc-win16-x86' requires unsafe for '_far' to '_near' data-pointer conversion.
+tests/Diagnostics/conversion_policy_stage3.camp(16,24): error: Target 'msvc-win16-x86' requires unsafe for '_far' to '_near' natural-integer conversion.
+tests/Diagnostics/conversion_policy_stage3.camp(17,29): error: Cannot rewrite array element type from 'byte* _near' to 'byte* _far'; reconstruct the array with converted elements.
+tests/Diagnostics/conversion_policy_stage3.camp(18,28): error: Typespec value conversions do not apply to generic arguments; reconstruct the value.
