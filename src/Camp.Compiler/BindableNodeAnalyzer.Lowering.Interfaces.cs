@@ -59,10 +59,11 @@ public sealed partial class BindableNodeAnalyzer
 			call.Arguments.Add(LowerArgument(arguments[i]));
 		callTargets[call] = function;
 		AddImplicitDefaultArguments(call);
-		ExpandParamsArguments(call);
 
 		Expression? loweredValue = LowerExpression(value);
-		ParameterDefinition? valueParameter = function.Parameters.Count == 0 ? null : function.Parameters[^1];
+		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters);
+		int valueParameterIndex = callableParameters.Count == 0 ? -1 : GetPropertySetterValueParameterStart(callableParameters);
+		ParameterDefinition? valueParameter = valueParameterIndex < 0 ? null : callableParameters[valueParameterIndex];
 		if (valueParameter?.Type is not null)
 			loweredValue = LowerInterfaceConversion(valueParameter.Type, loweredValue);
 		call.Arguments.Add(new ArgumentExpression
@@ -74,6 +75,7 @@ public sealed partial class BindableNodeAnalyzer
 			RewriteInstanceInvocation(call, setter, receiver, function);
 		else
 			RewriteStaticCallableTarget(call, setter, function, isInstance: false);
+		ExpandParamsArguments(call);
 		return call;
 	}
 

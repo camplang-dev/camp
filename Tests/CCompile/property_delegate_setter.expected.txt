@@ -1,0 +1,66 @@
+// file: property_delegate_setter.c
+#include "property_delegate_setter_private.h"
+
+/* Private file declarations. */
+void Button_setClick(Button *this, ClickHandler click, void *click_context);
+static void App_wire(App *this, Button *button);
+static void App_handle(App *this, Button *sender);
+
+static void App_wire(App *this, Button *button)
+{
+	Button_setClick(button, (ClickHandler)App_handle, this);
+}
+
+static void App_handle(App *this, Button *sender)
+{
+}
+
+int main(void)
+{
+	App app = (App){ 0 };
+	Button *button = 0;
+	App_wire(&app, button);
+	return 0;
+}
+
+// file: property_delegate_setter.h
+#ifndef PROPERTY_DELEGATE_SETTER_H_
+#define PROPERTY_DELEGATE_SETTER_H_
+
+#include "property_delegate_setter_private.h"
+
+int main(void);
+
+#endif
+// file: property_delegate_setter_private.h
+#ifndef PROPERTY_DELEGATE_SETTER_PRIVATE_H_
+#define PROPERTY_DELEGATE_SETTER_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Button Button;
+typedef struct App App;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef void (* ClickHandler)(void *context, Button *sender);
+
+/* Layouts. */
+struct App
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: property_delegate_setter.c

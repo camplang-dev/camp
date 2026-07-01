@@ -2272,9 +2272,9 @@ public sealed partial class BindableNodeAnalyzer
 			if (callableParameters.Count == 0)
 				continue;
 
-			int valueParameterIndex = callableParameters.Count - 1;
-			int setterArgumentCount = callableParameters.Count - 1;
-			if (CountRequiredParametersForPropertySetter(setter.Parameters) > arguments.Count)
+			int valueParameterIndex = GetPropertySetterValueParameterStart(callableParameters);
+			int setterArgumentCount = valueParameterIndex;
+			if (CountRequiredParametersForPropertySetter(callableParameters, valueParameterIndex) > arguments.Count)
 				continue;
 			if (setterArgumentCount != arguments.Count)
 				continue;
@@ -2757,13 +2757,27 @@ public sealed partial class BindableNodeAnalyzer
 		return count;
 	}
 
-	static int CountRequiredParametersForPropertySetter(List<ParameterDefinition> parameters)
+	static int GetPropertySetterValueParameterStart(List<ParameterDefinition> parameters)
+	{
+		if (parameters.Count >= 2)
+		{
+			string previousName = parameters[^2].Name;
+			string lastName = parameters[^1].Name;
+			if (lastName == previousName + "_context"
+				|| lastName == previousName + "_length"
+				|| lastName == previousName + "_specified")
+				return parameters.Count - 2;
+		}
+		return parameters.Count - 1;
+	}
+
+	static int CountRequiredParametersForPropertySetter(List<ParameterDefinition> parameters, int valueParameterIndex)
 	{
 		if (parameters.Count == 0)
 			return 0;
 
 		int count = 0;
-		for (int i = 0; i < parameters.Count - 1; i++)
+		for (int i = 0; i < valueParameterIndex; i++)
 		{
 			ParameterDefinition parameter = parameters[i];
 			if (parameter.DefaultValue is null

@@ -1,0 +1,26 @@
+newtype delegate void ClickHandler(Button* sender);
+
+extern class Button
+{
+	extern void setClick(ClickHandler click);
+}
+
+escaped class App
+{
+	void wire(Button* button)
+	{
+		button.Click = this.handle;
+	}
+
+	void handle(Button* sender): ClickHandler
+	{
+	}
+}
+
+export int main()
+{
+	App app = {};
+	Button* button = default;
+	app.wire(button);
+	return 0;
+}
