@@ -34,6 +34,17 @@ then use `dotnet vstest` for repeated verification. Reserve `dotnet test` for
 full local validation, restore/build validation, coverage collection, or cases
 where MSBuild behavior itself is what you are testing.
 
+LSP changes should usually be checked first with:
+
+```sh
+dotnet build src/camplang.sln
+dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --Tests:Camp.Compiler.Tests.LspServerTests
+```
+
+Those tests launch `camp-lsp` over stdio and cover initialize, diagnostic
+publish/update, hover, and go-to definition. They are not a substitute for the
+full non-skipped suite before committing.
+
 For a fast compiler-feedback pass from the repository root, run:
 
 ```sh
