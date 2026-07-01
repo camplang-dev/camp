@@ -456,7 +456,7 @@ public sealed class CommandLineTests
 			secondSource,
 			"--nostdlib",
 			"--artifact",
-			"static",
+			"none",
 			"--name",
 			"refcount",
 			"--out-dir",
