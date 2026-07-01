@@ -17,12 +17,6 @@ Next bug number: CAMPC-008.
   headers, static libraries, and target-qualified artifact directories flow
   correctly through that chain.
 
-- **CAMPC-005:** Project references do not explicitly detect cycles. A project
-  reference graph such as A referencing B while B references A can recurse
-  through builds until it fails indirectly or exhausts resources. Track the
-  active project-reference stack and report a direct diagnostic that names the
-  cycle.
-
 - **CAMPC-007:** Native link dependencies from packages are not propagated to
   final consumers. A library or executable that uses `ext-win32` gets the
   package API/static artifact, but the package's `#build --reference user32 gdi32

@@ -284,6 +284,57 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Project_reference_cycles_report_direct_diagnostic()
+	{
+		string root = TempPath("project-reference-cycle");
+		string aRoot = Path.Combine(root, "a");
+		string bRoot = Path.Combine(root, "b");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(Path.Combine(aRoot, "src"));
+		Directory.CreateDirectory(Path.Combine(bRoot, "src"));
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(aRoot, "src", "a.camp"), "export int a() => b();\n");
+		File.WriteAllText(Path.Combine(bRoot, "src", "b.camp"), "export int b() => a();\n");
+		File.WriteAllText(Path.Combine(aRoot, "a.campbuild"), $$"""
+			--nostdlib
+			--name a
+			--project-reference {{bRoot}}
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(bRoot, "b.campbuild"), $$"""
+			--nostdlib
+			--name b
+			--project-reference {{aRoot}}
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --artifact none
+			#build --name app
+
+			export int main()
+			{
+				return a();
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--project-reference",
+			aRoot,
+			"--build-dir",
+			Path.Combine(appRoot, "obj"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Project reference cycle detected", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("a.campbuild", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("b.campbuild", result.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("Stack overflow", result.StdErr, StringComparison.OrdinalIgnoreCase);
+	}
+
+	[Fact]
 	public void Library_api_preserves_implements_generic_constraints()
 	{
 		string root = TempPath("implements-api");

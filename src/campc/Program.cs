@@ -338,7 +338,7 @@ sealed class CampCli
 		return 0;
 	}
 
-	static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKind command, out CompilerRequest? request, out List<string> errors)
+	static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKind command, out CompilerRequest? request, out List<string> errors, List<string>? projectReferenceStack = null)
 	{
 		request = null;
 		errors = [];
@@ -413,7 +413,7 @@ sealed class CampCli
 		request.Frameworks.AddRange(bag.Frameworks);
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
 		request.UseSourceRoots.AddRange(bag.UseSources.Where(static source => !string.IsNullOrWhiteSpace(source.Path)).Select(source => Path.GetFullPath(source.Path!, environment.WorkingDirectory)));
-		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, out List<string> projectApiHeaders, out List<string> projectLibraries, errors))
+		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], out List<string> projectApiHeaders, out List<string> projectLibraries, errors))
 			return false;
 		foreach (string projectApiHeader in projectApiHeaders)
 			includeFiles.Add(projectApiHeader);
@@ -423,7 +423,7 @@ sealed class CampCli
 		return true;
 	}
 
-	static bool TryBuildProjectReferences(IReadOnlyList<string> projectReferences, CompilerRequest consumerRequest, CliEnvironment environment, out List<string> apiHeaders, out List<string> libraries, List<string> errors)
+	static bool TryBuildProjectReferences(IReadOnlyList<string> projectReferences, CompilerRequest consumerRequest, CliEnvironment environment, List<string> projectReferenceStack, out List<string> apiHeaders, out List<string> libraries, List<string> errors)
 	{
 		apiHeaders = [];
 		libraries = [];
@@ -435,14 +435,21 @@ sealed class CampCli
 				errors.Add(error!);
 				continue;
 			}
+			string canonicalBuildFile = Path.GetFullPath(buildFile!);
+			int cycleStart = projectReferenceStack.FindIndex(path => string.Equals(path, canonicalBuildFile, StringComparison.OrdinalIgnoreCase));
+			if (cycleStart >= 0)
+			{
+				errors.Add("Project reference cycle detected: " + FormatProjectReferenceCycle(projectReferenceStack, canonicalBuildFile, cycleStart));
+				continue;
+			}
 
 			List<string> responseErrors = [];
-			List<string> projectArgs = ResponseFileExpander.Expand(["@" + buildFile!], environment.WorkingDirectory, responseErrors);
+			List<string> projectArgs = ResponseFileExpander.Expand(["@" + canonicalBuildFile], environment.WorkingDirectory, responseErrors);
 			errors.AddRange(responseErrors);
 			if (responseErrors.Count > 0)
 				continue;
 
-			string projectDirectory = Path.GetDirectoryName(buildFile!)!;
+			string projectDirectory = Path.GetDirectoryName(canonicalBuildFile)!;
 			string memoryModelName = string.IsNullOrWhiteSpace(consumerRequest.MemoryModelName) ? "default" : consumerRequest.MemoryModelName!;
 			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", consumerRequest.TargetName, memoryModelName, consumerRequest.ProfileName);
 			string projectBuildDirectory = Path.Combine(projectDirectory, "obj", consumerRequest.TargetName, memoryModelName, consumerRequest.ProfileName);
@@ -455,7 +462,8 @@ sealed class CampCli
 			projectArgs.AddRange(["--out-dir", projectOutputDirectory]);
 			projectArgs.AddRange(["--build-dir", projectBuildDirectory]);
 
-			if (!TryBuildRequest(projectArgs.ToArray(), environment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors))
+			List<string> childStack = [.. projectReferenceStack, canonicalBuildFile];
+			if (!TryBuildRequest(projectArgs.ToArray(), environment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack))
 			{
 				foreach (string projectError in projectErrors)
 					errors.Add($"{projectReference}: {projectError}");
@@ -493,6 +501,22 @@ sealed class CampCli
 				libraries.Add(library);
 		}
 		return errors.Count == 0;
+	}
+
+	static string FormatProjectReferenceCycle(IReadOnlyList<string> stack, string repeatedBuildFile, int cycleStart)
+	{
+		List<string> cycle = [];
+		for (int i = cycleStart; i < stack.Count; i++)
+			cycle.Add(ProjectReferenceDisplayName(stack[i]));
+		cycle.Add(ProjectReferenceDisplayName(repeatedBuildFile));
+		return string.Join(" -> ", cycle);
+	}
+
+	static string ProjectReferenceDisplayName(string buildFile)
+	{
+		string directory = Path.GetDirectoryName(buildFile) ?? "";
+		string fileName = Path.GetFileName(buildFile);
+		return string.IsNullOrWhiteSpace(directory) ? fileName : Path.Combine(Path.GetFileName(directory), fileName);
 	}
 
 	static void WriteProjectReferenceOutput(string projectReference, string output)
