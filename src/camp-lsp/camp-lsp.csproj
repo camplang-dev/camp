@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OmniSharp.Extensions.LanguageServer" Version="0.19.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Camp.Compiler/Camp.Compiler.csproj" />
+  </ItemGroup>
+
+  <Target Name="CopyCampLspToRepoBin" AfterTargets="Build">
+    <PropertyGroup>
+      <CampLspRepoBin>$(MSBuildProjectDirectory)/../../bin/</CampLspRepoBin>
+    </PropertyGroup>
+    <MakeDir Directories="$(CampLspRepoBin)" />
+    <ItemGroup>
+      <CampLspRuntimeFiles Include="$(TargetDir)camp-lsp*;$(TargetDir)*.dll;$(TargetDir)*.deps.json;$(TargetDir)*.runtimeconfig.json" Exclude="$(TargetDir)*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CampLspRuntimeFiles)" DestinationFolder="$(CampLspRepoBin)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

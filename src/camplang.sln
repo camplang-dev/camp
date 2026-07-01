@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Camp.Compiler.TestRunner", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Camp.Compiler.Coverage", "Camp.Compiler.Coverage\Camp.Compiler.Coverage.csproj", "{FD262AE3-B633-4771-908F-4A6FD4C4CD99}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "camp-lsp", "camp-lsp\camp-lsp.csproj", "{52428894-D0D8-4DBD-859B-85DAA6BECF07}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,18 @@ Global
 		{FD262AE3-B633-4771-908F-4A6FD4C4CD99}.Release|x64.Build.0 = Release|Any CPU
 		{FD262AE3-B633-4771-908F-4A6FD4C4CD99}.Release|x86.ActiveCfg = Release|Any CPU
 		{FD262AE3-B633-4771-908F-4A6FD4C4CD99}.Release|x86.Build.0 = Release|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Debug|x64.Build.0 = Debug|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Debug|x86.Build.0 = Debug|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Release|Any CPU.Build.0 = Release|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Release|x64.ActiveCfg = Release|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Release|x64.Build.0 = Release|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Release|x86.ActiveCfg = Release|Any CPU
+		{52428894-D0D8-4DBD-859B-85DAA6BECF07}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
