@@ -39,6 +39,8 @@ single-file project with `--nostdlib`.
 - diagnostics after open, change, and save
 - hover from source declarations and doc comments
 - go-to definition for simple source-backed symbols
+- document symbols for source declarations, including nested type members and
+  enum values
 
 Definition lookup intentionally returns source locations only. Generated symbols
 and external declarations without source ranges do not produce a definition
@@ -48,5 +50,5 @@ location.
 
 The v1 server does not implement semantic completion, rename, references,
 formatting, semantic tokens, workspace symbols, package restore, native builds,
-or incremental compilation. Each document change rebuilds the affected semantic
-snapshot.
+or incremental compilation. Document symbols are source-level and intentionally
+conservative. Each document change rebuilds the affected semantic snapshot.

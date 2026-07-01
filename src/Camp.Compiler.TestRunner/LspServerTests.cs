@@ -95,6 +95,48 @@ public sealed class LspServerTests
 		Assert.Equal(4, definition["result"]?["range"]?["start"]?["character"]?.GetValue<int>());
 	}
 
+	[Fact]
+	public void Lsp_server_returns_document_symbols()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-document-symbols");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			enum Mode
+			{
+				OPEN,
+				CLOSED
+			}
+
+			struct Counter
+			{
+				int value;
+				int getValue() => this.value;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		lsp.ReadNotification("textDocument/publishDiagnostics");
+
+		JsonNode symbols = lsp.Request("textDocument/documentSymbol", new
+		{
+			textDocument = new { uri }
+		});
+
+		JsonArray result = symbols["result"]!.AsArray();
+		JsonNode mode = Assert.Single(result, symbol => symbol?["name"]?.GetValue<string>() == "Mode")!;
+		JsonNode counter = Assert.Single(result, symbol => symbol?["name"]?.GetValue<string>() == "Counter")!;
+		Assert.Contains(mode["children"]!.AsArray(), symbol => symbol?["name"]?.GetValue<string>() == "OPEN");
+		Assert.Contains(counter["children"]!.AsArray(), symbol => symbol?["name"]?.GetValue<string>() == "value");
+		Assert.Contains(counter["children"]!.AsArray(), symbol => symbol?["name"]?.GetValue<string>() == "getValue");
+	}
+
 	static string CreateTempDirectory(string name)
 	{
 		string directory = Path.Combine(Path.GetTempPath(), "camp-tests", name + "-" + Guid.NewGuid().ToString("N"));
@@ -143,12 +185,14 @@ public sealed class LspServerTests
 					{
 						hover = new { },
 						definition = new { },
+						documentSymbol = new { },
 						synchronization = new { }
 					}
 				}
 			});
 			Assert.NotNull(response["result"]?["capabilities"]?["hoverProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["definitionProvider"]);
+			Assert.NotNull(response["result"]?["capabilities"]?["documentSymbolProvider"]);
 			Notify("initialized", new { });
 		}
 

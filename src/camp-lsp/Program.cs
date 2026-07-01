@@ -22,6 +22,7 @@ LanguageServer server = await LanguageServer.From(options => options
 	.AddHandler(new CampTextDocumentSyncHandler(workspace))
 	.AddHandler(new CampHoverHandler(workspace))
 	.AddHandler(new CampDefinitionHandler(workspace))
+	.AddHandler(new CampDocumentSymbolHandler(workspace))
 	.OnStarted((languageServer, _) =>
 	{
 		workspace.SetLanguageServer(languageServer);
@@ -117,6 +118,22 @@ sealed class CampDefinitionHandler(CampLspWorkspace workspace) : DefinitionHandl
 }
 #pragma warning restore CS8609
 
+#pragma warning disable CS8609
+sealed class CampDocumentSymbolHandler(CampLspWorkspace workspace) : DocumentSymbolHandlerBase
+{
+	public override Task<SymbolInformationOrDocumentSymbolContainer> Handle(DocumentSymbolParams request, CancellationToken cancellationToken)
+	{
+		IReadOnlyList<CampDocumentSymbol> symbols = workspace.GetDocumentSymbols(request.TextDocument.Uri);
+		return Task.FromResult(new SymbolInformationOrDocumentSymbolContainer(symbols.Select(symbol => new SymbolInformationOrDocumentSymbol(CampLsp.ToLspDocumentSymbol(symbol)))));
+	}
+
+	protected override DocumentSymbolRegistrationOptions CreateRegistrationOptions(DocumentSymbolCapability capability, ClientCapabilities clientCapabilities)
+	{
+		return new DocumentSymbolRegistrationOptions { DocumentSelector = CampLsp.Protocol.DocumentSelector };
+	}
+}
+#pragma warning restore CS8609
+
 public sealed class CampLspWorkspace
 {
 	readonly Dictionary<string, OpenDocument> openDocuments = new(StringComparer.OrdinalIgnoreCase);
@@ -159,7 +176,7 @@ public sealed class CampLspWorkspace
 	{
 		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
 			return null;
-			return new CampSymbolQueryService(snapshot!).GetHover(path, position);
+		return new CampSymbolQueryService(snapshot!).GetHover(path, position);
 	}
 
 	public CampSymbolLocation? GetDefinition(DocumentUri uri, CampTextPosition position)
@@ -167,6 +184,13 @@ public sealed class CampLspWorkspace
 		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
 			return null;
 		return new CampSymbolQueryService(snapshot!).GetDefinition(path, position);
+	}
+
+	public IReadOnlyList<CampDocumentSymbol> GetDocumentSymbols(DocumentUri uri)
+	{
+		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
+			return [];
+		return new CampSymbolQueryService(snapshot!).GetDocumentSymbols(path);
 	}
 
 	bool TryGetSnapshot(DocumentUri uri, out string path, out CampAnalysisSnapshot? snapshot)
@@ -244,21 +268,50 @@ public static class CampLsp
 	public static Diagnostic ToLspDiagnostic(CampSourceDiagnostic diagnostic)
 	{
 #pragma warning disable CS8625
-			return new Diagnostic
+		return new Diagnostic
+		{
+			Range = diagnostic.Range is null ? new LspRange(0, 0, 0, 1) : ToLspRange(diagnostic.Range),
+			Severity = diagnostic.Severity switch
 			{
-				Range = diagnostic.Range is null ? new LspRange(0, 0, 0, 1) : ToLspRange(diagnostic.Range),
-				Severity = diagnostic.Severity switch
-			{
-				Camp.Compiler.DiagnosticSeverity.Warning => OmniSharp.Extensions.LanguageServer.Protocol.Models.DiagnosticSeverity.Warning,
-				Camp.Compiler.DiagnosticSeverity.Info => OmniSharp.Extensions.LanguageServer.Protocol.Models.DiagnosticSeverity.Information,
-				_ => OmniSharp.Extensions.LanguageServer.Protocol.Models.DiagnosticSeverity.Error
-				},
-				Code = diagnostic.Code is null ? null : new DiagnosticCode(diagnostic.Code),
-				Source = "camp",
-				Message = diagnostic.Message
-			};
+			Camp.Compiler.DiagnosticSeverity.Warning => OmniSharp.Extensions.LanguageServer.Protocol.Models.DiagnosticSeverity.Warning,
+			Camp.Compiler.DiagnosticSeverity.Info => OmniSharp.Extensions.LanguageServer.Protocol.Models.DiagnosticSeverity.Information,
+			_ => OmniSharp.Extensions.LanguageServer.Protocol.Models.DiagnosticSeverity.Error
+			},
+			Code = diagnostic.Code is null ? null : new DiagnosticCode(diagnostic.Code),
+			Source = "camp",
+			Message = diagnostic.Message
+		};
 #pragma warning restore CS8625
-		}
+	}
+
+	public static DocumentSymbol ToLspDocumentSymbol(CampDocumentSymbol symbol)
+	{
+		return new DocumentSymbol
+		{
+			Name = symbol.Name,
+			Kind = ToLspSymbolKind(symbol.Kind),
+			Detail = symbol.Detail,
+			Range = ToLspRange(symbol.Range),
+			SelectionRange = ToLspRange(symbol.SelectionRange),
+			Children = new Container<DocumentSymbol>(symbol.Children.Select(ToLspDocumentSymbol))
+		};
+	}
+
+	static OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind ToLspSymbolKind(CampSymbolKind kind)
+	{
+		return kind switch
+		{
+			CampSymbolKind.Type => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.Class,
+			CampSymbolKind.Function => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.Function,
+			CampSymbolKind.Method => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.Method,
+			CampSymbolKind.Field => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.Field,
+			CampSymbolKind.Variable => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.Variable,
+			CampSymbolKind.Parameter => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.Variable,
+			CampSymbolKind.EnumValue => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.EnumMember,
+			CampSymbolKind.Alias => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.Interface,
+			_ => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.Object
+		};
+	}
 
 	public static class Protocol
 	{

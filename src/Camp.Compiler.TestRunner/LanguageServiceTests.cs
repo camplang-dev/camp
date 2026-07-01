@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Camp.Compiler;
@@ -143,6 +144,45 @@ public sealed class LanguageServiceTests
 		Assert.Equal(0, classDefinition!.Range.Start.Line);
 		Assert.NotNull(fieldDefinition);
 		Assert.Equal(2, fieldDefinition!.Range.Start.Line);
+	}
+
+	[Fact]
+	public void Symbol_query_returns_nested_document_symbols()
+	{
+		string root = CreateTempDirectory("language-service-document-symbols");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			enum Mode
+			{
+				OPEN,
+				CLOSED
+			}
+
+			struct Counter
+			{
+				int value;
+				int getValue() => this.value;
+			}
+
+			int helper() => 1;
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		IReadOnlyList<CampDocumentSymbol> documentSymbols = symbols.GetDocumentSymbols(source);
+		CampDocumentSymbol mode = Assert.Single(documentSymbols, static symbol => symbol.Name == "Mode");
+		CampDocumentSymbol counter = Assert.Single(documentSymbols, static symbol => symbol.Name == "Counter");
+		CampDocumentSymbol helper = Assert.Single(documentSymbols, static symbol => symbol.Name == "helper");
+
+		Assert.Equal(CampSymbolKind.Type, mode.Kind);
+		Assert.Contains(mode.Children, static symbol => symbol.Name == "OPEN" && symbol.Kind == CampSymbolKind.EnumValue);
+		Assert.Contains(counter.Children, static symbol => symbol.Name == "value" && symbol.Kind == CampSymbolKind.Field);
+		Assert.Contains(counter.Children, static symbol => symbol.Name == "getValue" && symbol.Kind == CampSymbolKind.Method);
+		Assert.Equal(CampSymbolKind.Function, helper.Kind);
+		Assert.Equal(0, mode.SelectionRange.Start.Line);
+		Assert.Equal(6, counter.SelectionRange.Start.Line);
 	}
 
 	static CompilerRequest Request(string workingDirectory, string source)

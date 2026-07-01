@@ -31,6 +31,14 @@ public sealed record CampSymbolInfo(
 	string? Signature,
 	string? Documentation);
 
+public sealed record CampDocumentSymbol(
+	string Name,
+	CampSymbolKind Kind,
+	CampTextRange Range,
+	CampTextRange SelectionRange,
+	string? Detail,
+	IReadOnlyList<CampDocumentSymbol> Children);
+
 public sealed record CampHover(string Markdown);
 
 public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
@@ -69,6 +77,15 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		if (!string.IsNullOrWhiteSpace(symbol.Documentation))
 			builder.AppendLine().AppendLine(symbol.Documentation);
 		return new CampHover(builder.ToString().TrimEnd());
+	}
+
+	public IReadOnlyList<CampDocumentSymbol> GetDocumentSymbols(string path)
+	{
+		string fullPath = Path.GetFullPath(path);
+		SourceFile? file = snapshot.Compilation.Files.FirstOrDefault(file => string.Equals(Path.GetFullPath(file.Path), fullPath, StringComparison.OrdinalIgnoreCase));
+		if (file?.BindableTree is null)
+			return [];
+		return BuildDocumentSymbols(file, file.BindableTree);
 	}
 
 	SymbolEntry? FindEntry(string path, CampTextPosition position)
@@ -115,7 +132,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		foreach (SourceFile file in compilation.Files)
 		{
 			if (file.BindableTree is not null)
-				CollectDefinitionEntries(file, file.BindableTree, entries, definitions);
+				CollectDefinitionEntries(file, file.BindableTree, entries, definitions, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance));
 		}
 		foreach (SourceFile file in compilation.Files)
 		{
@@ -125,8 +142,11 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return entries;
 	}
 
-	static void CollectDefinitionEntries(SourceFile file, BindableNode node, List<SymbolEntry> entries, Dictionary<BindableNode, SymbolEntry> definitions)
+	static void CollectDefinitionEntries(SourceFile file, BindableNode node, List<SymbolEntry> entries, Dictionary<BindableNode, SymbolEntry> definitions, HashSet<BindableNode> visited)
 	{
+		if (!visited.Add(node))
+			return;
+
 		foreach (BindableNode child in Children(node))
 		{
 			if (TryCreateDefinitionEntry(file, child, out SymbolEntry? entry))
@@ -134,8 +154,68 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 				entries.Add(entry!);
 				definitions[child] = entry!;
 			}
-			CollectDefinitionEntries(file, child, entries, definitions);
+			CollectDefinitionEntries(file, child, entries, definitions, visited);
 		}
+	}
+
+	static IReadOnlyList<CampDocumentSymbol> BuildDocumentSymbols(SourceFile file, BindableNode root)
+	{
+		List<CampDocumentSymbol> symbols = [];
+		HashSet<BindableNode> visited = new(ReferenceEqualityComparer.Instance);
+		foreach (BindableNode child in Children(root))
+			AddDocumentSymbol(file, child, symbols, visited, parentIsType: false);
+		return symbols;
+	}
+
+	static void AddDocumentSymbol(SourceFile file, BindableNode node, List<CampDocumentSymbol> destination, HashSet<BindableNode> visited, bool parentIsType)
+	{
+		if (!visited.Add(node))
+			return;
+
+		if (TryCreateDocumentSymbol(file, node, parentIsType, out CampDocumentSymbol? symbol))
+		{
+			destination.Add(symbol!);
+			return;
+		}
+
+		foreach (BindableNode child in Children(node))
+			AddDocumentSymbol(file, child, destination, visited, parentIsType: node is TypeDefinition);
+	}
+
+	static bool TryCreateDocumentSymbol(SourceFile file, BindableNode node, bool parentIsType, out CampDocumentSymbol? symbol)
+	{
+		symbol = null;
+		string? name = node switch
+		{
+			Definition definition => definition.Name,
+			_ => null
+		};
+		if (string.IsNullOrWhiteSpace(name) || !TryGetNodeRange(node, out TokenRange selectionRange) || !ReferenceEquals(file.Tokens, selectionRange.Sequence))
+			return false;
+
+		List<CampDocumentSymbol> children = [];
+		if (node is TypeDefinition or EnumDefinition)
+		{
+			HashSet<BindableNode> visited = new(ReferenceEqualityComparer.Instance) { node };
+			foreach (BindableNode child in Children(node))
+				AddDocumentSymbol(file, child, children, visited, parentIsType: true);
+		}
+
+		symbol = new CampDocumentSymbol(
+			name!,
+			GetDocumentSymbolKind(node, parentIsType),
+			CampLanguageService.ToTextRange(selectionRange),
+			CampLanguageService.ToTextRange(selectionRange),
+			GetDocumentSymbolDetail(node),
+			children);
+		return true;
+	}
+
+	static CampSymbolKind GetDocumentSymbolKind(BindableNode node, bool parentIsType)
+	{
+		if (parentIsType && node is FunctionDefinition)
+			return CampSymbolKind.Method;
+		return GetKind(node);
 	}
 
 	static bool TryCreateDefinitionEntry(SourceFile file, BindableNode node, out SymbolEntry? entry)
@@ -270,6 +350,29 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			.Split('\n')
 			.Select(static line => line.Trim())
 			.FirstOrDefault(static line => line.Length > 0 && !line.StartsWith("@", StringComparison.Ordinal));
+	}
+
+	static string? GetDocumentSymbolDetail(BindableNode node)
+	{
+		return node switch
+		{
+			FunctionDefinition function => GetSignature(function),
+			FieldDefinition field => BindableNodeCodeSerializer.SerializeType(field.Type),
+			VariableDefinition variable when variable.SourceSyntax is EnumValueSyntax => null,
+			VariableDefinition variable => BindableNodeCodeSerializer.SerializeType(variable.Type),
+			TypeDefinition definition => definition switch
+			{
+				ClassDefinition => "class",
+				StructDefinition => "struct",
+				InterfaceDefinition => "interface",
+				EnumDefinition => "enum",
+				NewtypeDefinition => "newtype",
+				ParamsDefinition => "params",
+				_ => null
+			},
+			AliasDefinition alias => GetSignature(alias),
+			_ => null
+		};
 	}
 
 	static string? GetDocumentation(BindableNode node)
