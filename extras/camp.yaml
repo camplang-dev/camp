@@ -1,0 +1,60 @@
+filetype: camp
+
+detect:
+  filename: "\\.camp(build)?$"
+
+rules:
+  - comment:
+      start: "/\\*\\*"
+      end: "\\*/"
+      rules:
+        - special: "@(summary|remarks|returns|example|see|deprecated)\\b"
+        - special: "`[^`]*`"
+        - special: "\\[[^\\]\\n`]+\\]"
+  - comment:
+      start: "/\\*"
+      end: "\\*/"
+      rules: []
+  - comment: "///.*$"
+  - comment: "//.*$"
+
+  - preproc: "^\\s*#\\s*(if|elif|else|endif|define|undef|build)\\b.*$"
+
+  - constant.string:
+      start: "\""
+      end: "\""
+      skip: "\\\\."
+      rules:
+        - constant.specialChar: "\\\\([\\\\'\"0abfnrtv]|x[0-9A-Fa-f]+|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})"
+  - constant.string:
+      start: "'"
+      end: "'"
+      skip: "\\\\."
+      rules:
+        - constant.specialChar: "\\\\([\\\\'\"0abfnrtv]|x[0-9A-Fa-f]+|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})"
+
+  - constant.number: "\\b0[xX][0-9A-Fa-f](_?[0-9A-Fa-f])*(u|U|l|L|n|N|n?u?int|u?long|u?short|u?byte)?\\b"
+  - constant.number: "\\b0[bB][01](_?[01])*(u|U|l|L|n|N|n?u?int|u?long|u?short|u?byte)?\\b"
+  - constant.number: "\\b([0-9](_?[0-9])*)?\\.[0-9](_?[0-9])*([eE][+-]?[0-9](_?[0-9])*)?([fFdD])?\\b"
+  - constant.number: "\\b[0-9](_?[0-9])*([eE][+-]?[0-9](_?[0-9])*)?[fFdD]\\b"
+  - constant.number: "\\b[0-9](_?[0-9])*(u|U|l|L|n|N|n?u?int|u?long|u?short|u?byte)?\\b"
+
+  - statement: "\\b(if|do|while|for|else|foreach|switch|case|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|init|new)\\b"
+  - statement: "\\b(using|as|export|public|extern|static|virtual|override|sealed|abstract|fixed|inline|alias)\\b"
+  - statement: "\\b(struct|class|interface|enum|newtype|params)\\b"
+
+  - type.keyword: "\\b(any|auto|bool|byte|sbyte|ushort|short|uint|int|ulong|long|nuint|nint|float|double|char|wchar|achar|uchar|void|string|wstring|astring|classtype)\\b"
+  - type.keyword: "\\b(fn|delegate|async|once|iter|thrown)\\b"
+  - type.keyword: "\\b(const|constof|volatile|escaped|scoped|unscoped|in|out|overload|within|unsafe)\\b"
+  - type.keyword: "\\b(implements|copyable)\\b"
+
+  - special: "\\b(sizeof|typenameof|vtableof)\\b"
+  - constant.bool: "\\b(true|false)\\b"
+  - constant: "\\b(null|default|this|base)\\b"
+
+  - identifier.class: "\\b(struct|class|interface|enum|newtype|params)\\s+([A-Za-z_][A-Za-z0-9_]*)"
+  - identifier: "@[A-Za-z_][A-Za-z0-9_]*\\b"
+  - symbol.operator: "(=>|\\+\\+|--|\\?\\?|\\.\\.|==|!=|<=|>=|<<|>>|&&|\\|\\||[+\\-*/%&|^~!=<>?:]=?|=)"
+  - symbol.brackets: "[{}()\\[\\]]"
+  - symbol: "[,.;:]"
+
