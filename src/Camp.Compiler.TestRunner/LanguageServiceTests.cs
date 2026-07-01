@@ -74,6 +74,77 @@ public sealed class LanguageServiceTests
 		Assert.True(diagnostic.Range.Start.Character >= 15);
 	}
 
+	[Fact]
+	public void Symbol_query_finds_local_parameter_and_function_definitions()
+	{
+		string root = CreateTempDirectory("language-service-symbols");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			/// Adds one to a value.
+			int helper(int value)
+			{
+				auto local = value;
+				return local + 1;
+			}
+
+			export int main()
+			{
+				return helper(41);
+			}
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		CampSymbolLocation? parameterDefinition = symbols.GetDefinition(source, PositionOf(text, "value;"));
+		CampSymbolLocation? localDefinition = symbols.GetDefinition(source, PositionOf(text, "local +"));
+		CampSymbolLocation? helperDefinition = symbols.GetDefinition(source, PositionOf(text, "helper(41"));
+		CampHover? hover = symbols.GetHover(source, PositionOf(text, "helper(41"));
+
+		Assert.NotNull(parameterDefinition);
+		Assert.Equal(1, parameterDefinition!.Range.Start.Line);
+		Assert.NotNull(localDefinition);
+		Assert.Equal(3, localDefinition!.Range.Start.Line);
+		Assert.NotNull(helperDefinition);
+		Assert.Equal(1, helperDefinition!.Range.Start.Line);
+		Assert.NotNull(hover);
+		Assert.Contains("Adds one to a value.", hover!.Markdown, StringComparison.Ordinal);
+		Assert.Contains("int helper(int value)", hover.Markdown, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Symbol_query_finds_member_definitions()
+	{
+		string root = CreateTempDirectory("language-service-members");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			struct Counter
+			{
+				int value;
+				int getValue() => this.value;
+			}
+
+			export int main()
+			{
+				Counter counter = default;
+				return counter.value;
+			}
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		CampSymbolLocation? classDefinition = symbols.GetDefinition(source, PositionOf(text, "Counter\n"));
+		CampSymbolLocation? fieldDefinition = symbols.GetDefinition(source, PositionOf(text, "value;"));
+
+		Assert.NotNull(classDefinition);
+		Assert.Equal(0, classDefinition!.Range.Start.Line);
+		Assert.NotNull(fieldDefinition);
+		Assert.Equal(2, fieldDefinition!.Range.Start.Line);
+	}
+
 	static CompilerRequest Request(string workingDirectory, string source)
 	{
 		CompilerRequest request = new()
@@ -85,6 +156,26 @@ public sealed class LanguageServiceTests
 		};
 		request.Files.Add(Path.GetRelativePath(workingDirectory, source));
 		return request;
+	}
+
+	static CampTextPosition PositionOf(string text, string marker)
+	{
+		int index = text.IndexOf(marker, StringComparison.Ordinal);
+		if (index < 0)
+			throw new InvalidOperationException($"Marker '{marker}' was not found.");
+		int line = 0;
+		int character = 0;
+		for (int i = 0; i < index; i++)
+		{
+			if (text[i] == '\n')
+			{
+				line++;
+				character = 0;
+			}
+			else
+				character++;
+		}
+		return new CampTextPosition(line, character);
 	}
 
 	static string CreateTempDirectory(string name)
