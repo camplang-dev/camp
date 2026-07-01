@@ -498,9 +498,17 @@ sealed class CampCli
 			}
 			apiHeaders.Add(apiHeader);
 			if (library is not null)
-				libraries.Add(library);
+				AddUniquePath(libraries, library);
+			foreach (string reference in projectRequest!.References)
+				AddUniquePath(libraries, reference);
 		}
 		return errors.Count == 0;
+	}
+
+	static void AddUniquePath(List<string> paths, string path)
+	{
+		if (!paths.Any(existing => string.Equals(Path.GetFullPath(existing), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase)))
+			paths.Add(path);
 	}
 
 	static string FormatProjectReferenceCycle(IReadOnlyList<string> stack, string repeatedBuildFile, int cycleStart)

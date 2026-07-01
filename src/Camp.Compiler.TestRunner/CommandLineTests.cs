@@ -335,6 +335,75 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Project_reference_transitive_static_libraries_flow_to_final_consumer()
+	{
+		string root = TempPath("project-reference-transitive");
+		string aRoot = Path.Combine(root, "a");
+		string bRoot = Path.Combine(root, "b");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(Path.Combine(aRoot, "src"));
+		Directory.CreateDirectory(Path.Combine(bRoot, "src"));
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(aRoot, "src", "a.camp"), """
+			export int aValue()
+			{
+				return 20;
+			}
+			""");
+		File.WriteAllText(Path.Combine(bRoot, "src", "b.camp"), """
+			export int bValue()
+			{
+				return aValue() + 22;
+			}
+			""");
+		File.WriteAllText(Path.Combine(aRoot, "a.campbuild"), """
+			--nostdlib
+			--name a
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(bRoot, "b.campbuild"), $$"""
+			--nostdlib
+			--name b
+			--project-reference {{aRoot}}
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name transitive-app
+
+			export int main()
+			{
+				return bValue() - 42;
+			}
+			""");
+		string target = NativeTargetForHost();
+		string outDir = Path.Combine(appRoot, "bin");
+		string buildDir = Path.Combine(appRoot, "obj");
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			target,
+			"--project-reference",
+			bRoot,
+			"--build-dir",
+			buildDir,
+			"--out-dir",
+			outDir);
+
+		AssertCommandSucceeded(result);
+		Assert.Contains($"{bRoot}: generated: b", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains($"{aRoot}: generated: a", result.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(Path.Combine(aRoot, "bin", target, "default", "DEBUG", "a_api.camp")));
+		Assert.True(File.Exists(Path.Combine(bRoot, "bin", target, "default", "DEBUG", "b_api.camp")));
+		ProcessResult run = RunExecutable(Path.Combine(outDir, "transitive-app" + ExecutableExtensionForHost()));
+		Assert.Equal(0, run.ExitCode);
+		Assert.Equal("", run.StdErr);
+	}
+
+	[Fact]
 	public void Library_api_preserves_implements_generic_constraints()
 	{
 		string root = TempPath("implements-api");

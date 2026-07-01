@@ -10,13 +10,6 @@ Next bug number: CAMPC-008.
   live and revised frequently. Add package-management behavior that understands
   live source roots without requiring a publish/version cycle.
 
-- **CAMPC-004:** Transitive project references are not covered by a focused
-  regression test. A sample layout where app references library B, and library B
-  references library A, should build without the app needing to repeat B's
-  private project references by hand. Add a test that proves generated API
-  headers, static libraries, and target-qualified artifact directories flow
-  correctly through that chain.
-
 - **CAMPC-007:** Native link dependencies from packages are not propagated to
   final consumers. A library or executable that uses `ext-win32` gets the
   package API/static artifact, but the package's `#build --reference user32 gdi32
