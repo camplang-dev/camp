@@ -2,13 +2,6 @@
 
 Next bug number: CAMPC-008.
 
-- **CAMPC-001:** Recursive glob patterns do not match files directly under the
-  glob root. A pattern such as `src/**/*.camp` currently requires at least one
-  subdirectory below `src`, so it matches `src/ui/button.camp` but misses
-  `src/main.camp`. This makes project files more awkward than they should be,
-  because common source layouts need both `src/*.camp` and `src/**/*.camp`.
-  Update glob matching so `**/` can match zero or more directories.
-
 - **CAMPC-002:** Live local package sources work during compilation, but the
   package-management commands are still version-oriented. A local source root
   such as `packages/ext-win32/src` can be consumed with `--use-source`, but

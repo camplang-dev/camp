@@ -909,6 +909,40 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Recursive_glob_matches_files_directly_under_root()
+	{
+		string root = TempPath("recursive-glob-root");
+		string sourceRoot = Path.Combine(root, "src");
+		string nestedRoot = Path.Combine(sourceRoot, "nested");
+		Directory.CreateDirectory(nestedRoot);
+		File.WriteAllText(Path.Combine(sourceRoot, "main.camp"), """
+			export int main()
+			{
+				return helper() - 7;
+			}
+			""");
+		File.WriteAllText(Path.Combine(nestedRoot, "helper.camp"), """
+			export int helper()
+			{
+				return 7;
+			}
+			""");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			--name recursive_glob_root
+			src/**/*.camp
+			""");
+
+		ProcessResult result = RunCampc("build", "@" + buildFile, "--build-dir", TempPath("recursive-glob-root-build"));
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("generated: helper.c", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Include_files_contribute_build_pragmas_without_becoming_project_sources()
 	{
 		string api = CreateTempCase("include_pragmas_api.camp", """

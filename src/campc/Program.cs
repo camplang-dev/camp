@@ -1500,7 +1500,7 @@ static class Glob
 
 	public static bool IsMatch(string path, string pattern)
 	{
-		return Regex.IsMatch(Normalize(path), "^" + Regex.Escape(Normalize(pattern)).Replace("\\*\\*", ".*", StringComparison.Ordinal).Replace("\\*", "[^/]*", StringComparison.Ordinal).Replace("\\?", "[^/]", StringComparison.Ordinal) + "$", RegexOptions.CultureInvariant);
+		return Regex.IsMatch(Normalize(path), "^" + GlobRegex(Normalize(pattern)) + "$", RegexOptions.CultureInvariant);
 	}
 
 	static bool HasWildcards(string pattern) => pattern.IndexOfAny(['*', '?', '[']) >= 0;
@@ -1514,6 +1514,14 @@ static class Glob
 		return string.IsNullOrWhiteSpace(directory) ? Directory.GetCurrentDirectory() : directory;
 	}
 	static string Normalize(string path) => path.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+	static string GlobRegex(string pattern)
+	{
+		return Regex.Escape(pattern)
+			.Replace("\\*\\*/", "(?:.*/)?", StringComparison.Ordinal)
+			.Replace("\\*\\*", ".*", StringComparison.Ordinal)
+			.Replace("\\*", "[^/]*", StringComparison.Ordinal)
+			.Replace("\\?", "[^/]", StringComparison.Ordinal);
+	}
 }
 
 sealed record PragmaLine(IReadOnlyList<string> Tokens, string SourceName);
