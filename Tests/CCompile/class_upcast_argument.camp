@@ -1,0 +1,22 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+escaped class Control
+{
+}
+
+escaped class Button: Control
+{
+}
+
+void accept(escaped Control* control)
+{
+}
+
+export int main()
+{
+	Button* button = new Button();
+	accept(button);
+	delete button;
+	return 0;
+}

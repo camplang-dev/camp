@@ -1,0 +1,68 @@
+// file: class_upcast_argument.c
+#include "class_upcast_argument_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void accept(Control *control);
+
+static void accept(Control *control)
+{
+}
+
+int main(void)
+{
+	Button *button = (Button *)(malloc(sizeof(Button)));
+	if ((button != NULL))
+	{
+		*button = (Button){0};
+	}
+	accept((Control *)button);
+	free((void *)(button));
+	return 0;
+}
+
+// file: class_upcast_argument.h
+#ifndef CLASS_UPCAST_ARGUMENT_H_
+#define CLASS_UPCAST_ARGUMENT_H_
+
+#include "class_upcast_argument_private.h"
+
+int main(void);
+
+#endif
+// file: class_upcast_argument_private.h
+#ifndef CLASS_UPCAST_ARGUMENT_PRIVATE_H_
+#define CLASS_UPCAST_ARGUMENT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Control Control;
+typedef struct Button Button;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Control
+{
+	char _camp_empty;
+};
+struct Button
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: class_upcast_argument.c

@@ -3679,15 +3679,45 @@ public static class CCodeEmitter
 			return !string.IsNullOrWhiteSpace(elementType);
 		}
 
-		static bool ShouldCastPointerArgument(string valueType, string expectedType)
+		bool ShouldCastPointerArgument(string valueType, string expectedType)
 		{
 			if (valueType == expectedType)
 				return false;
 			if (!TryGetPointerElementType(valueType, out string valueElement) || !TryGetPointerElementType(expectedType, out string expectedElement))
 				return false;
-			return HasTopLevelConstForC(valueElement)
+			if (HasTopLevelConstForC(valueElement)
 				&& !HasTopLevelConstForC(expectedElement)
-				&& StripTopLevelConstForC(valueElement) == StripTopLevelConstForC(expectedElement);
+				&& StripTopLevelConstForC(valueElement) == StripTopLevelConstForC(expectedElement))
+				return true;
+			return IsDerivedClassPointerArgument(valueElement, expectedElement);
+		}
+
+		bool IsDerivedClassPointerArgument(string valueElement, string expectedElement)
+		{
+			string valueClassName = NormalizePointerArgumentClassName(valueElement);
+			string expectedClassName = NormalizePointerArgumentClassName(expectedElement);
+			if (valueClassName == expectedClassName || valueClassName.Length == 0 || expectedClassName.Length == 0)
+				return false;
+			ClassDefinition? valueClass = FindClassDefinition(valueClassName);
+			if (valueClass is null || FindClassDefinition(expectedClassName) is null)
+				return false;
+			for (ClassDefinition? current = GetDirectBaseClass(valueClass); current is not null; current = GetDirectBaseClass(current))
+				if (current.Name == expectedClassName)
+					return true;
+			return false;
+		}
+
+		ClassDefinition? FindClassDefinition(string name)
+		{
+			foreach (Definition definition in GetDefinitions())
+				if (definition is ClassDefinition candidate && candidate.Name == name)
+					return candidate;
+			return null;
+		}
+
+		static string NormalizePointerArgumentClassName(string type)
+		{
+			return StripTypeDecorators(StripTopLevelConstForC(StripLifetimeOnly(type)));
 		}
 
 		static bool HasTopLevelConstForC(string type)
