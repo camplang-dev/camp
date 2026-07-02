@@ -2024,7 +2024,7 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					EnsureFunctionSignatureAnalyzed(selectedNamed, typeScope);
 					named.ResolvedType = BuildFunctionValueType(selectedNamed, IsInstanceFunction(selectedNamed), allowCallableAscription: !IsReceiverBearingDeclaration(selectedNamed));
-					expressionRewrites[named] = CreateMethodReference(selectedNamed, named.ResolvedType);
+					expressionRewrites[named] = CreateMethodReference(selectedNamed, named.ResolvedType, named.SourceSyntax);
 					return selectedNamed;
 				}
 				if (functions.Count == 1)

@@ -263,6 +263,47 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_maps_static_extension_and_overload_calls()
+	{
+		string root = CreateTempDirectory("language-service-call-tokens");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+		class Application
+		{
+			static int run(int value) => value;
+		}
+
+		struct Box
+		{
+			int value;
+		}
+
+		int read(Box* this) => this.value;
+		int choose(overload int value) => 1;
+		int choose(overload string value) => 2;
+
+		export int main()
+		{
+			Box box = default;
+			box.value = 5;
+			int one = Application.run(1);
+			int two = box.read();
+			int three = choose(3);
+			return one + two + three;
+		}
+		""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		Assert.Equal(0, symbols.GetDefinition(source, PositionOf(text, "Application.run"))?.Range.Start.Line);
+		Assert.Equal(2, symbols.GetDefinition(source, PositionOf(text, "run(1"))?.Range.Start.Line);
+		Assert.Equal(10, symbols.GetDefinition(source, PositionOf(text, "read();"))?.Range.Start.Line);
+		Assert.Equal(11, symbols.GetDefinition(source, PositionOf(text, "choose(3"))?.Range.Start.Line);
+	}
+
+	[Fact]
 	public void Symbol_query_returns_workspace_symbols()
 	{
 		string root = CreateTempDirectory("language-service-workspace-symbols");

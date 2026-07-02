@@ -5,10 +5,11 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
-		static MethodReferenceExpression CreateMethodReference(FunctionDefinition function, string type)
-		{
+	static MethodReferenceExpression CreateMethodReference(FunctionDefinition function, string type, SyntaxNode? sourceSyntax = null)
+	{
 		MethodReferenceExpression reference = new()
 		{
+			SourceSyntax = sourceSyntax,
 			ResolvedType = type
 		};
 		reference.Candidates.Add(function);
