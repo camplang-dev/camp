@@ -363,6 +363,84 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Analysis_loads_used_package_api_headers_for_project_reference_api_headers()
+	{
+		string root = CreateTempDirectory("language-service-project-reference-package");
+		string appRoot = Path.Combine(root, "app");
+		string formsRoot = Path.Combine(root, "win32-forms");
+		string source = Path.Combine(appRoot, "src", "main.camp");
+		Directory.CreateDirectory(Path.GetDirectoryName(source)!);
+		string packageApi = Path.Combine(appRoot, "bin", "pkg-source", "ext-win32", "live", "msvc-windows-x64", "default", "DEBUG", "ext-win32_api.camp");
+		Directory.CreateDirectory(Path.GetDirectoryName(packageApi)!);
+		File.WriteAllText(packageApi, """
+			export as Win32;
+
+			export newtype HWND: nint;
+			export newtype fn _winapi nint WNDPROC(HWND handle);
+			""");
+		string formsApi = Path.Combine(formsRoot, "bin", "msvc-windows-x64", "default", "DEBUG", "win32-forms_api.camp");
+		Directory.CreateDirectory(Path.GetDirectoryName(formsApi)!);
+		File.WriteAllText(formsApi, """
+			export as Win32::Forms;
+			using Win32;
+
+			export escaped extern class Form
+			{
+				export extern Form();
+				export extern HWND getHandle();
+			}
+
+			export escaped extern class Application
+			{
+				export extern static int run(HWND handle);
+			}
+			""");
+		string formsBuild = Path.Combine(formsRoot, "win32-forms.campbuild");
+		File.WriteAllText(formsBuild, """
+			--artifact static
+			--name win32-forms
+			src/*.camp
+			""");
+		string text = """
+			using Win32::Forms;
+
+			export int main()
+			{
+				auto form = new Form();
+				return Application.run(form.Handle);
+			}
+			""";
+		File.WriteAllText(source, text);
+		string appBuild = Path.Combine(appRoot, "app.campbuild");
+		File.WriteAllText(appBuild, """
+			--artifact exec
+			--target msvc-windows-x64
+			--use ext-win32
+			--project-reference ../win32-forms
+			--nostdlib
+			src/*.camp
+			""");
+
+		CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(appBuild, CampProjectEnvironment.Create(appRoot), CampProjectCommandKind.LanguageService);
+		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+		result.Request.IncludeFiles.AddRange(result.ProjectReferenceApiHeaders);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(result.Request);
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		CampHover? hover = symbols.GetHover(source, PositionOf(text, "run(form"));
+		CampSymbolLocation? runDefinition = symbols.GetDefinition(source, PositionOf(text, "run(form"));
+		CampSymbolLocation? handleDefinition = symbols.GetDefinition(source, PositionOf(text, "Handle"));
+
+		Assert.NotNull(hover);
+		Assert.Contains("run", hover!.Markdown, StringComparison.Ordinal);
+		Assert.NotNull(runDefinition);
+		Assert.Equal(Path.GetFullPath(formsApi), runDefinition!.Path);
+		Assert.NotNull(handleDefinition);
+		Assert.Equal(Path.GetFullPath(formsApi), handleDefinition!.Path);
+	}
+
+	[Fact]
 	public void Symbol_query_returns_workspace_symbols()
 	{
 		string root = CreateTempDirectory("language-service-workspace-symbols");

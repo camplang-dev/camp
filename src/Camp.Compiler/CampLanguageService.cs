@@ -65,6 +65,8 @@ public static class CampLanguageService
 	static IReadOnlyList<(string Path, bool IsApiHeader)> GetAnalysisIncludeFiles(CompilerRequest request)
 	{
 		List<(string Path, bool IsApiHeader)> includes = request.IncludeFiles.Select(static path => (path, true)).ToList();
+		foreach (string packageSpec in request.UsePackages)
+			AddAnalysisPackageIncludes(request, includes, packageSpec);
 		if (!request.NoStdLib && TryGetCachedPackageApiHeader(request, "std", out string? stdApiHeader))
 			AddIfMissing(includes, stdApiHeader!, isApiHeader: true);
 		else if (!request.NoStdLib)
@@ -73,6 +75,20 @@ public static class CampLanguageService
 				AddIfMissing(includes, stdSource, isApiHeader: false);
 		}
 		return includes;
+	}
+
+	static void AddAnalysisPackageIncludes(CompilerRequest request, List<(string Path, bool IsApiHeader)> includes, string packageSpec)
+	{
+		(string packageName, string? requestedVersion) = ParsePackageSpec(packageSpec);
+		if (string.IsNullOrWhiteSpace(packageName) || string.Equals(packageName, "std", StringComparison.OrdinalIgnoreCase))
+			return;
+		if (TryGetCachedExternalPackageApiHeader(request, packageName, requestedVersion, out string? apiHeader))
+		{
+			AddIfMissing(includes, apiHeader!, isApiHeader: true);
+			return;
+		}
+		foreach (string source in GetAnalysisExternalPackageSources(request, packageName, requestedVersion))
+			AddIfMissing(includes, source, isApiHeader: false);
 	}
 
 	static bool TryGetCachedPackageApiHeader(CompilerRequest request, string packageName, out string? apiHeader)
@@ -90,6 +106,27 @@ public static class CampLanguageService
 		return false;
 	}
 
+	static bool TryGetCachedExternalPackageApiHeader(CompilerRequest request, string packageName, string? requestedVersion, out string? apiHeader)
+	{
+		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
+		string profileName = string.IsNullOrWhiteSpace(request.ProfileName) ? "DEBUG" : request.ProfileName.ToUpperInvariant();
+		string memoryModelName = string.IsNullOrWhiteSpace(request.MemoryModelName) ? "default" : request.MemoryModelName;
+		foreach (string artifactRoot in CandidatePackageArtifactRoots(request))
+		{
+			string packageRoot = Path.Combine(artifactRoot, packageName);
+			if (!Directory.Exists(packageRoot))
+				continue;
+			foreach (string versionDirectory in CandidatePackageVersionDirectories(packageRoot, requestedVersion))
+			{
+				apiHeader = Path.Combine(versionDirectory, targetName, memoryModelName, profileName, packageName + "_api.camp");
+				if (File.Exists(apiHeader))
+					return true;
+			}
+		}
+		apiHeader = null;
+		return false;
+	}
+
 	static IReadOnlyList<string> GetAnalysisPackageSources(CompilerRequest request, string packageName)
 	{
 		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
@@ -99,6 +136,72 @@ public static class CampLanguageService
 				return Directory.GetFiles(sourceRoot, "*.camp").Order(StringComparer.OrdinalIgnoreCase).ToList();
 		}
 		return [];
+	}
+
+	static IReadOnlyList<string> GetAnalysisExternalPackageSources(CompilerRequest request, string packageName, string? requestedVersion)
+	{
+		foreach (string sourceRoot in CandidatePackageSourceRoots(request))
+		{
+			string packageRoot = Path.Combine(sourceRoot, packageName);
+			if (requestedVersion is null)
+			{
+				string unversionedSourceRoot = Path.Combine(packageRoot, "src");
+				if (Directory.Exists(unversionedSourceRoot))
+					return Directory.GetFiles(unversionedSourceRoot, "*.camp", SearchOption.AllDirectories).Order(StringComparer.OrdinalIgnoreCase).ToList();
+			}
+			if (!Directory.Exists(packageRoot))
+				continue;
+			foreach (string versionDirectory in CandidatePackageVersionDirectories(packageRoot, requestedVersion))
+			{
+				string candidate = Path.Combine(versionDirectory, "src");
+				if (Directory.Exists(candidate))
+					return Directory.GetFiles(candidate, "*.camp", SearchOption.AllDirectories).Order(StringComparer.OrdinalIgnoreCase).ToList();
+			}
+		}
+		return [];
+	}
+
+	static IEnumerable<string> CandidatePackageArtifactRoots(CompilerRequest request)
+	{
+		string workingDirectory = Path.GetFullPath(request.WorkingDirectory);
+		yield return Path.Combine(workingDirectory, "bin", "pkg-source");
+		yield return Path.Combine(workingDirectory, "bin", "pkg");
+		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
+			yield return Path.Combine(runtimeRoot, "pkg");
+	}
+
+	static IEnumerable<string> CandidatePackageSourceRoots(CompilerRequest request)
+	{
+		foreach (string root in request.UseSourceRoots)
+			yield return Path.GetFullPath(root, request.WorkingDirectory);
+		string workingDirectory = Path.GetFullPath(request.WorkingDirectory);
+		yield return Path.Combine(workingDirectory, "pkg");
+		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
+			yield return Path.GetFullPath(Path.Combine(runtimeRoot, "..", "pkg"));
+	}
+
+	static IEnumerable<string> CandidatePackageVersionDirectories(string packageRoot, string? requestedVersion)
+	{
+		if (requestedVersion is not null)
+		{
+			string exact = Path.Combine(packageRoot, requestedVersion);
+			if (Directory.Exists(exact))
+				yield return exact;
+			yield break;
+		}
+		string live = Path.Combine(packageRoot, "live");
+		if (Directory.Exists(live))
+			yield return live;
+		foreach (string directory in Directory.GetDirectories(packageRoot)
+			.Where(path => !string.Equals(Path.GetFileName(path), "live", StringComparison.OrdinalIgnoreCase))
+			.OrderByDescending(static path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase))
+			yield return directory;
+	}
+
+	static (string Name, string? Version) ParsePackageSpec(string value)
+	{
+		string[] parts = value.Split('@', 2);
+		return (parts[0], parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null);
 	}
 
 	static IEnumerable<string> CandidateRuntimeRoots(string runtimeRoot)
@@ -143,11 +246,26 @@ public static class CampLanguageService
 
 	static TargetDefinition? LoadTarget(CompilerRequest request)
 	{
-		string targetRoot = request.TargetRoot
-			?? Path.GetFullPath(Path.Combine(request.RuntimeRoot, "..", "targets"));
-		if (!TargetCatalog.TryLoad(targetRoot, out TargetCatalog? catalog, out _))
-			return null;
-		return catalog!.TryGetTarget(request.TargetName, out TargetDefinition? target) ? target : null;
+		foreach (string targetRoot in CandidateTargetRoots(request))
+		{
+			if (TargetCatalog.TryLoad(targetRoot, out TargetCatalog? catalog, out _) && catalog!.TryGetTarget(request.TargetName, out TargetDefinition? target))
+				return target;
+		}
+		return null;
+	}
+
+	static IEnumerable<string> CandidateTargetRoots(CompilerRequest request)
+	{
+		if (!string.IsNullOrWhiteSpace(request.TargetRoot))
+		{
+			yield return request.TargetRoot!;
+			yield break;
+		}
+		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
+		{
+			yield return Path.GetFullPath(Path.Combine(runtimeRoot, "targets"));
+			yield return Path.GetFullPath(Path.Combine(runtimeRoot, "..", "targets"));
+		}
 	}
 
 	static IReadOnlyList<CampSourceDiagnostic> CollectDiagnostics(Compilation compilation)
