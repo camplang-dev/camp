@@ -304,6 +304,65 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_maps_callable_generic_constant_enum_and_component_references()
+	{
+		string root = CreateTempDirectory("language-service-mixed-symbols");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+		extern void* malloc(nuint size);
+		extern void free(void* ptr);
+
+		newtype delegate void Handler();
+
+		enum Mode
+		{
+			OPEN,
+			CLOSED
+		}
+
+		class Holder<T: copyable>
+		{
+		}
+
+		class Button
+		{
+			static const int LIMIT = 7;
+			void click() {}
+		}
+
+		nuint lengthOf(int[] items)
+		{
+			return items.length;
+		}
+
+		export int main()
+		{
+			auto button = new Button();
+			Handler handler = button.click;
+			Holder<int>* holder = default;
+			Mode mode = Mode.OPEN;
+			int limit = Button.LIMIT;
+			return (int)(lengthOf([1, 2, 3]) + limit);
+		}
+		""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		Assert.Equal(3, symbols.GetDefinition(source, PositionOf(text, "Handler handler"))?.Range.Start.Line);
+		Assert.Equal(18, symbols.GetDefinition(source, PositionOf(text, "click;"))?.Range.Start.Line);
+		Assert.Equal(11, symbols.GetDefinition(source, PositionOf(text, "Holder<int>"))?.Range.Start.Line);
+		Assert.Equal(7, symbols.GetDefinition(source, PositionOf(text, "OPEN;"))?.Range.Start.Line);
+		Assert.Equal(17, symbols.GetDefinition(source, PositionOf(text, "LIMIT;"))?.Range.Start.Line);
+
+		CampSymbolInfo? lengthSymbol = symbols.GetSymbolAt(source, PositionOf(text, "length;"));
+		Assert.NotNull(lengthSymbol);
+		Assert.Equal("length", lengthSymbol!.Name);
+		Assert.Equal("nuint", lengthSymbol.Type);
+	}
+
+	[Fact]
 	public void Symbol_query_returns_workspace_symbols()
 	{
 		string root = CreateTempDirectory("language-service-workspace-symbols");

@@ -53,7 +53,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	public CampSymbolInfo? GetSymbolAt(string path, CampTextPosition position)
 	{
-		SymbolEntry? entry = FindEntry(path, position) ?? FindNamedDefinitionEntry(path, position) ?? FindPropertyEntry(path, position);
+		SymbolEntry? entry = FindEntry(path, position) ?? FindNamedDefinitionEntry(path, position) ?? FindPropertyEntry(path, position) ?? FindExpandedComponentEntry(path, position);
 		return entry is null ? null : ToInfo(entry);
 	}
 
@@ -143,10 +143,31 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		if (file is null || !TryGetWordAt(file.Text, position, out string? word) || string.IsNullOrWhiteSpace(word))
 			return null;
 		List<SymbolEntry> candidates = entries
-			.Where(entry => entry.Definition is null && entry.Name == word && entry.Kind is CampSymbolKind.Type or CampSymbolKind.Alias)
+			.Where(entry => entry.Definition is null && entry.Name == word && entry.Kind is CampSymbolKind.Type or CampSymbolKind.Alias or CampSymbolKind.Field or CampSymbolKind.EnumValue)
 			.DistinctBy(static entry => (entry.Name, entry.Kind, entry.Path, entry.Range.Start.Line, entry.Range.Start.Character, entry.Range.End.Line, entry.Range.End.Character))
 			.ToList();
 		return candidates.Count == 1 ? candidates[0] : null;
+	}
+
+	SymbolEntry? FindExpandedComponentEntry(string path, CampTextPosition position)
+	{
+		string fullPath = Path.GetFullPath(path);
+		SourceFile? file = snapshot.Compilation.Files.FirstOrDefault(file => string.Equals(Path.GetFullPath(file.Path), fullPath, StringComparison.OrdinalIgnoreCase));
+		if (file is null || !TryGetWordRangeAt(file.Text, position, out string? word, out CampTextRange range) || word is not ("length" or "elements"))
+			return null;
+		string[] lines = file.Text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+		if (range.Start.Line < 0 || range.Start.Line >= lines.Length || range.Start.Character == 0 || lines[range.Start.Line][range.Start.Character - 1] != '.')
+			return null;
+		return new SymbolEntry(
+			Path.GetFullPath(file.Path),
+			range,
+			word!,
+			CampSymbolKind.Field,
+			word == "length" ? "nuint" : null,
+			null,
+			null,
+			null,
+			null);
 	}
 
 	static CampSymbolInfo ToInfo(SymbolEntry entry)
@@ -325,10 +346,26 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			SymbolOfExpression symbolOf => symbolOf.Reference,
 			_ => null
 		};
-		if (target is null || !definitions.TryGetValue(target, out SymbolEntry? definition))
+		if (target is null)
 			return false;
 		if (!TryGetNodeRange(node, out TokenRange tokenRange) || !ReferenceEquals(file.Tokens, tokenRange.Sequence))
 			return false;
+		if (!definitions.TryGetValue(target, out SymbolEntry? definition))
+		{
+			if (node is not MemberReferenceExpression member)
+				return false;
+			entry = new SymbolEntry(
+				Path.GetFullPath(file.Path),
+				CampLanguageService.ToTextRange(tokenRange),
+				member.Name,
+				GetKind(target),
+				GetNodeType(target) ?? node.ResolvedType,
+				GetSignature(target),
+				GetDocumentation(target),
+				null,
+				null);
+			return true;
+		}
 		entry = definition with
 		{
 			Path = Path.GetFullPath(file.Path),
@@ -720,7 +757,16 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	static bool TryGetWordAt(string text, CampTextPosition position, out string? word)
 	{
+		if (TryGetWordRangeAt(text, position, out word, out _))
+			return true;
 		word = null;
+		return false;
+	}
+
+	static bool TryGetWordRangeAt(string text, CampTextPosition position, out string? word, out CampTextRange range)
+	{
+		word = null;
+		range = default!;
 		string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
 		if (position.Line < 0 || position.Line >= lines.Length)
 			return false;
@@ -738,6 +784,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		while (end < line.Length && IsIdentifierPart(line[end]))
 			end++;
 		word = line[start..end];
+		range = new CampTextRange(new CampTextPosition(position.Line, start), new CampTextPosition(position.Line, end));
 		return true;
 	}
 
