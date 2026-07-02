@@ -53,7 +53,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	public CampSymbolInfo? GetSymbolAt(string path, CampTextPosition position)
 	{
-		SymbolEntry? entry = FindEntry(path, position) ?? FindPropertyEntry(path, position);
+		SymbolEntry? entry = FindEntry(path, position) ?? FindNamedDefinitionEntry(path, position) ?? FindPropertyEntry(path, position);
 		return entry is null ? null : ToInfo(entry);
 	}
 
@@ -131,6 +131,19 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		string getterName = "get" + word;
 		List<SymbolEntry> candidates = entries
 			.Where(entry => entry.Definition is null && entry.Kind == CampSymbolKind.Method && entry.Name == getterName)
+			.DistinctBy(static entry => (entry.Name, entry.Kind, entry.Path, entry.Range.Start.Line, entry.Range.Start.Character, entry.Range.End.Line, entry.Range.End.Character))
+			.ToList();
+		return candidates.Count == 1 ? candidates[0] : null;
+	}
+
+	SymbolEntry? FindNamedDefinitionEntry(string path, CampTextPosition position)
+	{
+		string fullPath = Path.GetFullPath(path);
+		SourceFile? file = snapshot.Compilation.Files.FirstOrDefault(file => string.Equals(Path.GetFullPath(file.Path), fullPath, StringComparison.OrdinalIgnoreCase));
+		if (file is null || !TryGetWordAt(file.Text, position, out string? word) || string.IsNullOrWhiteSpace(word))
+			return null;
+		List<SymbolEntry> candidates = entries
+			.Where(entry => entry.Definition is null && entry.Name == word && entry.Kind is CampSymbolKind.Type or CampSymbolKind.Alias)
 			.DistinctBy(static entry => (entry.Name, entry.Kind, entry.Path, entry.Range.Start.Line, entry.Range.Start.Character, entry.Range.End.Line, entry.Range.End.Character))
 			.ToList();
 		return candidates.Count == 1 ? candidates[0] : null;
@@ -303,6 +316,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		{
 			VariableReferenceExpression variable => variable.Variable,
 			MemberReferenceExpression member => member.Member ?? member.Candidates.FirstOrDefault(),
+			MethodReferenceExpression { SourceSyntax: ConstructionExpressionSyntax construction } => ResolveTypeSyntaxTarget(construction.Type, definitions, file),
 			MethodReferenceExpression method => method.Candidates.FirstOrDefault(),
 			TypeReferenceExpression type => ResolveTypeTarget(type.Type, definitions, file),
 			NamedTypeReference named => ResolveTypeTarget(named, definitions, file),
@@ -322,6 +336,23 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			Definition = definition
 		};
 		return true;
+	}
+
+	static BindableNode? ResolveTypeSyntaxTarget(TypeSyntax? syntax, Dictionary<BindableNode, SymbolEntry> definitions, SourceFile file)
+	{
+		if (!TryGetTypeSyntaxNameRange(syntax, out TokenRange range) || !ReferenceEquals(file.Tokens, range.Sequence))
+			return null;
+		string name = SourceText(file.Text, range);
+		if (string.IsNullOrWhiteSpace(name))
+			return null;
+		AliasDefinition? alias = definitions.Keys
+			.OfType<AliasDefinition>()
+			.FirstOrDefault(definition => definition.Name == name || definition.Symbol == name);
+		if (alias is not null)
+			return alias;
+		return definitions.Keys
+			.OfType<TypeDefinition>()
+			.FirstOrDefault(definition => definition.Name == name || definition.Symbol == name);
 	}
 
 	static BindableNode? ResolveTypeTarget(TypeReference? type, Dictionary<BindableNode, SymbolEntry> definitions, SourceFile? file = null)
@@ -527,16 +558,43 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 				return TryGetDeclarationTargetNameRange(target, out range);
 			case VariableReferenceExpression { SourceSyntax: QualifiedNameExpressionSyntax syntax }:
 				return Assign(syntax.Identifier?.Range, out range);
+			case MemberReferenceExpression { SourceSyntax: MemberPostfixPartSyntax syntax }:
+				return Assign(syntax.Identifier?.Range, out range);
 			case MemberReferenceExpression { SourceSyntax: PostfixExpressionSyntax syntax }:
 				return TryGetLastMemberRange(syntax, out range);
+			case MethodReferenceExpression { SourceSyntax: MemberPostfixPartSyntax syntax }:
+				return Assign(syntax.Identifier?.Range, out range);
+			case MethodReferenceExpression { SourceSyntax: ConstructionExpressionSyntax syntax }:
+				return TryGetTypeSyntaxNameRange(syntax.Type, out range);
 			case MethodReferenceExpression { SourceSyntax: QualifiedNameExpressionSyntax syntax }:
 				return Assign(syntax.Identifier?.Range, out range);
 			case TypeReferenceExpression:
 				return TryGetSyntaxRange(node.SourceSyntax, out range);
 			case NamedTypeReference:
 				return TryGetSyntaxRange(node.SourceSyntax, out range);
+			case TypeDefinitionReference:
+				return TryGetSyntaxRange(node.SourceSyntax, out range);
 		}
 		return false;
+	}
+
+	static bool TryGetTypeSyntaxNameRange(TypeSyntax? syntax, out TokenRange range)
+	{
+		range = default;
+		return syntax switch
+		{
+			QualifiedNameTypeSyntax name => Assign(name.Identifier?.Range, out range),
+			ArrayTypeSyntax array => TryGetTypeSyntaxNameRange(array.ElementType, out range),
+			OptionalTypeSyntax optional => TryGetTypeSyntaxNameRange(optional.ElementType, out range),
+			PointerTypeSyntax pointer => TryGetTypeSyntaxNameRange(pointer.ElementType, out range),
+			GenericTypeSyntax generic => TryGetTypeSyntaxNameRange(generic.Type, out range),
+			DeclaratorTypeSyntax declarator => TryGetTypeSyntaxNameRange(declarator.Type, out range),
+			TargetTypeSpecTypeSyntax targetSpec => TryGetTypeSyntaxNameRange(targetSpec.Type, out range),
+			AttributedTypeSyntax attributed => TryGetTypeSyntaxNameRange(attributed.Type, out range),
+			StructTypeSyntax structType => TryGetTypeSyntaxNameRange(structType.Type, out range),
+			ThrownTypeSyntax thrown => TryGetTypeSyntaxNameRange(thrown.Type, out range),
+			_ => false
+		};
 	}
 
 	static bool TryGetDeclarationTargetNameRange(DeclarationTarget target, out TokenRange range)

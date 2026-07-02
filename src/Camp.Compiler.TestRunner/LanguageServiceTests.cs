@@ -204,6 +204,65 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_maps_declaration_types_construction_types_and_member_tokens()
+	{
+		string root = CreateTempDirectory("language-service-type-and-member-tokens");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+		extern void* malloc(nuint size);
+		extern void free(void* ptr);
+
+		class Form
+		{
+			string getText() => "";
+			void setText(unscoped string value) {}
+			void setBounds(int value) {}
+		}
+
+		class Button
+		{
+			string getText() => "";
+			void setText(unscoped string value) {}
+		}
+
+		class BasicApp
+		{
+			Form* mainForm;
+			Button* clickMeButton;
+
+			void initialize()
+			{
+				this.mainForm = new Form();
+				this.mainForm.Text = "Camp";
+				this.mainForm.setBounds(1);
+				this.clickMeButton = new Button();
+			}
+		}
+
+		export int main()
+		{
+			BasicApp app = default;
+			app.initialize();
+			return 0;
+		}
+		""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		Assert.Equal(3, symbols.GetDefinition(source, PositionOf(text, "Form* mainForm"))?.Range.Start.Line);
+		Assert.Equal(10, symbols.GetDefinition(source, PositionOf(text, "Button* clickMeButton"))?.Range.Start.Line);
+		Assert.Equal(18, symbols.GetDefinition(source, PositionOf(text, "mainForm;"))?.Range.Start.Line);
+		Assert.Equal(3, symbols.GetDefinition(source, PositionOf(text, "Form();"))?.Range.Start.Line);
+		Assert.Equal(6, symbols.GetDefinition(source, PositionOf(text, "Text = \"Camp\""))?.Range.Start.Line);
+		Assert.Equal(7, symbols.GetDefinition(source, PositionOf(text, "setBounds"))?.Range.Start.Line);
+		Assert.Equal(10, symbols.GetDefinition(source, PositionOf(text, "Button();"))?.Range.Start.Line);
+		Assert.Equal(16, symbols.GetDefinition(source, PositionOf(text, "BasicApp app"))?.Range.Start.Line);
+		Assert.Equal(21, symbols.GetDefinition(source, PositionOf(text, "initialize();"))?.Range.Start.Line);
+	}
+
+	[Fact]
 	public void Symbol_query_returns_workspace_symbols()
 	{
 		string root = CreateTempDirectory("language-service-workspace-symbols");
