@@ -204,6 +204,54 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_build_file_includes_existing_project_reference_api_headers_for_src_files()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-project-reference-src");
+		string appRoot = Path.Combine(root, "app");
+		string appSource = Path.Combine(appRoot, "src");
+		string libraryRoot = Path.Combine(root, "library");
+		string libraryBin = Path.Combine(libraryRoot, "bin", Camp.Compiler.CompilerDefaults.TargetName, "default", "DEBUG");
+		Directory.CreateDirectory(appSource);
+		Directory.CreateDirectory(libraryBin);
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--artifact static
+			--name library
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(libraryBin, "library_api.camp"), """
+			export extern class SharedWindow
+			{
+			}
+			""");
+		File.WriteAllText(Path.Combine(appRoot, "app.campbuild"), """
+			--artifact exec
+			--name app
+			src/*.camp
+			--project-reference ../library
+			""");
+		string file = Path.Combine(appSource, "main.camp");
+		string text = """
+			export int main()
+			{
+				SharedWindow* window = default;
+				return window == default ? 0 : 1;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(appRoot);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+
+		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+		Assert.Empty(diagnostics["params"]?["diagnostics"]?.AsArray()!);
+	}
+
+	[Fact]
 	public void Lsp_build_file_can_disable_standard_library()
 	{
 		using LspProcess lsp = LspProcess.Start();

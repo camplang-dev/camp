@@ -167,11 +167,53 @@ public static class CampProjectLoader
 		foreach (string projectReference in bag.ProjectReferences)
 		{
 			if (TryResolveProjectReference(projectReference, environment.WorkingDirectory, out string? resolved, out string? error))
+			{
 				result.ProjectReferences.Add(resolved!);
+				if (TryFindProjectReferenceApiHeader(resolved!, request, environment.WorkingDirectory, out string? apiHeader))
+					result.ProjectReferenceApiHeaders.Add(apiHeader!);
+			}
 			else
 				result.Diagnostics.Add(error!);
 		}
 		return result;
+	}
+
+	static bool TryFindProjectReferenceApiHeader(string buildFile, CompilerRequest consumerRequest, string workingDirectory, out string? apiHeader)
+	{
+		apiHeader = null;
+		string projectDirectory = Path.GetDirectoryName(Path.GetFullPath(buildFile)) ?? workingDirectory;
+		string projectName = GetProjectReferenceName(buildFile, workingDirectory) ?? Path.GetFileNameWithoutExtension(buildFile);
+		string memoryModelName = string.IsNullOrWhiteSpace(consumerRequest.MemoryModelName) ? "default" : consumerRequest.MemoryModelName;
+		string profileName = string.IsNullOrWhiteSpace(consumerRequest.ProfileName) ? "DEBUG" : consumerRequest.ProfileName.ToUpperInvariant();
+		string expected = Path.Combine(projectDirectory, "bin", consumerRequest.TargetName, memoryModelName, profileName, projectName + "_api.camp");
+		if (File.Exists(expected))
+		{
+			apiHeader = expected;
+			return true;
+		}
+
+		string apiDirectory = Path.GetDirectoryName(expected)!;
+		if (!Directory.Exists(apiDirectory))
+			return false;
+		string[] candidates = Directory.GetFiles(apiDirectory, "*_api.camp").OrderBy(static path => path, StringComparer.OrdinalIgnoreCase).ToArray();
+		if (candidates.Length == 1)
+		{
+			apiHeader = candidates[0];
+			return true;
+		}
+		return false;
+	}
+
+	static string? GetProjectReferenceName(string buildFile, string workingDirectory)
+	{
+		List<string> errors = [];
+		List<string> args = CampResponseFileExpander.Expand(["@" + buildFile], workingDirectory, errors);
+		if (errors.Count > 0)
+			return null;
+		ParsedCampBuildOptions options = CampBuildOptionParser.Parse(args, allowPositionals: true, errors);
+		return errors.Count == 0
+			? options.SingleValues.LastOrDefault(static value => value.Key == "name").Value
+			: null;
 	}
 
 	static CampProjectLoadResult Failed(CampProjectEnvironment environment, List<string> errors)

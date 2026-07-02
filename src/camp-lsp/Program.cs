@@ -258,7 +258,10 @@ public sealed class CampLspWorkspace
 			string root = Path.GetDirectoryName(buildFile) ?? Directory.GetCurrentDirectory();
 			CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(buildFile, CampProjectEnvironment.Create(root), CampProjectCommandKind.LanguageService);
 			if (result.Success)
+			{
+				result.Request.IncludeFiles.AddRange(result.ProjectReferenceApiHeaders);
 				return result.Request;
+			}
 		}
 
 		string workingDirectory = Path.GetDirectoryName(documentPath) ?? Directory.GetCurrentDirectory();
