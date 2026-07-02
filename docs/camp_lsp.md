@@ -31,7 +31,8 @@ run a native compiler. Missing package/API files are surfaced as diagnostics
 instead of repaired.
 
 If no `.campbuild` file is found, the server treats the opened file as a
-single-file project with `--nostdlib`.
+single-file project using the normal compiler defaults, including the standard
+library package.
 
 ## Implemented V1 Features
 

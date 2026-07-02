@@ -225,8 +225,7 @@ public sealed class CampLspWorkspace
 		CompilerRequest request = new()
 		{
 			RuntimeRoot = AppContext.BaseDirectory,
-			WorkingDirectory = workingDirectory,
-			NoStdLib = true
+			WorkingDirectory = workingDirectory
 		};
 		request.Files.Add(Path.GetFileName(documentPath));
 		return request;

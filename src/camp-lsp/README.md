@@ -153,6 +153,10 @@ export MICRO_LSP='camp=/Users/andrew/Projects/camplang/bin/camp-lsp'
 Open a `.camp` file and confirm Micro detects the filetype as `camp`. If it
 does not, install `extras/camp.yaml` as shown above, then reopen the file.
 
+For loose `.camp` files without a `.campbuild`, the server uses normal compiler
+defaults, including the standard library package. A nearby `.campbuild` can
+still disable this with `--nostdlib`.
+
 To update the server:
 
 1. Exit Micro, or kill the running language server:
@@ -173,4 +177,3 @@ On macOS and Linux, rebuilding usually works even if the old server process is
 still running, but restarting the process ensures the editor uses the newly
 built server. On Windows, stop the server before rebuilding if the executable is
 locked.
-

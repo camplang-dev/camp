@@ -137,6 +137,67 @@ public sealed class LspServerTests
 		Assert.Contains(counter["children"]!.AsArray(), symbol => symbol?["name"]?.GetValue<string>() == "getValue");
 	}
 
+	[Fact]
+	public void Lsp_loose_file_includes_standard_library()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-loose-std");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			using Std;
+
+			export int main()
+			{
+				Console.writeLine("Hello");
+				return 0;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+
+		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+		Assert.Empty(diagnostics["params"]?["diagnostics"]?.AsArray()!);
+	}
+
+	[Fact]
+	public void Lsp_build_file_can_disable_standard_library()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-build-nostd");
+		string file = Path.Combine(root, "main.camp");
+		File.WriteAllText(Path.Combine(root, "app.campbuild"), """
+			main.camp
+			--nostdlib
+			--artifact none
+			""");
+		string text = """
+			using Std;
+
+			export int main()
+			{
+				Console.writeLine("Hello");
+				return 0;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+
+		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+		Assert.NotEmpty(diagnostics["params"]?["diagnostics"]?.AsArray()!);
+	}
+
 	static string CreateTempDirectory(string name)
 	{
 		string directory = Path.Combine(Path.GetTempPath(), "camp-tests", name + "-" + Guid.NewGuid().ToString("N"));

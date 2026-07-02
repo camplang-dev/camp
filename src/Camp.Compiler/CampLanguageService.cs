@@ -55,11 +55,57 @@ public static class CampLanguageService
 			overlay => Path.GetFullPath(overlay.Path, request.WorkingDirectory),
 			StringComparer.OrdinalIgnoreCase);
 
-		foreach (string include in request.IncludeFiles)
+		foreach (string include in GetAnalysisIncludeFiles(request))
 			compilation.Files.Add(LoadSourceFile(include, request.WorkingDirectory, overlayByPath, isApiHeader: true));
 		foreach (string file in request.Files)
 			compilation.Files.Add(LoadSourceFile(file, request.WorkingDirectory, overlayByPath, isApiHeader: false));
 		return compilation;
+	}
+
+	static IReadOnlyList<string> GetAnalysisIncludeFiles(CompilerRequest request)
+	{
+		List<string> includes = [.. request.IncludeFiles];
+		if (!request.NoStdLib && TryGetCachedPackageApiHeader(request, "std", out string? stdApiHeader))
+			AddIfMissing(includes, stdApiHeader!);
+		return includes;
+	}
+
+	static bool TryGetCachedPackageApiHeader(CompilerRequest request, string packageName, out string? apiHeader)
+	{
+		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
+		string profileName = string.IsNullOrWhiteSpace(request.ProfileName) ? "DEBUG" : request.ProfileName.ToUpperInvariant();
+		string memoryModelName = string.IsNullOrWhiteSpace(request.MemoryModelName) ? "default" : request.MemoryModelName;
+		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
+		{
+			apiHeader = Path.Combine(runtimeRoot, "lib", packageName, targetName, memoryModelName, profileName, packageName + "_api.camp");
+			if (File.Exists(apiHeader))
+				return true;
+		}
+		apiHeader = null;
+		return false;
+	}
+
+	static IEnumerable<string> CandidateRuntimeRoots(string runtimeRoot)
+	{
+		yield return runtimeRoot;
+
+		DirectoryInfo? directory = new(Path.GetFullPath(runtimeRoot));
+		while (directory is not null)
+		{
+			string candidate = Path.Combine(directory.FullName, "bin");
+			if (Directory.Exists(candidate))
+				yield return candidate;
+			if (File.Exists(Path.Combine(directory.FullName, "src", "camplang.sln")))
+				yield break;
+			directory = directory.Parent;
+		}
+	}
+
+	static void AddIfMissing(List<string> values, string path)
+	{
+		string fullPath = Path.GetFullPath(path);
+		if (!values.Any(value => string.Equals(Path.GetFullPath(value), fullPath, StringComparison.OrdinalIgnoreCase)))
+			values.Add(fullPath);
 	}
 
 	static SourceFile LoadSourceFile(string path, string workingDirectory, Dictionary<string, CampSourceOverlay> overlays, bool isApiHeader)
