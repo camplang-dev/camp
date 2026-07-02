@@ -1617,9 +1617,6 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsCallableTopLevelFunctionNamed(FunctionDefinition function, string name)
 	{
-		if (GetExplicitThisParameter(function) is not null)
-			return !string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol == name;
-
 		return IsFunctionNamed(function, name);
 	}
 
