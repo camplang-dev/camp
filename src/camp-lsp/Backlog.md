@@ -4,7 +4,7 @@ This list tracks language-server features that are not compiler bugs. Items are
 ordered by recommended implementation priority, balancing user value against
 implementation complexity and risk.
 
-## LSP-001 — Improve Member And Property Definition Mapping
+## ~~LSP-001 — Improve Member And Property Definition Mapping~~
 
 Complexity: Medium.
 
@@ -18,7 +18,7 @@ before any LSP feature depends on member identity. This should follow compiler
 stability for properties, generated `getInterfaceName()` methods, interface
 conversion, inherited members, aliases, and callable/member references.
 
-## LSP-002 — Workspace Symbols
+## ~~LSP-002 — Workspace Symbols~~
 
 Complexity: Low-medium.
 

@@ -12,6 +12,7 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server.Capabilities;
+using OmniSharp.Extensions.LanguageServer.Protocol.Workspace;
 using OmniSharp.Extensions.LanguageServer.Server;
 using LspRange = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
 
@@ -23,6 +24,7 @@ LanguageServer server = await LanguageServer.From(options => options
 	.AddHandler(new CampHoverHandler(workspace))
 	.AddHandler(new CampDefinitionHandler(workspace))
 	.AddHandler(new CampDocumentSymbolHandler(workspace))
+	.AddHandler(new CampWorkspaceSymbolHandler(workspace))
 	.OnStarted((languageServer, _) =>
 	{
 		workspace.SetLanguageServer(languageServer);
@@ -134,6 +136,22 @@ sealed class CampDocumentSymbolHandler(CampLspWorkspace workspace) : DocumentSym
 }
 #pragma warning restore CS8609
 
+#pragma warning disable CS8609
+sealed class CampWorkspaceSymbolHandler(CampLspWorkspace workspace) : WorkspaceSymbolsHandlerBase
+{
+	public override Task<Container<WorkspaceSymbol>?> Handle(WorkspaceSymbolParams request, CancellationToken cancellationToken)
+	{
+		IReadOnlyList<CampWorkspaceSymbol> symbols = workspace.GetWorkspaceSymbols(request.Query ?? "");
+		return Task.FromResult<Container<WorkspaceSymbol>?>(new Container<WorkspaceSymbol>(symbols.Select(CampLsp.ToLspWorkspaceSymbol)));
+	}
+
+	protected override WorkspaceSymbolRegistrationOptions CreateRegistrationOptions(WorkspaceSymbolCapability capability, ClientCapabilities clientCapabilities)
+	{
+		return new WorkspaceSymbolRegistrationOptions();
+	}
+}
+#pragma warning restore CS8609
+
 public sealed class CampLspWorkspace
 {
 	readonly Dictionary<string, OpenDocument> openDocuments = new(StringComparer.OrdinalIgnoreCase);
@@ -191,6 +209,28 @@ public sealed class CampLspWorkspace
 		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
 			return [];
 		return new CampSymbolQueryService(snapshot!).GetDocumentSymbols(path);
+	}
+
+	public IReadOnlyList<CampWorkspaceSymbol> GetWorkspaceSymbols(string query)
+	{
+		EnsureOpenDocumentSnapshots();
+		return snapshots.Values
+			.SelectMany(snapshot => new CampSymbolQueryService(snapshot).GetWorkspaceSymbols(query))
+			.DistinctBy(static symbol => (symbol.Name, symbol.Kind, symbol.Location.Path, symbol.Location.Range.Start.Line, symbol.Location.Range.Start.Character))
+			.OrderBy(static symbol => symbol.Name, StringComparer.OrdinalIgnoreCase)
+			.ThenBy(static symbol => symbol.Location.Path, StringComparer.OrdinalIgnoreCase)
+			.ThenBy(static symbol => symbol.Location.Range.Start.Line)
+			.ThenBy(static symbol => symbol.Location.Range.Start.Character)
+			.ToList();
+	}
+
+	void EnsureOpenDocumentSnapshots()
+	{
+		foreach (OpenDocument document in openDocuments.Values)
+		{
+			if (!snapshots.ContainsKey(document.Path))
+				snapshots[document.Path] = Analyze(document);
+		}
 	}
 
 	bool TryGetSnapshot(DocumentUri uri, out string path, out CampAnalysisSnapshot? snapshot)
@@ -293,6 +333,21 @@ public static class CampLsp
 			Range = ToLspRange(symbol.Range),
 			SelectionRange = ToLspRange(symbol.SelectionRange),
 			Children = new Container<DocumentSymbol>(symbol.Children.Select(ToLspDocumentSymbol))
+		};
+	}
+
+	public static WorkspaceSymbol ToLspWorkspaceSymbol(CampWorkspaceSymbol symbol)
+	{
+		return new WorkspaceSymbol
+		{
+			Name = symbol.Name,
+			Kind = ToLspSymbolKind(symbol.Kind),
+			Location = new Location
+			{
+				Uri = DocumentUri.FromFileSystemPath(symbol.Location.Path),
+				Range = ToLspRange(symbol.Location.Range)
+			},
+			ContainerName = symbol.ContainerName
 		};
 	}
 

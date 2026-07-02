@@ -147,6 +147,103 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_maps_properties_inherited_members_interface_members_and_aliases()
+	{
+		string root = CreateTempDirectory("language-service-member-mapping");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+		extern void* malloc(nuint size);
+		extern void free(void* ptr);
+
+		interface ICounter
+		{
+			void tick();
+		}
+
+		alias CounterAlias = Derived;
+
+		class Counter: ICounter
+		{
+			int value;
+			int getValue() => this.value;
+			void tick() { this.value++; }
+		}
+
+		class Derived: Counter
+		{
+		}
+
+		export int main()
+		{
+			auto derived = new Derived();
+			ICounter* iface = derived;
+			CounterAlias* aliasValue = derived;
+			iface.tick();
+			return derived.Value + aliasValue.Value;
+		}
+		""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		CampSymbolInfo? aliasSymbol = symbols.GetSymbolAt(source, PositionOf(text, "CounterAlias* aliasValue"));
+		CampSymbolLocation? aliasDefinition = aliasSymbol?.Definition;
+		CampSymbolLocation? inheritedPropertyDefinition = symbols.GetDefinition(source, PositionOf(text, "Value +"));
+		CampSymbolLocation? inheritedMethodDefinition = symbols.GetDefinition(source, PositionOf(text, "Value;"));
+		CampSymbolLocation? interfaceMethodDefinition = symbols.GetDefinition(source, PositionOf(text, "tick();"));
+
+		Assert.True(aliasDefinition is not null, $"Alias symbol was {aliasSymbol?.Name ?? "<null>"} {aliasSymbol?.Kind.ToString() ?? ""}.");
+		Assert.True(aliasDefinition!.Range.Start.Line == 8, $"Alias resolved to {aliasSymbol?.Name} {aliasSymbol?.Kind} at line {aliasDefinition.Range.Start.Line}.");
+		Assert.NotNull(inheritedPropertyDefinition);
+		Assert.Equal(13, inheritedPropertyDefinition!.Range.Start.Line);
+		Assert.NotNull(inheritedMethodDefinition);
+		Assert.Equal(13, inheritedMethodDefinition!.Range.Start.Line);
+		Assert.NotNull(interfaceMethodDefinition);
+		Assert.Equal(5, interfaceMethodDefinition!.Range.Start.Line);
+	}
+
+	[Fact]
+	public void Symbol_query_returns_workspace_symbols()
+	{
+		string root = CreateTempDirectory("language-service-workspace-symbols");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			alias CounterAlias = Counter;
+
+			enum Mode
+			{
+				OPEN,
+				CLOSED
+			}
+
+			struct Counter
+			{
+				int value;
+				int getValue() => this.value;
+			}
+
+			int helper() => 1;
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		IReadOnlyList<CampWorkspaceSymbol> all = symbols.GetWorkspaceSymbols("");
+		IReadOnlyList<CampWorkspaceSymbol> filtered = symbols.GetWorkspaceSymbols("Value");
+
+		Assert.Contains(all, static symbol => symbol.Name == "CounterAlias" && symbol.Kind == CampSymbolKind.Alias);
+		Assert.Contains(all, static symbol => symbol.Name == "Mode" && symbol.Kind == CampSymbolKind.Type);
+		Assert.Contains(all, static symbol => symbol.Name == "OPEN" && symbol.Kind == CampSymbolKind.EnumValue && symbol.ContainerName == "Mode");
+		Assert.Contains(all, static symbol => symbol.Name == "value" && symbol.Kind == CampSymbolKind.Field && symbol.ContainerName == "Counter");
+		Assert.Contains(all, static symbol => symbol.Name == "helper" && symbol.Kind == CampSymbolKind.Function);
+		CampWorkspaceSymbol getValue = Assert.Single(filtered, static symbol => symbol.Name == "getValue");
+		Assert.Equal(CampSymbolKind.Method, getValue.Kind);
+		Assert.Equal("Counter", getValue.ContainerName);
+	}
+
+	[Fact]
 	public void Symbol_query_returns_nested_document_symbols()
 	{
 		string root = CreateTempDirectory("language-service-document-symbols");

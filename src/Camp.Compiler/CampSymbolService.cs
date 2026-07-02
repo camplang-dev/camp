@@ -39,6 +39,12 @@ public sealed record CampDocumentSymbol(
 	string? Detail,
 	IReadOnlyList<CampDocumentSymbol> Children);
 
+public sealed record CampWorkspaceSymbol(
+	string Name,
+	CampSymbolKind Kind,
+	CampSymbolLocation Location,
+	string? ContainerName);
+
 public sealed record CampHover(string Markdown);
 
 public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
@@ -47,7 +53,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	public CampSymbolInfo? GetSymbolAt(string path, CampTextPosition position)
 	{
-		SymbolEntry? entry = FindEntry(path, position);
+		SymbolEntry? entry = FindEntry(path, position) ?? FindPropertyEntry(path, position);
 		return entry is null ? null : ToInfo(entry);
 	}
 
@@ -88,6 +94,25 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return BuildDocumentSymbols(file, file.BindableTree);
 	}
 
+	public IReadOnlyList<CampWorkspaceSymbol> GetWorkspaceSymbols(string query)
+	{
+		string trimmed = query.Trim();
+		return entries
+			.Where(static entry => entry.Definition is null)
+			.DistinctBy(static entry => (entry.Name, entry.Kind, entry.Path, entry.Range.Start.Line, entry.Range.Start.Character, entry.Range.End.Line, entry.Range.End.Character))
+			.Where(entry => trimmed.Length == 0 || entry.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase))
+			.Select(static entry => new CampWorkspaceSymbol(
+				entry.Name,
+				entry.Kind,
+				new CampSymbolLocation(entry.Path, entry.Range),
+				entry.ContainerName))
+			.OrderBy(static symbol => symbol.Name, StringComparer.OrdinalIgnoreCase)
+			.ThenBy(static symbol => symbol.Location.Path, StringComparer.OrdinalIgnoreCase)
+			.ThenBy(static symbol => symbol.Location.Range.Start.Line)
+			.ThenBy(static symbol => symbol.Location.Range.Start.Character)
+			.ToList();
+	}
+
 	SymbolEntry? FindEntry(string path, CampTextPosition position)
 	{
 		string fullPath = Path.GetFullPath(path);
@@ -95,6 +120,20 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			.Where(entry => string.Equals(entry.Path, fullPath, StringComparison.OrdinalIgnoreCase) && Contains(entry.Range, position))
 			.OrderBy(entry => SpanSize(entry.Range))
 			.FirstOrDefault();
+	}
+
+	SymbolEntry? FindPropertyEntry(string path, CampTextPosition position)
+	{
+		string fullPath = Path.GetFullPath(path);
+		SourceFile? file = snapshot.Compilation.Files.FirstOrDefault(file => string.Equals(Path.GetFullPath(file.Path), fullPath, StringComparison.OrdinalIgnoreCase));
+		if (file is null || !TryGetWordAt(file.Text, position, out string? word) || string.IsNullOrWhiteSpace(word))
+			return null;
+		string getterName = "get" + word;
+		List<SymbolEntry> candidates = entries
+			.Where(entry => entry.Definition is null && entry.Kind == CampSymbolKind.Method && entry.Name == getterName)
+			.DistinctBy(static entry => (entry.Name, entry.Kind, entry.Path, entry.Range.Start.Line, entry.Range.Start.Character, entry.Range.End.Line, entry.Range.End.Character))
+			.ToList();
+		return candidates.Count == 1 ? candidates[0] : null;
 	}
 
 	static CampSymbolInfo ToInfo(SymbolEntry entry)
@@ -132,7 +171,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		foreach (SourceFile file in compilation.Files)
 		{
 			if (file.BindableTree is not null)
-				CollectDefinitionEntries(file, file.BindableTree, entries, definitions, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance));
+				CollectDefinitionEntries(file, file.BindableTree, entries, definitions, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance), containerName: null);
 		}
 		foreach (SourceFile file in compilation.Files)
 		{
@@ -142,19 +181,20 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return entries;
 	}
 
-	static void CollectDefinitionEntries(SourceFile file, BindableNode node, List<SymbolEntry> entries, Dictionary<BindableNode, SymbolEntry> definitions, HashSet<BindableNode> visited)
+	static void CollectDefinitionEntries(SourceFile file, BindableNode node, List<SymbolEntry> entries, Dictionary<BindableNode, SymbolEntry> definitions, HashSet<BindableNode> visited, string? containerName)
 	{
 		if (!visited.Add(node))
 			return;
 
 		foreach (BindableNode child in Children(node))
 		{
-			if (TryCreateDefinitionEntry(file, child, out SymbolEntry? entry))
+			if (TryCreateDefinitionEntry(file, child, containerName, out SymbolEntry? entry))
 			{
 				entries.Add(entry!);
 				definitions[child] = entry!;
 			}
-			CollectDefinitionEntries(file, child, entries, definitions, visited);
+			string? childContainerName = child is TypeDefinition or EnumDefinition ? ((Definition)child).Name : containerName;
+			CollectDefinitionEntries(file, child, entries, definitions, visited, childContainerName);
 		}
 	}
 
@@ -218,7 +258,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return GetKind(node);
 	}
 
-	static bool TryCreateDefinitionEntry(SourceFile file, BindableNode node, out SymbolEntry? entry)
+	static bool TryCreateDefinitionEntry(SourceFile file, BindableNode node, string? containerName, out SymbolEntry? entry)
 	{
 		entry = null;
 		string? name = node switch
@@ -235,10 +275,11 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			Path.GetFullPath(file.Path),
 			CampLanguageService.ToTextRange(tokenRange),
 			name!,
-			GetKind(node),
+			GetDefinitionKind(node, containerName),
 			GetNodeType(node),
 			GetSignature(node),
 			GetDocumentation(node) ?? ExtractLeadingDoc(file.Text, tokenRange.StartLineNumber),
+			containerName,
 			null);
 		return true;
 	}
@@ -263,8 +304,9 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			VariableReferenceExpression variable => variable.Variable,
 			MemberReferenceExpression member => member.Member ?? member.Candidates.FirstOrDefault(),
 			MethodReferenceExpression method => method.Candidates.FirstOrDefault(),
-			TypeReferenceExpression type => ResolveTypeTarget(type.Type, definitions),
-			NamedTypeReference named => ResolveTypeTarget(named, definitions),
+			TypeReferenceExpression type => ResolveTypeTarget(type.Type, definitions, file),
+			NamedTypeReference named => ResolveTypeTarget(named, definitions, file),
+			TypeReference typeReference => ResolveTypeTarget(typeReference, definitions, file),
 			NameOfExpression nameOf => nameOf.Reference,
 			SymbolOfExpression symbolOf => symbolOf.Reference,
 			_ => null
@@ -282,11 +324,61 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return true;
 	}
 
-	static BindableNode? ResolveTypeTarget(TypeReference? type, Dictionary<BindableNode, SymbolEntry> definitions)
+	static BindableNode? ResolveTypeTarget(TypeReference? type, Dictionary<BindableNode, SymbolEntry> definitions, SourceFile? file = null)
 	{
+		string? sourceIdentifier = type is not null && TryGetNodeRange(type, out TokenRange sourceRange) && file is not null && ReferenceEquals(file.Tokens, sourceRange.Sequence)
+			? FirstIdentifier(SourceText(file.Text, sourceRange))
+			: null;
+		if (!string.IsNullOrWhiteSpace(sourceIdentifier))
+		{
+			AliasDefinition? sourceAlias = definitions.Keys
+				.OfType<AliasDefinition>()
+				.FirstOrDefault(definition => definition.Name == sourceIdentifier || definition.Symbol == sourceIdentifier);
+			if (sourceAlias is not null)
+				return sourceAlias;
+		}
+
+		BindableNode? nested = type switch
+		{
+			AttributedTypeReference attributed => ResolveTypeTarget(attributed.Type, definitions, file),
+			GenericTypeReference generic => ResolveTypeTarget(generic.Type, definitions, file),
+			ArrayTypeReference array => ResolveTypeTarget(array.ElementType, definitions, file),
+			FixedArrayTypeReference fixedArray => ResolveTypeTarget(fixedArray.ElementType, definitions, file),
+			OptionalTypeReference optional => ResolveTypeTarget(optional.ElementType, definitions, file),
+			PointerTypeReference pointer => ResolveTypeTarget(pointer.ElementType, definitions, file),
+			ConstTypeReference constant => ResolveTypeTarget(constant.Type, definitions, file),
+			ConstOfTypeReference constOf => ResolveTypeTarget(constOf.Type, definitions, file),
+			VolatileTypeReference volatileType => ResolveTypeTarget(volatileType.Type, definitions, file),
+			EscapedTypeReference escaped => ResolveTypeTarget(escaped.Type, definitions, file),
+			ScopedTypeReference scoped => ResolveTypeTarget(scoped.Type, definitions, file),
+			UnscopedTypeReference unscoped => ResolveTypeTarget(unscoped.Type, definitions, file),
+			ThrownTypeReference thrown => ResolveTypeTarget(thrown.Type, definitions, file),
+			_ => null
+		};
+		if (nested is not null)
+			return nested;
+
+		string? sourceName = type switch
+		{
+			NamedTypeReference named => named.Name,
+			TypeDefinitionReference definition => definition.Name,
+			_ => null
+		};
+		if (!string.IsNullOrWhiteSpace(sourceName))
+		{
+			AliasDefinition? alias = definitions.Keys
+				.OfType<AliasDefinition>()
+				.FirstOrDefault(definition => definition.Name == sourceName || definition.Symbol == sourceName);
+			if (alias is not null)
+				return alias;
+		}
+		if (type is TypeDefinitionReference { Definition: not null } definitionReference)
+			return definitionReference.Definition;
+
 		string? name = type switch
 		{
 			NamedTypeReference named => BaseTypeName(named.ResolvedType ?? named.Name),
+			TypeDefinitionReference definition => BaseTypeName(definition.ResolvedType ?? definition.Name),
 			_ => null
 		};
 		return name is null
@@ -315,6 +407,13 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			DeclarationTarget => CampSymbolKind.Variable,
 			_ => CampSymbolKind.Unknown
 		};
+	}
+
+	static CampSymbolKind GetDefinitionKind(BindableNode node, string? containerName)
+	{
+		if (!string.IsNullOrWhiteSpace(containerName) && node is FunctionDefinition)
+			return CampSymbolKind.Method;
+		return GetKind(node);
 	}
 
 	static bool HasContainingType(FunctionDefinition function)
@@ -398,6 +497,8 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		range = default;
 		if (TryGetNameTokenRange(node, out range))
 			return true;
+		if (node is DeclarationTarget)
+			return false;
 		return TryGetSyntaxRange(node.SourceSyntax, out range);
 	}
 
@@ -442,7 +543,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 	{
 		range = default;
 		if (target.SourceSyntax is not DeclarationTargetSyntax syntax || target.Names.Count != 1)
-			return TryGetSyntaxRange(target.SourceSyntax, out range);
+			return false;
 		string name = target.Names[0];
 		if (syntax.Identifier?.Value == name)
 			return Assign(syntax.Identifier.Value.Range, out range);
@@ -517,6 +618,81 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return string.Join("\n", docs).Trim();
 	}
 
+	static string SourceText(string text, TokenRange range)
+	{
+		string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+		int startLine = Math.Max(0, range.StartLineNumber - 1);
+		int endLine = Math.Min(lines.Length - 1, Math.Max(0, range.EndLineNumber - 1));
+		if (startLine > endLine || startLine >= lines.Length)
+			return "";
+		if (startLine == endLine)
+		{
+			int start = Math.Clamp(range.StartColumn - 1, 0, lines[startLine].Length);
+			int end = Math.Clamp(range.EndColumn - 1, start, lines[startLine].Length);
+			return lines[startLine][start..end];
+		}
+
+		StringBuilder builder = new();
+		for (int line = startLine; line <= endLine; line++)
+		{
+			string value = lines[line];
+			int start = line == startLine ? Math.Clamp(range.StartColumn - 1, 0, value.Length) : 0;
+			int end = line == endLine ? Math.Clamp(range.EndColumn - 1, start, value.Length) : value.Length;
+			if (builder.Length > 0)
+				builder.Append('\n');
+			builder.Append(value[start..end]);
+		}
+		return builder.ToString();
+	}
+
+	static string? FirstIdentifier(string text)
+	{
+		for (int i = 0; i < text.Length; i++)
+		{
+			if (!IsIdentifierStart(text[i]))
+				continue;
+			int start = i;
+			i++;
+			while (i < text.Length && IsIdentifierPart(text[i]))
+				i++;
+			return text[start..i];
+		}
+		return null;
+	}
+
+	static bool TryGetWordAt(string text, CampTextPosition position, out string? word)
+	{
+		word = null;
+		string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+		if (position.Line < 0 || position.Line >= lines.Length)
+			return false;
+		string line = lines[position.Line];
+		if (position.Character < 0 || position.Character >= line.Length)
+			return false;
+		int start = position.Character;
+		if (!IsIdentifierPart(line[start]) && start > 0 && IsIdentifierPart(line[start - 1]))
+			start--;
+		if (!IsIdentifierPart(line[start]))
+			return false;
+		int end = start + 1;
+		while (start > 0 && IsIdentifierPart(line[start - 1]))
+			start--;
+		while (end < line.Length && IsIdentifierPart(line[end]))
+			end++;
+		word = line[start..end];
+		return true;
+	}
+
+	static bool IsIdentifierStart(char value)
+	{
+		return char.IsLetter(value) || value == '_';
+	}
+
+	static bool IsIdentifierPart(char value)
+	{
+		return char.IsLetterOrDigit(value) || value == '_';
+	}
+
 	static bool Assign(TokenRange? value, out TokenRange range)
 	{
 		range = value ?? default;
@@ -554,5 +730,6 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		string? Type,
 		string? Signature,
 		string? Documentation,
+		string? ContainerName,
 		SymbolEntry? Definition);
 }

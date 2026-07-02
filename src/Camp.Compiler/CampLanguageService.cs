@@ -55,18 +55,23 @@ public static class CampLanguageService
 			overlay => Path.GetFullPath(overlay.Path, request.WorkingDirectory),
 			StringComparer.OrdinalIgnoreCase);
 
-		foreach (string include in GetAnalysisIncludeFiles(request))
-			compilation.Files.Add(LoadSourceFile(include, request.WorkingDirectory, overlayByPath, isApiHeader: true));
+		foreach ((string Path, bool IsApiHeader) include in GetAnalysisIncludeFiles(request))
+			compilation.Files.Add(LoadSourceFile(include.Path, request.WorkingDirectory, overlayByPath, include.IsApiHeader));
 		foreach (string file in request.Files)
 			compilation.Files.Add(LoadSourceFile(file, request.WorkingDirectory, overlayByPath, isApiHeader: false));
 		return compilation;
 	}
 
-	static IReadOnlyList<string> GetAnalysisIncludeFiles(CompilerRequest request)
+	static IReadOnlyList<(string Path, bool IsApiHeader)> GetAnalysisIncludeFiles(CompilerRequest request)
 	{
-		List<string> includes = [.. request.IncludeFiles];
+		List<(string Path, bool IsApiHeader)> includes = request.IncludeFiles.Select(static path => (path, true)).ToList();
 		if (!request.NoStdLib && TryGetCachedPackageApiHeader(request, "std", out string? stdApiHeader))
-			AddIfMissing(includes, stdApiHeader!);
+			AddIfMissing(includes, stdApiHeader!, isApiHeader: true);
+		else if (!request.NoStdLib)
+		{
+			foreach (string stdSource in GetAnalysisPackageSources(request, "std"))
+				AddIfMissing(includes, stdSource, isApiHeader: false);
+		}
 		return includes;
 	}
 
@@ -85,6 +90,17 @@ public static class CampLanguageService
 		return false;
 	}
 
+	static IReadOnlyList<string> GetAnalysisPackageSources(CompilerRequest request, string packageName)
+	{
+		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
+		{
+			string sourceRoot = Path.Combine(runtimeRoot, "lib", packageName, "src");
+			if (Directory.Exists(sourceRoot))
+				return Directory.GetFiles(sourceRoot, "*.camp").Order(StringComparer.OrdinalIgnoreCase).ToList();
+		}
+		return [];
+	}
+
 	static IEnumerable<string> CandidateRuntimeRoots(string runtimeRoot)
 	{
 		yield return runtimeRoot;
@@ -96,16 +112,19 @@ public static class CampLanguageService
 			if (Directory.Exists(candidate))
 				yield return candidate;
 			if (File.Exists(Path.Combine(directory.FullName, "src", "camplang.sln")))
+			{
+				yield return directory.FullName;
 				yield break;
+			}
 			directory = directory.Parent;
 		}
 	}
 
-	static void AddIfMissing(List<string> values, string path)
+	static void AddIfMissing(List<(string Path, bool IsApiHeader)> values, string path, bool isApiHeader)
 	{
 		string fullPath = Path.GetFullPath(path);
-		if (!values.Any(value => string.Equals(Path.GetFullPath(value), fullPath, StringComparison.OrdinalIgnoreCase)))
-			values.Add(fullPath);
+		if (!values.Any(value => string.Equals(Path.GetFullPath(value.Path), fullPath, StringComparison.OrdinalIgnoreCase)))
+			values.Add((fullPath, isApiHeader));
 	}
 
 	static SourceFile LoadSourceFile(string path, string workingDirectory, Dictionary<string, CampSourceOverlay> overlays, bool isApiHeader)

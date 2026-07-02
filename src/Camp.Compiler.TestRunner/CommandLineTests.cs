@@ -449,23 +449,21 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		string outDir = TempPath("implements-api-out");
-		ProcessResult result = RunCampc(
-			"build",
-			source,
-			secondSource,
-			"--nostdlib",
-			"--artifact",
-			"none",
-			"--name",
-			"refcount",
-			"--out-dir",
-			outDir,
-			"--build-dir",
-			TempPath("implements-api-build"));
+		string repositoryRoot = FindRepositoryRoot();
+		CompilerRequest request = new()
+		{
+			WorkingDirectory = repositoryRoot,
+			RuntimeRoot = Path.Combine(repositoryRoot, "bin"),
+			NoStdLib = true,
+			InspectApi = true
+		};
+		request.Files.Add(Path.GetRelativePath(repositoryRoot, source));
+		request.Files.Add(Path.GetRelativePath(repositoryRoot, secondSource));
+
+		CompilerResult result = CompilerDriver.Execute(request);
 
 		Assert.Equal(0, result.ExitCode);
-		string api = File.ReadAllText(Path.Combine(outDir, "refcount_api.camp"));
+		string api = result.StdOut;
 		Assert.Contains("autorelease<T: implements IRefCount>", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("autorelease<T: IRefCount>", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class RefThing : IRefCount", api, StringComparison.Ordinal);

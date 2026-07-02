@@ -138,6 +138,44 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_server_returns_workspace_symbols()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-workspace-symbols");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			alias CounterAlias = Counter;
+
+			struct Counter
+			{
+				int value;
+				int getValue() => this.value;
+			}
+
+			int helper() => 1;
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		lsp.ReadNotification("textDocument/publishDiagnostics");
+
+		JsonNode symbols = lsp.Request("workspace/symbol", new
+		{
+			query = "Value"
+		});
+
+		JsonArray result = symbols["result"]!.AsArray();
+		JsonNode getValue = Assert.Single(result, symbol => symbol?["name"]?.GetValue<string>() == "getValue")!;
+		Assert.Equal("Counter", getValue["containerName"]?.GetValue<string>());
+		Assert.Equal(5, getValue["location"]?["range"]?["start"]?["line"]?.GetValue<int>());
+	}
+
+	[Fact]
 	public void Lsp_loose_file_includes_standard_library()
 	{
 		using LspProcess lsp = LspProcess.Start();
@@ -248,12 +286,17 @@ public sealed class LspServerTests
 						definition = new { },
 						documentSymbol = new { },
 						synchronization = new { }
+					},
+					workspace = new
+					{
+						symbol = new { }
 					}
 				}
 			});
 			Assert.NotNull(response["result"]?["capabilities"]?["hoverProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["definitionProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["documentSymbolProvider"]);
+			Assert.NotNull(response["result"]?["capabilities"]?["workspaceSymbolProvider"]);
 			Notify("initialized", new { });
 		}
 

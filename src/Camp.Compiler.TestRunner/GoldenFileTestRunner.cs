@@ -181,7 +181,7 @@ public static class GoldenFileTestRunner
 
 		string? executable = result.GeneratedFiles
 			.Where(File.Exists)
-			.Where(static path => Path.GetExtension(path) is not ".c" and not ".h" and not ".o" and not ".a" and not ".camp")
+			.Where(static path => Path.GetExtension(path) is not ".c" and not ".h" and not ".o" and not ".a" and not ".camp" and not ".json")
 			.OrderByDescending(File.GetLastWriteTimeUtc)
 			.FirstOrDefault();
 		if (executable is null)
