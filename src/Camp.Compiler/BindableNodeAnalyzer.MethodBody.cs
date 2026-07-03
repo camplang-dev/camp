@@ -1975,7 +1975,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)
 			? newtypeParameters!
-			: CreateStructuralCallableParameters(callable.Parameters);
+			: CreateStructuralCallableParameters(GetSourceCallableParameterTypes(callable));
 
 		callableInvocationParameters[call] = parameters;
 		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(call.Arguments, parameters, scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
@@ -2425,7 +2425,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			string expected = SubstituteGenericType(analysisParameter?.ResolvedType ?? ErrorType, genericSubstitutions);
 			string analysisTarget = ContainsUnboundGenericParameter(expected, genericSubstitutions, genericParameterNames) ? TargetType : expected;
-			string actual = arguments[i].ResolvedType == ErrorType
+			string actual = arguments[i].ResolvedType == ErrorType && arguments[i].Modifier is not (ArgumentModifier.Out or ArgumentModifier.Catch)
 				? ErrorType
 				: BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, analysisTarget);
 			if (analysisParameter is not null)
@@ -3878,6 +3878,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (unary.Operator == UnaryOperator.Postpone)
 			return BodyAnalyzePostponeExpression(unary, scope, typeScope, targetType);
+		if (unary.Operator == UnaryOperator.Await)
+			return BodyAnalyzeAwaitExpression(unary, scope, typeScope);
 
 		string? operandTargetType = unary.Operator == UnaryOperator.Throw
 			? GetFunctionThrownParameter(scope.CurrentFunction)?.ResolvedType ?? GetFunctionThrownReturnType(scope.CurrentFunction)
@@ -3894,14 +3896,7 @@ public sealed partial class BindableNodeAnalyzer
 				return "bool";
 
 			case UnaryOperator.Await:
-				if (scope.CurrentFunction?.IsAsync != true)
-					Report(GetRange(unary.SourceSyntax), "await may be used only inside an async function or async lambda.");
-				if (!IsAwaitable(unary.Operand, scope, typeScope))
-				{
-					Report(GetRange(unary.SourceSyntax), GetAwaitableDiagnostic(unary.Operand, scope, typeScope));
-					return ErrorType;
-				}
-				return GetAwaitedType(unary.Operand, scope, typeScope);
+				return unary.ResolvedType ?? ErrorType;
 
 			case UnaryOperator.Postpone:
 				return unary.ResolvedType ?? ErrorType;
@@ -3930,6 +3925,128 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return operandType;
 		}
+	}
+
+	string BodyAnalyzeAwaitExpression(UnaryExpression awaitExpression, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (scope.CurrentFunction?.IsAsync != true)
+			Report(GetRange(awaitExpression.SourceSyntax), "await may be used only inside an async function or async lambda.");
+
+		if (awaitExpression.Operand is not CallExpression call)
+		{
+			BodyAnalyzeExpression(awaitExpression.Operand, scope, typeScope);
+			Report(GetRange(awaitExpression.SourceSyntax), GetAwaitableDiagnostic(awaitExpression.Operand, scope, typeScope));
+			awaitExpression.ResolvedType = ErrorType;
+			return ErrorType;
+		}
+
+		NormalizeGenericCallSyntax(call);
+		foreach (TypeReference argument in call.TypeArguments)
+			AnalyzeType(argument, typeScope);
+
+		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? existingTarget)
+			? existingTarget
+			: ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
+		if (function is null)
+		{
+			BodyAnalyzeExpression(call, scope, typeScope);
+			if (call.ResolvedType is not null && call.ResolvedType != ErrorType && IsAwaitable(call, scope, typeScope))
+			{
+				awaitExpression.ResolvedType = GetAwaitedType(call, scope, typeScope);
+				return awaitExpression.ResolvedType;
+			}
+			if (!TryAnalyzeCallableInvocation(call, scope, typeScope, null, out string callableReturnType))
+				Report(GetRange(awaitExpression.SourceSyntax), GetAwaitableDiagnostic(awaitExpression.Operand, scope, typeScope));
+			awaitExpression.ResolvedType = callableReturnType == ErrorType ? ErrorType : callableReturnType;
+			return awaitExpression.ResolvedType;
+		}
+
+		EnsureFunctionSignatureAnalyzed(function, typeScope);
+		callTargets[call] = function;
+		bool includeThis = IncludeExplicitThisArgument(call.Target, function);
+		Dictionary<string, string> genericSubstitutions = [];
+		HashSet<string> genericParameterNames = [];
+		foreach (GenericParameter parameter in function.GenericParameters)
+			genericParameterNames.Add(parameter.Name);
+		if (FindContainingType(function) is TypeDefinition containingType)
+		{
+			foreach (GenericParameter parameter in containingType.GenericParameters)
+				genericParameterNames.Add(parameter.Name);
+		}
+		AddExplicitGenericSubstitutions(function, call.TypeArguments, genericSubstitutions);
+		AddReceiverGenericSubstitutions(call.Target, function, genericSubstitutions);
+
+		List<ParameterDefinition> analysisParameters = GetAwaitCallParameters(function, includeThis);
+		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(call.Arguments, analysisParameters, scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), includeThis, genericSubstitutions, genericParameterNames, function, call.Target);
+		NormalizeAwaitCatchArguments(call, function);
+		AddReceiverConstOfAnchorFact(call.Target, function, constOfAnchors);
+		ValidateGenericCallSubstitutionConstraints(function, genericSubstitutions, scope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
+		callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
+
+		if (!IsAwaitable(call, scope, typeScope))
+		{
+			Report(GetRange(awaitExpression.SourceSyntax), GetAwaitableDiagnostic(call, scope, typeScope));
+			awaitExpression.ResolvedType = ErrorType;
+			return ErrorType;
+		}
+
+		string returnType = GetAwaitedType(call, scope, typeScope);
+		returnType = SubstituteGenericReturnType(returnType, call.TypeArguments, genericSubstitutions);
+		returnType = SubstituteConstOfResolvedType(function.ReturnType, returnType, constOfAnchors, genericSubstitutions);
+		returnType = RefineClassTypeCallReturn(function, call.Target, returnType);
+		returnType = RefineThisTypeCallReturn(function, call.Target, returnType);
+		returnType = RefineCallReturnTypeFromLifetimeArguments(function, call.Target, call.Arguments, returnType);
+		awaitExpression.ResolvedType = returnType;
+		return returnType;
+	}
+
+	static void NormalizeAwaitCatchArguments(CallExpression call, FunctionDefinition function)
+	{
+		if (function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is not ParameterDefinition thrown)
+			return;
+		string thrownType = thrown.ResolvedType ?? thrown.Type?.ResolvedType ?? ErrorType;
+		foreach (ArgumentExpression argument in call.Arguments)
+		{
+			if (argument.Modifier != ArgumentModifier.Catch)
+				continue;
+			argument.ResolvedType = thrownType;
+			if (argument.Target is not null)
+				argument.Target.ResolvedType = thrownType;
+			if (argument.Value is not null)
+				argument.Value.ResolvedType = thrownType;
+		}
+	}
+
+	List<ParameterDefinition> GetAwaitCallParameters(FunctionDefinition function, bool includeExplicitThis)
+	{
+		List<ParameterDefinition> parameters = [.. function.Parameters];
+		if (!function.IsAsync && parameters.Count > 0)
+			parameters.RemoveAt(parameters.Count - 1);
+		if (includeExplicitThis && GetExplicitThisParameter(function) is null && IsInstanceFunction(function) && FindContainingType(function) is TypeDefinition containingType)
+			parameters.Insert(0, CreateImplicitThisParameter(containingType));
+		return GetAwaitCallableParameters(parameters, includeExplicitThis);
+	}
+
+	static List<ParameterDefinition> GetAwaitCallableParameters(List<ParameterDefinition> parameters, bool includeExplicitThis = false)
+	{
+		List<ParameterDefinition> callable = [];
+		int expandedThisCount = includeExplicitThis ? 0 : CountExpandedThisParameters(parameters);
+		int index = 0;
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter.Modifier == ParameterModifier.Within
+				|| !includeExplicitThis && parameter is ThisParameterDefinition
+				|| index < expandedThisCount
+				|| parameter is WithinParameterDefinition)
+			{
+				index++;
+				continue;
+			}
+
+			callable.Add(parameter);
+			index++;
+		}
+		return callable;
 	}
 
 	string BodyAnalyzePostponeExpression(UnaryExpression postpone, BodyScope scope, AnalysisScope typeScope, string? targetType)

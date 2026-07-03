@@ -556,6 +556,7 @@ public static class CCodeEmitter
 		readonly Dictionary<SourceFile, List<DelegateThunk>> delegateThunksByFile = [];
 		readonly HashSet<string> reservedCNames = [];
 		readonly Dictionary<BindableNode, string> currentAsyncFrameReplacements = [];
+		readonly Dictionary<string, string> currentAsyncFrameNameReplacements = new(StringComparer.Ordinal);
 		string? currentAsyncFrameName;
 		FunctionDefinition? currentFunction;
 		bool currentFunctionHasLabels;
@@ -565,7 +566,7 @@ public static class CCodeEmitter
 
 		sealed record AsyncFrameField(BindableNode? Node, string Name, string Type, TypeReference? TypeReference = null);
 
-		sealed record AsyncAwaitInfo(UnaryExpression Await, CallExpression Call, int Index, string? ResultType, string CompleteName);
+		sealed record AsyncAwaitInfo(UnaryExpression Await, CallExpression Call, int Index, string? ResultType, string? ThrownType, string CompleteName);
 
 		sealed record AsyncFrameInfo(FunctionDefinition Function, string FrameType, string ResumeName, List<AsyncFrameField> Fields, List<AsyncAwaitInfo> Awaits);
 
@@ -1920,6 +1921,12 @@ public static class CCodeEmitter
 			{
 				if (awaitInfo.ResultType is not null && awaitInfo.ResultType != "void")
 					fields.Add(new(awaitInfo.Await, "await" + awaitInfo.Index.ToString(CultureInfo.InvariantCulture) + "_result", awaitInfo.ResultType));
+				if (awaitInfo.ThrownType is not null)
+					fields.Add(new(awaitInfo.Await, "await" + awaitInfo.Index.ToString(CultureInfo.InvariantCulture) + "_error", awaitInfo.ThrownType));
+				if (FindCatchArgument(awaitInfo.Call) is { Target: not null } catchArgument
+					&& catchArgument.Target.Names is { Count: > 0 }
+					&& catchArgument.Target.Names[0] != "_")
+					fields.Add(new(catchArgument.Target, CName(catchArgument.Target), catchArgument.Target.ResolvedType ?? awaitInfo.ThrownType ?? "#ERROR", catchArgument.Target.Type));
 			}
 
 			return new AsyncFrameInfo(function, baseName + "_asyncFrame", baseName + "_asyncResume", fields, awaits);
@@ -1965,7 +1972,8 @@ public static class CCodeEmitter
 			{
 				int index = awaits.Count;
 				string? resultType = awaitExpression.ResolvedType is null or "void" ? null : awaitExpression.ResolvedType;
-				awaits.Add(new AsyncAwaitInfo(awaitExpression, call, index, resultType, baseName + "_asyncComplete" + index.ToString(CultureInfo.InvariantCulture)));
+				string? thrownType = GetAwaitedThrownType(call);
+				awaits.Add(new AsyncAwaitInfo(awaitExpression, call, index, resultType, thrownType, baseName + "_asyncComplete" + index.ToString(CultureInfo.InvariantCulture)));
 			}
 		}
 
@@ -1999,6 +2007,39 @@ public static class CCodeEmitter
 					CollectAsyncFrameLocals(withinStatement.Body, fields);
 					return;
 			}
+		}
+
+		string? GetAwaitedThrownType(CallExpression call)
+		{
+			FunctionDefinition? function = TryGetCallFunction(call);
+			if (function?.IsAsync == true)
+				return function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown
+					? thrown.ResolvedType ?? thrown.Type?.ResolvedType ?? "#ERROR"
+					: null;
+			if (function?.Parameters is [.., ParameterDefinition last]
+				&& last.Type is CallableTypeReference callback)
+			{
+				foreach (ParameterDefinition parameter in callback.Parameters)
+					if (parameter.Modifier == ParameterModifier.Thrown)
+						return parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "#ERROR";
+			}
+				if (function is null
+					&& call.Target?.ResolvedType is string targetType
+					&& CallableShapeService.TryParseCallableShape(targetType, out CallableShape targetShape)
+				&& targetShape.Parameters.Count > 0)
+			{
+				string callbackType = targetShape.Parameters[^1];
+				if (CallableShapeService.TryParseCallableShape(callbackType, out CallableShape callbackShape))
+				{
+					foreach (string parameter in callbackShape.Parameters)
+					{
+						CallableSlot slot = CallableShapeService.ParseCallableSlot(parameter);
+						if (slot.Modifier == "thrown")
+							return slot.Type;
+					}
+				}
+			}
+			return null;
 		}
 
 		void WriteAsyncFrameDeclaration(TextWriter writer, AsyncFrameInfo frame)
@@ -2043,6 +2084,8 @@ public static class CCodeEmitter
 			List<(string Type, string Name)> slots = [("void*", "context")];
 			if (awaitInfo.ResultType is not null && awaitInfo.ResultType != "void")
 				slots.Add((awaitInfo.ResultType, "result"));
+			if (awaitInfo.ThrownType is not null)
+				slots.Add((awaitInfo.ThrownType, "error"));
 			return FormatResolvedType("void", name + "(" + string.Join(", ", slots.Select(slot => FormatResolvedType(slot.Type, slot.Name).Declaration)) + ")").Declaration;
 		}
 
@@ -2059,8 +2102,13 @@ public static class CCodeEmitter
 					WriteIndent(writer, 1);
 					writer.WriteLine("frame->await" + awaitInfo.Index.ToString(CultureInfo.InvariantCulture) + "_result = result;");
 				}
+				if (awaitInfo.ThrownType is not null)
+				{
+					WriteIndent(writer, 1);
+					writer.WriteLine("frame->await" + awaitInfo.Index.ToString(CultureInfo.InvariantCulture) + "_error = error;");
+				}
 				WriteIndent(writer, 1);
-				writer.WriteLine(frame.ResumeName + "(frame);");
+				WriteAsyncFrameScheduleResume(writer, frame, 1);
 				writer.WriteLine("}");
 				writer.WriteLine();
 			}
@@ -2081,13 +2129,16 @@ public static class CCodeEmitter
 			WriteIndent(writer, 1);
 			writer.WriteLine("}");
 			Dictionary<BindableNode, string> savedReplacements = new(currentAsyncFrameReplacements);
+			Dictionary<string, string> savedNameReplacements = new(currentAsyncFrameNameReplacements, StringComparer.Ordinal);
 			string? savedFrameName = currentAsyncFrameName;
 			FunctionDefinition? savedFunction = currentFunction;
 			currentAsyncFrameReplacements.Clear();
+			currentAsyncFrameNameReplacements.Clear();
 			foreach (AsyncFrameField field in frame.Fields)
 			{
 				if (field.Node is not null)
 					currentAsyncFrameReplacements[field.Node] = "frame->" + field.Name;
+				currentAsyncFrameNameReplacements[field.Name] = "frame->" + field.Name;
 			}
 			currentAsyncFrameName = "frame";
 			currentFunction = frame.Function;
@@ -2098,10 +2149,40 @@ public static class CCodeEmitter
 			currentAsyncFrameReplacements.Clear();
 			foreach (KeyValuePair<BindableNode, string> replacement in savedReplacements)
 				currentAsyncFrameReplacements[replacement.Key] = replacement.Value;
+			currentAsyncFrameNameReplacements.Clear();
+			foreach (KeyValuePair<string, string> replacement in savedNameReplacements)
+				currentAsyncFrameNameReplacements[replacement.Key] = replacement.Value;
 			currentAsyncFrameName = savedFrameName;
 			currentFunction = savedFunction;
 			writer.WriteLine("}");
 			writer.WriteLine();
+		}
+
+		void WriteAsyncFrameScheduleResume(TextWriter writer, AsyncFrameInfo frame, int indent)
+		{
+			ParameterDefinition? scheduler = frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Upon);
+			FunctionDefinition? schedulerPost = scheduler is null ? null : FindMemberFunctionForType(scheduler.ResolvedType, "post");
+			if (scheduler is null || schedulerPost is null)
+			{
+				writer.WriteLine(frame.ResumeName + "(frame);");
+				return;
+			}
+
+			writer.WriteLine("if (frame->" + CName(scheduler) + " != NULL)");
+			WriteIndent(writer, indent);
+			writer.WriteLine("{");
+			WriteIndent(writer, indent + 1);
+			writer.WriteLine(CName(schedulerPost) + "(frame->" + CName(scheduler) + ", " + frame.ResumeName + ", frame);");
+			WriteIndent(writer, indent);
+			writer.WriteLine("}");
+			WriteIndent(writer, indent);
+			writer.WriteLine("else");
+			WriteIndent(writer, indent);
+			writer.WriteLine("{");
+			WriteIndent(writer, indent + 1);
+			writer.WriteLine(frame.ResumeName + "(frame);");
+			WriteIndent(writer, indent);
+			writer.WriteLine("}");
 		}
 
 		void WriteAsyncFrameEntryBody(TextWriter writer, AsyncFrameInfo frame)
@@ -2155,6 +2236,9 @@ public static class CCodeEmitter
 					return;
 				case ExpressionStatement { Expression: UnaryExpression { Operator: UnaryOperator.Await, Operand: CallExpression call } }:
 					WriteAsyncFrameAwaitCall(writer, frame, call, indent, ref awaitCursor);
+					WriteIndent(writer, 0);
+					writer.WriteLine("__async_state" + awaitCursor.ToString(CultureInfo.InvariantCulture) + ": ;");
+					WriteAsyncFrameAwaitErrorHandling(writer, frame, call, awaitCursor - 1, indent);
 					return;
 				case ExpressionStatement expression:
 					WriteIndent(writer, indent);
@@ -2173,12 +2257,12 @@ public static class CCodeEmitter
 				case IfStatement ifStatement when !StatementContainsAwait(ifStatement.Body) && !StatementContainsAwait(ifStatement.ElseBody):
 					WriteIndent(writer, indent);
 					writer.WriteLine("if (" + FormatExpression(ifStatement.Condition) + ")");
-					WriteEmbeddedStatement(writer, ifStatement.Body, indent);
+					WriteAsyncFrameEmbeddedStatement(writer, frame, ifStatement.Body, indent, ref awaitCursor);
 					if (ifStatement.ElseBody is not null)
 					{
 						WriteIndent(writer, indent);
 						writer.WriteLine("else");
-						WriteEmbeddedStatement(writer, ifStatement.ElseBody, indent);
+						WriteAsyncFrameEmbeddedStatement(writer, frame, ifStatement.ElseBody, indent, ref awaitCursor);
 					}
 					return;
 				default:
@@ -2187,6 +2271,24 @@ public static class CCodeEmitter
 					writer.WriteLine("/* unsupported async frame statement " + statement.GetType().Name + " */");
 					return;
 			}
+		}
+
+		void WriteAsyncFrameEmbeddedStatement(TextWriter writer, AsyncFrameInfo frame, Statement? statement, int indent, ref int awaitCursor)
+		{
+			if (statement is null)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine(";");
+				return;
+			}
+			WriteIndent(writer, indent);
+			writer.WriteLine("{");
+			if (statement is BlockStatement block)
+				WriteAsyncFrameStatements(writer, frame, block.Statements, indent + 1, ref awaitCursor);
+			else
+				WriteAsyncFrameStatement(writer, frame, statement, indent + 1, ref awaitCursor);
+			WriteIndent(writer, indent);
+			writer.WriteLine("}");
 		}
 
 		void WriteAsyncFrameDeclarationStatement(TextWriter writer, AsyncFrameInfo frame, DeclarationStatement declaration, int indent, ref int awaitCursor)
@@ -2198,6 +2300,7 @@ public static class CCodeEmitter
 				WriteAsyncFrameAwaitCall(writer, frame, call, indent, ref awaitCursor);
 				WriteIndent(writer, 0);
 				writer.WriteLine("__async_state" + awaitCursor.ToString(CultureInfo.InvariantCulture) + ": ;");
+				WriteAsyncFrameAwaitErrorHandling(writer, frame, call, index, indent);
 				if (awaitExpression.ResolvedType is not null and not "void")
 				{
 					WriteIndent(writer, indent);
@@ -2226,12 +2329,79 @@ public static class CCodeEmitter
 			awaitCursor = nextState;
 		}
 
+		void WriteAsyncFrameAwaitErrorHandling(TextWriter writer, AsyncFrameInfo frame, CallExpression call, int awaitIndex, int indent)
+		{
+			AsyncAwaitInfo? awaitInfo = frame.Awaits.FirstOrDefault(info => info.Index == awaitIndex);
+			if (awaitInfo?.ThrownType is null)
+				return;
+			string errorField = "frame->await" + awaitIndex.ToString(CultureInfo.InvariantCulture) + "_error";
+			if (FindCatchArgument(call) is ArgumentExpression catchArgument)
+			{
+				if (TryFormatCatchAssignmentTarget(catchArgument, out string? catchTarget))
+				{
+					WriteIndent(writer, indent);
+					writer.WriteLine(catchTarget + " = " + errorField + ";");
+				}
+				return;
+			}
+
+			if (frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is not ParameterDefinition thrown)
+				return;
+			WriteIndent(writer, indent);
+			writer.WriteLine("if (" + errorField + " != 0)");
+			WriteIndent(writer, indent);
+			writer.WriteLine("{");
+			WriteIndent(writer, indent + 1);
+			writer.WriteLine("frame->" + CName(thrown) + " = " + errorField + ";");
+			WriteAsyncFrameReturnCompletion(writer, frame, indent + 1, resultExpression: null);
+			WriteIndent(writer, indent);
+			writer.WriteLine("}");
+		}
+
+		ArgumentExpression? FindCatchArgument(CallExpression call)
+		{
+			foreach (ArgumentExpression argument in call.Arguments)
+				if (argument.Modifier == ArgumentModifier.Catch)
+					return argument;
+			return null;
+		}
+
+		bool TryFormatCatchAssignmentTarget(ArgumentExpression argument, out string? target)
+		{
+			target = null;
+			if (argument.Target is not null)
+			{
+				if (argument.Target.Names.Count == 1 && argument.Target.Names[0] == "_")
+					return false;
+				target = FormatVariableReference(argument.Target);
+				return true;
+			}
+			if (argument.Value is NamedExpression { Qualifiers.Count: 0, Name: "_" })
+				return false;
+			if (argument.Value is VariableReferenceExpression variable)
+			{
+				target = FormatExpression(variable);
+				return true;
+			}
+			if (argument.Value is not null)
+			{
+				target = FormatExpression(argument.Value);
+				return true;
+			}
+			return false;
+		}
+
 		void WriteAsyncFrameReturn(TextWriter writer, AsyncFrameInfo frame, ReturnStatement ret, int indent)
+		{
+			WriteAsyncFrameReturnCompletion(writer, frame, indent, ret.Expression is null ? null : FormatExpression(ret.Expression));
+		}
+
+		void WriteAsyncFrameReturnCompletion(TextWriter writer, AsyncFrameInfo frame, int indent, string? resultExpression)
 		{
 			List<string> arguments = ["frame->complete_context"];
 			string resultType = frame.Function.ResolvedType ?? "void";
 			if (resultType != "void")
-				arguments.Add(ret.Expression is null ? FormatDefaultValueForResolvedType(resultType) : FormatExpression(ret.Expression));
+				arguments.Add(resultExpression ?? FormatDefaultValueForResolvedType(resultType));
 			if (frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown)
 				arguments.Add(FormatVariableReference(thrown));
 			WriteIndent(writer, indent);
@@ -2329,7 +2499,8 @@ public static class CCodeEmitter
 
 		FunctionDefinition? FindMemberFunctionForType(string? receiverType, string name)
 		{
-			string typeName = TryGetPointerElementType(receiverType, out string pointerElement) ? pointerElement : receiverType ?? "";
+			string normalizedReceiver = receiverType is null ? "" : StripTypeDecorators(receiverType);
+			string typeName = TryGetPointerElementType(normalizedReceiver, out string pointerElement) ? pointerElement : normalizedReceiver;
 			int genericStart = typeName.IndexOf('<', StringComparison.Ordinal);
 			if (genericStart >= 0)
 				typeName = typeName[..genericStart];
@@ -2974,6 +3145,8 @@ public static class CCodeEmitter
 			List<string> arguments = [];
 			for (int i = 0; i < call.Arguments.Count; i++)
 			{
+				if (function?.IsAsync == true && call.Arguments[i].Modifier == ArgumentModifier.Catch)
+					continue;
 				ParameterDefinition? parameter = i < parameters.Count ? parameters[i] : null;
 				arguments.Add(FormatArgumentValue(call.Arguments[i], parameter, genericSubstitutions));
 			}
@@ -3121,7 +3294,7 @@ public static class CCodeEmitter
 			{
 				LiteralExpression literal => FormatLiteral(literal),
 				VariableReferenceExpression variable => FormatVariableReference(variable.Variable),
-				NamedExpression named => SanitizeIdentifier(named.Name),
+				NamedExpression named => FormatNamedExpression(named),
 				MethodReferenceExpression method => method.Candidates.Count == 1 ? CName(method.Candidates[0]) : UnsupportedExpression(expression),
 				TypeReferenceExpression type => FormatTypeReferenceExpression(type),
 				ThisExpression => FormatThisExpression(),
@@ -3155,6 +3328,15 @@ public static class CCodeEmitter
 				FinallyDeleteExpression finallyDelete => FormatExpression(finallyDelete.Expression),
 				_ => UnsupportedExpression(expression)
 			};
+		}
+
+		string FormatNamedExpression(NamedExpression named)
+		{
+			if (named.Qualifiers.Count == 0
+				&& named.Name is string name
+				&& currentAsyncFrameNameReplacements.TryGetValue(name, out string? replacement))
+				return replacement;
+			return SanitizeIdentifier(named.Name);
 		}
 
 		string FormatCastExpression(CastExpression cast)
@@ -3747,6 +3929,8 @@ public static class CCodeEmitter
 			List<string> arguments = [];
 			for (int i = 0; i < call.Arguments.Count; i++)
 			{
+				if (function?.IsAsync == true && call.Arguments[i].Modifier == ArgumentModifier.Catch)
+					continue;
 				ParameterDefinition? parameter = i < parameters.Count ? parameters[i] : null;
 				arguments.Add(FormatArgumentValue(call.Arguments[i], parameter, genericSubstitutions));
 			}
@@ -3976,13 +4160,31 @@ public static class CCodeEmitter
 
 		List<ParameterDefinition> GetCallableParametersForExpression(Expression? expression)
 		{
-			if (expression?.ResolvedType is not string resolvedType || !TryParseResolvedCallableType(resolvedType, out _, out List<string> parameterTypes))
+			if (expression?.ResolvedType is not string resolvedType || !CallableShapeService.TryParseCallableShape(resolvedType, out CallableShape shape))
 				return [];
 
+			List<string> parameterTypes = GetSourceCallableParameterTypesForC(shape);
 			List<ParameterDefinition> parameters = [];
-			foreach (string parameterType in parameterTypes)
+			foreach (string parameterType in GetExpandedResolvedCallableParameterTypesForC(parameterTypes))
 				parameters.Add(CreateCallableParameterFromResolvedType(parameterType));
 			return parameters;
+		}
+
+		static List<string> GetSourceCallableParameterTypesForC(CallableShape shape)
+		{
+			if (shape.Kind is "delegate" or "once"
+				&& shape.Parameters.Count > 0
+				&& IsCallableStoredContextSlotForC(shape.Parameters[0]))
+				return shape.Parameters.Skip(1).ToList();
+			return shape.Parameters;
+		}
+
+		static bool IsCallableStoredContextSlotForC(string parameterType)
+		{
+			string type = parameterType.Trim();
+			return type == "#THIS"
+				|| type == "this"
+				|| type.EndsWith(" this", StringComparison.Ordinal);
 		}
 
 		static ParameterDefinition CreateCallableParameterFromResolvedType(string parameterType)
@@ -4986,13 +5188,19 @@ public static class CCodeEmitter
 
 		string FormatVariableReference(BindableNode? variable)
 		{
-			if (variable is not null && currentAsyncFrameReplacements.TryGetValue(variable, out string frameReference))
+			if (variable is not null && currentAsyncFrameReplacements.TryGetValue(variable, out string? frameReference))
 				return frameReference;
+			if (variable is not null
+				&& TryGetCName(variable, out string? cName)
+				&& cName is not null
+				&& currentAsyncFrameNameReplacements.TryGetValue(cName, out string? frameNameReference))
+				return frameNameReference;
 
 			return variable switch
 			{
 				FunctionDefinition function => CName(function),
 				VariableDefinition definition => CName(definition),
+				ParameterDefinition { Modifier: ParameterModifier.Thrown } parameter when currentFunction?.IsAsync == true => CName(parameter),
 				ParameterDefinition { Modifier: ParameterModifier.Out or ParameterModifier.Thrown } parameter => "(*" + CName(parameter) + ")",
 				ParameterDefinition { Modifier: ParameterModifier.In } parameter when IsGenericParameterType(parameter.ResolvedType) => CName(parameter),
 				ParameterDefinition { Modifier: ParameterModifier.In } parameter => "(*" + CName(parameter) + ")",
@@ -5002,6 +5210,17 @@ public static class CCodeEmitter
 				DeclarationTarget target => CName(target),
 				_ => UnsupportedExpression(variable)
 			};
+		}
+
+		static bool TryGetCName(BindableNode variable, out string? name)
+		{
+			name = variable switch
+			{
+				Definition definition => CName(definition),
+				DeclarationTarget target => CName(target),
+				_ => null
+			};
+			return name is not null;
 		}
 
 		string FormatThisExpression()

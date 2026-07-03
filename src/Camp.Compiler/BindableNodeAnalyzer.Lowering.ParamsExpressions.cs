@@ -180,9 +180,26 @@ public sealed partial class BindableNodeAnalyzer
 			return null;
 
 		List<ParameterDefinition> parameters = [];
-		foreach (string parameterType in GetExpandedCallableParameterTypes(shape.Parameters))
+		foreach (string parameterType in GetExpandedCallableParameterTypes(GetSourceCallableParameterTypes(shape)))
 			parameters.Add(CreateCallableShapeParameter(parameterType));
 		return parameters;
+	}
+
+	static List<string> GetSourceCallableParameterTypes(CallableShape shape)
+	{
+		if (shape.Kind is "delegate" or "once"
+			&& shape.Parameters.Count > 0
+			&& IsCallableStoredContextSlot(shape.Parameters[0]))
+			return shape.Parameters.Skip(1).ToList();
+		return shape.Parameters;
+	}
+
+	static bool IsCallableStoredContextSlot(string parameterType)
+	{
+		string type = parameterType.Trim();
+		return type == "#THIS"
+			|| type == "this"
+			|| type.EndsWith(" this", System.StringComparison.Ordinal);
 	}
 
 	static ParameterDefinition CreateCallableShapeParameter(string parameterType)

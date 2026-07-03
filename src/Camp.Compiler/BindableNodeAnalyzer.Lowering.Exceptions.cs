@@ -890,6 +890,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool ContainsUncaughtThrow(Expression expression)
 	{
+		if (expression is UnaryExpression { Operator: UnaryOperator.Await })
+			return false;
 		if (IsUncaughtThrowingCall(expression, out _))
 			return true;
 		foreach (Expression child in EnumerateChildExpressions(expression))

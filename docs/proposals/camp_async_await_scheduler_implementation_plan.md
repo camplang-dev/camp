@@ -563,11 +563,11 @@ Goal: harden async behavior across existing language surfaces and generated arti
 
 ### Completion Criteria
 
-- [ ] Async composes with major callable, property, interface, generic, and expanded-form surfaces.
-- [ ] Metadata/API output is source-level and omits generated internals.
-- [ ] Representative async C output compiles.
-- [ ] Integration tests cover interactions with current complex language features.
-- [ ] Full suite passes and the phase is committed.
+- [x] ~~Async composes with major callable, property, interface, generic, and expanded-form surfaces.~~
+- [x] ~~Metadata/API output is source-level and omits generated internals.~~
+- [x] ~~Representative async C output compiles.~~
+- [x] ~~Integration tests cover interactions with current complex language features.~~
+- [x] ~~Full suite passes and the phase is committed.~~
 
 ## Phase 12: Final Audit, Documentation, Tooling, And Acceptance
 

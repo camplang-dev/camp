@@ -1,0 +1,67 @@
+using Std;
+
+int posts;
+int frees;
+int observed;
+int observedError;
+int rethrowError;
+
+class Scheduler
+{
+	void* alloc(nuint size) => null;
+	void free(escaped void* ptr) { frees++; }
+	void post(once void(escaped this) continuation)
+	{
+		posts++;
+		continuation();
+	}
+}
+
+Scheduler scheduler;
+
+async int lengthAsync<T: any>(const T[] values, sizeof(T), upon scheduler)
+{
+	return (int)values.length;
+}
+
+async int failAsync(thrown int error, upon scheduler)
+{
+	throw 9;
+}
+
+async int parentAsync(const int[] values, upon scheduler)
+{
+	int count = await lengthAsync(values);
+	int ignored = await failAsync(catch auto err);
+	observedError = err;
+	return count + observedError;
+}
+
+async int rethrowAsync(upon scheduler, thrown int error)
+{
+	int ignored = await failAsync();
+	return ignored;
+}
+
+void complete(void* context, int value)
+{
+	observed = value;
+}
+
+void completeRethrow(void* context, int value, int error)
+{
+	rethrowError = error;
+}
+
+export int main()
+{
+	auto values = [1, 2, 3, 4];
+	parentAsync(values, &scheduler, complete, null);
+	rethrowAsync(&scheduler, completeRethrow, null, catch _);
+	Console.write(posts);
+	Console.write(frees);
+	Console.write(observed);
+	Console.write(observedError);
+	Console.write(rethrowError);
+	return posts == 3 && frees == 2 && observed == 13 && observedError == 9 && rethrowError == 9 ? 0 : 1;
+}
