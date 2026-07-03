@@ -2,12 +2,12 @@
 
 Status: proposed  
 Primary design source: `docs/camp_async_scheduler_design_v7.md`  
-Baseline language source: `docs/camp_unified_spec_v20.md`  
+Baseline language source: `docs/camp_unified_spec_v21.md`  
 Audience: implementation agents working in the Camp compiler
 
 ## Overview
 
-This proposal implements Camp async/await as specified by `camp_async_scheduler_design_v7.md`. Where that design supplement conflicts with `camp_unified_spec_v20.md`, the supplement wins, except for one later design decision captured by this proposal: awaitable completions may have at most one non-error success parameter, and multi-result await/deconstruction is not part of Camp for this implementation. Async iterators and `await foreach` are explicitly deferred; this work covers async functions, methods, callable types, callable newtypes, property accessors after rewriting, lambdas used with async-shaped callables, manual async calls, `await`, `postpone`, `once`, `upon`, scheduler-driven continuation posting, async-frame allocation/deallocation, lifetime checks across suspension, metadata/API/C emission, and documentation/tooling updates.
+This proposal implements Camp async/await as specified by `camp_async_scheduler_design_v7.md`. Where that design supplement conflicts with `camp_unified_spec_v21.md`, the supplement wins, except for one later design decision captured by this proposal: awaitable completions may have at most one non-error success parameter, and multi-result await/deconstruction is not part of Camp for this implementation. Async iterators and `await foreach` are explicitly deferred; this work covers async functions, methods, callable types, callable newtypes, property accessors after rewriting, lambdas used with async-shaped callables, manual async calls, `await`, `postpone`, `once`, `upon`, scheduler-driven continuation posting, async-frame allocation/deallocation, lifetime checks across suspension, metadata/API/C emission, and documentation/tooling updates.
 
 Camp async remains structurally callback-shaped. An `async` declaration lowers to an ordinary ABI function whose final parameter is an omitted-at-source `once void(...)` completion callback. Awaitable calls are calls whose final omitted parameter is a compatible `once` completion callback. Awaited calls may produce zero or one non-error success result. A completion `thrown` slot is allowed and follows ordinary `catch` call-site syntax; if not explicitly caught, it is rethrown inside the async state machine. Completion callbacks with more than one non-error parameter are not awaitable. Async functions can also be called manually by supplying the final completion callback explicitly.
 
@@ -52,7 +52,7 @@ Metadata remains source-level. It must preserve `upon` parameters, scheduler typ
   - `src/Camp.Compiler/CompilerXmlSerializer.cs`
 - Tests and docs:
   - `tests/Ast`, `tests/Api`, `tests/CEmit`, `tests/CCompile`, `tests/Diagnostics`, `tests/Metadata`, `tests/StdRun`
-  - `docs/camp_unified_spec_v20.md`
+  - `docs/camp_unified_spec_v21.md`
   - `docs/camp_doc_comments_metadata_supplement.md`
   - grammar docs in `docs/`
   - `extras/CAMP_LLM_CODE_GUIDE.md`
@@ -576,7 +576,7 @@ Goal: close the implementation by auditing the design, updating documentation/to
 ### Implementation
 
 - Re-read `docs/camp_async_scheduler_design_v7.md` end to end.
-- Re-read relevant sections of `docs/camp_unified_spec_v20.md`.
+- Re-read relevant sections of `docs/camp_unified_spec_v21.md`.
 - Verify every rule in the scheduler design is either implemented, tested, or explicitly deferred.
 - Confirm async iterators and `await foreach` remain deferred and clearly documented as such.
 - Update `docs/camp_async_scheduler_design_v7.md` or its successor note so it no longer claims plural non-error completion result slots are awaitable.
@@ -603,23 +603,27 @@ Goal: close the implementation by auditing the design, updating documentation/to
 
 ### Completion Criteria
 
-- [ ] Every rule in `camp_async_scheduler_design_v7.md` is audited against implementation and tests.
-- [ ] The scheduler supplement's stale multi-result await wording is removed or superseded.
-- [ ] Async iterators remain clearly deferred.
-- [ ] Unified spec is version-incremented and updated.
-- [ ] Metadata supplement is updated.
-- [ ] Grammar documents are updated.
-- [ ] LLM guide is updated.
-- [ ] Sublime syntax is updated.
-- [ ] LSP-facing docs/plugin guidance is updated where applicable.
-- [ ] No stale async claims remain in docs.
-- [ ] This proposal is moved to `docs/proposals/accepted/` with completed criteria struck through.
-- [ ] Full suite passes and the final phase is committed.
+- [x] ~~Every rule in `camp_async_scheduler_design_v7.md` is audited against implementation and tests.~~
+- [x] ~~The scheduler supplement's stale multi-result await wording is removed or superseded.~~
+- [x] ~~Async iterators remain clearly deferred.~~
+- [x] ~~Unified spec is version-incremented and updated.~~
+- [x] ~~Metadata supplement is updated.~~
+- [x] ~~Grammar documents are updated.~~
+- [x] ~~LLM guide is updated.~~
+- [x] ~~Sublime syntax is updated.~~
+- [x] ~~LSP-facing docs/plugin guidance is updated where applicable.~~
+- [x] ~~No stale async claims remain in docs.~~
+- [x] ~~This proposal is moved to `docs/proposals/accepted/` with completed criteria struck through.~~
+- [x] ~~Full suite passes and the final phase is committed.~~
 
 ## Deferred Work
 
 - `async iter` implementation.
 - `await foreach`.
+- Named postponed-call slots; positional postponed-call slots are implemented,
+  while named postponed-call slots currently produce a focused diagnostic.
+- Rich target-typed async-lambda lowering; parser/model and diagnostics reserve
+  the surface, but full lowering remains a future hardening pass.
 - Complete async stream standard-library implementation beyond signatures needed for compiler tests.
 - Advanced scheduler library design beyond the pattern required by compiler-generated code.
 - Rich LSP semantic annotations for async frames and suspension analysis, unless a later LSP-focused plan is approved.

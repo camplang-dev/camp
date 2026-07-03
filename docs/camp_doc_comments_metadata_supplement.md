@@ -456,12 +456,21 @@ Functions and methods may contain:
   `constructor`, or `destructor` when present.
 - `iterator`: `struct` or `class` for generator declarations.
 - `async`: `true` for async functions.
+- `upon` scheduler parameters in the ordinary `parameters` array.
 - `callspec`: target calling convention when present.
 - `returnType`: source-level return type.
 - `ascription`: callable newtype ascription when present.
 - `typeParameters`: generic type parameters.
 - `parameters`: function parameters.
 - property companion fields.
+
+Async metadata is source-level. It describes the declaration the programmer
+wrote, including `async` and any `upon` parameter, but it does not expose
+generated async frames, resume helpers, completion helper functions, scheduler
+posting thunks, postponed-call context types, or lambda capture-context
+implementation details. Async callable newtypes use `"callableType": "async"`
+and otherwise follow the same callable-newtype metadata shape as `fn`,
+`delegate`, `once`, and `iter`.
 
 Type-bearing fields in metadata use source-level Camp spelling where a source
 type was written. This matters for features whose source contract is more
@@ -510,7 +519,8 @@ The metadata intentionally does not emit `property: true` or
 Parameters may contain:
 
 - `name`
-- `modifier`: `in`, `out`, `within`, or other current parameter modifiers.
+- `modifier`: `in`, `out`, `within`, `upon`, or other current parameter
+  modifiers.
 - `type`
 - `capability`: `sizeof`, `typenameof`, or another special capability marker
   for explicit runtime generic support parameters.
@@ -522,6 +532,18 @@ Parameters may contain:
 
 Default values are serialized as source text. They are not evaluated for
 metadata output.
+
+For async scheduler parameters, metadata preserves the declared `upon` parameter
+shape. The bare shorthand:
+
+```camp
+async void run(upon scheduler)
+```
+
+is represented after binding as the source-level scheduler parameter selected by
+the compiler, with the `upon` modifier and any default value preserved in the
+same parameter record style as other parameters. Tools should still treat this
+as an async scheduler slot, not as an ordinary user payload parameter.
 
 For special capability parameters, `type` is the ordinary ABI-carried value
 type, while `targetType` names the source type the capability describes. For

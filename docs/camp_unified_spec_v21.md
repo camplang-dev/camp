@@ -5771,8 +5771,7 @@ Camp supports multiple result values through explicit result slots. This is not 
 The common forms are:
 
 - omitted trailing `out` parameters bound by immediate deconstruction
-- async completion callbacks with more than one non-error result slot
-- iterator and async-iterator protocols that yield several result slots
+- iterator protocols that yield several result slots
 
 ### 3.6.1 Omitted trailing `out` values
 
@@ -5842,15 +5841,22 @@ DivResult divideInt(int a, int b)
 
 ### 3.6.4 Async and iterator result slots
 
-Async, iterator, and async-iterator protocols may carry multiple non-error result slots where the protocol explicitly defines them.
+Iterator protocols may carry multiple non-error result slots where the protocol
+explicitly defines them.
 
-Those slots may be consumed through deconstruction:
+Those slots may be consumed through protocol-specific deconstruction when the
+protocol exposes more than one ordinary output slot:
 
 ```camp
-auto (x, y) = await getPointAsync();
+auto (value, hasValue) = iterator.next();
 ```
 
 Protocol-defined multi-output slots do not imply user-defined expanded value types.
+
+Async await is intentionally narrower in the current language. An awaitable
+completion callback may have at most one non-error success parameter. A
+completion callback with more than one non-error success parameter is a valid
+callable shape, but it is not awaitable.
 
 ## 3.7 Error Handling and Cleanup
 
@@ -7924,6 +7930,7 @@ Camp async uses a few ordinary features together:
 - `await`
 - `once`
 - `postpone`
+- `upon`
 - ordinary lifetime analysis
 
 The design goal is to provide convenient source syntax while lowering to explicit continuation-based functions and explicit async frames.
@@ -7937,11 +7944,13 @@ It may be used on:
 - functions
 - methods
 - callable types
-- iterators
 - property accessors
 - interface methods
 
 If `export` is also present, `async` appears after `export` and before the rest of the signature.
+
+`async iter` syntax is reserved for async iterators, but async iterators and
+`await foreach` are not implemented in the current compiler.
 
 ### 5.3.3 Signature rewrite
 
@@ -7965,7 +7974,66 @@ At the ABI level, `async` rewrites the signature to `void` and adds a final comp
 
 An async function may not have `out` parameters.
 
-### 5.3.4 Async state machines
+### 5.3.4 `upon` schedulers and async frames
+
+`upon` is a declaration-side parameter modifier. It is not a statement,
+expression, prefix operator, or argument-list keyword. A callable signature may
+declare at most one `upon` parameter.
+
+In an async routine, the shorthand:
+
+```camp
+async void f(upon scheduler)
+{
+}
+```
+
+means:
+
+```camp
+async void f(upon escaped Scheduler* scheduler = null)
+{
+}
+```
+
+`Scheduler` is resolved by ordinary visible name lookup. A concrete scheduler
+type may be written explicitly.
+
+A scheduler used by compiler-generated async code is recognized by pattern. It
+must provide compatible methods:
+
+```camp
+void* alloc(nuint size);
+void free(escaped void* ptr);
+void post(once void(escaped this) continuation);
+```
+
+The `post(...)` parameter may be written directly as
+`once void(escaped this)` or as a callable `newtype` with that underlying
+shape.
+
+Async-frame allocation chooses storage in this order:
+
+1. selected non-null scheduler: `scheduler.alloc(size)`;
+2. selected non-null `within` allocator: `allocator.alloc(size)`;
+3. visible fallback `malloc(size)`.
+
+The frame stores enough deallocation information to free itself through the same
+kind of service when the async operation completes.
+
+Ordinary source `new` and `delete` inside an async routine still use the normal
+allocator rules. The scheduler controls compiler-generated async frames and
+continuation posting only.
+
+In async routines, bare `within allocator` means
+`within escaped Allocator* allocator = null`. The ordinary non-async shorthand
+keeps its existing unscoped meaning.
+
+`init T[n]` array allocation expressions are invalid inside async bodies. Use
+fixed storage where legal, explicit allocation, or another frame-stable storage
+strategy.
+
+### 5.3.5 Async state machines
 
 An async function produces a state machine. Lifted locals are stored in an async frame rather than on the ordinary stack.
 
@@ -7978,9 +8046,11 @@ Conceptually:
 
 If the function has no `thrown` parameter, the rewritten completion call simply omits the error argument.
 
-### 5.3.5 `await`
+### 5.3.6 `await`
 
-`await` is a prefix operator used when calling functions.
+`await` is a prefix operator followed directly by one method-call expression or
+a member/property/indexer chain that ends in a call. No prefix operator may
+appear between `await` and that call.
 
 It may be used only inside functions or lambdas declared `async`.
 
@@ -7990,19 +8060,24 @@ To be awaitable, the last parameter of the called function must:
 2. return `void`
 3. have no `out` parameters
 4. optionally include one parameter marked `thrown`
-5. be omitted at the call site when `await` is used
+5. include at most one non-error success parameter
+6. be omitted at the call site when `await` is used
 
 The awaited final parameter does not need a special nominal type name. Camp’s async model is structural. What matters is the shape of the final callback parameter.
 
-### 5.3.6 Awaited result values
+### 5.3.7 Awaited result values
 
-The value or values produced by an awaited call are the non-`thrown` parameters of the completion callback.
+The value produced by an awaited call is the single non-`thrown` parameter of
+the completion callback, when one exists.
 
 That means:
 
 - one completion value becomes one ordinary result
-- multiple completion values may be bound by deconstruction
+- a completion with no non-error value has result type `void`
+- a completion with more than one non-error value is not awaitable
 - a `thrown` completion parameter is rethrown automatically inside the awaiting function
+- awaited calls use ordinary `catch` syntax: `await op(catch err)` or
+  `await op(catch _)`
 
 Examples:
 
@@ -8012,39 +8087,47 @@ async int addAsync(int x, int y, thrown CalcError)
 	return x + y;
 }
 
-async void getPointAsync(out int x, out int y, thrown CalcError)
-{
-	...
-}
-
 async int sample(thrown CalcError)
 {
 	return await addAsync(3, 4);
 }
 
-async void samplePoint(thrown CalcError)
+async int sampleCatch(thrown CalcError)
 {
-	auto (x, y) = await getPointAsync();
+	int value = await addAsync(3, 4, catch auto error);
+	if (error != default)
+		return 0;
+	return value;
 }
 ```
 
 Conceptually, the awaited call consumes a completion shape such as:
 
 ```camp
-once void(int result, thrown CalcError) complete
+once void(int result, thrown CalcError error) complete
 ```
 
-or:
+and yields the single non-error slot to the binding site. Camp does not support
+`auto (x, y) = await ...` or other multi-result await deconstruction in the
+current language.
 
-```camp
-once void(int x, int y, thrown CalcError) complete
-```
+### 5.3.8 Scheduler selection at `await`
 
-and yields the non-error slots to the binding site.
+For each `await`, the selected scheduler for the caller continuation is:
 
-Multiple awaited result slots do not create a general anonymous value.
+1. the value supplied to the awaited call's `upon` parameter after call
+   matching, when the awaited target has one;
+2. otherwise the current async routine's `upon` parameter, when present;
+3. otherwise `null`.
 
-### 5.3.7 Calling async functions without `await`
+If the selected scheduler is non-null, the generated completion helper posts the
+resume continuation through `scheduler.post(...)`, passing the async frame as
+the callable context. If the selected scheduler is `null`, the state machine
+resumes directly. Both awaited operations and scheduler `post(...)` methods may
+invoke callbacks inline, so generated code makes the frame stable before either
+call can happen.
+
+### 5.3.9 Calling async functions without `await`
 
 An async function may still be called explicitly by supplying the final completion callback yourself:
 
@@ -8060,13 +8143,18 @@ calculator.addAsync(3, 4, (result, error) =>
 
 This is not a second async subsystem. It is the same function, used through its explicit continuation surface.
 
-### 5.3.8 `once`
+### 5.3.10 `once`
 
-A `once` callable frees its context immediately when it completes and may therefore be called only once.
+A `once` callable means the callable is guaranteed to be called exactly once. It
+does not by itself define ownership or deletion of the callable context.
 
-This is an ordinary callable category, not an async-only invention. Async uses it because a completion callback naturally has one-shot lifetime.
+Deletion belongs to the callable producer. Compiler-generated producers that own
+context may self-delete, such as escaped lambdas target-typed to `once` with a
+generated capture context, and `postpone` contexts. Ordinary `once` values
+received from outside the current construct do not gain deletion semantics merely
+because their type is `once`.
 
-### 5.3.9 `postpone`
+### 5.3.11 `postpone`
 
 Camp uses `postpone` for postponed invocation:
 
@@ -8080,7 +8168,8 @@ async int sample()
 }
 ```
 
-`postpone f(args...)` does not call `f` immediately.
+`postpone` must be followed directly by one method-call expression or a chain
+ending in a method call. `postpone f(args...)` does not call `f` immediately.
 
 Instead it:
 
@@ -8090,9 +8179,35 @@ Instead it:
 
 Later invocation reuses the captured values.
 
+Only slots supplied by the postponed-call syntax are captured. Implicit `upon`
+forwarding, implicit `within` forwarding, and default arguments do not fill
+slots at postponement time. Omitted slots become parameters of the returned
+`once` delegate in canonical source parameter order.
+
+If the postponed target is async and the final completion slot is left open, the
+returned `once` remains awaitable. If the final completion callback is supplied
+explicitly, the returned `once` simply invokes the async function with that
+captured callback and is not itself awaitable.
+
+The generated postponed-call context deletes itself after invoking the postponed
+target. For an async postponed target, this deletion happens after the async
+method has been invoked, not after its later completion callback fires.
+
 The postponed-operation context is an ordinary container. If that context is escaped, anything captured into it must satisfy the ordinary container rule for escaped storage. If the postponed operation is used only in a narrower scoped context, scoped references may remain tied to that narrower scope.
 
-### 5.3.10 Lifetimes across suspension
+### 5.3.12 Lambda `context` cleanup
+
+The hidden lambda context parameter is named `context`. Inside lambda bodies,
+`context` is a special cleanup name, not an ordinary variable: ordinary reads,
+writes, passing, member access, and address-taking are invalid.
+
+`delete context` is valid only for escaped ordinary delegate lambdas with
+compiler-generated owned capture context. It is invalid for `fn`, scoped
+delegate lambdas, `once` lambdas, and non-capturing lambdas. Escaped `once`
+lambdas with generated context delete that context automatically after producing
+their body result or error; explicit `delete context` is not allowed there.
+
+### 5.3.13 Lifetimes across suspension
 
 The detailed lifetime rules were defined earlier. The async-specific surface rule is simple:
 
@@ -8123,7 +8238,7 @@ async void process(scoped char* text)
 
 Invalid, because the scoped pointer would survive into the lifted async frame without a relationship proving that it outlives that frame.
 
-### 5.3.11 Structural async and interop
+### 5.3.14 Structural async and interop
 
 When exported, async functions are designed to be callable from C through their rewritten callback shape. The function signature matters, not a hidden runtime task type.
 
@@ -8151,6 +8266,11 @@ void Calculator_addAsync(
 This is also why imported or external APIs can participate in Camp async as long as their final callback parameter matches the required structural rules.
 
 ## 5.4 `await foreach`
+
+> Current implementation status: async iterators and `await foreach` are
+> reserved design direction, not implemented language surface. The notes in
+> this section describe the intended model so existing syntax and future
+> diagnostics have context.
 
 `await foreach` composes async control flow with the iterator model. An async iterator is still an iterator; it simply adds one extra surface: a readiness callback that says another call to `next(...)` may make progress.
 
@@ -9992,7 +10112,11 @@ void dumpBytes(const char[] path, thrown IoError)
 }
 ```
 
-Async form:
+Future async-stream form:
+
+> `await foreach` and async iterators are reserved design direction in the
+> current compiler. This example shows the intended standard-library shape once
+> async iterator support is implemented.
 
 ```camp
 using Std::IO;

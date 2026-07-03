@@ -2,13 +2,30 @@
 
 **Status:** design supplement for compiler implementation  
 **Audience:** LLM or human agent implementing Camp compiler support for async methods, `await`, `postpone`, `upon` scheduler parameters, async callable forms, lambda context lowering, and once-callable cleanup behavior  
-**Source baseline:** `camp_unified_spec_v20.md`, `CAMP_LLM_CODE_GUIDE.md`, and `camp_doc_comments_metadata_supplement.md` from Sources  
+**Source baseline:** `camp_unified_spec_v21.md`, `CAMP_LLM_CODE_GUIDE.md`, and `camp_doc_comments_metadata_supplement.md` from Sources  
 **Revision:** 7  
 **Last updated:** 2026-07-03
 
 This document supplements the current Camp specification. Where this document conflicts with the baseline spec, this document is the intended design for the compiler work described here.
 
 It does not restate the base async callback rewrite, delegate expansion, ordinary `within` allocator model, lifetime model, or metadata model except where this supplement changes or specializes behavior.
+
+## Current compiler implementation note
+
+The v21 compiler implements the core async function/callable, `await`, `once`,
+`upon`, scheduler-selection, async-frame, postponed-call, and lambda-context
+semantics from this supplement, with these explicit deferrals:
+
+- `async iter` and `await foreach` remain reserved design direction.
+- Named postponed-call slots are diagnosed as not implemented; positional
+  postponed-call slots are supported.
+- Async lambdas are represented by the parser/model and diagnostics, but rich
+  target-typed async-lambda lowering remains a future hardening area.
+
+The implemented `await` surface intentionally differs from older wording in
+this supplement: an awaitable completion callback may have at most one non-error
+success parameter. Completion callbacks with two or more non-error success
+parameters are valid callable shapes, but they are not awaitable.
 
 ## 1. Core decisions
 
@@ -177,7 +194,13 @@ The expression after `await` may be a member/index/property chain, but the chain
 - the final `once` may contain one `thrown` parameter;
 - the final callback parameter is omitted at the `await` site.
 
-Awaited non-error completion parameters become result slots. A completion `thrown` slot is rethrown by the resumed async state machine.
+The awaited non-error completion parameter becomes the result value. A completion
+callback with no non-error parameter has result type `void`. A completion
+callback with more than one non-error parameter is not awaitable in the current
+language; use a named result struct or explicit `out`/callback API instead. A
+completion `thrown` slot is rethrown by the resumed async state machine unless
+the await expression supplies an ordinary `catch` argument such as
+`await loadAsync(catch err)` or `await loadAsync(catch _)`.
 
 ## 8. Scheduler selection at `await`
 

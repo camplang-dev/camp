@@ -47,6 +47,22 @@ Definition lookup intentionally returns source locations only. Generated symbols
 and external declarations without source ranges do not produce a definition
 location.
 
+## Async Notes
+
+The LSP view is source-level. Async declarations should be surfaced as the
+programmer wrote them, including `async`, `once`, `upon` scheduler parameters,
+and ordinary completion/catch syntax. Generated async frames, resume helpers,
+completion helper functions, scheduler-post thunks, postponed-call context
+types, and lambda capture-context implementation details are compiler internals
+and should not appear as user declarations in document symbols, hover, or
+definition results.
+
+Future semantic features may highlight suspension points and async frame
+captures, but those should be annotations on the source construct rather than
+separate generated declarations. Async iterators and `await foreach` are
+reserved/deferred; until implemented, LSP diagnostics should mirror compiler
+diagnostics rather than suggesting generated async-iterator surfaces.
+
 ## Deferred
 
 The v1 server does not implement semantic completion, rename, references,
