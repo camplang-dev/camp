@@ -86,9 +86,8 @@ member-declarator:
 	export | public | extern | static | virtual | override | sealed | abstract | async | fixed | inline
 
 parameter:
-	[within | upon] <parameter-declarator>* <type> <IDENT>? [= <expression>]
+	[within] <parameter-declarator>* <type> <IDENT>? [= <expression>]
 	within <IDENT>
-	upon <IDENT>
 	<type-declarator>* this
 	sizeof '(' <type> ')'
 	typenameof '(' <type> ')'

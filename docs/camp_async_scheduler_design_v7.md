@@ -1,12 +1,16 @@
 # Camp Async Scheduler and Callable Context Supplement
 
-**Status:** design supplement for compiler implementation  
+**Status:** superseded historical design  
+**Superseded by:** `docs/proposals/accepted/camp_async_resumption_redesign_proposal_v2.md` and `docs/camp_unified_spec_v22.md`  
 **Audience:** LLM or human agent implementing Camp compiler support for async methods, `await`, `postpone`, `upon` scheduler parameters, async callable forms, lambda context lowering, and once-callable cleanup behavior  
 **Source baseline:** `camp_unified_spec_v21.md`, `CAMP_LLM_CODE_GUIDE.md`, and `camp_doc_comments_metadata_supplement.md` from Sources  
 **Revision:** 7  
 **Last updated:** 2026-07-03
 
-This document supplements the current Camp specification. Where this document conflicts with the baseline spec, this document is the intended design for the compiler work described here.
+This document no longer supplements the current Camp specification. It is kept
+only as historical context for the earlier scheduler-based async design. Where
+this document conflicts with the unified spec or accepted resumption redesign,
+the newer resumer-based design wins.
 
 It does not restate the base async callback rewrite, delegate expansion, ordinary `within` allocator model, lifetime model, or metadata model except where this supplement changes or specializes behavior.
 

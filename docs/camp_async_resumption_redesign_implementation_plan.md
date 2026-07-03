@@ -277,19 +277,19 @@ resumption model and move the redesign proposal to accepted.
 
 ### Completion Criteria
 
-- [ ] Unified spec is version-incremented and updated.
-- [ ] Current spec contains no active `upon` scheduler design text.
-- [ ] Metadata supplement matches the resumer model.
-- [ ] LLM guide matches the resumer model.
-- [ ] Grammar docs match the resumer model.
-- [ ] Sublime syntax matches the resumer model.
-- [ ] LSP docs match the resumer model.
-- [ ] Old scheduler supplement/proposal is clearly superseded or historical.
-- [ ] Resumption redesign proposal is moved to `docs/proposals/accepted/`.
-- [ ] No active metadata/API golden emits `upon`.
-- [ ] Documentation/source audit finds no stale active scheduler claims.
-- [ ] Stage 3 targeted tests pass.
-- [ ] Full macOS suite passes.
-- [ ] Full Windows/MSVC suite passes.
-- [ ] Full WSL/Linux suite passes.
-- [ ] Stage 3 is committed.
+- [x] ~~Unified spec is version-incremented and updated.~~
+- [x] ~~Current spec contains no active `upon` scheduler design text.~~
+- [x] ~~Metadata supplement matches the resumer model.~~
+- [x] ~~LLM guide matches the resumer model.~~
+- [x] ~~Grammar docs match the resumer model.~~
+- [x] ~~Sublime syntax matches the resumer model.~~
+- [x] ~~LSP docs match the resumer model.~~
+- [x] ~~Old scheduler supplement/proposal is clearly superseded or historical.~~
+- [x] ~~Resumption redesign proposal is moved to `docs/proposals/accepted/`.~~
+- [x] ~~No active metadata/API golden emits `upon`.~~
+- [x] ~~Documentation/source audit finds no stale active scheduler claims.~~
+- [x] ~~Stage 3 targeted tests pass.~~
+- [x] ~~Full macOS suite passes.~~
+- [x] ~~Full Windows/MSVC suite passes.~~
+- [x] ~~Full WSL/Linux suite passes.~~
+- [x] ~~Stage 3 is committed.~~

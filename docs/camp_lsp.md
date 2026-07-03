@@ -50,12 +50,12 @@ location.
 ## Async Notes
 
 The LSP view is source-level. Async declarations should be surfaced as the
-programmer wrote them, including `async`, `once`, `upon` scheduler parameters,
-and ordinary completion/catch syntax. Generated async frames, resume helpers,
-completion helper functions, scheduler-post thunks, postponed-call context
-types, and lambda capture-context implementation details are compiler internals
-and should not appear as user declarations in document symbols, hover, or
-definition results.
+programmer wrote them, including `async`, `once`, `@resumewith`, `@noawait`,
+ordinary resumer parameters, and ordinary completion/catch syntax. Generated
+async frames, resume helpers, completion helper functions, resumer invocation
+thunks, postponed-call context types, and lambda capture-context implementation
+details are compiler internals and should not appear as user declarations in
+document symbols, hover, or definition results.
 
 Future semantic features may highlight suspension points and async frame
 captures, but those should be annotations on the source construct rather than

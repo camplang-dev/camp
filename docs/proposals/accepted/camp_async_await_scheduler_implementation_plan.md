@@ -1,9 +1,15 @@
 # Camp Async/Await Scheduler Implementation Proposal
 
-Status: proposed  
+Status: superseded historical implementation plan  
+Superseded by: `docs/proposals/accepted/camp_async_resumption_redesign_proposal_v2.md`  
 Primary design source: `docs/camp_async_scheduler_design_v7.md`  
 Baseline language source: `docs/camp_unified_spec_v21.md`  
 Audience: implementation agents working in the Camp compiler
+
+This proposal records the previously implemented scheduler/`upon` async design.
+It is not the current async resumption model. Current Camp async resumption uses
+ordinary resumer objects selected from `@resumewith` or the receiver and routes
+suspending continuations through compatible `resumeAsync(...)` methods.
 
 ## Overview
 

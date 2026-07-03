@@ -7930,10 +7930,10 @@ Camp async uses a few ordinary features together:
 - `await`
 - `once`
 - `postpone`
-- `upon`
+- ordinary resumer objects selected from `this` or `@resumewith`
 - ordinary lifetime analysis
 
-The design goal is to provide convenient source syntax while lowering to explicit continuation-based functions and explicit async frames.
+The design goal is to provide convenient source syntax while lowering to explicit continuation-based functions and explicit async frames. The language does not recognize a scheduler type or scheduler posting protocol. A scheduler-like library object participates only by being selected as the async resumer and providing a compatible `resumeAsync(...)` method.
 
 ### 5.3.2 Where `async` may appear
 
@@ -7974,56 +7974,71 @@ At the ABI level, `async` rewrites the signature to `void` and adds a final comp
 
 An async function may not have `out` parameters.
 
-### 5.3.4 `upon` schedulers and async frames
+### 5.3.4 Resumers and async frames
 
-`upon` is a declaration-side parameter modifier. It is not a statement,
-expression, prefix operator, or argument-list keyword. A callable signature may
-declare at most one `upon` parameter.
+A concrete async definition that can suspend must select a resumer. The selected
+resumer controls how the generated state machine resumes after an awaited
+operation completes.
 
-In an async routine, the shorthand:
+Resumer selection is:
+
+1. the single ordinary parameter marked `@resumewith`, when present;
+2. otherwise the receiver, for an instance method whose receiver type provides a
+   compatible `resumeAsync(...)` method.
+
+A free or static async function has no receiver, so it must either mark one
+ordinary parameter with `@resumewith` or declare `@noawait`.
 
 ```camp
-async void f(upon scheduler)
+class Dispatcher
 {
+	void resumeAsync(escaped once void() continuation)
+	{
+		continuation();
+	}
+}
+
+async int loadAsync(string path, @resumewith Dispatcher* dispatcher)
+{
+	return await readFileAsync(path);
 }
 ```
 
-means:
+The `@resumewith` attribute is valid only on one ordinary runtime parameter of
+a concrete async definition with a Camp body. It is not a callable type modifier
+and does not change ABI shape, overload identity, callable-newtype
+compatibility, or metadata parameter kind. It simply marks which ordinary
+parameter the implementation uses for resumption.
+
+The selected resumer type must provide exactly one compatible `resumeAsync`
+method. The accepted shapes are:
 
 ```camp
-async void f(upon escaped Scheduler* scheduler = null)
-{
-}
+void resumeAsync(escaped once void() continuation);
+void resumeAsync(once void(escaped this) continuation);
+async void resumeAsync();
 ```
 
-`Scheduler` is resolved by ordinary visible name lookup. A concrete scheduler
-type may be written explicitly.
+The async `resumeAsync()` form is equivalent because it lowers to an async
+method whose final completion callback has the required escaped
+`once void()` continuation shape. It must not declare ordinary parameters,
+`out` parameters, `thrown` parameters, `within` parameters, generic capability
+parameters, or an explicit `this` parameter.
 
-A scheduler used by compiler-generated async code is recognized by pattern. It
-must provide compatible methods:
-
-```camp
-void* alloc(nuint size);
-void free(escaped void* ptr);
-void post(once void(escaped this) continuation);
-```
-
-The `post(...)` parameter may be written directly as
-`once void(escaped this)` or as a callable `newtype` with that underlying
-shape.
+If no compatible method exists, or if more than one compatible method is
+visible, the async definition is invalid unless it is marked `@noawait`.
 
 Async-frame allocation chooses storage in this order:
 
-1. selected non-null scheduler: `scheduler.alloc(size)`;
-2. selected non-null `within` allocator: `allocator.alloc(size)`;
-3. visible fallback `malloc(size)`.
+1. selected non-null `within` allocator: `allocator.alloc(size)`;
+2. visible fallback `malloc(size)`.
 
 The frame stores enough deallocation information to free itself through the same
 kind of service when the async operation completes.
 
 Ordinary source `new` and `delete` inside an async routine still use the normal
-allocator rules. The scheduler controls compiler-generated async frames and
-continuation posting only.
+allocator rules. The resumer controls continuation resumption only; it does not
+allocate or free compiler-generated frames.
 
 In async routines, bare `within allocator` means
 `within escaped Allocator* allocator = null`. The ordinary non-async shorthand
@@ -8033,7 +8048,31 @@ keeps its existing unscoped meaning.
 fixed storage where legal, explicit allocation, or another frame-stable storage
 strategy.
 
-### 5.3.5 Async state machines
+### 5.3.5 `@noawait`
+
+`@noawait` marks a concrete async definition whose body cannot suspend.
+
+```camp
+@noawait
+async int immediateAsync()
+{
+	return 1;
+}
+```
+
+Rules:
+
+- it is valid only on concrete async definitions with a Camp body;
+- it is invalid on extern declarations, abstract declarations, non-async
+  declarations, callable types, and callable newtypes;
+- the body may not contain `await`;
+- it does not change ABI shape.
+
+An async body with no `await` still requires a selected resumer unless it is
+marked `@noawait`. The absence of suspension is a declared body contract only
+when `@noawait` is present.
+
+### 5.3.6 Async state machines
 
 An async function produces a state machine. Lifted locals are stored in an async frame rather than on the ordinary stack.
 
@@ -8046,7 +8085,7 @@ Conceptually:
 
 If the function has no `thrown` parameter, the rewritten completion call simply omits the error argument.
 
-### 5.3.6 `await`
+### 5.3.7 `await`
 
 `await` is a prefix operator followed directly by one method-call expression or
 a member/property/indexer chain that ends in a call. No prefix operator may
@@ -8065,7 +8104,7 @@ To be awaitable, the last parameter of the called function must:
 
 The awaited final parameter does not need a special nominal type name. Camp’s async model is structural. What matters is the shape of the final callback parameter.
 
-### 5.3.7 Awaited result values
+### 5.3.8 Awaited result values
 
 The value produced by an awaited call is the single non-`thrown` parameter of
 the completion callback, when one exists.
@@ -8111,23 +8150,22 @@ and yields the single non-error slot to the binding site. Camp does not support
 `auto (x, y) = await ...` or other multi-result await deconstruction in the
 current language.
 
-### 5.3.8 Scheduler selection at `await`
+### 5.3.9 Resumption at `await`
 
-For each `await`, the selected scheduler for the caller continuation is:
+For each suspending `await`, the generated completion helper:
 
-1. the value supplied to the awaited call's `upon` parameter after call
-   matching, when the awaited target has one;
-2. otherwise the current async routine's `upon` parameter, when present;
-3. otherwise `null`.
+1. stores the awaited result or error into the async frame;
+2. constructs a resume continuation for the current async frame;
+3. invokes the selected resumer's compatible `resumeAsync(...)` method with
+   that continuation.
 
-If the selected scheduler is non-null, the generated completion helper posts the
-resume continuation through `scheduler.post(...)`, passing the async frame as
-the callable context. If the selected scheduler is `null`, the state machine
-resumes directly. Both awaited operations and scheduler `post(...)` methods may
-invoke callbacks inline, so generated code makes the frame stable before either
-call can happen.
+Both awaited operations and `resumeAsync(...)` methods may invoke callbacks
+inline, so generated code makes the frame stable before either call can happen.
 
-### 5.3.9 Calling async functions without `await`
+The old direct-resume fallback is not part of the current language model. If a
+concrete async body can suspend, it must have a selected resumer.
+
+### 5.3.10 Calling async functions without `await`
 
 An async function may still be called explicitly by supplying the final completion callback yourself:
 
@@ -8143,7 +8181,7 @@ calculator.addAsync(3, 4, (result, error) =>
 
 This is not a second async subsystem. It is the same function, used through its explicit continuation surface.
 
-### 5.3.10 `once`
+### 5.3.11 `once`
 
 A `once` callable means the callable is guaranteed to be called exactly once. It
 does not by itself define ownership or deletion of the callable context.
@@ -8154,7 +8192,7 @@ generated capture context, and `postpone` contexts. Ordinary `once` values
 received from outside the current construct do not gain deletion semantics merely
 because their type is `once`.
 
-### 5.3.11 `postpone`
+### 5.3.12 `postpone`
 
 Camp uses `postpone` for postponed invocation:
 
@@ -8179,10 +8217,12 @@ Instead it:
 
 Later invocation reuses the captured values.
 
-Only slots supplied by the postponed-call syntax are captured. Implicit `upon`
-forwarding, implicit `within` forwarding, and default arguments do not fill
-slots at postponement time. Omitted slots become parameters of the returned
-`once` delegate in canonical source parameter order.
+Only slots supplied by the postponed-call syntax are captured. A parameter
+marked `@resumewith` is an ordinary parameter slot for `postpone`: if supplied,
+it is captured like any other supplied argument; if omitted, it becomes a
+parameter of the returned `once` delegate in canonical source parameter order.
+Implicit `within` forwarding and default arguments do not fill slots at
+postponement time.
 
 If the postponed target is async and the final completion slot is left open, the
 returned `once` remains awaitable. If the final completion callback is supplied
@@ -8195,7 +8235,7 @@ method has been invoked, not after its later completion callback fires.
 
 The postponed-operation context is an ordinary container. If that context is escaped, anything captured into it must satisfy the ordinary container rule for escaped storage. If the postponed operation is used only in a narrower scoped context, scoped references may remain tied to that narrower scope.
 
-### 5.3.12 Lambda `context` cleanup
+### 5.3.13 Lambda `context` cleanup
 
 The hidden lambda context parameter is named `context`. Inside lambda bodies,
 `context` is a special cleanup name, not an ordinary variable: ordinary reads,
@@ -8207,7 +8247,7 @@ delegate lambdas, `once` lambdas, and non-capturing lambdas. Escaped `once`
 lambdas with generated context delete that context automatically after producing
 their body result or error; explicit `delete context` is not allowed there.
 
-### 5.3.13 Lifetimes across suspension
+### 5.3.14 Lifetimes across suspension
 
 The detailed lifetime rules were defined earlier. The async-specific surface rule is simple:
 
