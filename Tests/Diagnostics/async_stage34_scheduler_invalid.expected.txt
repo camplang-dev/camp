@@ -1,0 +1,6 @@
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(1,34): error: Unknown type 'Scheduler'.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(1,34): error: Async upon parameter must be a pointer to an accessible scheduler type.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(9,44): error: Scheduler type 'BadScheduler' must provide 'alloc(nuint)' returning 'void*'.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(9,44): error: Scheduler type 'BadScheduler' must provide 'free(escaped void*)'.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(9,44): error: Scheduler type 'BadScheduler' must provide 'post(once void(escaped this))'.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(17,60): error: Async functions may not retain an unscoped within allocator across suspension; use an escaped allocator or the bare async within allocator form.

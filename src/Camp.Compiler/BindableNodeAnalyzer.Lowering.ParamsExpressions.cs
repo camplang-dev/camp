@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -134,7 +135,11 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = containingType.Name + "*"
 			});
 		}
-		parameters.AddRange(GetCallableParameters(function.Parameters, includeExplicitThis));
+		parameters.AddRange(GetCallableParameters(function.IsAsync
+			? function.Parameters.Where(static parameter => parameter.Modifier != ParameterModifier.Thrown).ToList()
+			: function.Parameters, includeExplicitThis));
+		if (function.IsAsync)
+			parameters.AddRange(CreateAsyncCompletionSourceParameters(function));
 		return ExpandExplicitThisArrayParameters(parameters);
 	}
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -31,6 +32,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Definition definition in module.Definitions)
 			AnalyzeDefinition(definition, new AnalysisScope());
 
+		ValidateCallableNewtypeSchedulerPatterns(module);
 		ValidateTopLevelOverloadFamilies(module);
 		AnalyzeGlobalInitializers(module);
 		AnalyzeInlineConstantsAndEnumValues(module);
@@ -402,7 +404,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ParameterDefinition parameter in definition.Parameters)
 		{
-			AnalyzeParameterDefinition(parameter, scope);
+			bool asyncCallable = definition.UnderlyingType is CallableTypeReference { Kind: CallableKind.Async };
+			NormalizeBareAsyncParameter(parameter, asyncCallable);
+			AnalyzeParameterDefinition(parameter, scope, asyncContext: asyncCallable);
 			if (ContainsThisTypeReference(parameter.Type))
 				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
 		}
@@ -429,6 +433,18 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Parameter modifier 'upon' is valid only in async callable signatures.");
 			if (uponCount > 1)
 				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Callable signature may declare at most one 'upon' parameter.");
+		}
+	}
+
+	void ValidateCallableNewtypeSchedulerPatterns(Module module)
+	{
+		foreach (Definition definition in module.Definitions)
+		{
+			if (definition is not NewtypeDefinition { UnderlyingType: CallableTypeReference { Kind: CallableKind.Async } } newtype)
+				continue;
+			foreach (ParameterDefinition parameter in newtype.Parameters)
+				if (parameter.Modifier == ParameterModifier.Upon)
+					ValidateSchedulerParameter(parameter);
 		}
 	}
 
@@ -963,7 +979,10 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateGenericArgumentUse(definition.ReturnType);
 
 		for (int i = 0; i < definition.Parameters.Count; i++)
-			AnalyzeParameterDefinition(definition.Parameters[i], scope, allowThisName: IsExtensionThisParameter(definition, containingType, i));
+		{
+			NormalizeBareAsyncParameter(definition.Parameters[i], definition.IsAsync);
+			AnalyzeParameterDefinition(definition.Parameters[i], scope, allowThisName: IsExtensionThisParameter(definition, containingType, i), asyncContext: definition.IsAsync);
+		}
 		foreach (ParameterDefinition parameter in definition.Parameters)
 			if (ContainsThisTypeReference(parameter.Type))
 				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
@@ -1198,10 +1217,16 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Parameter modifier 'upon' is valid only in async callable signatures.");
 				if (uponCount > 1)
 					Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Callable signature may declare at most one 'upon' parameter.");
+				if (definition.IsAsync)
+					ValidateSchedulerParameter(parameter);
 			}
 
 			if (definition.IsAsync && parameter.Modifier == ParameterModifier.Out)
 				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Async functions may not declare out parameters; return one value or use the final completion callback shape explicitly.");
+			if (definition.IsAsync
+				&& parameter.Modifier == ParameterModifier.Within
+				&& parameter.LifetimeBinding?.StartsWith("unscoped", StringComparison.Ordinal) == true)
+				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Async functions may not retain an unscoped within allocator across suspension; use an escaped allocator or the bare async within allocator form.");
 		}
 	}
 
@@ -1292,10 +1317,47 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeMethodBody(definition, scope, containingType);
 	}
 
-	void AnalyzeParameterDefinition(ParameterDefinition definition, AnalysisScope scope, bool allowThisName = false)
+	void NormalizeBareAsyncParameter(ParameterDefinition definition, bool asyncContext)
+	{
+		if (!asyncContext)
+			return;
+
+		if (definition.Modifier != ParameterModifier.Upon
+			|| !string.IsNullOrWhiteSpace(definition.Name)
+			|| definition.Type is not NamedTypeReference { Name: "scheduler" })
+			return;
+
+		NamedTypeReference schedulerType = new()
+		{
+			SourceSyntax = definition.Type.SourceSyntax ?? definition.SourceSyntax,
+			Name = "Scheduler"
+		};
+		definition.Name = "scheduler";
+		definition.Symbol = "scheduler";
+		definition.Type = new EscapedTypeReference
+		{
+			SourceSyntax = definition.SourceSyntax,
+			Type = new PointerTypeReference
+			{
+				SourceSyntax = definition.SourceSyntax,
+				ElementType = schedulerType
+			}
+		};
+		definition.DefaultValue ??= new LiteralExpression
+		{
+			SourceSyntax = definition.SourceSyntax,
+			Kind = LiteralKind.Null,
+			Text = "null"
+		};
+	}
+
+	void AnalyzeParameterDefinition(ParameterDefinition definition, AnalysisScope scope, bool allowThisName = false, bool asyncContext = false)
 	{
 		AnalyzeAttributes(definition.Attributes);
 		ApplySymbolAttribute(definition, allowed: false, "parameter");
+
+		if (definition is WithinParameterDefinition && definition.Type is null)
+			BindImplicitWithinParameterType(definition, scope, escaped: asyncContext);
 
 		if (definition is SizeOfParameterDefinition)
 		{
@@ -1319,9 +1381,6 @@ public sealed partial class BindableNodeAnalyzer
 			ValidateNoDirectExternClassType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
 			ValidateNoExternClassArrayElement(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		}
-
-		if (definition is WithinParameterDefinition && definition.Type is null)
-			BindImplicitWithinParameterType(definition, scope);
 
 		if (definition is VTableOfParameterDefinition vtableOf)
 		{
@@ -1353,7 +1412,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (definition.LifetimeBinding is null && definition is not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition)
 		{
 			if (definition is WithinParameterDefinition)
-				BindParameterLifetime(definition, "unscoped", [], "default within");
+				BindParameterLifetime(definition, asyncContext ? "escaped" : "unscoped", [], "default within");
 			else
 				BindDefaultParameterLifetime(definition, "default parameter");
 		}
@@ -1362,7 +1421,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeConstantExpression(definition.DefaultValue, scope, "Parameter default value", definition.ResolvedType);
 	}
 
-	void BindImplicitWithinParameterType(ParameterDefinition definition, AnalysisScope scope)
+	void BindImplicitWithinParameterType(ParameterDefinition definition, AnalysisScope scope, bool escaped)
 	{
 		NamedTypeReference allocatorType = new()
 		{
@@ -1377,12 +1436,88 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
-		definition.Type = new PointerTypeReference
+		PointerTypeReference pointer = new()
 		{
 			SourceSyntax = definition.SourceSyntax,
 			ElementType = allocatorType,
 			ResolvedType = $"{allocatorType.ResolvedType}*"
 		};
+		definition.Type = escaped
+			? new EscapedTypeReference
+			{
+				SourceSyntax = definition.SourceSyntax,
+				Type = pointer,
+				ResolvedType = "escaped " + pointer.ResolvedType
+			}
+			: pointer;
 		definition.ResolvedType = definition.Type.ResolvedType;
+	}
+
+	void ValidateSchedulerParameter(ParameterDefinition parameter)
+	{
+		if (parameter.ResolvedType is null || parameter.ResolvedType == ErrorType)
+			return;
+		if (TryGetPointerElementType(parameter.ResolvedType) is not string schedulerTypeName
+			|| !typeDefinitions.TryGetValue(BaseTypeName(schedulerTypeName), out TypeDefinition? schedulerType))
+		{
+			Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Async upon parameter must be a pointer to an accessible scheduler type.");
+			return;
+		}
+
+		if (!HasSchedulerAlloc(schedulerType))
+			Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), $"Scheduler type '{schedulerType.Name}' must provide 'alloc(nuint)' returning 'void*'.");
+		if (!HasSchedulerFree(schedulerType))
+			Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), $"Scheduler type '{schedulerType.Name}' must provide 'free(escaped void*)'.");
+		if (!HasSchedulerPost(schedulerType))
+			Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), $"Scheduler type '{schedulerType.Name}' must provide 'post(once void(escaped this))'.");
+	}
+
+	bool HasSchedulerAlloc(TypeDefinition schedulerType)
+	{
+		return LookupTypeFunctions(schedulerType, "alloc", schedulerType.SourceSyntax).Any(function =>
+			(function.ResolvedType ?? function.ReturnType?.ResolvedType) == "void*"
+			&& function.Parameters.Count == 1
+			&& StripLifetimeQualifiers(function.Parameters[0].ResolvedType ?? "") == "nuint");
+	}
+
+	bool HasSchedulerFree(TypeDefinition schedulerType)
+	{
+		return LookupTypeFunctions(schedulerType, "free", schedulerType.SourceSyntax).Any(function =>
+			(function.ResolvedType ?? function.ReturnType?.ResolvedType) == "void"
+			&& function.Parameters.Count == 1
+			&& StripLifetimeQualifiers(function.Parameters[0].ResolvedType ?? "") == "void*"
+			&& (function.Parameters[0].LifetimeBinding?.StartsWith("escaped", StringComparison.Ordinal) == true
+				|| (function.Parameters[0].ResolvedType ?? "").StartsWith("escaped ", StringComparison.Ordinal)));
+	}
+
+	bool HasSchedulerPost(TypeDefinition schedulerType)
+	{
+		return LookupTypeFunctions(schedulerType, "post", schedulerType.SourceSyntax).Any(function =>
+			(function.ResolvedType ?? function.ReturnType?.ResolvedType) == "void"
+			&& function.Parameters.Count == 1
+			&& SchedulerPostParameterMatches(function.Parameters[0]));
+	}
+
+	bool SchedulerPostParameterMatches(ParameterDefinition parameter)
+	{
+		if (parameter.Type is CallableTypeReference { Kind: CallableKind.Once } callableType
+			&& (callableType.ReturnType?.ResolvedType ?? FormatTypeReference(callableType.ReturnType)) == "void"
+			&& callableType.Parameters.Count == 1
+			&& callableType.Parameters[0] is ThisParameterDefinition sourceThis
+			&& GetThisContract(sourceThis).IsEscaped)
+			return true;
+		string type = parameter.ResolvedType ?? "";
+		if (TryGetCallableShape(type, out CallableShape shape))
+			return shape.Kind == "once"
+				&& shape.ReturnType == "void"
+				&& shape.Parameters.Count == 0
+				&& shape.This.IsEscaped;
+		if (!typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition) || definition is not NewtypeDefinition newtype)
+			return false;
+		return newtype.UnderlyingType is CallableTypeReference { Kind: CallableKind.Once } callable
+			&& (callable.ReturnType?.ResolvedType ?? FormatTypeReference(callable.ReturnType)) == "void"
+			&& newtype.Parameters.Count == 1
+			&& newtype.Parameters[0] is ThisParameterDefinition thisParameter
+			&& GetThisContract(thisParameter).IsEscaped;
 	}
 }

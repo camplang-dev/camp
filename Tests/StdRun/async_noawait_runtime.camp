@@ -1,0 +1,53 @@
+class Scheduler
+{
+	void* alloc(nuint size) => null;
+	void free(escaped void* ptr) {}
+	extern void post(once void(escaped this) continuation);
+}
+
+Scheduler scheduler;
+int observed;
+int allocatorObserved;
+int propertyObserved;
+
+class Box
+{
+	async int getValue()
+	{
+		return 5;
+	}
+}
+
+async int answerAsync(upon scheduler)
+{
+	return 42;
+}
+
+async int answerWithAllocatorAsync(upon scheduler, within allocator)
+{
+	return 7;
+}
+
+void complete(void* context, int value)
+{
+	observed = value;
+}
+
+void completeAllocator(void* context, int value)
+{
+	allocatorObserved = value;
+}
+
+void completeProperty(void* context, int value)
+{
+	propertyObserved = value;
+}
+
+export int main()
+{
+	answerAsync(&scheduler, complete, null);
+	answerWithAllocatorAsync(&scheduler, within null, completeAllocator, null);
+	auto box = new Box();
+	box.Value(completeProperty, null);
+	return observed == 42 && allocatorObserved == 7 && propertyObserved == 5 ? 0 : 1;
+}

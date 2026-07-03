@@ -1,0 +1,97 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "AsyncStage34",
+    "namespace": "AsyncStage34"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "class:AsyncStage34::Allocator",
+      "kind": "class",
+      "name": "Allocator",
+      "visibility": "export",
+      "extern": true
+    },
+    {
+      "id": "class:AsyncStage34::Scheduler",
+      "kind": "class",
+      "name": "Scheduler",
+      "visibility": "export",
+      "extern": true,
+      "functions": [
+        {
+          "id": "class:AsyncStage34::Scheduler/function:alloc",
+          "name": "alloc",
+          "visibility": "export",
+          "extern": true,
+          "returnType": "void*",
+          "parameters": [
+            {
+              "id": "class:AsyncStage34::Scheduler/function:alloc/parameter:size",
+              "name": "size",
+              "type": "nuint"
+            }
+          ]
+        },
+        {
+          "id": "class:AsyncStage34::Scheduler/function:free",
+          "name": "free",
+          "visibility": "export",
+          "extern": true,
+          "returnType": "void",
+          "parameters": [
+            {
+              "id": "class:AsyncStage34::Scheduler/function:free/parameter:ptr",
+              "name": "ptr",
+              "type": "escaped void*"
+            }
+          ]
+        },
+        {
+          "id": "class:AsyncStage34::Scheduler/function:post",
+          "name": "post",
+          "visibility": "export",
+          "extern": true,
+          "returnType": "void",
+          "parameters": [
+            {
+              "id": "class:AsyncStage34::Scheduler/function:post/parameter:continuation",
+              "name": "continuation",
+              "type": "once void(escaped this)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "function:AsyncStage34::loadAsync",
+      "kind": "function",
+      "name": "loadAsync",
+      "visibility": "export",
+      "extern": true,
+      "async": true,
+      "returnType": "int",
+      "parameters": [
+        {
+          "id": "function:AsyncStage34::loadAsync/parameter:scheduler",
+          "name": "scheduler",
+          "modifier": "upon",
+          "type": "Scheduler* escaped",
+          "defaultValue": "null"
+        },
+        {
+          "id": "function:AsyncStage34::loadAsync/parameter:allocator",
+          "name": "allocator",
+          "modifier": "within",
+          "type": "Allocator* escaped"
+        }
+      ]
+    }
+  ]
+}

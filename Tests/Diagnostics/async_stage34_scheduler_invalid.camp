@@ -1,0 +1,20 @@
+async void missingScheduler(upon scheduler)
+{
+}
+
+class BadScheduler
+{
+}
+
+async void badScheduler(upon BadScheduler* scheduler)
+{
+}
+
+class UnscopedAllocator
+{
+}
+
+async void badAllocator(within unscoped UnscopedAllocator* allocator)
+{
+}
+

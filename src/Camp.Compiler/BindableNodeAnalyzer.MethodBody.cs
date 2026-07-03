@@ -1674,7 +1674,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Report(GetRange(call.Target?.SourceSyntax ?? call.SourceSyntax), "Raw function pointer 'fn*' is not callable; cast it to a concrete fn type first.");
 		}
-		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(call.Arguments, function?.Parameters ?? [], scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function, call.Target);
+		List<ParameterDefinition> analysisParameters = function is null ? [] : GetAsyncAwareCallParameters(function, call, IncludeExplicitThisArgument(call.Target, function));
+		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(call.Arguments, analysisParameters, scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function, call.Target);
 		if (function is not null)
 			AddReceiverConstOfAnchorFact(call.Target, function, constOfAnchors);
 		if (function is not null)
@@ -1694,6 +1695,48 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
 		return returnType;
+	}
+
+	List<ParameterDefinition> GetAsyncAwareCallParameters(FunctionDefinition function, CallExpression call, bool includeExplicitThis)
+	{
+		List<ParameterDefinition> parameters = [.. function.Parameters];
+		int visibleCount = function.IsAsync
+			? parameters.Count(static parameter => parameter.Modifier != ParameterModifier.Thrown)
+			: parameters.Count;
+		if (includeExplicitThis && GetExplicitThisParameter(function) is null && IsInstanceFunction(function))
+			visibleCount++;
+		if (function.IsAsync && call.Arguments.Count > visibleCount)
+			parameters.AddRange(CreateAsyncCompletionSourceParameters(function));
+		return parameters;
+	}
+
+	static List<ParameterDefinition> CreateAsyncCompletionSourceParameters(FunctionDefinition function)
+	{
+		List<string> completionParameters = [];
+		string returnType = function.ResolvedType ?? "void";
+		if (returnType != "void")
+			completionParameters.Add(returnType);
+		if (function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown)
+			completionParameters.Add(thrown.ResolvedType ?? thrown.Type?.ResolvedType ?? ErrorType);
+		completionParameters.Insert(0, "void*");
+		string callableType = CallableShapeService.BuildCallableType("fn", "void", completionParameters);
+		return
+		[
+			new ParameterDefinition
+			{
+				Name = "complete",
+				Symbol = "complete",
+				ResolvedType = callableType,
+				Type = new NamedTypeReference { Name = callableType, ResolvedType = callableType }
+			},
+			new ParameterDefinition
+			{
+				Name = "complete_context",
+				Symbol = "complete_context",
+				ResolvedType = "void*",
+				Type = new PointerTypeReference { ElementType = new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" }, ResolvedType = "void*" }
+			}
+		];
 	}
 
 	void ValidateGenericCallSubstitutionConstraints(FunctionDefinition function, Dictionary<string, string> substitutions, BodyScope scope, SyntaxNode? syntax)
@@ -2311,7 +2354,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else if (IsNullArgumentExpression(argument))
 		{
-			parameterIndex = FindNextUnsuppliedParameter(callableParameters, suppliedParameters, IsWithinParameter);
+			parameterIndex = FindNextUnsuppliedParameter(callableParameters, suppliedParameters, parameter => IsWithinParameter(parameter) || IsUponParameter(parameter));
 			if (parameterIndex >= 0)
 			{
 				suppliedParameters[parameterIndex] = true;
@@ -2399,7 +2442,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (suppliedParameters[i]
 				|| parameter.DefaultValue is not null
 				|| IsImplicitOnlyCallParameter(parameter)
-				|| parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
+				|| parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within or ParameterModifier.Upon
 				|| parameter is WithinParameterDefinition)
 				continue;
 			return true;
@@ -2415,7 +2458,7 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsGeneratedHiddenForwardingParameter(ParameterDefinition parameter)
 	{
 		return IsImplicitOnlyCallParameter(parameter)
-			|| parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
+			|| parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within or ParameterModifier.Upon
 			|| parameter is WithinParameterDefinition;
 	}
 

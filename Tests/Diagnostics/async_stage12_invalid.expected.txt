@@ -1,4 +1,4 @@
-tests/Diagnostics/async_stage12_invalid.camp(11,51): error: Parameter modifier 'upon' is valid only in async callable signatures.
-tests/Diagnostics/async_stage12_invalid.camp(5,34): error: Async functions may not declare out parameters; return one value or use the final completion callback shape explicitly.
-tests/Diagnostics/async_stage12_invalid.camp(7,37): error: Parameter modifier 'upon' is valid only in async callable signatures.
-tests/Diagnostics/async_stage12_invalid.camp(9,71): error: Callable signature may declare at most one 'upon' parameter.
+tests/Diagnostics/async_stage12_invalid.camp(14,51): error: Parameter modifier 'upon' is valid only in async callable signatures.
+tests/Diagnostics/async_stage12_invalid.camp(8,34): error: Async functions may not declare out parameters; return one value or use the final completion callback shape explicitly.
+tests/Diagnostics/async_stage12_invalid.camp(10,37): error: Parameter modifier 'upon' is valid only in async callable signatures.
+tests/Diagnostics/async_stage12_invalid.camp(12,71): error: Callable signature may declare at most one 'upon' parameter.

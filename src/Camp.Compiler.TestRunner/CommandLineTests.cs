@@ -66,6 +66,9 @@ public sealed class CommandLineTests
 		string source = CreateTempCase("async_header.camp", """
 			export extern class Scheduler
 			{
+				export extern void* alloc(nuint size);
+				export extern void free(escaped void* ptr);
+				export extern void post(once void(escaped this) continuation);
 			}
 
 			export extern async int loadAsync(upon Scheduler* scheduler, thrown int error);

@@ -269,6 +269,11 @@ public sealed partial class BindableNodeAnalyzer
 		return parameter is WithinParameterDefinition || parameter.Modifier == ParameterModifier.Within;
 	}
 
+	static bool IsUponParameter(ParameterDefinition parameter)
+	{
+		return parameter.Modifier == ParameterModifier.Upon;
+	}
+
 	static string GetReceiverContract(ParameterDefinition parameter)
 	{
 		if (parameter.SourceSyntax is not ThisParameterSyntax { Declarators: not null } thisParameter)

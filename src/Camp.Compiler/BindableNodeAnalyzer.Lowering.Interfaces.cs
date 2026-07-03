@@ -235,6 +235,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !HasWithinParameter(function))
 			return;
+		if (function.IsAsync)
+			return;
 
 		if (HasExplicitWithinArgument(call.Arguments))
 			return;
@@ -286,6 +288,8 @@ public sealed partial class BindableNodeAnalyzer
 	void NormalizeWithinArgumentOrder(CallExpression call)
 	{
 		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !HasWithinParameter(function))
+			return;
+		if (function.IsAsync)
 			return;
 
 		ParameterDefinition? within = GetWithinParameter(function);

@@ -14,7 +14,48 @@
       "id": "class:Scheduler",
       "kind": "class",
       "name": "Scheduler",
-      "visibility": "export"
+      "visibility": "export",
+      "functions": [
+        {
+          "id": "class:Scheduler/function:alloc",
+          "name": "alloc",
+          "visibility": "export",
+          "returnType": "void*",
+          "parameters": [
+            {
+              "id": "class:Scheduler/function:alloc/parameter:size",
+              "name": "size",
+              "type": "nuint"
+            }
+          ]
+        },
+        {
+          "id": "class:Scheduler/function:free",
+          "name": "free",
+          "visibility": "export",
+          "returnType": "void",
+          "parameters": [
+            {
+              "id": "class:Scheduler/function:free/parameter:ptr",
+              "name": "ptr",
+              "type": "escaped void*"
+            }
+          ]
+        },
+        {
+          "id": "class:Scheduler/function:post",
+          "name": "post",
+          "visibility": "export",
+          "returnType": "void",
+          "parameters": [
+            {
+              "id": "class:Scheduler/function:post/parameter:continuation",
+              "name": "continuation",
+              "type": "once void(escaped this)"
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "newtype:Loader",

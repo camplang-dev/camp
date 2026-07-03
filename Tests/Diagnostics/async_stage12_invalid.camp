@@ -1,5 +1,8 @@
 class Scheduler
 {
+	void* alloc(nuint size) => null;
+	void free(escaped void* ptr) {}
+	extern void post(once void(escaped this) continuation);
 }
 
 extern async void badOut(out int result);

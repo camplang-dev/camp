@@ -1,0 +1,15 @@
+export as AsyncStage34;
+
+export extern class Allocator
+{
+}
+
+export extern class Scheduler
+{
+	export extern void* alloc(nuint size);
+
+	export extern void free(escaped void* ptr);
+
+	export extern void post(once void(escaped this) continuation);
+}
+export extern async int loadAsync(upon Scheduler* escaped scheduler = null, within Allocator* escaped allocator);

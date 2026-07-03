@@ -1576,6 +1576,8 @@ public static class CCodeEmitter
 				return FormatResolvedType(parameterType[7..].TrimStart() + "*", declarator).Declaration;
 			if (parameterType.StartsWith("within ", StringComparison.Ordinal))
 				return FormatResolvedType(parameterType[7..].TrimStart(), declarator).Declaration;
+			if (parameterType.StartsWith("upon ", StringComparison.Ordinal))
+				return FormatResolvedType(parameterType[5..].TrimStart(), declarator).Declaration;
 			return FormatResolvedType(parameterType, declarator).Declaration;
 		}
 
@@ -1900,27 +1902,49 @@ public static class CCodeEmitter
 
 		List<string> FormatAsyncCompletionParameterParts(FunctionDefinition function)
 		{
+			return FormatAsyncCompletionParameterDeclarations(function.ReturnType, function.ResolvedType, function.Parameters);
+		}
+
+		List<string> FormatAsyncCompletionParameterTypes(TypeReference? returnType, string? resolvedReturnType, List<ParameterDefinition> parameters)
+		{
+			return [BuildAsyncCompletionCallableType(returnType, resolvedReturnType, parameters), "void*"];
+		}
+
+		List<string> FormatAsyncCompletionParameterDeclarations(TypeReference? returnType, string? resolvedReturnType, List<ParameterDefinition> parameters)
+		{
+			List<(string Type, string Name)> completionParameters = GetAsyncCompletionSlots(returnType, resolvedReturnType, parameters);
+			return
+			[
+				FormatInlineResolvedFunctionPointer("void", completionParameters, "complete"),
+				FormatResolvedType("void*", "complete_context").Declaration
+			];
+		}
+
+		string BuildAsyncCompletionCallableType(TypeReference? returnType, string? resolvedReturnType, List<ParameterDefinition> parameters)
+		{
+			return "fn void(" + string.Join(", ", GetAsyncCompletionSlots(returnType, resolvedReturnType, parameters).Select(static slot => slot.Type)) + ")";
+		}
+
+		List<(string Type, string Name)> GetAsyncCompletionSlots(TypeReference? returnType, string? resolvedReturnType, List<ParameterDefinition> parameters)
+		{
 			List<(string Type, string Name)> completionParameters = [("void*", "context")];
-			if ((function.ResolvedType ?? "void") != "void")
+			string resultType = resolvedReturnType ?? ResolvedTypeForC(returnType, returnType?.ResolvedType);
+			if (resultType != "void")
 			{
-				if (TryGetFunctionReturnStorageComponentsForC(function, out List<(string Name, string Type)> components) && components.Count > 0)
+				if (TryGetTypeReferenceStorageComponentsForC(returnType, out List<(string Name, string Type)> components) && components.Count > 0)
 				{
 					for (int i = 0; i < components.Count; i++)
 						completionParameters.Add((components[i].Type, i == 0 ? "result" : "result_" + components[i].Name));
 				}
 				else
 				{
-					completionParameters.Add((function.ResolvedType ?? "#ERROR", "result"));
+					completionParameters.Add((resultType, "result"));
 				}
 			}
-			if (function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown)
+			if (parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown)
 				completionParameters.Add((thrown.ResolvedType ?? thrown.Type?.ResolvedType ?? "#ERROR", CName(thrown)));
 
-			return
-			[
-				FormatInlineResolvedFunctionPointer("void", completionParameters, "complete"),
-				FormatResolvedType("void*", "complete_context").Declaration
-			];
+			return completionParameters;
 		}
 
 		string? GetRawFunctionPointerTargetSpec(FunctionDefinition function)
@@ -1978,12 +2002,15 @@ public static class CCodeEmitter
 					components.Add(("context", "void*"));
 					return true;
 				}
-				case CallableTypeReference callable when callable.Kind is CallableKind.Delegate or CallableKind.Once:
+				case CallableTypeReference callable when callable.Kind is CallableKind.Delegate or CallableKind.Once or CallableKind.Async:
 				{
 					string returnType = callable.ReturnType?.ResolvedType ?? ResolvedTypeForC(callable.ReturnType, callable.ReturnType?.ResolvedType);
 					string contextType = GetCallableContextType(callable.Parameters);
-					List<string> parameterTypes = [contextType, .. GetExpandedCallableParameterTypesForC(callable.Parameters)];
-					ExpandResolvedCallableReturnForC(ref returnType, parameterTypes);
+					List<string> parameterTypes = [contextType, .. GetExpandedCallableParameterTypesForC(callable.Parameters.Where(static parameter => parameter.Modifier != ParameterModifier.Thrown).ToList())];
+					if (callable.Kind == CallableKind.Async)
+						parameterTypes.AddRange(FormatAsyncCompletionParameterTypes(callable.ReturnType, returnType, callable.Parameters));
+					else
+						ExpandResolvedCallableReturnForC(ref returnType, parameterTypes);
 					string specs = "";
 					if (!string.IsNullOrWhiteSpace(callable.TargetSpec))
 						specs += " " + callable.TargetSpec;
@@ -2223,11 +2250,23 @@ public static class CCodeEmitter
 				WriteIndent(writer, 1);
 				writer.WriteLine("(void)this;");
 			}
+			if (function.IsAsync && function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition asyncThrown)
+			{
+				WriteIndent(writer, 1);
+				writer.WriteLine(FormatTypeOrResolved(asyncThrown.Type, asyncThrown.ResolvedType, CName(asyncThrown)).Declaration + " = 0;");
+			}
 			foreach (Statement statement in function.Body!.Statements)
 				WriteStatement(writer, statement, 1);
+			if (function.IsAsync && (function.ResolvedType ?? "void") == "void" && !EndsWithExplicitReturn(function.Body))
+				WriteAsyncReturnStatement(writer, new ReturnStatement { ResolvedType = "void" }, 1);
 			writer.WriteLine("}");
 			currentFunction = previousFunction;
 			currentFunctionHasLabels = previousFunctionHasLabels;
+		}
+
+		static bool EndsWithExplicitReturn(BlockStatement? body)
+		{
+			return body?.Statements.LastOrDefault() is ReturnStatement;
 		}
 
 		static bool FunctionContainsLabels(FunctionDefinition function)
@@ -2294,6 +2333,11 @@ public static class CCodeEmitter
 					WriteDeclarationStatement(writer, declaration, indent);
 					break;
 				case ReturnStatement ret:
+					if (currentFunction?.IsAsync == true)
+					{
+						WriteAsyncReturnStatement(writer, ret, indent);
+						break;
+					}
 					WriteIndent(writer, indent);
 					writer.Write("return");
 					if (ret.Expression is not null)
@@ -2357,6 +2401,28 @@ public static class CCodeEmitter
 					writer.WriteLine("/* unsupported " + statement.GetType().Name + " */");
 					break;
 			}
+		}
+
+		void WriteAsyncReturnStatement(TextWriter writer, ReturnStatement ret, int indent)
+		{
+			FunctionDefinition function = currentFunction!;
+			List<string> arguments = ["complete_context"];
+			string resultType = function.ResolvedType ?? "void";
+			if (resultType != "void")
+				arguments.Add(ret.Expression is null ? FormatDefaultValueForResolvedType(resultType) : FormatExpression(ret.Expression));
+			if (function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown)
+				arguments.Add(CName(thrown));
+			WriteIndent(writer, indent);
+			writer.WriteLine("complete(" + string.Join(", ", arguments) + ");");
+			WriteIndent(writer, indent);
+			writer.WriteLine("return;");
+		}
+
+		string FormatDefaultValueForResolvedType(string resolvedType)
+		{
+			if (!IsAggregateValueType(resolvedType))
+				return "0";
+			return "(" + FormatResolvedType(resolvedType, "").Declaration.Trim() + "){0}";
 		}
 
 		void WriteDeclarationStatement(TextWriter writer, DeclarationStatement declaration, int indent)
@@ -2721,7 +2787,7 @@ public static class CCodeEmitter
 					|| newtypeDefinition.Name != baseName && CName(newtypeDefinition) != baseName)
 					continue;
 				if (newtypeDefinition.UnderlyingType is CallableTypeReference callable
-					&& callable.Kind is CallableKind.Delegate or CallableKind.Once)
+					&& callable.Kind is CallableKind.Delegate or CallableKind.Once or CallableKind.Async)
 				{
 					string contextType = GetCallableContextType(newtypeDefinition.Parameters);
 					components.Add(("call", CName(newtypeDefinition)));
@@ -2746,12 +2812,15 @@ public static class CCodeEmitter
 		{
 			primaryFunctionType = "";
 			if (newtypeDefinition.UnderlyingType is CallableTypeReference callable
-				&& callable.Kind is CallableKind.Delegate or CallableKind.Once)
+				&& callable.Kind is CallableKind.Delegate or CallableKind.Once or CallableKind.Async)
 			{
-				string returnType = callable.ReturnType?.ResolvedType ?? ResolvedTypeForC(callable.ReturnType, callable.ReturnType?.ResolvedType);
+				string returnType = callable.Kind == CallableKind.Async ? "void" : callable.ReturnType?.ResolvedType ?? ResolvedTypeForC(callable.ReturnType, callable.ReturnType?.ResolvedType);
 				string contextType = GetCallableContextType(newtypeDefinition.Parameters);
-				List<string> parameterTypes = [contextType, .. GetExpandedCallableParameterTypesForC(newtypeDefinition.Parameters)];
-				ExpandResolvedCallableReturnForC(ref returnType, parameterTypes);
+				List<string> parameterTypes = [contextType, .. GetExpandedCallableParameterTypesForC(newtypeDefinition.Parameters.Where(static parameter => parameter.Modifier != ParameterModifier.Thrown).ToList())];
+				if (callable.Kind == CallableKind.Async)
+					parameterTypes.AddRange(FormatAsyncCompletionParameterTypes(callable.ReturnType, callable.ReturnType?.ResolvedType, newtypeDefinition.Parameters));
+				else
+					ExpandResolvedCallableReturnForC(ref returnType, parameterTypes);
 				string specs = "";
 				if (!string.IsNullOrWhiteSpace(callable.TargetSpec))
 					specs += " " + callable.TargetSpec;
@@ -2838,6 +2907,12 @@ public static class CCodeEmitter
 		{
 			ExpandResolvedCallableReturnForC(ref returnType, parameters);
 			return FormatResolvedType(returnType, FormatFunctionPointerDeclarator(declarator, targetSpec, callSpec)).Declaration + "(" + FormatResolvedNamedParameterList(parameters) + ")";
+		}
+
+		string FormatInlineResolvedFunctionPointerFromDeclarations(string returnType, List<string> parameterDeclarations, string declarator, string? targetSpec = null, string? callSpec = null)
+		{
+			string parameterList = parameterDeclarations.Count == 0 ? "void" : string.Join(", ", parameterDeclarations);
+			return FormatResolvedType(returnType, FormatFunctionPointerDeclarator(declarator, targetSpec, callSpec)).Declaration + "(" + parameterList + ")";
 		}
 
 		bool ExpandResolvedCallableReturnForC(ref string returnType, List<string> parameterTypes)
@@ -3109,6 +3184,8 @@ public static class CCodeEmitter
 				ParameterDefinition? parameter = i < parameters.Count ? parameters[i] : null;
 				arguments.Add(FormatArgumentValue(call.Arguments[i], parameter, genericSubstitutions));
 			}
+			if (function?.IsAsync == true)
+				RepairAsyncCallArgumentSlots(function, arguments);
 			string text = target + "(" + string.Join(", ", arguments) + ")";
 			if (function is not null && TryGetConcreteGenericType(function.ResolvedType, genericSubstitutions, out string? concreteReturnType))
 			{
@@ -3118,6 +3195,35 @@ public static class CCodeEmitter
 			if (TryGetCallResultCastType(call, function, genericSubstitutions, out string? castType))
 				return "(" + FormatResolvedType(castType!, "").Declaration.Trim() + ")(" + text + ")";
 			return text;
+		}
+
+		void RepairAsyncCallArgumentSlots(FunctionDefinition function, List<string> arguments)
+		{
+			List<ParameterDefinition> abiParameters = GetCallableParametersForCall(function);
+			int expected = FormatFunctionParameterParts(function, skipThrown: true).Count + 2;
+			int withinIndex = -1;
+			for (int i = 0; i < abiParameters.Count; i++)
+			{
+				if (abiParameters[i].Modifier == ParameterModifier.Within || abiParameters[i] is WithinParameterDefinition)
+				{
+					withinIndex = i;
+					break;
+				}
+			}
+			if (withinIndex < 0 || withinIndex >= arguments.Count)
+				return;
+			if (arguments.Count == expected - 1)
+			{
+				arguments.Insert(withinIndex, "NULL");
+				return;
+			}
+			if (arguments.Count == expected
+				&& arguments[withinIndex] != "NULL"
+				&& arguments[^1] == "NULL")
+			{
+				arguments.Insert(withinIndex, "NULL");
+				arguments.RemoveAt(arguments.Count - 1);
+			}
 		}
 
 		bool TryGetCallResultCastType(CallExpression call, FunctionDefinition? function, Dictionary<string, string> genericSubstitutions, out string? castType)
@@ -3924,7 +4030,9 @@ public static class CCodeEmitter
 					ResolvedType = resolvedThisType
 				});
 			}
-			foreach (ParameterDefinition parameter in GetAbiOrderedParameters(function.Parameters))
+			foreach (ParameterDefinition parameter in GetAbiOrderedParameters(function.IsAsync
+				? function.Parameters.Where(static parameter => parameter.Modifier != ParameterModifier.Thrown).ToList()
+				: function.Parameters))
 			{
 				if (parameter is WithinParameterDefinition && parameter.Type is null)
 					continue;
@@ -3947,7 +4055,38 @@ public static class CCodeEmitter
 				}
 				parameters.Add(parameter);
 			}
+			if (function.IsAsync)
+				parameters.AddRange(CreateAsyncCompletionSourceParameters(function));
 			return parameters;
+		}
+
+		static List<ParameterDefinition> CreateAsyncCompletionSourceParameters(FunctionDefinition function)
+		{
+			List<string> completionParameters = [];
+			string returnType = function.ResolvedType ?? "void";
+			if (returnType != "void")
+				completionParameters.Add(returnType);
+			if (function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown)
+				completionParameters.Add(thrown.ResolvedType ?? thrown.Type?.ResolvedType ?? "#ERROR");
+			completionParameters.Insert(0, "void*");
+			string callableType = CallableShapeService.BuildCallableType("fn", "void", completionParameters);
+			return
+			[
+				new ParameterDefinition
+				{
+					Name = "complete",
+					Symbol = "complete",
+					ResolvedType = callableType,
+					Type = new NamedTypeReference { Name = callableType, ResolvedType = callableType }
+				},
+				new ParameterDefinition
+				{
+					Name = "complete_context",
+					Symbol = "complete_context",
+					ResolvedType = "void*",
+					Type = new PointerTypeReference { ElementType = new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" }, ResolvedType = "void*" }
+				}
+			];
 		}
 
 		static IEnumerable<ParameterDefinition> GetAbiOrderedParameters(IEnumerable<ParameterDefinition> parameters)
@@ -4843,10 +4982,20 @@ public static class CCodeEmitter
 
 		string FormatCallableNewtypeTypedef(CallableTypeReference callable, List<ParameterDefinition> parameters, string name)
 		{
-			string declarator = FormatFunctionPointerDeclarator(name, callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), callable.CallSpec);
+			if (callable.Kind == CallableKind.Async)
+				return FormatAsyncCallableNewtypeTypedef(callable, parameters, name);
 			string returnType = callable.ReturnType?.ResolvedType ?? ResolvedTypeForC(callable.ReturnType, callable.ReturnType?.ResolvedType);
 			List<(string Type, string Name)> parameterTypes = GetNamedCallableNewtypeParameterTypesForC(callable, parameters);
 			return "typedef " + FormatInlineResolvedFunctionPointer(returnType, parameterTypes, name, callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), callable.CallSpec);
+		}
+
+		string FormatAsyncCallableNewtypeTypedef(CallableTypeReference callable, List<ParameterDefinition> parameters, string name)
+		{
+			List<string> parameterDeclarations = GetNamedCallableNewtypeParameterTypesForC(callable, parameters.Where(static parameter => parameter.Modifier != ParameterModifier.Thrown).ToList())
+				.Select(parameter => FormatResolvedParameter(parameter.Type, parameter.Name))
+				.ToList();
+			parameterDeclarations.AddRange(FormatAsyncCompletionParameterDeclarations(callable.ReturnType, callable.ReturnType?.ResolvedType, parameters));
+			return "typedef " + FormatInlineResolvedFunctionPointerFromDeclarations("void", parameterDeclarations, name, callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), callable.CallSpec);
 		}
 
 		string FormatIterTypedef(IterTypeReference iter, List<ParameterDefinition> parameters, string name)

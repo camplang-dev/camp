@@ -186,12 +186,12 @@ Goal: bind scheduler parameters and allocator defaults according to the schedule
 
 ### Completion Criteria
 
-- [ ] Bare `upon scheduler` binds to escaped `Scheduler* = null`.
-- [ ] Scheduler pattern validation is implemented and diagnostics are specific.
-- [ ] Async bare `within allocator` defaults to escaped allocator while non-async behavior remains unchanged.
-- [ ] `upon` appears correctly in API and metadata.
-- [ ] Targeted scheduler/default tests pass.
-- [ ] Full suite passes and the phase is committed.
+- [x] ~~Bare `upon scheduler` binds to escaped `Scheduler* = null`.~~
+- [x] ~~Scheduler pattern validation is implemented and diagnostics are specific.~~
+- [x] ~~Async bare `within allocator` defaults to escaped allocator while non-async behavior remains unchanged.~~
+- [x] ~~`upon` appears correctly in API and metadata.~~
+- [x] ~~Targeted scheduler/default tests pass.~~
+- [x] ~~Full suite passes and the phase is committed.~~
 
 ## Phase 4: Async Body Lowering Without Suspension
 
@@ -223,13 +223,15 @@ Goal: lower async functions that contain no `await`, proving completion callback
 
 ### Completion Criteria
 
-- [ ] Async functions without `await` lower to direct completion callback calls.
-- [ ] No-await async functions do not allocate frames.
-- [ ] Manual async calls with explicit completion callbacks work.
-- [ ] Async property accessor rewriting composes with async completion rewriting.
+- [x] ~~Async functions without `await` lower to direct completion callback calls.~~
+- [x] ~~No-await async functions do not allocate frames.~~
+- [x] ~~Manual async calls with explicit completion callbacks work.~~
+- [x] ~~Async property accessor rewriting composes with async completion rewriting.~~
 - [ ] Async lambdas without `await` lower through target completion callbacks.
-- [ ] Targeted CCompile/StdRun/CEmit/Diagnostics tests pass.
+- [x] ~~Targeted CCompile/StdRun/CEmit/Diagnostics tests pass.~~
 - [ ] Full suite passes and the phase is committed.
+
+Note: async lambda lowering remains open for Phase 10, which owns async lambda target typing, captures, and context cleanup.
 
 ## Phase 5: Async Frame Model And State-Machine Skeleton
 

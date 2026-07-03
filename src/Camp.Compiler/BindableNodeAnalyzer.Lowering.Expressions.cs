@@ -455,6 +455,16 @@ public sealed partial class BindableNodeAnalyzer
 				parameterIndex += consumedParameters - 1;
 				continue;
 			}
+			if (IsUponParameter(parameter) && GetFunctionUponParameter(currentRewriteFunction) is ParameterDefinition currentUpon)
+			{
+				orderedArguments.Add(new ArgumentExpression
+				{
+					SourceSyntax = call.SourceSyntax ?? parameter.SourceSyntax,
+					Value = CreateVariableReference(currentUpon, currentUpon.ResolvedType ?? parameter.ResolvedType ?? ErrorType),
+					ResolvedType = currentUpon.ResolvedType ?? parameter.ResolvedType
+				});
+				continue;
+			}
 			if (parameter.DefaultValue is null)
 				continue;
 			if (function is not null
@@ -509,6 +519,16 @@ public sealed partial class BindableNodeAnalyzer
 				orderedArguments.Add(argument);
 		call.Arguments.Clear();
 		call.Arguments.AddRange(orderedArguments);
+	}
+
+	static ParameterDefinition? GetFunctionUponParameter(FunctionDefinition? function)
+	{
+		if (function is null)
+			return null;
+		foreach (ParameterDefinition parameter in function.Parameters)
+			if (IsUponParameter(parameter))
+				return parameter;
+		return null;
 	}
 
 	int CountCallableParametersSatisfiedByArgument(ArgumentExpression argument, List<ParameterDefinition> callableParameters, int parameterIndex)
