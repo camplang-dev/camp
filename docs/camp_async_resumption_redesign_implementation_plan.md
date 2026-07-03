@@ -198,20 +198,20 @@ with ordinary resumer selection and `resumeAsync(...)` invocation.
 
 ### Completion Criteria
 
-- [ ] `upon` is no longer an active compiler feature.
-- [ ] Old `upon` syntax produces a clear migration diagnostic.
-- [ ] Concrete suspending async bodies require a selected resumer.
-- [ ] `@resumewith` and receiver-based resumer selection both work.
-- [ ] Ordinary and async `resumeAsync` forms both work.
-- [ ] Await lowering always resumes through `resumeAsync(...)`.
-- [ ] Scheduler allocation/free/posting and direct-resume fallback are removed
-      from generated C.
-- [ ] `postpone` treats `@resumewith` as an ordinary source parameter slot.
-- [ ] Stage 2 targeted tests pass.
-- [ ] Full macOS suite passes.
-- [ ] Full Windows/MSVC suite passes.
-- [ ] Full WSL/Linux suite passes.
-- [ ] Stage 2 is committed.
+- [x] ~~`upon` is no longer an active compiler feature.~~
+- [x] ~~Old `upon` syntax produces a clear migration diagnostic.~~
+- [x] ~~Concrete suspending async bodies require a selected resumer.~~
+- [x] ~~`@resumewith` and receiver-based resumer selection both work.~~
+- [x] ~~Ordinary and async `resumeAsync` forms both work.~~
+- [x] ~~Await lowering always resumes through `resumeAsync(...)`.~~
+- [x] ~~Scheduler allocation/free/posting and direct-resume fallback are removed
+      from generated C.~~
+- [x] ~~`postpone` treats `@resumewith` as an ordinary source parameter slot.~~
+- [x] ~~Stage 2 targeted tests pass.~~
+- [x] ~~Full macOS suite passes.~~
+- [x] ~~Full Windows/MSVC suite passes.~~
+- [x] ~~Full WSL/Linux suite passes.~~
+- [x] ~~Stage 2 is committed.~~
 
 ## Stage 3: Documentation, Metadata, LSP, And Final Erasure
 

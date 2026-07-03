@@ -64,14 +64,7 @@ public sealed class CommandLineTests
 	public void Async_exported_c_header_uses_completion_callback_abi()
 	{
 		string source = CreateTempCase("async_header.camp", """
-			export extern class Scheduler
-			{
-				export extern void* alloc(nuint size);
-				export extern void free(escaped void* ptr);
-				export extern void post(once void(escaped this) continuation);
-			}
-
-			export extern async int loadAsync(upon Scheduler* scheduler, thrown int error);
+			export extern async int loadAsync(thrown int error);
 			""");
 		string buildDir = TempPath("async-header-build");
 
@@ -80,10 +73,10 @@ public sealed class CommandLineTests
 		Assert.Equal(0, result.ExitCode);
 		string publicHeader = File.ReadAllText(Path.Combine(buildDir, "async_header.h"));
 		string privateHeader = File.ReadAllText(Path.Combine(buildDir, "async_header_private.h"));
-		Assert.Contains("void loadAsync(Scheduler *scheduler, void (* complete)(void *context, ", publicHeader, StringComparison.Ordinal);
+		Assert.Contains("void loadAsync(void (* complete)(void *context, ", publicHeader, StringComparison.Ordinal);
 		Assert.Contains(" result, ", publicHeader, StringComparison.Ordinal);
 		Assert.Contains(" error), void *complete_context);", publicHeader, StringComparison.Ordinal);
-		Assert.Contains("void loadAsync(Scheduler *scheduler, void (* complete)(void *context, ", privateHeader, StringComparison.Ordinal);
+		Assert.Contains("void loadAsync(void (* complete)(void *context, ", privateHeader, StringComparison.Ordinal);
 		Assert.Contains(" result, ", privateHeader, StringComparison.Ordinal);
 		Assert.Contains(" error), void *complete_context);", privateHeader, StringComparison.Ordinal);
 		Assert.DoesNotContain("int loadAsync(int *error)", publicHeader, StringComparison.Ordinal);

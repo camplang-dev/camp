@@ -5,37 +5,45 @@ extern void callbackOut(once void(out int value) complete = default);
 extern void callbackTwoThrown(once void(thrown int first, thrown int second) complete = default);
 extern void callbackTwoValues(once void(int first, int second) complete = default);
 
+class Resumer
+{
+	void resumeAsync(escaped once void() continuation)
+	{
+	}
+}
+
+@noawait
 async int inner()
 {
 	return 1;
 }
 
-async void badMissing()
+async void badMissing(@resumewith Resumer* resumer)
 {
 	await missingCallback();
 }
 
-async void badNotOnce()
+async void badNotOnce(@resumewith Resumer* resumer)
 {
 	await notOnce();
 }
 
-async void badReturn()
+async void badReturn(@resumewith Resumer* resumer)
 {
 	await callbackReturns();
 }
 
-async void badOut()
+async void badOut(@resumewith Resumer* resumer)
 {
 	await callbackOut();
 }
 
-async void badTwoThrown()
+async void badTwoThrown(@resumewith Resumer* resumer)
 {
 	await callbackTwoThrown();
 }
 
-async void badTwoValues()
+async void badTwoValues(@resumewith Resumer* resumer)
 {
 	await callbackTwoValues();
 }

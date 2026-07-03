@@ -1907,6 +1907,7 @@ public static class CCodeEmitter
 				new(null, "complete", BuildAsyncCompletionCallableType(function.ReturnType, function.ResolvedType, function.Parameters)),
 				new(null, "complete_context", "void*")
 			];
+			AddImplicitThisFrameField(function, fields);
 			foreach (ParameterDefinition parameter in GetAbiOrderedParameters(function.Parameters))
 			{
 				if (parameter.Modifier == ParameterModifier.Thrown)
@@ -1930,6 +1931,14 @@ public static class CCodeEmitter
 			}
 
 			return new AsyncFrameInfo(function, baseName + "_asyncFrame", baseName + "_asyncResume", fields, awaits);
+		}
+
+		void AddImplicitThisFrameField(FunctionDefinition function, List<AsyncFrameField> fields)
+		{
+			if (!RequiresImplicitThisParameter(function) || !containingTypes.TryGetValue(function, out TypeDefinition? type))
+				return;
+			string resolvedThisType = function.AbiThisType?.ResolvedType ?? function.EffectiveThisParameter?.ResolvedType ?? type.Name + "*";
+			fields.Add(new(function.EffectiveThisParameter, "this", resolvedThisType, function.AbiThisType));
 		}
 
 		void CollectNonTailAsyncAwaits(Statement? statement, List<AsyncAwaitInfo> awaits, string baseName)
@@ -2160,29 +2169,23 @@ public static class CCodeEmitter
 
 		void WriteAsyncFrameScheduleResume(TextWriter writer, AsyncFrameInfo frame, int indent)
 		{
-			ParameterDefinition? scheduler = frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Upon);
-			FunctionDefinition? schedulerPost = scheduler is null ? null : FindMemberFunctionForType(scheduler.ResolvedType, "post");
-			if (scheduler is null || schedulerPost is null)
+			FunctionDefinition? resumeFunction = frame.Function.AsyncResumeFunction;
+			if (resumeFunction is null)
 			{
-				writer.WriteLine(frame.ResumeName + "(frame);");
+				AddUnsupported(frame.Function, "async resumer");
+				writer.WriteLine("/* missing async resumer */");
 				return;
 			}
+			writer.WriteLine(CName(resumeFunction) + "(" + FormatAsyncResumerFrameExpression(frame) + ", " + frame.ResumeName + ", frame);");
+		}
 
-			writer.WriteLine("if (frame->" + CName(scheduler) + " != NULL)");
-			WriteIndent(writer, indent);
-			writer.WriteLine("{");
-			WriteIndent(writer, indent + 1);
-			writer.WriteLine(CName(schedulerPost) + "(frame->" + CName(scheduler) + ", " + frame.ResumeName + ", frame);");
-			WriteIndent(writer, indent);
-			writer.WriteLine("}");
-			WriteIndent(writer, indent);
-			writer.WriteLine("else");
-			WriteIndent(writer, indent);
-			writer.WriteLine("{");
-			WriteIndent(writer, indent + 1);
-			writer.WriteLine(frame.ResumeName + "(frame);");
-			WriteIndent(writer, indent);
-			writer.WriteLine("}");
+		string FormatAsyncResumerFrameExpression(AsyncFrameInfo frame)
+		{
+			if (frame.Function.AsyncResumerIsReceiver)
+				return "frame->this";
+			if (frame.Function.AsyncResumerParameter is ParameterDefinition parameter)
+				return "frame->" + CName(parameter);
+			return "NULL";
 		}
 
 		void WriteAsyncFrameEntryBody(TextWriter writer, AsyncFrameInfo frame)
@@ -2195,6 +2198,11 @@ public static class CCodeEmitter
 			writer.WriteLine("frame->complete = complete;");
 			WriteIndent(writer, 1);
 			writer.WriteLine("frame->complete_context = complete_context;");
+			if (RequiresImplicitThisParameter(frame.Function) && containingTypes.ContainsKey(frame.Function))
+			{
+				WriteIndent(writer, 1);
+				writer.WriteLine("frame->this = " + (NeedsAbiThisFixup(frame.Function) ? "ctx" : "this") + ";");
+			}
 			foreach (ParameterDefinition parameter in GetAbiOrderedParameters(frame.Function.Parameters))
 			{
 				if (parameter.Modifier == ParameterModifier.Thrown)
@@ -2413,24 +2421,8 @@ public static class CCodeEmitter
 
 		void WriteAsyncFrameFree(TextWriter writer, AsyncFrameInfo frame, int indent)
 		{
-			ParameterDefinition? scheduler = frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Upon);
 			ParameterDefinition? allocator = frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition);
-			FunctionDefinition? schedulerFree = scheduler is null ? null : FindMemberFunctionForType(scheduler.ResolvedType, "free");
 			FunctionDefinition? allocatorFree = allocator is null ? null : FindMemberFunctionForType(allocator.ResolvedType, "free");
-			if (scheduler is not null && schedulerFree is not null)
-			{
-				WriteIndent(writer, indent);
-				writer.WriteLine("if (frame->" + CName(scheduler) + " != NULL)");
-				WriteIndent(writer, indent);
-				writer.WriteLine("{");
-				WriteIndent(writer, indent + 1);
-				writer.WriteLine(CName(schedulerFree) + "(frame->" + CName(scheduler) + ", frame);");
-				WriteIndent(writer, indent);
-				writer.WriteLine("}");
-				WriteIndent(writer, indent);
-				writer.WriteLine("else");
-			}
-
 			if (allocator is not null && allocatorFree is not null)
 			{
 				WriteIndent(writer, indent);
@@ -2461,25 +2453,13 @@ public static class CCodeEmitter
 
 		void WriteAsyncFrameAllocation(TextWriter writer, AsyncFrameInfo frame, int indent)
 		{
-			ParameterDefinition? scheduler = frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Upon);
 			ParameterDefinition? allocator = frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition);
 			WriteIndent(writer, indent);
 			writer.WriteLine(frame.FrameType + " *frame = NULL;");
-			if (scheduler is not null && FindMemberFunctionForType(scheduler.ResolvedType, "alloc") is FunctionDefinition schedulerAlloc)
-			{
-				WriteIndent(writer, indent);
-				writer.WriteLine("if (" + CName(scheduler) + " != NULL)");
-				WriteIndent(writer, indent);
-				writer.WriteLine("{");
-				WriteIndent(writer, indent + 1);
-				writer.WriteLine("frame = (" + frame.FrameType + " *)" + CName(schedulerAlloc) + "(" + CName(scheduler) + ", sizeof(" + frame.FrameType + "));");
-				WriteIndent(writer, indent);
-				writer.WriteLine("}");
-			}
 			if (allocator is not null && FindMemberFunctionForType(allocator.ResolvedType, "alloc") is FunctionDefinition allocatorAlloc)
 			{
 				WriteIndent(writer, indent);
-				writer.WriteLine("if (frame == NULL && " + CName(allocator) + " != NULL)");
+				writer.WriteLine("if (" + CName(allocator) + " != NULL)");
 				WriteIndent(writer, indent);
 				writer.WriteLine("{");
 				WriteIndent(writer, indent + 1);
@@ -5225,6 +5205,8 @@ public static class CCodeEmitter
 
 		string FormatThisExpression()
 		{
+			if (currentAsyncFrameNameReplacements.TryGetValue("this", out string? replacement))
+				return replacement;
 			return TryGetCurrentInThisParameter(out _) ? "(*this)" : "this";
 		}
 

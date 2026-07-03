@@ -1,3 +1,4 @@
+@noawait
 async void badInitArray()
 {
 	char[] buffer = init char[16];

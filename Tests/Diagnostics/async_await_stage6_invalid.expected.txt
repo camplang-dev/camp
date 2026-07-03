@@ -1,6 +1,6 @@
-tests/Diagnostics/async_await_stage6_invalid.camp(15,2): error: Awaited call is missing the final once completion callback parameter.
-tests/Diagnostics/async_await_stage6_invalid.camp(20,2): error: Awaited completion callback must be a once callable.
-tests/Diagnostics/async_await_stage6_invalid.camp(25,2): error: Awaited completion callback must return void.
-tests/Diagnostics/async_await_stage6_invalid.camp(30,2): error: Awaited completion callback may not contain out parameters.
-tests/Diagnostics/async_await_stage6_invalid.camp(35,2): error: Awaited completion callback may contain at most one thrown parameter.
-tests/Diagnostics/async_await_stage6_invalid.camp(40,2): error: Awaited completion callback may contain at most one non-error result parameter; multi-result await is not supported.
+tests/Diagnostics/async_await_stage6_invalid.camp(23,2): error: Awaited call is missing the final once completion callback parameter.
+tests/Diagnostics/async_await_stage6_invalid.camp(28,2): error: Awaited completion callback must be a once callable.
+tests/Diagnostics/async_await_stage6_invalid.camp(33,2): error: Awaited completion callback must return void.
+tests/Diagnostics/async_await_stage6_invalid.camp(38,2): error: Awaited completion callback may not contain out parameters.
+tests/Diagnostics/async_await_stage6_invalid.camp(43,2): error: Awaited completion callback may contain at most one thrown parameter.
+tests/Diagnostics/async_await_stage6_invalid.camp(48,2): error: Awaited completion callback may contain at most one non-error result parameter; multi-result await is not supported.

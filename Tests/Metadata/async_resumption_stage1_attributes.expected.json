@@ -14,7 +14,21 @@
     {
       "id": "class:AsyncResumptionStage1::Dispatcher",
       "kind": "class",
-      "name": "Dispatcher"
+      "name": "Dispatcher",
+      "functions": [
+        {
+          "id": "class:AsyncResumptionStage1::Dispatcher/function:resumeAsync",
+          "name": "resumeAsync",
+          "returnType": "void",
+          "parameters": [
+            {
+              "id": "class:AsyncResumptionStage1::Dispatcher/function:resumeAsync/parameter:continuation",
+              "name": "continuation",
+              "type": "escaped once void()"
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "function:AsyncResumptionStage1::answerAsync",

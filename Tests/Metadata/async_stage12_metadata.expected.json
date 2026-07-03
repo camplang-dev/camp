@@ -11,47 +11,21 @@
   },
   "declarations": [
     {
-      "id": "class:Scheduler",
+      "id": "class:Resumer",
       "kind": "class",
-      "name": "Scheduler",
+      "name": "Resumer",
       "visibility": "export",
       "functions": [
         {
-          "id": "class:Scheduler/function:alloc",
-          "name": "alloc",
-          "visibility": "export",
-          "returnType": "void*",
-          "parameters": [
-            {
-              "id": "class:Scheduler/function:alloc/parameter:size",
-              "name": "size",
-              "type": "nuint"
-            }
-          ]
-        },
-        {
-          "id": "class:Scheduler/function:free",
-          "name": "free",
+          "id": "class:Resumer/function:resumeAsync",
+          "name": "resumeAsync",
           "visibility": "export",
           "returnType": "void",
           "parameters": [
             {
-              "id": "class:Scheduler/function:free/parameter:ptr",
-              "name": "ptr",
-              "type": "escaped void*"
-            }
-          ]
-        },
-        {
-          "id": "class:Scheduler/function:post",
-          "name": "post",
-          "visibility": "export",
-          "returnType": "void",
-          "parameters": [
-            {
-              "id": "class:Scheduler/function:post/parameter:continuation",
+              "id": "class:Resumer/function:resumeAsync/parameter:continuation",
               "name": "continuation",
-              "type": "once void(escaped this)"
+              "type": "escaped once void()"
             }
           ]
         }
@@ -69,12 +43,6 @@
           "id": "newtype:Loader/parameter:path",
           "name": "path",
           "type": "const char[]"
-        },
-        {
-          "id": "newtype:Loader/parameter:scheduler",
-          "name": "scheduler",
-          "modifier": "upon",
-          "type": "Scheduler*"
         },
         {
           "id": "newtype:Loader/parameter:error",
@@ -111,12 +79,6 @@
           "type": "nuint"
         },
         {
-          "id": "function:loadAsync/parameter:scheduler",
-          "name": "scheduler",
-          "modifier": "upon",
-          "type": "Scheduler*"
-        },
-        {
           "id": "function:loadAsync/parameter:error",
           "name": "error",
           "modifier": "thrown",
@@ -136,12 +98,6 @@
           "async": true,
           "returnType": "int",
           "parameters": [
-            {
-              "id": "interface:IAsyncService/function:runAsync/parameter:scheduler",
-              "name": "scheduler",
-              "modifier": "upon",
-              "type": "Scheduler*"
-            },
             {
               "id": "interface:IAsyncService/function:runAsync/parameter:error",
               "name": "error",

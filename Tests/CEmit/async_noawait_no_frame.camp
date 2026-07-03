@@ -1,5 +1,5 @@
+@noawait
 async void doneAsync()
 {
 	return;
 }
-

@@ -2,7 +2,14 @@ extern async void asyncVoid();
 extern void multiSuccess(once void(int x, int y) complete = default);
 extern void notOnce(delegate void() complete = default);
 
-async void awaitMulti()
+class Resumer
+{
+	void resumeAsync(escaped once void() continuation)
+	{
+	}
+}
+
+async void awaitMulti(@resumewith Resumer* resumer)
 {
 	await multiSuccess();
 }

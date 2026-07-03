@@ -1,6 +1,5 @@
-tests/Diagnostics/async_stage34_scheduler_invalid.camp(1,34): error: Unknown type 'Scheduler'.
-tests/Diagnostics/async_stage34_scheduler_invalid.camp(1,34): error: Async upon parameter must be a pointer to an accessible scheduler type.
-tests/Diagnostics/async_stage34_scheduler_invalid.camp(9,44): error: Scheduler type 'BadScheduler' must provide 'alloc(nuint)' returning 'void*'.
-tests/Diagnostics/async_stage34_scheduler_invalid.camp(9,44): error: Scheduler type 'BadScheduler' must provide 'free(escaped void*)'.
-tests/Diagnostics/async_stage34_scheduler_invalid.camp(9,44): error: Scheduler type 'BadScheduler' must provide 'post(once void(escaped this))'.
-tests/Diagnostics/async_stage34_scheduler_invalid.camp(17,60): error: Async functions may not retain an unscoped within allocator across suspension; use an escaped allocator or the bare async within allocator form.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(1,12): error: Async definitions that can suspend require a resumer; add @resumewith to an ordinary parameter or define resumeAsync on the receiver.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(9,43): error: Async resumer type 'NoResume' must provide exactly one compatible resumeAsync method.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(20,57): error: Async resumer type 'BadContinuation' must provide exactly one compatible resumeAsync method.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(26,12): error: Async resumer type 'BadAsyncResumer' must provide exactly one compatible resumeAsync method.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(32,50): error: Async resumer type 'BadAsyncResumer' must provide exactly one compatible resumeAsync method.

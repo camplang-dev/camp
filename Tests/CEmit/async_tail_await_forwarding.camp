@@ -1,9 +1,17 @@
-async int inner()
+class Resumer
+{
+	void resumeAsync(escaped once void() continuation)
+	{
+		continuation();
+	}
+}
+
+async int inner(@resumewith Resumer* resumer)
 {
 	return 11;
 }
 
-async int outer()
+async int outer(@resumewith Resumer* resumer)
 {
-	return await inner();
+	return await inner(resumer);
 }

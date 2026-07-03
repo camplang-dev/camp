@@ -1,7 +1,23 @@
 <?xml version="1.0" encoding="utf-16"?>
 <Module>
   <Definitions>
-    <ClassDefinition Name="Scheduler" Symbol="Scheduler" />
+    <ClassDefinition Name="Resumer" Symbol="Resumer">
+      <Functions>
+        <FunctionDefinition Name="resumeAsync" Symbol="resumeAsync">
+          <ReturnType Type="Void" />
+          <Parameters>
+            <ParameterDefinition Name="continuation" Symbol="continuation">
+              <Type Type="EscapedTypeReference">
+                <Type Type="CallableTypeReference" Kind="Once">
+                  <ReturnType Type="Void" />
+                </Type>
+              </Type>
+            </ParameterDefinition>
+          </Parameters>
+          <Body Type="BlockStatement" />
+        </FunctionDefinition>
+      </Functions>
+    </ClassDefinition>
     <NewtypeDefinition Name="Loader" Symbol="Loader">
       <UnderlyingType Type="CallableTypeReference" Kind="Async">
         <ReturnType Type="Int" />
@@ -12,11 +28,6 @@
             <ElementType Type="ConstTypeReference">
               <Type Type="Char" />
             </ElementType>
-          </Type>
-        </ParameterDefinition>
-        <ParameterDefinition Modifier="Upon" Name="scheduler" Symbol="scheduler">
-          <Type Type="PointerTypeReference">
-            <ElementType Type="NamedTypeReference" Name="Scheduler" />
           </Type>
         </ParameterDefinition>
         <ParameterDefinition Modifier="Thrown" Name="error" Symbol="error">
@@ -34,11 +45,6 @@
             </ElementType>
           </Type>
         </ParameterDefinition>
-        <ParameterDefinition Modifier="Upon" Name="scheduler" Symbol="scheduler">
-          <Type Type="PointerTypeReference">
-            <ElementType Type="NamedTypeReference" Name="Scheduler" />
-          </Type>
-        </ParameterDefinition>
         <ParameterDefinition Modifier="Thrown" Name="error" Symbol="error">
           <Type Type="Int" />
         </ParameterDefinition>
@@ -50,10 +56,13 @@
         <ParameterDefinition Name="loader" Symbol="loader">
           <Type Type="NamedTypeReference" Name="Loader" />
         </ParameterDefinition>
-        <ParameterDefinition Name="scheduler" Symbol="scheduler">
+        <ParameterDefinition Name="resumer" Symbol="resumer">
           <Type Type="PointerTypeReference">
-            <ElementType Type="NamedTypeReference" Name="Scheduler" />
+            <ElementType Type="NamedTypeReference" Name="Resumer" />
           </Type>
+          <Attributes>
+            <AttributeConstructor Name="@resumewith" />
+          </Attributes>
         </ParameterDefinition>
         <ParameterDefinition Modifier="Thrown" Name="error" Symbol="error">
           <Type Type="Int" />
@@ -68,9 +77,6 @@
                 <Arguments>
                   <ArgumentExpression>
                     <Value Type="LiteralExpression" Kind="String" Text="&quot;test&quot;" Value="test" />
-                  </ArgumentExpression>
-                  <ArgumentExpression>
-                    <Value Type="NamedExpression" Name="scheduler" />
                   </ArgumentExpression>
                   <ArgumentExpression Modifier="Catch">
                     <Value Type="NamedExpression" Name="_" />

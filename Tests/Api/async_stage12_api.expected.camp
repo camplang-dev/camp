@@ -1,19 +1,15 @@
 export as AsyncStage12;
 
-export extern class Scheduler
+export extern class Resumer
 {
-	export extern void* alloc(nuint size);
-
-	export extern void free(escaped void* ptr);
-
-	export extern void post(once void(escaped this) continuation);
+	export extern void resumeAsync(escaped once void() continuation);
 }
 
-export newtype async int Loader(const char[] path, upon Scheduler* scheduler, thrown int error);
+export newtype async int Loader(const char[] path, thrown int error);
 export extern async void pingAsync();
-export extern async int loadAsync(const char[] path, upon Scheduler* scheduler, thrown int error);
+export extern async int loadAsync(const char[] path, thrown int error);
 
 export interface IAsyncService
 {
-	async int runAsync(upon Scheduler* scheduler, thrown int error);
+	async int runAsync(thrown int error);
 }

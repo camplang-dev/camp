@@ -239,17 +239,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateCallableUponParameters(CallableTypeReference callable)
 	{
-		int uponCount = 0;
 		foreach (ParameterDefinition parameter in callable.Parameters)
 		{
 			if (parameter.Modifier != ParameterModifier.Upon)
 				continue;
 
-			uponCount++;
-			if (callable.Kind != CallableKind.Async)
-				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax ?? callable.SourceSyntax), "Parameter modifier 'upon' is valid only in async callable signatures.");
-			if (uponCount > 1)
-				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax ?? callable.SourceSyntax), "Callable signature may declare at most one 'upon' parameter.");
+			Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax ?? callable.SourceSyntax), "The 'upon' scheduler parameter modifier was removed; use @resumewith on an ordinary parameter or a receiver resumeAsync method.");
 		}
 	}
 

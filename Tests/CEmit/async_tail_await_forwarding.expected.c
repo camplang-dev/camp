@@ -2,18 +2,24 @@
 #include "async_tail_await_forwarding_private.h"
 
 /* Private file declarations. */
-static void inner(void (* complete)(void *context, int result), void *complete_context);
-static void outer(void (* complete)(void *context, int result), void *complete_context);
+static void Resumer_resumeAsync(Resumer *this, void (* continuation)(void *arg0), void *continuation_context);
+static void inner(Resumer *resumer, void (* complete)(void *context, int result), void *complete_context);
+static void outer(Resumer *resumer, void (* complete)(void *context, int result), void *complete_context);
 
-static void inner(void (* complete)(void *context, int result), void *complete_context)
+static void Resumer_resumeAsync(Resumer *this, void (* continuation)(void *arg0), void *continuation_context)
+{
+	continuation(continuation_context);
+}
+
+static void inner(Resumer *resumer, void (* complete)(void *context, int result), void *complete_context)
 {
 	complete(complete_context, 11);
 	return;
 }
 
-static void outer(void (* complete)(void *context, int result), void *complete_context)
+static void outer(Resumer *resumer, void (* complete)(void *context, int result), void *complete_context)
 {
-	inner(complete, complete_context);
+	inner(resumer, complete, complete_context);
 	return;
 }
 
@@ -26,12 +32,17 @@ static void outer(void (* complete)(void *context, int result), void *complete_c
 #include <stdbool.h>
 
 /* Forward declarations. */
+typedef struct Resumer Resumer;
 
 /* Enums. */
 
 /* Newtypes. */
 
 /* Layouts. */
+struct Resumer
+{
+	char _camp_empty;
+};
 
 /* Function declarations. */
 

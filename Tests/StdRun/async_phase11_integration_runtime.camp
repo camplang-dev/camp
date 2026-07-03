@@ -6,40 +6,38 @@ int observed;
 int observedError;
 int rethrowError;
 
-class Scheduler
+class Resumer
 {
-	void* alloc(nuint size) => null;
-	void free(escaped void* ptr) { frees++; }
-	void post(once void(escaped this) continuation)
+	void resumeAsync(escaped once void() continuation)
 	{
 		posts++;
 		continuation();
 	}
 }
 
-Scheduler scheduler;
+Resumer resumer;
 
-async int lengthAsync<T: any>(const T[] values, sizeof(T), upon scheduler)
+async int lengthAsync<T: any>(const T[] values, sizeof(T), @resumewith Resumer* resumer)
 {
 	return (int)values.length;
 }
 
-async int failAsync(thrown int error, upon scheduler)
+async int failAsync(thrown int error, @resumewith Resumer* resumer)
 {
 	throw 9;
 }
 
-async int parentAsync(const int[] values, upon scheduler)
+async int parentAsync(const int[] values, @resumewith Resumer* resumer)
 {
-	int count = await lengthAsync(values);
-	int ignored = await failAsync(catch auto err);
+	int count = await lengthAsync(values, resumer);
+	int ignored = await failAsync(resumer, catch auto err);
 	observedError = err;
 	return count + observedError;
 }
 
-async int rethrowAsync(upon scheduler, thrown int error)
+async int rethrowAsync(@resumewith Resumer* resumer, thrown int error)
 {
-	int ignored = await failAsync();
+	int ignored = await failAsync(resumer);
 	return ignored;
 }
 
@@ -56,12 +54,12 @@ void completeRethrow(void* context, int value, int error)
 export int main()
 {
 	auto values = [1, 2, 3, 4];
-	parentAsync(values, &scheduler, complete, null);
-	rethrowAsync(&scheduler, completeRethrow, null, catch _);
+	parentAsync(values, &resumer, complete, null);
+	rethrowAsync(&resumer, completeRethrow, null, catch _);
 	Console.write(posts);
 	Console.write(frees);
 	Console.write(observed);
 	Console.write(observedError);
 	Console.write(rethrowError);
-	return posts == 3 && frees == 2 && observed == 13 && observedError == 9 && rethrowError == 9 ? 0 : 1;
+	return posts == 3 && frees == 0 && observed == 13 && observedError == 9 && rethrowError == 9 ? 0 : 1;
 }

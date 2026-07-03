@@ -1,14 +1,22 @@
 extern void* malloc(nuint size);
 extern void free(void* ptr);
 
-async int addOne(int value)
+class Resumer
+{
+	void resumeAsync(escaped once void() continuation)
+	{
+		continuation();
+	}
+}
+
+async int addOne(int value, @resumewith Resumer* resumer)
 {
 	return value + 1;
 }
 
-async int combine(int first)
+async int combine(int first, @resumewith Resumer* resumer)
 {
-	int second = await addOne(first);
-	int third = await addOne(second);
+	int second = await addOne(first, resumer);
+	int third = await addOne(second, resumer);
 	return third + first;
 }

@@ -9,6 +9,7 @@ struct combine_asyncFrame
 	void (* complete)(void *arg0, int arg1);
 	void *complete_context;
 	int first;
+	Resumer *resumer;
 	int second;
 	int third;
 	int await0_result;
@@ -19,21 +20,22 @@ static void combine_asyncComplete0(void *context, int result);
 static void combine_asyncComplete1(void *context, int result);
 void *malloc(uintptr_t size);
 void free(void *ptr);
-static void addOne(int value, void (* complete)(void *context, int result), void *complete_context);
-static void combine(int first, void (* complete)(void *context, int result), void *complete_context);
+static void Resumer_resumeAsync(Resumer *this, void (* continuation)(void *arg0), void *continuation_context);
+static void addOne(int value, Resumer *resumer, void (* complete)(void *context, int result), void *complete_context);
+static void combine(int first, Resumer *resumer, void (* complete)(void *context, int result), void *complete_context);
 
 static void combine_asyncComplete0(void *context, int result)
 {
 	combine_asyncFrame *frame = (combine_asyncFrame *)context;
 	frame->await0_result = result;
-	combine_asyncResume(frame);
+	Resumer_resumeAsync(frame->resumer, combine_asyncResume, frame);
 }
 
 static void combine_asyncComplete1(void *context, int result)
 {
 	combine_asyncFrame *frame = (combine_asyncFrame *)context;
 	frame->await1_result = result;
-	combine_asyncResume(frame);
+	Resumer_resumeAsync(frame->resumer, combine_asyncResume, frame);
 }
 
 static void combine_asyncResume(void *context)
@@ -47,12 +49,12 @@ static void combine_asyncResume(void *context)
 	}
 __async_state0: ;
 	frame->state = 1;
-	addOne(frame->first, combine_asyncComplete0, frame);
+	addOne(frame->first, frame->resumer, combine_asyncComplete0, frame);
 	return;
 __async_state1: ;
 	frame->second = frame->await0_result;
 	frame->state = 2;
-	addOne(frame->second, combine_asyncComplete1, frame);
+	addOne(frame->second, frame->resumer, combine_asyncComplete1, frame);
 	return;
 __async_state2: ;
 	frame->third = frame->await1_result;
@@ -61,13 +63,18 @@ __async_state2: ;
 	return;
 }
 
-static void addOne(int value, void (* complete)(void *context, int result), void *complete_context)
+static void Resumer_resumeAsync(Resumer *this, void (* continuation)(void *arg0), void *continuation_context)
+{
+	continuation(continuation_context);
+}
+
+static void addOne(int value, Resumer *resumer, void (* complete)(void *context, int result), void *complete_context)
 {
 	complete(complete_context, (value + 1));
 	return;
 }
 
-static void combine(int first, void (* complete)(void *context, int result), void *complete_context)
+static void combine(int first, Resumer *resumer, void (* complete)(void *context, int result), void *complete_context)
 {
 	combine_asyncFrame *frame = NULL;
 	if (frame == NULL)
@@ -78,6 +85,7 @@ static void combine(int first, void (* complete)(void *context, int result), voi
 	frame->complete = complete;
 	frame->complete_context = complete_context;
 	frame->first = first;
+	frame->resumer = resumer;
 	combine_asyncResume(frame);
 	return;
 }
@@ -91,12 +99,17 @@ static void combine(int first, void (* complete)(void *context, int result), voi
 #include <stdbool.h>
 
 /* Forward declarations. */
+typedef struct Resumer Resumer;
 
 /* Enums. */
 
 /* Newtypes. */
 
 /* Layouts. */
+struct Resumer
+{
+	char _camp_empty;
+};
 
 /* Function declarations. */
 

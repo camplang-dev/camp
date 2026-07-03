@@ -163,6 +163,10 @@ public class FunctionDefinition : Definition
 	public FunctionModifier Modifier { get; set; }
 	public bool IsAsync { get; set; }
 	public bool IsNoAwait { get; set; }
+	public ParameterDefinition? AsyncResumerParameter { get; set; }
+	public FunctionDefinition? AsyncResumeFunction { get; set; }
+	public bool AsyncResumerIsReceiver { get; set; }
+	public bool AsyncResumeFunctionIsAsync { get; set; }
 	public IteratorKind IteratorKind { get; set; }
 	public string? CallSpec { get; set; }
 	public string InvokerName { get; set; } = "";

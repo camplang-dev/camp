@@ -1,49 +1,92 @@
-class Scheduler
+class Resumer
 {
-	void* alloc(nuint size) => null;
-	void free(escaped void* ptr) {}
-	extern void post(once void(escaped this) continuation);
+	void resumeAsync(escaped once void() continuation)
+	{
+		continuation();
+	}
 }
 
-Scheduler scheduler;
+Resumer resumer;
 int valueObserved;
 int voidObserved;
 int propertyObserved;
+int receiverObserved;
+int asyncResumerObserved;
 
 class Box
 {
 	int value;
 
+	@noawait
 	async int getValue()
 	{
 		return this.value;
 	}
 }
 
-async int valueAsync(upon scheduler)
+class ReceiverBox
+{
+	int value;
+	int resumes;
+
+	void resumeAsync(escaped once void() continuation)
+	{
+		this.resumes++;
+		continuation();
+	}
+
+	async int compute()
+	{
+		int value = await valueAsync(&resumer);
+		return this.value + value + this.resumes;
+	}
+}
+
+class AsyncResumer
+{
+	@noawait
+	async void resumeAsync()
+	{
+		return;
+	}
+}
+
+AsyncResumer asyncResumer;
+
+async int valueAsync(@resumewith Resumer* resumer)
 {
 	return 17;
 }
 
-async int parentValueAsync(upon scheduler)
+async int parentValueAsync(@resumewith Resumer* resumer)
 {
-	return await valueAsync();
+	return await valueAsync(resumer);
 }
 
-async void pingAsync(upon scheduler)
+async void pingAsync(@resumewith Resumer* resumer)
 {
 	voidObserved = 3;
 	return;
 }
 
-async void parentVoidAsync(upon scheduler)
+async void parentVoidAsync(@resumewith Resumer* resumer)
 {
-	return await pingAsync();
+	return await pingAsync(resumer);
 }
 
-async int parentPropertyAsync(Box* box, upon scheduler)
+async int parentPropertyAsync(Box* box, @resumewith Resumer* resumer)
 {
 	return await box.Value();
+}
+
+async int valueWithAsyncResumer(@resumewith AsyncResumer* resumer)
+{
+	return 11;
+}
+
+async int parentWithAsyncResumer(@resumewith AsyncResumer* resumer)
+{
+	return await valueWithAsyncResumer(resumer);
 }
 
 void completeValue(void* context, int value)
@@ -56,18 +99,32 @@ void completeProperty(void* context, int value)
 	propertyObserved = value;
 }
 
+void completeReceiver(void* context, int value)
+{
+	receiverObserved = value;
+}
+
+void completeAsyncResumer(void* context, int value)
+{
+	asyncResumerObserved = value;
+}
+
 void completeVoid(void* context)
 {
 }
 
 export int main()
 {
-	parentValueAsync(&scheduler, completeValue, null);
-	parentVoidAsync(&scheduler, completeVoid, null);
+	parentValueAsync(&resumer, completeValue, null);
+	parentVoidAsync(&resumer, completeVoid, null);
 
 	auto box = new Box();
 	box.value = 22;
-	parentPropertyAsync(box, &scheduler, completeProperty, null);
+	parentPropertyAsync(box, &resumer, completeProperty, null);
+	auto receiverBox = new ReceiverBox();
+	receiverBox.value = 4;
+	receiverBox.compute(completeReceiver, null);
+	parentWithAsyncResumer(&asyncResumer, completeAsyncResumer, null);
 
-	return valueObserved == 17 && voidObserved == 3 && propertyObserved == 22 ? 0 : 1;
+	return valueObserved == 17 && voidObserved == 3 && propertyObserved == 22 && receiverObserved == 22 && asyncResumerObserved == 11 ? 0 : 1;
 }

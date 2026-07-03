@@ -19,51 +19,23 @@
       "extern": true
     },
     {
-      "id": "class:AsyncStage34::Scheduler",
+      "id": "class:AsyncStage34::Resumer",
       "kind": "class",
-      "name": "Scheduler",
+      "name": "Resumer",
       "visibility": "export",
       "extern": true,
       "functions": [
         {
-          "id": "class:AsyncStage34::Scheduler/function:alloc",
-          "name": "alloc",
-          "visibility": "export",
-          "extern": true,
-          "returnType": "void*",
-          "parameters": [
-            {
-              "id": "class:AsyncStage34::Scheduler/function:alloc/parameter:size",
-              "name": "size",
-              "type": "nuint"
-            }
-          ]
-        },
-        {
-          "id": "class:AsyncStage34::Scheduler/function:free",
-          "name": "free",
+          "id": "class:AsyncStage34::Resumer/function:resumeAsync",
+          "name": "resumeAsync",
           "visibility": "export",
           "extern": true,
           "returnType": "void",
           "parameters": [
             {
-              "id": "class:AsyncStage34::Scheduler/function:free/parameter:ptr",
-              "name": "ptr",
-              "type": "escaped void*"
-            }
-          ]
-        },
-        {
-          "id": "class:AsyncStage34::Scheduler/function:post",
-          "name": "post",
-          "visibility": "export",
-          "extern": true,
-          "returnType": "void",
-          "parameters": [
-            {
-              "id": "class:AsyncStage34::Scheduler/function:post/parameter:continuation",
+              "id": "class:AsyncStage34::Resumer/function:resumeAsync/parameter:continuation",
               "name": "continuation",
-              "type": "once void(escaped this)"
+              "type": "escaped once void()"
             }
           ]
         }
@@ -78,13 +50,6 @@
       "async": true,
       "returnType": "int",
       "parameters": [
-        {
-          "id": "function:AsyncStage34::loadAsync/parameter:scheduler",
-          "name": "scheduler",
-          "modifier": "upon",
-          "type": "Scheduler* escaped",
-          "defaultValue": "null"
-        },
         {
           "id": "function:AsyncStage34::loadAsync/parameter:allocator",
           "name": "allocator",

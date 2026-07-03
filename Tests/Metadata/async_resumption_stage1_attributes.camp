@@ -3,6 +3,9 @@ export as AsyncResumptionStage1;
 
 class Dispatcher
 {
+	void resumeAsync(escaped once void() continuation)
+	{
+	}
 }
 
 @noawait
