@@ -9,10 +9,15 @@ class EventLoop
 		continuation();
 	}
 
-	void delayAsync(int value, once void() complete)
+	void delayAsync(int value, escaped once void() complete)
 	{
 		complete();
 	}
+}
+
+void delayFreeAsync(EventLoop* loop, int value, escaped once void() complete)
+{
+	complete();
 }
 
 async int countdown(int seconds, @resumewith EventLoop* loop)
@@ -21,6 +26,7 @@ async int countdown(int seconds, @resumewith EventLoop* loop)
 	while (seconds > 0)
 	{
 		await loop.delayAsync(seconds);
+		await delayFreeAsync(loop, seconds);
 		total = total + seconds;
 		seconds--;
 	}

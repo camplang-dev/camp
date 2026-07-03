@@ -2033,7 +2033,7 @@ public static class CCodeEmitter
 					? thrown.ResolvedType ?? thrown.Type?.ResolvedType ?? "#ERROR"
 					: null;
 			if (function?.Parameters is [.., ParameterDefinition last]
-				&& last.Type is CallableTypeReference callback)
+				&& StripTypeDecorators(last.Type) is CallableTypeReference callback)
 			{
 				foreach (ParameterDefinition parameter in callback.Parameters)
 					if (parameter.Modifier == ParameterModifier.Thrown)

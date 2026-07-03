@@ -1481,7 +1481,9 @@ public sealed partial class BindableNodeAnalyzer
 				return "Await target is not awaitable.";
 			if (function.IsAsync)
 				return "Await target is awaitable.";
-			if (function.Parameters is not [.., ParameterDefinition last] || last.Type is not CallableTypeReference callback)
+			if (function.Parameters is not [.., ParameterDefinition last]
+				|| !TryGetCallableTypeReference(last.Type, out CallableTypeReference? callback)
+				|| callback is null)
 				return "Awaited call is missing the final once completion callback parameter.";
 			if (callback.Kind != CallableKind.Once)
 				return "Awaited completion callback must be a once callable.";
@@ -1557,7 +1559,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool HasAwaitableCallback(List<ParameterDefinition> parameters)
 	{
-		if (parameters is not [.., ParameterDefinition last] || last.Type is not CallableTypeReference { Kind: CallableKind.Once, ReturnType: PrimitiveTypeReference { Type: PrimitiveType.Void } } callback)
+		if (parameters is not [.., ParameterDefinition last]
+			|| !TryGetCallableTypeReference(last.Type, out CallableTypeReference? callback)
+			|| callback is not { Kind: CallableKind.Once, ReturnType: PrimitiveTypeReference { Type: PrimitiveType.Void } })
 			return false;
 
 		int successSlots = 0;
@@ -1577,7 +1581,9 @@ public sealed partial class BindableNodeAnalyzer
 	static bool TryGetAwaitableCallbackSuccessType(List<ParameterDefinition> parameters, out string successType)
 	{
 		successType = "void";
-		if (parameters is not [.., ParameterDefinition last] || last.Type is not CallableTypeReference { Kind: CallableKind.Once, ReturnType: PrimitiveTypeReference { Type: PrimitiveType.Void } } callback)
+		if (parameters is not [.., ParameterDefinition last]
+			|| !TryGetCallableTypeReference(last.Type, out CallableTypeReference? callback)
+			|| callback is not { Kind: CallableKind.Once, ReturnType: PrimitiveTypeReference { Type: PrimitiveType.Void } })
 			return false;
 		foreach (ParameterDefinition parameter in callback.Parameters)
 		{

@@ -2,48 +2,6 @@
 
 Next bug number: BUG-036.
 
-## BUG-034: Await matcher rejects instance methods whose final source parameter is an explicit `once` completion callback
-
-Observed while trying to make `EventLoop.delayAsync(...)` an instance method.
-
-Minimal shape:
-
-```camp
-class EventLoop
-{
-	void resumeAsync(escaped once void() continuation)
-	{
-		continuation();
-	}
-
-	void delayAsync(TimeSpan delay, once void() complete)
-	{
-		complete();
-	}
-}
-
-async void run(@resumewith EventLoop* loop)
-{
-	await loop.delayAsync(TimeSpan.fromSeconds(1));
-}
-```
-
-The compiler reports:
-
-```text
-Awaited call is missing the final once completion callback parameter.
-```
-
-The equivalent free-function shape works:
-
-```camp
-void delayAsync(EventLoop* loop, TimeSpan delay, once void() complete);
-await delayAsync(loop, TimeSpan.fromSeconds(1));
-```
-
-Workaround used in the sample: make `delayAsync` a free function that takes the
-loop as an ordinary first parameter.
-
 ## BUG-035: Storing an await completion callback context requires an explicit escaped lifetime cast
 
 Observed while implementing a timer-backed awaitable operation that stores the
