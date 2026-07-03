@@ -178,7 +178,7 @@ public sealed partial class BindableNodeAnalyzer
 		string type = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "";
 		if (!typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition))
 			return false;
-		return definition is NewtypeDefinition { UnderlyingType: CallableTypeReference { Kind: CallableKind.Delegate } or IterTypeReference };
+		return definition is NewtypeDefinition { UnderlyingType: CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once } or IterTypeReference };
 	}
 
 	void ExpandParamsFields(List<FieldDefinition> fields)

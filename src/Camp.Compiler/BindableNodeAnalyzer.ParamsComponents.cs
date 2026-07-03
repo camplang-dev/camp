@@ -76,7 +76,7 @@ public sealed partial class BindableNodeAnalyzer
 				AddOptionalPendingComponents(optional.ElementType, optional.ElementType.ResolvedType, prefix, components);
 				return true;
 
-			case CallableTypeReference { Kind: CallableKind.Delegate } callable:
+			case CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once } callable:
 				kind = ParamsComponentShapeKind.Delegate;
 				typeName = type.ResolvedType ?? resolvedType ?? ErrorType;
 				AddDelegatePendingComponents(callable.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredCallableParameterTypes(callable.Parameters), prefix, components, callable.TargetSpec, callable.CallSpec);
@@ -144,7 +144,7 @@ public sealed partial class BindableNodeAnalyzer
 				}
 			}
 
-			if (TryGetCallableShape(resolvedType, out CallableShape callable) && callable.Kind == "delegate")
+			if (TryGetCallableShape(resolvedType, out CallableShape callable) && callable.Kind is "delegate" or "once")
 			{
 				kind = ParamsComponentShapeKind.Delegate;
 				typeName = resolvedType;

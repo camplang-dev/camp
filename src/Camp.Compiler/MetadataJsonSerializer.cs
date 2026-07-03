@@ -587,9 +587,6 @@ public static class MetadataJsonSerializer
 
 		List<ParameterDefinition> FilterApiParameters(IReadOnlyList<ParameterDefinition> parameters)
 		{
-			if (!IsExportApiView)
-				return [.. parameters];
-
 			List<ParameterDefinition> result = [];
 			foreach (ParameterDefinition parameter in parameters)
 			{
@@ -729,11 +726,17 @@ public static class MetadataJsonSerializer
 
 		static string FormatType(TypeReference? type, string? resolvedType)
 		{
-			return type is not null
+			string formatted = type is not null
 				? BindableNodeCodeSerializer.SerializeType(type)
 				: string.IsNullOrWhiteSpace(resolvedType)
 					? BindableNodeAnalyzer.FormatTypeReference(type)
 					: resolvedType!;
+			return FormatSourceMetadataType(formatted);
+		}
+
+		static string FormatSourceMetadataType(string type)
+		{
+			return type.Replace("#THIS", "escaped this", StringComparison.Ordinal);
 		}
 
 		void WriteMetadata(Utf8JsonWriter json, IReadOnlyList<AttributeConstructor> attributes)

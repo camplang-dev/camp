@@ -1528,8 +1528,8 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeLambdaExpression(LambdaExpression lambda, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
 		CallableShape? targetShape = TryGetLambdaCallableShape(targetType, out CallableShape callableTarget, out bool targetIsEscaped) ? callableTarget : null;
-		if (targetShape is CallableShape targetCallable && targetCallable.Kind is not ("fn" or "delegate"))
-			Report(GetRange(lambda.SourceSyntax), "Lambdas can target only fn or delegate callable types.");
+		if (targetShape is CallableShape targetCallable && targetCallable.Kind is not ("fn" or "delegate" or "once"))
+			Report(GetRange(lambda.SourceSyntax), "Lambdas can target only fn, delegate, once callable types.");
 		string lambdaSourceReturnType = targetShape is CallableShape lambdaTarget
 			? LambdaSourceReturnType(lambdaTarget.ReturnType, lambda)
 			: TargetType;
@@ -1598,7 +1598,7 @@ public sealed partial class BindableNodeAnalyzer
 		string inferredType = BuildCallableType(inferredKind, targetShape?.ReturnType ?? returnType, parameterTypes);
 		if (targetType is not null
 			&& TryGetLambdaCallableShape(targetType, out CallableShape expectedShape, out bool expectedEscaped)
-			&& expectedShape.Kind is "fn" or "delegate"
+			&& expectedShape.Kind is "fn" or "delegate" or "once"
 			&& CallableShapesCompatibleWithConstOfVariance(new CallableShape(expectedShape.Kind, expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This), expectedShape))
 			return targetType;
 
@@ -3876,6 +3876,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeUnaryExpression(UnaryExpression unary, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
+		if (unary.Operator == UnaryOperator.Postpone)
+			return BodyAnalyzePostponeExpression(unary, scope, typeScope, targetType);
+
 		string? operandTargetType = unary.Operator == UnaryOperator.Throw
 			? GetFunctionThrownParameter(scope.CurrentFunction)?.ResolvedType ?? GetFunctionThrownReturnType(scope.CurrentFunction)
 			: targetType;
@@ -3899,6 +3902,9 @@ public sealed partial class BindableNodeAnalyzer
 					return ErrorType;
 				}
 				return GetAwaitedType(unary.Operand, scope, typeScope);
+
+			case UnaryOperator.Postpone:
+				return unary.ResolvedType ?? ErrorType;
 
 			case UnaryOperator.AddressOf:
 				if (unary.Operand is IndexExpression index && TryGetIndexedAddressType(index.Target?.ResolvedType, out string indexedAddressType))
@@ -3924,6 +3930,109 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return operandType;
 		}
+	}
+
+	string BodyAnalyzePostponeExpression(UnaryExpression postpone, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	{
+		if (postpone.Operand is not CallExpression call)
+		{
+			Report(GetRange(postpone.SourceSyntax), "postpone must be followed directly by a method-call expression.");
+			postpone.ResolvedType = ErrorType;
+			return ErrorType;
+		}
+
+		NormalizeGenericCallSyntax(call);
+		foreach (TypeReference argument in call.TypeArguments)
+			AnalyzeType(argument, typeScope);
+
+		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? existingTarget)
+			? existingTarget
+			: ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
+		if (function is null)
+		{
+			Report(GetRange(call.SourceSyntax ?? postpone.SourceSyntax), "Postponed call target could not be resolved.");
+			postpone.ResolvedType = ErrorType;
+			return ErrorType;
+		}
+
+		EnsureFunctionSignatureAnalyzed(function, typeScope);
+		callTargets[call] = function;
+		bool includeThis = IncludeExplicitThisArgument(call.Target, function);
+		List<ParameterDefinition> parameters = GetAsyncAwareCallParameters(function, call, includeThis);
+		List<ParameterDefinition> callableParameters = GetCallableParameters(parameters, includeThis);
+		if (includeThis && GetExplicitThisParameter(function) is null && IsInstanceFunction(function) && FindContainingType(function) is TypeDefinition containingType)
+			callableParameters.Insert(0, CreateImplicitThisParameter(containingType));
+
+		if (call.Arguments.Any(static argument => !string.IsNullOrWhiteSpace(argument.Name)))
+		{
+			Report(GetRange(call.SourceSyntax ?? postpone.SourceSyntax), "Named postponed call slots are not implemented yet; use positional arguments for now.");
+			postpone.ResolvedType = ErrorType;
+			return ErrorType;
+		}
+		if (call.Arguments.Count > callableParameters.Count)
+		{
+			Report(GetRange(call.SourceSyntax ?? postpone.SourceSyntax), "Postponed call has too many supplied arguments.");
+			postpone.ResolvedType = ErrorType;
+			return ErrorType;
+		}
+
+		List<LambdaParameter> lambdaParameters = [];
+		List<string> lambdaParameterSlots = [];
+		for (int i = call.Arguments.Count; i < callableParameters.Count; i++)
+		{
+			ParameterDefinition parameter = callableParameters[i];
+			if (parameter.ResolvedType is null)
+				AnalyzeParameterDefinition(parameter, typeScope);
+			ParameterDefinition lambdaParameterDefinition = new()
+			{
+				SourceSyntax = parameter.SourceSyntax ?? call.SourceSyntax ?? postpone.SourceSyntax,
+				Name = string.IsNullOrWhiteSpace(parameter.Name) ? "arg" + (i - call.Arguments.Count).ToString(CultureInfo.InvariantCulture) : parameter.Name,
+				Symbol = string.IsNullOrWhiteSpace(parameter.Symbol) ? parameter.Name : parameter.Symbol,
+				Modifier = parameter.Modifier,
+				Type = CloneType(parameter.Type) ?? TypeReferenceForResolvedName(parameter.ResolvedType ?? ErrorType),
+				ResolvedType = parameter.ResolvedType ?? ErrorType
+			};
+			LambdaParameter lambdaParameter = new()
+			{
+				SourceSyntax = parameter.SourceSyntax ?? call.SourceSyntax ?? postpone.SourceSyntax,
+				Parameter = lambdaParameterDefinition,
+				ResolvedType = lambdaParameterDefinition.ResolvedType
+			};
+			lambdaParameters.Add(lambdaParameter);
+			lambdaParameterSlots.Add(GetLambdaParameterCallableSlot(lambdaParameterDefinition));
+			call.Arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = lambdaParameter.SourceSyntax,
+				Modifier = parameter.Modifier switch
+				{
+					ParameterModifier.Out => ArgumentModifier.Out,
+					ParameterModifier.Thrown => ArgumentModifier.Catch,
+					_ => ArgumentModifier.None
+				},
+				Value = CreateVariableReference(lambdaParameter, lambdaParameterDefinition.ResolvedType ?? ErrorType),
+				ResolvedType = lambdaParameterDefinition.ResolvedType ?? ErrorType
+			});
+		}
+
+		string returnType = function.ResolvedType ?? "void";
+		string onceType = BuildCallableType("once", returnType, lambdaParameterSlots);
+		LambdaExpression lambda = new()
+		{
+			SourceSyntax = postpone.SourceSyntax,
+			Body = new BlockStatement { SourceSyntax = postpone.SourceSyntax },
+			ResolvedType = onceType
+		};
+		foreach (LambdaParameter parameter in lambdaParameters)
+			lambda.Parameters.Add(parameter);
+		if (returnType == "void")
+			lambda.Body.Statements.Add(new ExpressionStatement { SourceSyntax = call.SourceSyntax, Expression = call });
+		else
+			lambda.Body.Statements.Add(new ReturnStatement { SourceSyntax = call.SourceSyntax, Expression = call });
+
+		string analyzedType = BodyAnalyzeLambdaExpression(lambda, scope, typeScope, onceType);
+		expressionRewrites[postpone] = lambda;
+		postpone.ResolvedType = analyzedType;
+		return analyzedType;
 	}
 
 	string BodyAnalyzePostfixUpdateExpression(PostfixUpdateExpression postfix, BodyScope scope, AnalysisScope typeScope)

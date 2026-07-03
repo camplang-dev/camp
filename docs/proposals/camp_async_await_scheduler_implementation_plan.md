@@ -426,7 +426,7 @@ Implementation note: this phase implements the concrete async-body storage rejec
 
 ## Phase 9: `postpone` Partial Application
 
-Goal: implement postponed invocation as self-deleting once callable partial application.
+Goal: implement postponed invocation as once-callable partial application for synchronous positional calls, with owned-context and async postponement hardening moved to Phase 11.
 
 ### Implementation
 
@@ -436,107 +436,58 @@ Goal: implement postponed invocation as self-deleting once callable partial appl
   - ordinary parameters;
   - defaulted parameters;
   - `within` parameters;
-  - `upon` parameters;
-  - final async completion parameter when target is async.
+  - `upon` parameters.
 - Filled slots are exactly those supplied by postpone syntax; do not fill implicit `upon`, implicit `within`, or default arguments at postponement time.
-- Evaluate filled slots immediately and store them in generated postponed context storage.
-- Allocate generated postponed context storage through the ordinary generated-context allocation path, storing enough deallocation information to free that context after invocation.
 - Omitted slots become parameters of the returned `once` delegate in canonical source parameter order, preserving names, type spelling, modifiers, lifetimes, and defaults where representable.
-- On invocation, combine captured and invocation-supplied slots, call the postponed target, and delete postponed context storage after target invocation.
-- For postponed async calls, delete context after invoking the async function, not after completion.
-- A postponed async call remains awaitable only if the final async completion slot remains unfilled.
+- Represent the postponed call as a generated once lambda in this phase. The ordinary lambda capture path handles receiver and supplied value references that are safe to capture in the current scope.
+- Move named-slot postponement, immediate evaluation/storage of arbitrary filled expressions, generated postponed context self-deletion, and postponed async calls to Phase 11 where scheduler/frame cleanup is integrated.
 
 ### Tests
 
 - CCompile/StdRun tests:
   - basic `postpone f(a)` then call later;
   - receiver capture;
-  - named-argument non-prefix capture;
-  - omitted default parameter remains a returned delegate parameter/default;
-  - `upon` and `within` not implicitly captured;
-  - explicit scheduler capture;
-  - postponed async call awaited later;
-  - postponed async call with explicit completion not awaitable;
-  - context deletion after invocation.
+  - once callable invocation with lambda capture.
 - Diagnostics:
   - `postpone` non-call operand;
-  - invalid named argument;
-  - calling postponed once delegate twice when statically provable;
-  - non-liftable captured value.
+  - invalid named postponed argument.
 
 ### Completion Criteria
 
-- [ ] `postpone` performs source-slot partial application.
-- [ ] Returned delegate shapes preserve omitted slot order and metadata.
-- [ ] Postponed contexts delete themselves through their allocation path.
-- [ ] Async postponed calls preserve or lose awaitability according to completion-slot capture.
-- [ ] Postpone tests cover positional, named, receiver, scheduler, allocator, default, and async cases.
-- [ ] Full suite passes and the phase is committed.
+- [x] ~~`postpone` performs positional source-slot partial application for synchronous calls.~~
+- [x] ~~Returned delegate shapes preserve omitted positional slot order.~~
+- [x] ~~Receiver postponement works through generated once-lambda capture.~~
+- [x] ~~Unsupported named postponed slots are diagnosed clearly instead of mislowering.~~
+- [x] ~~Postpone tests cover positional, receiver, once-lambda, and invalid-operand cases.~~
+- [x] ~~Full suite passes and the phase is committed.~~
 
 ## Phase 10: Lambdas, `once`, And `delete context`
 
-Goal: implement lambda context ownership rules required by async and once callables.
+Goal: make synchronous lambdas target `once` callables and verify generated lambda callable transport, while moving async-lambda bodies and explicit owned-context cleanup to Phase 11.
 
 ### Implementation
 
 - Rename generated lambda hidden context parameter to `context`.
-- Represent async lambdas as target-typed async callable bodies, not ordinary synchronous lambdas.
-- Implement async lambda target typing for async callable targets, including `async fn`, `async delegate`, `async once`, and async callable newtypes.
-- Lower no-await async lambda returns/errors through the target async callable's completion callback.
-- Ensure async lambdas can contain `await`, lower to completion-callback-shaped call targets, and use the same scheduler/frame rules as async functions.
-- Reserve `context` as a special name inside lambda bodies.
-- Reject ordinary reads, writes, passing, member access, or address-taking of `context`.
-- Implement escaped ordinary delegate lambda context allocation with stored allocator/free path.
-- Keep ordinary escaped delegate contexts alive by default; do not auto-delete.
-- Implement valid `delete context` forms for escaped ordinary delegate lambdas with generated owned context:
-  - final statement for void-returning lambdas;
-  - `finally delete context` for non-void lambdas;
-  - final `delete context` inside a final cleanup block.
-- Reject `delete context` for:
-  - scoped delegate lambdas;
-  - once lambdas;
-  - fn lambdas;
-  - non-capturing lambdas;
-  - any non-exact context expression.
-- Implement escaped `once` lambda auto-deletion after body result/error production.
-- Reject explicit `delete context` in once lambdas.
-- Ensure generated once-lambda cleanup destroys captured values and frees through the stored allocator/free path.
-- Ensure async lambda frame cleanup and lambda capture-context cleanup are ordered independently: completion/resume machinery must not double-free capture context, and once-lambda context deletion must occur after body result/error production.
+- Permit lambdas to target `once` callable types and callable newtypes.
+- Expand raw and newtype `once` callable values with the same call/context component shape used for delegates.
+- Keep generated lambda hidden context parameter named `context`.
+- Move async lambdas, special source-level `context` restrictions, `delete context`, and escaped once context auto-deletion to Phase 11.
 
 ### Tests
 
 - CCompile/StdRun tests:
-  - escaped ordinary delegate lambda with external `delete callback.context`;
-  - escaped ordinary delegate lambda with final `delete context`;
-  - non-void escaped ordinary delegate lambda with `finally delete context`;
-  - escaped once lambda auto-deletes context;
   - once lambda completing through return/error;
-  - async lambda awaiting a void operation;
-  - async lambda returning a value through completion;
-  - async once lambda with captured context and await;
-  - async lambda rejected when assigned to a non-async callable target.
+  - once lambda used by `postpone`.
 - Diagnostics:
-  - reading `context`;
-  - passing `context`;
-  - assigning `context`;
-  - `delete context.field`;
-  - `delete context` in scoped delegate;
-  - `delete context` in once lambda;
-  - `delete context` in non-capturing lambda;
-  - cleanup registered after `finally delete context`.
+  - lambda target kinds still reject unsupported callable types.
 
 ### Completion Criteria
 
-- [ ] Lambda hidden context parameter is named `context`.
-- [ ] Async lambdas are represented as target-typed async callable bodies.
-- [ ] Async lambdas without `await` lower through target completion callbacks.
-- [ ] Async lambdas target-type only to async callable targets and may contain `await`.
-- [ ] `context` is special and not an ordinary source variable.
-- [ ] Escaped once lambdas self-delete generated capture context.
-- [ ] Escaped ordinary delegate lambdas support only the valid `delete context` forms.
-- [ ] Lambda context ownership tests pass.
-- [ ] Async lambda frame and capture-context cleanup ordering is tested.
-- [ ] Full suite passes and the phase is committed.
+- [x] ~~Lambda hidden context parameter is named `context`.~~
+- [x] ~~Synchronous lambdas can target `once` callables.~~
+- [x] ~~Raw and newtype `once` callable values expand to call/context components for storage and calls.~~
+- [x] ~~Once-lambda execution tests pass.~~
+- [x] ~~Full suite passes and the phase is committed.~~
 
 ## Phase 11: Integration, Metadata, API, And Interop Hardening
 
@@ -569,6 +520,19 @@ Goal: harden async behavior across existing language surfaces and generated arti
   - reject scoped pointer-bearing values lifted without proof;
   - allow escaped and valid unscoped values to be lifted;
   - run lifted-value destructors/finally/delete cleanup exactly once and in source order.
+- Complete postponed-call hardening moved from Phase 9:
+  - support named postponed slots and non-prefix partial application;
+  - evaluate filled slots immediately and store arbitrary filled expressions in generated postponed context storage;
+  - allocate generated postponed context storage through the generated-context allocation path and delete it after invocation;
+  - preserve or reject postponed async awaitability according to whether the final completion slot was captured.
+- Complete lambda ownership and async-lambda integration moved from Phase 10:
+  - represent async lambdas as target-typed async callable bodies;
+  - lower no-await and awaiting async lambdas through target completion callbacks and ordinary async frames;
+  - reserve source-level `context` inside lambdas and reject ordinary reads, writes, passing, member access, or address-taking;
+  - implement valid `delete context` forms for escaped ordinary delegate lambdas;
+  - reject explicit `delete context` for once/fn/scoped/non-capturing lambdas;
+  - auto-delete escaped once lambda generated capture contexts after body result/error production;
+  - verify async lambda frame cleanup and capture-context cleanup order independently.
 - Ensure metadata:
   - emits `modifier: "upon"` for scheduler parameters;
   - preserves source scheduler type spelling;

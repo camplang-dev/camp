@@ -1,0 +1,24 @@
+using Std;
+
+int add(int left, int right) => left + right;
+
+class Counter
+{
+	int offset;
+	int addTo(int value) => this.offset + value;
+}
+
+export int main()
+{
+	auto addFive = postpone add(5);
+	int captured = 7;
+	once int(int extra) addCaptured = (int extra) => captured + extra;
+
+	auto counter = new Counter();
+	counter.offset = 20;
+	auto addCounter = postpone counter.addTo();
+
+	int result = addFive(6) + addCaptured(8) + addCounter(3);
+	Console.writeLine(result);
+	return result == 49 ? 0 : 1;
+}

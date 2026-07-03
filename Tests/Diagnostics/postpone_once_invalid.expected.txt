@@ -1,0 +1,2 @@
+tests/Diagnostics/postpone_once_invalid.camp(5,15): error: postpone must be followed directly by a method-call expression.
+tests/Diagnostics/postpone_once_invalid.camp(10,27): error: Named postponed call slots are not implemented yet; use positional arguments for now.

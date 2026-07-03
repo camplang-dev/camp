@@ -1,0 +1,10 @@
+using Std;
+
+export int main()
+{
+	int value = 4;
+	once int() later = () => value + 1;
+	int result = later();
+	Console.writeLine(result);
+	return result == 5 ? 0 : 1;
+}

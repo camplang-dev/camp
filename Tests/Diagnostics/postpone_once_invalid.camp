@@ -1,0 +1,11 @@
+int add(int left, int right) => left + right;
+
+void badOperand()
+{
+	auto value = postpone 1;
+}
+
+void badNamed()
+{
+	auto value = postpone add(left: 1);
+}

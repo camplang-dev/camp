@@ -63,20 +63,20 @@ public sealed partial class BindableNodeAnalyzer
 			&& !ReferenceEquals(rewritten, lambda))
 			return rewritten;
 
-		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind is not ("fn" or "delegate"))
+		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind is not ("fn" or "delegate" or "once"))
 		{
-			Report(GetRange(lambda.SourceSyntax), "Lambda lowering supports only fn or delegate targets.");
+			Report(GetRange(lambda.SourceSyntax), "Lambda lowering supports only fn, delegate, once targets.");
 			return lambda;
 		}
 		CallableShape loweringShape = EraseConstOfCallableShape(TryGetCallableShape(lambda.ResolvedType, out CallableShape abiShape) ? abiShape : shape);
 		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, currentRewriteFunction, FindCurrentRewriteContainingType(), reportUnsupported: true);
-		if (captures.Count > 0 && shape.Kind != "delegate")
+		if (captures.Count > 0 && shape.Kind is not ("delegate" or "once"))
 		{
 			Report(GetRange(lambda.SourceSyntax), "Capturing lambdas require a delegate target.");
 			return lambda;
 		}
 
-		bool delegateTarget = shape.Kind == "delegate";
+		bool delegateTarget = shape.Kind is "delegate" or "once";
 		LambdaContextInfo? contextInfo = null;
 		if (captures.Count > 0)
 		{
@@ -274,7 +274,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void PrepareLambdaContextLocal(LambdaExpression lambda, List<Statement> statements)
 	{
-		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind != "delegate")
+		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind is not ("delegate" or "once"))
 			return;
 		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, currentRewriteFunction, FindCurrentRewriteContainingType(), reportUnsupported: true);
 		if (captures.Count == 0)
