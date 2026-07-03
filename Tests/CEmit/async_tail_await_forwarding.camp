@@ -1,0 +1,9 @@
+async int inner()
+{
+	return 11;
+}
+
+async int outer()
+{
+	return await inner();
+}

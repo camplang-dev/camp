@@ -34,6 +34,7 @@ public sealed partial class BindableNodeAnalyzer
 		function.Body.ResolvedType = "void";
 		BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
 		CollectAsyncAwaitSites(function);
+		ValidateSupportedAwaitSites(function);
 		BindFunctionLabels(function);
 		ValidateBaseConstructorInvocation(function, containingType);
 		FlowAnalyzeFunctionBody(function, scope);
@@ -215,6 +216,56 @@ public sealed partial class BindableNodeAnalyzer
 			case RangeExpression range:
 				CollectAsyncAwaitSites(range.Start, sites);
 				CollectAsyncAwaitSites(range.End, sites);
+				break;
+		}
+	}
+
+	void ValidateSupportedAwaitSites(FunctionDefinition function)
+	{
+		if (function.AwaitSites.Count == 0)
+			return;
+		HashSet<UnaryExpression> supported = [];
+		CollectSupportedTailAwaitSites(function.Body, supported);
+		foreach (UnaryExpression awaitSite in function.AwaitSites)
+		{
+			if (awaitSite.ResolvedType == ErrorType)
+				continue;
+			if (!supported.Contains(awaitSite))
+				Report(GetRange(awaitSite.SourceSyntax), "Non-tail await requires async frame lowering and is implemented in the scheduler/frame phase.");
+		}
+	}
+
+	void CollectSupportedTailAwaitSites(Statement? statement, HashSet<UnaryExpression> supported)
+	{
+		switch (statement)
+		{
+			case null:
+				return;
+			case BlockStatement block:
+				foreach (Statement child in block.Statements)
+					CollectSupportedTailAwaitSites(child, supported);
+				break;
+			case ReturnStatement { Expression: UnaryExpression { Operator: UnaryOperator.Await, Operand: CallExpression or MemberExpression } awaitExpression }:
+				supported.Add(awaitExpression);
+				break;
+			case IfStatement ifStatement:
+				CollectSupportedTailAwaitSites(ifStatement.Body, supported);
+				CollectSupportedTailAwaitSites(ifStatement.ElseBody, supported);
+				break;
+			case TryStatement tryStatement:
+				CollectSupportedTailAwaitSites(tryStatement.Body, supported);
+				foreach (CatchStatement catchStatement in tryStatement.Catches)
+					CollectSupportedTailAwaitSites(catchStatement, supported);
+				CollectSupportedTailAwaitSites(tryStatement.Finally, supported);
+				break;
+			case CatchStatement catchStatement:
+				CollectSupportedTailAwaitSites(catchStatement.Body, supported);
+				break;
+			case FinallyStatement finallyStatement:
+				CollectSupportedTailAwaitSites(finallyStatement.Body, supported);
+				break;
+			case WithinStatement withinStatement:
+				CollectSupportedTailAwaitSites(withinStatement.Body, supported);
 				break;
 		}
 	}
@@ -1850,6 +1901,20 @@ public sealed partial class BindableNodeAnalyzer
 		else if (TryAnalyzeCallableInvocation(call, scope, typeScope, targetType, out string callableReturnType))
 		{
 			return callableReturnType;
+		}
+		else if (call.Target is MemberExpression member && TryAnalyzePropertyIndexer(member, call.Arguments, scope, typeScope, out string propertyCallType))
+		{
+			if (expressionRewrites.TryGetValue(member, out Expression? rewritten)
+				&& rewritten is MemberReferenceExpression propertyReference
+				&& propertyReference.Member is FunctionDefinition propertyFunction
+				&& IsPropertyGetterReference(propertyReference))
+			{
+				callTargets[call] = propertyFunction;
+				callGenericSubstitutions[call] = new Dictionary<string, string>(StringComparer.Ordinal);
+			}
+			if (targetType is not null)
+				CheckAssignable(targetType, propertyCallType, call.SourceSyntax, "Call result");
+			return propertyCallType;
 		}
 		else if (IsRawFunctionPointerType(call.Target?.ResolvedType))
 		{
@@ -3878,7 +3943,10 @@ public sealed partial class BindableNodeAnalyzer
 				if (scope.CurrentFunction?.IsAsync != true)
 					Report(GetRange(unary.SourceSyntax), "await may be used only inside an async function or async lambda.");
 				if (!IsAwaitable(unary.Operand, scope, typeScope))
+				{
 					Report(GetRange(unary.SourceSyntax), GetAwaitableDiagnostic(unary.Operand, scope, typeScope));
+					return ErrorType;
+				}
 				return GetAwaitedType(unary.Operand, scope, typeScope);
 
 			case UnaryOperator.AddressOf:

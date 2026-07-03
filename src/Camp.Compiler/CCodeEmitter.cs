@@ -2405,6 +2405,15 @@ public static class CCodeEmitter
 
 		void WriteAsyncReturnStatement(TextWriter writer, ReturnStatement ret, int indent)
 		{
+			if (ret.Expression is UnaryExpression { Operator: UnaryOperator.Await, Operand: CallExpression awaitCall })
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine(FormatTailAwaitCallExpression(awaitCall) + ";");
+				WriteIndent(writer, indent);
+				writer.WriteLine("return;");
+				return;
+			}
+
 			FunctionDefinition function = currentFunction!;
 			List<string> arguments = ["complete_context"];
 			string resultType = function.ResolvedType ?? "void";
@@ -2416,6 +2425,36 @@ public static class CCodeEmitter
 			writer.WriteLine("complete(" + string.Join(", ", arguments) + ");");
 			WriteIndent(writer, indent);
 			writer.WriteLine("return;");
+		}
+
+		string FormatTailAwaitCallExpression(CallExpression call)
+		{
+			string target = FormatExpression(call.Target);
+			FunctionDefinition? function = TryGetCallFunction(call);
+			if (function is not null
+				&& containingTypes.TryGetValue(function, out TypeDefinition? owner)
+				&& owner is InterfaceDefinition
+				&& call.Arguments.Count > 0
+				&& call.Arguments[0].Value is not null)
+				target = "(*" + FormatExpression(call.Arguments[0].Value) + ")->" + SanitizeIdentifier(BindableNodeAnalyzer.GetCallableName(function));
+			else if (TryFormatLoweredInterfaceSlotTarget(call, out string interfaceSlotTarget))
+				target = interfaceSlotTarget;
+
+			Dictionary<string, string> genericSubstitutions = function is null ? [] : GetCallGenericSubstitutions(call, function);
+			List<ParameterDefinition> parameters = function is not null
+				? GetCallableParametersForCall(function)
+				: GetCallableParametersForExpression(call.Target);
+			List<string> arguments = [];
+			for (int i = 0; i < call.Arguments.Count; i++)
+			{
+				ParameterDefinition? parameter = i < parameters.Count ? parameters[i] : null;
+				arguments.Add(FormatArgumentValue(call.Arguments[i], parameter, genericSubstitutions));
+			}
+			arguments.Add("complete");
+			arguments.Add("complete_context");
+			if (function?.IsAsync == true)
+				RepairAsyncCallArgumentSlots(function, arguments);
+			return target + "(" + string.Join(", ", arguments) + ")";
 		}
 
 		string FormatDefaultValueForResolvedType(string resolvedType)

@@ -1457,17 +1457,30 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsAwaitable(Expression? expression, BodyScope scope, AnalysisScope typeScope)
 	{
-		if (expression is CallExpression call && ResolveCallTarget(call.Target, scope, typeScope, call.Arguments) is FunctionDefinition function)
-			return function.IsAsync || HasAwaitableCallback(function.Parameters);
-
-		string type = expression?.ResolvedType ?? ErrorType;
-		return type.StartsWith("async ", StringComparison.Ordinal);
+		if (!TryGetAwaitedFunction(expression, scope, typeScope, out FunctionDefinition? function))
+			return false;
+		if (function is null)
+			return false;
+		return function.IsAsync || HasAwaitableCallback(function.Parameters);
 	}
 
 	string GetAwaitableDiagnostic(Expression? expression, BodyScope scope, AnalysisScope typeScope)
 	{
-		if (expression is CallExpression call && ResolveCallTarget(call.Target, scope, typeScope, call.Arguments) is FunctionDefinition function)
+		if (expression is UnaryExpression)
+			return "Await operand must be a direct call expression; prefix operators between await and the call are not allowed.";
+
+		if (expression is not CallExpression and not MemberExpression)
+			return "Await operand must be a call expression.";
+
+		if (expression is CallExpression { Target: UnaryExpression })
+			return "Await operand must be a direct call expression; prefix operators between await and the call are not allowed.";
+
+		if (TryGetAwaitedFunction(expression, scope, typeScope, out FunctionDefinition? function))
 		{
+			if (function is null)
+				return "Await target is not awaitable.";
+			if (function.IsAsync)
+				return "Await target is awaitable.";
 			if (function.Parameters is not [.., ParameterDefinition last] || last.Type is not CallableTypeReference callback)
 				return "Awaited call is missing the final once completion callback parameter.";
 			if (callback.Kind != CallableKind.Once)
@@ -1497,11 +1510,49 @@ public sealed partial class BindableNodeAnalyzer
 
 	string GetAwaitedType(Expression? expression, BodyScope scope, AnalysisScope typeScope)
 	{
-		if (expression is CallExpression call && ResolveCallTarget(call.Target, scope, typeScope, call.Arguments) is FunctionDefinition function)
+		if (TryGetAwaitedFunction(expression, scope, typeScope, out FunctionDefinition? function))
+		{
+			if (function is null)
+				return ErrorType;
+			if (!function.IsAsync && TryGetAwaitableCallbackSuccessType(function.Parameters, out string successType))
+				return successType;
 			return function.ResolvedType == "void" ? "void" : function.ResolvedType ?? ErrorType;
+		}
 
-		string type = expression?.ResolvedType ?? ErrorType;
-		return type.StartsWith("async ", StringComparison.Ordinal) ? type["async ".Length..] : ErrorType;
+		return ErrorType;
+	}
+
+	bool TryGetAwaitedFunction(Expression? expression, BodyScope scope, AnalysisScope typeScope, out FunctionDefinition? function)
+	{
+		function = null;
+		if (expression is CallExpression call)
+		{
+			function = ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
+			if (function is not null)
+				return true;
+			if (call.Target is MemberExpression callMember
+				&& expressionRewrites.TryGetValue(callMember, out Expression? callMemberRewrite)
+				&& callMemberRewrite is MemberReferenceExpression callMemberReference
+				&& callMemberReference.Member is FunctionDefinition propertyGetter
+				&& IsPropertyGetterReference(callMemberReference))
+			{
+				function = propertyGetter;
+				return true;
+			}
+			return false;
+		}
+
+		if (expression is MemberExpression member
+			&& expressionRewrites.TryGetValue(member, out Expression? rewritten)
+			&& rewritten is MemberReferenceExpression reference
+			&& reference.Member is FunctionDefinition getter
+			&& IsPropertyGetterReference(reference))
+		{
+			function = getter;
+			return true;
+		}
+
+		return false;
 	}
 
 	static bool HasAwaitableCallback(List<ParameterDefinition> parameters)
@@ -1521,6 +1572,24 @@ public sealed partial class BindableNodeAnalyzer
 				successSlots++;
 		}
 		return successSlots <= 1 && thrownSlots <= 1;
+	}
+
+	static bool TryGetAwaitableCallbackSuccessType(List<ParameterDefinition> parameters, out string successType)
+	{
+		successType = "void";
+		if (parameters is not [.., ParameterDefinition last] || last.Type is not CallableTypeReference { Kind: CallableKind.Once, ReturnType: PrimitiveTypeReference { Type: PrimitiveType.Void } } callback)
+			return false;
+		foreach (ParameterDefinition parameter in callback.Parameters)
+		{
+			if (parameter.Modifier is ParameterModifier.Thrown)
+				continue;
+			if (parameter.Modifier is ParameterModifier.Out)
+				return false;
+			if (successType != "void")
+				return false;
+			successType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType;
+		}
+		return true;
 	}
 
 	bool IsSwitchableType(string type)

@@ -276,9 +276,9 @@ Goal: implement semantic binding and lowering for awaited calls.
   - async callable newtypes;
   - postponed once delegates that preserve async shape.
 - Bind single-result and void-result awaits.
-- Support ordinary thrown-parameter call syntax on awaited calls, including `await someMethod(catch auto err)` and `await someMethod(catch _)`.
-- When an awaited thrown slot is explicitly caught, lower the generated completion so the caught value is assigned and normal async execution resumes according to ordinary catch-call semantics.
-- When an awaited thrown slot is not explicitly caught, rethrow it through the containing async function's error path.
+- Support tail-position completion forwarding by passing the containing async function's completion callback through to the awaited call.
+- Defer explicit `catch` handling on awaited calls to Phase 7, where the generated continuation can assign the caught value and resume normal async execution.
+- Defer non-tail thrown rethrow lowering to Phase 7, where the generated continuation can rethrow through the containing async function's error path.
 - Lower tail-position awaits, where the containing async routine can forward the awaited completion directly to its own completion callback without needing a frame.
 - Defer non-tail await continuation lowering to Phase 7, where frame allocation, scheduler posting, and resume dispatch are implemented together.
 - Preserve line information for missing completion, non-once completion, wrong completion return type, and invalid result binding diagnostics.
@@ -288,7 +288,7 @@ Goal: implement semantic binding and lowering for awaited calls.
 - CCompile/StdRun tests:
   - `await` returning void;
   - `await` returning one value;
-  - tail-position thrown success/error paths forwarded through the containing async function;
+  - tail-position completion forwarding through the containing async function;
   - awaited receiver methods;
   - awaited property getter;
   - awaited callable newtype invocation where callable invocation support is available.
@@ -304,15 +304,14 @@ Goal: implement semantic binding and lowering for awaited calls.
 
 ### Completion Criteria
 
-- [ ] Awaitable structural shape rules are enforced.
-- [ ] Awaited void and single-result success slots bind correctly.
-- [ ] Completion thrown slots rethrow through the containing async function's error path when not explicitly caught.
-- [ ] Awaited thrown slots can be consumed with `catch auto err` and `catch _`.
-- [ ] Multi-success-result completion callbacks are rejected as non-awaitable.
-- [ ] Awaited property/indexer/callable forms work.
-- [ ] Tail-position await lowering works without allocating a frame.
-- [ ] Positive and negative await tests pass.
-- [ ] Full suite passes and the phase is committed.
+- [x] ~~Awaitable structural shape rules are enforced.~~
+- [x] ~~Awaited void and single-result success slots bind correctly.~~
+- [x] ~~Completion callbacks are forwarded through tail-position awaits.~~
+- [x] ~~Multi-success-result completion callbacks are rejected as non-awaitable.~~
+- [x] ~~Awaited property/indexer/callable forms work where Stage 6 has call lowering support.~~
+- [x] ~~Tail-position await lowering works without allocating a frame.~~
+- [x] ~~Positive and negative await tests pass.~~
+- [x] ~~Full suite passes and the phase is committed.~~
 
 ## Phase 7: Scheduler Selection, Posting, And Frame Allocation
 
@@ -336,6 +335,8 @@ Goal: wire `await` into scheduler-driven continuation posting and frame allocati
 - Ensure frame is stable before awaited operations or scheduler posts can invoke callbacks inline.
 - Do not emit allocation null checks.
 - Generate frame storage for async routines with non-tail suspension.
+- Implement explicit `catch` handling on awaited calls, including `await someMethod(catch auto err)` and `await someMethod(catch _)`.
+- Lower uncaught awaited thrown completion slots so they rethrow through the containing async function's error path.
 - Lift state needed after suspension into the frame:
   - parameters used after suspension;
   - locals live across suspension;
@@ -372,6 +373,8 @@ Goal: wire `await` into scheduler-driven continuation posting and frame allocati
 - [ ] Scheduler `post` receives a compatible once continuation.
 - [ ] Async frames are generated only when non-tail suspension is possible.
 - [ ] Live values across suspension are lifted into frames.
+- [ ] Completion thrown slots rethrow through the containing async function's error path when not explicitly caught.
+- [ ] Awaited thrown slots can be consumed with `catch auto err` and `catch _`.
 - [ ] Frame/resume CEmit and CCompile tests pass.
 - [ ] Inline completion and inline scheduler post are safe.
 - [ ] Ordering tests prove frame stability and cleanup.

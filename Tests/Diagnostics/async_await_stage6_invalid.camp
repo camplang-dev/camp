@@ -1,0 +1,47 @@
+extern void missingCallback();
+extern void notOnce(delegate void() complete = default);
+extern void callbackReturns(once int() complete = default);
+extern void callbackOut(once void(out int value) complete = default);
+extern void callbackTwoThrown(once void(thrown int first, thrown int second) complete = default);
+extern void callbackTwoValues(once void(int first, int second) complete = default);
+
+async int inner()
+{
+	return 1;
+}
+
+async void badMissing()
+{
+	await missingCallback();
+}
+
+async void badNotOnce()
+{
+	await notOnce();
+}
+
+async void badReturn()
+{
+	await callbackReturns();
+}
+
+async void badOut()
+{
+	await callbackOut();
+}
+
+async void badTwoThrown()
+{
+	await callbackTwoThrown();
+}
+
+async void badTwoValues()
+{
+	await callbackTwoValues();
+}
+
+async int badNonTail()
+{
+	int value = await inner();
+	return value;
+}

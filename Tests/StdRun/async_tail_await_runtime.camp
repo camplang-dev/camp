@@ -1,0 +1,73 @@
+class Scheduler
+{
+	void* alloc(nuint size) => null;
+	void free(escaped void* ptr) {}
+	extern void post(once void(escaped this) continuation);
+}
+
+Scheduler scheduler;
+int valueObserved;
+int voidObserved;
+int propertyObserved;
+
+class Box
+{
+	int value;
+
+	async int getValue()
+	{
+		return this.value;
+	}
+}
+
+async int valueAsync(upon scheduler)
+{
+	return 17;
+}
+
+async int parentValueAsync(upon scheduler)
+{
+	return await valueAsync();
+}
+
+async void pingAsync(upon scheduler)
+{
+	voidObserved = 3;
+	return;
+}
+
+async void parentVoidAsync(upon scheduler)
+{
+	return await pingAsync();
+}
+
+async int parentPropertyAsync(Box* box, upon scheduler)
+{
+	return await box.Value();
+}
+
+void completeValue(void* context, int value)
+{
+	valueObserved = value;
+}
+
+void completeProperty(void* context, int value)
+{
+	propertyObserved = value;
+}
+
+void completeVoid(void* context)
+{
+}
+
+export int main()
+{
+	parentValueAsync(&scheduler, completeValue, null);
+	parentVoidAsync(&scheduler, completeVoid, null);
+
+	auto box = new Box();
+	box.value = 22;
+	parentPropertyAsync(box, &scheduler, completeProperty, null);
+
+	return valueObserved == 17 && voidObserved == 3 && propertyObserved == 22 ? 0 : 1;
+}
