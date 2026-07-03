@@ -1321,6 +1321,8 @@ public sealed class BindableNodeCodeSerializer
 		bool isWithin = parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition;
 		if (isWithin)
 			writer.Write("within ");
+		else if (parameter.Modifier == ParameterModifier.Upon)
+			writer.Write("upon ");
 		else if (parameter.Modifier == ParameterModifier.Out)
 			writer.Write("out ");
 		else if (parameter.Modifier == ParameterModifier.Thrown)

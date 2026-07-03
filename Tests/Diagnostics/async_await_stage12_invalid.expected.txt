@@ -1,0 +1,2 @@
+tests/Diagnostics/async_await_stage12_invalid.camp(7,2): error: Awaited completion callback may contain at most one non-error result parameter; multi-result await is not supported.
+tests/Diagnostics/async_await_stage12_invalid.camp(12,2): error: await may be used only inside an async function or async lambda.

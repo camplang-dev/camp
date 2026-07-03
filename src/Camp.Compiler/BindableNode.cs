@@ -433,7 +433,8 @@ public enum ParameterModifier
 	In,
 	Out,
 	Thrown,
-	Within
+	Within,
+	Upon
 }
 
 public enum FieldModifier

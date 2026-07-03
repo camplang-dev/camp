@@ -10,7 +10,7 @@ public sealed class CampParser
 	static readonly string[] TypeDeclarationKeywords = ["struct", "class", "interface", "params", "enum", "newtype"];
 	static readonly string[] TypeDeclarationDeclarators = ["export", "public", "extern", "virtual", "sealed", "abstract", "fixed", "escaped"];
 	static readonly string[] MemberDeclarators = ["export", "public", "extern", "static", "virtual", "override", "sealed", "abstract", "async", "fixed", "inline"];
-	static readonly string[] ParameterDeclaratorKeywords = ["overload", "in", "out", "thrown"];
+	static readonly string[] ParameterDeclaratorKeywords = ["overload", "in", "out", "thrown", "upon"];
 	static readonly string[] TypeDeclaratorKeywords = ["const", "constof", "volatile", "escaped", "scoped", "unscoped"];
 	static readonly string[] StatementKeywords = ["if", "do", "while", "for", "else", "yield", "return", "continue", "break", "switch", "within", "try", "catch", "finally", "foreach", "delete", "goto", "throw"];
 
@@ -760,7 +760,7 @@ public sealed class CampParser
 			"interface", "iter", "long", "new", "newtype", "nint", "null", "nuint", "once", "out",
 			"override", "params", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
 			"static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
-			"ulong", "unscoped", "unsafe", "ushort", "untyped", "using", "virtual", "void", "volatile",
+			"ulong", "unscoped", "unsafe", "upon", "ushort", "untyped", "using", "virtual", "void", "volatile",
 			"vtableof", "wchar", "while", "within", "wstring", "yield", "typenameof");
 	}
 

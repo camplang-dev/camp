@@ -97,6 +97,7 @@ internal static class ExpandedFormService
 			ParameterModifier.Out => "out " + parameterType,
 			ParameterModifier.Thrown => "thrown " + parameterType,
 			ParameterModifier.Within => "within " + parameterType,
+			ParameterModifier.Upon => "upon " + parameterType,
 			_ => parameterType
 		};
 	}

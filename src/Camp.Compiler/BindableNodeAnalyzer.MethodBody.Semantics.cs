@@ -1464,6 +1464,37 @@ public sealed partial class BindableNodeAnalyzer
 		return type.StartsWith("async ", StringComparison.Ordinal);
 	}
 
+	string GetAwaitableDiagnostic(Expression? expression, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (expression is CallExpression call && ResolveCallTarget(call.Target, scope, typeScope, call.Arguments) is FunctionDefinition function)
+		{
+			if (function.Parameters is not [.., ParameterDefinition last] || last.Type is not CallableTypeReference callback)
+				return "Awaited call is missing the final once completion callback parameter.";
+			if (callback.Kind != CallableKind.Once)
+				return "Awaited completion callback must be a once callable.";
+			if (callback.ReturnType is not PrimitiveTypeReference { Type: PrimitiveType.Void })
+				return "Awaited completion callback must return void.";
+
+			int successSlots = 0;
+			int thrownSlots = 0;
+			foreach (ParameterDefinition parameter in callback.Parameters)
+			{
+				if (parameter.Modifier == ParameterModifier.Out)
+					return "Awaited completion callback may not contain out parameters.";
+				if (parameter.Modifier == ParameterModifier.Thrown)
+					thrownSlots++;
+				else
+					successSlots++;
+			}
+			if (thrownSlots > 1)
+				return "Awaited completion callback may contain at most one thrown parameter.";
+			if (successSlots > 1)
+				return "Awaited completion callback may contain at most one non-error result parameter; multi-result await is not supported.";
+		}
+
+		return "Await target is not awaitable.";
+	}
+
 	string GetAwaitedType(Expression? expression, BodyScope scope, AnalysisScope typeScope)
 	{
 		if (expression is CallExpression call && ResolveCallTarget(call.Target, scope, typeScope, call.Arguments) is FunctionDefinition function)
@@ -1475,7 +1506,21 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool HasAwaitableCallback(List<ParameterDefinition> parameters)
 	{
-		return parameters is [.., ParameterDefinition last] && last.Type is CallableTypeReference { ReturnType: PrimitiveTypeReference { Type: PrimitiveType.Void } };
+		if (parameters is not [.., ParameterDefinition last] || last.Type is not CallableTypeReference { Kind: CallableKind.Once, ReturnType: PrimitiveTypeReference { Type: PrimitiveType.Void } } callback)
+			return false;
+
+		int successSlots = 0;
+		int thrownSlots = 0;
+		foreach (ParameterDefinition parameter in callback.Parameters)
+		{
+			if (parameter.Modifier == ParameterModifier.Out)
+				return false;
+			if (parameter.Modifier == ParameterModifier.Thrown)
+				thrownSlots++;
+			else
+				successSlots++;
+		}
+		return successSlots <= 1 && thrownSlots <= 1;
 	}
 
 	bool IsSwitchableType(string type)
@@ -3155,6 +3200,7 @@ public sealed partial class BindableNodeAnalyzer
 				ParameterModifier.Out => "out " + parameterType,
 				ParameterModifier.Thrown => "thrown " + parameterType,
 				ParameterModifier.Within => "within " + parameterType,
+				ParameterModifier.Upon => "upon " + parameterType,
 				_ => parameterType
 			});
 		}

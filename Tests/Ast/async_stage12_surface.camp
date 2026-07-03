@@ -1,0 +1,17 @@
+class Scheduler
+{
+}
+
+newtype async int Loader(const char[] path, upon Scheduler* scheduler, thrown int error);
+
+extern async int loadAsync(const char[] path, upon Scheduler* scheduler, thrown int error);
+
+async int exampleAsync(Loader loader, Scheduler* scheduler, thrown int error)
+{
+	return await loader("test", scheduler, catch _);
+}
+
+void later()
+{
+	auto work = postpone loadAsync("test");
+}

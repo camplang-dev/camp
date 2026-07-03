@@ -1,0 +1,115 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "async_stage12_metadata"
+  },
+  "view": {
+    "visibility": "all",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "class:Scheduler",
+      "kind": "class",
+      "name": "Scheduler",
+      "visibility": "export"
+    },
+    {
+      "id": "newtype:Loader",
+      "kind": "newtype",
+      "name": "Loader",
+      "visibility": "export",
+      "callableType": "async",
+      "returnType": "int",
+      "parameters": [
+        {
+          "id": "newtype:Loader/parameter:path",
+          "name": "path",
+          "type": "const char[]"
+        },
+        {
+          "id": "newtype:Loader/parameter:scheduler",
+          "name": "scheduler",
+          "modifier": "upon",
+          "type": "Scheduler*"
+        },
+        {
+          "id": "newtype:Loader/parameter:error",
+          "name": "error",
+          "modifier": "thrown",
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "id": "function:pingAsync",
+      "kind": "function",
+      "name": "pingAsync",
+      "visibility": "export",
+      "async": true,
+      "returnType": "void"
+    },
+    {
+      "id": "function:loadAsync",
+      "kind": "function",
+      "name": "loadAsync",
+      "visibility": "export",
+      "async": true,
+      "returnType": "int",
+      "parameters": [
+        {
+          "id": "function:loadAsync/parameter:path",
+          "name": "path",
+          "type": "const char*"
+        },
+        {
+          "id": "function:loadAsync/parameter:path_length",
+          "name": "path_length",
+          "type": "nuint"
+        },
+        {
+          "id": "function:loadAsync/parameter:scheduler",
+          "name": "scheduler",
+          "modifier": "upon",
+          "type": "Scheduler*"
+        },
+        {
+          "id": "function:loadAsync/parameter:error",
+          "name": "error",
+          "modifier": "thrown",
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "id": "interface:IAsyncService",
+      "kind": "interface",
+      "name": "IAsyncService",
+      "visibility": "export",
+      "functions": [
+        {
+          "id": "interface:IAsyncService/function:runAsync",
+          "name": "runAsync",
+          "async": true,
+          "returnType": "int",
+          "parameters": [
+            {
+              "id": "interface:IAsyncService/function:runAsync/parameter:scheduler",
+              "name": "scheduler",
+              "modifier": "upon",
+              "type": "Scheduler*"
+            },
+            {
+              "id": "interface:IAsyncService/function:runAsync/parameter:error",
+              "name": "error",
+              "modifier": "thrown",
+              "type": "int"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

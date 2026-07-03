@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module>
+  <Definitions>
+    <ClassDefinition Name="Scheduler" Symbol="Scheduler" />
+    <NewtypeDefinition Name="Loader" Symbol="Loader">
+      <UnderlyingType Type="CallableTypeReference" Kind="Async">
+        <ReturnType Type="Int" />
+      </UnderlyingType>
+      <Parameters>
+        <ParameterDefinition Name="path" Symbol="path">
+          <Type Type="ArrayTypeReference">
+            <ElementType Type="ConstTypeReference">
+              <Type Type="Char" />
+            </ElementType>
+          </Type>
+        </ParameterDefinition>
+        <ParameterDefinition Modifier="Upon" Name="scheduler" Symbol="scheduler">
+          <Type Type="PointerTypeReference">
+            <ElementType Type="NamedTypeReference" Name="Scheduler" />
+          </Type>
+        </ParameterDefinition>
+        <ParameterDefinition Modifier="Thrown" Name="error" Symbol="error">
+          <Type Type="Int" />
+        </ParameterDefinition>
+      </Parameters>
+    </NewtypeDefinition>
+    <FunctionDefinition IsAsync="True" Name="loadAsync" Symbol="loadAsync" Extern="">
+      <ReturnType Type="Int" />
+      <Parameters>
+        <ParameterDefinition Name="path" Symbol="path">
+          <Type Type="ArrayTypeReference">
+            <ElementType Type="ConstTypeReference">
+              <Type Type="Char" />
+            </ElementType>
+          </Type>
+        </ParameterDefinition>
+        <ParameterDefinition Modifier="Upon" Name="scheduler" Symbol="scheduler">
+          <Type Type="PointerTypeReference">
+            <ElementType Type="NamedTypeReference" Name="Scheduler" />
+          </Type>
+        </ParameterDefinition>
+        <ParameterDefinition Modifier="Thrown" Name="error" Symbol="error">
+          <Type Type="Int" />
+        </ParameterDefinition>
+      </Parameters>
+    </FunctionDefinition>
+    <FunctionDefinition IsAsync="True" Name="exampleAsync" Symbol="exampleAsync">
+      <ReturnType Type="Int" />
+      <Parameters>
+        <ParameterDefinition Name="loader" Symbol="loader">
+          <Type Type="NamedTypeReference" Name="Loader" />
+        </ParameterDefinition>
+        <ParameterDefinition Name="scheduler" Symbol="scheduler">
+          <Type Type="PointerTypeReference">
+            <ElementType Type="NamedTypeReference" Name="Scheduler" />
+          </Type>
+        </ParameterDefinition>
+        <ParameterDefinition Modifier="Thrown" Name="error" Symbol="error">
+          <Type Type="Int" />
+        </ParameterDefinition>
+      </Parameters>
+      <Body Type="BlockStatement">
+        <Statements>
+          <ReturnStatement>
+            <Expression Type="UnaryExpression" Operator="Await">
+              <Operand Type="CallExpression">
+                <Target Type="NamedExpression" Name="loader" />
+                <Arguments>
+                  <ArgumentExpression>
+                    <Value Type="LiteralExpression" Kind="String" Text="&quot;test&quot;" Value="test" />
+                  </ArgumentExpression>
+                  <ArgumentExpression>
+                    <Value Type="NamedExpression" Name="scheduler" />
+                  </ArgumentExpression>
+                  <ArgumentExpression Modifier="Catch">
+                    <Value Type="NamedExpression" Name="_" />
+                  </ArgumentExpression>
+                </Arguments>
+              </Operand>
+            </Expression>
+          </ReturnStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+    <FunctionDefinition Name="later" Symbol="later">
+      <ReturnType Type="Void" />
+      <Body Type="BlockStatement">
+        <Statements>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="AutoTypeReference" />
+              <Names>
+                <Value>work</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="UnaryExpression" Operator="Postpone">
+              <Operand Type="CallExpression">
+                <Target Type="NamedExpression" Name="loadAsync" />
+                <Arguments>
+                  <ArgumentExpression>
+                    <Value Type="LiteralExpression" Kind="String" Text="&quot;test&quot;" Value="test" />
+                  </ArgumentExpression>
+                </Arguments>
+              </Operand>
+            </InitialValue>
+          </DeclarationStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+  </Definitions>
+</Module>

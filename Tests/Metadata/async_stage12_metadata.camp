@@ -1,0 +1,15 @@
+// @emit-metadata all
+
+export extern class Scheduler
+{
+}
+
+export newtype async int Loader(const char[] path, upon Scheduler* scheduler, thrown int error);
+
+export extern async void pingAsync();
+export extern async int loadAsync(const char[] path, upon Scheduler* scheduler, thrown int error);
+
+export interface IAsyncService
+{
+	async int runAsync(upon Scheduler* scheduler, thrown int error);
+}

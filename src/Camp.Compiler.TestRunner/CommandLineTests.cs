@@ -61,6 +61,32 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Async_exported_c_header_uses_completion_callback_abi()
+	{
+		string source = CreateTempCase("async_header.camp", """
+			export extern class Scheduler
+			{
+			}
+
+			export extern async int loadAsync(upon Scheduler* scheduler, thrown int error);
+			""");
+		string buildDir = TempPath("async-header-build");
+
+		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--build-dir", buildDir);
+
+		Assert.Equal(0, result.ExitCode);
+		string publicHeader = File.ReadAllText(Path.Combine(buildDir, "async_header.h"));
+		string privateHeader = File.ReadAllText(Path.Combine(buildDir, "async_header_private.h"));
+		Assert.Contains("void loadAsync(Scheduler *scheduler, void (* complete)(void *context, ", publicHeader, StringComparison.Ordinal);
+		Assert.Contains(" result, ", publicHeader, StringComparison.Ordinal);
+		Assert.Contains(" error), void *complete_context);", publicHeader, StringComparison.Ordinal);
+		Assert.Contains("void loadAsync(Scheduler *scheduler, void (* complete)(void *context, ", privateHeader, StringComparison.Ordinal);
+		Assert.Contains(" result, ", privateHeader, StringComparison.Ordinal);
+		Assert.Contains(" error), void *complete_context);", privateHeader, StringComparison.Ordinal);
+		Assert.DoesNotContain("int loadAsync(int *error)", publicHeader, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Build_pragmas_contribute_default_options()
 	{
 		string temp = CreateTempCase("pragma_none.camp", """

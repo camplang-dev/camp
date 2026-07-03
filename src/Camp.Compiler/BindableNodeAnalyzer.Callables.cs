@@ -257,6 +257,7 @@ public sealed partial class BindableNodeAnalyzer
 			ParameterModifier.Out => "out " + type,
 			ParameterModifier.Thrown => "thrown " + type,
 			ParameterModifier.Within => "within " + type,
+			ParameterModifier.Upon => "upon " + type,
 			_ => type
 		};
 	}

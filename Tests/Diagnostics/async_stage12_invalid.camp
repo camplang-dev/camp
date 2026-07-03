@@ -1,0 +1,11 @@
+class Scheduler
+{
+}
+
+extern async void badOut(out int result);
+
+extern void badUpon(upon Scheduler* scheduler);
+
+extern async void badUponTwice(upon Scheduler* first, upon Scheduler* second);
+
+newtype delegate void BadDelegate(upon Scheduler* scheduler);

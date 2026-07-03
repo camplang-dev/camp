@@ -50,7 +50,7 @@ public sealed partial class BindableNodeAnalyzer
 		"char", "class", "const", "constof", "continue", "copyable", "default", "delegate", "delete", "do", "double",
 		"else", "enum", "escaped", "export", "extern", "false", "finally", "fixed", "float",
 		"fn", "for", "foreach", "if", "implements", "in", "init", "int", "interface", "iter",
-		"inline", "long", "new", "newtype", "nint", "null", "nuint", "once", "out", "overload", "override", "params", "public",
+		"inline", "long", "new", "newtype", "nint", "null", "nuint", "once", "out", "overload", "override", "params", "public", "upon",
 		"return", "sbyte", "scoped", "sealed", "short", "sizeof", "static", "string", "struct", "switch",
 		"this", "thrown", "true", "try", "uchar", "uint", "ulong", "unscoped", "ushort", "untyped",
 		"unsafe", "using", "virtual", "void", "volatile", "vtableof", "wchar", "while", "within", "wstring", "yield"
@@ -571,6 +571,7 @@ public sealed partial class BindableNodeAnalyzer
 				ParameterModifier.Out => "out " + type,
 				ParameterModifier.Thrown => "thrown " + type,
 				ParameterModifier.Within => "within " + type,
+				ParameterModifier.Upon => "upon " + type,
 				_ => type
 			};
 		}

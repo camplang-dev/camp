@@ -204,6 +204,11 @@ public sealed partial class BindableNodeAnalyzer
 			modifier = ParameterModifier.Within;
 			typeName = typeName[7..].TrimStart();
 		}
+		else if (typeName.StartsWith("upon ", System.StringComparison.Ordinal))
+		{
+			modifier = ParameterModifier.Upon;
+			typeName = typeName[5..].TrimStart();
+		}
 
 		return new ParameterDefinition
 		{

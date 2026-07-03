@@ -1047,6 +1047,7 @@ public static class CCodeEmitter
 				ParameterModifier.Out => "out " + type,
 				ParameterModifier.Thrown => "thrown " + type,
 				ParameterModifier.Within => "within " + type,
+				ParameterModifier.Upon => "upon " + type,
 				_ => type
 			};
 		}
@@ -1866,6 +1867,9 @@ public static class CCodeEmitter
 
 		string FormatFunctionSignature(FunctionDefinition function, string name)
 		{
+			if (function.IsAsync)
+				return FormatAsyncFunctionSignature(function, name);
+
 			if (!TryGetFunctionReturnStorageComponentsForC(function, out List<(string Name, string Type)> components) || components.Count <= 1)
 			{
 				if (function.ReturnType is RawFunctionPointerTypeReference || IsRawFunctionPointerResolvedType(function.ResolvedType))
@@ -1884,6 +1888,39 @@ public static class CCodeEmitter
 			string parameterList = parameters.Count == 0 ? "void" : string.Join(", ", parameters);
 			string returnType = FormatFunctionPrimaryReturnComponentType(function, components[0]);
 			return FormatResolvedType(returnType, name + "(" + parameterList + ")").Declaration;
+		}
+
+		string FormatAsyncFunctionSignature(FunctionDefinition function, string name)
+		{
+			List<string> parameters = FormatFunctionParameterParts(function, skipThrown: true);
+			parameters.AddRange(FormatAsyncCompletionParameterParts(function));
+			string parameterList = parameters.Count == 0 ? "void" : string.Join(", ", parameters);
+			return FormatResolvedType("void", name + "(" + parameterList + ")").Declaration;
+		}
+
+		List<string> FormatAsyncCompletionParameterParts(FunctionDefinition function)
+		{
+			List<(string Type, string Name)> completionParameters = [("void*", "context")];
+			if ((function.ResolvedType ?? "void") != "void")
+			{
+				if (TryGetFunctionReturnStorageComponentsForC(function, out List<(string Name, string Type)> components) && components.Count > 0)
+				{
+					for (int i = 0; i < components.Count; i++)
+						completionParameters.Add((components[i].Type, i == 0 ? "result" : "result_" + components[i].Name));
+				}
+				else
+				{
+					completionParameters.Add((function.ResolvedType ?? "#ERROR", "result"));
+				}
+			}
+			if (function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown)
+				completionParameters.Add((thrown.ResolvedType ?? thrown.Type?.ResolvedType ?? "#ERROR", CName(thrown)));
+
+			return
+			[
+				FormatInlineResolvedFunctionPointer("void", completionParameters, "complete"),
+				FormatResolvedType("void*", "complete_context").Declaration
+			];
 		}
 
 		string? GetRawFunctionPointerTargetSpec(FunctionDefinition function)
@@ -1993,7 +2030,7 @@ public static class CCodeEmitter
 			};
 		}
 
-		List<string> FormatFunctionParameterParts(FunctionDefinition function)
+		List<string> FormatFunctionParameterParts(FunctionDefinition function, bool skipThrown = false)
 		{
 			List<string> parts = [];
 			WithArrayElementComponentContext(function.Parameters, () =>
@@ -2005,6 +2042,8 @@ public static class CCodeEmitter
 				}
 				foreach (ParameterDefinition parameter in GetAbiOrderedParameters(function.Parameters))
 				{
+					if (skipThrown && parameter.Modifier == ParameterModifier.Thrown)
+						continue;
 					if (parameter is WithinParameterDefinition && parameter.Type is null)
 						continue;
 					string name = CName(parameter);
@@ -3297,6 +3336,11 @@ public static class CCodeEmitter
 			{
 				modifier = ParameterModifier.Within;
 				typeName = typeName[7..].TrimStart();
+			}
+			else if (typeName.StartsWith("upon ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Upon;
+				typeName = typeName[5..].TrimStart();
 			}
 
 			return new ParameterDefinition
@@ -4956,6 +5000,7 @@ public static class CCodeEmitter
 					ParameterModifier.Out => "out " + parameterType,
 					ParameterModifier.Thrown => "thrown " + parameterType,
 					ParameterModifier.Within => "within " + parameterType,
+					ParameterModifier.Upon => "upon " + parameterType,
 					_ => parameterType
 				});
 			}
@@ -5013,6 +5058,7 @@ public static class CCodeEmitter
 					ParameterModifier.Out => "out " + parameterType,
 					ParameterModifier.Thrown => "thrown " + parameterType,
 					ParameterModifier.Within => "within " + parameterType,
+					ParameterModifier.Upon => "upon " + parameterType,
 					_ => parameterType
 				}, name));
 			}

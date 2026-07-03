@@ -364,6 +364,7 @@ public sealed partial class BindableNodeAnalyzer
 				ParameterModifier.Out => "out " + (parameter.ResolvedType ?? ErrorType),
 				ParameterModifier.Thrown => "thrown " + (parameter.ResolvedType ?? ErrorType),
 				ParameterModifier.Within => "within " + (parameter.ResolvedType ?? ErrorType),
+				ParameterModifier.Upon => "upon " + (parameter.ResolvedType ?? ErrorType),
 				_ => parameter.ResolvedType ?? ErrorType
 			});
 		}

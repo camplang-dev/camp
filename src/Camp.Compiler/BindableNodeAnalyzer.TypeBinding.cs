@@ -195,6 +195,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			case CallableTypeReference callable:
 				ValidateCallableSpec(callable);
+				ValidateCallableUponParameters(callable);
 				AnalyzeOptionalType(callable.ReturnType, scope);
 				ValidateNoDirectFixedArrayType(callable.ReturnType, callable.ReturnType?.SourceSyntax ?? callable.SourceSyntax, "a callable return type");
 				foreach (ParameterDefinition parameter in callable.Parameters)
@@ -233,6 +234,22 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				type.ResolvedType = ErrorType;
 				break;
+		}
+	}
+
+	void ValidateCallableUponParameters(CallableTypeReference callable)
+	{
+		int uponCount = 0;
+		foreach (ParameterDefinition parameter in callable.Parameters)
+		{
+			if (parameter.Modifier != ParameterModifier.Upon)
+				continue;
+
+			uponCount++;
+			if (callable.Kind != CallableKind.Async)
+				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax ?? callable.SourceSyntax), "Parameter modifier 'upon' is valid only in async callable signatures.");
+			if (uponCount > 1)
+				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax ?? callable.SourceSyntax), "Callable signature may declare at most one 'upon' parameter.");
 		}
 	}
 

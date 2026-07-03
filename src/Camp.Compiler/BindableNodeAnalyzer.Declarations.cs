@@ -407,9 +407,29 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
 		}
 		ValidateCallableNewtypeThisParameter(definition);
+		ValidateCallableNewtypeUponParameters(definition);
 		ValidateNewtypeConstOfAnchors(definition);
 
 		return scope;
+	}
+
+	void ValidateCallableNewtypeUponParameters(NewtypeDefinition definition)
+	{
+		if (definition.UnderlyingType is not CallableTypeReference callable)
+			return;
+
+		int uponCount = 0;
+		foreach (ParameterDefinition parameter in definition.Parameters)
+		{
+			if (parameter.Modifier != ParameterModifier.Upon)
+				continue;
+
+			uponCount++;
+			if (callable.Kind != CallableKind.Async)
+				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Parameter modifier 'upon' is valid only in async callable signatures.");
+			if (uponCount > 1)
+				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Callable signature may declare at most one 'upon' parameter.");
+		}
 	}
 
 	void ValidateCallableNewtypeThisParameter(NewtypeDefinition definition)
@@ -948,6 +968,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (ContainsThisTypeReference(parameter.Type))
 				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
 		AnalyzeOverloadDeclaration(definition, containingType);
+		ValidateAsyncFunctionParameters(definition);
 		ValidateIteratorGeneratorParameters(definition);
 		ValidateIndexAwareParameters(definition);
 		ValidateCallableAscription(definition, containingType);
@@ -1162,6 +1183,25 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameter.Modifier is ParameterModifier.In or ParameterModifier.Out or ParameterModifier.Thrown)
 				Report(GetNameRange(parameter), "Generator parameter lists may not contain in, out, or thrown parameters.");
+		}
+	}
+
+	void ValidateAsyncFunctionParameters(FunctionDefinition definition)
+	{
+		int uponCount = 0;
+		foreach (ParameterDefinition parameter in definition.Parameters)
+		{
+			if (parameter.Modifier == ParameterModifier.Upon)
+			{
+				uponCount++;
+				if (!definition.IsAsync)
+					Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Parameter modifier 'upon' is valid only in async callable signatures.");
+				if (uponCount > 1)
+					Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Callable signature may declare at most one 'upon' parameter.");
+			}
+
+			if (definition.IsAsync && parameter.Modifier == ParameterModifier.Out)
+				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Async functions may not declare out parameters; return one value or use the final completion callback shape explicitly.");
 		}
 	}
 

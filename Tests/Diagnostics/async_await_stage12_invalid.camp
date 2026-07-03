@@ -1,0 +1,13 @@
+extern async void asyncVoid();
+extern void multiSuccess(once void(int x, int y) complete = default);
+extern void notOnce(delegate void() complete = default);
+
+async void awaitMulti()
+{
+	await multiSuccess();
+}
+
+void awaitOutside()
+{
+	await asyncVoid();
+}

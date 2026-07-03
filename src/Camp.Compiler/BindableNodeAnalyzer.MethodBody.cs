@@ -1592,6 +1592,7 @@ public sealed partial class BindableNodeAnalyzer
 			ParameterModifier.Out => "out " + type,
 			ParameterModifier.Thrown => "thrown " + type,
 			ParameterModifier.Within => "within " + type,
+			ParameterModifier.Upon => "upon " + type,
 			_ => type
 		};
 	}
@@ -1834,6 +1835,11 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				modifier = ParameterModifier.Within;
 				typeName = typeName[7..].TrimStart();
+			}
+			else if (typeName.StartsWith("upon ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Upon;
+				typeName = typeName[5..].TrimStart();
 			}
 			parameters.Add(new ParameterDefinition
 			{
@@ -3645,8 +3651,10 @@ public sealed partial class BindableNodeAnalyzer
 				return "bool";
 
 			case UnaryOperator.Await:
+				if (scope.CurrentFunction?.IsAsync != true)
+					Report(GetRange(unary.SourceSyntax), "await may be used only inside an async function or async lambda.");
 				if (!IsAwaitable(unary.Operand, scope, typeScope))
-					Report(GetRange(unary.SourceSyntax), "Await target is not awaitable.");
+					Report(GetRange(unary.SourceSyntax), GetAwaitableDiagnostic(unary.Operand, scope, typeScope));
 				return GetAwaitedType(unary.Operand, scope, typeScope);
 
 			case UnaryOperator.AddressOf:
