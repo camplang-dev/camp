@@ -4,10 +4,10 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 void free(void *ptr);
-static int (* makeCounter)(void *arg0)(int start, void **result_context);
+static int (* makeCounter(int start, void **result_context))(void *arg0);
 static int makeCounter_lambda0(void *context);
 
-static int (* makeCounter)(void *arg0)(int start, void **result_context)
+static int (* makeCounter(int start, void **result_context))(void *arg0)
 {
 	makeCounter_lambdaContext0 *_lambdaContext0 = (makeCounter_lambdaContext0 *)(malloc(sizeof(makeCounter_lambdaContext0)));
 	_lambdaContext0->capture0_start = start;
@@ -71,15 +71,4 @@ int main(void);
 
 #endif
 // compile
-compile failed: lambda_escaped_delegate_invocation.c
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_delegate_invocation/lambda_escaped_delegate_invocation.c:6:27: error: function cannot return function type 'int (int, void **)'
-    6 | static int (* makeCounter)(void *arg0)(int start, void **result_context);
-      |                           ^
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_delegate_invocation/lambda_escaped_delegate_invocation.c:9:27: error: function cannot return function type 'int (int, void **)'
-    9 | static int (* makeCounter)(void *arg0)(int start, void **result_context)
-      |                           ^
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_delegate_invocation/lambda_escaped_delegate_invocation.c:9:73: error: expected ';' after top level declarator
-    9 | static int (* makeCounter)(void *arg0)(int start, void **result_context)
-      |                                                                         ^
-      |                                                                         ;
-3 errors generated.
+compiled: lambda_escaped_delegate_invocation.c

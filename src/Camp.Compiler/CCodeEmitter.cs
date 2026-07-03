@@ -3463,7 +3463,7 @@ public static class CCodeEmitter
 			if (string.IsNullOrWhiteSpace(resolvedType))
 				return false;
 
-			string type = resolvedType.Trim();
+			string type = StripLifetimeOnly(resolvedType.Trim());
 			if (TryGetArrayElementOnly(type, out string arrayElementType))
 			{
 				components.Add(("elements", arrayElementType + "*"));
@@ -3665,7 +3665,7 @@ public static class CCodeEmitter
 
 		CType FormatStorageResolvedType(string resolvedType, string declarator)
 		{
-			string type = resolvedType.Trim();
+			string type = StripLifetimeOnly(resolvedType.Trim());
 			if (TryGetArrayElementOnly(type, out string elementType))
 				return new CType(FormatMaterializedArrayStructType(elementType) + " " + declarator);
 			if (TryGetOptionalElementOnly(type, out string optionalElementType))
@@ -6297,6 +6297,8 @@ public static class CCodeEmitter
 			}
 			if (TrySplitFixedArrayType(type, out string fixedBaseType, out List<long> fixedLengths))
 				return FormatResolvedFixedArrayType(qualifierPart + fixedBaseType, fixedLengths, pointerDeclarator);
+			if (pointerCount == 0 && TryParseExpandedCallableStorageType(type, out _, out _, out _, out _))
+				return FormatStorageResolvedType(type, pointerDeclarator);
 			string cType = isGenericType && pointerCount == 0 ? "void*" : FormatResolvedBaseType(type);
 			return new CType(qualifierPart + cType + " " + pointerDeclarator);
 		}

@@ -8,8 +8,8 @@ static int __camp_delegate_main_lambda4(void *arg0);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static void fail(Err *error);
-static int (* makeBlockAdder)(void *arg0, int arg1)(int offset, void **result_context);
-static uintptr_t (* makeSpanLength)(void *arg0)(const char *span, uintptr_t span_length, void **result_context);
+static int (* makeBlockAdder(int offset, void **result_context))(void *arg0, int arg1);
+static uintptr_t (* makeSpanLength(const char *span, uintptr_t span_length, void **result_context))(void *arg0);
 static int Box_add(Box *this, int amount);
 static uintptr_t Array_countWhere(void *this, uintptr_t this_length, bool (* predicate)(void *arg0, void *arg1), void *predicate_context, uintptr_t sizeof_T);
 static filterIter IntArray_filter(int *this, uintptr_t this_length, bool (* predicate)(void *arg0, int *arg1), void *predicate_context);
@@ -48,7 +48,7 @@ static void fail(Err *error)
 	}
 }
 
-static int (* makeBlockAdder)(void *arg0, int arg1)(int offset, void **result_context)
+static int (* makeBlockAdder(int offset, void **result_context))(void *arg0, int arg1)
 {
 	makeBlockAdder_lambdaContext0 *_lambdaContext0 = (makeBlockAdder_lambdaContext0 *)(malloc(sizeof(makeBlockAdder_lambdaContext0)));
 	_lambdaContext0->capture0_offset = offset;
@@ -58,7 +58,7 @@ static int (* makeBlockAdder)(void *arg0, int arg1)(int offset, void **result_co
 	}
 }
 
-static uintptr_t (* makeSpanLength)(void *arg0)(const char *span, uintptr_t span_length, void **result_context)
+static uintptr_t (* makeSpanLength(const char *span, uintptr_t span_length, void **result_context))(void *arg0)
 {
 	makeSpanLength_lambdaContext1 *_lambdaContext5 = (makeSpanLength_lambdaContext1 *)(malloc(sizeof(makeSpanLength_lambdaContext1)));
 	_lambdaContext5->capture0_span = span;
@@ -345,55 +345,4 @@ int main(void);
 
 #endif
 // compile
-compile failed: lambda_escaped_hardening_matrix.c
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:10:30: error: function cannot return function type 'int (int, void **)'
-   10 | static int (* makeBlockAdder)(void *arg0, int arg1)(int offset, void **result_context);
-      |                              ^
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:11:36: error: function cannot return function type 'uintptr_t (const char *, uintptr_t, void **)' (aka 'unsigned long (const char *, unsigned long, void **)')
-   11 | static uintptr_t (* makeSpanLength)(void *arg0)(const char *span, uintptr_t span_length, void **result_context);
-      |                                    ^
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:50:30: error: function cannot return function type 'int (int, void **)'
-   50 | static int (* makeBlockAdder)(void *arg0, int arg1)(int offset, void **result_context)
-      |                              ^
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:50:87: error: expected ';' after top level declarator
-   50 | static int (* makeBlockAdder)(void *arg0, int arg1)(int offset, void **result_context)
-      |                                                                                       ^
-      |                                                                                       ;
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:60:36: error: function cannot return function type 'uintptr_t (const char *, uintptr_t, void **)' (aka 'unsigned long (const char *, unsigned long, void **)')
-   60 | static uintptr_t (* makeSpanLength)(void *arg0)(const char *span, uintptr_t span_length, void **result_context)
-      |                                    ^
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:60:112: error: expected ';' after top level declarator
-   60 | static uintptr_t (* makeSpanLength)(void *arg0)(const char *span, uintptr_t span_length, void **result_context)
-      |                                                                                                                ^
-      |                                                                                                                ;
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:172:21: warning: equality comparison with extraneous parentheses [-Wparentheses-equality]
-  172 |         if ((this->__state == -1))
-      |              ~~~~~~~~~~~~~~^~~~~
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:172:21: note: remove extraneous parentheses around the comparison to silence this warning
-  172 |         if ((this->__state == -1))
-      |             ~              ^    ~
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:172:21: note: use '=' to turn this equality comparison into an assignment
-  172 |         if ((this->__state == -1))
-      |                            ^~
-      |                            =
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:176:21: warning: equality comparison with extraneous parentheses [-Wparentheses-equality]
-  176 |         if ((this->__state == 1))
-      |              ~~~~~~~~~~~~~~^~~~
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:176:21: note: remove extraneous parentheses around the comparison to silence this warning
-  176 |         if ((this->__state == 1))
-      |             ~              ^   ~
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:176:21: note: use '=' to turn this equality comparison into an assignment
-  176 |         if ((this->__state == 1))
-      |                            ^~
-      |                            =
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:217:15: warning: equality comparison with extraneous parentheses [-Wparentheses-equality]
-  217 |         if ((current == NULL))
-      |              ~~~~~~~~^~~~~~~
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:217:15: note: remove extraneous parentheses around the comparison to silence this warning
-  217 |         if ((current == NULL))
-      |             ~        ^      ~
-/Users/andrew/Projects/camplang/tmp/golden-ccompile/lambda_escaped_hardening_matrix/lambda_escaped_hardening_matrix.c:217:15: note: use '=' to turn this equality comparison into an assignment
-  217 |         if ((current == NULL))
-      |                      ^~
-      |                      =
-3 warnings and 6 errors generated.
+compiled: lambda_escaped_hardening_matrix.c

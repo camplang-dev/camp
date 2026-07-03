@@ -1,0 +1,34 @@
+using Std;
+
+int observed;
+
+class CallbackQueue
+{
+	List<escaped once void()>* items;
+
+	CallbackQueue()
+	{
+		this.items = new List<escaped once void()>();
+	}
+
+	void enqueue(escaped once void() callback)
+	{
+		this.items.add(callback);
+	}
+
+	void run()
+	{
+		auto callback = this.items.Item[0];
+		this.items.remove(0);
+		callback();
+	}
+}
+
+export int main()
+{
+	auto queue = init CallbackQueue();
+	queue.enqueue(() => { observed = 7; });
+	queue.run();
+	Console.writeLine(observed);
+	return observed == 7 ? 0 : 1;
+}
