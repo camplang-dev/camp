@@ -1,0 +1,27 @@
+using Std;
+
+int observed;
+
+async int addOne(int value)
+{
+	return value + 1;
+}
+
+async int combine(int first)
+{
+	int second = await addOne(first);
+	int third = await addOne(second);
+	return third + first;
+}
+
+void complete(void* context, int value)
+{
+	observed = value;
+}
+
+export int main()
+{
+	combine(4, complete, null);
+	Console.writeLine(observed);
+	return observed == 10 ? 0 : 1;
+}

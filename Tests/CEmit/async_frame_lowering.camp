@@ -1,0 +1,14 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+async int addOne(int value)
+{
+	return value + 1;
+}
+
+async int combine(int first)
+{
+	int second = await addOne(first);
+	int third = await addOne(second);
+	return third + first;
+}

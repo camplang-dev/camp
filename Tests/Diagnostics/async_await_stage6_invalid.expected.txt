@@ -4,4 +4,3 @@ tests/Diagnostics/async_await_stage6_invalid.camp(25,2): error: Awaited completi
 tests/Diagnostics/async_await_stage6_invalid.camp(30,2): error: Awaited completion callback may not contain out parameters.
 tests/Diagnostics/async_await_stage6_invalid.camp(35,2): error: Awaited completion callback may contain at most one thrown parameter.
 tests/Diagnostics/async_await_stage6_invalid.camp(40,2): error: Awaited completion callback may contain at most one non-error result parameter; multi-result await is not supported.
-tests/Diagnostics/async_await_stage6_invalid.camp(45,14): error: Non-tail await requires async frame lowering and is implemented in the scheduler/frame phase.

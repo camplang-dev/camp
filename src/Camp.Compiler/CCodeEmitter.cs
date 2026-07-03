@@ -555,11 +555,19 @@ public static class CCodeEmitter
 		readonly Dictionary<Expression, DelegateThunk> delegateThunksByExpression = [];
 		readonly Dictionary<SourceFile, List<DelegateThunk>> delegateThunksByFile = [];
 		readonly HashSet<string> reservedCNames = [];
+		readonly Dictionary<BindableNode, string> currentAsyncFrameReplacements = [];
+		string? currentAsyncFrameName;
 		FunctionDefinition? currentFunction;
 		bool currentFunctionHasLabels;
 		readonly string sharedExportPrefix = options.BuildKind is NativeBuildKind.Shared
 			? compilation.Target?.Capabilities.GetCEmitterValue("dll_export_prefix") ?? ""
 			: "";
+
+		sealed record AsyncFrameField(BindableNode? Node, string Name, string Type, TypeReference? TypeReference = null);
+
+		sealed record AsyncAwaitInfo(UnaryExpression Await, CallExpression Call, int Index, string? ResultType, string CompleteName);
+
+		sealed record AsyncFrameInfo(FunctionDefinition Function, string FrameType, string ResumeName, List<AsyncFrameField> Fields, List<AsyncAwaitInfo> Awaits);
 
 		public void WritePrivateHeaderDeclarations(TextWriter writer)
 		{
@@ -634,13 +642,18 @@ public static class CCodeEmitter
 			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(static variable => !variable.IsInline && !IsExternallyVisible(variable)).ToList();
 			List<FieldDefinition> privateStaticFields = GetAllStaticFields(definitions).Where(static field => !field.IsInline && !IsExternallyVisible(field)).ToList();
 			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
+			List<AsyncFrameInfo> asyncFrames = GetAllFunctions(definitions).Select(TryBuildAsyncFrameInfo).Where(static frame => frame is not null).Cast<AsyncFrameInfo>().ToList();
 
-			if (privateFunctions.Count == 0 && privateVariables.Count == 0 && privateStaticFields.Count == 0 && delegateThunks.Count == 0)
+			if (privateFunctions.Count == 0 && privateVariables.Count == 0 && privateStaticFields.Count == 0 && delegateThunks.Count == 0 && asyncFrames.Count == 0)
 				return;
 
 			writer.WriteLine("/* Private file declarations. */");
+			foreach (AsyncFrameInfo frame in asyncFrames)
+				WriteAsyncFrameDeclaration(writer, frame);
 			foreach (DelegateThunk thunk in delegateThunks)
 				WriteDelegateThunkPrototype(writer, thunk);
+			foreach (AsyncFrameInfo frame in asyncFrames)
+				WriteAsyncFrameHelperPrototypes(writer, frame);
 			foreach (FunctionDefinition function in privateFunctions)
 				WriteFunctionPrototype(writer, function, storage: function.Extern is not null ? null : "static");
 			foreach (VariableDefinition variable in privateVariables)
@@ -655,6 +668,7 @@ public static class CCodeEmitter
 			emittedNames.Clear();
 			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
 			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
+			List<AsyncFrameInfo> asyncFrames = GetAllFunctions(definitions).Select(TryBuildAsyncFrameInfo).Where(static frame => frame is not null).Cast<AsyncFrameInfo>().ToList();
 			bool wrote = false;
 
 			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.IsInline && !IsExternallyVisible(variable)))
@@ -671,6 +685,12 @@ public static class CCodeEmitter
 			foreach (DelegateThunk thunk in delegateThunks)
 			{
 				WriteDelegateThunkDefinition(writer, thunk);
+				wrote = true;
+			}
+
+			foreach (AsyncFrameInfo frame in asyncFrames)
+			{
+				WriteAsyncFrameHelperDefinitions(writer, frame);
 				wrote = true;
 			}
 
@@ -1862,9 +1882,511 @@ public static class CCodeEmitter
 			WithGenericContext(function, () =>
 			{
 				writer.WriteLine(prefix + FormatFunctionSignature(function, callSpec + CName(function)));
-				WriteFunctionBody(writer, function);
+				if (TryBuildAsyncFrameInfo(function) is AsyncFrameInfo frame)
+					WriteAsyncFrameEntryBody(writer, frame);
+				else
+					WriteFunctionBody(writer, function);
 				writer.WriteLine();
 			});
+		}
+
+		AsyncFrameInfo? TryBuildAsyncFrameInfo(FunctionDefinition function)
+		{
+			if (!function.IsAsync || function.Body is null || function.AwaitSites.Count == 0)
+				return null;
+			List<AsyncAwaitInfo> awaits = [];
+			CollectNonTailAsyncAwaits(function.Body, awaits, CName(function));
+			if (awaits.Count == 0)
+				return null;
+
+			string baseName = CName(function);
+			List<AsyncFrameField> fields =
+			[
+				new(null, "state", "int"),
+				new(null, "complete", BuildAsyncCompletionCallableType(function.ReturnType, function.ResolvedType, function.Parameters)),
+				new(null, "complete_context", "void*")
+			];
+			foreach (ParameterDefinition parameter in GetAbiOrderedParameters(function.Parameters))
+			{
+				if (parameter.Modifier == ParameterModifier.Thrown)
+				{
+					fields.Add(new(parameter, CName(parameter), parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "#ERROR", parameter.Type));
+					continue;
+				}
+				fields.Add(new(parameter, CName(parameter), parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "#ERROR", parameter.Type));
+			}
+			CollectAsyncFrameLocals(function.Body, fields);
+			foreach (AsyncAwaitInfo awaitInfo in awaits)
+			{
+				if (awaitInfo.ResultType is not null && awaitInfo.ResultType != "void")
+					fields.Add(new(awaitInfo.Await, "await" + awaitInfo.Index.ToString(CultureInfo.InvariantCulture) + "_result", awaitInfo.ResultType));
+			}
+
+			return new AsyncFrameInfo(function, baseName + "_asyncFrame", baseName + "_asyncResume", fields, awaits);
+		}
+
+		void CollectNonTailAsyncAwaits(Statement? statement, List<AsyncAwaitInfo> awaits, string baseName)
+		{
+			switch (statement)
+			{
+				case null:
+					return;
+				case BlockStatement block:
+					foreach (Statement child in block.Statements)
+						CollectNonTailAsyncAwaits(child, awaits, baseName);
+					return;
+				case ReturnStatement { Expression: UnaryExpression { Operator: UnaryOperator.Await, Operand: CallExpression } }:
+					return;
+				case DeclarationStatement { InitialValue: UnaryExpression { Operator: UnaryOperator.Await, Operand: CallExpression call } awaitExpression }:
+					AddAwait(awaitExpression, call);
+					return;
+				case ExpressionStatement { Expression: UnaryExpression { Operator: UnaryOperator.Await, Operand: CallExpression call } awaitExpression }:
+					AddAwait(awaitExpression, call);
+					return;
+				case IfStatement ifStatement:
+					CollectNonTailAsyncAwaits(ifStatement.Body, awaits, baseName);
+					CollectNonTailAsyncAwaits(ifStatement.ElseBody, awaits, baseName);
+					return;
+				case TryStatement tryStatement:
+					CollectNonTailAsyncAwaits(tryStatement.Body, awaits, baseName);
+					foreach (CatchStatement catchStatement in tryStatement.Catches)
+						CollectNonTailAsyncAwaits(catchStatement.Body, awaits, baseName);
+					CollectNonTailAsyncAwaits(tryStatement.Finally, awaits, baseName);
+					return;
+				case FinallyStatement finallyStatement:
+					CollectNonTailAsyncAwaits(finallyStatement.Body, awaits, baseName);
+					return;
+				case WithinStatement withinStatement:
+					CollectNonTailAsyncAwaits(withinStatement.Body, awaits, baseName);
+					return;
+			}
+
+			void AddAwait(UnaryExpression awaitExpression, CallExpression call)
+			{
+				int index = awaits.Count;
+				string? resultType = awaitExpression.ResolvedType is null or "void" ? null : awaitExpression.ResolvedType;
+				awaits.Add(new AsyncAwaitInfo(awaitExpression, call, index, resultType, baseName + "_asyncComplete" + index.ToString(CultureInfo.InvariantCulture)));
+			}
+		}
+
+		void CollectAsyncFrameLocals(Statement? statement, List<AsyncFrameField> fields)
+		{
+			switch (statement)
+			{
+				case null:
+					return;
+				case BlockStatement block:
+					foreach (Statement child in block.Statements)
+						CollectAsyncFrameLocals(child, fields);
+					return;
+				case DeclarationStatement declaration:
+					fields.Add(new(declaration.Target, CName(declaration.Target), declaration.Target.ResolvedType ?? "#ERROR", declaration.Target.Type));
+					return;
+				case IfStatement ifStatement:
+					CollectAsyncFrameLocals(ifStatement.Body, fields);
+					CollectAsyncFrameLocals(ifStatement.ElseBody, fields);
+					return;
+				case TryStatement tryStatement:
+					CollectAsyncFrameLocals(tryStatement.Body, fields);
+					foreach (CatchStatement catchStatement in tryStatement.Catches)
+						CollectAsyncFrameLocals(catchStatement.Body, fields);
+					CollectAsyncFrameLocals(tryStatement.Finally, fields);
+					return;
+				case FinallyStatement finallyStatement:
+					CollectAsyncFrameLocals(finallyStatement.Body, fields);
+					return;
+				case WithinStatement withinStatement:
+					CollectAsyncFrameLocals(withinStatement.Body, fields);
+					return;
+			}
+		}
+
+		void WriteAsyncFrameDeclaration(TextWriter writer, AsyncFrameInfo frame)
+		{
+			writer.WriteLine("typedef struct " + frame.FrameType + " " + frame.FrameType + ";");
+			writer.WriteLine("struct " + frame.FrameType);
+			writer.WriteLine("{");
+			HashSet<string> emitted = [];
+			foreach (AsyncFrameField field in frame.Fields)
+			{
+				if (!emitted.Add(field.Name))
+					continue;
+				writer.WriteLine("\t" + FormatAsyncFrameField(field) + ";");
+			}
+			writer.WriteLine("};");
+		}
+
+		string FormatAsyncFrameField(AsyncFrameField field)
+		{
+			if (field.Type.StartsWith("fn ", StringComparison.Ordinal))
+			{
+				if (CallableShapeService.TryParseCallableShape(field.Type, out CallableShape shape))
+				{
+					List<(string Type, string Name)> parameters = [];
+					for (int i = 0; i < shape.Parameters.Count; i++)
+						parameters.Add((shape.Parameters[i], "arg" + i.ToString(CultureInfo.InvariantCulture)));
+					return FormatInlineResolvedFunctionPointer(shape.ReturnType, parameters, field.Name);
+				}
+			}
+			return FormatTypeOrResolved(field.TypeReference, field.Type, field.Name).Declaration;
+		}
+
+		void WriteAsyncFrameHelperPrototypes(TextWriter writer, AsyncFrameInfo frame)
+		{
+			writer.WriteLine("static void " + frame.ResumeName + "(void *context);");
+			foreach (AsyncAwaitInfo awaitInfo in frame.Awaits)
+				writer.WriteLine("static " + FormatAsyncAwaitCompletionSignature(awaitInfo, awaitInfo.CompleteName) + ";");
+		}
+
+		string FormatAsyncAwaitCompletionSignature(AsyncAwaitInfo awaitInfo, string name)
+		{
+			List<(string Type, string Name)> slots = [("void*", "context")];
+			if (awaitInfo.ResultType is not null && awaitInfo.ResultType != "void")
+				slots.Add((awaitInfo.ResultType, "result"));
+			return FormatResolvedType("void", name + "(" + string.Join(", ", slots.Select(slot => FormatResolvedType(slot.Type, slot.Name).Declaration)) + ")").Declaration;
+		}
+
+		void WriteAsyncFrameHelperDefinitions(TextWriter writer, AsyncFrameInfo frame)
+		{
+			foreach (AsyncAwaitInfo awaitInfo in frame.Awaits)
+			{
+				writer.WriteLine("static " + FormatAsyncAwaitCompletionSignature(awaitInfo, awaitInfo.CompleteName));
+				writer.WriteLine("{");
+				WriteIndent(writer, 1);
+				writer.WriteLine(frame.FrameType + " *frame = (" + frame.FrameType + " *)context;");
+				if (awaitInfo.ResultType is not null && awaitInfo.ResultType != "void")
+				{
+					WriteIndent(writer, 1);
+					writer.WriteLine("frame->await" + awaitInfo.Index.ToString(CultureInfo.InvariantCulture) + "_result = result;");
+				}
+				WriteIndent(writer, 1);
+				writer.WriteLine(frame.ResumeName + "(frame);");
+				writer.WriteLine("}");
+				writer.WriteLine();
+			}
+
+			writer.WriteLine("static void " + frame.ResumeName + "(void *context)");
+			writer.WriteLine("{");
+			WriteIndent(writer, 1);
+			writer.WriteLine(frame.FrameType + " *frame = (" + frame.FrameType + " *)context;");
+			WriteIndent(writer, 1);
+			writer.WriteLine("switch (frame->state)");
+			WriteIndent(writer, 1);
+			writer.WriteLine("{");
+			for (int i = 0; i <= frame.Awaits.Count; i++)
+			{
+				WriteIndent(writer, 2);
+				writer.WriteLine("case " + i.ToString(CultureInfo.InvariantCulture) + ": goto __async_state" + i.ToString(CultureInfo.InvariantCulture) + ";");
+			}
+			WriteIndent(writer, 1);
+			writer.WriteLine("}");
+			Dictionary<BindableNode, string> savedReplacements = new(currentAsyncFrameReplacements);
+			string? savedFrameName = currentAsyncFrameName;
+			FunctionDefinition? savedFunction = currentFunction;
+			currentAsyncFrameReplacements.Clear();
+			foreach (AsyncFrameField field in frame.Fields)
+			{
+				if (field.Node is not null)
+					currentAsyncFrameReplacements[field.Node] = "frame->" + field.Name;
+			}
+			currentAsyncFrameName = "frame";
+			currentFunction = frame.Function;
+			int awaitCursor = 0;
+			WriteIndent(writer, 0);
+			writer.WriteLine("__async_state0: ;");
+			WriteAsyncFrameStatements(writer, frame, frame.Function.Body?.Statements ?? [], 1, ref awaitCursor);
+			currentAsyncFrameReplacements.Clear();
+			foreach (KeyValuePair<BindableNode, string> replacement in savedReplacements)
+				currentAsyncFrameReplacements[replacement.Key] = replacement.Value;
+			currentAsyncFrameName = savedFrameName;
+			currentFunction = savedFunction;
+			writer.WriteLine("}");
+			writer.WriteLine();
+		}
+
+		void WriteAsyncFrameEntryBody(TextWriter writer, AsyncFrameInfo frame)
+		{
+			writer.WriteLine("{");
+			WriteAsyncFrameAllocation(writer, frame, 1);
+			WriteIndent(writer, 1);
+			writer.WriteLine("*frame = (" + frame.FrameType + "){0};");
+			WriteIndent(writer, 1);
+			writer.WriteLine("frame->complete = complete;");
+			WriteIndent(writer, 1);
+			writer.WriteLine("frame->complete_context = complete_context;");
+			foreach (ParameterDefinition parameter in GetAbiOrderedParameters(frame.Function.Parameters))
+			{
+				if (parameter.Modifier == ParameterModifier.Thrown)
+					continue;
+				WriteIndent(writer, 1);
+				writer.WriteLine("frame->" + CName(parameter) + " = " + CName(parameter) + ";");
+			}
+			if (frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown)
+			{
+				WriteIndent(writer, 1);
+				writer.WriteLine("frame->" + CName(thrown) + " = 0;");
+			}
+			WriteIndent(writer, 1);
+			writer.WriteLine(frame.ResumeName + "(frame);");
+			WriteIndent(writer, 1);
+			writer.WriteLine("return;");
+			writer.WriteLine("}");
+		}
+
+		void WriteAsyncFrameStatements(TextWriter writer, AsyncFrameInfo frame, List<Statement> statements, int indent, ref int awaitCursor)
+		{
+			foreach (Statement statement in statements)
+				WriteAsyncFrameStatement(writer, frame, statement, indent, ref awaitCursor);
+		}
+
+		void WriteAsyncFrameStatement(TextWriter writer, AsyncFrameInfo frame, Statement statement, int indent, ref int awaitCursor)
+		{
+			switch (statement)
+			{
+				case EmptyStatement:
+					WriteIndent(writer, indent);
+					writer.WriteLine(";");
+					return;
+				case BlockStatement block:
+					WriteAsyncFrameStatements(writer, frame, block.Statements, indent, ref awaitCursor);
+					return;
+				case DeclarationStatement declaration:
+					WriteAsyncFrameDeclarationStatement(writer, frame, declaration, indent, ref awaitCursor);
+					return;
+				case ExpressionStatement { Expression: UnaryExpression { Operator: UnaryOperator.Await, Operand: CallExpression call } }:
+					WriteAsyncFrameAwaitCall(writer, frame, call, indent, ref awaitCursor);
+					return;
+				case ExpressionStatement expression:
+					WriteIndent(writer, indent);
+					writer.WriteLine(FormatExpression(expression.Expression) + ";");
+					return;
+				case ReturnStatement { Expression: UnaryExpression { Operator: UnaryOperator.Await, Operand: CallExpression awaitCall } }:
+					WriteAsyncFrameFree(writer, frame, indent);
+					WriteIndent(writer, indent);
+					writer.WriteLine(FormatTailAwaitCallExpression(awaitCall) + ";");
+					WriteIndent(writer, indent);
+					writer.WriteLine("return;");
+					return;
+				case ReturnStatement ret:
+					WriteAsyncFrameReturn(writer, frame, ret, indent);
+					return;
+				case IfStatement ifStatement when !StatementContainsAwait(ifStatement.Body) && !StatementContainsAwait(ifStatement.ElseBody):
+					WriteIndent(writer, indent);
+					writer.WriteLine("if (" + FormatExpression(ifStatement.Condition) + ")");
+					WriteEmbeddedStatement(writer, ifStatement.Body, indent);
+					if (ifStatement.ElseBody is not null)
+					{
+						WriteIndent(writer, indent);
+						writer.WriteLine("else");
+						WriteEmbeddedStatement(writer, ifStatement.ElseBody, indent);
+					}
+					return;
+				default:
+					AddUnsupported(statement, "async frame statement");
+					WriteIndent(writer, indent);
+					writer.WriteLine("/* unsupported async frame statement " + statement.GetType().Name + " */");
+					return;
+			}
+		}
+
+		void WriteAsyncFrameDeclarationStatement(TextWriter writer, AsyncFrameInfo frame, DeclarationStatement declaration, int indent, ref int awaitCursor)
+		{
+			string target = FormatVariableReference(declaration.Target);
+			if (declaration.InitialValue is UnaryExpression { Operator: UnaryOperator.Await, Operand: CallExpression call } awaitExpression)
+			{
+				int index = awaitCursor;
+				WriteAsyncFrameAwaitCall(writer, frame, call, indent, ref awaitCursor);
+				WriteIndent(writer, 0);
+				writer.WriteLine("__async_state" + awaitCursor.ToString(CultureInfo.InvariantCulture) + ": ;");
+				if (awaitExpression.ResolvedType is not null and not "void")
+				{
+					WriteIndent(writer, indent);
+					writer.WriteLine(target + " = frame->await" + index.ToString(CultureInfo.InvariantCulture) + "_result;");
+				}
+				return;
+			}
+
+			if (declaration.InitialValue is not null)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine(target + " = " + FormatDeclarationInitializer(declaration.Target.ResolvedType, declaration.InitialValue) + ";");
+			}
+		}
+
+		void WriteAsyncFrameAwaitCall(TextWriter writer, AsyncFrameInfo frame, CallExpression call, int indent, ref int awaitCursor)
+		{
+			AsyncAwaitInfo awaitInfo = frame.Awaits[Math.Min(awaitCursor, frame.Awaits.Count - 1)];
+			int nextState = awaitCursor + 1;
+			WriteIndent(writer, indent);
+			writer.WriteLine("frame->state = " + nextState.ToString(CultureInfo.InvariantCulture) + ";");
+			WriteIndent(writer, indent);
+			writer.WriteLine(FormatAwaitCallWithCompletion(call, awaitInfo.CompleteName, "frame") + ";");
+			WriteIndent(writer, indent);
+			writer.WriteLine("return;");
+			awaitCursor = nextState;
+		}
+
+		void WriteAsyncFrameReturn(TextWriter writer, AsyncFrameInfo frame, ReturnStatement ret, int indent)
+		{
+			List<string> arguments = ["frame->complete_context"];
+			string resultType = frame.Function.ResolvedType ?? "void";
+			if (resultType != "void")
+				arguments.Add(ret.Expression is null ? FormatDefaultValueForResolvedType(resultType) : FormatExpression(ret.Expression));
+			if (frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown)
+				arguments.Add(FormatVariableReference(thrown));
+			WriteIndent(writer, indent);
+			writer.WriteLine("frame->complete(" + string.Join(", ", arguments) + ");");
+			WriteAsyncFrameFree(writer, frame, indent);
+			WriteIndent(writer, indent);
+			writer.WriteLine("return;");
+		}
+
+		void WriteAsyncFrameFree(TextWriter writer, AsyncFrameInfo frame, int indent)
+		{
+			ParameterDefinition? scheduler = frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Upon);
+			ParameterDefinition? allocator = frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition);
+			FunctionDefinition? schedulerFree = scheduler is null ? null : FindMemberFunctionForType(scheduler.ResolvedType, "free");
+			FunctionDefinition? allocatorFree = allocator is null ? null : FindMemberFunctionForType(allocator.ResolvedType, "free");
+			if (scheduler is not null && schedulerFree is not null)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine("if (frame->" + CName(scheduler) + " != NULL)");
+				WriteIndent(writer, indent);
+				writer.WriteLine("{");
+				WriteIndent(writer, indent + 1);
+				writer.WriteLine(CName(schedulerFree) + "(frame->" + CName(scheduler) + ", frame);");
+				WriteIndent(writer, indent);
+				writer.WriteLine("}");
+				WriteIndent(writer, indent);
+				writer.WriteLine("else");
+			}
+
+			if (allocator is not null && allocatorFree is not null)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine("{");
+				WriteIndent(writer, indent + 1);
+				writer.WriteLine("if (frame->" + CName(allocator) + " != NULL)");
+				WriteIndent(writer, indent + 1);
+				writer.WriteLine("{");
+				WriteIndent(writer, indent + 2);
+				writer.WriteLine(CName(allocatorFree) + "(frame->" + CName(allocator) + ", frame);");
+				WriteIndent(writer, indent + 1);
+				writer.WriteLine("}");
+				WriteIndent(writer, indent + 1);
+				writer.WriteLine("else");
+				WriteIndent(writer, indent + 1);
+				writer.WriteLine("{");
+				WriteIndent(writer, indent + 2);
+				writer.WriteLine("free(frame);");
+				WriteIndent(writer, indent + 1);
+				writer.WriteLine("}");
+				WriteIndent(writer, indent);
+				writer.WriteLine("}");
+				return;
+			}
+			WriteIndent(writer, indent);
+			writer.WriteLine("free(frame);");
+		}
+
+		void WriteAsyncFrameAllocation(TextWriter writer, AsyncFrameInfo frame, int indent)
+		{
+			ParameterDefinition? scheduler = frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Upon);
+			ParameterDefinition? allocator = frame.Function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition);
+			WriteIndent(writer, indent);
+			writer.WriteLine(frame.FrameType + " *frame = NULL;");
+			if (scheduler is not null && FindMemberFunctionForType(scheduler.ResolvedType, "alloc") is FunctionDefinition schedulerAlloc)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine("if (" + CName(scheduler) + " != NULL)");
+				WriteIndent(writer, indent);
+				writer.WriteLine("{");
+				WriteIndent(writer, indent + 1);
+				writer.WriteLine("frame = (" + frame.FrameType + " *)" + CName(schedulerAlloc) + "(" + CName(scheduler) + ", sizeof(" + frame.FrameType + "));");
+				WriteIndent(writer, indent);
+				writer.WriteLine("}");
+			}
+			if (allocator is not null && FindMemberFunctionForType(allocator.ResolvedType, "alloc") is FunctionDefinition allocatorAlloc)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine("if (frame == NULL && " + CName(allocator) + " != NULL)");
+				WriteIndent(writer, indent);
+				writer.WriteLine("{");
+				WriteIndent(writer, indent + 1);
+				writer.WriteLine("frame = (" + frame.FrameType + " *)" + CName(allocatorAlloc) + "(" + CName(allocator) + ", sizeof(" + frame.FrameType + "));");
+				WriteIndent(writer, indent);
+				writer.WriteLine("}");
+			}
+			WriteIndent(writer, indent);
+			writer.WriteLine("if (frame == NULL)");
+			WriteIndent(writer, indent);
+			writer.WriteLine("{");
+			WriteIndent(writer, indent + 1);
+			writer.WriteLine("frame = (" + frame.FrameType + " *)malloc(sizeof(" + frame.FrameType + "));");
+			WriteIndent(writer, indent);
+			writer.WriteLine("}");
+		}
+
+		FunctionDefinition? FindMemberFunctionForType(string? receiverType, string name)
+		{
+			string typeName = TryGetPointerElementType(receiverType, out string pointerElement) ? pointerElement : receiverType ?? "";
+			int genericStart = typeName.IndexOf('<', StringComparison.Ordinal);
+			if (genericStart >= 0)
+				typeName = typeName[..genericStart];
+			typeName = typeName.Trim();
+			if (string.IsNullOrWhiteSpace(typeName))
+				return null;
+			foreach (KeyValuePair<FunctionDefinition, TypeDefinition> entry in containingTypes)
+			{
+				if (entry.Value.Name == typeName && entry.Key.Name == name)
+					return entry.Key;
+			}
+			return null;
+		}
+
+		static bool StatementContainsAwait(Statement? statement)
+		{
+			return statement switch
+			{
+				null => false,
+				BlockStatement block => block.Statements.Any(StatementContainsAwait),
+				ExpressionStatement expression => ExpressionContainsAwait(expression.Expression),
+				DeclarationStatement declaration => ExpressionContainsAwait(declaration.InitialValue),
+				ReturnStatement ret => ExpressionContainsAwait(ret.Expression),
+				IfStatement ifStatement => ExpressionContainsAwait(ifStatement.Condition) || StatementContainsAwait(ifStatement.Body) || StatementContainsAwait(ifStatement.ElseBody),
+				WhileStatement whileStatement => ExpressionContainsAwait(whileStatement.Condition) || StatementContainsAwait(whileStatement.Body),
+				ForStatement forStatement => StatementContainsAwait(forStatement.Condition.Declaration) || forStatement.Condition.Clauses.Any(ExpressionContainsAwait) || StatementContainsAwait(forStatement.Body),
+				TryStatement tryStatement => StatementContainsAwait(tryStatement.Body) || tryStatement.Catches.Any(StatementContainsAwait) || StatementContainsAwait(tryStatement.Finally),
+				CatchStatement catchStatement => StatementContainsAwait(catchStatement.Body),
+				FinallyStatement finallyStatement => StatementContainsAwait(finallyStatement.Body),
+				WithinStatement withinStatement => ExpressionContainsAwait(withinStatement.Allocator) || StatementContainsAwait(withinStatement.Body),
+				_ => false
+			};
+		}
+
+		static bool ExpressionContainsAwait(Expression? expression)
+		{
+			return expression switch
+			{
+				null => false,
+				UnaryExpression { Operator: UnaryOperator.Await } => true,
+				UnaryExpression unary => ExpressionContainsAwait(unary.Operand) || ExpressionContainsAwait(unary.Context),
+				BinaryExpression binary => ExpressionContainsAwait(binary.Left) || ExpressionContainsAwait(binary.Right),
+				AssignmentExpression assignment => ExpressionContainsAwait(assignment.Target) || ExpressionContainsAwait(assignment.Value),
+				CallExpression call => ExpressionContainsAwait(call.Target) || call.Arguments.Any(argument => ExpressionContainsAwait(argument.Value)),
+				MemberExpression member => ExpressionContainsAwait(member.Target),
+				IndexExpression index => ExpressionContainsAwait(index.Target) || index.Arguments.Any(argument => ExpressionContainsAwait(argument.Value)),
+				ParenthesizedExpression parenthesized => ExpressionContainsAwait(parenthesized.Expression),
+				CastExpression cast => ExpressionContainsAwait(cast.Expression),
+				ConditionalExpression conditional => ExpressionContainsAwait(conditional.Condition) || ExpressionContainsAwait(conditional.WhenTrue) || ExpressionContainsAwait(conditional.WhenFalse),
+				GroupedExpression grouped => grouped.Items.Any(item => ExpressionContainsAwait(item.Expression)),
+				ArrayExpression array => array.Elements.Any(ExpressionContainsAwait),
+				InitializerExpression initializer => initializer.Items.Any(item => ExpressionContainsAwait(item.Expression)),
+				FinallyDeleteExpression finallyDelete => ExpressionContainsAwait(finallyDelete.Expression),
+				WithinExpression within => ExpressionContainsAwait(within.Context) || ExpressionContainsAwait(within.Expression),
+				ArgumentExpression argument => ExpressionContainsAwait(argument.Value),
+				_ => false
+			};
 		}
 
 		string FormatFunctionSignature(FunctionDefinition function, string name)
@@ -2429,6 +2951,11 @@ public static class CCodeEmitter
 
 		string FormatTailAwaitCallExpression(CallExpression call)
 		{
+			return FormatAwaitCallWithCompletion(call, "complete", "complete_context");
+		}
+
+		string FormatAwaitCallWithCompletion(CallExpression call, string completion, string completionContext)
+		{
 			string target = FormatExpression(call.Target);
 			FunctionDefinition? function = TryGetCallFunction(call);
 			if (function is not null
@@ -2450,8 +2977,8 @@ public static class CCodeEmitter
 				ParameterDefinition? parameter = i < parameters.Count ? parameters[i] : null;
 				arguments.Add(FormatArgumentValue(call.Arguments[i], parameter, genericSubstitutions));
 			}
-			arguments.Add("complete");
-			arguments.Add("complete_context");
+			arguments.Add(completion);
+			arguments.Add(completionContext);
 			if (function?.IsAsync == true)
 				RepairAsyncCallArgumentSlots(function, arguments);
 			return target + "(" + string.Join(", ", arguments) + ")";
@@ -4459,6 +4986,9 @@ public static class CCodeEmitter
 
 		string FormatVariableReference(BindableNode? variable)
 		{
+			if (variable is not null && currentAsyncFrameReplacements.TryGetValue(variable, out string frameReference))
+				return frameReference;
+
 			return variable switch
 			{
 				FunctionDefinition function => CName(function),

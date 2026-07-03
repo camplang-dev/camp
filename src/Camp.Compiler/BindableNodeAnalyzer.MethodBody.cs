@@ -34,7 +34,6 @@ public sealed partial class BindableNodeAnalyzer
 		function.Body.ResolvedType = "void";
 		BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
 		CollectAsyncAwaitSites(function);
-		ValidateSupportedAwaitSites(function);
 		BindFunctionLabels(function);
 		ValidateBaseConstructorInvocation(function, containingType);
 		FlowAnalyzeFunctionBody(function, scope);
@@ -216,56 +215,6 @@ public sealed partial class BindableNodeAnalyzer
 			case RangeExpression range:
 				CollectAsyncAwaitSites(range.Start, sites);
 				CollectAsyncAwaitSites(range.End, sites);
-				break;
-		}
-	}
-
-	void ValidateSupportedAwaitSites(FunctionDefinition function)
-	{
-		if (function.AwaitSites.Count == 0)
-			return;
-		HashSet<UnaryExpression> supported = [];
-		CollectSupportedTailAwaitSites(function.Body, supported);
-		foreach (UnaryExpression awaitSite in function.AwaitSites)
-		{
-			if (awaitSite.ResolvedType == ErrorType)
-				continue;
-			if (!supported.Contains(awaitSite))
-				Report(GetRange(awaitSite.SourceSyntax), "Non-tail await requires async frame lowering and is implemented in the scheduler/frame phase.");
-		}
-	}
-
-	void CollectSupportedTailAwaitSites(Statement? statement, HashSet<UnaryExpression> supported)
-	{
-		switch (statement)
-		{
-			case null:
-				return;
-			case BlockStatement block:
-				foreach (Statement child in block.Statements)
-					CollectSupportedTailAwaitSites(child, supported);
-				break;
-			case ReturnStatement { Expression: UnaryExpression { Operator: UnaryOperator.Await, Operand: CallExpression or MemberExpression } awaitExpression }:
-				supported.Add(awaitExpression);
-				break;
-			case IfStatement ifStatement:
-				CollectSupportedTailAwaitSites(ifStatement.Body, supported);
-				CollectSupportedTailAwaitSites(ifStatement.ElseBody, supported);
-				break;
-			case TryStatement tryStatement:
-				CollectSupportedTailAwaitSites(tryStatement.Body, supported);
-				foreach (CatchStatement catchStatement in tryStatement.Catches)
-					CollectSupportedTailAwaitSites(catchStatement, supported);
-				CollectSupportedTailAwaitSites(tryStatement.Finally, supported);
-				break;
-			case CatchStatement catchStatement:
-				CollectSupportedTailAwaitSites(catchStatement.Body, supported);
-				break;
-			case FinallyStatement finallyStatement:
-				CollectSupportedTailAwaitSites(finallyStatement.Body, supported);
-				break;
-			case WithinStatement withinStatement:
-				CollectSupportedTailAwaitSites(withinStatement.Body, supported);
 				break;
 		}
 	}

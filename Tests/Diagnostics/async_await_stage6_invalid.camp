@@ -39,9 +39,3 @@ async void badTwoValues()
 {
 	await callbackTwoValues();
 }
-
-async int badNonTail()
-{
-	int value = await inner();
-	return value;
-}
