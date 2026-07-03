@@ -33,9 +33,190 @@ public sealed partial class BindableNodeAnalyzer
 
 		function.Body.ResolvedType = "void";
 		BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
+		CollectAsyncAwaitSites(function);
 		BindFunctionLabels(function);
 		ValidateBaseConstructorInvocation(function, containingType);
 		FlowAnalyzeFunctionBody(function, scope);
+	}
+
+	void CollectAsyncAwaitSites(FunctionDefinition function)
+	{
+		function.AwaitSites.Clear();
+		if (!function.IsAsync || function.Body is null)
+			return;
+		foreach (Statement statement in function.Body.Statements)
+			CollectAsyncAwaitSites(statement, function.AwaitSites);
+	}
+
+	void CollectAsyncAwaitSites(Statement? statement, List<UnaryExpression> sites)
+	{
+		switch (statement)
+		{
+			case null:
+				return;
+			case BlockStatement block:
+				foreach (Statement child in block.Statements)
+					CollectAsyncAwaitSites(child, sites);
+				break;
+			case ExpressionStatement expression:
+				CollectAsyncAwaitSites(expression.Expression, sites);
+				break;
+			case DeclarationStatement declaration:
+				CollectAsyncAwaitSites(declaration.InitialValue, sites);
+				break;
+			case IfStatement ifStatement:
+				CollectAsyncAwaitSites(ifStatement.Condition, sites);
+				CollectAsyncAwaitSites(ifStatement.Body, sites);
+				CollectAsyncAwaitSites(ifStatement.ElseBody, sites);
+				break;
+			case WhileStatement whileStatement:
+				CollectAsyncAwaitSites(whileStatement.Condition, sites);
+				CollectAsyncAwaitSites(whileStatement.Body, sites);
+				break;
+			case DoWhileStatement doWhile:
+				CollectAsyncAwaitSites(doWhile.Body, sites);
+				CollectAsyncAwaitSites(doWhile.Condition, sites);
+				break;
+			case ForStatement forStatement:
+				CollectAsyncAwaitSites(forStatement.Condition.Declaration, sites);
+				foreach (Expression? clause in forStatement.Condition.Clauses)
+					CollectAsyncAwaitSites(clause, sites);
+				CollectAsyncAwaitSites(forStatement.Body, sites);
+				break;
+			case ForeachStatement foreachStatement:
+				CollectAsyncAwaitSites(foreachStatement.Source, sites);
+				CollectAsyncAwaitSites(foreachStatement.Body, sites);
+				break;
+			case SwitchStatement switchStatement:
+				CollectAsyncAwaitSites(switchStatement.Expression, sites);
+				foreach (Statement child in switchStatement.Statements)
+					CollectAsyncAwaitSites(child, sites);
+				break;
+			case CaseStatement caseStatement:
+				CollectAsyncAwaitSites(caseStatement.Expression, sites);
+				break;
+			case ReturnStatement returnStatement:
+				CollectAsyncAwaitSites(returnStatement.Expression, sites);
+				break;
+			case YieldStatement yieldStatement:
+				CollectAsyncAwaitSites(yieldStatement.Expression, sites);
+				break;
+			case DeleteStatement deleteStatement:
+				CollectAsyncAwaitSites(deleteStatement.Expression, sites);
+				break;
+			case TryStatement tryStatement:
+				CollectAsyncAwaitSites(tryStatement.Body, sites);
+				foreach (CatchStatement catchStatement in tryStatement.Catches)
+					CollectAsyncAwaitSites(catchStatement, sites);
+				CollectAsyncAwaitSites(tryStatement.Finally, sites);
+				break;
+			case CatchStatement catchStatement:
+				CollectAsyncAwaitSites(catchStatement.Body, sites);
+				break;
+			case FinallyStatement finallyStatement:
+				CollectAsyncAwaitSites(finallyStatement.Body, sites);
+				break;
+			case WithinStatement withinStatement:
+				CollectAsyncAwaitSites(withinStatement.Allocator, sites);
+				CollectAsyncAwaitSites(withinStatement.Body, sites);
+				break;
+		}
+	}
+
+	void CollectAsyncAwaitSites(Expression? expression, List<UnaryExpression> sites)
+	{
+		switch (expression)
+		{
+			case null:
+				return;
+			case UnaryExpression { Operator: UnaryOperator.Await } awaitExpression:
+				sites.Add(awaitExpression);
+				CollectAsyncAwaitSites(awaitExpression.Operand, sites);
+				CollectAsyncAwaitSites(awaitExpression.Context, sites);
+				break;
+			case UnaryExpression unary:
+				CollectAsyncAwaitSites(unary.Operand, sites);
+				CollectAsyncAwaitSites(unary.Context, sites);
+				break;
+			case GroupedExpression grouped:
+				foreach (GroupedExpressionItem item in grouped.Items)
+					CollectAsyncAwaitSites(item.Expression, sites);
+				break;
+			case ArrayExpression array:
+				foreach (Expression element in array.Elements)
+					CollectAsyncAwaitSites(element, sites);
+				break;
+			case InitializerExpression initializer:
+				foreach (InitializerItem item in initializer.Items)
+					CollectAsyncAwaitSites(item.Expression, sites);
+				break;
+			case ParenthesizedExpression parenthesized:
+				CollectAsyncAwaitSites(parenthesized.Expression, sites);
+				break;
+			case CastExpression cast:
+				CollectAsyncAwaitSites(cast.Expression, sites);
+				break;
+			case ConstructionExpression construction:
+				foreach (ArgumentExpression argument in construction.Arguments)
+					CollectAsyncAwaitSites(argument, sites);
+				CollectAsyncAwaitSites(construction.ElementCount, sites);
+				CollectAsyncAwaitSites(construction.Initializer, sites);
+				break;
+			case WithinExpression within:
+				CollectAsyncAwaitSites(within.Context, sites);
+				CollectAsyncAwaitSites(within.Expression, sites);
+				break;
+			case LambdaExpression lambda:
+				CollectAsyncAwaitSites(lambda.Body, sites);
+				break;
+			case ArgumentExpression argument:
+				CollectAsyncAwaitSites(argument.Value, sites);
+				break;
+			case CallExpression call:
+				CollectAsyncAwaitSites(call.Target, sites);
+				foreach (ArgumentExpression argument in call.Arguments)
+					CollectAsyncAwaitSites(argument, sites);
+				break;
+			case IndexExpression index:
+				CollectAsyncAwaitSites(index.Target, sites);
+				foreach (ArgumentExpression argument in index.Arguments)
+					CollectAsyncAwaitSites(argument, sites);
+				break;
+			case MemberExpression member:
+				CollectAsyncAwaitSites(member.Target, sites);
+				break;
+			case MemberReferenceExpression member:
+				CollectAsyncAwaitSites(member.Target, sites);
+				break;
+			case NamelessIndexerExpression indexer:
+				CollectAsyncAwaitSites(indexer.Target, sites);
+				foreach (ArgumentExpression argument in indexer.Arguments)
+					CollectAsyncAwaitSites(argument, sites);
+				break;
+			case PostfixUpdateExpression postfix:
+				CollectAsyncAwaitSites(postfix.Expression, sites);
+				break;
+			case FinallyDeleteExpression finallyDelete:
+				CollectAsyncAwaitSites(finallyDelete.Expression, sites);
+				break;
+			case BinaryExpression binary:
+				CollectAsyncAwaitSites(binary.Left, sites);
+				CollectAsyncAwaitSites(binary.Right, sites);
+				break;
+			case AssignmentExpression assignment:
+				CollectAsyncAwaitSites(assignment.Target, sites);
+				CollectAsyncAwaitSites(assignment.Value, sites);
+				break;
+			case ConditionalExpression conditional:
+				CollectAsyncAwaitSites(conditional.Condition, sites);
+				CollectAsyncAwaitSites(conditional.WhenTrue, sites);
+				CollectAsyncAwaitSites(conditional.WhenFalse, sites);
+				break;
+			case RangeExpression range:
+				CollectAsyncAwaitSites(range.Start, sites);
+				CollectAsyncAwaitSites(range.End, sites);
+				break;
+		}
 	}
 
 	void AnalyzeConstantExpression(Expression? expression, AnalysisScope typeScope, string context, string? targetType = null)

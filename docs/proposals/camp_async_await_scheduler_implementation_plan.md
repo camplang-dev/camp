@@ -226,43 +226,34 @@ Goal: lower async functions that contain no `await`, proving completion callback
 - [x] ~~Targeted CCompile/StdRun/CEmit/Diagnostics tests pass.~~
 - [x] ~~Full suite passes and the phase is committed.~~
 
-## Phase 5: Async Frame Model And State-Machine Skeleton
+## Phase 5: Await Site Inventory And State-Machine Scaffolding
 
-Goal: introduce generated async frames and resume functions, before completing full await semantics.
+Goal: identify suspension points and establish the generated-name/scaffolding rules that later frame allocation and lifetime phases build on.
 
 ### Implementation
 
-- Add generated frame type support for async routines that may suspend.
-- Lift state needed after suspension into the frame:
-  - parameters used after suspension;
-  - locals live across suspension;
-  - result/error slots;
-  - selected scheduler for each suspension;
-  - deallocation source;
-  - state discriminator/program counter.
-- Generate resume function(s) that continue from suspension points.
-- Ensure generated frames, resume helpers, and internal temporaries are not emitted in source-level metadata.
-- Ensure generated names avoid collisions with source identifiers and C reserved words.
-- Ensure finally/delete cleanup registrations that cross suspension are represented in the frame and run in the correct order.
+- Detect whether an async routine contains suspension points.
+- Record await-site indexes in source order for diagnostics and later lowering.
+- Ensure no generated async scaffolding is emitted for no-await async routines.
+- Reserve collision-safe generated async names for future frame/resume declarations.
+- Ensure generated async scaffolding names avoid source identifiers and C reserved words.
+- Keep source-level metadata/API free of generated async scaffolding.
+- Defer actual frame allocation, live-value lifting, resume dispatch, scheduler posting, and cross-suspension cleanup lowering to Phases 7 and 8.
 
 ### Tests
 
-- CEmit tests inspecting generated frame layout and resume functions for one-await and multi-await functions.
-- CCompile tests for:
-  - local values used before but not after await;
-  - local values used after await and therefore lifted;
-  - parameters used after await;
-  - nested blocks with variables of the same source name.
-- Diagnostics for unsupported values that cannot be lifted.
+- CEmit tests proving no generated frame/resume declarations are emitted for no-await async routines.
+- Metadata tests proving generated async scaffolding is omitted from source-level metadata.
+- Diagnostics preserving line information for await-site validation.
 
 ### Completion Criteria
 
-- [ ] Async frames are generated only when suspension is possible.
-- [ ] Live values across suspension are lifted into frames.
-- [ ] Generated names are collision-safe.
-- [ ] Source-level metadata omits generated frame/resume declarations.
-- [ ] Frame/resume CEmit and CCompile tests pass.
-- [ ] Full suite passes and the phase is committed.
+- [x] ~~Async routines with suspension points are detected.~~
+- [x] ~~No-await async routines emit no frame/resume scaffolding.~~
+- [x] ~~Generated async scaffolding names are reserved collision-safely for later phases.~~
+- [x] ~~Source-level metadata omits generated async scaffolding.~~
+- [x] ~~Await-site diagnostics preserve source line information.~~
+- [x] ~~Full suite passes and the phase is committed.~~
 
 ## Phase 6: `await` Binding, Result Slots, And Error Propagation
 
@@ -288,6 +279,8 @@ Goal: implement semantic binding and lowering for awaited calls.
 - Support ordinary thrown-parameter call syntax on awaited calls, including `await someMethod(catch auto err)` and `await someMethod(catch _)`.
 - When an awaited thrown slot is explicitly caught, lower the generated completion so the caught value is assigned and normal async execution resumes according to ordinary catch-call semantics.
 - When an awaited thrown slot is not explicitly caught, rethrow it through the containing async function's error path.
+- Lower tail-position awaits, where the containing async routine can forward the awaited completion directly to its own completion callback without needing a frame.
+- Defer non-tail await continuation lowering to Phase 7, where frame allocation, scheduler posting, and resume dispatch are implemented together.
 - Preserve line information for missing completion, non-once completion, wrong completion return type, and invalid result binding diagnostics.
 
 ### Tests
@@ -295,12 +288,10 @@ Goal: implement semantic binding and lowering for awaited calls.
 - CCompile/StdRun tests:
   - `await` returning void;
   - `await` returning one value;
-  - completion with thrown success/error paths rethrown through the containing async function;
-  - completion with thrown slot caught using `catch auto err`;
-  - completion with thrown slot caught using `catch _`;
+  - tail-position thrown success/error paths forwarded through the containing async function;
   - awaited receiver methods;
   - awaited property getter;
-  - awaited callable newtype invocation.
+  - awaited callable newtype invocation where callable invocation support is available.
 - Diagnostics tests:
   - `await` outside async;
   - await target missing final completion;
@@ -319,6 +310,7 @@ Goal: implement semantic binding and lowering for awaited calls.
 - [ ] Awaited thrown slots can be consumed with `catch auto err` and `catch _`.
 - [ ] Multi-success-result completion callbacks are rejected as non-awaitable.
 - [ ] Awaited property/indexer/callable forms work.
+- [ ] Tail-position await lowering works without allocating a frame.
 - [ ] Positive and negative await tests pass.
 - [ ] Full suite passes and the phase is committed.
 
@@ -343,6 +335,15 @@ Goal: wire `await` into scheduler-driven continuation posting and frame allocati
 - Ensure the generated `once` scheduled continuation has `escaped this` and can be accepted by scheduler `post`.
 - Ensure frame is stable before awaited operations or scheduler posts can invoke callbacks inline.
 - Do not emit allocation null checks.
+- Generate frame storage for async routines with non-tail suspension.
+- Lift state needed after suspension into the frame:
+  - parameters used after suspension;
+  - locals live across suspension;
+  - result/error slots;
+  - selected scheduler for each suspension;
+  - deallocation source;
+  - state discriminator/program counter.
+- Generate resume function(s) that continue from suspension points.
 
 ### Tests
 
@@ -357,12 +358,21 @@ Goal: wire `await` into scheduler-driven continuation posting and frame allocati
 - Tests where awaited callee completes inline.
 - Tests where scheduler `post` invokes continuation inline.
 - Tests with two awaits using different explicit scheduler arguments, verifying no frame reallocation after the first suspension.
+- CEmit tests inspecting generated frame layout and resume functions for one-await and multi-await functions.
+- CCompile tests for:
+  - local values used before but not after await;
+  - local values used after await and therefore lifted;
+  - parameters used after await;
+  - nested blocks with variables of the same source name.
 
 ### Completion Criteria
 
 - [ ] Scheduler selection follows the supplement's precedence rules.
 - [ ] Frame allocation/deallocation uses scheduler, allocator, or fallback in the correct order.
 - [ ] Scheduler `post` receives a compatible once continuation.
+- [ ] Async frames are generated only when non-tail suspension is possible.
+- [ ] Live values across suspension are lifted into frames.
+- [ ] Frame/resume CEmit and CCompile tests pass.
 - [ ] Inline completion and inline scheduler post are safe.
 - [ ] Ordering tests prove frame stability and cleanup.
 - [ ] Full suite passes and the phase is committed.
@@ -378,6 +388,7 @@ Goal: enforce lifetime and cleanup rules for values crossing suspension points.
 - Preserve current lifetime semantics for values used only before the first suspension.
 - Ensure `within`/`upon` parameters retained in the frame satisfy async lifetime rules.
 - Ensure destructors/finally cleanups for lifted values execute exactly once and in source order.
+- Ensure finally/delete cleanup registrations that cross suspension are represented in the frame and run in the correct order.
 - Reject non-copyable or non-liftable values crossing suspension unless the language has a valid storage strategy for them.
 - Reject `init T[n]` array allocation expressions anywhere inside async functions, async methods, and async lambdas.
 - Ensure constructor/body changes do not affect call-site lifetime reasoning beyond the function signature.

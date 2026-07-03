@@ -178,6 +178,7 @@ public class FunctionDefinition : Definition
 	public FunctionDefinition? InterfaceSlotInitializerTarget { get; set; }
 	public List<GenericParameter> GenericParameters { get; } = [];
 	public List<ParameterDefinition> Parameters { get; } = [];
+	public List<UnaryExpression> AwaitSites { get; } = [];
 	public BlockStatement? Body { get; set; }
 }
 
