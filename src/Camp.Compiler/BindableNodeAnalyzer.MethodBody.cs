@@ -1488,6 +1488,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (scope.CurrentIteratorElementType is not null && construction.Kind == ConstructionKind.Init)
 				Report(GetRange(construction.SourceSyntax), "Iterator generator bodies cannot use init array construction; use fixed storage or new instead.");
+			if (scope.CurrentFunction.IsAsync && construction.Kind == ConstructionKind.Init)
+				Report(GetRange(construction.SourceSyntax), "Async bodies cannot use init array construction because declaration-scope storage cannot cross suspension; use fixed storage or new instead.");
 			if (construction.Type?.ResolvedType is string elementType)
 			{
 				string arrayType = $"{elementType}[]";
