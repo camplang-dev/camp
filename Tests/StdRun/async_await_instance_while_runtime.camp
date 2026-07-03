@@ -1,0 +1,41 @@
+using Std;
+
+int observed;
+
+class EventLoop
+{
+	void resumeAsync(escaped once void() continuation)
+	{
+		continuation();
+	}
+
+	void delayAsync(int value, once void() complete)
+	{
+		complete();
+	}
+}
+
+async int countdown(int seconds, @resumewith EventLoop* loop)
+{
+	int total = 0;
+	while (seconds > 0)
+	{
+		await loop.delayAsync(seconds);
+		total = total + seconds;
+		seconds--;
+	}
+	return total;
+}
+
+void complete(void* context, int value)
+{
+	observed = value;
+}
+
+export int main()
+{
+	auto loop = new EventLoop();
+	countdown(3, loop, complete, null);
+	Console.writeLine(observed);
+	return observed == 6 ? 0 : 1;
+}

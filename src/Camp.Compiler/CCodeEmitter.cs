@@ -558,6 +558,7 @@ public static class CCodeEmitter
 		readonly Dictionary<BindableNode, string> currentAsyncFrameReplacements = [];
 		readonly Dictionary<string, string> currentAsyncFrameNameReplacements = new(StringComparer.Ordinal);
 		string? currentAsyncFrameName;
+		int currentAsyncLoopLabelIndex;
 		FunctionDefinition? currentFunction;
 		bool currentFunctionHasLabels;
 		readonly string sharedExportPrefix = options.BuildKind is NativeBuildKind.Shared
@@ -1963,6 +1964,9 @@ public static class CCodeEmitter
 					CollectNonTailAsyncAwaits(ifStatement.Body, awaits, baseName);
 					CollectNonTailAsyncAwaits(ifStatement.ElseBody, awaits, baseName);
 					return;
+				case WhileStatement whileStatement:
+					CollectNonTailAsyncAwaits(whileStatement.Body, awaits, baseName);
+					return;
 				case TryStatement tryStatement:
 					CollectNonTailAsyncAwaits(tryStatement.Body, awaits, baseName);
 					foreach (CatchStatement catchStatement in tryStatement.Catches)
@@ -2002,6 +2006,9 @@ public static class CCodeEmitter
 				case IfStatement ifStatement:
 					CollectAsyncFrameLocals(ifStatement.Body, fields);
 					CollectAsyncFrameLocals(ifStatement.ElseBody, fields);
+					return;
+				case WhileStatement whileStatement:
+					CollectAsyncFrameLocals(whileStatement.Body, fields);
 					return;
 				case TryStatement tryStatement:
 					CollectAsyncFrameLocals(tryStatement.Body, fields);
@@ -2151,6 +2158,7 @@ public static class CCodeEmitter
 			}
 			currentAsyncFrameName = "frame";
 			currentFunction = frame.Function;
+			currentAsyncLoopLabelIndex = 0;
 			int awaitCursor = 0;
 			WriteIndent(writer, 0);
 			writer.WriteLine("__async_state0: ;");
@@ -2273,12 +2281,54 @@ public static class CCodeEmitter
 						WriteAsyncFrameEmbeddedStatement(writer, frame, ifStatement.ElseBody, indent, ref awaitCursor);
 					}
 					return;
+				case WhileStatement whileStatement:
+					WriteAsyncFrameWhileStatement(writer, frame, whileStatement, indent, ref awaitCursor);
+					return;
+				case LabelStatement label:
+					writer.WriteLine(SanitizeIdentifier(label.Name ?? "label") + ": ;");
+					return;
+				case GotoStatement go:
+					WriteIndent(writer, indent);
+					writer.WriteLine("goto " + SanitizeIdentifier(go.Target?.Name ?? go.TargetName ?? "label") + ";");
+					return;
+				case BreakStatement:
+					WriteIndent(writer, indent);
+					writer.WriteLine("break;");
+					return;
+				case ContinueStatement:
+					WriteIndent(writer, indent);
+					writer.WriteLine("continue;");
+					return;
 				default:
 					AddUnsupported(statement, "async frame statement");
 					WriteIndent(writer, indent);
 					writer.WriteLine("/* unsupported async frame statement " + statement.GetType().Name + " */");
 					return;
 			}
+		}
+
+		void WriteAsyncFrameWhileStatement(TextWriter writer, AsyncFrameInfo frame, WhileStatement whileStatement, int indent, ref int awaitCursor)
+		{
+			if (ExpressionContainsAwait(whileStatement.Condition))
+			{
+				AddUnsupported(whileStatement, "async while condition with await");
+				WriteIndent(writer, indent);
+				writer.WriteLine("/* unsupported async while condition with await */");
+				return;
+			}
+
+			int index = currentAsyncLoopLabelIndex++;
+			string loopLabel = "__async_loop" + index.ToString(CultureInfo.InvariantCulture);
+			string endLabel = "__async_loop_end" + index.ToString(CultureInfo.InvariantCulture);
+			WriteIndent(writer, 0);
+			writer.WriteLine(loopLabel + ": ;");
+			WriteIndent(writer, indent);
+			writer.WriteLine("if (!(" + FormatExpression(whileStatement.Condition) + ")) goto " + endLabel + ";");
+			WriteAsyncFrameEmbeddedStatement(writer, frame, whileStatement.Body, indent, ref awaitCursor);
+			WriteIndent(writer, indent);
+			writer.WriteLine("goto " + loopLabel + ";");
+			WriteIndent(writer, 0);
+			writer.WriteLine(endLabel + ": ;");
 		}
 
 		void WriteAsyncFrameEmbeddedStatement(TextWriter writer, AsyncFrameInfo frame, Statement? statement, int indent, ref int awaitCursor)
