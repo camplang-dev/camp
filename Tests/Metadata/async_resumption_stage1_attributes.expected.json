@@ -1,0 +1,51 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "AsyncResumptionStage1",
+    "namespace": "AsyncResumptionStage1"
+  },
+  "view": {
+    "visibility": "all",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "class:AsyncResumptionStage1::Dispatcher",
+      "kind": "class",
+      "name": "Dispatcher"
+    },
+    {
+      "id": "function:AsyncResumptionStage1::answerAsync",
+      "kind": "function",
+      "name": "answerAsync",
+      "async": true,
+      "returnType": "int",
+      "metadata": [
+        {
+          "name": "noawait"
+        }
+      ]
+    },
+    {
+      "id": "function:AsyncResumptionStage1::copyAsync",
+      "kind": "function",
+      "name": "copyAsync",
+      "async": true,
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:AsyncResumptionStage1::copyAsync/parameter:dispatcher",
+          "name": "dispatcher",
+          "type": "Dispatcher*",
+          "metadata": [
+            {
+              "name": "resumewith"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

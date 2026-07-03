@@ -1,0 +1,11 @@
+tests/Diagnostics/async_resumption_stage1_invalid.camp(1,1): error: @noawait is valid only on async definitions.
+tests/Diagnostics/async_resumption_stage1_invalid.camp(6,1): error: @noawait is valid only on concrete async definitions with a Camp body.
+tests/Diagnostics/async_resumption_stage1_invalid.camp(6,1): error: @noawait is not valid on extern async declarations.
+tests/Diagnostics/async_resumption_stage1_invalid.camp(11,2): error: @noawait is valid only on concrete async definitions with a Camp body.
+tests/Diagnostics/async_resumption_stage1_invalid.camp(11,2): error: @noawait is valid only on async method definitions with a Camp body.
+tests/Diagnostics/async_resumption_stage1_invalid.camp(15,21): error: @resumewith is valid only on parameters of async definitions.
+tests/Diagnostics/async_resumption_stage1_invalid.camp(19,32): error: @resumewith is valid only on concrete async definitions with a Camp body.
+tests/Diagnostics/async_resumption_stage1_invalid.camp(19,32): error: @resumewith is not valid on extern async declarations.
+tests/Diagnostics/async_resumption_stage1_invalid.camp(21,51): error: Async definitions may declare at most one @resumewith parameter.
+tests/Diagnostics/async_resumption_stage1_invalid.camp(25,30): error: @resumewith is valid only on ordinary runtime parameters.
+tests/Diagnostics/async_resumption_stage1_invalid.camp(25,50): error: Async functions may not declare out parameters; return one value or use the final completion callback shape explicitly.

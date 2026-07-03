@@ -949,6 +949,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType)
 	{
 		AnalyzeAttributes(definition.Attributes);
+		BindAsyncImplementationAttributes(definition, containingType);
 		ApplySymbolAttribute(definition, allowed: true, "function");
 		CheckName(definition.Name.TrimStart('~'), GetNameRange(definition), "function");
 		NormalizeExtensionThisParameter(definition, containingType);
@@ -987,6 +988,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (ContainsThisTypeReference(parameter.Type))
 				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
 		AnalyzeOverloadDeclaration(definition, containingType);
+		ValidateResumeWithParameters(definition);
 		ValidateAsyncFunctionParameters(definition);
 		ValidateIteratorGeneratorParameters(definition);
 		ValidateIndexAwareParameters(definition);
@@ -1003,6 +1005,62 @@ public sealed partial class BindableNodeAnalyzer
 			definition.Symbol = BuildExtensionFunctionSymbol(GetCallableName(definition), thisParameter.ResolvedType ?? ErrorType, definition);
 		else if (containingType is null && !definition.SymbolOverridden && HasOverloadSelector(definition))
 			definition.Symbol = GetCallableName(definition);
+	}
+
+	void BindAsyncImplementationAttributes(FunctionDefinition definition, string? containingType)
+	{
+		definition.IsNoAwait = HasAttribute(definition.Attributes, "@noawait");
+		if (!definition.IsNoAwait)
+			return;
+
+		if (!definition.IsAsync)
+			Report(GetAttributeRange(definition.Attributes, "@noawait") ?? GetNameRange(definition), "@noawait is valid only on async definitions.");
+		if (definition.Body is null)
+			Report(GetAttributeRange(definition.Attributes, "@noawait") ?? GetNameRange(definition), "@noawait is valid only on concrete async definitions with a Camp body.");
+		if (definition.Extern is not null)
+			Report(GetAttributeRange(definition.Attributes, "@noawait") ?? GetNameRange(definition), "@noawait is not valid on extern async declarations.");
+		if (definition.Modifier == FunctionModifier.Abstract)
+			Report(GetAttributeRange(definition.Attributes, "@noawait") ?? GetNameRange(definition), "@noawait is not valid on abstract async declarations.");
+		if (containingType is not null && definition.Body is null)
+			Report(GetAttributeRange(definition.Attributes, "@noawait") ?? GetNameRange(definition), "@noawait is valid only on async method definitions with a Camp body.");
+	}
+
+	void ValidateResumeWithParameters(FunctionDefinition definition)
+	{
+		int count = 0;
+		foreach (ParameterDefinition parameter in definition.Parameters)
+		{
+			parameter.IsResumeWith = HasAttribute(parameter.Attributes, "@resumewith");
+			if (!parameter.IsResumeWith)
+				continue;
+
+			count++;
+			TokenRange? range = GetAttributeRange(parameter.Attributes, "@resumewith") ?? GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax);
+			if (!definition.IsAsync)
+				Report(range, "@resumewith is valid only on parameters of async definitions.");
+			if (definition.Body is null)
+				Report(range, "@resumewith is valid only on concrete async definitions with a Camp body.");
+			if (definition.Extern is not null)
+				Report(range, "@resumewith is not valid on extern async declarations.");
+			if (definition.Modifier == FunctionModifier.Abstract)
+				Report(range, "@resumewith is not valid on abstract async declarations.");
+			if (count > 1)
+				Report(range, "Async definitions may declare at most one @resumewith parameter.");
+			if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within or ParameterModifier.Upon
+				|| parameter is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition
+				|| parameter.IsOverloadSelector)
+				Report(range, "@resumewith is valid only on ordinary runtime parameters.");
+		}
+	}
+
+	static TokenRange? GetAttributeRange(List<AttributeConstructor> attributes, string name)
+	{
+		foreach (AttributeConstructor attribute in attributes)
+		{
+			if (AttributeNameEquals(attribute.Name, name))
+				return attribute.SourceSyntax is null ? null : GetRange(attribute.SourceSyntax);
+		}
+		return null;
 	}
 
 	void FinalizeThisReturnType(FunctionDefinition definition, string? containingType)

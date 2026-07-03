@@ -1,0 +1,27 @@
+@noawait
+void notAsyncNoAwait()
+{
+}
+
+@noawait
+extern async void externNoAwait();
+
+interface IAsyncContract
+{
+	@noawait
+	async void interfaceNoAwait();
+}
+
+void nonAsyncResume(@resumewith int resumer)
+{
+}
+
+extern async void externResume(@resumewith int resumer);
+
+async void duplicateResume(@resumewith int first, @resumewith int second)
+{
+}
+
+async void nonOrdinaryResume(@resumewith out int result)
+{
+}

@@ -1,0 +1,7 @@
+@noawait
+async void noawaitHasAwait()
+{
+	await asyncVoid();
+}
+
+extern async void asyncVoid();

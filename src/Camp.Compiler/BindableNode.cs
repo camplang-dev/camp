@@ -162,6 +162,7 @@ public class FunctionDefinition : Definition
 {
 	public FunctionModifier Modifier { get; set; }
 	public bool IsAsync { get; set; }
+	public bool IsNoAwait { get; set; }
 	public IteratorKind IteratorKind { get; set; }
 	public string? CallSpec { get; set; }
 	public string InvokerName { get; set; } = "";
@@ -193,6 +194,7 @@ public class ParameterDefinition : Definition
 {
 	public ParameterModifier Modifier { get; set; }
 	public bool IsOverloadSelector { get; set; }
+	public bool IsResumeWith { get; set; }
 	public string? LifetimeBinding { get; set; }
 	public TypeReference? Type { get; set; }
 	public Expression? DefaultValue { get; set; }

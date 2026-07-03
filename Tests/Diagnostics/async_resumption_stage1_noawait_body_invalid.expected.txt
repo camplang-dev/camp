@@ -1,0 +1,1 @@
+tests/Diagnostics/async_resumption_stage1_noawait_body_invalid.camp(4,2): error: @noawait async definitions may not contain await.

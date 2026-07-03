@@ -1,0 +1,17 @@
+// @emit-metadata all
+export as AsyncResumptionStage1;
+
+class Dispatcher
+{
+}
+
+@noawait
+async int answerAsync()
+{
+	return 42;
+}
+
+async void copyAsync(@resumewith Dispatcher* dispatcher)
+{
+	return;
+}

@@ -1,0 +1,5 @@
+@noawait
+async int answerAsync()
+{
+	return 42;
+}

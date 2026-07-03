@@ -34,9 +34,19 @@ public sealed partial class BindableNodeAnalyzer
 		function.Body.ResolvedType = "void";
 		BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
 		CollectAsyncAwaitSites(function);
+		ValidateNoAwaitBody(function);
 		BindFunctionLabels(function);
 		ValidateBaseConstructorInvocation(function, containingType);
 		FlowAnalyzeFunctionBody(function, scope);
+	}
+
+	void ValidateNoAwaitBody(FunctionDefinition function)
+	{
+		if (!function.IsNoAwait)
+			return;
+
+		foreach (UnaryExpression awaitSite in function.AwaitSites)
+			Report(GetRange(awaitSite.SourceSyntax), "@noawait async definitions may not contain await.");
 	}
 
 	void CollectAsyncAwaitSites(FunctionDefinition function)
