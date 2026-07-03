@@ -82,18 +82,17 @@ Goal: make the full source surface representable and validate the grammar-level 
   - `postpone` expressions;
   - `upon` parameter modifier;
   - async callable newtype declarations;
-  - async lambdas through target-typed async callable forms;
   - async method/property/interface signatures.
 - Ensure `upon` is accepted only as a declaration-side parameter modifier where parameter modifiers are legal.
 - Reject `upon` as a statement keyword, expression keyword, prefix operator, argument-list modifier, local declaration modifier, field modifier, or type qualifier.
 - Enforce at most one `upon` parameter per callable signature.
 - Parse `async iter` only as existing syntax, but mark async-iterator implementation as deferred for this proposal.
 - Preserve the source spelling through AST/XML, lowering serialization, and API output.
-- Ensure async lambda syntax and target-typed async callable syntax remain represented distinctly enough for later body lowering.
+- Defer async lambda target typing and lowering to Phase 10, where lambda context ownership and async-frame cleanup can be handled together.
 
 ### Tests
 
-- AST/API fixtures covering async functions, methods, interface methods, property accessors, callable newtypes, async callable parameters, async lambdas, `once` callable parameters, bare `upon scheduler`, explicit `upon escaped MyScheduler* scheduler = null`, `await`, and `postpone`.
+- AST/API fixtures covering async functions, methods, interface methods, property accessors, callable newtypes, async callable parameters, `once` callable parameters, bare `upon scheduler`, explicit `upon escaped MyScheduler* scheduler = null`, `await`, and `postpone`.
 - Diagnostics fixtures for:
   - two `upon` parameters;
   - `upon` in call arguments;
@@ -105,8 +104,7 @@ Goal: make the full source surface representable and validate the grammar-level 
 ### Completion Criteria
 
 - [x] ~~`upon`, `await`, `postpone`, `async`, and `once` syntax is represented in the AST/bindable model.~~
-- [ ] Async lambdas are represented as target-typed async callable bodies, not ordinary synchronous lambdas.
-- [ ] Invalid `upon` placements produce clear diagnostics with line information.
+- [x] ~~Invalid `upon` placements produce clear diagnostics with line information.~~
 - [x] ~~Async iter implementation surfaces are rejected or deferred without breaking existing syntax tests.~~
 - [x] ~~AST/API/diagnostic tests cover the source surface.~~
 - [x] ~~Full suite passes and the phase is committed.~~
@@ -201,7 +199,6 @@ Goal: lower async functions that contain no `await`, proving completion callback
 
 - Lower async `return` to completion-callback calls.
 - Lower async `throw`/thrown results to completion-callback error calls.
-- Lower async lambda returns/errors through the target async callable's completion callback.
 - Assign default values to ordinary result/error slots when required.
 - Ensure a no-await async function does not allocate an async frame.
 - Support async methods, async free functions, async interface implementations where applicable, and async property accessors after property rewriting.
@@ -217,7 +214,6 @@ Goal: lower async functions that contain no `await`, proving completion callback
   - async method receiver;
   - async property getter/setter surface after rewriting;
   - explicit manual completion callback;
-  - async lambda with explicit completion behavior through target typing.
 - CEmit tests proving no frame allocation occurs for no-await async functions.
 - Diagnostics for async return type mismatch and malformed completion callback usage.
 
@@ -227,11 +223,8 @@ Goal: lower async functions that contain no `await`, proving completion callback
 - [x] ~~No-await async functions do not allocate frames.~~
 - [x] ~~Manual async calls with explicit completion callbacks work.~~
 - [x] ~~Async property accessor rewriting composes with async completion rewriting.~~
-- [ ] Async lambdas without `await` lower through target completion callbacks.
 - [x] ~~Targeted CCompile/StdRun/CEmit/Diagnostics tests pass.~~
-- [ ] Full suite passes and the phase is committed.
-
-Note: async lambda lowering remains open for Phase 10, which owns async lambda target typing, captures, and context cleanup.
+- [x] ~~Full suite passes and the phase is committed.~~
 
 ## Phase 5: Async Frame Model And State-Machine Skeleton
 
@@ -470,7 +463,9 @@ Goal: implement lambda context ownership rules required by async and once callab
 ### Implementation
 
 - Rename generated lambda hidden context parameter to `context`.
+- Represent async lambdas as target-typed async callable bodies, not ordinary synchronous lambdas.
 - Implement async lambda target typing for async callable targets, including `async fn`, `async delegate`, `async once`, and async callable newtypes.
+- Lower no-await async lambda returns/errors through the target async callable's completion callback.
 - Ensure async lambdas can contain `await`, lower to completion-callback-shaped call targets, and use the same scheduler/frame rules as async functions.
 - Reserve `context` as a special name inside lambda bodies.
 - Reject ordinary reads, writes, passing, member access, or address-taking of `context`.
@@ -516,6 +511,8 @@ Goal: implement lambda context ownership rules required by async and once callab
 ### Completion Criteria
 
 - [ ] Lambda hidden context parameter is named `context`.
+- [ ] Async lambdas are represented as target-typed async callable bodies.
+- [ ] Async lambdas without `await` lower through target completion callbacks.
 - [ ] Async lambdas target-type only to async callable targets and may contain `await`.
 - [ ] `context` is special and not an ordinary source variable.
 - [ ] Escaped once lambdas self-delete generated capture context.
