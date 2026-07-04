@@ -1967,6 +1967,9 @@ public static class CCodeEmitter
 				case WhileStatement whileStatement:
 					CollectNonTailAsyncAwaits(whileStatement.Body, awaits, baseName);
 					return;
+				case ForStatement forStatement:
+					CollectNonTailAsyncAwaits(forStatement.Body, awaits, baseName);
+					return;
 				case TryStatement tryStatement:
 					CollectNonTailAsyncAwaits(tryStatement.Body, awaits, baseName);
 					foreach (CatchStatement catchStatement in tryStatement.Catches)
@@ -2009,6 +2012,11 @@ public static class CCodeEmitter
 					return;
 				case WhileStatement whileStatement:
 					CollectAsyncFrameLocals(whileStatement.Body, fields);
+					return;
+				case ForStatement forStatement:
+					if (forStatement.Condition.Declaration is not null)
+						CollectAsyncFrameLocals(forStatement.Condition.Declaration, fields);
+					CollectAsyncFrameLocals(forStatement.Body, fields);
 					return;
 				case TryStatement tryStatement:
 					CollectAsyncFrameLocals(tryStatement.Body, fields);
@@ -2284,6 +2292,9 @@ public static class CCodeEmitter
 				case WhileStatement whileStatement:
 					WriteAsyncFrameWhileStatement(writer, frame, whileStatement, indent, ref awaitCursor);
 					return;
+				case ForStatement forStatement:
+					WriteAsyncFrameForStatement(writer, frame, forStatement, indent, ref awaitCursor);
+					return;
 				case LabelStatement label:
 					writer.WriteLine(SanitizeIdentifier(label.Name ?? "label") + ": ;");
 					return;
@@ -2325,6 +2336,57 @@ public static class CCodeEmitter
 			WriteIndent(writer, indent);
 			writer.WriteLine("if (!(" + FormatExpression(whileStatement.Condition) + ")) goto " + endLabel + ";");
 			WriteAsyncFrameEmbeddedStatement(writer, frame, whileStatement.Body, indent, ref awaitCursor);
+			WriteIndent(writer, indent);
+			writer.WriteLine("goto " + loopLabel + ";");
+			WriteIndent(writer, 0);
+			writer.WriteLine(endLabel + ": ;");
+		}
+
+		void WriteAsyncFrameForStatement(TextWriter writer, AsyncFrameInfo frame, ForStatement forStatement, int indent, ref int awaitCursor)
+		{
+			Expression? initializer = null;
+			if (forStatement.Condition.Declaration is null && forStatement.Condition.Clauses.Count > 0)
+				initializer = forStatement.Condition.Clauses[0];
+			int conditionIndex = forStatement.Condition.Declaration is null ? 1 : 0;
+			int incrementIndex = forStatement.Condition.Declaration is null ? 2 : 1;
+			Expression? condition = forStatement.Condition.Clauses.Count > conditionIndex ? forStatement.Condition.Clauses[conditionIndex] : null;
+			Expression? increment = forStatement.Condition.Clauses.Count > incrementIndex ? forStatement.Condition.Clauses[incrementIndex] : null;
+
+			if (StatementContainsAwait(forStatement.Condition.Declaration)
+				|| ExpressionContainsAwait(initializer)
+				|| ExpressionContainsAwait(condition)
+				|| ExpressionContainsAwait(increment))
+			{
+				AddUnsupported(forStatement, "async for clause with await");
+				WriteIndent(writer, indent);
+				writer.WriteLine("/* unsupported async for clause with await */");
+				return;
+			}
+
+			if (forStatement.Condition.Declaration is DeclarationStatement declaration)
+				WriteAsyncFrameDeclarationStatement(writer, frame, declaration, indent, ref awaitCursor);
+			else if (initializer is not null)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine(FormatExpression(initializer) + ";");
+			}
+
+			int index = currentAsyncLoopLabelIndex++;
+			string loopLabel = "__async_for" + index.ToString(CultureInfo.InvariantCulture);
+			string endLabel = "__async_for_end" + index.ToString(CultureInfo.InvariantCulture);
+			WriteIndent(writer, 0);
+			writer.WriteLine(loopLabel + ": ;");
+			if (condition is not null)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine("if (!(" + FormatExpression(condition) + ")) goto " + endLabel + ";");
+			}
+			WriteAsyncFrameEmbeddedStatement(writer, frame, forStatement.Body, indent, ref awaitCursor);
+			if (increment is not null)
+			{
+				WriteIndent(writer, indent);
+				writer.WriteLine(FormatExpression(increment) + ";");
+			}
 			WriteIndent(writer, indent);
 			writer.WriteLine("goto " + loopLabel + ";");
 			WriteIndent(writer, 0);

@@ -1,0 +1,46 @@
+using Std;
+
+int observed;
+
+class Resumer
+{
+	void resumeAsync(escaped once void() continuation)
+	{
+		continuation();
+	}
+
+	void tickAsync(escaped once void() complete)
+	{
+		complete();
+	}
+}
+
+async int runUpdates(@resumewith Resumer* resumer)
+{
+	int sum = 0;
+	for (int i = 3; i > 0; i--)
+	{
+		await resumer.tickAsync();
+		sum = sum + i;
+	}
+
+	int value = 0;
+	value++;
+	++value;
+	value--;
+	--value;
+	return sum + value;
+}
+
+void complete(void* context, int value)
+{
+	observed = value;
+}
+
+export int main()
+{
+	auto resumer = new Resumer();
+	runUpdates(resumer, complete, null);
+	Console.writeLine(observed);
+	return observed == 6 ? 0 : 1;
+}
