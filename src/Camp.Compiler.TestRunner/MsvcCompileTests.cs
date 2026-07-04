@@ -117,6 +117,8 @@ public sealed class MsvcCompileTests
 
 		CompilerResult result = Compile(source, NativeBuildKind.Exec);
 		AssertSuccess(result);
+		string timingSource = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "tmp", "msvc-tests", "packages", "std", "msvc-windows-x64", "default", "DEBUG", "build", "std_timing.c"));
+		Assert.Contains("static uint32_t __stdcall __camp_delegate_timingTimerThread", timingSource, StringComparison.Ordinal);
 		ProcessResult run = Run(FindArtifact(result, ".exe"));
 		Assert.Equal(0, run.ExitCode);
 	}

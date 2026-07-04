@@ -1011,7 +1011,7 @@ public static class CCodeEmitter
 		{
 			thunk = null!;
 			string? expectedType = SubstituteGenericTypeTokens(targetParameter.ResolvedType ?? targetParameter.Type?.ResolvedType, substitutions);
-			if (expectedType is null || !TryParseResolvedCallableType(expectedType, out string targetReturnType, out List<string> targetParameterTypes))
+			if (expectedType is null || !TryParseResolvedCallableType(expectedType, out string targetReturnType, out List<string> targetParameterTypes, out _, out string? targetCallSpec))
 				return false;
 			if (targetParameterTypes.Count == 0 || !IsVoidPointerType(targetParameterTypes[0]))
 				return false;
@@ -1031,7 +1031,7 @@ public static class CCodeEmitter
 					return false;
 
 			string name = CreateUniqueDelegateThunkName(sourceFunction);
-			thunk = new DelegateThunk(name, sourceFunction, targetReturnType, targetParameterTypes, forwardsContext);
+			thunk = new DelegateThunk(name, sourceFunction, targetReturnType, targetParameterTypes, targetCallSpec, forwardsContext);
 			if (!delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks))
 			{
 				thunks = [];
@@ -1141,12 +1141,12 @@ public static class CCodeEmitter
 
 		void WriteDelegateThunkPrototype(TextWriter writer, DelegateThunk thunk)
 		{
-			writer.WriteLine("static " + FormatResolvedType(thunk.ReturnType, thunk.Name).Declaration + "(" + FormatResolvedParameterList(thunk.ParameterTypes) + ");");
+			writer.WriteLine("static " + FormatDelegateThunkSignature(thunk) + ";");
 		}
 
 		void WriteDelegateThunkDefinition(TextWriter writer, DelegateThunk thunk)
 		{
-			writer.WriteLine("static " + FormatResolvedType(thunk.ReturnType, thunk.Name).Declaration + "(" + FormatResolvedParameterList(thunk.ParameterTypes) + ")");
+			writer.WriteLine("static " + FormatDelegateThunkSignature(thunk));
 			writer.WriteLine("{");
 			if (!thunk.ForwardsContext)
 				writer.WriteLine("\t(void)arg0;");
@@ -1190,6 +1190,13 @@ public static class CCodeEmitter
 				writer.WriteLine("\treturn " + call + ";");
 			writer.WriteLine("}");
 			writer.WriteLine();
+		}
+
+		string FormatDelegateThunkSignature(DelegateThunk thunk)
+		{
+			string callSpec = FormatCallSpec(thunk.CallSpec);
+			string name = callSpec.Length == 0 ? thunk.Name : callSpec + " " + thunk.Name;
+			return FormatResolvedType(thunk.ReturnType, name).Declaration + "(" + FormatResolvedParameterList(thunk.ParameterTypes) + ")";
 		}
 
 		static bool IsIntReturn(FunctionDefinition function)
@@ -6959,6 +6966,7 @@ public static class CCodeEmitter
 			FunctionDefinition SourceFunction,
 			string ReturnType,
 			List<string> ParameterTypes,
+			string? CallSpec,
 			bool ForwardsContext);
 	}
 }
