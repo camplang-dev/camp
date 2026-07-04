@@ -1,12 +1,37 @@
 using Std;
 
 int asyncDone;
+int awaitedDone;
 int ticks;
+
+class InlineResumer
+{
+	void resumeAsync(escaped once void() continuation)
+	{
+		continuation();
+	}
+}
+
+async int waitForSleepAsync(@resumewith InlineResumer* resumer)
+{
+	await sleepAsync(20);
+	return 9;
+}
+
+void completeAwaited(void* context, int value)
+{
+	awaitedDone = value;
+}
 
 export int main()
 {
 	sleep(1);
-	sleepAsync(1, () => { asyncDone = 1; });
+	sleepAsync(50, () => { asyncDone = 1; });
+	Console.writeLine(asyncDone);
+
+	InlineResumer resumer = default;
+	waitForSleepAsync(&resumer, completeAwaited, null);
+	Console.writeLine(awaitedDone);
 
 	TimerHandle handle = startTimer(10, h => {
 		ticks++;
@@ -21,6 +46,32 @@ export int main()
 
 	sleep(100);
 	Console.writeLine(asyncDone);
+	Console.writeLine(awaitedDone);
 	Console.writeLine(ticks >= 2);
-	return asyncDone == 1 && ticks >= 2 ? 0 : 1;
+
+	nint signedValue = 1;
+	nuint unsignedValue = 10;
+	void* pointerValue = null;
+	bool atomics =
+		atomicExchange(&signedValue, 2) == 1 &&
+		signedValue == 2 &&
+		atomicCompareExchange(&signedValue, 3, 4) == 2 &&
+		signedValue == 2 &&
+		atomicCompareExchange(&signedValue, 2, 5) == 2 &&
+		signedValue == 5 &&
+		atomicExchange(&unsignedValue, 11) == 10 &&
+		unsignedValue == 11 &&
+		atomicCompareExchange(&unsignedValue, 12, 13) == 11 &&
+		unsignedValue == 11 &&
+		atomicCompareExchange(&unsignedValue, 11, 14) == 11 &&
+		unsignedValue == 14 &&
+		atomicExchange(&pointerValue, (void*)(nint)20) == null &&
+		pointerValue == (void*)(nint)20 &&
+		atomicCompareExchange(&pointerValue, (void*)(nint)21, (void*)(nint)22) == (void*)(nint)20 &&
+		pointerValue == (void*)(nint)20 &&
+		atomicCompareExchange(&pointerValue, (void*)(nint)20, (void*)(nint)23) == (void*)(nint)20 &&
+		pointerValue == (void*)(nint)23;
+	Console.writeLine(atomics);
+
+	return asyncDone == 1 && awaitedDone == 9 && ticks >= 2 && atomics ? 0 : 1;
 }

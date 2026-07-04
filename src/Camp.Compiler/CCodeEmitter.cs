@@ -4028,6 +4028,8 @@ public static class CCodeEmitter
 			}
 			if (function?.IsAsync == true)
 				RepairAsyncCallArgumentSlots(function, arguments);
+			if (function is not null && TryFormatAtomicIntrinsicCall(function, arguments, out string atomicText))
+				return atomicText;
 			string text = target + "(" + string.Join(", ", arguments) + ")";
 			if (function is not null && TryGetConcreteGenericType(function.ResolvedType, genericSubstitutions, out string? concreteReturnType))
 			{
@@ -4037,6 +4039,58 @@ public static class CCodeEmitter
 			if (TryGetCallResultCastType(call, function, genericSubstitutions, out string? castType))
 				return "(" + FormatResolvedType(castType!, "").Declaration.Trim() + ")(" + text + ")";
 			return text;
+		}
+
+		bool TryFormatAtomicIntrinsicCall(FunctionDefinition function, List<string> arguments, out string text)
+		{
+			text = "";
+			string? operation = function.Name switch
+			{
+				"timingAtomicExchangeNInt" => "exchange-nint",
+				"timingAtomicExchangeNUInt" => "exchange-nuint",
+				"timingAtomicExchangePtr" => "exchange-ptr",
+				"timingAtomicCompareExchangeNInt" => "compare-nint",
+				"timingAtomicCompareExchangeNUInt" => "compare-nuint",
+				"timingAtomicCompareExchangePtr" => "compare-ptr",
+				_ => null
+			};
+			if (operation is null)
+				return false;
+
+			bool compare = operation.StartsWith("compare-", StringComparison.Ordinal);
+			if ((!compare && arguments.Count != 2) || (compare && arguments.Count != 3))
+				return false;
+
+			string compiler = compilation.Target?.Capabilities.Compiler ?? "";
+			if (compiler is "gcc" or "clang")
+			{
+				text = compare
+					? "__sync_val_compare_and_swap(" + arguments[0] + ", " + arguments[1] + ", " + arguments[2] + ")"
+					: "__sync_lock_test_and_set(" + arguments[0] + ", " + arguments[1] + ")";
+				return true;
+			}
+
+			if (compiler == "msvc")
+			{
+				string destination = "(void **)(" + arguments[0] + ")";
+				string valueType = operation.EndsWith("-nuint", StringComparison.Ordinal) ? "uintptr_t" : "intptr_t";
+				string returnType = operation.EndsWith("-nuint", StringComparison.Ordinal) ? "uintptr_t" : operation.EndsWith("-nint", StringComparison.Ordinal) ? "intptr_t" : "void *";
+				string value = operation.EndsWith("-ptr", StringComparison.Ordinal) ? arguments[^1] : "(void *)(" + valueType + ")(" + arguments[^1] + ")";
+				if (compare)
+				{
+					string expected = operation.EndsWith("-ptr", StringComparison.Ordinal) ? arguments[1] : "(void *)(" + valueType + ")(" + arguments[1] + ")";
+					text = "_InterlockedCompareExchangePointer(" + destination + ", " + value + ", " + expected + ")";
+				}
+				else
+				{
+					text = "_InterlockedExchangePointer(" + destination + ", " + value + ")";
+				}
+				if (returnType != "void *")
+					text = "(" + returnType + ")(" + text + ")";
+				return true;
+			}
+
+			return false;
 		}
 
 		void RepairAsyncCallArgumentSlots(FunctionDefinition function, List<string> arguments)

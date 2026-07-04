@@ -15,13 +15,27 @@ export void sleep(nuint timeoutMs)
 
 /// Completes after approximately the requested duration.
 /// @remarks
-/// This first implementation uses the platform sleep primitive directly. It has
-/// the async completion shape, but it does not require a scheduler.
+/// The completion callback is invoked by a platform timer thread after the
+/// delay. A caller that needs to resume on a specific thread should use an
+/// async resumer that marshals continuations to that thread.
 /// - timeoutMs: The number of milliseconds to wait. A value of 0 completes immediately.
-@noawait
-export async void sleepAsync(nuint timeoutMs)
+/// - complete: The callback to invoke when the delay elapses.
+export void sleepAsync(nuint timeoutMs, escaped once void() complete)
 {
-	timingSleepPlatform(timeoutMs);
+	if (timeoutMs == 0)
+	{
+		complete();
+		return;
+	}
+
+	auto state = new TimingSleepAsyncState();
+	if (state == null)
+		return;
+
+	state.complete = complete;
+	TimerHandle handle = startTimer(timeoutMs, { (unsafe fn void(void*, TimerHandle))timingSleepAsyncCallback, state });
+	if (handle == default)
+		delete state;
 }
 
 /// Starts a repeating timer.
@@ -45,6 +59,63 @@ export TimerHandle startTimer(nuint intervalMs, escaped delegate void(TimerHandl
 export void stopTimer(TimerHandle handle)
 {
 	timingStopTimerPlatform(handle);
+}
+
+/// Atomically stores a signed native integer and returns the previous value.
+/// - dest: The storage location to update.
+/// - value: The value to store.
+export nint atomicExchange(overload nint* dest, nint value) => timingAtomicExchangeNInt(dest, value);
+
+/// Atomically stores an unsigned native integer and returns the previous value.
+/// - dest: The storage location to update.
+/// - value: The value to store.
+export nuint atomicExchange(overload nuint* dest, nuint value) => timingAtomicExchangeNUInt(dest, value);
+
+/// Atomically stores a pointer and returns the previous value.
+/// - dest: The storage location to update.
+/// - value: The value to store.
+@symbol("atomicExchangePtr")
+export void* atomicExchange(overload void** dest, void* value) => timingAtomicExchangePtr(dest, value);
+
+/// Atomically stores a signed native integer when the current value matches `expected`.
+/// @returns The value that was stored before the operation.
+/// - dest: The storage location to update.
+/// - expected: The value that must currently be stored for the exchange to occur.
+/// - value: The value to store when `expected` matches.
+export nint atomicCompareExchange(overload nint* dest, nint expected, nint value) => timingAtomicCompareExchangeNInt(dest, expected, value);
+
+/// Atomically stores an unsigned native integer when the current value matches `expected`.
+/// @returns The value that was stored before the operation.
+/// - dest: The storage location to update.
+/// - expected: The value that must currently be stored for the exchange to occur.
+/// - value: The value to store when `expected` matches.
+export nuint atomicCompareExchange(overload nuint* dest, nuint expected, nuint value) => timingAtomicCompareExchangeNUInt(dest, expected, value);
+
+/// Atomically stores a pointer when the current value matches `expected`.
+/// @returns The value that was stored before the operation.
+/// - dest: The storage location to update.
+/// - expected: The value that must currently be stored for the exchange to occur.
+/// - value: The value to store when `expected` matches.
+@symbol("atomicCompareExchangePtr")
+export void* atomicCompareExchange(overload void** dest, void* expected, void* value) => timingAtomicCompareExchangePtr(dest, expected, value);
+
+extern nint timingAtomicExchangeNInt(nint* dest, nint value);
+extern nuint timingAtomicExchangeNUInt(nuint* dest, nuint value);
+extern void* timingAtomicExchangePtr(void** dest, void* value);
+extern nint timingAtomicCompareExchangeNInt(nint* dest, nint expected, nint value);
+extern nuint timingAtomicCompareExchangeNUInt(nuint* dest, nuint expected, nuint value);
+extern void* timingAtomicCompareExchangePtr(void** dest, void* expected, void* value);
+
+escaped class TimingSleepAsyncState
+{
+	escaped once void() complete;
+}
+
+void timingSleepAsyncCallback(TimingSleepAsyncState* state, TimerHandle handle)
+{
+	stopTimer(handle);
+	state.complete();
+	delete state;
 }
 
 #if POSIX
@@ -136,6 +207,12 @@ extern _winapi void* timingWinCreateThread(
 
 @symbol("CloseHandle")
 extern _winapi int timingWinCloseHandle(void* hObject);
+
+@symbol("_InterlockedExchangePointer")
+extern void* timingWinInterlockedExchangePointer(void** target, void* value);
+
+@symbol("_InterlockedCompareExchangePointer")
+extern void* timingWinInterlockedCompareExchangePointer(void** target, void* value, void* comparand);
 
 const nuint TIMING_WINDOWS_SLEEP_CHUNK_MS = 0xFFFFFFFF;
 

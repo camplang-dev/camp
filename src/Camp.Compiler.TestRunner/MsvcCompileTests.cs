@@ -45,6 +45,7 @@ public sealed class MsvcCompileTests
 			using Std::Time;
 
 			int timerTicks;
+			int asyncDone;
 
 			export int main()
 			{
@@ -72,16 +73,44 @@ public sealed class MsvcCompileTests
 					return 5;
 
 				sleep(1);
+				sleepAsync(50, () => { asyncDone = 1; });
+				if (asyncDone != 0)
+					return 6;
+
 				TimerHandle handle = startTimer(5, h => {
 					timerTicks++;
 					if (timerTicks >= 2)
 						stopTimer(h);
 				});
 				if (handle == default)
-					return 6;
-				sleep(80);
-				if (timerTicks < 2)
 					return 7;
+				sleep(80);
+				if (asyncDone != 1)
+					return 8;
+				if (timerTicks < 2)
+					return 9;
+
+				nint signedValue = 1;
+				nuint unsignedValue = 10;
+				void* pointerValue = null;
+				if (atomicExchange(&signedValue, 2) != 1 || signedValue != 2)
+					return 10;
+				if (atomicCompareExchange(&signedValue, 3, 4) != 2 || signedValue != 2)
+					return 11;
+				if (atomicCompareExchange(&signedValue, 2, 5) != 2 || signedValue != 5)
+					return 12;
+				if (atomicExchange(&unsignedValue, 11) != 10 || unsignedValue != 11)
+					return 13;
+				if (atomicCompareExchange(&unsignedValue, 12, 13) != 11 || unsignedValue != 11)
+					return 14;
+				if (atomicCompareExchange(&unsignedValue, 11, 14) != 11 || unsignedValue != 14)
+					return 15;
+				if (atomicExchange(&pointerValue, (void*)(nint)20) != null || pointerValue != (void*)(nint)20)
+					return 16;
+				if (atomicCompareExchange(&pointerValue, (void*)(nint)21, (void*)(nint)22) != (void*)(nint)20 || pointerValue != (void*)(nint)20)
+					return 17;
+				if (atomicCompareExchange(&pointerValue, (void*)(nint)20, (void*)(nint)23) != (void*)(nint)20 || pointerValue != (void*)(nint)23)
+					return 18;
 				return 0;
 			}
 			""");
