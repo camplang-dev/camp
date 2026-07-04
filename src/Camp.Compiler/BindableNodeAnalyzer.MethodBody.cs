@@ -1881,7 +1881,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Report(GetRange(call.Target?.SourceSyntax ?? call.SourceSyntax), "Raw function pointer 'fn*' is not callable; cast it to a concrete fn type first.");
 		}
-		List<ParameterDefinition> analysisParameters = function is null ? [] : GetAsyncAwareCallParameters(function, call, IncludeExplicitThisArgument(call.Target, function));
+		bool includeExplicitThisArgument = IncludeExplicitThisArgument(call.Target, function);
+		if (function is not null)
+			ValidateExplicitAsyncCallShape(function, call, includeExplicitThisArgument);
+		List<ParameterDefinition> analysisParameters = function is null ? [] : GetAsyncAwareCallParameters(function, call, includeExplicitThisArgument);
 		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(call.Arguments, analysisParameters, scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), IncludeExplicitThisArgument(call.Target, function), genericSubstitutions, genericParameterNames, function, call.Target);
 		if (function is not null)
 			AddReceiverConstOfAnchorFact(call.Target, function, constOfAnchors);
@@ -1904,20 +1907,62 @@ public sealed partial class BindableNodeAnalyzer
 		return returnType;
 	}
 
+	void ValidateExplicitAsyncCallShape(FunctionDefinition function, CallExpression call, bool includeExplicitThis)
+	{
+		if (!function.IsAsync)
+			return;
+
+		int visibleCount = GetAsyncVisibleArgumentCount(function, includeExplicitThis);
+		if (call.Arguments.Count <= visibleCount)
+			Report(GetRange(call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target)), "Async calls must use await or provide an explicit completion callback as the final argument.");
+	}
+
 	List<ParameterDefinition> GetAsyncAwareCallParameters(FunctionDefinition function, CallExpression call, bool includeExplicitThis)
 	{
 		List<ParameterDefinition> parameters = [.. function.Parameters];
 		int visibleCount = function.IsAsync
-			? parameters.Count(static parameter => parameter.Modifier != ParameterModifier.Thrown)
+			? GetAsyncVisibleArgumentCount(function, includeExplicitThis)
 			: parameters.Count;
-		if (includeExplicitThis && GetExplicitThisParameter(function) is null && IsInstanceFunction(function))
-			visibleCount++;
 		if (function.IsAsync && call.Arguments.Count > visibleCount)
-			parameters.AddRange(CreateAsyncCompletionSourceParameters(function));
+		{
+			int completionArgumentCount = call.Arguments.Count - visibleCount;
+			parameters.AddRange(completionArgumentCount == 1
+				? CreateAsyncCompletionSourceParameters(function)
+				: CreateAsyncCompletionAbiParameters(function));
+		}
 		return parameters;
 	}
 
+	int GetAsyncVisibleArgumentCount(FunctionDefinition function, bool includeExplicitThis)
+	{
+		int visibleCount = function.Parameters.Count(static parameter => parameter.Modifier != ParameterModifier.Thrown);
+		if (includeExplicitThis && GetExplicitThisParameter(function) is null && IsInstanceFunction(function))
+			visibleCount++;
+		return visibleCount;
+	}
+
 	static List<ParameterDefinition> CreateAsyncCompletionSourceParameters(FunctionDefinition function)
+	{
+		List<string> completionParameters = [];
+		string returnType = function.ResolvedType ?? "void";
+		if (returnType != "void")
+			completionParameters.Add(returnType);
+		if (function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown)
+			completionParameters.Add("thrown " + (thrown.ResolvedType ?? thrown.Type?.ResolvedType ?? ErrorType));
+		string callableType = "escaped " + CallableShapeService.BuildCallableType("once", "void", completionParameters);
+		return
+		[
+			new ParameterDefinition
+			{
+				Name = "complete",
+				Symbol = "complete",
+				ResolvedType = callableType,
+				Type = new NamedTypeReference { Name = callableType, ResolvedType = callableType }
+			}
+		];
+	}
+
+	static List<ParameterDefinition> CreateAsyncCompletionAbiParameters(FunctionDefinition function)
 	{
 		List<string> completionParameters = [];
 		string returnType = function.ResolvedType ?? "void";

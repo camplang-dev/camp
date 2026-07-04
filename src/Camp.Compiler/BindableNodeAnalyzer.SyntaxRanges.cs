@@ -115,6 +115,7 @@ public sealed partial class BindableNodeAnalyzer
 			ExpressionListSyntax list => list.Expressions is [ExpressionSyntax first, ..] ? GetRange(first) : null,
 			ArgumentSyntax argument => argument.Identifier?.Range ?? argument.OutKeyword?.Range ?? argument.CatchKeyword?.Range ?? argument.WithinKeyword?.Range,
 			ExpressionSyntax expression => GetExpressionRange(expression),
+			BinaryExpressionPartSyntax binary => binary.Operator?.Operator,
 			UnaryPrefixSyntax prefix => prefix.OperatorOrKeyword ?? prefix.OpenParenToken?.Range,
 			PostfixPartSyntax postfix => GetPostfixPartRange(postfix),
 			_ => null

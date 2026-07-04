@@ -1,0 +1,1 @@
+tests/Diagnostics/binary_argument_conversion_reports_line.camp(8,13): error: Argument cannot convert 'long' to 'int'.

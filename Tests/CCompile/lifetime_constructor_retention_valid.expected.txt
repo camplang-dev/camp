@@ -63,7 +63,7 @@ static Scratch makeScratch(const char *input, uintptr_t input_length)
 
 static View makeAggregate(const char *input, uintptr_t input_length)
 {
-	View view = (View){ .text = input };
+	View view = (View){ .text = input, .text_length = input_length };
 	return view;
 }
 

@@ -173,13 +173,21 @@
             </Target>
             <InitialValue Type="InitializerExpression" ResolvedType="View" ValueLifetimeFact="scoped:initializer">
               <Items>
-                <InitializerItem ResolvedType="const char[]">
+                <InitializerItem ResolvedType="const char*">
                   <Target Type="InitializerTarget" ResolvedType="#TARGET">
                     <Parts>
                       <InitializerTargetPart Name="text" ResolvedType="#TARGET" />
                     </Parts>
                   </Target>
-                  <Expression Type="VariableReferenceExpression" Variable="input" ResolvedType="const char[]" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                  <Expression Type="VariableReferenceExpression" Variable="input" ResolvedType="const char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                </InitializerItem>
+                <InitializerItem ResolvedType="nuint">
+                  <Target Type="InitializerTarget" ResolvedType="#TARGET">
+                    <Parts>
+                      <InitializerTargetPart Name="text_length" ResolvedType="#TARGET" />
+                    </Parts>
+                  </Target>
+                  <Expression Type="VariableReferenceExpression" Variable="input_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
                 </InitializerItem>
               </Items>
             </InitialValue>

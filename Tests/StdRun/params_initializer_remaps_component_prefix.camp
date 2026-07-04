@@ -1,0 +1,22 @@
+using Std;
+
+struct Holder
+{
+	escaped delegate void() callback;
+}
+
+int observed;
+
+void store(escaped once void() complete)
+{
+	Holder holder = { .callback = complete };
+	holder.callback();
+}
+
+export int main()
+{
+	int value = 12;
+	store(() => { observed = value; });
+	Console.writeLine(observed);
+	return observed == 12 ? 0 : 1;
+}

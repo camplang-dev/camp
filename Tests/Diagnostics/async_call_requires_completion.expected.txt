@@ -1,0 +1,1 @@
+tests/Diagnostics/async_call_requires_completion.camp(18,10): error: Async calls must use await or provide an explicit completion callback as the final argument.

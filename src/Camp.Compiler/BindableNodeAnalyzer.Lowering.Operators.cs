@@ -89,9 +89,7 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		string? firstComponentName = GetInitializerComponentName(components[0]);
-		string? remappedTargetPrefix = firstComponentName != targetName && IsGeneratedSafeInitializerTarget(targetName)
-			? targetName
-			: null;
+		string? remappedTargetPrefix = firstComponentName != targetName ? targetName : null;
 
 		for (int i = 0; i < components.Count; i++)
 		{

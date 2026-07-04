@@ -1,0 +1,26 @@
+using Std;
+
+int observed;
+int completed;
+
+class Loop
+{
+	void resumeAsync(escaped once void() continuation)
+	{
+		continuation();
+	}
+}
+
+async void setAsync(@resumewith Loop* loop, int value)
+{
+	observed = value;
+}
+
+export int main()
+{
+	auto loop = new Loop();
+	setAsync(loop, 42, () => { completed = 1; });
+	Console.writeLine(observed);
+	Console.writeLine(completed);
+	return observed == 42 && completed == 1 ? 0 : 1;
+}

@@ -4523,6 +4523,8 @@ public static class CCodeEmitter
 			string type = string.IsNullOrWhiteSpace(concreteType)
 				? "void*"
 				: FormatStorageResolvedType(concreteType, "").Declaration.Trim();
+			if (expression is InitializerExpression initializer)
+				return "&(" + type + ")" + FormatInitializer(initializer, includeType: false);
 			return "&(" + type + "){" + value + "}";
 		}
 

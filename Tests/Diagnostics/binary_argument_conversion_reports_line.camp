@@ -1,0 +1,10 @@
+void takesInt(int value)
+{
+}
+
+export int main()
+{
+	long value = 1;
+	takesInt(0 - value);
+	return 0;
+}

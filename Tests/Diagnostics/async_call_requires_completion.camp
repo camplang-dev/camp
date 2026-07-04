@@ -1,0 +1,19 @@
+using Std;
+
+class Loop
+{
+	void resumeAsync(escaped once void() continuation)
+	{
+		continuation();
+	}
+}
+
+async void runAsync(@resumewith Loop* loop)
+{
+}
+
+export void main()
+{
+	auto loop = new Loop();
+	runAsync(loop);
+}
