@@ -1138,6 +1138,8 @@ public sealed class BindableNodeCodeSerializer
 	{
 		foreach (AttributeConstructor attribute in attributes)
 		{
+			if (apiHeader && attribute.Name == "@noawait")
+				continue;
 			if (!inline)
 				WriteIndent();
 			WriteAttributeName(attribute.Name);

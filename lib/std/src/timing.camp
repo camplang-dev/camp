@@ -1,0 +1,137 @@
+export as Std;
+
+/// Represents a running timer.
+/// @remarks
+/// A default handle means no timer was started. Handles are opaque and are only
+/// valid for calls to [stopTimer].
+export newtype TimerHandle: nint;
+
+/// Suspends the current thread for approximately the requested duration.
+/// - timeoutMs: The number of milliseconds to wait. A value of 0 returns immediately.
+export void sleep(nuint timeoutMs)
+{
+	timingSleepPlatform(timeoutMs);
+}
+
+/// Completes after approximately the requested duration.
+/// @remarks
+/// This first implementation uses the platform sleep primitive directly. It has
+/// the async completion shape, but it does not require a scheduler.
+/// - timeoutMs: The number of milliseconds to wait. A value of 0 completes immediately.
+@noawait
+export async void sleepAsync(nuint timeoutMs)
+{
+	timingSleepPlatform(timeoutMs);
+}
+
+/// Starts a repeating timer.
+/// @remarks
+/// The callback runs on a platform timer thread until [stopTimer] is called with
+/// the supplied handle. The callback is escaped because the timer may outlive the
+/// call to [startTimer].
+/// - intervalMs: The number of milliseconds between callback invocations. A value of 0 does not start a timer.
+/// - callback: The function to invoke for each tick.
+/// @returns A non-default handle when the timer starts successfully; otherwise `default`.
+export TimerHandle startTimer(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
+{
+	return timingStartTimerPlatform(intervalMs, callback);
+}
+
+/// Requests cancellation of a running timer.
+/// @remarks
+/// Cancellation is cooperative. A callback that is already running may finish
+/// after this function returns.
+/// - handle: The timer handle returned by [startTimer].
+export void stopTimer(TimerHandle handle)
+{
+	timingStopTimerPlatform(handle);
+}
+
+#if POSIX
+
+extern int usleep(uint usec);
+extern int pthread_create(nint* thread, void* attr, fn void*(void*) start, void* arg);
+extern int pthread_detach(nint thread);
+
+const nuint TIMING_POSIX_SLEEP_CHUNK_MS = 1000;
+
+escaped class TimingTimerState
+{
+	bool cancelled;
+	nuint intervalMs;
+	escaped delegate void(TimerHandle handle) callback;
+	nint thread;
+}
+
+void timingSleepPlatform(nuint timeoutMs)
+{
+	while (timeoutMs > 0)
+	{
+		nuint step = timeoutMs > TIMING_POSIX_SLEEP_CHUNK_MS ? TIMING_POSIX_SLEEP_CHUNK_MS : timeoutMs;
+		usleep((uint)(step * 1000));
+		timeoutMs -= step;
+	}
+}
+
+void* timingTimerThread(void* context)
+{
+	TimingTimerState* state = (TimingTimerState*)context;
+	TimerHandle handle = (TimerHandle)(nint)state;
+
+	while (!state.cancelled)
+	{
+		timingSleepPlatform(state.intervalMs);
+		if (!state.cancelled)
+			state.callback(handle);
+	}
+
+	delete state;
+	return null;
+}
+
+TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
+{
+	if (intervalMs == 0 || callback == default)
+		return default;
+
+	auto state = new TimingTimerState();
+	if (state == null)
+		return default;
+
+	state.intervalMs = intervalMs;
+	state.callback = callback;
+	if (pthread_create(&state.thread, null, timingTimerThread, state) != 0)
+	{
+		delete state;
+		return default;
+	}
+
+	pthread_detach(state.thread);
+	return (TimerHandle)(nint)state;
+}
+
+void timingStopTimerPlatform(TimerHandle handle)
+{
+	if (handle == default)
+		return;
+
+	TimingTimerState* state = (TimingTimerState*)(nint)handle;
+	state.cancelled = true;
+}
+
+#else
+
+void timingSleepPlatform(nuint timeoutMs)
+{
+}
+
+TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
+{
+	return default;
+}
+
+void timingStopTimerPlatform(TimerHandle handle)
+{
+}
+
+#endif

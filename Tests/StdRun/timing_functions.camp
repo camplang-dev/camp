@@ -1,0 +1,26 @@
+using Std;
+
+int asyncDone;
+int ticks;
+
+export int main()
+{
+	sleep(1);
+	sleepAsync(1, () => { asyncDone = 1; });
+
+	TimerHandle handle = startTimer(10, h => {
+		ticks++;
+		if (ticks >= 2)
+			stopTimer(h);
+	});
+	if (handle == default)
+	{
+		Console.writeLine("timer failed");
+		return 1;
+	}
+
+	sleep(100);
+	Console.writeLine(asyncDone);
+	Console.writeLine(ticks >= 2);
+	return asyncDone == 1 && ticks >= 2 ? 0 : 1;
+}
