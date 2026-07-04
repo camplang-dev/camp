@@ -28,14 +28,10 @@ export void sleepAsync(nuint timeoutMs, escaped once void() complete)
 		return;
 	}
 
-	auto state = new TimingSleepAsyncState();
-	if (state == null)
-		return;
-
-	state.complete = complete;
-	TimerHandle handle = startTimer(timeoutMs, { (unsafe fn void(void*, TimerHandle))timingSleepAsyncCallback, state });
-	if (handle == default)
-		delete state;
+	startTimer(timeoutMs, h => {
+		stopTimer(h);
+		complete();
+	});
 }
 
 /// Starts a repeating timer.
@@ -105,18 +101,6 @@ extern void* timingAtomicExchangePtr(void** dest, void* value);
 extern nint timingAtomicCompareExchangeNInt(nint* dest, nint expected, nint value);
 extern nuint timingAtomicCompareExchangeNUInt(nuint* dest, nuint expected, nuint value);
 extern void* timingAtomicCompareExchangePtr(void** dest, void* expected, void* value);
-
-escaped class TimingSleepAsyncState
-{
-	escaped once void() complete;
-}
-
-void timingSleepAsyncCallback(TimingSleepAsyncState* state, TimerHandle handle)
-{
-	stopTimer(handle);
-	state.complete();
-	delete state;
-}
 
 #if POSIX
 

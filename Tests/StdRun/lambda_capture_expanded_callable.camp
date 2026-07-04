@@ -1,0 +1,20 @@
+using Std;
+
+void invoke(escaped delegate void() callback)
+{
+	callback();
+}
+
+void captureOnce(escaped once void() complete)
+{
+	invoke(() => { complete(); });
+}
+
+int done;
+
+export int main()
+{
+	captureOnce(() => { done = 1; });
+	Console.writeLine(done);
+	return done == 1 ? 0 : 1;
+}

@@ -91,13 +91,16 @@ public sealed partial class BindableNodeAnalyzer
 		int parameterOffset = delegateTarget ? 1 : 0;
 		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, sourceParameters, parameterOffset);
 		ExpandParamsFunctionDeclarations(function);
+		DeclarationTarget? lambdaContextLocal = null;
 		if (contextInfo is not null)
-			RewriteLambdaCaptureReferences(function, contextInfo);
+			lambdaContextLocal = RewriteLambdaCaptureReferences(function, contextInfo);
 		RewriteFunction(function, containingType: null);
 		function.ResolvedType = EraseConstOfQualifiers(function.ResolvedType ?? loweringShape.ReturnType);
 		if (function.ReturnType is not null)
 			function.ReturnType.ResolvedType = function.ResolvedType;
 		RewriteLambdaParameterReferences(function.Body, lambda.Parameters, sourceParameters, parameterOffset);
+		if (contextInfo is not null && lambdaContextLocal is not null)
+			RewriteLambdaCaptureReferences(function.Body, contextInfo, lambdaContextLocal);
 		generatedLambdaDefinitions.Add(function);
 		Expression result = delegateTarget
 			? CreateDelegateLambdaInitializer(lambda, function, contextInfo)
@@ -283,10 +286,10 @@ public sealed partial class BindableNodeAnalyzer
 		EnsureLambdaContextLocal(lambda, context, statements);
 	}
 
-	void RewriteLambdaCaptureReferences(FunctionDefinition function, LambdaContextInfo context)
+	DeclarationTarget? RewriteLambdaCaptureReferences(FunctionDefinition function, LambdaContextInfo context)
 	{
 		if (function.Body is null || function.Parameters.Count == 0)
-			return;
+			return null;
 		ParameterDefinition contextParameter = function.Parameters[0];
 		string localName = "lambdaContext";
 		DeclarationStatement contextLocal = CreateGeneratedLocal(
@@ -302,6 +305,7 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		function.Body.Statements.Insert(0, contextLocal);
 		RewriteLambdaCaptureReferences(function.Body, context, contextLocal.Target);
+		return contextLocal.Target;
 	}
 
 	void RewriteLambdaCaptureReferences(Statement? statement, LambdaContextInfo context, DeclarationTarget contextLocal)
