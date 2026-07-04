@@ -44,6 +44,8 @@ public sealed class MsvcCompileTests
 			using Std;
 			using Std::Time;
 
+			int timerTicks;
+
 			export int main()
 			{
 				IoError error = default;
@@ -68,6 +70,18 @@ public sealed class MsvcCompileTests
 				string text = now.format.copyString() finally delete;
 				if (text.Length == 0)
 					return 5;
+
+				sleep(1);
+				TimerHandle handle = startTimer(5, h => {
+					timerTicks++;
+					if (timerTicks >= 2)
+						stopTimer(h);
+				});
+				if (handle == default)
+					return 6;
+				sleep(80);
+				if (timerTicks < 2)
+					return 7;
 				return 0;
 			}
 			""");

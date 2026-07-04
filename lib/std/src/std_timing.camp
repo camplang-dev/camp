@@ -119,6 +119,91 @@ void timingStopTimerPlatform(TimerHandle handle)
 	state.cancelled = true;
 }
 
+#elif WINDOWS
+
+@symbol("Sleep")
+extern _winapi void timingWinSleep(uint dwMilliseconds);
+
+@symbol("CreateThread")
+extern _winapi void* timingWinCreateThread(
+	void* lpThreadAttributes,
+	nuint dwStackSize,
+	fn _winapi uint(void*) lpStartAddress,
+	void* lpParameter,
+	uint dwCreationFlags,
+	uint* lpThreadId
+);
+
+@symbol("CloseHandle")
+extern _winapi int timingWinCloseHandle(void* hObject);
+
+const nuint TIMING_WINDOWS_SLEEP_CHUNK_MS = 0xFFFFFFFF;
+
+escaped class TimingTimerState
+{
+	bool cancelled;
+	nuint intervalMs;
+	escaped delegate void(TimerHandle handle) callback;
+}
+
+void timingSleepPlatform(nuint timeoutMs)
+{
+	while (timeoutMs > 0)
+	{
+		nuint step = timeoutMs > TIMING_WINDOWS_SLEEP_CHUNK_MS ? TIMING_WINDOWS_SLEEP_CHUNK_MS : timeoutMs;
+		timingWinSleep((uint)step);
+		timeoutMs -= step;
+	}
+}
+
+_winapi uint timingTimerThread(void* context)
+{
+	TimingTimerState* state = (TimingTimerState*)context;
+	TimerHandle handle = (TimerHandle)(nint)state;
+
+	while (!state.cancelled)
+	{
+		timingSleepPlatform(state.intervalMs);
+		if (!state.cancelled)
+			state.callback(handle);
+	}
+
+	delete state;
+	return 0;
+}
+
+TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
+{
+	if (intervalMs == 0 || callback == default)
+		return default;
+
+	auto state = new TimingTimerState();
+	if (state == null)
+		return default;
+
+	state.intervalMs = intervalMs;
+	state.callback = callback;
+
+	void* thread = timingWinCreateThread(null, 0, timingTimerThread, state, 0, null);
+	if (thread == null)
+	{
+		delete state;
+		return default;
+	}
+
+	timingWinCloseHandle(thread);
+	return (TimerHandle)(nint)state;
+}
+
+void timingStopTimerPlatform(TimerHandle handle)
+{
+	if (handle == default)
+		return;
+
+	TimingTimerState* state = (TimingTimerState*)(nint)handle;
+	state.cancelled = true;
+}
+
 #else
 
 void timingSleepPlatform(nuint timeoutMs)
