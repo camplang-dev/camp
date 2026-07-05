@@ -176,8 +176,13 @@ public sealed class LanguageServiceTests
 		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
 		CampSymbolQueryService symbols = new(snapshot);
 
+		CampHover? hover = symbols.GetHover(source, PositionOf(text, "wire(default"));
 		CampSignatureHelp? signatureHelp = symbols.GetSignatureHelp(source, PositionOf(text, "default);"));
 
+		Assert.NotNull(hover);
+		Assert.DoesNotContain("extern", hover!.Markdown, StringComparison.Ordinal);
+		Assert.DoesNotContain("handler_context", hover.Markdown, StringComparison.Ordinal);
+		Assert.Contains("void wire(Handler handler)", hover.Markdown, StringComparison.Ordinal);
 		Assert.NotNull(signatureHelp);
 		CampSignatureInformation signature = Assert.Single(signatureHelp!.Signatures);
 		Assert.DoesNotContain("extern", signature.Label, StringComparison.Ordinal);

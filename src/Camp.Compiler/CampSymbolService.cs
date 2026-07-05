@@ -824,6 +824,8 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 	{
 		if (node is not Definition definition)
 			return null;
+		if (definition is FunctionDefinition function)
+			return GetSignatureHelpLabel(function);
 		return GetCleanSignature(definition);
 	}
 
