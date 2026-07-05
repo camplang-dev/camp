@@ -3440,10 +3440,29 @@ public static class CCodeEmitter
 
 		string FormatCastExpression(CastExpression cast)
 		{
-			string type = TryGetInterfacePointerCastType(cast.Type, out string interfaceName)
+			string type = TryGetErasedGenericStoragePointerCastType(cast.Type, out string erasedType)
+				? erasedType
+				: TryGetInterfacePointerCastType(cast.Type, out string interfaceName)
 				? CTypeName(interfaceName) + " **"
 				: FormatType(cast.Type, "").Declaration.Trim();
 			return "(" + type + ")(" + FormatExpression(cast.Expression) + ")";
+		}
+
+		bool TryGetErasedGenericStoragePointerCastType(TypeReference? type, out string castType)
+		{
+			castType = "";
+			if (StripTypeDecorators(type) is not PointerTypeReference pointer)
+				return false;
+
+			TypeReference? element = StripTypeDecorators(pointer.ElementType);
+			string? elementType = element?.ResolvedType;
+			if (elementType is null && element is NamedTypeReference named)
+				elementType = named.Name;
+			if (!IsAnyGenericParameterType(elementType))
+				return false;
+
+			castType = "void*";
+			return true;
 		}
 
 		bool TryGetInterfacePointerCastType(TypeReference? type, out string interfaceName)

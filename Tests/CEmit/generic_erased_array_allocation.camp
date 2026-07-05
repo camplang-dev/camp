@@ -1,0 +1,23 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Buffer<T: copyable>
+{
+	T[] items;
+
+	Buffer(sizeof(T))
+	{
+		this.items = new T[4];
+	}
+
+	~Buffer()
+	{
+		delete this.items;
+	}
+}
+
+export void make()
+{
+	auto buffer = new Buffer<int>();
+	delete buffer;
+}

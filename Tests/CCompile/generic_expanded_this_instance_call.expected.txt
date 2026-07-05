@@ -26,7 +26,7 @@ __for_break1: ;
 
 static void *Array_copyArray(const void *this, uintptr_t this_length, uintptr_t sizeof_T, uintptr_t *result_length)
 {
-	void *elements = (void* *)(malloc((sizeof_T * this_length)));
+	void *elements = (void*)(malloc((sizeof_T * this_length)));
 	uintptr_t elements_length = this_length;
 	Array_copyTo(this, this_length, elements, elements_length, sizeof_T);
 	{
