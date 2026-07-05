@@ -492,9 +492,9 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		Dictionary<string, string> rawParameterDocs = file is not null && TryGetNodeRange(function, out TokenRange range) && ReferenceEquals(file.Tokens, range.Sequence)
 			? ExtractLeadingParameterDocs(file.Text, range.StartLineNumber)
 			: [];
-		List<ParameterDefinition> parameters = GetVisibleCallParameters(function);
+		List<ParameterDefinition> parameters = GetSignatureHelpParameters(function);
 		return new CampSignatureInformation(
-			GetCleanSignature(function) ?? function.Name + "()",
+			GetSignatureHelpLabel(function) ?? function.Name + "()",
 			GetDeclarationDocumentation(function),
 			parameters.Select(parameter => new CampParameterHelp(
 				FormatParameterLabel(parameter),
@@ -503,7 +503,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	static int GetActiveParameter(string text, CallExpression call, CampTextPosition position, FunctionDefinition function)
 	{
-		List<ParameterDefinition> parameters = GetVisibleCallParameters(function);
+		List<ParameterDefinition> parameters = GetSignatureHelpParameters(function);
 		if (parameters.Count == 0)
 			return 0;
 		if (TryGetArgumentAtPosition(call, position, out ArgumentExpression? argument) && argument?.Name is string name)
@@ -617,6 +617,56 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			parameters.Add(parameter);
 		}
 		return parameters;
+	}
+
+	static List<ParameterDefinition> GetSignatureHelpParameters(FunctionDefinition function)
+	{
+		List<ParameterDefinition> visible = GetVisibleCallParameters(function);
+		if (visible.Count < 2)
+			return visible;
+		List<ParameterDefinition> result = [];
+		foreach (ParameterDefinition parameter in visible)
+		{
+			if (IsExpandedComponentParameter(result.LastOrDefault(), parameter))
+				continue;
+			result.Add(parameter);
+		}
+		return result;
+	}
+
+	static bool IsExpandedComponentParameter(ParameterDefinition? previous, ParameterDefinition parameter)
+	{
+		if (previous?.Name is not string ownerName || string.IsNullOrWhiteSpace(ownerName) || parameter.Name is not string name)
+			return false;
+		string prefix = ownerName + "_";
+		if (!name.StartsWith(prefix, StringComparison.Ordinal))
+			return false;
+		string component = name[prefix.Length..];
+		return component switch
+		{
+			"context" => IsVoidPointer(parameter),
+			"length" => IsNativeUnsigned(parameter),
+			"hasValue" => IsBool(parameter),
+			_ => false
+		};
+	}
+
+	static bool IsVoidPointer(ParameterDefinition parameter)
+	{
+		string? type = parameter.ResolvedType ?? BindableNodeCodeSerializer.SerializeType(parameter.Type);
+		return type is "void*" or "const void*";
+	}
+
+	static bool IsNativeUnsigned(ParameterDefinition parameter)
+	{
+		string? type = parameter.ResolvedType ?? BindableNodeCodeSerializer.SerializeType(parameter.Type);
+		return type is "nuint" or "uintptr_t";
+	}
+
+	static bool IsBool(ParameterDefinition parameter)
+	{
+		string? type = parameter.ResolvedType ?? BindableNodeCodeSerializer.SerializeType(parameter.Type);
+		return type is "bool" or "_Bool";
 	}
 
 	static int CountExpandedThisParameters(List<ParameterDefinition> parameters)
@@ -777,6 +827,148 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return GetCleanSignature(definition);
 	}
 
+	static string? GetSignatureHelpLabel(FunctionDefinition function)
+	{
+		string? label = GetCleanSignature(function);
+		if (string.IsNullOrWhiteSpace(label))
+			return label;
+		label = RemoveSignatureKeyword(label!, "extern");
+		HashSet<string> hiddenParameters = GetHiddenSignatureHelpParameterNames(function);
+		return hiddenParameters.Count == 0 ? label : RemoveParametersFromSignatureLabel(label, hiddenParameters);
+	}
+
+	static HashSet<string> GetHiddenSignatureHelpParameterNames(FunctionDefinition function)
+	{
+		HashSet<string> hidden = new(StringComparer.Ordinal);
+		List<ParameterDefinition> displayed = [];
+		foreach (ParameterDefinition parameter in GetVisibleCallParameters(function))
+		{
+			if (IsExpandedComponentParameter(displayed.LastOrDefault(), parameter))
+			{
+				if (!string.IsNullOrWhiteSpace(parameter.Name))
+					hidden.Add(parameter.Name);
+				continue;
+			}
+			displayed.Add(parameter);
+		}
+		return hidden;
+	}
+
+	static string RemoveSignatureKeyword(string label, string keyword)
+	{
+		string token = keyword + " ";
+		int index = label.IndexOf(token, StringComparison.Ordinal);
+		while (index >= 0)
+		{
+			bool leftBoundary = index == 0 || !IsIdentifierPart(label[index - 1]);
+			int end = index + keyword.Length;
+			bool rightBoundary = end >= label.Length || !IsIdentifierPart(label[end]);
+			if (leftBoundary && rightBoundary)
+				return (label[..index] + label[(index + token.Length)..]).Trim();
+			index = label.IndexOf(token, index + 1, StringComparison.Ordinal);
+		}
+		return label;
+	}
+
+	static string RemoveParametersFromSignatureLabel(string label, HashSet<string> hiddenParameterNames)
+	{
+		int open = label.IndexOf('(');
+		if (open < 0)
+			return label;
+		int close = FindMatchingCloseParen(label, open);
+		if (close < 0)
+			return label;
+		string parameterText = label[(open + 1)..close];
+		List<string> parameters = SplitTopLevelCommaSeparated(parameterText);
+		List<string> kept = parameters
+			.Where(parameter => !hiddenParameterNames.Any(hidden => ParameterTextDeclaresName(parameter, hidden)))
+			.ToList();
+		return label[..(open + 1)] + string.Join(", ", kept.Select(static parameter => parameter.Trim()).Where(static parameter => parameter.Length > 0)) + label[close..];
+	}
+
+	static int FindMatchingCloseParen(string text, int open)
+	{
+		int depth = 0;
+		bool inString = false;
+		char quote = '\0';
+		for (int i = open; i < text.Length; i++)
+		{
+			char value = text[i];
+			if (inString)
+			{
+				if (value == '\\')
+					i++;
+				else if (value == quote)
+					inString = false;
+				continue;
+			}
+			if (value is '"' or '\'')
+			{
+				inString = true;
+				quote = value;
+				continue;
+			}
+			if (value == '(')
+				depth++;
+			else if (value == ')' && --depth == 0)
+				return i;
+		}
+		return -1;
+	}
+
+	static List<string> SplitTopLevelCommaSeparated(string text)
+	{
+		List<string> parts = [];
+		int start = 0;
+		int depth = 0;
+		bool inString = false;
+		char quote = '\0';
+		for (int i = 0; i < text.Length; i++)
+		{
+			char value = text[i];
+			if (inString)
+			{
+				if (value == '\\')
+					i++;
+				else if (value == quote)
+					inString = false;
+				continue;
+			}
+			if (value is '"' or '\'')
+			{
+				inString = true;
+				quote = value;
+				continue;
+			}
+			if (value is '(' or '[' or '<' or '{')
+				depth++;
+			else if (value is ')' or ']' or '>' or '}')
+				depth = Math.Max(0, depth - 1);
+			else if (value == ',' && depth == 0)
+			{
+				parts.Add(text[start..i]);
+				start = i + 1;
+			}
+		}
+		parts.Add(text[start..]);
+		return parts;
+	}
+
+	static bool ParameterTextDeclaresName(string parameterText, string name)
+	{
+		for (int i = 0; i <= parameterText.Length - name.Length; i++)
+		{
+			if (!parameterText.AsSpan(i, name.Length).SequenceEqual(name))
+				continue;
+			bool leftBoundary = i == 0 || !IsIdentifierPart(parameterText[i - 1]);
+			int end = i + name.Length;
+			bool rightBoundary = end == parameterText.Length || !IsIdentifierPart(parameterText[end]);
+			if (leftBoundary && rightBoundary)
+				return true;
+		}
+		return false;
+	}
+
 	static string? GetCleanSignature(Definition definition)
 	{
 		using StringWriter writer = new();
@@ -816,37 +1008,12 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	static string? GetDocumentation(BindableNode node)
 	{
-		string? declarationDocumentation = GetDeclarationDocumentation(node);
-		if (node is not FunctionDefinition function)
-			return declarationDocumentation;
-		List<string> sections = [];
-		if (!string.IsNullOrWhiteSpace(declarationDocumentation))
-			sections.Add(declarationDocumentation!);
-		List<string> parameterDocs = [];
-		foreach (ParameterDefinition parameter in GetVisibleCallParameters(function))
-		{
-			string? parameterDocumentation = GetDeclarationDocumentation(parameter);
-			if (!string.IsNullOrWhiteSpace(parameterDocumentation))
-				parameterDocs.Add($"- `{parameter.Name}`: {parameterDocumentation}");
-		}
-		if (parameterDocs.Count > 0)
-			sections.Add("Parameters:\n" + string.Join("\n", parameterDocs));
-		return sections.Count == 0 ? null : string.Join("\n\n", sections);
+		return GetDeclarationDocumentation(node);
 	}
 
 	static string? GetEntryDocumentation(BindableNode node, string sourceText, int oneBasedLine)
 	{
-		string? documentation = GetDocumentation(node) ?? ExtractLeadingDoc(sourceText, oneBasedLine);
-		if (node is not FunctionDefinition)
-			return documentation;
-		Dictionary<string, string> rawParameterDocs = ExtractLeadingParameterDocs(sourceText, oneBasedLine);
-		if (rawParameterDocs.Count == 0)
-			return documentation;
-		List<string> sections = [];
-		if (!string.IsNullOrWhiteSpace(documentation))
-			sections.Add(documentation!);
-		sections.Add("Parameters:\n" + string.Join("\n", rawParameterDocs.Select(static item => $"- `{item.Key}`: {item.Value}")));
-		return string.Join("\n\n", sections);
+		return GetDocumentation(node) ?? ExtractLeadingDoc(sourceText, oneBasedLine);
 	}
 
 	static string? GetDeclarationDocumentation(BindableNode node)

@@ -145,15 +145,46 @@ public sealed class LanguageServiceTests
 		Assert.DoesNotContain("@summary", hover!.Markdown, StringComparison.Ordinal);
 		Assert.DoesNotContain("@summary", hover.Markdown, StringComparison.Ordinal);
 		Assert.Contains("Adds two values.", hover.Markdown, StringComparison.Ordinal);
-		Assert.Contains("Parameters:", hover.Markdown, StringComparison.Ordinal);
-		Assert.Contains("`left`: The first value.", hover.Markdown, StringComparison.Ordinal);
-		Assert.Contains("`right`: The second value.", hover.Markdown, StringComparison.Ordinal);
+		Assert.DoesNotContain("Parameters:", hover.Markdown, StringComparison.Ordinal);
+		Assert.DoesNotContain("`left`: The first value.", hover.Markdown, StringComparison.Ordinal);
+		Assert.DoesNotContain("`right`: The second value.", hover.Markdown, StringComparison.Ordinal);
 		Assert.NotNull(signatureHelp);
 		Assert.Equal(1, signatureHelp!.ActiveParameter);
 		CampSignatureInformation signature = Assert.Single(signatureHelp.Signatures);
 		Assert.Contains("int add(int left, int right = 1)", signature.Label, StringComparison.Ordinal);
 		Assert.Equal(["int left", "int right"], signature.Parameters.Select(static parameter => parameter.Label).ToArray());
 		Assert.Equal("The second value.", signature.Parameters[1].Documentation);
+	}
+
+	[Fact]
+	public void Symbol_query_hides_expanded_component_parameters_in_signature_help()
+	{
+		string root = CreateTempDirectory("language-service-signature-expanded-components");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			newtype delegate void Handler(int value);
+
+			extern void wire(Handler handler);
+
+			export void main()
+			{
+				wire(default);
+			}
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		CampSignatureHelp? signatureHelp = symbols.GetSignatureHelp(source, PositionOf(text, "default);"));
+
+		Assert.NotNull(signatureHelp);
+		CampSignatureInformation signature = Assert.Single(signatureHelp!.Signatures);
+		Assert.DoesNotContain("extern", signature.Label, StringComparison.Ordinal);
+		Assert.DoesNotContain("handler_context", signature.Label, StringComparison.Ordinal);
+		Assert.Contains("void wire(Handler handler)", signature.Label, StringComparison.Ordinal);
+		CampParameterHelp parameter = Assert.Single(signature.Parameters);
+		Assert.Equal("Handler handler", parameter.Label);
 	}
 
 	[Fact]
