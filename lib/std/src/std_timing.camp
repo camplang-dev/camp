@@ -60,32 +60,32 @@ export void stopTimer(TimerHandle handle)
 /// Atomically stores a signed native integer and returns the previous value.
 /// - dest: The storage location to update.
 /// - value: The value to store.
-export nint atomicExchange(overload nint* dest, nint value) => timingAtomicExchangeNInt(dest, value);
+export extern nint atomicExchange(overload nint* dest, nint value);
 
 /// Atomically stores an unsigned native integer and returns the previous value.
 /// - dest: The storage location to update.
 /// - value: The value to store.
-export nuint atomicExchange(overload nuint* dest, nuint value) => timingAtomicExchangeNUInt(dest, value);
+export extern nuint atomicExchange(overload nuint* dest, nuint value);
 
 /// Atomically stores a pointer and returns the previous value.
 /// - dest: The storage location to update.
 /// - value: The value to store.
 @symbol("atomicExchangePtr")
-export void* atomicExchange(overload void** dest, void* value) => timingAtomicExchangePtr(dest, value);
+export extern void* atomicExchange(overload void** dest, void* value);
 
 /// Atomically stores a signed native integer when the current value matches `expected`.
 /// @returns The value that was stored before the operation.
 /// - dest: The storage location to update.
 /// - expected: The value that must currently be stored for the exchange to occur.
 /// - value: The value to store when `expected` matches.
-export nint atomicCompareExchange(overload nint* dest, nint expected, nint value) => timingAtomicCompareExchangeNInt(dest, expected, value);
+export extern nint atomicCompareExchange(overload nint* dest, nint expected, nint value);
 
 /// Atomically stores an unsigned native integer when the current value matches `expected`.
 /// @returns The value that was stored before the operation.
 /// - dest: The storage location to update.
 /// - expected: The value that must currently be stored for the exchange to occur.
 /// - value: The value to store when `expected` matches.
-export nuint atomicCompareExchange(overload nuint* dest, nuint expected, nuint value) => timingAtomicCompareExchangeNUInt(dest, expected, value);
+export extern nuint atomicCompareExchange(overload nuint* dest, nuint expected, nuint value);
 
 /// Atomically stores a pointer when the current value matches `expected`.
 /// @returns The value that was stored before the operation.
@@ -93,14 +93,7 @@ export nuint atomicCompareExchange(overload nuint* dest, nuint expected, nuint v
 /// - expected: The value that must currently be stored for the exchange to occur.
 /// - value: The value to store when `expected` matches.
 @symbol("atomicCompareExchangePtr")
-export void* atomicCompareExchange(overload void** dest, void* expected, void* value) => timingAtomicCompareExchangePtr(dest, expected, value);
-
-extern nint timingAtomicExchangeNInt(nint* dest, nint value);
-extern nuint timingAtomicExchangeNUInt(nuint* dest, nuint value);
-extern void* timingAtomicExchangePtr(void** dest, void* value);
-extern nint timingAtomicCompareExchangeNInt(nint* dest, nint expected, nint value);
-extern nuint timingAtomicCompareExchangeNUInt(nuint* dest, nuint expected, nuint value);
-extern void* timingAtomicCompareExchangePtr(void** dest, void* expected, void* value);
+export extern void* atomicCompareExchange(overload void** dest, void* expected, void* value);
 
 #if POSIX
 
@@ -191,12 +184,6 @@ extern _winapi void* timingWinCreateThread(
 
 @symbol("CloseHandle")
 extern _winapi int timingWinCloseHandle(void* hObject);
-
-@symbol("_InterlockedExchangePointer")
-extern void* timingWinInterlockedExchangePointer(void** target, void* value);
-
-@symbol("_InterlockedCompareExchangePointer")
-extern void* timingWinInterlockedCompareExchangePointer(void** target, void* value, void* comparand);
 
 const nuint TIMING_WINDOWS_SLEEP_CHUNK_MS = 0xFFFFFFFF;
 
