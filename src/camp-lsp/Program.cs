@@ -22,6 +22,7 @@ LanguageServer server = await LanguageServer.From(options => options
 	.WithOutput(Console.OpenStandardOutput())
 	.AddHandler(new CampTextDocumentSyncHandler(workspace))
 	.AddHandler(new CampHoverHandler(workspace))
+	.AddHandler(new CampSignatureHelpHandler(workspace))
 	.AddHandler(new CampDefinitionHandler(workspace))
 	.AddHandler(new CampDocumentSymbolHandler(workspace))
 	.AddHandler(new CampWorkspaceSymbolHandler(workspace))
@@ -95,6 +96,24 @@ sealed class CampHoverHandler(CampLspWorkspace workspace) : HoverHandlerBase
 	protected override HoverRegistrationOptions CreateRegistrationOptions(HoverCapability capability, ClientCapabilities clientCapabilities)
 	{
 		return new HoverRegistrationOptions { DocumentSelector = CampLsp.Protocol.DocumentSelector };
+	}
+}
+
+sealed class CampSignatureHelpHandler(CampLspWorkspace workspace) : SignatureHelpHandlerBase
+{
+	public override Task<SignatureHelp?> Handle(SignatureHelpParams request, CancellationToken cancellationToken)
+	{
+		CampSignatureHelp? signatureHelp = workspace.GetSignatureHelp(request.TextDocument.Uri, CampLsp.ToCampPosition(request.Position));
+		return Task.FromResult(signatureHelp is null ? null : CampLsp.ToLspSignatureHelp(signatureHelp));
+	}
+
+	protected override SignatureHelpRegistrationOptions CreateRegistrationOptions(SignatureHelpCapability capability, ClientCapabilities clientCapabilities)
+	{
+		return new SignatureHelpRegistrationOptions
+		{
+			DocumentSelector = CampLsp.Protocol.DocumentSelector,
+			TriggerCharacters = new Container<string>("(", ",")
+		};
 	}
 }
 
@@ -202,6 +221,13 @@ public sealed class CampLspWorkspace
 		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
 			return null;
 		return new CampSymbolQueryService(snapshot!).GetDefinition(path, position);
+	}
+
+	public CampSignatureHelp? GetSignatureHelp(DocumentUri uri, CampTextPosition position)
+	{
+		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
+			return null;
+		return new CampSymbolQueryService(snapshot!).GetSignatureHelp(path, position);
 	}
 
 	public IReadOnlyList<CampDocumentSymbol> GetDocumentSymbols(DocumentUri uri)
@@ -351,6 +377,34 @@ public static class CampLsp
 				Range = ToLspRange(symbol.Location.Range)
 			},
 			ContainerName = symbol.ContainerName
+		};
+	}
+
+	public static SignatureHelp ToLspSignatureHelp(CampSignatureHelp help)
+	{
+		return new SignatureHelp
+		{
+			Signatures = new Container<SignatureInformation>(help.Signatures.Select(signature => new SignatureInformation
+			{
+				Label = signature.Label,
+				ActiveParameter = signature == help.Signatures[help.ActiveSignature] ? help.ActiveParameter : null,
+				Documentation = string.IsNullOrWhiteSpace(signature.Documentation) ? null : new StringOrMarkupContent(new MarkupContent
+				{
+					Kind = MarkupKind.Markdown,
+					Value = signature.Documentation
+				}),
+				Parameters = new Container<ParameterInformation>(signature.Parameters.Select(static parameter => new ParameterInformation
+				{
+					Label = parameter.Label,
+					Documentation = string.IsNullOrWhiteSpace(parameter.Documentation) ? null : new StringOrMarkupContent(new MarkupContent
+					{
+						Kind = MarkupKind.Markdown,
+						Value = parameter.Documentation
+					})
+				}))
+			})),
+			ActiveSignature = help.ActiveSignature,
+			ActiveParameter = help.ActiveParameter
 		};
 	}
 

@@ -47,9 +47,24 @@ public sealed record CampWorkspaceSymbol(
 
 public sealed record CampHover(string Markdown);
 
+public sealed record CampParameterHelp(
+	string Label,
+	string? Documentation);
+
+public sealed record CampSignatureInformation(
+	string Label,
+	string? Documentation,
+	IReadOnlyList<CampParameterHelp> Parameters);
+
+public sealed record CampSignatureHelp(
+	IReadOnlyList<CampSignatureInformation> Signatures,
+	int ActiveSignature,
+	int ActiveParameter);
+
 public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 {
 	readonly List<SymbolEntry> entries = BuildEntries(snapshot.Compilation);
+	readonly List<FunctionDefinition> functions = BuildFunctions(snapshot.Compilation);
 
 	public CampSymbolInfo? GetSymbolAt(string path, CampTextPosition position)
 	{
@@ -83,6 +98,22 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		if (!string.IsNullOrWhiteSpace(symbol.Documentation))
 			builder.AppendLine().AppendLine(symbol.Documentation);
 		return new CampHover(builder.ToString().TrimEnd());
+	}
+
+	public CampSignatureHelp? GetSignatureHelp(string path, CampTextPosition position)
+	{
+		string fullPath = Path.GetFullPath(path);
+		SourceFile? file = snapshot.Compilation.Files.FirstOrDefault(file => string.Equals(Path.GetFullPath(file.Path), fullPath, StringComparison.OrdinalIgnoreCase));
+		if (file?.BindableTree is null || !TryFindCallAt(file, file.BindableTree, position, out CallExpression? call))
+			return null;
+		List<FunctionDefinition> callFunctions = GetCallFunctions(call!, functions).Distinct().ToList();
+		if (callFunctions.Count == 0)
+			return null;
+		int activeParameter = GetActiveParameter(file.Text, call!, position, callFunctions[0]);
+		return new CampSignatureHelp(
+			callFunctions.Select(function => CreateSignatureInformation(function, file)).ToList(),
+			0,
+			activeParameter);
 	}
 
 	public IReadOnlyList<CampDocumentSymbol> GetDocumentSymbols(string path)
@@ -215,6 +246,26 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return entries;
 	}
 
+	static List<FunctionDefinition> BuildFunctions(Compilation compilation)
+	{
+		List<FunctionDefinition> functions = [];
+		HashSet<BindableNode> visited = new(ReferenceEqualityComparer.Instance);
+		foreach (SourceFile file in compilation.Files)
+			if (file.BindableTree is not null)
+				CollectFunctions(file.BindableTree, functions, visited);
+		return functions;
+	}
+
+	static void CollectFunctions(BindableNode node, List<FunctionDefinition> functions, HashSet<BindableNode> visited)
+	{
+		if (!visited.Add(node))
+			return;
+		if (node is FunctionDefinition function)
+			functions.Add(function);
+		foreach (BindableNode child in Children(node))
+			CollectFunctions(child, functions, visited);
+	}
+
 	static void CollectDefinitionEntries(SourceFile file, BindableNode node, List<SymbolEntry> entries, Dictionary<BindableNode, SymbolEntry> definitions, HashSet<BindableNode> visited, string? containerName)
 	{
 		if (!visited.Add(node))
@@ -312,7 +363,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			GetDefinitionKind(node, containerName),
 			GetNodeType(node),
 			GetSignature(node),
-			GetDocumentation(node) ?? ExtractLeadingDoc(file.Text, tokenRange.StartLineNumber),
+			GetEntryDocumentation(node, file.Text, tokenRange.StartLineNumber),
 			containerName,
 			null);
 		return true;
@@ -373,6 +424,222 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			Definition = definition
 		};
 		return true;
+	}
+
+	static bool TryFindCallAt(SourceFile file, BindableNode root, CampTextPosition position, out CallExpression? call)
+	{
+		call = null;
+		List<CallExpression> calls = [];
+		CollectCallsAt(file, root, position, calls, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance));
+		call = calls
+			.OrderBy(static candidate => TryGetCallRange(candidate, out TokenRange range) ? SpanSize(CampLanguageService.ToTextRange(range)) : int.MaxValue)
+			.FirstOrDefault();
+		return call is not null;
+	}
+
+	static void CollectCallsAt(SourceFile file, BindableNode node, CampTextPosition position, List<CallExpression> calls, HashSet<BindableNode> visited)
+	{
+		if (!visited.Add(node))
+			return;
+		if (node is CallExpression call && TryGetCallRange(call, out TokenRange range) && ReferenceEquals(file.Tokens, range.Sequence) && Contains(CampLanguageService.ToTextRange(range), position))
+			calls.Add(call);
+		foreach (BindableNode child in Children(node))
+			CollectCallsAt(file, child, position, calls, visited);
+	}
+
+	static bool TryGetCallRange(CallExpression call, out TokenRange range)
+	{
+		range = default;
+		if (call.SourceSyntax is CallPostfixPartSyntax { OpenParenToken: Token open, CloseParenToken: Token close })
+		{
+			range = new TokenRange(open.Sequence, open.Index, close.Index - open.Index + 1);
+			return true;
+		}
+		return TryGetSyntaxRange(call.SourceSyntax, out range);
+	}
+
+	static IEnumerable<FunctionDefinition> GetCallFunctions(CallExpression call, IReadOnlyList<FunctionDefinition> functions)
+	{
+		if (call.Target is MemberReferenceExpression member)
+		{
+			if (member.Member is FunctionDefinition function)
+				yield return function;
+			foreach (FunctionDefinition candidate in member.Candidates)
+				yield return candidate;
+			yield break;
+		}
+		if (call.Target is MemberExpression memberExpression)
+		{
+			foreach (FunctionDefinition candidate in functions.Where(function => function.Name == memberExpression.Name || function.Symbol.EndsWith("_" + memberExpression.Name, StringComparison.Ordinal)))
+				yield return candidate;
+			yield break;
+		}
+		if (call.Target is MethodReferenceExpression method)
+		{
+			foreach (FunctionDefinition candidate in method.Candidates)
+				yield return candidate;
+			yield break;
+		}
+		if (call.Target is NamedExpression named)
+		{
+			foreach (FunctionDefinition candidate in functions.Where(function => function.Name == named.Name || function.Symbol == named.Name))
+				yield return candidate;
+		}
+	}
+
+	static CampSignatureInformation CreateSignatureInformation(FunctionDefinition function, SourceFile? file)
+	{
+		Dictionary<string, string> rawParameterDocs = file is not null && TryGetNodeRange(function, out TokenRange range) && ReferenceEquals(file.Tokens, range.Sequence)
+			? ExtractLeadingParameterDocs(file.Text, range.StartLineNumber)
+			: [];
+		List<ParameterDefinition> parameters = GetVisibleCallParameters(function);
+		return new CampSignatureInformation(
+			GetCleanSignature(function) ?? function.Name + "()",
+			GetDeclarationDocumentation(function),
+			parameters.Select(parameter => new CampParameterHelp(
+				FormatParameterLabel(parameter),
+				GetDeclarationDocumentation(parameter) ?? (parameter.Name is not null && rawParameterDocs.TryGetValue(parameter.Name, out string? rawDoc) ? rawDoc : null))).ToList());
+	}
+
+	static int GetActiveParameter(string text, CallExpression call, CampTextPosition position, FunctionDefinition function)
+	{
+		List<ParameterDefinition> parameters = GetVisibleCallParameters(function);
+		if (parameters.Count == 0)
+			return 0;
+		if (TryGetArgumentAtPosition(call, position, out ArgumentExpression? argument) && argument?.Name is string name)
+		{
+			int namedIndex = parameters.FindIndex(parameter => parameter.Name == name);
+			if (namedIndex >= 0)
+				return namedIndex;
+		}
+		if (!TryGetCallOpenParen(call, out TokenRange openParen))
+			return Math.Clamp(call.Arguments.Count, 0, parameters.Count - 1);
+		int argumentIndex = CountTopLevelCommasBetween(text, openParen, position);
+		return Math.Clamp(argumentIndex, 0, parameters.Count - 1);
+	}
+
+	static bool TryGetArgumentAtPosition(CallExpression call, CampTextPosition position, out ArgumentExpression? argument)
+	{
+		argument = null;
+		foreach (ArgumentExpression candidate in call.Arguments)
+		{
+			if (TryGetSyntaxRange(candidate.SourceSyntax, out TokenRange range) && Contains(CampLanguageService.ToTextRange(range), position))
+			{
+				argument = candidate;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	static bool TryGetCallOpenParen(CallExpression call, out TokenRange openParen)
+	{
+		openParen = default;
+		return call.SourceSyntax is CallPostfixPartSyntax { OpenParenToken: Token token } && Assign(token.Range, out openParen);
+	}
+
+	static int CountTopLevelCommasBetween(string text, TokenRange openParen, CampTextPosition position)
+	{
+		int start = OffsetOf(text, new CampTextPosition(openParen.StartLineNumber - 1, openParen.StartColumn));
+		int end = OffsetOf(text, position);
+		if (start < 0 || end <= start)
+			return 0;
+		int depth = 0;
+		int count = 0;
+		bool inString = false;
+		char stringQuote = '\0';
+		for (int i = start; i < Math.Min(text.Length, end); i++)
+		{
+			char value = text[i];
+			if (inString)
+			{
+				if (value == '\\')
+				{
+					i++;
+					continue;
+				}
+				if (value == stringQuote)
+					inString = false;
+				continue;
+			}
+			if (value is '"' or '\'')
+			{
+				inString = true;
+				stringQuote = value;
+				continue;
+			}
+			if (value is '(' or '[' or '{')
+			{
+				depth++;
+				continue;
+			}
+			if (value is ')' or ']' or '}')
+			{
+				depth = Math.Max(0, depth - 1);
+				continue;
+			}
+			if (value == ',' && depth == 0)
+				count++;
+		}
+		return count;
+	}
+
+	static int OffsetOf(string text, CampTextPosition position)
+	{
+		int line = 0;
+		int character = 0;
+		for (int i = 0; i < text.Length; i++)
+		{
+			if (line == position.Line && character == position.Character)
+				return i;
+			if (text[i] == '\n')
+			{
+				line++;
+				character = 0;
+			}
+			else if (text[i] != '\r')
+				character++;
+		}
+		return line == position.Line && character == position.Character ? text.Length : -1;
+	}
+
+	static List<ParameterDefinition> GetVisibleCallParameters(FunctionDefinition function)
+	{
+		List<ParameterDefinition> parameters = [];
+		int expandedThisCount = CountExpandedThisParameters(function.Parameters);
+		for (int i = 0; i < function.Parameters.Count; i++)
+		{
+			ParameterDefinition parameter = function.Parameters[i];
+			if (parameter.Modifier is ParameterModifier.Thrown or ParameterModifier.Within
+				|| parameter is ThisParameterDefinition or SizeOfParameterDefinition or VTableOfParameterDefinition or NameOfParameterDefinition or WithinParameterDefinition
+				|| i < expandedThisCount)
+				continue;
+			parameters.Add(parameter);
+		}
+		return parameters;
+	}
+
+	static int CountExpandedThisParameters(List<ParameterDefinition> parameters)
+	{
+		int count = 0;
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter is not ThisParameterDefinition)
+				break;
+			if (parameter.ResolvedType is string type && (type.EndsWith("*", StringComparison.Ordinal) || type == "void*"))
+				break;
+			count++;
+		}
+		return count > 1 ? count : 0;
+	}
+
+	static string FormatParameterLabel(ParameterDefinition parameter)
+	{
+		string type = BindableNodeCodeSerializer.SerializeType(parameter.Type);
+		if (string.IsNullOrWhiteSpace(type) || type == "#ERROR")
+			type = parameter.ResolvedType ?? "";
+		string name = string.IsNullOrWhiteSpace(parameter.Name) ? "" : " " + parameter.Name;
+		return (type + name).Trim();
 	}
 
 	static BindableNode? ResolveTypeSyntaxTarget(TypeSyntax? syntax, Dictionary<BindableNode, SymbolEntry> definitions, SourceFile file)
@@ -507,9 +774,14 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 	{
 		if (node is not Definition definition)
 			return null;
+		return GetCleanSignature(definition);
+	}
+
+	static string? GetCleanSignature(Definition definition)
+	{
 		using StringWriter writer = new();
 		BindableNodeCodeSerializer.Serialize(definition, writer, new BindableNodeCodeSerializerOptions { ApiHeader = false });
-		string text = writer.ToString().Trim();
+		string text = StripDocAttributes(writer.ToString().Trim());
 		int body = text.IndexOf('{');
 		if (body >= 0)
 			text = text[..body].TrimEnd();
@@ -544,6 +816,41 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	static string? GetDocumentation(BindableNode node)
 	{
+		string? declarationDocumentation = GetDeclarationDocumentation(node);
+		if (node is not FunctionDefinition function)
+			return declarationDocumentation;
+		List<string> sections = [];
+		if (!string.IsNullOrWhiteSpace(declarationDocumentation))
+			sections.Add(declarationDocumentation!);
+		List<string> parameterDocs = [];
+		foreach (ParameterDefinition parameter in GetVisibleCallParameters(function))
+		{
+			string? parameterDocumentation = GetDeclarationDocumentation(parameter);
+			if (!string.IsNullOrWhiteSpace(parameterDocumentation))
+				parameterDocs.Add($"- `{parameter.Name}`: {parameterDocumentation}");
+		}
+		if (parameterDocs.Count > 0)
+			sections.Add("Parameters:\n" + string.Join("\n", parameterDocs));
+		return sections.Count == 0 ? null : string.Join("\n\n", sections);
+	}
+
+	static string? GetEntryDocumentation(BindableNode node, string sourceText, int oneBasedLine)
+	{
+		string? documentation = GetDocumentation(node) ?? ExtractLeadingDoc(sourceText, oneBasedLine);
+		if (node is not FunctionDefinition)
+			return documentation;
+		Dictionary<string, string> rawParameterDocs = ExtractLeadingParameterDocs(sourceText, oneBasedLine);
+		if (rawParameterDocs.Count == 0)
+			return documentation;
+		List<string> sections = [];
+		if (!string.IsNullOrWhiteSpace(documentation))
+			sections.Add(documentation!);
+		sections.Add("Parameters:\n" + string.Join("\n", rawParameterDocs.Select(static item => $"- `{item.Key}`: {item.Value}")));
+		return string.Join("\n\n", sections);
+	}
+
+	static string? GetDeclarationDocumentation(BindableNode node)
+	{
 		IEnumerable<AttributeConstructor> attributes = node switch
 		{
 			Definition definition => definition.Attributes,
@@ -558,6 +865,70 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 				docs.Add(value!);
 		}
 		return docs.Count == 0 ? null : string.Join("\n\n", docs);
+	}
+
+	static string StripDocAttributes(string text)
+	{
+		StringBuilder builder = new();
+		for (int i = 0; i < text.Length;)
+		{
+			if (text[i] == '@' && IsDocAttributeAt(text, i, out int end))
+			{
+				i = end;
+				while (i < text.Length && char.IsWhiteSpace(text[i]) && text[i] != '\n')
+					i++;
+				continue;
+			}
+			builder.Append(text[i]);
+			i++;
+		}
+		return builder.ToString();
+	}
+
+	static bool IsDocAttributeAt(string text, int index, out int end)
+	{
+		end = index;
+		foreach (string name in new[] { "@summary", "@remarks", "@returns", "@example", "@see", "@deprecated" })
+		{
+			if (!text.AsSpan(index).StartsWith(name, StringComparison.Ordinal))
+				continue;
+			int i = index + name.Length;
+			while (i < text.Length && char.IsWhiteSpace(text[i]))
+				i++;
+			if (i >= text.Length || text[i] != '(')
+				return false;
+			int depth = 0;
+			bool inString = false;
+			for (; i < text.Length; i++)
+			{
+				char value = text[i];
+				if (inString)
+				{
+					if (value == '\\')
+					{
+						i++;
+						continue;
+					}
+					if (value == '"')
+						inString = false;
+					continue;
+				}
+				if (value == '"')
+				{
+					inString = true;
+					continue;
+				}
+				if (value == '(')
+					depth++;
+				else if (value == ')' && --depth == 0)
+				{
+					end = i + 1;
+					return true;
+				}
+			}
+			return false;
+		}
+		return false;
 	}
 
 	static bool TryGetNodeRange(BindableNode node, out TokenRange range)
@@ -711,6 +1082,45 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			return null;
 		docs.Reverse();
 		return string.Join("\n", docs).Trim();
+	}
+
+	static Dictionary<string, string> ExtractLeadingParameterDocs(string text, int oneBasedLine)
+	{
+		string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+		int index = Math.Min(oneBasedLine - 2, lines.Length - 1);
+		List<string> docs = [];
+		while (index >= 0)
+		{
+			string trimmed = lines[index].TrimStart();
+			if (trimmed.StartsWith("///", StringComparison.Ordinal))
+			{
+				docs.Add(trimmed[3..].TrimStart());
+				index--;
+				continue;
+			}
+			if (trimmed.Length == 0 && docs.Count > 0)
+			{
+				index--;
+				continue;
+			}
+			break;
+		}
+		docs.Reverse();
+		Dictionary<string, string> result = new(StringComparer.Ordinal);
+		foreach (string line in docs)
+		{
+			string trimmed = line.Trim();
+			if (!trimmed.StartsWith("- ", StringComparison.Ordinal))
+				continue;
+			int colon = trimmed.IndexOf(':', 2);
+			if (colon < 0)
+				continue;
+			string name = trimmed[2..colon].Trim();
+			string value = trimmed[(colon + 1)..].Trim();
+			if (name.Length > 0 && value.Length > 0)
+				result[name] = value;
+		}
+		return result;
 	}
 
 	static string SourceText(string text, TokenRange range)

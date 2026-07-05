@@ -115,6 +115,48 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_returns_signature_help_and_clean_hover_docs()
+	{
+		string root = CreateTempDirectory("language-service-signature-help");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			/// Adds two values.
+			/// - left: The first value.
+			/// - right: The second value.
+			int add(int left, int right = 1)
+			{
+				return left + right;
+			}
+
+			export int main()
+			{
+				return add(4, 5);
+			}
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		CampHover? hover = symbols.GetHover(source, PositionOf(text, "add(4"));
+		CampSignatureHelp? signatureHelp = symbols.GetSignatureHelp(source, PositionOf(text, "5);"));
+
+		Assert.NotNull(hover);
+		Assert.DoesNotContain("@summary", hover!.Markdown, StringComparison.Ordinal);
+		Assert.DoesNotContain("@summary", hover.Markdown, StringComparison.Ordinal);
+		Assert.Contains("Adds two values.", hover.Markdown, StringComparison.Ordinal);
+		Assert.Contains("Parameters:", hover.Markdown, StringComparison.Ordinal);
+		Assert.Contains("`left`: The first value.", hover.Markdown, StringComparison.Ordinal);
+		Assert.Contains("`right`: The second value.", hover.Markdown, StringComparison.Ordinal);
+		Assert.NotNull(signatureHelp);
+		Assert.Equal(1, signatureHelp!.ActiveParameter);
+		CampSignatureInformation signature = Assert.Single(signatureHelp.Signatures);
+		Assert.Contains("int add(int left, int right = 1)", signature.Label, StringComparison.Ordinal);
+		Assert.Equal(["int left", "int right"], signature.Parameters.Select(static parameter => parameter.Label).ToArray());
+		Assert.Equal("The second value.", signature.Parameters[1].Documentation);
+	}
+
+	[Fact]
 	public void Symbol_query_finds_member_definitions()
 	{
 		string root = CreateTempDirectory("language-service-members");

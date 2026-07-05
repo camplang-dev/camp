@@ -30,7 +30,7 @@ Timing: Do this once source-level declaration identity is stable enough for
 metadata/API output and LSP symbol indexing to agree. It does not need completion,
 incremental compilation, or final async/escaped-delegate semantics.
 
-## LSP-003 — Signature Help
+## ~~LSP-003 — Signature Help~~
 
 Complexity: Medium.
 

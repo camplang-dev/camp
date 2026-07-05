@@ -96,6 +96,52 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_server_returns_signature_help_for_call_expression()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-signature-help");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			/// Adds two values.
+			/// - left: The first value.
+			/// - right: The second value.
+			int add(int left, int right = 1)
+			{
+				return left + right;
+			}
+
+			export int main()
+			{
+				return add(4, 5);
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		lsp.ReadNotification("textDocument/publishDiagnostics");
+
+		JsonNode signatureHelp = lsp.Request("textDocument/signatureHelp", new
+		{
+			textDocument = new { uri },
+			position = new { line = 10, character = 15 }
+		});
+
+		JsonNode result = signatureHelp["result"]!;
+		JsonNode signature = Assert.Single(result["signatures"]!.AsArray())!;
+		int? activeParameter = result["activeParameter"]?.GetValue<int>() ?? signature["activeParameter"]?.GetValue<int>();
+		Assert.Equal(1, activeParameter);
+		Assert.Contains("int add(int left, int right = 1)", signature["label"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.Equal("int left", signature["parameters"]?[0]?["label"]?.GetValue<string>());
+		Assert.Equal("int right", signature["parameters"]?[1]?["label"]?.GetValue<string>());
+		Assert.Contains("The second value.", signature["parameters"]?[1]?["documentation"]?["value"]?.GetValue<string>(), StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Lsp_server_returns_document_symbols()
 	{
 		using LspProcess lsp = LspProcess.Start();
@@ -331,6 +377,7 @@ public sealed class LspServerTests
 					textDocument = new
 					{
 						hover = new { },
+						signatureHelp = new { },
 						definition = new { },
 						documentSymbol = new { },
 						synchronization = new { }
@@ -342,6 +389,7 @@ public sealed class LspServerTests
 				}
 			});
 			Assert.NotNull(response["result"]?["capabilities"]?["hoverProvider"]);
+			Assert.NotNull(response["result"]?["capabilities"]?["signatureHelpProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["definitionProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["documentSymbolProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["workspaceSymbolProvider"]);
