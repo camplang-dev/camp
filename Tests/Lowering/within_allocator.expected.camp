@@ -26,7 +26,10 @@ class Object
 	void op_initnew(within Allocator* allocator)
 	{
 		Allocator* resolvedAllocator = allocator;
-		this.buffer = (elements: (int*)(allocator != null ? Allocator_alloc(allocator, sizeof(int) * 4) : malloc(sizeof(int) * 4)), length: 4);
+		{
+			this.buffer = (int*)(allocator != null ? Allocator_alloc(allocator, sizeof(int) * 4) : malloc(sizeof(int) * 4));
+			this.buffer_length = 4;
+		}
 	}
 
 	static Object* create(within Allocator* allocator)

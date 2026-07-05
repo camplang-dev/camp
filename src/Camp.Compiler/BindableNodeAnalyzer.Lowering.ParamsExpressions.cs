@@ -252,6 +252,8 @@ public sealed partial class BindableNodeAnalyzer
 			ArgumentExpression argument = arguments[i];
 			if (TryMaterializeGenericReturnInArgument(argument, callableParameters, i))
 				continue;
+			if (TryMaterializeExpandedGenericOutArgument(argument, callableParameters, i))
+				continue;
 			if (TryMaterializeExpandedGenericInArgument(argument, callableParameters, i))
 				continue;
 			if (ExpandedArgumentComponentAlreadyProvided(arguments, callableParameters, i))
@@ -618,6 +620,63 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
+	bool TryMaterializeExpandedGenericOutArgument(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index)
+	{
+		if (currentStatementPrefix is null
+			|| currentStatementSuffix is null
+			|| callableParameters is null
+			|| index >= callableParameters.Count
+			|| argument.Modifier is not (ArgumentModifier.Out or ArgumentModifier.Catch)
+			|| !IsMaterializedGenericOutStorageParameter(callableParameters[index])
+			|| argument.Value is null
+			|| !TryCreateParamsComponentExpressions(argument.Value, out List<Expression> targetComponents)
+			|| targetComponents.Count <= 1)
+			return false;
+
+		string resultType = argument.ResolvedType ?? argument.Value.ResolvedType ?? callableParameters[index].ResolvedType ?? "";
+		if (string.IsNullOrWhiteSpace(resultType)
+			|| !TryGetParamsComponentShape(null, resultType, "value", out ParamsComponentShape shape)
+			|| shape.Components.Count != targetComponents.Count)
+			return false;
+
+		DeclarationStatement storage = CreateMaterializedGenericReturnStorage(resultType, argument.SourceSyntax);
+		currentStatementPrefix.Add(storage);
+		Expression storageTarget = CreateVariableReference(storage.Target, storage.Target.ResolvedType ?? ErrorType);
+		List<Expression> storageComponents = CreateMaterializedComponentExpressions(storage.Target, shape);
+		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
+		{
+			currentStatementSuffix.Add(new ExpressionStatement
+			{
+				SourceSyntax = argument.SourceSyntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = argument.SourceSyntax,
+					Target = LowerExpression(CloneParamsExpansionExpression(targetComponents[componentIndex])),
+					Operator = AssignmentOperator.Assign,
+					Value = LowerExpression(storageComponents[componentIndex]),
+					ResolvedType = shape.Components[componentIndex].Type
+				}
+			});
+		}
+
+		argument.Value = storageTarget;
+		argument.ResolvedType = storage.Target.ResolvedType ?? resultType;
+		return true;
+	}
+
+	bool IsMaterializedGenericOutStorageParameter(ParameterDefinition parameter)
+	{
+		if (parameter.Modifier is not (ParameterModifier.Out or ParameterModifier.Thrown))
+			return false;
+		if (parameter.Type is NamedTypeReference named && IsGenericPlaceholderParameter(named.Name))
+			return true;
+		string type = StripTopLevelValueQualifiers(parameter.Type?.ResolvedType ?? "");
+		if (IsGenericPlaceholderParameter(type))
+			return true;
+		return false;
+	}
+
 	static bool IsExpandedParameterComponentStart(List<ParameterDefinition> callableParameters, int index)
 	{
 		if (index + 1 >= callableParameters.Count)
@@ -907,7 +966,19 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryRewriteExpandedReturnAssignment(assignment, targets, out statements))
 			return true;
 		if (!TryCreateParamsComponentExpressions(assignment.Value, out List<Expression> values))
-			return false;
+		{
+			if (!TryGetParamsComponentShape(null, assignment.Target?.ResolvedType, "value", out ParamsComponentShape targetShape)
+				|| targetShape.Components.Count != targets.Count)
+				return false;
+
+			CaptureParamsArrayConstructionLength(assignment.Value, targetShape, statements);
+			values = GetParamsComponentInitialValues(assignment.Value, targetShape, deferCurrentAllocator: true)
+				.Where(static value => value is not null)
+				.Cast<Expression>()
+				.ToList();
+			if (values.Count != targets.Count)
+				return false;
+		}
 		if (targets.Count != values.Count)
 			return false;
 

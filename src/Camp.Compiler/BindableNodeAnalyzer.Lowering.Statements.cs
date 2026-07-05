@@ -166,7 +166,7 @@ public sealed partial class BindableNodeAnalyzer
 			case IfStatement ifStatement:
 				ifStatement.Condition = ifStatement.Condition is not null && ContainsUncaughtThrow(ifStatement.Condition)
 					? HoistThrowingExpression(ifStatement.Condition)
-					: LowerExpression(ifStatement.Condition);
+					: LowerConditionWithCopyBack(ifStatement.Condition);
 				if (ifStatement.Body is not null)
 					ifStatement.Body = RewriteStatement(ifStatement.Body);
 				if (ifStatement.ElseBody is not null)
@@ -176,6 +176,8 @@ public sealed partial class BindableNodeAnalyzer
 			case WhileStatement whileStatement:
 				if (whileStatement.Condition is not null && ContainsUncaughtThrow(whileStatement.Condition))
 					return RewriteWhileStatementWithThrowingCondition(whileStatement);
+				if (TryRewriteWhileStatementWithConditionCopyBack(whileStatement, out Statement? conditionCopyBackWhile))
+					return conditionCopyBackWhile!;
 				whileStatement.Condition = LowerExpression(whileStatement.Condition);
 				string whileContinueLabel = NewGeneratedLabelName("while_continue");
 				string whileBreakLabel = NewGeneratedLabelName("while_break");
@@ -274,6 +276,90 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return statement;
+	}
+
+	Expression? LowerConditionWithCopyBack(Expression? condition)
+	{
+		if (condition is null || currentStatementPrefix is null || currentStatementSuffix is null)
+			return LowerExpression(condition);
+
+		List<Statement>? previousPrefix = currentStatementPrefix;
+		List<Statement>? previousSuffix = currentStatementSuffix;
+		currentStatementPrefix = [];
+		currentStatementSuffix = [];
+		Expression? lowered = LowerExpression(condition);
+		List<Statement> conditionPrefix = currentStatementPrefix;
+		List<Statement> conditionSuffix = currentStatementSuffix;
+		currentStatementPrefix = previousPrefix;
+		currentStatementSuffix = previousSuffix;
+
+		if (conditionPrefix.Count == 0 && conditionSuffix.Count == 0)
+			return lowered;
+
+		currentStatementPrefix.AddRange(conditionPrefix);
+		if (conditionSuffix.Count == 0 || lowered is null)
+			return lowered;
+
+		DeclarationStatement conditionLocal = CreateGeneratedLocal(NewGeneratedLocalName("condition"), "bool", TypeReferenceForResolvedName("bool"), lowered);
+		currentStatementPrefix.Add(conditionLocal);
+		currentStatementPrefix.AddRange(conditionSuffix);
+		return CreateVariableReference(conditionLocal.Target, "bool");
+	}
+
+	bool TryRewriteWhileStatementWithConditionCopyBack(WhileStatement whileStatement, out Statement? rewritten)
+	{
+		rewritten = null;
+		if (whileStatement.Condition is null)
+			return false;
+
+		List<Statement>? previousPrefix = currentStatementPrefix;
+		List<Statement>? previousSuffix = currentStatementSuffix;
+		currentStatementPrefix = [];
+		currentStatementSuffix = [];
+		Expression? loweredCondition = LowerExpression(whileStatement.Condition);
+		List<Statement> conditionStatements = currentStatementPrefix;
+		List<Statement> conditionSuffix = currentStatementSuffix;
+		currentStatementPrefix = previousPrefix;
+		currentStatementSuffix = previousSuffix;
+
+		if (conditionStatements.Count == 0 && conditionSuffix.Count == 0)
+			return false;
+
+		Expression? conditionReference = loweredCondition;
+		if (conditionSuffix.Count > 0 && loweredCondition is not null)
+		{
+			DeclarationStatement conditionLocal = CreateGeneratedLocal(NewGeneratedLocalName("condition"), "bool", TypeReferenceForResolvedName("bool"), loweredCondition);
+			conditionStatements.Add(conditionLocal);
+			conditionStatements.AddRange(conditionSuffix);
+			conditionReference = CreateVariableReference(conditionLocal.Target, "bool");
+		}
+		else
+		{
+			conditionStatements.AddRange(conditionSuffix);
+		}
+
+		BlockStatement body = new() { ResolvedType = "void" };
+		body.Statements.AddRange(conditionStatements);
+		body.Statements.Add(new IfStatement
+		{
+			ResolvedType = "void",
+			Condition = new UnaryExpression
+			{
+				Operator = UnaryOperator.LogicalNot,
+				Operand = conditionReference,
+				ResolvedType = "bool"
+			},
+			Body = new BreakStatement { ResolvedType = "void" }
+		});
+		if (whileStatement.Body is not null)
+			body.Statements.Add(whileStatement.Body);
+
+		whileStatement.Condition = new LiteralExpression { Kind = LiteralKind.True, Text = "true", Value = true, ResolvedType = "bool" };
+		string continueLabel = NewGeneratedLabelName("while_continue");
+		string breakLabel = NewGeneratedLabelName("while_break");
+		whileStatement.Body = RewriteLoopBody(body, continueLabel, breakLabel);
+		rewritten = WrapLoopWithBreakLabel(whileStatement, breakLabel);
+		return true;
 	}
 
 	Statement PrependThrownParameterClear(Statement returnTransfer, SyntaxNode? syntax)

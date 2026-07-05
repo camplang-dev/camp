@@ -4252,6 +4252,8 @@ public static class CCodeEmitter
 				&& IsAnyGenericParameterType(parameter.ResolvedType))
 			{
 				string size = FormatGenericSizeExpression(parameter.ResolvedType);
+				if (assignment.Value is DefaultExpression)
+					return FormatMemoryCall("memset", CName(parameter), "0", size);
 				return FormatMemoryCall("memcpy", CName(parameter), FormatGenericStorageSource(assignment.Value), size);
 			}
 			string value = FormatExpression(assignment.Value);

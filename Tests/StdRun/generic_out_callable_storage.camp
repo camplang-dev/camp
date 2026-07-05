@@ -1,0 +1,27 @@
+using Std;
+
+bool takeFirst<T: copyable>(List<T>* list, out T item)
+{
+	item = default;
+	if (list.Length == 0)
+		return false;
+
+	item = list.Item[0];
+	list.remove(0);
+	return true;
+}
+
+int done;
+
+export int main()
+{
+	auto list = new List<escaped once void()>();
+	list.add(() => { done = 42; });
+
+	once void() callback = default;
+	if (takeFirst<escaped once void()>(list, out callback))
+		callback();
+
+	Console.writeLine(done);
+	return done == 42 ? 0 : 1;
+}
