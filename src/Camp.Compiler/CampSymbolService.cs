@@ -1027,13 +1027,18 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			_ => []
 		};
 		List<string> docs = [];
-		foreach (AttributeConstructor attribute in attributes.Where(static attribute => attribute.Name is "summary" or "remarks"))
+		foreach (AttributeConstructor attribute in attributes.Where(static attribute => AttributeName(attribute) is "summary" or "remarks"))
 		{
 			string? value = attribute.Arguments.FirstOrDefault()?.Value is LiteralExpression literal ? literal.Value?.ToString() : null;
 			if (!string.IsNullOrWhiteSpace(value))
 				docs.Add(value!);
 		}
 		return docs.Count == 0 ? null : string.Join("\n\n", docs);
+	}
+
+	static string AttributeName(AttributeConstructor attribute)
+	{
+		return attribute.Name.StartsWith("@", StringComparison.Ordinal) ? attribute.Name[1..] : attribute.Name;
 	}
 
 	static string StripDocAttributes(string text)

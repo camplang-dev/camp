@@ -55,10 +55,11 @@ public static class CampLanguageService
 			overlay => Path.GetFullPath(overlay.Path, request.WorkingDirectory),
 			StringComparer.OrdinalIgnoreCase);
 
+		HashSet<string> loadedPaths = new(StringComparer.OrdinalIgnoreCase);
 		foreach ((string Path, bool IsApiHeader) include in GetAnalysisIncludeFiles(request))
-			compilation.Files.Add(LoadSourceFile(include.Path, request.WorkingDirectory, overlayByPath, include.IsApiHeader));
+			AddSourceFileIfMissing(compilation, include.Path, request.WorkingDirectory, overlayByPath, include.IsApiHeader, loadedPaths);
 		foreach (string file in request.Files)
-			compilation.Files.Add(LoadSourceFile(file, request.WorkingDirectory, overlayByPath, isApiHeader: false));
+			AddSourceFileIfMissing(compilation, file, request.WorkingDirectory, overlayByPath, isApiHeader: false, loadedPaths);
 		return compilation;
 	}
 
@@ -67,12 +68,23 @@ public static class CampLanguageService
 		List<(string Path, bool IsApiHeader)> includes = request.IncludeFiles.Select(static path => (path, true)).ToList();
 		foreach (string packageSpec in request.UsePackages)
 			AddAnalysisPackageIncludes(request, includes, packageSpec);
-		if (!request.NoStdLib && TryGetCachedPackageApiHeader(request, "std", out string? stdApiHeader))
-			AddIfMissing(includes, stdApiHeader!, isApiHeader: true);
-		else if (!request.NoStdLib)
+		if (!request.NoStdLib && RequestContainsPackageSourceFile(request, "std"))
 		{
 			foreach (string stdSource in GetAnalysisPackageSources(request, "std"))
 				AddIfMissing(includes, stdSource, isApiHeader: false);
+		}
+		else if (!request.NoStdLib)
+		{
+			if (TryGetCachedPackageApiHeader(request, "std", out string? stdApiHeader))
+			{
+				if (!RequestContainsFile(request, stdApiHeader!))
+					AddIfMissing(includes, stdApiHeader!, isApiHeader: true);
+			}
+			else
+			{
+				foreach (string stdSource in GetAnalysisPackageSources(request, "std"))
+					AddIfMissing(includes, stdSource, isApiHeader: false);
+			}
 		}
 		return includes;
 	}
@@ -228,6 +240,46 @@ public static class CampLanguageService
 		string fullPath = Path.GetFullPath(path);
 		if (!values.Any(value => string.Equals(Path.GetFullPath(value.Path), fullPath, StringComparison.OrdinalIgnoreCase)))
 			values.Add((fullPath, isApiHeader));
+	}
+
+	static bool RequestContainsFile(CompilerRequest request, string path)
+	{
+		string fullPath = Path.GetFullPath(path, request.WorkingDirectory);
+		return request.Files.Any(file => string.Equals(Path.GetFullPath(file, request.WorkingDirectory), fullPath, StringComparison.OrdinalIgnoreCase));
+	}
+
+	static bool RequestContainsPackageSourceFile(CompilerRequest request, string packageName)
+	{
+		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
+		{
+			string sourceRoot = Path.GetFullPath(Path.Combine(runtimeRoot, "lib", packageName, "src"));
+			if (!Directory.Exists(sourceRoot))
+				continue;
+			foreach (string file in request.Files)
+			{
+				string fullPath = Path.GetFullPath(file, request.WorkingDirectory);
+				if (IsUnderDirectory(fullPath, sourceRoot))
+					return true;
+			}
+		}
+		return false;
+	}
+
+	static bool IsUnderDirectory(string path, string directory)
+	{
+		string relative = Path.GetRelativePath(directory, path);
+		return relative.Length > 0
+			&& relative != "."
+			&& !relative.StartsWith("..", StringComparison.Ordinal)
+			&& !Path.IsPathRooted(relative);
+	}
+
+	static void AddSourceFileIfMissing(Compilation compilation, string path, string workingDirectory, Dictionary<string, CampSourceOverlay> overlays, bool isApiHeader, HashSet<string> loadedPaths)
+	{
+		string fullPath = Path.GetFullPath(path, workingDirectory);
+		if (!loadedPaths.Add(fullPath))
+			return;
+		compilation.Files.Add(LoadSourceFile(fullPath, workingDirectory, overlays, isApiHeader));
 	}
 
 	static SourceFile LoadSourceFile(string path, string workingDirectory, Dictionary<string, CampSourceOverlay> overlays, bool isApiHeader)

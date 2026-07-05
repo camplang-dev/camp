@@ -519,6 +519,89 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Analysis_uses_cached_standard_api_docs_for_loose_files()
+	{
+		string root = CreateTempDirectory("language-service-std-api-docs");
+		string runtimeRoot = Path.Combine(root, "runtime");
+		string appRoot = Path.Combine(root, "app");
+		string source = Path.Combine(appRoot, "timer.camp");
+		Directory.CreateDirectory(appRoot);
+		string stdApi = Path.Combine(runtimeRoot, "lib", "std", "clang-macos-x64", "default", "DEBUG", "std_api.camp");
+		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
+		File.WriteAllText(stdApi, """
+			export as Std;
+
+			@summary("Completes after approximately the requested duration.")
+			export extern void sleepAsync(nuint timeoutMs);
+			""");
+		string text = """
+			using Std;
+
+			export void main()
+			{
+				sleepAsync(10);
+			}
+			""";
+		File.WriteAllText(source, text);
+		CompilerRequest request = RequestWithStd(runtimeRoot, appRoot, source);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request);
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		CampHover? hover = symbols.GetHover(source, PositionOf(text, "sleepAsync"));
+
+		Assert.NotNull(hover);
+		Assert.Contains("Completes after approximately the requested duration.", hover!.Markdown, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Analysis_does_not_auto_include_standard_api_when_opening_standard_api_header()
+	{
+		string root = CreateTempDirectory("language-service-open-std-api");
+		string runtimeRoot = Path.Combine(root, "runtime");
+		string stdApi = Path.Combine(runtimeRoot, "lib", "std", "clang-macos-x64", "default", "DEBUG", "std_api.camp");
+		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
+		File.WriteAllText(stdApi, """
+			export as Std;
+
+			export newtype TimerHandle: nint;
+			""");
+		CompilerRequest request = RequestWithStd(runtimeRoot, Path.GetDirectoryName(stdApi)!, stdApi);
+
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request);
+
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Message.Contains("TimerHandle", StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void Analysis_uses_standard_sources_when_opening_standard_source_file()
+	{
+		string root = CreateTempDirectory("language-service-open-std-source");
+		string runtimeRoot = Path.Combine(root, "runtime");
+		string stdApi = Path.Combine(runtimeRoot, "lib", "std", "clang-macos-x64", "default", "DEBUG", "std_api.camp");
+		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
+		File.WriteAllText(stdApi, """
+			export as Std;
+
+			export newtype TimerHandle: nint;
+			""");
+		string stdSource = Path.Combine(runtimeRoot, "lib", "std", "src", "std_timing.camp");
+		Directory.CreateDirectory(Path.GetDirectoryName(stdSource)!);
+		File.WriteAllText(stdSource, """
+			export as Std;
+
+			export newtype TimerHandle: nint;
+			""");
+		CompilerRequest request = RequestWithStd(runtimeRoot, Path.GetDirectoryName(stdSource)!, stdSource);
+
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request);
+
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Message.Contains("TimerHandle", StringComparison.Ordinal));
+	}
+
+	[Fact]
 	public void Symbol_query_returns_workspace_symbols()
 	{
 		string root = CreateTempDirectory("language-service-workspace-symbols");
@@ -605,6 +688,18 @@ public sealed class LanguageServiceTests
 			WorkingDirectory = workingDirectory,
 			TargetName = "clang-macos-x64",
 			NoStdLib = true
+		};
+		request.Files.Add(Path.GetRelativePath(workingDirectory, source));
+		return request;
+	}
+
+	static CompilerRequest RequestWithStd(string runtimeRoot, string workingDirectory, string source)
+	{
+		CompilerRequest request = new()
+		{
+			RuntimeRoot = runtimeRoot,
+			WorkingDirectory = workingDirectory,
+			TargetName = "clang-macos-x64"
 		};
 		request.Files.Add(Path.GetRelativePath(workingDirectory, source));
 		return request;
