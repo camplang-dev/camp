@@ -117,7 +117,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			return GetSignatureHelpFromText(file, currentText ?? file.Text, position);
 		List<FunctionDefinition> callFunctions = GetCallFunctions(call!, functions).Distinct().ToList();
 		if (callFunctions.Count == 0)
-			return null;
+			return GetSignatureHelpFromText(file, currentText ?? file.Text, position);
 		int activeParameter = GetActiveParameter(currentText ?? file.Text, call!, position, callFunctions[0]);
 		return new CampSignatureHelp(
 			callFunctions.Select(function => CreateSignatureInformation(function, file)).ToList(),
@@ -192,7 +192,9 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		if (context.MemberTargetPosition is null)
 			return [];
 		CampSymbolInfo? target = GetSymbolAt(file.Path, context.MemberTargetPosition);
-		string? targetType = context.MemberTargetText is null ? null : ResolveCompletionTargetName(context.MemberTargetText);
+		string? targetType = context.MemberTargetText == "this"
+			? ResolveThisCompletionTarget(file, context.MemberTargetPosition)
+			: context.MemberTargetText is null ? null : ResolveCompletionTargetName(context.MemberTargetText);
 		targetType ??= target?.Type;
 		if (targetType is null && target?.Kind is CampSymbolKind.Type or CampSymbolKind.Alias)
 			targetType = target.Name;
@@ -294,6 +296,123 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return result;
 	}
 
+	string? ResolveThisCompletionTarget(SourceFile file, CampTextPosition? position)
+	{
+		if (position is not CampTextPosition textPosition)
+			return null;
+		FunctionDefinition? containing = null;
+		CampTextRange? containingRange = null;
+		FunctionDefinition? preceding = null;
+		CampTextRange? precedingRange = null;
+		foreach (FunctionDefinition function in functions)
+		{
+			ThisParameterDefinition? thisParameter = GetCompletionThisParameter(function);
+			if (thisParameter?.ResolvedType is null || !TryGetNodeRange(function, out TokenRange range) || !ReferenceEquals(file.Tokens, range.Sequence))
+				continue;
+			CampTextRange textRange = CampLanguageService.ToTextRange(range);
+			if (Contains(textRange, textPosition))
+			{
+				if (containingRange is null || SpanSize(textRange) < SpanSize(containingRange))
+				{
+					containing = function;
+					containingRange = textRange;
+				}
+				continue;
+			}
+			if (IsBefore(textRange.Start, textPosition)
+				&& (precedingRange is null || IsBefore(precedingRange.Start, textRange.Start)))
+			{
+				preceding = function;
+				precedingRange = textRange;
+			}
+		}
+		FunctionDefinition? selected = containing ?? preceding;
+		string? receiverType = selected is null ? null : ResolveFunctionReceiverType(selected);
+		return receiverType ?? ResolveThisTypeFromText(file.Text, textPosition);
+	}
+
+	static ThisParameterDefinition? GetCompletionThisParameter(FunctionDefinition function)
+	{
+		return function.Parameters.OfType<ThisParameterDefinition>().FirstOrDefault()
+			?? function.EffectiveThisParameter;
+	}
+
+	string? ResolveFunctionReceiverType(FunctionDefinition function)
+	{
+		if (GetCompletionThisParameter(function)?.ResolvedType is string receiverType && !string.IsNullOrWhiteSpace(receiverType))
+			return receiverType;
+		int separator = function.Symbol.IndexOf('_', StringComparison.Ordinal);
+		if (separator <= 0)
+			return null;
+		string containerName = function.Symbol[..separator];
+		return ResolveCompletionType(containerName) is null ? null : containerName;
+	}
+
+	string? ResolveThisTypeFromText(string text, CampTextPosition position)
+	{
+		int cursor = OffsetOf(text, position);
+		if (cursor < 0)
+			return null;
+		string? result = null;
+		int search = 0;
+		while (search < cursor && TryFindTypeDeclarationBefore(text, search, cursor, out string? name, out int openBrace))
+		{
+			if (IsBraceOpenAt(text, openBrace, cursor) && ResolveCompletionType(name) is not null)
+				result = name;
+			search = openBrace + 1;
+		}
+		return result;
+	}
+
+	static bool TryFindTypeDeclarationBefore(string text, int start, int limit, out string name, out int openBrace)
+	{
+		name = "";
+		openBrace = -1;
+		for (int i = start; i < limit;)
+		{
+			if (!IsIdentifierStart(text[i]))
+			{
+				i++;
+				continue;
+			}
+			int keywordStart = i;
+			i++;
+			while (i < limit && IsIdentifierPart(text[i]))
+				i++;
+			string keyword = text[keywordStart..i];
+			if (keyword is not ("class" or "struct" or "interface" or "newtype"))
+				continue;
+			int nameStart = i;
+			while (nameStart < limit && char.IsWhiteSpace(text[nameStart]))
+				nameStart++;
+			if (nameStart >= limit || !IsIdentifierStart(text[nameStart]))
+				continue;
+			int nameEnd = nameStart + 1;
+			while (nameEnd < limit && IsIdentifierPart(text[nameEnd]))
+				nameEnd++;
+			int brace = text.IndexOf('{', nameEnd);
+			if (brace < 0 || brace >= limit)
+				continue;
+			name = text[nameStart..nameEnd];
+			openBrace = brace;
+			return true;
+		}
+		return false;
+	}
+
+	static bool IsBraceOpenAt(string text, int openBrace, int cursor)
+	{
+		int depth = 0;
+		for (int i = openBrace; i < cursor && i < text.Length; i++)
+		{
+			if (text[i] == '{')
+				depth++;
+			else if (text[i] == '}')
+				depth--;
+		}
+		return depth > 0;
+	}
+
 	void CollectTypeMemberCompletions(SourceFile file, TypeDefinition type, List<CampCompletionItem> completions, HashSet<TypeDefinition> visited)
 	{
 		if (!visited.Add(type))
@@ -305,7 +424,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 					if (TryCreateCompletion(file, field, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				foreach (FunctionDefinition function in classDefinition.Functions)
-					if (TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+					if (!IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				foreach (TypeReference baseType in classDefinition.BaseTypes)
 					CollectBaseTypeMemberCompletions(file, baseType, completions, visited);
@@ -315,12 +434,12 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 					if (TryCreateCompletion(file, field, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				foreach (FunctionDefinition function in structDefinition.Functions)
-					if (TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+					if (!IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				break;
 			case InterfaceDefinition interfaceDefinition:
 				foreach (FunctionDefinition function in interfaceDefinition.Functions)
-					if (TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+					if (!IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				break;
 			case EnumDefinition enumDefinition:
@@ -330,14 +449,24 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 				break;
 			case NewtypeDefinition newtypeDefinition:
 				foreach (FunctionDefinition function in newtypeDefinition.Functions)
-					if (TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+					if (!IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				break;
 		}
 
 		foreach (FunctionDefinition extension in functions.Where(function => function.Parameters.FirstOrDefault() is ThisParameterDefinition thisParameter && BaseTypeName(UnwrapStorageType(thisParameter.ResolvedType ?? "")) == type.Name))
-			if (TryCreateCompletion(file, extension, type.Name, out CampCompletionItem? item))
+			if (!IsHiddenMemberCompletionFunction(extension) && TryCreateCompletion(file, extension, type.Name, out CampCompletionItem? item))
 				completions.Add(item!);
+	}
+
+	static bool IsHiddenMemberCompletionFunction(FunctionDefinition function)
+	{
+		return function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor
+			|| function.Name is "create" or "destroy" or "op_initnew" or "op_delete"
+			|| function.Symbol.EndsWith("_create", StringComparison.Ordinal)
+			|| function.Symbol.EndsWith("_destroy", StringComparison.Ordinal)
+			|| function.Symbol.EndsWith("_op_initnew", StringComparison.Ordinal)
+			|| function.Symbol.EndsWith("_op_delete", StringComparison.Ordinal);
 	}
 
 	void CollectBaseTypeMemberCompletions(SourceFile file, TypeReference? baseType, List<CampCompletionItem> completions, HashSet<TypeDefinition> visited)
@@ -704,11 +833,40 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			.Distinct()
 			.ToList();
 		if (callFunctions.Count == 0)
-			return null;
+			return GetSignatureHelpFromEntries(file, position, resolvedTargetName ?? targetName, memberName, activeParameter);
 		return new CampSignatureHelp(
 			callFunctions.Select(function => CreateSignatureInformation(function, file)).ToList(),
 			0,
 			Math.Clamp(activeParameter, 0, Math.Max(0, GetSignatureHelpParameters(callFunctions[0]).Count - 1)));
+	}
+
+	CampSignatureHelp? GetSignatureHelpFromEntries(SourceFile file, CampTextPosition position, string? targetName, string? memberName, int activeParameter)
+	{
+		string name = memberName ?? targetName ?? "";
+		if (name.Length == 0)
+			return null;
+		IEnumerable<SymbolEntry> candidates = entries.Where(entry =>
+			entry.Definition is null
+			&& entry.Kind is CampSymbolKind.Function or CampSymbolKind.Method
+			&& entry.Name == name
+			&& !string.IsNullOrWhiteSpace(entry.Signature));
+		if (targetName is not null)
+			candidates = candidates.Where(entry => entry.ContainerName == targetName || entry.Signature!.Contains(targetName + "_", StringComparison.Ordinal) || entry.Signature.Contains("." + name, StringComparison.Ordinal));
+		List<CampSignatureInformation> signatures = candidates
+			.DistinctBy(static entry => entry.Signature)
+			.Select(static entry => new CampSignatureInformation(entry.Signature!, entry.Documentation, []))
+			.ToList();
+		if (signatures.Count == 0 && targetName is null)
+		{
+			signatures = GetScopeCompletions(file, position)
+				.Where(item => item.Kind == CampSymbolKind.Function && item.Label == name && !string.IsNullOrWhiteSpace(item.Detail))
+				.DistinctBy(static item => item.Detail)
+				.Select(static item => new CampSignatureInformation(item.Detail!, item.Documentation, []))
+				.ToList();
+		}
+		return signatures.Count == 0
+			? null
+			: new CampSignatureHelp(signatures, 0, Math.Clamp(activeParameter, 0, 0));
 	}
 
 	static bool FunctionMatchesCallContext(FunctionDefinition function, string? targetName, string? memberName)
@@ -1543,12 +1701,12 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			return false;
 		memberName = text[nameStart..nameEnd];
 		int dot = nameStart - 1;
-		while (dot >= 0 && char.IsWhiteSpace(text[dot]))
+		while (dot >= 0 && IsHorizontalWhitespace(text[dot]))
 			dot--;
 		if (dot >= 0 && text[dot] == '.')
 		{
 			int targetEnd = dot;
-			while (targetEnd > 0 && char.IsWhiteSpace(text[targetEnd - 1]))
+			while (targetEnd > 0 && IsHorizontalWhitespace(text[targetEnd - 1]))
 				targetEnd--;
 			int targetStart = targetEnd;
 			while (targetStart > 0 && IsIdentifierPart(text[targetStart - 1]))
@@ -1556,12 +1714,12 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			if (targetStart < targetEnd)
 				targetName = text[targetStart..targetEnd];
 		}
-		else
-		{
-			targetName = memberName;
-			memberName = null;
-		}
 		return true;
+	}
+
+	static bool IsHorizontalWhitespace(char value)
+	{
+		return value is ' ' or '\t';
 	}
 
 	static int FindNearestOpenParenBefore(string text, int cursor)
