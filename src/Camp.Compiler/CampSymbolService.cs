@@ -1421,6 +1421,8 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	static string? GetEntryDocumentation(BindableNode node, string sourceText, int oneBasedLine)
 	{
+		if (node is ParameterDefinition or LambdaParameter or GenericParameter)
+			return GetDocumentation(node);
 		return GetDocumentation(node) ?? ExtractLeadingDoc(sourceText, oneBasedLine);
 	}
 

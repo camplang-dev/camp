@@ -139,6 +139,7 @@ public sealed class LanguageServiceTests
 		CampSymbolQueryService symbols = new(snapshot);
 
 		CampHover? hover = symbols.GetHover(source, PositionOf(text, "add(4"));
+		CampHover? parameterHover = symbols.GetHover(source, PositionOf(text, "left +"));
 		CampSignatureHelp? signatureHelp = symbols.GetSignatureHelp(source, PositionOf(text, "5);"));
 
 		Assert.NotNull(hover);
@@ -148,6 +149,9 @@ public sealed class LanguageServiceTests
 		Assert.DoesNotContain("Parameters:", hover.Markdown, StringComparison.Ordinal);
 		Assert.DoesNotContain("`left`: The first value.", hover.Markdown, StringComparison.Ordinal);
 		Assert.DoesNotContain("`right`: The second value.", hover.Markdown, StringComparison.Ordinal);
+		Assert.NotNull(parameterHover);
+		Assert.Contains("The first value.", parameterHover!.Markdown, StringComparison.Ordinal);
+		Assert.DoesNotContain("Adds two values.", parameterHover.Markdown, StringComparison.Ordinal);
 		Assert.NotNull(signatureHelp);
 		Assert.Equal(1, signatureHelp!.ActiveParameter);
 		CampSignatureInformation signature = Assert.Single(signatureHelp.Signatures);
