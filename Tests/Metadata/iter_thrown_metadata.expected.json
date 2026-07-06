@@ -1,0 +1,74 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "IteratorDocs",
+    "namespace": "IteratorDocs"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "enum:IteratorDocs::RangeError",
+      "kind": "enum",
+      "name": "RangeError",
+      "visibility": "export",
+      "underlyingType": "uint",
+      "values": [
+        {
+          "id": "enum:IteratorDocs::RangeError/value:None",
+          "name": "None",
+          "symbol": "RangeError_None",
+          "type": "RangeError",
+          "value": 0
+        },
+        {
+          "id": "enum:IteratorDocs::RangeError/value:InvalidRange",
+          "name": "InvalidRange",
+          "symbol": "RangeError_InvalidRange",
+          "type": "RangeError",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "newtype:IteratorDocs::RangeReader",
+      "kind": "newtype",
+      "name": "RangeReader",
+      "visibility": "export",
+      "callableType": "iter",
+      "returnType": "int",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Reads integers and may report a range error."
+        }
+      ]
+    },
+    {
+      "id": "function:IteratorDocs::getRange",
+      "kind": "function",
+      "name": "getRange",
+      "visibility": "export",
+      "extern": true,
+      "returnType": "iter(int, thrown RangeError)",
+      "parameters": [
+        {
+          "id": "function:IteratorDocs::getRange/parameter:result_context",
+          "name": "result_context",
+          "modifier": "out",
+          "type": "void*"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Gets a throwing range iterator."
+        }
+      ]
+    }
+  ]
+}

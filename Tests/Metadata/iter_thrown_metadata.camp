@@ -1,0 +1,13 @@
+export as IteratorDocs;
+
+export enum RangeError
+{
+	None,
+	InvalidRange
+}
+
+/// Reads integers and may report a range error.
+export newtype iter(int, thrown RangeError) RangeReader();
+
+/// Gets a throwing range iterator.
+export extern iter(int, thrown RangeError) getRange();

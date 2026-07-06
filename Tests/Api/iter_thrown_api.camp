@@ -1,0 +1,9 @@
+export enum RangeError
+{
+	None,
+	InvalidRange
+}
+
+export newtype iter(int, thrown RangeError) RangeReader();
+
+export extern iter(int, thrown RangeError) getRange();
