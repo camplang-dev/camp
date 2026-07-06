@@ -6,19 +6,19 @@ newtype delegate nuint Count();
 escaped Count makeSpanCount()
 {
 	const char[] span = "hello";
-	return () => span.length;
+	return new delegate () => span.length;
 }
 
 escaped delegate int() makeOptionalReader()
 {
 	int? value = 7;
-	return () => value.specified ? value.value : 0;
+	return new delegate () => value.specified ? value.value : 0;
 }
 
 escaped delegate int() makeDelegateReader()
 {
 	delegate int(int) mapper = value => value + 1;
-	return () => mapper.context == null ? 0 : 1;
+	return new delegate () => mapper.context == null ? 0 : 1;
 }
 
 export int main()

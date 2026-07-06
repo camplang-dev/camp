@@ -11,8 +11,8 @@ void *malloc(uintptr_t size);
 static int invokeScoped(int (* callback)(void *arg0), void *callback_context);
 static int invokeEscaped(int (* callback)(void *arg0), void *callback_context);
 static int runNested(int seed);
-static int runNested_lambda0_lambda0(void *context);
-static int runNested_lambda0(void *context);
+static int runNested_lambda0_lambda0(void *_context);
+static int runNested_lambda0(void *_context);
 
 static int __camp_delegate_runNested_lambda0(void *arg0)
 {
@@ -61,15 +61,15 @@ int main(void)
 	return ((runNested(3) == 7) ? 0 : 1);
 }
 
-static int runNested_lambda0_lambda0(void *context)
+static int runNested_lambda0_lambda0(void *_context)
 {
-	runNested_lambda0_lambdaContext1 *lambdaContext = (runNested_lambda0_lambdaContext1 *)(context);
+	runNested_lambda0_lambdaContext1 *lambdaContext = (runNested_lambda0_lambdaContext1 *)(_context);
 	return ((*lambdaContext->capture0_inner) + (*lambdaContext->capture1_lambdaContext)->capture0_seed);
 }
 
-static int runNested_lambda0(void *context)
+static int runNested_lambda0(void *_context)
 {
-	runNested_lambdaContext0 *lambdaContext = (runNested_lambdaContext0 *)(context);
+	runNested_lambdaContext0 *lambdaContext = (runNested_lambdaContext0 *)(_context);
 	int inner = (lambdaContext->capture0_seed + 1);
 	runNested_lambda0_lambdaContext1 _lambdaContext1;
 	_lambdaContext1.capture0_inner = &inner;

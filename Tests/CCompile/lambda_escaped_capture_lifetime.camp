@@ -9,5 +9,5 @@ int apply(escaped delegate int() callback)
 export int main()
 {
 	int* value = getEscapedInt();
-	return apply(() => *value);
+	return apply(new delegate () => *value);
 }

@@ -9,6 +9,7 @@ public sealed partial class BindableNodeAnalyzer
 	sealed record LambdaContextInfo(StructDefinition Definition, List<LambdaCapture> Captures, bool IsEscaped)
 	{
 		public DeclarationTarget? LocalTarget { get; set; }
+		public FieldDefinition? AllocatorField { get; set; }
 	}
 
 	readonly Dictionary<LambdaExpression, LambdaContextInfo> lambdaContexts = [];
@@ -77,10 +78,16 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		bool delegateTarget = shape.Kind is "delegate" or "once";
+		Expression? currentAllocator = CurrentAllocator();
+		bool bodyUsesInheritedAllocator = LambdaBodyUsesInheritedAllocator(lambda);
+		bool captureDelegateAllocator = lambda.IsNewDelegate
+			&& currentAllocator is not null
+			&& (bodyUsesInheritedAllocator || (HasDelegateCleanup(lambda.Body) && (captures.Count > 0 || bodyUsesInheritedAllocator)));
+		string? capturedAllocatorType = captureDelegateAllocator ? currentAllocator?.ResolvedType : null;
 		LambdaContextInfo? contextInfo = null;
-		if (captures.Count > 0)
+		if (captures.Count > 0 || !string.IsNullOrWhiteSpace(capturedAllocatorType))
 		{
-			contextInfo = GetOrCreateLambdaContext(lambda, captures, isEscaped);
+			contextInfo = GetOrCreateLambdaContext(lambda, captures, isEscaped, capturedAllocatorType);
 			EnsureLambdaContextLocal(lambda, contextInfo, currentStatementPrefix);
 			if (contextInfo.LocalTarget is null)
 				return lambda;
@@ -94,6 +101,8 @@ public sealed partial class BindableNodeAnalyzer
 		DeclarationTarget? lambdaContextLocal = null;
 		if (contextInfo is not null)
 			lambdaContextLocal = RewriteLambdaCaptureReferences(function, contextInfo);
+		if (contextInfo?.AllocatorField is not null && lambdaContextLocal is not null && bodyUsesInheritedAllocator)
+			WrapLambdaBodyInCapturedAllocator(function.Body, contextInfo, lambdaContextLocal);
 		RewriteFunction(function, containingType: null);
 		function.ResolvedType = EraseConstOfQualifiers(function.ResolvedType ?? loweringShape.ReturnType);
 		if (function.ReturnType is not null)
@@ -145,8 +154,8 @@ public sealed partial class BindableNodeAnalyzer
 			function.Parameters.Add(new ParameterDefinition
 			{
 				SourceSyntax = lambda.SourceSyntax,
-				Name = "context",
-				Symbol = "context",
+				Name = "_context",
+				Symbol = "_context",
 				Type = TypeReferenceForResolvedName("void*"),
 				ResolvedType = "void*"
 			});
@@ -186,10 +195,14 @@ public sealed partial class BindableNodeAnalyzer
 		return initializer;
 	}
 
-	LambdaContextInfo GetOrCreateLambdaContext(LambdaExpression lambda, List<LambdaCapture> captures, bool isEscaped)
+	LambdaContextInfo GetOrCreateLambdaContext(LambdaExpression lambda, List<LambdaCapture> captures, bool isEscaped, string? capturedAllocatorType)
 	{
 		if (lambdaContexts.TryGetValue(lambda, out LambdaContextInfo? context))
+		{
+			if (!string.IsNullOrWhiteSpace(capturedAllocatorType) && context.AllocatorField is null)
+				AddLambdaAllocatorField(lambda, context.Definition, context, capturedAllocatorType);
 			return context;
+		}
 
 		string owner = GetLambdaOwnerName();
 		string name = owner + "_lambdaContext" + generatedLambdaContextDefinitions.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -219,9 +232,25 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		context = new LambdaContextInfo(definition, contextCaptures, isEscaped);
+		if (!string.IsNullOrWhiteSpace(capturedAllocatorType))
+			AddLambdaAllocatorField(lambda, definition, context, capturedAllocatorType);
 		lambdaContexts[lambda] = context;
 		generatedLambdaContextDefinitions.Add(definition);
 		return context;
+	}
+
+	void AddLambdaAllocatorField(LambdaExpression lambda, StructDefinition definition, LambdaContextInfo context, string allocatorType)
+	{
+		FieldDefinition field = new()
+		{
+			SourceSyntax = lambda.SourceSyntax,
+			Name = "_allocator",
+			Symbol = "_allocator",
+			Type = TypeReferenceForResolvedName(allocatorType),
+			ResolvedType = allocatorType
+		};
+		definition.Fields.Add(field);
+		context.AllocatorField = field;
 	}
 
 	string GetLambdaOwnerName()
@@ -250,6 +279,21 @@ public sealed partial class BindableNodeAnalyzer
 		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("lambdaContext"), typeName, localType, initialValue);
 		context.LocalTarget = local.Target;
 		statements.Add(local);
+		if (context.AllocatorField is not null)
+		{
+			statements.Add(CreateAssignmentStatement(
+				new MemberReferenceExpression
+				{
+					SourceSyntax = lambda.SourceSyntax,
+					Target = CreateVariableReference(local.Target, typeName),
+					Name = context.AllocatorField.Name,
+					Member = context.AllocatorField,
+					ResolvedType = context.AllocatorField.ResolvedType
+				},
+				CurrentAllocator() ?? NullLiteral(lambda.SourceSyntax),
+				context.AllocatorField.ResolvedType ?? "Allocator*",
+				lambda.SourceSyntax));
+		}
 		foreach (LambdaCapture capture in context.Captures)
 		{
 			statements.Add(CreateAssignmentStatement(
@@ -280,9 +324,15 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind is not ("delegate" or "once"))
 			return;
 		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, currentRewriteFunction, FindCurrentRewriteContainingType(), reportUnsupported: true);
-		if (captures.Count == 0)
+		Expression? currentAllocator = CurrentAllocator();
+		bool bodyUsesInheritedAllocator = LambdaBodyUsesInheritedAllocator(lambda);
+		bool captureDelegateAllocator = lambda.IsNewDelegate
+			&& currentAllocator is not null
+			&& (bodyUsesInheritedAllocator || (HasDelegateCleanup(lambda.Body) && (captures.Count > 0 || bodyUsesInheritedAllocator)));
+		string? capturedAllocatorType = captureDelegateAllocator ? currentAllocator?.ResolvedType : null;
+		if (captures.Count == 0 && string.IsNullOrWhiteSpace(capturedAllocatorType))
 			return;
-		LambdaContextInfo context = GetOrCreateLambdaContext(lambda, captures, isEscaped);
+		LambdaContextInfo context = GetOrCreateLambdaContext(lambda, captures, isEscaped, capturedAllocatorType);
 		EnsureLambdaContextLocal(lambda, context, statements);
 	}
 
@@ -362,7 +412,24 @@ public sealed partial class BindableNodeAnalyzer
 				yieldStatement.Expression = RewriteLambdaCaptureReferences(yieldStatement.Expression, context, contextLocal);
 				break;
 			case DeleteStatement deleteStatement:
-				deleteStatement.Expression = RewriteLambdaCaptureReferences(deleteStatement.Expression, context, contextLocal);
+				if (deleteStatement.IsDelegateCleanup)
+				{
+					deleteStatement.IsDelegateCleanup = false;
+					Expression contextReference = CreateVariableReference(contextLocal, contextLocal.ResolvedType ?? context.Definition.Name + "*");
+					deleteStatement.Expression = context.AllocatorField is null
+						? contextReference
+						: new WithinExpression
+						{
+							SourceSyntax = deleteStatement.SourceSyntax,
+							Context = CreateCapturedAllocatorReference(context, contextLocal, deleteStatement.SourceSyntax),
+							Expression = contextReference,
+							ResolvedType = contextReference.ResolvedType
+						};
+				}
+				else
+				{
+					deleteStatement.Expression = RewriteLambdaCaptureReferences(deleteStatement.Expression, context, contextLocal);
+				}
 				break;
 			case TryStatement tryStatement:
 				RewriteLambdaCaptureReferences(tryStatement.Body, context, contextLocal);
@@ -493,6 +560,41 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 		}
 		return expression;
+	}
+
+	Expression CreateCapturedAllocatorReference(LambdaContextInfo context, DeclarationTarget contextLocal, SyntaxNode? syntax)
+	{
+		FieldDefinition field = context.AllocatorField ?? new FieldDefinition { Name = "_allocator", ResolvedType = "Allocator*" };
+		return new MemberReferenceExpression
+		{
+			SourceSyntax = syntax,
+			Target = CreateVariableReference(contextLocal, contextLocal.ResolvedType ?? ErrorType),
+			Name = field.Name,
+			Member = field,
+			ResolvedType = field.ResolvedType ?? "Allocator*"
+		};
+	}
+
+	void WrapLambdaBodyInCapturedAllocator(BlockStatement? body, LambdaContextInfo context, DeclarationTarget contextLocal)
+	{
+		if (body is null || body.Statements.Count <= 1)
+			return;
+		List<Statement> wrapped = body.Statements.GetRange(1, body.Statements.Count - 1);
+		body.Statements.RemoveRange(1, body.Statements.Count - 1);
+		body.Statements.Add(new WithinStatement
+		{
+			SourceSyntax = body.SourceSyntax,
+			Allocator = CreateCapturedAllocatorReference(context, contextLocal, body.SourceSyntax),
+			Body = new BlockStatement
+			{
+				SourceSyntax = body.SourceSyntax,
+				ResolvedType = "void",
+				Statements = { }
+			},
+			ResolvedType = "void"
+		});
+		if (body.Statements[^1] is WithinStatement within && within.Body is BlockStatement block)
+			block.Statements.AddRange(wrapped);
 	}
 
 	bool TryCreateCapturedParamsComponentReference(Expression? source, string componentName, LambdaContextInfo context, DeclarationTarget contextLocal, SyntaxNode? syntax, out Expression? reference)
@@ -643,6 +745,71 @@ public sealed partial class BindableNodeAnalyzer
 	bool LambdaHasCaptures(LambdaExpression lambda, FunctionDefinition? currentFunction, TypeDefinition? containingType)
 	{
 		return CollectLambdaCaptures(lambda, currentFunction, containingType, reportUnsupported: false).Count > 0;
+	}
+
+	static bool HasDelegateCleanup(Statement? statement)
+	{
+		if (statement is null)
+			return false;
+		if (statement is DeleteStatement { IsDelegateCleanup: true })
+			return true;
+		foreach ((Statement? childStatement, Expression? childExpression) in LambdaStatementChildren(statement))
+		{
+			if (HasDelegateCleanup(childStatement) || HasDelegateCleanup(childExpression))
+				return true;
+		}
+		return false;
+	}
+
+	static bool HasDelegateCleanup(Expression? expression)
+	{
+		if (expression is null || expression is LambdaExpression)
+			return false;
+		foreach (Expression child in LambdaExpressionChildren(expression))
+			if (HasDelegateCleanup(child))
+				return true;
+		return false;
+	}
+
+	static bool LambdaBodyUsesInheritedAllocator(LambdaExpression lambda)
+	{
+		if (LambdaHasWithinParameter(lambda))
+			return false;
+		return StatementUsesInheritedAllocator(lambda.Body);
+	}
+
+	static bool LambdaHasWithinParameter(LambdaExpression lambda)
+	{
+		foreach (LambdaParameter parameter in lambda.Parameters)
+			if (parameter.Parameter?.Modifier == ParameterModifier.Within)
+				return true;
+		return false;
+	}
+
+	static bool StatementUsesInheritedAllocator(Statement? statement)
+	{
+		if (statement is null)
+			return false;
+		if (statement is WithinStatement)
+			return false;
+		if (statement is DeleteStatement { IsDelegateCleanup: false, Expression: not null })
+			return true;
+		foreach ((Statement? childStatement, Expression? childExpression) in LambdaStatementChildren(statement))
+			if (StatementUsesInheritedAllocator(childStatement) || ExpressionUsesInheritedAllocator(childExpression))
+				return true;
+		return false;
+	}
+
+	static bool ExpressionUsesInheritedAllocator(Expression? expression)
+	{
+		if (expression is null || expression is LambdaExpression || expression is WithinExpression)
+			return false;
+		if (expression is ConstructionExpression { Kind: ConstructionKind.New } || expression is FinallyDeleteExpression)
+			return true;
+		foreach (Expression child in LambdaExpressionChildren(expression))
+			if (ExpressionUsesInheritedAllocator(child))
+				return true;
+		return false;
 	}
 
 	List<LambdaCapture> CollectLambdaCaptures(LambdaExpression lambda, FunctionDefinition? currentFunction, TypeDefinition? containingType, bool reportUnsupported)

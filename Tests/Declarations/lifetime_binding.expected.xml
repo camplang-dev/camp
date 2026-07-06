@@ -51,7 +51,7 @@
     <FunctionDefinition InvokerName="useAllocator" Name="useAllocator" Symbol="useAllocator" ResolvedType="void">
       <ReturnType Type="Void" ResolvedType="void" />
       <Parameters>
-        <WithinParameterDefinition Modifier="Within" LifetimeBinding="unscoped:default within" Name="allocator" Symbol="allocator" ResolvedType="Allocator*">
+        <WithinParameterDefinition Modifier="Within" LifetimeBinding="scoped:default within" Name="allocator" Symbol="allocator" ResolvedType="Allocator*">
           <Type Type="PointerTypeReference" ResolvedType="Allocator*">
             <ElementType Type="TypeDefinitionReference" Name="Allocator" Definition="Allocator" ResolvedType="Allocator" />
           </Type>

@@ -5,7 +5,7 @@
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static int (* makeCounter(int start, void **result_context))(void *arg0);
-static int makeCounter_lambda0(void *context);
+static int makeCounter_lambda0(void *_context);
 
 static int (* makeCounter(int start, void **result_context))(void *arg0)
 {
@@ -27,9 +27,9 @@ int main(void)
 	return ((result == 7) ? 0 : 1);
 }
 
-static int makeCounter_lambda0(void *context)
+static int makeCounter_lambda0(void *_context)
 {
-	makeCounter_lambdaContext0 *lambdaContext = (makeCounter_lambdaContext0 *)(context);
+	makeCounter_lambdaContext0 *lambdaContext = (makeCounter_lambdaContext0 *)(_context);
 	return lambdaContext->capture0_start;
 }
 

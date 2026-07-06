@@ -407,6 +407,17 @@ public sealed partial class BindableNodeAnalyzer
 		if (expression is NamedExpression { Qualifiers.Count: 0, Name: "base" } && CreateBaseDeleteCall() is Expression baseDelete)
 			return baseDelete;
 
+		if (expression is WithinExpression { Expression: not null } within)
+		{
+			bool defaultWithin = within.Context is DefaultWithinContextExpression;
+			Expression? allocator = defaultWithin ? null : LowerExpression(within.Context);
+			Expression? previousWithinContext = currentWithinContext;
+			currentWithinContext = defaultWithin ? null : CaptureWithinContext(allocator, within.SourceSyntax);
+			Expression result = RewriteDeleteExpression(within.Expression);
+			currentWithinContext = previousWithinContext;
+			return result;
+		}
+
 		Expression? target = LowerExpression(expression);
 		string targetType = target?.ResolvedType ?? ErrorType;
 		string? elementType = TryGetPointerElementType(targetType);

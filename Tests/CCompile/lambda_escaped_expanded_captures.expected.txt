@@ -7,10 +7,10 @@ void free(void *ptr);
 static Count makeSpanCount(void **result_context);
 static int (* makeOptionalReader(void **result_context))(void *arg0);
 static int (* makeDelegateReader(void **result_context))(void *arg0);
-static int makeDelegateReader_lambda0(void *context, int value);
-static uintptr_t makeSpanCount_lambda1(void *context);
-static int makeOptionalReader_lambda2(void *context);
-static int makeDelegateReader_lambda3(void *context);
+static int makeDelegateReader_lambda0(void *_context, int value);
+static uintptr_t makeSpanCount_lambda1(void *_context);
+static int makeOptionalReader_lambda2(void *_context);
+static int makeDelegateReader_lambda3(void *_context);
 
 static Count makeSpanCount(void **result_context)
 {
@@ -68,26 +68,26 @@ int main(void)
 	return 0;
 }
 
-static int makeDelegateReader_lambda0(void *context, int value)
+static int makeDelegateReader_lambda0(void *_context, int value)
 {
 	return (value + 1);
 }
 
-static uintptr_t makeSpanCount_lambda1(void *context)
+static uintptr_t makeSpanCount_lambda1(void *_context)
 {
-	makeSpanCount_lambdaContext0 *lambdaContext = (makeSpanCount_lambdaContext0 *)(context);
+	makeSpanCount_lambdaContext0 *lambdaContext = (makeSpanCount_lambdaContext0 *)(_context);
 	return lambdaContext->capture1_span_length;
 }
 
-static int makeOptionalReader_lambda2(void *context)
+static int makeOptionalReader_lambda2(void *_context)
 {
-	makeOptionalReader_lambdaContext1 *lambdaContext = (makeOptionalReader_lambdaContext1 *)(context);
+	makeOptionalReader_lambdaContext1 *lambdaContext = (makeOptionalReader_lambdaContext1 *)(_context);
 	return (lambdaContext->capture1_value_specified ? lambdaContext->capture0_value : 0);
 }
 
-static int makeDelegateReader_lambda3(void *context)
+static int makeDelegateReader_lambda3(void *_context)
 {
-	makeDelegateReader_lambdaContext2 *lambdaContext = (makeDelegateReader_lambdaContext2 *)(context);
+	makeDelegateReader_lambdaContext2 *lambdaContext = (makeDelegateReader_lambdaContext2 *)(_context);
 	return ((lambdaContext->capture1_mapper_context == NULL) ? 0 : 1);
 }
 

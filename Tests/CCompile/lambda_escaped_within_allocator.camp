@@ -14,13 +14,38 @@ class Arena
 	}
 }
 
-escaped delegate int() make(Arena* arena, int value)
+class Box
 {
-	return within (arena) (() => value);
+	int value;
 }
 
-void use(Arena* arena)
+escaped delegate int() make(escaped Arena* arena, int value)
+{
+	return within (arena) new delegate () =>
+	{
+		int result = value;
+		delete delegate;
+		return result;
+	};
+}
+
+escaped delegate int() makeWithBodyAllocation(escaped Arena* arena, int value)
+{
+	return within (arena) new delegate () =>
+	{
+		auto copied = new Box();
+		copied.value = value;
+		int result = copied.value;
+		delete copied;
+		delete delegate;
+		return result;
+	};
+}
+
+void use(escaped Arena* arena)
 {
 	auto callback = make(arena, 5);
-	within (arena) delete callback.context;
+	callback();
+	auto allocating = makeWithBodyAllocation(arena, 6);
+	allocating();
 }

@@ -4,9 +4,9 @@
 /* Private file declarations. */
 static int __camp_delegate_main_lambda2(void *arg0, int arg1);
 static int apply(int (* callback)(void *arg0, int arg1), void *callback_context, int value);
-static int main_lambda0(void *context, int value);
-static void main_lambda1(void *context);
-static int main_lambda2(void *context, int value);
+static int main_lambda0(void *_context, int value);
+static void main_lambda1(void *_context);
+static int main_lambda2(void *_context, int value);
 
 static int __camp_delegate_main_lambda2(void *arg0, int arg1)
 {
@@ -39,21 +39,21 @@ int main(void)
 	return ((((addOffset(addOffset_context, 1) == 21) && (count == 2)) && (direct == 22)) ? 0 : 1);
 }
 
-static int main_lambda0(void *context, int value)
+static int main_lambda0(void *_context, int value)
 {
-	main_lambdaContext0 *lambdaContext = (main_lambdaContext0 *)(context);
+	main_lambdaContext0 *lambdaContext = (main_lambdaContext0 *)(_context);
 	return (value + (*lambdaContext->capture0_offset));
 }
 
-static void main_lambda1(void *context)
+static void main_lambda1(void *_context)
 {
-	main_lambdaContext1 *lambdaContext = (main_lambdaContext1 *)(context);
+	main_lambdaContext1 *lambdaContext = (main_lambdaContext1 *)(_context);
 	(*lambdaContext->capture0_count)++;
 }
 
-static int main_lambda2(void *context, int value)
+static int main_lambda2(void *_context, int value)
 {
-	main_lambdaContext2 *lambdaContext = (main_lambdaContext2 *)(context);
+	main_lambdaContext2 *lambdaContext = (main_lambdaContext2 *)(_context);
 	return (value + (*lambdaContext->capture0_offset));
 }
 

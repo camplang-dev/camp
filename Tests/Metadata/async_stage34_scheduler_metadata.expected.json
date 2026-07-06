@@ -54,7 +54,7 @@
           "id": "function:AsyncStage34::loadAsync/parameter:allocator",
           "name": "allocator",
           "modifier": "within",
-          "type": "Allocator* escaped"
+          "type": "Allocator*"
         }
       ]
     }

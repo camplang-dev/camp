@@ -32,6 +32,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (!string.IsNullOrWhiteSpace(parameter.Name))
 				RegisterBodySymbol(scope, parameter.Name, parameter.ResolvedType ?? ErrorType, parameter, parameter.Type, parameter.ResolvedType);
 		}
+		scope.CurrentWithinContextLifetimeFact = GetWithinParameter(function)?.ValueLifetimeFact ?? GetWithinParameter(function)?.SlotLifetimeFact;
 
 		function.Body.ResolvedType = "void";
 		BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
@@ -368,6 +369,14 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			case DeleteStatement deleteStatement:
+				if (deleteStatement.IsDelegateCleanup)
+				{
+					if (scope.NewDelegateLambdaDepth <= 0)
+						Report(GetRange(deleteStatement.SourceSyntax), "'delete delegate' is valid only inside a 'new delegate' lambda.");
+					break;
+				}
+				if (IsDeleteContextExpression(deleteStatement.Expression))
+					Report(GetRange(deleteStatement.Expression?.SourceSyntax ?? deleteStatement.SourceSyntax), "Escaped delegate cleanup uses 'delete delegate'; 'delete context' is no longer valid.");
 				if (IsBaseDeleteExpression(deleteStatement.Expression))
 					AnalyzeBaseDeleteExpression(deleteStatement.Expression, scope);
 				else
@@ -405,7 +414,8 @@ public sealed partial class BindableNodeAnalyzer
 					CurrentFunctionSourceReturnType = scope.CurrentFunctionSourceReturnType,
 					CurrentIteratorElementType = scope.CurrentIteratorElementType,
 					CurrentIteratorThrownType = scope.CurrentIteratorThrownType,
-					ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth + 1
+					ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth + 1,
+					CurrentWithinContextLifetimeFact = withinStatement.Allocator is DefaultWithinContextExpression ? null : GetExpressionLifetimeFact(withinStatement.Allocator)
 				};
 				BodyAnalyzeOptionalStatement(withinStatement.Body, withinScope, typeScope);
 				break;
@@ -1547,7 +1557,8 @@ public sealed partial class BindableNodeAnalyzer
 			CurrentFunctionSourceReturnType = scope.CurrentFunctionSourceReturnType,
 			CurrentIteratorElementType = scope.CurrentIteratorElementType,
 			CurrentIteratorThrownType = scope.CurrentIteratorThrownType,
-			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth + 1
+			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth + 1,
+			CurrentWithinContextLifetimeFact = within.Context is DefaultWithinContextExpression ? null : GetExpressionLifetimeFact(within.Context)
 		};
 		return BodyAnalyzeExpression(within.Expression, withinScope, typeScope, targetType);
 	}
@@ -1574,9 +1585,20 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeLambdaExpression(LambdaExpression lambda, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
+		if (lambda.IsNewDelegate)
+			RequireExplicitWithin(lambda.SourceSyntax, scope, "new delegate requires an explicit within context; use within(allocator) or within(default).");
 		CallableShape? targetShape = TryGetLambdaCallableShape(targetType, out CallableShape callableTarget, out bool targetIsEscaped) ? callableTarget : null;
 		if (targetShape is CallableShape targetCallable && targetCallable.Kind is not ("fn" or "delegate" or "once"))
 			Report(GetRange(lambda.SourceSyntax), "Lambdas can target only fn, delegate, once callable types.");
+		ValidateNewDelegateTarget(lambda, targetShape, targetType, targetIsEscaped);
+		bool lambdaHasCaptures = LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType);
+		bool lambdaBodyUsesInheritedAllocator = LambdaBodyUsesInheritedAllocator(lambda);
+		bool lambdaCleanupNeedsAllocator = HasDelegateCleanup(lambda.Body) && (lambdaHasCaptures || lambdaBodyUsesInheritedAllocator);
+		if (lambda.IsNewDelegate
+			&& (lambdaBodyUsesInheritedAllocator || lambdaCleanupNeedsAllocator)
+			&& scope.CurrentWithinContextLifetimeFact is string allocatorFact
+			&& (!TryParseLifetimeFact(allocatorFact, out LifetimeFact parsedAllocatorFact) || parsedAllocatorFact.Kind != "escaped"))
+			Report(GetRange(lambda.SourceSyntax), "Escaped delegate lambda captures the allocator used for deferred allocation or cleanup; use an escaped allocator or within(default).");
 		string lambdaSourceReturnType = targetShape is CallableShape lambdaTarget
 			? LambdaSourceReturnType(lambdaTarget.ReturnType, lambda)
 			: TargetType;
@@ -1586,7 +1608,8 @@ public sealed partial class BindableNodeAnalyzer
 			CurrentFunctionSourceReturnType = lambdaSourceReturnType,
 			CurrentIteratorElementType = null,
 			CurrentIteratorThrownType = null,
-			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth
+			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth,
+			NewDelegateLambdaDepth = scope.NewDelegateLambdaDepth + (lambda.IsNewDelegate ? 1 : 0)
 		};
 
 		if (targetShape is CallableShape shape && shape.Parameters.Count != lambda.Parameters.Count)
@@ -1621,6 +1644,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (lambda.Body is BlockStatement block)
 		{
 			ValidateLambdaConstOfAnchors(lambda, block);
+			ValidateLambdaReservedContextUse(lambda, block);
 			RewriteVoidLambdaExpressionBody(block, targetShape?.ReturnType);
 			BodyAnalyzeBlock(block.Statements, lambdaScope, typeScope);
 			BindStatementLabels(block.Statements);
@@ -1643,8 +1667,10 @@ public sealed partial class BindableNodeAnalyzer
 				: targetShape is CallableShape target && i < target.Parameters.Count ? target.Parameters[i] : parameter.ResolvedType ?? ErrorType);
 		}
 
-		string inferredKind = hasCaptures ? "delegate" : "fn";
+		string inferredKind = lambda.IsNewDelegate || hasCaptures ? "delegate" : "fn";
 		string inferredType = BuildCallableType(inferredKind, targetShape?.ReturnType ?? returnType, parameterTypes);
+		if (lambda.IsNewDelegate)
+			inferredType = "escaped " + inferredType;
 		if (targetType is not null
 			&& TryGetLambdaCallableShape(targetType, out CallableShape expectedShape, out bool expectedEscaped)
 			&& expectedShape.Kind is "fn" or "delegate" or "once"
@@ -1652,6 +1678,71 @@ public sealed partial class BindableNodeAnalyzer
 			return targetType;
 
 		return inferredType;
+	}
+
+	void ValidateNewDelegateTarget(LambdaExpression lambda, CallableShape? targetShape, string? targetType, bool targetIsEscaped)
+	{
+		if (targetShape is null)
+			return;
+
+		if (lambda.IsNewDelegate)
+		{
+			if (targetShape.Value.Kind != "delegate" || !targetIsEscaped)
+				Report(GetRange(lambda.SourceSyntax), $"'new delegate' cannot target '{targetType ?? "unknown"}'; use an ordinary lambda for fn, scoped delegate, or once targets.");
+			return;
+		}
+
+		if (targetShape.Value.Kind == "delegate" && targetIsEscaped)
+		{
+			string baseName = targetType is null ? "" : BaseTypeName(StripLifetimeQualifiers(targetType));
+			if (!string.IsNullOrWhiteSpace(baseName)
+				&& typeDefinitions.TryGetValue(baseName, out TypeDefinition? definition)
+				&& definition is NewtypeDefinition)
+				Report(GetRange(lambda.SourceSyntax), $"Lambda targeting escaped delegate newtype '{baseName}' requires 'new delegate'.");
+			else
+				Report(GetRange(lambda.SourceSyntax), $"Lambda targeting escaped delegate type '{targetType}' requires 'new delegate'.");
+		}
+	}
+
+	static bool IsDeleteContextExpression(Expression? expression)
+	{
+		return expression is NamedExpression { Name: "context" }
+			|| expression is VariableReferenceExpression { Variable: DeclarationTarget { Names.Count: > 0 } target } && target.Names[0] == "context"
+			|| expression is VariableReferenceExpression { Variable: ParameterDefinition { Name: "context" } };
+	}
+
+	void ValidateLambdaReservedContextUse(LambdaExpression lambda, BlockStatement block)
+	{
+		foreach ((Statement? statement, Expression? expression) in LambdaStatementChildren(block))
+		{
+			if (statement is not null)
+				ValidateLambdaReservedContextUse(lambda, statement);
+			if (expression is not null)
+				ValidateLambdaReservedContextUse(lambda, expression);
+		}
+	}
+
+	void ValidateLambdaReservedContextUse(LambdaExpression lambda, Statement statement)
+	{
+		if (statement is DeleteStatement { IsDelegateCleanup: true })
+			return;
+		foreach ((Statement? childStatement, Expression? childExpression) in LambdaStatementChildren(statement))
+		{
+			if (childStatement is not null)
+				ValidateLambdaReservedContextUse(lambda, childStatement);
+			if (childExpression is not null)
+				ValidateLambdaReservedContextUse(lambda, childExpression);
+		}
+	}
+
+	void ValidateLambdaReservedContextUse(LambdaExpression lambda, Expression expression)
+	{
+		if (expression is NamedExpression { Name: "_context" }
+			|| expression is VariableReferenceExpression { Variable: DeclarationTarget { Names.Count: > 0 } target } && target.Names[0] == "_context"
+			|| expression is VariableReferenceExpression { Variable: ParameterDefinition { Name: "_context" } })
+			Report(GetRange(expression.SourceSyntax ?? lambda.SourceSyntax), "'_context' is compiler-managed lambda storage and cannot be read, assigned, passed, addressed, or deleted.");
+		foreach (Expression child in LambdaExpressionChildren(expression))
+			ValidateLambdaReservedContextUse(lambda, child);
 	}
 
 	void ValidateLambdaConstOfAnchors(LambdaExpression lambda, BlockStatement block)
@@ -4536,6 +4627,8 @@ public sealed partial class BindableNodeAnalyzer
 		public Dictionary<string, string> ComponentSymbols { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, BodyComponentSymbol> ComponentSymbolTypes { get; } = new(StringComparer.Ordinal);
 		public int ExplicitWithinContextDepth { get; set; } = parent?.ExplicitWithinContextDepth ?? 0;
+		public int NewDelegateLambdaDepth { get; set; } = parent?.NewDelegateLambdaDepth ?? 0;
+		public string? CurrentWithinContextLifetimeFact { get; set; } = parent?.CurrentWithinContextLifetimeFact;
 
 		public bool TryLookup(string name, out BodySymbol symbol)
 		{

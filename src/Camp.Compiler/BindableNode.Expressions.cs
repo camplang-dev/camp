@@ -151,6 +151,7 @@ public class NameOfExpression : Expression
 
 public class LambdaExpression : Expression
 {
+	public bool IsNewDelegate { get; set; }
 	public List<LambdaParameter> Parameters { get; } = [];
 	public BlockStatement? Body { get; set; }
 }

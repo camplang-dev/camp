@@ -349,6 +349,7 @@ public sealed partial class BindableNodeBuilder
 		LambdaExpression expression = new()
 		{
 			SourceSyntax = syntax,
+			IsNewDelegate = syntax.NewKeyword is not null,
 			Body = syntax.Body is null ? null : BuildLambdaBody(syntax.Body, context)
 		};
 
@@ -358,7 +359,15 @@ public sealed partial class BindableNodeBuilder
 		foreach (LambdaParameterSyntax parameter in syntax.ParameterList?.Parameters ?? [])
 			expression.Parameters.Add(BuildLambdaParameter(parameter));
 
-		return expression;
+		if (syntax.AllocatorExpression is null)
+			return expression;
+
+		return new WithinExpression
+		{
+			SourceSyntax = syntax,
+			Context = BuildWithinContextExpression(syntax.AllocatorExpression, $"{context} lambda allocator expression"),
+			Expression = expression
+		};
 	}
 
 	BlockStatement? BuildLambdaBody(LambdaBodySyntax syntax, string context)

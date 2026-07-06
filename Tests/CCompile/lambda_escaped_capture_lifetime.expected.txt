@@ -6,7 +6,7 @@ static int __camp_delegate_main_lambda0(void *arg0);
 void *malloc(uintptr_t size);
 int *getEscapedInt(void);
 static int apply(int (* callback)(void *arg0), void *callback_context);
-static int main_lambda0(void *context);
+static int main_lambda0(void *_context);
 
 static int __camp_delegate_main_lambda0(void *arg0)
 {
@@ -26,9 +26,9 @@ int main(void)
 	return apply(__camp_delegate_main_lambda0, _lambdaContext0);
 }
 
-static int main_lambda0(void *context)
+static int main_lambda0(void *_context)
 {
-	main_lambdaContext0 *lambdaContext = (main_lambdaContext0 *)(context);
+	main_lambdaContext0 *lambdaContext = (main_lambdaContext0 *)(_context);
 	return *lambdaContext->capture0_value;
 }
 

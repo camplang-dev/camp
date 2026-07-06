@@ -22,6 +22,6 @@ void acceptWorker(escaped delegate int(int) mapper)
 void use(escaped Worker* worker)
 {
 	int offset = 2;
-	acceptMapper(value => value + offset);
+	acceptMapper(new delegate value => value + offset);
 	acceptWorker(worker.adjust);
 }

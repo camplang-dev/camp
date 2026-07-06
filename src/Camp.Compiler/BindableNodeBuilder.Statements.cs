@@ -109,7 +109,7 @@ public sealed partial class BindableNodeBuilder
 			"try" => new TryStatement { SourceSyntax = syntax, Body = BuildStatementBody(syntax) },
 			"return" => new ReturnStatement { SourceSyntax = syntax, Expression = BuildStatementExpression(syntax, "Return statement") },
 			"yield" => new YieldStatement { SourceSyntax = syntax, Expression = BuildStatementExpression(syntax, "Yield statement") },
-			"delete" => new DeleteStatement { SourceSyntax = syntax, Expression = BuildStatementExpression(syntax, "Delete statement") },
+			"delete" => new DeleteStatement { SourceSyntax = syntax, IsDelegateCleanup = syntax.SpecialKeyword?.Value == "delegate", Expression = syntax.SpecialKeyword?.Value == "delegate" ? null : BuildStatementExpression(syntax, "Delete statement") },
 			"throw" => new ExpressionStatement { SourceSyntax = syntax, Expression = new UnaryExpression { SourceSyntax = syntax, Operator = UnaryOperator.Throw, Operand = BuildStatementExpression(syntax, "Throw statement") } },
 			"goto" => BuildGotoStatement(syntax),
 			"break" => BuildBreakStatement(syntax),

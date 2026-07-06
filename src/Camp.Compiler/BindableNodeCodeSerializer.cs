@@ -804,7 +804,10 @@ public sealed class BindableNodeCodeSerializer
 			case DeleteStatement deleteStatement:
 				WriteIndent();
 				writer.Write("delete ");
-				WriteExpression(deleteStatement.Expression);
+				if (deleteStatement.IsDelegateCleanup)
+					writer.Write("delegate");
+				else
+					WriteExpression(deleteStatement.Expression);
 				writer.WriteLine(";");
 				break;
 
@@ -1760,6 +1763,8 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteLambda(LambdaExpression lambda)
 	{
+		if (lambda.IsNewDelegate)
+			writer.Write("new delegate ");
 		WriteDelimited("(", ")", lambda.Parameters, parameter =>
 		{
 			if (parameter.Parameter is not null)

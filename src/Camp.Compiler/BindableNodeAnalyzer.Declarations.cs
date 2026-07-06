@@ -1527,7 +1527,7 @@ public sealed partial class BindableNodeAnalyzer
 		ApplySymbolAttribute(definition, allowed: false, "parameter");
 
 		if (definition is WithinParameterDefinition && definition.Type is null)
-			BindImplicitWithinParameterType(definition, scope, escaped: asyncContext);
+			BindImplicitWithinParameterType(definition, scope);
 
 		if (definition is SizeOfParameterDefinition)
 		{
@@ -1582,7 +1582,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (definition.LifetimeBinding is null && definition is not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition)
 		{
 			if (definition is WithinParameterDefinition)
-				BindParameterLifetime(definition, asyncContext ? "escaped" : "unscoped", [], "default within");
+				BindParameterLifetime(definition, "scoped", [], "default within");
 			else
 				BindDefaultParameterLifetime(definition, "default parameter");
 		}
@@ -1591,7 +1591,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeConstantExpression(definition.DefaultValue, scope, "Parameter default value", definition.ResolvedType);
 	}
 
-	void BindImplicitWithinParameterType(ParameterDefinition definition, AnalysisScope scope, bool escaped)
+	void BindImplicitWithinParameterType(ParameterDefinition definition, AnalysisScope scope)
 	{
 		NamedTypeReference allocatorType = new()
 		{
@@ -1612,14 +1612,7 @@ public sealed partial class BindableNodeAnalyzer
 			ElementType = allocatorType,
 			ResolvedType = $"{allocatorType.ResolvedType}*"
 		};
-		definition.Type = escaped
-			? new EscapedTypeReference
-			{
-				SourceSyntax = definition.SourceSyntax,
-				Type = pointer,
-				ResolvedType = "escaped " + pointer.ResolvedType
-			}
-			: pointer;
+		definition.Type = pointer;
 		definition.ResolvedType = definition.Type.ResolvedType;
 	}
 

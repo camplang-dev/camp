@@ -1001,6 +1001,13 @@ public sealed class CampParser
 			Keyword = Take()
 		};
 
+		if (syntax.Keyword?.Value == "delete" && Is("delegate") && ValueIsAny(PeekValue(1), ";"))
+		{
+			syntax.SpecialKeyword = Take();
+			syntax.Body = new EmptyStatementSyntax { SemicolonToken = Expect(";") };
+			return syntax;
+		}
+
 		if (KeywordRequiresExpressionBody(syntax.Keyword?.Value))
 		{
 			if (!Is(";"))
@@ -1799,11 +1806,37 @@ public sealed class CampParser
 	{
 		int start = index;
 		int diagnosticStart = diagnostics.Count;
+		Token? withinKeyword = null;
+		Token? withinOpenParen = null;
+		ExpressionSyntax? allocatorExpression = null;
+		Token? withinCloseParen = null;
+		Token? newKeyword = null;
+		Token? delegateKeyword = null;
+
+		if (Is("within") && PeekValue(1) == "(")
+		{
+			withinKeyword = Take();
+			withinOpenParen = Expect("(");
+			allocatorExpression = ParseExpression();
+			withinCloseParen = Expect(")");
+		}
+
+		if (Is("new") && PeekValue(1) == "delegate")
+		{
+			newKeyword = Take();
+			delegateKeyword = Take();
+		}
 
 		if (IsIdentifier() && OperatorAfterOffset(1, "=>") is TokenRange singleArrow)
 		{
 			return new LambdaExpressionSyntax
 			{
+				WithinKeyword = withinKeyword,
+				WithinOpenParenToken = withinOpenParen,
+				AllocatorExpression = allocatorExpression,
+				WithinCloseParenToken = withinCloseParen,
+				NewKeyword = newKeyword,
+				DelegateKeyword = delegateKeyword,
 				Parameter = new LambdaParameterSyntax { Identifier = TakeIdentifier() },
 				ArrowToken = TakeOperator("=>"),
 				Body = ParseLambdaBody()
@@ -1811,10 +1844,23 @@ public sealed class CampParser
 		}
 
 		if (!Is("("))
+		{
+			if (newKeyword is not null || withinKeyword is not null)
+			{
+				index = start;
+				diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
+			}
 			return null;
+		}
 
 		LambdaExpressionSyntax syntax = new()
 		{
+			WithinKeyword = withinKeyword,
+			WithinOpenParenToken = withinOpenParen,
+			AllocatorExpression = allocatorExpression,
+			WithinCloseParenToken = withinCloseParen,
+			NewKeyword = newKeyword,
+			DelegateKeyword = delegateKeyword,
 			OpenParenToken = Take(),
 			ParameterList = new LambdaParameterListSyntax { Parameters = [], Commas = [] }
 		};

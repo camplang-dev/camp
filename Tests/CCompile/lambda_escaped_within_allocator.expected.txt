@@ -7,8 +7,10 @@ void free(void *ptr);
 static void *Arena_alloc(Arena *this, uintptr_t size);
 static void Arena_free(Arena *this, void *ptr);
 static int (* make(Arena *arena, int value, void **result_context))(void *arg0);
+static int (* makeWithBodyAllocation(Arena *arena, int value, void **result_context))(void *arg0);
 static void use(Arena *arena);
-static int make_lambda0(void *context);
+static int make_lambda0(void *_context);
+static int makeWithBodyAllocation_lambda1(void *_context);
 
 static void *Arena_alloc(Arena *this, uintptr_t size)
 {
@@ -23,11 +25,24 @@ static void Arena_free(Arena *this, void *ptr)
 static int (* make(Arena *arena, int value, void **result_context))(void *arg0)
 {
 	Arena *_allocator0 = arena;
-	make_lambdaContext0 *_lambdaContext1 = (make_lambdaContext0 *)(((_allocator0 != NULL) ? Arena_alloc(_allocator0, sizeof(make_lambdaContext0)) : malloc(sizeof(make_lambdaContext0))));
+	make_lambdaContext0 *_lambdaContext1 = (make_lambdaContext0 *)(((_allocator0 != NULL) ? Arena_alloc((Arena *)(_allocator0), sizeof(make_lambdaContext0)) : malloc(sizeof(make_lambdaContext0))));
+	_lambdaContext1->_allocator = _allocator0;
 	_lambdaContext1->capture0_value = value;
 	{
 		(*result_context) = _lambdaContext1;
 		return make_lambda0;
+	}
+}
+
+static int (* makeWithBodyAllocation(Arena *arena, int value, void **result_context))(void *arg0)
+{
+	Arena *_allocator3 = arena;
+	makeWithBodyAllocation_lambdaContext1 *_lambdaContext4 = (makeWithBodyAllocation_lambdaContext1 *)(((_allocator3 != NULL) ? Arena_alloc((Arena *)(_allocator3), sizeof(makeWithBodyAllocation_lambdaContext1)) : malloc(sizeof(makeWithBodyAllocation_lambdaContext1))));
+	_lambdaContext4->_allocator = _allocator3;
+	_lambdaContext4->capture0_value = value;
+	{
+		(*result_context) = _lambdaContext4;
+		return makeWithBodyAllocation_lambda1;
 	}
 }
 
@@ -36,16 +51,41 @@ static void use(Arena *arena)
 	int (* callback)(void *arg0);
 	void *callback_context;
 	callback = make(arena, 5, &callback_context);
-	{
-		Arena *_allocator2 = arena;
-		((_allocator2 != NULL) ? Arena_free(_allocator2, (void *)(callback_context)) : free((void *)(callback_context)));
-	}
+	callback(callback_context);
+	int (* allocating)(void *arg0);
+	void *allocating_context;
+	allocating = makeWithBodyAllocation(arena, 6, &allocating_context);
+	allocating(allocating_context);
 }
 
-static int make_lambda0(void *context)
+static int make_lambda0(void *_context)
 {
-	make_lambdaContext0 *lambdaContext = (make_lambdaContext0 *)(context);
-	return lambdaContext->capture0_value;
+	make_lambdaContext0 *lambdaContext = (make_lambdaContext0 *)(_context);
+	int result = lambdaContext->capture0_value;
+	Arena *_allocator2 = lambdaContext->_allocator;
+	((_allocator2 != NULL) ? Arena_free((Arena *)(_allocator2), (void *)(lambdaContext)) : free((void *)(lambdaContext)));
+	return result;
+}
+
+static int makeWithBodyAllocation_lambda1(void *_context)
+{
+	makeWithBodyAllocation_lambdaContext1 *lambdaContext = (makeWithBodyAllocation_lambdaContext1 *)(_context);
+	{
+		Arena *_allocator5 = lambdaContext->_allocator;
+		{
+			Box *copied = (Box *)(((_allocator5 != NULL) ? Arena_alloc((Arena *)(_allocator5), sizeof(Box)) : malloc(sizeof(Box))));
+			if ((copied != NULL))
+			{
+				*copied = (Box){0};
+			}
+			copied->value = lambdaContext->capture0_value;
+			int result = copied->value;
+			((_allocator5 != NULL) ? Arena_free((Arena *)(_allocator5), (void *)(copied)) : free((void *)(copied)));
+			Arena *_allocator6 = lambdaContext->_allocator;
+			((_allocator6 != NULL) ? Arena_free((Arena *)(_allocator6), (void *)(lambdaContext)) : free((void *)(lambdaContext)));
+			return result;
+		}
+	}
 }
 
 // file: lambda_escaped_within_allocator_private.h
@@ -58,7 +98,9 @@ static int make_lambda0(void *context)
 
 /* Forward declarations. */
 typedef struct Arena Arena;
+typedef struct Box Box;
 typedef struct make_lambdaContext0 make_lambdaContext0;
+typedef struct makeWithBodyAllocation_lambdaContext1 makeWithBodyAllocation_lambdaContext1;
 
 /* Enums. */
 
@@ -68,10 +110,20 @@ typedef struct make_lambdaContext0 make_lambdaContext0;
 struct make_lambdaContext0
 {
 	int capture0_value;
+	Arena *_allocator;
+};
+struct makeWithBodyAllocation_lambdaContext1
+{
+	int capture0_value;
+	Arena *_allocator;
 };
 struct Arena
 {
 	char _camp_empty;
+};
+struct Box
+{
+	int value;
 };
 
 /* Function declarations. */

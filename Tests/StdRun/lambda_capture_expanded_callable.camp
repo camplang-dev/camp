@@ -7,7 +7,7 @@ void invoke(escaped delegate void() callback)
 
 void captureOnce(escaped once void() complete)
 {
-	invoke(() => { complete(); });
+	invoke(new delegate () => { complete(); });
 }
 
 int done;

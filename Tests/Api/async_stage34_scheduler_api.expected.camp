@@ -8,4 +8,4 @@ export extern class Resumer
 {
 	export extern void resumeAsync(escaped once void() continuation);
 }
-export extern async int loadAsync(within Allocator* escaped allocator);
+export extern async int loadAsync(within Allocator* allocator);

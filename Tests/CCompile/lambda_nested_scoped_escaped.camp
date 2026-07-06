@@ -12,7 +12,7 @@ int invokeEscaped(escaped delegate int() callback)
 
 int runNested(int seed)
 {
-	return invokeEscaped(() =>
+	return invokeEscaped(new delegate () =>
 	{
 		int inner = seed + 1;
 		return invokeScoped(() => inner + seed);

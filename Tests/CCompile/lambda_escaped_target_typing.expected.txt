@@ -9,7 +9,7 @@ static void acceptMapper(Mapper mapper, void *mapper_context);
 static int Worker_adjust(Worker *this, int value);
 static void acceptWorker(int (* mapper)(void *arg0, int arg1), void *mapper_context);
 static void use(Worker *worker);
-static int use_lambda0(void *context, int value);
+static int use_lambda0(void *_context, int value);
 
 static int __camp_delegate_use_lambda0(void *arg0, int arg1)
 {
@@ -38,9 +38,9 @@ static void use(Worker *worker)
 	acceptWorker((int (*)(void *arg0, int arg1))Worker_adjust, (Worker *)(worker));
 }
 
-static int use_lambda0(void *context, int value)
+static int use_lambda0(void *_context, int value)
 {
-	use_lambdaContext0 *lambdaContext = (use_lambdaContext0 *)(context);
+	use_lambdaContext0 *lambdaContext = (use_lambdaContext0 *)(_context);
 	return (value + lambdaContext->capture0_offset);
 }
 

@@ -7,7 +7,7 @@ void *malloc(uintptr_t size);
 void free(void *ptr);
 static int apply(bool (* predicate)(void *arg0, int *arg1), void *predicate_context, int *value);
 static int main(void);
-static bool main_lambda0(void *context, int *value);
+static bool main_lambda0(void *_context, int *value);
 
 static bool __camp_delegate_main_lambda0(void *arg0, int *arg1)
 {
@@ -41,7 +41,7 @@ __cleanup2: ;
 	return _return3;
 }
 
-static bool main_lambda0(void *context, int *value)
+static bool main_lambda0(void *_context, int *value)
 {
 	return ((*value) == 3);
 }

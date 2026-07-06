@@ -33,7 +33,7 @@ export int main()
 	waitForSleepAsync(&resumer, completeAwaited, null);
 	Console.writeLine(awaitedDone);
 
-	TimerHandle handle = startTimer(10, h => {
+	TimerHandle handle = startTimer(10, new delegate h => {
 		ticks++;
 		if (ticks >= 2)
 			stopTimer(h);

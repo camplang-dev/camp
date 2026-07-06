@@ -108,6 +108,7 @@ public class YieldStatement : Statement
 
 public class DeleteStatement : Statement
 {
+	public bool IsDelegateCleanup { get; set; }
 	public Expression? Expression { get; set; }
 }
 

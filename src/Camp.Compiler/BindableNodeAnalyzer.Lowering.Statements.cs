@@ -241,6 +241,8 @@ public sealed partial class BindableNodeAnalyzer
 				return WithPendingCleanups(yieldStatement);
 
 			case DeleteStatement deleteStatement:
+				if (deleteStatement.IsDelegateCleanup)
+					return new EmptyStatement { SourceSyntax = deleteStatement.SourceSyntax };
 				return WithPendingCleanups(new ExpressionStatement
 				{
 					SourceSyntax = deleteStatement.SourceSyntax,

@@ -5,13 +5,13 @@ void accept(escaped delegate int() callback)
 void captureStackArray()
 {
 	int[] values = [1, 2, 3];
-	accept(() => (int)values.length);
+	accept(new delegate () => (int)values.length);
 }
 
 void mutateCapturedValue()
 {
 	int count = 0;
-	accept(() =>
+	accept(new delegate () =>
 	{
 		count++;
 		return count;
@@ -24,6 +24,39 @@ class Box
 
 	void captureThis()
 	{
-		accept(() => this.value);
+		accept(new delegate () => this.value);
 	}
+}
+
+class Arena
+{
+	escaped void* alloc(nuint size) => default;
+	void free(escaped void* ptr) {}
+}
+
+class HeapBox
+{
+	int value;
+}
+
+escaped delegate int() cleanupWithScopedAllocator(Arena* arena, int value)
+{
+	return within (arena) new delegate () =>
+	{
+		delete delegate;
+		return value;
+	};
+}
+
+escaped delegate int() allocateWithScopedAllocator(Arena* arena, int value)
+{
+	return within (arena) new delegate () =>
+	{
+		auto copied = new HeapBox();
+		copied.value = value;
+		int result = copied.value;
+		delete copied;
+		delete delegate;
+		return result;
+	};
 }

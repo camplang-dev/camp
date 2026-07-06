@@ -14,7 +14,7 @@ void fail(thrown Err error)
 
 escaped delegate int(int) makeBlockAdder(int offset)
 {
-	return (int value) =>
+	return new delegate (int value) =>
 	{
 		int doubled = value * 2;
 		try
@@ -30,7 +30,7 @@ escaped delegate int(int) makeBlockAdder(int offset)
 
 escaped delegate nuint() makeSpanLength(escaped const char[] span)
 {
-	return () => span.length;
+	return new delegate () => span.length;
 }
 
 class Box
@@ -91,9 +91,9 @@ export int main()
 
 	int threshold = 2;
 	auto values = [1, 2, 3, 4];
-	total = total + (int)values.countWhere(item => item > threshold);
+	total = total + (int)values.countWhere(new delegate item => item > threshold);
 
-	foreach (auto item in values.filter(item => item > threshold))
+	foreach (auto item in values.filter(new delegate item => item > threshold))
 		total = total + item;
 
 	try
@@ -102,7 +102,7 @@ export int main()
 	}
 	catch (Err e)
 	{
-		total = total + invoke0(() => e == Err.ERR_BAD ? 5 : 0);
+		total = total + invoke0(new delegate () => e == Err.ERR_BAD ? 5 : 0);
 	}
 
 	return total == 58 ? 0 : 1;

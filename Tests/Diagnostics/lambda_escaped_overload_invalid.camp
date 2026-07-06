@@ -13,5 +13,5 @@ void chooseEscaped(escaped delegate bool(int) predicate)
 void main()
 {
 	choose(value => true);
-	chooseEscaped(value => value > 0);
+	chooseEscaped(new delegate value => value > 0);
 }

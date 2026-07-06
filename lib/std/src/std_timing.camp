@@ -28,7 +28,7 @@ export void sleepAsync(nuint timeoutMs, escaped once void() complete)
 		return;
 	}
 
-	startTimer(timeoutMs, h => {
+	startTimer(timeoutMs, new delegate h => {
 		stopTimer(h);
 		complete();
 	});

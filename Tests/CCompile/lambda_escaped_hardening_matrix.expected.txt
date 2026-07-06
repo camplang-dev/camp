@@ -19,11 +19,11 @@ static bool filterIter_next(filterIter *this, int *current);
 static void filterIter_op_delete(filterIter *this);
 static void filterIter_destroy(filterIter *this);
 static bool filterIter_iter(void *ctx, int *current);
-static int makeBlockAdder_lambda0(void *context, int value);
-static uintptr_t makeSpanLength_lambda1(void *context);
-static bool main_lambda2(void *context, int *item);
-static bool main_lambda3(void *context, int *item);
-static int main_lambda4(void *context);
+static int makeBlockAdder_lambda0(void *_context, int value);
+static uintptr_t makeSpanLength_lambda1(void *_context);
+static bool main_lambda2(void *_context, int *item);
+static bool main_lambda3(void *_context, int *item);
+static int main_lambda4(void *_context);
 
 static bool __camp_delegate_main_lambda2(void *arg0, int *arg1)
 {
@@ -223,9 +223,9 @@ static bool filterIter_iter(void *ctx, int *current)
 	return filterIter_next(state, current);
 }
 
-static int makeBlockAdder_lambda0(void *context, int value)
+static int makeBlockAdder_lambda0(void *_context, int value)
 {
-	makeBlockAdder_lambdaContext0 *lambdaContext = (makeBlockAdder_lambdaContext0 *)(context);
+	makeBlockAdder_lambdaContext0 *lambdaContext = (makeBlockAdder_lambdaContext0 *)(_context);
 	int doubled = (value * 2);
 	{
 		int _return3 = 0;
@@ -243,27 +243,27 @@ __cleanup4: ;
 	}
 }
 
-static uintptr_t makeSpanLength_lambda1(void *context)
+static uintptr_t makeSpanLength_lambda1(void *_context)
 {
-	makeSpanLength_lambdaContext1 *lambdaContext = (makeSpanLength_lambdaContext1 *)(context);
+	makeSpanLength_lambdaContext1 *lambdaContext = (makeSpanLength_lambdaContext1 *)(_context);
 	return lambdaContext->capture1_span_length;
 }
 
-static bool main_lambda2(void *context, int *item)
+static bool main_lambda2(void *_context, int *item)
 {
-	main_lambdaContext2 *lambdaContext = (main_lambdaContext2 *)(context);
+	main_lambdaContext2 *lambdaContext = (main_lambdaContext2 *)(_context);
 	return ((*item) > lambdaContext->capture0_threshold);
 }
 
-static bool main_lambda3(void *context, int *item)
+static bool main_lambda3(void *_context, int *item)
 {
-	main_lambdaContext3 *lambdaContext = (main_lambdaContext3 *)(context);
+	main_lambdaContext3 *lambdaContext = (main_lambdaContext3 *)(_context);
 	return ((*item) > lambdaContext->capture0_threshold);
 }
 
-static int main_lambda4(void *context)
+static int main_lambda4(void *_context)
 {
-	main_lambdaContext4 *lambdaContext = (main_lambdaContext4 *)(context);
+	main_lambdaContext4 *lambdaContext = (main_lambdaContext4 *)(_context);
 	return ((lambdaContext->capture0_e == Err_ERR_BAD) ? 5 : 0);
 }
 

@@ -353,6 +353,7 @@ public class BlockStatementSyntax : StatementSyntax
 public class KeywordStatementSyntax : StatementSyntax
 {
 	public Token? Keyword { get; set; }
+	public Token? SpecialKeyword { get; set; }
 	public Token? OpenParenToken { get; set; }
 	public StatementConditionSyntax? Condition { get; set; }
 	public Token? CloseParenToken { get; set; }
@@ -741,6 +742,12 @@ public class InitializerTargetPartSyntax : SyntaxNode
 
 public class LambdaExpressionSyntax : ExpressionSyntax
 {
+	public Token? WithinKeyword { get; set; }
+	public Token? WithinOpenParenToken { get; set; }
+	public ExpressionSyntax? AllocatorExpression { get; set; }
+	public Token? WithinCloseParenToken { get; set; }
+	public Token? NewKeyword { get; set; }
+	public Token? DelegateKeyword { get; set; }
 	public LambdaParameterSyntax? Parameter { get; set; }
 	public Token? OpenParenToken { get; set; }
 	public LambdaParameterListSyntax? ParameterList { get; set; }

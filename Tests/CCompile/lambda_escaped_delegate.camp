@@ -8,5 +8,5 @@ int apply(escaped delegate int(int) callback, int value)
 export int main()
 {
 	int offset = 40;
-	return apply(value => value + offset, 2);
+	return apply(new delegate value => value + offset, 2);
 }

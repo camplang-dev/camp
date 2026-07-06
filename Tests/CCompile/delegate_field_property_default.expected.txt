@@ -5,7 +5,7 @@
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static WindowEventHandler Window_getEventHandler(const Window *this, void **result_context);
-static void main_lambda0(void *context);
+static void main_lambda0(void *_context);
 
 static WindowEventHandler Window_getEventHandler(const Window *this, void **result_context)
 {
@@ -45,7 +45,7 @@ int main(void)
 	return 0;
 }
 
-static void main_lambda0(void *context)
+static void main_lambda0(void *_context)
 {
 }
 

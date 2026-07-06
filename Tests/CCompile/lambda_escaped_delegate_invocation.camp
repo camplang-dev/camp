@@ -3,7 +3,7 @@ extern void free(escaped void* ptr);
 
 escaped delegate int() makeCounter(int start)
 {
-	return () => start;
+	return new delegate () => start;
 }
 
 export int main()
