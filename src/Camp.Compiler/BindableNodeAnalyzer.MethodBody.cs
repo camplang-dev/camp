@@ -1499,6 +1499,12 @@ public sealed partial class BindableNodeAnalyzer
 		string targetType = construction.Type?.ResolvedType ?? TargetType;
 		if (construction.Kind == ConstructionKind.New)
 			RequireExplicitWithin(construction.SourceSyntax, scope, "new requires an explicit within context; use within(allocator) or within(default).");
+		if (construction.Kind == ConstructionKind.New
+			&& construction.ElementCount is null
+			&& TryGetPrimitiveType(targetType, out _))
+		{
+			Report(GetRange(construction.SourceSyntax), $"Primitive type '{targetType}' cannot be allocated with new {targetType}(); allocate primitive storage with an array expression such as new {targetType}[1].");
+		}
 		if (construction.Kind == ConstructionKind.Init
 			&& typeDefinitions.TryGetValue(BaseConstructedType(targetType), out TypeDefinition? constructedDefinition)
 			&& constructedDefinition is ClassDefinition { Extern: not null })

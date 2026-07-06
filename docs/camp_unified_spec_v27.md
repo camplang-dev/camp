@@ -1539,6 +1539,8 @@ auto heapBytes = new byte[256];
 
 The resulting array value carries the element pointer and length component. Element construction rules for constructor-bearing element types are defined with data structures.
 
+Primitive scalar storage is allocated with array construction, not object construction. For example, use `new int[1]` when a one-element primitive storage block is needed; `new int()` is invalid because primitive scalar values do not have object allocation or constructor semantics.
+
 ### 1.6.4 Arrays of expanded values
 
 An array element type may not be a non-materialized expanded form.

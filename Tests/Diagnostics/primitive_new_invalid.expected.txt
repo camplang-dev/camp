@@ -1,0 +1,2 @@
+tests/Diagnostics/primitive_new_invalid.camp(3,18): error: Primitive type 'int' cannot be allocated with new int(); allocate primitive storage with an array expression such as new int[1].
+tests/Diagnostics/primitive_new_invalid.camp(4,35): error: Primitive type 'byte' cannot be allocated with new byte(); allocate primitive storage with an array expression such as new byte[1].

@@ -1,0 +1,5 @@
+export void main()
+{
+    auto value = new int();
+    auto other = within (default) new byte(1);
+}
