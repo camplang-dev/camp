@@ -6,7 +6,7 @@ This guide is based on the following source documents. Evidence citations use th
 
 | Alias | Source |
 |---|---|
-| `spec` | `docs/camp_unified_spec_v25.md` |
+| `spec` | `docs/camp_unified_spec_v26.md` |
 | `scheduler_design` | `docs/camp_async_scheduler_design_v7.md` |
 
 Confidence labels:
@@ -708,8 +708,8 @@ int bad()
 | Explicit lifetime casts are available: `(scoped)value`, `(escaped)value`, `(unscoped(anchor))value`, and combined type/lifetime casts such as `(escaped string)value`. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/lifetime_cast_invalid.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.LifetimeFacts.cs` |
 | In an `escaped class`, an ascribed instance method must preserve the escaped receiver contract explicitly: the callable newtype declares `escaped this`, or the method declares `escaped this`. | `SPEC_ONLY_OR_UNVERIFIED` | `spec::1.4.16`, `4.2.3` |
 | `within Allocator* allocator` may appear as a parameter modifier, and bare `within name` can be an implicit within parameter form. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifecycle_allocator.camp`; `src/Camp.Compiler/CampParser.cs::ParseParameter` |
-| `within (allocator) statement` or `within (allocator) new/init T(...)` supplies current allocator context. `within (default)` masks any surrounding allocator and intentionally uses fallback `malloc/free`. | `CONFIRMED_BY_TEST` | `tests/StdRun/within_new_array_expression.camp`; `tests/CCompile/within_default_allocator.camp`; `src/Camp.Compiler/CampParser.cs::TryParseConstructionExpression` |
-| `#within explicit` requires source-level `new`, pointer-form `delete`, and pointer-storage `finally delete` in that file to use `within (allocator)`, a routine `within` parameter, or `within (default)`. `#within implicit` allows fallback allocation without an explicit source context. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/within_allocation_policy.camp`; `tests/Diagnostics/within_directive_errors.camp`; `src/Camp.Compiler/CompilerDriver.cs::TryReadWithinAllocationPolicy` |
+| `within (allocator) statement` or `within (allocator) new/init T(...)` supplies current allocator context. `within (default)` masks any surrounding allocator and intentionally uses fallback `malloc/free`; calls to routines with `within` parameters receive `null` in that explicit default context. | `CONFIRMED_BY_TEST` | `tests/StdRun/within_new_array_expression.camp`; `tests/CCompile/within_default_allocator.camp`; `tests/CCompile/within_parameter_context.camp`; `src/Camp.Compiler/CampParser.cs::TryParseConstructionExpression` |
+| `#within explicit` requires source-level `new`, pointer-form `delete`, pointer-storage `finally delete`, and omitted hidden `within` call arguments in that file to use `within (allocator)`, a routine `within` parameter, an explicit `within` call argument, or `within (default)`. `#within implicit` allows fallback allocation/context without an explicit source context. `within` parameters cannot declare default values; ordinary `Allocator*` parameters are not filled from the current context. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/within_allocation_policy.camp`; `tests/Diagnostics/within_directive_errors.camp`; `tests/Diagnostics/within_parameter_*.camp`; `src/Camp.Compiler/CompilerDriver.cs::TryReadWithinAllocationPolicy` |
 | Allocation requires accessible `malloc(nuint)`/`free(void*)` or allocator methods `alloc(nuint)`/`free(void*)`. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.LoweringHelpers.cs::CreateAllocCallFromByteSize`, `CreateFreeCall` |
 
 Keep lifetime signatures sparse. Do not write `unscoped(this)` merely to restate an instance-method default. Use explicit annotations when an API allocates escaped storage, returns a borrow tied to a specific anchor, stores a pointer-bearing value into a receiver/container, or requires an escaped field/context. Use explicit lifetime casts only as local assertions after the code has an actual reason the compiler cannot prove.
@@ -1128,7 +1128,7 @@ Before emitting Camp code:
    - Put `#build` and `#within` only in the file prelude, before ordinary declarations and imports.
    - Use `#define`/`#if` for conditional compilation, not runtime branching.
    - When documenting or generating examples with `#build`, say that the shown flags are compiler-tooling examples rather than language-specified syntax.
-   - Use `#within explicit` for files that should make heap allocation/deallocation choices visible, and `within (default)` when fallback allocation is intentional.
+   - Use `#within explicit` for files that should make heap allocation/deallocation choices and hidden `within` call arguments visible, and `within (default)` when fallback allocation or a null allocator context is intentional.
 21. Use `within (allocator)` around escaped lambda creation when the context should be allocated through that allocator.
 22. For `CharFormatter`, the returned required count includes the trailing null terminator; allocate `formatter()` characters, not `formatter() + 1`.
 23. Do not create arrays of expanded values. Use `struct(T)` materialization.
@@ -1138,7 +1138,7 @@ Before emitting Camp code:
 27. Use `init T(...)` for existing storage and `new T(...)` for allocation. Pair owned values/pointers with `delete` or `finally delete`.
 28. For `extern class`, write pointer-oriented helper APIs. Constructors/destructors must be `extern`; ordinary methods may be Camp-side helpers. Never generate instance fields, `op_initnew`, direct value storage, or arrays of direct extern-class values. Interface contracts may be listed only to import the foreign type's generated interface accessor surface.
 29. In generator bodies, do not use `init T[n]` stack-array allocation; declare `fixed T[n]` storage instead when fixed state storage is needed.
-30. Use `within (allocator)` when constructors/destructors declare `within` allocator parameters.
+30. Use `within (allocator)`, `within (default)`, or an explicit `within` call argument when constructors/destructors declare `within` allocator parameters and the file uses explicit-within policy.
 31. Pointer-form `delete` is valid only when the selected allocator `free` method or fallback `free(...)` accepts the pointer under ordinary type/lifetime conversion rules.
 32. For thrown errors, declare `thrown E error`, call with `catch error`, or catch/rethrow explicitly.
 33. Use `foreach (T item in arrayOrIterator)` only for arrays, iterator protocols, or iterator states with `next`.

@@ -272,20 +272,39 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				return;
 			}
-			if (argumentIndex < call.Arguments.Count && IsWithinArgumentAlreadySupplied(parameter, call.Arguments[argumentIndex]))
-				return;
+				if (argumentIndex < call.Arguments.Count && IsWithinArgumentAlreadySupplied(parameter, call.Arguments[argumentIndex]))
+					return;
 
-			call.Arguments.Insert(argumentIndex, new ArgumentExpression
-			{
-				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
-				Value = CurrentWithinArgument(call.SourceSyntax ?? call.Target?.SourceSyntax),
-				ResolvedType = currentWithinContext?.ResolvedType ?? "#NULL"
+				if (RequiresExplicitWithinArgument(call))
+				{
+					string parameterName = string.IsNullOrWhiteSpace(parameter.Name) ? "allocator" : parameter.Name;
+					Report(GetRange(call.SourceSyntax ?? call.Target?.SourceSyntax), $"Call requires a within context for parameter '{parameterName}'; use within(allocator), within(default), or pass within null explicitly.");
+					return;
+				}
+
+				call.Arguments.Insert(argumentIndex, new ArgumentExpression
+				{
+					SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
+					Value = CurrentWithinArgument(call.SourceSyntax ?? call.Target?.SourceSyntax),
+					ResolvedType = currentWithinContext?.ResolvedType ?? "#NULL"
 			});
 			return;
+			}
 		}
-	}
 
-	void NormalizeWithinArgumentOrder(CallExpression call)
+		bool RequiresExplicitWithinArgument(CallExpression call)
+		{
+			if (currentWithinContext is not null || currentDefaultWithinContextDepth > 0)
+				return false;
+			SyntaxNode? syntax = call.SourceSyntax ?? call.Target?.SourceSyntax;
+			TokenRange? range = GetRange(syntax);
+			if (range is not TokenRange tokenRange)
+				return false;
+			return currentModule?.SourceWithinAllocationPolicies.TryGetValue(tokenRange.Sequence, out WithinAllocationPolicy policy) == true
+				&& policy == WithinAllocationPolicy.Explicit;
+		}
+
+		void NormalizeWithinArgumentOrder(CallExpression call)
 	{
 		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !HasWithinParameter(function))
 			return;

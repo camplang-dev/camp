@@ -1,7 +1,7 @@
 # Camp Async Scheduler and Callable Context Supplement
 
 **Status:** superseded historical design  
-**Superseded by:** `docs/proposals/accepted/camp_async_resumption_redesign_proposal_v2.md` and `docs/camp_unified_spec_v25.md`
+**Superseded by:** `docs/proposals/accepted/camp_async_resumption_redesign_proposal_v2.md` and `docs/camp_unified_spec_v26.md`
 **Audience:** LLM or human agent implementing Camp compiler support for async methods, `await`, `postpone`, `upon` scheduler parameters, async callable forms, lambda context lowering, and once-callable cleanup behavior  
 **Source baseline:** `camp_unified_spec_v21.md`, `CAMP_LLM_CODE_GUIDE.md`, and `camp_doc_comments_metadata_supplement.md` from Sources  
 **Revision:** 7  
@@ -126,15 +126,20 @@ routines:
 
 ```camp
 within allocator
-// within scoped Allocator* allocator = null
+// hidden allocator-context parameter using visible Allocator*
 ```
 
 Explicit lifetime annotations remain explicit:
 
 ```camp
-async void f(within escaped Allocator* allocator = null);
+async void f(within escaped Allocator* allocator);
 async void g(within unscoped Arena* arena);
 ```
+
+`within` parameters are not defaulted parameters and may not declare default
+values. Their argument is supplied by the current `within` context, by an
+explicit `within` argument, or by the implicit-within policy when no explicit
+context exists.
 
 If an escaped delegate or once context captures its allocation service for later
 cleanup, that captured allocator must satisfy the ordinary escaped-storage
@@ -337,7 +342,7 @@ Conceptual returned callable shape:
 once void(
 	escaped this,
 	upon escaped Scheduler* scheduler = null,
-	within escaped Allocator* allocator = null,
+	within escaped Allocator* allocator,
 	once void(string result, thrown IoError) complete)
 ```
 

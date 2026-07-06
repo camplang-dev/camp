@@ -1,0 +1,17 @@
+#within explicit
+
+struct Allocator
+{
+}
+
+void needs(within allocator) {}
+void typed(within Allocator* allocator = null) {}
+void ordinary(Allocator* allocator = null) {}
+
+export void main()
+{
+	needs();
+	within(default) needs();
+	needs(within null);
+	ordinary();
+}

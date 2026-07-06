@@ -1,0 +1,23 @@
+#within explicit
+
+struct LocalAllocator
+{
+}
+
+int hasAllocator(within LocalAllocator* allocator) => allocator == null ? 0 : 1;
+
+export int main()
+{
+	LocalAllocator local = init LocalAllocator();
+	LocalAllocator* allocator = &local;
+	int total = 0;
+
+	total += within(default) hasAllocator();
+	total += hasAllocator(within null);
+	within (allocator)
+	{
+		total += hasAllocator();
+	}
+
+	return total - 1;
+}

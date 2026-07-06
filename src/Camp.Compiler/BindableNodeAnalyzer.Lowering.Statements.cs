@@ -64,8 +64,9 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in function.Parameters)
 			parameter.DefaultValue = LowerExpression(parameter.DefaultValue);
 
-		Expression? previousWithinContext = currentWithinContext;
-		FunctionDefinition? previousFunction = currentRewriteFunction;
+			Expression? previousWithinContext = currentWithinContext;
+			int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
+			FunctionDefinition? previousFunction = currentRewriteFunction;
 		TypeDefinition? previousType = currentRewriteContainingType;
 		string? previousFunctionExitLabel = currentFunctionExitLabel;
 		DeclarationTarget? previousFunctionReturnTarget = currentFunctionReturnTarget;
@@ -89,8 +90,9 @@ public sealed partial class BindableNodeAnalyzer
 		function.Body = RewriteFunctionBody(function.Body);
 		if (function.Body is not null && currentFunctionExitLabel is not null)
 			AppendFunctionExit(function.Body.Statements);
-		currentWithinContext = previousWithinContext;
-		currentRewriteFunction = previousFunction;
+			currentWithinContext = previousWithinContext;
+			currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
+			currentRewriteFunction = previousFunction;
 		currentRewriteContainingType = previousType;
 		currentFunctionExitLabel = previousFunctionExitLabel;
 		currentFunctionReturnTarget = previousFunctionReturnTarget;
@@ -267,12 +269,16 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				bool defaultWithin = withinStatement.Allocator is DefaultWithinContextExpression;
 				Expression? allocator = defaultWithin ? null : LowerExpression(withinStatement.Allocator);
-				DeclarationStatement? allocatorLocal = allocator is null ? null : CreateWithinContextLocal(allocator, withinStatement.SourceSyntax);
-				Expression? previousWithinContext = currentWithinContext;
-				currentWithinContext = defaultWithin ? null : allocatorLocal is null ? allocator : CreateVariableReference(allocatorLocal.Target, allocatorLocal.Target.ResolvedType ?? ErrorType);
-				Statement rewritten = withinStatement.Body is null ? CreateBlock([]) : RewriteStatement(withinStatement.Body);
-				currentWithinContext = previousWithinContext;
-				if (allocatorLocal is null)
+					DeclarationStatement? allocatorLocal = allocator is null ? null : CreateWithinContextLocal(allocator, withinStatement.SourceSyntax);
+					Expression? previousWithinContext = currentWithinContext;
+					int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
+					currentWithinContext = defaultWithin ? null : allocatorLocal is null ? allocator : CreateVariableReference(allocatorLocal.Target, allocatorLocal.Target.ResolvedType ?? ErrorType);
+					if (defaultWithin)
+						currentDefaultWithinContextDepth++;
+					Statement rewritten = withinStatement.Body is null ? CreateBlock([]) : RewriteStatement(withinStatement.Body);
+					currentWithinContext = previousWithinContext;
+					currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
+					if (allocatorLocal is null)
 					return rewritten;
 
 				List<Statement> withinStatements = [allocatorLocal, rewritten];

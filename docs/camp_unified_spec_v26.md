@@ -6759,30 +6759,39 @@ class StringBuilder
 }
 ```
 
-A `within` parameter is shorthand for:
+A bare `within` parameter is shorthand for a hidden allocator-context parameter
+whose type is the visible `Allocator*` type:
 
 ```camp
-within unscoped Allocator* arena = null
+within Allocator* arena
 ```
 
-Defaults:
+It is not a defaulted parameter. A `within` parameter does not have, and may
+not declare, a default value. The argument is supplied from the current
+allocator context or by an explicit `within` call argument.
+
+Properties:
 
 | Property | Meaning |
 |---|---|
 | Type | visible `Allocator*`, unless a type is written explicitly |
-| Lifetime | `unscoped` |
-| Default value | `null` |
+| Lifetime | the ordinary `within` parameter lifetime, unless written explicitly |
+| Default value | none; `within` parameters cannot declare defaults |
 
 Only one `within` parameter is allowed per routine.
 
 ### 4.3.7 Implicit forwarding
 
-If a routine declares a `within` parameter and the caller does not supply it explicitly, the compiler supplies one automatically.
+If a routine declares a `within` parameter and the caller does not supply it
+explicitly, the compiler may supply one from the current allocator context.
 
 Rules:
 
 1. if the caller is inside `within(...)`, that allocator is passed
-2. otherwise, `null` is passed
+2. if the caller is inside `within(default)`, `null` is passed
+3. otherwise, if implicit-within policy is active, `null` is passed
+4. otherwise, under explicit-within policy, the call is invalid unless the
+   caller supplies an explicit `within` argument
 
 Example:
 
@@ -6806,6 +6815,17 @@ within(tempArena)
 ```
 
 The constructor receives `tempArena` without the call having to mention it explicitly.
+
+An explicit `within` argument may always be supplied:
+
+```camp
+new BufferOwner(1024, within null);
+within(default) new BufferOwner(1024);
+```
+
+Allocator-shaped parameters that are not declared with `within` are ordinary
+parameters. They may have ordinary default values and are never filled from the
+enclosing allocator context.
 
 ### 4.3.8 Inside the routine
 
@@ -6923,11 +6943,13 @@ Some compiler invocations may enable an **explicit within policy**. Under this
 policy, source-level `new`, pointer-form `delete`, and `finally delete` for
 pointer storage must occur in an explicit allocation context: either
 `within(allocator)`, expression-form `within(allocator) new ...`, a routine with
-a `within` parameter, or `within(default)`. The policy is intended for library
-code that wants allocation choices to be visible in source. Executable builds
-typically allow the implicit fallback by default, while static and shared
-library builds typically require explicit contexts by default. This is a
-compiler policy, not a type-system rule.
+a `within` parameter, or `within(default)`. Calls to routines with `within`
+parameters also require an explicit context or explicit `within` argument under
+this policy; the compiler does not silently supply `null` for such calls. The
+policy is intended for library code that wants allocation choices to be visible
+in source. Executable builds typically allow the implicit fallback by default,
+while static and shared library builds typically require explicit contexts by
+default. This is a compiler policy, not a type-system rule.
 
 For result lifetime checking, `new` participates in the constructor result lifetime rule described below.
 
@@ -7595,8 +7617,10 @@ Camp also recognizes a narrow file-prelude allocation-policy directive:
 
 `#within explicit` requires source-level `new`, pointer-form `delete`, and
 pointer-storage `finally delete` in that physical source file to use an
-explicit allocator context or `within(default)`. `#within implicit` allows those
-operations to fall back to the default allocator without an explicit context.
+explicit allocator context or `within(default)`. It also requires calls that
+need hidden `within` arguments to have an explicit allocator context or explicit
+`within` argument. `#within implicit` allows those operations and calls to fall
+back to the default allocator without an explicit context.
 The directive affects only the file where it appears and overrides the module or
 command-line default for that file.
 
@@ -8078,9 +8102,10 @@ allocator rules. The resumer controls continuation resumption only; it does not
 allocate or free compiler-generated frames.
 
 In async routines, bare `within allocator` keeps the ordinary shorthand meaning:
-`within scoped Allocator* allocator = null`. If an escaped delegate context must
-retain the allocator for later delegate cleanup, the allocator value captured by
-that delegate must itself be escaped, or the lambda should be created inside
+a hidden allocator-context parameter using the visible `Allocator*` type. It is
+not a defaulted parameter. If an escaped delegate context must retain the
+allocator for later delegate cleanup, the allocator value captured by that
+delegate must itself be escaped, or the lambda should be created inside
 `within(default)`.
 
 `init T[n]` array allocation expressions are invalid inside async bodies. Use

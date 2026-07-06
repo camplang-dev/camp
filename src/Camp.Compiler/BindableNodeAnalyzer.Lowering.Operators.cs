@@ -409,14 +409,18 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (expression is WithinExpression { Expression: not null } within)
 		{
-			bool defaultWithin = within.Context is DefaultWithinContextExpression;
-			Expression? allocator = defaultWithin ? null : LowerExpression(within.Context);
-			Expression? previousWithinContext = currentWithinContext;
-			currentWithinContext = defaultWithin ? null : CaptureWithinContext(allocator, within.SourceSyntax);
-			Expression result = RewriteDeleteExpression(within.Expression);
-			currentWithinContext = previousWithinContext;
-			return result;
-		}
+				bool defaultWithin = within.Context is DefaultWithinContextExpression;
+				Expression? allocator = defaultWithin ? null : LowerExpression(within.Context);
+				Expression? previousWithinContext = currentWithinContext;
+				int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
+				currentWithinContext = defaultWithin ? null : CaptureWithinContext(allocator, within.SourceSyntax);
+				if (defaultWithin)
+					currentDefaultWithinContextDepth++;
+				Expression result = RewriteDeleteExpression(within.Expression);
+				currentWithinContext = previousWithinContext;
+				currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
+				return result;
+			}
 
 		Expression? target = LowerExpression(expression);
 		string targetType = target?.ResolvedType ?? ErrorType;

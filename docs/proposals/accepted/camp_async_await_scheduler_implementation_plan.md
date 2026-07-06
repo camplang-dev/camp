@@ -167,8 +167,8 @@ Goal: bind scheduler parameters and allocator defaults according to the schedule
   - `void free(escaped void* ptr)`;
   - `void post(once void(escaped this) continuation)` or a newtype whose underlying callable has that shape.
 - Preserve explicitly written scheduler types.
-- Implement async-specific bare `within allocator` expansion to `within escaped Allocator* allocator = null`.
-- Keep ordinary non-async `within allocator` as `within unscoped Allocator* allocator = null`.
+- Implement async-specific bare `within allocator` as a hidden allocator-context parameter without a default value.
+- Keep ordinary non-async `within allocator` as a hidden allocator-context parameter without a default value.
 - Reject `within unscoped` in an async routine when the allocator may be retained for async-frame deallocation or used after suspension.
 - Implement ordinary call argument matching for `upon`; do not add argument-list `upon` syntax.
 - Implement omitted `upon` forwarding outside `postpone`: when an async call omits an `upon` argument, supply the current async routine's scheduler when one exists; otherwise use the callee default.

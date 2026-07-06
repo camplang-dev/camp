@@ -1,0 +1,66 @@
+// file: within_parameter_context.c
+#include "within_parameter_context_private.h"
+
+/* Private file declarations. */
+static int hasAllocator(LocalAllocator *allocator);
+
+static int hasAllocator(LocalAllocator *allocator)
+{
+	return ((allocator == NULL) ? 0 : 1);
+}
+
+int main(void)
+{
+	LocalAllocator local;
+	LocalAllocator *allocator = &local;
+	int total = 0;
+	total += hasAllocator(NULL);
+	total += hasAllocator(NULL);
+	{
+		LocalAllocator *_allocator0 = allocator;
+		{
+			total += hasAllocator(_allocator0);
+		}
+	}
+	return (total - 1);
+}
+
+// file: within_parameter_context.h
+#ifndef WITHIN_PARAMETER_CONTEXT_H_
+#define WITHIN_PARAMETER_CONTEXT_H_
+
+#include "within_parameter_context_private.h"
+
+int main(void);
+
+#endif
+// file: within_parameter_context_private.h
+#ifndef WITHIN_PARAMETER_CONTEXT_PRIVATE_H_
+#define WITHIN_PARAMETER_CONTEXT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct LocalAllocator LocalAllocator;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct LocalAllocator
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: within_parameter_context.c

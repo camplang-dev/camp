@@ -19,16 +19,20 @@ public sealed partial class BindableNodeAnalyzer
 				LowerInitializer(construction.Initializer);
 				return RewriteConstruction(construction);
 
-			case WithinExpression within:
-				bool defaultWithin = within.Context is DefaultWithinContextExpression;
-				within.Context = defaultWithin ? CreateDefaultWithinArgument(within.Context?.SourceSyntax) : LowerExpression(within.Context);
-				if (within.Expression is null)
-					return within.Context;
-				Expression? previousWithinContext = currentWithinContext;
-				currentWithinContext = defaultWithin ? null : CaptureWithinContext(within.Context, within.SourceSyntax);
-				Expression? lowered = LowerExpression(within.Expression);
-				currentWithinContext = previousWithinContext;
-				return lowered ?? within.Expression;
+				case WithinExpression within:
+					bool defaultWithin = within.Context is DefaultWithinContextExpression;
+					within.Context = defaultWithin ? CreateDefaultWithinArgument(within.Context?.SourceSyntax) : LowerExpression(within.Context);
+					if (within.Expression is null)
+						return within.Context;
+					Expression? previousWithinContext = currentWithinContext;
+					int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
+					currentWithinContext = defaultWithin ? null : CaptureWithinContext(within.Context, within.SourceSyntax);
+					if (defaultWithin)
+						currentDefaultWithinContextDepth++;
+					Expression? lowered = LowerExpression(within.Expression);
+					currentWithinContext = previousWithinContext;
+					currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
+					return lowered ?? within.Expression;
 
 			case GroupedExpression grouped:
 				foreach (GroupedExpressionItem item in grouped.Items)

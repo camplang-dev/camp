@@ -21,9 +21,10 @@ public sealed partial class BindableNodeAnalyzer
 	const string InitNewMethodName = "op_initnew";
 	const string CreateMethodName = "create";
 	const string DeleteMethodName = "op_delete";
-	const string DestroyMethodName = "destroy";
-	Expression? currentWithinContext;
-	List<Statement>? currentStatementPrefix;
+		const string DestroyMethodName = "destroy";
+		Expression? currentWithinContext;
+		int currentDefaultWithinContextDepth;
+		List<Statement>? currentStatementPrefix;
 	List<Statement>? currentStatementSuffix;
 	DeclarationTarget? currentImplicitCatchTarget;
 	readonly List<CleanupScope> currentCleanupScopes = [];

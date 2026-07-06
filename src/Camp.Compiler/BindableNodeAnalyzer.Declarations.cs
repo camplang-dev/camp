@@ -1579,17 +1579,19 @@ public sealed partial class BindableNodeAnalyzer
 			: definition is VTableOfParameterDefinition vtableOfParameter
 				? VTableOfParameterType(vtableOfParameter)
 			: definition.Type?.ResolvedType ?? GetImplicitParameterType(definition);
-		if (definition.LifetimeBinding is null && definition is not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition)
-		{
-			if (definition is WithinParameterDefinition)
-				BindParameterLifetime(definition, "scoped", [], "default within");
-			else
-				BindDefaultParameterLifetime(definition, "default parameter");
+			if (definition.LifetimeBinding is null && definition is not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition)
+			{
+				if (definition is WithinParameterDefinition)
+					BindParameterLifetime(definition, "scoped", [], "default within");
+				else
+					BindDefaultParameterLifetime(definition, "default parameter");
+			}
+			if ((definition is WithinParameterDefinition || definition.Modifier == ParameterModifier.Within) && definition.DefaultValue is not null)
+				Report(GetRange(definition.DefaultValue.SourceSyntax ?? definition.SourceSyntax), "within parameters cannot have default values; their value is supplied by an explicit within context or explicit within argument.");
+			ValidateGenericArgumentUse(definition.Type);
+			ValidateParameterPassing(definition, scope);
+			AnalyzeConstantExpression(definition.DefaultValue, scope, "Parameter default value", definition.ResolvedType);
 		}
-		ValidateGenericArgumentUse(definition.Type);
-		ValidateParameterPassing(definition, scope);
-		AnalyzeConstantExpression(definition.DefaultValue, scope, "Parameter default value", definition.ResolvedType);
-	}
 
 	void BindImplicitWithinParameterType(ParameterDefinition definition, AnalysisScope scope)
 	{
