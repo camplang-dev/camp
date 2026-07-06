@@ -3,3 +3,5 @@ tests/Diagnostics/lambda_escaped_async_callable_invalid.camp(3,27): error: Retur
 tests/Diagnostics/lambda_escaped_async_callable_invalid.camp(8,28): error: Lambda parameter count '1' does not match target callable parameter count '2'.
 tests/Diagnostics/lambda_escaped_async_callable_invalid.camp(8,28): error: Return expression cannot convert 'escaped delegate void(int)' to 'async int(int)'.
 tests/Diagnostics/lambda_escaped_async_callable_invalid.camp(13,25): error: 'new delegate' cannot target 'once void()'; use an ordinary lambda for fn, scoped delegate, or once targets.
+tests/Diagnostics/lambda_escaped_async_callable_invalid.camp(18,25): error: 'new delegate' cannot target 'fn int()'; use an ordinary lambda for fn, scoped delegate, or once targets.
+tests/Diagnostics/lambda_escaped_async_callable_invalid.camp(27,31): error: 'new delegate' cannot target 'scoped delegate void()'; use an ordinary lambda for fn, scoped delegate, or once targets.

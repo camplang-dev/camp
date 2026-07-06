@@ -7,6 +7,7 @@ class Arena
 }
 
 int runOnce(once int() callback) => callback();
+int runScoped(scoped delegate int() callback) => callback();
 
 escaped delegate int() makeWithDefault(Arena* arena)
 {
@@ -40,9 +41,22 @@ export int main()
 	int onceValue = runOnce(within (default) () => 11);
 	delete arena;
 
+	auto existing = new delegate () => 13;
+	int scopedExistingValue = runScoped(existing);
+	int onceExistingValue = runOnce(existing);
+	delete existing.context;
+
 	Console.writeLine(capturedValue);
 	Console.writeLine(plainValue);
 	Console.writeLine(maskedValue);
 	Console.writeLine(onceValue);
-	return capturedValue == 7 && plainValue == 15 && maskedValue == 9 && onceValue == 11 ? 0 : 1;
+	Console.writeLine(scopedExistingValue);
+	Console.writeLine(onceExistingValue);
+	return capturedValue == 7
+		&& plainValue == 15
+		&& maskedValue == 9
+		&& onceValue == 11
+		&& scopedExistingValue == 13
+		&& onceExistingValue == 13
+		? 0 : 1;
 }

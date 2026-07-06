@@ -846,14 +846,16 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryClassifyCallableConversion(string source, string target, out ConversionClassification classification)
 	{
 		classification = default;
-		if (!TryGetCallableShape(source, out CallableShape sourceCallable)
-			|| !TryGetCallableShape(target, out CallableShape targetCallable))
+		if (!TryGetCallableShape(StripCallableLifetimeQualifiers(source), out CallableShape sourceCallable)
+			|| !TryGetCallableShape(StripCallableLifetimeQualifiers(target), out CallableShape targetCallable))
 			return false;
 
 		sourceCallable = ExpandCallableShape(sourceCallable);
 		targetCallable = ExpandCallableShape(targetCallable);
 
-		if (sourceCallable.Kind != targetCallable.Kind && !(sourceCallable.Kind == "fn" && targetCallable.Kind == "delegate"))
+		if (sourceCallable.Kind != targetCallable.Kind
+			&& !(sourceCallable.Kind == "fn" && targetCallable.Kind == "delegate")
+			&& !(sourceCallable.Kind == "delegate" && targetCallable.Kind == "once"))
 		{
 			classification = new ConversionClassification(
 				sourceCallable.Kind == "delegate" || targetCallable.Kind == "delegate" ? ConversionLevel.ReconstructRequired : ConversionLevel.Forbidden,
@@ -890,6 +892,34 @@ public sealed partial class BindableNodeAnalyzer
 			ConversionReason.CallableSignature,
 			"Callable signatures are not ABI-slot compatible; use an unsafe cast or an 'fn*' fence.");
 		return true;
+	}
+
+	static string StripCallableLifetimeQualifiers(string type)
+	{
+		string normalized = type.Trim();
+		bool changed;
+		do
+		{
+			changed = false;
+			foreach (string lifetime in new[] { "escaped", "scoped", "unscoped" })
+			{
+				string leading = lifetime + " ";
+				if (normalized.StartsWith(leading, StringComparison.Ordinal))
+				{
+					normalized = normalized[leading.Length..].Trim();
+					changed = true;
+				}
+
+				string trailing = " " + lifetime;
+				if (normalized.EndsWith(trailing, StringComparison.Ordinal))
+				{
+					normalized = normalized[..^trailing.Length].Trim();
+					changed = true;
+				}
+			}
+		}
+		while (changed);
+		return normalized;
 	}
 
 	bool CallableSignatureNeedsFence(CallableShape source, CallableShape target)

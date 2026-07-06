@@ -12,3 +12,17 @@ once void() onceTarget()
 {
 	return new delegate () => {};
 }
+
+fn int() fnTarget()
+{
+	return new delegate () => 1;
+}
+
+void scopedTarget(scoped delegate void() callback)
+{
+}
+
+void badScoped()
+{
+	scopedTarget(new delegate () => {});
+}
