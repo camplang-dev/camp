@@ -194,6 +194,77 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_completion_and_signature_help_use_last_good_snapshot_while_typing_broken_code()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-completion-broken-edit");
+		string file = Path.Combine(root, "main.camp");
+		string valid = """
+			struct Counter
+			{
+				int value;
+				int getValue(int offset = 0) => this.value + offset;
+			}
+
+			export int main()
+			{
+				Counter counter = default;
+				int local = counter.getValue();
+				return local;
+			}
+			""";
+		string broken = """
+			struct Counter
+			{
+				int value;
+				int getValue(int offset = 0) => this.value + offset;
+			}
+
+			export int main()
+			{
+				Counter counter = default;
+				counter.
+				counter.getValue(
+				return 0;
+			}
+			""";
+		File.WriteAllText(file, valid);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text = valid }
+		});
+		lsp.ReadNotification("textDocument/publishDiagnostics");
+		lsp.Notify("textDocument/didChange", new
+		{
+			textDocument = new { uri, version = 2 },
+			contentChanges = new[] { new { text = broken } }
+		});
+		lsp.ReadNotification("textDocument/publishDiagnostics");
+
+		CampTextPosition completionPosition = PositionAfter(broken, "counter.");
+		CampTextPosition signaturePosition = PositionAfter(broken, "counter.getValue(");
+		JsonNode completion = lsp.Request("textDocument/completion", new
+		{
+			textDocument = new { uri },
+			position = new { line = completionPosition.Line, character = completionPosition.Character }
+		});
+		JsonNode signatureHelp = lsp.Request("textDocument/signatureHelp", new
+		{
+			textDocument = new { uri },
+			position = new { line = signaturePosition.Line, character = signaturePosition.Character }
+		});
+
+		JsonArray completionItems = CompletionItems(completion);
+		Assert.Contains(completionItems, item => item?["label"]?.GetValue<string>() == "value");
+		Assert.Contains(completionItems, item => item?["label"]?.GetValue<string>() == "getValue");
+		JsonNode signature = Assert.Single(signatureHelp["result"]?["signatures"]?.AsArray()!)!;
+		Assert.Contains("int getValue(int offset = 0)", signature["label"]?.GetValue<string>(), StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Lsp_server_returns_document_symbols()
 	{
 		using LspProcess lsp = LspProcess.Start();
@@ -395,6 +466,27 @@ public sealed class LspServerTests
 		if (result is JsonArray array)
 			return array;
 		return result?["items"]?.AsArray() ?? throw new InvalidOperationException("Completion response did not contain items.");
+	}
+
+	static CampTextPosition PositionAfter(string text, string marker)
+	{
+		int index = text.IndexOf(marker, StringComparison.Ordinal);
+		if (index < 0)
+			throw new InvalidOperationException($"Marker '{marker}' was not found.");
+		index += marker.Length;
+		int line = 0;
+		int character = 0;
+		for (int i = 0; i < index; i++)
+		{
+			if (text[i] == '\n')
+			{
+				line++;
+				character = 0;
+			}
+			else
+				character++;
+		}
+		return new CampTextPosition(line, character);
 	}
 
 	sealed class LspProcess : IDisposable

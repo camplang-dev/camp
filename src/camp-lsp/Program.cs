@@ -204,6 +204,7 @@ public sealed class CampLspWorkspace
 {
 	readonly Dictionary<string, OpenDocument> openDocuments = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CampAnalysisSnapshot> snapshots = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, CampAnalysisSnapshot> lastSuccessfulSnapshots = new(StringComparer.OrdinalIgnoreCase);
 	ILanguageServer? languageServer;
 
 	public void SetLanguageServer(ILanguageServer server)
@@ -225,6 +226,7 @@ public sealed class CampLspWorkspace
 		string path = uri.GetFileSystemPath();
 		openDocuments.Remove(path);
 		snapshots.Remove(path);
+		lastSuccessfulSnapshots.Remove(path);
 		PublishDiagnostics(uri, []);
 	}
 
@@ -235,6 +237,8 @@ public sealed class CampLspWorkspace
 			return;
 		CampAnalysisSnapshot snapshot = Analyze(document);
 		snapshots[path] = snapshot;
+		if (snapshot.Success)
+			lastSuccessfulSnapshots[path] = snapshot;
 		PublishDiagnostics(uri, snapshot.Diagnostics.Where(diagnostic => string.IsNullOrWhiteSpace(diagnostic.Path) || string.Equals(diagnostic.Path, path, StringComparison.OrdinalIgnoreCase)));
 	}
 
@@ -254,16 +258,16 @@ public sealed class CampLspWorkspace
 
 	public CampSignatureHelp? GetSignatureHelp(DocumentUri uri, CampTextPosition position)
 	{
-		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
+		if (!TryGetQuerySnapshot(uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot))
 			return null;
-		return new CampSymbolQueryService(snapshot!).GetSignatureHelp(path, position);
+		return new CampSymbolQueryService(snapshot!).GetSignatureHelp(path, position, document?.Text);
 	}
 
 	public IReadOnlyList<CampCompletionItem> GetCompletions(DocumentUri uri, CampTextPosition position)
 	{
-		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
+		if (!TryGetQuerySnapshot(uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot))
 			return [];
-		return new CampSymbolQueryService(snapshot!).GetCompletions(path, position);
+		return new CampSymbolQueryService(snapshot!).GetCompletions(path, position, document?.Text);
 	}
 
 	public IReadOnlyList<CampDocumentSymbol> GetDocumentSymbols(DocumentUri uri)
@@ -302,7 +306,20 @@ public sealed class CampLspWorkspace
 		{
 			snapshot = Analyze(document);
 			snapshots[path] = snapshot;
+			if (snapshot.Success)
+				lastSuccessfulSnapshots[path] = snapshot;
 		}
+		return snapshot is not null;
+	}
+
+	bool TryGetQuerySnapshot(DocumentUri uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot)
+	{
+		path = uri.GetFileSystemPath();
+		openDocuments.TryGetValue(path, out document);
+		if (!TryGetSnapshot(uri, out _, out snapshot))
+			return false;
+		if (snapshot is { Success: false } && lastSuccessfulSnapshots.TryGetValue(path, out CampAnalysisSnapshot? successful))
+			snapshot = successful;
 		return snapshot is not null;
 	}
 
