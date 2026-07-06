@@ -59,11 +59,11 @@
       <ReturnType Type="IterTypeReference">
         <ElementType Type="Int" />
         <Parameters>
-          <ParameterDefinition Name="x" Symbol="x">
+          <ParameterDefinition Name="point" Symbol="point">
             <Type Type="Int" />
           </ParameterDefinition>
-          <ParameterDefinition Name="y" Symbol="y">
-            <Type Type="Int" />
+          <ParameterDefinition Modifier="Thrown" Name="error" Symbol="error">
+            <Type Type="NamedTypeReference" Name="RangeError" />
           </ParameterDefinition>
         </Parameters>
       </ReturnType>

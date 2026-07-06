@@ -11,7 +11,7 @@ This section defines the type forms that appear everywhere else in the language:
 - ordinary function declarations and calls
 - compiler-expanded forms such as span arrays, optionals, and delegates
 - fixed-size array storage
-- multi-output binding through `out`, async completion, and iterator protocols
+- trailing `out` result binding and single-value iterator protocols with optional thrown errors
 - primitive string types and character-array text views
 - enum types
 - `newtype`
@@ -24,7 +24,7 @@ Several later language features build directly on the material in this section. 
 - span arrays, optionals, and delegates define the small closed set of compiler-expanded value forms
 - fixed-size arrays define explicit inline storage with array-like views
 - `fn`, `delegate`, and ordinary function declarations explain Camp's callable surface before async, iterators, and lambdas add further structure
-- multi-output binding explains how several caller-provided result slots can be consumed ergonomically without creating a general tuple or user-defined expansion system
+- trailing `out` binding explains how several caller-provided result slots can be consumed ergonomically without creating a general tuple or user-defined expansion system
 - strings explain the distinction between zero-terminated text pointers and counted character arrays
 
 Camp favors explicit surface distinctions where those distinctions help prevent mistakes:
@@ -957,7 +957,7 @@ int y;
 getPoint(out x, out y);
 ```
 
-The omitted values do not form a general-purpose anonymous value. They may be bound by immediate deconstruction, returned through an async or iterator protocol that explicitly supports multiple output slots, or handled by explicit `out` arguments.
+The omitted values do not form a general-purpose anonymous value. They may be bound by immediate deconstruction or handled by explicit `out` arguments.
 
 If only one trailing `out` parameter is omitted, the same rule may bind a single local:
 
@@ -5036,7 +5036,7 @@ That model is explicit, ABI-visible, and consistent with the rest of Camp's desi
 
 # 3. Statements and Expressions
 
-This section defines the executable core of Camp: the statements that control evaluation, the ordinary operators used in expressions, the rules for member and property access, expanded multi-value results, and the syntax used for iteration, slicing, and cleanup.
+This section defines the executable core of Camp: the statements that control evaluation, the ordinary operators used in expressions, the rules for member and property access, trailing `out` result binding, and the syntax used for iteration, slicing, and cleanup.
 
 Camp intentionally keeps most day-to-day statement and operator syntax familiar to C-family programmers. The important work here is therefore not to restate C in full, but to make Camp-specific rules precise: boolean conditions are explicit, member access uses one uniform surface, expanded values participate directly in results and calls, property syntax is a rewrite over methods, and cleanup remains explicit.
 
@@ -5170,7 +5170,7 @@ int abs(int x)
 }
 ```
 
-Camp also allows expanded multi-value returns. Those are described in §3.6.
+Camp also allows trailing `out` result binding. That is described in §3.6.
 
 ### 3.1.5 Labels and `goto`
 
@@ -5286,7 +5286,7 @@ Camp follows ordinary C-family operator precedence closely enough that experienc
 
 When an expression becomes hard to read, parenthesize it. This is especially advisable when combining:
 
-- expanded-return deconstruction or multi-step call results
+- trailing `out` deconstruction or multi-step call results
 - nested property/indexer access
 - `await` with chained member access
 - range-like slice expressions
@@ -5764,14 +5764,11 @@ fileView.getLines()   // OK
 
 This rule preserves the ordinary expectation that property access is field-like or value-like. Iterator use carries cleanup and control-flow consequences that are better made explicit.
 
-## 3.6 Multiple Return Values
+## 3.6 Trailing `out` Result Binding
 
-Camp supports multiple result values through explicit result slots. This is not a general tuple subsystem and does not create arbitrary anonymous expanded values.
+Camp supports ergonomic binding of explicit trailing `out` result slots. This is not a general tuple subsystem and does not create arbitrary anonymous expanded values.
 
-The common forms are:
-
-- omitted trailing `out` parameters bound by immediate deconstruction
-- iterator protocols that yield several result slots
+The supported form is omitted trailing `out` parameters bound by immediate deconstruction or single-value binding.
 
 ### 3.6.1 Omitted trailing `out` values
 
@@ -5811,7 +5808,7 @@ byte* elementsOnly = getBytes().elements;
 
 ### 3.6.2 Deconstruction
 
-A multi-output result may be deconstructed when the arity matches.
+Omitted trailing `out` results may be deconstructed when the arity matches.
 
 ```camp
 auto (min, max) = getMinMax(values);
@@ -5820,9 +5817,9 @@ auto (x, y) = getOrigin();
 
 Each local is inferred independently from the corresponding result slot.
 
-### 3.6.3 Multi-output results are not general values
+### 3.6.3 Omitted `out` results are not general values
 
-A multi-output result produced by omitted `out` parameters is a binding surface. It is not an anonymous value that can be stored, indexed, placed into arrays, or passed around as a first-class object.
+An omitted `out` result surface is a binding surface. It is not an anonymous value that can be stored, indexed, placed into arrays, or passed around as a first-class object.
 
 When a result needs a durable shape, declare an ordinary `struct` result type:
 
@@ -5841,17 +5838,9 @@ DivResult divideInt(int a, int b)
 
 ### 3.6.4 Async and iterator result slots
 
-Iterator protocols may carry multiple non-error result slots where the protocol
-explicitly defines them.
+Iterator protocols yield exactly one ordinary current value. When an iterator needs to produce several logical values, yield a named struct or another single value that carries those fields.
 
-Those slots may be consumed through protocol-specific deconstruction when the
-protocol exposes more than one ordinary output slot:
-
-```camp
-auto (value, hasValue) = iterator.next();
-```
-
-Protocol-defined multi-output slots do not imply user-defined expanded value types.
+Iterator protocols may also carry one trailing `thrown` slot. The thrown slot is not a yielded value and does not participate in deconstruction.
 
 Async await is intentionally narrower in the current language. An awaitable
 completion callback may have at most one non-error success parameter. A
@@ -7798,26 +7787,32 @@ bool next(Y* this, T* current, thrown E);
 
 As elsewhere in Camp, the default value of the error type means success.
 
-### 5.2.8 Yielding multiple result slots
+### 5.2.8 Iterator result shape
 
-Iterator protocols may yield more than one ordinary result slot when the iterator type explicitly declares that shape.
+An iterator type has exactly one yielded type and may optionally end with one thrown type:
 
 ```camp
-struct iter(int x, int y) points()
+iter int
+iter(int)
+iter(int, thrown RangeError)
+```
+
+The yielded type is an ordinary non-`out`, non-`thrown` value slot. The optional `thrown` slot must follow the yielded type. Shapes such as `iter(thrown E)`, `iter(T, U)`, `iter(T, thrown E, U)`, and iterators with multiple thrown slots are invalid.
+
+An iterator cannot yield multiple ordinary values. Use a named struct or another single value when the current item has several fields:
+
+```camp
+struct Point
 {
-	...
+	int x;
+	int y;
+}
+
+struct iter Point points()
+{
+	yield { .x = 1, .y = 2 };
 }
 ```
-
-The `next(...)` protocol writes each yielded slot through caller-provided storage:
-
-```camp
-bool next(Y* this, int* current_x, int* current_y);
-```
-
-This is a protocol-defined multi-output surface. It does not create a user-defined expanded value type.
-
-If the yielded protocol has multiple current slots, compiler-generated cleanup passes the protocol-defined default cleanup shape.
 
 ### 5.2.10 `foreach` lowering
 

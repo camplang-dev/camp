@@ -7,7 +7,7 @@ enum RangeError
 extern iter(int, thrown RangeError) range(int first, int last);
 extern async iter(const char[]? line) readLines();
 
-struct iter(int x, int y) points()
+struct iter(int point, thrown RangeError error) points()
 {
 	yield 0;
 }

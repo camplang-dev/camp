@@ -1,0 +1,1 @@
+tests/Diagnostics/iterator_throw_without_slot.camp(7,17): error: Iterator generator cannot throw because its iterator type does not declare a thrown result.

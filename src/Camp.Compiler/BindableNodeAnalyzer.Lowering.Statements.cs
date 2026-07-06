@@ -230,6 +230,8 @@ public sealed partial class BindableNodeAnalyzer
 					? HoistThrowingExpression(returnStatement.Expression)
 					: LowerExpression(returnStatement.Expression);
 				returnStatement.Expression = LowerInterfaceConversion(currentRewriteFunction?.ReturnType, returnStatement.Expression);
+				if (returnStatement.SkipPendingCleanups)
+					return WithPendingCleanups(returnStatement);
 				if (TryRewriteExpandedReturn(returnStatement, out Statement? expandedReturn))
 					return PrependThrownParameterClear(WithPendingCleanups(expandedReturn), returnStatement.SourceSyntax);
 				return PrependThrownParameterClear(WithPendingCleanups(returnStatement), returnStatement.SourceSyntax);
@@ -443,6 +445,9 @@ public sealed partial class BindableNodeAnalyzer
 		Expression CallReference() => useLiftedState && stateFields is not null ? ThisMemberReference(stateFields.IteratorFieldName, stateFields.IteratorType) : CreateVariableReference(callLocal!.Target, callLocal.Target.ResolvedType ?? ErrorType);
 		Expression ContextReference() => useLiftedState && stateFields is { ContextFieldName: not null } ? ThisMemberReference(stateFields.ContextFieldName, "void*") : CreateVariableReference(contextLocal!.Target, contextLocal.Target.ResolvedType ?? "void*");
 		Expression CurrentReference() => useLiftedState && stateFields is not null ? ThisMemberReference(stateFields.CurrentFieldName, stateFields.ElementType) : CreateVariableReference(currentLocal!.Target, elementType);
+		string? thrownType = GetIteratorProtocolThrownType(callType);
+		DeclarationStatement? errorLocal = null;
+		Expression ErrorReference() => CreateVariableReference(errorLocal!.Target, errorLocal.Target.ResolvedType ?? thrownType ?? ErrorType);
 		if (useLiftedState && stateFields is not null)
 		{
 			statements.Add(CreateAssignmentStatement(CallReference(), call, callType, foreachStatement.SourceSyntax));
@@ -473,6 +478,11 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				statements.Add(currentLocal);
 			}
+		}
+		if (thrownType is not null)
+		{
+			errorLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachError"), thrownType, TypeReferenceForResolvedName(thrownType), new DefaultExpression { ResolvedType = thrownType });
+			statements.Add(errorLocal);
 		}
 
 		DeclarationStatement loopValue = new()
@@ -525,8 +535,28 @@ public sealed partial class BindableNodeAnalyzer
 		if (foreachStatement.Body is not null)
 			bodyStatements.Add(foreachStatement.Body);
 		RewriteStatementList(bodyStatements);
+		Statement? nextFailureStatement = thrownType is null
+			? null
+			: CreateIteratorNextFailureStatement(ErrorReference(), thrownType, foreachStatement.SourceSyntax);
 		currentLoopTransferTargets.RemoveAt(currentLoopTransferTargets.Count - 1);
 		currentCleanupScopes.RemoveAt(currentCleanupScopes.Count - 1);
+		if (thrownType is not null)
+		{
+			CallExpression nextCall = CreateIteratorProtocolCall(CallReference(), ContextReference(), CurrentReference(), ErrorReference(), foreachStatement.SourceSyntax);
+			loopBody.Statements.Add(new IfStatement
+			{
+				SourceSyntax = foreachStatement.SourceSyntax,
+				ResolvedType = "void",
+				Condition = new UnaryExpression
+				{
+					SourceSyntax = foreachStatement.SourceSyntax,
+					Operator = UnaryOperator.LogicalNot,
+					Operand = LowerExpression(nextCall),
+					ResolvedType = "bool"
+				},
+				Body = nextFailureStatement
+			});
+		}
 		loopBody.Statements.AddRange(bodyStatements);
 		loopBody.Statements.Add(new LabelStatement { Name = continueLabel, ResolvedType = "void" });
 
@@ -534,7 +564,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = foreachStatement.SourceSyntax,
 			ResolvedType = "void",
-			Condition = LowerExpression(CreateIteratorProtocolCall(CallReference(), ContextReference(), CurrentReference(), foreachStatement.SourceSyntax)),
+			Condition = thrownType is null
+				? LowerExpression(CreateIteratorProtocolCall(CallReference(), ContextReference(), CurrentReference(), null, foreachStatement.SourceSyntax))
+				: new LiteralExpression { SourceSyntax = foreachStatement.SourceSyntax, Kind = LiteralKind.True, Text = "true", Value = true, ResolvedType = "bool" },
 			Body = loopBody
 		};
 		statements.Add(loop);
@@ -567,7 +599,28 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	CallExpression CreateIteratorProtocolCall(Expression call, Expression context, Expression current, SyntaxNode? syntax)
+	Statement CreateIteratorNextFailureStatement(Expression error, string errorType, SyntaxNode? syntax)
+	{
+		BlockStatement body = new() { SourceSyntax = syntax, ResolvedType = "void" };
+		body.Statements.Add(new IfStatement
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Condition = new BinaryExpression
+			{
+				SourceSyntax = syntax,
+				Left = error,
+				Operator = BinaryOperator.NotEqual,
+				Right = new DefaultExpression { SourceSyntax = syntax, ResolvedType = errorType },
+				ResolvedType = "bool"
+			},
+			Body = CreateBlock(CreateThrowTransfer(error, syntax))
+		});
+		body.Statements.Add(new BreakStatement { SourceSyntax = syntax, ResolvedType = "void" });
+		return body;
+	}
+
+	CallExpression CreateIteratorProtocolCall(Expression call, Expression context, Expression current, Expression? error, SyntaxNode? syntax)
 	{
 		CallExpression result = new()
 		{
@@ -581,19 +634,59 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		if (TryGetCallableShape(call.ResolvedType, out CallableShape callable) && callable.Parameters.Count > 1)
 		{
-			if (TryCreateParamsComponentExpressions(current, out List<Expression> currentComponents) && callable.Parameters.Count == currentComponents.Count + 1)
+			List<string> currentParameters = GetIteratorProtocolCurrentParameters(callable.Parameters);
+			if (TryCreateParamsComponentExpressions(current, out List<Expression> currentComponents) && currentParameters.Count == currentComponents.Count)
 			{
 				for (int i = 0; i < currentComponents.Count; i++)
-					result.Arguments.Add(CreateIteratorProtocolCurrentArgument(currentComponents[i], callable.Parameters[i + 1], syntax));
+					result.Arguments.Add(CreateIteratorProtocolCurrentArgument(currentComponents[i], currentParameters[i], syntax));
+				if (error is not null)
+					result.Arguments.Add(CreateIteratorProtocolThrownArgument(error, syntax));
 				return result;
 			}
 
-			result.Arguments.Add(CreateIteratorProtocolCurrentArgument(current, callable.Parameters[1], syntax));
+			result.Arguments.Add(CreateIteratorProtocolCurrentArgument(current, currentParameters.Count > 0 ? currentParameters[0] : callable.Parameters[1], syntax));
+			if (error is not null)
+				result.Arguments.Add(CreateIteratorProtocolThrownArgument(error, syntax));
 			return result;
 		}
 
 		result.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = current, ResolvedType = current.ResolvedType });
+		if (error is not null)
+			result.Arguments.Add(CreateIteratorProtocolThrownArgument(error, syntax));
 		return result;
+	}
+
+	static List<string> GetIteratorProtocolCurrentParameters(IReadOnlyList<string> parameters)
+	{
+		List<string> current = [];
+		for (int i = 1; i < parameters.Count; i++)
+		{
+			if (parameters[i].StartsWith("thrown ", StringComparison.Ordinal))
+				continue;
+			current.Add(parameters[i]);
+		}
+		return current;
+	}
+
+	string? GetIteratorProtocolThrownType(string? callType)
+	{
+		if (!TryGetCallableShape(callType, out CallableShape callable))
+			return null;
+		foreach (string parameter in callable.Parameters)
+			if (parameter.StartsWith("thrown ", StringComparison.Ordinal))
+				return parameter["thrown ".Length..].Trim();
+		return null;
+	}
+
+	static ArgumentExpression CreateIteratorProtocolThrownArgument(Expression error, SyntaxNode? syntax)
+	{
+		return new ArgumentExpression
+		{
+			SourceSyntax = syntax,
+			Modifier = ArgumentModifier.Catch,
+			Value = error,
+			ResolvedType = error.ResolvedType
+		};
 	}
 
 	static ArgumentExpression CreateIteratorProtocolCurrentArgument(Expression value, string parameterType, SyntaxNode? syntax)
@@ -765,11 +858,22 @@ public sealed partial class BindableNodeAnalyzer
 			: LowerExpression(foreachStatement.Source);
 		FunctionDefinition next = foreachStatement.IteratorNext!;
 		string iteratorType = source?.ResolvedType ?? ErrorType;
-		List<ParameterDefinition> nextParameters = GetCallableParameters(next.Parameters);
-		string elementType = foreachStatement.Target.ResolvedType ?? TryGetPointerElementType(nextParameters.Count > 0 ? nextParameters[0].ResolvedType : null) ?? ErrorType;
+		List<ParameterDefinition> nextParameters = next.Parameters;
+		ParameterDefinition? thrownParameter = null;
+		List<ParameterDefinition> currentParameters = [];
+		foreach (ParameterDefinition parameter in nextParameters)
+		{
+			if (parameter.Modifier == ParameterModifier.Thrown)
+				thrownParameter = parameter;
+			else
+				currentParameters.Add(parameter);
+		}
+		string? thrownType = thrownParameter?.ResolvedType ?? thrownParameter?.Type?.ResolvedType;
+		string elementType = foreachStatement.Target.ResolvedType ?? TryGetPointerElementType(currentParameters.Count > 0 ? currentParameters[0].ResolvedType : null) ?? ErrorType;
 		bool useLiftedState = iteratorForeachStates.TryGetValue(foreachStatement, out IteratorForeachStateFields? stateFields);
 		DeclarationStatement? iteratorLocal = null;
 		DeclarationStatement? currentLocal = null;
+		DeclarationStatement? errorLocal = null;
 		List<Statement> setupStatements = [];
 		if (useLiftedState && stateFields is not null)
 		{
@@ -825,6 +929,11 @@ public sealed partial class BindableNodeAnalyzer
 				setupStatements.Add(currentLocal);
 			}
 		}
+		if (thrownType is not null)
+		{
+			errorLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachError"), thrownType, TypeReferenceForResolvedName(thrownType), new DefaultExpression { ResolvedType = thrownType });
+			setupStatements.Add(errorLocal);
+		}
 		Expression IteratorReference()
 		{
 			return useLiftedState && stateFields is not null
@@ -837,6 +946,7 @@ public sealed partial class BindableNodeAnalyzer
 				? ThisMemberReference(stateFields.CurrentFieldName, elementType)
 				: CreateVariableReference(currentLocal!.Target, elementType);
 		}
+		Expression ErrorReference() => CreateVariableReference(errorLocal!.Target, errorLocal.Target.ResolvedType ?? thrownType ?? ErrorType);
 
 		DeclarationStatement loopValue = new()
 		{
@@ -888,39 +998,39 @@ public sealed partial class BindableNodeAnalyzer
 		if (foreachStatement.Body is not null)
 			bodyStatements.Add(foreachStatement.Body);
 		RewriteStatementList(bodyStatements);
+		Statement? nextFailureStatement = thrownType is null
+			? null
+			: CreateIteratorNextFailureStatement(ErrorReference(), thrownType, foreachStatement.SourceSyntax);
 		currentLoopTransferTargets.RemoveAt(currentLoopTransferTargets.Count - 1);
 		currentCleanupScopes.RemoveAt(currentCleanupScopes.Count - 1);
+		if (thrownType is not null)
+		{
+			CallExpression checkedNextCall = CreateIteratorStateNextCall(IteratorReference(), next, currentParameters, CurrentReference(), ErrorReference(), foreachStatement.SourceSyntax);
+			loopBody.Statements.Add(new IfStatement
+			{
+				SourceSyntax = foreachStatement.SourceSyntax,
+				ResolvedType = "void",
+				Condition = new UnaryExpression
+				{
+					SourceSyntax = foreachStatement.SourceSyntax,
+					Operator = UnaryOperator.LogicalNot,
+					Operand = LowerExpression(checkedNextCall),
+					ResolvedType = "bool"
+				},
+				Body = nextFailureStatement
+			});
+		}
 		loopBody.Statements.AddRange(bodyStatements);
 		loopBody.Statements.Add(new LabelStatement { Name = continueLabel, ResolvedType = "void" });
 
-		CallExpression nextCall = new()
-		{
-			SourceSyntax = foreachStatement.SourceSyntax,
-			Target = new MemberReferenceExpression
-			{
-				SourceSyntax = foreachStatement.SourceSyntax,
-				Target = IteratorReference(),
-				Name = "next",
-				Member = next,
-				ResolvedType = BuildFunctionValueType(next, isInstance: true)
-			},
-			ResolvedType = "bool"
-		};
-		if (TryCreateParamsComponentExpressions(CurrentReference(), out List<Expression> currentComponents) && nextParameters.Count == currentComponents.Count)
-		{
-			for (int i = 0; i < currentComponents.Count; i++)
-				nextCall.Arguments.Add(CreateIteratorProtocolCurrentArgument(currentComponents[i], nextParameters[i].ResolvedType ?? ErrorType, foreachStatement.SourceSyntax));
-		}
-		else
-		{
-			string currentParameterType = nextParameters.Count > 0 ? nextParameters[0].ResolvedType ?? $"{elementType}*" : $"{elementType}*";
-			nextCall.Arguments.Add(CreateIteratorProtocolCurrentArgument(CurrentReference(), currentParameterType, foreachStatement.SourceSyntax));
-		}
+		CallExpression nextCall = CreateIteratorStateNextCall(IteratorReference(), next, currentParameters, CurrentReference(), thrownType is null ? null : ErrorReference(), foreachStatement.SourceSyntax);
 		WhileStatement loop = new()
 		{
 			SourceSyntax = foreachStatement.SourceSyntax,
 			ResolvedType = "void",
-			Condition = LowerExpression(nextCall),
+			Condition = thrownType is null
+				? LowerExpression(nextCall)
+				: new LiteralExpression { SourceSyntax = foreachStatement.SourceSyntax, Kind = LiteralKind.True, Text = "true", Value = true, ResolvedType = "bool" },
 			Body = loopBody
 		};
 
@@ -935,6 +1045,36 @@ public sealed partial class BindableNodeAnalyzer
 		if (doneLabel is not null)
 			setupStatements.Add(new LabelStatement { Name = doneLabel, ResolvedType = "void" });
 		return CreateBlock(setupStatements);
+	}
+
+	CallExpression CreateIteratorStateNextCall(Expression iterator, FunctionDefinition next, List<ParameterDefinition> currentParameters, Expression current, Expression? error, SyntaxNode? syntax)
+	{
+		CallExpression nextCall = new()
+		{
+			SourceSyntax = syntax,
+			Target = new MemberReferenceExpression
+			{
+				SourceSyntax = syntax,
+				Target = iterator,
+				Name = "next",
+				Member = next,
+				ResolvedType = BuildFunctionValueType(next, isInstance: true)
+			},
+			ResolvedType = "bool"
+		};
+		if (TryCreateParamsComponentExpressions(current, out List<Expression> currentComponents) && currentParameters.Count == currentComponents.Count)
+		{
+			for (int i = 0; i < currentComponents.Count; i++)
+				nextCall.Arguments.Add(CreateIteratorProtocolCurrentArgument(currentComponents[i], currentParameters[i].ResolvedType ?? ErrorType, syntax));
+		}
+		else
+		{
+			string currentParameterType = currentParameters.Count > 0 ? currentParameters[0].ResolvedType ?? AddPointer(current.ResolvedType ?? ErrorType) : AddPointer(current.ResolvedType ?? ErrorType);
+			nextCall.Arguments.Add(CreateIteratorProtocolCurrentArgument(current, currentParameterType, syntax));
+		}
+		if (error is not null)
+			nextCall.Arguments.Add(CreateIteratorProtocolThrownArgument(error, syntax));
+		return nextCall;
 	}
 
 	Statement CreateIteratorCleanupStatement(Expression iteratorTarget, string iteratorType, SyntaxNode? syntax)

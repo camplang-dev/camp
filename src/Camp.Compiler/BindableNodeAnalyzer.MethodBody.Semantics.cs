@@ -2979,6 +2979,12 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (type is IterTypeReference { ElementType: not null } iter)
 			return iter.ElementType.ResolvedType;
+		if (type is IterTypeReference { Parameters.Count: > 0 } parameterIter)
+		{
+			foreach (ParameterDefinition parameter in parameterIter.Parameters)
+				if (parameter.Modifier != ParameterModifier.Thrown)
+					return parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type);
+		}
 
 		string? resolved = type?.ResolvedType;
 		if (resolved is null)
@@ -2991,6 +2997,24 @@ public sealed partial class BindableNodeAnalyzer
 			return ExtractFirstIteratorSlotType(resolved, "iter(");
 		if (resolved.StartsWith("async iter(", StringComparison.Ordinal))
 			return ExtractFirstIteratorSlotType(resolved, "async iter(");
+		return null;
+	}
+
+	string? GetIteratorThrownType(TypeReference? type)
+	{
+		if (type is IterTypeReference iter)
+		{
+			foreach (ParameterDefinition parameter in iter.Parameters)
+				if (parameter.Modifier == ParameterModifier.Thrown)
+					return parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type);
+			return null;
+		}
+
+		string? resolved = type?.ResolvedType;
+		if (resolved is null)
+			return null;
+		if (TryGetIteratorProtocolSlots(resolved, out _, out string? thrownType))
+			return thrownType;
 		return null;
 	}
 

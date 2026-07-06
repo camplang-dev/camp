@@ -23,6 +23,7 @@ public sealed partial class BindableNodeAnalyzer
 		scope.CurrentFunctionReturnType = IsLifecycleFunction(function) ? "void" : function.ResolvedType ?? ErrorType;
 		scope.CurrentFunctionSourceReturnType = IsLifecycleFunction(function) ? "void" : FormatTypeReference(function.ReturnType);
 		scope.CurrentIteratorElementType = function.IteratorKind == IteratorKind.None ? null : GetIteratorElementType(function.ReturnType);
+		scope.CurrentIteratorThrownType = function.IteratorKind == IteratorKind.None ? null : GetIteratorThrownType(function.ReturnType);
 
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
@@ -246,7 +247,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			CurrentFunctionReturnType = scope.CurrentFunctionReturnType,
 			CurrentFunctionSourceReturnType = scope.CurrentFunctionSourceReturnType,
-			CurrentIteratorElementType = scope.CurrentIteratorElementType
+			CurrentIteratorElementType = scope.CurrentIteratorElementType,
+			CurrentIteratorThrownType = scope.CurrentIteratorThrownType
 		};
 
 		foreach (Statement statement in statements)
@@ -1547,7 +1549,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			CurrentFunctionReturnType = targetShape?.ReturnType ?? TargetType,
 			CurrentFunctionSourceReturnType = lambdaSourceReturnType,
-			CurrentIteratorElementType = null
+			CurrentIteratorElementType = null,
+			CurrentIteratorThrownType = null
 		};
 
 		if (targetShape is CallableShape shape && shape.Parameters.Count != lambda.Parameters.Count)
@@ -3937,7 +3940,7 @@ public sealed partial class BindableNodeAnalyzer
 			return BodyAnalyzeAwaitExpression(unary, scope, typeScope);
 
 		string? operandTargetType = unary.Operator == UnaryOperator.Throw
-			? GetFunctionThrownParameter(scope.CurrentFunction)?.ResolvedType ?? GetFunctionThrownReturnType(scope.CurrentFunction)
+			? GetFunctionThrownParameter(scope.CurrentFunction)?.ResolvedType ?? scope.CurrentIteratorThrownType ?? GetFunctionThrownReturnType(scope.CurrentFunction)
 			: targetType;
 		string operandType = BodyAnalyzeExpression(unary.Operand, scope, typeScope, operandTargetType);
 		if (unary.Context is not null)
@@ -4462,6 +4465,7 @@ public sealed partial class BindableNodeAnalyzer
 		public string CurrentFunctionReturnType { get; set; } = ErrorType;
 		public string? CurrentFunctionSourceReturnType { get; set; }
 		public string? CurrentIteratorElementType { get; set; }
+		public string? CurrentIteratorThrownType { get; set; }
 		public Dictionary<string, BodySymbol> Symbols { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, BodySymbol> MemberSymbols { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, string> ComponentSymbols { get; } = new(StringComparer.Ordinal);

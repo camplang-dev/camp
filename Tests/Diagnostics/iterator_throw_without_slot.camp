@@ -1,0 +1,10 @@
+enum Err
+{
+	OK = 0,
+	BAD
+}
+
+struct iter int throwsWithoutSlot()
+{
+	throw Err.BAD;
+}

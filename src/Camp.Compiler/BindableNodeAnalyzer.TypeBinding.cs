@@ -807,34 +807,38 @@ public sealed partial class BindableNodeAnalyzer
 
 		int yieldedCount = 0;
 		int thrownCount = 0;
+		bool sawThrown = false;
 		foreach (ParameterDefinition parameter in iter.Parameters)
 		{
 			if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition or WithinParameterDefinition
 				|| parameter.Modifier is ParameterModifier.In or ParameterModifier.Out or ParameterModifier.Within)
 			{
-				Report(GetIteratorSlotRange(parameter), "Iterator result slots may only be yielded value slots or a thrown slot.");
+				Report(GetIteratorSlotRange(parameter), "Iterator result slots may only contain one yielded type and an optional trailing thrown type.");
 				continue;
 			}
 
 			AnalyzeParameterDefinition(parameter, scope);
 			if (parameter.Modifier == ParameterModifier.Thrown)
 			{
+				sawThrown = true;
 				thrownCount++;
 				if (yieldedCount == 0)
-					Report(GetIteratorSlotRange(parameter), "Iterator thrown slot must follow at least one yielded value slot.");
+					Report(GetIteratorSlotRange(parameter), "Iterator thrown type must appear after the yielded type.");
 				if (thrownCount > 1)
-					Report(GetIteratorSlotRange(parameter), "Iterator type may declare at most one thrown slot.");
+					Report(GetIteratorSlotRange(parameter), "Iterator type may declare at most one thrown type.");
 			}
 			else
 			{
-				if (thrownCount > 0)
-					Report(GetIteratorSlotRange(parameter), "Iterator yielded value slots must appear before the thrown slot.");
+				if (sawThrown)
+					Report(GetIteratorSlotRange(parameter), "Iterator yielded type must appear before the thrown type.");
 				yieldedCount++;
+				if (yieldedCount > 1)
+					Report(GetIteratorSlotRange(parameter), "Iterator type cannot yield multiple values; use a named struct or params value instead.");
 			}
 		}
 
 		if (yieldedCount == 0)
-			Report(GetRange(iter.SourceSyntax), "Iter type is missing a yielded type.");
+			Report(GetRange(iter.SourceSyntax), "Iterator type must have exactly one yielded type and may optionally end with one thrown type.");
 	}
 
 	static TokenRange? GetIteratorSlotRange(ParameterDefinition parameter)

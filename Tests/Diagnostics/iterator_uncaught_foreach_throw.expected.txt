@@ -1,0 +1,1 @@
+tests/Diagnostics/iterator_uncaught_foreach_throw.camp(9,39): error: Thrown value of type 'Err' must be caught or rethrown by a compatible thrown result.

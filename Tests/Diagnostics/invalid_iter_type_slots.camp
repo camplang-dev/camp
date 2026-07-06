@@ -5,7 +5,10 @@ enum Err
 }
 
 extern iter(thrown Err) onlyThrows();
+extern iter(int, int) twoValues();
 extern iter(int, thrown Err, int) valueAfterThrow();
+extern iter(int, thrown Err, thrown Err) twoErrors();
+extern iter(in int) inValue();
 
 struct iter int badGenerator(out int value)
 {

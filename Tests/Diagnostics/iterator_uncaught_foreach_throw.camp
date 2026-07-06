@@ -1,0 +1,17 @@
+enum Err
+{
+	OK = 0,
+	BAD
+}
+
+void uncaughtForeach()
+{
+	foreach (auto value in throwsWithSlot())
+	{
+	}
+}
+
+struct iter(int value, thrown Err error) throwsWithSlot()
+{
+	throw Err.BAD;
+}

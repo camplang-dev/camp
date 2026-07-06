@@ -1,0 +1,97 @@
+using Std;
+
+enum IterError
+{
+	OK = 0,
+	FAILED
+}
+
+int cleanupCount;
+
+void cleanup()
+{
+	cleanupCount++;
+}
+
+struct iter(int value, thrown IterError error) numbers(int failAt)
+{
+	finally cleanup();
+
+	yield 1;
+	if (failAt == 2)
+		throw IterError.FAILED;
+	yield 3;
+}
+
+struct iter(const char[] value, thrown IterError error) words(bool fail)
+{
+	yield "alpha";
+	if (fail)
+		throw IterError.FAILED;
+	yield "omega";
+}
+
+int sumUntilFailure(thrown IterError error)
+{
+	int total = 0;
+	foreach (auto value in numbers(2))
+		total += value;
+	return total;
+}
+
+export int main()
+{
+	int total = 0;
+	try
+	{
+		foreach (auto value in numbers(0))
+			total += value;
+	}
+	catch (IterError firstError)
+	{
+		Console.writeLine("unexpected");
+		return 1;
+	}
+
+	if (total != 4 || cleanupCount != 1)
+	{
+		Console.writeLine("bad success");
+		return 2;
+	}
+
+	try
+	{
+		int ignored = sumUntilFailure();
+		Console.writeLine((nint)ignored);
+		return 3;
+	}
+	catch (IterError secondError)
+	{
+		if (secondError != IterError.FAILED || cleanupCount != 2)
+		{
+			Console.writeLine("bad failure");
+			return 4;
+		}
+	}
+
+	nuint wordLength = 0;
+	try
+	{
+		foreach (auto word in words(false))
+			wordLength += word.length;
+	}
+	catch (IterError thirdError)
+	{
+		Console.writeLine("unexpected word");
+		return 5;
+	}
+
+	if (wordLength != 10)
+	{
+		Console.writeLine("bad words");
+		return 6;
+	}
+
+	Console.writeLine("OK");
+	return 0;
+}

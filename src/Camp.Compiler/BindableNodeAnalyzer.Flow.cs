@@ -117,6 +117,12 @@ public sealed partial class BindableNodeAnalyzer
 
 			case ForeachStatement foreachStatement:
 				FlowAnalyzeExpression(foreachStatement.Source, state);
+				string? foreachThrownType = TryGetIteratorProtocolSlots(foreachStatement.Source?.ResolvedType ?? "", out _, out string? protocolThrownType)
+					? protocolThrownType
+					: null;
+				foreachThrownType ??= foreachStatement.IteratorNext is null ? null : GetFunctionThrownType(foreachStatement.IteratorNext);
+				if (foreachThrownType is string iteratorThrownType)
+					HandleThrownValue(iteratorThrownType, foreachStatement.Source?.SourceSyntax ?? foreachStatement.Target.SourceSyntax ?? foreachStatement.SourceSyntax, state, exitsCurrentPath: false);
 				DeclareTargets(foreachStatement.Target, state, assigned: true);
 				FlowAnalyzeOptionalStatement(foreachStatement.Body, state.Clone());
 				break;
@@ -628,10 +634,12 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		string? functionThrownType = GetFunctionThrownType(state.Function);
+		if (functionThrownType is null)
+			functionThrownType = state.BodyScope.CurrentIteratorThrownType;
 		if (functionThrownType is not null && CanImplicitlyConvert(thrownType, functionThrownType))
 			return;
 
-		Report(GetRange(syntax), $"Thrown value of type '{thrownType}' must be caught or rethrown by a compatible thrown result.");
+		Report(GetRange(syntax) ?? GetNameRange(state.Function) ?? GetRange(state.Function.SourceSyntax), $"Thrown value of type '{thrownType}' must be caught or rethrown by a compatible thrown result.");
 		if (exitsCurrentPath)
 			state.Reachable = false;
 	}

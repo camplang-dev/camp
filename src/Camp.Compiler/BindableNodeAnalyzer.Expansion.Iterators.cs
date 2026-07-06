@@ -595,7 +595,7 @@ public sealed partial class BindableNodeAnalyzer
 		BlockStatement cleanupBody = new() { ResolvedType = "void" };
 		foreach (IteratorForeachStateFields fields in GetIteratorForeachStateFields(sourceFunction))
 			cleanupBody.Statements.Add(CreateIteratorForeachCleanup(sourceFunction, fields));
-		IteratorBodyLowering cleanupLowering = new(this, sourceFunction, new ParameterDefinition { Name = "current", Symbol = "current", ResolvedType = "void*" }, ErrorType);
+		IteratorBodyLowering cleanupLowering = new(this, sourceFunction, new ParameterDefinition { Name = "current", Symbol = "current", ResolvedType = "void*" }, ErrorType, null);
 		foreach (Statement cleanup in GetTopLevelIteratorFinallyStatements(sourceFunction))
 		{
 			foreach (Statement rewrittenCleanup in RewriteIteratorStatement(CloneStatementForCleanup(cleanup), cleanupLowering))
@@ -712,6 +712,21 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		List<ParameterDefinition> currentParameters = CreateIteratorProtocolCurrentParameters(slots[0], slotType);
 		ParameterDefinition currentArgument = CreateIteratorProtocolCurrentArgument(slots[0], slotType, currentParameters);
+		ParameterDefinition? thrownSlot = GetIteratorThrownSlot(iterType);
+		ParameterDefinition? thrownParameter = null;
+		if (thrownSlot is not null)
+		{
+			string thrownType = thrownSlot.ResolvedType ?? thrownSlot.Type?.ResolvedType ?? FormatTypeReference(thrownSlot.Type);
+			thrownParameter = new ParameterDefinition
+			{
+				SourceSyntax = thrownSlot.SourceSyntax,
+				Name = string.IsNullOrWhiteSpace(thrownSlot.Name) ? "error" : thrownSlot.Name,
+				Symbol = string.IsNullOrWhiteSpace(thrownSlot.Symbol) ? "error" : thrownSlot.Symbol,
+				Modifier = ParameterModifier.Thrown,
+				Type = CloneType(thrownSlot.Type),
+				ResolvedType = thrownType
+			};
+		}
 		TypeReference statePointerType = PointerTo(TypeReferenceFor(state));
 		string statePointerResolvedType = AddPointer(state.Name);
 		DeclarationStatement stateLocal = CreateGeneratedLocal("state", statePointerResolvedType, statePointerType, new CastExpression
@@ -786,8 +801,19 @@ public sealed partial class BindableNodeAnalyzer
 				}
 			}
 		};
+		if (thrownParameter is not null && adapter.Body.Statements[^1] is ReturnStatement { Expression: CallExpression call })
+		{
+			call.Arguments.Add(new ArgumentExpression
+			{
+				Modifier = ArgumentModifier.Catch,
+				Value = CreateVariableReference(thrownParameter, thrownParameter.ResolvedType ?? ErrorType),
+				ResolvedType = thrownParameter.ResolvedType
+			});
+		}
 		adapter.Parameters.Add(context);
 		adapter.Parameters.AddRange(currentParameters);
+		if (thrownParameter is not null)
+			adapter.Parameters.Add(thrownParameter);
 		AddIteratorFunction(state, adapter);
 	}
 
@@ -998,7 +1024,17 @@ public sealed partial class BindableNodeAnalyzer
 			};
 		}
 
-		IteratorBodyLowering lowering = new(this, function, nextParameters[0], yieldSlots[0].ResolvedType ?? ErrorType);
+		ParameterDefinition? thrownParameter = null;
+		foreach (ParameterDefinition parameter in nextParameters)
+		{
+			if (parameter.Modifier == ParameterModifier.Thrown)
+			{
+				thrownParameter = parameter;
+				break;
+			}
+		}
+
+		IteratorBodyLowering lowering = new(this, function, nextParameters[0], yieldSlots[0].ResolvedType ?? ErrorType, thrownParameter);
 		string? previousIteratorStateThisType = currentIteratorStateThisType;
 		currentIteratorStateThisType = $"{state.Name}*";
 		try
@@ -1039,6 +1075,9 @@ public sealed partial class BindableNodeAnalyzer
 			case YieldStatement yield:
 				ValidateIteratorYieldLifetime(lowering.Function, yield.Expression, yield.Expression?.SourceSyntax ?? yield.SourceSyntax);
 				return lowering.CreateYield(yield.Expression);
+
+			case ExpressionStatement { Expression: UnaryExpression { Operator: UnaryOperator.Throw } throwStatement }:
+				return lowering.CreateThrow(throwStatement.Operand, throwStatement.SourceSyntax);
 
 			case ReturnStatement:
 				return lowering.CreateCompletion();
@@ -1841,16 +1880,18 @@ public sealed partial class BindableNodeAnalyzer
 		readonly Dictionary<string, string> liftedTypes = new(StringComparer.Ordinal);
 		readonly List<Statement> cleanupStatements;
 		readonly ParameterDefinition current;
+		readonly ParameterDefinition? thrownParameter;
 		readonly string yieldedType;
 		int nextState = 1;
 
 		public FunctionDefinition Function { get; }
 
-		public IteratorBodyLowering(BindableNodeAnalyzer analyzer, FunctionDefinition function, ParameterDefinition current, string yieldedType)
+		public IteratorBodyLowering(BindableNodeAnalyzer analyzer, FunctionDefinition function, ParameterDefinition current, string yieldedType, ParameterDefinition? thrownParameter)
 		{
 			this.analyzer = analyzer;
 			Function = function;
 			this.current = current;
+			this.thrownParameter = thrownParameter;
 			this.yieldedType = yieldedType;
 			cleanupStatements = analyzer.GetTopLevelIteratorFinallyStatements(function);
 			foreach (ParameterDefinition parameter in function.Parameters)
@@ -1896,34 +1937,63 @@ public sealed partial class BindableNodeAnalyzer
 		public List<Statement> CreateYield(Expression? value)
 		{
 			int resumeState = nextState++;
-			return
-			[
-				new ExpressionStatement
+			List<Statement> statements = [];
+			statements.AddRange(ClearThrownSlot());
+			statements.Add(new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
 				{
-					ResolvedType = "void",
-					Expression = new AssignmentExpression
+					Target = new UnaryExpression
 					{
-						Target = new UnaryExpression
-						{
-							Operator = UnaryOperator.PointerDereference,
-							Operand = CreateVariableReference(current, current.ResolvedType ?? ErrorType),
-							ResolvedType = yieldedType
-						},
-						Operator = AssignmentOperator.Assign,
-						Value = analyzer.RewriteIteratorExpression(value, this),
+						Operator = UnaryOperator.PointerDereference,
+						Operand = CreateVariableReference(current, current.ResolvedType ?? ErrorType),
 						ResolvedType = yieldedType
-					}
+					},
+					Operator = AssignmentOperator.Assign,
+					Value = analyzer.RewriteIteratorExpression(value, this),
+					ResolvedType = yieldedType
 				},
-				SetState(resumeState),
-				new ReturnStatement
+			});
+			statements.Add(SetState(resumeState));
+			statements.Add(new ReturnStatement
+			{
+				Expression = BoolLiteral(true),
+				SkipPendingCleanups = true,
+				ResolvedType = "void"
+			});
+			statements.Add(new LabelStatement { Name = ResumeLabel(resumeState), ResolvedType = "void" });
+			statements.Add(new EmptyStatement { ResolvedType = "void" });
+			return statements;
+		}
+
+		public List<Statement> CreateThrow(Expression? value, SyntaxNode? syntax)
+		{
+			if (thrownParameter is null)
+			{
+				analyzer.Report(GetNameRange(Function) ?? GetRange(syntax ?? value?.SourceSyntax ?? Function.SourceSyntax), "Iterator generator cannot throw because its iterator type does not declare a thrown result.");
+				return [ReturnFalse()];
+			}
+
+			string thrownType = thrownParameter.ResolvedType ?? thrownParameter.Type?.ResolvedType ?? FormatTypeReference(thrownParameter.Type);
+			List<Statement> statements = [];
+			statements.Add(new ExpressionStatement
+			{
+				SourceSyntax = syntax,
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
 				{
-					Expression = BoolLiteral(true),
-					SkipPendingCleanups = true,
-					ResolvedType = "void"
-				},
-				new LabelStatement { Name = ResumeLabel(resumeState), ResolvedType = "void" },
-				new EmptyStatement { ResolvedType = "void" }
-			];
+					Target = CreateVariableReference(thrownParameter, thrownType),
+					Operator = AssignmentOperator.Assign,
+					Value = analyzer.RewriteIteratorExpression(value, this),
+					ResolvedType = thrownType
+				}
+			});
+			foreach (Statement cleanup in cleanupStatements)
+				statements.Add(analyzer.CloneStatementForCleanup(cleanup));
+			statements.Add(SetState(-1));
+			statements.Add(ReturnFalse(skipPendingCleanups: true));
+			return statements;
 		}
 
 		public List<Statement> CreateCompletion()
@@ -1932,8 +2002,31 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (Statement cleanup in cleanupStatements)
 				statements.Add(analyzer.CloneStatementForCleanup(cleanup));
 			statements.Add(SetState(-1));
+			statements.AddRange(ClearThrownSlot());
 			statements.Add(ReturnFalse());
 			return statements;
+		}
+
+		List<Statement> ClearThrownSlot()
+		{
+			if (thrownParameter is null)
+				return [];
+
+			string thrownType = thrownParameter.ResolvedType ?? thrownParameter.Type?.ResolvedType ?? FormatTypeReference(thrownParameter.Type);
+			return
+			[
+				new ExpressionStatement
+				{
+					ResolvedType = "void",
+					Expression = new AssignmentExpression
+					{
+						Target = CreateVariableReference(thrownParameter, thrownType),
+						Operator = AssignmentOperator.Assign,
+						Value = new DefaultExpression { ResolvedType = thrownType },
+						ResolvedType = thrownType
+					}
+				}
+			];
 		}
 
 		Statement CreateResumeIf(int state)
@@ -1967,11 +2060,12 @@ public sealed partial class BindableNodeAnalyzer
 			};
 		}
 
-		static ReturnStatement ReturnFalse()
+		static ReturnStatement ReturnFalse(bool skipPendingCleanups = false)
 		{
 			return new ReturnStatement
 			{
 				Expression = BoolLiteral(false),
+				SkipPendingCleanups = skipPendingCleanups,
 				ResolvedType = "void"
 			};
 		}

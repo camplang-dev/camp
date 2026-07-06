@@ -105,6 +105,7 @@ public sealed partial class BindableNodeAnalyzer
 			ParameterDeclaratorSyntax declarator => declarator.Keyword?.Range,
 			TypeSyntax type => GetTypeRange(type),
 			AssignmentSyntax assignment => assignment.EqualsToken?.Range,
+			KeywordStatementSyntax keywordStatement => keywordStatement.Keyword?.Range ?? GetRange(keywordStatement.Condition) ?? GetRange(keywordStatement.Body),
 			BlockMethodBodySyntax body => body.OpenBraceToken?.Range,
 			ExpressionMethodBodySyntax body => body.ArrowToken,
 			IdentListSyntax list => list.Identifiers is [Token first, ..] ? first.Range : null,
