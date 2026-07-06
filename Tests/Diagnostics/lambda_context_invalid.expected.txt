@@ -1,0 +1,5 @@
+tests/Diagnostics/lambda_context_invalid.camp(6,2): error: 'delete delegate' is valid only inside a 'new delegate' lambda.
+tests/Diagnostics/lambda_context_invalid.camp(12,9): error: Escaped delegate cleanup uses 'delete delegate'; 'delete context' is no longer valid.
+tests/Diagnostics/lambda_context_invalid.camp(20,16): error: '_context' is compiler-managed lambda storage and cannot be read, assigned, passed, addressed, or deleted.
+tests/Diagnostics/lambda_context_invalid.camp(26,7): error: '_context' is compiler-managed lambda storage and cannot be read, assigned, passed, addressed, or deleted.
+tests/Diagnostics/lambda_context_invalid.camp(32,10): error: '_context' is compiler-managed lambda storage and cannot be read, assigned, passed, addressed, or deleted.

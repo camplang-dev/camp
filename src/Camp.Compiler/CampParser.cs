@@ -1938,7 +1938,7 @@ public sealed class CampParser
 			if (syntax.DeclarationTarget is not null)
 				return syntax;
 		}
-		else if (Is("within"))
+		else if (Is("within") && PeekValue(1) != "(")
 		{
 			syntax.WithinKeyword = Take();
 		}

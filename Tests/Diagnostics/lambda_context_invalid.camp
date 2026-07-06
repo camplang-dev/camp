@@ -1,0 +1,34 @@
+void use(void* value) {}
+void accept(escaped delegate void() callback) {}
+
+void outside()
+{
+	delete delegate;
+}
+
+void oldSpelling()
+{
+	void* context = null;
+	delete context;
+}
+
+export void main()
+{
+	accept(new delegate () =>
+	{
+		void* _context = null;
+		auto value = _context;
+	});
+
+	accept(new delegate () =>
+	{
+		void* _context = null;
+		use(_context);
+	});
+
+	accept(new delegate () =>
+	{
+		void* _context = null;
+		delete _context;
+	});
+}
