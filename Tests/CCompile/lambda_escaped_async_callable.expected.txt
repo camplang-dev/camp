@@ -1,0 +1,89 @@
+// file: lambda_escaped_async_callable.c
+#include "lambda_escaped_async_callable_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void (* makeAdder(int amount, void **result_context))(void *arg0, int arg1, void (* arg2)(void *arg0, int arg1, CalcError arg2), void *arg3);
+static void accept(void (* callback)(void *arg0, int arg1, void (* arg2)(void *arg0, int arg1, CalcError arg2), void *arg3), void *callback_context);
+static void makeAdder_lambda0(void *_context, int value, void (* complete)(void *arg0, int arg1, CalcError arg2), void *complete_context);
+
+static void (* makeAdder(int amount, void **result_context))(void *arg0, int arg1, void (* arg2)(void *arg0, int arg1, CalcError arg2), void *arg3)
+{
+	makeAdder_lambdaContext0 *_lambdaContext0 = (makeAdder_lambdaContext0 *)(malloc(sizeof(makeAdder_lambdaContext0)));
+	_lambdaContext0->capture0_amount = amount;
+	{
+		(*result_context) = _lambdaContext0;
+		return makeAdder_lambda0;
+	}
+}
+
+static void accept(void (* callback)(void *arg0, int arg1, void (* arg2)(void *arg0, int arg1, CalcError arg2), void *arg3), void *callback_context)
+{
+}
+
+int main(void)
+{
+	void (* _call1)(void *arg0, int arg1, void (* arg2)(void *arg0, int arg1, CalcError arg2), void *arg3);
+	void *_context2;
+	_call1 = makeAdder(4, &_context2);
+	accept((void (*)(void *arg0, int arg1, void (* arg2)(void *arg0, int arg1, CalcError arg2), void *arg3))_call1, _context2);
+	return 0;
+}
+
+static void makeAdder_lambda0(void *_context, int value, void (* complete)(void *arg0, int arg1, CalcError arg2), void *complete_context)
+{
+	makeAdder_lambdaContext0 *lambdaContext = (makeAdder_lambdaContext0 *)(_context);
+	if ((value < 0))
+	{
+		complete(complete_context, 0, CalcError_ERR_BAD);
+	}
+	else
+	{
+		complete(complete_context, (value + lambdaContext->capture0_amount), CalcError_ERR_NONE);
+	}
+	free((void *)(lambdaContext));
+}
+
+// file: lambda_escaped_async_callable.h
+#ifndef LAMBDA_ESCAPED_ASYNC_CALLABLE_H_
+#define LAMBDA_ESCAPED_ASYNC_CALLABLE_H_
+
+#include "lambda_escaped_async_callable_private.h"
+
+int main(void);
+
+#endif
+// file: lambda_escaped_async_callable_private.h
+#ifndef LAMBDA_ESCAPED_ASYNC_CALLABLE_PRIVATE_H_
+#define LAMBDA_ESCAPED_ASYNC_CALLABLE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct makeAdder_lambdaContext0 makeAdder_lambdaContext0;
+
+/* Enums. */
+typedef uint32_t CalcError;
+#define CalcError_ERR_NONE ((CalcError)0)
+#define CalcError_ERR_BAD ((CalcError)1)
+
+/* Newtypes. */
+
+/* Layouts. */
+struct makeAdder_lambdaContext0
+{
+	int capture0_amount;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lambda_escaped_async_callable.c

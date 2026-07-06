@@ -55,7 +55,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return TryGetLambdaCallableShape(type, out CallableShape shape, out bool isEscaped)
 			&& isEscaped
-			&& shape.Kind == "delegate";
+			&& shape.Kind is "delegate" or "async";
 	}
 
 	Expression LowerLambdaExpression(LambdaExpression lambda)
@@ -64,20 +64,21 @@ public sealed partial class BindableNodeAnalyzer
 			&& !ReferenceEquals(rewritten, lambda))
 			return rewritten;
 
-		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind is not ("fn" or "delegate" or "once"))
+		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind is not ("fn" or "delegate" or "once" or "async"))
 		{
-			Report(GetRange(lambda.SourceSyntax), "Lambda lowering supports only fn, delegate, once targets.");
+			Report(GetRange(lambda.SourceSyntax), "Lambda lowering supports only fn, delegate, once, and escaped async targets.");
 			return lambda;
 		}
-		CallableShape loweringShape = EraseConstOfCallableShape(TryGetCallableShape(lambda.ResolvedType, out CallableShape abiShape) ? abiShape : shape);
+		CallableShape sourceShape = shape.Kind == "async" ? CreateAsyncLambdaSourceShape(shape) : shape;
+		CallableShape loweringShape = EraseConstOfCallableShape(sourceShape);
 		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, currentRewriteFunction, FindCurrentRewriteContainingType(), reportUnsupported: true);
-		if (captures.Count > 0 && shape.Kind is not ("delegate" or "once"))
+		if (captures.Count > 0 && shape.Kind is not ("delegate" or "once" or "async"))
 		{
 			Report(GetRange(lambda.SourceSyntax), "Capturing lambdas require a delegate target.");
 			return lambda;
 		}
 
-		bool delegateTarget = shape.Kind is "delegate" or "once";
+		bool delegateTarget = shape.Kind is "delegate" or "once" or "async";
 		Expression? currentAllocator = CurrentAllocator();
 		bool bodyUsesInheritedAllocator = LambdaBodyUsesInheritedAllocator(lambda);
 		bool captureDelegateAllocator = lambda.IsNewDelegate
@@ -321,7 +322,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void PrepareLambdaContextLocal(LambdaExpression lambda, List<Statement> statements)
 	{
-		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind is not ("delegate" or "once"))
+		if (!TryGetLambdaCallableShape(lambda.ResolvedType, out CallableShape shape, out bool isEscaped) || shape.Kind is not ("delegate" or "once" or "async"))
 			return;
 		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, currentRewriteFunction, FindCurrentRewriteContainingType(), reportUnsupported: true);
 		Expression? currentAllocator = CurrentAllocator();

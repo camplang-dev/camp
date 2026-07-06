@@ -82,6 +82,12 @@ public sealed partial class BindableNodeAnalyzer
 				AddDelegatePendingComponents(callable.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredCallableParameterTypes(callable.Parameters), prefix, components, callable.TargetSpec, callable.CallSpec);
 				return true;
 
+			case CallableTypeReference { Kind: CallableKind.Async } callable:
+				kind = ParamsComponentShapeKind.Delegate;
+				typeName = type.ResolvedType ?? resolvedType ?? ErrorType;
+				AddAsyncPendingComponents(callable.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredAsyncVisibleParameterTypes(callable.Parameters), GetAsyncCompletionParameterTypes(callable.ReturnType?.ResolvedType ?? ErrorType, callable.Parameters), prefix, components, callable.TargetSpec, callable.CallSpec);
+				return true;
+
 			case IterTypeReference iter:
 				kind = ParamsComponentShapeKind.Iter;
 				typeName = type.ResolvedType ?? resolvedType ?? ErrorType;
@@ -104,10 +110,15 @@ public sealed partial class BindableNodeAnalyzer
 				&& TryBuildPendingParamsComponents(newtypeDefinition.UnderlyingType, newtypeDefinition.UnderlyingType.ResolvedType, prefix, out components, out kind, out _)
 				&& kind is ParamsComponentShapeKind.Delegate or ParamsComponentShapeKind.Iter)
 			{
-				if (kind == ParamsComponentShapeKind.Delegate && newtypeDefinition.UnderlyingType is CallableTypeReference delegateType)
+				if (kind == ParamsComponentShapeKind.Delegate && newtypeDefinition.UnderlyingType is CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once } delegateType)
 				{
 					components = [];
 					AddDelegatePendingComponents(delegateType.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredCallableParameterTypes(newtypeDefinition.Parameters), prefix, components, delegateType.TargetSpec, delegateType.CallSpec);
+				}
+				else if (kind == ParamsComponentShapeKind.Delegate && newtypeDefinition.UnderlyingType is CallableTypeReference { Kind: CallableKind.Async } asyncType)
+				{
+					components = [];
+					AddAsyncPendingComponents(asyncType.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredAsyncVisibleParameterTypes(newtypeDefinition.Parameters), GetAsyncCompletionParameterTypes(asyncType.ReturnType?.ResolvedType ?? ErrorType, newtypeDefinition.Parameters), prefix, components, asyncType.TargetSpec, asyncType.CallSpec);
 				}
 				else if (kind == ParamsComponentShapeKind.Iter && newtypeDefinition.UnderlyingType is IterTypeReference iterType)
 				{
@@ -149,6 +160,14 @@ public sealed partial class BindableNodeAnalyzer
 				kind = ParamsComponentShapeKind.Delegate;
 				typeName = resolvedType;
 				AddDelegatePendingComponents(callable.ReturnType, GetExpandedCallableParameterTypes(callable.Parameters), prefix, components, callable.Spec, callable.CallSpec);
+				return true;
+			}
+
+			if (TryGetCallableShape(resolvedType, out callable) && callable.Kind == "async")
+			{
+				kind = ParamsComponentShapeKind.Delegate;
+				typeName = resolvedType;
+				AddAsyncPendingComponents(callable.ReturnType, GetExpandedAsyncVisibleParameterTypes(callable.Parameters), GetAsyncCompletionParameterTypes(callable.ReturnType, callable.Parameters), prefix, components, callable.Spec, callable.CallSpec);
 				return true;
 			}
 
@@ -312,6 +331,15 @@ public sealed partial class BindableNodeAnalyzer
 		components.Add(new PendingParamsComponent("context", contextType, [.. prefix, new ParamsNamePart("context", false)], null, ParamsComponentShapeKind.Delegate));
 	}
 
+	void AddAsyncPendingComponents(string returnType, List<string> visibleParameterTypes, List<string> completionParameterTypes, List<ParamsNamePart> prefix, List<PendingParamsComponent> components, string? targetSpec = null, string? callSpec = null)
+	{
+		string contextType = "void*";
+		string completionCallableType = BuildCallableType("fn", "void", [contextType, .. completionParameterTypes]);
+		string callType = BuildCallableType("fn", "void", [contextType, .. visibleParameterTypes, completionCallableType, contextType], targetSpec, callSpec);
+		components.Add(new PendingParamsComponent("call", callType, [.. prefix, new ParamsNamePart("call", true)], null, ParamsComponentShapeKind.Delegate));
+		components.Add(new PendingParamsComponent("context", contextType, [.. prefix, new ParamsNamePart("context", false)], null, ParamsComponentShapeKind.Delegate));
+	}
+
 	void AddIteratorPendingComponents(List<string> protocolParameterTypes, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
 	{
 		AddIteratorPendingComponents(protocolParameterTypes, [], prefix, components);
@@ -364,9 +392,51 @@ public sealed partial class BindableNodeAnalyzer
 		return ExpandedFormService.GetExpandedCallableParameterTypes(parameters.Where(static parameter => parameter is not ThisParameterDefinition and not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition), TryGetParamsComponentShape);
 	}
 
+	List<string> GetExpandedDeclaredAsyncVisibleParameterTypes(List<ParameterDefinition> parameters)
+	{
+		return ExpandedFormService.GetExpandedCallableParameterTypes(parameters.Where(static parameter => parameter.Modifier != ParameterModifier.Thrown && parameter is not ThisParameterDefinition and not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition), TryGetParamsComponentShape);
+	}
+
 	List<string> GetExpandedCallableParameterTypes(List<string> parameterTypes)
 	{
 		return ExpandedFormService.GetExpandedCallableParameterTypes(parameterTypes, TryGetParamsComponentShape);
+	}
+
+	List<string> GetExpandedAsyncVisibleParameterTypes(List<string> parameterTypes)
+	{
+		List<string> visible = [];
+		foreach (string parameterType in parameterTypes)
+		{
+			CallableSlot slot = ParseCallableSlot(parameterType);
+			if (slot.Modifier != "thrown")
+				visible.Add(parameterType);
+		}
+		return ExpandedFormService.GetExpandedCallableParameterTypes(visible, TryGetParamsComponentShape);
+	}
+
+	List<string> GetAsyncCompletionParameterTypes(string returnType, List<ParameterDefinition> parameters)
+	{
+		List<string> completion = [];
+		if (returnType != "void")
+			completion.Add(returnType);
+		foreach (ParameterDefinition parameter in parameters)
+			if (parameter.Modifier == ParameterModifier.Thrown)
+				completion.Add(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType);
+		return ExpandedFormService.GetExpandedCallableParameterTypes(completion, TryGetParamsComponentShape);
+	}
+
+	List<string> GetAsyncCompletionParameterTypes(string returnType, List<string> parameterTypes)
+	{
+		List<string> completion = [];
+		if (returnType != "void")
+			completion.Add(returnType);
+		foreach (string parameterType in parameterTypes)
+		{
+			CallableSlot slot = ParseCallableSlot(parameterType);
+			if (slot.Modifier == "thrown")
+				completion.Add(slot.Type);
+		}
+		return ExpandedFormService.GetExpandedCallableParameterTypes(completion, TryGetParamsComponentShape);
 	}
 
 	List<ParamsComponent> FinalizeParamsComponents(List<PendingParamsComponent> pending)

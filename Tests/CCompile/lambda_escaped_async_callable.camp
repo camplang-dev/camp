@@ -1,0 +1,30 @@
+extern escaped void* malloc(nuint size);
+extern void free(escaped void* ptr);
+
+enum CalcError
+{
+	ERR_NONE,
+	ERR_BAD
+}
+
+escaped async int(int value, thrown CalcError) makeAdder(int amount)
+{
+	return new delegate (value, complete) =>
+	{
+		if (value < 0)
+			complete(0, CalcError.ERR_BAD);
+		else
+			complete(value + amount, CalcError.ERR_NONE);
+		delete delegate;
+	};
+}
+
+void accept(escaped async int(int value, thrown CalcError) callback)
+{
+}
+
+export int main()
+{
+	accept(makeAdder(4));
+	return 0;
+}

@@ -3866,6 +3866,8 @@ public static class CCodeEmitter
 				kind = "delegate";
 			else if (type.StartsWith("once ", StringComparison.Ordinal))
 				kind = "once";
+			else if (type.StartsWith("async ", StringComparison.Ordinal))
+				kind = "async";
 			else if (type.StartsWith("iter ", StringComparison.Ordinal) || type.StartsWith("iter(", StringComparison.Ordinal))
 				kind = "iter";
 			else
@@ -3908,10 +3910,30 @@ public static class CCodeEmitter
 			if (returnType.Length == 0)
 				return false;
 			string parameterText = type[(open + 1)..close].Trim();
-			if (parameterText.Length == 0)
+			if (parameterText.Length == 0 && kind != "async")
 				return true;
 			foreach (string parameter in SplitTopLevel(parameterText, ','))
-				parameterTypes.Add(parameter.Trim());
+				if (!string.IsNullOrWhiteSpace(parameter))
+					parameterTypes.Add(parameter.Trim());
+			if (kind == "async")
+			{
+				List<string> visibleParameters = [];
+				List<string> completionParameters = [];
+				if (returnType != "void")
+					completionParameters.Add(returnType);
+				foreach (string parameter in parameterTypes)
+				{
+					CallableSlot slot = CallableShapeService.ParseCallableSlot(parameter);
+					if (slot.Modifier == "thrown")
+						completionParameters.Add(slot.Type);
+					else
+						visibleParameters.Add(parameter);
+				}
+				returnType = "void";
+				parameterTypes = visibleParameters;
+				parameterTypes.Add("fn void(" + string.Join(", ", ["void*", .. completionParameters]) + ")");
+				parameterTypes.Add("void*");
+			}
 			return true;
 		}
 

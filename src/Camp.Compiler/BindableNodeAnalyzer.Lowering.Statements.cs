@@ -242,7 +242,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			case DeleteStatement deleteStatement:
 				if (deleteStatement.IsDelegateCleanup)
-					return new EmptyStatement { SourceSyntax = deleteStatement.SourceSyntax };
+					return new EmptyStatement { SourceSyntax = deleteStatement.SourceSyntax, ResolvedType = "void" };
 				return WithPendingCleanups(new ExpressionStatement
 				{
 					SourceSyntax = deleteStatement.SourceSyntax,

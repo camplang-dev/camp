@@ -1,0 +1,14 @@
+escaped async int(int value) missingNew()
+{
+	return (value, complete) => complete(value);
+}
+
+escaped async int(int value) missingComplete()
+{
+	return new delegate value => value + 1;
+}
+
+once void() onceTarget()
+{
+	return new delegate () => {};
+}

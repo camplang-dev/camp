@@ -1588,8 +1588,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (lambda.IsNewDelegate)
 			RequireExplicitWithin(lambda.SourceSyntax, scope, "new delegate requires an explicit within context; use within(allocator) or within(default).");
 		CallableShape? targetShape = TryGetLambdaCallableShape(targetType, out CallableShape callableTarget, out bool targetIsEscaped) ? callableTarget : null;
-		if (targetShape is CallableShape targetCallable && targetCallable.Kind is not ("fn" or "delegate" or "once"))
-			Report(GetRange(lambda.SourceSyntax), "Lambdas can target only fn, delegate, once callable types.");
+		CallableShape? lambdaAnalysisShape = targetShape is CallableShape targetCallableShape && targetCallableShape.Kind == "async"
+			? CreateAsyncLambdaSourceShape(targetCallableShape)
+			: targetShape;
+		if (targetShape is CallableShape targetCallable && targetCallable.Kind is not ("fn" or "delegate" or "once" or "async"))
+			Report(GetRange(lambda.SourceSyntax), "Lambdas can target only fn, delegate, once, or escaped async callable types.");
 		ValidateNewDelegateTarget(lambda, targetShape, targetType, targetIsEscaped);
 		bool lambdaHasCaptures = LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType);
 		bool lambdaBodyUsesInheritedAllocator = LambdaBodyUsesInheritedAllocator(lambda);
@@ -1599,12 +1602,12 @@ public sealed partial class BindableNodeAnalyzer
 			&& scope.CurrentWithinContextLifetimeFact is string allocatorFact
 			&& (!TryParseLifetimeFact(allocatorFact, out LifetimeFact parsedAllocatorFact) || parsedAllocatorFact.Kind != "escaped"))
 			Report(GetRange(lambda.SourceSyntax), "Escaped delegate lambda captures the allocator used for deferred allocation or cleanup; use an escaped allocator or within(default).");
-		string lambdaSourceReturnType = targetShape is CallableShape lambdaTarget
+		string lambdaSourceReturnType = lambdaAnalysisShape is CallableShape lambdaTarget
 			? LambdaSourceReturnType(lambdaTarget.ReturnType, lambda)
 			: TargetType;
 		BodyScope lambdaScope = new(scope, scope.CurrentFunction, scope.ContainingType)
 		{
-			CurrentFunctionReturnType = targetShape?.ReturnType ?? TargetType,
+			CurrentFunctionReturnType = lambdaAnalysisShape?.ReturnType ?? TargetType,
 			CurrentFunctionSourceReturnType = lambdaSourceReturnType,
 			CurrentIteratorElementType = null,
 			CurrentIteratorThrownType = null,
@@ -1612,7 +1615,7 @@ public sealed partial class BindableNodeAnalyzer
 			NewDelegateLambdaDepth = scope.NewDelegateLambdaDepth + (lambda.IsNewDelegate ? 1 : 0)
 		};
 
-		if (targetShape is CallableShape shape && shape.Parameters.Count != lambda.Parameters.Count)
+		if (lambdaAnalysisShape is CallableShape shape && shape.Parameters.Count != lambda.Parameters.Count)
 			Report(GetRange(lambda.SourceSyntax), $"Lambda parameter count '{lambda.Parameters.Count.ToString(CultureInfo.InvariantCulture)}' does not match target callable parameter count '{shape.Parameters.Count.ToString(CultureInfo.InvariantCulture)}'.");
 
 		for (int i = 0; i < lambda.Parameters.Count; i++)
@@ -1623,13 +1626,13 @@ public sealed partial class BindableNodeAnalyzer
 
 			string parameterSlot = parameter.Parameter is not null
 				? GetLambdaParameterCallableSlot(parameter.Parameter)
-				: (targetShape is CallableShape target && i < target.Parameters.Count ? target.Parameters[i] : TargetType);
+				: (lambdaAnalysisShape is CallableShape target && i < target.Parameters.Count ? target.Parameters[i] : TargetType);
 			string parameterType = StripCallableParameterSlotModifier(parameterSlot);
 			parameter.ResolvedType = parameterType;
 			if (parameter.Parameter is null && parameterSlot == TargetType)
 				Report(GetRange(lambda.SourceSyntax), $"Lambda parameter '{GetLambdaParameterSymbolName(parameter) ?? i.ToString(CultureInfo.InvariantCulture)}' requires a target callable type or an explicit parameter type.");
 
-			if (targetShape is CallableShape expected
+			if (lambdaAnalysisShape is CallableShape expected
 				&& i < expected.Parameters.Count
 				&& parameterSlot != TargetType
 				&& !CallableLambdaInputSlotCompatible(parameterSlot, expected.Parameters[i]))
@@ -1645,11 +1648,11 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ValidateLambdaConstOfAnchors(lambda, block);
 			ValidateLambdaReservedContextUse(lambda, block);
-			RewriteVoidLambdaExpressionBody(block, targetShape?.ReturnType);
+			RewriteVoidLambdaExpressionBody(block, lambdaAnalysisShape?.ReturnType);
 			BodyAnalyzeBlock(block.Statements, lambdaScope, typeScope);
 			BindStatementLabels(block.Statements);
 			block.ResolvedType = "void";
-			returnType = InferBlockReturnType(block, targetShape?.ReturnType);
+			returnType = InferBlockReturnType(block, lambdaAnalysisShape?.ReturnType);
 		}
 		List<LambdaCapture> captures = CollectLambdaCaptures(lambda, scope.CurrentFunction, scope.ContainingType, reportUnsupported: true);
 		bool hasCaptures = captures.Count > 0;
@@ -1664,17 +1667,19 @@ public sealed partial class BindableNodeAnalyzer
 			LambdaParameter parameter = lambda.Parameters[i];
 			parameterTypes.Add(parameter.Parameter is not null
 				? GetLambdaParameterCallableSlot(parameter)
-				: targetShape is CallableShape target && i < target.Parameters.Count ? target.Parameters[i] : parameter.ResolvedType ?? ErrorType);
+				: lambdaAnalysisShape is CallableShape target && i < target.Parameters.Count ? target.Parameters[i] : parameter.ResolvedType ?? ErrorType);
 		}
 
 		string inferredKind = lambda.IsNewDelegate || hasCaptures ? "delegate" : "fn";
-		string inferredType = BuildCallableType(inferredKind, targetShape?.ReturnType ?? returnType, parameterTypes);
+		string inferredType = BuildCallableType(inferredKind, lambdaAnalysisShape?.ReturnType ?? returnType, parameterTypes);
 		if (lambda.IsNewDelegate)
 			inferredType = "escaped " + inferredType;
 		if (targetType is not null
 			&& TryGetLambdaCallableShape(targetType, out CallableShape expectedShape, out bool expectedEscaped)
-			&& expectedShape.Kind is "fn" or "delegate" or "once"
-			&& CallableShapesCompatibleWithConstOfVariance(new CallableShape(expectedShape.Kind, expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This), expectedShape))
+			&& expectedShape.Kind is "fn" or "delegate" or "once" or "async"
+			&& (expectedShape.Kind == "async"
+				? lambda.IsNewDelegate && expectedEscaped && CallableShapesCompatibleWithConstOfVariance(new CallableShape("delegate", expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This), CreateAsyncLambdaSourceShape(expectedShape))
+				: CallableShapesCompatibleWithConstOfVariance(new CallableShape(expectedShape.Kind, expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This), expectedShape)))
 			return targetType;
 
 		return inferredType;
@@ -1687,21 +1692,40 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (lambda.IsNewDelegate)
 		{
-			if (targetShape.Value.Kind != "delegate" || !targetIsEscaped)
+			if (!targetIsEscaped || targetShape.Value.Kind is not ("delegate" or "async"))
 				Report(GetRange(lambda.SourceSyntax), $"'new delegate' cannot target '{targetType ?? "unknown"}'; use an ordinary lambda for fn, scoped delegate, or once targets.");
 			return;
 		}
 
-		if (targetShape.Value.Kind == "delegate" && targetIsEscaped)
+		if (targetShape.Value.Kind is "delegate" or "async" && targetIsEscaped)
 		{
+			string callableLabel = targetShape.Value.Kind == "async" ? "async callable" : "delegate";
 			string baseName = targetType is null ? "" : BaseTypeName(StripLifetimeQualifiers(targetType));
 			if (!string.IsNullOrWhiteSpace(baseName)
 				&& typeDefinitions.TryGetValue(baseName, out TypeDefinition? definition)
 				&& definition is NewtypeDefinition)
-				Report(GetRange(lambda.SourceSyntax), $"Lambda targeting escaped delegate newtype '{baseName}' requires 'new delegate'.");
+				Report(GetRange(lambda.SourceSyntax), $"Lambda targeting escaped {callableLabel} newtype '{baseName}' requires 'new delegate'.");
 			else
-				Report(GetRange(lambda.SourceSyntax), $"Lambda targeting escaped delegate type '{targetType}' requires 'new delegate'.");
+				Report(GetRange(lambda.SourceSyntax), $"Lambda targeting escaped {callableLabel} type '{targetType}' requires 'new delegate'.");
 		}
+	}
+
+	static CallableShape CreateAsyncLambdaSourceShape(CallableShape asyncShape)
+	{
+		List<string> sourceParameters = [];
+		List<string> completionParameters = [];
+		if (asyncShape.ReturnType != "void")
+			completionParameters.Add(asyncShape.ReturnType);
+		foreach (string parameter in asyncShape.Parameters)
+		{
+			CallableSlot slot = ParseCallableSlot(parameter);
+			if (slot.Modifier == "thrown")
+				completionParameters.Add(slot.Type);
+			else
+				sourceParameters.Add(parameter);
+		}
+		sourceParameters.Add("escaped " + BuildCallableType("once", "void", completionParameters));
+		return new CallableShape("delegate", asyncShape.Spec, asyncShape.CallSpec, "void", sourceParameters, asyncShape.This);
 	}
 
 	static bool IsDeleteContextExpression(Expression? expression)

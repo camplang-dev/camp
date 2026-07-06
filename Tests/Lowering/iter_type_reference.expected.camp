@@ -21,8 +21,8 @@ void main()
 {
 	fn bool(void*, int*, thrown RangeError) values = default;
 	void* values_context = default;
-	fn bool(void*, const char[]?*) lines;
-	void* lines_context;
+	fn bool(void*, const char[]?*) lines = default;
+	void* lines_context = default;
 	{
 		_ = values;
 		__context = values_context;
