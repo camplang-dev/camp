@@ -201,8 +201,9 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		TypeDefinition? type = ResolveCompletionType(targetType);
 		if (type is null)
 			return [];
+		bool staticOnly = !string.IsNullOrWhiteSpace(context.MemberTargetText) && ResolveCompletionType(context.MemberTargetText) is not null;
 		List<CampCompletionItem> completions = [];
-		CollectTypeMemberCompletions(file, type, completions, new HashSet<TypeDefinition>(ReferenceEqualityComparer.Instance));
+		CollectTypeMemberCompletions(file, type, completions, new HashSet<TypeDefinition>(ReferenceEqualityComparer.Instance), staticOnly);
 		return completions;
 	}
 
@@ -413,7 +414,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return depth > 0;
 	}
 
-	void CollectTypeMemberCompletions(SourceFile file, TypeDefinition type, List<CampCompletionItem> completions, HashSet<TypeDefinition> visited)
+	void CollectTypeMemberCompletions(SourceFile file, TypeDefinition type, List<CampCompletionItem> completions, HashSet<TypeDefinition> visited, bool staticOnly = false)
 	{
 		if (!visited.Add(type))
 			return;
@@ -421,25 +422,25 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		{
 			case ClassDefinition classDefinition:
 				foreach (FieldDefinition field in classDefinition.Fields)
-					if (TryCreateCompletion(file, field, type.Name, out CampCompletionItem? item))
+					if ((!staticOnly || field.Modifier == FieldModifier.Static) && TryCreateCompletion(file, field, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				foreach (FunctionDefinition function in classDefinition.Functions)
-					if (!IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+					if ((!staticOnly || function.Modifier == FunctionModifier.Static) && !IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				foreach (TypeReference baseType in classDefinition.BaseTypes)
-					CollectBaseTypeMemberCompletions(file, baseType, completions, visited);
+					CollectBaseTypeMemberCompletions(file, baseType, completions, visited, staticOnly);
 				break;
 			case StructDefinition structDefinition:
 				foreach (FieldDefinition field in structDefinition.Fields)
-					if (TryCreateCompletion(file, field, type.Name, out CampCompletionItem? item))
+					if ((!staticOnly || field.Modifier == FieldModifier.Static) && TryCreateCompletion(file, field, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				foreach (FunctionDefinition function in structDefinition.Functions)
-					if (!IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+					if ((!staticOnly || function.Modifier == FunctionModifier.Static) && !IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				break;
 			case InterfaceDefinition interfaceDefinition:
 				foreach (FunctionDefinition function in interfaceDefinition.Functions)
-					if (!IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+					if ((!staticOnly || function.Modifier == FunctionModifier.Static) && !IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				break;
 			case EnumDefinition enumDefinition:
@@ -449,11 +450,13 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 				break;
 			case NewtypeDefinition newtypeDefinition:
 				foreach (FunctionDefinition function in newtypeDefinition.Functions)
-					if (!IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+					if ((!staticOnly || function.Modifier == FunctionModifier.Static) && !IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				break;
 		}
 
+		if (staticOnly)
+			return;
 		foreach (FunctionDefinition extension in functions.Where(function => function.Parameters.FirstOrDefault() is ThisParameterDefinition thisParameter && BaseTypeName(UnwrapStorageType(thisParameter.ResolvedType ?? "")) == type.Name))
 			if (!IsHiddenMemberCompletionFunction(extension) && TryCreateCompletion(file, extension, type.Name, out CampCompletionItem? item))
 				completions.Add(item!);
@@ -469,19 +472,28 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			|| function.Symbol.EndsWith("_op_delete", StringComparison.Ordinal);
 	}
 
-	void CollectBaseTypeMemberCompletions(SourceFile file, TypeReference? baseType, List<CampCompletionItem> completions, HashSet<TypeDefinition> visited)
+	void CollectBaseTypeMemberCompletions(SourceFile file, TypeReference? baseType, List<CampCompletionItem> completions, HashSet<TypeDefinition> visited, bool staticOnly = false)
 	{
 		TypeDefinition? definition = ResolveCompletionType(baseType?.ResolvedType ?? BindableNodeCodeSerializer.SerializeType(baseType));
 		if (definition is not null)
-			CollectTypeMemberCompletions(file, definition, completions, visited);
+			CollectTypeMemberCompletions(file, definition, completions, visited, staticOnly);
 	}
 
 	static bool TryCreateCompletion(SourceFile file, BindableNode node, string? containerName, out CampCompletionItem? item)
 	{
 		item = null;
-		if (!TryCreateDefinitionEntry(file, node, containerName, out SymbolEntry? entry))
+		if (TryCreateDefinitionEntry(file, node, containerName, out SymbolEntry? entry))
+		{
+			item = new CampCompletionItem(entry!.Name, entry.Kind, entry.Signature ?? entry.Type, entry.Documentation);
+			return true;
+		}
+		if (node is not Definition definition || string.IsNullOrWhiteSpace(definition.Name))
 			return false;
-		item = new CampCompletionItem(entry!.Name, entry.Kind, entry.Signature ?? entry.Type, entry.Documentation);
+		item = new CampCompletionItem(
+			definition.Name,
+			GetDefinitionKind(node, containerName),
+			GetSignature(node) ?? GetNodeType(node),
+			GetDocumentation(node));
 		return true;
 	}
 

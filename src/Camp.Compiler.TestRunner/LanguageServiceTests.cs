@@ -555,6 +555,55 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_returns_imported_static_type_member_completions()
+	{
+		string root = CreateTempDirectory("language-service-static-std-completion");
+		string runtimeRoot = Path.Combine(root, "runtime");
+		string appRoot = Path.Combine(root, "app");
+		string source = Path.Combine(appRoot, "main.camp");
+		Directory.CreateDirectory(appRoot);
+		string stdApi = Path.Combine(runtimeRoot, "lib", "std", "clang-macos-x64", "default", "DEBUG", "std_api.camp");
+		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
+		File.WriteAllText(stdApi, """
+			export as Std;
+
+			export extern class Console
+			{
+				export extern static void write(overload string value);
+				export extern static void writeLine(overload string value);
+				export extern void instanceOnly();
+			}
+			""");
+		string valid = """
+			using Std;
+
+			export void main()
+			{
+				Console.writeLine("Hello");
+			}
+			""";
+		string currentText = """
+			using Std;
+
+			export void main()
+			{
+				Console.
+			}
+			""";
+		File.WriteAllText(source, valid);
+		CompilerRequest request = RequestWithStd(runtimeRoot, appRoot, source);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request);
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		IReadOnlyList<CampCompletionItem> completions = symbols.GetCompletions(source, PositionAfter(currentText, "Console."), currentText);
+
+		Assert.Contains(completions, static item => item.Label == "write" && item.Kind == CampSymbolKind.Method);
+		Assert.Contains(completions, static item => item.Label == "writeLine" && item.Kind == CampSymbolKind.Method);
+		Assert.DoesNotContain(completions, static item => item.Label == "instanceOnly");
+	}
+
+	[Fact]
 	public void Analysis_does_not_auto_include_standard_api_when_opening_standard_api_header()
 	{
 		string root = CreateTempDirectory("language-service-open-std-api");
