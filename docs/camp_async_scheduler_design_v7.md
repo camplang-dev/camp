@@ -1,7 +1,7 @@
 # Camp Async Scheduler and Callable Context Supplement
 
 **Status:** superseded historical design  
-**Superseded by:** `docs/proposals/accepted/camp_async_resumption_redesign_proposal_v2.md` and `docs/camp_unified_spec_v24.md`
+**Superseded by:** `docs/proposals/accepted/camp_async_resumption_redesign_proposal_v2.md` and `docs/camp_unified_spec_v25.md`
 **Audience:** LLM or human agent implementing Camp compiler support for async methods, `await`, `postpone`, `upon` scheduler parameters, async callable forms, lambda context lowering, and once-callable cleanup behavior  
 **Source baseline:** `camp_unified_spec_v21.md`, `CAMP_LLM_CODE_GUIDE.md`, and `camp_doc_comments_metadata_supplement.md` from Sources  
 **Revision:** 7  
@@ -23,8 +23,9 @@ semantics from this supplement, with these explicit deferrals:
 - `async iter` and `await foreach` remain reserved design direction.
 - Named postponed-call slots are diagnosed as not implemented; positional
   postponed-call slots are supported.
-- Async lambdas are represented by the parser/model and diagnostics, but rich
-  target-typed async-lambda lowering remains a future hardening area.
+- Escaped async callable lambdas are supported through `new delegate` and an
+  explicit completion-callback parameter. Rich async lambda bodies that
+  themselves suspend remain future hardening work.
 
 The implemented `await` surface intentionally differs from older wording in
 this supplement: an awaitable completion callback may have at most one non-error
@@ -120,17 +121,12 @@ The `upon` parameter is ABI-visible source surface. It appears in generated head
 
 ## 5. `within` defaults in async routines
 
-The ordinary non-async shorthand keeps its existing meaning:
+Bare `within allocator` uses the same scoped shorthand in async and non-async
+routines:
 
 ```camp
 within allocator
-// within unscoped Allocator* allocator = null
-```
-
-In an async routine, the bare shorthand means:
-
-```camp
-within escaped Allocator* allocator = null
+// within scoped Allocator* allocator = null
 ```
 
 Explicit lifetime annotations remain explicit:
@@ -139,6 +135,10 @@ Explicit lifetime annotations remain explicit:
 async void f(within escaped Allocator* allocator = null);
 async void g(within unscoped Arena* arena);
 ```
+
+If an escaped delegate or once context captures its allocation service for later
+cleanup, that captured allocator must satisfy the ordinary escaped-storage
+rule, or the lambda should be created inside `within(default)`.
 
 Reject `within unscoped` in an async routine when the allocator may be retained for async-frame deallocation or used after suspension.
 
@@ -409,9 +409,16 @@ Lambda capture context ownership depends on the target callable category and lif
 
 ### 14.1 Escaped ordinary delegate lambda
 
-A capturing lambda target-typed to an escaped ordinary `delegate` allocates context storage and copies captured values into it. The allocator/free path used for the context is stored in the context so the context can be freed later.
+A lambda target-typed to an escaped ordinary `delegate` must be written with
+`new delegate`. Capturing escaped delegate lambdas allocate context storage and
+copy captured values into it. When the generated context will later be deleted
+by `delete delegate`, the allocator/free path used for the context is stored in
+the context so the context can be freed later.
 
-By default, the generated ordinary-delegate call target does not delete that context. The delegate context may be deleted externally by code that owns the delegate context, or internally by the lambda through the special `delete context` feature defined below.
+By default, the generated ordinary-delegate call target does not delete that
+context. The delegate context may be deleted externally by code that owns the
+materialized delegate context, or internally by the lambda through the special
+`delete delegate` feature defined below.
 
 ### 14.2 Escaped once lambda
 
@@ -444,82 +451,88 @@ int adder_call(AdderContext* context, int other)
 
 The exact stored allocator/free representation is implementation-defined, but the generated context must carry enough information to release itself through the allocation path that created it.
 
-Explicit `delete context` is invalid in once-lambda bodies because the generated once-lambda target owns the deletion policy.
+Explicit `delete delegate` is invalid in once-lambda bodies because the
+generated once-lambda target owns the deletion policy.
 
 ### 14.3 Scoped delegate lambda
 
 A scoped delegate lambda does not own escaped heap context. It may access declaration-scope values according to the existing scoped capture rules.
 
-`delete context` is invalid in scoped delegate lambdas.
+`delete delegate` is invalid in scoped delegate lambdas.
 
-## 15. Special `context` name inside lambdas
+## 15. Special `_context` name inside lambdas
 
-Inside a lambda body, `context` is a reserved special name.
+Inside a lambda body, `_context` is an implementation-owned special name.
 
-The generated lambda call function's hidden context parameter is named `context`, replacing the current implementation name `lambdaContext`.
+The generated lambda call function's hidden context parameter is named
+`_context`.
 
-The name is not an ordinary readable or assignable source variable. It may be used only in the special cleanup forms described here.
+The name is not an ordinary readable or assignable source variable. Delegate
+context cleanup is written with `delete delegate`, not by naming `_context`.
 
 Invalid uses:
 
 ```camp
-auto c = context;
-someFunction(context);
-context = null;
-delete context.field;
+auto c = _context;
+someFunction(_context);
+_context = null;
+delete _context;
 ```
 
-Valid special operand form:
+Valid cleanup form inside a `new delegate` lambda:
 
 ```camp
-delete context;
+delete delegate;
 ```
 
-The special name refers to the innermost lambda currently being analyzed.
+The cleanup form refers to the innermost `new delegate` lambda currently being
+analyzed.
 
-## 16. `delete context` in escaped ordinary delegate lambdas
+## 16. `delete delegate` in escaped ordinary delegate lambdas
 
-`delete context` is valid only in a lambda that target-types to an escaped ordinary `delegate` and has compiler-generated owned capture context.
+`delete delegate` is valid only in a `new delegate` lambda. It deletes the
+compiler-generated owned capture context when one exists and is a no-op for a
+valid `new delegate` lambda with a null context.
 
 It is invalid for:
 
 - scoped delegate lambdas;
 - once delegate lambdas;
-- non-capturing lambdas with no generated context;
+- lambdas that do not use `new delegate`;
 - plain `fn` lambdas;
-- any expression other than exactly `delete context` or the `finally` forms described below.
+- any expression other than exactly `delete delegate` or the `finally` forms described below.
 
-For a void-returning escaped ordinary delegate lambda, `delete context;` may appear as the final statement of the lambda body:
+For a void-returning escaped ordinary delegate lambda, `delete delegate;` may appear as the final statement of the lambda body:
 
 ```camp
-escaped delegate void(int) action = value =>
+escaped delegate void(int) action = new delegate value =>
 {
 	Console.writeLine(value);
-	delete context;
+	delete delegate;
 };
 ```
 
-For a non-void-returning escaped ordinary delegate lambda, context deletion must be registered through `finally delete context`:
+For a non-void-returning escaped ordinary delegate lambda, context deletion must be registered through `finally delete delegate`:
 
 ```camp
-escaped delegate int(int) adder = other =>
+escaped delegate int(int) adder = new delegate other =>
 {
-	finally delete context;
+	finally delete delegate;
 	return other + someLocal;
 };
 ```
 
-`finally delete context` must be the last `finally` cleanup registration in the lambda body.
+`finally delete delegate` must be the last `finally` cleanup registration in the lambda body.
 
-The block form is also valid when the `delete context;` statement is the final statement in that cleanup block:
+The block form is also valid when the `delete delegate;` statement is the final statement in that cleanup block:
 
 ```camp
-escaped delegate int(int) adder = other =>
+escaped delegate int(int) adder = new delegate other =>
 {
 	finally
 	{
 		logDone();
-		delete context;
+		delete delegate;
 	}
 
 	return other + someLocal;
@@ -685,28 +698,27 @@ escaped once lambda with generated context:
     allocate capture context
     store allocator/free path in context
     generated call target frees context after body produces result/error slots
-    explicit delete context is invalid
+    explicit delete delegate is invalid
 
 escaped ordinary delegate lambda with generated context:
+    must be written with new delegate
     allocate capture context
     store allocator/free path in context
     no automatic deletion by default
-    may self-delete only through valid delete context forms
+    may self-delete only through valid delete delegate forms
 
-context inside lambda:
-    hidden lowered context parameter is named context, not lambdaContext
-    context is a reserved special name in lambda bodies
+_context inside lambda:
+    hidden lowered context parameter is named _context
+    _context is implementation-owned in lambda bodies
     ordinary reads/writes/passing/member access are invalid
-    only exact delete context cleanup forms are valid
-    context binds to the innermost lambda
 
-delete context:
-    valid only for escaped ordinary delegate lambdas with generated owned context
-    invalid for once, scoped, fn, and non-capturing lambdas
-    void lambda: delete context may be final body statement
-    non-void lambda: use finally delete context
-    finally delete context must be the last finally cleanup registration
-    in a finally block, delete context must be the final statement
+delete delegate:
+    valid only inside new delegate lambdas
+    invalid for once, scoped, fn, and ordinary bare lambdas
+    void lambda: delete delegate may be final body statement
+    non-void lambda: use finally delete delegate
+    finally delete delegate must be the last finally cleanup registration
+    in a finally block, delete delegate must be the final statement
 
 upon:
     declaration parameter modifier only

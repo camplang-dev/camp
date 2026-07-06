@@ -107,6 +107,8 @@ initializer-target:
 lambda-expression:
 	<lambda-parameter> => <lambda-body>
 	'(' <lambda-parameter-list>? ')' => <lambda-body>
+	new delegate <lambda-parameter> => <lambda-body>
+	new delegate '(' <lambda-parameter-list>? ')' => <lambda-body>
 
 lambda-parameter:
 	<IDENT>

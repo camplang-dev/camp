@@ -6,7 +6,7 @@ This guide is based on the following source documents. Evidence citations use th
 
 | Alias | Source |
 |---|---|
-| `spec` | `docs/camp_unified_spec_v24.md` |
+| `spec` | `docs/camp_unified_spec_v25.md` |
 | `scheduler_design` | `docs/camp_async_scheduler_design_v7.md` |
 
 Confidence labels:
@@ -240,8 +240,14 @@ Rules:
   lambda body.
 - Escaped lambdas may capture pointer-bearing values only when those values are
   proven escaped. Non-escaped `this` cannot be captured by an escaped lambda.
-- An escaped delegate context is an ordinary pointer. If the expression creates
-  a delegate context that the caller owns, delete `del.context` when done.
+- An escaped ordinary `delegate` lambda must be written with `new delegate`,
+  even when it has no captures. A bare capturing lambda assigned to `auto`
+  infers a scoped delegate; `new delegate` assigned to `auto` infers an escaped
+  anonymous delegate.
+- An escaped delegate context is an ordinary pointer owned by the delegate
+  producer. If the lambda should clean up its own context, use `delete delegate`
+  or `finally delete delegate` inside the `new delegate` lambda. Otherwise the
+  owner of the materialized delegate may explicitly delete the context pointer.
 - `within (allocator)` affects escaped lambda context allocation in the same
   way it affects `new`.
 - Nested scoped lambdas inside escaped lambdas are supported; the scoped nested
@@ -258,14 +264,17 @@ Valid:
 ```camp
 escaped delegate int() makeCounter(int start)
 {
-	return () => start;
+	return new delegate () =>
+	{
+		finally delete delegate;
+		return start;
+	};
 }
 
 int use()
 {
 	auto counter = makeCounter(7);
 	int value = counter();
-	delete counter.context;
 	return value;
 }
 ```
@@ -278,8 +287,9 @@ int apply(escaped delegate int(int) callback, int value)
 
 int run(int seed)
 {
-	return apply(value =>
+	return apply(new delegate value =>
 	{
+		finally delete delegate;
 		int doubled = value * 2;
 		return doubled + seed;
 	}, 3);
@@ -401,7 +411,7 @@ params(int) p;         // params(T) type syntax is no longer supported
 | Stack array allocation | `init T[n]` array allocation expressions are invalid inside async bodies. Use fixed storage where legal or explicit allocation. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/async_stage8_invalid.camp`; `spec::5.3` |
 | `once` ownership | `once` guarantees one call; it does not intrinsically free context. Deletion belongs to the producer. Escaped generated once-lambda and `postpone` contexts self-delete; ordinary received once values do not. | `CONFIRMED_BY_TEST` | `tests/StdRun/once_lambda_runtime.camp`; `tests/StdRun/postpone_once_runtime.camp`; `scheduler_design::2` |
 | Postpone and resumers | `postpone` treats an `@awaitwith` parameter as an ordinary source parameter slot: supplied values are captured, omitted slots become parameters of the returned `once` delegate. | `CONFIRMED_BY_TEST` | `tests/Ast/async_stage12_surface.camp`; `spec::5.3.12` |
-| Lambda `context` | The hidden lambda context parameter is named `context`. Treat it as a special cleanup name, not a normal variable. `delete context` is valid only for escaped ordinary delegate lambdas with generated owned context. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/lambda_context_invalid.camp`; `tests/CCompile/lambda_escaped_context_ownership.camp`; `spec::5.3.13` |
+| Lambda delegate cleanup | The hidden lambda context parameter is named `_context` and is implementation-owned. `delete delegate` is valid only inside `new delegate` lambdas; use it when the escaped ordinary delegate lambda should delete its generated context. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/lambda_context_invalid.camp`; `tests/CCompile/lambda_escaped_context_ownership.camp`; `tests/CCompile/lambda_escaped_async_callable.camp`; `spec::5.3.13` |
 | Async iterators | `async iter` and `await foreach` remain deferred. Do not generate async iterator bodies or rely on async stream helpers beyond declared/provisional surfaces. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.MethodBody.Semantics.cs::GetForeachElementType`; `spec::5.4` |
 
 ### Fixed-Size Arrays
@@ -1113,7 +1123,7 @@ Before emitting Camp code:
 16. Do not rely on callable ascription to change direct calls, overload groups, unbound method references, generated symbols, default-argument insertion, or ABI lowering.
 17. Use lambdas only where a callable target type is known. If a lambda has captures, target a `delegate`, not `fn`.
 18. Do not use lambda arguments to select an overload family; call the typed overload entry explicitly.
-19. For escaped delegate lambdas, capture only escaped pointer-bearing values, treat captured values as read-only, and delete owned `delegate.context` pointers when done.
+19. For escaped ordinary delegate lambdas, write `new delegate`, capture only escaped pointer-bearing values, treat captured values as read-only, and use `delete delegate`/`finally delete delegate` inside the lambda when it should clean up its generated context.
 20. Use preprocessor directives intentionally:
    - Put `#build` and `#within` only in the file prelude, before ordinary declarations and imports.
    - Use `#define`/`#if` for conditional compilation, not runtime branching.

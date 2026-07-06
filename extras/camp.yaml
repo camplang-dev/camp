@@ -18,7 +18,7 @@ rules:
   - comment: "///.*$"
   - comment: "//.*$"
 
-  - preproc: "^\\s*#\\s*(if|elif|else|endif|define|undef|build)\\b.*$"
+  - preproc: "^\\s*#\\s*(if|elif|else|endif|define|undef|build|within)\\b.*$"
 
   - constant.string:
       start: "\""
@@ -57,4 +57,3 @@ rules:
   - symbol.operator: "(=>|\\+\\+|--|\\?\\?|\\.\\.|==|!=|<=|>=|<<|>>|&&|\\|\\||[+\\-*/%&|^~!=<>?:]=?|=)"
   - symbol.brackets: "[{}()\\[\\]]"
   - symbol: "[,.;:]"
-

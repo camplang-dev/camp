@@ -8077,9 +8077,11 @@ Ordinary source `new` and `delete` inside an async routine still use the normal
 allocator rules. The resumer controls continuation resumption only; it does not
 allocate or free compiler-generated frames.
 
-In async routines, bare `within allocator` means
-`within escaped Allocator* allocator = null`. The ordinary non-async shorthand
-keeps its existing unscoped meaning.
+In async routines, bare `within allocator` keeps the ordinary shorthand meaning:
+`within scoped Allocator* allocator = null`. If an escaped delegate context must
+retain the allocator for later delegate cleanup, the allocator value captured by
+that delegate must itself be escaped, or the lambda should be created inside
+`within(default)`.
 
 `init T[n]` array allocation expressions are invalid inside async bodies. Use
 fixed storage where legal, explicit allocation, or another frame-stable storage
@@ -8272,17 +8274,50 @@ method has been invoked, not after its later completion callback fires.
 
 The postponed-operation context is an ordinary container. If that context is escaped, anything captured into it must satisfy the ordinary container rule for escaped storage. If the postponed operation is used only in a narrower scoped context, scoped references may remain tied to that narrower scope.
 
-### 5.3.13 Lambda `context` cleanup
+### 5.3.13 Lambda delegate cleanup
 
-The hidden lambda context parameter is named `context`. Inside lambda bodies,
-`context` is a special cleanup name, not an ordinary variable: ordinary reads,
+The hidden lambda context parameter is named `_context`. Inside lambda bodies,
+`_context` is implementation-owned, not an ordinary variable: ordinary reads,
 writes, passing, member access, and address-taking are invalid.
 
-`delete context` is valid only for escaped ordinary delegate lambdas with
-compiler-generated owned capture context. It is invalid for `fn`, scoped
-delegate lambdas, `once` lambdas, and non-capturing lambdas. Escaped `once`
-lambdas with generated context delete that context automatically after producing
-their body result or error; explicit `delete context` is not allowed there.
+`delete delegate` is valid only inside a `new delegate` lambda. It deletes the
+compiler-generated delegate context when one exists, and is a no-op for a valid
+`new delegate` lambda whose context is null. It is invalid for `fn`, scoped
+delegate lambdas, direct `once` lambdas, and ordinary lambdas that did not use
+`new delegate`.
+
+An escaped ordinary `delegate` lambda requires the `new delegate` prefix so the
+source visibly opts into escaped delegate context ownership:
+
+```camp
+escaped delegate int(int) makeAdder(int base)
+{
+	return new delegate value =>
+	{
+		finally delete delegate;
+		return base + value;
+	};
+}
+```
+
+`new delegate` may also target an escaped `async` callable. In that case the
+lambda body itself is an ordinary delegate body with an explicit final
+completion callback parameter:
+
+```camp
+escaped async int(int value) makeAsync(int offset)
+{
+	return new delegate (value, complete) =>
+	{
+		complete(value + offset);
+		delete delegate;
+	};
+}
+```
+
+Direct `once` lambdas do not use `new delegate`; escaped `once` lambdas with
+generated context delete that context automatically after producing their body
+result or error.
 
 ### 5.3.14 Lifetimes across suspension
 
@@ -8568,6 +8603,17 @@ If the target is a non-capturing plain function type, the lambda becomes an `fn`
 
 If the target requires a delegate and the lambda does not need context, Camp forms a delegate whose context is `null`.
 
+If the target is an escaped ordinary `delegate`, the lambda expression must use
+the `new delegate` prefix, even when it does not capture values. This makes
+escaped delegate context ownership explicit at the creation site. A bare lambda
+may target a scoped delegate, a plain `fn`, or a direct `once` callable, but not
+an escaped ordinary delegate.
+
+If the target is an escaped `async` callable, `new delegate` creates the
+call/context pair for that async callable. The lambda body is not itself an
+async body; it receives an explicit final completion callback parameter and may
+not use `await` unless it is otherwise inside an async body.
+
 When the target callable uses `constof(anchor)`, omitted lambda parameter types
 inherit the full target parameter type. Explicitly typed lambda parameters are
 checked against the target using the same callable signature compatibility rules
@@ -8588,7 +8634,12 @@ For a non-capturing lambda or plain method reference, `auto` infers the plain `f
 ```camp
 auto increment = x => x + 1;
 auto asDelegate = (delegate) x => x + 1;
+auto escapedAdder = new delegate (int x, int y) => x + y;
 ```
+
+For `auto`, a bare capturing lambda infers a scoped delegate. A `new delegate`
+lambda infers an escaped anonymous delegate, with a null context when there are
+no captures.
 
 ```camp
 newtype fn bool IntParser(const char[] text, out int value);
@@ -8633,7 +8684,9 @@ Capture behavior is determined entirely by the lifetime of the callable value be
 | Callable lifetime | Capture behavior |
 |---|---|
 | `scoped delegate` | accessed declaration-scope locals may be captured by reference |
-| escaped delegate-like form | values are copied into escaped context storage |
+| escaped ordinary `delegate` created with `new delegate` | values are copied into escaped context storage and the context is caller-owned unless the lambda deletes it |
+| escaped `once` direct lambda | values are copied into escaped context storage and the generated once target deletes its context automatically |
+| escaped `async` callable created with `new delegate` | values are copied into escaped context storage; the lambda receives an explicit completion callback parameter |
 
 This keeps lambda syntax small and pushes the important rule into the existing lifetime system rather than into a second closure-specific subsystem.
 
@@ -8670,7 +8723,11 @@ void registerPredicate(escaped delegate bool(int value) predicate);
 void sample()
 {
 	int limit = 10;
-	registerPredicate((int value) => value > limit);
+	registerPredicate(new delegate (int value) =>
+	{
+		finally delete delegate;
+		return value > limit;
+	});
 }
 ```
 
@@ -8688,7 +8745,11 @@ void useText(char* text);
 
 void demo(char* localText)
 {
-	registerLater(() => useText(localText));   // ERROR
+	registerLater(new delegate () =>
+	{
+		useText(localText);   // ERROR
+		delete delegate;
+	});
 }
 ```
 
@@ -8705,8 +8766,16 @@ void sample()
 {
 	int count = 0;
 
-	registerLater(() => log(count + 1));   // OK
-	registerLater(() => count++);          // ERROR
+	registerLater(new delegate () =>
+	{
+		log(count + 1);       // OK
+		delete delegate;
+	});
+	registerLater(new delegate () =>
+	{
+		count++;              // ERROR
+		delete delegate;
+	});
 }
 ```
 
