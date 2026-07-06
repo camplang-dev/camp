@@ -9,12 +9,12 @@ class Resumer
 	}
 }
 
-async int addOne(int value, @resumewith Resumer* resumer)
+async int addOne(int value, @awaitwith Resumer* resumer)
 {
 	return value + 1;
 }
 
-async int combine(int first, @resumewith Resumer* resumer)
+async int combine(int first, @awaitwith Resumer* resumer)
 {
 	int second = await addOne(first, resumer);
 	int third = await addOne(second, resumer);

@@ -14,7 +14,7 @@ async int answerAsync()
 	return 42;
 }
 
-async void copyAsync(@resumewith Dispatcher* dispatcher)
+async void copyAsync(@awaitwith Dispatcher* dispatcher)
 {
 	return;
 }

@@ -8,7 +8,7 @@ class Loop
 	}
 }
 
-async void runAsync(@resumewith Loop* loop)
+async void runAsync(@awaitwith Loop* loop)
 {
 }
 

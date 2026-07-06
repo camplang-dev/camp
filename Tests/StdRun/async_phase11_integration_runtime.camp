@@ -17,17 +17,17 @@ class Resumer
 
 Resumer resumer;
 
-async int lengthAsync<T: any>(const T[] values, sizeof(T), @resumewith Resumer* resumer)
+async int lengthAsync<T: any>(const T[] values, sizeof(T), @awaitwith Resumer* resumer)
 {
 	return (int)values.length;
 }
 
-async int failAsync(thrown int error, @resumewith Resumer* resumer)
+async int failAsync(thrown int error, @awaitwith Resumer* resumer)
 {
 	throw 9;
 }
 
-async int parentAsync(const int[] values, @resumewith Resumer* resumer)
+async int parentAsync(const int[] values, @awaitwith Resumer* resumer)
 {
 	int count = await lengthAsync(values, resumer);
 	int ignored = await failAsync(resumer, catch auto err);
@@ -35,7 +35,7 @@ async int parentAsync(const int[] values, @resumewith Resumer* resumer)
 	return count + observedError;
 }
 
-async int rethrowAsync(@resumewith Resumer* resumer, thrown int error)
+async int rethrowAsync(@awaitwith Resumer* resumer, thrown int error)
 {
 	int ignored = await failAsync(resumer);
 	return ignored;

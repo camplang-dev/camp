@@ -7925,7 +7925,7 @@ Camp async uses a few ordinary features together:
 - `await`
 - `once`
 - `postpone`
-- ordinary resumer objects selected from `this` or `@resumewith`
+- ordinary resumer objects selected from `this` or `@awaitwith`
 - ordinary lifetime analysis
 
 The design goal is to provide convenient source syntax while lowering to explicit continuation-based functions and explicit async frames. The language does not recognize a scheduler type or scheduler posting protocol. A scheduler-like library object participates only by being selected as the async resumer and providing a compatible `resumeAsync(...)` method.
@@ -7977,12 +7977,12 @@ operation completes.
 
 Resumer selection is:
 
-1. the single ordinary parameter marked `@resumewith`, when present;
+1. the single ordinary parameter marked `@awaitwith`, when present;
 2. otherwise the receiver, for an instance method whose receiver type provides a
    compatible `resumeAsync(...)` method.
 
 A free or static async function has no receiver, so it must either mark one
-ordinary parameter with `@resumewith` or declare `@noawait`.
+ordinary parameter with `@awaitwith` or declare `@noawait`.
 
 ```camp
 class Dispatcher
@@ -7993,13 +7993,13 @@ class Dispatcher
 	}
 }
 
-async int loadAsync(string path, @resumewith Dispatcher* dispatcher)
+async int loadAsync(string path, @awaitwith Dispatcher* dispatcher)
 {
 	return await readFileAsync(path);
 }
 ```
 
-The `@resumewith` attribute is valid only on one ordinary runtime parameter of
+The `@awaitwith` attribute is valid only on one ordinary runtime parameter of
 a concrete async definition with a Camp body. It is not a callable type modifier
 and does not change ABI shape, overload identity, callable-newtype
 compatibility, or metadata parameter kind. It simply marks which ordinary
@@ -8213,7 +8213,7 @@ Instead it:
 Later invocation reuses the captured values.
 
 Only slots supplied by the postponed-call syntax are captured. A parameter
-marked `@resumewith` is an ordinary parameter slot for `postpone`: if supplied,
+marked `@awaitwith` is an ordinary parameter slot for `postpone`: if supplied,
 it is captured like any other supplied argument; if omitted, it becomes a
 parameter of the returned `once` delegate in canonical source parameter order.
 Implicit `within` forwarding and default arguments do not fill slots at

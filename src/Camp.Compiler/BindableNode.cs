@@ -198,7 +198,7 @@ public class ParameterDefinition : Definition
 {
 	public ParameterModifier Modifier { get; set; }
 	public bool IsOverloadSelector { get; set; }
-	public bool IsResumeWith { get; set; }
+	public bool IsAwaitWith { get; set; }
 	public string? LifetimeBinding { get; set; }
 	public TypeReference? Type { get; set; }
 	public Expression? DefaultValue { get; set; }

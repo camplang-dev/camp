@@ -8,7 +8,7 @@ Audience: implementation agents working in the Camp compiler
 
 This proposal records the previously implemented scheduler/`upon` async design.
 It is not the current async resumption model. Current Camp async resumption uses
-ordinary resumer objects selected from `@resumewith` or the receiver and routes
+ordinary resumer objects selected from `@awaitwith` or the receiver and routes
 suspending continuations through compatible `resumeAsync(...)` methods.
 
 ## Overview

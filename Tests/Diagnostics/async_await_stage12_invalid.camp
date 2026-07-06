@@ -9,7 +9,7 @@ class Resumer
 	}
 }
 
-async void awaitMulti(@resumewith Resumer* resumer)
+async void awaitMulti(@awaitwith Resumer* resumer)
 {
 	await multiSuccess();
 }

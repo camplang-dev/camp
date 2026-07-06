@@ -12,7 +12,7 @@ class InlineResumer
 	}
 }
 
-async int waitForSleepAsync(@resumewith InlineResumer* resumer)
+async int waitForSleepAsync(@awaitwith InlineResumer* resumer)
 {
 	await sleepAsync(20);
 	return 9;

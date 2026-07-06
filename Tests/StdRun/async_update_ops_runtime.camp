@@ -15,7 +15,7 @@ class Resumer
 	}
 }
 
-async int runUpdates(@resumewith Resumer* resumer)
+async int runUpdates(@awaitwith Resumer* resumer)
 {
 	int sum = 0;
 	for (int i = 3; i > 0; i--)

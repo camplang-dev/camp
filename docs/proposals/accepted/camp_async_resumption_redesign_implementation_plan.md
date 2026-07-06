@@ -18,7 +18,7 @@ object that provides a compatible `resumeAsync(...)` method.
 
 The selected resumer for a concrete async definition with a Camp body is:
 
-1. the single ordinary parameter marked `@resumewith`, when present;
+1. the single ordinary parameter marked `@awaitwith`, when present;
 2. otherwise the receiver `this`, when the definition has one.
 
 An async body that cannot suspend may be marked `@noawait`; it then requires no
@@ -46,23 +46,23 @@ postponed-call slot handling.
 
 ## Stage 1: Attribute Surface And Validation Scaffold
 
-Goal: introduce `@resumewith` and `@noawait` as source-level semantic
+Goal: introduce `@awaitwith` and `@noawait` as source-level semantic
 attributes without switching async lowering yet.
 
 ### Implementation
 
-- Add special semantic handling for `@resumewith` on parameters.
+- Add special semantic handling for `@awaitwith` on parameters.
 - Add special semantic handling for `@noawait` on concrete async definitions.
 - Add model fields or normalized helpers for:
   - `FunctionDefinition.IsNoAwait`;
-  - `ParameterDefinition.IsResumeWith`;
+  - `ParameterDefinition.IsAwaitWith`;
   - future `AsyncResumerInfo` / resumer selection state.
 - Validate `@noawait` placement:
   - valid only on concrete async functions or methods with Camp bodies;
   - invalid on function type declarations, callable newtypes, interface
     signatures, abstract declarations, extern declarations, and non-async
     declarations.
-- Validate `@resumewith` placement:
+- Validate `@awaitwith` placement:
   - valid only on one ordinary runtime parameter of a concrete async function or
     method with a Camp body;
   - invalid on `out`, `thrown`, `within`, `sizeof`, `typenameof`, `vtableof`,
@@ -70,14 +70,14 @@ attributes without switching async lowering yet.
     function types, interfaces, abstract declarations, and extern declarations.
 - Enforce the `@noawait` body rule: no `await` may appear anywhere in that async
   body.
-- Ensure `@resumewith` and `@noawait` do not participate in callable type
+- Ensure `@awaitwith` and `@noawait` do not participate in callable type
   compatibility and do not change ABI shape.
 - Keep current scheduler-based lowering temporarily so this stage can land
   safely before the behavior switchover.
 
 ### Tests
 
-- Add dense diagnostics coverage for invalid `@noawait` and `@resumewith`
+- Add dense diagnostics coverage for invalid `@noawait` and `@awaitwith`
   placements.
 - Add positive API/metadata coverage proving these are source attributes, not
   callable type modifiers.
@@ -88,10 +88,10 @@ attributes without switching async lowering yet.
 
 ### Completion Criteria
 
-- [x] ~~`@noawait` and `@resumewith` parse, bind, serialize, and diagnose
+- [x] ~~`@noawait` and `@awaitwith` parse, bind, serialize, and diagnose
       correctly.~~
 - [x] ~~`@noawait` rejects suspension with a clear source-ranged diagnostic.~~
-- [x] ~~`@resumewith` is accepted only on a single ordinary runtime parameter of a
+- [x] ~~`@awaitwith` is accepted only on a single ordinary runtime parameter of a
       concrete async body.~~
 - [x] ~~Neither attribute changes callable type compatibility or ABI shape.~~
 - [x] ~~Stage 1 targeted tests pass.~~
@@ -116,9 +116,9 @@ with ordinary resumer selection and `resumeAsync(...)` invocation.
   - remove `upon` metadata modifier output;
   - remove scheduler frame fields and scheduler C helpers.
 - Make old `upon` syntax fail with a useful migration diagnostic, preferably:
-  `The 'upon' scheduler parameter modifier was removed; use @resumewith on an ordinary parameter or a receiver resumeAsync method.`
+  `The 'upon' scheduler parameter modifier was removed; use @awaitwith on an ordinary parameter or a receiver resumeAsync method.`
 - Implement resumer selection for every concrete async body:
-  - `@resumewith` parameter wins;
+  - `@awaitwith` parameter wins;
   - otherwise receiver `this`;
   - otherwise report an error unless the body is marked `@noawait`.
 - Validate exactly one viable compatible `resumeAsync` method on the selected
@@ -167,9 +167,9 @@ with ordinary resumer selection and `resumeAsync(...)` invocation.
   ordinary structural async ABI arguments and do not use the caller's resumer.
 - Update `postpone` binding:
   - remove remaining `upon` slot handling;
-  - treat an `@resumewith` parameter as an ordinary source parameter slot;
-  - supplied `@resumewith` slots are captured like any other argument;
-  - omitted `@resumewith` slots become returned `once` delegate parameters.
+  - treat an `@awaitwith` parameter as an ordinary source parameter slot;
+  - supplied `@awaitwith` slots are captured like any other argument;
+  - omitted `@awaitwith` slots become returned `once` delegate parameters.
 
 ### Tests
 
@@ -179,10 +179,10 @@ with ordinary resumer selection and `resumeAsync(...)` invocation.
 - Add runtime/CCompile tests for:
   - async receiver method resuming through `this.resumeAsync(...)`;
   - async receiver method using async `resumeAsync()`;
-  - static/free async function using `@resumewith`;
+  - static/free async function using `@awaitwith`;
   - inline direct behavior implemented by a resumer that calls the continuation;
   - manual async calls not using caller resumer;
-  - postponed async calls capturing or exposing `@resumewith` as an ordinary
+  - postponed async calls capturing or exposing `@awaitwith` as an ordinary
     slot.
 - Add CEmit tests proving:
   - no scheduler `post(...)`;
@@ -191,7 +191,7 @@ with ordinary resumer selection and `resumeAsync(...)` invocation.
   - generated continuation call has the expected escaped `once void()` shape.
 - Add diagnostics for:
   - async body without selected resumer and without `@noawait`;
-  - duplicate `@resumewith`;
+  - duplicate `@awaitwith`;
   - bad/missing/ambiguous `resumeAsync`;
   - non-escaped/non-once continuation;
   - old `upon` syntax.
@@ -201,12 +201,12 @@ with ordinary resumer selection and `resumeAsync(...)` invocation.
 - [x] ~~`upon` is no longer an active compiler feature.~~
 - [x] ~~Old `upon` syntax produces a clear migration diagnostic.~~
 - [x] ~~Concrete suspending async bodies require a selected resumer.~~
-- [x] ~~`@resumewith` and receiver-based resumer selection both work.~~
+- [x] ~~`@awaitwith` and receiver-based resumer selection both work.~~
 - [x] ~~Ordinary and async `resumeAsync` forms both work.~~
 - [x] ~~Await lowering always resumes through `resumeAsync(...)`.~~
 - [x] ~~Scheduler allocation/free/posting and direct-resume fallback are removed
       from generated C.~~
-- [x] ~~`postpone` treats `@resumewith` as an ordinary source parameter slot.~~
+- [x] ~~`postpone` treats `@awaitwith` as an ordinary source parameter slot.~~
 - [x] ~~Stage 2 targeted tests pass.~~
 - [x] ~~Full macOS suite passes.~~
 - [x] ~~Full Windows/MSVC suite passes.~~
@@ -221,19 +221,19 @@ resumption model and move the redesign proposal to accepted.
 ### Implementation
 
 - Increment the unified spec filename according to the standing rule, likely
-  from `camp_unified_spec_v21.md` to `camp_unified_spec_v22.md`.
+  from `camp_unified_spec_v21.md` to `camp_unified_spec_v23.md`.
 - Rewrite current async spec sections:
   - remove all `upon` language text;
   - remove language-level scheduler text;
   - remove scheduler `post(...)` recognition;
   - remove direct-resume fallback language;
   - remove scheduler-based frame allocation;
-  - add resumer selection through `this` / `@resumewith`;
+  - add resumer selection through `this` / `@awaitwith`;
   - add `resumeAsync` pattern rules;
   - add `@noawait` rules;
   - update `await` lowering to route through `resumeAsync`;
   - keep allocator/fallback async-frame allocation;
-  - update `postpone` notes so `@resumewith` is just an ordinary parameter slot.
+  - update `postpone` notes so `@awaitwith` is just an ordinary parameter slot.
 - Move or clearly supersede the old scheduler supplement:
   - `docs/camp_async_scheduler_design_v7.md` must not read as current design.
   - The old accepted scheduler implementation plan must be clearly historical
@@ -242,13 +242,13 @@ resumption model and move the redesign proposal to accepted.
   `docs/proposals/accepted/` once all criteria are complete.
 - Update `extras/CAMP_LLM_CODE_GUIDE.md`:
   - remove `upon` from reserved words and async guidance;
-  - add `@resumewith`, `@noawait`, resumer examples, and anti-patterns.
+  - add `@awaitwith`, `@noawait`, resumer examples, and anti-patterns.
 - Update grammar documents:
   - remove `upon` parameter modifier;
   - document source attributes where the grammar docs describe them.
 - Update `extras/Camp.sublime-syntax`:
   - remove `upon` keyword highlighting;
-  - ensure `async`, `await`, `postpone`, `once`, `resumewith`, and `noawait`
+  - ensure `async`, `await`, `postpone`, `once`, `awaitwith`, and `noawait`
     are highlighted appropriately.
 - Update `docs/camp_lsp.md`:
   - LSP should surface source-level async/resumer attributes;
@@ -256,7 +256,7 @@ resumption model and move the redesign proposal to accepted.
   - no scheduler/`upon` guidance remains.
 - Update `docs/camp_doc_comments_metadata_supplement.md`:
   - remove `upon`;
-  - state that `@resumewith` and `@noawait` are source attributes when emitted,
+  - state that `@awaitwith` and `@noawait` are source attributes when emitted,
     not callable type modifiers;
   - no generated resumer/frame/continuation details are emitted.
 

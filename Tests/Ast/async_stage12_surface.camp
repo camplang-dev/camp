@@ -9,7 +9,7 @@ newtype async int Loader(const char[] path, thrown int error);
 
 extern async int loadAsync(const char[] path, thrown int error);
 
-async int exampleAsync(Loader loader, @resumewith Resumer* resumer, thrown int error)
+async int exampleAsync(Loader loader, @awaitwith Resumer* resumer, thrown int error)
 {
 	return await loader("test", catch _);
 }

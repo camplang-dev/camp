@@ -6,7 +6,7 @@ class NoResume
 {
 }
 
-async void noResume(@resumewith NoResume* resumer)
+async void noResume(@awaitwith NoResume* resumer)
 {
 }
 
@@ -17,7 +17,7 @@ class BadContinuation
 	}
 }
 
-async void badContinuation(@resumewith BadContinuation* resumer)
+async void badContinuation(@awaitwith BadContinuation* resumer)
 {
 }
 
@@ -29,6 +29,6 @@ class BadAsyncResumer
 	}
 }
 
-async void badAsync(@resumewith BadAsyncResumer* resumer)
+async void badAsync(@awaitwith BadAsyncResumer* resumer)
 {
 }

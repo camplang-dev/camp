@@ -1,5 +1,5 @@
-tests/Diagnostics/async_stage34_scheduler_invalid.camp(1,12): error: Async definitions that can suspend require a resumer; add @resumewith to an ordinary parameter or define resumeAsync on the receiver.
-tests/Diagnostics/async_stage34_scheduler_invalid.camp(9,43): error: Async resumer type 'NoResume' must provide exactly one compatible resumeAsync method.
-tests/Diagnostics/async_stage34_scheduler_invalid.camp(20,57): error: Async resumer type 'BadContinuation' must provide exactly one compatible resumeAsync method.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(1,12): error: Async definitions that can suspend require a resumer; add @awaitwith to an ordinary parameter or define resumeAsync on the receiver.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(9,42): error: Async resumer type 'NoResume' must provide exactly one compatible resumeAsync method.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(20,56): error: Async resumer type 'BadContinuation' must provide exactly one compatible resumeAsync method.
 tests/Diagnostics/async_stage34_scheduler_invalid.camp(26,12): error: Async resumer type 'BadAsyncResumer' must provide exactly one compatible resumeAsync method.
-tests/Diagnostics/async_stage34_scheduler_invalid.camp(32,50): error: Async resumer type 'BadAsyncResumer' must provide exactly one compatible resumeAsync method.
+tests/Diagnostics/async_stage34_scheduler_invalid.camp(32,49): error: Async resumer type 'BadAsyncResumer' must provide exactly one compatible resumeAsync method.

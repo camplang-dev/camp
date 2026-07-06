@@ -11,7 +11,7 @@ class Loop
 	}
 }
 
-async void setAsync(@resumewith Loop* loop, int value)
+async void setAsync(@awaitwith Loop* loop, int value)
 {
 	observed = value;
 }

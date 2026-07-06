@@ -425,7 +425,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter.Modifier != ParameterModifier.Upon)
 				continue;
 
-			Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "The 'upon' scheduler parameter modifier was removed; use @resumewith on an ordinary parameter or a receiver resumeAsync method.");
+			Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "The 'upon' scheduler parameter modifier was removed; use @awaitwith on an ordinary parameter or a receiver resumeAsync method.");
 		}
 	}
 
@@ -969,7 +969,7 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
 		AnalyzeOverloadDeclaration(definition, containingType);
 		ValidateAsyncFunctionParameters(definition);
-		ValidateResumeWithParameters(definition);
+		ValidateAwaitWithParameters(definition);
 		ValidateIteratorGeneratorParameters(definition);
 		ValidateIndexAwareParameters(definition);
 		ValidateCallableAscription(definition, containingType);
@@ -1006,29 +1006,29 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetAttributeRange(definition.Attributes, "@noawait") ?? GetNameRange(definition), "@noawait is valid only on async method definitions with a Camp body.");
 	}
 
-	void ValidateResumeWithParameters(FunctionDefinition definition)
+	void ValidateAwaitWithParameters(FunctionDefinition definition)
 	{
 		int count = 0;
 		foreach (ParameterDefinition parameter in definition.Parameters)
 		{
-			parameter.IsResumeWith = HasAttribute(parameter.Attributes, "@resumewith");
-			if (!parameter.IsResumeWith)
+			parameter.IsAwaitWith = HasAttribute(parameter.Attributes, "@awaitwith");
+			if (!parameter.IsAwaitWith)
 				continue;
 
 			count++;
-			TokenRange? range = GetAttributeRange(parameter.Attributes, "@resumewith") ?? GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax);
+			TokenRange? range = GetAttributeRange(parameter.Attributes, "@awaitwith") ?? GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax);
 			if (!definition.IsAsync)
-				Report(range, "@resumewith is valid only on parameters of async definitions.");
+				Report(range, "@awaitwith is valid only on parameters of async definitions.");
 			if (definition.Body is null)
-				Report(range, "@resumewith is valid only on concrete async definitions with a Camp body.");
+				Report(range, "@awaitwith is valid only on concrete async definitions with a Camp body.");
 			if (definition.Extern is not null)
-				Report(range, "@resumewith is not valid on extern async declarations.");
+				Report(range, "@awaitwith is not valid on extern async declarations.");
 			if (definition.Modifier == FunctionModifier.Abstract)
-				Report(range, "@resumewith is not valid on abstract async declarations.");
+				Report(range, "@awaitwith is not valid on abstract async declarations.");
 			if (count > 1)
-				Report(range, "Async definitions may declare at most one @resumewith parameter.");
-			if (!IsOrdinaryRuntimeResumeWithParameter(parameter))
-				Report(range, "@resumewith is valid only on ordinary runtime parameters.");
+				Report(range, "Async definitions may declare at most one @awaitwith parameter.");
+			if (!IsOrdinaryRuntimeAwaitWithParameter(parameter))
+				Report(range, "@awaitwith is valid only on ordinary runtime parameters.");
 		}
 	}
 
@@ -1247,7 +1247,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in definition.Parameters)
 		{
 			if (parameter.Modifier == ParameterModifier.Upon)
-				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "The 'upon' scheduler parameter modifier was removed; use @resumewith on an ordinary parameter or a receiver resumeAsync method.");
+				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "The 'upon' scheduler parameter modifier was removed; use @awaitwith on an ordinary parameter or a receiver resumeAsync method.");
 
 			if (definition.IsAsync && parameter.Modifier == ParameterModifier.Out)
 				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), "Async functions may not declare out parameters; return one value or use the final completion callback shape explicitly.");
@@ -1269,11 +1269,11 @@ public sealed partial class BindableNodeAnalyzer
 			|| definition.IsNoAwait)
 			return;
 
-		List<ParameterDefinition> explicitResumers = definition.Parameters.Where(static parameter => parameter.IsResumeWith).ToList();
+		List<ParameterDefinition> explicitResumers = definition.Parameters.Where(static parameter => parameter.IsAwaitWith).ToList();
 		if (explicitResumers.Count > 1)
 			return;
 		ParameterDefinition? explicitResumer = explicitResumers.FirstOrDefault();
-		if (explicitResumer is not null && !IsOrdinaryRuntimeResumeWithParameter(explicitResumer))
+		if (explicitResumer is not null && !IsOrdinaryRuntimeAwaitWithParameter(explicitResumer))
 			return;
 		TypeDefinition? resumerType = null;
 		TokenRange? range = null;
@@ -1291,7 +1291,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else
 		{
-			Report(GetNameRange(definition) ?? GetRange(definition.SourceSyntax), "Async definitions that can suspend require a resumer; add @resumewith to an ordinary parameter or define resumeAsync on the receiver.");
+			Report(GetNameRange(definition) ?? GetRange(definition.SourceSyntax), "Async definitions that can suspend require a resumer; add @awaitwith to an ordinary parameter or define resumeAsync on the receiver.");
 			return;
 		}
 
@@ -1385,7 +1385,7 @@ public sealed partial class BindableNodeAnalyzer
 			|| (parameter.ResolvedType ?? "").TrimStart().StartsWith("escaped ", StringComparison.Ordinal);
 	}
 
-	static bool IsOrdinaryRuntimeResumeWithParameter(ParameterDefinition parameter)
+	static bool IsOrdinaryRuntimeAwaitWithParameter(ParameterDefinition parameter)
 	{
 		return parameter.Modifier is not (ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within or ParameterModifier.Upon)
 			&& parameter is not SizeOfParameterDefinition

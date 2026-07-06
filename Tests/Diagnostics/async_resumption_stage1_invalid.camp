@@ -12,16 +12,16 @@ interface IAsyncContract
 	async void interfaceNoAwait();
 }
 
-void nonAsyncResume(@resumewith int resumer)
+void nonAsyncResume(@awaitwith int resumer)
 {
 }
 
-extern async void externResume(@resumewith int resumer);
+extern async void externResume(@awaitwith int resumer);
 
-async void duplicateResume(@resumewith int first, @resumewith int second)
+async void duplicateResume(@awaitwith int first, @awaitwith int second)
 {
 }
 
-async void nonOrdinaryResume(@resumewith out int result)
+async void nonOrdinaryResume(@awaitwith out int result)
 {
 }

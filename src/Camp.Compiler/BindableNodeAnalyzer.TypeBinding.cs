@@ -244,7 +244,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter.Modifier != ParameterModifier.Upon)
 				continue;
 
-			Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax ?? callable.SourceSyntax), "The 'upon' scheduler parameter modifier was removed; use @resumewith on an ordinary parameter or a receiver resumeAsync method.");
+			Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax ?? callable.SourceSyntax), "The 'upon' scheduler parameter modifier was removed; use @awaitwith on an ordinary parameter or a receiver resumeAsync method.");
 		}
 	}
 

@@ -53,38 +53,38 @@ class AsyncResumer
 
 AsyncResumer asyncResumer;
 
-async int valueAsync(@resumewith Resumer* resumer)
+async int valueAsync(@awaitwith Resumer* resumer)
 {
 	return 17;
 }
 
-async int parentValueAsync(@resumewith Resumer* resumer)
+async int parentValueAsync(@awaitwith Resumer* resumer)
 {
 	return await valueAsync(resumer);
 }
 
-async void pingAsync(@resumewith Resumer* resumer)
+async void pingAsync(@awaitwith Resumer* resumer)
 {
 	voidObserved = 3;
 	return;
 }
 
-async void parentVoidAsync(@resumewith Resumer* resumer)
+async void parentVoidAsync(@awaitwith Resumer* resumer)
 {
 	return await pingAsync(resumer);
 }
 
-async int parentPropertyAsync(Box* box, @resumewith Resumer* resumer)
+async int parentPropertyAsync(Box* box, @awaitwith Resumer* resumer)
 {
 	return await box.Value();
 }
 
-async int valueWithAsyncResumer(@resumewith AsyncResumer* resumer)
+async int valueWithAsyncResumer(@awaitwith AsyncResumer* resumer)
 {
 	return 11;
 }
 
-async int parentWithAsyncResumer(@resumewith AsyncResumer* resumer)
+async int parentWithAsyncResumer(@awaitwith AsyncResumer* resumer)
 {
 	return await valueWithAsyncResumer(resumer);
 }

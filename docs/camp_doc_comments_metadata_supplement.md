@@ -464,14 +464,14 @@ Functions and methods may contain:
 - property companion fields.
 
 Async metadata is source-level. It describes the declaration the programmer
-wrote, including `async` and source attributes such as `@resumewith` and
+wrote, including `async` and source attributes such as `@awaitwith` and
 `@noawait`, but it does not expose generated async frames, resume helpers,
 completion helper functions, resumer invocation thunks, postponed-call context
 types, or lambda capture-context implementation details. Async callable
 newtypes use `"callableType": "async"` and otherwise follow the same
 callable-newtype metadata shape as `fn`, `delegate`, `once`, and `iter`.
 
-`@resumewith` and `@noawait` are emitted, when visible, as source attributes.
+`@awaitwith` and `@noawait` are emitted, when visible, as source attributes.
 They are not callable type modifiers, parameter modifiers, ABI slots, or
 generated metadata objects.
 

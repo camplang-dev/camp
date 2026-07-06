@@ -6,12 +6,12 @@ class Resumer
 	}
 }
 
-async int inner(@resumewith Resumer* resumer)
+async int inner(@awaitwith Resumer* resumer)
 {
 	return 11;
 }
 
-async int outer(@resumewith Resumer* resumer)
+async int outer(@awaitwith Resumer* resumer)
 {
 	return await inner(resumer);
 }

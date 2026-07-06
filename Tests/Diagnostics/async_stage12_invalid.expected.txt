@@ -1,5 +1,5 @@
-tests/Diagnostics/async_stage12_invalid.camp(14,51): error: The 'upon' scheduler parameter modifier was removed; use @resumewith on an ordinary parameter or a receiver resumeAsync method.
+tests/Diagnostics/async_stage12_invalid.camp(14,51): error: The 'upon' scheduler parameter modifier was removed; use @awaitwith on an ordinary parameter or a receiver resumeAsync method.
 tests/Diagnostics/async_stage12_invalid.camp(8,34): error: Async functions may not declare out parameters; return one value or use the final completion callback shape explicitly.
-tests/Diagnostics/async_stage12_invalid.camp(10,37): error: The 'upon' scheduler parameter modifier was removed; use @resumewith on an ordinary parameter or a receiver resumeAsync method.
-tests/Diagnostics/async_stage12_invalid.camp(12,48): error: The 'upon' scheduler parameter modifier was removed; use @resumewith on an ordinary parameter or a receiver resumeAsync method.
-tests/Diagnostics/async_stage12_invalid.camp(12,71): error: The 'upon' scheduler parameter modifier was removed; use @resumewith on an ordinary parameter or a receiver resumeAsync method.
+tests/Diagnostics/async_stage12_invalid.camp(10,37): error: The 'upon' scheduler parameter modifier was removed; use @awaitwith on an ordinary parameter or a receiver resumeAsync method.
+tests/Diagnostics/async_stage12_invalid.camp(12,48): error: The 'upon' scheduler parameter modifier was removed; use @awaitwith on an ordinary parameter or a receiver resumeAsync method.
+tests/Diagnostics/async_stage12_invalid.camp(12,71): error: The 'upon' scheduler parameter modifier was removed; use @awaitwith on an ordinary parameter or a receiver resumeAsync method.

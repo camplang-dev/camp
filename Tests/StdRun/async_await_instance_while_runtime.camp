@@ -20,7 +20,7 @@ void delayFreeAsync(EventLoop* loop, int value, escaped once void() complete)
 	complete();
 }
 
-async int countdown(int seconds, @resumewith EventLoop* loop)
+async int countdown(int seconds, @awaitwith EventLoop* loop)
 {
 	int total = 0;
 	while (seconds > 0)

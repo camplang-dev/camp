@@ -61,7 +61,7 @@
             <ElementType Type="NamedTypeReference" Name="Resumer" />
           </Type>
           <Attributes>
-            <AttributeConstructor Name="@resumewith" />
+            <AttributeConstructor Name="@awaitwith" />
           </Attributes>
         </ParameterDefinition>
         <ParameterDefinition Modifier="Thrown" Name="error" Symbol="error">

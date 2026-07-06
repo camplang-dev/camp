@@ -18,32 +18,32 @@ async int inner()
 	return 1;
 }
 
-async void badMissing(@resumewith Resumer* resumer)
+async void badMissing(@awaitwith Resumer* resumer)
 {
 	await missingCallback();
 }
 
-async void badNotOnce(@resumewith Resumer* resumer)
+async void badNotOnce(@awaitwith Resumer* resumer)
 {
 	await notOnce();
 }
 
-async void badReturn(@resumewith Resumer* resumer)
+async void badReturn(@awaitwith Resumer* resumer)
 {
 	await callbackReturns();
 }
 
-async void badOut(@resumewith Resumer* resumer)
+async void badOut(@awaitwith Resumer* resumer)
 {
 	await callbackOut();
 }
 
-async void badTwoThrown(@resumewith Resumer* resumer)
+async void badTwoThrown(@awaitwith Resumer* resumer)
 {
 	await callbackTwoThrown();
 }
 
-async void badTwoValues(@resumewith Resumer* resumer)
+async void badTwoValues(@awaitwith Resumer* resumer)
 {
 	await callbackTwoValues();
 }
