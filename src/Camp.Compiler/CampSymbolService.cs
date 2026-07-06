@@ -18,7 +18,8 @@ public enum CampSymbolKind
 	Variable,
 	Parameter,
 	EnumValue,
-	Alias
+	Alias,
+	Keyword
 }
 
 public sealed record CampSymbolLocation(string Path, CampTextRange Range);
@@ -60,6 +61,12 @@ public sealed record CampSignatureHelp(
 	IReadOnlyList<CampSignatureInformation> Signatures,
 	int ActiveSignature,
 	int ActiveParameter);
+
+public sealed record CampCompletionItem(
+	string Label,
+	CampSymbolKind Kind,
+	string? Detail,
+	string? Documentation);
 
 public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 {
@@ -116,6 +123,24 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			activeParameter);
 	}
 
+	public IReadOnlyList<CampCompletionItem> GetCompletions(string path, CampTextPosition position)
+	{
+		string fullPath = Path.GetFullPath(path);
+		SourceFile? file = snapshot.Compilation.Files.FirstOrDefault(file => string.Equals(Path.GetFullPath(file.Path), fullPath, StringComparison.OrdinalIgnoreCase));
+		if (file?.BindableTree is null)
+			return [];
+		CompletionContext context = GetCompletionContext(file.Text, position);
+		List<CampCompletionItem> completions = context.IsMember
+			? GetMemberCompletions(file, context)
+			: GetScopeCompletions(file, position);
+		return completions
+			.Where(item => context.Prefix.Length == 0 || item.Label.StartsWith(context.Prefix, StringComparison.OrdinalIgnoreCase))
+			.DistinctBy(static item => (item.Label, item.Kind, item.Detail))
+			.OrderBy(static item => CompletionSortBucket(item.Kind))
+			.ThenBy(static item => item.Label, StringComparer.OrdinalIgnoreCase)
+			.ToList();
+	}
+
 	public IReadOnlyList<CampDocumentSymbol> GetDocumentSymbols(string path)
 	{
 		string fullPath = Path.GetFullPath(path);
@@ -144,6 +169,63 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			.ToList();
 	}
 
+	List<CampCompletionItem> GetScopeCompletions(SourceFile file, CampTextPosition position)
+	{
+		List<CampCompletionItem> completions = [];
+		HashSet<BindableNode> localNodes = [];
+		if (file.BindableTree is not null)
+			CollectVisibleLocalNodes(file, file.BindableTree, position, localNodes, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance));
+		foreach (BindableNode node in localNodes)
+			if (TryCreateCompletion(file, node, null, out CampCompletionItem? item))
+				completions.Add(item!);
+		completions.AddRange(entries
+			.Where(static entry => entry.Definition is null && entry.Kind is CampSymbolKind.Type or CampSymbolKind.Alias or CampSymbolKind.Function)
+			.Select(static entry => new CampCompletionItem(entry.Name, entry.Kind, entry.Signature ?? entry.Type, entry.Documentation)));
+		completions.AddRange(GetKeywordCompletions());
+		return completions;
+	}
+
+	List<CampCompletionItem> GetMemberCompletions(SourceFile file, CompletionContext context)
+	{
+		if (context.MemberTargetPosition is null)
+			return [];
+		CampSymbolInfo? target = GetSymbolAt(file.Path, context.MemberTargetPosition);
+		string? targetType = target?.Type;
+		if (targetType is null && target?.Kind is CampSymbolKind.Type or CampSymbolKind.Alias)
+			targetType = target.Name;
+		TypeDefinition? type = ResolveCompletionType(targetType);
+		if (type is null)
+			return [];
+		List<CampCompletionItem> completions = [];
+		CollectTypeMemberCompletions(file, type, completions, new HashSet<TypeDefinition>(ReferenceEqualityComparer.Instance));
+		return completions;
+	}
+
+	static IEnumerable<CampCompletionItem> GetKeywordCompletions()
+	{
+		foreach (string keyword in new[]
+		{
+			"if", "else", "while", "for", "foreach", "return", "try", "catch", "finally",
+			"new", "init", "default", "true", "false", "null", "using", "export",
+			"class", "struct", "interface", "enum", "newtype", "delegate", "fn"
+		})
+			yield return new CampCompletionItem(keyword, CampSymbolKind.Keyword, null, null);
+	}
+
+	static int CompletionSortBucket(CampSymbolKind kind)
+	{
+		return kind switch
+		{
+			CampSymbolKind.Variable or CampSymbolKind.Parameter => 0,
+			CampSymbolKind.Field => 1,
+			CampSymbolKind.Method or CampSymbolKind.Function => 2,
+			CampSymbolKind.EnumValue => 3,
+			CampSymbolKind.Type or CampSymbolKind.Alias => 4,
+			CampSymbolKind.Keyword => 5,
+			_ => 9
+		};
+	}
+
 	SymbolEntry? FindEntry(string path, CampTextPosition position)
 	{
 		string fullPath = Path.GetFullPath(path);
@@ -165,6 +247,128 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			.DistinctBy(static entry => (entry.Name, entry.Kind, entry.Path, entry.Range.Start.Line, entry.Range.Start.Character, entry.Range.End.Line, entry.Range.End.Character))
 			.ToList();
 		return candidates.Count == 1 ? candidates[0] : null;
+	}
+
+	TypeDefinition? ResolveCompletionType(string? type)
+	{
+		if (string.IsNullOrWhiteSpace(type))
+			return null;
+		string name = BaseTypeName(UnwrapStorageType(type!));
+		foreach (SourceFile sourceFile in snapshot.Compilation.Files)
+			if (sourceFile.BindableTree is not null && FindTypeDefinition(sourceFile.BindableTree, name, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance)) is TypeDefinition definition)
+				return definition;
+		return null;
+	}
+
+	static TypeDefinition? FindTypeDefinition(BindableNode node, string name, HashSet<BindableNode> visited)
+	{
+		if (!visited.Add(node))
+			return null;
+		if (node is TypeDefinition type && (type.Name == name || type.Symbol == name || type.ResolvedType == name))
+			return type;
+		foreach (BindableNode child in Children(node))
+			if (FindTypeDefinition(child, name, visited) is TypeDefinition found)
+				return found;
+		return null;
+	}
+
+	static string UnwrapStorageType(string type)
+	{
+		string result = type.Trim();
+		while (result.StartsWith("const ", StringComparison.Ordinal)
+			|| result.StartsWith("escaped ", StringComparison.Ordinal)
+			|| result.StartsWith("scoped ", StringComparison.Ordinal)
+			|| result.StartsWith("unscoped ", StringComparison.Ordinal)
+			|| result.StartsWith("volatile ", StringComparison.Ordinal))
+		{
+			int space = result.IndexOf(' ');
+			result = space < 0 ? result : result[(space + 1)..].TrimStart();
+		}
+		while (result.EndsWith("*", StringComparison.Ordinal))
+			result = result[..^1].TrimEnd();
+		if (result.EndsWith("[]", StringComparison.Ordinal))
+			result = result[..^2].TrimEnd();
+		return result;
+	}
+
+	void CollectTypeMemberCompletions(SourceFile file, TypeDefinition type, List<CampCompletionItem> completions, HashSet<TypeDefinition> visited)
+	{
+		if (!visited.Add(type))
+			return;
+		switch (type)
+		{
+			case ClassDefinition classDefinition:
+				foreach (FieldDefinition field in classDefinition.Fields)
+					if (TryCreateCompletion(file, field, type.Name, out CampCompletionItem? item))
+						completions.Add(item!);
+				foreach (FunctionDefinition function in classDefinition.Functions)
+					if (TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+						completions.Add(item!);
+				foreach (TypeReference baseType in classDefinition.BaseTypes)
+					CollectBaseTypeMemberCompletions(file, baseType, completions, visited);
+				break;
+			case StructDefinition structDefinition:
+				foreach (FieldDefinition field in structDefinition.Fields)
+					if (TryCreateCompletion(file, field, type.Name, out CampCompletionItem? item))
+						completions.Add(item!);
+				foreach (FunctionDefinition function in structDefinition.Functions)
+					if (TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+						completions.Add(item!);
+				break;
+			case InterfaceDefinition interfaceDefinition:
+				foreach (FunctionDefinition function in interfaceDefinition.Functions)
+					if (TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+						completions.Add(item!);
+				break;
+			case EnumDefinition enumDefinition:
+				foreach (VariableDefinition value in enumDefinition.Values)
+					if (TryCreateCompletion(file, value, type.Name, out CampCompletionItem? item))
+						completions.Add(item!);
+				break;
+			case NewtypeDefinition newtypeDefinition:
+				foreach (FunctionDefinition function in newtypeDefinition.Functions)
+					if (TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
+						completions.Add(item!);
+				break;
+		}
+
+		foreach (FunctionDefinition extension in functions.Where(function => function.Parameters.FirstOrDefault() is ThisParameterDefinition thisParameter && BaseTypeName(UnwrapStorageType(thisParameter.ResolvedType ?? "")) == type.Name))
+			if (TryCreateCompletion(file, extension, type.Name, out CampCompletionItem? item))
+				completions.Add(item!);
+	}
+
+	void CollectBaseTypeMemberCompletions(SourceFile file, TypeReference? baseType, List<CampCompletionItem> completions, HashSet<TypeDefinition> visited)
+	{
+		TypeDefinition? definition = ResolveCompletionType(baseType?.ResolvedType ?? BindableNodeCodeSerializer.SerializeType(baseType));
+		if (definition is not null)
+			CollectTypeMemberCompletions(file, definition, completions, visited);
+	}
+
+	static bool TryCreateCompletion(SourceFile file, BindableNode node, string? containerName, out CampCompletionItem? item)
+	{
+		item = null;
+		if (!TryCreateDefinitionEntry(file, node, containerName, out SymbolEntry? entry))
+			return false;
+		item = new CampCompletionItem(entry!.Name, entry.Kind, entry.Signature ?? entry.Type, entry.Documentation);
+		return true;
+	}
+
+	static void CollectVisibleLocalNodes(SourceFile file, BindableNode node, CampTextPosition position, HashSet<BindableNode> destination, HashSet<BindableNode> visited)
+	{
+		if (!visited.Add(node))
+			return;
+		if (node is ParameterDefinition or LambdaParameter or DeclarationTarget)
+		{
+			if (TryGetNodeRange(node, out TokenRange range) && ReferenceEquals(file.Tokens, range.Sequence) && IsBefore(CampLanguageService.ToTextRange(range).Start, position))
+				destination.Add(node);
+		}
+		foreach (BindableNode child in Children(node))
+			CollectVisibleLocalNodes(file, child, position, destination, visited);
+	}
+
+	static bool IsBefore(CampTextPosition left, CampTextPosition right)
+	{
+		return left.Line < right.Line || left.Line == right.Line && left.Character <= right.Character;
 	}
 
 	SymbolEntry? FindNamedDefinitionEntry(string path, CampTextPosition position)
@@ -1258,6 +1462,33 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return string.Join("\n", docs).Trim();
 	}
 
+	static CompletionContext GetCompletionContext(string text, CampTextPosition position)
+	{
+		string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+		if (position.Line < 0 || position.Line >= lines.Length)
+			return new CompletionContext("", false, null);
+		string line = lines[position.Line];
+		int cursor = Math.Clamp(position.Character, 0, line.Length);
+		int prefixStart = cursor;
+		while (prefixStart > 0 && IsIdentifierPart(line[prefixStart - 1]))
+			prefixStart--;
+		string prefix = line[prefixStart..cursor];
+		int dot = prefixStart - 1;
+		while (dot >= 0 && char.IsWhiteSpace(line[dot]))
+			dot--;
+		if (dot < 0 || line[dot] != '.')
+			return new CompletionContext(prefix, false, null);
+		int targetEnd = dot;
+		while (targetEnd > 0 && char.IsWhiteSpace(line[targetEnd - 1]))
+			targetEnd--;
+		int targetStart = targetEnd;
+		while (targetStart > 0 && IsIdentifierPart(line[targetStart - 1]))
+			targetStart--;
+		if (targetStart == targetEnd)
+			return new CompletionContext(prefix, true, null);
+		return new CompletionContext(prefix, true, new CampTextPosition(position.Line, targetStart));
+	}
+
 	static Dictionary<string, string> ExtractLeadingParameterDocs(string text, int oneBasedLine)
 	{
 		string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
@@ -1421,4 +1652,9 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		string? Documentation,
 		string? ContainerName,
 		SymbolEntry? Definition);
+
+	sealed record CompletionContext(
+		string Prefix,
+		bool IsMember,
+		CampTextPosition? MemberTargetPosition);
 }

@@ -21,6 +21,7 @@ LanguageServer server = await LanguageServer.From(options => options
 	.WithInput(Console.OpenStandardInput())
 	.WithOutput(Console.OpenStandardOutput())
 	.AddHandler(new CampTextDocumentSyncHandler(workspace))
+	.AddHandler(new CampCompletionHandler(workspace))
 	.AddHandler(new CampHoverHandler(workspace))
 	.AddHandler(new CampSignatureHelpHandler(workspace))
 	.AddHandler(new CampDefinitionHandler(workspace))
@@ -74,6 +75,34 @@ sealed class CampTextDocumentSyncHandler(CampLspWorkspace workspace) : TextDocum
 			Save = new BooleanOr<SaveOptions>(true)
 		};
 	}
+}
+
+sealed class CampCompletionHandler(CampLspWorkspace workspace) : CompletionHandlerBase<CampCompletionIdentity>
+{
+	protected override Task<CompletionList<CampCompletionIdentity>> HandleParams(CompletionParams request, CancellationToken cancellationToken)
+	{
+		IReadOnlyList<CampCompletionItem> completions = workspace.GetCompletions(request.TextDocument.Uri, CampLsp.ToCampPosition(request.Position));
+		return Task.FromResult(new CompletionList<CampCompletionIdentity>(isIncomplete: false, completions.Select(CampLsp.ToLspCompletionItem)));
+	}
+
+	protected override Task<CompletionItem<CampCompletionIdentity>> HandleResolve(CompletionItem<CampCompletionIdentity> request, CancellationToken cancellationToken)
+	{
+		return Task.FromResult(request);
+	}
+
+	protected override CompletionRegistrationOptions CreateRegistrationOptions(CompletionCapability capability, ClientCapabilities clientCapabilities)
+	{
+		return new CompletionRegistrationOptions
+		{
+			DocumentSelector = CampLsp.Protocol.DocumentSelector,
+			TriggerCharacters = new Container<string>(".")
+		};
+	}
+}
+
+public sealed class CampCompletionIdentity : IHandlerIdentity
+{
+	public string __identity { get; init; } = "camp";
 }
 
 sealed class CampHoverHandler(CampLspWorkspace workspace) : HoverHandlerBase
@@ -230,6 +259,13 @@ public sealed class CampLspWorkspace
 		return new CampSymbolQueryService(snapshot!).GetSignatureHelp(path, position);
 	}
 
+	public IReadOnlyList<CampCompletionItem> GetCompletions(DocumentUri uri, CampTextPosition position)
+	{
+		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
+			return [];
+		return new CampSymbolQueryService(snapshot!).GetCompletions(path, position);
+	}
+
 	public IReadOnlyList<CampDocumentSymbol> GetDocumentSymbols(DocumentUri uri)
 	{
 		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
@@ -380,6 +416,21 @@ public static class CampLsp
 		};
 	}
 
+	public static CompletionItem<CampCompletionIdentity> ToLspCompletionItem(CampCompletionItem item)
+	{
+		return new CompletionItem<CampCompletionIdentity>
+		{
+			Label = item.Label,
+			Kind = ToLspCompletionItemKind(item.Kind),
+			Detail = item.Detail,
+			Documentation = string.IsNullOrWhiteSpace(item.Documentation) ? null : new StringOrMarkupContent(new MarkupContent
+			{
+				Kind = MarkupKind.Markdown,
+				Value = item.Documentation
+			})
+		};
+	}
+
 	public static SignatureHelp ToLspSignatureHelp(CampSignatureHelp help)
 	{
 		return new SignatureHelp
@@ -421,6 +472,23 @@ public static class CampLsp
 			CampSymbolKind.EnumValue => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.EnumMember,
 			CampSymbolKind.Alias => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.Interface,
 			_ => OmniSharp.Extensions.LanguageServer.Protocol.Models.SymbolKind.Object
+		};
+	}
+
+	static CompletionItemKind ToLspCompletionItemKind(CampSymbolKind kind)
+	{
+		return kind switch
+		{
+			CampSymbolKind.Type => CompletionItemKind.Class,
+			CampSymbolKind.Function => CompletionItemKind.Function,
+			CampSymbolKind.Method => CompletionItemKind.Method,
+			CampSymbolKind.Field => CompletionItemKind.Field,
+			CampSymbolKind.Variable => CompletionItemKind.Variable,
+			CampSymbolKind.Parameter => CompletionItemKind.Variable,
+			CampSymbolKind.EnumValue => CompletionItemKind.EnumMember,
+			CampSymbolKind.Alias => CompletionItemKind.Interface,
+			CampSymbolKind.Keyword => CompletionItemKind.Keyword,
+			_ => CompletionItemKind.Text
 		};
 	}
 

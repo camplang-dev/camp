@@ -44,7 +44,7 @@ arguments, default arguments, overloads, expanded params values, `this`
 extension calls, callable newtypes, and hidden parameters such as `sizeof`,
 `vtableof`, `within`, and `thrown`.
 
-## LSP-004 — Basic Semantic Completion
+## ~~LSP-004 — Basic Semantic Completion~~
 
 Complexity: Medium-high.
 

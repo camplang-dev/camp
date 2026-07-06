@@ -680,6 +680,53 @@ public sealed class LanguageServiceTests
 		Assert.Equal(6, counter.SelectionRange.Start.Line);
 	}
 
+	[Fact]
+	public void Symbol_query_returns_basic_semantic_completions()
+	{
+		string root = CreateTempDirectory("language-service-completion");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			enum Mode
+			{
+				OPEN,
+				CLOSED
+			}
+
+			struct Counter
+			{
+				int value;
+				int getValue() => this.value;
+			}
+
+			int helper(int value) => value + 1;
+
+			export int main()
+			{
+				Counter counter = default;
+				int local = 1;
+				counter.value = helper(local);
+				Mode mode = Mode.OPEN;
+				return local;
+			}
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		IReadOnlyList<CampCompletionItem> scopeCompletions = symbols.GetCompletions(source, PositionOf(text, "helper(local"));
+		IReadOnlyList<CampCompletionItem> memberCompletions = symbols.GetCompletions(source, PositionAfter(text, "counter."));
+		IReadOnlyList<CampCompletionItem> enumCompletions = symbols.GetCompletions(source, PositionAfter(text, "Mode."));
+
+		Assert.Contains(scopeCompletions, static item => item.Label == "local" && item.Kind == CampSymbolKind.Variable);
+		Assert.Contains(scopeCompletions, static item => item.Label == "helper" && item.Kind == CampSymbolKind.Function);
+		Assert.Contains(scopeCompletions, static item => item.Label == "return" && item.Kind == CampSymbolKind.Keyword);
+		Assert.Contains(memberCompletions, static item => item.Label == "value" && item.Kind == CampSymbolKind.Field);
+		Assert.Contains(memberCompletions, static item => item.Label == "getValue" && item.Kind == CampSymbolKind.Method);
+		Assert.Contains(enumCompletions, static item => item.Label == "OPEN" && item.Kind == CampSymbolKind.EnumValue);
+		Assert.Contains(enumCompletions, static item => item.Label == "CLOSED" && item.Kind == CampSymbolKind.EnumValue);
+	}
+
 	static CompilerRequest Request(string workingDirectory, string source)
 	{
 		CompilerRequest request = new()
@@ -723,6 +770,12 @@ public sealed class LanguageServiceTests
 				character++;
 		}
 		return new CampTextPosition(line, character);
+	}
+
+	static CampTextPosition PositionAfter(string text, string marker)
+	{
+		CampTextPosition position = PositionOf(text, marker);
+		return new CampTextPosition(position.Line, position.Character + marker.Length);
 	}
 
 	static string CreateTempDirectory(string name)

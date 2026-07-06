@@ -142,6 +142,58 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_server_returns_basic_completion_items()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-completion");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			struct Counter
+			{
+				int value;
+				int getValue() => this.value;
+			}
+
+			int helper() => 1;
+
+			export int main()
+			{
+				Counter counter = default;
+				int local = 1;
+				counter.value = helper();
+				return local;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		lsp.ReadNotification("textDocument/publishDiagnostics");
+
+		JsonNode scopeCompletion = lsp.Request("textDocument/completion", new
+		{
+			textDocument = new { uri },
+			position = new { line = 12, character = 25 }
+		});
+		JsonNode memberCompletion = lsp.Request("textDocument/completion", new
+		{
+			textDocument = new { uri },
+			position = new { line = 12, character = 9 }
+		});
+
+		JsonArray scopeItems = CompletionItems(scopeCompletion);
+		JsonArray memberItems = CompletionItems(memberCompletion);
+		Assert.Contains(scopeItems, item => item?["label"]?.GetValue<string>() == "local");
+		Assert.Contains(scopeItems, item => item?["label"]?.GetValue<string>() == "helper");
+		Assert.Contains(memberItems, item => item?["label"]?.GetValue<string>() == "value");
+		Assert.Contains(memberItems, item => item?["label"]?.GetValue<string>() == "getValue");
+	}
+
+	[Fact]
 	public void Lsp_server_returns_document_symbols()
 	{
 		using LspProcess lsp = LspProcess.Start();
@@ -337,6 +389,14 @@ public sealed class LspServerTests
 		return directory;
 	}
 
+	static JsonArray CompletionItems(JsonNode response)
+	{
+		JsonNode? result = response["result"];
+		if (result is JsonArray array)
+			return array;
+		return result?["items"]?.AsArray() ?? throw new InvalidOperationException("Completion response did not contain items.");
+	}
+
 	sealed class LspProcess : IDisposable
 	{
 		readonly Process process;
@@ -389,6 +449,7 @@ public sealed class LspServerTests
 				}
 			});
 			Assert.NotNull(response["result"]?["capabilities"]?["hoverProvider"]);
+			Assert.NotNull(response["result"]?["capabilities"]?["completionProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["signatureHelpProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["definitionProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["documentSymbolProvider"]);
