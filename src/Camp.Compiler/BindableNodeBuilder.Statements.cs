@@ -226,7 +226,7 @@ public sealed partial class BindableNodeBuilder
 		return new WithinStatement
 		{
 			SourceSyntax = syntax,
-			Allocator = BuildConditionExpression(syntax.Condition, "Within statement"),
+			Allocator = BuildWithinConditionExpression(syntax.Condition),
 			Body = BuildStatementBody(syntax)
 		};
 	}
@@ -393,6 +393,13 @@ public sealed partial class BindableNodeBuilder
 
 		Report((TokenRange?)null, $"{context} is missing a condition.");
 		return null;
+	}
+
+	Expression? BuildWithinConditionExpression(StatementConditionSyntax? syntax)
+	{
+		if (syntax is ClauseStatementConditionSyntax { Clauses: [StatementConditionClauseSyntax first], DeclarationStatement: null })
+			return BuildWithinContextExpression(first.Expression, "Within statement context");
+		return BuildConditionExpression(syntax, "Within statement");
 	}
 
 	void BuildForStatementCondition(ForStatementCondition target, StatementConditionSyntax? syntax)

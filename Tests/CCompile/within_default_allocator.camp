@@ -1,0 +1,16 @@
+#within explicit
+
+export extern void* malloc(nuint size);
+export extern void free(void* ptr);
+
+export int main()
+{
+	auto bytes = within(default) new byte[4];
+	bytes[0] = 7;
+	within(default) delete bytes;
+
+	auto other = within(default) new byte[1] finally delete;
+	other[0] = 3;
+
+	return 0;
+}

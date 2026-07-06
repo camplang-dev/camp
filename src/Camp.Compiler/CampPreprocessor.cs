@@ -101,6 +101,11 @@ public static class CampPreprocessor
 				case "build":
 					break;
 
+				case "within":
+					if (active)
+						ValidateWithinDirective(line, info.ExpressionStart, diagnostics);
+					break;
+
 				default:
 					if (active)
 						AddDiagnostic(diagnostics, info.Directive.Value, $"Unknown preprocessor directive '#{directive}'.");
@@ -142,6 +147,13 @@ public static class CampPreprocessor
 		}
 		if (tokens[0].Value != "TRUE")
 			symbols.Remove(tokens[0].Value);
+	}
+
+	static void ValidateWithinDirective(List<Token> line, int expressionStart, List<ParseDiagnostic> diagnostics)
+	{
+		List<Token> tokens = SignificantTokens(line, expressionStart).ToList();
+		if (tokens.Count != 1 || tokens[0].Class != TokenClass.Identifier || tokens[0].Value is not ("explicit" or "implicit"))
+			AddDiagnostic(diagnostics, tokens.Count > 0 ? tokens[0] : line.FirstOrDefault(), "#within expects explicit or implicit.");
 	}
 
 	static bool EvaluateExpression(List<Token> line, int expressionStart, HashSet<string> symbols, List<ParseDiagnostic> diagnostics)

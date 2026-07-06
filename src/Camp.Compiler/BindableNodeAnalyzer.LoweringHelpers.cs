@@ -259,6 +259,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression? CaptureWithinContext(Expression? allocator, SyntaxNode? syntax)
 	{
+		if (allocator is DefaultWithinContextExpression)
+			return null;
 		if (allocator is null || currentStatementPrefix is null)
 			return allocator;
 
@@ -273,6 +275,17 @@ public sealed partial class BindableNodeAnalyzer
 		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("allocator"), type, new NamedTypeReference { Name = type, ResolvedType = type }, allocator);
 		local.SourceSyntax = syntax;
 		return local;
+	}
+
+	Expression CreateDefaultWithinArgument(SyntaxNode? syntax)
+	{
+		return new LiteralExpression
+		{
+			SourceSyntax = syntax,
+			Kind = LiteralKind.Null,
+			Text = "null",
+			ResolvedType = "#NULL"
+		};
 	}
 
 	static NamedExpression CreateResolvedAllocatorReference(string resolvedType = "Allocator*")

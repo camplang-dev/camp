@@ -20,6 +20,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		BodyScope scope = new(null, function, containingType);
+		scope.ExplicitWithinContextDepth = HasWithinParameter(function) ? 1 : 0;
 		scope.CurrentFunctionReturnType = IsLifecycleFunction(function) ? "void" : function.ResolvedType ?? ErrorType;
 		scope.CurrentFunctionSourceReturnType = IsLifecycleFunction(function) ? "void" : FormatTypeReference(function.ReturnType);
 		scope.CurrentIteratorElementType = function.IteratorKind == IteratorKind.None ? null : GetIteratorElementType(function.ReturnType);
@@ -248,7 +249,8 @@ public sealed partial class BindableNodeAnalyzer
 			CurrentFunctionReturnType = scope.CurrentFunctionReturnType,
 			CurrentFunctionSourceReturnType = scope.CurrentFunctionSourceReturnType,
 			CurrentIteratorElementType = scope.CurrentIteratorElementType,
-			CurrentIteratorThrownType = scope.CurrentIteratorThrownType
+			CurrentIteratorThrownType = scope.CurrentIteratorThrownType,
+			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth
 		};
 
 		foreach (Statement statement in statements)
@@ -372,6 +374,7 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					string deleteType = BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
 					ValidateExternClassDelete(deleteStatement.Expression, deleteType);
+					RequireExplicitWithinForDelete(deleteStatement.Expression, deleteType, scope, "pointer-form delete requires an explicit within context; use within(allocator) delete or within(default) delete.");
 					CheckLifetimeDeleteAgainstFree(deleteStatement.Expression, deleteStatement.Expression?.SourceSyntax ?? deleteStatement.SourceSyntax, scope);
 				}
 				break;
@@ -393,9 +396,20 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case WithinStatement withinStatement:
-				BodyAnalyzeExpression(withinStatement.Allocator, scope, typeScope);
-				BodyAnalyzeOptionalStatement(withinStatement.Body, scope, typeScope);
+			{
+				if (withinStatement.Allocator is not DefaultWithinContextExpression)
+					BodyAnalyzeExpression(withinStatement.Allocator, scope, typeScope);
+				BodyScope withinScope = new(scope, scope.CurrentFunction, scope.ContainingType)
+				{
+					CurrentFunctionReturnType = scope.CurrentFunctionReturnType,
+					CurrentFunctionSourceReturnType = scope.CurrentFunctionSourceReturnType,
+					CurrentIteratorElementType = scope.CurrentIteratorElementType,
+					CurrentIteratorThrownType = scope.CurrentIteratorThrownType,
+					ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth + 1
+				};
+				BodyAnalyzeOptionalStatement(withinStatement.Body, withinScope, typeScope);
 				break;
+			}
 		}
 	}
 
@@ -951,6 +965,7 @@ public sealed partial class BindableNodeAnalyzer
 			TypeReferenceExpression typeReference => typeReference.Type?.ResolvedType ?? ErrorType,
 			ThisExpression thisExpression => BodyAnalyzeThisExpression(thisExpression, scope),
 			DefaultExpression defaultExpression => BodyAnalyzeDefaultExpression(defaultExpression, typeScope, targetType),
+			DefaultWithinContextExpression => "#NULL",
 			GroupedExpression grouped => BodyAnalyzeGroupedExpression(grouped, scope, typeScope),
 			ArrayExpression array => BodyAnalyzeArrayExpression(array, scope, typeScope, targetType),
 			InitializerExpression initializer => BodyAnalyzeInitializerExpression(initializer, scope, typeScope, targetType),
@@ -971,7 +986,7 @@ public sealed partial class BindableNodeAnalyzer
 			NamelessIndexerExpression indexer => BodyAnalyzeIndexExpression(indexer.Target, indexer.Arguments, scope, typeScope),
 			UnaryExpression unary => BodyAnalyzeUnaryExpression(unary, scope, typeScope, targetType),
 			PostfixUpdateExpression postfix => BodyAnalyzePostfixUpdateExpression(postfix, scope, typeScope),
-			FinallyDeleteExpression finallyDelete => BodyAnalyzeExpression(finallyDelete.Expression, scope, typeScope, targetType),
+			FinallyDeleteExpression finallyDelete => BodyAnalyzeFinallyDeleteExpression(finallyDelete, scope, typeScope, targetType),
 			BinaryExpression binary => BodyAnalyzeBinaryExpression(binary, scope, typeScope),
 			AssignmentExpression assignment => BodyAnalyzeAssignmentExpression(assignment, scope, typeScope),
 			ConditionalExpression conditional => BodyAnalyzeConditionalExpression(conditional, scope, typeScope, targetType),
@@ -1472,6 +1487,8 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeType(construction.Type, typeScope);
 
 		string targetType = construction.Type?.ResolvedType ?? TargetType;
+		if (construction.Kind == ConstructionKind.New)
+			RequireExplicitWithin(construction.SourceSyntax, scope, "new requires an explicit within context; use within(allocator) or within(default).");
 		if (construction.Kind == ConstructionKind.Init
 			&& typeDefinitions.TryGetValue(BaseConstructedType(targetType), out TypeDefinition? constructedDefinition)
 			&& constructedDefinition is ClassDefinition { Extern: not null })
@@ -1519,10 +1536,28 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeWithinExpression(WithinExpression within, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
-		string contextType = BodyAnalyzeExpression(within.Context, scope, typeScope, targetType);
+		string contextType = within.Context is DefaultWithinContextExpression
+			? "#NULL"
+			: BodyAnalyzeExpression(within.Context, scope, typeScope, targetType);
 		if (within.Expression is null)
 			return contextType;
-		return BodyAnalyzeExpression(within.Expression, scope, typeScope, targetType);
+		BodyScope withinScope = new(scope, scope.CurrentFunction, scope.ContainingType)
+		{
+			CurrentFunctionReturnType = scope.CurrentFunctionReturnType,
+			CurrentFunctionSourceReturnType = scope.CurrentFunctionSourceReturnType,
+			CurrentIteratorElementType = scope.CurrentIteratorElementType,
+			CurrentIteratorThrownType = scope.CurrentIteratorThrownType,
+			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth + 1
+		};
+		return BodyAnalyzeExpression(within.Expression, withinScope, typeScope, targetType);
+	}
+
+	string BodyAnalyzeFinallyDeleteExpression(FinallyDeleteExpression finallyDelete, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	{
+		string expressionType = BodyAnalyzeExpression(finallyDelete.Expression, scope, typeScope, targetType);
+		if (finallyDelete.Expression is not WithinExpression { Expression: not null })
+			RequireExplicitWithinForDelete(finallyDelete.Expression, expressionType, scope, "finally delete requires an explicit within context for pointer deletion; use within(allocator) or within(default).");
+		return expressionType;
 	}
 
 	string BodyAnalyzeSizeOfExpression(SizeOfExpression sizeOf, AnalysisScope typeScope)
@@ -1550,7 +1585,8 @@ public sealed partial class BindableNodeAnalyzer
 			CurrentFunctionReturnType = targetShape?.ReturnType ?? TargetType,
 			CurrentFunctionSourceReturnType = lambdaSourceReturnType,
 			CurrentIteratorElementType = null,
-			CurrentIteratorThrownType = null
+			CurrentIteratorThrownType = null,
+			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth
 		};
 
 		if (targetShape is CallableShape shape && shape.Parameters.Count != lambda.Parameters.Count)
@@ -4456,6 +4492,35 @@ public sealed partial class BindableNodeAnalyzer
 		return UsualArithmeticConversion(left, right);
 	}
 
+	void RequireExplicitWithinForDelete(Expression? expression, string expressionType, BodyScope scope, string message)
+	{
+		if (RequiresExplicitWithinPolicy(expression?.SourceSyntax, scope) && IsPointerStorageDeleteType(expressionType))
+			Report(GetRange(expression?.SourceSyntax), message);
+	}
+
+	void RequireExplicitWithin(SyntaxNode? syntax, BodyScope scope, string message)
+	{
+		if (RequiresExplicitWithinPolicy(syntax, scope))
+			Report(GetRange(syntax), message);
+	}
+
+	bool RequiresExplicitWithinPolicy(SyntaxNode? syntax, BodyScope scope)
+	{
+		if (scope.ExplicitWithinContextDepth > 0)
+			return false;
+		TokenRange? range = GetRange(syntax);
+		if (range is not TokenRange tokenRange)
+			return false;
+		return currentModule?.SourceWithinAllocationPolicies.TryGetValue(tokenRange.Sequence, out WithinAllocationPolicy policy) == true
+			&& policy == WithinAllocationPolicy.Explicit;
+	}
+
+	static bool IsPointerStorageDeleteType(string? type)
+	{
+		return TryGetPointerElementType(type) is not null
+			|| TryGetArrayElementType(type) is not null
+			|| GetPrimitiveStringElementType(type) is not null;
+	}
 
 	sealed class BodyScope(BodyScope? parent, FunctionDefinition currentFunction, TypeDefinition? containingType)
 	{
@@ -4470,6 +4535,7 @@ public sealed partial class BindableNodeAnalyzer
 		public Dictionary<string, BodySymbol> MemberSymbols { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, string> ComponentSymbols { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, BodyComponentSymbol> ComponentSymbolTypes { get; } = new(StringComparer.Ordinal);
+		public int ExplicitWithinContextDepth { get; set; } = parent?.ExplicitWithinContextDepth ?? 0;
 
 		public bool TryLookup(string name, out BodySymbol symbol)
 		{

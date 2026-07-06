@@ -16,6 +16,7 @@ compilation-unit:
 
 preprocessor-directive:
 	#build <build-argument-list>
+	#within (explicit | implicit)
 	#define <IDENT>
 	#undef <IDENT>
 	#if <preprocessor-expression>

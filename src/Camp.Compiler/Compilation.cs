@@ -3,6 +3,12 @@ using System.Linq;
 
 namespace Camp.Compiler;
 
+public enum WithinAllocationPolicy
+{
+	Implicit,
+	Explicit
+}
+
 public sealed class Compilation
 {
 	public List<SourceFile> Files { get; } = [];
@@ -14,6 +20,7 @@ public sealed class Compilation
 	public string ProfileName { get; set; } = "DEBUG";
 	public string? MemoryModelName { get; set; }
 	public HashSet<string> PreprocessorSymbols { get; } = new(System.StringComparer.Ordinal);
+	public WithinAllocationPolicy DefaultWithinAllocationPolicy { get; set; } = WithinAllocationPolicy.Implicit;
 }
 
 public sealed class SourceFile
@@ -21,6 +28,7 @@ public sealed class SourceFile
 	public required string Path { get; init; }
 	public required string Text { get; init; }
 	public bool IsApiHeader { get; init; }
+	public WithinAllocationPolicy? WithinAllocationPolicyOverride { get; set; }
 	public TokenSequence? Tokens { get; set; }
 	public IReadOnlyList<ParseDiagnostic> PreprocessDiagnostics { get; set; } = [];
 	public CompilationUnitSyntax? SyntaxTree { get; set; }
@@ -110,6 +118,8 @@ public static class CompilationPipeline
 		{
 			if (file.BindableTree is not Module fileModule)
 				continue;
+			if (file.Tokens is not null)
+				module.SourceWithinAllocationPolicies[file.Tokens] = file.WithinAllocationPolicyOverride ?? compilation.DefaultWithinAllocationPolicy;
 
 			foreach (UsingDeclaration usingDeclaration in fileModule.Usings)
 				module.Usings.Add(usingDeclaration);

@@ -1,0 +1,11 @@
+#within explicit
+
+export extern void* malloc(nuint size);
+export extern void free(void* ptr);
+
+export void main()
+{
+	auto bytes = new byte[4];
+	delete bytes;
+	auto other = new byte[1] finally delete;
+}

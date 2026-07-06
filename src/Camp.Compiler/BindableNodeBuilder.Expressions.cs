@@ -339,7 +339,7 @@ public sealed partial class BindableNodeBuilder
 		return new WithinExpression
 		{
 			SourceSyntax = syntax,
-			Context = BuildExpression(syntax.AllocatorExpression, $"{context} allocator expression"),
+			Context = BuildWithinContextExpression(syntax.AllocatorExpression, $"{context} allocator expression"),
 			Expression = construction
 		};
 	}
@@ -451,7 +451,7 @@ public sealed partial class BindableNodeBuilder
 				expression = new WithinExpression
 				{
 					SourceSyntax = prefix,
-					Context = BuildExpression(prefix.Expression, $"{context} within context"),
+					Context = BuildWithinContextExpression(prefix.Expression, $"{context} within context"),
 					Expression = expression
 				};
 			}
@@ -565,7 +565,7 @@ public sealed partial class BindableNodeBuilder
 				Value = new WithinExpression
 				{
 					SourceSyntax = syntax,
-					Context = BuildExpression(syntax.Expression, $"{context} within argument")
+					Context = BuildWithinContextExpression(syntax.Expression, $"{context} within argument")
 				}
 			};
 		}
@@ -694,6 +694,15 @@ public sealed partial class BindableNodeBuilder
 			"async" => CastKind.Async,
 			_ => CastKind.Type
 		};
+	}
+
+	Expression? BuildWithinContextExpression(ExpressionSyntax? syntax, string context)
+	{
+		if (syntax is ParenthesizedExpressionSyntax parenthesized)
+			return BuildWithinContextExpression(parenthesized.Expression, context);
+		if (syntax is DefaultExpressionSyntax defaultExpression)
+			return new DefaultWithinContextExpression { SourceSyntax = defaultExpression };
+		return BuildExpression(syntax, context);
 	}
 
 	static string DecodeStringLiteral(string text)

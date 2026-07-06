@@ -103,6 +103,79 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Within_allocation_policy_uses_defaults_flags_and_file_override()
+	{
+		string source = CreateTempCase("within_policy.camp", """
+			export extern void* malloc(nuint size);
+			export extern void free(void* ptr);
+
+			export int main()
+			{
+				auto bytes = new byte[1];
+				delete bytes;
+				return 0;
+			}
+			""");
+		string buildPragmaSource = CreateTempCase("within_policy_build_pragma.camp", """
+			#build --explicit-within
+
+			export extern void* malloc(nuint size);
+			export extern void free(void* ptr);
+
+			export int main()
+			{
+				auto bytes = new byte[1];
+				delete bytes;
+				return 0;
+			}
+			""");
+		string fileImplicitSource = CreateTempCase("within_policy_file_implicit.camp", """
+			#within implicit
+
+			export extern void* malloc(nuint size);
+			export extern void free(void* ptr);
+
+			export int main()
+			{
+				auto bytes = new byte[1];
+				delete bytes;
+				return 0;
+			}
+			""");
+		string fileExplicitSource = CreateTempCase("within_policy_file_explicit.camp", """
+			#within explicit
+
+			export extern void* malloc(nuint size);
+			export extern void free(void* ptr);
+
+			export int main()
+			{
+				auto bytes = new byte[1];
+				delete bytes;
+				return 0;
+			}
+			""");
+
+		ProcessResult artifactNone = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--build-dir", TempPath("within-policy-none"));
+		ProcessResult explicitNone = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--explicit-within", "--build-dir", TempPath("within-policy-explicit-none"));
+		ProcessResult staticDefault = RunCampc("build", source, "--nostdlib", "--artifact", "static", "--build-dir", TempPath("within-policy-static"));
+		ProcessResult buildPragma = RunCampc("build", buildPragmaSource, "--nostdlib", "--artifact", "none", "--build-dir", TempPath("within-policy-build-pragma"));
+		ProcessResult fileImplicit = RunCampc("build", fileImplicitSource, "--nostdlib", "--artifact", "none", "--explicit-within", "--build-dir", TempPath("within-policy-file-implicit"));
+		ProcessResult fileExplicit = RunCampc("build", fileExplicitSource, "--nostdlib", "--artifact", "none", "--implicit-within", "--build-dir", TempPath("within-policy-file-explicit"));
+
+		AssertCommandSucceeded(artifactNone);
+		Assert.NotEqual(0, explicitNone.ExitCode);
+		Assert.Contains("new requires an explicit within context", explicitNone.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, staticDefault.ExitCode);
+		Assert.Contains("new requires an explicit within context", staticDefault.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, buildPragma.ExitCode);
+		Assert.Contains("new requires an explicit within context", buildPragma.StdErr, StringComparison.Ordinal);
+		AssertCommandSucceeded(fileImplicit);
+		Assert.NotEqual(0, fileExplicit.ExitCode);
+		Assert.Contains("new requires an explicit within context", fileExplicit.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Response_file_expands_build_arguments_relative_to_response_file()
 	{
 		string root = TempPath("response-file-project");

@@ -151,6 +151,16 @@ contexts:
           scope: variable.other.build-value.camp
         - match: $\n?
           pop: true
+    - match: '^\s*(#)\s*(within)\b'
+      captures:
+        1: punctuation.definition.directive.camp
+        2: keyword.control.preprocessor.build.camp
+      push:
+        - meta_scope: meta.preprocessor.build.camp
+        - match: '\b(?:explicit|implicit)\b'
+          scope: constant.language.policy.camp
+        - match: $\n?
+          pop: true
 
   attributes:
     - match: '@{{identifier}}\b'

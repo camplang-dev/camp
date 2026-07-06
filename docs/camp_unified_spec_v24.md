@@ -6675,6 +6675,11 @@ control what may be freed.
 Allocation failure is represented by `null`. The compiler-generated `new`
 lowering checks for `null` before invoking the constructor.
 
+This fallback may be selected explicitly with `within(default)`. In a `within`
+context, `default` is a special allocator-context value, not an ordinary
+expression. It masks any surrounding allocator context and uses the visible
+`malloc`/`free` fallback path as though there were no enclosing `within`.
+
 ### 4.3.3 Lexical allocator context
 
 `within` establishes the current allocator context lexically.
@@ -6697,6 +6702,11 @@ within(a)
 	{
 		new T(...);   // uses b
 	}
+
+	within(default)
+	{
+		new T(...);   // uses malloc fallback, not a
+	}
 }
 ```
 
@@ -6708,10 +6718,16 @@ A specific operation may override the surrounding context.
 within(a)
 {
 	auto r = within(b) new Rect(10, 20);
+	auto s = within(default) new Rect(30, 40);
 }
 ```
 
-This changes only that operation.
+This changes only that operation. `within(default)` is also valid on
+pointer-form deletion:
+
+```camp
+within(default) delete r;
+```
 
 ### 4.3.5 What `within` affects
 
@@ -6903,6 +6919,16 @@ If the selected constructor declares `within`, that same allocator is also forwa
 If allocation returns `null`, the constructor is not called and the `new`
 expression evaluates to `null`.
 
+Some compiler invocations may enable an **explicit within policy**. Under this
+policy, source-level `new`, pointer-form `delete`, and `finally delete` for
+pointer storage must occur in an explicit allocation context: either
+`within(allocator)`, expression-form `within(allocator) new ...`, a routine with
+a `within` parameter, or `within(default)`. The policy is intended for library
+code that wants allocation choices to be visible in source. Executable builds
+typically allow the implicit fallback by default, while static and shared
+library builds typically require explicit contexts by default. This is a
+compiler policy, not a type-system rule.
+
 For result lifetime checking, `new` participates in the constructor result lifetime rule described below.
 
 ### 4.4.3 Constructor result lifetimes
@@ -7042,6 +7068,7 @@ The allocator used for deallocation is chosen by the same `within` rules:
 ```camp
 Window* dialog = within(arena) new Window(800, 600);
 within(arena) delete dialog;
+within(default) delete dialog;
 ```
 
 If the destructor itself declares `within`, that allocator is also forwarded into the destructor call.
@@ -7532,9 +7559,10 @@ Supported directives are `#define`, `#undef`, `#if`, `#elif`, `#else`, and
 parentheses. Code in inactive branches is tokenized but not parsed as Camp code.
 
 Camp also recognizes `#build` directives in the file prelude. A `#build`
-directive contributes build options to the compiler invocation. Comments may
-appear before these directives, but ordinary declarations, imports, exports, and
-other preprocessor directives end the prelude for this purpose.
+directive contributes build options to the compiler invocation. Comments and
+other file-prelude policy directives may appear before these directives, but
+ordinary declarations, imports, exports, and conditional/definition
+preprocessor directives end the prelude for this purpose.
 
 The exact command-line option set is a compiler-tooling concern rather than a
 language rule, so the following examples are illustrative rather than normative:
@@ -7557,6 +7585,20 @@ the compiler treats them as default command-line fragments and then applies the
 actual command line afterward. Whether repeated options are additive or
 overriding is defined by the compiler option itself, not by the `#build`
 directive syntax.
+
+Camp also recognizes a narrow file-prelude allocation-policy directive:
+
+```camp
+#within explicit
+#within implicit
+```
+
+`#within explicit` requires source-level `new`, pointer-form `delete`, and
+pointer-storage `finally delete` in that physical source file to use an
+explicit allocator context or `within(default)`. `#within implicit` allows those
+operations to fall back to the default allocator without an explicit context.
+The directive affects only the file where it appears and overrides the module or
+command-line default for that file.
 
 ### 5.1.13 Public versus private generated views
 

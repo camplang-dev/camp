@@ -49,6 +49,10 @@ public class DefaultExpression : Expression
 	public TypeReference? Type { get; set; }
 }
 
+public class DefaultWithinContextExpression : Expression
+{
+}
+
 public class GroupedExpression : Expression
 {
 	public List<GroupedExpressionItem> Items { get; } = [];

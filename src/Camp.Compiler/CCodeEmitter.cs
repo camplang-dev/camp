@@ -474,7 +474,7 @@ public static class CCodeEmitter
 
 		foreach (PropertyInfo property in root.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
 		{
-			if (property.Name is nameof(BindableNode.SourceSyntax) or nameof(Module.DefinitionSources))
+			if (property.Name is nameof(BindableNode.SourceSyntax) or nameof(Module.DefinitionSources) or nameof(Module.SourceWithinAllocationPolicies))
 				continue;
 
 			object? value = property.GetValue(root);

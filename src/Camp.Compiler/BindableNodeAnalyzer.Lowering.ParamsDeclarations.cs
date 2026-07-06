@@ -808,7 +808,7 @@ public sealed partial class BindableNodeAnalyzer
 			arrayInitialValue = finallyDelete.Expression;
 		if (arrayInitialValue is WithinExpression { Expression: not null } within)
 		{
-			allocator = within.Context;
+			allocator = within.Context is DefaultWithinContextExpression ? null : within.Context;
 			arrayInitialValue = within.Expression;
 		}
 		if (arrayInitialValue is ConstructionExpression { ElementCount: not null, Type: not null } construction

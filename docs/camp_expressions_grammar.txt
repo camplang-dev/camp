@@ -24,7 +24,7 @@ binary-expression:
 	<unary-expression> (<binary-operator> <unary-expression>)*
 
 unary-expression:
-	(<prefix-operator> | await | postpone | throw | within '(' <expression> ')')* <postfix-expression> [finally delete]
+	(<prefix-operator> | await | postpone | throw | within '(' (<expression> | default) ')')* <postfix-expression> [finally delete]
 
 postfix-expression:
 	<primary-expression> <postfix-part>*
@@ -88,8 +88,8 @@ symbolof-expression:
 Note: symbolof-expression is valid only inside metadata attribute arguments.
 
 construction-expression:
-	[within '(' <expression> ')'] (init | new) [<type>] '(' <argument-list>? ')' [<initializer-list>]
-	[within '(' <expression> ')'] (init | new) <type> '[' <expression>? ']' [<initializer-list>]
+	[within '(' (<expression> | default) ')'] (init | new) [<type>] '(' <argument-list>? ')' [<initializer-list>]
+	[within '(' (<expression> | default) ')'] (init | new) <type> '[' <expression>? ']' [<initializer-list>]
 
 initializer-list:
 	'{' <initializer-item-list>? '}'

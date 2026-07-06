@@ -143,6 +143,8 @@ static void AddBuildOptions(Command command, bool buildOnly)
 		AllowMultipleArgumentsPerToken = false
 	});
 	command.Options.Add(new Option<string?>("--metadata") { Description = "Emit metadata: none, export, public, or all." });
+	command.Options.Add(new Option<bool>("--explicit-within") { Description = "Require source-level new/delete to use an explicit within context." });
+	command.Options.Add(new Option<bool>("--implicit-within") { Description = "Allow source-level new/delete to use the default allocator without an explicit within context." });
 	command.Options.Add(new Option<bool>("--xml") { Description = "Use XML output for declarations or lowering dumps." });
 
 	if (!buildOnly)
@@ -406,7 +408,8 @@ sealed class CampCli
 			BuildDir = bag.BuildDir,
 			ProjectName = bag.ProjectName,
 			SubsystemName = bag.SubsystemName,
-			NoStdLib = bag.NoStdLib
+			NoStdLib = bag.NoStdLib,
+			WithinAllocationPolicy = bag.WithinAllocationPolicy
 		};
 		request.Defines.AddRange(bag.Defines);
 		request.References.AddRange(bag.References);
@@ -934,6 +937,12 @@ sealed class BuildOptionBag
 	public string? ProjectName => Get("name");
 	public string? SubsystemName => Get("subsystem");
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
+	public WithinAllocationPolicy? WithinAllocationPolicy => Get("within") switch
+	{
+		"explicit" => Camp.Compiler.WithinAllocationPolicy.Explicit,
+		"implicit" => Camp.Compiler.WithinAllocationPolicy.Implicit,
+		_ => null
+	};
 	public bool Xml => Get("xml") == "true";
 	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || Get("build-dir") is not null;
 
@@ -1065,6 +1074,12 @@ static class CommandLineOptionParser
 					if (metadata is not ("none" or "export" or "public" or "all"))
 						errors.Add("--metadata expects none, export, public, or all.");
 					AddSingle(result, "metadata", metadata);
+					break;
+				case "--explicit-within":
+					AddSingle(result, "within", "explicit");
+					break;
+				case "--implicit-within":
+					AddSingle(result, "within", "implicit");
 					break;
 				case "--artifact":
 					string artifact = RequiredValue(tokens, ref i, token, errors);
@@ -1220,6 +1235,8 @@ static class BuildPragmaReader
 				yield return new PragmaLine(Split(trimmed["#build".Length..]), $"{Path.GetRelativePath(workingDirectory, fullPath)}:{lineNumber}");
 				continue;
 			}
+			if (trimmed.StartsWith("#within", StringComparison.Ordinal))
+				continue;
 			if (IsPreludeTrivia(trimmed))
 				continue;
 			beforeCode = false;

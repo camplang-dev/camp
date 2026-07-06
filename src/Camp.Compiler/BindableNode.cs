@@ -18,6 +18,7 @@ public class Module : BindableNode
 	public string? ExportAs { get; set; }
 	public List<Definition> Definitions { get; } = [];
 	public Dictionary<Definition, TokenSequence?> DefinitionSources { get; } = [];
+	public Dictionary<TokenSequence, WithinAllocationPolicy> SourceWithinAllocationPolicies { get; } = [];
 }
 
 public class UsingDeclaration : BindableNode

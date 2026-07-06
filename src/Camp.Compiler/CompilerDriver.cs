@@ -42,6 +42,7 @@ public sealed class CompilerRequest
 	public string? ProjectName { get; set; }
 	public string? SubsystemName { get; set; }
 	public bool NoStdLib { get; set; }
+	public WithinAllocationPolicy? WithinAllocationPolicy { get; set; }
 	public List<string> References { get; } = [];
 	public List<string> Frameworks { get; } = [];
 	public List<string> UsePackages { get; } = [];
@@ -196,6 +197,15 @@ public static class CompilerDriver
 			return true;
 		}
 
+		WithinAllocationPolicy GetEffectiveWithinAllocationPolicy()
+		{
+			if (request.WithinAllocationPolicy is WithinAllocationPolicy policy)
+				return policy;
+			return request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared
+				? WithinAllocationPolicy.Explicit
+				: WithinAllocationPolicy.Implicit;
+		}
+
 		static bool HasPublicOrExportedMain(string text)
 		{
 			for (int i = 0; i < text.Length;)
@@ -299,21 +309,65 @@ public static class CompilerDriver
 
 		bool TryLoadCompilation(List<string> filenames, List<string> includeFilenames, RuntimeContext context, out Compilation compilation)
 		{
-			compilation = new Compilation { Target = context.Target, ProfileName = context.ProfileName, MemoryModelName = context.MemoryModelName };
+			compilation = new Compilation
+			{
+				Target = context.Target,
+				ProfileName = context.ProfileName,
+				MemoryModelName = context.MemoryModelName,
+				DefaultWithinAllocationPolicy = GetEffectiveWithinAllocationPolicy()
+			};
 			AddPreprocessorSymbols(compilation, context);
 			foreach (string filename in filenames)
 			{
 				if (!TryReadInput(filename, out string text, out string displayPath))
 					return false;
-				compilation.Files.Add(new SourceFile { Path = displayPath, Text = text });
+				if (!TryReadWithinAllocationPolicy(displayPath, text, out WithinAllocationPolicy? policy))
+					return false;
+				compilation.Files.Add(new SourceFile { Path = displayPath, Text = text, WithinAllocationPolicyOverride = policy });
 			}
 			foreach (string filename in includeFilenames)
 			{
 				if (!TryReadInput(filename, out string text, out string displayPath))
 					return false;
-				compilation.Files.Add(new SourceFile { Path = displayPath, Text = text, IsApiHeader = true });
+				if (!TryReadWithinAllocationPolicy(displayPath, text, out WithinAllocationPolicy? policy))
+					return false;
+				compilation.Files.Add(new SourceFile { Path = displayPath, Text = text, IsApiHeader = true, WithinAllocationPolicyOverride = policy });
 			}
 			return true;
+		}
+
+		bool TryReadWithinAllocationPolicy(string displayPath, string text, out WithinAllocationPolicy? policy)
+		{
+			policy = null;
+			bool beforeCode = true;
+			bool success = true;
+			using StringReader reader = new(text);
+			for (int lineNumber = 1; reader.ReadLine() is string line; lineNumber++)
+			{
+				string trimmed = line.TrimStart();
+				if (trimmed.StartsWith("#within", StringComparison.Ordinal))
+				{
+					if (!beforeCode)
+					{
+						ErrorLine($"{displayPath}({lineNumber},1): error: #within directives must appear in the file prelude before any non-comment token.");
+						success = false;
+						continue;
+					}
+					List<string> parts = CampBuildPragmaReader.Split(trimmed["#within".Length..]);
+					if (parts.Count != 1 || parts[0] is not ("explicit" or "implicit"))
+					{
+						ErrorLine($"{displayPath}({lineNumber},1): error: #within expects explicit or implicit.");
+						success = false;
+						continue;
+					}
+					policy = parts[0] == "explicit" ? WithinAllocationPolicy.Explicit : WithinAllocationPolicy.Implicit;
+					continue;
+				}
+				if (CampBuildPragmaReader.IsPreludeTrivia(trimmed) || trimmed.StartsWith("#build", StringComparison.Ordinal))
+					continue;
+				beforeCode = false;
+			}
+			return success;
 		}
 
 		void AddPreprocessorSymbols(Compilation compilation, RuntimeContext context)
@@ -633,6 +687,8 @@ public static class CompilerDriver
 				TargetName = context.Target.Name,
 				ProfileName = context.ProfileName,
 				MemoryModelName = context.MemoryModelName,
+				BuildKind = staticLibraryPath is null ? null : NativeBuildKind.Static,
+				WithinAllocationPolicy = request.WithinAllocationPolicy,
 				NoStdLib = true
 			};
 			packageRequest.Files.AddRange(sourceFiles);

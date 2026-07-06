@@ -1,0 +1,2 @@
+tests/Diagnostics/within_directive_errors.camp(1,1): error: #within expects explicit or implicit.
+tests/Diagnostics/within_directive_errors.camp(7,1): error: #within directives must appear in the file prelude before any non-comment token.

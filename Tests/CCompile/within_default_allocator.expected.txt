@@ -1,0 +1,70 @@
+// file: within_default_allocator.c
+#include "within_default_allocator_private.h"
+
+
+int main(void)
+{
+	uint8_t *_finally0 = 0;
+	bool _cleanupActive1 = false;
+	uint8_t *bytes = (uint8_t *)(malloc((sizeof(uint8_t) * 4)));
+	uintptr_t bytes_length = 4;
+	bytes[0] = 7;
+	free((void *)(bytes));
+	uint8_t *other = (uint8_t *)(malloc((sizeof(uint8_t) * 1)));
+	uintptr_t other_length = 1;
+	_finally0 = other;
+	_cleanupActive1 = true;
+	_finally0;
+	other[0] = 3;
+	int _return3 = 0;
+	{
+		_return3 = 0;
+		goto __cleanup2;
+	}
+__cleanup2: ;
+	if (_cleanupActive1)
+	{
+		free((void *)(_finally0));
+		_cleanupActive1 = false;
+	}
+	return _return3;
+}
+
+// file: within_default_allocator.h
+#ifndef WITHIN_DEFAULT_ALLOCATOR_H_
+#define WITHIN_DEFAULT_ALLOCATOR_H_
+
+#include "within_default_allocator_private.h"
+
+void *malloc(uintptr_t size);
+void free(void *ptr);
+int main(void);
+
+#endif
+// file: within_default_allocator_private.h
+#ifndef WITHIN_DEFAULT_ALLOCATOR_PRIVATE_H_
+#define WITHIN_DEFAULT_ALLOCATOR_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: within_default_allocator.c

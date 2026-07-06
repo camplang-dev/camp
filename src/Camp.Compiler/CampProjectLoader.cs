@@ -152,7 +152,8 @@ public static class CampProjectLoader
 			BuildDir = bag.BuildDir,
 			ProjectName = bag.ProjectName,
 			SubsystemName = bag.SubsystemName,
-			NoStdLib = bag.NoStdLib
+			NoStdLib = bag.NoStdLib,
+			WithinAllocationPolicy = bag.WithinAllocationPolicy
 		};
 		request.Defines.AddRange(bag.Defines);
 		request.References.AddRange(bag.References);
@@ -326,6 +327,12 @@ sealed class CampBuildOptionBag
 	public string? ProjectName => Get("name");
 	public string? SubsystemName => Get("subsystem");
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
+	public WithinAllocationPolicy? WithinAllocationPolicy => Get("within") switch
+	{
+		"explicit" => Camp.Compiler.WithinAllocationPolicy.Explicit,
+		"implicit" => Camp.Compiler.WithinAllocationPolicy.Implicit,
+		_ => null
+	};
 	public bool Xml => Get("xml") == "true";
 	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || Get("build-dir") is not null;
 
@@ -437,6 +444,12 @@ static class CampBuildOptionParser
 					if (metadata is not ("none" or "export" or "public" or "all"))
 						errors.Add("--metadata expects none, export, public, or all.");
 					AddSingle(result, "metadata", metadata);
+					break;
+				case "--explicit-within":
+					AddSingle(result, "within", "explicit");
+					break;
+				case "--implicit-within":
+					AddSingle(result, "within", "implicit");
 					break;
 				case "--artifact":
 					string artifact = RequiredValue(tokens, ref i, token, errors);
@@ -589,13 +602,15 @@ static class CampBuildPragmaReader
 				yield return new CampBuildPragmaLine(Split(trimmed["#build".Length..]), $"{Path.GetRelativePath(workingDirectory, fullPath)}:{lineNumber}");
 				continue;
 			}
+			if (trimmed.StartsWith("#within", StringComparison.Ordinal))
+				continue;
 			if (IsPreludeTrivia(trimmed))
 				continue;
 			beforeCode = false;
 		}
 	}
 
-	static bool IsPreludeTrivia(string trimmed)
+	public static bool IsPreludeTrivia(string trimmed)
 	{
 		return trimmed.Length == 0
 			|| trimmed.StartsWith("//", StringComparison.Ordinal)

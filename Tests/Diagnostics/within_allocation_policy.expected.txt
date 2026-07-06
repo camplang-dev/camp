@@ -1,0 +1,4 @@
+tests/Diagnostics/within_allocation_policy.camp(8,15): error: new requires an explicit within context; use within(allocator) or within(default).
+tests/Diagnostics/within_allocation_policy.camp(9,9): error: pointer-form delete requires an explicit within context; use within(allocator) delete or within(default) delete.
+tests/Diagnostics/within_allocation_policy.camp(10,15): error: new requires an explicit within context; use within(allocator) or within(default).
+tests/Diagnostics/within_allocation_policy.camp(10,15): error: finally delete requires an explicit within context for pointer deletion; use within(allocator) or within(default).

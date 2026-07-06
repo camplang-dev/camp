@@ -221,7 +221,7 @@ resumption model and move the redesign proposal to accepted.
 ### Implementation
 
 - Increment the unified spec filename according to the standing rule, likely
-  from `camp_unified_spec_v21.md` to `camp_unified_spec_v23.md`.
+  from `camp_unified_spec_v21.md` to `camp_unified_spec_v24.md`.
 - Rewrite current async spec sections:
   - remove all `upon` language text;
   - remove language-level scheduler text;

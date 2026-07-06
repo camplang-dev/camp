@@ -20,11 +20,12 @@ public sealed partial class BindableNodeAnalyzer
 				return RewriteConstruction(construction);
 
 			case WithinExpression within:
-				within.Context = LowerExpression(within.Context);
+				bool defaultWithin = within.Context is DefaultWithinContextExpression;
+				within.Context = defaultWithin ? CreateDefaultWithinArgument(within.Context?.SourceSyntax) : LowerExpression(within.Context);
 				if (within.Expression is null)
 					return within.Context;
 				Expression? previousWithinContext = currentWithinContext;
-				currentWithinContext = CaptureWithinContext(within.Context, within.SourceSyntax);
+				currentWithinContext = defaultWithin ? null : CaptureWithinContext(within.Context, within.SourceSyntax);
 				Expression? lowered = LowerExpression(within.Expression);
 				currentWithinContext = previousWithinContext;
 				return lowered ?? within.Expression;
@@ -649,6 +650,7 @@ public sealed partial class BindableNodeAnalyzer
 			null => null,
 			LiteralExpression literal => new LiteralExpression { SourceSyntax = literal.SourceSyntax, Kind = literal.Kind, Text = literal.Text, Value = literal.Value, ResolvedType = literal.ResolvedType },
 			DefaultExpression defaultExpression => new DefaultExpression { SourceSyntax = defaultExpression.SourceSyntax, ResolvedType = defaultExpression.ResolvedType },
+			DefaultWithinContextExpression defaultWithin => new DefaultWithinContextExpression { SourceSyntax = defaultWithin.SourceSyntax, ResolvedType = defaultWithin.ResolvedType },
 			NamedExpression named => CloneNamedExpression(named),
 			VariableReferenceExpression variable => new VariableReferenceExpression { SourceSyntax = variable.SourceSyntax, Variable = variable.Variable, ResolvedType = variable.ResolvedType },
 			TypeReferenceExpression type => new TypeReferenceExpression { SourceSyntax = type.SourceSyntax, Type = CloneType(type.Type), ResolvedType = type.ResolvedType },

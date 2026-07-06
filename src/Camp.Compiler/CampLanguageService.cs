@@ -46,7 +46,9 @@ public static class CampLanguageService
 		{
 			Target = LoadTarget(request),
 			ProfileName = request.ProfileName,
-			MemoryModelName = request.MemoryModelName
+			MemoryModelName = request.MemoryModelName,
+			DefaultWithinAllocationPolicy = request.WithinAllocationPolicy
+				?? (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared ? WithinAllocationPolicy.Explicit : WithinAllocationPolicy.Implicit)
 		};
 		foreach (string define in request.Defines)
 			compilation.PreprocessorSymbols.Add(define);
@@ -292,8 +294,33 @@ public static class CampLanguageService
 		{
 			Path = fullPath,
 			Text = text,
-			IsApiHeader = isApiHeader
+			IsApiHeader = isApiHeader,
+			WithinAllocationPolicyOverride = ReadWithinAllocationPolicy(text)
 		};
+	}
+
+	static WithinAllocationPolicy? ReadWithinAllocationPolicy(string text)
+	{
+		WithinAllocationPolicy? policy = null;
+		bool beforeCode = true;
+		using StringReader reader = new(text);
+		while (reader.ReadLine() is string line)
+		{
+			string trimmed = line.TrimStart();
+			if (trimmed.StartsWith("#within", StringComparison.Ordinal))
+			{
+				if (!beforeCode)
+					continue;
+				List<string> parts = CampBuildPragmaReader.Split(trimmed["#within".Length..]);
+				if (parts.Count == 1 && parts[0] is "explicit" or "implicit")
+					policy = parts[0] == "explicit" ? WithinAllocationPolicy.Explicit : WithinAllocationPolicy.Implicit;
+				continue;
+			}
+			if (CampBuildPragmaReader.IsPreludeTrivia(trimmed) || trimmed.StartsWith("#build", StringComparison.Ordinal))
+				continue;
+			beforeCode = false;
+		}
+		return policy;
 	}
 
 	static TargetDefinition? LoadTarget(CompilerRequest request)
