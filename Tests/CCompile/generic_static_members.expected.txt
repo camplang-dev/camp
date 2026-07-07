@@ -1,0 +1,101 @@
+// file: generic_static_members.c
+#include "generic_static_members_private.h"
+
+/* Private file declarations. */
+static int Box_getValue(void);
+static uintptr_t Box_sizeOf(uintptr_t sizeof_U);
+static int Box_useInstanceType(Box *this, void *value);
+static int Pair_getTotal(void);
+static int useCopyable(uintptr_t sizeof_T);
+static int Box_count;
+static int Pair_count;
+static int Handle_current;
+
+#define Box_DEFAULT ((int)3)
+#define Handle_NONE ((int)0)
+static int Box_count = 4;
+static int Pair_count = 5;
+static int Handle_current = 7;
+static int Box_getValue(void)
+{
+	return (Box_DEFAULT + Box_count);
+}
+
+static uintptr_t Box_sizeOf(uintptr_t sizeof_U)
+{
+	return sizeof_U;
+}
+
+static int Box_useInstanceType(Box *this, void *value)
+{
+	this->item = value;
+	return Box_DEFAULT;
+}
+
+static int Pair_getTotal(void)
+{
+	return (Pair_count + 1);
+}
+
+static int useCopyable(uintptr_t sizeof_T)
+{
+	return (int)(Box_sizeOf(sizeof_T));
+}
+
+int main(void)
+{
+	int value = ((Box_DEFAULT + Box_count) + Box_getValue());
+	value += (Pair_count + Pair_getTotal());
+	value += (Handle_NONE + Handle_current);
+	value += useCopyable(sizeof(int));
+	Box box = (Box){0};
+	int item = 1;
+	value += Box_useInstanceType(&box, &item);
+	return ((value > 0) ? 0 : 1);
+}
+
+// file: generic_static_members.h
+#ifndef GENERIC_STATIC_MEMBERS_H_
+#define GENERIC_STATIC_MEMBERS_H_
+
+#include "generic_static_members_private.h"
+
+int main(void);
+
+#endif
+// file: generic_static_members_private.h
+#ifndef GENERIC_STATIC_MEMBERS_PRIVATE_H_
+#define GENERIC_STATIC_MEMBERS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Box Box;
+typedef struct Pair Pair;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef int Handle;
+
+/* Layouts. */
+struct Pair
+{
+	void *left;
+};
+struct Box
+{
+	void *item;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generic_static_members.c

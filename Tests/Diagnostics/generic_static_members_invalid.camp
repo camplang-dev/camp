@@ -1,0 +1,24 @@
+class Bad<T: any>
+{
+	static T* field = default;
+	inline T* inlineField = default;
+
+	static T* getField()
+	{
+		T* value = default;
+		return value;
+	}
+
+	static int take(T* value) => 0;
+
+	static int redeclare<T>() => 0;
+
+	int instanceRedeclare<T>() => 0;
+}
+
+class Good<T: copyable>
+{
+	inline int VALUE = 1;
+	static int getCount() => VALUE;
+	static nuint sizeOf<U: copyable>(sizeof(U)) => sizeof(U);
+}

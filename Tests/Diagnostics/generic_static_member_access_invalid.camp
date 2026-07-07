@@ -1,0 +1,14 @@
+class Good<T: copyable>
+{
+	inline int VALUE = 1;
+	static int getCount() => Good.VALUE;
+	static nuint sizeOf<U: copyable>(sizeof(U)) => sizeof(U);
+}
+
+void accessStaticMembers<T: copyable, V: any>(sizeof(T))
+{
+	int a = Good<int>.VALUE;
+	int b = Good<T>.Count;
+	nuint c = Good<V>.sizeOf();
+	nuint d = Good.sizeOf<V>();
+}

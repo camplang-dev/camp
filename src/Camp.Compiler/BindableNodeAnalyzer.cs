@@ -831,6 +831,17 @@ public sealed partial class BindableNodeAnalyzer
 		public Dictionary<string, GenericParameter> GenericParameters { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, BindableNode> LifetimeAnchors { get; } = new(StringComparer.Ordinal);
 		public TypeDefinition? ContainingType { get; set; }
+		public bool IsStaticMemberScope { get; set; }
+
+		public bool ContainsInheritedGenericTypeName(string name)
+		{
+			return parent?.ContainsGenericTypeName(name) ?? false;
+		}
+
+		public bool IsInStaticMemberScope()
+		{
+			return IsStaticMemberScope || (parent?.IsInStaticMemberScope() ?? false);
+		}
 
 		public bool ContainsGenericTypeName(string name)
 		{
@@ -844,6 +855,21 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (parent is not null)
 				return parent.TryGetGenericParameter(name, out parameter);
+
+			parameter = null;
+			return false;
+		}
+
+		public bool TryGetContainingTypeGenericParameter(string name, out GenericParameter? parameter)
+		{
+			foreach (GenericParameter candidate in GetContainingType()?.GenericParameters ?? [])
+			{
+				if (candidate.Name == name)
+				{
+					parameter = candidate;
+					return true;
+				}
+			}
 
 			parameter = null;
 			return false;

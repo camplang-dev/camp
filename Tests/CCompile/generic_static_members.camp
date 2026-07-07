@@ -1,0 +1,49 @@
+class Box<T: any>
+{
+	inline int DEFAULT = 3;
+	static int count = 4;
+
+	static int getValue() => Box.DEFAULT + Box.count;
+
+	static nuint sizeOf<U: copyable>(sizeof(U)) => sizeof(U);
+
+	T* item;
+
+	int useInstanceType(T* value)
+	{
+		this.item = value;
+		return Box.DEFAULT;
+	}
+}
+
+struct Pair<T: any>
+{
+	T* left;
+	static int count = 5;
+	static int getTotal() => Pair.count + 1;
+}
+
+newtype Handle<T: any>: int
+{
+	static inline int NONE = 0;
+	static int current = 7;
+}
+
+int useCopyable<T: copyable>(sizeof(T))
+{
+	return (int)Box.sizeOf<T>();
+}
+
+export int main()
+{
+	int value = Box.DEFAULT + Box.count + Box.Value;
+	value += Pair.count + Pair.Total;
+	value += Handle.NONE + Handle.current;
+	value += useCopyable<int>();
+
+	Box<int> box = default;
+	int item = 1;
+	value += box.useInstanceType(&item);
+
+	return value > 0 ? 0 : 1;
+}

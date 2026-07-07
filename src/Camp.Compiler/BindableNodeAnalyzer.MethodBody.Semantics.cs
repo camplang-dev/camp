@@ -1990,6 +1990,8 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
 			if (function.Modifier == FunctionModifier.Static)
 				functions.Add(function);
+		if (functions.Count > 0)
+			ReportConstructedGenericStaticMemberAccess(targetType, type, name, referenceSyntax);
 		return functions;
 	}
 
@@ -2157,8 +2159,28 @@ public sealed partial class BindableNodeAnalyzer
 			if (getter.Modifier == FunctionModifier.Static && getter.Parameters.Count == 0)
 				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
 		}
+		if (members.Count > 0)
+			ReportConstructedGenericStaticMemberAccess(targetType, type, name, referenceSyntax);
 
 		return members;
+	}
+
+	void ReportConstructedGenericStaticMemberAccess(string targetType, TypeDefinition type, string memberName, SyntaxNode? referenceSyntax)
+	{
+		if (type.GenericParameters.Count == 0 || ExtractConstructedTypeArguments(targetType).Count == 0)
+			return;
+
+		Report(GetRange(referenceSyntax), $"Static member '{memberName}' of generic type '{FormatGenericTypeDefinitionName(type)}' is accessed as '{type.Name}.{memberName}'; remove the generic argument list.");
+	}
+
+	static string FormatGenericTypeDefinitionName(TypeDefinition type)
+	{
+		if (type.GenericParameters.Count == 0)
+			return type.Name;
+		List<string> names = [];
+		foreach (GenericParameter parameter in type.GenericParameters)
+			names.Add(parameter.Name);
+		return $"{type.Name}<{string.Join(", ", names)}>";
 	}
 
 	List<BodySymbol> LookupGenericConstraintMemberSymbols(string targetType, string name, BodyScope scope, SyntaxNode? referenceSyntax)

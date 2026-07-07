@@ -292,10 +292,10 @@ public sealed partial class BindableNodeAnalyzer
 		RegisterBaseTypes(definition, definition.BaseTypes);
 
 		foreach (FieldDefinition field in definition.Fields)
-			AnalyzeFieldDefinition(field, scope, definition);
+			AnalyzeFieldDefinition(field, FieldUsesStaticMemberScope(field) ? CreateStaticMemberScope(definition, parentScope) : scope, definition);
 
 		foreach (FunctionDefinition function in definition.Functions)
-			AnalyzeFunctionDefinition(function, scope, definition.Name);
+			AnalyzeFunctionDefinition(function, FunctionUsesStaticMemberScope(function) ? CreateStaticMemberScope(definition, parentScope) : scope, definition.Name);
 		ValidateDuplicateMethodNames(definition.Functions);
 		if (definition.Extern is null)
 		{
@@ -317,12 +317,12 @@ public sealed partial class BindableNodeAnalyzer
 		RegisterBaseTypes(definition, definition.BaseTypes);
 
 		foreach (FieldDefinition field in definition.Fields)
-			AnalyzeFieldDefinition(field, scope, definition);
+			AnalyzeFieldDefinition(field, FieldUsesStaticMemberScope(field) ? CreateStaticMemberScope(definition, parentScope) : scope, definition);
 
 		ValidateExpandedFieldNames(definition.Fields);
 		ValidateFlexibleArrayMembers(definition.Fields, allowFlexibleArrayMember: true);
 		foreach (FunctionDefinition function in definition.Functions)
-			AnalyzeFunctionDefinition(function, scope, definition.Name);
+			AnalyzeFunctionDefinition(function, FunctionUsesStaticMemberScope(function) ? CreateStaticMemberScope(definition, parentScope) : scope, definition.Name);
 		ValidateDuplicateMethodNames(definition.Functions);
 	}
 
@@ -336,7 +336,7 @@ public sealed partial class BindableNodeAnalyzer
 		RegisterBaseTypes(definition, definition.BaseTypes);
 
 		foreach (FunctionDefinition function in definition.Functions)
-			AnalyzeFunctionDefinition(function, scope, definition.Name);
+			AnalyzeFunctionDefinition(function, FunctionUsesStaticMemberScope(function) ? CreateStaticMemberScope(definition, parentScope) : scope, definition.Name);
 		ValidateDuplicateMethodNames(definition.Functions);
 	}
 
@@ -366,11 +366,11 @@ public sealed partial class BindableNodeAnalyzer
 		AnalysisScope scope = AnalyzeNewtypeSignature(definition, parentScope);
 
 		foreach (FieldDefinition field in definition.Fields)
-			AnalyzeFieldDefinition(field, scope, definition);
+			AnalyzeFieldDefinition(field, FieldUsesStaticMemberScope(field) ? CreateStaticMemberScope(definition, parentScope) : scope, definition);
 		ValidateFlexibleArrayMembers(definition.Fields, allowFlexibleArrayMember: false);
 
 		foreach (FunctionDefinition function in definition.Functions)
-			AnalyzeFunctionDefinition(function, scope, definition.Name);
+			AnalyzeFunctionDefinition(function, FunctionUsesStaticMemberScope(function) ? CreateStaticMemberScope(definition, parentScope) : scope, definition.Name);
 		ValidateDuplicateMethodNames(definition.Functions);
 	}
 
@@ -707,6 +707,28 @@ public sealed partial class BindableNodeAnalyzer
 		return scope;
 	}
 
+	AnalysisScope CreateStaticMemberScope(TypeDefinition definition, AnalysisScope parentScope)
+	{
+		return new(parentScope) { ContainingType = definition, IsStaticMemberScope = true };
+	}
+
+	static bool FieldUsesStaticMemberScope(FieldDefinition field)
+	{
+		return field.SourceSyntax is not null && (field.Modifier == FieldModifier.Static || field.IsInline);
+	}
+
+	static bool FunctionUsesStaticMemberScope(FunctionDefinition function)
+	{
+		if (function.SourceSyntax is not MemberDeclarationSyntax syntax)
+			return false;
+
+		foreach (MemberDeclaratorSyntax declarator in syntax.Declarators ?? [])
+			if (declarator.Keyword?.Value == "static")
+				return true;
+
+		return false;
+	}
+
 	void AnalyzeGenericParameters(List<GenericParameter> parameters, AnalysisScope scope)
 	{
 		HashSet<string> names = new(StringComparer.Ordinal);
@@ -718,6 +740,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (!string.IsNullOrWhiteSpace(parameter.Name) && !names.Add(parameter.Name))
 				Report(GetGenericParameterNameRange(parameter.SourceSyntax), $"Duplicate generic parameter name '{parameter.Name}'.");
+			if (!string.IsNullOrWhiteSpace(parameter.Name) && scope.ContainsInheritedGenericTypeName(parameter.Name))
+				Report(GetGenericParameterNameRange(parameter.SourceSyntax), $"Generic parameter '{parameter.Name}' is already declared by an enclosing scope; choose a unique name.");
 
 			AnalyzeOptionalType(parameter.Constraint, scope);
 			if (ContainsThisTypeReference(parameter.Constraint))
@@ -1514,7 +1538,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		foreach (FunctionDefinition function in functions)
-			AnalyzeFunctionMethodBody(function, scope, definition);
+			AnalyzeFunctionMethodBody(function, FunctionUsesStaticMemberScope(function) ? CreateStaticMemberScope(definition, parentScope) : scope, definition);
 	}
 
 	void AnalyzeFunctionMethodBody(FunctionDefinition definition, AnalysisScope parentScope, TypeDefinition? containingType)

@@ -1,0 +1,5 @@
+tests/Diagnostics/generic_static_members_invalid.camp(3,9): error: Static members cannot use generic type parameter 'T' from 'Bad<T>'; declare an independent method type parameter.
+tests/Diagnostics/generic_static_members_invalid.camp(4,9): error: Static members cannot use generic type parameter 'T' from 'Bad<T>'; declare an independent method type parameter.
+tests/Diagnostics/generic_static_members_invalid.camp(6,9): error: Static members cannot use generic type parameter 'T' from 'Bad<T>'; declare an independent method type parameter.
+tests/Diagnostics/generic_static_members_invalid.camp(12,18): error: Static members cannot use generic type parameter 'T' from 'Bad<T>'; declare an independent method type parameter.
+tests/Diagnostics/generic_static_members_invalid.camp(16,24): error: Generic parameter 'T' is already declared by an enclosing scope; choose a unique name.

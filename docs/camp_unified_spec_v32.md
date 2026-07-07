@@ -3536,6 +3536,45 @@ A static method's symbol is the declaring type name, followed by `_`, followed b
 
 When an expression begins with `TypeName.`, or with a namespace-qualified type name followed by `.`, the type name must resolve to a known type. Static lookup then includes visible no-receiver functions whose symbols begin with `TypeName_`; the member name is the portion after the underscore.
 
+For a generic type, static members belong to the generic type definition rather
+than to a constructed generic instance. They are accessed through the type name
+without a generic argument list:
+
+```camp
+class List<T: any>
+{
+	inline int DEFAULT_CAPACITY = 8;
+	static int getDefaultCapacity() => List.DEFAULT_CAPACITY;
+}
+
+int capacity = List.DEFAULT_CAPACITY;      // OK
+int also = List.getDefaultCapacity();      // OK
+int bad = List<int>.DEFAULT_CAPACITY;      // ERROR
+```
+
+The same rule applies to type-scoped inline constants, explicit static fields,
+and static methods. If a generic argument list is written after the generic type
+name while accessing one of these members, the compiler reports that the generic
+arguments should be removed.
+
+Static members of a generic type do not capture or see the type parameters of
+the enclosing type. If a static method needs generic behavior, it declares its
+own independent type parameters and any required capability parameters:
+
+```camp
+class List<T: any>
+{
+	static nuint sizeOfItem<U: copyable>(sizeof(U)) => sizeof(U);
+}
+
+nuint size = List.sizeOfItem<int>();
+```
+
+The static method's type parameters are ordinary method type parameters. They
+must have unique names and may not redeclare any type parameter from an
+enclosing generic scope. Non-static members may use enclosing type parameters,
+but they also may not redeclare those names for their own generic parameters.
+
 #### Class-relative `classtype`
 
 Inside a `class` declaration, `classtype` is a class-relative type form. It is
@@ -7480,7 +7519,9 @@ inline string APP_NAME = "Camp";
 
 `inline` is valid at file scope and inside `struct`, `class`, and `newtype`
 bodies. Type-scoped inline constants are associated with the type, but they are
-not instance fields and do not affect layout.
+not instance fields and do not affect layout. For generic types, type-scoped
+inline constants are accessed through the generic type definition name, not
+through a constructed generic type.
 
 ```camp
 struct ListDefaults
@@ -8980,6 +9021,12 @@ The same inline form is used on:
 Each generic type parameter has exactly one constraint.
 
 If no constraint is written, the constraint is `nint`.
+
+Generic type parameter names may not be redeclared by nested generic methods or
+other nested generic member declarations. A nested generic declaration must
+choose a unique type parameter name. Static members of a generic type also may
+not use the enclosing type's generic parameters at all; they declare their own
+method type parameters when needed.
 
 ### 6.1.1 Definition-time validation
 

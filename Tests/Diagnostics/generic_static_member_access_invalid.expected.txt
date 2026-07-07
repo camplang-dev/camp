@@ -1,0 +1,4 @@
+tests/Diagnostics/generic_static_member_access_invalid.camp(10,20): error: Static member 'VALUE' of generic type 'Good<T>' is accessed as 'Good.VALUE'; remove the generic argument list.
+tests/Diagnostics/generic_static_member_access_invalid.camp(11,18): error: Static member 'Count' of generic type 'Good<T>' is accessed as 'Good.Count'; remove the generic argument list.
+tests/Diagnostics/generic_static_member_access_invalid.camp(12,20): error: Static member 'sizeOf' of generic type 'Good<T>' is accessed as 'Good.sizeOf'; remove the generic argument list.
+tests/Diagnostics/generic_static_member_access_invalid.camp(13,26): error: Type argument 'V' does not satisfy copyable constraint 'U: copyable' for call to 'sizeOf'.

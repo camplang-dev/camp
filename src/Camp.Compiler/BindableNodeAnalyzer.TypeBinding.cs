@@ -946,6 +946,14 @@ public sealed partial class BindableNodeAnalyzer
 			return resolvedType;
 		}
 
+		if (named.Qualifiers.Count == 0 && scope.IsInStaticMemberScope() && scope.TryGetContainingTypeGenericParameter(named.Name, out _))
+		{
+			TypeDefinition? containingType = scope.GetContainingType();
+			string ownerName = containingType is null ? "the enclosing generic type" : FormatGenericTypeDefinitionName(containingType);
+			Report(GetRange(named.SourceSyntax), $"Static members cannot use generic type parameter '{named.Name}' from '{ownerName}'; declare an independent method type parameter.");
+			return $"{UnresolvedType}({sourceName})";
+		}
+
 		if (named.Qualifiers.Count == 0 && typeDefinitions.TryGetValue(named.Name, out TypeDefinition? definition))
 		{
 			if (!IsDefinitionVisible(definition, named.SourceSyntax))

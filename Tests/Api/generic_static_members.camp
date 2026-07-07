@@ -1,0 +1,15 @@
+export class GenericBox<T: any>
+{
+	export inline int LIMIT = 8;
+	export static int current = 1;
+
+	export static int getLimit() => GenericBox.LIMIT;
+
+	export static nuint sizeOf<U: copyable>(sizeof(U)) => sizeof(U);
+}
+
+export struct GenericPair<T: any>
+{
+	T* value;
+	export static int current = 2;
+}

@@ -2655,7 +2655,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (member.Target is NamedExpression { Qualifiers.Count: 0, Name: "base" })
 					return ResolveBaseMemberCallTarget(member, scope, typeScope, arguments ?? []);
 
-				string targetType = TryAnalyzeMemberTypeTarget(member.Target, scope, out string typeTarget)
+				string targetType = TryAnalyzeMemberTypeTarget(member.Target, scope, typeScope, out string typeTarget)
 					? typeTarget
 					: BodyAnalyzeExpression(member.Target, scope, typeScope);
 				string lookupTargetType = TryGetImplicitIteratorProtocolType(member.Target, targetType, out string iteratorProtocolType)
@@ -3976,7 +3976,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeMemberExpression(MemberExpression member, BodyScope scope, AnalysisScope typeScope, string? targetCallableType = null)
 	{
-		string targetType = TryAnalyzeMemberTypeTarget(member.Target, scope, out string typeTarget)
+		string targetType = TryAnalyzeMemberTypeTarget(member.Target, scope, typeScope, out string typeTarget)
 			? typeTarget
 			: BodyAnalyzeExpression(member.Target, scope, typeScope);
 		string lookupTargetType = TryGetImplicitIteratorProtocolType(member.Target, targetType, out string iteratorProtocolType)
@@ -4648,9 +4648,16 @@ public sealed partial class BindableNodeAnalyzer
 		return expression is NamedExpression { Qualifiers.Count: 0, Name: "_" };
 	}
 
-	bool TryAnalyzeMemberTypeTarget(Expression? target, BodyScope scope, out string type)
+	bool TryAnalyzeMemberTypeTarget(Expression? target, BodyScope scope, AnalysisScope typeScope, out string type)
 	{
 		type = ErrorType;
+		Expression? originalTarget = target;
+		List<TypeReference> typeArguments = [];
+		if (target is CallExpression { Target: NamedExpression { Qualifiers.Count: 0 } genericNamed, Arguments.Count: 0 } genericTarget)
+		{
+			target = genericNamed;
+			typeArguments = genericTarget.TypeArguments;
+		}
 		if (target is not NamedExpression { Qualifiers.Count: 0 } named)
 			return false;
 		if (scope.TryLookup(named.Name, out _) || LookupGlobalStorageSymbol(named.Name, named.SourceSyntax) is not null)
@@ -4663,14 +4670,18 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (!IsDefinitionVisible(typeDefinition, named.SourceSyntax))
 			return false;
+		foreach (TypeReference argument in typeArguments)
+			AnalyzeType(argument, typeScope);
 
 		TypeDefinitionReference typeReference = new()
 		{
 			SourceSyntax = named.SourceSyntax,
 			Name = typeDefinition.Name,
 			Definition = typeDefinition,
-			ResolvedType = typeDefinition.ResolvedType ?? typeDefinition.Name
+			ResolvedType = AddTypeArguments(typeDefinition.Name, typeArguments)
 		};
+		foreach (TypeReference argument in typeArguments)
+			typeReference.TypeArguments.Add(argument);
 		TypeReferenceExpression expression = new()
 		{
 			SourceSyntax = named.SourceSyntax,
@@ -4678,6 +4689,8 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = typeReference.ResolvedType
 		};
 		expressionRewrites[named] = expression;
+		if (originalTarget is not null && !ReferenceEquals(originalTarget, named))
+			expressionRewrites[originalTarget] = expression;
 		type = expression.ResolvedType ?? ErrorType;
 		return true;
 	}
