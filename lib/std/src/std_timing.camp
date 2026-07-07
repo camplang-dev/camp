@@ -28,7 +28,7 @@ export void sleepAsync(nuint timeoutMs, escaped once void() complete)
 		return;
 	}
 
-	startTimer(timeoutMs, new delegate h => {
+	startTimer(timeoutMs, within(default) new delegate h => {
 		stopTimer(h);
 		complete();
 	});
@@ -133,7 +133,7 @@ void* timingTimerThread(void* context)
 			state.callback(handle);
 	}
 
-	delete state;
+	within(default) delete state;
 	return null;
 }
 
@@ -142,7 +142,7 @@ TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(Tim
 	if (intervalMs == 0 || callback == default)
 		return default;
 
-	auto state = new TimingTimerState();
+	auto state = within(default) new TimingTimerState();
 	if (state == null)
 		return default;
 
@@ -150,7 +150,7 @@ TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(Tim
 	state.callback = callback;
 	if (pthread_create(&state.thread, null, timingTimerThread, state) != 0)
 	{
-		delete state;
+		within(default) delete state;
 		return default;
 	}
 
@@ -216,7 +216,7 @@ _winapi uint timingTimerThread(void* context)
 			state.callback(handle);
 	}
 
-	delete state;
+	within(default) delete state;
 	return 0;
 }
 
@@ -225,7 +225,7 @@ TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(Tim
 	if (intervalMs == 0 || callback == default)
 		return default;
 
-	auto state = new TimingTimerState();
+	auto state = within(default) new TimingTimerState();
 	if (state == null)
 		return default;
 
@@ -235,7 +235,7 @@ TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(Tim
 	void* thread = timingWinCreateThread(null, 0, timingTimerThread, state, 0, null);
 	if (thread == null)
 	{
-		delete state;
+		within(default) delete state;
 		return default;
 	}
 

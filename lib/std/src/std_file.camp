@@ -126,7 +126,7 @@ export class FileHandle
 		if (fileHandle < 0)
 			throw error;
 		
-		FileHandle* handle = new FileHandle();
+		FileHandle* handle = within(default) new FileHandle();
 		if (handle == null)
 		{
 			IoError closeError = default;
