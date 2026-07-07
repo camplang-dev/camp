@@ -47,6 +47,6 @@ newtype Count: int
 {
 	int getValue()
 	{
-		return (int)*this;
+		return (int)this;
 	}
 }

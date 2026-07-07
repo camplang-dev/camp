@@ -1,0 +1,67 @@
+// file: newtype_value_receivers.c
+#include "newtype_value_receivers_private.h"
+
+/* Private file declarations. */
+static intptr_t Handle_value(Handle this);
+static intptr_t Calculator_context(Calculator this_call, void *this_context);
+static intptr_t Handle_pointerValue(Handle *this);
+
+static intptr_t Handle_value(Handle this)
+{
+	return (intptr_t)(this);
+}
+
+static intptr_t Calculator_context(Calculator this_call, void *this_context)
+{
+	return (intptr_t)(this_context);
+}
+
+static intptr_t Handle_pointerValue(Handle *this)
+{
+	return (intptr_t)(*this);
+}
+
+int main(void)
+{
+	Handle handle = (Handle)(42);
+	intptr_t (* calculator)(void *arg0, intptr_t arg1) = NULL;
+	void *calculator_context = (void *)((intptr_t)(7));
+	return (int)((((Handle_value(handle) + Handle_pointerValue(&handle)) + Calculator_context(calculator, calculator_context))));
+}
+
+// file: newtype_value_receivers.h
+#ifndef NEWTYPE_VALUE_RECEIVERS_H_
+#define NEWTYPE_VALUE_RECEIVERS_H_
+
+#include "newtype_value_receivers_private.h"
+
+int main(void);
+
+#endif
+// file: newtype_value_receivers_private.h
+#ifndef NEWTYPE_VALUE_RECEIVERS_PRIVATE_H_
+#define NEWTYPE_VALUE_RECEIVERS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+typedef intptr_t Handle;
+typedef intptr_t (* Calculator)(void *context, intptr_t value);
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: newtype_value_receivers.c

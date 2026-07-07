@@ -1277,6 +1277,8 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		string receiverType = $"{scope.ContainingType.Name}*";
+		if (scope.ContainingType is NewtypeDefinition)
+			receiverType = scope.ContainingType.Name;
 		return BuildEffectiveReceiverType(receiverType, scope.CurrentFunction, IsPropertyGetterFunction(scope.CurrentFunction));
 	}
 
@@ -3151,12 +3153,19 @@ public sealed partial class BindableNodeAnalyzer
 
 	static ThisParameterDefinition CreateImplicitThisParameter(TypeDefinition containingType)
 	{
+		TypeReference type = TypeReferenceFor(containingType);
+		string resolvedType = containingType.Name;
+		if (containingType is not NewtypeDefinition)
+		{
+			type = PointerTo(type);
+			resolvedType += "*";
+		}
 		ThisParameterDefinition parameter = new()
 		{
 			Name = "this",
 			Symbol = "this",
-			Type = PointerTo(TypeReferenceFor(containingType)),
-			ResolvedType = containingType.Name + "*"
+			Type = type,
+			ResolvedType = resolvedType
 		};
 		return parameter;
 	}

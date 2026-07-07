@@ -2608,6 +2608,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string BuildOwnedReceiverType(string targetType, TypeDefinition owner)
 	{
+		if (owner is NewtypeDefinition)
+			return StripTopLevelValueQualifiers(BaseTypeName(targetType) == owner.Name ? targetType : owner.Name);
 		if (TryGetPointerElementType(targetType) is string elementType && BaseTypeName(elementType) == owner.Name)
 			return $"{StripTopLevelValueQualifiers(elementType)}*";
 		if (BaseTypeName(targetType) == owner.Name)

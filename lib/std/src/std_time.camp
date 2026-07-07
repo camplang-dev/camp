@@ -60,78 +60,79 @@ export newtype TimeSpan: long
 	export static TimeSpan fromHours(long value) => (TimeSpan)(value * 1000 * 60 * 60);
 	export static TimeSpan fromDays(long value) => (TimeSpan)(value * 1000 * 60 * 60 * 24);
 
-	export bool isValid(const this) => *this != TimeSpan.INVALID;
+	export bool isValid(const this) => this != TimeSpan.INVALID;
 
 	// Whole-unit totals, truncated toward zero.
-	export long getMs() => (long)*this;
-	export long getSeconds() => (long)*this / 1000;
-	export long getMinutes() => (long)*this / (1000 * 60);
-	export long getHours() => (long)*this / (1000 * 60 * 60);
-	export long getDays() => (long)*this / (1000 * 60 * 60 * 24);
+	export long getMs() => (long)this;
+	export long getSeconds() => (long)this / 1000;
+	export long getMinutes() => (long)this / (1000 * 60);
+	export long getHours() => (long)this / (1000 * 60 * 60);
+	export long getDays() => (long)this / (1000 * 60 * 60 * 24);
 	
 	// Whole-unit totals, truncated toward zero.
-	export double getTotalSeconds() => (double)(long)*this / 1000;
-	export double getTotalMinutes() => (double)(long)*this / (1000 * 60);
-	export double getTotalHours() => (double)(long)*this / (1000 * 60 * 60);
-	export double getTotalDays() => (double)(long)*this / (1000 * 60 * 60 * 24);
+	export double getTotalSeconds() => (double)(long)this / 1000;
+	export double getTotalMinutes() => (double)(long)this / (1000 * 60);
+	export double getTotalHours() => (double)(long)this / (1000 * 60 * 60);
+	export double getTotalDays() => (double)(long)this / (1000 * 60 * 60 * 24);
 
 	// Non-throwing. Overflow or invalid input returns TimeSpan.invalid().
-	export TimeSpan add(const this, TimeSpan other) => (TimeSpan)((long)*this + (long)other);
-	export TimeSpan subtract(const this, TimeSpan other) => (TimeSpan)((long)*this - (long)other);
-	export TimeSpan negate(const this) => (TimeSpan)(-(long)(*this));
-	export TimeSpan abs(const this) => ((long)*this < 0) ? this.negate() : *this;
+	export TimeSpan add(const this, TimeSpan other) => (TimeSpan)((long)this + (long)other);
+	export TimeSpan subtract(const this, TimeSpan other) => (TimeSpan)((long)this - (long)other);
+	export TimeSpan negate(const this) => (TimeSpan)(-(long)this);
+	export TimeSpan abs(const this) => ((long)this < 0) ? this.negate() : this;
 
-	// Formats directly into caller-provided buffer.
-	// Examples: "14:05:30", "44:05:30.551".
-	// Returns required bytes including the terminator.
-	export nuint format(const this, char[] buffer = default) : CharFormatter
+}
+
+// Formats directly into caller-provided buffer.
+// Examples: "14:05:30", "44:05:30.551".
+// Returns required bytes including the terminator.
+export nuint format(in TimeSpan this, char[] buffer = default) : CharFormatter
+{
+	if (this == TimeSpan.INVALID)
 	{
-		if (*this == TimeSpan.INVALID)
-		{
-			nuint required = 8;
-			if (buffer.length < required)
-				return required;
-			Array_copyTo<char>("invalid\0", buffer);
+		nuint required = 8;
+		if (buffer.length < required)
 			return required;
-		}
-
-		long ms = (long)*this;
-		bool negative = ms < 0;
-		if (negative)
-			ms = 0 - ms;
-
-		long hours = ms / TIME_MS_PER_HOUR;
-		ms = ms % TIME_MS_PER_HOUR;
-		int minutes = (int)(ms / TIME_MS_PER_MINUTE);
-		ms = ms % TIME_MS_PER_MINUTE;
-		int seconds = (int)(ms / TIME_MS_PER_SECOND);
-		int fraction = (int)(ms % TIME_MS_PER_SECOND);
-
-		nuint hourDigits = timeCountUnsignedDigits((ulong)hours);
-		nuint length = hourDigits + 7;
-		if (negative)
-			length++;
-		if (fraction != 0)
-			length += 4;
-		if (buffer.length < length)
-			return length;
-
-		nuint index = 0;
-		if (negative)
-			buffer[index++] = '-';
-		index = timeWriteUnsigned(buffer.elements, index, (ulong)hours);
-		buffer[index++] = ':';
-		index = timeWrite2(buffer.elements, index, minutes);
-		buffer[index++] = ':';
-		index = timeWrite2(buffer.elements, index, seconds);
-		if (fraction != 0)
-		{
-			buffer[index++] = '.';
-			index = timeWrite3(buffer.elements, index, fraction);
-		}
-		buffer[index] = '\0';
-		return length;
+		Array_copyTo<char>("invalid\0", buffer);
+		return required;
 	}
+
+	long ms = (long)this;
+	bool negative = ms < 0;
+	if (negative)
+		ms = 0 - ms;
+
+	long hours = ms / TIME_MS_PER_HOUR;
+	ms = ms % TIME_MS_PER_HOUR;
+	int minutes = (int)(ms / TIME_MS_PER_MINUTE);
+	ms = ms % TIME_MS_PER_MINUTE;
+	int seconds = (int)(ms / TIME_MS_PER_SECOND);
+	int fraction = (int)(ms % TIME_MS_PER_SECOND);
+
+	nuint hourDigits = timeCountUnsignedDigits((ulong)hours);
+	nuint length = hourDigits + 7;
+	if (negative)
+		length++;
+	if (fraction != 0)
+		length += 4;
+	if (buffer.length < length)
+		return length;
+
+	nuint index = 0;
+	if (negative)
+		buffer[index++] = '-';
+	index = timeWriteUnsigned(buffer.elements, index, (ulong)hours);
+	buffer[index++] = ':';
+	index = timeWrite2(buffer.elements, index, minutes);
+	buffer[index++] = ':';
+	index = timeWrite2(buffer.elements, index, seconds);
+	if (fraction != 0)
+	{
+		buffer[index++] = '.';
+		index = timeWrite3(buffer.elements, index, fraction);
+	}
+	buffer[index] = '\0';
+	return length;
 }
 
 export newtype UtcOffset: short
@@ -144,48 +145,49 @@ export newtype UtcOffset: short
 	
 	export static UtcOffset fromHours(short hours, ushort minutes = 0) => (UtcOffset)(short)(hours * 60 + (hours < 0 ? 0 - (short)minutes : (short)minutes));
 	
-	export bool isValid(const this) => *this != UtcOffset.INVALID && (short)*this >= -1080 && (short)*this <= 1080;
+	export bool isValid(const this) => this != UtcOffset.INVALID && (short)this >= -1080 && (short)this <= 1080;
 
-	export short getHours() => (short)((short)*this / 60);
+	export short getHours() => (short)((short)this / 60);
 	export byte getMinutes()
 	{
-		short minutes = (short)((short)*this % 60);
+		short minutes = (short)((short)this % 60);
 		if (minutes < 0)
 			minutes = (short)(0 - minutes);
 		return (byte)minutes;
 	}
 
-	export short getTotalMinutes() => (short)*this;
+	export short getTotalMinutes() => (short)this;
 
-	// Formats directly into caller-provided buffer. Examples: "Z", "-04:00", "+09:30".
-	// Always computes, even when value is considered invalid.  Min "-99:99" Max "99:99"
-	// Returns required bytes including the terminator.
-	export nuint format(const this, char[] buffer = default) : CharFormatter
+}
+
+// Formats directly into caller-provided buffer. Examples: "Z", "-04:00", "+09:30".
+// Always computes, even when value is considered invalid.  Min "-99:99" Max "99:99"
+// Returns required bytes including the terminator.
+export nuint format(in UtcOffset this, char[] buffer = default) : CharFormatter
+{
+	short total = (short)this;
+	if (total == 0)
 	{
-		short total = (short)*this;
-		if (total == 0)
-		{
-			nuint required = 2;
-			if (buffer.length < required)
-				return required;
-			buffer[0] = 'Z';
-			buffer[1] = '\0';
+		nuint required = 2;
+		if (buffer.length < required)
 			return required;
-		}
-
-		bool negative = total < 0;
-		if (negative)
-			total = (short)(0 - total);
-
-		if (buffer.length < 7)
-			return 7;
-		buffer[0] = negative ? '-' : '+';
-		timeWrite2(buffer.elements, 1, total / 60);
-		buffer[3] = ':';
-		timeWrite2(buffer.elements, 4, total % 60);
-		buffer[6] = '\0';
-		return 7;
+		buffer[0] = 'Z';
+		buffer[1] = '\0';
+		return required;
 	}
+
+	bool negative = total < 0;
+	if (negative)
+		total = (short)(0 - total);
+
+	if (buffer.length < 7)
+		return 7;
+	buffer[0] = negative ? '-' : '+';
+	timeWrite2(buffer.elements, 1, total / 60);
+	buffer[3] = ':';
+	timeWrite2(buffer.elements, 4, total % 60);
+	buffer[6] = '\0';
+	return 7;
 }
 
 export newtype Instant: long
@@ -208,24 +210,24 @@ export newtype Instant: long
 	export static Instant fromUnixSeconds(long seconds) => (Instant)(seconds * TIME_MS_PER_SECOND);
 	export static Instant fromUnixMs(long ms) => (Instant)ms;
 
-	export bool isValid(const this) => *this != Instant.INVALID;
+	export bool isValid(const this) => this != Instant.INVALID;
 
-	export long getUnixSeconds() => (long)*this / TIME_MS_PER_SECOND;
-	export long getUnixMs() => (long)*this;
+	export long getUnixSeconds() => (long)this / TIME_MS_PER_SECOND;
+	export long getUnixMs() => (long)this;
 
 	// Non-throwing. Overflow or invalid input returns Instant.INVALID
 	export Instant add(const this, TimeSpan span)
 	{
 		if (!this.isValid() || !span.isValid())
 			return Instant.INVALID;
-		return (Instant)((long)*this + (long)span);
+		return (Instant)((long)this + (long)span);
 	}
 
 	export Instant subtract(const this, TimeSpan span)
 	{
 		if (!this.isValid() || !span.isValid())
 			return Instant.INVALID;
-		return (Instant)((long)*this - (long)span);
+		return (Instant)((long)this - (long)span);
 	}
 
 	// this - earlier. Invalid input or overflow returns TimeSpan.INVALID
@@ -233,38 +235,39 @@ export newtype Instant: long
 	{
 		if (!this.isValid() || !earlier.isValid())
 			return TimeSpan.INVALID;
-		return (TimeSpan)((long)*this - (long)earlier);
+		return (TimeSpan)((long)this - (long)earlier);
 	}
 
 	// UTC/fixed-offset conversions. Invalid input returns invalid result objects.
-	export DateTime getUtcDateTime() => timeDateTimeFromUnixMs((long)*this);
+	export DateTime getUtcDateTime() => timeDateTimeFromUnixMs((long)this);
 
 	export OffsetDateTime getOffsetDateTime(UtcOffset offset)
 	{
 		if (!this.isValid() || !offset.isValid())
 			return default;
-		DateTime local = timeDateTimeFromUnixMs((long)*this + (long)offset.getTotalMinutes() * TIME_MS_PER_MINUTE);
+		DateTime local = timeDateTimeFromUnixMs((long)this + (long)offset.getTotalMinutes() * TIME_MS_PER_MINUTE);
 		return { local, offset };
 	}
 
-	// Formats directly into caller-provided buffer. Example: "2026-06-12T18:30:00.124Z".
-	// Always computes, even when value is considered "invalid".
-	// Returns required bytes including the terminator.
-	export nuint format(const this, char[] buffer = default) : CharFormatter
-	{
-		DateTime utc = this.getUtcDateTime();
-		if (!utc.isValid())
-			return 0;
-		nuint length = utc.format(buffer);
-		if (length == 0)
-			return 0;
-		nuint required = length + 1;
-		if (buffer.length < required)
-			return required;
-		buffer[length - 1] = 'Z';
-		buffer[required - 1] = '\0';
+}
+
+// Formats directly into caller-provided buffer. Example: "2026-06-12T18:30:00.124Z".
+// Always computes, even when value is considered "invalid".
+// Returns required bytes including the terminator.
+export nuint format(in Instant this, char[] buffer = default) : CharFormatter
+{
+	DateTime utc = this.getUtcDateTime();
+	if (!utc.isValid())
+		return 0;
+	nuint length = utc.format(buffer);
+	if (length == 0)
+		return 0;
+	nuint required = length + 1;
+	if (buffer.length < required)
 		return required;
-	}
+	buffer[length - 1] = 'Z';
+	buffer[required - 1] = '\0';
+	return required;
 }
 
 export struct Date

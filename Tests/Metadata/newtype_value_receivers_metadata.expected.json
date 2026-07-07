@@ -1,0 +1,54 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "newtype_value_receivers_metadata"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "newtype:Handle",
+      "kind": "newtype",
+      "name": "Handle",
+      "visibility": "export",
+      "underlyingType": "nint",
+      "functions": [
+        {
+          "id": "newtype:Handle/function:value",
+          "name": "value",
+          "visibility": "export",
+          "extern": true,
+          "returnType": "nint"
+        }
+      ]
+    },
+    {
+      "id": "newtype:Calculator",
+      "kind": "newtype",
+      "name": "Calculator",
+      "visibility": "export",
+      "callableType": "delegate",
+      "returnType": "nint",
+      "parameters": [
+        {
+          "id": "newtype:Calculator/parameter:value",
+          "name": "value",
+          "type": "nint"
+        }
+      ],
+      "functions": [
+        {
+          "id": "newtype:Calculator/function:context",
+          "name": "context",
+          "visibility": "export",
+          "extern": true,
+          "returnType": "nint"
+        }
+      ]
+    }
+  ]
+}

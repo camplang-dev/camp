@@ -1,0 +1,27 @@
+newtype Handle: nint
+{
+	nint value()
+	{
+		return (nint)this;
+	}
+}
+
+newtype delegate nint Calculator(nint value)
+{
+	nint context()
+	{
+		return (nint)this.context;
+	}
+}
+
+nint pointerValue(Handle* this)
+{
+	return (nint)*this;
+}
+
+export int main()
+{
+	Handle handle = (Handle)42;
+	Calculator calculator = { null, (void*)(nint)7 };
+	return (int)(handle.value() + handle.pointerValue() + calculator.context());
+}

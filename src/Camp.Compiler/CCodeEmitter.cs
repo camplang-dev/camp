@@ -1945,7 +1945,7 @@ public static class CCodeEmitter
 		{
 			if (!RequiresImplicitThisParameter(function) || !containingTypes.TryGetValue(function, out TypeDefinition? type))
 				return;
-			string resolvedThisType = function.AbiThisType?.ResolvedType ?? function.EffectiveThisParameter?.ResolvedType ?? type.Name + "*";
+			string resolvedThisType = function.AbiThisType?.ResolvedType ?? function.EffectiveThisParameter?.ResolvedType ?? GetImplicitThisResolvedType(type);
 			fields.Add(new(function.EffectiveThisParameter, "this", resolvedThisType, function.AbiThisType));
 		}
 
@@ -2856,8 +2856,8 @@ public static class CCodeEmitter
 			{
 				if (RequiresImplicitThisParameter(function) && containingTypes.TryGetValue(function, out TypeDefinition? type))
 				{
-					string resolvedThisType = function.AbiThisType?.ResolvedType ?? function.EffectiveThisParameter?.ResolvedType ?? type.Name + "*";
-					parts.Add(FormatTypeOrResolved(function.AbiThisType, resolvedThisType, NeedsAbiThisFixup(function) ? "ctx" : "this").Declaration);
+					string resolvedThisType = function.AbiThisType?.ResolvedType ?? function.EffectiveThisParameter?.ResolvedType ?? GetImplicitThisResolvedType(type);
+					AddImplicitThisParameterParts(parts, function, resolvedThisType, NeedsAbiThisFixup(function) ? "ctx" : "this");
 				}
 				foreach (ParameterDefinition parameter in GetAbiOrderedParameters(function.Parameters))
 				{
@@ -5113,12 +5113,14 @@ public static class CCodeEmitter
 			List<ParameterDefinition> parameters = [];
 			if (RequiresImplicitThisParameter(function) && containingTypes.TryGetValue(function, out TypeDefinition? containingType))
 			{
-				string resolvedThisType = function.AbiThisType?.ResolvedType ?? function.EffectiveThisParameter?.ResolvedType ?? containingType.Name + "*";
+				string resolvedThisType = function.AbiThisType?.ResolvedType ?? function.EffectiveThisParameter?.ResolvedType ?? GetImplicitThisResolvedType(containingType);
 				parameters.Add(new ThisParameterDefinition
 				{
 					Name = "this",
 					Symbol = "this",
-					Type = function.AbiThisType ?? new PointerTypeReference { ElementType = new TypeDefinitionReference { Definition = containingType, Name = containingType.Name } },
+					Type = function.AbiThisType ?? (containingType is NewtypeDefinition
+						? new TypeDefinitionReference { Definition = containingType, Name = containingType.Name }
+						: new PointerTypeReference { ElementType = new TypeDefinitionReference { Definition = containingType, Name = containingType.Name } }),
 					ResolvedType = resolvedThisType
 				});
 			}
@@ -5955,8 +5957,8 @@ public static class CCodeEmitter
 			{
 				if (RequiresImplicitThisParameter(function) && containingTypes.TryGetValue(function, out TypeDefinition? type))
 				{
-					string resolvedThisType = function.AbiThisType?.ResolvedType ?? function.EffectiveThisParameter?.ResolvedType ?? type.Name + "*";
-					parts.Add(FormatTypeOrResolved(function.AbiThisType, resolvedThisType, NeedsAbiThisFixup(function) ? "ctx" : "this").Declaration);
+					string resolvedThisType = function.AbiThisType?.ResolvedType ?? function.EffectiveThisParameter?.ResolvedType ?? GetImplicitThisResolvedType(type);
+					AddImplicitThisParameterParts(parts, function, resolvedThisType, NeedsAbiThisFixup(function) ? "ctx" : "this");
 				}
 				foreach (ParameterDefinition parameter in GetAbiOrderedParameters(function.Parameters))
 				{
@@ -6019,9 +6021,40 @@ public static class CCodeEmitter
 				&& target is ThisExpression
 				&& currentFunction?.Parameters.FirstOrDefault(static p => p.Symbol == "this") is { } currentThis)
 				componentParameter = currentThis;
+			if (componentParameter is null
+				&& target is ThisExpression
+				&& currentFunction is not null
+				&& RequiresImplicitThisParameter(currentFunction)
+				&& containingTypes.TryGetValue(currentFunction, out TypeDefinition? implicitOwner)
+				&& implicitOwner is NewtypeDefinition
+				&& TryGetCallableNewtypeStorageComponentsForC(implicitOwner.Name, out List<(string Name, string Type)> implicitCallableComponents)
+				&& implicitCallableComponents.Count == 2
+				&& implicitCallableComponents[0].Name == "call"
+				&& implicitCallableComponents[1].Name == "context")
+			{
+				return name switch
+				{
+					"call" => "this_call",
+					"context" => "this_context",
+					_ => null
+				};
+			}
 			if (componentParameter is null)
 				return null;
 			string componentName = CName(componentParameter);
+			if (componentName == "this"
+				&& TryGetCallableNewtypeStorageComponentsForC(componentParameter.ResolvedType ?? "", out List<(string Name, string Type)> callableComponents)
+				&& callableComponents.Count == 2
+				&& callableComponents[0].Name == "call"
+				&& callableComponents[1].Name == "context")
+			{
+				return name switch
+				{
+					"call" => "this_call",
+					"context" => "this_context",
+					_ => null
+				};
+			}
 			bool hasLengthComponent = currentFunction?.Parameters.Any(parameter => CName(parameter) == componentName + "_length") == true;
 			if (!hasLengthComponent && !TryGetArrayLiteralElementType(componentParameter.ResolvedType, out _))
 				return null;
@@ -6068,6 +6101,27 @@ public static class CCodeEmitter
 			if (function.Modifier is FunctionModifier.Static or FunctionModifier.Constructor or FunctionModifier.Destructor)
 				return false;
 			return function.Parameters.Count == 0 || function.Parameters[0].Symbol != "this";
+		}
+
+		void AddImplicitThisParameterParts(List<string> parts, FunctionDefinition function, string resolvedThisType, string name)
+		{
+			if (name == "this"
+				&& TryGetCallableNewtypeStorageComponentsForC(resolvedThisType, out List<(string Name, string Type)> components)
+				&& components.Count == 2
+				&& components[0].Name == "call"
+				&& components[1].Name == "context")
+			{
+				parts.Add(FormatResolvedType(components[0].Type, "this_call").Declaration);
+				parts.Add(FormatResolvedType(components[1].Type, "this_context").Declaration);
+				return;
+			}
+
+			parts.Add(FormatTypeOrResolved(function.AbiThisType, resolvedThisType, name).Declaration);
+		}
+
+		static string GetImplicitThisResolvedType(TypeDefinition type)
+		{
+			return type is NewtypeDefinition ? type.Name : type.Name + "*";
 		}
 
 		static bool NeedsAbiThisFixup(FunctionDefinition function)

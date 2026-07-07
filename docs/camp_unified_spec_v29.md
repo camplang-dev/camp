@@ -2440,6 +2440,16 @@ In a `newtype` instance method:
 - `this` is passed by value
 - `this` is read-only
 
+This is different from `struct` and `class` instance methods, whose implicit
+receivers are pointer-shaped. A method declared inside `newtype Handle: nint`
+has the ABI shape `Handle_method(Handle this)`, not
+`Handle_method(Handle* this)`. If pointer receiver semantics are wanted, write
+an explicit receiver such as `Handle* this` on an out-of-scope extension method.
+
+Callable `newtype` instance methods follow the same source rule. At the C ABI
+boundary, the callable value is expanded into its callable components in the
+same way it is expanded in ordinary parameter positions.
+
 So code like this is intentionally invalid:
 
 ```camp

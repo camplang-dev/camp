@@ -978,7 +978,12 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateExpandedParameterNames(definition.Parameters);
 
 		if (containingType is not null && (GetExplicitThisParameter(definition) ?? definition.EffectiveThisParameter) is ThisParameterDefinition memberThisParameter)
-			memberThisParameter.ResolvedType = ApplyThisDeclarators($"{containingType}*", memberThisParameter);
+		{
+			string receiverType = typeDefinitions.TryGetValue(containingType, out TypeDefinition? owner) && owner is NewtypeDefinition
+				? containingType
+				: $"{containingType}*";
+			memberThisParameter.ResolvedType = ApplyThisDeclarators(receiverType, memberThisParameter);
+		}
 		FinalizeThisReturnType(definition, containingType);
 		ValidateFunctionConstOfAnchors(definition);
 		ValidateAsyncResumer(definition, containingType);

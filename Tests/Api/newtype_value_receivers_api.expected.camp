@@ -1,0 +1,10 @@
+export newtype Handle : nint
+{
+	export extern nint value();
+}
+
+export newtype delegate nint Calculator(nint value)
+{
+	export extern nint context();
+}
+export extern nint pointerValue(Handle* this);

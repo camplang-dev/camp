@@ -1,0 +1,15 @@
+export newtype Handle: nint
+{
+	export nint value()
+	{
+		return (nint)this;
+	}
+}
+
+export newtype delegate nint Calculator(nint value)
+{
+	export nint context()
+	{
+		return (nint)this.context;
+	}
+}
