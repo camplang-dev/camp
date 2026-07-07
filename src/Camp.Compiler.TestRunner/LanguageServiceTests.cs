@@ -808,6 +808,8 @@ public sealed class LanguageServiceTests
 	static CampTextPosition PositionOf(string text, string marker)
 	{
 		int index = text.IndexOf(marker, StringComparison.Ordinal);
+		if (index < 0 && marker.Contains('\n', StringComparison.Ordinal))
+			index = text.IndexOf(marker.Replace("\n", "\r\n", StringComparison.Ordinal), StringComparison.Ordinal);
 		if (index < 0)
 			throw new InvalidOperationException($"Marker '{marker}' was not found.");
 		int line = 0;

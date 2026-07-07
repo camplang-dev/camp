@@ -117,7 +117,7 @@ public sealed class MsvcCompileTests
 
 		CompilerResult result = Compile(source, NativeBuildKind.Exec);
 		AssertSuccess(result);
-		string timingSource = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "tmp", "msvc-tests", "packages", "std", "msvc-windows-x64", "default", "DEBUG", "build", "std_timing.c"));
+		string timingSource = File.ReadAllText(FindGeneratedPackageSource("std_timing.c"));
 		Assert.Contains("static uint32_t __stdcall __camp_delegate_timingTimerThread", timingSource, StringComparison.Ordinal);
 		ProcessResult run = Run(FindArtifact(result, ".exe"));
 		Assert.Equal(0, run.ExitCode);
@@ -298,6 +298,16 @@ public sealed class MsvcCompileTests
 		string? artifact = result.GeneratedFiles.FirstOrDefault(path => Path.GetExtension(path).Equals(extension, StringComparison.OrdinalIgnoreCase));
 		Assert.False(string.IsNullOrWhiteSpace(artifact), "Expected generated artifact with extension " + extension + ".");
 		return artifact!;
+	}
+
+	static string FindGeneratedPackageSource(string fileName)
+	{
+		string packageRoot = Path.Combine(FindRepositoryRoot(), "tmp", "msvc-tests", "packages");
+		string? source = Directory.Exists(packageRoot)
+			? Directory.GetFiles(packageRoot, fileName, SearchOption.AllDirectories).FirstOrDefault()
+			: null;
+		Assert.False(string.IsNullOrWhiteSpace(source), "Expected generated package source " + fileName + ".");
+		return source!;
 	}
 
 	static void AssertSuccess(CompilerResult result)
