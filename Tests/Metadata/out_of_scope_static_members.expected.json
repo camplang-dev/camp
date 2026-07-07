@@ -1,0 +1,51 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "out_of_scope_static_members"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "class:Widget",
+      "kind": "class",
+      "name": "Widget",
+      "visibility": "export",
+      "extern": true
+    },
+    {
+      "id": "variable:int.API_MIN",
+      "kind": "variable",
+      "name": "int.API_MIN",
+      "symbol": "Int_API_MIN",
+      "visibility": "export",
+      "type": "int",
+      "static": true,
+      "inline": true,
+      "value": -1
+    },
+    {
+      "id": "variable:int.API_CONST",
+      "kind": "variable",
+      "name": "int.API_CONST",
+      "symbol": "Int_API_CONST",
+      "visibility": "export",
+      "type": "const int",
+      "static": true
+    },
+    {
+      "id": "function:Widget.getDefaultValue",
+      "kind": "function",
+      "name": "Widget.getDefaultValue",
+      "symbol": "Widget_getDefaultValue",
+      "visibility": "export",
+      "extern": true,
+      "modifier": "static",
+      "returnType": "int"
+    }
+  ]
+}

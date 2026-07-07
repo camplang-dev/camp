@@ -1,0 +1,109 @@
+// file: out_of_scope_static_members.c
+#include "out_of_scope_static_members_private.h"
+
+/* Private file declarations. */
+static int Button_getDefaultValue(void);
+static int camp_button_magic(void);
+static int Pair_getDefaultValue(void);
+static int Handle_getDefaultValue(void);
+
+const int Int_TEST_CONST = 11;
+const int camp_int_symbol_const = 13;
+static int Button_getDefaultValue(void)
+{
+	return Int_TEST_CONST;
+}
+
+static int camp_button_magic(void)
+{
+	return camp_int_symbol_const;
+}
+
+static int Pair_getDefaultValue(void)
+{
+	return (Button_getDefaultValue() + 3);
+}
+
+static int Handle_getDefaultValue(void)
+{
+	return (Pair_getDefaultValue() + camp_button_magic());
+}
+
+int main(void)
+{
+	if ((Int_TEST_MIN != -7))
+	{
+		return 1;
+	}
+	if ((Button_getDefaultValue() != 11))
+	{
+		return 2;
+	}
+	if ((Pair_getDefaultValue() != 14))
+	{
+		return 3;
+	}
+	if ((camp_button_magic() != 13))
+	{
+		return 4;
+	}
+	if ((Handle_getDefaultValue() != 27))
+	{
+		return 5;
+	}
+	return 0;
+}
+
+// file: out_of_scope_static_members.h
+#ifndef OUT_OF_SCOPE_STATIC_MEMBERS_H_
+#define OUT_OF_SCOPE_STATIC_MEMBERS_H_
+
+#include "out_of_scope_static_members_private.h"
+
+int main(void);
+#define Int_TEST_MIN ((int)-7)
+extern const int Int_TEST_CONST;
+extern const int camp_int_symbol_const;
+
+#endif
+// file: out_of_scope_static_members_private.h
+#ifndef OUT_OF_SCOPE_STATIC_MEMBERS_PRIVATE_H_
+#define OUT_OF_SCOPE_STATIC_MEMBERS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Button Button;
+typedef struct Pair Pair;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef int Handle;
+
+/* Constants. */
+#define Int_TEST_MIN ((int)-7)
+
+/* Layouts. */
+struct Pair
+{
+	char _camp_empty;
+};
+struct Button
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+extern const int Int_TEST_CONST;
+extern const int camp_int_symbol_const;
+
+
+#endif
+// compile
+compiled: out_of_scope_static_members.c

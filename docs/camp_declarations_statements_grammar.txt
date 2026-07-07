@@ -81,7 +81,11 @@ declaration:
 	<type-declaration> | <alias-declaration> | <member-declaration>
 
 member-declaration:
-	<attribute>* <member-declarator>* <type>? [~] <IDENT> ['<' <generic-parameter-list> '>'] ['(' <parameter-list> ')'] (; | <method-body> | <assignment>)
+	<attribute>* <member-declarator>* <type>? [~] <member-name> ['<' <generic-parameter-list> '>'] ['(' <parameter-list> ')'] (; | <method-body> | <assignment>)
+
+member-name:
+	<IDENT>
+	<type> '.' <IDENT>
 
 member-declarator:
 	export | public | extern | static | virtual | override | sealed | abstract | async | fixed | inline

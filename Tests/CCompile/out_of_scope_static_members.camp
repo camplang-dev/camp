@@ -1,0 +1,37 @@
+export inline int int.TEST_MIN = -7;
+export static const int int.TEST_CONST = 11;
+@symbol("camp_int_symbol_const")
+export static const int int.SYMBOL_CONST = 13;
+
+class Button
+{
+}
+
+struct Pair
+{
+}
+
+newtype Handle: int
+{
+}
+
+static int Button.getDefaultValue() => int.TEST_CONST;
+@symbol("camp_button_magic")
+static int Button.getMagic() => int.SYMBOL_CONST;
+static int Pair.getDefaultValue() => Button.DefaultValue + 3;
+static int Handle.getDefaultValue() => Pair.DefaultValue + Button.Magic;
+
+export int main()
+{
+	if (int.TEST_MIN != -7)
+		return 1;
+	if (Button.DefaultValue != 11)
+		return 2;
+	if (Pair.getDefaultValue() != 14)
+		return 3;
+	if (Button.Magic != 13)
+		return 4;
+	if (Handle.DefaultValue != 27)
+		return 5;
+	return 0;
+}

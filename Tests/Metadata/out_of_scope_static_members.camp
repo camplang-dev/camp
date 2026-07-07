@@ -1,0 +1,5 @@
+export extern class Widget;
+
+export inline int int.API_MIN = -1;
+export static const int int.API_CONST = 2;
+export static int Widget.getDefaultValue() => int.API_CONST;

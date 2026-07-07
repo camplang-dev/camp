@@ -1,0 +1,1 @@
+tests/Diagnostics/out_of_scope_static_members_nested_invalid.camp(3,13): error: Out-of-scope type member declarations are valid only at file scope.

@@ -378,6 +378,7 @@ public sealed class CampParser
 
 		syntax.TildeToken = TakeIf("~");
 		syntax.Identifier = ExpectIdentifier();
+		TryParseOutOfScopeMemberOwner(syntax);
 
 		if (syntax.Identifier is null && syntax.TildeToken is null)
 		{
@@ -658,6 +659,38 @@ public sealed class CampParser
 			syntax.ElementType = ParseType();
 
 		return syntax;
+	}
+
+	void TryParseOutOfScopeMemberOwner(MemberDeclarationSyntax syntax)
+	{
+		if (syntax.Identifier is not Token ownerIdentifier)
+			return;
+
+		QualifiedNameTypeSyntax ownerName = new()
+		{
+			Identifier = ownerIdentifier
+		};
+
+		if (Is("<"))
+		{
+			int start = index;
+			GenericTypeSyntax? genericOwner = TryParseGenericType(ownerName);
+			if (genericOwner is not null && Is("."))
+			{
+				syntax.OutOfScopeOwnerType = genericOwner;
+				syntax.OutOfScopeDotToken = Take();
+				syntax.Identifier = ExpectIdentifier();
+				return;
+			}
+			index = start;
+		}
+
+		if (!Is("."))
+			return;
+
+		syntax.OutOfScopeOwnerType = ownerName;
+		syntax.OutOfScopeDotToken = Take();
+		syntax.Identifier = ExpectIdentifier();
 	}
 
 	T ParseWrappedType<T>(string keywordValue, Action<T, Token?, Token?, TypeSyntax?, Token?> assign)

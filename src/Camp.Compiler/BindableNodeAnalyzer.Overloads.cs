@@ -195,7 +195,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (definition is not FunctionDefinition function || GetExplicitThisParameter(function) is not null)
 				continue;
-			string invoker = GetInvokerName(function);
+			string invoker = function.OutOfScopeOwnerName is null
+				? GetInvokerName(function)
+				: function.OutOfScopeOwnerName + "." + GetInvokerName(function);
 			if (!families.TryGetValue(invoker, out List<FunctionDefinition>? family))
 			{
 				family = [];

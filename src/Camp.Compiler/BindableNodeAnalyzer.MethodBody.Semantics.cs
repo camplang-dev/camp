@@ -1983,16 +1983,34 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<FunctionDefinition> LookupStaticMemberFunctions(string targetType, string name, SyntaxNode? referenceSyntax)
 	{
-		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
-			return [];
-
 		List<FunctionDefinition> functions = [];
-		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
-			if (function.Modifier == FunctionModifier.Static)
-				functions.Add(function);
-		if (functions.Count > 0)
+		string ownerName = BaseTypeName(targetType);
+		if (typeDefinitions.TryGetValue(ownerName, out TypeDefinition? type))
+		{
+			foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
+				if (function.Modifier == FunctionModifier.Static)
+					functions.Add(function);
+		}
+		foreach (FunctionDefinition function in LookupOutOfScopeStaticFunctions(ownerName, name, referenceSyntax))
+			functions.Add(function);
+		if (functions.Count > 0 && type is not null)
 			ReportConstructedGenericStaticMemberAccess(targetType, type, name, referenceSyntax);
 		return functions;
+	}
+
+	IEnumerable<FunctionDefinition> LookupOutOfScopeStaticFunctions(string ownerName, string name, SyntaxNode? referenceSyntax)
+	{
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is FunctionDefinition function
+				&& function.OutOfScopeOwnerName == ownerName
+				&& (function.Name == name || GetCallableName(function) == name)
+				&& function.Modifier == FunctionModifier.Static
+				&& IsDefinitionVisible(function, referenceSyntax))
+			{
+				yield return function;
+			}
+		}
 	}
 
 	List<FunctionDefinition> LookupGenericConstraintMemberFunctions(string targetType, string name, BodyScope scope, SyntaxNode? referenceSyntax)
@@ -2127,42 +2145,67 @@ public sealed partial class BindableNodeAnalyzer
 	List<BodySymbol> LookupStaticMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax)
 	{
 		List<BodySymbol> members = [];
-		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
-			return members;
-
-		foreach (FieldDefinition field in GetTypeFields(type))
+		string ownerName = BaseTypeName(targetType);
+		if (typeDefinitions.TryGetValue(ownerName, out TypeDefinition? type))
 		{
-			if (field.Modifier == FieldModifier.Static && field.Name == name && IsMemberVisible(field, type, referenceSyntax))
+			foreach (FieldDefinition field in GetTypeFields(type))
 			{
-				Dictionary<string, string> substitutions = [];
-				AddConstructedTypeGenericSubstitutions(targetType, substitutions);
-				members.Add(new BodySymbol(name, SubstituteGenericType(field.ResolvedType ?? ErrorType, substitutions), field, IsConstantField(field)));
+				if (field.Modifier == FieldModifier.Static && field.Name == name && IsMemberVisible(field, type, referenceSyntax))
+				{
+					Dictionary<string, string> substitutions = [];
+					AddConstructedTypeGenericSubstitutions(targetType, substitutions);
+					members.Add(new BodySymbol(name, SubstituteGenericType(field.ResolvedType ?? ErrorType, substitutions), field, IsConstantField(field)));
+				}
+			}
+
+			if (type is EnumDefinition enumDefinition)
+			{
+				foreach (VariableDefinition value in enumDefinition.Values)
+				{
+					if (value.Name == name)
+						members.Add(new BodySymbol(name, value.ResolvedType ?? enumDefinition.Name, value, IsConstant: true));
+				}
+			}
+
+			foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
+			{
+				if (function.Modifier == FunctionModifier.Static)
+					members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: false, allowCallableAscription: true), function));
+			}
+			foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
+			{
+				if (getter.Modifier == FunctionModifier.Static && getter.Parameters.Count == 0)
+					members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
 			}
 		}
 
-		if (type is EnumDefinition enumDefinition)
+		foreach (VariableDefinition variable in LookupOutOfScopeStaticVariables(ownerName, name, referenceSyntax))
+			members.Add(new BodySymbol(name, variable.ResolvedType ?? ErrorType, variable, IsConstantVariable(variable)));
+		foreach (FunctionDefinition function in LookupOutOfScopeStaticFunctions(ownerName, name, referenceSyntax))
+			members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: false, allowCallableAscription: true), function));
+		foreach (FunctionDefinition getter in LookupOutOfScopeStaticFunctions(ownerName, "get" + name, referenceSyntax))
 		{
-			foreach (VariableDefinition value in enumDefinition.Values)
-			{
-				if (value.Name == name)
-					members.Add(new BodySymbol(name, value.ResolvedType ?? enumDefinition.Name, value, IsConstant: true));
-			}
-		}
-
-		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
-		{
-			if (function.Modifier == FunctionModifier.Static)
-				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: false, allowCallableAscription: true), function));
-		}
-		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
-		{
-			if (getter.Modifier == FunctionModifier.Static && getter.Parameters.Count == 0)
+			if (getter.Parameters.Count == 0)
 				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
 		}
-		if (members.Count > 0)
+		if (members.Count > 0 && type is not null)
 			ReportConstructedGenericStaticMemberAccess(targetType, type, name, referenceSyntax);
 
 		return members;
+	}
+
+	IEnumerable<VariableDefinition> LookupOutOfScopeStaticVariables(string ownerName, string name, SyntaxNode? referenceSyntax)
+	{
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is VariableDefinition variable
+				&& variable.OutOfScopeOwnerName == ownerName
+				&& variable.Name == name
+				&& IsDefinitionVisible(variable, referenceSyntax))
+			{
+				yield return variable;
+			}
+		}
 	}
 
 	void ReportConstructedGenericStaticMemberAccess(string targetType, TypeDefinition type, string memberName, SyntaxNode? referenceSyntax)

@@ -2,7 +2,7 @@ using Std;
 
 export int main()
 {
-	auto map = new HashMap<string, int>(String_hashPolicy) finally delete;
+	auto map = new HashMap<string, int>(string.HASH_POLICY) finally delete;
 	map.Item["one"] = 1;
 	map.setItem("two", 2);
 	if (map.Length != 2)
@@ -17,7 +17,7 @@ export int main()
 	if (!map.remove("two") || map.remove("two") || map.containsKey("two"))
 		return 5;
 
-	auto numbers = new HashMap<int, int>(Int_hashPolicy) finally delete;
+	auto numbers = new HashMap<int, int>(int.HASH_POLICY) finally delete;
 	for (int i = 0; i < 50; i++)
 		numbers.Item[i] = i * 10;
 	for (int j = 0; j < 50; j++)
@@ -36,7 +36,7 @@ export int main()
 	if (numbers.Item[removedKey] != 2500)
 		return 82;
 
-	auto ci = new HashMap<string, int>(String_caseInsensitiveHashPolicy) finally delete;
+	auto ci = new HashMap<string, int>(string.CASE_INSENSITIVE_HASH_POLICY) finally delete;
 	ci.setItem("MR_CHEESE", 34);
 	if (!ci.containsKey("mr_cheese") || ci.Item["mr_cheese"] != 34)
 		return 83;

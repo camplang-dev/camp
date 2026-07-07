@@ -1,0 +1,11 @@
+tests/Diagnostics/out_of_scope_static_members_invalid.camp(16,15): error: Out-of-scope member 'int.BAD_CONST' must be declared static or inline.
+tests/Diagnostics/out_of_scope_static_members_invalid.camp(16,15): error: Const out-of-scope member 'int.BAD_CONST' must be explicitly declared static.
+tests/Diagnostics/out_of_scope_static_members_invalid.camp(17,9): error: Out-of-scope member 'int.BAD_FIELD' must be declared static or inline.
+tests/Diagnostics/out_of_scope_static_members_invalid.camp(18,12): error: 'void' cannot declare out-of-scope static members.
+tests/Diagnostics/out_of_scope_static_members_invalid.camp(19,12): error: Out-of-scope static member owner 'Missing' could not be found.
+tests/Diagnostics/out_of_scope_static_members_invalid.camp(20,12): error: Type 'IFoo' cannot declare out-of-scope static members; use a class, struct, newtype, or primitive owner.
+tests/Diagnostics/out_of_scope_static_members_invalid.camp(21,12): error: Type 'Color' cannot declare out-of-scope static members; use a class, struct, newtype, or primitive owner.
+tests/Diagnostics/out_of_scope_static_members_invalid.camp(22,12): error: Alias 'MyInt' cannot be used as an out-of-scope static member owner.
+tests/Diagnostics/out_of_scope_static_members_invalid.camp(23,12): error: Static members of generic type 'Box<T>' are declared as 'Box.member'; remove the generic argument list from the owner.
+tests/Diagnostics/out_of_scope_static_members_invalid.camp(24,30): error: Generic parameter 'T' is already declared by owner type 'Box'; choose a unique static method parameter name.
+tests/Diagnostics/out_of_scope_static_members_invalid.camp(25,9): error: Out-of-scope method 'Box.BAD_METHOD' must be explicitly declared static; instance extensions use an explicit 'this' parameter.

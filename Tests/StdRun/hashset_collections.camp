@@ -2,7 +2,7 @@ using Std;
 
 export int main()
 {
-	auto set = new HashSet<int>(Int_hashPolicy) finally delete;
+	auto set = new HashSet<int>(int.HASH_POLICY) finally delete;
 	if (set.Length != 0 || set.Capacity != 0)
 		return 1;
 	if (!set.add(10) || set.add(10))
@@ -35,7 +35,7 @@ export int main()
 	if (set.Length != 0 || set.Capacity != 0 || set.contains(1))
 		return 105;
 
-	auto strings = new HashSet<string>(String_caseInsensitiveHashPolicy) finally delete;
+	auto strings = new HashSet<string>(string.CASE_INSENSITIVE_HASH_POLICY) finally delete;
 	if (!strings.add("Alpha") || strings.add("alpha"))
 		return 106;
 	if (!strings.contains("ALPHA") || strings.contains("Beta"))

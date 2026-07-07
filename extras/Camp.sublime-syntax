@@ -220,6 +220,11 @@ contexts:
       captures:
         1: punctuation.definition.destructor.camp
         2: entity.name.function.destructor.camp
+    - match: '\b({{type_keywords}}|{{qualified_identifier}})(\s*)(\.)(\s*)({{identifier}})\b'
+      captures:
+        1: entity.name.type.owner.camp
+        3: punctuation.accessor.member.camp
+        5: entity.name.member.static.camp
     - match: '\b({{identifier}})\s*(?=<)'
       scope: entity.name.type.generic.camp
     - match: '\b(fn|delegate|async|once)\b(\s+\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)?'

@@ -1,0 +1,25 @@
+class Box<T: any>
+{
+}
+
+interface IFoo
+{
+}
+
+enum Color
+{
+	RED
+}
+
+alias MyInt = int;
+
+const int int.BAD_CONST = 1;
+int int.BAD_FIELD = 2;
+static int void.BAD_VOID() => 0;
+static int Missing.BAD_UNKNOWN() => 0;
+static int IFoo.BAD_INTERFACE() => 0;
+static int Color.BAD_ENUM() => 0;
+static int MyInt.BAD_ALIAS() => 0;
+static int Box<int>.BAD_GENERIC_OWNER() => 0;
+static int Box.BAD_REDECLARE<T: any>() => 0;
+int Box.BAD_METHOD() => 0;

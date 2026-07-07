@@ -1,0 +1,4 @@
+class Box
+{
+	static int nested.BoxBad = 1;
+}

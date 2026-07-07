@@ -5415,7 +5415,10 @@ public static class CCodeEmitter
 
 		string FormatMemberReference(MemberReferenceExpression member)
 		{
-			if (member.Member is FunctionDefinition function && (member.Target is null || containingTypes.TryGetValue(function, out TypeDefinition? owner) && owner is not InterfaceDefinition))
+			if (member.Member is FunctionDefinition function
+				&& (member.Target is null
+					|| function.OutOfScopeOwnerName is not null
+					|| containingTypes.TryGetValue(function, out TypeDefinition? owner) && owner is not InterfaceDefinition))
 				return CName(function);
 			if (member.Member is FunctionDefinition interfaceFunction
 				&& member.Target is not null

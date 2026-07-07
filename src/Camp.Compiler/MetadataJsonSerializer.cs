@@ -253,7 +253,7 @@ public static class MetadataJsonSerializer
 			json.WriteString("id", GetId(definition));
 			if (includeKind)
 				json.WriteString("kind", GetKind(definition));
-			json.WriteString("name", definition.Name);
+			json.WriteString("name", GetMetadataName(definition));
 			if (!IsSameSymbol(definition))
 				json.WriteString("symbol", definition.Symbol);
 			if (includeVisibility && GetVisibility(definition) is string visibility)
@@ -434,6 +434,8 @@ public static class MetadataJsonSerializer
 		void WriteVariable(Utf8JsonWriter json, VariableDefinition variable, BigInteger? enumValue)
 		{
 			WriteTypeProperty(json, "type", variable.Type, variable.ResolvedType);
+			if (variable.OutOfScopeOwnerName is not null)
+				json.WriteBoolean("static", true);
 			if (variable.IsInline)
 			{
 				json.WriteBoolean("inline", true);
@@ -1401,7 +1403,8 @@ public static class MetadataJsonSerializer
 
 		static string GetMetadataName(Definition definition)
 		{
-			return string.IsNullOrWhiteSpace(definition.Name) ? definition.Symbol : definition.Name;
+			string name = string.IsNullOrWhiteSpace(definition.Name) ? definition.Symbol : definition.Name;
+			return string.IsNullOrWhiteSpace(definition.OutOfScopeOwnerName) ? name : definition.OutOfScopeOwnerName + "." + name;
 		}
 
 		static string FormatAliasTarget(AliasDefinition alias)

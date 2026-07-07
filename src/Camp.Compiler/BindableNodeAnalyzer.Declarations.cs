@@ -756,6 +756,9 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeAttributes(definition.Attributes);
 		ApplySymbolAttribute(definition, allowSymbolAttribute, allowSymbolAttribute ? "variable" : "enum value");
 		CheckName(definition.Name, GetNameRange(definition), "variable");
+		AnalyzeOutOfScopeMemberOwner(definition);
+		if (definition.OutOfScopeOwnerName is not null)
+			ValidateOutOfScopeVariable(definition);
 		if (definition.IsInline && definition.Extern is not null)
 			Report(GetNameRange(definition), "Inline constants cannot be extern.");
 		if (definition.IsInline && definition.InitialValue is null)
@@ -962,6 +965,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (!string.IsNullOrWhiteSpace(definition.CallSpec))
 			definition.CallSpec = ResolveCallSpecAlias(definition.CallSpec, definition.SourceSyntax);
 		ValidateTargetCallSpec(definition.CallSpec, definition.SourceSyntax);
+		AnalyzeOutOfScopeMemberOwner(definition);
+		if (definition.OutOfScopeOwnerName is not null)
+			ValidateOutOfScopeFunction(definition);
 
 		AnalysisScope scope = new(parentScope);
 		foreach (GenericParameter parameter in definition.GenericParameters)
@@ -1015,6 +1021,139 @@ public sealed partial class BindableNodeAnalyzer
 			definition.Symbol = BuildExtensionFunctionSymbol(GetCallableName(definition), thisParameter.ResolvedType ?? ErrorType, definition);
 		else if (containingType is null && !definition.SymbolOverridden && HasOverloadSelector(definition))
 			definition.Symbol = GetCallableName(definition);
+	}
+
+	void AnalyzeOutOfScopeMemberOwner(Definition definition)
+	{
+		if (definition.OutOfScopeOwnerType is null)
+			return;
+
+		TypeReference ownerType = definition.OutOfScopeOwnerType;
+		definition.OutOfScopeOwnerType = null;
+		if (!TryResolveOutOfScopeOwner(ownerType, out string ownerName, out string ownerSymbol))
+			return;
+
+		definition.OutOfScopeOwnerName = ownerName;
+		definition.OutOfScopeOwnerSymbol = ownerSymbol;
+		if (!definition.SymbolOverridden)
+			definition.Symbol = ownerSymbol + "_" + definition.Name;
+	}
+
+	bool TryResolveOutOfScopeOwner(TypeReference ownerType, out string ownerName, out string ownerSymbol)
+	{
+		ownerName = "";
+		ownerSymbol = "";
+		switch (ownerType)
+		{
+			case PrimitiveTypeReference primitive:
+				ownerName = GetPrimitiveTypeName(primitive.Type);
+				if (primitive.Type is PrimitiveType.Void)
+				{
+					Report(GetRange(ownerType.SourceSyntax), "'void' cannot declare out-of-scope static members.");
+					return false;
+				}
+				if (primitive.Type is PrimitiveType.Untyped)
+				{
+					Report(GetRange(ownerType.SourceSyntax), "'untyped' cannot declare out-of-scope static members.");
+					return false;
+				}
+				ownerSymbol = GetFlattenedSymbolTypeName(ownerName);
+				return true;
+
+			case GenericTypeReference generic:
+				string genericOwner = BaseTypeName(generic.Type?.ResolvedType ?? FormatTypeReference(generic.Type));
+				if (typeDefinitions.TryGetValue(genericOwner, out TypeDefinition? genericDefinition) && genericDefinition.GenericParameters.Count > 0)
+					Report(GetRange(ownerType.SourceSyntax), $"Static members of generic type '{FormatGenericTypeDefinitionName(genericDefinition)}' are declared as '{genericDefinition.Name}.{GetOutOfScopeMemberDiagnosticName(ownerType)}'; remove the generic argument list from the owner.");
+				else
+					Report(GetRange(ownerType.SourceSyntax), $"Out-of-scope static member owner '{FormatTypeReference(ownerType)}' must be a class, struct, newtype, or primitive type name.");
+				ownerName = genericOwner;
+				ownerSymbol = GetFlattenedSymbolTypeName(genericOwner);
+				return false;
+
+			case NamedTypeReference named:
+				if (named.TypeArguments.Count > 0)
+				{
+					foreach (TypeReference argument in named.TypeArguments)
+						AnalyzeType(argument, new AnalysisScope());
+					string genericOwnerName = BaseTypeName(named.Name);
+					if (typeDefinitions.TryGetValue(genericOwnerName, out TypeDefinition? namedGenericDefinition) && namedGenericDefinition.GenericParameters.Count > 0)
+						Report(GetRange(ownerType.SourceSyntax), $"Static members of generic type '{FormatGenericTypeDefinitionName(namedGenericDefinition)}' are declared as '{namedGenericDefinition.Name}.{GetOutOfScopeMemberDiagnosticName(ownerType)}'; remove the generic argument list from the owner.");
+					else
+						Report(GetRange(ownerType.SourceSyntax), $"Out-of-scope static member owner '{FormatTypeReference(ownerType)}' must be a class, struct, newtype, or primitive type name.");
+					return false;
+				}
+
+				string name = BaseTypeName(named.Name);
+				if (aliasDefinitions.ContainsKey(named.Name))
+				{
+					Report(GetRange(ownerType.SourceSyntax), $"Alias '{named.Name}' cannot be used as an out-of-scope static member owner.");
+					return false;
+				}
+				if (!typeDefinitions.TryGetValue(name, out TypeDefinition? definition))
+				{
+					Report(GetRange(ownerType.SourceSyntax), $"Out-of-scope static member owner '{named.Name}' could not be found.");
+					return false;
+				}
+				if (definition is not ClassDefinition and not StructDefinition and not NewtypeDefinition)
+				{
+					Report(GetRange(ownerType.SourceSyntax), $"Type '{definition.Name}' cannot declare out-of-scope static members; use a class, struct, newtype, or primitive owner.");
+					return false;
+				}
+				ownerName = definition.Name;
+				ownerSymbol = definition.Name;
+				return true;
+
+			default:
+				Report(GetRange(ownerType.SourceSyntax), $"Out-of-scope static member owner '{FormatTypeReference(ownerType)}' must be a class, struct, newtype, or primitive type name.");
+				return false;
+		}
+	}
+
+	static string GetOutOfScopeMemberDiagnosticName(TypeReference ownerType)
+	{
+		return ownerType.SourceSyntax is MemberDeclarationSyntax { Identifier: not null } member
+			? member.Identifier.Value.Value
+			: "member";
+	}
+
+	void ValidateOutOfScopeVariable(VariableDefinition definition)
+	{
+		bool hasStatic = SourceHasDeclarator(definition, "static");
+		if (!definition.IsInline && !hasStatic)
+			Report(GetNameRange(definition), $"Out-of-scope member '{definition.OutOfScopeOwnerName}.{definition.Name}' must be declared static or inline.");
+		if (IsConstType(definition.Type) && !hasStatic)
+			Report(GetNameRange(definition), $"Const out-of-scope member '{definition.OutOfScopeOwnerName}.{definition.Name}' must be explicitly declared static.");
+	}
+
+	void ValidateOutOfScopeFunction(FunctionDefinition definition)
+	{
+		if (!SourceHasDeclarator(definition, "static"))
+			Report(GetNameRange(definition), $"Out-of-scope method '{definition.OutOfScopeOwnerName}.{definition.Name}' must be explicitly declared static; instance extensions use an explicit 'this' parameter.");
+		if (definition.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor)
+			Report(GetNameRange(definition), "Constructors and destructors cannot be declared out of scope.");
+		if (definition.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract or FunctionModifier.Override or FunctionModifier.Sealed)
+			Report(GetNameRange(definition), "Out-of-scope static methods cannot be virtual, abstract, override, or sealed.");
+		if (definition.OutOfScopeOwnerName is not null && typeDefinitions.TryGetValue(definition.OutOfScopeOwnerName, out TypeDefinition? owner))
+		{
+			foreach (GenericParameter parameter in definition.GenericParameters)
+			{
+				foreach (GenericParameter ownerParameter in owner.GenericParameters)
+				{
+					if (parameter.Name == ownerParameter.Name)
+						Report(GetGenericParameterNameRange(parameter.SourceSyntax), $"Generic parameter '{parameter.Name}' is already declared by owner type '{owner.Name}'; choose a unique static method parameter name.");
+				}
+			}
+		}
+	}
+
+	static bool SourceHasDeclarator(Definition definition, string declaratorName)
+	{
+		if (definition.SourceSyntax is not MemberDeclarationSyntax syntax)
+			return false;
+		foreach (MemberDeclaratorSyntax declarator in syntax.Declarators ?? [])
+			if (declarator.Keyword?.Value == declaratorName)
+				return true;
+		return false;
 	}
 
 	void BindAsyncImplementationAttributes(FunctionDefinition definition, string? containingType)

@@ -4666,6 +4666,32 @@ public sealed partial class BindableNodeAnalyzer
 		string typeName = named.Name;
 		if (TryResolveAlias(named.Name, AliasTargetKind.Type, named.SourceSyntax, out AliasDefinition? alias))
 			typeName = alias!.ResolvedTargetName;
+		if (TryGetPrimitiveType(typeName, out PrimitiveType primitive))
+		{
+			if (typeArguments.Count > 0)
+			{
+				foreach (TypeReference argument in typeArguments)
+					AnalyzeType(argument, typeScope);
+				Report(GetRange(originalTarget?.SourceSyntax ?? named.SourceSyntax), $"Primitive type '{typeName}' cannot be used with generic type arguments.");
+			}
+			PrimitiveTypeReference primitiveReference = new()
+			{
+				SourceSyntax = named.SourceSyntax,
+				Type = primitive,
+				ResolvedType = GetPrimitiveTypeName(primitive)
+			};
+			TypeReferenceExpression primitiveExpression = new()
+			{
+				SourceSyntax = named.SourceSyntax,
+				Type = primitiveReference,
+				ResolvedType = primitiveReference.ResolvedType
+			};
+			expressionRewrites[named] = primitiveExpression;
+			if (originalTarget is not null && !ReferenceEquals(originalTarget, named))
+				expressionRewrites[originalTarget] = primitiveExpression;
+			type = primitiveExpression.ResolvedType ?? ErrorType;
+			return true;
+		}
 		if (!typeDefinitions.TryGetValue(typeName, out TypeDefinition? typeDefinition))
 			return false;
 		if (!IsDefinitionVisible(typeDefinition, named.SourceSyntax))

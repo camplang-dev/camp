@@ -553,12 +553,15 @@ public sealed class BindableNodeCodeSerializer
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
+		if (definition.OutOfScopeOwnerName is not null && SourceHasDeclarator(definition, "static"))
+			writer.Write("static ");
 		if (definition.IsInline)
 			writer.Write("inline ");
 		if (definition.IsFixedStorage)
 			writer.Write("fixed ");
 		WriteTypeOrResolved(definition.Type, definition.ResolvedType);
 		writer.Write(" ");
+		WriteOutOfScopeOwnerPrefix(definition);
 		writer.Write(GetName(definition));
 		if (definition.InitialValue is not null && !ShouldSuppressApiInitializer(definition))
 		{
@@ -615,6 +618,7 @@ public sealed class BindableNodeCodeSerializer
 			if (!TryWriteApiInterfaceAccessorReturnType(definition))
 				WriteTypeOrResolved(definition.ReturnType, definition.ResolvedType);
 			writer.Write(" ");
+			WriteOutOfScopeOwnerPrefix(definition);
 			writer.Write(definition.Name);
 		}
 
@@ -647,6 +651,27 @@ public sealed class BindableNodeCodeSerializer
 				});
 				break;
 		}
+	}
+
+	void WriteOutOfScopeOwnerPrefix(Definition definition)
+	{
+		if (definition.OutOfScopeOwnerName is null)
+			return;
+		if (definition.OutOfScopeOwnerType is not null)
+			WriteType(definition.OutOfScopeOwnerType);
+		else
+			writer.Write(definition.OutOfScopeOwnerName);
+		writer.Write(".");
+	}
+
+	static bool SourceHasDeclarator(Definition definition, string name)
+	{
+		if (definition.SourceSyntax is not MemberDeclarationSyntax syntax)
+			return false;
+		foreach (MemberDeclaratorSyntax declarator in syntax.Declarators ?? [])
+			if (declarator.Keyword?.Value == name)
+				return true;
+		return false;
 	}
 
 	static bool ShouldSuppressApiInitializer(VariableDefinition definition)

@@ -122,6 +122,8 @@ public class MemberDeclarationSyntax : SyntaxNode
 	public List<MemberDeclaratorSyntax>? Declarators { get; set; }
 	public Token? CallSpec { get; set; }
 	public TypeSyntax? Type { get; set; }
+	public TypeSyntax? OutOfScopeOwnerType { get; set; }
+	public Token? OutOfScopeDotToken { get; set; }
 	public Token? TildeToken { get; set; }
 	public Token? Identifier { get; set; }
 	public GenericParameterListSyntax? GenericParameterList { get; set; }

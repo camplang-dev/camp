@@ -38,6 +38,9 @@ public abstract class Definition : BindableNode
 	public string? Public { get; set; }
 	public string? Extern { get; set; }
 	public bool IsApiHeader { get; set; }
+	public TypeReference? OutOfScopeOwnerType { get; set; }
+	public string? OutOfScopeOwnerName { get; set; }
+	public string? OutOfScopeOwnerSymbol { get; set; }
 	internal GeneratedDeclarationInfo? GeneratedInfo { get; set; }
 }
 

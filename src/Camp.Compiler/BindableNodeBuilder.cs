@@ -148,7 +148,8 @@ public sealed partial class BindableNodeBuilder
 		{
 			if (IsMethodDeclaration(syntax.MemberDeclaration))
 			{
-					if (BuildFunctionDefinition(syntax.MemberDeclaration, isGlobal: true, allowVirtual: false) is FunctionDefinition function)
+				bool outOfScopeMember = syntax.MemberDeclaration.OutOfScopeOwnerType is not null;
+				if (BuildFunctionDefinition(syntax.MemberDeclaration, isGlobal: !outOfScopeMember, allowVirtual: false) is FunctionDefinition function)
 					module.Definitions.Add(function);
 			}
 			else if (BuildVariableDefinition(syntax.MemberDeclaration, isGlobal: true) is VariableDefinition variable)
@@ -608,11 +609,12 @@ public sealed partial class BindableNodeBuilder
 			SourceSyntax = syntax,
 			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Variable declaration is missing a name."),
 			Symbol = syntax.Identifier?.Value ?? "",
-			Type = BuildTypeReference(syntax.Type)
+			Type = BuildTypeReference(syntax.Type),
+			OutOfScopeOwnerType = syntax.OutOfScopeOwnerType is null ? null : BuildTypeReference(syntax.OutOfScopeOwnerType)
 		};
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
-		ApplyVariableDeclarators(definition, syntax.Declarators, isGlobal);
+		ApplyVariableDeclarators(definition, syntax.Declarators, isGlobal, syntax.OutOfScopeOwnerType is not null);
 
 		if (IsVoid(definition.Type))
 			Report(syntax.Type, "Variables may not have type void.");
@@ -625,6 +627,9 @@ public sealed partial class BindableNodeBuilder
 
 	FieldDefinition? BuildFieldDefinition(MemberDeclarationSyntax syntax)
 	{
+		if (syntax.OutOfScopeOwnerType is not null)
+			Report(syntax.OutOfScopeOwnerType, "Out-of-scope type member declarations are valid only at file scope.");
+
 		if (syntax.TildeToken is not null)
 			Report(syntax.TildeToken.Value.Range, "Destructor declarations are not fields.");
 
@@ -665,6 +670,9 @@ public sealed partial class BindableNodeBuilder
 		bool isInterface = false,
 		bool allowBodylessWithoutExtern = false)
 	{
+		if (syntax.OutOfScopeOwnerType is not null && containingTypeName is not null)
+			Report(syntax.OutOfScopeOwnerType, "Out-of-scope type member declarations are valid only at file scope.");
+
 		if (syntax.Assignment is not null && !isInterface)
 			Report(syntax.Assignment, "Methods may not have variable-style initializers.");
 
@@ -678,7 +686,8 @@ public sealed partial class BindableNodeBuilder
 			Name = !isDestructor
 				? GetRequiredIdentifier(syntax.Identifier, syntax, "Method declaration is missing a name.")
 				: "~" + GetRequiredIdentifier(syntax.Identifier, syntax, "Destructor declaration is missing a name."),
-			Symbol = syntax.Identifier?.Value ?? ""
+			Symbol = syntax.Identifier?.Value ?? "",
+			OutOfScopeOwnerType = syntax.OutOfScopeOwnerType is null ? null : BuildTypeReference(syntax.OutOfScopeOwnerType)
 		};
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
@@ -1120,7 +1129,7 @@ public sealed partial class BindableNodeBuilder
 		}
 	}
 
-	void ApplyVariableDeclarators(VariableDefinition definition, List<MemberDeclaratorSyntax>? declarators, bool isGlobal)
+	void ApplyVariableDeclarators(VariableDefinition definition, List<MemberDeclaratorSyntax>? declarators, bool isGlobal, bool allowGlobalStatic = false)
 	{
 		foreach (MemberDeclaratorSyntax declarator in declarators ?? [])
 		{
@@ -1147,7 +1156,7 @@ public sealed partial class BindableNodeBuilder
 					break;
 
 				case "static":
-					if (isGlobal)
+					if (isGlobal && !allowGlobalStatic)
 						Report(declarator, "'static' is not valid on a global variable.");
 					break;
 

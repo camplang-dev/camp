@@ -3532,7 +3532,17 @@ A static method may not declare an explicit `this` parameter.
 
 Static methods are still ordinary functions at the ABI level. They simply do not carry `this`.
 
-A static method's symbol is the declaring type name, followed by `_`, followed by the method name. A static method declared out of scope is written directly using that canonical symbol name.
+A static method's symbol is the declaring type name, followed by `_`, followed by the method name. A static method may also be declared at file scope with an explicit owner:
+
+```camp
+static string Button.getClassID() => "Class:Button";
+export inline int int.MAX = 2147483647;
+export static const HashPolicy<sbyte> sbyte.HASH_POLICY = { .hash = SByte_hashcode, .equals = SByte_hashEquals };
+```
+
+This out-of-scope member form is only for non-instance type members. It is valid for class, struct, newtype, and non-`void` primitive owners. It is not valid for interfaces, enums, params types, aliases, pointer types, array types, callable types, `void`, or constructed generic owners. Out-of-scope methods must be explicitly `static`; instance extensions continue to use an explicit `this` parameter. Out-of-scope `const` fields must be explicitly `static`; `inline` follows the ordinary inline rules.
+
+Out-of-scope type members use the same symbol, lookup, metadata, and C ABI surface as if they had been declared inside the owning type. For primitives, the default symbol owner is the primitive's PascalCase ABI name, so `int.MAX` uses `Int_MAX`. `@symbol(...)` may override the emitted symbol in the usual way. Camp API output preserves the out-of-scope source form.
 
 When an expression begins with `TypeName.`, or with a namespace-qualified type name followed by `.`, the type name must resolve to a known type. Static lookup then includes visible no-receiver functions whose symbols begin with `TypeName_`; the member name is the portion after the underscore.
 
@@ -3547,8 +3557,11 @@ class List<T: any>
 	static int getDefaultCapacity() => List.DEFAULT_CAPACITY;
 }
 
+static List<U> List.createCopyableInstance<U: copyable>(sizeof(U)) => new List<U>();
+
 int capacity = List.DEFAULT_CAPACITY;      // OK
 int also = List.getDefaultCapacity();      // OK
+auto list = List.createCopyableInstance<int>(); // OK
 int bad = List<int>.DEFAULT_CAPACITY;      // ERROR
 ```
 
@@ -7517,17 +7530,21 @@ export inline uint MAX_PLAYERS = MAX_DEVICES - 1;
 inline string APP_NAME = "Camp";
 ```
 
-`inline` is valid at file scope and inside `struct`, `class`, and `newtype`
-bodies. Type-scoped inline constants are associated with the type, but they are
-not instance fields and do not affect layout. For generic types, type-scoped
-inline constants are accessed through the generic type definition name, not
-through a constructed generic type.
+`inline` is valid at file scope, inside `struct`, `class`, and `newtype`
+bodies, and in out-of-scope type member declarations whose owner is a class,
+struct, newtype, or non-`void` primitive. Type-scoped inline constants are
+associated with the type, but they are not instance fields and do not affect
+layout. For generic types, type-scoped inline constants are declared and
+accessed through the generic type definition name, not through a constructed
+generic type.
 
 ```camp
 struct ListDefaults
 {
 	inline uint INITIAL_CAPACITY = 8;
 }
+
+export inline int int.MAX = 2147483647;
 ```
 
 The initializer is required and must be a compile-time constant expression
