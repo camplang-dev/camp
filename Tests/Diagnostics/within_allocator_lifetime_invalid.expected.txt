@@ -1,0 +1,3 @@
+tests/Diagnostics/within_allocator_lifetime_invalid.camp(11,20): error: Assignment cannot store a scoped pointer-bearing value in storage tied to 'this'.
+tests/Diagnostics/within_allocator_lifetime_invalid.camp(21,20): error: Assignment cannot store a non-escaped pointer-bearing value in escaped storage.
+tests/Diagnostics/within_allocator_lifetime_invalid.camp(31,20): error: Assignment cannot store a non-escaped pointer-bearing value in escaped storage.

@@ -1,0 +1,83 @@
+// file: within_allocator_lifetime_parameters.c
+#include "within_allocator_lifetime_parameters_private.h"
+
+/* Private file declarations. */
+static void ScopedHolder_keep(ScopedHolder *this, Allocator *allocator);
+static void UnscopedUser_use(UnscopedUser *this, Allocator *allocator);
+static void EscapedHolder_keep(EscapedHolder *this, Allocator *allocator);
+static void EscapedFieldHolder_keep(EscapedFieldHolder *this, Allocator *allocator);
+static int main(void);
+
+static void ScopedHolder_keep(ScopedHolder *this, Allocator *allocator)
+{
+	this->allocator = allocator;
+}
+
+static void UnscopedUser_use(UnscopedUser *this, Allocator *allocator)
+{
+}
+
+static void EscapedHolder_keep(EscapedHolder *this, Allocator *allocator)
+{
+	this->allocator = allocator;
+}
+
+static void EscapedFieldHolder_keep(EscapedFieldHolder *this, Allocator *allocator)
+{
+	this->allocator = allocator;
+}
+
+static int main(void)
+{
+	return 0;
+}
+
+// file: within_allocator_lifetime_parameters_private.h
+#ifndef WITHIN_ALLOCATOR_LIFETIME_PARAMETERS_PRIVATE_H_
+#define WITHIN_ALLOCATOR_LIFETIME_PARAMETERS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Allocator Allocator;
+typedef struct ScopedHolder ScopedHolder;
+typedef struct UnscopedUser UnscopedUser;
+typedef struct EscapedHolder EscapedHolder;
+typedef struct EscapedFieldHolder EscapedFieldHolder;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Allocator
+{
+	char _camp_empty;
+};
+struct ScopedHolder
+{
+	Allocator *allocator;
+};
+struct UnscopedUser
+{
+	char _camp_empty;
+};
+struct EscapedHolder
+{
+	Allocator *allocator;
+};
+struct EscapedFieldHolder
+{
+	Allocator *allocator;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: within_allocator_lifetime_parameters.c

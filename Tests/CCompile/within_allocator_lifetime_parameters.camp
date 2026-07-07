@@ -1,0 +1,45 @@
+class Allocator
+{
+}
+
+class ScopedHolder
+{
+	Allocator* allocator;
+
+	void keep(within scoped allocator)
+	{
+		this.allocator = allocator;
+	}
+}
+
+class UnscopedUser
+{
+	void use(within unscoped allocator)
+	{
+	}
+}
+
+escaped class EscapedHolder
+{
+	Allocator* allocator;
+
+	void keep(within escaped allocator)
+	{
+		this.allocator = allocator;
+	}
+}
+
+class EscapedFieldHolder
+{
+	escaped Allocator* allocator;
+
+	void keep(within escaped allocator)
+	{
+		this.allocator = allocator;
+	}
+}
+
+int main()
+{
+	return 0;
+}

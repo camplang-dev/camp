@@ -1,0 +1,33 @@
+class Allocator
+{
+}
+
+class DefaultAllocatorHolder
+{
+	Allocator* allocator;
+
+	void keep(within allocator)
+	{
+		this.allocator = allocator;
+	}
+}
+
+escaped class EscapedClassHolder
+{
+	Allocator* allocator;
+
+	void keep(within scoped allocator)
+	{
+		this.allocator = allocator;
+	}
+}
+
+class EscapedFieldHolder
+{
+	escaped Allocator* allocator;
+
+	void keep(within scoped allocator)
+	{
+		this.allocator = allocator;
+	}
+}
