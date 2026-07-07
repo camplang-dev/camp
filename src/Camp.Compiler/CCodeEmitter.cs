@@ -5661,6 +5661,7 @@ public static class CCodeEmitter
 				{
 					null => "0",
 					ArrayExpression array => FormatFixedArrayInitializer(array),
+					InitializerExpression nested => FormatInitializer(nested, includeType: false),
 					_ => FormatAssignmentValueForTarget(item.TargetStorageResolvedType ?? item.TargetResolvedType ?? item.ResolvedType, item.Expression, item.TargetStorageGenericNames)
 				};
 				string? target = FormatInitializerTarget(item.Target);
