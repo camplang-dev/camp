@@ -2053,20 +2053,24 @@ public sealed partial class BindableNodeAnalyzer
 		switch (type)
 		{
 			case ClassDefinition classDefinition:
+				Dictionary<string, string> classSubstitutions = [];
+				AddConstructedTypeGenericSubstitutions(targetType, classSubstitutions);
 				foreach (FieldDefinition field in classDefinition.Fields)
 				{
 					if (field.Name == name && IsMemberVisible(field, classDefinition, referenceSyntax))
-						members.Add(new BodySymbol(name, field.ResolvedType ?? ErrorType, field));
-					AddExpandedFieldMemberSymbol(members, field, name, classDefinition, referenceSyntax);
+						members.Add(new BodySymbol(name, SubstituteGenericType(field.ResolvedType ?? ErrorType, classSubstitutions), field));
+					AddExpandedFieldMemberSymbol(members, field, name, classDefinition, referenceSyntax, classSubstitutions);
 				}
 				break;
 
 			case StructDefinition structDefinition:
+				Dictionary<string, string> structSubstitutions = [];
+				AddConstructedTypeGenericSubstitutions(targetType, structSubstitutions);
 				foreach (FieldDefinition field in structDefinition.Fields)
 				{
 					if (field.Name == name && IsMemberVisible(field, structDefinition, referenceSyntax))
-						members.Add(new BodySymbol(name, field.ResolvedType ?? ErrorType, field));
-					AddExpandedFieldMemberSymbol(members, field, name, structDefinition, referenceSyntax);
+						members.Add(new BodySymbol(name, SubstituteGenericType(field.ResolvedType ?? ErrorType, structSubstitutions), field));
+					AddExpandedFieldMemberSymbol(members, field, name, structDefinition, referenceSyntax, structSubstitutions);
 				}
 				break;
 
@@ -2111,9 +2115,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	string GetGetterMemberType(string targetType, FunctionDefinition getter, SyntaxNode? syntax)
 	{
+		Dictionary<string, string> genericSubstitutions = [];
+		AddReceiverTypeGenericSubstitutions(targetType, getter, genericSubstitutions);
 		Dictionary<string, bool> constOfAnchors = [];
 		AddReceiverConstOfAnchorFact(targetType, getter, constOfAnchors, syntax);
-		return SubstituteConstOfResolvedType(getter.ReturnType, getter.ResolvedType ?? ErrorType, constOfAnchors);
+		return SubstituteConstOfResolvedType(getter.ReturnType, getter.ResolvedType ?? ErrorType, constOfAnchors, genericSubstitutions);
 	}
 
 	List<BodySymbol> LookupStaticMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax)
@@ -2125,7 +2131,11 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FieldDefinition field in GetTypeFields(type))
 		{
 			if (field.Modifier == FieldModifier.Static && field.Name == name && IsMemberVisible(field, type, referenceSyntax))
-				members.Add(new BodySymbol(name, field.ResolvedType ?? ErrorType, field, IsConstantField(field)));
+			{
+				Dictionary<string, string> substitutions = [];
+				AddConstructedTypeGenericSubstitutions(targetType, substitutions);
+				members.Add(new BodySymbol(name, SubstituteGenericType(field.ResolvedType ?? ErrorType, substitutions), field, IsConstantField(field)));
+			}
 		}
 
 		if (type is EnumDefinition enumDefinition)
@@ -2191,11 +2201,14 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
-	void AddExpandedFieldMemberSymbol(List<BodySymbol> members, FieldDefinition field, string name, TypeDefinition owner, SyntaxNode? referenceSyntax)
+	void AddExpandedFieldMemberSymbol(List<BodySymbol> members, FieldDefinition field, string name, TypeDefinition owner, SyntaxNode? referenceSyntax, Dictionary<string, string>? substitutions = null)
 	{
 		if (!IsMemberVisible(field, owner, referenceSyntax))
 			return;
-		if (!TryGetParamsComponentShape(field.Type, field.ResolvedType, field.Name, out ParamsComponentShape shape))
+		string resolvedType = substitutions is { Count: > 0 }
+			? SubstituteGenericType(field.ResolvedType ?? ErrorType, substitutions)
+			: field.ResolvedType ?? ErrorType;
+		if (!TryGetParamsComponentShape(field.Type, resolvedType, field.Name, out ParamsComponentShape shape))
 			return;
 
 		foreach (ParamsComponent component in shape.Components)

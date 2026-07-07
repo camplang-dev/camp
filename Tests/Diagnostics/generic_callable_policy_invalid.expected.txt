@@ -1,0 +1,2 @@
+tests/Diagnostics/generic_callable_policy_invalid.camp(19,41): error: Delegate field initializer cannot use a bare function because delegate storage requires a context-bearing call component. Use a delegate value or a function with an explicit context parameter.
+tests/Diagnostics/generic_callable_policy_invalid.camp(19,60): error: Delegate field initializer cannot use a bare function because delegate storage requires a context-bearing call component. Use a delegate value or a function with an explicit context parameter.

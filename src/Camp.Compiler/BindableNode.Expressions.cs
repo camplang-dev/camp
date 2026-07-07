@@ -78,6 +78,9 @@ public class InitializerItem : BindableNode
 {
 	public InitializerTarget? Target { get; set; }
 	public Expression? Expression { get; set; }
+	internal string? TargetResolvedType { get; set; }
+	internal string? TargetStorageResolvedType { get; set; }
+	internal List<string> TargetStorageGenericNames { get; } = [];
 }
 
 public class InitializerTarget : BindableNode

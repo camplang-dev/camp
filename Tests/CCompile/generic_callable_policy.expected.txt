@@ -1,0 +1,140 @@
+// file: generic_callable_policy.c
+#include "generic_callable_policy_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void HashSet_op_initnew(HashSet *this, HashPolicy policy, uintptr_t sizeof_K);
+static HashSet *HashSet_create(HashPolicy policy, uintptr_t sizeof_K);
+static uintptr_t hashInt(int *key);
+static bool equalsInt(int *left, int *right);
+static uintptr_t hashIntWithContext(void *context, int *key);
+static bool equalsIntWithContext(void *context, int *left, int *right);
+
+static void HashSet_op_initnew(HashSet *this, HashPolicy policy, uintptr_t sizeof_K)
+{
+	this->_sizeof_K = sizeof_K;
+	this->policy = policy;
+}
+
+static HashSet *HashSet_create(HashPolicy policy, uintptr_t sizeof_K)
+{
+	HashSet *_created0 = (HashSet *)(malloc(sizeof(HashSet)));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (HashSet){0};
+		HashSet_op_initnew(_created0, policy, sizeof_K);
+	}
+	return _created0;
+}
+
+static uintptr_t hashInt(int *key)
+{
+	return (uintptr_t)((*key));
+}
+
+static bool equalsInt(int *left, int *right)
+{
+	return ((*left) == (*right));
+}
+
+static uintptr_t hashIntWithContext(void *context, int *key)
+{
+	return (uintptr_t)((*key));
+}
+
+static bool equalsIntWithContext(void *context, int *left, int *right)
+{
+	return ((*left) == (*right));
+}
+
+int main(void)
+{
+	HashCode hashCode = (HashCode)hashInt;
+	if ((hashCode(&(int){42}) != 42))
+	{
+		return 1;
+	}
+	HashPolicy policy = (HashPolicy){ .hash = (uintptr_t (*)(void *arg0))hashInt, .equals = (bool (*)(void *arg0, void *arg1))equalsInt };
+	if ((!policy.equals(&(int){5}, &(int){5}) || (policy.hash(&(int){42}) != 42)))
+	{
+		return 2;
+	}
+	uintptr_t (* hash)(void *arg0, int *arg1) = hashIntWithContext;
+	void *hash_context = NULL;
+	bool (* equals)(void *arg0, int *arg1, int *arg2) = equalsIntWithContext;
+	void *equals_context = NULL;
+	DelegatePolicy delegatePolicy = (DelegatePolicy){ .hash = (uintptr_t (*)(void *arg0, void *arg1))hash, .hash_context = hash_context, .equals = (bool (*)(void *arg0, void *arg1, void *arg2))equals, .equals_context = equals_context };
+	if ((!delegatePolicy.equals(delegatePolicy.equals_context, &(int){6}, &(int){6}) || (delegatePolicy.hash(delegatePolicy.hash_context, &(int){43}) != 43)))
+	{
+		return 3;
+	}
+	HashSet *set = (HashSet *)(malloc(sizeof(HashSet)));
+	if ((set != NULL))
+	{
+		*set = (HashSet){0};
+		HashSet_op_initnew(set, policy, sizeof(int));
+	}
+	if ((!set->policy.equals(&(int){7}, &(int){7}) || (set->policy.hash(&(int){44}) != 44)))
+	{
+		return 4;
+	}
+	free((void *)(set));
+	return 0;
+}
+
+// file: generic_callable_policy.h
+#ifndef GENERIC_CALLABLE_POLICY_H_
+#define GENERIC_CALLABLE_POLICY_H_
+
+#include "generic_callable_policy_private.h"
+
+int main(void);
+
+#endif
+// file: generic_callable_policy_private.h
+#ifndef GENERIC_CALLABLE_POLICY_PRIVATE_H_
+#define GENERIC_CALLABLE_POLICY_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct HashPolicy HashPolicy;
+typedef struct DelegatePolicy DelegatePolicy;
+typedef struct HashSet HashSet;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef uintptr_t (* HashCode)(void *key);
+
+/* Layouts. */
+struct HashPolicy
+{
+	uintptr_t (* hash)(void *key);
+	bool (* equals)(void *left, void *right);
+};
+struct DelegatePolicy
+{
+	uintptr_t (* hash)(void *arg0, void *arg1);
+	void *hash_context;
+	bool (* equals)(void *arg0, void *arg1, void *arg2);
+	void *equals_context;
+};
+struct HashSet
+{
+	HashPolicy policy;
+	uintptr_t _sizeof_K;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: generic_callable_policy.c

@@ -29,23 +29,25 @@ public sealed partial class BindableNodeAnalyzer
 		if (typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition)
 			&& definition is NewtypeDefinition { UnderlyingType: not null } newtypeDefinition)
 		{
+			Dictionary<string, string> substitutions = [];
+			AddConstructedTypeGenericSubstitutions(type, substitutions);
 			string underlyingType = newtypeDefinition.UnderlyingType.ResolvedType ?? ErrorType;
-				if (TryParseCallableShape(underlyingType, out shape))
-				{
-					ThisContract thisContract = GetCallableNewtypeThisContract(newtypeDefinition);
-					if (newtypeDefinition.Parameters.Count > 0)
-						shape = new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, [.. GetCallableParameterTypeNames(newtypeDefinition.Parameters)], thisContract);
-					else
-						shape = shape with { This = thisContract };
-					return true;
-				}
+			if (TryParseCallableShape(underlyingType, out shape))
+			{
+				ThisContract thisContract = GetCallableNewtypeThisContract(newtypeDefinition);
+				if (newtypeDefinition.Parameters.Count > 0)
+					shape = new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, SubstituteGenericType(shape.ReturnType, substitutions), [.. GetCallableParameterTypeNames(newtypeDefinition.Parameters).Select(parameter => SubstituteGenericType(parameter, substitutions))], thisContract);
+				else
+					shape = shape with { ReturnType = SubstituteGenericType(shape.ReturnType, substitutions), This = thisContract };
+				return true;
+			}
 
 			if (newtypeDefinition.UnderlyingType is IterTypeReference
 				&& TryGetIteratorProtocolParameterTypes(underlyingType, out List<string>? iterParameters)
 				&& iterParameters is not null)
 			{
-				List<string> parameters = [.. iterParameters];
-				parameters.AddRange(GetExpandedCallableParameterTypes(newtypeDefinition.Parameters));
+				List<string> parameters = [.. iterParameters.Select(parameter => SubstituteGenericType(parameter, substitutions))];
+				parameters.AddRange(GetExpandedCallableParameterTypes(newtypeDefinition.Parameters).Select(parameter => SubstituteGenericType(parameter, substitutions)));
 				shape = new CallableShape("iter", null, null, "bool", parameters, GetCallableNewtypeThisContract(newtypeDefinition));
 				return true;
 			}

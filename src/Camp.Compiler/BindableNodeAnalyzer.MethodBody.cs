@@ -1353,6 +1353,13 @@ public sealed partial class BindableNodeAnalyzer
 			return targetType ?? TargetType;
 		}
 
+		if (TryGetAggregateInitializerFields(targetType, initializer.SourceSyntax, out List<AggregateInitializerField> fields))
+		{
+			initializer.ResolvedType = targetType;
+			AnalyzeAggregateInitializerExpression(initializer, fields, scope, typeScope);
+			return targetType ?? TargetType;
+		}
+
 		foreach (InitializerItem item in initializer.Items)
 		{
 			if (item.Target is not null)
@@ -1361,6 +1368,126 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return targetType ?? TargetType;
+	}
+
+	readonly record struct AggregateInitializerField(string Name, string Type, string StorageType, List<string> StorageGenericNames);
+
+	bool TryGetAggregateInitializerFields(string? targetType, SyntaxNode? syntax, out List<AggregateInitializerField> fields)
+	{
+		fields = [];
+		if (syntax is null || string.IsNullOrWhiteSpace(targetType) || targetType == TargetType || targetType == ErrorType)
+			return false;
+		string baseName = BaseTypeName(targetType);
+		if (!typeDefinitions.TryGetValue(baseName, out TypeDefinition? definition))
+			return false;
+		IEnumerable<FieldDefinition> sourceFields = definition switch
+		{
+			StructDefinition structDefinition => structDefinition.Fields,
+			ClassDefinition classDefinition => classDefinition.Fields,
+			_ => []
+		};
+		Dictionary<string, string> substitutions = [];
+		AddConstructedTypeGenericSubstitutions(targetType, substitutions);
+		List<string> storageGenericNames = [.. definition.GenericParameters.Select(static parameter => parameter.Name)];
+		foreach (FieldDefinition field in sourceFields)
+		{
+			if (!IsMemberVisible(field, definition, syntax))
+				continue;
+			string storageType = field.ResolvedType ?? ErrorType;
+			string fieldType = field.ResolvedType ?? ErrorType;
+			if (substitutions.Count > 0)
+				fieldType = SubstituteGenericType(fieldType, substitutions);
+			fields.Add(new AggregateInitializerField(field.Name, fieldType, storageType, storageGenericNames));
+		}
+		return fields.Count > 0;
+	}
+
+	void AnalyzeAggregateInitializerExpression(InitializerExpression initializer, List<AggregateInitializerField> fields, BodyScope scope, AnalysisScope typeScope)
+	{
+		bool hasNamed = false;
+		bool hasPositional = false;
+		HashSet<string> seen = [];
+		int positionalIndex = 0;
+
+		foreach (InitializerItem item in initializer.Items)
+		{
+			string? targetName = GetSingleInitializerTargetName(item.Target);
+			if (targetName is null)
+			{
+				hasPositional = true;
+				if (hasNamed)
+					Report(GetRange(item.Expression?.SourceSyntax ?? item.SourceSyntax), "Initializer cannot mix named and positional fields.");
+				if (positionalIndex >= fields.Count)
+				{
+					Report(GetRange(item.Expression?.SourceSyntax ?? item.SourceSyntax), "Initializer has too many fields.");
+					item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope);
+					positionalIndex++;
+					continue;
+				}
+
+				AggregateInitializerField field = fields[positionalIndex++];
+				item.TargetResolvedType = field.Type;
+				item.TargetStorageResolvedType = field.StorageType;
+				item.TargetStorageGenericNames.AddRange(field.StorageGenericNames);
+				item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, field.Type);
+				ReportUnsupportedFunctionToDelegateInitializer(field.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
+				CheckInitializerFieldAssignable(field.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
+				continue;
+			}
+
+			hasNamed = true;
+			if (hasPositional)
+				Report(GetRange(GetInitializerItemDiagnosticSyntax(item)), "Initializer cannot mix named and positional fields.");
+			if (!seen.Add(targetName))
+				Report(GetRange(GetInitializerItemDiagnosticSyntax(item)), $"Initializer field '{targetName}' is specified more than once.");
+			AggregateInitializerField namedField = fields.FirstOrDefault(field => field.Name == targetName);
+			if (namedField.Name is null)
+			{
+				Report(GetRange(GetInitializerItemDiagnosticSyntax(item)), $"Initializer has no field named '{targetName}'.");
+				if (item.Target is not null)
+					BodyAnalyzeInitializerTarget(item.Target, scope, typeScope);
+				item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope);
+				continue;
+			}
+
+			BodyAnalyzeInitializerTarget(item.Target!, scope, typeScope);
+			item.TargetResolvedType = namedField.Type;
+			item.TargetStorageResolvedType = namedField.StorageType;
+			item.TargetStorageGenericNames.AddRange(namedField.StorageGenericNames);
+			item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, namedField.Type);
+			ReportUnsupportedFunctionToDelegateInitializer(namedField.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
+			CheckInitializerFieldAssignable(namedField.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
+		}
+	}
+
+	void CheckInitializerFieldAssignable(string expected, string actual, SyntaxNode? syntax)
+	{
+		if (IsExpandedDelegateStorageCompatible(expected, actual))
+			return;
+		CheckAssignable(expected, actual, syntax, "Initializer field");
+	}
+
+	bool IsExpandedDelegateStorageCompatible(string expected, string actual)
+	{
+		if (!TryGetParamsComponentShape(null, expected, "value", out ParamsComponentShape expectedShape)
+			|| expectedShape.Kind != ParamsComponentShapeKind.Delegate
+			|| !TryGetParamsComponentShape(null, actual, "value", out ParamsComponentShape actualShape)
+			|| actualShape.Kind != ParamsComponentShapeKind.Delegate
+			|| expectedShape.Components.Count != actualShape.Components.Count)
+			return false;
+		for (int i = 0; i < expectedShape.Components.Count; i++)
+			if (!CanAssignToType(expectedShape.Components[i].Type, actualShape.Components[i].Type))
+				return false;
+		return true;
+	}
+
+	void ReportUnsupportedFunctionToDelegateInitializer(string targetType, string actualType, SyntaxNode? syntax)
+	{
+		if (!TryGetCallableShape(targetType, out CallableShape target) || target.Kind is not "delegate" and not "once")
+			return;
+		if (!TryGetCallableShape(actualType, out CallableShape actual) || actual.Kind != "fn")
+			return;
+		Report(GetRange(syntax), "Delegate field initializer cannot use a bare function because delegate storage requires a context-bearing call component. Use a delegate value or a function with an explicit context parameter.");
 	}
 
 	void AnalyzeExpandedInitializerExpression(InitializerExpression initializer, ParamsComponentShape shape, BodyScope scope, AnalysisScope typeScope)
@@ -1525,7 +1652,9 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (constructor is not null)
 			constructionTargets[construction] = constructor;
-		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? create?.Parameters ?? [], scope, typeScope, construction.SourceSyntax);
+		Dictionary<string, string> constructionGenericSubstitutions = [];
+		AddConstructedTypeGenericSubstitutions(targetType, constructionGenericSubstitutions);
+		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? create?.Parameters ?? [], scope, typeScope, construction.SourceSyntax, genericSubstitutions: constructionGenericSubstitutions);
 		BodyAnalyzeExpression(construction.ElementCount, scope, typeScope, "nuint");
 		if (construction.Initializer is not null)
 			BodyAnalyzeInitializerExpression(construction.Initializer, scope, typeScope, targetType);
@@ -2247,21 +2376,35 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		parameters = [];
+		Dictionary<string, string> substitutions = [];
+		AddConstructedTypeGenericSubstitutions(callableType, substitutions);
 		List<ParameterDefinition> protocolParameters = [];
 		if (GetCallableNewtypeFamily(newtypeDefinition) == "iter"
 			&& newtypeDefinition.UnderlyingType?.ResolvedType is string underlyingType
 			&& TryGetIteratorProtocolParameterTypes(underlyingType, out List<string>? iteratorParameters)
 			&& iteratorParameters is not null)
-			protocolParameters.AddRange(CreateStructuralCallableParameters(iteratorParameters));
+			protocolParameters.AddRange(CreateStructuralCallableParameters([.. iteratorParameters.Select(parameter => SubstituteGenericType(parameter, substitutions))]));
 		parameters.AddRange(protocolParameters);
 		foreach (ParameterDefinition parameter in newtypeDefinition.Parameters)
-			parameters.Add(CloneParameter(parameter));
+			parameters.Add(CloneParameterWithGenericSubstitutions(parameter, substitutions));
 		if (arguments.Count > parameters.Count || HasExplicitHiddenArgument(arguments))
 		{
 			parameters = [.. protocolParameters];
-			parameters.AddRange(CreateStructuralCallableParameters(GetExpandedCallableParameterTypes(newtypeDefinition.Parameters)));
+			parameters.AddRange(CreateStructuralCallableParameters([.. GetExpandedCallableParameterTypes(newtypeDefinition.Parameters).Select(parameter => SubstituteGenericType(parameter, substitutions))]));
 		}
 		return true;
+	}
+
+	static ParameterDefinition CloneParameterWithGenericSubstitutions(ParameterDefinition parameter, Dictionary<string, string> substitutions)
+	{
+		ParameterDefinition clone = CloneParameter(parameter);
+		if (substitutions.Count == 0)
+			return clone;
+		if (clone.ResolvedType is not null)
+			clone.ResolvedType = SubstituteGenericType(clone.ResolvedType, substitutions);
+		if (clone.Type is not null && clone.Type.ResolvedType is not null)
+			clone.Type.ResolvedType = SubstituteGenericType(clone.Type.ResolvedType, substitutions);
+		return clone;
 	}
 
 	static List<ParameterDefinition> CreateStructuralCallableParameters(List<string> parameterTypes)

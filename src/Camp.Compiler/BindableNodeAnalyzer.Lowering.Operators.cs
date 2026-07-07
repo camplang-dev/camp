@@ -72,13 +72,60 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			InitializerItem item = initializer.Items[i];
 			item.Expression = LowerExpression(item.Expression);
-			if (!TryExpandInitializerItem(item, out List<InitializerItem>? expandedItems))
+			List<InitializerItem>? expandedItems;
+			if (TryExpandDelegateInitializerItem(item, out expandedItems))
+			{
+				initializer.Items.RemoveAt(i);
+				initializer.Items.InsertRange(i, expandedItems);
+				i += expandedItems.Count - 1;
+				continue;
+			}
+			if (!TryExpandInitializerItem(item, out expandedItems))
 				continue;
 
 			initializer.Items.RemoveAt(i);
 			initializer.Items.InsertRange(i, expandedItems);
 			i += expandedItems.Count - 1;
 		}
+	}
+
+	bool TryExpandDelegateInitializerItem(InitializerItem item, out List<InitializerItem> expandedItems)
+	{
+		expandedItems = [];
+		string? targetName = GetSingleInitializerTargetName(item.Target);
+		if (targetName is null || item.Expression is null)
+			return false;
+		string storageType = item.TargetStorageResolvedType ?? item.TargetResolvedType ?? "";
+		string semanticType = item.TargetResolvedType ?? storageType;
+		if (!TryGetParamsComponentShape(null, storageType, targetName, out ParamsComponentShape storageShape)
+			|| storageShape.Kind != ParamsComponentShapeKind.Delegate
+			|| storageShape.Components.Count != 2)
+			return false;
+		if (!TryGetCallableShape(item.Expression.ResolvedType, out CallableShape source) || source.Kind != "fn")
+			return false;
+
+		TryGetParamsComponentShape(null, semanticType, targetName, out ParamsComponentShape semanticShape);
+		expandedItems.Add(new InitializerItem
+		{
+			SourceSyntax = item.SourceSyntax,
+			Target = InitializerTargetFor(storageShape.Components[0].ExpandedName),
+			Expression = item.Expression,
+			ResolvedType = item.Expression.ResolvedType,
+			TargetResolvedType = semanticShape.Components.Count > 0 ? semanticShape.Components[0].Type : storageShape.Components[0].Type,
+			TargetStorageResolvedType = storageShape.Components[0].Type
+		});
+		expandedItems[0].TargetStorageGenericNames.AddRange(item.TargetStorageGenericNames);
+		expandedItems.Add(new InitializerItem
+		{
+			SourceSyntax = item.SourceSyntax,
+			Target = InitializerTargetFor(storageShape.Components[1].ExpandedName),
+			Expression = NullLiteral(item.SourceSyntax),
+			ResolvedType = "#NULL",
+			TargetResolvedType = semanticShape.Components.Count > 1 ? semanticShape.Components[1].Type : storageShape.Components[1].Type,
+			TargetStorageResolvedType = storageShape.Components[1].Type
+		});
+		expandedItems[1].TargetStorageGenericNames.AddRange(item.TargetStorageGenericNames);
+		return true;
 	}
 
 	bool TryExpandInitializerItem(InitializerItem item, out List<InitializerItem> expandedItems)
@@ -90,6 +137,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		string? firstComponentName = GetInitializerComponentName(components[0]);
 		string? remappedTargetPrefix = firstComponentName != targetName ? targetName : null;
+		bool hasStorageShape = TryGetParamsComponentShape(null, item.TargetStorageResolvedType ?? item.TargetResolvedType, targetName, out ParamsComponentShape storageShape);
 
 		for (int i = 0; i < components.Count; i++)
 		{
@@ -103,16 +151,30 @@ public sealed partial class BindableNodeAnalyzer
 			string expandedTargetName = remappedTargetPrefix is not null
 				? RemapGeneratedSafeInitializerTarget(remappedTargetPrefix, firstComponentName, componentName)
 				: componentName;
-			expandedItems.Add(new InitializerItem
+			InitializerItem expanded = new()
 			{
 				SourceSyntax = item.SourceSyntax,
 				Target = InitializerTargetFor(expandedTargetName),
 				Expression = component,
-				ResolvedType = component.ResolvedType
-			});
+				ResolvedType = component.ResolvedType,
+				TargetResolvedType = component.ResolvedType,
+				TargetStorageResolvedType = hasStorageShape
+					? FindExpandedParamsComponent(storageShape, expandedTargetName)?.Type
+					: null
+			};
+			expanded.TargetStorageGenericNames.AddRange(item.TargetStorageGenericNames);
+			expandedItems.Add(expanded);
 		}
 
 		return expandedItems.Count > 1;
+	}
+
+	static ParamsComponent? FindExpandedParamsComponent(ParamsComponentShape shape, string expandedName)
+	{
+		foreach (ParamsComponent component in shape.Components)
+			if (component.ExpandedName == expandedName)
+				return component;
+		return null;
 	}
 
 	static bool IsGeneratedSafeInitializerTarget(string name)

@@ -1,0 +1,21 @@
+struct DelegatePolicy<K: any>
+{
+	delegate nuint(in K key) hash;
+	delegate bool(in K left, in K right) equals;
+}
+
+nuint hashInt(in int key)
+{
+	return (nuint)key;
+}
+
+bool equalsInt(in int left, in int right)
+{
+	return left == right;
+}
+
+export int main()
+{
+	DelegatePolicy<int> policy = { .hash = hashInt, .equals = equalsInt };
+	return 0;
+}

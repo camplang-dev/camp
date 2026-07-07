@@ -1,0 +1,70 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+newtype fn nuint HashCode<K: any>(in K key);
+
+struct HashPolicy<K: any>
+{
+	fn nuint(in K key) hash;
+	fn bool(in K left, in K right) equals;
+}
+
+struct DelegatePolicy<K: any>
+{
+	delegate nuint(in K key) hash;
+	delegate bool(in K left, in K right) equals;
+}
+
+class HashSet<K: copyable>
+{
+	HashPolicy<K> policy;
+
+	HashSet(HashPolicy<K> policy, sizeof(K))
+	{
+		this.policy = policy;
+	}
+}
+
+nuint hashInt(in int key)
+{
+	return (nuint)key;
+}
+
+bool equalsInt(in int left, in int right)
+{
+	return left == right;
+}
+
+nuint hashIntWithContext(void* context, in int key)
+{
+	return (nuint)key;
+}
+
+bool equalsIntWithContext(void* context, in int left, in int right)
+{
+	return left == right;
+}
+
+export int main()
+{
+	HashCode<int> hashCode = hashInt;
+	if (hashCode(42) != 42)
+		return 1;
+
+	HashPolicy<int> policy = { .hash = hashInt, .equals = equalsInt };
+	if (!policy.equals(5, 5) || policy.hash(42) != 42)
+		return 2;
+
+	delegate nuint(in int) hash = { hashIntWithContext, null };
+	delegate bool(in int, in int) equals = { equalsIntWithContext, null };
+	DelegatePolicy<int> delegatePolicy = { .hash = hash, .equals = equals };
+	if (!delegatePolicy.equals(6, 6) || delegatePolicy.hash(43) != 43)
+		return 3;
+
+	auto set = new HashSet<int>(policy);
+	if (!set.policy.equals(7, 7) || set.policy.hash(44) != 44)
+		return 4;
+	delete set;
+
+	return 0;
+}

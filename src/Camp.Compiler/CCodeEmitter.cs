@@ -3824,8 +3824,72 @@ public static class CCodeEmitter
 			return true;
 		}
 
+		bool TryFormatCallableAssignmentCast(string targetType, Expression value, IReadOnlyCollection<string>? erasedGenericNames, out string cast)
+		{
+			cast = "";
+			if (!IsCallableSymbolExpression(value))
+				return false;
+			if (TryFormatCallableNewtypeCast(targetType, requireGenericErasure: erasedGenericNames is null || erasedGenericNames.Count == 0, out cast))
+				return true;
+			(string Cast, bool Success) result = WithErasedGenericNames(erasedGenericNames, () =>
+			{
+				bool success = TryFormatResolvedCallableCast(targetType, out string innerCast);
+				return (innerCast, success);
+			});
+			cast = result.Cast;
+			return result.Success;
+		}
+
+		bool TryFormatCallableNewtypeCast(string targetType, bool requireGenericErasure, out string cast)
+		{
+			cast = "";
+			string baseName = BaseResolvedTypeName(targetType);
+			foreach (Definition definition in GetDefinitions())
+			{
+				if (definition is not NewtypeDefinition newtypeDefinition)
+					continue;
+				if (newtypeDefinition.Name != baseName && CName(newtypeDefinition) != baseName)
+					continue;
+				if (newtypeDefinition.UnderlyingType is not CallableTypeReference and not IterTypeReference)
+					return false;
+				if (requireGenericErasure && newtypeDefinition.GenericParameters.Count == 0 && !targetType.Contains('<', StringComparison.Ordinal))
+					return false;
+				cast = FormatResolvedType(targetType, "").Declaration.Trim();
+				return true;
+			}
+			return false;
+		}
+
+		T WithErasedGenericNames<T>(IReadOnlyCollection<string>? names, Func<T> action)
+		{
+			if (names is null || names.Count == 0)
+				return action();
+			HashSet<string> previous = new(currentGenericTypeNames, StringComparer.Ordinal);
+			HashSet<string> previousAny = new(currentAnyGenericTypeNames, StringComparer.Ordinal);
+			foreach (string name in names)
+			{
+				currentGenericTypeNames.Add(name);
+				currentAnyGenericTypeNames.Add(name);
+			}
+			try
+			{
+				return action();
+			}
+			finally
+			{
+				currentGenericTypeNames.Clear();
+				foreach (string name in previous)
+					currentGenericTypeNames.Add(name);
+				currentAnyGenericTypeNames.Clear();
+				foreach (string name in previousAny)
+					currentAnyGenericTypeNames.Add(name);
+			}
+		}
+
 		bool ShouldCastCallableAssignment(Expression value, string targetType)
 		{
+			if (TryFormatCallableNewtypeCast(targetType, requireGenericErasure: true, out _))
+				return TryGetCallableShapeForEmitter(value.ResolvedType, out _);
 			if (!TryParseResolvedCallableType(targetType, out string targetReturn, out List<string> targetParameters, out string? targetTargetSpec, out string? targetCallSpec))
 				return false;
 			if (!TryParseResolvedCallableType(value.ResolvedType ?? "", out string sourceReturn, out List<string> sourceParameters, out string? sourceTargetSpec, out string? sourceCallSpec))
@@ -3841,12 +3905,84 @@ public static class CCodeEmitter
 			return false;
 		}
 
+		bool TryGetCallableShapeForEmitter(string? type, out CallableShape shape)
+		{
+			shape = default;
+			if (string.IsNullOrWhiteSpace(type))
+				return false;
+			if (CallableShapeService.TryParseCallableShape(type, out shape))
+				return true;
+			string baseName = BaseResolvedTypeName(type);
+			foreach (Definition definition in GetDefinitions())
+			{
+				if (definition is not NewtypeDefinition newtypeDefinition)
+					continue;
+				if (newtypeDefinition.Name != baseName && CName(newtypeDefinition) != baseName)
+					continue;
+				if (newtypeDefinition.UnderlyingType?.ResolvedType is string underlying
+					&& CallableShapeService.TryParseCallableShape(underlying, out shape))
+				{
+					Dictionary<string, string> substitutions = GetConstructedTypeSubstitutionsForEmitter(type, newtypeDefinition);
+					List<string> parameters = newtypeDefinition.Parameters.Count == 0
+						? shape.Parameters
+						: [.. GetCallableNewtypeParameterTypeNamesForEmitter(newtypeDefinition.Parameters)];
+					if (substitutions.Count > 0)
+					{
+						parameters = [.. parameters.Select(parameter => SubstituteGenericTypeTokens(parameter, substitutions) ?? parameter)];
+						shape = new CallableShape(
+							shape.Kind,
+							shape.Spec,
+							shape.CallSpec,
+							SubstituteGenericTypeTokens(shape.ReturnType, substitutions) ?? shape.ReturnType,
+							parameters,
+							shape.This);
+					}
+					else
+					{
+						shape = new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, parameters, shape.This);
+					}
+					return true;
+				}
+			}
+			return false;
+		}
+
+		static IEnumerable<string> GetCallableNewtypeParameterTypeNamesForEmitter(IEnumerable<ParameterDefinition> parameters)
+		{
+			foreach (ParameterDefinition parameter in parameters)
+			{
+				if (parameter is ThisParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
+					continue;
+				string type = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "#ERROR";
+				yield return parameter.Modifier switch
+				{
+					ParameterModifier.In => "in " + type,
+					ParameterModifier.Out => "out " + type,
+					ParameterModifier.Thrown => "thrown " + type,
+					ParameterModifier.Within => "within " + type,
+					ParameterModifier.Upon => "upon " + type,
+					_ => type
+				};
+			}
+		}
+
+		static Dictionary<string, string> GetConstructedTypeSubstitutionsForEmitter(string constructedType, TypeDefinition definition)
+		{
+			Dictionary<string, string> substitutions = [];
+			List<string> typeArguments = ExtractConstructedTypeArguments(constructedType);
+			int count = Math.Min(definition.GenericParameters.Count, typeArguments.Count);
+			for (int i = 0; i < count; i++)
+				substitutions[definition.GenericParameters[i].Name] = typeArguments[i];
+			return substitutions;
+		}
+
 		static bool IsCallableSymbolExpression(Expression? expression)
 		{
 			return expression is MethodReferenceExpression
 				or MemberReferenceExpression { Member: FunctionDefinition }
 				or VariableReferenceExpression { Variable: FunctionDefinition }
-				or NamedExpression;
+				or NamedExpression
+				|| expression?.ResolvedType is string resolvedType && IsResolvedCallableType(resolvedType);
 		}
 
 		bool TryParseExpandedCallableStorageType(string resolvedType, out string returnType, out List<string> parameterTypes)
@@ -4289,9 +4425,14 @@ public static class CCodeEmitter
 
 		string FormatAssignmentValueForTarget(string? targetType, Expression value)
 		{
+			return FormatAssignmentValueForTarget(targetType, value, null);
+		}
+
+		string FormatAssignmentValueForTarget(string? targetType, Expression value, IReadOnlyCollection<string>? erasedGenericNames)
+		{
 			string formatted = FormatExpression(value);
 			if (targetType is not null
-				&& TryFormatResolvedCallableCast(targetType, out string callableCast)
+				&& TryFormatCallableAssignmentCast(targetType, value, erasedGenericNames, out string callableCast)
 				&& IsCallableSymbolExpression(value)
 				&& ShouldCastCallableAssignment(value, targetType))
 			{
@@ -4302,14 +4443,53 @@ public static class CCodeEmitter
 
 		List<ParameterDefinition> GetCallableParametersForExpression(Expression? expression)
 		{
-			if (expression?.ResolvedType is not string resolvedType || !CallableShapeService.TryParseCallableShape(resolvedType, out CallableShape shape))
+			if (expression?.ResolvedType is not string resolvedType || !TryGetCallableShapeForEmitter(resolvedType, out CallableShape shape))
 				return [];
+			shape = SubstituteCallableShapeForMemberTarget(shape, expression);
 
 			List<string> parameterTypes = GetSourceCallableParameterTypesForC(shape);
 			List<ParameterDefinition> parameters = [];
 			foreach (string parameterType in GetExpandedResolvedCallableParameterTypesForC(parameterTypes))
 				parameters.Add(CreateCallableParameterFromResolvedType(parameterType));
 			return parameters;
+		}
+
+		CallableShape SubstituteCallableShapeForMemberTarget(CallableShape shape, Expression? expression)
+		{
+			if (expression is not MemberReferenceExpression { Target.ResolvedType: string targetType, Member: FieldDefinition field })
+				return shape;
+			if (!TryFindFieldOwner(targetType, field, out TypeDefinition? owner) || owner is null || owner.GenericParameters.Count == 0)
+				return shape;
+			Dictionary<string, string> substitutions = GetConstructedTypeSubstitutionsForEmitter(targetType, owner);
+			if (substitutions.Count == 0)
+				return shape;
+			return new CallableShape(
+				shape.Kind,
+				shape.Spec,
+				shape.CallSpec,
+				SubstituteGenericTypeTokens(shape.ReturnType, substitutions) ?? shape.ReturnType,
+				[.. shape.Parameters.Select(parameter => SubstituteGenericTypeTokens(parameter, substitutions) ?? parameter)],
+				shape.This);
+		}
+
+		bool TryFindFieldOwner(string targetType, FieldDefinition field, out TypeDefinition? owner)
+		{
+			owner = null;
+			string baseName = BaseResolvedTypeName(targetType);
+			foreach (Definition definition in GetDefinitions())
+			{
+				if (definition is not TypeDefinition candidate || candidate.Name != baseName && CName(candidate) != baseName)
+					continue;
+				foreach (FieldDefinition candidateField in GetTypeFields(candidate))
+				{
+					if (ReferenceEquals(candidateField, field) || candidateField.Name == field.Name)
+					{
+						owner = candidate;
+						return true;
+					}
+				}
+			}
+			return false;
 		}
 
 		static List<string> GetSourceCallableParameterTypesForC(CallableShape shape)
@@ -5481,7 +5661,7 @@ public static class CCodeEmitter
 				{
 					null => "0",
 					ArrayExpression array => FormatFixedArrayInitializer(array),
-					_ => FormatAssignmentValueForTarget(item.ResolvedType, item.Expression)
+					_ => FormatAssignmentValueForTarget(item.TargetStorageResolvedType ?? item.TargetResolvedType ?? item.ResolvedType, item.Expression, item.TargetStorageGenericNames)
 				};
 				string? target = FormatInitializerTarget(item.Target);
 				items.Add(target is null ? value : "." + target + " = " + value);
