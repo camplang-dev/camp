@@ -1,0 +1,4 @@
+export newtype Handle : nint
+{
+	export extern ~Handle();
+}

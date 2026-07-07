@@ -2403,7 +2403,10 @@ newtype FileHandle: nint
 
 A `newtype` scope may contain ordinary methods.
 
-It may not contain fields, virtual methods, constructors, or destructors.
+It may not contain fields or virtual methods. Value `newtype` declarations may
+declare constructors and destructors. A value `newtype` destructor consumes the
+wrapped value by value; it does not receive a pointer to storage and it never
+deallocates storage.
 
 Examples of invalid members:
 
@@ -2412,12 +2415,34 @@ newtype Counter: int
 {
 	int value;          // ERROR
 	virtual void a();   // ERROR
-	Counter();          // ERROR
-	~Counter();         // ERROR
 }
 ```
 
 This keeps `newtype` aligned with its purpose: nominal distinction over an existing representation, not a miniature aggregate object model.
+
+A `newtype` destructor is invoked with value-form `delete`:
+
+```camp
+newtype FileHandle: nint
+{
+	~FileHandle()
+	{
+		// close the wrapped handle value
+	}
+}
+
+FileHandle handle = openFile();
+delete handle;  // calls FileHandle_destroy(handle)
+```
+
+Pointer-form `delete` on a pointer to a `newtype` is invalid because it would
+suggest that the pointer storage is owned and should be freed:
+
+```camp
+FileHandle* handlePtr = ...;
+delete handlePtr;   // ERROR
+delete *handlePtr;  // OK: destroys the wrapped handle value only
+```
 
 A callable `newtype` may also be used as a callable ascription on a compatible function or method declaration. In that position, the `newtype` names the semantic callable contract for the declaration's natural callable reference form while preserving the same underlying representation.
 
@@ -4096,6 +4121,12 @@ For a class `TypeName`:
 | `TypeName_op_delete` | destruction without deallocation |
 | `TypeName_destroy` | destruction plus deallocation |
 
+For a value `newtype` `TypeName` with a destructor:
+
+| Helper | Meaning |
+|---|---|
+| `TypeName_destroy` | by-value destruction of the wrapped value |
+
 For an `extern class`, these ordinary managed-class helper rules are narrowed:
 
 | Surface | Meaning |
@@ -4118,6 +4149,8 @@ These helper names are not arbitrary. They reflect the exact lifecycle split Cam
 - `TypeName_create` for a class allocates, performs any hidden typed scaffolding, and then constructs.
 - `TypeName_op_delete` for a class tears down an existing instance without freeing its storage.
 - `TypeName_destroy` for a class performs teardown and then deallocation.
+- `TypeName_destroy` for a value `newtype` receives `TypeName this` by value
+  and destroys the underlying handle/value without freeing storage.
 
 These names matter for ABI reasoning, but ordinary Camp code still writes the language surface:
 
@@ -4125,6 +4158,18 @@ These names matter for ABI reasoning, but ordinary Camp code still writes the la
 Widget local = init Widget();
 Widget* heap = new Widget();
 delete heap;
+```
+
+For a value `newtype`, ordinary Camp code writes `delete value`; deleting a
+pointer to a `newtype` is invalid unless the programmer explicitly dereferences
+the pointer first:
+
+```camp
+FileHandle handle = openFile();
+delete handle;
+
+FileHandle* slot = &handle;
+delete *slot;
 ```
 
 For an `extern class`, ordinary Camp code still writes `new` and `delete`, but

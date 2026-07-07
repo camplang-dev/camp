@@ -1,0 +1,14 @@
+newtype PointerHandle: nint
+{
+	~PointerHandle()
+	{
+	}
+}
+
+export void main()
+{
+	PointerHandle handle = (PointerHandle)1;
+	PointerHandle* pointer = &handle;
+	
+	delete pointer;
+}

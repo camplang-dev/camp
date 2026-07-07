@@ -1,0 +1,77 @@
+// file: newtype_destructor.c
+#include "newtype_destructor_private.h"
+
+
+int destroyed;
+int Handle_value(Handle this)
+{
+	return (int)((intptr_t)(this));
+}
+
+void Handle_destroy(Handle this)
+{
+	destroyed = (int)((intptr_t)(this));
+}
+
+int main(void)
+{
+	Handle handle = (Handle)(42);
+	if ((Handle_value(handle) != 42))
+	{
+		return 1;
+	}
+	Handle_destroy(handle);
+	if ((destroyed != 42))
+	{
+		return 2;
+	}
+	Handle *pointer = &handle;
+	Handle_destroy(*pointer);
+	if ((destroyed != 42))
+	{
+		return 3;
+	}
+	return 0;
+}
+
+// file: newtype_destructor.h
+#ifndef NEWTYPE_DESTRUCTOR_H_
+#define NEWTYPE_DESTRUCTOR_H_
+
+#include "newtype_destructor_private.h"
+
+int Handle_value(Handle this);
+void Handle_destroy(Handle this);
+int main(void);
+extern int destroyed;
+
+#endif
+// file: newtype_destructor_private.h
+#ifndef NEWTYPE_DESTRUCTOR_PRIVATE_H_
+#define NEWTYPE_DESTRUCTOR_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+typedef intptr_t Handle;
+
+/* Layouts. */
+
+/* Function declarations. */
+int Handle_value(Handle this);
+void Handle_destroy(Handle this);
+int main(void);
+
+/* Object declarations. */
+extern int destroyed;
+
+
+#endif
+// compile
+compiled: newtype_destructor.c

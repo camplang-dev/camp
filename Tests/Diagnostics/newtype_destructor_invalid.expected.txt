@@ -1,0 +1,1 @@
+tests/Diagnostics/newtype_destructor_invalid.camp(13,9): error: delete of a pointer to newtype 'PointerHandle' is not allowed; delete the wrapped value with 'delete *value' instead.

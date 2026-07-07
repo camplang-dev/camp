@@ -383,6 +383,7 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					string deleteType = BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
 					ValidateExternClassDelete(deleteStatement.Expression, deleteType);
+					ValidateNewtypePointerDelete(deleteStatement.Expression, deleteType);
 					RequireExplicitWithinForDelete(deleteStatement.Expression, deleteType, scope, "pointer-form delete requires an explicit within context; use within(allocator) delete or within(default) delete.");
 					CheckLifetimeDeleteAgainstFree(deleteStatement.Expression, deleteStatement.Expression?.SourceSyntax ?? deleteStatement.SourceSyntax, scope);
 				}
@@ -1703,6 +1704,7 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeFinallyDeleteExpression(FinallyDeleteExpression finallyDelete, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
 		string expressionType = BodyAnalyzeExpression(finallyDelete.Expression, scope, typeScope, targetType);
+		ValidateNewtypePointerDelete(finallyDelete.Expression, expressionType);
 		if (finallyDelete.Expression is not WithinExpression { Expression: not null })
 			RequireExplicitWithinForDelete(finallyDelete.Expression, expressionType, scope, "finally delete requires an explicit within context for pointer deletion; use within(allocator) or within(default).");
 		return expressionType;
