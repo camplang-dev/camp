@@ -43,6 +43,7 @@ Confidence labels:
 | Construction/destruction is explicit: `init T(...)`, `new T(...)`, `delete valueOrPointer`, and `finally delete expr`. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifecycle_allocator.camp`; `tests/StdRun/pointer_new_array_finally_delete.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.Operators.cs` |
 | Error handling is explicit: thrown values use `thrown T` parameters, `throw value`, `try`/`catch`, and call-site `catch variable`. | `CONFIRMED_BY_TEST` | `tests/CCompile/thrown_parameter_forwarding.camp`; `tests/Lowering/throw_try_finally.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Flow.cs` |
 | Camp is C ABI-oriented. `extern`, `export`, `public`, `@symbol`, generated C symbols, `void*`, `sizeof`, and flattened method names matter. | `CONFIRMED_BY_TEST` | `tests/CEmit/*.camp`; `tests/Api/*.camp`; `src/Camp.Compiler/CCodeEmitter.cs`; `src/Camp.Compiler/BindableNodeAnalyzer.Expansion.cs` |
+| Standard-library code should use the standard library's public API surface. Do not export private helpers merely to make one implementation convenient; prefer existing public operations, or add a deliberately public API with tests and docs when the capability itself belongs in the library. | `SPEC_ONLY_OR_UNVERIFIED` | `spec::7`; `docs/camp_doc_comments_metadata_supplement.md` |
 
 ## 2. Lexical and Formatting Rules
 
@@ -163,6 +164,8 @@ interface I { int x; }              // interface cannot contain fields
 | Destructor syntax is `~TypeName(...)`; destructor has no return type. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifecycle_allocator.camp`; `src/Camp.Compiler/BindableNodeBuilder.cs::ValidateLifecycleMember` |
 | Destructor may declare at most one optional `within` parameter. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs::ValidateDestructorParameters` |
 | Interface constructors/destructors must declare a `within` parameter. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs::ValidateInterfaceConstructorParameters`, `ValidateDestructorParameters` |
+
+Constructor bodies run after storage has been initialized to the type's default value. Do not manually zero every class or struct field in a constructor unless the code is intentionally resetting an already-initialized object or making a non-default invariant explicit. Initialize only the fields whose values differ from default.
 
 ### Callable Newtype Ascription
 
@@ -707,12 +710,24 @@ int bad()
 | `escaped` fields are valid and require assigned pointer-bearing values to satisfy escaped storage. `scoped`/`unscoped` fields, locals, and globals are invalid. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_escaped_fields.camp`; `tests/Diagnostics/lifetime_annotation_placement_invalid.camp`; `tests/Diagnostics/lifetime_escaped_field_assignment_invalid.camp` |
 | Explicit lifetime casts are available: `(scoped)value`, `(escaped)value`, `(unscoped(anchor))value`, and combined type/lifetime casts such as `(escaped string)value`. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/lifetime_cast_invalid.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.LifetimeFacts.cs` |
 | In an `escaped class`, an ascribed instance method must preserve the escaped receiver contract explicitly: the callable newtype declares `escaped this`, or the method declares `escaped this`. | `SPEC_ONLY_OR_UNVERIFIED` | `spec::1.4.16`, `4.2.3` |
-| `within Allocator* allocator` may appear as a parameter modifier, and bare `within allocator` can be an implicit allocator parameter form. The implicit form may be lifetime-qualified as `within scoped allocator`, `within unscoped allocator`, or `within escaped allocator`; omitted lifetime defaults to scoped but is not retainable in `this` fields. Use `within scoped allocator` for ordinary receiver storage and `within escaped allocator` for escaped classes or escaped allocator fields. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifecycle_allocator.camp`; `tests/CCompile/within_allocator_lifetime_parameters.camp`; `tests/Diagnostics/within_allocator_lifetime_invalid.camp`; `src/Camp.Compiler/CampParser.cs::ParseParameter` |
+| `within Allocator* allocator` may appear as a parameter modifier, and bare `within allocator` can be an implicit allocator parameter form. The implicit form may be lifetime-qualified as `within scoped allocator`, `within unscoped allocator`, or `within escaped allocator`; omitted lifetime defaults to scoped and is not retainable in `this` fields. When retaining an allocator in a receiver or other longer-lived storage, do not use bare `within allocator`: choose the explicit lifetime form required by the storage relationship. Use `within scoped allocator` for ordinary receiver storage and `within escaped allocator` for escaped classes or escaped allocator fields. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifecycle_allocator.camp`; `tests/CCompile/within_allocator_lifetime_parameters.camp`; `tests/Diagnostics/within_allocator_lifetime_invalid.camp`; `src/Camp.Compiler/CampParser.cs::ParseParameter` |
 | `within (allocator) statement` or `within (allocator) new/init T(...)` supplies current allocator context. `within (default)` masks any surrounding allocator and intentionally uses fallback `malloc/free`; calls to routines with `within` parameters receive `null` in that explicit default context. | `CONFIRMED_BY_TEST` | `tests/StdRun/within_new_array_expression.camp`; `tests/CCompile/within_default_allocator.camp`; `tests/CCompile/within_parameter_context.camp`; `src/Camp.Compiler/CampParser.cs::TryParseConstructionExpression` |
 | `#within explicit` requires source-level `new`, pointer-form `delete`, pointer-storage `finally delete`, and omitted hidden `within` call arguments in that file to use `within (allocator)`, a routine `within` parameter, an explicit `within` call argument, or `within (default)`. `#within implicit` allows fallback allocation/context without an explicit source context. `within` parameters cannot declare default values; ordinary `Allocator*` parameters are not filled from the current context. | `CONFIRMED_BY_TEST` | `tests/Diagnostics/within_allocation_policy.camp`; `tests/Diagnostics/within_directive_errors.camp`; `tests/Diagnostics/within_parameter_*.camp`; `src/Camp.Compiler/CompilerDriver.cs::TryReadWithinAllocationPolicy` |
 | Allocation requires accessible `malloc(nuint)`/`free(void*)` or allocator methods `alloc(nuint)`/`free(void*)`. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.LoweringHelpers.cs::CreateAllocCallFromByteSize`, `CreateFreeCall` |
 
 Keep lifetime signatures sparse. Do not write `unscoped(this)` merely to restate an instance-method default. Use explicit annotations when an API allocates escaped storage, returns a borrow tied to a specific anchor, stores a pointer-bearing value into a receiver/container, or requires an escaped field/context. Use explicit lifetime casts only as local assertions after the code has an actual reason the compiler cannot prove.
+
+When several operations should use the same allocator context, prefer one block:
+
+```camp
+within (this.allocator)
+{
+	this.items = new int[capacity];
+	delete oldItems;
+}
+```
+
+This is clearer than repeating `within (this.allocator)` on every allocation or deletion and reduces the chance of mixing allocator contexts accidentally.
 
 Preferred pattern:
 
@@ -746,6 +761,8 @@ void use(within Allocator* allocator)
 | Generic types and functions lower by substitution/erasure patterns visible in C compile tests. | `CONFIRMED_BY_TEST` | `tests/CCompile/generic_erasure.camp`; `tests/CCompile/generic_scalar_erasure.camp`; `tests/CCompile/generic_iterator_param_erasure.camp` |
 
 Use `T: any` for non-copying algorithms that observe, address, enumerate, compare through a provided callback, or default-fill storage. Use `T: copyable` for containers and algorithms that copy, move, store, compact, swap, return, or assign `T` values.
+
+For erased generic containers, separate payload storage from metadata deliberately. If the container owns variable-length `T` elements, prefer `T[]`, `T*`, or another explicitly allocated payload store with the required `sizeof(T)` support. Keep non-generic metadata such as hashes, next links, occupancy flags, lengths, or indexes in ordinary scalar fields or scalar arrays. Do not invent small generic entry structs with direct `T` fields merely to bundle metadata with a payload; that usually adds copying requirements, complicates erased storage, and may be invalid for fixed, class, expanded, or merely-`any` substitutions.
 
 Valid `T: any` patterns:
 
@@ -837,12 +854,28 @@ void useAny<T: any>(T[] values, sizeof(T))
 
 Generic standard-library types and methods that store, copy, move, compact, swap, or return `T` values should be declared with `T: copyable`, not `T: any`. For example, `List<T: any>` is wrong if the list owns contiguous storage and moves elements; write `List<T: copyable>`.
 
+When a data structure needs sentinels or links, prefer scalar indexes over pointers into movable generic storage. A `nuint` slot index with `0` as "none" and `slot + 1` as a present value is often a good fit: it is compact, copyable, stable across array reallocation, and avoids optional/pointer lifetime noise.
+
+When a standard-library API needs caller-supplied behavior, use the lightest callable form that matches the contract. Use `fn` fields for context-free policies such as hash/equality functions, and use `delegate` only when the policy needs a context pointer. For built-in immutable policies, prefer exported `const` policy values over functions that allocate or return a fresh policy object. Keep generic policy functions only when the policy itself must be generic.
+
+```camp
+export struct HashPolicy<K: any>
+{
+	fn nuint(in K key) hash;
+	fn bool(in K left, in K right) equals;
+}
+
+export const HashPolicy<int> Int_hashPolicy = { .hash = Int_hashcode, .equals = Int_hashEquals };
+export HashPolicy<T*> Ptr_hashPolicy<T: any>() => { .hash = hashcodePointer, .equals = hashEqualsPointer };
+```
+
 ## 11. Lowering Patterns Useful For LLMs
 
 | Source pattern | Lowering/ABI pattern | Confidence | Evidence |
 |---|---|---|---|
 | Instance methods | Rewritten to C-style calls with receiver passed explicitly; extension symbols include flattened receiver type fragments. | `INFERRED_FROM_IMPLEMENTATION` | `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.InstanceCalls.cs`; `src/Camp.Compiler/BindableNodeAnalyzer.TypeShapes.cs::BuildExtensionFunctionSymbol` |
 | Static methods | Rewritten from `Type.method()` to direct symbol calls. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeAnalyzer.Lowering.Expressions.cs::TryRewriteStaticMemberInvocation` |
+| Receiver methods and generated symbols | A method with an explicit `this` parameter gets a generated symbol that includes the receiver type. Do not repeat the type name in the source method name unless that redundancy is intended. For example, prefer `nuint hashcode(in long this)` and reference the flattened symbol as `Long_hashcode`, not source `hashcodeLong`, which would flatten to a doubled name such as `Long_hashcodeLong`. | `INFERRED_FROM_IMPLEMENTATION` | `src/Camp.Compiler/BindableNodeAnalyzer.TypeShapes.cs::BuildExtensionFunctionSymbol`; `tests/CEmit/primitive_flattened_symbols.camp` |
 | Overload selectors | Full callable name is invoker plus flattened selector type fragment, e.g. `writeInt`, `writeString`. | `CONFIRMED_BY_TEST` | `tests/CCompile/overload_basic.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Overloads.cs::PrecomputeOverloadCallableName` |
 | Constructors | Ordinary user constructors produce generated `#init_new` and `create`/allocation helpers. Extern-class constructors are extern create surfaces only; do not expect or emit `op_initnew`. | `CONFIRMED_BY_TEST` | `tests/CCompile/extern_class_inheritance_lifecycle.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Expansion.cs::CreateInitNewMethod`, `CreateCreateMethod` |
 | Destructors | Ordinary user destructors produce generated delete/destroy helpers. Extern-class destructors are extern delete surfaces only; do not expect generated destroy/free logic. | `CONFIRMED_BY_TEST` | `tests/CCompile/extern_class_opaque_helpers.camp`; `tests/CCompile/extern_class_inheritance_lifecycle.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Expansion.cs::CreateDeleteMethod`, `CreateDestroyMethod` |
@@ -1093,6 +1126,11 @@ Confidence: `CONFIRMED_BY_COMPILER_CODE`; evidence: `src/Camp.Compiler/CampParse
 | Passing a `T: any` type parameter to a generic type or method requiring `T: copyable`. | Declare the caller with `T: copyable` if it needs copyable APIs. A `T: copyable` may flow to `T: any`, not the reverse. | `CONFIRMED_BY_TEST` | `tests/CCompile/lifetime_generic_boundaries_valid.camp`; `tests/Diagnostics/lifetime_generic_boundaries_invalid.camp`; `spec::6.2.6` |
 | Lowercase namespace names such as `export as std::math;` or `using std;`. | Use PascalCase namespace segments: `export as Std::Math;`, `using Std;`. | `SPEC_ONLY_OR_UNVERIFIED` | `spec::5.1` |
 | User-defined `params` declarations or `params(T)` type syntax. | Built-in arrays/options/delegates/iter or `struct(T)`. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs::BuildTypeDefinition`; `BuildTypeReference` |
+| Manually zeroing every class/struct field in a constructor. | Rely on default initialization and assign only fields whose value differs from default. | `SPEC_ONLY_OR_UNVERIFIED` | `spec::1.1.10`, `4.4` |
+| Exporting or widening private standard-library helpers to solve one implementation problem. | Use the existing public API, or deliberately design and document a new public API. | `SPEC_ONLY_OR_UNVERIFIED` | `spec::7`; `docs/camp_doc_comments_metadata_supplement.md` |
+| Repeating `within (allocator)` on every nearby allocation/deletion. | Use one `within (allocator) { ... }` block for related operations. | `CONFIRMED_BY_TEST` | `tests/StdRun/within_new_array_expression.camp`; `tests/CCompile/within_parameter_context.camp` |
+| Retaining a bare `within allocator` parameter in a receiver or escaped field. | Write the explicit lifetime form required by the storage, such as `within scoped allocator` or `within escaped allocator`. | `CONFIRMED_BY_TEST` | `tests/CCompile/within_allocator_lifetime_parameters.camp`; `tests/Diagnostics/within_allocator_lifetime_invalid.camp` |
+| Adding type names to source receiver-method names that already flatten with the receiver type. | Use the source method name alone and refer to the flattened generated symbol when needed, e.g. source `hashcode(in long this)` and symbol `Long_hashcode`. | `INFERRED_FROM_IMPLEMENTATION` | `src/Camp.Compiler/BindableNodeAnalyzer.TypeShapes.cs::BuildExtensionFunctionSymbol` |
 
 ## 14. LLM Generation Checklist
 
@@ -1117,31 +1155,36 @@ Before emitting Camp code:
 10. Use `T: any` only for non-copying generic code. Use `T: copyable` for lists, buffers, sorting, copying, moving, compacting, returning, assigning, or storing `T` values.
 11. A `T: copyable` argument can satisfy `T: any`; a merely `T: any` argument cannot satisfy `T: copyable`.
 12. `sizeof(T)` under `T: any` permits enumeration, pointer indexing, size-based allocation, and default-fill, but never `T` value copying.
-13. Use callable `newtype` ascription only when the declaration family matches: receiverless declarations use `fn`; receiver-bearing methods use `delegate` or `iter`.
-14. For context-carrying callable newtypes, explicit callable `this` qualifiers are part of the contract. An ascribed method may omit `this` and inherit them; if it writes explicit `this`, the qualifiers must match.
-15. In an `escaped class`, preserve an ascribed method's escaped receiver contract explicitly with `escaped this` on the callable newtype or on the method.
-16. Do not rely on callable ascription to change direct calls, overload groups, unbound method references, generated symbols, default-argument insertion, or ABI lowering.
-17. Use lambdas only where a callable target type is known. If a lambda has captures, target a `delegate`, not `fn`.
-18. Do not use lambda arguments to select an overload family; call the typed overload entry explicitly.
-19. For escaped ordinary delegate lambdas, write `new delegate`, capture only escaped pointer-bearing values, treat captured values as read-only, and use `delete delegate`/`finally delete delegate` inside the lambda when it should clean up its generated context.
-20. Use preprocessor directives intentionally:
+13. For erased generic containers, keep generic payload storage explicit (`T[]`, `T*`, or allocated storage with `sizeof(T)`) and keep metadata scalar. Do not invent small generic entry structs with direct `T` fields just to bundle metadata with payloads.
+14. Use callable `newtype` ascription only when the declaration family matches: receiverless declarations use `fn`; receiver-bearing methods use `delegate` or `iter`.
+15. For context-carrying callable newtypes, explicit callable `this` qualifiers are part of the contract. An ascribed method may omit `this` and inherit them; if it writes explicit `this`, the qualifiers must match.
+16. In an `escaped class`, preserve an ascribed method's escaped receiver contract explicitly with `escaped this` on the callable newtype or on the method.
+17. Do not rely on callable ascription to change direct calls, overload groups, unbound method references, generated symbols, default-argument insertion, or ABI lowering.
+18. Use lambdas only where a callable target type is known. If a lambda has captures, target a `delegate`, not `fn`.
+19. Do not use lambda arguments to select an overload family; call the typed overload entry explicitly.
+20. For escaped ordinary delegate lambdas, write `new delegate`, capture only escaped pointer-bearing values, treat captured values as read-only, and use `delete delegate`/`finally delete delegate` inside the lambda when it should clean up its generated context.
+21. Use preprocessor directives intentionally:
    - Put `#build` and `#within` only in the file prelude, before ordinary declarations and imports.
    - Use `#define`/`#if` for conditional compilation, not runtime branching.
    - When documenting or generating examples with `#build`, say that the shown flags are compiler-tooling examples rather than language-specified syntax.
    - Use `#within explicit` for files that should make heap allocation/deallocation choices and hidden `within` call arguments visible, and `within (default)` when fallback allocation or a null allocator context is intentional.
-21. Use `within (allocator)` around escaped lambda creation when the context should be allocated through that allocator.
-22. For `CharFormatter`, the returned required count includes the trailing null terminator; allocate `formatter()` characters, not `formatter() + 1`.
-23. Do not create arrays of expanded values. Use `struct(T)` materialization.
-24. For classes with virtual methods, mark the class `virtual` or `abstract`; derived virtual-class children must be `virtual`, `abstract`, or `sealed`.
-25. Interfaces contain signatures only. Implement every interface method exactly.
-26. Constructors/destructors must match the containing type name and have no return type.
-27. Use `init T(...)` for existing storage and `new T(...)` for allocation. Pair owned values/pointers with `delete` or `finally delete`.
-28. For `extern class`, write pointer-oriented helper APIs. Constructors/destructors must be `extern`; ordinary methods may be Camp-side helpers. Never generate instance fields, `op_initnew`, direct value storage, or arrays of direct extern-class values. Interface contracts may be listed only to import the foreign type's generated interface accessor surface.
-29. In generator bodies, do not use `init T[n]` stack-array allocation; declare `fixed T[n]` storage instead when fixed state storage is needed.
-30. Use `within (allocator)`, `within (default)`, or an explicit `within` call argument when constructors/destructors declare `within` allocator parameters and the file uses explicit-within policy.
-31. Pointer-form `delete` is valid only when the selected allocator `free` method or fallback `free(...)` accepts the pointer under ordinary type/lifetime conversion rules.
-32. For thrown errors, declare `thrown E error`, call with `catch error`, or catch/rethrow explicitly.
-33. Use `foreach (T item in arrayOrIterator)` only for arrays, iterator protocols, or iterator states with `next`.
-34. Prefer top-level type declarations; do not nest types.
-35. Avoid reserved words and generated component-name collisions such as `items`, `items_length`, `callback_context`.
-36. If exporting C ABI, use `export`, `public`, `extern`, and optionally `@symbol("name")`; verify generated symbol names if overloads or methods are involved.
+22. Use `within (allocator)` around escaped lambda creation when the context should be allocated through that allocator.
+23. Use a `within (allocator) { ... }` block for several related allocation/deallocation operations.
+24. If a `within allocator` parameter is retained, write the explicit lifetime form required by the storage relationship; do not retain bare `within allocator`.
+25. For `CharFormatter`, the returned required count includes the trailing null terminator; allocate `formatter()` characters, not `formatter() + 1`.
+26. Do not create arrays of expanded values. Use `struct(T)` materialization.
+27. For classes with virtual methods, mark the class `virtual` or `abstract`; derived virtual-class children must be `virtual`, `abstract`, or `sealed`.
+28. Interfaces contain signatures only. Implement every interface method exactly.
+29. Constructors/destructors must match the containing type name and have no return type. Constructor bodies start from default-initialized storage; do not manually zero every field.
+30. Use `init T(...)` for existing storage and `new T(...)` for allocation. Pair owned values/pointers with `delete` or `finally delete`.
+31. For `extern class`, write pointer-oriented helper APIs. Constructors/destructors must be `extern`; ordinary methods may be Camp-side helpers. Never generate instance fields, `op_initnew`, direct value storage, or arrays of direct extern-class values. Interface contracts may be listed only to import the foreign type's generated interface accessor surface.
+32. In generator bodies, do not use `init T[n]` stack-array allocation; declare `fixed T[n]` storage instead when fixed state storage is needed.
+33. Use `within (allocator)`, `within (default)`, or an explicit `within` call argument when constructors/destructors declare `within` allocator parameters and the file uses explicit-within policy.
+34. Pointer-form `delete` is valid only when the selected allocator `free` method or fallback `free(...)` accepts the pointer under ordinary type/lifetime conversion rules.
+35. For thrown errors, declare `thrown E error`, call with `catch error`, or catch/rethrow explicitly.
+36. Use `foreach (T item in arrayOrIterator)` only for arrays, iterator protocols, or iterator states with `next`.
+37. Prefer top-level type declarations; do not nest types.
+38. Avoid reserved words and generated component-name collisions such as `items`, `items_length`, `callback_context`.
+39. In stdlib code, prefer existing public APIs and avoid exporting private helpers just to make a local implementation easier.
+40. For receiver methods, remember flattened symbols already include the receiver type; avoid source names that double it.
+41. If exporting C ABI, use `export`, `public`, `extern`, and optionally `@symbol("name")`; verify generated symbol names if overloads or methods are involved.
