@@ -1,0 +1,57 @@
+using Std;
+
+export int main()
+{
+	auto map = new HashMap<string, int>(String_hashPolicy) finally delete;
+	map.Item["one"] = 1;
+	map.setItem("two", 2);
+	if (map.Length != 2)
+		return 1;
+	if (map.Item["one"] != 1 || map.Item["two"] != 2 || map.Item["missing"] != 0)
+		return 2;
+	if (!map.containsKey("one") || map.containsKey("ONE"))
+		return 3;
+	map.Item["one"] = 11;
+	if (map.Item["one"] != 11 || map.Length != 2)
+		return 4;
+	if (!map.remove("two") || map.remove("two") || map.containsKey("two"))
+		return 5;
+
+	auto numbers = new HashMap<int, int>(Int_hashPolicy) finally delete;
+	for (int i = 0; i < 50; i++)
+		numbers.Item[i] = i * 10;
+	for (int j = 0; j < 50; j++)
+		if (numbers.Item[j] != j * 10)
+			return 20 + j;
+	if (numbers.Length != 50 || numbers.Capacity < 50)
+		return 80;
+	int removedKey = 25;
+	if (!numbers.remove(removedKey))
+		return 81;
+	if (numbers.containsKey(removedKey))
+		return 87;
+	if (numbers.Item[removedKey] != 0)
+		return 88;
+	numbers.Item[removedKey] = 2500;
+	if (numbers.Item[removedKey] != 2500)
+		return 82;
+
+	auto ci = new HashMap<string, int>(String_caseInsensitiveHashPolicy) finally delete;
+	ci.setItem("MR_CHEESE", 34);
+	if (!ci.containsKey("mr_cheese") || ci.Item["mr_cheese"] != 34)
+		return 83;
+	ci.Item["mr_cheese"] = 35;
+	if (ci.Length != 1 || ci.Item["MR_CHEESE"] != 35)
+		return 84;
+
+	int found = 0;
+	if (!ci.tryGet("Mr_Cheese", out found) || found != 35)
+		return 85;
+
+	numbers.clear(true);
+	int absent = 1;
+	if (numbers.Length != 0 || numbers.Capacity != 0 || numbers.containsKey(absent))
+		return 86;
+
+	return 0;
+}

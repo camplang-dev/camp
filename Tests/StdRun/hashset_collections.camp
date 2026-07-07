@@ -1,0 +1,45 @@
+using Std;
+
+export int main()
+{
+	auto set = new HashSet<int>(Int_hashPolicy) finally delete;
+	if (set.Length != 0 || set.Capacity != 0)
+		return 1;
+	if (!set.add(10) || set.add(10))
+		return 2;
+	if (!set.contains(10) || set.contains(11) || set.Length != 1)
+		return 3;
+	if (!set.remove(10) || set.remove(10) || set.contains(10))
+		return 4;
+
+	for (int i = 0; i < 40; i++)
+		if (!set.add(i))
+			return 10 + i;
+	for (int j = 0; j < 40; j++)
+		if (!set.contains(j))
+			return 60 + j;
+	if (set.Length != 40 || set.Capacity < 40)
+		return 101;
+
+	if (!set.remove(5) || set.contains(5))
+		return 102;
+	if (!set.add(105) || !set.contains(105))
+		return 103;
+
+	int[] keys = set.copyArray();
+	if (keys.length != set.Length)
+		return 104;
+	delete keys;
+
+	set.clear(true);
+	if (set.Length != 0 || set.Capacity != 0 || set.contains(1))
+		return 105;
+
+	auto strings = new HashSet<string>(String_caseInsensitiveHashPolicy) finally delete;
+	if (!strings.add("Alpha") || strings.add("alpha"))
+		return 106;
+	if (!strings.contains("ALPHA") || strings.contains("Beta"))
+		return 107;
+
+	return 0;
+}

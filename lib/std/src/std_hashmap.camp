@@ -1,0 +1,315 @@
+export as Std;
+
+inline nuint HASHMAP_EMPTY = (nuint)0;
+
+/// A hash-based map from keys to values.
+/// @remarks
+/// HashMap owns shallow copies of its keys and values. Pointer and string keys copy the pointer value; the supplied hash policy controls identity or content comparison.
+export class HashMap<K: copyable, V: copyable>
+{
+	HashPolicy<K> policy;
+	K[] keys;
+	V[] values;
+	nuint[] buckets;
+	nuint[] next;
+	nuint[] hashes;
+	bool[] occupied;
+	nuint length;
+	nuint used;
+	nuint firstFree;
+	Allocator* allocator;
+
+	/// Initializes an empty map with a key hash policy and remembers the allocator used for storage.
+	export HashMap(HashPolicy<K> policy, within allocator, sizeof(K), sizeof(V))
+	{
+		this.policy = policy;
+		this.allocator = (unscoped(this))allocator;
+	}
+
+	/// Releases all allocated storage.
+	export ~HashMap()
+	{
+		within (this.allocator)
+		{
+			delete this.keys;
+			delete this.values;
+			delete this.buckets;
+			delete this.next;
+			delete this.hashes;
+			delete this.occupied;
+		}
+
+		this.keys = default;
+		this.values = default;
+		this.buckets = default;
+		this.next = default;
+		this.hashes = default;
+		this.occupied = default;
+		this.length = 0;
+		this.used = 0;
+		this.firstFree = HASHMAP_EMPTY;
+	}
+
+	/// Adds or replaces a value for a key.
+	export void setItem(in K key, in V value)
+	{
+		fn nuint(in K) hashFunction = this.policy.hash;
+		nuint hash = hashFunction(key);
+		nint existing = this.findSlot(key, hash);
+		if (existing >= 0)
+		{
+			this.values[(nuint)existing] = value;
+			return;
+		}
+
+		this.ensureCapacity(this.length + 1);
+		if (this.buckets.length == 0 || this.keys.length <= this.length)
+			return;
+
+		nuint slot = this.allocateSlot();
+		this.keys[slot] = key;
+		this.values[slot] = value;
+		this.hashes[slot] = hash;
+		this.occupied[slot] = true;
+
+		nuint bucket = hash % this.buckets.length;
+		this.next[slot] = this.buckets[bucket];
+		this.buckets[bucket] = slot + 1;
+		this.length++;
+	}
+
+	/// Gets a value and returns true when the key is present.
+	export bool tryGet(const this, in K key, out V value)
+	{
+		value = default;
+		fn nuint(in K) hashFunction = this.policy.hash;
+		nint slot = this.findSlot(key, hashFunction(key));
+		if (slot < 0)
+			return false;
+
+		value = this.values[(nuint)slot];
+		return true;
+	}
+
+	/// Returns the value for a key, or `default` when the key is absent.
+	export V getItem(const this, in K key)
+	{
+		V value = default;
+		this.tryGet(key, out value);
+		return value;
+	}
+
+	/// Returns true when the key is present.
+	export bool containsKey(const this, in K key)
+	{
+		fn nuint(in K) hashFunction = this.policy.hash;
+		return this.findSlot(key, hashFunction(key)) != -1;
+	}
+
+	/// Removes a key and returns true when an entry was removed.
+	export bool remove(in K key)
+	{
+		if (this.buckets.length == 0)
+			return false;
+
+		fn nuint(in K) hashFunction = this.policy.hash;
+		nuint hash = hashFunction(key);
+		nuint bucket = hash % this.buckets.length;
+		nuint previous = HASHMAP_EMPTY;
+		nuint current = this.buckets[bucket];
+
+		while (current != HASHMAP_EMPTY)
+		{
+			nuint slot = current - 1;
+			nuint nextSlot = this.next[slot];
+			if (this.occupied[slot] && this.hashes[slot] == hash && this.policy.equals(this.keys[slot], key))
+			{
+				if (previous == HASHMAP_EMPTY)
+					this.buckets[bucket] = nextSlot;
+				else
+					this.next[previous - 1] = nextSlot;
+
+				this.keys[slot] = default;
+				this.values[slot] = default;
+				this.occupied[slot] = false;
+				this.hashes[slot] = 0;
+				this.next[slot] = this.firstFree;
+				this.firstFree = slot + 1;
+				this.length--;
+				return true;
+			}
+
+			previous = current;
+			current = nextSlot;
+		}
+
+		return false;
+	}
+
+	/// Removes all entries and optionally releases storage.
+	export void clear(bool deleteBuffer = false)
+	{
+		for (nuint i = 0; i < this.used; i++)
+		{
+			if (this.occupied[i])
+			{
+				this.keys[i] = default;
+				this.values[i] = default;
+			}
+			this.occupied[i] = false;
+			this.next[i] = HASHMAP_EMPTY;
+			this.hashes[i] = 0;
+		}
+
+		this.clearBuckets();
+		this.length = 0;
+		this.used = 0;
+		this.firstFree = HASHMAP_EMPTY;
+
+		if (deleteBuffer)
+		{
+			within (this.allocator)
+			{
+				delete this.keys;
+				delete this.values;
+				delete this.buckets;
+				delete this.next;
+				delete this.hashes;
+				delete this.occupied;
+			}
+			this.keys = default;
+			this.values = default;
+			this.buckets = default;
+			this.next = default;
+			this.hashes = default;
+			this.occupied = default;
+		}
+	}
+
+	/// Returns the number of entries in the map.
+	export nuint getLength() => this.length;
+
+	/// Returns the number of key/value slots currently allocated.
+	export nuint getCapacity() => this.keys.length;
+
+	nint findSlot(const this, in K key, nuint hash)
+	{
+		if (this.buckets.length == 0)
+			return -1;
+
+		nuint current = this.buckets[hash % this.buckets.length];
+		while (current != HASHMAP_EMPTY)
+		{
+			nuint slot = current - 1;
+			if (this.occupied[slot] && this.hashes[slot] == hash && this.policy.equals(this.keys[slot], key))
+				return (nint)slot;
+			current = this.next[slot];
+		}
+		return -1;
+	}
+
+	nuint allocateSlot()
+	{
+		if (this.firstFree != HASHMAP_EMPTY)
+		{
+			nuint slot = this.firstFree - 1;
+			this.firstFree = this.next[slot];
+			this.next[slot] = HASHMAP_EMPTY;
+			return slot;
+		}
+
+		nuint result = this.used;
+		this.used++;
+		return result;
+	}
+
+	void ensureCapacity(nuint minimumLength)
+	{
+		if (this.keys.length < minimumLength)
+			this.resizeSlots(minimumLength);
+
+		if (this.buckets.length == 0 || (minimumLength * 4) >= (this.buckets.length * 3))
+			this.resizeBuckets(minimumLength * 2);
+	}
+
+	void resizeSlots(nuint minimumLength)
+	{
+		nuint oldLength = this.keys.length;
+		nuint newLength = oldLength == 0 ? 8 : oldLength;
+		while (newLength < minimumLength)
+			newLength = newLength * 2;
+
+		K[] oldKeys = this.keys;
+		V[] oldValues = this.values;
+		nuint[] oldNext = this.next;
+		nuint[] oldHashes = this.hashes;
+		bool[] oldOccupied = this.occupied;
+
+		within (this.allocator)
+		{
+			this.keys = new K[newLength];
+			this.values = new V[newLength];
+			this.next = new nuint[newLength];
+			this.hashes = new nuint[newLength];
+			this.occupied = new bool[newLength];
+		}
+
+		oldKeys.copyTo<K>(this.keys);
+		oldValues.copyTo<V>(this.values);
+		oldNext.copyTo<nuint>(this.next);
+		oldHashes.copyTo<nuint>(this.hashes);
+		oldOccupied.copyTo<bool>(this.occupied);
+
+		within (this.allocator)
+		{
+			delete oldKeys;
+			delete oldValues;
+			delete oldNext;
+			delete oldHashes;
+			delete oldOccupied;
+		}
+
+		for (nuint i = oldLength; i < newLength; i++)
+		{
+			this.next[i] = HASHMAP_EMPTY;
+			this.hashes[i] = 0;
+			this.occupied[i] = false;
+		}
+	}
+
+	void resizeBuckets(nuint minimumLength)
+	{
+		nuint newLength = this.buckets.length == 0 ? 8 : this.buckets.length;
+		while (newLength < minimumLength)
+			newLength = newLength * 2;
+
+		nuint[] oldBuckets = this.buckets;
+		within (this.allocator)
+		{
+			this.buckets = new nuint[newLength];
+			delete oldBuckets;
+		}
+		this.rehash();
+	}
+
+	void rehash()
+	{
+		this.clearBuckets();
+
+		for (nuint i = 0; i < this.used; i++)
+		{
+			if (this.occupied[i])
+			{
+				nuint bucket = this.hashes[i] % this.buckets.length;
+				this.next[i] = this.buckets[bucket];
+				this.buckets[bucket] = i + 1;
+			}
+		}
+	}
+
+	void clearBuckets()
+	{
+		for (nuint i = 0; i < this.buckets.length; i++)
+			this.buckets[i] = HASHMAP_EMPTY;
+	}
+}

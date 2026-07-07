@@ -1,0 +1,293 @@
+export as Std;
+
+inline nuint HASH_EMPTY = (nuint)0;
+
+/// A hash-based set of unique keys.
+/// @remarks
+/// HashSet owns shallow copies of its keys. Pointer and string keys copy the pointer value; the supplied hash policy controls identity or content comparison.
+export class HashSet<K: copyable>
+{
+	HashPolicy<K> policy;
+	K[] keys;
+	nuint[] buckets;
+	nuint[] next;
+	nuint[] hashes;
+	bool[] occupied;
+	nuint length;
+	nuint used;
+	nuint firstFree;
+	Allocator* allocator;
+
+	/// Initializes an empty set with a hash policy and remembers the allocator used for storage.
+	export HashSet(HashPolicy<K> policy, within allocator, sizeof(K))
+	{
+		this.policy = policy;
+		this.allocator = (unscoped(this))allocator;
+	}
+
+	/// Releases all allocated storage.
+	export ~HashSet()
+	{
+		within (this.allocator)
+		{
+			delete this.keys;
+			delete this.buckets;
+			delete this.next;
+			delete this.hashes;
+			delete this.occupied;
+		}
+
+		this.keys = default;
+		this.buckets = default;
+		this.next = default;
+		this.hashes = default;
+		this.occupied = default;
+		this.length = 0;
+		this.used = 0;
+		this.firstFree = HASH_EMPTY;
+	}
+
+	/// Adds a key and returns true when the key was not already present.
+	export bool add(in K key)
+	{
+		fn nuint(in K) hashFunction = this.policy.hash;
+		nuint hash = hashFunction(key);
+		if (this.findSlot(key, hash) != -1)
+			return false;
+
+		this.ensureCapacity(this.length + 1);
+		if (this.buckets.length == 0 || this.keys.length <= this.length)
+			return false;
+
+		nuint slot = this.allocateSlot();
+		this.keys[slot] = key;
+		this.hashes[slot] = hash;
+		this.occupied[slot] = true;
+
+		nuint bucket = hash % this.buckets.length;
+		this.next[slot] = this.buckets[bucket];
+		this.buckets[bucket] = slot + 1;
+		this.length++;
+		return true;
+	}
+
+	/// Returns true when the key is present.
+	export bool contains(in K key)
+	{
+		fn nuint(in K) hashFunction = this.policy.hash;
+		return this.findSlot(key, hashFunction(key)) != -1;
+	}
+
+	/// Removes a key and returns true when an item was removed.
+	export bool remove(in K key)
+	{
+		if (this.buckets.length == 0)
+			return false;
+
+		fn nuint(in K) hashFunction = this.policy.hash;
+		nuint hash = hashFunction(key);
+		nuint bucket = hash % this.buckets.length;
+		nuint previous = HASH_EMPTY;
+		nuint current = this.buckets[bucket];
+
+		while (current != HASH_EMPTY)
+		{
+			nuint slot = current - 1;
+			nuint nextSlot = this.next[slot];
+			if (this.occupied[slot] && this.hashes[slot] == hash && this.policy.equals(this.keys[slot], key))
+			{
+				if (previous == HASH_EMPTY)
+					this.buckets[bucket] = nextSlot;
+				else
+					this.next[previous - 1] = nextSlot;
+
+				this.keys[slot] = default;
+				this.occupied[slot] = false;
+				this.hashes[slot] = 0;
+				this.next[slot] = this.firstFree;
+				this.firstFree = slot + 1;
+				this.length--;
+				return true;
+			}
+
+			previous = current;
+			current = nextSlot;
+		}
+
+		return false;
+	}
+
+	/// Removes all keys and optionally releases storage.
+	export void clear(bool deleteBuffer = false)
+	{
+		for (nuint i = 0; i < this.used; i++)
+		{
+			if (this.occupied[i])
+				this.keys[i] = default;
+			this.occupied[i] = false;
+			this.next[i] = HASH_EMPTY;
+			this.hashes[i] = 0;
+		}
+
+		this.clearBuckets();
+		this.length = 0;
+		this.used = 0;
+		this.firstFree = HASH_EMPTY;
+
+		if (deleteBuffer)
+		{
+			within (this.allocator)
+			{
+				delete this.keys;
+				delete this.buckets;
+				delete this.next;
+				delete this.hashes;
+				delete this.occupied;
+			}
+			this.keys = default;
+			this.buckets = default;
+			this.next = default;
+			this.hashes = default;
+			this.occupied = default;
+		}
+	}
+
+	/// Returns the number of keys in the set.
+	export nuint getLength() => this.length;
+
+	/// Returns the number of key slots currently allocated.
+	export nuint getCapacity() => this.keys.length;
+
+	/// Allocates a new array containing all keys in unspecified order.
+	export escaped K[] copyArray()
+	{
+		K[] copied = within (this.allocator) new K[this.length];
+		nuint at = 0;
+		for (nuint i = 0; i < this.used; i++)
+		{
+			if (this.occupied[i])
+			{
+				copied[at] = this.keys[i];
+				at++;
+			}
+		}
+		return copied;
+	}
+
+	nint findSlot(in K key, nuint hash)
+	{
+		if (this.buckets.length == 0)
+			return -1;
+
+		nuint current = this.buckets[hash % this.buckets.length];
+		while (current != HASH_EMPTY)
+		{
+			nuint slot = current - 1;
+			if (this.occupied[slot] && this.hashes[slot] == hash && this.policy.equals(this.keys[slot], key))
+				return (nint)slot;
+			current = this.next[slot];
+		}
+		return -1;
+	}
+
+	nuint allocateSlot()
+	{
+		if (this.firstFree != HASH_EMPTY)
+		{
+			nuint slot = this.firstFree - 1;
+			this.firstFree = this.next[slot];
+			this.next[slot] = HASH_EMPTY;
+			return slot;
+		}
+
+		nuint result = this.used;
+		this.used++;
+		return result;
+	}
+
+	void ensureCapacity(nuint minimumLength)
+	{
+		if (this.keys.length < minimumLength)
+			this.resizeSlots(minimumLength);
+
+		if (this.buckets.length == 0 || (minimumLength * 4) >= (this.buckets.length * 3))
+			this.resizeBuckets(minimumLength * 2);
+	}
+
+	void resizeSlots(nuint minimumLength)
+	{
+		nuint oldLength = this.keys.length;
+		nuint newLength = oldLength == 0 ? 8 : oldLength;
+		while (newLength < minimumLength)
+			newLength = newLength * 2;
+
+		K[] oldKeys = this.keys;
+		nuint[] oldNext = this.next;
+		nuint[] oldHashes = this.hashes;
+		bool[] oldOccupied = this.occupied;
+
+		within (this.allocator)
+		{
+			this.keys = new K[newLength];
+			this.next = new nuint[newLength];
+			this.hashes = new nuint[newLength];
+			this.occupied = new bool[newLength];
+		}
+
+		oldKeys.copyTo<K>(this.keys);
+		oldNext.copyTo<nuint>(this.next);
+		oldHashes.copyTo<nuint>(this.hashes);
+		oldOccupied.copyTo<bool>(this.occupied);
+
+		within (this.allocator)
+		{
+			delete oldKeys;
+			delete oldNext;
+			delete oldHashes;
+			delete oldOccupied;
+		}
+
+		for (nuint i = oldLength; i < newLength; i++)
+		{
+			this.next[i] = HASH_EMPTY;
+			this.hashes[i] = 0;
+			this.occupied[i] = false;
+		}
+	}
+
+	void resizeBuckets(nuint minimumLength)
+	{
+		nuint newLength = this.buckets.length == 0 ? 8 : this.buckets.length;
+		while (newLength < minimumLength)
+			newLength = newLength * 2;
+
+		nuint[] oldBuckets = this.buckets;
+		within (this.allocator)
+		{
+			this.buckets = new nuint[newLength];
+			delete oldBuckets;
+		}
+		this.rehash();
+	}
+
+	void rehash()
+	{
+		this.clearBuckets();
+
+		for (nuint i = 0; i < this.used; i++)
+		{
+			if (this.occupied[i])
+			{
+				nuint bucket = this.hashes[i] % this.buckets.length;
+				this.next[i] = this.buckets[bucket];
+				this.buckets[bucket] = i + 1;
+			}
+		}
+	}
+
+	void clearBuckets()
+	{
+		for (nuint i = 0; i < this.buckets.length; i++)
+			this.buckets[i] = HASH_EMPTY;
+	}
+}

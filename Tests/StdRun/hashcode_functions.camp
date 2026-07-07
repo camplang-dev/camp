@@ -1,0 +1,47 @@
+using Std;
+
+export int main()
+{
+	HashPolicy<int> ints = Int_hashPolicy;
+	if (ints.hash(123) != Int_hashcode(123) || !ints.equals(123, 123) || ints.equals(123, 124))
+		return 1;
+
+	HashPolicy<short> shorts = Short_hashPolicy;
+	if (!shorts.equals((short)-5, (short)-5) || shorts.hash((short)-5) != Short_hashcode((short)-5))
+		return 2;
+
+	HashPolicy<ulong> ulongs = ULong_hashPolicy;
+	if (!ulongs.equals((ulong)9, (ulong)9) || ulongs.equals((ulong)9, (ulong)10))
+		return 3;
+
+	HashPolicy<nuint> native = NUInt_hashPolicy;
+	if (!native.equals((nuint)77, (nuint)77) || native.hash((nuint)77) != NUInt_hashcode((nuint)77))
+		return 4;
+
+	int value = 4;
+	int other = 5;
+	HashPolicy<int*> pointers = Ptr_hashPolicy<int>();
+	if (!pointers.equals(&value, &value) || pointers.equals(&value, &other))
+		return 5;
+	if (pointers.hash(&value) != hashcodePointer<int>(&value))
+		return 6;
+
+	HashPolicy<string> strings = String_hashPolicy;
+	string camp = "Camp";
+	string campAgain = "Camp";
+	string lowerCamp = "camp";
+	if (!strings.equals(camp, campAgain) || strings.equals(camp, lowerCamp))
+		return 7;
+	if (strings.hash(camp) != String_hashcode(camp))
+		return 8;
+
+	HashPolicy<string> insensitive = String_caseInsensitiveHashPolicy;
+	string cheese = "MR_CHEESE";
+	string lowerCheese = "mr_cheese";
+	if (!insensitive.equals(cheese, lowerCheese))
+		return 9;
+	if (insensitive.hash(cheese) != insensitive.hash(lowerCheese))
+		return 10;
+
+	return 0;
+}
