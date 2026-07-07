@@ -155,6 +155,7 @@ public class ValueParameterSyntax : ParameterSyntax
 public class WithinParameterSyntax : ParameterSyntax
 {
 	public Token? WithinKeyword { get; set; }
+	public Token? LifetimeKeyword { get; set; }
 	public Token? Identifier { get; set; }
 }
 

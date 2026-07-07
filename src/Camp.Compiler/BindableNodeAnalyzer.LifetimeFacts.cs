@@ -983,9 +983,16 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (TryGetReceiverAnchoredStorageTarget(target, out string? anchor))
 		{
-			if (!ValueOutlivesAnchor(valueFact, anchor))
+			if (!ValueOutlivesAnchor(valueFact, anchor) && !IsExplicitScopedWithinAllocatorFact(valueFact))
 				Report(GetRange(syntax), $"{context} cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.");
 		}
+	}
+
+	static bool IsExplicitScopedWithinAllocatorFact(LifetimeFact valueFact)
+	{
+		return valueFact.Kind == "scoped"
+			&& valueFact.Anchors.Count == 0
+			&& valueFact.Source == "explicit within";
 	}
 
 	static bool IsInsideGenericBody(BodyScope scope)

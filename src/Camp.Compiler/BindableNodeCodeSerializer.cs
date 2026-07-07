@@ -1361,8 +1361,13 @@ public sealed class BindableNodeCodeSerializer
 		}
 		else
 		{
-			if (parameter is WithinParameterDefinition && parameter.Type is null)
+			if (parameter is WithinParameterDefinition withinParameter)
 			{
+				if (TryGetWithinParameterExplicitLifetime(withinParameter, out string? lifetime))
+				{
+					writer.Write(lifetime);
+					writer.Write(" ");
+				}
 				writer.Write(parameter.Name);
 			}
 			else
@@ -1426,6 +1431,18 @@ public sealed class BindableNodeCodeSerializer
 			}
 			writer.Write(")");
 		}
+	}
+
+	static bool TryGetWithinParameterExplicitLifetime(WithinParameterDefinition parameter, out string? lifetime)
+	{
+		lifetime = null;
+		if (parameter.LifetimeBinding is null)
+			return false;
+		string[] parts = parameter.LifetimeBinding.Split(':', 2);
+		if (parts.Length != 2 || parts[1] != "explicit within")
+			return false;
+		lifetime = parts[0];
+		return lifetime is "scoped" or "unscoped" or "escaped";
 	}
 
 	void WriteLifetimeCastDeclarator(CastExpression cast)

@@ -1656,7 +1656,10 @@ public sealed partial class BindableNodeBuilder
 					SourceSyntax = within,
 					Name = within.Identifier?.Value ?? "",
 					Symbol = within.Identifier?.Value ?? "",
-					Modifier = ParameterModifier.Within
+					Modifier = ParameterModifier.Within,
+					LifetimeBinding = within.LifetimeKeyword is null
+						? null
+						: within.LifetimeKeyword.Value.Value + ":explicit within"
 				};
 
 			case ThisParameterSyntax thisParameter:

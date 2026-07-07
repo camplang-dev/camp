@@ -6762,10 +6762,14 @@ class StringBuilder
 ```
 
 A bare `within` parameter is shorthand for a hidden allocator-context parameter
-whose type is the visible `Allocator*` type:
+whose type is the visible `Allocator*` type. The allocator type name does not
+need to be written:
 
 ```camp
-within Allocator* arena
+within allocator
+within scoped allocator
+within unscoped allocator
+within escaped allocator
 ```
 
 It is not a defaulted parameter. A `within` parameter does not have, and may
@@ -6777,10 +6781,17 @@ Properties:
 | Property | Meaning |
 |---|---|
 | Type | visible `Allocator*`, unless a type is written explicitly |
-| Lifetime | the ordinary `within` parameter lifetime, unless written explicitly |
+| Lifetime | `scoped` by default; may be written as `within scoped allocator`, `within unscoped allocator`, or `within escaped allocator` |
 | Default value | none; `within` parameters cannot declare defaults |
 
 Only one `within` parameter is allowed per routine.
+
+Allocator arguments follow ordinary lifetime storage rules. A plain
+`within allocator` parameter is scoped to the call and cannot be stored in a
+field tied to `this`. Use `within scoped allocator` when an ordinary
+non-escaped receiver stores the allocator for the receiver's lifetime. Use
+`within escaped allocator` when storing into an `escaped class` instance or an
+`escaped` allocator field.
 
 ### 4.3.7 Implicit forwarding
 

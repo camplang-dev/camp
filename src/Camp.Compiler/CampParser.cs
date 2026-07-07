@@ -826,8 +826,12 @@ public sealed class CampParser
 
 		int start = index;
 		Token? within = TakeIf("within");
-		if (within is not null && IsIdentifier() && ValueIsAny(PeekValue(1), ",", ")"))
-			return new WithinParameterSyntax { WithinKeyword = within, Identifier = TakeIdentifier() };
+		if (within is not null)
+		{
+			Token? lifetime = ValueIsAny(PeekValue(0), "scoped", "unscoped", "escaped") ? Take() : null;
+			if (IsIdentifier() && ValueIsAny(PeekValue(1), ",", ")"))
+				return new WithinParameterSyntax { WithinKeyword = within, LifetimeKeyword = lifetime, Identifier = TakeIdentifier() };
+		}
 		index = start;
 
 		List<TypeDeclaratorSyntax> thisDeclarators = [];
