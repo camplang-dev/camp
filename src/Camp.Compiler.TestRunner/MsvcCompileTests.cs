@@ -51,8 +51,8 @@ public sealed class MsvcCompileTests
 			{
 				IoError error = default;
 				FileOptions options = default;
-				FileHandle* writer = FileHandle.open("tmp/msvc-test-file.txt", FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
-				if (error != default || writer == null)
+				FileHandle writer = FileHandle.open("tmp/msvc-test-file.txt", FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
+				if (error != default)
 					return 1;
 				const byte[] bytes = [(byte)'o', (byte)'k'];
 				writer.write(bytes, catch error);
@@ -60,8 +60,8 @@ public sealed class MsvcCompileTests
 					return 2;
 				delete writer;
 
-				FileHandle* reader = FileHandle.open("tmp/msvc-test-file.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
-				if (error != default || reader == null)
+				FileHandle reader = FileHandle.open("tmp/msvc-test-file.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
+				if (error != default)
 					return 3;
 				if (reader.getLength(catch error) != 2 || error != default)
 					return 4;

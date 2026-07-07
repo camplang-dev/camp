@@ -537,7 +537,14 @@ public sealed partial class BindableNodeBuilder
 				if (IsMethodDeclaration(child.MemberDeclaration))
 				{
 					if (BuildFunctionDefinition(child.MemberDeclaration, isGlobal: false, allowVirtual: false, containingTypeName: definition.Name) is FunctionDefinition function)
+					{
+						if (function.Modifier == FunctionModifier.Constructor)
+						{
+							Report(child.MemberDeclaration, "Newtype declarations may not contain constructors.");
+							continue;
+						}
 						definition.Functions.Add(function);
+					}
 				}
 				else if (BuildFieldDefinition(child.MemberDeclaration) is FieldDefinition field)
 				{

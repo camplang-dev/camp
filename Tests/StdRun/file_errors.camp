@@ -4,12 +4,7 @@ export int main()
 {
 	IoError error = default;
 	FileOptions options = default;
-	FileHandle* handle = FileHandle.open("tmp/camp-missing-file-for-pal-test.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
-	if (handle != null)
-	{
-		delete handle;
-		return 1;
-	}
+	FileHandle.open("tmp/camp-missing-file-for-pal-test.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
 	if (error != IoError.NOT_FOUND)
 		return 2;
 	return 0;

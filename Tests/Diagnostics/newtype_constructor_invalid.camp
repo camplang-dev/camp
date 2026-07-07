@@ -1,0 +1,6 @@
+newtype ConstructedHandle: nint
+{
+	ConstructedHandle()
+	{
+	}
+}

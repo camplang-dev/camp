@@ -4,8 +4,8 @@ export int main()
 {
 	IoError error = default;
 	FileOptions options = default;
-	FileHandle* writerHandle = FileHandle.open("tmp/golden-stdrun-file.txt", FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
-	if (error != default || writerHandle == null)
+	FileHandle writerHandle = FileHandle.open("tmp/golden-stdrun-file.txt", FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
+	if (error != default)
 		return 1;
 	
 	const byte[] bytes = [(byte)'a', (byte)'b', (byte)'c'];
@@ -14,11 +14,9 @@ export int main()
 		return 2;
 	delete writerHandle;
 	
-	FileHandle* readerHandle = FileHandle.open("tmp/golden-stdrun-file.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
-	if (error != default || readerHandle == null)
+	FileHandle readerHandle = FileHandle.open("tmp/golden-stdrun-file.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
+	if (error != default)
 		return 3;
-	if (!readerHandle.Open || !readerHandle.Readable || readerHandle.Writable)
-		return 4;
 	if (readerHandle.getLength(catch error) != 3 || error != default)
 		return 5;
 	

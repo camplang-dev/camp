@@ -2403,8 +2403,8 @@ newtype FileHandle: nint
 
 A `newtype` scope may contain ordinary methods.
 
-It may not contain fields or virtual methods. Value `newtype` declarations may
-declare constructors and destructors. A value `newtype` destructor consumes the
+It may not contain fields, virtual methods, or constructors. Value `newtype`
+declarations may declare destructors. A value `newtype` destructor consumes the
 wrapped value by value; it does not receive a pointer to storage and it never
 deallocates storage.
 
@@ -2415,6 +2415,7 @@ newtype Counter: int
 {
 	int value;          // ERROR
 	virtual void a();   // ERROR
+	Counter();          // ERROR
 }
 ```
 
@@ -5502,7 +5503,7 @@ A static member is accessed through type-name dot syntax when the type name is v
 ```camp
 Theme.Default
 Console.writeLine("hello")
-FileHandle.openRead(path)
+FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING)
 ```
 
 The canonical symbol name is also in scope when visible:
@@ -5510,7 +5511,7 @@ The canonical symbol name is also in scope when visible:
 ```camp
 Theme_Default
 Console_writeLine("hello")
-FileHandle_openRead(path)
+FileHandle_open(path, FileAccess.READ, FileMode.OPEN_EXISTING)
 ```
 
 For static methods declared outside the type body, the declaration uses the canonical symbol name. The compiler recognizes visible no-receiver symbols with a `TypeName_` prefix as candidates for `TypeName.` static lookup. Namespace qualification may qualify the type name before the `.`.
@@ -10145,7 +10146,9 @@ These are useful for:
 
 ### 7.2.4 `FileHandle`
 
-`FileHandle` is the library's full file-handle type. It represents the open handle itself, not the abstract file on disk.
+`FileHandle` is the library's raw file-handle wrapper. It represents the
+platform handle value itself, not an allocated Camp object and not the abstract
+file on disk.
 
 The core API divides file use into two paths:
 
@@ -10177,36 +10180,31 @@ export struct FileOptions
 	bool allowSharedWrite;
 }
 
-export class FileHandle
+export newtype FileHandle: nint
 {
-	static ByteReader openRead(const char[] path, FileMode mode = OPEN_EXISTING, FileOptions options = default, thrown IoError);
-	static AsyncByteReader openReadAsync(const char[] path, FileMode mode = OPEN_EXISTING, FileOptions options = default, thrown IoError);
+	static FileHandle open(const char[] path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError);
 
-	static ByteWriter openWrite(const char[] path, FileMode mode = CREATE_OR_TRUNCATE, FileOptions options = default, thrown IoError);
-	static AsyncByteWriter openWriteAsync(const char[] path, FileMode mode = CREATE_OR_TRUNCATE, FileOptions options = default, thrown IoError);
-
-	static FileHandle* open(const char[] path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError);
-	static async FileHandle* openAsync(const char[] path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError);
-
-	~FileHandle(thrown IoError);
-
-	bool getOpen();
-	bool getReadable();
-	bool getWritable();
-	bool getEndOfFile();
+	~FileHandle();
 
 	ulong getLength(thrown IoError);
 	ulong getPosition(thrown IoError);
 	void setPosition(ulong value, thrown IoError);
+	void read(byte[] buffer, out nuint readCount, thrown IoError);
+	void write(const byte[] buffer, thrown IoError);
 
-	ByteReader getReader();
-	AsyncByteReader getAsyncReader();
-	ByteWriter getWriter();
-	AsyncByteWriter getAsyncWriter();
+	ByteReader getByteReader();
+	CharReader getCharReader();
+	ByteWriter getByteWriter();
+	CharWriter getCharWriter();
 }
 ```
 
-The convenience methods `openRead(...)` and `openWrite(...)` return streams directly because that is the common case for sequential I/O. Callers that need handle-level state use `open(...)` or `openAsync(...)` instead.
+`FileHandle` does not store readable/writable/end-of-file state. Invalid
+operations are reported by the platform abstraction layer through `IoError`.
+End of file for reads is represented by a successful read with `readCount == 0`.
+Deleting a `FileHandle` value closes the wrapped handle. Since the type is a raw
+value wrapper, do not delete a `FileHandle*`; write `delete *slot` only when a
+pointer slot contains a handle value that should be closed.
 
 ### 7.2.5 `Console`
 
@@ -10339,15 +10337,21 @@ The distinction between the two line-reading styles is intentional:
 ```camp
 using Std::IO;
 
-void dumpBytes(const char[] path, thrown IoError)
+void dumpBytes(const char[] path, thrown IoError error)
 {
-	auto reader = FileHandle.openRead(path) finally delete;
+	FileOptions options = default;
+	FileHandle file = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
 	byte[] buffer = init byte[4096];
+	nuint count = 0;
 
-	foreach (nuint count in reader(buffer))
+	while (true)
 	{
+		file.read(buffer, out count, catch error);
+		if (count == 0)
+			break;
 		processBytes(buffer.slice(0, count));
 	}
+	delete file;
 }
 ```
 
@@ -10360,15 +10364,13 @@ Future async-stream form:
 ```camp
 using Std::IO;
 
-async void dumpBytesAsync(const char[] path, thrown IoError)
+async void dumpBytesAsync(const char[] path, thrown IoError error)
 {
-	auto reader = FileHandle.openReadAsync(path) finally delete;
-	auto buffer = new byte[4096] finally delete;
+	FileOptions options = default;
+	FileHandle file = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
 
-	await foreach (nuint count in reader(buffer))
-	{
-		processBytes(buffer.slice(0, count));
-	}
+	// Async file APIs are reserved for a later standard-library pass.
+	delete file;
 }
 ```
 
@@ -10377,10 +10379,12 @@ async void dumpBytesAsync(const char[] path, thrown IoError)
 ```camp
 using Std::IO;
 
-void writeData(const char[] path, const byte[] data, thrown IoError)
+void writeData(const char[] path, const byte[] data, thrown IoError error)
 {
-	auto writer = FileHandle.openWrite(path) finally delete;
-	writer.writeAll(data);
+	FileOptions options = default;
+	FileHandle file = FileHandle.open(path, FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
+	file.write(data, catch error);
+	delete file;
 }
 ```
 
@@ -10389,9 +10393,11 @@ Manual form without helpers:
 ```camp
 using Std::IO;
 
-void writeDataManually(const char[] path, const byte[] data, thrown IoError)
+void writeDataManually(const char[] path, const byte[] data, thrown IoError error)
 {
-	auto writer = FileHandle.openWrite(path) finally delete;
+	FileOptions options = default;
+	FileHandle file = FileHandle.open(path, FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
+	ByteWriter writer = file.ByteWriter;
 	auto remaining = data;
 
 	foreach (nuint written in writer(remaining))
@@ -10401,6 +10407,7 @@ void writeDataManually(const char[] path, const byte[] data, thrown IoError)
 		if (remaining.length == 0)
 			break;
 	}
+	delete file;
 }
 ```
 
@@ -10409,9 +10416,11 @@ void writeDataManually(const char[] path, const byte[] data, thrown IoError)
 ```camp
 using Std::IO;
 
-void printTextFile(const char[] path, thrown IoError)
+void printTextFile(const char[] path, thrown IoError error)
 {
-	auto reader = FileHandle.openRead(path) finally delete;
+	FileOptions options = default;
+	FileHandle file = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
+	CharReader reader = file.CharReader;
 	char[] lineBuffer = init char[512];
 
 	foreach (char[] line in reader.CharReader.iterateLines(lineBuffer))
@@ -10421,6 +10430,7 @@ void printTextFile(const char[] path, thrown IoError)
 
 		Console.writeLine(line);
 	}
+	delete file;
 }
 ```
 
@@ -10429,14 +10439,17 @@ void printTextFile(const char[] path, thrown IoError)
 ```camp
 using Std::IO;
 
-void writeTextFile(const char[] path, thrown IoError)
+void writeTextFile(const char[] path, thrown IoError error)
 {
-	auto writer = FileHandle.openWrite(path) finally delete;
+	FileOptions options = default;
+	FileHandle file = FileHandle.open(path, FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
+	CharWriter writer = file.CharWriter;
 
-	writer.CharWriter.writeLine("hello, world");
-	writer.CharWriter.write("The answer is ");
-	writer.CharWriter.write(42);
-	writer.CharWriter.newLine();
+	writer.writeLine("hello, world");
+	writer.write("The answer is ");
+	writer.write(42);
+	writer.newLine();
+	delete file;
 }
 ```
 

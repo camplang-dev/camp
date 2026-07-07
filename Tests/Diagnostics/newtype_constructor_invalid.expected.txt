@@ -1,0 +1,1 @@
+tests/Diagnostics/newtype_constructor_invalid.camp(3,2): error: Newtype declarations may not contain constructors.

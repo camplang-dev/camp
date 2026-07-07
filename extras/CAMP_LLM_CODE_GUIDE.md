@@ -6,7 +6,7 @@ This guide is based on the following source documents. Evidence citations use th
 
 | Alias | Source |
 |---|---|
-| `spec` | `docs/camp_unified_spec_v30.md` |
+| `spec` | `docs/camp_unified_spec_v31.md` |
 | `scheduler_design` | `docs/camp_async_scheduler_design_v7.md` |
 
 Confidence labels:
@@ -44,6 +44,7 @@ Confidence labels:
 | Error handling is explicit: thrown values use `thrown T` parameters, `throw value`, `try`/`catch`, and call-site `catch variable`. | `CONFIRMED_BY_TEST` | `tests/CCompile/thrown_parameter_forwarding.camp`; `tests/Lowering/throw_try_finally.camp`; `src/Camp.Compiler/BindableNodeAnalyzer.Flow.cs` |
 | Camp is C ABI-oriented. `extern`, `export`, `public`, `@symbol`, generated C symbols, `void*`, `sizeof`, and flattened method names matter. | `CONFIRMED_BY_TEST` | `tests/CEmit/*.camp`; `tests/Api/*.camp`; `src/Camp.Compiler/CCodeEmitter.cs`; `src/Camp.Compiler/BindableNodeAnalyzer.Expansion.cs` |
 | Standard-library code should use the standard library's public API surface. Do not export private helpers merely to make one implementation convenient; prefer existing public operations, or add a deliberately public API with tests and docs when the capability itself belongs in the library. | `SPEC_ONLY_OR_UNVERIFIED` | `spec::7`; `docs/camp_doc_comments_metadata_supplement.md` |
+| `Std::FileHandle` is a raw `newtype FileHandle: nint`, not an allocated class. `FileHandle.open(...)` returns a value; delete the value to close it. Do not add `Open`, readable/writable, or end-of-file fields/properties; invalid operations report `IoError`, and EOF is a successful read with count `0`. | `CONFIRMED_BY_TEST` | `lib/std/src/std_file.camp`; `tests/StdRun/file_handle.camp`; `tests/StdRun/reader_helpers.camp`; `spec::7.2.4` |
 
 ## 2. Lexical and Formatting Rules
 
