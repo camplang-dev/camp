@@ -77,7 +77,7 @@ public sealed class MsvcCompileTests
 				if (asyncDone != 0)
 					return 6;
 
-				TimerHandle handle = startTimer(5, h => {
+				TimerHandle handle = startTimer(5, new delegate h => {
 					timerTicks++;
 					if (timerTicks >= 2)
 						stopTimer(h);
