@@ -5,6 +5,9 @@
 bin/
 obj/
 
+# Camp package cache
+pkg/
+
 # User-specific IDE/editor files
 .idea/
 .vscode/

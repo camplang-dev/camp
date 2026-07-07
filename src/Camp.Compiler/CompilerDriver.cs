@@ -443,7 +443,7 @@ public static class CompilerDriver
 				.OrderBy(static x => x, StringComparer.Ordinal)
 				.ToArray();
 
-			string packageBinDirectory = Path.Combine(context.PackageArtifactRoot, packageName, context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName);
+			string packageBinDirectory = GetPackageArtifactDirectory(context.PackageArtifactRoot, packageName, version: null, context);
 			string apiPath = Path.Combine(packageBinDirectory, packageName + "_api.camp");
 			string cApiPath = Path.Combine(packageBinDirectory, packageName + "_api.h");
 			string metadataPath = Path.Combine(packageBinDirectory, packageName + "_api.json");
@@ -500,7 +500,7 @@ public static class CompilerDriver
 				.OrderBy(static x => x, StringComparer.Ordinal)
 				.ToArray();
 
-			string packageBinDirectory = Path.Combine(artifactRoot!, packageName, resolvedVersion!, context.Target.Name, context.MemoryModelName ?? "default", context.ProfileName);
+			string packageBinDirectory = GetPackageArtifactDirectory(artifactRoot!, packageName, resolvedVersion!, context);
 			string apiPath = Path.Combine(packageBinDirectory, packageName + "_api.camp");
 			string cApiPath = Path.Combine(packageBinDirectory, packageName + "_api.h");
 			string metadataPath = Path.Combine(packageBinDirectory, packageName + "_api.json");
@@ -579,7 +579,7 @@ public static class CompilerDriver
 					if (Directory.Exists(unversioned))
 					{
 						sourceDirectory = unversioned;
-						artifactRoot = Path.Combine(request.WorkingDirectory, "bin", "pkg-source");
+						artifactRoot = Path.Combine(request.WorkingDirectory, "pkg", "bin");
 						resolvedVersion = "live";
 						return true;
 					}
@@ -601,7 +601,7 @@ public static class CompilerDriver
 				if (!Directory.Exists(candidate))
 					continue;
 				sourceDirectory = candidate;
-				artifactRoot = Path.Combine(request.WorkingDirectory, "bin", "pkg-source");
+				artifactRoot = Path.Combine(request.WorkingDirectory, "pkg", "bin");
 				resolvedVersion = version;
 				return true;
 			}
@@ -612,8 +612,18 @@ public static class CompilerDriver
 		{
 			string globalRoot = Path.GetFullPath(Path.Combine(request.RuntimeRoot, "..", "pkg"));
 			string localRoot = Path.GetFullPath(Path.Combine(request.WorkingDirectory, "pkg"));
-			yield return (globalRoot, Path.Combine(request.RuntimeRoot, "pkg"));
-			yield return (localRoot, Path.Combine(request.WorkingDirectory, "bin", "pkg"));
+			yield return (globalRoot, Path.Combine(globalRoot, "bin"));
+			yield return (localRoot, Path.Combine(localRoot, "bin"));
+		}
+
+		static string GetPackageArtifactDirectory(string artifactRoot, string packageName, string? version, RuntimeContext context)
+		{
+			string targetDirectory = string.IsNullOrWhiteSpace(context.MemoryModelName)
+				? context.Target.Name
+				: $"{context.Target.Name}_{context.MemoryModelName}";
+			return version is null
+				? Path.Combine(artifactRoot, packageName, targetDirectory, context.ProfileName)
+				: Path.Combine(artifactRoot, packageName, version, targetDirectory, context.ProfileName);
 		}
 
 		static (string Name, string? Version) ParsePackageSpec(string value)

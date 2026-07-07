@@ -1030,7 +1030,7 @@ public sealed class CommandLineTests
 	public void Use_source_resolves_live_unversioned_package_sources()
 	{
 		string root = TempPath("live-use-source");
-		string sourceRoot = Path.Combine(root, "packages");
+		string sourceRoot = Path.Combine(root, "package-source");
 		string packageSource = Path.Combine(sourceRoot, "live-demo", "src");
 		Directory.CreateDirectory(packageSource);
 		string packageFile = Path.Combine(packageSource, "demo.camp");
@@ -1087,7 +1087,7 @@ public sealed class CommandLineTests
 	public void Response_file_use_option_does_not_consume_source_patterns()
 	{
 		string root = TempPath("response-use-source-pattern");
-		string sourceRoot = Path.Combine(root, "packages");
+		string sourceRoot = Path.Combine(root, "package-source");
 		string packageSource = Path.Combine(sourceRoot, "live-demo", "src");
 		string appRoot = Path.Combine(root, "app");
 		string appSource = Path.Combine(appRoot, "src");
@@ -1110,7 +1110,7 @@ public sealed class CommandLineTests
 			--nostdlib
 			--artifact none
 			--name app
-			--use-source local ../packages
+			--use-source local ../package-source
 			--use live-demo
 			src/*.camp
 			""");

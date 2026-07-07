@@ -4,7 +4,7 @@ Next bug number: CAMPC-008.
 
 - **CAMPC-002:** Live local package sources work during compilation, but the
   package-management commands are still version-oriented. A local source root
-  such as `packages/ext-win32/src` can be consumed with `--use-source`, but
+  such as `package-source/ext-win32/src` can be consumed with `--use-source`, but
   commands like restore, search, and install still assume published package
   versions. That will feel strange for packages that are intentionally developed
   live and revised frequently. Add package-management behavior that understands

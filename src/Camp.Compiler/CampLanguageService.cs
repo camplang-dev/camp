@@ -109,10 +109,10 @@ public static class CampLanguageService
 	{
 		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
 		string profileName = string.IsNullOrWhiteSpace(request.ProfileName) ? "DEBUG" : request.ProfileName.ToUpperInvariant();
-		string memoryModelName = string.IsNullOrWhiteSpace(request.MemoryModelName) ? "default" : request.MemoryModelName;
+		string targetDirectory = string.IsNullOrWhiteSpace(request.MemoryModelName) ? targetName : $"{targetName}_{request.MemoryModelName}";
 		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
 		{
-			apiHeader = Path.Combine(runtimeRoot, "lib", packageName, targetName, memoryModelName, profileName, packageName + "_api.camp");
+			apiHeader = Path.Combine(runtimeRoot, "lib", packageName, targetDirectory, profileName, packageName + "_api.camp");
 			if (File.Exists(apiHeader))
 				return true;
 		}
@@ -124,7 +124,7 @@ public static class CampLanguageService
 	{
 		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
 		string profileName = string.IsNullOrWhiteSpace(request.ProfileName) ? "DEBUG" : request.ProfileName.ToUpperInvariant();
-		string memoryModelName = string.IsNullOrWhiteSpace(request.MemoryModelName) ? "default" : request.MemoryModelName;
+		string targetDirectory = string.IsNullOrWhiteSpace(request.MemoryModelName) ? targetName : $"{targetName}_{request.MemoryModelName}";
 		foreach (string artifactRoot in CandidatePackageArtifactRoots(request))
 		{
 			string packageRoot = Path.Combine(artifactRoot, packageName);
@@ -132,7 +132,7 @@ public static class CampLanguageService
 				continue;
 			foreach (string versionDirectory in CandidatePackageVersionDirectories(packageRoot, requestedVersion))
 			{
-				apiHeader = Path.Combine(versionDirectory, targetName, memoryModelName, profileName, packageName + "_api.camp");
+				apiHeader = Path.Combine(versionDirectory, targetDirectory, profileName, packageName + "_api.camp");
 				if (File.Exists(apiHeader))
 					return true;
 			}
@@ -178,10 +178,11 @@ public static class CampLanguageService
 	static IEnumerable<string> CandidatePackageArtifactRoots(CompilerRequest request)
 	{
 		string workingDirectory = Path.GetFullPath(request.WorkingDirectory);
-		yield return Path.Combine(workingDirectory, "bin", "pkg-source");
-		yield return Path.Combine(workingDirectory, "bin", "pkg");
+		yield return Path.Combine(workingDirectory, "pkg", "bin");
 		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
-			yield return Path.Combine(runtimeRoot, "pkg");
+			yield return Path.GetFullPath(Path.Combine(runtimeRoot, "..", "pkg", "bin"));
+		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
+			yield return Path.Combine(runtimeRoot, "lib");
 	}
 
 	static IEnumerable<string> CandidatePackageSourceRoots(CompilerRequest request)
