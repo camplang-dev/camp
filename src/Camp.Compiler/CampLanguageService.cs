@@ -60,6 +60,8 @@ public static class CampLanguageService
 		HashSet<string> loadedPaths = new(StringComparer.OrdinalIgnoreCase);
 		foreach ((string Path, bool IsApiHeader) include in GetAnalysisIncludeFiles(request))
 			AddSourceFileIfMissing(compilation, include.Path, request.WorkingDirectory, overlayByPath, include.IsApiHeader, loadedPaths);
+		foreach (string file in request.AnalysisSourceFiles)
+			AddSourceFileIfMissing(compilation, file, request.WorkingDirectory, overlayByPath, isApiHeader: false, loadedPaths);
 		foreach (string file in request.Files)
 			AddSourceFileIfMissing(compilation, file, request.WorkingDirectory, overlayByPath, isApiHeader: false, loadedPaths);
 		return compilation;

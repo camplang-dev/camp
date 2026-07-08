@@ -26,6 +26,7 @@ public sealed class CompilerRequest
 {
 	public List<string> Files { get; } = [];
 	public List<string> IncludeFiles { get; } = [];
+	public List<string> AnalysisSourceFiles { get; } = [];
 	public List<string> Defines { get; } = [];
 	public CompilerInspectMode? Inspect { get; set; }
 	public bool Xml { get; set; }

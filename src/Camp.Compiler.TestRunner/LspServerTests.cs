@@ -619,6 +619,61 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_build_file_includes_project_reference_sources_when_api_header_is_missing()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-project-reference-source-fallback");
+		string appRoot = Path.Combine(root, "app");
+		string appSource = Path.Combine(appRoot, "src");
+		string libraryRoot = Path.Combine(root, "library");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		Directory.CreateDirectory(appSource);
+		Directory.CreateDirectory(librarySource);
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--artifact static
+			--name library
+			--nostdlib
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(librarySource, "form.camp"), """
+			export class Form
+			{
+			}
+
+			export class Control
+			{
+			}
+			""");
+		File.WriteAllText(Path.Combine(appRoot, "app.campbuild"), """
+			--artifact exec
+			--name app
+			--nostdlib
+			src/*.camp
+			--project-reference ../library
+			""");
+		string file = Path.Combine(appSource, "main.camp");
+		string text = """
+			export int main()
+			{
+				Form* form = default;
+				Control* control = default;
+				return form == default && control == default ? 0 : 1;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(appRoot);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+
+		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+		Assert.Empty(diagnostics["params"]?["diagnostics"]?.AsArray()!);
+	}
+
+	[Fact]
 	public void Lsp_build_file_can_disable_standard_library()
 	{
 		using LspProcess lsp = LspProcess.Start();

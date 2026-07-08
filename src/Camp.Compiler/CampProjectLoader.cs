@@ -58,6 +58,7 @@ public sealed class CampProjectLoadResult
 	public required CompilerRequest Request { get; init; }
 	public List<string> ProjectReferences { get; } = [];
 	public List<string> ProjectReferenceApiHeaders { get; } = [];
+	public List<string> ProjectReferenceSourceFiles { get; } = [];
 	public List<string> Diagnostics { get; } = [];
 	public bool Success => Diagnostics.Count == 0;
 }
@@ -65,6 +66,11 @@ public sealed class CampProjectLoadResult
 public static class CampProjectLoader
 {
 	public static CampProjectLoadResult Load(IReadOnlyList<string> args, CampProjectEnvironment environment, CampProjectCommandKind command = CampProjectCommandKind.LanguageService)
+	{
+		return Load(args, environment, command, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+	}
+
+	static CampProjectLoadResult Load(IReadOnlyList<string> args, CampProjectEnvironment environment, CampProjectCommandKind command, HashSet<string> projectReferenceStack)
 	{
 		List<string> errors = [];
 		string[] expandedArgs = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run
@@ -74,7 +80,7 @@ public static class CampProjectLoader
 		{
 			ParsedCampBuildOptions cli = CampBuildOptionParser.Parse(expandedArgs, allowPositionals: true, errors);
 			if (errors.Count == 0)
-				return Load(cli, environment, command, errors);
+				return Load(cli, environment, command, errors, projectReferenceStack);
 		}
 
 		return Failed(environment, errors);
@@ -82,11 +88,31 @@ public static class CampProjectLoader
 
 	public static CampProjectLoadResult LoadBuildFile(string buildFile, CampProjectEnvironment environment, CampProjectCommandKind command = CampProjectCommandKind.LanguageService)
 	{
+		return LoadBuildFile(buildFile, environment, command, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+	}
+
+	static CampProjectLoadResult LoadBuildFile(string buildFile, CampProjectEnvironment environment, CampProjectCommandKind command, HashSet<string> projectReferenceStack)
+	{
 		List<string> errors = [];
+		string canonical = Path.GetFullPath(buildFile);
+		if (projectReferenceStack.Contains(canonical))
+		{
+			errors.Add("Project reference cycle detected at '" + canonical + "'.");
+			return Failed(environment, errors);
+		}
+
 		List<string> args = CampResponseFileExpander.Expand(["@" + buildFile], environment.WorkingDirectory, errors);
 		if (errors.Count > 0)
 			return Failed(environment, errors);
-		return Load(args, environment, command);
+		projectReferenceStack.Add(canonical);
+		try
+		{
+			return Load(args, environment, command, projectReferenceStack);
+		}
+		finally
+		{
+			projectReferenceStack.Remove(canonical);
+		}
 	}
 
 	public static string? FindNearestBuildFile(string fileOrDirectory)
@@ -106,7 +132,7 @@ public static class CampProjectLoader
 		return null;
 	}
 
-	static CampProjectLoadResult Load(ParsedCampBuildOptions cli, CampProjectEnvironment environment, CampProjectCommandKind command, List<string> errors)
+	static CampProjectLoadResult Load(ParsedCampBuildOptions cli, CampProjectEnvironment environment, CampProjectCommandKind command, List<string> errors, HashSet<string> projectReferenceStack)
 	{
 		CampBuildOptionBag bag = new();
 		ApplyGlobalPragmas(environment, bag, errors);
@@ -171,12 +197,68 @@ public static class CampProjectLoader
 			{
 				result.ProjectReferences.Add(resolved!);
 				if (TryFindProjectReferenceApiHeader(resolved!, request, environment.WorkingDirectory, out string? apiHeader))
+				{
 					result.ProjectReferenceApiHeaders.Add(apiHeader!);
+					if (command == CampProjectCommandKind.LanguageService)
+						AddUnique(request.IncludeFiles, apiHeader!);
+				}
+				else if (command == CampProjectCommandKind.LanguageService)
+					AddLanguageServiceProjectReferenceSources(result, request, resolved!, projectReferenceStack);
 			}
 			else
 				result.Diagnostics.Add(error!);
 		}
 		return result;
+	}
+
+	static void AddLanguageServiceProjectReferenceSources(CampProjectLoadResult result, CompilerRequest request, string buildFile, HashSet<string> projectReferenceStack)
+	{
+		string projectDirectory = Path.GetDirectoryName(Path.GetFullPath(buildFile)) ?? request.WorkingDirectory;
+		CampProjectLoadResult referenced = LoadBuildFile(
+			buildFile,
+			CampProjectEnvironment.Create(projectDirectory, request.RuntimeRoot),
+			CampProjectCommandKind.LanguageService,
+			projectReferenceStack);
+		result.Diagnostics.AddRange(referenced.Diagnostics);
+		if (!referenced.Success)
+			return;
+
+		MergeUniqueStrings(request.Defines, referenced.Request.Defines);
+		MergeUniqueStrings(request.UsePackages, referenced.Request.UsePackages);
+		MergeUnique(request.UseSourceRoots, referenced.Request.UseSourceRoots);
+		foreach (string include in referenced.Request.IncludeFiles)
+			AddUnique(request.IncludeFiles, Path.GetFullPath(include, referenced.Request.WorkingDirectory));
+		foreach (string source in referenced.Request.AnalysisSourceFiles)
+			AddLanguageServiceSource(result, request, Path.GetFullPath(source, referenced.Request.WorkingDirectory));
+		foreach (string source in referenced.Request.Files)
+			AddLanguageServiceSource(result, request, Path.GetFullPath(source, referenced.Request.WorkingDirectory));
+	}
+
+	static void AddLanguageServiceSource(CampProjectLoadResult result, CompilerRequest request, string path)
+	{
+		AddUnique(result.ProjectReferenceSourceFiles, path);
+		AddUnique(request.AnalysisSourceFiles, path);
+	}
+
+	static void MergeUnique(List<string> destination, IEnumerable<string> values)
+	{
+		foreach (string value in values)
+			AddUnique(destination, value);
+	}
+
+	static void MergeUniqueStrings(List<string> destination, IEnumerable<string> values)
+	{
+		foreach (string value in values)
+		{
+			if (!destination.Contains(value, StringComparer.Ordinal))
+				destination.Add(value);
+		}
+	}
+
+	static void AddUnique(List<string> destination, string value)
+	{
+		if (!destination.Any(existing => string.Equals(Path.GetFullPath(existing), Path.GetFullPath(value), StringComparison.OrdinalIgnoreCase)))
+			destination.Add(value);
 	}
 
 	static bool TryFindProjectReferenceApiHeader(string buildFile, CompilerRequest consumerRequest, string workingDirectory, out string? apiHeader)
