@@ -2622,7 +2622,7 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		if (receiver.Kind == TypeShapeKind.Named && IsGenericPlaceholderParameter(receiver.Name))
-			return actual.Kind == TypeShapeKind.Named;
+			return actual.Kind != TypeShapeKind.FixedArray;
 
 		if (actual.Kind != receiver.Kind)
 			return false;

@@ -1,0 +1,19 @@
+using Std;
+
+void f()
+{
+}
+
+export int main()
+{
+	fn*[] source = new fn*[1];
+	fn*[] destination = new fn*[1];
+
+	source[0] = (fn*)f;
+	source.copyTo<fn*>(destination);
+
+	int result = destination[0] == (fn*)f ? 0 : 1;
+	delete source;
+	delete destination;
+	return result;
+}

@@ -6604,13 +6604,38 @@ public static class CCodeEmitter
 
 			string? explicitTargetSpec = TryStripTrailingResolvedTargetSpec(ref type);
 			int pointerCount = 0;
-			while (type.EndsWith("*", StringComparison.Ordinal))
+			bool rawFunctionPointerBase = false;
+			if (type.StartsWith("fn*", StringComparison.Ordinal)
+				&& (type.Length == "fn*".Length || type["fn*".Length] is '*' or '['))
+			{
+				rawFunctionPointerBase = true;
+				string suffix = type["fn*".Length..].Trim();
+				type = "fn*";
+				while (suffix.Length > 0)
+				{
+					if (suffix.EndsWith("[]", StringComparison.Ordinal))
+					{
+						pointerCount++;
+						suffix = suffix[..^2].TrimEnd();
+						continue;
+					}
+					if (suffix.EndsWith("*", StringComparison.Ordinal))
+					{
+						pointerCount++;
+						suffix = suffix[..^1].TrimEnd();
+						continue;
+					}
+					break;
+				}
+			}
+
+			while (!rawFunctionPointerBase && type.EndsWith("*", StringComparison.Ordinal))
 			{
 				pointerCount++;
 				type = type[..^1].TrimEnd();
 			}
 
-			if (type.EndsWith("[]", StringComparison.Ordinal))
+			if (!rawFunctionPointerBase && type.EndsWith("[]", StringComparison.Ordinal))
 			{
 				pointerCount++;
 				type = type[..^2].TrimEnd();
@@ -6647,6 +6672,10 @@ public static class CCodeEmitter
 				if (spec.Length > 0)
 					pointerDeclarator = string.IsNullOrWhiteSpace(pointerDeclarator) ? spec : pointerDeclarator + " " + spec;
 			}
+			if (type == "fn*")
+				return new CType(FormatInlineResolvedFunctionPointer("void", new List<string>(), pointerDeclarator, explicitTargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), null));
+			if (type.StartsWith("fn* ", StringComparison.Ordinal))
+				return new CType(FormatInlineResolvedFunctionPointer("void", new List<string>(), pointerDeclarator, type["fn* ".Length..].Trim(), null));
 			if (TrySplitFixedArrayType(type, out string fixedBaseType, out List<long> fixedLengths))
 				return FormatResolvedFixedArrayType(qualifierPart + fixedBaseType, fixedLengths, pointerDeclarator);
 			if (pointerCount == 0 && TryParseExpandedCallableStorageType(type, out _, out _, out _, out _))
