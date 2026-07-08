@@ -3120,16 +3120,30 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string? TryGetArrayElementType(string? type)
 	{
-		return new TypeShapeParser(type ?? "").TryParse(out TypeShape shape) && shape.Kind is TypeShapeKind.Array or TypeShapeKind.FixedArray
-			? TypeShapeParser.Format(shape.Element)
-			: null;
+		if (new TypeShapeParser(type ?? "").TryParse(out TypeShape shape) && shape.Kind is TypeShapeKind.Array or TypeShapeKind.FixedArray)
+			return TypeShapeParser.Format(shape.Element);
+		type = (type ?? "").Trim();
+		if (TryStripLeadingLifetimeQualifier(type, out string strippedLeading))
+			type = strippedLeading.Trim();
+		if (TryStripTrailingLifetimeQualifier(type, out string strippedTrailing))
+			type = strippedTrailing.Trim();
+		if (type.EndsWith("[]", StringComparison.Ordinal))
+			return type[..^2].TrimEnd();
+		return null;
 	}
 
 	static string? TryGetPointerElementType(string? type)
 	{
-		return new TypeShapeParser(StripLifetimeQualifiers(type ?? "")).TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Pointer
-			? TypeShapeParser.Format(shape.Element)
-			: null;
+		if (new TypeShapeParser(StripLifetimeQualifiers(type ?? "")).TryParse(out TypeShape shape) && shape.Kind == TypeShapeKind.Pointer)
+			return TypeShapeParser.Format(shape.Element);
+		type = (type ?? "").Trim();
+		if (TryStripLeadingLifetimeQualifier(type, out string strippedLeading))
+			type = strippedLeading.Trim();
+		if (TryStripTrailingLifetimeQualifier(type, out string strippedTrailing))
+			type = strippedTrailing.Trim();
+		if (type.EndsWith("*", StringComparison.Ordinal))
+			return type[..^1].TrimEnd();
+		return null;
 	}
 
 	string? GetIteratorElementType(TypeReference? type)

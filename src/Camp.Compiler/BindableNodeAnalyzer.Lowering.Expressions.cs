@@ -386,7 +386,7 @@ public sealed partial class BindableNodeAnalyzer
 			|| callable.Kind != "fn"
 			|| callable.Parameters.Count == 0
 			|| callable.Parameters[0] != "void*"
-			|| !TryFindParamsExpansionSibling(target, "context", out Expression? context)
+			|| !TryFindParamsExpansionSiblingFromExpansion(target, "context", out Expression? context)
 			|| context is null)
 		{
 			return false;

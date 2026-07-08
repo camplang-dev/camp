@@ -6676,6 +6676,8 @@ public static class CCodeEmitter
 				return new CType(FormatInlineResolvedFunctionPointer("void", new List<string>(), pointerDeclarator, explicitTargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), null));
 			if (type.StartsWith("fn* ", StringComparison.Ordinal))
 				return new CType(FormatInlineResolvedFunctionPointer("void", new List<string>(), pointerDeclarator, type["fn* ".Length..].Trim(), null));
+			if (TryParseResolvedCallableType(type, out string resolvedCallableReturnType, out List<string> resolvedCallableParameterTypes, out string? resolvedCallableTargetSpec, out string? resolvedCallableCallSpec))
+				return new CType(FormatInlineResolvedFunctionPointer(resolvedCallableReturnType, resolvedCallableParameterTypes, pointerDeclarator, resolvedCallableTargetSpec, resolvedCallableCallSpec));
 			if (TrySplitFixedArrayType(type, out string fixedBaseType, out List<long> fixedLengths))
 				return FormatResolvedFixedArrayType(qualifierPart + fixedBaseType, fixedLengths, pointerDeclarator);
 			if (pointerCount == 0 && TryParseExpandedCallableStorageType(type, out _, out _, out _, out _))
@@ -6932,7 +6934,7 @@ public static class CCodeEmitter
 				return false;
 			int open = type.IndexOf('(', StringComparison.Ordinal);
 			int close = type.LastIndexOf(')');
-			if (open < 0 || close < open)
+			if (open < 0 || close < open || close != type.Length - 1)
 				return false;
 			string prefix = type[3..open].Trim();
 			if (prefix.Length == 0)

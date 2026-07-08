@@ -1456,7 +1456,7 @@ public sealed partial class BindableNodeAnalyzer
 		components = [];
 		if (!TryGetCallableShape(expression.ResolvedType, out CallableShape callable) || callable.Kind != "fn" || callable.ReturnType != "bool" || callable.Parameters.Count < 2 || callable.Parameters[0] != "void*")
 			return false;
-		if (!TryFindParamsExpansionSibling(expression, "context", out Expression? context) || context is null)
+		if (!TryFindParamsExpansionSiblingFromExpansion(expression, "context", out Expression? context) || context is null)
 			return false;
 
 		components.Add(expression);
@@ -1623,6 +1623,47 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryFindParamsExpansionSibling(Expression expression, string sourceName, out Expression? sibling)
 	{
+		if (TryFindParamsExpansionSiblingFromExpansion(expression, sourceName, out sibling))
+			return true;
+		if (sourceName == "context")
+		{
+			switch (expression)
+			{
+				case MemberReferenceExpression member:
+					sibling = new MemberReferenceExpression
+					{
+						SourceSyntax = expression.SourceSyntax,
+						Target = CloneParamsExpansionExpression(member.Target),
+						Name = member.Name + "_context",
+						ResolvedType = "void*"
+					};
+					return true;
+
+				case VariableReferenceExpression { Variable: ParameterDefinition parameter }:
+					sibling = new NamedExpression
+					{
+						SourceSyntax = expression.SourceSyntax,
+						Name = parameter.Name + "_context",
+						ResolvedType = "void*"
+					};
+					return true;
+
+				case VariableReferenceExpression { Variable: DeclarationTarget target } when target.Names.Count == 1:
+					sibling = new NamedExpression
+					{
+						SourceSyntax = expression.SourceSyntax,
+						Name = target.Names[0] + "_context",
+						ResolvedType = "void*"
+					};
+					return true;
+			}
+		}
+		sibling = null;
+		return false;
+	}
+
+	bool TryFindParamsExpansionSiblingFromExpansion(Expression expression, string sourceName, out Expression? sibling)
+	{
 		sibling = null;
 		BindableNode? node = expression switch
 		{
@@ -1658,39 +1699,6 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				: CreateVariableReference(siblingComponent.Node, siblingComponent.Type);
 			return true;
-		}
-		if (sourceName == "context")
-		{
-			switch (expression)
-			{
-				case MemberReferenceExpression member:
-					sibling = new MemberReferenceExpression
-					{
-						SourceSyntax = expression.SourceSyntax,
-						Target = CloneParamsExpansionExpression(member.Target),
-						Name = member.Name + "_context",
-						ResolvedType = "void*"
-					};
-					return true;
-
-				case VariableReferenceExpression { Variable: ParameterDefinition parameter }:
-					sibling = new NamedExpression
-					{
-						SourceSyntax = expression.SourceSyntax,
-						Name = parameter.Name + "_context",
-						ResolvedType = "void*"
-					};
-					return true;
-
-				case VariableReferenceExpression { Variable: DeclarationTarget target } when target.Names.Count == 1:
-					sibling = new NamedExpression
-					{
-						SourceSyntax = expression.SourceSyntax,
-						Name = target.Names[0] + "_context",
-						ResolvedType = "void*"
-					};
-					return true;
-			}
 		}
 		return false;
 	}

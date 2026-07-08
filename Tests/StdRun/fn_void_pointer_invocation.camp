@@ -1,0 +1,34 @@
+using Std;
+
+int released;
+
+void releaseThing(void* value)
+{
+	released = value == null ? 1 : 2;
+}
+
+int callbackInt(void* value)
+{
+	return value == null ? 3 : 4;
+}
+
+export int main()
+{
+	fn void(void*) callback = releaseThing;
+	fn int(void*) callbackWithReturn = callbackInt;
+
+	callback(null);
+	if (released != 1)
+		return 1;
+	if (callbackWithReturn(null) != 3)
+		return 2;
+
+	fn void(void*)[] releaseFunctions = new fn void(void*)[1];
+	releaseFunctions[0] = releaseThing;
+
+	released = 0;
+	releaseFunctions[0](null);
+	delete releaseFunctions;
+
+	return released == 1 ? 0 : 3;
+}
