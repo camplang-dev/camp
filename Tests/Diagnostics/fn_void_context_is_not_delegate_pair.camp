@@ -1,0 +1,12 @@
+void releaseThing(void* context)
+{
+}
+
+void takesFunctionAndContext(fn void(void*) callback, void* context)
+{
+}
+
+export void main()
+{
+	takesFunctionAndContext(releaseThing);
+}

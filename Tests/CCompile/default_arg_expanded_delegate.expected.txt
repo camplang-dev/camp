@@ -3,9 +3,7 @@
 
 /* Private file declarations. */
 static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2);
-static int __camp_delegate_compareInt_1(void *arg0, int *arg1, int *arg2);
 static void __camp_delegate_noop(void *arg0, int *arg1);
-static void __camp_delegate_noop_1(void *arg0, int *arg1);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static int compareInt(int *left, int *right);
@@ -21,19 +19,7 @@ static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2)
 	return compareInt(arg1, arg2);
 }
 
-static int __camp_delegate_compareInt_1(void *arg0, int *arg1, int *arg2)
-{
-	(void)arg0;
-	return compareInt(arg1, arg2);
-}
-
 static void __camp_delegate_noop(void *arg0, int *arg1)
-{
-	(void)arg0;
-	noop(arg1);
-}
-
-static void __camp_delegate_noop_1(void *arg0, int *arg1)
 {
 	(void)arg0;
 	noop(arg1);
@@ -96,9 +82,9 @@ static int main(void)
 	int *values = (int []){10, 20, 30, 40, 50};
 	uintptr_t values_length = 5;
 	intptr_t found1 = Array_findInArray(values, values_length, &(int){30}, (int (*)(void *arg0, void *arg1, void *arg2))__camp_delegate_compareInt, NULL, 1, sizeof(int));
-	intptr_t found2 = Array_findInArray(values, values_length, &(int){30}, (int (*)(void *arg0, void *arg1, void *arg2))__camp_delegate_compareInt_1, NULL, 0, sizeof(int));
+	intptr_t found2 = Array_findInArray(values, values_length, &(int){30}, (int (*)(void *arg0, void *arg1, void *arg2))__camp_delegate_compareInt, NULL, 0, sizeof(int));
 	Array_forEachFrom(values, values_length, (void (*)(void *arg0, void *arg1))__camp_delegate_noop, NULL, 1, sizeof(int));
-	Array_forEachFrom(values, values_length, (void (*)(void *arg0, void *arg1))__camp_delegate_noop_1, NULL, 0, sizeof(int));
+	Array_forEachFrom(values, values_length, (void (*)(void *arg0, void *arg1))__camp_delegate_noop, NULL, 0, sizeof(int));
 	uintptr_t n = IntArray_len(values, values_length);
 	return (((int)(found1) + (int)(found2)) + (int)(n));
 }

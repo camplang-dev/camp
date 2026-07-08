@@ -3,17 +3,10 @@
 
 /* Private file declarations. */
 static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2);
-static int __camp_delegate_compareInt_1(void *arg0, int *arg1, int *arg2);
 static intptr_t Array_binarySearch(const void *this, uintptr_t this_length, void *value, int (* compare)(void *arg0, void *arg1, void *arg2), void *compare_context, uintptr_t sizeof_T);
 static int compareInt(int *left, int *right);
 
 static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2)
-{
-	(void)arg0;
-	return compareInt(arg1, arg2);
-}
-
-static int __camp_delegate_compareInt_1(void *arg0, int *arg1, int *arg2)
 {
 	(void)arg0;
 	return compareInt(arg1, arg2);
@@ -69,7 +62,7 @@ int main(void)
 	uintptr_t values_length = 4;
 	int needle = 5;
 	intptr_t first = Array_binarySearch(values, values_length, &needle, (int (*)(void *arg0, void *arg1, void *arg2))__camp_delegate_compareInt, NULL, sizeof(int));
-	return (int)(((first + Array_binarySearch(values, values_length, &needle, (int (*)(void *arg0, void *arg1, void *arg2))__camp_delegate_compareInt_1, NULL, sizeof(int)))));
+	return (int)(((first + Array_binarySearch(values, values_length, &needle, (int (*)(void *arg0, void *arg1, void *arg2))__camp_delegate_compareInt, NULL, sizeof(int)))));
 }
 
 // file: generic_array_sizeof_transport.h

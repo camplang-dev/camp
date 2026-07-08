@@ -835,6 +835,8 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (callableParameters[index + 1].ResolvedType != "void*")
 			return false;
+		if (callableParameters[index + 1].Name != callableParameters[index].Name + "_context")
+			return false;
 		if (target.ReturnType != source.ReturnType || target.Parameters.Count != source.Parameters.Count + 1 || target.Parameters[0] != "void*")
 			return false;
 		for (int i = 0; i < source.Parameters.Count; i++)

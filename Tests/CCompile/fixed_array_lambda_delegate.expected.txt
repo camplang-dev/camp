@@ -2,7 +2,6 @@
 #include "fixed_array_lambda_delegate_private.h"
 
 /* Private file declarations. */
-static void __camp_delegate_main_lambda4(void *arg0, uint8_t (*arg1)[4]);
 static void invokeBlock(void (* callback)(void *arg0, uint8_t (*arg1)[4]), void *callback_context, uint8_t (*block)[4]);
 static uint8_t readWith(uint8_t (* callback)(void *arg0), void *callback_context);
 static uint8_t main_lambda0(void *_context);
@@ -10,11 +9,6 @@ static uintptr_t main_lambda1(void *_context);
 static uint8_t main_lambda2(void *_context);
 static uint8_t main_lambda3(void *_context);
 static void main_lambda4(void *_context, uint8_t (*block)[4]);
-
-static void __camp_delegate_main_lambda4(void *arg0, uint8_t (*arg1)[4])
-{
-	main_lambda4(arg0, arg1);
-}
 
 static void invokeBlock(void (* callback)(void *arg0, uint8_t (*arg1)[4]), void *callback_context, uint8_t (*block)[4])
 {
@@ -29,7 +23,7 @@ static uint8_t readWith(uint8_t (* callback)(void *arg0), void *callback_context
 int main(void)
 {
 	uint8_t data[4] = {1, 2, 3, 4};
-	invokeBlock(__camp_delegate_main_lambda4, NULL, &data);
+	invokeBlock((void (*)(void *arg0, uint8_t (*arg1)[4]))main_lambda4, NULL, &data);
 	uint8_t (*capturedPointer)[4] = &data;
 	main_lambdaContext0 _lambdaContext0;
 	_lambdaContext0.capture0_capturedPointer = &capturedPointer;

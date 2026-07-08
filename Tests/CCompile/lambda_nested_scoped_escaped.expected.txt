@@ -2,42 +2,12 @@
 #include "lambda_nested_scoped_escaped_private.h"
 
 /* Private file declarations. */
-static int __camp_delegate_runNested_lambda0(void *arg0);
-static int __camp_delegate_runNested_lambda0_lambda0(void *arg0);
-static int __camp_delegate_runNested_lambda0_1(void *arg0);
-static int __camp_delegate_runNested_lambda0_lambda0_1(void *arg0);
-static int __camp_delegate_runNested_lambda0_lambda0_2(void *arg0);
 void *malloc(uintptr_t size);
 static int invokeScoped(int (* callback)(void *arg0), void *callback_context);
 static int invokeEscaped(int (* callback)(void *arg0), void *callback_context);
 static int runNested(int seed);
 static int runNested_lambda0_lambda0(void *_context);
 static int runNested_lambda0(void *_context);
-
-static int __camp_delegate_runNested_lambda0(void *arg0)
-{
-	return runNested_lambda0(arg0);
-}
-
-static int __camp_delegate_runNested_lambda0_lambda0(void *arg0)
-{
-	return runNested_lambda0_lambda0(arg0);
-}
-
-static int __camp_delegate_runNested_lambda0_1(void *arg0)
-{
-	return runNested_lambda0(arg0);
-}
-
-static int __camp_delegate_runNested_lambda0_lambda0_1(void *arg0)
-{
-	return runNested_lambda0_lambda0(arg0);
-}
-
-static int __camp_delegate_runNested_lambda0_lambda0_2(void *arg0)
-{
-	return runNested_lambda0_lambda0(arg0);
-}
 
 static int invokeScoped(int (* callback)(void *arg0), void *callback_context)
 {
@@ -53,7 +23,7 @@ static int runNested(int seed)
 {
 	runNested_lambdaContext0 *_lambdaContext0 = (runNested_lambdaContext0 *)(malloc(sizeof(runNested_lambdaContext0)));
 	_lambdaContext0->capture0_seed = seed;
-	return invokeEscaped(__camp_delegate_runNested_lambda0_1, _lambdaContext0);
+	return invokeEscaped((int (*)(void *arg0))runNested_lambda0, _lambdaContext0);
 }
 
 int main(void)
@@ -74,7 +44,7 @@ static int runNested_lambda0(void *_context)
 	runNested_lambda0_lambdaContext1 _lambdaContext1;
 	_lambdaContext1.capture0_inner = &inner;
 	_lambdaContext1.capture1_lambdaContext = &lambdaContext;
-	return invokeScoped(__camp_delegate_runNested_lambda0_lambda0_2, &_lambdaContext1);
+	return invokeScoped((int (*)(void *arg0))runNested_lambda0_lambda0, &_lambdaContext1);
 }
 
 // file: lambda_nested_scoped_escaped.h

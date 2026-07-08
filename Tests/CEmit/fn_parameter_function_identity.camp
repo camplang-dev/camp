@@ -1,0 +1,14 @@
+void releaseThing(void* context)
+{
+}
+
+void add(fn void(void*) callback)
+{
+}
+
+export int main()
+{
+	add(releaseThing);
+	add(releaseThing);
+	return 0;
+}

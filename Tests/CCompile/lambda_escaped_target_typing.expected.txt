@@ -2,7 +2,6 @@
 #include "lambda_escaped_target_typing_private.h"
 
 /* Private file declarations. */
-static int __camp_delegate_use_lambda0(void *arg0, int arg1);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static void acceptMapper(Mapper mapper, void *mapper_context);
@@ -10,11 +9,6 @@ static int Worker_adjust(Worker *this, int value);
 static void acceptWorker(int (* mapper)(void *arg0, int arg1), void *mapper_context);
 static void use(Worker *worker);
 static int use_lambda0(void *_context, int value);
-
-static int __camp_delegate_use_lambda0(void *arg0, int arg1)
-{
-	return use_lambda0(arg0, arg1);
-}
 
 static void acceptMapper(Mapper mapper, void *mapper_context)
 {
@@ -34,7 +28,7 @@ static void use(Worker *worker)
 	int offset = 2;
 	use_lambdaContext0 *_lambdaContext0 = (use_lambdaContext0 *)(malloc(sizeof(use_lambdaContext0)));
 	_lambdaContext0->capture0_offset = offset;
-	acceptMapper(__camp_delegate_use_lambda0, _lambdaContext0);
+	acceptMapper((Mapper)use_lambda0, _lambdaContext0);
 	acceptWorker((int (*)(void *arg0, int arg1))Worker_adjust, (Worker *)(worker));
 }
 

@@ -2,15 +2,9 @@
 #include "lambda_escaped_delegate_private.h"
 
 /* Private file declarations. */
-static int __camp_delegate_main_lambda0(void *arg0, int arg1);
 void *malloc(uintptr_t size);
 static int apply(int (* callback)(void *arg0, int arg1), void *callback_context, int value);
 static int main_lambda0(void *_context, int value);
-
-static int __camp_delegate_main_lambda0(void *arg0, int arg1)
-{
-	return main_lambda0(arg0, arg1);
-}
 
 static int apply(int (* callback)(void *arg0, int arg1), void *callback_context, int value)
 {
@@ -22,7 +16,7 @@ int main(void)
 	int offset = 40;
 	main_lambdaContext0 *_lambdaContext0 = (main_lambdaContext0 *)(malloc(sizeof(main_lambdaContext0)));
 	_lambdaContext0->capture0_offset = offset;
-	return apply(__camp_delegate_main_lambda0, _lambdaContext0, 2);
+	return apply((int (*)(void *arg0, int arg1))main_lambda0, _lambdaContext0, 2);
 }
 
 static int main_lambda0(void *_context, int value)

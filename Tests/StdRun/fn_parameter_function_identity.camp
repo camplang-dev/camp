@@ -1,0 +1,28 @@
+fn void(void*)[] functions;
+nuint used;
+
+void releaseThing(void* context)
+{
+}
+
+nuint add(fn void(void*) callback)
+{
+	for (nuint i = 0; i < used; i++)
+	{
+		if (functions[i] == callback)
+			return i + 1;
+	}
+
+	functions[used] = callback;
+	used++;
+	return used;
+}
+
+export int main()
+{
+	functions = new fn void(void*)[4];
+	nuint first = add(releaseThing);
+	nuint second = add(releaseThing);
+	delete functions;
+	return first == 1 && second == 1 && used == 1 ? 0 : 1;
+}

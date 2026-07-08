@@ -2,9 +2,6 @@
 #include "lambda_escaped_hardening_matrix_private.h"
 
 /* Private file declarations. */
-static bool __camp_delegate_main_lambda2(void *arg0, int *arg1);
-static bool __camp_delegate_main_lambda3(void *arg0, int *arg1);
-static int __camp_delegate_main_lambda4(void *arg0);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static void fail(Err *error);
@@ -24,21 +21,6 @@ static uintptr_t makeSpanLength_lambda1(void *_context);
 static bool main_lambda2(void *_context, int *item);
 static bool main_lambda3(void *_context, int *item);
 static int main_lambda4(void *_context);
-
-static bool __camp_delegate_main_lambda2(void *arg0, int *arg1)
-{
-	return main_lambda2(arg0, arg1);
-}
-
-static bool __camp_delegate_main_lambda3(void *arg0, int *arg1)
-{
-	return main_lambda3(arg0, arg1);
-}
-
-static int __camp_delegate_main_lambda4(void *arg0)
-{
-	return main_lambda4(arg0);
-}
 
 static void fail(Err *error)
 {
@@ -131,11 +113,11 @@ int main(void)
 	uintptr_t values_length = 4;
 	main_lambdaContext2 *_lambdaContext8 = (main_lambdaContext2 *)(malloc(sizeof(main_lambdaContext2)));
 	_lambdaContext8->capture0_threshold = threshold;
-	total = (total + (int)(Array_countWhere(values, values_length, (bool (*)(void *arg0, void *arg1))__camp_delegate_main_lambda2, _lambdaContext8, sizeof(int))));
+	total = (total + (int)(Array_countWhere(values, values_length, (bool (*)(void *arg0, void *arg1))main_lambda2, _lambdaContext8, sizeof(int))));
 	main_lambdaContext3 *_lambdaContext9 = (main_lambdaContext3 *)(malloc(sizeof(main_lambdaContext3)));
 	_lambdaContext9->capture0_threshold = threshold;
 	{
-		filterIter _foreachIter10 = IntArray_filter(values, values_length, __camp_delegate_main_lambda3, _lambdaContext9);
+		filterIter _foreachIter10 = IntArray_filter(values, values_length, (bool (*)(void *arg0, int *arg1))main_lambda3, _lambdaContext9);
 		int _foreachCurrent11 = 0;
 		while (filterIter_next(&_foreachIter10, &_foreachCurrent11))
 		{
@@ -160,7 +142,7 @@ __catch16: ;
 		{
 			main_lambdaContext4 *_lambdaContext17 = (main_lambdaContext4 *)(malloc(sizeof(main_lambdaContext4)));
 			_lambdaContext17->capture0_e = e;
-			total = (total + invoke0(__camp_delegate_main_lambda4, _lambdaContext17));
+			total = (total + invoke0((int (*)(void *arg0))main_lambda4, _lambdaContext17));
 		}
 		goto __try_done14;
 __try_done14: ;

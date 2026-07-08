@@ -2,17 +2,11 @@
 #include "lambda_with_outer_finally_private.h"
 
 /* Private file declarations. */
-static bool __camp_delegate_main_lambda0(void *arg0, int *arg1);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static int apply(bool (* predicate)(void *arg0, int *arg1), void *predicate_context, int *value);
 static int main(void);
 static bool main_lambda0(void *_context, int *value);
-
-static bool __camp_delegate_main_lambda0(void *arg0, int *arg1)
-{
-	return main_lambda0(arg0, arg1);
-}
 
 static int apply(bool (* predicate)(void *arg0, int *arg1), void *predicate_context, int *value)
 {
@@ -29,7 +23,7 @@ static int main(void)
 	*owned = 3;
 	int _return3 = 0;
 	{
-		_return3 = ((apply(__camp_delegate_main_lambda0, NULL, &(int){*owned}) == 1) ? 0 : 1);
+		_return3 = ((apply((bool (*)(void *arg0, int *arg1))main_lambda0, NULL, &(int){*owned}) == 1) ? 0 : 1);
 		goto __cleanup2;
 	}
 __cleanup2: ;

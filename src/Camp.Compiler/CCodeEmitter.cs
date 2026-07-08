@@ -553,6 +553,7 @@ public static class CCodeEmitter
 		readonly HashSet<string> currentAnyGenericTypeNames = new(StringComparer.Ordinal);
 		readonly HashSet<string> currentArrayElementComponentNames = new(StringComparer.Ordinal);
 		readonly Dictionary<Expression, DelegateThunk> delegateThunksByExpression = [];
+		readonly Dictionary<DelegateThunkKey, DelegateThunk> delegateThunksByKey = [];
 		readonly Dictionary<SourceFile, List<DelegateThunk>> delegateThunksByFile = [];
 		readonly HashSet<string> reservedCNames = [];
 		readonly Dictionary<BindableNode, string> currentAsyncFrameReplacements = [];
@@ -929,9 +930,11 @@ public static class CCodeEmitter
 						ArgumentExpression argument = call.Arguments[i];
 						if (argument.Modifier != ArgumentModifier.None || argument.Value is null)
 							continue;
+						if (!ParametersLookLikeDelegateCallContextPair(parameters, i))
+							continue;
 						if (!TryGetDirectFunctionValue(argument.Value, out FunctionDefinition? sourceFunction))
 							continue;
-						if (!TryCreateDelegateThunk(sourceFunction, parameters[i], substitutions, file, out DelegateThunk? thunk))
+						if (!TryCreateDelegateThunk(sourceFunction, parameters[i], substitutions, file, out DelegateThunk thunk))
 							continue;
 
 						delegateThunksByExpression[argument.Value] = thunk;
@@ -1030,14 +1033,50 @@ public static class CCodeEmitter
 				if (!CanThunkArgumentConvert(sourceParameters[i], targetParameterTypes[i + targetOffset]))
 					return false;
 
+			if (forwardsContext && SourceFunctionDirectlyMatchesTarget(sourceFunction, sourceParameters, targetParameterTypes, targetCallSpec))
+				return false;
+
+			DelegateThunkKey key = new(file, sourceFunction, targetReturnType, string.Join("\u001f", targetParameterTypes), targetCallSpec ?? "", forwardsContext);
+			if (delegateThunksByKey.TryGetValue(key, out DelegateThunk? cachedThunk))
+			{
+				thunk = cachedThunk;
+				return true;
+			}
+
 			string name = CreateUniqueDelegateThunkName(sourceFunction);
 			thunk = new DelegateThunk(name, sourceFunction, targetReturnType, targetParameterTypes, targetCallSpec, forwardsContext);
+			delegateThunksByKey[key] = thunk;
 			if (!delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks))
 			{
 				thunks = [];
 				delegateThunksByFile[file] = thunks;
 			}
 			thunks.Add(thunk);
+			return true;
+		}
+
+		bool ParametersLookLikeDelegateCallContextPair(List<ParameterDefinition> callableParameters, int parameterIndex)
+		{
+			if (parameterIndex + 1 >= callableParameters.Count)
+				return false;
+			if (!TryParseResolvedCallableType(callableParameters[parameterIndex].ResolvedType ?? "", out _, out List<string> parameterTypes, out _, out _)
+				|| parameterTypes.Count == 0
+				|| !IsVoidPointerType(parameterTypes[0]))
+				return false;
+			if (!IsVoidPointerType(callableParameters[parameterIndex + 1].ResolvedType ?? ""))
+				return false;
+			return callableParameters[parameterIndex + 1].Name == callableParameters[parameterIndex].Name + "_context";
+		}
+
+		static bool SourceFunctionDirectlyMatchesTarget(FunctionDefinition sourceFunction, List<ParameterDefinition> sourceParameters, List<string> targetParameterTypes, string? targetCallSpec)
+		{
+			if ((sourceFunction.CallSpec ?? "") != (targetCallSpec ?? ""))
+				return false;
+			if (sourceParameters.Count != targetParameterTypes.Count)
+				return false;
+			for (int i = 0; i < sourceParameters.Count; i++)
+				if (!SameCallableTypeSlot(GetCallableParameterTypeText(sourceParameters[i]), targetParameterTypes[i]))
+					return false;
 			return true;
 		}
 
@@ -7225,6 +7264,14 @@ public static class CCodeEmitter
 			string ReturnType,
 			List<string> ParameterTypes,
 			string? CallSpec,
+			bool ForwardsContext);
+
+		sealed record DelegateThunkKey(
+			SourceFile File,
+			FunctionDefinition SourceFunction,
+			string ReturnType,
+			string ParameterTypes,
+			string CallSpec,
 			bool ForwardsContext);
 	}
 }

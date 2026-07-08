@@ -1,0 +1,1 @@
+tests/Diagnostics/fn_void_context_is_not_delegate_pair.camp(11,2): error: There is no argument given that corresponds to the required parameter 'context' of 'takesFunctionAndContext()'.

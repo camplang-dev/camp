@@ -2,16 +2,10 @@
 #include "lambda_escaped_capture_lifetime_private.h"
 
 /* Private file declarations. */
-static int __camp_delegate_main_lambda0(void *arg0);
 void *malloc(uintptr_t size);
 int *getEscapedInt(void);
 static int apply(int (* callback)(void *arg0), void *callback_context);
 static int main_lambda0(void *_context);
-
-static int __camp_delegate_main_lambda0(void *arg0)
-{
-	return main_lambda0(arg0);
-}
 
 static int apply(int (* callback)(void *arg0), void *callback_context)
 {
@@ -23,7 +17,7 @@ int main(void)
 	int *value = getEscapedInt();
 	main_lambdaContext0 *_lambdaContext0 = (main_lambdaContext0 *)(malloc(sizeof(main_lambdaContext0)));
 	_lambdaContext0->capture0_value = value;
-	return apply(__camp_delegate_main_lambda0, _lambdaContext0);
+	return apply((int (*)(void *arg0))main_lambda0, _lambdaContext0);
 }
 
 static int main_lambda0(void *_context)

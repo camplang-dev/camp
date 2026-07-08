@@ -2,18 +2,12 @@
 #include "iterator_expanded_protocol_slots_private.h"
 
 /* Private file declarations. */
-static bool __camp_delegate_chunksIter_iter(void *arg0, uint8_t **arg1, uintptr_t *arg2);
 static chunksIter chunks(void);
 static int sumLengths(bool (* values)(void *arg0, uint8_t **arg1, uintptr_t *arg2), void *values_context);
 static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length);
 static void chunksIter_op_delete(chunksIter *this);
 static void chunksIter_destroy(chunksIter *this);
 static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_length);
-
-static bool __camp_delegate_chunksIter_iter(void *arg0, uint8_t **arg1, uintptr_t *arg2)
-{
-	return chunksIter_iter(arg0, arg1, arg2);
-}
 
 static chunksIter chunks(void)
 {
@@ -44,7 +38,7 @@ __foreach_break4: ;
 int main(void)
 {
 	chunksIter _iterState5 = chunks();
-	return ((sumLengths(__camp_delegate_chunksIter_iter, &_iterState5) == 5) ? 0 : 1);
+	return ((sumLengths((bool (*)(void *arg0, uint8_t **arg1, uintptr_t *arg2))chunksIter_iter, &_iterState5) == 5) ? 0 : 1);
 }
 
 static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length)
