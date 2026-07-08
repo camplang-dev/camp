@@ -3491,7 +3491,7 @@ public static class CCodeEmitter
 				StackAllocExpression stackAlloc => FormatAlloca(FormatExpression(stackAlloc.Size)),
 				CallExpression call => FormatCallExpression(call),
 				IndexExpression index => FormatIndexExpression(index),
-				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatInterfaceSlotMember(member.Target, member.Name) ?? FormatExpression(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
+				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatInterfaceSlotMember(member.Target, member.Name) ?? FormatMemberTarget(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
 				MemberReferenceExpression member => FormatMemberReference(member),
 				UnaryExpression unary => FormatUnaryExpression(unary),
 				PostfixUpdateExpression postfix => FormatExpression(postfix.Expression) + FormatUpdateOperator(postfix.Operator),
@@ -5526,9 +5526,7 @@ public static class CCodeEmitter
 				return CName(variable);
 			if (member.Member is FieldDefinition field)
 			{
-				string fieldTarget = FormatExpression(member.Target);
-				if (member.Target is UnaryExpression { Operator: UnaryOperator.PointerDereference })
-					fieldTarget = "(" + fieldTarget + ")";
+				string fieldTarget = FormatMemberTarget(member.Target);
 				return fieldTarget + (IsPointerMemberTarget(member.Target) ? "->" : ".") + CName(field);
 			}
 			string? expandedThisComponent = FormatExpandedThisComponent(member.Target, member.Name);
@@ -5537,11 +5535,23 @@ public static class CCodeEmitter
 			string? interfaceSlotMember = FormatInterfaceSlotMember(member.Target, member.Name);
 			if (interfaceSlotMember is not null)
 				return interfaceSlotMember;
-			string target = FormatExpression(member.Target);
-			if (member.Target is UnaryExpression { Operator: UnaryOperator.PointerDereference })
-				target = "(" + target + ")";
+			string target = FormatMemberTarget(member.Target);
 			string separator = IsPointerMemberTarget(member.Target) ? "->" : ".";
 			return target + separator + SanitizeIdentifier(member.Name);
+		}
+
+		string FormatMemberTarget(Expression? target)
+		{
+			string formatted = FormatExpression(target);
+			return target switch
+			{
+				UnaryExpression { Operator: UnaryOperator.PointerDereference } => "(" + formatted + ")",
+				CastExpression => "(" + formatted + ")",
+				ConditionalExpression => "(" + formatted + ")",
+				AssignmentExpression => "(" + formatted + ")",
+				BinaryExpression => "(" + formatted + ")",
+				_ => formatted
+			};
 		}
 
 		string FormatInterfaceFunctionMemberReference(Expression target, FunctionDefinition function)

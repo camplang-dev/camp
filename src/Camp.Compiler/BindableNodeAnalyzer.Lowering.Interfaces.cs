@@ -739,19 +739,19 @@ public sealed partial class BindableNodeAnalyzer
 			Name = target.VTable?.Name ?? VirtualTableVariableName(target.Class),
 			ResolvedType = target.VTableType.Name
 		};
-		List<string> path = [];
+		List<(string Name, string Type)> path = [];
 		for (VirtualClassLowering? current = target; current is not null && !ReferenceEquals(current, root); current = current.BaseLowering)
 		{
-			if (current.BaseClass is not null)
-				path.Add(current.BaseClass.Name);
+			if (current.BaseLowering is not null && current.BaseClass is not null)
+				path.Add((current.BaseClass.Name, current.BaseLowering.VTableType.Name));
 		}
-		for (int i = path.Count - 1; i >= 0; i--)
+		for (int i = 0; i < path.Count; i++)
 		{
 			expression = new MemberReferenceExpression
 			{
 				Target = expression,
-				Name = path[i],
-				ResolvedType = i == 0 ? root.VTableType.Name : ErrorType
+				Name = path[i].Name,
+				ResolvedType = path[i].Type
 			};
 		}
 		return new UnaryExpression

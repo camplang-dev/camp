@@ -1,0 +1,55 @@
+export virtual class Component
+{
+	export Component()
+	{
+	}
+
+	export virtual int value()
+	{
+		return 1;
+	}
+}
+
+export virtual class Control: Component
+{
+	export Control()
+	{
+	}
+
+	export override int value()
+	{
+		return 2;
+	}
+
+	export virtual int controlValue()
+	{
+		return 20;
+	}
+}
+
+export sealed class Form: Control
+{
+	export Form()
+	{
+	}
+
+	export override int value()
+	{
+		return 3;
+	}
+
+	export override int controlValue()
+	{
+		return 30;
+	}
+}
+
+export int main()
+{
+	Form* form = new Form();
+	Component* component = (Component*)form;
+	Control* control = (Control*)form;
+	int result = component.value() * 10 + control.controlValue();
+	delete component;
+	return result == 60 ? 0 : result;
+}
