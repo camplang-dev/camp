@@ -1075,6 +1075,9 @@ public sealed class CommandLineTests
 		Assert.Contains("void Control__op_delete(Component *ctx);", privateHeader, StringComparison.Ordinal);
 		string buttonC = File.ReadAllText(Path.Combine(buildDir, "button.c"));
 		Assert.Contains(".op_delete = Control__op_delete", buttonC, StringComparison.Ordinal);
+		string api = File.ReadAllText(Path.Combine(outDir, "widgets_api.camp"));
+		Assert.Contains("export extern ~Component();", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("void ~Component", api, StringComparison.Ordinal);
 	}
 
 	[Fact]

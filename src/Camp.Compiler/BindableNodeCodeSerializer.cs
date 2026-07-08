@@ -479,7 +479,7 @@ public sealed class BindableNodeCodeSerializer
 
 		foreach (FunctionDefinition function in functions)
 		{
-			if (function.Modifier == FunctionModifier.Destructor && function.Export is not null)
+			if (IsDestructorFunction(function) && function.Export is not null)
 				return false;
 		}
 
@@ -603,7 +603,7 @@ public sealed class BindableNodeCodeSerializer
 		{
 			writer.Write(definition.Name);
 		}
-		else if (definition.Modifier == FunctionModifier.Destructor)
+		else if (IsDestructorFunction(definition))
 		{
 			writer.Write(definition.Name.StartsWith("~", StringComparison.Ordinal) ? definition.Name : "~" + definition.Name);
 		}
@@ -1209,7 +1209,12 @@ public sealed class BindableNodeCodeSerializer
 
 	static bool IsLifecycleFunction(FunctionDefinition definition)
 	{
-		return definition.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor;
+		return definition.Modifier == FunctionModifier.Constructor || IsDestructorFunction(definition);
+	}
+
+	static bool IsDestructorFunction(FunctionDefinition definition)
+	{
+		return definition.Modifier == FunctionModifier.Destructor || definition.Name.StartsWith("~", StringComparison.Ordinal);
 	}
 
 	bool ShouldWriteFunctionModifier(FunctionDefinition definition)
