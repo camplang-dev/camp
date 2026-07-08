@@ -1,1 +1,1 @@
-tests/Diagnostics/extern_constructor_missing_argument.camp(9,13): error: Call is missing required arguments.
+tests/Diagnostics/extern_constructor_missing_argument.camp(9,17): error: There is no argument given that corresponds to the required parameter 'policy' of 'ImportedMap()'.

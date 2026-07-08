@@ -1,0 +1,1 @@
+tests/Diagnostics/missing_required_method_argument.camp(11,9): error: There is no argument given that corresponds to the required parameter 'policy' of 'run()'.

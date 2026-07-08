@@ -1,0 +1,11 @@
+extern class HashMap<TKey: copyable, TValue: copyable>
+{
+	extern HashMap(int policy);
+	extern ~HashMap();
+}
+
+export void main()
+{
+	auto map = new HashMap<string, int>();
+	delete map;
+}

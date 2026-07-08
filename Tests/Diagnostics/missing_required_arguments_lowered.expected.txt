@@ -1,1 +1,1 @@
-tests/Diagnostics/missing_required_arguments_lowered.camp(16,18): error: Call is missing required arguments.
+tests/Diagnostics/missing_required_arguments_lowered.camp(16,10): error: There is no argument given that corresponds to the required parameter 'missing' of 'needsTwo()'.

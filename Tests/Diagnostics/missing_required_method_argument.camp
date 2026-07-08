@@ -1,0 +1,12 @@
+struct Worker
+{
+	void run(int policy)
+	{
+	}
+}
+
+export void main()
+{
+	Worker worker = default;
+	worker.run();
+}

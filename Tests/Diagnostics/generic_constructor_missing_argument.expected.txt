@@ -1,0 +1,1 @@
+tests/Diagnostics/generic_constructor_missing_argument.camp(9,17): error: There is no argument given that corresponds to the required parameter 'policy' of 'HashMap<string, int>()'.
