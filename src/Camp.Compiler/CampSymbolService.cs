@@ -14,7 +14,9 @@ public enum CampSymbolKind
 	Type,
 	Function,
 	Method,
+	Property,
 	Field,
+	Component,
 	Variable,
 	Parameter,
 	EnumValue,
@@ -227,15 +229,18 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		CampSymbolInfo? target = GetSymbolAt(file.Path, context.MemberTargetPosition);
 		string? targetType = context.MemberTargetText == "this"
 			? ResolveThisCompletionTarget(file, context.MemberTargetPosition)
-			: context.MemberTargetText is null ? null : ResolveCompletionTargetName(context.MemberTargetText);
-		targetType ??= target?.Type;
+			: target?.Type;
+		targetType ??= context.MemberTargetText is null ? null : ResolveSourceDeclaredParamsShape(file.Text, context.MemberTargetText, context.MemberTargetPosition);
+		targetType ??= context.MemberTargetText is null ? null : ResolveCompletionTargetName(context.MemberTargetText);
 		if (targetType is null && target?.Kind is CampSymbolKind.Type or CampSymbolKind.Alias)
 			targetType = target.Name;
+		List<CampCompletionItem> completions = [];
+		if (!string.IsNullOrWhiteSpace(targetType))
+			completions.AddRange(GetParamsComponentCompletions(targetType!));
 		TypeDefinition? type = ResolveCompletionType(targetType);
 		if (type is null)
-			return [];
+			return completions;
 		bool staticOnly = !string.IsNullOrWhiteSpace(context.MemberTargetText) && ResolveCompletionType(context.MemberTargetText) is not null;
-		List<CampCompletionItem> completions = [];
 		CollectTypeMemberCompletions(file, type, completions, new HashSet<TypeDefinition>(ReferenceEqualityComparer.Instance), staticOnly);
 		return completions;
 	}
@@ -256,7 +261,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return kind switch
 		{
 			CampSymbolKind.Variable or CampSymbolKind.Parameter => 0,
-			CampSymbolKind.Field => 1,
+			CampSymbolKind.Field or CampSymbolKind.Property or CampSymbolKind.Component => 1,
 			CampSymbolKind.Method or CampSymbolKind.Function => 2,
 			CampSymbolKind.EnumValue => 3,
 			CampSymbolKind.Type or CampSymbolKind.Alias => 4,
@@ -466,8 +471,8 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 					if ((!staticOnly || field.Modifier == FieldModifier.Static) && TryCreateCompletion(file, field, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				foreach (FunctionDefinition function in classDefinition.Functions)
-					if ((!staticOnly || function.Modifier == FunctionModifier.Static) && !IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
-						completions.Add(item!);
+					if ((!staticOnly || function.Modifier == FunctionModifier.Static))
+						AddFunctionCompletions(file, function, type.Name, completions);
 				foreach (TypeReference baseType in classDefinition.BaseTypes)
 					CollectBaseTypeMemberCompletions(file, baseType, completions, visited, staticOnly);
 				break;
@@ -476,13 +481,13 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 					if ((!staticOnly || field.Modifier == FieldModifier.Static) && TryCreateCompletion(file, field, type.Name, out CampCompletionItem? item))
 						completions.Add(item!);
 				foreach (FunctionDefinition function in structDefinition.Functions)
-					if ((!staticOnly || function.Modifier == FunctionModifier.Static) && !IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
-						completions.Add(item!);
+					if ((!staticOnly || function.Modifier == FunctionModifier.Static))
+						AddFunctionCompletions(file, function, type.Name, completions);
 				break;
 			case InterfaceDefinition interfaceDefinition:
 				foreach (FunctionDefinition function in interfaceDefinition.Functions)
-					if ((!staticOnly || function.Modifier == FunctionModifier.Static) && !IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
-						completions.Add(item!);
+					if ((!staticOnly || function.Modifier == FunctionModifier.Static))
+						AddFunctionCompletions(file, function, type.Name, completions);
 				break;
 			case EnumDefinition enumDefinition:
 				foreach (VariableDefinition value in enumDefinition.Values)
@@ -491,16 +496,56 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 				break;
 			case NewtypeDefinition newtypeDefinition:
 				foreach (FunctionDefinition function in newtypeDefinition.Functions)
-					if ((!staticOnly || function.Modifier == FunctionModifier.Static) && !IsHiddenMemberCompletionFunction(function) && TryCreateCompletion(file, function, type.Name, out CampCompletionItem? item))
-						completions.Add(item!);
+					if ((!staticOnly || function.Modifier == FunctionModifier.Static))
+						AddFunctionCompletions(file, function, type.Name, completions);
 				break;
 		}
 
 		if (staticOnly)
 			return;
 		foreach (FunctionDefinition extension in functions.Where(function => function.Parameters.FirstOrDefault() is ThisParameterDefinition thisParameter && BaseTypeName(UnwrapStorageType(thisParameter.ResolvedType ?? "")) == type.Name))
-			if (!IsHiddenMemberCompletionFunction(extension) && TryCreateCompletion(file, extension, type.Name, out CampCompletionItem? item))
-				completions.Add(item!);
+			AddFunctionCompletions(file, extension, type.Name, completions);
+	}
+
+	static void AddFunctionCompletions(SourceFile file, FunctionDefinition function, string containerName, List<CampCompletionItem> completions)
+	{
+		if (IsHiddenMemberCompletionFunction(function))
+			return;
+		if (TryCreateCompletion(file, function, containerName, out CampCompletionItem? item))
+			completions.Add(item!);
+		if (TryCreatePropertyCompletion(function, out CampCompletionItem? propertyItem))
+			completions.Add(propertyItem!);
+	}
+
+	static bool TryCreatePropertyCompletion(FunctionDefinition function, out CampCompletionItem? item)
+	{
+		item = null;
+		if (!TryGetPropertyAccessorName(function.Name, out string? propertyName))
+			return false;
+		string? type = function.Name.StartsWith("get", StringComparison.Ordinal)
+			? BindableNodeCodeSerializer.SerializeType(function.ReturnType)
+			: GetVisibleCallParameters(function).LastOrDefault() is ParameterDefinition parameter
+				? BindableNodeCodeSerializer.SerializeType(parameter.Type)
+				: null;
+		item = new CampCompletionItem(
+			propertyName!,
+			CampSymbolKind.Property,
+			string.IsNullOrWhiteSpace(type) ? "Property" : "Property: " + type,
+			GetDocumentation(function));
+		return true;
+	}
+
+	static bool TryGetPropertyAccessorName(string? functionName, out string? propertyName)
+	{
+		propertyName = null;
+		if (string.IsNullOrWhiteSpace(functionName) || functionName.Length <= 3)
+			return false;
+		if (!functionName.StartsWith("get", StringComparison.Ordinal) && !functionName.StartsWith("set", StringComparison.Ordinal))
+			return false;
+		if (!char.IsUpper(functionName[3]))
+			return false;
+		propertyName = functionName[3..];
+		return true;
 	}
 
 	static bool IsHiddenMemberCompletionFunction(FunctionDefinition function)
@@ -518,6 +563,150 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		TypeDefinition? definition = ResolveCompletionType(baseType?.ResolvedType ?? BindableNodeCodeSerializer.SerializeType(baseType));
 		if (definition is not null)
 			CollectTypeMemberCompletions(file, definition, completions, visited, staticOnly);
+	}
+
+	IEnumerable<CampCompletionItem> GetParamsComponentCompletions(string targetType)
+	{
+		string type = StripLeadingStorageQualifiers(targetType);
+		TypeDefinition? definition = ResolveCompletionType(type);
+		if (definition is NewtypeDefinition { UnderlyingType: not null } newtype)
+			type = newtype.UnderlyingType.ResolvedType ?? BindableNodeCodeSerializer.SerializeType(newtype.UnderlyingType);
+
+		if (TryGetArrayElementTypeName(type, out string? elementType))
+		{
+			yield return new CampCompletionItem("elements", CampSymbolKind.Component, "Component: " + elementType + "*", null);
+			yield return new CampCompletionItem("length", CampSymbolKind.Component, "Component: nuint", null);
+			yield break;
+		}
+
+		if (TryGetOptionalElementTypeName(type, out string? optionalType))
+		{
+			yield return new CampCompletionItem("value", CampSymbolKind.Component, "Component: " + optionalType, null);
+			yield return new CampCompletionItem("specified", CampSymbolKind.Component, "Component: bool", null);
+			yield break;
+		}
+
+		if (CallableShapeService.TryParseCallableShape(type, out CallableShape callable)
+			&& callable.Kind is "delegate" or "once" or "async" or "iter")
+		{
+			yield return new CampCompletionItem("call", CampSymbolKind.Component, "Component", null);
+			yield return new CampCompletionItem("context", CampSymbolKind.Component, "Component: void*", null);
+			yield break;
+		}
+
+		if (type.TrimStart().StartsWith("iter ", StringComparison.Ordinal))
+		{
+			yield return new CampCompletionItem("call", CampSymbolKind.Component, "Component", null);
+			yield return new CampCompletionItem("context", CampSymbolKind.Component, "Component: void*", null);
+		}
+	}
+
+	static string StripLeadingStorageQualifiers(string type)
+	{
+		string result = type.Trim();
+		while (result.StartsWith("const ", StringComparison.Ordinal)
+			|| result.StartsWith("escaped ", StringComparison.Ordinal)
+			|| result.StartsWith("scoped ", StringComparison.Ordinal)
+			|| result.StartsWith("unscoped ", StringComparison.Ordinal)
+			|| result.StartsWith("volatile ", StringComparison.Ordinal))
+		{
+			int space = result.IndexOf(' ');
+			result = space < 0 ? result : result[(space + 1)..].TrimStart();
+		}
+		return result;
+	}
+
+	static string? ResolveSourceDeclaredParamsShape(string text, string name, CampTextPosition? position)
+	{
+		if (position is not CampTextPosition textPosition)
+			return null;
+		int limit = OffsetOf(text, textPosition);
+		if (limit < 0)
+			return null;
+		string beforeCursor = text[..Math.Min(limit, text.Length)];
+		string[] lines = beforeCursor.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+		for (int i = lines.Length - 1; i >= 0; i--)
+		{
+			string line = lines[i];
+			int nameIndex = line.LastIndexOf(name, StringComparison.Ordinal);
+			if (nameIndex < 0 || !IdentifierAt(line, nameIndex, name))
+				continue;
+			string beforeName = line[..nameIndex].TrimEnd();
+			int equals = beforeName.LastIndexOf('=');
+			if (equals >= 0)
+				beforeName = beforeName[(equals + 1)..].TrimStart();
+			string type = LastSourceTypeToken(beforeName);
+			if (TryGetArrayElementTypeName(type, out _) || TryGetOptionalElementTypeName(type, out _))
+				return NormalizeSourceTypeWhitespace(type);
+		}
+		return null;
+	}
+
+	static bool IdentifierAt(string text, int index, string name)
+	{
+		if (index < 0 || index + name.Length > text.Length)
+			return false;
+		bool left = index == 0 || !IsIdentifierPart(text[index - 1]);
+		bool right = index + name.Length == text.Length || !IsIdentifierPart(text[index + name.Length]);
+		return left && right;
+	}
+
+	static string LastSourceTypeToken(string text)
+	{
+		string trimmed = text.Trim();
+		int start = trimmed.Length;
+		int depth = 0;
+		for (int i = trimmed.Length - 1; i >= 0; i--)
+		{
+			char value = trimmed[i];
+			if (value is ']' or '>' or ')')
+				depth++;
+			else if (value is '[' or '<' or '(')
+				depth = Math.Max(0, depth - 1);
+			else if (char.IsWhiteSpace(value) && depth == 0)
+				break;
+			start = i;
+		}
+		return trimmed[start..];
+	}
+
+	static string NormalizeSourceTypeWhitespace(string type)
+	{
+		return type.Replace(" []", "[]", StringComparison.Ordinal)
+			.Replace("[ ", "[", StringComparison.Ordinal)
+			.Replace(" ]", "]", StringComparison.Ordinal)
+			.Replace(" ?", "?", StringComparison.Ordinal);
+	}
+
+	static bool TryGetArrayElementTypeName(string type, out string? elementType)
+	{
+		elementType = null;
+		string trimmed = type.Trim();
+		if (trimmed.EndsWith("[]", StringComparison.Ordinal))
+		{
+			elementType = trimmed[..^2].TrimEnd();
+			return elementType.Length > 0;
+		}
+		if (!trimmed.EndsWith("]", StringComparison.Ordinal))
+			return false;
+		int open = trimmed.LastIndexOf('[');
+		if (open <= 0)
+			return false;
+		string lengthText = trimmed[(open + 1)..^1].Trim();
+		if (lengthText.Length == 0 || !lengthText.All(char.IsDigit))
+			return false;
+		elementType = trimmed[..open].TrimEnd();
+		return elementType.Length > 0;
+	}
+
+	static bool TryGetOptionalElementTypeName(string type, out string? elementType)
+	{
+		elementType = null;
+		string trimmed = type.Trim();
+		if (!trimmed.EndsWith("?", StringComparison.Ordinal))
+			return false;
+		elementType = trimmed[..^1].TrimEnd();
+		return elementType.Length > 0;
 	}
 
 	static bool TryCreateCompletion(SourceFile file, BindableNode node, string? containerName, out CampCompletionItem? item)
@@ -582,7 +771,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			Path.GetFullPath(file.Path),
 			range,
 			word!,
-			CampSymbolKind.Field,
+			CampSymbolKind.Component,
 			word == "length" ? "nuint" : null,
 			null,
 			null,
@@ -1300,6 +1489,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			AliasDefinition => CampSymbolKind.Alias,
 			FunctionDefinition function when HasContainingType(function) => CampSymbolKind.Method,
 			FunctionDefinition => CampSymbolKind.Function,
+			FieldDefinition or ParameterDefinition when IsParamsComponentDefinition(node) => CampSymbolKind.Component,
 			FieldDefinition => CampSymbolKind.Field,
 			VariableDefinition variable when variable.SourceSyntax is EnumValueSyntax => CampSymbolKind.EnumValue,
 			VariableDefinition => CampSymbolKind.Variable,
@@ -1307,6 +1497,19 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			DeclarationTarget => CampSymbolKind.Variable,
 			_ => CampSymbolKind.Unknown
 		};
+	}
+
+	static bool IsParamsComponentDefinition(BindableNode node)
+	{
+		if (node.SourceSyntax is not null)
+			return false;
+		string? name = node switch
+		{
+			FieldDefinition field => field.Name,
+			ParameterDefinition parameter => parameter.Name,
+			_ => null
+		};
+		return name is "elements" or "length" or "value" or "specified" or "call" or "context";
 	}
 
 	static CampSymbolKind GetDefinitionKind(BindableNode node, string? containerName)
@@ -2078,7 +2281,38 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			.OrderBy(static entry => entry.Range.Start.Line)
 			.ThenBy(static entry => entry.Range.Start.Character)
 			.LastOrDefault();
-		return entry?.Type is null ? name : BaseTypeName(UnwrapStorageType(entry.Type));
+		if (entry?.Type is null)
+			return name;
+		if (TryReconstructExpandedArrayType(entry, out string? expandedArrayType))
+			return expandedArrayType;
+		return BaseTypeName(UnwrapCompletionStorageType(entry.Type));
+	}
+
+	bool TryReconstructExpandedArrayType(SymbolEntry entry, out string? type)
+	{
+		type = null;
+		string elementPointer = StripLeadingStorageQualifiers(entry.Type ?? "").TrimEnd();
+		if (!elementPointer.EndsWith("*", StringComparison.Ordinal) || elementPointer == "void*")
+			return false;
+		string lengthName = entry.Name + "_length";
+		bool hasLength = entries.Any(candidate =>
+			candidate.Definition is null
+			&& candidate.Name == lengthName
+			&& candidate.Kind == entry.Kind
+			&& candidate.ContainerName == entry.ContainerName);
+		if (!hasLength)
+			return false;
+		string elementType = elementPointer[..^1].TrimEnd();
+		type = elementType + "[]";
+		return true;
+	}
+
+	static string UnwrapCompletionStorageType(string type)
+	{
+		string result = StripLeadingStorageQualifiers(type);
+		while (result.EndsWith("*", StringComparison.Ordinal))
+			result = result[..^1].TrimEnd();
+		return result;
 	}
 
 	sealed record SymbolEntry(

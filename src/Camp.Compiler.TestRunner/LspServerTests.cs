@@ -153,6 +153,7 @@ public sealed class LspServerTests
 			{
 				int value;
 				int getValue() => this.value;
+				void setValue(int value) => this.value = value;
 			}
 
 			int helper() => 1;
@@ -178,12 +179,12 @@ public sealed class LspServerTests
 		JsonNode scopeCompletion = lsp.Request("textDocument/completion", new
 		{
 			textDocument = new { uri },
-			position = new { line = 12, character = 25 }
+			position = new { line = PositionAfter(text, "counter.value = helper()").Line, character = PositionAfter(text, "counter.value = helper()").Character }
 		});
 		JsonNode memberCompletion = lsp.Request("textDocument/completion", new
 		{
 			textDocument = new { uri },
-			position = new { line = 12, character = 9 }
+			position = new { line = PositionAfter(text, "counter.").Line, character = PositionAfter(text, "counter.").Character }
 		});
 
 		JsonArray scopeItems = CompletionItems(scopeCompletion);
@@ -192,6 +193,7 @@ public sealed class LspServerTests
 		Assert.Contains(scopeItems, item => item?["label"]?.GetValue<string>() == "helper");
 		Assert.Contains(memberItems, item => item?["label"]?.GetValue<string>() == "value");
 		Assert.Contains(memberItems, item => item?["label"]?.GetValue<string>() == "getValue");
+		Assert.Contains(memberItems, item => item?["label"]?.GetValue<string>() == "Value" && item?["kind"]?.GetValue<int>() == 10);
 	}
 
 	[Fact]

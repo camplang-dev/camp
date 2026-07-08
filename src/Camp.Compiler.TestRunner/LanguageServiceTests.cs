@@ -822,6 +822,7 @@ public sealed class LanguageServiceTests
 			{
 				int value;
 				int getValue() => this.value;
+				void setValue(int value) => this.value = value;
 			}
 
 			int helper(int value) => value + 1;
@@ -829,8 +830,10 @@ public sealed class LanguageServiceTests
 			export int main()
 			{
 				Counter counter = default;
+				int[] values = [1, 2, 3];
 				int local = 1;
 				counter.value = helper(local);
+				nuint count = values.length;
 				Mode mode = Mode.OPEN;
 				return local;
 			}
@@ -842,13 +845,20 @@ public sealed class LanguageServiceTests
 
 		IReadOnlyList<CampCompletionItem> scopeCompletions = symbols.GetCompletions(source, PositionOf(text, "helper(local"));
 		IReadOnlyList<CampCompletionItem> memberCompletions = symbols.GetCompletions(source, PositionAfter(text, "counter."));
+		IReadOnlyList<CampCompletionItem> componentCompletions = symbols.GetCompletions(source, PositionAfter(text, "values."));
 		IReadOnlyList<CampCompletionItem> enumCompletions = symbols.GetCompletions(source, PositionAfter(text, "Mode."));
+		CampHover? componentHover = symbols.GetHover(source, PositionOf(text, "length;"));
 
 		Assert.Contains(scopeCompletions, static item => item.Label == "local" && item.Kind == CampSymbolKind.Variable);
 		Assert.Contains(scopeCompletions, static item => item.Label == "helper" && item.Kind == CampSymbolKind.Function);
 		Assert.Contains(scopeCompletions, static item => item.Label == "return" && item.Kind == CampSymbolKind.Keyword);
 		Assert.Contains(memberCompletions, static item => item.Label == "value" && item.Kind == CampSymbolKind.Field);
 		Assert.Contains(memberCompletions, static item => item.Label == "getValue" && item.Kind == CampSymbolKind.Method);
+		Assert.Contains(memberCompletions, static item => item.Label == "Value" && item.Kind == CampSymbolKind.Property && item.Detail == "Property: int");
+		Assert.Contains(componentCompletions, static item => item.Label == "length" && item.Kind == CampSymbolKind.Component && item.Detail == "Component: nuint");
+		Assert.Contains(componentCompletions, static item => item.Label == "elements" && item.Kind == CampSymbolKind.Component);
+		Assert.NotNull(componentHover);
+		Assert.Contains("**Component** `length`", componentHover!.Markdown, StringComparison.Ordinal);
 		Assert.Contains(enumCompletions, static item => item.Label == "OPEN" && item.Kind == CampSymbolKind.EnumValue);
 		Assert.Contains(enumCompletions, static item => item.Label == "CLOSED" && item.Kind == CampSymbolKind.EnumValue);
 	}
