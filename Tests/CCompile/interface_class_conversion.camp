@@ -4,6 +4,7 @@ extern void free(void* ptr);
 interface IValue
 {
 	int value();
+	int transform(int input, delegate int(int value) apply);
 }
 
 class Counter: IValue
@@ -19,11 +20,21 @@ class Counter: IValue
 	{
 		return this.count;
 	}
+
+	int transform(int input, delegate int(int value) apply)
+	{
+		return apply(input + this.count);
+	}
 }
 
 int readValue(IValue* counter)
 {
 	return counter.value();
+}
+
+int readTransformed(IValue* counter)
+{
+	return counter.transform(5, value => value + 1);
 }
 
 IValue* asValue(Counter* counter)
@@ -39,6 +50,7 @@ int main()
 	v += readValue(assigned);
 	v += readValue((IValue*)c);
 	v += readValue(asValue(c));
+	v += readTransformed(c);
 	delete c;
-	return v - 40;
+	return v - 56;
 }

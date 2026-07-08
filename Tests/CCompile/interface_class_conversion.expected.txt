@@ -5,23 +5,32 @@
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static int Counter_value(Counter *this);
+static int Counter_transform(Counter *this, int input, int (* apply)(void *arg0, int arg1), void *apply_context);
 static void Counter_op_initnew(Counter *this, int count);
 static Counter *Counter_create(int count);
 static IValue **Counter_getIValue(const Counter *this);
 static int readValue(IValue **counter);
+static int readTransformed(IValue **counter);
 static IValue **asValue(Counter *counter);
 static int main(void);
 static int Counter_IValue_value(IValue **ctx);
+static int Counter_IValue_transform(IValue **ctx, int input, int (* apply)(void *arg0, int arg1), void *apply_context);
+static int readTransformed_lambda0(void *_context, int value);
 static const IValue Counter_IValue__storage;
 static const IValue Counter_IValue__object_storage;
 static const IValue *Counter_IValue;
 
-static const IValue Counter_IValue__storage = { .value = (int (*)(IValue **arg0))Counter_value };
-static const IValue Counter_IValue__object_storage = { .value = Counter_IValue_value };
+static const IValue Counter_IValue__storage = { .value = (int (*)(IValue **arg0))Counter_value, .transform = (int (*)(IValue **arg0, int arg1, int (* arg2)(void *arg0, int arg1), void *arg3))Counter_transform };
+static const IValue Counter_IValue__object_storage = { .value = Counter_IValue_value, .transform = Counter_IValue_transform };
 static const IValue *Counter_IValue = &Counter_IValue__storage;
 static int Counter_value(Counter *this)
 {
 	return this->count;
+}
+
+static int Counter_transform(Counter *this, int input, int (* apply)(void *arg0, int arg1), void *apply_context)
+{
+	return apply(apply_context, (input + this->count));
 }
 
 static void Counter_op_initnew(Counter *this, int count)
@@ -51,6 +60,11 @@ static int readValue(IValue **counter)
 	return (*counter)->value(counter);
 }
 
+static int readTransformed(IValue **counter)
+{
+	return (*counter)->transform(counter, 5, readTransformed_lambda0, NULL);
+}
+
 static IValue **asValue(Counter *counter)
 {
 	return Counter_getIValue(counter);
@@ -69,14 +83,26 @@ static int main(void)
 	v += readValue(assigned);
 	v += readValue(Counter_getIValue(c));
 	v += readValue(asValue(c));
+	v += readTransformed(Counter_getIValue(c));
 	free((void *)(c));
-	return (v - 40);
+	return (v - 56);
 }
 
 static int Counter_IValue_value(IValue **ctx)
 {
 	Counter *instance = (Counter *)(((uint8_t *)(ctx) - offsetof(Counter, _vt_IValue)));
 	return Counter_value(instance);
+}
+
+static int Counter_IValue_transform(IValue **ctx, int input, int (* apply)(void *arg0, int arg1), void *apply_context)
+{
+	Counter *instance = (Counter *)(((uint8_t *)(ctx) - offsetof(Counter, _vt_IValue)));
+	return Counter_transform(instance, input, (int (*)(void *arg0, int arg1))apply, apply_context);
+}
+
+static int readTransformed_lambda0(void *_context, int value)
+{
+	return (value + 1);
 }
 
 // file: interface_class_conversion_private.h
@@ -99,6 +125,7 @@ typedef struct Counter Counter;
 struct IValue
 {
 	int (* value)(IValue **ctx);
+	int (* transform)(IValue **ctx, int input, int (* apply)(void *arg0, int arg1), void *apply_context);
 };
 struct Counter
 {

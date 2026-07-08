@@ -1142,6 +1142,12 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = parameter.ResolvedType ?? ErrorType
 			});
 		}
+		if (call.Target is MemberReferenceExpression { Member: FunctionDefinition implementation })
+		{
+			callTargets[call] = implementation;
+			ExpandParamsArguments(call);
+			LowerCallArgumentConversions(call);
+		}
 
 		if (call.ResolvedType == "void")
 			body.Statements.Add(new ExpressionStatement { Expression = call, ResolvedType = "void" });

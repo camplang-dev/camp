@@ -7,6 +7,19 @@ export interface IHost
 	int onTransform(int value, delegate int(int value) transform) = default;
 }
 
+escaped class Host: IHost
+{
+	int onValue()
+	{
+		return 5;
+	}
+
+	int onTransform(int value, delegate int(int value) transform)
+	{
+		return transform(value + 1);
+	}
+}
+
 export escaped class Widget
 {
 	IHost* host;
@@ -29,4 +42,13 @@ export escaped class Widget
 			return this.host.onTransform(value, current => current + this.read());
 		return value;
 	}
+}
+
+export int main()
+{
+	auto widget = new Widget();
+	widget.Host = new Host();
+	int result = widget.transform(2);
+	delete widget;
+	return result - 8;
 }

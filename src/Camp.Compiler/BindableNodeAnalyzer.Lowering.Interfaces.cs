@@ -64,8 +64,8 @@ public sealed partial class BindableNodeAnalyzer
 		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters);
 		int valueParameterIndex = callableParameters.Count == 0 ? -1 : GetPropertySetterValueParameterStart(callableParameters);
 		ParameterDefinition? valueParameter = valueParameterIndex < 0 ? null : callableParameters[valueParameterIndex];
-		if (valueParameter?.Type is not null)
-			loweredValue = LowerInterfaceConversion(valueParameter.Type, loweredValue);
+		if (valueParameter is not null)
+			loweredValue = LowerInterfaceConversion(valueParameter.Type, valueParameter.ResolvedType, loweredValue);
 		call.Arguments.Add(new ArgumentExpression
 		{
 			Value = loweredValue,
@@ -221,12 +221,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (!callTargets.TryGetValue(call, out FunctionDefinition? function))
 			return;
 
-		List<ParameterDefinition> parameters = GetCallableParameters(function.Parameters);
+		List<ParameterDefinition> parameters = GetCallableParametersForCall(function, IncludeExplicitThisArgument(call.Target, function));
 		for (int i = 0; i < call.Arguments.Count && i < parameters.Count; i++)
 		{
 			if (parameters[i].Modifier == ParameterModifier.Out)
 				continue;
-			call.Arguments[i].Value = LowerInterfaceConversion(parameters[i].Type, call.Arguments[i].Value);
+			call.Arguments[i].Value = LowerInterfaceConversion(parameters[i].Type, parameters[i].ResolvedType, call.Arguments[i].Value);
 			call.Arguments[i].ResolvedType = call.Arguments[i].Value?.ResolvedType ?? call.Arguments[i].ResolvedType;
 		}
 	}
@@ -433,13 +433,49 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression? LowerInterfaceConversion(TypeReference? targetType, Expression? value)
 	{
+		return LowerInterfaceConversion(targetType, targetType?.ResolvedType, value);
+	}
+
+	Expression? LowerInterfaceConversion(TypeReference? targetType, string? targetResolvedType, Expression? value)
+	{
+		targetType = UnwrapInterfaceConversionType(targetType);
 		if (targetType is not PointerTypeReference targetPointer || value is null)
-			return value;
+		{
+			if (value is null || !TryGetInterfacePointerDefinition(targetResolvedType, out InterfaceDefinition? resolvedTargetInterface) || resolvedTargetInterface is null)
+				return value;
+			return LowerInterfaceConversionToTarget(value, resolvedTargetInterface, targetResolvedType);
+		}
 		if (!TryGetInterfacePointerDefinition(targetPointer, out InterfaceDefinition? targetInterface) || targetInterface is null)
 			return value;
 
+		return LowerInterfaceConversionToTarget(value, targetInterface, targetPointer.ResolvedType ?? targetResolvedType);
+	}
+
+	static TypeReference? UnwrapInterfaceConversionType(TypeReference? type)
+	{
+		while (true)
+		{
+			type = type switch
+			{
+				AttributedTypeReference attributed => attributed.Type,
+				ConstTypeReference constant => constant.Type,
+				ConstOfTypeReference constOf => constOf.Type,
+				VolatileTypeReference vol => vol.Type,
+				EscapedTypeReference escaped => escaped.Type,
+				ScopedTypeReference scoped => scoped.Type,
+				UnscopedTypeReference unscoped => unscoped.Type,
+				_ => type
+			};
+
+			if (type is not (AttributedTypeReference or ConstTypeReference or ConstOfTypeReference or VolatileTypeReference or EscapedTypeReference or ScopedTypeReference or UnscopedTypeReference))
+				return type;
+		}
+	}
+
+	Expression? LowerInterfaceConversionToTarget(Expression value, InterfaceDefinition targetInterface, string? targetResolvedType)
+	{
 		string sourceType = value.ResolvedType ?? "";
-		if (sourceType == targetPointer.ResolvedType
+		if (sourceType == targetResolvedType
 			|| sourceType == targetInterface.Name + "**"
 			|| TryGetPointerElementType(sourceType) == targetInterface.Name)
 		{
@@ -544,11 +580,67 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		TypeReference? element = pointer.ElementType ?? pointer;
+		element = UnwrapInterfaceConversionType(element);
 		if (element is PointerTypeReference innerPointer)
-			element = innerPointer.ElementType ?? innerPointer;
+			element = UnwrapInterfaceConversionType(innerPointer.ElementType ?? innerPointer);
+		if (element is null)
+			return false;
 
 		return TryGetInterfaceDefinition(element, out interfaceDefinition)
 			&& interfaceDefinition is not null;
+	}
+
+	bool TryGetInterfacePointerDefinition(string? type, out InterfaceDefinition? interfaceDefinition)
+	{
+		interfaceDefinition = null;
+		if (string.IsNullOrWhiteSpace(type))
+			return false;
+
+		string candidate = StripLifetimeQualifiers(type).Trim();
+		if (TryGetPointerElementType(candidate) is string firstElement)
+			candidate = firstElement;
+		if (TryGetPointerElementType(candidate) is string secondElement)
+			candidate = secondElement;
+
+		if (!typeDefinitions.TryGetValue(BaseTypeName(candidate), out TypeDefinition? definition)
+			|| definition is not InterfaceDefinition found)
+		{
+			return TryFindLoweredInterfaceDefinition(candidate, out interfaceDefinition);
+		}
+
+		interfaceDefinition = found;
+		return true;
+	}
+
+	bool TryFindLoweredInterfaceDefinition(string type, out InterfaceDefinition? interfaceDefinition)
+	{
+		string name = BaseTypeName(type);
+		foreach (List<InterfaceImplementationLowering> lowerings in classInterfaceLowerings.Values)
+		{
+			foreach (InterfaceImplementationLowering lowering in lowerings)
+			{
+				if (lowering.Interface.Name == name)
+				{
+					interfaceDefinition = lowering.Interface;
+					return true;
+				}
+			}
+		}
+
+		foreach (List<InterfaceImplementationLowering> lowerings in structInterfaceLowerings.Values)
+		{
+			foreach (InterfaceImplementationLowering lowering in lowerings)
+			{
+				if (lowering.Interface.Name == name)
+				{
+					interfaceDefinition = lowering.Interface;
+					return true;
+				}
+			}
+		}
+
+		interfaceDefinition = null;
+		return false;
 	}
 
 	Expression CreateStructInterfaceConversion(Expression value, StructDefinition structDefinition, InterfaceDefinition targetInterface, InterfaceImplementationLowering lowering)
