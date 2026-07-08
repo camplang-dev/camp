@@ -468,6 +468,11 @@ public sealed class LanguageServiceTests
 			}
 		}
 
+		struct Box<T: copyable>
+		{
+			T value;
+		}
+
 		int helper(Counter* counter, int amount)
 		{
 			counter.add(amount);
@@ -482,7 +487,8 @@ public sealed class LanguageServiceTests
 
 		export int main()
 		{
-			Counter counter = default;
+			Counter counter = init Counter();
+			Box<Counter> boxed = default;
 			return helper(&counter, 2);
 		}
 		""";
@@ -491,21 +497,23 @@ public sealed class LanguageServiceTests
 		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
 		CampSymbolQueryService symbols = new(snapshot);
 
-		Assert.Equal([24, 24, 25], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "local = amount"), includeDeclaration: false)));
-		Assert.Equal([23, 24, 24, 25], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "local = amount"), includeDeclaration: true)));
-		Assert.Equal([20, 23], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "amount)\n{\n\tcounter"), includeDeclaration: false)));
-		Assert.Equal([18, 20, 23], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "amount)\n{\n\tcounter"), includeDeclaration: true)));
-		Assert.Equal([33], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "helper(&"), includeDeclaration: false)));
-		Assert.Equal([18, 33], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "helper(&"), includeDeclaration: true)));
-		Assert.Equal([11, 14, 14, 23], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "value;"), includeDeclaration: false)));
-		Assert.Equal([10, 11, 14, 14, 23], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "value;"), includeDeclaration: true)));
-		Assert.Equal([20], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "add(amount"), includeDeclaration: false)));
-		Assert.Equal([12, 20], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "add(amount"), includeDeclaration: true)));
-		Assert.Equal([22], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "OPEN;"), includeDeclaration: false)));
-		Assert.Equal([4, 22], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "OPEN;"), includeDeclaration: true)));
-		Assert.Equal([21], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "CounterAlias*"), includeDeclaration: false)));
-		Assert.Equal([0, 21], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "CounterAlias*"), includeDeclaration: true)));
-		Assert.Equal([11, 23], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "Value +"), includeDeclaration: true)));
+		Assert.Equal([29, 29, 30], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "local = amount"), includeDeclaration: false)));
+		Assert.Equal([28, 29, 29, 30], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "local = amount"), includeDeclaration: true)));
+		Assert.Equal([25, 28], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "amount)\n{\n\tcounter"), includeDeclaration: false)));
+		Assert.Equal([23, 25, 28], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "amount)\n{\n\tcounter"), includeDeclaration: true)));
+		Assert.Equal([39], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "helper(&"), includeDeclaration: false)));
+		Assert.Equal([23, 39], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "helper(&"), includeDeclaration: true)));
+		Assert.Equal([11, 14, 14, 28], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "value;"), includeDeclaration: false)));
+		Assert.Equal([10, 11, 14, 14, 28], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "value;"), includeDeclaration: true)));
+		Assert.Equal([25], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "add(amount"), includeDeclaration: false)));
+		Assert.Equal([12, 25], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "add(amount"), includeDeclaration: true)));
+		Assert.Equal([27], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "OPEN;"), includeDeclaration: false)));
+		Assert.Equal([4, 27], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "OPEN;"), includeDeclaration: true)));
+		Assert.Equal([26], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "CounterAlias*"), includeDeclaration: false)));
+		Assert.Equal([0, 26], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "CounterAlias*"), includeDeclaration: true)));
+		Assert.Equal([11, 28], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "Value +"), includeDeclaration: true)));
+		Assert.Equal([23, 37, 38], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "Counter\n{"), includeDeclaration: false)));
+		Assert.Equal([8, 23, 37, 38], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "Counter\n{"), includeDeclaration: true)));
 		Assert.Empty(symbols.GetReferences(source, PositionOf(text, "CLOSED"), includeDeclaration: false));
 	}
 

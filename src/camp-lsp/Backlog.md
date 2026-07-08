@@ -63,7 +63,7 @@ signature help all use the same compiler facts. Defer richer completion until
 the compiler has stable behavior for lambdas, generics, `constof`, lifetimes,
 interface conversions, and callable transports.
 
-## LSP-005 — Find References
+## ~~LSP-005 — Find References~~
 
 Complexity: Medium-high.
 

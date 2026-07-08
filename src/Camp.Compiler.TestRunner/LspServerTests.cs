@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -374,10 +375,17 @@ public sealed class LspServerTests
 		string root = CreateTempDirectory("lsp-references");
 		string file = Path.Combine(root, "main.camp");
 		string text = """
+			struct Counter
+			{
+				int value;
+			}
+
 			int helper(int value)
 			{
 				int local = value;
-				return local;
+				Counter counter = default;
+				counter.value = local;
+				return counter.value;
 			}
 
 			export int main()
@@ -396,6 +404,8 @@ public sealed class LspServerTests
 		lsp.ReadNotification("textDocument/publishDiagnostics");
 
 		CampTextPosition helperPosition = PositionOf(text, "helper(41");
+		CampTextPosition localPosition = PositionOf(text, "local;");
+		CampTextPosition fieldPosition = PositionOf(text, "value;");
 		JsonNode withoutDeclaration = lsp.Request("textDocument/references", new
 		{
 			textDocument = new { uri },
@@ -408,20 +418,34 @@ public sealed class LspServerTests
 			position = new { line = helperPosition.Line, character = helperPosition.Character },
 			context = new { includeDeclaration = true }
 		});
+		JsonNode localReferences = lsp.Request("textDocument/references", new
+		{
+			textDocument = new { uri },
+			position = new { line = localPosition.Line, character = localPosition.Character },
+			context = new { includeDeclaration = true }
+		});
+		JsonNode memberReferences = lsp.Request("textDocument/references", new
+		{
+			textDocument = new { uri },
+			position = new { line = fieldPosition.Line, character = fieldPosition.Character },
+			context = new { includeDeclaration = true }
+		});
 		JsonNode unsupported = lsp.Request("textDocument/references", new
 		{
 			textDocument = new { uri },
-			position = new { line = 5, character = 0 },
+			position = new { line = 11, character = 0 },
 			context = new { includeDeclaration = true }
 		});
 
 		JsonArray withoutDeclarationResult = withoutDeclaration["result"]!.AsArray();
 		JsonNode call = Assert.Single(withoutDeclarationResult)!;
-		Assert.Equal(8, call["range"]?["start"]?["line"]?.GetValue<int>());
+		Assert.Equal(15, call["range"]?["start"]?["line"]?.GetValue<int>());
 		JsonArray withDeclarationResult = withDeclaration["result"]!.AsArray();
 		Assert.Equal(2, withDeclarationResult.Count);
-		Assert.Contains(withDeclarationResult, location => location?["range"]?["start"]?["line"]?.GetValue<int>() == 0);
-		Assert.Contains(withDeclarationResult, location => location?["range"]?["start"]?["line"]?.GetValue<int>() == 8);
+		Assert.Contains(withDeclarationResult, location => location?["range"]?["start"]?["line"]?.GetValue<int>() == 5);
+		Assert.Contains(withDeclarationResult, location => location?["range"]?["start"]?["line"]?.GetValue<int>() == 15);
+		Assert.Equal([7, 9], ReferenceLines(localReferences));
+		Assert.Equal([2, 9, 10], ReferenceLines(memberReferences));
 		Assert.Empty(unsupported["result"]!.AsArray());
 	}
 
@@ -579,6 +603,17 @@ public sealed class LspServerTests
 
 		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
 		Assert.Empty(diagnostics["params"]?["diagnostics"]?.AsArray()!);
+
+		CampTextPosition sharedWindowPosition = PositionOf(text, "SharedWindow*");
+		JsonNode references = lsp.Request("textDocument/references", new
+		{
+			textDocument = new { uri },
+			position = new { line = sharedWindowPosition.Line, character = sharedWindowPosition.Character },
+			context = new { includeDeclaration = true }
+		});
+		JsonArray result = references["result"]!.AsArray();
+		Assert.Contains(result, location => location?["uri"]?.GetValue<string>().EndsWith("library_api.camp", StringComparison.Ordinal) == true);
+		Assert.Contains(result, location => location?["uri"]?.GetValue<string>().EndsWith("main.camp", StringComparison.Ordinal) == true);
 	}
 
 	[Fact]
@@ -643,6 +678,13 @@ public sealed class LspServerTests
 		if (index < 0)
 			throw new InvalidOperationException($"Marker '{marker}' was not found.");
 		return PositionAfterIndex(text, index);
+	}
+
+	static int[] ReferenceLines(JsonNode response)
+	{
+		return response["result"]!.AsArray()
+			.Select(static location => location?["range"]?["start"]?["line"]?.GetValue<int>() ?? -1)
+			.ToArray();
 	}
 
 	static CampTextPosition PositionAfterLast(string text, string marker)
