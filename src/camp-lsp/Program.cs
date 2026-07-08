@@ -25,6 +25,7 @@ LanguageServer server = await LanguageServer.From(options => options
 	.AddHandler(new CampHoverHandler(workspace))
 	.AddHandler(new CampSignatureHelpHandler(workspace))
 	.AddHandler(new CampDefinitionHandler(workspace))
+	.AddHandler(new CampReferencesHandler(workspace))
 	.AddHandler(new CampDocumentSymbolHandler(workspace))
 	.AddHandler(new CampWorkspaceSymbolHandler(workspace))
 	.OnStarted((languageServer, _) =>
@@ -169,6 +170,25 @@ sealed class CampDefinitionHandler(CampLspWorkspace workspace) : DefinitionHandl
 #pragma warning restore CS8609
 
 #pragma warning disable CS8609
+sealed class CampReferencesHandler(CampLspWorkspace workspace) : ReferencesHandlerBase
+{
+	public override Task<LocationContainer?> Handle(ReferenceParams request, CancellationToken cancellationToken)
+	{
+		IReadOnlyList<CampReference> references = workspace.GetReferences(
+			request.TextDocument.Uri,
+			CampLsp.ToCampPosition(request.Position),
+			request.Context.IncludeDeclaration);
+		return Task.FromResult<LocationContainer?>(new LocationContainer(references.Select(CampLsp.ToLspLocation)));
+	}
+
+	protected override ReferenceRegistrationOptions CreateRegistrationOptions(ReferenceCapability capability, ClientCapabilities clientCapabilities)
+	{
+		return new ReferenceRegistrationOptions { DocumentSelector = CampLsp.Protocol.DocumentSelector };
+	}
+}
+#pragma warning restore CS8609
+
+#pragma warning disable CS8609
 sealed class CampDocumentSymbolHandler(CampLspWorkspace workspace) : DocumentSymbolHandlerBase
 {
 	public override Task<SymbolInformationOrDocumentSymbolContainer> Handle(DocumentSymbolParams request, CancellationToken cancellationToken)
@@ -254,6 +274,13 @@ public sealed class CampLspWorkspace
 		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
 			return null;
 		return new CampSymbolQueryService(snapshot!).GetDefinition(path, position);
+	}
+
+	public IReadOnlyList<CampReference> GetReferences(DocumentUri uri, CampTextPosition position, bool includeDeclaration)
+	{
+		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
+			return [];
+		return new CampSymbolQueryService(snapshot!).GetReferences(path, position, includeDeclaration);
 	}
 
 	public CampSignatureHelp? GetSignatureHelp(DocumentUri uri, CampTextPosition position)
@@ -430,6 +457,15 @@ public static class CampLsp
 				Range = ToLspRange(symbol.Location.Range)
 			},
 			ContainerName = symbol.ContainerName
+		};
+	}
+
+	public static Location ToLspLocation(CampReference reference)
+	{
+		return new Location
+		{
+			Uri = DocumentUri.FromFileSystemPath(reference.Path),
+			Range = ToLspRange(reference.Range)
 		};
 	}
 

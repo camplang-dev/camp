@@ -368,6 +368,64 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_server_returns_references_for_source_backed_symbols()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-references");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			int helper(int value)
+			{
+				int local = value;
+				return local;
+			}
+
+			export int main()
+			{
+				return helper(41);
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		lsp.ReadNotification("textDocument/publishDiagnostics");
+
+		CampTextPosition helperPosition = PositionOf(text, "helper(41");
+		JsonNode withoutDeclaration = lsp.Request("textDocument/references", new
+		{
+			textDocument = new { uri },
+			position = new { line = helperPosition.Line, character = helperPosition.Character },
+			context = new { includeDeclaration = false }
+		});
+		JsonNode withDeclaration = lsp.Request("textDocument/references", new
+		{
+			textDocument = new { uri },
+			position = new { line = helperPosition.Line, character = helperPosition.Character },
+			context = new { includeDeclaration = true }
+		});
+		JsonNode unsupported = lsp.Request("textDocument/references", new
+		{
+			textDocument = new { uri },
+			position = new { line = 5, character = 0 },
+			context = new { includeDeclaration = true }
+		});
+
+		JsonArray withoutDeclarationResult = withoutDeclaration["result"]!.AsArray();
+		JsonNode call = Assert.Single(withoutDeclarationResult)!;
+		Assert.Equal(8, call["range"]?["start"]?["line"]?.GetValue<int>());
+		JsonArray withDeclarationResult = withDeclaration["result"]!.AsArray();
+		Assert.Equal(2, withDeclarationResult.Count);
+		Assert.Contains(withDeclarationResult, location => location?["range"]?["start"]?["line"]?.GetValue<int>() == 0);
+		Assert.Contains(withDeclarationResult, location => location?["range"]?["start"]?["line"]?.GetValue<int>() == 8);
+		Assert.Empty(unsupported["result"]!.AsArray());
+	}
+
+	[Fact]
 	public void Lsp_server_returns_document_symbols()
 	{
 		using LspProcess lsp = LspProcess.Start();
@@ -579,6 +637,14 @@ public sealed class LspServerTests
 		return PositionAfterIndex(text, index + marker.Length);
 	}
 
+	static CampTextPosition PositionOf(string text, string marker)
+	{
+		int index = text.IndexOf(marker, StringComparison.Ordinal);
+		if (index < 0)
+			throw new InvalidOperationException($"Marker '{marker}' was not found.");
+		return PositionAfterIndex(text, index);
+	}
+
 	static CampTextPosition PositionAfterLast(string text, string marker)
 	{
 		int index = text.LastIndexOf(marker, StringComparison.Ordinal);
@@ -646,6 +712,7 @@ public sealed class LspServerTests
 						hover = new { },
 						signatureHelp = new { },
 						definition = new { },
+						references = new { },
 						documentSymbol = new { },
 						synchronization = new { }
 					},
@@ -659,6 +726,7 @@ public sealed class LspServerTests
 			Assert.NotNull(response["result"]?["capabilities"]?["completionProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["signatureHelpProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["definitionProvider"]);
+			Assert.NotNull(response["result"]?["capabilities"]?["referencesProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["documentSymbolProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["workspaceSymbolProvider"]);
 			Notify("initialized", new { });

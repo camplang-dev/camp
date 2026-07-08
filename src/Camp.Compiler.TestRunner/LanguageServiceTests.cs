@@ -445,6 +445,71 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_returns_declaration_based_references()
+	{
+		string root = CreateTempDirectory("language-service-references");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+		alias CounterAlias = Counter;
+
+		enum Mode
+		{
+			OPEN,
+			CLOSED
+		}
+
+		struct Counter
+		{
+			int value;
+			int getValue() => this.value;
+			void add(int amount)
+			{
+				this.value = this.value + amount;
+			}
+		}
+
+		int helper(Counter* counter, int amount)
+		{
+			counter.add(amount);
+			CounterAlias* aliasCounter = counter;
+			Mode mode = Mode.OPEN;
+			int local = amount + aliasCounter.Value + counter.value;
+			local = helperValue(local);
+			return local;
+		}
+
+		int helperValue(int value) => value;
+
+		export int main()
+		{
+			Counter counter = default;
+			return helper(&counter, 2);
+		}
+		""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		Assert.Equal([24, 24, 25], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "local = amount"), includeDeclaration: false)));
+		Assert.Equal([23, 24, 24, 25], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "local = amount"), includeDeclaration: true)));
+		Assert.Equal([20, 23], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "amount)\n{\n\tcounter"), includeDeclaration: false)));
+		Assert.Equal([18, 20, 23], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "amount)\n{\n\tcounter"), includeDeclaration: true)));
+		Assert.Equal([33], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "helper(&"), includeDeclaration: false)));
+		Assert.Equal([18, 33], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "helper(&"), includeDeclaration: true)));
+		Assert.Equal([11, 14, 14, 23], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "value;"), includeDeclaration: false)));
+		Assert.Equal([10, 11, 14, 14, 23], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "value;"), includeDeclaration: true)));
+		Assert.Equal([20], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "add(amount"), includeDeclaration: false)));
+		Assert.Equal([12, 20], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "add(amount"), includeDeclaration: true)));
+		Assert.Equal([22], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "OPEN;"), includeDeclaration: false)));
+		Assert.Equal([4, 22], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "OPEN;"), includeDeclaration: true)));
+		Assert.Equal([21], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "CounterAlias*"), includeDeclaration: false)));
+		Assert.Equal([0, 21], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "CounterAlias*"), includeDeclaration: true)));
+		Assert.Equal([11, 23], ReferenceLines(symbols.GetReferences(source, PositionOf(text, "Value +"), includeDeclaration: true)));
+		Assert.Empty(symbols.GetReferences(source, PositionOf(text, "CLOSED"), includeDeclaration: false));
+	}
+
+	[Fact]
 	public void Analysis_loads_used_package_api_headers_for_project_reference_api_headers()
 	{
 		string root = CreateTempDirectory("language-service-project-reference-package");
@@ -831,6 +896,11 @@ public sealed class LanguageServiceTests
 	{
 		CampTextPosition position = PositionOf(text, marker);
 		return new CampTextPosition(position.Line, position.Character + marker.Length);
+	}
+
+	static int[] ReferenceLines(IReadOnlyList<CampReference> references)
+	{
+		return references.Select(static reference => reference.Range.Start.Line).ToArray();
 	}
 
 	static string CreateTempDirectory(string name)

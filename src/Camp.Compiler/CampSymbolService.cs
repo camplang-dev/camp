@@ -24,6 +24,8 @@ public enum CampSymbolKind
 
 public sealed record CampSymbolLocation(string Path, CampTextRange Range);
 
+public sealed record CampReference(string Path, CampTextRange Range, bool IsDeclaration);
+
 public sealed record CampSymbolInfo(
 	string Name,
 	CampSymbolKind Kind,
@@ -75,13 +77,44 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	public CampSymbolInfo? GetSymbolAt(string path, CampTextPosition position)
 	{
-		SymbolEntry? entry = FindEntry(path, position) ?? FindNamedDefinitionEntry(path, position) ?? FindPropertyEntry(path, position) ?? FindExpandedComponentEntry(path, position);
+		SymbolEntry? entry = FindSymbolEntry(path, position);
 		return entry is null ? null : ToInfo(entry);
 	}
 
 	public CampSymbolLocation? GetDefinition(string path, CampTextPosition position)
 	{
 		return GetSymbolAt(path, position)?.Definition;
+	}
+
+	public IReadOnlyList<CampReference> GetReferences(string path, CampTextPosition position, bool includeDeclaration)
+	{
+		SymbolEntry? selected = FindSymbolEntry(path, position);
+		if (selected is null)
+			return [];
+		SymbolEntry? target = selected.Definition ?? (selected.IsDeclaration ? selected : null);
+		if (target is null || !IsSourceBacked(target))
+			return [];
+		List<CampReference> references = entries
+			.Where(entry =>
+			{
+				SymbolEntry? identity = entry.Definition ?? (entry.IsDeclaration ? entry : null);
+				if (identity is null || !SameSymbolIdentity(identity, target))
+					return false;
+				return includeDeclaration || !entry.IsDeclaration;
+			})
+			.Select(entry => new CampReference(entry.Path, entry.Range, entry.IsDeclaration))
+			.DistinctBy(static reference => (
+				Path.GetFullPath(reference.Path).ToUpperInvariant(),
+				reference.Range.Start.Line,
+				reference.Range.Start.Character,
+				reference.Range.End.Line,
+				reference.Range.End.Character,
+				reference.IsDeclaration))
+			.OrderBy(static reference => reference.Path, StringComparer.OrdinalIgnoreCase)
+			.ThenBy(static reference => reference.Range.Start.Line)
+			.ThenBy(static reference => reference.Range.Start.Character)
+			.ToList();
+		return RemoveNestedDuplicateReferences(references);
 	}
 
 	public CampHover? GetHover(string path, CampTextPosition position)
@@ -239,6 +272,14 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			.Where(entry => string.Equals(entry.Path, fullPath, StringComparison.OrdinalIgnoreCase) && Contains(entry.Range, position))
 			.OrderBy(entry => SpanSize(entry.Range))
 			.FirstOrDefault();
+	}
+
+	SymbolEntry? FindSymbolEntry(string path, CampTextPosition position)
+	{
+		return FindEntry(path, position)
+			?? FindNamedDefinitionEntry(path, position)
+			?? FindPropertyEntry(path, position)
+			?? FindExpandedComponentEntry(path, position);
 	}
 
 	SymbolEntry? FindPropertyEntry(string path, CampTextPosition position)
@@ -546,6 +587,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			null,
 			null,
 			null,
+			false,
 			null);
 	}
 
@@ -559,6 +601,44 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			new CampSymbolLocation(definition.Path, definition.Range),
 			definition.Signature,
 			definition.Documentation);
+	}
+
+	static bool IsSourceBacked(SymbolEntry entry)
+	{
+		return !string.IsNullOrWhiteSpace(entry.Path)
+			&& entry.Range.End.Line >= entry.Range.Start.Line
+			&& (entry.Range.End.Line > entry.Range.Start.Line || entry.Range.End.Character > entry.Range.Start.Character);
+	}
+
+	static bool SameSymbolIdentity(SymbolEntry left, SymbolEntry right)
+	{
+		return string.Equals(Path.GetFullPath(left.Path), Path.GetFullPath(right.Path), StringComparison.OrdinalIgnoreCase)
+			&& left.Range.Start.Line == right.Range.Start.Line
+			&& left.Range.Start.Character == right.Range.Start.Character
+			&& left.Range.End.Line == right.Range.End.Line
+			&& left.Range.End.Character == right.Range.End.Character
+			&& left.Kind == right.Kind
+			&& left.Name == right.Name;
+	}
+
+	static IReadOnlyList<CampReference> RemoveNestedDuplicateReferences(List<CampReference> references)
+	{
+		return references
+			.Where(reference => !references.Any(other =>
+				!ReferenceEquals(reference, other)
+				&& reference.IsDeclaration == other.IsDeclaration
+				&& string.Equals(Path.GetFullPath(reference.Path), Path.GetFullPath(other.Path), StringComparison.OrdinalIgnoreCase)
+				&& ((reference.Range.Start.Line == other.Range.Start.Line && reference.Range.Start.Character == other.Range.Start.Character)
+					|| Contains(reference.Range, other.Range.Start) && Contains(reference.Range, PreviousPosition(other.Range.End)))
+				&& SpanSize(reference.Range) > SpanSize(other.Range)))
+			.ToList();
+	}
+
+	static CampTextPosition PreviousPosition(CampTextPosition position)
+	{
+		return position.Character > 0
+			? new CampTextPosition(position.Line, position.Character - 1)
+			: position;
 	}
 
 	static bool Contains(CampTextRange range, CampTextPosition position)
@@ -713,6 +793,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			GetSignature(node),
 			GetEntryDocumentation(node, file.Text, tokenRange.StartLineNumber),
 			containerName,
+			true,
 			null);
 		return true;
 	}
@@ -749,29 +830,57 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			return false;
 		if (!TryGetNodeRange(node, out TokenRange tokenRange) || !ReferenceEquals(file.Tokens, tokenRange.Sequence))
 			return false;
+		CampTextRange textRange = CampLanguageService.ToTextRange(tokenRange);
 		if (!definitions.TryGetValue(target, out SymbolEntry? definition))
 		{
 			if (node is not MemberReferenceExpression member)
 				return false;
+			if (!RangeTextContainsSymbolName(file.Text, textRange, member.Name))
+				return false;
 			entry = new SymbolEntry(
 				Path.GetFullPath(file.Path),
-				CampLanguageService.ToTextRange(tokenRange),
+				textRange,
 				member.Name,
 				GetKind(target),
 				GetNodeType(target) ?? node.ResolvedType,
 				GetSignature(target),
 				GetDocumentation(target),
 				null,
+				false,
 				null);
 			return true;
 		}
+		if (!RangeTextContainsSymbolName(file.Text, textRange, definition.Name))
+			return false;
 		entry = definition with
 		{
 			Path = Path.GetFullPath(file.Path),
-			Range = CampLanguageService.ToTextRange(tokenRange),
+			Range = textRange,
+			IsDeclaration = false,
 			Definition = definition
 		};
 		return true;
+	}
+
+	static bool RangeTextContainsSymbolName(string text, CampTextRange range, string name)
+	{
+		if (string.IsNullOrWhiteSpace(name))
+			return true;
+		string rangeText = GetRangeText(text, range);
+		if (rangeText.Contains(name, StringComparison.Ordinal))
+			return true;
+		if (name.StartsWith("get", StringComparison.Ordinal) || name.StartsWith("set", StringComparison.Ordinal))
+			return name.Length > 3 && rangeText.Contains(name[3..], StringComparison.Ordinal);
+		return false;
+	}
+
+	static string GetRangeText(string text, CampTextRange range)
+	{
+		int start = OffsetOf(text, range.Start);
+		int end = OffsetOf(text, range.End);
+		if (start < 0 || end < start || start >= text.Length)
+			return "";
+		return text[start..Math.Min(end, text.Length)];
 	}
 
 	static bool TryFindCallAt(SourceFile file, BindableNode root, CampTextPosition position, out CallExpression? call)
@@ -1981,6 +2090,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		string? Signature,
 		string? Documentation,
 		string? ContainerName,
+		bool IsDeclaration,
 		SymbolEntry? Definition);
 
 	sealed record CompletionContext(
