@@ -1,0 +1,1 @@
+tests/Diagnostics/generic_method_type_arguments_not_inferred.camp(17,25): error: The type arguments for method 'Store.get<T: copyable>' cannot be inferred from the usage. Try specifying the type arguments explicitly.

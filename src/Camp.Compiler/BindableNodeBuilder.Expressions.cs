@@ -521,7 +521,8 @@ public sealed partial class BindableNodeBuilder
 				{
 					SourceSyntax = member,
 					Target = target,
-					Name = GetRequiredIdentifier(member.Identifier, member, "Member expression is missing a name.")
+					Name = GetRequiredIdentifier(member.Identifier, member, "Member expression is missing a name."),
+					NameRange = member.Identifier?.Range
 				};
 
 			case NamelessIndexerPostfixPartSyntax indexer:

@@ -3592,6 +3592,7 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = member.SourceSyntax,
 			Target = target,
 			Name = member.Name,
+			NameRange = member.NameRange,
 			Member = node,
 			ResolvedType = type
 		};

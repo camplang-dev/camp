@@ -2206,7 +2206,14 @@ public sealed partial class BindableNodeAnalyzer
 		if (function is not null)
 			AddReceiverConstOfAnchorFact(call.Target, function, constOfAnchors);
 		if (function is not null)
+		{
+			if (ReportUnresolvedGenericCall(function, genericSubstitutions, GetCallTargetNameDiagnosticSyntax(call.Target)))
+			{
+				call.ResolvedType = ErrorType;
+				return ErrorType;
+			}
 			ValidateGenericCallSubstitutionConstraints(function, genericSubstitutions, scope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
+		}
 		if (function is not null)
 			callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
 
@@ -2222,6 +2229,41 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType is not null)
 			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
 		return returnType;
+	}
+
+	bool ReportUnresolvedGenericCall(FunctionDefinition function, Dictionary<string, string> substitutions, SyntaxNode? syntax)
+	{
+		List<GenericParameter> missing = [.. function.GenericParameters.Where(parameter => !substitutions.ContainsKey(parameter.Name))];
+		if (missing.Count == 0)
+			return false;
+
+		Report(GetRange(syntax ?? function.SourceSyntax), $"The type arguments for method '{FormatGenericMethodName(function)}' cannot be inferred from the usage. Try specifying the type arguments explicitly.");
+		return true;
+	}
+
+	string FormatGenericMethodName(FunctionDefinition function)
+	{
+		string owner = function.OutOfScopeOwnerName
+			?? (FindContainingType(function) is TypeDefinition containingType ? containingType.Name : "");
+		string prefix = string.IsNullOrWhiteSpace(owner) ? "" : owner + ".";
+		return prefix + GetInvokerName(function) + FormatGenericMethodParameters(function.GenericParameters);
+	}
+
+	static string FormatGenericMethodParameters(List<GenericParameter> parameters)
+	{
+		if (parameters.Count == 0)
+			return "";
+		return "<" + string.Join(", ", parameters.Select(FormatGenericMethodParameter)) + ">";
+	}
+
+	static string FormatGenericMethodParameter(GenericParameter parameter)
+	{
+		if (parameter.Constraint is null)
+			return parameter.Name;
+		string constraint = FormatTypeReference(parameter.Constraint);
+		if (parameter.RequiresImplementation)
+			constraint = "implements " + constraint;
+		return parameter.Name + ": " + constraint;
 	}
 
 	void ValidateExplicitAsyncCallShape(FunctionDefinition function, CallExpression call, bool includeExplicitThis)

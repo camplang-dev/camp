@@ -1,0 +1,18 @@
+struct BigValue
+{
+	int a;
+}
+
+class Store
+{
+	T get<T: copyable>(string key, in T defaultValue = default, sizeof(T))
+	{
+		return defaultValue;
+	}
+}
+
+void test()
+{
+	auto store = new Store() finally delete;
+	BigValue value = store.get("value");
+}

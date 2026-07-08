@@ -191,12 +191,14 @@ public class MemberExpression : Expression
 {
 	public Expression? Target { get; set; }
 	public string Name { get; set; } = "";
+	public TokenRange? NameRange { get; set; }
 }
 
 public class MemberReferenceExpression : Expression
 {
 	public Expression? Target { get; set; }
 	public string Name { get; set; } = "";
+	public TokenRange? NameRange { get; set; }
 	public BindableNode? Member { get; set; }
 	public List<FunctionDefinition> Candidates { get; } = [];
 }
