@@ -1016,6 +1016,68 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Inherited_virtual_destructor_thunk_is_visible_across_generated_source_files()
+	{
+		string root = TempPath("virtual-destructor-cross-file");
+		if (Directory.Exists(root))
+			Directory.Delete(root, recursive: true);
+		string source = Path.Combine(root, "src");
+		Directory.CreateDirectory(source);
+		File.WriteAllText(Path.Combine(source, "alloc.camp"), """
+			export extern void* malloc(nuint size);
+			export extern void free(void* ptr);
+			""");
+		File.WriteAllText(Path.Combine(source, "component.camp"), """
+			export virtual escaped class Component
+			{
+				export Component()
+				{
+				}
+
+				export virtual ~Component()
+				{
+				}
+			}
+			""");
+		File.WriteAllText(Path.Combine(source, "control.camp"), """
+			export virtual escaped class Control: Component
+			{
+				export Control()
+				{
+				}
+
+				override ~Control()
+				{
+				}
+			}
+			""");
+		File.WriteAllText(Path.Combine(source, "button.camp"), """
+			export sealed escaped class Button: Control
+			{
+				export Button()
+				{
+				}
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "widgets.campbuild"), """
+			--nostdlib
+			--name widgets
+			--artifact static
+			src/*.camp
+			""");
+
+		string buildDir = Path.Combine(root, "build");
+		string outDir = Path.Combine(root, "bin");
+		ProcessResult result = RunCampc("build", Path.Combine(root, "widgets.campbuild"), "--target", "clang-macos-x64", "--build-dir", buildDir, "--out-dir", outDir);
+
+		AssertCommandSucceeded(result);
+		string privateHeader = File.ReadAllText(Path.Combine(buildDir, "widgets_private.h"));
+		Assert.Contains("void Control__op_delete(Component *ctx);", privateHeader, StringComparison.Ordinal);
+		string buttonC = File.ReadAllText(Path.Combine(buildDir, "button.c"));
+		Assert.Contains(".op_delete = Control__op_delete", buttonC, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Project_reference_api_uses_inherited_virtual_surface_for_overrides()
 	{
 		string root = TempPath("project-reference-virtual-api");

@@ -624,7 +624,7 @@ public static class CCodeEmitter
 
 			WriteSection(writer, "Function declarations", () =>
 			{
-				foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => IsExternallyVisible(function) && ShouldEmitCFunction(function)))
+				foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => (IsExternallyVisible(function) || IsGeneratedVirtualDispatchFunction(function)) && ShouldEmitCFunction(function)))
 					WriteFunctionPrototype(writer, function, storage: null);
 			});
 
@@ -659,7 +659,7 @@ public static class CCodeEmitter
 			foreach (AsyncFrameInfo frame in asyncFrames)
 				WriteAsyncFrameHelperPrototypes(writer, frame);
 			foreach (FunctionDefinition function in privateFunctions)
-				WriteFunctionPrototype(writer, function, storage: function.Extern is not null ? null : "static");
+				WriteFunctionPrototype(writer, function, storage: PrivateFunctionStorage(function));
 			foreach (VariableDefinition variable in privateVariables)
 				WriteVariableDeclaration(writer, variable, storage: variable.Extern is not null ? "extern" : "static");
 			foreach (FieldDefinition field in privateStaticFields)
@@ -720,7 +720,7 @@ public static class CCodeEmitter
 					continue;
 				if (function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor)
 					continue;
-				WriteFunctionDefinition(writer, function, storage: IsExternallyVisible(function) ? null : "static");
+				WriteFunctionDefinition(writer, function, storage: PrivateFunctionStorage(function));
 				wrote = true;
 			}
 
@@ -1335,6 +1335,19 @@ public static class CCodeEmitter
 				&& !function.Name.StartsWith("~", StringComparison.Ordinal);
 		}
 
+		static string? PrivateFunctionStorage(FunctionDefinition function)
+		{
+			return function.Extern is not null || IsExternallyVisible(function) || IsGeneratedVirtualDispatchFunction(function)
+				? null
+				: "static";
+		}
+
+		static bool IsGeneratedVirtualDispatchFunction(FunctionDefinition function)
+		{
+			return function.GeneratedInfo?.Category == GeneratedDeclarationCategory.VirtualDispatch
+				|| function.Provenance?.Category == GeneratedDeclarationCategory.VirtualDispatch;
+		}
+
 		static IEnumerable<FieldDefinition> GetAllStaticFields(IEnumerable<Definition> definitions)
 		{
 			foreach (Definition definition in definitions)
@@ -1522,8 +1535,12 @@ public static class CCodeEmitter
 		{
 			HashSet<string> names = new(StringComparer.Ordinal);
 			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+			{
 				if (definition is InterfaceDefinition interfaceDefinition)
 					names.Add(interfaceDefinition.Name);
+				else if (definition is StructDefinition { SourceInterface: InterfaceDefinition sourceInterface })
+					names.Add(sourceInterface.Name);
+			}
 			return names;
 		}
 
@@ -1879,6 +1896,8 @@ public static class CCodeEmitter
 		{
 			if (TryFormatFlexibleArrayField(field.Type, CName(field), out string declaration))
 				return declaration;
+			if (IsGeneratedRawInterfaceVTableStorage(field))
+				return FormatResolvedType(field.ResolvedType!, CName(field), normalizeInterfacePointer: false).Declaration;
 			return FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration;
 		}
 
@@ -1940,13 +1959,13 @@ public static class CCodeEmitter
 		void WriteVariableDeclaration(TextWriter writer, VariableDefinition variable, string? storage)
 		{
 			string prefix = BuildDeclarationPrefix(variable, storage);
-			writer.WriteLine(prefix + FormatTypeOrResolved(variable.Type, variable.ResolvedType, CName(variable)).Declaration + ";");
+			writer.WriteLine(prefix + FormatStorageDefinitionType(variable, CName(variable)).Declaration + ";");
 		}
 
 		void WriteVariableDefinition(TextWriter writer, VariableDefinition variable, string? storage)
 		{
 			string prefix = BuildDeclarationPrefix(variable, storage);
-			writer.Write(prefix + FormatTypeOrResolved(variable.Type, variable.ResolvedType, CName(variable)).Declaration);
+			writer.Write(prefix + FormatStorageDefinitionType(variable, CName(variable)).Declaration);
 			if (variable.InitialValue is not null)
 				writer.Write(" = " + FormatFileScopeInitializer(variable.ResolvedType, variable.InitialValue));
 			writer.WriteLine(";");
@@ -1955,16 +1974,45 @@ public static class CCodeEmitter
 		void WriteFieldStorageDeclaration(TextWriter writer, FieldDefinition field, string? storage)
 		{
 			string prefix = BuildDeclarationPrefix(field, storage);
-			writer.WriteLine(prefix + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration + ";");
+			writer.WriteLine(prefix + FormatStorageDefinitionType(field, CName(field)).Declaration + ";");
 		}
 
 		void WriteFieldStorageDefinition(TextWriter writer, FieldDefinition field, string? storage)
 		{
 			string prefix = BuildDeclarationPrefix(field, storage);
-			writer.Write(prefix + FormatTypeOrResolved(field.Type, field.ResolvedType, CName(field)).Declaration);
+			writer.Write(prefix + FormatStorageDefinitionType(field, CName(field)).Declaration);
 			if (field.InitialValue is not null)
 				writer.Write(" = " + FormatFileScopeInitializer(field.ResolvedType, field.InitialValue));
 			writer.WriteLine(";");
+		}
+
+		CType FormatStorageDefinitionType(Definition definition, string declarator)
+		{
+			if (IsGeneratedRawInterfaceVTableStorage(definition))
+				return FormatResolvedType(definition.ResolvedType!, declarator, normalizeInterfacePointer: false);
+			return definition switch
+			{
+				VariableDefinition variable => FormatTypeOrResolved(variable.Type, variable.ResolvedType, declarator),
+				FieldDefinition field => FormatTypeOrResolved(field.Type, field.ResolvedType, declarator),
+				_ => FormatTypeOrResolved(null, definition.ResolvedType, declarator)
+			};
+		}
+
+		bool IsGeneratedRawInterfaceVTableStorage(Definition definition)
+		{
+			if (definition.ResolvedType is not string resolvedType || !TryGetPointerElementType(resolvedType, out string elementType))
+				return false;
+			string baseType = StripTopLevelConstForC(elementType);
+			if (!IsInterfaceResolvedName(baseType))
+				return false;
+			return definition.GeneratedInfo?.Category == GeneratedDeclarationCategory.Interface
+				|| definition.Provenance?.Category == GeneratedDeclarationCategory.Interface
+				|| definition.Name.StartsWith("_vtableof_", StringComparison.Ordinal)
+				|| definition.Symbol.StartsWith("_vtableof_", StringComparison.Ordinal)
+				|| definition.Name == "_vt"
+				|| definition.Symbol == "_vt"
+				|| definition.Name.EndsWith("_" + baseType, StringComparison.Ordinal)
+				|| definition.Symbol.EndsWith("_" + baseType, StringComparison.Ordinal);
 		}
 
 		void WriteFunctionDefinition(TextWriter writer, FunctionDefinition function, string? storage)
@@ -2975,7 +3023,7 @@ public static class CCodeEmitter
 					}
 					else
 					{
-						parts.Add(FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name).Declaration);
+						parts.Add(FormatOrdinaryParameterType(parameter, name).Declaration);
 					}
 				}
 			});
@@ -3491,7 +3539,7 @@ public static class CCodeEmitter
 				StackAllocExpression stackAlloc => FormatAlloca(FormatExpression(stackAlloc.Size)),
 				CallExpression call => FormatCallExpression(call),
 				IndexExpression index => FormatIndexExpression(index),
-				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatInterfaceSlotMember(member.Target, member.Name) ?? FormatMemberTarget(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
+				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatCallableCallComponent(member.Target, member.Name) ?? FormatInterfaceSlotMember(member.Target, member.Name) ?? FormatMemberTarget(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
 				MemberReferenceExpression member => FormatMemberReference(member),
 				UnaryExpression unary => FormatUnaryExpression(unary),
 				PostfixUpdateExpression postfix => FormatExpression(postfix.Expression) + FormatUpdateOperator(postfix.Operator),
@@ -4275,7 +4323,11 @@ public static class CCodeEmitter
 
 			string target = FormatExpression(call.Target);
 			FunctionDefinition? function = TryGetCallFunction(call);
-			if (function is not null
+			if (TryFormatInterfaceSlotExpression(call.Target, out string interfaceSlotExpression))
+				target = interfaceSlotExpression;
+			else if (TryFormatInterfaceSlotCallTarget(call, out string interfaceSlotCallTarget))
+				target = interfaceSlotCallTarget;
+			else if (function is not null
 				&& containingTypes.TryGetValue(function, out TypeDefinition? owner)
 				&& owner is InterfaceDefinition
 				&& call.Arguments.Count > 0
@@ -4295,6 +4347,8 @@ public static class CCodeEmitter
 				ParameterDefinition? parameter = i < parameters.Count ? parameters[i] : null;
 				arguments.Add(FormatArgumentValue(call.Arguments[i], parameter, genericSubstitutions));
 			}
+			if (TryRepairFormattedInterfaceSlotCallTarget(call, target, out string repairedTarget))
+				target = repairedTarget;
 			if (function?.IsAsync == true)
 				RepairAsyncCallArgumentSlots(function, arguments);
 			string text = target + "(" + string.Join(", ", arguments) + ")";
@@ -4306,6 +4360,25 @@ public static class CCodeEmitter
 			if (TryGetCallResultCastType(call, function, genericSubstitutions, out string? castType))
 				return "(" + FormatResolvedType(castType!, "").Declaration.Trim() + ")(" + text + ")";
 			return text;
+		}
+
+		bool TryRepairFormattedInterfaceSlotCallTarget(CallExpression call, string target, out string repairedTarget)
+		{
+			repairedTarget = target;
+			if (call.Arguments.Count == 0 || call.Arguments[0].Value is not Expression context)
+				return false;
+			string contextType = call.Arguments[0].ResolvedType ?? context.ResolvedType ?? "";
+			if (!TryNormalizeInterfacePointerType(contextType, out _))
+				return false;
+			string contextText = FormatExpression(context);
+			string prefix = contextText + "->";
+			if (!target.StartsWith(prefix, StringComparison.Ordinal))
+				return false;
+			string slotName = target[prefix.Length..];
+			if (slotName.Contains("->", StringComparison.Ordinal) || slotName.Contains(".", StringComparison.Ordinal))
+				return false;
+			repairedTarget = "(*" + contextText + ")->" + slotName;
+			return true;
 		}
 
 		void RepairAsyncCallArgumentSlots(FunctionDefinition function, List<string> arguments)
@@ -5512,6 +5585,8 @@ public static class CCodeEmitter
 
 		string FormatMemberReference(MemberReferenceExpression member)
 		{
+			if (FormatCallableCallComponent(member.Target, member.Name) is string callableCallComponent)
+				return callableCallComponent;
 			if (member.Member is FunctionDefinition function
 				&& (member.Target is null
 					|| function.OutOfScopeOwnerName is not null
@@ -5526,6 +5601,8 @@ public static class CCodeEmitter
 				return CName(variable);
 			if (member.Member is FieldDefinition field)
 			{
+				if (FormatInterfaceSlotMember(member.Target, CName(field)) is string formattedInterfaceSlotMember)
+					return formattedInterfaceSlotMember;
 				string fieldTarget = FormatMemberTarget(member.Target);
 				return fieldTarget + (IsPointerMemberTarget(member.Target) ? "->" : ".") + CName(field);
 			}
@@ -5579,6 +5656,8 @@ public static class CCodeEmitter
 			}
 
 			string targetType = target.ResolvedType ?? "";
+			if (TryNormalizeInterfacePointerType(targetType, out string normalizedTargetType))
+				targetType = normalizedTargetType;
 			if (string.IsNullOrWhiteSpace(targetType) || !targetType.EndsWith("**", StringComparison.Ordinal))
 				return null;
 
@@ -5588,12 +5667,99 @@ public static class CCodeEmitter
 				: null;
 		}
 
+		string? FormatCallableCallComponent(Expression? target, string name)
+		{
+			if (name != "call")
+				return null;
+			if (TryFormatInterfaceSlotExpression(target, out string interfaceSlotExpression))
+				return interfaceSlotExpression;
+			if (target?.ResolvedType is not string targetType)
+				return null;
+			return IsResolvedCallableType(targetType) ? FormatMemberTarget(target) : null;
+		}
+
+		bool TryFormatInterfaceSlotExpression(Expression? expression, out string text)
+		{
+			text = "";
+			switch (expression)
+			{
+				case MemberReferenceExpression member:
+					if (FormatInterfaceSlotMember(member.Target, member.Name) is string referenceText)
+					{
+						text = referenceText;
+						return true;
+					}
+					break;
+
+				case MemberExpression member:
+					if (FormatInterfaceSlotMember(member.Target, member.Name) is string expressionText)
+					{
+						text = expressionText;
+						return true;
+					}
+					break;
+			}
+			return false;
+		}
+
+		bool TryFormatInterfaceSlotCallTarget(CallExpression call, out string target)
+		{
+			target = "";
+			if (call.Arguments.Count == 0 || call.Arguments[0].Value is not Expression context)
+				return false;
+			string slotName = call.Target switch
+			{
+				MemberReferenceExpression member => member.Name,
+				MemberExpression member => member.Name,
+				_ => ""
+			};
+			if (string.IsNullOrWhiteSpace(slotName))
+				return false;
+
+			string contextType = call.Arguments[0].ResolvedType ?? context.ResolvedType ?? "";
+			if (TryNormalizeInterfacePointerType(contextType, out string normalizedContextType))
+				contextType = normalizedContextType;
+			if (string.IsNullOrWhiteSpace(contextType) || !contextType.EndsWith("**", StringComparison.Ordinal))
+				return false;
+
+			string interfaceName = contextType[..^2].Trim();
+			if (!TryFindInterfaceStruct(interfaceName, slotName, out _))
+				return false;
+
+			target = "(*" + FormatExpression(context) + ")->" + SanitizeIdentifier(slotName);
+			return true;
+		}
+
 		static string InterfaceStructNameFromPointerElement(string type)
 		{
 			type = StripTopLevelConstForC(type);
 			return TryGetPointerElementType(type, out string elementType)
 				? StripTopLevelConstForC(elementType)
 				: type;
+		}
+
+		bool TryNormalizeInterfacePointerType(string parameterType, out string normalizedParameterType)
+		{
+			normalizedParameterType = parameterType;
+			string type = StripLifetimeOnly(parameterType.Trim());
+			int pointerCount = 0;
+			while (type.EndsWith("*", StringComparison.Ordinal))
+			{
+				pointerCount++;
+				type = type[..^1].TrimEnd();
+			}
+
+			if (pointerCount != 1)
+				return false;
+
+			string baseType = StripTopLevelConstForC(type);
+			baseType = baseType.StartsWith("volatile ", StringComparison.Ordinal) ? baseType[9..].TrimStart() : baseType;
+			baseType = baseType.EndsWith(" volatile", StringComparison.Ordinal) ? baseType[..^9].TrimEnd() : baseType;
+			if (!IsInterfaceResolvedName(baseType))
+				return false;
+
+			normalizedParameterType = StripLifetimeOnly(parameterType.Trim()) + "*";
+			return true;
 		}
 
 		bool TryFindInterfaceStruct(string interfaceName, string fieldName, out StructDefinition? interfaceStruct)
@@ -6038,11 +6204,25 @@ public static class CCodeEmitter
 					}
 					else
 					{
-						parts.Add(FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name).Declaration);
+						parts.Add(FormatOrdinaryParameterType(parameter, name).Declaration);
 					}
 				}
 			});
 			return "(" + (parts.Count == 0 ? "void" : string.Join(", ", parts)) + ")";
+		}
+
+		CType FormatOrdinaryParameterType(ParameterDefinition parameter, string name)
+		{
+			if (parameter is VTableOfParameterDefinition)
+				return parameter.ResolvedType is null
+					? FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name)
+					: FormatResolvedType(parameter.ResolvedType, name, normalizeInterfacePointer: false);
+			if (parameter.ResolvedType is not null
+				&& TryNormalizeInterfacePointerType(parameter.ResolvedType, out string normalizedInterfaceType))
+				return FormatResolvedType(normalizedInterfaceType, name);
+			if (TryGetInterfacePointerCastType(parameter.Type, out string interfaceName))
+				return FormatResolvedType(interfaceName + "*", name);
+			return FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name);
 		}
 
 		static string UniqueCallableParameterName(string name, HashSet<string> usedNames)
@@ -6099,7 +6279,7 @@ public static class CCodeEmitter
 					}
 					else
 					{
-						parts.Add(FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name).Declaration);
+						parts.Add(FormatOrdinaryParameterType(parameter, name).Declaration);
 					}
 				}
 			});
@@ -6632,7 +6812,7 @@ public static class CCodeEmitter
 			return FormatType(new PointerTypeReference { ElementType = null }, declarator);
 		}
 
-		CType FormatResolvedType(string resolvedType, string declarator)
+		CType FormatResolvedType(string resolvedType, string declarator, bool normalizeInterfacePointer = true)
 		{
 			string type = resolvedType.Trim();
 			if (type == "fn*")
@@ -6754,7 +6934,7 @@ public static class CCodeEmitter
 				if (qualifiers.Remove("const"))
 					trailingQualifiers.Insert(0, "const");
 			}
-			if (pointerCount == 1 && IsInterfaceResolvedName(type))
+			if (normalizeInterfacePointer && pointerCount == 1 && IsInterfaceResolvedName(type))
 				pointerCount++;
 
 			bool isGenericType = currentGenericTypeNames.Contains(type) || genericParameterNames.Contains(type);
@@ -6899,10 +7079,43 @@ public static class CCodeEmitter
 
 		CType FormatPointerType(PointerTypeReference pointer, string declarator, string? explicitTargetSpec = null)
 		{
+			if (StripTypeDecorators(pointer.ElementType) is PointerTypeReference innerPointer
+				&& TryGetInterfaceTypeReferenceName(innerPointer.ElementType, out string pointerInterfaceName))
+				return FormatResolvedType(pointerInterfaceName + "**", declarator, normalizeInterfacePointer: false);
+			if (TryGetInterfaceTypeReferenceName(pointer.ElementType, out string interfaceName))
+				return FormatResolvedType(interfaceName + "*", declarator);
 			declarator = FormatDataPointerDeclarator(declarator, explicitTargetSpec);
 			if (pointer.ElementType is PrimitiveTypeReference { Type: PrimitiveType.Untyped })
 				return new CType("void " + declarator);
 			return FormatType(pointer.ElementType, declarator);
+		}
+
+		bool TryGetInterfaceTypeReferenceName(TypeReference? type, out string interfaceName)
+		{
+			interfaceName = "";
+			type = StripTypeDecorators(type);
+			if (type is TypeDefinitionReference { Definition: InterfaceDefinition definition })
+			{
+				interfaceName = definition.Name;
+				return true;
+			}
+			if (type is NamedTypeReference named && IsInterfaceResolvedName(named.ResolvedType ?? named.Name))
+			{
+				interfaceName = named.ResolvedType ?? named.Name;
+				return true;
+			}
+			if (TypeReferenceName(type) is string typeName && IsInterfaceResolvedName(typeName))
+			{
+				interfaceName = InterfaceBaseName(typeName);
+				return true;
+			}
+			return false;
+		}
+
+		static string InterfaceBaseName(string typeName)
+		{
+			int generic = typeName.IndexOf('<', StringComparison.Ordinal);
+			return generic < 0 ? typeName : typeName[..generic];
 		}
 
 		string FormatDataPointerDeclarator(string declarator, string? explicitTargetSpec)

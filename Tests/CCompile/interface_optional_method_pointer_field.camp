@@ -1,0 +1,24 @@
+export extern void* malloc(nuint size);
+export extern void free(void* ptr);
+
+export interface IHost
+{
+	int onValue() = default;
+}
+
+export escaped class Widget
+{
+	IHost* host;
+
+	export void setHost(escaped IHost* host)
+	{
+		this.host = host;
+	}
+
+	export int read()
+	{
+		if (this.host != null && this.host.onValue.call != null)
+			return this.host.onValue();
+		return 0;
+	}
+}

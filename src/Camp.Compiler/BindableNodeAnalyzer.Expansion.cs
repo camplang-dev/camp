@@ -121,17 +121,15 @@ public sealed partial class BindableNodeAnalyzer
 			return null;
 
 		ClassDefinition? abiOwner = GetVirtualImplementationAbiOwner(owner, source);
-		FunctionDefinition implementation = new()
-		{
-			SourceSyntax = source.SourceSyntax,
-			Name = VirtualImplementationName(source),
-			Symbol = VirtualImplementationSymbol(owner, source),
-			Export = source.Export,
-			Public = source.Public,
-			ReturnType = CloneType(source.ReturnType),
-			ResolvedType = source.ResolvedType,
-			Body = source.Body
-		};
+		FunctionDefinition implementation = generatedDeclarations.Function(GeneratedDeclarationCategory.VirtualDispatch, "virtual implementation thunk", source);
+		implementation.SourceSyntax = source.SourceSyntax;
+		implementation.Name = VirtualImplementationName(source);
+		implementation.Symbol = VirtualImplementationSymbol(owner, source);
+		implementation.Export = source.Export;
+		implementation.Public = source.Public;
+		implementation.ReturnType = CloneType(source.ReturnType);
+		implementation.ResolvedType = source.ResolvedType;
+		implementation.Body = source.Body;
 		CopyParameters(source.Parameters, implementation.Parameters);
 		if (abiOwner is not null && !ReferenceEquals(abiOwner, owner))
 		{

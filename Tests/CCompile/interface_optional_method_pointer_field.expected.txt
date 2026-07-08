@@ -1,0 +1,94 @@
+// file: interface_optional_method_pointer_field.c
+#include "interface_optional_method_pointer_field_private.h"
+
+
+void Widget_setHost(Widget *this, IHost **host)
+{
+	this->host = host;
+}
+
+int Widget_read(Widget *this)
+{
+	if (((this->host != NULL) && ((*this->host)->onValue != NULL)))
+	{
+		return (*this->host)->onValue(this->host);
+	}
+	return 0;
+}
+
+void Widget_op_initnew(Widget *this)
+{
+}
+
+Widget *Widget_create(void)
+{
+	Widget *_created0 = (Widget *)(malloc(sizeof(Widget)));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Widget){0};
+		Widget_op_initnew(_created0);
+	}
+	return _created0;
+}
+
+void Widget_destroy(Widget *this)
+{
+	free((void *)(this));
+}
+
+// file: interface_optional_method_pointer_field.h
+#ifndef INTERFACE_OPTIONAL_METHOD_POINTER_FIELD_H_
+#define INTERFACE_OPTIONAL_METHOD_POINTER_FIELD_H_
+
+#include "interface_optional_method_pointer_field_private.h"
+
+void *malloc(uintptr_t size);
+void free(void *ptr);
+void Widget_setHost(Widget *this, IHost **host);
+int Widget_read(Widget *this);
+void Widget_op_initnew(Widget *this);
+Widget *Widget_create(void);
+void Widget_destroy(Widget *this);
+
+#endif
+// file: interface_optional_method_pointer_field_private.h
+#ifndef INTERFACE_OPTIONAL_METHOD_POINTER_FIELD_PRIVATE_H_
+#define INTERFACE_OPTIONAL_METHOD_POINTER_FIELD_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IHost IHost;
+typedef struct Widget Widget;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct IHost
+{
+	int (* onValue)(IHost **ctx);
+};
+struct Widget
+{
+	IHost **host;
+};
+
+/* Function declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+void Widget_setHost(Widget *this, IHost **host);
+int Widget_read(Widget *this);
+void Widget_op_initnew(Widget *this);
+Widget *Widget_create(void);
+void Widget_destroy(Widget *this);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: interface_optional_method_pointer_field.c

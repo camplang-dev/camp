@@ -6,12 +6,12 @@ static void *Allocator_alloc(Allocator *this, uintptr_t size);
 static void Allocator_free(Allocator *this, void *ptr);
 static void *HeapAllocator_alloc(HeapAllocator *this, uintptr_t size);
 static void HeapAllocator_free(HeapAllocator *this, void *ptr);
-static void *HeapAllocator__alloc(Allocator *ctx, uintptr_t size);
-static void HeapAllocator__free(Allocator *ctx, void *ptr);
+void *HeapAllocator__alloc(Allocator *ctx, uintptr_t size);
+void HeapAllocator__free(Allocator *ctx, void *ptr);
 static int BaseCounter_value(BaseCounter *this);
-static int BaseCounter__value(BaseCounter *this);
+int BaseCounter__value(BaseCounter *this);
 static int Counter_value(Counter *this);
-static int Counter__value(BaseCounter *ctx);
+int Counter__value(BaseCounter *ctx);
 static _Allocator _Allocator__vt;
 static _HeapAllocator _HeapAllocator__vt;
 static _BaseCounter _BaseCounter__vt;
@@ -31,14 +31,14 @@ static void Allocator_free(Allocator *this, void *ptr)
 	this->_vt->free(this, ptr);
 }
 
-static void *HeapAllocator__alloc(Allocator *ctx, uintptr_t size)
+void *HeapAllocator__alloc(Allocator *ctx, uintptr_t size)
 {
 	HeapAllocator *this = (HeapAllocator *)(ctx);
 	(void)this;
 	return NULL;
 }
 
-static void HeapAllocator__free(Allocator *ctx, void *ptr)
+void HeapAllocator__free(Allocator *ctx, void *ptr)
 {
 	HeapAllocator *this = (HeapAllocator *)(ctx);
 	(void)this;
@@ -49,12 +49,12 @@ static int BaseCounter_value(BaseCounter *this)
 	return this->_vt->value(this);
 }
 
-static int BaseCounter__value(BaseCounter *this)
+int BaseCounter__value(BaseCounter *this)
 {
 	return 1;
 }
 
-static int Counter__value(BaseCounter *ctx)
+int Counter__value(BaseCounter *ctx)
 {
 	Counter *this = (Counter *)(ctx);
 	(void)this;
@@ -119,6 +119,10 @@ struct Counter
 };
 
 /* Function declarations. */
+void *HeapAllocator__alloc(Allocator *ctx, uintptr_t size);
+void HeapAllocator__free(Allocator *ctx, void *ptr);
+int BaseCounter__value(BaseCounter *this);
+int Counter__value(BaseCounter *ctx);
 
 /* Object declarations. */
 
