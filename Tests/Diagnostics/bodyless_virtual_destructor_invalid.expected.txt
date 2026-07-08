@@ -1,0 +1,1 @@
+tests/Diagnostics/bodyless_virtual_destructor_invalid.camp(5,38): error: Method declarations without a body must be extern.

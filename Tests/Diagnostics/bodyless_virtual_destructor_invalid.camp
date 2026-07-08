@@ -1,0 +1,6 @@
+abstract class BodylessVirtualDestructor
+{
+	abstract int process();
+
+	virtual ~BodylessVirtualDestructor();
+}

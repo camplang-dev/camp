@@ -736,8 +736,7 @@ public sealed partial class BindableNodeBuilder
 
 		if (syntax.SemicolonToken is not null || syntax.Assignment is not null)
 		{
-			bool allowedBodylessVirtualDestructor = isDestructor && definition.Modifier == FunctionModifier.Virtual;
-			if (syntax.SemicolonToken is not null && definition.Extern is null && definition.Modifier != FunctionModifier.Abstract && !allowedBodylessVirtualDestructor && !allowBodylessWithoutExtern)
+			if (syntax.SemicolonToken is not null && definition.Extern is null && definition.Modifier != FunctionModifier.Abstract && !allowBodylessWithoutExtern)
 				Report(syntax.SemicolonToken.Value.Range, "Method declarations without a body must be extern.");
 		}
 		else if (syntax.MethodBody is null)

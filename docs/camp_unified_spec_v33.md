@@ -4318,7 +4318,9 @@ Example:
 abstract class Device
 {
 	abstract int process(byte[] buffer);
-	virtual ~Device();
+	virtual ~Device()
+	{
+	}
 }
 ```
 
@@ -4417,7 +4419,9 @@ Example:
 export abstract class Device
 {
 	abstract int process(byte[] buffer);
-	virtual ~Device();
+	virtual ~Device()
+	{
+	}
 }
 
 export virtual class FileDevice: Device
