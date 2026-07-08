@@ -1,0 +1,11 @@
+extern class ImportedMap
+{
+	extern ImportedMap(int policy);
+	extern ~ImportedMap();
+}
+
+export void main()
+{
+	auto map = new ImportedMap();
+	delete map;
+}

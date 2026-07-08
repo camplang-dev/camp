@@ -2773,6 +2773,27 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
+	FunctionDefinition? LookupAnyConstructor(string targetType)
+	{
+		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
+			return null;
+
+		IEnumerable<FunctionDefinition> functions = type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Functions,
+			StructDefinition structDefinition => structDefinition.Functions,
+			_ => []
+		};
+
+		foreach (FunctionDefinition function in functions)
+		{
+			if (function.Modifier == FunctionModifier.Constructor)
+				return function;
+		}
+
+		return null;
+	}
+
 	FunctionDefinition? LookupCreateMethod(string targetType, int argumentCount)
 	{
 		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
@@ -2781,6 +2802,20 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in GetTypeFunctions(type))
 		{
 			if (function.Name == CreateMethodName && CanCallWithArgumentCount(function.Parameters, argumentCount))
+				return function;
+		}
+
+		return null;
+	}
+
+	FunctionDefinition? LookupAnyCreateMethod(string targetType)
+	{
+		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
+			return null;
+
+		foreach (FunctionDefinition function in GetTypeFunctions(type))
+		{
+			if (function.Name == CreateMethodName)
 				return function;
 		}
 

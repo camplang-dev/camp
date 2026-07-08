@@ -1645,11 +1645,13 @@ public sealed partial class BindableNodeAnalyzer
 			? existingConstructor
 			: LookupConstructor(targetType, construction.Arguments.Count);
 		FunctionDefinition? create = construction.Kind == ConstructionKind.New ? LookupCreateMethod(targetType, construction.Arguments.Count) : null;
+		FunctionDefinition? diagnosticConstructor = constructor ?? LookupAnyConstructor(targetType);
+		FunctionDefinition? diagnosticCreate = create ?? (construction.Kind == ConstructionKind.New ? LookupAnyCreateMethod(targetType) : null);
 		if (construction.Kind == ConstructionKind.New
 			&& typeDefinitions.TryGetValue(BaseConstructedType(targetType), out TypeDefinition? newDefinition)
 			&& newDefinition is ClassDefinition { Extern: not null }
-			&& constructor is null
-			&& create is null)
+			&& diagnosticConstructor is null
+			&& diagnosticCreate is null)
 		{
 			Report(GetRange(construction.SourceSyntax), $"Cannot allocate extern class '{targetType}' without an extern constructor or create method.");
 		}
@@ -1657,7 +1659,7 @@ public sealed partial class BindableNodeAnalyzer
 			constructionTargets[construction] = constructor;
 		Dictionary<string, string> constructionGenericSubstitutions = [];
 		AddConstructedTypeGenericSubstitutions(targetType, constructionGenericSubstitutions);
-		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? create?.Parameters ?? [], scope, typeScope, construction.SourceSyntax, genericSubstitutions: constructionGenericSubstitutions);
+		AnalyzeCallArguments(construction.Arguments, constructor?.Parameters ?? create?.Parameters ?? diagnosticConstructor?.Parameters ?? diagnosticCreate?.Parameters ?? [], scope, typeScope, construction.SourceSyntax, genericSubstitutions: constructionGenericSubstitutions);
 		BodyAnalyzeExpression(construction.ElementCount, scope, typeScope, "nuint");
 		if (construction.Initializer is not null)
 			BodyAnalyzeInitializerExpression(construction.Initializer, scope, typeScope, targetType);

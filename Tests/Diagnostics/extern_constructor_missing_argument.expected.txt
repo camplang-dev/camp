@@ -1,0 +1,1 @@
+tests/Diagnostics/extern_constructor_missing_argument.camp(9,13): error: Call is missing required arguments.
