@@ -457,13 +457,17 @@ sealed class CampCli
 			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", consumerRequest.TargetName, memoryModelName, consumerRequest.ProfileName);
 			string projectBuildDirectory = Path.Combine(projectDirectory, "obj", consumerRequest.TargetName, memoryModelName, consumerRequest.ProfileName);
 			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
+			bool hasProjectOutDir = HasOption(projectArgs, "--out-dir");
+			bool hasProjectBuildDir = HasOption(projectArgs, "--build-dir");
 			projectArgs.AddRange(["--target", consumerRequest.TargetName]);
 			projectArgs.AddRange(["--profile", consumerRequest.ProfileName]);
 			if (!string.IsNullOrWhiteSpace(consumerRequest.MemoryModelName))
 				projectArgs.AddRange(["--memory-model", consumerRequest.MemoryModelName!]);
 			projectArgs.AddRange(["--artifact", "static"]);
-			projectArgs.AddRange(["--out-dir", projectOutputDirectory]);
-			projectArgs.AddRange(["--build-dir", projectBuildDirectory]);
+			if (!hasProjectOutDir)
+				projectArgs.AddRange(["--out-dir", projectOutputDirectory]);
+			if (!hasProjectBuildDir)
+				projectArgs.AddRange(["--build-dir", projectBuildDirectory]);
 
 			List<string> childStack = [.. projectReferenceStack, canonicalBuildFile];
 			if (!TryBuildRequest(projectArgs.ToArray(), environment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack))
@@ -588,9 +592,7 @@ sealed class CampCli
 			"--profile",
 			"-p",
 			"--memory-model",
-			"--artifact",
-			"--out-dir",
-			"--build-dir"
+			"--artifact"
 		};
 		List<string> result = [];
 		for (int i = 0; i < args.Count; i++)
@@ -604,6 +606,14 @@ sealed class CampCli
 			result.Add(args[i]);
 		}
 		return result;
+	}
+
+	static bool HasOption(IReadOnlyList<string> args, string longName)
+	{
+		foreach (string arg in args)
+			if (string.Equals(arg, longName, StringComparison.Ordinal))
+				return true;
+		return false;
 	}
 
 	static bool IsStaticLibrary(string path, string targetName, string runtimeRoot)

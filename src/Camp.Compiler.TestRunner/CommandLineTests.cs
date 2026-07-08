@@ -379,6 +379,63 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Project_reference_respects_referenced_project_output_directories()
+	{
+		string root = TempPath("project-reference-configured-directories");
+		string libraryRoot = Path.Combine(root, "sample-lib");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "sample-app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			export int add(int left, int right)
+			{
+				return left + right;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
+			--nostdlib
+			--name sample-lib
+			--build-dir build
+			--out-dir bin
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name sample-app
+
+			export int main()
+			{
+				return add(20, 22) - 42;
+			}
+			""");
+		string target = NativeTargetForHost();
+		string staticLibraryName = OperatingSystem.IsWindows() ? "sample-lib.lib" : "libsample-lib.a";
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			target,
+			"--project-reference",
+			libraryRoot,
+			"--build-dir",
+			Path.Combine(appRoot, "build"),
+			"--out-dir",
+			Path.Combine(appRoot, "bin"));
+
+		AssertCommandSucceeded(result);
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", staticLibraryName)));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", "sample-lib_api.camp")));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "build", "library.c")));
+		Assert.False(Directory.Exists(Path.Combine(libraryRoot, "obj")));
+		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", "sample-app" + ExecutableExtensionForHost()));
+		Assert.Equal(0, run.ExitCode);
+		Assert.Equal("", run.StdErr);
+	}
+
+	[Fact]
 	public void Project_reference_cycles_report_direct_diagnostic()
 	{
 		string root = TempPath("project-reference-cycle");
