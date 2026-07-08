@@ -4,6 +4,7 @@ export extern void free(void* ptr);
 export interface IHost
 {
 	int onValue() = default;
+	int onTransform(int value, delegate int(int value) transform) = default;
 }
 
 export escaped class Widget
@@ -20,5 +21,12 @@ export escaped class Widget
 		if (this.host != null && this.host.onValue.call != null)
 			return this.host.onValue();
 		return 0;
+	}
+
+	export int transform(int value)
+	{
+		if (this.host != null && this.host.onTransform.call != null)
+			return this.host.onTransform(value, current => current + this.read());
+		return value;
 	}
 }

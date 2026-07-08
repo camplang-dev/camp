@@ -1,6 +1,8 @@
 // file: interface_optional_method_pointer_field.c
 #include "interface_optional_method_pointer_field_private.h"
 
+/* Private file declarations. */
+static int Widget_transform_lambda0(void *_context, int current);
 
 void Widget_setHost(Widget *this, IHost **host)
 {
@@ -14,6 +16,17 @@ int Widget_read(Widget *this)
 		return (*this->host)->onValue(this->host);
 	}
 	return 0;
+}
+
+int Widget_transform(Widget *this, int value)
+{
+	Widget_transform_lambdaContext0 _lambdaContext1;
+	_lambdaContext1.capture0_this = &this;
+	if (((this->host != NULL) && ((*this->host)->onTransform != NULL)))
+	{
+		return (*this->host)->onTransform(this->host, value, Widget_transform_lambda0, &_lambdaContext1);
+	}
+	return value;
 }
 
 void Widget_op_initnew(Widget *this)
@@ -36,6 +49,12 @@ void Widget_destroy(Widget *this)
 	free((void *)(this));
 }
 
+static int Widget_transform_lambda0(void *_context, int current)
+{
+	Widget_transform_lambdaContext0 *lambdaContext = (Widget_transform_lambdaContext0 *)(_context);
+	return (current + Widget_read((*lambdaContext->capture0_this)));
+}
+
 // file: interface_optional_method_pointer_field.h
 #ifndef INTERFACE_OPTIONAL_METHOD_POINTER_FIELD_H_
 #define INTERFACE_OPTIONAL_METHOD_POINTER_FIELD_H_
@@ -46,6 +65,7 @@ void *malloc(uintptr_t size);
 void free(void *ptr);
 void Widget_setHost(Widget *this, IHost **host);
 int Widget_read(Widget *this);
+int Widget_transform(Widget *this, int value);
 void Widget_op_initnew(Widget *this);
 Widget *Widget_create(void);
 void Widget_destroy(Widget *this);
@@ -62,6 +82,7 @@ void Widget_destroy(Widget *this);
 /* Forward declarations. */
 typedef struct IHost IHost;
 typedef struct Widget Widget;
+typedef struct Widget_transform_lambdaContext0 Widget_transform_lambdaContext0;
 
 /* Enums. */
 
@@ -71,6 +92,11 @@ typedef struct Widget Widget;
 struct IHost
 {
 	int (* onValue)(IHost **ctx);
+	int (* onTransform)(IHost **ctx, int value, int (* transform)(void *arg0, int arg1), void *transform_context);
+};
+struct Widget_transform_lambdaContext0
+{
+	Widget **capture0_this;
 };
 struct Widget
 {
@@ -82,6 +108,7 @@ void *malloc(uintptr_t size);
 void free(void *ptr);
 void Widget_setHost(Widget *this, IHost **host);
 int Widget_read(Widget *this);
+int Widget_transform(Widget *this, int value);
 void Widget_op_initnew(Widget *this);
 Widget *Widget_create(void);
 void Widget_destroy(Widget *this);

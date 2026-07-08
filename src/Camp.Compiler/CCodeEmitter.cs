@@ -4340,12 +4340,22 @@ public static class CCodeEmitter
 				? GetCallableParametersForCall(function)
 				: GetCallableParametersForExpression(call.Target);
 			List<string> arguments = [];
+			int parameterIndex = 0;
 			for (int i = 0; i < call.Arguments.Count; i++)
 			{
 				if (function?.IsAsync == true && call.Arguments[i].Modifier == ArgumentModifier.Catch)
 					continue;
-				ParameterDefinition? parameter = i < parameters.Count ? parameters[i] : null;
+				if (ParametersLookLikeDelegateCallContextPair(parameters, parameterIndex)
+					&& TryFormatExpandedDelegateArgument(call.Arguments[i], parameters, parameterIndex, genericSubstitutions, out string? callArgument, out string? contextArgument))
+				{
+					arguments.Add(callArgument);
+					arguments.Add(contextArgument);
+					parameterIndex += 2;
+					continue;
+				}
+				ParameterDefinition? parameter = parameterIndex < parameters.Count ? parameters[parameterIndex] : null;
 				arguments.Add(FormatArgumentValue(call.Arguments[i], parameter, genericSubstitutions));
+				parameterIndex++;
 			}
 			if (TryRepairFormattedInterfaceSlotCallTarget(call, target, out string repairedTarget))
 				target = repairedTarget;
@@ -4360,6 +4370,35 @@ public static class CCodeEmitter
 			if (TryGetCallResultCastType(call, function, genericSubstitutions, out string? castType))
 				return "(" + FormatResolvedType(castType!, "").Declaration.Trim() + ")(" + text + ")";
 			return text;
+		}
+
+		bool TryFormatExpandedDelegateArgument(ArgumentExpression argument, List<ParameterDefinition> parameters, int parameterIndex, Dictionary<string, string> genericSubstitutions, out string callArgument, out string contextArgument)
+		{
+			callArgument = "";
+			contextArgument = "";
+			if (argument.Modifier != ArgumentModifier.None
+				|| argument.Value is not InitializerExpression initializer
+				|| initializer.Items.Count != 2)
+				return false;
+
+			Expression? callExpression = initializer.Items[0].Expression;
+			Expression? contextExpression = initializer.Items[1].Expression;
+			if (callExpression is null || contextExpression is null)
+				return false;
+
+			callArgument = FormatArgumentValue(new ArgumentExpression
+			{
+				SourceSyntax = argument.SourceSyntax,
+				Value = callExpression,
+				ResolvedType = callExpression.ResolvedType
+			}, parameters[parameterIndex], genericSubstitutions);
+			contextArgument = FormatArgumentValue(new ArgumentExpression
+			{
+				SourceSyntax = argument.SourceSyntax,
+				Value = contextExpression,
+				ResolvedType = contextExpression.ResolvedType
+			}, parameters[parameterIndex + 1], genericSubstitutions);
+			return true;
 		}
 
 		bool TryRepairFormattedInterfaceSlotCallTarget(CallExpression call, string target, out string repairedTarget)
