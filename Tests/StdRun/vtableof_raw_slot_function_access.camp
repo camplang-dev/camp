@@ -1,0 +1,52 @@
+using Std;
+
+public interface IRefCount
+{
+	void retain();
+	void release();
+}
+
+fn void(IRefCount* context) capturedRelease;
+fn void(IRefCount* context) capturedReleaseFromDereference;
+
+void captureRelease<T: implements IRefCount>(T* value, vtableof(T: IRefCount))
+{
+	value.retain();
+	capturedRelease = vtableof_T_IRefCount.release;
+	capturedReleaseFromDereference = (*vtableof_T_IRefCount).release;
+}
+
+class RefThing: IRefCount
+{
+	int* retains;
+	int* releases;
+
+	RefThing(unscoped int* retains, unscoped int* releases)
+	{
+		this.retains = retains;
+		this.releases = releases;
+	}
+
+	void retain()
+	{
+		(*this.retains)++;
+	}
+
+	void release()
+	{
+		(*this.releases)++;
+	}
+}
+
+export int main()
+{
+	int retains = 0;
+	int releases = 0;
+	auto thing = new RefThing(&retains, &releases) finally delete;
+	captureRelease<RefThing>(thing);
+	capturedRelease((IRefCount*)thing);
+	capturedReleaseFromDereference((IRefCount*)thing);
+	Console.writeLine(retains);
+	Console.writeLine(releases);
+	return 0;
+}

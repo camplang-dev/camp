@@ -2044,6 +2044,9 @@ public sealed partial class BindableNodeAnalyzer
 				return members;
 		}
 
+		if (TryLookupInterfaceVTableSlotSymbols(targetType, name, referenceSyntax, members))
+			return members;
+
 		if (TryGetPointerElementType(targetType) is string interfaceElement
 			&& typeDefinitions.TryGetValue(BaseTypeName(interfaceElement), out TypeDefinition? interfaceType)
 			&& interfaceType is InterfaceDefinition interfaceDefinition)
@@ -2131,6 +2134,80 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return members;
+	}
+
+	bool TryLookupInterfaceVTableSlotSymbols(string targetType, string name, SyntaxNode? referenceSyntax, List<BodySymbol> members)
+	{
+		if (!TryGetInterfaceVTableTarget(targetType, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
+			return false;
+
+		StructDefinition lowered = LowerInterfaceDefinition(interfaceDefinition);
+		foreach (FieldDefinition field in lowered.Fields)
+		{
+			if (field.Name != name || !IsMemberVisible(field, lowered, referenceSyntax))
+				continue;
+
+			string fieldType = field.ResolvedType ?? field.Type?.ResolvedType ?? ErrorType;
+			string sourceType = TryGetInterfaceVTableSlotSourceType(interfaceDefinition, name, out string slotType)
+				? slotType
+				: fieldType;
+			members.Add(new BodySymbol(name, sourceType, field, IsConstantField(field)));
+		}
+		return true;
+	}
+
+	bool TryGetInterfaceVTableSlotSourceType(InterfaceDefinition interfaceDefinition, string name, out string slotType)
+	{
+		foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
+		{
+			if (GetInterfaceEntryName(function) != name)
+				continue;
+
+			List<string> parameters = [$"{interfaceDefinition.Name}*"];
+			foreach (ParameterDefinition parameter in function.Parameters)
+			{
+				if (parameter is ThisParameterDefinition)
+					continue;
+				parameters.Add(parameter.ResolvedType ?? ErrorType);
+			}
+			string returnType = function.Modifier == FunctionModifier.Constructor ? "any*" : function.ResolvedType ?? ErrorType;
+			slotType = $"fn{FormatCallSpec(function.CallSpec)} {returnType}({string.Join(", ", parameters)})";
+			return true;
+		}
+
+		slotType = ErrorType;
+		return false;
+	}
+
+	bool TryGetInterfaceVTableTarget(string targetType, out InterfaceDefinition? interfaceDefinition)
+	{
+		interfaceDefinition = null;
+		if (!new TypeShapeParser(StripLifetimeQualifiers(targetType)).TryParse(out TypeShape shape))
+			return false;
+
+		TypeShape? interfaceShape = shape.Kind switch
+		{
+			TypeShapeKind.Pointer when shape.Element is { Kind: TypeShapeKind.Named } element && element.Qualifiers.IsConst => element,
+			TypeShapeKind.Named when shape.Qualifiers.IsConst => shape,
+			_ => null
+		};
+		if (interfaceShape is null)
+			return false;
+
+		if (!typeDefinitions.TryGetValue(BaseTypeName(interfaceShape.Name), out TypeDefinition? type))
+			return false;
+
+		switch (type)
+		{
+			case InterfaceDefinition found:
+				interfaceDefinition = found;
+				return true;
+			case StructDefinition { SourceInterface: InterfaceDefinition sourceInterface }:
+				interfaceDefinition = sourceInterface;
+				return true;
+			default:
+				return false;
+		}
 	}
 
 	string GetGetterMemberType(string targetType, FunctionDefinition getter, SyntaxNode? syntax)
