@@ -155,6 +155,15 @@ public sealed partial class BindableNodeAnalyzer
 				}
 			}
 
+			if (resolvedType.TrimEnd().EndsWith("[]", StringComparison.Ordinal)
+				&& TryGetArrayElementType(resolvedType) is string resolvedArrayElementType)
+			{
+				kind = ParamsComponentShapeKind.Array;
+				typeName = resolvedType;
+				AddArrayPendingComponents(null, resolvedArrayElementType, prefix, components);
+				return true;
+			}
+
 			if (TryGetCallableShape(resolvedType, out CallableShape callable) && callable.Kind is "delegate" or "once")
 			{
 				kind = ParamsComponentShapeKind.Delegate;

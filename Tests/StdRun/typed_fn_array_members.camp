@@ -1,0 +1,28 @@
+using Std;
+
+int calls;
+
+void callback(void* context)
+{
+	if (context == null)
+		calls++;
+}
+
+export int main()
+{
+	fn void(void*)[] source = new fn void(void*)[1];
+	fn void(void*)[] destination = new fn void(void*)[1];
+
+	source[0] = callback;
+	if (source.length != 1)
+		return 1;
+	if (source.elements == null)
+		return 2;
+
+	source.copyTo<fn void(void*)>(destination);
+	destination[0](null);
+
+	delete source;
+	delete destination;
+	return calls == 1 ? 0 : 3;
+}

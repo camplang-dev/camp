@@ -368,6 +368,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string StripConstFromShape(string type)
 	{
+		if (LooksLikeCallableSignatureType(type))
+			return type.StartsWith("const ", StringComparison.Ordinal) ? type["const ".Length..] : type;
+
 		return new TypeShapeParser(type).TryParse(out TypeShape shape)
 			? TypeShapeParser.Format(shape with { Qualifiers = shape.Qualifiers with { IsConst = false } })
 			: type.StartsWith("const ", StringComparison.Ordinal) ? type["const ".Length..] : type;
@@ -380,6 +383,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string AddTopLevelConstToType(string type)
 	{
+		if (LooksLikeCallableSignatureType(type))
+			return $"const {type}";
+
 		return new TypeShapeParser(type).TryParse(out TypeShape shape)
 			? TypeShapeParser.Format(shape with { Qualifiers = shape.Qualifiers with { IsConst = true } })
 			: $"const {type}";
@@ -387,6 +393,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string StripTopLevelValueQualifiers(string type)
 	{
+		if (LooksLikeCallableSignatureType(type))
+			return type;
+
 		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
 			return type;
 
@@ -403,10 +412,33 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryStripTrailingLifetimeQualifier(trimmed, out string strippedTrailing))
 			return strippedTrailing;
 
+		if (LooksLikeCallableSignatureType(type))
+			return type;
+
 		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
 			return type;
 
 		return TypeShapeParser.Format(StripLifetimeQualifiers(shape));
+	}
+
+	static bool LooksLikeCallableSignatureType(string type)
+	{
+		string trimmed = type.TrimStart();
+		if (trimmed.StartsWith("const ", StringComparison.Ordinal)
+			|| trimmed.StartsWith("volatile ", StringComparison.Ordinal)
+			|| trimmed.StartsWith("escaped ", StringComparison.Ordinal)
+			|| trimmed.StartsWith("unscoped ", StringComparison.Ordinal)
+			|| trimmed.StartsWith("scoped ", StringComparison.Ordinal))
+		{
+			int firstSpace = trimmed.IndexOf(' ');
+			trimmed = firstSpace >= 0 ? trimmed[(firstSpace + 1)..].TrimStart() : "";
+		}
+
+		return trimmed.StartsWith("fn ", StringComparison.Ordinal)
+			|| trimmed.StartsWith("delegate ", StringComparison.Ordinal)
+			|| trimmed.StartsWith("iter ", StringComparison.Ordinal)
+			|| trimmed.StartsWith("once ", StringComparison.Ordinal)
+			|| trimmed.StartsWith("async ", StringComparison.Ordinal);
 	}
 
 	static bool TryStripLeadingLifetimeQualifier(string type, out string stripped)

@@ -2609,7 +2609,16 @@ public sealed partial class BindableNodeAnalyzer
 	bool CanGenericReceiverMatch(string actualType, string receiverType)
 	{
 		if (!TryParseTypeShape(actualType, out TypeShape actualShape) || !TryParseTypeShape(receiverType, out TypeShape receiverShape))
+		{
+			if (TryGetArrayElementType(actualType) is string actualElement
+				&& TryGetArrayElementType(receiverType) is string receiverElement)
+			{
+				if (IsGenericPlaceholderParameter(StripTopLevelValueQualifiers(receiverElement)))
+					return !TryGetFixedArrayShape(actualElement, out _, out _);
+				return CanGenericReceiverMatch(actualElement, receiverElement);
+			}
 			return false;
+		}
 
 		return CanGenericReceiverMatch(actualShape, receiverShape, protectedByConstTarget: false, pointerDepth: 0);
 	}
