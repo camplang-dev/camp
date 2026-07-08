@@ -128,6 +128,19 @@ Modifier order is parser-permissive for repeated declarator keywords before the 
 
 Never combine `export` and `public`; the binder rejects multiple visibility declarators.
 
+Mark API boundaries intentionally. For code inside a type, methods that are part
+of the type's public surface should be `public`; implementation details should
+remain unmarked. For library APIs that cross a module boundary, use `export`.
+Avoid leaving the intended public surface implicit.
+
+Prefer Camp declaration ordering over C-style helper-first ordering. Put the
+main type for the file near the top. Inside a class, put the constructor first,
+then fields, then the destructor if present. Order methods by how a consumer of
+the type would look for them: public API first, then private support API. A
+small helper used by exactly one public method may live directly below that
+method; otherwise, place private helpers below the public surface. Put private
+constants and private support types after the main class.
+
 Valid:
 
 ```camp
@@ -155,6 +168,26 @@ public export int f() { return 0; } // cannot combine visibilities
 static int f() { return 0; }        // static is not valid on global method
 struct S { virtual void f() {} }    // struct methods may not be virtual
 interface I { int x; }              // interface cannot contain fields
+```
+
+### String Values And Span APIs
+
+`string` values can call standard-library `const char[]` receiver helpers when
+the string length surface is available. Do not manually build `const char[]`
+values from `.Length` just to use string helpers; write direct calls such as
+`left.compareTo(right)`.
+
+Valid:
+
+```camp
+bool stringsEqual(string left, string right)
+{
+	if (left == right)
+		return true;
+	if (left == null || right == null)
+		return false;
+	return left.compareTo(right) == 0;
+}
 ```
 
 ### Constructors And Destructors
@@ -1130,6 +1163,9 @@ Confidence: `CONFIRMED_BY_COMPILER_CODE`; evidence: `src/Camp.Compiler/CampParse
 | User-defined `params` declarations or `params(T)` type syntax. | Built-in arrays/options/delegates/iter or `struct(T)`. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/BindableNodeBuilder.cs::BuildTypeDefinition`; `BuildTypeReference` |
 | Manually zeroing every class/struct field in a constructor. | Rely on default initialization and assign only fields whose value differs from default. | `SPEC_ONLY_OR_UNVERIFIED` | `spec::1.1.10`, `4.4` |
 | Exporting or widening private standard-library helpers to solve one implementation problem. | Use the existing public API, or deliberately design and document a new public API. | `SPEC_ONLY_OR_UNVERIFIED` | `spec::7`; `docs/camp_doc_comments_metadata_supplement.md` |
+| Manually constructing `const char[]` from a `string` just to call standard string helpers. | Call the helper directly on the `string`, e.g. `left.compareTo(right)`, when the implicit string-to-span conversion is available. | `CONFIRMED_BY_TEST` | `tests/StdRun/time_functions.camp`; `tests/StdRun/strconv_functions.camp`; `tests/CCompile/primitive_string_span_conversion.camp` |
+| Leaving library or type public surfaces implicit. | Mark type members that are intended for consumers as `public`, and exported library APIs as `export`; leave private helpers unmarked. | `SPEC_ONLY_OR_UNVERIFIED` | `docs/camp_doc_comments_metadata_supplement.md`; `spec::5.1`, `7` |
+| Ordering files in C helper-first style. | Put the main type and consumer-facing API first; place broad private helpers, constants, and support types after the public surface. | `SPEC_ONLY_OR_UNVERIFIED` | Camp stdlib style guidance |
 | Repeating `within (allocator)` on every nearby allocation/deletion. | Use one `within (allocator) { ... }` block for related operations. | `CONFIRMED_BY_TEST` | `tests/StdRun/within_new_array_expression.camp`; `tests/CCompile/within_parameter_context.camp` |
 | Retaining a bare `within allocator` parameter in a receiver or escaped field. | Write the explicit lifetime form required by the storage, such as `within scoped allocator` or `within escaped allocator`. | `CONFIRMED_BY_TEST` | `tests/CCompile/within_allocator_lifetime_parameters.camp`; `tests/Diagnostics/within_allocator_lifetime_invalid.camp` |
 | Adding type names to source receiver-method names that already flatten with the receiver type. | Use the source method name alone and refer to the flattened generated symbol when needed, e.g. source `hashcode(in long this)` and symbol `Long_hashcode`. | `INFERRED_FROM_IMPLEMENTATION` | `src/Camp.Compiler/BindableNodeAnalyzer.TypeShapes.cs::BuildExtensionFunctionSymbol` |
@@ -1188,5 +1224,8 @@ Before emitting Camp code:
 37. Prefer top-level type declarations; do not nest types.
 38. Avoid reserved words and generated component-name collisions such as `items`, `items_length`, `callback_context`.
 39. In stdlib code, prefer existing public APIs and avoid exporting private helpers just to make a local implementation easier.
-40. For receiver methods, remember flattened symbols already include the receiver type; avoid source names that double it.
-41. If exporting C ABI, use `export`, `public`, `extern`, and optionally `@symbol("name")`; verify generated symbol names if overloads or methods are involved.
+40. Use standard string helpers directly on `string` values when available, e.g. `left.compareTo(right)`; do not manually construct `const char[]` spans for ordinary string comparisons.
+41. Mark intended type APIs `public` and library APIs `export`; do not leave consumer-facing visibility implicit.
+42. Order Camp declarations for consumers: main type first, constructor/fields/destructor near the top, public methods before broad private helpers, and private support constants/types after the main class.
+43. For receiver methods, remember flattened symbols already include the receiver type; avoid source names that double it.
+44. If exporting C ABI, use `export`, `public`, `extern`, and optionally `@symbol("name")`; verify generated symbol names if overloads or methods are involved.
