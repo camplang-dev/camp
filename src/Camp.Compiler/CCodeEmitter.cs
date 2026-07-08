@@ -547,6 +547,7 @@ public static class CCodeEmitter
 		readonly AbiSurface abiSurface = AbiSurface.Build(compilation);
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
 		readonly HashSet<string> interfaceNames = BuildInterfaceNameSet(compilation);
+		readonly HashSet<string> callableInterfaceNames = BuildCallableInterfaceNameSet(compilation);
 		readonly HashSet<string> genericParameterNames = BuildGenericParameterNameSet(compilation);
 		readonly HashSet<string> anyGenericParameterNames = BuildAnyGenericParameterNameSet(compilation);
 		readonly HashSet<string> currentGenericTypeNames = new(StringComparer.Ordinal);
@@ -1520,6 +1521,17 @@ public static class CCodeEmitter
 			return names;
 		}
 
+		static HashSet<string> BuildCallableInterfaceNameSet(Compilation compilation)
+		{
+			HashSet<string> names = BuildInterfaceNameSet(compilation);
+			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+			{
+				if (definition is StructDefinition { SourceInterface: InterfaceDefinition sourceInterface })
+					names.Add(sourceInterface.Name);
+			}
+			return names;
+		}
+
 		static HashSet<string> BuildAnyGenericParameterNameSet(Compilation compilation)
 		{
 			HashSet<string> names = new(StringComparer.Ordinal);
@@ -1646,7 +1658,35 @@ public static class CCodeEmitter
 				return FormatResolvedType(parameterType[7..].TrimStart(), declarator).Declaration;
 			if (parameterType.StartsWith("upon ", StringComparison.Ordinal))
 				return FormatResolvedType(parameterType[5..].TrimStart(), declarator).Declaration;
+			if (TryNormalizeCallableInterfaceParameterType(parameterType, out string normalizedParameterType))
+				return FormatResolvedType(normalizedParameterType, declarator).Declaration;
 			return FormatResolvedType(parameterType, declarator).Declaration;
+		}
+
+		bool TryNormalizeCallableInterfaceParameterType(string parameterType, out string normalizedParameterType)
+		{
+			normalizedParameterType = parameterType;
+			string type = StripLifetimeOnly(parameterType.Trim());
+			int pointerCount = 0;
+			while (type.EndsWith("*", StringComparison.Ordinal))
+			{
+				pointerCount++;
+				type = type[..^1].TrimEnd();
+			}
+
+			if (pointerCount != 1)
+				return false;
+
+			string baseType = StripTopLevelConstForC(type);
+			baseType = baseType.StartsWith("volatile ", StringComparison.Ordinal) ? baseType[9..].TrimStart() : baseType;
+			baseType = baseType.EndsWith(" volatile", StringComparison.Ordinal) ? baseType[..^9].TrimEnd() : baseType;
+			int generic = baseType.IndexOf('<', StringComparison.Ordinal);
+			string baseName = generic < 0 ? baseType : baseType[..generic];
+			if (!callableInterfaceNames.Contains(baseName))
+				return false;
+
+			normalizedParameterType = StripLifetimeOnly(parameterType.Trim()) + "*";
+			return true;
 		}
 
 		string FormatResolvedParameterList(List<string> parameterTypes)
@@ -4772,6 +4812,12 @@ public static class CCodeEmitter
 			}
 			if (argument.Modifier == ArgumentModifier.None
 				&& expectedParameterType is not null
+				&& argument.Value?.ResolvedType is string erasedValueType
+				&& IsErasedPointerStorageType(erasedValueType)
+				&& TryNormalizeCallableInterfaceParameterType(expectedParameterType, out string normalizedInterfaceParameterType))
+				value = "(" + FormatResolvedType(normalizedInterfaceParameterType, "").Declaration.Trim() + ")" + value;
+			if (argument.Modifier == ArgumentModifier.None
+				&& expectedParameterType is not null
 				&& argument.Value?.ResolvedType is string valueType
 				&& ShouldCastPointerArgument(valueType, expectedParameterType))
 				value = "(" + FormatParameterArgumentCastType(parameter?.Type, expectedParameterType) + ")" + value;
@@ -4783,6 +4829,12 @@ public static class CCodeEmitter
 				ArgumentModifier.Out or ArgumentModifier.Catch => FormatOutArgument(value, GetOutArgumentStorageType(argument.Value) ?? argument.Value?.ResolvedType, expectedParameterType),
 				_ => value
 			};
+		}
+
+		static bool IsErasedPointerStorageType(string type)
+		{
+			string normalized = StripTypeDecorators(type);
+			return normalized is "untyped" or "nuint" or "nint" or "void*" or "const void*";
 		}
 
 		string FormatParameterArgumentCastType(TypeReference? parameterType, string expectedParameterType)

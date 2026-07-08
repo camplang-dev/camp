@@ -1,0 +1,58 @@
+using Std;
+
+public interface IRefCount
+{
+	void retain();
+	void release();
+}
+
+fn void(IRefCount* context)[] releaseFunctions;
+nuint usedReleaseFunctions;
+
+void addReleaseFunction(fn void(IRefCount* context) releaseFunction)
+{
+	releaseFunctions[usedReleaseFunctions] = releaseFunction;
+	usedReleaseFunctions++;
+}
+
+void captureRelease<T: implements IRefCount>(T* value, vtableof(T: IRefCount))
+{
+	addReleaseFunction(vtableof_T_IRefCount.release);
+}
+
+class RefThing: IRefCount
+{
+	int* releases;
+
+	RefThing(unscoped int* releases)
+	{
+		this.releases = releases;
+	}
+
+	void retain()
+	{
+	}
+
+	void release()
+	{
+		(*this.releases)++;
+	}
+}
+
+export int main()
+{
+	int releases = 0;
+	releaseFunctions = new fn void(IRefCount*)[1];
+	auto thing = new RefThing(&releases) finally delete;
+	captureRelease<RefThing>(thing);
+
+	fn void(IRefCount*)[] copiedReleaseFunctions = new fn void(IRefCount*)[1];
+	releaseFunctions.copyTo<fn void(IRefCount*)>(copiedReleaseFunctions);
+	delete releaseFunctions;
+	releaseFunctions = copiedReleaseFunctions;
+
+	releaseFunctions[0]((IRefCount*)thing);
+	delete releaseFunctions;
+	Console.writeLine(releases);
+	return 0;
+}
