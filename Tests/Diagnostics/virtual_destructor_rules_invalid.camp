@@ -1,0 +1,93 @@
+abstract class NoSlotDevice
+{
+	abstract int process();
+}
+
+sealed class NoSlotFileDevice: NoSlotDevice
+{
+	override int process()
+	{
+		return 1;
+	}
+
+	~NoSlotFileDevice()
+	{
+	}
+}
+
+abstract class NoSlotOverrideDevice
+{
+	abstract int process();
+}
+
+sealed class NoSlotOverrideFileDevice: NoSlotOverrideDevice
+{
+	override int process()
+	{
+		return 1;
+	}
+
+	override ~NoSlotOverrideFileDevice()
+	{
+	}
+}
+
+class RootWithNoVirtualDestructor
+{
+	~RootWithNoVirtualDestructor()
+	{
+	}
+}
+
+abstract class ChildStartsVirtualHierarchy: RootWithNoVirtualDestructor
+{
+	abstract int process();
+}
+
+sealed class GrandChildWithDestructor: ChildStartsVirtualHierarchy
+{
+	override int process()
+	{
+		return 1;
+	}
+
+	~GrandChildWithDestructor()
+	{
+	}
+}
+
+abstract class VirtualDestructorBase
+{
+	abstract int process();
+
+	virtual ~VirtualDestructorBase()
+	{
+	}
+}
+
+sealed class MissingOverrideDestructor: VirtualDestructorBase
+{
+	override int process()
+	{
+		return 1;
+	}
+
+	~MissingOverrideDestructor()
+	{
+	}
+}
+
+abstract class AbstractDestructorBase
+{
+	abstract int process();
+
+	abstract ~AbstractDestructorBase();
+}
+
+sealed class ConcreteWithoutDestructor: AbstractDestructorBase
+{
+	override int process()
+	{
+		return 1;
+	}
+}

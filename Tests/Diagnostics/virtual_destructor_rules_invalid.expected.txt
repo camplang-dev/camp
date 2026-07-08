@@ -1,0 +1,5 @@
+tests/Diagnostics/virtual_destructor_rules_invalid.camp(13,3): error: Destructor '~NoSlotFileDevice' cannot introduce a destructor in a virtual hierarchy; the ultimate base class 'NoSlotDevice' must declare a virtual or abstract destructor.
+tests/Diagnostics/virtual_destructor_rules_invalid.camp(30,12): error: Destructor '~NoSlotOverrideFileDevice' cannot introduce a destructor in a virtual hierarchy; the ultimate base class 'NoSlotOverrideDevice' must declare a virtual or abstract destructor.
+tests/Diagnostics/virtual_destructor_rules_invalid.camp(54,3): error: Destructor '~GrandChildWithDestructor' cannot introduce a destructor in a virtual hierarchy; the ultimate base class 'RootWithNoVirtualDestructor' declares a non-virtual destructor.
+tests/Diagnostics/virtual_destructor_rules_invalid.camp(75,3): error: Destructor '~MissingOverrideDestructor' must use override to implement inherited virtual destructor '~VirtualDestructorBase'.
+tests/Diagnostics/virtual_destructor_rules_invalid.camp(87,14): error: Class 'ConcreteWithoutDestructor' must use override to implement inherited abstract destructor '~AbstractDestructorBase'.

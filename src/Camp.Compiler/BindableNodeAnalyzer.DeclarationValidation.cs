@@ -175,10 +175,28 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (FunctionDefinition abstractMethod in GetInheritedAbstractMethods(definition))
 		{
+			if (abstractMethod.Name == DeleteMethodName && HasInheritedAbstractDestructorSlot(definition))
+				continue;
+
 			MethodSignature signature = BuildMethodSignature(abstractMethod);
+			if (IsDestructorFunction(abstractMethod))
+			{
+				if (!ContainsOverrideSignature(definition.Functions, signature))
+					Report(GetNameRange(definition), $"Class '{definition.Name}' must use override to implement inherited abstract destructor '{abstractMethod.Name}'.");
+				continue;
+			}
+
 			if (!ContainsOverrideSignature(definition.Functions, signature))
 				Report(GetNameRange(definition), $"Class '{definition.Name}' must use override to implement inherited abstract member '{signature.DisplayName}'.");
 		}
+	}
+
+	bool HasInheritedAbstractDestructorSlot(ClassDefinition definition)
+	{
+		foreach (FunctionDefinition function in GetInheritedClassMethods(definition))
+			if (IsDestructorFunction(function) && function.Modifier == FunctionModifier.Abstract)
+				return true;
+		return false;
 	}
 
 	void AnalyzeStructImplementations(StructDefinition definition)
@@ -387,6 +405,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (InheritsVirtualClass(definition) && definition.Modifier is not ClassModifier.Virtual and not ClassModifier.Abstract and not ClassModifier.Sealed)
 			Report(GetNameRange(definition), $"Class '{definition.Name}' derives from a virtual or abstract class and must be declared virtual, abstract, or sealed.");
 
+		ValidateVirtualHierarchyDestructorRules(definition);
+
 		foreach (FunctionDefinition function in definition.Functions)
 		{
 			if (function.Modifier == FunctionModifier.Virtual && definition.Modifier is not ClassModifier.Virtual and not ClassModifier.Abstract)
@@ -396,8 +416,102 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetNameRange(function), "Abstract methods may only be declared in abstract classes.");
 
 			if (function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed)
+			{
+				if (IsGeneratedDestructorDeleteHelper(definition, function))
+					continue;
+				if (IsDestructorFunction(function) && !HasInheritedVirtualOrAbstractDestructor(definition))
+					continue;
 				ValidateOverrideMethod(definition, function);
+			}
 		}
+	}
+
+	void ValidateVirtualHierarchyDestructorRules(ClassDefinition definition)
+	{
+		if (!ClassHierarchyParticipatesInVirtualDispatch(definition))
+			return;
+
+		ClassDefinition ultimateBase = GetUltimateBaseClass(definition);
+		FunctionDefinition? ultimateDestructor = FindDeclaredDestructor(ultimateBase);
+		foreach (FunctionDefinition destructor in definition.Functions)
+		{
+			if (!IsDestructorFunction(destructor))
+				continue;
+
+			if (ultimateDestructor is null)
+			{
+				Report(GetNameRange(destructor), $"Destructor '{destructor.Name}' cannot introduce a destructor in a virtual hierarchy; the ultimate base class '{ultimateBase.Name}' must declare a virtual or abstract destructor.");
+				continue;
+			}
+
+			if (ultimateDestructor.Modifier is not FunctionModifier.Virtual and not FunctionModifier.Abstract)
+			{
+				Report(GetNameRange(destructor), $"Destructor '{destructor.Name}' cannot introduce a destructor in a virtual hierarchy; the ultimate base class '{ultimateBase.Name}' declares a non-virtual destructor.");
+				continue;
+			}
+
+			if (ReferenceEquals(definition, ultimateBase))
+				continue;
+
+			if (destructor.Modifier is not FunctionModifier.Override and not FunctionModifier.Sealed)
+				Report(GetNameRange(destructor), $"Destructor '{destructor.Name}' must use override to implement inherited virtual destructor '{ultimateDestructor.Name}'.");
+		}
+	}
+
+	bool ClassHierarchyParticipatesInVirtualDispatch(ClassDefinition definition)
+	{
+		foreach (ClassDefinition classDefinition in EnumerateClassAndBaseDefinitions(definition))
+		{
+			if (classDefinition.Modifier is ClassModifier.Virtual or ClassModifier.Abstract or ClassModifier.Sealed)
+				return true;
+		}
+
+		return false;
+	}
+
+	ClassDefinition GetUltimateBaseClass(ClassDefinition definition)
+	{
+		ClassDefinition current = definition;
+		while (GetDirectBaseClass(current) is ClassDefinition baseClass)
+			current = baseClass;
+		return current;
+	}
+
+	IEnumerable<ClassDefinition> EnumerateClassAndBaseDefinitions(ClassDefinition definition)
+	{
+		for (ClassDefinition? current = definition; current is not null; current = GetDirectBaseClass(current))
+			yield return current;
+	}
+
+	static FunctionDefinition? FindDeclaredDestructor(ClassDefinition definition)
+	{
+		foreach (FunctionDefinition function in definition.Functions)
+			if (IsDestructorFunction(function))
+				return function;
+		return null;
+	}
+
+	static bool IsGeneratedDestructorDeleteHelper(ClassDefinition owner, FunctionDefinition function)
+	{
+		if (function.Name != DeleteMethodName)
+			return false;
+
+		foreach (FunctionDefinition candidate in owner.Functions)
+		{
+			if (IsDestructorFunction(candidate) && ReferenceEquals(candidate.SourceSyntax, function.SourceSyntax))
+				return true;
+		}
+		return false;
+	}
+
+	bool HasInheritedVirtualOrAbstractDestructor(ClassDefinition definition)
+	{
+		foreach (FunctionDefinition function in GetInheritedClassMethods(definition))
+		{
+			if (IsDestructorFunction(function) && function.Modifier is (FunctionModifier.Virtual or FunctionModifier.Abstract))
+				return true;
+		}
+		return false;
 	}
 
 	bool InheritsVirtualClass(ClassDefinition definition)
@@ -456,6 +570,8 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in definition.Functions)
 		{
 			if (function.Modifier is FunctionModifier.Constructor)
+				continue;
+			if (IsDestructorFunction(function) && ClassHierarchyParticipatesInVirtualDispatch(definition))
 				continue;
 			if (IsGeneratedLifecycleMethodName(function.Name))
 				continue;

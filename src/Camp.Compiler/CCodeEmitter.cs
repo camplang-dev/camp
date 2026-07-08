@@ -624,7 +624,7 @@ public static class CCodeEmitter
 
 			WriteSection(writer, "Function declarations", () =>
 			{
-				foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(IsExternallyVisible))
+				foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => IsExternallyVisible(function) && ShouldEmitCFunction(function)))
 					WriteFunctionPrototype(writer, function, storage: null);
 			});
 
@@ -642,7 +642,7 @@ public static class CCodeEmitter
 			EnsureDelegateThunksCollected();
 			emittedNames.Clear();
 			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
-			List<FunctionDefinition> privateFunctions = GetAllFunctions(definitions).Where(static function => !IsExternallyVisible(function)).ToList();
+			List<FunctionDefinition> privateFunctions = GetAllFunctions(definitions).Where(static function => !IsExternallyVisible(function) && ShouldEmitCFunction(function)).ToList();
 			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(static variable => !variable.IsInline && !IsExternallyVisible(variable)).ToList();
 			List<FieldDefinition> privateStaticFields = GetAllStaticFields(definitions).Where(static field => !field.IsInline && !IsExternallyVisible(field)).ToList();
 			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
@@ -762,7 +762,7 @@ public static class CCodeEmitter
 				}
 			}
 
-			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null))
+			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null && ShouldEmitCFunction(function)))
 			{
 				WriteFunctionPrototype(writer, function, storage: null);
 				wrote = true;
@@ -828,7 +828,7 @@ public static class CCodeEmitter
 				}
 			}
 
-			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null))
+			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null && ShouldEmitCFunction(function)))
 			{
 				if (!ShouldWriteProjectApiFunction(function))
 					continue;
@@ -1327,6 +1327,12 @@ public static class CCodeEmitter
 						break;
 				}
 			}
+		}
+
+		static bool ShouldEmitCFunction(FunctionDefinition function)
+		{
+			return function.Modifier is not FunctionModifier.Constructor and not FunctionModifier.Destructor
+				&& !function.Name.StartsWith("~", StringComparison.Ordinal);
 		}
 
 		static IEnumerable<FieldDefinition> GetAllStaticFields(IEnumerable<Definition> definitions)

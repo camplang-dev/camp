@@ -1,0 +1,55 @@
+abstract class VirtualDevice
+{
+	abstract int process();
+
+	virtual ~VirtualDevice()
+	{
+		destructorLog = destructorLog * 10 + 1;
+	}
+}
+
+sealed class VirtualFileDevice: VirtualDevice
+{
+	override int process()
+	{
+		return 1;
+	}
+
+	override ~VirtualFileDevice()
+	{
+		destructorLog = destructorLog * 10 + 2;
+	}
+}
+
+abstract class AbstractDevice
+{
+	abstract int process();
+
+	abstract ~AbstractDevice();
+}
+
+sealed class AbstractFileDevice: AbstractDevice
+{
+	override int process()
+	{
+		return 2;
+	}
+
+	override ~AbstractFileDevice()
+	{
+		destructorLog = destructorLog * 10 + 3;
+	}
+}
+
+int destructorLog = 0;
+
+export int main()
+{
+	VirtualDevice* virtualDevice = (VirtualDevice*)new VirtualFileDevice();
+	delete virtualDevice;
+
+	AbstractDevice* abstractDevice = (AbstractDevice*)new AbstractFileDevice();
+	delete abstractDevice;
+
+	return destructorLog == 23 ? 0 : 1;
+}
