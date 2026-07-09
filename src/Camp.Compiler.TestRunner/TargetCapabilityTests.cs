@@ -63,6 +63,24 @@ public sealed class TargetCapabilityTests
 	}
 
 	[Fact]
+	public void Artifact_directory_names_include_target_variants_library_kind_and_profile()
+	{
+		TargetCatalog catalog = LoadCatalog();
+		Assert.True(catalog.TryGetTarget("msvc-windows-x86", out TargetDefinition? windowsX86));
+		Assert.True(catalog.TryGetTarget("clang-macos-x64", out TargetDefinition? macos));
+
+		TargetDefinition ansiWindows = windowsX86!.WithVariantSelection(windowsX86.ResolveVariantSelection(["ansi"]));
+		TargetDefinition unicodeWindows = windowsX86.WithVariantSelection(windowsX86.ResolveVariantSelection(["unicode"]));
+		TargetDefinition macosTarget = macos!;
+
+		Assert.Equal("msvc-windows-x86_ansi_static_DEBUG", BuildArtifactLayout.GetArtifactDirectoryName(ansiWindows, NativeBuildKind.Static, "debug"));
+		Assert.Equal("msvc-windows-x86_shared_RELEASE", BuildArtifactLayout.GetArtifactDirectoryName(unicodeWindows, NativeBuildKind.Shared, "release"));
+		Assert.Equal("msvc-windows-x86_ansi_DEBUG", BuildArtifactLayout.GetArtifactDirectoryName(ansiWindows, NativeBuildKind.Exec, "DEBUG"));
+		Assert.Equal("clang-macos-x64_DEBUG", BuildArtifactLayout.GetArtifactDirectoryName(macosTarget, NativeBuildKind.Exec, "DEBUG"));
+		Assert.Equal("clang-macos-x64_static_DEBUG", BuildArtifactLayout.GetArtifactDirectoryName(macosTarget, NativeBuildKind.Static, ""));
+	}
+
+	[Fact]
 	public void Target_conversion_policy_classifies_typespec_edges()
 	{
 		TargetCatalog catalog = LoadCatalog();

@@ -603,13 +603,13 @@ Likely implementation areas:
 
 ## Suggested Implementation Stages
 
-### Stage 1: Artifact Directory Computation
+### ~~Stage 1: Artifact Directory Computation~~
 
-- Add a central artifact directory name helper.
-- Include target, selected variants, library type for library builds, and profile.
-- Omit library type for executable builds.
-- Preserve existing default-variant elision.
-- Add unit tests for naming.
+- ~~Add a central artifact directory name helper.~~
+- ~~Include target, selected variants, library type for library builds, and profile.~~
+- ~~Omit library type for executable builds.~~
+- ~~Preserve existing default-variant elision.~~
+- ~~Add unit tests for naming.~~
 
 ### Stage 2: Remove `--build-dir`
 
