@@ -7666,7 +7666,69 @@ variables, including `const` variables, do not get a computed metadata value.
 It is not a lowered C ABI dump and does not include generated helper
 declarations by default.
 
-### 5.1.12 Target callspecs, typespecs, and variants
+### 5.1.12 Build outputs, dependency edges, and generated caches
+
+The exact command-line surface is compiler tooling rather than language
+syntax, but Camp's current tooling uses a predictable output layout.
+
+The default output directory is `bin`, relative to the `.campbuild` file. When
+building source files directly without a `.campbuild`, the default `bin`
+directory is relative to the first source file. The `--out-dir` option changes
+that output prefix.
+
+By default, the compiler creates an artifact directory inside the output
+prefix:
+
+```text
+<out-dir>/<target>[_<non-default-variants>][_static|_shared]_<PROFILE>/
+```
+
+Executable artifacts omit `_static` and `_shared`. Static and shared library
+artifacts include `_static` or `_shared`. Non-default variants are appended in
+the order defined by the selected target. The profile name is written in upper
+case. Build intermediates are written to the artifact directory's `build/`
+subdirectory.
+
+For example:
+
+```text
+bin/clang-macos-x64_DEBUG/build/
+bin/clang-macos-x64_static_RELEASE/
+bin/msvc-windows-x64_ansi_shared_DEBUG/
+```
+
+If direct output into the prefix is intentional, write an explicit trailing
+current-directory component such as `--out-dir bin/.`. In that form, the build
+directory is `bin/build/` and final deliverables are written directly in
+`bin/`. The old `--build-dir` option has been removed.
+
+Generated caches live under `cache/` and are safe to delete. Compiler-versioned
+dependencies such as `std` use the compiler root's `cache/lib`. Installed
+package sources and generated package artifacts use `cache/pkg`. Live package
+dependencies write generated artifacts into the consuming workspace cache,
+not into the external source repository.
+
+Dependency edges default to shared-library consumption. Use a dependency-kind
+suffix to make an edge explicit:
+
+```text
+--use win32-forms@live:static
+--use win32-forms@1.2.3:shared
+--use win32-forms:static
+--project-reference ../win32-forms:shared
+```
+
+The `:static` and `:shared` suffixes select how the current root build consumes
+that dependency. A dependency's own `#build` defaults apply when it is built as
+the root project, but the root build's selected target, variants, profile, and
+dependency edge kind control dependency artifacts while the dependency is being
+consumed.
+
+Library projects may use `--artifact only-static` or `--artifact only-shared`
+to build as a static or shared library while rejecting consumers that request
+the opposite dependency edge.
+
+### 5.1.13 Target callspecs, typespecs, and variants
 
 Some targets define calling-convention specifiers, pointer/storage specifiers,
 and named variants. Camp accepts target callspecs and typespecs in fixed type
@@ -7700,7 +7762,7 @@ Unspecified target specs may convert to explicit wider target specs when the
 selected target says that conversion is safe. Explicit casts may be used for
 compatible same-kind forms when an implicit conversion would be narrowing.
 
-### 5.1.12 Preprocessor directives and conditional compilation
+### 5.1.14 Preprocessor directives and conditional compilation
 
 Camp source files may contain preprocessor directives. These directives are
 processed before ordinary Camp parsing, and they affect either the source text

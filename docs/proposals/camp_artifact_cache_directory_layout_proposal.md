@@ -666,12 +666,12 @@ Likely implementation areas:
 - ~~Ensure LSP file watching or workspace indexing does not treat generated `cache/` and `bin/` outputs as ordinary source roots unless explicitly opened.~~
 - ~~Add LSP tests or targeted language-service tests for `.campbuild`/build-option parsing where the current harness permits it.~~
 
-### Stage 8: Restore/Clean Documentation
+### ~~Stage 8: Restore/Clean Documentation~~
 
-- Document that `cache/` is deletable.
-- Document output path rules.
-- Update the LLM guide and command-line docs.
-- Update any examples that still reference `pkg/bin`, `pkg-source`, or `--build-dir`.
+- ~~Document that `cache/` is deletable.~~
+- ~~Document output path rules.~~
+- ~~Update the LLM guide and command-line docs.~~
+- ~~Update any examples that still reference `pkg/bin`, `pkg-source`, or `--build-dir`.~~
 
 ## Test Plan
 

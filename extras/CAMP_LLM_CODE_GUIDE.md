@@ -6,7 +6,7 @@ This guide is based on the following source documents. Evidence citations use th
 
 | Alias | Source |
 |---|---|
-| `spec` | `docs/camp_unified_spec_v34.md` |
+| `spec` | `docs/camp_unified_spec_v35.md` |
 | `scheduler_design` | `docs/camp_async_scheduler_design_v7.md` |
 
 Confidence labels:
@@ -60,8 +60,9 @@ Confidence labels:
 | Numbers | Decimal integers/floats; `0x`/`0X` hex accepts ASCII letters/digits; decimal literals may end with ASCII letter suffixes. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::ReadNumber` |
 | Punctuation/operators | Single-character symbols include `~ ! % ^ & * ( ) + - = { } [ ] | ; : , . / < > ? $ #`. Multi-character operators are parsed from token sequences. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::Punctuation`; `src/Camp.Compiler/CampParser.cs::ReadOperator` |
 | Whitespace/newline | Horizontal whitespace and newlines are separate trivia tokens. Statements and declarations still normally require `;` or braces. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::Tokenize`; `src/Camp.Compiler/CampParser.cs` |
-| Preprocessor directives | `#define`, `#undef`, `#if`, `#elif`, `#else`, `#endif`, and prelude-only `#build`/`#within` are recognized. `#build` examples may show compiler option fragments, but those option names are tooling behavior, not language syntax. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs`; `spec::5.1.12`; `docs/camp_declarations_statements_grammar.txt::preprocessor-directive` |
-| Target variants | Use `#build --variant name` or `campc ... --variant name` for target-defined choices such as Windows character width. The root build's selected variants control project references and packages while they are consumed as dependencies; dependency-local variant directives are only defaults when that dependency is built directly. Do not use old `--memory-model`; use variants. | `CONFIRMED_BY_TEST` | `src/Camp.Compiler/TargetCatalog.cs`; `src/campc/Program.cs`; `tests/Camp.Compiler.TestRunner/CommandLineTests.cs`; `spec::5.1.12` |
+| Preprocessor directives | `#define`, `#undef`, `#if`, `#elif`, `#else`, `#endif`, and prelude-only `#build`/`#within` are recognized. `#build` examples may show compiler option fragments, but those option names are tooling behavior, not language syntax. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs`; `spec::5.1.14`; `docs/camp_declarations_statements_grammar.txt::preprocessor-directive` |
+| Target variants | Use `#build --variant name` or `campc ... --variant name` for target-defined choices such as Windows character width. The root build's selected variants control project references and packages while they are consumed as dependencies; dependency-local variant directives are only defaults when that dependency is built directly. Do not use old `--memory-model`; use variants. | `CONFIRMED_BY_TEST` | `src/Camp.Compiler/TargetCatalog.cs`; `src/campc/Program.cs`; `tests/Camp.Compiler.TestRunner/CommandLineTests.cs`; `spec::5.1.13` |
+| Build outputs and dependency caches | Ordinary builds write final artifacts under `bin/<target>[_variant][_static|_shared]_<PROFILE>/`, with intermediates in that directory's `build/` subdirectory. `--build-dir` is removed. `--out-dir path` is a prefix; use `--out-dir path/.` only when direct output is intentional. `cache/` is generated and deletable. Dependency edges default to shared; write `:static` or `:shared` on `--use` or `--project-reference` to choose explicitly. | `CONFIRMED_BY_TEST` | `src/Camp.Compiler/BuildArtifactLayout.cs`; `src/Camp.Compiler/CompilerDriver.cs`; `src/campc/Program.cs`; `src/Camp.Compiler.TestRunner/CommandLineTests.cs`; `spec::5.1.13` |
 
 Valid:
 
@@ -1208,26 +1209,29 @@ Before emitting Camp code:
    - Use `#define`/`#if` for conditional compilation, not runtime branching.
    - When documenting or generating examples with `#build`, say that the shown flags are compiler-tooling examples rather than language-specified syntax.
    - Use `#within explicit` for files that should make heap allocation/deallocation choices and hidden `within` call arguments visible, and `within (default)` when fallback allocation or a null allocator context is intentional.
-22. Use `within (allocator)` around escaped lambda creation when the context should be allocated through that allocator.
-23. Use a `within (allocator) { ... }` block for several related allocation/deallocation operations.
-24. If a `within allocator` parameter is retained, write the explicit lifetime form required by the storage relationship; do not retain bare `within allocator`.
-25. For `CharFormatter`, the returned required count includes the trailing null terminator; allocate `formatter()` characters, not `formatter() + 1`.
-26. Do not create arrays of expanded values. Use `struct(T)` materialization.
-27. For classes with virtual methods, mark the class `virtual` or `abstract`; derived virtual-class children must be `virtual`, `abstract`, or `sealed`.
-28. Interfaces contain signatures only. Implement every interface method exactly.
-29. Constructors/destructors must match the containing type name and have no return type. Constructor bodies start from default-initialized storage; do not manually zero every field.
-30. Use `init T(...)` for existing storage and `new T(...)` for allocation. Pair owned values/pointers with `delete` or `finally delete`; for value newtypes, delete the value itself, not a pointer to the value.
-31. For `extern class`, write pointer-oriented helper APIs. Constructors/destructors must be `extern`; ordinary methods may be Camp-side helpers. Never generate instance fields, `op_initnew`, direct value storage, or arrays of direct extern-class values. Interface contracts may be listed only to import the foreign type's generated interface accessor surface.
-32. In generator bodies, do not use `init T[n]` stack-array allocation; declare `fixed T[n]` storage instead when fixed state storage is needed.
-33. Use `within (allocator)`, `within (default)`, or an explicit `within` call argument when constructors/destructors declare `within` allocator parameters and the file uses explicit-within policy.
-34. Pointer-form `delete` is valid only when the selected allocator `free` method or fallback `free(...)` accepts the pointer under ordinary type/lifetime conversion rules. Pointer-form `delete` is never valid for `Newtype*`; use `delete *ptr` to run the newtype destructor without freeing storage.
-35. For thrown errors, declare `thrown E error`, call with `catch error`, or catch/rethrow explicitly.
-36. Use `foreach (T item in arrayOrIterator)` only for arrays, iterator protocols, or iterator states with `next`.
-37. Prefer top-level type declarations; do not nest types.
-38. Avoid reserved words and generated component-name collisions such as `items`, `items_length`, `callback_context`.
-39. In stdlib code, prefer existing public APIs and avoid exporting private helpers just to make a local implementation easier.
-40. Use standard string helpers directly on `string` values when available, e.g. `left.compareTo(right)`; do not manually construct `const char[]` spans for ordinary string comparisons.
-41. Mark intended type APIs `public` and library APIs `export`; do not leave consumer-facing visibility implicit.
-42. Order Camp declarations for consumers: main type first, constructor/fields/destructor near the top, public methods before broad private helpers, and private support constants/types after the main class.
-43. For receiver methods, remember flattened symbols already include the receiver type; avoid source names that double it.
-44. If exporting C ABI, use `export`, `public`, `extern`, and optionally `@symbol("name")`; verify generated symbol names if overloads or methods are involved.
+22. Treat `cache/` as generated and deletable. Do not place source, handwritten headers, or project assets under `cache/`.
+23. Expect normal build artifacts under `bin/<target>[_variant][_static|_shared]_<PROFILE>/build` plus final deliverables in the parent artifact directory. Do not generate or document `--build-dir`; use `--out-dir` only to choose the output prefix, and `--out-dir path/.` only for deliberate direct output.
+24. Dependency edges are shared by default. Use `--use package:static`, `--use package@version:shared`, `--project-reference path:static`, or `--project-reference path:shared` when the edge needs to be explicit. Use `--artifact only-static` or `only-shared` on a library when consumers must not link it the other way.
+25. Use `within (allocator)` around escaped lambda creation when the context should be allocated through that allocator.
+26. Use a `within (allocator) { ... }` block for several related allocation/deallocation operations.
+27. If a `within allocator` parameter is retained, write the explicit lifetime form required by the storage relationship; do not retain bare `within allocator`.
+28. For `CharFormatter`, the returned required count includes the trailing null terminator; allocate `formatter()` characters, not `formatter() + 1`.
+29. Do not create arrays of expanded values. Use `struct(T)` materialization.
+30. For classes with virtual methods, mark the class `virtual` or `abstract`; derived virtual-class children must be `virtual`, `abstract`, or `sealed`.
+31. Interfaces contain signatures only. Implement every interface method exactly.
+32. Constructors/destructors must match the containing type name and have no return type. Constructor bodies start from default-initialized storage; do not manually zero every field.
+33. Use `init T(...)` for existing storage and `new T(...)` for allocation. Pair owned values/pointers with `delete` or `finally delete`; for value newtypes, delete the value itself, not a pointer to the value.
+34. For `extern class`, write pointer-oriented helper APIs. Constructors/destructors must be `extern`; ordinary methods may be Camp-side helpers. Never generate instance fields, `op_initnew`, direct value storage, or arrays of direct extern-class values. Interface contracts may be listed only to import the foreign type's generated interface accessor surface.
+35. In generator bodies, do not use `init T[n]` stack-array allocation; declare `fixed T[n]` storage instead when fixed state storage is needed.
+36. Use `within (allocator)`, `within (default)`, or an explicit `within` call argument when constructors/destructors declare `within` allocator parameters and the file uses explicit-within policy.
+37. Pointer-form `delete` is valid only when the selected allocator `free` method or fallback `free(...)` accepts the pointer under ordinary type/lifetime conversion rules. Pointer-form `delete` is never valid for `Newtype*`; use `delete *ptr` to run the newtype destructor without freeing storage.
+38. For thrown errors, declare `thrown E error`, call with `catch error`, or catch/rethrow explicitly.
+39. Use `foreach (T item in arrayOrIterator)` only for arrays, iterator protocols, or iterator states with `next`.
+40. Prefer top-level type declarations; do not nest types.
+41. Avoid reserved words and generated component-name collisions such as `items`, `items_length`, `callback_context`.
+42. In stdlib code, prefer existing public APIs and avoid exporting private helpers just to make a local implementation easier.
+43. Use standard string helpers directly on `string` values when available, e.g. `left.compareTo(right)`; do not manually construct `const char[]` spans for ordinary string comparisons.
+44. Mark intended type APIs `public` and library APIs `export`; do not leave consumer-facing visibility implicit.
+45. Order Camp declarations for consumers: main type first, constructor/fields/destructor near the top, public methods before broad private helpers, and private support constants/types after the main class.
+46. For receiver methods, remember flattened symbols already include the receiver type; avoid source names that double it.
+47. If exporting C ABI, use `export`, `public`, `extern`, and optionally `@symbol("name")`; verify generated symbol names if overloads or methods are involved.
