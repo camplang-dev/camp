@@ -293,7 +293,7 @@ public static class GoldenFileTestRunner
 	{
 		List<string> arguments =
 			[
-				"-std=c99",
+				"-std=c11",
 				"-Werror=incompatible-pointer-types",
 				"-c",
 				sourceFile,

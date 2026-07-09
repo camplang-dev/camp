@@ -2,18 +2,16 @@
 #include "typenameof_literal_conversions_private.h"
 
 
-static const uint16_t __camp_wstr_0[] = {0x0049, 0x006E, 0x0074, 0};
-
 int main(void)
 {
 	const char *name = "Int";
 	const char *asciiName = "Int";
-	const uint16_t *wideName = __camp_wstr_0;
+	const uint16_t *wideName = u"Int";
 	const char *span = "Int";
 	uintptr_t span_length = 3;
 	const char *asciiSpan = "Int";
 	uintptr_t asciiSpan_length = 3;
-	const uint16_t *wideSpan = __camp_wstr_0;
+	const uint16_t *wideSpan = u"Int";
 	uintptr_t wideSpan_length = 3;
 	char storage[8] = "Int";
 	if ((((name == NULL) || (asciiName == NULL)) || (wideName == NULL)))

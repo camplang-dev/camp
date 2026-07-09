@@ -3,18 +3,23 @@
 
 /* Private file declarations. */
 static void assign(Holder *holder);
-
-static const uint16_t __camp_wstr_0[] = {0x0057, 0x0069, 0x006E, 0x0064, 0x006F, 0x0077, 0};
+static void assignFace(Holder *holder);
 
 static void assign(Holder *holder)
 {
-	holder->text = __camp_wstr_0;
+	holder->text = u"Window";
+}
+
+static void assignFace(Holder *holder)
+{
+	holder->text = u"a\U0001F600b";
 }
 
 int main(void)
 {
 	Holder holder = (Holder){ 0 };
 	assign(&holder);
+	assignFace(&holder);
 	return ((holder.text == 0) ? 1 : 0);
 }
 

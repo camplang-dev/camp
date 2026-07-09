@@ -6150,6 +6150,10 @@ public static class CCodeEmitter
 
 		string FormatWideStringLiteral(LiteralExpression literal)
 		{
+			string prefix = compilation.Target?.Capabilities.GetCapabilityValue("wstring_prefix") ?? "";
+			if (!string.IsNullOrWhiteSpace(prefix))
+				return prefix + FormatWideCampStringLiteral(literal.Value as string ?? "");
+
 			string text = literal.Value as string ?? "";
 			if (currentWideStringLiteralNames.TryGetValue(text, out string? existingName))
 				return existingName;
@@ -6163,6 +6167,54 @@ public static class CCodeEmitter
 			currentWideStringLiteralNames.Add(text, name);
 			currentWideStringLiterals.Add((name, string.Join(", ", units)));
 			return name;
+		}
+
+		static string FormatWideCampStringLiteral(string value)
+		{
+			StringBuilder builder = new("\"");
+			for (int i = 0; i < value.Length; i++)
+			{
+				char ch = value[i];
+				switch (ch)
+				{
+					case '\\':
+						builder.Append("\\\\");
+						break;
+					case '"':
+						builder.Append("\\\"");
+						break;
+					case '\n':
+						builder.Append("\\n");
+						break;
+					case '\r':
+						builder.Append("\\r");
+						break;
+					case '\t':
+						builder.Append("\\t");
+						break;
+					case '\0':
+						builder.Append("\\0");
+						break;
+					default:
+						if (char.IsHighSurrogate(ch) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
+						{
+							int codePoint = char.ConvertToUtf32(ch, value[i + 1]);
+							builder.Append("\\U").Append(codePoint.ToString("X8", CultureInfo.InvariantCulture));
+							i++;
+						}
+						else if (ch is >= ' ' and <= '~')
+						{
+							builder.Append(ch);
+						}
+						else
+						{
+							builder.Append("\\u").Append(((int)ch).ToString("X4", CultureInfo.InvariantCulture));
+						}
+						break;
+				}
+			}
+			builder.Append('"');
+			return builder.ToString();
 		}
 
 		static string FormatUpdateOperator(UpdateOperator op)
