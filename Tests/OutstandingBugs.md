@@ -1,6 +1,33 @@
 # Outstanding Bugs
 
-Next bug number: BUG-039.
+Next bug number: BUG-040.
+
+## BUG-039: C emission loses unresolved extern call diagnostics in loop comparison conditions
+
+When a Win32-style extern call is used directly in a comparison inside a loop
+condition, C emission can abort with only `CallExpression at line,column has
+unresolved type '#ERROR'` and no file/range or source-level diagnostic. This was
+seen with:
+
+```camp
+while (GetMessageW(&message, (HWND)0, 0, 0) != 0)
+{
+}
+```
+
+The equivalent explicit form compiles:
+
+```camp
+while (true)
+{
+	BOOL hasMessage = GetMessageW(&message, (HWND)0, 0, 0);
+	if (hasMessage == 0)
+		break;
+}
+```
+
+The analyzer or emitter should either lower the compact condition correctly or
+report a proper source-ranged diagnostic before C emission.
 
 ## BUG-038: Explicit `within` arguments can be misordered with `sizeof` and expanded returns
 
