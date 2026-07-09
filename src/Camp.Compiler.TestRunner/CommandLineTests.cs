@@ -645,7 +645,7 @@ public sealed class CommandLineTests
 			"--target",
 			target,
 			"--project-reference",
-			libraryRoot,
+			libraryRoot + ":static",
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
@@ -660,6 +660,93 @@ public sealed class CommandLineTests
 		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "sample-app" + ExecutableExtensionForHost()));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);
+	}
+
+	[Fact]
+	public void Project_reference_rejects_wrong_only_artifact_link_kind()
+	{
+		string root = TempPath("project-reference-only-kind");
+		string libraryRoot = Path.Combine(root, "sample-lib");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "sample-app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), "export int value() => 1;\n");
+		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
+			--nostdlib
+			--name sample-lib
+			--artifact only-shared
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --artifact none
+
+			export int main()
+			{
+				return value() - 1;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--project-reference",
+			libraryRoot + ":static",
+			"--out-dir",
+			TempPath("project-reference-only-kind-build"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("project reference requires shared linking but was requested as static", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Shared_project_reference_builds_copies_and_runs_on_macos()
+	{
+		if (!OperatingSystem.IsMacOS())
+			Assert.Skip("Shared project-reference runtime smoke is currently macOS-only.");
+		string root = TempPath("project-reference-shared-macos");
+		string libraryRoot = Path.Combine(root, "sample-lib");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "sample-app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), "export int value() => 42;\n");
+		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
+			--nostdlib
+			--name sample-lib
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name sample-app
+
+			export int main()
+			{
+				return value() - 42;
+			}
+			""");
+		string outDir = Path.Combine(appRoot, "bin");
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			"clang-macos-x64",
+			"--project-reference",
+			libraryRoot + ":shared",
+			"--out-dir",
+			outDir);
+
+		AssertCommandSucceeded(result);
+		string libraryArtifactDirectory = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Shared));
+		string appArtifactDirectory = Path.Combine(outDir, ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Exec));
+		Assert.True(File.Exists(Path.Combine(libraryArtifactDirectory, "libsample-lib.dylib")));
+		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "libsample-lib.dylib")));
+		ProcessResult run = RunExecutable(Path.Combine(appArtifactDirectory, "sample-app"));
+		Assert.Equal(0, run.ExitCode);
 	}
 
 	[Fact]

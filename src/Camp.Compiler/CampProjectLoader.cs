@@ -193,7 +193,8 @@ public static class CampProjectLoader
 		result.Diagnostics.AddRange(errors);
 		foreach (string projectReference in bag.ProjectReferences)
 		{
-			if (TryResolveProjectReference(projectReference, environment.WorkingDirectory, out string? resolved, out string? error))
+			(string referencePath, _) = ParseProjectReferenceSpec(projectReference);
+			if (TryResolveProjectReference(referencePath, environment.WorkingDirectory, out string? resolved, out string? error))
 			{
 				result.ProjectReferences.Add(resolved!);
 				if (TryFindProjectReferenceApiHeader(resolved!, request, environment.WorkingDirectory, out string? apiHeader))
@@ -279,6 +280,18 @@ public static class CampProjectLoader
 	{
 		if (!destination.Any(existing => string.Equals(Path.GetFullPath(existing), Path.GetFullPath(value), StringComparison.OrdinalIgnoreCase)))
 			destination.Add(value);
+	}
+
+	static (string Path, DependencyLinkKind? LinkKind) ParseProjectReferenceSpec(string value)
+	{
+		int colon = value.LastIndexOf(':');
+		if (colon >= 0)
+		{
+			string suffix = value[(colon + 1)..];
+			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+				return (value[..colon], suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static);
+		}
+		return (value, null);
 	}
 
 	static bool TryFindProjectReferenceApiHeader(string buildFile, CompilerRequest consumerRequest, string workingDirectory, out string? apiHeader)
@@ -598,7 +611,9 @@ static class CampBuildOptionParser
 						"exec" => NativeBuildKind.Exec,
 						"static" => NativeBuildKind.Static,
 						"shared" => NativeBuildKind.Shared,
-						_ => InvalidArtifact("--artifact expects exec, static, shared, or none.", errors)
+						"only-static" => NativeBuildKind.Static,
+						"only-shared" => NativeBuildKind.Shared,
+						_ => InvalidArtifact("--artifact expects exec, static, shared, only-static, only-shared, or none.", errors)
 					};
 					break;
 				case "--name":
@@ -918,7 +933,9 @@ public static class CampResponseFileExpander
 				for (int value = 0; value < count && i + 1 < tokens.Count; value++)
 				{
 					string next = tokens[++i];
-					result.Add(PathValueOptions.Contains(token) ? RebasePathValue(next, baseDirectory) : next);
+					result.Add(token == "--project-reference"
+						? RebaseProjectReferenceValue(next, baseDirectory)
+						: PathValueOptions.Contains(token) ? RebasePathValue(next, baseDirectory) : next);
 				}
 				continue;
 			}
@@ -941,6 +958,25 @@ public static class CampResponseFileExpander
 			return Path.Combine(rebased, ".");
 		}
 		return Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
+	}
+
+	static string RebaseProjectReferenceValue(string value, string baseDirectory)
+	{
+		(string path, DependencyLinkKind? linkKind) = ParseProjectReferenceSpec(CampPathArguments.Normalize(value));
+		string rebased = RebasePathValue(path, baseDirectory);
+		return linkKind is null ? rebased : rebased + ":" + linkKind.ToString()!.ToLowerInvariant();
+	}
+
+	static (string Path, DependencyLinkKind? LinkKind) ParseProjectReferenceSpec(string value)
+	{
+		int colon = value.LastIndexOf(':');
+		if (colon >= 0)
+		{
+			string suffix = value[(colon + 1)..];
+			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+				return (value[..colon], suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static);
+		}
+		return (value, null);
 	}
 
 	static bool IsDirectOutputPath(string value)
@@ -1005,15 +1041,30 @@ sealed record CampBuildPragmaLine(IReadOnlyList<string> Tokens, string SourceNam
 
 public sealed record CampPackageSourceSpec(string Name, string? Path);
 
-public sealed record CampPackageSpec(string Name, string? Version)
+public sealed record CampPackageSpec(string Name, string? Version, DependencyLinkKind? LinkKind = null)
 {
 	public static CampPackageSpec Parse(string value)
 	{
+		DependencyLinkKind? linkKind = null;
+		int colon = value.LastIndexOf(':');
+		if (colon >= 0)
+		{
+			string suffix = value[(colon + 1)..];
+			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+			{
+				linkKind = suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static;
+				value = value[..colon];
+			}
+		}
 		string[] parts = value.Split('@', 2);
-		return new CampPackageSpec(parts[0], parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]) ? parts[1] : null);
+		return new CampPackageSpec(parts[0], parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]) ? parts[1] : null, linkKind);
 	}
 
-	public override string ToString() => Version is null ? Name : $"{Name}@{Version}";
+	public override string ToString()
+	{
+		string identity = Version is null ? Name : $"{Name}@{Version}";
+		return LinkKind is null ? identity : identity + ":" + LinkKind.ToString()!.ToLowerInvariant();
+	}
 }
 
 sealed record CampSemVersion(int Major, int Minor, int Patch, string? Suffix) : IComparable<CampSemVersion>

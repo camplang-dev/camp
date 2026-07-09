@@ -22,6 +22,12 @@ public enum CompilerInspectMode
 	Metadata
 }
 
+public enum DependencyLinkKind
+{
+	Static,
+	Shared
+}
+
 public sealed class CompilerRequest
 {
 	public List<string> Files { get; } = [];
@@ -472,7 +478,7 @@ public static class CompilerDriver
 				return true;
 			}
 
-			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeLibrary ? staticLibraryPath : null, context))
+			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeLibrary ? staticLibraryPath : null, requireNativeLibrary ? NativeBuildKind.Static : null, context))
 				return false;
 
 			apiHeaderPath = apiPath;
@@ -484,7 +490,7 @@ public static class CompilerDriver
 		{
 			apiHeaderPath = null;
 			libraryPath = null;
-			(string packageName, string? requestedVersion) = ParsePackageSpec(packageSpec);
+			(string packageName, string? requestedVersion, DependencyLinkKind? requestedLinkKind) = ParsePackageSpec(packageSpec);
 			if (!TryFindInstalledPackage(packageName, requestedVersion, out string? sourceDirectory, out string? artifactRoot, out string? resolvedVersion))
 			{
 				ErrorLine($"Package '{packageSpec}' is not installed. Run 'campc restore' or 'campc pkg install {packageSpec}'.");
@@ -504,37 +510,39 @@ public static class CompilerDriver
 				.OrderBy(static x => x, StringComparer.Ordinal)
 				.ToArray();
 
-			NativeBuildKind? packageBuildKind = requireNativeLibrary ? NativeBuildKind.Static : null;
+			NativeBuildKind? packageBuildKind = requireNativeLibrary
+				? requestedLinkKind == DependencyLinkKind.Shared ? NativeBuildKind.Shared : NativeBuildKind.Static
+				: null;
 			string packageBinDirectory = GetPackageArtifactDirectory(artifactRoot!, packageName, resolvedVersion!, context, packageBuildKind);
 			string apiPath = Path.Combine(packageBinDirectory, packageName + "_api.camp");
 			string cApiPath = Path.Combine(packageBinDirectory, packageName + "_api.h");
 			string metadataPath = Path.Combine(packageBinDirectory, packageName + "_api.json");
-			string staticLibraryPath = NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
+			string nativeLibraryPath = NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
 			{
 				Target = context.Target,
 				ProfileName = context.ProfileName,
 				BuildDirectory = Path.Combine(packageBinDirectory, "build"),
 				OutputDirectory = packageBinDirectory,
 				ProjectName = packageName,
-				Kind = NativeBuildKind.Static,
+				Kind = packageBuildKind ?? NativeBuildKind.Static,
 				SourceFiles = []
 			});
 
 			bool canUseCache = context.CommandLineDefines.Count == 0;
 			bool apiCurrent = canUseCache && IsOutputCacheCurrent(apiPath, cacheSourceFiles) && (!requireNativeLibrary || IsOutputCacheCurrent(cApiPath, cacheSourceFiles) && IsOutputCacheCurrent(metadataPath, cacheSourceFiles));
-			bool libraryCurrent = !requireNativeLibrary || canUseCache && IsOutputCacheCurrent(staticLibraryPath, cacheSourceFiles);
+			bool libraryCurrent = !requireNativeLibrary || canUseCache && IsOutputCacheCurrent(nativeLibraryPath, cacheSourceFiles);
 			if (apiCurrent && libraryCurrent)
 			{
 				apiHeaderPath = apiPath;
-				libraryPath = requireNativeLibrary ? staticLibraryPath : null;
+				libraryPath = requireNativeLibrary ? nativeLibraryPath : null;
 				return true;
 			}
 
-			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeLibrary ? staticLibraryPath : null, context))
+			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeLibrary ? nativeLibraryPath : null, packageBuildKind, context))
 				return false;
 
 			apiHeaderPath = apiPath;
-			libraryPath = requireNativeLibrary ? staticLibraryPath : null;
+			libraryPath = requireNativeLibrary ? nativeLibraryPath : null;
 			return true;
 		}
 
@@ -629,10 +637,21 @@ public static class CompilerDriver
 				: Path.Combine(artifactRoot, packageName, version, "bin", artifactDirectory);
 		}
 
-		static (string Name, string? Version) ParsePackageSpec(string value)
+		static (string Name, string? Version, DependencyLinkKind? LinkKind) ParsePackageSpec(string value)
 		{
+			DependencyLinkKind? linkKind = null;
+			int colon = value.LastIndexOf(':');
+			if (colon >= 0)
+			{
+				string suffix = value[(colon + 1)..];
+				if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+				{
+					linkKind = suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static;
+					value = value[..colon];
+				}
+			}
 			string[] parts = value.Split('@', 2);
-			return (parts[0], parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null);
+			return (parts[0], parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null, linkKind);
 		}
 
 		readonly record struct PackageVersion(int Major, int Minor, int Patch, string? Suffix) : IComparable<PackageVersion>
@@ -694,7 +713,7 @@ public static class CompilerDriver
 			}
 		}
 
-		bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, IReadOnlyList<string> nativeSourceFiles, string apiPath, string? staticLibraryPath, RuntimeContext context)
+		bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, IReadOnlyList<string> nativeSourceFiles, string apiPath, string? nativeLibraryPath, NativeBuildKind? nativeBuildKind, RuntimeContext context)
 		{
 			CompilerRequest packageRequest = new()
 			{
@@ -705,7 +724,7 @@ public static class CompilerDriver
 				WorkingDirectory = request.WorkingDirectory,
 				TargetName = context.Target.Name,
 				ProfileName = context.ProfileName,
-				BuildKind = staticLibraryPath is null ? null : NativeBuildKind.Static,
+				BuildKind = nativeLibraryPath is null ? null : nativeBuildKind,
 				WithinAllocationPolicy = request.WithinAllocationPolicy,
 				NoStdLib = true
 			};
@@ -727,7 +746,7 @@ public static class CompilerDriver
 				Directory.CreateDirectory(Path.GetDirectoryName(apiPath)!);
 				using StreamWriter writer = new(apiPath, append: false, Encoding.UTF8);
 				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
-				if (staticLibraryPath is not null && !TryEmitMetadataArtifact(packageCompilation, Path.GetDirectoryName(apiPath)!, MetadataVisibility.Export, packageName))
+				if (nativeLibraryPath is not null && !TryEmitMetadataArtifact(packageCompilation, Path.GetDirectoryName(apiPath)!, MetadataVisibility.Export, packageName))
 					return false;
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -736,18 +755,19 @@ public static class CompilerDriver
 				return false;
 			}
 
-			if (staticLibraryPath is null)
+			if (nativeLibraryPath is null)
 				return true;
 
 			if (!LowerAndReport(packageCompilation))
 				return false;
 
-			string packageArtifactDirectory = Path.GetDirectoryName(staticLibraryPath)!;
+			string packageArtifactDirectory = Path.GetDirectoryName(nativeLibraryPath)!;
 			CEmissionResult apiHeader = CCodeEmitter.EmitProjectApiHeader(packageCompilation, new CEmissionOptions
 			{
 				OutputDirectory = packageArtifactDirectory,
 				ProjectName = packageName,
-				EmitKind = request.EmitKind
+				EmitKind = request.EmitKind,
+				BuildKind = nativeBuildKind
 			}, packageArtifactDirectory);
 			foreach (string diagnostic in apiHeader.Diagnostics)
 				ErrorLine(diagnostic);
@@ -759,7 +779,8 @@ public static class CompilerDriver
 			{
 				OutputDirectory = packageBuildDirectory,
 				ProjectName = packageName,
-				EmitKind = "c99"
+				EmitKind = "c99",
+				BuildKind = nativeBuildKind
 			});
 			foreach (string diagnostic in emission.Diagnostics)
 				ErrorLine(diagnostic);
@@ -771,9 +792,9 @@ public static class CompilerDriver
 				Target = context.Target,
 				ProfileName = context.ProfileName,
 				BuildDirectory = packageBuildDirectory,
-				OutputDirectory = Path.GetDirectoryName(staticLibraryPath)!,
+				OutputDirectory = Path.GetDirectoryName(nativeLibraryPath)!,
 				ProjectName = packageName,
-				Kind = NativeBuildKind.Static,
+				Kind = nativeBuildKind ?? NativeBuildKind.Static,
 				SourceFiles = emission.GeneratedSourceFiles.Concat(nativeSourceFiles).ToList()
 			});
 			foreach (string diagnostic in build.Diagnostics)
@@ -844,6 +865,8 @@ public static class CompilerDriver
 				generatedFiles.Add(generated);
 				OutLine("generated: " + Path.GetFileName(generated));
 			}
+			if (!TryCopySharedRuntimeReferences(compilation.Target!, outputDirectory, packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))))
+				return 1;
 			return 0;
 		}
 
@@ -882,6 +905,33 @@ public static class CompilerDriver
 			if (staticExtension.Equals(".lib", StringComparison.OrdinalIgnoreCase))
 				return reference + ".lib";
 			return "-l" + reference;
+		}
+
+		bool TryCopySharedRuntimeReferences(TargetDefinition target, string outputDirectory, IEnumerable<string> references)
+		{
+			string sharedExtension = target.GetArtifactValue("shared_ext", ".so");
+			foreach (string reference in references)
+			{
+				if (!Path.IsPathRooted(reference) || !File.Exists(reference))
+					continue;
+				if (!Path.GetExtension(reference).Equals(sharedExtension, StringComparison.OrdinalIgnoreCase))
+					continue;
+				string destination = Path.Combine(outputDirectory, Path.GetFileName(reference));
+				if (string.Equals(Path.GetFullPath(reference), Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase))
+					continue;
+				try
+				{
+					File.Copy(reference, destination, overwrite: true);
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+				{
+					ErrorLine($"{destination}: {ex.Message}");
+					return false;
+				}
+				generatedFiles.Add(destination);
+				OutLine("generated: " + Path.GetFileName(destination));
+			}
+			return true;
 		}
 
 		bool ValidateFrameworks(TargetDefinition target)

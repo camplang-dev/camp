@@ -161,7 +161,7 @@ static void AddBuildOptions(Command command, bool buildOnly)
 		Arity = ArgumentArity.ZeroOrMore,
 		AllowMultipleArgumentsPerToken = true
 	});
-	command.Options.Add(new Option<string?>("--artifact") { Description = "Native artifact: exec, static, shared, or none." });
+	command.Options.Add(new Option<string?>("--artifact") { Description = "Native artifact: exec, static, shared, only-static, only-shared, or none." });
 	command.Options.Add(new Option<string?>("--name") { Description = "Artifact/project name without extension." });
 	command.Options.Add(new Option<string?>("--subsystem") { Description = "Native subsystem, currently windows." });
 	command.Options.Add(new Option<string?>("--out-dir") { Description = "Directory for final artifacts." });
@@ -437,7 +437,9 @@ sealed class CampCli
 		bool requireLibrary = consumerRequest.BuildKind is not null;
 		foreach (string projectReference in projectReferences)
 		{
-			if (!TryResolveProjectReference(projectReference, environment.WorkingDirectory, out string? buildFile, out string? error))
+			ProjectReferenceSpec referenceSpec = ProjectReferenceSpec.Parse(projectReference);
+			NativeBuildKind referenceBuildKind = referenceSpec.LinkKind == DependencyLinkKind.Shared ? NativeBuildKind.Shared : NativeBuildKind.Static;
+			if (!TryResolveProjectReference(referenceSpec.Path, environment.WorkingDirectory, out string? buildFile, out string? error))
 			{
 				errors.Add(error!);
 				continue;
@@ -455,19 +457,29 @@ sealed class CampCli
 			errors.AddRange(responseErrors);
 			if (responseErrors.Count > 0)
 				continue;
+			List<string> referenceOptionErrors = [];
+			ParsedOptions referenceOptions = CommandLineOptionParser.Parse(projectArgs, allowPositionals: true, referenceOptionErrors);
+			errors.AddRange(referenceOptionErrors.Select(error => $"{referenceSpec.Path}: {error}"));
+			if (referenceOptionErrors.Count > 0)
+				continue;
+			if (referenceOptions.ArtifactRestriction is DependencyLinkKind restriction && restriction != referenceSpec.LinkKind.GetValueOrDefault(DependencyLinkKind.Static))
+			{
+				errors.Add($"{referenceSpec.Path}: project reference requires {restriction.ToString().ToLowerInvariant()} linking but was requested as {referenceBuildKind.ToString().ToLowerInvariant()}.");
+				continue;
+			}
 
 			string projectDirectory = Path.GetDirectoryName(canonicalBuildFile)!;
 			TargetDefinition? target = TryGetTargetDefinition(consumerRequest, environment, errors);
 			string artifactDirectory = target is null
 				? consumerRequest.TargetName
-				: BuildArtifactLayout.GetArtifactDirectoryName(target, NativeBuildKind.Static, consumerRequest.ProfileName);
+				: BuildArtifactLayout.GetArtifactDirectoryName(target, referenceBuildKind, consumerRequest.ProfileName);
 			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", artifactDirectory);
 			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
 			projectArgs.AddRange(["--target", consumerRequest.TargetName]);
 			projectArgs.AddRange(["--profile", consumerRequest.ProfileName]);
 			if (consumerRequest.Variants.Count > 0)
 				projectArgs.AddRange(["--variant", .. consumerRequest.Variants]);
-			projectArgs.AddRange(["--artifact", "static"]);
+			projectArgs.AddRange(["--artifact", referenceBuildKind == NativeBuildKind.Shared ? "shared" : "static"]);
 			projectArgs.AddRange(["--out-dir", Path.Combine(projectOutputDirectory, ".")]);
 
 			List<string> childStack = [.. projectReferenceStack, canonicalBuildFile];
@@ -481,7 +493,7 @@ sealed class CampCli
 			CompilerResult result = CompilerDriver.Execute(projectRequest!);
 			WriteProjectReferenceOutput(projectReference, result.StdOut);
 			string? apiHeader = result.GeneratedFiles.FirstOrDefault(static path => path.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
-			string? library = result.GeneratedFiles.FirstOrDefault(path => IsStaticLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot));
+			string? library = result.GeneratedFiles.FirstOrDefault(path => IsNativeLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot, referenceBuildKind));
 			if (result.ExitCode != 0)
 			{
 				if (!requireLibrary && apiHeader is not null)
@@ -500,8 +512,8 @@ sealed class CampCli
 			if (apiHeader is null || requireLibrary && library is null)
 			{
 				errors.Add(requireLibrary
-					? $"{projectReference}: project reference did not produce a Camp API header and static library."
-					: $"{projectReference}: project reference did not produce a Camp API header.");
+					? $"{referenceSpec.Path}: project reference did not produce a Camp API header and {referenceBuildKind.ToString().ToLowerInvariant()} library."
+					: $"{referenceSpec.Path}: project reference did not produce a Camp API header.");
 				continue;
 			}
 			apiHeaders.Add(apiHeader);
@@ -672,12 +684,14 @@ sealed class CampCli
 		return null;
 	}
 
-	static bool IsStaticLibrary(string path, string targetName, string runtimeRoot)
+	static bool IsNativeLibrary(string path, string targetName, string runtimeRoot, NativeBuildKind kind)
 	{
 		string targetRoot = Path.GetFullPath(Path.Combine(runtimeRoot, "..", "targets"));
 		if (!TargetCatalog.TryLoad(targetRoot, out TargetCatalog? catalog, out _) || !catalog!.TryGetTarget(targetName, out TargetDefinition? target))
-			return Path.GetExtension(path) is ".a" or ".lib";
-		string extension = target!.GetArtifactValue("static_ext", ".a");
+			return kind == NativeBuildKind.Shared ? Path.GetExtension(path) is ".so" or ".dylib" or ".dll" : Path.GetExtension(path) is ".a" or ".lib";
+		string extension = kind == NativeBuildKind.Shared
+			? target!.GetArtifactValue("shared_ext", ".so")
+			: target!.GetArtifactValue("static_ext", ".a");
 		return Path.GetExtension(path).Equals(extension, StringComparison.OrdinalIgnoreCase);
 	}
 
@@ -992,6 +1006,7 @@ sealed class BuildOptionBag
 	public bool NoStdLib { get; private set; }
 	public bool ArtifactSpecified { get; private set; }
 	public NativeBuildKind? ArtifactKind { get; private set; }
+	public DependencyLinkKind? ArtifactRestriction { get; private set; }
 	Precedence? artifactPrecedence;
 	string? artifactSource;
 	Precedence? variantPrecedence;
@@ -1030,15 +1045,15 @@ sealed class BuildOptionBag
 		if (options.NoStdLib)
 			NoStdLib = true;
 		if (options.ArtifactSpecified)
-			SetArtifact(options.ArtifactKind, precedence, source, errors);
+			SetArtifact(options.ArtifactKind, options.ArtifactRestriction, precedence, source, errors);
 	}
 
 	public void SetArtifact(NativeBuildKind? kind, string source, List<string> errors)
 	{
-		SetArtifact(kind, Precedence.CommandLine, source, errors);
+		SetArtifact(kind, null, Precedence.CommandLine, source, errors);
 	}
 
-	void SetArtifact(NativeBuildKind? kind, Precedence precedence, string source, List<string> errors)
+	void SetArtifact(NativeBuildKind? kind, DependencyLinkKind? restriction, Precedence precedence, string source, List<string> errors)
 	{
 		if (artifactPrecedence is Precedence existingPrecedence)
 		{
@@ -1049,6 +1064,7 @@ sealed class BuildOptionBag
 		}
 		ArtifactSpecified = true;
 		ArtifactKind = kind;
+		ArtifactRestriction = restriction;
 		artifactPrecedence = precedence;
 		artifactSource = source;
 	}
@@ -1111,6 +1127,7 @@ sealed class ParsedOptions
 	public bool NoStdLib { get; set; }
 	public bool ArtifactSpecified { get; set; }
 	public NativeBuildKind? ArtifactKind { get; set; }
+	public DependencyLinkKind? ArtifactRestriction { get; set; }
 }
 
 static class CommandLineOptionParser
@@ -1170,14 +1187,22 @@ static class CommandLineOptionParser
 				case "--artifact":
 					string artifact = RequiredValue(tokens, ref i, token, errors);
 					result.ArtifactSpecified = true;
+					result.ArtifactRestriction = artifact switch
+					{
+						"only-static" => DependencyLinkKind.Static,
+						"only-shared" => DependencyLinkKind.Shared,
+						_ => null
+					};
 					result.ArtifactKind = artifact switch
 					{
 						"none" => null,
 						"exec" => NativeBuildKind.Exec,
 						"static" => NativeBuildKind.Static,
 						"shared" => NativeBuildKind.Shared,
+						"only-static" => NativeBuildKind.Static,
+						"only-shared" => NativeBuildKind.Shared,
 						"winexe" => InvalidArtifact("winexe has been removed. Use --artifact exec --subsystem windows.", errors),
-						_ => InvalidArtifact("--artifact expects exec, static, shared, or none.", errors)
+						_ => InvalidArtifact("--artifact expects exec, static, shared, only-static, only-shared, or none.", errors)
 					};
 					break;
 				case "--name":
@@ -1514,7 +1539,7 @@ static class ResponseFileExpander
 			if (token == "--project-reference")
 			{
 				while (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
-					result.Add(RebasePathValue(tokens[++i], baseDirectory));
+					result.Add(RebaseProjectReferenceValue(tokens[++i], baseDirectory));
 				continue;
 			}
 
@@ -1567,6 +1592,13 @@ static class ResponseFileExpander
 			return Path.Combine(rebased, ".");
 		}
 		return Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
+	}
+
+	static string RebaseProjectReferenceValue(string value, string baseDirectory)
+	{
+		ProjectReferenceSpec spec = ProjectReferenceSpec.Parse(PathArguments.Normalize(value));
+		string rebased = RebasePathValue(spec.Path, baseDirectory);
+		return spec.LinkKind is null ? rebased : rebased + ":" + spec.LinkKind.ToString()!.ToLowerInvariant();
 	}
 
 	static bool IsDirectOutputPath(string value)
@@ -1677,14 +1709,44 @@ static class Glob
 sealed record PragmaLine(IReadOnlyList<string> Tokens, string SourceName);
 sealed record PackageSourceSpec(string Name, string? Path);
 
-sealed record PackageSpec(string Name, string? Version)
+sealed record PackageSpec(string Name, string? Version, DependencyLinkKind? LinkKind = null)
 {
 	public static PackageSpec Parse(string value)
 	{
+		DependencyLinkKind? linkKind = null;
+		int colon = value.LastIndexOf(':');
+		if (colon >= 0)
+		{
+			string suffix = value[(colon + 1)..];
+			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+			{
+				linkKind = suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static;
+				value = value[..colon];
+			}
+		}
 		string[] parts = value.Split('@', 2);
-		return new PackageSpec(parts[0], parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null);
+		return new PackageSpec(parts[0], parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null, linkKind);
 	}
-	public override string ToString() => Version is null ? Name : Name + "@" + Version;
+	public override string ToString()
+	{
+		string identity = Version is null ? Name : Name + "@" + Version;
+		return LinkKind is null ? identity : identity + ":" + LinkKind.ToString()!.ToLowerInvariant();
+	}
+}
+
+sealed record ProjectReferenceSpec(string Path, DependencyLinkKind? LinkKind)
+{
+	public static ProjectReferenceSpec Parse(string value)
+	{
+		int colon = value.LastIndexOf(':');
+		if (colon >= 0)
+		{
+			string suffix = value[(colon + 1)..];
+			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+				return new ProjectReferenceSpec(value[..colon], suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static);
+		}
+		return new ProjectReferenceSpec(value, null);
+	}
 }
 
 sealed record SemVersion(int Major, int Minor, int Patch, string? Suffix) : IComparable<SemVersion>

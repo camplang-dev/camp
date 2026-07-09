@@ -99,6 +99,37 @@ public sealed class ProjectLoaderTests
 	}
 
 	[Fact]
+	public void Project_loader_accepts_dependency_link_kind_suffixes_and_only_artifacts()
+	{
+		string root = CreateTempDirectory("project-loader-dependency-link-kind");
+		Directory.CreateDirectory(Path.Combine(root, "lib"));
+		File.WriteAllText(Path.Combine(root, "lib", "lib.camp"), "export void helper() {}");
+		string libraryBuild = Path.Combine(root, "lib", "lib.campbuild");
+		File.WriteAllText(libraryBuild, """
+			--nostdlib
+			--artifact only-static
+			lib.camp
+			""");
+		File.WriteAllText(Path.Combine(root, "main.camp"), "export void main() {}");
+
+		CampProjectLoadResult result = CampProjectLoader.Load([
+			"--nostdlib",
+			"--artifact",
+			"only-shared",
+			"--use",
+			"demo@1.2.3:static",
+			"--project-reference",
+			"lib:static",
+			"main.camp"
+		], CreateEnvironment(root));
+
+		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+		Assert.Equal(NativeBuildKind.Shared, result.Request.BuildKind);
+		Assert.Equal("demo@1.2.3:static", Assert.Single(result.Request.UsePackages));
+		Assert.Equal(Path.GetFullPath(libraryBuild), Assert.Single(result.ProjectReferences));
+	}
+
+	[Fact]
 	public void Project_loader_reports_missing_project_reference()
 	{
 		string root = CreateTempDirectory("project-loader-missing-ref");

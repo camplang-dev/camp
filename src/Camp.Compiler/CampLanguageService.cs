@@ -242,6 +242,13 @@ public static class CampLanguageService
 
 	static (string Name, string? Version) ParsePackageSpec(string value)
 	{
+		int colon = value.LastIndexOf(':');
+		if (colon >= 0)
+		{
+			string suffix = value[(colon + 1)..];
+			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+				value = value[..colon];
+		}
 		string[] parts = value.Split('@', 2);
 		return (parts[0], parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null);
 	}
