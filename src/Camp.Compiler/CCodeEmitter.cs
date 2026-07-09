@@ -515,7 +515,7 @@ public static class CCodeEmitter
 	{
 		SourceFile? first = files.FirstOrDefault(static file => !file.IsApiHeader) ?? files.FirstOrDefault();
 		string? directory = first is null || first.Path == "-" ? Directory.GetCurrentDirectory() : Path.GetDirectoryName(first.Path);
-		return string.IsNullOrWhiteSpace(directory) ? Directory.GetCurrentDirectory() : directory;
+		return Path.Combine(string.IsNullOrWhiteSpace(directory) ? Directory.GetCurrentDirectory() : directory, "bin");
 	}
 
 	static string GetCSourceFilename(SourceFile file)

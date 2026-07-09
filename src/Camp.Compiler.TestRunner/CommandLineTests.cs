@@ -291,6 +291,98 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Build_file_defaults_output_to_bin_artifact_directory()
+	{
+		string root = TempPath("campbuild-default-output");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			--name sample
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampc("build", buildFile, "--target", NativeTargetForHost());
+
+		Assert.Equal(0, result.ExitCode);
+		string artifactDirectory = Path.Combine(root, "bin", ArtifactDirectoryForHost(null));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "main.c")));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "main.h")));
+		Assert.False(File.Exists(Path.Combine(root, "bin", "build", "main.c")));
+	}
+
+	[Fact]
+	public void Source_file_defaults_output_to_first_source_directory_bin()
+	{
+		string root = TempPath("source-default-output");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		string source = Path.Combine(sourceDirectory, "main.camp");
+		File.WriteAllText(source, """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--target", NativeTargetForHost());
+
+		Assert.Equal(0, result.ExitCode);
+		string artifactDirectory = Path.Combine(sourceDirectory, "bin", ArtifactDirectoryForHost(null));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "main.c")));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "main.h")));
+	}
+
+	[Fact]
+	public void Out_dir_is_prefix_unless_direct_directory_marker_is_used()
+	{
+		string source = CreateTempCase("out_dir_prefix/main.camp", """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string prefixOut = TempPath("out-dir-prefix");
+		string directOut = TempPath("out-dir-direct");
+
+		ProcessResult prefix = RunCampc(
+			"build",
+			source,
+			"--nostdlib",
+			"--artifact",
+			"none",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			prefixOut);
+		ProcessResult direct = RunCampc(
+			"build",
+			source,
+			"--nostdlib",
+			"--artifact",
+			"none",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			Path.Combine(directOut, "."));
+
+		Assert.Equal(0, prefix.ExitCode);
+		Assert.Equal(0, direct.ExitCode);
+		Assert.True(File.Exists(Path.Combine(prefixOut, ArtifactDirectoryForHost(null), "build", "main.c")));
+		Assert.False(File.Exists(Path.Combine(prefixOut, "build", "main.c")));
+		Assert.True(File.Exists(Path.Combine(directOut, "build", "main.c")));
+		Assert.False(File.Exists(Path.Combine(directOut, ArtifactDirectoryForHost(null), "build", "main.c")));
+	}
+
+	[Fact]
 	public void Run_treats_bare_campbuild_file_as_response_file()
 	{
 		string root = TempPath("run-bare-campbuild-file");
@@ -564,7 +656,7 @@ public sealed class CommandLineTests
 		Assert.False(File.Exists(Path.Combine(libraryRoot, "bin", "sample-lib_api.camp")));
 		Assert.False(Directory.Exists(Path.Combine(libraryRoot, "build")));
 		Assert.False(Directory.Exists(Path.Combine(libraryRoot, "obj")));
-		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", "sample-app" + ExecutableExtensionForHost()));
+		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "sample-app" + ExecutableExtensionForHost()));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);
 	}
@@ -1190,11 +1282,12 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", Path.Combine(root, "widgets.campbuild"), "--target", NativeTargetForHost(), "--out-dir", outDir);
 
 		AssertCommandSucceeded(result);
-		string privateHeader = File.ReadAllText(Path.Combine(outDir, "build", "widgets_private.h"));
+		string artifactDir = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Static));
+		string privateHeader = File.ReadAllText(Path.Combine(artifactDir, "build", "widgets_private.h"));
 		Assert.Contains("void Control__op_delete(Component *ctx);", privateHeader, StringComparison.Ordinal);
-		string buttonC = File.ReadAllText(Path.Combine(outDir, "build", "button.c"));
+		string buttonC = File.ReadAllText(Path.Combine(artifactDir, "build", "button.c"));
 		Assert.Contains(".op_delete = Control__op_delete", buttonC, StringComparison.Ordinal);
-		string api = File.ReadAllText(Path.Combine(outDir, "widgets_api.camp"));
+		string api = File.ReadAllText(Path.Combine(artifactDir, "widgets_api.camp"));
 		Assert.Contains("export extern ~Component();", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("void ~Component", api, StringComparison.Ordinal);
 	}
@@ -1846,6 +1939,13 @@ public sealed class CommandLineTests
 		if (!MsvcAvailable())
 			Assert.Skip("MSVC tools and target architecture are not available.");
 		return CompilerDefaults.TargetName;
+	}
+
+	static string ArtifactDirectoryForHost(NativeBuildKind? buildKind)
+	{
+		Assert.True(TargetCatalog.TryLoad(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
+		Assert.True(catalog!.TryGetTarget(NativeTargetForHost(), out TargetDefinition? target));
+		return BuildArtifactLayout.GetArtifactDirectoryName(target!, buildKind, "DEBUG");
 	}
 
 	static string ExecutableExtensionForHost()

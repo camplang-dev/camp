@@ -618,11 +618,11 @@ Likely implementation areas:
 - ~~Implement `--out-dir path/.` direct-output behavior.~~
 - ~~Update command-line tests.~~
 
-### Stage 3: Root Project Output Layout
+### ~~Stage 3: Root Project Output Layout~~
 
-- Apply the new output layout to direct source builds and `.campbuild` builds.
-- Ensure relative `--out-dir` resolves from the correct base.
-- Update command-line, native build, and smoke tests.
+- ~~Apply the new output layout to direct source builds and `.campbuild` builds.~~
+- ~~Ensure relative `--out-dir` resolves from the correct base.~~
+- ~~Update command-line, native build, and smoke tests.~~
 
 ### Stage 4: Package And Project Reference Cache Layout
 

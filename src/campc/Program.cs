@@ -348,6 +348,7 @@ sealed class CampCli
 	{
 		request = null;
 		errors = [];
+		string? defaultOutDir = command is CommandKind.Build or CommandKind.Run ? TryGetDefaultOutDirFromBuildFile(args, environment.WorkingDirectory) : null;
 
 		if (command is CommandKind.Build or CommandKind.Run)
 			args = ResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray();
@@ -407,7 +408,7 @@ sealed class CampCli
 			BuildKind = bag.ArtifactKind,
 			InferBuildKind = command == CommandKind.Build && !bag.ArtifactSpecified,
 			EmitMetadata = bag.MetadataVisibility,
-			OutDir = bag.OutDir,
+			OutDir = bag.OutDir ?? defaultOutDir,
 			ProjectName = bag.ProjectName,
 			SubsystemName = bag.SubsystemName,
 			NoStdLib = bag.NoStdLib,
@@ -464,7 +465,7 @@ sealed class CampCli
 			if (consumerRequest.Variants.Count > 0)
 				projectArgs.AddRange(["--variant", .. consumerRequest.Variants]);
 			projectArgs.AddRange(["--artifact", "static"]);
-			projectArgs.AddRange(["--out-dir", projectOutputDirectory]);
+			projectArgs.AddRange(["--out-dir", Path.Combine(projectOutputDirectory, ".")]);
 
 			List<string> childStack = [.. projectReferenceStack, canonicalBuildFile];
 			if (!TryBuildRequest(projectArgs.ToArray(), environment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack))
@@ -646,6 +647,26 @@ sealed class CampCli
 			if (!char.IsAsciiLetterOrDigit(c))
 				return false;
 		return true;
+	}
+
+	static string? TryGetDefaultOutDirFromBuildFile(IReadOnlyList<string> args, string workingDirectory)
+	{
+		for (int i = 0; i < args.Count; i++)
+		{
+			string token = args[i];
+			if (token.StartsWith("-", StringComparison.Ordinal))
+			{
+				i += ResponseFileExpander.OptionValueCountForBuildRequest(token);
+				continue;
+			}
+			string candidate = token.StartsWith("@", StringComparison.Ordinal) ? token[1..] : token;
+			string fullPath = Path.GetFullPath(candidate, workingDirectory);
+			if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
+				fullPath += ".campbuild";
+			if (File.Exists(fullPath) && Path.GetExtension(fullPath).Equals(".campbuild", StringComparison.OrdinalIgnoreCase))
+				return Path.Combine(Path.GetDirectoryName(fullPath)!, "bin");
+		}
+		return null;
 	}
 
 	static bool IsStaticLibrary(string path, string targetName, string runtimeRoot)
@@ -1369,6 +1390,8 @@ static class ResponseFileExpander
 		return Expand(args, workingDirectory, errors, []);
 	}
 
+	public static int OptionValueCountForBuildRequest(string option) => OptionValueCount(option);
+
 	public static List<string> ExpandBareBuildFiles(IReadOnlyList<string> args, string workingDirectory, List<string> errors)
 	{
 		List<string> expanded = [];
@@ -1534,7 +1557,19 @@ static class ResponseFileExpander
 	static string RebasePathValue(string value, string baseDirectory)
 	{
 		value = PathArguments.Normalize(value);
+		if (IsDirectOutputPath(value))
+		{
+			string prefix = value[..^1];
+			string rebased = Path.IsPathRooted(prefix) ? prefix : Path.GetFullPath(prefix, baseDirectory);
+			return Path.Combine(rebased, ".");
+		}
 		return Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
+	}
+
+	static bool IsDirectOutputPath(string value)
+	{
+		string normalized = value.Replace('\\', '/');
+		return normalized == "." || normalized.EndsWith("/.", StringComparison.Ordinal);
 	}
 
 	static List<string> Split(string text)

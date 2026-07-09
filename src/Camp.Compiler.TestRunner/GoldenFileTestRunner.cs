@@ -75,7 +75,7 @@ public static class GoldenFileTestRunner
 			WorkingDirectory = testCase.RepositoryRoot,
 			TargetName = SelectTargetName(testCase.Kind),
 			NoStdLib = testCase.Kind is not (GoldenFileTestKind.Std or GoldenFileTestKind.StdRun),
-			OutDir = testCase.Kind is GoldenFileTestKind.CEmit or GoldenFileTestKind.CCompile or GoldenFileTestKind.StdRun or GoldenFileTestKind.Metadata ? GetOutputDirectory(testCase) : null,
+			OutDir = testCase.Kind is GoldenFileTestKind.CEmit or GoldenFileTestKind.CCompile or GoldenFileTestKind.StdRun or GoldenFileTestKind.Metadata ? GetDirectOutputDirectory(testCase) : null,
 			BuildKind = testCase.Kind == GoldenFileTestKind.StdRun ? NativeBuildKind.Exec : null,
 			Inspect = testCase.Kind switch
 			{
@@ -128,7 +128,7 @@ public static class GoldenFileTestRunner
 			if (option.Equals("build shared", StringComparison.OrdinalIgnoreCase))
 			{
 				request.BuildKind = NativeBuildKind.Shared;
-				request.OutDir = GetOutputDirectory(testCase);
+				request.OutDir = GetDirectOutputDirectory(testCase);
 			}
 			else if (option.StartsWith("emit-metadata ", StringComparison.OrdinalIgnoreCase)
 				&& Enum.TryParse(option["emit-metadata ".Length..], ignoreCase: true, out MetadataVisibility visibility))
@@ -341,6 +341,11 @@ public static class GoldenFileTestRunner
 	static string GetGeneratedBuildDirectory(GoldenFileTestCase testCase)
 	{
 		return Path.Combine(GetOutputDirectory(testCase), "build");
+	}
+
+	static string GetDirectOutputDirectory(GoldenFileTestCase testCase)
+	{
+		return Path.Combine(GetOutputDirectory(testCase), ".");
 	}
 
 	static string GetPackageArtifactRoot(GoldenFileTestCase testCase)

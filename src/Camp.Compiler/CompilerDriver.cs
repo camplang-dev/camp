@@ -788,7 +788,7 @@ public static class CompilerDriver
 			if (request.BuildKind is NativeBuildKind.Exec or NativeBuildKind.WinExe && !TryPrepareExecEntryPoint(compilation, out execEntryPoint))
 				return 1;
 
-			string outputDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(request.OutDir) ? CCodeEmitter.GetDefaultArtifactDirectory(compilation.Files) : request.OutDir, request.WorkingDirectory);
+			string outputDirectory = ResolveArtifactOutputDirectory(compilation);
 			string buildDirectory = Path.Combine(outputDirectory, "build");
 			string projectName = string.IsNullOrWhiteSpace(request.ProjectName) ? CCodeEmitter.GetProjectName(compilation.Files) : request.ProjectName!;
 			CEmissionResult result = CCodeEmitter.Emit(compilation, new CEmissionOptions
@@ -843,6 +843,25 @@ public static class CompilerDriver
 				OutLine("generated: " + Path.GetFileName(generated));
 			}
 			return 0;
+		}
+
+		string ResolveArtifactOutputDirectory(Compilation compilation)
+		{
+			string outputPrefix = string.IsNullOrWhiteSpace(request.OutDir)
+				? CCodeEmitter.GetDefaultArtifactDirectory(compilation.Files)
+				: request.OutDir!;
+			string outputRoot = Path.GetFullPath(outputPrefix, request.WorkingDirectory);
+			if (IsDirectOutputDirectory(request.OutDir))
+				return outputRoot;
+			return Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(compilation.Target!, request.BuildKind, compilation.ProfileName));
+		}
+
+		static bool IsDirectOutputDirectory(string? value)
+		{
+			if (string.IsNullOrWhiteSpace(value))
+				return false;
+			string trimmed = value.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+			return trimmed == "." || trimmed.EndsWith(Path.DirectorySeparatorChar + ".", StringComparison.Ordinal) || trimmed.EndsWith(Path.AltDirectorySeparatorChar + ".", StringComparison.Ordinal);
 		}
 
 		string ResolveNativeReference(string reference, TargetDefinition target)

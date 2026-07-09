@@ -73,6 +73,7 @@ public static class CampProjectLoader
 	static CampProjectLoadResult Load(IReadOnlyList<string> args, CampProjectEnvironment environment, CampProjectCommandKind command, HashSet<string> projectReferenceStack)
 	{
 		List<string> errors = [];
+		string? defaultOutDir = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run ? TryGetDefaultOutDirFromBuildFile(args, environment.WorkingDirectory) : null;
 		string[] expandedArgs = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run
 			? CampResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray()
 			: args.ToArray();
@@ -80,7 +81,7 @@ public static class CampProjectLoader
 		{
 			ParsedCampBuildOptions cli = CampBuildOptionParser.Parse(expandedArgs, allowPositionals: true, errors);
 			if (errors.Count == 0)
-				return Load(cli, environment, command, errors, projectReferenceStack);
+				return Load(cli, environment, command, errors, projectReferenceStack, defaultOutDir);
 		}
 
 		return Failed(environment, errors);
@@ -132,7 +133,7 @@ public static class CampProjectLoader
 		return null;
 	}
 
-	static CampProjectLoadResult Load(ParsedCampBuildOptions cli, CampProjectEnvironment environment, CampProjectCommandKind command, List<string> errors, HashSet<string> projectReferenceStack)
+	static CampProjectLoadResult Load(ParsedCampBuildOptions cli, CampProjectEnvironment environment, CampProjectCommandKind command, List<string> errors, HashSet<string> projectReferenceStack, string? defaultOutDir)
 	{
 		CampBuildOptionBag bag = new();
 		ApplyGlobalPragmas(environment, bag, errors);
@@ -173,7 +174,7 @@ public static class CampProjectLoader
 			BuildKind = bag.ArtifactKind,
 			InferBuildKind = command == CampProjectCommandKind.Build && !bag.ArtifactSpecified,
 			EmitMetadata = bag.MetadataVisibility,
-			OutDir = bag.OutDir,
+			OutDir = bag.OutDir ?? defaultOutDir,
 			ProjectName = bag.ProjectName,
 			SubsystemName = bag.SubsystemName,
 			NoStdLib = bag.NoStdLib,
@@ -208,6 +209,26 @@ public static class CampProjectLoader
 				result.Diagnostics.Add(error!);
 		}
 		return result;
+	}
+
+	static string? TryGetDefaultOutDirFromBuildFile(IReadOnlyList<string> args, string workingDirectory)
+	{
+		for (int i = 0; i < args.Count; i++)
+		{
+			string token = args[i];
+			if (token.StartsWith("-", StringComparison.Ordinal))
+			{
+				i += CampResponseFileExpander.OptionValueCountForBuildRequest(token);
+				continue;
+			}
+			string candidate = token.StartsWith("@", StringComparison.Ordinal) ? token[1..] : token;
+			string fullPath = Path.GetFullPath(candidate, workingDirectory);
+			if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
+				fullPath += ".campbuild";
+			if (File.Exists(fullPath) && Path.GetExtension(fullPath).Equals(".campbuild", StringComparison.OrdinalIgnoreCase))
+				return Path.Combine(Path.GetDirectoryName(fullPath)!, "bin");
+		}
+		return null;
 	}
 
 	static void AddLanguageServiceProjectReferenceSources(CampProjectLoadResult result, CompilerRequest request, string buildFile, HashSet<string> projectReferenceStack)
@@ -796,6 +817,8 @@ public static class CampResponseFileExpander
 		return Expand(args, workingDirectory, errors, []);
 	}
 
+	public static int OptionValueCountForBuildRequest(string option) => OptionValueCount(option);
+
 	public static List<string> ExpandBareBuildFiles(IReadOnlyList<string> args, string workingDirectory, List<string> errors)
 	{
 		List<string> expanded = [];
@@ -911,7 +934,19 @@ public static class CampResponseFileExpander
 
 	static string RebasePathValue(string value, string baseDirectory)
 	{
+		if (IsDirectOutputPath(value))
+		{
+			string prefix = value[..^1];
+			string rebased = Path.IsPathRooted(prefix) ? prefix : Path.GetFullPath(prefix, baseDirectory);
+			return Path.Combine(rebased, ".");
+		}
 		return Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
+	}
+
+	static bool IsDirectOutputPath(string value)
+	{
+		string normalized = value.Replace('\\', '/');
+		return normalized == "." || normalized.EndsWith("/.", StringComparison.Ordinal);
 	}
 }
 
