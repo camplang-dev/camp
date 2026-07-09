@@ -24,6 +24,11 @@ preprocessor-directive:
 	#else
 	#endif
 
+build-argument-list:
+	tooling-defined command-line fragments
+	Examples include --target <IDENT>, --profile <IDENT>, and --variant <IDENT>.
+	These examples describe current compiler tooling, not language syntax.
+
 import-export-declaration:
 	using <qualified-namespace> ([as <IDENT>] | '{' <IDENT-list> '}') ;
 	export as <qualified-namespace> ;

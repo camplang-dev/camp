@@ -165,12 +165,13 @@ public sealed class TargetCatalog
 
 public sealed class TargetDefinition
 {
-	internal TargetDefinition(string name, string? baseName, string path, TargetSections sections)
+	internal TargetDefinition(string name, string? baseName, string path, TargetSections sections, TargetVariantSelection? variantSelection = null)
 	{
 		Name = name;
 		BaseName = baseName;
 		Path = path;
 		Sections = sections;
+		VariantSelection = variantSelection ?? TargetVariantSelection.Default;
 		Capabilities = new TargetCapabilities(this);
 	}
 
@@ -185,7 +186,9 @@ public sealed class TargetDefinition
 	public IReadOnlyDictionary<string, string> TargetCapabilities => Sections.Capabilities;
 	public IReadOnlyDictionary<string, int> NaturalIntegerWidths => Sections.NaturalIntegerWidths;
 	public IReadOnlyDictionary<string, int> PointerWidths => Sections.PointerWidths;
-	public IReadOnlyDictionary<string, TargetMemoryModel> MemoryModels => Sections.MemoryModels;
+	public IReadOnlyDictionary<string, TargetVariantGroup> VariantGroups => Sections.VariantGroups;
+	public TargetVariantSelection VariantSelection { get; }
+	public IReadOnlySet<string> TargetOwnedDefines => Sections.TargetOwnedDefines;
 	public IReadOnlyList<string> TypeSpecOrder => Sections.TypeSpecOrder;
 	public IReadOnlyList<string> Includes => Sections.Includes;
 	public IReadOnlyDictionary<string, string> Toolchain => Sections.Toolchain;
@@ -252,21 +255,41 @@ public sealed class TargetDefinition
 		return Sections.NaturalIntegerWidths.TryGetValue("", out int defaultWidth) ? defaultWidth : 32;
 	}
 
-	public int GetPointerWidth(string? typeSpec, string? memoryModelName, bool functionPointer)
+	public TargetVariantSelection ResolveVariantSelection(IEnumerable<string> requestedVariants)
 	{
-		typeSpec ??= GetMemoryModelDefault(memoryModelName, functionPointer);
+		return TargetVariantSelection.Resolve(this, requestedVariants);
+	}
+
+	public TargetDefinition WithVariantSelection(TargetVariantSelection selection)
+	{
+		TargetSections sections = new();
+		sections.CopyFrom(Sections);
+		sections.ApplyVariantOverlays(selection);
+		sections.ValidateTargetMetadata();
+		return new TargetDefinition(Name, BaseName, Path, sections, selection);
+	}
+
+	public string GetVariantDirectoryName()
+	{
+		if (VariantSelection.SelectedVariants.Count == 0)
+			return Name;
+		List<string> nonDefault = [];
+		foreach (TargetVariantGroup group in Sections.VariantGroups.Values)
+		{
+			if (!VariantSelection.SelectedVariants.TryGetValue(group.Name, out string? selected))
+				continue;
+			if (!string.Equals(selected, group.DefaultVariantName, StringComparison.Ordinal))
+				nonDefault.Add(selected);
+		}
+		return nonDefault.Count == 0 ? Name : Name + "_" + string.Join("_", nonDefault);
+	}
+
+	public int GetPointerWidth(string? typeSpec, bool functionPointer)
+	{
+		typeSpec ??= functionPointer ? Sections.DefaultFunctionPointerTypeSpec : Sections.DefaultDataPointerTypeSpec;
 		if (typeSpec is not null && Sections.PointerWidths.TryGetValue(typeSpec, out int width))
 			return width;
 		return Sections.PointerWidths.TryGetValue("", out int defaultWidth) ? defaultWidth : 32;
-	}
-
-	public string? GetMemoryModelDefault(string? memoryModelName, bool functionPointer)
-	{
-		if (memoryModelName is null)
-			return null;
-		return Sections.MemoryModels.TryGetValue(memoryModelName, out TargetMemoryModel? model)
-			? functionPointer ? model.CodePointerTypeSpec : model.DataPointerTypeSpec
-			: null;
 	}
 
 	public bool CanWidenTypeSpec(string? source, string? target)
@@ -397,12 +420,7 @@ public sealed class TargetCapabilities
 
 	public int GetPointerWidth(string? typeSpec, string? memoryModelName, bool functionPointer)
 	{
-		return target.GetPointerWidth(typeSpec, memoryModelName, functionPointer);
-	}
-
-	public string? GetMemoryModelDefault(string? memoryModelName, bool functionPointer)
-	{
-		return target.GetMemoryModelDefault(memoryModelName, functionPointer);
+		return target.GetPointerWidth(typeSpec, functionPointer);
 	}
 
 	public TargetConversionLevel ClassifyTypeSpecConversion(TargetConversionCarrier carrier, string? source, string? destination)
@@ -428,7 +446,13 @@ internal sealed class TargetSections
 	public Dictionary<string, string> Defines { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, int> NaturalIntegerWidths { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, int> PointerWidths { get; } = new(StringComparer.Ordinal);
-	public Dictionary<string, TargetMemoryModel> MemoryModels { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, TargetVariantGroup> VariantGroups { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, TargetVariant> VariantsByName { get; } = new(StringComparer.Ordinal);
+	public HashSet<string> TargetOwnedDefines { get; } = new(StringComparer.Ordinal);
+	public List<TargetConditionalSection> ConditionalSections { get; } = [];
+	public string? DefaultCodePointerTypeSpec { get; private set; }
+	public string? DefaultDataPointerTypeSpec { get; private set; }
+	public string? DefaultFunctionPointerTypeSpec => DefaultCodePointerTypeSpec;
 	public List<string> TypeSpecOrder { get; } = [];
 	public List<string> Includes { get; } = [];
 	public Dictionary<string, string> Toolchain { get; } = new(StringComparer.Ordinal);
@@ -448,7 +472,13 @@ internal sealed class TargetSections
 		CopySection(source.CTypes, CTypes);
 		CopySection(source.NaturalIntegerWidths, NaturalIntegerWidths);
 		CopySection(source.PointerWidths, PointerWidths);
-		CopySection(source.MemoryModels, MemoryModels);
+		CopySection(source.VariantGroups, VariantGroups);
+		CopySection(source.VariantsByName, VariantsByName);
+		foreach (string define in source.TargetOwnedDefines)
+			TargetOwnedDefines.Add(define);
+		ConditionalSections.AddRange(source.ConditionalSections);
+		DefaultCodePointerTypeSpec = source.DefaultCodePointerTypeSpec;
+		DefaultDataPointerTypeSpec = source.DefaultDataPointerTypeSpec;
 		CopySection(source.Toolchain, Toolchain);
 		CopySection(source.Artifact, Artifact);
 		CopySection(source.BuildTemplates, BuildTemplates);
@@ -459,22 +489,82 @@ internal sealed class TargetSections
 
 	public void MergeFrom(IniData data)
 	{
-		MergeSection(data, "callspec", CallSpecs);
-		MergeTargetSection(data);
-		MergeSection(data, "capability", Capabilities);
-		MergeSection(data, "define", Defines);
-		MergeTypeSpecSection(data);
-		MergeSection(data, "ctype", CTypes);
-		MergeWidthSection(data, "nint", NaturalIntegerWidths);
-		MergeWidthSection(data, "pointer", PointerWidths);
-		MergeMemoryModelSection(data);
-		MergeSection(data, "toolchain", Toolchain);
-		MergeSection(data, "artifact", Artifact);
-		MergeSection(data, "build", BuildTemplates);
-		MergeSection(data, "cemit", CEmitter);
-		MergeProfileSections(data);
-		MergeConversionPolicySections(data);
+		MergeVariantSection(data);
+		foreach (SectionData section in data.Sections)
+		{
+			ParsedSectionName parsed = ParseSectionName(section.SectionName);
+			if (parsed.Variants.Count > 0)
+			{
+				ValidateConditionalVariants(section.SectionName, parsed.Variants);
+				RecordTargetOwnedDefines(parsed.BaseName, section);
+				ConditionalSections.Add(new TargetConditionalSection(parsed.BaseName, [.. parsed.Variants], section));
+				continue;
+			}
+			MergeSectionData(parsed.BaseName, section);
+		}
 		ValidateTargetMetadata();
+	}
+
+	public void ApplyVariantOverlays(TargetVariantSelection selection)
+	{
+		foreach (TargetConditionalSection conditional in ConditionalSections)
+		{
+			if (!conditional.VariantNames.All(selection.ContainsVariant))
+				continue;
+			MergeSectionData(conditional.SectionName, conditional.Section);
+		}
+	}
+
+	void MergeSectionData(string sectionName, SectionData section)
+	{
+		switch (sectionName)
+		{
+			case "callspec":
+				MergeSection(section, CallSpecs);
+				break;
+			case "target":
+				MergeTargetSection(section);
+				break;
+			case "capability":
+				MergeSection(section, Capabilities);
+				break;
+			case "define":
+				RecordTargetOwnedDefines(sectionName, section);
+				MergeSection(section, Defines);
+				break;
+			case "typespec":
+				MergeTypeSpecSection(section);
+				break;
+			case "ctype":
+				MergeSection(section, CTypes);
+				break;
+			case "nint":
+				MergeWidthSection(section, sectionName, NaturalIntegerWidths);
+				break;
+			case "pointer":
+				MergeWidthSection(section, sectionName, PointerWidths);
+				break;
+			case "memorymodel":
+				throw new InvalidDataException("[memorymodel] has been replaced by [variant] and [typespec:*] default=<code>/<data>.");
+			case "toolchain":
+				MergeSection(section, Toolchain);
+				break;
+			case "artifact":
+				MergeSection(section, Artifact);
+				break;
+			case "build":
+				MergeSection(section, BuildTemplates);
+				break;
+			case "cemit":
+				MergeSection(section, CEmitter);
+				break;
+			default:
+				if (sectionName.StartsWith("profile.", StringComparison.Ordinal))
+					MergeProfileSection(sectionName, section);
+				else if (sectionName.StartsWith("conversion.", StringComparison.Ordinal))
+					MergeConversionPolicySection(sectionName, section);
+				break;
+		}
 	}
 
 	void CopyTypeSpecSection(Dictionary<string, string> source, List<string> order)
@@ -506,21 +596,15 @@ internal sealed class TargetSections
 			target[key] = value;
 	}
 
-	static void MergeSection(IniData data, string sectionName, Dictionary<string, string> target)
+	static void MergeSection(SectionData section, Dictionary<string, string> target)
 	{
-		if (!data.Sections.ContainsSection(sectionName))
-			return;
-
-		foreach (KeyData key in data.Sections.GetSectionData(sectionName).Keys)
+		foreach (KeyData key in section.Keys)
 			target[key.KeyName] = key.Value;
 	}
 
-	void MergeTargetSection(IniData data)
+	void MergeTargetSection(SectionData section)
 	{
-		if (!data.Sections.ContainsSection("target"))
-			return;
-
-		string? include = data.Sections.GetSectionData("target").Keys.GetKeyData("include")?.Value;
+		string? include = section.Keys.GetKeyData("include")?.Value;
 		if (string.IsNullOrWhiteSpace(include))
 			return;
 
@@ -531,25 +615,28 @@ internal sealed class TargetSections
 		}
 	}
 
-	void MergeTypeSpecSection(IniData data)
+	void MergeTypeSpecSection(SectionData section)
 	{
-		if (!data.Sections.ContainsSection("typespec"))
-			return;
-
-		foreach (KeyData key in data.Sections.GetSectionData("typespec").Keys)
+		foreach (KeyData key in section.Keys)
 		{
+			if (key.KeyName == "default")
+			{
+				string[] parts = key.Value.Split('/', 2);
+				if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[1]))
+					throw new InvalidDataException("[typespec] default must use '<code>/<data>' format.");
+				DefaultCodePointerTypeSpec = parts[0].Trim();
+				DefaultDataPointerTypeSpec = parts[1].Trim();
+				continue;
+			}
 			if (!TypeSpecs.ContainsKey(key.KeyName))
 				TypeSpecOrder.Add(key.KeyName);
 			TypeSpecs[key.KeyName] = key.Value;
 		}
 	}
 
-	void MergeWidthSection(IniData data, string sectionName, Dictionary<string, int> target)
+	void MergeWidthSection(SectionData section, string sectionName, Dictionary<string, int> target)
 	{
-		if (!data.Sections.ContainsSection(sectionName))
-			return;
-
-		foreach (KeyData key in data.Sections.GetSectionData(sectionName).Keys)
+		foreach (KeyData key in section.Keys)
 		{
 			string keyName = key.KeyName == "default" ? "" : key.KeyName;
 			string value = key.Value.Trim();
@@ -559,81 +646,130 @@ internal sealed class TargetSections
 		}
 	}
 
-	void MergeMemoryModelSection(IniData data)
+	void MergeVariantSection(IniData data)
 	{
-		if (!data.Sections.ContainsSection("memorymodel"))
+		if (!data.Sections.ContainsSection("variant"))
 			return;
-
-		foreach (KeyData key in data.Sections.GetSectionData("memorymodel").Keys)
+		foreach (KeyData key in data.Sections.GetSectionData("variant").Keys)
 		{
-			string[] parts = key.Value.Split('/', 2);
-			if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[1]))
-				throw new InvalidDataException($"[memorymodel] '{key.KeyName}' must use '<code>/<data>' format.");
-			MemoryModels[key.KeyName] = new TargetMemoryModel(key.KeyName, parts[0].Trim(), parts[1].Trim());
-		}
-	}
-
-	void MergeProfileSections(IniData data)
-	{
-		foreach (SectionData section in data.Sections)
-		{
-			if (!section.SectionName.StartsWith("profile.", StringComparison.Ordinal))
-				continue;
-			string profileName = section.SectionName["profile.".Length..].Trim();
-			if (profileName.Length == 0)
-				throw new InvalidDataException("Profile build section names must use [profile.NAME].");
-			string cflags = section.Keys.GetKeyData("cflags")?.Value ?? "";
-			string ldflags = section.Keys.GetKeyData("ldflags")?.Value ?? "";
-			Profiles[profileName.ToUpperInvariant()] = new TargetProfileBuild(cflags, ldflags);
-		}
-	}
-
-	void MergeConversionPolicySections(IniData data)
-	{
-		foreach (SectionData section in data.Sections)
-		{
-			if (!section.SectionName.StartsWith("conversion.", StringComparison.Ordinal))
-				continue;
-			string carrierName = section.SectionName["conversion.".Length..].Trim();
-			TargetConversionCarrier carrier = carrierName switch
+			string groupName = key.KeyName.Trim();
+			if (!IsVariantIdentifier(groupName))
+				throw new InvalidDataException($"Variant group '{groupName}' must use only ASCII letters and digits and start with a letter.");
+			if (VariantGroups.ContainsKey(groupName))
+				throw new InvalidDataException($"Variant group '{groupName}' is already defined.");
+			List<TargetVariant> variants = [];
+			string? defaultVariant = null;
+			foreach (string rawPart in key.Value.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
 			{
-				"data_pointer" => TargetConversionCarrier.DataPointer,
-				"function_pointer" => TargetConversionCarrier.FunctionPointer,
-				"nint" => TargetConversionCarrier.NaturalInteger,
-				"abi_slot" => TargetConversionCarrier.AbiSlot,
-				_ => throw new InvalidDataException($"Unsupported target conversion carrier '{carrierName}'.")
+				bool isDefault = rawPart.EndsWith('*');
+				string variantName = isDefault ? rawPart[..^1] : rawPart;
+				if (!IsVariantIdentifier(variantName))
+					throw new InvalidDataException($"Variant '{variantName}' must use only ASCII letters and digits and start with a letter.");
+				if (VariantsByName.ContainsKey(variantName))
+					throw new InvalidDataException($"Variant '{variantName}' is already defined by another group.");
+				if (isDefault)
+				{
+					if (defaultVariant is not null)
+						throw new InvalidDataException($"Variant group '{groupName}' must have exactly one default variant.");
+					defaultVariant = variantName;
+				}
+				TargetVariant variant = new(groupName, variantName, isDefault, VariantsByName.Count);
+				variants.Add(variant);
+				VariantsByName.Add(variantName, variant);
+			}
+			if (variants.Count == 0 || defaultVariant is null)
+				throw new InvalidDataException($"Variant group '{groupName}' must have exactly one default variant.");
+			VariantGroups.Add(groupName, new TargetVariantGroup(groupName, variants, defaultVariant));
+		}
+	}
+
+	void MergeProfileSection(string sectionName, SectionData section)
+	{
+		string profileName = sectionName["profile.".Length..].Trim();
+		if (profileName.Length == 0)
+			throw new InvalidDataException("Profile build section names must use [profile.NAME].");
+		string cflags = section.Keys.GetKeyData("cflags")?.Value ?? "";
+		string ldflags = section.Keys.GetKeyData("ldflags")?.Value ?? "";
+		Profiles[profileName.ToUpperInvariant()] = new TargetProfileBuild(cflags, ldflags);
+	}
+
+	void MergeConversionPolicySection(string sectionName, SectionData section)
+	{
+		string carrierName = sectionName["conversion.".Length..].Trim();
+		TargetConversionCarrier carrier = carrierName switch
+		{
+			"data_pointer" => TargetConversionCarrier.DataPointer,
+			"function_pointer" => TargetConversionCarrier.FunctionPointer,
+			"nint" => TargetConversionCarrier.NaturalInteger,
+			"abi_slot" => TargetConversionCarrier.AbiSlot,
+			_ => throw new InvalidDataException($"Unsupported target conversion carrier '{carrierName}'.")
+		};
+
+		foreach (KeyData key in section.Keys)
+		{
+			string[] specs = key.KeyName.Split("->", 2, StringSplitOptions.TrimEntries);
+			if (specs.Length != 2 || string.IsNullOrWhiteSpace(specs[0]) || string.IsNullOrWhiteSpace(specs[1]))
+				throw new InvalidDataException($"Target conversion '{key.KeyName}' must use '<source>-><target>' syntax.");
+			string source = specs[0];
+			string target = specs[1];
+			ValidateConversionPolicySpec(key.KeyName, source);
+			ValidateConversionPolicySpec(key.KeyName, target);
+
+			string levelName = key.Value.Trim();
+			TargetConversionLevel level = levelName switch
+			{
+				"implicit" => TargetConversionLevel.Implicit,
+				"explicit" => TargetConversionLevel.Explicit,
+				"unsafe" => TargetConversionLevel.Unsafe,
+				"fence" => TargetConversionLevel.Fence,
+				"forbidden" => TargetConversionLevel.Forbidden,
+				"compatible" => TargetConversionLevel.Compatible,
+				_ => throw new InvalidDataException($"Target conversion policy '{key.KeyName}={levelName}' uses unknown conversion level '{levelName}'.")
 			};
 
-			foreach (KeyData key in section.Keys)
-			{
-				string[] specs = key.KeyName.Split("->", 2, StringSplitOptions.TrimEntries);
-				if (specs.Length != 2 || string.IsNullOrWhiteSpace(specs[0]) || string.IsNullOrWhiteSpace(specs[1]))
-					throw new InvalidDataException($"Target conversion '{key.KeyName}' must use '<source>-><target>' syntax.");
-				string source = specs[0];
-				string target = specs[1];
-				ValidateConversionPolicySpec(key.KeyName, source);
-				ValidateConversionPolicySpec(key.KeyName, target);
+			if (level == TargetConversionLevel.Compatible && carrier != TargetConversionCarrier.AbiSlot)
+				throw new InvalidDataException("Conversion level 'compatible' is only valid in [conversion.abi_slot].");
+			if (carrier == TargetConversionCarrier.AbiSlot && level != TargetConversionLevel.Compatible && level != TargetConversionLevel.Forbidden)
+				throw new InvalidDataException("[conversion.abi_slot] entries must use 'compatible' or 'forbidden'.");
 
-				string levelName = key.Value.Trim();
-				TargetConversionLevel level = levelName switch
-				{
-					"implicit" => TargetConversionLevel.Implicit,
-					"explicit" => TargetConversionLevel.Explicit,
-					"unsafe" => TargetConversionLevel.Unsafe,
-					"fence" => TargetConversionLevel.Fence,
-					"forbidden" => TargetConversionLevel.Forbidden,
-					"compatible" => TargetConversionLevel.Compatible,
-					_ => throw new InvalidDataException($"Target conversion policy '{key.KeyName}={levelName}' uses unknown conversion level '{levelName}'.")
-				};
-
-				if (level == TargetConversionLevel.Compatible && carrier != TargetConversionCarrier.AbiSlot)
-					throw new InvalidDataException("Conversion level 'compatible' is only valid in [conversion.abi_slot].");
-				if (carrier == TargetConversionCarrier.AbiSlot && level != TargetConversionLevel.Compatible && level != TargetConversionLevel.Forbidden)
-					throw new InvalidDataException("[conversion.abi_slot] entries must use 'compatible' or 'forbidden'.");
-
-				ConversionPolicy[new TargetConversionPolicyKey(carrier, source, target)] = level;
-			}
+			ConversionPolicy[new TargetConversionPolicyKey(carrier, source, target)] = level;
 		}
+	}
+
+	static ParsedSectionName ParseSectionName(string sectionName)
+	{
+		string[] parts = sectionName.Split(':', StringSplitOptions.TrimEntries);
+		return new ParsedSectionName(parts[0], parts.Skip(1).Where(static part => part.Length > 0).ToArray());
+	}
+
+	void ValidateConditionalVariants(string sectionName, IReadOnlyList<string> variants)
+	{
+		foreach (string variant in variants)
+			if (!VariantsByName.ContainsKey(variant))
+				throw new InvalidDataException($"Section [{sectionName}] references unknown variant '{variant}'.");
+	}
+
+	void RecordTargetOwnedDefines(string sectionName, SectionData section)
+	{
+		if (sectionName != "define")
+			return;
+		foreach (KeyData key in section.Keys)
+			TargetOwnedDefines.Add(key.KeyName);
+	}
+
+	static bool IsVariantIdentifier(string value)
+	{
+		if (value.Length == 0 || !IsAsciiLetter(value[0]))
+			return false;
+		for (int i = 1; i < value.Length; i++)
+			if (!IsAsciiLetter(value[i]) && !char.IsAsciiDigit(value[i]))
+				return false;
+		return true;
+	}
+
+	static bool IsAsciiLetter(char ch)
+	{
+		return ch is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
 	}
 
 	void ValidateConversionPolicySpec(string conversion, string spec)
@@ -645,7 +781,7 @@ internal sealed class TargetSections
 		throw new InvalidDataException($"Target conversion '{conversion}' references unknown typespec '{spec}'.");
 	}
 
-	void ValidateTargetMetadata()
+	public void ValidateTargetMetadata()
 	{
 		foreach (string key in NaturalIntegerWidths.Keys)
 		{
@@ -659,17 +795,56 @@ internal sealed class TargetSections
 				throw new InvalidDataException($"[pointer] '{key}' must name a valid target typespec.");
 		}
 
-		foreach (TargetMemoryModel model in MemoryModels.Values)
-		{
-			if (!TypeSpecs.ContainsKey(model.CodePointerTypeSpec))
-				throw new InvalidDataException($"[memorymodel] '{model.Name}' code default '{model.CodePointerTypeSpec}' must name a valid target typespec.");
-			if (!TypeSpecs.ContainsKey(model.DataPointerTypeSpec))
-				throw new InvalidDataException($"[memorymodel] '{model.Name}' data default '{model.DataPointerTypeSpec}' must name a valid target typespec.");
-		}
+		if (DefaultCodePointerTypeSpec is not null && !TypeSpecs.ContainsKey(DefaultCodePointerTypeSpec))
+			throw new InvalidDataException($"[typespec] default code pointer typespec '{DefaultCodePointerTypeSpec}' must name a valid target typespec.");
+		if (DefaultDataPointerTypeSpec is not null && !TypeSpecs.ContainsKey(DefaultDataPointerTypeSpec))
+			throw new InvalidDataException($"[typespec] default data pointer typespec '{DefaultDataPointerTypeSpec}' must name a valid target typespec.");
 	}
 }
 
-public sealed record TargetMemoryModel(string Name, string CodePointerTypeSpec, string DataPointerTypeSpec);
+public sealed record TargetVariant(string GroupName, string Name, bool IsDefault, int Order);
+
+public sealed record TargetVariantGroup(string Name, IReadOnlyList<TargetVariant> Variants, string DefaultVariantName);
+
+public sealed class TargetVariantSelection
+{
+	public static TargetVariantSelection Default { get; } = new(new Dictionary<string, string>(StringComparer.Ordinal));
+
+	TargetVariantSelection(Dictionary<string, string> selectedVariants)
+	{
+		SelectedVariants = selectedVariants;
+	}
+
+	public IReadOnlyDictionary<string, string> SelectedVariants { get; }
+
+	public bool ContainsVariant(string variantName)
+	{
+		return SelectedVariants.Values.Contains(variantName, StringComparer.Ordinal);
+	}
+
+	public static TargetVariantSelection Resolve(TargetDefinition target, IEnumerable<string> requestedVariants)
+	{
+		Dictionary<string, string> selected = new(StringComparer.Ordinal);
+		HashSet<string> explicitlySelectedGroups = new(StringComparer.Ordinal);
+		foreach (TargetVariantGroup group in target.VariantGroups.Values)
+			selected[group.Name] = group.DefaultVariantName;
+
+		foreach (string requested in requestedVariants)
+		{
+			if (!target.Sections.VariantsByName.TryGetValue(requested, out TargetVariant? variant))
+				throw new InvalidDataException($"Variant '{requested}' is not defined by target '{target.Name}'. Available variants: {string.Join(", ", target.Sections.VariantsByName.Keys)}.");
+			if (explicitlySelectedGroups.Contains(variant.GroupName) && selected.TryGetValue(variant.GroupName, out string? existing) && existing != variant.Name)
+				throw new InvalidDataException($"Variants '{existing}' and '{variant.Name}' both belong to group '{variant.GroupName}'; select only one.");
+			selected[variant.GroupName] = variant.Name;
+			explicitlySelectedGroups.Add(variant.GroupName);
+		}
+		return new TargetVariantSelection(selected);
+	}
+}
+
+internal sealed record TargetConditionalSection(string SectionName, IReadOnlyList<string> VariantNames, SectionData Section);
+
+internal sealed record ParsedSectionName(string BaseName, IReadOnlyList<string> Variants);
 
 public sealed record TargetProfileBuild(string CFlags, string LdFlags)
 {

@@ -78,25 +78,18 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<FunctionDefinition, ParameterDefinition> materializedGenericReturnParameters = [];
 	readonly HashSet<NewtypeDefinition> analyzedNewtypeSignatures = [];
 	readonly TargetDefinition? selectedTarget;
-	readonly string? selectedMemoryModel;
 	Module? currentModule;
 
-	BindableNodeAnalyzer(TargetDefinition? selectedTarget = null, string? selectedMemoryModel = null)
+	BindableNodeAnalyzer(TargetDefinition? selectedTarget = null)
 	{
 		this.selectedTarget = selectedTarget;
-		this.selectedMemoryModel = selectedMemoryModel;
 	}
 
 	public static AnalysisResult Analyze(Module module, TargetDefinition? selectedTarget = null)
 	{
-		return Analyze(module, selectedTarget, selectedMemoryModel: null);
-	}
-
-	public static AnalysisResult Analyze(Module module, TargetDefinition? selectedTarget, string? selectedMemoryModel)
-	{
 		ArgumentNullException.ThrowIfNull(module);
 
-		BindableNodeAnalyzer analyzer = new(selectedTarget, selectedMemoryModel);
+		BindableNodeAnalyzer analyzer = new(selectedTarget);
 		analyzer.AnalyzeModule(module);
 		analyzer.FillMissingResolvedTypes(module);
 		return new AnalysisResult(module, analyzer.diagnostics);

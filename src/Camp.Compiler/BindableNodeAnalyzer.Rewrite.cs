@@ -53,32 +53,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	internal static DeclarationExpansionResult ExpandDeclarations(Module module, TargetDefinition? selectedTarget = null)
 	{
-		return ExpandDeclarations(module, selectedTarget, selectedMemoryModel: null);
-	}
-
-	internal static DeclarationExpansionResult ExpandDeclarations(Module module, TargetDefinition? selectedTarget, string? selectedMemoryModel)
-	{
-		BindableNodeAnalyzer analyzer = new(selectedTarget, selectedMemoryModel);
+		BindableNodeAnalyzer analyzer = new(selectedTarget);
 		analyzer.RunAnalyzerPass(AnalyzerPass.DeclarationExpansion, module);
 		return new DeclarationExpansionResult(module, analyzer.diagnostics, analyzer);
 	}
 
 	public static AnalysisResult AnalyzeExpanded(DeclarationExpansionResult expansion, TargetDefinition? selectedTarget = null)
-	{
-		return AnalyzeDeclarationsExpanded(expansion, selectedTarget, selectedMemoryModel: null);
-	}
-
-	public static AnalysisResult AnalyzeExpanded(DeclarationExpansionResult expansion, TargetDefinition? selectedTarget, string? selectedMemoryModel)
-	{
-		return AnalyzeDeclarationsExpanded(expansion, selectedTarget, selectedMemoryModel);
-	}
-
-	public static AnalysisResult AnalyzeDeclarationsExpanded(DeclarationExpansionResult expansion, TargetDefinition? selectedTarget = null)
-	{
-		return AnalyzeDeclarationsExpanded(expansion, selectedTarget, selectedMemoryModel: null);
-	}
-
-	public static AnalysisResult AnalyzeDeclarationsExpanded(DeclarationExpansionResult expansion, TargetDefinition? selectedTarget, string? selectedMemoryModel)
 	{
 		ArgumentNullException.ThrowIfNull(expansion);
 		BindableNodeAnalyzer analyzer = expansion.Analyzer;

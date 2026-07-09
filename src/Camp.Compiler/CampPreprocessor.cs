@@ -14,7 +14,13 @@ public static class CampPreprocessor
 {
 	public static PreprocessResult Process(TokenSequence tokens, IEnumerable<string> initialSymbols)
 	{
+		return Process(tokens, initialSymbols, []);
+	}
+
+	public static PreprocessResult Process(TokenSequence tokens, IEnumerable<string> initialSymbols, IEnumerable<string> targetOwnedSymbols)
+	{
 		HashSet<string> symbols = new(initialSymbols.Where(static symbol => !string.IsNullOrWhiteSpace(symbol)), StringComparer.Ordinal);
+		HashSet<string> ownedSymbols = new(targetOwnedSymbols.Where(static symbol => !string.IsNullOrWhiteSpace(symbol)), StringComparer.Ordinal);
 		symbols.Add("TRUE");
 
 		List<TokenValue> output = [];
@@ -39,7 +45,7 @@ public static class CampPreprocessor
 			{
 				case "define":
 					if (active)
-						ApplyDefine(line, info.ExpressionStart, symbols, diagnostics);
+						ApplyDefine(line, info.ExpressionStart, symbols, ownedSymbols, diagnostics);
 					break;
 
 				case "undef":
@@ -126,7 +132,7 @@ public static class CampPreprocessor
 		return stack.Count == 0 || stack[^1].CurrentActive;
 	}
 
-	static void ApplyDefine(List<Token> line, int expressionStart, HashSet<string> symbols, List<ParseDiagnostic> diagnostics)
+	static void ApplyDefine(List<Token> line, int expressionStart, HashSet<string> symbols, HashSet<string> targetOwnedSymbols, List<ParseDiagnostic> diagnostics)
 	{
 		List<Token> tokens = SignificantTokens(line, expressionStart).ToList();
 		if (tokens.Count != 1 || tokens[0].Class != TokenClass.Identifier)
@@ -134,6 +140,8 @@ public static class CampPreprocessor
 			AddDiagnostic(diagnostics, tokens.FirstOrDefault(), "#define requires a single symbol name.");
 			return;
 		}
+		if (targetOwnedSymbols.Contains(tokens[0].Value))
+			diagnostics.Add(new ParseDiagnostic(tokens[0].Range, $"Preprocessor symbol '{tokens[0].Value}' is owned by the selected target; select a target variant instead of defining it in source.", Severity: DiagnosticSeverity.Warning));
 		symbols.Add(tokens[0].Value);
 	}
 

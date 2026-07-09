@@ -18,8 +18,8 @@ public sealed class Compilation
 	public Dictionary<Definition, SourceFile> DefinitionOwners { get; } = [];
 	public TargetDefinition? Target { get; set; }
 	public string ProfileName { get; set; } = "DEBUG";
-	public string? MemoryModelName { get; set; }
 	public HashSet<string> PreprocessorSymbols { get; } = new(System.StringComparer.Ordinal);
+	public HashSet<string> TargetOwnedPreprocessorSymbols { get; } = new(System.StringComparer.Ordinal);
 	public WithinAllocationPolicy DefaultWithinAllocationPolicy { get; set; } = WithinAllocationPolicy.Implicit;
 }
 
@@ -46,7 +46,7 @@ public static class CompilationPipeline
 			if (file.Tokens is not null)
 				continue;
 			TokenSequence rawTokens = new(CampTokenizer.Tokenize(file.Text));
-			PreprocessResult result = CampPreprocessor.Process(rawTokens, compilation.PreprocessorSymbols);
+			PreprocessResult result = CampPreprocessor.Process(rawTokens, compilation.PreprocessorSymbols, compilation.TargetOwnedPreprocessorSymbols);
 			file.Tokens = new TokenSequence(result.Tokens);
 			file.PreprocessDiagnostics = result.Diagnostics;
 		}
@@ -93,7 +93,7 @@ public static class CompilationPipeline
 		if (!buildSuccess)
 			return false;
 
-		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!, compilation.Target, compilation.MemoryModelName);
+		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!, compilation.Target);
 		compilation.SharedModule = compilation.DeclarationExpansion.Module;
 		AssignGeneratedDefinitionOwners(compilation);
 		return compilation.DeclarationExpansion.Success;

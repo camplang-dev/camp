@@ -533,7 +533,7 @@ public sealed class LanguageServiceTests
 			export newtype HWND: nint;
 			export newtype fn _winapi nint WNDPROC(HWND handle);
 			""");
-		string formsApi = Path.Combine(formsRoot, "bin", "msvc-windows-x64", "default", "DEBUG", "win32-forms_api.camp");
+		string formsApi = Path.Combine(formsRoot, "bin", "msvc-windows-x64", "DEBUG", "win32-forms_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(formsApi)!);
 		File.WriteAllText(formsApi, """
 			export as Win32::Forms;

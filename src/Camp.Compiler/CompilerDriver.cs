@@ -33,7 +33,7 @@ public sealed class CompilerRequest
 	public bool InspectApi { get; set; }
 	public string TargetName { get; set; } = CompilerDefaults.TargetName;
 	public string ProfileName { get; set; } = "DEBUG";
-	public string? MemoryModelName { get; set; }
+	public List<string> Variants { get; } = [];
 	public string EmitKind { get; set; } = "c99";
 	public NativeBuildKind? BuildKind { get; set; }
 	public bool InferBuildKind { get; set; }
@@ -264,26 +264,28 @@ public static class CompilerDriver
 				return false;
 			}
 
-			if (target!.MemoryModels.Count > 0)
+			TargetVariantSelection selection;
+			try
 			{
-				if (string.IsNullOrWhiteSpace(request.MemoryModelName))
-				{
-					ErrorLine($"Target '{target.Name}' requires --memory-model. Available memory models: {string.Join(", ", target.MemoryModels.Keys)}.");
-					return false;
-				}
-				if (!target.MemoryModels.ContainsKey(request.MemoryModelName))
-				{
-					ErrorLine($"Memory model '{request.MemoryModelName}' is not defined by target '{target.Name}'. Available memory models: {string.Join(", ", target.MemoryModels.Keys)}.");
-					return false;
-				}
+				selection = target!.ResolveVariantSelection(request.Variants);
 			}
-			else if (!string.IsNullOrWhiteSpace(request.MemoryModelName))
+			catch (InvalidDataException ex)
 			{
-				ErrorLine($"Target '{target.Name}' does not define memory models, so --memory-model cannot be used.");
+				ErrorLine(ex.Message);
 				return false;
 			}
+			target = target.WithVariantSelection(selection);
 
-			context = new RuntimeContext(GetPackageSourceRoot(), GetPackageArtifactRoot(), target, normalizedProfile, string.IsNullOrWhiteSpace(request.MemoryModelName) ? null : request.MemoryModelName, [.. request.Defines]);
+			foreach (string define in request.Defines)
+			{
+				if (target.TargetOwnedDefines.Contains(define))
+				{
+					ErrorLine($"Define '{define}' is owned by target '{target.Name}'; select a target variant instead.");
+					return false;
+				}
+			}
+
+			context = new RuntimeContext(GetPackageSourceRoot(), GetPackageArtifactRoot(), target, normalizedProfile, [.. request.Defines]);
 			return true;
 		}
 
@@ -314,7 +316,6 @@ public static class CompilerDriver
 			{
 				Target = context.Target,
 				ProfileName = context.ProfileName,
-				MemoryModelName = context.MemoryModelName,
 				DefaultWithinAllocationPolicy = GetEffectiveWithinAllocationPolicy()
 			};
 			AddPreprocessorSymbols(compilation, context);
@@ -375,6 +376,8 @@ public static class CompilerDriver
 		{
 			compilation.PreprocessorSymbols.Add("TRUE");
 			compilation.PreprocessorSymbols.Add(context.ProfileName);
+			foreach (string symbol in context.Target.TargetOwnedDefines)
+				compilation.TargetOwnedPreprocessorSymbols.Add(symbol);
 			foreach (string symbol in context.Target.Defines.Keys)
 				compilation.PreprocessorSymbols.Add(symbol);
 			foreach (string symbol in context.CommandLineDefines)
@@ -619,9 +622,7 @@ public static class CompilerDriver
 
 		static string GetPackageArtifactDirectory(string artifactRoot, string packageName, string? version, RuntimeContext context)
 		{
-			string targetDirectory = string.IsNullOrWhiteSpace(context.MemoryModelName)
-				? context.Target.Name
-				: $"{context.Target.Name}_{context.MemoryModelName}";
+			string targetDirectory = context.Target.GetVariantDirectoryName();
 			return version is null
 				? Path.Combine(artifactRoot, packageName, targetDirectory, context.ProfileName)
 				: Path.Combine(artifactRoot, packageName, version, targetDirectory, context.ProfileName);
@@ -697,7 +698,6 @@ public static class CompilerDriver
 				WorkingDirectory = request.WorkingDirectory,
 				TargetName = context.Target.Name,
 				ProfileName = context.ProfileName,
-				MemoryModelName = context.MemoryModelName,
 				BuildKind = staticLibraryPath is null ? null : NativeBuildKind.Static,
 				WithinAllocationPolicy = request.WithinAllocationPolicy,
 				NoStdLib = true
@@ -710,7 +710,7 @@ public static class CompilerDriver
 			if (!BuildAllAndReport(packageCompilation))
 				return false;
 
-			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(packageCompilation.SharedModule!, packageCompilation.Target, packageCompilation.MemoryModelName);
+			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(packageCompilation.SharedModule!, packageCompilation.Target);
 			if (!PrintAnalysisDiagnostics(packageCompilation, analysis.Diagnostics))
 				return false;
 			packageCompilation.SharedModule = analysis.Module;
@@ -1010,7 +1010,7 @@ public static class CompilerDriver
 		{
 			if (!ExpandDeclarationsAndReport(compilation))
 				return 1;
-			AnalysisResult analysis = BindableNodeAnalyzer.AnalyzeExpanded(compilation.DeclarationExpansion!, compilation.Target, compilation.MemoryModelName);
+			AnalysisResult analysis = BindableNodeAnalyzer.AnalyzeExpanded(compilation.DeclarationExpansion!, compilation.Target);
 			if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
 				return 1;
 			compilation.SharedModule = analysis.Module;
@@ -1030,7 +1030,7 @@ public static class CompilerDriver
 		{
 			if (!BuildAllAndReport(compilation))
 				return 1;
-			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target, compilation.MemoryModelName);
+			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target);
 			if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
 				return 1;
 			using StringWriter writer = new(stdout, CultureInfo.InvariantCulture);
@@ -1042,7 +1042,7 @@ public static class CompilerDriver
 		{
 			if (!BuildAllAndReport(compilation))
 				return 1;
-			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target, compilation.MemoryModelName);
+			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target);
 			if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
 				return 1;
 			compilation.SharedModule = analysis.Module;
@@ -1250,5 +1250,5 @@ public static class CompilerDriver
 		}
 	}
 
-	sealed record RuntimeContext(string PackageSourceRoot, string PackageArtifactRoot, TargetDefinition Target, string ProfileName, string? MemoryModelName, IReadOnlyList<string> CommandLineDefines);
+		sealed record RuntimeContext(string PackageSourceRoot, string PackageArtifactRoot, TargetDefinition Target, string ProfileName, IReadOnlyList<string> CommandLineDefines);
 }

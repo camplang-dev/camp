@@ -567,7 +567,7 @@ public sealed class LspServerTests
 		string appRoot = Path.Combine(root, "app");
 		string appSource = Path.Combine(appRoot, "src");
 		string libraryRoot = Path.Combine(root, "library");
-		string libraryBin = Path.Combine(libraryRoot, "bin", Camp.Compiler.CompilerDefaults.TargetName, "default", "DEBUG");
+		string libraryBin = Path.Combine(libraryRoot, "bin", Camp.Compiler.CompilerDefaults.TargetName, "DEBUG");
 		Directory.CreateDirectory(appSource);
 		Directory.CreateDirectory(libraryBin);
 		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """

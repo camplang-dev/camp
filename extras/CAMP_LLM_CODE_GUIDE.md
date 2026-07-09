@@ -6,7 +6,7 @@ This guide is based on the following source documents. Evidence citations use th
 
 | Alias | Source |
 |---|---|
-| `spec` | `docs/camp_unified_spec_v33.md` |
+| `spec` | `docs/camp_unified_spec_v34.md` |
 | `scheduler_design` | `docs/camp_async_scheduler_design_v7.md` |
 
 Confidence labels:
@@ -61,6 +61,7 @@ Confidence labels:
 | Punctuation/operators | Single-character symbols include `~ ! % ^ & * ( ) + - = { } [ ] | ; : , . / < > ? $ #`. Multi-character operators are parsed from token sequences. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::Punctuation`; `src/Camp.Compiler/CampParser.cs::ReadOperator` |
 | Whitespace/newline | Horizontal whitespace and newlines are separate trivia tokens. Statements and declarations still normally require `;` or braces. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::Tokenize`; `src/Camp.Compiler/CampParser.cs` |
 | Preprocessor directives | `#define`, `#undef`, `#if`, `#elif`, `#else`, `#endif`, and prelude-only `#build`/`#within` are recognized. `#build` examples may show compiler option fragments, but those option names are tooling behavior, not language syntax. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs`; `spec::5.1.12`; `docs/camp_declarations_statements_grammar.txt::preprocessor-directive` |
+| Target variants | Use `#build --variant name` or `campc ... --variant name` for target-defined choices such as Windows character width. The root build's selected variants control project references and packages while they are consumed as dependencies; dependency-local variant directives are only defaults when that dependency is built directly. Do not use old `--memory-model`; use variants. | `CONFIRMED_BY_TEST` | `src/Camp.Compiler/TargetCatalog.cs`; `src/campc/Program.cs`; `tests/Camp.Compiler.TestRunner/CommandLineTests.cs`; `spec::5.1.12` |
 
 Valid:
 
@@ -79,6 +80,7 @@ Build-prelude example:
 // Comments may appear before build directives.
 #build --target clang-macos-x64
 #build --artifact shared
+#build --variant unicode
 #within explicit
 
 export as MyLibrary;

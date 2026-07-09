@@ -136,8 +136,8 @@ public static class GoldenFileTestRunner
 				request.EmitMetadata = visibility;
 			else if (option.StartsWith("target ", StringComparison.OrdinalIgnoreCase))
 				request.TargetName = option["target ".Length..].Trim();
-			else if (option.StartsWith("memory-model ", StringComparison.OrdinalIgnoreCase))
-				request.MemoryModelName = option["memory-model ".Length..].Trim();
+			else if (option.StartsWith("variant ", StringComparison.OrdinalIgnoreCase))
+				request.Variants.AddRange(option["variant ".Length..].Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries));
 		}
 	}
 

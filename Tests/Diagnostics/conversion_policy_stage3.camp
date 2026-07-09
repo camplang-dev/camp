@@ -1,5 +1,5 @@
 // @ target msvc-win16-x86
-// @ memory-model large
+// @ variant large
 
 struct Box<T>
 {

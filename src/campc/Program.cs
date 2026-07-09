@@ -24,7 +24,7 @@ return exitCode;
 
 static bool ContainsRemovedOption(string[] args)
 {
-	return args.Any(static arg => arg is "--inspect" or "--build" or "-b" or "--emit-metadata");
+	return args.Any(static arg => arg is "--inspect" or "--build" or "-b" or "--emit-metadata" or "--memory-model");
 }
 
 static RootCommand BuildCommandTree(CliEnvironment environment, string[] originalArgs)
@@ -109,7 +109,12 @@ static void AddBuildOptions(Command command, bool buildOnly)
 	});
 	command.Options.Add(new Option<string?>("--target", "-t") { Description = "Select the target." });
 	command.Options.Add(new Option<string?>("--profile", "-p") { Description = "Select DEBUG or RELEASE profile." });
-	command.Options.Add(new Option<string?>("--memory-model") { Description = "Select the target memory model." });
+	command.Options.Add(new Option<List<string>>("--variant", "-v")
+	{
+		Description = "Select target variants.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
 	command.Options.Add(new Option<List<string>>("--define", "-d")
 	{
 		Description = "Define conditional compilation symbols.",
@@ -398,7 +403,6 @@ sealed class CampCli
 			WorkingDirectory = environment.WorkingDirectory,
 			TargetName = bag.TargetName ?? CompilerDefaults.TargetName,
 			ProfileName = bag.ProfileName ?? "DEBUG",
-			MemoryModelName = bag.MemoryModelName,
 			EmitKind = bag.EmitKind ?? "c99",
 			Xml = bag.Xml,
 			BuildKind = bag.ArtifactKind,
@@ -412,6 +416,7 @@ sealed class CampCli
 			WithinAllocationPolicy = bag.WithinAllocationPolicy
 		};
 		request.Defines.AddRange(bag.Defines);
+		request.Variants.AddRange(bag.Variants);
 		request.References.AddRange(bag.References);
 		request.Frameworks.AddRange(bag.Frameworks);
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
@@ -453,16 +458,16 @@ sealed class CampCli
 				continue;
 
 			string projectDirectory = Path.GetDirectoryName(canonicalBuildFile)!;
-			string memoryModelName = string.IsNullOrWhiteSpace(consumerRequest.MemoryModelName) ? "default" : consumerRequest.MemoryModelName!;
-			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", consumerRequest.TargetName, memoryModelName, consumerRequest.ProfileName);
-			string projectBuildDirectory = Path.Combine(projectDirectory, "obj", consumerRequest.TargetName, memoryModelName, consumerRequest.ProfileName);
+			string targetDirectory = TryGetTargetVariantDirectoryName(consumerRequest, environment, errors);
+			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", targetDirectory, consumerRequest.ProfileName);
+			string projectBuildDirectory = Path.Combine(projectDirectory, "obj", targetDirectory, consumerRequest.ProfileName);
 			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
 			bool hasProjectOutDir = HasOption(projectArgs, "--out-dir");
 			bool hasProjectBuildDir = HasOption(projectArgs, "--build-dir");
 			projectArgs.AddRange(["--target", consumerRequest.TargetName]);
 			projectArgs.AddRange(["--profile", consumerRequest.ProfileName]);
-			if (!string.IsNullOrWhiteSpace(consumerRequest.MemoryModelName))
-				projectArgs.AddRange(["--memory-model", consumerRequest.MemoryModelName!]);
+			if (consumerRequest.Variants.Count > 0)
+				projectArgs.AddRange(["--variant", .. consumerRequest.Variants]);
 			projectArgs.AddRange(["--artifact", "static"]);
 			if (!hasProjectOutDir)
 				projectArgs.AddRange(["--out-dir", projectOutputDirectory]);
@@ -516,6 +521,31 @@ sealed class CampCli
 	{
 		if (!paths.Any(existing => string.Equals(Path.GetFullPath(existing), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase)))
 			paths.Add(path);
+	}
+
+	static string TryGetTargetVariantDirectoryName(CompilerRequest request, CliEnvironment environment, List<string> errors)
+	{
+		string targetsDirectory = Path.GetFullPath(Path.Combine(environment.RuntimeRoot, "..", "targets"));
+		if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out string? error))
+		{
+			errors.Add(error ?? $"Target directory '{targetsDirectory}' could not be loaded.");
+			return request.TargetName;
+		}
+		if (!catalog!.TryGetTarget(request.TargetName, out TargetDefinition? target))
+		{
+			errors.Add($"Target '{request.TargetName}' could not be found in '{targetsDirectory}'.");
+			return request.TargetName;
+		}
+		try
+		{
+			TargetVariantSelection selection = target!.ResolveVariantSelection(request.Variants);
+			return target.WithVariantSelection(selection).GetVariantDirectoryName();
+		}
+		catch (InvalidDataException ex)
+		{
+			errors.Add(ex.Message);
+			return request.TargetName;
+		}
 	}
 
 	static string FormatProjectReferenceCycle(IReadOnlyList<string> stack, string repeatedBuildFile, int cycleStart)
@@ -591,7 +621,8 @@ sealed class CampCli
 			"-t",
 			"--profile",
 			"-p",
-			"--memory-model",
+			"--variant",
+			"-v",
 			"--artifact"
 		};
 		List<string> result = [];
@@ -599,7 +630,12 @@ sealed class CampCli
 		{
 			if (removeValueOptions.Contains(args[i]))
 			{
-				if (i + 1 < args.Count)
+				if (args[i] is "--variant" or "-v")
+				{
+					while (i + 1 < args.Count && !args[i + 1].StartsWith("-", StringComparison.Ordinal))
+						i++;
+				}
+				else if (i + 1 < args.Count)
 					i++;
 				continue;
 			}
@@ -929,6 +965,7 @@ sealed class BuildOptionBag
 	public List<string> Defines { get; } = [];
 	public List<string> References { get; } = [];
 	public List<string> Frameworks { get; } = [];
+	public List<string> Variants { get; } = [];
 	public List<PackageSourceSpec> UseSources { get; } = [];
 	public List<PackageSpec> UsePackages { get; } = [];
 	public List<string> ProjectReferences { get; } = [];
@@ -937,10 +974,10 @@ sealed class BuildOptionBag
 	public NativeBuildKind? ArtifactKind { get; private set; }
 	Precedence? artifactPrecedence;
 	string? artifactSource;
+	Precedence? variantPrecedence;
 
 	public string? TargetName => Get("target");
 	public string? ProfileName => Get("profile");
-	public string? MemoryModelName => Get("memory-model");
 	public string? EmitKind => Get("emit");
 	public string? OutDir => Get("out-dir");
 	public string? BuildDir => Get("build-dir");
@@ -967,6 +1004,7 @@ sealed class BuildOptionBag
 		Defines.AddRange(options.Defines);
 		References.AddRange(options.References);
 		Frameworks.AddRange(options.Frameworks);
+		AddVariants(options.Variants, precedence);
 		UseSources.AddRange(options.UseSources);
 		UsePackages.AddRange(options.UsePackages);
 		ProjectReferences.AddRange(options.ProjectReferences);
@@ -1008,6 +1046,19 @@ sealed class BuildOptionBag
 		singleValues[key] = new SingleValue(value, precedence, source);
 	}
 
+	void AddVariants(IReadOnlyList<string> variants, Precedence precedence)
+	{
+		if (variants.Count == 0)
+			return;
+		if (variantPrecedence is Precedence existing && existing < precedence)
+			Variants.Clear();
+		if (variantPrecedence is null || variantPrecedence <= precedence)
+		{
+			Variants.AddRange(variants);
+			variantPrecedence = precedence;
+		}
+	}
+
 	string? Get(string key) => singleValues.TryGetValue(key, out SingleValue value) ? value.Value : null;
 
 	static MetadataVisibility? ParseMetadata(string value)
@@ -1034,6 +1085,7 @@ sealed class ParsedOptions
 	public List<string> Defines { get; } = [];
 	public List<string> References { get; } = [];
 	public List<string> Frameworks { get; } = [];
+	public List<string> Variants { get; } = [];
 	public List<PackageSourceSpec> UseSources { get; } = [];
 	public List<PackageSpec> UsePackages { get; } = [];
 	public List<string> ProjectReferences { get; } = [];
@@ -1074,7 +1126,12 @@ static class CommandLineOptionParser
 					AddSingle(result, "profile", RequiredValue(tokens, ref i, token, errors));
 					break;
 				case "--memory-model":
-					AddSingle(result, "memory-model", RequiredValue(tokens, ref i, token, errors));
+					errors.Add("--memory-model has been replaced by --variant.");
+					i += HasValue(tokens, i) ? 1 : 0;
+					break;
+				case "--variant":
+				case "-v":
+					result.Variants.AddRange(RequiredValues(tokens, ref i, token, errors));
 					break;
 				case "--emit":
 					AddSingle(result, "emit", RequiredValue(tokens, ref i, token, errors));
@@ -1356,7 +1413,7 @@ static class ResponseFileExpander
 	{
 		return option switch
 		{
-			"--target" or "-t" or "--profile" or "-p" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
+			"--target" or "-t" or "--profile" or "-p" or "--variant" or "-v" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
 			"--use-source" => 2,
 			_ => 0
 		};

@@ -16,17 +16,12 @@ public static class BindableNodeExpander
 {
 	public static DeclarationExpansionResult Expand(Module module)
 	{
-		return Expand(module, selectedTarget: null, selectedMemoryModel: null);
+		return Expand(module, selectedTarget: null);
 	}
 
 	public static DeclarationExpansionResult Expand(Module module, TargetDefinition? selectedTarget)
 	{
-		return Expand(module, selectedTarget, selectedMemoryModel: null);
-	}
-
-	public static DeclarationExpansionResult Expand(Module module, TargetDefinition? selectedTarget, string? selectedMemoryModel)
-	{
 		ArgumentNullException.ThrowIfNull(module);
-		return BindableNodeAnalyzer.ExpandDeclarations(module, selectedTarget, selectedMemoryModel);
+		return BindableNodeAnalyzer.ExpandDeclarations(module, selectedTarget);
 	}
 }

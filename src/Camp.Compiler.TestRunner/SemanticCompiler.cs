@@ -78,7 +78,6 @@ public static class SemanticCompiler
 		Compilation compilation = new()
 		{
 			Target = LoadTarget(repositoryRoot),
-			MemoryModelName = null
 		};
 		compilation.Files.Add(new SourceFile
 		{

@@ -7205,7 +7205,11 @@ public static class CCodeEmitter
 
 		string? GetDefaultTargetTypeSpec(bool functionPointer)
 		{
-			return compilation.Target?.Capabilities.GetMemoryModelDefault(compilation.MemoryModelName, functionPointer);
+			return compilation.Target is null
+				? null
+				: functionPointer
+					? compilation.Target.Sections.DefaultFunctionPointerTypeSpec
+					: compilation.Target.Sections.DefaultDataPointerTypeSpec;
 		}
 
 		string FormatCallSpec(string? spec)

@@ -7666,11 +7666,11 @@ variables, including `const` variables, do not get a computed metadata value.
 It is not a lowered C ABI dump and does not include generated helper
 declarations by default.
 
-### 5.1.12 Target callspecs and typespecs
+### 5.1.12 Target callspecs, typespecs, and variants
 
-Some targets define calling-convention and pointer/memory-model specifiers.
-Camp accepts those specifiers in fixed type and callable positions and validates
-them against the selected target.
+Some targets define calling-convention specifiers, pointer/storage specifiers,
+and named variants. Camp accepts target callspecs and typespecs in fixed type
+and callable positions and validates them against the selected target.
 
 ```camp
 extern _stdcall void InitializeLibrary();
@@ -7683,6 +7683,18 @@ Callspecs describe how a callable is called. Typespecs describe target-specific
 pointer or storage forms. Target details such as INI file syntax are tooling
 configuration, but the source language treats validated callspecs/typespecs as
 part of the type.
+
+Target variants select target-defined configuration branches. A target may use a
+variant for things such as character width, pointer defaults, C preprocessor
+defines, compiler flags, or platform-library details. A build selects at most
+one variant from each target-defined variant group. Unspecified groups use the
+target's default variant.
+
+The root project being built selects the effective target variants for the
+whole build. Project references and packages are built for that same selected
+target/variant set when they are consumed as dependencies. Variant directives
+inside a dependency's own build file are only defaults for building that
+dependency as a root project.
 
 Unspecified target specs may convert to explicit wider target specs when the
 selected target says that conversion is safe. Explicit casts may be used for
@@ -7724,6 +7736,7 @@ language rule, so the following examples are illustrative rather than normative:
 // Prefer this target when this file is used as a build root.
 #build --target clang-macos-x64
 #build --profile release
+#build --variant unicode
 
 // Build this source as a shared library unless the command line overrides it.
 #build --artifact shared
@@ -7738,6 +7751,11 @@ the compiler treats them as default command-line fragments and then applies the
 actual command line afterward. Whether repeated options are additive or
 overriding is defined by the compiler option itself, not by the `#build`
 directive syntax.
+
+Target-owned conditional symbols, such as a symbol supplied by a target variant,
+should be selected through the target variant rather than redefined manually.
+Tooling may reject command-line attempts to define target-owned symbols and may
+warn when source uses `#define` for one.
 
 Camp also recognizes a narrow file-prelude allocation-policy directive:
 

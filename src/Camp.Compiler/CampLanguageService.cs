@@ -46,12 +46,18 @@ public static class CampLanguageService
 		{
 			Target = LoadTarget(request),
 			ProfileName = request.ProfileName,
-			MemoryModelName = request.MemoryModelName,
 			DefaultWithinAllocationPolicy = request.WithinAllocationPolicy
 				?? (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared ? WithinAllocationPolicy.Explicit : WithinAllocationPolicy.Implicit)
 		};
 		foreach (string define in request.Defines)
 			compilation.PreprocessorSymbols.Add(define);
+		if (compilation.Target is not null)
+		{
+			foreach (string define in compilation.Target.Defines.Keys)
+				compilation.PreprocessorSymbols.Add(define);
+			foreach (string define in compilation.Target.TargetOwnedDefines)
+				compilation.TargetOwnedPreprocessorSymbols.Add(define);
+		}
 
 		Dictionary<string, CampSourceOverlay> overlayByPath = overlays.ToDictionary(
 			overlay => Path.GetFullPath(overlay.Path, request.WorkingDirectory),
@@ -111,7 +117,7 @@ public static class CampLanguageService
 	{
 		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
 		string profileName = string.IsNullOrWhiteSpace(request.ProfileName) ? "DEBUG" : request.ProfileName.ToUpperInvariant();
-		string targetDirectory = string.IsNullOrWhiteSpace(request.MemoryModelName) ? targetName : $"{targetName}_{request.MemoryModelName}";
+		string targetDirectory = GetTargetVariantDirectoryName(request, targetName);
 		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
 		{
 			apiHeader = Path.Combine(runtimeRoot, "lib", packageName, targetDirectory, profileName, packageName + "_api.camp");
@@ -126,7 +132,7 @@ public static class CampLanguageService
 	{
 		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
 		string profileName = string.IsNullOrWhiteSpace(request.ProfileName) ? "DEBUG" : request.ProfileName.ToUpperInvariant();
-		string targetDirectory = string.IsNullOrWhiteSpace(request.MemoryModelName) ? targetName : $"{targetName}_{request.MemoryModelName}";
+		string targetDirectory = GetTargetVariantDirectoryName(request, targetName);
 		foreach (string artifactRoot in CandidatePackageArtifactRoots(request))
 		{
 			string packageRoot = Path.Combine(artifactRoot, packageName);
@@ -331,9 +337,25 @@ public static class CampLanguageService
 		foreach (string targetRoot in CandidateTargetRoots(request))
 		{
 			if (TargetCatalog.TryLoad(targetRoot, out TargetCatalog? catalog, out _) && catalog!.TryGetTarget(request.TargetName, out TargetDefinition? target))
-				return target;
+			{
+				try
+				{
+					TargetVariantSelection selection = target!.ResolveVariantSelection(request.Variants);
+					return target.WithVariantSelection(selection);
+				}
+				catch (InvalidDataException)
+				{
+					return target;
+				}
+			}
 		}
 		return null;
+	}
+
+	static string GetTargetVariantDirectoryName(CompilerRequest request, string targetName)
+	{
+		TargetDefinition? target = LoadTarget(request);
+		return target?.GetVariantDirectoryName() ?? targetName;
 	}
 
 	static IEnumerable<string> CandidateTargetRoots(CompilerRequest request)

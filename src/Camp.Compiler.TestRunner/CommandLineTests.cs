@@ -375,7 +375,128 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: project_reference_app.c", result.StdOut, StringComparison.Ordinal);
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "default", "DEBUG", "sample-lib_api.camp")));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "DEBUG", "sample-lib_api.camp")));
+	}
+
+	[Fact]
+	public void Variant_option_controls_defines_and_reports_old_memory_model_spelling()
+	{
+		string temp = CreateTempCase("variant_cli.camp", """
+			#if UNICODE
+			export inline int WIDTH = 2;
+			#else
+			export inline int WIDTH = 1;
+			#endif
+			""");
+
+		ProcessResult ansi = RunCampc("dump", "declarations", temp, "--target", "msvc-windows-x64", "--variant", "ansi", "--nostdlib");
+		ProcessResult unicode = RunCampc("dump", "declarations", temp, "--target", "msvc-windows-x64", "--variant", "unicode", "--nostdlib");
+		ProcessResult old = RunCampc("dump", "declarations", temp, "--target", "msvc-windows-x64", "--memory-model", "large", "--nostdlib");
+
+		Assert.Equal(0, ansi.ExitCode);
+		Assert.Contains("WIDTH = 1", ansi.StdOut, StringComparison.Ordinal);
+		Assert.Equal(0, unicode.ExitCode);
+		Assert.Contains("WIDTH = 2", unicode.StdOut, StringComparison.Ordinal);
+		Assert.NotEqual(0, old.ExitCode);
+		Assert.Contains("--memory-model has been replaced by --variant", old.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Variant_option_rejects_unknown_and_same_group_values()
+	{
+		string temp = CreateTempCase("variant_diagnostics.camp", """
+			#build --nostdlib
+			#build --artifact none
+
+			export int main() => 0;
+			""");
+
+		ProcessResult unknown = RunCampc("build", temp, "--target", "msvc-windows-x64", "--variant", "foobar");
+		ProcessResult conflict = RunCampc("build", temp, "--target", "msvc-windows-x64", "--variant", "unicode", "ansi");
+
+		Assert.NotEqual(0, unknown.ExitCode);
+		Assert.Contains("Variant 'foobar' is not defined by target 'msvc-windows-x64'", unknown.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, conflict.ExitCode);
+		Assert.Contains("both belong to group 'charwidth'", conflict.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Target_owned_define_is_rejected_from_cli_and_warns_in_source()
+	{
+		string sourceDefine = CreateTempCase("variant_source_define.camp", """
+			#define UNICODE
+
+			export int main() => 0;
+			""");
+		string normal = CreateTempCase("variant_cli_define.camp", """
+			#build --nostdlib
+			#build --artifact none
+
+			export int main() => 0;
+			""");
+
+		ProcessResult cli = RunCampc("build", normal, "--target", "msvc-windows-x64", "--define", "UNICODE");
+		ProcessResult source = RunCampc("build", sourceDefine, "--target", "msvc-windows-x64", "--nostdlib", "--artifact", "none");
+
+		Assert.NotEqual(0, cli.ExitCode);
+		Assert.Contains("Define 'UNICODE' is owned by target", cli.StdErr, StringComparison.Ordinal);
+		Assert.Equal(0, source.ExitCode);
+		Assert.Contains("warning: Preprocessor symbol 'UNICODE' is owned by the selected target", source.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Project_reference_uses_root_variant_for_artifact_directory()
+	{
+		if (!MsvcAvailable())
+			Assert.Skip("MSVC variant project-reference smoke requires loaded MSVC tools.");
+
+		string root = TempPath("project-reference-variant");
+		string libraryRoot = Path.Combine(root, "sample-lib");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		Directory.CreateDirectory(librarySource);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			export int width()
+			{
+				#if UNICODE
+				return 2;
+				#else
+				return 1;
+				#endif
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
+			--nostdlib
+			--name sample-lib
+			--variant ansi
+			src/*.camp
+			""");
+
+		string app = CreateTempCase("project_reference_variant_app.camp", """
+			#build --nostdlib
+			#build --artifact none
+
+			export int main()
+			{
+				return width() - 2;
+			}
+			""");
+
+		string target = "msvc-windows-" + MsvcEnvironment.TargetArchitecture;
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			target,
+			"--variant",
+			"unicode",
+			"--project-reference",
+			libraryRoot,
+			"--build-dir",
+			TempPath("project-reference-variant-build"));
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "DEBUG", "sample-lib_api.camp")));
+		Assert.False(File.Exists(Path.Combine(libraryRoot, "bin", target + "_ansi", "DEBUG", "sample-lib_api.camp")));
 	}
 
 	[Fact]
@@ -1068,7 +1189,7 @@ public sealed class CommandLineTests
 
 		string buildDir = Path.Combine(root, "build");
 		string outDir = Path.Combine(root, "bin");
-		ProcessResult result = RunCampc("build", Path.Combine(root, "widgets.campbuild"), "--target", "clang-macos-x64", "--build-dir", buildDir, "--out-dir", outDir);
+		ProcessResult result = RunCampc("build", Path.Combine(root, "widgets.campbuild"), "--target", NativeTargetForHost(), "--build-dir", buildDir, "--out-dir", outDir);
 
 		AssertCommandSucceeded(result);
 		string privateHeader = File.ReadAllText(Path.Combine(buildDir, "widgets_private.h"));

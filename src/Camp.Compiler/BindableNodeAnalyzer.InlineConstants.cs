@@ -342,7 +342,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	BigInteger GetPointerSizeBytes()
 	{
-		return (selectedTarget?.Capabilities.GetPointerWidth(null, selectedMemoryModel, functionPointer: false) ?? 32) / 8;
+		return (selectedTarget?.Capabilities.GetPointerWidth(null, null, functionPointer: false) ?? 32) / 8;
 	}
 
 	bool TryResolveNamedConstantReference(NamedExpression named, BindableNode owner, out BindableNode? node)
