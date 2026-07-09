@@ -559,8 +559,11 @@ public static class CCodeEmitter
 		readonly HashSet<string> reservedCNames = [];
 		readonly Dictionary<BindableNode, string> currentAsyncFrameReplacements = [];
 		readonly Dictionary<string, string> currentAsyncFrameNameReplacements = new(StringComparer.Ordinal);
+		readonly Dictionary<string, string> currentWideStringLiteralNames = new(StringComparer.Ordinal);
+		readonly List<(string Name, string Initializer)> currentWideStringLiterals = [];
 		string? currentAsyncFrameName;
 		int currentAsyncLoopLabelIndex;
+		int currentWideStringLiteralIndex;
 		FunctionDefinition? currentFunction;
 		bool currentFunctionHasLabels;
 		readonly string sharedExportPrefix = options.BuildKind is NativeBuildKind.Shared
@@ -670,31 +673,35 @@ public static class CCodeEmitter
 		{
 			EnsureDelegateThunksCollected();
 			emittedNames.Clear();
+			currentWideStringLiteralNames.Clear();
+			currentWideStringLiterals.Clear();
+			currentWideStringLiteralIndex = 0;
 			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
 			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
 			List<AsyncFrameInfo> asyncFrames = GetAllFunctions(definitions).Select(TryBuildAsyncFrameInfo).Where(static frame => frame is not null).Cast<AsyncFrameInfo>().ToList();
+			using StringWriter body = new(writer.FormatProvider);
 			bool wrote = false;
 
 			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.IsInline && !IsExternallyVisible(variable)))
 			{
-				WriteInlineConstantMacro(writer, variable);
+				WriteInlineConstantMacro(body, variable);
 				wrote = true;
 			}
 			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.IsInline && !IsExternallyVisible(field)))
 			{
-				WriteInlineConstantMacro(writer, field);
+				WriteInlineConstantMacro(body, field);
 				wrote = true;
 			}
 
 			foreach (DelegateThunk thunk in delegateThunks)
 			{
-				WriteDelegateThunkDefinition(writer, thunk);
+				WriteDelegateThunkDefinition(body, thunk);
 				wrote = true;
 			}
 
 			foreach (AsyncFrameInfo frame in asyncFrames)
 			{
-				WriteAsyncFrameHelperDefinitions(writer, frame);
+				WriteAsyncFrameHelperDefinitions(body, frame);
 				wrote = true;
 			}
 
@@ -702,7 +709,7 @@ public static class CCodeEmitter
 			{
 				if (variable.Extern is not null || variable.IsInline)
 					continue;
-				WriteVariableDefinition(writer, variable, storage: IsExternallyVisible(variable) ? null : "static");
+				WriteVariableDefinition(body, variable, storage: IsExternallyVisible(variable) ? null : "static");
 				wrote = true;
 			}
 
@@ -710,7 +717,7 @@ public static class CCodeEmitter
 			{
 				if (field.Extern is not null || field.IsInline)
 					continue;
-				WriteFieldStorageDefinition(writer, field, storage: IsExternallyVisible(field) ? null : "static");
+				WriteFieldStorageDefinition(body, field, storage: IsExternallyVisible(field) ? null : "static");
 				wrote = true;
 			}
 
@@ -720,12 +727,19 @@ public static class CCodeEmitter
 					continue;
 				if (function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor)
 					continue;
-				WriteFunctionDefinition(writer, function, storage: PrivateFunctionStorage(function));
+				WriteFunctionDefinition(body, function, storage: PrivateFunctionStorage(function));
 				wrote = true;
 			}
 
+			foreach ((string name, string initializer) in currentWideStringLiterals)
+				writer.WriteLine("static const uint16_t " + name + "[] = {" + initializer + "};");
+			if (currentWideStringLiterals.Count > 0)
+				writer.WriteLine();
+
 			if (!wrote)
 				writer.WriteLine("/* No C definitions emitted for this file. */");
+			else
+				writer.Write(body.ToString());
 		}
 
 		public void WritePublicHeaderDeclarations(TextWriter writer, SourceFile file)
@@ -6077,7 +6091,7 @@ public static class CCodeEmitter
 			};
 		}
 
-		static string FormatLiteral(LiteralExpression literal)
+		string FormatLiteral(LiteralExpression literal)
 		{
 			if (literal.Kind == LiteralKind.String && IsWideStringLiteralType(literal.ResolvedType))
 				return FormatWideStringLiteral(literal);
@@ -6134,14 +6148,21 @@ public static class CCodeEmitter
 			return type is "wstring" or "wchar*" or "wchar[]";
 		}
 
-		static string FormatWideStringLiteral(LiteralExpression literal)
+		string FormatWideStringLiteral(LiteralExpression literal)
 		{
 			string text = literal.Value as string ?? "";
+			if (currentWideStringLiteralNames.TryGetValue(text, out string? existingName))
+				return existingName;
+
 			List<string> units = [];
 			for (int i = 0; i < text.Length; i++)
 				units.Add("0x" + ((int)text[i]).ToString("X4", CultureInfo.InvariantCulture));
 			units.Add("0");
-			return "((const uint16_t[]){" + string.Join(", ", units) + "})";
+			string name = "__camp_wstr_" + currentWideStringLiteralIndex.ToString(CultureInfo.InvariantCulture);
+			currentWideStringLiteralIndex++;
+			currentWideStringLiteralNames.Add(text, name);
+			currentWideStringLiterals.Add((name, string.Join(", ", units)));
+			return name;
 		}
 
 		static string FormatUpdateOperator(UpdateOperator op)

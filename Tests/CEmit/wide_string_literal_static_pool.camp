@@ -1,0 +1,16 @@
+struct Holder
+{
+	const wchar* text;
+}
+
+void assign(Holder* holder)
+{
+	holder.text = "Window";
+}
+
+export int main()
+{
+	Holder holder = {};
+	assign(&holder);
+	return holder.text == default ? 1 : 0;
+}
