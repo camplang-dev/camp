@@ -39,7 +39,6 @@ public sealed class CompilerRequest
 	public bool InferBuildKind { get; set; }
 	public MetadataVisibility? EmitMetadata { get; set; }
 	public string? OutDir { get; set; }
-	public string? BuildDir { get; set; }
 	public string? ProjectName { get; set; }
 	public string? SubsystemName { get; set; }
 	public bool NoStdLib { get; set; }
@@ -789,8 +788,8 @@ public static class CompilerDriver
 			if (request.BuildKind is NativeBuildKind.Exec or NativeBuildKind.WinExe && !TryPrepareExecEntryPoint(compilation, out execEntryPoint))
 				return 1;
 
-			string buildDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(request.BuildDir) ? CCodeEmitter.GetDefaultOutputDirectory(compilation.Files) : request.BuildDir, request.WorkingDirectory);
 			string outputDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(request.OutDir) ? CCodeEmitter.GetDefaultArtifactDirectory(compilation.Files) : request.OutDir, request.WorkingDirectory);
+			string buildDirectory = Path.Combine(outputDirectory, "build");
 			string projectName = string.IsNullOrWhiteSpace(request.ProjectName) ? CCodeEmitter.GetProjectName(compilation.Files) : request.ProjectName!;
 			CEmissionResult result = CCodeEmitter.Emit(compilation, new CEmissionOptions
 			{

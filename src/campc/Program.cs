@@ -24,7 +24,7 @@ return exitCode;
 
 static bool ContainsRemovedOption(string[] args)
 {
-	return args.Any(static arg => arg is "--inspect" or "--build" or "-b" or "--emit-metadata" or "--memory-model");
+	return args.Any(static arg => arg is "--inspect" or "--build" or "-b" or "--emit-metadata" or "--memory-model" or "--build-dir");
 }
 
 static RootCommand BuildCommandTree(CliEnvironment environment, string[] originalArgs)
@@ -165,7 +165,6 @@ static void AddBuildOptions(Command command, bool buildOnly)
 	command.Options.Add(new Option<string?>("--name") { Description = "Artifact/project name without extension." });
 	command.Options.Add(new Option<string?>("--subsystem") { Description = "Native subsystem, currently windows." });
 	command.Options.Add(new Option<string?>("--out-dir") { Description = "Directory for final artifacts." });
-	command.Options.Add(new Option<string?>("--build-dir") { Description = "Directory for generated C and intermediate files." });
 }
 
 static void AddPackageCommands(Command pkg, string[] originalArgs, CliEnvironment environment)
@@ -382,7 +381,7 @@ sealed class CampCli
 			errors.Add("At least one source file pattern is required.");
 
 		if (command == CommandKind.Dump && bag.HasBuildOnlyOptions)
-			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, --out-dir, or --build-dir.");
+			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, or --out-dir.");
 		if (bag.SubsystemName is not null && bag.SubsystemName != "windows")
 			errors.Add($"Subsystem '{bag.SubsystemName}' is not valid. Expected windows.");
 		if (bag.SubsystemName is not null && bag.ArtifactSpecified && bag.ArtifactKind is not NativeBuildKind.Exec)
@@ -409,7 +408,6 @@ sealed class CampCli
 			InferBuildKind = command == CommandKind.Build && !bag.ArtifactSpecified,
 			EmitMetadata = bag.MetadataVisibility,
 			OutDir = bag.OutDir,
-			BuildDir = bag.BuildDir,
 			ProjectName = bag.ProjectName,
 			SubsystemName = bag.SubsystemName,
 			NoStdLib = bag.NoStdLib,
@@ -460,7 +458,6 @@ sealed class CampCli
 			string projectDirectory = Path.GetDirectoryName(canonicalBuildFile)!;
 			string targetDirectory = TryGetTargetVariantDirectoryName(consumerRequest, environment, errors);
 			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", targetDirectory, consumerRequest.ProfileName);
-			string projectBuildDirectory = Path.Combine(projectOutputDirectory, "build");
 			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
 			projectArgs.AddRange(["--target", consumerRequest.TargetName]);
 			projectArgs.AddRange(["--profile", consumerRequest.ProfileName]);
@@ -468,7 +465,6 @@ sealed class CampCli
 				projectArgs.AddRange(["--variant", .. consumerRequest.Variants]);
 			projectArgs.AddRange(["--artifact", "static"]);
 			projectArgs.AddRange(["--out-dir", projectOutputDirectory]);
-			projectArgs.AddRange(["--build-dir", projectBuildDirectory]);
 
 			List<string> childStack = [.. projectReferenceStack, canonicalBuildFile];
 			if (!TryBuildRequest(projectArgs.ToArray(), environment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack))
@@ -980,7 +976,6 @@ sealed class BuildOptionBag
 	public string? ProfileName => Get("profile");
 	public string? EmitKind => Get("emit");
 	public string? OutDir => Get("out-dir");
-	public string? BuildDir => Get("build-dir");
 	public string? ProjectName => Get("name");
 	public string? SubsystemName => Get("subsystem");
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
@@ -991,7 +986,7 @@ sealed class BuildOptionBag
 		_ => null
 	};
 	public bool Xml => Get("xml") == "true";
-	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || Get("build-dir") is not null;
+	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null;
 
 	public void Apply(ParsedOptions options, Precedence precedence, string source, List<string> errors)
 	{
@@ -1171,7 +1166,8 @@ static class CommandLineOptionParser
 					AddSingle(result, "out-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--build-dir":
-					AddSingle(result, "build-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+					errors.Add("--build-dir has been removed. Build intermediates are written to the output artifact directory's build subdirectory.");
+					i += HasValue(tokens, i) ? 1 : 0;
 					break;
 				case "--include":
 				case "-i":

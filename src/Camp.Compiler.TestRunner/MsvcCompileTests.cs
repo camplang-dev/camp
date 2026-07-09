@@ -272,7 +272,6 @@ public sealed class MsvcCompileTests
 			WorkingDirectory = repositoryRoot,
 			TargetName = CompilerDefaults.TargetName,
 			BuildKind = kind,
-			BuildDir = Path.Combine(root, "build"),
 			OutDir = Path.Combine(root, "out")
 		};
 		request.Files.Add(source);

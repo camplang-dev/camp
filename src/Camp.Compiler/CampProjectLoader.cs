@@ -156,7 +156,7 @@ public static class CampProjectLoader
 		if (sourceFiles.Count == 0)
 			errors.Add("At least one source file pattern is required.");
 		if (command == CampProjectCommandKind.Dump && bag.HasBuildOnlyOptions)
-			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, --out-dir, or --build-dir.");
+			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, or --out-dir.");
 		if (bag.SubsystemName is not null && bag.SubsystemName != "windows")
 			errors.Add($"Subsystem '{bag.SubsystemName}' is not valid. Expected windows.");
 		if (bag.SubsystemName is not null && bag.ArtifactSpecified && bag.ArtifactKind is not NativeBuildKind.Exec)
@@ -174,7 +174,6 @@ public static class CampProjectLoader
 			InferBuildKind = command == CampProjectCommandKind.Build && !bag.ArtifactSpecified,
 			EmitMetadata = bag.MetadataVisibility,
 			OutDir = bag.OutDir,
-			BuildDir = bag.BuildDir,
 			ProjectName = bag.ProjectName,
 			SubsystemName = bag.SubsystemName,
 			NoStdLib = bag.NoStdLib,
@@ -422,7 +421,6 @@ sealed class CampBuildOptionBag
 	public string? ProfileName => Get("profile");
 	public string? EmitKind => Get("emit");
 	public string? OutDir => Get("out-dir");
-	public string? BuildDir => Get("build-dir");
 	public string? ProjectName => Get("name");
 	public string? SubsystemName => Get("subsystem");
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
@@ -433,7 +431,7 @@ sealed class CampBuildOptionBag
 		_ => null
 	};
 	public bool Xml => Get("xml") == "true";
-	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || Get("build-dir") is not null;
+	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null;
 
 	public void Apply(ParsedCampBuildOptions options, CampBuildOptionPrecedence precedence, string source, List<string> errors)
 	{
@@ -592,7 +590,8 @@ static class CampBuildOptionParser
 					AddSingle(result, "out-dir", CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--build-dir":
-					AddSingle(result, "build-dir", CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+					errors.Add("--build-dir has been removed. Build intermediates are written to the output artifact directory's build subdirectory.");
+					i += HasValue(tokens, i) ? 1 : 0;
 					break;
 				case "--include":
 				case "-i":

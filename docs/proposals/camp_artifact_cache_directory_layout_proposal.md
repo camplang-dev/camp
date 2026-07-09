@@ -611,12 +611,12 @@ Likely implementation areas:
 - ~~Preserve existing default-variant elision.~~
 - ~~Add unit tests for naming.~~
 
-### Stage 2: Remove `--build-dir`
+### ~~Stage 2: Remove `--build-dir`~~
 
-- Remove CLI parsing and request plumbing for `--build-dir`.
-- Compute build directory as `<artifact-dir>/build`.
-- Implement `--out-dir path/.` direct-output behavior.
-- Update command-line tests.
+- ~~Remove CLI parsing and request plumbing for `--build-dir`.~~
+- ~~Compute build directory as `<artifact-dir>/build`.~~
+- ~~Implement `--out-dir path/.` direct-output behavior.~~
+- ~~Update command-line tests.~~
 
 ### Stage 3: Root Project Output Layout
 

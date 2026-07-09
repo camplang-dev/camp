@@ -35,6 +35,16 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Build_dir_option_reports_migration_error()
+	{
+		ProcessResult result = RunCampc("build", "Tests/Lowering/default_arguments.camp", "--artifact", "none", "--build-dir", TempPath("removed-build-dir"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("--build-dir has been removed", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("output artifact directory's build subdirectory", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Help_command_prints_command_help()
 	{
 		ProcessResult root = RunCampc("--help");
@@ -68,7 +78,7 @@ public sealed class CommandLineTests
 			""");
 		string buildDir = TempPath("async-header-build");
 
-		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--build-dir", buildDir);
+		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", buildDir);
 
 		Assert.Equal(0, result.ExitCode);
 		string publicHeader = File.ReadAllText(Path.Combine(buildDir, "async_header.h"));
@@ -95,7 +105,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", temp, "--build-dir", TempPath("pragma-build"));
+		ProcessResult result = RunCampc("build", temp, "--out-dir", TempPath("pragma-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: pragma_none.c", result.StdOut, StringComparison.Ordinal);
@@ -156,12 +166,12 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult artifactNone = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--build-dir", TempPath("within-policy-none"));
-		ProcessResult explicitNone = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--explicit-within", "--build-dir", TempPath("within-policy-explicit-none"));
-		ProcessResult staticDefault = RunCampc("build", source, "--nostdlib", "--artifact", "static", "--build-dir", TempPath("within-policy-static"));
-		ProcessResult buildPragma = RunCampc("build", buildPragmaSource, "--nostdlib", "--artifact", "none", "--build-dir", TempPath("within-policy-build-pragma"));
-		ProcessResult fileImplicit = RunCampc("build", fileImplicitSource, "--nostdlib", "--artifact", "none", "--explicit-within", "--build-dir", TempPath("within-policy-file-implicit"));
-		ProcessResult fileExplicit = RunCampc("build", fileExplicitSource, "--nostdlib", "--artifact", "none", "--implicit-within", "--build-dir", TempPath("within-policy-file-explicit"));
+		ProcessResult artifactNone = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("within-policy-none"));
+		ProcessResult explicitNone = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--explicit-within", "--out-dir", TempPath("within-policy-explicit-none"));
+		ProcessResult staticDefault = RunCampc("build", source, "--nostdlib", "--artifact", "static", "--out-dir", TempPath("within-policy-static"));
+		ProcessResult buildPragma = RunCampc("build", buildPragmaSource, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("within-policy-build-pragma"));
+		ProcessResult fileImplicit = RunCampc("build", fileImplicitSource, "--nostdlib", "--artifact", "none", "--explicit-within", "--out-dir", TempPath("within-policy-file-implicit"));
+		ProcessResult fileExplicit = RunCampc("build", fileExplicitSource, "--nostdlib", "--artifact", "none", "--implicit-within", "--out-dir", TempPath("within-policy-file-explicit"));
 
 		AssertCommandSucceeded(artifactNone);
 		Assert.NotEqual(0, explicitNone.ExitCode);
@@ -195,7 +205,7 @@ public sealed class CommandLineTests
 			src/*.camp
 			""");
 
-		ProcessResult result = RunCampc("build", "@" + buildFile, "--build-dir", TempPath("response-file-build"));
+		ProcessResult result = RunCampc("build", "@" + buildFile, "--out-dir", TempPath("response-file-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
@@ -222,7 +232,7 @@ public sealed class CommandLineTests
 			"{source}"
 			""");
 
-		ProcessResult result = RunCampc("build", "@" + Path.Combine(root, "sample"), "--build-dir", TempPath("response-file-extension-build"));
+		ProcessResult result = RunCampc("build", "@" + Path.Combine(root, "sample"), "--out-dir", TempPath("response-file-extension-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
@@ -248,7 +258,7 @@ public sealed class CommandLineTests
 			src/*.camp
 			""");
 
-		ProcessResult result = RunCampc("build", buildFile, "--build-dir", TempPath("bare-campbuild-file-build"));
+		ProcessResult result = RunCampc("build", buildFile, "--out-dir", TempPath("bare-campbuild-file-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
@@ -274,7 +284,7 @@ public sealed class CommandLineTests
 			src/*.camp
 			""");
 
-		ProcessResult result = RunCampc("build", Path.Combine(root, "sample"), "--build-dir", TempPath("bare-campbuild-extensionless-build"));
+		ProcessResult result = RunCampc("build", Path.Combine(root, "sample"), "--out-dir", TempPath("bare-campbuild-extensionless-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
@@ -300,7 +310,7 @@ public sealed class CommandLineTests
 			src/*.camp
 			""");
 
-		ProcessResult result = RunCampc("run", buildFile, "--build-dir", TempPath("run-bare-campbuild-file-build"));
+		ProcessResult result = RunCampc("run", buildFile, "--out-dir", TempPath("run-bare-campbuild-file-build"));
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("run requires --artifact exec", result.StdErr, StringComparison.Ordinal);
@@ -327,7 +337,7 @@ public sealed class CommandLineTests
 			src/*.camp
 			""");
 
-		ProcessResult result = RunCampc("run", Path.Combine(root, "sample"), "--build-dir", TempPath("run-bare-campbuild-extensionless-build"));
+		ProcessResult result = RunCampc("run", Path.Combine(root, "sample"), "--out-dir", TempPath("run-bare-campbuild-extensionless-build"));
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("run requires --artifact exec", result.StdErr, StringComparison.Ordinal);
@@ -370,7 +380,7 @@ public sealed class CommandLineTests
 			"clang-macos-x64",
 			"--project-reference",
 			libraryRoot,
-			"--build-dir",
+			"--out-dir",
 			TempPath("project-reference-build"));
 
 		Assert.Equal(0, result.ExitCode);
@@ -491,7 +501,7 @@ public sealed class CommandLineTests
 			"unicode",
 			"--project-reference",
 			libraryRoot,
-			"--build-dir",
+			"--out-dir",
 			TempPath("project-reference-variant-build"));
 
 		Assert.Equal(0, result.ExitCode);
@@ -519,7 +529,6 @@ public sealed class CommandLineTests
 		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
 			--nostdlib
 			--name sample-lib
-			--build-dir build
 			--out-dir bin
 			src/*.camp
 			""");
@@ -544,8 +553,6 @@ public sealed class CommandLineTests
 			target,
 			"--project-reference",
 			libraryRoot,
-			"--build-dir",
-			Path.Combine(appRoot, "build"),
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
@@ -603,7 +610,7 @@ public sealed class CommandLineTests
 			app,
 			"--project-reference",
 			aRoot,
-			"--build-dir",
+			"--out-dir",
 			Path.Combine(appRoot, "obj"));
 
 		Assert.NotEqual(0, result.ExitCode);
@@ -667,8 +674,6 @@ public sealed class CommandLineTests
 			target,
 			"--project-reference",
 			bRoot,
-			"--build-dir",
-			buildDir,
 			"--out-dir",
 			outDir);
 
@@ -837,8 +842,6 @@ public sealed class CommandLineTests
 			target,
 			"--project-reference",
 			libraryRoot,
-			"--build-dir",
-			buildDir,
 			"--out-dir",
 			outDir);
 
@@ -924,8 +927,6 @@ public sealed class CommandLineTests
 			"static",
 			"--target",
 			"msvc-windows-x64",
-			"--build-dir",
-			TempPath("msvc-environment-missing-build"),
 			"--out-dir",
 			TempPath("msvc-environment-missing-out"));
 
@@ -956,8 +957,6 @@ public sealed class CommandLineTests
 			"static",
 			"--target",
 			"msvc-windows-x64",
-			"--build-dir",
-			TempPath("msvc-architecture-mismatch-build"),
 			"--out-dir",
 			TempPath("msvc-architecture-mismatch-out"));
 
@@ -1008,8 +1007,6 @@ public sealed class CommandLineTests
 			target,
 			"--project-reference",
 			libraryRoot,
-			"--build-dir",
-			Path.Combine(appRoot, "obj"),
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
@@ -1068,8 +1065,6 @@ public sealed class CommandLineTests
 			target,
 			"--project-reference",
 			libraryRoot,
-			"--build-dir",
-			Path.Combine(appRoot, "obj"),
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
@@ -1094,8 +1089,6 @@ public sealed class CommandLineTests
 			target,
 			"--project-reference",
 			libraryRoot,
-			"--build-dir",
-			Path.Combine(appRoot, "obj"),
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
@@ -1133,7 +1126,7 @@ public sealed class CommandLineTests
 			""");
 		string buildDir = TempPath("virtual-out-of-order-build");
 
-		ProcessResult result = RunCampc("build", derived, baseFile, "--artifact", "none", "--build-dir", buildDir);
+		ProcessResult result = RunCampc("build", derived, baseFile, "--artifact", "none", "--out-dir", buildDir);
 
 		Assert.Equal(0, result.ExitCode);
 		string privateHeader = Directory.GetFiles(buildDir, "*_private.h").Single();
@@ -1193,14 +1186,13 @@ public sealed class CommandLineTests
 			src/*.camp
 			""");
 
-		string buildDir = Path.Combine(root, "build");
 		string outDir = Path.Combine(root, "bin");
-		ProcessResult result = RunCampc("build", Path.Combine(root, "widgets.campbuild"), "--target", NativeTargetForHost(), "--build-dir", buildDir, "--out-dir", outDir);
+		ProcessResult result = RunCampc("build", Path.Combine(root, "widgets.campbuild"), "--target", NativeTargetForHost(), "--out-dir", outDir);
 
 		AssertCommandSucceeded(result);
-		string privateHeader = File.ReadAllText(Path.Combine(buildDir, "widgets_private.h"));
+		string privateHeader = File.ReadAllText(Path.Combine(outDir, "build", "widgets_private.h"));
 		Assert.Contains("void Control__op_delete(Component *ctx);", privateHeader, StringComparison.Ordinal);
-		string buttonC = File.ReadAllText(Path.Combine(buildDir, "button.c"));
+		string buttonC = File.ReadAllText(Path.Combine(outDir, "build", "button.c"));
 		Assert.Contains(".op_delete = Control__op_delete", buttonC, StringComparison.Ordinal);
 		string api = File.ReadAllText(Path.Combine(outDir, "widgets_api.camp"));
 		Assert.Contains("export extern ~Component();", api, StringComparison.Ordinal);
@@ -1259,7 +1251,7 @@ public sealed class CommandLineTests
 			"clang-macos-x64",
 			"--project-reference",
 			libraryRoot,
-			"--build-dir",
+			"--out-dir",
 			TempPath("project-reference-virtual-api-build"));
 
 		Assert.Equal(0, result.ExitCode);
@@ -1302,7 +1294,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult first = RunCampc("build", app, "--build-dir", TempPath("live-use-source-build-1"));
+		ProcessResult first = RunCampc("build", app, "--out-dir", TempPath("live-use-source-build-1"));
 
 		Assert.Equal(0, first.ExitCode);
 		Assert.Contains("generated: live_use_source_app.c", first.StdOut, StringComparison.Ordinal);
@@ -1326,7 +1318,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult second = RunCampc("build", app, "--build-dir", TempPath("live-use-source-build-2"));
+		ProcessResult second = RunCampc("build", app, "--out-dir", TempPath("live-use-source-build-2"));
 
 		Assert.Equal(0, second.ExitCode);
 		Assert.Contains("generated: live_use_source_app.c", second.StdOut, StringComparison.Ordinal);
@@ -1397,7 +1389,7 @@ public sealed class CommandLineTests
 			src/**/*.camp
 			""");
 
-		ProcessResult result = RunCampc("build", "@" + buildFile, "--build-dir", TempPath("recursive-glob-root-build"));
+		ProcessResult result = RunCampc("build", "@" + buildFile, "--out-dir", TempPath("recursive-glob-root-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
@@ -1419,7 +1411,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "-i", api, "--build-dir", TempPath("include-pragma-build"));
+		ProcessResult result = RunCampc("build", source, "-i", api, "--out-dir", TempPath("include-pragma-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: include_pragmas_main.c", result.StdOut, StringComparison.Ordinal);
@@ -1475,7 +1467,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--target", NativeTargetForHost(), "--build-dir", TempPath("discovered-include-pragma-build"), "--out-dir", TempPath("discovered-include-pragma-out"));
+		ProcessResult result = RunCampc("build", source, "--target", NativeTargetForHost(), "--out-dir", TempPath("discovered-include-pragma-out"));
 		string output = result.StdOut + result.StdErr;
 
 		Assert.NotEqual(0, result.ExitCode);
@@ -1536,7 +1528,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", temp, "-r", "missing-one.a", "missing-two.a", "--target", NativeTargetForHost(), "--build-dir", TempPath("reference-build"), "--out-dir", TempPath("reference-out"));
+		ProcessResult result = RunCampc("build", temp, "-r", "missing-one.a", "missing-two.a", "--target", NativeTargetForHost(), "--out-dir", TempPath("reference-out"));
 		string output = result.StdOut + result.StdErr;
 
 		Assert.NotEqual(0, result.ExitCode);
@@ -1559,7 +1551,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", temp, "-f", "MissingOne", "MissingTwo", "--target", "clang-macos-x64", "--build-dir", TempPath("framework-build"), "--out-dir", TempPath("framework-out"));
+		ProcessResult result = RunCampc("build", temp, "-f", "MissingOne", "MissingTwo", "--target", "clang-macos-x64", "--out-dir", TempPath("framework-out"));
 		string output = result.StdOut + result.StdErr;
 
 		Assert.NotEqual(0, result.ExitCode);
@@ -1583,7 +1575,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", temp, "--target", "clang-macos-x64", "--build-dir", TempPath("framework-pragma-build"), "--out-dir", TempPath("framework-pragma-out"));
+		ProcessResult result = RunCampc("build", temp, "--target", "clang-macos-x64", "--out-dir", TempPath("framework-pragma-out"));
 		string output = result.StdOut + result.StdErr;
 
 		Assert.NotEqual(0, result.ExitCode);
@@ -1664,7 +1656,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", temp, "--target", NativeTargetForHost(), "--build-dir", TempPath("reference-pragma-build"), "--out-dir", TempPath("reference-pragma-out"));
+		ProcessResult result = RunCampc("build", temp, "--target", NativeTargetForHost(), "--out-dir", TempPath("reference-pragma-out"));
 		string output = result.StdOut + result.StdErr;
 
 		Assert.NotEqual(0, result.ExitCode);
@@ -1710,7 +1702,7 @@ public sealed class CommandLineTests
 			""");
 		string outDir = TempPath("gcc-linux-x64-out");
 
-		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x64", "--build-dir", TempPath("gcc-linux-x64-build"), "--out-dir", outDir);
+		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x64", "--out-dir", outDir);
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("generated: gcc-linux-x64-smoke", result.StdOut, StringComparison.Ordinal);
@@ -1738,7 +1730,7 @@ public sealed class CommandLineTests
 			""");
 		string outDir = TempPath("gcc-linux-x86-out");
 
-		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x86", "--build-dir", TempPath("gcc-linux-x86-build"), "--out-dir", outDir);
+		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x86", "--out-dir", outDir);
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("generated: gcc-linux-x86-smoke", result.StdOut, StringComparison.Ordinal);

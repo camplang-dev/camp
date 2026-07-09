@@ -61,9 +61,9 @@ public static class GoldenFileTestRunner
 	{
 		if (testCase.Kind is GoldenFileTestKind.CEmit or GoldenFileTestKind.CCompile or GoldenFileTestKind.StdRun or GoldenFileTestKind.Metadata)
 		{
-			string buildDirectory = GetBuildDirectory(testCase);
-			if (Directory.Exists(buildDirectory))
-				Directory.Delete(buildDirectory, recursive: true);
+			string outputDirectory = GetOutputDirectory(testCase);
+			if (Directory.Exists(outputDirectory))
+				Directory.Delete(outputDirectory, recursive: true);
 		}
 
 		CompilerRequest request = new()
@@ -75,8 +75,7 @@ public static class GoldenFileTestRunner
 			WorkingDirectory = testCase.RepositoryRoot,
 			TargetName = SelectTargetName(testCase.Kind),
 			NoStdLib = testCase.Kind is not (GoldenFileTestKind.Std or GoldenFileTestKind.StdRun),
-			BuildDir = GetBuildDirectory(testCase),
-			OutDir = testCase.Kind is GoldenFileTestKind.StdRun or GoldenFileTestKind.Metadata ? Path.Combine(GetBuildDirectory(testCase), "out") : null,
+			OutDir = testCase.Kind is GoldenFileTestKind.CEmit or GoldenFileTestKind.CCompile or GoldenFileTestKind.StdRun or GoldenFileTestKind.Metadata ? GetOutputDirectory(testCase) : null,
 			BuildKind = testCase.Kind == GoldenFileTestKind.StdRun ? NativeBuildKind.Exec : null,
 			Inspect = testCase.Kind switch
 			{
@@ -129,7 +128,7 @@ public static class GoldenFileTestRunner
 			if (option.Equals("build shared", StringComparison.OrdinalIgnoreCase))
 			{
 				request.BuildKind = NativeBuildKind.Shared;
-				request.OutDir = Path.Combine(GetBuildDirectory(testCase), "out");
+				request.OutDir = GetOutputDirectory(testCase);
 			}
 			else if (option.StartsWith("emit-metadata ", StringComparison.OrdinalIgnoreCase)
 				&& Enum.TryParse(option["emit-metadata ".Length..], ignoreCase: true, out MetadataVisibility visibility))
@@ -224,7 +223,7 @@ public static class GoldenFileTestRunner
 			return builder.ToString();
 		}
 
-		string objectDirectory = Path.Combine(GetBuildDirectory(testCase), "obj");
+		string objectDirectory = Path.Combine(GetOutputDirectory(testCase), "obj");
 		Directory.CreateDirectory(objectDirectory);
 		foreach (string sourceFile in sourceFiles)
 		{
@@ -310,7 +309,7 @@ public static class GoldenFileTestRunner
 
 	static string ReadGeneratedFiles(GoldenFileTestCase testCase)
 	{
-		string buildDirectory = GetBuildDirectory(testCase);
+		string buildDirectory = GetGeneratedBuildDirectory(testCase);
 		if (!Directory.Exists(buildDirectory))
 			return "";
 		StringBuilder builder = new();
@@ -326,7 +325,7 @@ public static class GoldenFileTestRunner
 		return builder.ToString();
 	}
 
-	static string GetBuildDirectory(GoldenFileTestCase testCase)
+	static string GetOutputDirectory(GoldenFileTestCase testCase)
 	{
 		string caseName = Path.GetFileNameWithoutExtension(testCase.CasePath);
 		string folder = testCase.Kind switch
@@ -337,6 +336,11 @@ public static class GoldenFileTestRunner
 			_ => "golden-cemit"
 		};
 		return Path.Combine(testCase.RepositoryRoot, "tmp", folder, caseName);
+	}
+
+	static string GetGeneratedBuildDirectory(GoldenFileTestCase testCase)
+	{
+		return Path.Combine(GetOutputDirectory(testCase), "build");
 	}
 
 	static string GetPackageArtifactRoot(GoldenFileTestCase testCase)
