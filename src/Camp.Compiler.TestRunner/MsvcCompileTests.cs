@@ -159,7 +159,7 @@ public sealed class MsvcCompileTests
 		CompilerResult sharedResult = Compile(source, NativeBuildKind.Shared, "library-shared");
 		AssertSuccess(sharedResult);
 		Assert.EndsWith(".dll", FindArtifact(sharedResult, ".dll"), StringComparison.OrdinalIgnoreCase);
-		string header = File.ReadAllText(Path.Combine(GetCaseRoot("library-shared"), "build", "library.h"));
+		string header = File.ReadAllText(FindGeneratedFile(sharedResult, "library.h"));
 		Assert.Contains("__declspec(dllexport) int32_t add", header, StringComparison.Ordinal);
 		Assert.DoesNotContain("__declspec(dllexport) int32_t helper", header, StringComparison.Ordinal);
 	}
@@ -186,7 +186,7 @@ public sealed class MsvcCompileTests
 
 		CompilerResult result = Compile(source, NativeBuildKind.Shared);
 		AssertSuccess(result);
-		string privateHeader = File.ReadAllText(Path.Combine(GetCaseRoot("callspec"), "build", "callspec_private.h"));
+		string privateHeader = File.ReadAllText(FindGeneratedFile(result, "callspec_private.h"));
 		Assert.Contains("typedef int32_t (__stdcall * Callback)(int32_t value);", privateHeader, StringComparison.Ordinal);
 		Assert.Contains("int32_t __stdcall exportedCall", privateHeader, StringComparison.Ordinal);
 	}
@@ -297,6 +297,13 @@ public sealed class MsvcCompileTests
 		string? artifact = result.GeneratedFiles.FirstOrDefault(path => Path.GetExtension(path).Equals(extension, StringComparison.OrdinalIgnoreCase));
 		Assert.False(string.IsNullOrWhiteSpace(artifact), "Expected generated artifact with extension " + extension + ".");
 		return artifact!;
+	}
+
+	static string FindGeneratedFile(CompilerResult result, string fileName)
+	{
+		string? generated = result.GeneratedFiles.FirstOrDefault(path => Path.GetFileName(path).Equals(fileName, StringComparison.OrdinalIgnoreCase));
+		Assert.False(string.IsNullOrWhiteSpace(generated), "Expected generated file " + fileName + ".");
+		return generated!;
 	}
 
 	static string FindGeneratedPackageSource(string fileName)

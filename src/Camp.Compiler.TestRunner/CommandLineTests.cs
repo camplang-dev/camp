@@ -81,8 +81,9 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", buildDir);
 
 		Assert.Equal(0, result.ExitCode);
-		string publicHeader = File.ReadAllText(Path.Combine(buildDir, "async_header.h"));
-		string privateHeader = File.ReadAllText(Path.Combine(buildDir, "async_header_private.h"));
+		string artifactDirectory = Path.Combine(buildDir, ArtifactDirectoryForHost(null));
+		string publicHeader = File.ReadAllText(Path.Combine(artifactDirectory, "build", "async_header.h"));
+		string privateHeader = File.ReadAllText(Path.Combine(artifactDirectory, "build", "async_header_private.h"));
 		Assert.Contains("void loadAsync(void (* complete)(void *context, ", publicHeader, StringComparison.Ordinal);
 		Assert.Contains(" result, ", publicHeader, StringComparison.Ordinal);
 		Assert.Contains(" error), void *complete_context);", publicHeader, StringComparison.Ordinal);
@@ -757,7 +758,6 @@ public sealed class CommandLineTests
 			""");
 		string target = NativeTargetForHost();
 		string outDir = Path.Combine(appRoot, "bin");
-		string buildDir = Path.Combine(appRoot, "obj");
 
 		ProcessResult result = RunCampc(
 			"build",
@@ -774,7 +774,7 @@ public sealed class CommandLineTests
 		Assert.Contains($"{aRoot}: generated: a", result.StdOut, StringComparison.Ordinal);
 		Assert.True(File.Exists(Path.Combine(aRoot, "bin", target, "DEBUG", "a_api.camp")));
 		Assert.True(File.Exists(Path.Combine(bRoot, "bin", target, "DEBUG", "b_api.camp")));
-		ProcessResult run = RunExecutable(Path.Combine(outDir, "transitive-app" + ExecutableExtensionForHost()));
+		ProcessResult run = RunExecutable(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "transitive-app" + ExecutableExtensionForHost()));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);
 	}
@@ -922,9 +922,8 @@ public sealed class CommandLineTests
 				total += readGeneric<Counter>(counter);
 				return total == 5 ? 0 : total;
 			}
-			""");
+		""");
 		string outDir = Path.Combine(appRoot, "bin");
-		string buildDir = Path.Combine(appRoot, "obj");
 		string target = NativeTargetForHost();
 
 		ProcessResult result = RunCampc(
@@ -946,10 +945,10 @@ public sealed class CommandLineTests
 		Assert.Contains("export extern class NativeDerived : NativeCounter", api, StringComparison.Ordinal);
 		Assert.Contains("export struct StructCounter", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("export struct StructCounter : IValue", api, StringComparison.Ordinal);
-		string cApi = File.ReadAllText(Path.Combine(buildDir, "interfaces_api.h"));
+		string cApi = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "build", "interfaces_api.h"));
 		Assert.Contains("extern const IValue *Counter_IValue;", cApi, StringComparison.Ordinal);
 		Assert.DoesNotContain("StructCounter_IValue", cApi, StringComparison.Ordinal);
-		ProcessResult run = RunExecutable(Path.Combine(outDir, "interface-app" + ExecutableExtensionForHost()));
+		ProcessResult run = RunExecutable(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "interface-app" + ExecutableExtensionForHost()));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);
 	}
@@ -1106,8 +1105,8 @@ public sealed class CommandLineTests
 		Assert.Contains("generated: sample-app.exe", result.StdOut, StringComparison.Ordinal);
 		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "DEBUG", "sample-lib.lib")));
 		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "DEBUG", "sample-lib_api.camp")));
-		Assert.True(File.Exists(Path.Combine(appRoot, "obj", "sample_lib_api.h")));
-		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", "sample-app.exe"));
+		Assert.True(File.Exists(Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "build", "sample_lib_api.h")));
+		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "sample-app.exe"));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);
 	}
@@ -1148,7 +1147,7 @@ public sealed class CommandLineTests
 			""");
 		string target = NativeTargetForHost();
 		string libraryPath = Path.Combine(libraryRoot, "bin", target, "DEBUG", "sample-lib.lib");
-		string executablePath = Path.Combine(appRoot, "bin", "sample-app.exe");
+		string executablePath = Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "sample-app.exe");
 
 		ProcessResult firstBuild = RunCampc(
 			"build",
@@ -1221,7 +1220,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", derived, baseFile, "--artifact", "none", "--out-dir", buildDir);
 
 		Assert.Equal(0, result.ExitCode);
-		string privateHeader = Directory.GetFiles(buildDir, "*_private.h").Single();
+		string privateHeader = Directory.GetFiles(Path.Combine(buildDir, ArtifactDirectoryForHost(null), "build"), "*_private.h").Single();
 		string header = File.ReadAllText(privateHeader);
 		Assert.Contains("_Base *_vt;", header, StringComparison.Ordinal);
 		Assert.DoesNotContain("_Derived *_vt;", header, StringComparison.Ordinal);
@@ -1529,7 +1528,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", temp, "--artifact", "none", "--metadata", "export", "--out-dir", outDir, "--name", "metadata_std_filter");
 
 		Assert.Equal(0, result.ExitCode);
-		string metadataPath = Path.Combine(outDir, "metadata_std_filter_api.json");
+		string metadataPath = Path.Combine(outDir, ArtifactDirectoryForHost(null), "metadata_std_filter_api.json");
 		using JsonDocument metadata = JsonDocument.Parse(File.ReadAllText(metadataPath));
 		string[] declarationNames = metadata.RootElement.GetProperty("declarations")
 			.EnumerateArray()
@@ -1799,7 +1798,7 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("generated: gcc-linux-x64-smoke", result.StdOut, StringComparison.Ordinal);
-		ProcessResult run = RunExecutable(Path.Combine(outDir, "gcc-linux-x64-smoke"));
+		ProcessResult run = RunExecutable(Path.Combine(outDir, ArtifactDirectoryForTarget("gcc-linux-x64", NativeBuildKind.Exec), "gcc-linux-x64-smoke"));
 		Assert.Equal(0, run.ExitCode);
 	}
 
@@ -1827,7 +1826,7 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("generated: gcc-linux-x86-smoke", result.StdOut, StringComparison.Ordinal);
-		ProcessResult run = RunExecutable(Path.Combine(outDir, "gcc-linux-x86-smoke"));
+		ProcessResult run = RunExecutable(Path.Combine(outDir, ArtifactDirectoryForTarget("gcc-linux-x86", NativeBuildKind.Exec), "gcc-linux-x86-smoke"));
 		Assert.Equal(0, run.ExitCode);
 	}
 
@@ -1943,8 +1942,13 @@ public sealed class CommandLineTests
 
 	static string ArtifactDirectoryForHost(NativeBuildKind? buildKind)
 	{
+		return ArtifactDirectoryForTarget(NativeTargetForHost(), buildKind);
+	}
+
+	static string ArtifactDirectoryForTarget(string targetName, NativeBuildKind? buildKind)
+	{
 		Assert.True(TargetCatalog.TryLoad(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
-		Assert.True(catalog!.TryGetTarget(NativeTargetForHost(), out TargetDefinition? target));
+		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
 		return BuildArtifactLayout.GetArtifactDirectoryName(target!, buildKind, "DEBUG");
 	}
 
