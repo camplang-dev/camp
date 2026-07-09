@@ -193,13 +193,15 @@ public static class CampProjectLoader
 		result.Diagnostics.AddRange(errors);
 		foreach (string projectReference in bag.ProjectReferences)
 		{
-			(string referencePath, _) = ParseProjectReferenceSpec(projectReference);
+			(string referencePath, DependencyLinkKind? linkKind) = ParseProjectReferenceSpec(projectReference);
 			if (TryResolveProjectReference(referencePath, environment.WorkingDirectory, out string? resolved, out string? error))
 			{
 				result.ProjectReferences.Add(resolved!);
-				if (TryFindProjectReferenceApiHeader(resolved!, request, environment.WorkingDirectory, out string? apiHeader))
+				if (TryFindProjectReferenceApiHeader(resolved!, request, environment.WorkingDirectory, linkKind.GetValueOrDefault(DependencyLinkKind.Shared), out string? apiHeader))
 				{
 					result.ProjectReferenceApiHeaders.Add(apiHeader!);
+					if (linkKind.GetValueOrDefault(DependencyLinkKind.Shared) == DependencyLinkKind.Shared)
+						request.SharedLibraryApiHeaders.Add(apiHeader!);
 					if (command == CampProjectCommandKind.LanguageService)
 						AddUnique(request.IncludeFiles, apiHeader!);
 				}
@@ -282,7 +284,7 @@ public static class CampProjectLoader
 			destination.Add(value);
 	}
 
-	static (string Path, DependencyLinkKind? LinkKind) ParseProjectReferenceSpec(string value)
+	static (string Path, DependencyLinkKind? LinkKind) ParseProjectReferenceSpec(string value, List<string>? errors = null)
 	{
 		int colon = value.LastIndexOf(':');
 		if (colon >= 0)
@@ -290,17 +292,28 @@ public static class CampProjectLoader
 			string suffix = value[(colon + 1)..];
 			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
 				return (value[..colon], suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static);
+			if (LooksLikeProjectReferenceKindSuffix(value, colon))
+				errors?.Add($"Project reference dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
 		}
 		return (value, null);
 	}
 
-	static bool TryFindProjectReferenceApiHeader(string buildFile, CompilerRequest consumerRequest, string workingDirectory, out string? apiHeader)
+	static bool LooksLikeProjectReferenceKindSuffix(string value, int colon)
+	{
+		if (colon == 1 && char.IsAsciiLetter(value[0]))
+			return false;
+		string suffix = value[(colon + 1)..];
+		return suffix.Length > 0 && suffix.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '/', '\\']) < 0;
+	}
+
+	static bool TryFindProjectReferenceApiHeader(string buildFile, CompilerRequest consumerRequest, string workingDirectory, DependencyLinkKind linkKind, out string? apiHeader)
 	{
 		apiHeader = null;
 		string projectDirectory = Path.GetDirectoryName(Path.GetFullPath(buildFile)) ?? workingDirectory;
 		string projectName = GetProjectReferenceName(buildFile, workingDirectory) ?? Path.GetFileNameWithoutExtension(buildFile);
 		string profileName = string.IsNullOrWhiteSpace(consumerRequest.ProfileName) ? "DEBUG" : consumerRequest.ProfileName.ToUpperInvariant();
-		string expected = Path.Combine(projectDirectory, "bin", GetArtifactDirectoryName(consumerRequest, NativeBuildKind.Static, profileName), projectName + "_api.camp");
+		NativeBuildKind buildKind = linkKind == DependencyLinkKind.Shared ? NativeBuildKind.Shared : NativeBuildKind.Static;
+		string expected = Path.Combine(projectDirectory, "bin", GetArtifactDirectoryName(consumerRequest, buildKind, profileName), projectName + "_api.camp");
 		if (File.Exists(expected))
 		{
 			apiHeader = expected;
@@ -324,7 +337,7 @@ public static class CampProjectLoader
 		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
 		string targetsDirectory = Path.GetFullPath(Path.Combine(request.RuntimeRoot, "..", "targets"));
 		if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out _) || !catalog!.TryGetTarget(targetName, out TargetDefinition? target))
-			return buildKind is NativeBuildKind.Static ? targetName + "_static_" + profileName : targetName + "_" + profileName;
+			return FallbackArtifactDirectoryName(targetName, buildKind, profileName);
 		try
 		{
 			TargetVariantSelection selection = target!.ResolveVariantSelection(request.Variants);
@@ -332,8 +345,18 @@ public static class CampProjectLoader
 		}
 		catch (InvalidDataException)
 		{
-			return buildKind is NativeBuildKind.Static ? targetName + "_static_" + profileName : targetName + "_" + profileName;
+			return FallbackArtifactDirectoryName(targetName, buildKind, profileName);
 		}
+	}
+
+	static string FallbackArtifactDirectoryName(string targetName, NativeBuildKind? buildKind, string profileName)
+	{
+		return buildKind switch
+		{
+			NativeBuildKind.Static => targetName + "_static_" + profileName,
+			NativeBuildKind.Shared => targetName + "_shared_" + profileName,
+			_ => targetName + "_" + profileName
+		};
 	}
 
 	static string? GetProjectReferenceName(string buildFile, string workingDirectory)
@@ -650,10 +673,12 @@ static class CampBuildOptionParser
 					break;
 				case "--use":
 				case "-u":
-					result.UsePackages.Add(CampPackageSpec.Parse(RequiredValue(tokens, ref i, token, errors)));
+					result.UsePackages.Add(CampPackageSpec.Parse(RequiredValue(tokens, ref i, token, errors), errors));
 					break;
 				case "--project-reference":
-					result.ProjectReferences.Add(CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+					string projectReference = CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors));
+					ParseProjectReferenceSpec(projectReference, errors);
+					result.ProjectReferences.Add(projectReference);
 					break;
 				case "--use-source":
 					string name = RequiredValue(tokens, ref i, token, errors);
@@ -702,19 +727,39 @@ static class CampBuildOptionParser
 		return values;
 	}
 
-	static string RequiredValue(IReadOnlyList<string> tokens, ref int index, string option, List<string> errors)
-	{
-		if (index + 1 >= tokens.Count || tokens[index + 1].StartsWith("-", StringComparison.Ordinal))
+		static string RequiredValue(IReadOnlyList<string> tokens, ref int index, string option, List<string> errors)
 		{
-			errors.Add($"{option} requires a value.");
+			if (index + 1 >= tokens.Count || tokens[index + 1].StartsWith("-", StringComparison.Ordinal))
+			{
+				errors.Add($"{option} requires a value.");
 			return "";
+			}
+			return tokens[++index];
 		}
-		return tokens[++index];
-	}
 
-	static NativeBuildKind? InvalidArtifact(string message, List<string> errors)
-	{
-		errors.Add(message);
+		static void ParseProjectReferenceSpec(string value, List<string> errors)
+		{
+			int colon = value.LastIndexOf(':');
+			if (colon < 0)
+				return;
+			string suffix = value[(colon + 1)..];
+			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+				return;
+			if (LooksLikeDependencyKindSuffix(value, colon))
+				errors.Add($"Project reference dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
+		}
+
+		static bool LooksLikeDependencyKindSuffix(string value, int colon)
+		{
+			if (colon == 1 && char.IsAsciiLetter(value[0]))
+				return false;
+			string suffix = value[(colon + 1)..];
+			return suffix.Length > 0 && suffix.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '/', '\\']) < 0;
+		}
+
+		static NativeBuildKind? InvalidArtifact(string message, List<string> errors)
+		{
+			errors.Add(message);
 		return null;
 	}
 }
@@ -967,7 +1012,7 @@ public static class CampResponseFileExpander
 		return linkKind is null ? rebased : rebased + ":" + linkKind.ToString()!.ToLowerInvariant();
 	}
 
-	static (string Path, DependencyLinkKind? LinkKind) ParseProjectReferenceSpec(string value)
+	static (string Path, DependencyLinkKind? LinkKind) ParseProjectReferenceSpec(string value, List<string>? errors = null)
 	{
 		int colon = value.LastIndexOf(':');
 		if (colon >= 0)
@@ -975,8 +1020,18 @@ public static class CampResponseFileExpander
 			string suffix = value[(colon + 1)..];
 			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
 				return (value[..colon], suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static);
+			if (LooksLikeDependencyKindSuffix(value, colon))
+				errors?.Add($"Project reference dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
 		}
 		return (value, null);
+	}
+
+	static bool LooksLikeDependencyKindSuffix(string value, int colon)
+	{
+		if (colon == 1 && char.IsAsciiLetter(value[0]))
+			return false;
+		string suffix = value[(colon + 1)..];
+		return suffix.Length > 0 && suffix.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '/', '\\']) < 0;
 	}
 
 	static bool IsDirectOutputPath(string value)
@@ -1043,7 +1098,7 @@ public sealed record CampPackageSourceSpec(string Name, string? Path);
 
 public sealed record CampPackageSpec(string Name, string? Version, DependencyLinkKind? LinkKind = null)
 {
-	public static CampPackageSpec Parse(string value)
+	public static CampPackageSpec Parse(string value, List<string>? errors = null)
 	{
 		DependencyLinkKind? linkKind = null;
 		int colon = value.LastIndexOf(':');
@@ -1054,6 +1109,10 @@ public sealed record CampPackageSpec(string Name, string? Version, DependencyLin
 			{
 				linkKind = suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static;
 				value = value[..colon];
+			}
+			else if (!string.IsNullOrWhiteSpace(suffix))
+			{
+				errors?.Add($"Package dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
 			}
 		}
 		string[] parts = value.Split('@', 2);

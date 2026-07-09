@@ -130,6 +130,61 @@ public sealed class ProjectLoaderTests
 	}
 
 	[Fact]
+	public void Project_loader_finds_shared_project_reference_api_header()
+	{
+		string root = CreateTempDirectory("project-loader-shared-ref-api");
+		string library = Path.Combine(root, "lib");
+		string app = Path.Combine(root, "app");
+		Directory.CreateDirectory(library);
+		Directory.CreateDirectory(app);
+		File.WriteAllText(Path.Combine(library, "lib.camp"), "export void helper() {}");
+		string libraryBuild = Path.Combine(library, "lib.campbuild");
+		File.WriteAllText(libraryBuild, """
+			--nostdlib
+			--name lib
+			lib.camp
+			""");
+		string sharedApiDirectory = Path.Combine(library, "bin", "clang-macos-x64_shared_DEBUG");
+		Directory.CreateDirectory(sharedApiDirectory);
+		string sharedApi = Path.Combine(sharedApiDirectory, "lib_api.camp");
+		File.WriteAllText(sharedApi, "export extern void helper();");
+		File.WriteAllText(Path.Combine(app, "main.camp"), "export void main() {}");
+		string appBuild = Path.Combine(app, "app.campbuild");
+		File.WriteAllText(appBuild, """
+			--nostdlib
+			--target clang-macos-x64
+			--project-reference ../lib
+			main.camp
+			""");
+
+		CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(appBuild, CreateEnvironment(app), CampProjectCommandKind.LanguageService);
+
+		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+		Assert.Equal(Path.GetFullPath(sharedApi), Assert.Single(result.ProjectReferenceApiHeaders));
+		Assert.Equal(Path.GetFullPath(sharedApi), Assert.Single(result.Request.SharedLibraryApiHeaders));
+	}
+
+	[Fact]
+	public void Project_loader_reports_malformed_dependency_kind_suffixes()
+	{
+		string root = CreateTempDirectory("project-loader-bad-dependency-kind");
+		File.WriteAllText(Path.Combine(root, "main.camp"), "export void main() {}");
+
+		CampProjectLoadResult result = CampProjectLoader.Load([
+			"--nostdlib",
+			"--use",
+			"demo@1.2.3:dynamic",
+			"--project-reference",
+			"lib:dynamic",
+			"main.camp"
+		], CreateEnvironment(root));
+
+		Assert.False(result.Success);
+		Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("Package dependency kind ':dynamic' is not valid. Expected :static or :shared.", StringComparison.Ordinal));
+		Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("Project reference dependency kind ':dynamic' is not valid. Expected :static or :shared.", StringComparison.Ordinal));
+	}
+
+	[Fact]
 	public void Project_loader_reports_missing_project_reference()
 	{
 		string root = CreateTempDirectory("project-loader-missing-ref");

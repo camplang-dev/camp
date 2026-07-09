@@ -101,10 +101,10 @@ public static class CampLanguageService
 
 	static void AddAnalysisPackageIncludes(CompilerRequest request, List<(string Path, bool IsApiHeader)> includes, string packageSpec)
 	{
-		(string packageName, string? requestedVersion) = ParsePackageSpec(packageSpec);
+		(string packageName, string? requestedVersion, DependencyLinkKind? linkKind) = ParsePackageSpec(packageSpec);
 		if (string.IsNullOrWhiteSpace(packageName) || string.Equals(packageName, "std", StringComparison.OrdinalIgnoreCase))
 			return;
-		if (TryGetCachedExternalPackageApiHeader(request, packageName, requestedVersion, out string? apiHeader))
+		if (TryGetCachedExternalPackageApiHeader(request, packageName, requestedVersion, linkKind, out string? apiHeader))
 		{
 			AddIfMissing(includes, apiHeader!, isApiHeader: true);
 			return;
@@ -122,7 +122,7 @@ public static class CampLanguageService
 		{
 			foreach (string cacheRoot in CandidateCompilerLibraryCacheRoots(runtimeRoot))
 			{
-				foreach (string artifactDirectory in CandidateArtifactDirectoryNames(targetDirectory, profileName))
+				foreach (string artifactDirectory in CandidateArtifactDirectoryNames(targetDirectory, profileName, DependencyLinkKind.Static))
 				{
 					apiHeader = Path.Combine(cacheRoot, packageName, "bin", artifactDirectory, packageName + "_api.camp");
 					if (File.Exists(apiHeader))
@@ -134,7 +134,7 @@ public static class CampLanguageService
 		return false;
 	}
 
-	static bool TryGetCachedExternalPackageApiHeader(CompilerRequest request, string packageName, string? requestedVersion, out string? apiHeader)
+	static bool TryGetCachedExternalPackageApiHeader(CompilerRequest request, string packageName, string? requestedVersion, DependencyLinkKind? linkKind, out string? apiHeader)
 	{
 		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
 		string profileName = string.IsNullOrWhiteSpace(request.ProfileName) ? "DEBUG" : request.ProfileName.ToUpperInvariant();
@@ -146,7 +146,7 @@ public static class CampLanguageService
 				continue;
 			foreach (string versionDirectory in CandidatePackageVersionDirectories(packageRoot, requestedVersion))
 			{
-				foreach (string artifactDirectory in CandidateArtifactDirectoryNames(targetDirectory, profileName))
+				foreach (string artifactDirectory in CandidateArtifactDirectoryNames(targetDirectory, profileName, linkKind))
 				{
 					apiHeader = Path.Combine(versionDirectory, "bin", artifactDirectory, packageName + "_api.camp");
 					if (File.Exists(apiHeader))
@@ -216,8 +216,21 @@ public static class CampLanguageService
 			yield return Path.GetFullPath(Path.Combine(runtimeRoot, "..", "cache", "pkg"));
 	}
 
-	static IEnumerable<string> CandidateArtifactDirectoryNames(string targetDirectory, string profileName)
+	static IEnumerable<string> CandidateArtifactDirectoryNames(string targetDirectory, string profileName, DependencyLinkKind? linkKind)
 	{
+		if (linkKind is DependencyLinkKind.Static)
+		{
+			yield return targetDirectory + "_static_" + profileName;
+			yield return targetDirectory + "_" + profileName;
+			yield break;
+		}
+		if (linkKind is DependencyLinkKind.Shared)
+		{
+			yield return targetDirectory + "_shared_" + profileName;
+			yield return targetDirectory + "_" + profileName;
+			yield break;
+		}
+		yield return targetDirectory + "_shared_" + profileName;
 		yield return targetDirectory + "_static_" + profileName;
 		yield return targetDirectory + "_" + profileName;
 	}
@@ -240,17 +253,21 @@ public static class CampLanguageService
 			yield return directory;
 	}
 
-	static (string Name, string? Version) ParsePackageSpec(string value)
+	static (string Name, string? Version, DependencyLinkKind? LinkKind) ParsePackageSpec(string value)
 	{
+		DependencyLinkKind? linkKind = null;
 		int colon = value.LastIndexOf(':');
 		if (colon >= 0)
 		{
 			string suffix = value[(colon + 1)..];
 			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+			{
+				linkKind = suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static;
 				value = value[..colon];
+			}
 		}
 		string[] parts = value.Split('@', 2);
-		return (parts[0], parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null);
+		return (parts[0], parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null, linkKind);
 	}
 
 	static IEnumerable<string> CandidateRuntimeRoots(string runtimeRoot)

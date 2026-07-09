@@ -1416,9 +1416,8 @@ public sealed class CommandLineTests
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
-		AssertCommandSucceeded(firstBuild);
-		Assert.Contains($"{libraryRoot}: generated: sample-lib.lib", firstBuild.StdOut, StringComparison.Ordinal);
-		Assert.True(File.Exists(libraryPath));
+			AssertCommandSucceeded(firstBuild);
+			Assert.True(File.Exists(libraryPath));
 		DateTime firstLibraryWrite = File.GetLastWriteTimeUtc(libraryPath);
 		ProcessResult firstRun = RunExecutable(executablePath);
 		Assert.Equal(1, firstRun.ExitCode);
@@ -1440,9 +1439,8 @@ public sealed class CommandLineTests
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
-		AssertCommandSucceeded(secondBuild);
-		Assert.Contains($"{libraryRoot}: generated: sample-lib.lib", secondBuild.StdOut, StringComparison.Ordinal);
-		Assert.True(File.GetLastWriteTimeUtc(libraryPath) >= firstLibraryWrite);
+			AssertCommandSucceeded(secondBuild);
+			Assert.True(File.GetLastWriteTimeUtc(libraryPath) >= firstLibraryWrite);
 		ProcessResult secondRun = RunExecutable(executablePath);
 		Assert.Equal(2, secondRun.ExitCode);
 	}

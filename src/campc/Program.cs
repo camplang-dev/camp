@@ -1260,10 +1260,12 @@ static class CommandLineOptionParser
 					break;
 				case "--use":
 				case "-u":
-					result.UsePackages.Add(PackageSpec.Parse(RequiredValue(tokens, ref i, token, errors)));
+					result.UsePackages.Add(PackageSpec.Parse(RequiredValue(tokens, ref i, token, errors), errors));
 					break;
 				case "--project-reference":
-					result.ProjectReferences.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+					string projectReference = PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors));
+					ProjectReferenceSpec.Parse(projectReference, errors);
+					result.ProjectReferences.Add(projectReference);
 					break;
 				case "--use-source":
 					string name = RequiredValue(tokens, ref i, token, errors);
@@ -1732,7 +1734,7 @@ sealed record PackageSourceSpec(string Name, string? Path);
 
 sealed record PackageSpec(string Name, string? Version, DependencyLinkKind? LinkKind = null)
 {
-	public static PackageSpec Parse(string value)
+	public static PackageSpec Parse(string value, List<string>? errors = null)
 	{
 		DependencyLinkKind? linkKind = null;
 		int colon = value.LastIndexOf(':');
@@ -1743,6 +1745,10 @@ sealed record PackageSpec(string Name, string? Version, DependencyLinkKind? Link
 			{
 				linkKind = suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static;
 				value = value[..colon];
+			}
+			else if (!string.IsNullOrWhiteSpace(suffix))
+			{
+				errors?.Add($"Package dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
 			}
 		}
 		string[] parts = value.Split('@', 2);
@@ -1757,7 +1763,7 @@ sealed record PackageSpec(string Name, string? Version, DependencyLinkKind? Link
 
 sealed record ProjectReferenceSpec(string Path, DependencyLinkKind? LinkKind)
 {
-	public static ProjectReferenceSpec Parse(string value)
+	public static ProjectReferenceSpec Parse(string value, List<string>? errors = null)
 	{
 		int colon = value.LastIndexOf(':');
 		if (colon >= 0)
@@ -1765,8 +1771,18 @@ sealed record ProjectReferenceSpec(string Path, DependencyLinkKind? LinkKind)
 			string suffix = value[(colon + 1)..];
 			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
 				return new ProjectReferenceSpec(value[..colon], suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static);
+			if (LooksLikeDependencyKindSuffix(value, colon))
+				errors?.Add($"Project reference dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
 		}
 		return new ProjectReferenceSpec(value, null);
+	}
+
+	static bool LooksLikeDependencyKindSuffix(string value, int colon)
+	{
+		if (colon == 1 && char.IsAsciiLetter(value[0]))
+			return false;
+		string suffix = value[(colon + 1)..];
+		return suffix.Length > 0 && suffix.IndexOfAny([System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar, '/', '\\']) < 0;
 	}
 }
 

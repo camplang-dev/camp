@@ -570,7 +570,7 @@ public sealed class LanguageServiceTests
 		File.WriteAllText(appBuild, """
 			--artifact exec
 			--target msvc-windows-x64
-			--use ext-win32
+			--use ext-win32:static
 			--project-reference ../win32-forms:static
 			--nostdlib
 			src/*.camp

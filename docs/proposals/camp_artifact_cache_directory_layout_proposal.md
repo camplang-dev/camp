@@ -659,12 +659,12 @@ Likely implementation areas:
   - ~~shared dependency DLL/runtime file is copied beside the executable;~~
   - ~~transitive shared dependencies are copied once.~~
 
-### Stage 7: LSP And Tooling Integration
+### ~~Stage 7: LSP And Tooling Integration~~
 
-- Update LSP/project-loading support for the new path model.
-- Ensure LSP diagnostics understand removed `--build-dir`, malformed dependency-kind suffixes, and wrong dependency link kinds.
-- Ensure LSP file watching or workspace indexing does not treat generated `cache/` and `bin/` outputs as ordinary source roots unless explicitly opened.
-- Add LSP tests or targeted language-service tests for `.campbuild`/build-option parsing where the current harness permits it.
+- ~~Update LSP/project-loading support for the new path model.~~
+- ~~Ensure LSP diagnostics understand removed `--build-dir`, malformed dependency-kind suffixes, and wrong dependency link kinds.~~
+- ~~Ensure LSP file watching or workspace indexing does not treat generated `cache/` and `bin/` outputs as ordinary source roots unless explicitly opened.~~
+- ~~Add LSP tests or targeted language-service tests for `.campbuild`/build-option parsing where the current harness permits it.~~
 
 ### Stage 8: Restore/Clean Documentation
 
