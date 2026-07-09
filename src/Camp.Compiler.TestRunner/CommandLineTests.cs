@@ -472,7 +472,7 @@ public sealed class CommandLineTests
 			"--target",
 			"clang-macos-x64",
 			"--project-reference",
-			libraryRoot,
+			libraryRoot + ":static",
 			"--out-dir",
 			TempPath("project-reference-build"));
 
@@ -593,7 +593,7 @@ public sealed class CommandLineTests
 			"--variant",
 			"unicode",
 			"--project-reference",
-			libraryRoot,
+			libraryRoot + ":static",
 			"--out-dir",
 			TempPath("project-reference-variant-build"));
 
@@ -736,7 +736,7 @@ public sealed class CommandLineTests
 			"--target",
 			"clang-macos-x64",
 			"--project-reference",
-			libraryRoot + ":shared",
+			libraryRoot,
 			"--out-dir",
 			outDir);
 
@@ -746,6 +746,118 @@ public sealed class CommandLineTests
 		Assert.True(File.Exists(Path.Combine(libraryArtifactDirectory, "libsample-lib.dylib")));
 		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "libsample-lib.dylib")));
 		ProcessResult run = RunExecutable(Path.Combine(appArtifactDirectory, "sample-app"));
+		Assert.Equal(0, run.ExitCode);
+	}
+
+	[Fact]
+	public void Shared_project_reference_absorbs_static_dependency_on_macos()
+	{
+		if (!OperatingSystem.IsMacOS())
+			Assert.Skip("Shared project-reference runtime smoke is currently macOS-only.");
+		string root = TempPath("project-reference-shared-static-dep-macos");
+		string aRoot = Path.Combine(root, "a");
+		string bRoot = Path.Combine(root, "b");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(Path.Combine(aRoot, "src"));
+		Directory.CreateDirectory(Path.Combine(bRoot, "src"));
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(aRoot, "src", "a.camp"), "export int aValue() => 20;\n");
+		File.WriteAllText(Path.Combine(aRoot, "a.campbuild"), """
+			--nostdlib
+			--name a
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(bRoot, "src", "b.camp"), "export int bValue() => aValue() + 22;\n");
+		File.WriteAllText(Path.Combine(bRoot, "b.campbuild"), $$"""
+			--nostdlib
+			--name b
+			--project-reference {{aRoot}}:static
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name shared-static-app
+
+			export int main()
+			{
+				return bValue() - 42;
+			}
+			""");
+		string outDir = Path.Combine(appRoot, "bin");
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			"clang-macos-x64",
+			"--project-reference",
+			bRoot,
+			"--out-dir",
+			outDir);
+
+		AssertCommandSucceeded(result);
+		string appArtifactDirectory = Path.Combine(outDir, ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Exec));
+		Assert.True(File.Exists(Path.Combine(aRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static), "liba.a")));
+		Assert.True(File.Exists(Path.Combine(bRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Shared), "libb.dylib")));
+		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "libb.dylib")));
+		Assert.False(File.Exists(Path.Combine(appArtifactDirectory, "liba.a")));
+		ProcessResult run = RunExecutable(Path.Combine(appArtifactDirectory, "shared-static-app"));
+		Assert.Equal(0, run.ExitCode);
+	}
+
+	[Fact]
+	public void Shared_project_reference_copies_transitive_shared_dependencies_on_macos()
+	{
+		if (!OperatingSystem.IsMacOS())
+			Assert.Skip("Shared project-reference runtime smoke is currently macOS-only.");
+		string root = TempPath("project-reference-shared-shared-dep-macos");
+		string aRoot = Path.Combine(root, "a");
+		string bRoot = Path.Combine(root, "b");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(Path.Combine(aRoot, "src"));
+		Directory.CreateDirectory(Path.Combine(bRoot, "src"));
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(aRoot, "src", "a.camp"), "export int aValue() => 20;\n");
+		File.WriteAllText(Path.Combine(aRoot, "a.campbuild"), """
+			--nostdlib
+			--name a
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(bRoot, "src", "b.camp"), "export int bValue() => aValue() + 22;\n");
+		File.WriteAllText(Path.Combine(bRoot, "b.campbuild"), $$"""
+			--nostdlib
+			--name b
+			--project-reference {{aRoot}}
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name shared-shared-app
+
+			export int main()
+			{
+				return bValue() - 42;
+			}
+			""");
+		string outDir = Path.Combine(appRoot, "bin");
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			"clang-macos-x64",
+			"--project-reference",
+			bRoot,
+			"--out-dir",
+			outDir);
+
+		AssertCommandSucceeded(result);
+		string appArtifactDirectory = Path.Combine(outDir, ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Exec));
+		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "liba.dylib")));
+		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "libb.dylib")));
+		ProcessResult run = RunExecutable(Path.Combine(appArtifactDirectory, "shared-shared-app"));
 		Assert.Equal(0, run.ExitCode);
 	}
 
@@ -764,13 +876,13 @@ public sealed class CommandLineTests
 		File.WriteAllText(Path.Combine(aRoot, "a.campbuild"), $$"""
 			--nostdlib
 			--name a
-			--project-reference {{bRoot}}
+			--project-reference {{bRoot}}:static
 			src/*.camp
 			""");
 		File.WriteAllText(Path.Combine(bRoot, "b.campbuild"), $$"""
 			--nostdlib
 			--name b
-			--project-reference {{aRoot}}
+			--project-reference {{aRoot}}:static
 			src/*.camp
 			""");
 		string app = Path.Combine(appRoot, "app.camp");
@@ -789,7 +901,7 @@ public sealed class CommandLineTests
 			"build",
 			app,
 			"--project-reference",
-			aRoot,
+			aRoot + ":static",
 			"--out-dir",
 			Path.Combine(appRoot, "obj"));
 
@@ -830,7 +942,7 @@ public sealed class CommandLineTests
 		File.WriteAllText(Path.Combine(bRoot, "b.campbuild"), $$"""
 			--nostdlib
 			--name b
-			--project-reference {{aRoot}}
+			--project-reference {{aRoot}}:static
 			src/*.camp
 			""");
 		string app = Path.Combine(appRoot, "app.camp");
@@ -852,13 +964,11 @@ public sealed class CommandLineTests
 			"--target",
 			target,
 			"--project-reference",
-			bRoot,
+			bRoot + ":static",
 			"--out-dir",
 			outDir);
 
 		AssertCommandSucceeded(result);
-		Assert.Contains($"{bRoot}: generated: b", result.StdOut, StringComparison.Ordinal);
-		Assert.Contains($"{aRoot}: generated: a", result.StdOut, StringComparison.Ordinal);
 		Assert.True(File.Exists(Path.Combine(aRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "a_api.camp")));
 		Assert.True(File.Exists(Path.Combine(bRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "b_api.camp")));
 		ProcessResult run = RunExecutable(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "transitive-app" + ExecutableExtensionForHost()));
@@ -1019,7 +1129,7 @@ public sealed class CommandLineTests
 			"--target",
 			target,
 			"--project-reference",
-			libraryRoot,
+			libraryRoot + ":static",
 			"--out-dir",
 			outDir);
 
@@ -1184,7 +1294,7 @@ public sealed class CommandLineTests
 			"--target",
 			target,
 			"--project-reference",
-			libraryRoot,
+			libraryRoot + ":static",
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
@@ -1193,7 +1303,67 @@ public sealed class CommandLineTests
 		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "sample-lib.lib")));
 		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "sample-lib_api.camp")));
 		Assert.True(File.Exists(Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "build", "sample_lib_api.h")));
+		string cApi = File.ReadAllText(Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "build", "sample_lib_api.h"));
+		Assert.DoesNotContain("__declspec(dllimport)", cApi, StringComparison.Ordinal);
 		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "sample-app.exe"));
+		Assert.Equal(0, run.ExitCode);
+		Assert.Equal("", run.StdErr);
+	}
+
+	[Fact]
+	[Trait("Category", "MsvcCompile")]
+	public void Project_reference_links_native_shared_library_with_msvc()
+	{
+		if (!MsvcAvailable())
+			Assert.Skip("MSVC tools are not available on PATH.");
+		string root = TempPath("project-reference-msvc-shared");
+		string libraryRoot = Path.Combine(root, "sample-lib");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "sample-app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			export int add(int left, int right)
+			{
+				return left + right;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
+			--nostdlib
+			--name sample-lib
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "sample-app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name sample-app
+
+			export int main()
+			{
+				return add(20, 22) - 42;
+			}
+			""");
+		string target = NativeTargetForHost();
+		string appArtifactDirectory = Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec));
+		string libraryArtifactDirectory = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Shared));
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			target,
+			"--project-reference",
+			libraryRoot,
+			"--out-dir",
+			Path.Combine(appRoot, "bin"));
+
+		AssertCommandSucceeded(result);
+		Assert.True(File.Exists(Path.Combine(libraryArtifactDirectory, "sample-lib.lib")));
+		Assert.True(File.Exists(Path.Combine(libraryArtifactDirectory, "sample-lib.dll")));
+		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "sample-lib.dll")));
+		string cApi = File.ReadAllText(Path.Combine(appArtifactDirectory, "build", "sample_lib_api.h"));
+		Assert.Contains("__declspec(dllimport)", cApi, StringComparison.Ordinal);
+		ProcessResult run = RunExecutable(Path.Combine(appArtifactDirectory, "sample-app.exe"));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);
 	}
@@ -1242,7 +1412,7 @@ public sealed class CommandLineTests
 			"--target",
 			target,
 			"--project-reference",
-			libraryRoot,
+			libraryRoot + ":static",
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
@@ -1266,7 +1436,7 @@ public sealed class CommandLineTests
 			"--target",
 			target,
 			"--project-reference",
-			libraryRoot,
+			libraryRoot + ":static",
 			"--out-dir",
 			Path.Combine(appRoot, "bin"));
 
@@ -1429,7 +1599,7 @@ public sealed class CommandLineTests
 			"--target",
 			"clang-macos-x64",
 			"--project-reference",
-			libraryRoot,
+			libraryRoot + ":static",
 			"--out-dir",
 			TempPath("project-reference-virtual-api-build"));
 
@@ -1480,7 +1650,7 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, first.ExitCode);
 		Assert.Contains("generated: live_use_source_app.c", first.StdOut, StringComparison.Ordinal);
-		Assert.True(File.Exists(Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForHost(null), "live-demo_api.camp")));
+		Assert.True(File.Exists(Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForHost(NativeBuildKind.Shared), "live-demo_api.camp")));
 		Assert.False(Directory.Exists(Path.Combine(sourceRoot, "live-demo", "bin")));
 		Assert.False(Directory.Exists(Path.Combine(sourceRoot, "live-demo", "build")));
 
@@ -1507,7 +1677,72 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, second.ExitCode);
 		Assert.Contains("generated: live_use_source_app.c", second.StdOut, StringComparison.Ordinal);
-		Assert.True(File.Exists(Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForHost(null), "live-demo_api.camp")));
+		Assert.True(File.Exists(Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForHost(NativeBuildKind.Shared), "live-demo_api.camp")));
+	}
+
+	[Fact]
+	public void Live_package_dependency_builds_shared_by_default_and_static_separately_on_macos()
+	{
+		if (!OperatingSystem.IsMacOS())
+			Assert.Skip("Shared package runtime smoke is currently macOS-only.");
+		string root = TempPath("live-package-shared-static");
+		string sourceRoot = Path.Combine(root, "package-source");
+		string cachedPackageRoot = Path.Combine(FindRepositoryRoot(), "cache", "pkg", "live-link-demo");
+		if (Directory.Exists(cachedPackageRoot))
+			Directory.Delete(cachedPackageRoot, recursive: true);
+		string packageSource = Path.Combine(sourceRoot, "live-link-demo", "src");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(packageSource);
+		Directory.CreateDirectory(appRoot);
+		string sourceRootArgument = sourceRoot.Replace('\\', '/');
+		File.WriteAllText(Path.Combine(packageSource, "demo.camp"), """
+			export int liveValue()
+			{
+				return 42;
+			}
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, $$"""
+			#build --nostdlib
+			#build --name live-package-app
+			#build --use-source local "{{sourceRootArgument}}"
+			#build --use live-link-demo
+
+			export int main()
+			{
+				return liveValue() - 42;
+			}
+			""");
+		string outDir = Path.Combine(appRoot, "bin");
+
+		ProcessResult shared = RunCampc("build", app, "--target", "clang-macos-x64", "--out-dir", outDir);
+
+		AssertCommandSucceeded(shared);
+		string sharedCacheDirectory = Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Shared));
+		string appArtifactDirectory = Path.Combine(outDir, ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Exec));
+		Assert.True(File.Exists(Path.Combine(sharedCacheDirectory, "liblive-link-demo.dylib")));
+		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "liblive-link-demo.dylib")));
+		ProcessResult run = RunExecutable(Path.Combine(appArtifactDirectory, "live-package-app"));
+		Assert.Equal(0, run.ExitCode);
+
+		File.WriteAllText(app, $$"""
+			#build --nostdlib
+			#build --name live-package-static-app
+			#build --use-source local "{{sourceRootArgument}}"
+			#build --use live-link-demo:static
+
+			export int main()
+			{
+				return liveValue() - 42;
+			}
+			""");
+		ProcessResult staticResult = RunCampc("build", app, "--target", "clang-macos-x64", "--out-dir", outDir);
+
+		AssertCommandSucceeded(staticResult);
+		string staticCacheDirectory = Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static));
+		Assert.True(File.Exists(Path.Combine(staticCacheDirectory, "liblive-link-demo.a")));
+		Assert.True(File.Exists(Path.Combine(staticCacheDirectory, "live-link-demo_api.camp")));
+		Assert.NotEqual(sharedCacheDirectory, staticCacheDirectory);
 	}
 
 	[Fact]

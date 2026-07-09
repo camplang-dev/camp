@@ -1,6 +1,19 @@
 # Outstanding Bugs
 
-Next bug number: BUG-040.
+Next bug number: BUG-041.
+
+## BUG-040: LSP tests can leave `camp-lsp` running and hang local full `dotnet vstest`
+
+On macOS, the full `dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll`
+run can become silent near the end of the suite with only `vstest.console`,
+`testhost`, and a stale `/Users/andrew/Projects/camplang/bin/camp-lsp` process
+remaining. Killing the stale `camp-lsp` process does not always let the already
+hung testhost recover, so the full run must be restarted. Targeted LSP tests and
+targeted command-line tests pass independently.
+
+The LSP test harness should guarantee that every `camp-lsp` child is terminated
+and waited on, even if a test fails or times out. Once fixed, a local full
+`dotnet vstest` run should exit cleanly without manual `pkill`.
 
 ## BUG-039: C emission loses unresolved extern call diagnostics in loop comparison conditions
 

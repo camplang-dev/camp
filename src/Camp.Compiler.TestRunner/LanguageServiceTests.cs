@@ -571,7 +571,7 @@ public sealed class LanguageServiceTests
 			--artifact exec
 			--target msvc-windows-x64
 			--use ext-win32
-			--project-reference ../win32-forms
+			--project-reference ../win32-forms:static
 			--nostdlib
 			src/*.camp
 			""");

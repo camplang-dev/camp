@@ -33,6 +33,8 @@ public sealed class NativeBuildOptions
 public sealed class NativeBuildResult
 {
 	public List<string> GeneratedFiles { get; } = [];
+	public List<string> RuntimeFiles { get; } = [];
+	public List<string> LinkFiles { get; } = [];
 	public List<string> Diagnostics { get; } = [];
 	public bool Success => Diagnostics.Count == 0;
 }
@@ -67,6 +69,7 @@ public static class NativeBuildDriver
 		}
 
 		string output = GetArtifactPath(options);
+		string? sharedImportLibrary = options.Kind == NativeBuildKind.Shared ? GetSharedImportLibraryPath(options) : null;
 		if (options.Kind == NativeBuildKind.Static)
 			DeleteExistingStaticArchive(output, result);
 		if (!result.Success)
@@ -76,11 +79,29 @@ public static class NativeBuildDriver
 		{
 			["objects"] = string.Join(" ", objects.Select(Quote)),
 			["libs"] = BuildLinkLibraries(options),
-			["output"] = Quote(output)
+			["output"] = Quote(output),
+			["import_library"] = Quote(sharedImportLibrary ?? "")
 		}))
 			return result;
 
 		result.GeneratedFiles.Add(output);
+		if (options.Kind == NativeBuildKind.Shared)
+		{
+			result.RuntimeFiles.Add(output);
+			if (!string.IsNullOrWhiteSpace(sharedImportLibrary) && File.Exists(sharedImportLibrary))
+			{
+				result.GeneratedFiles.Add(sharedImportLibrary);
+				result.LinkFiles.Add(sharedImportLibrary);
+			}
+			else
+			{
+				result.LinkFiles.Add(output);
+			}
+		}
+		else
+		{
+			result.LinkFiles.Add(output);
+		}
 		return result;
 	}
 
@@ -133,6 +154,22 @@ public static class NativeBuildDriver
 			NativeBuildKind.Shared => options.Target.Capabilities.GetArtifactValue("shared_ext", ".so"),
 			_ => ""
 		};
+		return Path.Combine(options.OutputDirectory, prefix + options.ProjectName + extension);
+	}
+
+	public static string GetLinkArtifactPath(NativeBuildOptions options)
+	{
+		if (options.Kind == NativeBuildKind.Shared && GetSharedImportLibraryPath(options) is string importLibrary)
+			return importLibrary;
+		return GetArtifactPath(options);
+	}
+
+	public static string? GetSharedImportLibraryPath(NativeBuildOptions options)
+	{
+		string extension = options.Target.Capabilities.GetArtifactValue("shared_import_ext");
+		if (string.IsNullOrWhiteSpace(extension))
+			return null;
+		string prefix = options.Target.Capabilities.GetArtifactValue("shared_import_prefix", options.Target.Capabilities.GetArtifactValue("shared_prefix", "lib"));
 		return Path.Combine(options.OutputDirectory, prefix + options.ProjectName + extension);
 	}
 

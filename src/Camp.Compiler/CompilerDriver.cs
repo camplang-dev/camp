@@ -50,6 +50,7 @@ public sealed class CompilerRequest
 	public bool NoStdLib { get; set; }
 	public WithinAllocationPolicy? WithinAllocationPolicy { get; set; }
 	public List<string> References { get; } = [];
+	public List<string> SharedLibraryApiHeaders { get; } = [];
 	public List<string> Frameworks { get; } = [];
 	public List<string> UsePackages { get; } = [];
 	public List<string> UseSourceRoots { get; } = [];
@@ -137,10 +138,14 @@ public static class CompilerDriver
 			}
 			foreach (string package in request.UsePackages)
 			{
-				if (!TryPrepareInstalledPackage(context!, package, request.BuildKind is not null, out string? packageApiHeader, out string? packageLibrary))
+				if (!TryPrepareInstalledPackage(context!, package, request.BuildKind is not null, out string? packageApiHeader, out string? packageLibrary, out bool sharedDependency))
 					return 1;
 				if (packageApiHeader is not null)
+				{
 					packageApiHeaders.Add(packageApiHeader);
+					if (sharedDependency)
+						request.SharedLibraryApiHeaders.Add(packageApiHeader);
+				}
 				if (packageLibrary is not null)
 					packageLibraries.Add(packageLibrary);
 			}
@@ -338,9 +343,15 @@ public static class CompilerDriver
 					return false;
 				if (!TryReadWithinAllocationPolicy(displayPath, text, out WithinAllocationPolicy? policy))
 					return false;
-				compilation.Files.Add(new SourceFile { Path = displayPath, Text = text, IsApiHeader = true, WithinAllocationPolicyOverride = policy });
+				compilation.Files.Add(new SourceFile { Path = displayPath, Text = text, IsApiHeader = true, SharedLibraryImport = IsSharedLibraryApiHeader(filename), WithinAllocationPolicyOverride = policy });
 			}
 			return true;
+		}
+
+		bool IsSharedLibraryApiHeader(string filename)
+		{
+			string fullPath = Path.GetFullPath(filename, request.WorkingDirectory);
+			return request.SharedLibraryApiHeaders.Any(header => string.Equals(Path.GetFullPath(header, request.WorkingDirectory), fullPath, StringComparison.OrdinalIgnoreCase));
 		}
 
 		bool TryReadWithinAllocationPolicy(string displayPath, string text, out WithinAllocationPolicy? policy)
@@ -486,10 +497,11 @@ public static class CompilerDriver
 			return true;
 		}
 
-		bool TryPrepareInstalledPackage(RuntimeContext context, string packageSpec, bool requireNativeLibrary, out string? apiHeaderPath, out string? libraryPath)
+		bool TryPrepareInstalledPackage(RuntimeContext context, string packageSpec, bool requireNativeLibrary, out string? apiHeaderPath, out string? libraryPath, out bool sharedDependency)
 		{
 			apiHeaderPath = null;
 			libraryPath = null;
+			sharedDependency = false;
 			(string packageName, string? requestedVersion, DependencyLinkKind? requestedLinkKind) = ParsePackageSpec(packageSpec);
 			if (!TryFindInstalledPackage(packageName, requestedVersion, out string? sourceDirectory, out string? artifactRoot, out string? resolvedVersion))
 			{
@@ -510,23 +522,24 @@ public static class CompilerDriver
 				.OrderBy(static x => x, StringComparer.Ordinal)
 				.ToArray();
 
-			NativeBuildKind? packageBuildKind = requireNativeLibrary
-				? requestedLinkKind == DependencyLinkKind.Shared ? NativeBuildKind.Shared : NativeBuildKind.Static
-				: null;
+			DependencyLinkKind effectiveLinkKind = requestedLinkKind.GetValueOrDefault(DependencyLinkKind.Shared);
+			NativeBuildKind packageBuildKind = effectiveLinkKind == DependencyLinkKind.Shared ? NativeBuildKind.Shared : NativeBuildKind.Static;
+			sharedDependency = requireNativeLibrary && packageBuildKind == NativeBuildKind.Shared;
 			string packageBinDirectory = GetPackageArtifactDirectory(artifactRoot!, packageName, resolvedVersion!, context, packageBuildKind);
 			string apiPath = Path.Combine(packageBinDirectory, packageName + "_api.camp");
 			string cApiPath = Path.Combine(packageBinDirectory, packageName + "_api.h");
 			string metadataPath = Path.Combine(packageBinDirectory, packageName + "_api.json");
-			string nativeLibraryPath = NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
+			NativeBuildOptions nativeBuildOptions = new()
 			{
 				Target = context.Target,
 				ProfileName = context.ProfileName,
 				BuildDirectory = Path.Combine(packageBinDirectory, "build"),
 				OutputDirectory = packageBinDirectory,
 				ProjectName = packageName,
-				Kind = packageBuildKind ?? NativeBuildKind.Static,
+				Kind = packageBuildKind,
 				SourceFiles = []
-			});
+			};
+			string nativeLibraryPath = NativeBuildDriver.GetLinkArtifactPath(nativeBuildOptions);
 
 			bool canUseCache = context.CommandLineDefines.Count == 0;
 			bool apiCurrent = canUseCache && IsOutputCacheCurrent(apiPath, cacheSourceFiles) && (!requireNativeLibrary || IsOutputCacheCurrent(cApiPath, cacheSourceFiles) && IsOutputCacheCurrent(metadataPath, cacheSourceFiles));
@@ -910,18 +923,29 @@ public static class CompilerDriver
 		bool TryCopySharedRuntimeReferences(TargetDefinition target, string outputDirectory, IEnumerable<string> references)
 		{
 			string sharedExtension = target.GetArtifactValue("shared_ext", ".so");
+			string sharedImportExtension = target.GetArtifactValue("shared_import_ext");
 			foreach (string reference in references)
 			{
 				if (!Path.IsPathRooted(reference) || !File.Exists(reference))
 					continue;
-				if (!Path.GetExtension(reference).Equals(sharedExtension, StringComparison.OrdinalIgnoreCase))
+				string runtimeReference = reference;
+				if (!Path.GetExtension(runtimeReference).Equals(sharedExtension, StringComparison.OrdinalIgnoreCase))
+				{
+					if (string.IsNullOrWhiteSpace(sharedImportExtension) || !Path.GetExtension(reference).Equals(sharedImportExtension, StringComparison.OrdinalIgnoreCase))
+						continue;
+					string siblingRuntime = Path.ChangeExtension(reference, sharedExtension);
+					if (!File.Exists(siblingRuntime))
+						continue;
+					runtimeReference = siblingRuntime;
+				}
+				if (!Path.GetExtension(runtimeReference).Equals(sharedExtension, StringComparison.OrdinalIgnoreCase))
 					continue;
-				string destination = Path.Combine(outputDirectory, Path.GetFileName(reference));
-				if (string.Equals(Path.GetFullPath(reference), Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase))
+				string destination = Path.Combine(outputDirectory, Path.GetFileName(runtimeReference));
+				if (string.Equals(Path.GetFullPath(runtimeReference), Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase))
 					continue;
 				try
 				{
-					File.Copy(reference, destination, overwrite: true);
+					File.Copy(runtimeReference, destination, overwrite: true);
 				}
 				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 				{

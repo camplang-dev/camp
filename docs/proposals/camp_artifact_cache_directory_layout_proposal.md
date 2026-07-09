@@ -631,33 +631,33 @@ Likely implementation areas:
 - ~~Avoid writing generated files into external live package source folders.~~
 - ~~Ensure globally installed packages are read from compiler-root `cache/pkg`.~~
 
-### Stage 5: Static/Shared Dependency Link Kind
+### ~~Stage 5: Static/Shared Dependency Link Kind~~
 
-- Add dependency-edge link-kind representation using `pkg@version:static`, `pkg@version:shared`, `pkg:static`, and `pkg:shared`.
-- Default dependency link kind to `shared`.
-- Add `--artifact only-static` and `--artifact only-shared`.
-- Build/cache static and shared dependency artifacts independently.
-- Copy shared runtime dependencies beside consuming artifacts.
-- Do not copy static dependencies.
-- Add multi-module tests with static dependency inside shared dependency inside executable.
+- ~~Add dependency-edge link-kind representation using `pkg@version:static`, `pkg@version:shared`, `pkg:static`, and `pkg:shared`.~~
+- ~~Default dependency link kind to `shared`.~~
+- ~~Add `--artifact only-static` and `--artifact only-shared`.~~
+- ~~Build/cache static and shared dependency artifacts independently.~~
+- ~~Copy shared runtime dependencies beside consuming artifacts.~~
+- ~~Do not copy static dependencies.~~
+- ~~Add multi-module tests with static dependency inside shared dependency inside executable.~~
 
-### Stage 6: Shared Dependency ABI And Runtime Handling
+### ~~Stage 6: Shared Dependency ABI And Runtime Handling~~
 
-- Add target import-decoration support for shared-library consumers.
-- Teach C header emission to distinguish producer export mode, shared consumer import mode, and static consumer mode.
-- Ensure dependency resolution records both link-time and runtime artifacts.
-- On MSVC, link consumers against the generated import `.lib` and copy the `.dll` beside final runnable artifacts.
-- On macOS/Linux, link consumers against the generated shared artifact and ensure runtime lookup/copy behavior is target-defined and tested.
-- Ensure shared runtime dependency copying is transitive and does not copy static-only dependencies.
-- Ensure declarations-only packages still emit API/header/metadata in `_static` and `_shared` artifact directories even without object artifacts.
-- Add end-to-end shared dependency tests:
-  - root shared library build still exports symbols;
-  - executable consumes a shared project reference and runs;
-  - executable consumes a shared package dependency and runs where package tests are available;
-  - MSVC consumer C header uses `__declspec(dllimport)`;
-  - static consumer C header does not use `dllimport`;
-  - shared dependency DLL/runtime file is copied beside the executable;
-  - transitive shared dependencies are copied once.
+- ~~Add target import-decoration support for shared-library consumers.~~
+- ~~Teach C header emission to distinguish producer export mode, shared consumer import mode, and static consumer mode.~~
+- ~~Ensure dependency resolution records both link-time and runtime artifacts.~~
+- ~~On MSVC, link consumers against the generated import `.lib` and copy the `.dll` beside final runnable artifacts.~~
+- ~~On macOS/Linux, link consumers against the generated shared artifact and ensure runtime lookup/copy behavior is target-defined and tested.~~
+- ~~Ensure shared runtime dependency copying is transitive and does not copy static-only dependencies.~~
+- ~~Ensure declarations-only packages still emit API/header/metadata in `_static` and `_shared` artifact directories even without object artifacts.~~
+- ~~Add end-to-end shared dependency tests:~~
+  - ~~root shared library build still exports symbols;~~
+  - ~~executable consumes a shared project reference and runs;~~
+  - ~~executable consumes a shared package dependency and runs where package tests are available;~~
+  - ~~MSVC consumer C header uses `__declspec(dllimport)`;~~
+  - ~~static consumer C header does not use `dllimport`;~~
+  - ~~shared dependency DLL/runtime file is copied beside the executable;~~
+  - ~~transitive shared dependencies are copied once.~~
 
 ### Stage 7: LSP And Tooling Integration
 

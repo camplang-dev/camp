@@ -584,7 +584,7 @@ public sealed class LspServerTests
 			--artifact exec
 			--name app
 			src/*.camp
-			--project-reference ../library
+			--project-reference ../library:static
 			""");
 		string file = Path.Combine(appSource, "main.camp");
 		string text = """
@@ -649,7 +649,7 @@ public sealed class LspServerTests
 			--name app
 			--nostdlib
 			src/*.camp
-			--project-reference ../library
+			--project-reference ../library:static
 			""");
 		string file = Path.Combine(appSource, "main.camp");
 		string text = """

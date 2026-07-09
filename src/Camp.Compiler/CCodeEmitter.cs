@@ -569,6 +569,7 @@ public static class CCodeEmitter
 		readonly string sharedExportPrefix = options.BuildKind is NativeBuildKind.Shared
 			? compilation.Target?.Capabilities.GetCEmitterValue("dll_export_prefix") ?? ""
 			: "";
+		readonly string sharedImportPrefix = compilation.Target?.Capabilities.GetCEmitterValue("dll_import_prefix") ?? "";
 
 		sealed record AsyncFrameField(BindableNode? Node, string Name, string Type, TypeReference? TypeReference = null);
 
@@ -3049,9 +3050,20 @@ public static class CCodeEmitter
 			List<string> parts = [];
 			if (!string.IsNullOrWhiteSpace(storage))
 				parts.Add(storage);
-			if (definition.Export is not null && storage is not "static" && !string.IsNullOrWhiteSpace(sharedExportPrefix))
-				parts.Add(sharedExportPrefix);
+			if (definition.Export is not null && storage is not "static")
+			{
+				string sharedPrefix = GetSharedDeclarationPrefix(definition);
+				if (!string.IsNullOrWhiteSpace(sharedPrefix))
+					parts.Add(sharedPrefix);
+			}
 			return parts.Count == 0 ? "" : string.Join(" ", parts) + " ";
+		}
+
+		string GetSharedDeclarationPrefix(Definition definition)
+		{
+			if (compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) && owner.SharedLibraryImport)
+				return sharedImportPrefix;
+			return sharedExportPrefix;
 		}
 
 		void WithGenericContext(FunctionDefinition function, Action action)

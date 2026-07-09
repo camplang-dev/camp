@@ -420,25 +420,27 @@ sealed class CampCli
 		request.Frameworks.AddRange(bag.Frameworks);
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
 		request.UseSourceRoots.AddRange(bag.UseSources.Where(static source => !string.IsNullOrWhiteSpace(source.Path)).Select(source => Path.GetFullPath(source.Path!, environment.WorkingDirectory)));
-		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], out List<string> projectApiHeaders, out List<string> projectLibraries, errors))
+		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], out List<string> projectApiHeaders, out List<string> sharedProjectApiHeaders, out List<string> projectLibraries, errors))
 			return false;
 		foreach (string projectApiHeader in projectApiHeaders)
 			includeFiles.Add(projectApiHeader);
+		request.SharedLibraryApiHeaders.AddRange(sharedProjectApiHeaders);
 		request.References.AddRange(projectLibraries);
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		request.IncludeFiles.AddRange(includeFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		return true;
 	}
 
-	static bool TryBuildProjectReferences(IReadOnlyList<string> projectReferences, CompilerRequest consumerRequest, CliEnvironment environment, List<string> projectReferenceStack, out List<string> apiHeaders, out List<string> libraries, List<string> errors)
+	static bool TryBuildProjectReferences(IReadOnlyList<string> projectReferences, CompilerRequest consumerRequest, CliEnvironment environment, List<string> projectReferenceStack, out List<string> apiHeaders, out List<string> sharedApiHeaders, out List<string> libraries, List<string> errors)
 	{
 		apiHeaders = [];
+		sharedApiHeaders = [];
 		libraries = [];
 		bool requireLibrary = consumerRequest.BuildKind is not null;
 		foreach (string projectReference in projectReferences)
 		{
 			ProjectReferenceSpec referenceSpec = ProjectReferenceSpec.Parse(projectReference);
-			NativeBuildKind referenceBuildKind = referenceSpec.LinkKind == DependencyLinkKind.Shared ? NativeBuildKind.Shared : NativeBuildKind.Static;
+			NativeBuildKind referenceBuildKind = referenceSpec.LinkKind.GetValueOrDefault(DependencyLinkKind.Shared) == DependencyLinkKind.Shared ? NativeBuildKind.Shared : NativeBuildKind.Static;
 			if (!TryResolveProjectReference(referenceSpec.Path, environment.WorkingDirectory, out string? buildFile, out string? error))
 			{
 				errors.Add(error!);
@@ -462,7 +464,8 @@ sealed class CampCli
 			errors.AddRange(referenceOptionErrors.Select(error => $"{referenceSpec.Path}: {error}"));
 			if (referenceOptionErrors.Count > 0)
 				continue;
-			if (referenceOptions.ArtifactRestriction is DependencyLinkKind restriction && restriction != referenceSpec.LinkKind.GetValueOrDefault(DependencyLinkKind.Static))
+			DependencyLinkKind effectiveLinkKind = referenceSpec.LinkKind.GetValueOrDefault(DependencyLinkKind.Shared);
+			if (referenceOptions.ArtifactRestriction is DependencyLinkKind restriction && restriction != effectiveLinkKind)
 			{
 				errors.Add($"{referenceSpec.Path}: project reference requires {restriction.ToString().ToLowerInvariant()} linking but was requested as {referenceBuildKind.ToString().ToLowerInvariant()}.");
 				continue;
@@ -517,10 +520,15 @@ sealed class CampCli
 				continue;
 			}
 			apiHeaders.Add(apiHeader);
+			if (referenceBuildKind == NativeBuildKind.Shared)
+				sharedApiHeaders.Add(apiHeader);
 			if (library is not null)
 				AddUniquePath(libraries, library);
 			foreach (string reference in projectRequest!.References)
-				AddUniquePath(libraries, reference);
+			{
+				if (referenceBuildKind == NativeBuildKind.Static || target is not null && IsSharedDependencyReference(reference, target))
+					AddUniquePath(libraries, reference);
+			}
 		}
 		return errors.Count == 0;
 	}
@@ -690,9 +698,22 @@ sealed class CampCli
 		if (!TargetCatalog.TryLoad(targetRoot, out TargetCatalog? catalog, out _) || !catalog!.TryGetTarget(targetName, out TargetDefinition? target))
 			return kind == NativeBuildKind.Shared ? Path.GetExtension(path) is ".so" or ".dylib" or ".dll" : Path.GetExtension(path) is ".a" or ".lib";
 		string extension = kind == NativeBuildKind.Shared
-			? target!.GetArtifactValue("shared_ext", ".so")
+			? target!.GetArtifactValue("shared_import_ext", target!.GetArtifactValue("shared_ext", ".so"))
 			: target!.GetArtifactValue("static_ext", ".a");
 		return Path.GetExtension(path).Equals(extension, StringComparison.OrdinalIgnoreCase);
+	}
+
+	static bool IsSharedDependencyReference(string path, TargetDefinition target)
+	{
+		if (!Path.IsPathRooted(path))
+			return false;
+		string sharedExtension = target.GetArtifactValue("shared_ext", ".so");
+		if (Path.GetExtension(path).Equals(sharedExtension, StringComparison.OrdinalIgnoreCase))
+			return true;
+		string sharedImportExtension = target.GetArtifactValue("shared_import_ext");
+		if (string.IsNullOrWhiteSpace(sharedImportExtension) || !Path.GetExtension(path).Equals(sharedImportExtension, StringComparison.OrdinalIgnoreCase))
+			return false;
+		return File.Exists(Path.ChangeExtension(path, sharedExtension));
 	}
 
 	static void ApplyGlobalPragmas(CliEnvironment environment, BuildOptionBag bag, List<string> errors)
