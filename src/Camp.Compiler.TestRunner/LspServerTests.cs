@@ -567,7 +567,7 @@ public sealed class LspServerTests
 		string appRoot = Path.Combine(root, "app");
 		string appSource = Path.Combine(appRoot, "src");
 		string libraryRoot = Path.Combine(root, "library");
-		string libraryBin = Path.Combine(libraryRoot, "bin", Camp.Compiler.CompilerDefaults.TargetName, "DEBUG");
+		string libraryBin = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(CompilerDefaults.TargetName, NativeBuildKind.Static));
 		Directory.CreateDirectory(appSource);
 		Directory.CreateDirectory(libraryBin);
 		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
@@ -713,6 +713,18 @@ public sealed class LspServerTests
 		return directory;
 	}
 
+	static string FindRepositoryRoot()
+	{
+		DirectoryInfo? directory = new(AppContext.BaseDirectory);
+		while (directory is not null)
+		{
+			if (File.Exists(Path.Combine(directory.FullName, "src", "camplang.sln")))
+				return directory.FullName;
+			directory = directory.Parent;
+		}
+		throw new InvalidOperationException("Could not find repository root.");
+	}
+
 	static JsonArray CompletionItems(JsonNode response)
 	{
 		JsonNode? result = response["result"];
@@ -767,6 +779,13 @@ public sealed class LspServerTests
 				character++;
 		}
 		return new CampTextPosition(line, character);
+	}
+
+	static string ArtifactDirectoryForTarget(string targetName, NativeBuildKind? buildKind)
+	{
+		Assert.True(TargetCatalog.TryLoad(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
+		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
+		return BuildArtifactLayout.GetArtifactDirectoryName(target!, buildKind, "DEBUG");
 	}
 
 	sealed class LspProcess : IDisposable

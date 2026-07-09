@@ -478,7 +478,7 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: project_reference_app.c", result.StdOut, StringComparison.Ordinal);
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "DEBUG", "sample-lib_api.camp")));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static), "sample-lib_api.camp")));
 	}
 
 	[Fact]
@@ -598,8 +598,8 @@ public sealed class CommandLineTests
 			TempPath("project-reference-variant-build"));
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "DEBUG", "sample-lib_api.camp")));
-		Assert.False(File.Exists(Path.Combine(libraryRoot, "bin", target + "_ansi", "DEBUG", "sample-lib_api.camp")));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "sample-lib_api.camp")));
+		Assert.False(File.Exists(Path.Combine(libraryRoot, "bin", target + "_ansi_static_DEBUG", "sample-lib_api.camp")));
 	}
 
 	[Fact]
@@ -637,7 +637,7 @@ public sealed class CommandLineTests
 			""");
 		string target = NativeTargetForHost();
 		string staticLibraryName = OperatingSystem.IsWindows() ? "sample-lib.lib" : "libsample-lib.a";
-		string referenceOutputDirectory = Path.Combine(libraryRoot, "bin", target, "DEBUG");
+		string referenceOutputDirectory = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Static));
 
 		ProcessResult result = RunCampc(
 			"build",
@@ -772,8 +772,8 @@ public sealed class CommandLineTests
 		AssertCommandSucceeded(result);
 		Assert.Contains($"{bRoot}: generated: b", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains($"{aRoot}: generated: a", result.StdOut, StringComparison.Ordinal);
-		Assert.True(File.Exists(Path.Combine(aRoot, "bin", target, "DEBUG", "a_api.camp")));
-		Assert.True(File.Exists(Path.Combine(bRoot, "bin", target, "DEBUG", "b_api.camp")));
+		Assert.True(File.Exists(Path.Combine(aRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "a_api.camp")));
+		Assert.True(File.Exists(Path.Combine(bRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "b_api.camp")));
 		ProcessResult run = RunExecutable(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "transitive-app" + ExecutableExtensionForHost()));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);
@@ -938,7 +938,7 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("generated: interface-app", result.StdOut, StringComparison.Ordinal);
-		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", target, "DEBUG", "interfaces_api.camp"));
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "interfaces_api.camp"));
 		Assert.Contains("export extern class Counter : IValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern constof(this) IValue* getIValue();", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeCounter : IValue", api, StringComparison.Ordinal);
@@ -1103,8 +1103,8 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("generated: sample-app.exe", result.StdOut, StringComparison.Ordinal);
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "DEBUG", "sample-lib.lib")));
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "DEBUG", "sample-lib_api.camp")));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "sample-lib.lib")));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "sample-lib_api.camp")));
 		Assert.True(File.Exists(Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "build", "sample_lib_api.h")));
 		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "sample-app.exe"));
 		Assert.Equal(0, run.ExitCode);
@@ -1144,9 +1144,9 @@ public sealed class CommandLineTests
 			{
 				return getValue();
 			}
-			""");
+		""");
 		string target = NativeTargetForHost();
-		string libraryPath = Path.Combine(libraryRoot, "bin", target, "DEBUG", "sample-lib.lib");
+		string libraryPath = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "sample-lib.lib");
 		string executablePath = Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "sample-app.exe");
 
 		ProcessResult firstBuild = RunCampc(
@@ -1348,7 +1348,7 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: project_reference_virtual_api_app.c", result.StdOut, StringComparison.Ordinal);
-		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "DEBUG", "widgets_api.camp"));
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static), "widgets_api.camp"));
 		Assert.Contains("export escaped extern class Control", api, StringComparison.Ordinal);
 		Assert.Contains("export escaped extern class Button : Control", api, StringComparison.Ordinal);
 		Assert.Contains("export extern int value();", api, StringComparison.Ordinal);
@@ -1364,6 +1364,9 @@ public sealed class CommandLineTests
 	{
 		string root = TempPath("live-use-source");
 		string sourceRoot = Path.Combine(root, "package-source");
+		string cachedPackageRoot = Path.Combine(FindRepositoryRoot(), "cache", "pkg", "live-demo");
+		if (Directory.Exists(cachedPackageRoot))
+			Directory.Delete(cachedPackageRoot, recursive: true);
 		string packageSource = Path.Combine(sourceRoot, "live-demo", "src");
 		Directory.CreateDirectory(packageSource);
 		string packageFile = Path.Combine(packageSource, "demo.camp");
@@ -1390,6 +1393,9 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, first.ExitCode);
 		Assert.Contains("generated: live_use_source_app.c", first.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForHost(null), "live-demo_api.camp")));
+		Assert.False(Directory.Exists(Path.Combine(sourceRoot, "live-demo", "bin")));
+		Assert.False(Directory.Exists(Path.Combine(sourceRoot, "live-demo", "build")));
 
 		File.WriteAllText(packageFile, """
 			export int liveChanged()
@@ -1414,6 +1420,7 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, second.ExitCode);
 		Assert.Contains("generated: live_use_source_app.c", second.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForHost(null), "live-demo_api.camp")));
 	}
 
 	[Fact]
@@ -1845,6 +1852,36 @@ public sealed class CommandLineTests
 		Assert.Equal(0, add.ExitCode);
 		Assert.Equal(0, search.ExitCode);
 		Assert.Contains("local: demo@1.2.3", search.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Restore_installs_packages_into_cache_pkg()
+	{
+		string packageName = "cache-demo-stage4";
+		string repositoryRoot = FindRepositoryRoot();
+		string cachePackageRoot = Path.Combine(repositoryRoot, "cache", "pkg", packageName);
+		if (Directory.Exists(cachePackageRoot))
+			Directory.Delete(cachePackageRoot, recursive: true);
+		string oldPackageRoot = Path.Combine(repositoryRoot, "pkg", packageName);
+		if (Directory.Exists(oldPackageRoot))
+			Directory.Delete(oldPackageRoot, recursive: true);
+
+		string tempRoot = TempPath("pkg-restore-cache");
+		string sourceFile = Path.Combine(tempRoot, "source", packageName, "1.2.3", "src", "demo.camp");
+		Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
+		File.WriteAllText(sourceFile, "export int restoredValue() => 7;\n");
+		string sourceRootArgument = Path.Combine(tempRoot, "source").Replace('\\', '/');
+		string app = CreateTempCase("pkg_restore_cache.camp", $$"""
+			#build --use-source local "{{sourceRootArgument}}"
+			#build --use {{packageName}}@1.2.3
+			""");
+
+		ProcessResult result = RunCampc("restore", app);
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains($"installed: {packageName}@1.2.3", result.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(Path.Combine(cachePackageRoot, "1.2.3", "src", "demo.camp")));
+		Assert.False(Directory.Exists(oldPackageRoot));
 	}
 
 	static ProcessResult RunCampc(params string[] arguments)

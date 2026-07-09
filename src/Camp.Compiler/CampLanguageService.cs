@@ -120,9 +120,15 @@ public static class CampLanguageService
 		string targetDirectory = GetTargetVariantDirectoryName(request, targetName);
 		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
 		{
-			apiHeader = Path.Combine(runtimeRoot, "lib", packageName, targetDirectory, profileName, packageName + "_api.camp");
-			if (File.Exists(apiHeader))
-				return true;
+			foreach (string cacheRoot in CandidateCompilerLibraryCacheRoots(runtimeRoot))
+			{
+				foreach (string artifactDirectory in CandidateArtifactDirectoryNames(targetDirectory, profileName))
+				{
+					apiHeader = Path.Combine(cacheRoot, packageName, "bin", artifactDirectory, packageName + "_api.camp");
+					if (File.Exists(apiHeader))
+						return true;
+				}
+			}
 		}
 		apiHeader = null;
 		return false;
@@ -140,9 +146,12 @@ public static class CampLanguageService
 				continue;
 			foreach (string versionDirectory in CandidatePackageVersionDirectories(packageRoot, requestedVersion))
 			{
-				apiHeader = Path.Combine(versionDirectory, targetDirectory, profileName, packageName + "_api.camp");
-				if (File.Exists(apiHeader))
-					return true;
+				foreach (string artifactDirectory in CandidateArtifactDirectoryNames(targetDirectory, profileName))
+				{
+					apiHeader = Path.Combine(versionDirectory, "bin", artifactDirectory, packageName + "_api.camp");
+					if (File.Exists(apiHeader))
+						return true;
+				}
 			}
 		}
 		apiHeader = null;
@@ -186,11 +195,15 @@ public static class CampLanguageService
 	static IEnumerable<string> CandidatePackageArtifactRoots(CompilerRequest request)
 	{
 		string workingDirectory = Path.GetFullPath(request.WorkingDirectory);
-		yield return Path.Combine(workingDirectory, "pkg", "bin");
+		yield return Path.Combine(workingDirectory, "cache", "pkg");
 		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
-			yield return Path.GetFullPath(Path.Combine(runtimeRoot, "..", "pkg", "bin"));
-		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
-			yield return Path.Combine(runtimeRoot, "lib");
+			yield return Path.GetFullPath(Path.Combine(runtimeRoot, "..", "cache", "pkg"));
+	}
+
+	static IEnumerable<string> CandidateCompilerLibraryCacheRoots(string runtimeRoot)
+	{
+		yield return Path.GetFullPath(Path.Combine(runtimeRoot, "..", "cache", "lib"));
+		yield return Path.Combine(runtimeRoot, "cache", "lib");
 	}
 
 	static IEnumerable<string> CandidatePackageSourceRoots(CompilerRequest request)
@@ -198,9 +211,15 @@ public static class CampLanguageService
 		foreach (string root in request.UseSourceRoots)
 			yield return Path.GetFullPath(root, request.WorkingDirectory);
 		string workingDirectory = Path.GetFullPath(request.WorkingDirectory);
-		yield return Path.Combine(workingDirectory, "pkg");
+		yield return Path.Combine(workingDirectory, "cache", "pkg");
 		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
-			yield return Path.GetFullPath(Path.Combine(runtimeRoot, "..", "pkg"));
+			yield return Path.GetFullPath(Path.Combine(runtimeRoot, "..", "cache", "pkg"));
+	}
+
+	static IEnumerable<string> CandidateArtifactDirectoryNames(string targetDirectory, string profileName)
+	{
+		yield return targetDirectory + "_static_" + profileName;
+		yield return targetDirectory + "_" + profileName;
 	}
 
 	static IEnumerable<string> CandidatePackageVersionDirectories(string packageRoot, string? requestedVersion)

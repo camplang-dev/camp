@@ -5,8 +5,9 @@
 bin/
 obj/
 
-# Camp package cache
+# Camp package/cache output
 pkg/
+cache/
 
 # User-specific IDE/editor files
 .idea/

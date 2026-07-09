@@ -457,8 +457,11 @@ sealed class CampCli
 				continue;
 
 			string projectDirectory = Path.GetDirectoryName(canonicalBuildFile)!;
-			string targetDirectory = TryGetTargetVariantDirectoryName(consumerRequest, environment, errors);
-			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", targetDirectory, consumerRequest.ProfileName);
+			TargetDefinition? target = TryGetTargetDefinition(consumerRequest, environment, errors);
+			string artifactDirectory = target is null
+				? consumerRequest.TargetName
+				: BuildArtifactLayout.GetArtifactDirectoryName(target, NativeBuildKind.Static, consumerRequest.ProfileName);
+			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", artifactDirectory);
 			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
 			projectArgs.AddRange(["--target", consumerRequest.TargetName]);
 			projectArgs.AddRange(["--profile", consumerRequest.ProfileName]);
@@ -516,28 +519,28 @@ sealed class CampCli
 			paths.Add(path);
 	}
 
-	static string TryGetTargetVariantDirectoryName(CompilerRequest request, CliEnvironment environment, List<string> errors)
+	static TargetDefinition? TryGetTargetDefinition(CompilerRequest request, CliEnvironment environment, List<string> errors)
 	{
 		string targetsDirectory = Path.GetFullPath(Path.Combine(environment.RuntimeRoot, "..", "targets"));
 		if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out string? error))
 		{
 			errors.Add(error ?? $"Target directory '{targetsDirectory}' could not be loaded.");
-			return request.TargetName;
+			return null;
 		}
 		if (!catalog!.TryGetTarget(request.TargetName, out TargetDefinition? target))
 		{
 			errors.Add($"Target '{request.TargetName}' could not be found in '{targetsDirectory}'.");
-			return request.TargetName;
+			return null;
 		}
 		try
 		{
 			TargetVariantSelection selection = target!.ResolveVariantSelection(request.Variants);
-			return target.WithVariantSelection(selection).GetVariantDirectoryName();
+			return target.WithVariantSelection(selection);
 		}
 		catch (InvalidDataException ex)
 		{
 			errors.Add(ex.Message);
-			return request.TargetName;
+			return null;
 		}
 	}
 
@@ -1716,8 +1719,8 @@ sealed class CliEnvironment
 	public required string RuntimeRoot { get; init; }
 	public required string RepositoryRoot { get; init; }
 	public string GlobalCampPath => Path.Combine(RepositoryRoot, "lib", "global.camp");
-	public string GlobalPackageRoot => Path.Combine(RepositoryRoot, "pkg");
-	public string LocalPackageRoot => Path.Combine(WorkingDirectory, "pkg");
+	public string GlobalPackageRoot => Path.Combine(RepositoryRoot, "cache", "pkg");
+	public string LocalPackageRoot => Path.Combine(WorkingDirectory, "cache", "pkg");
 
 	public static CliEnvironment Create()
 	{

@@ -525,7 +525,7 @@ public sealed class LanguageServiceTests
 		string formsRoot = Path.Combine(root, "win32-forms");
 		string source = Path.Combine(appRoot, "src", "main.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(source)!);
-		string packageApi = Path.Combine(appRoot, "pkg", "bin", "ext-win32", "live", "msvc-windows-x64", "DEBUG", "ext-win32_api.camp");
+		string packageApi = Path.Combine(appRoot, "cache", "pkg", "ext-win32", "live", "bin", "msvc-windows-x64_static_DEBUG", "ext-win32_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(packageApi)!);
 		File.WriteAllText(packageApi, """
 			export as Win32;
@@ -533,7 +533,7 @@ public sealed class LanguageServiceTests
 			export newtype HWND: nint;
 			export newtype fn _winapi nint WNDPROC(HWND handle);
 			""");
-		string formsApi = Path.Combine(formsRoot, "bin", "msvc-windows-x64", "DEBUG", "win32-forms_api.camp");
+		string formsApi = Path.Combine(formsRoot, "bin", "msvc-windows-x64_static_DEBUG", "win32-forms_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(formsApi)!);
 		File.WriteAllText(formsApi, """
 			export as Win32::Forms;
@@ -603,7 +603,7 @@ public sealed class LanguageServiceTests
 		string appRoot = Path.Combine(root, "app");
 		string source = Path.Combine(appRoot, "timer.camp");
 		Directory.CreateDirectory(appRoot);
-		string stdApi = Path.Combine(runtimeRoot, "lib", "std", "clang-macos-x64", "DEBUG", "std_api.camp");
+		string stdApi = Path.Combine(runtimeRoot, "cache", "lib", "std", "bin", "clang-macos-x64_static_DEBUG", "std_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
 		File.WriteAllText(stdApi, """
 			export as Std;
@@ -639,7 +639,7 @@ public sealed class LanguageServiceTests
 		string appRoot = Path.Combine(root, "app");
 		string source = Path.Combine(appRoot, "main.camp");
 		Directory.CreateDirectory(appRoot);
-		string stdApi = Path.Combine(runtimeRoot, "lib", "std", "clang-macos-x64", "DEBUG", "std_api.camp");
+		string stdApi = Path.Combine(runtimeRoot, "cache", "lib", "std", "bin", "clang-macos-x64_static_DEBUG", "std_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
 		File.WriteAllText(stdApi, """
 			export as Std;
@@ -685,7 +685,7 @@ public sealed class LanguageServiceTests
 	{
 		string root = CreateTempDirectory("language-service-open-std-api");
 		string runtimeRoot = Path.Combine(root, "runtime");
-		string stdApi = Path.Combine(runtimeRoot, "lib", "std", "clang-macos-x64", "DEBUG", "std_api.camp");
+		string stdApi = Path.Combine(runtimeRoot, "cache", "lib", "std", "bin", "clang-macos-x64_static_DEBUG", "std_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
 		File.WriteAllText(stdApi, """
 			export as Std;
@@ -705,7 +705,7 @@ public sealed class LanguageServiceTests
 	{
 		string root = CreateTempDirectory("language-service-open-std-source");
 		string runtimeRoot = Path.Combine(root, "runtime");
-		string stdApi = Path.Combine(runtimeRoot, "lib", "std", "clang-macos-x64", "DEBUG", "std_api.camp");
+		string stdApi = Path.Combine(runtimeRoot, "cache", "lib", "std", "bin", "clang-macos-x64_static_DEBUG", "std_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
 		File.WriteAllText(stdApi, """
 			export as Std;

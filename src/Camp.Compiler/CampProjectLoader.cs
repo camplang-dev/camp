@@ -22,8 +22,8 @@ public sealed class CampProjectEnvironment
 	public required string RuntimeRoot { get; init; }
 	public required string RepositoryRoot { get; init; }
 	public string GlobalCampPath => Path.Combine(RepositoryRoot, "lib", "global.camp");
-	public string GlobalPackageRoot => Path.Combine(RepositoryRoot, "pkg");
-	public string LocalPackageRoot => Path.Combine(WorkingDirectory, "pkg");
+	public string GlobalPackageRoot => Path.Combine(RepositoryRoot, "cache", "pkg");
+	public string LocalPackageRoot => Path.Combine(WorkingDirectory, "cache", "pkg");
 
 	public static CampProjectEnvironment Create(string? workingDirectory = null, string? runtimeRoot = null)
 	{
@@ -287,7 +287,7 @@ public static class CampProjectLoader
 		string projectDirectory = Path.GetDirectoryName(Path.GetFullPath(buildFile)) ?? workingDirectory;
 		string projectName = GetProjectReferenceName(buildFile, workingDirectory) ?? Path.GetFileNameWithoutExtension(buildFile);
 		string profileName = string.IsNullOrWhiteSpace(consumerRequest.ProfileName) ? "DEBUG" : consumerRequest.ProfileName.ToUpperInvariant();
-		string expected = Path.Combine(projectDirectory, "bin", GetTargetVariantDirectoryName(consumerRequest), profileName, projectName + "_api.camp");
+		string expected = Path.Combine(projectDirectory, "bin", GetArtifactDirectoryName(consumerRequest, NativeBuildKind.Static, profileName), projectName + "_api.camp");
 		if (File.Exists(expected))
 		{
 			apiHeader = expected;
@@ -306,20 +306,20 @@ public static class CampProjectLoader
 		return false;
 	}
 
-	static string GetTargetVariantDirectoryName(CompilerRequest request)
+	static string GetArtifactDirectoryName(CompilerRequest request, NativeBuildKind? buildKind, string profileName)
 	{
 		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
 		string targetsDirectory = Path.GetFullPath(Path.Combine(request.RuntimeRoot, "..", "targets"));
 		if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out _) || !catalog!.TryGetTarget(targetName, out TargetDefinition? target))
-			return targetName;
+			return buildKind is NativeBuildKind.Static ? targetName + "_static_" + profileName : targetName + "_" + profileName;
 		try
 		{
 			TargetVariantSelection selection = target!.ResolveVariantSelection(request.Variants);
-			return target.WithVariantSelection(selection).GetVariantDirectoryName();
+			return BuildArtifactLayout.GetArtifactDirectoryName(target.WithVariantSelection(selection), buildKind, profileName);
 		}
 		catch (InvalidDataException)
 		{
-			return targetName;
+			return buildKind is NativeBuildKind.Static ? targetName + "_static_" + profileName : targetName + "_" + profileName;
 		}
 	}
 

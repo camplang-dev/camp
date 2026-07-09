@@ -624,12 +624,12 @@ Likely implementation areas:
 - ~~Ensure relative `--out-dir` resolves from the correct base.~~
 - ~~Update command-line, native build, and smoke tests.~~
 
-### Stage 4: Package And Project Reference Cache Layout
+### ~~Stage 4: Package And Project Reference Cache Layout~~
 
-- Move project-reference and package dependency artifacts into the appropriate `cache/pkg` or project `bin` locations.
-- Keep live source build artifacts in the consuming workspace cache.
-- Avoid writing generated files into external live package source folders.
-- Ensure globally installed packages are read from compiler-root `cache/pkg`.
+- ~~Move project-reference and package dependency artifacts into the appropriate `cache/pkg` or project `bin` locations.~~
+- ~~Keep live source build artifacts in the consuming workspace cache.~~
+- ~~Avoid writing generated files into external live package source folders.~~
+- ~~Ensure globally installed packages are read from compiler-root `cache/pkg`.~~
 
 ### Stage 5: Static/Shared Dependency Link Kind
 

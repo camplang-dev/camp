@@ -305,7 +305,7 @@ public static class CompilerDriver
 		string GetPackageArtifactRoot()
 		{
 			return Path.GetFullPath(string.IsNullOrWhiteSpace(request.PackageArtifactRoot)
-				? Path.Combine(request.RuntimeRoot, "lib")
+				? Path.Combine(request.RuntimeRoot, "..", "cache", "lib")
 				: request.PackageArtifactRoot);
 		}
 
@@ -446,7 +446,8 @@ public static class CompilerDriver
 				.OrderBy(static x => x, StringComparer.Ordinal)
 				.ToArray();
 
-			string packageBinDirectory = GetPackageArtifactDirectory(context.PackageArtifactRoot, packageName, version: null, context);
+			NativeBuildKind? packageBuildKind = requireNativeLibrary ? NativeBuildKind.Static : null;
+			string packageBinDirectory = GetPackageArtifactDirectory(context.PackageArtifactRoot, packageName, version: null, context, packageBuildKind);
 			string apiPath = Path.Combine(packageBinDirectory, packageName + "_api.camp");
 			string cApiPath = Path.Combine(packageBinDirectory, packageName + "_api.h");
 			string metadataPath = Path.Combine(packageBinDirectory, packageName + "_api.json");
@@ -503,7 +504,8 @@ public static class CompilerDriver
 				.OrderBy(static x => x, StringComparer.Ordinal)
 				.ToArray();
 
-			string packageBinDirectory = GetPackageArtifactDirectory(artifactRoot!, packageName, resolvedVersion!, context);
+			NativeBuildKind? packageBuildKind = requireNativeLibrary ? NativeBuildKind.Static : null;
+			string packageBinDirectory = GetPackageArtifactDirectory(artifactRoot!, packageName, resolvedVersion!, context, packageBuildKind);
 			string apiPath = Path.Combine(packageBinDirectory, packageName + "_api.camp");
 			string cApiPath = Path.Combine(packageBinDirectory, packageName + "_api.h");
 			string metadataPath = Path.Combine(packageBinDirectory, packageName + "_api.json");
@@ -582,7 +584,7 @@ public static class CompilerDriver
 					if (Directory.Exists(unversioned))
 					{
 						sourceDirectory = unversioned;
-						artifactRoot = Path.Combine(request.WorkingDirectory, "pkg", "bin");
+						artifactRoot = Path.Combine(request.WorkingDirectory, "cache", "pkg");
 						resolvedVersion = "live";
 						return true;
 					}
@@ -604,7 +606,7 @@ public static class CompilerDriver
 				if (!Directory.Exists(candidate))
 					continue;
 				sourceDirectory = candidate;
-				artifactRoot = Path.Combine(request.WorkingDirectory, "pkg", "bin");
+				artifactRoot = Path.Combine(request.WorkingDirectory, "cache", "pkg");
 				resolvedVersion = version;
 				return true;
 			}
@@ -613,18 +615,18 @@ public static class CompilerDriver
 
 		IEnumerable<(string InstallRoot, string ArtifactRoot)> GetInstalledPackageRoots()
 		{
-			string globalRoot = Path.GetFullPath(Path.Combine(request.RuntimeRoot, "..", "pkg"));
-			string localRoot = Path.GetFullPath(Path.Combine(request.WorkingDirectory, "pkg"));
-			yield return (globalRoot, Path.Combine(globalRoot, "bin"));
-			yield return (localRoot, Path.Combine(localRoot, "bin"));
+			string globalRoot = Path.GetFullPath(Path.Combine(request.RuntimeRoot, "..", "cache", "pkg"));
+			string localRoot = Path.GetFullPath(Path.Combine(request.WorkingDirectory, "cache", "pkg"));
+			yield return (globalRoot, globalRoot);
+			yield return (localRoot, localRoot);
 		}
 
-		static string GetPackageArtifactDirectory(string artifactRoot, string packageName, string? version, RuntimeContext context)
+		static string GetPackageArtifactDirectory(string artifactRoot, string packageName, string? version, RuntimeContext context, NativeBuildKind? buildKind)
 		{
-			string targetDirectory = context.Target.GetVariantDirectoryName();
+			string artifactDirectory = BuildArtifactLayout.GetArtifactDirectoryName(context.Target, buildKind, context.ProfileName);
 			return version is null
-				? Path.Combine(artifactRoot, packageName, targetDirectory, context.ProfileName)
-				: Path.Combine(artifactRoot, packageName, version, targetDirectory, context.ProfileName);
+				? Path.Combine(artifactRoot, packageName, "bin", artifactDirectory)
+				: Path.Combine(artifactRoot, packageName, version, "bin", artifactDirectory);
 		}
 
 		static (string Name, string? Version) ParsePackageSpec(string value)
