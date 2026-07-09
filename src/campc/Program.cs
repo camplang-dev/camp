@@ -460,19 +460,15 @@ sealed class CampCli
 			string projectDirectory = Path.GetDirectoryName(canonicalBuildFile)!;
 			string targetDirectory = TryGetTargetVariantDirectoryName(consumerRequest, environment, errors);
 			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", targetDirectory, consumerRequest.ProfileName);
-			string projectBuildDirectory = Path.Combine(projectDirectory, "obj", targetDirectory, consumerRequest.ProfileName);
+			string projectBuildDirectory = Path.Combine(projectOutputDirectory, "build");
 			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
-			bool hasProjectOutDir = HasOption(projectArgs, "--out-dir");
-			bool hasProjectBuildDir = HasOption(projectArgs, "--build-dir");
 			projectArgs.AddRange(["--target", consumerRequest.TargetName]);
 			projectArgs.AddRange(["--profile", consumerRequest.ProfileName]);
 			if (consumerRequest.Variants.Count > 0)
 				projectArgs.AddRange(["--variant", .. consumerRequest.Variants]);
 			projectArgs.AddRange(["--artifact", "static"]);
-			if (!hasProjectOutDir)
-				projectArgs.AddRange(["--out-dir", projectOutputDirectory]);
-			if (!hasProjectBuildDir)
-				projectArgs.AddRange(["--build-dir", projectBuildDirectory]);
+			projectArgs.AddRange(["--out-dir", projectOutputDirectory]);
+			projectArgs.AddRange(["--build-dir", projectBuildDirectory]);
 
 			List<string> childStack = [.. projectReferenceStack, canonicalBuildFile];
 			if (!TryBuildRequest(projectArgs.ToArray(), environment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack))
@@ -623,7 +619,9 @@ sealed class CampCli
 			"-p",
 			"--variant",
 			"-v",
-			"--artifact"
+			"--artifact",
+			"--out-dir",
+			"--build-dir"
 		};
 		List<string> result = [];
 		for (int i = 0; i < args.Count; i++)
@@ -632,7 +630,7 @@ sealed class CampCli
 			{
 				if (args[i] is "--variant" or "-v")
 				{
-					while (i + 1 < args.Count && !args[i + 1].StartsWith("-", StringComparison.Ordinal))
+					while (i + 1 < args.Count && IsVariantValueToken(args[i + 1]))
 						i++;
 				}
 				else if (i + 1 < args.Count)
@@ -644,12 +642,14 @@ sealed class CampCli
 		return result;
 	}
 
-	static bool HasOption(IReadOnlyList<string> args, string longName)
+	static bool IsVariantValueToken(string value)
 	{
-		foreach (string arg in args)
-			if (string.Equals(arg, longName, StringComparison.Ordinal))
-				return true;
-		return false;
+		if (string.IsNullOrWhiteSpace(value) || value.StartsWith("-", StringComparison.Ordinal))
+			return false;
+		foreach (char c in value)
+			if (!char.IsAsciiLetterOrDigit(c))
+				return false;
+		return true;
 	}
 
 	static bool IsStaticLibrary(string path, string targetName, string runtimeRoot)

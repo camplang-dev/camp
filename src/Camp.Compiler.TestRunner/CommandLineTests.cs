@@ -500,9 +500,11 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Project_reference_respects_referenced_project_output_directories()
+	public void Project_reference_uses_variant_cache_instead_of_referenced_project_output_directories()
 	{
 		string root = TempPath("project-reference-configured-directories");
+		if (Directory.Exists(root))
+			Directory.Delete(root, recursive: true);
 		string libraryRoot = Path.Combine(root, "sample-lib");
 		string librarySource = Path.Combine(libraryRoot, "src");
 		string appRoot = Path.Combine(root, "sample-app");
@@ -533,6 +535,7 @@ public sealed class CommandLineTests
 			""");
 		string target = NativeTargetForHost();
 		string staticLibraryName = OperatingSystem.IsWindows() ? "sample-lib.lib" : "libsample-lib.a";
+		string referenceOutputDirectory = Path.Combine(libraryRoot, "bin", target, "DEBUG");
 
 		ProcessResult result = RunCampc(
 			"build",
@@ -547,9 +550,12 @@ public sealed class CommandLineTests
 			Path.Combine(appRoot, "bin"));
 
 		AssertCommandSucceeded(result);
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", staticLibraryName)));
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", "sample-lib_api.camp")));
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "build", "library.c")));
+		Assert.True(File.Exists(Path.Combine(referenceOutputDirectory, staticLibraryName)));
+		Assert.True(File.Exists(Path.Combine(referenceOutputDirectory, "sample-lib_api.camp")));
+		Assert.True(File.Exists(Path.Combine(referenceOutputDirectory, "build", "library.c")));
+		Assert.False(File.Exists(Path.Combine(libraryRoot, "bin", staticLibraryName)));
+		Assert.False(File.Exists(Path.Combine(libraryRoot, "bin", "sample-lib_api.camp")));
+		Assert.False(Directory.Exists(Path.Combine(libraryRoot, "build")));
 		Assert.False(Directory.Exists(Path.Combine(libraryRoot, "obj")));
 		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", "sample-app" + ExecutableExtensionForHost()));
 		Assert.Equal(0, run.ExitCode);
@@ -669,8 +675,8 @@ public sealed class CommandLineTests
 		AssertCommandSucceeded(result);
 		Assert.Contains($"{bRoot}: generated: b", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains($"{aRoot}: generated: a", result.StdOut, StringComparison.Ordinal);
-		Assert.True(File.Exists(Path.Combine(aRoot, "bin", target, "default", "DEBUG", "a_api.camp")));
-		Assert.True(File.Exists(Path.Combine(bRoot, "bin", target, "default", "DEBUG", "b_api.camp")));
+		Assert.True(File.Exists(Path.Combine(aRoot, "bin", target, "DEBUG", "a_api.camp")));
+		Assert.True(File.Exists(Path.Combine(bRoot, "bin", target, "DEBUG", "b_api.camp")));
 		ProcessResult run = RunExecutable(Path.Combine(outDir, "transitive-app" + ExecutableExtensionForHost()));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);
@@ -838,7 +844,7 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("generated: interface-app", result.StdOut, StringComparison.Ordinal);
-		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", target, "default", "DEBUG", "interfaces_api.camp"));
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", target, "DEBUG", "interfaces_api.camp"));
 		Assert.Contains("export extern class Counter : IValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern constof(this) IValue* getIValue();", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeCounter : IValue", api, StringComparison.Ordinal);
@@ -1009,8 +1015,8 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("generated: sample-app.exe", result.StdOut, StringComparison.Ordinal);
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "default", "DEBUG", "sample-lib.lib")));
-		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "default", "DEBUG", "sample-lib_api.camp")));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "DEBUG", "sample-lib.lib")));
+		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", target, "DEBUG", "sample-lib_api.camp")));
 		Assert.True(File.Exists(Path.Combine(appRoot, "obj", "sample_lib_api.h")));
 		ProcessResult run = RunExecutable(Path.Combine(appRoot, "bin", "sample-app.exe"));
 		Assert.Equal(0, run.ExitCode);
@@ -1052,7 +1058,7 @@ public sealed class CommandLineTests
 			}
 			""");
 		string target = NativeTargetForHost();
-		string libraryPath = Path.Combine(libraryRoot, "bin", target, "default", "DEBUG", "sample-lib.lib");
+		string libraryPath = Path.Combine(libraryRoot, "bin", target, "DEBUG", "sample-lib.lib");
 		string executablePath = Path.Combine(appRoot, "bin", "sample-app.exe");
 
 		ProcessResult firstBuild = RunCampc(
@@ -1258,7 +1264,7 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: project_reference_virtual_api_app.c", result.StdOut, StringComparison.Ordinal);
-		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "default", "DEBUG", "widgets_api.camp"));
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", "clang-macos-x64", "DEBUG", "widgets_api.camp"));
 		Assert.Contains("export escaped extern class Control", api, StringComparison.Ordinal);
 		Assert.Contains("export escaped extern class Button : Control", api, StringComparison.Ordinal);
 		Assert.Contains("export extern int value();", api, StringComparison.Ordinal);

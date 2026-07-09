@@ -443,7 +443,7 @@ public static class CompilerDriver
 			string[] cacheSourceFiles = sourceFiles
 				.Concat(nativeSourceFiles)
 				.Concat(Directory.GetFiles(sourceDirectory, "*.h", SearchOption.AllDirectories))
-				.Concat(GetCompilerCacheInputs())
+				.Concat(GetCompilerCacheInputs(context))
 				.OrderBy(static x => x, StringComparer.Ordinal)
 				.ToArray();
 
@@ -500,7 +500,7 @@ public static class CompilerDriver
 			string[] cacheSourceFiles = sourceFiles
 				.Concat(nativeSourceFiles)
 				.Concat(Directory.GetFiles(sourceDirectory!, "*.h", SearchOption.AllDirectories))
-				.Concat(GetCompilerCacheInputs())
+				.Concat(GetCompilerCacheInputs(context))
 				.OrderBy(static x => x, StringComparer.Ordinal)
 				.ToArray();
 
@@ -680,11 +680,17 @@ public static class CompilerDriver
 			return true;
 		}
 
-		static IEnumerable<string> GetCompilerCacheInputs()
+		static IEnumerable<string> GetCompilerCacheInputs(RuntimeContext context)
 		{
 			string assemblyPath = typeof(CompilerDriver).Assembly.Location;
 			if (!string.IsNullOrWhiteSpace(assemblyPath) && File.Exists(assemblyPath))
 				yield return assemblyPath;
+			string? targetDirectory = Path.GetDirectoryName(context.Target.Path);
+			if (!string.IsNullOrWhiteSpace(targetDirectory) && Directory.Exists(targetDirectory))
+			{
+				foreach (string targetFile in Directory.GetFiles(targetDirectory, "*.ini").OrderBy(static path => path, StringComparer.Ordinal))
+					yield return targetFile;
+			}
 		}
 
 		bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, IReadOnlyList<string> nativeSourceFiles, string apiPath, string? staticLibraryPath, RuntimeContext context)
