@@ -44,14 +44,14 @@ sealed class CampTextDocumentSyncHandler(CampLspWorkspace workspace) : TextDocum
 
 	public override Task<Unit> Handle(DidOpenTextDocumentParams request, CancellationToken cancellationToken)
 	{
-		workspace.OpenOrChange(request.TextDocument.Uri, request.TextDocument.Text, request.TextDocument.Version);
+		workspace.Open(request.TextDocument.Uri, request.TextDocument.Text, request.TextDocument.Version);
 		return Unit.Task;
 	}
 
 	public override Task<Unit> Handle(DidChangeTextDocumentParams request, CancellationToken cancellationToken)
 	{
 		string text = request.ContentChanges.LastOrDefault()?.Text ?? "";
-		workspace.OpenOrChange(request.TextDocument.Uri, text, request.TextDocument.Version);
+		workspace.Change(request.TextDocument.Uri, text, request.TextDocument.Version);
 		return Unit.Task;
 	}
 
@@ -222,44 +222,138 @@ sealed class CampWorkspaceSymbolHandler(CampLspWorkspace workspace) : WorkspaceS
 
 public sealed class CampLspWorkspace
 {
+	const int DiagnosticDebounceMilliseconds = 500;
 	readonly Dictionary<string, OpenDocument> openDocuments = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CampAnalysisSnapshot> snapshots = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CampAnalysisSnapshot> lastSuccessfulSnapshots = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, CancellationTokenSource> pendingDiagnostics = new(StringComparer.OrdinalIgnoreCase);
+	readonly object gate = new();
 	ILanguageServer? languageServer;
 
 	public void SetLanguageServer(ILanguageServer server)
 	{
 		languageServer = server;
-		foreach (DocumentUri uri in openDocuments.Values.Select(static document => document.Uri))
+		List<DocumentUri> uris;
+		lock (gate)
+			uris = openDocuments.Values.Select(static document => document.Uri).ToList();
+		foreach (DocumentUri uri in uris)
 			PublishDiagnostics(uri);
 	}
 
-	public void OpenOrChange(DocumentUri uri, string text, int? version)
+	public void Open(DocumentUri uri, string text, int? version)
 	{
 		string path = uri.GetFileSystemPath();
-		openDocuments[path] = new OpenDocument(uri, path, text, version);
+		lock (gate)
+			openDocuments[path] = new OpenDocument(uri, path, text, version);
 		Reanalyze(uri);
+	}
+
+	public void Change(DocumentUri uri, string text, int? version)
+	{
+		string path = uri.GetFileSystemPath();
+		lock (gate)
+			openDocuments[path] = new OpenDocument(uri, path, text, version);
+		ScheduleDiagnostics(uri, path, version);
 	}
 
 	public void Close(DocumentUri uri)
 	{
 		string path = uri.GetFileSystemPath();
-		openDocuments.Remove(path);
-		snapshots.Remove(path);
-		lastSuccessfulSnapshots.Remove(path);
+		CancelPendingDiagnostics(path);
+		lock (gate)
+		{
+			openDocuments.Remove(path);
+			snapshots.Remove(path);
+			lastSuccessfulSnapshots.Remove(path);
+		}
 		PublishDiagnostics(uri, []);
 	}
 
 	public void Reanalyze(DocumentUri uri)
 	{
 		string path = uri.GetFileSystemPath();
-		if (!openDocuments.TryGetValue(path, out OpenDocument? document))
+		CancelPendingDiagnostics(path);
+		OpenDocument? document;
+		lock (gate)
+			openDocuments.TryGetValue(path, out document);
+		if (document is null)
 			return;
 		CampAnalysisSnapshot snapshot = Analyze(document);
-		snapshots[path] = snapshot;
-		if (snapshot.Success)
-			lastSuccessfulSnapshots[path] = snapshot;
+		lock (gate)
+		{
+			snapshots[path] = snapshot;
+			if (snapshot.Success)
+				lastSuccessfulSnapshots[path] = snapshot;
+		}
 		PublishDiagnostics(uri, snapshot.Diagnostics.Where(diagnostic => string.IsNullOrWhiteSpace(diagnostic.Path) || string.Equals(diagnostic.Path, path, StringComparison.OrdinalIgnoreCase)));
+	}
+
+	void ScheduleDiagnostics(DocumentUri uri, string path, int? version)
+	{
+		CancellationTokenSource source = new();
+		lock (gate)
+		{
+			if (pendingDiagnostics.Remove(path, out CancellationTokenSource? previous))
+				previous.Cancel();
+			pendingDiagnostics[path] = source;
+		}
+
+		_ = Task.Run(async () =>
+		{
+			try
+			{
+				await Task.Delay(DiagnosticDebounceMilliseconds, source.Token).ConfigureAwait(false);
+				if (!source.Token.IsCancellationRequested)
+					ReanalyzeIfCurrent(uri, path, version, source);
+			}
+			catch (OperationCanceledException)
+			{
+			}
+			finally
+			{
+				lock (gate)
+				{
+					if (pendingDiagnostics.TryGetValue(path, out CancellationTokenSource? current) && ReferenceEquals(current, source))
+						pendingDiagnostics.Remove(path);
+				}
+				source.Dispose();
+			}
+		});
+	}
+
+	void ReanalyzeIfCurrent(DocumentUri uri, string path, int? version, CancellationTokenSource source)
+	{
+		OpenDocument? document;
+		lock (gate)
+		{
+			if (!pendingDiagnostics.TryGetValue(path, out CancellationTokenSource? current) || !ReferenceEquals(current, source))
+				return;
+			if (!openDocuments.TryGetValue(path, out document))
+				return;
+			if (version is not null && document.Version != version)
+				return;
+		}
+
+		CampAnalysisSnapshot snapshot = Analyze(document);
+		lock (gate)
+		{
+			if (!openDocuments.TryGetValue(path, out OpenDocument? currentDocument) || version is not null && currentDocument.Version != version)
+				return;
+			snapshots[path] = snapshot;
+			if (snapshot.Success)
+				lastSuccessfulSnapshots[path] = snapshot;
+		}
+		PublishDiagnostics(uri, snapshot.Diagnostics.Where(diagnostic => string.IsNullOrWhiteSpace(diagnostic.Path) || string.Equals(diagnostic.Path, path, StringComparison.OrdinalIgnoreCase)));
+	}
+
+	void CancelPendingDiagnostics(string path)
+	{
+		lock (gate)
+		{
+			if (!pendingDiagnostics.Remove(path, out CancellationTokenSource? source))
+				return;
+			source.Cancel();
+		}
 	}
 
 	public CampHover? GetHover(DocumentUri uri, CampTextPosition position)
@@ -307,7 +401,10 @@ public sealed class CampLspWorkspace
 	public IReadOnlyList<CampWorkspaceSymbol> GetWorkspaceSymbols(string query)
 	{
 		EnsureOpenDocumentSnapshots();
-		return snapshots.Values
+		List<CampAnalysisSnapshot> snapshotList;
+		lock (gate)
+			snapshotList = snapshots.Values.ToList();
+		return snapshotList
 			.SelectMany(snapshot => new CampSymbolQueryService(snapshot).GetWorkspaceSymbols(query))
 			.DistinctBy(static symbol => (symbol.Name, symbol.Kind, symbol.Location.Path, symbol.Location.Range.Start.Line, symbol.Location.Range.Start.Character))
 			.OrderBy(static symbol => symbol.Name, StringComparer.OrdinalIgnoreCase)
@@ -319,22 +416,40 @@ public sealed class CampLspWorkspace
 
 	void EnsureOpenDocumentSnapshots()
 	{
-		foreach (OpenDocument document in openDocuments.Values)
+		List<OpenDocument> documents;
+		lock (gate)
+			documents = openDocuments.Values.ToList();
+		foreach (OpenDocument document in documents)
 		{
-			if (!snapshots.ContainsKey(document.Path))
-				snapshots[document.Path] = Analyze(document);
+			bool missing;
+			lock (gate)
+				missing = !snapshots.ContainsKey(document.Path);
+			if (!missing)
+				continue;
+			CampAnalysisSnapshot snapshot = Analyze(document);
+			lock (gate)
+				snapshots[document.Path] = snapshot;
 		}
 	}
 
 	bool TryGetSnapshot(DocumentUri uri, out string path, out CampAnalysisSnapshot? snapshot)
 	{
 		path = uri.GetFileSystemPath();
-		if (!snapshots.TryGetValue(path, out snapshot) && openDocuments.TryGetValue(path, out OpenDocument? document))
+		OpenDocument? document = null;
+		lock (gate)
+		{
+			if (!snapshots.TryGetValue(path, out snapshot))
+				openDocuments.TryGetValue(path, out document);
+		}
+		if (snapshot is null && document is not null)
 		{
 			snapshot = Analyze(document);
-			snapshots[path] = snapshot;
-			if (snapshot.Success)
-				lastSuccessfulSnapshots[path] = snapshot;
+			lock (gate)
+			{
+				snapshots[path] = snapshot;
+				if (snapshot.Success)
+					lastSuccessfulSnapshots[path] = snapshot;
+			}
 		}
 		return snapshot is not null;
 	}
@@ -342,11 +457,16 @@ public sealed class CampLspWorkspace
 	bool TryGetQuerySnapshot(DocumentUri uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot)
 	{
 		path = uri.GetFileSystemPath();
-		openDocuments.TryGetValue(path, out document);
+		lock (gate)
+			openDocuments.TryGetValue(path, out document);
 		if (!TryGetSnapshot(uri, out _, out snapshot))
 			return false;
-		if (snapshot is { Success: false } && lastSuccessfulSnapshots.TryGetValue(path, out CampAnalysisSnapshot? successful))
-			snapshot = successful;
+		if (snapshot is { Success: false })
+		{
+			lock (gate)
+				if (lastSuccessfulSnapshots.TryGetValue(path, out CampAnalysisSnapshot? successful))
+					snapshot = successful;
+		}
 		return snapshot is not null;
 	}
 
@@ -380,7 +500,10 @@ public sealed class CampLspWorkspace
 	void PublishDiagnostics(DocumentUri uri)
 	{
 		string path = uri.GetFileSystemPath();
-		if (snapshots.TryGetValue(path, out CampAnalysisSnapshot? snapshot))
+		CampAnalysisSnapshot? snapshot;
+		lock (gate)
+			snapshots.TryGetValue(path, out snapshot);
+		if (snapshot is not null)
 			PublishDiagnostics(uri, snapshot.Diagnostics.Where(diagnostic => string.IsNullOrWhiteSpace(diagnostic.Path) || string.Equals(diagnostic.Path, path, StringComparison.OrdinalIgnoreCase)));
 	}
 

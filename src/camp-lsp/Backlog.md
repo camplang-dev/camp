@@ -4,6 +4,113 @@ This list tracks language-server features that are not compiler bugs. Items are
 ordered by recommended implementation priority, balancing user value against
 implementation complexity and risk.
 
+## LSP Performance Backlog
+
+These items track responsiveness fixes that do not require full incremental
+compilation. They are ordered by expected value/effort for real editor use.
+
+## ~~LSPPERF-001 — Debounce Diagnostics After Typing~~
+
+Complexity: Low-medium.
+
+~~Do not re-analyze immediately on every `textDocument/didChange`. Wait for a
+short quiet period after the last edit, likely 300-600 ms, before starting
+diagnostic analysis. Coalesce rapid full-document changes into one analysis
+request for the latest document version.~~
+
+~~Timing: Do this first. It should reduce red-underline lag, server queue
+pressure, and visible editor churn without requiring compiler architecture
+changes.~~
+
+## LSPPERF-002 — Do Not Block Interactive Queries On Fresh Analysis
+
+Complexity: Low-medium.
+
+Hover, completion, signature help, go-to-definition, document symbols, and
+references should answer from the latest successful semantic snapshot whenever
+possible. They should not synchronously trigger or wait for a full fresh compile
+of dirty text. If the current edit is broken or analysis is in flight, return
+best-effort stale results or an empty result quickly.
+
+Timing: Do immediately after diagnostics debouncing. VS Code feels broken when
+interactive features wait seconds for a fresh snapshot.
+
+## LSPPERF-003 — Single-Flight Latest-Version Analysis
+
+Complexity: Medium.
+
+Ensure only one analysis runs per document/project snapshot lane. When a newer
+document version arrives, cancel the old request if possible or ignore its
+result when it completes. Never publish diagnostics or replace the query
+snapshot with stale analysis results.
+
+Timing: Do after interactive queries are decoupled from fresh analysis. This is
+the core safety rule that prevents old work from clogging the server and
+reintroducing obsolete diagnostics.
+
+## LSPPERF-004 — Separate Diagnostic And Query Snapshot Policies
+
+Complexity: Medium.
+
+Diagnostics should run in the background and can tolerate latency. Interactive
+queries should be opportunistic and fast. Keep explicit state for the latest
+successful query snapshot, latest requested diagnostic version, latest completed
+diagnostic version, and current in-flight analysis.
+
+Timing: Do after single-flight analysis. This makes the LSP behavior easier to
+reason about before adding broader project diagnostics or richer completion.
+
+## LSPPERF-005 — Cache `.campbuild` Project Loading
+
+Complexity: Medium.
+
+Avoid re-reading and re-expanding the nearest `.campbuild`, `#build` pragmas,
+glob patterns, package source roots, project references, and cached API header
+lookups for every request. Cache resolved project inputs by build file and
+invalidate when the build file, included build/pragmas source files, or relevant
+package/reference inputs change.
+
+Timing: Do after analysis scheduling is sane. Project loading is pure overhead
+that VS Code may accidentally repeat on every hover/completion/change.
+
+## LSPPERF-006 — Cache Parsed Unchanged Files
+
+Complexity: Medium-high.
+
+Even without full incremental binding, avoid tokenizing and parsing unopened
+unchanged files repeatedly. Cache token/CST/AST surfaces by file path,
+content hash, and relevant parse options. Reuse cached parses for project
+sources, package sources, and generated API headers when only an open overlay
+file changed.
+
+Timing: Do after project-loading cache. This is a bigger compiler/tooling
+boundary change, but still much smaller than full incremental semantic
+analysis.
+
+## LSPPERF-007 — Add Cheap Completion Fallbacks
+
+Complexity: Medium.
+
+When no fresh semantic snapshot is ready, return useful completion candidates
+from the latest successful snapshot or a lightweight lexical/project index.
+Prefer stale but responsive completions over no completion. Member completions
+should remain conservative when receiver type information is unavailable.
+
+Timing: Do after query paths reliably use cached snapshots. This improves the
+typing experience while deeper analysis performance work continues.
+
+## LSPPERF-008 — Throttle Diagnostic Publishing
+
+Complexity: Low-medium.
+
+Publish diagnostics only for the latest completed analysis version, coalesce
+rapid changes, and avoid repeatedly publishing identical diagnostic sets. Clear
+stale diagnostics predictably when a newer successful snapshot completes.
+
+Timing: Do after single-flight analysis and diagnostic/query separation. This
+reduces VS Code UI churn and prevents old errors from flickering or lingering
+after the source has changed.
+
 ## ~~LSP-001 — Improve Member And Property Definition Mapping~~
 
 Complexity: Medium.
