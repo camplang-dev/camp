@@ -436,7 +436,7 @@ sealed class CampCli
 		apiHeaders = [];
 		sharedApiHeaders = [];
 		libraries = [];
-		bool requireLibrary = consumerRequest.BuildKind is not null;
+		bool requireLibrary = consumerRequest.BuildKind is not null || consumerRequest.InferBuildKind;
 		foreach (string projectReference in projectReferences)
 		{
 			ProjectReferenceSpec referenceSpec = ProjectReferenceSpec.Parse(projectReference);
@@ -498,6 +498,21 @@ sealed class CampCli
 				continue;
 			}
 
+			if (target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest!, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.GlobalCampPath, requireLibrary, out string? currentApiHeader, out string? currentLibrary))
+			{
+				apiHeaders.Add(currentApiHeader);
+				if (effectiveLinkKind == DependencyLinkKind.Shared)
+					sharedApiHeaders.Add(currentApiHeader);
+				if (currentLibrary is not null)
+					AddUniquePath(libraries, currentLibrary);
+				foreach (string reference in projectRequest!.References)
+				{
+					if (referenceBuildKind == NativeBuildKind.Static || IsSharedDependencyReference(reference, target))
+						AddUniquePath(libraries, reference);
+				}
+				continue;
+			}
+
 			CompilerResult result = CompilerDriver.Execute(projectRequest!);
 			WriteProjectReferenceOutput(projectReference, result.StdOut);
 			string? apiHeader = result.GeneratedFiles.FirstOrDefault(static path => path.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
@@ -536,6 +551,110 @@ sealed class CampCli
 			}
 		}
 		return errors.Count == 0;
+	}
+
+	static bool TryGetCurrentProjectReferenceArtifacts(CompilerRequest projectRequest, string buildFile, string outputDirectory, NativeBuildKind buildKind, TargetDefinition target, string globalCampPath, bool requireLibrary, out string apiHeader, out string? library)
+	{
+		string projectName = ProjectReferenceOutputName(projectRequest, buildFile);
+		apiHeader = Path.Combine(outputDirectory, projectName + "_api.camp");
+		string cApiHeader = Path.Combine(outputDirectory, projectName + "_api.h");
+		string metadata = Path.Combine(outputDirectory, projectName + "_api.json");
+		NativeBuildOptions nativeOptions = new()
+		{
+			Target = target,
+			ProfileName = projectRequest.ProfileName,
+			BuildDirectory = Path.Combine(outputDirectory, "build"),
+			OutputDirectory = outputDirectory,
+			ProjectName = projectName,
+			Kind = buildKind,
+			SourceFiles = []
+		};
+		string nativeArtifact = NativeBuildDriver.GetArtifactPath(nativeOptions);
+		library = requireLibrary ? NativeBuildDriver.GetLinkArtifactPath(nativeOptions) : null;
+
+		List<string> outputs = [apiHeader, cApiHeader, metadata];
+		if (requireLibrary)
+		{
+			outputs.Add(nativeArtifact);
+			if (!string.Equals(nativeArtifact, library, StringComparison.OrdinalIgnoreCase))
+				outputs.Add(library!);
+		}
+
+		List<string> inputs = GetProjectReferenceCacheInputs(projectRequest, buildFile, target, globalCampPath).ToList();
+		return OutputsAreCurrent(outputs, inputs);
+	}
+
+	static string ProjectReferenceOutputName(CompilerRequest projectRequest, string buildFile)
+	{
+		if (!string.IsNullOrWhiteSpace(projectRequest.ProjectName))
+			return projectRequest.ProjectName!;
+		string? firstSource = projectRequest.Files.FirstOrDefault(file => !file.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
+		if (!string.IsNullOrWhiteSpace(firstSource))
+			return Path.GetFileNameWithoutExtension(firstSource);
+		return Path.GetFileNameWithoutExtension(buildFile);
+	}
+
+	static IEnumerable<string> GetProjectReferenceCacheInputs(CompilerRequest projectRequest, string buildFile, TargetDefinition target, string globalCampPath)
+	{
+		yield return buildFile;
+		if (File.Exists(globalCampPath))
+			yield return globalCampPath;
+		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.Files))
+			yield return input;
+		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.IncludeFiles))
+			yield return input;
+		foreach (string input in projectRequest.SharedLibraryApiHeaders)
+			yield return input;
+		foreach (string reference in projectRequest.References)
+		{
+			if (Path.IsPathRooted(reference) && (File.Exists(reference) || Directory.Exists(reference)))
+				yield return reference;
+		}
+		if (File.Exists(target.Path))
+			yield return target.Path;
+		string? compilerAssembly = typeof(CompilerDriver).Assembly.Location;
+		if (!string.IsNullOrWhiteSpace(compilerAssembly) && File.Exists(compilerAssembly))
+			yield return compilerAssembly;
+		if (!string.IsNullOrWhiteSpace(Environment.ProcessPath) && File.Exists(Environment.ProcessPath))
+			yield return Environment.ProcessPath;
+	}
+
+	static IEnumerable<string> ResolveProjectReferenceInputPaths(CompilerRequest projectRequest, IEnumerable<string> paths)
+	{
+		foreach (string path in paths)
+		{
+			string fullPath = Path.GetFullPath(path, projectRequest.WorkingDirectory);
+			if (File.Exists(fullPath) || Directory.Exists(fullPath))
+				yield return fullPath;
+			string? directory = File.Exists(fullPath) ? Path.GetDirectoryName(fullPath) : Directory.Exists(fullPath) ? fullPath : null;
+			if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+				yield return directory;
+		}
+	}
+
+	static bool OutputsAreCurrent(IReadOnlyList<string> outputs, IReadOnlyList<string> inputs)
+	{
+		if (outputs.Count == 0 || outputs.Any(static output => !File.Exists(output)))
+			return false;
+		DateTime oldestOutput = outputs.Select(File.GetLastWriteTimeUtc).Min();
+		foreach (string input in inputs.Distinct(StringComparer.OrdinalIgnoreCase))
+		{
+			if (File.Exists(input))
+			{
+				if (oldestOutput <= File.GetLastWriteTimeUtc(input))
+					return false;
+			}
+			else if (Directory.Exists(input))
+			{
+				if (oldestOutput <= Directory.GetLastWriteTimeUtc(input))
+					return false;
+			}
+			else
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 
 	static void AddUniquePath(List<string> paths, string path)

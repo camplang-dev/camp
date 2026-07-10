@@ -663,6 +663,73 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Project_reference_skips_native_static_library_when_outputs_are_current()
+	{
+		string root = TempPath("project-reference-static-current");
+		if (Directory.Exists(root))
+			Directory.Delete(root, recursive: true);
+		string libraryRoot = Path.Combine(root, "sample-lib");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "sample-app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			export int add(int left, int right)
+			{
+				return left + right;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
+			--nostdlib
+			--name sample-lib
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name sample-app
+
+			export int main()
+			{
+				return add(20, 22) - 42;
+			}
+			""");
+		string target = NativeTargetForHost();
+		string outDir = Path.Combine(appRoot, "bin");
+		string referenceOutputDirectory = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
+		string libraryPath = NativeArtifactPathForTarget(target, NativeBuildKind.Static, referenceOutputDirectory, "sample-lib");
+
+		ProcessResult first = RunCampc(
+			"build",
+			app,
+			"--target",
+			target,
+			"--project-reference",
+			libraryRoot + ":static",
+			"--out-dir",
+			outDir);
+
+		AssertCommandSucceeded(first);
+		Assert.Contains(libraryRoot + ":static: generated:", first.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(libraryPath));
+		DateTime firstLibraryWrite = File.GetLastWriteTimeUtc(libraryPath);
+
+		ProcessResult second = RunCampc(
+			"build",
+			app,
+			"--target",
+			target,
+			"--project-reference",
+			libraryRoot + ":static",
+			"--out-dir",
+			outDir);
+
+		AssertCommandSucceeded(second);
+		Assert.DoesNotContain(libraryRoot + ":static: generated:", second.StdOut, StringComparison.Ordinal);
+		Assert.Equal(firstLibraryWrite, File.GetLastWriteTimeUtc(libraryPath));
+	}
+
+	[Fact]
 	public void Project_reference_rejects_wrong_only_artifact_link_kind()
 	{
 		string root = TempPath("project-reference-only-kind");
@@ -2365,6 +2432,22 @@ public sealed class CommandLineTests
 		Assert.True(TargetCatalog.TryLoad(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
 		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
 		return BuildArtifactLayout.GetArtifactDirectoryName(target!, linkKind, "DEBUG");
+	}
+
+	static string NativeArtifactPathForTarget(string targetName, NativeBuildKind buildKind, string outputDirectory, string projectName)
+	{
+		Assert.True(TargetCatalog.TryLoad(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
+		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
+		return NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
+		{
+			Target = target!,
+			ProfileName = "DEBUG",
+			BuildDirectory = Path.Combine(outputDirectory, "build"),
+			OutputDirectory = outputDirectory,
+			ProjectName = projectName,
+			Kind = buildKind,
+			SourceFiles = []
+		});
 	}
 
 	static string ExecutableExtensionForHost()
