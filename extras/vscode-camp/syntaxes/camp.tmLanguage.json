@@ -26,6 +26,12 @@
     },
     {
       "include": "#functions"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#punctuation"
     }
   ],
   "repository": {
@@ -138,6 +144,94 @@
         {
           "name": "entity.name.function.camp",
           "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.compound.camp",
+          "match": "\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|<<=|>>="
+        },
+        {
+          "name": "keyword.operator.arrow.camp",
+          "match": "=>"
+        },
+        {
+          "name": "keyword.operator.bitwise.shift.camp",
+          "match": "<<|>>"
+        },
+        {
+          "name": "keyword.operator.assignment.camp",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.comparison.camp",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.logical.camp",
+          "match": "&&|\\|\\||!"
+        },
+        {
+          "name": "keyword.operator.bitwise.camp",
+          "match": "&|\\||\\^|~"
+        },
+        {
+          "name": "keyword.operator.arithmetic.camp",
+          "match": "\\+|-|\\*|/|%"
+        },
+        {
+          "name": "keyword.operator.conditional.camp",
+          "match": "\\?"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.terminator.statement.camp",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.separator.comma.camp",
+          "match": ","
+        },
+        {
+          "name": "punctuation.separator.colon.camp",
+          "match": ":"
+        },
+        {
+          "name": "punctuation.separator.range.camp",
+          "match": "\\.\\."
+        },
+        {
+          "name": "punctuation.accessor.dot.camp",
+          "match": "\\."
+        },
+        {
+          "name": "punctuation.section.block.begin.bracket.curly.camp",
+          "match": "\\{"
+        },
+        {
+          "name": "punctuation.section.block.end.bracket.curly.camp",
+          "match": "\\}"
+        },
+        {
+          "name": "punctuation.section.parameters.begin.bracket.round.camp",
+          "match": "\\("
+        },
+        {
+          "name": "punctuation.section.parameters.end.bracket.round.camp",
+          "match": "\\)"
+        },
+        {
+          "name": "punctuation.section.brackets.begin.bracket.square.camp",
+          "match": "\\["
+        },
+        {
+          "name": "punctuation.section.brackets.end.bracket.square.camp",
+          "match": "\\]"
         }
       ]
     }
