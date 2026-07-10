@@ -398,6 +398,13 @@ public sealed class CampParser
 			syntax.CallableAscriptionType = ParseType();
 			if (syntax.CallableAscriptionType is null)
 				Report(Current, "Callable ascription is missing a type.");
+			if (Is("."))
+			{
+				syntax.CallableAscriptionDotToken = Take();
+				syntax.CallableAscriptionMemberName = ExpectIdentifier();
+				if (syntax.CallableAscriptionMemberName is null)
+					Report(Current, "Interface implementation marker is missing a method name after '.'.");
+			}
 		}
 
 		if (Is(";"))

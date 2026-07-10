@@ -8,14 +8,14 @@ extern void free(void* ptr);
 
 class Widget: IRef
 {
-	void retain()
+	void retain(): IRef
 	{
 	}
 }
 
 struct Handle: IRef
 {
-	void retain()
+	void retain(): IRef
 	{
 	}
 }

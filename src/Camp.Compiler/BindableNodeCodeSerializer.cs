@@ -628,6 +628,11 @@ public sealed class BindableNodeCodeSerializer
 		{
 			writer.Write(" : ");
 			WriteType(definition.CallableAscriptionType);
+			if (!string.IsNullOrWhiteSpace(definition.InterfaceImplementationSlotName))
+			{
+				writer.Write(".");
+				writer.Write(definition.InterfaceImplementationSlotName);
+			}
 		}
 		if (definition.InterfaceSlotInitializer is not null)
 		{

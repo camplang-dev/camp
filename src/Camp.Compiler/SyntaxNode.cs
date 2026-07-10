@@ -130,6 +130,8 @@ public class MemberDeclarationSyntax : SyntaxNode
 	public ParameterListSyntax? ParameterList { get; set; }
 	public Token? CallableAscriptionColonToken { get; set; }
 	public TypeSyntax? CallableAscriptionType { get; set; }
+	public Token? CallableAscriptionDotToken { get; set; }
+	public Token? CallableAscriptionMemberName { get; set; }
 	public Token? SemicolonToken { get; set; }
 	public MethodBodySyntax? MethodBody { get; set; }
 	public AssignmentSyntax? Assignment { get; set; }

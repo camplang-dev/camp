@@ -16,12 +16,12 @@ class Counter: IValue
 		this.count = count;
 	}
 
-	int value()
+	int value(): IValue
 	{
 		return this.count;
 	}
 
-	int transform(int input, delegate int(int value) apply)
+	int transform(int input, delegate int(int value) apply): IValue
 	{
 		return apply(input + this.count);
 	}

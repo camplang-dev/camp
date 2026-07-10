@@ -7,14 +7,14 @@ export interface IRef
 
 export class Widget: IRef
 {
-	export void retain()
+	export void retain(): IRef
 	{
 	}
 }
 
 export struct Handle: IRef
 {
-	export void retain()
+	export void retain(): IRef
 	{
 	}
 }

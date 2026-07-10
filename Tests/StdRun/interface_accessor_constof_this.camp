@@ -12,7 +12,7 @@ class Counter: IValue
 		this.value = value;
 	}
 
-	int getValue()
+	int getValue(): IValue
 	{
 		return this.value;
 	}

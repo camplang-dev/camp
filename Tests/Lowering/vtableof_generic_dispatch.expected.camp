@@ -9,7 +9,7 @@ class Widget
 {
 	const IRef* _vt_IRef;
 
-	void retain()
+	void retain() : IRef
 	{
 	}
 
@@ -26,7 +26,7 @@ class Widget
 
 struct Handle
 {
-	void retain()
+	void retain() : IRef
 	{
 	}
 }

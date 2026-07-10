@@ -5,7 +5,7 @@ export interface IValue
 
 export class Counter : IValue
 {
-	export int value()
+	export int value(): IValue
 	{
 		return 1;
 	}
@@ -17,7 +17,7 @@ export extern class NativeCounter : IValue
 
 export struct ValueCounter : IValue
 {
-	export int value()
+	export int value(): IValue
 	{
 		return 2;
 	}

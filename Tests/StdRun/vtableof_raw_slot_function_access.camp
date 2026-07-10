@@ -27,12 +27,12 @@ class RefThing: IRefCount
 		this.releases = releases;
 	}
 
-	void retain()
+	void retain(): IRefCount
 	{
 		(*this.retains)++;
 	}
 
-	void release()
+	void release(): IRefCount
 	{
 		(*this.releases)++;
 	}

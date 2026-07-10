@@ -12,7 +12,7 @@ int defaultGetValue(ICounter* this, int value)
 
 class BasicCounter: ICounter
 {
-	int required(int value)
+	int required(int value): ICounter
 	{
 		return value;
 	}
@@ -20,17 +20,17 @@ class BasicCounter: ICounter
 
 class CustomCounter: ICounter
 {
-	int optional(int value)
+	int optional(int value): ICounter
 	{
 		return value + 1;
 	}
 
-	int getValue(int value)
+	int getValue(int value): ICounter
 	{
 		return value + 20;
 	}
 
-	int required(int value)
+	int required(int value): ICounter
 	{
 		return value;
 	}
@@ -38,7 +38,7 @@ class CustomCounter: ICounter
 
 struct StructCounter: ICounter
 {
-	int required(int value)
+	int required(int value): ICounter
 	{
 		return value;
 	}

@@ -27,7 +27,7 @@ interface IBaseOptional
 
 class BaseOptional: IBaseOptional
 {
-	int inheritedRequired(int value)
+	int inheritedRequired(int value): IBaseOptional
 	{
 		return value;
 	}
@@ -35,7 +35,7 @@ class BaseOptional: IBaseOptional
 
 class DerivedOptional: BaseOptional
 {
-	int inheritedOptional(int value)
+	int inheritedOptional(int value): IBaseOptional
 	{
 		return value;
 	}

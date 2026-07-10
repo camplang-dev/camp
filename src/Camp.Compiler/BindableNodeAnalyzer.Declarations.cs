@@ -1272,6 +1272,19 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
+		if (targetDefinition is InterfaceDefinition)
+		{
+			if (containingType is null || !typeDefinitions.TryGetValue(containingType, out TypeDefinition? owner) || owner is not ClassDefinition and not StructDefinition)
+				Report(GetRange(syntax), $"Interface implementation marker '{targetDefinition.Name}' on declaration '{declarationName}' is only valid on class or struct methods.");
+			return;
+		}
+
+		if (definition.InterfaceImplementationSlotName is not null)
+		{
+			Report(GetRange(syntax), $"Interface slot selector '.{definition.InterfaceImplementationSlotName}' on declaration '{declarationName}' requires an interface implementation marker.");
+			return;
+		}
+
 		if (targetDefinition is not NewtypeDefinition newtypeDefinition)
 		{
 			Report(GetRange(syntax), $"Callable ascription target '{targetDefinition.Name}' for declaration '{declarationName}' is not a newtype.");

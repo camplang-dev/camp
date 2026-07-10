@@ -1003,8 +1003,8 @@ public sealed class CommandLineTests
 
 			export class RefThing: IRefCount
 			{
-				void retain() {}
-				void release() {}
+				void retain(): IRefCount {}
+				void release(): IRefCount {}
 			}
 			""");
 		string secondSource = Path.Combine(root, "consumer.camp");
@@ -1018,7 +1018,7 @@ public sealed class CommandLineTests
 
 			export struct NamedRef: INamed
 			{
-				string getName() => "named";
+				string getName(): INamed => "named";
 			}
 			""");
 
@@ -1065,7 +1065,7 @@ public sealed class CommandLineTests
 
 			export class Counter: IValue
 			{
-				int value()
+				int value(): IValue
 				{
 					return 1;
 				}
@@ -1081,7 +1081,7 @@ public sealed class CommandLineTests
 
 			export struct StructCounter: IValue
 			{
-				int value()
+				int value(): IValue
 				{
 					return 2;
 				}

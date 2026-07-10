@@ -1316,13 +1316,32 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition? FindImplementationMethod(TypeDefinition type, FunctionDefinition interfaceMember)
 	{
-		string name = GetImplementationMethodName(interfaceMember);
 		foreach (FunctionDefinition function in GetFunctions(type))
 		{
-			if (GetCallableName(function) == name || function.Name == name)
+			if (IsMarkedInterfaceImplementation(function, interfaceMember))
 				return function;
 		}
 		return null;
+	}
+
+	bool IsMarkedInterfaceImplementation(FunctionDefinition function, FunctionDefinition interfaceMember)
+	{
+		if (function.InterfaceImplementationMember is not null)
+		{
+			if (function.InterfaceImplementationMember == interfaceMember)
+				return true;
+			return GetCallableName(function.InterfaceImplementationMember) == GetCallableName(interfaceMember)
+				&& MethodSignatureCompatibleWithConstOfVariance(BuildMethodSignature(function.InterfaceImplementationMember), BuildMethodSignature(interfaceMember), compareName: function.InterfaceImplementationSlotName is null);
+		}
+
+		if (function.CallableAscriptionType is null || FindContainingType(interfaceMember) is not InterfaceDefinition interfaceDefinition)
+			return false;
+		string targetType = BaseTypeName(function.CallableAscriptionType.ResolvedType ?? GetTypeReferenceName(function.CallableAscriptionType) ?? ErrorType);
+		if (targetType != interfaceDefinition.Name)
+			return false;
+		string slotName = function.InterfaceImplementationSlotName ?? GetCallableName(function);
+		return slotName == GetCallableName(interfaceMember)
+			&& MethodSignatureCompatibleWithConstOfVariance(BuildMethodSignature(function), BuildMethodSignature(interfaceMember), compareName: function.InterfaceImplementationSlotName is null);
 	}
 
 	static void EnsureImplementationMethodSymbol(TypeDefinition type, FunctionDefinition function)

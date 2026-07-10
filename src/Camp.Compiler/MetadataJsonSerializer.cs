@@ -367,7 +367,23 @@ public static class MetadataJsonSerializer
 			if (!string.IsNullOrWhiteSpace(function.CallSpec))
 				json.WriteString("callspec", function.CallSpec);
 			WriteTypeProperty(json, "returnType", function.ReturnType, function.ResolvedType);
-			if (function.CallableAscriptionType is not null)
+			if (function.InterfaceImplementationInterface is not null)
+			{
+				json.WriteStartObject("interfaceImplementation");
+				WriteReference(json, "interfaceRef", function.InterfaceImplementationInterface);
+				json.WriteString("interface", function.InterfaceImplementationInterface.Name);
+				if (function.InterfaceImplementationMember is not null)
+				{
+					json.WriteString("slot", SymbolNameService.CallableName(function.InterfaceImplementationMember).Value);
+					WriteReference(json, "slotRef", function.InterfaceImplementationMember);
+				}
+				else if (!string.IsNullOrWhiteSpace(function.InterfaceImplementationSlotName))
+				{
+					json.WriteString("slot", function.InterfaceImplementationSlotName);
+				}
+				json.WriteEndObject();
+			}
+			else if (function.CallableAscriptionType is not null)
 				WriteTypeProperty(json, "ascription", function.CallableAscriptionType, function.CallableAscriptionType.ResolvedType);
 			WriteInterfaceSlotInitializer(json, function);
 			WritePropertyInfo(json, function);

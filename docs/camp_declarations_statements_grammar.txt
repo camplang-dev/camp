@@ -86,7 +86,10 @@ declaration:
 	<type-declaration> | <alias-declaration> | <member-declaration>
 
 member-declaration:
-	<attribute>* <member-declarator>* <type>? [~] <member-name> ['<' <generic-parameter-list> '>'] ['(' <parameter-list> ')'] (; | <method-body> | <assignment>)
+	<attribute>* <member-declarator>* <type>? [~] <member-name> ['<' <generic-parameter-list> '>'] ['(' <parameter-list> ')'] [<member-ascription>] (; | <method-body> | <assignment>)
+
+member-ascription:
+	: <type> ['.' <IDENT>]
 
 member-name:
 	<IDENT>

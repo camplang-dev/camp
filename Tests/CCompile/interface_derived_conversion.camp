@@ -8,7 +8,7 @@ interface IValue
 
 class BaseCounter: IValue
 {
-	int value()
+	int value(): IValue
 	{
 		return 7;
 	}

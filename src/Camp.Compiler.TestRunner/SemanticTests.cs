@@ -35,7 +35,7 @@ public sealed class SemanticTests
 			export class Box: IFace
 			{
 				int value;
-				int getValue() => this.value;
+				int getValue(): IFace => this.value;
 			}
 
 			export inline uint MAGIC = 42;
@@ -128,7 +128,7 @@ public sealed class SemanticTests
 			class Box: IFace
 			{
 				int value;
-				int getValue() => this.value;
+				int getValue(): IFace => this.value;
 			}
 			""");
 
@@ -209,7 +209,7 @@ public sealed class SemanticTests
 			export class Box: IFace
 			{
 				int value;
-				int getValue() => this.value;
+				int getValue(): IFace => this.value;
 			}
 			""");
 

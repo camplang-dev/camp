@@ -459,6 +459,9 @@ Functions and methods may contain:
 - `callspec`: target calling convention when present.
 - `returnType`: source-level return type.
 - `ascription`: callable newtype ascription when present.
+- `interfaceImplementation`: for class/struct methods explicitly marked as
+  implementing an interface slot with `: Interface` or
+  `: Interface.slotName`.
 - `typeParameters`: generic type parameters.
 - `parameters`: function parameters.
 - property companion fields.
@@ -474,6 +477,30 @@ callable-newtype metadata shape as `fn`, `delegate`, `once`, and `iter`.
 `@awaitwith` and `@noawait` are emitted, when visible, as source attributes.
 They are not callable type modifiers, parameter modifiers, ABI slots, or
 generated metadata objects.
+
+`interfaceImplementation` is mutually exclusive with ordinary callable
+`ascription`. It identifies the source interface marker, not a callable newtype
+conversion. The object contains:
+
+- `interfaceRef`: reference to the interface declaration when visible or
+  stubbed.
+- `interface`: interface name.
+- `slot`: callable slot name, including overload selector fragments.
+- `slotRef`: reference to the interface method declaration when visible or
+  stubbed.
+
+Example:
+
+```json
+{
+  "name": "writeString",
+  "returnType": "void",
+  "interfaceImplementation": {
+    "interface": "IWriter",
+    "slot": "writeString"
+  }
+}
+```
 
 Type-bearing fields in metadata use source-level Camp spelling where a source
 type was written. This matters for features whose source contract is more

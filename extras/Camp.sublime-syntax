@@ -225,6 +225,12 @@ contexts:
         1: entity.name.type.owner.camp
         3: punctuation.accessor.member.camp
         5: entity.name.member.static.camp
+    - match: '(:)(\s*)({{qualified_identifier}})(\s*)(\.)(\s*)({{identifier}})\b'
+      captures:
+        1: punctuation.separator.ascription.camp
+        3: entity.name.type.interface.camp
+        5: punctuation.accessor.member.camp
+        7: entity.name.member.interface-slot.camp
     - match: '\b({{identifier}})\s*(?=<)'
       scope: entity.name.type.generic.camp
     - match: '\b(fn|delegate|async|once)\b(\s+\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)?'

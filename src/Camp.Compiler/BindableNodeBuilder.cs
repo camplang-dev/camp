@@ -719,6 +719,8 @@ public sealed partial class BindableNodeBuilder
 
 		if (syntax.CallableAscriptionType is not null)
 			definition.CallableAscriptionType = BuildTypeReference(syntax.CallableAscriptionType, allowIteratorStorage: true);
+		if (syntax.CallableAscriptionMemberName is not null)
+			definition.InterfaceImplementationSlotName = syntax.CallableAscriptionMemberName.Value.Value;
 
 		if (isInterface && syntax.Assignment is not null)
 			definition.InterfaceSlotInitializer = BuildExpression(syntax.Assignment.Expression, "Interface method vtable initializer");

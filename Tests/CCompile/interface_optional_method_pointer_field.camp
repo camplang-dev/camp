@@ -9,12 +9,12 @@ export interface IHost
 
 escaped class Host: IHost
 {
-	int onValue()
+	int onValue(): IHost
 	{
 		return 5;
 	}
 
-	int onTransform(int value, delegate int(int value) transform)
+	int onTransform(int value, delegate int(int value) transform): IHost
 	{
 		return transform(value + 1);
 	}

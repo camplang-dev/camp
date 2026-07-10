@@ -6,11 +6,11 @@ interface IWriter
 
 class ConsoleWriter: IWriter
 {
-	void write(overload int value)
+	void write(overload int value): IWriter
 	{
 	}
 
-	void writeString(string value)
+	void writeString(string value): IWriter.writeString
 	{
 	}
 }

@@ -5,7 +5,7 @@ interface IRef
 
 struct Handle: IRef
 {
-	void retain()
+	void retain(): IRef
 	{
 	}
 }

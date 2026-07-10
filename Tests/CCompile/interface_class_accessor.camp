@@ -15,7 +15,7 @@ class Counter: IValue
 		this.count = count;
 	}
 
-	int value()
+	int value(): IValue
 	{
 		return this.count;
 	}

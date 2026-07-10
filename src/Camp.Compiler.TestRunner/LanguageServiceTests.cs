@@ -248,7 +248,7 @@ public sealed class LanguageServiceTests
 		{
 			int value;
 			int getValue() => this.value;
-			void tick() { this.value++; }
+			void tick(): ICounter { this.value++; }
 		}
 
 		class Derived: Counter

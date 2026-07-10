@@ -8,7 +8,7 @@ export interface IValue
 
 export class Counter: IValue
 {
-	int value()
+	int value(): IValue
 	{
 		return 10;
 	}

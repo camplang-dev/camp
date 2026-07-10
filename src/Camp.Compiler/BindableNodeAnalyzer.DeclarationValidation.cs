@@ -166,12 +166,11 @@ public sealed partial class BindableNodeAnalyzer
 
 		ValidateClassVirtualMethods(definition);
 		ValidateInheritedMethodNames(definition);
+		ValidateInterfaceImplementationMarkers(definition);
 		ValidateDerivedOptionalInterfaceMethods(definition);
 
-		List<MethodSignature> available = GetClassMethodSignatures(definition);
-
 		foreach (InterfaceDefinition interfaceDefinition in GetImplementedInterfaces(definition))
-			EnsureInterfaceImplemented(definition, interfaceDefinition, available);
+			EnsureInterfaceImplemented(definition, interfaceDefinition);
 
 		foreach (FunctionDefinition abstractMethod in GetInheritedAbstractMethods(definition))
 		{
@@ -207,10 +206,10 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetNameRange(function), "Struct methods may not be virtual, abstract, override, or sealed.");
 		}
 
-		List<MethodSignature> available = GetStructMethodSignatures(definition);
+		ValidateInterfaceImplementationMarkers(definition);
 
 		foreach (InterfaceDefinition interfaceDefinition in GetImplementedInterfaces(definition))
-			EnsureInterfaceImplemented(definition, interfaceDefinition, available);
+			EnsureInterfaceImplemented(definition, interfaceDefinition);
 	}
 
 	void ValidateExternClass(ClassDefinition definition)
@@ -238,7 +237,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	void EnsureInterfaceImplemented(TypeDefinition implementation, InterfaceDefinition interfaceDefinition, List<MethodSignature> available)
+	void EnsureInterfaceImplemented(TypeDefinition implementation, InterfaceDefinition interfaceDefinition)
 	{
 		if (InterfaceRequiresConstructor(interfaceDefinition) && implementation is ClassDefinition { Modifier: not ClassModifier.Sealed })
 			Report(GetNameRange(implementation), $"Interface '{interfaceDefinition.Name}' declares a constructor and may only be implemented by a sealed class or a struct.");
@@ -249,9 +248,113 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			MethodSignature required = BuildMethodSignature(member);
-			if (!ContainsSignature(available, required))
-				Report(GetNameRange(implementation), $"Type '{implementation.Name}' does not implement interface member '{interfaceDefinition.Name}.{required.DisplayName}'.");
+			if (FindMarkedInterfaceImplementation(implementation, member) is null)
+			{
+				if (FindUnmarkedSameNameInterfaceCandidate(implementation, member) is FunctionDefinition candidate)
+				{
+					Report(GetNameRange(candidate), $"Method '{candidate.Name}' does not implement interface member '{interfaceDefinition.Name}.{required.DisplayName}' because it is missing an explicit interface marker; add ': {interfaceDefinition.Name}'.");
+				}
+				else
+				{
+					Report(GetNameRange(implementation), $"Type '{implementation.Name}' does not implement interface member '{interfaceDefinition.Name}.{required.DisplayName}'.");
+				}
+			}
 		}
+	}
+
+	void ValidateInterfaceImplementationMarkers(TypeDefinition implementation)
+	{
+		HashSet<FunctionDefinition> claimed = [];
+		foreach (FunctionDefinition function in GetFunctions(implementation))
+		{
+			if (function.CallableAscriptionType is null)
+				continue;
+
+			string targetType = BaseTypeName(function.CallableAscriptionType.ResolvedType ?? ErrorType);
+			if (!typeDefinitions.TryGetValue(targetType, out TypeDefinition? targetDefinition) || targetDefinition is not InterfaceDefinition interfaceDefinition)
+				continue;
+
+			function.InterfaceImplementationInterface = interfaceDefinition;
+			if (!TypeImplementsInterface(implementation, interfaceDefinition))
+			{
+				Report(GetRange(function.CallableAscriptionType.SourceSyntax ?? function.SourceSyntax), $"Method '{function.Name}' cannot implement '{interfaceDefinition.Name}' because type '{implementation.Name}' does not implement that interface.");
+				continue;
+			}
+
+			string slotName = function.InterfaceImplementationSlotName ?? GetCallableName(function);
+			List<FunctionDefinition> slots = GetInterfaceMembers(interfaceDefinition)
+				.Where(member => GetCallableName(member) == slotName)
+				.ToList();
+			if (slots.Count == 0)
+			{
+				Report(GetRange(function.CallableAscriptionType.SourceSyntax ?? function.SourceSyntax), $"Interface '{interfaceDefinition.Name}' does not declare a method named '{slotName}'.");
+				continue;
+			}
+			if (slots.Count > 1)
+			{
+				Report(GetRange(function.CallableAscriptionType.SourceSyntax ?? function.SourceSyntax), $"Interface method marker '{interfaceDefinition.Name}.{slotName}' is ambiguous.");
+				continue;
+			}
+
+			FunctionDefinition member = slots[0];
+			function.InterfaceImplementationMember = member;
+			MethodSignature declared = BuildMethodSignature(function);
+			MethodSignature required = BuildMethodSignature(member);
+			if (!MethodSignatureCompatibleWithConstOfVariance(declared, required, compareName: function.InterfaceImplementationSlotName is null))
+			{
+				Report(GetNameRange(function), $"Method '{declared.DisplayName}' is not compatible with interface member '{interfaceDefinition.Name}.{required.DisplayName}'.");
+				continue;
+			}
+
+			string? expectedCallSpec = GetInterfaceMemberEffectiveCallSpec(member);
+			if (!string.IsNullOrWhiteSpace(function.CallSpec) && function.CallSpec != expectedCallSpec)
+				Report(GetRange(function.SourceSyntax), $"Method '{function.Name}' uses callspec '{function.CallSpec}', but interface member '{interfaceDefinition.Name}.{required.DisplayName}' requires {(string.IsNullOrWhiteSpace(expectedCallSpec) ? "no callspec" : $"callspec '{expectedCallSpec}'")}.");
+			else if (string.IsNullOrWhiteSpace(function.CallSpec) && !string.IsNullOrWhiteSpace(expectedCallSpec))
+				function.CallSpec = expectedCallSpec;
+
+			if (!claimed.Add(member))
+				Report(GetRange(function.CallableAscriptionType.SourceSyntax ?? function.SourceSyntax), $"Interface member '{interfaceDefinition.Name}.{required.DisplayName}' is already implemented by another method.");
+		}
+	}
+
+	string? GetInterfaceMemberEffectiveCallSpec(FunctionDefinition member)
+	{
+		if (!string.IsNullOrWhiteSpace(member.CallSpec))
+			return member.CallSpec;
+		if (member.CallableAscriptionNewtype is not null && TryBuildNewtypeSourceCallableShape(member.CallableAscriptionNewtype, out CallableShape shape))
+			return shape.CallSpec;
+		return null;
+	}
+
+	FunctionDefinition? FindMarkedInterfaceImplementation(TypeDefinition implementation, FunctionDefinition member)
+	{
+		foreach (FunctionDefinition function in GetFunctions(implementation))
+		{
+			if (function.InterfaceImplementationMember == member)
+				return function;
+		}
+		if (implementation is ClassDefinition classDefinition)
+		{
+			foreach (FunctionDefinition function in GetInheritedClassMethods(classDefinition))
+			{
+				if (function.InterfaceImplementationMember == member)
+					return function;
+			}
+		}
+		return null;
+	}
+
+	FunctionDefinition? FindUnmarkedSameNameInterfaceCandidate(TypeDefinition implementation, FunctionDefinition member)
+	{
+		string name = GetCallableName(member);
+		foreach (FunctionDefinition function in GetFunctions(implementation))
+		{
+			if (function.CallableAscriptionType is not null && function.InterfaceImplementationInterface is not null)
+				continue;
+			if (GetCallableName(function) == name || function.Name == name)
+				return function;
+		}
+		return null;
 	}
 
 	void AnalyzeInterfaceSlotInitializers(Module module)
@@ -629,8 +732,11 @@ public sealed partial class BindableNodeAnalyzer
 
 					foreach (FunctionDefinition function in definition.Functions)
 					{
+						if (function.InterfaceImplementationMember != member)
+							continue;
+
 						MethodSignature declaredSignature = BuildMethodSignature(function);
-						if (!MethodSignatureCompatibleWithConstOfVariance(declaredSignature, optionalSignature))
+						if (!MethodSignatureCompatibleWithConstOfVariance(declaredSignature, optionalSignature, compareName: function.InterfaceImplementationSlotName is null))
 							continue;
 
 						string key = $"{function.Name}|{interfaceDefinition.Name}|{optionalSignature.DisplayName}";
@@ -819,9 +925,9 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	static bool MethodSignatureCompatibleWithConstOfVariance(MethodSignature candidate, MethodSignature target)
+	static bool MethodSignatureCompatibleWithConstOfVariance(MethodSignature candidate, MethodSignature target, bool compareName = true)
 	{
-		if (candidate.Name != target.Name
+		if ((compareName && candidate.Name != target.Name)
 			|| candidate.ReceiverContract != target.ReceiverContract
 			|| candidate.ParameterTypes.Count != target.ParameterTypes.Count
 			|| !CallableSlotTypesCompatible(candidate.ReturnType, target.ReturnType, outputPosition: true))

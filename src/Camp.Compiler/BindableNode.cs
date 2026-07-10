@@ -178,6 +178,9 @@ public class FunctionDefinition : Definition
 	public TypeReference? ReturnType { get; set; }
 	public TypeReference? CallableAscriptionType { get; set; }
 	public NewtypeDefinition? CallableAscriptionNewtype { get; set; }
+	public string? InterfaceImplementationSlotName { get; set; }
+	public InterfaceDefinition? InterfaceImplementationInterface { get; set; }
+	public FunctionDefinition? InterfaceImplementationMember { get; set; }
 	public ThisParameterDefinition? EffectiveThisParameter { get; set; }
 	public string? ReceiverLifetimeBinding { get; set; }
 	public TypeReference? AbiThisType { get; set; }

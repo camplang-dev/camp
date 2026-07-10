@@ -27,7 +27,7 @@ virtual class Probe: Root, IProbe
 		return 1;
 	}
 
-	int read()
+	int read(): IProbe
 	{
 		return this.expected;
 	}

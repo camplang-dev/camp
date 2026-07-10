@@ -7,7 +7,7 @@ struct Counter: IValue
 {
 	int count;
 
-	int value()
+	int value(): IValue
 	{
 		return this.count;
 	}

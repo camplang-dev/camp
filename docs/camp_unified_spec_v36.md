@@ -4602,7 +4602,7 @@ Conceptually, that is equivalent to calling the vtable entry with the interface-
 
 Interface conformance is nominal only.
 
-A type implements an interface because it explicitly declares that interface in its declaration. Structural similarity is not enough. Required interface members are declared in the type body.
+A type implements an interface because it explicitly declares that interface in its declaration. Structural similarity is not enough. Methods that fill interface slots must be explicitly marked with the implemented interface.
 
 ```camp
 interface ICalculator
@@ -4620,25 +4620,52 @@ class ExtraCalculator: ICalculator
 		this.extra = extra;
 	}
 
-	int add(int a, int b)
+	int add(int a, int b): ICalculator
 	{
 		return this.extra + a + b;
 	}
 
-	int subtract(int a, int b)
+	int subtract(int a, int b): ICalculator
 	{
 		return this.extra + (a - b);
 	}
 }
 ```
 
-Camp does not infer implementation merely because method names and signatures happen to line up.
+Camp does not infer implementation merely because method names and signatures happen to line up. If a method has the same callable name as a required interface member but omits the marker, the type does not implement that member.
+
+The ordinary marker form is `: InterfaceName`. It binds the method to the interface slot with the same callable name. This includes overload selector names.
+
+```camp
+interface IWriter
+{
+	void write(overload int value);
+	void write(overload string value);
+}
+
+class ConsoleWriter: IWriter
+{
+	void write(overload int value): IWriter
+	{
+		...
+	}
+
+	void writeString(string value): IWriter.writeString
+	{
+		...
+	}
+}
+```
+
+The selector form `: InterfaceName.slotName` lets a differently named method fill a specific interface vtable slot. One method may implement only one interface slot. If two methods claim the same slot, or a marked method's signature is not compatible with the selected slot, the compiler reports an error at the implementation method.
+
+When a marked method implements an interface slot, the slot's callable contract is used for the implementation check. If the interface slot has an explicit callspec, or uses a callable `newtype` with an explicit callspec, the implementing method inherits that callspec. Repeating the same callspec is allowed; specifying a different callspec is an error.
 
 ### 2.4.8 Required, optional, and defaulted interface entries
 
 An interface method without an initializer is required. A type that implements
-the interface must declare a matching member in the type body, unless an
-inherited implementation already satisfies the ordinary interface rules.
+the interface must declare a marked compatible member in the type body, unless
+an inherited implementation already satisfies the ordinary interface rules.
 
 An ordinary interface method may also declare a vtable initializer after its
 signature:
@@ -4669,7 +4696,9 @@ function reference to a free function, out-of-scope receiver function, or static
 method. It must match the source-level slot type exactly: for
 `interface I { R m(P); }`, the default target has the callable shape
 `fn R(I* this, P)`. If an implementing type declares a matching method, that
-implementation overrides the default target.
+implementation overrides the default target only when the method is explicitly
+marked for that interface slot. An unmarked same-name method is ordinary type
+surface and does not fill an optional or defaulted interface slot.
 
 Constructors and destructors remain required when declared. Interface vtable
 initializers are valid only on ordinary interface methods.

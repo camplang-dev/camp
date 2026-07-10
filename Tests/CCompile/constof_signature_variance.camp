@@ -9,7 +9,7 @@ interface IConstGetter
 
 struct Getter: IConstGetter
 {
-	constof(source) int* get(const int[] source)
+	constof(source) int* get(const int[] source): IConstGetter
 	{
 		return source.elements;
 	}

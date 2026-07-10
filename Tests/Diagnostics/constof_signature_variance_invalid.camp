@@ -17,7 +17,7 @@ interface IDepGetter
 
 class BadGetter: IDepGetter
 {
-	const int* get(const int[] source)
+	const int* get(const int[] source): IDepGetter
 	{
 		return source.elements;
 	}

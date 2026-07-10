@@ -1,0 +1,52 @@
+interface IMarker
+{
+	void required();
+	void optional() = null;
+}
+
+class MissingMarker: IMarker
+{
+	void required()
+	{
+	}
+}
+
+class WrongSignature: IMarker
+{
+	void required(int value): IMarker
+	{
+	}
+}
+
+class UnknownSlot: IMarker
+{
+	void required(): IMarker
+	{
+	}
+
+	void anything(): IMarker.nope
+	{
+	}
+}
+
+class DuplicateSlot: IMarker
+{
+	void required(): IMarker
+	{
+	}
+
+	void other(): IMarker.required
+	{
+	}
+}
+
+class DoesNotImplement
+{
+	void required(): IMarker
+	{
+	}
+}
+
+void topLevel(): IMarker.required
+{
+}

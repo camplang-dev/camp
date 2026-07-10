@@ -1,0 +1,6 @@
+tests/Diagnostics/interface_implementation_markers_invalid.camp(50,18): error: Interface implementation marker 'IMarker' on declaration 'topLevel' is only valid on class or struct methods.
+tests/Diagnostics/interface_implementation_markers_invalid.camp(9,7): error: Method 'required' does not implement interface member 'IMarker.required()' because it is missing an explicit interface marker; add ': IMarker'.
+tests/Diagnostics/interface_implementation_markers_invalid.camp(16,7): error: Method 'required(None:int)' is not compatible with interface member 'IMarker.required()'.
+tests/Diagnostics/interface_implementation_markers_invalid.camp(27,19): error: Interface 'IMarker' does not declare a method named 'nope'.
+tests/Diagnostics/interface_implementation_markers_invalid.camp(38,16): error: Interface member 'IMarker.required()' is already implemented by another method.
+tests/Diagnostics/interface_implementation_markers_invalid.camp(45,19): error: Method 'required' cannot implement 'IMarker' because type 'DoesNotImplement' does not implement that interface.

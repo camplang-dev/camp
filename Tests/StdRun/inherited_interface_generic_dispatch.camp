@@ -7,7 +7,7 @@ interface IPet
 
 class Pet: IPet
 {
-	void feed(int amount)
+	void feed(int amount): IPet
 	{
 		Console.writeLine(amount);
 	}
