@@ -227,6 +227,7 @@ public sealed class CampLspWorkspace
 	readonly Dictionary<string, CampAnalysisSnapshot> snapshots = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CampAnalysisSnapshot> lastSuccessfulSnapshots = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CancellationTokenSource> pendingDiagnostics = new(StringComparer.OrdinalIgnoreCase);
+	readonly SemaphoreSlim analysisGate = new(1, 1);
 	readonly object gate = new();
 	ILanguageServer? languageServer;
 
@@ -278,7 +279,9 @@ public sealed class CampLspWorkspace
 			openDocuments.TryGetValue(path, out document);
 		if (document is null)
 			return;
-		CampAnalysisSnapshot snapshot = Analyze(document);
+		CampAnalysisSnapshot? snapshot = AnalyzeSingleFlight(document, CancellationToken.None);
+		if (snapshot is null)
+			return;
 		lock (gate)
 		{
 			snapshots[path] = snapshot;
@@ -304,7 +307,7 @@ public sealed class CampLspWorkspace
 			{
 				await Task.Delay(DiagnosticDebounceMilliseconds, source.Token).ConfigureAwait(false);
 				if (!source.Token.IsCancellationRequested)
-					ReanalyzeIfCurrent(uri, path, version, source);
+					await ReanalyzeIfCurrentAsync(uri, path, version, source).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException)
 			{
@@ -321,7 +324,7 @@ public sealed class CampLspWorkspace
 		});
 	}
 
-	void ReanalyzeIfCurrent(DocumentUri uri, string path, int? version, CancellationTokenSource source)
+	async Task ReanalyzeIfCurrentAsync(DocumentUri uri, string path, int? version, CancellationTokenSource source)
 	{
 		OpenDocument? document;
 		lock (gate)
@@ -334,7 +337,9 @@ public sealed class CampLspWorkspace
 				return;
 		}
 
-		CampAnalysisSnapshot snapshot = Analyze(document);
+		CampAnalysisSnapshot? snapshot = await AnalyzeSingleFlightAsync(document, source.Token).ConfigureAwait(false);
+		if (snapshot is null)
+			return;
 		lock (gate)
 		{
 			if (!openDocuments.TryGetValue(path, out OpenDocument? currentDocument) || version is not null && currentDocument.Version != version)
@@ -430,6 +435,48 @@ public sealed class CampLspWorkspace
 	{
 		CompilerRequest request = CreateRequest(document.Path);
 		return CampLanguageService.Analyze(request, [new CampSourceOverlay(document.Path, document.Text, document.Version ?? 0)]);
+	}
+
+	CampAnalysisSnapshot? AnalyzeSingleFlight(OpenDocument document, CancellationToken cancellationToken)
+	{
+		try
+		{
+			analysisGate.Wait(cancellationToken);
+		}
+		catch (OperationCanceledException)
+		{
+			return null;
+		}
+
+		try
+		{
+			return cancellationToken.IsCancellationRequested ? null : Analyze(document);
+		}
+		finally
+		{
+			analysisGate.Release();
+		}
+	}
+
+	async Task<CampAnalysisSnapshot?> AnalyzeSingleFlightAsync(OpenDocument document, CancellationToken cancellationToken)
+	{
+		try
+		{
+			await analysisGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException)
+		{
+			return null;
+		}
+
+		try
+		{
+			return cancellationToken.IsCancellationRequested ? null : Analyze(document);
+		}
+		finally
+		{
+			analysisGate.Release();
+		}
 	}
 
 	CompilerRequest CreateRequest(string documentPath)

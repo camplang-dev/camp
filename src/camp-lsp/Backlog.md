@@ -35,18 +35,18 @@ best-effort stale results or an empty result quickly.~~
 ~~Timing: Do immediately after diagnostics debouncing. VS Code feels broken when
 interactive features wait seconds for a fresh snapshot.~~
 
-## LSPPERF-003 — Single-Flight Latest-Version Analysis
+## ~~LSPPERF-003 — Single-Flight Latest-Version Analysis~~
 
 Complexity: Medium.
 
-Ensure only one analysis runs per document/project snapshot lane. When a newer
+~~Ensure only one analysis runs per document/project snapshot lane. When a newer
 document version arrives, cancel the old request if possible or ignore its
 result when it completes. Never publish diagnostics or replace the query
-snapshot with stale analysis results.
+snapshot with stale analysis results.~~
 
-Timing: Do after interactive queries are decoupled from fresh analysis. This is
+~~Timing: Do after interactive queries are decoupled from fresh analysis. This is
 the core safety rule that prevents old work from clogging the server and
-reintroducing obsolete diagnostics.
+reintroducing obsolete diagnostics.~~
 
 ## LSPPERF-004 — Separate Diagnostic And Query Snapshot Policies
 
