@@ -245,7 +245,6 @@ public sealed class LspServerTests
 			textDocument = new { uri, version = 2 },
 			contentChanges = new[] { new { text = broken } }
 		});
-		lsp.ReadNotification("textDocument/publishDiagnostics");
 
 		CampTextPosition completionPosition = PositionAfter(broken, "counter.");
 		CampTextPosition signaturePosition = PositionAfter(broken, "counter.getValue(");
@@ -346,7 +345,6 @@ public sealed class LspServerTests
 			textDocument = new { uri, version = 2 },
 			contentChanges = new[] { new { text = broken } }
 		});
-		lsp.ReadNotification("textDocument/publishDiagnostics");
 
 		CampTextPosition thisCompletionPosition = PositionAfterLast(broken, "this.");
 		CampTextPosition signaturePosition = PositionAfter(broken, "sleep(");

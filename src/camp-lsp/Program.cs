@@ -358,21 +358,21 @@ public sealed class CampLspWorkspace
 
 	public CampHover? GetHover(DocumentUri uri, CampTextPosition position)
 	{
-		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
+		if (!TryGetQuerySnapshot(uri, out string path, out _, out CampAnalysisSnapshot? snapshot))
 			return null;
 		return new CampSymbolQueryService(snapshot!).GetHover(path, position);
 	}
 
 	public CampSymbolLocation? GetDefinition(DocumentUri uri, CampTextPosition position)
 	{
-		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
+		if (!TryGetQuerySnapshot(uri, out string path, out _, out CampAnalysisSnapshot? snapshot))
 			return null;
 		return new CampSymbolQueryService(snapshot!).GetDefinition(path, position);
 	}
 
 	public IReadOnlyList<CampReference> GetReferences(DocumentUri uri, CampTextPosition position, bool includeDeclaration)
 	{
-		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
+		if (!TryGetQuerySnapshot(uri, out string path, out _, out CampAnalysisSnapshot? snapshot))
 			return [];
 		return new CampSymbolQueryService(snapshot!).GetReferences(path, position, includeDeclaration);
 	}
@@ -393,14 +393,13 @@ public sealed class CampLspWorkspace
 
 	public IReadOnlyList<CampDocumentSymbol> GetDocumentSymbols(DocumentUri uri)
 	{
-		if (!TryGetSnapshot(uri, out string path, out CampAnalysisSnapshot? snapshot))
+		if (!TryGetQuerySnapshot(uri, out string path, out _, out CampAnalysisSnapshot? snapshot))
 			return [];
 		return new CampSymbolQueryService(snapshot!).GetDocumentSymbols(path);
 	}
 
 	public IReadOnlyList<CampWorkspaceSymbol> GetWorkspaceSymbols(string query)
 	{
-		EnsureOpenDocumentSnapshots();
 		List<CampAnalysisSnapshot> snapshotList;
 		lock (gate)
 			snapshotList = snapshots.Values.ToList();
@@ -414,58 +413,15 @@ public sealed class CampLspWorkspace
 			.ToList();
 	}
 
-	void EnsureOpenDocumentSnapshots()
-	{
-		List<OpenDocument> documents;
-		lock (gate)
-			documents = openDocuments.Values.ToList();
-		foreach (OpenDocument document in documents)
-		{
-			bool missing;
-			lock (gate)
-				missing = !snapshots.ContainsKey(document.Path);
-			if (!missing)
-				continue;
-			CampAnalysisSnapshot snapshot = Analyze(document);
-			lock (gate)
-				snapshots[document.Path] = snapshot;
-		}
-	}
-
-	bool TryGetSnapshot(DocumentUri uri, out string path, out CampAnalysisSnapshot? snapshot)
-	{
-		path = uri.GetFileSystemPath();
-		OpenDocument? document = null;
-		lock (gate)
-		{
-			if (!snapshots.TryGetValue(path, out snapshot))
-				openDocuments.TryGetValue(path, out document);
-		}
-		if (snapshot is null && document is not null)
-		{
-			snapshot = Analyze(document);
-			lock (gate)
-			{
-				snapshots[path] = snapshot;
-				if (snapshot.Success)
-					lastSuccessfulSnapshots[path] = snapshot;
-			}
-		}
-		return snapshot is not null;
-	}
-
 	bool TryGetQuerySnapshot(DocumentUri uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot)
 	{
 		path = uri.GetFileSystemPath();
 		lock (gate)
-			openDocuments.TryGetValue(path, out document);
-		if (!TryGetSnapshot(uri, out _, out snapshot))
-			return false;
-		if (snapshot is { Success: false })
 		{
-			lock (gate)
-				if (lastSuccessfulSnapshots.TryGetValue(path, out CampAnalysisSnapshot? successful))
-					snapshot = successful;
+			openDocuments.TryGetValue(path, out document);
+			snapshots.TryGetValue(path, out snapshot);
+			if (lastSuccessfulSnapshots.TryGetValue(path, out CampAnalysisSnapshot? successful))
+				snapshot = successful;
 		}
 		return snapshot is not null;
 	}

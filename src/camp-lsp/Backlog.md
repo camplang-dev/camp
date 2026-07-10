@@ -22,18 +22,18 @@ request for the latest document version.~~
 pressure, and visible editor churn without requiring compiler architecture
 changes.~~
 
-## LSPPERF-002 — Do Not Block Interactive Queries On Fresh Analysis
+## ~~LSPPERF-002 — Do Not Block Interactive Queries On Fresh Analysis~~
 
 Complexity: Low-medium.
 
-Hover, completion, signature help, go-to-definition, document symbols, and
+~~Hover, completion, signature help, go-to-definition, document symbols, and
 references should answer from the latest successful semantic snapshot whenever
 possible. They should not synchronously trigger or wait for a full fresh compile
 of dirty text. If the current edit is broken or analysis is in flight, return
-best-effort stale results or an empty result quickly.
+best-effort stale results or an empty result quickly.~~
 
-Timing: Do immediately after diagnostics debouncing. VS Code feels broken when
-interactive features wait seconds for a fresh snapshot.
+~~Timing: Do immediately after diagnostics debouncing. VS Code feels broken when
+interactive features wait seconds for a fresh snapshot.~~
 
 ## LSPPERF-003 — Single-Flight Latest-Version Analysis
 
