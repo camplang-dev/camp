@@ -48,17 +48,17 @@ snapshot with stale analysis results.~~
 the core safety rule that prevents old work from clogging the server and
 reintroducing obsolete diagnostics.~~
 
-## LSPPERF-004 — Separate Diagnostic And Query Snapshot Policies
+## ~~LSPPERF-004 — Separate Diagnostic And Query Snapshot Policies~~
 
 Complexity: Medium.
 
-Diagnostics should run in the background and can tolerate latency. Interactive
+~~Diagnostics should run in the background and can tolerate latency. Interactive
 queries should be opportunistic and fast. Keep explicit state for the latest
 successful query snapshot, latest requested diagnostic version, latest completed
-diagnostic version, and current in-flight analysis.
+diagnostic version, and current in-flight analysis.~~
 
-Timing: Do after single-flight analysis. This makes the LSP behavior easier to
-reason about before adding broader project diagnostics or richer completion.
+~~Timing: Do after single-flight analysis. This makes the LSP behavior easier to
+reason about before adding broader project diagnostics or richer completion.~~
 
 ## LSPPERF-005 — Cache `.campbuild` Project Loading
 

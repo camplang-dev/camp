@@ -224,8 +224,11 @@ public sealed class CampLspWorkspace
 {
 	const int DiagnosticDebounceMilliseconds = 500;
 	readonly Dictionary<string, OpenDocument> openDocuments = new(StringComparer.OrdinalIgnoreCase);
-	readonly Dictionary<string, CampAnalysisSnapshot> snapshots = new(StringComparer.OrdinalIgnoreCase);
-	readonly Dictionary<string, CampAnalysisSnapshot> lastSuccessfulSnapshots = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, CampAnalysisSnapshot> diagnosticSnapshots = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, CampAnalysisSnapshot> querySnapshots = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, int?> latestRequestedDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, int?> latestCompletedDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, int?> inFlightDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CancellationTokenSource> pendingDiagnostics = new(StringComparer.OrdinalIgnoreCase);
 	readonly SemaphoreSlim analysisGate = new(1, 1);
 	readonly object gate = new();
@@ -264,8 +267,11 @@ public sealed class CampLspWorkspace
 		lock (gate)
 		{
 			openDocuments.Remove(path);
-			snapshots.Remove(path);
-			lastSuccessfulSnapshots.Remove(path);
+			diagnosticSnapshots.Remove(path);
+			querySnapshots.Remove(path);
+			latestRequestedDiagnosticVersions.Remove(path);
+			latestCompletedDiagnosticVersions.Remove(path);
+			inFlightDiagnosticVersions.Remove(path);
 		}
 		PublishDiagnostics(uri, []);
 	}
@@ -276,7 +282,11 @@ public sealed class CampLspWorkspace
 		CancelPendingDiagnostics(path);
 		OpenDocument? document;
 		lock (gate)
+		{
 			openDocuments.TryGetValue(path, out document);
+			latestRequestedDiagnosticVersions[path] = document?.Version;
+			inFlightDiagnosticVersions[path] = document?.Version;
+		}
 		if (document is null)
 			return;
 		CampAnalysisSnapshot? snapshot = AnalyzeSingleFlight(document, CancellationToken.None);
@@ -284,9 +294,11 @@ public sealed class CampLspWorkspace
 			return;
 		lock (gate)
 		{
-			snapshots[path] = snapshot;
+			diagnosticSnapshots[path] = snapshot;
+			latestCompletedDiagnosticVersions[path] = document.Version;
+			inFlightDiagnosticVersions.Remove(path);
 			if (snapshot.Success)
-				lastSuccessfulSnapshots[path] = snapshot;
+				querySnapshots[path] = snapshot;
 		}
 		PublishDiagnostics(uri, snapshot.Diagnostics.Where(diagnostic => string.IsNullOrWhiteSpace(diagnostic.Path) || string.Equals(diagnostic.Path, path, StringComparison.OrdinalIgnoreCase)));
 	}
@@ -299,6 +311,7 @@ public sealed class CampLspWorkspace
 			if (pendingDiagnostics.Remove(path, out CancellationTokenSource? previous))
 				previous.Cancel();
 			pendingDiagnostics[path] = source;
+			latestRequestedDiagnosticVersions[path] = version;
 		}
 
 		_ = Task.Run(async () =>
@@ -335,18 +348,30 @@ public sealed class CampLspWorkspace
 				return;
 			if (version is not null && document.Version != version)
 				return;
+			inFlightDiagnosticVersions[path] = version;
 		}
 
 		CampAnalysisSnapshot? snapshot = await AnalyzeSingleFlightAsync(document, source.Token).ConfigureAwait(false);
 		if (snapshot is null)
+		{
+			lock (gate)
+				if (inFlightDiagnosticVersions.TryGetValue(path, out int? inFlightVersion) && inFlightVersion == version)
+					inFlightDiagnosticVersions.Remove(path);
 			return;
+		}
 		lock (gate)
 		{
 			if (!openDocuments.TryGetValue(path, out OpenDocument? currentDocument) || version is not null && currentDocument.Version != version)
+			{
+				if (inFlightDiagnosticVersions.TryGetValue(path, out int? inFlightVersion) && inFlightVersion == version)
+					inFlightDiagnosticVersions.Remove(path);
 				return;
-			snapshots[path] = snapshot;
+			}
+			diagnosticSnapshots[path] = snapshot;
+			latestCompletedDiagnosticVersions[path] = document.Version;
+			inFlightDiagnosticVersions.Remove(path);
 			if (snapshot.Success)
-				lastSuccessfulSnapshots[path] = snapshot;
+				querySnapshots[path] = snapshot;
 		}
 		PublishDiagnostics(uri, snapshot.Diagnostics.Where(diagnostic => string.IsNullOrWhiteSpace(diagnostic.Path) || string.Equals(diagnostic.Path, path, StringComparison.OrdinalIgnoreCase)));
 	}
@@ -407,7 +432,7 @@ public sealed class CampLspWorkspace
 	{
 		List<CampAnalysisSnapshot> snapshotList;
 		lock (gate)
-			snapshotList = snapshots.Values.ToList();
+			snapshotList = querySnapshots.Values.ToList();
 		return snapshotList
 			.SelectMany(snapshot => new CampSymbolQueryService(snapshot).GetWorkspaceSymbols(query))
 			.DistinctBy(static symbol => (symbol.Name, symbol.Kind, symbol.Location.Path, symbol.Location.Range.Start.Line, symbol.Location.Range.Start.Character))
@@ -424,9 +449,7 @@ public sealed class CampLspWorkspace
 		lock (gate)
 		{
 			openDocuments.TryGetValue(path, out document);
-			snapshots.TryGetValue(path, out snapshot);
-			if (lastSuccessfulSnapshots.TryGetValue(path, out CampAnalysisSnapshot? successful))
-				snapshot = successful;
+			querySnapshots.TryGetValue(path, out snapshot);
 		}
 		return snapshot is not null;
 	}
@@ -505,7 +528,7 @@ public sealed class CampLspWorkspace
 		string path = uri.GetFileSystemPath();
 		CampAnalysisSnapshot? snapshot;
 		lock (gate)
-			snapshots.TryGetValue(path, out snapshot);
+			diagnosticSnapshots.TryGetValue(path, out snapshot);
 		if (snapshot is not null)
 			PublishDiagnostics(uri, snapshot.Diagnostics.Where(diagnostic => string.IsNullOrWhiteSpace(diagnostic.Path) || string.Equals(diagnostic.Path, path, StringComparison.OrdinalIgnoreCase)));
 	}
