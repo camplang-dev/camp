@@ -668,65 +668,84 @@ public sealed class CommandLineTests
 		string root = TempPath("project-reference-static-current");
 		if (Directory.Exists(root))
 			Directory.Delete(root, recursive: true);
+		string packageName = "api-demo-project-reference-current";
+		string repositoryRoot = FindRepositoryRoot();
+		string cachedPackageRoot = Path.Combine(repositoryRoot, "cache", "pkg", packageName);
 		string libraryRoot = Path.Combine(root, "sample-lib");
 		string librarySource = Path.Combine(libraryRoot, "src");
+		string packageSource = Path.Combine(root, "package-source", packageName, "src");
 		string appRoot = Path.Combine(root, "sample-app");
 		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(packageSource);
 		Directory.CreateDirectory(appRoot);
+		string sourceRootArgument = Path.Combine(root, "package-source").Replace('\\', '/');
+		if (Directory.Exists(cachedPackageRoot))
+			Directory.Delete(cachedPackageRoot, recursive: true);
+		File.WriteAllText(Path.Combine(packageSource, "api.camp"), "export newtype NativeHandle: nint;\n");
 		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
 			export int add(int left, int right)
 			{
 				return left + right;
 			}
 			""");
-		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
+		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), $$"""
 			--nostdlib
 			--name sample-lib
+			--use-source local "{{sourceRootArgument}}"
+			--use {{packageName}}:api
 			src/*.camp
 			""");
-		string app = Path.Combine(appRoot, "app.camp");
-		File.WriteAllText(app, """
-			#build --nostdlib
-			#build --name sample-app
+		try
+		{
+			string app = Path.Combine(appRoot, "app.camp");
+			File.WriteAllText(app, """
+				#build --nostdlib
+				#build --name sample-app
 
-			export int main()
-			{
-				return add(20, 22) - 42;
-			}
-			""");
-		string target = NativeTargetForHost();
-		string outDir = Path.Combine(appRoot, "bin");
-		string referenceOutputDirectory = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
-		string libraryPath = NativeArtifactPathForTarget(target, NativeBuildKind.Static, referenceOutputDirectory, "sample-lib");
+				export int main()
+				{
+					return add(20, 22) - 42;
+				}
+				""");
+			string target = NativeTargetForHost();
+			string outDir = Path.Combine(appRoot, "bin");
+			string referenceOutputDirectory = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
+			string libraryPath = NativeArtifactPathForTarget(target, NativeBuildKind.Static, referenceOutputDirectory, "sample-lib");
 
-		ProcessResult first = RunCampc(
-			"build",
-			app,
-			"--target",
-			target,
-			"--project-reference",
-			libraryRoot + ":static",
-			"--out-dir",
-			outDir);
+			ProcessResult first = RunCampc(
+				"build",
+				app,
+				"--target",
+				target,
+				"--project-reference",
+				libraryRoot + ":static",
+				"--out-dir",
+				outDir);
 
-		AssertCommandSucceeded(first);
-		Assert.Contains(libraryRoot + ":static: generated:", first.StdOut, StringComparison.Ordinal);
-		Assert.True(File.Exists(libraryPath));
-		DateTime firstLibraryWrite = File.GetLastWriteTimeUtc(libraryPath);
+			AssertCommandSucceeded(first);
+			Assert.Contains(libraryRoot + ":static: generated:", first.StdOut, StringComparison.Ordinal);
+			Assert.True(File.Exists(libraryPath));
+			DateTime firstLibraryWrite = File.GetLastWriteTimeUtc(libraryPath);
 
-		ProcessResult second = RunCampc(
-			"build",
-			app,
-			"--target",
-			target,
-			"--project-reference",
-			libraryRoot + ":static",
-			"--out-dir",
-			outDir);
+			ProcessResult second = RunCampc(
+				"build",
+				app,
+				"--target",
+				target,
+				"--project-reference",
+				libraryRoot + ":static",
+				"--out-dir",
+				outDir);
 
-		AssertCommandSucceeded(second);
-		Assert.DoesNotContain(libraryRoot + ":static: generated:", second.StdOut, StringComparison.Ordinal);
-		Assert.Equal(firstLibraryWrite, File.GetLastWriteTimeUtc(libraryPath));
+			AssertCommandSucceeded(second);
+			Assert.DoesNotContain(libraryRoot + ":static: generated:", second.StdOut, StringComparison.Ordinal);
+			Assert.Equal(firstLibraryWrite, File.GetLastWriteTimeUtc(libraryPath));
+		}
+		finally
+		{
+			if (Directory.Exists(cachedPackageRoot))
+				Directory.Delete(cachedPackageRoot, recursive: true);
+		}
 	}
 
 	[Fact]
@@ -1425,7 +1444,8 @@ public sealed class CommandLineTests
 			Path.Combine(appRoot, "bin"));
 
 		AssertCommandSucceeded(result);
-		Assert.True(File.Exists(Path.Combine(libraryArtifactDirectory, "sample-lib.lib")));
+		string importLibrary = Path.Combine(libraryArtifactDirectory, "sample-lib.lib");
+		Assert.True(File.Exists(importLibrary));
 		Assert.True(File.Exists(Path.Combine(libraryArtifactDirectory, "sample-lib.dll")));
 		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "sample-lib.dll")));
 		string cApi = File.ReadAllText(Path.Combine(appArtifactDirectory, "build", "sample_lib_api.h"));
@@ -1433,6 +1453,20 @@ public sealed class CommandLineTests
 		ProcessResult run = RunExecutable(Path.Combine(appArtifactDirectory, "sample-app.exe"));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);
+
+		File.SetLastWriteTimeUtc(importLibrary, DateTime.UtcNow.AddHours(-1));
+		ProcessResult second = RunCampc(
+			"build",
+			app,
+			"--target",
+			target,
+			"--project-reference",
+			libraryRoot,
+			"--out-dir",
+			Path.Combine(appRoot, "bin"));
+
+		AssertCommandSucceeded(second);
+		Assert.DoesNotContain(libraryRoot + ": generated:", second.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]

@@ -575,8 +575,10 @@ sealed class CampCli
 		List<string> outputs = [apiHeader, cApiHeader, metadata];
 		if (requireLibrary)
 		{
+			if (library is not null && !File.Exists(library))
+				return false;
 			outputs.Add(nativeArtifact);
-			if (!string.Equals(nativeArtifact, library, StringComparison.OrdinalIgnoreCase))
+			if (buildKind == NativeBuildKind.Static && !string.Equals(nativeArtifact, library, StringComparison.OrdinalIgnoreCase))
 				outputs.Add(library!);
 		}
 
@@ -599,9 +601,9 @@ sealed class CampCli
 		yield return buildFile;
 		if (File.Exists(globalCampPath))
 			yield return globalCampPath;
-		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.Files))
+		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.Files, includeDirectories: true))
 			yield return input;
-		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.IncludeFiles))
+		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.IncludeFiles, includeDirectories: false))
 			yield return input;
 		foreach (string input in projectRequest.SharedLibraryApiHeaders)
 			yield return input;
@@ -619,16 +621,19 @@ sealed class CampCli
 			yield return Environment.ProcessPath;
 	}
 
-	static IEnumerable<string> ResolveProjectReferenceInputPaths(CompilerRequest projectRequest, IEnumerable<string> paths)
+	static IEnumerable<string> ResolveProjectReferenceInputPaths(CompilerRequest projectRequest, IEnumerable<string> paths, bool includeDirectories)
 	{
 		foreach (string path in paths)
 		{
 			string fullPath = Path.GetFullPath(path, projectRequest.WorkingDirectory);
 			if (File.Exists(fullPath) || Directory.Exists(fullPath))
 				yield return fullPath;
-			string? directory = File.Exists(fullPath) ? Path.GetDirectoryName(fullPath) : Directory.Exists(fullPath) ? fullPath : null;
-			if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
-				yield return directory;
+			if (includeDirectories)
+			{
+				string? directory = File.Exists(fullPath) ? Path.GetDirectoryName(fullPath) : Directory.Exists(fullPath) ? fullPath : null;
+				if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+					yield return directory;
+			}
 		}
 	}
 
