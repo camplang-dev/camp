@@ -142,6 +142,30 @@ public sealed class SemanticTests
 	}
 
 	[Fact]
+	public void Interface_implementation_markers_inherit_callable_newtype_from_slot()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			newtype delegate int CounterReader();
+
+			interface ICounterReader
+			{
+				int readCount(): CounterReader;
+			}
+
+			class Counter: ICounterReader
+			{
+				int readCount(): ICounterReader => 1;
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		TypeDefinition counter = SemanticCompiler.Type(compilation, "Counter");
+		FunctionDefinition readCount = SemanticCompiler.Method(counter, "readCount");
+		Assert.Equal("CounterReader", readCount.CallableAscriptionNewtype?.Name);
+		Assert.Equal("readCount", readCount.InterfaceImplementationMember?.Name);
+	}
+
+	[Fact]
 	public void Symbol_name_service_distinguishes_source_callable_and_abi_names()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""

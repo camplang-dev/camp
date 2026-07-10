@@ -7,7 +7,17 @@ static uintptr_t Date_format(const Date *this, char *buffer, uintptr_t buffer_le
 static void Test_increment(Test *this);
 static void Test_incrementExplicit(Test *this);
 static void Test_normal(Test *this);
+static int Counter_readCount(Counter *this);
+static ICounterReader **Counter_getICounterReader(const Counter *this);
+static void Counter_op_initnew(Counter *this);
+static int Counter_ICounterReader_readCount(ICounterReader **ctx);
+static const ICounterReader Counter_ICounterReader__storage;
+static const ICounterReader Counter_ICounterReader__object_storage;
+static const ICounterReader *Counter_ICounterReader;
 
+static const ICounterReader Counter_ICounterReader__storage = { .readCount = (int (*)(ICounterReader **arg0))Counter_readCount };
+static const ICounterReader Counter_ICounterReader__object_storage = { .readCount = Counter_ICounterReader_readCount };
+static const ICounterReader *Counter_ICounterReader = &Counter_ICounterReader__storage;
 static uintptr_t Date_format(const Date *this, char *buffer, uintptr_t buffer_length)
 {
 	int y = this->year;
@@ -24,6 +34,21 @@ static void Test_incrementExplicit(Test *this)
 
 static void Test_normal(Test *this)
 {
+}
+
+static int Counter_readCount(Counter *this)
+{
+	return this->count;
+}
+
+static ICounterReader **Counter_getICounterReader(const Counter *this)
+{
+	return (ICounterReader **)(&this->_vt_ICounterReader);
+}
+
+static void Counter_op_initnew(Counter *this)
+{
+	this->_vt_ICounterReader = &Counter_ICounterReader__object_storage;
 }
 
 int main(void)
@@ -50,7 +75,22 @@ int main(void)
 	void *n2_context = (void *)(test);
 	void (* n3)(void *arg0) = n2;
 	void *n3_context = n2_context;
-	return 0;
+	Counter *counter = (Counter *)(malloc(sizeof(Counter)));
+	if ((counter != NULL))
+	{
+		*counter = (Counter){0};
+		Counter_op_initnew(counter);
+	}
+	counter->count = 7;
+	int (* reader)(void *arg0) = (int (*)(void *arg0))Counter_readCount;
+	void *reader_context = (void *)(counter);
+	return (reader(reader_context) - 7);
+}
+
+static int Counter_ICounterReader_readCount(ICounterReader **ctx)
+{
+	Counter *instance = (Counter *)(((uint8_t *)(ctx) - offsetof(Counter, _vt_ICounterReader)));
+	return Counter_readCount(instance);
 }
 
 // file: callable_this_ascription.h
@@ -73,6 +113,8 @@ int main(void);
 /* Forward declarations. */
 typedef struct Date Date;
 typedef struct Test Test;
+typedef struct ICounterReader ICounterReader;
+typedef struct Counter Counter;
 
 /* Enums. */
 
@@ -80,8 +122,13 @@ typedef struct Test Test;
 typedef uintptr_t (* CharFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
 typedef void (* EscapedDelegate)(void *context);
 typedef void (* NormalDelegate)(void *context);
+typedef int (* CounterReader)(void *context);
 
 /* Layouts. */
+struct ICounterReader
+{
+	int (* readCount)(ICounterReader **ctx);
+};
 struct Date
 {
 	int year;
@@ -89,6 +136,11 @@ struct Date
 struct Test
 {
 	char _camp_empty;
+};
+struct Counter
+{
+	const ICounterReader *_vt_ICounterReader;
+	int count;
 };
 
 /* Function declarations. */

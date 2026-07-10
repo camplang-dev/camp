@@ -1,6 +1,7 @@
 newtype delegate nuint CharFormatter(const this, char[] buffer);
 newtype delegate void EscapedDelegate(escaped this);
 newtype delegate void NormalDelegate();
+newtype delegate int CounterReader();
 
 extern void* malloc(nuint size);
 
@@ -30,6 +31,21 @@ escaped class Test
 	}
 }
 
+interface ICounterReader
+{
+	int readCount(): CounterReader;
+}
+
+class Counter: ICounterReader
+{
+	int count;
+
+	int readCount(): ICounterReader
+	{
+		return this.count;
+	}
+}
+
 export int main()
 {
 	const Date d = init Date();
@@ -42,5 +58,8 @@ export int main()
 	NormalDelegate n1 = test.normal;
 	auto n2 = test.normal;
 	NormalDelegate n3 = n2;
-	return 0;
+	auto counter = new Counter();
+	counter.count = 7;
+	CounterReader reader = counter.readCount;
+	return reader() - 7;
 }

@@ -312,6 +312,8 @@ public sealed partial class BindableNodeAnalyzer
 			else if (string.IsNullOrWhiteSpace(function.CallSpec) && !string.IsNullOrWhiteSpace(expectedCallSpec))
 				function.CallSpec = expectedCallSpec;
 
+			function.CallableAscriptionNewtype = member.CallableAscriptionNewtype;
+
 			if (!claimed.Add(member))
 				Report(GetRange(function.CallableAscriptionType.SourceSyntax ?? function.SourceSyntax), $"Interface member '{interfaceDefinition.Name}.{required.DisplayName}' is already implemented by another method.");
 		}
