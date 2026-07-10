@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module ResolvedType="#MODULE">
+  <Definitions>
+    <NewtypeDefinition Name="Callback" Symbol="Callback" ResolvedType="Callback">
+      <UnderlyingType Type="CallableTypeReference" Kind="Function" ResolvedType="fn int()">
+        <ReturnType Type="Int" ResolvedType="int" />
+      </UnderlyingType>
+    </NewtypeDefinition>
+    <VariableDefinition Name="globalFunction" Symbol="globalFunction" ResolvedType="fn int()" SlotLifetimeFact="escaped(globalFunction):slot" ValueLifetimeFact="escaped:function pointer cast">
+      <Type Type="CallableTypeReference" Kind="Function" ResolvedType="fn int()">
+        <ReturnType Type="Int" ResolvedType="int" />
+      </Type>
+    </VariableDefinition>
+    <VariableDefinition Name="globalCallback" Symbol="globalCallback" ResolvedType="Callback" SlotLifetimeFact="escaped(globalCallback):slot" ValueLifetimeFact="escaped:function pointer cast">
+      <Type Type="TypeDefinitionReference" Name="Callback" Definition="Callback" ResolvedType="Callback" />
+    </VariableDefinition>
+    <FunctionDefinition InvokerName="assignFunctionPointers" Name="assignFunctionPointers" Symbol="assignFunctionPointers" ResolvedType="void">
+      <ReturnType Type="Void" ResolvedType="void" />
+      <Parameters>
+        <ParameterDefinition LifetimeBinding="scoped:explicit" Name="scopedValue" Symbol="scopedValue" ResolvedType="scoped untyped">
+          <Type Type="ScopedTypeReference" LifetimeBinding="scoped:explicit" ResolvedType="scoped untyped">
+            <Type Type="Untyped" ResolvedType="untyped" />
+          </Type>
+        </ParameterDefinition>
+        <ParameterDefinition LifetimeBinding="unscoped(scopedValue):explicit anchors" Name="unscopedValue" Symbol="unscopedValue" ResolvedType="unscoped(scopedValue) untyped">
+          <Type Type="UnscopedTypeReference" LifetimeBinding="unscoped(scopedValue):explicit anchors" ResolvedType="unscoped(scopedValue) untyped">
+            <Anchors>
+              <Value>scopedValue</Value>
+            </Anchors>
+            <Type Type="Untyped" ResolvedType="untyped" />
+          </Type>
+        </ParameterDefinition>
+      </Parameters>
+      <Body Type="BlockStatement" ResolvedType="void">
+        <Statements>
+          <ExpressionStatement ResolvedType="void">
+            <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="fn int()" ValueLifetimeFact="escaped:function pointer cast">
+              <Target Type="VariableReferenceExpression" Variable="globalFunction" ResolvedType="fn int()" SlotLifetimeFact="escaped(globalFunction):slot" ValueLifetimeFact="escaped(globalFunction):slot" />
+              <Value Type="CastExpression" Kind="Type" ResolvedType="fn int()" ValueLifetimeFact="escaped:function pointer cast">
+                <Type Type="CallableTypeReference" Kind="Function" ResolvedType="fn int()">
+                  <ReturnType Type="Int" ResolvedType="int" />
+                </Type>
+                <Expression Type="VariableReferenceExpression" Variable="scopedValue" ResolvedType="scoped untyped" />
+              </Value>
+            </Expression>
+          </ExpressionStatement>
+          <ExpressionStatement ResolvedType="void">
+            <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="Callback" ValueLifetimeFact="escaped:function pointer cast">
+              <Target Type="VariableReferenceExpression" Variable="globalCallback" ResolvedType="Callback" SlotLifetimeFact="escaped(globalCallback):slot" ValueLifetimeFact="escaped(globalCallback):slot" />
+              <Value Type="CastExpression" Kind="Type" ResolvedType="Callback" ValueLifetimeFact="escaped:function pointer cast">
+                <Type Type="TypeDefinitionReference" Name="Callback" Definition="Callback" ResolvedType="Callback" />
+                <Expression Type="VariableReferenceExpression" Variable="unscopedValue" ResolvedType="unscoped(scopedValue) untyped" />
+              </Value>
+            </Expression>
+          </ExpressionStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+  </Definitions>
+</Module>

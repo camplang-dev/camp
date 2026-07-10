@@ -1,0 +1,1 @@
+tests/Diagnostics/destructor_return_value_invalid.camp(7,10): error: Destructors cannot return a value.

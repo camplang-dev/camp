@@ -1,0 +1,10 @@
+newtype fn int Callback();
+
+fn int() globalFunction;
+Callback globalCallback;
+
+void assignFunctionPointers(scoped untyped scopedValue, unscoped(scopedValue) untyped unscopedValue)
+{
+	globalFunction = (fn int())scopedValue;
+	globalCallback = (Callback)unscopedValue;
+}

@@ -59,6 +59,60 @@ public sealed partial class BindableNodeAnalyzer
 		return MakeLifetimeFact("scoped", string.IsNullOrWhiteSpace(name) ? null : name, "slot");
 	}
 
+	string? CreateDeclarationValueLifetimeFact(TypeReference? type, string? resolvedType, bool isFixedStorage, AnalysisScope typeScope)
+	{
+		if (IsEscapedFunctionPointerType(type, resolvedType, isFixedStorage, typeScope))
+			return MakeLifetimeFact("escaped", null, "function pointer");
+
+		return null;
+	}
+
+	bool IsEscapedFunctionPointerType(TypeReference? type, string? resolvedType, bool isFixedStorage, AnalysisScope typeScope)
+	{
+		if (isFixedStorage)
+			return false;
+
+		if (IsFunctionPointerTypeReference(type))
+			return true;
+
+		return IsFunctionPointerResolvedType(resolvedType);
+	}
+
+	bool IsFunctionPointerTypeReference(TypeReference? type)
+	{
+		if (type is null)
+			return false;
+
+		type = UnwrapTypeDeclarators(type);
+		if (type is CallableTypeReference { Kind: CallableKind.Function } or RawFunctionPointerTypeReference)
+			return true;
+
+		if (type is NamedTypeReference named)
+		{
+			string name = BaseTypeName(named.ResolvedType ?? named.Name);
+			return typeDefinitions.TryGetValue(name, out TypeDefinition? definition)
+				&& definition is NewtypeDefinition { UnderlyingType: not null } newtype
+				&& IsFunctionPointerTypeReference(newtype.UnderlyingType);
+		}
+
+		if (type is TypeDefinitionReference { Definition: NewtypeDefinition { UnderlyingType: not null } newtypeDefinition })
+			return IsFunctionPointerTypeReference(newtypeDefinition.UnderlyingType);
+
+		return false;
+	}
+
+	bool IsFunctionPointerResolvedType(string? type)
+	{
+		if (string.IsNullOrWhiteSpace(type))
+			return false;
+
+		string stripped = StripTopLevelValueQualifiers(type);
+		if (IsRawFunctionPointerType(stripped))
+			return true;
+
+		return TryGetCallableShape(stripped, out CallableShape shape) && shape.Kind == "fn";
+	}
+
 	string? CreateGlobalSlotLifetimeFact(string? name, TypeReference? type, string? resolvedType, AnalysisScope typeScope)
 	{
 		if (!IsLifetimeTrackedType(type, resolvedType, isFixedStorage: false, typeScope))
@@ -78,18 +132,24 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsPointerBearingResolvedType(resolvedType))
 			return true;
 
+		if (IsEscapedFunctionPointerType(type, resolvedType, isFixedStorage: false, typeScope))
+			return true;
+
 		string baseName = BaseTypeName(StripTopLevelValueQualifiers(resolvedType ?? ""));
 		return !string.IsNullOrWhiteSpace(baseName)
 			&& typeScope.GenericParameters.TryGetValue(baseName, out GenericParameter? parameter)
 			&& parameter.Constraint is AnyTypeReference;
 	}
 
-	static bool IsPointerBearingResolvedType(string? type)
+	bool IsPointerBearingResolvedType(string? type)
 	{
 		if (string.IsNullOrWhiteSpace(type) || type == ErrorType || type == TargetType)
 			return false;
 
 		string raw = type.Trim();
+		if (IsFunctionPointerResolvedType(raw))
+			return true;
+
 		if (raw.StartsWith("delegate ", System.StringComparison.Ordinal)
 			|| raw.StartsWith("iter ", System.StringComparison.Ordinal)
 			|| raw is "string" or "astring" or "wstring")
@@ -103,7 +163,7 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	static bool IsPointerBearingResolvedShape(TypeShape shape)
+	bool IsPointerBearingResolvedShape(TypeShape shape)
 	{
 		return shape.Kind switch
 		{
@@ -112,8 +172,10 @@ public sealed partial class BindableNodeAnalyzer
 			TypeShapeKind.FixedArray => shape.Element is not null && IsPointerBearingResolvedShape(shape.Element),
 			TypeShapeKind.Optional => shape.Element is not null && IsPointerBearingResolvedShape(shape.Element),
 			TypeShapeKind.Named => shape.Name is "string" or "astring" or "wstring"
+				|| IsFunctionPointerResolvedType(shape.Name)
 				|| shape.Name.StartsWith("delegate ", System.StringComparison.Ordinal)
 				|| shape.Name.StartsWith("iter ", System.StringComparison.Ordinal),
+			TypeShapeKind.RawFunctionPointer => true,
 			_ => false
 		};
 	}
@@ -138,7 +200,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		string fact = parameter.LifetimeBinding ?? MakeLifetimeFact("scoped", parameter.Name, "parameter");
 		parameter.SlotLifetimeFact = fact;
-		parameter.ValueLifetimeFact = fact;
+		parameter.ValueLifetimeFact = CreateDeclarationValueLifetimeFact(parameter.Type, parameter.ResolvedType, isFixedStorage: false, typeScope) ?? fact;
 	}
 
 	void InitializeVariableLifetimeFacts(VariableDefinition definition, AnalysisScope scope)
@@ -159,7 +221,7 @@ public sealed partial class BindableNodeAnalyzer
 			? CreateGlobalSlotLifetimeFact(definition.Name, definition.Type, definition.ResolvedType, scope)
 			: CreateDeclarationSlotLifetimeFact(definition.Name, definition.Type, definition.ResolvedType, isFixedStorage: false, scope);
 		definition.SlotLifetimeFact = fact;
-		definition.ValueLifetimeFact ??= fact;
+		definition.ValueLifetimeFact ??= CreateDeclarationValueLifetimeFact(definition.Type, definition.ResolvedType, isFixedStorage: false, scope) ?? fact;
 	}
 
 	static bool IsEscapedField(FieldDefinition definition)
@@ -173,7 +235,11 @@ public sealed partial class BindableNodeAnalyzer
 		string? name = declaration.Target.Names.Count == 1 ? declaration.Target.Names[0] : null;
 		string? slotFact = CreateDeclarationSlotLifetimeFact(name, declaration.Target.Type, declaration.Target.ResolvedType, declaration.IsFixedStorage, typeScope);
 		declaration.Target.SlotLifetimeFact = slotFact;
-		declaration.Target.ValueLifetimeFact = declaration.IsFixedStorage ? slotFact : GetExpressionLifetimeFact(declaration.InitialValue) ?? slotFact;
+		declaration.Target.ValueLifetimeFact = declaration.IsFixedStorage
+			? slotFact
+			: GetExpressionLifetimeFact(declaration.InitialValue)
+				?? CreateDeclarationValueLifetimeFact(declaration.Target.Type, declaration.Target.ResolvedType, declaration.IsFixedStorage, typeScope)
+				?? slotFact;
 		declaration.SlotLifetimeFact = slotFact;
 		declaration.ValueLifetimeFact = declaration.Target.ValueLifetimeFact;
 	}
@@ -191,7 +257,9 @@ public sealed partial class BindableNodeAnalyzer
 			InitializerExpression initializer => GetInitializerLifetimeFact(initializer, resolvedType, scope),
 			ParenthesizedExpression parenthesized => GetExpressionLifetimeFact(parenthesized.Expression),
 			CastExpression { LifetimeCastKind: not null } cast => cast.LifetimeBinding,
-			CastExpression cast => cast.LifetimeBinding ?? GetExpressionLifetimeFact(cast.Expression),
+			CastExpression cast => cast.LifetimeBinding
+				?? (IsFunctionPointerResolvedType(resolvedType) ? MakeLifetimeFact("escaped", null, "function pointer cast") : null)
+				?? GetExpressionLifetimeFact(cast.Expression),
 			ConstructionExpression construction => IsLifetimePointerBearingResolvedType(resolvedType, scope) ? GetConstructionLifetimeFact(construction, resolvedType, scope) : null,
 			WithinExpression within => GetWithinExpressionLifetimeFact(within, resolvedType, scope),
 			FinallyDeleteExpression finallyDelete => GetExpressionLifetimeFact(finallyDelete.Expression),

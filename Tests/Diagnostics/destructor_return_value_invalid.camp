@@ -1,0 +1,9 @@
+extern void free(void* ptr);
+
+struct Broken
+{
+	~Broken()
+	{
+		return 1;
+	}
+}

@@ -328,6 +328,12 @@ public sealed partial class BindableNodeAnalyzer
 
 			case ReturnStatement returnStatement:
 			{
+				if (IsDestructorBody(scope.CurrentFunction) && returnStatement.Expression is not null)
+				{
+					Report(GetRange(returnStatement.Expression.SourceSyntax ?? returnStatement.SourceSyntax), "Destructors cannot return a value.");
+					BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope);
+					break;
+				}
 				bool returnsThis = scope.CurrentFunction.ReturnType is ThisTypeReference;
 				string returnTargetSourceType = returnsThis ? scope.CurrentFunctionReturnType : scope.CurrentFunctionSourceReturnType ?? scope.CurrentFunctionReturnType;
 				string returnType = returnStatement.Expression is null ? "void" : BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope, returnTargetSourceType);
@@ -434,6 +440,12 @@ public sealed partial class BindableNodeAnalyzer
 			&& callTargets.TryGetValue(call, out FunctionDefinition? function)
 			&& function.ReturnType is ThisTypeReference
 			&& IsThisReturnCallTarget(call.Target);
+	}
+
+	static bool IsDestructorBody(FunctionDefinition function)
+	{
+		return IsDestructorFunction(function)
+			|| function.SourceSyntax is MemberDeclarationSyntax { TildeToken: not null };
 	}
 
 	bool IsThisReturnCallTarget(Expression? target)
