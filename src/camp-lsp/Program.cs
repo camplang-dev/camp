@@ -231,6 +231,7 @@ public sealed class CampLspWorkspace
 	readonly Dictionary<string, int?> inFlightDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CancellationTokenSource> pendingDiagnostics = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CachedProjectRequest> projectRequestCache = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, string> lastPublishedDiagnosticKeys = new(StringComparer.OrdinalIgnoreCase);
 	readonly SemaphoreSlim analysisGate = new(1, 1);
 	readonly object gate = new();
 	ILanguageServer? languageServer;
@@ -273,8 +274,9 @@ public sealed class CampLspWorkspace
 			latestRequestedDiagnosticVersions.Remove(path);
 			latestCompletedDiagnosticVersions.Remove(path);
 			inFlightDiagnosticVersions.Remove(path);
+			lastPublishedDiagnosticKeys.Remove(path);
 		}
-		PublishDiagnostics(uri, []);
+		PublishDiagnostics(uri, [], force: true);
 	}
 
 	public void Reanalyze(DocumentUri uri)
@@ -705,15 +707,37 @@ public sealed class CampLspWorkspace
 			PublishDiagnostics(uri, snapshot.Diagnostics.Where(diagnostic => string.IsNullOrWhiteSpace(diagnostic.Path) || string.Equals(diagnostic.Path, path, StringComparison.OrdinalIgnoreCase)));
 	}
 
-	void PublishDiagnostics(DocumentUri uri, IEnumerable<CampSourceDiagnostic> diagnostics)
+	void PublishDiagnostics(DocumentUri uri, IEnumerable<CampSourceDiagnostic> diagnostics, bool force = false)
 	{
 		if (languageServer is null)
 			return;
+		string path = uri.GetFileSystemPath();
+		List<CampSourceDiagnostic> diagnosticList = diagnostics.ToList();
+		string key = CreateDiagnosticKey(diagnosticList);
+		lock (gate)
+		{
+			if (!force && lastPublishedDiagnosticKeys.TryGetValue(path, out string? previous) && previous == key)
+				return;
+			lastPublishedDiagnosticKeys[path] = key;
+		}
 		languageServer.TextDocument.PublishDiagnostics(new PublishDiagnosticsParams
 		{
 			Uri = uri,
-			Diagnostics = new Container<Diagnostic>(diagnostics.Select(CampLsp.ToLspDiagnostic))
+			Diagnostics = new Container<Diagnostic>(diagnosticList.Select(CampLsp.ToLspDiagnostic))
 		});
+	}
+
+	static string CreateDiagnosticKey(IReadOnlyList<CampSourceDiagnostic> diagnostics)
+	{
+		return string.Join('\n', diagnostics.Select(static diagnostic =>
+			string.Join('|',
+				diagnostic.Severity,
+				diagnostic.Code ?? "",
+				diagnostic.Message,
+				diagnostic.Range?.Start.Line.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+				diagnostic.Range?.Start.Character.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+				diagnostic.Range?.End.Line.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+				diagnostic.Range?.End.Character.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")));
 	}
 
 	sealed record OpenDocument(DocumentUri Uri, string Path, string Text, int? Version);

@@ -99,17 +99,17 @@ should remain conservative when receiver type information is unavailable.~~
 ~~Timing: Do after query paths reliably use cached snapshots. This improves the
 typing experience while deeper analysis performance work continues.~~
 
-## LSPPERF-008 — Throttle Diagnostic Publishing
+## ~~LSPPERF-008 — Throttle Diagnostic Publishing~~
 
 Complexity: Low-medium.
 
-Publish diagnostics only for the latest completed analysis version, coalesce
+~~Publish diagnostics only for the latest completed analysis version, coalesce
 rapid changes, and avoid repeatedly publishing identical diagnostic sets. Clear
-stale diagnostics predictably when a newer successful snapshot completes.
+stale diagnostics predictably when a newer successful snapshot completes.~~
 
-Timing: Do after single-flight analysis and diagnostic/query separation. This
+~~Timing: Do after single-flight analysis and diagnostic/query separation. This
 reduces VS Code UI churn and prevents old errors from flickering or lingering
-after the source has changed.
+after the source has changed.~~
 
 ## ~~LSP-001 — Improve Member And Property Definition Mapping~~
 

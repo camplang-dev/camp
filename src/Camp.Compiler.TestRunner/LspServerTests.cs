@@ -1,14 +1,20 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
 using Xunit;
 
 namespace Camp.Compiler.Tests;
 
+[CollectionDefinition("LspServer", DisableParallelization = true)]
+public sealed class LspServerCollection;
+
+[Collection("LspServer")]
 public sealed class LspServerTests
 {
 	[Fact]
@@ -89,8 +95,54 @@ public sealed class LspServerTests
 			contentChanges = new[] { new { text = valid } }
 		});
 
-		JsonNode latestDiagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
-		Assert.Equal(0, latestDiagnostics["params"]?["diagnostics"]?.AsArray().Count);
+		lsp.ClearObservedNotifications();
+		Thread.Sleep(1000);
+		lsp.Request("textDocument/hover", new
+		{
+			textDocument = new { uri },
+			position = new { line = 0, character = 11 }
+		});
+
+		foreach (JsonNode diagnostics in lsp.ObservedNotifications("textDocument/publishDiagnostics"))
+			Assert.Equal(0, diagnostics["params"]?["diagnostics"]?.AsArray().Count);
+	}
+
+	[Fact]
+	public void Lsp_server_does_not_republish_identical_diagnostics()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-diagnostics-identical");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			export int main()
+			{
+				return 0;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		JsonNode firstDiagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+		Assert.Equal(0, firstDiagnostics["params"]?["diagnostics"]?.AsArray().Count);
+		lsp.ClearObservedNotifications();
+
+		lsp.Notify("textDocument/didSave", new
+		{
+			textDocument = new { uri }
+		});
+		JsonNode hover = lsp.Request("textDocument/hover", new
+		{
+			textDocument = new { uri },
+			position = new { line = 0, character = 11 }
+		});
+
+		Assert.NotNull(hover["result"]);
+		Assert.Equal(0, lsp.CountObservedNotifications("textDocument/publishDiagnostics"));
 	}
 
 	[Fact]
@@ -871,6 +923,7 @@ public sealed class LspServerTests
 	sealed class LspProcess : IDisposable
 	{
 		readonly Process process;
+		readonly List<JsonNode> observedNotifications = [];
 		int nextId = 1;
 
 		LspProcess(Process process)
@@ -939,6 +992,8 @@ public sealed class LspServerTests
 				JsonNode message = ReadMessage();
 				if (message["id"]?.GetValue<int>() == id)
 					return message;
+				if (message["method"] is not null)
+					observedNotifications.Add(message);
 			}
 		}
 
@@ -954,7 +1009,26 @@ public sealed class LspServerTests
 				JsonNode message = ReadMessage();
 				if (message["method"]?.GetValue<string>() == method)
 					return message;
+				if (message["method"] is not null)
+					observedNotifications.Add(message);
 			}
+		}
+
+		public void ClearObservedNotifications()
+		{
+			observedNotifications.Clear();
+		}
+
+		public int CountObservedNotifications(string method)
+		{
+			return observedNotifications.Count(message => message["method"]?.GetValue<string>() == method);
+		}
+
+		public JsonNode[] ObservedNotifications(string method)
+		{
+			return observedNotifications
+				.Where(message => message["method"]?.GetValue<string>() == method)
+				.ToArray();
 		}
 
 		void Send(object message)
