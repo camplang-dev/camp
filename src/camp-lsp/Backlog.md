@@ -60,18 +60,18 @@ diagnostic version, and current in-flight analysis.~~
 ~~Timing: Do after single-flight analysis. This makes the LSP behavior easier to
 reason about before adding broader project diagnostics or richer completion.~~
 
-## LSPPERF-005 — Cache `.campbuild` Project Loading
+## ~~LSPPERF-005 — Cache `.campbuild` Project Loading~~
 
 Complexity: Medium.
 
-Avoid re-reading and re-expanding the nearest `.campbuild`, `#build` pragmas,
+~~Avoid re-reading and re-expanding the nearest `.campbuild`, `#build` pragmas,
 glob patterns, package source roots, project references, and cached API header
 lookups for every request. Cache resolved project inputs by build file and
 invalidate when the build file, included build/pragmas source files, or relevant
-package/reference inputs change.
+package/reference inputs change.~~
 
-Timing: Do after analysis scheduling is sane. Project loading is pure overhead
-that VS Code may accidentally repeat on every hover/completion/change.
+~~Timing: Do after analysis scheduling is sane. Project loading is pure overhead
+that VS Code may accidentally repeat on every hover/completion/change.~~
 
 ## LSPPERF-006 — Cache Parsed Unchanged Files
 

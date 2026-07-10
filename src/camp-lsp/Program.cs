@@ -230,6 +230,7 @@ public sealed class CampLspWorkspace
 	readonly Dictionary<string, int?> latestCompletedDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, int?> inFlightDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CancellationTokenSource> pendingDiagnostics = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, CachedProjectRequest> projectRequestCache = new(StringComparer.OrdinalIgnoreCase);
 	readonly SemaphoreSlim analysisGate = new(1, 1);
 	readonly object gate = new();
 	ILanguageServer? languageServer;
@@ -507,10 +508,19 @@ public sealed class CampLspWorkspace
 		string? buildFile = CampProjectLoader.FindNearestBuildFile(documentPath);
 		if (buildFile is not null)
 		{
+			string canonicalBuildFile = Path.GetFullPath(buildFile);
+			lock (gate)
+				if (projectRequestCache.TryGetValue(canonicalBuildFile, out CachedProjectRequest? cached) && cached.IsCurrent())
+					return CloneRequest(cached.Request);
+
 			string root = Path.GetDirectoryName(buildFile) ?? Directory.GetCurrentDirectory();
 			CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(buildFile, CampProjectEnvironment.Create(root), CampProjectCommandKind.LanguageService);
 			if (result.Success)
+			{
+				lock (gate)
+					projectRequestCache[canonicalBuildFile] = CachedProjectRequest.Create(canonicalBuildFile, result.Request);
 				return result.Request;
+			}
 		}
 
 		string workingDirectory = Path.GetDirectoryName(documentPath) ?? Directory.GetCurrentDirectory();
@@ -521,6 +531,86 @@ public sealed class CampLspWorkspace
 		};
 		request.Files.Add(Path.GetFileName(documentPath));
 		return request;
+	}
+
+	static CompilerRequest CloneRequest(CompilerRequest source)
+	{
+		CompilerRequest clone = new()
+		{
+			RuntimeRoot = source.RuntimeRoot,
+			WorkingDirectory = source.WorkingDirectory,
+			TargetName = source.TargetName,
+			ProfileName = source.ProfileName,
+			EmitKind = source.EmitKind,
+			Inspect = source.Inspect,
+			Xml = source.Xml,
+			InspectApi = source.InspectApi,
+			BuildKind = source.BuildKind,
+			InferBuildKind = source.InferBuildKind,
+			EmitMetadata = source.EmitMetadata,
+			OutDir = source.OutDir,
+			ProjectName = source.ProjectName,
+			SubsystemName = source.SubsystemName,
+			NoStdLib = source.NoStdLib,
+			WithinAllocationPolicy = source.WithinAllocationPolicy,
+			TargetRoot = source.TargetRoot,
+			PackageSourceRoot = source.PackageSourceRoot,
+			PackageArtifactRoot = source.PackageArtifactRoot
+		};
+		clone.Files.AddRange(source.Files);
+		clone.IncludeFiles.AddRange(source.IncludeFiles);
+		clone.AnalysisSourceFiles.AddRange(source.AnalysisSourceFiles);
+		clone.Defines.AddRange(source.Defines);
+		clone.Variants.AddRange(source.Variants);
+		clone.References.AddRange(source.References);
+		clone.SharedLibraryApiHeaders.AddRange(source.SharedLibraryApiHeaders);
+		clone.Frameworks.AddRange(source.Frameworks);
+		clone.UsePackages.AddRange(source.UsePackages);
+		clone.UseSourceRoots.AddRange(source.UseSourceRoots);
+		return clone;
+	}
+
+	sealed class CachedProjectRequest
+	{
+		readonly Dictionary<string, DateTime> fileWriteTimes;
+
+		CachedProjectRequest(CompilerRequest request, Dictionary<string, DateTime> fileWriteTimes)
+		{
+			Request = request;
+			this.fileWriteTimes = fileWriteTimes;
+		}
+
+		public CompilerRequest Request { get; }
+
+		public static CachedProjectRequest Create(string buildFile, CompilerRequest request)
+		{
+			Dictionary<string, DateTime> writeTimes = new(StringComparer.OrdinalIgnoreCase);
+			AddWatchedFile(writeTimes, buildFile);
+			foreach (string file in request.Files)
+				AddWatchedFile(writeTimes, Path.GetFullPath(file, request.WorkingDirectory));
+			foreach (string file in request.IncludeFiles)
+				AddWatchedFile(writeTimes, Path.GetFullPath(file, request.WorkingDirectory));
+			foreach (string file in request.AnalysisSourceFiles)
+				AddWatchedFile(writeTimes, Path.GetFullPath(file, request.WorkingDirectory));
+			return new CachedProjectRequest(CloneRequest(request), writeTimes);
+		}
+
+		public bool IsCurrent()
+		{
+			foreach ((string file, DateTime writeTime) in fileWriteTimes)
+			{
+				if (!File.Exists(file) || File.GetLastWriteTimeUtc(file) != writeTime)
+					return false;
+			}
+			return true;
+		}
+
+		static void AddWatchedFile(Dictionary<string, DateTime> writeTimes, string file)
+		{
+			string fullPath = Path.GetFullPath(file);
+			if (File.Exists(fullPath))
+				writeTimes[fullPath] = File.GetLastWriteTimeUtc(fullPath);
+		}
 	}
 
 	void PublishDiagnostics(DocumentUri uri)
