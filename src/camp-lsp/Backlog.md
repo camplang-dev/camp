@@ -73,19 +73,19 @@ package/reference inputs change.~~
 ~~Timing: Do after analysis scheduling is sane. Project loading is pure overhead
 that VS Code may accidentally repeat on every hover/completion/change.~~
 
-## LSPPERF-006 — Cache Parsed Unchanged Files
+## ~~LSPPERF-006 — Cache Parsed Unchanged Files~~
 
 Complexity: Medium-high.
 
-Even without full incremental binding, avoid tokenizing and parsing unopened
+~~Even without full incremental binding, avoid tokenizing and parsing unopened
 unchanged files repeatedly. Cache token/CST/AST surfaces by file path,
 content hash, and relevant parse options. Reuse cached parses for project
 sources, package sources, and generated API headers when only an open overlay
-file changed.
+file changed.~~
 
-Timing: Do after project-loading cache. This is a bigger compiler/tooling
+~~Timing: Do after project-loading cache. This is a bigger compiler/tooling
 boundary change, but still much smaller than full incremental semantic
-analysis.
+analysis.~~
 
 ## LSPPERF-007 — Add Cheap Completion Fallbacks
 

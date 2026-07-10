@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Camp.Compiler;
 
@@ -27,6 +29,8 @@ public sealed class CampAnalysisSnapshot
 
 public static class CampLanguageService
 {
+	static readonly ParsedSourceCache parseCache = new();
+
 	public static CampAnalysisSnapshot Analyze(CompilerRequest request, IReadOnlyList<CampSourceOverlay>? overlays = null)
 	{
 		ArgumentNullException.ThrowIfNull(request);
@@ -346,21 +350,56 @@ public static class CampLanguageService
 		string fullPath = Path.GetFullPath(path, workingDirectory);
 		if (!loadedPaths.Add(fullPath))
 			return;
-		compilation.Files.Add(LoadSourceFile(fullPath, workingDirectory, overlays, isApiHeader));
+		compilation.Files.Add(LoadSourceFile(compilation, fullPath, workingDirectory, overlays, isApiHeader));
 	}
 
-	static SourceFile LoadSourceFile(string path, string workingDirectory, Dictionary<string, CampSourceOverlay> overlays, bool isApiHeader)
+	static SourceFile LoadSourceFile(Compilation compilation, string path, string workingDirectory, Dictionary<string, CampSourceOverlay> overlays, bool isApiHeader)
 	{
 		string fullPath = Path.GetFullPath(path, workingDirectory);
-		string text = overlays.TryGetValue(fullPath, out CampSourceOverlay? overlay)
-			? overlay.Text
-			: File.ReadAllText(fullPath);
+		if (overlays.TryGetValue(fullPath, out CampSourceOverlay? overlay))
+		{
+			return new SourceFile
+			{
+				Path = fullPath,
+				Text = overlay.Text,
+				IsApiHeader = isApiHeader,
+				WithinAllocationPolicyOverride = ReadWithinAllocationPolicy(overlay.Text)
+			};
+		}
+
+		string text = File.ReadAllText(fullPath);
+		WithinAllocationPolicy? policy = ReadWithinAllocationPolicy(text);
+		if (parseCache.TryGet(fullPath, text, compilation.PreprocessorSymbols, compilation.TargetOwnedPreprocessorSymbols, out ParsedSourceCacheEntry? cached) && cached is not null)
+		{
+			return new SourceFile
+			{
+				Path = fullPath,
+				Text = text,
+				IsApiHeader = isApiHeader,
+				WithinAllocationPolicyOverride = policy,
+				Tokens = cached.Tokens,
+				PreprocessDiagnostics = cached.PreprocessDiagnostics,
+				SyntaxTree = cached.SyntaxTree,
+				ParseDiagnostics = cached.ParseDiagnostics
+			};
+		}
+
+		TokenSequence rawTokens = new(CampTokenizer.Tokenize(text));
+		PreprocessResult preprocess = CampPreprocessor.Process(rawTokens, compilation.PreprocessorSymbols, compilation.TargetOwnedPreprocessorSymbols);
+		TokenSequence tokens = new(preprocess.Tokens);
+		CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> parseDiagnostics);
+		IReadOnlyList<ParseDiagnostic> diagnostics = [.. preprocess.Diagnostics, .. parseDiagnostics];
+		parseCache.Add(fullPath, text, compilation.PreprocessorSymbols, compilation.TargetOwnedPreprocessorSymbols, tokens, preprocess.Diagnostics, syntax, diagnostics);
 		return new SourceFile
 		{
 			Path = fullPath,
 			Text = text,
 			IsApiHeader = isApiHeader,
-			WithinAllocationPolicyOverride = ReadWithinAllocationPolicy(text)
+			WithinAllocationPolicyOverride = policy,
+			Tokens = tokens,
+			PreprocessDiagnostics = preprocess.Diagnostics,
+			SyntaxTree = syntax,
+			ParseDiagnostics = diagnostics
 		};
 	}
 
@@ -478,4 +517,78 @@ public static class CampLanguageService
 			new CampTextPosition(Math.Max(0, range.StartLineNumber - 1), Math.Max(0, range.StartColumn - 1)),
 			new CampTextPosition(Math.Max(0, range.EndLineNumber - 1), Math.Max(0, range.EndColumn - 1)));
 	}
+
+	sealed class ParsedSourceCache
+	{
+		const int MaxEntries = 512;
+		readonly object gate = new();
+		readonly Dictionary<string, ParsedSourceCacheEntry> entries = new(StringComparer.Ordinal);
+		readonly Queue<string> order = new();
+
+		public bool TryGet(
+			string path,
+			string text,
+			IReadOnlySet<string> preprocessorSymbols,
+			IReadOnlySet<string> targetOwnedPreprocessorSymbols,
+			out ParsedSourceCacheEntry? entry)
+		{
+			string key = CreateKey(path, text, preprocessorSymbols, targetOwnedPreprocessorSymbols);
+			lock (gate)
+				return entries.TryGetValue(key, out entry);
+		}
+
+		public void Add(
+			string path,
+			string text,
+			IReadOnlySet<string> preprocessorSymbols,
+			IReadOnlySet<string> targetOwnedPreprocessorSymbols,
+			TokenSequence tokens,
+			IReadOnlyList<ParseDiagnostic> preprocessDiagnostics,
+			CompilationUnitSyntax syntaxTree,
+			IReadOnlyList<ParseDiagnostic> parseDiagnostics)
+		{
+			string key = CreateKey(path, text, preprocessorSymbols, targetOwnedPreprocessorSymbols);
+			lock (gate)
+			{
+				if (!entries.ContainsKey(key))
+					order.Enqueue(key);
+				entries[key] = new ParsedSourceCacheEntry(tokens, preprocessDiagnostics, syntaxTree, parseDiagnostics);
+				while (entries.Count > MaxEntries && order.TryDequeue(out string? oldest))
+					entries.Remove(oldest);
+			}
+		}
+
+		static string CreateKey(
+			string path,
+			string text,
+			IReadOnlySet<string> preprocessorSymbols,
+			IReadOnlySet<string> targetOwnedPreprocessorSymbols)
+		{
+			StringBuilder builder = new();
+			builder.Append(Path.GetFullPath(path));
+			builder.Append('\n');
+			AppendSet(builder, preprocessorSymbols);
+			builder.Append('\n');
+			AppendSet(builder, targetOwnedPreprocessorSymbols);
+			builder.Append('\n');
+			byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
+			builder.Append(Convert.ToHexString(hash));
+			return builder.ToString();
+		}
+
+		static void AppendSet(StringBuilder builder, IReadOnlySet<string> values)
+		{
+			foreach (string value in values.Order(StringComparer.Ordinal))
+			{
+				builder.Append(value);
+				builder.Append('\0');
+			}
+		}
+	}
+
+	sealed record ParsedSourceCacheEntry(
+		TokenSequence Tokens,
+		IReadOnlyList<ParseDiagnostic> PreprocessDiagnostics,
+		CompilationUnitSyntax SyntaxTree,
+		IReadOnlyList<ParseDiagnostic> ParseDiagnostics);
 }
