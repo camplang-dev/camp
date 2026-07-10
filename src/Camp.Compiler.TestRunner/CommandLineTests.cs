@@ -507,10 +507,11 @@ public sealed class CommandLineTests
 			src/*.camp
 			""");
 
-		ProcessResult result = RunCampc("build", Path.Combine(root, "layout-lib.campbuild"), "--target", "clang-macos-x64");
+		string target = NativeTargetForHost();
+		ProcessResult result = RunCampc("build", Path.Combine(root, "layout-lib.campbuild"), "--target", target);
 
 		Assert.Equal(0, result.ExitCode);
-		string apiHeader = File.ReadAllText(Path.Combine(root, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static), "layout-lib_api.h"));
+		string apiHeader = File.ReadAllText(Path.Combine(root, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "layout-lib_api.h"));
 		Assert.True(apiHeader.IndexOf("typedef struct PaintEventArgs PaintEventArgs;", StringComparison.Ordinal) < apiHeader.IndexOf("typedef void (* PaintEvent)", StringComparison.Ordinal));
 		Assert.True(apiHeader.IndexOf("struct Rect32\n{", StringComparison.Ordinal) < apiHeader.IndexOf("struct PaintEventArgs\n{", StringComparison.Ordinal));
 	}
