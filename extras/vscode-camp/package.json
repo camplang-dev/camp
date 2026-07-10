@@ -1,0 +1,112 @@
+{
+  "name": "vscode-camp",
+  "displayName": "Camp Language Support",
+  "description": "Syntax highlighting, language server support, and build/run commands for Camp.",
+  "version": "0.0.1",
+  "publisher": "camp",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onLanguage:camp",
+    "onLanguage:campbuild",
+    "onCommand:camp.build",
+    "onCommand:camp.run",
+    "onCommand:camp.restartServer"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "camp",
+        "aliases": [
+          "Camp",
+          "camp"
+        ],
+        "extensions": [
+          ".camp"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "campbuild",
+        "aliases": [
+          "Camp Build",
+          "campbuild"
+        ],
+        "extensions": [
+          ".campbuild"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "camp",
+        "scopeName": "source.camp",
+        "path": "./syntaxes/camp.tmLanguage.json"
+      },
+      {
+        "language": "campbuild",
+        "scopeName": "source.campbuild",
+        "path": "./syntaxes/camp.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Camp",
+      "properties": {
+        "camp.server.path": {
+          "type": "string",
+          "default": "camp-lsp",
+          "description": "Path to the camp-lsp executable. Use an absolute path when camp-lsp is not on PATH."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "camp.build",
+        "title": "Camp: Build Current Project",
+        "category": "Camp"
+      },
+      {
+        "command": "camp.run",
+        "title": "Camp: Run Current Project",
+        "category": "Camp"
+      },
+      {
+        "command": "camp.restartServer",
+        "title": "Camp: Restart Language Server",
+        "category": "Camp"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "camp.build",
+          "when": "resourceLangId == camp || resourceLangId == campbuild",
+          "group": "navigation@10"
+        },
+        {
+          "command": "camp.run",
+          "when": "resourceLangId == camp || resourceLangId == campbuild",
+          "group": "navigation@11"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "package": "vsce package --allow-missing-repository",
+    "check": "node --check src/extension.js"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^2.15.0"
+  }
+}

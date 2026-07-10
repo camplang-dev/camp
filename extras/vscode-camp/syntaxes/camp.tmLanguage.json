@@ -1,0 +1,145 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Camp",
+  "scopeName": "source.camp",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#preprocessor"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#attributes"
+    },
+    {
+      "include": "#functions"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.documentation.camp",
+          "match": "///.*$"
+        },
+        {
+          "name": "comment.block.documentation.camp",
+          "begin": "/\\*\\*",
+          "end": "\\*/"
+        },
+        {
+          "name": "comment.line.double-slash.camp",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.camp",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.camp",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.camp",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.camp",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.camp",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.camp",
+          "match": "\\b0[xX][0-9a-fA-F_]+[uUlL]*\\b"
+        },
+        {
+          "name": "constant.numeric.binary.camp",
+          "match": "\\b0[bB][01_]+[uUlL]*\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.camp",
+          "match": "\\b[0-9][0-9_]*(?:\\.[0-9_]+)?[uUlL]*\\b"
+        }
+      ]
+    },
+    "preprocessor": {
+      "patterns": [
+        {
+          "name": "keyword.control.directive.camp",
+          "match": "^\\s*#\\s*(?:build|within|define|undef|if|elif|else|endif)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.camp",
+          "match": "\\b(?:if|else|while|for|foreach|in|return|break|continue|try|catch|finally|throw|yield|await|postpone|upon|switch|case|default)\\b"
+        },
+        {
+          "name": "keyword.declaration.camp",
+          "match": "\\b(?:export|public|extern|inline|static|class|struct|interface|enum|newtype|alias|this|operator|constructor|destructor|virtual|abstract|override|sealed|escaped|scoped|unscoped|const|constof|volatile|fixed|unsafe|overload|implements|sizeof|vtableof|typenameof|classtype|within|thrown|out|in|delegate|fn|iter|once|async)\\b"
+        },
+        {
+          "name": "constant.language.camp",
+          "match": "\\b(?:true|false|null)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.primitive.camp",
+          "match": "\\b(?:void|bool|byte|sbyte|short|ushort|int|uint|long|ulong|nint|nuint|float|double|char|achar|wchar|string|astring|wstring)\\b"
+        }
+      ]
+    },
+    "attributes": {
+      "patterns": [
+        {
+          "name": "entity.name.function.attribute.camp",
+          "match": "@[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "entity.name.function.camp",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()"
+        }
+      ]
+    }
+  }
+}
