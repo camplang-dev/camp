@@ -482,6 +482,40 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Project_api_header_orders_forward_typedefs_before_callable_newtypes_and_struct_layouts()
+	{
+		string root = TempPath("project-api-layout-order");
+		string sourceRoot = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceRoot);
+		File.WriteAllText(Path.Combine(sourceRoot, "library.camp"), """
+			export newtype fn void PaintEvent(PaintEventArgs* e);
+
+			export struct PaintEventArgs
+			{
+				Rect32 bounds;
+			}
+
+			export struct Rect32
+			{
+				int x;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "layout-lib.campbuild"), """
+			--nostdlib
+			--artifact static
+			--name layout-lib
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampc("build", Path.Combine(root, "layout-lib.campbuild"), "--target", "clang-macos-x64");
+
+		Assert.Equal(0, result.ExitCode);
+		string apiHeader = File.ReadAllText(Path.Combine(root, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static), "layout-lib_api.h"));
+		Assert.True(apiHeader.IndexOf("typedef struct PaintEventArgs PaintEventArgs;", StringComparison.Ordinal) < apiHeader.IndexOf("typedef void (* PaintEvent)", StringComparison.Ordinal));
+		Assert.True(apiHeader.IndexOf("struct Rect32\n{", StringComparison.Ordinal) < apiHeader.IndexOf("struct PaintEventArgs\n{", StringComparison.Ordinal));
+	}
+
+	[Fact]
 	public void Variant_option_controls_defines_and_reports_old_memory_model_spelling()
 	{
 		string temp = CreateTempCase("variant_cli.camp", """

@@ -751,30 +751,7 @@ public static class CCodeEmitter
 
 			if (file.IsApiHeader)
 			{
-				foreach (TypeDefinition type in definitions.OfType<TypeDefinition>().Where(static type => type.Export is not null))
-				{
-					switch (type)
-					{
-						case ClassDefinition:
-						case InterfaceDefinition:
-							WriteTypeForwardDeclaration(writer, type);
-							wrote = true;
-							break;
-						case NewtypeDefinition newtype:
-							WriteNewtypeDefinition(writer, newtype, exportedOnly: true);
-							wrote = true;
-							break;
-						case EnumDefinition enumDefinition:
-							WriteEnumDefinition(writer, enumDefinition);
-							wrote = true;
-							break;
-						case StructDefinition structDefinition:
-							WriteTypeForwardDeclaration(writer, structDefinition);
-							WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
-							wrote = true;
-							break;
-					}
-				}
+				wrote |= WriteApiTypeDeclarations(writer, definitions, projectApi: false);
 			}
 
 			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null && ShouldEmitCFunction(function)))
@@ -815,33 +792,7 @@ public static class CCodeEmitter
 			List<Definition> definitions = GetProjectDefinitions().ToList();
 			bool wrote = false;
 
-			foreach (TypeDefinition type in definitions.OfType<TypeDefinition>().Where(static type => type.Export is not null))
-			{
-				switch (type)
-				{
-					case ClassDefinition:
-						WriteTypeForwardDeclaration(writer, type);
-						wrote = true;
-						break;
-					case InterfaceDefinition interfaceDefinition:
-						WriteInterfaceLayout(writer, interfaceDefinition);
-						wrote = true;
-						break;
-					case NewtypeDefinition newtype:
-						WriteNewtypeDefinition(writer, newtype, exportedOnly: true);
-						wrote = true;
-						break;
-					case EnumDefinition enumDefinition:
-						WriteEnumDefinition(writer, enumDefinition);
-						wrote = true;
-						break;
-					case StructDefinition structDefinition:
-						WriteTypeForwardDeclaration(writer, structDefinition);
-						WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
-						wrote = true;
-						break;
-				}
-			}
+			wrote |= WriteApiTypeDeclarations(writer, definitions, projectApi: true);
 
 			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null && ShouldEmitCFunction(function)))
 			{
@@ -885,6 +836,52 @@ public static class CCodeEmitter
 
 			if (!wrote)
 				writer.WriteLine("/* No exported declarations. */");
+		}
+
+		bool WriteApiTypeDeclarations(TextWriter writer, List<Definition> definitions, bool projectApi)
+		{
+			bool wrote = false;
+			List<TypeDefinition> exportedTypes = definitions.OfType<TypeDefinition>()
+				.Where(static type => type.Export is not null)
+				.ToList();
+
+			foreach (TypeDefinition type in exportedTypes)
+			{
+				if (type is ClassDefinition or InterfaceDefinition or StructDefinition)
+				{
+					WriteTypeForwardDeclaration(writer, type);
+					wrote = true;
+				}
+			}
+
+			foreach (EnumDefinition enumDefinition in exportedTypes.OfType<EnumDefinition>())
+			{
+				WriteEnumDefinition(writer, enumDefinition);
+				wrote = true;
+			}
+
+			foreach (NewtypeDefinition newtype in exportedTypes.OfType<NewtypeDefinition>())
+			{
+				WriteNewtypeDefinition(writer, newtype, exportedOnly: true);
+				wrote = true;
+			}
+
+			foreach (StructDefinition structDefinition in GetLayoutOrderedStructDefinitions(exportedTypes.Cast<Definition>().ToList()))
+			{
+				WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
+				wrote = true;
+			}
+
+			if (projectApi)
+			{
+				foreach (InterfaceDefinition interfaceDefinition in exportedTypes.OfType<InterfaceDefinition>())
+				{
+					WriteInterfaceLayout(writer, interfaceDefinition);
+					wrote = true;
+				}
+			}
+
+			return wrote;
 		}
 
 		public void WriteExecMainWrapper(TextWriter writer, FunctionDefinition entryPoint)
