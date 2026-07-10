@@ -311,6 +311,44 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_completion_uses_lexical_fallback_before_first_successful_snapshot()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-completion-lexical-fallback");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			int helperValue() => 1;
+
+			export int main()
+			{
+				int localThing = helperValue();
+				hel
+				return ;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		lsp.ReadNotification("textDocument/publishDiagnostics");
+
+		CampTextPosition completionPosition = PositionAfter(text, "hel");
+		JsonNode completion = lsp.Request("textDocument/completion", new
+		{
+			textDocument = new { uri },
+			position = new { line = completionPosition.Line, character = completionPosition.Character }
+		});
+
+		JsonArray completionItems = CompletionItems(completion);
+		Assert.Contains(completionItems, item => item?["label"]?.GetValue<string>() == "helperValue");
+		Assert.DoesNotContain(completionItems, item => item?["label"]?.GetValue<string>() == "return");
+	}
+
+	[Fact]
 	public void Lsp_member_completion_handles_this_and_hides_lifecycle_helpers_while_typing()
 	{
 		using LspProcess lsp = LspProcess.Start();

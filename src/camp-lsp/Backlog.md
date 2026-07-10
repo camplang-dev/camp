@@ -87,17 +87,17 @@ file changed.~~
 boundary change, but still much smaller than full incremental semantic
 analysis.~~
 
-## LSPPERF-007 — Add Cheap Completion Fallbacks
+## ~~LSPPERF-007 — Add Cheap Completion Fallbacks~~
 
 Complexity: Medium.
 
-When no fresh semantic snapshot is ready, return useful completion candidates
+~~When no fresh semantic snapshot is ready, return useful completion candidates
 from the latest successful snapshot or a lightweight lexical/project index.
 Prefer stale but responsive completions over no completion. Member completions
-should remain conservative when receiver type information is unavailable.
+should remain conservative when receiver type information is unavailable.~~
 
-Timing: Do after query paths reliably use cached snapshots. This improves the
-typing experience while deeper analysis performance work continues.
+~~Timing: Do after query paths reliably use cached snapshots. This improves the
+typing experience while deeper analysis performance work continues.~~
 
 ## LSPPERF-008 — Throttle Diagnostic Publishing
 

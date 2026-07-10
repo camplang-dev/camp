@@ -418,7 +418,7 @@ public sealed class CampLspWorkspace
 	public IReadOnlyList<CampCompletionItem> GetCompletions(DocumentUri uri, CampTextPosition position)
 	{
 		if (!TryGetQuerySnapshot(uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot))
-			return [];
+			return document is null ? [] : GetFallbackCompletions(document.Text, position);
 		return new CampSymbolQueryService(snapshot!).GetCompletions(path, position, document?.Text);
 	}
 
@@ -453,6 +453,88 @@ public sealed class CampLspWorkspace
 			querySnapshots.TryGetValue(path, out snapshot);
 		}
 		return snapshot is not null;
+	}
+
+	static IReadOnlyList<CampCompletionItem> GetFallbackCompletions(string text, CampTextPosition position)
+	{
+		CompletionTextContext context = GetCompletionTextContext(text, position);
+		if (context.IsMember)
+			return [];
+
+		HashSet<string> labels = new(StringComparer.OrdinalIgnoreCase);
+		List<CampCompletionItem> completions = [];
+		foreach (string identifier in ScanIdentifiers(text))
+		{
+			if (IsCompletionKeyword(identifier) || !MatchesCompletionPrefix(identifier, context.Prefix) || !labels.Add(identifier))
+				continue;
+			completions.Add(new CampCompletionItem(identifier, CampSymbolKind.Variable, "Text match", null));
+		}
+		foreach (string keyword in CompletionKeywords())
+		{
+			if (MatchesCompletionPrefix(keyword, context.Prefix) && labels.Add(keyword))
+				completions.Add(new CampCompletionItem(keyword, CampSymbolKind.Keyword, null, null));
+		}
+		return completions
+			.OrderBy(static item => item.Kind == CampSymbolKind.Keyword ? 1 : 0)
+			.ThenBy(static item => item.Label, StringComparer.OrdinalIgnoreCase)
+			.ToList();
+	}
+
+	static CompletionTextContext GetCompletionTextContext(string text, CampTextPosition position)
+	{
+		string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+		if (position.Line < 0 || position.Line >= lines.Length)
+			return new CompletionTextContext("", false);
+		string line = lines[position.Line];
+		int cursor = Math.Clamp(position.Character, 0, line.Length);
+		int prefixStart = cursor;
+		while (prefixStart > 0 && IsIdentifierPart(line[prefixStart - 1]))
+			prefixStart--;
+		string prefix = line[prefixStart..cursor];
+		int dot = prefixStart - 1;
+		while (dot >= 0 && char.IsWhiteSpace(line[dot]))
+			dot--;
+		return new CompletionTextContext(prefix, dot >= 0 && line[dot] == '.');
+	}
+
+	static IEnumerable<string> ScanIdentifiers(string text)
+	{
+		for (int i = 0; i < text.Length;)
+		{
+			if (!IsIdentifierStart(text[i]))
+			{
+				i++;
+				continue;
+			}
+			int start = i++;
+			while (i < text.Length && IsIdentifierPart(text[i]))
+				i++;
+			yield return text[start..i];
+		}
+	}
+
+	static bool IsIdentifierStart(char value) => char.IsLetter(value) || value == '_';
+
+	static bool IsIdentifierPart(char value) => char.IsLetterOrDigit(value) || value == '_';
+
+	static bool MatchesCompletionPrefix(string value, string prefix)
+	{
+		return prefix.Length == 0 || value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+	}
+
+	static bool IsCompletionKeyword(string value)
+	{
+		return CompletionKeywords().Contains(value, StringComparer.Ordinal);
+	}
+
+	static IEnumerable<string> CompletionKeywords()
+	{
+		return
+		[
+			"if", "else", "while", "for", "foreach", "return", "try", "catch", "finally",
+			"new", "init", "default", "true", "false", "null", "using", "export",
+			"class", "struct", "interface", "enum", "newtype", "delegate", "fn"
+		];
 	}
 
 	CampAnalysisSnapshot Analyze(OpenDocument document)
@@ -635,6 +717,8 @@ public sealed class CampLspWorkspace
 	}
 
 	sealed record OpenDocument(DocumentUri Uri, string Path, string Text, int? Version);
+
+	sealed record CompletionTextContext(string Prefix, bool IsMember);
 }
 
 public static class CampLsp
