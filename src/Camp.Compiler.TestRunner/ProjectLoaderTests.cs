@@ -117,7 +117,7 @@ public sealed class ProjectLoaderTests
 			"--artifact",
 			"only-shared",
 			"--use",
-			"demo@1.2.3:static",
+			"demo@1.2.3:api",
 			"--project-reference",
 			"lib:static",
 			"main.camp"
@@ -125,7 +125,7 @@ public sealed class ProjectLoaderTests
 
 		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
 		Assert.Equal(NativeBuildKind.Shared, result.Request.BuildKind);
-		Assert.Equal("demo@1.2.3:static", Assert.Single(result.Request.UsePackages));
+		Assert.Equal("demo@1.2.3:api", Assert.Single(result.Request.UsePackages));
 		Assert.Equal(Path.GetFullPath(libraryBuild), Assert.Single(result.ProjectReferences));
 	}
 
@@ -180,7 +180,7 @@ public sealed class ProjectLoaderTests
 		], CreateEnvironment(root));
 
 		Assert.False(result.Success);
-		Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("Package dependency kind ':dynamic' is not valid. Expected :static or :shared.", StringComparison.Ordinal));
+		Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("Package dependency kind ':dynamic' is not valid. Expected :api, :static, or :shared.", StringComparison.Ordinal));
 		Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("Project reference dependency kind ':dynamic' is not valid. Expected :static or :shared.", StringComparison.Ordinal));
 	}
 

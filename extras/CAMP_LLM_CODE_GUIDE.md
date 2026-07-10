@@ -6,7 +6,7 @@ This guide is based on the following source documents. Evidence citations use th
 
 | Alias | Source |
 |---|---|
-| `spec` | `docs/camp_unified_spec_v36.md` |
+| `spec` | `docs/camp_unified_spec_v37.md` |
 | `scheduler_design` | `docs/camp_async_scheduler_design_v7.md` |
 
 Confidence labels:
@@ -62,7 +62,7 @@ Confidence labels:
 | Whitespace/newline | Horizontal whitespace and newlines are separate trivia tokens. Statements and declarations still normally require `;` or braces. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampTokenizer.cs::Tokenize`; `src/Camp.Compiler/CampParser.cs` |
 | Preprocessor directives | `#define`, `#undef`, `#if`, `#elif`, `#else`, `#endif`, and prelude-only `#build`/`#within` are recognized. `#build` examples may show compiler option fragments, but those option names are tooling behavior, not language syntax. | `CONFIRMED_BY_COMPILER_CODE` | `src/Camp.Compiler/CampParser.cs`; `spec::5.1.14`; `docs/camp_declarations_statements_grammar.txt::preprocessor-directive` |
 | Target variants | Use `#build --variant name` or `campc ... --variant name` for target-defined choices such as Windows character width. The root build's selected variants control project references and packages while they are consumed as dependencies; dependency-local variant directives are only defaults when that dependency is built directly. Do not use old `--memory-model`; use variants. | `CONFIRMED_BY_TEST` | `src/Camp.Compiler/TargetCatalog.cs`; `src/campc/Program.cs`; `tests/Camp.Compiler.TestRunner/CommandLineTests.cs`; `spec::5.1.13` |
-| Build outputs and dependency caches | Ordinary builds write final artifacts under `bin/<target>[_variant][_static|_shared]_<PROFILE>/`, with intermediates in that directory's `build/` subdirectory. `--build-dir` is removed. `--out-dir path` is a prefix; use `--out-dir path/.` only when direct output is intentional. `cache/` is generated and deletable. Dependency edges default to shared; write `:static` or `:shared` on `--use` or `--project-reference` to choose explicitly. | `CONFIRMED_BY_TEST` | `src/Camp.Compiler/BuildArtifactLayout.cs`; `src/Camp.Compiler/CompilerDriver.cs`; `src/campc/Program.cs`; `src/Camp.Compiler.TestRunner/CommandLineTests.cs`; `spec::5.1.13` |
+| Build outputs and dependency caches | Ordinary builds write final artifacts under `bin/<target>[_variant][_static|_shared]_<PROFILE>/`, with intermediates in that directory's `build/` subdirectory. `--build-dir` is removed. `--out-dir path` is a prefix; use `--out-dir path/.` only when direct output is intentional. `cache/` is generated and deletable. Dependency edges default to shared; write `:static` or `:shared` on `--use` or `--project-reference` to choose explicitly, or `:api` on `--use` for package API/header-only consumption. | `CONFIRMED_BY_TEST` | `src/Camp.Compiler/BuildArtifactLayout.cs`; `src/Camp.Compiler/CompilerDriver.cs`; `src/campc/Program.cs`; `src/Camp.Compiler.TestRunner/CommandLineTests.cs`; `spec::5.1.13` |
 
 Valid:
 
@@ -1212,7 +1212,7 @@ Before emitting Camp code:
    - Use `#within explicit` for files that should make heap allocation/deallocation choices and hidden `within` call arguments visible, and `within (default)` when fallback allocation or a null allocator context is intentional.
 22. Treat `cache/` as generated and deletable. Do not place source, handwritten headers, or project assets under `cache/`.
 23. Expect normal build artifacts under `bin/<target>[_variant][_static|_shared]_<PROFILE>/build` plus final deliverables in the parent artifact directory. Do not generate or document `--build-dir`; use `--out-dir` only to choose the output prefix, and `--out-dir path/.` only for deliberate direct output.
-24. Dependency edges are shared by default. Use `--use package:static`, `--use package@version:shared`, `--project-reference path:static`, or `--project-reference path:shared` when the edge needs to be explicit. Use `--artifact only-static` or `only-shared` on a library when consumers must not link it the other way.
+24. Dependency edges are shared by default. Use `--use package:static`, `--use package@version:shared`, `--project-reference path:static`, or `--project-reference path:shared` when the edge needs to be explicit. Use `--use package:api` only for package dependencies that should contribute API/header artifacts without a native library. Use `--artifact only-static` or `only-shared` on a library when consumers must not link it the other way.
 25. Use `within (allocator)` around escaped lambda creation when the context should be allocated through that allocator.
 26. Use a `within (allocator) { ... }` block for several related allocation/deallocation operations.
 27. If a `within allocator` parameter is retained, write the explicit lifetime form required by the storage relationship; do not retain bare `within allocator`.

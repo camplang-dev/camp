@@ -1744,6 +1744,57 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Live_api_package_dependency_emits_headers_without_native_library()
+	{
+		string root = TempPath("live-package-api-only");
+		string sourceRoot = Path.Combine(root, "package-source");
+		string cachedPackageRoot = Path.Combine(FindRepositoryRoot(), "cache", "pkg", "api-demo");
+		string packageSource = Path.Combine(sourceRoot, "api-demo", "src");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(packageSource);
+		Directory.CreateDirectory(appRoot);
+		string sourceRootArgument = sourceRoot.Replace('\\', '/');
+		File.WriteAllText(Path.Combine(packageSource, "api.camp"), """
+			export newtype NativeHandle: nint;
+			export extern NativeHandle getNativeHandle();
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, $$"""
+			#build --nostdlib
+			#build --name api-package-app
+			#build --use-source local "{{sourceRootArgument}}"
+			#build --use api-demo:api
+
+			export int main()
+			{
+				NativeHandle handle = default;
+				return 0;
+			}
+			""");
+		string outDir = Path.Combine(appRoot, "bin");
+		string target = NativeTargetForHost();
+		if (Directory.Exists(cachedPackageRoot))
+			Directory.Delete(cachedPackageRoot, recursive: true);
+
+		try
+		{
+			ProcessResult result = RunCampc("build", app, "--target", target, "--out-dir", outDir);
+
+			AssertCommandSucceeded(result);
+			string apiCacheDirectory = Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForTarget(target, DependencyLinkKind.Api));
+			Assert.True(File.Exists(Path.Combine(apiCacheDirectory, "api-demo_api.camp")));
+			Assert.True(File.Exists(Path.Combine(apiCacheDirectory, "api-demo_api.h")));
+			Assert.True(File.Exists(Path.Combine(apiCacheDirectory, "api-demo_api.json")));
+			Assert.DoesNotContain(Directory.GetFiles(apiCacheDirectory), path => Path.GetExtension(path) is ".a" or ".lib" or ".dll" or ".dylib" or ".so");
+		}
+		finally
+		{
+			if (Directory.Exists(cachedPackageRoot))
+				Directory.Delete(cachedPackageRoot, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void Response_file_use_option_does_not_consume_source_patterns()
 	{
 		string root = TempPath("response-use-source-pattern");
@@ -2307,6 +2358,13 @@ public sealed class CommandLineTests
 		Assert.True(TargetCatalog.TryLoad(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
 		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
 		return BuildArtifactLayout.GetArtifactDirectoryName(target!, buildKind, "DEBUG");
+	}
+
+	static string ArtifactDirectoryForTarget(string targetName, DependencyLinkKind linkKind)
+	{
+		Assert.True(TargetCatalog.TryLoad(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
+		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
+		return BuildArtifactLayout.GetArtifactDirectoryName(target!, linkKind, "DEBUG");
 	}
 
 	static string ExecutableExtensionForHost()

@@ -7744,12 +7744,16 @@ suffix to make an edge explicit:
 --use win32-forms@live:static
 --use win32-forms@1.2.3:shared
 --use win32-forms:static
+--use ext-win32:api
 --project-reference ../win32-forms:shared
 ```
 
 The `:static` and `:shared` suffixes select how the current root build consumes
-that dependency. A dependency's own `#build` defaults apply when it is built as
-the root project, but the root build's selected target, variants, profile, and
+that dependency. Package dependencies also allow `:api` for declaration/header-
+only consumption; the package API artifacts are generated, but no native library
+is built or linked. Project references currently support only `:static` and
+`:shared`. A dependency's own `#build` defaults apply when it is built as the
+root project, but the root build's selected target, variants, profile, and
 dependency edge kind control dependency artifacts while the dependency is being
 consumed.
 

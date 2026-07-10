@@ -15,4 +15,20 @@ public static class BuildArtifactLayout
 		parts.Add(normalizedProfile);
 		return string.Join("_", parts);
 	}
+
+	public static string GetArtifactDirectoryName(TargetDefinition target, DependencyLinkKind linkKind, string profileName)
+	{
+		ArgumentNullException.ThrowIfNull(target);
+		string normalizedProfile = string.IsNullOrWhiteSpace(profileName) ? "DEBUG" : profileName.Trim().ToUpperInvariant();
+		List<string> parts = [target.GetVariantDirectoryName()];
+		parts.Add(linkKind switch
+		{
+			DependencyLinkKind.Static => "static",
+			DependencyLinkKind.Shared => "shared",
+			DependencyLinkKind.Api => "api",
+			_ => throw new ArgumentOutOfRangeException(nameof(linkKind), linkKind, null)
+		});
+		parts.Add(normalizedProfile);
+		return string.Join("_", parts);
+	}
 }

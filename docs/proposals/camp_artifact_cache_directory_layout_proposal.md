@@ -332,10 +332,11 @@ Package references encode dependency link kind after the package identity:
 --use win32-forms@live:static
 --use win32-forms@1.2.3:shared
 --use win32-forms:static
+--use ext-win32:api
 --use win32-forms
 ```
 
-`--use win32-forms:static` means “use the latest matching package version and consume it as a static dependency.” `--use win32-forms` means “use the latest matching package version and consume it as a shared dependency.”
+`--use win32-forms:static` means “use the latest matching package version and consume it as a static dependency.” `--use ext-win32:api` means “consume the package as API/header-only; do not build or link a native library.” `--use win32-forms` means “use the latest matching package version and consume it as a shared dependency.”
 
 The same `pkg@version:kind` spelling should be accepted anywhere package references are accepted, including `#build --use ...`, `.campbuild` arguments, `campc pkg add`, restore, and build-option parsing.
 
@@ -515,9 +516,10 @@ Behavior:
 
 ### Dependency Link Kind
 
-Dependency link kind is encoded as `:static` or `:shared` after the package identity:
+Dependency link kind is encoded as `:api`, `:static`, or `:shared` after the package identity:
 
 ```text
+--use ext-win32:api
 --use win32-forms@live:static
 --use win32-forms@1.2.3:shared
 --use win32-forms:static
@@ -633,7 +635,7 @@ Likely implementation areas:
 
 ### ~~Stage 5: Static/Shared Dependency Link Kind~~
 
-- ~~Add dependency-edge link-kind representation using `pkg@version:static`, `pkg@version:shared`, `pkg:static`, and `pkg:shared`.~~
+- ~~Add dependency-edge link-kind representation using `pkg@version:api`, `pkg@version:static`, `pkg@version:shared`, `pkg:api`, `pkg:static`, and `pkg:shared`.~~
 - ~~Default dependency link kind to `shared`.~~
 - ~~Add `--artifact only-static` and `--artifact only-shared`.~~
 - ~~Build/cache static and shared dependency artifacts independently.~~
@@ -695,8 +697,9 @@ Likely implementation areas:
   - remote package install copies source into `cache/pkg/<pkg>/<version>/src`;
   - live package builds write artifacts to workspace `cache/pkg`, not external source;
   - global installed packages are not copied into workspace cache;
-  - declarations-only package uses separate `_static` and `_shared` artifact directories without creating a meaningless static/shared binary.
+  - declarations-only package uses `:api` and a separate `_api` artifact directory without creating a meaningless static/shared binary.
 - Link-kind tests:
+  - `--use ext-win32:api` produces Camp/C API metadata artifacts without a native library;
   - `--use win32-forms@live:static`;
   - `--use win32-forms:static` resolves the latest available version;
   - omitted dependency kind defaults to shared;

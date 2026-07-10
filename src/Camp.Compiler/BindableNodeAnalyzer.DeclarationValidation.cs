@@ -169,7 +169,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateInterfaceImplementationMarkers(definition);
 		ValidateDerivedOptionalInterfaceMethods(definition);
 
-		foreach (InterfaceDefinition interfaceDefinition in GetImplementedInterfaces(definition))
+		foreach (InterfaceDefinition interfaceDefinition in GetDeclaredInterfaceImplementations(definition))
 			EnsureInterfaceImplemented(definition, interfaceDefinition);
 
 		foreach (FunctionDefinition abstractMethod in GetInheritedAbstractMethods(definition))
@@ -208,7 +208,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		ValidateInterfaceImplementationMarkers(definition);
 
-		foreach (InterfaceDefinition interfaceDefinition in GetImplementedInterfaces(definition))
+		foreach (InterfaceDefinition interfaceDefinition in GetDeclaredInterfaceImplementations(definition))
 			EnsureInterfaceImplemented(definition, interfaceDefinition);
 	}
 
@@ -793,6 +793,21 @@ public sealed partial class BindableNodeAnalyzer
 	IEnumerable<InterfaceDefinition> GetImplementedInterfaces(TypeDefinition definition)
 	{
 		return GetImplementedInterfaces(definition, []);
+	}
+
+	IEnumerable<InterfaceDefinition> GetDeclaredInterfaceImplementations(TypeDefinition definition)
+	{
+		if (!typeInfos.TryGetValue(definition, out TypeAnalysisInfo? info))
+			yield break;
+
+		foreach (TypeDefinition baseType in info.BaseTypes)
+		{
+			if (baseType is not InterfaceDefinition interfaceDefinition)
+				continue;
+			yield return interfaceDefinition;
+			foreach (InterfaceDefinition inherited in GetBaseInterfaces(interfaceDefinition))
+				yield return inherited;
+		}
 	}
 
 	IEnumerable<InterfaceDefinition> GetImplementedInterfaces(TypeDefinition definition, HashSet<TypeDefinition> seenTypes)

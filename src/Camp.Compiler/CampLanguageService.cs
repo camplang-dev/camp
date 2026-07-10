@@ -230,8 +230,15 @@ public static class CampLanguageService
 			yield return targetDirectory + "_" + profileName;
 			yield break;
 		}
+		if (linkKind is DependencyLinkKind.Api)
+		{
+			yield return targetDirectory + "_api_" + profileName;
+			yield return targetDirectory + "_" + profileName;
+			yield break;
+		}
 		yield return targetDirectory + "_shared_" + profileName;
 		yield return targetDirectory + "_static_" + profileName;
+		yield return targetDirectory + "_api_" + profileName;
 		yield return targetDirectory + "_" + profileName;
 	}
 
@@ -260,9 +267,15 @@ public static class CampLanguageService
 		if (colon >= 0)
 		{
 			string suffix = value[(colon + 1)..];
-			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) || suffix.Equals("api", StringComparison.OrdinalIgnoreCase))
 			{
-				linkKind = suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static;
+				linkKind = suffix.ToLowerInvariant() switch
+				{
+					"shared" => DependencyLinkKind.Shared,
+					"static" => DependencyLinkKind.Static,
+					"api" => DependencyLinkKind.Api,
+					_ => linkKind
+				};
 				value = value[..colon];
 			}
 		}

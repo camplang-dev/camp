@@ -166,6 +166,30 @@ public sealed class SemanticTests
 	}
 
 	[Fact]
+	public void Derived_classes_inherit_base_interface_implementations()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			interface IRefCount
+			{
+				void retain();
+				void release();
+			}
+
+			virtual class Component: IRefCount
+			{
+				void retain(): IRefCount {}
+				void release(): IRefCount {}
+			}
+
+			sealed class Button: Component
+			{
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+	}
+
+	[Fact]
 	public void Symbol_name_service_distinguishes_source_callable_and_abi_names()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""

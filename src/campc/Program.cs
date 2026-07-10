@@ -440,7 +440,13 @@ sealed class CampCli
 		foreach (string projectReference in projectReferences)
 		{
 			ProjectReferenceSpec referenceSpec = ProjectReferenceSpec.Parse(projectReference);
-			NativeBuildKind referenceBuildKind = referenceSpec.LinkKind.GetValueOrDefault(DependencyLinkKind.Shared) == DependencyLinkKind.Shared ? NativeBuildKind.Shared : NativeBuildKind.Static;
+			DependencyLinkKind effectiveLinkKind = referenceSpec.LinkKind.GetValueOrDefault(DependencyLinkKind.Shared);
+			NativeBuildKind referenceBuildKind = effectiveLinkKind switch
+			{
+				DependencyLinkKind.Shared => NativeBuildKind.Shared,
+				DependencyLinkKind.Static => NativeBuildKind.Static,
+				_ => throw new ArgumentOutOfRangeException(nameof(effectiveLinkKind), effectiveLinkKind, null)
+			};
 			if (!TryResolveProjectReference(referenceSpec.Path, environment.WorkingDirectory, out string? buildFile, out string? error))
 			{
 				errors.Add(error!);
@@ -464,10 +470,9 @@ sealed class CampCli
 			errors.AddRange(referenceOptionErrors.Select(error => $"{referenceSpec.Path}: {error}"));
 			if (referenceOptionErrors.Count > 0)
 				continue;
-			DependencyLinkKind effectiveLinkKind = referenceSpec.LinkKind.GetValueOrDefault(DependencyLinkKind.Shared);
 			if (referenceOptions.ArtifactRestriction is DependencyLinkKind restriction && restriction != effectiveLinkKind)
 			{
-				errors.Add($"{referenceSpec.Path}: project reference requires {restriction.ToString().ToLowerInvariant()} linking but was requested as {referenceBuildKind.ToString().ToLowerInvariant()}.");
+				errors.Add($"{referenceSpec.Path}: project reference requires {restriction.ToString().ToLowerInvariant()} linking but was requested as {effectiveLinkKind.ToString().ToLowerInvariant()}.");
 				continue;
 			}
 
@@ -515,12 +520,12 @@ sealed class CampCli
 			if (apiHeader is null || requireLibrary && library is null)
 			{
 				errors.Add(requireLibrary
-					? $"{referenceSpec.Path}: project reference did not produce a Camp API header and {referenceBuildKind.ToString().ToLowerInvariant()} library."
+					? $"{referenceSpec.Path}: project reference did not produce a Camp API header and {effectiveLinkKind.ToString().ToLowerInvariant()} library."
 					: $"{referenceSpec.Path}: project reference did not produce a Camp API header.");
 				continue;
 			}
 			apiHeaders.Add(apiHeader);
-			if (referenceBuildKind == NativeBuildKind.Shared)
+			if (effectiveLinkKind == DependencyLinkKind.Shared)
 				sharedApiHeaders.Add(apiHeader);
 			if (library is not null)
 				AddUniquePath(libraries, library);
@@ -1741,14 +1746,20 @@ sealed record PackageSpec(string Name, string? Version, DependencyLinkKind? Link
 		if (colon >= 0)
 		{
 			string suffix = value[(colon + 1)..];
-			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) || suffix.Equals("api", StringComparison.OrdinalIgnoreCase))
 			{
-				linkKind = suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static;
+				linkKind = suffix.ToLowerInvariant() switch
+				{
+					"shared" => DependencyLinkKind.Shared,
+					"static" => DependencyLinkKind.Static,
+					"api" => DependencyLinkKind.Api,
+					_ => linkKind
+				};
 				value = value[..colon];
 			}
 			else if (!string.IsNullOrWhiteSpace(suffix))
 			{
-				errors?.Add($"Package dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
+				errors?.Add($"Package dependency kind ':{suffix}' is not valid. Expected :api, :static, or :shared.");
 			}
 		}
 		string[] parts = value.Split('@', 2);
@@ -1770,7 +1781,12 @@ sealed record ProjectReferenceSpec(string Path, DependencyLinkKind? LinkKind)
 		{
 			string suffix = value[(colon + 1)..];
 			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
-				return new ProjectReferenceSpec(value[..colon], suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static);
+				return new ProjectReferenceSpec(value[..colon], suffix.ToLowerInvariant() switch
+				{
+					"shared" => DependencyLinkKind.Shared,
+					"static" => DependencyLinkKind.Static,
+					_ => null
+				});
 			if (LooksLikeDependencyKindSuffix(value, colon))
 				errors?.Add($"Project reference dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
 		}

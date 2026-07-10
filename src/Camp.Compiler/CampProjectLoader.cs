@@ -291,7 +291,12 @@ public static class CampProjectLoader
 		{
 			string suffix = value[(colon + 1)..];
 			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
-				return (value[..colon], suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static);
+				return (value[..colon], suffix.ToLowerInvariant() switch
+				{
+					"shared" => DependencyLinkKind.Shared,
+					"static" => DependencyLinkKind.Static,
+					_ => null
+				});
 			if (LooksLikeProjectReferenceKindSuffix(value, colon))
 				errors?.Add($"Project reference dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
 		}
@@ -311,9 +316,8 @@ public static class CampProjectLoader
 		apiHeader = null;
 		string projectDirectory = Path.GetDirectoryName(Path.GetFullPath(buildFile)) ?? workingDirectory;
 		string projectName = GetProjectReferenceName(buildFile, workingDirectory) ?? Path.GetFileNameWithoutExtension(buildFile);
-		string profileName = string.IsNullOrWhiteSpace(consumerRequest.ProfileName) ? "DEBUG" : consumerRequest.ProfileName.ToUpperInvariant();
-		NativeBuildKind buildKind = linkKind == DependencyLinkKind.Shared ? NativeBuildKind.Shared : NativeBuildKind.Static;
-		string expected = Path.Combine(projectDirectory, "bin", GetArtifactDirectoryName(consumerRequest, buildKind, profileName), projectName + "_api.camp");
+			string profileName = string.IsNullOrWhiteSpace(consumerRequest.ProfileName) ? "DEBUG" : consumerRequest.ProfileName.ToUpperInvariant();
+			string expected = Path.Combine(projectDirectory, "bin", GetArtifactDirectoryName(consumerRequest, linkKind == DependencyLinkKind.Static ? NativeBuildKind.Static : NativeBuildKind.Shared, profileName), projectName + "_api.camp");
 		if (File.Exists(expected))
 		{
 			apiHeader = expected;
@@ -1019,7 +1023,12 @@ public static class CampResponseFileExpander
 		{
 			string suffix = value[(colon + 1)..];
 			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
-				return (value[..colon], suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static);
+				return (value[..colon], suffix.ToLowerInvariant() switch
+				{
+					"shared" => DependencyLinkKind.Shared,
+					"static" => DependencyLinkKind.Static,
+					_ => null
+				});
 			if (LooksLikeDependencyKindSuffix(value, colon))
 				errors?.Add($"Project reference dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
 		}
@@ -1105,14 +1114,20 @@ public sealed record CampPackageSpec(string Name, string? Version, DependencyLin
 		if (colon >= 0)
 		{
 			string suffix = value[(colon + 1)..];
-			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) || suffix.Equals("api", StringComparison.OrdinalIgnoreCase))
 			{
-				linkKind = suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) ? DependencyLinkKind.Shared : DependencyLinkKind.Static;
+				linkKind = suffix.ToLowerInvariant() switch
+				{
+					"shared" => DependencyLinkKind.Shared,
+					"static" => DependencyLinkKind.Static,
+					"api" => DependencyLinkKind.Api,
+					_ => linkKind
+				};
 				value = value[..colon];
 			}
 			else if (!string.IsNullOrWhiteSpace(suffix))
 			{
-				errors?.Add($"Package dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
+				errors?.Add($"Package dependency kind ':{suffix}' is not valid. Expected :api, :static, or :shared.");
 			}
 		}
 		string[] parts = value.Split('@', 2);
