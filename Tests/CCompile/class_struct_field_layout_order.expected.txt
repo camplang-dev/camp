@@ -11,6 +11,7 @@ static int main(void);
 static void Holder_op_initnew(Holder *this, int number)
 {
 	this->value.number = number;
+	this->wrapper.value.number = (number + 1);
 }
 
 static Holder *Holder_create(int number)
@@ -32,9 +33,9 @@ static int main(void)
 		*holder = (Holder){0};
 		Holder_op_initnew(holder, 42);
 	}
-	int result = holder->value.number;
+	int result = (holder->value.number + holder->wrapper.value.number);
 	free((void *)(holder));
-	return (result - 42);
+	return (result - 85);
 }
 
 // file: class_struct_field_layout_order_private.h
@@ -47,6 +48,7 @@ static int main(void)
 
 /* Forward declarations. */
 typedef struct Holder Holder;
+typedef struct Wrapper Wrapper;
 typedef struct Pair Pair;
 
 /* Enums. */
@@ -58,9 +60,14 @@ struct Pair
 {
 	int number;
 };
+struct Wrapper
+{
+	Pair value;
+};
 struct Holder
 {
 	Pair value;
+	Wrapper wrapper;
 };
 
 /* Function declarations. */

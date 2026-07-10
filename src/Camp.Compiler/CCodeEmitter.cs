@@ -620,7 +620,7 @@ public static class CCodeEmitter
 
 				WriteSection(writer, "Layouts", () =>
 				{
-					foreach (StructDefinition structDefinition in definitions.OfType<StructDefinition>())
+					foreach (StructDefinition structDefinition in GetLayoutOrderedStructDefinitions(definitions))
 						WriteLayoutDefinition(writer, structDefinition);
 					foreach (TypeDefinition type in definitions.OfType<TypeDefinition>().Where(static type => type is not StructDefinition))
 						WriteLayoutDefinition(writer, type);
@@ -1835,6 +1835,103 @@ public static class CCodeEmitter
 				case InterfaceDefinition interfaceDefinition:
 					WriteInterfaceLayout(writer, interfaceDefinition);
 					break;
+			}
+		}
+
+		IEnumerable<StructDefinition> GetLayoutOrderedStructDefinitions(List<Definition> definitions)
+		{
+			List<StructDefinition> structs = definitions.OfType<StructDefinition>().ToList();
+			Dictionary<string, StructDefinition> byName = structs.ToDictionary(static definition => definition.Name, StringComparer.Ordinal);
+			HashSet<StructDefinition> emitted = new(ReferenceEqualityComparer.Instance);
+			HashSet<StructDefinition> visiting = new(ReferenceEqualityComparer.Instance);
+
+			foreach (StructDefinition structDefinition in structs)
+				foreach (StructDefinition ordered in Visit(structDefinition))
+					yield return ordered;
+
+			IEnumerable<StructDefinition> Visit(StructDefinition structDefinition)
+			{
+				if (emitted.Contains(structDefinition))
+					yield break;
+				if (!visiting.Add(structDefinition))
+					yield break;
+
+				foreach (FieldDefinition field in structDefinition.Fields.Where(static field => field.Modifier != FieldModifier.Static))
+				{
+					foreach (string dependencyName in GetByValueStructDependencyNames(field.Type))
+					{
+						if (byName.TryGetValue(dependencyName, out StructDefinition? dependency) && !ReferenceEquals(dependency, structDefinition))
+						{
+							foreach (StructDefinition orderedDependency in Visit(dependency))
+								yield return orderedDependency;
+						}
+					}
+				}
+
+				visiting.Remove(structDefinition);
+				emitted.Add(structDefinition);
+				yield return structDefinition;
+			}
+		}
+
+		IEnumerable<string> GetByValueStructDependencyNames(TypeReference? type)
+		{
+			switch (type)
+			{
+				case null:
+					yield break;
+				case PointerTypeReference:
+				case ArrayTypeReference:
+				case CallableTypeReference:
+				case RawFunctionPointerTypeReference:
+				case IterTypeReference:
+					yield break;
+				case TypeDefinitionReference { Definition: StructDefinition dependency }:
+					yield return dependency.Name;
+					yield break;
+				case TypeDefinitionReference reference:
+					if (!string.IsNullOrWhiteSpace(reference.Name))
+						yield return reference.Name;
+					yield break;
+				case NamedTypeReference named:
+					yield return named.Name;
+					yield break;
+				case GenericTypeReference generic:
+					foreach (string dependency in GetByValueStructDependencyNames(generic.Type))
+						yield return dependency;
+					yield break;
+				case FixedArrayTypeReference fixedArray:
+					foreach (string dependency in GetByValueStructDependencyNames(fixedArray.ElementType))
+						yield return dependency;
+					yield break;
+				case OptionalTypeReference optional:
+					foreach (string dependency in GetByValueStructDependencyNames(optional.ElementType))
+						yield return dependency;
+					yield break;
+				case ConstTypeReference constant:
+					foreach (string dependency in GetByValueStructDependencyNames(constant.Type))
+						yield return dependency;
+					yield break;
+				case ConstOfTypeReference constOf:
+					foreach (string dependency in GetByValueStructDependencyNames(constOf.Type))
+						yield return dependency;
+					yield break;
+				case VolatileTypeReference vol:
+					foreach (string dependency in GetByValueStructDependencyNames(vol.Type))
+						yield return dependency;
+					yield break;
+				case EscapedTypeReference escaped:
+					foreach (string dependency in GetByValueStructDependencyNames(escaped.Type))
+						yield return dependency;
+					yield break;
+				case ScopedTypeReference scoped:
+					foreach (string dependency in GetByValueStructDependencyNames(scoped.Type))
+						yield return dependency;
+					yield break;
+				case UnscopedTypeReference unscoped:
+					foreach (string dependency in GetByValueStructDependencyNames(unscoped.Type))
+						yield return dependency;
+					yield break;
 			}
 		}
 

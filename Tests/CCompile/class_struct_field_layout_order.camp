@@ -4,11 +4,18 @@ extern void free(void* ptr);
 class Holder
 {
 	Pair value;
+	Wrapper wrapper;
 
 	Holder(int number)
 	{
 		this.value.number = number;
+		this.wrapper.value.number = number + 1;
 	}
+}
+
+struct Wrapper
+{
+	Pair value;
 }
 
 struct Pair
@@ -19,7 +26,7 @@ struct Pair
 int main()
 {
 	auto holder = new Holder(42);
-	int result = holder.value.number;
+	int result = holder.value.number + holder.wrapper.value.number;
 	delete holder;
-	return result - 42;
+	return result - 85;
 }
