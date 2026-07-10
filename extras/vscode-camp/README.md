@@ -79,7 +79,11 @@ assemblies. If rebuild fails because files are in use, run
 `Camp: Restart Language Server`, reload the VS Code window, or close VS Code and
 build again.
 
-For extension development:
+## Run Without Installing The VSIX
+
+You can run the extension directly from source in a VS Code Extension
+Development Host. This is the fastest way to work on the extension itself
+without packaging and installing a `.vsix` each time.
 
 ```sh
 cd extras/vscode-camp
@@ -87,7 +91,31 @@ npm install
 code .
 ```
 
-Press `F5` to launch an Extension Development Host.
+In the VS Code window that opens:
+
+1. Open the Run and Debug view.
+   - macOS: `Cmd+Shift+D`
+   - Windows/Linux: `Ctrl+Shift+D`
+2. Select `Launch Extension`.
+3. Click the green play button, or run `Run: Start Debugging`.
+
+On some Mac keyboards, plain `F5` opens a system or editor menu instead of
+starting VS Code debugging. Use the Run and Debug sidebar, the menu item, or
+`fn+F5`.
+
+VS Code opens a second window named Extension Development Host. That second
+window is running the extension from this source folder. Open a Camp project in
+that second window and configure:
+
+```json
+{
+  "camp.server.path": "/path/to/camplang/bin/camp-lsp"
+}
+```
+
+When extension source changes, stop the debug session and launch
+`Launch Extension` again. When only `camp-lsp` changes, rebuild Camp and run
+`Camp: Restart Language Server` in the Extension Development Host.
 
 ## Build And Run Commands
 

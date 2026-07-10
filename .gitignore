@@ -12,6 +12,8 @@ cache/
 # User-specific IDE/editor files
 .idea/
 .vscode/
+!extras/vscode-camp/.vscode/
+!extras/vscode-camp/.vscode/launch.json
 .vs/
 *.user
 *.suo
