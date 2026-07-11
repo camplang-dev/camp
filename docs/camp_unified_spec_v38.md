@@ -10538,7 +10538,7 @@ void dumpBytes(const char[] path, thrown IoError error)
 			break;
 		processBytes(buffer.slice(0, count));
 	}
-	delete file;
+	file.close();
 }
 ```
 
@@ -10557,7 +10557,7 @@ async void dumpBytesAsync(const char[] path, thrown IoError error)
 	FileHandle file = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
 
 	// Async file APIs are reserved for a later standard-library pass.
-	delete file;
+	file.close();
 }
 ```
 
@@ -10571,7 +10571,7 @@ void writeData(const char[] path, const byte[] data, thrown IoError error)
 	FileOptions options = default;
 	FileHandle file = FileHandle.open(path, FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
 	file.write(data, catch error);
-	delete file;
+	file.close();
 }
 ```
 
@@ -10594,7 +10594,7 @@ void writeDataManually(const char[] path, const byte[] data, thrown IoError erro
 		if (remaining.length == 0)
 			break;
 	}
-	delete file;
+	file.close();
 }
 ```
 
@@ -10617,7 +10617,7 @@ void printTextFile(const char[] path, thrown IoError error)
 
 		Console.writeLine(line);
 	}
-	delete file;
+	file.close();
 }
 ```
 
@@ -10636,7 +10636,7 @@ void writeTextFile(const char[] path, thrown IoError error)
 	writer.write("The answer is ");
 	writer.write(42);
 	writer.newLine();
-	delete file;
+	file.close();
 }
 ```
 
