@@ -1,0 +1,15 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Control
+{
+	void createControl()
+	{
+	}
+}
+
+export void main()
+{
+	auto form = new Control();
+	form.createControl((nint)0);
+}

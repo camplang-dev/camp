@@ -2896,14 +2896,17 @@ public sealed partial class BindableNodeAnalyzer
 		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedConstOfArguments = [];
 		Dictionary<string, bool> constOfAnchorsInProgress = new(System.StringComparer.Ordinal);
 		bool[] suppliedParameters = new bool[callableParameters.Count];
-		bool tooManyArguments = false;
+		ArgumentExpression? extraArgument = null;
 		for (int i = 0; i < arguments.Count; i++)
 		{
 			ParameterDefinition? parameter = TryBindCallArgumentToParameter(arguments[i], callableParameters, suppliedParameters, fallbackSyntax, out int parameterIndex)
 				? callableParameters[parameterIndex]
 				: null;
-			if (parameter is null && string.IsNullOrWhiteSpace(arguments[i].Name))
-				tooManyArguments = true;
+			if (parameter is null
+				&& string.IsNullOrWhiteSpace(arguments[i].Name)
+				&& !IsGeneratedHiddenForwardingArgument(arguments[i])
+				&& GetArgumentDiagnosticSyntax(arguments[i], null) is not null)
+				extraArgument ??= arguments[i];
 			if (parameter is not null && parameter.ResolvedType is null)
 				AnalyzeParameterDefinition(parameter, typeScope);
 
@@ -2968,8 +2971,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (parameters.Count > 0 && TryFindMissingRequiredCallArgument(callableParameters, suppliedParameters, out ParameterDefinition? missingParameter))
 			Report(GetRange(missingArgumentSyntax ?? fallbackSyntax ?? (arguments.Count > 0 ? arguments[^1].SourceSyntax : null)), MissingRequiredArgumentMessage(missingParameter!, callDisplayName ?? GetCallDisplayName(function, callTarget)));
-		if (parameters.Count > 0 && tooManyArguments)
-			Report(GetRange(arguments[^1].SourceSyntax ?? fallbackSyntax), "Call has too many arguments.");
+		if (extraArgument is not null && (function is not null || parameters.Count > 0))
+			Report(GetRange(GetArgumentDiagnosticSyntax(extraArgument, fallbackSyntax)), "Call has too many arguments.");
 		if (function is not null)
 			CheckLifetimeCallArguments(function, callTarget, analyzedLifetimeArguments, scope, fallbackSyntax, genericSubstitutions);
 		Dictionary<string, bool> constOfAnchors = BuildConstOfCallAnchorFacts(analyzedConstOfArguments);
@@ -3108,6 +3111,15 @@ public sealed partial class BindableNodeAnalyzer
 				|| parameter is SizeOfParameterDefinition
 					&& argument.Value is MemberReferenceExpression memberReference
 					&& memberReference.Name == "_" + parameter.Name);
+	}
+
+	static bool IsGeneratedHiddenForwardingArgument(ArgumentExpression argument)
+	{
+		return argument.Value is SizeOfExpression or NameOfExpression or VTableOfExpression
+			|| argument.SourceSyntax is ParameterSyntax
+			|| argument.Value?.SourceSyntax is ParameterSyntax
+			|| argument.SourceSyntax is MemberDeclarationSyntax
+			|| argument.Value?.SourceSyntax is MemberDeclarationSyntax;
 	}
 
 	static bool IsNullArgumentExpression(ArgumentExpression argument)

@@ -1,0 +1,1 @@
+tests/Diagnostics/instance_method_extra_argument_invalid.camp(14,21): error: Call has too many arguments.
