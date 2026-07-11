@@ -1,0 +1,1 @@
+tests/Diagnostics/extern_call_loop_condition_invalid.camp(14,46): error: Cannot compare 'BOOL' and 'int'.

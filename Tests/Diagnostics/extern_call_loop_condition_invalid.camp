@@ -1,0 +1,17 @@
+newtype HWND: nint;
+newtype BOOL: int;
+
+struct MSG
+{
+	int value;
+}
+
+extern BOOL GetMessageW(MSG* message, HWND window, uint minMessage, uint maxMessage);
+
+export void main()
+{
+	MSG message = default;
+	while (GetMessageW(&message, (HWND)0, 0, 0) != 0)
+	{
+	}
+}
