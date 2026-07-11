@@ -262,7 +262,7 @@ public sealed partial class BindableNodeAnalyzer
 				?? GetExpressionLifetimeFact(cast.Expression),
 			ConstructionExpression construction => IsLifetimePointerBearingResolvedType(resolvedType, scope) ? GetConstructionLifetimeFact(construction, resolvedType, scope) : null,
 			WithinExpression within => GetWithinExpressionLifetimeFact(within, resolvedType, scope),
-			FinallyDeleteExpression finallyDelete => GetExpressionLifetimeFact(finallyDelete.Expression),
+			FinallyCleanupExpression finallyCleanup => GetExpressionLifetimeFact(finallyCleanup.Expression),
 			UnaryExpression unary => GetUnaryLifetimeFact(unary, resolvedType, scope),
 			IndexExpression index => GetIndexLifetimeFact(index, resolvedType),
 			NamelessIndexerExpression indexer => GetExpressionLifetimeFact(indexer.Target),

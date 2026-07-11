@@ -550,8 +550,10 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (ArgumentExpression argument in construction.Arguments)
 					argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
 				break;
-			case FinallyDeleteExpression finallyDelete:
-				finallyDelete.Expression = RewriteLambdaCaptureReferences(finallyDelete.Expression, context, contextLocal);
+			case FinallyCleanupExpression finallyCleanup:
+				finallyCleanup.Expression = RewriteLambdaCaptureReferences(finallyCleanup.Expression, context, contextLocal);
+				foreach (ArgumentExpression argument in finallyCleanup.Arguments)
+					argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
 				break;
 			case ArgumentExpression argument:
 				argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
@@ -805,7 +807,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (expression is null || expression is LambdaExpression || expression is WithinExpression)
 			return false;
-		if (expression is ConstructionExpression { Kind: ConstructionKind.New } || expression is FinallyDeleteExpression)
+		if (expression is ConstructionExpression { Kind: ConstructionKind.New } || expression is FinallyCleanupExpression)
 			return true;
 		foreach (Expression child in LambdaExpressionChildren(expression))
 			if (ExpressionUsesInheritedAllocator(child))
@@ -1316,8 +1318,11 @@ public sealed partial class BindableNodeAnalyzer
 					if (argument.Value is not null)
 						yield return argument.Value;
 				break;
-			case FinallyDeleteExpression finallyDelete when finallyDelete.Expression is not null:
-				yield return finallyDelete.Expression;
+			case FinallyCleanupExpression finallyCleanup when finallyCleanup.Expression is not null:
+				yield return finallyCleanup.Expression;
+				foreach (ArgumentExpression argument in finallyCleanup.Arguments)
+					if (argument.Value is not null)
+						yield return argument.Value;
 				break;
 			case ArgumentExpression argument when argument.Value is not null:
 				yield return argument.Value;

@@ -1269,8 +1269,13 @@ public sealed partial class BindableNodeAnalyzer
 					if (ReferencesAnyName(item.Expression, names))
 						return true;
 				return false;
-			case FinallyDeleteExpression finallyDelete:
-				return ReferencesAnyName(finallyDelete.Expression, names);
+			case FinallyCleanupExpression finallyCleanup:
+				if (ReferencesAnyName(finallyCleanup.Expression, names))
+					return true;
+				foreach (ArgumentExpression argument in finallyCleanup.Arguments)
+					if (ReferencesAnyName(argument, names))
+						return true;
+				return false;
 			case WithinExpression within:
 				return ReferencesAnyName(within.Context, names) || ReferencesAnyName(within.Expression, names);
 			default:

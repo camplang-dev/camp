@@ -222,9 +222,21 @@ public class PostfixUpdateExpression : Expression
 	public UpdateOperator Operator { get; set; }
 }
 
-public class FinallyDeleteExpression : Expression
+public class FinallyCleanupExpression : Expression
 {
 	public Expression? Expression { get; set; }
+	public FinallyCleanupKind Kind { get; set; } = FinallyCleanupKind.Delete;
+	public string MethodName { get; set; } = "";
+	public TokenRange? MethodNameRange { get; set; }
+	public List<ArgumentExpression> Arguments { get; } = [];
+	public CallExpression? CleanupCall { get; set; }
+	public FunctionDefinition? CleanupFunction { get; set; }
+}
+
+public enum FinallyCleanupKind
+{
+	Delete,
+	Method
 }
 
 public class BinaryExpression : Expression

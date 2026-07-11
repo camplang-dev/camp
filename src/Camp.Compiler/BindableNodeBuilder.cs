@@ -544,6 +544,11 @@ public sealed partial class BindableNodeBuilder
 							Report(child.MemberDeclaration, "Newtype declarations may not contain constructors.");
 							continue;
 						}
+						if (function.Modifier == FunctionModifier.Destructor || function.SourceSyntax is MemberDeclarationSyntax { TildeToken: not null })
+						{
+							Report(child.MemberDeclaration, "Value newtypes cannot declare destructors; use an explicit cleanup method and 'value finally cleanup()'.");
+							continue;
+						}
 						definition.Functions.Add(function);
 					}
 				}

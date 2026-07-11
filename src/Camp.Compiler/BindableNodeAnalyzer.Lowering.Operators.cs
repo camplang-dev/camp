@@ -500,9 +500,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (typeDefinitions.TryGetValue(BaseTypeName(deletedType), out TypeDefinition? foundDeletedDefinition))
 		{
 			deletedDefinition = foundDeletedDefinition;
-			opDelete = deletedDefinition is NewtypeDefinition
-				? FindDestroyMethod(deletedDefinition)
-				: deletedDefinition is ClassDefinition { Extern: not null }
+			opDelete = deletedDefinition is ClassDefinition { Extern: not null }
 				? FindDestroyMethod(deletedDefinition)
 				: FindDeleteMethod(deletedDefinition) ?? FindCallableDeleteMethod(deletedDefinition, target?.SourceSyntax);
 		}
@@ -513,8 +511,6 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (!isPointer && !isThisPointer && !isArray && opDelete is null)
 			Report(target?.SourceSyntax, $"delete requires a pointer or a type with a destructor, not '{targetType}'.");
-		if (deletedDefinition is NewtypeDefinition && isPointer)
-			Report(target?.SourceSyntax, $"delete of a pointer to newtype '{deletedDefinition.Name}' is not allowed; delete the wrapped value with 'delete *value' instead.");
 		if (deletedDefinition is ClassDefinition { Extern: not null } && opDelete is null)
 			Report(target?.SourceSyntax, $"delete requires an explicit destructor for extern class '{deletedDefinition.Name}'.");
 		if (target is null)
@@ -524,8 +520,7 @@ public sealed partial class BindableNodeAnalyzer
 			return CreateFreeCall(CreateArrayElementsAccess(target));
 
 		bool deallocate = (isPointer || isThisPointer)
-			&& deletedDefinition is not ClassDefinition { Extern: not null }
-			&& deletedDefinition is not NewtypeDefinition;
+			&& deletedDefinition is not ClassDefinition { Extern: not null };
 		return CreateDeleteExpression(target, opDelete, deallocate);
 	}
 

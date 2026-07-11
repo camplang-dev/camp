@@ -103,7 +103,12 @@ bool FileHandle_writeFd(void* context, nuint* written, byte* buffer, nuint buffe
 
 export newtype FileHandle: nint
 {
-	export ~FileHandle()
+	/// Closes the wrapped operating-system file handle.
+	///
+	/// Closing an invalid or already-closed handle is ignored. Errors reported
+	/// by the underlying platform close operation are intentionally discarded,
+	/// making this method suitable for `finally close()` cleanup.
+	export void close()
 	{
 		if ((nint)this > 0)
 		{

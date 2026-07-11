@@ -2929,18 +2929,6 @@ public sealed partial class BindableNodeAnalyzer
 		Report(GetRange(expression?.SourceSyntax), $"delete requires an explicit destructor for extern class '{externClass.Name}'.");
 	}
 
-	void ValidateNewtypePointerDelete(Expression? expression, string targetType)
-	{
-		if (TryGetPointerElementType(targetType) is not string deletedType
-			|| !typeDefinitions.TryGetValue(BaseTypeName(deletedType), out TypeDefinition? definition)
-			|| definition is not NewtypeDefinition)
-		{
-			return;
-		}
-
-		Report(GetRange(expression?.SourceSyntax), $"delete of a pointer to newtype '{definition.Name}' is not allowed; delete the wrapped value with 'delete *value' instead.");
-	}
-
 	static FunctionDefinition? FindGeneratedInitNewMethod(TypeDefinition? type)
 	{
 		if (type is null)

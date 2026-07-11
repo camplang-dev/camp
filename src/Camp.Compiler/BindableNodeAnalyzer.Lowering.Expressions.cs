@@ -166,8 +166,8 @@ public sealed partial class BindableNodeAnalyzer
 				postfix.Expression = LowerExpression(postfix.Expression);
 				break;
 
-			case FinallyDeleteExpression finallyDelete:
-				return RewriteFinallyDeleteExpression(finallyDelete);
+			case FinallyCleanupExpression finallyCleanup:
+				return RewriteFinallyCleanupExpression(finallyCleanup);
 
 			case BinaryExpression binary:
 				binary.Left = LowerScalarExpression(binary.Left);

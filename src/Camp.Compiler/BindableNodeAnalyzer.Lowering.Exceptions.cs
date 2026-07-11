@@ -135,9 +135,10 @@ public sealed partial class BindableNodeAnalyzer
 		cleanupScope.ReturnType = "void";
 	}
 
-	Expression? RewriteFinallyDeleteExpression(FinallyDeleteExpression finallyDelete)
+	Expression? RewriteFinallyCleanupExpression(FinallyCleanupExpression finallyCleanup)
 	{
-		if (finallyDelete.Expression is CallExpression call
+		if (finallyCleanup.Kind == FinallyCleanupKind.Delete
+			&& finallyCleanup.Expression is CallExpression call
 			&& currentStatementPrefix is not null
 			&& currentCleanupScopes.Count > 0
 			&& TryCreateExpandedReturnCallComponents(call, out List<Expression> components)
@@ -146,8 +147,8 @@ public sealed partial class BindableNodeAnalyzer
 			Expression expandedReference = components[0];
 			GroupedExpression grouped = new()
 			{
-				SourceSyntax = finallyDelete.SourceSyntax,
-				ResolvedType = finallyDelete.ResolvedType
+				SourceSyntax = finallyCleanup.SourceSyntax,
+				ResolvedType = finallyCleanup.ResolvedType
 			};
 			foreach (Expression component in components)
 			{
@@ -167,11 +168,11 @@ public sealed partial class BindableNodeAnalyzer
 			return expandedReference;
 		}
 
-		Expression? value = LowerExpression(finallyDelete.Expression);
+		Expression? value = LowerExpression(finallyCleanup.Expression);
 		if (value is null || currentStatementPrefix is null || currentCleanupScopes.Count == 0)
 			return value;
 
-		string valueType = value.ResolvedType ?? finallyDelete.ResolvedType ?? ErrorType;
+		string valueType = value.ResolvedType ?? finallyCleanup.ResolvedType ?? ErrorType;
 		CleanupScope cleanupScope = currentCleanupScopes[^1];
 		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("finally"), valueType, new NamedTypeReference { Name = valueType, ResolvedType = valueType }, new DefaultExpression { ResolvedType = valueType });
 		cleanupScope.PreludeStatements.Add(local);
@@ -188,10 +189,56 @@ public sealed partial class BindableNodeAnalyzer
 		ExpressionStatement cleanup = new()
 		{
 			ResolvedType = "void",
-			Expression = RewriteDeleteExpression(CreateVariableReference(local.Target, local.Target.ResolvedType ?? valueType))
+			Expression = finallyCleanup.Kind == FinallyCleanupKind.Delete
+				? RewriteDeleteExpression(CreateVariableReference(local.Target, local.Target.ResolvedType ?? valueType))
+				: null
 		};
-		cleanupScope.Statements.Add(CreateGuardedCleanup(activeTarget, cleanup));
+		Statement cleanupStatement = finallyCleanup.Kind == FinallyCleanupKind.Delete
+			? cleanup
+			: CreateFinallyMethodCleanupStatement(finallyCleanup, local.Target, valueType);
+		cleanupScope.Statements.Add(CreateGuardedCleanup(activeTarget, cleanupStatement));
 		return reference;
+	}
+
+	Statement CreateFinallyMethodCleanupStatement(FinallyCleanupExpression finallyCleanup, DeclarationTarget target, string valueType)
+	{
+		if (finallyCleanup.CleanupFunction is not FunctionDefinition function || finallyCleanup.CleanupCall is not CallExpression analyzedCall)
+			return new ExpressionStatement { ResolvedType = "void", Expression = new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" } };
+
+		Expression receiver = CreateVariableReference(target, target.ResolvedType ?? valueType);
+		MemberReferenceExpression member = new()
+		{
+			SourceSyntax = finallyCleanup.SourceSyntax,
+			Target = receiver,
+			Name = function.Name,
+			NameRange = finallyCleanup.MethodNameRange,
+			Member = function,
+			ResolvedType = function.ResolvedType ?? ErrorType
+		};
+		member.Candidates.Add(function);
+		CallExpression cleanupCall = new()
+		{
+			SourceSyntax = finallyCleanup.SourceSyntax,
+			ResolvedType = "void",
+			Target = member
+		};
+		foreach (ArgumentExpression argument in analyzedCall.Arguments)
+			cleanupCall.Arguments.Add(argument);
+		callTargets[cleanupCall] = function;
+		if (callGenericSubstitutions.TryGetValue(analyzedCall, out Dictionary<string, string>? substitutions))
+			callGenericSubstitutions[cleanupCall] = new Dictionary<string, string>(substitutions, StringComparer.Ordinal);
+
+		List<Statement>? previousStatementPrefix = currentStatementPrefix;
+		List<Statement> cleanupPrefix = [];
+		currentStatementPrefix = cleanupPrefix;
+		Expression? lowered = LowerExpression(cleanupCall);
+		currentStatementPrefix = previousStatementPrefix;
+		cleanupPrefix.Add(new ExpressionStatement
+		{
+			ResolvedType = "void",
+			Expression = lowered ?? cleanupCall
+		});
+		return CreateBlock(cleanupPrefix);
 	}
 
 	DeclarationTarget CreateCleanupActiveFlag(CleanupScope cleanupScope)

@@ -1,0 +1,13 @@
+struct CleanupProbe
+{
+	int getValue()
+	{
+		return 1;
+	}
+}
+
+export void main()
+{
+	CleanupProbe probe = default;
+	auto guarded = probe finally getValue();
+}

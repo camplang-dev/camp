@@ -1593,9 +1593,6 @@ public sealed partial class BindableNodeAnalyzer
 				GenerateLifecycleMethods(structDefinition, structDefinition.Functions);
 				break;
 
-			case NewtypeDefinition newtypeDefinition:
-				GenerateLifecycleMethods(newtypeDefinition, newtypeDefinition.Functions);
-				break;
 		}
 	}
 
@@ -1634,13 +1631,6 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			else if (IsDestructorFunction(function))
 			{
-				if (type is NewtypeDefinition)
-				{
-					generated.Add(CreateNewtypeDestroyMethod(type, function));
-					function.Body = null;
-					continue;
-				}
-
 				if (type is ClassDefinition { Extern: not null })
 				{
 					if (function.Extern is not null)
@@ -1816,25 +1806,6 @@ public sealed partial class BindableNodeAnalyzer
 		method.ResolvedType = "void";
 		method.Body = destructor.Body;
 		CopyLifecycleParameters(destructor.Parameters, method.Parameters);
-		return method;
-	}
-
-	FunctionDefinition CreateNewtypeDestroyMethod(TypeDefinition type, FunctionDefinition destructor)
-	{
-		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "newtype destructor destroy helper", destructor);
-		method.SourceSyntax = destructor.SourceSyntax;
-		method.Name = DestroyMethodName;
-		method.Symbol = $"{type.Name}_{DestroyMethodName}";
-		method.Export = destructor.Export;
-		method.Public = destructor.Public;
-		method.Extern = destructor.Extern;
-		method.ReturnType = VoidType();
-		method.ResolvedType = "void";
-		if (method.Extern is null)
-			method.Body = destructor.Body;
-		CopyLifecycleParameters(destructor.Parameters, method.Parameters);
-		if (HasWithinParameter(method) && method.Body is BlockStatement block)
-			block.Statements.Insert(0, CreateResolvedAllocatorLocal(GetWithinParameter(method)));
 		return method;
 	}
 

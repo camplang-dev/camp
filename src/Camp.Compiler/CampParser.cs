@@ -1395,14 +1395,25 @@ public sealed class CampParser
 		if (TakeIf("finally") is Token finallyKeyword)
 		{
 			syntax.FinallyKeyword = finallyKeyword;
-			syntax.DeleteKeyword = Expect("delete");
+			if (TakeIf("delete") is Token deleteKeyword)
+			{
+				syntax.DeleteKeyword = deleteKeyword;
+			}
+			else
+			{
+				syntax.FinallyMethodIdentifier = ExpectIdentifier();
+				syntax.FinallyOpenParenToken = Expect("(");
+				if (!Is(")"))
+					syntax.FinallyArgumentList = ParseArgumentList(")");
+				syntax.FinallyCloseParenToken = Expect(")");
+			}
 		}
 
 		if (syntax.Prefixes.Count == 0)
 		{
 			syntax.Prefixes = null;
 
-			if (syntax.FinallyKeyword is null && syntax.DeleteKeyword is null)
+			if (syntax.FinallyKeyword is null)
 				return syntax.Expression;
 		}
 

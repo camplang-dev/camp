@@ -1044,9 +1044,18 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write(postfix.Operator == UpdateOperator.Increment ? "++" : "--");
 				break;
 
-			case FinallyDeleteExpression finallyDelete:
-				writer.Write("finally delete ");
-				WriteExpression(finallyDelete.Expression, GetPrecedence(finallyDelete));
+			case FinallyCleanupExpression finallyCleanup:
+				WriteExpression(finallyCleanup.Expression, GetPrecedence(finallyCleanup));
+				writer.Write(" finally ");
+				if (finallyCleanup.Kind == FinallyCleanupKind.Delete)
+				{
+					writer.Write("delete");
+				}
+				else
+				{
+					writer.Write(finallyCleanup.MethodName);
+					WriteDelimited("(", ")", finallyCleanup.Arguments, WriteArgument);
+				}
 				break;
 
 			case BinaryExpression binary:
@@ -2074,7 +2083,7 @@ public sealed class BindableNodeCodeSerializer
 			ConditionalExpression => 2,
 			RangeExpression => 3,
 			BinaryExpression binary => GetBinaryPrecedence(binary.Operator),
-			UnaryExpression or CastExpression or FinallyDeleteExpression or WithinExpression => 12,
+			UnaryExpression or CastExpression or FinallyCleanupExpression or WithinExpression => 12,
 			CallExpression or IndexExpression or MemberExpression or MemberReferenceExpression or NamelessIndexerExpression or PostfixUpdateExpression => 13,
 			_ => 14
 		};

@@ -2403,10 +2403,10 @@ newtype FileHandle: nint
 
 A `newtype` scope may contain ordinary methods.
 
-It may not contain fields, virtual methods, or constructors. Value `newtype`
-declarations may declare destructors. A value `newtype` destructor consumes the
-wrapped value by value; it does not receive a pointer to storage and it never
-deallocates storage.
+It may not contain fields, virtual methods, constructors, or destructors. A
+value `newtype` is a nominal wrapper over an existing representation; cleanup of
+wrapped handles or resources should be expressed as an ordinary method such as
+`close()`, `destroy()`, or `release()`.
 
 Examples of invalid members:
 
@@ -2416,33 +2416,35 @@ newtype Counter: int
 	int value;          // ERROR
 	virtual void a();   // ERROR
 	Counter();          // ERROR
+	~Counter();         // ERROR
 }
 ```
 
 This keeps `newtype` aligned with its purpose: nominal distinction over an existing representation, not a miniature aggregate object model.
 
-A `newtype` destructor is invoked with value-form `delete`:
+Use `finally cleanupMethod(...)` when a `newtype` value should be cleaned up at
+scope exit:
 
 ```camp
 newtype FileHandle: nint
 {
-	~FileHandle()
+	void close()
 	{
 		// close the wrapped handle value
 	}
 }
 
-FileHandle handle = openFile();
-delete handle;  // calls FileHandle_destroy(handle)
+FileHandle handle = openFile() finally close();
 ```
 
-Pointer-form `delete` on a pointer to a `newtype` is invalid because it would
-suggest that the pointer storage is owned and should be freed:
+`delete` keeps its ordinary allocation meaning. Deleting a `newtype` value is
+invalid unless the value is itself a pointer-form allocation target. Deleting a
+`Newtype*` is pointer-form deletion of that storage; it does not close or
+otherwise interpret the wrapped value.
 
 ```camp
-FileHandle* handlePtr = ...;
-delete handlePtr;   // ERROR
-delete *handlePtr;  // OK: destroys the wrapped handle value only
+FileHandle handle = openFile();
+delete handle;  // ERROR: FileHandle has no destructor
 ```
 
 A callable `newtype` may also be used as a callable ascription on a compatible function or method declaration. In that position, the `newtype` names the semantic callable contract for the declaration's natural callable reference form while preserving the same underlying representation.
@@ -4174,12 +4176,6 @@ For a class `TypeName`:
 | `TypeName_op_delete` | destruction without deallocation |
 | `TypeName_destroy` | destruction plus deallocation |
 
-For a value `newtype` `TypeName` with a destructor:
-
-| Helper | Meaning |
-|---|---|
-| `TypeName_destroy` | by-value destruction of the wrapped value |
-
 For an `extern class`, these ordinary managed-class helper rules are narrowed:
 
 | Surface | Meaning |
@@ -4202,8 +4198,6 @@ These helper names are not arbitrary. They reflect the exact lifecycle split Cam
 - `TypeName_create` for a class allocates, performs any hidden typed scaffolding, and then constructs.
 - `TypeName_op_delete` for a class tears down an existing instance without freeing its storage.
 - `TypeName_destroy` for a class performs teardown and then deallocation.
-- `TypeName_destroy` for a value `newtype` receives `TypeName this` by value
-  and destroys the underlying handle/value without freeing storage.
 
 These names matter for ABI reasoning, but ordinary Camp code still writes the language surface:
 
@@ -4211,18 +4205,6 @@ These names matter for ABI reasoning, but ordinary Camp code still writes the la
 Widget local = init Widget();
 Widget* heap = new Widget();
 delete heap;
-```
-
-For a value `newtype`, ordinary Camp code writes `delete value`; deleting a
-pointer to a `newtype` is invalid unless the programmer explicitly dereferences
-the pointer first:
-
-```camp
-FileHandle handle = openFile();
-delete handle;
-
-FileHandle* slot = &handle;
-delete *slot;
 ```
 
 For an `extern class`, ordinary Camp code still writes `new` and `delete`, but
@@ -7279,19 +7261,37 @@ By contrast, deleting the value itself is valid:
 delete local;   // destructor only
 ```
 
-### 4.4.8 `finally delete`
+### 4.4.8 `finally` cleanup expressions
 
-`finally delete` is often the most concise way to pair construction with cleanup.
+`finally` cleanup expressions are often the most concise way to pair a value
+with scope-exit cleanup. Camp supports two forms:
 
 ```camp
 auto request = new HttpRequest("GET", url) finally delete;
 auto buffer = init Utf8Buffer(256) finally delete;
+FileHandle file = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING) finally close();
 ```
 
-This preserves the ordinary distinction:
+`expr finally delete` preserves the ordinary `delete` distinction:
 
 - value-form cleanup destroys only the value
 - pointer-form cleanup destroys and deallocates the pointed-to storage
+
+`expr finally cleanupMethod(args...)` captures `expr` once and registers an
+ordinary instance method call on the captured value for the current cleanup
+scope. The cleanup method must return `void`. Cleanup arguments are evaluated
+when the cleanup runs, not when the value is captured. Ordinary member lookup,
+overload resolution, lifetime, `within`, and `thrown` rules apply to the cleanup
+method call.
+
+This form is the preferred way to model handle-style cleanup on value
+`newtype`s and other values that should not pretend that cleanup is memory
+deallocation:
+
+```camp
+Brush brush = Brush.create(red) finally destroy();
+Connection connection = connect(endpoint) finally close();
+```
 
 ### 4.4.9 A common `within` pitfall
 
@@ -10365,7 +10365,7 @@ export newtype FileHandle: nint
 {
 	static FileHandle open(const char[] path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError);
 
-	~FileHandle();
+	void close();
 
 	ulong getLength(thrown IoError);
 	ulong getPosition(thrown IoError);
@@ -10383,9 +10383,15 @@ export newtype FileHandle: nint
 `FileHandle` does not store readable/writable/end-of-file state. Invalid
 operations are reported by the platform abstraction layer through `IoError`.
 End of file for reads is represented by a successful read with `readCount == 0`.
-Deleting a `FileHandle` value closes the wrapped handle. Since the type is a raw
-value wrapper, do not delete a `FileHandle*`; write `delete *slot` only when a
-pointer slot contains a handle value that should be closed.
+Call `close()` to close the wrapped handle. Use `finally close()` for scoped
+cleanup:
+
+```camp
+FileHandle file = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING) finally close();
+```
+
+Since `FileHandle` is a raw value wrapper, `delete file` is not valid and
+`delete FileHandle*` means pointer-storage deallocation, not handle closing.
 
 ### 7.2.5 `Console`
 

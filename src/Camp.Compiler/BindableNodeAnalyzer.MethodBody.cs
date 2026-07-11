@@ -209,8 +209,10 @@ public sealed partial class BindableNodeAnalyzer
 			case PostfixUpdateExpression postfix:
 				CollectAsyncAwaitSites(postfix.Expression, sites);
 				break;
-			case FinallyDeleteExpression finallyDelete:
-				CollectAsyncAwaitSites(finallyDelete.Expression, sites);
+			case FinallyCleanupExpression finallyCleanup:
+				CollectAsyncAwaitSites(finallyCleanup.Expression, sites);
+				foreach (ArgumentExpression argument in finallyCleanup.Arguments)
+					CollectAsyncAwaitSites(argument, sites);
 				break;
 			case BinaryExpression binary:
 				CollectAsyncAwaitSites(binary.Left, sites);
@@ -389,7 +391,6 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					string deleteType = BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
 					ValidateExternClassDelete(deleteStatement.Expression, deleteType);
-					ValidateNewtypePointerDelete(deleteStatement.Expression, deleteType);
 					RequireExplicitWithinForDelete(deleteStatement.Expression, deleteType, scope, "pointer-form delete requires an explicit within context; use within(allocator) delete or within(default) delete.");
 					CheckLifetimeDeleteAgainstFree(deleteStatement.Expression, deleteStatement.Expression?.SourceSyntax ?? deleteStatement.SourceSyntax, scope);
 				}
@@ -1009,7 +1010,7 @@ public sealed partial class BindableNodeAnalyzer
 			NamelessIndexerExpression indexer => BodyAnalyzeIndexExpression(indexer.Target, indexer.Arguments, scope, typeScope),
 			UnaryExpression unary => BodyAnalyzeUnaryExpression(unary, scope, typeScope, targetType),
 			PostfixUpdateExpression postfix => BodyAnalyzePostfixUpdateExpression(postfix, scope, typeScope),
-			FinallyDeleteExpression finallyDelete => BodyAnalyzeFinallyDeleteExpression(finallyDelete, scope, typeScope, targetType),
+			FinallyCleanupExpression finallyCleanup => BodyAnalyzeFinallyCleanupExpression(finallyCleanup, scope, typeScope, targetType),
 			BinaryExpression binary => BodyAnalyzeBinaryExpression(binary, scope, typeScope),
 			AssignmentExpression assignment => BodyAnalyzeAssignmentExpression(assignment, scope, typeScope),
 			ConditionalExpression conditional => BodyAnalyzeConditionalExpression(conditional, scope, typeScope, targetType),
@@ -1725,12 +1726,47 @@ public sealed partial class BindableNodeAnalyzer
 		return BodyAnalyzeExpression(within.Expression, withinScope, typeScope, targetType);
 	}
 
-	string BodyAnalyzeFinallyDeleteExpression(FinallyDeleteExpression finallyDelete, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	string BodyAnalyzeFinallyCleanupExpression(FinallyCleanupExpression finallyCleanup, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
-		string expressionType = BodyAnalyzeExpression(finallyDelete.Expression, scope, typeScope, targetType);
-		ValidateNewtypePointerDelete(finallyDelete.Expression, expressionType);
-		if (finallyDelete.Expression is not WithinExpression { Expression: not null })
-			RequireExplicitWithinForDelete(finallyDelete.Expression, expressionType, scope, "finally delete requires an explicit within context for pointer deletion; use within(allocator) or within(default).");
+		if (finallyCleanup.Kind == FinallyCleanupKind.Delete)
+		{
+			string deleteExpressionType = BodyAnalyzeExpression(finallyCleanup.Expression, scope, typeScope, targetType);
+			if (finallyCleanup.Expression is not WithinExpression { Expression: not null })
+				RequireExplicitWithinForDelete(finallyCleanup.Expression, deleteExpressionType, scope, "finally delete requires an explicit within context for pointer deletion; use within(allocator) or within(default).");
+			return deleteExpressionType;
+		}
+
+		if (finallyCleanup.Expression is null)
+			return ErrorType;
+		if (string.IsNullOrWhiteSpace(finallyCleanup.MethodName))
+		{
+			string fallbackExpressionType = BodyAnalyzeExpression(finallyCleanup.Expression, scope, typeScope, targetType);
+			foreach (ArgumentExpression argument in finallyCleanup.Arguments)
+				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
+			return fallbackExpressionType;
+		}
+
+		MemberExpression cleanupTarget = new()
+		{
+			SourceSyntax = finallyCleanup.SourceSyntax,
+			Target = finallyCleanup.Expression,
+			Name = finallyCleanup.MethodName,
+			NameRange = finallyCleanup.MethodNameRange
+		};
+		CallExpression cleanupCall = new()
+		{
+			SourceSyntax = finallyCleanup.SourceSyntax,
+			Target = cleanupTarget
+		};
+		foreach (ArgumentExpression argument in finallyCleanup.Arguments)
+			cleanupCall.Arguments.Add(argument);
+		string cleanupReturnType = BodyAnalyzeCallExpression(cleanupCall, scope, typeScope, targetType: null);
+		if (cleanupReturnType != "void" && cleanupReturnType != ErrorType)
+			Report(finallyCleanup.MethodNameRange ?? GetRange(finallyCleanup.SourceSyntax), $"finally cleanup method '{finallyCleanup.MethodName}' must return void.");
+		finallyCleanup.CleanupCall = cleanupCall;
+		if (callTargets.TryGetValue(cleanupCall, out FunctionDefinition? cleanupFunction))
+			finallyCleanup.CleanupFunction = cleanupFunction;
+		string expressionType = finallyCleanup.Expression.ResolvedType ?? ErrorType;
 		return expressionType;
 	}
 
@@ -3199,7 +3235,7 @@ public sealed partial class BindableNodeAnalyzer
 			ParenthesizedExpression parenthesized => GetExpressionDiagnosticSyntax(parenthesized.Expression),
 			CastExpression cast => GetExpressionDiagnosticSyntax(cast.Expression),
 			WithinExpression within => GetExpressionDiagnosticSyntax(within.Expression) ?? GetExpressionDiagnosticSyntax(within.Context),
-			FinallyDeleteExpression finallyDelete => GetExpressionDiagnosticSyntax(finallyDelete.Expression),
+			FinallyCleanupExpression finallyCleanup => GetExpressionDiagnosticSyntax(finallyCleanup.Expression),
 			UnaryExpression unary => GetExpressionDiagnosticSyntax(unary.Operand) ?? GetExpressionDiagnosticSyntax(unary.Context),
 			PostfixUpdateExpression postfix => GetExpressionDiagnosticSyntax(postfix.Expression),
 			BinaryExpression binary => GetExpressionDiagnosticSyntax(binary.Left) ?? GetExpressionDiagnosticSyntax(binary.Right),
@@ -3936,8 +3972,8 @@ public sealed partial class BindableNodeAnalyzer
 					yield return call;
 				yield break;
 
-			case FinallyDeleteExpression finallyDelete:
-				foreach (CallExpression call in EnumerateBaseConstructorCalls(finallyDelete.Expression))
+			case FinallyCleanupExpression finallyCleanup:
+				foreach (CallExpression call in EnumerateBaseConstructorCalls(finallyCleanup.Expression))
 					yield return call;
 				yield break;
 

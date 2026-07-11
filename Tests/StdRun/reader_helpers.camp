@@ -9,7 +9,7 @@ export int main()
 	if (error != default)
 		return 1;
 	writerHandle.CharWriter.tryWriteCharArray("A\nBC\nDEF", catch error);
-	delete writerHandle;
+	writerHandle.close();
 	if (error != default)
 		return 2;
 	
@@ -41,6 +41,6 @@ export int main()
 	if (rest.compareTo("C\nDEF") != 0)
 		return 9;
 	
-	delete readerHandle;
+	readerHandle.close();
 	return 0;
 }

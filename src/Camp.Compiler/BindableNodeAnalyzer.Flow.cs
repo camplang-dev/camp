@@ -377,9 +377,11 @@ public sealed partial class BindableNodeAnalyzer
 				AssignExpressionTarget(postfix.Expression, state);
 				break;
 
-			case FinallyDeleteExpression finallyDelete:
-				if (!IsBaseDeleteExpression(finallyDelete.Expression))
-					FlowAnalyzeExpression(finallyDelete.Expression, state);
+			case FinallyCleanupExpression finallyCleanup:
+				if (!IsBaseDeleteExpression(finallyCleanup.Expression))
+					FlowAnalyzeExpression(finallyCleanup.Expression, state);
+				foreach (ArgumentExpression argument in finallyCleanup.Arguments)
+					FlowAnalyzeExpression(argument, state);
 				break;
 
 			case BinaryExpression binary:

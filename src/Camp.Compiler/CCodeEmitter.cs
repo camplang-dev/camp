@@ -2894,7 +2894,7 @@ public static class CCodeEmitter
 				GroupedExpression grouped => grouped.Items.Any(item => ExpressionContainsAwait(item.Expression)),
 				ArrayExpression array => array.Elements.Any(ExpressionContainsAwait),
 				InitializerExpression initializer => initializer.Items.Any(item => ExpressionContainsAwait(item.Expression)),
-				FinallyDeleteExpression finallyDelete => ExpressionContainsAwait(finallyDelete.Expression),
+				FinallyCleanupExpression finallyCleanup => ExpressionContainsAwait(finallyCleanup.Expression) || finallyCleanup.Arguments.Any(argument => ExpressionContainsAwait(argument.Value)),
 				WithinExpression within => ExpressionContainsAwait(within.Context) || ExpressionContainsAwait(within.Expression),
 				ArgumentExpression argument => ExpressionContainsAwait(argument.Value),
 				_ => false
@@ -3677,7 +3677,7 @@ public static class CCodeEmitter
 				LambdaExpression => UnsupportedExpression(expression),
 				ArgumentExpression argument => FormatArgumentValue(argument),
 				NamelessIndexerExpression indexer => FormatExpression(indexer.Target) + "[" + string.Join(", ", indexer.Arguments.Select(FormatArgumentValue)) + "]",
-				FinallyDeleteExpression finallyDelete => FormatExpression(finallyDelete.Expression),
+				FinallyCleanupExpression finallyCleanup => FormatExpression(finallyCleanup.Expression),
 				_ => UnsupportedExpression(expression)
 			};
 		}

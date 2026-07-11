@@ -335,12 +335,12 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		declaration.InitialValue = NormalizeExpandedReturnPropertyGetter(declaration.InitialValue);
-		bool finallyDelete = false;
+		bool finallyCleanup = false;
 		Expression? initialValue = declaration.InitialValue;
-		if (initialValue is FinallyDeleteExpression { Expression: not null } finallyDeleteExpression)
+		if (initialValue is FinallyCleanupExpression { Kind: FinallyCleanupKind.Delete, Expression: not null } finallyCleanupExpression)
 		{
-			finallyDelete = true;
-			initialValue = NormalizeExpandedReturnPropertyGetter(finallyDeleteExpression.Expression);
+			finallyCleanup = true;
+			initialValue = NormalizeExpandedReturnPropertyGetter(finallyCleanupExpression.Expression);
 		}
 		bool materializedGenericReturnInitializer = initialValue is CallExpression initialCall
 			&& callTargets.TryGetValue(initialCall, out FunctionDefinition? initialFunction)
@@ -434,14 +434,14 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		RegisterParamsExpansion(declaration.Target, shape, targets);
-		if (finallyDelete && targets.Count > 0)
+		if (finallyCleanup && targets.Count > 0)
 		{
 			Expression target = CreateVariableReference(targets[0], shape.Components[0].Type);
 			declarations.Add(new ExpressionStatement
 			{
 				SourceSyntax = declaration.SourceSyntax,
 				ResolvedType = "void",
-				Expression = new FinallyDeleteExpression
+				Expression = new FinallyCleanupExpression
 				{
 					SourceSyntax = declaration.SourceSyntax,
 					Expression = target,
@@ -551,8 +551,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool TryGetParamsArrayConstruction(Expression? initialValue, out ConstructionExpression construction)
 	{
-		if (initialValue is FinallyDeleteExpression { Expression: not null } finallyDelete)
-			initialValue = finallyDelete.Expression;
+		if (initialValue is FinallyCleanupExpression { Kind: FinallyCleanupKind.Delete, Expression: not null } finallyCleanup)
+			initialValue = finallyCleanup.Expression;
 		if (initialValue is WithinExpression { Expression: not null } within)
 			initialValue = within.Expression;
 		if (initialValue is ConstructionExpression { ElementCount: not null, Type: not null } arrayConstruction)
@@ -804,8 +804,8 @@ public sealed partial class BindableNodeAnalyzer
 		List<Expression?> values = [];
 		Expression? allocator = null;
 		Expression? arrayInitialValue = initialValue;
-		if (arrayInitialValue is FinallyDeleteExpression { Expression: not null } finallyDelete)
-			arrayInitialValue = finallyDelete.Expression;
+		if (arrayInitialValue is FinallyCleanupExpression { Kind: FinallyCleanupKind.Delete, Expression: not null } finallyCleanup)
+			arrayInitialValue = finallyCleanup.Expression;
 		if (arrayInitialValue is WithinExpression { Expression: not null } within)
 		{
 			allocator = within.Context is DefaultWithinContextExpression ? null : within.Context;

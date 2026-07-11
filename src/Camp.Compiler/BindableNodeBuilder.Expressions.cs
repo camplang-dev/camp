@@ -478,11 +478,16 @@ public sealed partial class BindableNodeBuilder
 
 		if (syntax.FinallyKeyword is not null)
 		{
-			expression = new FinallyDeleteExpression
+			FinallyCleanupExpression finallyCleanup = new()
 			{
 				SourceSyntax = syntax,
-				Expression = expression
+				Expression = expression,
+				Kind = syntax.DeleteKeyword is not null ? FinallyCleanupKind.Delete : FinallyCleanupKind.Method,
+				MethodName = syntax.FinallyMethodIdentifier?.Value ?? "",
+				MethodNameRange = syntax.FinallyMethodIdentifier?.Range
 			};
+			AddArguments(finallyCleanup.Arguments, syntax.FinallyArgumentList, $"{context} finally cleanup argument");
+			expression = finallyCleanup;
 		}
 
 		return expression ?? new LiteralExpression { SourceSyntax = syntax, Kind = LiteralKind.Null, Text = "null" };

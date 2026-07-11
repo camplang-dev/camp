@@ -24,7 +24,7 @@ binary-expression:
 	<unary-expression> (<binary-operator> <unary-expression>)*
 
 unary-expression:
-	(<prefix-operator> | await | postpone | throw | within '(' (<expression> | default) ')')* <postfix-expression> [finally delete]
+	(<prefix-operator> | await | postpone | throw | within '(' (<expression> | default) ')')* <postfix-expression> [finally (delete | <IDENT> '(' <argument-list>? ')')]
 
 postfix-expression:
 	<primary-expression> <postfix-part>*

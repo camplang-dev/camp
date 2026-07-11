@@ -12,7 +12,7 @@ export int main()
 	writerHandle.write(bytes, catch error);
 	if (error != default)
 		return 2;
-	delete writerHandle;
+	writerHandle.close();
 	
 	FileHandle readerHandle = FileHandle.open("tmp/golden-stdrun-file.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
 	if (error != default)
@@ -29,7 +29,7 @@ export int main()
 		return 7;
 	if (buffer[0] != (byte)'a' || buffer[1] != (byte)'b' || buffer[2] != (byte)'c')
 		return 8;
-	delete readerHandle;
+	readerHandle.close();
 	
 	return 0;
 }

@@ -549,6 +549,10 @@ public class UnaryExpressionSyntax : ExpressionSyntax
 	public ExpressionSyntax? Expression { get; set; }
 	public Token? FinallyKeyword { get; set; }
 	public Token? DeleteKeyword { get; set; }
+	public Token? FinallyMethodIdentifier { get; set; }
+	public Token? FinallyOpenParenToken { get; set; }
+	public ArgumentListSyntax? FinallyArgumentList { get; set; }
+	public Token? FinallyCloseParenToken { get; set; }
 }
 
 public class UnaryPrefixSyntax : SyntaxNode

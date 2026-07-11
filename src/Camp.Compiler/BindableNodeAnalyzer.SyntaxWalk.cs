@@ -286,8 +286,10 @@ public sealed partial class BindableNodeAnalyzer
 				AnalyzeOptionalExpression(postfix.Expression, scope);
 				break;
 
-			case FinallyDeleteExpression finallyDelete:
-				AnalyzeOptionalExpression(finallyDelete.Expression, scope);
+			case FinallyCleanupExpression finallyCleanup:
+				AnalyzeOptionalExpression(finallyCleanup.Expression, scope);
+				foreach (ArgumentExpression argument in finallyCleanup.Arguments)
+					AnalyzeExpression(argument, scope);
 				break;
 
 			case BinaryExpression binary:

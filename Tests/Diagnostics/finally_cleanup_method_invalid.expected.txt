@@ -1,0 +1,1 @@
+tests/Diagnostics/finally_cleanup_method_invalid.camp(12,31): error: finally cleanup method 'getValue' must return void.

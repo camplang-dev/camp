@@ -1276,7 +1276,7 @@ public sealed partial class BindableNodeAnalyzer
 		statements = [];
 		if (declaration.Target.Names.Count != 1
 			|| TryGetPointerElementType(declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType) is null
-			|| !TryUnwrapArrayNewDeclarationValue(declaration.InitialValue, out ConstructionExpression? construction, out Expression? allocator, out bool finallyDelete))
+			|| !TryUnwrapArrayNewDeclarationValue(declaration.InitialValue, out ConstructionExpression? construction, out Expression? allocator, out bool finallyCleanup))
 			return false;
 
 		for (int i = 0; i < construction.Arguments.Count; i++)
@@ -1305,7 +1305,7 @@ public sealed partial class BindableNodeAnalyzer
 		declaration.InitialValue = CreateAllocCall(construction.Type, allocationAllocator, construction.SourceSyntax ?? declaration.SourceSyntax, construction.ElementCount);
 		statements.Add(declaration);
 
-		if (finallyDelete && currentCleanupScopes.Count > 0)
+		if (finallyCleanup && currentCleanupScopes.Count > 0)
 		{
 			CleanupScope cleanupScope = currentCleanupScopes[^1];
 			DeclarationTarget activeTarget = CreateCleanupActiveFlag(cleanupScope);
@@ -1325,14 +1325,14 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	static bool TryUnwrapArrayNewDeclarationValue(Expression? value, out ConstructionExpression construction, out Expression? allocator, out bool finallyDelete)
+	static bool TryUnwrapArrayNewDeclarationValue(Expression? value, out ConstructionExpression construction, out Expression? allocator, out bool finallyCleanup)
 	{
 		allocator = null;
-		finallyDelete = false;
-		if (value is FinallyDeleteExpression { Expression: not null } finallyDeleteExpression)
+		finallyCleanup = false;
+		if (value is FinallyCleanupExpression { Kind: FinallyCleanupKind.Delete, Expression: not null } finallyCleanupExpression)
 		{
-			finallyDelete = true;
-			value = finallyDeleteExpression.Expression;
+			finallyCleanup = true;
+			value = finallyCleanupExpression.Expression;
 		}
 		if (value is WithinExpression { Expression: not null } within)
 		{
@@ -1351,14 +1351,14 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryRewriteInitDeclaration(DeclarationStatement declaration, out List<Statement> statements)
 	{
 		statements = [];
-		bool finallyDelete = false;
+		bool finallyCleanup = false;
 		Expression? initialValue = declaration.InitialValue;
-		if (initialValue is FinallyDeleteExpression { Expression: ConstructionExpression finallyDeleteConstruction } finallyDeleteExpression
-			&& finallyDeleteConstruction.Kind == ConstructionKind.Init)
+		if (initialValue is FinallyCleanupExpression { Kind: FinallyCleanupKind.Delete, Expression: ConstructionExpression finallyCleanupConstruction } finallyCleanupExpression
+			&& finallyCleanupConstruction.Kind == ConstructionKind.Init)
 		{
-			finallyDelete = true;
-			initialValue = finallyDeleteConstruction;
-			finallyDeleteExpression.Expression = finallyDeleteConstruction;
+			finallyCleanup = true;
+			initialValue = finallyCleanupConstruction;
+			finallyCleanupExpression.Expression = finallyCleanupConstruction;
 		}
 
 		if (initialValue is not ConstructionExpression { Kind: ConstructionKind.Init } construction || declaration.Target.Names.Count != 1)
@@ -1408,7 +1408,7 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void",
 			Expression = initCall
 		});
-		if (finallyDelete && currentCleanupScopes.Count > 0)
+		if (finallyCleanup && currentCleanupScopes.Count > 0)
 		{
 			CleanupScope cleanupScope = currentCleanupScopes[^1];
 			DeclarationTarget activeTarget = CreateCleanupActiveFlag(cleanupScope);

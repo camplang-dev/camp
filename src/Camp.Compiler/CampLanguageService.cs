@@ -129,13 +129,26 @@ public static class CampLanguageService
 				foreach (string artifactDirectory in CandidateArtifactDirectoryNames(targetDirectory, profileName, DependencyLinkKind.Static))
 				{
 					apiHeader = Path.Combine(cacheRoot, packageName, "bin", artifactDirectory, packageName + "_api.camp");
-					if (File.Exists(apiHeader))
+					if (File.Exists(apiHeader) && CachedPackageApiHeaderIsFresh(request, packageName, apiHeader))
 						return true;
 				}
 			}
 		}
 		apiHeader = null;
 		return false;
+	}
+
+	static bool CachedPackageApiHeaderIsFresh(CompilerRequest request, string packageName, string apiHeader)
+	{
+		IReadOnlyList<string> sources = GetAnalysisPackageSources(request, packageName);
+		if (sources.Count == 0)
+			return true;
+
+		DateTime apiWriteTime = File.GetLastWriteTimeUtc(apiHeader);
+		foreach (string source in sources)
+			if (File.GetLastWriteTimeUtc(source) > apiWriteTime)
+				return false;
+		return true;
 	}
 
 	static bool TryGetCachedExternalPackageApiHeader(CompilerRequest request, string packageName, string? requestedVersion, DependencyLinkKind? linkKind, out string? apiHeader)
