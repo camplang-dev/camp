@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Camp.Compiler.Tests;
@@ -922,13 +923,18 @@ public sealed class LspServerTests
 
 	sealed class LspProcess : IDisposable
 	{
+		const int RequestTimeoutMilliseconds = 10000;
+		const int ShutdownTimeoutMilliseconds = 3000;
 		readonly Process process;
 		readonly List<JsonNode> observedNotifications = [];
+		readonly StringBuilder stderr = new();
+		readonly Task stderrReader;
 		int nextId = 1;
 
 		LspProcess(Process process)
 		{
 			this.process = process;
+			stderrReader = Task.Run(ReadStandardError);
 		}
 
 		public static LspProcess Start()
@@ -987,9 +993,10 @@ public sealed class LspServerTests
 		{
 			int id = nextId++;
 			Send(new { jsonrpc = "2.0", id, method, @params = parameters });
+			DateTime deadline = DateTime.UtcNow.AddMilliseconds(RequestTimeoutMilliseconds);
 			while (true)
 			{
-				JsonNode message = ReadMessage();
+				JsonNode message = ReadMessage(RemainingMilliseconds(deadline));
 				if (message["id"]?.GetValue<int>() == id)
 					return message;
 				if (message["method"] is not null)
@@ -1004,9 +1011,20 @@ public sealed class LspServerTests
 
 		public JsonNode ReadNotification(string method)
 		{
+			for (int i = 0; i < observedNotifications.Count; i++)
+			{
+				if (observedNotifications[i]["method"]?.GetValue<string>() == method)
+				{
+					JsonNode message = observedNotifications[i];
+					observedNotifications.RemoveAt(i);
+					return message;
+				}
+			}
+
+			DateTime deadline = DateTime.UtcNow.AddMilliseconds(RequestTimeoutMilliseconds);
 			while (true)
 			{
-				JsonNode message = ReadMessage();
+				JsonNode message = ReadMessage(RemainingMilliseconds(deadline));
 				if (message["method"]?.GetValue<string>() == method)
 					return message;
 				if (message["method"] is not null)
@@ -1033,6 +1051,8 @@ public sealed class LspServerTests
 
 		void Send(object message)
 		{
+			if (process.HasExited)
+				throw new InvalidOperationException("LSP process exited before the request could be sent." + ErrorOutput());
 			string json = JsonSerializer.Serialize(message);
 			byte[] bytes = Encoding.UTF8.GetBytes(json);
 			process.StandardInput.Write($"Content-Length: {bytes.Length}\r\n\r\n");
@@ -1041,14 +1061,23 @@ public sealed class LspServerTests
 			process.StandardInput.BaseStream.Flush();
 		}
 
-		JsonNode ReadMessage()
+		JsonNode ReadMessage(int timeoutMilliseconds)
+		{
+			Task<JsonNode> read = Task.Run(ReadMessageBlocking);
+			if (read.Wait(timeoutMilliseconds))
+				return read.GetAwaiter().GetResult();
+			TerminateProcess();
+			throw new TimeoutException($"Timed out waiting for LSP response after {timeoutMilliseconds} ms." + ErrorOutput());
+		}
+
+		JsonNode ReadMessageBlocking()
 		{
 			string header = "";
 			while (!header.EndsWith("\r\n\r\n", StringComparison.Ordinal))
 			{
 				int value = process.StandardOutput.BaseStream.ReadByte();
 				if (value < 0)
-					throw new InvalidOperationException(process.StandardError.ReadToEnd());
+					throw new InvalidOperationException(ErrorOutput());
 				header += (char)value;
 			}
 			int length = 0;
@@ -1061,7 +1090,7 @@ public sealed class LspServerTests
 			{
 				int count = process.StandardOutput.BaseStream.Read(body, read, length - read);
 				if (count == 0)
-					throw new InvalidOperationException(process.StandardError.ReadToEnd());
+					throw new InvalidOperationException(ErrorOutput());
 				read += count;
 			}
 			return JsonNode.Parse(body) ?? throw new InvalidOperationException("Invalid LSP JSON response.");
@@ -1073,15 +1102,64 @@ public sealed class LspServerTests
 			{
 				Request("shutdown", new { });
 				Notify("exit", new { });
-				if (!process.WaitForExit(2000))
-					process.Kill(entireProcessTree: true);
 			}
 			catch
 			{
+				// Teardown must never strand a camp-lsp child or hang the testhost.
+			}
+			TerminateProcess();
+			process.Dispose();
+		}
+
+		void TerminateProcess()
+		{
+			try
+			{
+				if (process.WaitForExit(ShutdownTimeoutMilliseconds))
+					return;
 				if (!process.HasExited)
 					process.Kill(entireProcessTree: true);
+				process.WaitForExit(ShutdownTimeoutMilliseconds);
 			}
-			process.Dispose();
+			catch
+			{
+				// Best-effort cleanup for a process that may already have exited.
+			}
+			try
+			{
+				stderrReader.Wait(ShutdownTimeoutMilliseconds);
+			}
+			catch
+			{
+			}
+		}
+
+		void ReadStandardError()
+		{
+			try
+			{
+				char[] buffer = new char[1024];
+				while (process.StandardError.Read(buffer, 0, buffer.Length) is int count && count > 0)
+				{
+					lock (stderr)
+						stderr.Append(buffer, 0, count);
+				}
+			}
+			catch
+			{
+			}
+		}
+
+		string ErrorOutput()
+		{
+			lock (stderr)
+				return stderr.Length == 0 ? "" : Environment.NewLine + stderr;
+		}
+
+		static int RemainingMilliseconds(DateTime deadline)
+		{
+			double remaining = (deadline - DateTime.UtcNow).TotalMilliseconds;
+			return remaining <= 0 ? 1 : (int)Math.Min(remaining, RequestTimeoutMilliseconds);
 		}
 
 		static string FindRepositoryRoot()
