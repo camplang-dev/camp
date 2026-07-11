@@ -27,6 +27,7 @@ cache/
 
 # Temporary files
 tmp/
+local/
 
 # Test output
 TestResults/
