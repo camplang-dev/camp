@@ -95,3 +95,56 @@ and conversion classification.
 
 Examples prefer complete Camp fragments with meaningful names. When an example
 is only a declaration fragment, the surrounding context is stated in prose.
+
+## Core Design Commitments
+
+Camp's design is built around a few commitments that show up throughout the
+language reference.
+
+First, source contracts should describe the important native contract. If an
+API depends on an allocator, lifetime, target calling convention, interface
+vtable, thrown slot, or generic size capability, that fact should appear in the
+signature rather than being hidden in comments or runtime state.
+
+Second, high-level forms should have understandable lowered shapes. Arrays are
+counted views. Interfaces are vtable contracts. Delegates have context. Async is
+callback-shaped. Iterators have protocol state. Users do not need to write the
+lowered ABI in normal code, but they should be able to reason about ownership,
+cost, and interop from the source model.
+
+Third, nominal boundaries matter. Structs, classes, interfaces, enums, and
+newtypes are not interchangeable just because their storage might look similar.
+Explicit conversions, casts, adapters, or constructors are the way to cross
+boundaries.
+
+Fourth, target-specific behavior belongs at target boundaries. Camp can express
+call specs, type specs, primitive widths, framework links, shared libraries, and
+native declarations, but ordinary code should keep those details local to the
+API that needs them.
+
+## Reading Order
+
+The reference is ordered so later chapters can build on earlier concepts:
+
+1. Lexical structure, names, and declarations establish source shape.
+2. Type, primitive, pointer, and callable chapters define values and signatures.
+3. Expressions, statements, and lifecycle chapters explain executable code.
+4. Interfaces, newtypes, arrays, errors, lifetimes, generics, iterators, and
+   async cover the larger language features.
+5. Attributes and standard-library/interop chapters explain documentation,
+   metadata, and common boundary surfaces.
+
+When a feature depends on a later chapter, the earlier chapter gives only the
+minimum needed context and links forward.
+
+## What Counts As User-Facing Detail
+
+This reference includes ABI and representation information when it affects how
+a Camp programmer designs or calls an API. For example, interface vtable
+storage, struct adapter lifetimes, array carrier components, `within`
+allocation, and async frame retention are user-facing because they affect
+correct source code.
+
+Compiler-only algorithms, exact generated helper names, pass ordering, and C
+emitter implementation choices belong in `docs/semantics` unless the source
+programmer must understand them to write correct code.
