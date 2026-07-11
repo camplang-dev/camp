@@ -6,175 +6,269 @@ code. Ordinary Camp users should start with the language reference.
 
 ## 1. Binding, Analysis, And Lowering Pipeline
 
-- Parse Model
-- Bindable Node Model
+- Source Files And Compilation
+- Preprocessing
+- Tokenization And Parsing
+- Bindable Node Construction
 - Analysis Scopes
-- Declaration Passes
-- Body Analysis
+- Analyzer Passes
+- Declaration Collection
+- Type Binding
+- Declaration Validation
 - Expansion
+- Body Analysis
+- Flow Analysis
 - Lowering
 - Emission
-- Generated Declaration Factory
-- Provenance And Source Ranges
+- Provenance And Diagnostics
+- Compiler Writer Checklist
 
 ## 2. Expanded Forms And ABI Shapes
 
 - Expanded Form Definition
+- Source Surface Versus ABI Surface
+- Component Naming
 - Arrays
+- Target Specs On Expanded Carriers
+- Fixed-Size Arrays
+- Optionals
 - Delegates And `once`
-- Iterators
 - Async Callable Shapes
+- Iterators
 - Grouped Params
 - Thrown Params
-- Component Naming
-- API Surface Versus Lowered Shape
+- Materialized Storage With `struct(T)`
+- Expanded Returns
+- Generic Expanded Forms
+- API, Metadata, And Dumps
+- Test Expectations
 
 ## 3. Conversions, Raw Carriers, And Fence Casts
 
 - Conversion Levels
-- Target Specifier Domains
+- Cast Forms
+- Value Conversion Versus Type Rewrite
+- Target Specs And Call Specs
 - Raw Carrier Families
+- `void*` Fences
+- `fn*` Fences
+- `nint` And `nuint`
+- `untyped`
 - Const And Volatile Overrides
-- Pointer Family Rules
-- Callable Rules
-- Array And Optional Rules
-- Generic Constructed Types
-- Diagnostics And Warnings
+- Lifetime Overrides
+- Physical Pointer Depth
+- Data Pointer Families
+- Class Pointer Casts
+- Interface Pointer Casts
+- Callable Conversions
+- Expanded And Generic Types
+- Target Conversion Policy
+- Warnings
 - Test Matrix
 
 ## 4. `constof` And Signature Compatibility
 
+- Terms
 - Anchor Binding
 - Caller-Visible Substitution
-- Callee Implementation View
-- Storage Conversions
-- Parameter Passing
+- Callee View
+- Storage Conversion Lattice
+- Common Type Inference
+- Parameter Passing Equality
 - Return And `out` Positions
 - Callable Variance
+- Surfaces That Use Callable Compatibility
 - Override Exactness
 - Lambda Target Typing
-- `constof(this)`
+- Callable `this`
+- Metadata And API Output
 - Diagnostics
+- Test Expectations
 
 ## 5. Lifetime Analysis And Flow Facts
 
-- Bound Lifetime Model
-- Lifetime Anchors
+- Tracked Types
+- Fact Form
+- Lifetime Kinds
+- Anchors
 - Slot Facts And Value Facts
-- Defaults
-- Assignment And Storage
-- Return, Yield, And Delete
+- Declaration Defaults
+- Expression Facts
 - Call-Site Relation Solving
-- Constructors And Retained Values
+- Assignment And Storage
+- Fields
+- Return, Yield, And Delete
+- Construction And Retention
 - Delegates And Captures
-- Iterators And Generated Contexts
-- Generics
+- Async And Iterator Frames
+- Generic Boundaries
+- Casts
 - Diagnostics
+- Test Surface
+- Implementation Anchors
 
 ## 6. Generics, Erasure, And Capabilities
 
-- Generic Parameter Binding
-- Constraints
+- Binding Model
+- Constraint Categories
 - Erased Versus Materialized Values
 - `T: any`
 - `T: copyable`
 - Size, VTable, And Type Name Capabilities
 - Generic Arrays And Iterators
+- Interface-Constrained Generics
 - Generic Construction And Destruction
+- Materialized Generic Results
 - Static Members
+- Generic Callable Policy
+- Metadata And API Output
 - Diagnostics
+- Test Surface
+- Implementation Anchors
 
 ## 7. Callable Lowering And Context Ownership
 
-- Callable Shape Service
+- Callable Shape
+- Shape Expansion
 - Direct Functions
 - Delegates
 - `once`
 - Callable Newtypes
 - Method References
 - Lambdas
+- Capture Collection
+- Scoped Versus Escaped Contexts
 - Escaped Context Allocation
 - Capture Layout
 - Context Deletion
 - Default Arguments And Thunks
+- Interface And Virtual Calls
+- Async Callable Values
+- Diagnostics
+- Test Surface
+- Implementation Anchors
 
 ## 8. Async Resumption Lowering
 
-- Async Callable Expansion
-- Await Site Collection
+- Source Surface And ABI Surface
 - Completion Callback Shape
-- Resumer Selection
-- `resumeAsync`
-- `@awaitwith`
+- Await Site Collection
 - `@noawait`
+- Resumer Selection
+- `@awaitwith`
+- `resumeAsync`
 - State Machine Frames
+- Frame Allocation
+- Await Lowering
+- Manual Async Calls
 - Tail Await Forwarding
 - Error Propagation
 - `postpone`
 - Async Diagnostics
+- Metadata And API
+- Test Surface
+- Implementation Anchors
 
 ## 9. Interface VTables And Dynamic Dispatch
 
-- Interface Shape
+- Source Interface Shape
 - Slot Function Types
 - Required Slots
 - Defaulted Slots
 - Optional Slots
+- Interface Constructors
+- Interface Destructors
 - Struct Conformance
 - Class Conformance
 - Interface Inheritance
 - VTable Generation
 - `vtableof`
 - Interface Conversions
+- Virtual Class Dispatch
+- Metadata And API
 - Diagnostics
+- Test Surface
+- Implementation Anchors
 
 ## 10. Construction, Destruction, And Allocation
 
+- Lifecycle Declarations
 - Constructor Binding
 - Default Constructors
+- Definite Assignment
 - Destructors
 - Base Initialization
 - `init`
+- Initializer Lists
 - `new`
 - `delete`
 - Allocator Selection
+- Allocator Lifetime
+- Generated Cleanup And `finally`
 - Async And Iterator Restrictions
 - Extern Type Boundaries
+- Interface And Virtual Lifecycle
+- Metadata And API
 - Diagnostics
+- Test Surface
+- Implementation Anchors
 
 ## 11. Metadata, API Surface, And Symbols
 
 - API Header Model
 - Metadata View Model
 - Export/Public/All Filtering
+- Generated Versus Source Declarations
 - Symbol Names
+- Symbol Collisions
 - Metadata IDs
 - Doc Comment Translation
+- Attributes
 - Stubs
-- Type And Function Object Details
-- Generated Versus Source Declarations
+- Type Object Details
+- Function Object Details
+- Capability Parameters
+- Inline Constants
+- API Versus ABI Inspection
+- Diagnostics
+- Test Surface
+- Implementation Anchors
 
 ## 12. Target Capabilities And C Emission
 
 - Target Definition Resolution
+- Target Sections
 - Target-Owned Defines
 - Type Specs And Call Specs
 - Conversion Policy Tables
+- Natural Integers And Pointer Widths
 - Primitive C Spelling
+- C Emission Preconditions
+- Expanded Forms In C
 - C Reserved Identifiers
 - Symbol Emission
+- Headers
 - Shared Library Export/Import
 - Object, Static, Shared, And Executable Artifacts
 - Objective-C Capability Boundary
+- Diagnostics
+- Test Surface
+- Implementation Anchors
 
 ## 13. Diagnostics, Source Ranges, And Error Quality
 
-- Diagnostic Severity
+- Diagnostic Model
 - Stable Codes
 - Parser Diagnostics
 - Analysis Diagnostics
 - Source Ranges
+- Range Helpers
 - Warnings
+- Error Message Style
+- Multi-Diagnostic Situations
+- Driver And Emitter Diagnostics
 - Golden Diagnostic Tests
 - LSP Diagnostic Mapping
-- Error Message Style
+- Outstanding Bugs And Documentation Issues
+- Test Surface
+- Implementation Anchors

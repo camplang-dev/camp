@@ -1,123 +1,224 @@
 # `campc` Command Line
 
-## Command Overview
-
-`campc` is the Camp command-line compiler. It uses subcommands:
+`campc` is the command-line entry point for compiling Camp source, producing C
+output, building native artifacts, inspecting compiler stages, restoring
+packages, and editing simple package pragmas. It is a subcommand-oriented tool:
 
 ```sh
 campc build [pattern.camp...] [options]
-campc run [pattern.camp...] [options]
+campc run [pattern.camp...] [options] -- [program-args...]
 campc dump <kind> [pattern.camp...] [options]
 campc restore [pattern.camp...]
 campc pkg <command> [...]
 campc help [command]
 ```
 
-Source patterns may be file paths or globs. Build files can be supplied through
-response-file syntax with `@file.campbuild`.
+The command-line compiler and the language server share the same project option
+model, but they do not have the same side effects. `campc build` may build
+project references and packages. The language-server project loader is read-only
+except for reading already generated API headers and source files.
+
+## Command Model
+
+Every command is interpreted from the current working directory. Source patterns
+may be file paths or globs. `@response-file` arguments are expanded before the
+command is parsed, and build/run also treat a bare `.campbuild` positional
+argument as a response file. See [Build Files And Pragmas](02-build-files-and-pragmas.md).
+
+`campc` exits with `0` on success and `1` on command-line, package, parse,
+semantic, metadata, emission, project-reference, or native-build failure. Normal
+generated-file status lines go to standard output. Diagnostics and native build
+errors go to standard error.
 
 ## `build`
 
-`build` compiles Camp sources, emits C, and optionally builds a native artifact.
-When no artifact is specified, the compiler infers an executable if it finds an
-exported or public `main`; otherwise it builds a static library.
-
-Common examples:
+`build` compiles Camp source, emits C, and optionally invokes the selected
+target's native build templates. It is the normal command for producing final
+artifacts:
 
 ```sh
-campc build src/main.camp --target gcc-linux-x64
-campc build @app.campbuild
-campc build src/lib.camp --artifact static --name textlib
+campc build src/*.camp --target gcc-linux-x64 --artifact exec --name textapp
+campc build @textapp.campbuild
+campc build src/math.camp --artifact static --name mathlib
+campc build src/protocol.camp --artifact none --metadata export
 ```
+
+When `--artifact` is omitted, `build` infers an executable if any root source
+contains a public or exported `main` declaration; otherwise it builds a static
+library. The inference is intentionally shallow and file-text based, so a
+project that needs a specific result should state `--artifact`.
+
+`--artifact none` emits C and related generated headers without invoking a
+native compiler. Static and shared library builds also emit Camp API headers and
+metadata by default. Executable builds require exactly one public or exported
+`main` after analysis; `main` must return `int` or `void` and must have no
+ordinary parameters or the supported command-line parameter shape.
 
 ## `run`
 
-`run` builds an executable and runs it.
+`run` builds an executable and then executes it from the working directory:
 
 ```sh
 campc run samples/hello.camp
+campc run @textapp.campbuild -- --verbose input.txt
 ```
 
-`run` requires an executable artifact. If the artifact option is omitted, it
-defaults to an executable.
+Program arguments are separated from build arguments with `--`. `run` defaults
+to `--artifact exec` when no artifact is specified, and it rejects non-executable
+artifact kinds before doing build work.
 
 ## `dump`
 
-`dump` prints compiler intermediate output. Valid dump kinds are `tokens`,
-`cst`, `ast`, `declarations`, `lowering`, and `metadata`.
+`dump` prints compiler intermediate output. The dump kind is required:
+
+| Kind | Output |
+|---|---|
+| `tokens` | Lexical tokens for the first root source file. |
+| `cst` | Concrete syntax XML for the first root source file. |
+| `ast` | Bindable syntax XML for the first root source file. |
+| `declarations` | Analyzed declaration surface for the first root source file. |
+| `lowering` | Lowered Camp-like output after semantic rewrites. |
+| `metadata` | Metadata JSON for the selected metadata view. |
 
 ```sh
-campc dump lowering source.camp
-campc dump declarations source.camp --xml
+campc dump tokens src/lexer_case.camp --nostdlib
+campc dump declarations src/library.camp --xml
+campc dump lowering src/library.camp --xml
+campc dump metadata src/library.camp --metadata public
 ```
 
-`--xml` applies only to declaration and lowering dumps.
+`--xml` applies only to `declarations` and `lowering`. Build-only options such
+as `--artifact`, `--framework`, `--name`, `--subsystem`, and `--out-dir` are not
+valid on `dump`. `dump metadata` defaults to the `export` metadata view if
+`--metadata` is not supplied.
 
 ## `restore`
 
-`restore` installs missing packages used by source files and build pragmas into
-the local package cache.
+`restore` reads effective package source and package use pragmas, then installs
+missing packages into the local package root:
 
 ```sh
-campc restore @app.campbuild
+campc restore @textapp.campbuild
+campc restore src/*.camp
 ```
+
+Restore uses the same `#build --use` and `#build --use-source` information as a
+build, but it does not compile source. It installs into the working directory's
+local package cache unless the package is already available from either the
+local or global package root.
 
 ## `pkg`
 
-`pkg` manages package sources and package dependencies. Subcommands include
-`add-source`, `remove-source`, `search`, `install`, `uninstall`, `add`, and
-`remove`.
+`pkg` manages simple package source and dependency pragmas plus package
+installation. The supported subcommands are:
+
+| Command | Meaning |
+|---|---|
+| `pkg add-source <name> <folder> --local <file>` | Add or replace a local package source pragma. |
+| `pkg add-source <name> <folder> --global` | Add or replace a global package source pragma. |
+| `pkg remove-source <name> --local <file>` | Remove a local package source pragma. |
+| `pkg remove-source <name> --global` | Remove a global package source pragma. |
+| `pkg search <pkg> [--source <name>] [--local <file>]` | Search configured source roots for package versions. |
+| `pkg install <pkg@version> [--global]` | Copy a package from a configured source into a package root. |
+| `pkg uninstall <pkg[@version]> [--global]` | Remove an installed package or package version. |
+| `pkg add <pkg@version> <file.camp>` | Add a `#build --use` pragma to a source file. |
+| `pkg remove <pkg> <file.camp>` | Remove matching `#build --use` pragmas from a source file. |
+
+Examples:
 
 ```sh
-campc pkg add-source local-libs ../packages --local app.campbuild
+campc pkg add-source local-libs ../packages --local src/main.camp
 campc pkg search text
 campc pkg install textlib@1.2.0
-campc pkg add textlib@1.2.0 app.campbuild
+campc pkg add textlib@1.2.0 src/main.camp
 ```
+
+The package manager edits source files by inserting or removing prelude
+`#build` lines. It does not rewrite `.campbuild` files through a structured
+project model.
 
 ## `help`
 
-`help` prints command help.
+`help` prints command help:
 
 ```sh
 campc help
 campc help build
+campc --help
 ```
 
-## Common Build Options
+`init` is reserved for project scaffolding and is not part of the documented v1
+workflow.
 
-Common options include:
+## Build Options
+
+These options are valid for `build`, `run`, and `dump` unless noted:
 
 | Option | Meaning |
 |---|---|
-| `--include`, `-i` | Include Camp API headers or source patterns. |
-| `--exclude` | Exclude source file patterns. |
-| `--target`, `-t` | Select the target. |
-| `--profile`, `-p` | Select `DEBUG` or `RELEASE`. |
-| `--variant`, `-v` | Select target variants. |
-| `--define`, `-d` | Define conditional compilation symbols. |
-| `--emit` | Select emitter, currently `c99`. |
-| `--nostdlib` | Omit the standard library package. |
-| `--reference`, `-r` | Reference a native static library during linking. |
-| `--use`, `-u` | Use an installed package. |
-| `--use-source` | Define a package source name and local path. |
+| `--include`, `-i` | Include Camp API headers or additional source patterns for analysis. |
+| `--exclude` | Exclude source files matched by source patterns. |
+| `--target`, `-t` | Select a target from `targets/**/*.ini`; default is `clang-macos-x64`. |
+| `--profile`, `-p` | Select `DEBUG` or `RELEASE`; default is `DEBUG`. |
+| `--variant`, `-v` | Select one or more target variants. |
+| `--define`, `-d` | Add Camp preprocessor symbols. |
+| `--emit` | Select the emitter; the documented emitter is `c99`. |
+| `--nostdlib` | Omit automatic standard library package preparation. |
+| `--reference`, `-r` | Add native libraries or linker references. Multiple values may follow one switch. |
+| `--use`, `-u` | Use an installed or live package, as `pkg`, `pkg@version`, or `pkg@version:kind`. |
+| `--use-source` | Add a named package source root for live package lookup. |
 | `--project-reference` | Build and reference another Camp project. |
-| `--metadata` | Emit metadata: `none`, `export`, `public`, or `all`. |
-| `--explicit-within` | Require explicit `within` for source allocation. |
-| `--implicit-within` | Allow default allocation without explicit `within`. |
+| `--metadata` | Select metadata emission: `none`, `export`, `public`, or `all`. |
+| `--explicit-within` | Require source `new` and pointer-form `delete` to use an explicit `within` context unless overridden by `#within`. |
+| `--implicit-within` | Allow source `new` and pointer-form `delete` to fall back to the default allocator unless overridden by `#within`. |
+| `--xml` | Use XML for `dump declarations` or `dump lowering`. |
 
-Build-only options include `--framework`, `--artifact`, `--name`,
-`--subsystem`, and `--out-dir`.
+Build/run-only options:
 
-## Exit Codes And Diagnostics
+| Option | Meaning |
+|---|---|
+| `--artifact` | Select `exec`, `static`, `shared`, `only-static`, `only-shared`, or `none`. |
+| `--name` | Set the project/artifact base name. |
+| `--out-dir` | Set the final artifact output directory. |
+| `--subsystem` | Select a native subsystem; the documented value is `windows` for executable builds. |
+| `--framework`, `-f` | Link native frameworks on targets that support framework linking. Multiple values may follow one switch. |
 
-`campc` returns `0` on success and `1` when startup, parsing, semantic,
-metadata, emission, native build, package, or project-reference processing
-fails. Diagnostics are printed to standard error unless a dump command emits
-structured output.
+`only-static` and `only-shared` build the current project as the named library
+kind and also declare that dependency consumers may only request that link kind.
+They are useful in project-reference and package graphs where an implementation
+is deliberately not available as both static and shared.
 
-## Response Files
+## Output And Status Lines
 
-Response files are expanded with `@path`. `.campbuild` files are ordinary
-response files by convention. Build and run commands also recognize bare build
-file arguments when a positional value resolves to a `.campbuild` file.
+Successful emission writes status lines such as:
+
+```text
+generated: textapp.c
+generated: textapp.h
+generated: textapp_private.h
+generated: textapp
+```
+
+The `GeneratedFiles` list returned by the compiler driver contains absolute
+paths, but the command-line status text prints only file names. Tools that need
+paths should use the driver API or compute them from the output layout described
+in [Artifacts, Cache, And Output Layout](05-artifacts-cache-and-output-layout.md).
+
+## Diagnostics
+
+Diagnostics use a compiler-style source location when a source range is known:
+
+```text
+src/main.camp(12,5): error: new requires an explicit within context.
+```
+
+Diagnostics without a precise range use the first loaded source file and a
+fallback location. Native build diagnostics include the failed command and any
+captured stdout or stderr from the native tool.
+
+## Standard Input
+
+The compiler driver accepts `-` as a source file for standard input when it is
+the only root source and no API headers are supplied. This is mostly useful for
+tooling experiments. Library and project builds should use real files so output
+names, diagnostics, package cache checks, and API artifacts are stable.

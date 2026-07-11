@@ -1,119 +1,157 @@
 # Compiler Supplement
 
-This supplement describes Camp compiler tooling, build configuration, package
-resolution, target metadata, artifacts, metadata JSON, dump modes, editor
-tooling, and standard-library build integration.
+This supplement documents the Camp compiler command line, project/build model,
+package system, target metadata, output layout, metadata JSON, dump modes,
+language-server integration, and standard-library build integration.
 
-## 1. `campc` Command Line
+It is for Camp users who build projects and for tool authors who consume
+compiler artifacts. Compiler-internal semantic lowering rules live in
+[Semantic Supplements](../semantics/index.md). Compiler development process
+guidance lives in the compiler development guide and project README files.
 
-- Command Overview
+## 1. [`campc` Command Line](01-campc-command-line.md)
+
+- Command Model
 - `build`
 - `run`
 - `dump`
 - `restore`
 - `pkg`
 - `help`
-- Common Build Options
-- Exit Codes And Diagnostics
-- Response Files
+- Build Options
+- Output And Status Lines
+- Diagnostics
+- Standard Input
 
-## 2. Build Files And Pragmas
+## 2. [Build Files And Pragmas](02-build-files-and-pragmas.md)
 
 - `.campbuild` Files
-- Bare Build File Expansion
 - Response File Tokenization
+- Source Patterns
+- Include Patterns
 - `#build` Pragmas
-- Local And Global Pragmas
-- Precedence Rules
-- Source And Include Patterns
-- Conditional Build Symbols
+- Global, Local, And Command-Line Precedence
+- Conditional Symbols
+- `#within` Directives
+- Project References In Build Files
+- Recommended Build File Shape
 
-## 3. Package System
+## 3. [Package System](03-package-system.md)
 
 - Package Specs
-- Version Specs
-- Link Kinds
+- Version Resolution
+- Source Root Layout
 - Package Sources
-- Global And Local Package Roots
-- Installing And Uninstalling
-- `--use`, `--use-source`, And `#build`
-- Restore Behavior
-- Project References
+- Installed Package Roots
+- Live Source Packages
+- Dependency Link Kinds
+- Standard Library Package
+- Restore
+- Package Commands
+- Project References Versus Packages
+- Transitive Native References
+- Cache Validity
 
-## 4. Targets And Native Builds
+## 4. [Targets And Native Builds](04-targets-and-native-builds.md)
 
 - Target Catalog
-- Target Inheritance
+- Base Targets And Merging
+- Target Sections
 - Variants
 - Defines
-- C Types
-- Call Specs And Type Specs
-- Natural Integer And Pointer Widths
+- Primitive C Types
+- Call Specs
+- Type Specs
+- Natural Integers And Pointer Widths
+- Conversion Policy Tables
 - Toolchains
 - Profiles
-- Build Templates
+- Native Build Templates
+- Artifacts
 - Frameworks
-- Subsystems
+- Windows Subsystem Builds
+- C Emitter Capabilities
 
-## 5. Artifacts, Cache, And Output Layout
+## 5. [Artifacts, Cache, And Output Layout](05-artifacts-cache-and-output-layout.md)
 
-- Output Directories
+- Output Roots
 - Artifact Directory Names
+- Generated C Files
 - Build Intermediates
+- Executable Artifacts
 - Static Libraries
 - Shared Libraries
-- Executables
-- Runtime Files
-- Link Files
-- Package Cache Layout
-- Project Reference Cache Checks
-- Cleaning And Rebuilding
+- Metadata Artifacts
+- Package Artifact Cache
+- Project Reference Output
+- Project Reference Freshness Inputs
+- Native Reference Resolution
+- Runtime File Copying
+- Cleaning
 
-## 6. Metadata JSON
+## 6. [Metadata JSON](06-metadata-json.md)
 
 - Emitting Metadata
 - Visibility Modes
+- File Naming
 - Top-Level JSON Shape
 - Metadata IDs
-- Declaration Objects
-- Type Objects
-- Function And Method Objects
-- Inline Constants
+- Common Declaration Fields
+- Declaration Kinds
+- Type Declarations
+- Enum Values And Inline Constants
+- Callable Newtypes
+- Function And Method Metadata
+- Parameters And Generic Parameters
+- Type Strings
+- Metadata Attributes
 - Aliases
-- Attributes And Symbol Links
+- Stubs
 - Consumer Guidance
 
-## 7. Dumps, Diagnostics, And Introspection
+## 7. [Dumps, Diagnostics, And Introspection](07-dumps-diagnostics-and-introspection.md)
 
-- Dump Kinds
-- Tokens
-- CST
-- AST
-- Declarations
-- Lowering
-- Metadata
+- Dump Command
+- Token Dumps
+- CST Dumps
+- AST Dumps
+- Declaration Dumps
+- Lowering Dumps
+- Metadata Dumps
 - XML Output
 - API Inspection
 - Diagnostic Format
-- Using Dumps In Tests
+- Diagnostic Sources
+- Golden Tests
+- Smoke Tests For Documentation Work
 
-## 8. Language Server And Editor Tooling
+## 8. [Language Server And Editor Tooling](08-language-server-and-editor-tooling.md)
 
-- `camp-lsp`
+- Server Process
 - Project Discovery
-- Editor Setup
+- Project Loading
+- Source Overlays
 - Diagnostics
 - Hover
-- Go To Definition
+- Go To Definition And References
 - Completion
-- Limitations And Backlog
+- Signature Help
+- Document And Workspace Symbols
+- Standard Library And Packages
+- LSP Range Mapping
+- Backlog Ownership
 
-## 9. Standard Library Build Integration
+## 9. [Standard Library Build Integration](09-standard-library-build-integration.md)
 
-- Default Standard Library Inclusion
+- Source Layout
+- Default Inclusion
 - `--nostdlib`
 - `lib/global.camp`
-- Standard Library Package Build
+- API Preparation
 - Native Helper Sources
-- StdRun Package Cache
-- Consuming Std Metadata
+- Native Package Artifact
+- Metadata Filtering
+- Target Interaction
+- Package Cache Inputs
+- Runtime Tests And Scratch Cache
+- Documentation Boundary
