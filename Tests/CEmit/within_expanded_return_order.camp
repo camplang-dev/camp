@@ -1,0 +1,25 @@
+extern void* malloc(nuint size);
+
+struct Allocator
+{
+	void* alloc(nuint size) => malloc(size);
+}
+
+T[] duplicate<T: copyable>(const T[] values, within allocator, sizeof(T))
+{
+	T[] copy = new T[values.length];
+	return copy;
+}
+
+T[] forwardDuplicate<T: copyable>(const T[] values, within allocator, sizeof(T))
+{
+	return duplicate<T>(values, within allocator, sizeof(T));
+}
+
+export int main()
+{
+	Allocator allocator = default;
+	int[] values = [1, 2, 3];
+	int[] copied = forwardDuplicate<int>(values, within &allocator);
+	return copied.length == 3 ? 0 : 1;
+}
