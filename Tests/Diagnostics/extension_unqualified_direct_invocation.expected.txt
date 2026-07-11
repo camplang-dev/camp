@@ -1,0 +1,1 @@
+tests/Diagnostics/extension_unqualified_direct_invocation.camp(13,2): error: Symbol 'addItem' could not be found.

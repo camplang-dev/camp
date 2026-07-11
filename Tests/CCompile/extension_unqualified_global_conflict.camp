@@ -1,0 +1,17 @@
+newtype Handle: nint;
+
+int pick(int value)
+{
+	return value + 1;
+}
+
+int pick(Handle this, int value)
+{
+	return pick(value) + 1;
+}
+
+export int main()
+{
+	Handle handle = (Handle)0;
+	return handle.pick(40) == 42 ? 0 : 1;
+}

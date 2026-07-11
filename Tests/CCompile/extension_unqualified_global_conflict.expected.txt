@@ -1,0 +1,58 @@
+// file: extension_unqualified_global_conflict.c
+#include "extension_unqualified_global_conflict_private.h"
+
+/* Private file declarations. */
+static int pick(int value);
+static int Handle_pick(Handle this, int value);
+
+static int pick(int value)
+{
+	return (value + 1);
+}
+
+static int Handle_pick(Handle this, int value)
+{
+	return (pick(value) + 1);
+}
+
+int main(void)
+{
+	Handle handle = (Handle)(0);
+	return ((Handle_pick(handle, 40) == 42) ? 0 : 1);
+}
+
+// file: extension_unqualified_global_conflict.h
+#ifndef EXTENSION_UNQUALIFIED_GLOBAL_CONFLICT_H_
+#define EXTENSION_UNQUALIFIED_GLOBAL_CONFLICT_H_
+
+#include "extension_unqualified_global_conflict_private.h"
+
+int main(void);
+
+#endif
+// file: extension_unqualified_global_conflict_private.h
+#ifndef EXTENSION_UNQUALIFIED_GLOBAL_CONFLICT_PRIVATE_H_
+#define EXTENSION_UNQUALIFIED_GLOBAL_CONFLICT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+typedef intptr_t Handle;
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: extension_unqualified_global_conflict.c

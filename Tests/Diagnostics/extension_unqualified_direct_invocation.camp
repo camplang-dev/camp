@@ -1,0 +1,14 @@
+void addItem<T>(Box<T>* this, T item)
+{
+}
+
+fixed struct Box<T>
+{
+	T value;
+}
+
+export void main()
+{
+	Box<int> box = {};
+	addItem<int>(&box, 1);
+}

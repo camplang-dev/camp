@@ -7,7 +7,6 @@ export int main()
 	StringMap<int> map = {};
 	auto capacity = map.Capacity;
 
-	addItems<int>(&map, 55);
 	map.addItems(56);
 	StringMap_addItems<int>(&map, 57);
 
