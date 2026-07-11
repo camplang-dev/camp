@@ -1,0 +1,163 @@
+# Compiler Development Guide
+
+## Repository Layout
+
+The repository is organized around the compiler, command-line driver, language
+server, standard library, targets, tests, docs, archived source docs, and
+scratch output:
+
+- `src/Camp.Compiler`: compiler library, parser, analyzer, lowering, emission,
+  metadata, project loading, target loading, and language-service APIs.
+- `src/campc`: command-line compiler.
+- `src/camp-lsp`: language server.
+- `src/Camp.Compiler.TestRunner`: golden, semantic, CLI, project loader, target,
+  and LSP tests.
+- `src/Camp.Compiler.Coverage`: coverage report driver.
+- `lib`: bundled Camp declarations and standard library sources.
+- `targets`: target metadata.
+- `tests`: golden input and expected-output cases.
+- `docs`: canonical documentation produced by the rewrite.
+- `archive/docs`: archived documentation used as rewrite source material.
+- `tmp`: scratch output.
+- `local`: untracked machine-specific notes for local agents.
+
+## C# Solution Projects
+
+Build the solution from the repository root:
+
+```sh
+dotnet build src/camplang.sln
+```
+
+Each C# project folder should keep a local `README.md` with basic usage, setup,
+testing, and coding instructions. Project READMEs should link to shared docs
+rather than duplicating broad compiler guidance.
+
+## Compiler Pipeline Orientation
+
+Compiler work usually flows through tokenization, parsing, bindable-node
+building, declaration analysis, body analysis, expansion, lowering, emission,
+and optional native build or metadata serialization. Keep changes close to the
+existing pass boundary and shared helper service that owns the behavior.
+
+## Documentation Layout And Update Rules
+
+Language-facing behavior belongs in `docs/language`. Compiler tooling belongs
+in `docs/compiler`. Compiler-writer semantics belong in `docs/semantics`.
+Repository workflow belongs here. LLM coding guidance belongs in
+`docs/camp-llm-coding-guide.md`.
+
+Semantic compiler changes should update the relevant docs and tests in the same
+change.
+
+## Proposal Lifecycle
+
+Pending proposals live in `docs/proposals/pending`. Rejected proposals live in
+`docs/proposals/rejected` and should not be updated after rejection except for
+mechanical archive changes. New accepted proposals live in
+`docs/proposals/accepted` as historical files after their details are integrated
+into canonical docs.
+
+## Working In A Dirty Tree
+
+Assume unrelated changes belong to someone else. Do not revert them. If a file
+you need already has unrelated changes, work with the current content and keep
+your edit scoped.
+
+## Using `tmp/`
+
+Use `tmp/` for generated traces, smoke-test projects, docs-example builds,
+coverage reports, rendered docs, and other scratch output. Do not commit `tmp/`
+files. If a scratch note becomes long-term documentation, rewrite it into a
+curated docs file.
+
+## Build Commands
+
+Common commands:
+
+```sh
+dotnet build src/camplang.sln
+dotnet msbuild src/test-fast.proj
+dotnet msbuild src/test-fast.proj -p:NoBuild=true
+dotnet msbuild src/coverage.proj
+```
+
+## Targeted Test Workflow
+
+When the test assembly is already built, prefer targeted `dotnet vstest` runs:
+
+```sh
+dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll
+```
+
+Golden discovery supports `CAMP_TEST_KIND` and `CAMP_TEST_CASE` for focused
+runs.
+
+## Commit Gate
+
+Before commits that change compiler behavior, the full non-skipped suite should
+pass at least once after the final change. For this documentation rewrite, unit
+tests are not required unless a later change explicitly asks for them.
+
+## Golden Tests
+
+Golden tests live under `tests`. Each `.camp` file has a committed expected
+output. Test runs write actual files first. When compiler output intentionally
+changes, inspect actual output and manually update expected files.
+
+## Semantic Unit Tests
+
+Use semantic unit tests when the behavior is a small compiler fact such as a
+callable shape, generated helper symbol, lifetime fact, metadata decision, or
+target capability.
+
+## LSP Tests
+
+LSP tests launch `camp-lsp` over stdio and cover initialization, diagnostics,
+hover, completion, and definition behavior. LSP changes should usually run the
+LSP-focused tests before full validation.
+
+## Coverage
+
+Coverage output is generated under `tmp/coverage-report` by
+`dotnet msbuild src/coverage.proj`.
+
+## Updating Expected Files
+
+There is no automatic bless mode. Inspect actual files and copy or merge
+changes into expected files manually.
+
+## Diagnostics Expectations
+
+Diagnostics should have tight source ranges, useful messages, stable severity,
+and stable codes where tests or tooling depend on them. LSP tests may fail from
+range-only changes.
+
+## Code Style
+
+Follow the existing file's style. Prefer shared compiler services over local
+string manipulation or one-off shape logic. Add comments only where they clarify
+non-obvious invariants.
+
+## Source Code Comments As Local Instructions
+
+The preferred place for coding instructions about a specific compiler file,
+type, method, or invariant is a source comment near that code. General
+multi-project guidance belongs in docs. It is acceptable to add source comments
+as part of documentation work when the instruction belongs next to the
+implementation.
+
+## Per-Project READMEs
+
+Each C# project README should explain what the project is, how to build or run
+it, which tests are relevant, and what coding conventions are project-specific.
+Use links back to this guide and the semantic supplements for shared rules.
+
+## Before Commit Checklist
+
+- The change is scoped to the requested behavior.
+- Relevant docs are updated.
+- Relevant expected files are inspected when outputs change.
+- Confirmed compiler bugs are logged in `src/campc/OutstandingBugs.md`.
+- Documentation uncertainties are logged in `docs/OutstandingIssues.md`.
+- No private machine-specific paths or notes are committed.

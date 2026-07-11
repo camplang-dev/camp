@@ -65,7 +65,7 @@ macOS example:
     "camp-lsp": {
       "enabled": true,
       "command": [
-        "/Users/andrew/Projects/camplang/bin/camp-lsp"
+        "/path/to/camplang/bin/camp-lsp"
       ],
       "selector": "source.camp"
     }
@@ -130,7 +130,7 @@ Add or merge:
 
 ```json
 {
-  "lsp.server": "camp=/Users/andrew/Projects/camplang/bin/camp-lsp"
+  "lsp.server": "camp=/path/to/camplang/bin/camp-lsp"
 }
 ```
 
@@ -139,7 +139,7 @@ comma-separated string:
 
 ```json
 {
-  "lsp.server": "go=gopls,rust=rust-analyzer,camp=/Users/andrew/Projects/camplang/bin/camp-lsp"
+  "lsp.server": "go=gopls,rust=rust-analyzer,camp=/path/to/camplang/bin/camp-lsp"
 }
 ```
 
@@ -147,7 +147,7 @@ Micro's LSP plugin can also be configured with `MICRO_LSP`, which overrides the
 setting:
 
 ```sh
-export MICRO_LSP='camp=/Users/andrew/Projects/camplang/bin/camp-lsp'
+export MICRO_LSP='camp=/path/to/camplang/bin/camp-lsp'
 ```
 
 Open a `.camp` file and confirm Micro detects the filetype as `camp`. If it
@@ -177,3 +177,22 @@ On macOS and Linux, rebuilding usually works even if the old server process is
 still running, but restarting the process ensures the editor uses the newly
 built server. On Windows, stop the server before rebuilding if the executable is
 locked.
+
+## Testing
+
+Build first, then run the LSP server tests from the repository root:
+
+```sh
+dotnet build src/camplang.sln
+dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --Tests:Camp.Compiler.Tests.LspServerTests
+```
+
+Documentation-only changes do not require these tests unless requested.
+
+## Coding Instructions
+
+Keep protocol handling in `src/camp-lsp` and compiler/language semantics in
+`src/Camp.Compiler`. Project loading should use the shared `CampProjectLoader`
+surface. Shared compiler workflow is documented in
+`docs/compiler-development-guide.md`; language-service semantics are documented
+in `docs/semantics`.
