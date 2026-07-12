@@ -228,10 +228,12 @@ sealed class CampWorkspaceSymbolHandler(CampLspWorkspace workspace) : WorkspaceS
 public sealed class CampLspWorkspace
 {
 	const int DiagnosticDebounceMilliseconds = 500;
+	const int QueryWarmWaitMilliseconds = 75;
 	readonly Dictionary<string, OpenDocument> openDocuments = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CampAnalysisSnapshot> diagnosticSnapshots = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CampAnalysisSnapshot> querySnapshots = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CachedQueryService> queryServiceCache = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, QueryServiceBuild> queryServiceBuilds = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, int?> latestRequestedDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, int?> latestCompletedDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, int?> inFlightDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
@@ -288,6 +290,7 @@ public sealed class CampLspWorkspace
 			diagnosticSnapshots.Remove(path);
 			querySnapshots.Remove(path);
 			queryServiceCache.Remove(path);
+			queryServiceBuilds.Remove(path);
 			latestRequestedDiagnosticVersions.Remove(path);
 			latestCompletedDiagnosticVersions.Remove(path);
 			inFlightDiagnosticVersions.Remove(path);
@@ -319,17 +322,18 @@ public sealed class CampLspWorkspace
 			trace.Write("analysis.skip", ("file", path), ("version", document.Version), ("reason", "canceled"));
 			return;
 		}
+		bool warmQueryService;
 		lock (gate)
 		{
 			diagnosticSnapshots[path] = snapshot;
 			latestCompletedDiagnosticVersions[path] = document.Version;
 			inFlightDiagnosticVersions.Remove(path);
+			warmQueryService = snapshot.Success;
 			if (snapshot.Success)
-			{
 				querySnapshots[path] = snapshot;
-				queryServiceCache.Remove(path);
-			}
 		}
+		if (warmQueryService)
+			WarmQueryService(path, snapshot);
 		trace.Write("analysis.complete",
 			("file", path),
 			("version", document.Version),
@@ -384,6 +388,7 @@ public sealed class CampLspWorkspace
 	{
 		long start = Stopwatch.GetTimestamp();
 		OpenDocument? document;
+		bool alreadyCompleted;
 		lock (gate)
 		{
 			if (!pendingDiagnostics.TryGetValue(path, out CancellationTokenSource? current) || !ReferenceEquals(current, source))
@@ -401,6 +406,15 @@ public sealed class CampLspWorkspace
 				trace.Write("analysis.skip", ("file", path), ("version", version), ("currentVersion", document.Version), ("reason", "version-stale"));
 				return;
 			}
+			alreadyCompleted = version is not null
+				&& latestCompletedDiagnosticVersions.TryGetValue(path, out int? completedVersion)
+				&& completedVersion == version
+				&& diagnosticSnapshots.ContainsKey(path);
+			if (alreadyCompleted)
+			{
+				trace.Write("analysis.skip", ("file", path), ("version", version), ("reason", "version-completed"));
+				return;
+			}
 			inFlightDiagnosticVersions[path] = version;
 		}
 
@@ -413,6 +427,7 @@ public sealed class CampLspWorkspace
 			trace.Write("analysis.skip", ("file", path), ("version", version), ("reason", "canceled"));
 			return;
 		}
+		bool warmQueryService;
 		lock (gate)
 		{
 			if (!openDocuments.TryGetValue(path, out OpenDocument? currentDocument) || version is not null && currentDocument.Version != version)
@@ -425,12 +440,12 @@ public sealed class CampLspWorkspace
 			diagnosticSnapshots[path] = snapshot;
 			latestCompletedDiagnosticVersions[path] = document.Version;
 			inFlightDiagnosticVersions.Remove(path);
+			warmQueryService = snapshot.Success;
 			if (snapshot.Success)
-			{
 				querySnapshots[path] = snapshot;
-				queryServiceCache.Remove(path);
-			}
 		}
+		if (warmQueryService)
+			WarmQueryService(path, snapshot);
 		trace.Write("analysis.complete",
 			("file", path),
 			("version", document.Version),
@@ -459,8 +474,13 @@ public sealed class CampLspWorkspace
 			trace.Write("query.hover", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return null;
 		}
-		CampHover? result = GetQueryService(path, snapshot!).Service.GetHover(path, position);
-		trace.Write("query.hover", ("file", path), ("snapshot", "query"), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
+		if (!TryGetQueryService(path, snapshot!, allowStale: true, out CachedQueryService? service, out string cacheState))
+		{
+			trace.Write("query.hover", ("file", path), ("snapshot", cacheState), ("hasResult", false), ("durationMs", ElapsedMilliseconds(start)));
+			return null;
+		}
+		CampHover? result = service!.Service.GetHover(path, position);
+		trace.Write("query.hover", ("file", path), ("snapshot", cacheState), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
 
@@ -472,8 +492,13 @@ public sealed class CampLspWorkspace
 			trace.Write("query.definition", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return null;
 		}
-		CampSymbolLocation? result = GetQueryService(path, snapshot!).Service.GetDefinition(path, position);
-		trace.Write("query.definition", ("file", path), ("snapshot", "query"), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
+		if (!TryGetQueryService(path, snapshot!, allowStale: false, out CachedQueryService? service, out string cacheState))
+		{
+			trace.Write("query.definition", ("file", path), ("snapshot", cacheState), ("hasResult", false), ("durationMs", ElapsedMilliseconds(start)));
+			return null;
+		}
+		CampSymbolLocation? result = service!.Service.GetDefinition(path, position);
+		trace.Write("query.definition", ("file", path), ("snapshot", cacheState), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
 
@@ -485,8 +510,13 @@ public sealed class CampLspWorkspace
 			trace.Write("query.references", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return [];
 		}
-		IReadOnlyList<CampReference> result = GetQueryService(path, snapshot!).Service.GetReferences(path, position, includeDeclaration);
-		trace.Write("query.references", ("file", path), ("snapshot", "query"), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
+		if (!TryGetQueryService(path, snapshot!, allowStale: false, out CachedQueryService? service, out string cacheState))
+		{
+			trace.Write("query.references", ("file", path), ("snapshot", cacheState), ("resultCount", 0), ("durationMs", ElapsedMilliseconds(start)));
+			return [];
+		}
+		IReadOnlyList<CampReference> result = service!.Service.GetReferences(path, position, includeDeclaration);
+		trace.Write("query.references", ("file", path), ("snapshot", cacheState), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
 
@@ -498,8 +528,13 @@ public sealed class CampLspWorkspace
 			trace.Write("query.signatureHelp", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return null;
 		}
-		CampSignatureHelp? result = GetQueryService(path, snapshot!).Service.GetSignatureHelp(path, position, document?.Text);
-		trace.Write("query.signatureHelp", ("file", path), ("snapshot", "query"), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
+		if (!TryGetQueryService(path, snapshot!, allowStale: true, out CachedQueryService? service, out string cacheState))
+		{
+			trace.Write("query.signatureHelp", ("file", path), ("snapshot", cacheState), ("hasResult", false), ("durationMs", ElapsedMilliseconds(start)));
+			return null;
+		}
+		CampSignatureHelp? result = service!.Service.GetSignatureHelp(path, position, document?.Text);
+		trace.Write("query.signatureHelp", ("file", path), ("snapshot", cacheState), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
 
@@ -512,8 +547,14 @@ public sealed class CampLspWorkspace
 			trace.Write("query.completion", ("file", path), ("snapshot", "fallback"), ("resultCount", fallback.Count), ("durationMs", ElapsedMilliseconds(start)));
 			return fallback;
 		}
-		IReadOnlyList<CampCompletionItem> result = GetQueryService(path, snapshot!).Service.GetCompletions(path, position, document?.Text);
-		trace.Write("query.completion", ("file", path), ("snapshot", "query"), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
+		if (!TryGetQueryService(path, snapshot!, allowStale: true, out CachedQueryService? service, out string cacheState))
+		{
+			IReadOnlyList<CampCompletionItem> fallback = document is null ? [] : GetFallbackCompletions(document.Text, position);
+			trace.Write("query.completion", ("file", path), ("snapshot", cacheState), ("resultCount", fallback.Count), ("durationMs", ElapsedMilliseconds(start)));
+			return fallback;
+		}
+		IReadOnlyList<CampCompletionItem> result = service!.Service.GetCompletions(path, position, document?.Text);
+		trace.Write("query.completion", ("file", path), ("snapshot", cacheState), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
 
@@ -525,8 +566,13 @@ public sealed class CampLspWorkspace
 			trace.Write("query.documentSymbols", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return [];
 		}
-		IReadOnlyList<CampDocumentSymbol> result = GetQueryService(path, snapshot!).GetDocumentSymbols(path);
-		trace.Write("query.documentSymbols", ("file", path), ("snapshot", "query"), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
+		if (!TryGetQueryService(path, snapshot!, allowStale: true, out CachedQueryService? service, out string cacheState))
+		{
+			trace.Write("query.documentSymbols", ("file", path), ("snapshot", cacheState), ("resultCount", 0), ("durationMs", ElapsedMilliseconds(start)));
+			return [];
+		}
+		IReadOnlyList<CampDocumentSymbol> result = service!.GetDocumentSymbols(path);
+		trace.Write("query.documentSymbols", ("file", path), ("snapshot", cacheState), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
 
@@ -537,7 +583,7 @@ public sealed class CampLspWorkspace
 		lock (gate)
 			snapshotList = querySnapshots.Select(static pair => (pair.Key, pair.Value)).ToList();
 		IReadOnlyList<CampWorkspaceSymbol> result = snapshotList
-			.SelectMany(pair => GetQueryService(pair.Path, pair.Snapshot).Service.GetWorkspaceSymbols(query))
+			.SelectMany(pair => TryGetQueryService(pair.Path, pair.Snapshot, allowStale: true, out CachedQueryService? service, out _) ? service!.Service.GetWorkspaceSymbols(query) : Enumerable.Empty<CampWorkspaceSymbol>())
 			.DistinctBy(static symbol => (symbol.Name, symbol.Kind, symbol.Location.Path, symbol.Location.Range.Start.Line, symbol.Location.Range.Start.Character))
 			.OrderBy(static symbol => symbol.Name, StringComparer.OrdinalIgnoreCase)
 			.ThenBy(static symbol => symbol.Location.Path, StringComparer.OrdinalIgnoreCase)
@@ -548,14 +594,40 @@ public sealed class CampLspWorkspace
 		return result;
 	}
 
-	CachedQueryService GetQueryService(string path, CampAnalysisSnapshot snapshot)
+	void WarmQueryService(string path, CampAnalysisSnapshot snapshot)
+	{
+		lock (gate)
+			StartQueryServiceBuildNoLock(path, snapshot);
+	}
+
+	bool TryGetQueryService(string path, CampAnalysisSnapshot snapshot, bool allowStale, out CachedQueryService? service, out string state)
 	{
 		lock (gate)
 		{
 			if (queryServiceCache.TryGetValue(path, out CachedQueryService? cached) && ReferenceEquals(cached.Snapshot, snapshot))
-				return cached;
+			{
+				service = cached;
+				state = "query";
+				return true;
+			}
+			if (allowStale && queryServiceCache.TryGetValue(path, out cached))
+			{
+				service = cached;
+				state = "stale-query";
+				StartQueryServiceBuildNoLock(path, snapshot);
+				return true;
+			}
+			StartQueryServiceBuildNoLock(path, snapshot);
 		}
+		if (TryWaitForQueryService(path, snapshot, allowStale, out service, out state))
+			return true;
+		service = BuildQueryServiceSynchronously(path, snapshot);
+		state = "query-sync";
+		return true;
+	}
 
+	CachedQueryService BuildQueryServiceSynchronously(string path, CampAnalysisSnapshot snapshot)
+	{
 		long start = Stopwatch.GetTimestamp();
 		CachedQueryService created = new(snapshot);
 		lock (gate)
@@ -563,9 +635,79 @@ public sealed class CampLspWorkspace
 			if (queryServiceCache.TryGetValue(path, out CachedQueryService? cached) && ReferenceEquals(cached.Snapshot, snapshot))
 				return cached;
 			queryServiceCache[path] = created;
+			if (queryServiceBuilds.TryGetValue(path, out QueryServiceBuild? build) && ReferenceEquals(build.Snapshot, snapshot))
+				queryServiceBuilds.Remove(path);
 		}
-		trace.Write("queryService.build", ("file", path), ("durationMs", ElapsedMilliseconds(start)));
+		trace.Write("queryService.build", ("file", path), ("mode", "sync"), ("accepted", true), ("durationMs", ElapsedMilliseconds(start)));
 		return created;
+	}
+
+	bool TryWaitForQueryService(string path, CampAnalysisSnapshot snapshot, bool allowStale, out CachedQueryService? service, out string state)
+	{
+		long start = Stopwatch.GetTimestamp();
+		while (Stopwatch.GetElapsedTime(start).TotalMilliseconds < QueryWarmWaitMilliseconds)
+		{
+			Thread.Sleep(5);
+			lock (gate)
+			{
+				if (queryServiceCache.TryGetValue(path, out CachedQueryService? cached) && ReferenceEquals(cached.Snapshot, snapshot))
+				{
+					service = cached;
+					state = "query";
+					return true;
+				}
+				if (allowStale && queryServiceCache.TryGetValue(path, out cached))
+				{
+					service = cached;
+					state = "stale-query";
+					return true;
+				}
+			}
+		}
+		service = null;
+		state = "warming";
+		return false;
+	}
+
+	void StartQueryServiceBuildNoLock(string path, CampAnalysisSnapshot snapshot)
+	{
+		if (queryServiceCache.TryGetValue(path, out CachedQueryService? cached) && ReferenceEquals(cached.Snapshot, snapshot))
+			return;
+		if (queryServiceBuilds.TryGetValue(path, out QueryServiceBuild? existing) && ReferenceEquals(existing.Snapshot, snapshot))
+			return;
+		QueryServiceBuild build = new(snapshot);
+		queryServiceBuilds[path] = build;
+		_ = Task.Run(() => BuildQueryServiceInBackground(path, snapshot, build));
+	}
+
+	void BuildQueryServiceInBackground(string path, CampAnalysisSnapshot snapshot, QueryServiceBuild build)
+	{
+		long start = Stopwatch.GetTimestamp();
+		try
+		{
+			CachedQueryService created = new(snapshot);
+			bool accepted = false;
+			lock (gate)
+			{
+				if (queryServiceBuilds.TryGetValue(path, out QueryServiceBuild? currentBuild) && ReferenceEquals(currentBuild, build))
+				{
+					queryServiceBuilds.Remove(path);
+					if (querySnapshots.TryGetValue(path, out CampAnalysisSnapshot? currentSnapshot) && ReferenceEquals(currentSnapshot, snapshot))
+					{
+						queryServiceCache[path] = created;
+						accepted = true;
+					}
+				}
+			}
+			trace.Write(accepted ? "queryService.build" : "queryService.build.discarded", ("file", path), ("mode", "async"), ("accepted", accepted), ("durationMs", ElapsedMilliseconds(start)));
+		}
+		catch (Exception ex)
+		{
+			lock (gate)
+				if (queryServiceBuilds.TryGetValue(path, out QueryServiceBuild? currentBuild) && ReferenceEquals(currentBuild, build))
+					queryServiceBuilds.Remove(path);
+			trace.Write("queryService.build.error", ("file", path), ("message", ex.Message), ("durationMs", ElapsedMilliseconds(start)));
+		}
 	}
 
 	bool TryGetQuerySnapshot(DocumentUri uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot)
@@ -894,6 +1036,8 @@ public sealed class CampLspWorkspace
 	sealed record OpenDocument(DocumentUri Uri, string Path, string Text, int? Version);
 
 	sealed record CompletionTextContext(string Prefix, bool IsMember);
+
+	sealed record QueryServiceBuild(CampAnalysisSnapshot Snapshot);
 
 	sealed class CachedQueryService
 	{
