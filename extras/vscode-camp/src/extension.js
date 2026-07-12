@@ -7,8 +7,10 @@ let client;
 let buildStatusItem;
 let runStatusItem;
 let campTerminal;
+let extensionContext;
 
 function activate(context) {
+  extensionContext = context;
   buildStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   buildStatusItem.text = "$(tools) Camp Build";
   buildStatusItem.tooltip = "Build the current Camp project";
@@ -29,7 +31,7 @@ function activate(context) {
   );
 
   updateStatusItems(vscode.window.activeTextEditor);
-  startLanguageServer(context.subscriptions);
+  startLanguageServer(context);
 }
 
 function deactivate() {
@@ -39,12 +41,20 @@ function deactivate() {
   return undefined;
 }
 
-function startLanguageServer(subscriptions) {
+function startLanguageServer(context) {
   const serverPath = getServerPath();
+  const traceDirectory = path.join(context.globalStorageUri.fsPath, "lsp-traces");
+  fs.mkdirSync(traceDirectory, { recursive: true });
   const serverOptions = {
     command: serverPath,
     args: [],
-    transport: TransportKind.stdio
+    transport: TransportKind.stdio,
+    options: {
+      env: {
+        ...process.env,
+        CAMP_LSP_TRACE_DIR: traceDirectory
+      }
+    }
   };
   const clientOptions = {
     documentSelector: [{ scheme: "file", language: "camp" }],
@@ -54,8 +64,8 @@ function startLanguageServer(subscriptions) {
   };
 
   client = new LanguageClient("camp-lsp", "Camp Language Server", serverOptions, clientOptions);
-  if (subscriptions) {
-    subscriptions.push(client);
+  if (context.subscriptions) {
+    context.subscriptions.push(client);
   }
   client.start();
 }
@@ -65,7 +75,7 @@ async function restartLanguageServer() {
     await client.stop();
     client = undefined;
   }
-  startLanguageServer();
+  startLanguageServer(extensionContext);
 }
 
 function getServerPath() {

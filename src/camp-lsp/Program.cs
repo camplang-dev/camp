@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Camp.Compiler;
@@ -16,7 +18,9 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Workspace;
 using OmniSharp.Extensions.LanguageServer.Server;
 using LspRange = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
 
-CampLspWorkspace workspace = new();
+using CampLspTrace trace = CampLspTrace.Create();
+trace.Write("server.start", ("tracePath", trace.Path), ("processId", Environment.ProcessId));
+CampLspWorkspace workspace = new(trace);
 LanguageServer server = await LanguageServer.From(options => options
 	.WithInput(Console.OpenStandardInput())
 	.WithOutput(Console.OpenStandardOutput())
@@ -34,6 +38,7 @@ LanguageServer server = await LanguageServer.From(options => options
 		return Task.CompletedTask;
 	}));
 await server.WaitForExit;
+trace.Write("server.stop");
 
 sealed class CampTextDocumentSyncHandler(CampLspWorkspace workspace) : TextDocumentSyncHandlerBase
 {
@@ -234,11 +239,18 @@ public sealed class CampLspWorkspace
 	readonly Dictionary<string, string> lastPublishedDiagnosticKeys = new(StringComparer.OrdinalIgnoreCase);
 	readonly SemaphoreSlim analysisGate = new(1, 1);
 	readonly object gate = new();
+	readonly CampLspTrace trace;
 	ILanguageServer? languageServer;
+
+	public CampLspWorkspace(CampLspTrace trace)
+	{
+		this.trace = trace;
+	}
 
 	public void SetLanguageServer(ILanguageServer server)
 	{
 		languageServer = server;
+		trace.Write("server.ready");
 		List<DocumentUri> uris;
 		lock (gate)
 			uris = openDocuments.Values.Select(static document => document.Uri).ToList();
@@ -249,6 +261,7 @@ public sealed class CampLspWorkspace
 	public void Open(DocumentUri uri, string text, int? version)
 	{
 		string path = uri.GetFileSystemPath();
+		trace.Write("document.open", ("file", path), ("version", version), ("length", text.Length));
 		lock (gate)
 			openDocuments[path] = new OpenDocument(uri, path, text, version);
 		Reanalyze(uri);
@@ -257,6 +270,7 @@ public sealed class CampLspWorkspace
 	public void Change(DocumentUri uri, string text, int? version)
 	{
 		string path = uri.GetFileSystemPath();
+		trace.Write("document.change", ("file", path), ("version", version), ("length", text.Length));
 		lock (gate)
 			openDocuments[path] = new OpenDocument(uri, path, text, version);
 		ScheduleDiagnostics(uri, path, version);
@@ -265,6 +279,7 @@ public sealed class CampLspWorkspace
 	public void Close(DocumentUri uri)
 	{
 		string path = uri.GetFileSystemPath();
+		trace.Write("document.close", ("file", path));
 		CancelPendingDiagnostics(path);
 		lock (gate)
 		{
@@ -282,6 +297,7 @@ public sealed class CampLspWorkspace
 	public void Reanalyze(DocumentUri uri)
 	{
 		string path = uri.GetFileSystemPath();
+		long start = Stopwatch.GetTimestamp();
 		CancelPendingDiagnostics(path);
 		OpenDocument? document;
 		lock (gate)
@@ -291,10 +307,16 @@ public sealed class CampLspWorkspace
 			inFlightDiagnosticVersions[path] = document?.Version;
 		}
 		if (document is null)
+		{
+			trace.Write("analysis.skip", ("file", path), ("reason", "document-missing"));
 			return;
+		}
 		CampAnalysisSnapshot? snapshot = AnalyzeSingleFlight(document, CancellationToken.None);
 		if (snapshot is null)
+		{
+			trace.Write("analysis.skip", ("file", path), ("version", document.Version), ("reason", "canceled"));
 			return;
+		}
 		lock (gate)
 		{
 			diagnosticSnapshots[path] = snapshot;
@@ -303,6 +325,12 @@ public sealed class CampLspWorkspace
 			if (snapshot.Success)
 				querySnapshots[path] = snapshot;
 		}
+		trace.Write("analysis.complete",
+			("file", path),
+			("version", document.Version),
+			("success", snapshot.Success),
+			("diagnosticCount", snapshot.Diagnostics.Count),
+			("durationMs", ElapsedMilliseconds(start)));
 		PublishDiagnostics(uri, snapshot.Diagnostics.Where(diagnostic => string.IsNullOrWhiteSpace(diagnostic.Path) || string.Equals(diagnostic.Path, path, StringComparison.OrdinalIgnoreCase)));
 	}
 
@@ -312,10 +340,14 @@ public sealed class CampLspWorkspace
 		lock (gate)
 		{
 			if (pendingDiagnostics.Remove(path, out CancellationTokenSource? previous))
+			{
 				previous.Cancel();
+				trace.Write("diagnostics.debounce.cancel", ("file", path));
+			}
 			pendingDiagnostics[path] = source;
 			latestRequestedDiagnosticVersions[path] = version;
 		}
+		trace.Write("diagnostics.debounce.schedule", ("file", path), ("version", version), ("delayMs", DiagnosticDebounceMilliseconds));
 
 		_ = Task.Run(async () =>
 		{
@@ -323,7 +355,10 @@ public sealed class CampLspWorkspace
 			{
 				await Task.Delay(DiagnosticDebounceMilliseconds, source.Token).ConfigureAwait(false);
 				if (!source.Token.IsCancellationRequested)
+				{
+					trace.Write("diagnostics.debounce.fire", ("file", path), ("version", version));
 					await ReanalyzeIfCurrentAsync(uri, path, version, source).ConfigureAwait(false);
+				}
 			}
 			catch (OperationCanceledException)
 			{
@@ -342,15 +377,25 @@ public sealed class CampLspWorkspace
 
 	async Task ReanalyzeIfCurrentAsync(DocumentUri uri, string path, int? version, CancellationTokenSource source)
 	{
+		long start = Stopwatch.GetTimestamp();
 		OpenDocument? document;
 		lock (gate)
 		{
 			if (!pendingDiagnostics.TryGetValue(path, out CancellationTokenSource? current) || !ReferenceEquals(current, source))
+			{
+				trace.Write("analysis.skip", ("file", path), ("version", version), ("reason", "debounce-superseded"));
 				return;
+			}
 			if (!openDocuments.TryGetValue(path, out document))
+			{
+				trace.Write("analysis.skip", ("file", path), ("version", version), ("reason", "document-missing"));
 				return;
+			}
 			if (version is not null && document.Version != version)
+			{
+				trace.Write("analysis.skip", ("file", path), ("version", version), ("currentVersion", document.Version), ("reason", "version-stale"));
 				return;
+			}
 			inFlightDiagnosticVersions[path] = version;
 		}
 
@@ -360,6 +405,7 @@ public sealed class CampLspWorkspace
 			lock (gate)
 				if (inFlightDiagnosticVersions.TryGetValue(path, out int? inFlightVersion) && inFlightVersion == version)
 					inFlightDiagnosticVersions.Remove(path);
+			trace.Write("analysis.skip", ("file", path), ("version", version), ("reason", "canceled"));
 			return;
 		}
 		lock (gate)
@@ -368,6 +414,7 @@ public sealed class CampLspWorkspace
 			{
 				if (inFlightDiagnosticVersions.TryGetValue(path, out int? inFlightVersion) && inFlightVersion == version)
 					inFlightDiagnosticVersions.Remove(path);
+				trace.Write("analysis.skip", ("file", path), ("version", version), ("reason", "completed-stale"));
 				return;
 			}
 			diagnosticSnapshots[path] = snapshot;
@@ -376,6 +423,12 @@ public sealed class CampLspWorkspace
 			if (snapshot.Success)
 				querySnapshots[path] = snapshot;
 		}
+		trace.Write("analysis.complete",
+			("file", path),
+			("version", document.Version),
+			("success", snapshot.Success),
+			("diagnosticCount", snapshot.Diagnostics.Count),
+			("durationMs", ElapsedMilliseconds(start)));
 		PublishDiagnostics(uri, snapshot.Diagnostics.Where(diagnostic => string.IsNullOrWhiteSpace(diagnostic.Path) || string.Equals(diagnostic.Path, path, StringComparison.OrdinalIgnoreCase)));
 	}
 
@@ -387,56 +440,95 @@ public sealed class CampLspWorkspace
 				return;
 			source.Cancel();
 		}
+		trace.Write("diagnostics.debounce.cancel", ("file", path));
 	}
 
 	public CampHover? GetHover(DocumentUri uri, CampTextPosition position)
 	{
+		long start = Stopwatch.GetTimestamp();
 		if (!TryGetQuerySnapshot(uri, out string path, out _, out CampAnalysisSnapshot? snapshot))
+		{
+			trace.Write("query.hover", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return null;
-		return new CampSymbolQueryService(snapshot!).GetHover(path, position);
+		}
+		CampHover? result = new CampSymbolQueryService(snapshot!).GetHover(path, position);
+		trace.Write("query.hover", ("file", path), ("snapshot", "query"), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
+		return result;
 	}
 
 	public CampSymbolLocation? GetDefinition(DocumentUri uri, CampTextPosition position)
 	{
+		long start = Stopwatch.GetTimestamp();
 		if (!TryGetQuerySnapshot(uri, out string path, out _, out CampAnalysisSnapshot? snapshot))
+		{
+			trace.Write("query.definition", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return null;
-		return new CampSymbolQueryService(snapshot!).GetDefinition(path, position);
+		}
+		CampSymbolLocation? result = new CampSymbolQueryService(snapshot!).GetDefinition(path, position);
+		trace.Write("query.definition", ("file", path), ("snapshot", "query"), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
+		return result;
 	}
 
 	public IReadOnlyList<CampReference> GetReferences(DocumentUri uri, CampTextPosition position, bool includeDeclaration)
 	{
+		long start = Stopwatch.GetTimestamp();
 		if (!TryGetQuerySnapshot(uri, out string path, out _, out CampAnalysisSnapshot? snapshot))
+		{
+			trace.Write("query.references", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return [];
-		return new CampSymbolQueryService(snapshot!).GetReferences(path, position, includeDeclaration);
+		}
+		IReadOnlyList<CampReference> result = new CampSymbolQueryService(snapshot!).GetReferences(path, position, includeDeclaration);
+		trace.Write("query.references", ("file", path), ("snapshot", "query"), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
+		return result;
 	}
 
 	public CampSignatureHelp? GetSignatureHelp(DocumentUri uri, CampTextPosition position)
 	{
+		long start = Stopwatch.GetTimestamp();
 		if (!TryGetQuerySnapshot(uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot))
+		{
+			trace.Write("query.signatureHelp", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return null;
-		return new CampSymbolQueryService(snapshot!).GetSignatureHelp(path, position, document?.Text);
+		}
+		CampSignatureHelp? result = new CampSymbolQueryService(snapshot!).GetSignatureHelp(path, position, document?.Text);
+		trace.Write("query.signatureHelp", ("file", path), ("snapshot", "query"), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
+		return result;
 	}
 
 	public IReadOnlyList<CampCompletionItem> GetCompletions(DocumentUri uri, CampTextPosition position)
 	{
+		long start = Stopwatch.GetTimestamp();
 		if (!TryGetQuerySnapshot(uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot))
-			return document is null ? [] : GetFallbackCompletions(document.Text, position);
-		return new CampSymbolQueryService(snapshot!).GetCompletions(path, position, document?.Text);
+		{
+			IReadOnlyList<CampCompletionItem> fallback = document is null ? [] : GetFallbackCompletions(document.Text, position);
+			trace.Write("query.completion", ("file", path), ("snapshot", "fallback"), ("resultCount", fallback.Count), ("durationMs", ElapsedMilliseconds(start)));
+			return fallback;
+		}
+		IReadOnlyList<CampCompletionItem> result = new CampSymbolQueryService(snapshot!).GetCompletions(path, position, document?.Text);
+		trace.Write("query.completion", ("file", path), ("snapshot", "query"), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
+		return result;
 	}
 
 	public IReadOnlyList<CampDocumentSymbol> GetDocumentSymbols(DocumentUri uri)
 	{
+		long start = Stopwatch.GetTimestamp();
 		if (!TryGetQuerySnapshot(uri, out string path, out _, out CampAnalysisSnapshot? snapshot))
+		{
+			trace.Write("query.documentSymbols", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return [];
-		return new CampSymbolQueryService(snapshot!).GetDocumentSymbols(path);
+		}
+		IReadOnlyList<CampDocumentSymbol> result = new CampSymbolQueryService(snapshot!).GetDocumentSymbols(path);
+		trace.Write("query.documentSymbols", ("file", path), ("snapshot", "query"), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
+		return result;
 	}
 
 	public IReadOnlyList<CampWorkspaceSymbol> GetWorkspaceSymbols(string query)
 	{
+		long start = Stopwatch.GetTimestamp();
 		List<CampAnalysisSnapshot> snapshotList;
 		lock (gate)
 			snapshotList = querySnapshots.Values.ToList();
-		return snapshotList
+		IReadOnlyList<CampWorkspaceSymbol> result = snapshotList
 			.SelectMany(snapshot => new CampSymbolQueryService(snapshot).GetWorkspaceSymbols(query))
 			.DistinctBy(static symbol => (symbol.Name, symbol.Kind, symbol.Location.Path, symbol.Location.Range.Start.Line, symbol.Location.Range.Start.Character))
 			.OrderBy(static symbol => symbol.Name, StringComparer.OrdinalIgnoreCase)
@@ -444,6 +536,8 @@ public sealed class CampLspWorkspace
 			.ThenBy(static symbol => symbol.Location.Range.Start.Line)
 			.ThenBy(static symbol => symbol.Location.Range.Start.Character)
 			.ToList();
+		trace.Write("query.workspaceSymbols", ("query", query), ("snapshotCount", snapshotList.Count), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
+		return result;
 	}
 
 	bool TryGetQuerySnapshot(DocumentUri uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot)
@@ -541,12 +635,22 @@ public sealed class CampLspWorkspace
 
 	CampAnalysisSnapshot Analyze(OpenDocument document)
 	{
+		long start = Stopwatch.GetTimestamp();
 		CompilerRequest request = CreateRequest(document.Path);
-		return CampLanguageService.Analyze(request, [new CampSourceOverlay(document.Path, document.Text, document.Version ?? 0)]);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request, [new CampSourceOverlay(document.Path, document.Text, document.Version ?? 0)]);
+		trace.Write("analysis.pipeline",
+			("file", document.Path),
+			("version", document.Version),
+			("fileCount", snapshot.Compilation.Files.Count),
+			("diagnosticCount", snapshot.Diagnostics.Count),
+			("success", snapshot.Success),
+			("durationMs", ElapsedMilliseconds(start)));
+		return snapshot;
 	}
 
 	CampAnalysisSnapshot? AnalyzeSingleFlight(OpenDocument document, CancellationToken cancellationToken)
 	{
+		long waitStart = Stopwatch.GetTimestamp();
 		try
 		{
 			analysisGate.Wait(cancellationToken);
@@ -558,6 +662,7 @@ public sealed class CampLspWorkspace
 
 		try
 		{
+			trace.Write("analysis.gate.acquire", ("file", document.Path), ("version", document.Version), ("waitMs", ElapsedMilliseconds(waitStart)));
 			return cancellationToken.IsCancellationRequested ? null : Analyze(document);
 		}
 		finally
@@ -568,6 +673,7 @@ public sealed class CampLspWorkspace
 
 	async Task<CampAnalysisSnapshot?> AnalyzeSingleFlightAsync(OpenDocument document, CancellationToken cancellationToken)
 	{
+		long waitStart = Stopwatch.GetTimestamp();
 		try
 		{
 			await analysisGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -579,6 +685,7 @@ public sealed class CampLspWorkspace
 
 		try
 		{
+			trace.Write("analysis.gate.acquire", ("file", document.Path), ("version", document.Version), ("waitMs", ElapsedMilliseconds(waitStart)));
 			return cancellationToken.IsCancellationRequested ? null : Analyze(document);
 		}
 		finally
@@ -589,13 +696,17 @@ public sealed class CampLspWorkspace
 
 	CompilerRequest CreateRequest(string documentPath)
 	{
+		long start = Stopwatch.GetTimestamp();
 		string? buildFile = CampProjectLoader.FindNearestBuildFile(documentPath);
 		if (buildFile is not null)
 		{
 			string canonicalBuildFile = Path.GetFullPath(buildFile);
 			lock (gate)
 				if (projectRequestCache.TryGetValue(canonicalBuildFile, out CachedProjectRequest? cached) && cached.IsCurrent())
+				{
+					trace.Write("project.load", ("file", documentPath), ("buildFile", canonicalBuildFile), ("cache", "hit"), ("durationMs", ElapsedMilliseconds(start)));
 					return CloneRequest(cached.Request);
+				}
 
 			string root = Path.GetDirectoryName(buildFile) ?? Directory.GetCurrentDirectory();
 			CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(buildFile, CampProjectEnvironment.Create(root), CampProjectCommandKind.LanguageService);
@@ -603,8 +714,15 @@ public sealed class CampLspWorkspace
 			{
 				lock (gate)
 					projectRequestCache[canonicalBuildFile] = CachedProjectRequest.Create(canonicalBuildFile, result.Request);
+				trace.Write("project.load",
+					("file", documentPath),
+					("buildFile", canonicalBuildFile),
+					("cache", "miss"),
+					("sourceCount", result.Request.Files.Count + result.Request.AnalysisSourceFiles.Count + result.Request.IncludeFiles.Count),
+					("durationMs", ElapsedMilliseconds(start)));
 				return result.Request;
 			}
+			trace.Write("project.load", ("file", documentPath), ("buildFile", canonicalBuildFile), ("cache", "miss"), ("success", false), ("durationMs", ElapsedMilliseconds(start)));
 		}
 
 		string workingDirectory = Path.GetDirectoryName(documentPath) ?? Directory.GetCurrentDirectory();
@@ -614,6 +732,7 @@ public sealed class CampLspWorkspace
 			WorkingDirectory = workingDirectory
 		};
 		request.Files.Add(Path.GetFileName(documentPath));
+		trace.Write("project.load", ("file", documentPath), ("cache", "loose-file"), ("durationMs", ElapsedMilliseconds(start)));
 		return request;
 	}
 
@@ -717,9 +836,13 @@ public sealed class CampLspWorkspace
 		lock (gate)
 		{
 			if (!force && lastPublishedDiagnosticKeys.TryGetValue(path, out string? previous) && previous == key)
+			{
+				trace.Write("diagnostics.publish.skip", ("file", path), ("count", diagnosticList.Count), ("reason", "unchanged"));
 				return;
+			}
 			lastPublishedDiagnosticKeys[path] = key;
 		}
+		trace.Write("diagnostics.publish", ("file", path), ("count", diagnosticList.Count), ("force", force));
 		languageServer.TextDocument.PublishDiagnostics(new PublishDiagnosticsParams
 		{
 			Uri = uri,
@@ -743,6 +866,115 @@ public sealed class CampLspWorkspace
 	sealed record OpenDocument(DocumentUri Uri, string Path, string Text, int? Version);
 
 	sealed record CompletionTextContext(string Prefix, bool IsMember);
+
+	static double ElapsedMilliseconds(long startTimestamp)
+	{
+		return Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
+	}
+}
+
+public sealed class CampLspTrace : IDisposable
+{
+	readonly object gate = new();
+	readonly StreamWriter? writer;
+
+	CampLspTrace(string? path, StreamWriter? writer)
+	{
+		Path = path;
+		this.writer = writer;
+	}
+
+	public string? Path { get; }
+
+	public static CampLspTrace Create()
+	{
+		if (string.Equals(Environment.GetEnvironmentVariable("CAMP_LSP_TRACE"), "0", StringComparison.OrdinalIgnoreCase))
+			return new CampLspTrace(null, null);
+
+		try
+		{
+			string directory = Environment.GetEnvironmentVariable("CAMP_LSP_TRACE_DIR") ?? DefaultTraceDirectory();
+			Directory.CreateDirectory(directory);
+			string filename = "camp-lsp-" + DateTimeOffset.UtcNow.ToString("yyyyMMddTHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Environment.ProcessId + ".jsonl";
+			string path = System.IO.Path.Combine(directory, filename);
+			StreamWriter writer = new(new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+			{
+				AutoFlush = true
+			};
+			return new CampLspTrace(path, writer);
+		}
+		catch
+		{
+			return new CampLspTrace(null, null);
+		}
+	}
+
+	public void Write(string eventName, params (string Name, object? Value)[] fields)
+	{
+		if (writer is null)
+			return;
+
+		try
+		{
+			using MemoryStream stream = new();
+			using (Utf8JsonWriter json = new(stream))
+			{
+				json.WriteStartObject();
+				json.WriteString("ts", DateTimeOffset.UtcNow);
+				json.WriteString("event", eventName);
+				foreach ((string name, object? value) in fields)
+					WriteProperty(json, name, value);
+				json.WriteEndObject();
+			}
+			lock (gate)
+				writer.WriteLine(System.Text.Encoding.UTF8.GetString(stream.ToArray()));
+		}
+		catch
+		{
+		}
+	}
+
+	public void Dispose()
+	{
+		lock (gate)
+			writer?.Dispose();
+	}
+
+	static void WriteProperty(Utf8JsonWriter json, string name, object? value)
+	{
+		switch (value)
+		{
+			case null:
+				json.WriteNull(name);
+				break;
+			case string text:
+				json.WriteString(name, text);
+				break;
+			case bool boolean:
+				json.WriteBoolean(name, boolean);
+				break;
+			case int integer:
+				json.WriteNumber(name, integer);
+				break;
+			case long longInteger:
+				json.WriteNumber(name, longInteger);
+				break;
+			case double number:
+				json.WriteNumber(name, Math.Round(number, 3));
+				break;
+			default:
+				json.WriteString(name, value.ToString());
+				break;
+		}
+	}
+
+	static string DefaultTraceDirectory()
+	{
+		string root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+		if (string.IsNullOrWhiteSpace(root))
+			root = System.IO.Path.GetTempPath();
+		return System.IO.Path.Combine(root, "Camp", "lsp-traces");
+	}
 }
 
 public static class CampLsp

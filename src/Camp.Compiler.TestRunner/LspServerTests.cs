@@ -147,6 +147,44 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_server_writes_per_process_trace_file()
+	{
+		string root = CreateTempDirectory("lsp-trace");
+		string traceDirectory = Path.Combine(root, "traces");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			export int main()
+			{
+				return 0;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		using (LspProcess lsp = LspProcess.Start(traceDirectory))
+		{
+			lsp.Initialize(root);
+			lsp.Notify("textDocument/didOpen", new
+			{
+				textDocument = new { uri, languageId = "camp", version = 1, text }
+			});
+			lsp.ReadNotification("textDocument/publishDiagnostics");
+			lsp.Request("textDocument/completion", new
+			{
+				textDocument = new { uri },
+				position = new { line = 1, character = 4 }
+			});
+		}
+
+		string traceFile = Assert.Single(Directory.GetFiles(traceDirectory, "camp-lsp-*.jsonl"));
+		string trace = File.ReadAllText(traceFile);
+		Assert.Contains("\"event\":\"server.start\"", trace, StringComparison.Ordinal);
+		Assert.Contains("\"event\":\"analysis.complete\"", trace, StringComparison.Ordinal);
+		Assert.Contains("\"event\":\"query.completion\"", trace, StringComparison.Ordinal);
+		Assert.Contains("\"event\":\"diagnostics.publish\"", trace, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Lsp_server_returns_hover_and_definition_for_simple_function_symbol()
 	{
 		using LspProcess lsp = LspProcess.Start();
@@ -937,7 +975,7 @@ public sealed class LspServerTests
 			stderrReader = Task.Run(ReadStandardError);
 		}
 
-		public static LspProcess Start()
+		public static LspProcess Start(string? traceDirectory = null)
 		{
 			string repo = FindRepositoryRoot();
 			string server = Path.Combine(repo, "src", "camp-lsp", "bin", "Debug", "net8.0", "camp-lsp.dll");
@@ -952,6 +990,10 @@ public sealed class LspServerTests
 					UseShellExecute = false
 				}
 			};
+			if (traceDirectory is not null)
+				process.StartInfo.Environment["CAMP_LSP_TRACE_DIR"] = traceDirectory;
+			else
+				process.StartInfo.Environment["CAMP_LSP_TRACE"] = "0";
 			process.Start();
 			return new LspProcess(process);
 		}

@@ -23,11 +23,38 @@ The current server provides:
 - hover text
 - hover documentation from Camp doc comments
 - go-to definition for simple source-backed symbols
+- references for source-backed symbols
 - document symbols for outlines/navigation
+- workspace symbols
+- signature help
+- completion
 
-The current server does not provide completion, rename, references, formatting,
-semantic tokens, workspace symbols, package restore, native builds, or
-incremental compilation.
+The current server does not provide rename, formatting, semantic tokens, package
+restore, native builds, or incremental compilation.
+
+## Performance Trace Logs
+
+Every `camp-lsp` process writes a fresh newline-delimited JSON trace file when it
+starts. The file records document notifications, diagnostic debounce events,
+analysis timing, project-load cache hits, query timing, result counts, and
+diagnostic publishes.
+
+By default, traces are written to:
+
+- macOS/Linux: the platform local-application-data folder under
+  `Camp/lsp-traces/`
+- Windows: `%LOCALAPPDATA%\Camp\lsp-traces\`
+
+Editors may override the location with `CAMP_LSP_TRACE_DIR`. The VS Code
+extension sets this to its own global storage folder under `lsp-traces/`, so
+restarting the language server or VS Code creates a new `camp-lsp-*.jsonl` file
+for that session.
+
+Tracing can be disabled by setting:
+
+```sh
+CAMP_LSP_TRACE=0
+```
 
 ## Sublime Text
 
