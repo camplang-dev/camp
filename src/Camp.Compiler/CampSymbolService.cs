@@ -506,7 +506,11 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		}
 
 		if (staticOnly)
+		{
+			foreach (FunctionDefinition extension in functions.Where(function => function.Modifier == FunctionModifier.Static && function.OutOfScopeOwnerName == type.Name))
+				AddFunctionCompletions(file, extension, type.Name, completions);
 			return;
+		}
 		foreach (FunctionDefinition extension in functions.Where(function => function.Parameters.FirstOrDefault() is ThisParameterDefinition thisParameter && BaseTypeName(UnwrapStorageType(thisParameter.ResolvedType ?? "")) == type.Name))
 			AddFunctionCompletions(file, extension, type.Name, completions);
 	}
@@ -554,6 +558,8 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	static bool IsHiddenMemberCompletionFunction(FunctionDefinition function)
 	{
+		if (function.OutOfScopeOwnerName is not null)
+			return false;
 		return function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor
 			|| function.Name is "create" or "destroy" or "op_initnew" or "op_delete"
 			|| function.Symbol.EndsWith("_create", StringComparison.Ordinal)
@@ -1190,6 +1196,8 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			return false;
 		if (targetName is null)
 			return function.Name == name || function.Symbol == name;
+		if (function.OutOfScopeOwnerName is not null)
+			return function.OutOfScopeOwnerName == targetName && function.Name == name;
 		return function.Name == name
 			&& (function.Symbol == targetName + "_" + name
 				|| function.Symbol.EndsWith("_" + name, StringComparison.Ordinal));

@@ -681,6 +681,52 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_filters_out_of_scope_static_type_members_by_owner()
+	{
+		string root = CreateTempDirectory("language-service-static-extension-completion");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			newtype HPEN : nint;
+			newtype HBRUSH : nint;
+
+			static HPEN HPEN.create(int width, int color = 0) => default;
+			static HBRUSH HBRUSH.create(int style) => default;
+
+			export void main()
+			{
+				auto pen = HPEN.create(1);
+			}
+			""";
+		string currentText = """
+			newtype HPEN : nint;
+			newtype HBRUSH : nint;
+
+			static HPEN HPEN.create(int width, int color = 0) => default;
+			static HBRUSH HBRUSH.create(int style) => default;
+
+			export void main()
+			{
+				HPEN.
+				auto pen = HPEN.create(1);
+			}
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		IReadOnlyList<CampCompletionItem> completions = symbols.GetCompletions(source, PositionAfter(currentText, "HPEN."), currentText);
+		CampSignatureHelp? signatureHelp = symbols.GetSignatureHelp(source, PositionAfter(text, "HPEN.create("), text);
+
+		Assert.Contains(completions, static item => item.Label == "create" && item.Kind == CampSymbolKind.Method && item.Detail?.Contains("HPEN.create", StringComparison.Ordinal) == true);
+		Assert.DoesNotContain(completions, static item => item.Detail?.Contains("HBRUSH.create", StringComparison.Ordinal) == true);
+		Assert.NotNull(signatureHelp);
+		CampSignatureInformation signature = Assert.Single(signatureHelp!.Signatures);
+		Assert.Contains("HPEN.create", signature.Label, StringComparison.Ordinal);
+		Assert.DoesNotContain("HBRUSH.create", signature.Label, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Analysis_does_not_auto_include_standard_api_when_opening_standard_api_header()
 	{
 		string root = CreateTempDirectory("language-service-open-std-api");
