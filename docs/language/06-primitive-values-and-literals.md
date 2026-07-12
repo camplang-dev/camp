@@ -270,7 +270,7 @@ compiler cannot know which default value to form.
 `null` is the null pointer literal.
 
 ```camp
-Widget* widget = null;
+Document* document = null;
 void* context = null;
 ```
 

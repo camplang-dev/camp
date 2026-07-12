@@ -18,7 +18,7 @@ Type spelling is compositional:
 const char[] text;
 int* values;
 delegate void(const char[] message) callback;
-Option<int>* result;
+int? maybeCount;
 ```
 
 Qualifiers such as `const`, `volatile`, `escaped`, `scoped`, `unscoped`, and
@@ -117,7 +117,7 @@ declarations imported through namespaces.
 int count;
 string title;
 Std::Time::Date date;
-List<int>* values;
+Std::List<int>* values;
 ```
 
 The difference matters for portability and metadata. A primitive type exists
@@ -129,12 +129,12 @@ contributes that declaration.
 Pointers and views are explicit:
 
 ```camp
-Widget* widget;
+Document* document;
 const byte[] bytes;
 IWriter* writer;
 ```
 
-`Widget*` is an address of a `Widget`. `byte[]` is a counted span. `IWriter*`
+`Document*` is an address of a `Document`. `byte[]` is a counted span. `IWriter*`
 is an interface-instance pointer. None of these spellings imply ownership by
 themselves.
 

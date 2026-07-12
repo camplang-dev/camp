@@ -96,6 +96,15 @@ and conversion classification.
 Examples prefer complete Camp fragments with meaningful names. When an example
 is only a declaration fragment, the surrounding context is stated in prose.
 
+Examples that import or qualify `Std`, `Std::Math`, or `Std::Time` are using
+standard-library APIs. Some fragments use standard-library names such as
+`Console`, `FileHandle`, or `List` unqualified; read those as if the surrounding
+file had the appropriate `using Std;` or selected import. Other names, such as
+small `Buffer`, `Reader`, `NativeHandle`, or `EventLoop` types, are local
+teaching examples unless the text says otherwise. Treat those as application
+code you could write, not as a promise that the standard library contains that
+exact type or helper.
+
 ## Core Design Commitments
 
 Camp's design is built around a few commitments that show up throughout the

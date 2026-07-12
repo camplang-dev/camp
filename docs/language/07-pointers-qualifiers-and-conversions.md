@@ -29,7 +29,7 @@ buffer.clear();
 The compiler chooses the matching receiver form from the available members.
 There is no separate `->` operator.
 
-Pointer depth is significant. `Widget*` and `Widget**` are different physical
+Pointer depth is significant. `Document*` and `Document**` are different physical
 indirection shapes. A cast that changes physical depth is not an ordinary
 conversion; it requires at least an unsafe operation, and often a raw carrier is
 the clearer signal.
@@ -70,6 +70,79 @@ const byte* readOnlyData = readOnlyBuffer.data();
 
 This lets one declaration express both mutable and read-only access without
 duplicating APIs.
+
+A `constof` anchor must be a receiver or a non-output parameter with exactly
+one ordinary `const` slot. It cannot be an `out`, `thrown`, or `within`
+parameter, and it cannot itself be dependent on another `constof(...)`.
+
+```camp
+constof(source) byte* first(const byte[] source);          // OK
+constof(source) byte* mutableAnchor(byte[] source);        // ERROR
+constof(result) byte* outputAnchor(out const byte[] result); // ERROR
+constof(error) byte* thrownAnchor(thrown const byte[] error); // ERROR
+constof(source) byte* dependentAnchor(
+	const byte[] other,
+	constof(other) byte[] source);                         // ERROR
+```
+
+Inside the callee, a `constof(...)` slot is checked as an ordinary `const` view.
+It does not grant mutation rights. Its purpose is caller-visible: it lets the
+caller's mutable-or-const choice flow to returns and output positions.
+
+```camp
+constof(source) byte* first(const byte[] source)
+{
+	return (constof(source) byte*)source.elements;
+}
+
+byte[] mutableBytes = ...;
+const byte[] readOnlyBytes = ...;
+
+byte* mutableFirst = first(mutableBytes);
+const byte* readOnlyFirst = first(readOnlyBytes);
+```
+
+When `constof(anchor)` appears in an input position, the call must preserve the
+same constness relation after substituting the anchor:
+
+```camp
+void compareBytes(const byte[] source, constof(source) byte[] other);
+
+byte[] mutableLeft = ...;
+byte[] mutableRight = ...;
+const byte[] readOnlyLeft = ...;
+const byte[] readOnlyRight = ...;
+
+compareBytes(mutableLeft, mutableRight);     // OK
+compareBytes(readOnlyLeft, readOnlyRight);   // OK
+compareBytes(readOnlyLeft, mutableRight);    // OK: mutable can become const
+compareBytes(mutableLeft, readOnlyRight);    // ERROR
+```
+
+Storage whose type contains `constof(anchor)` carries that anchor promise. A
+value assigned to it must be derived from the same anchor, already have the
+same dependent-const relationship, or cross an explicit `constof(anchor)` cast
+where the program's proof lives. An unrelated `const` pointer is not enough to
+reconstruct the dependency.
+
+Callable compatibility treats dependent constness by position. Outputs are
+covariant: an implementation may return a more precise `constof(anchor)` result
+where the target only promises ordinary `const`. Inputs are contravariant: an
+implementation may accept ordinary `const` where the target requires
+`constof(anchor)`. Virtual overrides are stricter and must match exactly.
+
+```camp
+newtype fn const byte* ConstGetter(const byte[] source);
+
+constof(source) byte* getInterior(const byte[] source): ConstGetter
+{
+	return (constof(source) byte*)source.elements;
+}
+```
+
+Lambdas follow the same rule. In an explicit lambda signature, `constof`
+anchors name lambda parameters, not variables from the surrounding scope.
+Target-typed lambdas use the target callable's parameter mapping.
 
 ## Target Type Specifiers
 
@@ -154,8 +227,8 @@ protects while preserving enough type relationship for the compiler to model
 the cast.
 
 ```camp
-const Widget* source;
-Widget* mutableView = (unsafe Widget*)source;
+const Document* source;
+Document* mutableView = (unsafe Document*)source;
 ```
 
 Unsafe casts are not a general escape hatch for unrelated values. Raw fence
@@ -180,7 +253,8 @@ pointers. `nint` and `nuint` can carry pointer-sized integer values where the
 target allows that policy. `untyped` erases raw scalar carrier identity.
 
 ```camp
-PacketHeader* header = (PacketHeader*)(void*)bytes;
+byte* packetBytes = ...;
+PacketHeader* header = (PacketHeader*)(void*)packetBytes;
 
 fn int(int) transform;
 fn* rawTransform = (fn*)transform;
@@ -193,9 +267,9 @@ A `void*` fence is for data pointers. It erases pointee type and data-pointer
 family while remaining a data-pointer carrier. It preserves physical depth:
 
 ```camp
-Widget** widgets;
-void** rawWidgets = (void**)widgets;
-OtherWidget** recovered = (OtherWidget**)rawWidgets;
+Document** documents;
+void** rawDocuments = (void**)documents;
+ArchivedDocument** recovered = (ArchivedDocument**)rawDocuments;
 ```
 
 Using `void*` for a two-level pointer loses depth information and is not the

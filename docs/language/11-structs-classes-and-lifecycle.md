@@ -78,8 +78,9 @@ native objects whose layout or lifecycle is provided outside Camp.
 
 ## Fields And Static Fields
 
-Fields store data in a struct, class, enum, or newtype scope. `static` fields
-belong to the type rather than an instance.
+Instance fields store data in a struct or class value. Eligible type scopes can
+also contain static fields or inline constants; those belong to the type rather
+than an instance.
 
 ```camp
 export class Counter
@@ -289,6 +290,106 @@ symbols. An `extern class` can participate in pointer types, method declarations
 and interop contracts, but Camp does not synthesize ownership of the native
 base. If a native object needs construction or destruction, expose that through
 explicit extern functions or a carefully designed wrapper type.
+
+## Class-Relative `classtype`
+
+Inside a `class` declaration, `classtype` names the class-relative type. In an
+open class, it means the enclosing class or a type derived from it. In a sealed
+class, it means the enclosing class exactly.
+
+Unlike the receiver-preserving `this` return form, `classtype` is a composable
+type form. It can appear in allowed method signatures, locals, casts, iterator
+results, and other method-body positions where a class-relative type is useful.
+
+```camp
+class Control
+{
+	static classtype* create(string typeName = typenameof(classtype))
+	{
+		Control* value = createControlByName(typeName);
+		return (classtype*)value;
+	}
+
+	classtype* getParent();
+	void addChild(classtype* child);
+}
+
+class Button: Control
+{
+}
+
+Button* button = Button.create();
+Button* parent = button.getParent();
+button.addChild(button);
+```
+
+The binding is source-static. An instance method uses the receiver expression's
+static type. A static method uses the type name before `.`. No runtime type
+test or reflection lookup is implied.
+
+In the ABI, `classtype` lowers to the enclosing class type. Source calls
+through a derived type may therefore need generated casts in lowered code, but
+the source contract remains class-relative.
+
+`classtype` is not a storage relationship. It may not be used in fields, static
+fields, globals, aliases, interface declarations, struct declarations, enum
+declarations, or newtype declarations.
+
+```camp
+class Control
+{
+	classtype* parent;             // ERROR
+	static classtype* active;      // ERROR
+}
+```
+
+Use the declaring class type for stored relationships and document any stronger
+runtime invariant separately.
+
+```camp
+class Control
+{
+	Control* parent;
+}
+```
+
+Virtual and abstract methods may use `classtype` only for values flowing out of
+the call, such as a return type or direct `out` parameter. They may not use
+`classtype` in ordinary input parameters or nested callable types, because a
+call through the base virtual slot cannot promise that the argument is the
+most-derived override type.
+
+```camp
+abstract class Node
+{
+	abstract classtype* clone();
+	abstract void getPeer(out classtype* peer);
+	abstract void compareTo(classtype* other); // ERROR
+}
+```
+
+Sealed classes make `classtype` exact, so a sealed override can return a newly
+created instance of the sealed class without a cast:
+
+```camp
+abstract class Shape
+{
+	abstract classtype* clone();
+}
+
+sealed class Square: Shape
+{
+	override classtype* clone()
+	{
+		return new Square();
+	}
+}
+```
+
+`typenameof(classtype)` is allowed only as a default parameter value. It is a
+convenient way for a static factory to receive the call-site class name as an
+ordinary string parameter; it is not a general expression that discovers the
+derived type inside the method body.
 
 ## Object Layout And ABI Surface
 

@@ -146,6 +146,7 @@ areas.
 - Named Arguments
 - Trailing `out` Result Binding
 - Receiver Parameters
+- Receiver-Preserving `this` Returns
 - Callable Types
 - Delegates, `once`, And Function Pointers
 - Callable Newtypes
@@ -214,6 +215,7 @@ areas.
 - Destructors
 - `init`, `new`, And `delete`
 - Abstract, Virtual, Override, Sealed, And Extern Types
+- Class-Relative `classtype`
 - Object Layout And ABI Surface
 - Common Lifecycle Patterns
 

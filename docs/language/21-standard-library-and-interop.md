@@ -133,7 +133,7 @@ Formatting commonly uses callable newtypes. A formatter can be called once to
 obtain a required size, then called again with a destination buffer.
 
 ```camp
-newtype delegate nuint CharFormatter(char[] buffer = default);
+export newtype delegate nuint CharFormatter(const this, char[] buffer = default);
 ```
 
 Library helpers can turn a formatter into an allocated string:
@@ -242,7 +242,12 @@ export newtype FileHandle: nint
 file` is not the close operation. Use `finally close()` for scoped cleanup:
 
 ```camp
-FileHandle file = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING, catch error) finally close();
+IoError error;
+FileHandle file = FileHandle.open(
+	path,
+	FileAccess.READ,
+	FileMode.OPEN_EXISTING,
+	catch error) finally close();
 ```
 
 End of file for reads is represented by a successful read with `readCount == 0`.
@@ -257,8 +262,11 @@ For example, a list that owns contiguous element storage uses `T: copyable`
 because it stores and moves element values:
 
 ```camp
-auto values = new List<int>() finally delete;
-values.add(10);
+within (allocator)
+{
+	auto values = new List<int>() finally delete;
+	values.add(10);
+}
 ```
 
 Hash-based collections use hash/equality policies so key identity is explicit.
@@ -298,7 +306,7 @@ string iso = date.format.copyString() finally delete;
 Timing helpers expose native timers through ordinary newtypes and delegates:
 
 ```camp
-TimerHandle handle = startTimer(10, new delegate h => {
+TimerHandle handle = startTimer(10, within(default) new delegate h => {
 	stopTimer(h);
 });
 ```

@@ -372,6 +372,39 @@ Optional slots are still slots. Camp does not insert automatic null checks. If
 an API permits missing optional slots, code that calls the optional method must
 guard the call according to the interface's documented contract.
 
+```camp
+Formatter* formatter = openFormatter();
+
+if (formatter.writeDebugName != null)
+{
+	formatter.writeDebugName("parser");
+}
+```
+
+Outside call syntax, member access to an interface method reads the current
+vtable slot function pointer. If you store that pointer in a local, call it by
+supplying the interface receiver explicitly:
+
+```camp
+fn void(Formatter* this, const char[] name) slot = formatter.writeDebugName;
+
+if (slot != null)
+{
+	slot(formatter, "parser");
+}
+```
+
+The direct call form still supplies the receiver automatically:
+
+```camp
+formatter.writeDebugName("parser");
+```
+
+That direct call is allowed even for an optional slot, but a missing slot has
+the same failure mode as invoking any null function pointer. Camp does not
+treat the slot as an implicit boolean; write `slot != null` or
+`formatter.writeDebugName != null`.
+
 ## Interface Conversions
 
 Class-to-interface conversion is natural when the class implements the

@@ -195,7 +195,7 @@ Static members are accessed through the type name:
 
 ```camp
 Console.writeLine("ready");
-FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING);
+Std::Time::Date today = Std::Time::Date.today();
 ```
 
 Canonical flattened symbols may also be visible where the declaration is
@@ -463,12 +463,45 @@ void clear<T: any>(T[] values, sizeof(T));
 ```
 
 `typenameof(T)` produces the source-level type name as a `string` where the
-language provides that capability. In generic code it is likewise explicit:
+language provides that capability. The result is a pointer to static
+zero-terminated UTF-8 data; callers do not own it and should not delete it.
+
+`typenameof(...)` is not reflection. Its operand is a type form, not a runtime
+expression. It can name primitive types, user types, aliases, qualified type
+names, and composed type forms when the compiler can determine the name. It
+ignores `@symbol`, because native symbol overrides are separate from Camp type
+names.
+
+```camp
+string intName = typenameof(int);
+string byteArrayName = typenameof(byte[]);
+string controlName = typenameof(Control);
+```
+
+Variables, fields, methods, enum values, and member accesses are not valid
+operands:
+
+```camp
+string name = typenameof(count); // ERROR: count is a value, not a type
+```
+
+In generic code, `typenameof` is likewise explicit:
 
 ```camp
 void writeType<T: any>(typenameof(T))
 {
 	Console.writeLine(typenameof(T));
+}
+```
+
+`typenameof(classtype)` is allowed only as a default parameter value in a class
+scope. At the call site it is substituted after the ordinary `classtype`
+binding:
+
+```camp
+class Control
+{
+	static classtype* create(string typeName = typenameof(classtype));
 }
 ```
 
@@ -530,7 +563,13 @@ An expression can register cleanup with `finally` where the grammar permits it.
 
 ```camp
 Buffer* buffer = new Buffer(1024) finally delete;
-FileHandle handle = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING) finally close();
+
+IoError error;
+FileHandle handle = FileHandle.open(
+	path,
+	FileAccess.READ,
+	FileMode.OPEN_EXISTING,
+	catch error) finally close();
 ```
 
 The cleanup is tied to the surrounding scope and runs according to the cleanup

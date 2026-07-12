@@ -94,7 +94,7 @@ discard is intentional.
 if (count == 0)
 	return;
 
-if (mode == FileMode.READ)
+if (access == FileAccess.READ)
 	openReader();
 else
 	openWriter();
@@ -368,7 +368,13 @@ Expression-level cleanup is often more compact for single owned values:
 
 ```camp
 Buffer* buffer = new Buffer(1024) finally delete;
-FileHandle handle = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING) finally close();
+
+IoError error;
+FileHandle handle = FileHandle.open(
+	path,
+	FileAccess.READ,
+	FileMode.OPEN_EXISTING,
+	catch error) finally close();
 ```
 
 Error and cleanup details are covered in
@@ -395,7 +401,7 @@ operand.
 
 ```camp
 delete buffer;
-delete widget;
+delete document;
 ```
 
 For a class pointer, `delete` runs class destruction and deallocation according

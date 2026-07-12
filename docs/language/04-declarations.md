@@ -73,7 +73,7 @@ export interface Reader
 
 `struct` and `class` bodies contain fields and members. `interface` bodies
 contain contract entries. `enum` bodies contain values. `newtype` declarations
-wrap an underlying value, callable, or expanded shape in a nominal type.
+wrap an eligible value representation or callable shape in a nominal type.
 
 Type declarations can have generic parameters, base types, implemented
 interfaces, visibility, and target-specific metadata. A semicolon form declares

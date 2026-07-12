@@ -120,10 +120,10 @@ dispatch, interface implementation, and method reference binding. A method
 reference that captures a receiver may allocate callable context if it escapes.
 
 In valid method positions, `this` can also be a receiver-preserving return type.
-That form preserves the dynamic receiver type for fluent APIs:
+That form preserves the static receiver type for fluent APIs:
 
 ```camp
-export this reset(this)
+export this reset(Buffer* this)
 {
 	this.clear();
 	return this;
@@ -132,6 +132,72 @@ export this reset(this)
 
 `this` as a return type is not a general type constructor. It is a receiver
 relative result form with specific declaration and override rules.
+
+## Receiver-Preserving `this` Returns
+
+Plain `this` may be the return type of an instance method or an out-of-scope
+receiver method whose first parameter is named `this`.
+
+```camp
+class MessageBuilder
+{
+	this clear()
+	{
+		this.resetStorage();
+		return this;
+	}
+
+	this append(const char[] text)
+	{
+		this.write(text);
+		return this;
+	}
+}
+
+this logAndContinue(const MessageBuilder* this)
+{
+	logBuilder(this);
+	return this;
+}
+```
+
+At the call site, the result has the same static receiver shape as the receiver
+expression: pointer form, constness, lifetime qualifiers, and other receiver
+typing all carry through.
+
+```camp
+MessageBuilder* builder = new MessageBuilder();
+MessageBuilder* sameBuilder = builder.append("ready");
+
+const MessageBuilder* readOnly = builder;
+const MessageBuilder* sameReadOnly = readOnly.logAndContinue();
+```
+
+A method returning `this` returns the receiver, not another value of the same
+type. A non-extern body may return `this`, or a chain of method calls on `this`
+whose own source return type is also `this`.
+
+```camp
+this prepare(MessageBuilder* this)
+{
+	return this.clear().append("start");
+}
+
+this returnOther(MessageBuilder* this, MessageBuilder* other)
+{
+	return other; // ERROR: not the receiver
+}
+```
+
+Plain `this` is valid only as the whole return type. It is not a normal type
+name and cannot be composed as `this*`, `const this`, `this[]`, or a callable
+parameter type. It is also invalid on free functions without a receiver, static
+methods, constructors, destructors, interface methods, and callable newtype
+declarations.
+
+Virtual and abstract methods may return `this`; overrides must also spell the
+return type as `this`. The ABI lowers the return as the receiver's ordinary
+lowered type, while source call sites keep the receiver-preserving result.
 
 ## Callable Types
 
@@ -250,10 +316,16 @@ contract are clear.
 
 Camp supports overload selection by callable shape, receiver, parameter types,
 and overload markers. When the compiler cannot infer the intended callable from
-context, use ascription or an explicitly typed local.
+context, use ascription, an explicitly typed local, or a small wrapper with the
+shape you want.
 
 ```camp
-fn int(int) selected = Math::abs;
+int clampPositive(int value)
+{
+	return value < 0 ? 0 : value;
+}
+
+fn int(int) selected = clampPositive;
 ```
 
 Callable ascription is also useful when a function has default arguments or

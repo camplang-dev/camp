@@ -225,8 +225,8 @@ export enum State
 Members can be documented directly inside the type body:
 
 ```camp
-/// A sample exported type.
-export struct Widget
+/// A snapshot of parser counters.
+export struct ParserCounters
 {
 	/// Stored count.
 	int count;
@@ -387,7 +387,12 @@ callers:
 ///
 /// @remarks The returned handle must be closed with [FileHandle.close].
 /// @returns The opened handle.
-export static FileHandle open(string path, FileAccess access, FileMode mode, thrown IoError error);
+export static FileHandle open(
+	string path,
+	FileAccess access,
+	FileMode mode,
+	FileOptions options = default,
+	thrown IoError error);
 ```
 
 Document parameters with child targets when the names alone are not enough:

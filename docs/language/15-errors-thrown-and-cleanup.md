@@ -231,14 +231,14 @@ An expression can register cleanup with `finally delete` or
 
 ```camp
 Buffer* buffer = new Buffer(1024) finally delete;
-FileHandle handle = FileHandle.open(path) finally close();
+NativeHandle handle = openNativeHandle(path) finally close();
 ```
 
 For `finally methodName(...)`, the cleanup method is invoked on the produced
 value when the surrounding cleanup scope exits:
 
 ```camp
-FileHandle handle = FileHandle.open(path) finally close();
+NativeHandle handle = openNativeHandle(path) finally close();
 ```
 
 Conceptually, the value is stored in a local and the cleanup call is registered
@@ -274,7 +274,7 @@ byte* data = within (allocator) new byte[64] finally delete;
 newtype wraps a native handle, expose and use a cleanup method:
 
 ```camp
-FileHandle handle = FileHandle.open(path) finally close();
+NativeHandle handle = openNativeHandle(path) finally close();
 ```
 
 ## Cleanup And Ownership
@@ -288,7 +288,7 @@ Buffer* buffer = new Buffer(1024) finally delete;
 ```
 
 ```camp
-FileHandle file = FileHandle.open(path) finally close();
+NativeHandle handle = openNativeHandle(path) finally close();
 ```
 
 ```camp

@@ -73,7 +73,7 @@ enum Small: byte
 
 enum UnsignedStatus: uint
 {
-	BAD = -1 // ERROR
+	NEGATIVE = -1 // ERROR
 }
 ```
 
@@ -280,7 +280,7 @@ ascribe context-carrying callable newtypes accepted by the language, such as
 A `newtype` may open a member scope containing ordinary methods:
 
 ```camp
-newtype FileHandle: nint
+newtype NativeHandle: nint
 {
 	bool isValid()
 	{
@@ -312,7 +312,7 @@ When a newtype wraps an owned resource such as a native handle, express cleanup
 as an ordinary method and use `finally close()`:
 
 ```camp
-FileHandle handle = FileHandle.open(path) finally close();
+NativeHandle handle = openNativeHandle(path) finally close();
 ```
 
 `delete handle` is not a resource close operation. `delete Newtype*` means
@@ -358,13 +358,13 @@ For exported value newtypes, generated C-facing output uses a typedef-like
 surface:
 
 ```camp
-export newtype FileHandle: nint;
+export newtype NativeHandle: nint;
 ```
 
 Conceptually:
 
 ```c
-typedef intptr_t FileHandle;
+typedef intptr_t NativeHandle;
 ```
 
 For callable newtypes, the named callable contract survives in exported
@@ -415,7 +415,7 @@ struct Point
 
 inline Point Origin = default;      // ERROR
 inline int[] Values = default;      // ERROR
-inline char* MutableText = "bad";   // ERROR
+inline char* MutableText = "mutable"; // ERROR
 ```
 
 Inline constants may refer to other inline constants and enum values, provided

@@ -5,10 +5,15 @@
 Generic declarations use type parameters in angle brackets.
 
 ```camp
-export struct Pair<T: any>
+export struct Pair<T: copyable>
 {
 	T first;
 	T second;
+}
+
+export struct BorrowedSlot<T: any>
+{
+	T* value;
 }
 
 export T choose<T: copyable>(T left, T right, bool useLeft)
@@ -19,9 +24,11 @@ export T choose<T: copyable>(T left, T right, bool useLeft)
 
 Generic parameters are scoped to the declaration that introduces them. A
 generic type can use its type parameters in fields, methods, constructors,
-static members, implemented interfaces, and nested signatures. A generic
-function can use its parameters in its return type, parameter types, local
-types, constraints, and capability parameters.
+static members, implemented interfaces, and nested signatures. The constraint
+must still match the operation: a field of type `T` needs a value-copying
+contract such as `T: copyable`, while a pointer field `T*` can work under
+`T: any`. A generic function can use its parameters in its return type,
+parameter types, local types, constraints, and capability parameters.
 
 Camp generics are explicit about the capabilities a body uses. A type parameter
 is not automatically assumed to be copyable, constructible, sized, printable,
@@ -103,16 +110,13 @@ without owning special cleanup.
 Interface constraints allow generic code to require an interface contract.
 
 ```camp
-export void writeAll<T: implements Writer>(
+export void writeOne<T: implements Writer>(
 	T* writer,
-	const char[][] lines,
+	const char[] line,
 	vtableof(T: Writer))
 {
-	foreach (const char[] line in lines)
-	{
-		Writer* view = writer;
-		view.write(line);
-	}
+	Writer* view = writer;
+	view.write(line);
 }
 ```
 
@@ -144,8 +148,8 @@ export void draw<T: implements Drawable>(T* value, vtableof(T: Drawable))
 }
 ```
 
-These values are explicit because erased generic code cannot recover them
-magically. They are part of the ABI of the generic function. The caller supplies
+These values are explicit because erased generic code cannot recover them on
+its own. They are part of the ABI of the generic function. The caller supplies
 the value that the body needs.
 
 `sizeof(T)` is needed for allocation, array stride, erased storage, and
@@ -153,9 +157,21 @@ layout-sensitive code. `typenameof(T)` is needed when the runtime type name is
 part of behavior. `vtableof(T: Interface)` is needed for erased interface
 dispatch.
 
+A `typenameof(T)` capability is exact for the requested type form. It does not
+automatically provide names for related forms such as `T[]` or `T?`.
+
+```camp
+export void writeArrayType<T: any>(typenameof(T[]))
+{
+	Console.writeLine(typenameof(T[]));
+}
+```
+
 Capability parameters can be forwarded to other generic functions. If they are
 stored for later use, their lifetime and representation must be valid for the
-storage that retains them.
+storage that retains them. A generic class constructor that requests
+`sizeof(T)`, `typenameof(T)`, or `vtableof(T: Interface)` may retain that
+capability for later instance methods according to the type's lowering model.
 
 ## Generic Construction And Destruction
 

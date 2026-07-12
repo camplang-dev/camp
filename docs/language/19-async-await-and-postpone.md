@@ -8,13 +8,12 @@ The source `async` modifier gives callers the `await` surface when the
 completion callback has an awaitable shape.
 
 ```camp
-export async void loadText(
-	const char[] path,
-	once void(const char[] text, thrown IoError) completion);
+export async const char[] loadText(const char[] path, thrown IoError error);
 ```
 
-The completion callback is part of the callable signature. It is not a hidden
-task object and it does not require a global runtime scheduler. Async code is
+The completion callback is part of the callable shape after lowering, not an
+ordinary source parameter written by callers of `loadText`. It is not a hidden
+task object and it does not require a global task runtime. Async code is
 lowered into ordinary callback and state-machine machinery.
 
 `async` may appear on functions, methods, compatible property accessors, and
@@ -118,14 +117,19 @@ await site catches it.
 
 ## Resumer Selection
 
-Camp's async model uses explicit resumer selection. A receiver or parameter can
-provide the resumption behavior through `resumeAsync` or through a value marked
-with `@awaitwith`. The resumer is responsible for continuing the caller after
-suspension.
+Camp's async model uses explicit resumer selection. A receiver can provide the
+resumption behavior through `resumeAsync`; an ordinary parameter can be selected
+for the same role with `@awaitwith`. The resumer is responsible for continuing
+the caller after suspension.
 
-There is no implicit task object, thread-local scheduler, or hidden event loop
-in the language model. Libraries may build such abstractions, but the language
-surface remains callback and resumer based.
+There is no implicit task object, thread-local event loop, or hidden global
+runtime in the language model. Libraries may build such abstractions, but the
+language surface remains callback and resumer based.
+
+A concrete async definition with a body is either await-capable or `@noawait`.
+An await-capable instance method can use its receiver as the selected resumer.
+A free function or static method has no receiver, so it must mark one ordinary
+parameter with `@awaitwith` unless it is `@noawait`.
 
 ## `resumeAsync`
 
@@ -136,17 +140,31 @@ the resumer's API contract.
 ```camp
 export class EventLoop
 {
-	void resumeAsync(once void() continuation);
+	void resumeAsync(escaped once void() continuation);
 }
 ```
 
+An async resumer method with no ordinary parameters is also compatible:
+
+```camp
+export class AsyncEventLoop
+{
+	async void resumeAsync();
+}
+```
+
+That form lowers to the same final escaped `once void()` continuation shape.
+It must not declare ordinary parameters or a `thrown` result.
+
 Candidate selection checks receiver/parameter visibility, callable shape,
 lifetime, and ambiguity. If no valid resumer exists and the async operation
-requires one, the compiler reports a diagnostic.
+requires one, the compiler reports a diagnostic. If more than one viable
+candidate remains after ordinary lookup and overload resolution, resumption is
+ambiguous.
 
 ## `@awaitwith`
 
-`@awaitwith` marks the parameter or receiver used to select a resumer.
+`@awaitwith` marks the ordinary parameter used to select a resumer.
 
 ```camp
 export async void fetch(@awaitwith EventLoop* loop, const char[] path);
@@ -156,20 +174,35 @@ The marked value must provide the required resumption surface. Marking a value
 does not allocate a frame or post a continuation by itself; it identifies the
 source of resumption behavior for awaits in the function or call path.
 
+`@awaitwith` is valid only on a concrete async definition with a Camp body. It
+is not part of callable type compatibility, and it is not valid on abstract,
+extern, or interface signatures. The marked parameter must be an ordinary
+runtime parameter, not `out`, `thrown`, `within`, `sizeof(T)`, `typenameof(T)`,
+`vtableof(T: Interface)`, an overload selector, or a generated completion
+callback. At most one parameter may be marked.
+
+If the selected resumer must live in the async frame, ordinary lifetime rules
+apply: the resumer value must be escaped-safe or otherwise proven to outlive
+the frame.
+
 ## `@noawait`
 
 `@noawait` marks an async function that must not suspend.
 
 ```camp
 @noawait
-export async void completeImmediately(once void() completion)
+export async int answerImmediately()
 {
-	completion();
+	return 42;
 }
 ```
 
 The compiler reports an `await` inside a `@noawait` body. Because the function
 does not suspend, lowering can avoid generating an async state-machine frame.
+No selected resumer is required, but the function still has the ordinary async
+source and callback-shaped ABI surface. `@noawait` is valid only on concrete
+async definitions with Camp bodies, not on extern, abstract, interface, or
+callable type declarations.
 
 ## Async State Machines
 
@@ -237,9 +270,9 @@ The postponed value is `once`-shaped. It owns generated context for the
 postponed target and captured arguments, and it deletes that context after
 invocation. Captures must satisfy the lifetime of the postponed callable.
 
-`postpone` is useful for scheduling, callbacks, and explicit continuation
-construction. It is not a substitute for ordinary function calls when no
-deferred execution is needed.
+`postpone` is useful for callbacks and explicit continuation construction. It
+is not a substitute for ordinary function calls when no deferred execution is
+needed.
 
 ## Async Lambdas And Callable Values
 
