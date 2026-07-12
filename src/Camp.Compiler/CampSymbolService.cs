@@ -1,10 +1,12 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using LinqExpression = System.Linq.Expressions.Expression;
 
 namespace Camp.Compiler;
 
@@ -74,6 +76,8 @@ public sealed record CampCompletionItem(
 
 public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 {
+	static readonly ConcurrentDictionary<Type, ChildAccessor[]> ChildAccessors = new();
+
 	readonly List<SymbolEntry> entries = BuildEntries(snapshot.Compilation);
 	readonly List<FunctionDefinition> functions = BuildFunctions(snapshot.Compilation);
 
@@ -2250,18 +2254,15 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	static IEnumerable<BindableNode> Children(BindableNode node)
 	{
-		foreach (PropertyInfo property in node.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
+		foreach (ChildAccessor accessor in ChildAccessors.GetOrAdd(node.GetType(), CreateChildAccessors))
 		{
-			if (property.GetIndexParameters().Length != 0 || property.Name is nameof(BindableNode.SourceSyntax))
-				continue;
-			object? value = property.GetValue(node);
-			if (value is BindableNode child)
+			object? value = accessor.GetValue(node);
+			if (accessor.IsSingleNode)
 			{
-				yield return child;
+				if (value is BindableNode child)
+					yield return child;
 				continue;
 			}
-			if (value is string or null)
-				continue;
 			if (value is IEnumerable enumerable)
 			{
 				foreach (object? item in enumerable)
@@ -2270,6 +2271,32 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			}
 		}
 	}
+
+	static ChildAccessor[] CreateChildAccessors(Type nodeType)
+	{
+		List<ChildAccessor> accessors = [];
+		foreach (PropertyInfo property in nodeType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+		{
+			if (property.GetIndexParameters().Length != 0 || property.Name is nameof(BindableNode.SourceSyntax))
+				continue;
+			bool isSingleNode = typeof(BindableNode).IsAssignableFrom(property.PropertyType);
+			if (!isSingleNode && (property.PropertyType == typeof(string) || !typeof(IEnumerable).IsAssignableFrom(property.PropertyType)))
+				continue;
+			accessors.Add(new ChildAccessor(CreatePropertyGetter(nodeType, property), isSingleNode));
+		}
+		return accessors.ToArray();
+	}
+
+	static Func<BindableNode, object?> CreatePropertyGetter(Type nodeType, PropertyInfo property)
+	{
+		var node = LinqExpression.Parameter(typeof(BindableNode), "node");
+		var typedNode = LinqExpression.Convert(node, nodeType);
+		var access = LinqExpression.Property(typedNode, property);
+		var boxed = LinqExpression.Convert(access, typeof(object));
+		return LinqExpression.Lambda<Func<BindableNode, object?>>(boxed, node).Compile();
+	}
+
+	sealed record ChildAccessor(Func<BindableNode, object?> GetValue, bool IsSingleNode);
 
 	string? ResolveCompletionTargetName(string name)
 	{
