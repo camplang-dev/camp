@@ -87,7 +87,7 @@ sealed class CampCompletionHandler(CampLspWorkspace workspace) : CompletionHandl
 {
 	protected override Task<CompletionList<CampCompletionIdentity>> HandleParams(CompletionParams request, CancellationToken cancellationToken)
 	{
-		IReadOnlyList<CampCompletionItem> completions = workspace.GetCompletions(request.TextDocument.Uri, CampLsp.ToCampPosition(request.Position));
+		IReadOnlyList<CampCompletionItem> completions = workspace.GetCompletions(request.TextDocument.Uri, CampLsp.ToCampPosition(request.Position), request.Context?.TriggerCharacter);
 		return Task.FromResult(new CompletionList<CampCompletionIdentity>(isIncomplete: false, completions.Select(CampLsp.ToLspCompletionItem)));
 	}
 
@@ -101,7 +101,7 @@ sealed class CampCompletionHandler(CampLspWorkspace workspace) : CompletionHandl
 		return new CompletionRegistrationOptions
 		{
 			DocumentSelector = CampLsp.Protocol.DocumentSelector,
-			TriggerCharacters = new Container<string>(".")
+			TriggerCharacters = new Container<string>(".", " ")
 		};
 	}
 }
@@ -538,7 +538,7 @@ public sealed class CampLspWorkspace
 		return result;
 	}
 
-	public IReadOnlyList<CampCompletionItem> GetCompletions(DocumentUri uri, CampTextPosition position)
+	public IReadOnlyList<CampCompletionItem> GetCompletions(DocumentUri uri, CampTextPosition position, string? triggerCharacter = null)
 	{
 		long start = Stopwatch.GetTimestamp();
 		if (!TryGetQuerySnapshot(uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot))
@@ -553,7 +553,7 @@ public sealed class CampLspWorkspace
 			trace.Write("query.completion", ("file", path), ("snapshot", cacheState), ("resultCount", fallback.Count), ("durationMs", ElapsedMilliseconds(start)));
 			return fallback;
 		}
-		IReadOnlyList<CampCompletionItem> result = service!.Service.GetCompletions(path, position, document?.Text);
+		IReadOnlyList<CampCompletionItem> result = service!.Service.GetCompletions(path, position, document?.Text, requireFinallyForWhitespaceTrigger: triggerCharacter == " ");
 		trace.Write("query.completion", ("file", path), ("snapshot", cacheState), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}

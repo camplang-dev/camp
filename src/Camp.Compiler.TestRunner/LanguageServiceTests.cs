@@ -689,7 +689,8 @@ public sealed class LanguageServiceTests
 			newtype HPEN : nint;
 			newtype HBRUSH : nint;
 
-			static HPEN HPEN.create(int width, int color = 0) => default;
+			static HPEN HPEN.create(overload int value, int color = 0) => default;
+			static HPEN HPEN.create(overload string value) => default;
 			static HBRUSH HBRUSH.create(int style) => default;
 
 			export void main()
@@ -701,7 +702,8 @@ public sealed class LanguageServiceTests
 			newtype HPEN : nint;
 			newtype HBRUSH : nint;
 
-			static HPEN HPEN.create(int width, int color = 0) => default;
+			static HPEN HPEN.create(overload int value, int color = 0) => default;
+			static HPEN HPEN.create(overload string value) => default;
 			static HBRUSH HBRUSH.create(int style) => default;
 
 			export void main()
@@ -718,12 +720,54 @@ public sealed class LanguageServiceTests
 		IReadOnlyList<CampCompletionItem> completions = symbols.GetCompletions(source, PositionAfter(currentText, "HPEN."), currentText);
 		CampSignatureHelp? signatureHelp = symbols.GetSignatureHelp(source, PositionAfter(text, "HPEN.create("), text);
 
-		Assert.Contains(completions, static item => item.Label == "create" && item.Kind == CampSymbolKind.Method && item.Detail?.Contains("HPEN.create", StringComparison.Ordinal) == true);
+		CampCompletionItem completion = Assert.Single(completions, static item => item.Label == "create" && item.Kind == CampSymbolKind.Method);
+		Assert.Contains("2 overloads", completion.Detail, StringComparison.Ordinal);
 		Assert.DoesNotContain(completions, static item => item.Detail?.Contains("HBRUSH.create", StringComparison.Ordinal) == true);
 		Assert.NotNull(signatureHelp);
-		CampSignatureInformation signature = Assert.Single(signatureHelp!.Signatures);
-		Assert.Contains("HPEN.create", signature.Label, StringComparison.Ordinal);
-		Assert.DoesNotContain("HBRUSH.create", signature.Label, StringComparison.Ordinal);
+		Assert.Equal(2, signatureHelp!.Signatures.Count);
+		Assert.All(signatureHelp.Signatures, static signature =>
+		{
+			Assert.Contains("HPEN.create", signature.Label, StringComparison.Ordinal);
+			Assert.DoesNotContain("HBRUSH.create", signature.Label, StringComparison.Ordinal);
+		});
+	}
+
+	[Fact]
+	public void Symbol_query_returns_finally_completion_on_whitespace_trigger()
+	{
+		string root = CreateTempDirectory("language-service-finally-completion");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			void dispose() {}
+
+			export void main()
+			{
+				dispose();
+				int other = 2;
+			}
+			""";
+		string currentText = """
+			void dispose() {}
+
+			export void main()
+			{
+				dispose() finally 
+				int other = 2; 
+			}
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		IReadOnlyList<CampCompletionItem> finallyCompletions = symbols.GetCompletions(source, PositionAfter(currentText, "finally "), currentText, requireFinallyForWhitespaceTrigger: true);
+		IReadOnlyList<CampCompletionItem> ordinarySpaceCompletions = symbols.GetCompletions(source, PositionAfter(currentText, "int other = "), currentText, requireFinallyForWhitespaceTrigger: true);
+		IReadOnlyList<CampCompletionItem> manualSpaceCompletions = symbols.GetCompletions(source, PositionAfter(currentText, "int other = "), currentText);
+
+		Assert.Contains(finallyCompletions, static item => item.Label == "delete" && item.Kind == CampSymbolKind.Keyword);
+		Assert.Contains(finallyCompletions, static item => item.Label == "dispose" && item.Kind == CampSymbolKind.Function);
+		Assert.Empty(ordinarySpaceCompletions);
+		Assert.Contains(manualSpaceCompletions, static item => item.Label == "dispose" && item.Kind == CampSymbolKind.Function);
 	}
 
 	[Fact]

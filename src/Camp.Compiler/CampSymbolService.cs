@@ -164,7 +164,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			activeParameter);
 	}
 
-	public IReadOnlyList<CampCompletionItem> GetCompletions(string path, CampTextPosition position, string? currentText = null)
+	public IReadOnlyList<CampCompletionItem> GetCompletions(string path, CampTextPosition position, string? currentText = null, bool requireFinallyForWhitespaceTrigger = false)
 	{
 		string fullPath = Path.GetFullPath(path);
 		SourceFile? file = snapshot.Compilation.Files.FirstOrDefault(file => string.Equals(Path.GetFullPath(file.Path), fullPath, StringComparison.OrdinalIgnoreCase));
@@ -174,12 +174,13 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		List<CampCompletionItem> completions = context.IsMember
 			? GetMemberCompletions(file, context)
 			: GetScopeCompletions(file, position);
-		return completions
+		if (requireFinallyForWhitespaceTrigger && context.IsWhitespaceTrigger && !context.IsAfterFinally)
+			return [];
+		return CollapseCompletionOverloads(completions
 			.Where(item => context.Prefix.Length == 0 || item.Label.StartsWith(context.Prefix, StringComparison.OrdinalIgnoreCase))
-			.DistinctBy(static item => (item.Label, item.Kind, item.Detail))
 			.OrderBy(static item => CompletionSortBucket(item.Kind))
 			.ThenBy(static item => item.Label, StringComparer.OrdinalIgnoreCase)
-			.ToList();
+			.ToList());
 	}
 
 	public IReadOnlyList<CampDocumentSymbol> GetDocumentSymbols(string path)
@@ -254,10 +255,27 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		foreach (string keyword in new[]
 		{
 			"if", "else", "while", "for", "foreach", "return", "try", "catch", "finally",
-			"new", "init", "default", "true", "false", "null", "using", "export",
+			"new", "init", "default", "true", "false", "null", "delete", "using", "export",
 			"class", "struct", "interface", "enum", "newtype", "delegate", "fn"
 		})
 			yield return new CampCompletionItem(keyword, CampSymbolKind.Keyword, null, null);
+	}
+
+	static IReadOnlyList<CampCompletionItem> CollapseCompletionOverloads(List<CampCompletionItem> completions)
+	{
+		List<CampCompletionItem> result = [];
+		foreach (IGrouping<(string Label, CampSymbolKind Kind), CampCompletionItem> group in completions.GroupBy(static item => (item.Label, item.Kind)))
+		{
+			List<CampCompletionItem> items = group.DistinctBy(static item => item.Detail).ToList();
+			if (items.Count == 1 || group.Key.Kind is not (CampSymbolKind.Function or CampSymbolKind.Method))
+			{
+				result.AddRange(items);
+				continue;
+			}
+			CampCompletionItem first = items[0];
+			result.Add(first with { Detail = $"{group.Key.Kind}: {first.Label} ({items.Count} overloads)" });
+		}
+		return result;
 	}
 
 	static int CompletionSortBucket(CampSymbolKind kind)
@@ -1994,7 +2012,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 	{
 		string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
 		if (position.Line < 0 || position.Line >= lines.Length)
-			return new CompletionContext("", false, null, null);
+			return new CompletionContext("", false, null, null, false, false);
 		string line = lines[position.Line];
 		int cursor = Math.Clamp(position.Character, 0, line.Length);
 		int prefixStart = cursor;
@@ -2005,7 +2023,10 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		while (dot >= 0 && char.IsWhiteSpace(line[dot]))
 			dot--;
 		if (dot < 0 || line[dot] != '.')
-			return new CompletionContext(prefix, false, null, null);
+		{
+			bool isWhitespaceTrigger = cursor > 0 && char.IsWhiteSpace(line[cursor - 1]);
+			return new CompletionContext(prefix, false, null, null, isWhitespaceTrigger, isWhitespaceTrigger && PreviousWord(line, cursor) == "finally");
+		}
 		int targetEnd = dot;
 		while (targetEnd > 0 && char.IsWhiteSpace(line[targetEnd - 1]))
 			targetEnd--;
@@ -2013,8 +2034,19 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		while (targetStart > 0 && IsIdentifierPart(line[targetStart - 1]))
 			targetStart--;
 		if (targetStart == targetEnd)
-			return new CompletionContext(prefix, true, null, null);
-		return new CompletionContext(prefix, true, new CampTextPosition(position.Line, targetStart), line[targetStart..targetEnd]);
+			return new CompletionContext(prefix, true, null, null, false, false);
+		return new CompletionContext(prefix, true, new CampTextPosition(position.Line, targetStart), line[targetStart..targetEnd], false, false);
+	}
+
+	static string? PreviousWord(string line, int cursor)
+	{
+		int index = Math.Min(cursor, line.Length) - 1;
+		while (index >= 0 && char.IsWhiteSpace(line[index]))
+			index--;
+		int end = index + 1;
+		while (index >= 0 && IsIdentifierPart(line[index]))
+			index--;
+		return end > index + 1 ? line[(index + 1)..end] : null;
 	}
 
 	static bool TryGetCallContext(string text, CampTextPosition position, out string? targetName, out string? memberName, out int activeParameter)
@@ -2366,5 +2398,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		string Prefix,
 		bool IsMember,
 		CampTextPosition? MemberTargetPosition,
-		string? MemberTargetText);
+		string? MemberTargetText,
+		bool IsWhitespaceTrigger,
+		bool IsAfterFinally);
 }
