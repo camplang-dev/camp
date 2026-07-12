@@ -733,6 +733,65 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_returns_signature_help_for_member_chain_extension_call()
+	{
+		string root = CreateTempDirectory("language-service-member-chain-signature-help");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			newtype HDC : nint;
+			newtype HPEN : nint;
+
+			struct Env
+			{
+				HDC hdc;
+			}
+
+			void selectObject(HDC this, overload HPEN pen) {}
+			void selectObject(HDC this, overload int mode) {}
+
+			export void main()
+			{
+				Env e = init Env();
+				e.hdc.selectObject((HPEN)0);
+			}
+			""";
+		string currentText = """
+			newtype HDC : nint;
+			newtype HPEN : nint;
+
+			struct Env
+			{
+				HDC hdc;
+			}
+
+			void selectObject(HDC this, overload HPEN pen) {}
+			void selectObject(HDC this, overload int mode) {}
+
+			export void main()
+			{
+				Env e = init Env();
+				e.hdc.selectObject(
+			}
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		CampSignatureHelp? signatureHelp = symbols.GetSignatureHelp(source, PositionAfter(currentText, "e.hdc.selectObject("), currentText);
+
+		Assert.NotNull(signatureHelp);
+		Assert.Equal(2, signatureHelp!.Signatures.Count);
+		Assert.All(signatureHelp.Signatures, static signature =>
+		{
+			Assert.Contains("selectObject", signature.Label, StringComparison.Ordinal);
+			Assert.DoesNotContain("HBRUSH", signature.Label, StringComparison.Ordinal);
+		});
+		Assert.Contains(signatureHelp.Signatures, static signature => signature.Label.Contains("HPEN pen", StringComparison.Ordinal));
+		Assert.Contains(signatureHelp.Signatures, static signature => signature.Label.Contains("int mode", StringComparison.Ordinal));
+	}
+
+	[Fact]
 	public void Symbol_query_returns_finally_completion_on_whitespace_trigger()
 	{
 		string root = CreateTempDirectory("language-service-finally-completion");
