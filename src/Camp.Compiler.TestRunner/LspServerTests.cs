@@ -174,6 +174,14 @@ public sealed class LspServerTests
 				textDocument = new { uri },
 				position = new { line = 1, character = 4 }
 			});
+			lsp.Request("textDocument/documentSymbol", new
+			{
+				textDocument = new { uri }
+			});
+			lsp.Request("textDocument/documentSymbol", new
+			{
+				textDocument = new { uri }
+			});
 		}
 
 		string traceFile = Assert.Single(Directory.GetFiles(traceDirectory, "camp-lsp-*.jsonl"));
@@ -181,6 +189,8 @@ public sealed class LspServerTests
 		Assert.Contains("\"event\":\"server.start\"", trace, StringComparison.Ordinal);
 		Assert.Contains("\"event\":\"analysis.complete\"", trace, StringComparison.Ordinal);
 		Assert.Contains("\"event\":\"query.completion\"", trace, StringComparison.Ordinal);
+		Assert.Contains("\"event\":\"query.documentSymbols\"", trace, StringComparison.Ordinal);
+		Assert.Equal(1, CountOccurrences(trace, "\"event\":\"queryService.build\""));
 		Assert.Contains("\"event\":\"diagnostics.publish\"", trace, StringComparison.Ordinal);
 	}
 
@@ -882,6 +892,14 @@ public sealed class LspServerTests
 		string directory = Path.Combine(Path.GetTempPath(), "camp-tests", name + "-" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(directory);
 		return directory;
+	}
+
+	static int CountOccurrences(string text, string value)
+	{
+		int count = 0;
+		for (int index = 0; (index = text.IndexOf(value, index, StringComparison.Ordinal)) >= 0; index += value.Length)
+			count++;
+		return count;
 	}
 
 	static string FindRepositoryRoot()

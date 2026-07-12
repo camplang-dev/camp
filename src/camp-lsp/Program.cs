@@ -231,6 +231,7 @@ public sealed class CampLspWorkspace
 	readonly Dictionary<string, OpenDocument> openDocuments = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CampAnalysisSnapshot> diagnosticSnapshots = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, CampAnalysisSnapshot> querySnapshots = new(StringComparer.OrdinalIgnoreCase);
+	readonly Dictionary<string, CachedQueryService> queryServiceCache = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, int?> latestRequestedDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, int?> latestCompletedDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
 	readonly Dictionary<string, int?> inFlightDiagnosticVersions = new(StringComparer.OrdinalIgnoreCase);
@@ -286,6 +287,7 @@ public sealed class CampLspWorkspace
 			openDocuments.Remove(path);
 			diagnosticSnapshots.Remove(path);
 			querySnapshots.Remove(path);
+			queryServiceCache.Remove(path);
 			latestRequestedDiagnosticVersions.Remove(path);
 			latestCompletedDiagnosticVersions.Remove(path);
 			inFlightDiagnosticVersions.Remove(path);
@@ -323,7 +325,10 @@ public sealed class CampLspWorkspace
 			latestCompletedDiagnosticVersions[path] = document.Version;
 			inFlightDiagnosticVersions.Remove(path);
 			if (snapshot.Success)
+			{
 				querySnapshots[path] = snapshot;
+				queryServiceCache.Remove(path);
+			}
 		}
 		trace.Write("analysis.complete",
 			("file", path),
@@ -421,7 +426,10 @@ public sealed class CampLspWorkspace
 			latestCompletedDiagnosticVersions[path] = document.Version;
 			inFlightDiagnosticVersions.Remove(path);
 			if (snapshot.Success)
+			{
 				querySnapshots[path] = snapshot;
+				queryServiceCache.Remove(path);
+			}
 		}
 		trace.Write("analysis.complete",
 			("file", path),
@@ -451,7 +459,7 @@ public sealed class CampLspWorkspace
 			trace.Write("query.hover", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return null;
 		}
-		CampHover? result = new CampSymbolQueryService(snapshot!).GetHover(path, position);
+		CampHover? result = GetQueryService(path, snapshot!).Service.GetHover(path, position);
 		trace.Write("query.hover", ("file", path), ("snapshot", "query"), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
@@ -464,7 +472,7 @@ public sealed class CampLspWorkspace
 			trace.Write("query.definition", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return null;
 		}
-		CampSymbolLocation? result = new CampSymbolQueryService(snapshot!).GetDefinition(path, position);
+		CampSymbolLocation? result = GetQueryService(path, snapshot!).Service.GetDefinition(path, position);
 		trace.Write("query.definition", ("file", path), ("snapshot", "query"), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
@@ -477,7 +485,7 @@ public sealed class CampLspWorkspace
 			trace.Write("query.references", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return [];
 		}
-		IReadOnlyList<CampReference> result = new CampSymbolQueryService(snapshot!).GetReferences(path, position, includeDeclaration);
+		IReadOnlyList<CampReference> result = GetQueryService(path, snapshot!).Service.GetReferences(path, position, includeDeclaration);
 		trace.Write("query.references", ("file", path), ("snapshot", "query"), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
@@ -490,7 +498,7 @@ public sealed class CampLspWorkspace
 			trace.Write("query.signatureHelp", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return null;
 		}
-		CampSignatureHelp? result = new CampSymbolQueryService(snapshot!).GetSignatureHelp(path, position, document?.Text);
+		CampSignatureHelp? result = GetQueryService(path, snapshot!).Service.GetSignatureHelp(path, position, document?.Text);
 		trace.Write("query.signatureHelp", ("file", path), ("snapshot", "query"), ("hasResult", result is not null), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
@@ -504,7 +512,7 @@ public sealed class CampLspWorkspace
 			trace.Write("query.completion", ("file", path), ("snapshot", "fallback"), ("resultCount", fallback.Count), ("durationMs", ElapsedMilliseconds(start)));
 			return fallback;
 		}
-		IReadOnlyList<CampCompletionItem> result = new CampSymbolQueryService(snapshot!).GetCompletions(path, position, document?.Text);
+		IReadOnlyList<CampCompletionItem> result = GetQueryService(path, snapshot!).Service.GetCompletions(path, position, document?.Text);
 		trace.Write("query.completion", ("file", path), ("snapshot", "query"), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
@@ -517,7 +525,7 @@ public sealed class CampLspWorkspace
 			trace.Write("query.documentSymbols", ("file", path), ("snapshot", "missing"), ("durationMs", ElapsedMilliseconds(start)));
 			return [];
 		}
-		IReadOnlyList<CampDocumentSymbol> result = new CampSymbolQueryService(snapshot!).GetDocumentSymbols(path);
+		IReadOnlyList<CampDocumentSymbol> result = GetQueryService(path, snapshot!).GetDocumentSymbols(path);
 		trace.Write("query.documentSymbols", ("file", path), ("snapshot", "query"), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
 	}
@@ -525,11 +533,11 @@ public sealed class CampLspWorkspace
 	public IReadOnlyList<CampWorkspaceSymbol> GetWorkspaceSymbols(string query)
 	{
 		long start = Stopwatch.GetTimestamp();
-		List<CampAnalysisSnapshot> snapshotList;
+		List<(string Path, CampAnalysisSnapshot Snapshot)> snapshotList;
 		lock (gate)
-			snapshotList = querySnapshots.Values.ToList();
+			snapshotList = querySnapshots.Select(static pair => (pair.Key, pair.Value)).ToList();
 		IReadOnlyList<CampWorkspaceSymbol> result = snapshotList
-			.SelectMany(snapshot => new CampSymbolQueryService(snapshot).GetWorkspaceSymbols(query))
+			.SelectMany(pair => GetQueryService(pair.Path, pair.Snapshot).Service.GetWorkspaceSymbols(query))
 			.DistinctBy(static symbol => (symbol.Name, symbol.Kind, symbol.Location.Path, symbol.Location.Range.Start.Line, symbol.Location.Range.Start.Character))
 			.OrderBy(static symbol => symbol.Name, StringComparer.OrdinalIgnoreCase)
 			.ThenBy(static symbol => symbol.Location.Path, StringComparer.OrdinalIgnoreCase)
@@ -538,6 +546,26 @@ public sealed class CampLspWorkspace
 			.ToList();
 		trace.Write("query.workspaceSymbols", ("query", query), ("snapshotCount", snapshotList.Count), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
+	}
+
+	CachedQueryService GetQueryService(string path, CampAnalysisSnapshot snapshot)
+	{
+		lock (gate)
+		{
+			if (queryServiceCache.TryGetValue(path, out CachedQueryService? cached) && ReferenceEquals(cached.Snapshot, snapshot))
+				return cached;
+		}
+
+		long start = Stopwatch.GetTimestamp();
+		CachedQueryService created = new(snapshot);
+		lock (gate)
+		{
+			if (queryServiceCache.TryGetValue(path, out CachedQueryService? cached) && ReferenceEquals(cached.Snapshot, snapshot))
+				return cached;
+			queryServiceCache[path] = created;
+		}
+		trace.Write("queryService.build", ("file", path), ("durationMs", ElapsedMilliseconds(start)));
+		return created;
 	}
 
 	bool TryGetQuerySnapshot(DocumentUri uri, out string path, out OpenDocument? document, out CampAnalysisSnapshot? snapshot)
@@ -866,6 +894,36 @@ public sealed class CampLspWorkspace
 	sealed record OpenDocument(DocumentUri Uri, string Path, string Text, int? Version);
 
 	sealed record CompletionTextContext(string Prefix, bool IsMember);
+
+	sealed class CachedQueryService
+	{
+		readonly Dictionary<string, IReadOnlyList<CampDocumentSymbol>> documentSymbols = new(StringComparer.OrdinalIgnoreCase);
+		readonly object gate = new();
+
+		public CachedQueryService(CampAnalysisSnapshot snapshot)
+		{
+			Snapshot = snapshot;
+			Service = new CampSymbolQueryService(snapshot);
+		}
+
+		public CampAnalysisSnapshot Snapshot { get; }
+
+		public CampSymbolQueryService Service { get; }
+
+		public IReadOnlyList<CampDocumentSymbol> GetDocumentSymbols(string path)
+		{
+			string fullPath = Path.GetFullPath(path);
+			lock (gate)
+			{
+				if (!documentSymbols.TryGetValue(fullPath, out IReadOnlyList<CampDocumentSymbol>? symbols))
+				{
+					symbols = Service.GetDocumentSymbols(path);
+					documentSymbols[fullPath] = symbols;
+				}
+				return symbols;
+			}
+		}
+	}
 
 	static double ElapsedMilliseconds(long startTimestamp)
 	{
