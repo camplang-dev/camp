@@ -909,14 +909,14 @@ public sealed class LanguageServiceTests
 		Assert.Contains(completions, static item => item.Detail?.Contains("string value", StringComparison.Ordinal) == true);
 		CampCompletionItem compute = Assert.Single(completions, static item => item.Detail?.Contains("int value", StringComparison.Ordinal) == true);
 		Assert.True(compute.IsSnippet);
-		Assert.Contains("override int compute(overload int value)", compute.InsertText, StringComparison.Ordinal);
-		Assert.DoesNotContain("override override", compute.InsertText, StringComparison.Ordinal);
+		Assert.Contains("int compute(overload int value)", compute.InsertText, StringComparison.Ordinal);
+		Assert.DoesNotContain("override", compute.InsertText, StringComparison.Ordinal);
 		Assert.DoesNotContain("export", compute.InsertText, StringComparison.Ordinal);
 		Assert.DoesNotContain("virtual", compute.InsertText, StringComparison.Ordinal);
 		Assert.Contains("$0", compute.InsertText, StringComparison.Ordinal);
 		CampCompletionItem sealedCompute = Assert.Single(sealedCompletions, static item => item.Detail?.Contains("int value", StringComparison.Ordinal) == true);
-		Assert.Contains("sealed int compute(overload int value)", sealedCompute.InsertText, StringComparison.Ordinal);
-		Assert.DoesNotContain("sealed sealed", sealedCompute.InsertText, StringComparison.Ordinal);
+		Assert.Contains("int compute(overload int value)", sealedCompute.InsertText, StringComparison.Ordinal);
+		Assert.DoesNotContain("sealed", sealedCompute.InsertText, StringComparison.Ordinal);
 		Assert.DoesNotContain("export", sealedCompute.InsertText, StringComparison.Ordinal);
 		Assert.DoesNotContain("virtual", sealedCompute.InsertText, StringComparison.Ordinal);
 		Assert.DoesNotContain(completions, static item => item.Label is "interfaceOnly" or "helper" or "reset");

@@ -177,7 +177,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			return [];
 		CompletionContext context = GetCompletionContext(currentText ?? file.Text, position);
 		if (context.OverrideModifier is not null)
-			return GetOverrideCompletions(file, position, currentText ?? file.Text, context.OverrideModifier)
+			return GetOverrideCompletions(file, position, currentText ?? file.Text)
 				.OrderBy(static item => item.Label, StringComparer.OrdinalIgnoreCase)
 				.ThenBy(static item => item.Detail, StringComparer.OrdinalIgnoreCase)
 				.ToList();
@@ -260,7 +260,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return completions;
 	}
 
-	List<CampCompletionItem> GetOverrideCompletions(SourceFile file, CampTextPosition position, string text, string modifier)
+	List<CampCompletionItem> GetOverrideCompletions(SourceFile file, CampTextPosition position, string text)
 	{
 		ClassDefinition? containingClass = FindContainingClass(file, position, text);
 		if (containingClass is null)
@@ -276,7 +276,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			if (alreadyOverridden.Contains(identity))
 				continue;
 			string? signature = GetSignatureHelpLabel(inherited);
-			string? insertText = CreateOverrideSnippet(inherited, modifier);
+			string? insertText = CreateOverrideSnippet(inherited);
 			if (string.IsNullOrWhiteSpace(signature) || string.IsNullOrWhiteSpace(insertText))
 				continue;
 			completions.Add(new CampCompletionItem(
@@ -364,13 +364,13 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return !string.IsNullOrWhiteSpace(name) && name!.StartsWith("~", StringComparison.Ordinal);
 	}
 
-	static string? CreateOverrideSnippet(FunctionDefinition function, string modifier)
+	static string? CreateOverrideSnippet(FunctionDefinition function)
 	{
 		string? signature = GetSignatureHelpLabel(function);
 		if (string.IsNullOrWhiteSpace(signature))
 			return null;
 		signature = StripOverrideSnippetModifiers(signature!.Trim());
-		return modifier + " " + signature + "\n{\n\t$0\n}";
+		return signature + "\n{\n\t$0\n}";
 	}
 
 	static string StripOverrideSnippetModifiers(string signature)

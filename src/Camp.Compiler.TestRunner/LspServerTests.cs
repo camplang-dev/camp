@@ -470,7 +470,8 @@ public sealed class LspServerTests
 		JsonNode item = Assert.Single(CompletionItems(completion), item => item?["label"]?.GetValue<string>() == "compute")!;
 		Assert.Equal(2, item["kind"]?.GetValue<int>());
 		Assert.Equal(2, item["insertTextFormat"]?.GetValue<int>());
-		Assert.Contains("override int compute(overload int value)", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.Contains("int compute(overload int value)", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.DoesNotContain("override", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.DoesNotContain("export", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.DoesNotContain("virtual", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.Contains("$0", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
@@ -491,10 +492,10 @@ public sealed class LspServerTests
 
 		JsonNode sealedItem = Assert.Single(CompletionItems(sealedCompletion), item => item?["label"]?.GetValue<string>() == "compute")!;
 		Assert.Equal(2, sealedItem["insertTextFormat"]?.GetValue<int>());
-		Assert.Contains("sealed int compute(overload int value)", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.Contains("int compute(overload int value)", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.DoesNotContain("sealed", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.DoesNotContain("export", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.DoesNotContain("virtual", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
-		Assert.DoesNotContain("sealed sealed", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 	}
 
 	[Fact]
