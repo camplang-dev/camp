@@ -1,0 +1,1 @@
+tests/Diagnostics/missing_return_value_invalid.camp(1,5): error: Function 'calculate' does not return a value on all paths.

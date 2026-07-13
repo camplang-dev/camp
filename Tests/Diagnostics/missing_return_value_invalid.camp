@@ -1,0 +1,5 @@
+int calculate(bool flag)
+{
+	if (flag)
+		return 1;
+}

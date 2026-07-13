@@ -25,7 +25,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (state.Reachable)
 		{
 			if (FunctionRequiresReturn(function))
-				Report(GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Function '{function.Name}' does not return a value on all paths.");
+				Report(GetNameRange(function) ?? GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Function '{function.Name}' does not return a value on all paths.");
 
 			CheckStructConstructorFieldsAssigned(state, function.Body.SourceSyntax ?? function.SourceSyntax, "before constructor exits");
 			CheckOutParametersAssigned(function, state, function.Body.SourceSyntax ?? function.SourceSyntax);
