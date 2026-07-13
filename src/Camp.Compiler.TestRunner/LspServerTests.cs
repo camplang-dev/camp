@@ -420,7 +420,7 @@ public sealed class LspServerTests
 		string valid = """
 			virtual class Base
 			{
-				virtual int compute(overload int value)
+				export virtual int compute(overload int value)
 				{
 					return 0;
 				}
@@ -433,7 +433,7 @@ public sealed class LspServerTests
 		string broken = """
 			virtual class Base
 			{
-				virtual int compute(overload int value)
+				export virtual int compute(overload int value)
 				{
 					return 0;
 				}
@@ -471,7 +471,30 @@ public sealed class LspServerTests
 		Assert.Equal(2, item["kind"]?.GetValue<int>());
 		Assert.Equal(2, item["insertTextFormat"]?.GetValue<int>());
 		Assert.Contains("override int compute(overload int value)", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.DoesNotContain("export", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.DoesNotContain("virtual", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.Contains("$0", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+
+		string sealedBroken = broken.Replace("override ", "sealed ", StringComparison.Ordinal);
+		lsp.Notify("textDocument/didChange", new
+		{
+			textDocument = new { uri, version = 3 },
+			contentChanges = new[] { new { text = sealedBroken } }
+		});
+		CampTextPosition sealedPosition = PositionAfterLast(sealedBroken, "sealed ");
+		JsonNode sealedCompletion = lsp.Request("textDocument/completion", new
+		{
+			textDocument = new { uri },
+			position = new { line = sealedPosition.Line, character = sealedPosition.Character },
+			context = new { triggerKind = 2, triggerCharacter = " " }
+		});
+
+		JsonNode sealedItem = Assert.Single(CompletionItems(sealedCompletion), item => item?["label"]?.GetValue<string>() == "compute")!;
+		Assert.Equal(2, sealedItem["insertTextFormat"]?.GetValue<int>());
+		Assert.Contains("sealed int compute(overload int value)", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.DoesNotContain("export", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.DoesNotContain("virtual", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.DoesNotContain("sealed sealed", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 	}
 
 	[Fact]

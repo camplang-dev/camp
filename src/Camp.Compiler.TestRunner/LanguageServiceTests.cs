@@ -842,11 +842,11 @@ public sealed class LanguageServiceTests
 
 			virtual class Base
 			{
-				virtual int compute(overload int value)
+				export virtual int compute(overload int value)
 				{
 					return 0;
 				}
-				virtual int compute(overload string value)
+				export virtual int compute(overload string value)
 				{
 					return 0;
 				}
@@ -873,11 +873,11 @@ public sealed class LanguageServiceTests
 
 			virtual class Base
 			{
-				virtual int compute(overload int value)
+				export virtual int compute(overload int value)
 				{
 					return 0;
 				}
-				virtual int compute(overload string value)
+				export virtual int compute(overload string value)
 				{
 					return 0;
 				}
@@ -900,6 +900,8 @@ public sealed class LanguageServiceTests
 		CampSymbolQueryService symbols = new(snapshot);
 
 		IReadOnlyList<CampCompletionItem> completions = symbols.GetCompletions(source, PositionAfter(currentText, "override "), currentText, requireFinallyForWhitespaceTrigger: true);
+		string sealedText = currentText.Replace("override ", "sealed ", StringComparison.Ordinal);
+		IReadOnlyList<CampCompletionItem> sealedCompletions = symbols.GetCompletions(source, PositionAfterLast(sealedText, "sealed "), sealedText, requireFinallyForWhitespaceTrigger: true);
 
 		Assert.Equal(2, completions.Count);
 		Assert.Equal(2, completions.Count(static item => item.Label == "compute"));
@@ -908,7 +910,15 @@ public sealed class LanguageServiceTests
 		CampCompletionItem compute = Assert.Single(completions, static item => item.Detail?.Contains("int value", StringComparison.Ordinal) == true);
 		Assert.True(compute.IsSnippet);
 		Assert.Contains("override int compute(overload int value)", compute.InsertText, StringComparison.Ordinal);
+		Assert.DoesNotContain("override override", compute.InsertText, StringComparison.Ordinal);
+		Assert.DoesNotContain("export", compute.InsertText, StringComparison.Ordinal);
+		Assert.DoesNotContain("virtual", compute.InsertText, StringComparison.Ordinal);
 		Assert.Contains("$0", compute.InsertText, StringComparison.Ordinal);
+		CampCompletionItem sealedCompute = Assert.Single(sealedCompletions, static item => item.Detail?.Contains("int value", StringComparison.Ordinal) == true);
+		Assert.Contains("sealed int compute(overload int value)", sealedCompute.InsertText, StringComparison.Ordinal);
+		Assert.DoesNotContain("sealed sealed", sealedCompute.InsertText, StringComparison.Ordinal);
+		Assert.DoesNotContain("export", sealedCompute.InsertText, StringComparison.Ordinal);
+		Assert.DoesNotContain("virtual", sealedCompute.InsertText, StringComparison.Ordinal);
 		Assert.DoesNotContain(completions, static item => item.Label is "interfaceOnly" or "helper" or "reset");
 	}
 
@@ -1146,6 +1156,26 @@ public sealed class LanguageServiceTests
 	{
 		CampTextPosition position = PositionOf(text, marker);
 		return new CampTextPosition(position.Line, position.Character + marker.Length);
+	}
+
+	static CampTextPosition PositionAfterLast(string text, string marker)
+	{
+		int index = text.LastIndexOf(marker, StringComparison.Ordinal);
+		if (index < 0)
+			throw new InvalidOperationException($"Marker '{marker}' was not found.");
+		int line = 0;
+		int character = 0;
+		for (int i = 0; i < index + marker.Length; i++)
+		{
+			if (text[i] == '\n')
+			{
+				line++;
+				character = 0;
+			}
+			else
+				character++;
+		}
+		return new CampTextPosition(line, character);
 	}
 
 	static int[] ReferenceLines(IReadOnlyList<CampReference> references)
