@@ -942,6 +942,75 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_uses_package_sources_before_stale_package_api_headers()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-package-source-freshness");
+		string appRoot = Path.Combine(root, "app");
+		string appSource = Path.Combine(appRoot, "src");
+		string packageSource = Path.Combine(root, "package-source", "ext-win32", "live", "src");
+		string packageApi = Path.Combine(appRoot, "cache", "pkg", "ext-win32", "live", "bin", ArtifactDirectoryForTarget(CompilerDefaults.TargetName, NativeBuildKind.Static), "ext-win32_api.camp");
+		Directory.CreateDirectory(appSource);
+		Directory.CreateDirectory(packageSource);
+		Directory.CreateDirectory(Path.GetDirectoryName(packageApi)!);
+		File.WriteAllText(Path.Combine(packageSource, "win32.camp"), """
+			export as Win32;
+
+			export inline int OLD_DECL = 1;
+			export inline int NEW_DECL = 2;
+			""");
+		File.WriteAllText(packageApi, """
+			export as Win32;
+
+			export inline int OLD_DECL = 1;
+			""");
+		File.WriteAllText(Path.Combine(appRoot, "app.campbuild"), $$"""
+			--artifact exec
+			--nostdlib
+			--use-source local "{{Path.Combine(root, "package-source").Replace('\\', '/')}}"
+			--use ext-win32:static
+			src/*.camp
+			""");
+		string file = Path.Combine(appSource, "main.camp");
+		string text = """
+			using Win32;
+
+			export int main()
+			{
+				return OLD_DECL + NEW_DECL;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(appRoot);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+
+		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+		Assert.Empty(diagnostics["params"]?["diagnostics"]?.AsArray()!);
+
+		CampTextPosition oldPosition = PositionOf(text, "OLD_DECL +");
+		JsonNode oldDefinition = lsp.Request("textDocument/definition", new
+		{
+			textDocument = new { uri },
+			position = new { line = oldPosition.Line, character = oldPosition.Character }
+		});
+		CampTextPosition newPosition = PositionOf(text, "NEW_DECL;");
+		JsonNode newDefinition = lsp.Request("textDocument/definition", new
+		{
+			textDocument = new { uri },
+			position = new { line = newPosition.Line, character = newPosition.Character }
+		});
+
+		Assert.EndsWith("win32.camp", oldDefinition["result"]?["uri"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.EndsWith("win32.camp", newDefinition["result"]?["uri"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.DoesNotContain("_api.camp", oldDefinition["result"]?["uri"]?.GetValue<string>(), StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Lsp_build_file_can_disable_standard_library()
 	{
 		using LspProcess lsp = LspProcess.Start();

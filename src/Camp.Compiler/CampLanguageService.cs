@@ -108,13 +108,18 @@ public static class CampLanguageService
 		(string packageName, string? requestedVersion, DependencyLinkKind? linkKind) = ParsePackageSpec(packageSpec);
 		if (string.IsNullOrWhiteSpace(packageName) || string.Equals(packageName, "std", StringComparison.OrdinalIgnoreCase))
 			return;
+		IReadOnlyList<string> sources = GetAnalysisExternalPackageSources(request, packageName, requestedVersion);
+		if (sources.Count > 0)
+		{
+			foreach (string source in sources)
+				AddIfMissing(includes, source, isApiHeader: false);
+			return;
+		}
 		if (TryGetCachedExternalPackageApiHeader(request, packageName, requestedVersion, linkKind, out string? apiHeader))
 		{
 			AddIfMissing(includes, apiHeader!, isApiHeader: true);
 			return;
 		}
-		foreach (string source in GetAnalysisExternalPackageSources(request, packageName, requestedVersion))
-			AddIfMissing(includes, source, isApiHeader: false);
 	}
 
 	static bool TryGetCachedPackageApiHeader(CompilerRequest request, string packageName, out string? apiHeader)
