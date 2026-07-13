@@ -2599,7 +2599,8 @@ public sealed class CommandLineTests
 
 	static bool ClangWasiAvailable()
 	{
-		if (!ToolAvailable("clang"))
+		string clang = "/opt/wasi-sdk/bin/clang";
+		if (!File.Exists(clang))
 			return false;
 
 		string root = TempPath("clang-wasi-smoke");
@@ -2607,7 +2608,7 @@ public sealed class CommandLineTests
 		string source = Path.Combine(root, "main.c");
 		string output = Path.Combine(root, "main.wasm");
 		File.WriteAllText(source, "int main(void) { return 0; }\n");
-		ProcessResult result = RunProcess("clang", ["--target=wasm32-wasi", source, "-o", output], root);
+		ProcessResult result = RunProcess(clang, ["--target=wasm32-wasi", source, "-o", output], root);
 		return result.ExitCode == 0 && File.Exists(output);
 	}
 
