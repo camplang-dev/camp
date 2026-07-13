@@ -1,0 +1,3 @@
+@notsupported("Unavailable here.")
+export extern void unavailableApi();
+export extern void availableApi();

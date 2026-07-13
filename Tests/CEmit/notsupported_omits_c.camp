@@ -1,0 +1,8 @@
+@notsupported("Unavailable here.")
+export void unavailableC()
+{
+}
+
+export void availableC()
+{
+}

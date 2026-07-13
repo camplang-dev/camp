@@ -1,0 +1,1 @@
+tests/Diagnostics/notsupported_invalid.camp(6,1): error: @notsupported is valid only on functions and methods, not on this declaration.

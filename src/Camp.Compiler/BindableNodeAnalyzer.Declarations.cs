@@ -77,6 +77,8 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeDefinition(Definition definition, AnalysisScope parentScope)
 	{
 		AnalyzeAttributes(definition.Attributes);
+		if (definition is not FunctionDefinition)
+			ValidateUnsupportedAttributePlacement(definition);
 
 		switch (definition)
 		{
@@ -278,6 +280,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeAliasDefinition(AliasDefinition definition)
 	{
 		AnalyzeAttributes(definition.Attributes);
+		ValidateUnsupportedAttributePlacement(definition);
 		ApplySymbolAttribute(definition, allowed: false, "alias");
 		definition.ResolvedType = definition.TargetKind.ToString();
 	}
@@ -735,6 +738,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (GenericParameter parameter in parameters)
 		{
 			AnalyzeAttributes(parameter.Attributes);
+			ValidateUnsupportedAttributePlacement(parameter, "generic parameters");
 			parameter.ResolvedType = parameter.Name;
 			CheckName(parameter.Name, GetGenericParameterNameRange(parameter.SourceSyntax), "generic parameter");
 
@@ -754,6 +758,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeVariableDefinition(VariableDefinition definition, AnalysisScope scope, bool allowSymbolAttribute = true)
 	{
 		AnalyzeAttributes(definition.Attributes);
+		ValidateUnsupportedAttributePlacement(definition);
 		ApplySymbolAttribute(definition, allowSymbolAttribute, allowSymbolAttribute ? "variable" : "enum value");
 		CheckName(definition.Name, GetNameRange(definition), "variable");
 		AnalyzeOutOfScopeMemberOwner(definition);
@@ -809,6 +814,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeFieldDefinition(FieldDefinition definition, AnalysisScope scope, TypeDefinition? containingType)
 	{
 		AnalyzeAttributes(definition.Attributes);
+		ValidateUnsupportedAttributePlacement(definition);
 		if (definition.IsInline)
 			definition.Modifier = FieldModifier.Static;
 		if (definition.Modifier == FieldModifier.Static && containingType is not null)
@@ -957,6 +963,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType)
 	{
 		AnalyzeAttributes(definition.Attributes);
+		ValidateUnsupportedFunctionAttribute(definition);
 		BindAsyncImplementationAttributes(definition, containingType);
 		ApplySymbolAttribute(definition, allowed: true, "function");
 		CheckName(definition.Name.TrimStart('~'), GetNameRange(definition), "function");
@@ -1208,6 +1215,36 @@ public sealed partial class BindableNodeAnalyzer
 				return attribute.SourceSyntax is null ? null : GetRange(attribute.SourceSyntax);
 		}
 		return null;
+	}
+
+	void ValidateUnsupportedAttributePlacement(BindableNode node, string targetDescription = "this declaration")
+	{
+		IEnumerable<AttributeConstructor> attributes = node is ParameterDefinition parameter
+			? parameter.Attributes
+			: node is GenericParameter generic
+				? generic.Attributes
+				: node is Definition definition
+					? definition.Attributes
+					: [];
+		foreach (AttributeConstructor attribute in attributes)
+			if (UnsupportedAvailability.IsUnsupportedAttribute(attribute))
+				Report(GetRange(attribute.SourceSyntax ?? node.SourceSyntax), $"@notsupported is valid only on functions and methods, not on {targetDescription}.");
+	}
+
+	void ValidateUnsupportedFunctionAttribute(FunctionDefinition definition)
+	{
+		if (!UnsupportedAvailability.TryGetAttribute(definition.Attributes, out AttributeConstructor? attribute) || attribute is null)
+			return;
+
+		if (definition.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor || definition.Name.StartsWith("~", StringComparison.Ordinal))
+			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@notsupported is not valid on constructors or destructors.");
+		if (attribute.Arguments.Count > 1)
+			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@notsupported accepts at most one string reason.");
+		if (attribute.Arguments.Count == 1 && attribute.Arguments[0].Value is not LiteralExpression { Value: string })
+			Report(GetRange(attribute.Arguments[0].SourceSyntax ?? attribute.SourceSyntax ?? definition.SourceSyntax), "@notsupported reason must be a string literal.");
+		foreach (ArgumentExpression argument in attribute.Arguments)
+			if (!string.IsNullOrWhiteSpace(argument.Name))
+				Report(GetRange(argument.SourceSyntax ?? attribute.SourceSyntax ?? definition.SourceSyntax), "@notsupported does not accept named arguments.");
 	}
 
 	void FinalizeThisReturnType(FunctionDefinition definition, string? containingType)
@@ -1695,6 +1732,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeFunctionMethodBody(FunctionDefinition definition, AnalysisScope parentScope, TypeDefinition? containingType)
 	{
+		if (UnsupportedAvailability.IsUnsupported(definition))
+			return;
+
 		AnalysisScope scope = new(parentScope);
 		foreach (GenericParameter parameter in definition.GenericParameters)
 			scope.GenericParameters[parameter.Name] = parameter;
@@ -1705,6 +1745,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeParameterDefinition(ParameterDefinition definition, AnalysisScope scope, bool allowThisName = false, bool asyncContext = false)
 	{
 		AnalyzeAttributes(definition.Attributes);
+		ValidateUnsupportedAttributePlacement(definition, "parameters");
 		ApplySymbolAttribute(definition, allowed: false, "parameter");
 
 		if (definition is WithinParameterDefinition && definition.Type is null)

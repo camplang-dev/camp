@@ -79,6 +79,9 @@ export struct FileOptions
 	bool allowSharedWrite;
 }
 
+#if NO_FILES
+@notsupported("The current target does not support file handles.")
+#endif
 bool FileHandle_readFd(void* context, nuint* readCount, byte* buffer, nuint buffer_length)
 {
 	FileHandle handle = (FileHandle)(nint)context;
@@ -90,6 +93,9 @@ bool FileHandle_readFd(void* context, nuint* readCount, byte* buffer, nuint buff
 	return true;
 }
 
+#if NO_FILES
+@notsupported("The current target does not support file handles.")
+#endif
 bool FileHandle_writeFd(void* context, nuint* written, byte* buffer, nuint buffer_length)
 {
 	FileHandle handle = (FileHandle)(nint)context;
@@ -108,6 +114,9 @@ export newtype FileHandle: nint
 	/// Closing an invalid or already-closed handle is ignored. Errors reported
 	/// by the underlying platform close operation are intentionally discarded,
 	/// making this method suitable for `finally close()` cleanup.
+#if NO_FILES
+	@notsupported("The current target does not support file handles.")
+#endif
 	export void close()
 	{
 		if ((nint)this > 0)
@@ -117,6 +126,9 @@ export newtype FileHandle: nint
 		}
 	}
 	
+#if NO_FILES
+	@notsupported("The current target does not support file handles.")
+#endif
 	export static FileHandle open(string path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError error)
 	{
 		nint fileHandle = camp_io_file_open(path, FileHandle_access(access), FileHandle_mode(mode), FileHandle_options(options), out error);
@@ -127,6 +139,9 @@ export newtype FileHandle: nint
 		return (FileHandle)fileHandle;
 	}
 	
+#if NO_FILES
+	@notsupported("The current target does not support file handles.")
+#endif
 	export ulong getLength(thrown IoError error)
 	{
 		long current = camp_io_file_seek((nint)this, 0, CAMP_IO_SEEK_CURRENT, out error);
@@ -141,6 +156,9 @@ export newtype FileHandle: nint
 		return (ulong)length;
 	}
 	
+#if NO_FILES
+	@notsupported("The current target does not support file handles.")
+#endif
 	export ulong getPosition(thrown IoError error)
 	{
 		long position = camp_io_file_seek((nint)this, 0, CAMP_IO_SEEK_CURRENT, out error);
@@ -150,6 +168,9 @@ export newtype FileHandle: nint
 		return (ulong)position;
 	}
 	
+#if NO_FILES
+	@notsupported("The current target does not support file handles.")
+#endif
 	export void setPosition(ulong value, thrown IoError error)
 	{
 		if (camp_io_file_seek((nint)this, (long)value, CAMP_IO_SEEK_BEGIN, out error) < 0)
@@ -157,6 +178,9 @@ export newtype FileHandle: nint
 		error = default;
 	}
 
+#if NO_FILES
+	@notsupported("The current target does not support file handles.")
+#endif
 	export void read(byte[] buffer, out nuint readCount, thrown IoError error)
 	{
 		nint result = camp_io_file_read((nint)this, (void*)buffer.elements, buffer.length, out error);
@@ -166,6 +190,9 @@ export newtype FileHandle: nint
 		error = default;
 	}
 	
+#if NO_FILES
+	@notsupported("The current target does not support file handles.")
+#endif
 	export void write(const byte[] buffer, thrown IoError error)
 	{
 		nuint offset = 0;
@@ -183,22 +210,34 @@ export newtype FileHandle: nint
 		error = default;
 	}
 	
+#if NO_FILES
+	@notsupported("The current target does not support file handles.")
+#endif
 	export ByteReader getByteReader()
 	{
 		return { FileHandle_readFd, (void*)(nint)this };
 	}
 	
+#if NO_FILES
+	@notsupported("The current target does not support file handles.")
+#endif
 	export CharReader getCharReader()
 	{
 		ByteReader byteReader = this.ByteReader;
 		return { (unsafe fn bool(void*, nuint*, char*, nuint))byteReader.call, byteReader.context };
 	}
 	
+#if NO_FILES
+	@notsupported("The current target does not support file handles.")
+#endif
 	export ByteWriter getByteWriter()
 	{
 		return { FileHandle_writeFd, (void*)(nint)this };
 	}
 	
+#if NO_FILES
+	@notsupported("The current target does not support file handles.")
+#endif
 	export CharWriter getCharWriter()
 	{
 		ByteWriter byteWriter = this.ByteWriter;

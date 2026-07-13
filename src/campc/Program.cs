@@ -278,10 +278,12 @@ sealed class CampCli
 
 		ProcessStartInfo info = new()
 		{
-			FileName = executable,
+			FileName = Path.GetExtension(executable).Equals(".wasm", StringComparison.OrdinalIgnoreCase) ? "wasmtime" : executable,
 			WorkingDirectory = environment.WorkingDirectory,
 			UseShellExecute = false
 		};
+		if (Path.GetExtension(executable).Equals(".wasm", StringComparison.OrdinalIgnoreCase))
+			info.ArgumentList.Add(executable);
 		foreach (string argument in programArgs)
 			info.ArgumentList.Add(argument);
 

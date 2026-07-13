@@ -1,0 +1,40 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "notsupported_metadata"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "function:unavailableMetadata",
+      "kind": "function",
+      "name": "unavailableMetadata",
+      "visibility": "export",
+      "extern": true,
+      "availability": {
+        "supported": false,
+        "reason": "Unavailable here."
+      },
+      "returnType": "void",
+      "metadata": [
+        {
+          "name": "notsupported",
+          "content": "Unavailable here."
+        }
+      ]
+    },
+    {
+      "id": "function:availableMetadata",
+      "kind": "function",
+      "name": "availableMetadata",
+      "visibility": "export",
+      "extern": true,
+      "returnType": "void"
+    }
+  ]
+}

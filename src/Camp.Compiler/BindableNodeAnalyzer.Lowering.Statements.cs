@@ -64,6 +64,9 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in function.Parameters)
 			parameter.DefaultValue = LowerExpression(parameter.DefaultValue);
 
+		if (UnsupportedAvailability.IsUnsupported(function))
+			return;
+
 			Expression? previousWithinContext = currentWithinContext;
 			int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
 			FunctionDefinition? previousFunction = currentRewriteFunction;

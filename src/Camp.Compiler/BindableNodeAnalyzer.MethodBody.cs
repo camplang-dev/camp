@@ -2202,6 +2202,14 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			EnsureFunctionSignatureAnalyzed(function, typeScope);
 			callTargets[call] = function;
+			if (UnsupportedAvailability.IsUnsupported(function)
+				&& !UnsupportedAvailability.IsUnsupported(scope.CurrentFunction))
+			{
+				string message = $"Function '{function.Name}' is not supported by the current target.";
+				if (UnsupportedAvailability.TryGetReason(function, out string? reason) && !string.IsNullOrWhiteSpace(reason))
+					message += " " + reason;
+				Report(GetRange(GetCallTargetNameDiagnosticSyntax(call.Target) ?? call.SourceSyntax), message);
+			}
 			foreach (GenericParameter parameter in function.GenericParameters)
 				genericParameterNames.Add(parameter.Name);
 			if (FindContainingType(function) is TypeDefinition containingType)

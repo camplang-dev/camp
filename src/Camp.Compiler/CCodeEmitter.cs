@@ -476,6 +476,8 @@ public static class CCodeEmitter
 		{
 			if (property.Name is nameof(BindableNode.SourceSyntax) or nameof(Module.DefinitionSources) or nameof(Module.SourceWithinAllocationPolicies))
 				continue;
+			if (root is FunctionDefinition function && UnsupportedAvailability.IsUnsupported(function) && property.Name == nameof(FunctionDefinition.Body))
+				continue;
 
 			object? value = property.GetValue(root);
 			if (value is BindableNode child)
@@ -726,7 +728,7 @@ public static class CCodeEmitter
 			{
 				if (function.Extern is not null || function.Body is null)
 					continue;
-				if (function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor)
+				if (!ShouldEmitCFunction(function))
 					continue;
 				WriteFunctionDefinition(body, function, storage: PrivateFunctionStorage(function));
 				wrote = true;
@@ -1344,7 +1346,8 @@ public static class CCodeEmitter
 		static bool ShouldEmitCFunction(FunctionDefinition function)
 		{
 			return function.Modifier is not FunctionModifier.Constructor and not FunctionModifier.Destructor
-				&& !function.Name.StartsWith("~", StringComparison.Ordinal);
+				&& !function.Name.StartsWith("~", StringComparison.Ordinal)
+				&& !UnsupportedAvailability.IsUnsupported(function);
 		}
 
 		static string? PrivateFunctionStorage(FunctionDefinition function)

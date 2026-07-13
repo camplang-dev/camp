@@ -1,0 +1,15 @@
+@notsupported("No timers here.")
+void unavailable()
+{
+}
+
+void badCaller()
+{
+	unavailable();
+}
+
+@notsupported
+void unavailableCaller()
+{
+	unavailable();
+}

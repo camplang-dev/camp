@@ -358,6 +358,7 @@ public static class MetadataJsonSerializer
 
 		void WriteFunction(Utf8JsonWriter json, FunctionDefinition function)
 		{
+			WriteAvailability(json, function);
 			if (function.IteratorKind != IteratorKind.None)
 				json.WriteString("iterator", function.IteratorKind.ToString().ToLowerInvariant());
 			if (function.IsAsync)
@@ -395,6 +396,18 @@ public static class MetadataJsonSerializer
 				json.WriteEndArray();
 			}
 			WriteParameterArray(json, "parameters", function.Parameters);
+		}
+
+		void WriteAvailability(Utf8JsonWriter json, FunctionDefinition function)
+		{
+			if (!UnsupportedAvailability.TryGetAttribute(function.Attributes, out AttributeConstructor? attribute) || attribute is null)
+				return;
+
+			json.WriteStartObject("availability");
+			json.WriteBoolean("supported", false);
+			if (UnsupportedAvailability.GetReason(attribute) is string reason && !string.IsNullOrWhiteSpace(reason))
+				json.WriteString("reason", reason);
+			json.WriteEndObject();
 		}
 
 		void WriteInterfaceSlotInitializer(Utf8JsonWriter json, FunctionDefinition function)

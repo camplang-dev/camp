@@ -2108,6 +2108,13 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			_ => []
 		};
 		List<string> docs = [];
+		if (node is FunctionDefinition function && UnsupportedAvailability.TryGetReason(function, out string? reason))
+		{
+			string text = "Not supported by the current target.";
+			if (!string.IsNullOrWhiteSpace(reason))
+				text += " " + reason;
+			docs.Add(text);
+		}
 		foreach (AttributeConstructor attribute in attributes.Where(static attribute => AttributeName(attribute) is "summary" or "remarks"))
 		{
 			string? value = attribute.Arguments.FirstOrDefault()?.Value is LiteralExpression literal ? literal.Value?.ToString() : null;

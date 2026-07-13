@@ -1,0 +1,8 @@
+@notsupported("Unavailable here.")
+export void unavailableMetadata()
+{
+}
+
+export void availableMetadata()
+{
+}

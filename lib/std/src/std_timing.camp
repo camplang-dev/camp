@@ -8,6 +8,9 @@ export newtype TimerHandle: nint;
 
 /// Suspends the current thread for approximately the requested duration.
 /// - timeoutMs: The number of milliseconds to wait. A value of 0 returns immediately.
+#if NO_TIMERS
+@notsupported("The current target does not support timers or thread sleeping.")
+#endif
 export void sleep(nuint timeoutMs)
 {
 	timingSleepPlatform(timeoutMs);
@@ -20,6 +23,9 @@ export void sleep(nuint timeoutMs)
 /// async resumer that marshals continuations to that thread.
 /// - timeoutMs: The number of milliseconds to wait. A value of 0 completes immediately.
 /// - complete: The callback to invoke when the delay elapses.
+#if NO_TIMERS
+@notsupported("The current target does not support timers.")
+#endif
 export void sleepAsync(nuint timeoutMs, escaped once void() complete)
 {
 	if (timeoutMs == 0)
@@ -42,6 +48,9 @@ export void sleepAsync(nuint timeoutMs, escaped once void() complete)
 /// - intervalMs: The number of milliseconds between callback invocations. A value of 0 does not start a timer.
 /// - callback: The function to invoke for each tick.
 /// @returns A non-default handle when the timer starts successfully; otherwise `default`.
+#if NO_TIMERS
+@notsupported("The current target does not support timers.")
+#endif
 export TimerHandle startTimer(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
 {
 	return timingStartTimerPlatform(intervalMs, callback);
@@ -52,6 +61,9 @@ export TimerHandle startTimer(nuint intervalMs, escaped delegate void(TimerHandl
 /// Cancellation is cooperative. A callback that is already running may finish
 /// after this function returns.
 /// - handle: The timer handle returned by [startTimer].
+#if NO_TIMERS
+@notsupported("The current target does not support timers.")
+#endif
 export void stopTimer(TimerHandle handle)
 {
 	timingStopTimerPlatform(handle);
@@ -254,15 +266,24 @@ void timingStopTimerPlatform(TimerHandle handle)
 
 #else
 
+#if NO_TIMERS
+@notsupported("The current target does not support timers or thread sleeping.")
+#endif
 void timingSleepPlatform(nuint timeoutMs)
 {
 }
 
+#if NO_TIMERS
+@notsupported("The current target does not support timers.")
+#endif
 TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
 {
 	return default;
 }
 
+#if NO_TIMERS
+@notsupported("The current target does not support timers.")
+#endif
 void timingStopTimerPlatform(TimerHandle handle)
 {
 }

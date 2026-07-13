@@ -560,6 +560,59 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Wasi_target_runs_stdlib_executable_with_wasmtime_when_available()
+	{
+		if (!ToolAvailable("zig") || !ToolAvailable("wasmtime"))
+			Assert.Skip("Zig and Wasmtime are required for the local WASI smoke test.");
+		string source = CreateTempCase("wasi-std/main.camp", """
+			export int main()
+			{
+				Console.writeLine("hello wasi");
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"run",
+			source,
+			"--target",
+			"wasm32-wasi",
+			"--artifact",
+			"exec",
+			"--out-dir",
+			TempPath("wasi-std-out"));
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("hello wasi", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Wasi_target_rejects_calls_to_unsupported_std_apis()
+	{
+		string source = CreateTempCase("wasi-unsupported/main.camp", """
+			export int main()
+			{
+				sleep(1);
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--target",
+			"wasm32-wasi",
+			"--artifact",
+			"none",
+			"--out-dir",
+			TempPath("wasi-unsupported-out"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Function 'sleep' is not supported by the current target.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("The current target does not support timers or thread sleeping.", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Target_owned_define_is_rejected_from_cli_and_warns_in_source()
 	{
 		string sourceDefine = CreateTempCase("variant_source_define.camp", """

@@ -1,0 +1,1 @@
+tests/Diagnostics/notsupported_call_invalid.camp(8,2): error: Function 'unavailable' is not supported by the current target. No timers here.

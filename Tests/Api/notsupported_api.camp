@@ -1,0 +1,8 @@
+@notsupported("Unavailable here.")
+export void unavailableApi()
+{
+}
+
+export void availableApi()
+{
+}
