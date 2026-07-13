@@ -1332,7 +1332,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return TryGetSyntaxRange(call.SourceSyntax, out range);
 	}
 
-	static IEnumerable<FunctionDefinition> GetCallFunctions(CallExpression call, IReadOnlyList<FunctionDefinition> functions)
+	IEnumerable<FunctionDefinition> GetCallFunctions(CallExpression call, IReadOnlyList<FunctionDefinition> functions)
 	{
 		if (call.Target is MemberReferenceExpression member)
 		{
@@ -1344,7 +1344,8 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		}
 		if (call.Target is MemberExpression memberExpression)
 		{
-			foreach (FunctionDefinition candidate in functions.Where(function => FunctionNameMatches(function, memberExpression.Name) || function.Symbol.EndsWith("_" + memberExpression.Name, StringComparison.Ordinal)))
+			string? targetName = GetMemberExpressionTargetName(memberExpression);
+			foreach (FunctionDefinition candidate in functions.Where(function => FunctionMatchesCallContext(function, targetName, memberExpression.Name)))
 				yield return candidate;
 			yield break;
 		}
@@ -1359,6 +1360,15 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			foreach (FunctionDefinition candidate in functions.Where(function => FunctionNameMatches(function, named.Name) || function.Symbol == named.Name))
 				yield return candidate;
 		}
+	}
+
+	string? GetMemberExpressionTargetName(MemberExpression memberExpression)
+	{
+		if (!string.IsNullOrWhiteSpace(memberExpression.Target?.ResolvedType))
+			return BaseTypeName(UnwrapStorageType(memberExpression.Target.ResolvedType!));
+		if (memberExpression.Target is NamedExpression named && ResolveCompletionType(named.Name) is not null)
+			return named.Name;
+		return null;
 	}
 
 	CampSignatureHelp? GetSignatureHelpFromText(SourceFile file, string text, CampTextPosition position)

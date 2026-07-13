@@ -752,6 +752,19 @@ public sealed class LanguageServiceTests
 				auto pen = HPEN.create(1);
 			}
 			""";
+		string brokenCallText = """
+			newtype HPEN : nint;
+			newtype HBRUSH : nint;
+
+			static HPEN HPEN.create(overload int value, int color = 0) => default;
+			static HPEN HPEN.create(overload string value) => default;
+			static HBRUSH HBRUSH.create(int style) => default;
+
+			export void main()
+			{
+				auto pen = HPEN.create(
+			}
+			""";
 		File.WriteAllText(source, text);
 		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
 		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
@@ -759,6 +772,7 @@ public sealed class LanguageServiceTests
 
 		IReadOnlyList<CampCompletionItem> completions = symbols.GetCompletions(source, PositionAfter(currentText, "HPEN."), currentText);
 		CampSignatureHelp? signatureHelp = symbols.GetSignatureHelp(source, PositionAfter(text, "HPEN.create("), text);
+		CampSignatureHelp? brokenSignatureHelp = symbols.GetSignatureHelp(source, PositionAfter(brokenCallText, "HPEN.create("), brokenCallText);
 
 		CampCompletionItem completion = Assert.Single(completions, static item => item.Label == "create" && item.Kind == CampSymbolKind.Method);
 		Assert.Contains("2 overloads", completion.Detail, StringComparison.Ordinal);
@@ -766,6 +780,13 @@ public sealed class LanguageServiceTests
 		Assert.NotNull(signatureHelp);
 		Assert.Equal(2, signatureHelp!.Signatures.Count);
 		Assert.All(signatureHelp.Signatures, static signature =>
+		{
+			Assert.Contains("HPEN.create", signature.Label, StringComparison.Ordinal);
+			Assert.DoesNotContain("HBRUSH.create", signature.Label, StringComparison.Ordinal);
+		});
+		Assert.NotNull(brokenSignatureHelp);
+		Assert.Equal(2, brokenSignatureHelp!.Signatures.Count);
+		Assert.All(brokenSignatureHelp.Signatures, static signature =>
 		{
 			Assert.Contains("HPEN.create", signature.Label, StringComparison.Ordinal);
 			Assert.DoesNotContain("HBRUSH.create", signature.Label, StringComparison.Ordinal);
