@@ -562,8 +562,8 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Wasi_target_runs_stdlib_executable_with_wasmtime_when_available()
 	{
-		if (!ToolAvailable("zig") || !ToolAvailable("wasmtime"))
-			Assert.Skip("Zig and Wasmtime are required for the local WASI smoke test.");
+		if (!ClangWasiAvailable() || !ToolAvailable("wasmtime"))
+			Assert.Skip("Clang with WASI support and Wasmtime are required for the local WASI smoke test.");
 		string source = CreateTempCase("wasi-std/main.camp", """
 			export int main()
 			{
@@ -2594,6 +2594,20 @@ public sealed class CommandLineTests
 		string output = Path.Combine(root, "main");
 		File.WriteAllText(source, "int main(void) { return 0; }\n");
 		ProcessResult result = RunProcess("gcc", [architectureFlag, source, "-o", output], root);
+		return result.ExitCode == 0 && File.Exists(output);
+	}
+
+	static bool ClangWasiAvailable()
+	{
+		if (!ToolAvailable("clang"))
+			return false;
+
+		string root = TempPath("clang-wasi-smoke");
+		Directory.CreateDirectory(root);
+		string source = Path.Combine(root, "main.c");
+		string output = Path.Combine(root, "main.wasm");
+		File.WriteAllText(source, "int main(void) { return 0; }\n");
+		ProcessResult result = RunProcess("clang", ["--target=wasm32-wasi", source, "-o", output], root);
 		return result.ExitCode == 0 && File.Exists(output);
 	}
 
