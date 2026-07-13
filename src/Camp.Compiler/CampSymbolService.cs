@@ -1657,15 +1657,25 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 	{
 		List<ParameterDefinition> visible = GetVisibleCallParameters(function);
 		if (visible.Count < 2)
-			return visible;
+			return visible.Where(parameter => !IsGeneratedExpandedReturnParameter(function, parameter)).ToList();
 		List<ParameterDefinition> result = [];
 		foreach (ParameterDefinition parameter in visible)
 		{
+			if (IsGeneratedExpandedReturnParameter(function, parameter))
+				continue;
 			if (IsExpandedComponentParameter(result.LastOrDefault(), parameter))
 				continue;
 			result.Add(parameter);
 		}
 		return result;
+	}
+
+	static bool IsGeneratedExpandedReturnParameter(FunctionDefinition function, ParameterDefinition parameter)
+	{
+		return parameter.Modifier == ParameterModifier.Out
+			&& (parameter.SourceSyntax is null || parameter.SourceSyntax == function.SourceSyntax)
+			&& parameter.Name is string name
+			&& name.StartsWith("result_", StringComparison.Ordinal);
 	}
 
 	static bool IsExpandedComponentParameter(ParameterDefinition? previous, ParameterDefinition parameter)
@@ -1877,7 +1887,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return GetCleanSignature(definition);
 	}
 
-	static string? GetSignatureHelpLabel(FunctionDefinition function)
+	internal static string? FormatSignatureForLanguageService(FunctionDefinition function)
 	{
 		string? label = GetCleanSignature(function);
 		if (string.IsNullOrWhiteSpace(label))
@@ -1887,12 +1897,23 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return hiddenParameters.Count == 0 ? label : RemoveParametersFromSignatureLabel(label, hiddenParameters);
 	}
 
+	static string? GetSignatureHelpLabel(FunctionDefinition function)
+	{
+		return FormatSignatureForLanguageService(function);
+	}
+
 	static HashSet<string> GetHiddenSignatureHelpParameterNames(FunctionDefinition function)
 	{
 		HashSet<string> hidden = new(StringComparer.Ordinal);
 		List<ParameterDefinition> displayed = [];
 		foreach (ParameterDefinition parameter in GetVisibleCallParameters(function))
 		{
+			if (IsGeneratedExpandedReturnParameter(function, parameter))
+			{
+				if (!string.IsNullOrWhiteSpace(parameter.Name))
+					hidden.Add(parameter.Name);
+				continue;
+			}
 			if (IsExpandedComponentParameter(displayed.LastOrDefault(), parameter))
 			{
 				if (!string.IsNullOrWhiteSpace(parameter.Name))

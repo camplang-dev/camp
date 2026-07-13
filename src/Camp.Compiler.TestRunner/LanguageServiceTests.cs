@@ -197,6 +197,46 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_hides_expanded_return_parameters_in_display_signatures()
+	{
+		FunctionDefinition function = new()
+		{
+			Name = "getName",
+			Symbol = "getName",
+			ReturnType = new ArrayTypeReference
+			{
+				ElementType = new ConstTypeReference
+				{
+					Type = new PrimitiveTypeReference { Type = PrimitiveType.Char, ResolvedType = "char" },
+					ResolvedType = "const char"
+				},
+				ResolvedType = "const char[]"
+			},
+			ResolvedType = "const char[]"
+		};
+		function.Parameters.Add(new ParameterDefinition
+		{
+			Name = "index",
+			Symbol = "index",
+			Type = new PrimitiveTypeReference { Type = PrimitiveType.Int, ResolvedType = "int" },
+			ResolvedType = "int"
+		});
+		function.Parameters.Add(new ParameterDefinition
+		{
+			Name = "result_length",
+			Symbol = "result_length",
+			Modifier = ParameterModifier.Out,
+			Type = new PrimitiveTypeReference { Type = PrimitiveType.NUInt, ResolvedType = "nuint" },
+			ResolvedType = "nuint"
+		});
+
+		string? signature = CampSymbolQueryService.FormatSignatureForLanguageService(function);
+
+		Assert.Contains("const char[] getName(int index)", signature, StringComparison.Ordinal);
+		Assert.DoesNotContain("result_length", signature, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Symbol_query_finds_member_definitions()
 	{
 		string root = CreateTempDirectory("language-service-members");
