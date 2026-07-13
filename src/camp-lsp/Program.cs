@@ -1254,6 +1254,8 @@ public static class CampLsp
 			Label = item.Label,
 			Kind = ToLspCompletionItemKind(item.Kind),
 			Detail = item.Detail,
+			InsertText = item.InsertText,
+			InsertTextFormat = item.IsSnippet ? InsertTextFormat.Snippet : InsertTextFormat.PlainText,
 			Documentation = string.IsNullOrWhiteSpace(item.Documentation) ? null : new StringOrMarkupContent(new MarkupContent
 			{
 				Kind = MarkupKind.Markdown,

@@ -830,6 +830,89 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_returns_override_snippets_after_override_keyword()
+	{
+		string root = CreateTempDirectory("language-service-override-completion");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			interface Ignored
+			{
+				void interfaceOnly();
+			}
+
+			virtual class Base
+			{
+				virtual int compute(overload int value)
+				{
+					return 0;
+				}
+				virtual int compute(overload string value)
+				{
+					return 0;
+				}
+				virtual void reset(int value)
+				{
+				}
+				static void helper()
+				{
+				}
+			}
+
+			sealed class Derived: Base
+			{
+				override void reset(int value)
+				{
+				}
+			}
+			""";
+		string currentText = """
+			interface Ignored
+			{
+				void interfaceOnly();
+			}
+
+			virtual class Base
+			{
+				virtual int compute(overload int value)
+				{
+					return 0;
+				}
+				virtual int compute(overload string value)
+				{
+					return 0;
+				}
+				virtual void reset(int value)
+				{
+				}
+				static void helper()
+				{
+				}
+			}
+
+			sealed class Derived: Base
+			{
+				override /*caret*/
+			}
+			""".Replace("/*caret*/", " ", StringComparison.Ordinal);
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		IReadOnlyList<CampCompletionItem> completions = symbols.GetCompletions(source, PositionAfter(currentText, "override "), currentText, requireFinallyForWhitespaceTrigger: true);
+
+		Assert.Equal(2, completions.Count);
+		Assert.Equal(2, completions.Count(static item => item.Label == "compute"));
+		Assert.Contains(completions, static item => item.Detail?.Contains("int value", StringComparison.Ordinal) == true);
+		Assert.Contains(completions, static item => item.Detail?.Contains("string value", StringComparison.Ordinal) == true);
+		CampCompletionItem compute = Assert.Single(completions, static item => item.Detail?.Contains("int value", StringComparison.Ordinal) == true);
+		Assert.True(compute.IsSnippet);
+		Assert.Contains("override int compute(overload int value)", compute.InsertText, StringComparison.Ordinal);
+		Assert.Contains("$0", compute.InsertText, StringComparison.Ordinal);
+		Assert.DoesNotContain(completions, static item => item.Label is "interfaceOnly" or "helper" or "reset");
+	}
+
+	[Fact]
 	public void Analysis_does_not_auto_include_standard_api_when_opening_standard_api_header()
 	{
 		string root = CreateTempDirectory("language-service-open-std-api");

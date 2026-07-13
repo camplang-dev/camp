@@ -412,6 +412,69 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_completion_returns_override_snippets_after_override_keyword()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-override-completion");
+		string file = Path.Combine(root, "main.camp");
+		string valid = """
+			virtual class Base
+			{
+				virtual int compute(overload int value)
+				{
+					return 0;
+				}
+			}
+
+			sealed class Derived: Base
+			{
+			}
+			""";
+		string broken = """
+			virtual class Base
+			{
+				virtual int compute(overload int value)
+				{
+					return 0;
+				}
+			}
+
+			sealed class Derived: Base
+			{
+				override /*caret*/
+			}
+			""".Replace("/*caret*/", " ", StringComparison.Ordinal);
+		File.WriteAllText(file, valid);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text = valid }
+		});
+		lsp.ReadNotification("textDocument/publishDiagnostics");
+		lsp.Notify("textDocument/didChange", new
+		{
+			textDocument = new { uri, version = 2 },
+			contentChanges = new[] { new { text = broken } }
+		});
+
+		CampTextPosition completionPosition = PositionAfter(broken, "override ");
+		JsonNode completion = lsp.Request("textDocument/completion", new
+		{
+			textDocument = new { uri },
+			position = new { line = completionPosition.Line, character = completionPosition.Character },
+			context = new { triggerKind = 2, triggerCharacter = " " }
+		});
+
+		JsonNode item = Assert.Single(CompletionItems(completion), item => item?["label"]?.GetValue<string>() == "compute")!;
+		Assert.Equal(2, item["kind"]?.GetValue<int>());
+		Assert.Equal(2, item["insertTextFormat"]?.GetValue<int>());
+		Assert.Contains("override int compute(overload int value)", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.Contains("$0", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Lsp_completion_uses_lexical_fallback_before_first_successful_snapshot()
 	{
 		using LspProcess lsp = LspProcess.Start();

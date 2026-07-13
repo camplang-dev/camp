@@ -72,7 +72,9 @@ public sealed record CampCompletionItem(
 	string Label,
 	CampSymbolKind Kind,
 	string? Detail,
-	string? Documentation);
+	string? Documentation,
+	string? InsertText = null,
+	bool IsSnippet = false);
 
 public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 {
@@ -174,10 +176,15 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		if (file?.BindableTree is null)
 			return [];
 		CompletionContext context = GetCompletionContext(currentText ?? file.Text, position);
+		if (context.IsAfterOverride)
+			return GetOverrideCompletions(file, position, currentText ?? file.Text)
+				.OrderBy(static item => item.Label, StringComparer.OrdinalIgnoreCase)
+				.ThenBy(static item => item.Detail, StringComparer.OrdinalIgnoreCase)
+				.ToList();
 		List<CampCompletionItem> completions = context.IsMember
 			? GetMemberCompletions(file, context)
 			: GetScopeCompletions(file, position);
-		if (requireFinallyForWhitespaceTrigger && context.IsWhitespaceTrigger && !context.IsAfterFinally)
+		if (requireFinallyForWhitespaceTrigger && context.IsWhitespaceTrigger && !context.IsAfterFinally && !context.IsAfterOverride)
 			return [];
 		return CollapseCompletionOverloads(completions
 			.Where(item => context.Prefix.Length == 0 || item.Label.StartsWith(context.Prefix, StringComparison.OrdinalIgnoreCase))
@@ -251,6 +258,125 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		bool staticOnly = !string.IsNullOrWhiteSpace(context.MemberTargetText) && ResolveCompletionType(context.MemberTargetText) is not null;
 		CollectTypeMemberCompletions(file, type, completions, new HashSet<TypeDefinition>(ReferenceEqualityComparer.Instance), staticOnly);
 		return completions;
+	}
+
+	List<CampCompletionItem> GetOverrideCompletions(SourceFile file, CampTextPosition position, string text)
+	{
+		ClassDefinition? containingClass = FindContainingClass(file, position, text);
+		if (containingClass is null)
+			return [];
+		HashSet<string> alreadyOverridden = containingClass.Functions
+			.Where(static function => function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed)
+			.Select(static function => GetOverrideIdentity(function))
+			.ToHashSet(StringComparer.Ordinal);
+		List<CampCompletionItem> completions = [];
+		foreach (FunctionDefinition inherited in GetOverridableClassMembers(containingClass, new HashSet<ClassDefinition>(ReferenceEqualityComparer.Instance)))
+		{
+			string identity = GetOverrideIdentity(inherited);
+			if (alreadyOverridden.Contains(identity))
+				continue;
+			string? signature = GetSignatureHelpLabel(inherited);
+			string? insertText = CreateOverrideSnippet(inherited);
+			if (string.IsNullOrWhiteSpace(signature) || string.IsNullOrWhiteSpace(insertText))
+				continue;
+			completions.Add(new CampCompletionItem(
+				GetSurfaceFunctionName(inherited) ?? BindableNodeAnalyzer.GetCallableName(inherited),
+				CampSymbolKind.Method,
+				signature,
+				GetDeclarationDocumentation(inherited),
+				insertText,
+				IsSnippet: true));
+		}
+		return completions;
+	}
+
+	ClassDefinition? FindContainingClass(SourceFile file, CampTextPosition position, string text)
+	{
+		string? className = ResolveThisTypeFromText(text, position);
+		if (!string.IsNullOrWhiteSpace(className) && ResolveCompletionType(className) is ClassDefinition textClass)
+			return textClass;
+		ClassDefinition? result = null;
+		CampTextRange? resultRange = null;
+		foreach (SourceFile sourceFile in snapshot.Compilation.Files)
+		{
+			if (sourceFile.BindableTree is null)
+				continue;
+			foreach (ClassDefinition classDefinition in Descendants(sourceFile.BindableTree, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance)).OfType<ClassDefinition>())
+				if (TryGetNodeRange(classDefinition, out TokenRange range)
+					&& ReferenceEquals(file.Tokens, range.Sequence)
+					&& Contains(CampLanguageService.ToTextRange(range), position))
+				{
+					CampTextRange textRange = CampLanguageService.ToTextRange(range);
+					if (resultRange is null || SpanSize(textRange) < SpanSize(resultRange))
+					{
+						result = classDefinition;
+						resultRange = textRange;
+					}
+				}
+		}
+		if (result is not null)
+			return result;
+		return result;
+	}
+
+	static IEnumerable<BindableNode> Descendants(BindableNode node, HashSet<BindableNode> visited)
+	{
+		if (!visited.Add(node))
+			yield break;
+		yield return node;
+		foreach (BindableNode child in Children(node))
+			foreach (BindableNode descendant in Descendants(child, visited))
+				yield return descendant;
+	}
+
+	IEnumerable<FunctionDefinition> GetOverridableClassMembers(ClassDefinition classDefinition, HashSet<ClassDefinition> visited)
+	{
+		foreach (TypeReference baseType in classDefinition.BaseTypes)
+		{
+			if (ResolveCompletionType(baseType.ResolvedType ?? BindableNodeCodeSerializer.SerializeType(baseType)) is not ClassDefinition baseClass
+				|| !visited.Add(baseClass))
+				continue;
+			foreach (FunctionDefinition inherited in GetOverridableClassMembers(baseClass, visited))
+				yield return inherited;
+			foreach (FunctionDefinition function in baseClass.Functions)
+			{
+				if (function.Modifier is not FunctionModifier.Virtual and not FunctionModifier.Abstract)
+					continue;
+				if (function.Modifier is FunctionModifier.Sealed || function.Modifier is FunctionModifier.Static or FunctionModifier.Constructor or FunctionModifier.Destructor)
+					continue;
+				if (IsHiddenMemberCompletionFunction(function) || IsDestructorName(function.Name))
+					continue;
+				yield return function;
+			}
+		}
+	}
+
+	static string GetOverrideIdentity(FunctionDefinition function)
+	{
+		string name = BindableNodeAnalyzer.GetCallableName(function);
+		string parameters = string.Join("|", GetVisibleCallParameters(function).Select(static parameter =>
+			(parameter.IsOverloadSelector ? "overload " : "") + FormatParameterLabel(parameter)));
+		return name + "(" + parameters + ")";
+	}
+
+	static bool IsDestructorName(string? name)
+	{
+		return !string.IsNullOrWhiteSpace(name) && name!.StartsWith("~", StringComparison.Ordinal);
+	}
+
+	static string? CreateOverrideSnippet(FunctionDefinition function)
+	{
+		string? signature = GetSignatureHelpLabel(function);
+		if (string.IsNullOrWhiteSpace(signature))
+			return null;
+		signature = signature!.Trim();
+		if (signature.StartsWith("abstract ", StringComparison.Ordinal))
+			signature = signature["abstract ".Length..].TrimStart();
+		else if (signature.StartsWith("virtual ", StringComparison.Ordinal))
+			signature = signature["virtual ".Length..].TrimStart();
+		if (signature.StartsWith("override ", StringComparison.Ordinal))
+			signature = signature["override ".Length..].TrimStart();
+		return "override " + signature + "\n{\n\t$0\n}";
 	}
 
 	static IEnumerable<CampCompletionItem> GetKeywordCompletions()
@@ -2176,7 +2302,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 	{
 		string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
 		if (position.Line < 0 || position.Line >= lines.Length)
-			return new CompletionContext("", false, null, null, false, false);
+			return new CompletionContext("", false, null, null, false, false, false);
 		string line = lines[position.Line];
 		int cursor = Math.Clamp(position.Character, 0, line.Length);
 		int prefixStart = cursor;
@@ -2189,7 +2315,8 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		if (dot < 0 || line[dot] != '.')
 		{
 			bool isWhitespaceTrigger = cursor > 0 && char.IsWhiteSpace(line[cursor - 1]);
-			return new CompletionContext(prefix, false, null, null, isWhitespaceTrigger, isWhitespaceTrigger && PreviousWord(line, cursor) == "finally");
+			string? previousWord = isWhitespaceTrigger ? PreviousWord(line, cursor) : null;
+			return new CompletionContext(prefix, false, null, null, isWhitespaceTrigger, previousWord == "finally", previousWord == "override");
 		}
 		int targetEnd = dot;
 		while (targetEnd > 0 && char.IsWhiteSpace(line[targetEnd - 1]))
@@ -2198,8 +2325,8 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		while (targetStart > 0 && IsIdentifierPart(line[targetStart - 1]))
 			targetStart--;
 		if (targetStart == targetEnd)
-			return new CompletionContext(prefix, true, null, null, false, false);
-		return new CompletionContext(prefix, true, new CampTextPosition(position.Line, targetStart), line[targetStart..targetEnd], false, false);
+			return new CompletionContext(prefix, true, null, null, false, false, false);
+		return new CompletionContext(prefix, true, new CampTextPosition(position.Line, targetStart), line[targetStart..targetEnd], false, false, false);
 	}
 
 	static string? PreviousWord(string line, int cursor)
@@ -2576,5 +2703,6 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		CampTextPosition? MemberTargetPosition,
 		string? MemberTargetText,
 		bool IsWhitespaceTrigger,
-		bool IsAfterFinally);
+		bool IsAfterFinally,
+		bool IsAfterOverride);
 }
