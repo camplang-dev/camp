@@ -276,13 +276,14 @@ sealed class CampCli
 		if (executable is null)
 			return Error("run could not find the generated executable.");
 
+		string extension = Path.GetExtension(executable);
 		ProcessStartInfo info = new()
 		{
-			FileName = Path.GetExtension(executable).Equals(".wasm", StringComparison.OrdinalIgnoreCase) ? "wasmtime" : executable,
+			FileName = extension.Equals(".wasm", StringComparison.OrdinalIgnoreCase) ? "wasmtime" : extension.Equals(".js", StringComparison.OrdinalIgnoreCase) ? "node" : executable,
 			WorkingDirectory = environment.WorkingDirectory,
 			UseShellExecute = false
 		};
-		if (Path.GetExtension(executable).Equals(".wasm", StringComparison.OrdinalIgnoreCase))
+		if (extension.Equals(".wasm", StringComparison.OrdinalIgnoreCase) || extension.Equals(".js", StringComparison.OrdinalIgnoreCase))
 			info.ArgumentList.Add(executable);
 		foreach (string argument in programArgs)
 			info.ArgumentList.Add(argument);

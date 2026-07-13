@@ -613,6 +613,59 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Emscripten_target_runs_stdlib_executable_with_node_when_available()
+	{
+		if (!EmscriptenAvailable() || !ToolAvailable("node"))
+			Assert.Skip("Emscripten and Node are required for the local Emscripten smoke test.");
+		string source = CreateTempCase("emscripten-std/main.camp", """
+			export int main()
+			{
+				Console.writeLine("hello emscripten");
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"run",
+			source,
+			"--target",
+			"wasm32-emscripten",
+			"--artifact",
+			"exec",
+			"--out-dir",
+			TempPath("emscripten-std-out"));
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("hello emscripten", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Emscripten_target_rejects_calls_to_unsupported_std_apis()
+	{
+		string source = CreateTempCase("emscripten-unsupported/main.camp", """
+			export int main()
+			{
+				FileHandle handle = FileHandle.open("missing.txt", FileAccess.READ, FileMode.OPEN_EXISTING, catch _);
+				return handle == default ? 0 : 1;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--target",
+			"wasm32-emscripten",
+			"--artifact",
+			"none",
+			"--out-dir",
+			TempPath("emscripten-unsupported-out"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Function 'open' is not supported by the current target.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("The current target does not support file handles.", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Target_owned_define_is_rejected_from_cli_and_warns_in_source()
 	{
 		string sourceDefine = CreateTempCase("variant_source_define.camp", """
@@ -2610,6 +2663,21 @@ public sealed class CommandLineTests
 		File.WriteAllText(source, "int main(void) { return 0; }\n");
 		ProcessResult result = RunProcess(clang, ["--target=wasm32-wasi", source, "-o", output], root);
 		return result.ExitCode == 0 && File.Exists(output);
+	}
+
+	static bool EmscriptenAvailable()
+	{
+		string emcc = "/opt/emsdk/upstream/emscripten/emcc";
+		if (!File.Exists(emcc))
+			return false;
+
+		string root = TempPath("emcc-smoke");
+		Directory.CreateDirectory(root);
+		string source = Path.Combine(root, "main.c");
+		string output = Path.Combine(root, "main.js");
+		File.WriteAllText(source, "int main(void) { return 0; }\n");
+		ProcessResult result = RunProcess(emcc, [source, "-o", output], root);
+		return result.ExitCode == 0 && File.Exists(output) && File.Exists(Path.ChangeExtension(output, ".wasm"));
 	}
 
 	static bool ToolAvailable(string tool)
