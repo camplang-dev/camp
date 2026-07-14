@@ -240,6 +240,8 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		BodyScope scope = new(null, new FunctionDefinition { Name = "#constant", ResolvedType = ErrorType }, containingType: null);
+		if (context == "Parameter default value")
+			scope.AllowClassTypeNameOfDefaultValue = true;
 		BodyAnalyzeExpression(expression, scope, typeScope, targetType);
 		if (!IsConstant(expression))
 			Report(GetRange(expression.SourceSyntax), $"{context} must be a constant expression.");
@@ -5210,6 +5212,7 @@ public sealed partial class BindableNodeAnalyzer
 		public int ExplicitWithinContextDepth { get; set; } = parent?.ExplicitWithinContextDepth ?? 0;
 		public int NewDelegateLambdaDepth { get; set; } = parent?.NewDelegateLambdaDepth ?? 0;
 		public string? CurrentWithinContextLifetimeFact { get; set; } = parent?.CurrentWithinContextLifetimeFact;
+		public bool AllowClassTypeNameOfDefaultValue { get; set; } = parent?.AllowClassTypeNameOfDefaultValue ?? false;
 
 		public bool TryLookup(string name, out BodySymbol symbol)
 		{

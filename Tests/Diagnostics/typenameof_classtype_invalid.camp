@@ -1,0 +1,7 @@
+class Control
+{
+	string getName()
+	{
+		return typenameof(classtype);
+	}
+}

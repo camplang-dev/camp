@@ -67,6 +67,11 @@ public sealed partial class BindableNodeAnalyzer
 				expressionConstants[expression] = true;
 				return GetStringLiteralType(NameOfStringLiteral(name, expression.SourceSyntax), targetType);
 			}
+			if (reference is ClassDefinition && expression.Text.Trim() == "classtype" && !scope.AllowClassTypeNameOfDefaultValue)
+			{
+				Report(GetRange(expression.SourceSyntax), "typenameof(classtype) is valid only as a parameter default value.");
+				return ErrorType;
+			}
 			expression.Reference = reference;
 			expressionConstants[expression] = true;
 			return "string";

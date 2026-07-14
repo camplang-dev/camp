@@ -1,0 +1,1 @@
+tests/Diagnostics/typenameof_classtype_invalid.camp(5,10): error: typenameof(classtype) is valid only as a parameter default value.
