@@ -419,7 +419,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		if (FindContainingType(function) is TypeDefinition type)
-			function.Symbol = $"{type.Name}_{GetCallableName(function).TrimStart('~')}";
+			function.Symbol = $"{EffectiveTypeSymbol(type)}_{GetCallableName(function).TrimStart('~')}";
 	}
 
 	string BuildFlattenedFunctionValueType(FunctionDefinition function, string receiverType)

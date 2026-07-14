@@ -548,6 +548,7 @@ public static class CCodeEmitter
 		readonly HashSet<string> emittedNames = new(StringComparer.Ordinal);
 		readonly AbiSurface abiSurface = AbiSurface.Build(compilation);
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
+		readonly Dictionary<string, string> typeSymbols = BuildTypeSymbolMap(compilation);
 		readonly HashSet<string> interfaceNames = BuildInterfaceNameSet(compilation);
 		readonly HashSet<string> callableInterfaceNames = BuildCallableInterfaceNameSet(compilation);
 		readonly HashSet<string> genericParameterNames = BuildGenericParameterNameSet(compilation);
@@ -1568,6 +1569,17 @@ public static class CCodeEmitter
 					names.Add(sourceInterface.Name);
 			}
 			return names;
+		}
+
+		static Dictionary<string, string> BuildTypeSymbolMap(Compilation compilation)
+		{
+			Dictionary<string, string> symbols = new(StringComparer.Ordinal);
+			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+			{
+				if (definition is TypeDefinition type && !string.IsNullOrWhiteSpace(type.Name))
+					symbols[type.Name] = string.IsNullOrWhiteSpace(type.Symbol) ? type.Name : type.Symbol;
+			}
+			return symbols;
 		}
 
 		static HashSet<string> BuildAnyGenericParameterNameSet(Compilation compilation)
@@ -7645,6 +7657,8 @@ public static class CCodeEmitter
 			if (genericStart >= 0)
 				resolvedType = resolvedType[..genericStart];
 			resolvedType = EraseGenericParametersForCName(resolvedType);
+			if (typeSymbols.TryGetValue(RemoveTypeDecorators(resolvedType), out string? symbol))
+				return SanitizeIdentifier(symbol);
 			return resolvedType switch
 			{
 				"any" or "copyable" or "auto" or "#TARGET" => "void*",
@@ -7739,7 +7753,7 @@ public static class CCodeEmitter
 			if (!string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol != function.Name)
 				return SanitizeIdentifier(function.Symbol);
 			if (containingTypes.TryGetValue(function, out TypeDefinition? type))
-				return SanitizeIdentifier(type.Name + "_" + BindableNodeAnalyzer.GetCallableName(function).TrimStart('~'));
+				return SanitizeIdentifier((string.IsNullOrWhiteSpace(type.Symbol) ? type.Name : type.Symbol) + "_" + BindableNodeAnalyzer.GetCallableName(function).TrimStart('~'));
 			return SanitizeIdentifier(string.IsNullOrWhiteSpace(function.Symbol) ? function.Name : function.Symbol);
 		}
 

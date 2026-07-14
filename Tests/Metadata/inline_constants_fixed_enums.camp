@@ -12,6 +12,21 @@ export struct Limits
 	export inline uint EXPORTED_CAPACITY = DEFAULT_CAPACITY * 2;
 }
 
+@symbol("NativeWidget")
+export struct Widget
+{
+	export inline int DEFAULT_SIZE = 12;
+}
+
+@symbol("NativeHandle")
+export newtype Handle: nint;
+
+@symbol("NativeRunnable")
+export interface Runnable
+{
+	export void run();
+}
+
 @symbol("Difficulty")
 export enum DifficultyLevel: ushort
 {

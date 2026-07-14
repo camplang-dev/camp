@@ -1809,7 +1809,7 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsTypeFunctionSymbolNamed(TypeDefinition type, FunctionDefinition function, string name)
 	{
 		return (!string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol != function.Name && function.Symbol == name)
-			|| (!function.SymbolOverridden && $"{type.Name}_{GetCallableName(function).TrimStart('~')}" == name);
+			|| (!function.SymbolOverridden && $"{EffectiveTypeSymbol(type)}_{GetCallableName(function).TrimStart('~')}" == name);
 	}
 
 	BodySymbol? LookupGlobalStorageSymbol(string name, SyntaxNode? referenceSyntax)

@@ -552,7 +552,9 @@ public static class MetadataJsonSerializer
 
 			foreach (VariableDefinition vtable in FindInterfaceVTables(owner))
 			{
-				string interfaceName = vtable.Symbol[(owner.Name.Length + 1)..];
+				string prefix = SymbolName(owner) + "_";
+				string interfaceSymbol = vtable.Symbol.StartsWith(prefix, StringComparison.Ordinal) ? vtable.Symbol[prefix.Length..] : "";
+				string interfaceName = ResolveTypeNameFromSymbol(interfaceSymbol) ?? interfaceSymbol;
 				if (!seen.Add(interfaceName))
 					continue;
 				typeDefinitions.TryGetValue(interfaceName, out TypeDefinition? interfaceDefinition);
@@ -1178,13 +1180,17 @@ public static class MetadataJsonSerializer
 
 		VariableDefinition? FindInterfaceVTable(TypeDefinition owner, string interfaceName)
 		{
-			string symbol = owner.Name + "_" + interfaceName;
+			string ownerSymbol = SymbolName(owner);
+			string interfaceSymbol = typeDefinitions.TryGetValue(interfaceName, out TypeDefinition? interfaceDefinition)
+				? SymbolName(interfaceDefinition)
+				: interfaceName;
+			string symbol = ownerSymbol + "_" + interfaceSymbol;
 			return module.Definitions.OfType<VariableDefinition>().FirstOrDefault(variable => variable.Symbol == symbol || variable.Name == symbol);
 		}
 
 		IEnumerable<VariableDefinition> FindInterfaceVTables(TypeDefinition owner)
 		{
-			string prefix = owner.Name + "_";
+			string prefix = SymbolName(owner) + "_";
 			HashSet<string> storageSymbols = module.Definitions
 				.OfType<VariableDefinition>()
 				.Where(static variable => variable.Symbol.EndsWith("__storage", StringComparison.Ordinal))
@@ -1196,11 +1202,25 @@ public static class MetadataJsonSerializer
 					|| variable.Symbol.EndsWith("__storage", StringComparison.Ordinal)
 					|| !storageSymbols.Contains(variable.Symbol + "__storage"))
 					continue;
-				string interfaceName = variable.Symbol[prefix.Length..];
-				if (interfaceName.Length == 0 || interfaceName.Contains("__", StringComparison.Ordinal))
+				string interfaceSymbol = variable.Symbol[prefix.Length..];
+				if (interfaceSymbol.Length == 0 || interfaceSymbol.Contains("__", StringComparison.Ordinal))
 					continue;
+				string interfaceName = ResolveTypeNameFromSymbol(interfaceSymbol) ?? interfaceSymbol;
 				yield return variable;
 			}
+		}
+
+		string? ResolveTypeNameFromSymbol(string symbol)
+		{
+			foreach (TypeDefinition type in typeDefinitions.Values)
+				if (SymbolName(type) == symbol)
+					return type.Name;
+			return null;
+		}
+
+		static string SymbolName(Definition definition)
+		{
+			return string.IsNullOrWhiteSpace(definition.Symbol) ? definition.Name : definition.Symbol;
 		}
 
 		static TypeReference UnwrapTypeReference(TypeReference type)

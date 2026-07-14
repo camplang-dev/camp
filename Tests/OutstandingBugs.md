@@ -2,21 +2,6 @@
 
 Next bug number: BUG-049.
 
-## BUG-043: Analyzer rejects `@symbol` on non-enum type declarations
-
-`@symbol` is rejected on non-enum type declarations, even though the accepted
-inline-constants and fixed-enums proposal says a containing type's `@symbol`
-affects the default prefix for type-scoped inline constants and shows
-`@symbol("HWND") newtype WindowHandle: nint`.
-
-The analyzer accepts `@symbol` on enum declarations, enum members, functions,
-variables, and static fields, but `AnalyzeStructDefinition`,
-`AnalyzeClassDefinition`, `AnalyzeInterfaceDefinition`,
-`AnalyzeNewtypeSignature`, and `AnalyzeParamsDefinition` all reject it as a
-type declaration. Decide whether the accepted behavior should apply to all type
-declarations or at least to newtypes, then implement it or amend the
-proposal/spec language.
-
 ## BUG-044: Interface constructor and destructor contracts are not satisfied by concrete lifecycle members
 
 Interface constructor and destructor contracts are recognized as `#CREATE` and

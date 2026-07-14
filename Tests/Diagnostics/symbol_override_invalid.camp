@@ -13,10 +13,8 @@ extern int campReserved();
 @symbol("typedef")
 extern int cReserved();
 
-@symbol("BadType")
-struct BadType
-{
-}
+@symbol("BadAlias")
+alias BadAlias = int;
 
 struct Holder
 {

@@ -120,6 +120,7 @@ public sealed class CampParser
 	AliasDeclarationSyntax? ParseAliasDeclaration()
 	{
 		int start = index;
+		List<AttributeSyntax>? attributes = ParseAttributes();
 		List<MemberDeclaratorSyntax> declarators = [];
 		while (Is("export") || Is("public"))
 			declarators.Add(new MemberDeclaratorSyntax { Keyword = Take() });
@@ -132,6 +133,7 @@ public sealed class CampParser
 
 		AliasDeclarationSyntax syntax = new()
 		{
+			Attributes = attributes,
 			Declarators = declarators.Count == 0 ? null : declarators,
 			AliasKeyword = Expect("alias"),
 			Identifier = ExpectIdentifier(),

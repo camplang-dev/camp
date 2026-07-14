@@ -175,7 +175,7 @@ public sealed class AbiSurface
 		if (!string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol != function.Name)
 			return function.Symbol;
 		if (containingTypes.TryGetValue(function, out TypeDefinition? type))
-			return type.Name + "_" + BindableNodeAnalyzer.GetCallableName(function).TrimStart('~');
+			return Symbol(type) + "_" + BindableNodeAnalyzer.GetCallableName(function).TrimStart('~');
 		return Symbol(function);
 	}
 

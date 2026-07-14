@@ -90,6 +90,65 @@
       ]
     },
     {
+      "id": "struct:Widget",
+      "kind": "struct",
+      "name": "Widget",
+      "symbol": "NativeWidget",
+      "visibility": "export",
+      "fields": [
+        {
+          "id": "struct:Widget/field:DEFAULT_SIZE",
+          "name": "DEFAULT_SIZE",
+          "symbol": "NativeWidget_DEFAULT_SIZE",
+          "type": "int",
+          "inline": true,
+          "value": 12,
+          "static": true
+        }
+      ],
+      "metadata": [
+        {
+          "name": "symbol",
+          "content": "NativeWidget"
+        }
+      ]
+    },
+    {
+      "id": "newtype:Handle",
+      "kind": "newtype",
+      "name": "Handle",
+      "symbol": "NativeHandle",
+      "visibility": "export",
+      "underlyingType": "nint",
+      "metadata": [
+        {
+          "name": "symbol",
+          "content": "NativeHandle"
+        }
+      ]
+    },
+    {
+      "id": "interface:Runnable",
+      "kind": "interface",
+      "name": "Runnable",
+      "symbol": "NativeRunnable",
+      "visibility": "export",
+      "functions": [
+        {
+          "id": "interface:Runnable/function:run",
+          "name": "run",
+          "visibility": "export",
+          "returnType": "void"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "symbol",
+          "content": "NativeRunnable"
+        }
+      ]
+    },
+    {
       "id": "enum:DifficultyLevel",
       "kind": "enum",
       "name": "DifficultyLevel",

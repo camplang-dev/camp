@@ -13,6 +13,7 @@ int helper()
 	return 3;
 }
 
+@symbol("NativeControl")
 class Control
 {
 	@symbol("ControlValue")
@@ -21,10 +22,20 @@ class Control
 		return 7;
 	}
 
+	export int getSourceValue()
+	{
+		return 13;
+	}
+
 	@symbol("ComputeControlDefaultSize")
 	export static int getDefaultSizeValue()
 	{
 		return 11;
+	}
+
+	export static int getSourceDefaultSizeValue()
+	{
+		return 17;
 	}
 }
 
@@ -34,9 +45,13 @@ export int main()
 	int val1 = ctl.getValue();
 	int val2 = ctl.Value;
 	int val3 = ControlValue(&ctl);
+	int val4 = ctl.getSourceValue();
+	int val5 = NativeControl_getSourceValue(&ctl);
 	int size1 = Control.getDefaultSizeValue();
 	int size2 = Control.DefaultSizeValue;
 	int size3 = ComputeControlDefaultSize();
+	int size4 = Control.getSourceDefaultSizeValue();
+	int size5 = NativeControl_getSourceDefaultSizeValue();
 	bool ok1 = SetWindowText(0, "a");
 	bool ok2 = SetWindowTextA(0, "b");
 	int some1 = SomeValue;
@@ -44,6 +59,6 @@ export int main()
 	int hidden1 = PrivateNumberSource;
 	int hidden2 = PrivateNumber;
 	if (ok1 && ok2)
-		return val1 + val2 + val3 + size1 + size2 + size3 + some1 + some2 + hidden1 + hidden2 + helper();
+		return val1 + val2 + val3 + val4 + val5 + size1 + size2 + size3 + size4 + size5 + some1 + some2 + hidden1 + hidden2 + helper();
 	return -1;
 }

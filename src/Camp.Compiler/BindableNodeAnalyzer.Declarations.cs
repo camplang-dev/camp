@@ -287,7 +287,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeClassDefinition(ClassDefinition definition, AnalysisScope parentScope)
 	{
-		ApplySymbolAttribute(definition, allowed: false, "type");
+		ApplySymbolAttribute(definition, allowed: true, "class");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
@@ -312,7 +312,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeStructDefinition(StructDefinition definition, AnalysisScope parentScope)
 	{
-		ApplySymbolAttribute(definition, allowed: false, "type");
+		ApplySymbolAttribute(definition, allowed: true, "struct");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
@@ -331,7 +331,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeInterfaceDefinition(InterfaceDefinition definition, AnalysisScope parentScope)
 	{
-		ApplySymbolAttribute(definition, allowed: false, "type");
+		ApplySymbolAttribute(definition, allowed: true, "interface");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
@@ -396,7 +396,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!analyzedNewtypeSignatures.Add(definition))
 			return scope;
 
-		ApplySymbolAttribute(definition, allowed: false, "type");
+		ApplySymbolAttribute(definition, allowed: true, "newtype");
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
 		RegisterParameterLifetimeAnchors(definition.Parameters, scope);
@@ -821,7 +821,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ApplySymbolAttribute(definition, allowed: true, "static field");
 			if (!definition.SymbolOverridden)
-				definition.Symbol = containingType.Name + "_" + definition.Name;
+				definition.Symbol = EffectiveTypeSymbol(containingType) + "_" + definition.Name;
 		}
 		else
 		{
@@ -1107,7 +1107,7 @@ public sealed partial class BindableNodeAnalyzer
 					return false;
 				}
 				ownerName = definition.Name;
-				ownerSymbol = definition.Name;
+				ownerSymbol = EffectiveTypeSymbol(definition);
 				return true;
 
 			default:

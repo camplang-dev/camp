@@ -11,3 +11,19 @@ extern int privateImport();
 
 @symbol("ExportedValueC")
 export int ExportedValue = 1;
+
+@symbol("NativeWidget")
+export extern class Widget
+{
+	@symbol("NativeWidget_ping")
+	export extern static void ping();
+}
+
+@symbol("NativeHandle")
+export newtype Handle: nint;
+
+@symbol("NativeRunnable")
+export interface Runnable
+{
+	export void run();
+}

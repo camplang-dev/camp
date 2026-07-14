@@ -104,6 +104,7 @@ public sealed partial class BindableNodeBuilder
 			Symbol = syntax.Identifier?.Value ?? "",
 			TargetName = syntax.TargetName?.Identifier?.Value ?? ""
 		};
+		ApplyDefinitionAttributes(definition, syntax.Attributes);
 
 		foreach (MemberDeclaratorSyntax declarator in syntax.Declarators ?? [])
 		{

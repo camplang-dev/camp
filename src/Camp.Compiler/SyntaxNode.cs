@@ -55,6 +55,7 @@ public class QualifierSyntax : SyntaxNode
 
 public class AliasDeclarationSyntax : SyntaxNode
 {
+	public List<AttributeSyntax>? Attributes { get; set; }
 	public List<MemberDeclaratorSyntax>? Declarators { get; set; }
 	public Token? AliasKeyword { get; set; }
 	public Token? Identifier { get; set; }

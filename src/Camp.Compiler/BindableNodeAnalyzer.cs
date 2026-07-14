@@ -510,6 +510,11 @@ public sealed partial class BindableNodeAnalyzer
 		return name == "symbol";
 	}
 
+	internal static string EffectiveTypeSymbol(TypeDefinition type)
+	{
+		return string.IsNullOrWhiteSpace(type.Symbol) ? type.Name : type.Symbol;
+	}
+
 
 
 	void CheckName(string? name, TokenRange? range, string symbolKind)

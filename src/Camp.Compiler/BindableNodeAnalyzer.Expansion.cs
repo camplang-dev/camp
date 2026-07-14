@@ -445,7 +445,7 @@ public sealed partial class BindableNodeAnalyzer
 		});
 		FunctionDefinition accessor = generatedDeclarations.Function(GeneratedDeclarationCategory.Interface, "interface accessor", classDefinition);
 		accessor.Name = InterfaceAccessorName(interfaceDefinition);
-		accessor.Symbol = classDefinition.Name + "_" + InterfaceAccessorName(interfaceDefinition);
+		accessor.Symbol = EffectiveTypeSymbol(classDefinition) + "_" + InterfaceAccessorName(interfaceDefinition);
 		accessor.Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null;
 		accessor.Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null;
 		accessor.Extern = lowering.IsExternClass ? "extern" : null;
@@ -464,7 +464,7 @@ public sealed partial class BindableNodeAnalyzer
 	FunctionDefinition? FindImportedInterfaceAccessor(ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)
 	{
 		string accessorName = InterfaceAccessorName(interfaceDefinition);
-		string accessorSymbol = classDefinition.Name + "_" + accessorName;
+		string accessorSymbol = EffectiveTypeSymbol(classDefinition) + "_" + accessorName;
 		foreach (FunctionDefinition function in classDefinition.Functions)
 		{
 			if (!function.IsApiHeader || function.Extern is null)
@@ -1350,7 +1350,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		if (string.IsNullOrWhiteSpace(function.Symbol) || function.Symbol == function.Name)
-			function.Symbol = type.Name + "_" + GetCallableName(function).TrimStart('~');
+			function.Symbol = EffectiveTypeSymbol(type) + "_" + GetCallableName(function).TrimStart('~');
 	}
 
 	static string GetImplementationMethodName(FunctionDefinition member)
@@ -1411,7 +1411,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string InterfaceVTableName(TypeDefinition type, InterfaceDefinition interfaceDefinition)
 	{
-		return type.Name + "_" + interfaceDefinition.Name;
+		return EffectiveTypeSymbol(type) + "_" + EffectiveTypeSymbol(interfaceDefinition);
 	}
 
 	static string InterfaceAccessorName(InterfaceDefinition interfaceDefinition)
@@ -1426,19 +1426,19 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string InterfaceThunkName(TypeDefinition type, InterfaceDefinition interfaceDefinition, FunctionDefinition member)
 	{
-		return type.Name + "_" + interfaceDefinition.Name + "_" + GetInterfaceEntryName(member);
+		return EffectiveTypeSymbol(type) + "_" + EffectiveTypeSymbol(interfaceDefinition) + "_" + GetInterfaceEntryName(member);
 	}
 
 	const string VirtualTableFieldName = "_vt";
 
 	static string VirtualTableTypeName(TypeDefinition type)
 	{
-		return "_" + type.Name;
+		return "_" + EffectiveTypeSymbol(type);
 	}
 
 	static string VirtualTableVariableName(TypeDefinition type)
 	{
-		return "_" + type.Name + "__vt";
+		return "_" + EffectiveTypeSymbol(type) + "__vt";
 	}
 
 	static string VirtualImplementationName(FunctionDefinition function)
@@ -1448,7 +1448,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string VirtualImplementationSymbol(TypeDefinition type, FunctionDefinition function)
 	{
-		return type.Name + "__" + VirtualSlotName(function);
+		return EffectiveTypeSymbol(type) + "__" + VirtualSlotName(function);
 	}
 
 	static string VirtualSlotName(FunctionDefinition function)
@@ -1694,7 +1694,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "implicit exported parameterless constructor", classDefinition);
 		method.SourceSyntax = classDefinition.SourceSyntax;
 		method.Name = classDefinition.Name;
-		method.Symbol = classDefinition.Name;
+		method.Symbol = EffectiveTypeSymbol(classDefinition);
 		method.Export = "export";
 		method.Modifier = FunctionModifier.Constructor;
 		method.ReturnType = TypeReferenceFor(classDefinition);
@@ -1712,7 +1712,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "constructor init-new helper", constructor);
 		method.SourceSyntax = constructor.SourceSyntax;
 		method.Name = InitNewMethodName;
-		method.Symbol = $"{type.Name}_{InitNewMethodName}";
+		method.Symbol = $"{EffectiveTypeSymbol(type)}_{InitNewMethodName}";
 		method.Export = constructor.Export;
 		method.Public = constructor.Public;
 		method.Extern = constructor.Extern;
@@ -1731,7 +1731,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "constructor create helper", constructor);
 		method.SourceSyntax = constructor.SourceSyntax;
 		method.Name = CreateMethodName;
-		method.Symbol = $"{type.Name}_{CreateMethodName}";
+		method.Symbol = $"{EffectiveTypeSymbol(type)}_{CreateMethodName}";
 		method.Export = constructor.Export;
 		method.Public = constructor.Public;
 		method.Extern = constructor.Extern;
@@ -1797,7 +1797,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "destructor delete helper", destructor);
 		method.SourceSyntax = destructor.SourceSyntax;
 		method.Name = DeleteMethodName;
-		method.Symbol = $"{type.Name}_op_delete";
+		method.Symbol = $"{EffectiveTypeSymbol(type)}_op_delete";
 		method.Export = destructor.Export;
 		method.Public = destructor.Public;
 		method.Extern = destructor.Extern;
@@ -1814,7 +1814,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "extern destructor destroy helper", destructor);
 		method.SourceSyntax = destructor.SourceSyntax;
 		method.Name = DestroyMethodName;
-		method.Symbol = $"{type.Name}_{DestroyMethodName}";
+		method.Symbol = $"{EffectiveTypeSymbol(type)}_{DestroyMethodName}";
 		method.Export = destructor.Export;
 		method.Public = destructor.Public;
 		method.Extern = destructor.Extern;
@@ -1828,7 +1828,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "implicit exported destroy helper", type);
 		method.Name = DestroyMethodName;
-		method.Symbol = $"{type.Name}_{DestroyMethodName}";
+		method.Symbol = $"{EffectiveTypeSymbol(type)}_{DestroyMethodName}";
 		method.Export = type.Export;
 		method.Public = type.Public;
 		method.ReturnType = VoidType();
@@ -1851,7 +1851,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "destructor destroy helper", destructor);
 		method.SourceSyntax = destructor.SourceSyntax;
 		method.Name = DestroyMethodName;
-		method.Symbol = $"{type.Name}_{DestroyMethodName}";
+		method.Symbol = $"{EffectiveTypeSymbol(type)}_{DestroyMethodName}";
 		method.Export = destructor.Export;
 		method.Public = destructor.Public;
 		method.Extern = destructor.Extern;
