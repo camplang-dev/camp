@@ -51,8 +51,12 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		Dictionary<string, ParameterDefinition> anchors = new(System.StringComparer.Ordinal);
 		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter is ThisParameterDefinition)
+				anchors["this"] = parameter;
 			if (!string.IsNullOrWhiteSpace(parameter.Name))
 				anchors[parameter.Name] = parameter;
+		}
 		return anchors;
 	}
 

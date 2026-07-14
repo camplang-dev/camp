@@ -1,0 +1,30 @@
+interface IRead
+{
+	constof(this) int* getValue(const this);
+}
+
+struct Box: IRead
+{
+	int x;
+
+	constof(this) int* getValue(const this): IRead
+	{
+		return &this.x;
+	}
+}
+
+int readInterface(IRead* reader)
+{
+	int* value = reader.getValue();
+	return *value;
+}
+
+export int main()
+{
+	Box box = { .x = 11 };
+	const Box readonly = { .x = 31 };
+	int* direct = box.getValue();
+	const int* readonlyDirect = readonly.getValue();
+	IRead* reader = box;
+	return *direct + *readonlyDirect + readInterface(reader) == 53 ? 0 : 1;
+}

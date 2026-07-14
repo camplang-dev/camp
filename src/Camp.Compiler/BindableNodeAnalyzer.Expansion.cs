@@ -581,7 +581,7 @@ public sealed partial class BindableNodeAnalyzer
 		thunk.Symbol = InterfaceThunkName(lowering.Type, entryInterface, member);
 		thunk.ReturnType = member.Modifier == FunctionModifier.Constructor
 			? new AnyTypeReference { ResolvedType = "any" }
-			: CloneType(member.ReturnType) ?? VoidType();
+			: EraseConstOfTypeReference(member.ReturnType) ?? VoidType();
 		thunk.ResolvedType = member.Modifier == FunctionModifier.Constructor
 			? "any"
 			: GetInterfaceEntryReturnType(member, lowering.Type);
@@ -1568,6 +1568,17 @@ public sealed partial class BindableNodeAnalyzer
 			CopyableTypeReference => "copyable",
 			_ => type.ResolvedType
 		};
+	}
+
+	TypeReference? EraseConstOfTypeReference(TypeReference? type)
+	{
+		if (type is null)
+			return null;
+
+		Dictionary<string, bool> anchors = [];
+		foreach (string anchor in GetConstOfAnchorNames(type))
+			anchors[anchor] = true;
+		return SubstituteConstOfTypeReference(type, anchors);
 	}
 
 	string GetRootVirtualTableFieldType(ClassDefinition owner)

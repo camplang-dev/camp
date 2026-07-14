@@ -2,21 +2,6 @@
 
 Next bug number: BUG-049.
 
-## BUG-045: Interface method return types cannot use `constof(this)`
-
-Archived interface material documents `constof(this)` in interface method return
-types, but the analyzer rejects an interface slot such as:
-
-```camp
-constof(this) int* value(const this);
-```
-
-The diagnostic is `constof anchor 'this' could not be resolved`. A comparable
-`constof(this)` receiver method works for ordinary methods and callable newtype
-ascription. Either bind `this` as a valid interface method `constof` anchor, or
-amend the interface documentation/spec if interface slots intentionally cannot
-express receiver-relative constness.
-
 ## BUG-046: `class iter` member with explicit `escaped this` produces `#ERROR`
 
 The archived iterator material says a `class iter` member function whose

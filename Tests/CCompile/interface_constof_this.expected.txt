@@ -1,0 +1,93 @@
+// file: interface_constof_this.c
+#include "interface_constof_this_private.h"
+
+/* Private file declarations. */
+static const int *Box_getValue(const Box *this);
+static int readInterface(IRead **reader);
+static const int *Box_IRead_getValue(IRead **ctx);
+static const IRead Box_IRead__storage;
+static const IRead *Box_IRead;
+
+static const IRead Box_IRead__storage = { .getValue = Box_IRead_getValue };
+static const IRead *Box_IRead = &Box_IRead__storage;
+static const int *Box_getValue(const Box *this)
+{
+	return &this->x;
+}
+
+static int readInterface(IRead **reader)
+{
+	int *value = (int *)((*reader)->getValue(reader));
+	return *value;
+}
+
+int main(void)
+{
+	Box box = (Box){ .x = 11 };
+	const Box readonly = (const Box){ .x = 31 };
+	int *direct = (int *)(Box_getValue(&box));
+	const int *readonlyDirect = (int *)(Box_getValue(&readonly));
+	IRead_Indirect _iface0;
+	_iface0._vt = Box_IRead;
+	_iface0.ctx = &box;
+	IRead **reader = (IRead **)(&_iface0._vt);
+	return ((((*direct + *readonlyDirect) + readInterface(reader)) == 53) ? 0 : 1);
+}
+
+static const int *Box_IRead_getValue(IRead **ctx)
+{
+	IRead_Indirect *indirect = (IRead_Indirect *)(ctx);
+	Box *instance = indirect->ctx;
+	return Box_getValue((const Box *)(instance));
+}
+
+// file: interface_constof_this.h
+#ifndef INTERFACE_CONSTOF_THIS_H_
+#define INTERFACE_CONSTOF_THIS_H_
+
+#include "interface_constof_this_private.h"
+
+int main(void);
+
+#endif
+// file: interface_constof_this_private.h
+#ifndef INTERFACE_CONSTOF_THIS_PRIVATE_H_
+#define INTERFACE_CONSTOF_THIS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IRead IRead;
+typedef struct Box Box;
+typedef struct IRead_Indirect IRead_Indirect;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct IRead
+{
+	const int *(* getValue)(IRead **ctx);
+};
+struct Box
+{
+	int x;
+};
+struct IRead_Indirect
+{
+	const IRead *_vt;
+	void *ctx;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: interface_constof_this.c

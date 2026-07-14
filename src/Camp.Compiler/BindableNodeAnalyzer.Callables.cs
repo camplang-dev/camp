@@ -243,6 +243,8 @@ public sealed partial class BindableNodeAnalyzer
 		int index = 0;
 		foreach (ParameterDefinition parameter in parameters)
 		{
+			if (parameter is ThisParameterDefinition)
+				anchors["this"] = "this";
 			if (!string.IsNullOrWhiteSpace(parameter.Name))
 				anchors[parameter.Name] = "#" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
 			index++;
