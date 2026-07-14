@@ -252,6 +252,11 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
+	static bool IsInterfaceLifecycleMember(FunctionDefinition member)
+	{
+		return member.Modifier == FunctionModifier.Constructor || IsDestructorFunction(member);
+	}
+
 	static bool IsDestructorFunction(FunctionDefinition function)
 	{
 		return function.Modifier == FunctionModifier.Destructor || function.Name.StartsWith("~", StringComparison.Ordinal);

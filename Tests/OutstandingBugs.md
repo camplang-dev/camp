@@ -2,19 +2,6 @@
 
 Next bug number: BUG-049.
 
-## BUG-044: Interface constructor and destructor contracts are not satisfied by concrete lifecycle members
-
-Interface constructor and destructor contracts are recognized as `#CREATE` and
-`#DESTROY` requirements, but concrete constructors and destructors do not appear
-to satisfy them.
-
-A sealed class or struct that declares matching `within allocator`
-constructor/destructor members still reports that it does not implement
-`Interface.#CREATE()` and `Interface.#DESTROY()`. Either bind concrete
-constructors/destructors to the synthetic interface slots as specified, or amend
-the interface constructor and destructor documentation if this feature is not
-intended to be supported.
-
 ## BUG-045: Interface method return types cannot use `constof(this)`
 
 Archived interface material documents `constof(this)` in interface method return

@@ -248,7 +248,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			MethodSignature required = BuildMethodSignature(member);
-			if (FindMarkedInterfaceImplementation(implementation, member) is null)
+			if (FindInterfaceImplementation(implementation, member) is null)
 			{
 				if (FindUnmarkedSameNameInterfaceCandidate(implementation, member) is FunctionDefinition candidate)
 				{
@@ -343,6 +343,35 @@ public sealed partial class BindableNodeAnalyzer
 					return function;
 			}
 		}
+		return null;
+	}
+
+	FunctionDefinition? FindInterfaceImplementation(TypeDefinition implementation, FunctionDefinition member)
+	{
+		if (IsInterfaceLifecycleMember(member))
+			return FindLifecycleInterfaceImplementation(implementation, member);
+
+		return FindMarkedInterfaceImplementation(implementation, member);
+	}
+
+	FunctionDefinition? FindLifecycleInterfaceImplementation(TypeDefinition implementation, FunctionDefinition member)
+	{
+		MethodSignature required = BuildMethodSignature(member);
+		foreach (FunctionDefinition function in GetFunctions(implementation))
+		{
+			if (BuildMethodSignature(function).Equals(required))
+				return function;
+		}
+
+		if (implementation is ClassDefinition classDefinition)
+		{
+			foreach (FunctionDefinition function in GetInheritedClassMethods(classDefinition))
+			{
+				if (BuildMethodSignature(function).Equals(required))
+					return function;
+			}
+		}
+
 		return null;
 	}
 
@@ -543,6 +572,9 @@ public sealed partial class BindableNodeAnalyzer
 			if (!IsDestructorFunction(destructor))
 				continue;
 
+			if (ReferenceEquals(definition, ultimateBase))
+				continue;
+
 			if (ultimateDestructor is null)
 			{
 				Report(GetNameRange(destructor), $"Destructor '{destructor.Name}' cannot introduce a destructor in a virtual hierarchy; the ultimate base class '{ultimateBase.Name}' must declare a virtual or abstract destructor.");
@@ -554,9 +586,6 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetNameRange(destructor), $"Destructor '{destructor.Name}' cannot introduce a destructor in a virtual hierarchy; the ultimate base class '{ultimateBase.Name}' declares a non-virtual destructor.");
 				continue;
 			}
-
-			if (ReferenceEquals(definition, ultimateBase))
-				continue;
 
 			if (destructor.Modifier is not FunctionModifier.Override and not FunctionModifier.Sealed)
 				Report(GetNameRange(destructor), $"Destructor '{destructor.Name}' must use override to implement inherited virtual destructor '{ultimateDestructor.Name}'.");

@@ -1,0 +1,57 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+interface IManaged
+{
+	IManaged(within allocator);
+	~IManaged(within allocator);
+}
+
+sealed class ManagedClass: IManaged
+{
+	ManagedClass(within allocator)
+	{
+	}
+
+	~ManagedClass(within allocator)
+	{
+	}
+}
+
+struct ManagedStruct: IManaged
+{
+	ManagedStruct(within allocator)
+	{
+	}
+
+	~ManagedStruct(within allocator)
+	{
+	}
+}
+
+int main()
+{
+	Allocator* allocator = null;
+	within (allocator)
+	{
+		ManagedClass* managed = new ManagedClass();
+		delete managed;
+
+		ManagedStruct local = init ManagedStruct();
+		delete local;
+	}
+	return 0;
+}

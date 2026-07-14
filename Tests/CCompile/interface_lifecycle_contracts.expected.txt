@@ -1,0 +1,209 @@
+// file: interface_lifecycle_contracts.c
+#include "interface_lifecycle_contracts_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void *Allocator_alloc(Allocator *this, uintptr_t size);
+static void Allocator_free(Allocator *this, void *ptr);
+static void ManagedClass_op_initnew(ManagedClass *this, Allocator* allocator);
+static ManagedClass *ManagedClass_create(Allocator* allocator);
+static void ManagedClass_op_delete(ManagedClass *this, Allocator* allocator);
+static void ManagedClass_destroy(ManagedClass *this, Allocator *allocator);
+static IManaged **ManagedClass_getIManaged(const ManagedClass *this);
+static void ManagedStruct_op_initnew(ManagedStruct *this, Allocator* allocator);
+static ManagedStruct *ManagedStruct_create(Allocator* allocator);
+static void ManagedStruct_op_delete(ManagedStruct *this, Allocator* allocator);
+static void ManagedStruct_destroy(ManagedStruct *this, Allocator *allocator);
+static int main(void);
+static void* ManagedClass_IManaged_create(Allocator* allocator);
+static void ManagedClass_IManaged_destroy(IManaged **ctx, Allocator* allocator);
+static void* ManagedStruct_IManaged_create(Allocator* allocator);
+static void ManagedStruct_IManaged_destroy(IManaged **ctx, Allocator* allocator);
+static _ManagedClass _ManagedClass__vt;
+static const IManaged ManagedClass_IManaged__storage;
+static const IManaged ManagedClass_IManaged__object_storage;
+static const IManaged *ManagedClass_IManaged;
+static const IManaged ManagedStruct_IManaged__storage;
+static const IManaged *ManagedStruct_IManaged;
+
+static _ManagedClass _ManagedClass__vt = { 0 };
+static const IManaged ManagedClass_IManaged__storage = { .create = (void* (*)(Allocator *arg0))ManagedClass_create, .destroy = (void (*)(IManaged **arg0, Allocator *arg1))ManagedClass_destroy };
+static const IManaged ManagedClass_IManaged__object_storage = { .create = ManagedClass_IManaged_create, .destroy = ManagedClass_IManaged_destroy };
+static const IManaged *ManagedClass_IManaged = &ManagedClass_IManaged__storage;
+static const IManaged ManagedStruct_IManaged__storage = { .create = ManagedStruct_IManaged_create, .destroy = ManagedStruct_IManaged_destroy };
+static const IManaged *ManagedStruct_IManaged = &ManagedStruct_IManaged__storage;
+static void *Allocator_alloc(Allocator *this, uintptr_t size)
+{
+	return malloc(size);
+}
+
+static void Allocator_free(Allocator *this, void *ptr)
+{
+	free(ptr);
+}
+
+static void ManagedClass_op_initnew(ManagedClass *this, Allocator* allocator)
+{
+	this->_vt_IManaged = &ManagedClass_IManaged__object_storage;
+	Allocator *resolvedAllocator = allocator;
+}
+
+static ManagedClass *ManagedClass_create(Allocator* allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	ManagedClass *_created0 = (ManagedClass *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(ManagedClass)) : malloc(sizeof(ManagedClass))));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (ManagedClass){0};
+		_created0->_vt = &_ManagedClass__vt;
+		ManagedClass_op_initnew(_created0, allocator);
+	}
+	return _created0;
+}
+
+static void ManagedClass_op_delete(ManagedClass *this, Allocator* allocator)
+{
+}
+
+static void ManagedClass_destroy(ManagedClass *this, Allocator *allocator)
+{
+	ManagedClass_op_delete(this, allocator);
+	Allocator *resolvedAllocator = allocator;
+	((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(this)) : free((void *)(this)));
+}
+
+static IManaged **ManagedClass_getIManaged(const ManagedClass *this)
+{
+	return (IManaged **)(&this->_vt_IManaged);
+}
+
+static void ManagedStruct_op_initnew(ManagedStruct *this, Allocator* allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+}
+
+static ManagedStruct *ManagedStruct_create(Allocator* allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	ManagedStruct *_created1 = (ManagedStruct *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(ManagedStruct)) : malloc(sizeof(ManagedStruct))));
+	if ((_created1 != NULL))
+	{
+		ManagedStruct_op_initnew(_created1, allocator);
+	}
+	return _created1;
+}
+
+static void ManagedStruct_op_delete(ManagedStruct *this, Allocator* allocator)
+{
+}
+
+static void ManagedStruct_destroy(ManagedStruct *this, Allocator *allocator)
+{
+	ManagedStruct_op_delete(this, allocator);
+	Allocator *resolvedAllocator = allocator;
+	((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(this)) : free((void *)(this)));
+}
+
+static int main(void)
+{
+	Allocator *allocator = NULL;
+	{
+		Allocator *_allocator2 = allocator;
+		{
+			ManagedClass *managed = (ManagedClass *)(((_allocator2 != NULL) ? Allocator_alloc(_allocator2, sizeof(ManagedClass)) : malloc(sizeof(ManagedClass))));
+			if ((managed != NULL))
+			{
+				*managed = (ManagedClass){0};
+				managed->_vt = &_ManagedClass__vt;
+				ManagedClass_op_initnew(managed, _allocator2);
+			}
+			(ManagedClass_op_delete(managed, _allocator2), ((_allocator2 != NULL) ? Allocator_free(_allocator2, (void *)(managed)) : free((void *)(managed))));
+			ManagedStruct local;
+			ManagedStruct_op_initnew(&local, _allocator2);
+			ManagedStruct_op_delete(&local, _allocator2);
+		}
+	}
+	return 0;
+}
+
+static void* ManagedClass_IManaged_create(Allocator* allocator)
+{
+	return ManagedClass_create(allocator);
+}
+
+static void ManagedClass_IManaged_destroy(IManaged **ctx, Allocator* allocator)
+{
+	ManagedClass *instance = (ManagedClass *)(((uint8_t *)(ctx) - offsetof(ManagedClass, _vt_IManaged)));
+	ManagedClass_destroy(instance, allocator);
+}
+
+static void* ManagedStruct_IManaged_create(Allocator* allocator)
+{
+	return ManagedStruct_create(allocator);
+}
+
+static void ManagedStruct_IManaged_destroy(IManaged **ctx, Allocator* allocator)
+{
+	IManaged_Indirect *indirect = (IManaged_Indirect *)(ctx);
+	ManagedStruct *instance = indirect->ctx;
+	ManagedStruct_destroy(instance, allocator);
+}
+
+// file: interface_lifecycle_contracts_private.h
+#ifndef INTERFACE_LIFECYCLE_CONTRACTS_PRIVATE_H_
+#define INTERFACE_LIFECYCLE_CONTRACTS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Allocator Allocator;
+typedef struct IManaged IManaged;
+typedef struct ManagedClass ManagedClass;
+typedef struct ManagedStruct ManagedStruct;
+typedef struct _ManagedClass _ManagedClass;
+typedef struct IManaged_Indirect IManaged_Indirect;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct IManaged
+{
+	void* (* create)(Allocator *allocator);
+	void (* destroy)(IManaged **ctx, Allocator *allocator);
+};
+struct ManagedStruct
+{
+	char _camp_empty;
+};
+struct _ManagedClass
+{
+	char _camp_empty;
+};
+struct IManaged_Indirect
+{
+	const IManaged *_vt;
+	void *ctx;
+};
+struct Allocator
+{
+	char _camp_empty;
+};
+struct ManagedClass
+{
+	_ManagedClass *_vt;
+	const IManaged *_vt_IManaged;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: interface_lifecycle_contracts.c

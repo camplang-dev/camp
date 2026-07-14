@@ -579,15 +579,22 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition thunk = generatedDeclarations.Function(GeneratedDeclarationCategory.Interface, "interface thunk", member);
 		thunk.Name = InterfaceThunkName(lowering.Type, entryInterface, member);
 		thunk.Symbol = InterfaceThunkName(lowering.Type, entryInterface, member);
-		thunk.ReturnType = CloneType(member.ReturnType) ?? VoidType();
-		thunk.ResolvedType = GetInterfaceEntryReturnType(member, lowering.Type);
-		thunk.Parameters.Add(new ParameterDefinition
+		thunk.ReturnType = member.Modifier == FunctionModifier.Constructor
+			? new AnyTypeReference { ResolvedType = "any" }
+			: CloneType(member.ReturnType) ?? VoidType();
+		thunk.ResolvedType = member.Modifier == FunctionModifier.Constructor
+			? "any"
+			: GetInterfaceEntryReturnType(member, lowering.Type);
+		if (member.Modifier != FunctionModifier.Constructor)
 		{
-			Name = "ctx",
-			Symbol = "ctx",
-			Type = InterfaceInstanceType(entryInterface),
-			ResolvedType = $"{entryInterface.Name}**"
-		});
+			thunk.Parameters.Add(new ParameterDefinition
+			{
+				Name = "ctx",
+				Symbol = "ctx",
+				Type = InterfaceInstanceType(entryInterface),
+				ResolvedType = $"{entryInterface.Name}**"
+			});
+		}
 		foreach (ParameterDefinition parameter in member.Parameters)
 		{
 			if (parameter is ThisParameterDefinition)
@@ -1097,6 +1104,42 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ResolvedType = "void"
 		};
+		if (lowering.Member.Modifier == FunctionModifier.Constructor)
+		{
+			FunctionDefinition? constructorImplementation = FindImplementationMethod(lowering.Implementation.Type, lowering.Member);
+			if (constructorImplementation is not null)
+				EnsureImplementationMethodSymbol(lowering.Implementation.Type, constructorImplementation);
+
+			CallExpression constructorCall = new()
+			{
+				ResolvedType = GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Type),
+				Target = new MethodReferenceExpression
+				{
+					ResolvedType = BuildInterfaceEntryCallableType(lowering.EntryInterface, lowering.Member)
+				}
+			};
+			if (constructorImplementation is not null && constructorCall.Target is MethodReferenceExpression reference)
+				reference.Candidates.Add(constructorImplementation);
+
+			foreach (ParameterDefinition parameter in thunk.Parameters)
+			{
+				constructorCall.Arguments.Add(new ArgumentExpression
+				{
+					Value = CreateVariableReference(parameter, parameter.ResolvedType ?? ErrorType),
+					ResolvedType = parameter.ResolvedType ?? ErrorType
+				});
+			}
+			if (constructorImplementation is not null)
+			{
+				callTargets[constructorCall] = constructorImplementation;
+				ExpandParamsArguments(constructorCall);
+				LowerCallArgumentConversions(constructorCall);
+			}
+
+			body.Statements.Add(new ReturnStatement { Expression = constructorCall, ResolvedType = "void" });
+			return body;
+		}
+
 		ParameterDefinition ctx = thunk.Parameters[0];
 		DeclarationStatement? indirect = null;
 		DeclarationStatement instance;
@@ -1121,17 +1164,35 @@ public sealed partial class BindableNodeAnalyzer
 		instance.Target.Names.Add("instance");
 		body.Statements.Add(instance);
 
+		FunctionDefinition? memberImplementation = FindImplementationMethod(lowering.Implementation.Type, lowering.Member);
+		if (memberImplementation is not null && IsInterfaceLifecycleMember(lowering.Member))
+			EnsureImplementationMethodSymbol(lowering.Implementation.Type, memberImplementation);
+
 		CallExpression call = new()
 		{
 			ResolvedType = GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Type),
-			Target = new MemberReferenceExpression
+			Target = IsDestructorFunction(lowering.Member)
+				? new MethodReferenceExpression
+				{
+					ResolvedType = GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Type)
+				}
+				: new MemberReferenceExpression
 			{
 				Target = CreateVariableReference(instance.Target, instance.Target.ResolvedType ?? $"{lowering.Implementation.Type.Name}*"),
 				Name = GetImplementationMethodName(lowering.Member),
-				Member = FindImplementationMethod(lowering.Implementation.Type, lowering.Member),
+				Member = memberImplementation,
 				ResolvedType = GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Type)
 			}
 		};
+		if (IsDestructorFunction(lowering.Member) && call.Target is MethodReferenceExpression destructorReference && memberImplementation is not null)
+		{
+			destructorReference.Candidates.Add(memberImplementation);
+			call.Arguments.Add(new ArgumentExpression
+			{
+				Value = CreateVariableReference(instance.Target, instance.Target.ResolvedType ?? $"{lowering.Implementation.Type.Name}*"),
+				ResolvedType = instance.Target.ResolvedType ?? $"{lowering.Implementation.Type.Name}*"
+			});
+		}
 		foreach (ParameterDefinition parameter in thunk.Parameters)
 		{
 			if (parameter == ctx)
@@ -1144,6 +1205,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (call.Target is MemberReferenceExpression { Member: FunctionDefinition implementation })
 		{
+			EnsureImplementationMethodSymbol(lowering.Implementation.Type, implementation);
 			callTargets[call] = implementation;
 			ExpandParamsArguments(call);
 			LowerCallArgumentConversions(call);
@@ -1318,6 +1380,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (FunctionDefinition function in GetFunctions(type))
 		{
+			if (IsInterfaceLifecycleMember(interfaceMember) && BuildMethodSignature(function).Equals(BuildMethodSignature(interfaceMember)))
+				return function;
+
 			if (IsMarkedInterfaceImplementation(function, interfaceMember))
 				return function;
 		}
@@ -1349,8 +1414,14 @@ public sealed partial class BindableNodeAnalyzer
 		if (function.SymbolOverridden)
 			return;
 
+		if (function.Modifier == FunctionModifier.Constructor || IsDestructorFunction(function))
+		{
+			function.Symbol = EffectiveTypeSymbol(type) + "_" + GetImplementationMethodName(function);
+			return;
+		}
+
 		if (string.IsNullOrWhiteSpace(function.Symbol) || function.Symbol == function.Name)
-			function.Symbol = EffectiveTypeSymbol(type) + "_" + GetCallableName(function).TrimStart('~');
+			function.Symbol = EffectiveTypeSymbol(type) + "_" + GetImplementationMethodName(function);
 	}
 
 	static string GetImplementationMethodName(FunctionDefinition member)
@@ -1385,7 +1456,7 @@ public sealed partial class BindableNodeAnalyzer
 	TypeReference CreateInterfaceEntryReturnType(FunctionDefinition member, InterfaceDefinition owner)
 	{
 		if (member.Modifier == FunctionModifier.Constructor)
-			return PointerTo(new AnyTypeReference { ResolvedType = "any" });
+			return new AnyTypeReference { ResolvedType = "any" };
 		return CloneType(member.ReturnType) ?? VoidType();
 	}
 
@@ -1400,7 +1471,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			parameters.Add(parameter.ResolvedType ?? ErrorType);
 		}
-		string returnType = member.Modifier == FunctionModifier.Constructor ? "any*" : member.ResolvedType ?? ErrorType;
+		string returnType = member.Modifier == FunctionModifier.Constructor ? "any" : member.ResolvedType ?? ErrorType;
 		return $"fn {returnType}({string.Join(", ", parameters)})";
 	}
 
