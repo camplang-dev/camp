@@ -33,6 +33,69 @@ its generated helper declarations. Generated iterator, lambda, and virtual
 helper declarations must copy or thread generic parameters deliberately; they
 must not rely on ambient analyzer state.
 
+## Receiver-Relative Type Forms
+
+`this` as a return type and `classtype` are not generic parameters, but they
+use similar substitution discipline. They describe source-relative type facts
+that are resolved differently for declaration validation, call-site typing, ABI
+lowering, callable references, and metadata.
+
+### Plain `this` Return
+
+Plain `this` is valid only as the complete return type of a receiver-bearing
+method. It is invalid as `this*`, `const this`, `this[]`, a callable result, a
+free-function result with no receiver, a static method result, a constructor or
+destructor result, an interface method result, or a callable-newtype result.
+
+During declaration analysis, a `this` return resolves to the method's effective
+receiver type for ABI purposes. During call analysis, the source result type is
+refined to the static type of the receiver expression used at the call site,
+including pointer shape, constness, target specs, and lifetime qualifiers.
+
+For non-extern bodies, the return expression must be syntactically receiver-
+preserving: `this`, or a chain of instance calls on `this` where each call also
+returns plain `this`. The current rule is intentionally provenance-light. A
+local variable that happens to hold the receiver is not accepted as a `this`
+return proof.
+
+Bound method references resolve the `this` return immediately using the bound
+receiver expression type. Unbound method references and flattened callable
+surfaces have no call-site receiver expression, so their return is the method's
+ordinary effective receiver ABI type.
+
+### `classtype`
+
+`classtype` is valid only inside class declarations. It is a class-relative
+type form: in an open class it means the enclosing class or a derived class; in
+a sealed class it denotes the enclosing class exactly. Unlike plain `this`, it
+is composable in allowed method-local and signature positions, such as
+`classtype*`, `iter classtype*`, or `out classtype*`.
+
+In lowered ABI signatures, `classtype` is replaced by the enclosing class type.
+At source call sites, a result or parameter containing `classtype` is rebound
+according to the static class used for the call:
+
+- instance calls use the receiver expression's static class;
+- static calls use the type named on the left side of the call;
+- sealed classes have no derived rebinding, so the enclosing class is exact.
+
+`classtype` may not appear in fields, static fields, globals, aliases, value
+newtype underlying types, callable newtype declarations, interface declarations,
+or non-class type declarations outside method bodies. A method body may use
+`classtype` in locals and casts while it remains inside class scope.
+
+For virtual, abstract, override, and sealed method declarations, `classtype` is
+allowed only in result positions: the return type and direct `out` parameter
+types. It must not appear in input parameters or nested callable/iterator/async
+types inside the virtual signature. This prevents a derived override from
+pretending that callers through the base slot supplied the derived class type.
+
+Values of a `classtype` shape may widen to the enclosing class shape. The
+reverse direction is not implicit. Returning `this` from an instance method is
+the special safe producer for `classtype`; other enclosing-class-to-`classtype`
+flows require an explicit cast and must be checked by the conversion
+classifier.
+
 ## Constraint Categories
 
 Constraints determine which operations are legal. `any` permits the type to be
@@ -47,8 +110,8 @@ Compiler code commonly distinguishes these categories:
   where ordinary representation operations are available;
 - **any:** the type is erased and may be named, stored by reference, and passed
   through source surfaces, but layout/copy operations are not implied;
-- **copyable:** copying is permitted, but size/stride may still need an explicit
-  capability;
+- **copyable:** erased value copying is permitted when the operation also has
+  any required representation capability;
 - **interface implementation:** the type is constrained to implement an
   interface, but dispatch still needs a `vtableof` value.
 
@@ -97,8 +160,10 @@ capability.
 
 ## `T: copyable`
 
-`T: copyable` permits copy operations but does not imply unrelated capabilities
-such as default construction or interface dispatch.
+`T: copyable` is an erased value constraint. It permits ordinary value-copy
+operations, assignment, local value storage, and value return when the operation
+also has any representation capability needed to emit the code. It does not
+make `T` a compile-time layout type.
 
 For array element access, `copyable` is not sufficient by itself when the
 element type is erased. A compiler path that copies an element out of `T[]`
@@ -111,6 +176,16 @@ needs both:
 `copyable` also does not say that a value can be safely retained beyond its
 lifetime. Lifetime analysis must still enforce pointer-bearing generic
 boundaries.
+
+Direct fields of type `T` are invalid in erased generic type bodies under both
+`T: any` and `T: copyable`. The generic type has one physical layout, and the
+size of `T` is not a compile-time field layout. Store `T*`, `T[]`, or explicit
+erased storage instead. Local variables of type `T` are source-valid when the
+function has the size capability needed to allocate the runtime-sized storage.
+
+Direct class types, fixed structs, and fixed-size array value types do not
+satisfy `copyable`. Pointers to those values do satisfy `copyable`, because the
+pointer value itself has ordinary pointer-sized copy semantics.
 
 ## Size, VTable, And Type Name Capabilities
 
@@ -163,6 +238,29 @@ metadata/string capability, not as proof of layout, copyability, or interface
 dispatch. Literal conversion rules for the target string representation still
 apply when the capability lowers to a concrete value.
 
+The operand must resolve as a type form, alias, generic parameter, qualified
+type name, composed type form, or the specialized `classtype` form described
+above. It is not evaluated as a runtime expression. Variables, fields, methods,
+enum values, member accesses, and expanded components are invalid operands.
+
+`typenameof(...)` returns the Camp/compiler type-name contribution used for
+generated receiver and overload symbols. It ignores `@symbol`; backend symbol
+overrides and metadata `symbolof(...)` are separate concepts.
+
+`typenameof(T)` names exactly the type expression it is written for. It does
+not recursively grant name capabilities for related expressions such as `T[]`,
+`T*`, or `const T`; those require their own source capability where the
+language permits one. `typenameof(classtype)` is valid only in the specialized
+default-parameter position used by receiver-relative class APIs and should not
+be generalized into runtime reflection.
+
+For erased generic parameters, `typenameof(T)` is available only when the
+current function receives a `typenameof(T)` capability parameter or an enclosing
+generic class constructor/init path stored that capability in generated class
+state. Constructor-requested `typenameof(T)` fields follow the same generated-
+field visibility rules as `sizeof(T)` and `vtableof(T: Interface)` fields: they
+are semantic implementation state, not source fields.
+
 ## Generic Arrays And Iterators
 
 Generic arrays need element stride and lifetime-safe element handling. Generic
@@ -178,6 +276,11 @@ Operations on `T[]` should check the operation precisely:
 - mutation needs element stride and non-const element access;
 - copying an element value needs copyability;
 - allocating `T[]` needs element stride and allocation/fill semantics.
+
+Inside erased substitution for `T: any` or `T: copyable`, `T*` means a pointer
+to the storage form of `T`. If `T` is an expanded form, that storage form is the
+materialized `struct(T)` representation. A compiler must not treat a pointer to
+one expanded component as a pointer to the whole substituted value.
 
 Iterator generators with `T: any` or `T: copyable` add `sizeof(T)` parameters
 when the generated state needs element stride. When an iterator lowers into a

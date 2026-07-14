@@ -147,8 +147,15 @@ Default facts are assigned during declaration analysis:
 - parameters of tracked types default to `scoped(parameterName):parameter`;
 - the implicit or explicit receiver defaults to a scoped receiver fact unless
   an explicit receiver lifetime overrides it;
+- source input positions therefore default to scoped facts, while source output
+  positions default to `unscoped(this)` for receiver-bearing declarations and
+  `unscoped` for receiverless declarations unless a more specific relation is
+  written or implied by the feature;
 - globals and static fields of tracked types use escaped slot facts;
 - class instance fields in escaped classes use escaped slot facts;
+- instance receivers in escaped classes default to escaped receiver facts, and
+  escaped interface contracts require implementation receiver lifetimes that
+  can satisfy the escaped interface pointer;
 - instance fields may explicitly require `escaped`, but non-escaped field-level
   lifetime annotations should be rejected;
 - local tracked slots default to a scoped fact anchored to the local name when
@@ -218,6 +225,14 @@ method returning a pointer-bearing value without an explicit lifetime relation
 is treated as tied to `this`, not as escaped. This protects fluent and accessor
 patterns from accidentally returning references to short-lived receiver state
 through a global-looking type.
+
+The same substitution machinery handles interface conversions. A struct-to-
+interface conversion that materializes a scoped temporary carrier cannot satisfy
+an escaped interface pointer unless the implementation surface itself provides a
+valid escaped receiver relation. A class interface conversion can usually
+produce a stable interface pointer through stored class state, but the class
+receiver lifetime still determines whether the produced interface pointer may
+escape.
 
 ## Assignment And Storage
 

@@ -94,6 +94,13 @@ conversion from `byte* _near` to `byte* _far` does not make
 `(byte* _near)[]` convertible to `(byte* _far)[]`. Reconstruct or materialize
 as required.
 
+Indexing, slicing, from-end syntax, and custom `@index`/`@range` parameters
+are source access rules over array-like values. Their validation and argument
+rewrites are described in
+[Core Expression, Statement, And Access Semantics](14-core-expression-statement-and-access-semantics.md).
+Once those rules have chosen an access operation, ABI lowering still uses the
+array component shape described here.
+
 ## Target Specs On Expanded Carriers
 
 A target type spec on an expanded array applies to the carrier components, not
@@ -181,8 +188,11 @@ receives completion result slots. Completion shape is described in
 ## Iterators
 
 `iter T(...)` and `async iter T(...)` are protocol-shaped callable values.
-Iterator expansion creates state and protocol slots used by `foreach`, `yield`,
-cleanup, and current-value access.
+Ordinary iterator expansion creates state and protocol slots used by `foreach`,
+`yield`, cleanup, and current-value access. Async iterator callable shapes
+should not be treated as a complete `await foreach` implementation unless the
+async-iterator lowering path explicitly supplies the readiness-callback and
+loop-driver semantics.
 
 Compiler writers should treat iterator expansion as source-level iterator
 semantics, not as an arbitrary delegate. The generated state may retain locals,
@@ -251,6 +261,11 @@ Compiler writers must keep result semantics source-level:
 - `constof` and lifetime checks apply to the logical result;
 - generated component assignments preserve all component facts;
 - metadata and API headers expose the source return type.
+
+Trailing `out` parameters that bind as source-level call results are not
+expanded returns, but they use similar caller-storage mechanics. Their
+source-form restrictions are documented in
+[Core Expression, Statement, And Access Semantics](14-core-expression-statement-and-access-semantics.md).
 
 ## Generic Expanded Forms
 

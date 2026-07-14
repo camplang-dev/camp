@@ -137,9 +137,8 @@ C emission requires a lowered bindable tree with no unresolved/error marker
 types. The emitter should validate before writing files and delete partial
 generated files if emission fails.
 
-Current C emission targets C99. If an emit kind is unsupported, the emitter
-should fail with an emitter diagnostic rather than trying to approximate another
-C dialect.
+C emission targets C99. If an emit kind is unsupported, the emitter should fail
+with an emitter diagnostic rather than trying to approximate another C dialect.
 
 Generated output includes:
 
@@ -165,6 +164,24 @@ chosen by analysis/lowering:
 
 The emitter should not rediscover expansion rules independently. Use the same
 expanded-form services as the analyzer/lowerer.
+
+## Enums And Inline Constants In C
+
+Exported Camp enums should be emitted as target-sized integer typedefs plus
+named value macros/constants. Do not emit them as C `enum` declarations unless a
+future target contract explicitly defines compatible width and signedness
+behavior. The Camp enum underlying type is semantic; the C spelling must
+preserve it.
+
+Inline constants are emitted as typed macro-style constants when they are part
+of the native surface. Their source values and kinds remain metadata facts.
+Emitter code should consume the analyzer's computed constant value rather than
+re-evaluating source expressions in C-emission-specific logic.
+
+`@symbol` overrides apply to the typedef, enum value macro/constant, global
+inline constant, static inline constant, function, or static field symbol that
+declaration analysis accepted. C emission must not apply `@symbol` to instance
+fields or non-enum type declarations rejected by analysis.
 
 ## C Reserved Identifiers
 

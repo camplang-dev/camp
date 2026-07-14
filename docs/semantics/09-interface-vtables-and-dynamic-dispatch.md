@@ -74,7 +74,7 @@ Required slots must be supplied by implementing structs and classes.
 If a type declares it implements an interface and no inherited/defaulted/optional
 slot supplies a method, the validator must report the missing member. When a
 same-name method exists but lacks the explicit interface marker required by the
-current rules, the diagnostic should point at the candidate and tell the author
+language rules, the diagnostic should point at the candidate and tell the author
 that the marker is missing.
 
 ## Defaulted Slots
@@ -110,7 +110,7 @@ class state where the vtable shape has already been chosen.
 ## Interface Constructors
 
 An interface constructor slot means implementers must be constructible through
-that interface contract. Current conformance rules permit constructor-bearing
+that interface contract. Conformance rules permit constructor-bearing
 interfaces only on structs and sealed classes. Non-sealed classes cannot safely
 promise a constructor slot because derived allocation and construction behavior
 would need a different dispatch contract.
@@ -150,6 +150,13 @@ Struct methods implementing interface slots are usually adapted through
 generated thunks so the ABI first parameter matches the interface instance slot
 shape and the thunk recovers the concrete struct receiver.
 
+A struct-to-interface conversion therefore produces a scoped interface carrier
+unless the source form explicitly provides some other valid storage. It cannot
+be used as an escaped interface pointer merely because the vtable itself is
+static: the context inside the carrier points at the struct storage being
+viewed. Escaped interface contracts require an implementation receiver
+lifetime that can safely outlive the use site.
+
 ## Class Conformance
 
 Class conformance may include inheritance, virtual dispatch, and derived-class
@@ -168,6 +175,13 @@ The search must walk base classes without duplicating or inventing vtable
 storage. A derived class that implements an interface through its base should
 reuse the base lowering unless it explicitly provides its own compatible
 implementation according to the language rules.
+
+Unlike a struct conversion, a class conversion can usually produce the address
+of an interface slot stored in object state. The produced interface pointer is
+still only as durable as the class receiver. A scoped class receiver produces a
+scoped interface pointer; an escaped class receiver can satisfy escaped
+interface storage when the implemented method signatures also satisfy the
+interface lifetime contract.
 
 Extern classes are native ownership boundaries. The compiler should not insert
 ordinary Camp instance fields into an extern class. Extern classes may
@@ -247,7 +261,7 @@ The conversion paths are:
 - class pointer to implemented interface: use the stored interface field or
   accessor, possibly via the class that owns the implementation;
 - struct value to implemented interface: materialize a temporary indirect
-  carrier and return its interface slot pointer;
+  carrier and return its scoped interface slot pointer;
 - generic `T` to interface in a constrained generic body: use `vtableof` and
   cast the receiver to the interface instance slot shape;
 - interface to base interface: cast or project through the inherited interface

@@ -238,6 +238,17 @@ intended capture behavior.
 Generated producers that own context, such as escaped once lambdas and
 postpone, arrange context deletion at the correct invocation point.
 
+Source `delete delegate` is a special cleanup marker, not an ordinary delete
+expression. It is valid only inside a `new delegate` lambda. During lambda
+lowering, it is rewritten to delete the generated context local/pointer created
+for that lambda, using the captured allocator when the generated context needs
+one. The spelling `delete context` is invalid.
+
+`delete delegate` must not be accepted in a plain lambda, a scoped delegate
+lambda that has no generated owning context, a direct `fn` lambda, or arbitrary
+callable code. It also must not be interpreted as deletion of a user-visible
+variable named `delegate` or `context`.
+
 Deletion must happen after the source callable body has consumed the context and
 after any thrown/result paths have copied out values that need the context.
 Generated cleanup should run on all source-visible exit paths where the
@@ -245,6 +256,13 @@ language promises cleanup.
 
 Do not attach deletion to a type merely because it is `once`; attach deletion to
 the generated producer/owner relationship.
+
+For non-`void` escaped delegate lambdas, lowering must preserve result
+production before cleanup. A `finally` cleanup is usually the safe source shape
+because it lets result and thrown paths copy their values out before the
+generated context is destroyed. For `void` escaped delegate lambdas, a final
+`delete delegate;` statement can be lowered directly when it is the final
+source-visible cleanup action.
 
 ## Default Arguments And Thunks
 

@@ -75,6 +75,32 @@ create/init helper guarantees the object storage is initialized before user code
 observes it. Compiler code should keep this guarantee explicit rather than
 assuming C zero-initialization everywhere.
 
+## Fixed Structs And Copyability
+
+A `fixed struct` has visible, inline storage and no implicit copy semantics. It
+does not participate in class inheritance or virtual class dispatch. Its layout
+is part of the source/ABI surface in the same way ordinary struct field layout
+is, but the value itself must be constructed, passed, and retained by reference
+or by explicit storage-oriented operations.
+
+Compiler rules to preserve:
+
+- a fixed struct type does not satisfy `copyable`;
+- direct fixed-size array value types do not satisfy `copyable`;
+- pointers to fixed structs and fixed-size arrays do satisfy `copyable` because
+  the pointer value is copyable;
+- fixed structs and classes must be passed by reference, except where an extern
+  surface explicitly owns a compatible native representation;
+- ordinary copyable structs cannot contain direct fields whose type is a class
+  or fixed struct;
+- initialization of fixed-size arrays is limited to array literals, string
+  literals where the element type permits them, or `default`.
+
+Lowering must not accidentally materialize a copied temporary for a fixed
+struct. Construction should target the final storage whenever possible, and
+operations that require a movable value should diagnose rather than silently
+copying bytes.
+
 ## Destructors
 
 Destructors release owned resources and must return `void`. Lowering must call
@@ -145,6 +171,31 @@ facts to the constructed aggregate.
 Initializer lowering must preserve field order, field names, defaulted fields,
 fixed storage, and expanded forms. A positional initializer should not depend on
 reflection or metadata order; it uses declaration order.
+
+## Trailing Construction Initializers
+
+Construction may be followed by a trailing initializer, often called an object
+initializer in user-facing prose. The constructor call and the initializer
+together form one source construction expression. Lowering must evaluate
+constructor arguments once, construct the object once, and then apply the
+initializer items in source order before the expression is considered complete.
+
+The initializer target can be an aggregate field, property, indexer, or
+expanded-form component accepted by ordinary initializer rules. Field targets
+write storage directly. Property and indexer targets lower through their setter
+calls, so they inherit the accessor semantics described in
+[Core Expression, Statement, And Access Semantics](14-core-expression-statement-and-access-semantics.md).
+
+For `init`, the target storage is stack-like source storage with the lifetime
+of the current block unless a surrounding feature gives it a different storage
+duration. For `new`, the target is allocated storage, normally heap-like from
+the reader's point of view and allocator-defined from the compiler's point of
+view. In both cases, pointer-bearing initializer values contribute retained
+lifetime facts to the constructed aggregate.
+
+Trailing initializer lowering must not create an intermediate copied value for
+fixed structs or other non-copyable storage shapes. It should construct into
+the final storage, then apply initializer writes/calls against that storage.
 
 ## `new`
 
@@ -245,6 +296,13 @@ expression for diagnostics and dumps. Avoid duplicating side effects: evaluate
 the source expression into a generated local, guard cleanup with an active flag
 when needed, and clear the flag after cleanup.
 
+Source `goto` is not a structured transfer for cleanup purposes. The current
+lowering path rewrites `return`, `break`, and `continue` through pending
+cleanup, but leaves source `goto` as a low-level branch. A `goto` that exits a
+`try`/`finally` region can therefore bypass the `finally` body. Flow analysis
+may diagnose or warn about that source pattern, but lowering must not silently
+turn a source `goto` into a structured cleanup transfer.
+
 ## Async And Iterator Restrictions
 
 Generated async and iterator state can retain values across suspension or
@@ -289,7 +347,7 @@ surfaces rather than inventing them.
 
 Interface constructor/destructor slots are lifecycle contracts and must be
 validated with interface conformance. Constructor-bearing interfaces may be
-implemented only by structs or sealed classes under the current rules.
+implemented only by structs or sealed classes.
 
 Virtual class lifecycle interacts with vtable assignment:
 

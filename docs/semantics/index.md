@@ -2,7 +2,7 @@
 
 These supplements are for compiler writers and advanced maintainers. They are
 normative for compiler behavior, diagnostics, lowering, metadata, and emitted
-code. Ordinary Camp users should start with the language reference.
+code. Ordinary Camp users should start with the language guide.
 
 ## 1. Binding, Analysis, And Lowering Pipeline
 
@@ -110,6 +110,7 @@ code. Ordinary Camp users should start with the language reference.
 ## 6. Generics, Erasure, And Capabilities
 
 - Binding Model
+- Receiver-Relative Type Forms
 - Constraint Categories
 - Erased Versus Materialized Values
 - `T: any`
@@ -196,10 +197,12 @@ code. Ordinary Camp users should start with the language reference.
 - Constructor Binding
 - Default Constructors
 - Definite Assignment
+- Fixed Structs And Copyability
 - Destructors
 - Base Initialization
 - `init`
 - Initializer Lists
+- Trailing Construction Initializers
 - `new`
 - `delete`
 - Allocator Selection
@@ -224,11 +227,13 @@ code. Ordinary Camp users should start with the language reference.
 - Metadata IDs
 - Doc Comment Translation
 - Attributes
+- Property Metadata
 - Stubs
 - Type Object Details
 - Function Object Details
 - Capability Parameters
 - Inline Constants
+- Enum Metadata And Symbols
 - API Versus ABI Inspection
 - Diagnostics
 - Test Surface
@@ -245,6 +250,7 @@ code. Ordinary Camp users should start with the language reference.
 - Primitive C Spelling
 - C Emission Preconditions
 - Expanded Forms In C
+- Enums And Inline Constants In C
 - C Reserved Identifiers
 - Symbol Emission
 - Headers
@@ -270,5 +276,22 @@ code. Ordinary Camp users should start with the language reference.
 - Golden Diagnostic Tests
 - LSP Diagnostic Mapping
 - Outstanding Bugs And Documentation Issues
+- Test Surface
+- Implementation Anchors
+
+## 14. Core Expression, Statement, And Access Semantics
+
+- Body-Analysis Ownership
+- Property Accessor Binding
+- Property Assignment Lowering
+- Index-Aware Parameters
+- Range-Aware Parameters
+- Accessors, Ranges, And Generic Arrays
+- Omitted Trailing `out` Result Binding
+- Intentional Discard
+- Labels, `goto`, And Cleanup
+- Conditions And Truth Values
+- Metadata And API
+- Diagnostics
 - Test Surface
 - Implementation Anchors

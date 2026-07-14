@@ -119,6 +119,15 @@ Compiler writers should preserve these broad stages:
 6. **Lowering rewrite:** rewrite accepted source constructs into lower-level
    Camp-like forms for dumps and C emission.
 
+The current implementation groups these stages under five analyzer pass names:
+`DeclarationExpansion`, `DeclarationAnalysis`, `MethodBodyAnalysis`,
+`NodeRewriteApplication`, and `LoweringRewrite`. The conceptual stages above
+are more granular than those pass names, but the ordering contract is the same:
+generated declarations must exist before declarations and bodies rely on them,
+body analysis must own source legality, node-rewrite application must preserve
+the decisions body analysis recorded, and lowering must not reopen source-level
+validity.
+
 Comments in source files should remain the closest documentation for exact pass
 entry points and pass names. This document captures the cross-cutting contract.
 
@@ -200,6 +209,10 @@ Body analysis resolves expression and statement semantics:
 - overload resolution and generic inference;
 - target typing and default argument insertion;
 - assignment, call, return, yield, throw, catch, and delete checks;
+- property and indexer accessor binding;
+- `@index`/`@range`, from-end, and range-argument checks;
+- omitted trailing `out` result binding and deconstruction;
+- intentional discard target recognition;
 - conversion classification;
 - lifetime fact propagation and storage checks;
 - `constof` call-site equality and produced-result checks;
@@ -234,6 +247,11 @@ Lowering rewrites the accepted semantic tree into simpler Camp-like operations:
 - constructors/destructors become lifecycle helper calls;
 - `new` and `delete` thread allocation contexts;
 - lambdas become callable targets and context values;
+- property, indexer, and range access become ordinary calls/arguments;
+- omitted trailing `out` results become generated caller storage;
+- intentional discards become generated write-only locals;
+- structured transfers run generated cleanup, while source `goto` keeps its
+  source-level low-level behavior;
 - async functions become callback-shaped state machines;
 - iterators become protocol state machines;
 - `sizeof`, `typenameof`, and `vtableof` use explicit capability values where

@@ -189,6 +189,85 @@ strings when tools need to understand the feature. Opaque attributes are useful
 for source preservation, but core language semantics should be represented
 directly.
 
+### `@symbol`
+
+`@symbol("Name")` overrides the emitted native symbol for declarations where a
+native symbol is meaningful. Declaration analysis accepts it on:
+
+- enum declarations;
+- enum values;
+- global variables, including global inline constants;
+- static fields, including static inline constants;
+- functions and methods.
+
+It is rejected on aliases, non-enum type declarations, parameters, generic
+parameters, and instance fields. The attribute requires exactly one string
+literal. The string must be a valid identifier and must not be a reserved Camp
+word or reserved C word.
+
+`@symbol` does not affect source lookup, metadata IDs, overload resolution,
+interface conformance, callable ascription, or documentation targets. Metadata
+should preserve both the source name and the symbol name when they differ.
+
+### `symbolof(...)`
+
+`symbolof(...)` is valid only in metadata attribute arguments. It resolves a
+source declaration reference to the declaration's emitted symbol name. The
+resolver should search the source/metadata declaration graph, including child
+declarations where the attribute surface permits them, and diagnose unresolved
+references at the `symbolof` expression.
+
+`symbolof` is not a runtime expression and must not be accepted in ordinary
+function bodies, constant expressions, or emitted C expressions.
+
+### `@notsupported`
+
+`@notsupported` marks a function or method as unavailable for source calls. It
+is not valid on constructors, destructors, aliases, types, fields, parameters,
+or generic parameters. It accepts at most one positional string reason and does
+not accept named arguments.
+
+Call analysis should diagnose calls to unsupported functions unless the current
+source context is itself an accepted unsupported/declaration-only surface.
+Metadata should preserve the unsupported marker and reason so tools can explain
+availability without trying the call.
+
+### Lifecycle And Async Attributes
+
+Attributes such as `@awaitwith`, `@noawait`, and generated lifecycle markers
+should be represented with first-class metadata fields when possible. Internal
+generation aids such as allocator-aware create helpers should not be treated as
+general source attributes unless the language surface explicitly exposes them.
+
+The compiler recognizes `@createWithAllocator` on type declarations during
+generated class create-helper construction. When present, the generated create
+path carries an allocator parameter even if the constructor surface did not
+otherwise declare a `within` parameter. This is a lifecycle generation hook, not
+a general metadata attribute for ordinary API authors. Metadata and API output
+should not encourage consumers to depend on it unless a future source feature
+makes that dependency explicit.
+
+## Property Metadata
+
+Property and indexer information is derived from accessor functions. The
+metadata serializer should identify:
+
+- accessor kind: getter or setter;
+- property name for named properties;
+- indexer marker for nameless `get`/`set`;
+- index parameter names;
+- setter value parameter name.
+
+For async accessors, the metadata property name is derived from the source
+accessor name after removing the accessor prefix and the trailing `Async`
+suffix where the compiler recognizes that suffix. For setters whose value
+parameter expands into multiple ABI components, metadata records the source
+value parameter name, not the name of an expanded trailing component.
+
+This information belongs to the accessor function metadata. Do not synthesize
+source field declarations for properties, and do not omit the underlying
+function declaration data needed to type-check or document the API.
+
 ## Stubs
 
 Stubs represent referenced declarations that are not emitted in full. Consumers
@@ -273,6 +352,40 @@ Supported inline values include scalar constants, enum values, scalar/pointer
 newtype constants, pointer null, function-pointer null, and string-like values
 as supported by the compiler. Unsupported inline constant types should diagnose
 during analysis, not disappear from metadata.
+
+The constant evaluator should remain intentionally small and deterministic.
+Supported integer expressions include literals, references to earlier constants
+in the same constant-evaluation graph, casts, parenthesized expressions, and
+the unary/binary integer operators implemented by the compiler. Do not treat
+ordinary function calls, target preprocessor expressions, or generic
+per-instantiation code as inline constant evaluation.
+
+Inline constants are emitted to C as typed macro-style constants when they are
+part of the exported/native surface. They also appear in metadata as source
+constants. Metadata is the canonical structured view; C spelling is an ABI
+artifact.
+
+## Enum Metadata And Symbols
+
+Enums are nominal integer types with fixed values. Metadata should preserve the
+enum's underlying type, source enum values, computed constant values, and any
+symbol overrides. The compiler's default underlying type is `uint` unless the
+source declares another supported integral type.
+
+Exported C headers represent Camp enums as typedef-based integer types plus
+named value macros/constants, not as C `enum` declarations. This preserves the
+chosen underlying representation and avoids relying on target C enum width
+rules.
+
+The enum declaration's emitted symbol is the base symbol for the exported C
+typedef. Each enum value receives its own emitted symbol. Without an explicit
+value-level `@symbol`, declaration analysis derives value symbols from the enum
+symbol plus the source value name. A value-level `@symbol` overrides the entire
+emitted value symbol.
+
+Target-typed enum value lookup is a source analysis feature. Metadata should
+still record the enum value as a child of the enum, not as a free global
+constant merely because C emission uses macro-like names.
 
 ## API Versus ABI Inspection
 
