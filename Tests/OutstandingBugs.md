@@ -1,6 +1,6 @@
 # Outstanding Bugs
 
-Next bug number: BUG-047.
+Next bug number: BUG-048.
 
 ## BUG-042: Aggregate initializer arguments can reach C emission for pointer parameters
 
@@ -80,3 +80,25 @@ currently fails with `Unknown type '#ERROR'` before producing a useful
 diagnostic. Either accept the explicit receiver form as specified, or reject it
 with a clear source diagnostic and amend the language documentation if only
 `escaped class` is supported.
+
+## BUG-047: `postpone` rejects async calls whose completion slot should remain open
+
+The current spec and async resumption supplement describe postponed async calls
+as awaitable when the final async completion callback is left open:
+
+```camp
+auto later = postpone readByteCountAsync(path);
+int count = await later();
+```
+
+A focused smoke test with a `@noawait async int readByteCountAsync(...)`
+currently reports:
+
+```text
+Async calls must use await or provide an explicit completion callback as the final argument.
+```
+
+The analyzer appears to validate the postponed target as an ordinary async call
+before applying the `postpone` rule that should leave the completion slot open.
+Either support the specified async-postpone shape, or amend the spec and docs if
+`postpone` is only intended to support ordinary non-async calls for now.
