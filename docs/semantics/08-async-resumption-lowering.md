@@ -7,7 +7,7 @@ with a final completion callback. `await` suspends by arranging a generated
 completion callback and resuming through a selected ordinary resumer object.
 
 User-facing syntax appears in
-[Async, Await, And Postpone](../language/19-async-await-and-postpone.md). Callable context
+[Async, Await, And Deferred Calls](../language/15-async-await-and-deferred-calls.md). Callable context
 ownership is described in
 [Callable Lowering And Context Ownership](07-callable-lowering-and-context-ownership.md).
 

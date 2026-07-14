@@ -7,7 +7,7 @@ standard library and any project libraries in scope.
 
 The canonical references are:
 
-- [docs/language/index.md](language/index.md) for source-language rules.
+- [docs/language/01-camp-in-one-page.md](language/01-camp-in-one-page.md) for the start of the source-language guide.
 - [docs/compiler/index.md](compiler/index.md) for command-line, package, build,
   and metadata behavior.
 - [docs/semantics/index.md](semantics/index.md) for compiler-facing lowering and

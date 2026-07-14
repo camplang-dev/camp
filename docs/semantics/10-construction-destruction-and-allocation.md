@@ -3,7 +3,7 @@
 This supplement describes lifecycle lowering: constructors, `init`, `new`,
 destructors, `delete`, `within` allocation contexts, generated cleanup, and
 extern lifecycle boundaries. User-facing syntax appears in
-[Structs, Classes, And Lifecycle](../language/11-structs-classes-and-lifecycle.md).
+[Structs, Classes, And Object Lifetimes](../language/05-structs-classes-and-object-lifetimes.md).
 
 The compiler's lifecycle rules sit at the intersection of type binding,
 lifetime analysis, virtual/interface dispatch, async/iterator frame lowering,

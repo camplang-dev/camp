@@ -3,7 +3,7 @@
 This supplement describes the compiler rules for generic type parameters,
 erased values, and explicit capabilities such as `sizeof(T)`,
 `typenameof(T)`, and `vtableof(T: Interface)`. User-facing syntax is documented
-in [Generics And Type Capabilities](../language/17-generics-and-type-capabilities.md);
+in [Generics And Capabilities](../language/13-generics-and-capabilities.md);
 this supplement is about the invariants the compiler must preserve while
 analyzing and lowering generic code.
 

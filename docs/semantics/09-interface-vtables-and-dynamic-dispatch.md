@@ -3,7 +3,7 @@
 This supplement describes interface lowering, interface vtable layout, generic
 `vtableof` capability flow, and the relationship between interface dispatch and
 virtual class dispatch. User-facing interface syntax appears in
-[Interfaces And Dispatch](../language/12-interfaces-and-dispatch.md). This document is about the ABI and
+[Interfaces And Dynamic Dispatch](../language/12-interfaces-and-dynamic-dispatch.md). This document is about the ABI and
 compiler invariants.
 
 Camp interfaces are nominal vtable contracts. An interface value used for

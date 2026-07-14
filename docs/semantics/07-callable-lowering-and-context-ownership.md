@@ -6,8 +6,8 @@ contracts for `fn`, `delegate`, `once`, `iter`, `async`, callable newtypes,
 method references, and lambdas.
 
 User-facing syntax appears in
-[Functions And Callables](../language/08-functions-and-callables.md)
-and [Async, Await, And Postpone](../language/19-async-await-and-postpone.md). This document
+[Functions, Methods, And Callables](../language/06-functions-methods-and-callables.md)
+and [Async, Await, And Deferred Calls](../language/15-async-await-and-deferred-calls.md). This document
 focuses on the rules compiler writers must keep consistent.
 
 ## Callable Shape

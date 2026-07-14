@@ -2,7 +2,7 @@
 
 This supplement describes the compiler's lifetime fact model. It is written for
 compiler authors, not for ordinary language users. User-facing lifetime syntax
-is documented in [Lifetimes, Allocation, And `within`](../language/16-lifetimes-allocation-and-within.md);
+is documented in [Lifetimes, Allocation, And `within`](../language/07-lifetimes-allocation-and-within.md);
 this document explains how those source rules are represented, propagated, and
 diagnosed inside the compiler.
 

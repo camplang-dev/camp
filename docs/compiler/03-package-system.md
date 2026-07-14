@@ -89,7 +89,7 @@ Installed packages are searched in two roots:
 <working-directory>/cache/pkg
 ```
 
-The repository root is the global package root for the current compiler checkout.
+The repository root is the global package root for the active compiler checkout.
 The working-directory root is local to the project being built. `campc restore`
 installs missing packages into the local root. `campc pkg install --global`
 installs into the global root.
