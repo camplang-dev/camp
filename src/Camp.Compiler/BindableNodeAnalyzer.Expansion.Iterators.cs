@@ -95,7 +95,7 @@ public sealed partial class BindableNodeAnalyzer
 			? PointerTo(stateReference)
 			: stateReference;
 		function.ResolvedType = function.ReturnType.ResolvedType;
-		function.Body = CreateIteratorFactoryBody(function, stateType, stateReference);
+		function.Body = CreateIteratorFactoryBody(function, stateType, stateReference, containingType);
 		generatedIteratorFactories.Add(function);
 	}
 
@@ -153,7 +153,7 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = stateName
 		};
 		AddIteratorGenericParameters(state, function, containingType);
-		AddIteratorStateMembers(state, function, iterType);
+		AddIteratorStateMembers(state, function, iterType, containingType);
 		return state;
 	}
 
@@ -170,7 +170,7 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = stateName
 		};
 		AddIteratorGenericParameters(state, function, containingType);
-		AddIteratorStateMembers(state, function, iterType);
+		AddIteratorStateMembers(state, function, iterType, containingType);
 		return state;
 	}
 
@@ -200,16 +200,16 @@ public sealed partial class BindableNodeAnalyzer
 		return reference;
 	}
 
-	void AddIteratorStateMembers(TypeDefinition state, FunctionDefinition function, IterTypeReference iterType)
+	void AddIteratorStateMembers(TypeDefinition state, FunctionDefinition function, IterTypeReference iterType, TypeDefinition? containingType)
 	{
-		AddIteratorStateFields(state, function);
+		AddIteratorStateFields(state, function, containingType);
 		AddIteratorLiftedLocalFields(state, function);
 		AddIteratorNextMethod(state, function, iterType);
 		AddIteratorDestructor(state, function);
 		AddIteratorProtocolAdapter(state, iterType);
 	}
 
-	void AddIteratorStateFields(TypeDefinition state, FunctionDefinition function)
+	void AddIteratorStateFields(TypeDefinition state, FunctionDefinition function, TypeDefinition? containingType)
 	{
 		AddIteratorField(state, new FieldDefinition
 		{
@@ -226,14 +226,14 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			string sourceName = IteratorStateFieldSourceName(parameter);
 			string fieldName = IteratorStateFieldNameFor(parameter);
-			string parameterType = IteratorStateFieldType(parameter);
+			string parameterType = IteratorStateFieldType(parameter, containingType);
 
 			AddIteratorField(state, new FieldDefinition
 			{
 				SourceSyntax = parameter.SourceSyntax,
 				Name = fieldName,
 				Symbol = fieldName,
-				Type = IteratorStateFieldTypeReference(parameter, parameterType),
+				Type = IteratorStateFieldTypeReference(parameter, parameterType, containingType),
 				ResolvedType = parameterType
 			}, sourceName);
 		}
@@ -268,8 +268,11 @@ public sealed partial class BindableNodeAnalyzer
 			|| CReservedWords.Contains(name);
 	}
 
-	string IteratorStateFieldType(ParameterDefinition parameter)
+	string IteratorStateFieldType(ParameterDefinition parameter, TypeDefinition? containingType)
 	{
+		if (parameter is ThisParameterDefinition thisParameter && containingType is not null)
+			return StripLifetimeQualifiers(IteratorThisParameterType(thisParameter, containingType));
+
 		string resolvedType = ResolvedTypeForIteratorExpansion(parameter.Type, parameter.ResolvedType);
 		return parameter switch
 		{
@@ -279,8 +282,11 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	TypeReference IteratorStateFieldTypeReference(ParameterDefinition parameter, string resolvedType)
+	TypeReference IteratorStateFieldTypeReference(ParameterDefinition parameter, string resolvedType, TypeDefinition? containingType)
 	{
+		if (parameter is ThisParameterDefinition && containingType is not null)
+			return TypeReferenceForIteratorField(resolvedType);
+
 		return parameter switch
 		{
 			SizeOfParameterDefinition => NuintType(),
@@ -288,6 +294,12 @@ public sealed partial class BindableNodeAnalyzer
 			_ when ContainsLifetimeAnnotation(parameter.Type) => TypeReferenceForIteratorField(resolvedType),
 			_ => CloneType(parameter.Type) ?? TypeReferenceForResolvedName(resolvedType)
 		};
+	}
+
+	string IteratorThisParameterType(ThisParameterDefinition parameter, TypeDefinition containingType)
+	{
+		string receiverType = containingType is NewtypeDefinition ? containingType.Name : $"{containingType.Name}*";
+		return ApplyThisDeclarators(receiverType, parameter);
 	}
 
 	void AddIteratorLiftedLocalFields(TypeDefinition state, FunctionDefinition function)
@@ -920,7 +932,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	BlockStatement CreateIteratorFactoryBody(FunctionDefinition function, TypeDefinition stateType, TypeReference stateReference)
+	BlockStatement CreateIteratorFactoryBody(FunctionDefinition function, TypeDefinition stateType, TypeReference stateReference, TypeDefinition? containingType)
 	{
 		string stateResolvedType = stateReference.ResolvedType ?? stateType.Name;
 		InitializerExpression initializer = new() { ResolvedType = stateResolvedType };
@@ -935,7 +947,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (IsHiddenParameter(parameter) || parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 				continue;
 			string sourceName = IteratorStateFieldSourceName(parameter);
-			string parameterType = IteratorStateFieldType(parameter);
+			string parameterType = IteratorStateFieldType(parameter, containingType);
 			FieldDefinition? field = TryGetIteratorStateField(stateType, sourceName);
 
 			initializer.Items.Add(new InitializerItem

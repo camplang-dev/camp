@@ -2,25 +2,6 @@
 
 Next bug number: BUG-049.
 
-## BUG-046: `class iter` member with explicit `escaped this` produces `#ERROR`
-
-The archived iterator material says a `class iter` member function whose
-generated state retains `this` may either be a member of an `escaped class` or
-declare an explicit `escaped this` parameter. The `escaped class` form compiles,
-but a non-escaped class member written as:
-
-```camp
-class iter int values(escaped this)
-{
-	yield 1;
-}
-```
-
-currently fails with `Unknown type '#ERROR'` before producing a useful
-diagnostic. Either accept the explicit receiver form as specified, or reject it
-with a clear source diagnostic and amend the language documentation if only
-`escaped class` is supported.
-
 ## BUG-047: `postpone` rejects async calls whose completion slot should remain open
 
 The current spec and async resumption supplement describe postponed async calls

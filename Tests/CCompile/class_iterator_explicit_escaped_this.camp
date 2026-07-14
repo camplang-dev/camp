@@ -1,0 +1,30 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Source
+{
+	int seed;
+
+	void setSeed(int seed)
+	{
+		this.seed = seed;
+	}
+
+	class iter int values(escaped this)
+	{
+		yield this.seed;
+		yield this.seed + 1;
+	}
+}
+
+export int main()
+{
+	auto source = new Source();
+	source.setSeed(20);
+
+	int total = 0;
+	foreach (int value in source.values())
+		total += value;
+
+	return total == 41 ? 0 : 1;
+}

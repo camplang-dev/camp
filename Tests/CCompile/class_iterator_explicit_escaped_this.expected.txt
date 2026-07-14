@@ -1,0 +1,154 @@
+// file: class_iterator_explicit_escaped_this.c
+#include "class_iterator_explicit_escaped_this_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void Source_setSeed(Source *this, int seed);
+static Source_valuesIter *Source_values(Source *this);
+static bool Source_valuesIter_next(Source_valuesIter *this, int *current);
+static void Source_valuesIter_op_delete(Source_valuesIter *this);
+static void Source_valuesIter_destroy(Source_valuesIter *this);
+static bool Source_valuesIter_iter(void *ctx, int *current);
+
+static void Source_setSeed(Source *this, int seed)
+{
+	this->seed = seed;
+}
+
+static Source_valuesIter *Source_values(Source *this)
+{
+	Source_valuesIter *_iter0 = (Source_valuesIter *)(malloc(sizeof(Source_valuesIter)));
+	if ((_iter0 != NULL))
+	{
+		*_iter0 = (Source_valuesIter){0};
+	}
+	if ((_iter0 != NULL))
+	{
+		_iter0->__state = 0;
+		_iter0->__iter_this = this;
+	}
+	return _iter0;
+}
+
+int main(void)
+{
+	Source *source = (Source *)(malloc(sizeof(Source)));
+	if ((source != NULL))
+	{
+		*source = (Source){0};
+	}
+	Source_setSeed(source, 20);
+	int total = 0;
+	{
+		Source_valuesIter *_foreachIter1 = Source_values((Source *)(source));
+		int _foreachCurrent2 = 0;
+		while (Source_valuesIter_next(_foreachIter1, &_foreachCurrent2))
+		{
+			int value = _foreachCurrent2;
+			total += value;
+__foreach_continue3: ;
+		}
+		(Source_valuesIter_op_delete(_foreachIter1), free((void *)(_foreachIter1)));
+__foreach_break4: ;
+	}
+	return ((total == 41) ? 0 : 1);
+}
+
+static bool Source_valuesIter_next(Source_valuesIter *this, int *current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	if ((this->__state == 2))
+	{
+		goto __iter_resume2;
+	}
+	*current = this->__iter_this->seed;
+	this->__state = 1;
+	return true;
+__iter_resume1: ;
+	;
+	*current = (this->__iter_this->seed + 1);
+	this->__state = 2;
+	return true;
+__iter_resume2: ;
+	;
+	this->__state = -1;
+	return false;
+}
+
+static void Source_valuesIter_op_delete(Source_valuesIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static void Source_valuesIter_destroy(Source_valuesIter *this)
+{
+	Source_valuesIter_op_delete(this);
+}
+
+static bool Source_valuesIter_iter(void *ctx, int *current)
+{
+	Source_valuesIter *state = (Source_valuesIter *)(ctx);
+	if ((current == NULL))
+	{
+		(Source_valuesIter_op_delete(state), free((void *)(state)));
+		return false;
+	}
+	return Source_valuesIter_next(state, current);
+}
+
+// file: class_iterator_explicit_escaped_this.h
+#ifndef CLASS_ITERATOR_EXPLICIT_ESCAPED_THIS_H_
+#define CLASS_ITERATOR_EXPLICIT_ESCAPED_THIS_H_
+
+#include "class_iterator_explicit_escaped_this_private.h"
+
+int main(void);
+
+#endif
+// file: class_iterator_explicit_escaped_this_private.h
+#ifndef CLASS_ITERATOR_EXPLICIT_ESCAPED_THIS_PRIVATE_H_
+#define CLASS_ITERATOR_EXPLICIT_ESCAPED_THIS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Source Source;
+typedef struct Source_valuesIter Source_valuesIter;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Source
+{
+	int seed;
+};
+struct Source_valuesIter
+{
+	int __state;
+	Source *__iter_this;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: class_iterator_explicit_escaped_this.c
