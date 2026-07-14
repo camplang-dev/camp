@@ -58,14 +58,14 @@ public sealed class MsvcCompileTests
 				writer.write(bytes, catch error);
 				if (error != default)
 					return 2;
-				delete writer;
+				writer.close();
 
 				FileHandle reader = FileHandle.open("tmp/msvc-test-file.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
 				if (error != default)
 					return 3;
 				if (reader.getLength(catch error) != 2 || error != default)
 					return 4;
-				delete reader;
+				reader.close();
 
 				Instant now = Instant.utcNow();
 				string text = now.format.copyString() finally delete;
