@@ -276,7 +276,7 @@ symbol links, or deprecation messages.
 
 | Attribute | Applies to | Short explanation |
 |---|---|---|
-| `@symbol("Name")` | ABI-visible declarations where native spelling is meaningful; enum types and members; exported/static fields and inline constants; functions and methods | Overrides the emitted/imported native symbol without changing Camp source lookup |
+| `@symbol("Name")` | ABI-visible declarations where native spelling is meaningful; class, struct, interface, enum, and newtype declarations; enum values; exported globals; static fields and inline constants; functions and methods | Overrides the emitted/imported native symbol without changing Camp source lookup |
 | `@index` | Index-like parameters | Enables index-aware syntax and diagnostics, including from-end indexes where length is visible |
 | `@range` | First parameter in an `index, count` pair | Enables range boundary syntax such as `start..end` for slice-like APIs |
 | `@awaitwith` | One ordinary runtime parameter of a concrete async body | Selects the resumer used after `await` suspension |

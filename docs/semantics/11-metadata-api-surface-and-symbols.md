@@ -196,18 +196,26 @@ native symbol is meaningful. Declaration analysis accepts it on:
 
 - enum declarations;
 - enum values;
+- class, struct, interface, and newtype declarations;
 - global variables, including global inline constants;
 - static fields, including static inline constants;
 - functions and methods.
 
-It is rejected on aliases, non-enum type declarations, parameters, generic
-parameters, and instance fields. The attribute requires exactly one string
-literal. The string must be a valid identifier and must not be a reserved Camp
-word or reserved C word.
+It is rejected on aliases, parameters, generic parameters, and instance fields.
+The attribute requires exactly one string literal. The string must be a valid
+identifier and must not be a reserved Camp word or reserved C word.
+
+For a type declaration, the override is the type's effective native symbol.
+Default emitted names for ABI-visible generated helpers, interface/vtable
+helpers, lifecycle helpers, virtual helpers, and static members should use that
+effective type symbol as their prefix. A member-level `@symbol` overrides the
+full emitted member symbol and takes precedence over the containing type's
+default prefix.
 
 `@symbol` does not affect source lookup, metadata IDs, overload resolution,
 interface conformance, callable ascription, or documentation targets. Metadata
-should preserve both the source name and the symbol name when they differ.
+and Camp API output should preserve the source name and the `@symbol`
+attribute, and metadata should include the symbol name when it differs.
 
 ### `symbolof(...)`
 

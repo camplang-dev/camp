@@ -108,7 +108,10 @@ declarations at the narrowest visibility that works:
 - Unmarked declarations are package- or namespace-local according to the language
   rules.
 - `extern` declares a symbol implemented outside Camp.
-- `@symbol("name")` controls the native symbol spelling for interop declarations.
+- `@symbol("name")` controls native ABI spelling for symbol-bearing declarations:
+  functions, methods, exported globals, static fields, inline constants,
+  enum values, and ABI-visible class/struct/interface/enum/newtype
+  declarations. It does not change Camp source lookup.
 
 Do not combine visibility modifiers unless the docs or nearby code show that the
 combination is valid for that declaration kind. In ordinary code, an exported
@@ -655,7 +658,10 @@ extern int nativeRead(
 Rules for generated interop code:
 
 - Use `extern` for declarations implemented outside Camp.
-- Use `@symbol` only where the native symbol name is part of the contract.
+- Use `@symbol` only where the native symbol name is part of the contract. On a
+  type declaration it also supplies the default native prefix for generated ABI
+  helpers and static members; member-level `@symbol` overrides the full member
+  symbol.
 - Use explicit integer widths for ABI-visible values.
 - Keep ownership and cleanup paired in the Camp wrapper, not scattered through
   callers.

@@ -270,19 +270,36 @@ Image *camp_image_open(const char *path, size_t path_length, ImageError *error);
 declaration exported, and should not be used as a source organization tool. It
 changes native symbol identity.
 
+Camp API output preserves the Camp declaration name and the `@symbol` attribute
+instead of renaming the declaration to the native symbol.
+
 ## Symbol Rules
 
 Symbol overrides are checked because they affect linkable names. The symbol
 must be a valid emitted identifier for the target, must not be a reserved word,
 and must not collide with another emitted symbol.
 
-Valid uses include functions and methods, variables, static fields, inline
-constants, enum declarations, and enum members where those declarations
-support native symbols:
+Valid uses include ABI-visible type declarations (`class`, `struct`,
+`interface`, `enum`, and `newtype`), functions and methods, variables, static
+fields, inline constants, and enum members where those declarations support
+native symbols:
 
 ```camp
 @symbol("ImageCount")
 export int imageCount = 0;
+```
+
+```camp
+@symbol("NativeWidget")
+export class Widget
+{
+	export static int getDefaultSize() => 12;
+
+	@symbol("NativeWidget_reset_now")
+	export static void resetNow()
+	{
+	}
+}
 ```
 
 ```camp
@@ -294,10 +311,14 @@ export enum DifficultyLevel : ushort
 }
 ```
 
-For struct, class, interface, newtype, alias, parameter, and instance-field
-declarations, check the generated header before depending on a native spelling.
-Those surfaces may have ABI-facing names derived from the Camp declaration
-rather than from a source-level override.
+For a type declaration, the override becomes the type's effective native
+symbol. Generated ABI helpers and default static member symbols use that
+effective type symbol as their prefix, so `Widget.getDefaultSize` above emits
+with a `NativeWidget_` prefix. A member-level `@symbol` overrides the full
+member symbol and wins over the containing type's default prefix.
+
+Aliases, parameters, generic parameters, and instance fields do not accept
+`@symbol`.
 
 Once a declaration has a symbol override, the default generated native name is
 not the ABI name to depend on. Treat the override as the stable

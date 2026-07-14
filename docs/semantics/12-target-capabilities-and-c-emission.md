@@ -178,10 +178,13 @@ of the native surface. Their source values and kinds remain metadata facts.
 Emitter code should consume the analyzer's computed constant value rather than
 re-evaluating source expressions in C-emission-specific logic.
 
-`@symbol` overrides apply to the typedef, enum value macro/constant, global
-inline constant, static inline constant, function, or static field symbol that
-declaration analysis accepted. C emission must not apply `@symbol` to instance
-fields or non-enum type declarations rejected by analysis.
+`@symbol` overrides apply to every symbol-bearing declaration that declaration
+analysis accepts: ABI-visible type declarations, typedef-like newtypes, enum
+value macros/constants, global inline constants, static inline constants,
+functions, methods, and static fields. For a type declaration, C emission uses
+the effective type symbol for the emitted type spelling and as the default
+prefix for generated ABI helpers and static members. C emission must not apply
+`@symbol` to aliases, parameters, generic parameters, or instance fields.
 
 ## C Reserved Identifiers
 

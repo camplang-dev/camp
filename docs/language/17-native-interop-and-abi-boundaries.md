@@ -183,10 +183,12 @@ void *__winapi CreateFileW(const wchar_t *path, unsigned int access);
 ```
 
 `@symbol` is also useful for exported functions, inline constants, enum types,
-enum members, static fields, and type members whose native names must match an
-existing ABI. It does not change source lookup. Once a declaration has a symbol
-override, treat the override as the stable ABI name and the Camp name as the
-stable source name.
+enum members, class/struct/interface/newtype declarations, static fields, and
+type members whose native names must match an existing ABI. It does not change
+source lookup. On type declarations, the override becomes the native type
+symbol and the default prefix for generated ABI helpers and static members.
+Once a declaration has a symbol override, treat the override as the stable ABI
+name and the Camp name as the stable source name.
 
 ## Call Specs And Type Specs
 

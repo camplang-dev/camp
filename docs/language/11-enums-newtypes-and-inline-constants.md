@@ -192,6 +192,14 @@ newtype WindowHandle: nint;
 newtype NativeBuffer: void*;
 ```
 
+When the native ABI already has a type name, keep the Camp source name readable
+and use `@symbol` for the emitted spelling:
+
+```camp
+@symbol("HWND")
+export newtype WindowHandle: nint;
+```
+
 The representation may be familiar, but the source type is distinct:
 
 ```camp
@@ -364,9 +372,10 @@ The override applies to the emitted constant symbol, not to source lookup.
 Camp code still uses `CONNECTION_LIMIT`.
 
 For enum declarations and enum members, `@symbol` controls the enum typedef
-symbol and member constant symbols. For non-enum type declarations, use the
-symbol rules in the names chapter rather than treating inline constant behavior
-as a general rule for type symbols.
+symbol and member constant symbols. For `class`, `struct`, `interface`, and
+`newtype` declarations, `@symbol` controls the effective native type symbol and
+the default prefix used by static members and generated ABI helpers. Use the
+symbol rules in the names chapter for the full placement and precedence rules.
 
 ## Small Names, Stronger APIs
 
