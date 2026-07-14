@@ -2390,9 +2390,41 @@ public sealed partial class BindableNodeAnalyzer
 				Name = "complete",
 				Symbol = "complete",
 				ResolvedType = callableType,
-				Type = new NamedTypeReference { Name = callableType, ResolvedType = callableType }
+				Type = CreateAsyncCompletionSourceTypeReference(function, callableType)
 			}
 		];
+	}
+
+	static TypeReference CreateAsyncCompletionSourceTypeReference(FunctionDefinition function, string resolvedType)
+	{
+		CallableTypeReference callback = new()
+		{
+			Kind = CallableKind.Once,
+			ReturnType = new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" },
+			ResolvedType = StripLifetimeQualifiers(resolvedType)
+		};
+		string returnType = function.ResolvedType ?? "void";
+		if (returnType != "void")
+			callback.Parameters.Add(new ParameterDefinition
+			{
+				Type = TypeReferenceForResolvedName(returnType),
+				ResolvedType = returnType
+			});
+		if (function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Thrown) is ParameterDefinition thrown)
+		{
+			string thrownType = thrown.ResolvedType ?? thrown.Type?.ResolvedType ?? ErrorType;
+			callback.Parameters.Add(new ParameterDefinition
+			{
+				Modifier = ParameterModifier.Thrown,
+				Type = TypeReferenceForResolvedName(thrownType),
+				ResolvedType = thrownType
+			});
+		}
+		return new EscapedTypeReference
+		{
+			Type = callback,
+			ResolvedType = resolvedType
+		};
 	}
 
 	static List<ParameterDefinition> CreateAsyncCompletionAbiParameters(FunctionDefinition function)
@@ -4556,16 +4588,40 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? existingTarget)
 			? existingTarget
 			: ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
+		if (function is null
+			&& call.Target is MemberExpression member
+			&& TryAnalyzePropertyIndexer(member, call.Arguments, scope, typeScope, out _)
+			&& expressionRewrites.TryGetValue(member, out Expression? rewritten)
+			&& rewritten is MemberReferenceExpression propertyReference
+			&& propertyReference.Member is FunctionDefinition propertyFunction
+			&& IsPropertyGetterReference(propertyReference))
+		{
+			function = propertyFunction;
+			callTargets[call] = function;
+		}
 		if (function is null)
 		{
+			if (TryAnalyzeAwaitableCallableInvocation(call, scope, typeScope, out string awaitedCallableReturnType))
+			{
+				awaitExpression.ResolvedType = awaitedCallableReturnType;
+				return awaitedCallableReturnType;
+			}
 			BodyAnalyzeExpression(call, scope, typeScope);
-			if (call.ResolvedType is not null && call.ResolvedType != ErrorType && IsAwaitable(call, scope, typeScope))
+			if (IsAwaitable(call, scope, typeScope))
 			{
 				awaitExpression.ResolvedType = GetAwaitedType(call, scope, typeScope);
 				return awaitExpression.ResolvedType;
 			}
 			if (!TryAnalyzeCallableInvocation(call, scope, typeScope, null, out string callableReturnType))
-				Report(GetRange(awaitExpression.SourceSyntax), GetAwaitableDiagnostic(awaitExpression.Operand, scope, typeScope));
+			{
+				string diagnostic = GetAwaitableDiagnostic(awaitExpression.Operand, scope, typeScope);
+				if (diagnostic == "Await target is awaitable.")
+				{
+					awaitExpression.ResolvedType = GetAwaitedType(call, scope, typeScope);
+					return awaitExpression.ResolvedType;
+				}
+				Report(GetRange(awaitExpression.SourceSyntax), diagnostic);
+			}
 			awaitExpression.ResolvedType = callableReturnType == ErrorType ? ErrorType : callableReturnType;
 			return awaitExpression.ResolvedType;
 		}
@@ -4619,6 +4675,34 @@ public sealed partial class BindableNodeAnalyzer
 		returnType = RefineCallReturnTypeFromLifetimeArguments(function, call.Target, call.Arguments, returnType);
 		awaitExpression.ResolvedType = returnType;
 		return returnType;
+	}
+
+	bool TryAnalyzeAwaitableCallableInvocation(CallExpression call, BodyScope scope, AnalysisScope typeScope, out string returnType)
+	{
+		returnType = ErrorType;
+		string callableType = BodyAnalyzeExpression(call.Target, scope, typeScope);
+		if (!TryGetCallableShape(callableType, out CallableShape callable))
+			return false;
+
+		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)
+			? newtypeParameters!
+			: CreateStructuralCallableParameters(GetSourceCallableParameterTypes(callable));
+		if (!HasAwaitableCallback(parameters) || !TryGetAwaitableCallbackSuccessType(parameters, out returnType))
+			return false;
+
+		callableInvocationParameters[call] = parameters;
+		List<ParameterDefinition> analysisParameters = [.. parameters];
+		analysisParameters.RemoveAt(analysisParameters.Count - 1);
+		AnalyzeCallArguments(
+			call.Arguments,
+			analysisParameters,
+			scope,
+			typeScope,
+			call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target),
+			missingArgumentSyntax: GetCallTargetNameDiagnosticSyntax(call.Target),
+			callDisplayName: GetCallableInvocationDisplayName(call.Target));
+		call.ResolvedType = callable.ReturnType;
+		return true;
 	}
 
 	static void NormalizeAwaitCatchArguments(CallExpression call, FunctionDefinition function)
@@ -4696,7 +4780,10 @@ public sealed partial class BindableNodeAnalyzer
 		EnsureFunctionSignatureAnalyzed(function, typeScope);
 		callTargets[call] = function;
 		bool includeThis = IncludeExplicitThisArgument(call.Target, function);
-		List<ParameterDefinition> parameters = GetAsyncAwareCallParameters(function, call, includeThis);
+		bool leavesAsyncCompletionOpen = LeavesAsyncCompletionOpen(function, call, includeThis);
+		List<ParameterDefinition> parameters = leavesAsyncCompletionOpen
+			? GetPostponedAsyncCallParameters(function)
+			: GetAsyncAwareCallParameters(function, call, includeThis);
 		List<ParameterDefinition> callableParameters = GetCallableParameters(parameters, includeThis);
 		if (includeThis && GetExplicitThisParameter(function) is null && IsInstanceFunction(function) && FindContainingType(function) is TypeDefinition containingType)
 			callableParameters.Insert(0, CreateImplicitThisParameter(containingType));
@@ -4752,7 +4839,7 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 
-		string returnType = function.ResolvedType ?? "void";
+		string returnType = leavesAsyncCompletionOpen ? "void" : function.ResolvedType ?? "void";
 		string onceType = BuildCallableType("once", returnType, lambdaParameterSlots);
 		LambdaExpression lambda = new()
 		{
@@ -4771,6 +4858,21 @@ public sealed partial class BindableNodeAnalyzer
 		expressionRewrites[postpone] = lambda;
 		postpone.ResolvedType = analyzedType;
 		return analyzedType;
+	}
+
+	bool LeavesAsyncCompletionOpen(FunctionDefinition function, CallExpression call, bool includeExplicitThis)
+	{
+		if (!function.IsAsync)
+			return false;
+		int visibleCount = GetAsyncVisibleArgumentCount(function, includeExplicitThis);
+		return call.Arguments.Count <= visibleCount;
+	}
+
+	List<ParameterDefinition> GetPostponedAsyncCallParameters(FunctionDefinition function)
+	{
+		List<ParameterDefinition> parameters = [.. function.Parameters];
+		parameters.AddRange(CreateAsyncCompletionSourceParameters(function));
+		return parameters;
 	}
 
 	string BodyAnalyzePostfixUpdateExpression(PostfixUpdateExpression postfix, BodyScope scope, AnalysisScope typeScope)

@@ -1,0 +1,37 @@
+using Std;
+
+class Resumer
+{
+	void resumeAsync(escaped once void() continuation)
+	{
+		continuation();
+	}
+}
+
+Resumer resumer;
+int observed;
+
+@noawait
+async int readByteCountAsync(const char[] path)
+{
+	return path.length == 4 ? 7 : 0;
+}
+
+async int runAsync(@awaitwith Resumer* resumer)
+{
+	auto later = postpone readByteCountAsync("file");
+	int count = await later();
+	return count + 1;
+}
+
+void complete(void* context, int value)
+{
+	observed = value;
+}
+
+export int main()
+{
+	runAsync(&resumer, complete, null);
+	Console.writeLine(observed);
+	return observed == 8 ? 0 : 1;
+}

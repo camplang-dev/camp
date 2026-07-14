@@ -1587,20 +1587,22 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	static bool HasAwaitableCallback(List<ParameterDefinition> parameters)
+	bool HasAwaitableCallback(List<ParameterDefinition> parameters)
 	{
 		if (parameters is not [.., ParameterDefinition last]
-			|| !TryGetCallableTypeReference(last.Type, out CallableTypeReference? callback)
-			|| callback is not { Kind: CallableKind.Once, ReturnType: PrimitiveTypeReference { Type: PrimitiveType.Void } })
+			|| !TryGetAwaitableCallbackShape(last, out CallableShape callback)
+			|| callback.Kind != "once"
+			|| callback.ReturnType != "void")
 			return false;
 
 		int successSlots = 0;
 		int thrownSlots = 0;
-		foreach (ParameterDefinition parameter in callback.Parameters)
+		foreach (string parameter in callback.Parameters)
 		{
-			if (parameter.Modifier == ParameterModifier.Out)
+			CallableSlot slot = CallableShapeService.ParseCallableSlot(parameter);
+			if (slot.Modifier == "out")
 				return false;
-			if (parameter.Modifier == ParameterModifier.Thrown)
+			if (slot.Modifier == "thrown")
 				thrownSlots++;
 			else
 				successSlots++;
@@ -1608,24 +1610,48 @@ public sealed partial class BindableNodeAnalyzer
 		return successSlots <= 1 && thrownSlots <= 1;
 	}
 
-	static bool TryGetAwaitableCallbackSuccessType(List<ParameterDefinition> parameters, out string successType)
+	bool TryGetAwaitableCallbackSuccessType(List<ParameterDefinition> parameters, out string successType)
 	{
 		successType = "void";
 		if (parameters is not [.., ParameterDefinition last]
-			|| !TryGetCallableTypeReference(last.Type, out CallableTypeReference? callback)
-			|| callback is not { Kind: CallableKind.Once, ReturnType: PrimitiveTypeReference { Type: PrimitiveType.Void } })
+			|| !TryGetAwaitableCallbackShape(last, out CallableShape callback)
+			|| callback.Kind != "once"
+			|| callback.ReturnType != "void")
 			return false;
-		foreach (ParameterDefinition parameter in callback.Parameters)
+		foreach (string parameter in callback.Parameters)
 		{
-			if (parameter.Modifier is ParameterModifier.Thrown)
+			CallableSlot slot = CallableShapeService.ParseCallableSlot(parameter);
+			if (slot.Modifier is "thrown")
 				continue;
-			if (parameter.Modifier is ParameterModifier.Out)
+			if (slot.Modifier is "out")
 				return false;
 			if (successType != "void")
 				return false;
-			successType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType;
+			successType = slot.Type;
 		}
 		return true;
+	}
+
+	bool TryGetAwaitableCallbackShape(ParameterDefinition parameter, out CallableShape callback)
+	{
+		string? type = parameter.ResolvedType ?? parameter.Type?.ResolvedType;
+		if (!string.IsNullOrWhiteSpace(type))
+		{
+			if (TryGetCallableShape(type, out callback))
+				return true;
+			string structuralType = StripLifetimeQualifiers(type);
+			if (structuralType != type && TryGetCallableShape(structuralType, out callback))
+				return true;
+		}
+		if (TryGetCallableTypeReference(parameter.Type, out CallableTypeReference? callable) && callable is not null)
+		{
+			string returnType = callable.ReturnType?.ResolvedType ?? FormatTypeReference(callable.ReturnType);
+			List<string> parameters = [.. GetParameterTypeNames(callable.Parameters)];
+			callback = new CallableShape(GetCallableKindName(callable.Kind), callable.TargetSpec, callable.CallSpec, returnType, parameters);
+			return true;
+		}
+		callback = default;
+		return false;
 	}
 
 	bool IsSwitchableType(string type)
