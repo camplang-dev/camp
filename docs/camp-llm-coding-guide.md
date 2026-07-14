@@ -291,6 +291,11 @@ After a raw conversion, reconstruct the typed value at the nearest safe point.
 Avoid passing `void*`, `fn*`, `nint`, `nuint`, or `untyped` through ordinary
 business logic.
 
+Aggregate initializer arguments are allowed only when the parameter supplies a
+safe storage rule. Passing `{ ... }` to `in T` or `const T*` is fine; the
+compiler materializes a temporary and passes its address. Do not pass `{ ... }`
+to a mutable `T*` parameter. Initialize a local and pass `&local` instead.
+
 ## Functions And Parameters
 
 Parameter modifiers are semantic, not decorative. Preserve and generate them

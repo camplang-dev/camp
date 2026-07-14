@@ -1,0 +1,23 @@
+struct PaintEventArgs
+{
+	int hdc;
+	bool erase;
+	int bounds;
+}
+
+int readConst(const PaintEventArgs* e)
+{
+	return e.hdc + e.bounds;
+}
+
+int readIn(in PaintEventArgs e)
+{
+	return e.hdc + e.bounds;
+}
+
+export int main()
+{
+	int a = readConst({ 1, true, 3 });
+	int b = readIn({ 2, false, 4 });
+	return a + b == 10 ? 0 : 1;
+}

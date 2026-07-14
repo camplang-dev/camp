@@ -921,8 +921,33 @@ public sealed partial class BindableNodeAnalyzer
 			LowerArgumentDeclaration(argument);
 		else if (argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch && IsDiscardExpression(argument.Value))
 			argument.Value = CreateDiscardReference(argument.ResolvedType ?? argument.Value?.ResolvedType ?? ErrorType, argument.SourceSyntax);
+		else if (TryMaterializeInitializerAddressArgument(argument))
+			return argument;
 
 		argument.Value = LowerExpression(argument.Value);
 		return argument;
+	}
+
+	bool TryMaterializeInitializerAddressArgument(ArgumentExpression argument)
+	{
+		if (argument.Value is not InitializerExpression initializer
+			|| string.IsNullOrWhiteSpace(argument.MaterializedInitializerAddressType)
+			|| string.IsNullOrWhiteSpace(argument.MaterializedInitializerAddressResultType)
+			|| currentStatementPrefix is null)
+			return false;
+
+		string localType = argument.MaterializedInitializerAddressType!;
+		initializer.PlainDeclarationInitializer = true;
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("initializer"), localType, TypeReferenceForResolvedName(localType), initializer);
+		currentStatementPrefix.Add(local);
+		argument.Value = new UnaryExpression
+		{
+			SourceSyntax = argument.SourceSyntax ?? initializer.SourceSyntax,
+			Operator = UnaryOperator.AddressOf,
+			Operand = CreateVariableReference(local.Target, localType),
+			ResolvedType = argument.MaterializedInitializerAddressResultType
+		};
+		argument.ResolvedType = argument.MaterializedInitializerAddressResultType;
+		return true;
 	}
 }

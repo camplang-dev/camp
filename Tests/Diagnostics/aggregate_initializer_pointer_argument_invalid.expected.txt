@@ -1,0 +1,1 @@
+tests/Diagnostics/aggregate_initializer_pointer_argument_invalid.camp(15,9): error: Aggregate initializer cannot be passed directly to mutable pointer parameter 'e'; initialize a local and pass its address.

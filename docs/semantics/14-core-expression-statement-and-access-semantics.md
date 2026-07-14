@@ -218,6 +218,21 @@ This rule is intentionally source-level. C emission may lower `bool` to the
 target's C spelling, but it should not reopen truthiness decisions during
 emission.
 
+## Aggregate Initializers As Arguments
+
+Aggregate initializers may be used as call arguments only when the target
+parameter gives the compiler a safe storage rule. For an `in T` parameter, the
+compiler materializes a temporary `T`, initializes it from the aggregate, and
+passes the temporary by address. For a `const T*` parameter, the compiler
+materializes a temporary `const T`, initializes it from the aggregate, and
+passes its address.
+
+An aggregate initializer is not a mutable lvalue. A call such as
+`mutate({ ... })` where `mutate` expects `T*` must be rejected during analysis
+with a diagnostic that tells the programmer to initialize a local and pass its
+address. Lowering must never leave a raw C aggregate initializer in argument
+position, because that is not portable to all supported C targets.
+
 ## Metadata And API
 
 Metadata records property accessor facts structurally:
@@ -247,11 +262,13 @@ Important diagnostic categories include:
 - omitted trailing `out` result binding is ambiguous or unsupported in the
   surrounding form;
 - attempt to read an intentional discard target;
+- aggregate initializer passed directly to a mutable pointer parameter;
 - source `goto` crosses cleanup in a way the compiler diagnoses.
 
 Diagnostics should point at the source syntax that introduced the special
 meaning: the property access, assignment target, attribute, range expression,
-from-end expression, omitted call result, discard target, or source `goto`.
+from-end expression, omitted call result, discard target, aggregate
+initializer, or source `goto`.
 
 ## Test Surface
 

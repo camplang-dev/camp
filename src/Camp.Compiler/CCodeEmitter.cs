@@ -3551,6 +3551,8 @@ public static class CCodeEmitter
 		{
 			if (TryGetFixedArrayElementType(targetType ?? "", out _))
 				return FormatFixedArrayInitializer(value);
+			if (value is InitializerExpression { PlainDeclarationInitializer: true } initializer)
+				return FormatInitializer(initializer, includeType: false);
 			return FormatAssignmentValueForTarget(targetType, value);
 		}
 

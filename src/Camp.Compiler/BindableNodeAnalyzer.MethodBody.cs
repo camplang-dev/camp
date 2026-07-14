@@ -2984,6 +2984,7 @@ public sealed partial class BindableNodeAnalyzer
 							CheckCallArgumentAssignable(structuralExpected, actual, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
 						if (CanLiftToOptional(actual, expected))
 							arguments[i].ResolvedType = expected;
+						AnalyzeAggregateInitializerPointerArgument(arguments[i], analysisParameter, expected, fallbackSyntax);
 					}
 					analyzedLifetimeArguments.Add((arguments[i], lifetimeParameter));
 					analyzedConstOfArguments.Add((arguments[i], analysisParameter));
@@ -3004,6 +3005,35 @@ public sealed partial class BindableNodeAnalyzer
 		Dictionary<string, bool> constOfAnchors = BuildConstOfCallAnchorFacts(analyzedConstOfArguments);
 		CheckConstOfCallArguments(analyzedConstOfArguments, constOfAnchors, fallbackSyntax);
 		return constOfAnchors;
+	}
+
+	void AnalyzeAggregateInitializerPointerArgument(ArgumentExpression argument, ParameterDefinition parameter, string expected, SyntaxNode? fallbackSyntax)
+	{
+		if (argument.Value is not InitializerExpression)
+			return;
+		if (parameter.Modifier == ParameterModifier.In)
+		{
+			if (!TryGetAggregateInitializerFields(expected, argument.Value.SourceSyntax, out _))
+				return;
+			argument.MaterializedInitializerAddressType = expected;
+			argument.MaterializedInitializerAddressResultType = AddPointer(expected);
+			return;
+		}
+		if (!TryParseTypeShape(expected, out TypeShape expectedShape)
+			|| expectedShape.Kind != TypeShapeKind.Pointer
+			|| expectedShape.Element is null)
+			return;
+
+		string elementType = TypeShapeParser.Format(expectedShape.Element);
+		if (IsConstQualified(elementType))
+		{
+			argument.MaterializedInitializerAddressType = elementType;
+			argument.MaterializedInitializerAddressResultType = expected;
+			return;
+		}
+
+		string parameterName = string.IsNullOrWhiteSpace(parameter.Name) ? "" : $" '{parameter.Name}'";
+		Report(GetRange(argument.Value.SourceSyntax ?? argument.SourceSyntax ?? fallbackSyntax), $"Aggregate initializer cannot be passed directly to mutable pointer parameter{parameterName}; initialize a local and pass its address.");
 	}
 
 	bool TryBindCallArgumentToParameter(ArgumentExpression argument, List<ParameterDefinition> callableParameters, bool[] suppliedParameters, SyntaxNode? fallbackSyntax, out int parameterIndex)

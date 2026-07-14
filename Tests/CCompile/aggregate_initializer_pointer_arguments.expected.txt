@@ -1,0 +1,67 @@
+// file: aggregate_initializer_pointer_arguments.c
+#include "aggregate_initializer_pointer_arguments_private.h"
+
+/* Private file declarations. */
+static int readConst(const PaintEventArgs *e);
+static int readIn(PaintEventArgs *e);
+
+static int readConst(const PaintEventArgs *e)
+{
+	return (e->hdc + e->bounds);
+}
+
+static int readIn(PaintEventArgs *e)
+{
+	return ((*e).hdc + (*e).bounds);
+}
+
+int main(void)
+{
+	PaintEventArgs _initializer0 = { 1, true, 3 };
+	int a = readConst(&_initializer0);
+	PaintEventArgs _initializer1 = { 2, false, 4 };
+	int b = readIn(&_initializer1);
+	return (((a + b) == 10) ? 0 : 1);
+}
+
+// file: aggregate_initializer_pointer_arguments.h
+#ifndef AGGREGATE_INITIALIZER_POINTER_ARGUMENTS_H_
+#define AGGREGATE_INITIALIZER_POINTER_ARGUMENTS_H_
+
+#include "aggregate_initializer_pointer_arguments_private.h"
+
+int main(void);
+
+#endif
+// file: aggregate_initializer_pointer_arguments_private.h
+#ifndef AGGREGATE_INITIALIZER_POINTER_ARGUMENTS_PRIVATE_H_
+#define AGGREGATE_INITIALIZER_POINTER_ARGUMENTS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct PaintEventArgs PaintEventArgs;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct PaintEventArgs
+{
+	int hdc;
+	bool erase;
+	int bounds;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: aggregate_initializer_pointer_arguments.c

@@ -72,6 +72,7 @@ public class ArrayExpression : Expression
 public class InitializerExpression : Expression
 {
 	public List<InitializerItem> Items { get; } = [];
+	public bool PlainDeclarationInitializer { get; set; }
 }
 
 public class InitializerItem : BindableNode
@@ -172,6 +173,8 @@ public class ArgumentExpression : Expression
 	public TypeReference? Type { get; set; }
 	public DeclarationTarget? Target { get; set; }
 	public Expression? Value { get; set; }
+	public string? MaterializedInitializerAddressType { get; set; }
+	public string? MaterializedInitializerAddressResultType { get; set; }
 }
 
 public class CallExpression : Expression

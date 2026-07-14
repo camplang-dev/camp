@@ -1,0 +1,16 @@
+struct PaintEventArgs
+{
+	int hdc;
+	bool erase;
+	int bounds;
+}
+
+void mutate(PaintEventArgs* e)
+{
+	e.hdc = 42;
+}
+
+void test()
+{
+	mutate({ 1, false, 3 });
+}
