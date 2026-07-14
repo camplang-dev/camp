@@ -187,12 +187,9 @@ receives completion result slots. Completion shape is described in
 
 ## Iterators
 
-`iter T(...)` and `async iter T(...)` are protocol-shaped callable values.
-Ordinary iterator expansion creates state and protocol slots used by `foreach`,
-`yield`, cleanup, and current-value access. Async iterator callable shapes
-should not be treated as a complete `await foreach` implementation unless the
-async-iterator lowering path explicitly supplies the readiness-callback and
-loop-driver semantics.
+`iter T(...)` values are protocol-shaped callable values. Iterator expansion
+creates state and protocol slots used by `foreach`, `yield`, cleanup, and
+current-value access.
 
 Compiler writers should treat iterator expansion as source-level iterator
 semantics, not as an arbitrary delegate. The generated state may retain locals,

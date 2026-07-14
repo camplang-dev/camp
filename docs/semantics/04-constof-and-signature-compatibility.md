@@ -197,8 +197,8 @@ the target did not require.
 Apply these rules to:
 
 - callable newtype ascription;
-- assignment or conversion of `fn`, `delegate`, `once`, `iter`, `async`, and
-  `async iter` values;
+- assignment or conversion of `fn`, `delegate`, `once`, `iter`, and `async`
+  values;
 - anonymous callable type compatibility;
 - target-typed lambdas;
 - interface implementation matching;
