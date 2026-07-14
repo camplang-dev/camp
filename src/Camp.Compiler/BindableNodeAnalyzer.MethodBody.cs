@@ -345,6 +345,8 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Capturing scoped lambdas cannot be returned.");
 				if (RequiresAnyGenericCopy(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
 					ReportAnyGenericCopy(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
+				else if (RequiresCopyableGenericCopySizeOf(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
+					ReportCopyableGenericCopyNeedsSizeOf(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
 				bool fixedArraySpanEscape = EscapesLocalFixedArraySpan(scope.CurrentFunctionReturnType, returnStatement.Expression);
 				if (fixedArraySpanEscape)
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Cannot return a span view to local fixed-size array storage.");
@@ -645,6 +647,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Fixed-size arrays cannot be copied by value; initialize them with an array literal, string literal, or default.");
 		else if (declaration.InitialValue is not null && RequiresAnyGenericCopy(declaration.Target.ResolvedType ?? ErrorType, declaration.InitialValue, scope))
 			ReportAnyGenericCopy(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax);
+		else if (declaration.InitialValue is not null && RequiresCopyableGenericCopySizeOf(declaration.Target.ResolvedType ?? ErrorType, declaration.InitialValue, scope))
+			ReportCopyableGenericCopyNeedsSizeOf(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax);
 		else if (declaration.InitialValue is not null && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 		{
 			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue.SourceSyntax, "Declaration initializer");
@@ -663,18 +667,32 @@ public sealed partial class BindableNodeAnalyzer
 		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: AnyTypeReference };
 	}
 
-	bool RequiresAnyGenericDefaultFillSizeOf(string targetType, Expression? value, BodyScope scope)
+	bool RequiresCopyableGenericCopySizeOf(string targetType, Expression? value, BodyScope scope)
+	{
+		if (value is null or DefaultExpression)
+			return false;
+		string type = StripTopLevelValueQualifiers(targetType);
+		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: CopyableTypeReference }
+			&& !HasSizeOfCapability(scope, type);
+	}
+
+	bool RequiresErasedGenericDefaultFillSizeOf(string targetType, Expression? value, BodyScope scope)
 	{
 		if (value is not DefaultExpression)
 			return false;
 		string type = BaseTypeName(StripTopLevelValueQualifiers(targetType));
-		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: AnyTypeReference }
+		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: AnyTypeReference or CopyableTypeReference }
 			&& !HasSizeOfCapability(scope, type);
 	}
 
 	void ReportAnyGenericCopy(SyntaxNode? syntax)
 	{
 		Report(GetRange(syntax), "T: any is non-copying. Use T: copyable plus sizeof(T) for generic value-copy operations.");
+	}
+
+	void ReportCopyableGenericCopyNeedsSizeOf(SyntaxNode? syntax)
+	{
+		Report(GetRange(syntax), "Copying erased generic values requires sizeof(T).");
 	}
 
 	void ReportAnyGenericDefaultFillNeedsSizeOf(SyntaxNode? syntax)
@@ -4802,7 +4820,11 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ReportAnyGenericCopy(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax);
 		}
-		else if (RequiresAnyGenericDefaultFillSizeOf(targetType, assignment.Value, scope))
+		else if (RequiresCopyableGenericCopySizeOf(targetType, assignment.Value, scope))
+		{
+			ReportCopyableGenericCopyNeedsSizeOf(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax);
+		}
+		else if (RequiresErasedGenericDefaultFillSizeOf(targetType, assignment.Value, scope))
 		{
 			ReportAnyGenericDefaultFillNeedsSizeOf(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax);
 		}

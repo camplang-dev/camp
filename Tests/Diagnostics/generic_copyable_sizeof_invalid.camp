@@ -1,0 +1,26 @@
+T copyReturn<T: copyable>(T value)
+{
+	return value;
+}
+
+void copyLocal<T: copyable>(in T value)
+{
+	T copy = value;
+}
+
+void copyAssign<T: copyable>(T* target, in T value)
+{
+	*target = value;
+}
+
+void defaultFill<T: copyable>(T* target)
+{
+	*target = default;
+}
+
+void okWithSize<T: copyable>(T* target, in T value, sizeof(T))
+{
+	T copy = value;
+	*target = copy;
+	*target = default;
+}

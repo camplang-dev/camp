@@ -847,8 +847,8 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateNoExternClassArrayElement(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		if (containingType is NewtypeDefinition && definition.Modifier != FieldModifier.Static && IsDirectFixedArrayType(definition.Type))
 			Report(GetRange(definition.SourceSyntax), "Newtype instance fields may not use fixed-size array storage.");
-		if (definition.Type is not null && IsAnyOrAnyConstrainedGeneric(definition.Type, scope))
-			Report(GetNameRange(definition), "Generic values constrained to any cannot be stored by value. Use T* or T: copyable.");
+		if (definition.Type is not null && definition.GeneratedInfo is null && IsErasedGenericValueParameter(definition.Type, scope))
+			Report(GetNameRange(definition), "Erased generic type parameters cannot be stored directly in fields; use pointer, span, or explicit erased storage instead.");
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		InitializeFieldLifetimeFacts(definition, scope, containingType);
 		if (definition.Modifier == FieldModifier.Static && definition.InitialValue is not null)

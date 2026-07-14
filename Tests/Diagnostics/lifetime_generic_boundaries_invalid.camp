@@ -6,7 +6,7 @@ T* badInTransportEscape<T: any>(in T value)
 	return &value;
 }
 
-void choose<T: copyable>(T value, out T result)
+void choose<T: copyable>(T value, out T result, sizeof(T))
 {
 	result = value;
 }

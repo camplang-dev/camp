@@ -1,0 +1,4 @@
+tests/Diagnostics/generic_copyable_sizeof_invalid.camp(3,9): error: Copying erased generic values requires sizeof(T).
+tests/Diagnostics/generic_copyable_sizeof_invalid.camp(8,11): error: Copying erased generic values requires sizeof(T).
+tests/Diagnostics/generic_copyable_sizeof_invalid.camp(13,12): error: Copying erased generic values requires sizeof(T).
+tests/Diagnostics/generic_copyable_sizeof_invalid.camp(18,12): error: Default-filling erased generic storage requires sizeof(T).

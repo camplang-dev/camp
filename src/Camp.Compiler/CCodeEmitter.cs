@@ -5782,6 +5782,8 @@ public static class CCodeEmitter
 		string FormatMemberTarget(Expression? target)
 		{
 			string formatted = FormatExpression(target);
+			if (TryFormatSubstitutedGenericFieldPointerTarget(target, formatted, out string casted))
+				formatted = casted;
 			return target switch
 			{
 				UnaryExpression { Operator: UnaryOperator.PointerDereference } => "(" + formatted + ")",
@@ -5791,6 +5793,33 @@ public static class CCodeEmitter
 				BinaryExpression => "(" + formatted + ")",
 				_ => formatted
 			};
+		}
+
+		bool TryFormatSubstitutedGenericFieldPointerTarget(Expression? target, string formatted, out string casted)
+		{
+			casted = "";
+			if (target is not MemberReferenceExpression { Target.ResolvedType: string ownerType, Member: FieldDefinition field, ResolvedType: string resolvedType })
+				return false;
+			if (!TryGetPointerElementType(resolvedType, out _))
+				return false;
+			if (!TryFindFieldOwner(ownerType, field, out TypeDefinition? owner) || owner is null || owner.GenericParameters.Count == 0)
+				return false;
+			if (string.IsNullOrWhiteSpace(field.ResolvedType))
+				return false;
+
+			Dictionary<string, string> substitutions = GetConstructedTypeSubstitutionsForEmitter(ownerType, owner);
+			if (substitutions.Count == 0)
+				return false;
+
+			string substituted = SubstituteGenericTypeTokens(field.ResolvedType, substitutions) ?? field.ResolvedType;
+			if (substituted == field.ResolvedType || substituted != resolvedType)
+				return false;
+
+			string castType = FormatResolvedType(resolvedType, "").Declaration.Trim();
+			if (string.IsNullOrWhiteSpace(castType))
+				return false;
+			casted = "((" + castType + ")(" + formatted + "))";
+			return true;
 		}
 
 		string FormatInterfaceFunctionMemberReference(Expression target, FunctionDefinition function)

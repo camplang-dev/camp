@@ -1,8 +1,8 @@
 export as Docs;
 
-/// A [Box<T>] stores a single value.
+/// A [Box<T>] stores a pointer to a single value.
 export struct Box<T: copyable>
 {
-	/// Stored value.
-	T value;
+	/// Stored value pointer.
+	T* value;
 }

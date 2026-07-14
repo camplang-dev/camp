@@ -510,7 +510,7 @@ public sealed class LanguageServiceTests
 
 		struct Box<T: copyable>
 		{
-			T value;
+			T* value;
 		}
 
 		int helper(Counter* counter, int amount)

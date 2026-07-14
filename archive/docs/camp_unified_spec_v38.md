@@ -9302,14 +9302,21 @@ This is why the default generic constraint is useful for low-level code: it natu
 
 ### 6.1.6 `copyable`
 
-`T: copyable` is an erased value constraint for generic code that needs ordinary value copying, assignment, value storage, or value return.
+`T: copyable` is an erased value constraint for generic code that needs ordinary value copying, assignment, local value storage, or value return.
 
 Direct class types, fixed structs, and fixed-size array value types do not satisfy `copyable`. Pointer types do satisfy `copyable`, including pointers to classes, fixed structs, and fixed-size arrays, because the pointer value itself is copyable.
 
+Even under `T: copyable`, a type may not store a direct field of type `T`. Erased generic type bodies have one physical layout, and the size of `T` is not known as a compile-time field layout. Store `T*`, `T[]`, or explicit erased storage instead. Local variables of type `T` are allowed because the compiler can allocate runtime-sized stack storage when the function has the necessary size capability.
+
 ```camp
-class ValueBox<T: copyable>
+class BadValueBox<T: copyable>
 {
-	T value;
+	T value; // ERROR: erased generic fields cannot store T directly
+}
+
+class RefBox<T: copyable>
+{
+	T* value; // OK: the field stores a pointer-sized value
 }
 
 fixed struct ParserState
@@ -9321,13 +9328,13 @@ class Widget
 {
 }
 
-ValueBox<int> a;            // OK
-ValueBox<ParserState> b;    // ERROR
-ValueBox<Widget> c;         // ERROR
-ValueBox<byte[32]> d;       // ERROR
-ValueBox<ParserState*> e;   // OK
-ValueBox<Widget*> f;        // OK
-ValueBox<byte[32]*> g;      // OK
+RefBox<int> a;            // OK
+RefBox<ParserState> b;    // ERROR
+RefBox<Widget> c;         // ERROR
+RefBox<byte[32]> d;       // ERROR
+RefBox<ParserState*> e;   // OK
+RefBox<Widget*> f;        // OK
+RefBox<byte[32]*> g;      // OK
 ```
 
 A generic operation that copies `T` values under `T: copyable` also requires `sizeof(T)` when the erased lowering needs the storage size.
@@ -9501,7 +9508,7 @@ A non-materialized expanded value does not automatically provide the right point
 
 ### 6.2.6 `T: copyable` and erased value copying
 
-`T: copyable` is stronger than `T: any`. A type parameter known to satisfy `T: copyable` may be used where the same type is required under `T: any`. The reverse is invalid because `T: any` may be a class, fixed struct, or fixed-size array.
+`T: copyable` is stronger than `T: any`. A type parameter known to satisfy `T: copyable` may be used where the same type is required under `T: any`. The reverse is invalid because `T: any` may be a class, fixed struct, or fixed-size array. However, `T: copyable` is still erased; direct fields of type `T` are invalid for the same layout reason as `T: any`.
 
 ```camp
 void inspect<T: any>(T* value, sizeof(T))

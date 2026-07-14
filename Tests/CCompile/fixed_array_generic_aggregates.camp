@@ -31,16 +31,6 @@ class PointerBox<T: any>
 	}
 }
 
-class ValueBox<T: copyable>
-{
-	T value;
-
-	void set(in T value)
-	{
-		this.value = value;
-	}
-}
-
 export int main()
 {
 	fixed byte[4] bytes = [1, 2, 3, 4];
@@ -48,6 +38,7 @@ export int main()
 
 	FixedValue fixedValue = default;
 	RefType* refValue = new RefType();
+	refValue.value = 13;
 
 	auto byteBox = new PointerBox<byte[4]>();
 	byteBox.set(bytesPointer);
@@ -63,11 +54,5 @@ export int main()
 	first.marker = 11;
 	InlineBuffer second = first;
 
-	auto valueBox = new ValueBox<InlineBuffer>();
-	valueBox.set(second);
-
-	auto pointerValueBox = new ValueBox<byte[4]*>();
-	pointerValueBox.set(bytesPointer);
-
-	return (int)bytes[1] + fixedValue.value + refValue.value + (int)second.data[2] + second.marker;
+	return (int)bytes[1] + fixedValue.value + refBox.value.value + (int)second.data[2] + second.marker;
 }

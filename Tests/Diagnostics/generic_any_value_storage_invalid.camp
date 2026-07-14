@@ -5,6 +5,13 @@ class BadBox<T: any>
 	T[] span;
 }
 
+class BadCopyableBox<T: copyable>
+{
+	T value;
+	T* pointer;
+	T[] span;
+}
+
 void acceptValue<T: any>(T value)
 {
 }

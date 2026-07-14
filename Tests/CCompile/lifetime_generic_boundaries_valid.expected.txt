@@ -3,21 +3,21 @@
 
 /* Private file declarations. */
 char *getEscapedPointer(void);
-static void choose(void* value, void *result);
+static void choose(void* value, void *result, uintptr_t sizeof_T);
 static int main(void);
 
-static void choose(void* value, void *result)
+static void choose(void* value, void *result, uintptr_t sizeof_T)
 {
-	__builtin_memcpy(result, &(value), sizeof(void*));
+	__builtin_memcpy(result, &(value), sizeof_T);
 }
 
 static int main(void)
 {
 	char *source = getEscapedPointer();
 	char *result = 0;
-	choose(source, &result);
+	choose(source, &result, sizeof(char *));
 	int number = 0;
-	choose((void *)(intptr_t)(7), &number);
+	choose((void *)(intptr_t)(7), &number, sizeof(int));
 	return number;
 }
 

@@ -1155,6 +1155,21 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
+	bool IsErasedGenericValueParameter(TypeReference type, AnalysisScope scope)
+	{
+		return type switch
+		{
+			NamedTypeReference named when scope.TryGetGenericParameter(named.Name, out GenericParameter? parameter) && parameter is { Constraint: AnyTypeReference or CopyableTypeReference } => true,
+			ConstTypeReference { Type: not null } constType => IsErasedGenericValueParameter(constType.Type, scope),
+			ConstOfTypeReference { Type: not null } constOf => IsErasedGenericValueParameter(constOf.Type, scope),
+			VolatileTypeReference { Type: not null } volatileType => IsErasedGenericValueParameter(volatileType.Type, scope),
+			EscapedTypeReference { Type: not null } escapedType => IsErasedGenericValueParameter(escapedType.Type, scope),
+			ScopedTypeReference { Type: not null } scopedType => IsErasedGenericValueParameter(scopedType.Type, scope),
+			UnscopedTypeReference { Type: not null } unscopedType => IsErasedGenericValueParameter(unscopedType.Type, scope),
+			_ => false
+		};
+	}
+
 	bool IsFixedOrClassLikeType(TypeReference type)
 	{
 		type = UnwrapTypeDeclarators(type);

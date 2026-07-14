@@ -27,11 +27,11 @@
         {
           "id": "struct:Docs::Box/field:value",
           "name": "value",
-          "type": "T",
+          "type": "T*",
           "metadata": [
             {
               "name": "summary",
-              "content": "Stored value."
+              "content": "Stored value pointer."
             }
           ]
         }
@@ -39,7 +39,7 @@
       "metadata": [
         {
           "name": "summary",
-          "content": "A %s stores a single value.",
+          "content": "A %s stores a pointer to a single value.",
           "symbols": [
             {
               "ref": "struct:Docs::Box",

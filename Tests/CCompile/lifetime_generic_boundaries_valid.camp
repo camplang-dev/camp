@@ -1,6 +1,6 @@
 extern escaped char* getEscapedPointer();
 
-void choose<T: copyable>(T value, out T result)
+void choose<T: copyable>(T value, out T result, sizeof(T))
 {
 	result = value;
 }

@@ -5,7 +5,6 @@
 void *malloc(uintptr_t size);
 static void PointerBox_set(PointerBox *this, void *value);
 static void *PointerBox_getValue(const PointerBox *this);
-static void ValueBox_set(ValueBox *this, void *value);
 
 static void PointerBox_set(PointerBox *this, void *value)
 {
@@ -15,11 +14,6 @@ static void PointerBox_set(PointerBox *this, void *value)
 static void *PointerBox_getValue(const PointerBox *this)
 {
 	return this->value;
-}
-
-static void ValueBox_set(ValueBox *this, void *value)
-{
-	this->value = value;
 }
 
 int main(void)
@@ -32,6 +26,7 @@ int main(void)
 	{
 		*refValue = (RefType){0};
 	}
+	refValue->value = 13;
 	PointerBox *byteBox = (PointerBox *)(malloc(sizeof(PointerBox)));
 	if ((byteBox != NULL))
 	{
@@ -54,19 +49,7 @@ int main(void)
 	__builtin_memcpy(first.data, (uint8_t[4]){5, 6, 7, 8}, sizeof(first.data));
 	first.marker = 11;
 	InlineBuffer second = first;
-	ValueBox *valueBox = (ValueBox *)(malloc(sizeof(ValueBox)));
-	if ((valueBox != NULL))
-	{
-		*valueBox = (ValueBox){0};
-	}
-	ValueBox_set(valueBox, &second);
-	ValueBox *pointerValueBox = (ValueBox *)(malloc(sizeof(ValueBox)));
-	if ((pointerValueBox != NULL))
-	{
-		*pointerValueBox = (ValueBox){0};
-	}
-	ValueBox_set(pointerValueBox, &bytesPointer);
-	return (((((int)(((uint8_t *)(bytes))[1]) + fixedValue.value) + refValue->value) + (int)(((uint8_t *)(second.data))[2])) + second.marker);
+	return (((((int)(((uint8_t *)(bytes))[1]) + fixedValue.value) + ((RefType *)(refBox->value))->value) + (int)(((uint8_t *)(second.data))[2])) + second.marker);
 }
 
 // file: fixed_array_generic_aggregates.h
@@ -91,7 +74,6 @@ typedef struct RefType RefType;
 typedef struct FixedValue FixedValue;
 typedef struct InlineBuffer InlineBuffer;
 typedef struct PointerBox PointerBox;
-typedef struct ValueBox ValueBox;
 
 /* Enums. */
 
@@ -114,10 +96,6 @@ struct RefType
 struct PointerBox
 {
 	void *value;
-};
-struct ValueBox
-{
-	void* value;
 };
 
 /* Function declarations. */

@@ -533,17 +533,22 @@ Common capability patterns:
 
 - Use `T: any` when the code only passes, stores by address, or otherwise handles
   `T` without copying or requiring layout operations.
-- Use `T: copyable` when the code copies, returns by value, or duplicates `T`.
+- Use `T: copyable` when the code copies, returns by value, or duplicates `T`;
+  it is still erased, so fields may not store direct `T` values.
 - Use `in T value` when generic values need input transport without granting the
   body ordinary copy or storage rights.
 - Use interface constraints when the code calls interface methods on `T`.
-- Use `sizeof(T)` when the code indexes, slices, allocates, or enumerates storage
-  of generic elements.
+- Use `sizeof(T)` when the code indexes, slices, allocates, enumerates storage
+  of generic elements, default-fills erased storage, or copies `T: copyable`
+  values through erased storage.
 - Use `typenameof(T)` only for diagnostic or metadata-style names.
 - Use `vtableof(T: SomeInterface)` when generic interface dispatch needs a table.
+- Use `T*`, `T[]`, or explicit erased storage for generic type fields. A field
+  declared as plain `T value;` is invalid even when `T: copyable`; locals of
+  type `T` are allowed inside functions with the needed runtime size capability.
 
 ```camp
-export T choose<T: copyable>(T left, T right, bool useLeft)
+export T choose<T: copyable>(T left, T right, bool useLeft, sizeof(T))
 {
     if (useLeft)
     {

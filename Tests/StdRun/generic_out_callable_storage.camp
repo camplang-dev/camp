@@ -1,6 +1,6 @@
 using Std;
 
-bool takeFirst<T: copyable>(List<T>* list, out T item)
+bool takeFirst<T: copyable>(List<T>* list, out T item, sizeof(T))
 {
 	item = default;
 	if (list.Length == 0)
