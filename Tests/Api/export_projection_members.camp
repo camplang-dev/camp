@@ -1,0 +1,27 @@
+public abstract class Box
+{
+	int hidden;
+	public inline int LIMIT = 4;
+
+	public abstract int getValue();
+	public static int getDefaultCapacity() => LIMIT;
+	public int getHiddenTwice() => this.hidden * 2;
+}
+
+public extern class NativeBox
+{
+	public extern NativeBox();
+	public extern ~NativeBox();
+	public extern int getValue();
+}
+
+public struct Pair
+{
+	int x;
+	int y;
+	public int sum() => this.x + this.y;
+}
+
+export Box { getValue as value, getDefaultCapacity, LIMIT } as ExportedBox;
+export NativeBox { NativeBox, ~NativeBox, getValue as value } as ExportedNativeBox;
+export Pair {};

@@ -53,6 +53,7 @@ public class ExportProjectionDefinition : BindableNode
 	public List<string> TargetQualifiers { get; } = [];
 	public string TargetName { get; set; } = "";
 	public string? Alias { get; set; }
+	public bool HasMemberBlock { get; set; }
 	public Definition? Target { get; set; }
 	public Definition? ExportedDefinition { get; set; }
 	public List<ExportProjectionMember> Members { get; } = [];

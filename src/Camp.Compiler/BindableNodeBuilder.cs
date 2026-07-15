@@ -144,7 +144,9 @@ public sealed partial class BindableNodeBuilder
 		{
 			SourceSyntax = syntax,
 			TargetName = syntax.TargetName?.Identifier?.Value ?? "",
-			Alias = syntax.Alias?.Value
+			Alias = syntax.Alias?.Value,
+			HasMemberBlock = syntax.MemberBlock is not null,
+			ResolvedType = "void"
 		};
 		if (syntax.TargetName is null)
 			Report(syntax, "Export projection is missing a target name.");
@@ -166,7 +168,8 @@ public sealed partial class BindableNodeBuilder
 				SourceSyntax = memberSyntax,
 				Name = memberSyntax.Identifier?.Value ?? "",
 				Alias = memberSyntax.Alias?.Value,
-				IsDestructor = memberSyntax.TildeToken is not null
+				IsDestructor = memberSyntax.TildeToken is not null,
+				ResolvedType = "void"
 			});
 			if (memberSyntax.Identifier is null)
 				Report(memberSyntax, "Export projection member is missing a name.");

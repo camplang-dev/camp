@@ -1,0 +1,106 @@
+// file: export_projection_members.c
+#include "export_projection_members_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *pointer);
+
+int Box_getValue(const Box *this)
+{
+	return this->value;
+}
+
+int Box_getDefaultCapacity(void)
+{
+	return 7;
+}
+
+int Box_hidden(Box *this)
+{
+	return 99;
+}
+
+void Box_op_initnew(Box *this, int value)
+{
+	this->value = value;
+}
+
+Box *Box_create(int value)
+{
+	Box *_created0 = (Box *)(malloc(sizeof(Box)));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Box){0};
+		Box_op_initnew(_created0, value);
+	}
+	return _created0;
+}
+
+void Box_destroy(Box *this)
+{
+	free((void *)(this));
+}
+
+int main(void)
+{
+	Box *box = (Box *)(malloc(sizeof(Box)));
+	if ((box != NULL))
+	{
+		*box = (Box){0};
+		Box_op_initnew(box, 5);
+	}
+	return ((Box_getValue((const Box *)(box)) + Box_getDefaultCapacity()) + Box_LIMIT);
+}
+
+// file: export_projection_members.h
+#ifndef EXPORT_PROJECTION_MEMBERS_H_
+#define EXPORT_PROJECTION_MEMBERS_H_
+
+#include "export_projection_members_private.h"
+
+int Box_getValue(const Box *this);
+int Box_getDefaultCapacity(void);
+void Box_destroy(Box *this);
+int main(void);
+#define Box_LIMIT ((int)8)
+
+#endif
+// file: export_projection_members_private.h
+#ifndef EXPORT_PROJECTION_MEMBERS_PRIVATE_H_
+#define EXPORT_PROJECTION_MEMBERS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Box Box;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Constants. */
+#define Box_LIMIT ((int)8)
+
+/* Layouts. */
+struct Box
+{
+	int value;
+};
+
+/* Function declarations. */
+int Box_getValue(const Box *this);
+int Box_getDefaultCapacity(void);
+int Box_hidden(Box *this);
+void Box_op_initnew(Box *this, int value);
+Box *Box_create(int value);
+void Box_destroy(Box *this);
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: export_projection_members.c

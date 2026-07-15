@@ -1,0 +1,24 @@
+export struct Pair
+{
+	int x;
+	int y;
+}
+
+export extern class ExportedBox
+{
+	export inline int LIMIT = 4;
+
+
+	export extern int value();
+
+	export extern static int getDefaultCapacity();
+}
+
+export extern class ExportedNativeBox
+{
+	export extern ExportedNativeBox();
+
+	export extern ~ExportedNativeBox();
+
+	export extern int value();
+}

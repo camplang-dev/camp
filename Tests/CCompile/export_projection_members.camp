@@ -1,0 +1,25 @@
+extern void* malloc(nuint size);
+extern void free(void* pointer);
+
+public class Box
+{
+	int value;
+	public inline int LIMIT = 8;
+
+	public Box(int value)
+	{
+		this.value = value;
+	}
+
+	public int getValue() => this.value;
+	public static int getDefaultCapacity() => 7;
+	public int hidden() => 99;
+}
+
+export Box { getValue, getDefaultCapacity, LIMIT };
+
+export int main()
+{
+	auto box = new Box(5);
+	return box.Value + Box.getDefaultCapacity() + Box.LIMIT;
+}

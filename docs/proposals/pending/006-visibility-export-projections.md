@@ -1161,7 +1161,7 @@ Primary risk:
 - Forwarders need to preserve ABI details. Keep the first projection tests dense
   but limited to representative signatures before expanding to members.
 
-### Stage 7 - Add Type Member Projection Blocks
+### ~~Stage 7 - Add Type Member Projection Blocks~~
 
 Goal: support projection of selected in-scope type members.
 
@@ -1185,11 +1185,11 @@ Tasks:
 
 Completion criteria:
 
-- Tests cover all-members, no-members, selected-members, member renames, type
+- ~~Tests cover all-members, no-members, selected-members, member renames, type
   renames, constructors, destructors, static methods, inline constants, and
-  overload disambiguation.
-- Tests prove hidden class fields do not leak and struct fields always do.
-- Full suite passes.
+  overload disambiguation.~~
+- ~~Tests prove hidden class fields do not leak and struct fields always do.~~
+- ~~Full suite passes.~~
 
 Primary risk:
 

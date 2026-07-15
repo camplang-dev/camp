@@ -33,9 +33,6 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
-			if (projection.Members.Count > 0)
-				continue;
-
 			string externalName = string.IsNullOrWhiteSpace(projection.Alias) ? target.Name : projection.Alias!;
 			Definition? exportDefinition = string.Equals(externalName, target.Name, StringComparison.Ordinal)
 				? PromoteProjectionTarget(target)
@@ -43,6 +40,8 @@ public sealed partial class BindableNodeAnalyzer
 			if (exportDefinition is null)
 				continue;
 			projection.ExportedDefinition = exportDefinition;
+			if (projection.HasMemberBlock)
+				ApplyMemberProjection(projection, target, exportDefinition);
 			if (!ReferenceEquals(exportDefinition, target))
 				generated.Add(exportDefinition);
 		}
@@ -52,6 +51,148 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(definition);
 			module.DefinitionSources[definition] = GetRange(definition.SourceSyntax) is TokenRange range ? range.Sequence : null;
 		}
+	}
+
+	void ApplyMemberProjection(ExportProjectionDefinition projection, Definition source, Definition exported)
+	{
+		if (source is not TypeDefinition sourceType || exported is not TypeDefinition exportedType)
+		{
+			Report(GetRange(projection.SourceSyntax), $"Only type export projections may use a member block.");
+			return;
+		}
+
+		foreach (ExportProjectionMember member in projection.Members)
+		{
+			if (!TryResolveProjectedTypeMember(sourceType, member, out Definition? target) || target is null)
+				continue;
+			member.Target = target;
+			if (target is FieldDefinition { Modifier: FieldModifier.Static, IsInline: false })
+			{
+				Report(GetRange(member.SourceSyntax), $"Mutable static field '{target.Name}' cannot be exported with a projection; export a getter function instead.");
+				continue;
+			}
+			if (target is FieldDefinition { Modifier: not FieldModifier.Static, IsInline: false })
+			{
+				Report(GetRange(member.SourceSyntax), $"Instance field '{target.Name}' cannot be selected in an export projection member block.");
+				continue;
+			}
+
+			string externalName = string.IsNullOrWhiteSpace(member.Alias) ? target.Name : member.Alias!;
+			if (ReferenceEquals(sourceType, exportedType) && string.Equals(externalName, target.Name, StringComparison.Ordinal))
+			{
+				target.Export = "export";
+				member.ExportedDefinition = target;
+				continue;
+			}
+
+			Definition? clone = CloneProjectedMember(target, externalName, member, exportedType);
+			if (clone is null)
+				continue;
+			member.ExportedDefinition = clone;
+			switch (exportedType)
+			{
+				case ClassDefinition classDefinition:
+					AddProjectedClassMember(classDefinition, clone);
+					break;
+				case StructDefinition structDefinition:
+					AddProjectedStructMember(structDefinition, clone);
+					break;
+				case InterfaceDefinition interfaceDefinition when clone is FunctionDefinition function:
+					interfaceDefinition.Functions.Add(function);
+					break;
+				case EnumDefinition enumDefinition when clone is FunctionDefinition function:
+					enumDefinition.Functions.Add(function);
+					break;
+				case NewtypeDefinition newtypeDefinition:
+					AddProjectedNewtypeMember(newtypeDefinition, clone);
+					break;
+			}
+		}
+	}
+
+	bool TryResolveProjectedTypeMember(TypeDefinition type, ExportProjectionMember member, out Definition? target)
+	{
+		string name = member.IsDestructor ? "~" + member.Name : member.Name;
+		IEnumerable<Definition> members = type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Fields.Cast<Definition>().Concat(classDefinition.Functions),
+			StructDefinition structDefinition => structDefinition.Fields.Cast<Definition>().Concat(structDefinition.Functions),
+			InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions,
+			EnumDefinition enumDefinition => enumDefinition.Values.Cast<Definition>().Concat(enumDefinition.Functions),
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields.Cast<Definition>().Concat(newtypeDefinition.Functions),
+			_ => []
+		};
+		List<Definition> matches = members.Where(candidate => string.Equals(candidate.Name, name, StringComparison.Ordinal)).ToList();
+		if (matches.Count == 1)
+		{
+			target = matches[0];
+			return true;
+		}
+		if (matches.Count > 1)
+		{
+			Report(GetRange(member.SourceSyntax), $"Projection member '{name}' is overloaded; use the overload's full declared name.");
+			target = null;
+			return false;
+		}
+		Report(GetRange(member.SourceSyntax), $"Projection member '{name}' was not found on type '{type.Name}'.");
+		target = null;
+		return false;
+	}
+
+	Definition? CloneProjectedMember(Definition target, string externalName, ExportProjectionMember member, TypeDefinition exportedType)
+	{
+		switch (target)
+		{
+			case FunctionDefinition function:
+				FunctionDefinition clone = CloneProjectedFunctionMember(function);
+				clone.SourceSyntax = member.SourceSyntax;
+				clone.Name = function.Modifier == FunctionModifier.Constructor || function.Name == exportedType.Name
+					? exportedType.Name
+					: function.Modifier == FunctionModifier.Destructor || function.Name.StartsWith("~", StringComparison.Ordinal)
+						? "~" + exportedType.Name
+						: externalName;
+				clone.Symbol = externalName;
+				clone.Export = "export";
+				clone.Provenance = new NodeProvenance(member.SourceSyntax, function.Symbol, $"export projection for member '{function.Name}'");
+				clone.GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.None, $"export projection for member '{function.Name}'", function);
+				return clone;
+			case FieldDefinition field:
+				FieldDefinition fieldClone = CloneProjectedField(field);
+				fieldClone.SourceSyntax = member.SourceSyntax;
+				fieldClone.Name = externalName;
+				fieldClone.Symbol = externalName;
+				fieldClone.Export = "export";
+				fieldClone.Provenance = new NodeProvenance(member.SourceSyntax, field.Symbol, $"export projection for member '{field.Name}'");
+				fieldClone.GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.None, $"export projection for member '{field.Name}'", field);
+				return fieldClone;
+			default:
+				Report(GetRange(member.SourceSyntax), $"Member '{target.Name}' cannot be exported with a projection.");
+				return null;
+		}
+	}
+
+	static void AddProjectedClassMember(ClassDefinition type, Definition member)
+	{
+		if (member is FunctionDefinition function)
+			type.Functions.Add(function);
+		else if (member is FieldDefinition field)
+			type.Fields.Add(field);
+	}
+
+	static void AddProjectedStructMember(StructDefinition type, Definition member)
+	{
+		if (member is FunctionDefinition function)
+			type.Functions.Add(function);
+		else if (member is FieldDefinition field)
+			type.Fields.Add(field);
+	}
+
+	static void AddProjectedNewtypeMember(NewtypeDefinition type, Definition member)
+	{
+		if (member is FunctionDefinition function)
+			type.Functions.Add(function);
+		else if (member is FieldDefinition field)
+			type.Fields.Add(field);
 	}
 
 	bool TryResolveExportProjectionTarget(ExportProjectionDefinition projection, out Definition? target)
@@ -188,11 +329,11 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		Definition clone = target switch
 		{
-			ClassDefinition classDefinition => CloneProjectedClass(classDefinition),
-			StructDefinition structDefinition => CloneProjectedStruct(structDefinition),
-			InterfaceDefinition interfaceDefinition => CloneProjectedInterface(interfaceDefinition),
-			EnumDefinition enumDefinition => CloneProjectedEnum(enumDefinition),
-			NewtypeDefinition newtypeDefinition => CloneProjectedNewtype(newtypeDefinition),
+			ClassDefinition classDefinition => CloneProjectedClass(classDefinition, includeMembers: !projection.HasMemberBlock),
+			StructDefinition structDefinition => CloneProjectedStruct(structDefinition, includeMembers: !projection.HasMemberBlock),
+			InterfaceDefinition interfaceDefinition => CloneProjectedInterface(interfaceDefinition, includeMembers: !projection.HasMemberBlock),
+			EnumDefinition enumDefinition => CloneProjectedEnum(enumDefinition, includeMembers: !projection.HasMemberBlock),
+			NewtypeDefinition newtypeDefinition => CloneProjectedNewtype(newtypeDefinition, includeMembers: !projection.HasMemberBlock),
 			_ => throw new InvalidOperationException($"Type '{target.Name}' cannot be projected for export.")
 		};
 		clone.SourceSyntax = projection.SourceSyntax;
@@ -208,7 +349,7 @@ public sealed partial class BindableNodeAnalyzer
 		return clone;
 	}
 
-	ClassDefinition CloneProjectedClass(ClassDefinition source)
+	ClassDefinition CloneProjectedClass(ClassDefinition source, bool includeMembers)
 	{
 		ClassDefinition clone = new()
 		{
@@ -219,14 +360,17 @@ public sealed partial class BindableNodeAnalyzer
 			clone.BaseTypes.Add(CloneProjectionTypeReference(baseType)!);
 		foreach (TypeReference baseType in source.LoweredInterfaceBaseTypes)
 			clone.LoweredInterfaceBaseTypes.Add(CloneProjectionTypeReference(baseType)!);
-		foreach (FunctionDefinition function in source.Functions.Where(static function => function.Export is not null || function.Public is not null))
-			clone.Functions.Add(CloneProjectedFunctionMember(function));
-		foreach (FieldDefinition field in source.Fields.Where(static field => field.Modifier == FieldModifier.Static && (field.Export is not null || field.Public is not null)))
-			clone.Fields.Add(CloneProjectedField(field));
+		if (includeMembers)
+		{
+			foreach (FunctionDefinition function in source.Functions.Where(static function => function.Export is not null || function.Public is not null))
+				clone.Functions.Add(CloneProjectedFunctionMember(function));
+			foreach (FieldDefinition field in source.Fields.Where(static field => field.Modifier == FieldModifier.Static && (field.Export is not null || field.Public is not null)))
+				clone.Fields.Add(CloneProjectedField(field));
+		}
 		return clone;
 	}
 
-	StructDefinition CloneProjectedStruct(StructDefinition source)
+	StructDefinition CloneProjectedStruct(StructDefinition source, bool includeMembers)
 	{
 		StructDefinition clone = new()
 		{
@@ -239,32 +383,35 @@ public sealed partial class BindableNodeAnalyzer
 			clone.LoweredInterfaceBaseTypes.Add(CloneProjectionTypeReference(baseType)!);
 		foreach (FieldDefinition field in source.Fields)
 			clone.Fields.Add(CloneProjectedField(field));
-		foreach (FunctionDefinition function in source.Functions.Where(static function => function.Export is not null || function.Public is not null))
-			clone.Functions.Add(CloneProjectedFunctionMember(function));
+		if (includeMembers)
+			foreach (FunctionDefinition function in source.Functions.Where(static function => function.Export is not null || function.Public is not null))
+				clone.Functions.Add(CloneProjectedFunctionMember(function));
 		return clone;
 	}
 
-	InterfaceDefinition CloneProjectedInterface(InterfaceDefinition source)
+	InterfaceDefinition CloneProjectedInterface(InterfaceDefinition source, bool includeMembers)
 	{
 		InterfaceDefinition clone = new() { IsEscaped = source.IsEscaped };
 		foreach (TypeReference baseType in source.BaseTypes)
 			clone.BaseTypes.Add(CloneProjectionTypeReference(baseType)!);
-		foreach (FunctionDefinition function in source.Functions)
-			clone.Functions.Add(CloneProjectedFunctionMember(function));
+		if (includeMembers)
+			foreach (FunctionDefinition function in source.Functions)
+				clone.Functions.Add(CloneProjectedFunctionMember(function));
 		return clone;
 	}
 
-	EnumDefinition CloneProjectedEnum(EnumDefinition source)
+	EnumDefinition CloneProjectedEnum(EnumDefinition source, bool includeMembers)
 	{
 		EnumDefinition clone = new() { UnderlyingType = CloneProjectionTypeReference(source.UnderlyingType) };
 		foreach (VariableDefinition value in source.Values)
 			clone.Values.Add(CloneProjectedVariable(value, export: null));
-		foreach (FunctionDefinition function in source.Functions.Where(static function => function.Export is not null || function.Public is not null))
-			clone.Functions.Add(CloneProjectedFunctionMember(function));
+		if (includeMembers)
+			foreach (FunctionDefinition function in source.Functions.Where(static function => function.Export is not null || function.Public is not null))
+				clone.Functions.Add(CloneProjectedFunctionMember(function));
 		return clone;
 	}
 
-	NewtypeDefinition CloneProjectedNewtype(NewtypeDefinition source)
+	NewtypeDefinition CloneProjectedNewtype(NewtypeDefinition source, bool includeMembers)
 	{
 		NewtypeDefinition clone = new()
 		{
@@ -273,10 +420,13 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		foreach (ParameterDefinition parameter in source.Parameters)
 			clone.Parameters.Add(CloneProjectionParameter(parameter));
-		foreach (FieldDefinition field in source.Fields.Where(static field => field.Modifier == FieldModifier.Static && (field.Export is not null || field.Public is not null)))
-			clone.Fields.Add(CloneProjectedField(field));
-		foreach (FunctionDefinition function in source.Functions.Where(static function => function.Export is not null || function.Public is not null))
-			clone.Functions.Add(CloneProjectedFunctionMember(function));
+		if (includeMembers)
+		{
+			foreach (FieldDefinition field in source.Fields.Where(static field => field.Modifier == FieldModifier.Static && (field.Export is not null || field.Public is not null)))
+				clone.Fields.Add(CloneProjectedField(field));
+			foreach (FunctionDefinition function in source.Functions.Where(static function => function.Export is not null || function.Public is not null))
+				clone.Functions.Add(CloneProjectedFunctionMember(function));
+		}
 		return clone;
 	}
 

@@ -1,0 +1,3 @@
+tests/Diagnostics/export_projection_member_errors.camp(8,24): error: Projection member 'missingMember' was not found on type 'BadProjection'.
+tests/Diagnostics/export_projection_member_errors.camp(8,39): error: Instance field 'instanceField' cannot be selected in an export projection member block.
+tests/Diagnostics/export_projection_member_errors.camp(8,54): error: Mutable static field 'mutableStatic' cannot be exported with a projection; export a getter function instead.

@@ -1,0 +1,8 @@
+public abstract class BadProjection
+{
+	int instanceField;
+	public static int mutableStatic = 0;
+	public abstract int ok();
+}
+
+export BadProjection { missingMember, instanceField, mutableStatic };
