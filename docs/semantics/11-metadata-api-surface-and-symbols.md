@@ -18,7 +18,7 @@ unless those helpers are part of the source API contract.
 An API header should preserve enough information for another Camp compilation
 to:
 
-- resolve exported/public declarations;
+- resolve exported, projected, and artifact-public declarations;
 - bind generic parameters and constraints;
 - type-check calls, construction, interface dispatch, and `vtableof`;
 - understand callable newtypes and async source shape;
@@ -46,10 +46,13 @@ The top-level metadata document records:
 - declarations;
 - stubs for referenced declarations not emitted in full.
 
-`export` is the view consumers should use to understand the native/API boundary.
-`public` is useful for language tooling and documentation. `all` is useful for
-compiler diagnostics, tests, and internal inspection, but still should not
-pretend generated lowering helpers are ordinary source declarations.
+`export` is the view consumers should use to understand the external native/API
+boundary. It applies export projections: projected names, selected members,
+projected interface lists, hidden class fields, and base relationships that are
+visible only when both sides are exported. `public` is useful for artifact-
+internal language tooling and documentation. `all` is useful for compiler
+diagnostics, tests, and internal inspection, but still should not pretend
+generated lowering helpers are ordinary source declarations.
 
 ## Export/Public/All Filtering
 
@@ -58,7 +61,8 @@ analysis. Referenced declarations not emitted in full may appear as stubs.
 
 Filtering should consider:
 
-- top-level `export` and `internal`;
+- top-level `export`, `public`, and `internal`;
+- export projection declarations and their selected names/members/interfaces;
 - type members with member-level visibility;
 - source declarations referenced by exported signatures;
 - base classes/interfaces needed to interpret a declaration;
@@ -69,6 +73,13 @@ Filtering should consider:
 Filtering should not leak private generated declarations merely because an
 exported declaration lowers through them. Use stubs where a referenced identity
 is useful but the full declaration is outside the selected view.
+
+Export filtering is stricter than public filtering. If an exported declaration
+or selected projection member mentions a source type, that type must be visible
+in the same exported surface as a declaration or projection unless the metadata
+serializer can represent it as a valid external primitive or built-in shape. The
+compiler should diagnose missing projected dependencies instead of serializing
+unnameable internal source types.
 
 ## Generated Versus Source Declarations
 
@@ -435,7 +446,7 @@ Metadata/API changes should cover:
 - interface implementation markers;
 - raw function pointer source shape;
 - stubs for referenced declarations;
-- namespace/export-as behavior.
+- namespace and export projection behavior.
 
 ## Implementation Anchors
 

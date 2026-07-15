@@ -33,13 +33,16 @@ that mode is distinct from metadata JSON.
 | Mode | View level | Meaning |
 |---|---|---|
 | `none` | none | Do not emit metadata JSON. |
-| `export` | `api` | Emit exported API surface. |
-| `public` | `source` | Emit `export` and `internal` source declarations. |
+| `export` | `api` | Emit the projected external API surface. |
+| `public` | `source` | Emit `export`, `public`, and `internal` source declarations. |
 | `all` | `source` | Emit all metadata-visible source declarations in the compilation. |
 
 `export` is the API-level view. It filters out implementation details that are
-not part of the exported source contract. `public` and `all` are source-level
-views and include more of the source declaration tree.
+not part of the exported source contract and applies export projections. That
+means projected names, projected member lists, projected interface lists, and
+visible base-class relationships describe what external callers can actually
+name. `public` and `all` are source-level views and include more of the source
+declaration tree.
 
 API header inputs are not re-emitted as declarations of the current compilation.
 For example, metadata for a project that imports `Std` does not include the
@@ -134,7 +137,7 @@ Most declaration objects may contain:
 | `kind` | Declaration kind, when not implied by the containing array. |
 | `name` | Source-level Camp name. |
 | `symbol` | Flattened emitted symbol when different from `name`. |
-| `visibility` | `export` or `internal` for visible declarations. |
+| `visibility` | `export`, `public`, or `internal` for visible declarations. |
 | `extern` | `true` for extern declarations or synthesized API externs. |
 | `metadata` | Metadata attributes from doc comments or source attributes. |
 
@@ -177,8 +180,16 @@ Class and struct declarations may include:
 
 In the `export` view, class instance fields are omitted because exported class
 layout is not a source API commitment. Exported static inline fields may still
-appear. Struct fields are emitted when the struct itself is emitted because a
-struct's fields are part of its value shape.
+appear when selected by the declaration or projection. Struct fields are emitted
+when the struct itself is emitted because a struct's fields are part of its
+value shape.
+
+When a type is exported through a projection, metadata uses the projected
+external name and selected members. A projection can hide class base
+relationships by omitting the base type from the exported surface. If both base
+and derived classes are exported or projected, the relationship is visible.
+Projected class interfaces appear only when listed in the projection and when
+the interface is also exported or projected.
 
 Interface implementation metadata may look like:
 

@@ -6,8 +6,9 @@ API, the metadata story, and sometimes the native ABI.
 
 Camp separates those concerns. `using` affects source lookup. `namespace`
 declares the source/API namespace for this file. `internal` lets other Camp
-source in the current project see a declaration without making it a public ABI promise.
-`export` puts a declaration on the public boundary. `@symbol` controls the
+source in the current project see a declaration. `public` lets statically
+linked Camp modules in the same final artifact see it. `export` puts a
+declaration or projection on the external boundary. `@symbol` controls the
 native symbol used for C-facing emission or interop.
 
 Those are deliberately different tools. This chapter explains when to use each
@@ -96,7 +97,7 @@ This is source and API structure. It does not allocate a namespace object, and
 it does not by itself choose a C symbol. Think of it as the library's Camp name
 on the shelf.
 
-## Private, `internal`, And `export`
+## Private, `internal`, `public`, And `export`
 
 Declarations are private unless marked otherwise.
 
@@ -121,7 +122,21 @@ internal struct DecodeState
 Use `internal` for library-internal surface: helpers, shared implementation
 types, or cross-file building blocks that are not part of the public ABI.
 
-`export` puts a declaration on the public API and ABI boundary:
+`public` makes a declaration available across static Camp modules that are
+linked into one final artifact:
+
+```camp
+public struct PixelBuffer
+{
+	byte[] bytes;
+}
+```
+
+Use `public` for declarations that package references or project references
+need to compile against, but that should not automatically appear in the
+external API of a shared library.
+
+`export` puts a declaration directly on the external API and ABI boundary:
 
 ```camp
 export struct ImageInfo
@@ -131,9 +146,94 @@ export struct ImageInfo
 }
 ```
 
-The distinction matters. An `internal` declaration may appear in broader metadata
-views or private generated headers. An `export` declaration appears in the
-exported Camp API and the public native surface where the target emits one.
+The distinction matters. An `internal` declaration may appear in broader
+metadata views or private generated headers. A `public` declaration is visible
+inside the final artifact. An `export` declaration appears in the exported Camp
+API and the public native surface where the target emits one.
+
+## Export Projections
+
+Export projections let a module export a selected external view of a `public`
+declaration. The source declaration keeps its original Camp name inside the
+artifact; the projection controls the external API view.
+
+```camp
+namespace Pixel;
+
+public enum PixelFormat
+{
+	RGBA,
+	BGRA
+}
+
+export PixelFormat;
+```
+
+You can rename the external type:
+
+```camp
+export PixelFormat as px_format;
+```
+
+For types, a bare projection exports the type and all exportable in-scope
+declared members that are visible enough to export. `{}` exports only the type:
+
+```camp
+export Container {};
+export Container {} as px_container;
+```
+
+A member block exports selected in-scope members, optionally with external
+member names. The type rename appears at the end, and renamed member symbols
+use the projected type name as their prefix:
+
+```camp
+export Container
+{
+	Container as make,
+	~Container as unmake,
+	getValue as value,
+	setValue as put_value,
+	DEFAULT_CAPACITY
+} as px_container;
+```
+
+Constructors and destructors are named the same way they are declared inside the
+type. For overloaded methods, project the real declared callable name rather
+than relying on a display overload name.
+
+Members declared out of scope can be projected individually:
+
+```camp
+export Container.getDefaultCapacity as default_capacity;
+```
+
+Projecting a member does not project its containing type. Every type that
+appears in an exported signature must itself be exported or projected by the
+same artifact. The compiler reports missing dependency projections instead of
+silently leaking internal names.
+
+Class interface implementations are also explicit in the projection. A class
+projection can list the interfaces that should remain visible outside the
+artifact:
+
+```camp
+export Image { draw, dispose }: Drawable, Disposable;
+```
+
+Interfaces implemented internally but not listed are not exposed through the
+projected external view. Struct interface implementations are not exported in
+this V1 projection model.
+
+Base class relationships are implicit. If both a base class and a derived class
+are exported or projected, consumers can see the relationship. If only the
+derived class is exported, the external view simply omits the base relationship.
+Listing a base class in the projection interface list is an error; export the
+base class separately when that relationship should be visible.
+
+Only one export projection of a source declaration is allowed in a final
+artifact. That keeps the external API from having two competing public names for
+the same declaration.
 
 ## Exported Types And ABI Shape
 
@@ -150,7 +250,7 @@ export struct ImageInfo
 export class Image;
 ```
 
-Conceptually, a C-facing public header can expose the struct layout and keep
+Conceptually, a C-facing external header can expose the struct layout and keep
 the class opaque:
 
 ```c
@@ -167,7 +267,7 @@ handle whose implementation can change, export a class pointer surface.
 
 ## Exported Functions
 
-An exported function is callable from the public boundary:
+An exported function is callable from the external boundary:
 
 ```camp
 export ImageInfo getImageInfo(Image* image)
@@ -348,13 +448,15 @@ Use aliases to smooth a boundary, not to hide a major semantic difference.
 
 ## Public Headers And Private Headers
 
-When Camp emits C for a library, exported declarations belong in the public
-native surface. `internal` declarations can still be visible inside the build,
-but they do not become public ABI by themselves.
+When Camp emits C for a library, exported declarations and export projections
+belong in the public native surface. `internal` and `public` declarations can
+still be visible inside the build, but they do not become public ABI by
+themselves.
 
 ```camp
 export int exportedValue = 3;
 internal int publicValue = 4;
+public int artifactValue = 5;
 
 export int exportedAdd(int value)
 {
@@ -375,8 +477,9 @@ int exportedAdd(int value);
 ```
 
 The private generated header can still contain `publicValue` and `publicAdd`
-for files inside the same build. That split is why `internal` and `export` are
-separate words.
+for files inside the same build, and artifact-internal Camp API views can still
+contain `artifactValue`. That split is why `internal`, `public`, and `export`
+are separate words.
 
 ## Organizing A Small Library
 
@@ -390,27 +493,33 @@ internal struct DecodeState
 	nuint offset;
 }
 
-export struct ImageInfo
+public struct ImageInfo
 {
 	int width;
 	int height;
 }
 
-export class Image;
+public class Image;
 
-export enum ImageError
+public enum ImageError
 {
 	OK = 0,
 	FAILED
 }
 
 @symbol("camp_image_open")
-export extern Image* openImage(const char[] path, thrown ImageError error);
+public extern Image* openImage(const char[] path, thrown ImageError error);
 
-export ImageInfo getImageInfo(Image* image)
+public ImageInfo getImageInfo(Image* image)
 {
 	return { .width = 320, .height = 200 };
 }
+
+export Image;
+export ImageInfo;
+export ImageError;
+export openImage;
+export getImageInfo;
 ```
 
 The choices tell different audiences what they need:

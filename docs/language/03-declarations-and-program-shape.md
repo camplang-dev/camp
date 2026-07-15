@@ -257,14 +257,18 @@ Visibility modifiers are part of the declaration's contract.
 
 | Modifier | Meaning in ordinary code |
 |---|---|
-| `export` | Put this declaration on the public API/ABI boundary. |
-| `internal` | Make this declaration visible to other Camp source in the current project without exporting ABI. |
+| `internal` | Make this declaration visible to other Camp source in the current project. |
+| `public` | Make this declaration visible to statically linked Camp modules in the final artifact. |
+| `export` | Put this declaration directly on the external API/ABI boundary. |
 | no visibility keyword | Keep it private to the relevant source scope. |
 | `extern` | The implementation or definition is provided outside Camp. |
 
 Use `export` deliberately. It is not just "public, but louder." An exported
 declaration can affect generated headers, metadata, native symbols, layout
-commitments, and downstream compatibility.
+commitments, and downstream compatibility. Most shared implementation helpers
+should be `internal`. Declarations intended to be shared with static project
+references or package modules, but not exposed outside the final artifact,
+should be `public`.
 
 ```camp
 export struct PacketHeader
@@ -279,8 +283,27 @@ int checksum(PacketHeader header)
 }
 ```
 
-Here `PacketHeader` is public API. `checksum` is an internal helper unless it
-is later marked `internal` or `export`.
+Here `PacketHeader` is external API. `checksum` is private unless it is later
+marked `internal`, `public`, or `export`.
+
+A shared library can also export a `public` declaration through a separate
+projection declaration. Projection is useful when the internal Camp name should
+not be the external name, or when a type should expose only selected members:
+
+```camp
+namespace Pixel;
+
+public class Container
+{
+	public int getValue() => 0;
+	public void setValue(int value) { }
+}
+
+export Container { getValue as value, setValue as put_value } as px_container;
+```
+
+The source still uses `Pixel::Container`. The exported API view exposes the
+projected type name and projected member names.
 
 ## Static Members And Inline Constants
 

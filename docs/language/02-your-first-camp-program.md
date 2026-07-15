@@ -79,7 +79,7 @@ export int main()
 }
 ```
 
-`export` places the function on the public boundary. `int` is the return type.
+`export` places the function on the external boundary. `int` is the return type.
 `main` is the name. `()` is the parameter list. The braces contain the function
 body.
 

@@ -762,6 +762,58 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_server_accepts_namespace_and_export_projection_syntax()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-export-projection");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			namespace LspProjection;
+
+			public interface IThing
+			{
+				int getValue();
+			}
+
+			public class Thing: IThing
+			{
+				int value;
+				public int getValue(): IThing => this.value;
+			}
+
+			export IThing;
+			export Thing { getValue }: IThing as PublicThing;
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+
+		JsonNode symbols = lsp.Request("textDocument/documentSymbol", new
+		{
+			textDocument = new { uri }
+		});
+		JsonNode completion = lsp.Request("textDocument/completion", new
+		{
+			textDocument = new { uri },
+			position = new { line = 13, character = 7 }
+		});
+
+		Assert.Equal(0, diagnostics["params"]?["diagnostics"]?.AsArray().Count);
+		JsonArray result = symbols["result"]!.AsArray();
+		JsonNode iface = Assert.Single(result, symbol => symbol?["name"]?.GetValue<string>() == "IThing")!;
+		JsonNode thing = Assert.Single(result, symbol => symbol?["name"]?.GetValue<string>() == "Thing")!;
+		Assert.Contains(iface["children"]!.AsArray(), symbol => symbol?["name"]?.GetValue<string>() == "getValue");
+		Assert.Contains(thing["children"]!.AsArray(), symbol => symbol?["name"]?.GetValue<string>() == "getValue");
+		Assert.Contains(CompletionItems(completion), item => item?["label"]?.GetValue<string>() == "export");
+	}
+
+	[Fact]
 	public void Lsp_server_returns_workspace_symbols()
 	{
 		using LspProcess lsp = LspProcess.Start();

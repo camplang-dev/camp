@@ -1257,7 +1257,7 @@ Primary risk:
 - This stage is diagnostic-heavy and can easily become broad. Prefer a small
   number of dense tests with many dependency shapes.
 
-### Stage 10 - Documentation, LSP, And Final Audit
+### ~~Stage 10 - Documentation, LSP, And Final Audit~~
 
 Goal: finish the language model and tool support after compiler behavior is
 stable.
@@ -1283,12 +1283,12 @@ Tasks:
 
 Completion criteria:
 
-- Documentation is internally consistent and uses `namespace`, `internal`,
-  `public`, and export projections correctly.
-- LSP tests cover namespace and projection declarations at a smoke-test level.
-- No `export as` references remain outside archived historical proposals or
-  explicit migration diagnostics.
-- Full suite passes on all required platforms.
+- ~~Documentation is internally consistent and uses `namespace`, `internal`,
+  `public`, and export projections correctly.~~
+- ~~LSP tests cover namespace and projection declarations at a smoke-test level.~~
+- ~~No `export as` references remain outside archived historical proposals or
+  explicit migration diagnostics.~~
+- ~~Full suite passes on all required platforms.~~
 
 Primary risk:
 

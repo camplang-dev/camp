@@ -36,7 +36,7 @@ export int main()
 
 There is not much ceremony here. `using Std;` brings the standard library
 namespace into scope. `main` is an ordinary function that returns an `int`
-status. Marking it `export` places it on the public boundary, and for ordinary
+status. Marking it `export` places it on the external boundary, and for ordinary
 builds that is enough for the compiler to treat the project as an executable.
 `Console.writeLine` is a real standard-library API for writing a line to
 standard output.

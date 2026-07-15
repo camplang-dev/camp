@@ -207,15 +207,16 @@ they must not collide with source declarations or target-reserved identifiers.
 
 ## Symbol Emission
 
-Symbol emission combines source name, namespace, visibility, `@symbol`, target
-export/import prefixes, and generated helper naming rules.
+Symbol emission combines source name, namespace, visibility, export projection
+name, `@symbol`, target export/import prefixes, and generated helper naming
+rules.
 
 Rules:
 
 - source lookup uses source names, not emitted symbols;
 - `@symbol` affects emitted native symbols;
-- namespaced/export-as modules affect symbol qualification where the emitter
-  defines it;
+- namespaced modules and export projections affect API names, and emitters use
+  those projected names where they define public wrapper or header symbols;
 - generated interface/vtable/virtual/lambda/async symbols should carry
   provenance;
 - exported symbols should receive target export decorations;

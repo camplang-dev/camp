@@ -103,8 +103,13 @@ Top-level declarations include functions, types, newtypes, interfaces, enums,
 constants, extern declarations, target blocks, and overload families. Keep
 declarations at the narrowest visibility that works:
 
-- `export` exposes a declaration across package or metadata boundaries.
 - `internal` exposes a declaration to other Camp source in the current project.
+- `public` exposes a declaration to statically linked Camp modules in the final
+  artifact without making it external ABI.
+- `export` exposes a declaration directly across the external API/ABI boundary.
+- Export projections (`export Type { ... } as ExternalName;`) expose a selected
+  external view of a `public` declaration. Use them when designing a shared
+  library API that should differ from the internal Camp shape.
 - Unmarked declarations are package- or namespace-local according to the language
   rules.
 - `extern` declares a symbol implemented outside Camp.
@@ -114,8 +119,11 @@ declarations at the narrowest visibility that works:
   declarations. It does not change Camp source lookup.
 
 Do not combine visibility modifiers unless the docs or nearby code show that the
-combination is valid for that declaration kind. In ordinary code, an exported
-top-level function looks like this:
+combination is valid for that declaration kind. In ordinary application and
+static-library code, prefer `public` for declarations other modules need. Use
+direct `export` for true external entry points such as `main`, native interop
+surfaces, or declarations intentionally owned by the current shared-library ABI.
+For example:
 
 ```camp
 export int countWords(const char[] text)
@@ -125,6 +133,25 @@ export int countWords(const char[] text)
     return total;
 }
 ```
+
+For a shared library with a curated external API, write the implementation
+surface as `public` and project the external view:
+
+```camp
+namespace Text;
+
+public class Counter
+{
+	public int getValue() => 0;
+}
+
+export Counter { getValue as value } as text_counter;
+```
+
+Every type mentioned by an exported function or projected member must itself be
+exported or projected. Do not rely on the compiler to leak standard-library or
+dependency declarations into your external API; re-export the specific public
+types you want callers to see.
 
 Use semicolons for declarations without bodies and braces for bodies. Expression
 forms are useful only when the surrounding source already uses them and the
@@ -678,6 +705,8 @@ and error behavior.
 Stable agent habits:
 
 - Import only the namespaces the file needs.
+- Use `internal` for project-only helpers, `public` for static-module API, and
+  export projections for curated shared-library API.
 - Prefer project helper functions over inventing new standard-library calls.
 - Use `Console.writeLine` only where nearby code or metadata confirms it is
   available for the target.
