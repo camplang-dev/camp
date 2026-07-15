@@ -1,14 +1,14 @@
 namespace Std;
 
-public extern nint camp_io_stdin();
-public extern nint camp_io_stdout();
-public extern nint camp_io_stderr();
-public extern nint camp_io_file_open(string path, int access, int mode, int options, out IoError error);
-public extern int camp_io_file_close(nint handle, out IoError error);
-public extern nint camp_io_file_read(nint handle, void* buffer, nuint length, out IoError error);
-public extern nint camp_io_file_write(nint handle, const void* buffer, nuint length, out IoError error);
-public extern long camp_io_file_seek(nint handle, long offset, int origin, out IoError error);
-public extern int camp_io_file_flush(nint handle, out IoError error);
+internal extern nint camp_io_stdin();
+internal extern nint camp_io_stdout();
+internal extern nint camp_io_stderr();
+internal extern nint camp_io_file_open(string path, int access, int mode, int options, out IoError error);
+internal extern int camp_io_file_close(nint handle, out IoError error);
+internal extern nint camp_io_file_read(nint handle, void* buffer, nuint length, out IoError error);
+internal extern nint camp_io_file_write(nint handle, const void* buffer, nuint length, out IoError error);
+internal extern long camp_io_file_seek(nint handle, long offset, int origin, out IoError error);
+internal extern int camp_io_file_flush(nint handle, out IoError error);
 
 export enum IoError
 {

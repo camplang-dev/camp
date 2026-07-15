@@ -258,7 +258,7 @@ Visibility modifiers are part of the declaration's contract.
 | Modifier | Meaning in ordinary code |
 |---|---|
 | `export` | Put this declaration on the public API/ABI boundary. |
-| `public` | Make this declaration visible to other Camp source without necessarily exporting ABI. |
+| `internal` | Make this declaration visible to other Camp source in the current project without exporting ABI. |
 | no visibility keyword | Keep it private to the relevant source scope. |
 | `extern` | The implementation or definition is provided outside Camp. |
 
@@ -280,7 +280,7 @@ int checksum(PacketHeader header)
 ```
 
 Here `PacketHeader` is public API. `checksum` is an internal helper unless it
-is later marked `public` or `export`.
+is later marked `internal` or `export`.
 
 ## Static Members And Inline Constants
 

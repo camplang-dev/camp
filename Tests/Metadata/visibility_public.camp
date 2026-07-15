@@ -5,7 +5,7 @@ namespace Docs;
 export int ExportedValue;
 
 /// Public helper.
-public int PublicValue;
+internal int PublicValue;
 
 /// Private helper.
 int PrivateValue;
@@ -13,20 +13,20 @@ int PrivateValue;
 /// Exported class.
 export abstract class ExportedClass
 {
-	/// Included in public metadata.
+	/// Included in internal metadata.
 	int exportedClassField;
 }
 
 /// Public class.
-public abstract class PublicClass
+internal abstract class PublicClass
 {
-	/// Included in public metadata.
+	/// Included in internal metadata.
 	int publicClassField;
 }
 
 /// Private class.
 abstract class PrivateClass
 {
-	/// Omitted from public metadata.
+	/// Omitted from internal metadata.
 	int privateClassField;
 }

@@ -3,7 +3,7 @@ export inline uint MAX_PLAYERS = 9;
 export inline uint INVALID_FILE_SIZE = 0xFFFFFFFF;
 export inline uint WM_GETTEXTLENGTH = 0x000E;
 export inline nuint NATIVE_BYTES = sizeof(nuint);
-public inline string INTERNAL_NAME = "Camp";
+internal inline string INTERNAL_NAME = "Camp";
 inline uint PRIVATE_LIMIT = MAX_PLAYERS + 1;
 
 export struct Limits

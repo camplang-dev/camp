@@ -977,7 +977,7 @@ Primary risk:
 - `export as` appears in nearly every API/metadata golden. This stage is
   intentionally isolated so that the churn is mostly textual.
 
-### Stage 2 - Rename Old `public` To `internal`
+### ~~Stage 2 - Rename Old `public` To `internal`~~
 
 Goal: introduce `internal` as the exact old meaning of `public`, and remove
 source use of old `public`.
@@ -1004,12 +1004,12 @@ Tasks:
 
 Completion criteria:
 
-- Old source-level `public` is gone from compiler tests and stdlib except in
-  negative tests.
-- `internal` behaves exactly like old `public` for lookup, API import, and
-  metadata filtering.
-- Diagnostics for old `public` include line/column.
-- Full suite passes.
+- ~~Old source-level `public` is gone from compiler tests and stdlib except in
+  negative tests.~~
+- ~~`internal` behaves exactly like old `public` for lookup, API import, and
+  metadata filtering.~~
+- ~~Diagnostics for old `public` include line/column.~~
+- ~~Full suite passes.~~
 
 Primary risk:
 

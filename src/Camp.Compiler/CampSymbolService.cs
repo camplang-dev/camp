@@ -383,7 +383,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			if (space <= 0)
 				return trimmed;
 			string word = trimmed[..space];
-			if (word is not ("export" or "public" or "extern" or "virtual" or "abstract" or "override" or "sealed"))
+			if (word is not ("export" or "internal" or "public" or "extern" or "virtual" or "abstract" or "override" or "sealed"))
 				return trimmed;
 			result = trimmed[(space + 1)..];
 		}
@@ -394,7 +394,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		foreach (string keyword in new[]
 		{
 			"if", "else", "while", "for", "foreach", "return", "try", "catch", "finally",
-			"new", "init", "default", "true", "false", "null", "delete", "using", "namespace", "export",
+			"new", "init", "default", "true", "false", "null", "delete", "using", "namespace", "export", "internal",
 			"class", "struct", "interface", "enum", "newtype", "delegate", "fn"
 		})
 			yield return new CampCompletionItem(keyword, CampSymbolKind.Keyword, null, null);

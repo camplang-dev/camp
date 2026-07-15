@@ -302,7 +302,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsExternallyVisible(Definition definition)
 	{
-		return definition.Export is not null || definition.Public is not null;
+		return definition.Export is not null || definition.Internal is not null;
 	}
 
 	static TypeReference UnwrapTypeDeclarators(TypeReference type)

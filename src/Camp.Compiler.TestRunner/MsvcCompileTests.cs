@@ -149,7 +149,7 @@ public sealed class MsvcCompileTests
 			Assert.Skip("MSVC tools are not available on PATH.");
 		string source = WriteCase("library", """
 			export int add(int a, int b) => a + b;
-			public int helper(int x) => x;
+			internal int helper(int x) => x;
 			""");
 
 		CompilerResult staticResult = Compile(source, NativeBuildKind.Static, "library-static");

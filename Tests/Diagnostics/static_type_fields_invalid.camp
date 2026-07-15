@@ -5,7 +5,7 @@ class BadClass
 
 struct BadStruct
 {
-	public int value;
+	internal int value;
 }
 
 int Collide;

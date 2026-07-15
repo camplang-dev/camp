@@ -4,7 +4,7 @@ namespace MyLib;
 export extern int exportedCampName();
 
 @symbol("HiddenPublic")
-public extern int publicCampName();
+internal extern int publicCampName();
 
 @symbol("PrivateC")
 extern int privateImport();

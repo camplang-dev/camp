@@ -34,7 +34,7 @@ that mode is distinct from metadata JSON.
 |---|---|---|
 | `none` | none | Do not emit metadata JSON. |
 | `export` | `api` | Emit exported API surface. |
-| `public` | `source` | Emit `export` and `public` source declarations. |
+| `public` | `source` | Emit `export` and `internal` source declarations. |
 | `all` | `source` | Emit all metadata-visible source declarations in the compilation. |
 
 `export` is the API-level view. It filters out implementation details that are
@@ -134,7 +134,7 @@ Most declaration objects may contain:
 | `kind` | Declaration kind, when not implied by the containing array. |
 | `name` | Source-level Camp name. |
 | `symbol` | Flattened emitted symbol when different from `name`. |
-| `visibility` | `export` or `public` for visible declarations. |
+| `visibility` | `export` or `internal` for visible declarations. |
 | `extern` | `true` for extern declarations or synthesized API externs. |
 | `metadata` | Metadata attributes from doc comments or source attributes. |
 

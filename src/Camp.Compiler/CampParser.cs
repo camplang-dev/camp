@@ -8,8 +8,8 @@ public sealed record ParseDiagnostic(TokenRange? Range, string Message, string? 
 public sealed class CampParser
 {
 	static readonly string[] TypeDeclarationKeywords = ["struct", "class", "interface", "params", "enum", "newtype"];
-	static readonly string[] TypeDeclarationDeclarators = ["export", "public", "extern", "virtual", "sealed", "abstract", "fixed", "escaped"];
-	static readonly string[] MemberDeclarators = ["export", "public", "extern", "static", "virtual", "override", "sealed", "abstract", "async", "fixed", "inline"];
+	static readonly string[] TypeDeclarationDeclarators = ["export", "internal", "public", "extern", "virtual", "sealed", "abstract", "fixed", "escaped"];
+	static readonly string[] MemberDeclarators = ["export", "internal", "public", "extern", "static", "virtual", "override", "sealed", "abstract", "async", "fixed", "inline"];
 	static readonly string[] ParameterDeclaratorKeywords = ["overload", "in", "out", "thrown", "upon"];
 	static readonly string[] TypeDeclaratorKeywords = ["const", "constof", "volatile", "escaped", "scoped", "unscoped"];
 	static readonly string[] StatementKeywords = ["if", "do", "while", "for", "else", "yield", "return", "continue", "break", "switch", "within", "try", "catch", "finally", "foreach", "delete", "goto", "throw"];
@@ -135,7 +135,7 @@ public sealed class CampParser
 		int start = index;
 		List<AttributeSyntax>? attributes = ParseAttributes();
 		List<MemberDeclaratorSyntax> declarators = [];
-		while (Is("export") || Is("public"))
+		while (Is("export") || Is("internal") || Is("public"))
 			declarators.Add(new MemberDeclaratorSyntax { Keyword = Take() });
 
 		if (!Is("alias"))
@@ -812,7 +812,7 @@ public sealed class CampParser
 			"case", "catch", "char", "class", "classtype", "const", "continue", "copyable", "default", "delegate", "delete",
 			"do", "double", "else", "enum", "escaped", "export", "extern", "false", "finally",
 			"fixed", "float", "fn", "for", "foreach", "if", "implements", "in", "init", "int",
-			"interface", "iter", "long", "namespace", "new", "newtype", "nint", "null", "nuint", "once", "out",
+			"interface", "internal", "iter", "long", "namespace", "new", "newtype", "nint", "null", "nuint", "once", "out",
 			"override", "params", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
 			"static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
 			"ulong", "unscoped", "unsafe", "upon", "ushort", "untyped", "using", "virtual", "void", "volatile",

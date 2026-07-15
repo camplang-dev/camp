@@ -1,8 +1,8 @@
-public struct InternalValue
+internal struct InternalValue
 {
 	int value;
 
-	public int getValue()
+	internal int getValue()
 	{
 		return this.value;
 	}
@@ -17,16 +17,16 @@ export struct ExportedValue
 		return this.value;
 	}
 
-	public int getHiddenValue()
+	internal int getHiddenValue()
 	{
 		return this.value + publicOffset;
 	}
 }
 
-public int publicOffset = 7;
+internal int publicOffset = 7;
 export int exportedOffset = 11;
 
-public int internalAdd(InternalValue* value)
+internal int internalAdd(InternalValue* value)
 {
 	return value.getValue() + publicOffset;
 }

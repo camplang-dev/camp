@@ -272,7 +272,7 @@ export nuint format(in Instant this, char[] buffer = default) : CharFormatter
 
 export struct Date
 {
-	ushort year; // valid public range: 1..9999
+	ushort year; // valid internal range: 1..9999
 	byte month;  // 1..12
 	byte day;    // 1..31
 

@@ -1,6 +1,6 @@
 using Std;
 
-public interface IRefCount
+internal interface IRefCount
 {
 	void retain();
 	void release();

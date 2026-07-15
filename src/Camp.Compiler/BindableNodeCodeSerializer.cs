@@ -1198,8 +1198,8 @@ public sealed class BindableNodeCodeSerializer
 	{
 		if (definition.Export is not null)
 			writer.Write("export ");
-		else if (definition.Public is not null)
-			writer.Write("public ");
+		else if (definition.Internal is not null)
+			writer.Write("internal ");
 		if (ShouldWriteExternPrefix(definition))
 			writer.Write("extern ");
 	}

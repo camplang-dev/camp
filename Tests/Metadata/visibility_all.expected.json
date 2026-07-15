@@ -28,7 +28,7 @@
       "id": "variable:Docs::PublicValue",
       "kind": "variable",
       "name": "PublicValue",
-      "visibility": "public",
+      "visibility": "internal",
       "type": "int",
       "metadata": [
         {
@@ -79,7 +79,7 @@
       "id": "class:Docs::PublicClass",
       "kind": "class",
       "name": "PublicClass",
-      "visibility": "public",
+      "visibility": "internal",
       "modifier": "abstract",
       "fields": [
         {

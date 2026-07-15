@@ -2,7 +2,7 @@ const int GlobalCount = 4;
 
 struct Sizes
 {
-	public static const int LocalCount = 3;
+	internal static const int LocalCount = 3;
 }
 
 export int main()

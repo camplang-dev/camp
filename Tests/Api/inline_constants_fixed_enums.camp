@@ -2,14 +2,14 @@ export inline uint MAX_PLAYERS = 9;
 export inline uint INVALID_FILE_SIZE = 0xFFFFFFFF;
 export inline uint WM_GETTEXTLENGTH = 0x000E;
 export inline nuint NATIVE_BYTES = sizeof(nuint);
-public inline uint INTERNAL_LIMIT = 20;
+internal inline uint INTERNAL_LIMIT = 20;
 inline uint PRIVATE_LIMIT = 30;
 
 export struct Limits
 {
 	inline uint DEFAULT_CAPACITY = 16;
 	export inline uint EXPORTED_CAPACITY = DEFAULT_CAPACITY * 2;
-	public inline uint INTERNAL_CAPACITY = DEFAULT_CAPACITY * 3;
+	internal inline uint INTERNAL_CAPACITY = DEFAULT_CAPACITY * 3;
 }
 
 @symbol("Difficulty")

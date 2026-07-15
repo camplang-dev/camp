@@ -7,7 +7,7 @@ namespace Camp.Compiler;
 public enum AbiVisibility
 {
 	Private,
-	Public,
+	Internal,
 	Export
 }
 
@@ -198,8 +198,8 @@ public sealed class AbiSurface
 	{
 		if (definition.Export is not null)
 			return AbiVisibility.Export;
-		if (definition.Public is not null)
-			return AbiVisibility.Public;
+		if (definition.Internal is not null)
+			return AbiVisibility.Internal;
 		return AbiVisibility.Private;
 	}
 
@@ -207,8 +207,8 @@ public sealed class AbiSurface
 	{
 		if (field.Export is not null)
 			return AbiVisibility.Export;
-		if (field.Public is not null)
-			return AbiVisibility.Public;
+		if (field.Internal is not null)
+			return AbiVisibility.Internal;
 		return AbiVisibility.Private;
 	}
 

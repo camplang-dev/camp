@@ -234,8 +234,8 @@ public static class CompilerDriver
 				if (j >= text.Length || text[j] != '(')
 					continue;
 				string prefix = text[..found];
-				int publicIndex = Math.Max(prefix.LastIndexOf("export", StringComparison.Ordinal), prefix.LastIndexOf("public", StringComparison.Ordinal));
-				if (publicIndex >= 0 && found - publicIndex < 256 && IsIdentifierBoundary(text, publicIndex - 1))
+				int visibilityIndex = Math.Max(prefix.LastIndexOf("export", StringComparison.Ordinal), prefix.LastIndexOf("internal", StringComparison.Ordinal));
+				if (visibilityIndex >= 0 && found - visibilityIndex < 256 && IsIdentifierBoundary(text, visibilityIndex - 1))
 					return true;
 			}
 			return false;
@@ -1019,7 +1019,7 @@ public static class CompilerDriver
 			entryPoint = null;
 			List<FunctionDefinition> candidates = [];
 			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
-				if (definition is FunctionDefinition { Name: "main" } function && (function.Export is not null || function.Public is not null))
+				if (definition is FunctionDefinition { Name: "main" } function && (function.Export is not null || function.Internal is not null))
 					candidates.Add(function);
 
 			if (candidates.Count != 1)

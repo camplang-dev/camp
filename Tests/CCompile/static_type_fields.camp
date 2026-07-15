@@ -1,7 +1,7 @@
 class Counter
 {
 	export static const int START = 2;
-	public static int current = 0;
+	internal static int current = 0;
 	@symbol("CounterValue")
 	static int privateValue = 3;
 }

@@ -58,7 +58,7 @@ analysis. Referenced declarations not emitted in full may appear as stubs.
 
 Filtering should consider:
 
-- top-level `export` and `public`;
+- top-level `export` and `internal`;
 - type members with member-level visibility;
 - source declarations referenced by exported signatures;
 - base classes/interfaces needed to interpret a declaration;

@@ -104,7 +104,7 @@ constants, extern declarations, target blocks, and overload families. Keep
 declarations at the narrowest visibility that works:
 
 - `export` exposes a declaration across package or metadata boundaries.
-- `public` exposes a member where the containing type's rules require it.
+- `internal` exposes a declaration to other Camp source in the current project.
 - Unmarked declarations are package- or namespace-local according to the language
   rules.
 - `extern` declares a symbol implemented outside Camp.

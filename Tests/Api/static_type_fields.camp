@@ -1,7 +1,7 @@
 export class ClassFields
 {
 	export static const int LIMIT = 12;
-	public static int internalCount = 1;
+	internal static int internalCount = 1;
 	static int privateCount = 2;
 }
 
@@ -9,11 +9,11 @@ export struct StructFields
 {
 	int x;
 	export static const int LIMIT = 7;
-	public static int internalCount = 3;
+	internal static int internalCount = 3;
 }
 
 export newtype FieldId: int
 {
 	export static const FieldId INVALID = (FieldId)0;
-	public static FieldId current = (FieldId)1;
+	internal static FieldId current = (FieldId)1;
 }

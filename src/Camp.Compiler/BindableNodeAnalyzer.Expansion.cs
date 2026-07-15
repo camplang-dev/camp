@@ -126,7 +126,7 @@ public sealed partial class BindableNodeAnalyzer
 		implementation.Name = VirtualImplementationName(source);
 		implementation.Symbol = VirtualImplementationSymbol(owner, source);
 		implementation.Export = source.Export;
-		implementation.Public = source.Public;
+		implementation.Internal = source.Internal;
 		implementation.ReturnType = CloneType(source.ReturnType);
 		implementation.ResolvedType = source.ResolvedType;
 		implementation.Body = source.Body;
@@ -356,7 +356,7 @@ public sealed partial class BindableNodeAnalyzer
 					Name = InterfaceVTableName(classDefinition, interfaceDefinition),
 					Symbol = InterfaceVTableName(classDefinition, interfaceDefinition),
 					Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
-					Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null,
+					Internal = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "internal" : null,
 					Extern = "extern",
 					Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
 					ResolvedType = "const " + interfaceDefinition.Name + "*"
@@ -405,7 +405,7 @@ public sealed partial class BindableNodeAnalyzer
 			vtable.Name = InterfaceVTableName(classDefinition, interfaceDefinition);
 			vtable.Symbol = InterfaceVTableName(classDefinition, interfaceDefinition);
 			vtable.Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null;
-			vtable.Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null;
+			vtable.Internal = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "internal" : null;
 			vtable.Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name });
 			vtable.ResolvedType = "const " + interfaceDefinition.Name + "*";
 			vtable.InitialValue = new UnaryExpression
@@ -447,7 +447,7 @@ public sealed partial class BindableNodeAnalyzer
 		accessor.Name = InterfaceAccessorName(interfaceDefinition);
 		accessor.Symbol = EffectiveTypeSymbol(classDefinition) + "_" + InterfaceAccessorName(interfaceDefinition);
 		accessor.Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null;
-		accessor.Public = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "public" : null;
+		accessor.Internal = (classDefinition.Export is null || interfaceDefinition.Export is null) && IsExternallyVisible(classDefinition) && IsExternallyVisible(interfaceDefinition) ? "internal" : null;
 		accessor.Extern = lowering.IsExternClass ? "extern" : null;
 		accessor.ReturnType = sourceReturnType;
 		accessor.ResolvedType = $"{interfaceDefinition.Name}**";
@@ -918,7 +918,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = definition.Name,
 			Symbol = definition.Symbol,
 			Export = definition.Export,
-			Public = definition.Public,
+			Internal = definition.Internal,
 			Extern = definition.Extern,
 			ResolvedType = definition.ResolvedType ?? definition.Name
 		};
@@ -964,7 +964,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = InterfaceIndirectName(interfaceDefinition),
 			Symbol = InterfaceIndirectName(interfaceDefinition),
 			Export = interfaceDefinition.Export,
-			Public = interfaceDefinition.Public,
+			Internal = interfaceDefinition.Internal,
 			Modifier = StructModifier.Fixed,
 			ResolvedType = InterfaceIndirectName(interfaceDefinition)
 		};
@@ -1796,7 +1796,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Name = InitNewMethodName;
 		method.Symbol = $"{EffectiveTypeSymbol(type)}_{InitNewMethodName}";
 		method.Export = constructor.Export;
-		method.Public = constructor.Public;
+		method.Internal = constructor.Internal;
 		method.Extern = constructor.Extern;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
@@ -1815,7 +1815,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Name = CreateMethodName;
 		method.Symbol = $"{EffectiveTypeSymbol(type)}_{CreateMethodName}";
 		method.Export = constructor.Export;
-		method.Public = constructor.Public;
+		method.Internal = constructor.Internal;
 		method.Extern = constructor.Extern;
 		method.Modifier = FunctionModifier.Static;
 		method.ReturnType = PointerTo(CloneType(typeReference)!);
@@ -1881,7 +1881,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Name = DeleteMethodName;
 		method.Symbol = $"{EffectiveTypeSymbol(type)}_op_delete";
 		method.Export = destructor.Export;
-		method.Public = destructor.Public;
+		method.Internal = destructor.Internal;
 		method.Extern = destructor.Extern;
 		method.Modifier = GetDeleteMethodModifier(destructor);
 		method.ReturnType = VoidType();
@@ -1898,7 +1898,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Name = DestroyMethodName;
 		method.Symbol = $"{EffectiveTypeSymbol(type)}_{DestroyMethodName}";
 		method.Export = destructor.Export;
-		method.Public = destructor.Public;
+		method.Internal = destructor.Internal;
 		method.Extern = destructor.Extern;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
@@ -1912,7 +1912,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Name = DestroyMethodName;
 		method.Symbol = $"{EffectiveTypeSymbol(type)}_{DestroyMethodName}";
 		method.Export = type.Export;
-		method.Public = type.Public;
+		method.Internal = type.Internal;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
 		return method;
@@ -1935,7 +1935,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Name = DestroyMethodName;
 		method.Symbol = $"{EffectiveTypeSymbol(type)}_{DestroyMethodName}";
 		method.Export = destructor.Export;
-		method.Public = destructor.Public;
+		method.Internal = destructor.Internal;
 		method.Extern = destructor.Extern;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";

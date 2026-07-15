@@ -252,6 +252,20 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Public_visibility_spelling_reports_internal_migration()
+	{
+		string source = CreateTempCase("old_public_visibility.camp", """
+			public int helper() => 1;
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("old-public-visibility-out"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("'public' now means artifact visibility and is not enabled in this migration stage; use 'internal' for current-project visibility.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("old_public_visibility.camp(1,1): error:", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Async_exported_c_header_uses_completion_callback_abi()
 	{
 		string source = CreateTempCase("async_header.camp", """

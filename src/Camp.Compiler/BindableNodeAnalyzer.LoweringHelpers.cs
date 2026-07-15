@@ -22,7 +22,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			InitialValue = initialValue,
 			ResolvedType = "void",
-			Provenance = new NodeProvenance(initialValue?.SourceSyntax, currentRewriteFunction is null ? null : SymbolNameService.SymbolName(currentRewriteFunction).Value, "generated local", GeneratedDeclarationCategory.None, currentRewriteFunction?.Export is not null ? "export" : currentRewriteFunction?.Public is not null ? "public" : null)
+			Provenance = new NodeProvenance(initialValue?.SourceSyntax, currentRewriteFunction is null ? null : SymbolNameService.SymbolName(currentRewriteFunction).Value, "generated local", GeneratedDeclarationCategory.None, currentRewriteFunction?.Export is not null ? "export" : currentRewriteFunction?.Internal is not null ? "internal" : null)
 		};
 		declaration.Target.Provenance = declaration.Provenance;
 		declaration.Target.Type = type;
@@ -339,7 +339,7 @@ public sealed partial class BindableNodeAnalyzer
 		clone.Name = parameter.Name;
 		clone.Symbol = parameter.Symbol;
 		clone.Export = parameter.Export;
-		clone.Public = parameter.Public;
+		clone.Internal = parameter.Internal;
 		clone.Extern = parameter.Extern;
 		clone.Modifier = parameter.Modifier;
 		clone.Type = parameter is WithinParameterDefinition && parameter.Type is null ? new AllocatorTypeReference { ResolvedType = AllocatorType } : CloneType(parameter.Type);

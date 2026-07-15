@@ -5,8 +5,8 @@ mostly a convenience. At a module boundary, a name becomes part of the source
 API, the metadata story, and sometimes the native ABI.
 
 Camp separates those concerns. `using` affects source lookup. `namespace`
-declares the source/API namespace for this file. `public` lets other Camp
-source in the build see a declaration without making it a public ABI promise.
+declares the source/API namespace for this file. `internal` lets other Camp
+source in the current project see a declaration without making it a public ABI promise.
 `export` puts a declaration on the public boundary. `@symbol` controls the
 native symbol used for C-facing emission or interop.
 
@@ -96,7 +96,7 @@ This is source and API structure. It does not allocate a namespace object, and
 it does not by itself choose a C symbol. Think of it as the library's Camp name
 on the shelf.
 
-## Private, `public`, And `export`
+## Private, `internal`, And `export`
 
 Declarations are private unless marked otherwise.
 
@@ -109,16 +109,16 @@ struct DecodeState
 
 A private declaration can support exported code, but consumers cannot name it.
 
-`public` makes a declaration visible to other Camp files in the same build:
+`internal` makes a declaration visible to other Camp files in the current project:
 
 ```camp
-public struct DecodeState
+internal struct DecodeState
 {
 	nuint offset;
 }
 ```
 
-Use `public` for library-internal surface: helpers, shared implementation
+Use `internal` for library-internal surface: helpers, shared implementation
 types, or cross-file building blocks that are not part of the public ABI.
 
 `export` puts a declaration on the public API and ABI boundary:
@@ -131,7 +131,7 @@ export struct ImageInfo
 }
 ```
 
-The distinction matters. A `public` declaration may appear in broader metadata
+The distinction matters. An `internal` declaration may appear in broader metadata
 views or private generated headers. An `export` declaration appears in the
 exported Camp API and the public native surface where the target emits one.
 
@@ -349,19 +349,19 @@ Use aliases to smooth a boundary, not to hide a major semantic difference.
 ## Public Headers And Private Headers
 
 When Camp emits C for a library, exported declarations belong in the public
-native surface. `public` declarations can still be visible inside the build,
+native surface. `internal` declarations can still be visible inside the build,
 but they do not become public ABI by themselves.
 
 ```camp
 export int exportedValue = 3;
-public int publicValue = 4;
+internal int publicValue = 4;
 
 export int exportedAdd(int value)
 {
 	return value + exportedValue;
 }
 
-public int publicAdd(int value)
+internal int publicAdd(int value)
 {
 	return exportedAdd(value) + publicValue;
 }
@@ -375,7 +375,7 @@ int exportedAdd(int value);
 ```
 
 The private generated header can still contain `publicValue` and `publicAdd`
-for files inside the same build. That split is why `public` and `export` are
+for files inside the same build. That split is why `internal` and `export` are
 separate words.
 
 ## Organizing A Small Library
@@ -385,7 +385,7 @@ A small library often ends up with this shape:
 ```camp
 namespace Imaging;
 
-public struct DecodeState
+internal struct DecodeState
 {
 	nuint offset;
 }

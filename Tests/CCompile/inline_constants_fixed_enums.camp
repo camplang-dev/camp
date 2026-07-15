@@ -1,5 +1,5 @@
 inline uint MAX_DEVICES = 10;
-public inline uint INTERNAL_LIMIT = MAX_DEVICES * 2;
+internal inline uint INTERNAL_LIMIT = MAX_DEVICES * 2;
 export inline uint MAX_PLAYERS = MAX_DEVICES - 1;
 export inline uint INVALID_FILE_SIZE = 0xFFFFFFFF;
 export inline uint WM_GETTEXTLENGTH = 0x000E;

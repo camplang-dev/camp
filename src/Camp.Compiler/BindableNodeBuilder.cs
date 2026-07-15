@@ -170,8 +170,9 @@ public sealed partial class BindableNodeBuilder
 				case "export":
 					SetVisibility(definition, declarator, "export");
 					break;
+				case "internal":
 				case "public":
-					SetVisibility(definition, declarator, "public");
+					SetVisibility(definition, declarator, declarator.Keyword?.Value ?? "public");
 					break;
 				default:
 					Report(declarator, $"'{declarator.Keyword?.Value}' is not a valid alias declarator.");
@@ -1026,8 +1027,9 @@ public sealed partial class BindableNodeBuilder
 					SetVisibility(definition, declarator, "export");
 					break;
 
+				case "internal":
 				case "public":
-					SetVisibility(definition, declarator, "public");
+					SetVisibility(definition, declarator, declarator.Keyword?.Value ?? "public");
 					break;
 
 				case "extern":
@@ -1062,8 +1064,9 @@ public sealed partial class BindableNodeBuilder
 					SetVisibility(definition, declarator, "export");
 					break;
 
+				case "internal":
 				case "public":
-					SetVisibility(definition, declarator, "public");
+					SetVisibility(definition, declarator, declarator.Keyword?.Value ?? "public");
 					break;
 
 				case "extern":
@@ -1110,8 +1113,9 @@ public sealed partial class BindableNodeBuilder
 					SetVisibility(definition, declarator, "export");
 					break;
 
+				case "internal":
 				case "public":
-					SetVisibility(definition, declarator, "public");
+					SetVisibility(definition, declarator, declarator.Keyword?.Value ?? "public");
 					break;
 
 				case "extern":
@@ -1149,7 +1153,13 @@ public sealed partial class BindableNodeBuilder
 
 	void SetVisibility(Definition definition, SyntaxNode syntax, string keyword)
 	{
-		if (definition.Export is not null || definition.Public is not null)
+		if (keyword == "public")
+		{
+			Report(syntax, "'public' now means artifact visibility and is not enabled in this migration stage; use 'internal' for current-project visibility.");
+			return;
+		}
+
+		if (definition.Export is not null || definition.Internal is not null)
 		{
 			Report(syntax, $"'{keyword}' cannot be combined with another visibility declarator.");
 			return;
@@ -1158,7 +1168,7 @@ public sealed partial class BindableNodeBuilder
 		if (keyword == "export")
 			definition.Export = SetNullableArgument(definition.Export, "", syntax, "export");
 		else
-			definition.Public = SetNullableArgument(definition.Public, "", syntax, "public");
+			definition.Internal = SetNullableArgument(definition.Internal, "", syntax, "internal");
 	}
 
 	void ApplyNonStructTypeDeclarators(TypeDefinition definition, List<TypeDeclarationDeclaratorSyntax>? declarators, string typeKind)
@@ -1171,8 +1181,9 @@ public sealed partial class BindableNodeBuilder
 					SetVisibility(definition, declarator, "export");
 					break;
 
+				case "internal":
 				case "public":
-					SetVisibility(definition, declarator, "public");
+					SetVisibility(definition, declarator, declarator.Keyword?.Value ?? "public");
 					break;
 
 				case "extern":
@@ -1204,8 +1215,9 @@ public sealed partial class BindableNodeBuilder
 					SetVisibility(definition, declarator, "export");
 					break;
 
+				case "internal":
 				case "public":
-					SetVisibility(definition, declarator, "public");
+					SetVisibility(definition, declarator, declarator.Keyword?.Value ?? "public");
 					break;
 
 				case "extern":
@@ -1262,8 +1274,9 @@ public sealed partial class BindableNodeBuilder
 					SetVisibility(definition, declarator, "export");
 					break;
 
+				case "internal":
 				case "public":
-					SetVisibility(definition, declarator, "public");
+					SetVisibility(definition, declarator, declarator.Keyword?.Value ?? "public");
 					break;
 
 				case "extern":
@@ -1295,8 +1308,9 @@ public sealed partial class BindableNodeBuilder
 					SetVisibility(definition, declarator, "export");
 					break;
 
+				case "internal":
 				case "public":
-					SetVisibility(definition, declarator, "public");
+					SetVisibility(definition, declarator, declarator.Keyword?.Value ?? "public");
 					break;
 
 				case "extern":

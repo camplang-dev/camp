@@ -50,7 +50,7 @@
       "id": "variable:INTERNAL_NAME",
       "kind": "variable",
       "name": "INTERNAL_NAME",
-      "visibility": "public",
+      "visibility": "internal",
       "type": "string",
       "inline": true,
       "value": "Camp"
