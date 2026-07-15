@@ -68,14 +68,14 @@ High-impact distinctions:
 Camp files may begin with prelude directives before ordinary source tokens.
 Keep these at the top of the file and follow the style already used by the
 package. Use `#build` only for command-line-style build pragmas, `#within` only
-for the file's allocation policy, and `export as` for the exported namespace.
+for the file's allocation policy, and `namespace` for the exported namespace.
 
 ```camp
 #build --artifact exec
 #within explicit
 
 using Std;
-export as Samples::App;
+namespace Samples::App;
 
 export int main()
 {

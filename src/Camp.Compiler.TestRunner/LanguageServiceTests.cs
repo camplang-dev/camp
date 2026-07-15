@@ -568,7 +568,7 @@ public sealed class LanguageServiceTests
 		string packageApi = Path.Combine(appRoot, "cache", "pkg", "ext-win32", "live", "bin", "msvc-windows-x64_static_DEBUG", "ext-win32_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(packageApi)!);
 		File.WriteAllText(packageApi, """
-			export as Win32;
+			namespace Win32;
 
 			export newtype HWND: nint;
 			export newtype fn _winapi nint WNDPROC(HWND handle);
@@ -576,7 +576,7 @@ public sealed class LanguageServiceTests
 		string formsApi = Path.Combine(formsRoot, "bin", "msvc-windows-x64_static_DEBUG", "win32-forms_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(formsApi)!);
 		File.WriteAllText(formsApi, """
-			export as Win32::Forms;
+			namespace Win32::Forms;
 			using Win32;
 
 			export escaped extern class Form
@@ -646,7 +646,7 @@ public sealed class LanguageServiceTests
 		string stdApi = Path.Combine(runtimeRoot, "cache", "lib", "std", "bin", "clang-macos-x64_static_DEBUG", "std_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
 		File.WriteAllText(stdApi, """
-			export as Std;
+			namespace Std;
 
 			@summary("Completes after approximately the requested duration.")
 			export extern void sleepAsync(nuint timeoutMs);
@@ -682,7 +682,7 @@ public sealed class LanguageServiceTests
 		string stdApi = Path.Combine(runtimeRoot, "cache", "lib", "std", "bin", "clang-macos-x64_static_DEBUG", "std_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
 		File.WriteAllText(stdApi, """
-			export as Std;
+			namespace Std;
 
 			export extern class Console
 			{
@@ -991,7 +991,7 @@ public sealed class LanguageServiceTests
 		string stdApi = Path.Combine(runtimeRoot, "cache", "lib", "std", "bin", "clang-macos-x64_static_DEBUG", "std_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
 		File.WriteAllText(stdApi, """
-			export as Std;
+			namespace Std;
 
 			export newtype TimerHandle: nint;
 			""");
@@ -1011,14 +1011,14 @@ public sealed class LanguageServiceTests
 		string stdApi = Path.Combine(runtimeRoot, "cache", "lib", "std", "bin", "clang-macos-x64_static_DEBUG", "std_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(stdApi)!);
 		File.WriteAllText(stdApi, """
-			export as Std;
+			namespace Std;
 
 			export newtype TimerHandle: nint;
 			""");
 		string stdSource = Path.Combine(runtimeRoot, "lib", "std", "src", "std_timing.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(stdSource)!);
 		File.WriteAllText(stdSource, """
-			export as Std;
+			namespace Std;
 
 			export newtype TimerHandle: nint;
 			""");

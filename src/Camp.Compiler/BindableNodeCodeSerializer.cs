@@ -75,11 +75,11 @@ public sealed class BindableNodeCodeSerializer
 	void WriteModule(Module module)
 	{
 		bool wrotePrelude = false;
-		if (!string.IsNullOrWhiteSpace(module.ExportAs))
+		if (!string.IsNullOrWhiteSpace(module.Namespace))
 		{
 			WriteIndent();
-			writer.Write("export as ");
-			writer.Write(module.ExportAs);
+			writer.Write("namespace ");
+			writer.Write(module.Namespace);
 			writer.WriteLine(";");
 			wrotePrelude = true;
 		}
@@ -102,7 +102,7 @@ public sealed class BindableNodeCodeSerializer
 			writer.WriteLine(";");
 		}
 
-		if ((!string.IsNullOrWhiteSpace(module.ExportAs) || module.Usings.Count > 0) && module.Definitions.Count > 0)
+		if ((!string.IsNullOrWhiteSpace(module.Namespace) || module.Usings.Count > 0) && module.Definitions.Count > 0)
 			writer.WriteLine();
 
 		bool wroteDefinition = false;

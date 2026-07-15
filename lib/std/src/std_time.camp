@@ -1,6 +1,6 @@
 using Std;
 
-export as Std::Time;
+namespace Std::Time;
 
 // Minimal date/time API surface for Camp.
 //

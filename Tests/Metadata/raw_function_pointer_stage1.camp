@@ -1,4 +1,4 @@
-export as RawFunctionStage1;
+namespace RawFunctionStage1;
 
 /// Accepts a raw function pointer.
 export extern void consumeRaw(fn* value);

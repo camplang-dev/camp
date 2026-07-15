@@ -1,4 +1,4 @@
-export as Std;
+namespace Std;
 
 export void clear<T: any>(T[] this, sizeof(T))
 {

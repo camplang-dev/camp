@@ -1,4 +1,4 @@
-export as AsyncStage12;
+namespace AsyncStage12;
 
 export extern class Resumer
 {

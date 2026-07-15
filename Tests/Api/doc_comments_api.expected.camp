@@ -1,4 +1,4 @@
-export as Docs;
+namespace Docs;
 
 @summary("Adds one to %s.", symbols: [symbolof(Number)])
 @returns("The incremented value.")

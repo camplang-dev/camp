@@ -1,4 +1,4 @@
-export as Std;
+namespace Std;
 
 inline nuint HASH_EMPTY = (nuint)0;
 

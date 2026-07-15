@@ -1,4 +1,4 @@
-export as Docs;
+namespace Docs;
 
 extern void* malloc(nuint size);
 extern void free(void* ptr);

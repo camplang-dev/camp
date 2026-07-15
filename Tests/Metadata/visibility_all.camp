@@ -1,5 +1,5 @@
 // @emit-metadata all
-export as Docs;
+namespace Docs;
 
 /// Exported value.
 export int ExportedValue;

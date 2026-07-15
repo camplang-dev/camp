@@ -1,4 +1,4 @@
-export as Std;
+namespace Std;
 
 export class Console
 {

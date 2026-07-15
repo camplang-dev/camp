@@ -946,7 +946,7 @@ Primary risk:
   The safest implementation is a shared resolver that can be adopted by those
   paths incrementally inside this stage.
 
-### Stage 1 - Replace `export as` With `namespace`
+### ~~Stage 1 - Replace `export as` With `namespace`~~
 
 Goal: remove the overloaded namespace spelling before changing visibility
 semantics.
@@ -966,11 +966,11 @@ Tasks:
 
 Completion criteria:
 
-- No source or golden file uses `export as` except diagnostics tests.
-- Generated API files use `namespace`.
-- LSP understands namespace declarations.
-- `namespace` cannot be used as an ordinary identifier.
-- Full suite passes.
+- ~~No source or golden file uses `export as` except diagnostics tests.~~
+- ~~Generated API files use `namespace`.~~
+- ~~LSP understands namespace declarations.~~
+- ~~`namespace` cannot be used as an ordinary identifier.~~
+- ~~Full suite passes.~~
 
 Primary risk:
 

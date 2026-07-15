@@ -1254,7 +1254,7 @@ public static class CompilerDriver
 				if (file.IsApiHeader || file.BindableTree is not Module module)
 					continue;
 				output.SourceSyntax ??= module.SourceSyntax;
-				output.ExportAs ??= module.ExportAs;
+				output.Namespace ??= module.Namespace;
 				foreach (UsingDeclaration usingDeclaration in module.Usings)
 				{
 					if (usingKeys.Add(UsingDeclarationKey(usingDeclaration)))
@@ -1282,7 +1282,7 @@ public static class CompilerDriver
 			{
 				SourceSyntax = file.BindableTree?.SourceSyntax,
 				ResolvedType = compilation.SharedModule.ResolvedType,
-				ExportAs = file.BindableTree?.ExportAs
+				Namespace = file.BindableTree?.Namespace
 			};
 			foreach (UsingDeclaration usingDeclaration in file.BindableTree?.Usings ?? [])
 				output.Usings.Add(usingDeclaration);

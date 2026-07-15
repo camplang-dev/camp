@@ -128,13 +128,13 @@ public static class CompilationPipeline
 			if (file.Tokens is not null)
 			{
 				module.SourceWithinAllocationPolicies[file.Tokens] = file.WithinAllocationPolicyOverride ?? compilation.DefaultWithinAllocationPolicy;
-				module.SourceNamespaces[file.Tokens] = fileModule.ExportAs;
+				module.SourceNamespaces[file.Tokens] = fileModule.Namespace;
 			}
 
 			foreach (UsingDeclaration usingDeclaration in fileModule.Usings)
 				module.Usings.Add(usingDeclaration);
 
-			module.ExportAs ??= fileModule.ExportAs;
+			module.Namespace ??= fileModule.Namespace;
 
 			foreach (Definition definition in fileModule.Definitions)
 			{

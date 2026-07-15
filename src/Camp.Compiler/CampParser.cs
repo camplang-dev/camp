@@ -76,6 +76,9 @@ public sealed class CampParser
 		if (Is("using"))
 			return ParseUsingImportExportDeclaration();
 
+		if (Is("namespace"))
+			return ParseNamespaceDeclaration();
+
 		if (Is("export") && PeekValue(1) == "as")
 			return ParseExportImportExportDeclaration();
 
@@ -112,6 +115,16 @@ public sealed class CampParser
 		{
 			Keyword = Expect("export"),
 			AsKeyword = Expect("as"),
+			QualifiedNamespace = ParseQualifiedNamespace(),
+			SemicolonToken = Expect(";")
+		};
+	}
+
+	ExportImportExportDeclarationSyntax ParseNamespaceDeclaration()
+	{
+		return new ExportImportExportDeclarationSyntax
+		{
+			Keyword = Expect("namespace"),
 			QualifiedNamespace = ParseQualifiedNamespace(),
 			SemicolonToken = Expect(";")
 		};
@@ -799,7 +812,7 @@ public sealed class CampParser
 			"case", "catch", "char", "class", "classtype", "const", "continue", "copyable", "default", "delegate", "delete",
 			"do", "double", "else", "enum", "escaped", "export", "extern", "false", "finally",
 			"fixed", "float", "fn", "for", "foreach", "if", "implements", "in", "init", "int",
-			"interface", "iter", "long", "new", "newtype", "nint", "null", "nuint", "once", "out",
+			"interface", "iter", "long", "namespace", "new", "newtype", "nint", "null", "nuint", "once", "out",
 			"override", "params", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
 			"static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
 			"ulong", "unscoped", "unsafe", "upon", "ushort", "untyped", "using", "virtual", "void", "volatile",

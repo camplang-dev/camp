@@ -17,7 +17,7 @@ and why it belongs there.
 ## A File Is Not A Script
 
 Camp source files contain declarations. They can also contain file-level setup
-such as imports, build prelude directives, and `export as`, but ordinary program
+such as imports, build prelude directives, and `namespace`, but ordinary program
 logic lives inside function and method bodies.
 
 Here is a small complete file:

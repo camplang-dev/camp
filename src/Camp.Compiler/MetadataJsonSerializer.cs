@@ -143,9 +143,9 @@ public static class MetadataJsonSerializer
 		void WriteModule(Utf8JsonWriter json)
 		{
 			json.WriteStartObject("module");
-			json.WriteString("name", module.ExportAs ?? GetProjectName());
-			if (!string.IsNullOrWhiteSpace(module.ExportAs))
-				json.WriteString("namespace", module.ExportAs);
+			json.WriteString("name", module.Namespace ?? GetProjectName());
+			if (!string.IsNullOrWhiteSpace(module.Namespace))
+				json.WriteString("namespace", module.Namespace);
 			json.WriteEndObject();
 		}
 
@@ -1050,7 +1050,7 @@ public static class MetadataJsonSerializer
 
 		string GetTopLevelId(Definition definition)
 		{
-			string prefix = string.IsNullOrWhiteSpace(module.ExportAs) ? "" : module.ExportAs + "::";
+			string prefix = string.IsNullOrWhiteSpace(module.Namespace) ? "" : module.Namespace + "::";
 			return GetKind(definition) + ":" + prefix + GetMetadataName(definition);
 		}
 

@@ -54,7 +54,7 @@ public sealed partial class BindableNodeBuilder
 		}
 
 		foreach (Definition definition in module.Definitions)
-			AssignNamespace(definition, module.ExportAs);
+			AssignNamespace(definition, module.Namespace);
 
 		return module;
 	}
@@ -121,9 +121,11 @@ public sealed partial class BindableNodeBuilder
 
 			case ExportImportExportDeclarationSyntax exportSyntax:
 				if (exportSyntax.QualifiedNamespace is null)
-					Report(exportSyntax, "Export namespace declaration is missing a namespace.");
+					Report(exportSyntax, "Namespace declaration is missing a namespace.");
 				else
-					module.ExportAs = BuildQualifiedName(exportSyntax.QualifiedNamespace);
+					module.Namespace = BuildQualifiedName(exportSyntax.QualifiedNamespace);
+				if (exportSyntax.AsKeyword is not null)
+					Report(exportSyntax, $"Use 'namespace {module.Namespace};' instead of 'export as {module.Namespace};'.");
 				break;
 
 			default:

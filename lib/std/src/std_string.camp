@@ -1,4 +1,4 @@
-export as Std;
+namespace Std;
 
 extern nint utf8ncmp(const char* src1, const char* src2, nuint len);
 extern nint utf8ncasecmp(const char* src1, const char* src2, nuint len);

@@ -1,4 +1,4 @@
-export as Std;
+namespace Std;
 
 /// Groups the hash and equality functions used by a hash-based collection.
 export struct HashPolicy<K: any>

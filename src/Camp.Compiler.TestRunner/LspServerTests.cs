@@ -954,13 +954,13 @@ public sealed class LspServerTests
 		Directory.CreateDirectory(packageSource);
 		Directory.CreateDirectory(Path.GetDirectoryName(packageApi)!);
 		File.WriteAllText(Path.Combine(packageSource, "win32.camp"), """
-			export as Win32;
+			namespace Win32;
 
 			export inline int OLD_DECL = 1;
 			export inline int NEW_DECL = 2;
 			""");
 		File.WriteAllText(packageApi, """
-			export as Win32;
+			namespace Win32;
 
 			export inline int OLD_DECL = 1;
 			""");

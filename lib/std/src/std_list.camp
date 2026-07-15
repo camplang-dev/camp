@@ -1,4 +1,4 @@
-export as Std;
+namespace Std;
 
 /// A vectorized list of items.
 /// @remarks

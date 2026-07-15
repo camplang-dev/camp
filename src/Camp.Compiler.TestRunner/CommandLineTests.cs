@@ -80,7 +80,7 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(root);
 		string library = Path.Combine(root, "library.camp");
 		File.WriteAllText(library, """
-			export as Lib;
+			namespace Lib;
 
 			export struct Point
 			{
@@ -96,7 +96,7 @@ public sealed class CommandLineTests
 			""");
 		string app = Path.Combine(root, "app.camp");
 		File.WriteAllText(app, """
-			export as App;
+			namespace App;
 			using Lib;
 			using Lib as L;
 
@@ -139,7 +139,7 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(root);
 		string library = Path.Combine(root, "library.camp");
 		File.WriteAllText(library, """
-			export as Lib;
+			namespace Lib;
 
 			export struct Point
 			{
@@ -150,18 +150,18 @@ public sealed class CommandLineTests
 			""");
 		string noImport = Path.Combine(root, "no_import.camp");
 		File.WriteAllText(noImport, """
-			export as App;
+			namespace App;
 			export int main() => getValue();
 			""");
 		string selected = Path.Combine(root, "selected.camp");
 		File.WriteAllText(selected, """
-			export as App;
+			namespace App;
 			using Lib { Point };
 			export int main() => getValue();
 			""");
 		string aliasOriginal = Path.Combine(root, "alias_original.camp");
 		File.WriteAllText(aliasOriginal, """
-			export as App;
+			namespace App;
 			using Lib as L;
 			export int main() => Lib::getValue();
 			""");
@@ -228,6 +228,27 @@ public sealed class CommandLineTests
 		Assert.Contains("Type 'Console' is declared in namespace 'Std' but is not imported by this file.", suppressedResult.StdErr, StringComparison.Ordinal);
 		Assert.NotEqual(0, selectedResult.ExitCode);
 		Assert.Contains("Type 'List' is declared in namespace 'Std' but is not imported by this file.", selectedResult.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Namespace_replaces_export_as_and_is_reserved()
+	{
+		string oldNamespace = CreateTempCase("old_namespace.camp", """
+			export as OldName;
+
+			export int main() => 0;
+			""");
+		string reserved = CreateTempCase("reserved_namespace.camp", """
+			export int namespace() => 0;
+			""");
+
+		ProcessResult oldResult = RunCampc("build", oldNamespace, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("old-namespace-out"));
+		ProcessResult reservedResult = RunCampc("build", reserved, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("reserved-namespace-out"));
+
+		Assert.NotEqual(0, oldResult.ExitCode);
+		Assert.Contains("Use 'namespace OldName;' instead of 'export as OldName;'.", oldResult.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, reservedResult.ExitCode);
+		Assert.Contains("Function name 'namespace' is reserved.", reservedResult.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]

@@ -210,7 +210,7 @@ contexts:
       scope: storage.modifier.camp
     - match: '{{constraint_keywords}}'
       scope: storage.modifier.constraint.camp
-    - match: '\b(using|as)\b'
+    - match: '\b(using|namespace|as)\b'
       scope: keyword.control.import.camp
     - match: '\b(struct|class|interface|enum|newtype|params)\b\s+({{identifier}})'
       captures:

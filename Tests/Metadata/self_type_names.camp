@@ -1,4 +1,4 @@
-export as Meta;
+namespace Meta;
 
 /// Receiver-preserving sample.
 export abstract class Fluent

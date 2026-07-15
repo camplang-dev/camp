@@ -1,4 +1,4 @@
-export as Std;
+namespace Std;
 
 export extern void* malloc(nuint size);
 export extern void* realloc(void* ptr, nuint new_size);

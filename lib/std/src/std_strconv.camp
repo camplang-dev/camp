@@ -1,4 +1,4 @@
-export as Std;
+namespace Std;
 
 export escaped string copyString(const char[] this, within allocator)
 {

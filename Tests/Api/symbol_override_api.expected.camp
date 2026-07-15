@@ -1,4 +1,4 @@
-export as MyLib;
+namespace MyLib;
 
 @symbol("ExportedC")
 export extern int exportedCampName();

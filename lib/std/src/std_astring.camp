@@ -1,4 +1,4 @@
-export as Std;
+namespace Std;
 
 export nint indexOf(const achar[] this, const achar[] match, bool caseInsensitive = false)
 {

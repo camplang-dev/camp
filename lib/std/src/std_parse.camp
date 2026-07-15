@@ -1,4 +1,4 @@
-export as Std;
+namespace Std;
 
 export bool tryParse(const char[] this, overload out int result)
 {

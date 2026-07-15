@@ -1,4 +1,4 @@
-export as ConstOfApi;
+namespace ConstOfApi;
 
 export struct Box<T>
 {

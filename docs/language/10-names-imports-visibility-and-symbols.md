@@ -4,8 +4,8 @@ Names matter most when code becomes a library. Inside one file, a name is
 mostly a convenience. At a module boundary, a name becomes part of the source
 API, the metadata story, and sometimes the native ABI.
 
-Camp separates those concerns. `using` affects source lookup. `export as`
-places exported declarations in an API namespace. `public` lets other Camp
+Camp separates those concerns. `using` affects source lookup. `namespace`
+declares the source/API namespace for this file. `public` lets other Camp
 source in the build see a declaration without making it a public ABI promise.
 `export` puts a declaration on the public boundary. `@symbol` controls the
 native symbol used for C-facing emission or interop.
@@ -66,13 +66,12 @@ When a file imports several libraries with overlapping vocabulary, prefer
 selected imports or qualification. A little explicitness at the call site is
 better than making the reader guess which module supplied the name.
 
-## `export as`
+## `namespace`
 
-`export as` declares the namespace where this file or module exposes its
-exported declarations:
+`namespace` declares the source/API namespace for declarations in this file:
 
 ```camp
-export as Imaging;
+namespace Imaging;
 
 export enum ImageError
 {
@@ -384,7 +383,7 @@ separate words.
 A small library often ends up with this shape:
 
 ```camp
-export as Imaging;
+namespace Imaging;
 
 public struct DecodeState
 {

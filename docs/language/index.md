@@ -149,7 +149,7 @@ interop, expressions/statements/operators, and metadata attributes.
 
 1. Qualified Names
 2. `using`
-3. `export as`
+3. `namespace`
 4. Private, `public`, And `export`
 5. Exported Types And ABI Shape
 6. Exported Functions

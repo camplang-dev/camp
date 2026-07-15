@@ -1,5 +1,5 @@
 // @emit-metadata all
-export as AsyncResumptionStage1;
+namespace AsyncResumptionStage1;
 
 class Dispatcher
 {

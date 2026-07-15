@@ -394,7 +394,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		foreach (string keyword in new[]
 		{
 			"if", "else", "while", "for", "foreach", "return", "try", "catch", "finally",
-			"new", "init", "default", "true", "false", "null", "delete", "using", "export",
+			"new", "init", "default", "true", "false", "null", "delete", "using", "namespace", "export",
 			"class", "struct", "interface", "enum", "newtype", "delegate", "fn"
 		})
 			yield return new CampCompletionItem(keyword, CampSymbolKind.Keyword, null, null);

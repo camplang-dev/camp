@@ -1,4 +1,4 @@
-export as Std;
+namespace Std;
 
 public extern nint camp_io_stdin();
 public extern nint camp_io_stdout();

@@ -1,4 +1,4 @@
-export as ConstOfMetadata;
+namespace ConstOfMetadata;
 
 export struct Box<T>
 {

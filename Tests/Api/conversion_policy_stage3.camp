@@ -1,6 +1,6 @@
 // @ target msvc-win16-x86
 // @ variant large
 
-export as ConversionPolicyStage3;
+namespace ConversionPolicyStage3;
 
 export extern void takesTargetSpecs(byte* _near nearBytes, byte[] _far farItems, fn* _near nearFn, nint _huge index);

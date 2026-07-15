@@ -15,7 +15,7 @@ public abstract class BindableNode
 public class Module : BindableNode
 {
 	public List<UsingDeclaration> Usings { get; } = [];
-	public string? ExportAs { get; set; }
+	public string? Namespace { get; set; }
 	public List<Definition> Definitions { get; } = [];
 	public Dictionary<Definition, TokenSequence?> DefinitionSources { get; } = [];
 	public Dictionary<TokenSequence, string?> SourceNamespaces { get; } = [];

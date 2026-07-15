@@ -1,5 +1,5 @@
 // @emit-metadata export
-export as AsyncStage34;
+namespace AsyncStage34;
 
 export extern class Allocator
 {

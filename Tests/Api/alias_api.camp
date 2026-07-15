@@ -1,4 +1,4 @@
-export as Sample;
+namespace Sample;
 
 export alias TCHAR = wchar;
 public alias InternalChar = char;
