@@ -339,6 +339,7 @@ public sealed partial class BindableNodeAnalyzer
 		clone.Name = parameter.Name;
 		clone.Symbol = parameter.Symbol;
 		clone.Export = parameter.Export;
+		clone.Public = parameter.Public;
 		clone.Internal = parameter.Internal;
 		clone.Extern = parameter.Extern;
 		clone.Modifier = parameter.Modifier;

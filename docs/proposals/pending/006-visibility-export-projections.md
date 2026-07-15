@@ -1017,7 +1017,7 @@ Primary risk:
   but metadata strings and command-line mode names must not be confused with
   source visibility syntax.
 
-### Stage 3 - Reintroduce `public` As Artifact Visibility
+### ~~Stage 3 - Reintroduce `public` As Artifact Visibility~~
 
 Goal: add the new `public` semantic without changing stdlib export policy yet.
 
@@ -1037,12 +1037,12 @@ Tasks:
 
 Completion criteria:
 
-- Dense static-reference tests prove `public` crosses a static project
-  reference and `internal` does not.
-- Shared-reference tests prove `public` does not cross a shared-library
-  boundary.
-- Existing exported declarations still behave as before.
-- Full suite passes.
+- ~~Dense static-reference tests prove `public` crosses a static project
+  reference and `internal` does not.~~
+- ~~Shared-reference tests prove `public` does not cross a shared-library
+  boundary.~~
+- ~~Existing exported declarations still behave as before.~~
+- ~~Full suite passes.~~
 
 Primary risk:
 

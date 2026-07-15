@@ -10,6 +10,13 @@ public sealed class BindableNodeCodeSerializerOptions
 {
 	public string TabString { get; set; } = "\t";
 	public bool ApiHeader { get; set; }
+	public CampApiSurfaceKind ApiSurface { get; set; } = CampApiSurfaceKind.Export;
+}
+
+public enum CampApiSurfaceKind
+{
+	Export,
+	Public
 }
 
 public sealed class BindableNodeCodeSerializer
@@ -17,6 +24,7 @@ public sealed class BindableNodeCodeSerializer
 	readonly TextWriter writer;
 	readonly string tab;
 	readonly bool apiHeader;
+	readonly CampApiSurfaceKind apiSurface;
 	readonly Dictionary<BindableNode, string> generatedNames = new();
 	int indent;
 	int generatedLocalIndex;
@@ -27,6 +35,7 @@ public sealed class BindableNodeCodeSerializer
 		this.writer = writer;
 		tab = options?.TabString ?? "\t";
 		apiHeader = options?.ApiHeader ?? false;
+		apiSurface = options?.ApiSurface ?? CampApiSurfaceKind.Export;
 	}
 
 	public static void Serialize(BindableNode node, TextWriter writer, BindableNodeCodeSerializerOptions? options = null)
@@ -117,9 +126,9 @@ public sealed class BindableNodeCodeSerializer
 		}
 	}
 
-	static bool ShouldWriteApiDefinition(Definition definition)
+	bool ShouldWriteApiDefinition(Definition definition)
 	{
-		return definition.Export is not null;
+		return IsVisibleInApiSurface(definition);
 	}
 
 	void WriteDefinition(Definition definition)
@@ -171,7 +180,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteDefinitionPrefix(definition);
 		if (definition.IsEscaped)
 			writer.Write("escaped ");
-		if (apiHeader && definition.Export is not null && definition.Extern is null)
+		if (apiHeader && IsVisibleInApiSurface(definition) && definition.Extern is null)
 			writer.Write("extern ");
 		if ((!apiHeader || definition.Export is null) && definition.Modifier != ClassModifier.None)
 			writer.Write($"{Lower(definition.Modifier)} ");
@@ -295,7 +304,7 @@ public sealed class BindableNodeCodeSerializer
 			WriteType(definition.UnderlyingType);
 		}
 
-		if (definition.Functions.Count == 0 && definition.Fields.Count == 0 || apiHeader && !HasApiStaticField(definition.Fields) && !HasExportedFunction(definition.Functions))
+		if (definition.Functions.Count == 0 && definition.Fields.Count == 0 || apiHeader && !HasApiStaticField(definition.Fields) && !HasApiFunction(definition.Functions))
 		{
 			writer.WriteLine(";");
 			return;
@@ -360,12 +369,12 @@ public sealed class BindableNodeCodeSerializer
 	{
 		foreach (FieldDefinition field in fields)
 		{
-			if (field.Modifier == FieldModifier.Static && field.Export is null)
+			if (field.Modifier == FieldModifier.Static && !IsVisibleInApiSurface(field))
 				continue;
 			WriteFieldDefinition(field);
 		}
 
-		if (fields.Count > 0 && HasExportedFunction(functions))
+		if (fields.Count > 0 && HasApiFunction(functions))
 			writer.WriteLine();
 		WriteApiFunctions(functions);
 	}
@@ -385,7 +394,7 @@ public sealed class BindableNodeCodeSerializer
 		bool wrote = false;
 		foreach (FieldDefinition field in fields)
 		{
-			if (field.Modifier != FieldModifier.Static || field.Export is null)
+			if (field.Modifier != FieldModifier.Static || !IsVisibleInApiSurface(field))
 				continue;
 			WriteFieldDefinition(field);
 			wrote = true;
@@ -398,7 +407,7 @@ public sealed class BindableNodeCodeSerializer
 			&& definition is not null
 			&& ShouldWriteSyntheticApiDestructor(definition, functions);
 		List<InterfaceDefinition> interfaceAccessors = apiHeader && definition is not null ? GetApiInterfaceAccessors(definition) : [];
-		if (wrote && (HasExportedFunction(functions) || hasSyntheticConstructor || hasSyntheticDelete || interfaceAccessors.Count > 0))
+		if (wrote && (HasApiFunction(functions) || hasSyntheticConstructor || hasSyntheticDelete || interfaceAccessors.Count > 0))
 			writer.WriteLine();
 		if (hasSyntheticConstructor)
 		{
@@ -431,7 +440,7 @@ public sealed class BindableNodeCodeSerializer
 			writer.WriteLine("();");
 			wrote = true;
 		}
-		if (wrote && HasExportedFunction(functions))
+		if (wrote && HasApiFunction(functions))
 			writer.WriteLine();
 		WriteApiFunctions(functions);
 	}
@@ -496,7 +505,7 @@ public sealed class BindableNodeCodeSerializer
 		bool wrote = false;
 		foreach (FunctionDefinition function in functions)
 		{
-			if (apiHeader && function.Export is null)
+			if (apiHeader && !IsVisibleInApiSurface(function))
 				continue;
 			if (apiHeader && IsGeneratedApiImplementationDetail(function))
 				continue;
@@ -527,10 +536,10 @@ public sealed class BindableNodeCodeSerializer
 		return function.Name.StartsWith("_", StringComparison.Ordinal) && function.Symbol.Contains("__", StringComparison.Ordinal);
 	}
 
-	static bool HasExportedFunction(List<FunctionDefinition> functions)
+	bool HasApiFunction(List<FunctionDefinition> functions)
 	{
 		foreach (FunctionDefinition function in functions)
-			if (function.Export is not null && !IsGeneratedApiImplementationDetail(function) && !IsOverriddenApiMethod(function))
+			if (IsVisibleInApiSurface(function) && !IsGeneratedApiImplementationDetail(function) && !IsOverriddenApiMethod(function))
 				return true;
 		return false;
 	}
@@ -540,10 +549,10 @@ public sealed class BindableNodeCodeSerializer
 		return function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed;
 	}
 
-	static bool HasApiStaticField(List<FieldDefinition> fields)
+	bool HasApiStaticField(List<FieldDefinition> fields)
 	{
 		foreach (FieldDefinition field in fields)
-			if (field.Modifier == FieldModifier.Static && field.Export is not null)
+			if (field.Modifier == FieldModifier.Static && IsVisibleInApiSurface(field))
 				return true;
 		return false;
 	}
@@ -640,7 +649,7 @@ public sealed class BindableNodeCodeSerializer
 			WriteExpression(definition.InterfaceSlotInitializer);
 		}
 
-		if (definition.Body is null || apiHeader && definition.Export is not null)
+		if (definition.Body is null || apiHeader && IsVisibleInApiSurface(definition))
 		{
 			writer.WriteLine(";");
 			return;
@@ -679,9 +688,9 @@ public sealed class BindableNodeCodeSerializer
 		return false;
 	}
 
-	static bool ShouldSuppressApiInitializer(VariableDefinition definition)
+	bool ShouldSuppressApiInitializer(VariableDefinition definition)
 	{
-		return definition.Export is not null && !IsConstantVariableDefinition(definition);
+		return IsVisibleInApiSurface(definition) && !IsConstantVariableDefinition(definition);
 	}
 
 	static bool IsConstantVariableDefinition(VariableDefinition definition)
@@ -1198,10 +1207,18 @@ public sealed class BindableNodeCodeSerializer
 	{
 		if (definition.Export is not null)
 			writer.Write("export ");
+		else if (definition.Public is not null)
+			writer.Write("public ");
 		else if (definition.Internal is not null)
 			writer.Write("internal ");
 		if (ShouldWriteExternPrefix(definition))
 			writer.Write("extern ");
+	}
+
+	bool IsVisibleInApiSurface(Definition definition)
+	{
+		return definition.Export is not null
+			|| apiSurface == CampApiSurfaceKind.Public && definition.Public is not null;
 	}
 
 	bool ShouldWriteExternPrefix(Definition definition)
@@ -1210,12 +1227,12 @@ public sealed class BindableNodeCodeSerializer
 			return false;
 		if (definition.Extern is not null)
 			return !writingInterfaceMembers;
-		if (!apiHeader || definition.Export is null)
+		if (!apiHeader || !IsVisibleInApiSurface(definition))
 			return false;
 
 		return definition switch
 		{
-			FunctionDefinition function => function.Export is not null || IsLifecycleFunction(function) || function.Body is not null || function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed,
+			FunctionDefinition function => IsVisibleInApiSurface(function) || IsLifecycleFunction(function) || function.Body is not null || function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed,
 			VariableDefinition variable => !IsConstantVariableDefinition(variable),
 			_ => false
 		};

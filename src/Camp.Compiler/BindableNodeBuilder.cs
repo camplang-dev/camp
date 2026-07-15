@@ -1153,13 +1153,7 @@ public sealed partial class BindableNodeBuilder
 
 	void SetVisibility(Definition definition, SyntaxNode syntax, string keyword)
 	{
-		if (keyword == "public")
-		{
-			Report(syntax, "'public' now means artifact visibility and is not enabled in this migration stage; use 'internal' for current-project visibility.");
-			return;
-		}
-
-		if (definition.Export is not null || definition.Internal is not null)
+		if (definition.Export is not null || definition.Public is not null || definition.Internal is not null)
 		{
 			Report(syntax, $"'{keyword}' cannot be combined with another visibility declarator.");
 			return;
@@ -1167,6 +1161,8 @@ public sealed partial class BindableNodeBuilder
 
 		if (keyword == "export")
 			definition.Export = SetNullableArgument(definition.Export, "", syntax, "export");
+		else if (keyword == "public")
+			definition.Public = SetNullableArgument(definition.Public, "", syntax, "public");
 		else
 			definition.Internal = SetNullableArgument(definition.Internal, "", syntax, "internal");
 	}

@@ -46,6 +46,8 @@ internal sealed class GeneratedDeclarationFactory
 	{
 		if (definition.Export is not null || source?.Export is not null)
 			return "export";
+		if (definition.Public is not null || source?.Public is not null)
+			return "public";
 		if (definition.Internal is not null || source?.Internal is not null)
 			return "internal";
 		return null;

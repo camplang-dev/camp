@@ -2432,6 +2432,7 @@ public sealed partial class BindableNodeAnalyzer
 				Name = component.ExpandedName,
 				Symbol = component.ExpandedName,
 				Export = field.Export,
+				Public = field.Public,
 				Internal = field.Internal,
 				Extern = field.Extern,
 				Modifier = field.Modifier,

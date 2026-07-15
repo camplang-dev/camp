@@ -893,7 +893,7 @@ public static class MetadataJsonSerializer
 			{
 				MetadataVisibility.None => false,
 				MetadataVisibility.Export => definition.Export is not null,
-				MetadataVisibility.Public => definition.Export is not null || definition.Internal is not null,
+				MetadataVisibility.Public => definition.Export is not null || definition.Public is not null,
 				MetadataVisibility.All => true,
 				_ => false
 			};
@@ -928,7 +928,7 @@ public static class MetadataJsonSerializer
 			return visibility switch
 			{
 				MetadataVisibility.Export => classDefinition.Fields.Any(static field => field.Modifier == FieldModifier.Static && field.Export is not null),
-				MetadataVisibility.Public => classDefinition.Export is not null || classDefinition.Internal is not null,
+				MetadataVisibility.Public => classDefinition.Export is not null || classDefinition.Public is not null,
 				MetadataVisibility.All => true,
 				_ => false
 			};
@@ -1253,6 +1253,8 @@ public static class MetadataJsonSerializer
 		{
 			if (definition.Export is not null)
 				return "export";
+			if (definition.Public is not null)
+				return "public";
 			if (definition.Internal is not null)
 				return "internal";
 			return null;

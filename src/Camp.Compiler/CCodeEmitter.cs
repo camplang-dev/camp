@@ -754,32 +754,32 @@ public static class CCodeEmitter
 
 			if (file.IsApiHeader)
 			{
-				wrote |= WriteApiTypeDeclarations(writer, definitions, projectApi: false);
+				wrote |= WriteApiTypeDeclarations(writer, definitions, projectApi: false, includePublic: !file.SharedLibraryImport);
 			}
 
-			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null && ShouldEmitCFunction(function)))
+			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(function => IsVisibleInApiHeader(function, file) && ShouldEmitCFunction(function)))
 			{
 				WriteFunctionPrototype(writer, function, storage: null);
 				wrote = true;
 			}
 
-			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null && variable.IsInline))
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(variable => IsVisibleInApiHeader(variable, file) && variable.IsInline))
 			{
 				WriteInlineConstantMacro(writer, variable);
 				wrote = true;
 			}
-			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null && field.IsInline))
+			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(field => IsVisibleInApiHeader(field, file) && field.IsInline))
 			{
 				WriteInlineConstantMacro(writer, field);
 				wrote = true;
 			}
 
-			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.Export is not null && !variable.IsInline))
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(variable => IsVisibleInApiHeader(variable, file) && !variable.IsInline))
 			{
 				WriteVariableDeclaration(writer, variable, storage: "extern");
 				wrote = true;
 			}
-			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => field.Export is not null && !field.IsInline))
+			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(field => IsVisibleInApiHeader(field, file) && !field.IsInline))
 			{
 				WriteFieldStorageDeclaration(writer, field, storage: "extern");
 				wrote = true;
@@ -795,7 +795,7 @@ public static class CCodeEmitter
 			List<Definition> definitions = GetProjectDefinitions().ToList();
 			bool wrote = false;
 
-			wrote |= WriteApiTypeDeclarations(writer, definitions, projectApi: true);
+			wrote |= WriteApiTypeDeclarations(writer, definitions, projectApi: true, includePublic: false);
 
 			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null && ShouldEmitCFunction(function)))
 			{
@@ -841,11 +841,11 @@ public static class CCodeEmitter
 				writer.WriteLine("/* No exported declarations. */");
 		}
 
-		bool WriteApiTypeDeclarations(TextWriter writer, List<Definition> definitions, bool projectApi)
+		bool WriteApiTypeDeclarations(TextWriter writer, List<Definition> definitions, bool projectApi, bool includePublic)
 		{
 			bool wrote = false;
 			List<TypeDefinition> exportedTypes = definitions.OfType<TypeDefinition>()
-				.Where(static type => type.Export is not null)
+				.Where(type => type.Export is not null || includePublic && type.Public is not null)
 				.ToList();
 
 			foreach (TypeDefinition type in exportedTypes)
@@ -1274,7 +1274,13 @@ public static class CCodeEmitter
 
 		static bool IsExternallyVisible(Definition definition)
 		{
-			return definition.Export is not null || definition.Internal is not null;
+			return definition.Export is not null || definition.Public is not null || definition.Internal is not null;
+		}
+
+		static bool IsVisibleInApiHeader(Definition definition, SourceFile file)
+		{
+			return definition.Export is not null
+				|| file.IsApiHeader && !file.SharedLibraryImport && definition.Public is not null;
 		}
 
 		static bool IsGeneratedVTableStorageVariable(VariableDefinition variable)
@@ -1646,7 +1652,7 @@ public static class CCodeEmitter
 
 		void WriteNewtypeDefinition(TextWriter writer, NewtypeDefinition definition, bool exportedOnly)
 		{
-			if (exportedOnly && definition.Export is null)
+			if (exportedOnly && definition.Export is null && definition.Public is null)
 				return;
 			if (!emittedNames.Add((exportedOnly ? "public-newtype:" : "newtype:") + CName(definition)))
 				return;

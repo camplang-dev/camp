@@ -827,7 +827,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ApplySymbolAttribute(definition, allowed: false, "field");
 		}
-		if ((definition.Export is not null || definition.Internal is not null) && definition.Modifier != FieldModifier.Static)
+		if ((definition.Export is not null || definition.Public is not null || definition.Internal is not null) && definition.Modifier != FieldModifier.Static)
 			Report(GetNameRange(definition), "Exported or internal fields must be explicitly marked static.");
 		if (definition.Extern is not null && definition.Modifier != FieldModifier.Static)
 			Report(GetNameRange(definition), "Extern fields must be explicitly marked static.");

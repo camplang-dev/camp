@@ -37,6 +37,7 @@ public abstract class Definition : BindableNode
 	public string? Namespace { get; set; }
 	public bool SymbolOverridden { get; set; }
 	public string? Export { get; set; }
+	public string? Public { get; set; }
 	public string? Internal { get; set; }
 	public string? Extern { get; set; }
 	public bool IsApiHeader { get; set; }

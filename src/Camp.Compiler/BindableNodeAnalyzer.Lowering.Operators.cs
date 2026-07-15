@@ -441,6 +441,7 @@ public sealed partial class BindableNodeAnalyzer
 			Name = CreateMethodName,
 			Symbol = $"{type.Name}_{CreateMethodName}",
 			Export = initNew.Export,
+			Public = initNew.Public,
 			Internal = initNew.Internal,
 			Extern = initNew.Extern ?? "",
 			Modifier = FunctionModifier.Static,

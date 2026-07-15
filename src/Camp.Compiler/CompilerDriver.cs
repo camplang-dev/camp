@@ -490,7 +490,7 @@ public static class CompilerDriver
 				return true;
 			}
 
-			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeLibrary ? cApiPath : null, requireNativeLibrary ? metadataPath : null, requireNativeLibrary ? staticLibraryPath : null, requireNativeLibrary ? NativeBuildKind.Static : null, context))
+			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeLibrary ? cApiPath : null, requireNativeLibrary ? metadataPath : null, requireNativeLibrary ? staticLibraryPath : null, requireNativeLibrary ? NativeBuildKind.Static : null, context, CampApiSurfaceKind.Public))
 				return false;
 
 			apiHeaderPath = apiPath;
@@ -562,7 +562,8 @@ public static class CompilerDriver
 				return true;
 			}
 
-			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeApiArtifacts ? cApiPath : null, requireNativeApiArtifacts ? metadataPath : null, nativeLibraryPath, packageBuildKind, context))
+			CampApiSurfaceKind apiSurface = effectiveLinkKind == DependencyLinkKind.Shared ? CampApiSurfaceKind.Export : CampApiSurfaceKind.Public;
+			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeApiArtifacts ? cApiPath : null, requireNativeApiArtifacts ? metadataPath : null, nativeLibraryPath, packageBuildKind, context, apiSurface))
 				return false;
 
 			apiHeaderPath = apiPath;
@@ -751,7 +752,7 @@ public static class CompilerDriver
 			}
 		}
 
-		bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, IReadOnlyList<string> nativeSourceFiles, string apiPath, string? cApiPath, string? metadataPath, string? nativeLibraryPath, NativeBuildKind? nativeBuildKind, RuntimeContext context)
+		bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, IReadOnlyList<string> nativeSourceFiles, string apiPath, string? cApiPath, string? metadataPath, string? nativeLibraryPath, NativeBuildKind? nativeBuildKind, RuntimeContext context, CampApiSurfaceKind apiSurface)
 		{
 			CompilerRequest packageRequest = new()
 			{
@@ -783,7 +784,7 @@ public static class CompilerDriver
 			{
 				Directory.CreateDirectory(Path.GetDirectoryName(apiPath)!);
 				using StreamWriter writer = new(apiPath, append: false, Encoding.UTF8);
-				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface });
 				if (metadataPath is not null && !TryEmitMetadataArtifact(packageCompilation, Path.GetDirectoryName(metadataPath)!, MetadataVisibility.Export, packageName))
 					return false;
 			}
@@ -1019,14 +1020,14 @@ public static class CompilerDriver
 			entryPoint = null;
 			List<FunctionDefinition> candidates = [];
 			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
-				if (definition is FunctionDefinition { Name: "main" } function && (function.Export is not null || function.Internal is not null))
+				if (definition is FunctionDefinition { Name: "main", Export: not null } function)
 					candidates.Add(function);
 
 			if (candidates.Count != 1)
 			{
 				ErrorLine(candidates.Count == 0
-					? "Building an executable requires exactly one public or exported function named 'main'."
-					: "Building an executable requires exactly one public or exported function named 'main', but multiple were found.");
+					? "Building an executable requires exactly one exported function named 'main'."
+					: "Building an executable requires exactly one exported function named 'main', but multiple were found.");
 				return false;
 			}
 
@@ -1084,7 +1085,8 @@ public static class CompilerDriver
 			{
 				Directory.CreateDirectory(outputDirectory);
 				using StreamWriter writer = new(campApiPath, append: false, Encoding.UTF8);
-				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+				CampApiSurfaceKind apiSurface = request.BuildKind == NativeBuildKind.Static ? CampApiSurfaceKind.Public : CampApiSurfaceKind.Export;
+				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface });
 				generatedFiles.Add(campApiPath);
 				OutLine("generated: " + Path.GetFileName(campApiPath));
 			}

@@ -252,17 +252,20 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Public_visibility_spelling_reports_internal_migration()
+	public void Public_visibility_spelling_is_artifact_visibility()
 	{
-		string source = CreateTempCase("old_public_visibility.camp", """
+		string source = CreateTempCase("public_visibility.camp", """
 			public int helper() => 1;
+
+			export int main()
+			{
+				return helper() - 1;
+			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("old-public-visibility-out"));
+		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("public-visibility-out"));
 
-		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains("'public' now means artifact visibility and is not enabled in this migration stage; use 'internal' for current-project visibility.", result.StdErr, StringComparison.Ordinal);
-		Assert.Contains("old_public_visibility.camp(1,1): error:", result.StdErr, StringComparison.Ordinal);
+		AssertCommandSucceeded(result);
 	}
 
 	[Fact]
@@ -674,6 +677,127 @@ public sealed class CommandLineTests
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: project_reference_app.c", result.StdOut, StringComparison.Ordinal);
 		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static), "sample-lib_api.camp")));
+	}
+
+	[Fact]
+	public void Static_project_reference_exposes_public_but_not_internal_api()
+	{
+		string root = TempPath("project-reference-public-static");
+		string libraryRoot = Path.Combine(root, "library");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			public int publicValue()
+			{
+				return 20;
+			}
+
+			internal int internalValue()
+			{
+				return 2;
+			}
+
+			export int exportedValue()
+			{
+				return 22;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--nostdlib
+			--name visibility-lib
+			src/*.camp
+			""");
+		string goodApp = Path.Combine(appRoot, "good.camp");
+		File.WriteAllText(goodApp, """
+			#build --nostdlib
+			#build --artifact none
+
+			export int main()
+			{
+				return publicValue() + exportedValue() - 42;
+			}
+			""");
+		string badApp = Path.Combine(appRoot, "bad.camp");
+		File.WriteAllText(badApp, """
+			#build --nostdlib
+			#build --artifact none
+
+			export int main()
+			{
+				return internalValue();
+			}
+			""");
+		string target = NativeTargetForHost();
+
+		ProcessResult good = RunCampc("build", goodApp, "--target", target, "--project-reference", libraryRoot + ":static", "--out-dir", Path.Combine(appRoot, "good-bin"));
+		ProcessResult bad = RunCampc("build", badApp, "--target", target, "--project-reference", libraryRoot + ":static", "--out-dir", Path.Combine(appRoot, "bad-bin"));
+
+		AssertCommandSucceeded(good);
+		Assert.NotEqual(0, bad.ExitCode);
+		Assert.Contains("Symbol 'internalValue' could not be found.", bad.StdErr, StringComparison.Ordinal);
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "visibility-lib_api.camp"));
+		Assert.Contains("public extern int publicValue();", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("internalValue", api, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Shared_project_reference_exposes_export_api_only()
+	{
+		string root = TempPath("project-reference-public-shared");
+		string libraryRoot = Path.Combine(root, "library");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			public int publicValue()
+			{
+				return 20;
+			}
+
+			export int exportedValue()
+			{
+				return 22;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--nostdlib
+			--name visibility-lib
+			src/*.camp
+			""");
+		string goodApp = Path.Combine(appRoot, "good.camp");
+		File.WriteAllText(goodApp, """
+			#build --nostdlib
+			#build --artifact none
+
+			export int main()
+			{
+				return exportedValue() - 22;
+			}
+			""");
+		string badApp = Path.Combine(appRoot, "bad.camp");
+		File.WriteAllText(badApp, """
+			#build --nostdlib
+			#build --artifact none
+
+			export int main()
+			{
+				return publicValue();
+			}
+			""");
+		string target = NativeTargetForHost();
+
+		ProcessResult good = RunCampc("build", goodApp, "--target", target, "--project-reference", libraryRoot + ":shared", "--out-dir", Path.Combine(appRoot, "good-bin"));
+		ProcessResult bad = RunCampc("build", badApp, "--target", target, "--project-reference", libraryRoot + ":shared", "--out-dir", Path.Combine(appRoot, "bad-bin"));
+
+		AssertCommandSucceeded(good);
+		Assert.NotEqual(0, bad.ExitCode);
+		Assert.Contains("Symbol 'publicValue' could not be found.", bad.StdErr, StringComparison.Ordinal);
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Shared), "visibility-lib_api.camp"));
+		Assert.DoesNotContain("publicValue", api, StringComparison.Ordinal);
+		Assert.Contains("export extern int exportedValue();", api, StringComparison.Ordinal);
 	}
 
 	[Fact]

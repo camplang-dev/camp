@@ -302,7 +302,28 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsExternallyVisible(Definition definition)
 	{
-		return definition.Export is not null || definition.Internal is not null;
+		return definition.Export is not null || definition.Public is not null || definition.Internal is not null;
+	}
+
+	static bool IsArtifactVisible(Definition definition)
+	{
+		return definition.Export is not null || definition.Public is not null;
+	}
+
+	static string? GetCombinedArtifactVisibility(Definition left, Definition right)
+	{
+		if (left.Export is not null && right.Export is not null)
+			return null;
+		return IsArtifactVisible(left) && IsArtifactVisible(right) ? "public" : null;
+	}
+
+	static string? GetCombinedInternalVisibility(Definition left, Definition right)
+	{
+		if (left.Export is not null && right.Export is not null)
+			return null;
+		if (IsArtifactVisible(left) && IsArtifactVisible(right))
+			return null;
+		return IsExternallyVisible(left) && IsExternallyVisible(right) ? "internal" : null;
 	}
 
 	static TypeReference UnwrapTypeDeclarators(TypeReference type)
