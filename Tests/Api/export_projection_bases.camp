@@ -1,0 +1,22 @@
+extern void* malloc(nuint size);
+extern void free(void* pointer);
+
+public class HiddenBase
+{
+}
+
+public class VisibleBase
+{
+}
+
+public class HiddenDerived: HiddenBase
+{
+}
+
+public class VisibleDerived: VisibleBase
+{
+}
+
+export HiddenDerived;
+export VisibleBase;
+export VisibleDerived;

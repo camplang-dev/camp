@@ -120,6 +120,8 @@ public class ClassDefinition : TypeDefinition
 	public List<TypeReference> ExportProjectionInterfaceBaseTypes { get; } = [];
 	public bool HasExportProjectionMemberFilter { get; set; }
 	public List<Definition> ExportProjectionMembers { get; } = [];
+	public bool HasExportProjectionBaseFilter { get; set; }
+	public List<TypeReference> ExportProjectionBaseTypes { get; } = [];
 	public List<TypeReference> BaseTypes { get; } = [];
 	public List<TypeReference> LoweredInterfaceBaseTypes { get; } = [];
 	public List<FieldDefinition> Fields { get; } = [];

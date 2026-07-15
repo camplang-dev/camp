@@ -1,0 +1,1 @@
+tests/Diagnostics/export_projection_closure_errors.camp(10,17): error: Base class relationship 'Base' is implicit; export the base class separately instead of listing it in the projection.

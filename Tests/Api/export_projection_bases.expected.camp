@@ -1,0 +1,20 @@
+export extern class VisibleBase
+{
+	export extern VisibleBase();
+
+	export extern ~VisibleBase();
+}
+
+export extern class HiddenDerived
+{
+	export extern HiddenDerived();
+
+	export extern ~HiddenDerived();
+}
+
+export extern class VisibleDerived : VisibleBase
+{
+	export extern VisibleDerived();
+
+	export extern ~VisibleDerived();
+}

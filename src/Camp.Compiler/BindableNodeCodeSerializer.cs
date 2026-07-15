@@ -1309,7 +1309,9 @@ public sealed class BindableNodeCodeSerializer
 
 	static List<TypeReference> ApiBaseTypes(ClassDefinition definition)
 	{
-		List<TypeReference> baseTypes = definition.BaseTypes;
+		List<TypeReference> baseTypes = definition.HasExportProjectionBaseFilter
+			? definition.ExportProjectionBaseTypes
+			: definition.BaseTypes;
 		List<TypeReference> loweredInterfaceBaseTypes = definition.HasExportProjectionInterfaceFilter
 			? definition.ExportProjectionInterfaceBaseTypes
 			: definition.LoweredInterfaceBaseTypes;

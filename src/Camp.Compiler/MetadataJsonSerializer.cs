@@ -1042,7 +1042,9 @@ public static class MetadataJsonSerializer
 
 		static List<TypeReference> GetApiBaseTypes(ClassDefinition definition)
 		{
-			List<TypeReference> baseTypes = definition.BaseTypes;
+			List<TypeReference> baseTypes = definition.HasExportProjectionBaseFilter
+				? definition.ExportProjectionBaseTypes
+				: definition.BaseTypes;
 			List<TypeReference> loweredInterfaceBaseTypes = definition.HasExportProjectionInterfaceFilter
 				? definition.ExportProjectionInterfaceBaseTypes
 				: definition.LoweredInterfaceBaseTypes;

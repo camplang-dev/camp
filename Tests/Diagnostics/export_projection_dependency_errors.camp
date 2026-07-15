@@ -1,0 +1,14 @@
+public struct HiddenPayload
+{
+	int value;
+}
+
+public newtype fn int HiddenCallback(HiddenPayload* payload);
+
+public class UsesHiddenTypes
+{
+	public HiddenPayload[] getItems() => default;
+	public HiddenCallback getCallback() => default;
+}
+
+export UsesHiddenTypes;

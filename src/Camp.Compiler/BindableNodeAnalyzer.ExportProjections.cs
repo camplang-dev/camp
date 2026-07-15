@@ -37,11 +37,12 @@ public sealed partial class BindableNodeAnalyzer
 
 			string externalName = string.IsNullOrWhiteSpace(projection.Alias) ? target.Name : projection.Alias!;
 			Definition? exportDefinition = string.Equals(externalName, target.Name, StringComparison.Ordinal)
-				? PromoteProjectionTarget(target)
+				? PromoteProjectionTarget(target, projection)
 				: CreateProjectedDefinition(target, externalName, projection);
 			if (exportDefinition is null)
 				continue;
 			projection.ExportedDefinition = exportDefinition;
+			ApplyBaseProjection(module, target, exportDefinition);
 			ApplyInterfaceProjection(projection, target, exportDefinition);
 			if (projection.HasMemberBlock)
 				ApplyMemberProjection(projection, target, exportDefinition);
@@ -81,6 +82,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (!TryGetInterfaceDefinition(interfaceType, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
 			{
+				if (TryGetNamedTypeDefinition(interfaceType, out TypeDefinition? listedType) && listedType is ClassDefinition)
+					Report(GetRange(interfaceType.SourceSyntax), $"Base class relationship '{listedType.Name}' is implicit; export the base class separately instead of listing it in the projection.");
+				else
 				Report(GetRange(interfaceType.SourceSyntax), $"Export projection interface '{interfaceType.ResolvedType ?? ErrorType}' is not an interface.");
 				continue;
 			}
@@ -163,6 +167,52 @@ public sealed partial class BindableNodeAnalyzer
 			if (ReferenceEquals(projection.Target, interfaceDefinition))
 				return true;
 			if (projection.TargetQualifiers.Count == 0 && projection.TargetName == interfaceDefinition.Name)
+				return true;
+		}
+		return false;
+	}
+
+	void ApplyBaseProjection(Module module, Definition source, Definition exported)
+	{
+		if (source is not ClassDefinition sourceClass || exported is not ClassDefinition exportedClass)
+			return;
+
+		List<TypeReference> projectedBases = [];
+		foreach (TypeReference baseType in sourceClass.BaseTypes.Concat(sourceClass.LoweredInterfaceBaseTypes))
+		{
+			if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? interfaceDefinition) && interfaceDefinition is not null)
+				continue;
+			if (!TryGetNamedTypeDefinition(baseType, out TypeDefinition? baseDefinition) || baseDefinition is not ClassDefinition)
+				continue;
+			if (IsTypeProjectedForExport(module, baseDefinition))
+				projectedBases.Add(CloneProjectionTypeReference(baseType)!);
+		}
+
+		if (ReferenceEquals(sourceClass, exportedClass))
+		{
+			sourceClass.HasExportProjectionBaseFilter = true;
+			sourceClass.ExportProjectionBaseTypes.Clear();
+			sourceClass.ExportProjectionBaseTypes.AddRange(projectedBases);
+			return;
+		}
+
+		exportedClass.BaseTypes.RemoveAll(IsClassTypeReference);
+		exportedClass.ExportProjectionBaseTypes.Clear();
+		exportedClass.ExportProjectionBaseTypes.AddRange(projectedBases);
+		exportedClass.HasExportProjectionBaseFilter = true;
+		foreach (TypeReference baseType in projectedBases)
+			exportedClass.BaseTypes.Insert(0, baseType);
+	}
+
+	bool IsTypeProjectedForExport(Module module, TypeDefinition typeDefinition)
+	{
+		if (typeDefinition.Export is not null)
+			return true;
+		foreach (ExportProjectionDefinition projection in module.ExportProjections)
+		{
+			if (ReferenceEquals(projection.Target, typeDefinition))
+				return true;
+			if (projection.TargetQualifiers.Count == 0 && projection.TargetName == typeDefinition.Name)
 				return true;
 		}
 		return false;
@@ -417,10 +467,48 @@ public sealed partial class BindableNodeAnalyzer
 			: string.Join("::", projection.TargetQualifiers) + "::" + projection.TargetName;
 	}
 
-	static Definition PromoteProjectionTarget(Definition target)
+	static Definition PromoteProjectionTarget(Definition target, ExportProjectionDefinition projection)
 	{
 		target.Export = "export";
+		if (projection.HasMemberBlock)
+			return target;
+
+		switch (target)
+		{
+			case ClassDefinition classDefinition:
+				PromoteProjectedFunctions(classDefinition.Functions);
+				PromoteProjectedStaticFields(classDefinition.Fields);
+				break;
+			case StructDefinition structDefinition:
+				PromoteProjectedFunctions(structDefinition.Functions);
+				PromoteProjectedStaticFields(structDefinition.Fields);
+				break;
+			case InterfaceDefinition interfaceDefinition:
+				PromoteProjectedFunctions(interfaceDefinition.Functions);
+				break;
+			case EnumDefinition enumDefinition:
+				PromoteProjectedFunctions(enumDefinition.Functions);
+				break;
+			case NewtypeDefinition newtypeDefinition:
+				PromoteProjectedFunctions(newtypeDefinition.Functions);
+				PromoteProjectedStaticFields(newtypeDefinition.Fields);
+				break;
+		}
 		return target;
+	}
+
+	static void PromoteProjectedFunctions(IEnumerable<FunctionDefinition> functions)
+	{
+		foreach (FunctionDefinition function in functions)
+			if (function.Public is not null)
+				function.Export = "export";
+	}
+
+	static void PromoteProjectedStaticFields(IEnumerable<FieldDefinition> fields)
+	{
+		foreach (FieldDefinition field in fields)
+			if (field.Public is not null && (field.Modifier == FieldModifier.Static || field.IsInline))
+				field.Export = "export";
 	}
 
 	Definition? CreateProjectedDefinition(Definition target, string externalName, ExportProjectionDefinition projection)
@@ -517,6 +605,11 @@ public sealed partial class BindableNodeAnalyzer
 	bool IsInterfaceTypeReference(TypeReference type)
 	{
 		return TryGetInterfaceDefinition(type, out InterfaceDefinition? interfaceDefinition) && interfaceDefinition is not null;
+	}
+
+	bool IsClassTypeReference(TypeReference type)
+	{
+		return TryGetNamedTypeDefinition(type, out TypeDefinition? definition) && definition is ClassDefinition;
 	}
 
 	static TypeDefinitionReference CreateTypeDefinitionReference(TypeDefinition definition)

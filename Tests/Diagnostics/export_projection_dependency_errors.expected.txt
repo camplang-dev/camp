@@ -1,0 +1,2 @@
+tests/Diagnostics/export_projection_dependency_errors.camp(10,9): error: Exported declaration 'getItems' exposes non-exported type 'HiddenPayload'.
+tests/Diagnostics/export_projection_dependency_errors.camp(11,9): error: Exported declaration 'getCallback' exposes non-exported type 'HiddenCallback'.

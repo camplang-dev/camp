@@ -1231,7 +1231,7 @@ Primary risk:
   Projection must not mix up the internal `vtableof` symbols with exported
   interface accessors.
 
-### Stage 9 - Base Relationship And Dependency Closure Hardening
+### ~~Stage 9 - Base Relationship And Dependency Closure Hardening~~
 
 Goal: finish the edge cases around projected type shapes.
 
@@ -1247,10 +1247,10 @@ Tasks:
 
 Completion criteria:
 
-- Tests cover hidden base, visible base, invalid explicit base listing, and
-  nested signature dependencies.
-- No projected API surface contains an unprojected named type.
-- Full suite passes.
+- ~~Tests cover hidden base, visible base, invalid explicit base listing, and
+  nested signature dependencies.~~
+- ~~No projected API surface contains an unprojected named type.~~
+- ~~Full suite passes.~~
 
 Primary risk:
 

@@ -176,7 +176,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<TypeReference> ExportVisibleClassBaseTypes(ClassDefinition classDefinition)
 	{
-		foreach (TypeReference type in classDefinition.BaseTypes)
+		IEnumerable<TypeReference> baseTypes = classDefinition.HasExportProjectionBaseFilter
+			? classDefinition.ExportProjectionBaseTypes
+			: classDefinition.BaseTypes;
+		foreach (TypeReference type in baseTypes)
 		{
 			if (classDefinition.HasExportProjectionInterfaceFilter
 				&& TryGetInterfaceDefinition(type, out InterfaceDefinition? interfaceDefinition)
@@ -216,6 +219,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (type is null)
 			return;
 
+		foreach (TypeDefinition definition in GetDefinitionTypes(type))
+		{
+			if (definition.Export is null)
+				Report(GetRange(type.SourceSyntax), $"Exported declaration '{exportedDeclaration.Name}' exposes non-exported type '{definition.Name}'.");
+		}
+
 		foreach (NamedTypeReference named in GetNamedTypes(type))
 		{
 			if (!TryGetNamedTypeDefinition(named, out TypeDefinition? definition))
@@ -225,6 +234,124 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (definition is { Export: null })
 				Report(GetRange(named.SourceSyntax), $"Exported declaration '{exportedDeclaration.Name}' exposes non-exported type '{definition.Name}'.");
+		}
+	}
+
+	static IEnumerable<TypeDefinition> GetDefinitionTypes(TypeReference type)
+	{
+		switch (type)
+		{
+			case TypeDefinitionReference { Definition: TypeDefinition definition }:
+				yield return definition;
+				foreach (TypeReference argument in ((TypeDefinitionReference)type).TypeArguments)
+					foreach (TypeDefinition child in GetDefinitionTypes(argument))
+						yield return child;
+				break;
+
+			case GenericTypeReference generic:
+				if (generic.Type is not null)
+					foreach (TypeDefinition child in GetDefinitionTypes(generic.Type))
+						yield return child;
+				foreach (TypeReference argument in generic.TypeArguments)
+					foreach (TypeDefinition child in GetDefinitionTypes(argument))
+						yield return child;
+				break;
+
+			case AttributedTypeReference { Type: not null } attributed:
+				foreach (TypeDefinition child in GetDefinitionTypes(attributed.Type))
+					yield return child;
+				break;
+
+			case ArrayTypeReference { ElementType: not null } array:
+				foreach (TypeDefinition child in GetDefinitionTypes(array.ElementType))
+					yield return child;
+				break;
+
+			case OptionalTypeReference { ElementType: not null } optional:
+				foreach (TypeDefinition child in GetDefinitionTypes(optional.ElementType))
+					yield return child;
+				break;
+
+			case PointerTypeReference { ElementType: not null } pointer:
+				foreach (TypeDefinition child in GetDefinitionTypes(pointer.ElementType))
+					yield return child;
+				break;
+
+			case ConstTypeReference { Type: not null } constType:
+				foreach (TypeDefinition child in GetDefinitionTypes(constType.Type))
+					yield return child;
+				break;
+
+			case ConstOfTypeReference { Type: not null } constOfType:
+				foreach (TypeDefinition child in GetDefinitionTypes(constOfType.Type))
+					yield return child;
+				break;
+
+			case VolatileTypeReference { Type: not null } volatileType:
+				foreach (TypeDefinition child in GetDefinitionTypes(volatileType.Type))
+					yield return child;
+				break;
+
+			case EscapedTypeReference { Type: not null } escapedType:
+				foreach (TypeDefinition child in GetDefinitionTypes(escapedType.Type))
+					yield return child;
+				break;
+
+			case ScopedTypeReference { Type: not null } scopedType:
+				foreach (TypeDefinition child in GetDefinitionTypes(scopedType.Type))
+					yield return child;
+				break;
+
+			case UnscopedTypeReference { Type: not null } unscopedType:
+				foreach (TypeDefinition child in GetDefinitionTypes(unscopedType.Type))
+					yield return child;
+				break;
+
+			case TargetTypeSpecTypeReference { Type: not null } targetSpec:
+				foreach (TypeDefinition child in GetDefinitionTypes(targetSpec.Type))
+					yield return child;
+				break;
+
+			case CallableTypeReference callable:
+				if (callable.ReturnType is not null)
+					foreach (TypeDefinition child in GetDefinitionTypes(callable.ReturnType))
+						yield return child;
+				foreach (ParameterDefinition parameter in callable.Parameters)
+				{
+					if (parameter.Type is null)
+						continue;
+					foreach (TypeDefinition child in GetDefinitionTypes(parameter.Type))
+						yield return child;
+				}
+				break;
+
+			case IterTypeReference iter:
+				if (iter.ElementType is not null)
+					foreach (TypeDefinition child in GetDefinitionTypes(iter.ElementType))
+						yield return child;
+				foreach (ParameterDefinition parameter in iter.Parameters)
+				{
+					if (parameter.Type is null)
+						continue;
+					foreach (TypeDefinition child in GetDefinitionTypes(parameter.Type))
+						yield return child;
+				}
+				break;
+
+			case GroupedParamsTypeReference { StructType: not null } grouped:
+				foreach (TypeDefinition child in GetDefinitionTypes(grouped.StructType))
+					yield return child;
+				break;
+
+			case MaterializedStructTypeReference { ParamsType: not null } materialized:
+				foreach (TypeDefinition child in GetDefinitionTypes(materialized.ParamsType))
+					yield return child;
+				break;
+
+			case ThrownTypeReference { Type: not null } thrown:
+				foreach (TypeDefinition child in GetDefinitionTypes(thrown.Type))
+					yield return child;
+				break;
 		}
 	}
 
