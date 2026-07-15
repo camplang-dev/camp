@@ -1,0 +1,23 @@
+namespace Lib;
+
+public alias Count = int;
+public inline int LIMIT = 7;
+
+public enum PixelFormat
+{
+	RGB,
+	BGR
+}
+
+public struct Pixel
+{
+	int value;
+}
+
+public int addOne(int value) => value + 1;
+
+export Count as ExportedCount;
+export LIMIT as EXPORTED_LIMIT;
+export PixelFormat;
+export Pixel as ExportedPixel;
+export addOne as projected_add_one;

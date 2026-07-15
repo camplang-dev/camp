@@ -35,6 +35,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateTopLevelOverloadFamilies(module);
 		AnalyzeGlobalInitializers(module);
 		AnalyzeInlineConstantsAndEnumValues(module);
+		AnalyzeExportProjections(module);
 		ValidateDuplicateTopLevelSymbols(module);
 		AnalyzeInheritance();
 		AnalyzeInterfaceSlotInitializers(module);

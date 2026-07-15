@@ -1,0 +1,12 @@
+public int duplicateTarget(int value) => value;
+public int duplicateOther(int value) => value;
+internal int hiddenInternal(int value) => value;
+export int alreadyExported(int value) => value;
+int privateFunction(int value) => value;
+
+export duplicateTarget;
+export duplicateTarget as duplicate_again;
+export hiddenInternal;
+export alreadyExported;
+export privateFunction;
+export missingProjectionTarget;

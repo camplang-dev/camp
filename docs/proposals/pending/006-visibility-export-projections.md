@@ -1121,7 +1121,7 @@ Primary risk:
 - Many current tests rely on generated std API files. This stage should be kept
   focused on std visibility and expected output changes, not projection syntax.
 
-### Stage 6 - Add Basic Export Projection Declarations
+### ~~Stage 6 - Add Basic Export Projection Declarations~~
 
 Goal: support top-level projection of public types, aliases, enums, inline
 constants, and non-this functions.
@@ -1149,12 +1149,12 @@ Tasks:
 
 Completion criteria:
 
-- Tests cover type, alias, enum, inline constant, and top-level function
-  projections with and without renames.
-- Tests cover duplicate projections and missing signature dependency
-  projections.
-- Export metadata uses projected names.
-- Full suite passes.
+- ~~Tests cover type, alias, enum, inline constant, and top-level function
+  projections with and without renames.~~
+- ~~Tests cover duplicate projections and missing signature dependency
+  projections.~~
+- ~~Export metadata uses projected names.~~
+- ~~Full suite passes.~~
 
 Primary risk:
 

@@ -41,6 +41,33 @@ public class ExportImportExportDeclarationSyntax : ImportExportDeclarationSyntax
 	public Token? SemicolonToken { get; set; }
 }
 
+public class ExportProjectionDeclarationSyntax : ImportExportDeclarationSyntax
+{
+	public QualifiedNamespaceSyntax? TargetName { get; set; }
+	public Token? ColonToken { get; set; }
+	public TypeListSyntax? InterfaceList { get; set; }
+	public ExportProjectionMemberBlockSyntax? MemberBlock { get; set; }
+	public Token? AsKeyword { get; set; }
+	public Token? Alias { get; set; }
+	public Token? SemicolonToken { get; set; }
+}
+
+public class ExportProjectionMemberBlockSyntax : SyntaxNode
+{
+	public Token? OpenBraceToken { get; set; }
+	public List<ExportProjectionMemberSyntax>? Members { get; set; }
+	public List<Token>? Commas { get; set; }
+	public Token? CloseBraceToken { get; set; }
+}
+
+public class ExportProjectionMemberSyntax : SyntaxNode
+{
+	public Token? TildeToken { get; set; }
+	public Token? Identifier { get; set; }
+	public Token? AsKeyword { get; set; }
+	public Token? Alias { get; set; }
+}
+
 public class QualifiedNamespaceSyntax : SyntaxNode
 {
 	public List<QualifierSyntax>? Qualifiers { get; set; }

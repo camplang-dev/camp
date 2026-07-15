@@ -1,0 +1,56 @@
+// file: export_projection_forwarder.c
+#include "export_projection_forwarder_private.h"
+
+
+int addOne(int value)
+{
+	return (value + 1);
+}
+
+int main(void)
+{
+	return addOne(0);
+}
+
+int projected_add_one(int value)
+{
+	return addOne(value);
+}
+
+// file: export_projection_forwarder.h
+#ifndef EXPORT_PROJECTION_FORWARDER_H_
+#define EXPORT_PROJECTION_FORWARDER_H_
+
+#include "export_projection_forwarder_private.h"
+
+int main(void);
+int projected_add_one(int value);
+
+#endif
+// file: export_projection_forwarder_private.h
+#ifndef EXPORT_PROJECTION_FORWARDER_PRIVATE_H_
+#define EXPORT_PROJECTION_FORWARDER_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int addOne(int value);
+int main(void);
+int projected_add_one(int value);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: export_projection_forwarder.c

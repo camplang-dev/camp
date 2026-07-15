@@ -128,10 +128,50 @@ public sealed partial class BindableNodeBuilder
 					Report(exportSyntax, $"Use 'namespace {module.Namespace};' instead of 'export as {module.Namespace};'.");
 				break;
 
+			case ExportProjectionDeclarationSyntax projectionSyntax:
+				module.ExportProjections.Add(BuildExportProjection(projectionSyntax));
+				break;
+
 			default:
 				Report(syntax, "Unsupported import or export declaration.");
 				break;
 		}
+	}
+
+	ExportProjectionDefinition BuildExportProjection(ExportProjectionDeclarationSyntax syntax)
+	{
+		ExportProjectionDefinition projection = new()
+		{
+			SourceSyntax = syntax,
+			TargetName = syntax.TargetName?.Identifier?.Value ?? "",
+			Alias = syntax.Alias?.Value
+		};
+		if (syntax.TargetName is null)
+			Report(syntax, "Export projection is missing a target name.");
+		else
+		{
+			foreach (QualifierSyntax qualifier in syntax.TargetName.Qualifiers ?? [])
+			{
+				if (qualifier.Identifier is null)
+					Report(qualifier, "Export projection qualifier is missing an identifier.");
+				else
+					projection.TargetQualifiers.Add(qualifier.Identifier.Value.Value);
+			}
+		}
+
+		foreach (ExportProjectionMemberSyntax memberSyntax in syntax.MemberBlock?.Members ?? [])
+		{
+			projection.Members.Add(new ExportProjectionMember
+			{
+				SourceSyntax = memberSyntax,
+				Name = memberSyntax.Identifier?.Value ?? "",
+				Alias = memberSyntax.Alias?.Value,
+				IsDestructor = memberSyntax.TildeToken is not null
+			});
+			if (memberSyntax.Identifier is null)
+				Report(memberSyntax, "Export projection member is missing a name.");
+		}
+		return projection;
 	}
 
 	UsingDeclaration BuildUsingDeclaration(UsingImportExportDeclarationSyntax syntax)

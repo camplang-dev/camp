@@ -59,6 +59,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		currentModule = module;
 		CollectTypeNames(module);
+		CollectAliasNames(module);
+		ResolveAliases();
+		AnalyzeExportProjections(module);
+		CollectTypeNames(module);
 		PrecomputeOverloadCallableNames(module);
 		GenerateIteratorDeclarations(module);
 		GenerateLifecycleMethods(module);

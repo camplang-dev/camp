@@ -17,6 +17,7 @@ public class Module : BindableNode
 	public List<UsingDeclaration> Usings { get; } = [];
 	public string? Namespace { get; set; }
 	public List<Definition> Definitions { get; } = [];
+	public List<ExportProjectionDefinition> ExportProjections { get; } = [];
 	public Dictionary<Definition, TokenSequence?> DefinitionSources { get; } = [];
 	public Dictionary<TokenSequence, string?> SourceNamespaces { get; } = [];
 	public Dictionary<TokenSequence, WithinAllocationPolicy> SourceWithinAllocationPolicies { get; } = [];
@@ -45,6 +46,25 @@ public abstract class Definition : BindableNode
 	public string? OutOfScopeOwnerName { get; set; }
 	public string? OutOfScopeOwnerSymbol { get; set; }
 	internal GeneratedDeclarationInfo? GeneratedInfo { get; set; }
+}
+
+public class ExportProjectionDefinition : BindableNode
+{
+	public List<string> TargetQualifiers { get; } = [];
+	public string TargetName { get; set; } = "";
+	public string? Alias { get; set; }
+	public Definition? Target { get; set; }
+	public Definition? ExportedDefinition { get; set; }
+	public List<ExportProjectionMember> Members { get; } = [];
+}
+
+public class ExportProjectionMember : BindableNode
+{
+	public string Name { get; set; } = "";
+	public string? Alias { get; set; }
+	public Definition? Target { get; set; }
+	public Definition? ExportedDefinition { get; set; }
+	public bool IsDestructor { get; set; }
 }
 
 internal enum GeneratedDeclarationCategory

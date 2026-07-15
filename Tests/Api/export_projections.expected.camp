@@ -1,0 +1,15 @@
+namespace Lib;
+
+export enum PixelFormat : uint
+{
+	RGB,
+	BGR
+}
+export alias ExportedCount = int;
+export inline int EXPORTED_LIMIT = 7;
+
+export struct ExportedPixel
+{
+	int value;
+}
+export extern int projected_add_one(int value);

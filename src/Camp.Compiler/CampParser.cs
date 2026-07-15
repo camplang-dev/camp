@@ -82,6 +82,9 @@ public sealed class CampParser
 		if (Is("export") && PeekValue(1) == "as")
 			return ParseExportImportExportDeclaration();
 
+		if (Is("export") && TryParseExportProjectionDeclaration() is ExportProjectionDeclarationSyntax projection)
+			return projection;
+
 		return null;
 	}
 
@@ -128,6 +131,83 @@ public sealed class CampParser
 			QualifiedNamespace = ParseQualifiedNamespace(),
 			SemicolonToken = Expect(";")
 		};
+	}
+
+	ExportProjectionDeclarationSyntax? TryParseExportProjectionDeclaration()
+	{
+		int start = index;
+		int diagnosticStart = diagnostics.Count;
+		ExportProjectionDeclarationSyntax syntax = new()
+		{
+			Keyword = Expect("export"),
+			TargetName = ParseQualifiedNamespace()
+		};
+
+		if (syntax.TargetName is null)
+		{
+			index = start;
+			diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
+			return null;
+		}
+
+		if (Is("{"))
+			syntax.MemberBlock = ParseExportProjectionMemberBlock();
+
+		if (Is(":"))
+		{
+			syntax.ColonToken = Take();
+			syntax.InterfaceList = ParseTypeList("as", ";");
+		}
+
+		if (Is("as"))
+		{
+			syntax.AsKeyword = Take();
+			syntax.Alias = ExpectIdentifier();
+		}
+
+		if (!Is(";"))
+		{
+			index = start;
+			diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
+			return null;
+		}
+
+		syntax.SemicolonToken = Take();
+		return syntax;
+	}
+
+	ExportProjectionMemberBlockSyntax ParseExportProjectionMemberBlock()
+	{
+		ExportProjectionMemberBlockSyntax syntax = new()
+		{
+			OpenBraceToken = Expect("{"),
+			Members = [],
+			Commas = []
+		};
+
+		while (!AtEnd && !Is("}"))
+		{
+			ExportProjectionMemberSyntax member = new()
+			{
+				TildeToken = TakeIf("~"),
+				Identifier = ExpectIdentifier()
+			};
+			if (Is("as"))
+			{
+				member.AsKeyword = Take();
+				member.Alias = ExpectIdentifier();
+			}
+			syntax.Members.Add(member);
+			if (TakeIf(",") is Token comma)
+			{
+				syntax.Commas.Add(comma);
+				continue;
+			}
+			break;
+		}
+
+		syntax.CloseBraceToken = Expect("}");
+		return syntax;
 	}
 
 	AliasDeclarationSyntax? ParseAliasDeclaration()
@@ -518,6 +598,13 @@ public sealed class CampParser
 	}
 
 	TypeListSyntax ParseTypeList(string close)
+	{
+		TypeListSyntax syntax = new() { Types = [], Commas = [] };
+		ParseCommaList(syntax.Types, syntax.Commas, () => ParseType(), close);
+		return syntax;
+	}
+
+	TypeListSyntax ParseTypeList(params string[] close)
 	{
 		TypeListSyntax syntax = new() { Types = [], Commas = [] };
 		ParseCommaList(syntax.Types, syntax.Commas, () => ParseType(), close);

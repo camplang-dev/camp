@@ -1168,6 +1168,7 @@ public static class CompilerDriver
 			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target);
 			if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
 				return 1;
+			compilation.SharedModule = analysis.Module;
 			using StringWriter writer = new(stdout, CultureInfo.InvariantCulture);
 			BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
 			return 0;
@@ -1253,6 +1254,7 @@ public static class CompilerDriver
 		{
 			Module output = new() { ResolvedType = compilation.SharedModule?.ResolvedType };
 			HashSet<string> usingKeys = [];
+			HashSet<Definition> definitions = [];
 			foreach (SourceFile file in compilation.Files)
 			{
 				if (file.IsApiHeader || file.BindableTree is not Module module)
@@ -1265,9 +1267,26 @@ public static class CompilerDriver
 						output.Usings.Add(usingDeclaration);
 				}
 				foreach (Definition definition in module.Definitions)
+				{
+					output.Definitions.Add(definition);
+					definitions.Add(definition);
+				}
+			}
+			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+			{
+				if (!IsExportProjectionGeneratedDefinition(definition))
+					continue;
+				if (compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) && owner.IsApiHeader)
+					continue;
+				if (definitions.Add(definition))
 					output.Definitions.Add(definition);
 			}
 			return output;
+		}
+
+		static bool IsExportProjectionGeneratedDefinition(Definition definition)
+		{
+			return definition.GeneratedInfo?.Reason.StartsWith("export projection for ", StringComparison.Ordinal) == true;
 		}
 
 		static string UsingDeclarationKey(UsingDeclaration usingDeclaration)

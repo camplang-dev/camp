@@ -133,6 +133,8 @@ public static class CompilationPipeline
 
 			foreach (UsingDeclaration usingDeclaration in fileModule.Usings)
 				module.Usings.Add(usingDeclaration);
+			foreach (ExportProjectionDefinition projection in fileModule.ExportProjections)
+				module.ExportProjections.Add(projection);
 
 			module.Namespace ??= fileModule.Namespace;
 
@@ -252,6 +254,11 @@ public static class CompilationPipeline
 			if (value is TokenRange direct)
 			{
 				range = direct;
+				return true;
+			}
+			if (value is Token token)
+			{
+				range = token.Range;
 				return true;
 			}
 			if (value is SyntaxNode child && TryGetRange(child, out range))
