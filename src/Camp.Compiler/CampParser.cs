@@ -1006,7 +1006,7 @@ public sealed class CampParser
 		if (Is("default"))
 			return new DefaultStatementSyntax { DefaultKeyword = Take(), ColonToken = Expect(":") };
 
-		if (IsIdentifier() && PeekValue(1) == ":")
+		if (IsIdentifier() && PeekValue(1) == ":" && PeekValue(2) != ":")
 			return new LabelStatementSyntax { Identifier = TakeIdentifier(), ColonToken = Expect(":") };
 
 		if (IsAny(StatementKeywords))

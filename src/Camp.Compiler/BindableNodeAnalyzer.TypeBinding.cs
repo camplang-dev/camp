@@ -930,6 +930,33 @@ public sealed partial class BindableNodeAnalyzer
 				return aliasType.Name;
 			}
 		}
+		else if (named.Qualifiers.Count > 0 && named.TypeArguments.Count == 0 && TryResolveQualifiedAlias(named, AliasTargetKind.Type, out AliasDefinition? qualifiedAlias))
+		{
+			if (TryGetPrimitiveType(qualifiedAlias!.ResolvedTargetName, out PrimitiveType primitive))
+			{
+				PrimitiveTypeReference primitiveReference = new()
+				{
+					SourceSyntax = named.SourceSyntax,
+					Type = primitive,
+					ResolvedType = qualifiedAlias.ResolvedTargetName
+				};
+				typeRewrites[named] = primitiveReference;
+				return qualifiedAlias.ResolvedTargetName;
+			}
+
+			if (typeDefinitions.TryGetValue(qualifiedAlias.ResolvedTargetName, out TypeDefinition? aliasType))
+			{
+				TypeDefinitionReference reference = new()
+				{
+					SourceSyntax = named.SourceSyntax,
+					Name = aliasType.Name,
+					Definition = aliasType,
+					ResolvedType = aliasType.Name
+				};
+				typeRewrites[named] = reference;
+				return aliasType.Name;
+			}
+		}
 
 		if (named.Qualifiers.Count == 0 && named.TypeArguments.Count > 0 && aliasDefinitions.ContainsKey(named.Name))
 			Report(GetRange(named.SourceSyntax), $"Alias '{named.Name}' cannot be used with generic type arguments.");
@@ -955,9 +982,9 @@ public sealed partial class BindableNodeAnalyzer
 			return $"{UnresolvedType}({sourceName})";
 		}
 
-		if (named.Qualifiers.Count == 0 && typeDefinitions.TryGetValue(named.Name, out TypeDefinition? definition))
+		if (TryGetNamedTypeDefinition(named, out TypeDefinition? definition) && definition is not null)
 		{
-			if (!IsDefinitionVisible(definition, named.SourceSyntax))
+			if (named.Qualifiers.Count == 0 && !IsDefinitionVisible(definition, named.SourceSyntax))
 			{
 				ReportNotExported(definition, named.SourceSyntax, "Type");
 				return $"{UnresolvedType}({sourceName})";

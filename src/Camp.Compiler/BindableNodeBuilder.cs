@@ -53,7 +53,62 @@ public sealed partial class BindableNodeBuilder
 				Report(item, "Compilation unit item does not contain a declaration.");
 		}
 
+		foreach (Definition definition in module.Definitions)
+			AssignNamespace(definition, module.ExportAs);
+
 		return module;
+	}
+
+	static void AssignNamespace(Definition definition, string? namespaceName)
+	{
+		definition.Namespace = namespaceName;
+		switch (definition)
+		{
+			case ClassDefinition classDefinition:
+				foreach (FieldDefinition field in classDefinition.Fields)
+					AssignNamespace(field, namespaceName);
+				foreach (FunctionDefinition function in classDefinition.Functions)
+					AssignNamespace(function, namespaceName);
+				break;
+
+			case StructDefinition structDefinition:
+				foreach (FieldDefinition field in structDefinition.Fields)
+					AssignNamespace(field, namespaceName);
+				foreach (FunctionDefinition function in structDefinition.Functions)
+					AssignNamespace(function, namespaceName);
+				break;
+
+			case InterfaceDefinition interfaceDefinition:
+				foreach (FunctionDefinition function in interfaceDefinition.Functions)
+					AssignNamespace(function, namespaceName);
+				break;
+
+			case EnumDefinition enumDefinition:
+				foreach (VariableDefinition value in enumDefinition.Values)
+					AssignNamespace(value, namespaceName);
+				foreach (FunctionDefinition function in enumDefinition.Functions)
+					AssignNamespace(function, namespaceName);
+				break;
+
+			case NewtypeDefinition newtypeDefinition:
+				foreach (FieldDefinition field in newtypeDefinition.Fields)
+					AssignNamespace(field, namespaceName);
+				foreach (FunctionDefinition function in newtypeDefinition.Functions)
+					AssignNamespace(function, namespaceName);
+				break;
+
+			case ParamsDefinition paramsDefinition:
+				foreach (ParameterDefinition component in paramsDefinition.Components)
+					AssignNamespace(component, namespaceName);
+				foreach (FunctionDefinition function in paramsDefinition.Functions)
+					AssignNamespace(function, namespaceName);
+				break;
+
+			case FunctionDefinition functionDefinition:
+				foreach (ParameterDefinition parameter in functionDefinition.Parameters)
+					AssignNamespace(parameter, namespaceName);
+				break;
+		}
 	}
 
 	void BuildImportExportDeclaration(Module module, ImportExportDeclarationSyntax syntax)

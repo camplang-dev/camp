@@ -1768,27 +1768,40 @@ public sealed partial class BindableNodeAnalyzer
 		return element is "char" or "wchar" or "achar";
 	}
 
-	List<FunctionDefinition> LookupFunctions(string name, BodyScope scope)
+	List<FunctionDefinition> LookupFunctions(NamedExpression name, BodyScope scope)
 	{
-		if (TryResolveAlias(name, AliasTargetKind.Callable, scope.CurrentFunction.SourceSyntax, out AliasDefinition? alias))
-			name = alias!.ResolvedTargetName;
+		string lookupName = name.Name;
+		if (name.Qualifiers.Count == 0 && TryResolveAlias(lookupName, AliasTargetKind.Callable, scope.CurrentFunction.SourceSyntax, out AliasDefinition? alias))
+			lookupName = alias!.ResolvedTargetName;
 
 		List<FunctionDefinition> functions = [];
 		foreach (Definition definition in currentModule?.Definitions ?? [])
 		{
-			if (definition is FunctionDefinition function && IsCallableTopLevelFunctionNamed(function, name) && IsDefinitionVisible(function, scope.CurrentFunction.SourceSyntax))
+			if (definition is FunctionDefinition function
+				&& IsCallableTopLevelFunctionNamed(function, lookupName)
+				&& IsFunctionNameVisible(function, name, scope.CurrentFunction.SourceSyntax))
 				functions.Add(function);
 		}
-		foreach (TypeDefinition type in typeDefinitions.Values)
+		if (name.Qualifiers.Count == 0)
 		{
-			foreach (FunctionDefinition function in GetTypeFunctions(type))
+			foreach (TypeDefinition type in typeDefinitions.Values)
 			{
-				if (IsTypeFunctionSymbolNamed(type, function, name) && IsMemberVisible(function, type, scope.CurrentFunction.SourceSyntax))
-					functions.Add(function);
+				foreach (FunctionDefinition function in GetTypeFunctions(type))
+				{
+					if (IsTypeFunctionSymbolNamed(type, function, lookupName) && IsMemberVisible(function, type, scope.CurrentFunction.SourceSyntax))
+						functions.Add(function);
+				}
 			}
 		}
 
 		return functions;
+	}
+
+	bool IsFunctionNameVisible(FunctionDefinition function, NamedExpression name, SyntaxNode? referenceSyntax)
+	{
+		if (name.Qualifiers.Count == 0)
+			return IsDefinitionVisible(function, referenceSyntax);
+		return IsImportedQualifiedName(function, name.Qualifiers, referenceSyntax);
 	}
 
 	static bool IsCallableTopLevelFunctionNamed(FunctionDefinition function, string name)
@@ -1838,6 +1851,25 @@ public sealed partial class BindableNodeAnalyzer
 			|| (!function.SymbolOverridden && $"{EffectiveTypeSymbol(type)}_{GetCallableName(function).TrimStart('~')}" == name);
 	}
 
+	BodySymbol? LookupGlobalStorageSymbol(NamedExpression name, SyntaxNode? referenceSyntax)
+	{
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			if (definition is VariableDefinition variable && IsDefinitionNamed(variable, name.Name) && IsStorageNameVisible(variable, name, referenceSyntax))
+				return new BodySymbol(name.Name, variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType, variable, IsConstantVariable(variable));
+			if (name.Qualifiers.Count == 0 && definition is TypeDefinition type)
+			{
+				foreach (FieldDefinition field in GetTypeFields(type))
+				{
+					if (field.Modifier == FieldModifier.Static && IsDefinitionNamed(field, name.Name) && IsMemberVisible(field, type, referenceSyntax))
+						return new BodySymbol(name.Name, field.ResolvedType ?? field.Type?.ResolvedType ?? ErrorType, field, IsConstantField(field));
+				}
+			}
+		}
+
+		return null;
+	}
+
 	BodySymbol? LookupGlobalStorageSymbol(string name, SyntaxNode? referenceSyntax)
 	{
 		foreach (Definition definition in currentModule?.Definitions ?? [])
@@ -1855,6 +1887,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return null;
+	}
+
+	bool IsStorageNameVisible(Definition definition, NamedExpression name, SyntaxNode? referenceSyntax)
+	{
+		if (name.Qualifiers.Count == 0)
+			return IsDefinitionVisible(definition, referenceSyntax);
+		return IsImportedQualifiedName(definition, name.Qualifiers, referenceSyntax);
 	}
 
 	Definition? LookupHiddenGlobalSymbol(string name, SyntaxNode? referenceSyntax)

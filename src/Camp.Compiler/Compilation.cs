@@ -126,7 +126,10 @@ public static class CompilationPipeline
 			if (file.BindableTree is not Module fileModule)
 				continue;
 			if (file.Tokens is not null)
+			{
 				module.SourceWithinAllocationPolicies[file.Tokens] = file.WithinAllocationPolicyOverride ?? compilation.DefaultWithinAllocationPolicy;
+				module.SourceNamespaces[file.Tokens] = fileModule.ExportAs;
+			}
 
 			foreach (UsingDeclaration usingDeclaration in fileModule.Usings)
 				module.Usings.Add(usingDeclaration);

@@ -18,6 +18,7 @@ public class Module : BindableNode
 	public string? ExportAs { get; set; }
 	public List<Definition> Definitions { get; } = [];
 	public Dictionary<Definition, TokenSequence?> DefinitionSources { get; } = [];
+	public Dictionary<TokenSequence, string?> SourceNamespaces { get; } = [];
 	public Dictionary<TokenSequence, WithinAllocationPolicy> SourceWithinAllocationPolicies { get; } = [];
 }
 
@@ -33,6 +34,7 @@ public abstract class Definition : BindableNode
 	public List<AttributeConstructor> Attributes { get; } = [];
 	public string Name { get; set; } = "";
 	public string Symbol { get; set; } = "";
+	public string? Namespace { get; set; }
 	public bool SymbolOverridden { get; set; }
 	public string? Export { get; set; }
 	public string? Public { get; set; }

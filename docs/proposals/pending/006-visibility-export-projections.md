@@ -883,7 +883,7 @@ around one semantic change at a time. The first two stages are hardening and
 spelling changes that should land before the visibility model itself starts
 moving.
 
-### Stage 0 - Harden `using` Source Lookup
+### ~~Stage 0 - Harden `using` Source Lookup~~
 
 Goal: make compiler behavior match the documented `using` semantics before
 export projections depend on file-local lookup.
@@ -925,19 +925,19 @@ Tasks:
 
 Completion criteria:
 
-- Tests prove unimported namespace symbols are inaccessible.
-- Tests prove `using Namespace as Alias;` works and the original namespace is
-  not available through that import.
-- Tests prove selected imports hide unselected names.
-- Tests prove namespace-qualified type names work in signatures, locals, casts,
-  generic arguments, and type intrinsics.
-- Tests prove namespace-qualified functions and static type members work in
-  expression/call positions.
-- Tests prove explicit root `Std` selected/aliased imports suppress implicit
-  `using Std;`.
-- Tests prove ordinary files with stdlib enabled still receive implicit
-  `using Std;`.
-- Full suite passes.
+- ~~Tests prove unimported namespace symbols are inaccessible.~~
+- ~~Tests prove `using Namespace as Alias;` works and the original namespace is
+  not available through that import.~~
+- ~~Tests prove selected imports hide unselected names.~~
+- ~~Tests prove namespace-qualified type names work in signatures, locals, casts,
+  generic arguments, and type intrinsics.~~
+- ~~Tests prove namespace-qualified functions and static type members work in
+  expression/call positions.~~
+- ~~Tests prove explicit root `Std` selected/aliased imports suppress implicit
+  `using Std;`.~~
+- ~~Tests prove ordinary files with stdlib enabled still receive implicit
+  `using Std;`.~~
+- ~~Full suite passes.~~
 
 Primary risk:
 

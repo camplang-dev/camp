@@ -830,7 +830,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		List<FunctionDefinition> candidates = call.Target switch
 		{
-			NamedExpression named when named.Qualifiers.Count == 0 => LookupFunctions(named.Name, scope),
+			NamedExpression named => LookupFunctions(named, scope),
 			MemberExpression member => LookupMemberFunctions(BodyAnalyzeExpression(member.Target, scope, typeScope), member.Name, member.SourceSyntax),
 			MemberReferenceExpression { Member: FunctionDefinition function } => [function],
 			MethodReferenceExpression method => method.Candidates,
@@ -1071,6 +1071,24 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
+	bool TryGetNamedExpressionTypeDefinition(NamedExpression named, out TypeDefinition? typeDefinition)
+	{
+		if (named.Qualifiers.Count == 0)
+			return typeDefinitions.TryGetValue(named.Name, out typeDefinition);
+		foreach (TypeDefinition candidate in typeDefinitions.Values)
+		{
+			if (candidate.Name != named.Name)
+				continue;
+			if (IsImportedQualifiedName(candidate, named.Qualifiers, named.SourceSyntax))
+			{
+				typeDefinition = candidate;
+				return true;
+			}
+		}
+		typeDefinition = null;
+		return false;
+	}
+
 	string BodyAnalyzeNamedExpression(NamedExpression named, BodyScope scope, string? targetType)
 	{
 		if (IsDiscardExpression(named))
@@ -1082,14 +1100,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryResolveTargetTypedEnumValue(named, targetType, out string enumType))
 			return enumType;
 
-		if (named.Qualifiers.Count > 0)
-		{
-			string qualifiedName = string.Join("::", named.Qualifiers) + "::" + named.Name;
-			Report(GetRange(named.SourceSyntax), $"Symbol '{qualifiedName}' could not be found.");
-			return ErrorType;
-		}
-
-		if (scope.TryLookup(named.Name, out BodySymbol symbol))
+		if (named.Qualifiers.Count == 0 && scope.TryLookup(named.Name, out BodySymbol symbol))
 		{
 			named.ResolvedType = symbol.Type;
 			expressionConstants[named] = symbol.IsConstant;
@@ -1104,7 +1115,7 @@ public sealed partial class BindableNodeAnalyzer
 			return symbol.Type;
 		}
 
-		if (LookupGlobalStorageSymbol(named.Name, named.SourceSyntax) is BodySymbol globalSymbol)
+		if (LookupGlobalStorageSymbol(named, named.SourceSyntax) is BodySymbol globalSymbol)
 		{
 			string type = globalSymbol.Type;
 			named.ResolvedType = type;
@@ -1120,7 +1131,7 @@ public sealed partial class BindableNodeAnalyzer
 			return type;
 		}
 
-		List<FunctionDefinition> functions = LookupFunctions(named.Name, scope);
+		List<FunctionDefinition> functions = LookupFunctions(named, scope);
 		if (functions.Count > 0)
 		{
 			if (functions.Count > 1)
@@ -1140,13 +1151,13 @@ public sealed partial class BindableNodeAnalyzer
 			return method.ResolvedType;
 		}
 
-		if (TryGetUnqualifiedInstanceMember(scope.ContainingType, named.Name, named.SourceSyntax, out string memberKind))
+		if (named.Qualifiers.Count == 0 && TryGetUnqualifiedInstanceMember(scope.ContainingType, named.Name, named.SourceSyntax, out string memberKind))
 		{
 			Report(GetRange(named.SourceSyntax), $"{memberKind} '{named.Name}' requires explicit 'this.' qualification.");
 			return ErrorType;
 		}
 
-		if (TryResolveAlias(named.Name, AliasTargetKind.Type, named.SourceSyntax, out AliasDefinition? alias))
+		if (named.Qualifiers.Count == 0 && TryResolveAlias(named.Name, AliasTargetKind.Type, named.SourceSyntax, out AliasDefinition? alias))
 		{
 			if (TryGetPrimitiveType(alias!.ResolvedTargetName, out PrimitiveType primitive))
 			{
@@ -1186,9 +1197,9 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
-		if (typeDefinitions.TryGetValue(named.Name, out TypeDefinition? typeDefinition))
+		if (TryGetNamedExpressionTypeDefinition(named, out TypeDefinition? typeDefinition) && typeDefinition is not null)
 		{
-			if (!IsDefinitionVisible(typeDefinition, named.SourceSyntax))
+			if (named.Qualifiers.Count == 0 && !IsDefinitionVisible(typeDefinition, named.SourceSyntax))
 			{
 				ReportNotExported(typeDefinition, named.SourceSyntax, "Type");
 				return ErrorType;
@@ -1211,14 +1222,21 @@ public sealed partial class BindableNodeAnalyzer
 			return expression.ResolvedType;
 		}
 
-		if (LookupHiddenGlobalSymbol(named.Name, named.SourceSyntax) is Definition hidden)
+		if (named.Qualifiers.Count == 0 && LookupHiddenGlobalSymbol(named.Name, named.SourceSyntax) is Definition hidden)
 		{
 			ReportNotExported(hidden, named.SourceSyntax, hidden is TypeDefinition ? "Type" : "Symbol");
 			return ErrorType;
 		}
 
-		Report(GetRange(named.SourceSyntax), $"Symbol '{named.Name}' could not be found.");
+		Report(GetRange(named.SourceSyntax), $"Symbol '{FormatNamedExpressionName(named)}' could not be found.");
 		return ErrorType;
+	}
+
+	static string FormatNamedExpressionName(NamedExpression named)
+	{
+		return named.Qualifiers.Count == 0
+			? named.Name
+			: string.Join("::", named.Qualifiers) + "::" + named.Name;
 	}
 
 	bool TryResolveTargetTypedEnumValue(NamedExpression named, string? targetType, out string enumType)
@@ -2818,7 +2836,7 @@ public sealed partial class BindableNodeAnalyzer
 					return null;
 				}
 
-				List<FunctionDefinition> functions = LookupFunctions(named.Name, scope);
+				List<FunctionDefinition> functions = LookupFunctions(named, scope);
 				if (functions.Count > 1 && TrySelectOverload(named.Name, functions, arguments ?? [], scope, typeScope, named.SourceSyntax) is FunctionDefinition selectedNamed)
 				{
 					EnsureFunctionSignatureAnalyzed(selectedNamed, typeScope);
@@ -4253,6 +4271,8 @@ public sealed partial class BindableNodeAnalyzer
 		string targetType = TryAnalyzeMemberTypeTarget(member.Target, scope, typeScope, out string typeTarget)
 			? typeTarget
 			: BodyAnalyzeExpression(member.Target, scope, typeScope);
+		if (targetType == ErrorType)
+			return ErrorType;
 		string lookupTargetType = TryGetImplicitIteratorProtocolType(member.Target, targetType, out string iteratorProtocolType)
 			? iteratorProtocolType
 			: targetType;
@@ -5013,18 +5033,18 @@ public sealed partial class BindableNodeAnalyzer
 		type = ErrorType;
 		Expression? originalTarget = target;
 		List<TypeReference> typeArguments = [];
-		if (target is CallExpression { Target: NamedExpression { Qualifiers.Count: 0 } genericNamed, Arguments.Count: 0 } genericTarget)
+		if (target is CallExpression { Target: NamedExpression genericNamed, Arguments.Count: 0 } genericTarget)
 		{
 			target = genericNamed;
 			typeArguments = genericTarget.TypeArguments;
 		}
-		if (target is not NamedExpression { Qualifiers.Count: 0 } named)
+		if (target is not NamedExpression named)
 			return false;
-		if (scope.TryLookup(named.Name, out _) || LookupGlobalStorageSymbol(named.Name, named.SourceSyntax) is not null)
+		if (named.Qualifiers.Count == 0 && (scope.TryLookup(named.Name, out _) || LookupGlobalStorageSymbol(named.Name, named.SourceSyntax) is not null))
 			return false;
 
 		string typeName = named.Name;
-		if (TryResolveAlias(named.Name, AliasTargetKind.Type, named.SourceSyntax, out AliasDefinition? alias))
+		if (named.Qualifiers.Count == 0 && TryResolveAlias(named.Name, AliasTargetKind.Type, named.SourceSyntax, out AliasDefinition? alias))
 			typeName = alias!.ResolvedTargetName;
 		if (TryGetPrimitiveType(typeName, out PrimitiveType primitive))
 		{
@@ -5052,10 +5072,13 @@ public sealed partial class BindableNodeAnalyzer
 			type = primitiveExpression.ResolvedType ?? ErrorType;
 			return true;
 		}
-		if (!typeDefinitions.TryGetValue(typeName, out TypeDefinition? typeDefinition))
+		if (!TryGetNamedExpressionTypeDefinition(named, out TypeDefinition? typeDefinition) || typeDefinition is null)
 			return false;
-		if (!IsDefinitionVisible(typeDefinition, named.SourceSyntax))
-			return false;
+		if (named.Qualifiers.Count == 0 && !IsDefinitionVisible(typeDefinition, named.SourceSyntax))
+		{
+			ReportNotExported(typeDefinition, named.SourceSyntax, "Type");
+			return true;
+		}
 		foreach (TypeReference argument in typeArguments)
 			AnalyzeType(argument, typeScope);
 

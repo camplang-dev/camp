@@ -74,6 +74,163 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Using_imports_support_qualified_types_functions_aliases_and_static_members()
+	{
+		string root = TempPath("using-qualified-positive");
+		Directory.CreateDirectory(root);
+		string library = Path.Combine(root, "library.camp");
+		File.WriteAllText(library, """
+			export as Lib;
+
+			export struct Point
+			{
+				int x;
+				int y;
+			}
+
+			export alias PointAlias = Point;
+
+			export int getValue() => 42;
+
+			export static int Point.getDefault() => 7;
+			""");
+		string app = Path.Combine(root, "app.camp");
+		File.WriteAllText(app, """
+			export as App;
+			using Lib;
+			using Lib as L;
+
+			struct Holder<T: any>
+			{
+				T* value;
+			}
+
+			export Lib::Point makePoint()
+			{
+				Lib::Point p = default;
+				return p;
+			}
+
+			export int readAlias(Lib::PointAlias p)
+			{
+				return p.y;
+			}
+
+			export int main()
+			{
+				Lib::Point p = default;
+				L::Point q = default;
+				Lib::Point* ptr = (Lib::Point*)null;
+				Holder<Lib::Point> holder = default;
+				const char[] name = typenameof(Lib::Point);
+				return Lib::getValue() + L::getValue() + Lib::Point.getDefault() + q.x + p.y;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", library, app, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("using-qualified-positive-out"));
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
+	public void Using_imports_hide_unimported_unselected_and_unaliased_symbols()
+	{
+		string root = TempPath("using-import-negative");
+		Directory.CreateDirectory(root);
+		string library = Path.Combine(root, "library.camp");
+		File.WriteAllText(library, """
+			export as Lib;
+
+			export struct Point
+			{
+				int x;
+			}
+
+			export int getValue() => 42;
+			""");
+		string noImport = Path.Combine(root, "no_import.camp");
+		File.WriteAllText(noImport, """
+			export as App;
+			export int main() => getValue();
+			""");
+		string selected = Path.Combine(root, "selected.camp");
+		File.WriteAllText(selected, """
+			export as App;
+			using Lib { Point };
+			export int main() => getValue();
+			""");
+		string aliasOriginal = Path.Combine(root, "alias_original.camp");
+		File.WriteAllText(aliasOriginal, """
+			export as App;
+			using Lib as L;
+			export int main() => Lib::getValue();
+			""");
+
+		ProcessResult noImportResult = RunCampc("build", library, noImport, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("using-no-import-out"));
+		ProcessResult selectedResult = RunCampc("build", library, selected, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("using-selected-out"));
+		ProcessResult aliasOriginalResult = RunCampc("build", library, aliasOriginal, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("using-alias-original-out"));
+
+		Assert.NotEqual(0, noImportResult.ExitCode);
+		Assert.Contains("Symbol 'getValue' is declared in namespace 'Lib' but is not imported by this file.", noImportResult.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, selectedResult.ExitCode);
+		Assert.Contains("Symbol 'getValue' is declared in namespace 'Lib' but is not imported by this file.", selectedResult.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, aliasOriginalResult.ExitCode);
+		Assert.Contains("Symbol 'Lib::getValue' could not be found.", aliasOriginalResult.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Explicit_root_std_using_suppresses_implicit_std_import()
+	{
+		string implicitStd = CreateTempCase("using_implicit_std.camp", """
+			export int main()
+			{
+				Console.writeLine("ok");
+				return 0;
+			}
+			""");
+		string aliasedStd = CreateTempCase("using_aliased_std.camp", """
+			using Std as S;
+
+			export int main()
+			{
+				S::Console.writeLine("ok");
+				return 0;
+			}
+			""");
+		string suppressedStd = CreateTempCase("using_suppressed_std.camp", """
+			using Std as S;
+
+			export int main()
+			{
+				Console.writeLine("missing");
+				return 0;
+			}
+			""");
+		string selectedStd = CreateTempCase("using_selected_std.camp", """
+			using Std { Console };
+
+			export int main()
+			{
+				List<int>* list = null;
+				Console.writeLine("ok");
+				return 0;
+			}
+			""");
+
+		ProcessResult implicitResult = RunCampc("build", implicitStd, "--artifact", "none", "--out-dir", TempPath("using-implicit-std-out"));
+		ProcessResult aliasedResult = RunCampc("build", aliasedStd, "--artifact", "none", "--out-dir", TempPath("using-aliased-std-out"));
+		ProcessResult suppressedResult = RunCampc("build", suppressedStd, "--artifact", "none", "--out-dir", TempPath("using-suppressed-std-out"));
+		ProcessResult selectedResult = RunCampc("build", selectedStd, "--artifact", "none", "--out-dir", TempPath("using-selected-std-out"));
+
+		AssertCommandSucceeded(implicitResult);
+		AssertCommandSucceeded(aliasedResult);
+		Assert.NotEqual(0, suppressedResult.ExitCode);
+		Assert.Contains("Type 'Console' is declared in namespace 'Std' but is not imported by this file.", suppressedResult.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, selectedResult.ExitCode);
+		Assert.Contains("Type 'List' is declared in namespace 'Std' but is not imported by this file.", selectedResult.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Async_exported_c_header_uses_completion_callback_abi()
 	{
 		string source = CreateTempCase("async_header.camp", """

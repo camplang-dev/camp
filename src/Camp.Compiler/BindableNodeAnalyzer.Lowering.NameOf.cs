@@ -155,7 +155,7 @@ public sealed partial class BindableNodeAnalyzer
 		name = "";
 		reference = null;
 
-		string resolved = ResolveNameOfTypeOperandName(operand, typeScope, out reference);
+		string resolved = ResolveNameOfTypeOperandName(operand, typeScope, syntax, out reference);
 		if (resolved == ErrorType)
 			return false;
 
@@ -176,7 +176,7 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	string ResolveNameOfTypeOperandName(string operand, AnalysisScope scope, out BindableNode? reference)
+	string ResolveNameOfTypeOperandName(string operand, AnalysisScope scope, SyntaxNode? syntax, out BindableNode? reference)
 	{
 		reference = null;
 		if (TryResolveAlias(operand, AliasTargetKind.Type, null, out AliasDefinition? alias))
@@ -188,36 +188,81 @@ public sealed partial class BindableNodeAnalyzer
 			return "classtype";
 		}
 
-		if (TryGetPrimitiveType(operand, out _))
-			return operand;
-		if (scope.TryGetGenericParameter(operand, out GenericParameter? generic))
-		{
-			reference = generic;
-			return operand;
-		}
-		if (typeDefinitions.TryGetValue(BaseTypeName(operand), out TypeDefinition? type))
-		{
-			reference = type;
-			return operand;
-		}
-		if (TryParseTypeShape(operand, out TypeShape shape) && IsResolvableTypeNameShape(shape, scope))
+		if (TryResolveNameOfBaseTypeName(operand, scope, syntax, out string resolvedBaseName, out reference))
+			return resolvedBaseName;
+		if (TryParseTypeShape(operand, out TypeShape shape) && IsResolvableTypeNameShape(shape, scope, syntax))
 			return operand;
 		return ErrorType;
 	}
 
-	bool IsResolvableTypeNameShape(TypeShape shape, AnalysisScope scope)
+	bool IsResolvableTypeNameShape(TypeShape shape, AnalysisScope scope, SyntaxNode? syntax)
 	{
 		if (shape.Element is not null)
-			return IsResolvableTypeNameShape(shape.Element, scope);
+			return IsResolvableTypeNameShape(shape.Element, scope, syntax);
 
 		string baseName = BaseTypeName(shape.Name);
-		if (TryResolveAlias(baseName, AliasTargetKind.Type, null, out _))
+		return TryResolveNameOfBaseTypeName(baseName, scope, syntax, out _, out _);
+	}
+
+	bool TryResolveNameOfBaseTypeName(string baseName, AnalysisScope scope, SyntaxNode? syntax, out string resolvedName, out BindableNode? reference)
+	{
+		resolvedName = baseName;
+		reference = null;
+		if (TryResolveAlias(baseName, AliasTargetKind.Type, syntax, out AliasDefinition? alias))
+		{
+			resolvedName = alias!.ResolvedTargetName;
+			reference = alias;
 			return true;
+		}
 		if (TryGetPrimitiveType(baseName, out _))
 			return true;
-		if (scope.TryGetGenericParameter(baseName, out _))
+		if (scope.TryGetGenericParameter(baseName, out GenericParameter? generic))
+		{
+			reference = generic;
 			return true;
-		return typeDefinitions.ContainsKey(baseName);
+		}
+		if (typeDefinitions.TryGetValue(baseName, out TypeDefinition? type))
+		{
+			reference = type;
+			return true;
+		}
+		if (!TrySplitQualifiedName(baseName, out List<string> qualifiers, out string name))
+			return false;
+		foreach (AliasDefinition candidate in aliasDefinitions.Values)
+		{
+			if (candidate.Name == name && candidate.TargetKind == AliasTargetKind.Type && IsImportedQualifiedName(candidate, qualifiers, syntax))
+			{
+				resolvedName = candidate.ResolvedTargetName;
+				reference = candidate;
+				return true;
+			}
+		}
+		foreach (TypeDefinition candidate in typeDefinitions.Values)
+		{
+			if (candidate.Name == name && IsImportedQualifiedName(candidate, qualifiers, syntax))
+			{
+				resolvedName = candidate.Name;
+				reference = candidate;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	static bool TrySplitQualifiedName(string text, out List<string> qualifiers, out string name)
+	{
+		qualifiers = [];
+		name = text;
+		string[] parts = text.Split("::", StringSplitOptions.None);
+		if (parts.Length < 2)
+			return false;
+		foreach (string part in parts)
+			if (string.IsNullOrWhiteSpace(part))
+				return false;
+		for (int i = 0; i < parts.Length - 1; i++)
+			qualifiers.Add(parts[i]);
+		name = parts[^1];
+		return true;
 	}
 
 	string BuildNameOfTypeValue(string resolvedType)

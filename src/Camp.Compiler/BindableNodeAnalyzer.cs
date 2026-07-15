@@ -128,15 +128,23 @@ public sealed partial class BindableNodeAnalyzer
 		if (named.Qualifiers.Count == 0)
 			return typeDefinitions.TryGetValue(named.Name, out definition);
 
+		foreach (TypeDefinition candidate in typeDefinitions.Values)
+		{
+			if (candidate.Name != named.Name)
+				continue;
+			if (IsImportedQualifiedName(candidate, named.Qualifiers, named.SourceSyntax))
+			{
+				definition = candidate;
+				return true;
+			}
+		}
+
 		definition = null;
 		return false;
 	}
 
 	bool IsDefinitionVisible(Definition definition, SyntaxNode? referenceSyntax)
 	{
-		if (IsExternallyVisible(definition))
-			return true;
-
 		if (currentModule is null || !currentModule.DefinitionSources.TryGetValue(definition, out TokenSequence? definitionSource))
 			return true;
 
@@ -144,11 +152,127 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 
 		TokenRange? referenceRange = GetRange(referenceSyntax);
-		return referenceRange is not TokenRange range || ReferenceEquals(range.Sequence, definitionSource);
+		if (referenceRange is not TokenRange range || ReferenceEquals(range.Sequence, definitionSource))
+			return true;
+
+		if (!IsExternallyVisible(definition))
+			return false;
+
+		return IsDefinitionImported(definition, range.Sequence);
+	}
+
+	bool IsDefinitionImported(Definition definition, TokenSequence referenceSource)
+	{
+		if (string.IsNullOrWhiteSpace(definition.Namespace))
+			return true;
+		if (currentModule is null)
+			return true;
+		if (currentModule.SourceNamespaces.TryGetValue(referenceSource, out string? referenceNamespace)
+			&& string.Equals(referenceNamespace, definition.Namespace, StringComparison.Ordinal))
+			return true;
+		foreach (UsingDeclaration usingDeclaration in GetUsingsForSource(referenceSource))
+		{
+			if (usingDeclaration.Alias is not null)
+				continue;
+			if (!string.Equals(usingDeclaration.Name, definition.Namespace, StringComparison.Ordinal))
+				continue;
+			if (usingDeclaration.SelectedNames.Count == 0 || usingDeclaration.SelectedNames.Contains(definition.Name))
+				return true;
+		}
+		if (definition.Namespace == "Std" && !HasExplicitRootStdUsing(referenceSource))
+			return true;
+		return false;
+	}
+
+	bool IsNamespaceVisible(string? namespaceName, TokenSequence referenceSource)
+	{
+		if (string.IsNullOrWhiteSpace(namespaceName))
+			return true;
+		if (currentModule is null)
+			return true;
+		if (currentModule.SourceNamespaces.TryGetValue(referenceSource, out string? referenceNamespace)
+			&& string.Equals(referenceNamespace, namespaceName, StringComparison.Ordinal))
+			return true;
+		if (IsNamespaceExplicitlyImported(namespaceName, referenceSource))
+			return true;
+		if (namespaceName == "Std" && !HasExplicitRootStdUsing(referenceSource))
+			return true;
+		return false;
+	}
+
+	bool IsImportedQualifiedName(Definition definition, List<string> qualifiers, SyntaxNode? referenceSyntax)
+	{
+		if (qualifiers.Count == 0)
+			return IsDefinitionVisible(definition, referenceSyntax);
+		TokenRange? referenceRange = GetRange(referenceSyntax);
+		if (referenceRange is not TokenRange range)
+			return true;
+		string qualifier = string.Join("::", qualifiers);
+		if (!string.IsNullOrWhiteSpace(definition.Namespace) && string.Equals(definition.Namespace, qualifier, StringComparison.Ordinal))
+			return IsNamespaceVisible(definition.Namespace, range.Sequence) || IsNamespacePlainImported(definition.Namespace, range.Sequence);
+		return TryResolveNamespaceAlias(qualifier, range.Sequence, out string? aliasedNamespace)
+			&& string.Equals(aliasedNamespace, definition.Namespace, StringComparison.Ordinal);
+	}
+
+	bool IsNamespaceExplicitlyImported(string namespaceName, TokenSequence source)
+	{
+		foreach (UsingDeclaration usingDeclaration in GetUsingsForSource(source))
+			if (usingDeclaration.Alias is null
+				&& usingDeclaration.SelectedNames.Count == 0
+				&& string.Equals(usingDeclaration.Name, namespaceName, StringComparison.Ordinal))
+				return true;
+		return false;
+	}
+
+	bool IsNamespacePlainImported(string namespaceName, TokenSequence source)
+	{
+		return IsNamespaceExplicitlyImported(namespaceName, source)
+			|| namespaceName == "Std" && !HasExplicitRootStdUsing(source);
+	}
+
+	bool TryResolveNamespaceAlias(string alias, TokenSequence source, out string? namespaceName)
+	{
+		foreach (UsingDeclaration usingDeclaration in GetUsingsForSource(source))
+		{
+			if (usingDeclaration.SelectedNames.Count == 0
+				&& string.Equals(usingDeclaration.Alias, alias, StringComparison.Ordinal))
+			{
+				namespaceName = usingDeclaration.Name;
+				return !string.IsNullOrWhiteSpace(namespaceName);
+			}
+		}
+		namespaceName = null;
+		return false;
+	}
+
+	bool HasExplicitRootStdUsing(TokenSequence source)
+	{
+		foreach (UsingDeclaration usingDeclaration in GetUsingsForSource(source))
+			if (usingDeclaration.Name == "Std")
+				return true;
+		return false;
+	}
+
+	IEnumerable<UsingDeclaration> GetUsingsForSource(TokenSequence source)
+	{
+		foreach (UsingDeclaration usingDeclaration in currentModule?.Usings ?? [])
+		{
+			TokenRange? range = GetRange(usingDeclaration.SourceSyntax);
+			if (range is TokenRange usingRange && ReferenceEquals(usingRange.Sequence, source))
+				yield return usingDeclaration;
+		}
 	}
 
 	void ReportNotExported(Definition definition, SyntaxNode? referenceSyntax, string symbolKind)
 	{
+		if (IsExternallyVisible(definition)
+			&& GetRange(referenceSyntax) is TokenRange range
+			&& !IsDefinitionImported(definition, range.Sequence))
+		{
+			string namespaceName = string.IsNullOrWhiteSpace(definition.Namespace) ? "its namespace" : $"namespace '{definition.Namespace}'";
+			Report(GetRange(referenceSyntax), $"{symbolKind} '{definition.Name}' is declared in {namespaceName} but is not imported by this file.");
+			return;
+		}
 		Report(GetRange(referenceSyntax), $"{symbolKind} '{definition.Name}' is declared in another file but is not exported.");
 	}
 
@@ -764,6 +888,21 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		alias = candidate;
 		return true;
+	}
+
+	bool TryResolveQualifiedAlias(NamedTypeReference named, AliasTargetKind kind, out AliasDefinition? alias)
+	{
+		alias = null;
+		foreach (AliasDefinition candidate in aliasDefinitions.Values)
+		{
+			if (candidate.Name != named.Name || candidate.TargetKind != kind)
+				continue;
+			if (!IsImportedQualifiedName(candidate, named.Qualifiers, named.SourceSyntax))
+				continue;
+			alias = candidate;
+			return true;
+		}
+		return false;
 	}
 
 	string ResolveCallSpecAlias(string callSpec, SyntaxNode? syntax)
