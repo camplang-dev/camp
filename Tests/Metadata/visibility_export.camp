@@ -1,0 +1,18 @@
+// @emit-metadata export
+namespace Docs;
+
+/// Exported value.
+export int ExportedValue;
+
+/// Artifact-public value.
+public int PublicValue;
+
+/// Exported class.
+export class ExportedClass
+{
+}
+
+/// Artifact-public class.
+public class PublicClass
+{
+}

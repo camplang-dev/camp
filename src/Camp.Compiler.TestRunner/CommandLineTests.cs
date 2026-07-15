@@ -798,6 +798,9 @@ public sealed class CommandLineTests
 		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Shared), "visibility-lib_api.camp"));
 		Assert.DoesNotContain("publicValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern int exportedValue();", api, StringComparison.Ordinal);
+		string cApi = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Shared), "visibility-lib_api.h"));
+		Assert.DoesNotContain("publicValue", cApi, StringComparison.Ordinal);
+		Assert.Contains("exportedValue", cApi, StringComparison.Ordinal);
 	}
 
 	[Fact]

@@ -28,12 +28,25 @@
       "id": "variable:Docs::PublicValue",
       "kind": "variable",
       "name": "PublicValue",
+      "visibility": "public",
+      "type": "int",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Artifact-public value."
+        }
+      ]
+    },
+    {
+      "id": "variable:Docs::InternalValue",
+      "kind": "variable",
+      "name": "InternalValue",
       "visibility": "internal",
       "type": "int",
       "metadata": [
         {
           "name": "summary",
-          "content": "Public value."
+          "content": "Internal value."
         }
       ]
     },
@@ -79,7 +92,7 @@
       "id": "class:Docs::PublicClass",
       "kind": "class",
       "name": "PublicClass",
-      "visibility": "internal",
+      "visibility": "public",
       "modifier": "abstract",
       "fields": [
         {
@@ -89,7 +102,7 @@
           "metadata": [
             {
               "name": "summary",
-              "content": "Public class field."
+              "content": "Artifact-public class field."
             }
           ]
         }
@@ -97,7 +110,33 @@
       "metadata": [
         {
           "name": "summary",
-          "content": "Public class."
+          "content": "Artifact-public class."
+        }
+      ]
+    },
+    {
+      "id": "class:Docs::InternalClass",
+      "kind": "class",
+      "name": "InternalClass",
+      "visibility": "internal",
+      "modifier": "abstract",
+      "fields": [
+        {
+          "id": "class:Docs::InternalClass/field:internalClassField",
+          "name": "internalClassField",
+          "type": "int",
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Internal class field."
+            }
+          ]
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Internal class."
         }
       ]
     },

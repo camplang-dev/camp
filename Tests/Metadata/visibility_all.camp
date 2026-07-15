@@ -4,8 +4,11 @@ namespace Docs;
 /// Exported value.
 export int ExportedValue;
 
-/// Public value.
-internal int PublicValue;
+/// Artifact-public value.
+public int PublicValue;
+
+/// Internal value.
+internal int InternalValue;
 
 /// File-local value.
 int LocalValue;
@@ -17,11 +20,18 @@ export abstract class ExportedClass
 	int exportedClassField;
 }
 
-/// Public class.
-internal abstract class PublicClass
+/// Artifact-public class.
+public abstract class PublicClass
 {
-	/// Public class field.
+	/// Artifact-public class field.
 	int publicClassField;
+}
+
+/// Internal class.
+internal abstract class InternalClass
+{
+	/// Internal class field.
+	int internalClassField;
 }
 
 /// File-local class.

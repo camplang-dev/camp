@@ -1050,7 +1050,7 @@ Primary risk:
   `public` and `export`. Static and shared dependency consumption need to be
   separated carefully.
 
-### Stage 4 - Split API And Metadata Views
+### ~~Stage 4 - Split API And Metadata Views~~
 
 Goal: make the compiler able to produce and consume distinct internal/public
 and export views before stdlib migration.
@@ -1075,14 +1075,14 @@ Tasks:
 
 Completion criteria:
 
-- Static dependency test: root project consumes a dependency's `public`
-  declaration.
-- Shared dependency test: root project cannot consume a dependency's `public`
-  declaration unless it is exported.
-- Export metadata and generated external C/Camp API headers exclude public-only
-  declarations.
-- Public metadata includes public declarations.
-- Full suite passes.
+- ~~Static dependency test: root project consumes a dependency's `public`
+  declaration.~~
+- ~~Shared dependency test: root project cannot consume a dependency's `public`
+  declaration unless it is exported.~~
+- ~~Export metadata and generated external C/Camp API headers exclude public-only
+  declarations.~~
+- ~~Public metadata includes public declarations.~~
+- ~~Full suite passes.~~
 
 Primary risk:
 
