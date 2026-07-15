@@ -86,6 +86,12 @@ changes or before larger commits.
 runtime case. If the std cache appears stale, deleting that directory forces a
 clean rebuild.
 
+Full and targeted `vstest` runs write a timing report for golden cases and
+command-line subprocesses to `tmp/camp-test-timing.txt`. Set
+`CAMP_TEST_TIMING_TOP=<count>` to change the number of entries, set
+`CAMP_TEST_TIMING_PATH=<path>` to choose another output file, or set
+`CAMP_TEST_TIMING=0` to disable the report.
+
 Run tests and generate a console + HTML coverage report with:
 
 ```sh

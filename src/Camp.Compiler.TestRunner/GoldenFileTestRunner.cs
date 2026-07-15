@@ -17,6 +17,7 @@ public static class GoldenFileTestRunner
 	public static void Run(GoldenFileTestCase testCase)
 	{
 		ArgumentNullException.ThrowIfNull(testCase);
+		using IDisposable timing = TestTiming.Measure("Golden " + testCase.Kind + "/" + Path.GetFileNameWithoutExtension(testCase.CasePath));
 		if (testCase.Kind == GoldenFileTestKind.StdRun && OperatingSystem.IsWindows() && !MsvcAvailable())
 			Assert.Skip("StdRun executable golden tests require MSVC tools on Windows.");
 		if (testCase.Kind == GoldenFileTestKind.CCompile && !OperatingSystem.IsMacOS() && ExpectedCompileFailure(testCase))
@@ -223,12 +224,10 @@ public static class GoldenFileTestRunner
 			return builder.ToString();
 		}
 
-		string objectDirectory = Path.Combine(GetOutputDirectory(testCase), "obj");
-		Directory.CreateDirectory(objectDirectory);
 		foreach (string sourceFile in sourceFiles)
 		{
-			string objectFile = Path.Combine(objectDirectory, Path.GetFileNameWithoutExtension(sourceFile) + ".o");
-			ProcessResult compile = RunProcess(HostCCompiler(), HostCCompilerArguments(sourceFile, objectFile), testCase.RepositoryRoot);
+			string compiler = HostCCompiler();
+			ProcessResult compile = RunProcess(compiler, HostCCompilerArguments(compiler, sourceFile), testCase.RepositoryRoot);
 			if (compile.ExitCode == 0)
 			{
 				builder.AppendLine("compiled: " + Path.GetFileName(sourceFile));
@@ -288,18 +287,16 @@ public static class GoldenFileTestRunner
 		return "gcc";
 	}
 
-	static string[] HostCCompilerArguments(string sourceFile, string objectFile)
+	static string[] HostCCompilerArguments(string compiler, string sourceFile)
 	{
 		List<string> arguments =
 			[
 				"-std=c11",
 				"-Werror=incompatible-pointer-types",
-				"-c",
-				sourceFile,
-				"-o",
-			objectFile
+				"-fsyntax-only",
+				sourceFile
 		];
-		if (HostCCompiler() == "clang")
+		if (compiler == "clang")
 		{
 			arguments.Insert(2, "-Werror=typedef-redefinition");
 			arguments.Insert(3, "-Werror=c23-extensions");

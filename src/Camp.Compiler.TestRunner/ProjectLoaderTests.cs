@@ -185,6 +185,23 @@ public sealed class ProjectLoaderTests
 	}
 
 	[Fact]
+	public void Project_loader_reports_old_memory_model_spelling()
+	{
+		string root = CreateTempDirectory("project-loader-old-memory-model");
+		File.WriteAllText(Path.Combine(root, "main.camp"), "export void main() {}");
+
+		CampProjectLoadResult result = CampProjectLoader.Load([
+			"--nostdlib",
+			"--memory-model",
+			"large",
+			"main.camp"
+		], CreateEnvironment(root));
+
+		Assert.False(result.Success);
+		Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("--memory-model has been replaced by --variant", StringComparison.Ordinal));
+	}
+
+	[Fact]
 	public void Project_loader_reports_missing_project_reference()
 	{
 		string root = CreateTempDirectory("project-loader-missing-ref");

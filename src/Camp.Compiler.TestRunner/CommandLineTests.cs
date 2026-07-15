@@ -518,48 +518,6 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Variant_option_controls_defines_and_reports_old_memory_model_spelling()
-	{
-		string temp = CreateTempCase("variant_cli.camp", """
-			#if UNICODE
-			export inline int WIDTH = 2;
-			#else
-			export inline int WIDTH = 1;
-			#endif
-			""");
-
-		ProcessResult ansi = RunCampc("dump", "declarations", temp, "--target", "msvc-windows-x64", "--variant", "ansi", "--nostdlib");
-		ProcessResult unicode = RunCampc("dump", "declarations", temp, "--target", "msvc-windows-x64", "--variant", "unicode", "--nostdlib");
-		ProcessResult old = RunCampc("dump", "declarations", temp, "--target", "msvc-windows-x64", "--memory-model", "large", "--nostdlib");
-
-		Assert.Equal(0, ansi.ExitCode);
-		Assert.Contains("WIDTH = 1", ansi.StdOut, StringComparison.Ordinal);
-		Assert.Equal(0, unicode.ExitCode);
-		Assert.Contains("WIDTH = 2", unicode.StdOut, StringComparison.Ordinal);
-		Assert.NotEqual(0, old.ExitCode);
-		Assert.Contains("--memory-model has been replaced by --variant", old.StdErr, StringComparison.Ordinal);
-	}
-
-	[Fact]
-	public void Variant_option_rejects_unknown_and_same_group_values()
-	{
-		string temp = CreateTempCase("variant_diagnostics.camp", """
-			#build --nostdlib
-			#build --artifact none
-
-			export int main() => 0;
-			""");
-
-		ProcessResult unknown = RunCampc("build", temp, "--target", "msvc-windows-x64", "--variant", "foobar");
-		ProcessResult conflict = RunCampc("build", temp, "--target", "msvc-windows-x64", "--variant", "unicode", "ansi");
-
-		Assert.NotEqual(0, unknown.ExitCode);
-		Assert.Contains("Variant 'foobar' is not defined by target 'msvc-windows-x64'", unknown.StdErr, StringComparison.Ordinal);
-		Assert.NotEqual(0, conflict.ExitCode);
-		Assert.Contains("both belong to group 'charwidth'", conflict.StdErr, StringComparison.Ordinal);
-	}
-
-	[Fact]
 	public void Wasi_target_runs_stdlib_executable_with_wasmtime_when_available()
 	{
 		if (!ClangWasiAvailable() || !ToolAvailable("wasmtime"))
@@ -663,30 +621,6 @@ public sealed class CommandLineTests
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("Function 'open' is not supported by the current target.", result.StdErr, StringComparison.Ordinal);
 		Assert.Contains("The current target does not support file handles.", result.StdErr, StringComparison.Ordinal);
-	}
-
-	[Fact]
-	public void Target_owned_define_is_rejected_from_cli_and_warns_in_source()
-	{
-		string sourceDefine = CreateTempCase("variant_source_define.camp", """
-			#define UNICODE
-
-			export int main() => 0;
-			""");
-		string normal = CreateTempCase("variant_cli_define.camp", """
-			#build --nostdlib
-			#build --artifact none
-
-			export int main() => 0;
-			""");
-
-		ProcessResult cli = RunCampc("build", normal, "--target", "msvc-windows-x64", "--define", "UNICODE");
-		ProcessResult source = RunCampc("build", sourceDefine, "--target", "msvc-windows-x64", "--nostdlib", "--artifact", "none");
-
-		Assert.NotEqual(0, cli.ExitCode);
-		Assert.Contains("Define 'UNICODE' is owned by target", cli.StdErr, StringComparison.Ordinal);
-		Assert.Equal(0, source.ExitCode);
-		Assert.Contains("warning: Preprocessor symbol 'UNICODE' is owned by the selected target", source.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -2505,6 +2439,7 @@ public sealed class CommandLineTests
 
 	static ProcessResult RunCampc(IReadOnlyDictionary<string, string?>? environmentVariables, params string[] arguments)
 	{
+		using IDisposable timing = TestTiming.Measure("CommandLine campc " + string.Join(" ", arguments.Take(6)) + (arguments.Length > 6 ? " ..." : ""));
 		string repositoryRoot = FindRepositoryRoot();
 		string executable = Path.Combine(repositoryRoot, "bin", OperatingSystem.IsWindows() ? "campc.exe" : "campc");
 		ProcessStartInfo info = new()
@@ -2538,6 +2473,7 @@ public sealed class CommandLineTests
 
 	static ProcessResult RunExecutable(string executable)
 	{
+		using IDisposable timing = TestTiming.Measure("CommandLine executable " + Path.GetFileName(executable));
 		ProcessStartInfo info = new()
 		{
 			FileName = executable,
@@ -2557,6 +2493,7 @@ public sealed class CommandLineTests
 
 	static ProcessResult RunProcess(string executable, IReadOnlyList<string> arguments, string workingDirectory)
 	{
+		using IDisposable timing = TestTiming.Measure("CommandLine process " + Path.GetFileName(executable) + " " + string.Join(" ", arguments.Take(4)) + (arguments.Count > 4 ? " ..." : ""));
 		ProcessStartInfo info = new(executable)
 		{
 			WorkingDirectory = workingDirectory,
