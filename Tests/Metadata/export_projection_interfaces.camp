@@ -1,0 +1,21 @@
+extern void* malloc(nuint size);
+extern void free(void* pointer);
+
+public interface IShown
+{
+	int getValue();
+}
+
+public interface IHidden
+{
+	int getHidden();
+}
+
+public class Widget: IShown, IHidden
+{
+	public int getValue(): IShown => 1;
+	public int getHidden(): IHidden => 2;
+}
+
+export IShown;
+export Widget { getValue }: IShown;

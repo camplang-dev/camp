@@ -57,6 +57,8 @@ public class ExportProjectionDefinition : BindableNode
 	public Definition? Target { get; set; }
 	public Definition? ExportedDefinition { get; set; }
 	public List<ExportProjectionMember> Members { get; } = [];
+	public List<TypeReference> InterfaceTypes { get; } = [];
+	public List<InterfaceDefinition> ProjectedInterfaces { get; } = [];
 }
 
 public class ExportProjectionMember : BindableNode
@@ -114,6 +116,10 @@ public class ClassDefinition : TypeDefinition
 {
 	public ClassModifier Modifier { get; set; }
 	public bool IsEscaped { get; set; }
+	public bool HasExportProjectionInterfaceFilter { get; set; }
+	public List<TypeReference> ExportProjectionInterfaceBaseTypes { get; } = [];
+	public bool HasExportProjectionMemberFilter { get; set; }
+	public List<Definition> ExportProjectionMembers { get; } = [];
 	public List<TypeReference> BaseTypes { get; } = [];
 	public List<TypeReference> LoweredInterfaceBaseTypes { get; } = [];
 	public List<FieldDefinition> Fields { get; } = [];

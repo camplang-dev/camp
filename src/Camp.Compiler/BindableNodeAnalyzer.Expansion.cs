@@ -356,7 +356,7 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					Name = InterfaceVTableName(classDefinition, interfaceDefinition),
 					Symbol = InterfaceVTableName(classDefinition, interfaceDefinition),
-					Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null,
+					Export = IsInterfaceExportedForClass(classDefinition, interfaceDefinition) ? "export" : null,
 					Public = GetCombinedArtifactVisibility(classDefinition, interfaceDefinition),
 					Internal = GetCombinedInternalVisibility(classDefinition, interfaceDefinition),
 					Extern = "extern",
@@ -406,7 +406,7 @@ public sealed partial class BindableNodeAnalyzer
 			VariableDefinition vtable = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface vtable export", classDefinition);
 			vtable.Name = InterfaceVTableName(classDefinition, interfaceDefinition);
 			vtable.Symbol = InterfaceVTableName(classDefinition, interfaceDefinition);
-			vtable.Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null;
+			vtable.Export = IsInterfaceExportedForClass(classDefinition, interfaceDefinition) ? "export" : null;
 			vtable.Public = GetCombinedArtifactVisibility(classDefinition, interfaceDefinition);
 			vtable.Internal = GetCombinedInternalVisibility(classDefinition, interfaceDefinition);
 			vtable.Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name });
@@ -449,7 +449,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition accessor = generatedDeclarations.Function(GeneratedDeclarationCategory.Interface, "interface accessor", classDefinition);
 		accessor.Name = InterfaceAccessorName(interfaceDefinition);
 		accessor.Symbol = EffectiveTypeSymbol(classDefinition) + "_" + InterfaceAccessorName(interfaceDefinition);
-		accessor.Export = classDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null;
+		accessor.Export = IsInterfaceExportedForClass(classDefinition, interfaceDefinition) ? "export" : null;
 		accessor.Public = GetCombinedArtifactVisibility(classDefinition, interfaceDefinition);
 		accessor.Internal = GetCombinedInternalVisibility(classDefinition, interfaceDefinition);
 		accessor.Extern = lowering.IsExternClass ? "extern" : null;
@@ -463,6 +463,18 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		accessor.EffectiveThisParameter.Attributes.Add(new AttributeConstructor { Name = "const" });
 		return accessor;
+	}
+
+	static bool IsInterfaceExportedForClass(ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)
+	{
+		if (classDefinition.Export is null || interfaceDefinition.Export is null)
+			return false;
+		if (!classDefinition.HasExportProjectionInterfaceFilter)
+			return true;
+		foreach (TypeReference type in classDefinition.ExportProjectionInterfaceBaseTypes)
+			if (type.ResolvedType == interfaceDefinition.Name)
+				return true;
+		return false;
 	}
 
 	FunctionDefinition? FindImportedInterfaceAccessor(ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)

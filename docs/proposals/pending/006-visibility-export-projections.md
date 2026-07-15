@@ -1197,7 +1197,7 @@ Primary risk:
   behavior. Member projection must select the source-level declaration while
   emitting the correct external extern/create/destroy shape.
 
-### Stage 8 - Add Interface Projection Rules
+### ~~Stage 8 - Add Interface Projection Rules~~
 
 Goal: allow projected class types to expose selected implemented interfaces.
 
@@ -1219,11 +1219,11 @@ Tasks:
 
 Completion criteria:
 
-- Tests cover projected and hidden class interface implementations.
-- Tests cover missing interface projections and unimplemented listed
-  interfaces.
-- Generated API and metadata show only listed interfaces.
-- Full suite passes.
+- ~~Tests cover projected and hidden class interface implementations.~~
+- ~~Tests cover missing interface projections and unimplemented listed
+  interfaces.~~
+- ~~Generated API and metadata show only listed interfaces.~~
+- ~~Full suite passes.~~
 
 Primary risk:
 

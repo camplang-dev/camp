@@ -1,0 +1,3 @@
+tests/Diagnostics/export_projection_interface_errors.camp(33,22): error: Interface 'IUnprojected' must also be exported or projected before it can appear in an export projection.
+tests/Diagnostics/export_projection_interface_errors.camp(34,23): error: Type 'MissingWidget' does not implement interface 'IAbsent'.
+tests/Diagnostics/export_projection_interface_errors.camp(35,1): error: Struct interface implementations are not exported in V1.

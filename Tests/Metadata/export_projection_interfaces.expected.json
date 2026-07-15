@@ -1,0 +1,77 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "export_projection_interfaces"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "interface:IShown",
+      "kind": "interface",
+      "name": "IShown",
+      "visibility": "export",
+      "functions": [
+        {
+          "id": "interface:IShown/function:getValue",
+          "name": "getValue",
+          "returnType": "int",
+          "propertyName": "Value"
+        }
+      ]
+    },
+    {
+      "id": "class:Widget",
+      "kind": "class",
+      "name": "Widget",
+      "visibility": "export",
+      "extern": true,
+      "baseTypes": [
+        "IShown"
+      ],
+      "interfaces": [
+        {
+          "type": "IShown",
+          "ref": "interface:IShown",
+          "symbol": "Widget_IShown"
+        }
+      ],
+      "functions": [
+        {
+          "id": "class:Widget/function:~Widget",
+          "name": "~Widget",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "destructor"
+        },
+        {
+          "id": "class:Widget/function:getValue",
+          "name": "getValue",
+          "symbol": "Widget_getValue",
+          "visibility": "export",
+          "extern": true,
+          "returnType": "int",
+          "interfaceImplementation": {
+            "interfaceRef": "interface:IShown",
+            "interface": "IShown",
+            "slot": "getValue",
+            "slotRef": "interface:IShown/function:getValue"
+          },
+          "propertyName": "Value"
+        },
+        {
+          "id": "class:Widget/function:Widget",
+          "name": "Widget",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "constructor",
+          "returnType": "Widget"
+        }
+      ]
+    }
+  ]
+}

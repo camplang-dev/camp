@@ -187,7 +187,7 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write("class ");
 		writer.Write(definition.Name);
 		WriteGenericParameters(definition.GenericParameters);
-		WriteBaseTypes(apiHeader ? ApiBaseTypes(definition.BaseTypes, definition.LoweredInterfaceBaseTypes) : definition.BaseTypes);
+		WriteBaseTypes(apiHeader ? ApiBaseTypes(definition) : definition.BaseTypes);
 		WriteLineBlock(() =>
 		{
 			if (apiHeader)
@@ -1307,14 +1307,26 @@ public sealed class BindableNodeCodeSerializer
 		});
 	}
 
-	static List<TypeReference> ApiBaseTypes(List<TypeReference> baseTypes, List<TypeReference> loweredInterfaceBaseTypes)
+	static List<TypeReference> ApiBaseTypes(ClassDefinition definition)
 	{
+		List<TypeReference> baseTypes = definition.BaseTypes;
+		List<TypeReference> loweredInterfaceBaseTypes = definition.HasExportProjectionInterfaceFilter
+			? definition.ExportProjectionInterfaceBaseTypes
+			: definition.LoweredInterfaceBaseTypes;
 		if (loweredInterfaceBaseTypes.Count == 0)
 			return baseTypes;
 
-		List<TypeReference> types = [.. baseTypes];
+		List<TypeReference> types = [];
+		foreach (TypeReference baseType in baseTypes)
+			if (!definition.HasExportProjectionInterfaceFilter || !IsInterfaceType(baseType))
+				types.Add(baseType);
 		types.AddRange(loweredInterfaceBaseTypes);
 		return types;
+	}
+
+	static bool IsInterfaceType(TypeReference type)
+	{
+		return type is TypeDefinitionReference { Definition: InterfaceDefinition };
 	}
 
 	void WriteBaseTypes(List<TypeReference> types)

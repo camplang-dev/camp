@@ -174,6 +174,8 @@ public sealed partial class BindableNodeBuilder
 			if (memberSyntax.Identifier is null)
 				Report(memberSyntax, "Export projection member is missing a name.");
 		}
+		foreach (TypeSyntax interfaceSyntax in syntax.InterfaceList?.Types ?? [])
+			projection.InterfaceTypes.Add(BuildTypeReference(interfaceSyntax));
 		return projection;
 	}
 

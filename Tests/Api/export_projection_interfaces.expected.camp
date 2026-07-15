@@ -1,0 +1,15 @@
+export interface IShown
+{
+	int getValue();
+}
+
+export extern class Widget : IShown
+{
+	export extern Widget();
+
+	export extern ~Widget();
+
+	export extern IShown* getIShown();
+
+	export extern int getValue() : IShown;
+}

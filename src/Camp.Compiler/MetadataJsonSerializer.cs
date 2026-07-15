@@ -278,7 +278,7 @@ public static class MetadataJsonSerializer
 					if (!IsExportApiView && classDefinition.Modifier != ClassModifier.None)
 						json.WriteString("modifier", classDefinition.Modifier.ToString().ToLowerInvariant());
 					IReadOnlyList<TypeReference> classBaseTypes = IsExportApiView
-						? GetApiBaseTypes(classDefinition.BaseTypes, classDefinition.LoweredInterfaceBaseTypes)
+						? GetApiBaseTypes(classDefinition)
 						: classDefinition.BaseTypes;
 					WriteTypes(json, "baseTypes", classBaseTypes);
 					WriteImplementedInterfaces(json, classBaseTypes, classDefinition);
@@ -555,6 +555,8 @@ public static class MetadataJsonSerializer
 				string prefix = SymbolName(owner) + "_";
 				string interfaceSymbol = vtable.Symbol.StartsWith(prefix, StringComparison.Ordinal) ? vtable.Symbol[prefix.Length..] : "";
 				string interfaceName = ResolveTypeNameFromSymbol(interfaceSymbol) ?? interfaceSymbol;
+				if (IsExportApiView && owner is ClassDefinition classOwner && !IsExportInterfaceVisible(classOwner, interfaceName))
+					continue;
 				if (!seen.Add(interfaceName))
 					continue;
 				typeDefinitions.TryGetValue(interfaceName, out TypeDefinition? interfaceDefinition);
@@ -1038,14 +1040,33 @@ public static class MetadataJsonSerializer
 			return interfaces;
 		}
 
-		static List<TypeReference> GetApiBaseTypes(List<TypeReference> baseTypes, List<TypeReference> loweredInterfaceBaseTypes)
+		static List<TypeReference> GetApiBaseTypes(ClassDefinition definition)
 		{
+			List<TypeReference> baseTypes = definition.BaseTypes;
+			List<TypeReference> loweredInterfaceBaseTypes = definition.HasExportProjectionInterfaceFilter
+				? definition.ExportProjectionInterfaceBaseTypes
+				: definition.LoweredInterfaceBaseTypes;
 			if (loweredInterfaceBaseTypes.Count == 0)
 				return baseTypes;
 
-			List<TypeReference> types = [.. baseTypes];
+			List<TypeReference> types = [];
+			foreach (TypeReference baseType in baseTypes)
+				if (!definition.HasExportProjectionInterfaceFilter || !IsInterfaceType(baseType))
+					types.Add(baseType);
 			types.AddRange(loweredInterfaceBaseTypes);
 			return types;
+		}
+
+		static bool IsInterfaceType(TypeReference type)
+		{
+			return type is TypeDefinitionReference { Definition: InterfaceDefinition };
+		}
+
+		static bool IsExportInterfaceVisible(ClassDefinition definition, string interfaceName)
+		{
+			if (!definition.HasExportProjectionInterfaceFilter)
+				return true;
+			return definition.ExportProjectionInterfaceBaseTypes.Any(type => type.ResolvedType == interfaceName);
 		}
 
 		string GetTopLevelId(Definition definition)

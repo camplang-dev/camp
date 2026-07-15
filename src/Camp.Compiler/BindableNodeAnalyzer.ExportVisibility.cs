@@ -74,10 +74,11 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			case ClassDefinition classDefinition:
 				foreach (FieldDefinition field in classDefinition.Fields)
-					if (field.Modifier == FieldModifier.Static)
+					if (field.Modifier == FieldModifier.Static && IsExportProjectionVisibleMember(classDefinition, field))
 						AnalyzeExportVisibility(field, containingTypeExported: false);
 				foreach (FunctionDefinition function in classDefinition.Functions)
-					AnalyzeExportVisibility(function, containingTypeExported: false);
+					if (IsExportProjectionVisibleMember(classDefinition, function))
+						AnalyzeExportVisibility(function, containingTypeExported: false);
 				break;
 
 			case StructDefinition structDefinition:
@@ -107,11 +108,11 @@ public sealed partial class BindableNodeAnalyzer
 		switch (typeDefinition)
 		{
 			case ClassDefinition classDefinition:
-				foreach (TypeReference type in classDefinition.BaseTypes)
+				foreach (TypeReference type in ExportVisibleClassBaseTypes(classDefinition))
 					yield return type;
 				foreach (FieldDefinition field in classDefinition.Fields)
 				{
-					if (field.Modifier == FieldModifier.Static && field.Export is not null && field.Type is not null)
+					if (field.Modifier == FieldModifier.Static && field.Export is not null && field.Type is not null && IsExportProjectionVisibleMember(classDefinition, field))
 						yield return field.Type;
 				}
 				break;
@@ -165,6 +166,33 @@ public sealed partial class BindableNodeAnalyzer
 						yield return parameter.Type;
 				}
 				break;
+		}
+	}
+
+	static bool IsExportProjectionVisibleMember(ClassDefinition classDefinition, Definition member)
+	{
+		return !classDefinition.HasExportProjectionMemberFilter || classDefinition.ExportProjectionMembers.Contains(member);
+	}
+
+	IEnumerable<TypeReference> ExportVisibleClassBaseTypes(ClassDefinition classDefinition)
+	{
+		foreach (TypeReference type in classDefinition.BaseTypes)
+		{
+			if (classDefinition.HasExportProjectionInterfaceFilter
+				&& TryGetInterfaceDefinition(type, out InterfaceDefinition? interfaceDefinition)
+				&& interfaceDefinition is not null)
+				continue;
+			yield return type;
+		}
+		if (classDefinition.HasExportProjectionInterfaceFilter)
+		{
+			foreach (TypeReference type in classDefinition.ExportProjectionInterfaceBaseTypes)
+				yield return type;
+		}
+		else
+		{
+			foreach (TypeReference type in classDefinition.LoweredInterfaceBaseTypes)
+				yield return type;
 		}
 	}
 

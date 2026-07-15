@@ -1,0 +1,35 @@
+public interface IProjected
+{
+	int getValue();
+}
+
+public interface IUnprojected
+{
+	int getOther();
+}
+
+public interface IAbsent
+{
+	int getAbsent();
+}
+
+public class HiddenWidget: IUnprojected
+{
+	public int getOther(): IUnprojected => 1;
+}
+
+public class MissingWidget: IProjected
+{
+	public int getValue(): IProjected => 1;
+}
+
+public struct Handle: IProjected
+{
+	public int getValue(): IProjected => 2;
+}
+
+export IProjected;
+export IAbsent;
+export HiddenWidget: IUnprojected;
+export MissingWidget: IAbsent;
+export Handle: IProjected;

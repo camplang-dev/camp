@@ -19,6 +19,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			projection.Target = target;
 			projection.ResolvedType = target.ResolvedType ?? target.Name;
+			AnalyzeTypeList(projection.InterfaceTypes, new AnalysisScope());
 
 			if (target.Public is null)
 			{
@@ -26,6 +27,7 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetRange(projection.SourceSyntax), $"Export projection target '{target.Name}' must be public; it is {visibility}.");
 				continue;
 			}
+			ValidateProjectionInterfaces(module, projection, target);
 
 			if (!projected.TryAdd(target, projection))
 			{
@@ -40,6 +42,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (exportDefinition is null)
 				continue;
 			projection.ExportedDefinition = exportDefinition;
+			ApplyInterfaceProjection(projection, target, exportDefinition);
 			if (projection.HasMemberBlock)
 				ApplyMemberProjection(projection, target, exportDefinition);
 			if (!ReferenceEquals(exportDefinition, target))
@@ -53,12 +56,149 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	void ValidateProjectionInterfaces(Module module, ExportProjectionDefinition projection, Definition target)
+	{
+		if (projection.InterfaceTypes.Count == 0)
+			return;
+
+		if (target is not TypeDefinition type)
+		{
+			Report(GetRange(projection.SourceSyntax), $"Only type export projections may list interfaces.");
+			return;
+		}
+		if (type is StructDefinition)
+		{
+			Report(GetRange(projection.SourceSyntax), "Struct interface implementations are not exported in V1.");
+			return;
+		}
+		if (type is not ClassDefinition)
+		{
+			Report(GetRange(projection.SourceSyntax), $"Only class export projections may list implemented interfaces.");
+			return;
+		}
+
+		foreach (TypeReference interfaceType in projection.InterfaceTypes)
+		{
+			if (!TryGetInterfaceDefinition(interfaceType, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
+			{
+				Report(GetRange(interfaceType.SourceSyntax), $"Export projection interface '{interfaceType.ResolvedType ?? ErrorType}' is not an interface.");
+				continue;
+			}
+			if (!ProjectionTypeImplementsInterface(type, interfaceDefinition))
+			{
+				Report(GetRange(interfaceType.SourceSyntax), $"Type '{type.Name}' does not implement interface '{interfaceDefinition.Name}'.");
+				continue;
+			}
+			if (!IsInterfaceProjectedForExport(module, interfaceDefinition))
+			{
+				Report(GetRange(interfaceType.SourceSyntax), $"Interface '{interfaceDefinition.Name}' must also be exported or projected before it can appear in an export projection.");
+				continue;
+			}
+			if (!projection.ProjectedInterfaces.Contains(interfaceDefinition))
+				projection.ProjectedInterfaces.Add(interfaceDefinition);
+		}
+	}
+
+	bool ProjectionTypeImplementsInterface(TypeDefinition type, InterfaceDefinition targetInterface)
+	{
+		return ProjectionTypeImplementsInterface(type, targetInterface, []);
+	}
+
+	bool ProjectionTypeImplementsInterface(TypeDefinition type, InterfaceDefinition targetInterface, HashSet<TypeDefinition> seen)
+	{
+		if (!seen.Add(type))
+			return false;
+
+		foreach (TypeReference baseType in ProjectionBaseTypes(type))
+		{
+			if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? interfaceDefinition) && interfaceDefinition is not null)
+			{
+				if (ReferenceEquals(interfaceDefinition, targetInterface) || ProjectionInterfaceContains(interfaceDefinition, targetInterface, []))
+					return true;
+				continue;
+			}
+
+			if (TryGetNamedTypeDefinition(baseType, out TypeDefinition? baseDefinition) && baseDefinition is not null)
+			{
+				if (ProjectionTypeImplementsInterface(baseDefinition, targetInterface, seen))
+					return true;
+			}
+		}
+
+		return false;
+	}
+
+	static IEnumerable<TypeReference> ProjectionBaseTypes(TypeDefinition type)
+	{
+		return type switch
+		{
+			ClassDefinition classDefinition => classDefinition.BaseTypes.Concat(classDefinition.LoweredInterfaceBaseTypes),
+			StructDefinition structDefinition => structDefinition.BaseTypes.Concat(structDefinition.LoweredInterfaceBaseTypes),
+			InterfaceDefinition interfaceDefinition => interfaceDefinition.BaseTypes,
+			_ => []
+		};
+	}
+
+	bool ProjectionInterfaceContains(InterfaceDefinition interfaceDefinition, InterfaceDefinition targetInterface, HashSet<InterfaceDefinition> seen)
+	{
+		if (!seen.Add(interfaceDefinition))
+			return false;
+
+		foreach (TypeReference baseType in interfaceDefinition.BaseTypes)
+		{
+			if (!TryGetInterfaceDefinition(baseType, out InterfaceDefinition? baseInterface) || baseInterface is null)
+				continue;
+			if (ReferenceEquals(baseInterface, targetInterface) || ProjectionInterfaceContains(baseInterface, targetInterface, seen))
+				return true;
+		}
+		return false;
+	}
+
+	bool IsInterfaceProjectedForExport(Module module, InterfaceDefinition interfaceDefinition)
+	{
+		if (interfaceDefinition.Export is not null)
+			return true;
+		foreach (ExportProjectionDefinition projection in module.ExportProjections)
+		{
+			if (ReferenceEquals(projection.Target, interfaceDefinition))
+				return true;
+			if (projection.TargetQualifiers.Count == 0 && projection.TargetName == interfaceDefinition.Name)
+				return true;
+		}
+		return false;
+	}
+
+	void ApplyInterfaceProjection(ExportProjectionDefinition projection, Definition source, Definition exported)
+	{
+		if (source is not ClassDefinition sourceClass || exported is not ClassDefinition exportedClass)
+			return;
+
+		if (ReferenceEquals(sourceClass, exportedClass))
+		{
+			sourceClass.HasExportProjectionInterfaceFilter = true;
+			sourceClass.ExportProjectionInterfaceBaseTypes.Clear();
+			foreach (InterfaceDefinition interfaceDefinition in projection.ProjectedInterfaces)
+				sourceClass.ExportProjectionInterfaceBaseTypes.Add(CreateTypeDefinitionReference(interfaceDefinition));
+			return;
+		}
+
+		exportedClass.BaseTypes.RemoveAll(IsInterfaceTypeReference);
+		exportedClass.LoweredInterfaceBaseTypes.Clear();
+		foreach (InterfaceDefinition interfaceDefinition in projection.ProjectedInterfaces)
+			exportedClass.BaseTypes.Add(CreateTypeDefinitionReference(interfaceDefinition));
+	}
+
 	void ApplyMemberProjection(ExportProjectionDefinition projection, Definition source, Definition exported)
 	{
 		if (source is not TypeDefinition sourceType || exported is not TypeDefinition exportedType)
 		{
 			Report(GetRange(projection.SourceSyntax), $"Only type export projections may use a member block.");
 			return;
+		}
+		if (ReferenceEquals(sourceType, exportedType) && exportedType is ClassDefinition filteredClass)
+		{
+			filteredClass.HasExportProjectionMemberFilter = true;
+			filteredClass.ExportProjectionMembers.Clear();
 		}
 
 		foreach (ExportProjectionMember member in projection.Members)
@@ -82,6 +222,8 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				target.Export = "export";
 				member.ExportedDefinition = target;
+				if (exportedType is ClassDefinition classDefinition)
+					classDefinition.ExportProjectionMembers.Add(target);
 				continue;
 			}
 
@@ -357,9 +499,11 @@ public sealed partial class BindableNodeAnalyzer
 			IsEscaped = source.IsEscaped
 		};
 		foreach (TypeReference baseType in source.BaseTypes)
-			clone.BaseTypes.Add(CloneProjectionTypeReference(baseType)!);
+			if (!IsInterfaceTypeReference(baseType))
+				clone.BaseTypes.Add(CloneProjectionTypeReference(baseType)!);
 		foreach (TypeReference baseType in source.LoweredInterfaceBaseTypes)
-			clone.LoweredInterfaceBaseTypes.Add(CloneProjectionTypeReference(baseType)!);
+			if (!IsInterfaceTypeReference(baseType))
+				clone.LoweredInterfaceBaseTypes.Add(CloneProjectionTypeReference(baseType)!);
 		if (includeMembers)
 		{
 			foreach (FunctionDefinition function in source.Functions.Where(static function => function.Export is not null || function.Public is not null))
@@ -368,6 +512,21 @@ public sealed partial class BindableNodeAnalyzer
 				clone.Fields.Add(CloneProjectedField(field));
 		}
 		return clone;
+	}
+
+	bool IsInterfaceTypeReference(TypeReference type)
+	{
+		return TryGetInterfaceDefinition(type, out InterfaceDefinition? interfaceDefinition) && interfaceDefinition is not null;
+	}
+
+	static TypeDefinitionReference CreateTypeDefinitionReference(TypeDefinition definition)
+	{
+		return new TypeDefinitionReference
+		{
+			Name = definition.Name,
+			Definition = definition,
+			ResolvedType = definition.Name
+		};
 	}
 
 	StructDefinition CloneProjectedStruct(StructDefinition source, bool includeMembers)
