@@ -1,1 +1,41 @@
-tests/Metadata/visibility_export.camp(11,8): error: Symbol 'malloc' could not be found.
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "Docs",
+    "namespace": "Docs"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "variable:Docs::ExportedValue",
+      "kind": "variable",
+      "name": "ExportedValue",
+      "visibility": "export",
+      "type": "int",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Exported value."
+        }
+      ]
+    },
+    {
+      "id": "class:Docs::ExportedClass",
+      "kind": "class",
+      "name": "ExportedClass",
+      "visibility": "export",
+      "extern": true,
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Exported class."
+        }
+      ]
+    }
+  ]
+}

@@ -807,7 +807,8 @@ public static class CompilerDriver
 						OutputDirectory = packageArtifactDirectory,
 						ProjectName = packageName,
 						EmitKind = request.EmitKind,
-						BuildKind = nativeBuildKind
+						BuildKind = nativeBuildKind,
+						ApiSurface = apiSurface
 					}, packageArtifactDirectory);
 					foreach (string diagnostic in apiHeader.Diagnostics)
 						ErrorLine(diagnostic);
@@ -1101,7 +1102,8 @@ public static class CompilerDriver
 				OutputDirectory = outputDirectory,
 				ProjectName = projectName,
 				EmitKind = request.EmitKind,
-				BuildKind = request.BuildKind
+				BuildKind = request.BuildKind,
+				ApiSurface = request.BuildKind == NativeBuildKind.Static ? CampApiSurfaceKind.Public : CampApiSurfaceKind.Export
 			}, outputDirectory);
 			foreach (string diagnostic in apiHeader.Diagnostics)
 				ErrorLine(diagnostic);

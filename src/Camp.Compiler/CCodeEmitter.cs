@@ -16,6 +16,7 @@ public sealed class CEmissionOptions
 	public required string ProjectName { get; init; }
 	public string EmitKind { get; init; } = "c99";
 	public NativeBuildKind? BuildKind { get; init; }
+	public CampApiSurfaceKind ApiSurface { get; init; } = CampApiSurfaceKind.Export;
 	public bool EmitExecMainWrapper { get; init; }
 	public FunctionDefinition? ExecEntryPoint { get; init; }
 }
@@ -425,40 +426,46 @@ public static class CCodeEmitter
 
 	static bool HasExportedDeclarations(Compilation compilation, SourceFile file)
 	{
+		bool includePublic = file.IsApiHeader && !file.SharedLibraryImport;
 		foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
 		{
 			if (!compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) || !ReferenceEquals(owner, file))
 				continue;
-			if (definition.Export is not null && definition is not AliasDefinition)
+			if (IsVisibleInHeaderFile(definition, includePublic) && definition is not AliasDefinition)
 				return true;
-			if (definition is TypeDefinition typeDefinition && (TypeHasExportedCallable(typeDefinition) || TypeHasExportedStaticField(typeDefinition)))
+			if (definition is TypeDefinition typeDefinition && (TypeHasVisibleCallable(typeDefinition, includePublic) || TypeHasVisibleStaticField(typeDefinition, includePublic)))
 				return true;
 		}
 
 		return false;
 	}
 
-	static bool TypeHasExportedCallable(TypeDefinition typeDefinition)
+	static bool IsVisibleInHeaderFile(Definition definition, bool includePublic)
+	{
+		return definition.Export is not null || includePublic && definition.Public is not null;
+	}
+
+	static bool TypeHasVisibleCallable(TypeDefinition typeDefinition, bool includePublic)
 	{
 		return typeDefinition switch
 		{
-			ClassDefinition classDefinition => classDefinition.Functions.Any(static function => function.Export is not null),
-			StructDefinition structDefinition => structDefinition.Functions.Any(static function => function.Export is not null),
-			InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions.Any(static function => function.Export is not null),
-			EnumDefinition enumDefinition => enumDefinition.Functions.Any(static function => function.Export is not null),
-			NewtypeDefinition newtypeDefinition => newtypeDefinition.Functions.Any(static function => function.Export is not null),
-			ParamsDefinition paramsDefinition => paramsDefinition.Functions.Any(static function => function.Export is not null),
+			ClassDefinition classDefinition => classDefinition.Functions.Any(function => IsVisibleInHeaderFile(function, includePublic)),
+			StructDefinition structDefinition => structDefinition.Functions.Any(function => IsVisibleInHeaderFile(function, includePublic)),
+			InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions.Any(function => IsVisibleInHeaderFile(function, includePublic)),
+			EnumDefinition enumDefinition => enumDefinition.Functions.Any(function => IsVisibleInHeaderFile(function, includePublic)),
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Functions.Any(function => IsVisibleInHeaderFile(function, includePublic)),
+			ParamsDefinition paramsDefinition => paramsDefinition.Functions.Any(function => IsVisibleInHeaderFile(function, includePublic)),
 			_ => false
 		};
 	}
 
-	static bool TypeHasExportedStaticField(TypeDefinition typeDefinition)
+	static bool TypeHasVisibleStaticField(TypeDefinition typeDefinition, bool includePublic)
 	{
 		return typeDefinition switch
 		{
-			ClassDefinition classDefinition => classDefinition.Fields.Any(static field => field.Modifier == FieldModifier.Static && field.Export is not null),
-			StructDefinition structDefinition => structDefinition.Fields.Any(static field => field.Modifier == FieldModifier.Static && field.Export is not null),
-			NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields.Any(static field => field.Modifier == FieldModifier.Static && field.Export is not null),
+			ClassDefinition classDefinition => classDefinition.Fields.Any(field => field.Modifier == FieldModifier.Static && IsVisibleInHeaderFile(field, includePublic)),
+			StructDefinition structDefinition => structDefinition.Fields.Any(field => field.Modifier == FieldModifier.Static && IsVisibleInHeaderFile(field, includePublic)),
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields.Any(field => field.Modifier == FieldModifier.Static && IsVisibleInHeaderFile(field, includePublic)),
 			_ => false
 		};
 	}
@@ -794,10 +801,11 @@ public static class CCodeEmitter
 			emittedNames.Clear();
 			List<Definition> definitions = GetProjectDefinitions().ToList();
 			bool wrote = false;
+			bool includePublic = options.ApiSurface == CampApiSurfaceKind.Public;
 
-			wrote |= WriteApiTypeDeclarations(writer, definitions, projectApi: true, includePublic: false);
+			wrote |= WriteApiTypeDeclarations(writer, definitions, projectApi: true, includePublic);
 
-			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => function.Export is not null && ShouldEmitCFunction(function)))
+			foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(function => IsVisibleInProjectApi(function, includePublic) && ShouldEmitCFunction(function)))
 			{
 				if (!ShouldWriteProjectApiFunction(function))
 					continue;
@@ -805,33 +813,25 @@ public static class CCodeEmitter
 				wrote = true;
 			}
 
-			foreach (VariableDefinition variable in abiSurface.ExportedVariables
-				.Where(static variable => variable.Definition is VariableDefinition { IsInline: true })
-				.Select(static variable => (VariableDefinition)variable.Definition))
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(variable => variable.IsInline && IsVisibleInProjectApi(variable, includePublic)))
 			{
 				WriteInlineConstantMacro(writer, variable);
 				wrote = true;
 			}
-			foreach (FieldDefinition field in abiSurface.ExportedVariables
-				.Where(static variable => variable.Definition is FieldDefinition { IsInline: true })
-				.Select(static variable => (FieldDefinition)variable.Definition))
+			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(field => field.IsInline && IsVisibleInProjectApi(field, includePublic)))
 			{
 				WriteInlineConstantMacro(writer, field);
 				wrote = true;
 			}
 
-			foreach (VariableDefinition variable in abiSurface.ExportedVariables
-				.Where(static variable => variable.Definition is VariableDefinition { IsInline: false })
-				.Select(static variable => (VariableDefinition)variable.Definition))
+			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(variable => !variable.IsInline && IsVisibleInProjectApi(variable, includePublic)))
 			{
 				if (IsGeneratedVTableStorageVariable(variable))
 					continue;
 				WriteVariableDeclaration(writer, variable, storage: "extern");
 				wrote = true;
 			}
-			foreach (FieldDefinition field in abiSurface.ExportedVariables
-				.Where(static variable => variable.Definition is FieldDefinition { IsInline: false })
-				.Select(static variable => (FieldDefinition)variable.Definition))
+			foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(field => !field.IsInline && IsVisibleInProjectApi(field, includePublic)))
 			{
 				WriteFieldStorageDeclaration(writer, field, storage: "extern");
 				wrote = true;
@@ -839,6 +839,11 @@ public static class CCodeEmitter
 
 			if (!wrote)
 				writer.WriteLine("/* No exported declarations. */");
+		}
+
+		static bool IsVisibleInProjectApi(Definition definition, bool includePublic)
+		{
+			return definition.Export is not null || includePublic && definition.Public is not null;
 		}
 
 		bool WriteApiTypeDeclarations(TextWriter writer, List<Definition> definitions, bool projectApi, bool includePublic)

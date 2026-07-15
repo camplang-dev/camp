@@ -1687,12 +1687,12 @@ public sealed partial class BindableNodeAnalyzer
 	void GenerateLifecycleMethods(TypeDefinition type, List<FunctionDefinition> functions)
 	{
 		if (type is ClassDefinition classDefinition
-			&& classDefinition.Export is not null
+			&& IsArtifactVisible(classDefinition)
 			&& classDefinition.Extern is null
 			&& classDefinition.Modifier != ClassModifier.Abstract
 			&& !HasConstructor(functions))
 		{
-			functions.Add(CreateImplicitExportedParameterlessConstructor(classDefinition));
+			functions.Add(CreateImplicitArtifactParameterlessConstructor(classDefinition));
 		}
 
 		List<FunctionDefinition> generated = [];
@@ -1740,7 +1740,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		if (type is ClassDefinition exportedClass
-			&& exportedClass.Export is not null
+			&& IsArtifactVisible(exportedClass)
 			&& exportedClass.Extern is null
 			&& exportedClass.Modifier != ClassModifier.Abstract
 			&& !HasDestructor(functions)
@@ -1777,13 +1777,14 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	FunctionDefinition CreateImplicitExportedParameterlessConstructor(ClassDefinition classDefinition)
+	FunctionDefinition CreateImplicitArtifactParameterlessConstructor(ClassDefinition classDefinition)
 	{
-		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "implicit exported parameterless constructor", classDefinition);
+		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "implicit artifact-visible parameterless constructor", classDefinition);
 		method.SourceSyntax = classDefinition.SourceSyntax;
 		method.Name = classDefinition.Name;
 		method.Symbol = EffectiveTypeSymbol(classDefinition);
-		method.Export = "export";
+		method.Export = classDefinition.Export;
+		method.Public = classDefinition.Public;
 		method.Modifier = FunctionModifier.Constructor;
 		method.ReturnType = TypeReferenceFor(classDefinition);
 		method.ResolvedType = classDefinition.Name;

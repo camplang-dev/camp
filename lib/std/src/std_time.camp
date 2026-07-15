@@ -33,7 +33,7 @@ const long TIME_MS_PER_HOUR = 60 * TIME_MS_PER_MINUTE;
 const long TIME_MS_PER_DAY = 24 * TIME_MS_PER_HOUR;
 const int TIME_UNIX_EPOCH_YEAR = 1970;
 
-export enum Weekday
+public enum Weekday
 {
 	INVALID = 0,
 	MONDAY = 1,
@@ -45,48 +45,48 @@ export enum Weekday
 	SUNDAY
 }
 
-export newtype TimeSpan: long
+public newtype TimeSpan: long
 {
 	// Underlying value: signed milliseconds.
 
-	export static const TimeSpan INVALID = (TimeSpan)(long)-9223372036854775808;
-	export static const TimeSpan ZERO = (TimeSpan)(long)0;
-	export static const TimeSpan MIN = (TimeSpan)(long)-9223372036854775807;
-	export static const TimeSpan MAX = (TimeSpan)(long)9223372036854775807;
+	public static const TimeSpan INVALID = (TimeSpan)(long)-9223372036854775808;
+	public static const TimeSpan ZERO = (TimeSpan)(long)0;
+	public static const TimeSpan MIN = (TimeSpan)(long)-9223372036854775807;
+	public static const TimeSpan MAX = (TimeSpan)(long)9223372036854775807;
 
-	export static TimeSpan fromMs(long value) => (TimeSpan)value;
-	export static TimeSpan fromSeconds(long value) => (TimeSpan)(value * 1000);
-	export static TimeSpan fromMinutes(long value) => (TimeSpan)(value * 1000 * 60);
-	export static TimeSpan fromHours(long value) => (TimeSpan)(value * 1000 * 60 * 60);
-	export static TimeSpan fromDays(long value) => (TimeSpan)(value * 1000 * 60 * 60 * 24);
+	public static TimeSpan fromMs(long value) => (TimeSpan)value;
+	public static TimeSpan fromSeconds(long value) => (TimeSpan)(value * 1000);
+	public static TimeSpan fromMinutes(long value) => (TimeSpan)(value * 1000 * 60);
+	public static TimeSpan fromHours(long value) => (TimeSpan)(value * 1000 * 60 * 60);
+	public static TimeSpan fromDays(long value) => (TimeSpan)(value * 1000 * 60 * 60 * 24);
 
-	export bool isValid(const this) => this != TimeSpan.INVALID;
+	public bool isValid(const this) => this != TimeSpan.INVALID;
 
 	// Whole-unit totals, truncated toward zero.
-	export long getMs() => (long)this;
-	export long getSeconds() => (long)this / 1000;
-	export long getMinutes() => (long)this / (1000 * 60);
-	export long getHours() => (long)this / (1000 * 60 * 60);
-	export long getDays() => (long)this / (1000 * 60 * 60 * 24);
+	public long getMs() => (long)this;
+	public long getSeconds() => (long)this / 1000;
+	public long getMinutes() => (long)this / (1000 * 60);
+	public long getHours() => (long)this / (1000 * 60 * 60);
+	public long getDays() => (long)this / (1000 * 60 * 60 * 24);
 	
 	// Whole-unit totals, truncated toward zero.
-	export double getTotalSeconds() => (double)(long)this / 1000;
-	export double getTotalMinutes() => (double)(long)this / (1000 * 60);
-	export double getTotalHours() => (double)(long)this / (1000 * 60 * 60);
-	export double getTotalDays() => (double)(long)this / (1000 * 60 * 60 * 24);
+	public double getTotalSeconds() => (double)(long)this / 1000;
+	public double getTotalMinutes() => (double)(long)this / (1000 * 60);
+	public double getTotalHours() => (double)(long)this / (1000 * 60 * 60);
+	public double getTotalDays() => (double)(long)this / (1000 * 60 * 60 * 24);
 
 	// Non-throwing. Overflow or invalid input returns TimeSpan.invalid().
-	export TimeSpan add(const this, TimeSpan other) => (TimeSpan)((long)this + (long)other);
-	export TimeSpan subtract(const this, TimeSpan other) => (TimeSpan)((long)this - (long)other);
-	export TimeSpan negate(const this) => (TimeSpan)(-(long)this);
-	export TimeSpan abs(const this) => ((long)this < 0) ? this.negate() : this;
+	public TimeSpan add(const this, TimeSpan other) => (TimeSpan)((long)this + (long)other);
+	public TimeSpan subtract(const this, TimeSpan other) => (TimeSpan)((long)this - (long)other);
+	public TimeSpan negate(const this) => (TimeSpan)(-(long)this);
+	public TimeSpan abs(const this) => ((long)this < 0) ? this.negate() : this;
 
 }
 
 // Formats directly into caller-provided buffer.
 // Examples: "14:05:30", "44:05:30.551".
 // Returns required bytes including the terminator.
-export nuint format(in TimeSpan this, char[] buffer = default) : CharFormatter
+public nuint format(in TimeSpan this, char[] buffer = default) : CharFormatter
 {
 	if (this == TimeSpan.INVALID)
 	{
@@ -135,20 +135,20 @@ export nuint format(in TimeSpan this, char[] buffer = default) : CharFormatter
 	return length;
 }
 
-export newtype UtcOffset: short
+public newtype UtcOffset: short
 {
 	// Underlying value: signed offset minutes east of UTC.
 	// Valid range: -1080..+1080.
 	
-	export static const UtcOffset INVALID = (UtcOffset)(short)-32767;
-	export static const UtcOffset UTC = (UtcOffset)(short)0;
+	public static const UtcOffset INVALID = (UtcOffset)(short)-32767;
+	public static const UtcOffset UTC = (UtcOffset)(short)0;
 	
-	export static UtcOffset fromHours(short hours, ushort minutes = 0) => (UtcOffset)(short)(hours * 60 + (hours < 0 ? 0 - (short)minutes : (short)minutes));
+	public static UtcOffset fromHours(short hours, ushort minutes = 0) => (UtcOffset)(short)(hours * 60 + (hours < 0 ? 0 - (short)minutes : (short)minutes));
 	
-	export bool isValid(const this) => this != UtcOffset.INVALID && (short)this >= -1080 && (short)this <= 1080;
+	public bool isValid(const this) => this != UtcOffset.INVALID && (short)this >= -1080 && (short)this <= 1080;
 
-	export short getHours() => (short)((short)this / 60);
-	export byte getMinutes()
+	public short getHours() => (short)((short)this / 60);
+	public byte getMinutes()
 	{
 		short minutes = (short)((short)this % 60);
 		if (minutes < 0)
@@ -156,14 +156,14 @@ export newtype UtcOffset: short
 		return (byte)minutes;
 	}
 
-	export short getTotalMinutes() => (short)this;
+	public short getTotalMinutes() => (short)this;
 
 }
 
 // Formats directly into caller-provided buffer. Examples: "Z", "-04:00", "+09:30".
 // Always computes, even when value is considered invalid.  Min "-99:99" Max "99:99"
 // Returns required bytes including the terminator.
-export nuint format(in UtcOffset this, char[] buffer = default) : CharFormatter
+public nuint format(in UtcOffset this, char[] buffer = default) : CharFormatter
 {
 	short total = (short)this;
 	if (total == 0)
@@ -190,16 +190,16 @@ export nuint format(in UtcOffset this, char[] buffer = default) : CharFormatter
 	return 7;
 }
 
-export newtype Instant: long
+public newtype Instant: long
 {
 	// Underlying value: milliseconds since 1970-01-01T00:00:00Z.
 	// Suggested invalid sentinel: long.min.
 
-	export static const Instant INVALID = (Instant)(long)-9223372036854775808;
-	export static const Instant UNIX_EPOCH = (Instant)(long)0;
+	public static const Instant INVALID = (Instant)(long)-9223372036854775808;
+	public static const Instant UNIX_EPOCH = (Instant)(long)0;
 
 	// Current UTC instant.
-	export static Instant utcNow()
+	public static Instant utcNow()
 	{
 		long ms = 0;
 		if (!camp_time_get_utc_now_ms(&ms))
@@ -207,23 +207,23 @@ export newtype Instant: long
 		return (Instant)ms;
 	}
 
-	export static Instant fromUnixSeconds(long seconds) => (Instant)(seconds * TIME_MS_PER_SECOND);
-	export static Instant fromUnixMs(long ms) => (Instant)ms;
+	public static Instant fromUnixSeconds(long seconds) => (Instant)(seconds * TIME_MS_PER_SECOND);
+	public static Instant fromUnixMs(long ms) => (Instant)ms;
 
-	export bool isValid(const this) => this != Instant.INVALID;
+	public bool isValid(const this) => this != Instant.INVALID;
 
-	export long getUnixSeconds() => (long)this / TIME_MS_PER_SECOND;
-	export long getUnixMs() => (long)this;
+	public long getUnixSeconds() => (long)this / TIME_MS_PER_SECOND;
+	public long getUnixMs() => (long)this;
 
 	// Non-throwing. Overflow or invalid input returns Instant.INVALID
-	export Instant add(const this, TimeSpan span)
+	public Instant add(const this, TimeSpan span)
 	{
 		if (!this.isValid() || !span.isValid())
 			return Instant.INVALID;
 		return (Instant)((long)this + (long)span);
 	}
 
-	export Instant subtract(const this, TimeSpan span)
+	public Instant subtract(const this, TimeSpan span)
 	{
 		if (!this.isValid() || !span.isValid())
 			return Instant.INVALID;
@@ -231,7 +231,7 @@ export newtype Instant: long
 	}
 
 	// this - earlier. Invalid input or overflow returns TimeSpan.INVALID
-	export TimeSpan since(const this, Instant earlier)
+	public TimeSpan since(const this, Instant earlier)
 	{
 		if (!this.isValid() || !earlier.isValid())
 			return TimeSpan.INVALID;
@@ -239,9 +239,9 @@ export newtype Instant: long
 	}
 
 	// UTC/fixed-offset conversions. Invalid input returns invalid result objects.
-	export DateTime getUtcDateTime() => timeDateTimeFromUnixMs((long)this);
+	public DateTime getUtcDateTime() => timeDateTimeFromUnixMs((long)this);
 
-	export OffsetDateTime getOffsetDateTime(UtcOffset offset)
+	public OffsetDateTime getOffsetDateTime(UtcOffset offset)
 	{
 		if (!this.isValid() || !offset.isValid())
 			return default;
@@ -254,7 +254,7 @@ export newtype Instant: long
 // Formats directly into caller-provided buffer. Example: "2026-06-12T18:30:00.124Z".
 // Always computes, even when value is considered "invalid".
 // Returns required bytes including the terminator.
-export nuint format(in Instant this, char[] buffer = default) : CharFormatter
+public nuint format(in Instant this, char[] buffer = default) : CharFormatter
 {
 	DateTime utc = this.getUtcDateTime();
 	if (!utc.isValid())
@@ -270,16 +270,16 @@ export nuint format(in Instant this, char[] buffer = default) : CharFormatter
 	return required;
 }
 
-export struct Date
+public struct Date
 {
 	ushort year; // valid internal range: 1..9999
 	byte month;  // 1..12
 	byte day;    // 1..31
 
-	export static const Date INVALID = { 0, 0, 0 };
+	public static const Date INVALID = { 0, 0, 0 };
 
 	// Current system civil date. Returns an invalid Date if unsupported.
-	export static Date today()
+	public static Date today()
 	{
 		ushort year = 0;
 		byte month = 0;
@@ -293,13 +293,13 @@ export struct Date
 		return { year, month, day };
 	}
 
-	export bool isValid(const this) => timeValidDate((int)this.year, (int)this.month, (int)this.day);
+	public bool isValid(const this) => timeValidDate((int)this.year, (int)this.month, (int)this.day);
 
-	export bool getLeapYear() => timeIsLeapYear((int)this.year);
-	export byte getDaysInMonth() => timeDaysInMonth((int)this.year, (int)this.month);
+	public bool getLeapYear() => timeIsLeapYear((int)this.year);
+	public byte getDaysInMonth() => timeDaysInMonth((int)this.year, (int)this.month);
 
 	// Returns INVALID if this Date is invalid.
-	export Weekday getWeekday()
+	public Weekday getWeekday()
 	{
 		if (!this.isValid())
 			return INVALID;
@@ -311,7 +311,7 @@ export struct Date
 	}
 
 	// Non-throwing. Invalid input or out-of-range result returns an invalid Date.
-	export Date addDays(const this, int days)
+	public Date addDays(const this, int days)
 	{
 		if (!this.isValid())
 			return default;
@@ -321,7 +321,7 @@ export struct Date
 
 	// end - this, in whole calendar days.
 	// Invalid input returns 0.
-	export int daysUntil(const this, Date end)
+	public int daysUntil(const this, Date end)
 	{
 		if (!this.isValid() || !end.isValid())
 			return 0;
@@ -332,7 +332,7 @@ export struct Date
 	// Year is always 4 digits, maxes out at 9999. Month/Day always two digits, maxes out at 99.
 	// Out-of-range month/day is not checked (put in month 14 and day 78 and that's what you get)
 	// Returns required bytes including the terminator.
-	export nuint format(const this, char[] buffer = default) : CharFormatter
+	public nuint format(const this, char[] buffer = default) : CharFormatter
 	{
 		if (buffer.length < 11)
 			return 11;
@@ -346,23 +346,23 @@ export struct Date
 	}
 }
 
-export struct TimeOfDay
+public struct TimeOfDay
 {
 	byte hour;     // 0..23
 	byte minute;   // 0..59
 	byte second;   // 0..59
 	byte fraction; // 0..255, fractional second as fraction / 256
 
-	export static const TimeOfDay INVALID = { 255, 0, 0, 0 };
-	export static const TimeOfDay MIDNIGHT = { 0, 0, 0, 0 };
+	public static const TimeOfDay INVALID = { 255, 0, 0, 0 };
+	public static const TimeOfDay MIDNIGHT = { 0, 0, 0, 0 };
 
-	export bool isValid(const this) => this.hour < 24 && this.minute < 60 && this.second < 60;
+	public bool isValid(const this) => this.hour < 24 && this.minute < 60 && this.second < 60;
 
 	// Fractional milliseconds within the current second.
 	// Calculation is floor(fraction * 1000 / 256), producing 0..996.
-	export ushort getMs() => (ushort)(((ushort)this.fraction * 1000) / 256);
+	public ushort getMs() => (ushort)(((ushort)this.fraction * 1000) / 256);
 
-	export TimeSpan getSinceMidnight()
+	public TimeSpan getSinceMidnight()
 	{
 		long ms = (long)this.hour * TIME_MS_PER_HOUR
 			+ (long)this.minute * TIME_MS_PER_MINUTE
@@ -376,7 +376,7 @@ export struct TimeOfDay
 	// Out-of-range field values are not checked, written using max 99
 	// (Invalid) example: { .hour = 27, .minute = 160, .second = 5 } -> "27:99:05"
 	// Returns required bytes including the terminator.
-	export nuint format(const this, char[] buffer = default) : CharFormatter
+	public nuint format(const this, char[] buffer = default) : CharFormatter
 	{
 		ushort ms = this.getMs();
 		nuint length = ms == 0 ? 9 : 13;
@@ -397,7 +397,7 @@ export struct TimeOfDay
 	}
 }
 
-export struct DateTime
+public struct DateTime
 {
 	// Calendar date/time with an unspecified UTC offset.
 	// This is not an Instant by itself and should not be described as local time.
@@ -405,10 +405,10 @@ export struct DateTime
 	Date date;
 	TimeOfDay time;
 
-	export static const DateTime INVALID = { { 0, 0, 0 }, { 255, 0, 0, 0 } };
+	public static const DateTime INVALID = { { 0, 0, 0 }, { 255, 0, 0, 0 } };
 
 	// Convenience field initializer.
-	export DateTime(
+	public DateTime(
 		ushort year,
 		byte month,
 		byte day,
@@ -423,7 +423,7 @@ export struct DateTime
 	}
 
 	// Current system civil date/time with no offset attached.
-	export static DateTime now()
+	public static DateTime now()
 	{
 		ushort year = 0;
 		byte month = 0;
@@ -437,11 +437,11 @@ export struct DateTime
 		return { { year, month, day }, { hour, minute, second, fraction } };
 	}
 
-	export bool isValid(const this) => this.date.isValid() && this.time.isValid();
+	public bool isValid(const this) => this.date.isValid() && this.time.isValid();
 
 	// Interprets this DateTime using the fixed UTC offset provided by the PAL
 	// Invalid input or out-of-range conversion returns Instant.invalid().
-	export Instant toInstant(const this, UtcOffset offset)
+	public Instant toInstant(const this, UtcOffset offset)
 	{
 		if (!this.isValid() || !offset.isValid())
 			return Instant.INVALID;
@@ -453,7 +453,7 @@ export struct DateTime
 
 	// Formats directly into caller-provided buffer. Examples: "2026-06-12T14:05:30", "2026-06-12T14:05:30.500".
 	// Returns 0 if invalid.
-	export nuint format(const this, char[] buffer = default) : CharFormatter
+	public nuint format(const this, char[] buffer = default) : CharFormatter
 	{
 		if (!this.isValid())
 			return 0;
@@ -484,7 +484,7 @@ export struct DateTime
 	}
 }
 
-export struct OffsetDateTime
+public struct OffsetDateTime
 {
 	// Calendar date/time plus a fixed UTC offset.
 	// This can be converted to an Instant without named time-zone rules.
@@ -492,10 +492,10 @@ export struct OffsetDateTime
 	DateTime local;
 	UtcOffset offset;
 
-	export static const OffsetDateTime INVALID = { { { 0, 0, 0 }, { 255, 0, 0, 0 } }, (UtcOffset)(short)-32767 };
+	public static const OffsetDateTime INVALID = { { { 0, 0, 0 }, { 255, 0, 0, 0 } }, (UtcOffset)(short)-32767 };
 
 	// Convenience field initializer. Does not throw.
-	export OffsetDateTime(
+	public OffsetDateTime(
 		UtcOffset offset,
 		ushort year,
 		byte month,
@@ -511,7 +511,7 @@ export struct OffsetDateTime
 	}
 
 	// Current system civil date/time plus current system UTC offset.
-	export static OffsetDateTime localNow()
+	public static OffsetDateTime localNow()
 	{
 		DateTime local = DateTime.now();
 		short minutes = (short)0;
@@ -521,7 +521,7 @@ export struct OffsetDateTime
 	}
 
 	// Current system date/time in offset Z (UTC).
-	export static OffsetDateTime utcNow()
+	public static OffsetDateTime utcNow()
 	{
 		Instant instant = Instant.utcNow();
 		if (!instant.isValid())
@@ -529,14 +529,14 @@ export struct OffsetDateTime
 		return instant.getOffsetDateTime(UtcOffset.UTC);
 	}
 
-	export bool isValid(const this) => this.local.isValid() && this.offset.isValid();
+	public bool isValid(const this) => this.local.isValid() && this.offset.isValid();
 
 	// Invalid input or out-of-range conversion returns Instant.INVALID
-	export Instant toInstant(const this) => this.local.toInstant(this.offset);
+	public Instant toInstant(const this) => this.local.toInstant(this.offset);
 
 	// Formats directly into caller-provided buffer. Example: "2026-06-12T14:05:30.500-04:00".
 	// Returns required bytes including the terminator.
-	export nuint format(const this, char[] buffer = default) : CharFormatter
+	public nuint format(const this, char[] buffer = default) : CharFormatter
 	{
 		nuint dateTimeLength = this.local.format(buffer);
 		if (!this.isValid() || dateTimeLength == 0)
@@ -574,7 +574,7 @@ export struct OffsetDateTime
 // Parsing is strict ISO, case-insensitive where a letter is accepted, and
 // ignores leading and trailing whitespace.
 
-export bool tryParse(const char[] this, overload out Date value)
+public bool tryParse(const char[] this, overload out Date value)
 {
 	value = default;
 	nuint start = timeTrimStart(this.elements, this.length);
@@ -586,7 +586,7 @@ export bool tryParse(const char[] this, overload out Date value)
 	return true;
 }
 
-export bool tryParse(const char[] this, overload out TimeOfDay value)
+public bool tryParse(const char[] this, overload out TimeOfDay value)
 {
 	value = default;
 	nuint start = timeTrimStart(this.elements, this.length);
@@ -598,7 +598,7 @@ export bool tryParse(const char[] this, overload out TimeOfDay value)
 	return true;
 }
 
-export bool tryParse(const char[] this, overload out DateTime value)
+public bool tryParse(const char[] this, overload out DateTime value)
 {
 	value = default;
 	nuint start = timeTrimStart(this.elements, this.length);
@@ -610,7 +610,7 @@ export bool tryParse(const char[] this, overload out DateTime value)
 	return true;
 }
 
-export bool tryParse(const char[] this, overload out OffsetDateTime value)
+public bool tryParse(const char[] this, overload out OffsetDateTime value)
 {
 	value = default;
 	nuint start = timeTrimStart(this.elements, this.length);
@@ -622,7 +622,7 @@ export bool tryParse(const char[] this, overload out OffsetDateTime value)
 	return true;
 }
 
-export bool tryParse(const char[] this, overload out Instant value)
+public bool tryParse(const char[] this, overload out Instant value)
 {
 	value = default;
 	OffsetDateTime parsed = default;
@@ -635,7 +635,7 @@ export bool tryParse(const char[] this, overload out Instant value)
 	return true;
 }
 
-export bool tryParse(const char[] this, overload out TimeSpan value)
+public bool tryParse(const char[] this, overload out TimeSpan value)
 {
 	value = default;
 	nuint start = timeTrimStart(this.elements, this.length);
@@ -683,7 +683,7 @@ export bool tryParse(const char[] this, overload out TimeSpan value)
 	return true;
 }
 
-export bool tryParse(const char[] this, overload out UtcOffset value)
+public bool tryParse(const char[] this, overload out UtcOffset value)
 {
 	value = default;
 	nuint start = timeTrimStart(this.elements, this.length);

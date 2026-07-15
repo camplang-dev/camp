@@ -1,75 +1,75 @@
-export inline byte byte.MIN = (byte)0;
-export inline byte byte.MAX = (byte)255;
+public inline byte byte.MIN = (byte)0;
+public inline byte byte.MAX = (byte)255;
 
-export inline sbyte sbyte.MIN = (sbyte)-128;
-export inline sbyte sbyte.MAX = (sbyte)127;
+public inline sbyte sbyte.MIN = (sbyte)-128;
+public inline sbyte sbyte.MAX = (sbyte)127;
 
-export inline short short.MIN = (short)-32768;
-export inline short short.MAX = (short)32767;
+public inline short short.MIN = (short)-32768;
+public inline short short.MAX = (short)32767;
 
-export inline ushort ushort.MIN = (ushort)0;
-export inline ushort ushort.MAX = (ushort)65535;
+public inline ushort ushort.MIN = (ushort)0;
+public inline ushort ushort.MAX = (ushort)65535;
 
-export inline int int.MIN = -2147483647 - 1;
-export inline int int.MAX = 2147483647;
+public inline int int.MIN = -2147483647 - 1;
+public inline int int.MAX = 2147483647;
 
-export inline uint uint.MIN = (uint)0;
-export inline uint uint.MAX = (uint)4294967295;
+public inline uint uint.MIN = (uint)0;
+public inline uint uint.MAX = (uint)4294967295;
 
-export inline long long.MIN = (long)-9223372036854775807 - 1;
-export inline long long.MAX = (long)9223372036854775807;
+public inline long long.MIN = (long)-9223372036854775807 - 1;
+public inline long long.MAX = (long)9223372036854775807;
 
-export inline ulong ulong.MIN = (ulong)0;
-export inline ulong ulong.MAX = (ulong)18446744073709551615;
+public inline ulong ulong.MIN = (ulong)0;
+public inline ulong ulong.MAX = (ulong)18446744073709551615;
 
-export inline nint nint.MIN = -(nint)((nuint)1 << (((nuint)sizeof(nint) * 8) - 1));
-export inline nint nint.MAX = (nint)(((nuint)1 << (((nuint)sizeof(nint) * 8) - 1)) - 1);
-export inline nuint nuint.MIN = (nuint)0;
-export inline nuint nuint.MAX = ((((nuint)1 << (((nuint)sizeof(nuint) * 8) - 1)) - 1) * 2) + 1;
+public inline nint nint.MIN = -(nint)((nuint)1 << (((nuint)sizeof(nint) * 8) - 1));
+public inline nint nint.MAX = (nint)(((nuint)1 << (((nuint)sizeof(nint) * 8) - 1)) - 1);
+public inline nuint nuint.MIN = (nuint)0;
+public inline nuint nuint.MAX = ((((nuint)1 << (((nuint)sizeof(nuint) * 8) - 1)) - 1) * 2) + 1;
 
-export byte abs(overload sbyte value) => value < 0 ? (byte)-value : (byte)value;
+public byte abs(overload sbyte value) => value < 0 ? (byte)-value : (byte)value;
 
-export ushort abs(overload short value) => value < 0 ? (ushort)-value : (ushort)value;
+public ushort abs(overload short value) => value < 0 ? (ushort)-value : (ushort)value;
 
-export uint abs(overload int value) => value < 0 ? -(uint)value : (uint)value;
+public uint abs(overload int value) => value < 0 ? -(uint)value : (uint)value;
 
-export ulong abs(overload long value) => value < 0 ? -(ulong)value : (ulong)value;
+public ulong abs(overload long value) => value < 0 ? -(ulong)value : (ulong)value;
 
-export byte min(overload byte left, byte right) => left < right ? left : right;
-export byte max(overload byte left, byte right) => left > right ? left : right;
+public byte min(overload byte left, byte right) => left < right ? left : right;
+public byte max(overload byte left, byte right) => left > right ? left : right;
 
-export sbyte min(overload sbyte left, sbyte right) => left < right ? left : right;
-export sbyte max(overload sbyte left, sbyte right) => left > right ? left : right;
+public sbyte min(overload sbyte left, sbyte right) => left < right ? left : right;
+public sbyte max(overload sbyte left, sbyte right) => left > right ? left : right;
 
-export short min(overload short left, short right) => left < right ? left : right;
-export short max(overload short left, short right) => left > right ? left : right;
+public short min(overload short left, short right) => left < right ? left : right;
+public short max(overload short left, short right) => left > right ? left : right;
 
-export ushort min(overload ushort left, ushort right) => left < right ? left : right;
-export ushort max(overload ushort left, ushort right) => left > right ? left : right;
+public ushort min(overload ushort left, ushort right) => left < right ? left : right;
+public ushort max(overload ushort left, ushort right) => left > right ? left : right;
 
-export int min(overload int left, int right) => left < right ? left : right;
-export int max(overload int left, int right) => left > right ? left : right;
+public int min(overload int left, int right) => left < right ? left : right;
+public int max(overload int left, int right) => left > right ? left : right;
 
-export uint min(overload uint left, uint right) => left < right ? left : right;
-export uint max(overload uint left, uint right) => left > right ? left : right;
+public uint min(overload uint left, uint right) => left < right ? left : right;
+public uint max(overload uint left, uint right) => left > right ? left : right;
 
-export long min(overload long left, long right) => left < right ? left : right;
-export long max(overload long left, long right) => left > right ? left : right;
+public long min(overload long left, long right) => left < right ? left : right;
+public long max(overload long left, long right) => left > right ? left : right;
 
-export ulong min(overload ulong left, ulong right) => left < right ? left : right;
-export ulong max(overload ulong left, ulong right) => left > right ? left : right;
+public ulong min(overload ulong left, ulong right) => left < right ? left : right;
+public ulong max(overload ulong left, ulong right) => left > right ? left : right;
 
-export nint min(overload nint left, nint right) => left < right ? left : right;
-export nint max(overload nint left, nint right) => left > right ? left : right;
+public nint min(overload nint left, nint right) => left < right ? left : right;
+public nint max(overload nint left, nint right) => left > right ? left : right;
 
-export nuint min(overload nuint left, nuint right) => left < right ? left : right;
-export nuint max(overload nuint left, nuint right) => left > right ? left : right;
+public nuint min(overload nuint left, nuint right) => left < right ? left : right;
+public nuint max(overload nuint left, nuint right) => left > right ? left : right;
 
-export uchar min(overload uchar left, uchar right) => left < right ? left : right;
-export uchar max(overload uchar left, uchar right) => left > right ? left : right;
+public uchar min(overload uchar left, uchar right) => left < right ? left : right;
+public uchar max(overload uchar left, uchar right) => left > right ? left : right;
 
-export float min(overload float left, float right) => left < right ? left : right;
-export float max(overload float left, float right) => left > right ? left : right;
+public float min(overload float left, float right) => left < right ? left : right;
+public float max(overload float left, float right) => left > right ? left : right;
 
-export double min(overload double left, double right) => left < right ? left : right;
-export double max(overload double left, double right) => left > right ? left : right;
+public double min(overload double left, double right) => left < right ? left : right;
+public double max(overload double left, double right) => left > right ? left : right;

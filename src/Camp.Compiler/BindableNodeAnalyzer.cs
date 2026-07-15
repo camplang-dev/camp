@@ -291,7 +291,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool IsMemberVisible(Definition member, TypeDefinition owner, SyntaxNode? referenceSyntax)
 	{
 		return IsExternallyVisible(member)
-			|| member is FieldDefinition { Modifier: FieldModifier.None } && owner is StructDefinition { Export: not null }
+			|| member is FieldDefinition { Modifier: FieldModifier.None } && owner is StructDefinition && IsExternallyVisible(owner)
 			|| IsDefinitionInSameFile(owner, referenceSyntax);
 	}
 

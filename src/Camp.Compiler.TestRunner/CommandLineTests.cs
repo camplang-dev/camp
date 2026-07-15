@@ -2413,6 +2413,37 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Shared_library_api_omits_standard_library_declarations()
+	{
+		string temp = CreateTempCase("shared_std_filter.camp", """
+			using Std;
+
+			export int meaning()
+			{
+				Console.writeLine("hi");
+				return 42;
+			}
+			""");
+		string outDir = TempPath("shared-std-filter-out");
+		string target = NativeTargetForHost();
+
+		ProcessResult result = RunCampc("build", temp, "--artifact", "shared", "--target", target, "--out-dir", outDir, "--name", "shared_std_filter");
+
+		AssertCommandSucceeded(result);
+		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForTarget(target, NativeBuildKind.Shared));
+		string campApi = File.ReadAllText(Path.Combine(artifactDirectory, "shared_std_filter_api.camp"));
+		string cApi = File.ReadAllText(Path.Combine(artifactDirectory, "shared_std_filter_api.h"));
+		Assert.Contains("export extern int meaning();", campApi, StringComparison.Ordinal);
+		Assert.DoesNotContain("Console", campApi, StringComparison.Ordinal);
+		Assert.DoesNotContain("Allocator", campApi, StringComparison.Ordinal);
+		Assert.DoesNotContain("malloc", campApi, StringComparison.Ordinal);
+		Assert.Contains("meaning", cApi, StringComparison.Ordinal);
+		Assert.DoesNotContain("Console", cApi, StringComparison.Ordinal);
+		Assert.DoesNotContain("Allocator", cApi, StringComparison.Ordinal);
+		Assert.DoesNotContain("malloc", cApi, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Include_pragmas_discovered_from_source_pragmas_contribute_build_pragmas()
 	{
 		string api = CreateTempCase("discovered_include_pragmas_api.camp", """

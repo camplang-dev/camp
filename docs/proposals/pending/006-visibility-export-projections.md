@@ -1090,7 +1090,7 @@ Primary risk:
   at once. It should not yet change stdlib visibility, so failures should point
   to view selection rather than source churn.
 
-### Stage 5 - Migrate The Standard Library To `public`
+### ~~Stage 5 - Migrate The Standard Library To `public`~~
 
 Goal: stop the standard library from being automatically exported by libraries
 that use it.
@@ -1111,10 +1111,10 @@ Tasks:
 
 Completion criteria:
 
-- User libraries can still use std declarations normally.
-- Exported library headers no longer include unrelated std declarations.
-- Existing std run/compile tests pass.
-- Full suite passes.
+- ~~User libraries can still use std declarations normally.~~
+- ~~Exported library headers no longer include unrelated std declarations.~~
+- ~~Existing std run/compile tests pass.~~
+- ~~Full suite passes.~~
 
 Primary risk:
 

@@ -4,14 +4,14 @@ namespace Std;
 /// @remarks
 /// A default handle means no timer was started. Handles are opaque and are only
 /// valid for calls to [stopTimer].
-export newtype TimerHandle: nint;
+public newtype TimerHandle: nint;
 
 /// Suspends the current thread for approximately the requested duration.
 /// - timeoutMs: The number of milliseconds to wait. A value of 0 returns immediately.
 #if NO_TIMERS
 @notsupported("The current target does not support timers or thread sleeping.")
 #endif
-export void sleep(nuint timeoutMs)
+public void sleep(nuint timeoutMs)
 {
 	timingSleepPlatform(timeoutMs);
 }
@@ -26,7 +26,7 @@ export void sleep(nuint timeoutMs)
 #if NO_TIMERS
 @notsupported("The current target does not support timers.")
 #endif
-export void sleepAsync(nuint timeoutMs, escaped once void() complete)
+public void sleepAsync(nuint timeoutMs, escaped once void() complete)
 {
 	if (timeoutMs == 0)
 	{
@@ -51,7 +51,7 @@ export void sleepAsync(nuint timeoutMs, escaped once void() complete)
 #if NO_TIMERS
 @notsupported("The current target does not support timers.")
 #endif
-export TimerHandle startTimer(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
+public TimerHandle startTimer(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
 {
 	return timingStartTimerPlatform(intervalMs, callback);
 }
@@ -64,7 +64,7 @@ export TimerHandle startTimer(nuint intervalMs, escaped delegate void(TimerHandl
 #if NO_TIMERS
 @notsupported("The current target does not support timers.")
 #endif
-export void stopTimer(TimerHandle handle)
+public void stopTimer(TimerHandle handle)
 {
 	timingStopTimerPlatform(handle);
 }
@@ -72,32 +72,32 @@ export void stopTimer(TimerHandle handle)
 /// Atomically stores a signed native integer and returns the previous value.
 /// - dest: The storage location to update.
 /// - value: The value to store.
-export extern nint atomicExchange(overload nint* dest, nint value);
+public extern nint atomicExchange(overload nint* dest, nint value);
 
 /// Atomically stores an unsigned native integer and returns the previous value.
 /// - dest: The storage location to update.
 /// - value: The value to store.
-export extern nuint atomicExchange(overload nuint* dest, nuint value);
+public extern nuint atomicExchange(overload nuint* dest, nuint value);
 
 /// Atomically stores a pointer and returns the previous value.
 /// - dest: The storage location to update.
 /// - value: The value to store.
 @symbol("atomicExchangePtr")
-export extern void* atomicExchange(overload void** dest, void* value);
+public extern void* atomicExchange(overload void** dest, void* value);
 
 /// Atomically stores a signed native integer when the current value matches `expected`.
 /// @returns The value that was stored before the operation.
 /// - dest: The storage location to update.
 /// - expected: The value that must currently be stored for the exchange to occur.
 /// - value: The value to store when `expected` matches.
-export extern nint atomicCompareExchange(overload nint* dest, nint expected, nint value);
+public extern nint atomicCompareExchange(overload nint* dest, nint expected, nint value);
 
 /// Atomically stores an unsigned native integer when the current value matches `expected`.
 /// @returns The value that was stored before the operation.
 /// - dest: The storage location to update.
 /// - expected: The value that must currently be stored for the exchange to occur.
 /// - value: The value to store when `expected` matches.
-export extern nuint atomicCompareExchange(overload nuint* dest, nuint expected, nuint value);
+public extern nuint atomicCompareExchange(overload nuint* dest, nuint expected, nuint value);
 
 /// Atomically stores a pointer when the current value matches `expected`.
 /// @returns The value that was stored before the operation.
@@ -105,7 +105,7 @@ export extern nuint atomicCompareExchange(overload nuint* dest, nuint expected, 
 /// - expected: The value that must currently be stored for the exchange to occur.
 /// - value: The value to store when `expected` matches.
 @symbol("atomicCompareExchangePtr")
-export extern void* atomicCompareExchange(overload void** dest, void* expected, void* value);
+public extern void* atomicCompareExchange(overload void** dest, void* expected, void* value);
 
 #if POSIX
 

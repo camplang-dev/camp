@@ -182,7 +182,7 @@ public sealed class BindableNodeCodeSerializer
 			writer.Write("escaped ");
 		if (apiHeader && IsVisibleInApiSurface(definition) && definition.Extern is null)
 			writer.Write("extern ");
-		if ((!apiHeader || definition.Export is null) && definition.Modifier != ClassModifier.None)
+		if ((!apiHeader || !IsVisibleInApiSurface(definition)) && definition.Modifier != ClassModifier.None)
 			writer.Write($"{Lower(definition.Modifier)} ");
 		writer.Write("class ");
 		writer.Write(definition.Name);
@@ -412,7 +412,8 @@ public sealed class BindableNodeCodeSerializer
 		if (hasSyntheticConstructor)
 		{
 			WriteIndent();
-			writer.Write("export extern ");
+			WriteApiVisibilityPrefix(definition!);
+			writer.Write("extern ");
 			writer.Write(definition!.Name);
 			writer.WriteLine("();");
 			wrote = true;
@@ -422,7 +423,8 @@ public sealed class BindableNodeCodeSerializer
 			if (wrote)
 				writer.WriteLine();
 			WriteIndent();
-			writer.Write("export extern ~");
+			WriteApiVisibilityPrefix(definition!);
+			writer.Write("extern ~");
 			writer.Write(definition!.Name);
 			writer.WriteLine("();");
 			wrote = true;
@@ -432,7 +434,8 @@ public sealed class BindableNodeCodeSerializer
 			if (wrote)
 				writer.WriteLine();
 			WriteIndent();
-			writer.Write("export extern ");
+			WriteApiVisibilityPrefix(definition!);
+			writer.Write("extern ");
 			writer.Write(interfaceDefinition.Name);
 			writer.Write("* ");
 			writer.Write("get");
@@ -443,6 +446,14 @@ public sealed class BindableNodeCodeSerializer
 		if (wrote && HasApiFunction(functions))
 			writer.WriteLine();
 		WriteApiFunctions(functions);
+	}
+
+	void WriteApiVisibilityPrefix(Definition definition)
+	{
+		if (definition.Export is not null)
+			writer.Write("export ");
+		else if (apiSurface == CampApiSurfaceKind.Public && definition.Public is not null)
+			writer.Write("public ");
 	}
 
 	static List<InterfaceDefinition> GetApiInterfaceAccessors(ClassDefinition definition)
@@ -459,9 +470,9 @@ public sealed class BindableNodeCodeSerializer
 		return interfaces;
 	}
 
-	static bool ShouldWriteSyntheticApiConstructor(ClassDefinition definition, List<FunctionDefinition> functions)
+	bool ShouldWriteSyntheticApiConstructor(ClassDefinition definition, List<FunctionDefinition> functions)
 	{
-		if (definition.Export is null
+		if (!IsVisibleInApiSurface(definition)
 			|| definition.Extern is not null
 			|| definition.Modifier == ClassModifier.Abstract)
 		{
@@ -470,16 +481,16 @@ public sealed class BindableNodeCodeSerializer
 
 		foreach (FunctionDefinition function in functions)
 		{
-			if (function.Modifier == FunctionModifier.Constructor && function.Export is not null)
+			if (function.Modifier == FunctionModifier.Constructor && IsVisibleInApiSurface(function))
 				return false;
 		}
 
 		return true;
 	}
 
-	static bool ShouldWriteSyntheticApiDestructor(ClassDefinition definition, List<FunctionDefinition> functions)
+	bool ShouldWriteSyntheticApiDestructor(ClassDefinition definition, List<FunctionDefinition> functions)
 	{
-		if (definition.Export is null)
+		if (!IsVisibleInApiSurface(definition))
 			return false;
 		if (definition.Extern is not null)
 			return false;
@@ -488,7 +499,7 @@ public sealed class BindableNodeCodeSerializer
 
 		foreach (FunctionDefinition function in functions)
 		{
-			if (IsDestructorFunction(function) && function.Export is not null)
+			if (IsDestructorFunction(function) && IsVisibleInApiSurface(function))
 				return false;
 		}
 

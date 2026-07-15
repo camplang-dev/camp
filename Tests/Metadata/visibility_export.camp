@@ -8,11 +8,11 @@ export int ExportedValue;
 public int PublicValue;
 
 /// Exported class.
-export class ExportedClass
+export abstract class ExportedClass
 {
 }
 
 /// Artifact-public class.
-public class PublicClass
+public abstract class PublicClass
 {
 }

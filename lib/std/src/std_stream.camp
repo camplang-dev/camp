@@ -10,7 +10,7 @@ internal extern nint camp_io_file_write(nint handle, const void* buffer, nuint l
 internal extern long camp_io_file_seek(nint handle, long offset, int origin, out IoError error);
 internal extern int camp_io_file_flush(nint handle, out IoError error);
 
-export enum IoError
+public enum IoError
 {
 	OK = 0,
 	UNKNOWN,
@@ -35,65 +35,65 @@ export enum IoError
 	TIMEOUT
 }
 
-export newtype iter nuint ByteReader(byte[] buffer);
-export newtype iter nuint ByteWriter(byte[] buffer);
+public newtype iter nuint ByteReader(byte[] buffer);
+public newtype iter nuint ByteWriter(byte[] buffer);
 
-export newtype iter nuint CharReader(char[] buffer);
-export newtype iter nuint CharWriter(char[] buffer);
+public newtype iter nuint CharReader(char[] buffer);
+public newtype iter nuint CharWriter(char[] buffer);
 
-export newtype iter nuint WCharReader(wchar[] buffer);
-export newtype iter nuint WCharWriter(wchar[] buffer);
+public newtype iter nuint WCharReader(wchar[] buffer);
+public newtype iter nuint WCharWriter(wchar[] buffer);
 
-export newtype iter nuint ACharReader(achar[] buffer);
-export newtype iter nuint ACharWriter(achar[] buffer);
+public newtype iter nuint ACharReader(achar[] buffer);
+public newtype iter nuint ACharWriter(achar[] buffer);
 
-// export newtype async iter nuint AsyncByteReader(byte[] buffer);
-// export newtype async iter nuint AsyncByteWriter(const byte[] buffer);
-// export newtype async iter nuint AsyncCharReader(char[] buffer);
-// export newtype async iter nuint AsyncCharWriter(const char[] buffer);
-// export newtype async iter nuint AsyncWCharReader(wchar[] buffer);
-// export newtype async iter nuint AsyncWCharWriter(const wchar[] buffer);
-// export newtype async iter nuint AsyncACharReader(achar[] buffer);
-// export newtype async iter nuint AsyncACharWriter(const achar[] buffer);
+// public newtype async iter nuint AsyncByteReader(byte[] buffer);
+// public newtype async iter nuint AsyncByteWriter(const byte[] buffer);
+// public newtype async iter nuint AsyncCharReader(char[] buffer);
+// public newtype async iter nuint AsyncCharWriter(const char[] buffer);
+// public newtype async iter nuint AsyncWCharReader(wchar[] buffer);
+// public newtype async iter nuint AsyncWCharWriter(const wchar[] buffer);
+// public newtype async iter nuint AsyncACharReader(achar[] buffer);
+// public newtype async iter nuint AsyncACharWriter(const achar[] buffer);
 
-export CharReader getCharReader(ByteReader this)
+public CharReader getCharReader(ByteReader this)
 {
 	return { (unsafe fn bool(void*, nuint*, char*, nuint))this.call, this.context };
 }
 
-export WCharReader getWCharReader(ByteReader this)
+public WCharReader getWCharReader(ByteReader this)
 {
 	return { (unsafe fn bool(void*, nuint*, wchar*, nuint))this.call, this.context };
 }
 
-export ACharReader getACharReader(ByteReader this)
+public ACharReader getACharReader(ByteReader this)
 {
 	return { (unsafe fn bool(void*, nuint*, achar*, nuint))this.call, this.context };
 }
 
-export CharWriter getCharWriter(ByteWriter this)
+public CharWriter getCharWriter(ByteWriter this)
 {
 	return { (unsafe fn bool(void*, nuint*, char*, nuint))this.call, this.context };
 }
 
-export WCharWriter getWCharWriter(ByteWriter this)
+public WCharWriter getWCharWriter(ByteWriter this)
 {
 	return { (unsafe fn bool(void*, nuint*, wchar*, nuint))this.call, this.context };
 }
 
-export ACharWriter getACharWriter(ByteWriter this)
+public ACharWriter getACharWriter(ByteWriter this)
 {
 	return { (unsafe fn bool(void*, nuint*, achar*, nuint))this.call, this.context };
 }
 
-// export AsyncCharReader getCharReader(AsyncByteReader this);
-// export AsyncWCharReader getWCharReader(AsyncByteReader this);
-// export AsyncACharReader getACharReader(AsyncByteReader this);
-// export AsyncCharWriter getCharWriter(AsyncByteWriter this);
-// export AsyncWCharWriter getWCharWriter(AsyncByteWriter this);
-// export AsyncACharWriter getACharWriter(AsyncByteWriter this);
+// public AsyncCharReader getCharReader(AsyncByteReader this);
+// public AsyncWCharReader getWCharReader(AsyncByteReader this);
+// public AsyncACharReader getACharReader(AsyncByteReader this);
+// public AsyncCharWriter getCharWriter(AsyncByteWriter this);
+// public AsyncWCharWriter getWCharWriter(AsyncByteWriter this);
+// public AsyncACharWriter getACharWriter(AsyncByteWriter this);
 
-export bool tryWriteAll(ByteWriter this, const byte[] value, thrown IoError error)
+public bool tryWriteAll(ByteWriter this, const byte[] value, thrown IoError error)
 {
 	nuint offset = 0;
 	while (offset < value.length)
@@ -110,12 +110,12 @@ export bool tryWriteAll(ByteWriter this, const byte[] value, thrown IoError erro
 	return true;
 }
 
-export void write(CharWriter this, overload char value)
+public void write(CharWriter this, overload char value)
 {
 	this.tryWrite(value, catch _);
 }
 
-export bool tryWrite(CharWriter this, overload char value, thrown IoError error)
+public bool tryWrite(CharWriter this, overload char value, thrown IoError error)
 {
 	const char[] buffer = [value];
 	nuint written = 0;
@@ -124,12 +124,12 @@ export bool tryWrite(CharWriter this, overload char value, thrown IoError error)
 	return true;
 }
 
-export void write(CharWriter this, overload const char[] value)
+public void write(CharWriter this, overload const char[] value)
 {
 	this.tryWrite(value, catch _);
 }
 
-export bool tryWrite(CharWriter this, overload const char[] value, thrown IoError error)
+public bool tryWrite(CharWriter this, overload const char[] value, thrown IoError error)
 {
 	nuint writeLength = 0;
 	while (writeLength < value.length && value.elements[writeLength] != '\0')
@@ -150,22 +150,22 @@ export bool tryWrite(CharWriter this, overload const char[] value, thrown IoErro
 	return true;
 }
 
-export void newLine(CharWriter this)
+public void newLine(CharWriter this)
 {
 	this.tryWrite('\n', catch _);
 }
 
-export bool tryNewLine(CharWriter this, thrown IoError error)
+public bool tryNewLine(CharWriter this, thrown IoError error)
 {
 	return this.tryWrite('\n', catch error);
 }
 
-export void write(CharWriter this, overload CharFormatter formatter)
+public void write(CharWriter this, overload CharFormatter formatter)
 {
 	this.tryWrite(formatter, catch _);
 }
 
-export bool tryWrite(CharWriter this, overload CharFormatter formatter, thrown IoError error)
+public bool tryWrite(CharWriter this, overload CharFormatter formatter, thrown IoError error)
 {
 	auto size = formatter();
 	auto buf = init char[size];
@@ -173,12 +173,12 @@ export bool tryWrite(CharWriter this, overload CharFormatter formatter, thrown I
 	return this.tryWrite(buf, catch error);
 }
 
-export void writeLine(CharWriter this, overload CharFormatter formatter)
+public void writeLine(CharWriter this, overload CharFormatter formatter)
 {
 	this.tryWriteLine(formatter, catch _);
 }
 
-export bool tryWriteLine(CharWriter this, overload CharFormatter formatter, thrown IoError error)
+public bool tryWriteLine(CharWriter this, overload CharFormatter formatter, thrown IoError error)
 {
 	auto size = formatter();
 	auto buf = init char[size+1];
@@ -188,25 +188,25 @@ export bool tryWriteLine(CharWriter this, overload CharFormatter formatter, thro
 	return this.tryWrite(buf, catch error);
 }
 
-export void writeLine(CharWriter this, overload const char[] value)
+public void writeLine(CharWriter this, overload const char[] value)
 {
 	this.write(value);
 	this.write('\n');
 }
 
-export bool tryWriteLine(CharWriter this, overload const char[] value, thrown IoError error)
+public bool tryWriteLine(CharWriter this, overload const char[] value, thrown IoError error)
 {
 	this.tryWrite(value);
 	this.tryWrite('\n');
 	return true;
 }
 
-export void write(CharWriter this, overload bool value)
+public void write(CharWriter this, overload bool value)
 {
 	this.tryWrite(value, catch _);
 }
 
-export bool tryWrite(CharWriter this, overload bool value, thrown IoError error)
+public bool tryWrite(CharWriter this, overload bool value, thrown IoError error)
 {
 	if (value)
 		this.writeCharArray("true");
@@ -215,66 +215,66 @@ export bool tryWrite(CharWriter this, overload bool value, thrown IoError error)
 	return true;
 }
 
-export void write(CharWriter this, overload sbyte  value) => this.tryWrite(value.format, catch _);
-export void write(CharWriter this, overload byte   value) => this.tryWrite(value.format, catch _);
-export void write(CharWriter this, overload short  value) => this.tryWrite(value.format, catch _);
-export void write(CharWriter this, overload ushort value) => this.tryWrite(value.format, catch _);
-export void write(CharWriter this, overload int    value) => this.tryWrite(value.format, catch _);
-export void write(CharWriter this, overload uint   value) => this.tryWrite(value.format, catch _);
-export void write(CharWriter this, overload long   value) => this.tryWrite(value.format, catch _);
-export void write(CharWriter this, overload ulong  value) => this.tryWrite(value.format, catch _);
-export void write(CharWriter this, overload nint   value) => this.tryWrite(value.format, catch _);
-export void write(CharWriter this, overload nuint  value) => this.tryWrite(value.format, catch _);
+public void write(CharWriter this, overload sbyte  value) => this.tryWrite(value.format, catch _);
+public void write(CharWriter this, overload byte   value) => this.tryWrite(value.format, catch _);
+public void write(CharWriter this, overload short  value) => this.tryWrite(value.format, catch _);
+public void write(CharWriter this, overload ushort value) => this.tryWrite(value.format, catch _);
+public void write(CharWriter this, overload int    value) => this.tryWrite(value.format, catch _);
+public void write(CharWriter this, overload uint   value) => this.tryWrite(value.format, catch _);
+public void write(CharWriter this, overload long   value) => this.tryWrite(value.format, catch _);
+public void write(CharWriter this, overload ulong  value) => this.tryWrite(value.format, catch _);
+public void write(CharWriter this, overload nint   value) => this.tryWrite(value.format, catch _);
+public void write(CharWriter this, overload nuint  value) => this.tryWrite(value.format, catch _);
 
-export void writeLine(CharWriter this, overload sbyte  value) => this.tryWriteLine(value, catch _);
-export void writeLine(CharWriter this, overload byte   value) => this.tryWriteLine(value, catch _);
-export void writeLine(CharWriter this, overload short  value) => this.tryWriteLine(value, catch _);
-export void writeLine(CharWriter this, overload ushort value) => this.tryWriteLine(value, catch _);
-export void writeLine(CharWriter this, overload int    value) => this.tryWriteLine(value, catch _);
-export void writeLine(CharWriter this, overload uint   value) => this.tryWriteLine(value, catch _);
-export void writeLine(CharWriter this, overload long   value) => this.tryWriteLine(value, catch _);
-export void writeLine(CharWriter this, overload ulong  value) => this.tryWriteLine(value, catch _);
-export void writeLine(CharWriter this, overload nint   value) => this.tryWriteLine(value, catch _);
-export void writeLine(CharWriter this, overload nuint  value) => this.tryWriteLine(value, catch _);
+public void writeLine(CharWriter this, overload sbyte  value) => this.tryWriteLine(value, catch _);
+public void writeLine(CharWriter this, overload byte   value) => this.tryWriteLine(value, catch _);
+public void writeLine(CharWriter this, overload short  value) => this.tryWriteLine(value, catch _);
+public void writeLine(CharWriter this, overload ushort value) => this.tryWriteLine(value, catch _);
+public void writeLine(CharWriter this, overload int    value) => this.tryWriteLine(value, catch _);
+public void writeLine(CharWriter this, overload uint   value) => this.tryWriteLine(value, catch _);
+public void writeLine(CharWriter this, overload long   value) => this.tryWriteLine(value, catch _);
+public void writeLine(CharWriter this, overload ulong  value) => this.tryWriteLine(value, catch _);
+public void writeLine(CharWriter this, overload nint   value) => this.tryWriteLine(value, catch _);
+public void writeLine(CharWriter this, overload nuint  value) => this.tryWriteLine(value, catch _);
 
-export void tryWrite(CharWriter this, overload sbyte  value, thrown IoError error) => this.tryWrite(value.format, catch error);
-export void tryWrite(CharWriter this, overload byte   value, thrown IoError error) => this.tryWrite(value.format, catch error);
-export void tryWrite(CharWriter this, overload short  value, thrown IoError error) => this.tryWrite(value.format, catch error);
-export void tryWrite(CharWriter this, overload ushort value, thrown IoError error) => this.tryWrite(value.format, catch error);
-export void tryWrite(CharWriter this, overload int    value, thrown IoError error) => this.tryWrite(value.format, catch error);
-export void tryWrite(CharWriter this, overload uint   value, thrown IoError error) => this.tryWrite(value.format, catch error);
-export void tryWrite(CharWriter this, overload long   value, thrown IoError error) => this.tryWrite(value.format, catch error);
-export void tryWrite(CharWriter this, overload ulong  value, thrown IoError error) => this.tryWrite(value.format, catch error);
-export void tryWrite(CharWriter this, overload nint   value, thrown IoError error) => this.tryWrite(value.format, catch error);
-export void tryWrite(CharWriter this, overload nuint  value, thrown IoError error) => this.tryWrite(value.format, catch error);
+public void tryWrite(CharWriter this, overload sbyte  value, thrown IoError error) => this.tryWrite(value.format, catch error);
+public void tryWrite(CharWriter this, overload byte   value, thrown IoError error) => this.tryWrite(value.format, catch error);
+public void tryWrite(CharWriter this, overload short  value, thrown IoError error) => this.tryWrite(value.format, catch error);
+public void tryWrite(CharWriter this, overload ushort value, thrown IoError error) => this.tryWrite(value.format, catch error);
+public void tryWrite(CharWriter this, overload int    value, thrown IoError error) => this.tryWrite(value.format, catch error);
+public void tryWrite(CharWriter this, overload uint   value, thrown IoError error) => this.tryWrite(value.format, catch error);
+public void tryWrite(CharWriter this, overload long   value, thrown IoError error) => this.tryWrite(value.format, catch error);
+public void tryWrite(CharWriter this, overload ulong  value, thrown IoError error) => this.tryWrite(value.format, catch error);
+public void tryWrite(CharWriter this, overload nint   value, thrown IoError error) => this.tryWrite(value.format, catch error);
+public void tryWrite(CharWriter this, overload nuint  value, thrown IoError error) => this.tryWrite(value.format, catch error);
 
-export void tryWriteLine(CharWriter this, overload sbyte  value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
-export void tryWriteLine(CharWriter this, overload byte   value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
-export void tryWriteLine(CharWriter this, overload short  value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
-export void tryWriteLine(CharWriter this, overload ushort value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
-export void tryWriteLine(CharWriter this, overload int    value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
-export void tryWriteLine(CharWriter this, overload uint   value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
-export void tryWriteLine(CharWriter this, overload long   value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
-export void tryWriteLine(CharWriter this, overload ulong  value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
-export void tryWriteLine(CharWriter this, overload nint   value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
-export void tryWriteLine(CharWriter this, overload nuint  value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
+public void tryWriteLine(CharWriter this, overload sbyte  value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
+public void tryWriteLine(CharWriter this, overload byte   value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
+public void tryWriteLine(CharWriter this, overload short  value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
+public void tryWriteLine(CharWriter this, overload ushort value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
+public void tryWriteLine(CharWriter this, overload int    value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
+public void tryWriteLine(CharWriter this, overload uint   value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
+public void tryWriteLine(CharWriter this, overload long   value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
+public void tryWriteLine(CharWriter this, overload ulong  value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
+public void tryWriteLine(CharWriter this, overload nint   value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
+public void tryWriteLine(CharWriter this, overload nuint  value, thrown IoError error) => this.tryWriteLine(value.format, catch error);
 
-export void write(CharWriter this, overload float value)
+public void write(CharWriter this, overload float value)
 {
 	this.write((double)value);
 }
 
-export bool tryWrite(CharWriter this, overload float value, thrown IoError error)
+public bool tryWrite(CharWriter this, overload float value, thrown IoError error)
 {
 	return this.tryWrite((double)value, catch error);
 }
 
-export void write(CharWriter this, overload double value)
+public void write(CharWriter this, overload double value)
 {
 	this.tryWrite(value, catch _);
 }
 
-export bool tryWrite(CharWriter this, overload double value, thrown IoError error)
+public bool tryWrite(CharWriter this, overload double value, thrown IoError error)
 {
 	if (value < 0.0)
 	{
@@ -361,7 +361,7 @@ escaped char* CharReader_growBuffer(char* buffer, nuint length, nuint capacity, 
 	return next;
 }
 
-export char readChar(CharReader this, thrown IoError error)
+public char readChar(CharReader this, thrown IoError error)
 {
 	char[] buffer = ['\0'];
 	nuint readCount = 0;
@@ -372,15 +372,15 @@ export char readChar(CharReader this, thrown IoError error)
 	return buffer[0];
 }
 
-export escaped string readLine(CharReader this, within allocator, thrown IoError error)
+public escaped string readLine(CharReader this, within allocator, thrown IoError error)
 {
 	return CharReader_readCopy(this, true, within allocator, catch error);
 }
 
-export escaped string readToEnd(CharReader this, within allocator, thrown IoError error)
+public escaped string readToEnd(CharReader this, within allocator, thrown IoError error)
 {
 	return CharReader_readCopy(this, false, within allocator, catch error);
 }
 
-// export void writeStringAsync(AsyncCharWriter this, const char[] value, thrown IoError error);
-// export void writeLineAsync(AsyncCharWriter this, const char[] value = default, thrown IoError error);
+// public void writeStringAsync(AsyncCharWriter this, const char[] value, thrown IoError error);
+// public void writeLineAsync(AsyncCharWriter this, const char[] value = default, thrown IoError error);

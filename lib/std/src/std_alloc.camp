@@ -1,29 +1,29 @@
 namespace Std;
 
-export extern void* malloc(nuint size);
-export extern void* realloc(void* ptr, nuint new_size);
-export extern void free(void* ptr);
+public extern void* malloc(nuint size);
+public extern void* realloc(void* ptr, nuint new_size);
+public extern void free(void* ptr);
 
-export abstract class Allocator
+public abstract class Allocator
 {
-	export abstract void* alloc(nuint size);
-	export abstract void* realloc(void* ptr, nuint newSize);
-	export abstract void free(void* ptr);
+	public abstract void* alloc(nuint size);
+	public abstract void* realloc(void* ptr, nuint newSize);
+	public abstract void free(void* ptr);
 }
 
-export virtual class HeapAllocator: Allocator
+public virtual class HeapAllocator: Allocator
 {
-	export override void* alloc(nuint size)
+	public override void* alloc(nuint size)
 	{
 		return malloc(size);
 	}
 	
-	export override void* realloc(void* ptr, nuint newSize)
+	public override void* realloc(void* ptr, nuint newSize)
 	{
 		return realloc(ptr, newSize);
 	}
 	
-	export override void free(void* ptr)
+	public override void free(void* ptr)
 	{
 		free(ptr);
 	}

@@ -5,7 +5,7 @@ inline nuint HASH_EMPTY = (nuint)0;
 /// A hash-based set of unique keys.
 /// @remarks
 /// HashSet owns shallow copies of its keys. Pointer and string keys copy the pointer value; the supplied hash policy controls identity or content comparison.
-export class HashSet<K: copyable>
+public class HashSet<K: copyable>
 {
 	HashPolicy<K> policy;
 	K[] keys;
@@ -19,14 +19,14 @@ export class HashSet<K: copyable>
 	Allocator* allocator;
 
 	/// Initializes an empty set with a hash policy and remembers the allocator used for storage.
-	export HashSet(HashPolicy<K> policy, within allocator, sizeof(K))
+	public HashSet(HashPolicy<K> policy, within allocator, sizeof(K))
 	{
 		this.policy = policy;
 		this.allocator = (unscoped(this))allocator;
 	}
 
 	/// Releases all allocated storage.
-	export ~HashSet()
+	public ~HashSet()
 	{
 		within (this.allocator)
 		{
@@ -48,7 +48,7 @@ export class HashSet<K: copyable>
 	}
 
 	/// Adds a key and returns true when the key was not already present.
-	export bool add(in K key)
+	public bool add(in K key)
 	{
 		fn nuint(in K) hashFunction = this.policy.hash;
 		nuint hash = hashFunction(key);
@@ -72,14 +72,14 @@ export class HashSet<K: copyable>
 	}
 
 	/// Returns true when the key is present.
-	export bool contains(in K key)
+	public bool contains(in K key)
 	{
 		fn nuint(in K) hashFunction = this.policy.hash;
 		return this.findSlot(key, hashFunction(key)) != -1;
 	}
 
 	/// Removes a key and returns true when an item was removed.
-	export bool remove(in K key)
+	public bool remove(in K key)
 	{
 		if (this.buckets.length == 0)
 			return false;
@@ -118,7 +118,7 @@ export class HashSet<K: copyable>
 	}
 
 	/// Removes all keys and optionally releases storage.
-	export void clear(bool deleteBuffer = false)
+	public void clear(bool deleteBuffer = false)
 	{
 		for (nuint i = 0; i < this.used; i++)
 		{
@@ -153,13 +153,13 @@ export class HashSet<K: copyable>
 	}
 
 	/// Returns the number of keys in the set.
-	export nuint getLength() => this.length;
+	public nuint getLength() => this.length;
 
 	/// Returns the number of key slots currently allocated.
-	export nuint getCapacity() => this.keys.length;
+	public nuint getCapacity() => this.keys.length;
 
 	/// Allocates a new array containing all keys in unspecified order.
-	export escaped K[] copyArray()
+	public escaped K[] copyArray()
 	{
 		K[] copied = within (this.allocator) new K[this.length];
 		nuint at = 0;

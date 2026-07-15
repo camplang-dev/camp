@@ -5,7 +5,7 @@ inline nuint HASHMAP_EMPTY = (nuint)0;
 /// A hash-based map from keys to values.
 /// @remarks
 /// HashMap owns shallow copies of its keys and values. Pointer and string keys copy the pointer value; the supplied hash policy controls identity or content comparison.
-export class HashMap<K: copyable, V: copyable>
+public class HashMap<K: copyable, V: copyable>
 {
 	HashPolicy<K> policy;
 	K[] keys;
@@ -20,14 +20,14 @@ export class HashMap<K: copyable, V: copyable>
 	Allocator* allocator;
 
 	/// Initializes an empty map with a key hash policy and remembers the allocator used for storage.
-	export HashMap(HashPolicy<K> policy, within allocator, sizeof(K), sizeof(V))
+	public HashMap(HashPolicy<K> policy, within allocator, sizeof(K), sizeof(V))
 	{
 		this.policy = policy;
 		this.allocator = (unscoped(this))allocator;
 	}
 
 	/// Releases all allocated storage.
-	export ~HashMap()
+	public ~HashMap()
 	{
 		within (this.allocator)
 		{
@@ -51,7 +51,7 @@ export class HashMap<K: copyable, V: copyable>
 	}
 
 	/// Adds or replaces a value for a key.
-	export void setItem(in K key, in V value)
+	public void setItem(in K key, in V value)
 	{
 		fn nuint(in K) hashFunction = this.policy.hash;
 		nuint hash = hashFunction(key);
@@ -79,7 +79,7 @@ export class HashMap<K: copyable, V: copyable>
 	}
 
 	/// Gets a value and returns true when the key is present.
-	export bool tryGet(const this, in K key, out V value)
+	public bool tryGet(const this, in K key, out V value)
 	{
 		value = default;
 		fn nuint(in K) hashFunction = this.policy.hash;
@@ -92,7 +92,7 @@ export class HashMap<K: copyable, V: copyable>
 	}
 
 	/// Returns the value for a key, or `default` when the key is absent.
-	export V getItem(const this, in K key)
+	public V getItem(const this, in K key)
 	{
 		V value = default;
 		this.tryGet(key, out value);
@@ -100,14 +100,14 @@ export class HashMap<K: copyable, V: copyable>
 	}
 
 	/// Returns true when the key is present.
-	export bool containsKey(const this, in K key)
+	public bool containsKey(const this, in K key)
 	{
 		fn nuint(in K) hashFunction = this.policy.hash;
 		return this.findSlot(key, hashFunction(key)) != -1;
 	}
 
 	/// Removes a key and returns true when an entry was removed.
-	export bool remove(in K key)
+	public bool remove(in K key)
 	{
 		if (this.buckets.length == 0)
 			return false;
@@ -147,7 +147,7 @@ export class HashMap<K: copyable, V: copyable>
 	}
 
 	/// Removes all entries and optionally releases storage.
-	export void clear(bool deleteBuffer = false)
+	public void clear(bool deleteBuffer = false)
 	{
 		for (nuint i = 0; i < this.used; i++)
 		{
@@ -187,10 +187,10 @@ export class HashMap<K: copyable, V: copyable>
 	}
 
 	/// Returns the number of entries in the map.
-	export nuint getLength() => this.length;
+	public nuint getLength() => this.length;
 
 	/// Returns the number of key/value slots currently allocated.
-	export nuint getCapacity() => this.keys.length;
+	public nuint getCapacity() => this.keys.length;
 
 	nint findSlot(const this, in K key, nuint hash)
 	{

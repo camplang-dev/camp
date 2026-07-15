@@ -1,19 +1,19 @@
 namespace Std;
 
-export void clear<T: any>(T[] this, sizeof(T))
+public void clear<T: any>(T[] this, sizeof(T))
 {
 	for (nuint i = 0; i < this.length; i++)
 		this[i] = default;
 }
 
-export escaped T[] copyArray<T: copyable>(const T[] this, within allocator, sizeof(T))
+public escaped T[] copyArray<T: copyable>(const T[] this, within allocator, sizeof(T))
 {
 	T[] elements = new T[this.length];
 	this.copyTo<T>(elements);
 	return elements;
 }
 
-export void copyTo<T: copyable>(const T[] this, T[] destination, sizeof(T))
+public void copyTo<T: copyable>(const T[] this, T[] destination, sizeof(T))
 {
 	nuint count = this.length;
 	if (destination.length < count)
@@ -33,13 +33,13 @@ export void copyTo<T: copyable>(const T[] this, T[] destination, sizeof(T))
 	}
 }
 
-export void copyFrom<T: copyable>(T[] this, const T[] source, sizeof(T))
+public void copyFrom<T: copyable>(T[] this, const T[] source, sizeof(T))
 {
 	T[] destination = { this.elements, this.length };
 	source.copyTo<T>(destination);
 }
 
-export void resize<T: copyable>(escaped T[]* this, nuint newSize, within allocator, sizeof(T))
+public void resize<T: copyable>(escaped T[]* this, nuint newSize, within allocator, sizeof(T))
 {
 	if (this.length == newSize)
 		return;
@@ -54,7 +54,7 @@ export void resize<T: copyable>(escaped T[]* this, nuint newSize, within allocat
 	this.length = newSize;
 }
 
-export void reverse<T: copyable>(T[] this, sizeof(T))
+public void reverse<T: copyable>(T[] this, sizeof(T))
 {
 	if (this.length < 2)
 		return;
@@ -71,7 +71,7 @@ export void reverse<T: copyable>(T[] this, sizeof(T))
 	}
 }
 
-export void sort<T: copyable>(T[] this, delegate int(in T left, in T right) compare, sizeof(T))
+public void sort<T: copyable>(T[] this, delegate int(in T left, in T right) compare, sizeof(T))
 {
 	if (this.length < 2)
 		return;
@@ -90,7 +90,7 @@ export void sort<T: copyable>(T[] this, delegate int(in T left, in T right) comp
 	}
 }
 
-export nint binarySearch<T: any>(const T[] this, in T value, delegate int(in T left, in T right) compare, sizeof(T))
+public nint binarySearch<T: any>(const T[] this, in T value, delegate int(in T left, in T right) compare, sizeof(T))
 {
 	nuint low = 0;
 	nuint high = this.length;
@@ -117,7 +117,7 @@ export nint binarySearch<T: any>(const T[] this, in T value, delegate int(in T l
 	return -1;
 }
 
-export nint findIndex<T: any>(const T[] this, in T item, delegate bool(in T left, in T right) equals, sizeof(T))
+public nint findIndex<T: any>(const T[] this, in T item, delegate bool(in T left, in T right) equals, sizeof(T))
 {
 	for (nuint i = 0; i < this.length; i++)
 		if (equals(this[i], item))
@@ -126,7 +126,7 @@ export nint findIndex<T: any>(const T[] this, in T item, delegate bool(in T left
 	return -1;
 }
 
-export nint findLastIndex<T: any>(const T[] this, in T item, delegate bool(in T left, in T right) equals, sizeof(T))
+public nint findLastIndex<T: any>(const T[] this, in T item, delegate bool(in T left, in T right) equals, sizeof(T))
 {
 	for (nuint i = this.length; i > 0; i--)
 		if (equals(this[i - 1], item))

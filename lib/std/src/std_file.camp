@@ -55,14 +55,14 @@ int FileHandle_options(FileOptions options)
 	return flags;
 }
 
-export enum FileAccess
+public enum FileAccess
 {
 	READ,
 	WRITE,
 	READ_WRITE
 }
 
-export enum FileMode
+public enum FileMode
 {
 	OPEN_EXISTING,
 	CREATE,
@@ -70,7 +70,7 @@ export enum FileMode
 	APPEND
 }
 
-export struct FileOptions
+public struct FileOptions
 {
 	bool sequential;
 	bool randomAccess;
@@ -107,7 +107,7 @@ bool FileHandle_writeFd(void* context, nuint* written, byte* buffer, nuint buffe
 	return true;
 }
 
-export newtype FileHandle: nint
+public newtype FileHandle: nint
 {
 	/// Closes the wrapped operating-system file handle.
 	///
@@ -117,7 +117,7 @@ export newtype FileHandle: nint
 #if NO_FILES
 	@notsupported("The current target does not support file handles.")
 #endif
-	export void close()
+	public void close()
 	{
 		if ((nint)this > 0)
 		{
@@ -129,7 +129,7 @@ export newtype FileHandle: nint
 #if NO_FILES
 	@notsupported("The current target does not support file handles.")
 #endif
-	export static FileHandle open(string path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError error)
+	public static FileHandle open(string path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError error)
 	{
 		nint fileHandle = camp_io_file_open(path, FileHandle_access(access), FileHandle_mode(mode), FileHandle_options(options), out error);
 		if (fileHandle < 0)
@@ -142,7 +142,7 @@ export newtype FileHandle: nint
 #if NO_FILES
 	@notsupported("The current target does not support file handles.")
 #endif
-	export ulong getLength(thrown IoError error)
+	public ulong getLength(thrown IoError error)
 	{
 		long current = camp_io_file_seek((nint)this, 0, CAMP_IO_SEEK_CURRENT, out error);
 		if (current < 0)
@@ -159,7 +159,7 @@ export newtype FileHandle: nint
 #if NO_FILES
 	@notsupported("The current target does not support file handles.")
 #endif
-	export ulong getPosition(thrown IoError error)
+	public ulong getPosition(thrown IoError error)
 	{
 		long position = camp_io_file_seek((nint)this, 0, CAMP_IO_SEEK_CURRENT, out error);
 		if (position < 0)
@@ -171,7 +171,7 @@ export newtype FileHandle: nint
 #if NO_FILES
 	@notsupported("The current target does not support file handles.")
 #endif
-	export void setPosition(ulong value, thrown IoError error)
+	public void setPosition(ulong value, thrown IoError error)
 	{
 		if (camp_io_file_seek((nint)this, (long)value, CAMP_IO_SEEK_BEGIN, out error) < 0)
 			throw error;
@@ -181,7 +181,7 @@ export newtype FileHandle: nint
 #if NO_FILES
 	@notsupported("The current target does not support file handles.")
 #endif
-	export void read(byte[] buffer, out nuint readCount, thrown IoError error)
+	public void read(byte[] buffer, out nuint readCount, thrown IoError error)
 	{
 		nint result = camp_io_file_read((nint)this, (void*)buffer.elements, buffer.length, out error);
 		if (result < 0)
@@ -193,7 +193,7 @@ export newtype FileHandle: nint
 #if NO_FILES
 	@notsupported("The current target does not support file handles.")
 #endif
-	export void write(const byte[] buffer, thrown IoError error)
+	public void write(const byte[] buffer, thrown IoError error)
 	{
 		nuint offset = 0;
 		while (offset < buffer.length)
@@ -213,7 +213,7 @@ export newtype FileHandle: nint
 #if NO_FILES
 	@notsupported("The current target does not support file handles.")
 #endif
-	export ByteReader getByteReader()
+	public ByteReader getByteReader()
 	{
 		return { FileHandle_readFd, (void*)(nint)this };
 	}
@@ -221,7 +221,7 @@ export newtype FileHandle: nint
 #if NO_FILES
 	@notsupported("The current target does not support file handles.")
 #endif
-	export CharReader getCharReader()
+	public CharReader getCharReader()
 	{
 		ByteReader byteReader = this.ByteReader;
 		return { (unsafe fn bool(void*, nuint*, char*, nuint))byteReader.call, byteReader.context };
@@ -230,7 +230,7 @@ export newtype FileHandle: nint
 #if NO_FILES
 	@notsupported("The current target does not support file handles.")
 #endif
-	export ByteWriter getByteWriter()
+	public ByteWriter getByteWriter()
 	{
 		return { FileHandle_writeFd, (void*)(nint)this };
 	}
@@ -238,12 +238,12 @@ export newtype FileHandle: nint
 #if NO_FILES
 	@notsupported("The current target does not support file handles.")
 #endif
-	export CharWriter getCharWriter()
+	public CharWriter getCharWriter()
 	{
 		ByteWriter byteWriter = this.ByteWriter;
 		return { (unsafe fn bool(void*, nuint*, char*, nuint))byteWriter.call, byteWriter.context };
 	}
 	
-	// export AsyncByteReader getAsyncReader();
-	// export AsyncByteWriter getAsyncWriter();
+	// public AsyncByteReader getAsyncReader();
+	// public AsyncByteWriter getAsyncWriter();
 }

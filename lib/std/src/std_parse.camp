@@ -1,6 +1,6 @@
 namespace Std;
 
-export bool tryParse(const char[] this, overload out int result)
+public bool tryParse(const char[] this, overload out int result)
 {
 	ulong value = 0;
 	bool negative = false;
@@ -17,7 +17,7 @@ export bool tryParse(const char[] this, overload out int result)
 	return true;
 }
 
-export bool tryParse(const char[] this, overload out uint result)
+public bool tryParse(const char[] this, overload out uint result)
 {
 	ulong value = 0;
 	bool negative = false;
@@ -31,7 +31,7 @@ export bool tryParse(const char[] this, overload out uint result)
 	return true;
 }
 
-export bool tryParse(const char[] this, overload out long result)
+public bool tryParse(const char[] this, overload out long result)
 {
 	ulong value = 0;
 	bool negative = false;
@@ -48,7 +48,7 @@ export bool tryParse(const char[] this, overload out long result)
 	return true;
 }
 
-export bool tryParse(const char[] this, overload out ulong result)
+public bool tryParse(const char[] this, overload out ulong result)
 {
 	ulong value = 0;
 	bool negative = false;
@@ -62,7 +62,7 @@ export bool tryParse(const char[] this, overload out ulong result)
 	return true;
 }
 
-export bool tryParse(const char[] this, overload out double result)
+public bool tryParse(const char[] this, overload out double result)
 {
 	nuint start = parseTrimStart(this.elements, this.length);
 	nuint end = parseTrimEnd(this.elements, this.length, start);

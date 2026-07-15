@@ -20,7 +20,7 @@ extern const wchar* camp_utf16nrchr(const wchar* text, nuint len, uchar codepoin
 extern const wchar* camp_utf16npbrk_codepoints(const wchar* text, nuint len, const uchar* codepoints, nuint codepointCount, int caseInsensitive);
 extern const wchar* camp_utf16nrpbrk_codepoints(const wchar* text, nuint len, const uchar* codepoints, nuint codepointCount, int caseInsensitive);
 
-export nint indexOf(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
+public nint indexOf(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
 {
 	const wchar* found = caseInsensitive
 		? camp_utf16ncasestr(this.elements, this.length, match.elements, match.length)
@@ -30,7 +30,7 @@ export nint indexOf(const wchar[] this, const wchar[] match, bool caseInsensitiv
 	return wstringOffsetOf(this.elements, found);
 }
 
-export nint indexOfChar(const wchar[] this, uchar match, bool caseInsensitive = false)
+public nint indexOfChar(const wchar[] this, uchar match, bool caseInsensitive = false)
 {
 	const wchar* found = camp_utf16nchr(this.elements, this.length, match, caseInsensitive ? 1 : 0);
 	if (found == null)
@@ -38,7 +38,7 @@ export nint indexOfChar(const wchar[] this, uchar match, bool caseInsensitive = 
 	return wstringOffsetOf(this.elements, found);
 }
 
-export nint indexOfAnyChar(const wchar[] this, const uchar[] matches, bool caseInsensitive = false)
+public nint indexOfAnyChar(const wchar[] this, const uchar[] matches, bool caseInsensitive = false)
 {
 	const wchar* found = camp_utf16npbrk_codepoints(this.elements, this.length, matches.elements, matches.length, caseInsensitive ? 1 : 0);
 	if (found == null)
@@ -46,7 +46,7 @@ export nint indexOfAnyChar(const wchar[] this, const uchar[] matches, bool caseI
 	return wstringOffsetOf(this.elements, found);
 }
 
-export nint lastIndexOf(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
+public nint lastIndexOf(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
 {
 	nuint logical = wstringLogicalLength(this.elements, this.length);
 	if (match.length == 0)
@@ -67,7 +67,7 @@ export nint lastIndexOf(const wchar[] this, const wchar[] match, bool caseInsens
 	return result;
 }
 
-export nint lastIndexOfChar(const wchar[] this, uchar match, bool caseInsensitive = false)
+public nint lastIndexOfChar(const wchar[] this, uchar match, bool caseInsensitive = false)
 {
 	const wchar* found = camp_utf16nrchr(this.elements, this.length, match, caseInsensitive ? 1 : 0);
 	if (found == null)
@@ -75,7 +75,7 @@ export nint lastIndexOfChar(const wchar[] this, uchar match, bool caseInsensitiv
 	return wstringOffsetOf(this.elements, found);
 }
 
-export nint lastIndexOfAnyChar(const wchar[] this, const uchar[] matches, bool caseInsensitive = false)
+public nint lastIndexOfAnyChar(const wchar[] this, const uchar[] matches, bool caseInsensitive = false)
 {
 	const wchar* found = camp_utf16nrpbrk_codepoints(this.elements, this.length, matches.elements, matches.length, caseInsensitive ? 1 : 0);
 	if (found == null)
@@ -83,19 +83,19 @@ export nint lastIndexOfAnyChar(const wchar[] this, const uchar[] matches, bool c
 	return wstringOffsetOf(this.elements, found);
 }
 
-export bool startsWith(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
+public bool startsWith(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
 {
 	if (match.length > wstringLogicalLength(this.elements, this.length))
 		return false;
 	return (caseInsensitive ? utf16ncasecmp(this.elements, match.elements, match.length) : utf16ncmp(this.elements, match.elements, match.length)) == 0;
 }
 
-export bool startsWithChar(const wchar[] this, uchar match, bool caseInsensitive = false)
+public bool startsWithChar(const wchar[] this, uchar match, bool caseInsensitive = false)
 {
 	return camp_utf16nchr(this.elements, this.length, match, caseInsensitive ? 1 : 0) == this.elements;
 }
 
-export bool endsWith(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
+public bool endsWith(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
 {
 	nuint length = wstringLogicalLength(this.elements, this.length);
 	if (match.length > length)
@@ -103,7 +103,7 @@ export bool endsWith(const wchar[] this, const wchar[] match, bool caseInsensiti
 	return (caseInsensitive ? utf16ncasecmp(&this.elements[length - match.length], match.elements, match.length) : utf16ncmp(&this.elements[length - match.length], match.elements, match.length)) == 0;
 }
 
-export bool endsWithChar(const wchar[] this, uchar match, bool caseInsensitive = false)
+public bool endsWithChar(const wchar[] this, uchar match, bool caseInsensitive = false)
 {
 	const wchar* found = camp_utf16nrchr(this.elements, this.length, match, caseInsensitive ? 1 : 0);
 	if (found == null)
@@ -112,7 +112,7 @@ export bool endsWithChar(const wchar[] this, uchar match, bool caseInsensitive =
 	return index + utf16codepointcalcsize(found) == wstringLogicalLength(this.elements, this.length);
 }
 
-export nint compareTo(const wchar[] this, const wchar[] other, bool caseInsensitive = false)
+public nint compareTo(const wchar[] this, const wchar[] other, bool caseInsensitive = false)
 {
 	nuint thisLength = wstringLogicalLength(this.elements, this.length);
 	nuint otherLength = wstringLogicalLength(other.elements, other.length);
@@ -132,12 +132,12 @@ export nint compareTo(const wchar[] this, const wchar[] other, bool caseInsensit
 	return 0;
 }
 
-export nuint countChars(const wchar[] this)
+public nuint countChars(const wchar[] this)
 {
 	return camp_utf16nlen(this.elements, this.length);
 }
 
-export uchar getChar(const wchar[] this, @index nuint unit)
+public uchar getChar(const wchar[] this, @index nuint unit)
 {
 	uchar codepoint = 0;
 	if (unit >= wstringLogicalLength(this.elements, this.length))
@@ -146,38 +146,38 @@ export uchar getChar(const wchar[] this, @index nuint unit)
 	return codepoint;
 }
 
-export nuint getCharUnits(const wchar[] this, @index nuint unit)
+public nuint getCharUnits(const wchar[] this, @index nuint unit)
 {
 	if (unit >= wstringLogicalLength(this.elements, this.length))
 		return 0;
 	return utf16codepointcalcsize(&this.elements[unit]);
 }
 
-export scoped const wchar[] trim(const wchar[] this)
+public scoped const wchar[] trim(const wchar[] this)
 {
 	nuint start = wstringTrimStartIndex(this.elements, this.length);
 	nuint end = wstringTrimEndIndex(this.elements, this.length, start);
 	return { &this.elements[start], end - start };
 }
 
-export scoped const wchar[] trimStart(const wchar[] this)
+public scoped const wchar[] trimStart(const wchar[] this)
 {
 	nuint start = wstringTrimStartIndex(this.elements, this.length);
 	return { &this.elements[start], wstringLogicalLength(this.elements, this.length) - start };
 }
 
-export scoped const wchar[] trimEnd(const wchar[] this)
+public scoped const wchar[] trimEnd(const wchar[] this)
 {
 	nuint end = wstringTrimEndIndex(this.elements, this.length, 0);
 	return { this.elements, end };
 }
 
-export wstring stringCopy(const wchar[] this, within allocator)
+public wstring stringCopy(const wchar[] this, within allocator)
 {
 	return (wstring)wstringCopySpan(this.elements, this.length, allocator);
 }
 
-export wstring uppercaseCopy(const wchar[] this, within allocator)
+public wstring uppercaseCopy(const wchar[] this, within allocator)
 {
 	wchar* buffer = wstringCopySpan(this.elements, this.length, allocator);
 	if (buffer == null)
@@ -186,7 +186,7 @@ export wstring uppercaseCopy(const wchar[] this, within allocator)
 	return (wstring)buffer;
 }
 
-export wstring lowercaseCopy(const wchar[] this, within allocator)
+public wstring lowercaseCopy(const wchar[] this, within allocator)
 {
 	wchar* buffer = wstringCopySpan(this.elements, this.length, allocator);
 	if (buffer == null)
@@ -195,7 +195,7 @@ export wstring lowercaseCopy(const wchar[] this, within allocator)
 	return (wstring)buffer;
 }
 
-export wstring concatCopy(wstring[] this, within allocator)
+public wstring concatCopy(wstring[] this, within allocator)
 {
 	nuint size = 1;
 	for (nuint i = 0; i < this.length; i++)
@@ -211,7 +211,7 @@ export wstring concatCopy(wstring[] this, within allocator)
 	return (wstring)buffer;
 }
 
-export wstring joinCopy(wstring[] this, const wchar[] separator, within allocator)
+public wstring joinCopy(wstring[] this, const wchar[] separator, within allocator)
 {
 	nuint size = 1;
 	for (nuint i = 0; i < this.length; i++)
@@ -235,7 +235,7 @@ export wstring joinCopy(wstring[] this, const wchar[] separator, within allocato
 	return (wstring)buffer;
 }
 
-export nuint getLength(wstring this)
+public nuint getLength(wstring this)
 {
 	return camp_utf16size_lazy(this);
 }
