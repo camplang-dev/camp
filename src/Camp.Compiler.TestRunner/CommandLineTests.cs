@@ -1526,6 +1526,65 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Interface_object_vtable_thunks_are_emitted_with_implementing_type_source()
+	{
+		string root = TempPath("interface-object-vtable-thunks");
+		Directory.CreateDirectory(root);
+		string interfaces = Path.Combine(root, "interfaces.camp");
+		File.WriteAllText(interfaces, """
+			export interface IRefCount
+			{
+				void retain();
+				void release();
+			}
+			""");
+		string component = Path.Combine(root, "component.camp");
+		File.WriteAllText(component, """
+			extern void* malloc(nuint size);
+			extern void free(void* pointer);
+
+			export escaped class Component: IRefCount
+			{
+				nuint refct;
+
+				export Component()
+				{
+				}
+
+				export void retain(): IRefCount
+				{
+					this.refct++;
+				}
+
+				export void release(): IRefCount
+				{
+					if (this.refct > 0)
+						this.refct--;
+				}
+			}
+
+			export int main()
+			{
+				auto component = new Component() finally delete;
+				IRefCount* refCount = component;
+				return refCount == null ? 1 : 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			interfaces,
+			component,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			TempPath("interface-object-vtable-thunks-bin"));
+
+		Assert.Equal(0, result.ExitCode);
+	}
+
+	[Fact]
 	public void Project_reference_consumes_exported_interface_accessors_and_vtables()
 	{
 		string root = TempPath("project-reference-interface-accessors");

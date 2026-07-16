@@ -592,7 +592,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition CreateInterfaceThunkDeclaration(InterfaceImplementationLowering lowering, InterfaceDefinition entryInterface, FunctionDefinition member)
 	{
-		FunctionDefinition thunk = generatedDeclarations.Function(GeneratedDeclarationCategory.Interface, "interface thunk", member);
+		FunctionDefinition thunk = generatedDeclarations.Function(GeneratedDeclarationCategory.Interface, "interface thunk", lowering.Type);
 		thunk.Name = InterfaceThunkName(lowering.Type, entryInterface, member);
 		thunk.Symbol = InterfaceThunkName(lowering.Type, entryInterface, member);
 		thunk.ReturnType = member.Modifier == FunctionModifier.Constructor
