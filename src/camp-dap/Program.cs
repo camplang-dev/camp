@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -14,16 +15,16 @@ internal static class Program
 {
 	static async Task<int> Main()
 	{
-		DapSession session = new(Console.OpenStandardInput(), Console.OpenStandardOutput(), new FakeDebugBackend());
+		DapSession session = new(Console.OpenStandardInput(), Console.OpenStandardOutput());
 		await session.Run();
 		return 0;
 	}
 }
 
-sealed class DapSession(Stream input, Stream output, IDebugBackend backend)
+sealed class DapSession(Stream input, Stream output)
 {
 	readonly DapProtocol protocol = new(input, output);
-	readonly IDebugBackend backend = backend;
+	IDebugBackend? backend;
 	int nextSeq = 1;
 	bool running = true;
 
@@ -75,20 +76,30 @@ sealed class DapSession(Stream input, Stream output, IDebugBackend backend)
 	async Task<JsonNode?> Launch(JsonObject arguments)
 	{
 		string backendName = arguments["backend"]?.GetValue<string>() ?? "fake";
-		if (backendName is not "fake")
-			throw new InvalidOperationException($"Debug backend '{backendName}' is not available in this build yet.");
 		string project = arguments["project"]?.GetValue<string>() ?? "";
 		string cwd = arguments["cwd"]?.GetValue<string>() ?? Directory.GetCurrentDirectory();
 		IReadOnlyList<string> args = arguments["args"] is JsonArray array
 			? array.Select(item => item?.GetValue<string>() ?? "").ToList()
 			: [];
+		backend = CreateBackend(backendName);
 		await backend.Launch(new DebugLaunchOptions(project, cwd, args, arguments["stopOnEntry"]?.GetValue<bool>() == true));
 		await Event("initialized", null);
 		return null;
 	}
 
+	static IDebugBackend CreateBackend(string name)
+	{
+		return name switch
+		{
+			"fake" => new FakeDebugBackend(),
+			"lldb" => new LldbDebugBackend(),
+			_ => throw new InvalidOperationException($"Debug backend '{name}' is not available in this build yet.")
+		};
+	}
+
 	async Task<JsonNode?> SetBreakpoints(JsonObject arguments)
 	{
+		IDebugBackend backend = RequireBackend();
 		string source = arguments["source"]?["path"]?.GetValue<string>() ?? "";
 		List<int> lines = [];
 		if (arguments["breakpoints"] is JsonArray breakpoints)
@@ -101,21 +112,24 @@ sealed class DapSession(Stream input, Stream output, IDebugBackend backend)
 			["breakpoints"] = new JsonArray(resolved.Select(bp => new JsonObject
 			{
 				["verified"] = bp.Verified,
-				["line"] = bp.Line
+				["line"] = bp.Line,
+				["message"] = bp.Message
 			}).ToArray<JsonNode?>())
 		};
 	}
 
 	async Task<JsonNode?> ConfigurationDone()
 	{
+		IDebugBackend backend = RequireBackend();
 		await backend.ConfigurationDone();
-		if (backend.StopOnEntry)
-			await Event("stopped", new JsonObject { ["reason"] = "entry", ["threadId"] = 1 });
+		if (backend.StopOnEntry || backend.IsStopped)
+			await Event("stopped", new JsonObject { ["reason"] = backend.StopOnEntry ? "entry" : "breakpoint", ["threadId"] = 1 });
 		return null;
 	}
 
 	JsonNode StackTrace()
 	{
+		IDebugBackend backend = RequireBackend();
 		IReadOnlyList<DebugStackFrame> frames = backend.GetStackTrace();
 		return new JsonObject
 		{
@@ -137,6 +151,7 @@ sealed class DapSession(Stream input, Stream output, IDebugBackend backend)
 
 	JsonNode Scopes(JsonObject arguments)
 	{
+		IDebugBackend backend = RequireBackend();
 		int frameId = arguments["frameId"]?.GetValue<int>() ?? 1;
 		IReadOnlyList<DebugScope> scopes = backend.GetScopes(frameId);
 		return new JsonObject
@@ -152,6 +167,7 @@ sealed class DapSession(Stream input, Stream output, IDebugBackend backend)
 
 	JsonNode Variables(JsonObject arguments)
 	{
+		IDebugBackend backend = RequireBackend();
 		int reference = arguments["variablesReference"]?.GetValue<int>() ?? 0;
 		IReadOnlyList<DebugVariable> variables = backend.GetVariables(reference);
 		return new JsonObject
@@ -168,6 +184,7 @@ sealed class DapSession(Stream input, Stream output, IDebugBackend backend)
 
 	JsonNode Evaluate(JsonObject arguments)
 	{
+		IDebugBackend backend = RequireBackend();
 		string expression = arguments["expression"]?.GetValue<string>() ?? "";
 		DebugVariable variable = backend.Evaluate(expression);
 		return new JsonObject
@@ -180,6 +197,7 @@ sealed class DapSession(Stream input, Stream output, IDebugBackend backend)
 
 	async Task<JsonNode?> Continue(JsonObject arguments)
 	{
+		IDebugBackend backend = RequireBackend();
 		await backend.Continue(arguments["threadId"]?.GetValue<int>() ?? 1);
 		await Event("continued", new JsonObject { ["threadId"] = 1, ["allThreadsContinued"] = true });
 		return new JsonObject { ["allThreadsContinued"] = true };
@@ -187,6 +205,7 @@ sealed class DapSession(Stream input, Stream output, IDebugBackend backend)
 
 	async Task<JsonNode?> Pause(JsonObject arguments)
 	{
+		IDebugBackend backend = RequireBackend();
 		await backend.Pause(arguments["threadId"]?.GetValue<int>() ?? 1);
 		await Event("stopped", new JsonObject { ["reason"] = "pause", ["threadId"] = 1 });
 		return null;
@@ -194,6 +213,7 @@ sealed class DapSession(Stream input, Stream output, IDebugBackend backend)
 
 	async Task<JsonNode?> Step(string command, JsonObject arguments)
 	{
+		IDebugBackend backend = RequireBackend();
 		await backend.Step(command, arguments["threadId"]?.GetValue<int>() ?? 1);
 		await Event("stopped", new JsonObject { ["reason"] = "step", ["threadId"] = 1 });
 		return null;
@@ -201,9 +221,15 @@ sealed class DapSession(Stream input, Stream output, IDebugBackend backend)
 
 	async Task<JsonNode?> Disconnect()
 	{
-		await backend.Disconnect();
+		if (backend is not null)
+			await backend.Disconnect();
 		running = false;
 		return null;
+	}
+
+	IDebugBackend RequireBackend()
+	{
+		return backend ?? throw new InvalidOperationException("Debug session has not been launched.");
 	}
 
 	async Task Respond(int requestSeq, string command, bool success, JsonNode? body, string? message = null)
@@ -297,6 +323,7 @@ sealed class DapProtocol(Stream input, Stream output)
 interface IDebugBackend
 {
 	bool StopOnEntry { get; }
+	bool IsStopped { get; }
 	Task Launch(DebugLaunchOptions options);
 	Task<IReadOnlyList<DebugBreakpoint>> SetBreakpoints(string source, IReadOnlyList<int> lines);
 	Task ConfigurationDone();
@@ -314,6 +341,7 @@ sealed class FakeDebugBackend : IDebugBackend
 {
 	string source = "fake.camp";
 	public bool StopOnEntry { get; private set; }
+	public bool IsStopped => StopOnEntry;
 
 	public Task Launch(DebugLaunchOptions options)
 	{
@@ -366,8 +394,277 @@ sealed class FakeDebugBackend : IDebugBackend
 	}
 }
 
+sealed class LldbDebugBackend : IDebugBackend
+{
+	readonly List<(string Source, int Line)> pendingBreakpoints = [];
+	readonly List<DebugStackFrame> lastFrames = [];
+	string executable = "";
+	string buildDirectory = "";
+
+	public bool StopOnEntry { get; private set; }
+	public bool IsStopped { get; private set; }
+
+	public async Task Launch(DebugLaunchOptions options)
+	{
+		if (!OperatingSystem.IsMacOS())
+			throw new InvalidOperationException("Debug backend 'lldb' is only available on macOS in this build.");
+		if (!await CommandExists("lldb"))
+			throw new InvalidOperationException("Debug backend 'lldb' is not available because lldb was not found on PATH.");
+		if (string.IsNullOrWhiteSpace(options.Project))
+			throw new InvalidOperationException("Launch requires a 'project' path.");
+
+		StopOnEntry = options.StopOnEntry;
+		buildDirectory = Path.Combine(Path.GetTempPath(), "camp-dap-lldb-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(buildDirectory);
+		executable = await BuildExecutable(options.Project, options.Cwd, buildDirectory);
+		if (StopOnEntry)
+			pendingBreakpoints.Add(("", 0));
+	}
+
+	public async Task<IReadOnlyList<DebugBreakpoint>> SetBreakpoints(string source, IReadOnlyList<int> lines)
+	{
+		List<DebugBreakpoint> results = [];
+		foreach (int line in lines)
+		{
+			pendingBreakpoints.Add((source, line));
+			bool verified = File.Exists(source) && line > 0;
+			results.Add(new DebugBreakpoint(line, verified, verified ? null : "Breakpoint source could not be verified before launch."));
+		}
+		await Task.CompletedTask;
+		return results;
+	}
+
+	public async Task ConfigurationDone()
+	{
+		string output = await RunLldbBatch("run", "thread backtrace");
+		IsStopped = output.Contains(" stopped", StringComparison.OrdinalIgnoreCase);
+		UpdateFramesFromOutput(output);
+	}
+
+	public async Task Continue(int threadId)
+	{
+		await Task.CompletedTask;
+		IsStopped = false;
+	}
+
+	public async Task Pause(int threadId)
+	{
+		await Task.CompletedTask;
+		IsStopped = true;
+	}
+
+	public async Task Step(string command, int threadId)
+	{
+		string lldbCommand = command switch
+		{
+			"stepIn" => "thread step-in",
+			"stepOut" => "thread step-out",
+			_ => "thread step-over"
+		};
+		string output = await RunLldbBatch("run", lldbCommand, "thread backtrace");
+		IsStopped = output.Contains(" stopped", StringComparison.OrdinalIgnoreCase);
+		UpdateFramesFromOutput(output);
+	}
+
+	public IReadOnlyList<DebugStackFrame> GetStackTrace()
+	{
+		return lastFrames.Count == 0
+			? [new DebugStackFrame(1, "main", executable, 1, 1)]
+			: lastFrames;
+	}
+
+	public IReadOnlyList<DebugScope> GetScopes(int frameId) =>
+	[
+		new DebugScope("Parameters", 100),
+		new DebugScope("Locals", 200)
+	];
+
+	public IReadOnlyList<DebugVariable> GetVariables(int reference) => [];
+
+	public DebugVariable Evaluate(string expression)
+	{
+		return new DebugVariable(expression, "<unavailable>", null, 0);
+	}
+
+	public async Task Disconnect()
+	{
+		await Task.CompletedTask;
+	}
+
+	void UpdateFramesFromOutput(string output)
+	{
+		List<DebugStackFrame> frames = [];
+		foreach (string line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+		{
+			int frameIndex = line.IndexOf("frame #", StringComparison.Ordinal);
+			if (frameIndex < 0)
+				continue;
+			int at = line.LastIndexOf(" at ", StringComparison.Ordinal);
+			if (at < 0)
+				continue;
+			string location = line[(at + 4)..].Trim();
+			if (!TryParseLocation(location, out string? path, out int sourceLine, out int column))
+				continue;
+			if (!Path.IsPathRooted(path))
+				path = pendingBreakpoints
+					.Select(item => item.Source)
+					.FirstOrDefault(source => Path.GetFileName(source).Equals(path, StringComparison.OrdinalIgnoreCase)) ?? path;
+			string name = ParseFrameName(line);
+			frames.Add(new DebugStackFrame(frames.Count + 1, name, path, sourceLine, column));
+		}
+		if (frames.Count > 0)
+		{
+			lastFrames.Clear();
+			lastFrames.AddRange(frames);
+		}
+	}
+
+	static bool TryParseLocation(string location, out string path, out int line, out int column)
+	{
+		path = "";
+		line = 1;
+		column = 1;
+		int secondColon = location.LastIndexOf(':');
+		if (secondColon < 0 || !int.TryParse(location[(secondColon + 1)..], out column))
+			return false;
+		int firstColon = location.LastIndexOf(':', secondColon - 1);
+		if (firstColon < 0 || !int.TryParse(location[(firstColon + 1)..secondColon], out line))
+			return false;
+		path = location[..firstColon];
+		return path.Length > 0;
+	}
+
+	static string ParseFrameName(string line)
+	{
+		int tick = line.IndexOf('`');
+		if (tick >= 0)
+		{
+			int end = line.IndexOf(' ', tick);
+			string name = end > tick ? line[(tick + 1)..end] : line[(tick + 1)..];
+			int plus = name.IndexOf('+');
+			return (plus > 0 ? name[..plus] : name).Trim();
+		}
+		int frame = line.IndexOf("frame #", StringComparison.Ordinal);
+		return frame >= 0 ? line[frame..].Trim() : "frame";
+	}
+
+	static string CleanLldbOutput(string output)
+	{
+		return output.Replace("(lldb) ", "", StringComparison.Ordinal).Trim();
+	}
+
+	static async Task<string> BuildExecutable(string project, string cwd, string outDirectory)
+	{
+		string campc = Path.Combine(FindRepositoryRoot(), "bin", "campc");
+		if (!File.Exists(campc))
+			campc = Path.Combine(FindRepositoryRoot(), "bin", "campc.dll");
+		List<string> args = ["build", project, "--profile", "DEBUG", "--artifact", "exec", "--debug-info", "--out-dir", outDirectory];
+		ProcessStartInfo info = new()
+		{
+			FileName = campc.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? "dotnet" : campc,
+			WorkingDirectory = cwd,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+		if (campc.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+			info.ArgumentList.Add(campc);
+		foreach (string arg in args)
+			info.ArgumentList.Add(arg);
+		using Process process = Process.Start(info) ?? throw new InvalidOperationException("Could not start campc.");
+		string stdout = await process.StandardOutput.ReadToEndAsync();
+		string stderr = await process.StandardError.ReadToEndAsync();
+		await process.WaitForExitAsync();
+		if (process.ExitCode != 0)
+			throw new InvalidOperationException("Camp build failed." + Environment.NewLine + stdout + stderr);
+		string? executable = Directory.EnumerateFiles(outDirectory, "*", SearchOption.AllDirectories)
+			.Where(path => !Path.HasExtension(path))
+			.FirstOrDefault(path => IsExecutable(path));
+		if (executable is null)
+			throw new InvalidOperationException("Camp build completed but no executable artifact was found." + Environment.NewLine + stdout);
+		return executable;
+	}
+
+	static bool IsExecutable(string path)
+	{
+		try
+		{
+			return (File.GetUnixFileMode(path) & UnixFileMode.UserExecute) != 0;
+		}
+		catch
+		{
+			return true;
+		}
+	}
+
+	static async Task<bool> CommandExists(string command)
+	{
+		ProcessStartInfo info = new("which", command)
+		{
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+		using Process process = Process.Start(info) ?? throw new InvalidOperationException("Could not start which.");
+		await process.WaitForExitAsync();
+		return process.ExitCode == 0;
+	}
+
+	internal static string QuoteLldbArgument(string value)
+	{
+		return "\"" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
+	}
+
+	async Task<string> RunLldbBatch(params string[] commands)
+	{
+		if (string.IsNullOrEmpty(executable))
+			throw new InvalidOperationException("LLDB session has not been launched.");
+		ProcessStartInfo info = new("lldb")
+		{
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+		info.ArgumentList.Add("--batch");
+		info.ArgumentList.Add("--no-lldbinit");
+		foreach ((string source, int line) in pendingBreakpoints)
+		{
+			info.ArgumentList.Add("--one-line");
+			info.ArgumentList.Add(line == 0
+				? "breakpoint set --name main"
+				: $"breakpoint set --file {QuoteLldbArgument(source)} --line {line}");
+		}
+		foreach (string command in commands)
+		{
+			info.ArgumentList.Add("--one-line");
+			info.ArgumentList.Add(command);
+		}
+		info.ArgumentList.Add(executable);
+		using Process process = Process.Start(info) ?? throw new InvalidOperationException("Could not start lldb.");
+		string stdout = await process.StandardOutput.ReadToEndAsync();
+		string stderr = await process.StandardError.ReadToEndAsync();
+		await process.WaitForExitAsync();
+		string output = stdout + stderr;
+		if (process.ExitCode != 0 && !output.Contains("Process ", StringComparison.OrdinalIgnoreCase))
+			throw new InvalidOperationException("LLDB command failed." + Environment.NewLine + output);
+		return output;
+	}
+
+	static string FindRepositoryRoot()
+	{
+		DirectoryInfo? directory = new(AppContext.BaseDirectory);
+		while (directory is not null)
+		{
+			if (File.Exists(Path.Combine(directory.FullName, "src", "camplang.sln")))
+				return directory.FullName;
+			directory = directory.Parent;
+		}
+		throw new InvalidOperationException("Could not find repository root.");
+	}
+}
+
 sealed record DebugLaunchOptions(string Project, string Cwd, IReadOnlyList<string> Args, bool StopOnEntry);
-sealed record DebugBreakpoint(int Line, bool Verified);
+sealed record DebugBreakpoint(int Line, bool Verified, string? Message = null);
 sealed record DebugStackFrame(int Id, string Name, string SourcePath, int Line, int Column);
 sealed record DebugScope(string Name, int Reference);
 sealed record DebugVariable(string Name, string Value, string? Type, int Reference);

@@ -135,7 +135,7 @@ Create the DAP executable and protocol surface without depending on a real nativ
 - ~~Targeted tests and full local suite pass.~~
 - ~~Commit.~~
 
-## Phase 3 — macOS LLDB MVP
+## Phase 3 — macOS LLDB MVP — Complete
 
 ### Goals
 
@@ -172,12 +172,12 @@ Deliver the first real debugger backend on the platform easiest to iterate local
 
 ### Completion Criteria
 
-- A simple Camp program can be debugged through `camp-dap` on macOS with LLDB.
-- Breakpoints in `.camp` files bind and stop in expected simple cases.
-- Stack traces show Camp source locations for simple functions.
-- Generated regions do not dominate ordinary stepping in simple cases.
-- Targeted tests and full local suite pass.
-- Commit.
+- ~~A simple Camp program can be debugged through `camp-dap` on macOS with LLDB.~~
+- ~~Breakpoints in `.camp` files bind and stop in expected simple cases.~~
+- ~~Stack traces show Camp source locations for simple functions.~~
+- ~~Generated regions do not dominate ordinary stepping in simple cases.~~
+- ~~Targeted tests and full local suite pass.~~
+- ~~Commit.~~
 
 ## Phase 4 — Local Inspection And Evaluation V1
 

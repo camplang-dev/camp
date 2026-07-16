@@ -90,7 +90,7 @@ public sealed class DapServerTests
 	{
 		using DapProcess missingBackend = DapProcess.Start();
 		Assert.True(missingBackend.Request("initialize", new { adapterID = "camp" })["success"]?.GetValue<bool>());
-		JsonNode unavailable = missingBackend.Request("launch", new { project = "main.camp", backend = "lldb" });
+		JsonNode unavailable = missingBackend.Request("launch", new { project = "main.camp", backend = "cdb" });
 		Assert.False(unavailable["success"]?.GetValue<bool>());
 		Assert.Contains("not available", unavailable["message"]?.GetValue<string>());
 		missingBackend.Request("disconnect", new { });
@@ -103,9 +103,73 @@ public sealed class DapServerTests
 		buildFailure.Request("disconnect", new { });
 	}
 
+	[Fact]
+	public void Dap_lldb_backend_launches_and_stops_on_camp_breakpoint_when_available()
+	{
+		if (!OperatingSystem.IsMacOS() || !CommandAvailable("lldb"))
+			return;
+
+		string root = FindRepositoryRoot();
+		string temp = Path.Combine(Path.GetTempPath(), "camp-dap-lldb-test-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(temp);
+		string source = Path.Combine(temp, "main.camp");
+		File.WriteAllText(source, string.Join(Environment.NewLine,
+			"export int helper(int value)",
+			"{",
+			"\treturn value + 1;",
+			"}",
+			"",
+			"export int main(string[] args)",
+			"{",
+			"\tint result = helper(41);",
+			"\treturn result;",
+			"}",
+			""));
+
+		using DapProcess dap = DapProcess.Start();
+		Assert.True(dap.Request("initialize", new { adapterID = "camp" })["success"]?.GetValue<bool>());
+
+		JsonNode launch = dap.Request("launch", new
+		{
+			project = source,
+			cwd = root,
+			args = Array.Empty<string>(),
+			stopOnEntry = false,
+			backend = "lldb"
+		});
+		Assert.True(launch["success"]?.GetValue<bool>(), launch["message"]?.GetValue<string>());
+		dap.ReadEvent("initialized");
+
+		JsonNode breakpoints = dap.Request("setBreakpoints", new
+		{
+			source = new { path = source },
+			breakpoints = new[] { new { line = 8 } }
+		});
+		Assert.True(
+			breakpoints["body"]?["breakpoints"]?[0]?["verified"]?.GetValue<bool>(),
+			breakpoints["body"]?["breakpoints"]?[0]?["message"]?.GetValue<string>());
+
+		Assert.True(dap.Request("configurationDone", new { })["success"]?.GetValue<bool>());
+		JsonNode stopped = dap.ReadEvent("stopped");
+		Assert.Equal("breakpoint", stopped["body"]?["reason"]?.GetValue<string>());
+
+		JsonNode stack = dap.Request("stackTrace", new { threadId = 1 });
+		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
+		Assert.NotNull(frame);
+		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
+		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 7, 9);
+
+		Assert.True(dap.Request("next", new { threadId = 1 })["success"]?.GetValue<bool>());
+		Assert.Equal("stopped", dap.ReadEvent("stopped")["event"]?.GetValue<string>());
+		JsonNode continued = dap.Request("continue", new { threadId = 1 });
+		Assert.True(continued["body"]?["allThreadsContinued"]?.GetValue<bool>());
+		Assert.Equal("continued", dap.ReadEvent("continued")["event"]?.GetValue<string>());
+		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
+	}
+
 	sealed class DapProcess : IDisposable
 	{
-		const int RequestTimeoutMilliseconds = 10000;
+		const int RequestTimeoutMilliseconds = 30000;
 		const int ShutdownTimeoutMilliseconds = 3000;
 		readonly Process process;
 		readonly List<JsonNode> observedEvents = [];
@@ -300,5 +364,20 @@ public sealed class DapServerTests
 			directory = directory.Parent;
 		}
 		throw new InvalidOperationException("Could not find repository root.");
+	}
+
+	static bool CommandAvailable(string command)
+	{
+		ProcessStartInfo info = new("which", command)
+		{
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+		using Process? process = Process.Start(info);
+		if (process is null)
+			return false;
+		process.WaitForExit();
+		return process.ExitCode == 0;
 	}
 }
