@@ -435,7 +435,7 @@ Improve the everyday debugging experience after all core backends exist.
 - ~~Full local suite plus active platform lanes pass.~~
 - ~~Commit.~~
 
-## Phase 10 — Async, Iterators, And Advanced Runtime Views
+## Phase 10 — Async, Iterators, And Advanced Runtime Views — Complete
 
 ### Goals
 
@@ -466,10 +466,10 @@ Polish the debugging model for the language features whose lowering is intention
 
 ### Completion Criteria
 
-- Async and iterator debugging is source-oriented enough for normal diagnosis.
-- Complex lowered state is explained or hidden instead of appearing as unexplained native clutter.
-- Full local suite plus relevant platform lanes pass.
-- Commit.
+- ~~Async and iterator debugging is source-oriented enough for normal diagnosis.~~
+- ~~Complex lowered state is explained or hidden instead of appearing as unexplained native clutter.~~
+- ~~Full local suite plus relevant platform lanes pass.~~
+- ~~Commit.~~
 
 ## Cross-Cutting Test Strategy
 

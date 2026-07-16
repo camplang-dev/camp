@@ -87,11 +87,15 @@ public sealed class DapServerTests
 		Assert.Equal("context", handlerChildren["body"]?["variables"]?[1]?["name"]?.GetValue<string>());
 		Assert.Equal("state", variables["body"]?["variables"]?[2]?["name"]?.GetValue<string>());
 		Assert.Equal("iterator state 0x0000000000001234", variables["body"]?["variables"]?[2]?["value"]?.GetValue<string>());
+		Assert.Equal("lambdaContext", variables["body"]?["variables"]?[3]?["name"]?.GetValue<string>());
+		Assert.Equal("lambda context 0x0000000000005678", variables["body"]?["variables"]?[3]?["value"]?.GetValue<string>());
 
 		JsonNode evaluation = dap.Request("evaluate", new { expression = "answer", frameId = 1, context = "hover" });
 		Assert.Equal("42", evaluation["body"]?["result"]?.GetValue<string>());
 		JsonNode handlerEvaluation = dap.Request("evaluate", new { expression = "handler", frameId = 1, context = "watch" });
 		Assert.Equal("delegate void(int) { call, context }", handlerEvaluation["body"]?["result"]?.GetValue<string>());
+		JsonNode lambdaContextEvaluation = dap.Request("evaluate", new { expression = "lambdaContext", frameId = 1, context = "watch" });
+		Assert.Equal("lambda context 0x0000000000005678", lambdaContextEvaluation["body"]?["result"]?.GetValue<string>());
 		JsonNode unsupported = dap.Request("evaluate", new { expression = "missing + 1", frameId = 1, context = "watch" });
 		Assert.Equal("Unsupported expression", unsupported["body"]?["result"]?.GetValue<string>());
 

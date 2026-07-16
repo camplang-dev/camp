@@ -388,7 +388,8 @@ sealed class FakeDebugBackend : IDebugBackend
 			[
 				new DebugVariable("answer", "42", "int", 0),
 				new DebugVariable("handler", "delegate void(int) { call, context }", "delegate void(int)", 301),
-				new DebugVariable("state", "iterator state 0x0000000000001234", "countToIter*", 0)
+				new DebugVariable("state", "iterator state 0x0000000000001234", "countToIter*", 0),
+				new DebugVariable("lambdaContext", "lambda context 0x0000000000005678", "main_lambdaContext0*", 0)
 			],
 			300 =>
 			[
@@ -412,6 +413,7 @@ sealed class FakeDebugBackend : IDebugBackend
 			"args" => new DebugVariable("args", "string[] length=0", "string[]", 300),
 			"handler" => new DebugVariable("handler", "delegate void(int) { call, context }", "delegate void(int)", 301),
 			"state" => new DebugVariable("state", "iterator state 0x0000000000001234", "countToIter*", 0),
+			"lambdaContext" => new DebugVariable("lambdaContext", "lambda context 0x0000000000005678", "main_lambdaContext0*", 0),
 			_ => new DebugVariable(expression, "Unsupported expression", null, 0)
 		};
 	}
@@ -544,10 +546,10 @@ sealed class LldbDebugBackend : IDebugBackend
 				path = pendingBreakpoints
 					.Select(item => item.Source)
 					.FirstOrDefault(source => Path.GetFileName(source).Equals(path, StringComparison.OrdinalIgnoreCase)) ?? path;
-			string name = ParseFrameName(line);
-			frames.Add(new DebugStackFrame(frames.Count + 1, name, path, sourceLine, column));
-			if (frames.Count == 1)
-				stoppedNativeSymbol = name;
+				string name = ParseFrameName(line);
+				frames.Add(new DebugStackFrame(frames.Count + 1, debugMap?.GetDisplayName(name) ?? name, path, sourceLine, column));
+				if (frames.Count == 1)
+					stoppedNativeSymbol = name;
 		}
 		if (frames.Count > 0)
 		{
@@ -871,10 +873,10 @@ sealed class GdbDebugBackend : IDebugBackend
 				path = pendingBreakpoints
 					.Select(item => item.Source)
 					.FirstOrDefault(source => Path.GetFileName(source).Equals(path, StringComparison.OrdinalIgnoreCase)) ?? path;
-			string name = ParseGdbFrameName(line);
-			frames.Add(new DebugStackFrame(frames.Count + 1, name, path, sourceLine, 1));
-			if (frames.Count == 1)
-				stoppedNativeSymbol = name;
+				string name = ParseGdbFrameName(line);
+				frames.Add(new DebugStackFrame(frames.Count + 1, debugMap?.GetDisplayName(name) ?? name, path, sourceLine, 1));
+				if (frames.Count == 1)
+					stoppedNativeSymbol = name;
 		}
 		if (frames.Count > 0)
 		{
@@ -1102,7 +1104,7 @@ sealed class CdbDebugBackend : IDebugBackend
 				path = pendingBreakpoints
 					.Select(item => item.Source)
 					.FirstOrDefault(source => Path.GetFileName(source).Equals(path, StringComparison.OrdinalIgnoreCase)) ?? path;
-			frames.Add(new DebugStackFrame(frames.Count + 1, name, path, sourceLine, 1));
+			frames.Add(new DebugStackFrame(frames.Count + 1, debugMap?.GetDisplayName(name) ?? name, path, sourceLine, 1));
 			if (frames.Count == 1)
 				stoppedNativeSymbol = name;
 		}
@@ -1273,6 +1275,8 @@ static class DebugVariableMapper
 		{
 			if (!nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable? native))
 				continue;
+			if (IsSyntheticVariable(variable.CampName))
+				continue;
 			if (TryAddSpan(variable, function, nativeVariables, variableReferences, evaluateVariables, hidden, parameters, locals, ref nextVariableReference))
 				continue;
 			if (TryAddCallable(variable, function, nativeVariables, variableReferences, evaluateVariables, hidden, parameters, locals, ref nextVariableReference))
@@ -1360,6 +1364,8 @@ static class DebugVariableMapper
 	static DebugVariable FormatScalar(string name, string? type, string value)
 	{
 		string displayType = type ?? "";
+		if (IsLambdaContext(name, displayType))
+			return new DebugVariable(name, "lambda context " + FormatPointerValue(value), displayType, 0);
 		if (IsIteratorState(displayType))
 			return new DebugVariable(name, "iterator state " + FormatPointerValue(value), displayType, 0);
 		if (IsStringType(displayType))
@@ -1396,6 +1402,17 @@ static class DebugVariableMapper
 		return type.EndsWith("Iter*", StringComparison.Ordinal) || type.Contains("Iter*", StringComparison.Ordinal);
 	}
 
+	static bool IsLambdaContext(string name, string type)
+	{
+		return name.Contains("lambdaContext", StringComparison.OrdinalIgnoreCase)
+			|| type.Contains("lambdaContext", StringComparison.OrdinalIgnoreCase);
+	}
+
+	static bool IsSyntheticVariable(string name)
+	{
+		return name.StartsWith('#');
+	}
+
 	static void AddVariable(string kind, DebugVariable variable, Dictionary<string, DebugVariable> parameters, Dictionary<string, DebugVariable> locals)
 	{
 		if (kind.Equals("parameter", StringComparison.OrdinalIgnoreCase))
@@ -1410,6 +1427,12 @@ sealed class DebugMapDocument(IReadOnlyList<DebugMapFunction> functions)
 	public DebugMapFunction? FindFunction(string nativeSymbol)
 	{
 		return functions.FirstOrDefault(function => function.NativeSymbol == nativeSymbol || function.CampFunction == nativeSymbol);
+	}
+
+	public string GetDisplayName(string nativeSymbol)
+	{
+		DebugMapFunction? function = FindFunction(nativeSymbol);
+		return function?.DisplayName ?? nativeSymbol;
 	}
 
 	public DebugMapFunction? FindFunctionForSourceLine(string sourcePath, int line)
@@ -1464,5 +1487,28 @@ sealed class DebugMapDocument(IReadOnlyList<DebugMapFunction> functions)
 
 }
 
-sealed record DebugMapFunction(string? CampFunction, string NativeSymbol, string? SourcePath, int SourceStartLine, IReadOnlyList<DebugMapVariable> Variables);
+sealed record DebugMapFunction(string? CampFunction, string NativeSymbol, string? SourcePath, int SourceStartLine, IReadOnlyList<DebugMapVariable> Variables)
+{
+	public string DisplayName
+	{
+		get
+		{
+			if (NativeSymbol.Contains("_lambda", StringComparison.Ordinal))
+			{
+				string owner = NativeSymbol[..NativeSymbol.IndexOf("_lambda", StringComparison.Ordinal)];
+				return owner.Length == 0 ? "lambda" : "lambda in " + owner;
+			}
+			if (NativeSymbol.EndsWith("Iter_next", StringComparison.Ordinal) || CampFunction == "next")
+				return "iterator next";
+			if (CampFunction == "op_iter")
+				return "iterator call";
+			if (CampFunction == "op_delete")
+				return "iterator delete";
+			if (CampFunction == "destroy")
+				return "destroy";
+			return CampFunction ?? NativeSymbol;
+		}
+	}
+}
+
 sealed record DebugMapVariable(string CampName, string NativeName, string? Type, string Kind);
