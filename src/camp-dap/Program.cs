@@ -383,12 +383,22 @@ sealed class FakeDebugBackend : IDebugBackend
 	{
 		return reference switch
 		{
-			100 => [new DebugVariable("args", "{ elements, length }", "string[]", 300)],
-			200 => [new DebugVariable("answer", "42", "int", 0)],
+			100 => [new DebugVariable("args", "string[] length=0", "string[]", 300)],
+			200 =>
+			[
+				new DebugVariable("answer", "42", "int", 0),
+				new DebugVariable("handler", "delegate void(int) { call, context }", "delegate void(int)", 301),
+				new DebugVariable("state", "iterator state 0x0000000000001234", "countToIter*", 0)
+			],
 			300 =>
 			[
-				new DebugVariable("elements", "0x00000000", "string*", 0),
+				new DebugVariable("elements", "null", "string*", 0),
 				new DebugVariable("length", "0", "nuint", 0)
+			],
+			301 =>
+			[
+				new DebugVariable("call", "target", "fn void(void*, int)", 0),
+				new DebugVariable("context", "null", "void*", 0)
 			],
 			_ => []
 		};
@@ -399,7 +409,9 @@ sealed class FakeDebugBackend : IDebugBackend
 		return expression switch
 		{
 			"answer" => new DebugVariable("answer", "42", "int", 0),
-			"args" => new DebugVariable("args", "{ elements, length }", "string[]", 300),
+			"args" => new DebugVariable("args", "string[] length=0", "string[]", 300),
+			"handler" => new DebugVariable("handler", "delegate void(int) { call, context }", "delegate void(int)", 301),
+			"state" => new DebugVariable("state", "iterator state 0x0000000000001234", "countToIter*", 0),
 			_ => new DebugVariable(expression, "Unsupported expression", null, 0)
 		};
 	}
@@ -593,49 +605,7 @@ sealed class LldbDebugBackend : IDebugBackend
 		if (function is null)
 			return;
 
-		HashSet<string> hidden = new(StringComparer.Ordinal);
-		Dictionary<string, DebugVariable> parameters = new(StringComparer.Ordinal);
-		Dictionary<string, DebugVariable> locals = new(StringComparer.Ordinal);
-		foreach (DebugMapVariable variable in function.Variables)
-		{
-			if (!nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable? native))
-				continue;
-			if (variable.CampName.EndsWith("_length", StringComparison.Ordinal))
-			{
-				string baseName = variable.CampName[..^"_length".Length];
-				DebugMapVariable? baseVariable = function.Variables.FirstOrDefault(item => item.CampName == baseName);
-				if (baseVariable is not null && nativeVariables.TryGetValue(baseVariable.NativeName, out LldbNativeVariable? baseNative))
-				{
-					int reference = nextVariableReference++;
-					DebugVariable structured = new(baseName, "{ elements, length }", baseVariable.Type, reference);
-					variableReferences[reference] =
-					[
-						new DebugVariable("elements", baseNative.Value, baseNative.Type, 0),
-						new DebugVariable("length", native.Value, native.Type, 0)
-					];
-					AddVariable(baseVariable.Kind, structured, parameters, locals);
-					evaluateVariables[baseName] = structured;
-					hidden.Add(baseName);
-					hidden.Add(variable.CampName);
-				}
-				continue;
-			}
-			if (hidden.Contains(variable.CampName))
-				continue;
-			DebugVariable debugVariable = new(variable.CampName, native.Value, variable.Type ?? native.Type, 0);
-			AddVariable(variable.Kind, debugVariable, parameters, locals);
-			evaluateVariables[variable.CampName] = debugVariable;
-		}
-		variableReferences[100] = parameters.Values.ToList();
-		variableReferences[200] = locals.Values.ToList();
-	}
-
-	static void AddVariable(string kind, DebugVariable variable, Dictionary<string, DebugVariable> parameters, Dictionary<string, DebugVariable> locals)
-	{
-		if (kind.Equals("parameter", StringComparison.OrdinalIgnoreCase))
-			parameters[variable.Name] = variable;
-		else
-			locals[variable.Name] = variable;
+		DebugVariableMapper.Update(function, nativeVariables, variableReferences, evaluateVariables, ref nextVariableReference, parametersReference: 100, localsReference: 200);
 	}
 
 	static Dictionary<string, LldbNativeVariable> ParseNativeVariables(string output)
@@ -955,49 +925,7 @@ sealed class GdbDebugBackend : IDebugBackend
 		if (function is null)
 			return;
 
-		HashSet<string> hidden = new(StringComparer.Ordinal);
-		Dictionary<string, DebugVariable> parameters = new(StringComparer.Ordinal);
-		Dictionary<string, DebugVariable> locals = new(StringComparer.Ordinal);
-		foreach (DebugMapVariable variable in function.Variables)
-		{
-			if (!nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable? native))
-				continue;
-			if (variable.CampName.EndsWith("_length", StringComparison.Ordinal))
-			{
-				string baseName = variable.CampName[..^"_length".Length];
-				DebugMapVariable? baseVariable = function.Variables.FirstOrDefault(item => item.CampName == baseName);
-				if (baseVariable is not null && nativeVariables.TryGetValue(baseVariable.NativeName, out LldbNativeVariable? baseNative))
-				{
-					int reference = nextVariableReference++;
-					DebugVariable structured = new(baseName, "{ elements, length }", baseVariable.Type, reference);
-					variableReferences[reference] =
-					[
-						new DebugVariable("elements", baseNative.Value, baseNative.Type, 0),
-						new DebugVariable("length", native.Value, native.Type, 0)
-					];
-					AddVariable(baseVariable.Kind, structured, parameters, locals);
-					evaluateVariables[baseName] = structured;
-					hidden.Add(baseName);
-					hidden.Add(variable.CampName);
-				}
-				continue;
-			}
-			if (hidden.Contains(variable.CampName))
-				continue;
-			DebugVariable debugVariable = new(variable.CampName, native.Value, variable.Type ?? native.Type, 0);
-			AddVariable(variable.Kind, debugVariable, parameters, locals);
-			evaluateVariables[variable.CampName] = debugVariable;
-		}
-		variableReferences[100] = parameters.Values.ToList();
-		variableReferences[200] = locals.Values.ToList();
-	}
-
-	static void AddVariable(string kind, DebugVariable variable, Dictionary<string, DebugVariable> parameters, Dictionary<string, DebugVariable> locals)
-	{
-		if (kind.Equals("parameter", StringComparison.OrdinalIgnoreCase))
-			parameters[variable.Name] = variable;
-		else
-			locals[variable.Name] = variable;
+		DebugVariableMapper.Update(function, nativeVariables, variableReferences, evaluateVariables, ref nextVariableReference, parametersReference: 100, localsReference: 200);
 	}
 
 	static Dictionary<string, LldbNativeVariable> ParseGdbVariables(string output)
@@ -1224,49 +1152,7 @@ sealed class CdbDebugBackend : IDebugBackend
 		if (function is null)
 			return;
 
-		HashSet<string> hidden = new(StringComparer.Ordinal);
-		Dictionary<string, DebugVariable> parameters = new(StringComparer.Ordinal);
-		Dictionary<string, DebugVariable> locals = new(StringComparer.Ordinal);
-		foreach (DebugMapVariable variable in function.Variables)
-		{
-			if (!nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable? native))
-				continue;
-			if (variable.CampName.EndsWith("_length", StringComparison.Ordinal))
-			{
-				string baseName = variable.CampName[..^"_length".Length];
-				DebugMapVariable? baseVariable = function.Variables.FirstOrDefault(item => item.CampName == baseName);
-				if (baseVariable is not null && nativeVariables.TryGetValue(baseVariable.NativeName, out LldbNativeVariable? baseNative))
-				{
-					int reference = nextVariableReference++;
-					DebugVariable structured = new(baseName, "{ elements, length }", baseVariable.Type, reference);
-					variableReferences[reference] =
-					[
-						new DebugVariable("elements", baseNative.Value, baseNative.Type, 0),
-						new DebugVariable("length", native.Value, native.Type, 0)
-					];
-					AddVariable(baseVariable.Kind, structured, parameters, locals);
-					evaluateVariables[baseName] = structured;
-					hidden.Add(baseName);
-					hidden.Add(variable.CampName);
-				}
-				continue;
-			}
-			if (hidden.Contains(variable.CampName))
-				continue;
-			DebugVariable debugVariable = new(variable.CampName, native.Value, variable.Type ?? native.Type, 0);
-			AddVariable(variable.Kind, debugVariable, parameters, locals);
-			evaluateVariables[variable.CampName] = debugVariable;
-		}
-		variableReferences[100] = parameters.Values.ToList();
-		variableReferences[200] = locals.Values.ToList();
-	}
-
-	static void AddVariable(string kind, DebugVariable variable, Dictionary<string, DebugVariable> parameters, Dictionary<string, DebugVariable> locals)
-	{
-		if (kind.Equals("parameter", StringComparison.OrdinalIgnoreCase))
-			parameters[variable.Name] = variable;
-		else
-			locals[variable.Name] = variable;
+		DebugVariableMapper.Update(function, nativeVariables, variableReferences, evaluateVariables, ref nextVariableReference, parametersReference: 100, localsReference: 200);
 	}
 
 	static Dictionary<string, LldbNativeVariable> ParseCdbVariables(string output)
@@ -1368,6 +1254,156 @@ sealed record DebugScope(string Name, int Reference);
 sealed record DebugVariable(string Name, string Value, string? Type, int Reference);
 sealed record DebugBuildResult(string Executable, string? DebugMapPath);
 sealed record LldbNativeVariable(string Type, string Value);
+
+static class DebugVariableMapper
+{
+	public static void Update(
+		DebugMapFunction function,
+		Dictionary<string, LldbNativeVariable> nativeVariables,
+		Dictionary<int, IReadOnlyList<DebugVariable>> variableReferences,
+		Dictionary<string, DebugVariable> evaluateVariables,
+		ref int nextVariableReference,
+		int parametersReference,
+		int localsReference)
+	{
+		HashSet<string> hidden = new(StringComparer.Ordinal);
+		Dictionary<string, DebugVariable> parameters = new(StringComparer.Ordinal);
+		Dictionary<string, DebugVariable> locals = new(StringComparer.Ordinal);
+		foreach (DebugMapVariable variable in function.Variables)
+		{
+			if (!nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable? native))
+				continue;
+			if (TryAddSpan(variable, function, nativeVariables, variableReferences, evaluateVariables, hidden, parameters, locals, ref nextVariableReference))
+				continue;
+			if (TryAddCallable(variable, function, nativeVariables, variableReferences, evaluateVariables, hidden, parameters, locals, ref nextVariableReference))
+				continue;
+			if (hidden.Contains(variable.CampName))
+				continue;
+			DebugVariable debugVariable = FormatScalar(variable.CampName, variable.Type ?? native.Type, native.Value);
+			AddVariable(variable.Kind, debugVariable, parameters, locals);
+			evaluateVariables[variable.CampName] = debugVariable;
+		}
+		variableReferences[parametersReference] = parameters.Values.ToList();
+		variableReferences[localsReference] = locals.Values.ToList();
+	}
+
+	static bool TryAddSpan(
+		DebugMapVariable variable,
+		DebugMapFunction function,
+		Dictionary<string, LldbNativeVariable> nativeVariables,
+		Dictionary<int, IReadOnlyList<DebugVariable>> variableReferences,
+		Dictionary<string, DebugVariable> evaluateVariables,
+		HashSet<string> hidden,
+		Dictionary<string, DebugVariable> parameters,
+		Dictionary<string, DebugVariable> locals,
+		ref int nextVariableReference)
+	{
+		if (!variable.CampName.EndsWith("_length", StringComparison.Ordinal))
+			return false;
+		string baseName = variable.CampName[..^"_length".Length];
+		DebugMapVariable? baseVariable = function.Variables.FirstOrDefault(item => item.CampName == baseName);
+		if (baseVariable is null
+			|| !nativeVariables.TryGetValue(baseVariable.NativeName, out LldbNativeVariable? elements)
+			|| !nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable? length))
+			return true;
+
+		int reference = nextVariableReference++;
+		string type = FormatSpanType(baseVariable.Type ?? elements.Type);
+		DebugVariable structured = new(baseName, type + " length=" + length.Value, type, reference);
+		variableReferences[reference] =
+		[
+			new DebugVariable("elements", FormatPointerValue(elements.Value), elements.Type, 0),
+			new DebugVariable("length", length.Value, variable.Type ?? length.Type, 0)
+		];
+		AddVariable(baseVariable.Kind, structured, parameters, locals);
+		evaluateVariables[baseName] = structured;
+		hidden.Add(baseName);
+		hidden.Add(variable.CampName);
+		return true;
+	}
+
+	static bool TryAddCallable(
+		DebugMapVariable variable,
+		DebugMapFunction function,
+		Dictionary<string, LldbNativeVariable> nativeVariables,
+		Dictionary<int, IReadOnlyList<DebugVariable>> variableReferences,
+		Dictionary<string, DebugVariable> evaluateVariables,
+		HashSet<string> hidden,
+		Dictionary<string, DebugVariable> parameters,
+		Dictionary<string, DebugVariable> locals,
+		ref int nextVariableReference)
+	{
+		if (!variable.CampName.EndsWith("_context", StringComparison.Ordinal))
+			return false;
+		string baseName = variable.CampName[..^"_context".Length];
+		DebugMapVariable? callVariable = function.Variables.FirstOrDefault(item => item.CampName == baseName);
+		if (callVariable is null
+			|| !nativeVariables.TryGetValue(callVariable.NativeName, out LldbNativeVariable? call)
+			|| !nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable? context))
+			return true;
+
+		int reference = nextVariableReference++;
+		string type = FormatCallableType(callVariable.Type ?? call.Type);
+		DebugVariable structured = new(baseName, type + " { call, context }", type, reference);
+		variableReferences[reference] =
+		[
+			new DebugVariable("call", call.Value, callVariable.Type ?? call.Type, 0),
+			new DebugVariable("context", FormatPointerValue(context.Value), variable.Type ?? context.Type, 0)
+		];
+		AddVariable(callVariable.Kind, structured, parameters, locals);
+		evaluateVariables[baseName] = structured;
+		hidden.Add(baseName);
+		hidden.Add(variable.CampName);
+		return true;
+	}
+
+	static DebugVariable FormatScalar(string name, string? type, string value)
+	{
+		string displayType = type ?? "";
+		if (IsIteratorState(displayType))
+			return new DebugVariable(name, "iterator state " + FormatPointerValue(value), displayType, 0);
+		if (IsStringType(displayType))
+			return new DebugVariable(name, "string " + FormatPointerValue(value), displayType, 0);
+		if (displayType.StartsWith("fn ", StringComparison.Ordinal) || displayType.StartsWith("iter ", StringComparison.Ordinal))
+			return new DebugVariable(name, "callable " + value, displayType, 0);
+		if (displayType.EndsWith('*'))
+			return new DebugVariable(name, FormatPointerValue(value), displayType, 0);
+		return new DebugVariable(name, value, type, 0);
+	}
+
+	static string FormatSpanType(string type)
+	{
+		return type.EndsWith('*') ? type[..^1] + "[]" : type;
+	}
+
+	static string FormatCallableType(string type)
+	{
+		return type.StartsWith("fn ", StringComparison.Ordinal) ? "delegate " + type[3..] : type;
+	}
+
+	static string FormatPointerValue(string value)
+	{
+		return value is "0x0" or "0x00000000" or "0x0000000000000000" or "0" ? "null" : value;
+	}
+
+	static bool IsStringType(string type)
+	{
+		return type is "string" or "astring" or "wstring";
+	}
+
+	static bool IsIteratorState(string type)
+	{
+		return type.EndsWith("Iter*", StringComparison.Ordinal) || type.Contains("Iter*", StringComparison.Ordinal);
+	}
+
+	static void AddVariable(string kind, DebugVariable variable, Dictionary<string, DebugVariable> parameters, Dictionary<string, DebugVariable> locals)
+	{
+		if (kind.Equals("parameter", StringComparison.OrdinalIgnoreCase))
+			parameters[variable.Name] = variable;
+		else
+			locals[variable.Name] = variable;
+	}
+}
 
 sealed class DebugMapDocument(IReadOnlyList<DebugMapFunction> functions)
 {

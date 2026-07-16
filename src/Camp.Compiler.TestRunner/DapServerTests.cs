@@ -70,18 +70,28 @@ public sealed class DapServerTests
 
 		JsonNode parameters = dap.Request("variables", new { variablesReference = 100 });
 		Assert.Equal("args", parameters["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
-		Assert.Equal("{ elements, length }", parameters["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
+		Assert.Equal("string[] length=0", parameters["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
 		int argsReference = parameters["body"]?["variables"]?[0]?["variablesReference"]?.GetValue<int>() ?? 0;
 		JsonNode argsChildren = dap.Request("variables", new { variablesReference = argsReference });
 		Assert.Equal("elements", argsChildren["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
+		Assert.Equal("null", argsChildren["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
 		Assert.Equal("length", argsChildren["body"]?["variables"]?[1]?["name"]?.GetValue<string>());
 
 		JsonNode variables = dap.Request("variables", new { variablesReference = 200 });
 		Assert.Equal("answer", variables["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
 		Assert.Equal("42", variables["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
+		Assert.Equal("handler", variables["body"]?["variables"]?[1]?["name"]?.GetValue<string>());
+		Assert.Equal("delegate void(int) { call, context }", variables["body"]?["variables"]?[1]?["value"]?.GetValue<string>());
+		JsonNode handlerChildren = dap.Request("variables", new { variablesReference = variables["body"]?["variables"]?[1]?["variablesReference"]?.GetValue<int>() ?? 0 });
+		Assert.Equal("call", handlerChildren["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
+		Assert.Equal("context", handlerChildren["body"]?["variables"]?[1]?["name"]?.GetValue<string>());
+		Assert.Equal("state", variables["body"]?["variables"]?[2]?["name"]?.GetValue<string>());
+		Assert.Equal("iterator state 0x0000000000001234", variables["body"]?["variables"]?[2]?["value"]?.GetValue<string>());
 
 		JsonNode evaluation = dap.Request("evaluate", new { expression = "answer", frameId = 1, context = "hover" });
 		Assert.Equal("42", evaluation["body"]?["result"]?.GetValue<string>());
+		JsonNode handlerEvaluation = dap.Request("evaluate", new { expression = "handler", frameId = 1, context = "watch" });
+		Assert.Equal("delegate void(int) { call, context }", handlerEvaluation["body"]?["result"]?.GetValue<string>());
 		JsonNode unsupported = dap.Request("evaluate", new { expression = "missing + 1", frameId = 1, context = "watch" });
 		Assert.Equal("Unsupported expression", unsupported["body"]?["result"]?.GetValue<string>());
 

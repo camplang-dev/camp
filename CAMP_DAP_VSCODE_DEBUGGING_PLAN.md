@@ -395,7 +395,7 @@ Add the Windows/MSVC backend using Windows Debugging Tools.
 
 Note: the real CDB smoke test is platform/tool-gated so machines without Windows Debugging Tools can still run the suite. After CDB was installed on the Windows validation host, the real CDB smoke and the full Windows suite passed.
 
-## Phase 9 — Debug UX Hardening And Pretty Printing
+## Phase 9 — Debug UX Hardening And Pretty Printing — Complete
 
 ### Goals
 
@@ -429,11 +429,11 @@ Improve the everyday debugging experience after all core backends exist.
 
 ### Completion Criteria
 
-- Common Camp values display in a source-friendly shape.
-- Stepping avoids most generated scaffolding in ordinary code.
-- Unsupported backend features produce clear messages.
-- Full local suite plus active platform lanes pass.
-- Commit.
+- ~~Common Camp values display in a source-friendly shape.~~
+- ~~Stepping avoids most generated scaffolding in ordinary code.~~
+- ~~Unsupported backend features produce clear messages.~~
+- ~~Full local suite plus active platform lanes pass.~~
+- ~~Commit.~~
 
 ## Phase 10 — Async, Iterators, And Advanced Runtime Views
 
