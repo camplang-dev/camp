@@ -4,26 +4,26 @@ public extern void* malloc(nuint size);
 public extern void* realloc(void* ptr, nuint new_size);
 public extern void free(void* ptr);
 
-public abstract class Allocator
+public interface Allocator
 {
-	public abstract void* alloc(nuint size);
-	public abstract void* realloc(void* ptr, nuint newSize);
-	public abstract void free(void* ptr);
+	void* alloc(nuint size);
+	void* realloc(void* ptr, nuint newSize);
+	void free(void* ptr);
 }
 
-public virtual class HeapAllocator: Allocator
+public class HeapAllocator: Allocator
 {
-	public override void* alloc(nuint size)
+	public void* alloc(nuint size): Allocator
 	{
 		return malloc(size);
 	}
 	
-	public override void* realloc(void* ptr, nuint newSize)
+	public void* realloc(void* ptr, nuint newSize): Allocator
 	{
 		return realloc(ptr, newSize);
 	}
 	
-	public override void free(void* ptr)
+	public void free(void* ptr): Allocator
 	{
 		free(ptr);
 	}

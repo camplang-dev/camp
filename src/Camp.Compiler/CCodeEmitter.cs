@@ -7012,7 +7012,7 @@ public static class CCodeEmitter
 				GenericParameterTypeReference => new CType("void* " + declarator),
 				AnyTypeReference => new CType("void* " + declarator),
 				AutoTypeReference => new CType("void* " + declarator),
-				AllocatorTypeReference => new CType("Allocator* " + declarator),
+				AllocatorTypeReference => FormatResolvedType("Allocator*", declarator),
 				MaterializedStructTypeReference materialized => FormatMaterializedStructType(materialized, declarator),
 				GroupedParamsTypeReference => new CType("void* " + declarator),
 				ThrownTypeReference thrown => FormatType(thrown.Type, declarator),

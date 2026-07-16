@@ -3,7 +3,7 @@ using Std;
 void main()
 {
 	HeapAllocator* allocator = HeapAllocator_create();
-	void* memory = Allocator_alloc((Allocator*)allocator, 16);
-	Allocator_free((Allocator*)allocator, memory);
+	void* memory = HeapAllocator_alloc(allocator, 16);
+	HeapAllocator_free(allocator, memory);
 	HeapAllocator_destroy(allocator);
 }

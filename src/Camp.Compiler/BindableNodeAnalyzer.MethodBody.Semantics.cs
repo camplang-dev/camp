@@ -257,10 +257,13 @@ public sealed partial class BindableNodeAnalyzer
 		if (CanLiftToOptional(source, target))
 			return true;
 
-		if (source == AllocatorType && target == "Allocator*")
+		if (source == AllocatorType && (target == "Allocator*" || target == "Allocator**"))
 			return true;
 
-		if (source == "Allocator*" && target == AllocatorType)
+		if ((source == "Allocator*" || source == "Allocator**") && target == AllocatorType)
+			return true;
+
+		if (source == "Allocator*" && target == "Allocator**")
 			return true;
 
 		if (IsUntypedPointerType(target) && (IsObjectPointerType(source) || TryGetCallableShape(source, out _)))

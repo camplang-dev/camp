@@ -102,6 +102,8 @@ public sealed partial class BindableNodeAnalyzer
 		Expression context = member.Target;
 		if (!IsInterfaceInstanceReceiver(context.ResolvedType, interfaceDefinition) && TryGetGenericReceiverTypeName(context.ResolvedType, out string genericName))
 		{
+			if (!IsGenericParameterName(genericName))
+				return false;
 			member.Target = LowerVTableOfExpression(new VTableOfExpression
 			{
 				SourceSyntax = member.SourceSyntax,
@@ -154,6 +156,8 @@ public sealed partial class BindableNodeAnalyzer
 		Expression vtable = receiver;
 		Expression context = receiver;
 		if (IsInterfaceInstanceReceiver(context.ResolvedType, interfaceDefinition) || !TryGetGenericReceiverTypeName(context.ResolvedType, out string genericName))
+			return false;
+		if (!IsGenericParameterName(genericName))
 			return false;
 
 		vtable = LowerVTableOfExpression(new VTableOfExpression
@@ -214,6 +218,23 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		genericName = TryGetPointerElementType(receiverType ?? "") ?? BaseTypeName(receiverType ?? "");
 		return !string.IsNullOrWhiteSpace(genericName) && genericName != ErrorType;
+	}
+
+	bool IsGenericParameterName(string name)
+	{
+		if (currentRewriteFunction is not null)
+		{
+			foreach (GenericParameter parameter in currentRewriteFunction.GenericParameters)
+				if (parameter.Name == name)
+					return true;
+		}
+		if (currentRewriteContainingType is not null)
+		{
+			foreach (GenericParameter parameter in currentRewriteContainingType.GenericParameters)
+				if (parameter.Name == name)
+					return true;
+		}
+		return false;
 	}
 
 	void LowerCallArgumentConversions(CallExpression call)

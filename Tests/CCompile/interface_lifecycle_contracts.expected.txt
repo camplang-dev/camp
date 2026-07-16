@@ -6,20 +6,20 @@ void *malloc(uintptr_t size);
 void free(void *ptr);
 static void *Allocator_alloc(Allocator *this, uintptr_t size);
 static void Allocator_free(Allocator *this, void *ptr);
-static void ManagedClass_op_initnew(ManagedClass *this, Allocator* allocator);
-static ManagedClass *ManagedClass_create(Allocator* allocator);
-static void ManagedClass_op_delete(ManagedClass *this, Allocator* allocator);
+static void ManagedClass_op_initnew(ManagedClass *this, Allocator *allocator);
+static ManagedClass *ManagedClass_create(Allocator *allocator);
+static void ManagedClass_op_delete(ManagedClass *this, Allocator *allocator);
 static void ManagedClass_destroy(ManagedClass *this, Allocator *allocator);
 static IManaged **ManagedClass_getIManaged(const ManagedClass *this);
-static void ManagedStruct_op_initnew(ManagedStruct *this, Allocator* allocator);
-static ManagedStruct *ManagedStruct_create(Allocator* allocator);
-static void ManagedStruct_op_delete(ManagedStruct *this, Allocator* allocator);
+static void ManagedStruct_op_initnew(ManagedStruct *this, Allocator *allocator);
+static ManagedStruct *ManagedStruct_create(Allocator *allocator);
+static void ManagedStruct_op_delete(ManagedStruct *this, Allocator *allocator);
 static void ManagedStruct_destroy(ManagedStruct *this, Allocator *allocator);
 static int main(void);
-static void* ManagedClass_IManaged_create(Allocator* allocator);
-static void ManagedClass_IManaged_destroy(IManaged **ctx, Allocator* allocator);
-static void* ManagedStruct_IManaged_create(Allocator* allocator);
-static void ManagedStruct_IManaged_destroy(IManaged **ctx, Allocator* allocator);
+static void* ManagedClass_IManaged_create(Allocator *allocator);
+static void ManagedClass_IManaged_destroy(IManaged **ctx, Allocator *allocator);
+static void* ManagedStruct_IManaged_create(Allocator *allocator);
+static void ManagedStruct_IManaged_destroy(IManaged **ctx, Allocator *allocator);
 static _ManagedClass _ManagedClass__vt;
 static const IManaged ManagedClass_IManaged__storage;
 static const IManaged ManagedClass_IManaged__object_storage;
@@ -43,13 +43,13 @@ static void Allocator_free(Allocator *this, void *ptr)
 	free(ptr);
 }
 
-static void ManagedClass_op_initnew(ManagedClass *this, Allocator* allocator)
+static void ManagedClass_op_initnew(ManagedClass *this, Allocator *allocator)
 {
 	this->_vt_IManaged = &ManagedClass_IManaged__object_storage;
 	Allocator *resolvedAllocator = allocator;
 }
 
-static ManagedClass *ManagedClass_create(Allocator* allocator)
+static ManagedClass *ManagedClass_create(Allocator *allocator)
 {
 	Allocator *resolvedAllocator = allocator;
 	ManagedClass *_created0 = (ManagedClass *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(ManagedClass)) : malloc(sizeof(ManagedClass))));
@@ -62,7 +62,7 @@ static ManagedClass *ManagedClass_create(Allocator* allocator)
 	return _created0;
 }
 
-static void ManagedClass_op_delete(ManagedClass *this, Allocator* allocator)
+static void ManagedClass_op_delete(ManagedClass *this, Allocator *allocator)
 {
 }
 
@@ -78,12 +78,12 @@ static IManaged **ManagedClass_getIManaged(const ManagedClass *this)
 	return (IManaged **)(&this->_vt_IManaged);
 }
 
-static void ManagedStruct_op_initnew(ManagedStruct *this, Allocator* allocator)
+static void ManagedStruct_op_initnew(ManagedStruct *this, Allocator *allocator)
 {
 	Allocator *resolvedAllocator = allocator;
 }
 
-static ManagedStruct *ManagedStruct_create(Allocator* allocator)
+static ManagedStruct *ManagedStruct_create(Allocator *allocator)
 {
 	Allocator *resolvedAllocator = allocator;
 	ManagedStruct *_created1 = (ManagedStruct *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(ManagedStruct)) : malloc(sizeof(ManagedStruct))));
@@ -94,7 +94,7 @@ static ManagedStruct *ManagedStruct_create(Allocator* allocator)
 	return _created1;
 }
 
-static void ManagedStruct_op_delete(ManagedStruct *this, Allocator* allocator)
+static void ManagedStruct_op_delete(ManagedStruct *this, Allocator *allocator)
 {
 }
 
@@ -127,23 +127,23 @@ static int main(void)
 	return 0;
 }
 
-static void* ManagedClass_IManaged_create(Allocator* allocator)
+static void* ManagedClass_IManaged_create(Allocator *allocator)
 {
 	return ManagedClass_create(allocator);
 }
 
-static void ManagedClass_IManaged_destroy(IManaged **ctx, Allocator* allocator)
+static void ManagedClass_IManaged_destroy(IManaged **ctx, Allocator *allocator)
 {
 	ManagedClass *instance = (ManagedClass *)(((uint8_t *)(ctx) - offsetof(ManagedClass, _vt_IManaged)));
 	ManagedClass_destroy(instance, allocator);
 }
 
-static void* ManagedStruct_IManaged_create(Allocator* allocator)
+static void* ManagedStruct_IManaged_create(Allocator *allocator)
 {
 	return ManagedStruct_create(allocator);
 }
 
-static void ManagedStruct_IManaged_destroy(IManaged **ctx, Allocator* allocator)
+static void ManagedStruct_IManaged_destroy(IManaged **ctx, Allocator *allocator)
 {
 	IManaged_Indirect *indirect = (IManaged_Indirect *)(ctx);
 	ManagedStruct *instance = indirect->ctx;

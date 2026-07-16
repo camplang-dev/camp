@@ -247,6 +247,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (resolvedType == "Allocator*")
 			return AllocatorPointerType();
+		if (resolvedType.Contains('*', StringComparison.Ordinal) && new TypeShapeParser(resolvedType).TryParse(out TypeShape shape))
+			return TypeReferenceForTypeShape(shape);
 
 		return TypeReferenceForResolvedName(resolvedType);
 	}
@@ -273,7 +275,7 @@ public sealed partial class BindableNodeAnalyzer
 	DeclarationStatement CreateWithinContextLocal(Expression allocator, SyntaxNode? syntax)
 	{
 		string type = allocator.ResolvedType ?? ErrorType;
-		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("allocator"), type, new NamedTypeReference { Name = type, ResolvedType = type }, allocator);
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("allocator"), type, TypeReferenceForResolvedType(type), allocator);
 		local.SourceSyntax = syntax;
 		return local;
 	}
@@ -569,7 +571,7 @@ public sealed partial class BindableNodeAnalyzer
 			Target = target
 		};
 		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = size, ResolvedType = size.ResolvedType });
-		if (alloc is not null)
+		if (alloc is not null && !TryRewriteAllocatorInterfaceInvocation(call))
 			RewriteInstanceInvocation(call, target, allocator, alloc);
 		return call;
 	}
@@ -622,9 +624,45 @@ public sealed partial class BindableNodeAnalyzer
 			Target = target
 		};
 		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = pointer, ResolvedType = pointer.ResolvedType });
-		if (free is not null)
+		if (free is not null && !TryRewriteAllocatorInterfaceInvocation(call))
 			RewriteInstanceInvocation(call, target, allocator, free);
 		return call;
+	}
+
+	bool TryRewriteAllocatorInterfaceInvocation(CallExpression call)
+	{
+		if (call.Target is not MemberReferenceExpression { Target: Expression context } target)
+			return false;
+		if (TryGetInterfacePointerDefinition(context.ResolvedType, out InterfaceDefinition? receiverInterface) && receiverInterface is not null
+			|| context.ResolvedType == AllocatorType
+				&& typeDefinitions.TryGetValue("Allocator", out TypeDefinition? allocatorDefinition)
+				&& allocatorDefinition is InterfaceDefinition receiverInterfaceFromAllocator
+				&& (receiverInterface = receiverInterfaceFromAllocator) is not null)
+		{
+			List<string> parameterTypes = [receiverInterface.Name + "**"];
+			if (target.Member is FunctionDefinition slotFunction)
+				foreach (ParameterDefinition parameter in slotFunction.Parameters)
+					parameterTypes.Add(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType);
+			call.Target = new MemberReferenceExpression
+			{
+				SourceSyntax = target.SourceSyntax,
+				Target = context,
+				Name = target.Name,
+				ResolvedType = BuildCallableType("fn", call.ResolvedType ?? target.ResolvedType ?? ErrorType, parameterTypes)
+			};
+			call.Arguments.Insert(0, new ArgumentExpression
+			{
+				SourceSyntax = target.SourceSyntax,
+				Value = context,
+				ResolvedType = receiverInterface.Name + "**"
+			});
+			return true;
+		}
+		if (target.Member is not FunctionDefinition function)
+			return false;
+		if (FindContainingType(function) is not InterfaceDefinition)
+			return false;
+		return LowerInterfaceCall(call);
 	}
 
 	static FunctionDefinition? CreateSyntheticAllocatorPatternMethod(string? allocatorType, string name, string returnType)
@@ -675,7 +713,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition? FindAllocatorPatternMethod(string? allocatorType, string name, Func<FunctionDefinition, bool> predicate, SyntaxNode? syntax)
 	{
-		string receiverType = TryGetPointerElementType(allocatorType ?? "") ?? allocatorType ?? ErrorType;
+		string receiverType = AllocatorPatternReceiverType(allocatorType);
 		if (GetTypeDefinition(receiverType) is not TypeDefinition type && !TryFindModuleTypeDefinition(receiverType, out type))
 			return null;
 
@@ -690,6 +728,16 @@ public sealed partial class BindableNodeAnalyzer
 				return function;
 
 		return null;
+	}
+
+	static string AllocatorPatternReceiverType(string? allocatorType)
+	{
+		string receiverType = StripLifetimeQualifiers(allocatorType ?? "").Trim();
+		if (receiverType == AllocatorType)
+			return "Allocator";
+		while (TryGetPointerElementType(receiverType) is string elementType)
+			receiverType = elementType;
+		return string.IsNullOrWhiteSpace(receiverType) ? ErrorType : receiverType;
 	}
 
 	bool TryFindModuleTypeDefinition(string name, out TypeDefinition type)
