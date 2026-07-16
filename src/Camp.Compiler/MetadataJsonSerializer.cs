@@ -931,13 +931,52 @@ public static class MetadataJsonSerializer
 			return HasExportedShadowHook(definition, "@getshadow") && HasExportedShadowHook(definition, "@setshadow");
 		}
 
-		static bool HasExportedShadowHook(ClassDefinition definition, string attributeName)
+		bool HasExportedShadowHook(ClassDefinition definition, string attributeName)
 		{
 			foreach (ClassDefinition candidate in EnumerateClassAndBases(definition))
 				foreach (FunctionDefinition function in candidate.Functions)
 					if (function.Export is not null && HasAttribute(function.Attributes, attributeName))
 						return true;
+			ClassDefinition? receiverClass = GetDirectBaseClass(definition);
+			foreach (FunctionDefinition function in module.Definitions.OfType<FunctionDefinition>())
+				if (function.Export is not null && HasAttribute(function.Attributes, attributeName) && HookReceiverMatches(function, receiverClass))
+					return true;
 			return false;
+		}
+
+		static bool HookReceiverMatches(FunctionDefinition function, ClassDefinition? receiverClass)
+		{
+			if (receiverClass is null)
+				return false;
+			ThisParameterDefinition? receiver = GetExplicitThisParameter(function) ?? function.EffectiveThisParameter;
+			return receiver is not null && BaseTypeName(receiver.ResolvedType ?? "") == receiverClass.Name;
+		}
+
+		static ThisParameterDefinition? GetExplicitThisParameter(FunctionDefinition function)
+		{
+			foreach (ParameterDefinition parameter in function.Parameters)
+				if (parameter is ThisParameterDefinition thisParameter)
+					return thisParameter;
+			return null;
+		}
+
+		static string BaseTypeName(string type)
+		{
+			string name = type.Trim();
+			name = name.Replace("const ", "", StringComparison.Ordinal)
+				.Replace("escaped ", "", StringComparison.Ordinal)
+				.Replace("scoped ", "", StringComparison.Ordinal)
+				.Replace("unscoped ", "", StringComparison.Ordinal)
+				.Trim();
+			while (name.EndsWith("*", StringComparison.Ordinal))
+				name = name[..^1].Trim();
+			int genericStart = name.IndexOf('<');
+			if (genericStart >= 0)
+				name = name[..genericStart];
+			int namespaceStart = name.LastIndexOf("::", StringComparison.Ordinal);
+			if (namespaceStart >= 0)
+				name = name[(namespaceStart + 2)..];
+			return name;
 		}
 
 		static IEnumerable<ClassDefinition> EnumerateClassAndBases(ClassDefinition definition)

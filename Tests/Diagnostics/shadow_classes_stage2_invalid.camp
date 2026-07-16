@@ -1,0 +1,118 @@
+class GoodHookBase
+{
+	@getshadow
+	extern escaped void* getShadow();
+
+	@setshadow
+	extern void setShadow(escaped void* value);
+}
+
+class BadGetReturnBase
+{
+	@getshadow
+	extern void* getShadow();
+
+	@setshadow
+	extern void setShadow(escaped void* value);
+}
+
+shadow class BadGetReturn: BadGetReturnBase
+{
+}
+
+class BadGetParameterBase
+{
+	@getshadow
+	extern escaped void* getShadow(int extra);
+
+	@setshadow
+	extern void setShadow(escaped void* value);
+}
+
+shadow class BadGetParameter: BadGetParameterBase
+{
+}
+
+class BadSetConstBase
+{
+	@getshadow
+	extern escaped void* getShadow();
+
+	@setshadow
+	extern void setShadow(const this, escaped void* value);
+}
+
+shadow class BadSetConst: BadSetConstBase
+{
+}
+
+class BadSetParameterBase
+{
+	@getshadow
+	extern escaped void* getShadow();
+
+	@setshadow
+	extern void setShadow(void* value);
+}
+
+shadow class BadSetParameter: BadSetParameterBase
+{
+}
+
+virtual class VirtualBase
+{
+	@getshadow
+	extern escaped void* getShadow();
+
+	@setshadow
+	extern void setShadow(escaped void* value);
+}
+
+shadow class BadVirtualBase: VirtualBase
+{
+}
+
+extern class NativeBase
+{
+	extern NativeBase();
+	extern void ping();
+}
+
+class NonEscapedNativeView: NativeBase
+{
+}
+
+escaped abstract class AbstractNativeView: NativeBase
+{
+}
+
+escaped class FieldNativeView: NativeBase
+{
+	int value;
+}
+
+interface INativeView
+{
+	void show();
+}
+
+escaped class InterfaceNativeView: NativeBase, INativeView
+{
+	void show(): INativeView
+	{
+	}
+}
+
+escaped class VirtualMethodNativeView: NativeBase
+{
+	virtual void show()
+	{
+	}
+}
+
+escaped class DestructorNativeView: NativeBase
+{
+	~DestructorNativeView()
+	{
+	}
+}

@@ -61,7 +61,7 @@ public sealed partial class BindableNodeAnalyzer
 					baseClassCount++;
 					if (baseClassCount > 1)
 						Report(GetRange(baseType.SourceSyntax), $"{ownerKind} '{owner.Name}' may only declare one base class.");
-					if (owner is ClassDefinition ownerClass && ownerClass.Extern is not null != (baseClass.Extern is not null))
+					if (owner is ClassDefinition ownerClass && ownerClass.Extern is not null && baseClass.Extern is null)
 						Report(GetRange(baseType.SourceSyntax), ownerClass.Extern is not null
 							? "Extern classes may only inherit from extern classes."
 							: "Non-extern classes may only inherit from non-extern classes.");
@@ -240,8 +240,41 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateShadowClasses()
 	{
 		foreach (TypeAnalysisInfo info in typeInfos.Values)
-			if (info.Definition is ClassDefinition classDefinition && classDefinition.IsShadow)
-				ValidateShadowClass(classDefinition);
+			if (info.Definition is ClassDefinition classDefinition)
+			{
+				ValidateExternBaseClassDerivation(classDefinition);
+				if (classDefinition.IsShadow)
+					ValidateShadowClass(classDefinition);
+			}
+	}
+
+	void ValidateExternBaseClassDerivation(ClassDefinition definition)
+	{
+		if (definition.Extern is not null || GetDirectBaseClass(definition) is not ClassDefinition { Extern: not null } baseClass)
+			return;
+		if (definition.IsShadow)
+			return;
+
+		if (definition.Modifier is ClassModifier.Virtual or ClassModifier.Abstract)
+			Report(GetNameRange(definition), $"Class '{definition.Name}' derives from extern class '{baseClass.Name}' and must not be virtual or abstract unless it is declared shadow.");
+		if (!definition.IsEscaped)
+			Report(GetNameRange(definition), $"Class '{definition.Name}' derives from extern class '{baseClass.Name}' and must be explicitly escaped unless it is declared shadow.");
+
+		foreach (TypeReference baseType in definition.BaseTypes)
+			if (TryGetNamedTypeDefinition(baseType, out TypeDefinition? baseDefinition) && baseDefinition is InterfaceDefinition)
+				Report(GetRange(baseType.SourceSyntax), $"Class '{definition.Name}' derives from extern class '{baseClass.Name}' and cannot implement interfaces unless it is declared shadow.");
+
+		foreach (FieldDefinition field in definition.Fields)
+			if (field.SourceSyntax is not null && field.Modifier != FieldModifier.Static)
+				Report(GetNameRange(field), $"Class '{definition.Name}' derives from extern class '{baseClass.Name}' and cannot declare instance fields unless it is declared shadow.");
+
+		foreach (FunctionDefinition function in definition.Functions)
+		{
+			if (function.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract)
+				Report(GetNameRange(function), $"Class '{definition.Name}' derives from extern class '{baseClass.Name}' and cannot declare virtual or abstract methods unless it is declared shadow.");
+			if (IsDestructorFunction(function))
+				Report(GetNameRange(function), $"Class '{definition.Name}' derives from extern class '{baseClass.Name}' and cannot declare a destructor unless it is declared shadow.");
+		}
 	}
 
 	void ValidateShadowClass(ClassDefinition definition)
@@ -249,8 +282,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (definition.Modifier == ClassModifier.Sealed)
 			Report(GetNameRange(definition), "Shadow classes cannot be sealed.");
 
-		if (GetDirectBaseClass(definition) is null)
+		ClassDefinition? directBase = GetDirectBaseClass(definition);
+		if (directBase is null)
 			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' must declare a direct base class.");
+		else if (!directBase.IsShadow && directBase.Modifier is ClassModifier.Virtual or ClassModifier.Abstract)
+			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' cannot derive from visibly {directBase.Modifier.ToString().ToLowerInvariant()} base class '{directBase.Name}'.");
 
 		foreach (FunctionDefinition function in definition.Functions)
 			if (IsDestructorFunction(function))
@@ -262,10 +298,14 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' requires a visible @getshadow method on itself or a base class.");
 		else if (getHooks.Count > 1)
 			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' has multiple visible @getshadow methods.");
+		else
+			ValidateGetShadowHook(definition, getHooks[0]);
 		if (setHooks.Count == 0)
 			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' requires a visible @setshadow method on itself or a base class.");
 		else if (setHooks.Count > 1)
 			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' has multiple visible @setshadow methods.");
+		else
+			ValidateSetShadowHook(definition, setHooks[0]);
 	}
 
 	List<FunctionDefinition> FindShadowHooks(ClassDefinition definition, string attributeName)
@@ -275,7 +315,93 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (FunctionDefinition function in candidate.Functions)
 				if (HasAttribute(function.Attributes, attributeName))
 					hooks.Add(function);
+		ClassDefinition? receiverClass = GetDirectBaseClass(definition);
+		foreach (FunctionDefinition function in currentModule?.Definitions.OfType<FunctionDefinition>() ?? [])
+			if (HasAttribute(function.Attributes, attributeName) && HookReceiverMatches(function, receiverClass))
+				hooks.Add(function);
 		return hooks;
+	}
+
+	bool HookReceiverMatches(FunctionDefinition function, ClassDefinition? receiverClass)
+	{
+		if (receiverClass is null)
+			return false;
+		ThisParameterDefinition? receiver = GetExplicitThisParameter(function) ?? function.EffectiveThisParameter;
+		if (receiver is null)
+			return false;
+		return BaseTypeName(receiver.ResolvedType ?? "") == receiverClass.Name;
+	}
+
+	void ValidateGetShadowHook(ClassDefinition definition, FunctionDefinition hook)
+	{
+		TokenRange? range = GetNameRange(hook);
+		if (IsStaticFunction(hook))
+			Report(range, "@getshadow hooks must be instance methods or extension methods.");
+		if (!ReceiverIsConst(hook))
+			Report(range, "@getshadow hooks must be callable on a const receiver.");
+		if (!IsEscapedVoidPointer(hook.ResolvedType))
+			Report(range, "@getshadow hooks must return escaped void*.");
+
+		List<ParameterDefinition> ordinary = GetOrdinaryParameters(hook);
+		if (ordinary.Count != 0)
+			Report(range, "@getshadow hooks must not declare ordinary parameters.");
+		if (hook.Parameters.Any(static parameter => parameter.Modifier == ParameterModifier.Out))
+			Report(range, "@getshadow hooks must not declare out parameters.");
+	}
+
+	void ValidateSetShadowHook(ClassDefinition definition, FunctionDefinition hook)
+	{
+		TokenRange? range = GetNameRange(hook);
+		if (IsStaticFunction(hook))
+			Report(range, "@setshadow hooks must be instance methods or extension methods.");
+		if (ReceiverIsConst(hook))
+			Report(range, "@setshadow hooks must be callable on a mutable receiver.");
+		if (hook.ResolvedType != "void")
+			Report(range, "@setshadow hooks must return void.");
+
+		List<ParameterDefinition> ordinary = GetOrdinaryParameters(hook);
+		if (ordinary.Count != 1)
+			Report(range, "@setshadow hooks must declare exactly one ordinary parameter.");
+		else
+		{
+			ParameterDefinition value = ordinary[0];
+			if (!IsEscapedVoidPointer(value.ResolvedType))
+				Report(GetNameRange(value) ?? range, "@setshadow hook parameter must be escaped void*.");
+			if (value.DefaultValue is not null)
+				Report(GetNameRange(value) ?? range, "@setshadow hook parameter may not have a default value.");
+		}
+		if (hook.Parameters.Any(static parameter => parameter.Modifier == ParameterModifier.Out))
+			Report(range, "@setshadow hooks must not declare out parameters.");
+	}
+
+	static bool IsStaticFunction(FunctionDefinition function)
+	{
+		return function.Modifier == FunctionModifier.Static;
+	}
+
+	static bool ReceiverIsConst(FunctionDefinition function)
+	{
+		ThisParameterDefinition? receiver = GetExplicitThisParameter(function) ?? function.EffectiveThisParameter;
+		return receiver is not null && (HasAttribute(receiver.Attributes, "const") || (receiver.ResolvedType ?? "").StartsWith("const ", StringComparison.Ordinal));
+	}
+
+	static List<ParameterDefinition> GetOrdinaryParameters(FunctionDefinition function)
+	{
+		List<ParameterDefinition> parameters = [];
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
+				continue;
+			if (parameter.Modifier is ParameterModifier.Within or ParameterModifier.Thrown)
+				continue;
+			parameters.Add(parameter);
+		}
+		return parameters;
+	}
+
+	static bool IsEscapedVoidPointer(string? type)
+	{
+		return type == "escaped void*" || type == "void* escaped";
 	}
 
 	void EnsureInterfaceImplemented(TypeDefinition implementation, InterfaceDefinition interfaceDefinition)
@@ -577,14 +703,16 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateClassVirtualMethods(ClassDefinition definition)
 	{
-		if (InheritsVirtualClass(definition) && definition.Modifier is not ClassModifier.Virtual and not ClassModifier.Abstract and not ClassModifier.Sealed)
+		if (!definition.IsShadow && InheritsVirtualClass(definition) && definition.Modifier is not ClassModifier.Virtual and not ClassModifier.Abstract and not ClassModifier.Sealed)
 			Report(GetNameRange(definition), $"Class '{definition.Name}' derives from a virtual or abstract class and must be declared virtual, abstract, or sealed.");
 
 		ValidateVirtualHierarchyDestructorRules(definition);
 
 		foreach (FunctionDefinition function in definition.Functions)
 		{
-			if (function.Modifier == FunctionModifier.Virtual && definition.Modifier is not ClassModifier.Virtual and not ClassModifier.Abstract)
+			if (function.Modifier == FunctionModifier.Virtual
+				&& definition.Modifier is not ClassModifier.Virtual and not ClassModifier.Abstract
+				&& GetDirectBaseClass(definition) is not ClassDefinition { Extern: not null })
 				Report(GetNameRange(function), "Virtual methods may only be declared in virtual or abstract classes.");
 
 			if (function.Modifier == FunctionModifier.Abstract && definition.Modifier != ClassModifier.Abstract)

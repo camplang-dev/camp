@@ -1,5 +1,5 @@
 // @emit-metadata all
-export abstract class ExportedHookBase
+export extern class ExportedHookBase
 {
 	@getshadow
 	export extern escaped void* getShadow();

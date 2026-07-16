@@ -1,0 +1,14 @@
+export extern class NativeBase
+{
+	export extern NativeBase();
+}
+
+@getshadow
+export extern escaped void* getNativeShadow(const NativeBase* this);
+
+@setshadow
+export extern void setNativeShadow(NativeBase* this, escaped void* value);
+
+export shadow class NativeShadow: NativeBase
+{
+}

@@ -1,0 +1,11 @@
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(13,15): error: @getshadow hooks must return escaped void*.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(26,23): error: @getshadow hooks must not declare ordinary parameters.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(42,14): error: @setshadow hooks must be callable on a mutable receiver.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(55,30): error: @setshadow hook parameter must be escaped void*.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(71,14): error: Shadow class 'BadVirtualBase' cannot derive from visibly virtual base class 'VirtualBase'.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(81,7): error: Class 'NonEscapedNativeView' derives from extern class 'NativeBase' and must be explicitly escaped unless it is declared shadow.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(85,24): error: Class 'AbstractNativeView' derives from extern class 'NativeBase' and must not be virtual or abstract unless it is declared shadow.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(91,6): error: Class 'FieldNativeView' derives from extern class 'NativeBase' and cannot declare instance fields unless it is declared shadow.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(99,48): error: Class 'InterfaceNativeView' derives from extern class 'NativeBase' and cannot implement interfaces unless it is declared shadow.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(108,15): error: Class 'VirtualMethodNativeView' derives from extern class 'NativeBase' and cannot declare virtual or abstract methods unless it is declared shadow.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(115,3): error: Class 'DestructorNativeView' derives from extern class 'NativeBase' and cannot declare a destructor unless it is declared shadow.
