@@ -66,7 +66,7 @@ Add the compiler output needed by any debugger adapter before building DAP proto
 - Targeted tests and full local suite pass.
 - Commit.
 
-## Phase 2 — `camp-dap` Skeleton And Fake Backend
+## Phase 2 — `camp-dap` Skeleton And Fake Backend — Complete
 
 ### Goals
 
@@ -129,11 +129,11 @@ Create the DAP executable and protocol surface without depending on a real nativ
 
 ### Completion Criteria
 
-- `camp-dap` starts, initializes, accepts launch config, and serves fake-backend protocol requests.
-- Protocol tests do not require `lldb`, `gdb`, or `cdb`.
-- Existing compiler and LSP behavior is unchanged.
-- Targeted tests and full local suite pass.
-- Commit.
+- ~~`camp-dap` starts, initializes, accepts launch config, and serves fake-backend protocol requests.~~
+- ~~Protocol tests do not require `lldb`, `gdb`, or `cdb`.~~
+- ~~Existing compiler and LSP behavior is unchanged.~~
+- ~~Targeted tests and full local suite pass.~~
+- ~~Commit.~~
 
 ## Phase 3 — macOS LLDB MVP
 

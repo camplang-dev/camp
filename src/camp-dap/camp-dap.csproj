@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OmniSharp.Extensions.DebugAdapter" Version="0.19.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Camp.Compiler/Camp.Compiler.csproj" />
+  </ItemGroup>
+
+  <Target Name="CopyCampDapToRepoBin" AfterTargets="Build">
+    <PropertyGroup>
+      <CampDapRepoBin>$(MSBuildProjectDirectory)/../../bin/</CampDapRepoBin>
+    </PropertyGroup>
+    <MakeDir Directories="$(CampDapRepoBin)" />
+    <ItemGroup>
+      <CampDapRuntimeFiles Include="$(TargetDir)camp-dap*;$(TargetDir)*.dll;$(TargetDir)*.deps.json;$(TargetDir)*.runtimeconfig.json" Exclude="$(TargetDir)*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CampDapRuntimeFiles)" DestinationFolder="$(CampDapRepoBin)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>
