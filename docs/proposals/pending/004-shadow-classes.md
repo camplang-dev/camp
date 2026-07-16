@@ -458,9 +458,13 @@ Construction of a derived shadow class follows the init-new chain:
   most-derived shadow data;
 - no `_op_initnew` in the chain allocates or replaces shadow data.
 
-An exported shadow class must preserve the `shadow` marker in generated Camp API
-output. Downstream Camp compilers use this marker to know that the class is
-base-pointer-represented and has hidden shadow storage.
+An exported shadow class preserves the `shadow` marker in generated Camp API
+output only when the exported API surface also exposes usable `@getshadow` and
+`@setshadow` hooks for that class. Downstream Camp compilers need those hooks in
+order to preserve shadow representation, derivation, and hook-eligibility rules.
+If either hook is not exported, the exported API header emits the class as an
+ordinary extern class rather than retaining the `shadow` marker, because a
+consumer could not call the required hook methods anyway.
 
 The marker also prevents downstream code from treating hooks inherited from the
 shadow class's own base as eligible hooks for deriving from the exported shadow
@@ -538,10 +542,16 @@ Shadow data is deleted with the special statement:
 delete shadow;
 ```
 
-This statement is valid only within the lexical scope of the shadow class. It
-frees the generated shadow data allocation through the allocator selected by the
-ordinary `delete`/`within` rules at the `delete shadow` site. The compiler does
-not use a hidden allocator retained during construction. It does not:
+This statement is valid only inside an instance method declared within the
+declaration scope of the shadow class whose shadow data is being deleted. A
+`delete shadow` statement outside such a method is an error, even if it appears
+inside a nested function, lambda, static method, non-shadow derived class, or
+ordinary helper reachable from the shadow class.
+
+When valid, `delete shadow` frees the generated shadow data allocation through
+the allocator selected by the ordinary `delete`/`within` rules at the `delete
+shadow` site. The compiler does not use a hidden allocator retained during
+construction. It does not:
 
 - call the base object's destroy function;
 - unregister callbacks;
@@ -553,6 +563,13 @@ Those actions belong to the user protocol exposed by the base library. A common
 pattern is for the shadow class to implement a handler interface, receive a
 base-object destroy notification, release its own resources, and finally execute
 `delete shadow`.
+
+`shadow` is a contextual keyword in this statement, not an ordinary variable
+name. If the method containing `delete shadow` also has a parameter or
+accessible local variable named `shadow`, the compiler warns on the `shadow`
+token in the delete statement that the statement deletes the generated shadow
+data, not the local value. This warning can be suppressed through the ordinary
+warning-suppression mechanism, or avoided by renaming the local/parameter.
 
 The compiler should warn when a shadow class contains no reachable `delete
 shadow` statement anywhere in the class scope. This is a warning because the
@@ -580,9 +597,13 @@ base library has invalidated the shadow data are programmer errors.
 
 ## API, Metadata, And Generated Surfaces
 
-Camp API output must preserve the `shadow` modifier on exported shadow classes.
-Downstream compilers need this marker to preserve representation, derivation,
-and hook-eligibility rules.
+Camp API output must preserve the `shadow` modifier on exported shadow classes
+only when the generated API also exports usable `@getshadow` and `@setshadow`
+hooks for the shadow class. Otherwise, the generated shared-library API header
+must erase the `shadow` modifier and present the type as an ordinary extern
+class. Metadata may still record the source declaration as shadow-aware for
+tooling, but the importable API surface cannot promise shadow semantics without
+callable hooks.
 
 Source-level metadata should represent the shadow class as a class declaration
 with:
@@ -622,7 +643,10 @@ Important diagnostics include:
 - inherited hooks from a shadow base are incorrectly used for downstream shadow
   derivation;
 - illegal field access after an obvious `delete shadow`;
-- `delete shadow` outside a shadow class scope;
+- `delete shadow` outside an instance method declared within the shadow class
+  declaration scope;
+- `delete shadow` in a method that also has an accessible local or parameter
+  named `shadow`, reported as a warning on the `shadow` token;
 - shadow class with no `delete shadow` statement, reported as a warning;
 - `delete shadow` with a default allocator when a shadow constructor has a
   `within` allocator parameter, reported as a warning;
@@ -703,6 +727,11 @@ Deletion and cleanup tests:
 
 - `delete shadow` allowed inside shadow class methods;
 - `delete shadow` rejected elsewhere;
+- `delete shadow` rejected in static methods, lambdas, nested functions, helper
+  methods outside the shadow class declaration scope, and methods of non-shadow
+  derived classes;
+- warning on the `shadow` token when `delete shadow` appears in a method with an
+  accessible local or parameter named `shadow`;
 - warning when no `delete shadow` appears in the class;
 - obvious field access after `delete shadow` diagnosed;
 - destructor declarations inside shadow classes are rejected;
@@ -727,6 +756,8 @@ Emission and metadata tests:
 - source metadata omits generated shadow internals by default;
 - API headers preserve `shadow` and enough hook information for downstream
   analysis;
+- shared-library API headers erase `shadow` when usable `@getshadow` or
+  `@setshadow` hooks are not exported;
 - downstream project-reference/API-header consumption of exported shadow classes.
 
 ## Risks
