@@ -1,0 +1,13 @@
+// @emit-metadata export
+extern void* malloc(nuint size);
+extern void free(void* pointer);
+
+export interface IVisible
+{
+	int getValue();
+}
+
+export class DirectWidget: IVisible
+{
+	public int getValue(): IVisible => 7;
+}

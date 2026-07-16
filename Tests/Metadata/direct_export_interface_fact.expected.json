@@ -1,0 +1,62 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "direct_export_interface_fact"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "interface:IVisible",
+      "kind": "interface",
+      "name": "IVisible",
+      "visibility": "export",
+      "functions": [
+        {
+          "id": "interface:IVisible/function:getValue",
+          "name": "getValue",
+          "returnType": "int",
+          "propertyName": "Value"
+        }
+      ]
+    },
+    {
+      "id": "class:DirectWidget",
+      "kind": "class",
+      "name": "DirectWidget",
+      "visibility": "export",
+      "extern": true,
+      "baseTypes": [
+        "IVisible"
+      ],
+      "interfaces": [
+        {
+          "type": "IVisible",
+          "ref": "interface:IVisible",
+          "symbol": "DirectWidget_IVisible"
+        }
+      ],
+      "functions": [
+        {
+          "id": "class:DirectWidget/function:~DirectWidget",
+          "name": "~DirectWidget",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "destructor"
+        },
+        {
+          "id": "class:DirectWidget/function:DirectWidget",
+          "name": "DirectWidget",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "constructor",
+          "returnType": "DirectWidget"
+        }
+      ]
+    }
+  ]
+}

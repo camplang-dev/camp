@@ -1,0 +1,13 @@
+export interface IVisible
+{
+	int getValue();
+}
+
+export extern class DirectWidget : IVisible
+{
+	export extern DirectWidget();
+
+	export extern ~DirectWidget();
+
+	export extern IVisible* getIVisible();
+}

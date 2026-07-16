@@ -1,0 +1,12 @@
+extern void* malloc(nuint size);
+extern void free(void* pointer);
+
+public interface IPublicOnly
+{
+	int getValue();
+}
+
+export class BadWidget: IPublicOnly
+{
+	public int getValue(): IPublicOnly => 7;
+}

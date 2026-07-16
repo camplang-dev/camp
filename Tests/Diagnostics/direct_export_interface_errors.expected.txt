@@ -1,0 +1,1 @@
+Tests/Diagnostics/direct_export_interface_errors.camp(9,25): error: Exported declaration 'BadWidget' exposes non-exported type 'IPublicOnly'.
