@@ -72,15 +72,56 @@ The `backend` value selects the native debugger backend:
 
 - `auto`: selects the first supported backend for the current platform.
 - `lldb`: macOS LLDB backend.
-- `gdb`: reserved for the Linux backend phase.
-- `cdb`: reserved for the Windows backend phase.
+- `gdb`: Linux GDB backend.
+- `cdb`: Windows CDB backend.
 
-At the current stage, `auto` selects `lldb` on macOS. Linux/GDB and Windows/CDB
-are planned but not active yet.
+At the current stage, `auto` selects `lldb` on macOS, `gdb` on Linux, and
+`cdb` on Windows.
 
-## macOS LLDB MVP
+## Native Debugger Prerequisites
 
-The first real backend is macOS LLDB. It supports:
+Each real backend requires the matching native debugger:
+
+- macOS: LLDB, normally installed with Xcode Command Line Tools.
+- Linux: GDB.
+- Windows: CDB from **Debugging Tools for Windows**.
+
+On Windows, install CDB with the official Windows SDK installer. `winget` and
+Chocolatey package names are not reliable for this narrow component; the known
+working unattended PowerShell route is:
+
+```powershell
+$installer = "$env:TEMP\winsdksetup.exe"
+Invoke-WebRequest "https://go.microsoft.com/fwlink/?linkid=2196241" -OutFile $installer
+Start-Process $installer -Wait -ArgumentList "/features OptionId.WindowsDesktopDebuggers /quiet /norestart"
+```
+
+Then verify that `cdb.exe` was installed:
+
+```powershell
+Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Debuggers" -Recurse -Filter cdb.exe
+```
+
+Common locations are:
+
+```text
+C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe
+C:\Program Files (x86)\Windows Kits\10\Debuggers\x86\cdb.exe
+```
+
+`camp-dap` searches the Windows Kits debugger folder directly, so adding CDB to
+`PATH` is optional. If you want `cdb` available from a shell, add the x64 folder
+to the user `PATH` and open a fresh terminal or SSH session:
+
+```powershell
+setx PATH "$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64"
+where cdb
+cdb -version
+```
+
+## macOS LLDB Backend
+
+The macOS backend uses LLDB. It supports:
 
 - building the Camp project with `--profile DEBUG --artifact exec --debug-info`;
 - binding breakpoints in `.camp` files for simple source-backed locations;
@@ -92,9 +133,9 @@ The first real backend is macOS LLDB. It supports:
   `*.campdebug.json`;
 - simple evaluation by mapped local or parameter name.
 
-The LLDB backend is intentionally narrow. It favors honest omission over wrong
-values. Unsupported expression evaluation returns an unsupported result instead
-of trying to compile arbitrary Camp expressions.
+The real native backends are intentionally narrow. They favor honest omission
+over wrong values. Unsupported expression evaluation returns an unsupported
+result instead of trying to compile arbitrary Camp expressions.
 
 ## VS Code Integration
 
@@ -120,8 +161,7 @@ for the nearest `.campbuild`, and starts a VS Code debug session. If no
 
 ## Known V1 Limits
 
-- macOS LLDB is the first supported real backend.
-- Linux/GDB and Windows/CDB are later phases.
+- macOS/LLDB, Linux/GDB, and Windows/CDB are supported real backends.
 - Expression evaluation is limited to simple mapped locals and parameters.
 - Async and iterator call stacks are not polished yet.
 - Some lowered/generated regions may still appear while stepping.

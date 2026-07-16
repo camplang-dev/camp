@@ -49,7 +49,13 @@ You can override this with:
 }
 ```
 
-The first real native backend is macOS LLDB. On macOS, use:
+Native debug sessions require the platform debugger:
+
+- macOS: LLDB, normally installed with Xcode Command Line Tools.
+- Linux: GDB.
+- Windows: CDB from Debugging Tools for Windows.
+
+On macOS, use:
 
 ```json
 {
@@ -57,8 +63,32 @@ The first real native backend is macOS LLDB. On macOS, use:
 }
 ```
 
-`"auto"` currently selects LLDB on macOS. Linux/GDB and Windows/CDB are planned
-for later backend phases.
+On Linux, use `"gdb"`. On Windows, use `"cdb"`. `"auto"` selects the platform
+default backend.
+
+To install CDB on Windows from PowerShell, use the official Windows SDK installer
+and request only Debugging Tools for Windows:
+
+```powershell
+$installer = "$env:TEMP\winsdksetup.exe"
+Invoke-WebRequest "https://go.microsoft.com/fwlink/?linkid=2196241" -OutFile $installer
+Start-Process $installer -Wait -ArgumentList "/features OptionId.WindowsDesktopDebuggers /quiet /norestart"
+```
+
+Verify installation:
+
+```powershell
+Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Debuggers" -Recurse -Filter cdb.exe
+```
+
+`camp-dap` searches the Windows Kits debugger folder directly. Adding CDB to
+`PATH` is optional, but useful for manual checks:
+
+```powershell
+setx PATH "$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64"
+where cdb
+cdb -version
+```
 
 ## Install From Source
 
@@ -215,8 +245,8 @@ A typical launch configuration is:
 }
 ```
 
-For now, the debug adapter builds with Camp debug metadata and uses LLDB on
-macOS. Breakpoints, basic stepping, stack frames, and simple scalar
-locals/parameters are supported. Expression evaluation is intentionally narrow:
-simple mapped local and parameter names work, while arbitrary Camp expressions
-return a clear unsupported result.
+The debug adapter builds with Camp debug metadata and uses LLDB on macOS, GDB on
+Linux, or CDB on Windows. Breakpoints, basic stepping, stack frames, and simple
+scalar locals/parameters are supported. Expression evaluation is intentionally
+narrow: simple mapped local and parameter names work, while arbitrary Camp
+expressions return a clear unsupported result.
