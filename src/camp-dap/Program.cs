@@ -1302,8 +1302,8 @@ sealed class CdbDebugBackend : IDebugBackend
 			UseShellExecute = false
 		};
 		info.ArgumentList.Add("-lines");
-		info.ArgumentList.Add("-G");
-		info.ArgumentList.Add("-g");
+		info.ArgumentList.Add("-y");
+		info.ArgumentList.Add(Path.GetDirectoryName(executable) ?? ".");
 		info.ArgumentList.Add("-o");
 		info.ArgumentList.Add("-c");
 		info.ArgumentList.Add(BuildCdbCommand(commands));
@@ -1322,10 +1322,21 @@ sealed class CdbDebugBackend : IDebugBackend
 	{
 		List<string> all = [];
 		foreach ((string source, int line) in pendingBreakpoints)
-			all.Add(line == 0 ? "bu main" : "bu `" + source + ":" + line + "`");
+			all.Add(BuildCdbBreakpointCommand(source, line));
 		all.AddRange(commands);
 		all.Add("q");
 		return string.Join("; ", all);
+	}
+
+	string BuildCdbBreakpointCommand(string source, int line)
+	{
+		string module = Path.GetFileNameWithoutExtension(executable);
+		if (line == 0)
+			return "bu " + module + "!" + (debugMap?.FindFunction("main")?.NativeSymbol ?? "main");
+		DebugMapFunction? function = debugMap?.FindFunctionForSourceLine(source, line);
+		return function is null
+			? "bu `" + source + ":" + line.ToString(System.Globalization.CultureInfo.InvariantCulture) + "`"
+			: "bu " + module + "!" + function.NativeSymbol;
 	}
 
 	static string? FindCdbPath()
@@ -1365,6 +1376,17 @@ sealed class DebugMapDocument(IReadOnlyList<DebugMapFunction> functions)
 		return functions.FirstOrDefault(function => function.NativeSymbol == nativeSymbol || function.CampFunction == nativeSymbol);
 	}
 
+	public DebugMapFunction? FindFunctionForSourceLine(string sourcePath, int line)
+	{
+		string fullPath = Path.GetFullPath(sourcePath);
+		return functions
+			.Where(function => function.SourcePath is not null
+				&& Path.GetFullPath(function.SourcePath).Equals(fullPath, StringComparison.OrdinalIgnoreCase)
+				&& function.SourceStartLine <= line)
+			.OrderByDescending(function => function.SourceStartLine)
+			.FirstOrDefault();
+	}
+
 	public static DebugMapDocument Load(string path)
 	{
 		using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
@@ -1378,6 +1400,13 @@ sealed class DebugMapDocument(IReadOnlyList<DebugMapFunction> functions)
 				continue;
 			string? campFunction = entry.TryGetProperty("campFunction", out JsonElement campElement) ? campElement.GetString() : null;
 			string? nativeSymbol = entry.TryGetProperty("nativeSymbol", out JsonElement nativeElement) ? nativeElement.GetString() : null;
+			string? sourcePath = null;
+			int sourceStartLine = 0;
+			if (entry.TryGetProperty("source", out JsonElement sourceElement) && sourceElement.ValueKind is JsonValueKind.Object)
+			{
+				sourcePath = sourceElement.TryGetProperty("file", out JsonElement fileElement) ? fileElement.GetString() : null;
+				sourceStartLine = sourceElement.TryGetProperty("startLine", out JsonElement startLineElement) ? startLineElement.GetInt32() : 0;
+			}
 			List<DebugMapVariable> variables = [];
 			if (entry.TryGetProperty("variables", out JsonElement variablesElement) && variablesElement.ValueKind is JsonValueKind.Array)
 			{
@@ -1392,11 +1421,12 @@ sealed class DebugMapDocument(IReadOnlyList<DebugMapFunction> functions)
 				}
 			}
 			if (nativeSymbol is not null)
-				functions.Add(new DebugMapFunction(campFunction, nativeSymbol, variables));
+				functions.Add(new DebugMapFunction(campFunction, nativeSymbol, sourcePath, sourceStartLine, variables));
 		}
 		return new DebugMapDocument(functions);
 	}
+
 }
 
-sealed record DebugMapFunction(string? CampFunction, string NativeSymbol, IReadOnlyList<DebugMapVariable> Variables);
+sealed record DebugMapFunction(string? CampFunction, string NativeSymbol, string? SourcePath, int SourceStartLine, IReadOnlyList<DebugMapVariable> Variables);
 sealed record DebugMapVariable(string CampName, string NativeName, string? Type, string Kind);

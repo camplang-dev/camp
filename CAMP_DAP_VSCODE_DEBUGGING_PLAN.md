@@ -8,7 +8,7 @@ Implement Camp debugging as a staged toolchain feature:
 - a new C# `camp-dap` executable that speaks Debug Adapter Protocol;
 - native debugger backends, beginning with macOS `lldb`;
 - VS Code integration in `extras/vscode-camp`;
-- later Linux `gdb`, Windows `cdb.exe`, richer variable display, and async/iterator polish.
+- Linux `gdb`, Windows `cdb.exe`, richer variable display, and async/iterator polish.
 
 The end goal is the same as the original plan: Camp projects can be launched from VS Code, breakpoints bind in `.camp` files, stepping mostly follows Camp source instead of generated C scaffolding, and debugger state is mapped back to Camp source names and source-level values where practical.
 
@@ -393,7 +393,7 @@ Add the Windows/MSVC backend using Windows Debugging Tools.
 - ~~Full local suite and Windows lane pass.~~
 - ~~Commit.~~
 
-Note: the Windows validation host used for this phase does not currently have `cdb.exe` installed, so the real CDB smoke test is platform/tool-gated there. The missing-debugger diagnostic path is covered on that host.
+Note: the real CDB smoke test is platform/tool-gated so machines without Windows Debugging Tools can still run the suite. After CDB was installed on the Windows validation host, the real CDB smoke and the full Windows suite passed.
 
 ## Phase 9 — Debug UX Hardening And Pretty Printing
 
