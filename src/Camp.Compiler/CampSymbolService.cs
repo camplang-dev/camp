@@ -1408,12 +1408,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			&& entry.Name == name
 			&& !string.IsNullOrWhiteSpace(entry.Signature));
 		if (targetName is not null)
-			candidates = candidates.Where(entry =>
-				entry.ContainerName == targetName
-				|| entry.Signature!.Contains(targetName + "_", StringComparison.Ordinal)
-				|| entry.Signature.Contains(targetName + "." + name, StringComparison.Ordinal)
-				|| entry.Signature.Contains("(" + targetName + " this", StringComparison.Ordinal)
-				|| entry.Signature.Contains("(" + targetName + "* this", StringComparison.Ordinal));
+			candidates = candidates.Where(entry => SignatureEntryMatchesCallContext(entry, targetName, name));
 		List<CampSignatureInformation> signatures = candidates
 			.DistinctBy(static entry => entry.Signature)
 			.Select(static entry => new CampSignatureInformation(entry.Signature!, entry.Documentation, []))
@@ -1502,7 +1497,17 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			return true;
 		return FunctionNameMatches(function, name)
 			&& (function.Symbol == targetName + "_" + name
-				|| function.Symbol.EndsWith("_" + name, StringComparison.Ordinal));
+				|| GetSurfaceOwnerName(function) == targetName);
+	}
+
+	static bool SignatureEntryMatchesCallContext(SymbolEntry entry, string targetName, string name)
+	{
+		if (entry.ContainerName == targetName)
+			return true;
+		string signature = entry.Signature ?? "";
+		return SignatureHasSurfaceOwner(signature, targetName, name)
+			|| signature.Contains("(" + targetName + " this", StringComparison.Ordinal)
+			|| signature.Contains("(" + targetName + "* this", StringComparison.Ordinal);
 	}
 
 	static bool FunctionNameMatches(FunctionDefinition function, string name)
@@ -1529,6 +1534,38 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		if (dot >= 0)
 			surface = surface[(dot + 1)..];
 		return string.IsNullOrWhiteSpace(surface) ? null : surface;
+	}
+
+	static string? GetSurfaceOwnerName(FunctionDefinition function)
+	{
+		string? signature = GetCleanSignature(function);
+		if (string.IsNullOrWhiteSpace(signature))
+			return null;
+		return TryGetSurfaceOwnerName(signature!, GetSurfaceFunctionName(function));
+	}
+
+	static bool SignatureHasSurfaceOwner(string signature, string targetName, string name)
+	{
+		return TryGetSurfaceOwnerName(signature, name) == targetName;
+	}
+
+	static string? TryGetSurfaceOwnerName(string signature, string? name)
+	{
+		if (string.IsNullOrWhiteSpace(name))
+			return null;
+		int open = signature.IndexOf('(');
+		if (open <= 0)
+			return null;
+		string prefix = signature[..open].TrimEnd();
+		int start = prefix.Length;
+		while (start > 0 && (IsIdentifierPart(prefix[start - 1]) || prefix[start - 1] == '.'))
+			start--;
+		string surface = prefix[start..];
+		int dot = surface.LastIndexOf('.');
+		if (dot <= 0 || !surface[(dot + 1)..].Equals(name, StringComparison.Ordinal))
+			return null;
+		string owner = surface[..dot];
+		return string.IsNullOrWhiteSpace(owner) ? null : owner;
 	}
 
 	static CampSignatureInformation CreateSignatureInformation(FunctionDefinition function, SourceFile? file)

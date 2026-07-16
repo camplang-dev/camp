@@ -728,10 +728,15 @@ public sealed class LanguageServiceTests
 		string text = """
 			newtype HPEN : nint;
 			newtype HBRUSH : nint;
+			newtype HWND : nint;
+			newtype HFONT : nint;
 
 			static HPEN HPEN.create(overload int value, int color = 0) => default;
 			static HPEN HPEN.create(overload string value) => default;
 			static HBRUSH HBRUSH.create(int style) => default;
+			static HWND HWND.create() => default;
+			static HFONT HFONT.create(int size) => default;
+			HFONT create() => default;
 
 			export void main()
 			{
@@ -741,10 +746,15 @@ public sealed class LanguageServiceTests
 		string currentText = """
 			newtype HPEN : nint;
 			newtype HBRUSH : nint;
+			newtype HWND : nint;
+			newtype HFONT : nint;
 
 			static HPEN HPEN.create(overload int value, int color = 0) => default;
 			static HPEN HPEN.create(overload string value) => default;
 			static HBRUSH HBRUSH.create(int style) => default;
+			static HWND HWND.create() => default;
+			static HFONT HFONT.create(int size) => default;
+			HFONT create() => default;
 
 			export void main()
 			{
@@ -755,10 +765,15 @@ public sealed class LanguageServiceTests
 		string brokenCallText = """
 			newtype HPEN : nint;
 			newtype HBRUSH : nint;
+			newtype HWND : nint;
+			newtype HFONT : nint;
 
 			static HPEN HPEN.create(overload int value, int color = 0) => default;
 			static HPEN HPEN.create(overload string value) => default;
 			static HBRUSH HBRUSH.create(int style) => default;
+			static HWND HWND.create() => default;
+			static HFONT HFONT.create(int size) => default;
+			HFONT create() => default;
 
 			export void main()
 			{
@@ -783,6 +798,8 @@ public sealed class LanguageServiceTests
 		{
 			Assert.Contains("HPEN.create", signature.Label, StringComparison.Ordinal);
 			Assert.DoesNotContain("HBRUSH.create", signature.Label, StringComparison.Ordinal);
+			Assert.DoesNotContain("HWND.create", signature.Label, StringComparison.Ordinal);
+			Assert.DoesNotContain("HFONT.create", signature.Label, StringComparison.Ordinal);
 		});
 		Assert.NotNull(brokenSignatureHelp);
 		Assert.Equal(2, brokenSignatureHelp!.Signatures.Count);
@@ -790,6 +807,8 @@ public sealed class LanguageServiceTests
 		{
 			Assert.Contains("HPEN.create", signature.Label, StringComparison.Ordinal);
 			Assert.DoesNotContain("HBRUSH.create", signature.Label, StringComparison.Ordinal);
+			Assert.DoesNotContain("HWND.create", signature.Label, StringComparison.Ordinal);
+			Assert.DoesNotContain("HFONT.create", signature.Label, StringComparison.Ordinal);
 		});
 	}
 
