@@ -323,6 +323,23 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (definition.ShadowDataType is not null)
 			return;
+		bool inheritsShadowInstanceField = false;
+		if (GetDirectBaseClass(definition) is ClassDefinition { IsShadow: true } baseShadow)
+		{
+			EnsureShadowDataType(baseShadow);
+			inheritsShadowInstanceField = FindShadowInstanceField(baseShadow) is not null;
+		}
+		if (!inheritsShadowInstanceField && !definition.Fields.Any(static field => field.Name == ShadowInstanceFieldName && field.GeneratedInfo is not null))
+		{
+			definition.Fields.Insert(0, new FieldDefinition
+			{
+				Name = ShadowInstanceFieldName,
+				Symbol = ShadowInstanceFieldName,
+				Type = PointerTo(TypeReferenceFor(definition)),
+				ResolvedType = $"{definition.Name}*",
+				GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.Lifecycle, "shadow instance pointer", definition)
+			});
+		}
 		definition.ShadowDataType = new StructDefinition
 		{
 			Name = definition.Name + "ShadowData",

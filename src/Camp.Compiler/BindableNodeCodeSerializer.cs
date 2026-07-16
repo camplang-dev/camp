@@ -497,6 +497,8 @@ public sealed class BindableNodeCodeSerializer
 	{
 		if (!IsVisibleInApiSurface(definition))
 			return false;
+		if (definition.IsShadow)
+			return false;
 		if (definition.Extern is not null)
 			return false;
 		if (definition.Modifier == ClassModifier.Abstract)

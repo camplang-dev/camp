@@ -5,6 +5,8 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	const string ShadowInstanceFieldName = "__shadow_this";
+
 	static MethodReferenceExpression CreateMethodReference(FunctionDefinition function, string type, SyntaxNode? sourceSyntax = null)
 	{
 		MethodReferenceExpression reference = new()

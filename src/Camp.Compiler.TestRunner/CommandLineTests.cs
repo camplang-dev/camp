@@ -894,6 +894,110 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Project_reference_consumes_exported_shadow_class_api()
+	{
+		string root = TempPath("project-reference-shadow-api");
+		string libraryRoot = Path.Combine(root, "library");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			extern void* malloc(nuint size);
+			extern void free(void* ptr);
+
+			export interface IShadowValue
+			{
+				int read();
+			}
+
+			export class NativeShadowHost
+			{
+				escaped void* shadowData;
+
+				NativeShadowHost()
+				{
+				}
+
+				@getshadow
+				export escaped void* getShadow(const this) => this.shadowData;
+
+				@setshadow
+				export void setShadow(escaped void* value) => this.shadowData = value;
+			}
+
+			export virtual shadow class BaseShadow: NativeShadowHost, IShadowValue
+			{
+				int baseValue;
+
+				export BaseShadow(int value)
+				{
+					this.baseValue = value;
+				}
+
+				export int read(): IShadowValue => this.baseValue;
+
+				export int getBase() => this.baseValue;
+
+				export virtual int calculate() => this.baseValue;
+
+				void cleanupBase()
+				{
+					delete shadow;
+				}
+			}
+
+			export virtual shadow class DerivedShadow: BaseShadow
+			{
+				int extraValue;
+
+				export DerivedShadow(int value, int extra)
+				{
+					base(value);
+					this.extraValue = extra;
+				}
+
+				export override int calculate() => this.getBase() + this.extraValue;
+
+				void cleanupDerived()
+				{
+					delete shadow;
+				}
+			}
+
+			export DerivedShadow* makeDerived(int value, int extra) => within(default) new DerivedShadow(value, extra);
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--nostdlib
+			--name shadow-lib
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --artifact none
+
+			export int main()
+			{
+				auto derived = makeDerived(10, 7);
+				BaseShadow* baseView = derived;
+				IShadowValue* value = derived;
+				return baseView.calculate() + value.read() - 27;
+			}
+			""");
+		string target = NativeTargetForHost();
+
+		ProcessResult result = RunCampc("build", app, "--target", target, "--project-reference", libraryRoot + ":static", "--out-dir", Path.Combine(appRoot, "bin"));
+
+		AssertCommandSucceeded(result);
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "shadow-lib_api.camp"));
+		Assert.Contains("export extern shadow class BaseShadow", api, StringComparison.Ordinal);
+		Assert.Contains("export extern shadow class DerivedShadow", api, StringComparison.Ordinal);
+		Assert.Contains("@getshadow", api, StringComparison.Ordinal);
+		Assert.Contains("@setshadow", api, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Wasi_target_builds_stdlib_executable_when_available()
 	{
 		if (!ClangWasiAvailable())

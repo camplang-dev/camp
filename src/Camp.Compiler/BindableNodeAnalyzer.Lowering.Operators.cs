@@ -388,6 +388,39 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void",
 			Expression = CreateSetShadowCall(shadowClass, instance, shadowReference, syntax)
 		});
+		if (FindShadowInstanceField(shadowClass) is FieldDefinition instanceField)
+			shadowGuard.Statements.Add(new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					SourceSyntax = syntax,
+					Target = new MemberReferenceExpression
+					{
+						SourceSyntax = syntax,
+						Target = shadowReference,
+						Name = instanceField.Name,
+						Member = instanceField,
+						ResolvedType = instanceField.ResolvedType
+					},
+					Operator = AssignmentOperator.Assign,
+					Value = new CastExpression
+					{
+						SourceSyntax = syntax,
+						Kind = CastKind.Type,
+						Type = TypeReferenceForResolvedType(instanceField.ResolvedType ?? $"{shadowClass.Name}*"),
+						Expression = instance,
+						ResolvedType = instanceField.ResolvedType
+					},
+					ResolvedType = instanceField.ResolvedType
+				}
+			});
+		if (CreateVirtualTableAssignment(instance, shadowClass) is Expression vtableAssignment)
+			shadowGuard.Statements.Add(new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = vtableAssignment
+			});
 		if (initNew is not null)
 			shadowGuard.Statements.Add(new ExpressionStatement
 			{
@@ -401,6 +434,8 @@ public sealed partial class BindableNodeAnalyzer
 	Expression CreateShadowBaseCreateCall(ClassDefinition shadowClass, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
 	{
 		ClassDefinition? baseClass = GetDirectBaseClass(shadowClass);
+		while (baseClass is not null && baseClass.IsShadow)
+			baseClass = GetDirectBaseClass(baseClass);
 		if (baseClass is not null)
 		{
 			if (FindExternalCreateMethod(baseClass, arguments.Count) is FunctionDefinition create)
@@ -409,14 +444,23 @@ public sealed partial class BindableNodeAnalyzer
 				return CastShadowInstance(CreateCreateCall(ordinaryCreate, TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
 			if (baseClass.Extern is not null && FindExternInitNewMethod(baseClass, arguments.Count) is FunctionDefinition externInitNew)
 				return CastShadowInstance(CreateCreateCall(CreateExternalCreateMethod(baseClass, externInitNew), TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
-			if (baseClass.IsShadow)
-				return CastShadowInstance(CreateNewExpression(baseClass, TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
 			if (baseClass.Extern is null)
 				return CastShadowInstance(CreateNewExpression(baseClass, TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
 		}
 
 		Report(GetRange(syntax), $"Shadow class '{shadowClass.Name}' cannot be allocated because its base class does not expose a compatible create method.");
 		return NullLiteral(syntax);
+	}
+
+	FieldDefinition? FindShadowInstanceField(ClassDefinition shadowClass)
+	{
+		for (ClassDefinition? current = shadowClass; current is not null; current = GetDirectBaseClass(current) is ClassDefinition { IsShadow: true } baseShadow ? baseShadow : null)
+		{
+			foreach (FieldDefinition field in current.Fields)
+				if (field.Name == ShadowInstanceFieldName && field.GeneratedInfo is not null)
+					return field;
+		}
+		return null;
 	}
 
 	Expression CastShadowInstance(Expression expression, ClassDefinition shadowClass, SyntaxNode? syntax, string? resolvedType)

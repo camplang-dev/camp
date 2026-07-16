@@ -779,6 +779,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (function.Body is null
 			|| function.Name != CreateMethodName
 			|| containingType is not ClassDefinition classDefinition
+			|| classDefinition.IsShadow
 			|| !NeedsVirtualTableAssignment(classDefinition))
 			return;
 

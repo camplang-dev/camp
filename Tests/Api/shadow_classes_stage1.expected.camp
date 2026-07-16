@@ -14,8 +14,6 @@ export extern class ExportedHookBase
 export extern shadow class ExportedShadow : ExportedHookBase
 {
 	export extern ExportedShadow();
-
-	export extern ~ExportedShadow();
 }
 
 export extern class PrivateHookBase
@@ -28,6 +26,4 @@ export extern class PrivateHookBase
 export extern class ErasedShadow : PrivateHookBase
 {
 	export extern ErasedShadow();
-
-	export extern ~ErasedShadow();
 }

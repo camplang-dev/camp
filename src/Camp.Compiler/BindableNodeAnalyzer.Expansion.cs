@@ -214,13 +214,15 @@ public sealed partial class BindableNodeAnalyzer
 	BlockStatement CreateVirtualDispatchBody(ClassDefinition owner, FunctionDefinition function, FieldDefinition slotField)
 	{
 		string returnType = GetFunctionReturnTypeName(function);
+		virtualClassLowerings.TryGetValue(owner, out VirtualClassLowering? lowering);
 		Expression vtableTarget = new MemberReferenceExpression
 		{
 			Target = new ThisExpression { ResolvedType = owner.Name },
 			Name = VirtualTableFieldName,
+			Member = lowering is null ? null : GetRootVirtualLowering(lowering).Field,
 			ResolvedType = GetRootVirtualTableFieldType(owner)
 		};
-		if (virtualClassLowerings.TryGetValue(owner, out VirtualClassLowering? lowering) && lowering.BaseLowering is not null)
+		if (lowering is not null && lowering.BaseLowering is not null)
 		{
 			vtableTarget = new CastExpression
 			{
@@ -1194,7 +1196,30 @@ public sealed partial class BindableNodeAnalyzer
 		ParameterDefinition ctx = thunk.Parameters[0];
 		DeclarationStatement? indirect = null;
 		DeclarationStatement instance;
-		if (lowering.Implementation.IsStruct)
+		if (lowering.Implementation.Type is ClassDefinition { IsShadow: true } shadowClass && lowering.Implementation.Field is not null)
+		{
+			DeclarationStatement shadowData = CreateGeneratedLocal("shadowData", $"{ShadowDataTypeName(shadowClass)}*", PointerTo(ShadowDataTypeReference(shadowClass)), CreateShadowInterfaceDataFixup(lowering, ctx, shadowClass));
+			shadowData.Target.Names.Clear();
+			shadowData.Target.Names.Add("shadowData");
+			body.Statements.Add(shadowData);
+			FieldDefinition? instanceField = FindShadowInstanceField(shadowClass);
+			instance = CreateGeneratedLocal("instance", $"{shadowClass.Name}*", PointerTo(TypeReferenceFor(shadowClass)), new MemberReferenceExpression
+			{
+				Target = CreateVariableReference(shadowData.Target, shadowData.Target.ResolvedType ?? $"{ShadowDataTypeName(shadowClass)}*"),
+				Name = ShadowInstanceFieldName,
+				Member = instanceField,
+				ResolvedType = instanceField?.ResolvedType ?? $"{shadowClass.Name}*"
+			});
+			if (instance.InitialValue is Expression storedInstance && storedInstance.ResolvedType != $"{shadowClass.Name}*")
+				instance.InitialValue = new CastExpression
+				{
+					Kind = CastKind.Type,
+					Type = PointerTo(TypeReferenceFor(shadowClass)),
+					Expression = storedInstance,
+					ResolvedType = $"{shadowClass.Name}*"
+				};
+		}
+		else if (lowering.Implementation.IsStruct)
 		{
 			indirect = CreateGeneratedLocal("indirect", $"{InterfaceIndirectName(lowering.EntryInterface)}<{lowering.Implementation.Type.Name}>*", PointerTo(InterfaceIndirectType(lowering.EntryInterface, lowering.Implementation.Type)), CreateInterfaceInstanceFixup(lowering, ctx));
 			indirect.Target.Names.Clear();
@@ -1267,6 +1292,47 @@ public sealed partial class BindableNodeAnalyzer
 		else
 			body.Statements.Add(new ReturnStatement { Expression = call, ResolvedType = "void" });
 		return body;
+	}
+
+	Expression CreateShadowInterfaceDataFixup(InterfaceThunkLowering lowering, ParameterDefinition ctx, ClassDefinition shadowClass)
+	{
+		FieldDefinition field = lowering.Implementation.Field!;
+		return new CastExpression
+		{
+			Type = PointerTo(ShadowDataTypeReference(shadowClass)),
+			Kind = CastKind.Type,
+			ResolvedType = $"{ShadowDataTypeName(shadowClass)}*",
+			Expression = new BinaryExpression
+			{
+				Left = new CastExpression
+				{
+					Type = PointerTo(new PrimitiveTypeReference { Type = PrimitiveType.Byte, ResolvedType = "byte" }),
+					Kind = CastKind.Type,
+					ResolvedType = "byte*",
+					Expression = CreateVariableReference(ctx, ctx.ResolvedType ?? $"{lowering.EntryInterface.Name}**")
+				},
+				Operator = BinaryOperator.Subtract,
+				Right = new CallExpression
+				{
+					Target = new NamedExpression { Name = "offsetof", ResolvedType = "fn nuint()" },
+					ResolvedType = "nuint",
+					Arguments =
+					{
+						new ArgumentExpression
+						{
+							Value = new MemberExpression
+							{
+								Target = new TypeReferenceExpression { Type = ShadowDataTypeReference(shadowClass), ResolvedType = ShadowDataTypeName(shadowClass) },
+								Name = field.Name,
+								ResolvedType = field.ResolvedType
+							},
+							ResolvedType = "nuint"
+						}
+					}
+				},
+				ResolvedType = "byte*"
+			}
+		};
 	}
 
 	Expression CreateInterfaceInstanceFixup(InterfaceThunkLowering lowering, ParameterDefinition ctx)

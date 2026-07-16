@@ -2047,11 +2047,11 @@ public static class CCodeEmitter
 
 			WithGenericContext(shadowClass, () =>
 			{
-				WithArrayElementComponentContext(shadowClass.Fields, () =>
+				List<FieldDefinition> fields = GetShadowDataLayoutFields(shadowClass);
+				WithArrayElementComponentContext(fields, () =>
 				{
 					writer.WriteLine("struct " + name);
 					writer.WriteLine("{");
-					List<FieldDefinition> fields = shadowClass.Fields.Where(static field => field.Modifier != FieldModifier.Static).ToList();
 					if (fields.Count == 0)
 						writer.WriteLine("\tchar _camp_empty;");
 					foreach (FieldDefinition field in fields)
@@ -2059,6 +2059,20 @@ public static class CCodeEmitter
 					writer.WriteLine("};");
 				});
 			});
+		}
+
+		List<FieldDefinition> GetShadowDataLayoutFields(ClassDefinition shadowClass)
+		{
+			List<FieldDefinition> fields = [];
+			AddShadowDataLayoutFields(shadowClass, fields);
+			return fields;
+		}
+
+		void AddShadowDataLayoutFields(ClassDefinition shadowClass, List<FieldDefinition> fields)
+		{
+			if (GetDirectBaseClass(shadowClass) is ClassDefinition { IsShadow: true } baseShadow)
+				AddShadowDataLayoutFields(baseShadow, fields);
+			fields.AddRange(shadowClass.Fields.Where(static field => field.Modifier != FieldModifier.Static));
 		}
 
 		string ShadowDataCName(ClassDefinition shadowClass)
@@ -5855,9 +5869,12 @@ public static class CCodeEmitter
 			formatted = "";
 			if (member.Target is null || field.Modifier == FieldModifier.Static)
 				return false;
-			if (!TryFindFieldOwner(member.Target.ResolvedType ?? "", field, out TypeDefinition? owner) || owner is not ClassDefinition { IsShadow: true } shadowClass)
-				return false;
-			if (!shadowClass.Fields.Contains(field))
+			ClassDefinition? shadowClass = null;
+			if (TryFindFieldOwner(member.Target.ResolvedType ?? "", field, out TypeDefinition? owner) && owner is ClassDefinition { IsShadow: true } ownerShadowClass)
+				shadowClass = ownerShadowClass;
+			if (TryFindShadowTargetClass(member.Target.ResolvedType ?? "", field, out ClassDefinition? targetShadowClass) && targetShadowClass is not null)
+				shadowClass = targetShadowClass;
+			if (shadowClass is null || !GetShadowDataLayoutFields(shadowClass).Contains(field))
 				return false;
 
 			bool mutable = !((member.Target.ResolvedType ?? "").StartsWith("const ", StringComparison.Ordinal));
@@ -5868,6 +5885,22 @@ public static class CCodeEmitter
 			string shadowType = (mutable ? "" : "const ") + ShadowDataCName(shadowClass) + "*";
 			formatted = "(((" + shadowType + ")(" + call + "))->" + CName(field) + ")";
 			return true;
+		}
+
+		bool TryFindShadowTargetClass(string targetType, FieldDefinition field, out ClassDefinition? shadowClass)
+		{
+			shadowClass = null;
+			string baseName = BaseResolvedTypeName(targetType);
+			foreach (Definition definition in GetDefinitions())
+			{
+				if (definition is not ClassDefinition { IsShadow: true } candidate || candidate.Name != baseName && CName(candidate) != baseName)
+					continue;
+				if (!GetShadowDataLayoutFields(candidate).Contains(field))
+					return false;
+				shadowClass = candidate;
+				return true;
+			}
+			return false;
 		}
 
 		string FormatShadowHookReceiver(Expression target, FunctionDefinition? hook)

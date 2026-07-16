@@ -1,0 +1,87 @@
+using Std;
+
+interface IValue
+{
+	int read();
+}
+
+interface IExtra
+{
+	int extra();
+}
+
+class NativeShadowHost
+{
+	escaped void* shadowData;
+
+	NativeShadowHost()
+	{
+	}
+
+	@getshadow
+	escaped void* getShadow(const this) => this.shadowData;
+
+	@setshadow
+	void setShadow(escaped void* value) => this.shadowData = value;
+}
+
+virtual shadow class BaseShadow: NativeShadowHost, IValue
+{
+	int baseValue;
+
+	BaseShadow(int value)
+	{
+		this.baseValue = value;
+	}
+
+	int read(): IValue => this.baseValue;
+
+	int getBase() => this.baseValue;
+
+	virtual int calculate() => this.baseValue;
+
+	void cleanup()
+	{
+		delete shadow;
+	}
+}
+
+virtual shadow class DerivedShadow: BaseShadow, IExtra
+{
+	int extraValue;
+
+	DerivedShadow(int value, int extra)
+	{
+		base(value);
+		this.extraValue = extra;
+	}
+
+	int extra(): IExtra => this.extraValue;
+
+	int getExtra() => this.extraValue;
+
+	override int calculate() => this.getBase() + this.extraValue;
+
+	void cleanupDerived()
+	{
+		delete shadow;
+	}
+}
+
+export int main()
+{
+	auto derived = new DerivedShadow(10, 7);
+	BaseShadow* baseView = derived;
+	IValue* value = derived;
+	IExtra* extra = derived;
+
+	Console.writeLine(baseView.getBase());
+	Console.writeLine(derived.getExtra());
+	Console.writeLine(baseView.calculate());
+	Console.writeLine(value.read());
+	Console.writeLine(extra.extra());
+
+	derived.cleanupDerived();
+	delete derived;
+	return 0;
+}
