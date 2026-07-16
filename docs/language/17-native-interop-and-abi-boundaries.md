@@ -168,7 +168,9 @@ attachment slot for caller state. A shadow class lets Camp layer fields,
 interfaces, and virtual shadow behavior over that existing object without
 changing the object's native layout.
 
-The base surface must expose shadow hooks:
+The base surface must expose shadow hooks with the required signatures. The
+method names are not fixed; the compiler selects the hooks by `@getshadow` and
+`@setshadow`, not by their names.
 
 ```camp
 export extern class NativeControl
@@ -185,25 +187,18 @@ A shadow class derives from that base and stores its own fields in generated
 shadow data:
 
 ```camp
-export interface IControlHost
+shadow class ButtonView: NativeControl
 {
-	void destroyed();
-}
+	int buttonId;
 
-shadow class ButtonView: NativeControl, IControlHost
-{
-	int clickCount;
-	escaped once void() onDestroyed;
-
-	ButtonView(escaped once void() onDestroyed)
+	ButtonView(int buttonId)
 	{
-		this.clickCount = 0;
-		this.onDestroyed = onDestroyed;
+		this.buttonId = buttonId;
 	}
 
-	void destroyed(): IControlHost
+	void destroyControl()
 	{
-		this.onDestroyed();
+		delete this;
 		delete shadow;
 	}
 }
@@ -216,13 +211,49 @@ slots and virtual shadow dispatch state also live in the shadow data.
 
 Use a shadow class when the base library owns the object and layout, and you
 need a Camp view that adds state or interface behavior. Use an ordinary class
-when Camp owns the storage. Shadow classes cannot declare destructors; cleanup
-usually happens from a base lifecycle callback or handler method that releases
-owned fields and then calls `delete shadow`.
+when Camp owns the storage. Shadow classes cannot declare destructors.
 
 `delete shadow` deletes only the generated shadow data. It does not delete the
 base object, call a destructor, or clear the base object's hook storage. If the
-base object needs teardown, call the base API that performs that teardown.
+base object needs teardown, call the base API that performs that teardown. The
+base class will often own destroy semantics itself, perhaps through reference
+counting or by providing a manual destroy method.
+
+A base class may also expose a host interface for lifecycle callbacks:
+
+```camp
+export interface IControlHost
+{
+	void handleEvent() = default;
+	void handleDestroy() = default;
+}
+
+export extern class NativeControl
+{
+	export extern void SetHost(escaped IControlHost* host);
+}
+```
+
+A shadow class can implement that interface and use the destroy callback to
+release its shadow data:
+
+```camp
+shadow class ButtonView: NativeControl, IControlHost
+{
+	int buttonId;
+
+	ButtonView(int buttonId)
+	{
+		this.Host = this;
+		this.buttonId = buttonId;
+	}
+
+	void handleDestroy(): IControlHost
+	{
+		delete shadow;
+	}
+}
+```
 
 ## Symbols And Native Spelling
 
