@@ -323,7 +323,8 @@ public sealed partial class BindableNodeAnalyzer
 			Operand = target,
 			ResolvedType = AddPointer(target.ResolvedType ?? ErrorType)
 		};
-		CallExpression? initCall = CreateInitCallForConstruction(construction, targetAddress);
+		constructionTargets.TryGetValue(construction, out FunctionDefinition? constructorTarget);
+		CallExpression? initCall = CreateInitCallForConstruction(construction, targetAddress, constructorTarget);
 		if (initCall is null)
 			return false;
 

@@ -1,0 +1,45 @@
+using Std;
+
+int calls;
+
+interface IHost
+{
+	void destroy();
+}
+
+escaped class Button
+{
+	IHost* host;
+
+	void setHost(escaped IHost* host)
+	{
+		this.host = host;
+	}
+
+	escaped IHost* getHost() => this.host;
+}
+
+escaped class MyButtonHost: IHost
+{
+	escaped once void() destroyCallback;
+
+	MyButtonHost(escaped once void() destroyCallback)
+	{
+		this.destroyCallback = destroyCallback;
+	}
+
+	void destroy(): IHost
+	{
+		this.destroyCallback();
+	}
+}
+
+export int main()
+{
+	calls = 0;
+	auto button = new Button();
+	button.Host = new MyButtonHost(() => { calls++; });
+	button.Host.destroy();
+	Console.writeLine(calls);
+	return calls == 1 ? 0 : 1;
+}

@@ -164,6 +164,28 @@
               </Names>
             </Target>
           </DeclarationStatement>
+          <ExpressionStatement ResolvedType="void">
+            <Expression Type="CallExpression" ResolvedType="void">
+              <Target Type="MethodReferenceExpression" ResolvedType="fn void(View*, unscoped const char*, nuint)">
+                <Candidates>
+                  <Function Name="op_initnew" ResolvedType="void" />
+                </Candidates>
+              </Target>
+              <Arguments>
+                <ArgumentExpression ResolvedType="View*">
+                  <Value Type="UnaryExpression" Operator="AddressOf" ResolvedType="View*">
+                    <Operand Type="VariableReferenceExpression" Variable="retained" ResolvedType="View" SlotLifetimeFact="scoped(retained):slot" ValueLifetimeFact="scoped:init" />
+                  </Value>
+                </ArgumentExpression>
+                <ArgumentExpression ResolvedType="const char*">
+                  <Value Type="VariableReferenceExpression" Variable="input" ResolvedType="const char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                </ArgumentExpression>
+                <ArgumentExpression ResolvedType="nuint">
+                  <Value Type="VariableReferenceExpression" Variable="input_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                </ArgumentExpression>
+              </Arguments>
+            </Expression>
+          </ExpressionStatement>
           <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(aggregate):slot" ValueLifetimeFact="scoped:initializer">
             <Target Type="DeclarationTarget" ResolvedType="View" SlotLifetimeFact="scoped(aggregate):slot" ValueLifetimeFact="scoped:initializer">
               <Type Type="TypeDefinitionReference" Name="View" Definition="View" ResolvedType="View" />

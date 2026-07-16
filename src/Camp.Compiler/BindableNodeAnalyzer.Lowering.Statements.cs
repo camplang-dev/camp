@@ -1243,7 +1243,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (definition is ClassDefinition { IsShadow: true } shadowClass)
 		{
-			FunctionDefinition? shadowInitNew = FindInitNewMethod(shadowClass, construction.Arguments.Count);
+			constructionTargets.TryGetValue(construction, out FunctionDefinition? constructorTarget);
+			FunctionDefinition? shadowInitNew = FindInitNewMethod(shadowClass, construction.Arguments.Count, constructorTarget);
 			List<ArgumentExpression> baseArguments = shadowInitNew is null ? construction.Arguments : [];
 			declaration.InitialValue = CreateShadowBaseCreateCall(shadowClass, baseArguments, construction.SourceSyntax ?? declaration.SourceSyntax, declaration.Target.ResolvedType ?? construction.ResolvedType);
 			statements.Add(declaration);
@@ -1267,7 +1268,8 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		FunctionDefinition? initNew = FindInitNewMethod(definition, construction.Arguments.Count);
+		constructionTargets.TryGetValue(construction, out FunctionDefinition? selectedConstructor);
+		FunctionDefinition? initNew = FindInitNewMethod(definition, construction.Arguments.Count, selectedConstructor);
 		declaration.InitialValue = CreateAllocCall(construction.Type ?? TypeReferenceFor(definition), construction.SourceSyntax ?? declaration.SourceSyntax);
 		statements.Add(declaration);
 
@@ -1397,7 +1399,8 @@ public sealed partial class BindableNodeAnalyzer
 			typeDefinitions.TryGetValue(constructedTypeName, out constructedDefinition);
 
 		Expression target = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? ErrorType);
-		CallExpression? initCall = CreateInitCallForConstruction(construction, target);
+		constructionTargets.TryGetValue(construction, out FunctionDefinition? constructorTarget);
+		CallExpression? initCall = CreateInitCallForConstruction(construction, target, constructorTarget);
 		if (constructedDefinition is null
 			&& initCall?.Target is MemberReferenceExpression { Member: FunctionDefinition initFunction })
 			constructedDefinition = FindContainingType(initFunction);

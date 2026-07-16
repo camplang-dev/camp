@@ -52,12 +52,14 @@ static Scratch *Scratch_create(const char *temporary, uintptr_t temporary_length
 static View makeView(const char *input, uintptr_t input_length)
 {
 	View view;
+	View_op_initnew(&view, input, input_length);
 	return view;
 }
 
 static Scratch makeScratch(const char *input, uintptr_t input_length)
 {
 	Scratch scratch;
+	Scratch_op_initnew(&scratch, input, input_length);
 	return scratch;
 }
 

@@ -59,8 +59,20 @@ public sealed partial class BindableNodeAnalyzer
 		return name;
 	}
 
-	FunctionDefinition? FindInitNewMethod(TypeDefinition type, int argumentCount)
+	FunctionDefinition? FindInitNewMethod(TypeDefinition type, int argumentCount, FunctionDefinition? constructorTarget = null)
 	{
+		if (constructorTarget is not null)
+		{
+			foreach (FunctionDefinition function in GetFunctions(type))
+			{
+				if (function.Name == InitNewMethodName
+					&& ReferenceEquals(function.GeneratedInfo?.Source, constructorTarget))
+				{
+					return function;
+				}
+			}
+		}
+
 		foreach (FunctionDefinition function in GetFunctions(type))
 		{
 			if (function.Name == InitNewMethodName && CallableByArgumentCount(function.Parameters, argumentCount))

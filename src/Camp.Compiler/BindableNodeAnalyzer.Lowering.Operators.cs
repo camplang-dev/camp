@@ -218,18 +218,19 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
 			return construction;
 
+		constructionTargets.TryGetValue(construction, out FunctionDefinition? constructorTarget);
 		return construction.Kind switch
 		{
-			ConstructionKind.New => CreateNewExpression(definition, construction.Type, construction.Arguments, construction.SourceSyntax, construction.ResolvedType),
-			ConstructionKind.Init => (Expression?)CreateInitCallForConstruction(construction, target: null) ?? construction,
+			ConstructionKind.New => CreateNewExpression(definition, construction.Type, construction.Arguments, construction.SourceSyntax, construction.ResolvedType, constructorTarget),
+			ConstructionKind.Init => (Expression?)CreateInitCallForConstruction(construction, target: null, constructorTarget) ?? construction,
 			_ => construction
 		};
 	}
 
-	Expression CreateNewExpression(TypeDefinition type, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
+	Expression CreateNewExpression(TypeDefinition type, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType, FunctionDefinition? constructorTarget = null)
 	{
 		if (type is ClassDefinition { IsShadow: true } shadowClass)
-			return CreateShadowNewExpression(shadowClass, constructedType, arguments, syntax, resolvedType);
+			return CreateShadowNewExpression(shadowClass, constructedType, arguments, syntax, resolvedType, constructorTarget);
 
 		TypeReference typeReference = constructedType ?? TypeReferenceFor(type);
 		if (FindExternalCreateMethod(type, arguments.Count) is FunctionDefinition create)
@@ -244,7 +245,7 @@ public sealed partial class BindableNodeAnalyzer
 			return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = resolvedType ?? $"{type.Name}*" };
 		}
 
-		FunctionDefinition? initNew = FindInitNewMethod(type, arguments.Count);
+		FunctionDefinition? initNew = FindInitNewMethod(type, arguments.Count, constructorTarget);
 		if (initNew is null && !NeedsVirtualTableAssignment(type) && type is not ClassDefinition)
 			return CreateAllocCall(typeReference, syntax);
 
@@ -330,10 +331,10 @@ public sealed partial class BindableNodeAnalyzer
 		return grouped;
 	}
 
-	Expression CreateShadowNewExpression(ClassDefinition shadowClass, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
+	Expression CreateShadowNewExpression(ClassDefinition shadowClass, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType, FunctionDefinition? constructorTarget = null)
 	{
 		TypeReference typeReference = constructedType ?? TypeReferenceFor(shadowClass);
-		FunctionDefinition? initNew = FindInitNewMethod(shadowClass, arguments.Count);
+		FunctionDefinition? initNew = FindInitNewMethod(shadowClass, arguments.Count, constructorTarget);
 		List<ArgumentExpression> baseArguments = initNew is null ? arguments : [];
 		Expression baseCreate = CreateShadowBaseCreateCall(shadowClass, baseArguments, syntax, resolvedType);
 		string localName = NewGeneratedLocalName("created");
@@ -610,13 +611,13 @@ public sealed partial class BindableNodeAnalyzer
 		return create;
 	}
 
-	CallExpression? CreateInitCallForConstruction(ConstructionExpression construction, Expression? target)
+	CallExpression? CreateInitCallForConstruction(ConstructionExpression construction, Expression? target, FunctionDefinition? constructorTarget = null)
 	{
 		string typeName = BaseConstructedType(construction.Type?.ResolvedType ?? construction.ResolvedType);
 		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
 			return null;
 
-		FunctionDefinition? initNew = FindInitNewMethod(definition, construction.Arguments.Count);
+		FunctionDefinition? initNew = FindInitNewMethod(definition, construction.Arguments.Count, constructorTarget);
 		if (initNew is null)
 			return null;
 

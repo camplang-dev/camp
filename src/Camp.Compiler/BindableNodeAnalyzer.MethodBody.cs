@@ -1754,6 +1754,13 @@ public sealed partial class BindableNodeAnalyzer
 		Dictionary<string, string> constructionGenericSubstitutions = [];
 		AddConstructedTypeGenericSubstitutions(targetType, constructionGenericSubstitutions);
 		FunctionDefinition? argumentFunction = constructor ?? create ?? diagnosticConstructor ?? diagnosticCreate;
+		if (argumentFunction is null
+			&& construction.Arguments.Count > 0
+			&& construction.ElementCount is null
+			&& !TryGetPrimitiveType(targetType, out _))
+		{
+			Report(GetRange(GetArgumentDiagnosticSyntax(construction.Arguments[0], construction.SourceSyntax)), $"No constructor or create method for '{targetType}' accepts {construction.Arguments.Count} argument(s).");
+		}
 		AnalyzeCallArguments(
 			construction.Arguments,
 			argumentFunction?.Parameters ?? [],

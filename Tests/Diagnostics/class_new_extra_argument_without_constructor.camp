@@ -1,0 +1,8 @@
+class Host
+{
+}
+
+export void main()
+{
+	auto host = new Host(1);
+}
