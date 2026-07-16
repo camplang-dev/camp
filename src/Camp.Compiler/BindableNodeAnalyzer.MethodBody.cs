@@ -3790,6 +3790,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (baseClass is null || hasBaseCall)
 			return;
 
+		if (containingClass.IsShadow && !baseClass.IsShadow)
+			return;
+
 		if (IsGeneratedBaseInitCall(firstAction, baseClass))
 			return;
 

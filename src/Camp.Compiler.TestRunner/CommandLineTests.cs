@@ -1033,7 +1033,7 @@ public sealed class CommandLineTests
 		string app = Path.Combine(appRoot, "app.camp");
 		File.WriteAllText(app, """
 			#build --nostdlib
-			#build --artifact none
+			#build --artifact exec
 
 			extern void* malloc(nuint size);
 			extern void free(void* ptr);
@@ -1054,7 +1054,6 @@ public sealed class CommandLineTests
 			{
 				auto value = new LocalShadow();
 				value.cleanup();
-				delete value;
 				return 0;
 			}
 			""");
