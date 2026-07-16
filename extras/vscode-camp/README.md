@@ -1,7 +1,7 @@
 # Camp Language Support For VS Code
 
 This extension provides Camp syntax highlighting, language-server integration,
-and simple build/run commands.
+simple build/run commands, and debug launch integration.
 
 ## Features
 
@@ -9,9 +9,12 @@ and simple build/run commands.
   files are sent to the language server.
 - LSP diagnostics, hover, go to definition, references, document symbols,
   workspace symbols, signature help, and completion through `camp-lsp`.
-- `Camp: Build Current Project` and `Camp: Run Current Project` commands.
-- Editor title buttons and status-bar buttons for build/run while a Camp file is
-  active.
+- `Camp: Build Current Project`, `Camp: Run Current Project`, and `Camp: Debug
+  Current Project` commands.
+- Editor title buttons and status-bar buttons for build/run/debug while a Camp
+  file is active.
+- Camp breakpoints and generated launch configurations for the `camp-dap`
+  debug adapter.
 - `Camp: Restart Language Server`.
 
 ## Prerequisites
@@ -32,6 +35,30 @@ layout, that is usually:
 The build and run commands derive `campc` from the same directory as
 `camp-lsp`. If `camp.server.path` is just `camp-lsp`, the commands use `campc`
 from `PATH`.
+
+Debug sessions use `camp-dap`. By default, the extension derives `camp-dap`
+from the same directory as `camp.server.path`, just like it derives `campc`.
+For example, if `camp.server.path` is `/path/to/camplang/bin/camp-lsp`, the
+debug adapter path defaults to `/path/to/camplang/bin/camp-dap`.
+
+You can override this with:
+
+```json
+{
+  "camp.debugAdapter.path": "/path/to/camplang/bin/camp-dap"
+}
+```
+
+The first real native backend is macOS LLDB. On macOS, use:
+
+```json
+{
+  "camp.debug.nativeBackend": "lldb"
+}
+```
+
+`"auto"` currently selects LLDB on macOS. Linux/GDB and Windows/CDB are planned
+for later backend phases.
 
 ## Install From Source
 
@@ -137,6 +164,10 @@ When extension source changes, stop the debug session and launch
 `Launch Extension` again. When only `camp-lsp` changes, rebuild Camp and run
 `Camp: Restart Language Server` in the Extension Development Host.
 
+When only `camp-dap` changes, rebuild Camp. New debug sessions will start the
+new adapter executable. Existing debug sessions keep using the adapter process
+that was already started for that session.
+
 ## Build And Run Commands
 
 `Camp: Build Current Project` and `Camp: Run Current Project` look at the active
@@ -158,3 +189,34 @@ campc run /path/to/file.camp
 ```
 
 Output is sent to a VS Code terminal named `Camp`.
+
+## Debugging
+
+Set breakpoints in `.camp` files as usual. Then run `Camp: Debug Current
+Project`, click the `Camp Debug` status-bar button, or create/use a VS Code
+launch configuration of type `camp`.
+
+The command uses the active Camp file and walks upward to find the nearest
+`.campbuild`, matching the build/run commands. If no `.campbuild` is found, it
+debugs the active `.camp` file directly.
+
+A typical launch configuration is:
+
+```json
+{
+  "name": "Debug Camp",
+  "type": "camp",
+  "request": "launch",
+  "project": "${workspaceFolder}/app.campbuild",
+  "cwd": "${workspaceFolder}",
+  "args": [],
+  "stopOnEntry": false,
+  "backend": "lldb"
+}
+```
+
+For now, the debug adapter builds with Camp debug metadata and uses LLDB on
+macOS. Breakpoints, basic stepping, stack frames, and simple scalar
+locals/parameters are supported. Expression evaluation is intentionally narrow:
+simple mapped local and parameter names work, while arbitrary Camp expressions
+return a clear unsupported result.

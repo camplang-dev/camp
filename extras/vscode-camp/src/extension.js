@@ -2,10 +2,17 @@ const fs = require("fs");
 const path = require("path");
 const vscode = require("vscode");
 const { LanguageClient, TransportKind } = require("vscode-languageclient/node");
+const {
+  createDebugConfiguration,
+  findNearestCampBuild,
+  getCompilerPath: deriveCompilerPath,
+  getDebugAdapterPath: deriveDebugAdapterPath
+} = require("./campPaths");
 
 let client;
 let buildStatusItem;
 let runStatusItem;
+let debugStatusItem;
 let campTerminal;
 let extensionContext;
 
@@ -21,12 +28,24 @@ function activate(context) {
   runStatusItem.tooltip = "Run the current Camp project";
   runStatusItem.command = "camp.run";
 
+  debugStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 98);
+  debugStatusItem.text = "$(debug-alt) Camp Debug";
+  debugStatusItem.tooltip = "Debug the current Camp project";
+  debugStatusItem.command = "camp.debug";
+
+  const debugAdapterFactory = new CampDebugAdapterFactory();
+  const debugConfigurationProvider = new CampDebugConfigurationProvider();
+
   context.subscriptions.push(
     buildStatusItem,
     runStatusItem,
+    debugStatusItem,
     vscode.commands.registerCommand("camp.build", () => runCampCommand("build")),
     vscode.commands.registerCommand("camp.run", () => runCampCommand("run")),
+    vscode.commands.registerCommand("camp.debug", debugCurrentProject),
     vscode.commands.registerCommand("camp.restartServer", restartLanguageServer),
+    vscode.debug.registerDebugAdapterDescriptorFactory("camp", debugAdapterFactory),
+    vscode.debug.registerDebugConfigurationProvider("camp", debugConfigurationProvider),
     vscode.window.onDidChangeActiveTextEditor(updateStatusItems)
   );
 
@@ -102,16 +121,15 @@ function getTraceDirectory(context) {
 }
 
 function getCompilerPath() {
-  const serverPath = getServerPath();
-  const serverBase = process.platform === "win32" ? "camp-lsp.exe" : "camp-lsp";
-  const compilerBase = process.platform === "win32" ? "campc.exe" : "campc";
-  if (path.basename(serverPath).toLowerCase() === serverBase.toLowerCase()) {
-    const directory = path.dirname(serverPath);
-    if (directory && directory !== ".") {
-      return path.join(directory, compilerBase);
-    }
-  }
-  return compilerBase;
+  return deriveCompilerPath(getServerPath());
+}
+
+function getDebugAdapterPath() {
+  return deriveDebugAdapterPath(vscode.workspace.getConfiguration("camp").get("debugAdapter.path"), getServerPath());
+}
+
+function getNativeDebugBackend() {
+  return vscode.workspace.getConfiguration("camp").get("debug.nativeBackend") || "auto";
 }
 
 function updateStatusItems(editor) {
@@ -119,9 +137,11 @@ function updateStatusItems(editor) {
   if (show) {
     buildStatusItem.show();
     runStatusItem.show();
+    debugStatusItem.show();
   } else {
     buildStatusItem.hide();
     runStatusItem.hide();
+    debugStatusItem.hide();
   }
 }
 
@@ -154,34 +174,28 @@ async function runCampCommand(command) {
   terminal.sendText(`${quotedCompiler} ${command} ${quotedTarget}`);
 }
 
+async function debugCurrentProject() {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || (editor.document.languageId !== "camp" && editor.document.languageId !== "campbuild")) {
+    vscode.window.showWarningMessage("Open a Camp file before debugging.");
+    return;
+  }
+
+  if (editor.document.isDirty) {
+    await editor.document.save();
+  }
+
+  const documentPath = editor.document.uri.fsPath;
+  const configuration = createDebugConfiguration(documentPath, editor.document.languageId, getNativeDebugBackend());
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
+  await vscode.debug.startDebugging(workspaceFolder, configuration);
+}
+
 function getCampTerminal() {
   if (!campTerminal || campTerminal.exitStatus) {
     campTerminal = vscode.window.createTerminal("Camp");
   }
   return campTerminal;
-}
-
-function findNearestCampBuild(filePath) {
-  let directory = fs.statSync(filePath).isDirectory() ? filePath : path.dirname(filePath);
-  while (true) {
-    const preferred = path.join(directory, `${path.basename(directory)}.campbuild`);
-    if (fs.existsSync(preferred)) {
-      return preferred;
-    }
-
-    const candidates = fs.readdirSync(directory)
-      .filter(file => file.toLowerCase().endsWith(".campbuild"))
-      .sort();
-    if (candidates.length === 1) {
-      return path.join(directory, candidates[0]);
-    }
-
-    const parent = path.dirname(directory);
-    if (parent === directory) {
-      return undefined;
-    }
-    directory = parent;
-  }
 }
 
 function quoteShell(value) {
@@ -191,7 +205,52 @@ function quoteShell(value) {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
+class CampDebugAdapterFactory {
+  createDebugAdapterDescriptor() {
+    return new vscode.DebugAdapterExecutable(getDebugAdapterPath(), []);
+  }
+}
+
+class CampDebugConfigurationProvider {
+  resolveDebugConfiguration(folder, config) {
+    if (!config.type) {
+      config.type = "camp";
+    }
+    if (!config.request) {
+      config.request = "launch";
+    }
+    if (!config.name) {
+      config.name = "Debug Camp";
+    }
+    if (!config.backend) {
+      config.backend = getNativeDebugBackend();
+    }
+    if (!config.args) {
+      config.args = [];
+    }
+    if (config.stopOnEntry === undefined) {
+      config.stopOnEntry = false;
+    }
+    if (!config.project) {
+      const editor = vscode.window.activeTextEditor;
+      if (editor && (editor.document.languageId === "camp" || editor.document.languageId === "campbuild")) {
+        const generated = createDebugConfiguration(editor.document.uri.fsPath, editor.document.languageId, config.backend);
+        config.project = generated.project;
+        config.cwd = config.cwd || generated.cwd;
+      } else if (folder) {
+        config.project = "${workspaceFolder}";
+        config.cwd = "${workspaceFolder}";
+      }
+    }
+    return config;
+  }
+}
+
 module.exports = {
   activate,
-  deactivate
+  deactivate,
+  createDebugConfiguration,
+  findNearestCampBuild,
+  getCompilerPath,
+  getDebugAdapterPath
 };

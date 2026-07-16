@@ -220,7 +220,7 @@ Make stopped debug sessions useful by showing Camp-named locals and parameters.
 - ~~Targeted tests and full local suite pass.~~
 - ~~Commit.~~
 
-## Phase 5 — VS Code Debug Integration
+## Phase 5 — VS Code Debug Integration — Complete
 
 ### Goals
 
@@ -275,12 +275,12 @@ Expose Camp debugging through the existing VS Code extension in the normal VS Co
 
 ### Completion Criteria
 
-- VS Code recognizes Camp breakpoints.
-- `Camp Debug` launches a debug session for a `.campbuild` project and a loose `.camp` file.
-- F5 can use a generated/default Camp launch configuration.
-- Extension README includes setup instructions.
-- `npm run check`, targeted tests, and full local suite pass.
-- Commit.
+- ~~VS Code recognizes Camp breakpoints.~~
+- ~~`Camp Debug` launches a debug session for a `.campbuild` project and a loose `.camp` file.~~
+- ~~F5 can use a generated/default Camp launch configuration.~~
+- ~~Extension README includes setup instructions.~~
+- ~~`npm run check`, targeted tests, and full local suite pass.~~
+- ~~Commit.~~
 
 ## Phase 6 — Documentation And First Usable Debugging Guide
 

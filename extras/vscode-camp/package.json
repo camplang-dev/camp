@@ -18,6 +18,7 @@
     "onLanguage:campbuild",
     "onCommand:camp.build",
     "onCommand:camp.run",
+    "onCommand:camp.debug",
     "onCommand:camp.restartServer"
   ],
   "contributes": {
@@ -74,6 +75,22 @@
           "type": "string",
           "default": "",
           "description": "Directory for Camp language server performance trace files when camp.server.trace is enabled. When empty, traces are written under the extension global storage folder."
+        },
+        "camp.debugAdapter.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the camp-dap executable. When empty, derives camp-dap from camp.server.path."
+        },
+        "camp.debug.nativeBackend": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "lldb",
+            "gdb",
+            "cdb"
+          ],
+          "description": "Native debugger backend used by Camp debug sessions."
         }
       }
     },
@@ -86,6 +103,11 @@
       {
         "command": "camp.run",
         "title": "Camp: Run Current Project",
+        "category": "Camp"
+      },
+      {
+        "command": "camp.debug",
+        "title": "Camp: Debug Current Project",
         "category": "Camp"
       },
       {
@@ -105,13 +127,86 @@
           "command": "camp.run",
           "when": "resourceLangId == camp || resourceLangId == campbuild",
           "group": "navigation@11"
+        },
+        {
+          "command": "camp.debug",
+          "when": "resourceLangId == camp || resourceLangId == campbuild",
+          "group": "navigation@12"
         }
       ]
-    }
+    },
+    "breakpoints": [
+      {
+        "language": "camp"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "camp",
+        "label": "Camp",
+        "languages": [
+          "camp"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "project"
+            ],
+            "properties": {
+              "project": {
+                "type": "string",
+                "description": "Path to the .campbuild project or loose .camp source file to debug."
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Working directory for the Camp build and debug launch."
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [],
+                "description": "Arguments passed to the debugged program."
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "default": false,
+                "description": "Stop at program entry after launch."
+              },
+              "backend": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "lldb",
+                  "gdb",
+                  "cdb"
+                ],
+                "default": "auto",
+                "description": "Native debugger backend."
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "name": "Debug Camp",
+            "type": "camp",
+            "request": "launch",
+            "project": "${workspaceFolder}/app.campbuild",
+            "cwd": "${workspaceFolder}",
+            "args": [],
+            "stopOnEntry": false,
+            "backend": "auto"
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "package": "vsce package --allow-missing-repository",
-    "check": "node --check src/extension.js"
+    "check": "node --check src/extension.js && node --check src/campPaths.js",
+    "test": "node --test src/*.test.js"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

@@ -91,6 +91,8 @@ sealed class DapSession(Stream input, Stream output)
 	{
 		return name switch
 		{
+			"auto" when OperatingSystem.IsMacOS() => new LldbDebugBackend(),
+			"auto" => throw new InvalidOperationException("Debug backend 'auto' could not select a supported backend for this platform yet."),
 			"fake" => new FakeDebugBackend(),
 			"lldb" => new LldbDebugBackend(),
 			_ => throw new InvalidOperationException($"Debug backend '{name}' is not available in this build yet.")

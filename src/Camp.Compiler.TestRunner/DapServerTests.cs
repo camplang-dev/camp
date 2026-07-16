@@ -146,7 +146,7 @@ public sealed class DapServerTests
 			cwd = root,
 			args = Array.Empty<string>(),
 			stopOnEntry = false,
-			backend = "lldb"
+			backend = "auto"
 		});
 		Assert.True(launch["success"]?.GetValue<bool>(), launch["message"]?.GetValue<string>());
 		dap.ReadEvent("initialized");
