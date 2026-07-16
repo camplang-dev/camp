@@ -17,6 +17,7 @@ public sealed class CEmissionOptions
 	public string EmitKind { get; init; } = "c99";
 	public NativeBuildKind? BuildKind { get; init; }
 	public CampApiSurfaceKind ApiSurface { get; init; } = CampApiSurfaceKind.Export;
+	public bool EmitDebugInfo { get; init; }
 	public bool EmitExecMainWrapper { get; init; }
 	public FunctionDefinition? ExecEntryPoint { get; init; }
 }
@@ -26,6 +27,7 @@ public sealed class CEmissionResult
 	public List<string> GeneratedFiles { get; } = [];
 	public List<string> GeneratedSourceFiles { get; } = [];
 	public List<string> Diagnostics { get; } = [];
+	public List<CDebugMapEntry> DebugInfo { get; } = [];
 	public bool Success => Diagnostics.Count == 0;
 }
 
@@ -376,7 +378,8 @@ public static class CCodeEmitter
 	static void EmitSourceFile(Compilation compilation, CEmissionOptions options, SourceFile file, CEmissionResult result, CDeclarationWriter declarations)
 	{
 		string filename = Path.Combine(options.OutputDirectory, GetCSourceFilename(file));
-		using StreamWriter writer = new(filename, append: false, Utf8NoBom);
+		using StreamWriter streamWriter = new(filename, append: false, Utf8NoBom);
+		using LineTrackingTextWriter writer = new(streamWriter, filename);
 		writer.WriteLine("#include \"" + options.ProjectName + "_private.h\"");
 		writer.WriteLine();
 		declarations.WriteSourceFileForwardDeclarations(writer, file);
@@ -550,6 +553,54 @@ public static class CCodeEmitter
 		return builder.Length == 0 ? "camp" : builder.ToString();
 	}
 
+	sealed class LineTrackingTextWriter(TextWriter inner, string path) : TextWriter
+	{
+		public string Path { get; } = path;
+		public int LineNumber { get; private set; } = 1;
+		public override Encoding Encoding => inner.Encoding;
+
+		public override void Write(char value)
+		{
+			inner.Write(value);
+			if (value == '\n')
+				LineNumber++;
+		}
+
+		public override void Write(string? value)
+		{
+			inner.Write(value);
+			if (value is null)
+				return;
+			foreach (char ch in value)
+				if (ch == '\n')
+					LineNumber++;
+		}
+
+		public override void WriteLine()
+		{
+			inner.WriteLine();
+			LineNumber++;
+		}
+
+		public override void WriteLine(string? value)
+		{
+			inner.WriteLine(value);
+			LineNumber++;
+			if (value is null)
+				return;
+			foreach (char ch in value)
+				if (ch == '\n')
+					LineNumber++;
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (disposing)
+				inner.Dispose();
+			base.Dispose(disposing);
+		}
+	}
+
 	sealed class CDeclarationWriter(Compilation compilation, CEmissionOptions options, CEmissionResult result)
 	{
 		readonly HashSet<string> emittedNames = new(StringComparer.Ordinal);
@@ -692,7 +743,11 @@ public static class CCodeEmitter
 			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
 			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
 			List<AsyncFrameInfo> asyncFrames = GetAllFunctions(definitions).Select(TryBuildAsyncFrameInfo).Where(static frame => frame is not null).Cast<AsyncFrameInfo>().ToList();
-			using StringWriter body = new(writer.FormatProvider);
+			using StringWriter bodyStorage = new(writer.FormatProvider);
+			using TextWriter body = options.EmitDebugInfo && writer is LineTrackingTextWriter trackingWriter
+				? new LineTrackingTextWriter(bodyStorage, trackingWriter.Path)
+				: bodyStorage;
+			int debugEntryStart = result.DebugInfo.Count;
 			bool wrote = false;
 
 			foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => variable.IsInline && !IsExternallyVisible(variable)))
@@ -752,7 +807,25 @@ public static class CCodeEmitter
 			if (!wrote)
 				writer.WriteLine("/* No C definitions emitted for this file. */");
 			else
-				writer.Write(body.ToString());
+			{
+				int bodyStartLine = writer is LineTrackingTextWriter tracking ? tracking.LineNumber : 1;
+				writer.Write(bodyStorage.ToString());
+				OffsetDebugEntries(debugEntryStart, bodyStartLine - 1);
+			}
+		}
+
+		void OffsetDebugEntries(int start, int lineOffset)
+		{
+			if (!options.EmitDebugInfo || lineOffset == 0)
+				return;
+			for (int i = start; i < result.DebugInfo.Count; i++)
+			{
+				CDebugMapEntry entry = result.DebugInfo[i];
+				result.DebugInfo[i] = entry with
+				{
+					Generated = entry.Generated with { Line = entry.Generated.Line + lineOffset }
+				};
+			}
 		}
 
 		public void WritePublicHeaderDeclarations(TextWriter writer, SourceFile file)
@@ -2213,6 +2286,8 @@ public static class CCodeEmitter
 				callSpec += " ";
 			WithGenericContext(function, () =>
 			{
+				int generatedLine = WriteDebugLineDirective(writer, function);
+				AddDebugFunctionEntry(writer, function, generatedLine);
 				writer.WriteLine(prefix + FormatFunctionSignature(function, callSpec + CName(function)));
 				if (TryBuildAsyncFrameInfo(function) is AsyncFrameInfo frame)
 					WriteAsyncFrameEntryBody(writer, frame);
@@ -3442,6 +3517,8 @@ public static class CCodeEmitter
 
 		void WriteStatement(TextWriter writer, Statement statement, int indent)
 		{
+			int generatedLine = WriteDebugLineDirective(writer, statement);
+			AddDebugStatementEntry(writer, statement, generatedLine);
 			switch (statement)
 			{
 				case EmptyStatement:
@@ -3527,6 +3604,154 @@ public static class CCodeEmitter
 					writer.WriteLine("/* unsupported " + statement.GetType().Name + " */");
 					break;
 			}
+		}
+
+		int WriteDebugLineDirective(TextWriter writer, BindableNode node)
+		{
+			if (!options.EmitDebugInfo || writer is not LineTrackingTextWriter tracking)
+				return writer is LineTrackingTextWriter existing ? existing.LineNumber : 0;
+			if (!TryGetDebugSourceRange(node, out CDebugSourceRange? source))
+				return tracking.LineNumber;
+			writer.WriteLine("#line " + source!.StartLine.ToString(CultureInfo.InvariantCulture) + " " + FormatCStringLiteral(source.File));
+			return tracking.LineNumber;
+		}
+
+		void AddDebugFunctionEntry(TextWriter writer, FunctionDefinition function, int generatedLine)
+		{
+			if (!options.EmitDebugInfo || writer is not LineTrackingTextWriter tracking)
+				return;
+			CDebugSourceRange? source = TryGetDebugSourceRange(function, out CDebugSourceRange? sourceRange) ? sourceRange : null;
+			result.DebugInfo.Add(new CDebugMapEntry(
+				"function",
+				source,
+				new CDebugGeneratedRange(Path.GetFullPath(tracking.Path), Math.Max(1, generatedLine), CName(function)),
+				BindableNodeAnalyzer.GetCallableName(function),
+				CName(function),
+				source is null,
+				GetDebugVariables(function)));
+		}
+
+		void AddDebugStatementEntry(TextWriter writer, Statement statement, int generatedLine)
+		{
+			if (!options.EmitDebugInfo || writer is not LineTrackingTextWriter tracking || !TryGetDebugSourceRange(statement, out CDebugSourceRange? source))
+				return;
+			result.DebugInfo.Add(new CDebugMapEntry(
+				"statement",
+				source,
+				new CDebugGeneratedRange(Path.GetFullPath(tracking.Path), Math.Max(1, generatedLine), currentFunction is null ? null : CName(currentFunction)),
+				currentFunction is null ? null : BindableNodeAnalyzer.GetCallableName(currentFunction),
+				currentFunction is null ? null : CName(currentFunction),
+				false,
+				[]));
+		}
+
+		bool TryGetDebugSourceRange(BindableNode node, out CDebugSourceRange? source)
+		{
+			source = null;
+			if (!TryGetNodeSourceRange(node, out TokenRange range) || !TryGetSourceFile(range, out SourceFile? sourceFile))
+			{
+				if (node is FunctionDefinition function)
+					return TryFindFunctionSourceRange(function, out source);
+				return false;
+			}
+			source = new CDebugSourceRange(
+				Path.GetFullPath(sourceFile!.Path),
+				range.StartLineNumber,
+				range.StartColumn,
+				range.EndLineNumber,
+				range.EndColumn);
+			return true;
+		}
+
+		bool TryFindFunctionSourceRange(FunctionDefinition function, out CDebugSourceRange? source)
+		{
+			source = null;
+			if (!compilation.DefinitionOwners.TryGetValue(function, out SourceFile? file))
+				return false;
+			string name = BindableNodeAnalyzer.GetCallableName(function).TrimStart('~');
+			if (string.IsNullOrWhiteSpace(name))
+				return false;
+			string[] lines = file.Text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+			for (int i = 0; i < lines.Length; i++)
+			{
+				int index = lines[i].IndexOf(name, StringComparison.Ordinal);
+				while (index >= 0)
+				{
+					int after = index + name.Length;
+					if ((index == 0 || !IsIdentifierPart(lines[i][index - 1]))
+						&& after < lines[i].Length
+						&& !IsIdentifierPart(lines[i][after])
+						&& lines[i][after..].TrimStart().StartsWith("(", StringComparison.Ordinal))
+					{
+						source = new CDebugSourceRange(Path.GetFullPath(file.Path), i + 1, index + 1, i + 1, after + 1);
+						return true;
+					}
+					index = lines[i].IndexOf(name, index + 1, StringComparison.Ordinal);
+				}
+			}
+			return false;
+		}
+
+		bool TryGetSourceFile(TokenRange range, out SourceFile? sourceFile)
+		{
+			sourceFile = compilation.Files.FirstOrDefault(file => ReferenceEquals(file.Tokens, range.Sequence));
+			return sourceFile is not null;
+		}
+
+		IReadOnlyList<CDebugVariableMap> GetDebugVariables(FunctionDefinition function)
+		{
+			List<CDebugVariableMap> variables = [];
+			TryGetDebugSourceRange(function, out CDebugSourceRange? functionSource);
+			foreach (ParameterDefinition parameter in function.Parameters)
+			{
+				if (parameter is ThisParameterDefinition || string.IsNullOrWhiteSpace(parameter.Name))
+					continue;
+				variables.Add(new CDebugVariableMap(parameter.Name, CName(parameter), parameter.ResolvedType ?? parameter.Type?.ResolvedType, "parameter"));
+			}
+			foreach (BindableNode node in EnumerateNodes(function.Body ?? new BlockStatement(), []))
+			{
+				if (node is not DeclarationTarget target || target.Names.Count != 1)
+					continue;
+				if ((!TryGetDebugSourceRange(target, out CDebugSourceRange? targetSource) || !SourceRangeWithin(targetSource!, functionSource))
+					&& !LocalNameAppearsInFunctionSource(functionSource, target.Names[0]))
+					continue;
+				variables.Add(new CDebugVariableMap(target.Names[0], CName(target), target.ResolvedType ?? target.Type?.ResolvedType, "local"));
+			}
+			return variables;
+		}
+
+		static bool SourceRangeWithin(CDebugSourceRange target, CDebugSourceRange? container)
+		{
+			if (container is null)
+				return true;
+			if (!string.Equals(target.File, container.File, StringComparison.OrdinalIgnoreCase))
+				return false;
+			return target.StartLine >= container.StartLine && target.EndLine >= container.StartLine;
+		}
+
+		bool LocalNameAppearsInFunctionSource(CDebugSourceRange? functionSource, string name)
+		{
+			if (functionSource is null || string.IsNullOrWhiteSpace(name))
+				return false;
+			SourceFile? file = compilation.Files.FirstOrDefault(candidate => string.Equals(Path.GetFullPath(candidate.Path), functionSource.File, StringComparison.OrdinalIgnoreCase));
+			if (file is null)
+				return false;
+			string[] lines = file.Text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+			for (int i = Math.Max(0, functionSource.StartLine); i < lines.Length; i++)
+			{
+				if (lines[i].Contains('}', StringComparison.Ordinal))
+					return false;
+				int index = lines[i].IndexOf(name, StringComparison.Ordinal);
+				while (index >= 0)
+				{
+					int after = index + name.Length;
+					if ((index == 0 || !IsIdentifierPart(lines[i][index - 1]))
+						&& (after >= lines[i].Length || !IsIdentifierPart(lines[i][after])))
+						return true;
+					index = lines[i].IndexOf(name, index + 1, StringComparison.Ordinal);
+				}
+			}
+			return false;
 		}
 
 		void WriteAsyncReturnStatement(TextWriter writer, ReturnStatement ret, int indent)

@@ -122,6 +122,7 @@ static void AddBuildOptions(Command command, bool buildOnly)
 		AllowMultipleArgumentsPerToken = true
 	});
 	command.Options.Add(new Option<string?>("--emit") { Description = "Select the emitter, currently c99." });
+	command.Options.Add(new Option<bool>("--debug-info") { Description = "Emit Camp debug metadata and native debug line information." });
 	command.Options.Add(new Option<bool>("--nostdlib") { Description = "Do not include the standard library package." });
 	command.Options.Add(new Option<List<string>>("--reference", "-r")
 	{
@@ -410,6 +411,7 @@ sealed class CampCli
 			Xml = bag.Xml,
 			BuildKind = bag.ArtifactKind,
 			InferBuildKind = command == CommandKind.Build && !bag.ArtifactSpecified,
+			EmitDebugInfo = bag.DebugInfo,
 			EmitMetadata = bag.MetadataVisibility,
 			OutDir = bag.OutDir ?? defaultOutDir,
 			ProjectName = bag.ProjectName,
@@ -1178,7 +1180,8 @@ sealed class BuildOptionBag
 		_ => null
 	};
 	public bool Xml => Get("xml") == "true";
-	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null;
+	public bool DebugInfo => Get("debug-info") == "true";
+	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo;
 
 	public void Apply(ParsedOptions options, Precedence precedence, string source, List<string> errors)
 	{
@@ -1324,6 +1327,9 @@ static class CommandLineOptionParser
 					break;
 				case "--emit":
 					AddSingle(result, "emit", RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--debug-info":
+					AddSingle(result, "debug-info", "true");
 					break;
 				case "--metadata":
 					string metadata = RequiredValue(tokens, ref i, token, errors);

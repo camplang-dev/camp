@@ -18,6 +18,7 @@ public sealed class ProjectLoaderTests
 		File.WriteAllText(main, """
 			#build --define LOCAL_FLAG
 			#build --include api/*.camp
+			#build --debug-info
 
 			export int main()
 			{
@@ -38,6 +39,7 @@ public sealed class ProjectLoaderTests
 
 		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
 		Assert.Contains("LOCAL_FLAG", result.Request.Defines);
+		Assert.True(result.Request.EmitDebugInfo);
 		Assert.True(result.Request.NoStdLib);
 		Assert.Null(result.Request.BuildKind);
 		Assert.Single(result.Request.Files);

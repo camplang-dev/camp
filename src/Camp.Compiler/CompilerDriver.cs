@@ -44,6 +44,7 @@ public sealed class CompilerRequest
 	public string EmitKind { get; set; } = "c99";
 	public NativeBuildKind? BuildKind { get; set; }
 	public bool InferBuildKind { get; set; }
+	public bool EmitDebugInfo { get; set; }
 	public MetadataVisibility? EmitMetadata { get; set; }
 	public string? OutDir { get; set; }
 	public string? ProjectName { get; set; }
@@ -866,6 +867,7 @@ public static class CompilerDriver
 				ProjectName = projectName,
 				EmitKind = request.EmitKind,
 				BuildKind = request.BuildKind,
+				EmitDebugInfo = request.EmitDebugInfo,
 				EmitExecMainWrapper = request.BuildKind is NativeBuildKind.Exec or NativeBuildKind.WinExe,
 				ExecEntryPoint = execEntryPoint
 			});
@@ -881,6 +883,9 @@ public static class CompilerDriver
 			}
 
 			if (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared && !TryEmitLibraryApiArtifacts(compilation, outputDirectory))
+				return 1;
+
+			if (request.EmitDebugInfo && !TryEmitDebugArtifact(compilation, outputDirectory, projectName, result.DebugInfo))
 				return 1;
 
 			MetadataVisibility metadataVisibility = GetEffectiveMetadataVisibility();
@@ -1075,6 +1080,25 @@ public static class CompilerDriver
 
 			generatedFiles.Add(metadataPath);
 			OutLine("generated: " + Path.GetFileName(metadataPath));
+			return true;
+		}
+
+		bool TryEmitDebugArtifact(Compilation compilation, string outputDirectory, string projectName, IReadOnlyList<CDebugMapEntry> entries)
+		{
+			string debugPath = Path.Combine(outputDirectory, projectName + ".campdebug.json");
+			try
+			{
+				Directory.CreateDirectory(outputDirectory);
+				File.WriteAllText(debugPath, CDebugMapSerializer.Serialize(compilation, projectName, outputDirectory, entries), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+			{
+				ErrorLine($"{debugPath}: {ex.Message}");
+				return false;
+			}
+
+			generatedFiles.Add(debugPath);
+			OutLine("generated: " + Path.GetFileName(debugPath));
 			return true;
 		}
 

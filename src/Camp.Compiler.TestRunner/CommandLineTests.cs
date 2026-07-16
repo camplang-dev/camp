@@ -61,6 +61,50 @@ public sealed class CommandLineTests
 		Assert.Contains("-f, --framework", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("-r, --reference", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("-u, --use", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--debug-info", build.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Build_debug_info_emits_line_directives_and_debug_map()
+	{
+		string source = CreateTempCase("debug_info/main.camp", """
+			export int helper(int value)
+			{
+				int local = value + 1;
+				return local;
+			}
+
+			export int main()
+			{
+				return helper(41);
+			}
+			""");
+		string outDir = TempPath("debug-info-out");
+
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--nostdlib",
+			"--artifact",
+			"none",
+			"--debug-info",
+			"--name",
+			"debug_info",
+			"--out-dir",
+			outDir);
+
+		AssertCommandSucceeded(result);
+		string debugMap = Assert.Single(Directory.GetFiles(outDir, "*.campdebug.json", SearchOption.AllDirectories));
+		string debugJson = File.ReadAllText(debugMap);
+		Assert.Contains("\"format\": \"camp.debug\"", debugJson, StringComparison.Ordinal);
+		Assert.Contains("\"campFunction\": \"helper\"", debugJson, StringComparison.Ordinal);
+		Assert.Contains("\"campName\": \"value\"", debugJson, StringComparison.Ordinal);
+		Assert.Contains("\"campName\": \"local\"", debugJson, StringComparison.Ordinal);
+
+		string cFile = Assert.Single(Directory.GetFiles(outDir, "main.c", SearchOption.AllDirectories));
+		string cText = File.ReadAllText(cFile);
+		Assert.Contains("#line 1", cText, StringComparison.Ordinal);
+		Assert.Contains(Path.GetFullPath(source), cText, StringComparison.Ordinal);
 	}
 
 	[Fact]
