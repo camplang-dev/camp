@@ -998,6 +998,74 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Shadow_class_can_allocate_imported_extern_base_with_exported_constructor()
+	{
+		string root = TempPath("project-reference-shadow-extern-base-constructor");
+		string libraryRoot = Path.Combine(root, "library");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			extern void* malloc(nuint size);
+			extern void free(void* ptr);
+
+			export class NativeShadowHost
+			{
+				escaped void* shadowData;
+
+				export NativeShadowHost()
+				{
+				}
+
+				@getshadow
+				export escaped void* getShadow(const this) => this.shadowData;
+
+				@setshadow
+				export void setShadow(escaped void* value) => this.shadowData = value;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--nostdlib
+			--name shadow-base-lib
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --artifact none
+
+			extern void* malloc(nuint size);
+			extern void free(void* ptr);
+
+			shadow class LocalShadow: NativeShadowHost
+			{
+				LocalShadow()
+				{
+				}
+
+				void cleanup()
+				{
+					delete shadow;
+				}
+			}
+
+			export int main()
+			{
+				auto value = new LocalShadow();
+				value.cleanup();
+				delete value;
+				return 0;
+			}
+			""");
+		string target = NativeTargetForHost();
+
+		ProcessResult result = RunCampc("build", app, "--target", target, "--project-reference", libraryRoot + ":static", "--out-dir", Path.Combine(appRoot, "bin"));
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
 	public void Wasi_target_builds_stdlib_executable_when_available()
 	{
 		if (!ClangWasiAvailable())

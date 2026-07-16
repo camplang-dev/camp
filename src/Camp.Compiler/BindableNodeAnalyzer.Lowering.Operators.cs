@@ -235,8 +235,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (FindExternalCreateMethod(type, arguments.Count) is FunctionDefinition create)
 			return CreateCreateCall(create, constructedType, arguments, syntax, resolvedType);
 
-		if (type is ClassDefinition { Extern: not null } && FindExternInitNewMethod(type, arguments.Count) is FunctionDefinition externInitNew)
-			return CreateCreateCall(CreateExternalCreateMethod(type, externInitNew), constructedType, arguments, syntax, resolvedType);
+		if (type is ClassDefinition { Extern: not null } && FindExternConstructorMethod(type, arguments.Count) is FunctionDefinition externConstructor)
+			return CreateCreateCall(CreateExternalCreateMethod(type, externConstructor), constructedType, arguments, syntax, resolvedType);
 
 		if (type is ClassDefinition { Extern: not null })
 		{
@@ -442,8 +442,8 @@ public sealed partial class BindableNodeAnalyzer
 				return CastShadowInstance(CreateCreateCall(create, TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
 			if (FindCreateMethod(baseClass, arguments.Count) is FunctionDefinition ordinaryCreate)
 				return CastShadowInstance(CreateCreateCall(ordinaryCreate, TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
-			if (baseClass.Extern is not null && FindExternInitNewMethod(baseClass, arguments.Count) is FunctionDefinition externInitNew)
-				return CastShadowInstance(CreateCreateCall(CreateExternalCreateMethod(baseClass, externInitNew), TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
+			if (baseClass.Extern is not null && FindExternConstructorMethod(baseClass, arguments.Count) is FunctionDefinition externConstructor)
+				return CastShadowInstance(CreateCreateCall(CreateExternalCreateMethod(baseClass, externConstructor), TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
 			if (baseClass.Extern is null)
 				return CastShadowInstance(CreateNewExpression(baseClass, TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
 		}
@@ -576,10 +576,18 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
-	FunctionDefinition? FindExternInitNewMethod(TypeDefinition type, int argumentCount)
+	FunctionDefinition? FindExternConstructorMethod(TypeDefinition type, int argumentCount)
 	{
-		FunctionDefinition? initNew = FindInitNewMethod(type, argumentCount);
-		return initNew?.Extern is not null ? initNew : null;
+		foreach (FunctionDefinition function in GetFunctions(type))
+		{
+			if (function.Modifier == FunctionModifier.Constructor
+				&& function.Extern is not null
+				&& CallableByArgumentCount(function.Parameters, argumentCount))
+			{
+				return function;
+			}
+		}
+		return null;
 	}
 
 	FunctionDefinition CreateExternalCreateMethod(TypeDefinition type, FunctionDefinition initNew)

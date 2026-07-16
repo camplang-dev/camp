@@ -1260,9 +1260,9 @@ public sealed partial class BindableNodeAnalyzer
 			statements.Add(declaration);
 			return true;
 		}
-		if (definition is ClassDefinition { Extern: not null } && FindExternInitNewMethod(definition, construction.Arguments.Count) is FunctionDefinition externInitNew)
+		if (definition is ClassDefinition { Extern: not null } && FindExternConstructorMethod(definition, construction.Arguments.Count) is FunctionDefinition externConstructor)
 		{
-			declaration.InitialValue = CreateCreateCall(CreateExternalCreateMethod(definition, externInitNew), construction.Type, construction.Arguments, construction.SourceSyntax ?? declaration.SourceSyntax, declaration.Target.ResolvedType ?? construction.ResolvedType);
+			declaration.InitialValue = CreateCreateCall(CreateExternalCreateMethod(definition, externConstructor), construction.Type, construction.Arguments, construction.SourceSyntax ?? declaration.SourceSyntax, declaration.Target.ResolvedType ?? construction.ResolvedType);
 			statements.Add(declaration);
 			return true;
 		}
