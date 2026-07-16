@@ -55,31 +55,9 @@ export int main()
 helpers such as `write`, `writeLine`, and `newLine`. That distinction matters:
 the language gives you imports and calls; the library gives you a console API.
 
-As programs grow, explicit imports help keep source lookup precise. If a file
-contains an explicit root `Std` import such as `using Std;`, `using Std as S;`,
-or `using Std { Console };`, that import replaces the implicit root import for
-that file. This is useful when you want an alias or selected names:
-
-```camp
-using Std as S;
-
-export int main()
-{
-	S::Console.writeLine("ready");
-	return 0;
-}
-```
-
-Child namespace imports are still useful and do not replace the implicit root
-`Std` import:
-
-```camp
-using Std::Math;
-```
-
-The deeper namespace rules come later, but the first rule is enough for now:
-ordinary standard-library names are available by default, and explicit imports
-are for narrowing, aliasing, or child namespaces.
+As programs grow, explicit imports can help keep source lookup precise, but the
+deeper namespace rules come later. The first rule is enough for now: ordinary
+standard-library names are available by default.
 
 ## `main` Is An Ordinary Function At The Boundary
 
@@ -277,8 +255,7 @@ the moving pieces:
 - declarations below them;
 - `main` as the executable entry point;
 - local variables inside function bodies;
-- standard-library calls through the implicit root `Std` import or explicit
-  imports;
+- standard-library calls through the implicit root `Std` import;
 - status codes returned with `return`;
 - arrays as values with `.length` and indexed access.
 

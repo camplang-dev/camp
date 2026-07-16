@@ -32,17 +32,16 @@ export int main()
 }
 ```
 
-There is not much ceremony here. Unless you build with `--nostdlib`, the
-compiler makes the root `Std` namespace available to ordinary source files.
-`main` is an ordinary function that returns an `int` status. Marking it
-`export` places it on the external boundary, and for ordinary builds that is
-enough for the compiler to treat the project as an executable.
-`Console.writeLine` is a real standard-library API for writing a line to
-standard output.
+There is not much ceremony here. The compiler makes standard-library functions
+available by default. `main` is an ordinary function that returns an `int`
+status. Marking it `export` places it on the external boundary, and for
+ordinary builds that is enough for the compiler to treat the project as an
+executable. `Console.writeLine` is a real standard-library API for writing a
+line to standard output.
 
-The file has the shape you would expect: optional prelude/imports first,
-declarations after that, statements inside braces. Camp does not ask you to
-learn a new visual language before you can print a line.
+The file has the shape you would expect in a C-family language: declarations
+with curly braces, statements in blocks, familiar keywords. Camp does not ask
+you to learn a new visual language before you can print a line.
 
 The rest of the guide grows out from this small program. You will add
 declarations, introduce types, decide where values live, pass pointers and
