@@ -10,13 +10,13 @@ library's style. The examples are small on purpose: they show how `Std` fits
 with the language features you already know, and where to look when you need
 the exact shape of a specific API.
 
-## Importing `Std`
+## Using `Std`
 
-Most examples start here:
+Unless the build uses `--nostdlib`, ordinary source files receive an implicit
+root `Std` import. Most examples can therefore start directly with the code that
+uses the library:
 
 ```camp
-using Std;
-
 export int main()
 {
 	Console.writeLine("ready");
@@ -24,14 +24,18 @@ export int main()
 }
 ```
 
-`Std` is a namespace, not a magical prelude. Importing it makes ordinary
-exported declarations visible: `Console`, `List<T>`, `FileHandle`,
+`Std` is a namespace, not a runtime prelude. The implicit import makes ordinary
+standard-library declarations visible: `Console`, `List<T>`, `FileHandle`,
 `CharWriter`, array helpers, string helpers, and so on.
+
+You may still write an explicit root import when you want a different lookup
+shape. `using Std as S;` aliases the namespace, and `using Std { Console };`
+selects only named declarations. Any explicit root `Std` import replaces the
+implicit one for that file.
 
 Some library areas live in child namespaces:
 
 ```camp
-using Std;
 using Std::Time;
 ```
 
@@ -67,8 +71,6 @@ constant in `Std`, it is library code.
 `Console` is the first library class most programs touch:
 
 ```camp
-using Std;
-
 export int main(string[] args)
 {
 	Console.write("argument count: ");
@@ -142,8 +144,6 @@ Arrays are language values, but the standard library layers useful operations
 over them:
 
 ```camp
-using Std;
-
 int compareInt(in int left, in int right)
 {
 	if (left < right)
@@ -191,8 +191,6 @@ standard library helps you move between them and perform common text
 operations.
 
 ```camp
-using Std;
-
 void inspectText(string text)
 {
 	const char[] view = text[..];
@@ -282,8 +280,6 @@ The file API wraps native handles in a `FileHandle` newtype. It is not a class,
 and `delete file` is not how you close it. Call `close`, usually as cleanup.
 
 ```camp
-using Std;
-
 bool writeSmallFile(string path)
 {
 	IoError error = default;
@@ -357,8 +353,6 @@ is a callable value with a context and a small protocol.
 values, so its type parameter is `T: copyable`.
 
 ```camp
-using Std;
-
 void collectReadings()
 {
 	auto readings = new List<int>() finally delete;
@@ -393,8 +387,6 @@ Hash-based collections make hashing and equality explicit through
 all have one obvious identity rule.
 
 ```camp
-using Std;
-
 void countNames()
 {
 	auto counts = new HashMap<string, int>(string.CASE_INSENSITIVE_HASH_POLICY)
@@ -431,8 +423,6 @@ case-insensitive string identity are different choices.
 `Std` provides numeric limits and small helpers:
 
 ```camp
-using Std;
-
 int clampScore(int value)
 {
 	return min(max(value, 0), 100);
@@ -454,7 +444,6 @@ type limits are library conveniences.
 durations:
 
 ```camp
-using Std;
 using Std::Time;
 
 void printDate()
@@ -486,8 +475,6 @@ The timing helpers expose target-backed sleep, async sleep, repeating timers,
 and a small set of atomic operations:
 
 ```camp
-using Std;
-
 void pauseBriefly()
 {
 	sleep(10);

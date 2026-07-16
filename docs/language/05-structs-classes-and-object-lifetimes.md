@@ -25,8 +25,6 @@ Here is a complete program that uses a struct as a record and a class as an
 identity-bearing object:
 
 ```camp
-using Std;
-
 export int main()
 {
 	Position position = { .row = 3, .column = 4 };

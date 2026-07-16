@@ -74,7 +74,6 @@ for the file's allocation policy, and `namespace` for the exported namespace.
 #build --artifact exec
 #within explicit
 
-using Std;
 namespace Samples::App;
 
 export int main()
@@ -93,9 +92,14 @@ or private machine information to committed source; put local setup notes in
 `local/`, which is intentionally not part of the repository.
 
 Namespaces are part of symbol identity. Use `using` for readability when the
-project already does so, but do not rely on implicit imports that are not present.
-For generated examples, prefer `PascalCase` namespace names and lower camel case
-locals unless nearby code uses a different convention.
+project already does so. When stdlib is enabled, the compiler provides an
+implicit root `Std` import; do not add `using Std;` as boilerplate in generated
+examples. Add an explicit root `Std` import only when you need to replace that
+default with an alias such as `using Std as S;` or a selected import such as
+`using Std { Console };`. Child namespace imports such as `using Std::Time;`
+are still useful and do not replace the implicit root import. For generated
+examples, prefer `PascalCase` namespace names and lower camel case locals unless
+nearby code uses a different convention.
 
 ## Declarations And Visibility
 

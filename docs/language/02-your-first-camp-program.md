@@ -3,7 +3,7 @@
 The first page gave you the map. This chapter gives you a place to stand.
 
 We will start with a complete file, pull it apart line by line, and then grow
-it just enough to show the habits that matter in everyday Camp: importing
+it just enough to show the habits that matter in everyday Camp: using
 standard-library names, declaring `main`, returning a status, binding local
 values, calling helpers, and reading command-line arguments when your program
 has them.
@@ -16,8 +16,6 @@ less like an artifact and more like a room you can walk around in.
 Save this as a `.camp` file and it is a whole program:
 
 ```camp
-using Std;
-
 export int main()
 {
 	Console.writeLine("Hello, Camp.");
@@ -27,25 +25,25 @@ export int main()
 
 There are three ideas here:
 
-1. `using Std;` makes names from the standard library convenient to use.
-2. `export int main()` declares the executable entry point.
-3. The body writes a line and returns a process-style status code.
+1. `export int main()` declares the executable entry point.
+2. The body writes a line and returns a process-style status code.
+3. `Console` is available because the standard library is included by default.
 
 Nothing runs at the top level. A Camp file is made of declarations. Execution
 starts because the exported `main` function is selected as the program entry
 point by the build.
 
-## Imports Bring Names Into View
+## Standard Library Names Are Available By Default
 
-`using Std;` is a source-level import. It does not allocate anything, run any
-initialization code, or create a runtime namespace object. It simply lets you
-write names from `Std` without qualifying them every time.
+Unless the build uses `--nostdlib`, the compiler prepares the bundled standard
+library and adds an implicit root import equivalent to `using Std;` for ordinary
+source files. It does not allocate anything, run initialization code, or create
+a runtime namespace object. It simply lets you write names from `Std` without
+qualifying them every time.
 
-The tiny program uses a whole-namespace import:
+The tiny program relies on that default import:
 
 ```camp
-using Std;
-
 export int main()
 {
 	Console.writeLine("ready");
@@ -57,16 +55,31 @@ export int main()
 helpers such as `write`, `writeLine`, and `newLine`. That distinction matters:
 the language gives you imports and calls; the library gives you a console API.
 
-As programs grow, imports help keep the source readable. You may also import a
-more specific namespace when you need one:
+As programs grow, explicit imports help keep source lookup precise. If a file
+contains an explicit root `Std` import such as `using Std;`, `using Std as S;`,
+or `using Std { Console };`, that import replaces the implicit root import for
+that file. This is useful when you want an alias or selected names:
 
 ```camp
-using Std;
+using Std as S;
+
+export int main()
+{
+	S::Console.writeLine("ready");
+	return 0;
+}
+```
+
+Child namespace imports are still useful and do not replace the implicit root
+`Std` import:
+
+```camp
 using Std::Math;
 ```
 
 The deeper namespace rules come later, but the first rule is enough for now:
-import the namespace whose names form the working vocabulary of the file.
+ordinary standard-library names are available by default, and explicit imports
+are for narrowing, aliasing, or child namespaces.
 
 ## `main` Is An Ordinary Function At The Boundary
 
@@ -97,8 +110,6 @@ export int main()
 Camp also supports `main` with arguments:
 
 ```camp
-using Std;
-
 export int main(string[] args)
 {
 	if (args.length == 0)
@@ -167,8 +178,6 @@ A helper is just another declaration. You do not need to turn small programs
 into classes or invent a framework before you can name a piece of work.
 
 ```camp
-using Std;
-
 export int main(string[] args)
 {
 	if (args.length == 0)
@@ -204,7 +213,7 @@ into compiler internals.
 
 For the `greet` example, the compiler sees:
 
-- one import, `using Std;`;
+- the implicit root `Std` import;
 - one internal helper function, `greet`;
 - one exported entry point, `main`;
 - calls to standard-library console functions;
@@ -221,8 +230,6 @@ Later chapters build on those same habits rather than replacing them.
 Here is a complete program that prints each argument with its index:
 
 ```camp
-using Std;
-
 export int main(string[] args)
 {
 	return printArguments(args);
@@ -266,11 +273,12 @@ read. Let ordinary code stay ordinary.
 After this chapter, you should be able to read a small Camp file and identify
 the moving pieces:
 
-- imports at the top;
+- optional prelude directives and imports at the top;
 - declarations below them;
 - `main` as the executable entry point;
 - local variables inside function bodies;
-- standard-library calls through `Std`;
+- standard-library calls through the implicit root `Std` import or explicit
+  imports;
 - status codes returned with `return`;
 - arrays as values with `.length` and indexed access.
 

@@ -19,8 +19,6 @@ Here is a complete program that uses scalars, arrays, optionals, and console
 output:
 
 ```camp
-using Std;
-
 export int main()
 {
 	int[] scores = [10, 20, 30];

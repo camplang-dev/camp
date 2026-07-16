@@ -46,6 +46,25 @@ using Std;
 It does not re-export those names, change their namespace, or affect their C
 symbols. It only makes source code in this file easier to write.
 
+When the standard library is enabled, each ordinary source file gets an implicit
+root import equivalent to `using Std;`. Do not write it just as boilerplate. If
+the file contains an explicit root `Std` import, that explicit import replaces
+the implicit one for that file:
+
+```camp
+using Std as S;
+```
+
+or:
+
+```camp
+using Std { Console };
+```
+
+With either form, only the explicit alias or selected names are available from
+the root `Std` namespace. A child namespace import such as `using Std::Time;`
+does not replace the implicit root import.
+
 Selected imports bring in only the names you ask for:
 
 ```camp

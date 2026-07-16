@@ -23,8 +23,6 @@ logic lives inside function and method bodies.
 Here is a small complete file:
 
 ```camp
-using Std;
-
 export int main()
 {
 	Size size = { .width = DefaultWidth, .height = 3 };

@@ -25,11 +25,10 @@ package under that root.
 
 Unless `--nostdlib` is supplied, the compiler prepares package `std` before
 loading root source files. The prepared Camp API header is added to the include
-list so ordinary user source can reference `Std` declarations:
+list, and each ordinary source file receives an implicit root import equivalent
+to `using Std;`, so ordinary user source can reference `Std` declarations:
 
 ```camp
-using Std;
-
 export int main()
 {
 	Console.writeLine("hello");
@@ -38,7 +37,10 @@ export int main()
 ```
 
 This default applies to command-line builds, dumps, language-service loose-file
-analysis, and project analysis.
+analysis, and project analysis. If a file contains an explicit root `Std` import
+such as `using Std;`, `using Std as S;`, or `using Std { Console };`, that
+explicit import replaces the implicit root import for that file. Child namespace
+imports such as `using Std::Time;` do not replace it.
 
 ## `--nostdlib`
 
