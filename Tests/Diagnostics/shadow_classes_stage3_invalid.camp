@@ -1,0 +1,65 @@
+using Std;
+
+extern class ShadowHost
+{
+	@getshadow
+	extern escaped void* getShadow(const this);
+
+	@setshadow
+	extern void setShadow(escaped void* value);
+}
+
+shadow class BadDeleteShadow: ShadowHost
+{
+	int value;
+	char[] data;
+
+	void deletesNamedLocal()
+	{
+		int shadow = 0;
+		delete shadow;
+	}
+
+	void deletesThenReads()
+	{
+		delete shadow;
+		this.value = 1;
+	}
+
+	void storeScoped(char[] value)
+	{
+		this.data = value;
+	}
+}
+
+shadow class NoDeleteShadow: ShadowHost
+{
+	int value;
+
+	void touch()
+	{
+		this.value = 1;
+	}
+}
+
+abstract shadow class AllocatorShadow: ShadowHost
+{
+	AllocatorShadow(within void* allocator)
+	{
+	}
+
+	void cleanup()
+	{
+		delete shadow;
+	}
+}
+
+void badGlobal()
+{
+	delete shadow;
+}
+
+export void main()
+{
+	auto initialized = init BadDeleteShadow();
+}

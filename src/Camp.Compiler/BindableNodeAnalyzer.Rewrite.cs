@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace Camp.Compiler;
@@ -44,7 +45,7 @@ public sealed partial class BindableNodeAnalyzer
 		ArgumentNullException.ThrowIfNull(module);
 
 		DeclarationExpansionResult expansion = BindableNodeExpander.Expand(module);
-		if (expansion.Diagnostics.Count > 0)
+		if (expansion.Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 			return new AnalysisResult(expansion.Module, expansion.Diagnostics);
 
 		LoweringResult lowering = BindableNodeLowerer.Lower(expansion);
@@ -79,12 +80,12 @@ public sealed partial class BindableNodeAnalyzer
 		ArgumentNullException.ThrowIfNull(expansion);
 		BindableNodeAnalyzer analyzer = expansion.Analyzer;
 		analyzer.RunAnalyzerPass(AnalyzerPass.DeclarationAnalysis, expansion.Module);
-		if (analyzer.diagnostics.Count == 0)
+		if (!analyzer.diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 			analyzer.RunAnalyzerPass(AnalyzerPass.MethodBodyAnalysis, expansion.Module);
 		analyzer.RunAnalyzerPass(AnalyzerPass.NodeRewriteApplication, expansion.Module);
 		analyzer.FillMissingResolvedTypes(expansion.Module);
 		AnalysisResult analysis = new(expansion.Module, analyzer.diagnostics);
-		if (analysis.Diagnostics.Count > 0)
+		if (analysis.Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 			return new LoweringResult(analysis.Module, analysis.Diagnostics);
 
 		analyzer.allocatorSurfaceValidationEnabled = true;

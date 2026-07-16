@@ -248,6 +248,13 @@ public sealed partial class BindableNodeAnalyzer
 			case DeleteStatement deleteStatement:
 				if (deleteStatement.IsDelegateCleanup)
 					return new EmptyStatement { SourceSyntax = deleteStatement.SourceSyntax, ResolvedType = "void" };
+				if (deleteStatement.IsShadowCleanup)
+					return WithPendingCleanups(new ExpressionStatement
+					{
+						SourceSyntax = deleteStatement.SourceSyntax,
+						ResolvedType = "void",
+						Expression = CreateDeleteShadowExpression(deleteStatement.SourceSyntax)
+					});
 				return WithPendingCleanups(new ExpressionStatement
 				{
 					SourceSyntax = deleteStatement.SourceSyntax,
@@ -1233,6 +1240,19 @@ public sealed partial class BindableNodeAnalyzer
 		string typeName = BaseConstructedType(construction.Type.ResolvedType ?? construction.ResolvedType);
 		if (string.IsNullOrWhiteSpace(typeName) || !typeDefinitions.TryGetValue(typeName, out TypeDefinition? definition))
 			return false;
+
+		if (definition is ClassDefinition { IsShadow: true } shadowClass)
+		{
+			FunctionDefinition? shadowInitNew = FindInitNewMethod(shadowClass, construction.Arguments.Count);
+			List<ArgumentExpression> baseArguments = shadowInitNew is null ? construction.Arguments : [];
+			declaration.InitialValue = CreateShadowBaseCreateCall(shadowClass, baseArguments, construction.SourceSyntax ?? declaration.SourceSyntax, declaration.Target.ResolvedType ?? construction.ResolvedType);
+			statements.Add(declaration);
+			Expression shadowTarget = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? $"{typeName}*");
+			BlockStatement shadowGuardBody = CreateShadowInstallBody(shadowClass, shadowTarget, shadowInitNew, construction.Arguments, construction.SourceSyntax, construction.Type, allocationAllocator: null);
+			if (shadowGuardBody.Statements.Count > 0)
+				statements.Add(CreateNotNullGuard(shadowTarget, shadowGuardBody, construction.SourceSyntax));
+			return true;
+		}
 
 		if (FindExternalCreateMethod(definition, construction.Arguments.Count) is FunctionDefinition create)
 		{

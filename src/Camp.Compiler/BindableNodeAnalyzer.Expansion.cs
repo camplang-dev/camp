@@ -1916,16 +1916,33 @@ public sealed partial class BindableNodeAnalyzer
 		Expression? allocationAllocator = resolvedAllocatorLocal is null
 			? null
 			: CreateVariableReference(resolvedAllocatorLocal.Target, resolvedAllocatorLocal.Target.ResolvedType ?? allocatorParameter?.ResolvedType ?? "Allocator*");
-		DeclarationStatement local = CreateGeneratedLocal(localName, $"{type.Name}*", PointerTo(CloneType(typeReference)!), CreateAllocCall(typeReference, allocationAllocator, method.SourceSyntax));
+		Expression initialValue = type is ClassDefinition { IsShadow: true } shadowClass
+			? CreateShadowBaseCreateCall(shadowClass, [], method.SourceSyntax, $"{type.Name}*")
+			: CreateAllocCall(typeReference, allocationAllocator, method.SourceSyntax);
+		DeclarationStatement local = CreateGeneratedLocal(localName, $"{type.Name}*", PointerTo(CloneType(typeReference)!), initialValue);
 		body.Statements.Add(local);
 		BlockStatement guardBody = new() { ResolvedType = "void" };
-		if (type is ClassDefinition)
-			guardBody.Statements.Add(CreateZeroAllocatedInstanceStatement(CreateVariableReference(local.Target, $"{type.Name}*"), typeReference, type.Name, method.SourceSyntax));
-		guardBody.Statements.Add(new ExpressionStatement
+		if (type is ClassDefinition { IsShadow: true } createShadowClass)
 		{
-			ResolvedType = "void",
-			Expression = CreateInitNewCall(CreateVariableReference(local.Target, $"{type.Name}*"), initNew, method.ArgumentsFromParameters(skipAllocator: !HasWithinParameter(initNew)), method.SourceSyntax, allocatorParameter is null ? null : CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*"))
-		});
+			guardBody = CreateShadowInstallBody(
+				createShadowClass,
+				CreateVariableReference(local.Target, $"{type.Name}*"),
+				initNew,
+				method.ArgumentsFromParameters(skipAllocator: !HasWithinParameter(initNew)),
+				method.SourceSyntax,
+				typeReference,
+				allocationAllocator);
+		}
+		else if (type is ClassDefinition)
+			guardBody.Statements.Add(CreateZeroAllocatedInstanceStatement(CreateVariableReference(local.Target, $"{type.Name}*"), typeReference, type.Name, method.SourceSyntax));
+		if (type is not ClassDefinition { IsShadow: true })
+		{
+			guardBody.Statements.Add(new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = CreateInitNewCall(CreateVariableReference(local.Target, $"{type.Name}*"), initNew, method.ArgumentsFromParameters(skipAllocator: !HasWithinParameter(initNew)), method.SourceSyntax, allocatorParameter is null ? null : CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*"))
+			});
+		}
 		IfStatement guard = new()
 		{
 			ResolvedType = "void",

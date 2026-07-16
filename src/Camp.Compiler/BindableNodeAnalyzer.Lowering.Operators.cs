@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -227,6 +228,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression CreateNewExpression(TypeDefinition type, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
 	{
+		if (type is ClassDefinition { IsShadow: true } shadowClass)
+			return CreateShadowNewExpression(shadowClass, constructedType, arguments, syntax, resolvedType);
+
 		TypeReference typeReference = constructedType ?? TypeReferenceFor(type);
 		if (FindExternalCreateMethod(type, arguments.Count) is FunctionDefinition create)
 			return CreateCreateCall(create, constructedType, arguments, syntax, resolvedType);
@@ -324,6 +328,108 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = localType
 		});
 		return grouped;
+	}
+
+	Expression CreateShadowNewExpression(ClassDefinition shadowClass, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
+	{
+		TypeReference typeReference = constructedType ?? TypeReferenceFor(shadowClass);
+		FunctionDefinition? initNew = FindInitNewMethod(shadowClass, arguments.Count);
+		List<ArgumentExpression> baseArguments = initNew is null ? arguments : [];
+		Expression baseCreate = CreateShadowBaseCreateCall(shadowClass, baseArguments, syntax, resolvedType);
+		string localName = NewGeneratedLocalName("created");
+		string localType = resolvedType ?? $"{constructedType?.ResolvedType ?? shadowClass.Name}*";
+		Expression localReference;
+		if (currentStatementPrefix is not null)
+		{
+			DeclarationStatement localDeclaration = CreateGeneratedLocal(localName, localType, PointerTo(CloneType(typeReference) ?? TypeReferenceFor(shadowClass)), initialValue: null);
+			currentStatementPrefix.Add(localDeclaration);
+			localReference = CreateVariableReference(localDeclaration.Target, localType);
+			currentStatementPrefix.Add(CreateAssignmentStatement(localReference, baseCreate, localType, syntax));
+			BlockStatement guardBody = CreateShadowInstallBody(shadowClass, localReference, initNew, arguments, syntax, constructedType, allocationAllocator: null);
+			if (guardBody.Statements.Count > 0)
+				currentStatementPrefix.Add(CreateNotNullGuard(localReference, guardBody, syntax));
+			return localReference;
+		}
+
+		localReference = new NamedExpression { Name = localName, ResolvedType = localType };
+		GroupedExpression grouped = new() { SourceSyntax = syntax, ResolvedType = localType };
+		grouped.Items.Add(new GroupedExpressionItem
+		{
+			Expression = new AssignmentExpression
+			{
+				SourceSyntax = syntax,
+				Target = localReference,
+				Operator = AssignmentOperator.Assign,
+				Value = baseCreate,
+				ResolvedType = localType
+			},
+			ResolvedType = localType
+		});
+		grouped.Items.Add(new GroupedExpressionItem
+		{
+			Expression = localReference,
+			ResolvedType = localType
+		});
+		return grouped;
+	}
+
+	BlockStatement CreateShadowInstallBody(ClassDefinition shadowClass, Expression instance, FunctionDefinition? initNew, List<ArgumentExpression> arguments, SyntaxNode? syntax, TypeReference? constructedType, Expression? allocationAllocator)
+	{
+		BlockStatement guardBody = new() { ResolvedType = "void" };
+		TypeReference shadowDataType = ShadowDataTypeReference(shadowClass);
+		string shadowLocalType = $"{shadowDataType.ResolvedType}*";
+		DeclarationStatement shadowLocal = CreateGeneratedLocal(NewGeneratedLocalName("shadow"), shadowLocalType, PointerTo(shadowDataType), CreateAllocCall(shadowDataType, allocationAllocator ?? CurrentAllocator(), syntax));
+		guardBody.Statements.Add(shadowLocal);
+		Expression shadowReference = CreateVariableReference(shadowLocal.Target, shadowLocalType);
+		BlockStatement shadowGuard = new() { ResolvedType = "void" };
+		shadowGuard.Statements.Add(CreateZeroAllocatedInstanceStatement(shadowReference, shadowDataType, shadowDataType.ResolvedType ?? ShadowDataTypeName(shadowClass), syntax));
+		shadowGuard.Statements.Add(new ExpressionStatement
+		{
+			ResolvedType = "void",
+			Expression = CreateSetShadowCall(shadowClass, instance, shadowReference, syntax)
+		});
+		if (initNew is not null)
+			shadowGuard.Statements.Add(new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = CreateInitNewCall(instance, initNew, arguments, syntax, allocatorArgument: allocationAllocator, constructedType: constructedType)
+			});
+		guardBody.Statements.Add(CreateNotNullGuard(shadowReference, shadowGuard, syntax));
+		return guardBody;
+	}
+
+	Expression CreateShadowBaseCreateCall(ClassDefinition shadowClass, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType)
+	{
+		ClassDefinition? baseClass = GetDirectBaseClass(shadowClass);
+		if (baseClass is not null)
+		{
+			if (FindExternalCreateMethod(baseClass, arguments.Count) is FunctionDefinition create)
+				return CastShadowInstance(CreateCreateCall(create, TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
+			if (FindCreateMethod(baseClass, arguments.Count) is FunctionDefinition ordinaryCreate)
+				return CastShadowInstance(CreateCreateCall(ordinaryCreate, TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
+			if (baseClass.Extern is not null && FindExternInitNewMethod(baseClass, arguments.Count) is FunctionDefinition externInitNew)
+				return CastShadowInstance(CreateCreateCall(CreateExternalCreateMethod(baseClass, externInitNew), TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
+			if (baseClass.IsShadow)
+				return CastShadowInstance(CreateNewExpression(baseClass, TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
+			if (baseClass.Extern is null)
+				return CastShadowInstance(CreateNewExpression(baseClass, TypeReferenceFor(baseClass), arguments, syntax, $"{baseClass.Name}*"), shadowClass, syntax, resolvedType);
+		}
+
+		Report(GetRange(syntax), $"Shadow class '{shadowClass.Name}' cannot be allocated because its base class does not expose a compatible create method.");
+		return NullLiteral(syntax);
+	}
+
+	Expression CastShadowInstance(Expression expression, ClassDefinition shadowClass, SyntaxNode? syntax, string? resolvedType)
+	{
+		return new CastExpression
+		{
+			SourceSyntax = syntax,
+			Kind = CastKind.Type,
+			Unsafe = true,
+			Type = PointerTo(TypeReferenceFor(shadowClass)),
+			Expression = expression,
+			ResolvedType = resolvedType ?? $"{shadowClass.Name}*"
+		};
 	}
 
 	IfStatement CreateNotNullGuard(Expression target, Statement body, SyntaxNode? syntax)
@@ -748,6 +854,133 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Expression operation in operations)
 			grouped.Items.Add(new GroupedExpressionItem { Expression = operation, ResolvedType = operation.ResolvedType });
 		return grouped;
+	}
+
+	Expression CreateDeleteShadowExpression(SyntaxNode? syntax)
+	{
+		if (currentRewriteFunction is null
+			|| FindContainingType(currentRewriteFunction) is not ClassDefinition { IsShadow: true } shadowClass)
+			return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" };
+
+		Expression receiver = new ThisExpression
+		{
+			SourceSyntax = syntax,
+			ResolvedType = $"{shadowClass.Name}*"
+		};
+		Expression shadowData = CreateGetShadowCall(shadowClass, receiver, syntax, mutable: true);
+		return CreateFreeCall(shadowData);
+	}
+
+	Expression CreateGetShadowCall(ClassDefinition shadowClass, Expression receiver, SyntaxNode? syntax, bool mutable)
+	{
+		FunctionDefinition? hook = shadowClass.GetShadowHook ?? FindShadowHooks(shadowClass, "@getshadow").FirstOrDefault();
+		if (hook is null)
+			return NullLiteral(syntax);
+
+		Expression hookReceiver = CastShadowHookReceiver(hook, receiver, syntax);
+		MemberReferenceExpression targetReference = new()
+		{
+			SourceSyntax = syntax,
+			Target = hookReceiver,
+			Name = hook.Name,
+			Member = hook,
+			ResolvedType = hook.ResolvedType ?? "escaped void*"
+		};
+		CallExpression call = new()
+		{
+			SourceSyntax = syntax,
+			ResolvedType = hook.ResolvedType ?? "escaped void*",
+			Target = targetReference
+		};
+		if (ShouldEmitFlattenedInstanceCalls())
+			RewriteInstanceInvocation(call, targetReference, hookReceiver, hook);
+		return new CastExpression
+		{
+			SourceSyntax = syntax,
+			Kind = CastKind.Type,
+			Type = PointerTo(mutable ? ShadowDataTypeReference(shadowClass) : ConstShadowDataTypeReference(shadowClass)),
+			Expression = call,
+			ResolvedType = (mutable ? "" : "const ") + ShadowDataTypeName(shadowClass) + "*"
+		};
+	}
+
+	Expression CreateSetShadowCall(ClassDefinition shadowClass, Expression receiver, Expression value, SyntaxNode? syntax)
+	{
+		FunctionDefinition? hook = shadowClass.SetShadowHook ?? FindShadowHooks(shadowClass, "@setshadow").FirstOrDefault();
+		if (hook is null)
+			return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" };
+
+		Expression hookReceiver = CastShadowHookReceiver(hook, receiver, syntax);
+		MemberReferenceExpression targetReference = new()
+		{
+			SourceSyntax = syntax,
+			Target = hookReceiver,
+			Name = hook.Name,
+			Member = hook,
+			ResolvedType = "void"
+		};
+		CallExpression call = new()
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Target = targetReference
+		};
+		call.Arguments.Add(new ArgumentExpression
+		{
+			SourceSyntax = syntax,
+			Value = new CastExpression
+			{
+				SourceSyntax = syntax,
+				Kind = CastKind.Type,
+				Type = new EscapedTypeReference
+				{
+					Type = PointerTo(VoidType()),
+					ResolvedType = "escaped void*"
+				},
+				Expression = value,
+				ResolvedType = "escaped void*"
+			},
+			ResolvedType = "escaped void*"
+		});
+		if (ShouldEmitFlattenedInstanceCalls())
+			RewriteInstanceInvocation(call, targetReference, hookReceiver, hook);
+		return call;
+	}
+
+	Expression CastShadowHookReceiver(FunctionDefinition hook, Expression receiver, SyntaxNode? syntax)
+	{
+		ThisParameterDefinition? thisParameter = GetExplicitThisParameter(hook) ?? hook.EffectiveThisParameter;
+		string receiverType = thisParameter?.ResolvedType ?? receiver.ResolvedType ?? ErrorType;
+		return new CastExpression
+		{
+			SourceSyntax = syntax,
+			Kind = CastKind.Type,
+			Type = TypeReferenceForResolvedType(receiverType),
+			Expression = receiver,
+			ResolvedType = receiverType
+		};
+	}
+
+	static string ShadowDataTypeName(ClassDefinition shadowClass)
+	{
+		return shadowClass.ShadowDataType?.Symbol ?? shadowClass.Symbol + "_ShadowData";
+	}
+
+	static TypeReference ShadowDataTypeReference(ClassDefinition shadowClass)
+	{
+		string name = ShadowDataTypeName(shadowClass);
+		return shadowClass.ShadowDataType is StructDefinition shadowData
+			? new TypeDefinitionReference { Name = name, Definition = shadowData, ResolvedType = name }
+			: new NamedTypeReference { Name = name, ResolvedType = name };
+	}
+
+	static TypeReference ConstShadowDataTypeReference(ClassDefinition shadowClass)
+	{
+		return new ConstTypeReference
+		{
+			Type = ShadowDataTypeReference(shadowClass),
+			ResolvedType = "const " + ShadowDataTypeName(shadowClass)
+		};
 	}
 
 	Expression CreateArrayConstruction(TypeReference elementType, Expression length, ConstructionKind kind, SyntaxNode? syntax, string? resolvedType)

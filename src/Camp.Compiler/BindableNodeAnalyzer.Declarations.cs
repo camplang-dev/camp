@@ -290,6 +290,8 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeClassDefinition(ClassDefinition definition, AnalysisScope parentScope)
 	{
 		ApplySymbolAttribute(definition, allowed: true, "class");
+		if (definition.IsShadow)
+			EnsureShadowDataType(definition);
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);

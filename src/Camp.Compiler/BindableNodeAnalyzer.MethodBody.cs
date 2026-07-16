@@ -387,6 +387,12 @@ public sealed partial class BindableNodeAnalyzer
 						Report(GetRange(deleteStatement.SourceSyntax), "'delete delegate' is valid only inside a 'new delegate' lambda.");
 					break;
 				}
+				if (IsDeleteShadowExpression(deleteStatement.Expression))
+				{
+					deleteStatement.IsShadowCleanup = true;
+					AnalyzeDeleteShadowStatement(deleteStatement, scope);
+					break;
+				}
 				if (IsDeleteContextExpression(deleteStatement.Expression))
 					Report(GetRange(deleteStatement.Expression?.SourceSyntax ?? deleteStatement.SourceSyntax), "Escaped delegate cleanup uses 'delete delegate'; 'delete context' is no longer valid.");
 				if (IsBaseDeleteExpression(deleteStatement.Expression))
@@ -433,6 +439,37 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 			}
 		}
+	}
+
+	static bool IsDeleteShadowExpression(Expression? expression)
+	{
+		return expression is NamedExpression { Qualifiers.Count: 0, Name: "shadow" };
+	}
+
+	void AnalyzeDeleteShadowStatement(DeleteStatement statement, BodyScope scope)
+	{
+		if (scope.ContainingType is not ClassDefinition shadowClass
+			|| !shadowClass.IsShadow
+			|| scope.CurrentFunction.Modifier == FunctionModifier.Static
+			|| !ReferenceEquals(FindContainingType(scope.CurrentFunction), shadowClass))
+		{
+			Report(GetRange(statement.Expression?.SourceSyntax ?? statement.SourceSyntax), "'delete shadow' is valid only inside an instance method declared directly in a shadow class.");
+			return;
+		}
+
+		if (scope.TryLookup("shadow", out _))
+			Warn(statement.Expression?.SourceSyntax ?? statement.SourceSyntax, "'delete shadow' deletes the generated shadow data, not the local or parameter named 'shadow'.");
+		if (scope.ExplicitWithinContextDepth == 0 && ShadowClassHasWithinConstructor(shadowClass))
+			Warn(statement.Expression?.SourceSyntax ?? statement.SourceSyntax, "'delete shadow' uses the default allocator here, but the shadow constructor accepts a within allocator.");
+		scope.ShadowDataDeleted = true;
+	}
+
+	static bool ShadowClassHasWithinConstructor(ClassDefinition shadowClass)
+	{
+		foreach (FunctionDefinition function in shadowClass.Functions)
+			if (function.Modifier == FunctionModifier.Constructor && HasWithinParameter(function))
+				return true;
+		return false;
 	}
 
 	bool IsValidThisReturnExpression(Expression? expression)
@@ -1691,6 +1728,12 @@ public sealed partial class BindableNodeAnalyzer
 			&& constructedDefinition is ClassDefinition { Extern: not null })
 		{
 			Report(GetRange(construction.SourceSyntax), $"Cannot use init for incomplete type '{targetType}'. Use new instead.");
+		}
+		if (construction.Kind == ConstructionKind.Init
+			&& typeDefinitions.TryGetValue(BaseConstructedType(targetType), out TypeDefinition? initDefinition)
+			&& initDefinition is ClassDefinition { IsShadow: true })
+		{
+			Report(GetRange(construction.SourceSyntax), $"Cannot use init for shadow class '{initDefinition.Name}'. Use new instead so the compiler can install shadow data.");
 		}
 		FunctionDefinition? constructor = constructionTargets.TryGetValue(construction, out FunctionDefinition? existingConstructor)
 			? existingConstructor
@@ -4346,6 +4389,15 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 		expressionConstants[member] = selected.IsConstant;
+		if (!isTypeTarget
+			&& selected.Node is FieldDefinition selectedField
+			&& member.Target is ThisExpression
+			&& scope.ShadowDataDeleted
+			&& GetTypeDefinition(lookupTargetType) is ClassDefinition { IsShadow: true } selectedShadowClass
+			&& selectedShadowClass.Fields.Contains(selectedField))
+		{
+			Report(GetRange(member.SourceSyntax), $"Shadow field '{selectedField.Name}' cannot be accessed after 'delete shadow' in the same body.");
+		}
 		if (isTypeTarget && selected.Node is FieldDefinition staticField)
 		{
 			expressionRewrites[member] = new VariableReferenceExpression
@@ -5241,6 +5293,7 @@ public sealed partial class BindableNodeAnalyzer
 		public int NewDelegateLambdaDepth { get; set; } = parent?.NewDelegateLambdaDepth ?? 0;
 		public string? CurrentWithinContextLifetimeFact { get; set; } = parent?.CurrentWithinContextLifetimeFact;
 		public bool AllowClassTypeNameOfDefaultValue { get; set; } = parent?.AllowClassTypeNameOfDefaultValue ?? false;
+		public bool ShadowDataDeleted { get; set; } = parent?.ShadowDataDeleted ?? false;
 
 		public bool TryLookup(string name, out BodySymbol symbol)
 		{

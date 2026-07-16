@@ -597,6 +597,8 @@ public static class CCodeEmitter
 			{
 				foreach (TypeDefinition type in definitions.OfType<TypeDefinition>())
 					WriteTypeForwardDeclaration(writer, type);
+				foreach (ClassDefinition shadowClass in definitions.OfType<ClassDefinition>().Where(static definition => definition.IsShadow))
+					WriteShadowDataForwardDeclaration(writer, shadowClass);
 			});
 
 			WriteSection(writer, "Enums", () =>
@@ -1655,6 +1657,14 @@ public static class CCodeEmitter
 			writer.WriteLine("typedef struct " + name + " " + name + ";");
 		}
 
+		void WriteShadowDataForwardDeclaration(TextWriter writer, ClassDefinition shadowClass)
+		{
+			string name = ShadowDataCName(shadowClass);
+			if (!emittedNames.Add("forward:" + name))
+				return;
+			writer.WriteLine("typedef struct " + name + " " + name + ";");
+		}
+
 		void WriteNewtypeDefinition(TextWriter writer, NewtypeDefinition definition, bool exportedOnly)
 		{
 			if (exportedOnly && definition.Export is null && definition.Public is null)
@@ -1852,7 +1862,9 @@ public static class CCodeEmitter
 					WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
 					break;
 				case ClassDefinition classDefinition:
-					if (classDefinition.Extern is null)
+					if (classDefinition.IsShadow)
+						WriteShadowDataLayout(writer, classDefinition);
+					else if (classDefinition.Extern is null)
 						WriteFieldLayout(writer, classDefinition, GetClassLayoutFields(classDefinition));
 					break;
 				case InterfaceDefinition interfaceDefinition:
@@ -2025,6 +2037,35 @@ public static class CCodeEmitter
 					writer.WriteLine("};");
 				});
 			});
+		}
+
+		void WriteShadowDataLayout(TextWriter writer, ClassDefinition shadowClass)
+		{
+			string name = ShadowDataCName(shadowClass);
+			if (!emittedNames.Add("layout:" + name))
+				return;
+
+			WithGenericContext(shadowClass, () =>
+			{
+				WithArrayElementComponentContext(shadowClass.Fields, () =>
+				{
+					writer.WriteLine("struct " + name);
+					writer.WriteLine("{");
+					List<FieldDefinition> fields = shadowClass.Fields.Where(static field => field.Modifier != FieldModifier.Static).ToList();
+					if (fields.Count == 0)
+						writer.WriteLine("\tchar _camp_empty;");
+					foreach (FieldDefinition field in fields)
+						writer.WriteLine("\t" + FormatFieldLayoutDeclaration(field) + ";");
+					writer.WriteLine("};");
+				});
+			});
+		}
+
+		string ShadowDataCName(ClassDefinition shadowClass)
+		{
+			return shadowClass.ShadowDataType is StructDefinition shadowData
+				? CName(shadowData)
+				: CName(shadowClass) + "_ShadowData";
 		}
 
 		string FormatFieldLayoutDeclaration(FieldDefinition field)
@@ -4431,6 +4472,9 @@ public static class CCodeEmitter
 
 				return definition is StructDefinition or ClassDefinition;
 			}
+			foreach (ClassDefinition shadowClass in GetDefinitions().OfType<ClassDefinition>())
+				if (shadowClass.ShadowDataType is StructDefinition shadowData && (shadowData.Name == type || shadowData.Symbol == type))
+					return true;
 
 			return false;
 		}
@@ -5790,6 +5834,8 @@ public static class CCodeEmitter
 			{
 				if (FormatInterfaceSlotMember(member.Target, CName(field)) is string formattedInterfaceSlotMember)
 					return formattedInterfaceSlotMember;
+				if (TryFormatShadowFieldReference(member, field, out string shadowFieldReference))
+					return shadowFieldReference;
 				string fieldTarget = FormatMemberTarget(member.Target);
 				return fieldTarget + (IsPointerMemberTarget(member.Target) ? "->" : ".") + CName(field);
 			}
@@ -5802,6 +5848,47 @@ public static class CCodeEmitter
 			string target = FormatMemberTarget(member.Target);
 			string separator = IsPointerMemberTarget(member.Target) ? "->" : ".";
 			return target + separator + SanitizeIdentifier(member.Name);
+		}
+
+		bool TryFormatShadowFieldReference(MemberReferenceExpression member, FieldDefinition field, out string formatted)
+		{
+			formatted = "";
+			if (member.Target is null || field.Modifier == FieldModifier.Static)
+				return false;
+			if (!TryFindFieldOwner(member.Target.ResolvedType ?? "", field, out TypeDefinition? owner) || owner is not ClassDefinition { IsShadow: true } shadowClass)
+				return false;
+			if (!shadowClass.Fields.Contains(field))
+				return false;
+
+			bool mutable = !((member.Target.ResolvedType ?? "").StartsWith("const ", StringComparison.Ordinal));
+			string target = FormatShadowHookReceiver(member.Target, shadowClass.GetShadowHook);
+			string call = shadowClass.GetShadowHook is FunctionDefinition getHook
+				? CName(getHook) + "(" + target + ")"
+				: "NULL";
+			string shadowType = (mutable ? "" : "const ") + ShadowDataCName(shadowClass) + "*";
+			formatted = "(((" + shadowType + ")(" + call + "))->" + CName(field) + ")";
+			return true;
+		}
+
+		string FormatShadowHookReceiver(Expression target, FunctionDefinition? hook)
+		{
+			string formattedTarget = FormatExpression(target);
+			ThisParameterDefinition? receiver = hook is null ? null : GetExplicitThisParameter(hook) ?? hook.EffectiveThisParameter;
+			string receiverType = receiver?.ResolvedType ?? target.ResolvedType ?? "";
+			if (string.IsNullOrWhiteSpace(receiverType))
+				return formattedTarget;
+			string declaration = FormatResolvedType(receiverType, "").Declaration.Trim();
+			if (string.IsNullOrWhiteSpace(declaration))
+				return formattedTarget;
+			return "((" + declaration + ")(" + formattedTarget + "))";
+		}
+
+		static ThisParameterDefinition? GetExplicitThisParameter(FunctionDefinition function)
+		{
+			foreach (ParameterDefinition parameter in function.Parameters)
+				if (parameter is ThisParameterDefinition thisParameter)
+					return thisParameter;
+			return null;
 		}
 
 		string FormatMemberTarget(Expression? target)

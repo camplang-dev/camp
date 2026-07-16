@@ -299,13 +299,95 @@ public sealed partial class BindableNodeAnalyzer
 		else if (getHooks.Count > 1)
 			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' has multiple visible @getshadow methods.");
 		else
+		{
+			definition.GetShadowHook = getHooks[0];
 			ValidateGetShadowHook(definition, getHooks[0]);
+		}
 		if (setHooks.Count == 0)
 			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' requires a visible @setshadow method on itself or a base class.");
 		else if (setHooks.Count > 1)
 			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' has multiple visible @setshadow methods.");
 		else
+		{
+			definition.SetShadowHook = setHooks[0];
 			ValidateSetShadowHook(definition, setHooks[0]);
+		}
+
+		if (ShouldWarnMissingDeleteShadow(definition))
+			Warn(definition.SourceSyntax, $"Shadow class '{definition.Name}' does not contain a reachable 'delete shadow' cleanup statement.");
+
+		EnsureShadowDataType(definition);
+	}
+
+	void EnsureShadowDataType(ClassDefinition definition)
+	{
+		if (definition.ShadowDataType is not null)
+			return;
+		definition.ShadowDataType = new StructDefinition
+		{
+			Name = definition.Name + "ShadowData",
+			Symbol = EffectiveTypeSymbol(definition) + "_ShadowData",
+			SourceSyntax = definition.SourceSyntax,
+			ResolvedType = EffectiveTypeSymbol(definition) + "_ShadowData",
+			GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.Lifecycle, "shadow data", definition)
+		};
+		typeDefinitions[definition.ShadowDataType.Symbol] = definition.ShadowDataType;
+	}
+
+	bool ShouldWarnMissingDeleteShadow(ClassDefinition definition)
+	{
+		if (definition.Extern is not null || definition.Modifier == ClassModifier.Abstract)
+			return false;
+		foreach (FunctionDefinition function in definition.Functions)
+			if (IsDestructorFunction(function))
+				return false;
+		bool hasBody = false;
+		foreach (FunctionDefinition function in definition.Functions)
+		{
+			if (function.Body is null || function.Extern is not null || IsStaticFunction(function))
+				continue;
+			hasBody = true;
+			if (ContainsDeleteShadow(function.Body))
+				return false;
+		}
+		return hasBody;
+	}
+
+	static bool ContainsDeleteShadow(Statement? statement)
+	{
+		switch (statement)
+		{
+			case null:
+				return false;
+			case DeleteStatement deleteStatement:
+				return IsDeleteShadowExpression(deleteStatement.Expression);
+			case BlockStatement block:
+				return block.Statements.Any(ContainsDeleteShadow);
+			case IfStatement ifStatement:
+				return ContainsDeleteShadow(ifStatement.Body) || ContainsDeleteShadow(ifStatement.ElseBody);
+			case WhileStatement whileStatement:
+				return ContainsDeleteShadow(whileStatement.Body);
+			case DoWhileStatement doWhile:
+				return ContainsDeleteShadow(doWhile.Body);
+			case ForStatement forStatement:
+				return ContainsDeleteShadow(forStatement.Body);
+			case ForeachStatement foreachStatement:
+				return ContainsDeleteShadow(foreachStatement.Body);
+			case SwitchStatement switchStatement:
+				return switchStatement.Statements.Any(ContainsDeleteShadow);
+			case TryStatement tryStatement:
+				return ContainsDeleteShadow(tryStatement.Body)
+					|| tryStatement.Catches.Any(ContainsDeleteShadow)
+					|| ContainsDeleteShadow(tryStatement.Finally);
+			case CatchStatement catchStatement:
+				return ContainsDeleteShadow(catchStatement.Body);
+			case FinallyStatement finallyStatement:
+				return ContainsDeleteShadow(finallyStatement.Body);
+			case WithinStatement withinStatement:
+				return ContainsDeleteShadow(withinStatement.Body);
+			default:
+				return false;
+		}
 	}
 
 	List<FunctionDefinition> FindShadowHooks(ClassDefinition definition, string attributeName)

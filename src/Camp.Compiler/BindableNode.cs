@@ -117,6 +117,9 @@ public class ClassDefinition : TypeDefinition
 	public ClassModifier Modifier { get; set; }
 	public bool IsEscaped { get; set; }
 	public bool IsShadow { get; set; }
+	public FunctionDefinition? GetShadowHook { get; set; }
+	public FunctionDefinition? SetShadowHook { get; set; }
+	public StructDefinition? ShadowDataType { get; set; }
 	public bool HasExportProjectionInterfaceFilter { get; set; }
 	public List<TypeReference> ExportProjectionInterfaceBaseTypes { get; } = [];
 	public bool HasExportProjectionMemberFilter { get; set; }

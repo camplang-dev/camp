@@ -1,0 +1,48 @@
+using Std;
+
+class NativeShadowHost
+{
+	escaped void* shadowData;
+
+	NativeShadowHost()
+	{
+	}
+
+	@getshadow
+	escaped void* getShadow(const this) => this.shadowData;
+
+	@setshadow
+	void setShadow(escaped void* value) => this.shadowData = value;
+}
+
+shadow class CounterShadow: NativeShadowHost
+{
+	int value;
+
+	CounterShadow(int value)
+	{
+		this.value = value;
+	}
+
+	int getValue() => this.value;
+
+	void add(int amount)
+	{
+		this.value += amount;
+	}
+
+	void cleanup()
+	{
+		delete shadow;
+	}
+}
+
+export int main()
+{
+	auto counter = new CounterShadow(7);
+	counter.add(5);
+	Console.writeLine(counter.getValue());
+	counter.cleanup();
+	delete counter;
+	return 0;
+}
