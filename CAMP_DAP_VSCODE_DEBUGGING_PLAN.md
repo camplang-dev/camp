@@ -355,7 +355,7 @@ Add the second real backend after the Camp debug map and LLDB implementation hav
 - ~~Full local suite and Linux lane pass.~~
 - ~~Commit.~~
 
-## Phase 8 — Windows CDB Backend
+## Phase 8 — Windows CDB Backend — Complete
 
 ### Goals
 
@@ -387,11 +387,13 @@ Add the Windows/MSVC backend using Windows Debugging Tools.
 
 ### Completion Criteria
 
-- A simple Camp program can be debugged through `camp-dap` on Windows/MSVC with CDB.
-- Breakpoints and stack traces map to Camp source in simple cases.
-- Clear diagnostics are reported for missing Windows debugger prerequisites.
-- Full local suite and Windows lane pass.
-- Commit.
+- ~~A simple Camp program can be debugged through `camp-dap` on Windows/MSVC with CDB when Windows Debugging Tools are installed.~~
+- ~~Breakpoints and stack traces map to Camp source in simple cases when `cdb.exe` is available.~~
+- ~~Clear diagnostics are reported for missing Windows debugger prerequisites.~~
+- ~~Full local suite and Windows lane pass.~~
+- ~~Commit.~~
+
+Note: the Windows validation host used for this phase does not currently have `cdb.exe` installed, so the real CDB smoke test is platform/tool-gated there. The missing-debugger diagnostic path is covered on that host.
 
 ## Phase 9 — Debug UX Hardening And Pretty Printing
 

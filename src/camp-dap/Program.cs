@@ -93,10 +93,12 @@ sealed class DapSession(Stream input, Stream output)
 		{
 			"auto" when OperatingSystem.IsMacOS() => new LldbDebugBackend(),
 			"auto" when OperatingSystem.IsLinux() => new GdbDebugBackend(),
+			"auto" when OperatingSystem.IsWindows() => new CdbDebugBackend(),
 			"auto" => throw new InvalidOperationException("Debug backend 'auto' could not select a supported backend for this platform yet."),
 			"fake" => new FakeDebugBackend(),
 			"lldb" => new LldbDebugBackend(),
 			"gdb" => new GdbDebugBackend(),
+			"cdb" => new CdbDebugBackend(),
 			_ => throw new InvalidOperationException($"Debug backend '{name}' is not available in this build yet.")
 		};
 	}
@@ -682,7 +684,9 @@ sealed class LldbDebugBackend : IDebugBackend
 		if (process.ExitCode != 0)
 			throw new InvalidOperationException("Camp build failed." + Environment.NewLine + stdout + stderr);
 		string? executable = Directory.EnumerateFiles(outDirectory, "*", SearchOption.AllDirectories)
-			.Where(path => !Path.HasExtension(path))
+			.Where(path => OperatingSystem.IsWindows()
+				? path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+				: !Path.HasExtension(path))
 			.FirstOrDefault(path => IsExecutable(path));
 		if (executable is null)
 			throw new InvalidOperationException("Camp build completed but no executable artifact was found." + Environment.NewLine + stdout);
@@ -1044,6 +1048,305 @@ sealed class GdbDebugBackend : IDebugBackend
 		if (process.ExitCode != 0 && !output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase))
 			throw new InvalidOperationException("GDB command failed." + Environment.NewLine + output);
 		return output;
+	}
+}
+
+sealed class CdbDebugBackend : IDebugBackend
+{
+	readonly List<(string Source, int Line)> pendingBreakpoints = [];
+	readonly List<DebugStackFrame> lastFrames = [];
+	readonly Dictionary<int, IReadOnlyList<DebugVariable>> variableReferences = new();
+	readonly Dictionary<string, DebugVariable> evaluateVariables = new(StringComparer.Ordinal);
+	string executable = "";
+	string cdbPath = "";
+	string buildDirectory = "";
+	DebugMapDocument? debugMap;
+	string? stoppedNativeSymbol;
+	int nextVariableReference = 3000;
+
+	public bool StopOnEntry { get; private set; }
+	public bool IsStopped { get; private set; }
+
+	public async Task Launch(DebugLaunchOptions options)
+	{
+		if (!OperatingSystem.IsWindows())
+			throw new InvalidOperationException("Debug backend 'cdb' is only available on Windows in this build.");
+		cdbPath = FindCdbPath() ?? throw new InvalidOperationException("Debug backend 'cdb' is not available because cdb.exe was not found. Install Windows Debugging Tools and ensure cdb.exe is on PATH or in the Windows Kits Debuggers folder.");
+		if (string.IsNullOrWhiteSpace(options.Project))
+			throw new InvalidOperationException("Launch requires a 'project' path.");
+
+		StopOnEntry = options.StopOnEntry;
+		buildDirectory = Path.Combine(Path.GetTempPath(), "camp-dap-cdb-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(buildDirectory);
+		DebugBuildResult build = await LldbDebugBackend.BuildExecutable(options.Project, options.Cwd, buildDirectory);
+		executable = build.Executable;
+		debugMap = build.DebugMapPath is null ? null : DebugMapDocument.Load(build.DebugMapPath);
+		if (StopOnEntry)
+			pendingBreakpoints.Add(("", 0));
+	}
+
+	public async Task<IReadOnlyList<DebugBreakpoint>> SetBreakpoints(string source, IReadOnlyList<int> lines)
+	{
+		List<DebugBreakpoint> results = [];
+		foreach (int line in lines)
+		{
+			pendingBreakpoints.Add((source, line));
+			bool verified = File.Exists(source) && line > 0;
+			results.Add(new DebugBreakpoint(line, verified, verified ? null : "Breakpoint source could not be verified before launch."));
+		}
+		await Task.CompletedTask;
+		return results;
+	}
+
+	public async Task ConfigurationDone()
+	{
+		string output = await RunCdbBatch("g", "k", "dv");
+		IsStopped = output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("breakpoint", StringComparison.OrdinalIgnoreCase);
+		UpdateFramesFromOutput(output);
+		UpdateVariablesFromOutput(output);
+	}
+
+	public async Task Continue(int threadId)
+	{
+		await Task.CompletedTask;
+		IsStopped = false;
+	}
+
+	public async Task Pause(int threadId)
+	{
+		await Task.CompletedTask;
+		IsStopped = true;
+	}
+
+	public async Task Step(string command, int threadId)
+	{
+		string cdbCommand = command switch
+		{
+			"stepIn" => "t",
+			"stepOut" => "gu",
+			_ => "p"
+		};
+		string output = await RunCdbBatch("g", cdbCommand, "k", "dv");
+		IsStopped = output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("breakpoint", StringComparison.OrdinalIgnoreCase);
+		UpdateFramesFromOutput(output);
+		UpdateVariablesFromOutput(output);
+	}
+
+	public IReadOnlyList<DebugStackFrame> GetStackTrace()
+	{
+		return lastFrames.Count == 0
+			? [new DebugStackFrame(1, "main", executable, 1, 1)]
+			: lastFrames;
+	}
+
+	public IReadOnlyList<DebugScope> GetScopes(int frameId) =>
+	[
+		new DebugScope("Parameters", 100),
+		new DebugScope("Locals", 200)
+	];
+
+	public IReadOnlyList<DebugVariable> GetVariables(int reference) =>
+		variableReferences.TryGetValue(reference, out IReadOnlyList<DebugVariable>? variables) ? variables : [];
+
+	public DebugVariable Evaluate(string expression)
+	{
+		if (evaluateVariables.TryGetValue(expression, out DebugVariable? variable))
+			return variable with { Name = expression };
+		return new DebugVariable(expression, "Unsupported expression", null, 0);
+	}
+
+	public async Task Disconnect()
+	{
+		await Task.CompletedTask;
+	}
+
+	void UpdateFramesFromOutput(string output)
+	{
+		List<DebugStackFrame> frames = [];
+		foreach (string rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+		{
+			string line = rawLine.Trim();
+			if (!TryParseCdbFrame(line, out string? name, out string? path, out int sourceLine))
+				continue;
+			if (!Path.IsPathRooted(path))
+				path = pendingBreakpoints
+					.Select(item => item.Source)
+					.FirstOrDefault(source => Path.GetFileName(source).Equals(path, StringComparison.OrdinalIgnoreCase)) ?? path;
+			frames.Add(new DebugStackFrame(frames.Count + 1, name, path, sourceLine, 1));
+			if (frames.Count == 1)
+				stoppedNativeSymbol = name;
+		}
+		if (frames.Count > 0)
+		{
+			lastFrames.Clear();
+			lastFrames.AddRange(frames);
+		}
+	}
+
+	static bool TryParseCdbFrame(string line, out string name, out string path, out int sourceLine)
+	{
+		name = "";
+		path = "";
+		sourceLine = 1;
+		int bracket = line.LastIndexOf('[');
+		int at = line.LastIndexOf(" @ ", StringComparison.Ordinal);
+		int close = line.LastIndexOf(']');
+		if (bracket < 0 || at < bracket || close < at || !int.TryParse(line[(at + 3)..close].Trim(), out sourceLine))
+			return false;
+		path = line[(bracket + 1)..at].Trim();
+		string before = line[..bracket].Trim();
+		int bang = before.LastIndexOf('!');
+		if (bang >= 0)
+		{
+			name = before[(bang + 1)..].Trim();
+			int plus = name.IndexOf('+');
+			if (plus > 0)
+				name = name[..plus];
+			int space = name.IndexOf(' ');
+			if (space > 0)
+				name = name[..space];
+		}
+		return name.Length > 0 && path.Length > 0;
+	}
+
+	void UpdateVariablesFromOutput(string output)
+	{
+		Dictionary<string, LldbNativeVariable> nativeVariables = ParseCdbVariables(output);
+		variableReferences.Clear();
+		evaluateVariables.Clear();
+		variableReferences[100] = [];
+		variableReferences[200] = [];
+		if (debugMap is null || stoppedNativeSymbol is null)
+			return;
+		DebugMapFunction? function = debugMap.FindFunction(stoppedNativeSymbol);
+		if (function is null)
+			return;
+
+		HashSet<string> hidden = new(StringComparer.Ordinal);
+		Dictionary<string, DebugVariable> parameters = new(StringComparer.Ordinal);
+		Dictionary<string, DebugVariable> locals = new(StringComparer.Ordinal);
+		foreach (DebugMapVariable variable in function.Variables)
+		{
+			if (!nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable? native))
+				continue;
+			if (variable.CampName.EndsWith("_length", StringComparison.Ordinal))
+			{
+				string baseName = variable.CampName[..^"_length".Length];
+				DebugMapVariable? baseVariable = function.Variables.FirstOrDefault(item => item.CampName == baseName);
+				if (baseVariable is not null && nativeVariables.TryGetValue(baseVariable.NativeName, out LldbNativeVariable? baseNative))
+				{
+					int reference = nextVariableReference++;
+					DebugVariable structured = new(baseName, "{ elements, length }", baseVariable.Type, reference);
+					variableReferences[reference] =
+					[
+						new DebugVariable("elements", baseNative.Value, baseNative.Type, 0),
+						new DebugVariable("length", native.Value, native.Type, 0)
+					];
+					AddVariable(baseVariable.Kind, structured, parameters, locals);
+					evaluateVariables[baseName] = structured;
+					hidden.Add(baseName);
+					hidden.Add(variable.CampName);
+				}
+				continue;
+			}
+			if (hidden.Contains(variable.CampName))
+				continue;
+			DebugVariable debugVariable = new(variable.CampName, native.Value, variable.Type ?? native.Type, 0);
+			AddVariable(variable.Kind, debugVariable, parameters, locals);
+			evaluateVariables[variable.CampName] = debugVariable;
+		}
+		variableReferences[100] = parameters.Values.ToList();
+		variableReferences[200] = locals.Values.ToList();
+	}
+
+	static void AddVariable(string kind, DebugVariable variable, Dictionary<string, DebugVariable> parameters, Dictionary<string, DebugVariable> locals)
+	{
+		if (kind.Equals("parameter", StringComparison.OrdinalIgnoreCase))
+			parameters[variable.Name] = variable;
+		else
+			locals[variable.Name] = variable;
+	}
+
+	static Dictionary<string, LldbNativeVariable> ParseCdbVariables(string output)
+	{
+		Dictionary<string, LldbNativeVariable> variables = new(StringComparer.Ordinal);
+		foreach (string rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+		{
+			string line = rawLine.Trim();
+			int equals = line.IndexOf(" = ", StringComparison.Ordinal);
+			if (equals <= 0)
+				continue;
+			string name = line[..equals].Trim();
+			string value = NormalizeCdbValue(line[(equals + 3)..].Trim());
+			if (name.Length > 0 && !name.Contains(' '))
+				variables[name] = new LldbNativeVariable("", value);
+		}
+		return variables;
+	}
+
+	static string NormalizeCdbValue(string value)
+	{
+		return value.StartsWith("0n", StringComparison.Ordinal) ? value[2..] : value;
+	}
+
+	async Task<string> RunCdbBatch(params string[] commands)
+	{
+		if (string.IsNullOrEmpty(executable))
+			throw new InvalidOperationException("CDB session has not been launched.");
+		ProcessStartInfo info = new(cdbPath)
+		{
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+		info.ArgumentList.Add("-lines");
+		info.ArgumentList.Add("-G");
+		info.ArgumentList.Add("-g");
+		info.ArgumentList.Add("-o");
+		info.ArgumentList.Add("-c");
+		info.ArgumentList.Add(BuildCdbCommand(commands));
+		info.ArgumentList.Add(executable);
+		using Process process = Process.Start(info) ?? throw new InvalidOperationException("Could not start cdb.exe.");
+		string stdout = await process.StandardOutput.ReadToEndAsync();
+		string stderr = await process.StandardError.ReadToEndAsync();
+		await process.WaitForExitAsync();
+		string output = stdout + stderr;
+		if (process.ExitCode != 0 && !output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase))
+			throw new InvalidOperationException("CDB command failed." + Environment.NewLine + output);
+		return output;
+	}
+
+	string BuildCdbCommand(params string[] commands)
+	{
+		List<string> all = [];
+		foreach ((string source, int line) in pendingBreakpoints)
+			all.Add(line == 0 ? "bu main" : "bu `" + source + ":" + line + "`");
+		all.AddRange(commands);
+		all.Add("q");
+		return string.Join("; ", all);
+	}
+
+	static string? FindCdbPath()
+	{
+		string? pathValue = Environment.GetEnvironmentVariable("PATH");
+		if (pathValue is not null)
+			foreach (string directory in pathValue.Split(Path.PathSeparator))
+			{
+				string candidate = Path.Combine(directory, "cdb.exe");
+				if (File.Exists(candidate))
+					return candidate;
+			}
+		string kits = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Windows Kits", "10", "Debuggers");
+		if (Directory.Exists(kits))
+		{
+			string? candidate = Directory.EnumerateFiles(kits, "cdb.exe", SearchOption.AllDirectories)
+				.FirstOrDefault(path => path.Contains("\\x64\\", StringComparison.OrdinalIgnoreCase));
+			if (candidate is not null)
+				return candidate;
+		}
+		return null;
 	}
 }
 

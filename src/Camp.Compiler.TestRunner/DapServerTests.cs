@@ -100,7 +100,7 @@ public sealed class DapServerTests
 	{
 		using DapProcess missingBackend = DapProcess.Start();
 		Assert.True(missingBackend.Request("initialize", new { adapterID = "camp" })["success"]?.GetValue<bool>());
-		JsonNode unavailable = missingBackend.Request("launch", new { project = "main.camp", backend = "cdb" });
+		JsonNode unavailable = missingBackend.Request("launch", new { project = "main.camp", backend = "bogus" });
 		Assert.False(unavailable["success"]?.GetValue<bool>());
 		Assert.Contains("not available", unavailable["message"]?.GetValue<string>());
 		missingBackend.Request("disconnect", new { });
@@ -187,6 +187,82 @@ public sealed class DapServerTests
 		JsonNode continued = dap.Request("continue", new { threadId = 1 });
 		Assert.True(continued["body"]?["allThreadsContinued"]?.GetValue<bool>());
 		Assert.Equal("continued", dap.ReadEvent("continued")["event"]?.GetValue<string>());
+		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
+	}
+
+	[Fact]
+	public void Dap_cdb_backend_reports_missing_debugger_when_unavailable()
+	{
+		if (!OperatingSystem.IsWindows() || CdbAvailable())
+			return;
+
+		using DapProcess dap = DapProcess.Start();
+		Assert.True(dap.Request("initialize", new { adapterID = "camp" })["success"]?.GetValue<bool>());
+		JsonNode launch = dap.Request("launch", new
+		{
+			project = "main.camp",
+			cwd = FindRepositoryRoot(),
+			backend = "cdb"
+		});
+		Assert.False(launch["success"]?.GetValue<bool>());
+		Assert.Contains("cdb.exe was not found", launch["message"]?.GetValue<string>());
+		dap.Request("disconnect", new { });
+	}
+
+	[Fact]
+	public void Dap_cdb_backend_launches_and_stops_on_camp_breakpoint_when_available()
+	{
+		if (!OperatingSystem.IsWindows() || !CdbAvailable())
+			return;
+
+		string root = FindRepositoryRoot();
+		string temp = Path.Combine(Path.GetTempPath(), "camp-dap-cdb-test-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(temp);
+		string source = Path.Combine(temp, "main.camp");
+		File.WriteAllText(source, string.Join(Environment.NewLine,
+			"export int helper(int value)",
+			"{",
+			"\tint local = value + 1;",
+			"\treturn local;",
+			"}",
+			"",
+			"export int main(string[] args)",
+			"{",
+			"\tint result = helper(41);",
+			"\treturn result;",
+			"}",
+			""));
+
+		using DapProcess dap = DapProcess.Start();
+		Assert.True(dap.Request("initialize", new { adapterID = "camp" })["success"]?.GetValue<bool>());
+		JsonNode launch = dap.Request("launch", new
+		{
+			project = source,
+			cwd = root,
+			args = Array.Empty<string>(),
+			stopOnEntry = false,
+			backend = "auto"
+		});
+		Assert.True(launch["success"]?.GetValue<bool>(), launch["message"]?.GetValue<string>());
+		dap.ReadEvent("initialized");
+
+		JsonNode breakpoints = dap.Request("setBreakpoints", new
+		{
+			source = new { path = source },
+			breakpoints = new[] { new { line = 4 } }
+		});
+		Assert.True(
+			breakpoints["body"]?["breakpoints"]?[0]?["verified"]?.GetValue<bool>(),
+			breakpoints["body"]?["breakpoints"]?[0]?["message"]?.GetValue<string>());
+
+		Assert.True(dap.Request("configurationDone", new { })["success"]?.GetValue<bool>());
+		JsonNode stopped = dap.ReadEvent("stopped");
+		Assert.Equal("breakpoint", stopped["body"]?["reason"]?.GetValue<string>());
+		JsonNode stack = dap.Request("stackTrace", new { threadId = 1 });
+		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
+		Assert.NotNull(frame);
+		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
+		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 3, 5);
 		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
 	}
 
@@ -468,16 +544,24 @@ public sealed class DapServerTests
 
 	static bool CommandAvailable(string command)
 	{
-		ProcessStartInfo info = new("which", command)
-		{
-			RedirectStandardOutput = true,
-			RedirectStandardError = true,
-			UseShellExecute = false
-		};
+		ProcessStartInfo info = OperatingSystem.IsWindows()
+			? new ProcessStartInfo("where.exe", command)
+			: new ProcessStartInfo("which", command);
+		info.RedirectStandardOutput = true;
+		info.RedirectStandardError = true;
+		info.UseShellExecute = false;
 		using Process? process = Process.Start(info);
 		if (process is null)
 			return false;
 		process.WaitForExit();
 		return process.ExitCode == 0;
+	}
+
+	static bool CdbAvailable()
+	{
+		if (CommandAvailable("cdb"))
+			return true;
+		string kits = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Windows Kits", "10", "Debuggers");
+		return Directory.Exists(kits) && Directory.EnumerateFiles(kits, "cdb.exe", SearchOption.AllDirectories).Any();
 	}
 }

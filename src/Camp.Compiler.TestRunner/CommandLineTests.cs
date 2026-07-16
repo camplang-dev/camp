@@ -104,7 +104,7 @@ public sealed class CommandLineTests
 		string cFile = Assert.Single(Directory.GetFiles(outDir, "main.c", SearchOption.AllDirectories));
 		string cText = File.ReadAllText(cFile);
 		Assert.Contains("#line 1", cText, StringComparison.Ordinal);
-		Assert.Contains(Path.GetFullPath(source), cText, StringComparison.Ordinal);
+		Assert.Contains(EscapeCString(Path.GetFullPath(source)), cText, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3353,6 +3353,13 @@ public sealed class CommandLineTests
 	}
 
 	static string Normalize(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
+
+	static string EscapeCString(string text)
+	{
+		return text
+			.Replace("\\", "\\\\", StringComparison.Ordinal)
+			.Replace("\"", "\\\"", StringComparison.Ordinal);
+	}
 
 	static int CountOccurrences(string text, string value)
 	{
