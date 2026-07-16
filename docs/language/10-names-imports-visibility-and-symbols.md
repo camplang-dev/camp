@@ -455,7 +455,7 @@ themselves.
 
 ```camp
 export int exportedValue = 3;
-internal int publicValue = 4;
+internal int internalValue = 4;
 public int artifactValue = 5;
 
 export int exportedAdd(int value)
@@ -463,9 +463,9 @@ export int exportedAdd(int value)
 	return value + exportedValue;
 }
 
-internal int publicAdd(int value)
+internal int internalAdd(int value)
 {
-	return exportedAdd(value) + publicValue;
+	return exportedAdd(value) + internalValue;
 }
 ```
 
@@ -476,7 +476,7 @@ extern int exportedValue;
 int exportedAdd(int value);
 ```
 
-The private generated header can still contain `publicValue` and `publicAdd`
+The private generated header can still contain `internalValue` and `internalAdd`
 for files inside the same build, and artifact-internal Camp API views can still
 contain `artifactValue`. That split is why `internal`, `public`, and `export`
 are separate words.

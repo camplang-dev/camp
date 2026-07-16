@@ -2,7 +2,11 @@
 
 ## Status
 
-Draft proposal.
+Accepted and implementation-complete.
+
+This proposal is finalized and should not receive further substantive changes.
+Future changes to Camp visibility, namespace import behavior, or export
+projection semantics should be introduced in a new proposal.
 
 ## Summary
 

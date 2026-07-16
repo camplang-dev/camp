@@ -30,7 +30,7 @@ Read the declaration in layers:
 
 | Layer | Example | Meaning |
 |---|---|---|
-| visibility and behavior | `export`, `internal`, `extern` | Where the function is visible and who implements it. |
+| visibility and behavior | `export`, `public`, `internal`, `extern` | Where the function is visible and who implements it. |
 | result | `int` | Primary success result. |
 | name | `add` | Source name used by callers. |
 | parameters | `(int left, int right)` | Inputs and special call slots. |
