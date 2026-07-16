@@ -36,6 +36,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeGlobalInitializers(module);
 		AnalyzeInlineConstantsAndEnumValues(module);
 		AnalyzeInheritance();
+		ValidateShadowClasses();
 		AnalyzeExportProjections(module);
 		ValidateDuplicateTopLevelSymbols(module);
 		AnalyzeInterfaceSlotInitializers(module);
@@ -699,7 +700,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (containingType is null || !typeDefinitions.TryGetValue(containingType, out TypeDefinition? definition))
 			return false;
-		return definition is ClassDefinition { IsEscaped: true } or ClassDefinition { Extern: not null } or InterfaceDefinition { IsEscaped: true };
+		return definition is ClassDefinition { IsEscaped: true } or ClassDefinition { IsShadow: true } or ClassDefinition { Extern: not null } or InterfaceDefinition { IsEscaped: true };
 	}
 
 	AnalysisScope CreateTypeScope(TypeDefinition definition, AnalysisScope parentScope)

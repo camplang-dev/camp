@@ -1,0 +1,33 @@
+export extern class ExportedHookBase
+{
+	export extern ExportedHookBase();
+
+	export extern ~ExportedHookBase();
+
+	@getshadow
+	export extern escaped void* getShadow();
+
+	@setshadow
+	export extern void setShadow(escaped void* value);
+}
+
+export extern shadow class ExportedShadow : ExportedHookBase
+{
+	export extern ExportedShadow();
+
+	export extern ~ExportedShadow();
+}
+
+export extern class PrivateHookBase
+{
+	export extern PrivateHookBase();
+
+	export extern ~PrivateHookBase();
+}
+
+export extern class ErasedShadow : PrivateHookBase
+{
+	export extern ErasedShadow();
+
+	export extern ~ErasedShadow();
+}

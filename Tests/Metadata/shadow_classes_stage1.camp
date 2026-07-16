@@ -1,0 +1,13 @@
+// @emit-metadata all
+export abstract class ExportedHookBase
+{
+	@getshadow
+	export extern escaped void* getShadow();
+
+	@setshadow
+	export extern void setShadow(escaped void* value);
+}
+
+export abstract shadow class ExportedShadow: ExportedHookBase
+{
+}

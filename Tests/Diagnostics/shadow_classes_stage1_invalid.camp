@@ -1,0 +1,47 @@
+class HookBase
+{
+	@getshadow
+	extern escaped void* getShadow();
+
+	@setshadow
+	extern void setShadow(escaped void* value);
+}
+
+shadow class MissingBase
+{
+}
+
+sealed shadow class SealedShadow: HookBase
+{
+}
+
+shadow class ShadowWithDestructor: HookBase
+{
+	~ShadowWithDestructor()
+	{
+	}
+}
+
+class NoHooksBase
+{
+}
+
+shadow class MissingHooks: NoHooksBase
+{
+}
+
+class DuplicateHookBase
+{
+	@getshadow
+	extern escaped void* getShadowOne();
+
+	@getshadow
+	extern escaped void* getShadowTwo();
+
+	@setshadow
+	extern void setShadow(escaped void* value);
+}
+
+shadow class AmbiguousGetHook: DuplicateHookBase
+{
+}

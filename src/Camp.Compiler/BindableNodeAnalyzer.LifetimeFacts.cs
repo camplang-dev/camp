@@ -214,7 +214,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		bool escapedInstanceField = definition.Modifier != FieldModifier.Static
 			&& IsLifetimeTrackedType(definition.Type, definition.ResolvedType, isFixedStorage: false, scope)
-			&& (IsEscapedField(definition) || containingType is ClassDefinition { IsEscaped: true });
+			&& (IsEscapedField(definition) || containingType is ClassDefinition { IsEscaped: true } or ClassDefinition { IsShadow: true });
 		string? fact = escapedInstanceField
 			? MakeLifetimeFact("escaped", definition.Name, "field")
 			: definition.Modifier == FieldModifier.Static

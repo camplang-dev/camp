@@ -8,7 +8,7 @@ public sealed record ParseDiagnostic(TokenRange? Range, string Message, string? 
 public sealed class CampParser
 {
 	static readonly string[] TypeDeclarationKeywords = ["struct", "class", "interface", "params", "enum", "newtype"];
-	static readonly string[] TypeDeclarationDeclarators = ["export", "internal", "public", "extern", "virtual", "sealed", "abstract", "fixed", "escaped"];
+	static readonly string[] TypeDeclarationDeclarators = ["export", "internal", "public", "extern", "virtual", "sealed", "abstract", "fixed", "escaped", "shadow"];
 	static readonly string[] MemberDeclarators = ["export", "internal", "public", "extern", "static", "virtual", "override", "sealed", "abstract", "async", "fixed", "inline"];
 	static readonly string[] ParameterDeclaratorKeywords = ["overload", "in", "out", "thrown", "upon"];
 	static readonly string[] TypeDeclaratorKeywords = ["const", "constof", "volatile", "escaped", "scoped", "unscoped"];

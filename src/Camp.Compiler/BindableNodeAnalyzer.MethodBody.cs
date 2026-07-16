@@ -4527,7 +4527,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		string receiverDefinitionName = BaseTypeName(StripLifetimeQualifiers(TryGetPointerElementType(receiverType) ?? receiverType));
 		return typeDefinitions.TryGetValue(receiverDefinitionName, out TypeDefinition? definition)
-			&& definition is ClassDefinition { IsEscaped: true } or ClassDefinition { Extern: not null } or InterfaceDefinition { IsEscaped: true };
+			&& definition is ClassDefinition { IsEscaped: true } or ClassDefinition { IsShadow: true } or ClassDefinition { Extern: not null } or InterfaceDefinition { IsEscaped: true };
 	}
 
 	bool IsTypeReferenceExpression(Expression? expression)

@@ -1,0 +1,14 @@
+shadow struct BadStruct
+{
+}
+
+shadow interface BadInterface
+{
+}
+
+shadow newtype BadNewtype: nint;
+
+shadow enum BadEnum
+{
+	VALUE
+}

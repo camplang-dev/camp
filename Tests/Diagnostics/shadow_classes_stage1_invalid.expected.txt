@@ -1,0 +1,8 @@
+tests/Diagnostics/shadow_classes_stage1_invalid.camp(10,14): error: Shadow class 'MissingBase' must declare a direct base class.
+tests/Diagnostics/shadow_classes_stage1_invalid.camp(10,14): error: Shadow class 'MissingBase' requires a visible @getshadow method on itself or a base class.
+tests/Diagnostics/shadow_classes_stage1_invalid.camp(10,14): error: Shadow class 'MissingBase' requires a visible @setshadow method on itself or a base class.
+tests/Diagnostics/shadow_classes_stage1_invalid.camp(14,21): error: Shadow classes cannot be sealed.
+tests/Diagnostics/shadow_classes_stage1_invalid.camp(20,3): error: Shadow classes cannot declare destructors; use 'delete shadow' in an instance method instead.
+tests/Diagnostics/shadow_classes_stage1_invalid.camp(29,14): error: Shadow class 'MissingHooks' requires a visible @getshadow method on itself or a base class.
+tests/Diagnostics/shadow_classes_stage1_invalid.camp(29,14): error: Shadow class 'MissingHooks' requires a visible @setshadow method on itself or a base class.
+tests/Diagnostics/shadow_classes_stage1_invalid.camp(45,14): error: Shadow class 'AmbiguousGetHook' has multiple visible @getshadow methods.

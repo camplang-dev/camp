@@ -237,6 +237,47 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	void ValidateShadowClasses()
+	{
+		foreach (TypeAnalysisInfo info in typeInfos.Values)
+			if (info.Definition is ClassDefinition classDefinition && classDefinition.IsShadow)
+				ValidateShadowClass(classDefinition);
+	}
+
+	void ValidateShadowClass(ClassDefinition definition)
+	{
+		if (definition.Modifier == ClassModifier.Sealed)
+			Report(GetNameRange(definition), "Shadow classes cannot be sealed.");
+
+		if (GetDirectBaseClass(definition) is null)
+			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' must declare a direct base class.");
+
+		foreach (FunctionDefinition function in definition.Functions)
+			if (IsDestructorFunction(function))
+				Report(GetNameRange(function), "Shadow classes cannot declare destructors; use 'delete shadow' in an instance method instead.");
+
+		List<FunctionDefinition> getHooks = FindShadowHooks(definition, "@getshadow");
+		List<FunctionDefinition> setHooks = FindShadowHooks(definition, "@setshadow");
+		if (getHooks.Count == 0)
+			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' requires a visible @getshadow method on itself or a base class.");
+		else if (getHooks.Count > 1)
+			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' has multiple visible @getshadow methods.");
+		if (setHooks.Count == 0)
+			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' requires a visible @setshadow method on itself or a base class.");
+		else if (setHooks.Count > 1)
+			Report(GetNameRange(definition), $"Shadow class '{definition.Name}' has multiple visible @setshadow methods.");
+	}
+
+	List<FunctionDefinition> FindShadowHooks(ClassDefinition definition, string attributeName)
+	{
+		List<FunctionDefinition> hooks = [];
+		foreach (ClassDefinition candidate in EnumerateClassAndBaseDefinitions(definition))
+			foreach (FunctionDefinition function in candidate.Functions)
+				if (HasAttribute(function.Attributes, attributeName))
+					hooks.Add(function);
+		return hooks;
+	}
+
 	void EnsureInterfaceImplemented(TypeDefinition implementation, InterfaceDefinition interfaceDefinition)
 	{
 		if (InterfaceRequiresConstructor(interfaceDefinition) && implementation is ClassDefinition { Modifier: not ClassModifier.Sealed })

@@ -184,6 +184,8 @@ public sealed class BindableNodeCodeSerializer
 			writer.Write("extern ");
 		if ((!apiHeader || !IsVisibleInApiSurface(definition)) && definition.Modifier != ClassModifier.None)
 			writer.Write($"{Lower(definition.Modifier)} ");
+		if (ShouldWriteShadowModifier(definition))
+			writer.Write("shadow ");
 		writer.Write("class ");
 		writer.Write(definition.Name);
 		WriteGenericParameters(definition.GenericParameters);
@@ -1230,6 +1232,51 @@ public sealed class BindableNodeCodeSerializer
 	{
 		return definition.Export is not null
 			|| apiSurface == CampApiSurfaceKind.Public && definition.Public is not null;
+	}
+
+	bool ShouldWriteShadowModifier(ClassDefinition definition)
+	{
+		if (!definition.IsShadow)
+			return false;
+		if (!apiHeader || !IsVisibleInApiSurface(definition))
+			return true;
+		return HasExportedShadowHook(definition, "@getshadow") && HasExportedShadowHook(definition, "@setshadow");
+	}
+
+	static bool HasExportedShadowHook(ClassDefinition definition, string attributeName)
+	{
+		foreach (ClassDefinition candidate in EnumerateClassAndBases(definition))
+			foreach (FunctionDefinition function in candidate.Functions)
+				if (function.Export is not null && HasAttribute(function.Attributes, attributeName))
+					return true;
+		return false;
+	}
+
+	static IEnumerable<ClassDefinition> EnumerateClassAndBases(ClassDefinition definition)
+	{
+		for (ClassDefinition? current = definition; current is not null; current = GetDirectBaseClass(current))
+			yield return current;
+	}
+
+	static ClassDefinition? GetDirectBaseClass(ClassDefinition definition)
+	{
+		foreach (TypeReference baseType in definition.BaseTypes)
+			if (baseType is TypeDefinitionReference { Definition: ClassDefinition baseClass })
+				return baseClass;
+		return null;
+	}
+
+	static bool HasAttribute(List<AttributeConstructor> attributes, string name)
+	{
+		foreach (AttributeConstructor attribute in attributes)
+			if (AttributeNameEquals(attribute.Name, name))
+				return true;
+		return false;
+	}
+
+	static bool AttributeNameEquals(string actual, string expected)
+	{
+		return actual == expected || actual.TrimStart('@') == expected.TrimStart('@');
 	}
 
 	bool ShouldWriteExternPrefix(Definition definition)

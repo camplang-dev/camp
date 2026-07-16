@@ -1089,6 +1089,7 @@ public sealed partial class BindableNodeBuilder
 				case "abstract":
 				case "sealed":
 				case "escaped":
+				case "shadow":
 					Report(declarator, $"'{declarator.Keyword.Value.Value}' is not a valid struct declarator.");
 					break;
 
@@ -1137,6 +1138,13 @@ public sealed partial class BindableNodeBuilder
 					definition.IsEscaped = true;
 					break;
 
+				case "shadow":
+					if (definition.IsShadow)
+						Report(declarator, "Duplicate 'shadow' declarator.");
+
+					definition.IsShadow = true;
+					break;
+
 				case "fixed":
 					Report(declarator, "'fixed' is not a valid class declarator.");
 					break;
@@ -1178,6 +1186,7 @@ public sealed partial class BindableNodeBuilder
 				case "abstract":
 				case "sealed":
 				case "fixed":
+				case "shadow":
 					Report(declarator, $"'{declarator.Keyword.Value.Value}' is not a valid interface declarator.");
 					break;
 
@@ -1236,6 +1245,7 @@ public sealed partial class BindableNodeBuilder
 				case "sealed":
 				case "fixed":
 				case "escaped":
+				case "shadow":
 					Report(declarator, $"'{declarator.Keyword.Value.Value}' is not a valid {typeKind} declarator.");
 					break;
 

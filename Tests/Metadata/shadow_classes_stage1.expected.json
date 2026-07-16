@@ -1,0 +1,66 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "shadow_classes_stage1"
+  },
+  "view": {
+    "visibility": "all",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "class:ExportedHookBase",
+      "kind": "class",
+      "name": "ExportedHookBase",
+      "visibility": "export",
+      "modifier": "abstract",
+      "functions": [
+        {
+          "id": "class:ExportedHookBase/function:getShadow",
+          "name": "getShadow",
+          "visibility": "export",
+          "returnType": "escaped void*",
+          "propertyName": "Shadow",
+          "metadata": [
+            {
+              "name": "getshadow"
+            }
+          ]
+        },
+        {
+          "id": "class:ExportedHookBase/function:setShadow",
+          "name": "setShadow",
+          "visibility": "export",
+          "returnType": "void",
+          "propertyName": "Shadow",
+          "propertyValueParam": "value",
+          "parameters": [
+            {
+              "id": "class:ExportedHookBase/function:setShadow/parameter:value",
+              "name": "value",
+              "type": "escaped void*"
+            }
+          ],
+          "metadata": [
+            {
+              "name": "setshadow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "class:ExportedShadow",
+      "kind": "class",
+      "name": "ExportedShadow",
+      "visibility": "export",
+      "modifier": "abstract",
+      "shadow": true,
+      "baseTypes": [
+        "ExportedHookBase"
+      ]
+    }
+  ]
+}

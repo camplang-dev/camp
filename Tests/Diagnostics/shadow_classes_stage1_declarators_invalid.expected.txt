@@ -1,0 +1,4 @@
+tests/Diagnostics/shadow_classes_stage1_declarators_invalid.camp(1,1): error: 'shadow' is not a valid struct declarator.
+tests/Diagnostics/shadow_classes_stage1_declarators_invalid.camp(5,1): error: 'shadow' is not a valid interface declarator.
+tests/Diagnostics/shadow_classes_stage1_declarators_invalid.camp(9,1): error: 'shadow' is not a valid newtype declarator.
+tests/Diagnostics/shadow_classes_stage1_declarators_invalid.camp(11,1): error: 'shadow' is not a valid enum declarator.

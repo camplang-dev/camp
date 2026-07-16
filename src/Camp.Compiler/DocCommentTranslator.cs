@@ -31,7 +31,9 @@ public static class DocCommentTranslator
 		"index",
 		"symbol",
 		"nosuffix",
-		"createWithAllocator"
+		"createWithAllocator",
+		"getshadow",
+		"setshadow"
 	};
 
 	static readonly Regex ChildTargetPattern = new(@"^-\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$", RegexOptions.Compiled);

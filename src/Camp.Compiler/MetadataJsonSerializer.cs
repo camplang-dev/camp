@@ -277,6 +277,8 @@ public static class MetadataJsonSerializer
 				case ClassDefinition classDefinition:
 					if (!IsExportApiView && classDefinition.Modifier != ClassModifier.None)
 						json.WriteString("modifier", classDefinition.Modifier.ToString().ToLowerInvariant());
+					if (ShouldWriteShadowMarker(classDefinition))
+						json.WriteBoolean("shadow", true);
 					IReadOnlyList<TypeReference> classBaseTypes = IsExportApiView
 						? GetApiBaseTypes(classDefinition)
 						: classDefinition.BaseTypes;
@@ -918,6 +920,51 @@ public static class MetadataJsonSerializer
 		bool IsApiHeaderDefinition(Definition definition)
 		{
 			return compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) && owner.IsApiHeader;
+		}
+
+		bool ShouldWriteShadowMarker(ClassDefinition definition)
+		{
+			if (!definition.IsShadow)
+				return false;
+			if (!IsExportApiView)
+				return true;
+			return HasExportedShadowHook(definition, "@getshadow") && HasExportedShadowHook(definition, "@setshadow");
+		}
+
+		static bool HasExportedShadowHook(ClassDefinition definition, string attributeName)
+		{
+			foreach (ClassDefinition candidate in EnumerateClassAndBases(definition))
+				foreach (FunctionDefinition function in candidate.Functions)
+					if (function.Export is not null && HasAttribute(function.Attributes, attributeName))
+						return true;
+			return false;
+		}
+
+		static IEnumerable<ClassDefinition> EnumerateClassAndBases(ClassDefinition definition)
+		{
+			for (ClassDefinition? current = definition; current is not null; current = GetDirectBaseClass(current))
+				yield return current;
+		}
+
+		static ClassDefinition? GetDirectBaseClass(ClassDefinition definition)
+		{
+			foreach (TypeReference baseType in definition.BaseTypes)
+				if (baseType is TypeDefinitionReference { Definition: ClassDefinition baseClass })
+					return baseClass;
+			return null;
+		}
+
+		static bool HasAttribute(List<AttributeConstructor> attributes, string name)
+		{
+			foreach (AttributeConstructor attribute in attributes)
+				if (AttributeNameEquals(attribute.Name, name))
+					return true;
+			return false;
+		}
+
+		static bool AttributeNameEquals(string actual, string expected)
+		{
+			return actual == expected || actual.TrimStart('@') == expected.TrimStart('@');
 		}
 
 		static bool IsGeneratedDefinition(Definition definition)
