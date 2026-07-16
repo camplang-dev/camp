@@ -377,8 +377,13 @@ sealed class FakeDebugBackend : IDebugBackend
 	{
 		return reference switch
 		{
-			100 => [new DebugVariable("argc", "0", "int", 0)],
+			100 => [new DebugVariable("args", "{ elements, length }", "string[]", 300)],
 			200 => [new DebugVariable("answer", "42", "int", 0)],
+			300 =>
+			[
+				new DebugVariable("elements", "0x00000000", "string*", 0),
+				new DebugVariable("length", "0", "nuint", 0)
+			],
 			_ => []
 		};
 	}
@@ -388,8 +393,8 @@ sealed class FakeDebugBackend : IDebugBackend
 		return expression switch
 		{
 			"answer" => new DebugVariable("answer", "42", "int", 0),
-			"argc" => new DebugVariable("argc", "0", "int", 0),
-			_ => new DebugVariable(expression, "<unavailable>", null, 0)
+			"args" => new DebugVariable("args", "{ elements, length }", "string[]", 300),
+			_ => new DebugVariable(expression, "Unsupported expression", null, 0)
 		};
 	}
 }
@@ -398,8 +403,13 @@ sealed class LldbDebugBackend : IDebugBackend
 {
 	readonly List<(string Source, int Line)> pendingBreakpoints = [];
 	readonly List<DebugStackFrame> lastFrames = [];
+	readonly Dictionary<int, IReadOnlyList<DebugVariable>> variableReferences = new();
+	readonly Dictionary<string, DebugVariable> evaluateVariables = new(StringComparer.Ordinal);
 	string executable = "";
 	string buildDirectory = "";
+	DebugMapDocument? debugMap;
+	string? stoppedNativeSymbol;
+	int nextVariableReference = 1000;
 
 	public bool StopOnEntry { get; private set; }
 	public bool IsStopped { get; private set; }
@@ -416,7 +426,9 @@ sealed class LldbDebugBackend : IDebugBackend
 		StopOnEntry = options.StopOnEntry;
 		buildDirectory = Path.Combine(Path.GetTempPath(), "camp-dap-lldb-" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(buildDirectory);
-		executable = await BuildExecutable(options.Project, options.Cwd, buildDirectory);
+		DebugBuildResult build = await BuildExecutable(options.Project, options.Cwd, buildDirectory);
+		executable = build.Executable;
+		debugMap = build.DebugMapPath is null ? null : DebugMapDocument.Load(build.DebugMapPath);
 		if (StopOnEntry)
 			pendingBreakpoints.Add(("", 0));
 	}
@@ -436,9 +448,10 @@ sealed class LldbDebugBackend : IDebugBackend
 
 	public async Task ConfigurationDone()
 	{
-		string output = await RunLldbBatch("run", "thread backtrace");
+		string output = await RunLldbBatch("run", "thread backtrace", "frame variable --show-types");
 		IsStopped = output.Contains(" stopped", StringComparison.OrdinalIgnoreCase);
 		UpdateFramesFromOutput(output);
+		UpdateVariablesFromOutput(output);
 	}
 
 	public async Task Continue(int threadId)
@@ -461,9 +474,10 @@ sealed class LldbDebugBackend : IDebugBackend
 			"stepOut" => "thread step-out",
 			_ => "thread step-over"
 		};
-		string output = await RunLldbBatch("run", lldbCommand, "thread backtrace");
+		string output = await RunLldbBatch("run", lldbCommand, "thread backtrace", "frame variable --show-types");
 		IsStopped = output.Contains(" stopped", StringComparison.OrdinalIgnoreCase);
 		UpdateFramesFromOutput(output);
+		UpdateVariablesFromOutput(output);
 	}
 
 	public IReadOnlyList<DebugStackFrame> GetStackTrace()
@@ -479,11 +493,14 @@ sealed class LldbDebugBackend : IDebugBackend
 		new DebugScope("Locals", 200)
 	];
 
-	public IReadOnlyList<DebugVariable> GetVariables(int reference) => [];
+	public IReadOnlyList<DebugVariable> GetVariables(int reference) =>
+		variableReferences.TryGetValue(reference, out IReadOnlyList<DebugVariable>? variables) ? variables : [];
 
 	public DebugVariable Evaluate(string expression)
 	{
-		return new DebugVariable(expression, "<unavailable>", null, 0);
+		if (evaluateVariables.TryGetValue(expression, out DebugVariable? variable))
+			return variable with { Name = expression };
+		return new DebugVariable(expression, "Unsupported expression", null, 0);
 	}
 
 	public async Task Disconnect()
@@ -511,6 +528,8 @@ sealed class LldbDebugBackend : IDebugBackend
 					.FirstOrDefault(source => Path.GetFileName(source).Equals(path, StringComparison.OrdinalIgnoreCase)) ?? path;
 			string name = ParseFrameName(line);
 			frames.Add(new DebugStackFrame(frames.Count + 1, name, path, sourceLine, column));
+			if (frames.Count == 1)
+				stoppedNativeSymbol = name;
 		}
 		if (frames.Count > 0)
 		{
@@ -542,7 +561,9 @@ sealed class LldbDebugBackend : IDebugBackend
 			int end = line.IndexOf(' ', tick);
 			string name = end > tick ? line[(tick + 1)..end] : line[(tick + 1)..];
 			int plus = name.IndexOf('+');
-			return (plus > 0 ? name[..plus] : name).Trim();
+			name = plus > 0 ? name[..plus] : name;
+			int paren = name.IndexOf('(');
+			return (paren > 0 ? name[..paren] : name).Trim();
 		}
 		int frame = line.IndexOf("frame #", StringComparison.Ordinal);
 		return frame >= 0 ? line[frame..].Trim() : "frame";
@@ -553,7 +574,86 @@ sealed class LldbDebugBackend : IDebugBackend
 		return output.Replace("(lldb) ", "", StringComparison.Ordinal).Trim();
 	}
 
-	static async Task<string> BuildExecutable(string project, string cwd, string outDirectory)
+	void UpdateVariablesFromOutput(string output)
+	{
+		Dictionary<string, LldbNativeVariable> nativeVariables = ParseNativeVariables(output);
+		variableReferences.Clear();
+		evaluateVariables.Clear();
+		variableReferences[100] = [];
+		variableReferences[200] = [];
+		if (debugMap is null || stoppedNativeSymbol is null)
+			return;
+		DebugMapFunction? function = debugMap.FindFunction(stoppedNativeSymbol);
+		if (function is null)
+			return;
+
+		HashSet<string> hidden = new(StringComparer.Ordinal);
+		Dictionary<string, DebugVariable> parameters = new(StringComparer.Ordinal);
+		Dictionary<string, DebugVariable> locals = new(StringComparer.Ordinal);
+		foreach (DebugMapVariable variable in function.Variables)
+		{
+			if (!nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable native))
+				continue;
+			if (variable.CampName.EndsWith("_length", StringComparison.Ordinal))
+			{
+				string baseName = variable.CampName[..^"_length".Length];
+				DebugMapVariable? baseVariable = function.Variables.FirstOrDefault(item => item.CampName == baseName);
+				if (baseVariable is not null && nativeVariables.TryGetValue(baseVariable.NativeName, out LldbNativeVariable baseNative))
+				{
+					int reference = nextVariableReference++;
+					DebugVariable structured = new(baseName, "{ elements, length }", baseVariable.Type, reference);
+					variableReferences[reference] =
+					[
+						new DebugVariable("elements", baseNative.Value, baseNative.Type, 0),
+						new DebugVariable("length", native.Value, native.Type, 0)
+					];
+					AddVariable(baseVariable.Kind, structured, parameters, locals);
+					evaluateVariables[baseName] = structured;
+					hidden.Add(baseName);
+					hidden.Add(variable.CampName);
+				}
+				continue;
+			}
+			if (hidden.Contains(variable.CampName))
+				continue;
+			DebugVariable debugVariable = new(variable.CampName, native.Value, variable.Type ?? native.Type, 0);
+			AddVariable(variable.Kind, debugVariable, parameters, locals);
+			evaluateVariables[variable.CampName] = debugVariable;
+		}
+		variableReferences[100] = parameters.Values.ToList();
+		variableReferences[200] = locals.Values.ToList();
+	}
+
+	static void AddVariable(string kind, DebugVariable variable, Dictionary<string, DebugVariable> parameters, Dictionary<string, DebugVariable> locals)
+	{
+		if (kind.Equals("parameter", StringComparison.OrdinalIgnoreCase))
+			parameters[variable.Name] = variable;
+		else
+			locals[variable.Name] = variable;
+	}
+
+	static Dictionary<string, LldbNativeVariable> ParseNativeVariables(string output)
+	{
+		Dictionary<string, LldbNativeVariable> variables = new(StringComparer.Ordinal);
+		foreach (string rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+		{
+			string line = rawLine.Trim();
+			if (!line.StartsWith('('))
+				continue;
+			int close = line.IndexOf(')');
+			int equals = line.IndexOf(" = ", StringComparison.Ordinal);
+			if (close < 0 || equals < close)
+				continue;
+			string type = line[1..close].Trim();
+			string name = line[(close + 1)..equals].Trim();
+			string value = line[(equals + 3)..].Trim();
+			if (name.Length > 0)
+				variables[name] = new LldbNativeVariable(type, value);
+		}
+		return variables;
+	}
+
+	static async Task<DebugBuildResult> BuildExecutable(string project, string cwd, string outDirectory)
 	{
 		string campc = Path.Combine(FindRepositoryRoot(), "bin", "campc");
 		if (!File.Exists(campc))
@@ -582,7 +682,8 @@ sealed class LldbDebugBackend : IDebugBackend
 			.FirstOrDefault(path => IsExecutable(path));
 		if (executable is null)
 			throw new InvalidOperationException("Camp build completed but no executable artifact was found." + Environment.NewLine + stdout);
-		return executable;
+		string? debugMap = Directory.EnumerateFiles(outDirectory, "*.campdebug.json", SearchOption.AllDirectories).FirstOrDefault();
+		return new DebugBuildResult(executable, debugMap);
 	}
 
 	static bool IsExecutable(string path)
@@ -668,3 +769,48 @@ sealed record DebugBreakpoint(int Line, bool Verified, string? Message = null);
 sealed record DebugStackFrame(int Id, string Name, string SourcePath, int Line, int Column);
 sealed record DebugScope(string Name, int Reference);
 sealed record DebugVariable(string Name, string Value, string? Type, int Reference);
+sealed record DebugBuildResult(string Executable, string? DebugMapPath);
+sealed record LldbNativeVariable(string Type, string Value);
+
+sealed class DebugMapDocument(IReadOnlyList<DebugMapFunction> functions)
+{
+	public DebugMapFunction? FindFunction(string nativeSymbol)
+	{
+		return functions.FirstOrDefault(function => function.NativeSymbol == nativeSymbol || function.CampFunction == nativeSymbol);
+	}
+
+	public static DebugMapDocument Load(string path)
+	{
+		using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+		List<DebugMapFunction> functions = [];
+		if (!document.RootElement.TryGetProperty("entries", out JsonElement entries) || entries.ValueKind is not JsonValueKind.Array)
+			return new DebugMapDocument(functions);
+		foreach (JsonElement entry in entries.EnumerateArray())
+		{
+			string? kind = entry.TryGetProperty("kind", out JsonElement kindElement) ? kindElement.GetString() : null;
+			if (kind != "function")
+				continue;
+			string? campFunction = entry.TryGetProperty("campFunction", out JsonElement campElement) ? campElement.GetString() : null;
+			string? nativeSymbol = entry.TryGetProperty("nativeSymbol", out JsonElement nativeElement) ? nativeElement.GetString() : null;
+			List<DebugMapVariable> variables = [];
+			if (entry.TryGetProperty("variables", out JsonElement variablesElement) && variablesElement.ValueKind is JsonValueKind.Array)
+			{
+				foreach (JsonElement variable in variablesElement.EnumerateArray())
+				{
+					string campName = variable.TryGetProperty("campName", out JsonElement campNameElement) ? campNameElement.GetString() ?? "" : "";
+					string nativeName = variable.TryGetProperty("nativeName", out JsonElement nativeNameElement) ? nativeNameElement.GetString() ?? "" : "";
+					string? type = variable.TryGetProperty("type", out JsonElement typeElement) ? typeElement.GetString() : null;
+					string variableKind = variable.TryGetProperty("kind", out JsonElement variableKindElement) ? variableKindElement.GetString() ?? "local" : "local";
+					if (campName.Length > 0 && nativeName.Length > 0)
+						variables.Add(new DebugMapVariable(campName, nativeName, type, variableKind));
+				}
+			}
+			if (nativeSymbol is not null)
+				functions.Add(new DebugMapFunction(campFunction, nativeSymbol, variables));
+		}
+		return new DebugMapDocument(functions);
+	}
+}
+
+sealed record DebugMapFunction(string? CampFunction, string NativeSymbol, IReadOnlyList<DebugMapVariable> Variables);
+sealed record DebugMapVariable(string CampName, string NativeName, string? Type, string Kind);

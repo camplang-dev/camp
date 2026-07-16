@@ -179,7 +179,7 @@ Deliver the first real debugger backend on the platform easiest to iterate local
 - ~~Targeted tests and full local suite pass.~~
 - ~~Commit.~~
 
-## Phase 4 — Local Inspection And Evaluation V1
+## Phase 4 — Local Inspection And Evaluation V1 — Complete
 
 ### Goals
 
@@ -213,12 +213,12 @@ Make stopped debug sessions useful by showing Camp-named locals and parameters.
 
 ### Completion Criteria
 
-- Stopped sessions show simple parameters and locals using Camp names.
-- Simple local/parameter evaluation works.
-- Expanded forms do not appear as random hidden native slots when metadata is available.
-- Unsupported evaluation fails gracefully.
-- Targeted tests and full local suite pass.
-- Commit.
+- ~~Stopped sessions show simple parameters and locals using Camp names.~~
+- ~~Simple local/parameter evaluation works.~~
+- ~~Expanded forms do not appear as random hidden native slots when metadata is available.~~
+- ~~Unsupported evaluation fails gracefully.~~
+- ~~Targeted tests and full local suite pass.~~
+- ~~Commit.~~
 
 ## Phase 5 — VS Code Debug Integration
 

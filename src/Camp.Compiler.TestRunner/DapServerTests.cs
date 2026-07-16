@@ -68,12 +68,22 @@ public sealed class DapServerTests
 		Assert.Equal("Parameters", scopes["body"]?["scopes"]?[0]?["name"]?.GetValue<string>());
 		Assert.Equal("Locals", scopes["body"]?["scopes"]?[1]?["name"]?.GetValue<string>());
 
+		JsonNode parameters = dap.Request("variables", new { variablesReference = 100 });
+		Assert.Equal("args", parameters["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
+		Assert.Equal("{ elements, length }", parameters["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
+		int argsReference = parameters["body"]?["variables"]?[0]?["variablesReference"]?.GetValue<int>() ?? 0;
+		JsonNode argsChildren = dap.Request("variables", new { variablesReference = argsReference });
+		Assert.Equal("elements", argsChildren["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
+		Assert.Equal("length", argsChildren["body"]?["variables"]?[1]?["name"]?.GetValue<string>());
+
 		JsonNode variables = dap.Request("variables", new { variablesReference = 200 });
 		Assert.Equal("answer", variables["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
 		Assert.Equal("42", variables["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
 
 		JsonNode evaluation = dap.Request("evaluate", new { expression = "answer", frameId = 1, context = "hover" });
 		Assert.Equal("42", evaluation["body"]?["result"]?.GetValue<string>());
+		JsonNode unsupported = dap.Request("evaluate", new { expression = "missing + 1", frameId = 1, context = "watch" });
+		Assert.Equal("Unsupported expression", unsupported["body"]?["result"]?.GetValue<string>());
 
 		JsonNode continued = dap.Request("continue", new { threadId = 1 });
 		Assert.True(continued["body"]?["allThreadsContinued"]?.GetValue<bool>());
@@ -116,7 +126,8 @@ public sealed class DapServerTests
 		File.WriteAllText(source, string.Join(Environment.NewLine,
 			"export int helper(int value)",
 			"{",
-			"\treturn value + 1;",
+			"\tint local = value + 1;",
+			"\treturn local;",
 			"}",
 			"",
 			"export int main(string[] args)",
@@ -143,7 +154,7 @@ public sealed class DapServerTests
 		JsonNode breakpoints = dap.Request("setBreakpoints", new
 		{
 			source = new { path = source },
-			breakpoints = new[] { new { line = 8 } }
+			breakpoints = new[] { new { line = 4 } }
 		});
 		Assert.True(
 			breakpoints["body"]?["breakpoints"]?[0]?["verified"]?.GetValue<bool>(),
@@ -157,7 +168,19 @@ public sealed class DapServerTests
 		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
 		Assert.NotNull(frame);
 		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
-		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 7, 9);
+		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 3, 5);
+
+		JsonNode lldbScopes = dap.Request("scopes", new { frameId = frame?["id"]?.GetValue<int>() ?? 1 });
+		JsonNode lldbParameters = dap.Request("variables", new { variablesReference = lldbScopes["body"]?["scopes"]?[0]?["variablesReference"]?.GetValue<int>() ?? 100 });
+		Assert.Equal("value", lldbParameters["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
+		Assert.Equal("41", lldbParameters["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
+		JsonNode lldbLocals = dap.Request("variables", new { variablesReference = lldbScopes["body"]?["scopes"]?[1]?["variablesReference"]?.GetValue<int>() ?? 200 });
+		Assert.Equal("local", lldbLocals["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
+		Assert.Equal("42", lldbLocals["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
+		JsonNode lldbEvaluate = dap.Request("evaluate", new { expression = "local", frameId = 1, context = "watch" });
+		Assert.Equal("42", lldbEvaluate["body"]?["result"]?.GetValue<string>());
+		JsonNode lldbUnsupported = dap.Request("evaluate", new { expression = "local + 1", frameId = 1, context = "watch" });
+		Assert.Equal("Unsupported expression", lldbUnsupported["body"]?["result"]?.GetValue<string>());
 
 		Assert.True(dap.Request("next", new { threadId = 1 })["success"]?.GetValue<bool>());
 		Assert.Equal("stopped", dap.ReadEvent("stopped")["event"]?.GetValue<string>());
