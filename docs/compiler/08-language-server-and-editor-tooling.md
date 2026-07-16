@@ -4,6 +4,11 @@
 over stdio and analyzes source through the same compiler project-loader and
 language-service surfaces used by tests.
 
+Debugging support is provided by the separate `camp-dap` process. See
+[Debug Adapter And VS Code Debugging](10-debug-adapter-and-vscode-debugging.md)
+for debug adapter setup, VS Code launch configuration, and current backend
+limits.
+
 The language server is a tooling layer over the compiler. It does not define
 language semantics, and it should not invent project behavior that `campc` would
 not understand.

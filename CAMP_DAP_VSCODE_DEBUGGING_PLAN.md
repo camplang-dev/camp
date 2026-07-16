@@ -282,7 +282,7 @@ Expose Camp debugging through the existing VS Code extension in the normal VS Co
 - ~~`npm run check`, targeted tests, and full local suite pass.~~
 - ~~Commit.~~
 
-## Phase 6 — Documentation And First Usable Debugging Guide
+## Phase 6 — Documentation And First Usable Debugging Guide — Complete
 
 ### Goals
 
@@ -314,10 +314,10 @@ Document the macOS/LLDB MVP before adding more backends, so users and future age
 
 ### Completion Criteria
 
-- Compiler docs and VS Code README explain how to install, configure, and use Camp debugging.
-- Known limitations are explicit.
-- Full local suite passes.
-- Commit.
+- ~~Compiler docs and VS Code README explain how to install, configure, and use Camp debugging.~~
+- ~~Known limitations are explicit.~~
+- ~~Full local suite passes.~~
+- ~~Commit.~~
 
 ## Phase 7 — Linux GDB Backend
 

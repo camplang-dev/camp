@@ -2,7 +2,8 @@
 
 This supplement documents the Camp compiler command line, project/build model,
 package system, target metadata, output layout, metadata JSON, dump modes,
-language-server integration, and standard-library build integration.
+language-server integration, debug adapter integration, and standard-library
+build integration.
 
 It is for Camp users who build projects and for tool authors who consume
 compiler artifacts. Compiler-internal semantic lowering rules live in
@@ -155,3 +156,13 @@ guidance lives in the compiler development guide and project README files.
 - Package Cache Inputs
 - Runtime Tests And Scratch Cache
 - Documentation Boundary
+
+## 10. [Debug Adapter And VS Code Debugging](10-debug-adapter-and-vscode-debugging.md)
+
+- Build Requirements
+- Debug Artifacts
+- Debug Adapter
+- macOS LLDB MVP
+- VS Code Integration
+- Known V1 Limits
+- Testing Guidance
