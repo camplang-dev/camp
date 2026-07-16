@@ -319,7 +319,7 @@ Document the macOS/LLDB MVP before adding more backends, so users and future age
 - ~~Full local suite passes.~~
 - ~~Commit.~~
 
-## Phase 7 — Linux GDB Backend
+## Phase 7 — Linux GDB Backend — Complete
 
 ### Goals
 
@@ -349,11 +349,11 @@ Add the second real backend after the Camp debug map and LLDB implementation hav
 
 ### Completion Criteria
 
-- A simple Camp program can be debugged through `camp-dap` on Linux with GDB.
-- Breakpoints and stack traces map to Camp source in simple cases.
-- Local/parameter inspection works at least as well as the LLDB v1 equivalent.
-- Full local suite and Linux lane pass.
-- Commit.
+- ~~A simple Camp program can be debugged through `camp-dap` on Linux with GDB.~~
+- ~~Breakpoints and stack traces map to Camp source in simple cases.~~
+- ~~Local/parameter inspection works at least as well as the LLDB v1 equivalent.~~
+- ~~Full local suite and Linux lane pass.~~
+- ~~Commit.~~
 
 ## Phase 8 — Windows CDB Backend
 

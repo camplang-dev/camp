@@ -190,6 +190,83 @@ public sealed class DapServerTests
 		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
 	}
 
+	[Fact]
+	public void Dap_gdb_backend_launches_and_stops_on_camp_breakpoint_when_available()
+	{
+		if (!OperatingSystem.IsLinux() || !CommandAvailable("gdb"))
+			return;
+
+		string root = FindRepositoryRoot();
+		string temp = Path.Combine(Path.GetTempPath(), "camp-dap-gdb-test-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(temp);
+		string source = Path.Combine(temp, "main.camp");
+		File.WriteAllText(source, string.Join(Environment.NewLine,
+			"export int helper(int value)",
+			"{",
+			"\tint local = value + 1;",
+			"\treturn local;",
+			"}",
+			"",
+			"export int main(string[] args)",
+			"{",
+			"\tint result = helper(41);",
+			"\treturn result;",
+			"}",
+			""));
+
+		using DapProcess dap = DapProcess.Start();
+		Assert.True(dap.Request("initialize", new { adapterID = "camp" })["success"]?.GetValue<bool>());
+
+		JsonNode launch = dap.Request("launch", new
+		{
+			project = source,
+			cwd = root,
+			args = Array.Empty<string>(),
+			stopOnEntry = false,
+			backend = "auto"
+		});
+		Assert.True(launch["success"]?.GetValue<bool>(), launch["message"]?.GetValue<string>());
+		dap.ReadEvent("initialized");
+
+		JsonNode breakpoints = dap.Request("setBreakpoints", new
+		{
+			source = new { path = source },
+			breakpoints = new[] { new { line = 4 } }
+		});
+		Assert.True(
+			breakpoints["body"]?["breakpoints"]?[0]?["verified"]?.GetValue<bool>(),
+			breakpoints["body"]?["breakpoints"]?[0]?["message"]?.GetValue<string>());
+
+		Assert.True(dap.Request("configurationDone", new { })["success"]?.GetValue<bool>());
+		JsonNode stopped = dap.ReadEvent("stopped");
+		Assert.Equal("breakpoint", stopped["body"]?["reason"]?.GetValue<string>());
+
+		JsonNode stack = dap.Request("stackTrace", new { threadId = 1 });
+		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
+		Assert.NotNull(frame);
+		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
+		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 3, 5);
+
+		JsonNode gdbScopes = dap.Request("scopes", new { frameId = frame?["id"]?.GetValue<int>() ?? 1 });
+		JsonNode gdbParameters = dap.Request("variables", new { variablesReference = gdbScopes["body"]?["scopes"]?[0]?["variablesReference"]?.GetValue<int>() ?? 100 });
+		Assert.Equal("value", gdbParameters["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
+		Assert.Equal("41", gdbParameters["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
+		JsonNode gdbLocals = dap.Request("variables", new { variablesReference = gdbScopes["body"]?["scopes"]?[1]?["variablesReference"]?.GetValue<int>() ?? 200 });
+		Assert.Equal("local", gdbLocals["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
+		Assert.Equal("42", gdbLocals["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
+		JsonNode gdbEvaluate = dap.Request("evaluate", new { expression = "local", frameId = 1, context = "watch" });
+		Assert.Equal("42", gdbEvaluate["body"]?["result"]?.GetValue<string>());
+		JsonNode gdbUnsupported = dap.Request("evaluate", new { expression = "local + 1", frameId = 1, context = "watch" });
+		Assert.Equal("Unsupported expression", gdbUnsupported["body"]?["result"]?.GetValue<string>());
+
+		Assert.True(dap.Request("next", new { threadId = 1 })["success"]?.GetValue<bool>());
+		Assert.Equal("stopped", dap.ReadEvent("stopped")["event"]?.GetValue<string>());
+		JsonNode continued = dap.Request("continue", new { threadId = 1 });
+		Assert.True(continued["body"]?["allThreadsContinued"]?.GetValue<bool>());
+		Assert.Equal("continued", dap.ReadEvent("continued")["event"]?.GetValue<string>());
+		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
+	}
+
 	sealed class DapProcess : IDisposable
 	{
 		const int RequestTimeoutMilliseconds = 30000;

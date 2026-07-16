@@ -92,9 +92,11 @@ sealed class DapSession(Stream input, Stream output)
 		return name switch
 		{
 			"auto" when OperatingSystem.IsMacOS() => new LldbDebugBackend(),
+			"auto" when OperatingSystem.IsLinux() => new GdbDebugBackend(),
 			"auto" => throw new InvalidOperationException("Debug backend 'auto' could not select a supported backend for this platform yet."),
 			"fake" => new FakeDebugBackend(),
 			"lldb" => new LldbDebugBackend(),
+			"gdb" => new GdbDebugBackend(),
 			_ => throw new InvalidOperationException($"Debug backend '{name}' is not available in this build yet.")
 		};
 	}
@@ -594,13 +596,13 @@ sealed class LldbDebugBackend : IDebugBackend
 		Dictionary<string, DebugVariable> locals = new(StringComparer.Ordinal);
 		foreach (DebugMapVariable variable in function.Variables)
 		{
-			if (!nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable native))
+			if (!nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable? native))
 				continue;
 			if (variable.CampName.EndsWith("_length", StringComparison.Ordinal))
 			{
 				string baseName = variable.CampName[..^"_length".Length];
 				DebugMapVariable? baseVariable = function.Variables.FirstOrDefault(item => item.CampName == baseName);
-				if (baseVariable is not null && nativeVariables.TryGetValue(baseVariable.NativeName, out LldbNativeVariable baseNative))
+				if (baseVariable is not null && nativeVariables.TryGetValue(baseVariable.NativeName, out LldbNativeVariable? baseNative))
 				{
 					int reference = nextVariableReference++;
 					DebugVariable structured = new(baseName, "{ elements, length }", baseVariable.Type, reference);
@@ -655,7 +657,7 @@ sealed class LldbDebugBackend : IDebugBackend
 		return variables;
 	}
 
-	static async Task<DebugBuildResult> BuildExecutable(string project, string cwd, string outDirectory)
+	internal static async Task<DebugBuildResult> BuildExecutable(string project, string cwd, string outDirectory)
 	{
 		string campc = Path.Combine(FindRepositoryRoot(), "bin", "campc");
 		if (!File.Exists(campc))
@@ -688,7 +690,7 @@ sealed class LldbDebugBackend : IDebugBackend
 		return new DebugBuildResult(executable, debugMap);
 	}
 
-	static bool IsExecutable(string path)
+	internal static bool IsExecutable(string path)
 	{
 		try
 		{
@@ -700,7 +702,7 @@ sealed class LldbDebugBackend : IDebugBackend
 		}
 	}
 
-	static async Task<bool> CommandExists(string command)
+	internal static async Task<bool> CommandExists(string command)
 	{
 		ProcessStartInfo info = new("which", command)
 		{
@@ -753,7 +755,7 @@ sealed class LldbDebugBackend : IDebugBackend
 		return output;
 	}
 
-	static string FindRepositoryRoot()
+	internal static string FindRepositoryRoot()
 	{
 		DirectoryInfo? directory = new(AppContext.BaseDirectory);
 		while (directory is not null)
@@ -763,6 +765,285 @@ sealed class LldbDebugBackend : IDebugBackend
 			directory = directory.Parent;
 		}
 		throw new InvalidOperationException("Could not find repository root.");
+	}
+}
+
+sealed class GdbDebugBackend : IDebugBackend
+{
+	readonly List<(string Source, int Line)> pendingBreakpoints = [];
+	readonly List<DebugStackFrame> lastFrames = [];
+	readonly Dictionary<int, IReadOnlyList<DebugVariable>> variableReferences = new();
+	readonly Dictionary<string, DebugVariable> evaluateVariables = new(StringComparer.Ordinal);
+	string executable = "";
+	string buildDirectory = "";
+	DebugMapDocument? debugMap;
+	string? stoppedNativeSymbol;
+	int nextVariableReference = 2000;
+
+	public bool StopOnEntry { get; private set; }
+	public bool IsStopped { get; private set; }
+
+	public async Task Launch(DebugLaunchOptions options)
+	{
+		if (!OperatingSystem.IsLinux())
+			throw new InvalidOperationException("Debug backend 'gdb' is only available on Linux in this build.");
+		if (!await LldbDebugBackend.CommandExists("gdb"))
+			throw new InvalidOperationException("Debug backend 'gdb' is not available because gdb was not found on PATH.");
+		if (string.IsNullOrWhiteSpace(options.Project))
+			throw new InvalidOperationException("Launch requires a 'project' path.");
+
+		StopOnEntry = options.StopOnEntry;
+		buildDirectory = Path.Combine(Path.GetTempPath(), "camp-dap-gdb-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(buildDirectory);
+		DebugBuildResult build = await LldbDebugBackend.BuildExecutable(options.Project, options.Cwd, buildDirectory);
+		executable = build.Executable;
+		debugMap = build.DebugMapPath is null ? null : DebugMapDocument.Load(build.DebugMapPath);
+		if (StopOnEntry)
+			pendingBreakpoints.Add(("", 0));
+	}
+
+	public async Task<IReadOnlyList<DebugBreakpoint>> SetBreakpoints(string source, IReadOnlyList<int> lines)
+	{
+		List<DebugBreakpoint> results = [];
+		foreach (int line in lines)
+		{
+			pendingBreakpoints.Add((source, line));
+			bool verified = File.Exists(source) && line > 0;
+			results.Add(new DebugBreakpoint(line, verified, verified ? null : "Breakpoint source could not be verified before launch."));
+		}
+		await Task.CompletedTask;
+		return results;
+	}
+
+	public async Task ConfigurationDone()
+	{
+		string output = await RunGdbBatch("run", "bt", "info args", "info locals");
+		IsStopped = output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("Program received signal", StringComparison.OrdinalIgnoreCase);
+		UpdateFramesFromOutput(output);
+		UpdateVariablesFromOutput(output);
+	}
+
+	public async Task Continue(int threadId)
+	{
+		await Task.CompletedTask;
+		IsStopped = false;
+	}
+
+	public async Task Pause(int threadId)
+	{
+		await Task.CompletedTask;
+		IsStopped = true;
+	}
+
+	public async Task Step(string command, int threadId)
+	{
+		string gdbCommand = command switch
+		{
+			"stepIn" => "step",
+			"stepOut" => "finish",
+			_ => "next"
+		};
+		string output = await RunGdbBatch("run", gdbCommand, "bt", "info args", "info locals");
+		IsStopped = output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains(" at ", StringComparison.OrdinalIgnoreCase);
+		UpdateFramesFromOutput(output);
+		UpdateVariablesFromOutput(output);
+	}
+
+	public IReadOnlyList<DebugStackFrame> GetStackTrace()
+	{
+		return lastFrames.Count == 0
+			? [new DebugStackFrame(1, "main", executable, 1, 1)]
+			: lastFrames;
+	}
+
+	public IReadOnlyList<DebugScope> GetScopes(int frameId) =>
+	[
+		new DebugScope("Parameters", 100),
+		new DebugScope("Locals", 200)
+	];
+
+	public IReadOnlyList<DebugVariable> GetVariables(int reference) =>
+		variableReferences.TryGetValue(reference, out IReadOnlyList<DebugVariable>? variables) ? variables : [];
+
+	public DebugVariable Evaluate(string expression)
+	{
+		if (evaluateVariables.TryGetValue(expression, out DebugVariable? variable))
+			return variable with { Name = expression };
+		return new DebugVariable(expression, "Unsupported expression", null, 0);
+	}
+
+	public async Task Disconnect()
+	{
+		await Task.CompletedTask;
+	}
+
+	void UpdateFramesFromOutput(string output)
+	{
+		List<DebugStackFrame> frames = [];
+		foreach (string rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+		{
+			string line = rawLine.Trim();
+			if (!line.StartsWith('#'))
+				continue;
+			int at = line.LastIndexOf(" at ", StringComparison.Ordinal);
+			if (at < 0)
+				continue;
+			string location = line[(at + 4)..].Trim();
+			if (!TryParseGdbLocation(location, out string? path, out int sourceLine))
+				continue;
+			if (!Path.IsPathRooted(path))
+				path = pendingBreakpoints
+					.Select(item => item.Source)
+					.FirstOrDefault(source => Path.GetFileName(source).Equals(path, StringComparison.OrdinalIgnoreCase)) ?? path;
+			string name = ParseGdbFrameName(line);
+			frames.Add(new DebugStackFrame(frames.Count + 1, name, path, sourceLine, 1));
+			if (frames.Count == 1)
+				stoppedNativeSymbol = name;
+		}
+		if (frames.Count > 0)
+		{
+			lastFrames.Clear();
+			lastFrames.AddRange(frames);
+		}
+	}
+
+	static bool TryParseGdbLocation(string location, out string path, out int line)
+	{
+		path = "";
+		line = 1;
+		int colon = location.LastIndexOf(':');
+		if (colon < 0 || !int.TryParse(location[(colon + 1)..], out line))
+			return false;
+		path = location[..colon];
+		return path.Length > 0;
+	}
+
+	static string ParseGdbFrameName(string line)
+	{
+		int inIndex = line.IndexOf(" in ", StringComparison.Ordinal);
+		int start = inIndex >= 0 ? inIndex + 4 : line.IndexOf(' ') + 1;
+		if (start < 0 || start >= line.Length)
+			return "frame";
+		int end = line.IndexOf('(', start);
+		if (end < 0)
+			end = line.IndexOf(" at ", start, StringComparison.Ordinal);
+		if (end < 0)
+			end = line.Length;
+		string name = line[start..end].Trim();
+		int space = name.LastIndexOf(' ');
+		if (space >= 0)
+			name = name[(space + 1)..];
+		return name.Length == 0 ? "frame" : name;
+	}
+
+	void UpdateVariablesFromOutput(string output)
+	{
+		Dictionary<string, LldbNativeVariable> nativeVariables = ParseGdbVariables(output);
+		variableReferences.Clear();
+		evaluateVariables.Clear();
+		variableReferences[100] = [];
+		variableReferences[200] = [];
+		if (debugMap is null || stoppedNativeSymbol is null)
+			return;
+		DebugMapFunction? function = debugMap.FindFunction(stoppedNativeSymbol);
+		if (function is null)
+			return;
+
+		HashSet<string> hidden = new(StringComparer.Ordinal);
+		Dictionary<string, DebugVariable> parameters = new(StringComparer.Ordinal);
+		Dictionary<string, DebugVariable> locals = new(StringComparer.Ordinal);
+		foreach (DebugMapVariable variable in function.Variables)
+		{
+			if (!nativeVariables.TryGetValue(variable.NativeName, out LldbNativeVariable? native))
+				continue;
+			if (variable.CampName.EndsWith("_length", StringComparison.Ordinal))
+			{
+				string baseName = variable.CampName[..^"_length".Length];
+				DebugMapVariable? baseVariable = function.Variables.FirstOrDefault(item => item.CampName == baseName);
+				if (baseVariable is not null && nativeVariables.TryGetValue(baseVariable.NativeName, out LldbNativeVariable? baseNative))
+				{
+					int reference = nextVariableReference++;
+					DebugVariable structured = new(baseName, "{ elements, length }", baseVariable.Type, reference);
+					variableReferences[reference] =
+					[
+						new DebugVariable("elements", baseNative.Value, baseNative.Type, 0),
+						new DebugVariable("length", native.Value, native.Type, 0)
+					];
+					AddVariable(baseVariable.Kind, structured, parameters, locals);
+					evaluateVariables[baseName] = structured;
+					hidden.Add(baseName);
+					hidden.Add(variable.CampName);
+				}
+				continue;
+			}
+			if (hidden.Contains(variable.CampName))
+				continue;
+			DebugVariable debugVariable = new(variable.CampName, native.Value, variable.Type ?? native.Type, 0);
+			AddVariable(variable.Kind, debugVariable, parameters, locals);
+			evaluateVariables[variable.CampName] = debugVariable;
+		}
+		variableReferences[100] = parameters.Values.ToList();
+		variableReferences[200] = locals.Values.ToList();
+	}
+
+	static void AddVariable(string kind, DebugVariable variable, Dictionary<string, DebugVariable> parameters, Dictionary<string, DebugVariable> locals)
+	{
+		if (kind.Equals("parameter", StringComparison.OrdinalIgnoreCase))
+			parameters[variable.Name] = variable;
+		else
+			locals[variable.Name] = variable;
+	}
+
+	static Dictionary<string, LldbNativeVariable> ParseGdbVariables(string output)
+	{
+		Dictionary<string, LldbNativeVariable> variables = new(StringComparer.Ordinal);
+		foreach (string rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+		{
+			string line = rawLine.Trim();
+			int equals = line.IndexOf(" = ", StringComparison.Ordinal);
+			if (equals <= 0 || line.StartsWith('#') || line.StartsWith("Breakpoint ", StringComparison.OrdinalIgnoreCase))
+				continue;
+			string name = line[..equals].Trim();
+			string value = line[(equals + 3)..].Trim();
+			if (name.Length > 0)
+				variables[name] = new LldbNativeVariable("", value);
+		}
+		return variables;
+	}
+
+	async Task<string> RunGdbBatch(params string[] commands)
+	{
+		if (string.IsNullOrEmpty(executable))
+			throw new InvalidOperationException("GDB session has not been launched.");
+		ProcessStartInfo info = new("gdb")
+		{
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+		info.ArgumentList.Add("--batch");
+		info.ArgumentList.Add("--quiet");
+		foreach ((string source, int line) in pendingBreakpoints)
+		{
+			info.ArgumentList.Add("-ex");
+			info.ArgumentList.Add(line == 0 ? "break main" : $"break {source}:{line}");
+		}
+		foreach (string command in commands)
+		{
+			info.ArgumentList.Add("-ex");
+			info.ArgumentList.Add(command);
+		}
+		info.ArgumentList.Add(executable);
+		using Process process = Process.Start(info) ?? throw new InvalidOperationException("Could not start gdb.");
+		string stdout = await process.StandardOutput.ReadToEndAsync();
+		string stderr = await process.StandardError.ReadToEndAsync();
+		await process.WaitForExitAsync();
+		string output = stdout + stderr;
+		if (process.ExitCode != 0 && !output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase))
+			throw new InvalidOperationException("GDB command failed." + Environment.NewLine + output);
+		return output;
 	}
 }
 
