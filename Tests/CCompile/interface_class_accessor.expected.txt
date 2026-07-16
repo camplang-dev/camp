@@ -10,13 +10,10 @@ static Counter *Counter_create(int count);
 static IValue **Counter_getIValue(const Counter *this);
 static int readValue(IValue **counter);
 static int main(void);
-static int Counter_IValue_value(IValue **ctx);
 static const IValue Counter_IValue__storage;
-static const IValue Counter_IValue__object_storage;
 static const IValue *Counter_IValue;
 
 static const IValue Counter_IValue__storage = { .value = (int (*)(IValue **arg0))Counter_value };
-static const IValue Counter_IValue__object_storage = { .value = Counter_IValue_value };
 static const IValue *Counter_IValue = &Counter_IValue__storage;
 static int Counter_value(Counter *this)
 {
@@ -25,7 +22,7 @@ static int Counter_value(Counter *this)
 
 static void Counter_op_initnew(Counter *this, int count)
 {
-	this->_vt_IValue = &Counter_IValue__object_storage;
+	this->_vt_IValue = Counter_IValue;
 	this->count = count;
 }
 
@@ -63,12 +60,6 @@ static int main(void)
 	v += readValue(Counter_getIValue(c));
 	free((void *)(c));
 	return (v - 30);
-}
-
-static int Counter_IValue_value(IValue **ctx)
-{
-	Counter *instance = (Counter *)(((uint8_t *)(ctx) - offsetof(Counter, _vt_IValue)));
-	return Counter_value(instance);
 }
 
 // file: interface_class_accessor_private.h

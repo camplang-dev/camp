@@ -415,13 +415,18 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(vtableStorage);
 			generatedInterfaceDefinitions.Add(vtableStorage);
 
-			VariableDefinition objectVTableStorage = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface object vtable storage", classDefinition);
-			objectVTableStorage.Name = InterfaceVTableName(classDefinition, interfaceDefinition) + "__object_storage";
-			objectVTableStorage.Symbol = InterfaceVTableName(classDefinition, interfaceDefinition) + "__object_storage";
-			objectVTableStorage.Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name };
-			objectVTableStorage.ResolvedType = "const " + interfaceDefinition.Name;
-			module.Definitions.Add(objectVTableStorage);
-			generatedInterfaceDefinitions.Add(objectVTableStorage);
+			bool directObjectEntries = CanUseDirectObjectInterfaceVTable(classDefinition, baseClass, field);
+			VariableDefinition? objectVTableStorage = null;
+			if (!directObjectEntries)
+			{
+				objectVTableStorage = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface object vtable storage", classDefinition);
+				objectVTableStorage.Name = InterfaceVTableName(classDefinition, interfaceDefinition) + "__object_storage";
+				objectVTableStorage.Symbol = InterfaceVTableName(classDefinition, interfaceDefinition) + "__object_storage";
+				objectVTableStorage.Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name };
+				objectVTableStorage.ResolvedType = "const " + interfaceDefinition.Name;
+				module.Definitions.Add(objectVTableStorage);
+				generatedInterfaceDefinitions.Add(objectVTableStorage);
+			}
 
 			VariableDefinition vtable = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface vtable export", classDefinition);
 			vtable.Name = InterfaceVTableName(classDefinition, interfaceDefinition);
@@ -440,7 +445,7 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(vtable);
 			generatedInterfaceDefinitions.Add(vtable);
 
-			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, vtableStorage, objectVTableStorage, DirectEntries: false, IsStruct: false);
+			InterfaceImplementationLowering lowering = new(classDefinition, interfaceDefinition, field, vtable, vtableStorage, objectVTableStorage, DirectEntries: directObjectEntries, IsStruct: false);
 			implementations.Add(lowering);
 			classDefinition.Functions.Add(CreateInterfaceAccessorDeclaration(classDefinition, lowering));
 			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
@@ -455,6 +460,14 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		EnsureInheritedInitNewMethod(classDefinition, baseClass);
+	}
+
+	static bool CanUseDirectObjectInterfaceVTable(ClassDefinition classDefinition, ClassDefinition? baseClass, FieldDefinition field)
+	{
+		return baseClass is null
+			&& !IsVirtualClassParticipant(classDefinition)
+			&& classDefinition.Fields.Count > 0
+			&& ReferenceEquals(classDefinition.Fields[0], field);
 	}
 
 	FunctionDefinition CreateInterfaceAccessorDeclaration(ClassDefinition classDefinition, InterfaceImplementationLowering lowering)

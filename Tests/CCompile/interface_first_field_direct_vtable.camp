@@ -1,0 +1,43 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+interface IFirst
+{
+	int first();
+}
+
+interface ISecond
+{
+	int second();
+}
+
+class Pair: IFirst, ISecond
+{
+	int value;
+
+	Pair(int value)
+	{
+		this.value = value;
+	}
+
+	int first(): IFirst
+	{
+		return this.value;
+	}
+
+	int second(): ISecond
+	{
+		return this.value + 1;
+	}
+}
+
+int readFirst(IFirst* first) => first.first();
+int readSecond(ISecond* second) => second.second();
+
+int main()
+{
+	auto pair = new Pair(10);
+	int result = readFirst(pair) + readSecond(pair);
+	delete pair;
+	return result - 21;
+}

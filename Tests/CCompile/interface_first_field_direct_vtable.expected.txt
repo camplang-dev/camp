@@ -1,0 +1,135 @@
+// file: interface_first_field_direct_vtable.c
+#include "interface_first_field_direct_vtable_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static int Pair_first(Pair *this);
+static int Pair_second(Pair *this);
+static void Pair_op_initnew(Pair *this, int value);
+static Pair *Pair_create(int value);
+static IFirst **Pair_getIFirst(const Pair *this);
+static ISecond **Pair_getISecond(const Pair *this);
+static int readFirst(IFirst **first);
+static int readSecond(ISecond **second);
+static int main(void);
+static int Pair_ISecond_second(ISecond **ctx);
+static const IFirst Pair_IFirst__storage;
+static const IFirst *Pair_IFirst;
+static const ISecond Pair_ISecond__storage;
+static const ISecond Pair_ISecond__object_storage;
+static const ISecond *Pair_ISecond;
+
+static const IFirst Pair_IFirst__storage = { .first = (int (*)(IFirst **arg0))Pair_first };
+static const IFirst *Pair_IFirst = &Pair_IFirst__storage;
+static const ISecond Pair_ISecond__storage = { .second = (int (*)(ISecond **arg0))Pair_second };
+static const ISecond Pair_ISecond__object_storage = { .second = Pair_ISecond_second };
+static const ISecond *Pair_ISecond = &Pair_ISecond__storage;
+static int Pair_first(Pair *this)
+{
+	return this->value;
+}
+
+static int Pair_second(Pair *this)
+{
+	return (this->value + 1);
+}
+
+static void Pair_op_initnew(Pair *this, int value)
+{
+	this->_vt_IFirst = Pair_IFirst;
+	this->_vt_ISecond = &Pair_ISecond__object_storage;
+	this->value = value;
+}
+
+static Pair *Pair_create(int value)
+{
+	Pair *_created0 = (Pair *)(malloc(sizeof(Pair)));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Pair){0};
+		Pair_op_initnew(_created0, value);
+	}
+	return _created0;
+}
+
+static IFirst **Pair_getIFirst(const Pair *this)
+{
+	return (IFirst **)(&this->_vt_IFirst);
+}
+
+static ISecond **Pair_getISecond(const Pair *this)
+{
+	return (ISecond **)(&this->_vt_ISecond);
+}
+
+static int readFirst(IFirst **first)
+{
+	return (*first)->first(first);
+}
+
+static int readSecond(ISecond **second)
+{
+	return (*second)->second(second);
+}
+
+static int main(void)
+{
+	Pair *pair = (Pair *)(malloc(sizeof(Pair)));
+	if ((pair != NULL))
+	{
+		*pair = (Pair){0};
+		Pair_op_initnew(pair, 10);
+	}
+	int result = (readFirst(Pair_getIFirst(pair)) + readSecond(Pair_getISecond(pair)));
+	free((void *)(pair));
+	return (result - 21);
+}
+
+static int Pair_ISecond_second(ISecond **ctx)
+{
+	Pair *instance = (Pair *)(((uint8_t *)(ctx) - offsetof(Pair, _vt_ISecond)));
+	return Pair_second(instance);
+}
+
+// file: interface_first_field_direct_vtable_private.h
+#ifndef INTERFACE_FIRST_FIELD_DIRECT_VTABLE_PRIVATE_H_
+#define INTERFACE_FIRST_FIELD_DIRECT_VTABLE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IFirst IFirst;
+typedef struct ISecond ISecond;
+typedef struct Pair Pair;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct IFirst
+{
+	int (* first)(IFirst **ctx);
+};
+struct ISecond
+{
+	int (* second)(ISecond **ctx);
+};
+struct Pair
+{
+	const IFirst *_vt_IFirst;
+	const ISecond *_vt_ISecond;
+	int value;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: interface_first_field_direct_vtable.c

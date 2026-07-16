@@ -6,15 +6,11 @@ static int Host_onValue(Host *this);
 static int Host_onTransform(Host *this, int value, int (* transform)(void *arg0, int arg1), void *transform_context);
 static IHost **Host_getIHost(const Host *this);
 static void Host_op_initnew(Host *this);
-static int Host_IHost_onValue(IHost **ctx);
-static int Host_IHost_onTransform(IHost **ctx, int value, int (* transform)(void *arg0, int arg1), void *transform_context);
 static int Widget_transform_lambda0(void *_context, int current);
 static const IHost Host_IHost__storage;
-static const IHost Host_IHost__object_storage;
 static const IHost *Host_IHost;
 
 static const IHost Host_IHost__storage = { .onValue = (int (*)(IHost **arg0))Host_onValue, .onTransform = (int (*)(IHost **arg0, int arg1, int (* arg2)(void *arg0, int arg1), void *arg3))Host_onTransform };
-static const IHost Host_IHost__object_storage = { .onValue = Host_IHost_onValue, .onTransform = Host_IHost_onTransform };
 static const IHost *Host_IHost = &Host_IHost__storage;
 static int Host_onValue(Host *this)
 {
@@ -33,7 +29,7 @@ static IHost **Host_getIHost(const Host *this)
 
 static void Host_op_initnew(Host *this)
 {
-	this->_vt_IHost = &Host_IHost__object_storage;
+	this->_vt_IHost = Host_IHost;
 }
 
 void Widget_setHost(Widget *this, IHost **host)
@@ -100,18 +96,6 @@ int main(void)
 	int result = Widget_transform(widget, 2);
 	free((void *)(widget));
 	return (result - 8);
-}
-
-static int Host_IHost_onValue(IHost **ctx)
-{
-	Host *instance = (Host *)(((uint8_t *)(ctx) - offsetof(Host, _vt_IHost)));
-	return Host_onValue(instance);
-}
-
-static int Host_IHost_onTransform(IHost **ctx, int value, int (* transform)(void *arg0, int arg1), void *transform_context)
-{
-	Host *instance = (Host *)(((uint8_t *)(ctx) - offsetof(Host, _vt_IHost)));
-	return Host_onTransform(instance, value, (int (*)(void *arg0, int arg1))transform, transform_context);
 }
 
 static int Widget_transform_lambda0(void *_context, int current)
