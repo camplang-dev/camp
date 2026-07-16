@@ -132,14 +132,33 @@ public sealed partial class BindableNodeAnalyzer
 		implementation.ResolvedType = source.ResolvedType;
 		implementation.Body = source.Body;
 		CopyParameters(source.Parameters, implementation.Parameters);
+		ApplyVirtualImplementationThisTypes(implementation, owner, abiOwner ?? owner, source);
+		return implementation;
+	}
+
+	void ApplyVirtualImplementationThisTypes(FunctionDefinition implementation, ClassDefinition owner, ClassDefinition abiOwner, FunctionDefinition source)
+	{
+		string abiReceiverType = BuildVirtualReceiverType(abiOwner, source);
+		string implementationReceiverType = BuildVirtualReceiverType(owner, source);
+		string defaultAbiReceiverType = $"{abiOwner.Name}*";
+		string defaultImplementationReceiverType = $"{owner.Name}*";
+		if (abiReceiverType != defaultAbiReceiverType)
+		{
+			implementation.AbiThisType = CreateVirtualReceiverTypeReference(abiOwner, abiReceiverType);
+			implementation.AbiThisType.ResolvedType = abiReceiverType;
+		}
+		if (implementationReceiverType != defaultImplementationReceiverType)
+		{
+			implementation.ImplementationThisType = CreateVirtualReceiverTypeReference(owner, implementationReceiverType);
+			implementation.ImplementationThisType.ResolvedType = implementationReceiverType;
+		}
 		if (abiOwner is not null && !ReferenceEquals(abiOwner, owner))
 		{
-			implementation.AbiThisType = PointerTo(TypeReferenceFor(abiOwner));
-			implementation.AbiThisType.ResolvedType = $"{abiOwner.Name}*";
-			implementation.ImplementationThisType = PointerTo(TypeReferenceFor(owner));
-			implementation.ImplementationThisType.ResolvedType = $"{owner.Name}*";
+			implementation.AbiThisType ??= PointerTo(TypeReferenceFor(abiOwner));
+			implementation.AbiThisType.ResolvedType = abiReceiverType;
+			implementation.ImplementationThisType ??= PointerTo(TypeReferenceFor(owner));
+			implementation.ImplementationThisType.ResolvedType = implementationReceiverType;
 		}
-		return implementation;
 	}
 
 	ClassDefinition? GetVirtualImplementationAbiOwner(ClassDefinition owner, FunctionDefinition source)
@@ -168,12 +187,13 @@ public sealed partial class BindableNodeAnalyzer
 			ReturnType = CloneType(function.ReturnType) ?? VoidType(),
 			ResolvedType = BuildVirtualSlotCallableType(owner, function)
 		};
+		string receiverType = BuildVirtualReceiverType(owner, function);
 		callable.Parameters.Add(new ParameterDefinition
 		{
 			Name = "ctx",
 			Symbol = "ctx",
-			Type = PointerTo(TypeReferenceFor(owner)),
-			ResolvedType = $"{owner.Name}*"
+			Type = CreateVirtualReceiverTypeReference(owner, receiverType),
+			ResolvedType = receiverType
 		});
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
@@ -224,8 +244,8 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		call.Arguments.Add(new ArgumentExpression
 		{
-			Value = new ThisExpression { ResolvedType = $"{owner.Name}*" },
-			ResolvedType = $"{owner.Name}*"
+			Value = new ThisExpression { ResolvedType = BuildVirtualReceiverType(owner, function) },
+			ResolvedType = BuildVirtualReceiverType(owner, function)
 		});
 		foreach (ArgumentExpression argument in CreateVirtualDispatchParameterArguments(function))
 			call.Arguments.Add(argument);
@@ -1545,9 +1565,9 @@ public sealed partial class BindableNodeAnalyzer
 		return function.Name == DeleteMethodName || IsDestructorFunction(function) ? DeleteMethodName : GetCallableName(function);
 	}
 
-	static string BuildVirtualSlotCallableType(TypeDefinition owner, FunctionDefinition function)
+	string BuildVirtualSlotCallableType(TypeDefinition owner, FunctionDefinition function)
 	{
-		List<string> parameters = [$"{owner.Name}*"];
+		List<string> parameters = [BuildVirtualReceiverType(owner, function)];
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
 			if (parameter is ThisParameterDefinition)
@@ -1555,6 +1575,25 @@ public sealed partial class BindableNodeAnalyzer
 			parameters.Add(parameter.ResolvedType ?? ErrorType);
 		}
 		return $"fn {GetFunctionReturnTypeName(function)}({string.Join(", ", parameters)})";
+	}
+
+	string BuildVirtualReceiverType(TypeDefinition owner, FunctionDefinition function)
+	{
+		string receiverType = owner is NewtypeDefinition ? owner.Name : $"{owner.Name}*";
+		ThisParameterDefinition? explicitThis = GetExplicitThisParameter(function) ?? function.EffectiveThisParameter;
+		if (explicitThis is not null)
+			return ApplyThisDeclarators(receiverType, explicitThis);
+		return IsPropertyGetterFunction(function) ? AddConstToReceiverInstance(receiverType) : receiverType;
+	}
+
+	static TypeReference CreateVirtualReceiverTypeReference(TypeDefinition owner, string receiverType)
+	{
+		TypeReference baseType = TypeReferenceFor(owner);
+		if (receiverType.StartsWith("const ", StringComparison.Ordinal))
+			baseType = new ConstTypeReference { Type = baseType, ResolvedType = "const " + owner.Name };
+		if (receiverType.EndsWith("*", StringComparison.Ordinal))
+			return PointerTo(baseType);
+		return baseType;
 	}
 
 	static string GetFunctionReturnTypeName(FunctionDefinition function)

@@ -1,0 +1,29 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+export int main()
+{
+	auto gauge = new Gauge();
+	Widget* widget = (Widget*)gauge;
+	string widgetName = widget.Name;
+	string gaugeName = gauge.Name;
+	bool ok = widgetName[0] == 'G' && gaugeName[0] == 'G';
+	delete gauge;
+	return ok ? 0 : 1;
+}
+
+export virtual class Widget
+{
+	export virtual string getName()
+	{
+		return "Widget";
+	}
+}
+
+export sealed class Gauge: Widget
+{
+	export override string getName()
+	{
+		return "Gauge";
+	}
+}
