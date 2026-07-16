@@ -64,6 +64,16 @@
           "type": "string",
           "default": "camp-lsp",
           "description": "Path to the camp-lsp executable. Use an absolute path when camp-lsp is not on PATH."
+        },
+        "camp.server.trace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Camp language server performance trace logging."
+        },
+        "camp.server.traceDirectory": {
+          "type": "string",
+          "default": "",
+          "description": "Directory for Camp language server performance trace files when camp.server.trace is enabled. When empty, traces are written under the extension global storage folder."
         }
       }
     },

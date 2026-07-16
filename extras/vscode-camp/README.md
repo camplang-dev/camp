@@ -74,12 +74,25 @@ dotnet build src/camplang.sln
 Then run `Camp: Restart Language Server` from the Command Palette, or reload the
 VS Code window.
 
-Each language-server process writes a fresh performance trace file when it
-starts. In VS Code, trace files are written under the extension global storage
-folder in `lsp-traces/`. Run `Developer: Open Extension Logs Folder` or
-`Developer: Open User Data Folder` from the Command Palette, then look for the
-Camp extension storage directory and its newest `camp-lsp-*.jsonl` file. Send
-that file when reporting slow hover, completion, signature help, or diagnostics.
+Language-server performance tracing is off by default. To enable it, set:
+
+```json
+"camp.server.trace": true
+```
+
+When tracing is enabled, each language-server process writes a fresh performance
+trace file when it starts. By default, VS Code trace files are written under the
+extension global storage folder in `lsp-traces/`. Run `Developer: Open Extension
+Logs Folder` or `Developer: Open User Data Folder` from the Command Palette,
+then look for the Camp extension storage directory and its newest
+`camp-lsp-*.jsonl` file. Send that file when reporting slow hover, completion,
+signature help, or diagnostics.
+
+To write trace files somewhere else, set:
+
+```json
+"camp.server.traceDirectory": "C:\\Code\\_temp\\camplang\\logs"
+```
 
 On Windows, a running language-server process can lock `camp-lsp.exe` or loaded
 assemblies. If rebuild fails because files are in use, run

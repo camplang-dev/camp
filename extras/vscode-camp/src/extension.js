@@ -43,17 +43,24 @@ function deactivate() {
 
 function startLanguageServer(context) {
   const serverPath = getServerPath();
-  const traceDirectory = path.join(context.globalStorageUri.fsPath, "lsp-traces");
-  fs.mkdirSync(traceDirectory, { recursive: true });
+  const environment = {
+    ...process.env
+  };
+  if (getTraceEnabled()) {
+    const traceDirectory = getTraceDirectory(context);
+    fs.mkdirSync(traceDirectory, { recursive: true });
+    environment.CAMP_LSP_TRACE = "1";
+    environment.CAMP_LSP_TRACE_DIR = traceDirectory;
+  } else {
+    environment.CAMP_LSP_TRACE = "0";
+    delete environment.CAMP_LSP_TRACE_DIR;
+  }
   const serverOptions = {
     command: serverPath,
     args: [],
     transport: TransportKind.stdio,
     options: {
-      env: {
-        ...process.env,
-        CAMP_LSP_TRACE_DIR: traceDirectory
-      }
+      env: environment
     }
   };
   const clientOptions = {
@@ -80,6 +87,18 @@ async function restartLanguageServer() {
 
 function getServerPath() {
   return vscode.workspace.getConfiguration("camp").get("server.path") || "camp-lsp";
+}
+
+function getTraceEnabled() {
+  return vscode.workspace.getConfiguration("camp").get("server.trace") === true;
+}
+
+function getTraceDirectory(context) {
+  const configured = vscode.workspace.getConfiguration("camp").get("server.traceDirectory");
+  if (typeof configured === "string" && configured.trim().length > 0) {
+    return configured.trim();
+  }
+  return path.join(context.globalStorageUri.fsPath, "lsp-traces");
 }
 
 function getCompilerPath() {
