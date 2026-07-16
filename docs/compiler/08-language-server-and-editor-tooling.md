@@ -103,6 +103,11 @@ Semantic completion covers scope names, members, properties, components of
 expanded forms such as array `.length` and `.elements`, enum values, methods,
 variables, parameters, fields, aliases, and useful keywords.
 
+For shadow classes, completion should show source fields, methods, implemented
+interfaces, and hook methods that are visible in source. It should not show
+generated shadow data structs, generated interface slots, stored shadow-instance
+fields, shadow vtables, or helper thunks as ordinary members.
+
 While a user is typing broken code, the service may use the last good snapshot
 for member completion and signature help. This keeps the editor helpful without
 making partially parsed code canonical.

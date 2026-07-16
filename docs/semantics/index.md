@@ -295,3 +295,18 @@ code. Ordinary Camp users should start with the language guide.
 - Diagnostics
 - Test Surface
 - Implementation Anchors
+
+## 15. Shadow Classes And Foreign Extension
+
+- Source Forms
+- Shadow-Capable Base Hooks
+- Representation
+- Construction And Constructor Lowering
+- Field Access And Receiver Constness
+- Shadow Inheritance
+- Interfaces And Dynamic Dispatch
+- `delete shadow`
+- API And Metadata
+- Diagnostics
+- Test Surface
+- Implementation Anchors

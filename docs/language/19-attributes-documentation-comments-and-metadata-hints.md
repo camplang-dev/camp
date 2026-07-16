@@ -282,6 +282,8 @@ symbol links, or deprecation messages.
 | `@awaitwith` | One ordinary runtime parameter of a concrete async body | Selects the resumer used after `await` suspension |
 | `@noawait` | Concrete async definitions with Camp bodies | Declares that the async body cannot suspend and may not contain `await` |
 | `@notsupported("reason")` | Functions and methods | Marks the callable unavailable on the active target while preserving source/API metadata |
+| `@getshadow` | Shadow-capable base methods | Marks the getter hook that returns attached shadow data |
+| `@setshadow` | Shadow-capable base methods | Marks the setter hook that stores attached shadow data |
 | `@summary("text")` | Declarations and declaration children | Main documentation summary; plain doc-comment text lowers to this |
 | `@remarks("text")` | Declarations and declaration children | Longer documentation notes, contracts, ownership, or behavior |
 | `@returns("text")` | Functions, methods, callable declarations, and relevant callable children | Describes the returned value |
@@ -303,6 +305,8 @@ For the feature-specific attributes already introduced:
 - `@awaitwith` and `@noawait` belong with async bodies and resumers.
 - `@notsupported` belongs with target-conditioned APIs and standard-library
   portability.
+- `@getshadow` and `@setshadow` belong with shadow classes and native extension
+  surfaces.
 
 For documentation, the useful rule is simple: write comments for the source API
 you want callers to understand, and let metadata carry that source API to tools.

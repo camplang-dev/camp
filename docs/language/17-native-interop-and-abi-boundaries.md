@@ -161,6 +161,69 @@ Extern classes may inherit only from other extern classes. Ordinary classes and
 extern classes stay in separate object models because one is Camp-owned storage
 and the other is foreign opaque storage.
 
+## Shadow Classes For Foreign Extension
+
+Some native or cross-module APIs own an opaque object but still provide an
+attachment slot for caller state. A shadow class lets Camp layer fields,
+interfaces, and virtual shadow behavior over that existing object without
+changing the object's native layout.
+
+The base surface must expose shadow hooks:
+
+```camp
+export extern class NativeControl
+{
+	@getshadow
+	export extern escaped void* getShadow(const this);
+
+	@setshadow
+	export extern void setShadow(escaped void* value);
+}
+```
+
+A shadow class derives from that base and stores its own fields in generated
+shadow data:
+
+```camp
+export interface IControlHost
+{
+	void destroyed();
+}
+
+shadow class ButtonView: NativeControl, IControlHost
+{
+	int clickCount;
+	escaped once void() onDestroyed;
+
+	ButtonView(escaped once void() onDestroyed)
+	{
+		this.clickCount = 0;
+		this.onDestroyed = onDestroyed;
+	}
+
+	void destroyed(): IControlHost
+	{
+		this.onDestroyed();
+		delete shadow;
+	}
+}
+```
+
+The `ButtonView*` pointer is still physically a `NativeControl*` pointer. The
+compiler allocates a separate shadow data block, installs it through
+`@setshadow`, and rewrites `this.clickCount` through `@getshadow`. Interface
+slots and virtual shadow dispatch state also live in the shadow data.
+
+Use a shadow class when the base library owns the object and layout, and you
+need a Camp view that adds state or interface behavior. Use an ordinary class
+when Camp owns the storage. Shadow classes cannot declare destructors; cleanup
+usually happens from a base lifecycle callback or handler method that releases
+owned fields and then calls `delete shadow`.
+
+`delete shadow` deletes only the generated shadow data. It does not delete the
+base object, call a destructor, or clear the base object's hook storage. If the
+base object needs teardown, call the base API that performs that teardown.
+
 ## Symbols And Native Spelling
 
 The Camp name is for Camp lookup. The native symbol is for the ABI.

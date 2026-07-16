@@ -40,7 +40,7 @@ rules:
   - constant.number: "\\b[0-9](_?[0-9])*(u|U|l|L|n|N|n?u?int|u?long|u?short|u?byte)?\\b"
 
   - statement: "\\b(if|do|while|for|else|foreach|switch|case|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|init|new)\\b"
-  - statement: "\\b(using|namespace|as|export|internal|public|extern|static|virtual|override|sealed|abstract|fixed|inline|alias)\\b"
+  - statement: "\\b(using|namespace|as|export|internal|public|extern|static|virtual|override|sealed|abstract|fixed|inline|alias|shadow)\\b"
   - statement: "\\b(struct|class|interface|enum|newtype|params)\\b"
 
   - type.keyword: "\\b(any|auto|bool|byte|sbyte|ushort|short|uint|int|ulong|long|nuint|nint|float|double|char|wchar|achar|uchar|void|string|wstring|astring|classtype)\\b"
@@ -52,7 +52,8 @@ rules:
   - constant.bool: "\\b(true|false)\\b"
   - constant: "\\b(null|default|this|base)\\b"
 
-  - identifier.class: "\\b(struct|class|interface|enum|newtype|params)\\s+([A-Za-z_][A-Za-z0-9_]*)"
+  - identifier.class: "\\b(?:shadow\\s+)?(struct|class|interface|enum|newtype|params)\\s+([A-Za-z_][A-Za-z0-9_]*)"
+  - special: "@(getshadow|setshadow)\\b"
   - identifier: "@[A-Za-z_][A-Za-z0-9_]*\\b"
   - symbol.operator: "(=>|\\+\\+|--|\\?\\?|\\.\\.|==|!=|<=|>=|<<|>>|&&|\\|\\||[+\\-*/%&|^~!=<>?:]=?|=)"
   - symbol.brackets: "[{}()\\[\\]]"

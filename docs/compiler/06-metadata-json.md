@@ -191,6 +191,13 @@ and derived classes are exported or projected, the relationship is visible.
 Projected class interfaces appear only when listed in the projection and when
 the interface is also exported or projected.
 
+Shadow classes are source-level class declarations. Metadata may preserve the
+source `shadow` modifier when the selected view includes that source surface,
+but generated shadow data structs, shadow vtables, interface thunks, stored
+shadow-instance fields, and helper functions are implementation details. They
+must not appear as ordinary metadata declarations merely because the shadow
+class is exported.
+
 Interface implementation metadata may look like:
 
 ```json

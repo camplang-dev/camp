@@ -484,6 +484,35 @@ Value newtypes wrap values and should remain value-like. Do not add destructor
 behavior to a value newtype unless the language docs and surrounding code show
 that the wrapped representation owns a resource.
 
+## Shadow Classes
+
+Use a `shadow class` only when a foreign or cross-module base object owns its
+layout and exposes `@getshadow`/`@setshadow` hooks for attaching Camp state. Do
+not use a shadow class as a substitute for an ordinary Camp-owned class.
+
+Agent-facing rules:
+
+- A shadow class pointer is physically the base object pointer. The compiler
+  stores shadow fields, interface slots, and virtual shadow state in generated
+  shadow data reached through the hooks.
+- The base surface must provide one usable `@getshadow` getter and one usable
+  `@setshadow` setter. Do not hand-roll shadow storage or cast hook results in
+  source code unless you are writing the hook implementation itself.
+- Shadow constructors initialize shadow fields. The public `new` or create path
+  creates the base object, allocates and installs shadow data, and then runs the
+  shadow constructor body. `_op_initnew` does not allocate or install shadow
+  data.
+- Constructor binding is source-level. Do not infer constructor argument
+  validity from lowered ABI parameters for delegates, `once`, strings, arrays,
+  or other expanded values.
+- Shadow classes cannot declare destructors or be stack-constructed with `init`.
+- Cleanup normally belongs in a base lifecycle callback or interface handler.
+  Release owned fields first, then call `delete shadow`.
+- `delete shadow` deletes generated shadow data only. It does not delete the
+  base object, call a destructor, clear the base hook slot, or delete a local
+  variable named `shadow`.
+- Do not access shadow fields after an obvious `delete shadow`.
+
 ## Interfaces And Dispatch
 
 Interfaces describe callable contracts. Implementations attach methods to a

@@ -1,8 +1,12 @@
 # Shadow Classes
 
-Status: pending  
+Status: accepted  
 Proposal date: 2026-07-14  
-Last updated date: 2026-07-14
+Last updated date: 2026-07-16
+
+Accepted and implemented. Active language guidance now lives in the language
+guide, compiler-writer semantics live in the semantic supplements, and this
+proposal is retained as the accepted design record.
 
 ## Summary
 
