@@ -31,10 +31,11 @@ public sealed partial class BindableNodeAnalyzer
 		return declaration;
 	}
 
-	static VariableReferenceExpression CreateVariableReference(BindableNode variable, string type)
+	static VariableReferenceExpression CreateVariableReference(BindableNode variable, string type, SyntaxNode? sourceSyntax = null)
 	{
 		return new VariableReferenceExpression
 		{
+			SourceSyntax = sourceSyntax,
 			Variable = variable,
 			ResolvedType = type,
 			SlotLifetimeFact = variable.SlotLifetimeFact,

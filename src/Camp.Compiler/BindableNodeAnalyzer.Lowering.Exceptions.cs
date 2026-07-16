@@ -190,7 +190,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ResolvedType = "void",
 			Expression = finallyCleanup.Kind == FinallyCleanupKind.Delete
-				? RewriteDeleteExpression(CreateVariableReference(local.Target, local.Target.ResolvedType ?? valueType))
+				? RewriteDeleteExpression(CreateVariableReference(local.Target, local.Target.ResolvedType ?? valueType, finallyCleanup.SourceSyntax ?? finallyCleanup.Expression?.SourceSyntax))
 				: null
 		};
 		Statement cleanupStatement = finallyCleanup.Kind == FinallyCleanupKind.Delete

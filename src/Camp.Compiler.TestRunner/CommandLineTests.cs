@@ -269,6 +269,60 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Enum_value_shorthand_works_in_comparisons_on_either_side()
+	{
+		string source = CreateTempCase("enum_comparison_shorthand.camp", """
+			extern void* malloc(nuint size);
+			extern void free(void* pointer);
+
+			bool isSolid(PenStyle style = SOLID)
+			{
+				return style == SOLID && SOLID == style;
+			}
+
+			enum PenStyle
+			{
+				SOLID,
+				DASH
+			}
+
+			export int main()
+			{
+				return isSolid() ? 0 : 1;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("enum-comparison-shorthand"));
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
+	public void Invalid_finally_delete_reports_source_range()
+	{
+		string source = CreateTempCase("finally_delete_range.camp", """
+			extern void* malloc(nuint size);
+			extern void free(void* pointer);
+
+			newtype HBRUSH: nint;
+
+			HBRUSH createBrush() => (HBRUSH)1;
+
+			export int main()
+			{
+				auto brush = createBrush() finally delete;
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("finally-delete-range"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("finally_delete_range.camp(10,15): error: delete requires a pointer or a type with a destructor, not 'HBRUSH'.", Normalize(result.StdErr), StringComparison.Ordinal);
+		Assert.DoesNotContain("(no line,column)", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Async_exported_c_header_uses_completion_callback_abi()
 	{
 		string source = CreateTempCase("async_header.camp", """

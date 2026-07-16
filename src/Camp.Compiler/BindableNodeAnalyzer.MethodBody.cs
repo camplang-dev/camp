@@ -4910,7 +4910,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string left;
 		string right;
-		if (IsComparisonOperator(binary.Operator) && binary.Left is NamedExpression && binary.Right is not null)
+		if (IsComparisonOperator(binary.Operator) && binary.Left is NamedExpression leftName && binary.Right is not null && !CanResolveLocalNamedExpression(leftName, scope))
 		{
 			right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope, IsEnumTargetType(right) ? right : null);
@@ -4931,6 +4931,11 @@ public sealed partial class BindableNodeAnalyzer
 			BinaryOperator.NullCoalescing => left,
 			_ => ErrorType
 		};
+	}
+
+	static bool CanResolveLocalNamedExpression(NamedExpression named, BodyScope scope)
+	{
+		return named.Qualifiers.Count == 0 && scope.TryLookup(named.Name, out _);
 	}
 
 	static bool IsComparisonOperator(BinaryOperator op)
