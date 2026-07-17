@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -208,8 +209,12 @@ sealed class DapSession(Stream input, Stream output)
 	{
 		IDebugBackend backend = RequireBackend();
 		await backend.Continue(arguments["threadId"]?.GetValue<int>() ?? 1);
-		await EmitOutputEvents(backend);
 		await Event("continued", new JsonObject { ["threadId"] = 1, ["allThreadsContinued"] = true });
+		await EmitOutputEvents(backend);
+		if (backend.IsStopped)
+			await Event("stopped", new JsonObject { ["reason"] = "breakpoint", ["threadId"] = 1 });
+		else if (backend.HasTerminated)
+			await Event("terminated", null);
 		return new JsonObject { ["allThreadsContinued"] = true };
 	}
 
@@ -226,7 +231,10 @@ sealed class DapSession(Stream input, Stream output)
 		IDebugBackend backend = RequireBackend();
 		await backend.Step(command, arguments["threadId"]?.GetValue<int>() ?? 1);
 		await EmitOutputEvents(backend);
-		await Event("stopped", new JsonObject { ["reason"] = "step", ["threadId"] = 1 });
+		if (backend.IsStopped)
+			await Event("stopped", new JsonObject { ["reason"] = "step", ["threadId"] = 1 });
+		else if (backend.HasTerminated)
+			await Event("terminated", null);
 		return null;
 	}
 
@@ -367,7 +375,7 @@ sealed class FakeDebugBackend : IDebugBackend
 	string source = "fake.camp";
 	bool terminateOnConfigurationDone;
 	public bool StopOnEntry { get; private set; }
-	public bool IsStopped => StopOnEntry;
+	public bool IsStopped { get; private set; }
 	public bool HasTerminated { get; private set; }
 
 	public Task Launch(DebugLaunchOptions options)
@@ -389,12 +397,21 @@ sealed class FakeDebugBackend : IDebugBackend
 
 	public Task ConfigurationDone()
 	{
+		IsStopped = StopOnEntry;
 		HasTerminated = !StopOnEntry && terminateOnConfigurationDone;
 		return Task.CompletedTask;
 	}
-	public Task Continue(int threadId) => Task.CompletedTask;
+	public Task Continue(int threadId)
+	{
+		IsStopped = false;
+		return Task.CompletedTask;
+	}
 	public Task Pause(int threadId) => Task.CompletedTask;
-	public Task Step(string command, int threadId) => Task.CompletedTask;
+	public Task Step(string command, int threadId)
+	{
+		IsStopped = true;
+		return Task.CompletedTask;
+	}
 	public Task Disconnect() => Task.CompletedTask;
 
 	public IReadOnlyList<DebugStackFrame> GetStackTrace() => [new DebugStackFrame(1, "main", source, 1, 1)];
@@ -459,6 +476,8 @@ sealed class LldbDebugBackend : IDebugBackend
 	string stderrPath = "";
 	long stdoutOffset;
 	long stderrOffset;
+	Process? lldbProcess;
+	readonly ConcurrentQueue<string> lldbOutput = new();
 	DebugMapDocument? debugMap;
 	string? stoppedNativeSymbol;
 	int nextVariableReference = 1000;
@@ -503,18 +522,21 @@ sealed class LldbDebugBackend : IDebugBackend
 
 	public async Task ConfigurationDone()
 	{
-		string output = await RunLldbBatch("run", "thread backtrace", "frame variable --show-types");
-		IsStopped = output.Contains(" stopped", StringComparison.OrdinalIgnoreCase);
-		HasTerminated = !IsStopped;
-		UpdateFramesFromOutput(output);
-		UpdateVariablesFromOutput(output);
+		await StartLldbSession();
+		foreach ((string source, int line) in pendingBreakpoints)
+		{
+			await RunLldbCommand(line == 0
+				? "breakpoint set --name main"
+				: $"breakpoint set --file {QuoteLldbArgument(source)} --line {line} --move-to-nearest-code false");
+		}
+		string output = await RunLldbExecutionCommand("run");
+		await RefreshStoppedState(output);
 	}
 
 	public async Task Continue(int threadId)
 	{
-		await Task.CompletedTask;
-		IsStopped = false;
-		HasTerminated = false;
+		string output = await RunLldbExecutionCommand("continue");
+		await RefreshStoppedState(output);
 	}
 
 	public async Task Pause(int threadId)
@@ -531,11 +553,8 @@ sealed class LldbDebugBackend : IDebugBackend
 			"stepOut" => "thread step-out",
 			_ => "thread step-over"
 		};
-		string output = await RunLldbBatch("run", lldbCommand, "thread backtrace", "frame variable --show-types");
-		IsStopped = output.Contains(" stopped", StringComparison.OrdinalIgnoreCase);
-		HasTerminated = !IsStopped;
-		UpdateFramesFromOutput(output);
-		UpdateVariablesFromOutput(output);
+		string output = await RunLldbExecutionCommand(lldbCommand);
+		await RefreshStoppedState(output);
 	}
 
 	public IReadOnlyList<DebugStackFrame> GetStackTrace()
@@ -571,7 +590,23 @@ sealed class LldbDebugBackend : IDebugBackend
 
 	public async Task Disconnect()
 	{
-		await Task.CompletedTask;
+		if (lldbProcess is null)
+			return;
+		try
+		{
+			if (!lldbProcess.HasExited)
+			{
+				await lldbProcess.StandardInput.WriteLineAsync("quit");
+				Task exited = lldbProcess.WaitForExitAsync();
+				if (await Task.WhenAny(exited, Task.Delay(1000)) != exited && !lldbProcess.HasExited)
+					lldbProcess.Kill(entireProcessTree: true);
+			}
+		}
+		finally
+		{
+			lldbProcess.Dispose();
+			lldbProcess = null;
+		}
 	}
 
 	void UpdateFramesFromOutput(string output)
@@ -677,6 +712,150 @@ sealed class LldbDebugBackend : IDebugBackend
 		return variables;
 	}
 
+	async Task StartLldbSession()
+	{
+		if (lldbProcess is not null)
+			return;
+		if (string.IsNullOrEmpty(executable))
+			throw new InvalidOperationException("LLDB session has not been launched.");
+		ProcessStartInfo info = new("lldb")
+		{
+			RedirectStandardInput = true,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+		info.ArgumentList.Add("--no-lldbinit");
+		info.ArgumentList.Add(executable);
+		lldbProcess = Process.Start(info) ?? throw new InvalidOperationException("Could not start lldb.");
+		lldbProcess.OutputDataReceived += (_, e) =>
+		{
+			if (e.Data is not null)
+				lldbOutput.Enqueue(e.Data + Environment.NewLine);
+		};
+		lldbProcess.ErrorDataReceived += (_, e) =>
+		{
+			if (e.Data is not null)
+				lldbOutput.Enqueue(e.Data + Environment.NewLine);
+		};
+		lldbProcess.BeginOutputReadLine();
+		lldbProcess.BeginErrorReadLine();
+		await ReadLldbUntilQuiet(TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(150));
+		if (!string.IsNullOrEmpty(stdoutPath))
+			await RunLldbCommand($"settings set target.output-path {QuoteLldbArgument(stdoutPath)}");
+		if (!string.IsNullOrEmpty(stderrPath))
+			await RunLldbCommand($"settings set target.error-path {QuoteLldbArgument(stderrPath)}");
+	}
+
+	async Task RefreshStoppedState(string executionOutput)
+	{
+		IsStopped = executionOutput.Contains(" stopped", StringComparison.OrdinalIgnoreCase);
+		HasTerminated = executionOutput.Contains(" exited", StringComparison.OrdinalIgnoreCase)
+			|| executionOutput.Contains("exited with status", StringComparison.OrdinalIgnoreCase);
+		if (!IsStopped)
+		{
+			if (HasTerminated)
+				lastFrames.Clear();
+			return;
+		}
+
+		string stateOutput = executionOutput
+			+ await RunLldbCommand("thread backtrace")
+			+ await RunLldbCommand("frame variable --show-types");
+		UpdateFramesFromOutput(stateOutput);
+		UpdateVariablesFromOutput(stateOutput);
+	}
+
+	async Task<string> RunLldbExecutionCommand(string command)
+	{
+		await StartLldbSession();
+		DrainQueuedLldbOutput();
+		await lldbProcess!.StandardInput.WriteLineAsync(command);
+		await lldbProcess.StandardInput.FlushAsync();
+		return await ReadLldbUntilExecutionStops(TimeSpan.FromSeconds(20));
+	}
+
+	async Task<string> RunLldbCommand(string command)
+	{
+		await StartLldbSession();
+		DrainQueuedLldbOutput();
+		await lldbProcess!.StandardInput.WriteLineAsync(command);
+		await lldbProcess.StandardInput.FlushAsync();
+		return await ReadLldbUntilQuiet(TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(150));
+	}
+
+	async Task<string> ReadLldbUntilExecutionStops(TimeSpan timeout)
+	{
+		StringBuilder output = new();
+		DateTime deadline = DateTime.UtcNow + timeout;
+		DateTime lastRead = DateTime.UtcNow;
+		bool sawStopOrExit = false;
+		while (DateTime.UtcNow < deadline)
+		{
+			string chunk = await ReadLldbChunk(TimeSpan.FromMilliseconds(100));
+			if (chunk.Length > 0)
+			{
+				output.Append(chunk);
+				lastRead = DateTime.UtcNow;
+				string text = output.ToString();
+				sawStopOrExit = text.Contains(" stopped", StringComparison.OrdinalIgnoreCase)
+					|| text.Contains(" exited", StringComparison.OrdinalIgnoreCase)
+					|| text.Contains("exited with status", StringComparison.OrdinalIgnoreCase);
+				continue;
+			}
+			if (sawStopOrExit && DateTime.UtcNow - lastRead >= TimeSpan.FromMilliseconds(250))
+				break;
+			if (lldbProcess?.HasExited == true)
+				break;
+		}
+		return output.ToString();
+	}
+
+	async Task<string> ReadLldbUntilQuiet(TimeSpan timeout, TimeSpan quietPeriod)
+	{
+		StringBuilder output = new();
+		DateTime deadline = DateTime.UtcNow + timeout;
+		DateTime lastRead = DateTime.UtcNow;
+		bool sawOutput = false;
+		while (DateTime.UtcNow < deadline)
+		{
+			string chunk = await ReadLldbChunk(TimeSpan.FromMilliseconds(100));
+			if (chunk.Length > 0)
+			{
+				output.Append(chunk);
+				lastRead = DateTime.UtcNow;
+				sawOutput = true;
+				continue;
+			}
+			if (sawOutput && DateTime.UtcNow - lastRead >= quietPeriod)
+				break;
+			if (lldbProcess?.HasExited == true)
+				break;
+		}
+		return output.ToString();
+	}
+
+	async Task<string> ReadLldbChunk(TimeSpan timeout)
+	{
+		if (lldbOutput.TryDequeue(out string? chunk))
+			return chunk;
+		await Task.Delay(timeout);
+		StringBuilder builder = new();
+		while (lldbOutput.TryDequeue(out chunk))
+			builder.Append(chunk);
+		return builder.ToString();
+	}
+
+	string DrainQueuedLldbOutput()
+	{
+		StringBuilder builder = new();
+		while (lldbOutput.TryDequeue(out string? chunk))
+		{
+			builder.Append(chunk);
+		}
+		return builder.ToString();
+	}
+
 	internal static async Task<DebugBuildResult> BuildExecutable(string project, string cwd, string outDirectory)
 	{
 		string campc = Path.Combine(FindRepositoryRoot(), "bin", "campc");
@@ -778,51 +957,6 @@ sealed class LldbDebugBackend : IDebugBackend
 	internal static string QuoteLldbArgument(string value)
 	{
 		return "\"" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
-	}
-
-	async Task<string> RunLldbBatch(params string[] commands)
-	{
-		if (string.IsNullOrEmpty(executable))
-			throw new InvalidOperationException("LLDB session has not been launched.");
-		ProcessStartInfo info = new("lldb")
-		{
-			RedirectStandardOutput = true,
-			RedirectStandardError = true,
-			UseShellExecute = false
-		};
-		info.ArgumentList.Add("--batch");
-		info.ArgumentList.Add("--no-lldbinit");
-		if (!string.IsNullOrEmpty(stdoutPath))
-		{
-			info.ArgumentList.Add("--one-line");
-			info.ArgumentList.Add($"settings set target.output-path {QuoteLldbArgument(stdoutPath)}");
-		}
-		if (!string.IsNullOrEmpty(stderrPath))
-		{
-			info.ArgumentList.Add("--one-line");
-			info.ArgumentList.Add($"settings set target.error-path {QuoteLldbArgument(stderrPath)}");
-		}
-		foreach ((string source, int line) in pendingBreakpoints)
-		{
-			info.ArgumentList.Add("--one-line");
-			info.ArgumentList.Add(line == 0
-				? "breakpoint set --name main"
-				: $"breakpoint set --file {QuoteLldbArgument(source)} --line {line} --move-to-nearest-code false");
-		}
-		foreach (string command in commands)
-		{
-			info.ArgumentList.Add("--one-line");
-			info.ArgumentList.Add(command);
-		}
-		info.ArgumentList.Add(executable);
-		using Process process = Process.Start(info) ?? throw new InvalidOperationException("Could not start lldb.");
-		string stdout = await process.StandardOutput.ReadToEndAsync();
-		string stderr = await process.StandardError.ReadToEndAsync();
-		await process.WaitForExitAsync();
-		string output = stdout + stderr;
-		if (process.ExitCode != 0 && !output.Contains("Process ", StringComparison.OrdinalIgnoreCase))
-			throw new InvalidOperationException("LLDB command failed." + Environment.NewLine + output);
-		return output;
 	}
 
 	static void DrainOutputFile(string path, string category, ref long offset, List<DebugOutputEvent> events)

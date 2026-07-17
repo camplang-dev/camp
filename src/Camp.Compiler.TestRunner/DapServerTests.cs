@@ -292,6 +292,78 @@ public sealed class DapServerTests
 	}
 
 	[Fact]
+	public void Dap_lldb_backend_continues_to_second_breakpoint_before_statement_output()
+	{
+		if (!OperatingSystem.IsMacOS() || !CommandAvailable("lldb"))
+			return;
+
+		string root = FindRepositoryRoot();
+		string temp = Path.Combine(Path.GetTempPath(), "camp-dap-lldb-two-breakpoints-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(temp);
+		string source = Path.Combine(temp, "main.camp");
+		File.WriteAllText(source, string.Join(Environment.NewLine,
+			"",
+			"export void main()",
+			"{",
+			"\tConsole.write(\"What is your name? \");",
+			"\t//auto name = Console.readLine();",
+			"\tauto name = \"Andrew\";",
+			"\tthing(name);",
+			"}",
+			"",
+			"void thing(string thename)",
+			"{",
+			"\tConsole.write(\"Hello, \");",
+			"\tConsole.write(thename);",
+			"\tConsole.write(\". The date is: \");",
+			"\tConsole.writeLine(\"tomorrow\");",
+			"}",
+			""));
+
+		using DapProcess dap = DapProcess.Start();
+		Assert.True(dap.Request("initialize", new { adapterID = "camp" })["success"]?.GetValue<bool>());
+		JsonNode launch = dap.Request("launch", new
+		{
+			project = source,
+			cwd = root,
+			args = Array.Empty<string>(),
+			stopOnEntry = false,
+			backend = "auto"
+		});
+		Assert.True(launch["success"]?.GetValue<bool>(), launch["message"]?.GetValue<string>());
+		dap.ReadEvent("initialized");
+
+		JsonNode breakpoints = dap.Request("setBreakpoints", new
+		{
+			source = new { path = source },
+			breakpoints = new[] { new { line = 7 }, new { line = 14 } }
+		});
+		Assert.True(breakpoints["body"]?["breakpoints"]?[0]?["verified"]?.GetValue<bool>());
+		Assert.True(breakpoints["body"]?["breakpoints"]?[1]?["verified"]?.GetValue<bool>());
+
+		Assert.True(dap.Request("configurationDone", new { })["success"]?.GetValue<bool>());
+		Assert.Equal("breakpoint", dap.ReadEvent("stopped")["body"]?["reason"]?.GetValue<string>());
+		JsonNode firstStack = dap.Request("stackTrace", new { threadId = 1 });
+		Assert.Equal(7, firstStack["body"]?["stackFrames"]?[0]?["line"]?.GetValue<int>());
+		string firstOutput = dap.ReadEvent("output")["body"]?["output"]?.GetValue<string>() ?? "";
+		Assert.Contains("What is your name?", firstOutput, StringComparison.Ordinal);
+		Assert.DoesNotContain("Hello", firstOutput, StringComparison.Ordinal);
+
+		JsonNode continued = dap.Request("continue", new { threadId = 1 });
+		Assert.True(continued["body"]?["allThreadsContinued"]?.GetValue<bool>());
+		Assert.Equal("continued", dap.ReadEvent("continued")["event"]?.GetValue<string>());
+		JsonNode secondOutputEvent = dap.ReadEvent("output");
+		string secondOutput = secondOutputEvent["body"]?["output"]?.GetValue<string>() ?? "";
+		Assert.Contains("Hello, Andrew", secondOutput, StringComparison.Ordinal);
+		Assert.DoesNotContain("The date is", secondOutput, StringComparison.Ordinal);
+		Assert.Equal("breakpoint", dap.ReadEvent("stopped")["body"]?["reason"]?.GetValue<string>());
+		JsonNode secondStack = dap.Request("stackTrace", new { threadId = 1 });
+		Assert.Equal(14, secondStack["body"]?["stackFrames"]?[0]?["line"]?.GetValue<int>());
+
+		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
+	}
+
+	[Fact]
 	public void Dap_cdb_backend_reports_missing_debugger_when_unavailable()
 	{
 		if (!OperatingSystem.IsWindows() || CdbAvailable())

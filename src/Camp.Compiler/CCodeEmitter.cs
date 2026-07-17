@@ -345,6 +345,26 @@ public static class CCodeEmitter
 				range = tokenRange;
 				return true;
 			}
+			if (property.PropertyType == typeof(Token?) && property.GetValue(syntax) is Token token)
+			{
+				range = token.Range;
+				return true;
+			}
+		}
+
+		foreach (PropertyInfo property in syntax.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
+		{
+			object? value = property.GetValue(syntax);
+			if (value is SyntaxNode child && TryGetSourceRange(child, out range))
+				return true;
+			if (value is IEnumerable enumerable and not string)
+			{
+				foreach (object? item in enumerable)
+				{
+					if (item is SyntaxNode childItem && TryGetSourceRange(childItem, out range))
+						return true;
+				}
+			}
 		}
 
 		range = default;
