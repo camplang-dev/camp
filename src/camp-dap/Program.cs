@@ -1236,9 +1236,12 @@ sealed class CdbDebugBackend : IDebugBackend
 	readonly List<DebugStackFrame> lastFrames = [];
 	readonly Dictionary<int, IReadOnlyList<DebugVariable>> variableReferences = new();
 	readonly Dictionary<string, DebugVariable> evaluateVariables = new(StringComparer.Ordinal);
+	readonly List<DebugOutputEvent> pendingOutputEvents = [];
+	readonly ConcurrentQueue<string> cdbOutput = new();
 	string executable = "";
 	string cdbPath = "";
 	string buildDirectory = "";
+	Process? cdbProcess;
 	DebugMapDocument? debugMap;
 	string? stoppedNativeSymbol;
 	int nextVariableReference = 3000;
@@ -1280,19 +1283,17 @@ sealed class CdbDebugBackend : IDebugBackend
 
 	public async Task ConfigurationDone()
 	{
-		string output = await RunCdbBatch("g", "k", "dv");
-		IsStopped = output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
-			|| output.Contains("breakpoint", StringComparison.OrdinalIgnoreCase);
-		HasTerminated = !IsStopped;
-		UpdateFramesFromOutput(output);
-		UpdateVariablesFromOutput(output);
+		await StartCdbSession();
+		foreach ((string source, int line) in pendingBreakpoints)
+			await RunCdbCommand(BuildCdbBreakpointCommand(source, line));
+		string output = await RunCdbExecutionCommand("g");
+		await RefreshStoppedState(output);
 	}
 
 	public async Task Continue(int threadId)
 	{
-		await Task.CompletedTask;
-		IsStopped = false;
-		HasTerminated = false;
+		string output = await RunCdbExecutionCommand("g");
+		await RefreshStoppedState(output);
 	}
 
 	public async Task Pause(int threadId)
@@ -1309,12 +1310,8 @@ sealed class CdbDebugBackend : IDebugBackend
 			"stepOut" => "gu",
 			_ => "p"
 		};
-		string output = await RunCdbBatch("g", cdbCommand, "k", "dv");
-		IsStopped = output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
-			|| output.Contains("breakpoint", StringComparison.OrdinalIgnoreCase);
-		HasTerminated = !IsStopped;
-		UpdateFramesFromOutput(output);
-		UpdateVariablesFromOutput(output);
+		string output = await RunCdbExecutionCommand(cdbCommand);
+		await RefreshStoppedState(output);
 	}
 
 	public IReadOnlyList<DebugStackFrame> GetStackTrace()
@@ -1340,11 +1337,34 @@ sealed class CdbDebugBackend : IDebugBackend
 		return new DebugVariable(expression, "Unsupported expression", null, 0);
 	}
 
-	public IReadOnlyList<DebugOutputEvent> DrainOutputEvents() => [];
+	public IReadOnlyList<DebugOutputEvent> DrainOutputEvents()
+	{
+		if (pendingOutputEvents.Count == 0)
+			return [];
+		List<DebugOutputEvent> events = [.. pendingOutputEvents];
+		pendingOutputEvents.Clear();
+		return events;
+	}
 
 	public async Task Disconnect()
 	{
-		await Task.CompletedTask;
+		if (cdbProcess is null)
+			return;
+		try
+		{
+			if (!cdbProcess.HasExited)
+			{
+				await cdbProcess.StandardInput.WriteLineAsync("q");
+				Task exited = cdbProcess.WaitForExitAsync();
+				if (await Task.WhenAny(exited, Task.Delay(1000)) != exited && !cdbProcess.HasExited)
+					cdbProcess.Kill(entireProcessTree: true);
+			}
+		}
+		finally
+		{
+			cdbProcess.Dispose();
+			cdbProcess = null;
+		}
 	}
 
 	void UpdateFramesFromOutput(string output)
@@ -1434,12 +1454,15 @@ sealed class CdbDebugBackend : IDebugBackend
 		return value.StartsWith("0n", StringComparison.Ordinal) ? value[2..] : value;
 	}
 
-	async Task<string> RunCdbBatch(params string[] commands)
+	async Task StartCdbSession()
 	{
+		if (cdbProcess is not null)
+			return;
 		if (string.IsNullOrEmpty(executable))
 			throw new InvalidOperationException("CDB session has not been launched.");
 		ProcessStartInfo info = new(cdbPath)
 		{
+			RedirectStandardInput = true,
 			RedirectStandardOutput = true,
 			RedirectStandardError = true,
 			UseShellExecute = false
@@ -1448,27 +1471,134 @@ sealed class CdbDebugBackend : IDebugBackend
 		info.ArgumentList.Add("-y");
 		info.ArgumentList.Add(Path.GetDirectoryName(executable) ?? ".");
 		info.ArgumentList.Add("-o");
-		info.ArgumentList.Add("-c");
-		info.ArgumentList.Add(BuildCdbCommand(commands));
 		info.ArgumentList.Add(executable);
-		using Process process = Process.Start(info) ?? throw new InvalidOperationException("Could not start cdb.exe.");
-		string stdout = await process.StandardOutput.ReadToEndAsync();
-		string stderr = await process.StandardError.ReadToEndAsync();
-		await process.WaitForExitAsync();
-		string output = stdout + stderr;
-		if (process.ExitCode != 0 && !output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase))
-			throw new InvalidOperationException("CDB command failed." + Environment.NewLine + output);
-		return output;
+		cdbProcess = Process.Start(info) ?? throw new InvalidOperationException("Could not start cdb.exe.");
+		_ = Task.Run(() => ReadCdbStream(cdbProcess.StandardOutput.BaseStream));
+		_ = Task.Run(() => ReadCdbStream(cdbProcess.StandardError.BaseStream));
+		await ReadCdbUntilQuiet(TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(200));
 	}
 
-	string BuildCdbCommand(params string[] commands)
+	async Task RefreshStoppedState(string executionOutput)
 	{
-		List<string> all = [];
-		foreach ((string source, int line) in pendingBreakpoints)
-			all.Add(BuildCdbBreakpointCommand(source, line));
-		all.AddRange(commands);
-		all.Add("q");
-		return string.Join("; ", all);
+		IsStopped = IsCdbStoppedOutput(executionOutput);
+		HasTerminated = IsCdbTerminatedOutput(executionOutput);
+		QueueDebuggeeOutput(executionOutput);
+		if (!IsStopped)
+		{
+			if (HasTerminated)
+				lastFrames.Clear();
+			return;
+		}
+
+		string stateOutput = executionOutput
+			+ await RunCdbCommand("k")
+			+ await RunCdbCommand("dv");
+		UpdateFramesFromOutput(stateOutput);
+		UpdateVariablesFromOutput(stateOutput);
+	}
+
+	async Task<string> RunCdbExecutionCommand(string command)
+	{
+		await StartCdbSession();
+		DrainQueuedCdbOutput();
+		await cdbProcess!.StandardInput.WriteLineAsync(command);
+		await cdbProcess.StandardInput.FlushAsync();
+		return await ReadCdbUntilExecutionStops(TimeSpan.FromSeconds(30));
+	}
+
+	async Task<string> RunCdbCommand(string command)
+	{
+		await StartCdbSession();
+		DrainQueuedCdbOutput();
+		await cdbProcess!.StandardInput.WriteLineAsync(command);
+		await cdbProcess.StandardInput.FlushAsync();
+		return await ReadCdbUntilQuiet(TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(200));
+	}
+
+	async Task<string> ReadCdbUntilExecutionStops(TimeSpan timeout)
+	{
+		StringBuilder output = new();
+		DateTime deadline = DateTime.UtcNow + timeout;
+		DateTime lastRead = DateTime.UtcNow;
+		bool sawStopOrExit = false;
+		while (DateTime.UtcNow < deadline)
+		{
+			string chunk = await ReadCdbChunk(TimeSpan.FromMilliseconds(100));
+			if (chunk.Length > 0)
+			{
+				output.Append(chunk);
+				lastRead = DateTime.UtcNow;
+				string text = output.ToString();
+				sawStopOrExit = IsCdbStoppedOutput(text) || IsCdbTerminatedOutput(text);
+				continue;
+			}
+			if (sawStopOrExit && DateTime.UtcNow - lastRead >= TimeSpan.FromMilliseconds(300))
+				break;
+			if (cdbProcess?.HasExited == true)
+				break;
+		}
+		return output.ToString();
+	}
+
+	async Task<string> ReadCdbUntilQuiet(TimeSpan timeout, TimeSpan quietPeriod)
+	{
+		StringBuilder output = new();
+		DateTime deadline = DateTime.UtcNow + timeout;
+		DateTime lastRead = DateTime.UtcNow;
+		bool sawOutput = false;
+		while (DateTime.UtcNow < deadline)
+		{
+			string chunk = await ReadCdbChunk(TimeSpan.FromMilliseconds(100));
+			if (chunk.Length > 0)
+			{
+				output.Append(chunk);
+				lastRead = DateTime.UtcNow;
+				sawOutput = true;
+				continue;
+			}
+			if (sawOutput && DateTime.UtcNow - lastRead >= quietPeriod)
+				break;
+			if (cdbProcess?.HasExited == true)
+				break;
+		}
+		return output.ToString();
+	}
+
+	async Task<string> ReadCdbChunk(TimeSpan timeout)
+	{
+		if (cdbOutput.TryDequeue(out string? chunk))
+			return chunk;
+		await Task.Delay(timeout);
+		StringBuilder builder = new();
+		while (cdbOutput.TryDequeue(out chunk))
+			builder.Append(chunk);
+		return builder.ToString();
+	}
+
+	string DrainQueuedCdbOutput()
+	{
+		StringBuilder builder = new();
+		while (cdbOutput.TryDequeue(out string? chunk))
+			builder.Append(chunk);
+		return builder.ToString();
+	}
+
+	async Task ReadCdbStream(Stream stream)
+	{
+		byte[] buffer = new byte[4096];
+		try
+		{
+			while (true)
+			{
+				int count = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length));
+				if (count <= 0)
+					break;
+				cdbOutput.Enqueue(Encoding.UTF8.GetString(buffer, 0, count));
+			}
+		}
+		catch
+		{
+		}
 	}
 
 	string BuildCdbBreakpointCommand(string source, int line)
@@ -1476,10 +1606,57 @@ sealed class CdbDebugBackend : IDebugBackend
 		string module = Path.GetFileNameWithoutExtension(executable);
 		if (line == 0)
 			return "bu " + module + "!" + (debugMap?.FindFunction("main")?.NativeSymbol ?? "main");
-		DebugMapFunction? function = debugMap?.FindFunctionForSourceLine(source, line);
-		return function is null
-			? "bu `" + source + ":" + line.ToString(System.Globalization.CultureInfo.InvariantCulture) + "`"
-			: "bu " + module + "!" + function.NativeSymbol;
+		return "bu `" + source + ":" + line.ToString(System.Globalization.CultureInfo.InvariantCulture) + "`";
+	}
+
+	static bool IsCdbStoppedOutput(string output)
+	{
+		return output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("breakpoint", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("Access violation", StringComparison.OrdinalIgnoreCase);
+	}
+
+	static bool IsCdbTerminatedOutput(string output)
+	{
+		return output.Contains("quit:", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("exited with code", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("Debuggee is not connected", StringComparison.OrdinalIgnoreCase);
+	}
+
+	void QueueDebuggeeOutput(string output)
+	{
+		StringBuilder builder = new();
+		foreach (string rawLine in output.Split('\n'))
+		{
+			string line = rawLine.TrimEnd('\r');
+			if (line.Length == 0)
+				continue;
+			if (line.StartsWith("0:", StringComparison.Ordinal)
+				|| line.StartsWith("Microsoft ", StringComparison.Ordinal)
+				|| line.StartsWith("CommandLine:", StringComparison.Ordinal)
+				|| line.StartsWith("Symbol search path", StringComparison.Ordinal)
+				|| line.StartsWith("Executable search path", StringComparison.Ordinal)
+				|| line.StartsWith("ModLoad:", StringComparison.Ordinal)
+				|| line.StartsWith("Breakpoint ", StringComparison.OrdinalIgnoreCase)
+				|| line.Contains("Debug session time:", StringComparison.OrdinalIgnoreCase)
+				|| line.Contains("cdb: Reading initial command", StringComparison.OrdinalIgnoreCase)
+				|| line.Contains("Windows ", StringComparison.OrdinalIgnoreCase)
+				|| line.Contains("Copyright ", StringComparison.OrdinalIgnoreCase)
+				|| line.Contains("Microsoft Corporation", StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+			if (line.Contains("!main", StringComparison.Ordinal)
+				|| line.Contains("!campmain", StringComparison.Ordinal)
+				|| line.Contains("!thing", StringComparison.Ordinal)
+				|| line.Contains(" [", StringComparison.Ordinal))
+			{
+				continue;
+			}
+			builder.AppendLine(line);
+		}
+		if (builder.Length > 0)
+			pendingOutputEvents.Add(new DebugOutputEvent("stdout", builder.ToString()));
 	}
 
 	static string? FindCdbPath()
