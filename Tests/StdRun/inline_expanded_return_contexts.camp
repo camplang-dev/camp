@@ -1,0 +1,40 @@
+using Std;
+
+struct SliceBox
+{
+	const char[] text;
+}
+
+const char[] firstTwo(const char[] source)
+{
+	return source[..2];
+}
+
+SliceBox makeBoxInline(const char[] source)
+{
+	return { firstTwo(source) };
+}
+
+nuint lengthOf(const char[] value)
+{
+	return value.length;
+}
+
+nuint callWithInlineExpandedReturn(const char[] source)
+{
+	return lengthOf(firstTwo(source));
+}
+
+export int main()
+{
+	const char[] source = "abcd";
+
+	SliceBox box = makeBoxInline(source);
+	if (box.text.length != 2)
+		return 1;
+
+	if (callWithInlineExpandedReturn(source) != 2)
+		return 2;
+
+	return 0;
+}
