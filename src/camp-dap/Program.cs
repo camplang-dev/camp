@@ -807,7 +807,7 @@ sealed class LldbDebugBackend : IDebugBackend
 			info.ArgumentList.Add("--one-line");
 			info.ArgumentList.Add(line == 0
 				? "breakpoint set --name main"
-				: $"breakpoint set --file {QuoteLldbArgument(source)} --line {line}");
+				: $"breakpoint set --file {QuoteLldbArgument(source)} --line {line} --move-to-nearest-code false");
 		}
 		foreach (string command in commands)
 		{

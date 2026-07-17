@@ -175,6 +175,7 @@ public sealed class DapServerTests
 			"{",
 			"\tConsole.writeLine(\"dap stdout\");",
 			"\tint result = helper(41);",
+			"\tConsole.writeLine(\"after breakpoint\");",
 			"\treturn result;",
 			"}",
 			""));
@@ -208,6 +209,7 @@ public sealed class DapServerTests
 		JsonNode outputEvent = dap.ReadEvent("output");
 		Assert.Equal("stdout", outputEvent["body"]?["category"]?.GetValue<string>());
 		Assert.Contains("dap stdout", outputEvent["body"]?["output"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.DoesNotContain("after breakpoint", outputEvent["body"]?["output"]?.GetValue<string>(), StringComparison.Ordinal);
 
 		JsonNode stack = dap.Request("stackTrace", new { threadId = 1 });
 		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
@@ -232,6 +234,60 @@ public sealed class DapServerTests
 		JsonNode continued = dap.Request("continue", new { threadId = 1 });
 		Assert.True(continued["body"]?["allThreadsContinued"]?.GetValue<bool>());
 		Assert.Equal("continued", dap.ReadEvent("continued")["event"]?.GetValue<string>());
+		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
+	}
+
+	[Fact]
+	public void Dap_lldb_backend_stops_before_later_console_output()
+	{
+		if (!OperatingSystem.IsMacOS() || !CommandAvailable("lldb"))
+			return;
+
+		string root = FindRepositoryRoot();
+		string temp = Path.Combine(Path.GetTempPath(), "camp-dap-lldb-output-stop-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(temp);
+		string source = Path.Combine(temp, "main.camp");
+		File.WriteAllText(source, string.Join(Environment.NewLine,
+			"using Std;",
+			"",
+			"export int main(string[] args)",
+			"{",
+			"\tConsole.writeLine(\"before\");",
+			"\tConsole.writeLine(\"breakpoint line\");",
+			"\tConsole.writeLine(\"after\");",
+			"\treturn 0;",
+			"}",
+			""));
+
+		using DapProcess dap = DapProcess.Start();
+		Assert.True(dap.Request("initialize", new { adapterID = "camp" })["success"]?.GetValue<bool>());
+		JsonNode launch = dap.Request("launch", new
+		{
+			project = source,
+			cwd = root,
+			args = Array.Empty<string>(),
+			stopOnEntry = false,
+			backend = "auto"
+		});
+		Assert.True(launch["success"]?.GetValue<bool>(), launch["message"]?.GetValue<string>());
+		dap.ReadEvent("initialized");
+
+		JsonNode breakpoints = dap.Request("setBreakpoints", new
+		{
+			source = new { path = source },
+			breakpoints = new[] { new { line = 6 } }
+		});
+		Assert.True(
+			breakpoints["body"]?["breakpoints"]?[0]?["verified"]?.GetValue<bool>(),
+			breakpoints["body"]?["breakpoints"]?[0]?["message"]?.GetValue<string>());
+
+		Assert.True(dap.Request("configurationDone", new { })["success"]?.GetValue<bool>());
+		JsonNode outputEvent = dap.ReadEvent("output");
+		string output = outputEvent["body"]?["output"]?.GetValue<string>() ?? "";
+		Assert.Contains("before", output, StringComparison.Ordinal);
+		Assert.DoesNotContain("breakpoint line", output, StringComparison.Ordinal);
+		Assert.DoesNotContain("after", output, StringComparison.Ordinal);
+		Assert.Equal("breakpoint", dap.ReadEvent("stopped")["body"]?["reason"]?.GetValue<string>());
 		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
 	}
 
