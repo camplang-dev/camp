@@ -1,0 +1,30 @@
+using Std;
+
+fixed struct WriterHolder
+{
+	WriterHolder(unscoped CharWriter writer)
+	{
+		this.writer = writer;
+	}
+
+	CharWriter writer;
+
+	void writeAll(const char[] value)
+	{
+		this.writer.write("a");
+		this.writer.write(value);
+		this.writer.write('\n');
+	}
+}
+
+export int main()
+{
+	auto output = new List<char>() finally delete;
+	CharWriter writer = output.getCharWriter();
+	auto holder = init WriterHolder(writer);
+	holder.writeAll("b");
+	output.add('\0');
+	char[] buffer = output.takeBuffer() finally delete;
+	string text = (string)buffer.elements;
+	return text.compareTo("ab\n") == 0 ? 0 : 1;
+}

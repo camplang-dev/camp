@@ -250,15 +250,16 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < arguments.Count; i++)
 		{
 			ArgumentExpression argument = arguments[i];
-			if (TryMaterializeGenericReturnInArgument(argument, callableParameters, i))
+			int parameterIndex = GetCallableParameterIndex(arguments, callableParameters, i);
+			if (TryMaterializeGenericReturnInArgument(argument, callableParameters, parameterIndex))
 				continue;
-			if (TryMaterializeExpandedGenericOutArgument(argument, callableParameters, i))
+			if (TryMaterializeExpandedGenericOutArgument(argument, callableParameters, parameterIndex))
 				continue;
-			if (TryMaterializeExpandedGenericInArgument(argument, callableParameters, i))
+			if (TryMaterializeExpandedGenericInArgument(argument, callableParameters, parameterIndex))
 				continue;
-			if (ExpandedArgumentComponentAlreadyProvided(arguments, callableParameters, i))
+			if (ExpandedArgumentComponentAlreadyProvided(arguments, callableParameters, i, parameterIndex))
 				continue;
-			if (TryCreateParamsPointerArgumentComponents(argument, callableParameters, i, out List<Expression> pointerComponents))
+			if (TryCreateParamsPointerArgumentComponents(argument, callableParameters, parameterIndex, out List<Expression> pointerComponents))
 			{
 				arguments.RemoveAt(i);
 				for (int componentIndex = 0; componentIndex < pointerComponents.Count; componentIndex++)
@@ -276,16 +277,16 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
-			bool expectsExpandedComponents = ExpectsExpandedArgumentComponents(callableParameters, i);
+			bool expectsExpandedComponents = ExpectsExpandedArgumentComponents(callableParameters, parameterIndex);
 			if ((!expectsExpandedComponents || !TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components))
 				&& (!expectsExpandedComponents || !TryCreateTargetTypedExpandedReturnArgumentComponents(argument, out components)))
 			{
-				if (PrimitiveStringArrayLengthAlreadyProvided(arguments, callableParameters, i)
+				if (PrimitiveStringArrayLengthAlreadyProvided(arguments, callableParameters, i, parameterIndex)
 					|| !TryCreateLiftedOptionalArgumentComponents(argument, out components)
-						&& !TryCreateIteratorToProtocolArgumentComponents(argument, callableParameters, i, out components)
-						&& !TryCreateFunctionToDelegateArgumentComponents(argument, callableParameters, i, out components)
-						&& !TryCreatePrimitiveStringToArrayArgumentComponents(argument, callableParameters, i, out components)
-						&& !TryCreateSourceLevelExpandedArgumentComponents(argument, callableParameters, i, out components))
+						&& !TryCreateIteratorToProtocolArgumentComponents(argument, callableParameters, parameterIndex, out components)
+						&& !TryCreateFunctionToDelegateArgumentComponents(argument, callableParameters, parameterIndex, out components)
+						&& !TryCreatePrimitiveStringToArrayArgumentComponents(argument, callableParameters, parameterIndex, out components)
+						&& !TryCreateSourceLevelExpandedArgumentComponents(argument, callableParameters, parameterIndex, out components))
 					continue;
 			}
 
@@ -304,6 +305,48 @@ public sealed partial class BindableNodeAnalyzer
 			i += components.Count - 1;
 		}
 		CollapseDuplicateExpandedThisComponents(arguments, callableParameters);
+	}
+
+	int GetCallableParameterIndex(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters, int argumentIndex)
+	{
+		if (callableParameters is null)
+			return argumentIndex;
+
+		int parameterIndex = 0;
+		for (int i = 0; i < argumentIndex; i++)
+		{
+			if (IsHiddenComponentArgument(arguments, callableParameters, i, parameterIndex))
+				continue;
+			parameterIndex++;
+		}
+		return parameterIndex;
+	}
+
+	bool IsHiddenComponentArgument(List<ArgumentExpression> arguments, List<ParameterDefinition> callableParameters, int argumentIndex, int parameterIndex)
+	{
+		if (argumentIndex == 0 || parameterIndex == 0 || argumentIndex >= arguments.Count || parameterIndex > callableParameters.Count)
+			return false;
+		if (parameterIndex < callableParameters.Count && IsHiddenParameterComponentOfPrevious(callableParameters, parameterIndex))
+			return false;
+
+		string previousName = callableParameters[parameterIndex - 1].Name;
+		Expression? previousValue = arguments[argumentIndex - 1].Value;
+		Expression? value = arguments[argumentIndex].Value;
+		return IsProvidedLengthComponent(previousValue, value, previousName + "_length")
+			|| IsProvidedComponent(value, previousName + "_context")
+			|| IsProvidedComponent(value, previousName + "_specified");
+	}
+
+	static bool IsHiddenParameterComponentOfPrevious(List<ParameterDefinition> callableParameters, int index)
+	{
+		if (index <= 0 || index >= callableParameters.Count)
+			return false;
+		string previousName = callableParameters[index - 1].Name;
+		string name = callableParameters[index].Name;
+		return name == previousName + "_length"
+			|| name == previousName + "_context"
+			|| name == previousName + "_specified"
+			|| previousName is "this" or "this_call" && name.StartsWith("this_", System.StringComparison.Ordinal);
 	}
 
 	bool ExpectsExpandedArgumentComponents(List<ParameterDefinition>? callableParameters, int index)
@@ -384,23 +427,23 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	bool ExpandedArgumentComponentAlreadyProvided(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters, int index)
+	bool ExpandedArgumentComponentAlreadyProvided(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters, int argumentIndex, int parameterIndex)
 	{
-		if (callableParameters is null || index + 1 >= callableParameters.Count || index + 1 >= arguments.Count)
+		if (callableParameters is null || parameterIndex + 1 >= callableParameters.Count || argumentIndex + 1 >= arguments.Count)
 			return false;
-		if (IsPointerToExpandedComponentPair(callableParameters, index))
+		if (IsPointerToExpandedComponentPair(callableParameters, parameterIndex))
 			return false;
 
-		string firstName = callableParameters[index].Name;
-		string secondName = callableParameters[index + 1].Name;
+		string firstName = callableParameters[parameterIndex].Name;
+		string secondName = callableParameters[parameterIndex + 1].Name;
 		if (firstName == "this" && secondName == "this_length")
-			return IsProvidedLengthComponent(arguments[index].Value, arguments[index + 1].Value, secondName);
+			return IsProvidedLengthComponent(arguments[argumentIndex].Value, arguments[argumentIndex + 1].Value, secondName);
 		if (firstName == "this" && secondName == "this_context")
-			return IsProvidedComponent(arguments[index + 1].Value, secondName);
+			return IsProvidedComponent(arguments[argumentIndex + 1].Value, secondName);
 		if (firstName == "this" && secondName == "this_specified")
-			return IsProvidedComponent(arguments[index + 1].Value, secondName);
+			return IsProvidedComponent(arguments[argumentIndex + 1].Value, secondName);
 		if (firstName == "this_call" && secondName == "this_context")
-			return IsProvidedComponent(arguments[index + 1].Value, secondName);
+			return IsProvidedComponent(arguments[argumentIndex + 1].Value, secondName);
 
 		return false;
 	}
@@ -476,6 +519,13 @@ public sealed partial class BindableNodeAnalyzer
 				? componentName["this_".Length..]
 				: componentName;
 			return member.Name == suffix;
+		}
+		if (next is MemberReferenceExpression memberReference)
+		{
+			string suffix = componentName.StartsWith("this_", System.StringComparison.Ordinal)
+				? componentName["this_".Length..]
+				: componentName;
+			return memberReference.Name == suffix || memberReference.Name.EndsWith("_" + suffix, System.StringComparison.Ordinal);
 		}
 		return false;
 	}
@@ -745,24 +795,24 @@ public sealed partial class BindableNodeAnalyzer
 		return TryCreateExpandedReturnCallComponents(call, shape, out components);
 	}
 
-	bool PrimitiveStringArrayLengthAlreadyProvided(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters, int index)
+	bool PrimitiveStringArrayLengthAlreadyProvided(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters, int argumentIndex, int parameterIndex)
 	{
-		if (callableParameters is null || index + 1 >= arguments.Count || index + 1 >= callableParameters.Count)
+		if (callableParameters is null || argumentIndex + 1 >= arguments.Count || parameterIndex + 1 >= callableParameters.Count)
 			return false;
-		if (arguments[index + 1].Modifier != ArgumentModifier.None)
+		if (arguments[argumentIndex + 1].Modifier != ArgumentModifier.None)
 			return false;
-		if (IsExplicitHiddenArgument(arguments[index + 1]))
+		if (IsExplicitHiddenArgument(arguments[argumentIndex + 1]))
 			return false;
-		string actualLengthType = arguments[index + 1].Value?.ResolvedType ?? arguments[index + 1].ResolvedType ?? "";
+		string actualLengthType = arguments[argumentIndex + 1].Value?.ResolvedType ?? arguments[argumentIndex + 1].ResolvedType ?? "";
 		if (StripTopLevelValueQualifiers(actualLengthType) is not ("nuint" or "nint" or "uint" or "int" or "ulong" or "long" or "ushort" or "short"))
 			return false;
-		Expression? value = arguments[index].Value;
-		if (value is null || GetPrimitiveStringElementType(value.ResolvedType ?? arguments[index].ResolvedType) is not string stringElement)
+		Expression? value = arguments[argumentIndex].Value;
+		if (value is null || GetPrimitiveStringElementType(value.ResolvedType ?? arguments[argumentIndex].ResolvedType) is not string stringElement)
 			return false;
-		if (!PrimitiveStringArrayArgumentTargetMatches(callableParameters, index, stringElement))
+		if (!PrimitiveStringArrayArgumentTargetMatches(callableParameters, parameterIndex, stringElement))
 			return false;
 
-		string lengthType = callableParameters[index + 1].ResolvedType ?? "";
+		string lengthType = callableParameters[parameterIndex + 1].ResolvedType ?? "";
 		return StripTopLevelValueQualifiers(lengthType) is "nuint" or "nint" or "uint" or "int" or "ulong" or "long" or "ushort" or "short";
 	}
 
