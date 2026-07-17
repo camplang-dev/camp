@@ -633,6 +633,8 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? initNew = FindInitNewMethod(definition, construction.Arguments.Count, constructorTarget);
 		if (initNew is null)
 			return null;
+		if (constructorTarget is not null)
+			ExpandParamsArguments(construction.Arguments, GetCallableParameters(constructorTarget.Parameters));
 
 		return CreateInitNewCall(target, initNew, construction.Arguments, construction.SourceSyntax, constructedType: construction.Type);
 	}
@@ -827,7 +829,8 @@ public sealed partial class BindableNodeAnalyzer
 			call.Arguments.Add(argument);
 		callTargets[call] = initNew;
 		AddImplicitDefaultArguments(call);
-		ExpandParamsArguments(call);
+		if (call.Arguments.Count < initNew.Parameters.Count)
+			ExpandParamsArguments(call.Arguments, initNew.Parameters);
 		AddImplicitSizeOfArguments(call, initNew, constructedType);
 		AddImplicitNameOfArguments(call, initNew, constructedType);
 		AddImplicitVTableOfArguments(call, initNew, constructedType);

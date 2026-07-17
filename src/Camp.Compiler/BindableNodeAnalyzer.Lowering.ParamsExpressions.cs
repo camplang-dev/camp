@@ -279,7 +279,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			bool expectsExpandedComponents = ExpectsExpandedArgumentComponents(callableParameters, parameterIndex);
 			if ((!expectsExpandedComponents || !TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components))
-				&& (!expectsExpandedComponents || !TryCreateTargetTypedExpandedReturnArgumentComponents(argument, out components)))
+				&& (!expectsExpandedComponents || !TryCreateTargetTypedExpandedReturnArgumentComponents(argument, callableParameters, parameterIndex, out components)))
 			{
 				if (PrimitiveStringArrayLengthAlreadyProvided(arguments, callableParameters, i, parameterIndex)
 					|| !TryCreateLiftedOptionalArgumentComponents(argument, out components)
@@ -785,14 +785,70 @@ public sealed partial class BindableNodeAnalyzer
 			&& shape.Components.Count > 1;
 	}
 
-	bool TryCreateTargetTypedExpandedReturnArgumentComponents(ArgumentExpression argument, out List<Expression> components)
+	bool TryCreateTargetTypedExpandedReturnArgumentComponents(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index, out List<Expression> components)
 	{
 		components = [];
 		if (argument.Value is not CallExpression call)
 			return false;
-		if (!TryGetParamsComponentShape(null, argument.ResolvedType, "value", out ParamsComponentShape shape) || shape.Components.Count <= 1)
+		string? targetType = argument.ResolvedType;
+		if ((!TryGetParamsComponentShape(null, targetType, "value", out ParamsComponentShape shape) || shape.Components.Count <= 1)
+			&& callableParameters is not null
+			&& index < callableParameters.Count)
+		{
+			targetType = callableParameters[index].ResolvedType ?? callableParameters[index].Type?.ResolvedType;
+			if ((!TryGetParamsComponentShape(null, targetType, callableParameters[index].Name, out shape) || shape.Components.Count <= 1)
+				&& !TryGetExpandedArgumentTargetShape(callableParameters, index, argument.ResolvedType ?? call.ResolvedType, out shape))
+				return false;
+		}
+		else if (shape.Components.Count <= 1)
 			return false;
 		return TryCreateExpandedReturnCallComponents(call, shape, out components);
+	}
+
+	bool TryGetExpandedArgumentTargetShape(List<ParameterDefinition> callableParameters, int index, string? sourceType, out ParamsComponentShape shape)
+	{
+		shape = new ParamsComponentShape(ParamsComponentShapeKind.Structural, sourceType ?? "", []);
+		if (index + 1 >= callableParameters.Count)
+			return false;
+
+		ParameterDefinition first = callableParameters[index];
+		ParameterDefinition second = callableParameters[index + 1];
+		string firstName = first.Name;
+		string secondName = second.Name;
+		if (string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(secondName))
+			return false;
+
+		ParamsComponentShapeKind kind;
+		string firstComponentName;
+		string secondComponentName;
+		if (secondName == firstName + "_context")
+		{
+			kind = ParamsComponentShapeKind.Delegate;
+			firstComponentName = "call";
+			secondComponentName = "context";
+		}
+		else if (secondName == firstName + "_length")
+		{
+			kind = ParamsComponentShapeKind.Array;
+			firstComponentName = "elements";
+			secondComponentName = "length";
+		}
+		else if (secondName == firstName + "_specified")
+		{
+			kind = ParamsComponentShapeKind.Optional;
+			firstComponentName = "value";
+			secondComponentName = "specified";
+		}
+		else
+		{
+			return false;
+		}
+
+		shape = new ParamsComponentShape(kind, sourceType ?? "", [
+			new ParamsComponent(firstComponentName, first.ResolvedType ?? first.Type?.ResolvedType ?? ErrorType, firstName, first, kind),
+			new ParamsComponent(secondComponentName, second.ResolvedType ?? second.Type?.ResolvedType ?? ErrorType, secondName, second, kind)
+		]);
+		return true;
 	}
 
 	bool PrimitiveStringArrayLengthAlreadyProvided(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters, int argumentIndex, int parameterIndex)

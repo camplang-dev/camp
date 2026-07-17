@@ -1,0 +1,27 @@
+using Std;
+
+fixed struct WriterHolder
+{
+	WriterHolder(unscoped CharWriter writer)
+	{
+		this.writer = writer;
+	}
+
+	CharWriter writer;
+
+	void write()
+	{
+		this.writer.write("ok");
+	}
+}
+
+export int main()
+{
+	auto output = new List<char>() finally delete;
+	auto holder = init WriterHolder(output.getCharWriter());
+	holder.write();
+	output.add('\0');
+	char[] buffer = output.takeBuffer() finally delete;
+	string text = (string)buffer.elements;
+	return text.compareTo("ok") == 0 ? 0 : 1;
+}

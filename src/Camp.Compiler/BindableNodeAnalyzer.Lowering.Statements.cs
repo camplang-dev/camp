@@ -1229,10 +1229,22 @@ public sealed partial class BindableNodeAnalyzer
 		if (declaration.InitialValue is not ConstructionExpression { Kind: ConstructionKind.New } construction || declaration.Target.Names.Count != 1)
 			return false;
 
-		for (int i = 0; i < construction.Arguments.Count; i++)
-			construction.Arguments[i] = LowerArgument(construction.Arguments[i]);
-		construction.ElementCount = LowerExpression(construction.ElementCount);
-		LowerInitializer(construction.Initializer);
+		List<Statement>? previousPrefix = currentStatementPrefix;
+		List<Statement>? previousSuffix = currentStatementSuffix;
+		currentStatementPrefix = statements;
+		currentStatementSuffix = [];
+		try
+		{
+			for (int i = 0; i < construction.Arguments.Count; i++)
+				construction.Arguments[i] = LowerArgument(construction.Arguments[i]);
+			construction.ElementCount = LowerExpression(construction.ElementCount);
+			LowerInitializer(construction.Initializer);
+		}
+		finally
+		{
+			currentStatementPrefix = previousPrefix;
+			currentStatementSuffix = previousSuffix;
+		}
 
 		if (construction.ElementCount is not null || construction.Type is null)
 			return false;
@@ -1284,11 +1296,27 @@ public sealed partial class BindableNodeAnalyzer
 				Expression = vtableAssignment
 			});
 		if (initNew is not null)
+		{
+			previousPrefix = currentStatementPrefix;
+			previousSuffix = currentStatementSuffix;
+			currentStatementPrefix = statements;
+			currentStatementSuffix = [];
+			Expression initExpression;
+			try
+			{
+				initExpression = CreateInitNewCall(target, initNew, construction.Arguments, construction.SourceSyntax, constructedType: construction.Type);
+			}
+			finally
+			{
+				currentStatementPrefix = previousPrefix;
+				currentStatementSuffix = previousSuffix;
+			}
 			guardBody.Statements.Add(new ExpressionStatement
 			{
 				ResolvedType = "void",
-				Expression = CreateInitNewCall(target, initNew, construction.Arguments, construction.SourceSyntax, constructedType: construction.Type)
+				Expression = initExpression
 			});
+		}
 		if (guardBody.Statements.Count == 0)
 			return true;
 
@@ -1389,9 +1417,21 @@ public sealed partial class BindableNodeAnalyzer
 		if (initialValue is not ConstructionExpression { Kind: ConstructionKind.Init } construction || declaration.Target.Names.Count != 1)
 			return false;
 
-		for (int i = 0; i < construction.Arguments.Count; i++)
-			construction.Arguments[i] = LowerArgument(construction.Arguments[i]);
-		LowerInitializer(construction.Initializer);
+		List<Statement>? previousPrefix = currentStatementPrefix;
+		List<Statement>? previousSuffix = currentStatementSuffix;
+		currentStatementPrefix = statements;
+		currentStatementSuffix = [];
+		try
+		{
+			for (int i = 0; i < construction.Arguments.Count; i++)
+				construction.Arguments[i] = LowerArgument(construction.Arguments[i]);
+			LowerInitializer(construction.Initializer);
+		}
+		finally
+		{
+			currentStatementPrefix = previousPrefix;
+			currentStatementSuffix = previousSuffix;
+		}
 
 		TypeDefinition? constructedDefinition = null;
 		string constructedTypeName = construction.Type?.ResolvedType ?? BaseConstructedType(construction.ResolvedType);
@@ -1400,7 +1440,20 @@ public sealed partial class BindableNodeAnalyzer
 
 		Expression target = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? ErrorType);
 		constructionTargets.TryGetValue(construction, out FunctionDefinition? constructorTarget);
-		CallExpression? initCall = CreateInitCallForConstruction(construction, target, constructorTarget);
+		previousPrefix = currentStatementPrefix;
+		previousSuffix = currentStatementSuffix;
+		currentStatementPrefix = statements;
+		currentStatementSuffix = [];
+		CallExpression? initCall;
+		try
+		{
+			initCall = CreateInitCallForConstruction(construction, target, constructorTarget);
+		}
+		finally
+		{
+			currentStatementPrefix = previousPrefix;
+			currentStatementSuffix = previousSuffix;
+		}
 		if (constructedDefinition is null
 			&& initCall?.Target is MemberReferenceExpression { Member: FunctionDefinition initFunction })
 			constructedDefinition = FindContainingType(initFunction);
