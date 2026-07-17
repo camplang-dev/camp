@@ -102,6 +102,47 @@ public sealed partial class BindableNodeAnalyzer
 			|| storageShape.Kind != ParamsComponentShapeKind.Delegate
 			|| storageShape.Components.Count != 2)
 			return false;
+		if (item.Expression is MemberReferenceExpression { Target: not null, Member: FunctionDefinition function } member
+			&& FindContainingType(function) is not InterfaceDefinition
+			&& TryCreateExpandedReceiverMethodDelegateComponents(member, function, out List<Expression> targetTypedComponents, storageShape))
+		{
+			TryGetParamsComponentShape(null, semanticType, targetName, out ParamsComponentShape semanticComponentShape);
+			for (int i = 0; i < targetTypedComponents.Count; i++)
+			{
+				expandedItems.Add(new InitializerItem
+				{
+					SourceSyntax = item.SourceSyntax,
+					Target = InitializerTargetFor(storageShape.Components[i].ExpandedName),
+					Expression = targetTypedComponents[i],
+					ResolvedType = targetTypedComponents[i].ResolvedType,
+					TargetResolvedType = semanticComponentShape.Components.Count > i ? semanticComponentShape.Components[i].Type : storageShape.Components[i].Type,
+					TargetStorageResolvedType = storageShape.Components[i].Type
+				});
+				expandedItems[i].TargetStorageGenericNames.AddRange(item.TargetStorageGenericNames);
+			}
+			return true;
+		}
+		if (TryCreateParamsComponentExpressions(item.Expression, out List<Expression> components)
+			&& components.Count == storageShape.Components.Count
+			&& TryGetCallableShape(components[0].ResolvedType, out CallableShape componentCall)
+			&& componentCall.Kind == "fn")
+		{
+			TryGetParamsComponentShape(null, semanticType, targetName, out ParamsComponentShape semanticComponentShape);
+			for (int i = 0; i < components.Count; i++)
+			{
+				expandedItems.Add(new InitializerItem
+				{
+					SourceSyntax = item.SourceSyntax,
+					Target = InitializerTargetFor(storageShape.Components[i].ExpandedName),
+					Expression = components[i],
+					ResolvedType = components[i].ResolvedType,
+					TargetResolvedType = semanticComponentShape.Components.Count > i ? semanticComponentShape.Components[i].Type : storageShape.Components[i].Type,
+					TargetStorageResolvedType = storageShape.Components[i].Type
+				});
+				expandedItems[i].TargetStorageGenericNames.AddRange(item.TargetStorageGenericNames);
+			}
+			return true;
+		}
 		if (!TryGetCallableShape(item.Expression.ResolvedType, out CallableShape source) || source.Kind != "fn")
 			return false;
 

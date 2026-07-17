@@ -86,6 +86,26 @@ a whole does not cast to `fn*`, `nint`, or `untyped`; low-level code that needs
 the target must operate on the call component and preserve/rebuild the context
 component deliberately.
 
+### Method References With Expanded Receivers
+
+A bound method reference normally uses the receiver as the delegate context. If
+the receiver is an expanded value with multiple ABI components, such as `T?` or
+`delegate R(...)`, there is no single receiver pointer to store directly. The
+lowering pass must:
+
+- create materialized temporary storage for the expanded receiver components;
+- copy each receiver component into that storage;
+- generate an adapter function whose first parameter is `void*`;
+- cast that context back to the materialized receiver shape inside the adapter;
+- call the original method with the receiver components followed by the source
+  callable arguments.
+
+This materialization is valid for non-escaped delegate targets where the
+temporary context lifetime is bounded by the current scope. For escaped delegate
+targets, including targets with `escaped this`, the compiler must reject implicit
+stack materialization and require the programmer to provide suitable escaped
+materialized storage.
+
 ## `once`
 
 `once` values guarantee single invocation. Context ownership is not implied for

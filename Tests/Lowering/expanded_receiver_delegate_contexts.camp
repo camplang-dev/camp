@@ -1,0 +1,34 @@
+#build --nostdlib
+
+newtype delegate int MaybeGetter();
+newtype delegate int DelegateCaller(int value);
+
+int valueOrNegative(int? this) : MaybeGetter
+{
+	return this.specified ? this.value : -1;
+}
+
+int callWith(delegate int(int) this, int value) : DelegateCaller
+{
+	return this(value);
+}
+
+int doubleValue(int value)
+{
+	return value * 2;
+}
+
+export int main()
+{
+	int? maybe = { 42, true };
+	MaybeGetter getter = maybe.valueOrNegative;
+	if (getter() != 42)
+		return 1;
+
+	delegate int(int) doubler = (int value) => doubleValue(value);
+	DelegateCaller caller = doubler.callWith;
+	if (caller(21) != 42)
+		return 2;
+
+	return 0;
+}

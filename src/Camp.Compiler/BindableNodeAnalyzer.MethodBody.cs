@@ -2291,8 +2291,59 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		string valueType = BodyAnalyzeExpression(argument.Value, scope, typeScope, argument.Type?.ResolvedType ?? targetType);
+		if (ReportEscapedExpandedReceiverArgument(argument.Value, targetType))
+			valueType = ErrorType;
+		else if (ReportInvalidScalarDelegateReceiverArgument(argument.Value, targetType))
+			valueType = ErrorType;
 		argument.ResolvedType = argument.Type?.ResolvedType ?? valueType;
 		return argument.ResolvedType;
+	}
+
+	bool ReportEscapedExpandedReceiverArgument(Expression? value, string? targetType)
+	{
+		if (!IsEscapedCallableTarget(targetType))
+			return false;
+		MemberExpression? member = value as MemberExpression;
+		if (member is null && value is ParenthesizedExpression parenthesized)
+			member = parenthesized.Expression as MemberExpression;
+		if (member?.Target is null)
+			return false;
+		string receiverType = member.Target.ResolvedType ?? ErrorType;
+		if (!TryGetParamsComponentShape(null, receiverType, "value", out ParamsComponentShape receiverShape)
+			|| receiverShape.Components.Count <= 1)
+			return false;
+		Report(GetRange(member.SourceSyntax), $"Method reference '{member.Name}' cannot capture expanded receiver '{receiverType}' for an escaped delegate; store the receiver in escaped materialized storage first.");
+		if (value is not null)
+			value.ResolvedType = ErrorType;
+		return true;
+	}
+
+	bool ReportInvalidScalarDelegateReceiverArgument(Expression? value, string? targetType)
+	{
+		if (!TryGetCallableShape(targetType, out CallableShape targetShape) || targetShape.Kind != "delegate")
+			return false;
+		MemberExpression? member = value as MemberExpression;
+		if (member is null && value is ParenthesizedExpression parenthesized)
+			member = parenthesized.Expression as MemberExpression;
+		if (member?.Target is null)
+			return false;
+		if (!expressionRewrites.TryGetValue(member, out Expression? rewrite)
+			|| rewrite is not MemberReferenceExpression { Member: FunctionDefinition function })
+			return false;
+		string receiverType = member.Target.ResolvedType ?? ErrorType;
+		if (TryGetParamsComponentShape(null, receiverType, "value", out ParamsComponentShape shape) && shape.Components.Count > 1)
+			return false;
+		if (TryGetPointerElementType(receiverType) is not null || IsPrimitiveStringType(receiverType))
+			return false;
+		if (GetExplicitThisParameter(function)?.Modifier == ParameterModifier.In)
+			return false;
+		if (typeDefinitions.TryGetValue(BaseTypeName(receiverType), out TypeDefinition? definition)
+			&& definition is ClassDefinition or StructDefinition or NewtypeDefinition)
+			return false;
+		Report(GetRange(member.SourceSyntax), $"Type '{receiverType}' cannot be the receiver of a delegate; delegate receivers must be single pointer values.");
+		if (value is not null)
+			value.ResolvedType = ErrorType;
+		return true;
 	}
 
 	string BodyAnalyzeCallExpression(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType)
@@ -4406,7 +4457,9 @@ public sealed partial class BindableNodeAnalyzer
 				&& TryGetCallableShape(targetCallableType, out CallableShape targetShape)
 				&& targetShape.This.HasThis)
 			{
-				if (BoundMethodReferenceCanSatisfyThisContract(member.Target, lookupTargetType, function, targetShape.This, member.SourceSyntax))
+				if (ExpandedReceiverCannotSatisfyEscapedDelegateContext(member.Name, member.Target, lookupTargetType, targetCallableType, targetShape, member.SourceSyntax))
+					memberType = ErrorType;
+				else if (BoundMethodReferenceCanSatisfyThisContract(member.Target, lookupTargetType, function, targetShape.This, member.SourceSyntax))
 					memberType = targetCallableType!;
 			}
 			if (!isTypeTarget
@@ -4414,8 +4467,10 @@ public sealed partial class BindableNodeAnalyzer
 				&& IsDelegateCallableType(memberType)
 				&& !CanUseReceiverAsDelegateContext(lookupTargetType, delegateFunction))
 			{
-				Report(GetRange(member.SourceSyntax), $"Type '{lookupTargetType}' cannot be the receiver of a delegate; delegate receivers must be single pointer values.");
-				memberType = ErrorType;
+				if (ExpandedReceiverCannotSatisfyEscapedDelegateContext(member.Name, member.Target, lookupTargetType, targetCallableType ?? memberType, null, member.SourceSyntax))
+				{
+					memberType = ErrorType;
+				}
 			}
 
 		expressionConstants[member] = selected.IsConstant;
@@ -4453,14 +4508,28 @@ public sealed partial class BindableNodeAnalyzer
 
 		bool CanUseReceiverAsDelegateContext(string targetType, FunctionDefinition function)
 		{
-			if (TryGetParamsComponentShape(null, targetType, "value", out _))
-				return false;
+			if (TryGetParamsComponentShape(null, targetType, "value", out ParamsComponentShape shape) && shape.Components.Count > 1)
+				return true;
 			if (TryGetPointerElementType(targetType) is not null || IsPrimitiveStringType(targetType))
 				return true;
 			if (GetExplicitThisParameter(function)?.Modifier == ParameterModifier.In)
 				return true;
 			return typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? definition)
 				&& definition is ClassDefinition or StructDefinition or NewtypeDefinition;
+		}
+
+		bool ExpandedReceiverCannotSatisfyEscapedDelegateContext(string memberName, Expression? receiver, string receiverType, string? targetType, CallableShape? targetShape, SyntaxNode? syntax)
+		{
+			if (!TryGetParamsComponentShape(null, receiverType, "value", out ParamsComponentShape receiverShape)
+				|| receiverShape.Components.Count <= 1)
+				return false;
+
+			bool escapedTarget = IsEscapedCallableTarget(targetType) || targetShape?.This.IsEscaped == true;
+			if (!escapedTarget)
+				return false;
+
+			Report(GetRange(syntax), $"Method reference '{memberName}' cannot capture expanded receiver '{receiverType}' for an escaped delegate; store the receiver in escaped materialized storage first.");
+			return true;
 		}
 
 		bool TryReportFixedArrayPointerReceiverMember(MemberExpression member, string targetType)
@@ -4579,6 +4648,15 @@ public sealed partial class BindableNodeAnalyzer
 	bool BoundMethodReferenceCanSatisfyThisContract(Expression? receiver, string receiverType, FunctionDefinition function, ThisContract contract, SyntaxNode? syntax)
 	{
 		ThisContract methodContract = GetThisContract(GetEffectiveThisParameter(function));
+		if (function.CallableAscriptionNewtype is not null)
+		{
+			ThisContract ascriptionContract = GetCallableNewtypeThisContract(function.CallableAscriptionNewtype);
+			methodContract = methodContract with
+			{
+				IsConst = methodContract.IsConst || ascriptionContract.IsConst,
+				IsVolatile = methodContract.IsVolatile || ascriptionContract.IsVolatile
+			};
+		}
 		if (contract.IsConst && !methodContract.IsConst)
 		{
 			Report(GetRange(syntax), $"Method reference '{GetCallableName(function)}' cannot satisfy callable target because the target requires const this.");
@@ -4595,6 +4673,13 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		}
 		return true;
+	}
+
+	bool IsEscapedCallableTarget(string? type)
+	{
+		return TryGetLambdaCallableShape(type, out CallableShape shape, out bool isEscaped)
+			&& isEscaped
+			&& shape.Kind is "delegate" or "once" or "async";
 	}
 
 	bool ReceiverExpressionSatisfiesEscapedThis(Expression? receiver, string receiverType)

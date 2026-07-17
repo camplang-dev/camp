@@ -177,6 +177,10 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (generatedIteratorFactories.Contains(function) && TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out _))
 			return true;
+		if (TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape)
+			&& shape.Components.Count > 1
+			&& shape.Kind != ParamsComponentShapeKind.Array)
+			return true;
 		string type = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "";
 		if (!typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition))
 			return false;
@@ -355,6 +359,8 @@ public sealed partial class BindableNodeAnalyzer
 			? iteratorProtocolInitialValues!
 			: materializedGenericReturnInitializer
 			? CreateNullInitialValues(shape)
+			: TryCreateTargetTypedExpandedReceiverInitialValues(initialValue, shape, declarations, out List<Expression?>? expandedReceiverInitialValues)
+			? expandedReceiverInitialValues!
 			: GetParamsComponentInitialValues(initialValue, shape, deferCurrentAllocator: true);
 		List<DeclarationTarget> targets = [];
 		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
@@ -452,6 +458,39 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		return declarations.Count > 0;
+	}
+
+	bool TryCreateTargetTypedExpandedReceiverInitialValues(Expression? initialValue, ParamsComponentShape shape, List<Statement> declarations, out List<Expression?>? initialValues)
+	{
+		initialValues = null;
+		Expression? rewrittenInitialValue = initialValue is not null && expressionRewrites.TryGetValue(initialValue, out Expression? rewrite)
+			? rewrite
+			: initialValue;
+		if (rewrittenInitialValue is not MemberReferenceExpression { Target: not null, Member: FunctionDefinition function } memberReference
+			|| FindContainingType(function) is InterfaceDefinition)
+		{
+			return false;
+		}
+
+		List<Statement>? previousPrefix = currentStatementPrefix;
+		currentStatementPrefix = declarations;
+		try
+		{
+			if (!TryCreateExpandedReceiverMethodDelegateComponents(memberReference, function, out List<Expression> targetTypedComponents, shape)
+				|| targetTypedComponents.Count != shape.Components.Count)
+			{
+				return false;
+			}
+
+			initialValues = [];
+			foreach (Expression component in targetTypedComponents)
+				initialValues.Add(component);
+			return true;
+		}
+		finally
+		{
+			currentStatementPrefix = previousPrefix;
+		}
 	}
 
 	bool TryCreateIteratorFactoryProtocolInitialValues(Expression? initialValue, ParamsComponentShape shape, List<Statement> declarations, SyntaxNode? syntax, out List<Expression?>? initialValues)
@@ -831,6 +870,18 @@ public sealed partial class BindableNodeAnalyzer
 			return values;
 		}
 
+		Expression? rewrittenInitialValue = initialValue is not null && expressionRewrites.TryGetValue(initialValue, out Expression? rewrite)
+			? rewrite
+			: initialValue;
+		if (rewrittenInitialValue is MemberReferenceExpression { Target: not null, Member: FunctionDefinition function } memberReference
+			&& FindContainingType(function) is not InterfaceDefinition
+			&& TryCreateExpandedReceiverMethodDelegateComponents(memberReference, function, out List<Expression> targetTypedComponents, shape)
+			&& targetTypedComponents.Count == shape.Components.Count)
+		{
+			values.AddRange(targetTypedComponents);
+			return values;
+		}
+
 		if (initialValue is not null && TryCreateParamsComponentExpressions(initialValue, out List<Expression> components) && components.Count == shape.Components.Count)
 		{
 			values.AddRange(components);
@@ -845,8 +896,8 @@ public sealed partial class BindableNodeAnalyzer
 			return values;
 		}
 
-		if (initialValue is MemberReferenceExpression { Target: not null } memberReference
-			&& TryCreateSourceMemberParamsComponentExpressions(memberReference, shape.TypeName, out components)
+		if (initialValue is MemberReferenceExpression { Target: not null } sourceMemberReference
+			&& TryCreateSourceMemberParamsComponentExpressions(sourceMemberReference, shape.TypeName, out components)
 			&& components.Count == shape.Components.Count)
 		{
 			values.AddRange(components);

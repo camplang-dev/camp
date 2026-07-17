@@ -278,6 +278,23 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			bool expectsExpandedComponents = ExpectsExpandedArgumentComponents(callableParameters, parameterIndex);
+			if (expectsExpandedComponents && TryCreateIteratorToProtocolArgumentComponents(argument, callableParameters, parameterIndex, out List<Expression> iteratorProtocolComponents))
+			{
+				arguments.RemoveAt(i);
+				for (int componentIndex = 0; componentIndex < iteratorProtocolComponents.Count; componentIndex++)
+				{
+					Expression component = iteratorProtocolComponents[componentIndex];
+					arguments.Insert(i + componentIndex, new ArgumentExpression
+					{
+						SourceSyntax = argument.SourceSyntax,
+						Modifier = argument.Modifier,
+						Value = component,
+						ResolvedType = component.ResolvedType
+					});
+				}
+				i += iteratorProtocolComponents.Count - 1;
+				continue;
+			}
 			if ((!expectsExpandedComponents || !TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components))
 				&& (!expectsExpandedComponents || !TryCreateTargetTypedExpandedReturnArgumentComponents(argument, callableParameters, parameterIndex, out components)))
 			{
@@ -1618,6 +1635,280 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
+	bool TryCreateExpandedReceiverMethodDelegateComponents(MemberReferenceExpression member, FunctionDefinition function, out List<Expression> components, ParamsComponentShape? targetDelegateShape = null)
+	{
+		components = [];
+		if (member.Target is null)
+			return false;
+		string receiverSourceType = member.Target.ResolvedType ?? "";
+		if (!IsMaterializableExpandedReceiverSourceType(receiverSourceType))
+			return false;
+
+		ThisParameterDefinition? thisParameter = GetExplicitThisParameter(function) ?? function.EffectiveThisParameter;
+		ParamsComponentShape? receiverShape = null;
+		if (thisParameter is not null
+			&& TryGetParamsComponentShape(thisParameter.Type, thisParameter.ResolvedType, thisParameter.Name, out ParamsComponentShape explicitReceiverShape))
+		{
+			receiverShape = explicitReceiverShape;
+		}
+		if (receiverShape is null
+			&& TryInferExpandedThisParameterShape(function, out ParamsComponentShape inferredReceiverShape))
+		{
+			receiverShape = inferredReceiverShape;
+		}
+		if (receiverShape is null
+			&& !TryGetParamsComponentShape(null, member.Target.ResolvedType, "this", out receiverShape))
+		{
+			return false;
+		}
+		if (typeDefinitions.TryGetValue(BaseTypeName(receiverSourceType), out TypeDefinition? receiverDefinition)
+			&& receiverDefinition is NewtypeDefinition { UnderlyingType: CallableTypeReference { Kind: CallableKind.Function } })
+		{
+			return false;
+		}
+
+		ParamsComponentShape? delegateShape = targetDelegateShape;
+		if (delegateShape is null && !TryGetParamsComponentShape(null, member.ResolvedType, "value", out delegateShape))
+		{
+			if (function.CallableAscriptionNewtype is null
+				|| !TryGetParamsComponentShape(null, function.CallableAscriptionNewtype.Name, "value", out delegateShape))
+			{
+				return false;
+			}
+		}
+
+		if (receiverShape.Kind is not (ParamsComponentShapeKind.Optional or ParamsComponentShapeKind.Delegate)
+			|| receiverShape.Components.Count <= 1
+			|| delegateShape.Kind != ParamsComponentShapeKind.Delegate
+			|| delegateShape.Components.Count != 2
+			|| !TryGetCallableShape(delegateShape.Components[0].Type, out CallableShape callShape)
+			|| callShape.Kind != "fn"
+			|| callShape.Parameters.Count == 0
+			|| callShape.Parameters[0] != "void*")
+		{
+			return false;
+		}
+
+		if (currentStatementPrefix is null)
+		{
+			Report(GetRange(member.SourceSyntax), $"Method reference '{member.Name}' cannot materialize expanded receiver '{member.Target.ResolvedType}' in this expression position.");
+			return false;
+		}
+
+		if (!TryCreateReceiverComponentExpressions(member.Target, receiverShape, out List<Expression> receiverComponents)
+			|| receiverComponents.Count != receiverShape.Components.Count)
+		{
+			return false;
+		}
+
+		string receiverType = thisParameter?.ResolvedType ?? member.Target.ResolvedType ?? receiverShape.TypeName;
+		DeclarationStatement contextStorage = CreateMaterializedExpandedReceiverStorage(receiverType, member.SourceSyntax);
+		currentStatementPrefix.Add(contextStorage);
+		List<Expression> storageComponents = CreateMaterializedComponentExpressions(contextStorage.Target, receiverShape);
+		for (int i = 0; i < storageComponents.Count; i++)
+		{
+			currentStatementPrefix.Add(CreateAssignmentStatement(
+				storageComponents[i],
+				LowerExpression(CloneParamsExpansionExpression(receiverComponents[i]) ?? receiverComponents[i]) ?? ErrorExpression(receiverShape.Components[i].Type, member.SourceSyntax),
+				receiverShape.Components[i].Type,
+				member.SourceSyntax));
+		}
+
+		FunctionDefinition adapter = CreateExpandedReceiverMethodAdapter(member, function, receiverShape, callShape, receiverType);
+		generatedLambdaDefinitions.Add(adapter);
+
+		components.Add(CreateMethodReference(adapter, delegateShape.Components[0].Type, member.SourceSyntax));
+		components.Add(new CastExpression
+		{
+			SourceSyntax = member.SourceSyntax,
+			Kind = CastKind.Type,
+			Type = TypeReferenceForResolvedName("void*"),
+			Expression = new UnaryExpression
+			{
+				SourceSyntax = member.SourceSyntax,
+				Operator = UnaryOperator.AddressOf,
+				Operand = CreateVariableReference(contextStorage.Target, contextStorage.Target.ResolvedType ?? $"struct({receiverType})"),
+				ResolvedType = AddPointer(contextStorage.Target.ResolvedType ?? $"struct({receiverType})")
+			},
+			ResolvedType = "void*"
+		});
+		return true;
+	}
+
+	bool IsMaterializableExpandedReceiverSourceType(string receiverType)
+	{
+		if (string.IsNullOrWhiteSpace(receiverType))
+			return false;
+		if (IsTopLevelOptionalType(receiverType))
+			return true;
+		if (TryGetCallableShape(receiverType, out CallableShape callable))
+			return callable.Kind is "delegate" or "once";
+		return typeDefinitions.TryGetValue(BaseTypeName(receiverType), out TypeDefinition? definition)
+			&& definition is NewtypeDefinition { UnderlyingType: CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once } };
+	}
+
+	static bool IsTopLevelOptionalType(string type)
+	{
+		type = type.Trim();
+		if (!type.EndsWith("?", System.StringComparison.Ordinal))
+			return false;
+		int depth = 0;
+		for (int i = 0; i < type.Length - 1; i++)
+		{
+			depth += type[i] switch
+			{
+				'<' or '(' or '[' => 1,
+				'>' or ')' or ']' => -1,
+				_ => 0
+			};
+			if (depth < 0)
+				return false;
+		}
+		return depth == 0;
+	}
+
+	DeclarationStatement CreateMaterializedExpandedReceiverStorage(string receiverType, SyntaxNode? sourceSyntax)
+	{
+		string typeName = $"struct({receiverType})";
+		TypeReference type = new MaterializedStructTypeReference
+		{
+			SourceSyntax = sourceSyntax,
+			ResolvedType = typeName,
+			ParamsType = TypeReferenceForResolvedName(receiverType)
+		};
+		return CreateGeneratedLocal(NewGeneratedLocalName("receiverContext"), typeName, type, null);
+	}
+
+	FunctionDefinition CreateExpandedReceiverMethodAdapter(MemberReferenceExpression member, FunctionDefinition function, ParamsComponentShape receiverShape, CallableShape callShape, string receiverType)
+	{
+		string owner = GetLambdaOwnerName();
+		string name = owner + "_boundReceiver" + generatedLambdaDefinitions.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		FunctionDefinition adapter = new()
+		{
+			SourceSyntax = member.SourceSyntax,
+			Name = name,
+			Symbol = name,
+			ResolvedType = callShape.ReturnType,
+			ReturnType = TypeReferenceForResolvedName(callShape.ReturnType),
+			Body = new BlockStatement { SourceSyntax = member.SourceSyntax, ResolvedType = "void" }
+		};
+		for (int i = 0; i < function.GenericParameters.Count; i++)
+			adapter.GenericParameters.Add(CloneGenericParameter(function.GenericParameters[i]));
+		adapter.Parameters.Add(new ParameterDefinition
+		{
+			SourceSyntax = member.SourceSyntax,
+			Name = "_context",
+			Symbol = "_context",
+			Type = TypeReferenceForResolvedName("void*"),
+			ResolvedType = "void*"
+		});
+		for (int i = 1; i < callShape.Parameters.Count; i++)
+			adapter.Parameters.Add(CreateAdapterParameter(callShape.Parameters[i], i - 1, member.SourceSyntax));
+
+		string materializedType = $"struct({receiverType})";
+		TypeReference materializedPointerType = PointerTo(new MaterializedStructTypeReference
+		{
+			SourceSyntax = member.SourceSyntax,
+			ResolvedType = materializedType,
+			ParamsType = TypeReferenceForResolvedName(receiverType)
+		});
+		materializedPointerType.ResolvedType = AddPointer(materializedType);
+		ParameterDefinition contextParameter = adapter.Parameters[0];
+		Expression receiverValue = new UnaryExpression
+		{
+			SourceSyntax = member.SourceSyntax,
+			Operator = UnaryOperator.PointerDereference,
+			Operand = new CastExpression
+			{
+				SourceSyntax = member.SourceSyntax,
+				Kind = CastKind.Type,
+				Type = materializedPointerType,
+				Expression = CreateVariableReference(contextParameter, "void*"),
+				ResolvedType = AddPointer(materializedType)
+			},
+			ResolvedType = materializedType
+		};
+
+		List<ArgumentExpression> arguments = [];
+		foreach (Expression component in CreateMaterializedComponentExpressions(receiverValue, receiverShape, member.SourceSyntax))
+		{
+			arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = component.SourceSyntax,
+				Value = component,
+				ResolvedType = component.ResolvedType
+			});
+		}
+		for (int i = 1; i < adapter.Parameters.Count; i++)
+		{
+			ParameterDefinition parameter = adapter.Parameters[i];
+			arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = parameter.SourceSyntax,
+				Modifier = parameter.Modifier == ParameterModifier.Out ? ArgumentModifier.Out : ArgumentModifier.None,
+				Value = CreateVariableReference(parameter, parameter.ResolvedType ?? ErrorType),
+				ResolvedType = parameter.ResolvedType ?? ErrorType
+			});
+		}
+		CallExpression call = new()
+		{
+			SourceSyntax = member.SourceSyntax,
+			Target = CreateMethodReference(function, BuildFunctionValueType(function, isInstance: false), member.SourceSyntax),
+			ResolvedType = function.ResolvedType ?? callShape.ReturnType
+		};
+		call.Arguments.AddRange(arguments);
+		if (callShape.ReturnType == "void")
+		{
+			adapter.Body.Statements.Add(new ExpressionStatement { SourceSyntax = member.SourceSyntax, Expression = call, ResolvedType = "void" });
+			adapter.Body.Statements.Add(new ReturnStatement { SourceSyntax = member.SourceSyntax, ResolvedType = "void" });
+		}
+		else
+		{
+			adapter.Body.Statements.Add(new ReturnStatement { SourceSyntax = member.SourceSyntax, Expression = call, ResolvedType = "void" });
+		}
+
+		RewriteFunction(adapter, containingType: null);
+		return adapter;
+	}
+
+	bool TryInferExpandedThisParameterShape(FunctionDefinition function, out ParamsComponentShape shape)
+	{
+		shape = default!;
+		if (function.Parameters.Count < 2)
+			return false;
+		if (function.Parameters[0].Name != "this" || function.Parameters[1].Name != "this_length")
+			return false;
+		if ((function.Parameters[1].ResolvedType ?? function.Parameters[1].Type?.ResolvedType) != "nuint")
+			return false;
+		string firstType = function.Parameters[0].ResolvedType ?? function.Parameters[0].Type?.ResolvedType ?? "";
+		string? elementType = TryGetPointerElementType(firstType);
+		if (elementType is null)
+			return false;
+		return TryGetParamsComponentShape(null, elementType + "[]", "this", out shape);
+	}
+
+	static ParameterDefinition CreateAdapterParameter(string parameterType, int index, SyntaxNode? sourceSyntax)
+	{
+		CallableSlot slot = ParseCallableSlot(parameterType);
+		return new ParameterDefinition
+		{
+			SourceSyntax = sourceSyntax,
+			Name = "arg" + index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+			Symbol = "arg" + index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+			Modifier = slot.Modifier switch
+			{
+				"in" => ParameterModifier.In,
+				"out" => ParameterModifier.Out,
+				"thrown" => ParameterModifier.Thrown,
+				"within" => ParameterModifier.Within,
+				"upon" => ParameterModifier.Upon,
+				_ => ParameterModifier.None
+			},
+			Type = TypeReferenceForResolvedName(slot.Type),
+			ResolvedType = slot.Type
+		};
+	}
+
 	bool TryCreateIteratorProtocolComponentsFromProtocolValue(Expression expression, out List<Expression> components)
 	{
 		components = [];
@@ -2325,6 +2616,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryGetCallableExpandedReturnShape(CallExpression call, ParamsComponentShape? targetShape, out ParamsComponentShape shape)
 	{
 		shape = targetShape ?? new ParamsComponentShape(ParamsComponentShapeKind.Structural, "", []);
+		if (callTargets.ContainsKey(call) || CallTargetsFunctionDefinition(call))
+			return false;
 		if (!TryGetCallableShape(call.Target?.ResolvedType, out CallableShape callable))
 			return false;
 		string returnType = callable.ReturnType;
@@ -2332,7 +2625,15 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (targetShape is not null && targetShape.TypeName == returnType && targetShape.Components.Count > 1)
 			return true;
-		return TryGetParamsComponentShape(null, returnType, "result", out shape) && shape.Components.Count > 1;
+		return TryGetParamsComponentShape(null, returnType, "result", out shape)
+			&& shape.Kind != ParamsComponentShapeKind.Iter
+			&& shape.Components.Count > 1;
+	}
+
+	static bool CallTargetsFunctionDefinition(CallExpression call)
+	{
+		return call.Target is VariableReferenceExpression { Variable: FunctionDefinition }
+			or MemberReferenceExpression { Member: FunctionDefinition };
 	}
 
 	bool TryCreateExpandedReturnCallComponents(CallExpression call, ParamsComponentShape shape, out List<Expression> components)
@@ -2442,14 +2743,19 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<Expression> CreateMaterializedComponentExpressions(DeclarationTarget storage, ParamsComponentShape shape)
 	{
-		List<Expression> components = [];
 		Expression target = CreateVariableReference(storage, storage.ResolvedType ?? ErrorType);
+		return CreateMaterializedComponentExpressions(target, shape, storage.SourceSyntax);
+	}
+
+	List<Expression> CreateMaterializedComponentExpressions(Expression target, ParamsComponentShape shape, SyntaxNode? sourceSyntax)
+	{
+		List<Expression> components = [];
 		foreach (ParamsComponent component in shape.Components)
 		{
 			components.Add(new MemberExpression
 			{
-				SourceSyntax = storage.SourceSyntax,
-				Target = target,
+				SourceSyntax = sourceSyntax,
+				Target = CloneParamsExpansionExpression(target) ?? target,
 				Name = component.Name,
 				ResolvedType = component.Type
 			});

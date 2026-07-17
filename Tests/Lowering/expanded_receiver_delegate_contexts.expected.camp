@@ -1,0 +1,49 @@
+newtype delegate int MaybeGetter();
+
+newtype delegate int DelegateCaller(int value);
+int valueOrNegative(int this, bool this_specified) : MaybeGetter
+{
+	return this_specified ? this : -1;
+}
+int callWith(delegate int(int) this, void* this_context, int value) : DelegateCaller
+{
+	return this(this_context, value);
+}
+int doubleValue(int value)
+{
+	return value * 2;
+}
+export int main()
+{
+	int maybe = 42;
+	bool maybe_specified = true;
+	struct(int?) __local0;
+	__local0.value = maybe;
+	__local0.specified = maybe_specified;
+	fn int(void*) getter = main_boundReceiver0;
+	void* getter_context = (void*)&__local0;
+	if (getter(getter_context) != 42)
+		return 1;
+	fn int(void*, int) doubler = main_lambda1;
+	void* doubler_context = null;
+	struct(delegate int(int)) __local1;
+	__local1.call = doubler;
+	__local1.context = doubler_context;
+	fn int(void*, int) caller = main_boundReceiver2;
+	void* caller_context = (void*)&__local1;
+	if (caller(caller_context, 21) != 42)
+		return 2;
+	return 0;
+}
+int main_boundReceiver0(void* _context)
+{
+	return Int_valueOrNegative((*(struct(int?)*)_context).value, (*(struct(int?)*)_context).specified);
+}
+int main_lambda1(void* _context, int value)
+{
+	return doubleValue(value);
+}
+int main_boundReceiver2(void* _context, int arg0)
+{
+	return delegate_callWith((*(struct(delegate int(int))*)_context).call, (*(struct(delegate int(int))*)_context).context, arg0);
+}

@@ -79,6 +79,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		FunctionDefinition function = (FunctionDefinition)member.Member!;
 		Expression receiver = member.Target!;
+
 		grouped.Items.Add(new GroupedExpressionItem
 		{
 			Expression = CreateFlattenedMethodReference(member, receiver, function),

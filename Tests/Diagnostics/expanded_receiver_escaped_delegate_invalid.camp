@@ -1,0 +1,22 @@
+void accept(escaped delegate int() callback)
+{
+}
+
+int first(const char[] this)
+{
+	return (int)this[0];
+}
+
+int valueOrNegative(int? this)
+{
+	return this.specified ? this.value : -1;
+}
+
+export void main()
+{
+	const char[] text = "hi";
+	accept(text.first);
+
+	int? maybe = { 42, true };
+	accept(maybe.valueOrNegative);
+}

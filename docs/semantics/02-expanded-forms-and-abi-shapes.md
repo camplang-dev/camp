@@ -161,6 +161,18 @@ The `call` target receives the context as its first ABI argument. Source callabl
 syntax hides that context for ordinary calls. The context may be null,
 user-provided, or compiler-generated.
 
+When a method reference is bound to an expanded receiver such as an optional or
+another delegate-like value, the compiler materializes the receiver components
+into temporary storage and uses that storage as the delegate context. The
+generated call target is an adapter that casts the context back to the
+materialized expanded shape before calling the original method with the expanded
+components.
+
+The compiler must not silently synthesize stack materialization for an escaped
+delegate target. If an expanded receiver is captured by an escaped delegate or by
+a target requiring `escaped this`, the receiver must already live in suitable
+escaped materialized storage; otherwise the compiler reports a diagnostic.
+
 `once` has the same broad carrier shape as a delegate but a different semantic
 contract: it is intended for single invocation. Producers that allocate and own
 generated once context, such as escaped once lambdas and `postpone`, must arrange

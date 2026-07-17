@@ -409,6 +409,12 @@ When an escaped delegate or once lambda owns generated context, follow the
 language docs and nearby code for `new delegate`, `delete delegate`, allocator,
 and cleanup spelling.
 
+Bound method references may use expanded receivers such as optionals or
+delegate-like values. For non-escaped delegate targets, the compiler materializes
+the receiver components into temporary context storage and generates an adapter.
+For escaped delegate targets, do not rely on implicit stack materialization; put
+the receiver in escaped materialized storage first or redesign the API.
+
 ## Lifetimes, Allocation, And Cleanup
 
 Camp lifetime annotations are part of correctness. The most common LLM mistake

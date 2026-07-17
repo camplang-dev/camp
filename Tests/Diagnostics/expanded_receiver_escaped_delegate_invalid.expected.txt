@@ -1,0 +1,2 @@
+tests/Diagnostics/expanded_receiver_escaped_delegate_invalid.camp(18,14): error: Method reference 'first' cannot capture expanded receiver 'const char[]' for an escaped delegate; store the receiver in escaped materialized storage first.
+tests/Diagnostics/expanded_receiver_escaped_delegate_invalid.camp(21,15): error: Method reference 'valueOrNegative' cannot capture expanded receiver 'int?' for an escaped delegate; store the receiver in escaped materialized storage first.

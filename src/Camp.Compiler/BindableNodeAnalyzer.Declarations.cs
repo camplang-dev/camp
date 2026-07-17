@@ -1408,7 +1408,9 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		string thisType = thisParameter.ResolvedType ?? thisParameter.Type?.ResolvedType ?? ErrorType;
-		if (thisParameter.Modifier == ParameterModifier.In || TryGetPointerElementType(thisType) is not null)
+		if (thisParameter.Modifier == ParameterModifier.In
+			|| TryGetPointerElementType(thisType) is not null
+			|| TryGetParamsComponentShape(thisParameter.Type, thisType, "this", out ParamsComponentShape shape) && shape.Components.Count > 1)
 			return;
 
 		Report(GetRange(thisParameter.SourceSyntax ?? syntax),
@@ -1424,6 +1426,13 @@ public sealed partial class BindableNodeAnalyzer
 		ThisParameterDefinition? explicitThis = GetExplicitThisParameter(definition);
 		ThisContract callableContract = GetThisContract(callableThis);
 		ThisContract explicitContract = GetThisContract(explicitThis);
+		if (explicitThis is not null
+			&& callableContract.IsConst
+			&& !explicitContract.IsConst
+			&& ExplicitExpandedThisTypeIsConst(explicitThis))
+		{
+			explicitContract = explicitContract with { IsConst = true };
+		}
 
 		if (callableThis is not null && explicitThis is not null && callableContract != explicitContract)
 		{
@@ -1442,6 +1451,18 @@ public sealed partial class BindableNodeAnalyzer
 			definition.EffectiveThisParameter.Attributes.AddRange(callableThis.Attributes);
 		}
 
+	}
+
+	bool ExplicitExpandedThisTypeIsConst(ThisParameterDefinition parameter)
+	{
+		string resolvedType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type);
+		if (!TryGetParamsComponentShape(parameter.Type, resolvedType, "this", out ParamsComponentShape shape)
+			|| shape.Components.Count <= 1)
+			return false;
+
+		string sourceType = FormatTypeReference(parameter.Type);
+		return resolvedType.Contains("const ", StringComparison.Ordinal)
+			|| sourceType.Contains("const ", StringComparison.Ordinal);
 	}
 
 	string BuildCallableAscriptionSourceType(FunctionDefinition definition, string family, bool receiverBearing)
