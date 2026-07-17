@@ -937,7 +937,6 @@ sealed class LldbDebugBackend : IDebugBackend
 		return CandidateBuildSearchRoots(outDirectory, project, cwd)
 			.SelectMany(root => Directory.Exists(root) ? Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories) : [])
 			.Where(path => generatedNames.Contains(Path.GetFileName(path)))
-			.Where(path => File.GetLastWriteTimeUtc(path) >= buildStart.AddSeconds(-5))
 			.OrderByDescending(File.GetLastWriteTimeUtc)
 			.FirstOrDefault();
 	}
