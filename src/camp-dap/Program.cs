@@ -7,7 +7,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
-using Camp.Compiler;
 using OmniSharp.Extensions.DebugAdapter.Protocol.Models;
 
 namespace Camp.DebugAdapter;
@@ -648,41 +647,79 @@ sealed class LldbDebugBackend : IDebugBackend
 
 	internal static async Task<DebugBuildResult> BuildExecutable(string project, string cwd, string outDirectory)
 	{
-		string runtimeRoot = Path.Combine(FindRepositoryRoot(), "bin");
-		CampProjectEnvironment environment = CampProjectEnvironment.Create(cwd, runtimeRoot);
-		CampProjectLoadResult load = CampProjectLoader.Load([project], environment, CampProjectCommandKind.Build);
-		if (!load.Success)
-			throw new InvalidOperationException("Camp build failed." + Environment.NewLine + string.Join(Environment.NewLine, load.Diagnostics));
-
-		CompilerRequest request = load.Request;
-		request.ProfileName = "DEBUG";
-		request.BuildKind = NativeBuildKind.Exec;
-		request.InferBuildKind = false;
-		request.EmitDebugInfo = true;
-		request.OutDir = outDirectory;
-		CompilerResult result = CompilerDriver.Execute(request);
-		if (result.ExitCode != 0)
-			throw new InvalidOperationException("Camp build failed." + Environment.NewLine + result.StdOut + result.StdErr);
-
-		string? executable = result.GeneratedFiles.FirstOrDefault(IsExecutable);
-		if (executable is null)
+		string campc = Path.Combine(FindRepositoryRoot(), "bin", "campc");
+		if (!File.Exists(campc))
+			campc = Path.Combine(FindRepositoryRoot(), "bin", "campc.dll");
+		DateTime buildStart = DateTime.UtcNow;
+		List<string> args = ["build", project, "--profile", "DEBUG", "--artifact", "exec", "--debug-info"];
+		if (!ProjectDeclaresOutDir(project, cwd))
+			args.AddRange(["--out-dir", outDirectory]);
+		ProcessStartInfo info = new()
 		{
-			executable = Directory.EnumerateFiles(outDirectory, "*", SearchOption.AllDirectories)
-				.Where(path => OperatingSystem.IsWindows()
-					? path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
-					: !Path.HasExtension(path))
-				.FirstOrDefault(path => IsExecutable(path));
-		}
+			FileName = campc.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? "dotnet" : campc,
+			WorkingDirectory = cwd,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+		if (campc.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+			info.ArgumentList.Add(campc);
+		foreach (string arg in args)
+			info.ArgumentList.Add(arg);
+		using Process process = Process.Start(info) ?? throw new InvalidOperationException("Could not start campc.");
+		string stdout = await process.StandardOutput.ReadToEndAsync();
+		string stderr = await process.StandardError.ReadToEndAsync();
+		await process.WaitForExitAsync();
+		if (process.ExitCode != 0)
+			throw new InvalidOperationException("Camp build failed." + Environment.NewLine + stdout + stderr);
+		string? executable = FindGeneratedExecutable(outDirectory, project, cwd, buildStart);
 		if (executable is null)
-			throw new InvalidOperationException("Camp build completed but no executable artifact was found." + Environment.NewLine + result.StdOut);
-		string? debugMap = result.GeneratedFiles.FirstOrDefault(path => path.EndsWith(".campdebug.json", StringComparison.OrdinalIgnoreCase))
-			?? Directory.EnumerateFiles(outDirectory, "*.campdebug.json", SearchOption.AllDirectories).FirstOrDefault();
-		await Task.CompletedTask;
+			throw new InvalidOperationException("Camp build completed but no executable artifact was found." + Environment.NewLine + stdout);
+		string? debugMap = FindGeneratedDebugMap(outDirectory, project, cwd, buildStart);
 		return new DebugBuildResult(executable, debugMap);
+	}
+
+	static bool ProjectDeclaresOutDir(string project, string cwd)
+	{
+		string path = Path.GetFullPath(project, cwd);
+		if (!File.Exists(path) || !path.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase))
+			return false;
+		foreach (string line in File.ReadLines(path))
+			if (line.Split('#', 2)[0].Contains("--out-dir", StringComparison.Ordinal))
+				return true;
+		return false;
+	}
+
+	static string? FindGeneratedExecutable(string outDirectory, string project, string cwd, DateTime buildStart)
+	{
+		return CandidateBuildSearchRoots(outDirectory, project, cwd)
+			.SelectMany(root => Directory.Exists(root) ? Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories) : [])
+			.Where(IsExecutable)
+			.Where(path => File.GetLastWriteTimeUtc(path) >= buildStart.AddSeconds(-5))
+			.OrderByDescending(File.GetLastWriteTimeUtc)
+			.FirstOrDefault();
+	}
+
+	static string? FindGeneratedDebugMap(string outDirectory, string project, string cwd, DateTime buildStart)
+	{
+		return CandidateBuildSearchRoots(outDirectory, project, cwd)
+			.SelectMany(root => Directory.Exists(root) ? Directory.EnumerateFiles(root, "*.campdebug.json", SearchOption.AllDirectories) : [])
+			.Where(path => File.GetLastWriteTimeUtc(path) >= buildStart.AddSeconds(-5))
+			.OrderByDescending(File.GetLastWriteTimeUtc)
+			.FirstOrDefault();
+	}
+
+	static IEnumerable<string> CandidateBuildSearchRoots(string outDirectory, string project, string cwd)
+	{
+		yield return outDirectory;
+		string projectPath = Path.GetFullPath(project, cwd);
+		yield return File.Exists(projectPath) ? Path.GetDirectoryName(projectPath) ?? cwd : cwd;
 	}
 
 	internal static bool IsExecutable(string path)
 	{
+		if (OperatingSystem.IsWindows())
+			return path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
 		try
 		{
 			return (File.GetUnixFileMode(path) & UnixFileMode.UserExecute) != 0;
