@@ -1,0 +1,23 @@
+using Std;
+
+struct JsonNode
+{
+	const char[] range;
+}
+
+export int main()
+{
+	JsonNode positional = { "2" };
+	if (positional.range.length != 1 || positional.range[0] != '2')
+		return 1;
+
+	JsonNode named = { .range = "3" };
+	if (named.range.length != 1 || named.range[0] != '3')
+		return 2;
+
+	JsonNode explicitExpanded = { .range = { "4", 1 } };
+	if (explicitExpanded.range.length != 1 || explicitExpanded.range[0] != '4')
+		return 3;
+
+	return 0;
+}

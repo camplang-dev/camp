@@ -1517,6 +1517,7 @@ public sealed partial class BindableNodeAnalyzer
 				}
 
 				AggregateInitializerField field = fields[positionalIndex++];
+				item.TargetFieldName = field.Name;
 				item.TargetResolvedType = field.Type;
 				item.TargetStorageResolvedType = field.StorageType;
 				item.TargetStorageGenericNames.AddRange(field.StorageGenericNames);
@@ -1542,6 +1543,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			BodyAnalyzeInitializerTarget(item.Target!, scope, typeScope);
+			item.TargetFieldName = namedField.Name;
 			item.TargetResolvedType = namedField.Type;
 			item.TargetStorageResolvedType = namedField.StorageType;
 			item.TargetStorageGenericNames.AddRange(namedField.StorageGenericNames);

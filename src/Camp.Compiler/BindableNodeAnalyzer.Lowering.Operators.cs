@@ -132,26 +132,36 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryExpandInitializerItem(InitializerItem item, out List<InitializerItem> expandedItems)
 	{
 		expandedItems = [];
-		string? targetName = GetSingleInitializerTargetName(item.Target);
+		string? targetName = GetSingleInitializerTargetName(item.Target) ?? item.TargetFieldName;
 		if (targetName is null || !TryCreateParamsComponentExpressions(item.Expression, out List<Expression> components) || components.Count <= 1)
 			return false;
 
 		string? firstComponentName = GetInitializerComponentName(components[0]);
 		string? remappedTargetPrefix = firstComponentName != targetName ? targetName : null;
 		bool hasStorageShape = TryGetParamsComponentShape(null, item.TargetStorageResolvedType ?? item.TargetResolvedType, targetName, out ParamsComponentShape storageShape);
+		if (firstComponentName is null && (!hasStorageShape || components.Count != storageShape.Components.Count))
+			return false;
 
 		for (int i = 0; i < components.Count; i++)
 		{
 			Expression component = components[i];
 			string? componentName = GetInitializerComponentName(component);
-			if (componentName is null)
+			string? expandedTargetName = componentName is null && hasStorageShape && i < storageShape.Components.Count
+				? storageShape.Components[i].ExpandedName
+				: null;
+			if (componentName is null && expandedTargetName is null)
 				return false;
-			if (i == 0 && componentName != targetName && remappedTargetPrefix is null)
+			if (i == 0 && componentName is not null && componentName != targetName && remappedTargetPrefix is null)
 				return false;
 
-			string expandedTargetName = remappedTargetPrefix is not null
-				? RemapGeneratedSafeInitializerTarget(remappedTargetPrefix, firstComponentName, componentName)
-				: componentName;
+			if (expandedTargetName is null)
+			{
+				if (componentName is null)
+					return false;
+				expandedTargetName = remappedTargetPrefix is not null
+					? RemapGeneratedSafeInitializerTarget(remappedTargetPrefix, firstComponentName, componentName)
+					: componentName;
+			}
 			InitializerItem expanded = new()
 			{
 				SourceSyntax = item.SourceSyntax,
