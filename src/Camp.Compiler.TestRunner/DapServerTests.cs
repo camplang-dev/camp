@@ -128,6 +128,31 @@ public sealed class DapServerTests
 	}
 
 	[Fact]
+	public void Dap_fake_backend_reports_termination_when_program_does_not_stop()
+	{
+		string root = FindRepositoryRoot();
+		string source = Path.Combine(Path.GetTempPath(), "camp-dap-terminate-" + Guid.NewGuid().ToString("N") + ".camp");
+		File.WriteAllText(source, "export int main() { return 0; }");
+
+		using DapProcess dap = DapProcess.Start();
+		Assert.True(dap.Request("initialize", new { adapterID = "camp" })["success"]?.GetValue<bool>());
+		JsonNode launch = dap.Request("launch", new
+		{
+			project = source,
+			cwd = root,
+			args = Array.Empty<string>(),
+			stopOnEntry = false,
+			backend = "fake"
+		});
+		Assert.True(launch["success"]?.GetValue<bool>(), launch["message"]?.GetValue<string>());
+		dap.ReadEvent("initialized");
+
+		Assert.True(dap.Request("configurationDone", new { })["success"]?.GetValue<bool>());
+		Assert.Equal("terminated", dap.ReadEvent("terminated")["event"]?.GetValue<string>());
+		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
+	}
+
+	[Fact]
 	public void Dap_lldb_backend_launches_and_stops_on_camp_breakpoint_when_available()
 	{
 		if (!OperatingSystem.IsMacOS() || !CommandAvailable("lldb"))

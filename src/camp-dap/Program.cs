@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Camp.Compiler;
 using OmniSharp.Extensions.DebugAdapter.Protocol.Models;
 
 namespace Camp.DebugAdapter;
@@ -130,6 +131,8 @@ sealed class DapSession(Stream input, Stream output)
 		await backend.ConfigurationDone();
 		if (backend.StopOnEntry || backend.IsStopped)
 			await Event("stopped", new JsonObject { ["reason"] = backend.StopOnEntry ? "entry" : "breakpoint", ["threadId"] = 1 });
+		else if (backend.HasTerminated)
+			await Event("terminated", null);
 		return null;
 	}
 
@@ -330,6 +333,7 @@ interface IDebugBackend
 {
 	bool StopOnEntry { get; }
 	bool IsStopped { get; }
+	bool HasTerminated { get; }
 	Task Launch(DebugLaunchOptions options);
 	Task<IReadOnlyList<DebugBreakpoint>> SetBreakpoints(string source, IReadOnlyList<int> lines);
 	Task ConfigurationDone();
@@ -346,14 +350,17 @@ interface IDebugBackend
 sealed class FakeDebugBackend : IDebugBackend
 {
 	string source = "fake.camp";
+	bool terminateOnConfigurationDone;
 	public bool StopOnEntry { get; private set; }
 	public bool IsStopped => StopOnEntry;
+	public bool HasTerminated { get; private set; }
 
 	public Task Launch(DebugLaunchOptions options)
 	{
 		if (options.Project.Contains("fail", StringComparison.OrdinalIgnoreCase))
 			throw new InvalidOperationException("Fake backend launch failure.");
 		StopOnEntry = options.StopOnEntry;
+		terminateOnConfigurationDone = options.Project.Contains("terminate", StringComparison.OrdinalIgnoreCase);
 		if (!string.IsNullOrWhiteSpace(options.Project))
 			source = Path.GetFullPath(options.Project);
 		return Task.CompletedTask;
@@ -365,7 +372,11 @@ sealed class FakeDebugBackend : IDebugBackend
 		return Task.FromResult(breakpoints);
 	}
 
-	public Task ConfigurationDone() => Task.CompletedTask;
+	public Task ConfigurationDone()
+	{
+		HasTerminated = !StopOnEntry && terminateOnConfigurationDone;
+		return Task.CompletedTask;
+	}
 	public Task Continue(int threadId) => Task.CompletedTask;
 	public Task Pause(int threadId) => Task.CompletedTask;
 	public Task Step(string command, int threadId) => Task.CompletedTask;
@@ -433,6 +444,7 @@ sealed class LldbDebugBackend : IDebugBackend
 
 	public bool StopOnEntry { get; private set; }
 	public bool IsStopped { get; private set; }
+	public bool HasTerminated { get; private set; }
 
 	public async Task Launch(DebugLaunchOptions options)
 	{
@@ -470,6 +482,7 @@ sealed class LldbDebugBackend : IDebugBackend
 	{
 		string output = await RunLldbBatch("run", "thread backtrace", "frame variable --show-types");
 		IsStopped = output.Contains(" stopped", StringComparison.OrdinalIgnoreCase);
+		HasTerminated = !IsStopped;
 		UpdateFramesFromOutput(output);
 		UpdateVariablesFromOutput(output);
 	}
@@ -478,6 +491,7 @@ sealed class LldbDebugBackend : IDebugBackend
 	{
 		await Task.CompletedTask;
 		IsStopped = false;
+		HasTerminated = false;
 	}
 
 	public async Task Pause(int threadId)
@@ -496,6 +510,7 @@ sealed class LldbDebugBackend : IDebugBackend
 		};
 		string output = await RunLldbBatch("run", lldbCommand, "thread backtrace", "frame variable --show-types");
 		IsStopped = output.Contains(" stopped", StringComparison.OrdinalIgnoreCase);
+		HasTerminated = !IsStopped;
 		UpdateFramesFromOutput(output);
 		UpdateVariablesFromOutput(output);
 	}
@@ -633,36 +648,36 @@ sealed class LldbDebugBackend : IDebugBackend
 
 	internal static async Task<DebugBuildResult> BuildExecutable(string project, string cwd, string outDirectory)
 	{
-		string campc = Path.Combine(FindRepositoryRoot(), "bin", "campc");
-		if (!File.Exists(campc))
-			campc = Path.Combine(FindRepositoryRoot(), "bin", "campc.dll");
-		List<string> args = ["build", project, "--profile", "DEBUG", "--artifact", "exec", "--debug-info", "--out-dir", outDirectory];
-		ProcessStartInfo info = new()
-		{
-			FileName = campc.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? "dotnet" : campc,
-			WorkingDirectory = cwd,
-			RedirectStandardOutput = true,
-			RedirectStandardError = true,
-			UseShellExecute = false
-		};
-		if (campc.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-			info.ArgumentList.Add(campc);
-		foreach (string arg in args)
-			info.ArgumentList.Add(arg);
-		using Process process = Process.Start(info) ?? throw new InvalidOperationException("Could not start campc.");
-		string stdout = await process.StandardOutput.ReadToEndAsync();
-		string stderr = await process.StandardError.ReadToEndAsync();
-		await process.WaitForExitAsync();
-		if (process.ExitCode != 0)
-			throw new InvalidOperationException("Camp build failed." + Environment.NewLine + stdout + stderr);
-		string? executable = Directory.EnumerateFiles(outDirectory, "*", SearchOption.AllDirectories)
-			.Where(path => OperatingSystem.IsWindows()
-				? path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
-				: !Path.HasExtension(path))
-			.FirstOrDefault(path => IsExecutable(path));
+		string runtimeRoot = Path.Combine(FindRepositoryRoot(), "bin");
+		CampProjectEnvironment environment = CampProjectEnvironment.Create(cwd, runtimeRoot);
+		CampProjectLoadResult load = CampProjectLoader.Load([project], environment, CampProjectCommandKind.Build);
+		if (!load.Success)
+			throw new InvalidOperationException("Camp build failed." + Environment.NewLine + string.Join(Environment.NewLine, load.Diagnostics));
+
+		CompilerRequest request = load.Request;
+		request.ProfileName = "DEBUG";
+		request.BuildKind = NativeBuildKind.Exec;
+		request.InferBuildKind = false;
+		request.EmitDebugInfo = true;
+		request.OutDir = outDirectory;
+		CompilerResult result = CompilerDriver.Execute(request);
+		if (result.ExitCode != 0)
+			throw new InvalidOperationException("Camp build failed." + Environment.NewLine + result.StdOut + result.StdErr);
+
+		string? executable = result.GeneratedFiles.FirstOrDefault(IsExecutable);
 		if (executable is null)
-			throw new InvalidOperationException("Camp build completed but no executable artifact was found." + Environment.NewLine + stdout);
-		string? debugMap = Directory.EnumerateFiles(outDirectory, "*.campdebug.json", SearchOption.AllDirectories).FirstOrDefault();
+		{
+			executable = Directory.EnumerateFiles(outDirectory, "*", SearchOption.AllDirectories)
+				.Where(path => OperatingSystem.IsWindows()
+					? path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+					: !Path.HasExtension(path))
+				.FirstOrDefault(path => IsExecutable(path));
+		}
+		if (executable is null)
+			throw new InvalidOperationException("Camp build completed but no executable artifact was found." + Environment.NewLine + result.StdOut);
+		string? debugMap = result.GeneratedFiles.FirstOrDefault(path => path.EndsWith(".campdebug.json", StringComparison.OrdinalIgnoreCase))
+			?? Directory.EnumerateFiles(outDirectory, "*.campdebug.json", SearchOption.AllDirectories).FirstOrDefault();
+		await Task.CompletedTask;
 		return new DebugBuildResult(executable, debugMap);
 	}
 
@@ -758,6 +773,7 @@ sealed class GdbDebugBackend : IDebugBackend
 
 	public bool StopOnEntry { get; private set; }
 	public bool IsStopped { get; private set; }
+	public bool HasTerminated { get; private set; }
 
 	public async Task Launch(DebugLaunchOptions options)
 	{
@@ -796,6 +812,7 @@ sealed class GdbDebugBackend : IDebugBackend
 		string output = await RunGdbBatch("run", "bt", "info args", "info locals");
 		IsStopped = output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
 			|| output.Contains("Program received signal", StringComparison.OrdinalIgnoreCase);
+		HasTerminated = !IsStopped;
 		UpdateFramesFromOutput(output);
 		UpdateVariablesFromOutput(output);
 	}
@@ -804,6 +821,7 @@ sealed class GdbDebugBackend : IDebugBackend
 	{
 		await Task.CompletedTask;
 		IsStopped = false;
+		HasTerminated = false;
 	}
 
 	public async Task Pause(int threadId)
@@ -823,6 +841,7 @@ sealed class GdbDebugBackend : IDebugBackend
 		string output = await RunGdbBatch("run", gdbCommand, "bt", "info args", "info locals");
 		IsStopped = output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
 			|| output.Contains(" at ", StringComparison.OrdinalIgnoreCase);
+		HasTerminated = !IsStopped;
 		UpdateFramesFromOutput(output);
 		UpdateVariablesFromOutput(output);
 	}
@@ -996,6 +1015,7 @@ sealed class CdbDebugBackend : IDebugBackend
 
 	public bool StopOnEntry { get; private set; }
 	public bool IsStopped { get; private set; }
+	public bool HasTerminated { get; private set; }
 
 	public async Task Launch(DebugLaunchOptions options)
 	{
@@ -1033,6 +1053,7 @@ sealed class CdbDebugBackend : IDebugBackend
 		string output = await RunCdbBatch("g", "k", "dv");
 		IsStopped = output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
 			|| output.Contains("breakpoint", StringComparison.OrdinalIgnoreCase);
+		HasTerminated = !IsStopped;
 		UpdateFramesFromOutput(output);
 		UpdateVariablesFromOutput(output);
 	}
@@ -1041,6 +1062,7 @@ sealed class CdbDebugBackend : IDebugBackend
 	{
 		await Task.CompletedTask;
 		IsStopped = false;
+		HasTerminated = false;
 	}
 
 	public async Task Pause(int threadId)
@@ -1060,6 +1082,7 @@ sealed class CdbDebugBackend : IDebugBackend
 		string output = await RunCdbBatch("g", cdbCommand, "k", "dv");
 		IsStopped = output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
 			|| output.Contains("breakpoint", StringComparison.OrdinalIgnoreCase);
+		HasTerminated = !IsStopped;
 		UpdateFramesFromOutput(output);
 		UpdateVariablesFromOutput(output);
 	}
