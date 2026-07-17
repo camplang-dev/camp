@@ -310,6 +310,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FieldDefinition field in GetIteratorFields(state))
 			if (!string.IsNullOrWhiteSpace(field.Name))
 				names.Add(field.Name);
+		AnalysisScope typeScope = CreateIteratorExpansionTypeScope(function, state);
 
 		foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(function.Body))
 		{
@@ -324,10 +325,17 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetDeclarationTargetNameRange(declaration.Target.SourceSyntax ?? declaration.SourceSyntax, name), $"Iterator state field '{name}' is already declared.");
 					continue;
 				}
-				if (declaration.Target.Type is AutoTypeReference)
+				TypeReference? inferredType = null;
+				string? inferredResolvedType = null;
+				if (declaration.Target.Type is AutoTypeReference && !TryInferIteratorLiftedLocalType(declaration, typeScope, out inferredType, out inferredResolvedType))
 				{
 					Report(GetDeclarationTargetNameRange(declaration.Target.SourceSyntax ?? declaration.SourceSyntax, name), $"Iterator local '{name}' must have an explicit type so it can be lifted into the iterator state.");
 					continue;
+				}
+				if (declaration.Target.Type is AutoTypeReference)
+				{
+					declaration.Target.Type = inferredType;
+					declaration.Target.ResolvedType = inferredResolvedType;
 				}
 
 				AddIteratorField(state, new FieldDefinition
@@ -395,6 +403,69 @@ public sealed partial class BindableNodeAnalyzer
 				Type = TypeReferenceForResolvedName(fields.ElementType),
 				ResolvedType = fields.ElementType
 			});
+		}
+	}
+
+	AnalysisScope CreateIteratorExpansionTypeScope(FunctionDefinition function, TypeDefinition state)
+	{
+		AnalysisScope scope = new();
+		foreach (GenericParameter parameter in state.GenericParameters)
+			scope.GenericParameters[parameter.Name] = parameter;
+		foreach (GenericParameter parameter in function.GenericParameters)
+			scope.GenericParameters[parameter.Name] = parameter;
+		return scope;
+	}
+
+	bool TryInferIteratorLiftedLocalType(DeclarationStatement declaration, AnalysisScope typeScope, out TypeReference? inferredType, out string? inferredResolvedType)
+	{
+		inferredType = null;
+		inferredResolvedType = null;
+		if (declaration.Target.Names.Count != 1)
+			return false;
+		if (!TryUnwrapIteratorLiftedLocalConstruction(declaration.InitialValue, out ConstructionExpression? construction) || construction?.Type is null)
+			return false;
+		AnalyzeType(construction.Type, typeScope);
+		string constructedType = construction.Type.ResolvedType ?? ErrorType;
+		if (constructedType == ErrorType)
+			return false;
+		if (construction.ElementCount is not null)
+		{
+			inferredType = new ArrayTypeReference
+			{
+				SourceSyntax = declaration.Target.Type?.SourceSyntax ?? construction.SourceSyntax,
+				ElementType = CloneType(construction.Type) ?? TypeReferenceForResolvedName(constructedType),
+				ResolvedType = constructedType + "[]"
+			};
+			inferredResolvedType = inferredType.ResolvedType;
+			return true;
+		}
+		inferredType = construction.Kind == ConstructionKind.New
+			? PointerTo(CloneType(construction.Type) ?? TypeReferenceForResolvedName(constructedType))
+			: CloneType(construction.Type) ?? TypeReferenceForResolvedName(constructedType);
+		inferredResolvedType = construction.Kind == ConstructionKind.New ? constructedType + "*" : constructedType;
+		inferredType.ResolvedType = inferredResolvedType;
+		return true;
+	}
+
+	static bool TryUnwrapIteratorLiftedLocalConstruction(Expression? expression, out ConstructionExpression? construction)
+	{
+		construction = null;
+		while (true)
+		{
+			switch (expression)
+			{
+				case FinallyCleanupExpression { Kind: FinallyCleanupKind.Delete, Expression: not null } finallyCleanup:
+					expression = finallyCleanup.Expression;
+					continue;
+				case WithinExpression { Expression: not null } within:
+					expression = within.Expression;
+					continue;
+				case ConstructionExpression constructionExpression:
+					construction = constructionExpression;
+					return true;
+				default:
+					return false;
+			}
 		}
 	}
 

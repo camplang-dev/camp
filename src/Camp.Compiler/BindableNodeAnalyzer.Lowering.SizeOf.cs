@@ -123,6 +123,9 @@ public sealed partial class BindableNodeAnalyzer
 			return CreateSizeOfFieldReference(classDefinition, field, sizeOf.SourceSyntax);
 		}
 
+		if (ThisMemberReference(SizeOfParameterName(sizeOf.Type), "nuint") is { Member: FieldDefinition } iteratorSizeOfField)
+			return iteratorSizeOfField;
+
 		Report(sizeOf.SourceSyntax, $"sizeof({genericName}) requires parameter '{SizeOfParameterName(sizeOf.Type)}'.");
 		return sizeOf;
 	}

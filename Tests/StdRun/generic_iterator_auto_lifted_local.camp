@@ -1,0 +1,31 @@
+using Std;
+
+export void main()
+{
+	int[] items = [1, 2, 3, 4, 5];
+	foreach (auto number in items.iterate().reverse())
+	{
+		Console.writeLine(number);
+	}
+}
+
+struct iter T iterate<T: copyable>(T[] this, sizeof(T))
+{
+	foreach (auto item in this)
+	{
+		yield item;
+	}
+}
+
+struct iter T reverse<T: copyable>(iter T this, sizeof(T), within allocator)
+{
+	auto list = new List<T>() finally delete;
+	foreach (auto item in this)
+	{
+		list.add(item);
+	}
+	for (nuint i = 1; i <= list.Length; i++)
+	{
+		yield list.Item[^i];
+	}
+}
