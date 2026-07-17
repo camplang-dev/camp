@@ -1311,8 +1311,17 @@ sealed class CdbDebugBackend : IDebugBackend
 			"stepOut" => "gu",
 			_ => "p"
 		};
-		string output = await RunCdbExecutionCommand(cdbCommand);
-		await RefreshStoppedState(output);
+		string? before = GetTopCampLocationKey();
+		for (int i = 0; i < 24; i++)
+		{
+			string output = await RunCdbExecutionCommand(cdbCommand);
+			await RefreshStoppedState(output);
+			if (HasTerminated || !IsStopped)
+				break;
+			string? after = GetTopCampLocationKey();
+			if (before is null || after is null || !after.Equals(before, StringComparison.OrdinalIgnoreCase))
+				break;
+		}
 	}
 
 	public IReadOnlyList<DebugStackFrame> GetStackTrace()
@@ -1371,15 +1380,17 @@ sealed class CdbDebugBackend : IDebugBackend
 	void UpdateFramesFromOutput(string output)
 	{
 		List<DebugStackFrame> frames = [];
-		foreach (string rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+		foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
 		{
-			string line = rawLine.Trim();
+			string line = StripCdbPrompt(rawLine.Trim());
 			if (!TryParseCdbFrame(line, out string? name, out string? path, out int sourceLine))
 				continue;
 			if (!Path.IsPathRooted(path))
 				path = pendingBreakpoints
 					.Select(item => item.Source)
 					.FirstOrDefault(source => Path.GetFileName(source).Equals(path, StringComparison.OrdinalIgnoreCase)) ?? path;
+			if (debugMap is not null && debugMap.FindFunctionForSourceLine(path, sourceLine) is null)
+				continue;
 			frames.Add(new DebugStackFrame(frames.Count + 1, debugMap?.GetDisplayName(name) ?? name, path, sourceLine, 1));
 			if (frames.Count == 1)
 				stoppedNativeSymbol = name;
@@ -1489,6 +1500,7 @@ sealed class CdbDebugBackend : IDebugBackend
 		_ = Task.Run(() => ReadCdbStream(cdbProcess.StandardOutput.BaseStream));
 		_ = Task.Run(() => ReadCdbStream(cdbProcess.StandardError.BaseStream));
 		await ReadCdbUntilQuiet(TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(200));
+		await RunCdbCommand("l+t");
 	}
 
 	async Task RefreshStoppedState(string executionOutput)
@@ -1507,6 +1519,13 @@ sealed class CdbDebugBackend : IDebugBackend
 			+ await RunCdbCommand("k")
 			+ await RunCdbCommand(".frame /c 0")
 			+ await RunCdbCommand("dv");
+		if (IsCdbRuntimeExitOutput(stateOutput))
+		{
+			IsStopped = false;
+			HasTerminated = true;
+			lastFrames.Clear();
+			return;
+		}
 		UpdateFramesFromOutput(stateOutput);
 		UpdateVariablesFromOutput(stateOutput);
 	}
@@ -1668,15 +1687,31 @@ sealed class CdbDebugBackend : IDebugBackend
 			|| output.Contains("Debuggee is not connected", StringComparison.OrdinalIgnoreCase);
 	}
 
+	static bool IsCdbRuntimeExitOutput(string output)
+	{
+		return output.Contains("NtTerminateProcess", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("RtlExitUserProcess", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("FatalExit", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("common_exit", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("exit_or_terminate_process", StringComparison.OrdinalIgnoreCase);
+	}
+
+	string? GetTopCampLocationKey()
+	{
+		DebugStackFrame? frame = lastFrames.FirstOrDefault();
+		return frame is null ? null : Path.GetFullPath(frame.SourcePath) + ":" + frame.Line.ToString(System.Globalization.CultureInfo.InvariantCulture);
+	}
+
 	void QueueDebuggeeOutput(string output)
 	{
 		StringBuilder builder = new();
-		foreach (string rawLine in output.Split('\n'))
+		foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
 		{
-			string line = rawLine.TrimEnd('\r');
+			string line = StripCdbStopSuffix(StripCdbPrompt(rawLine.Trim()));
 			if (line.Length == 0)
 				continue;
-			if (line.StartsWith("0:", StringComparison.Ordinal)
+			if (IsCdbDebuggerNoiseLine(line)
+				|| line.StartsWith("0:", StringComparison.Ordinal)
 				|| line.StartsWith("Microsoft ", StringComparison.Ordinal)
 				|| line.StartsWith("CommandLine:", StringComparison.Ordinal)
 				|| line.StartsWith("Symbol search path", StringComparison.Ordinal)
@@ -1709,6 +1744,42 @@ sealed class CdbDebugBackend : IDebugBackend
 		}
 		if (builder.Length > 0)
 			pendingOutputEvents.Add(new DebugOutputEvent("stdout", builder.ToString()));
+	}
+
+	static string StripCdbStopSuffix(string line)
+	{
+		int breakpoint = line.IndexOf("Breakpoint ", StringComparison.OrdinalIgnoreCase);
+		if (breakpoint > 0)
+			return line[..breakpoint].TrimEnd();
+		return line;
+	}
+
+	static bool IsCdbDebuggerNoiseLine(string line)
+	{
+		return IsCdbRegisterLine(line)
+			|| IsCdbDisassemblyLine(line)
+			|| (line.EndsWith(':') && line.Contains('!'));
+	}
+
+	static bool IsCdbRegisterLine(string line)
+	{
+		return line.StartsWith("eax=", StringComparison.OrdinalIgnoreCase)
+			|| line.StartsWith("rax=", StringComparison.OrdinalIgnoreCase)
+			|| line.StartsWith("eip=", StringComparison.OrdinalIgnoreCase)
+			|| line.StartsWith("rip=", StringComparison.OrdinalIgnoreCase)
+			|| line.StartsWith("r8=", StringComparison.OrdinalIgnoreCase)
+			|| line.StartsWith("r11=", StringComparison.OrdinalIgnoreCase)
+			|| line.StartsWith("cs=", StringComparison.OrdinalIgnoreCase)
+			|| line.StartsWith("iopl=", StringComparison.OrdinalIgnoreCase);
+	}
+
+	static bool IsCdbDisassemblyLine(string line)
+	{
+		int firstSpace = line.IndexOf(' ');
+		if (firstSpace <= 0)
+			return false;
+		string token = line[..firstSpace].Replace("`", "", StringComparison.Ordinal);
+		return token.Length is >= 8 and <= 16 && token.All(Uri.IsHexDigit);
 	}
 
 	static string? FindCdbPath(string? architecture = null)
