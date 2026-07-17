@@ -883,7 +883,7 @@ sealed class LldbDebugBackend : IDebugBackend
 		await process.WaitForExitAsync();
 		if (process.ExitCode != 0)
 			throw new InvalidOperationException("Camp build failed." + Environment.NewLine + stdout + stderr);
-		string? executable = FindGeneratedExecutable(outDirectory, project, cwd, buildStart);
+		string? executable = FindGeneratedExecutable(outDirectory, project, cwd, buildStart, stdout);
 		if (executable is null)
 			throw new InvalidOperationException("Camp build completed but no executable artifact was found." + Environment.NewLine + stdout);
 		string? debugMap = FindGeneratedDebugMap(outDirectory, project, cwd, buildStart);
@@ -901,14 +901,58 @@ sealed class LldbDebugBackend : IDebugBackend
 		return false;
 	}
 
-	static string? FindGeneratedExecutable(string outDirectory, string project, string cwd, DateTime buildStart)
+	static string? FindGeneratedExecutable(string outDirectory, string project, string cwd, DateTime buildStart, string stdout)
 	{
 		return CandidateBuildSearchRoots(outDirectory, project, cwd)
 			.SelectMany(root => Directory.Exists(root) ? Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories) : [])
 			.Where(IsExecutable)
 			.Where(path => File.GetLastWriteTimeUtc(path) >= buildStart.AddSeconds(-5))
 			.OrderByDescending(File.GetLastWriteTimeUtc)
+			.FirstOrDefault()
+			?? FindGeneratedExecutableFromOutput(outDirectory, project, cwd, buildStart, stdout);
+	}
+
+	static string? FindGeneratedExecutableFromOutput(string outDirectory, string project, string cwd, DateTime buildStart, string stdout)
+	{
+		HashSet<string> generatedNames = [];
+		foreach (string rawLine in stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+		{
+			string line = rawLine.Trim();
+			if (!line.StartsWith("generated:", StringComparison.Ordinal))
+				continue;
+			string name = line["generated:".Length..].Trim();
+			if (name.Length == 0 || IsGeneratedNonExecutable(name))
+				continue;
+			generatedNames.Add(name);
+		}
+		if (generatedNames.Count == 0)
+			return null;
+
+		foreach (string name in generatedNames)
+		{
+			if (Path.IsPathRooted(name) && File.Exists(name))
+				return name;
+		}
+
+		return CandidateBuildSearchRoots(outDirectory, project, cwd)
+			.SelectMany(root => Directory.Exists(root) ? Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories) : [])
+			.Where(path => generatedNames.Contains(Path.GetFileName(path)))
+			.Where(path => File.GetLastWriteTimeUtc(path) >= buildStart.AddSeconds(-5))
+			.OrderByDescending(File.GetLastWriteTimeUtc)
 			.FirstOrDefault();
+	}
+
+	static bool IsGeneratedNonExecutable(string name)
+	{
+		string extension = Path.GetExtension(name);
+		return extension.Equals(".c", StringComparison.OrdinalIgnoreCase)
+			|| extension.Equals(".h", StringComparison.OrdinalIgnoreCase)
+			|| extension.Equals(".o", StringComparison.OrdinalIgnoreCase)
+			|| extension.Equals(".obj", StringComparison.OrdinalIgnoreCase)
+			|| extension.Equals(".lib", StringComparison.OrdinalIgnoreCase)
+			|| extension.Equals(".a", StringComparison.OrdinalIgnoreCase)
+			|| extension.Equals(".camp", StringComparison.OrdinalIgnoreCase)
+			|| extension.Equals(".json", StringComparison.OrdinalIgnoreCase);
 	}
 
 	static string? FindGeneratedDebugMap(string outDirectory, string project, string cwd, DateTime buildStart)
