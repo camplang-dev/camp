@@ -2,6 +2,7 @@ class Box<T>
 {
 	struct iter T iterate()
 	{
+		yield break;
 	}
 }
 

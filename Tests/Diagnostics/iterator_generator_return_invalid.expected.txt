@@ -1,0 +1,4 @@
+tests/Diagnostics/iterator_generator_return_invalid.camp(2,1): error: Iterator generator body must contain a yield statement or 'yield break;'.
+tests/Diagnostics/iterator_generator_return_invalid.camp(7,2): error: Return statements are not valid in iterator generators; use 'yield break;' to end the iterator.
+tests/Diagnostics/iterator_generator_return_invalid.camp(13,2): error: Return statements are not valid in iterator generators; use 'yield break;' to end the iterator.
+tests/Diagnostics/iterator_generator_return_invalid.camp(19,2): error: Yield statement must yield a value or use 'yield break;'.

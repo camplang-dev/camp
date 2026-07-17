@@ -1,0 +1,85 @@
+using Std;
+
+struct Range
+{
+	int first;
+	int last;
+
+	struct iter int instanceValues()
+	{
+		yield this.first;
+		if (this.last == this.first)
+			yield break;
+		yield this.last;
+	}
+
+	static struct iter int staticValues(int value)
+	{
+		yield value;
+		yield break;
+		yield value + 99;
+	}
+}
+
+class Source
+{
+	int seed;
+
+	Source(int seed)
+	{
+		this.seed = seed;
+	}
+
+	int getSeed() => this.seed;
+
+	class iter int instanceValues(escaped this)
+	{
+		yield this.seed;
+		yield break;
+		yield this.seed + 99;
+	}
+
+	static class iter int staticValues(int value)
+	{
+		yield value;
+		yield break;
+		yield value + 99;
+	}
+}
+
+struct iter int extensionValues(Range this)
+{
+	yield this.first + this.last;
+	yield break;
+}
+
+class iter int extensionClassValues(escaped Source* this)
+{
+	yield this.getSeed() + 3;
+	yield break;
+}
+
+export int main()
+{
+	Range range = {.first = 2, .last = 5};
+	int total = 0;
+
+	foreach (int rangeValue in range.instanceValues())
+		total += rangeValue;
+	foreach (int rangeStaticValue in Range.staticValues(7))
+		total += rangeStaticValue;
+	foreach (int rangeExtensionValue in range.extensionValues())
+		total += rangeExtensionValue;
+
+	Source* source = new Source(11);
+	foreach (int sourceValue in source.instanceValues())
+		total += sourceValue;
+	foreach (int sourceStaticValue in Source.staticValues(13))
+		total += sourceStaticValue;
+	foreach (int sourceExtensionValue in source.extensionClassValues())
+		total += sourceExtensionValue;
+	delete source;
+
+	Console.writeLine(total);
+	return total == 59 ? 0 : 1;
+}

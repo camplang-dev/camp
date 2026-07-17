@@ -1,0 +1,20 @@
+struct iter int missingYield()
+{
+}
+
+struct iter int returnValue()
+{
+	return 1;
+	yield break;
+}
+
+struct iter int returnVoid()
+{
+	return;
+	yield break;
+}
+
+struct iter int bareYield()
+{
+	yield;
+}

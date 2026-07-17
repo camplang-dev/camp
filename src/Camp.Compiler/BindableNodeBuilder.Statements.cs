@@ -108,7 +108,7 @@ public sealed partial class BindableNodeBuilder
 			"within" => BuildWithinStatement(syntax),
 			"try" => new TryStatement { SourceSyntax = syntax, Body = BuildStatementBody(syntax) },
 			"return" => new ReturnStatement { SourceSyntax = syntax, Expression = BuildStatementExpression(syntax, "Return statement") },
-			"yield" => new YieldStatement { SourceSyntax = syntax, Expression = BuildStatementExpression(syntax, "Yield statement") },
+			"yield" => BuildYieldStatement(syntax),
 			"delete" => new DeleteStatement { SourceSyntax = syntax, IsDelegateCleanup = syntax.SpecialKeyword?.Value == "delegate", Expression = syntax.SpecialKeyword?.Value == "delegate" ? null : BuildStatementExpression(syntax, "Delete statement") },
 			"throw" => new ExpressionStatement { SourceSyntax = syntax, Expression = new UnaryExpression { SourceSyntax = syntax, Operator = UnaryOperator.Throw, Operand = BuildStatementExpression(syntax, "Throw statement") } },
 			"goto" => BuildGotoStatement(syntax),
@@ -334,6 +334,18 @@ public sealed partial class BindableNodeBuilder
 			Report(syntax.Body, $"{context} must be followed by an expression.");
 
 		return null;
+	}
+
+	YieldStatement BuildYieldStatement(KeywordStatementSyntax syntax)
+	{
+		YieldStatement statement = new()
+		{
+			SourceSyntax = syntax,
+			IsBreak = syntax.SpecialKeyword?.Value == "break"
+		};
+		if (!statement.IsBreak)
+			statement.Expression = BuildStatementExpression(syntax, "Yield statement");
+		return statement;
 	}
 
 	BreakStatement BuildBreakStatement(KeywordStatementSyntax syntax)

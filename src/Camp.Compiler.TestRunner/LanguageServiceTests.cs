@@ -269,6 +269,55 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Analysis_accepts_this_member_access_in_instance_iterator_generators()
+	{
+		string root = CreateTempDirectory("language-service-iterator-this");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			extern void* malloc(nuint size);
+			extern void free(void* ptr);
+
+			struct Range
+			{
+				int first;
+				int last;
+
+				struct iter int values()
+				{
+					yield this.first;
+					yield this.last;
+				}
+			}
+
+			class Source
+			{
+				int seed;
+
+				class iter int values(escaped this)
+				{
+					yield this.seed;
+					yield break;
+				}
+			}
+
+			export int main()
+			{
+				Range range = {.first = 1, .last = 2};
+				auto rangeValues = range.values();
+				auto source = new Source();
+				auto sourceValues = source.values();
+				delete source;
+				return 0;
+			}
+			""";
+		File.WriteAllText(source, text);
+
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+	}
+
+	[Fact]
 	public void Symbol_query_maps_properties_inherited_members_interface_members_and_aliases()
 	{
 		string root = CreateTempDirectory("language-service-member-mapping");

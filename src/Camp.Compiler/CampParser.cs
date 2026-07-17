@@ -1154,6 +1154,13 @@ public sealed class CampParser
 			return syntax;
 		}
 
+		if (syntax.Keyword?.Value == "yield" && Is("break") && ValueIsAny(PeekValue(1), ";"))
+		{
+			syntax.SpecialKeyword = Take();
+			syntax.Body = new EmptyStatementSyntax { SemicolonToken = Expect(";") };
+			return syntax;
+		}
+
 		if (KeywordRequiresExpressionBody(syntax.Keyword?.Value))
 		{
 			if (!Is(";"))

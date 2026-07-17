@@ -346,6 +346,13 @@ public sealed partial class BindableNodeAnalyzer
 
 			case ReturnStatement returnStatement:
 			{
+				if (scope.CurrentIteratorElementType is not null)
+				{
+					Report(GetRange(returnStatement.SourceSyntax), "Return statements are not valid in iterator generators; use 'yield break;' to end the iterator.");
+					if (returnStatement.Expression is not null)
+						BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope);
+					break;
+				}
 				if (IsDestructorBody(scope.CurrentFunction) && returnStatement.Expression is not null)
 				{
 					Report(GetRange(returnStatement.Expression.SourceSyntax ?? returnStatement.SourceSyntax), "Destructors cannot return a value.");
@@ -382,6 +389,13 @@ public sealed partial class BindableNodeAnalyzer
 				string expected = scope.CurrentIteratorElementType ?? ErrorType;
 				if (scope.CurrentIteratorElementType is null)
 					Report(GetRange(yieldStatement.SourceSyntax), "Yield statements may only appear in iterator functions.");
+				if (yieldStatement.IsBreak)
+					break;
+				if (yieldStatement.Expression is null)
+				{
+					Report(GetRange(yieldStatement.SourceSyntax), "Yield statement must yield a value or use 'yield break;'.");
+					break;
+				}
 				string yieldedType = BodyAnalyzeExpression(yieldStatement.Expression, scope, typeScope, expected);
 				bool fixedArraySpanEscape = EscapesLocalFixedArraySpan(expected, yieldStatement.Expression);
 				if (fixedArraySpanEscape)

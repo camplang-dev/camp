@@ -7,4 +7,5 @@ enum Err
 struct iter int throwsWithoutSlot()
 {
 	throw Err.BAD;
+	yield break;
 }

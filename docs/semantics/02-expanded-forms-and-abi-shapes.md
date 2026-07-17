@@ -208,6 +208,23 @@ semantics, not as an arbitrary delegate. The generated state may retain locals,
 parameters, thrown slots, and lifetime facts across yields. It must participate
 in lifecycle and lifetime checks.
 
+Generator declaration validation happens before source bodies are rewritten
+into state factories and `next` methods:
+
+- `struct iter` and `class iter` bodies must contain a source `yield` or
+  `yield break` statement somewhere;
+- `yield break` lowers to iterator completion, setting the state finished and
+  returning `false` from the generated `next`;
+- source `return` statements are invalid inside generators;
+- ordinary functions returning plain `iter T` values are not generators and keep
+  ordinary `return` semantics.
+
+When an instance generator is expanded, the generated iterator state retains the
+source receiver as a state field. Rewriting `this` inside the generated `next`
+method must recover that retained receiver before member lookup, so
+`this.member` binds as it did in the source generator rather than against the
+iterator state type.
+
 ## Grouped Params
 
 `params` declarations can define source-level grouped values that lower to

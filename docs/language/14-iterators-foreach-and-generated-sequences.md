@@ -105,7 +105,7 @@ native code, a generated class iterator, or another Camp routine.
 ## Generator Declarations
 
 Use `struct iter` or `class iter` when the function body itself contains
-`yield`:
+`yield` or `yield break`:
 
 ```camp
 nuint countPowers(int limit)
@@ -236,6 +236,27 @@ struct iter const char[] badLocal()
 The local array storage would be part of the iterator's state, but the yielded
 span would escape through the current-value slot in a way the signature does
 not promise.
+
+Use `yield break;` to end a generator early without producing another value:
+
+```camp
+struct iter int nonnegativePrefix(int[] values)
+{
+	foreach (int value in values)
+	{
+		if (value < 0)
+			yield break;
+		yield value;
+	}
+}
+```
+
+A generator body must contain at least one `yield` or `yield break` statement,
+even if the statement is not reachable on every path. `yield break;` is the
+right spelling for an iterator that intentionally produces no values.
+
+Do not use `return` inside a generator. `return` remains valid in ordinary
+functions that return an `iter T` value without being generators.
 
 ## Failing Iterators
 
@@ -470,6 +491,10 @@ void rangeIter_destroy(rangeIter *state);
 
 The names and fields are illustrative, but the ownership story is real:
 the caller has the state storage, advances it, and destroys it.
+
+For an instance generator, the generated state also retains the original
+receiver. Inside the generator body, `this.member` continues to mean the
+source receiver's member, not a field on the generated iterator state.
 
 That is why `struct iter` is the natural form for short-lived local iteration
 and adapters that do not need heap allocation.

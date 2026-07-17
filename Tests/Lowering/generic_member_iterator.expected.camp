@@ -2,7 +2,7 @@ class Box<T>
 {
 	Box_iterateIter<T> iterate()
 	{
-		return {.__state = 0};
+		return {.__state = 0, .__iter_this = this};
 	}
 }
 void main(Box<int>* box)
@@ -15,11 +15,14 @@ void main(Box<int>* box)
 fixed struct Box_iterateIter<T>
 {
 	int __state;
+	Box<T>* __iter_this;
 
 	bool next(T* current)
 	{
 		if (this.__state == -1)
 			return false;
+		this.__state = -1;
+		return false;
 		this.__state = -1;
 		return false;
 	}

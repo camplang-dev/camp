@@ -666,6 +666,11 @@ or scoped values whose storage ends before the consumer can use them. If an
 iterator needs cleanup, model the cleanup explicitly rather than relying on a
 consumer to exhaust the sequence.
 
+Use `yield break;` to end a `struct iter` or `class iter` generator early, and
+include `yield break;` when a generator intentionally yields no values. Do not
+write `return` inside a generator; reserve `return` for ordinary functions that
+return an `iter T` value produced elsewhere.
+
 ## Async And Postponed Work
 
 Write async code at the source level and let the compiler lower it. Do not

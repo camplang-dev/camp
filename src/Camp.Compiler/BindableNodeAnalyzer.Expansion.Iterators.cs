@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -62,6 +63,7 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(function.SourceSyntax), "Iterator generator return type must be an iter type.");
 			return;
 		}
+		ValidateIteratorGeneratorSourceBody(function);
 
 		EnsureIteratorSizeOfParameters(function);
 
@@ -124,6 +126,72 @@ public sealed partial class BindableNodeAnalyzer
 				Type = type,
 				ResolvedType = "nuint"
 			});
+		}
+	}
+
+	void ValidateIteratorGeneratorSourceBody(FunctionDefinition function)
+	{
+		bool hasYield = false;
+		foreach (Statement statement in function.Body?.Statements ?? [])
+			ValidateIteratorGeneratorSourceStatement(function, statement, ref hasYield);
+
+		if (!hasYield)
+			Report(GetRange(function.Body?.SourceSyntax ?? function.SourceSyntax), "Iterator generator body must contain a yield statement or 'yield break;'.");
+	}
+
+	void ValidateIteratorGeneratorSourceStatement(FunctionDefinition function, Statement? statement, ref bool hasYield)
+	{
+		switch (statement)
+		{
+			case null:
+				return;
+			case BlockStatement block:
+				foreach (Statement child in block.Statements)
+					ValidateIteratorGeneratorSourceStatement(function, child, ref hasYield);
+				break;
+			case IfStatement ifStatement:
+				ValidateIteratorGeneratorSourceStatement(function, ifStatement.Body, ref hasYield);
+				ValidateIteratorGeneratorSourceStatement(function, ifStatement.ElseBody, ref hasYield);
+				break;
+			case WhileStatement whileStatement:
+				ValidateIteratorGeneratorSourceStatement(function, whileStatement.Body, ref hasYield);
+				break;
+			case DoWhileStatement doWhile:
+				ValidateIteratorGeneratorSourceStatement(function, doWhile.Body, ref hasYield);
+				break;
+			case ForStatement forStatement:
+				ValidateIteratorGeneratorSourceStatement(function, forStatement.Body, ref hasYield);
+				break;
+			case ForeachStatement foreachStatement:
+				ValidateIteratorGeneratorSourceStatement(function, foreachStatement.Body, ref hasYield);
+				break;
+			case SwitchStatement switchStatement:
+				foreach (Statement child in switchStatement.Statements)
+					ValidateIteratorGeneratorSourceStatement(function, child, ref hasYield);
+				break;
+			case ReturnStatement returnStatement:
+				Report(GetRange(returnStatement.SourceSyntax), "Return statements are not valid in iterator generators; use 'yield break;' to end the iterator.");
+				break;
+			case YieldStatement yieldStatement:
+				hasYield = true;
+				if (!yieldStatement.IsBreak && yieldStatement.Expression is null)
+					Report(GetRange(yieldStatement.SourceSyntax), "Yield statement must yield a value or use 'yield break;'.");
+				break;
+			case TryStatement tryStatement:
+				ValidateIteratorGeneratorSourceStatement(function, tryStatement.Body, ref hasYield);
+				foreach (CatchStatement catchStatement in tryStatement.Catches)
+					ValidateIteratorGeneratorSourceStatement(function, catchStatement, ref hasYield);
+				ValidateIteratorGeneratorSourceStatement(function, tryStatement.Finally, ref hasYield);
+				break;
+			case CatchStatement catchStatement:
+				ValidateIteratorGeneratorSourceStatement(function, catchStatement.Body, ref hasYield);
+				break;
+			case FinallyStatement finallyStatement:
+				ValidateIteratorGeneratorSourceStatement(function, finallyStatement.Body, ref hasYield);
+				break;
+			case WithinStatement withinStatement:
+				ValidateIteratorGeneratorSourceStatement(function, withinStatement.Body, ref hasYield);
+				break;
 		}
 	}
 
@@ -222,7 +290,7 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "int"
 		});
 
-		foreach (ParameterDefinition parameter in function.Parameters)
+		foreach (ParameterDefinition parameter in GetIteratorRetainedParameters(function, containingType))
 		{
 			if (IsHiddenParameter(parameter) || parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 				continue;
@@ -243,6 +311,58 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = parameterType
 			}, sourceName);
 		}
+	}
+
+	IEnumerable<ParameterDefinition> GetIteratorRetainedParameters(FunctionDefinition function, TypeDefinition? containingType)
+	{
+		foreach (ParameterDefinition parameter in function.Parameters)
+			yield return parameter;
+
+		if (containingType is null
+			|| function.Modifier is FunctionModifier.Static or FunctionModifier.Constructor or FunctionModifier.Destructor
+			|| IsDestructorFunction(function)
+			|| GetExplicitThisParameter(function) is not null)
+		{
+			yield break;
+		}
+
+		function.EffectiveThisParameter ??= CreateIteratorImplicitThisParameter(containingType);
+		yield return function.EffectiveThisParameter;
+	}
+
+	ThisParameterDefinition CreateIteratorImplicitThisParameter(TypeDefinition containingType)
+	{
+		TypeDefinitionReference type = new()
+		{
+			Name = containingType.Name,
+			Definition = containingType
+		};
+		foreach (GenericParameter parameter in containingType.GenericParameters)
+		{
+			type.TypeArguments.Add(new GenericParameterTypeReference
+			{
+				Name = parameter.Name,
+				Parameter = parameter,
+				ResolvedType = parameter.Name
+			});
+		}
+		type.ResolvedType = AddTypeArguments(containingType.Name, type.TypeArguments);
+
+		TypeReference receiverType = type;
+		string receiverResolvedType = type.ResolvedType;
+		if (containingType is not NewtypeDefinition)
+		{
+			receiverType = PointerTo(type);
+			receiverResolvedType += "*";
+		}
+
+		return new ThisParameterDefinition
+		{
+			Name = "this",
+			Symbol = "this",
+			Type = receiverType,
+			ResolvedType = receiverResolvedType
+		};
 	}
 
 	string IteratorStateFieldSourceName(ParameterDefinition parameter)
@@ -296,7 +416,7 @@ public sealed partial class BindableNodeAnalyzer
 	TypeReference IteratorStateFieldTypeReference(ParameterDefinition parameter, string resolvedType, TypeDefinition? containingType)
 	{
 		if (parameter is ThisParameterDefinition && containingType is not null)
-			return TypeReferenceForIteratorField(resolvedType);
+			return CloneType(parameter.Type) ?? TypeReferenceForIteratorField(resolvedType);
 
 		return parameter switch
 		{
@@ -309,7 +429,16 @@ public sealed partial class BindableNodeAnalyzer
 
 	string IteratorThisParameterType(ThisParameterDefinition parameter, TypeDefinition containingType)
 	{
-		string receiverType = containingType is NewtypeDefinition ? containingType.Name : $"{containingType.Name}*";
+		string receiverType = AddTypeArguments(
+			containingType.Name,
+			[.. containingType.GenericParameters.Select(static generic => new GenericParameterTypeReference
+			{
+				Name = generic.Name,
+				Parameter = generic,
+				ResolvedType = generic.Name
+			})]);
+		if (containingType is not NewtypeDefinition)
+			receiverType += "*";
 		return ApplyThisDeclarators(receiverType, parameter);
 	}
 
@@ -1046,7 +1175,7 @@ public sealed partial class BindableNodeAnalyzer
 			Expression = NumberLiteral("0", "int"),
 			ResolvedType = "int"
 		});
-		foreach (ParameterDefinition parameter in function.Parameters)
+		foreach (ParameterDefinition parameter in GetIteratorRetainedParameters(function, containingType))
 		{
 			if (IsHiddenParameter(parameter) || parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 				continue;
@@ -1059,12 +1188,7 @@ public sealed partial class BindableNodeAnalyzer
 			initializer.Items.Add(new InitializerItem
 			{
 				Target = InitializerTargetFor(field?.Name ?? IteratorStateFieldNameFor(parameter)),
-				Expression = new VariableReferenceExpression
-				{
-					SourceSyntax = parameter.SourceSyntax,
-					Variable = parameter,
-					ResolvedType = parameterType
-				},
+				Expression = ReferenceIteratorRetainedParameter(function, parameter, parameterType),
 				ResolvedType = parameterType
 			});
 		}
@@ -1120,6 +1244,23 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void"
 		});
 		return body;
+	}
+
+	Expression ReferenceIteratorRetainedParameter(FunctionDefinition function, ParameterDefinition parameter, string parameterType)
+	{
+		if (ReferenceEquals(parameter, function.EffectiveThisParameter))
+			return new ThisExpression
+			{
+				SourceSyntax = function.SourceSyntax,
+				ResolvedType = parameterType
+			};
+
+		return new VariableReferenceExpression
+		{
+			SourceSyntax = parameter.SourceSyntax,
+			Variable = parameter,
+			ResolvedType = parameterType
+		};
 	}
 
 	BlockStatement CreateIteratorNextBody(FunctionDefinition function, IterTypeReference iterType, TypeDefinition state, List<ParameterDefinition> nextParameters)
@@ -1191,13 +1332,16 @@ public sealed partial class BindableNodeAnalyzer
 		switch (statement)
 		{
 			case YieldStatement yield:
+				if (yield.IsBreak)
+					return lowering.CreateCompletion();
 				ValidateIteratorYieldLifetime(lowering.Function, yield.Expression, yield.Expression?.SourceSyntax ?? yield.SourceSyntax);
 				return lowering.CreateYield(yield.Expression);
 
 			case ExpressionStatement { Expression: UnaryExpression { Operator: UnaryOperator.Throw } throwStatement }:
 				return lowering.CreateThrow(throwStatement.Operand, throwStatement.SourceSyntax);
 
-			case ReturnStatement:
+			case ReturnStatement returnStatement:
+				Report(GetRange(returnStatement.SourceSyntax), "Return statements are not valid in iterator generators; use 'yield break;' to end the iterator.");
 				return lowering.CreateCompletion();
 
 			case DeclarationStatement declaration:

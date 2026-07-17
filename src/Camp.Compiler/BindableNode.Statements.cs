@@ -103,6 +103,7 @@ public class ReturnStatement : Statement
 
 public class YieldStatement : Statement
 {
+	public bool IsBreak { get; set; }
 	public Expression? Expression { get; set; }
 }
 
