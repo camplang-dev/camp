@@ -30,7 +30,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			InitializeParameterLifetimeFacts(parameter, typeAndMethodScope);
 			if (!string.IsNullOrWhiteSpace(parameter.Name))
-				RegisterBodySymbol(scope, parameter.Name, parameter.ResolvedType ?? ErrorType, parameter, parameter.Type, parameter.ResolvedType);
+			{
+				string parameterType = ParameterBodySymbolType(parameter);
+				RegisterBodySymbol(scope, parameter.Name, parameterType, parameter, parameter.Type, parameterType);
+			}
 		}
 		scope.CurrentWithinContextLifetimeFact = GetWithinParameter(function)?.ValueLifetimeFact ?? GetWithinParameter(function)?.SlotLifetimeFact;
 
@@ -41,6 +44,17 @@ public sealed partial class BindableNodeAnalyzer
 		BindFunctionLabels(function);
 		ValidateBaseConstructorInvocation(function, containingType);
 		FlowAnalyzeFunctionBody(function, scope);
+	}
+
+	static string ParameterBodySymbolType(ParameterDefinition parameter)
+	{
+		if (IsValidResolvedTypeName(parameter.ResolvedType))
+			return parameter.ResolvedType!;
+		if (parameter.Type is not null && UnwrapTypeDeclarators(parameter.Type) is ArrayTypeReference)
+			return FormatTypeReference(parameter.Type);
+		if (IsValidResolvedTypeName(parameter.Type?.ResolvedType))
+			return parameter.Type!.ResolvedType!;
+		return ErrorType;
 	}
 
 	void ValidateNoAwaitBody(FunctionDefinition function)
@@ -1359,7 +1373,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (scope.ContainingType is null)
 		{
 			if (GetExplicitThisParameter(scope.CurrentFunction) is ThisParameterDefinition thisParameter)
-				return thisParameter.ResolvedType ?? ErrorType;
+				return IsValidResolvedTypeName(thisParameter.ResolvedType)
+					? thisParameter.ResolvedType!
+					: IsValidResolvedTypeName(thisParameter.Type?.ResolvedType)
+						? thisParameter.Type!.ResolvedType!
+						: FormatTypeReference(thisParameter.Type);
 
 			Report(GetRange(expression.SourceSyntax), "'this' is not available in this context.");
 			return ErrorType;

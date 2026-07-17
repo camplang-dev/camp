@@ -229,6 +229,10 @@ public sealed partial class BindableNodeAnalyzer
 			string sourceName = IteratorStateFieldSourceName(parameter);
 			string fieldName = IteratorStateFieldNameFor(parameter);
 			string parameterType = IteratorStateFieldType(parameter, containingType);
+			if (!IsIteratorArrayParameter(parameter)
+				&& !IsValidResolvedTypeName(parameter.ResolvedType)
+				&& IsValidResolvedTypeName(parameter.Type?.ResolvedType))
+				parameter.ResolvedType = parameter.Type!.ResolvedType;
 
 			AddIteratorField(state, new FieldDefinition
 			{
@@ -249,6 +253,11 @@ public sealed partial class BindableNodeAnalyzer
 			VTableOfParameterDefinition vtableOf => VTableOfParameterName(vtableOf.Type, vtableOf.InterfaceType),
 			_ => parameter.Name
 		};
+	}
+
+	static bool IsValidResolvedTypeName(string? type)
+	{
+		return !string.IsNullOrWhiteSpace(type) && type is not ErrorType and not UnresolvedType;
 	}
 
 	string IteratorStateFieldNameFor(ParameterDefinition parameter)
@@ -526,7 +535,7 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (ParameterDefinition parameter in function.Parameters)
 			{
 				if (parameter is ThisParameterDefinition || parameter.Name == "this")
-					return parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type);
+					return IteratorParameterSourceType(parameter);
 			}
 		}
 
@@ -535,11 +544,27 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (ParameterDefinition parameter in function.Parameters)
 			{
 				if (parameter.Name == named.Name)
-					return parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type);
+					return IteratorParameterSourceType(parameter);
 			}
 		}
 
 		return sourceType ?? ErrorType;
+	}
+
+	static string IteratorParameterSourceType(ParameterDefinition parameter)
+	{
+		if (IsValidResolvedTypeName(parameter.ResolvedType))
+			return parameter.ResolvedType!;
+		if (IsIteratorArrayParameter(parameter))
+			return FormatTypeReference(parameter.Type);
+		if (IsValidResolvedTypeName(parameter.Type?.ResolvedType))
+			return parameter.Type!.ResolvedType!;
+		return FormatTypeReference(parameter.Type);
+	}
+
+	static bool IsIteratorArrayParameter(ParameterDefinition parameter)
+	{
+		return parameter.Type is not null && UnwrapTypeDeclarators(parameter.Type) is ArrayTypeReference;
 	}
 
 	bool TryResolveIteratorForeachSourceType(Expression? source, out string sourceType)
@@ -1028,6 +1053,8 @@ public sealed partial class BindableNodeAnalyzer
 			string sourceName = IteratorStateFieldSourceName(parameter);
 			string parameterType = IteratorStateFieldType(parameter, containingType);
 			FieldDefinition? field = TryGetIteratorStateField(stateType, sourceName);
+			if (!IsIteratorArrayParameter(parameter))
+				parameter.ResolvedType = parameterType;
 
 			initializer.Items.Add(new InitializerItem
 			{
@@ -1424,10 +1451,26 @@ public sealed partial class BindableNodeAnalyzer
 		if (expression is null)
 			return null;
 
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten)
+			&& !ReferenceEquals(rewritten, expression))
+		{
+			Expression? iteratorRewrite = RewriteIteratorExpression(rewritten, lowering);
+			if (iteratorRewrite is not null)
+				expressionRewrites[expression] = iteratorRewrite;
+			return iteratorRewrite;
+		}
+
 		if (expression is NamedExpression named && named.Qualifiers.Count == 0)
 		{
 			if (lowering.IsLiftedName(named.Name))
-				return ThisMemberReference(named.Name, lowering.GetLiftedType(named.Name));
+				return IteratorStateSourceMemberReference(named.Name, lowering.GetLiftedType(named.Name), named.SourceSyntax);
+		}
+
+		if (expression is VariableReferenceExpression variable)
+		{
+			string? name = GetReferenceName(variable.Variable);
+			if (!string.IsNullOrWhiteSpace(name) && lowering.IsLiftedName(name))
+				return IteratorStateSourceMemberReference(name, lowering.GetLiftedType(name), variable.SourceSyntax);
 		}
 
 		if (expression is ThisExpression
@@ -1435,7 +1478,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& iteratorStateFieldsBySourceName.TryGetValue(BaseTypeName(currentIteratorStateThisType), out Dictionary<string, FieldDefinition>? stateFields)
 			&& stateFields.TryGetValue("this", out FieldDefinition? thisField))
 		{
-			return ThisMemberReference("this", thisField.ResolvedType);
+			return IteratorStateSourceMemberReference("this", thisField.ResolvedType ?? ErrorType, expression.SourceSyntax);
 		}
 
 		if (expression is SizeOfExpression sizeOf
@@ -1509,6 +1552,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return expression;
+	}
+
+	MemberReferenceExpression IteratorStateSourceMemberReference(string sourceName, string resolvedType, SyntaxNode? syntax)
+	{
+		MemberReferenceExpression reference = ThisMemberReference(sourceName, resolvedType);
+		reference.SourceSyntax = syntax;
+		return reference;
 	}
 
 	void RewriteIteratorLambdaBody(BlockStatement? body, IteratorBodyLowering lowering)
@@ -1993,7 +2043,7 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (ParameterDefinition parameter in function.Parameters)
 			{
 				if (!string.IsNullOrWhiteSpace(parameter.Name))
-					liftedTypes[parameter.Name] = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type);
+					liftedTypes[parameter.Name] = LiftedParameterType(parameter);
 			}
 			foreach (DeclarationStatement declaration in analyzer.EnumerateIteratorLocalDeclarations(function.Body))
 			{
@@ -2006,6 +2056,11 @@ public sealed partial class BindableNodeAnalyzer
 		public bool IsLiftedName(string name) => liftedTypes.ContainsKey(name);
 
 		public string GetLiftedType(string name) => liftedTypes.TryGetValue(name, out string? type) ? type : ErrorType;
+
+		static string LiftedParameterType(ParameterDefinition parameter)
+		{
+			return IteratorParameterSourceType(parameter);
+		}
 
 		public List<Statement> CreateResumeDispatch()
 		{
