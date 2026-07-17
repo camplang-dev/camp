@@ -2,68 +2,6 @@
 
 Next bug number: BUG-054.
 
-## BUG-052: Nested aggregate initializers for expanded fields can type-check but emit invalid C
-
-Nested aggregate initializers involving expanded array fields can type-check but
-emit invalid C, often as scalar initializers or with omitted expanded
-components.
-
-Minimal repro:
-
-```camp
-struct SliceBox
-{
-	const char[] text;
-}
-
-struct TaggedSlice
-{
-	int tag;
-	const char[] text;
-}
-
-TaggedSlice makeTagged(const char[] source, nuint count)
-{
-	return { 7, { source.elements, count } };
-}
-
-struct iter SliceBox chunks(const char[] source)
-{
-	yield { { source.elements, source.length } };
-}
-
-export int main()
-{
-	const char[] source = "abc";
-	TaggedSlice tagged = makeTagged(source, 2);
-	if (tagged.tag != 7 || tagged.text.length != 2)
-		return 1;
-
-	int count = 0;
-	foreach (SliceBox box in chunks(source))
-	{
-		if (box.text.length != 3)
-			return 2;
-		count++;
-	}
-
-	return count == 1 ? 0 : 3;
-}
-```
-
-Actual: source can pass semantic analysis, but C emission/native compilation can
-produce scalar initializer warnings/errors such as "excess elements in scalar
-initializer", pointer-to-integer conversion errors, or missing length component
-handling.
-
-Expected: nested aggregate initializers for expanded fields should initialize
-all expanded components correctly in every aggregate position, including returns
-and yields. If this initializer shape is unsupported, source should be rejected
-with a clear diagnostic before C emission.
-
-Workaround: add builder helpers that assign fields one at a time, such as
-`makeSliceBox(...)` or `makeTaggedSlice(...)`.
-
 ## BUG-053: Expanded-return calls inline inside initializers or calls can emit missing result slots
 
 Using expanded-return expressions directly inside aggregate initializers or as

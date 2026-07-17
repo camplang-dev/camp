@@ -1,0 +1,38 @@
+struct SliceBox
+{
+	const char[] text;
+}
+
+struct TaggedSlice
+{
+	int tag;
+	const char[] text;
+}
+
+TaggedSlice makeTagged(const char[] source, nuint count)
+{
+	return { 7, { source.elements, count } };
+}
+
+struct iter SliceBox chunks(const char[] source)
+{
+	yield { { source.elements, source.length } };
+}
+
+export int main()
+{
+	const char[] source = "abc";
+	TaggedSlice tagged = makeTagged(source, 2);
+	if (tagged.tag != 7 || tagged.text.length != 2)
+		return 1;
+
+	int count = 0;
+	foreach (SliceBox box in chunks(source))
+	{
+		if (box.text.length != 3)
+			return 2;
+		count++;
+	}
+
+	return count == 1 ? 0 : 3;
+}

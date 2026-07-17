@@ -139,6 +139,7 @@ public sealed partial class BindableNodeAnalyzer
 		string? firstComponentName = GetInitializerComponentName(components[0]);
 		string? remappedTargetPrefix = firstComponentName != targetName ? targetName : null;
 		bool hasStorageShape = TryGetParamsComponentShape(null, item.TargetStorageResolvedType ?? item.TargetResolvedType, targetName, out ParamsComponentShape storageShape);
+		bool useStorageComponentNames = hasStorageShape && components.Count == storageShape.Components.Count;
 		if (firstComponentName is null && (!hasStorageShape || components.Count != storageShape.Components.Count))
 			return false;
 
@@ -146,12 +147,14 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Expression component = components[i];
 			string? componentName = GetInitializerComponentName(component);
-			string? expandedTargetName = componentName is null && hasStorageShape && i < storageShape.Components.Count
+			string? expandedTargetName = useStorageComponentNames
+				? storageShape.Components[i].ExpandedName
+				: componentName is null && hasStorageShape && i < storageShape.Components.Count
 				? storageShape.Components[i].ExpandedName
 				: null;
 			if (componentName is null && expandedTargetName is null)
 				return false;
-			if (i == 0 && componentName is not null && componentName != targetName && remappedTargetPrefix is null)
+			if (!useStorageComponentNames && i == 0 && componentName is not null && componentName != targetName && remappedTargetPrefix is null)
 				return false;
 
 			if (expandedTargetName is null)
