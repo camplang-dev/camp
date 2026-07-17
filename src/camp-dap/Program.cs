@@ -694,7 +694,7 @@ sealed class LldbDebugBackend : IDebugBackend
 	static Dictionary<string, LldbNativeVariable> ParseNativeVariables(string output)
 	{
 		Dictionary<string, LldbNativeVariable> variables = new(StringComparer.Ordinal);
-		foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+		foreach (string rawLine in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
 		{
 			string line = rawLine.Trim();
 			if (!line.StartsWith('('))
@@ -1380,7 +1380,7 @@ sealed class CdbDebugBackend : IDebugBackend
 	void UpdateFramesFromOutput(string output)
 	{
 		List<DebugStackFrame> frames = [];
-		foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+		foreach (string rawLine in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
 		{
 			string line = StripCdbPrompt(rawLine.Trim());
 			if (!TryParseCdbFrame(line, out string? name, out string? path, out int sourceLine))
@@ -1447,7 +1447,7 @@ sealed class CdbDebugBackend : IDebugBackend
 	static Dictionary<string, LldbNativeVariable> ParseCdbVariables(string output)
 	{
 		Dictionary<string, LldbNativeVariable> variables = new(StringComparer.Ordinal);
-		foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+		foreach (string rawLine in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
 		{
 			string line = StripCdbPrompt(rawLine.Trim());
 			int equals = line.IndexOf(" = ", StringComparison.Ordinal);
@@ -1659,7 +1659,7 @@ sealed class CdbDebugBackend : IDebugBackend
 
 	static bool ContainsCdbInstructionLocation(string output)
 	{
-		foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+		foreach (string rawLine in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
 		{
 			string line = StripCdbPrompt(rawLine.Trim());
 			if (line.Length == 0 || line.StartsWith("ModLoad:", StringComparison.OrdinalIgnoreCase))
@@ -1705,7 +1705,7 @@ sealed class CdbDebugBackend : IDebugBackend
 	void QueueDebuggeeOutput(string output)
 	{
 		StringBuilder builder = new();
-		foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+		foreach (string rawLine in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
 		{
 			string line = StripCdbStopSuffix(StripCdbPrompt(rawLine.Trim()));
 			if (line.Length == 0)
