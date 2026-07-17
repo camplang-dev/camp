@@ -1503,7 +1503,15 @@ sealed class CdbDebugBackend : IDebugBackend
 		DrainQueuedCdbOutput();
 		await cdbProcess!.StandardInput.WriteLineAsync(command);
 		await cdbProcess.StandardInput.FlushAsync();
-		return await ReadCdbUntilExecutionStops(TimeSpan.FromSeconds(30));
+		string output = await ReadCdbUntilExecutionStops(TimeSpan.FromSeconds(30));
+		for (int i = 0; i < 4 && IsCdbLoaderBreakpoint(output); i++)
+		{
+			DrainQueuedCdbOutput();
+			await cdbProcess.StandardInput.WriteLineAsync("g");
+			await cdbProcess.StandardInput.FlushAsync();
+			output = await ReadCdbUntilExecutionStops(TimeSpan.FromSeconds(30));
+		}
+		return output;
 	}
 
 	async Task<string> RunCdbCommand(string command)
@@ -1616,6 +1624,16 @@ sealed class CdbDebugBackend : IDebugBackend
 			|| output.Contains("Access violation", StringComparison.OrdinalIgnoreCase);
 	}
 
+	static bool IsCdbLoaderBreakpoint(string output)
+	{
+		return output.Contains("WOW64 breakpoint", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("LdrInitShimEngineDynamic", StringComparison.OrdinalIgnoreCase)
+			|| output.Contains("LdrpDoDebuggerBreak", StringComparison.OrdinalIgnoreCase)
+			|| (output.Contains("first chance", StringComparison.OrdinalIgnoreCase)
+				&& output.Contains("int", StringComparison.OrdinalIgnoreCase)
+				&& output.Contains("ntdll", StringComparison.OrdinalIgnoreCase));
+	}
+
 	static bool IsCdbTerminatedOutput(string output)
 	{
 		return output.Contains("quit:", StringComparison.OrdinalIgnoreCase)
@@ -1638,6 +1656,11 @@ sealed class CdbDebugBackend : IDebugBackend
 				|| line.StartsWith("Executable search path", StringComparison.Ordinal)
 				|| line.StartsWith("ModLoad:", StringComparison.Ordinal)
 				|| line.StartsWith("Breakpoint ", StringComparison.OrdinalIgnoreCase)
+				|| line.Contains("first chance", StringComparison.OrdinalIgnoreCase)
+				|| line.Contains("First chance exceptions", StringComparison.OrdinalIgnoreCase)
+				|| line.Contains("WOW64 breakpoint", StringComparison.OrdinalIgnoreCase)
+				|| line.Contains("LdrInitShimEngineDynamic", StringComparison.OrdinalIgnoreCase)
+				|| line.Contains("LdrpDoDebuggerBreak", StringComparison.OrdinalIgnoreCase)
 				|| line.Contains("Debug session time:", StringComparison.OrdinalIgnoreCase)
 				|| line.Contains("cdb: Reading initial command", StringComparison.OrdinalIgnoreCase)
 				|| line.Contains("Windows ", StringComparison.OrdinalIgnoreCase)
@@ -1649,6 +1672,8 @@ sealed class CdbDebugBackend : IDebugBackend
 			if (line.Contains("!main", StringComparison.Ordinal)
 				|| line.Contains("!campmain", StringComparison.Ordinal)
 				|| line.Contains("!thing", StringComparison.Ordinal)
+				|| line.Contains("!Ldr", StringComparison.Ordinal)
+				|| line.Contains(" int     3", StringComparison.OrdinalIgnoreCase)
 				|| line.Contains(" [", StringComparison.Ordinal))
 			{
 				continue;
