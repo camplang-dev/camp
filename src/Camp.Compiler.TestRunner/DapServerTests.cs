@@ -437,6 +437,22 @@ public sealed class DapServerTests
 		Assert.NotNull(frame);
 		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
 		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 1, 5);
+
+		JsonNode cdbScopes = dap.Request("scopes", new { frameId = frame?["id"]?.GetValue<int>() ?? 1 });
+		JsonNode cdbParameters = dap.Request("variables", new { variablesReference = cdbScopes["body"]?["scopes"]?[0]?["variablesReference"]?.GetValue<int>() ?? 100 });
+		Assert.True((cdbParameters["body"]?["variables"] as JsonArray)?.Count > 0, "scopes=" + cdbScopes.ToJsonString() + " parameters=" + cdbParameters.ToJsonString());
+		Assert.Equal("value", cdbParameters["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
+		Assert.Equal("41", cdbParameters["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
+		JsonNode cdbLocals = dap.Request("variables", new { variablesReference = cdbScopes["body"]?["scopes"]?[1]?["variablesReference"]?.GetValue<int>() ?? 200 });
+		Assert.Equal("local", cdbLocals["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
+		Assert.Equal("42", cdbLocals["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
+		JsonNode cdbEvaluate = dap.Request("evaluate", new { expression = "local", frameId = 1, context = "watch" });
+		Assert.Equal("42", cdbEvaluate["body"]?["result"]?.GetValue<string>());
+		JsonNode cdbUnsupported = dap.Request("evaluate", new { expression = "local + 1", frameId = 1, context = "watch" });
+		Assert.Equal("Unsupported expression", cdbUnsupported["body"]?["result"]?.GetValue<string>());
+
+		Assert.True(dap.Request("next", new { threadId = 1 })["success"]?.GetValue<bool>());
+		Assert.Equal("stopped", dap.ReadEvent("stopped")["event"]?.GetValue<string>());
 		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
 	}
 

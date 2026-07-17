@@ -694,7 +694,7 @@ sealed class LldbDebugBackend : IDebugBackend
 	static Dictionary<string, LldbNativeVariable> ParseNativeVariables(string output)
 	{
 		Dictionary<string, LldbNativeVariable> variables = new(StringComparer.Ordinal);
-		foreach (string rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+		foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
 		{
 			string line = rawLine.Trim();
 			if (!line.StartsWith('('))
@@ -1254,7 +1254,6 @@ sealed class CdbDebugBackend : IDebugBackend
 	{
 		if (!OperatingSystem.IsWindows())
 			throw new InvalidOperationException("Debug backend 'cdb' is only available on Windows in this build.");
-		cdbPath = FindCdbPath() ?? throw new InvalidOperationException("Debug backend 'cdb' is not available because cdb.exe was not found. Install Windows Debugging Tools and ensure cdb.exe is on PATH or in the Windows Kits Debuggers folder.");
 		if (string.IsNullOrWhiteSpace(options.Project))
 			throw new InvalidOperationException("Launch requires a 'project' path.");
 
@@ -1263,6 +1262,8 @@ sealed class CdbDebugBackend : IDebugBackend
 		Directory.CreateDirectory(buildDirectory);
 		DebugBuildResult build = await LldbDebugBackend.BuildExecutable(options.Project, options.Cwd, buildDirectory);
 		executable = build.Executable;
+		cdbPath = FindCdbPath(GetPeDebuggerArchitecture(executable))
+			?? throw new InvalidOperationException("Debug backend 'cdb' is not available because cdb.exe was not found. Install Windows Debugging Tools and ensure cdb.exe is on PATH or in the Windows Kits Debuggers folder.");
 		debugMap = build.DebugMapPath is null ? null : DebugMapDocument.Load(build.DebugMapPath);
 		if (StopOnEntry)
 			pendingBreakpoints.Add(("", 0));
@@ -1435,9 +1436,9 @@ sealed class CdbDebugBackend : IDebugBackend
 	static Dictionary<string, LldbNativeVariable> ParseCdbVariables(string output)
 	{
 		Dictionary<string, LldbNativeVariable> variables = new(StringComparer.Ordinal);
-		foreach (string rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+		foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
 		{
-			string line = rawLine.Trim();
+			string line = StripCdbPrompt(rawLine.Trim());
 			int equals = line.IndexOf(" = ", StringComparison.Ordinal);
 			if (equals <= 0)
 				continue;
@@ -1452,6 +1453,18 @@ sealed class CdbDebugBackend : IDebugBackend
 	static string NormalizeCdbValue(string value)
 	{
 		return value.StartsWith("0n", StringComparison.Ordinal) ? value[2..] : value;
+	}
+
+	static string StripCdbPrompt(string line)
+	{
+		int prompt = line.IndexOf("> ", StringComparison.Ordinal);
+		if (prompt > 0 && char.IsDigit(line[0]))
+		{
+			int colon = line.IndexOf(':');
+			if (colon > 0 && colon < prompt)
+				return line[(prompt + 2)..].Trim();
+		}
+		return line;
 	}
 
 	async Task StartCdbSession()
@@ -1492,6 +1505,7 @@ sealed class CdbDebugBackend : IDebugBackend
 
 		string stateOutput = executionOutput
 			+ await RunCdbCommand("k")
+			+ await RunCdbCommand(".frame /c 0")
 			+ await RunCdbCommand("dv");
 		UpdateFramesFromOutput(stateOutput);
 		UpdateVariablesFromOutput(stateOutput);
@@ -1620,8 +1634,21 @@ sealed class CdbDebugBackend : IDebugBackend
 	static bool IsCdbStoppedOutput(string output)
 	{
 		return output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
-			|| output.Contains("breakpoint", StringComparison.OrdinalIgnoreCase)
-			|| output.Contains("Access violation", StringComparison.OrdinalIgnoreCase);
+			|| output.Contains("Access violation", StringComparison.OrdinalIgnoreCase)
+			|| ContainsCdbInstructionLocation(output);
+	}
+
+	static bool ContainsCdbInstructionLocation(string output)
+	{
+		foreach (string rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+		{
+			string line = StripCdbPrompt(rawLine.Trim());
+			if (line.Length == 0 || line.StartsWith("ModLoad:", StringComparison.OrdinalIgnoreCase))
+				continue;
+			if (line.EndsWith(':') && line.Contains('!'))
+				return true;
+		}
+		return false;
 	}
 
 	static bool IsCdbLoaderBreakpoint(string output)
@@ -1684,8 +1711,17 @@ sealed class CdbDebugBackend : IDebugBackend
 			pendingOutputEvents.Add(new DebugOutputEvent("stdout", builder.ToString()));
 	}
 
-	static string? FindCdbPath()
+	static string? FindCdbPath(string? architecture = null)
 	{
+		string kits = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Windows Kits", "10", "Debuggers");
+		if (!string.IsNullOrWhiteSpace(architecture) && Directory.Exists(kits))
+		{
+			string? architectureCandidate = Directory.EnumerateFiles(kits, "cdb.exe", SearchOption.AllDirectories)
+				.FirstOrDefault(path => path.Contains("\\" + architecture + "\\", StringComparison.OrdinalIgnoreCase));
+			if (architectureCandidate is not null)
+				return architectureCandidate;
+		}
+
 		string? pathValue = Environment.GetEnvironmentVariable("PATH");
 		if (pathValue is not null)
 			foreach (string directory in pathValue.Split(Path.PathSeparator))
@@ -1694,15 +1730,46 @@ sealed class CdbDebugBackend : IDebugBackend
 				if (File.Exists(candidate))
 					return candidate;
 			}
-		string kits = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Windows Kits", "10", "Debuggers");
+
 		if (Directory.Exists(kits))
 		{
 			string? candidate = Directory.EnumerateFiles(kits, "cdb.exe", SearchOption.AllDirectories)
-				.FirstOrDefault(path => path.Contains("\\x64\\", StringComparison.OrdinalIgnoreCase));
+				.FirstOrDefault(path => path.Contains("\\x64\\", StringComparison.OrdinalIgnoreCase))
+				?? Directory.EnumerateFiles(kits, "cdb.exe", SearchOption.AllDirectories).FirstOrDefault();
 			if (candidate is not null)
 				return candidate;
 		}
 		return null;
+	}
+
+	static string? GetPeDebuggerArchitecture(string executable)
+	{
+		try
+		{
+			using FileStream stream = File.OpenRead(executable);
+			using BinaryReader reader = new(stream);
+			if (stream.Length < 0x40 || reader.ReadUInt16() != 0x5A4D)
+				return null;
+			stream.Position = 0x3C;
+			uint peOffset = reader.ReadUInt32();
+			if (peOffset > stream.Length - 6)
+				return null;
+			stream.Position = peOffset;
+			if (reader.ReadUInt32() != 0x00004550)
+				return null;
+			ushort machine = reader.ReadUInt16();
+			return machine switch
+			{
+				0x014c => "x86",
+				0x8664 => "x64",
+				0xaa64 => "arm64",
+				_ => null
+			};
+		}
+		catch
+		{
+			return null;
+		}
 	}
 }
 
