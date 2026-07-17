@@ -1,0 +1,32 @@
+using Std;
+
+bool appendChar(void* context, nuint* written, char* buffer, nuint buffer_length)
+{
+	if (written == null)
+		return false;
+	*written = buffer_length;
+	return true;
+}
+
+fixed struct WriterHolder
+{
+	WriterHolder(escaped CharWriter writer)
+	{
+		this.writer = writer;
+	}
+
+	CharWriter writer;
+
+	void writeA()
+	{
+		this.writer.write('A');
+	}
+}
+
+export int main()
+{
+	CharWriter writer = { appendChar, null };
+	auto holder = init WriterHolder(writer);
+	holder.writeA();
+	return 0;
+}

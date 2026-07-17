@@ -2,59 +2,6 @@
 
 Next bug number: BUG-054.
 
-## BUG-051: Storing expanded callable values in fields can generate bad C calls
-
-Storing an expanded callable value directly in a struct field can produce invalid
-C when invoking methods on that stored callable. The generated call may pass the
-callable context twice.
-
-Minimal repro:
-
-```camp
-using Std;
-
-bool appendChar(void* context, nuint* written, char* buffer, nuint buffer_length)
-{
-	if (written == null)
-		return false;
-	*written = buffer_length;
-	return true;
-}
-
-fixed struct WriterHolder
-{
-	WriterHolder(CharWriter writer)
-	{
-		this.writer = writer;
-	}
-
-	CharWriter writer;
-
-	void writeA()
-	{
-		this.writer.write('A');
-	}
-}
-
-export int main()
-{
-	CharWriter writer = { appendChar, null };
-	auto holder = init WriterHolder(writer);
-	holder.writeA();
-	return 0;
-}
-```
-
-Actual: generated C can call helpers like `CharWriter_writeChar(...)` with too
-many arguments, effectively passing the stored callable context twice.
-
-Expected: expanded callable fields should lower consistently. Calling a method
-on a stored callable value should pass exactly the callable value and its stored
-context once, matching the helper ABI.
-
-Workaround: store raw `fn*` and context fields separately, then reconstruct a
-local callable value at the call boundary.
-
 ## BUG-052: Nested aggregate initializers for expanded fields can type-check but emit invalid C
 
 Nested aggregate initializers involving expanded array fields can type-check but

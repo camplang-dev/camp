@@ -491,6 +491,12 @@ public sealed partial class BindableNodeAnalyzer
 				=> ReferenceEquals(leftVariable.Variable, rightVariable.Variable),
 			NamedExpression leftNamed when right is NamedExpression rightNamed
 				=> leftNamed.Name == rightNamed.Name,
+			MemberReferenceExpression leftMember when right is MemberReferenceExpression rightMember
+				=> (ReferenceEquals(leftMember.Member, rightMember.Member) || leftMember.Name == rightMember.Name)
+					&& ExpressionReferencesSameValue(leftMember.Target, rightMember.Target),
+			MemberExpression leftMember when right is MemberExpression rightMember
+				=> leftMember.Name == rightMember.Name
+					&& ExpressionReferencesSameValue(leftMember.Target, rightMember.Target),
 			_ => false
 		};
 	}
