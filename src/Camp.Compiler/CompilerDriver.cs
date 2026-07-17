@@ -755,6 +755,18 @@ public static class CompilerDriver
 
 		bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, IReadOnlyList<string> nativeSourceFiles, string apiPath, string? cApiPath, string? metadataPath, string? nativeLibraryPath, NativeBuildKind? nativeBuildKind, RuntimeContext context, CampApiSurfaceKind apiSurface)
 		{
+			if (!TryGetPackageNoStdLib(sourceFiles, out bool sourceNoStdLib))
+				return false;
+			bool packageNoStdLib = string.Equals(packageName, "std", StringComparison.OrdinalIgnoreCase) || sourceNoStdLib;
+			List<string> packageIncludes = [];
+			if (!packageNoStdLib)
+			{
+				if (!TryPreparePackage(context, "std", requireNativeLibrary: false, out string? stdApiHeader, out _))
+					return false;
+				if (stdApiHeader is not null)
+					packageIncludes.Add(stdApiHeader);
+			}
+
 			CompilerRequest packageRequest = new()
 			{
 				RuntimeRoot = request.RuntimeRoot,
@@ -766,11 +778,11 @@ public static class CompilerDriver
 				ProfileName = context.ProfileName,
 				BuildKind = nativeLibraryPath is null ? null : nativeBuildKind,
 				WithinAllocationPolicy = request.WithinAllocationPolicy,
-				NoStdLib = true
+				NoStdLib = packageNoStdLib
 			};
 			packageRequest.Files.AddRange(sourceFiles);
 			packageRequest.UseSourceRoots.AddRange(request.UseSourceRoots);
-			if (!TryLoadCompilation(packageRequest.Files, [], context, out Compilation packageCompilation))
+			if (!TryLoadCompilation(packageRequest.Files, packageIncludes, context, out Compilation packageCompilation))
 				return false;
 
 			if (!BuildAllAndReport(packageCompilation))
@@ -994,6 +1006,23 @@ public static class CompilerDriver
 				OutLine("generated: " + Path.GetFileName(destination));
 			}
 			return true;
+		}
+
+		bool TryGetPackageNoStdLib(IReadOnlyList<string> sourceFiles, out bool noStdLib)
+		{
+			noStdLib = false;
+			List<string> errors = [];
+			foreach (string sourceFile in sourceFiles)
+			{
+				foreach (CampBuildPragmaLine pragma in CampBuildPragmaReader.Read(sourceFile, request.WorkingDirectory, errors))
+				{
+					if (pragma.Tokens.Contains("--nostdlib", StringComparer.Ordinal))
+						noStdLib = true;
+				}
+			}
+			foreach (string error in errors)
+				ErrorLine(error);
+			return errors.Count == 0;
 		}
 
 		bool ValidateFrameworks(TargetDefinition target)
