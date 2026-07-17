@@ -128,6 +128,7 @@ sealed class DapSession(Stream input, Stream output)
 	{
 		IDebugBackend backend = RequireBackend();
 		await backend.ConfigurationDone();
+		await EmitOutputEvents(backend);
 		if (backend.StopOnEntry || backend.IsStopped)
 			await Event("stopped", new JsonObject { ["reason"] = backend.StopOnEntry ? "entry" : "breakpoint", ["threadId"] = 1 });
 		else if (backend.HasTerminated)
@@ -207,6 +208,7 @@ sealed class DapSession(Stream input, Stream output)
 	{
 		IDebugBackend backend = RequireBackend();
 		await backend.Continue(arguments["threadId"]?.GetValue<int>() ?? 1);
+		await EmitOutputEvents(backend);
 		await Event("continued", new JsonObject { ["threadId"] = 1, ["allThreadsContinued"] = true });
 		return new JsonObject { ["allThreadsContinued"] = true };
 	}
@@ -223,6 +225,7 @@ sealed class DapSession(Stream input, Stream output)
 	{
 		IDebugBackend backend = RequireBackend();
 		await backend.Step(command, arguments["threadId"]?.GetValue<int>() ?? 1);
+		await EmitOutputEvents(backend);
 		await Event("stopped", new JsonObject { ["reason"] = "step", ["threadId"] = 1 });
 		return null;
 	}
@@ -268,6 +271,18 @@ sealed class DapSession(Stream input, Stream output)
 		if (body is not null)
 			message["body"] = body;
 		await protocol.WriteMessage(message);
+	}
+
+	async Task EmitOutputEvents(IDebugBackend backend)
+	{
+		foreach (DebugOutputEvent outputEvent in backend.DrainOutputEvents())
+		{
+			await Event("output", new JsonObject
+			{
+				["category"] = outputEvent.Category,
+				["output"] = outputEvent.Output
+			});
+		}
 	}
 }
 
@@ -343,6 +358,7 @@ interface IDebugBackend
 	IReadOnlyList<DebugScope> GetScopes(int frameId);
 	IReadOnlyList<DebugVariable> GetVariables(int reference);
 	DebugVariable Evaluate(string expression);
+	IReadOnlyList<DebugOutputEvent> DrainOutputEvents();
 	Task Disconnect();
 }
 
@@ -418,15 +434,17 @@ sealed class FakeDebugBackend : IDebugBackend
 	public DebugVariable Evaluate(string expression)
 	{
 		return expression switch
-		{
-			"answer" => new DebugVariable("answer", "42", "int", 0),
-			"args" => new DebugVariable("args", "string[] length=0", "string[]", 300),
-			"handler" => new DebugVariable("handler", "delegate void(int) { call, context }", "delegate void(int)", 301),
-			"state" => new DebugVariable("state", "iterator state 0x0000000000001234", "countToIter*", 0),
-			"lambdaContext" => new DebugVariable("lambdaContext", "lambda context 0x0000000000005678", "main_lambdaContext0*", 0),
-			_ => new DebugVariable(expression, "Unsupported expression", null, 0)
-		};
+			{
+				"answer" => new DebugVariable("answer", "42", "int", 0),
+				"args" => new DebugVariable("args", "string[] length=0", "string[]", 300),
+				"handler" => new DebugVariable("handler", "delegate void(int) { call, context }", "delegate void(int)", 301),
+				"state" => new DebugVariable("state", "iterator state 0x0000000000001234", "countToIter*", 0),
+				"lambdaContext" => new DebugVariable("lambdaContext", "lambda context 0x0000000000005678", "main_lambdaContext0*", 0),
+				_ => new DebugVariable(expression, "Unsupported expression", null, 0)
+			};
 	}
+
+	public IReadOnlyList<DebugOutputEvent> DrainOutputEvents() => [];
 }
 
 sealed class LldbDebugBackend : IDebugBackend
@@ -437,6 +455,10 @@ sealed class LldbDebugBackend : IDebugBackend
 	readonly Dictionary<string, DebugVariable> evaluateVariables = new(StringComparer.Ordinal);
 	string executable = "";
 	string buildDirectory = "";
+	string stdoutPath = "";
+	string stderrPath = "";
+	long stdoutOffset;
+	long stderrOffset;
 	DebugMapDocument? debugMap;
 	string? stoppedNativeSymbol;
 	int nextVariableReference = 1000;
@@ -457,6 +479,8 @@ sealed class LldbDebugBackend : IDebugBackend
 		StopOnEntry = options.StopOnEntry;
 		buildDirectory = Path.Combine(Path.GetTempPath(), "camp-dap-lldb-" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(buildDirectory);
+		stdoutPath = Path.Combine(buildDirectory, "stdout.txt");
+		stderrPath = Path.Combine(buildDirectory, "stderr.txt");
 		DebugBuildResult build = await BuildExecutable(options.Project, options.Cwd, buildDirectory);
 		executable = build.Executable;
 		debugMap = build.DebugMapPath is null ? null : DebugMapDocument.Load(build.DebugMapPath);
@@ -535,6 +559,14 @@ sealed class LldbDebugBackend : IDebugBackend
 		if (evaluateVariables.TryGetValue(expression, out DebugVariable? variable))
 			return variable with { Name = expression };
 		return new DebugVariable(expression, "Unsupported expression", null, 0);
+	}
+
+	public IReadOnlyList<DebugOutputEvent> DrainOutputEvents()
+	{
+		List<DebugOutputEvent> events = [];
+		DrainOutputFile(stdoutPath, "stdout", ref stdoutOffset, events);
+		DrainOutputFile(stderrPath, "stderr", ref stderrOffset, events);
+		return events;
 	}
 
 	public async Task Disconnect()
@@ -760,6 +792,16 @@ sealed class LldbDebugBackend : IDebugBackend
 		};
 		info.ArgumentList.Add("--batch");
 		info.ArgumentList.Add("--no-lldbinit");
+		if (!string.IsNullOrEmpty(stdoutPath))
+		{
+			info.ArgumentList.Add("--one-line");
+			info.ArgumentList.Add($"settings set target.output-path {QuoteLldbArgument(stdoutPath)}");
+		}
+		if (!string.IsNullOrEmpty(stderrPath))
+		{
+			info.ArgumentList.Add("--one-line");
+			info.ArgumentList.Add($"settings set target.error-path {QuoteLldbArgument(stderrPath)}");
+		}
 		foreach ((string source, int line) in pendingBreakpoints)
 		{
 			info.ArgumentList.Add("--one-line");
@@ -781,6 +823,21 @@ sealed class LldbDebugBackend : IDebugBackend
 		if (process.ExitCode != 0 && !output.Contains("Process ", StringComparison.OrdinalIgnoreCase))
 			throw new InvalidOperationException("LLDB command failed." + Environment.NewLine + output);
 		return output;
+	}
+
+	static void DrainOutputFile(string path, string category, ref long offset, List<DebugOutputEvent> events)
+	{
+		if (string.IsNullOrEmpty(path) || !File.Exists(path))
+			return;
+		using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+		if (stream.Length <= offset)
+			return;
+		stream.Position = offset;
+		byte[] bytes = new byte[stream.Length - offset];
+		int read = stream.Read(bytes, 0, bytes.Length);
+		offset = stream.Position;
+		if (read > 0)
+			events.Add(new DebugOutputEvent(category, Encoding.UTF8.GetString(bytes, 0, read)));
 	}
 
 	internal static string FindRepositoryRoot()
@@ -905,6 +962,8 @@ sealed class GdbDebugBackend : IDebugBackend
 			return variable with { Name = expression };
 		return new DebugVariable(expression, "Unsupported expression", null, 0);
 	}
+
+	public IReadOnlyList<DebugOutputEvent> DrainOutputEvents() => [];
 
 	public async Task Disconnect()
 	{
@@ -1147,6 +1206,8 @@ sealed class CdbDebugBackend : IDebugBackend
 		return new DebugVariable(expression, "Unsupported expression", null, 0);
 	}
 
+	public IReadOnlyList<DebugOutputEvent> DrainOutputEvents() => [];
+
 	public async Task Disconnect()
 	{
 		await Task.CompletedTask;
@@ -1314,6 +1375,7 @@ sealed record DebugBreakpoint(int Line, bool Verified, string? Message = null);
 sealed record DebugStackFrame(int Id, string Name, string SourcePath, int Line, int Column);
 sealed record DebugScope(string Name, int Reference);
 sealed record DebugVariable(string Name, string Value, string? Type, int Reference);
+sealed record DebugOutputEvent(string Category, string Output);
 sealed record DebugBuildResult(string Executable, string? DebugMapPath);
 sealed record LldbNativeVariable(string Type, string Value);
 

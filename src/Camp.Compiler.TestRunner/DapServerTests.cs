@@ -163,6 +163,8 @@ public sealed class DapServerTests
 		Directory.CreateDirectory(temp);
 		string source = Path.Combine(temp, "main.camp");
 		File.WriteAllText(source, string.Join(Environment.NewLine,
+			"using Std;",
+			"",
 			"export int helper(int value)",
 			"{",
 			"\tint local = value + 1;",
@@ -171,6 +173,7 @@ public sealed class DapServerTests
 			"",
 			"export int main(string[] args)",
 			"{",
+			"\tConsole.writeLine(\"dap stdout\");",
 			"\tint result = helper(41);",
 			"\treturn result;",
 			"}",
@@ -193,7 +196,7 @@ public sealed class DapServerTests
 		JsonNode breakpoints = dap.Request("setBreakpoints", new
 		{
 			source = new { path = source },
-			breakpoints = new[] { new { line = 4 } }
+			breakpoints = new[] { new { line = 6 } }
 		});
 		Assert.True(
 			breakpoints["body"]?["breakpoints"]?[0]?["verified"]?.GetValue<bool>(),
@@ -202,12 +205,15 @@ public sealed class DapServerTests
 		Assert.True(dap.Request("configurationDone", new { })["success"]?.GetValue<bool>());
 		JsonNode stopped = dap.ReadEvent("stopped");
 		Assert.Equal("breakpoint", stopped["body"]?["reason"]?.GetValue<string>());
+		JsonNode outputEvent = dap.ReadEvent("output");
+		Assert.Equal("stdout", outputEvent["body"]?["category"]?.GetValue<string>());
+		Assert.Contains("dap stdout", outputEvent["body"]?["output"]?.GetValue<string>(), StringComparison.Ordinal);
 
 		JsonNode stack = dap.Request("stackTrace", new { threadId = 1 });
 		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
 		Assert.NotNull(frame);
 		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
-		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 3, 5);
+		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 5, 7);
 
 		JsonNode lldbScopes = dap.Request("scopes", new { frameId = frame?["id"]?.GetValue<int>() ?? 1 });
 		JsonNode lldbParameters = dap.Request("variables", new { variablesReference = lldbScopes["body"]?["scopes"]?[0]?["variablesReference"]?.GetValue<int>() ?? 100 });
