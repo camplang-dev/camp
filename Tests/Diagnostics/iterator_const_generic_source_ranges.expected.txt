@@ -1,0 +1,2 @@
+tests/Diagnostics/iterator_const_generic_source_ranges.camp(1,38): error: Unknown type 'Missing'.
+tests/Diagnostics/iterator_const_generic_source_ranges.camp(3,24): error: Unknown type 'Missing'.

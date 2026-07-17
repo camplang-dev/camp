@@ -7,9 +7,29 @@ export void main()
 	{
 		Console.writeLine(number);
 	}
+
+	Point point = { .x = 3 };
+	Point* mutable = &point;
+	const Point*[] constPointers = [mutable];
+	foreach (auto constPointer in constPointers.iterate())
+	{
+		const Point* checked = constPointer;
+		Console.writeLine(checked.x);
+	}
+	Point*[] mutablePointers = [mutable];
+	foreach (auto mutablePointer in mutablePointers.iterate())
+	{
+		mutablePointer.x = 9;
+	}
+	Console.writeLine(point.x);
 }
 
-struct iter T iterate<T: copyable>(T[] this, sizeof(T))
+struct Point
+{
+	int x;
+}
+
+struct iter T iterate<T: copyable>(const T[] this, sizeof(T))
 {
 	foreach (auto item in this)
 	{

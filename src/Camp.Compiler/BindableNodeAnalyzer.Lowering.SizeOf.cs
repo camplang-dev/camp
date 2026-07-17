@@ -261,14 +261,27 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static TypeReference TypeReferenceForResolvedName(string typeName)
+	static TypeReference TypeReferenceForResolvedName(string typeName, SyntaxNode? sourceSyntax = null)
 	{
-		if (typeName.Contains('[', StringComparison.Ordinal) && new TypeShapeParser(typeName).TryParse(out TypeShape shape))
-			return TypeReferenceForTypeShape(shape);
+		TypeShapeParser parser = new(typeName);
+		if (parser.TryParse(out TypeShape shape) && parser.IsEnd && ShouldUseTypeShapeReference(shape))
+			return TypeReferenceForTypeShape(shape, sourceSyntax);
 		if (TryCreatePrimitivePointerTypeReference(typeName, out TypeReference? pointerType) && pointerType is not null)
+		{
+			pointerType.SourceSyntax = sourceSyntax;
 			return pointerType;
+		}
 
-		return TypeReferenceForNamedShape(typeName);
+		return TypeReferenceForNamedShape(typeName, sourceSyntax);
+	}
+
+	static bool ShouldUseTypeShapeReference(TypeShape shape)
+	{
+		return shape.Kind is not TypeShapeKind.Named
+			|| shape.Qualifiers.IsConst
+			|| shape.Qualifiers.IsVolatile
+			|| shape.Qualifiers.Lifetime != LifetimeKind.Scoped
+			|| shape.TargetSpec is not null;
 	}
 
 	static bool TryCreatePrimitivePointerTypeReference(string typeName, out TypeReference? pointerType)
@@ -305,24 +318,28 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	static TypeReference TypeReferenceForTypeShape(TypeShape shape)
+	static TypeReference TypeReferenceForTypeShape(TypeShape shape, SyntaxNode? sourceSyntax = null)
 	{
 		TypeReference result = shape.Kind switch
 		{
 			TypeShapeKind.Pointer => new PointerTypeReference
 			{
-				ElementType = shape.Element is null ? new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element)
+				SourceSyntax = sourceSyntax,
+				ElementType = shape.Element is null ? new PrimitiveTypeReference { SourceSyntax = sourceSyntax, Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element, sourceSyntax)
 			},
 			TypeShapeKind.Array => new ArrayTypeReference
 			{
-				ElementType = shape.Element is null ? new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element)
+				SourceSyntax = sourceSyntax,
+				ElementType = shape.Element is null ? new PrimitiveTypeReference { SourceSyntax = sourceSyntax, Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element, sourceSyntax)
 			},
 			TypeShapeKind.FixedArray => new FixedArrayTypeReference
 			{
-				ElementType = shape.Element is null ? new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element),
+				SourceSyntax = sourceSyntax,
+				ElementType = shape.Element is null ? new PrimitiveTypeReference { SourceSyntax = sourceSyntax, Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element, sourceSyntax),
 				Length = shape.Length,
 				LengthExpression = new LiteralExpression
 				{
+					SourceSyntax = sourceSyntax,
 					Kind = LiteralKind.Number,
 					Text = (shape.Length ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture),
 					Value = shape.Length ?? 0,
@@ -331,20 +348,22 @@ public sealed partial class BindableNodeAnalyzer
 			},
 			TypeShapeKind.Optional => new OptionalTypeReference
 			{
-				ElementType = shape.Element is null ? new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element)
+				SourceSyntax = sourceSyntax,
+				ElementType = shape.Element is null ? new PrimitiveTypeReference { SourceSyntax = sourceSyntax, Type = PrimitiveType.Void, ResolvedType = "void" } : TypeReferenceForTypeShape(shape.Element, sourceSyntax)
 			},
-			_ => TypeReferenceForNamedShape(shape.Name)
+			_ => TypeReferenceForNamedShape(shape.Name, sourceSyntax)
 		};
 
+		result.SourceSyntax = sourceSyntax;
 		result.ResolvedType = TypeShapeParser.Format(shape);
 		if (shape.Qualifiers.IsConst)
-			result = new ConstTypeReference { Type = result, ResolvedType = TypeShapeParser.Format(shape) };
+			result = new ConstTypeReference { SourceSyntax = sourceSyntax, Type = result, ResolvedType = TypeShapeParser.Format(shape) };
 		if (shape.Qualifiers.IsVolatile)
-			result = new VolatileTypeReference { Type = result, ResolvedType = TypeShapeParser.Format(shape) };
+			result = new VolatileTypeReference { SourceSyntax = sourceSyntax, Type = result, ResolvedType = TypeShapeParser.Format(shape) };
 		return result;
 	}
 
-	static TypeReference TypeReferenceForNamedShape(string typeName)
+	static TypeReference TypeReferenceForNamedShape(string typeName, SyntaxNode? sourceSyntax = null)
 	{
 		foreach (PrimitiveType primitive in Enum.GetValues<PrimitiveType>())
 		{
@@ -352,6 +371,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				return new PrimitiveTypeReference
 				{
+					SourceSyntax = sourceSyntax,
 					Type = primitive,
 					ResolvedType = typeName
 				};
@@ -360,6 +380,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		return new NamedTypeReference
 		{
+			SourceSyntax = sourceSyntax,
 			Name = typeName,
 			ResolvedType = typeName
 		};

@@ -361,7 +361,7 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = foreachStatement.SourceSyntax,
 				Name = fields.IteratorFieldName,
 				Symbol = fields.IteratorFieldName,
-				Type = TypeReferenceForIteratorField(fields.IteratorType),
+				Type = TypeReferenceForIteratorField(fields.IteratorType, foreachStatement.Source?.SourceSyntax ?? foreachStatement.SourceSyntax),
 				ResolvedType = fields.IteratorType
 			});
 			if (fields is { IsArray: true, LengthFieldName: not null, IndexFieldName: not null })
@@ -400,7 +400,7 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = foreachStatement.SourceSyntax,
 				Name = fields.CurrentFieldName,
 				Symbol = fields.CurrentFieldName,
-				Type = TypeReferenceForResolvedName(fields.ElementType),
+				Type = TypeReferenceForResolvedName(fields.ElementType, foreachStatement.Target.SourceSyntax ?? foreachStatement.SourceSyntax),
 				ResolvedType = fields.ElementType
 			});
 		}
@@ -559,12 +559,13 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	TypeReference TypeReferenceForIteratorField(string type)
+	TypeReference TypeReferenceForIteratorField(string type, SyntaxNode? sourceSyntax = null)
 	{
 		if (TryGetCallableShape(type, out CallableShape callable))
 		{
 			CallableTypeReference reference = new()
 			{
+				SourceSyntax = sourceSyntax,
 				Kind = callable.Kind switch
 				{
 					"delegate" => CallableKind.Delegate,
@@ -572,7 +573,7 @@ public sealed partial class BindableNodeAnalyzer
 					"async" => CallableKind.Async,
 					_ => CallableKind.Function
 				},
-				ReturnType = TypeReferenceForIteratorField(callable.ReturnType),
+				ReturnType = TypeReferenceForIteratorField(callable.ReturnType, sourceSyntax),
 				ResolvedType = type
 			};
 			for (int i = 0; i < callable.Parameters.Count; i++)
@@ -604,7 +605,7 @@ public sealed partial class BindableNodeAnalyzer
 					Name = "arg" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
 					Symbol = "arg" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
 					Modifier = modifier,
-					Type = TypeReferenceForIteratorField(parameterType),
+					Type = TypeReferenceForIteratorField(parameterType, sourceSyntax),
 					ResolvedType = parameterType
 				});
 			}
@@ -612,11 +613,12 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (TryGetPointerElementType(type) is string elementType)
 		{
-			TypeReference pointer = PointerTo(TypeReferenceForResolvedName(elementType));
+			TypeReference pointer = PointerTo(TypeReferenceForResolvedName(elementType, sourceSyntax));
+			pointer.SourceSyntax = sourceSyntax;
 			pointer.ResolvedType = type;
 			return pointer;
 		}
-		return TypeReferenceForResolvedName(type);
+		return TypeReferenceForResolvedName(type, sourceSyntax);
 	}
 
 	void AddIteratorNextMethod(TypeDefinition state, FunctionDefinition function, IterTypeReference iterType)

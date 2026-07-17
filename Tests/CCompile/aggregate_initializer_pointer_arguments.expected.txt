@@ -17,7 +17,7 @@ static int readIn(PaintEventArgs *e)
 
 int main(void)
 {
-	PaintEventArgs _initializer0 = { 1, true, 3 };
+	const PaintEventArgs _initializer0 = { 1, true, 3 };
 	int a = readConst(&_initializer0);
 	PaintEventArgs _initializer1 = { 2, false, 4 };
 	int b = readIn(&_initializer1);
