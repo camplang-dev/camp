@@ -211,16 +211,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	ClassDefinition CreateIteratorClass(FunctionDefinition function, TypeDefinition? containingType, IterTypeReference iterType, string stateName)
 	{
-		ClassDefinition state = new()
-		{
-			SourceSyntax = function.SourceSyntax,
-			Name = stateName,
-			Symbol = stateName,
-			Export = function.Export,
-			Public = function.Public,
-			Internal = function.Internal,
-			ResolvedType = stateName
-		};
+		ClassDefinition state = generatedDeclarations.Class(GeneratedDeclarationCategory.Iterator, "iterator state type", function);
+		state.SourceSyntax = function.SourceSyntax;
+		state.Name = stateName;
+		state.Symbol = stateName;
+		state.Export = function.Export;
+		state.Public = function.Public;
+		state.Internal = function.Internal;
+		state.ResolvedType = stateName;
 		AddIteratorGenericParameters(state, function, containingType);
 		AddIteratorStateMembers(state, function, iterType, containingType);
 		return state;
@@ -228,17 +226,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	StructDefinition CreateIteratorStruct(FunctionDefinition function, TypeDefinition? containingType, IterTypeReference iterType, string stateName)
 	{
-		StructDefinition state = new()
-		{
-			SourceSyntax = function.SourceSyntax,
-			Name = stateName,
-			Symbol = stateName,
-			Export = function.Export,
-			Public = function.Public,
-			Internal = function.Internal,
-			Modifier = StructModifier.Fixed,
-			ResolvedType = stateName
-		};
+		StructDefinition state = generatedDeclarations.Struct(GeneratedDeclarationCategory.Iterator, "iterator state type", function);
+		state.SourceSyntax = function.SourceSyntax;
+		state.Name = stateName;
+		state.Symbol = stateName;
+		state.Export = function.Export;
+		state.Public = function.Public;
+		state.Internal = function.Internal;
+		state.Modifier = StructModifier.Fixed;
+		state.ResolvedType = stateName;
 		AddIteratorGenericParameters(state, function, containingType);
 		AddIteratorStateMembers(state, function, iterType, containingType);
 		return state;

@@ -12,6 +12,7 @@ public sealed class BindableNodeCodeSerializerOptions
 	public string TabString { get; set; } = "\t";
 	public bool ApiHeader { get; set; }
 	public CampApiSurfaceKind ApiSurface { get; set; } = CampApiSurfaceKind.Export;
+	public bool ApiDefinitionsAlreadyFiltered { get; set; }
 }
 
 public enum CampApiSurfaceKind
@@ -26,6 +27,7 @@ public sealed class BindableNodeCodeSerializer
 	readonly string tab;
 	readonly bool apiHeader;
 	readonly CampApiSurfaceKind apiSurface;
+	readonly bool apiDefinitionsAlreadyFiltered;
 	readonly Dictionary<BindableNode, string> generatedNames = new();
 	Module? currentModule;
 	int indent;
@@ -38,6 +40,7 @@ public sealed class BindableNodeCodeSerializer
 		tab = options?.TabString ?? "\t";
 		apiHeader = options?.ApiHeader ?? false;
 		apiSurface = options?.ApiSurface ?? CampApiSurfaceKind.Export;
+		apiDefinitionsAlreadyFiltered = options?.ApiDefinitionsAlreadyFiltered ?? false;
 	}
 
 	public static void Serialize(BindableNode node, TextWriter writer, BindableNodeCodeSerializerOptions? options = null)
@@ -131,7 +134,7 @@ public sealed class BindableNodeCodeSerializer
 
 	bool ShouldWriteApiDefinition(Definition definition)
 	{
-		return IsVisibleInApiSurface(definition);
+		return apiDefinitionsAlreadyFiltered || IsVisibleInApiSurface(definition);
 	}
 
 	void WriteDefinition(Definition definition)

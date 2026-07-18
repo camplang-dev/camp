@@ -650,6 +650,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (IsLifecycleFunction(function))
 			return false;
+		if (function.IteratorKind != IteratorKind.None)
+			return false;
 
 		string returnType = function.ResolvedType ?? ErrorType;
 		return returnType != "void" && !returnType.StartsWith("thrown(", StringComparison.Ordinal);

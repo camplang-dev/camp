@@ -947,8 +947,9 @@ public static class CCodeEmitter
 			List<TypeDefinition> exportedTypes = definitions.OfType<TypeDefinition>()
 				.Where(type => type.Export is not null || includePublic && type.Public is not null)
 				.ToList();
+			List<TypeDefinition> apiTypes = includePublic ? IncludeApiLayoutDependencies(exportedTypes, definitions) : exportedTypes;
 
-			foreach (TypeDefinition type in exportedTypes)
+			foreach (TypeDefinition type in apiTypes)
 			{
 				if (type is ClassDefinition or InterfaceDefinition or StructDefinition)
 				{
@@ -957,19 +958,19 @@ public static class CCodeEmitter
 				}
 			}
 
-			foreach (EnumDefinition enumDefinition in exportedTypes.OfType<EnumDefinition>())
+			foreach (EnumDefinition enumDefinition in apiTypes.OfType<EnumDefinition>())
 			{
 				WriteEnumDefinition(writer, enumDefinition);
 				wrote = true;
 			}
 
-			foreach (NewtypeDefinition newtype in exportedTypes.OfType<NewtypeDefinition>())
+			foreach (NewtypeDefinition newtype in apiTypes.OfType<NewtypeDefinition>())
 			{
 				WriteNewtypeDefinition(writer, newtype, exportedOnly: true);
 				wrote = true;
 			}
 
-			foreach (StructDefinition structDefinition in GetLayoutOrderedStructDefinitions(exportedTypes.Cast<Definition>().ToList()))
+			foreach (StructDefinition structDefinition in GetLayoutOrderedStructDefinitions(apiTypes.Cast<Definition>().ToList()))
 			{
 				WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
 				wrote = true;
@@ -985,6 +986,100 @@ public static class CCodeEmitter
 			}
 
 			return wrote;
+		}
+
+		List<TypeDefinition> IncludeApiLayoutDependencies(List<TypeDefinition> exportedTypes, List<Definition> definitions)
+		{
+			Dictionary<string, TypeDefinition> byName = definitions.OfType<TypeDefinition>()
+				.Where(static type => !string.IsNullOrWhiteSpace(type.Name))
+				.ToDictionary(static type => type.Name, StringComparer.Ordinal);
+			List<TypeDefinition> result = [.. exportedTypes];
+			HashSet<TypeDefinition> selected = new(result, ReferenceEqualityComparer.Instance);
+			Queue<TypeDefinition> pending = new(result);
+
+			while (pending.Count > 0)
+			{
+				TypeDefinition current = pending.Dequeue();
+				IEnumerable<FieldDefinition> fields = current switch
+				{
+					StructDefinition structure => structure.Fields.Where(static field => field.Modifier != FieldModifier.Static),
+					ClassDefinition classDefinition => GetClassLayoutFields(classDefinition),
+					_ => []
+				};
+				foreach (FieldDefinition field in fields)
+				{
+					foreach (string dependencyName in GetByValueTypeDependencyNames(field.Type))
+					{
+						if (!byName.TryGetValue(dependencyName, out TypeDefinition? dependency) || !selected.Add(dependency))
+							continue;
+						result.Add(dependency);
+						pending.Enqueue(dependency);
+					}
+				}
+			}
+
+			return result;
+		}
+
+		IEnumerable<string> GetByValueTypeDependencyNames(TypeReference? type)
+		{
+			switch (type)
+			{
+				case null:
+					yield break;
+				case PointerTypeReference:
+				case ArrayTypeReference:
+				case CallableTypeReference:
+				case RawFunctionPointerTypeReference:
+				case IterTypeReference:
+					yield break;
+				case TypeDefinitionReference { Definition: TypeDefinition dependency }:
+					yield return dependency.Name;
+					yield break;
+				case TypeDefinitionReference reference:
+					if (!string.IsNullOrWhiteSpace(reference.Name))
+						yield return reference.Name;
+					yield break;
+				case NamedTypeReference named:
+					yield return named.Name;
+					yield break;
+				case GenericTypeReference generic:
+					foreach (string dependency in GetByValueTypeDependencyNames(generic.Type))
+						yield return dependency;
+					yield break;
+				case FixedArrayTypeReference fixedArray:
+					foreach (string dependency in GetByValueTypeDependencyNames(fixedArray.ElementType))
+						yield return dependency;
+					yield break;
+				case OptionalTypeReference optional:
+					foreach (string dependency in GetByValueTypeDependencyNames(optional.ElementType))
+						yield return dependency;
+					yield break;
+				case ConstTypeReference constant:
+					foreach (string dependency in GetByValueTypeDependencyNames(constant.Type))
+						yield return dependency;
+					yield break;
+				case ConstOfTypeReference constOf:
+					foreach (string dependency in GetByValueTypeDependencyNames(constOf.Type))
+						yield return dependency;
+					yield break;
+				case VolatileTypeReference vol:
+					foreach (string dependency in GetByValueTypeDependencyNames(vol.Type))
+						yield return dependency;
+					yield break;
+				case EscapedTypeReference escaped:
+					foreach (string dependency in GetByValueTypeDependencyNames(escaped.Type))
+						yield return dependency;
+					yield break;
+				case ScopedTypeReference scoped:
+					foreach (string dependency in GetByValueTypeDependencyNames(scoped.Type))
+						yield return dependency;
+					yield break;
+				case UnscopedTypeReference unscoped:
+					foreach (string dependency in GetByValueTypeDependencyNames(unscoped.Type))
+						yield return dependency;
+					yield break;
+			}
 		}
 
 		public void WriteExecMainWrapper(TextWriter writer, FunctionDefinition entryPoint)

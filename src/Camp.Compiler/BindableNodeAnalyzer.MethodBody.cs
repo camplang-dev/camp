@@ -402,9 +402,11 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax), "Cannot yield a span view to local fixed-size array storage.");
 				string yieldTargetType = GetLifetimeStructuralTargetType(expected, yieldStatement.Expression);
 				CheckAssignable(yieldTargetType, yieldedType, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, "Yield expression");
-				if (!fixedArraySpanEscape)
+				bool sourceIteratorGenerator = scope.CurrentFunction.IteratorKind != IteratorKind.None;
+				if (!fixedArraySpanEscape && !sourceIteratorGenerator)
 					CheckLifetimeResult(yieldStatement.Expression, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, scope, "Yield expression");
-				CheckLifetimeYield(yieldStatement.Expression, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, scope);
+				if (!sourceIteratorGenerator)
+					CheckLifetimeYield(yieldStatement.Expression, yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax, scope);
 				break;
 			}
 

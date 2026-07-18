@@ -2566,6 +2566,72 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Live_static_package_dependency_lowers_iterators_before_api_emission()
+	{
+		string root = TempPath("live-static-package-iterator-api");
+		string sourceRoot = Path.Combine(root, "package-source");
+		string cachedPackageRoot = Path.Combine(FindRepositoryRoot(), "cache", "pkg", "live-iterator-demo");
+		if (Directory.Exists(cachedPackageRoot))
+			Directory.Delete(cachedPackageRoot, recursive: true);
+		string packageSource = Path.Combine(sourceRoot, "live-iterator-demo", "src");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(packageSource);
+		Directory.CreateDirectory(appRoot);
+		string sourceRootArgument = sourceRoot.Replace('\\', '/');
+		File.WriteAllText(Path.Combine(packageSource, "demo.camp"), """
+			#build --nostdlib
+
+			namespace LiveIteratorDemo;
+
+			public struct View
+			{
+				const char[] text;
+			}
+
+			public fixed struct Writer
+			{
+				fixed Frame[2] stack;
+			}
+
+			public struct iter View parts(const char[] source)
+			{
+				yield { { source.elements, source.length } };
+			}
+
+			enum Container: byte
+			{
+				ARRAY,
+			}
+
+			struct Frame
+			{
+				Container container;
+			}
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, $$"""
+			#build --nostdlib
+			#build --name live-iterator-app
+			#build --artifact static
+			#build --use-source local "{{sourceRootArgument}}"
+			#build --use live-iterator-demo:static
+
+			export int value()
+			{
+				return 0;
+			}
+			""");
+		string outDir = Path.Combine(appRoot, "bin");
+		string target = NativeTargetForHost();
+
+		ProcessResult result = RunCampc("build", app, "--target", target, "--out-dir", outDir);
+
+		AssertCommandSucceeded(result);
+		string staticCacheDirectory = Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
+		Assert.True(File.Exists(Path.Combine(staticCacheDirectory, "live-iterator-demo_api.camp")));
+	}
+
+	[Fact]
 	public void Live_api_package_dependency_emits_headers_without_native_library()
 	{
 		string root = TempPath("live-package-api-only");

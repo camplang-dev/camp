@@ -785,10 +785,10 @@ public static class CompilerDriver
 			if (!TryLoadCompilation(packageRequest.Files, packageIncludes, context, out Compilation packageCompilation))
 				return false;
 
-			if (!BuildAllAndReport(packageCompilation))
+			if (!ExpandDeclarationsAndReport(packageCompilation))
 				return false;
 
-			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(packageCompilation.SharedModule!, packageCompilation.Target);
+			AnalysisResult analysis = BindableNodeAnalyzer.AnalyzeExpanded(packageCompilation.DeclarationExpansion!, packageCompilation.Target);
 			if (!PrintAnalysisDiagnostics(packageCompilation, analysis.Diagnostics))
 				return false;
 			packageCompilation.SharedModule = analysis.Module;
@@ -797,7 +797,7 @@ public static class CompilerDriver
 			{
 				Directory.CreateDirectory(Path.GetDirectoryName(apiPath)!);
 				using StreamWriter writer = new(apiPath, append: false, Encoding.UTF8);
-				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface });
+				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true });
 				if (metadataPath is not null && !TryEmitMetadataArtifact(packageCompilation, Path.GetDirectoryName(metadataPath)!, MetadataVisibility.Export, packageName))
 					return false;
 			}
@@ -808,14 +808,17 @@ public static class CompilerDriver
 			}
 
 			string packageArtifactDirectory = Path.GetDirectoryName(cApiPath ?? nativeLibraryPath ?? apiPath)!;
+			Compilation? packageNativeCompilation = null;
 			if (cApiPath is not null || nativeLibraryPath is not null)
 			{
-				if (!LowerAndReport(packageCompilation))
+				if (!TryLoadCompilation(packageRequest.Files, packageIncludes, context, out packageNativeCompilation))
+					return false;
+				if (!LowerAndReport(packageNativeCompilation))
 					return false;
 
 				if (cApiPath is not null)
 				{
-					CEmissionResult apiHeader = CCodeEmitter.EmitProjectApiHeader(packageCompilation, new CEmissionOptions
+					CEmissionResult apiHeader = CCodeEmitter.EmitProjectApiHeader(packageNativeCompilation, new CEmissionOptions
 					{
 						OutputDirectory = packageArtifactDirectory,
 						ProjectName = packageName,
@@ -834,7 +837,7 @@ public static class CompilerDriver
 				return true;
 
 			string packageBuildDirectory = Path.Combine(packageArtifactDirectory, "build");
-			CEmissionResult emission = CCodeEmitter.Emit(packageCompilation, new CEmissionOptions
+			CEmissionResult emission = CCodeEmitter.Emit(packageNativeCompilation!, new CEmissionOptions
 			{
 				OutputDirectory = packageBuildDirectory,
 				ProjectName = packageName,
@@ -1140,7 +1143,7 @@ public static class CompilerDriver
 				Directory.CreateDirectory(outputDirectory);
 				using StreamWriter writer = new(campApiPath, append: false, Encoding.UTF8);
 				CampApiSurfaceKind apiSurface = request.BuildKind == NativeBuildKind.Static ? CampApiSurfaceKind.Public : CampApiSurfaceKind.Export;
-				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface });
+				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true });
 				generatedFiles.Add(campApiPath);
 				OutLine("generated: " + Path.GetFileName(campApiPath));
 			}
@@ -1223,7 +1226,7 @@ public static class CompilerDriver
 				return 1;
 			compilation.SharedModule = analysis.Module;
 			using StringWriter writer = new(stdout, CultureInfo.InvariantCulture);
-			BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+			BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation, CampApiSurfaceKind.Export), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiDefinitionsAlreadyFiltered = true });
 			return 0;
 		}
 
@@ -1303,7 +1306,7 @@ public static class CompilerDriver
 			return !diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 		}
 
-		static Module BuildApiOutputModule(Compilation compilation)
+		static Module BuildApiOutputModule(Compilation compilation, CampApiSurfaceKind apiSurface)
 		{
 			Module output = new() { ResolvedType = compilation.SharedModule?.ResolvedType };
 			HashSet<string> usingKeys = [];
@@ -1321,25 +1324,218 @@ public static class CompilerDriver
 				}
 				foreach (Definition definition in module.Definitions)
 				{
-					output.Definitions.Add(definition);
-					definitions.Add(definition);
+					if (IsVisibleInApiSurface(definition, apiSurface) && definitions.Add(definition))
+						output.Definitions.Add(definition);
 				}
 			}
 			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
 			{
-				if (!IsExportProjectionGeneratedDefinition(definition))
+				if (!IsApiGeneratedDefinition(definition) || !IsVisibleInApiSurface(definition, apiSurface))
 					continue;
 				if (compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) && owner.IsApiHeader)
 					continue;
 				if (definitions.Add(definition))
 					output.Definitions.Add(definition);
 			}
+			if (apiSurface == CampApiSurfaceKind.Public)
+				AddApiDependencyDefinitions(compilation, output, definitions);
 			return output;
 		}
 
-		static bool IsExportProjectionGeneratedDefinition(Definition definition)
+		static bool IsVisibleInApiSurface(Definition definition, CampApiSurfaceKind apiSurface)
 		{
-			return definition.GeneratedInfo?.Reason.StartsWith("export projection for ", StringComparison.Ordinal) == true;
+			return definition.Export is not null
+				|| apiSurface == CampApiSurfaceKind.Public && definition.Public is not null;
+		}
+
+		static void AddApiDependencyDefinitions(Compilation compilation, Module output, HashSet<Definition> definitions)
+		{
+			Queue<TypeDefinition> pending = new();
+			foreach (Definition definition in output.Definitions)
+				CollectApiDependencyTypes(definition, pending, definitions);
+
+			while (pending.Count > 0)
+			{
+				TypeDefinition dependency = pending.Dequeue();
+				if (!definitions.Add(dependency))
+					continue;
+				if (compilation.DefinitionOwners.TryGetValue(dependency, out SourceFile? owner) && owner.IsApiHeader)
+					continue;
+				output.Definitions.Add(dependency);
+				CollectApiDependencyTypes(dependency, pending, definitions);
+			}
+		}
+
+		static void CollectApiDependencyTypes(Definition definition, Queue<TypeDefinition> pending, HashSet<Definition> selected)
+		{
+			switch (definition)
+			{
+				case ClassDefinition classDefinition:
+					foreach (TypeReference type in classDefinition.BaseTypes)
+						CollectApiDependencyTypes(type, pending, selected);
+					foreach (FieldDefinition field in classDefinition.Fields)
+						if (field.Modifier == FieldModifier.Static)
+							CollectApiDependencyTypes(field.Type, pending, selected);
+					foreach (FunctionDefinition function in classDefinition.Functions)
+						if (IsVisibleInApiSurface(function, CampApiSurfaceKind.Public))
+							CollectApiDependencyTypes(function, pending, selected);
+					break;
+
+				case StructDefinition structDefinition:
+					foreach (TypeReference type in structDefinition.BaseTypes)
+						CollectApiDependencyTypes(type, pending, selected);
+					foreach (FieldDefinition field in structDefinition.Fields)
+						CollectApiDependencyTypes(field.Type, pending, selected);
+					foreach (FunctionDefinition function in structDefinition.Functions)
+						if (IsVisibleInApiSurface(function, CampApiSurfaceKind.Public))
+							CollectApiDependencyTypes(function, pending, selected);
+					break;
+
+				case InterfaceDefinition interfaceDefinition:
+					foreach (TypeReference type in interfaceDefinition.BaseTypes)
+						CollectApiDependencyTypes(type, pending, selected);
+					foreach (FunctionDefinition function in interfaceDefinition.Functions)
+						CollectApiDependencyTypes(function, pending, selected);
+					break;
+
+				case EnumDefinition enumDefinition:
+					CollectApiDependencyTypes(enumDefinition.UnderlyingType, pending, selected);
+					break;
+
+				case NewtypeDefinition newtypeDefinition:
+					CollectApiDependencyTypes(newtypeDefinition.UnderlyingType, pending, selected);
+					foreach (FieldDefinition field in newtypeDefinition.Fields)
+						CollectApiDependencyTypes(field.Type, pending, selected);
+					foreach (FunctionDefinition function in newtypeDefinition.Functions)
+						if (IsVisibleInApiSurface(function, CampApiSurfaceKind.Public))
+							CollectApiDependencyTypes(function, pending, selected);
+					break;
+
+				case FunctionDefinition functionDefinition:
+					CollectApiDependencyTypes(functionDefinition.ReturnType, pending, selected);
+					CollectApiDependencyTypes(functionDefinition.CallableAscriptionType, pending, selected);
+					foreach (ParameterDefinition parameter in functionDefinition.Parameters)
+					{
+						CollectApiDependencyTypes(parameter.Type, pending, selected);
+						if (parameter is VTableOfParameterDefinition vtable)
+							CollectApiDependencyTypes(vtable.InterfaceType, pending, selected);
+					}
+					break;
+
+				case VariableDefinition variableDefinition:
+					CollectApiDependencyTypes(variableDefinition.Type, pending, selected);
+					break;
+			}
+		}
+
+		static void CollectApiDependencyTypes(TypeReference? type, Queue<TypeDefinition> pending, HashSet<Definition> selected)
+		{
+			switch (type)
+			{
+				case null:
+					return;
+
+				case TypeDefinitionReference reference:
+					foreach (TypeReference argument in reference.TypeArguments)
+						CollectApiDependencyTypes(argument, pending, selected);
+					if (reference.Definition is not null && !selected.Contains(reference.Definition))
+						pending.Enqueue(reference.Definition);
+					break;
+
+				case ClassTypeReference classType:
+					if (classType.Definition is not null && !selected.Contains(classType.Definition))
+						pending.Enqueue(classType.Definition);
+					break;
+
+				case NamedTypeReference named:
+					foreach (TypeReference argument in named.TypeArguments)
+						CollectApiDependencyTypes(argument, pending, selected);
+					break;
+
+				case AttributedTypeReference attributed:
+					CollectApiDependencyTypes(attributed.Type, pending, selected);
+					break;
+
+				case GenericTypeReference generic:
+					CollectApiDependencyTypes(generic.Type, pending, selected);
+					foreach (TypeReference argument in generic.TypeArguments)
+						CollectApiDependencyTypes(argument, pending, selected);
+					break;
+
+				case ArrayTypeReference array:
+					CollectApiDependencyTypes(array.ElementType, pending, selected);
+					break;
+
+				case FixedArrayTypeReference fixedArray:
+					CollectApiDependencyTypes(fixedArray.ElementType, pending, selected);
+					break;
+
+				case OptionalTypeReference optional:
+					CollectApiDependencyTypes(optional.ElementType, pending, selected);
+					break;
+
+				case PointerTypeReference pointer:
+					CollectApiDependencyTypes(pointer.ElementType, pending, selected);
+					break;
+
+				case ConstTypeReference constType:
+					CollectApiDependencyTypes(constType.Type, pending, selected);
+					break;
+
+				case ConstOfTypeReference constOf:
+					CollectApiDependencyTypes(constOf.Type, pending, selected);
+					break;
+
+				case VolatileTypeReference volatileType:
+					CollectApiDependencyTypes(volatileType.Type, pending, selected);
+					break;
+
+				case EscapedTypeReference escaped:
+					CollectApiDependencyTypes(escaped.Type, pending, selected);
+					break;
+
+				case ScopedTypeReference scoped:
+					CollectApiDependencyTypes(scoped.Type, pending, selected);
+					break;
+
+				case UnscopedTypeReference unscoped:
+					CollectApiDependencyTypes(unscoped.Type, pending, selected);
+					break;
+
+				case CallableTypeReference callable:
+					CollectApiDependencyTypes(callable.ReturnType, pending, selected);
+					foreach (ParameterDefinition parameter in callable.Parameters)
+						CollectApiDependencyTypes(parameter.Type, pending, selected);
+					break;
+
+				case TargetTypeSpecTypeReference targetSpec:
+					CollectApiDependencyTypes(targetSpec.Type, pending, selected);
+					break;
+
+				case IterTypeReference iter:
+					CollectApiDependencyTypes(iter.ElementType, pending, selected);
+					foreach (ParameterDefinition parameter in iter.Parameters)
+						CollectApiDependencyTypes(parameter.Type, pending, selected);
+					break;
+
+				case GroupedParamsTypeReference grouped:
+					CollectApiDependencyTypes(grouped.StructType, pending, selected);
+					break;
+
+				case MaterializedStructTypeReference materialized:
+					CollectApiDependencyTypes(materialized.ParamsType, pending, selected);
+					break;
+
+				case ThrownTypeReference thrown:
+					CollectApiDependencyTypes(thrown.Type, pending, selected);
+					break;
+			}
+		}
+
+		static bool IsApiGeneratedDefinition(Definition definition)
+		{
+			return definition.GeneratedInfo?.Category == GeneratedDeclarationCategory.Iterator
+				|| definition.GeneratedInfo?.Reason.StartsWith("export projection for ", StringComparison.Ordinal) == true;
 		}
 
 		static string UsingDeclarationKey(UsingDeclaration usingDeclaration)
