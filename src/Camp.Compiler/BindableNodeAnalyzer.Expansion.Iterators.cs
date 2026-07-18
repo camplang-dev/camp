@@ -2029,6 +2029,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static void AddIteratorFunction(TypeDefinition type, FunctionDefinition function)
 	{
+		function.GeneratedInfo ??= new GeneratedDeclarationInfo(GeneratedDeclarationCategory.Iterator, "iterator state method", type);
 		switch (type)
 		{
 			case ClassDefinition classDefinition:

@@ -725,10 +725,11 @@ public sealed partial class BindableNodeAnalyzer
 			opDelete = FindDeleteMethod(deletedType);
 		}
 
+		SyntaxNode? reportSyntax = target?.SourceSyntax ?? expression?.SourceSyntax;
 		if (!isPointer && !isThisPointer && !isArray && opDelete is null)
-			Report(target?.SourceSyntax, $"delete requires a pointer or a type with a destructor, not '{targetType}'.");
+			Report(reportSyntax, $"delete requires a pointer or a type with a destructor, not '{targetType}'.");
 		if (deletedDefinition is ClassDefinition { Extern: not null } && opDelete is null)
-			Report(target?.SourceSyntax, $"delete requires an explicit destructor for extern class '{deletedDefinition.Name}'.");
+			Report(reportSyntax, $"delete requires an explicit destructor for extern class '{deletedDefinition.Name}'.");
 		if (target is null)
 			return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" };
 

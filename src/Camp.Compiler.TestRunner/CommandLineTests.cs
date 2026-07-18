@@ -367,6 +367,34 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Invalid_foreach_iterator_cleanup_delete_reports_source_range()
+	{
+		string source = CreateTempCase("foreach_iterator_delete_range.camp", """
+			public fixed struct BrokenIter
+			{
+				public extern bool next(int* current);
+				public extern static bool op_iter(void* ctx, int* current);
+			}
+
+			public extern BrokenIter broken();
+
+			export int main()
+			{
+				foreach (auto value in broken())
+				{
+				}
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("foreach-iterator-delete-range"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("foreach_iterator_delete_range.camp(11,2): error: delete requires a pointer or a type with a destructor, not 'BrokenIter'.", Normalize(result.StdErr), StringComparison.Ordinal);
+		Assert.DoesNotContain("(no line,column)", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Async_exported_c_header_uses_completion_callback_abi()
 	{
 		string source = CreateTempCase("async_header.camp", """
@@ -2588,6 +2616,11 @@ public sealed class CommandLineTests
 				const char[] text;
 			}
 
+			public nuint viewLength(View view)
+			{
+				return view.text.length;
+			}
+
 			public fixed struct Writer
 			{
 				fixed Frame[2] stack;
@@ -2616,9 +2649,14 @@ public sealed class CommandLineTests
 			#build --use-source local "{{sourceRootArgument}}"
 			#build --use live-iterator-demo:static
 
+			using LiveIteratorDemo;
+
 			export int value()
 			{
-				return 0;
+				int total = 0;
+				foreach (auto view in parts("abc"))
+					total += (int)viewLength(view);
+				return total - 3;
 			}
 			""");
 		string outDir = Path.Combine(appRoot, "bin");
@@ -2628,7 +2666,11 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		string staticCacheDirectory = Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
-		Assert.True(File.Exists(Path.Combine(staticCacheDirectory, "live-iterator-demo_api.camp")));
+		string apiPath = Path.Combine(staticCacheDirectory, "live-iterator-demo_api.camp");
+		Assert.True(File.Exists(apiPath));
+		string api = File.ReadAllText(apiPath);
+		Assert.Contains("public extern void op_delete();", api, StringComparison.Ordinal);
+		Assert.Contains("public extern void destroy();", api, StringComparison.Ordinal);
 	}
 
 	[Fact]

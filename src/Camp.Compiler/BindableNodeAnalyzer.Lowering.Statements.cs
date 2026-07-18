@@ -1098,6 +1098,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	Statement CreateIteratorCleanupStatement(Expression iteratorTarget, string iteratorType, SyntaxNode? syntax)
 	{
+		iteratorTarget.SourceSyntax ??= syntax;
 		return new ExpressionStatement
 		{
 			SourceSyntax = syntax,

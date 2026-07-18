@@ -1062,6 +1062,9 @@ public static class MetadataJsonSerializer
 
 		static bool IsGeneratedConstructorLifecycleFunction(FunctionDefinition function)
 		{
+			if (function.GeneratedInfo?.Category == GeneratedDeclarationCategory.Iterator
+				|| function.Provenance?.Category == GeneratedDeclarationCategory.Iterator)
+				return false;
 			return function.Name is "op_initnew" or "create" or "op_delete" or "destroy";
 		}
 
