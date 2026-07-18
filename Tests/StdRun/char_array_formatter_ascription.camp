@@ -1,0 +1,28 @@
+using Std;
+
+public nuint escapedLength(const char[] this, char[] buffer = default) : CharFormatter
+{
+	nuint required = this.length + 1;
+	if (buffer.length >= required)
+	{
+		for (nuint i = 0; i < this.length; i++)
+			buffer[i] = this[i];
+		buffer[this.length] = '\0';
+	}
+	return required;
+}
+
+export int main()
+{
+	string copied = "abc".escapedLength.copyString() finally delete;
+	if (copied.compareTo("abc") != 0)
+		return 1;
+
+	fixed char[4] buffer = default;
+	char[] span = buffer;
+	nuint required = "xy".escapedLength(span);
+	if (required != 3 || buffer[0] != 'x' || buffer[1] != 'y' || buffer[2] != '\0')
+		return 2;
+
+	return 0;
+}

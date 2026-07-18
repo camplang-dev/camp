@@ -1635,14 +1635,12 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	bool TryCreateExpandedReceiverMethodDelegateComponents(MemberReferenceExpression member, FunctionDefinition function, out List<Expression> components, ParamsComponentShape? targetDelegateShape = null)
+	bool TryCreateExpandedReceiverMethodDelegateComponents(MemberReferenceExpression member, FunctionDefinition function, out List<Expression> components, ParamsComponentShape? targetDelegateShape = null, bool arraysOnly = false)
 	{
 		components = [];
 		if (member.Target is null)
 			return false;
 		string receiverSourceType = member.Target.ResolvedType ?? "";
-		if (!IsMaterializableExpandedReceiverSourceType(receiverSourceType))
-			return false;
 
 		ThisParameterDefinition? thisParameter = GetExplicitThisParameter(function) ?? function.EffectiveThisParameter;
 		ParamsComponentShape? receiverShape = null;
@@ -1658,6 +1656,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (receiverShape is null
 			&& !TryGetParamsComponentShape(null, member.Target.ResolvedType, "this", out receiverShape))
+		{
+			return false;
+		}
+		if (arraysOnly && receiverShape.Kind != ParamsComponentShapeKind.Array)
+			return false;
+		if (receiverShape.Kind != ParamsComponentShapeKind.Array
+			&& !IsMaterializableExpandedReceiverSourceType(receiverSourceType))
 		{
 			return false;
 		}
@@ -1677,7 +1682,8 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
-		if (receiverShape.Kind is not (ParamsComponentShapeKind.Optional or ParamsComponentShapeKind.Delegate)
+		if (receiverShape.Kind is not (ParamsComponentShapeKind.Array or ParamsComponentShapeKind.Optional or ParamsComponentShapeKind.Delegate)
+			|| receiverShape.Kind == ParamsComponentShapeKind.Array && ShapeUsesPointerComponents(receiverShape)
 			|| receiverShape.Components.Count <= 1
 			|| delegateShape.Kind != ParamsComponentShapeKind.Delegate
 			|| delegateShape.Components.Count != 2
@@ -1695,13 +1701,15 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		}
 
-		if (!TryCreateReceiverComponentExpressions(member.Target, receiverShape, out List<Expression> receiverComponents)
+		if (!TryCreateExpandedReceiverComponentExpressions(member.Target, receiverShape, out List<Expression> receiverComponents)
 			|| receiverComponents.Count != receiverShape.Components.Count)
 		{
 			return false;
 		}
 
-		string receiverType = thisParameter?.ResolvedType ?? member.Target.ResolvedType ?? receiverShape.TypeName;
+		string receiverType = string.IsNullOrWhiteSpace(receiverShape.TypeName)
+			? thisParameter?.ResolvedType ?? member.Target.ResolvedType ?? ErrorType
+			: receiverShape.TypeName;
 		DeclarationStatement contextStorage = CreateMaterializedExpandedReceiverStorage(receiverType, member.SourceSyntax);
 		currentStatementPrefix.Add(contextStorage);
 		List<Expression> storageComponents = CreateMaterializedComponentExpressions(contextStorage.Target, receiverShape);
@@ -1735,10 +1743,42 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
+	bool TryCreateExpandedReceiverComponentExpressions(Expression receiver, ParamsComponentShape receiverShape, out List<Expression> receiverComponents)
+	{
+		if (TryCreateReceiverComponentExpressions(receiver, receiverShape, out receiverComponents))
+			return true;
+
+		receiverComponents = [];
+		if (receiverShape.Kind != ParamsComponentShapeKind.Array
+			|| receiverShape.Components.Count != 2
+			|| GetPrimitiveStringElementType(receiver.ResolvedType) is not string stringElement)
+		{
+			return false;
+		}
+
+		string? pointerElement = TryGetPointerElementType(receiverShape.Components[0].Type);
+		if (pointerElement is null
+			|| StripTopLevelValueQualifiers(pointerElement) != stringElement
+			|| !IsConstQualified(pointerElement))
+		{
+			return false;
+		}
+
+		Expression? length = CreateLengthExpression(receiver, receiver.SourceSyntax);
+		if (length is null)
+			return false;
+
+		receiverComponents.Add(receiver);
+		receiverComponents.Add(length);
+		return true;
+	}
+
 	bool IsMaterializableExpandedReceiverSourceType(string receiverType)
 	{
 		if (string.IsNullOrWhiteSpace(receiverType))
 			return false;
+		if (TryGetParamsComponentShape(null, receiverType, "this", out ParamsComponentShape shape))
+			return shape.Kind is ParamsComponentShapeKind.Array or ParamsComponentShapeKind.Optional or ParamsComponentShapeKind.Delegate;
 		if (IsTopLevelOptionalType(receiverType))
 			return true;
 		if (TryGetCallableShape(receiverType, out CallableShape callable))
