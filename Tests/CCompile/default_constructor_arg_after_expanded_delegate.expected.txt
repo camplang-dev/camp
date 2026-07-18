@@ -1,0 +1,89 @@
+// file: default_constructor_arg_after_expanded_delegate.c
+#include "default_constructor_arg_after_expanded_delegate_private.h"
+
+/* Private file declarations. */
+static bool __camp_delegate_writeChar(void *arg0, char arg1);
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static bool writeChar(char value);
+static void WriterHolder_op_initnew(WriterHolder *this, BoolWriter writer, void *writer_context, Format format);
+static WriterHolder *WriterHolder_create(BoolWriter writer, void *writer_context, Format format);
+
+static bool __camp_delegate_writeChar(void *arg0, char arg1)
+{
+	(void)arg0;
+	return writeChar(arg1);
+}
+
+static bool writeChar(char value)
+{
+	return (value != '\0');
+}
+
+static void WriterHolder_op_initnew(WriterHolder *this, BoolWriter writer, void *writer_context, Format format)
+{
+	this->format = (writer(writer_context, 'x') ? format : Format_TABS);
+}
+
+static WriterHolder *WriterHolder_create(BoolWriter writer, void *writer_context, Format format)
+{
+	WriterHolder *_created0 = (WriterHolder *)(malloc(sizeof(WriterHolder)));
+	if ((_created0 != NULL))
+	{
+		WriterHolder_op_initnew(_created0, (BoolWriter)writer, writer_context, format);
+	}
+	return _created0;
+}
+
+int main(void)
+{
+	WriterHolder compact;
+	WriterHolder_op_initnew(&compact, __camp_delegate_writeChar, NULL, Format_COMPACT);
+	WriterHolder tabs;
+	WriterHolder_op_initnew(&tabs, __camp_delegate_writeChar, NULL, Format_TABS);
+	return (((compact.format == Format_COMPACT) && (tabs.format == Format_TABS)) ? 0 : 1);
+}
+
+// file: default_constructor_arg_after_expanded_delegate.h
+#ifndef DEFAULT_CONSTRUCTOR_ARG_AFTER_EXPANDED_DELEGATE_H_
+#define DEFAULT_CONSTRUCTOR_ARG_AFTER_EXPANDED_DELEGATE_H_
+
+#include "default_constructor_arg_after_expanded_delegate_private.h"
+
+int main(void);
+
+#endif
+// file: default_constructor_arg_after_expanded_delegate_private.h
+#ifndef DEFAULT_CONSTRUCTOR_ARG_AFTER_EXPANDED_DELEGATE_PRIVATE_H_
+#define DEFAULT_CONSTRUCTOR_ARG_AFTER_EXPANDED_DELEGATE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct WriterHolder WriterHolder;
+
+/* Enums. */
+typedef uint8_t Format;
+#define Format_COMPACT ((Format)0)
+#define Format_TABS ((Format)16)
+
+/* Newtypes. */
+typedef bool (* BoolWriter)(void *context, char value);
+
+/* Layouts. */
+struct WriterHolder
+{
+	Format format;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: default_constructor_arg_after_expanded_delegate.c

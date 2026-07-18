@@ -427,6 +427,8 @@ public sealed partial class BindableNodeAnalyzer
 			: callableInvocationParameters.TryGetValue(call, out List<ParameterDefinition>? foundParameters) ? GetCallableParameters(foundParameters) : [];
 		if (callableParameters.Count == 0)
 			return;
+		if (HasProvidedExpandedComponentArgument(call.Arguments, callableParameters))
+			callableParameters = ExpandCallableParametersForDefaultBinding(callableParameters);
 		if (function is not null && (call.Arguments.Count > callableParameters.Count || HasExplicitHiddenArgument(call.Arguments) || HasWithinParameter(function) && call.Arguments.Exists(IsNullArgumentExpression)))
 			AddExplicitHiddenParameters(function.Parameters, callableParameters);
 
@@ -525,6 +527,65 @@ public sealed partial class BindableNodeAnalyzer
 				orderedArguments.Add(argument);
 		call.Arguments.Clear();
 		call.Arguments.AddRange(orderedArguments);
+	}
+
+	bool HasProvidedExpandedComponentArgument(List<ArgumentExpression> arguments, List<ParameterDefinition> callableParameters)
+	{
+		int argumentIndex = 0;
+		foreach (ParameterDefinition parameter in callableParameters)
+		{
+			if (argumentIndex >= arguments.Count)
+				return false;
+			if (TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape)
+				&& shape.Components.Count > 1
+				&& argumentIndex + 1 < arguments.Count
+				&& IsProvidedExpandedSecondComponent(arguments[argumentIndex].Value, arguments[argumentIndex + 1].Value, shape.Components[1]))
+			{
+				return true;
+			}
+			argumentIndex++;
+		}
+
+		return false;
+	}
+
+	bool IsProvidedExpandedSecondComponent(Expression? value, Expression? next, ParamsComponent component)
+	{
+		return component.SourceKind switch
+		{
+			ParamsComponentShapeKind.Array => IsProvidedLengthComponent(value, next, component.ExpandedName),
+			ParamsComponentShapeKind.Delegate or ParamsComponentShapeKind.Iter => IsProvidedContextComponent(next, component.ExpandedName),
+			ParamsComponentShapeKind.Optional => IsProvidedComponent(next, component.ExpandedName),
+			_ => false
+		};
+	}
+
+	List<ParameterDefinition> ExpandCallableParametersForDefaultBinding(List<ParameterDefinition> callableParameters)
+	{
+		List<ParameterDefinition> expanded = [];
+		foreach (ParameterDefinition parameter in callableParameters)
+		{
+			if (!TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape shape)
+				|| shape.Components.Count <= 1)
+			{
+				expanded.Add(parameter);
+				continue;
+			}
+
+			foreach (ParamsComponent component in shape.Components)
+			{
+				expanded.Add(new ParameterDefinition
+				{
+					SourceSyntax = parameter.SourceSyntax,
+					Name = component.ExpandedName,
+					Symbol = component.ExpandedName,
+					Modifier = parameter.Modifier,
+					Type = TypeReferenceForResolvedName(component.Type),
+					ResolvedType = component.Type
+				});
+			}
+		}
+		return expanded;
 	}
 
 	static ParameterDefinition? GetFunctionUponParameter(FunctionDefinition? function)

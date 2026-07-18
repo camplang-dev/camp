@@ -874,9 +874,11 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ArgumentExpression argument in arguments)
 			call.Arguments.Add(argument);
 		callTargets[call] = initNew;
+		ApplyLifecycleConstructorDefaults(initNew);
 		AddImplicitDefaultArguments(call);
-		if (call.Arguments.Count < initNew.Parameters.Count)
-			ExpandParamsArguments(call.Arguments, initNew.Parameters);
+		AddTrailingInitNewDefaultArguments(call, initNew);
+		if (call.Arguments.Count < GetCallableParametersForCall(initNew, IncludeExplicitThisArgument(call.Target, initNew)).Count)
+			ExpandParamsArguments(call);
 		AddImplicitSizeOfArguments(call, initNew, constructedType);
 		AddImplicitNameOfArguments(call, initNew, constructedType);
 		AddImplicitVTableOfArguments(call, initNew, constructedType);
@@ -888,6 +890,46 @@ public sealed partial class BindableNodeAnalyzer
 		if (ShouldEmitFlattenedInstanceCalls() && call.Target is MemberReferenceExpression member && target is not null)
 			RewriteInstanceInvocation(call, member, target, initNew);
 		return call;
+	}
+
+	void AddTrailingInitNewDefaultArguments(CallExpression call, FunctionDefinition initNew)
+	{
+		List<ParameterDefinition> callableParameters = GetCallableParametersForCall(initNew, IncludeExplicitThisArgument(call.Target, initNew));
+		int parameterIndex = GetCallableParameterIndex(call.Arguments, callableParameters, call.Arguments.Count);
+		while (parameterIndex < callableParameters.Count)
+		{
+			ParameterDefinition parameter = callableParameters[parameterIndex];
+			if (parameter.DefaultValue is null)
+				break;
+			Expression? defaultValue = CloneDefaultArgumentExpression(parameter.DefaultValue);
+			string? defaultType = defaultValue?.ResolvedType;
+			call.Arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = call.SourceSyntax ?? parameter.SourceSyntax,
+				Value = defaultValue,
+				ResolvedType = IsInvalidDefaultArgumentType(defaultType) ? parameter.ResolvedType : defaultType ?? parameter.ResolvedType
+			});
+			parameterIndex++;
+		}
+	}
+
+	void ApplyLifecycleConstructorDefaults(FunctionDefinition initNew)
+	{
+		if (!lifecycleSourceConstructors.TryGetValue(initNew, out FunctionDefinition? constructor))
+			return;
+
+		foreach (ParameterDefinition parameter in initNew.Parameters)
+		{
+			if (parameter.DefaultValue is not null || string.IsNullOrWhiteSpace(parameter.Name))
+				continue;
+			foreach (ParameterDefinition source in constructor.Parameters)
+			{
+				if (source.DefaultValue is null || source.Name != parameter.Name)
+					continue;
+				parameter.DefaultValue = source.DefaultValue;
+				break;
+			}
+		}
 	}
 
 	CallExpression CreateDestructorCall(Expression target, FunctionDefinition opDelete, Expression? allocatorArgument = null)

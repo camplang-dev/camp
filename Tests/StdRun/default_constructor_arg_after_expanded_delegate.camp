@@ -1,0 +1,29 @@
+newtype delegate bool BoolWriter(char value);
+
+enum Format : byte
+{
+	COMPACT = 0,
+	TABS = 16
+}
+
+bool writeChar(char value)
+{
+	return value != '\0';
+}
+
+fixed struct WriterHolder
+{
+	WriterHolder(BoolWriter writer, Format format = Format.COMPACT)
+	{
+		this.format = writer('x') ? format : TABS;
+	}
+
+	Format format;
+}
+
+export int main()
+{
+	auto compact = init WriterHolder(writeChar);
+	auto tabs = init WriterHolder(writeChar, TABS);
+	return compact.format == COMPACT && tabs.format == TABS ? 0 : 1;
+}

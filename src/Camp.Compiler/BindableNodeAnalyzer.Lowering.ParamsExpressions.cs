@@ -456,10 +456,16 @@ public sealed partial class BindableNodeAnalyzer
 		if (firstName == "this" && secondName == "this_length")
 			return IsProvidedLengthComponent(arguments[argumentIndex].Value, arguments[argumentIndex + 1].Value, secondName);
 		if (firstName == "this" && secondName == "this_context")
-			return IsProvidedComponent(arguments[argumentIndex + 1].Value, secondName);
+			return IsProvidedContextComponent(arguments[argumentIndex + 1].Value, secondName);
 		if (firstName == "this" && secondName == "this_specified")
 			return IsProvidedComponent(arguments[argumentIndex + 1].Value, secondName);
 		if (firstName == "this_call" && secondName == "this_context")
+			return IsProvidedContextComponent(arguments[argumentIndex + 1].Value, secondName);
+		if (secondName == firstName + "_length")
+			return IsProvidedLengthComponent(arguments[argumentIndex].Value, arguments[argumentIndex + 1].Value, secondName);
+		if (secondName == firstName + "_context")
+			return IsProvidedContextComponent(arguments[argumentIndex + 1].Value, secondName);
+		if (secondName == firstName + "_specified")
 			return IsProvidedComponent(arguments[argumentIndex + 1].Value, secondName);
 
 		return false;
@@ -545,6 +551,13 @@ public sealed partial class BindableNodeAnalyzer
 			return memberReference.Name == suffix || memberReference.Name.EndsWith("_" + suffix, System.StringComparison.Ordinal);
 		}
 		return false;
+	}
+
+	static bool IsProvidedContextComponent(Expression? next, string componentName)
+	{
+		return IsProvidedComponent(next, componentName)
+			|| componentName.EndsWith("_context", System.StringComparison.Ordinal)
+				&& next is LiteralExpression { ResolvedType: "#NULL" };
 	}
 
 	static bool ExpressionReferencesSameValue(Expression? left, Expression? right)

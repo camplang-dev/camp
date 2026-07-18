@@ -1940,6 +1940,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.ResolvedType = "void";
 		method.Body = constructor.Body;
 		CopyLifecycleParameters(constructor.Parameters, method.Parameters);
+		lifecycleSourceConstructors[method] = constructor;
 		if (HasWithinParameter(method) && method.Body is BlockStatement block)
 			block.Statements.Insert(0, CreateResolvedAllocatorLocal(GetWithinParameter(method)));
 		return method;
