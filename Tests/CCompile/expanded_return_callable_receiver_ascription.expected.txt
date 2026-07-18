@@ -1,0 +1,96 @@
+// file: expanded_return_callable_receiver_ascription.c
+#include "expanded_return_callable_receiver_ascription_private.h"
+
+/* Private file declarations. */
+const char *View_asStringEscaped(View *this, uintptr_t *result_length);
+static uintptr_t CharArray_unescapedFormat(const char *this, uintptr_t this_length, char *buffer, uintptr_t buffer_length);
+static int consume(CharFormatter formatter, void *formatter_context);
+static uintptr_t main_boundReceiver0(void *_context, char *arg0, uintptr_t arg1);
+
+static uintptr_t CharArray_unescapedFormat(const char *this, uintptr_t this_length, char *buffer, uintptr_t buffer_length)
+{
+	uintptr_t required = (this_length + 1);
+	if ((buffer_length >= required))
+	{
+		{
+			for (uintptr_t i = 0; (i < this_length); i++)
+			{
+				{
+					buffer[i] = this[i];
+				}
+__for_continue0: ;
+			}
+__for_break1: ;
+		}
+		buffer[this_length] = '\0';
+	}
+	return required;
+}
+
+static int consume(CharFormatter formatter, void *formatter_context)
+{
+	char storage[4] = {0};
+	char *buffer = (char *)(storage);
+	uintptr_t buffer_length = 4;
+	uintptr_t required = formatter(formatter_context, buffer, buffer_length);
+	return (((int)(required) + (int)(buffer[0])) + (int)(buffer[1]));
+}
+
+int main(void)
+{
+	View view = (View){ .text = "xy", .text_length = 2 };
+	const char *_elements2;
+	uintptr_t _length3;
+	_elements2 = View_asStringEscaped(&view, &_length3);
+	struct { const char *elements; uintptr_t length; } _receiverContext4;
+	_receiverContext4.elements = _elements2;
+	_receiverContext4.length = _length3;
+	return (consume((CharFormatter)main_boundReceiver0, (void *)(&_receiverContext4)) - 244);
+}
+
+static uintptr_t main_boundReceiver0(void *_context, char *arg0, uintptr_t arg1)
+{
+	return CharArray_unescapedFormat((*(struct { const char *elements; uintptr_t length; } *)(_context)).elements, (*(struct { const char *elements; uintptr_t length; } *)(_context)).length, arg0, arg1);
+}
+
+// file: expanded_return_callable_receiver_ascription.h
+#ifndef EXPANDED_RETURN_CALLABLE_RECEIVER_ASCRIPTION_H_
+#define EXPANDED_RETURN_CALLABLE_RECEIVER_ASCRIPTION_H_
+
+#include "expanded_return_callable_receiver_ascription_private.h"
+
+int main(void);
+
+#endif
+// file: expanded_return_callable_receiver_ascription_private.h
+#ifndef EXPANDED_RETURN_CALLABLE_RECEIVER_ASCRIPTION_PRIVATE_H_
+#define EXPANDED_RETURN_CALLABLE_RECEIVER_ASCRIPTION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct View View;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef uintptr_t (* CharFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
+
+/* Layouts. */
+struct View
+{
+	const char *text;
+	uintptr_t text_length;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: expanded_return_callable_receiver_ascription.c

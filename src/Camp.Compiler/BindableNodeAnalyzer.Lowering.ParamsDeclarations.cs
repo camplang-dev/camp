@@ -941,6 +941,10 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		if (expansion.Count > 0)
+		{
 			paramsExpansions[source] = expansion;
+			if (source is CallExpression call && call.SourceSyntax is SyntaxNode sourceSyntax)
+				expandedReturnParamsExpansionsBySyntax[sourceSyntax] = expansion;
+		}
 	}
 }

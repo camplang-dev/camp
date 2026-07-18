@@ -1745,6 +1745,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryCreateExpandedReceiverComponentExpressions(Expression receiver, ParamsComponentShape receiverShape, out List<Expression> receiverComponents)
 	{
+		if (TryCreateExpandedReturnReceiverComponents(receiver, receiverShape, out receiverComponents))
+			return true;
+
 		if (TryCreateReceiverComponentExpressions(receiver, receiverShape, out receiverComponents))
 			return true;
 
@@ -1771,6 +1774,61 @@ public sealed partial class BindableNodeAnalyzer
 		receiverComponents.Add(receiver);
 		receiverComponents.Add(length);
 		return true;
+	}
+
+	bool TryCreateExpandedReturnReceiverComponents(Expression receiver, ParamsComponentShape receiverShape, out List<Expression> receiverComponents)
+	{
+		receiverComponents = [];
+		Expression candidate = receiver;
+		if (expressionRewrites.TryGetValue(candidate, out Expression? rewritten) && !ReferenceEquals(rewritten, candidate))
+			candidate = rewritten;
+		while (candidate is ParenthesizedExpression { Expression: not null } parenthesized)
+			candidate = parenthesized.Expression;
+		if (candidate is not CallExpression call)
+			return false;
+		if (TryCreateSyntaxParamsExpansionComponents(call.SourceSyntax, receiverShape, out receiverComponents))
+		{
+			return true;
+		}
+		if (TryCreateRegisteredParamsExpansionComponents(call, receiverShape, out receiverComponents))
+			return true;
+		if (!TryCreateExpandedReturnCallComponents(call, receiverShape, out receiverComponents)
+			|| receiverComponents.Count != receiverShape.Components.Count)
+		{
+			return false;
+		}
+		return true;
+	}
+
+	bool TryCreateRegisteredParamsExpansionComponents(BindableNode source, ParamsComponentShape shape, out List<Expression> components)
+	{
+		components = [];
+		if (!paramsExpansions.TryGetValue(source, out List<ParamsExpansionComponent>? expansion)
+			|| !TryCreateParamsExpansionComponentReferences(expansion, shape, out components))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	bool TryCreateParamsExpansionComponentReferences(List<ParamsExpansionComponent> expansion, ParamsComponentShape shape, out List<Expression> components)
+	{
+		components = [];
+		if (expansion.Count != shape.Components.Count)
+			return false;
+
+		foreach (ParamsExpansionComponent component in expansion)
+			components.Add(CreateVariableReference(component.Node, component.Type));
+		return true;
+	}
+
+	bool TryCreateSyntaxParamsExpansionComponents(SyntaxNode? sourceSyntax, ParamsComponentShape shape, out List<Expression> components)
+	{
+		components = [];
+		return sourceSyntax is not null
+			&& expandedReturnParamsExpansionsBySyntax.TryGetValue(sourceSyntax, out List<ParamsExpansionComponent>? expansion)
+			&& TryCreateParamsExpansionComponentReferences(expansion, shape, out components);
 	}
 
 	bool IsMaterializableExpandedReceiverSourceType(string receiverType)
@@ -2680,6 +2738,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		components = [];
 		if (TryCreateMaterializedGenericReturnCallComponents(call, shape, out components))
+			return true;
+		if (TryCreateRegisteredParamsExpansionComponents(call, shape, out components))
+			return true;
+		if (TryCreateSyntaxParamsExpansionComponents(call.SourceSyntax, shape, out components))
 			return true;
 		if (currentStatementPrefix is null || shape.Components.Count == 0)
 			return false;

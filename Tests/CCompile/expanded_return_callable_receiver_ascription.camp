@@ -1,0 +1,34 @@
+newtype delegate nuint CharFormatter(const this, char[] buffer = default);
+
+struct View
+{
+	const char[] text;
+}
+
+extern const char[] asStringEscaped(in View this);
+
+nuint unescapedFormat(const char[] this, char[] buffer = default) : CharFormatter
+{
+	nuint required = this.length + 1;
+	if (buffer.length >= required)
+	{
+		for (nuint i = 0; i < this.length; i++)
+			buffer[i] = this[i];
+		buffer[this.length] = '\0';
+	}
+	return required;
+}
+
+int consume(CharFormatter formatter)
+{
+	fixed char[4] storage = default;
+	char[] buffer = storage;
+	nuint required = formatter(buffer);
+	return (int)required + (int)buffer[0] + (int)buffer[1];
+}
+
+export int main()
+{
+	View view = { "xy" };
+	return consume(view.asStringEscaped().unescapedFormat) - 244;
+}

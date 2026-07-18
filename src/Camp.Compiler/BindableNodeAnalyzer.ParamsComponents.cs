@@ -7,6 +7,7 @@ namespace Camp.Compiler;
 public sealed partial class BindableNodeAnalyzer
 {
 	readonly Dictionary<BindableNode, List<ParamsExpansionComponent>> paramsExpansions = [];
+	readonly Dictionary<SyntaxNode, List<ParamsExpansionComponent>> expandedReturnParamsExpansionsBySyntax = [];
 	readonly Dictionary<FunctionDefinition, ParamsComponentShape> expandedReturnShapes = [];
 	readonly HashSet<CallExpression> preparedExpandedReturnCalls = [];
 
