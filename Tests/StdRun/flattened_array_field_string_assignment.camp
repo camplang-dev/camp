@@ -1,0 +1,33 @@
+using Std;
+
+struct FlatView
+{
+	const char* range;
+	nuint range_length;
+}
+
+export int main()
+{
+	string text = "abc";
+
+	FlatView positional = { text };
+	if (positional.range_length != 3 || positional.range[1] != 'b')
+		return 1;
+
+	FlatView named = { .range = text };
+	if (named.range_length != 3 || named.range[2] != 'c')
+		return 2;
+
+	FlatView assigned = {};
+	assigned.range = text;
+	assigned.range_length = text.Length;
+	if (assigned.range_length != 3 || assigned.range[0] != 'a')
+		return 3;
+
+	assigned.range = "wxyz";
+	assigned.range_length = 4;
+	if (assigned.range_length != 4 || assigned.range[3] != 'z')
+		return 4;
+
+	return 0;
+}

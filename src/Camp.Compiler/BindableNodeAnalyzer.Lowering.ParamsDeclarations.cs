@@ -888,6 +888,9 @@ public sealed partial class BindableNodeAnalyzer
 			return values;
 		}
 
+		if (initialValue is not null && TryCreatePrimitiveStringArrayInitialValues(initialValue, shape, out values))
+			return values;
+
 		if (initialValue is MemberExpression { Target: not null } member
 			&& TryCreateSourceMemberParamsComponentExpressions(member, shape.TypeName, out components)
 			&& components.Count == shape.Components.Count)
@@ -920,6 +923,27 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = 0; i < shape.Components.Count; i++)
 			values.Add(null);
 		return values;
+	}
+
+	bool TryCreatePrimitiveStringArrayInitialValues(Expression initialValue, ParamsComponentShape shape, out List<Expression?> values)
+	{
+		values = [];
+		if (shape.Kind != ParamsComponentShapeKind.Array
+			|| shape.Components.Count != 2
+			|| GetPrimitiveStringElementType(initialValue.ResolvedType) is not string stringElement
+			|| TryGetPointerElementType(shape.Components[0].Type) is not string pointerElement
+			|| StripTopLevelValueQualifiers(pointerElement) != stringElement
+			|| !IsConstQualified(pointerElement)
+			|| !IsIntegralTypeName(shape.Components[1].Type))
+			return false;
+
+		Expression? length = CreateLengthExpression(initialValue, initialValue.SourceSyntax);
+		if (length is null)
+			return false;
+
+		values.Add(initialValue);
+		values.Add(LowerExpression(length) ?? length);
+		return true;
 	}
 
 	void RegisterParamsExpansion<T>(BindableNode source, ParamsComponentShape shape, List<T> components)

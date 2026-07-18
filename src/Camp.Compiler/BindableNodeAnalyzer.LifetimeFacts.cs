@@ -1051,6 +1051,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (TryGetReceiverAnchoredStorageTarget(target, out string? anchor))
 		{
+			if (IsLocalLifetimeAnchor(anchor, scope))
+				return;
 			if (!ValueOutlivesAnchor(valueFact, anchor) && !IsExplicitScopedWithinAllocatorFact(valueFact))
 				Report(GetRange(syntax), $"{context} cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.");
 		}

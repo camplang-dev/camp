@@ -1514,10 +1514,19 @@ public sealed partial class BindableNodeAnalyzer
 		Dictionary<string, string> substitutions = [];
 		AddConstructedTypeGenericSubstitutions(targetType, substitutions);
 		List<string> storageGenericNames = [.. definition.GenericParameters.Select(static parameter => parameter.Name)];
-		foreach (FieldDefinition field in sourceFields)
+		List<FieldDefinition> sourceFieldList = [.. sourceFields];
+		for (int i = 0; i < sourceFieldList.Count; i++)
 		{
+			FieldDefinition field = sourceFieldList[i];
 			if (!IsMemberVisible(field, definition, syntax))
 				continue;
+			if (TryGetFlattenedArrayFieldPair(sourceFieldList, i, definition, syntax, substitutions, out string? sourceArrayType, out string? storageArrayType))
+			{
+				fields.Add(new AggregateInitializerField(field.Name, sourceArrayType, storageArrayType, storageGenericNames));
+				i++;
+				continue;
+			}
+
 			string storageType = field.ResolvedType ?? ErrorType;
 			string fieldType = field.ResolvedType ?? ErrorType;
 			if (substitutions.Count > 0)

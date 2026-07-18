@@ -2446,6 +2446,45 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	bool TryGetFlattenedArrayFieldPair(
+		List<FieldDefinition> fields,
+		int index,
+		TypeDefinition owner,
+		SyntaxNode? referenceSyntax,
+		Dictionary<string, string>? substitutions,
+		out string sourceArrayType,
+		out string storageArrayType)
+	{
+		sourceArrayType = "";
+		storageArrayType = "";
+		if (index + 1 >= fields.Count)
+			return false;
+
+		FieldDefinition field = fields[index];
+		FieldDefinition lengthField = fields[index + 1];
+		if (!IsMemberVisible(field, owner, referenceSyntax)
+			|| !IsMemberVisible(lengthField, owner, referenceSyntax)
+			|| string.IsNullOrWhiteSpace(field.Name)
+			|| lengthField.Name != field.Name + "_length")
+			return false;
+
+		string storageType = field.ResolvedType ?? ErrorType;
+		string sourceType = substitutions is { Count: > 0 }
+			? SubstituteGenericType(storageType, substitutions)
+			: storageType;
+		string lengthType = substitutions is { Count: > 0 }
+			? SubstituteGenericType(lengthField.ResolvedType ?? ErrorType, substitutions)
+			: lengthField.ResolvedType ?? ErrorType;
+		if (TryGetPointerElementType(sourceType) is not string sourceElement
+			|| TryGetPointerElementType(storageType) is not string storageElement
+			|| !IsIntegralTypeName(lengthType))
+			return false;
+
+		sourceArrayType = sourceElement + "[]";
+		storageArrayType = storageElement + "[]";
+		return true;
+	}
+
 	void AddExtensionMemberFunctions(List<FunctionDefinition> target, string targetType, string name, SyntaxNode? referenceSyntax)
 	{
 		foreach (FunctionDefinition function in LookupExtensionFunctions(targetType, name, referenceSyntax))
