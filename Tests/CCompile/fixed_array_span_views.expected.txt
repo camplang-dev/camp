@@ -8,7 +8,6 @@ static uint8_t *viewData(Holder *holder, uintptr_t *result_length);
 static chunksIter chunks(void);
 static int sumChunks(bool (* values)(void *arg0, uint8_t **arg1, uintptr_t *arg2), void *values_context);
 static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length);
-static void chunksIter_op_delete(chunksIter *this);
 static void chunksIter_destroy(chunksIter *this);
 static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_length);
 
@@ -116,7 +115,7 @@ __iter_resume2: ;
 	return false;
 }
 
-static void chunksIter_op_delete(chunksIter *this)
+static void chunksIter_destroy(chunksIter *this)
 {
 	if ((this->__state != -1))
 	{
@@ -124,17 +123,12 @@ static void chunksIter_op_delete(chunksIter *this)
 	}
 }
 
-static void chunksIter_destroy(chunksIter *this)
-{
-	chunksIter_op_delete(this);
-}
-
 static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_length)
 {
 	chunksIter *state = (chunksIter *)(ctx);
 	if ((current == NULL))
 	{
-		chunksIter_op_delete(state);
+		chunksIter_destroy(state);
 		return false;
 	}
 	return chunksIter_next(state, current, current_length);

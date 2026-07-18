@@ -10,7 +10,6 @@ static void Collector_addEach(Collector *this, bool (* values)(void *arg0, void 
 static void Collector_op_initnew(Collector *this, uintptr_t sizeof_T);
 static Collector *Collector_create(uintptr_t sizeof_T);
 static bool rangeIter_next(rangeIter *this, int *current);
-static void rangeIter_op_delete(rangeIter *this);
 static void rangeIter_destroy(rangeIter *this);
 static bool rangeIter_iter(void *ctx, int *current);
 
@@ -108,7 +107,7 @@ __for_break8: ;
 	return false;
 }
 
-static void rangeIter_op_delete(rangeIter *this)
+static void rangeIter_destroy(rangeIter *this)
 {
 	if ((this->__state != -1))
 	{
@@ -116,17 +115,12 @@ static void rangeIter_op_delete(rangeIter *this)
 	}
 }
 
-static void rangeIter_destroy(rangeIter *this)
-{
-	rangeIter_op_delete(this);
-}
-
 static bool rangeIter_iter(void *ctx, int *current)
 {
 	rangeIter *state = (rangeIter *)(ctx);
 	if ((current == NULL))
 	{
-		rangeIter_op_delete(state);
+		rangeIter_destroy(state);
 		return false;
 	}
 	return rangeIter_next(state, current);

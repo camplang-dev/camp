@@ -2669,7 +2669,7 @@ public sealed class CommandLineTests
 		string apiPath = Path.Combine(staticCacheDirectory, "live-iterator-demo_api.camp");
 		Assert.True(File.Exists(apiPath));
 		string api = File.ReadAllText(apiPath);
-		Assert.Contains("public extern void op_delete();", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("op_delete", api, StringComparison.Ordinal);
 		Assert.Contains("public extern void destroy();", api, StringComparison.Ordinal);
 	}
 

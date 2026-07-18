@@ -16,7 +16,7 @@ int sum()
 			}
 			__foreach_continue2:
 		}
-		countIter_op_delete(&__local0);
+		countIter_destroy(&__local0);
 		__foreach_break3:
 	}
 	return total;
@@ -41,7 +41,7 @@ fixed struct countIter
 		return false;
 	}
 
-	void op_delete()
+	void destroy()
 	{
 		if (this.__state != -1)
 		{
@@ -49,17 +49,12 @@ fixed struct countIter
 		}
 	}
 
-	void destroy()
-	{
-		countIter_op_delete(this);
-	}
-
 	static bool op_iter(void* ctx, int* current)
 	{
 		countIter* state = (countIter*)ctx;
 		if (current == null)
 		{
-			countIter_op_delete(state);
+			countIter_destroy(state);
 			return false;
 		}
 		return countIter_next(state, current);

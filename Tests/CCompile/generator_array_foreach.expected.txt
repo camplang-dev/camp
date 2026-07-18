@@ -4,7 +4,6 @@
 /* Private file declarations. */
 static duplicateIter duplicate(int *values, uintptr_t values_length);
 static bool duplicateIter_next(duplicateIter *this, int *current);
-static void duplicateIter_op_delete(duplicateIter *this);
 static void duplicateIter_destroy(duplicateIter *this);
 static bool duplicateIter_iter(void *ctx, int *current);
 
@@ -27,7 +26,7 @@ int main(void)
 			total += item;
 __foreach_continue2: ;
 		}
-		duplicateIter_op_delete(&_foreachIter0);
+		duplicateIter_destroy(&_foreachIter0);
 __foreach_break3: ;
 	}
 	return ((total == 12) ? 0 : 1);
@@ -75,7 +74,7 @@ __foreach_break5: ;
 	return false;
 }
 
-static void duplicateIter_op_delete(duplicateIter *this)
+static void duplicateIter_destroy(duplicateIter *this)
 {
 	if ((this->__state != -1))
 	{
@@ -85,17 +84,12 @@ static void duplicateIter_op_delete(duplicateIter *this)
 	}
 }
 
-static void duplicateIter_destroy(duplicateIter *this)
-{
-	duplicateIter_op_delete(this);
-}
-
 static bool duplicateIter_iter(void *ctx, int *current)
 {
 	duplicateIter *state = (duplicateIter *)(ctx);
 	if ((current == NULL))
 	{
-		duplicateIter_op_delete(state);
+		duplicateIter_destroy(state);
 		return false;
 	}
 	return duplicateIter_next(state, current);

@@ -4,7 +4,6 @@
 /* Private file declarations. */
 static splitFirstIter splitFirst(const char *text, uintptr_t text_length);
 static bool splitFirstIter_next(splitFirstIter *this, const char **current, uintptr_t *current_length);
-static void splitFirstIter_op_delete(splitFirstIter *this);
 static void splitFirstIter_destroy(splitFirstIter *this);
 static bool splitFirstIter_iter(void *ctx, const char **current, uintptr_t *current_length);
 
@@ -30,7 +29,7 @@ int main(void)
 			total += part_length;
 __foreach_continue2: ;
 		}
-		splitFirstIter_op_delete(&_foreachIter0);
+		splitFirstIter_destroy(&_foreachIter0);
 __foreach_break3: ;
 	}
 	return ((total == 1) ? 0 : 1);
@@ -58,7 +57,7 @@ __iter_resume1: ;
 	return false;
 }
 
-static void splitFirstIter_op_delete(splitFirstIter *this)
+static void splitFirstIter_destroy(splitFirstIter *this)
 {
 	if ((this->__state != -1))
 	{
@@ -66,17 +65,12 @@ static void splitFirstIter_op_delete(splitFirstIter *this)
 	}
 }
 
-static void splitFirstIter_destroy(splitFirstIter *this)
-{
-	splitFirstIter_op_delete(this);
-}
-
 static bool splitFirstIter_iter(void *ctx, const char **current, uintptr_t *current_length)
 {
 	splitFirstIter *state = (splitFirstIter *)(ctx);
 	if ((current == NULL))
 	{
-		splitFirstIter_op_delete(state);
+		splitFirstIter_destroy(state);
 		return false;
 	}
 	return splitFirstIter_next(state, current, current_length);

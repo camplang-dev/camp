@@ -736,7 +736,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (isArray)
 			return CreateFreeCall(CreateArrayElementsAccess(target));
 
-		bool deallocate = (isPointer || isThisPointer)
+		bool deallocate = opDelete?.Name != DestroyMethodName
+			&& (isPointer || isThisPointer)
 			&& deletedDefinition is not ClassDefinition { Extern: not null };
 		return CreateDeleteExpression(target, opDelete, deallocate);
 	}
@@ -745,6 +746,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (FunctionDefinition function in LookupTypeFunctions(type, DeleteMethodName, referenceSyntax))
 			return function;
+		if (IsIteratorStateDefinition(type))
+			foreach (FunctionDefinition function in LookupTypeFunctions(type, DestroyMethodName, referenceSyntax))
+				return function;
 		foreach (FunctionDefinition function in GetFunctions(type))
 			if (IsDestructorFunction(function))
 				return function;

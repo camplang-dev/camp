@@ -1064,7 +1064,7 @@ public static class MetadataJsonSerializer
 		{
 			if (function.GeneratedInfo?.Category == GeneratedDeclarationCategory.Iterator
 				|| function.Provenance?.Category == GeneratedDeclarationCategory.Iterator)
-				return false;
+				return function.Name is "op_initnew" or "create" or "op_delete";
 			return function.Name is "op_initnew" or "create" or "op_delete" or "destroy";
 		}
 

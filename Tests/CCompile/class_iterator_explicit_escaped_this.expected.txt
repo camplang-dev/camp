@@ -7,7 +7,6 @@ void free(void *ptr);
 static void Source_setSeed(Source *this, int seed);
 static Source_valuesIter *Source_values(Source *this);
 static bool Source_valuesIter_next(Source_valuesIter *this, int *current);
-static void Source_valuesIter_op_delete(Source_valuesIter *this);
 static void Source_valuesIter_destroy(Source_valuesIter *this);
 static bool Source_valuesIter_iter(void *ctx, int *current);
 
@@ -49,7 +48,7 @@ int main(void)
 			total += value;
 __foreach_continue3: ;
 		}
-		(Source_valuesIter_op_delete(_foreachIter1), free((void *)(_foreachIter1)));
+		Source_valuesIter_destroy(_foreachIter1);
 __foreach_break4: ;
 	}
 	return ((total == 41) ? 0 : 1);
@@ -83,17 +82,13 @@ __iter_resume2: ;
 	return false;
 }
 
-static void Source_valuesIter_op_delete(Source_valuesIter *this)
+static void Source_valuesIter_destroy(Source_valuesIter *this)
 {
 	if ((this->__state != -1))
 	{
 		this->__state = -1;
 	}
-}
-
-static void Source_valuesIter_destroy(Source_valuesIter *this)
-{
-	Source_valuesIter_op_delete(this);
+	free((void *)(this));
 }
 
 static bool Source_valuesIter_iter(void *ctx, int *current)
@@ -101,7 +96,7 @@ static bool Source_valuesIter_iter(void *ctx, int *current)
 	Source_valuesIter *state = (Source_valuesIter *)(ctx);
 	if ((current == NULL))
 	{
-		(Source_valuesIter_op_delete(state), free((void *)(state)));
+		Source_valuesIter_destroy(state);
 		return false;
 	}
 	return Source_valuesIter_next(state, current);

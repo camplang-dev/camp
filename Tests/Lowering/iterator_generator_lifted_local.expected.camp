@@ -33,7 +33,7 @@ fixed struct counterIter
 		return false;
 	}
 
-	void op_delete()
+	void destroy()
 	{
 		if (this.__state != -1)
 		{
@@ -41,17 +41,12 @@ fixed struct counterIter
 		}
 	}
 
-	void destroy()
-	{
-		counterIter_op_delete(this);
-	}
-
 	static bool op_iter(void* ctx, int* current)
 	{
 		counterIter* state = (counterIter*)ctx;
 		if (current == null)
 		{
-			counterIter_op_delete(state);
+			counterIter_destroy(state);
 			return false;
 		}
 		return counterIter_next(state, current);

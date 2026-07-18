@@ -98,6 +98,11 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (FunctionDefinition candidateFunction in candidateClass.Functions)
 					if (candidateFunction.Name == DeleteMethodName)
 						return candidateFunction;
+			if (IsIteratorStateDefinition(type))
+				foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
+					foreach (FunctionDefinition candidateFunction in candidateClass.Functions)
+						if (candidateFunction.Name == DestroyMethodName)
+							return candidateFunction;
 			foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
 				foreach (FunctionDefinition candidateFunction in candidateClass.Functions)
 					if (IsDestructorFunction(candidateFunction))
@@ -108,12 +113,34 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (FunctionDefinition function in GetFunctions(type))
 				if (function.Name == DeleteMethodName)
 					return function;
+			if (IsIteratorStateDefinition(type))
+				foreach (FunctionDefinition function in GetFunctions(type))
+					if (function.Name == DestroyMethodName)
+						return function;
 			foreach (FunctionDefinition function in GetFunctions(type))
 				if (IsDestructorFunction(function))
 					return function;
 		}
 
 		return null;
+	}
+
+	static bool IsIteratorStateDefinition(TypeDefinition type)
+	{
+		if (type.GeneratedInfo?.Category == GeneratedDeclarationCategory.Iterator
+			|| type.Provenance?.Category == GeneratedDeclarationCategory.Iterator)
+			return true;
+
+		bool hasNext = false;
+		bool hasProtocolAdapter = false;
+		foreach (FunctionDefinition function in GetFunctions(type))
+		{
+			if (function.Name == "next")
+				hasNext = true;
+			else if (function.Name == "op_iter" && function.Modifier == FunctionModifier.Static)
+				hasProtocolAdapter = true;
+		}
+		return hasNext && hasProtocolAdapter;
 	}
 
 	FunctionDefinition? FindDestroyMethod(TypeDefinition type)

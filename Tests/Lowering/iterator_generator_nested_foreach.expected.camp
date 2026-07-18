@@ -33,7 +33,7 @@ fixed struct innerIter
 		return false;
 	}
 
-	void op_delete()
+	void destroy()
 	{
 		if (this.__state != -1)
 		{
@@ -41,17 +41,12 @@ fixed struct innerIter
 		}
 	}
 
-	void destroy()
-	{
-		innerIter_op_delete(this);
-	}
-
 	static bool op_iter(void* ctx, int* current)
 	{
 		innerIter* state = (innerIter*)ctx;
 		if (current == null)
 		{
-			innerIter_op_delete(state);
+			innerIter_destroy(state);
 			return false;
 		}
 		return innerIter_next(state, current);
@@ -85,25 +80,20 @@ fixed struct outerIter
 				}
 				__foreach_continue0:
 			}
-			innerIter_op_delete(&this.__foreachIter0);
+			innerIter_destroy(&this.__foreachIter0);
 			__foreach_break1:
 		}
 		this.__state = -1;
 		return false;
 	}
 
-	void op_delete()
+	void destroy()
 	{
 		if (this.__state != -1)
 		{
-			innerIter_op_delete(&this.__foreachIter0);
+			innerIter_destroy(&this.__foreachIter0);
 			this.__state = -1;
 		}
-	}
-
-	void destroy()
-	{
-		outerIter_op_delete(this);
 	}
 
 	static bool op_iter(void* ctx, int* current)
@@ -111,7 +101,7 @@ fixed struct outerIter
 		outerIter* state = (outerIter*)ctx;
 		if (current == null)
 		{
-			outerIter_op_delete(state);
+			outerIter_destroy(state);
 			return false;
 		}
 		return outerIter_next(state, current);

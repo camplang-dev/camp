@@ -30,7 +30,7 @@ fixed struct singleValueIter
 		return false;
 	}
 
-	void op_delete()
+	void destroy()
 	{
 		if (this.__state != -1)
 		{
@@ -38,17 +38,12 @@ fixed struct singleValueIter
 		}
 	}
 
-	void destroy()
-	{
-		singleValueIter_op_delete(this);
-	}
-
 	static bool op_iter(void* ctx, int* current)
 	{
 		singleValueIter* state = (singleValueIter*)ctx;
 		if (current == null)
 		{
-			singleValueIter_op_delete(state);
+			singleValueIter_destroy(state);
 			return false;
 		}
 		return singleValueIter_next(state, current);

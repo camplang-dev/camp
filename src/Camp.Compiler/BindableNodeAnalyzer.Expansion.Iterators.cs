@@ -820,17 +820,6 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string? previousIteratorStateThisType = currentIteratorStateThisType;
 		currentIteratorStateThisType = $"{state.Name}*";
-		FunctionDefinition opDelete = new()
-		{
-			Name = DeleteMethodName,
-			Symbol = $"{state.Name}_{DeleteMethodName}",
-			Export = state.Export,
-			Public = state.Public,
-			Internal = state.Internal,
-			ReturnType = VoidType(),
-			ResolvedType = "void",
-			Body = new BlockStatement { ResolvedType = "void" }
-		};
 		BlockStatement cleanupBody = new() { ResolvedType = "void" };
 		foreach (IteratorForeachStateFields fields in GetIteratorForeachStateFields(sourceFunction))
 			cleanupBody.Statements.Add(CreateIteratorForeachCleanup(sourceFunction, fields));
@@ -841,7 +830,19 @@ public sealed partial class BindableNodeAnalyzer
 				cleanupBody.Statements.Add(rewrittenCleanup);
 		}
 		cleanupBody.Statements.Add(SetIteratorStateExpression(-1));
-		opDelete.Body.Statements.Add(new IfStatement
+
+		FunctionDefinition destroy = new()
+		{
+			Name = "destroy",
+			Symbol = $"{state.Name}_destroy",
+			Export = state.Export,
+			Public = state.Public,
+			Internal = state.Internal,
+			ReturnType = VoidType(),
+			ResolvedType = "void",
+			Body = new BlockStatement { ResolvedType = "void" }
+		};
+		destroy.Body.Statements.Add(new IfStatement
 		{
 			ResolvedType = "void",
 			Condition = new BinaryExpression
@@ -853,30 +854,14 @@ public sealed partial class BindableNodeAnalyzer
 			},
 			Body = cleanupBody
 		});
-		AddIteratorFunction(state, opDelete);
-
-		FunctionDefinition destroy = new()
+		if (state is ClassDefinition)
 		{
-			Name = "destroy",
-			Symbol = $"{state.Name}_destroy",
-			Export = state.Export,
-			Public = state.Public,
-			Internal = state.Internal,
-			ReturnType = VoidType(),
-			ResolvedType = "void",
-			Body = new BlockStatement
+			destroy.Body.Statements.Add(new ExpressionStatement
 			{
 				ResolvedType = "void",
-				Statements =
-				{
-					new ExpressionStatement
-					{
-						ResolvedType = "void",
-						Expression = CreateIteratorInstanceCall(opDelete)
-					}
-				}
-			}
-		};
+				Expression = CreateFreeCall(new ThisExpression { ResolvedType = $"{state.Name}*" })
+			});
+		}
 		AddIteratorFunction(state, destroy);
 		currentIteratorStateThisType = previousIteratorStateThisType;
 	}
@@ -932,15 +917,15 @@ public sealed partial class BindableNodeAnalyzer
 
 		string slotType = slots[0].ResolvedType ?? slots[0].Type?.ResolvedType ?? FormatTypeReference(slots[0].Type);
 		FunctionDefinition? next = null;
-		FunctionDefinition? opDelete = null;
+		FunctionDefinition? destroy = null;
 		foreach (FunctionDefinition function in GetFunctions(state))
 		{
 			if (function.Name == "next")
 				next = function;
-			else if (function.Name == DeleteMethodName)
-				opDelete = function;
+			else if (function.Name == DestroyMethodName)
+				destroy = function;
 		}
-		if (next is null || opDelete is null)
+		if (next is null || destroy is null)
 			return;
 
 		ParameterDefinition context = new()
@@ -1007,7 +992,7 @@ public sealed partial class BindableNodeAnalyzer
 							ResolvedType = "void",
 							Statements =
 							{
-								CreateIteratorAdapterCleanup(state, stateReference, opDelete),
+								CreateIteratorAdapterCleanup(stateReference, destroy),
 								new ReturnStatement
 								{
 									Expression = new LiteralExpression { Kind = LiteralKind.False, Text = "false", Value = false, ResolvedType = "bool" },
@@ -1103,17 +1088,8 @@ public sealed partial class BindableNodeAnalyzer
 		return parameters;
 	}
 
-	Statement CreateIteratorAdapterCleanup(TypeDefinition state, Expression stateReference, FunctionDefinition opDelete)
+	Statement CreateIteratorAdapterCleanup(Expression stateReference, FunctionDefinition destroy)
 	{
-		if (state is ClassDefinition)
-		{
-			return new DeleteStatement
-			{
-				ResolvedType = "void",
-				Expression = stateReference
-			};
-		}
-
 		return new ExpressionStatement
 		{
 			ResolvedType = "void",
@@ -1122,9 +1098,9 @@ public sealed partial class BindableNodeAnalyzer
 				Target = new MemberReferenceExpression
 				{
 					Target = stateReference,
-					Name = DeleteMethodName,
-					Member = opDelete,
-					ResolvedType = BuildFunctionValueType(opDelete, isInstance: true)
+					Name = DestroyMethodName,
+					Member = destroy,
+					ResolvedType = BuildFunctionValueType(destroy, isInstance: true)
 				},
 				ResolvedType = "void"
 			}

@@ -13,7 +13,6 @@ static filterIter IntArray_filter(int *this, uintptr_t this_length, bool (* pred
 static int invoke(int (* callback)(void *arg0, int arg1), void *callback_context, int value);
 static int invoke0(int (* callback)(void *arg0), void *callback_context);
 static bool filterIter_next(filterIter *this, int *current);
-static void filterIter_op_delete(filterIter *this);
 static void filterIter_destroy(filterIter *this);
 static bool filterIter_iter(void *ctx, int *current);
 static int makeBlockAdder_lambda0(void *_context, int value);
@@ -125,7 +124,7 @@ int main(void)
 			total = (total + item);
 __foreach_continue12: ;
 		}
-		filterIter_op_delete(&_foreachIter10);
+		filterIter_destroy(&_foreachIter10);
 __foreach_break13: ;
 	}
 	{
@@ -181,7 +180,7 @@ __for_break19: ;
 	return false;
 }
 
-static void filterIter_op_delete(filterIter *this)
+static void filterIter_destroy(filterIter *this)
 {
 	if ((this->__state != -1))
 	{
@@ -189,17 +188,12 @@ static void filterIter_op_delete(filterIter *this)
 	}
 }
 
-static void filterIter_destroy(filterIter *this)
-{
-	filterIter_op_delete(this);
-}
-
 static bool filterIter_iter(void *ctx, int *current)
 {
 	filterIter *state = (filterIter *)(ctx);
 	if ((current == NULL))
 	{
-		filterIter_op_delete(state);
+		filterIter_destroy(state);
 		return false;
 	}
 	return filterIter_next(state, current);

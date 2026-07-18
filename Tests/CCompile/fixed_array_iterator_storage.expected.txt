@@ -4,7 +4,6 @@
 /* Private file declarations. */
 static chunksIter chunks(void);
 static bool chunksIter_next(chunksIter *this, uint8_t *current);
-static void chunksIter_op_delete(chunksIter *this);
 static void chunksIter_destroy(chunksIter *this);
 static bool chunksIter_iter(void *ctx, uint8_t *current);
 
@@ -26,7 +25,7 @@ __while_continue0: ;
 		}
 __while_break1: ;
 	}
-	chunksIter_op_delete(&iterator);
+	chunksIter_destroy(&iterator);
 	return total;
 }
 
@@ -60,7 +59,7 @@ __iter_resume2: ;
 	return false;
 }
 
-static void chunksIter_op_delete(chunksIter *this)
+static void chunksIter_destroy(chunksIter *this)
 {
 	if ((this->__state != -1))
 	{
@@ -68,17 +67,12 @@ static void chunksIter_op_delete(chunksIter *this)
 	}
 }
 
-static void chunksIter_destroy(chunksIter *this)
-{
-	chunksIter_op_delete(this);
-}
-
 static bool chunksIter_iter(void *ctx, uint8_t *current)
 {
 	chunksIter *state = (chunksIter *)(ctx);
 	if ((current == NULL))
 	{
-		chunksIter_op_delete(state);
+		chunksIter_destroy(state);
 		return false;
 	}
 	return chunksIter_next(state, current);

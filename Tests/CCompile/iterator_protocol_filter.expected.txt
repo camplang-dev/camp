@@ -9,15 +9,12 @@ static applyPredicateIter applyPredicate(bool (* inner)(void *arg0, int *arg1), 
 static applyPredicateExplicitIter applyPredicateExplicit(bool (* inner)(void *arg0, int *arg1), void *inner_context, bool (* predicate)(int camp));
 static bool isEven(int number);
 static bool rangeIter_next(rangeIter *this, int *current);
-static void rangeIter_op_delete(rangeIter *this);
 static void rangeIter_destroy(rangeIter *this);
 static bool rangeIter_iter(void *ctx, int *current);
 static bool applyPredicateIter_next(applyPredicateIter *this, int *current);
-static void applyPredicateIter_op_delete(applyPredicateIter *this);
 static void applyPredicateIter_destroy(applyPredicateIter *this);
 static bool applyPredicateIter_iter(void *ctx, int *current);
 static bool applyPredicateExplicitIter_next(applyPredicateExplicitIter *this, int *current);
-static void applyPredicateExplicitIter_op_delete(applyPredicateExplicitIter *this);
 static void applyPredicateExplicitIter_destroy(applyPredicateExplicitIter *this);
 static bool applyPredicateExplicitIter_iter(void *ctx, int *current);
 
@@ -64,7 +61,7 @@ void run(void)
 			}
 __foreach_continue3: ;
 		}
-		applyPredicateIter_op_delete(&_foreachIter1);
+		applyPredicateIter_destroy(&_foreachIter1);
 __foreach_break4: ;
 	}
 	{
@@ -77,7 +74,7 @@ __foreach_break4: ;
 			}
 __foreach_continue7: ;
 		}
-		applyPredicateExplicitIter_op_delete(&_foreachIter5);
+		applyPredicateExplicitIter_destroy(&_foreachIter5);
 __foreach_break8: ;
 	}
 }
@@ -109,17 +106,13 @@ __for_break10: ;
 	return false;
 }
 
-static void rangeIter_op_delete(rangeIter *this)
+static void rangeIter_destroy(rangeIter *this)
 {
 	if ((this->__state != -1))
 	{
 		this->__state = -1;
 	}
-}
-
-static void rangeIter_destroy(rangeIter *this)
-{
-	rangeIter_op_delete(this);
+	free((void *)(this));
 }
 
 static bool rangeIter_iter(void *ctx, int *current)
@@ -127,7 +120,7 @@ static bool rangeIter_iter(void *ctx, int *current)
 	rangeIter *state = (rangeIter *)(ctx);
 	if ((current == NULL))
 	{
-		(rangeIter_op_delete(state), free((void *)(state)));
+		rangeIter_destroy(state);
 		return false;
 	}
 	return rangeIter_next(state, current);
@@ -169,7 +162,7 @@ __foreach_break12: ;
 	return false;
 }
 
-static void applyPredicateIter_op_delete(applyPredicateIter *this)
+static void applyPredicateIter_destroy(applyPredicateIter *this)
 {
 	if ((this->__state != -1))
 	{
@@ -178,17 +171,12 @@ static void applyPredicateIter_op_delete(applyPredicateIter *this)
 	}
 }
 
-static void applyPredicateIter_destroy(applyPredicateIter *this)
-{
-	applyPredicateIter_op_delete(this);
-}
-
 static bool applyPredicateIter_iter(void *ctx, int *current)
 {
 	applyPredicateIter *state = (applyPredicateIter *)(ctx);
 	if ((current == NULL))
 	{
-		applyPredicateIter_op_delete(state);
+		applyPredicateIter_destroy(state);
 		return false;
 	}
 	return applyPredicateIter_next(state, current);
@@ -225,7 +213,7 @@ __while_break14: ;
 	return false;
 }
 
-static void applyPredicateExplicitIter_op_delete(applyPredicateExplicitIter *this)
+static void applyPredicateExplicitIter_destroy(applyPredicateExplicitIter *this)
 {
 	if ((this->__state != -1))
 	{
@@ -234,17 +222,12 @@ static void applyPredicateExplicitIter_op_delete(applyPredicateExplicitIter *thi
 	}
 }
 
-static void applyPredicateExplicitIter_destroy(applyPredicateExplicitIter *this)
-{
-	applyPredicateExplicitIter_op_delete(this);
-}
-
 static bool applyPredicateExplicitIter_iter(void *ctx, int *current)
 {
 	applyPredicateExplicitIter *state = (applyPredicateExplicitIter *)(ctx);
 	if ((current == NULL))
 	{
-		applyPredicateExplicitIter_op_delete(state);
+		applyPredicateExplicitIter_destroy(state);
 		return false;
 	}
 	return applyPredicateExplicitIter_next(state, current);

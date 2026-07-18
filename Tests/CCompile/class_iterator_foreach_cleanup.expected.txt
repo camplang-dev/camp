@@ -8,7 +8,6 @@ static void cleanup(void);
 static valuesIter *values(void);
 static int firstValue(void);
 static bool valuesIter_next(valuesIter *this, int *current);
-static void valuesIter_op_delete(valuesIter *this);
 static void valuesIter_destroy(valuesIter *this);
 static bool valuesIter_iter(void *ctx, int *current);
 
@@ -45,10 +44,10 @@ static int firstValue(void)
 			}
 __foreach_continue3: ;
 		}
-		(valuesIter_op_delete(_foreachIter1), free((void *)(_foreachIter1)));
+		valuesIter_destroy(_foreachIter1);
 		goto __foreach_done7;
 __cleanup6: ;
-		(valuesIter_op_delete(_foreachIter1), free((void *)(_foreachIter1)));
+		valuesIter_destroy(_foreachIter1);
 		return _return5;
 __foreach_break4: ;
 __foreach_done7: ;
@@ -85,18 +84,14 @@ __iter_resume2: ;
 	return false;
 }
 
-static void valuesIter_op_delete(valuesIter *this)
+static void valuesIter_destroy(valuesIter *this)
 {
 	if ((this->__state != -1))
 	{
 		cleanup();
 		this->__state = -1;
 	}
-}
-
-static void valuesIter_destroy(valuesIter *this)
-{
-	valuesIter_op_delete(this);
+	free((void *)(this));
 }
 
 static bool valuesIter_iter(void *ctx, int *current)
@@ -104,7 +99,7 @@ static bool valuesIter_iter(void *ctx, int *current)
 	valuesIter *state = (valuesIter *)(ctx);
 	if ((current == NULL))
 	{
-		(valuesIter_op_delete(state), free((void *)(state)));
+		valuesIter_destroy(state);
 		return false;
 	}
 	return valuesIter_next(state, current);

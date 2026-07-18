@@ -48,7 +48,7 @@ fixed struct valuesFromIfIter
 		return false;
 	}
 
-	void op_delete()
+	void destroy()
 	{
 		if (this.__state != -1)
 		{
@@ -56,17 +56,12 @@ fixed struct valuesFromIfIter
 		}
 	}
 
-	void destroy()
-	{
-		valuesFromIfIter_op_delete(this);
-	}
-
 	static bool op_iter(void* ctx, int* current)
 	{
 		valuesFromIfIter* state = (valuesFromIfIter*)ctx;
 		if (current == null)
 		{
-			valuesFromIfIter_op_delete(state);
+			valuesFromIfIter_destroy(state);
 			return false;
 		}
 		return valuesFromIfIter_next(state, current);
@@ -119,7 +114,7 @@ fixed struct valuesFromSwitchIter
 		return false;
 	}
 
-	void op_delete()
+	void destroy()
 	{
 		if (this.__state != -1)
 		{
@@ -127,17 +122,12 @@ fixed struct valuesFromSwitchIter
 		}
 	}
 
-	void destroy()
-	{
-		valuesFromSwitchIter_op_delete(this);
-	}
-
 	static bool op_iter(void* ctx, int* current)
 	{
 		valuesFromSwitchIter* state = (valuesFromSwitchIter*)ctx;
 		if (current == null)
 		{
-			valuesFromSwitchIter_op_delete(state);
+			valuesFromSwitchIter_destroy(state);
 			return false;
 		}
 		return valuesFromSwitchIter_next(state, current);
@@ -174,7 +164,7 @@ fixed struct valuesFromWhileIter
 		return false;
 	}
 
-	void op_delete()
+	void destroy()
 	{
 		if (this.__state != -1)
 		{
@@ -182,17 +172,12 @@ fixed struct valuesFromWhileIter
 		}
 	}
 
-	void destroy()
-	{
-		valuesFromWhileIter_op_delete(this);
-	}
-
 	static bool op_iter(void* ctx, int* current)
 	{
 		valuesFromWhileIter* state = (valuesFromWhileIter*)ctx;
 		if (current == null)
 		{
-			valuesFromWhileIter_op_delete(state);
+			valuesFromWhileIter_destroy(state);
 			return false;
 		}
 		return valuesFromWhileIter_next(state, current);
@@ -228,7 +213,7 @@ fixed struct valuesFromForIter
 		return false;
 	}
 
-	void op_delete()
+	void destroy()
 	{
 		if (this.__state != -1)
 		{
@@ -236,17 +221,12 @@ fixed struct valuesFromForIter
 		}
 	}
 
-	void destroy()
-	{
-		valuesFromForIter_op_delete(this);
-	}
-
 	static bool op_iter(void* ctx, int* current)
 	{
 		valuesFromForIter* state = (valuesFromForIter*)ctx;
 		if (current == null)
 		{
-			valuesFromForIter_op_delete(state);
+			valuesFromForIter_destroy(state);
 			return false;
 		}
 		return valuesFromForIter_next(state, current);

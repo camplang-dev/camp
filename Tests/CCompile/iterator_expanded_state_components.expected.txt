@@ -6,7 +6,6 @@ static int __camp_delegate_doubleIt(void *arg0, int arg1);
 static mapValuesIter mapValues(int *values, uintptr_t values_length, int (* map)(void *arg0, int arg1), void *map_context);
 static int doubleIt(int value);
 static bool mapValuesIter_next(mapValuesIter *this, int *current);
-static void mapValuesIter_op_delete(mapValuesIter *this);
 static void mapValuesIter_destroy(mapValuesIter *this);
 static bool mapValuesIter_iter(void *ctx, int *current);
 
@@ -40,7 +39,7 @@ int main(void)
 			sum += value;
 __foreach_continue2: ;
 		}
-		mapValuesIter_op_delete(&_foreachIter0);
+		mapValuesIter_destroy(&_foreachIter0);
 __foreach_break3: ;
 	}
 	return sum;
@@ -73,7 +72,7 @@ __for_break5: ;
 	return false;
 }
 
-static void mapValuesIter_op_delete(mapValuesIter *this)
+static void mapValuesIter_destroy(mapValuesIter *this)
 {
 	if ((this->__state != -1))
 	{
@@ -81,17 +80,12 @@ static void mapValuesIter_op_delete(mapValuesIter *this)
 	}
 }
 
-static void mapValuesIter_destroy(mapValuesIter *this)
-{
-	mapValuesIter_op_delete(this);
-}
-
 static bool mapValuesIter_iter(void *ctx, int *current)
 {
 	mapValuesIter *state = (mapValuesIter *)(ctx);
 	if ((current == NULL))
 	{
-		mapValuesIter_op_delete(state);
+		mapValuesIter_destroy(state);
 		return false;
 	}
 	return mapValuesIter_next(state, current);
