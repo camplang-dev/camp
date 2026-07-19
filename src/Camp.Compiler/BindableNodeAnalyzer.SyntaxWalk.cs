@@ -230,6 +230,14 @@ public sealed partial class BindableNodeAnalyzer
 				expression.ResolvedType = "string";
 				break;
 
+			case CallerSourceCaptureExpression caller:
+				expression.ResolvedType = caller.Selector == CallerSourceCaptureSelector.SourceLine ? "uint" : "string";
+				break;
+
+			case SourceOfExpression:
+				expression.ResolvedType = "string";
+				break;
+
 			case LambdaExpression lambda:
 				foreach (LambdaParameter parameter in lambda.Parameters)
 				{

@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using Camp.Compiler;
 using Xunit;
 
@@ -276,6 +278,57 @@ public sealed class SemanticTests
 		FieldDefinition interfaceField = SemanticCompiler.Descendants<FieldDefinition>(box).Single(field => field.Symbol == "_vt_IFace");
 		Assert.Equal(GeneratedDeclarationCategory.Interface, interfaceField.GeneratedInfo?.Category);
 		Assert.Equal(GeneratedDeclarationCategory.Interface, interfaceField.Provenance?.Category);
+	}
+
+	[Fact]
+	public void Source_capture_defaults_bind_serialize_and_report_metadata()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			export extern void assert(bool condition, string expression = sourceof(condition), string file = caller(sourcefile), uint line = caller(sourceline), string where = caller(qualifiedname));
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		FunctionDefinition assert = SemanticCompiler.Function(compilation, "assert");
+		Assert.IsType<SourceOfExpression>(assert.Parameters[1].DefaultValue);
+		Assert.IsType<CallerSourceCaptureExpression>(assert.Parameters[2].DefaultValue);
+		Assert.IsType<CallerSourceCaptureExpression>(assert.Parameters[3].DefaultValue);
+		Assert.IsType<CallerSourceCaptureExpression>(assert.Parameters[4].DefaultValue);
+
+		using StringWriter apiWriter = new();
+		BindableNodeCodeSerializer.Serialize(assert, apiWriter, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+		string api = apiWriter.ToString();
+		Assert.Contains("string expression = sourceof(condition)", api, System.StringComparison.Ordinal);
+		Assert.Contains("string file = caller(sourcefile)", api, System.StringComparison.Ordinal);
+		Assert.Contains("uint line = caller(sourceline)", api, System.StringComparison.Ordinal);
+		Assert.Contains("string where = caller(qualifiedname)", api, System.StringComparison.Ordinal);
+
+		using JsonDocument metadata = JsonDocument.Parse(MetadataJsonSerializer.Serialize(compilation.Compilation, MetadataVisibility.Export));
+		JsonElement parameters = metadata.RootElement.GetProperty("declarations")[0].GetProperty("parameters");
+		Assert.Equal("sourceof", parameters[1].GetProperty("defaultExpression").GetProperty("kind").GetString());
+		Assert.Equal("condition", parameters[1].GetProperty("defaultExpression").GetProperty("argument").GetString());
+		Assert.Equal("caller", parameters[2].GetProperty("defaultExpression").GetProperty("kind").GetString());
+		Assert.Equal("sourcefile", parameters[2].GetProperty("defaultExpression").GetProperty("selector").GetString());
+		Assert.Equal("sourceline", parameters[3].GetProperty("defaultExpression").GetProperty("selector").GetString());
+		Assert.Equal("qualifiedname", parameters[4].GetProperty("defaultExpression").GetProperty("selector").GetString());
+	}
+
+	[Fact]
+	public void Source_capture_defaults_reject_invalid_default_forms()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileDeclarations("""
+			extern void unknownCaller(string value = caller(column));
+			extern void tooManyCaller(string value = caller(sourcefile, sourceline));
+			extern void expressionSourceOf(int left, int right, string value = sourceof(left + right));
+			""");
+
+		Assert.Contains(compilation.Diagnostics, static diagnostic => diagnostic.Contains("caller(...) selector must be one of sourceline, sourcefile, propertyname, functionname, or qualifiedname.", System.StringComparison.Ordinal));
+		Assert.Contains(compilation.Diagnostics, static diagnostic => diagnostic.Contains("caller(...) requires exactly one positional argument.", System.StringComparison.Ordinal));
+		Assert.Contains(compilation.Diagnostics, static diagnostic => diagnostic.Contains("sourceof(...) requires a single unqualified parameter name.", System.StringComparison.Ordinal));
+
+		SemanticCompilation unknownParameterCompilation = SemanticCompiler.CompileLowered("""
+			extern void unknownSourceOf(string value = sourceof(missing));
+			""");
+		Assert.Contains(unknownParameterCompilation.Diagnostics, static diagnostic => diagnostic.Contains("sourceof(...) argument 'missing' does not name a parameter in this signature.", System.StringComparison.Ordinal));
 	}
 
 	[Fact]

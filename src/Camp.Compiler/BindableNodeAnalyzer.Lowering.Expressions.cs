@@ -723,6 +723,8 @@ public sealed partial class BindableNodeAnalyzer
 			NamedExpression named => CloneNamedExpression(named),
 			VariableReferenceExpression variable => new VariableReferenceExpression { SourceSyntax = variable.SourceSyntax, Variable = variable.Variable, ResolvedType = variable.ResolvedType },
 			TypeReferenceExpression type => new TypeReferenceExpression { SourceSyntax = type.SourceSyntax, Type = CloneType(type.Type), ResolvedType = type.ResolvedType },
+			CallerSourceCaptureExpression caller => new CallerSourceCaptureExpression { SourceSyntax = caller.SourceSyntax, Selector = caller.Selector, ResolvedType = caller.ResolvedType },
+			SourceOfExpression sourceOf => new SourceOfExpression { SourceSyntax = sourceOf.SourceSyntax, ArgumentName = sourceOf.ArgumentName, ResolvedType = sourceOf.ResolvedType },
 			ParenthesizedExpression parenthesized => new ParenthesizedExpression { SourceSyntax = parenthesized.SourceSyntax, Expression = CloneDefaultArgumentExpression(parenthesized.Expression), ResolvedType = parenthesized.ResolvedType },
 			CastExpression cast => new CastExpression { SourceSyntax = cast.SourceSyntax, Kind = cast.Kind, Type = CloneType(cast.Type), Expression = CloneDefaultArgumentExpression(cast.Expression), ResolvedType = cast.ResolvedType },
 			UnaryExpression unary => new UnaryExpression { SourceSyntax = unary.SourceSyntax, Operator = unary.Operator, Operand = CloneDefaultArgumentExpression(unary.Operand), ResolvedType = unary.ResolvedType },

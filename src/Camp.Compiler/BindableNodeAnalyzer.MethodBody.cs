@@ -1088,6 +1088,8 @@ public sealed partial class BindableNodeAnalyzer
 			VTableOfExpression vtableOf => BodyAnalyzeVTableOfExpression(vtableOf, typeScope),
 			NameOfExpression nameOf => BodyAnalyzeNameOfExpression(nameOf, scope, typeScope, targetType),
 			SymbolOfExpression symbolOf => BodyAnalyzeSymbolOfExpression(symbolOf),
+			CallerSourceCaptureExpression caller => BodyAnalyzeCallerSourceCaptureExpression(caller),
+			SourceOfExpression sourceOf => BodyAnalyzeSourceOfExpression(sourceOf),
 			LambdaExpression lambda => BodyAnalyzeLambdaExpression(lambda, scope, typeScope, targetType),
 			ArgumentExpression argument => BodyAnalyzeArgumentExpression(argument, scope, typeScope, targetType),
 			CallExpression call => BodyAnalyzeCallExpression(call, scope, typeScope, targetType),
@@ -1108,6 +1110,18 @@ public sealed partial class BindableNodeAnalyzer
 		expression.ResolvedType = type;
 		ApplyExpressionLifetimeFact(expression, type, scope, typeScope);
 		return type;
+	}
+
+	string BodyAnalyzeCallerSourceCaptureExpression(CallerSourceCaptureExpression expression)
+	{
+		expressionConstants[expression] = true;
+		return expression.Selector == CallerSourceCaptureSelector.SourceLine ? "uint" : "string";
+	}
+
+	string BodyAnalyzeSourceOfExpression(SourceOfExpression expression)
+	{
+		expressionConstants[expression] = true;
+		return "string";
 	}
 
 	static string BodyAnalyzeVariableReferenceExpression(VariableReferenceExpression variable)

@@ -415,6 +415,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (ContainsThisTypeReference(parameter.Type))
 				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
 		}
+		ValidateSourceCaptureDefaultValues(definition.Parameters);
 		ValidateCallableNewtypeThisParameter(definition);
 		ValidateCallableNewtypeUponParameters(definition);
 		ValidateNewtypeConstOfAnchors(definition);
@@ -1005,6 +1006,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			AnalyzeParameterDefinition(definition.Parameters[i], scope, allowThisName: IsExtensionThisParameter(definition, containingType, i), asyncContext: definition.IsAsync);
 		}
+		ValidateSourceCaptureDefaultValues(definition.Parameters);
 		foreach (ParameterDefinition parameter in definition.Parameters)
 			if (ContainsThisTypeReference(parameter.Type))
 				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
@@ -1765,6 +1767,61 @@ public sealed partial class BindableNodeAnalyzer
 			scope.GenericParameters[parameter.Name] = parameter;
 		RegisterFunctionLifetimeAnchors(definition, scope, containingType?.Name);
 		AnalyzeMethodBody(definition, scope, containingType);
+	}
+
+	void ValidateSourceCaptureDefaultValues(List<ParameterDefinition> parameters)
+	{
+		HashSet<string> parameterNames = parameters
+			.Select(static parameter => parameter.Name)
+			.Where(static name => !string.IsNullOrWhiteSpace(name))
+			.ToHashSet(StringComparer.Ordinal);
+
+		foreach (ParameterDefinition parameter in parameters)
+			ValidateSourceCaptureDefaultValue(parameter.DefaultValue, parameterNames);
+	}
+
+	void ValidateSourceCaptureDefaultValue(Expression? expression, HashSet<string> parameterNames)
+	{
+		switch (expression)
+		{
+			case null:
+				break;
+			case SourceOfExpression sourceOf:
+				if (!parameterNames.Contains(sourceOf.ArgumentName))
+					Report(GetRange(sourceOf.SourceSyntax), $"sourceof(...) argument '{sourceOf.ArgumentName}' does not name a parameter in this signature.");
+				break;
+			case ParenthesizedExpression parenthesized:
+				ValidateSourceCaptureDefaultValue(parenthesized.Expression, parameterNames);
+				break;
+			case CastExpression cast:
+				ValidateSourceCaptureDefaultValue(cast.Expression, parameterNames);
+				break;
+			case UnaryExpression unary:
+				ValidateSourceCaptureDefaultValue(unary.Context, parameterNames);
+				ValidateSourceCaptureDefaultValue(unary.Operand, parameterNames);
+				break;
+			case BinaryExpression binary:
+				ValidateSourceCaptureDefaultValue(binary.Left, parameterNames);
+				ValidateSourceCaptureDefaultValue(binary.Right, parameterNames);
+				break;
+			case ConditionalExpression conditional:
+				ValidateSourceCaptureDefaultValue(conditional.Condition, parameterNames);
+				ValidateSourceCaptureDefaultValue(conditional.WhenTrue, parameterNames);
+				ValidateSourceCaptureDefaultValue(conditional.WhenFalse, parameterNames);
+				break;
+			case GroupedExpression grouped:
+				foreach (GroupedExpressionItem item in grouped.Items)
+					ValidateSourceCaptureDefaultValue(item.Expression, parameterNames);
+				break;
+			case ArrayExpression array:
+				foreach (Expression element in array.Elements)
+					ValidateSourceCaptureDefaultValue(element, parameterNames);
+				break;
+			case InitializerExpression initializer:
+				foreach (InitializerItem item in initializer.Items)
+					ValidateSourceCaptureDefaultValue(item.Expression, parameterNames);
+				break;
+		}
 	}
 
 	void AnalyzeParameterDefinition(ParameterDefinition definition, AnalysisScope scope, bool allowThisName = false, bool asyncContext = false)

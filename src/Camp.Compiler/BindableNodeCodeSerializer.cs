@@ -1031,6 +1031,18 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write(")");
 				break;
 
+			case CallerSourceCaptureExpression caller:
+				writer.Write("caller(");
+				writer.Write(GetCallerSourceCaptureSelectorName(caller.Selector));
+				writer.Write(")");
+				break;
+
+			case SourceOfExpression sourceOf:
+				writer.Write("sourceof(");
+				writer.Write(sourceOf.ArgumentName);
+				writer.Write(")");
+				break;
+
 			case LambdaExpression lambda:
 				WriteLambda(lambda);
 				break;
@@ -1124,6 +1136,19 @@ public sealed class BindableNodeCodeSerializer
 
 		if (needsParens)
 			writer.Write(")");
+	}
+
+	static string GetCallerSourceCaptureSelectorName(CallerSourceCaptureSelector selector)
+	{
+		return selector switch
+		{
+			CallerSourceCaptureSelector.SourceLine => "sourceline",
+			CallerSourceCaptureSelector.SourceFile => "sourcefile",
+			CallerSourceCaptureSelector.PropertyName => "propertyname",
+			CallerSourceCaptureSelector.FunctionName => "functionname",
+			CallerSourceCaptureSelector.QualifiedName => "qualifiedname",
+			_ => "sourcefile"
+		};
 	}
 
 	void WriteDeclarationStatement(DeclarationStatement declaration)

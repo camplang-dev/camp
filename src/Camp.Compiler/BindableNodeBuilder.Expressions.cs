@@ -509,6 +509,10 @@ public sealed partial class BindableNodeBuilder
 		{
 			case CallPostfixPartSyntax call:
 			{
+				if (context.StartsWith("Parameter default value", StringComparison.Ordinal)
+					&& TryBuildSourceCaptureDefaultValue(target, call, out Expression? sourceCapture))
+					return sourceCapture;
+
 				CallExpression expression = new() { SourceSyntax = call, Target = target };
 				AddArguments(expression.Arguments, call.ArgumentList, $"{context} call");
 				return expression;
@@ -557,6 +561,77 @@ public sealed partial class BindableNodeBuilder
 				Report(syntax, "Unsupported postfix expression syntax.");
 				return target ?? new LiteralExpression { SourceSyntax = syntax, Kind = LiteralKind.Null, Text = "null" };
 		}
+	}
+
+	bool TryBuildSourceCaptureDefaultValue(Expression? target, CallPostfixPartSyntax call, out Expression expression)
+	{
+		expression = null!;
+		if (target is not NamedExpression { Qualifiers.Count: 0 } named)
+			return false;
+
+		if (named.Name == "caller")
+		{
+			expression = BuildCallerSourceCaptureDefaultValue(named, call);
+			return true;
+		}
+
+		if (named.Name == "sourceof")
+		{
+			expression = BuildSourceOfDefaultValue(named, call);
+			return true;
+		}
+
+		return false;
+	}
+
+	Expression BuildCallerSourceCaptureDefaultValue(NamedExpression target, CallPostfixPartSyntax call)
+	{
+		ArgumentExpression? argument = BuildSingleSourceCaptureArgument(call, "caller");
+		if (argument?.Value is NamedExpression { Qualifiers.Count: 0 } selector)
+		{
+			CallerSourceCaptureSelector? value = selector.Name switch
+			{
+				"sourceline" => CallerSourceCaptureSelector.SourceLine,
+				"sourcefile" => CallerSourceCaptureSelector.SourceFile,
+				"propertyname" => CallerSourceCaptureSelector.PropertyName,
+				"functionname" => CallerSourceCaptureSelector.FunctionName,
+				"qualifiedname" => CallerSourceCaptureSelector.QualifiedName,
+				_ => null
+			};
+			if (value is CallerSourceCaptureSelector captureSelector)
+				return new CallerSourceCaptureExpression { SourceSyntax = call, Selector = captureSelector };
+			Report(GetRange(selector.SourceSyntax ?? call), "caller(...) selector must be one of sourceline, sourcefile, propertyname, functionname, or qualifiedname.");
+		}
+		else if (argument is not null)
+			Report(GetRange(argument.SourceSyntax ?? call), "caller(...) requires a single unqualified selector name.");
+
+		return new CallExpression { SourceSyntax = call, Target = target };
+	}
+
+	Expression BuildSourceOfDefaultValue(NamedExpression target, CallPostfixPartSyntax call)
+	{
+		ArgumentExpression? argument = BuildSingleSourceCaptureArgument(call, "sourceof");
+		if (argument?.Value is NamedExpression { Qualifiers.Count: 0 } sourceArgument)
+			return new SourceOfExpression { SourceSyntax = call, ArgumentName = sourceArgument.Name };
+		if (argument is not null)
+			Report(GetRange(argument.SourceSyntax ?? call), "sourceof(...) requires a single unqualified parameter name.");
+
+		return new CallExpression { SourceSyntax = call, Target = target };
+	}
+
+	ArgumentExpression? BuildSingleSourceCaptureArgument(CallPostfixPartSyntax call, string intrinsicName)
+	{
+		List<ArgumentExpression> arguments = [];
+		AddArguments(arguments, call.ArgumentList, $"Parameter default value {intrinsicName}");
+		if (arguments.Count == 1)
+		{
+			ArgumentExpression argument = arguments[0];
+			if (argument.Name is null && argument.Modifier == ArgumentModifier.None && argument.Type is null && argument.Target is null)
+				return argument;
+		}
+
+		Report(GetRange(call), $"{intrinsicName}(...) requires exactly one positional argument.");
+		return null;
 	}
 
 	ArgumentExpression BuildArgumentExpression(ArgumentSyntax syntax, string context)

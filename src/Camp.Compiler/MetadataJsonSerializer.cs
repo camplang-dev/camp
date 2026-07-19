@@ -457,9 +457,44 @@ public static class MetadataJsonSerializer
 			else
 				WriteTypeProperty(json, "type", parameter.Type, parameter.ResolvedType);
 			if (parameter.DefaultValue is not null)
+			{
 				json.WriteString("defaultValue", SerializeExpression(parameter.DefaultValue));
+				WriteDefaultExpression(json, parameter.DefaultValue);
+			}
 			if (parameter is VTableOfParameterDefinition vtable)
 				WriteTypeProperty(json, "interfaceType", vtable.InterfaceType, vtable.InterfaceType?.ResolvedType);
+		}
+
+		static void WriteDefaultExpression(Utf8JsonWriter json, Expression expression)
+		{
+			switch (expression)
+			{
+				case CallerSourceCaptureExpression caller:
+					json.WriteStartObject("defaultExpression");
+					json.WriteString("kind", "caller");
+					json.WriteString("selector", GetCallerSourceCaptureMetadataSelector(caller.Selector));
+					json.WriteEndObject();
+					break;
+				case SourceOfExpression sourceOf:
+					json.WriteStartObject("defaultExpression");
+					json.WriteString("kind", "sourceof");
+					json.WriteString("argument", sourceOf.ArgumentName);
+					json.WriteEndObject();
+					break;
+			}
+		}
+
+		static string GetCallerSourceCaptureMetadataSelector(CallerSourceCaptureSelector selector)
+		{
+			return selector switch
+			{
+				CallerSourceCaptureSelector.SourceLine => "sourceline",
+				CallerSourceCaptureSelector.SourceFile => "sourcefile",
+				CallerSourceCaptureSelector.PropertyName => "propertyname",
+				CallerSourceCaptureSelector.FunctionName => "functionname",
+				CallerSourceCaptureSelector.QualifiedName => "qualifiedname",
+				_ => "sourcefile"
+			};
 		}
 
 		void WriteVariable(Utf8JsonWriter json, VariableDefinition variable, BigInteger? enumValue)

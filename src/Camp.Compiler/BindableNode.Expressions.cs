@@ -154,6 +154,25 @@ public class NameOfExpression : Expression
 	public BindableNode? Reference { get; set; }
 }
 
+public class CallerSourceCaptureExpression : Expression
+{
+	public CallerSourceCaptureSelector Selector { get; set; }
+}
+
+public enum CallerSourceCaptureSelector
+{
+	SourceLine,
+	SourceFile,
+	PropertyName,
+	FunctionName,
+	QualifiedName
+}
+
+public class SourceOfExpression : Expression
+{
+	public string ArgumentName { get; set; } = "";
+}
+
 public class LambdaExpression : Expression
 {
 	public bool IsNewDelegate { get; set; }
