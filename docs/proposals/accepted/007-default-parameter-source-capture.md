@@ -10,7 +10,11 @@
 
 ## Status
 
-Pending.
+Accepted and implementation-complete.
+
+This proposal is done for the implemented default-parameter source-capture
+feature. Future substantive source-capture changes should be introduced in a
+new proposal.
 
 ## Summary
 

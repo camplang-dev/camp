@@ -30,6 +30,11 @@ public static class SemanticCompiler
 		return Compile(source, CompilationPipeline.Lower);
 	}
 
+	public static SemanticCompilation CompileLowered(params (string Path, string Text)[] sources)
+	{
+		return Compile(sources, CompilationPipeline.Lower);
+	}
+
 	public static FunctionDefinition Function(SemanticCompilation compilation, string name)
 	{
 		return compilation.Module.Definitions
@@ -74,18 +79,26 @@ public static class SemanticCompiler
 
 	static SemanticCompilation Compile(string source, Func<Compilation, bool> phase)
 	{
+		return Compile([("semantic_test.camp", source)], phase);
+	}
+
+	static SemanticCompilation Compile(IReadOnlyList<(string Path, string Text)> sources, Func<Compilation, bool> phase)
+	{
 		string repositoryRoot = FindRepositoryRoot();
 		Compilation compilation = new()
 		{
 			Target = LoadTarget(repositoryRoot),
 			SourcefileDefaultRoot = repositoryRoot
 		};
-		compilation.Files.Add(new SourceFile
+		foreach ((string path, string text) in sources)
 		{
-			Path = "semantic_test.camp",
-			FullPath = Path.Combine(repositoryRoot, "semantic_test.camp"),
-			Text = source
-		});
+			compilation.Files.Add(new SourceFile
+			{
+				Path = path,
+				FullPath = Path.Combine(repositoryRoot, path),
+				Text = text
+			});
+		}
 
 		phase(compilation);
 		Module module = compilation.SharedModule ?? compilation.Files.First().BindableTree ?? new Module();

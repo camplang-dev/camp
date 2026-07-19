@@ -346,6 +346,21 @@ completion helpers. For functions with expanded forms, metadata keeps the
 source-level parameter and result spelling unless the view explicitly documents
 lowered ABI.
 
+Parameter default values are source API. Metadata keeps `defaultValue` as source
+text. For source-capture defaults, metadata also emits a structured
+`defaultExpression`:
+
+- `caller(selector)` is represented as `{ "kind": "caller", "selector":
+  "selector" }`;
+- `sourceof(argumentName)` is represented as `{ "kind": "sourceof",
+  "argument": "argumentName" }`.
+
+Camp API headers must preserve source-capture defaults in source form. They
+must not substitute values from the library's own compilation. A downstream
+consumer that omits such a parameter computes `caller(...)` and
+`sourceof(...)` from the downstream call site according to the default-argument
+rules in [Callable Lowering And Context Ownership](07-callable-lowering-and-context-ownership.md).
+
 ## Capability Parameters
 
 Special capability parameters must be structured so tools can distinguish them

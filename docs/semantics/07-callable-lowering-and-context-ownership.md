@@ -60,6 +60,62 @@ Raw `fn*` is not the same as a concrete `fn` type. A concrete `fn` records
 signature, call spec, target spec, and lifetime relations. `fn*` is a raw carrier
 described in the conversion supplement.
 
+## Default Arguments And Source Capture
+
+Default argument insertion runs after overload resolution has selected a source
+callable surface and after supplied arguments have been bound to source
+parameters. Lowering must insert omitted defaults before it rewrites callable
+values into ABI components, delegate context calls, interface vtable calls,
+expanded receiver calls, generated `out` storage, `sizeof`, `typenameof`,
+`vtableof`, or `within` arguments.
+
+Source-capture defaults are ordinary default values at the declaration surface,
+but their values are computed at the call site during this insertion step:
+
+```camp
+caller(sourceline)
+caller(sourcefile)
+caller(propertyname)
+caller(functionname)
+caller(qualifiedname)
+sourceof(argumentName)
+```
+
+The selector meanings, source text normalization, path policy, and
+not-supplied rule for `caller(propertyname)` are specified in
+[Core Expression, Statement, And Access Semantics](14-core-expression-statement-and-access-semantics.md).
+This supplement owns the callable-surface interaction rules:
+
+- A direct function or method call uses the selected concrete function or method
+  parameters.
+- A callable invocation uses the source parameter list carried by the callable
+  newtype when the target type is a callable newtype. Structural callable types
+  have only structural parameters, so they can carry ordinary supplied
+  arguments but not declaration-level source-capture defaults.
+- A receiverless declaration may ascribe a `fn` newtype. A receiver-bearing
+  declaration may ascribe a delegate-like callable newtype. The ascribed
+  callable surface supplies defaults when the value is invoked through that
+  newtype.
+- A bound method reference invoked through a delegate-like callable must still
+  compute source capture from the invocation site. The hidden delegate context
+  argument is not part of `sourceof(argumentName)` and must not shift source
+  parameter binding.
+- An interface-view call uses defaults from the interface method surface. A
+  concrete-view call uses defaults from the concrete implementation surface.
+  Defaults are not copied, merged, or inherited between those surfaces.
+- A generated interface thunk receives already-supplied arguments from the
+  interface-view call. It must not recompute source-capture defaults from the
+  generated thunk body.
+- A call compiled against a Camp API header keeps source-capture defaults
+  deferred. The consumer call site supplies `caller(...)` and `sourceof(...)`
+  values; the library build site does not.
+
+Generated helpers must preserve source provenance for the call expression whose
+defaults are being inserted. If a source constructor or destructor body is
+lowered into lifecycle helpers such as `op_initnew` or `op_delete`,
+`caller(functionname)` and `caller(qualifiedname)` still use the visible names
+`create` and `destroy`, not the generated helper names.
+
 ## Delegates
 
 Delegates lower to target plus context. The context type may be null, generated,

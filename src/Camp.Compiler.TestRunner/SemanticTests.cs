@@ -472,6 +472,111 @@ public sealed class SemanticTests
 	}
 
 	[Fact]
+	public void Source_capture_defaults_work_through_callable_newtype_invocation()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			namespace Tools;
+
+			newtype fn void CaptureFn(int value, string expression = sourceof(value), string where = caller(qualifiedname));
+			newtype delegate void CaptureDelegate(int value, string expression = sourceof(value), string where = caller(qualifiedname));
+
+			void captureImpl(int value, string expression, string where) : CaptureFn
+			{
+			}
+
+			class Recorder
+			{
+				void record(int value, string expression, string where) : CaptureDelegate
+				{
+				}
+			}
+
+			void run(Recorder* recorder)
+			{
+				CaptureFn capture = captureImpl;
+				capture(4 + 5);
+				CaptureDelegate bound = recorder.record;
+				bound(6 + 7);
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		FunctionDefinition run = SemanticCompiler.Function(compilation, "run");
+		HashSet<string> observed = SemanticCompiler.Descendants<CallExpression>(run)
+			.Where(static call => call.Arguments.Count >= 3
+				&& call.Arguments[^2].Value is LiteralExpression { Value: string }
+				&& call.Arguments[^1].Value is LiteralExpression { Value: string })
+			.Select(static call => Assert.IsType<string>(Assert.IsType<LiteralExpression>(call.Arguments[^2].Value).Value)
+				+ "|"
+				+ Assert.IsType<string>(Assert.IsType<LiteralExpression>(call.Arguments[^1].Value).Value))
+			.ToHashSet(StringComparer.Ordinal);
+		Assert.Contains("4 + 5|Tools::run", observed);
+		Assert.Contains("6 + 7|Tools::run", observed);
+	}
+
+	[Fact]
+	public void Source_capture_defaults_follow_interface_and_concrete_surfaces()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			namespace Tools;
+
+			interface IRecorder
+			{
+				void record(string where = caller(qualifiedname));
+			}
+
+			class Recorder: IRecorder
+			{
+				void record(string where = "concrete"): IRecorder
+				{
+				}
+			}
+
+			void run(Recorder* concrete, IRecorder* view)
+			{
+				concrete.record();
+				view.record();
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		FunctionDefinition run = SemanticCompiler.Function(compilation, "run");
+		HashSet<string> values = SemanticCompiler.Descendants<CallExpression>(run)
+			.Where(static call => call.Arguments.Count >= 1 && call.Arguments[^1].Value is LiteralExpression { Value: string })
+			.Select(static call => Assert.IsType<string>(Assert.IsType<LiteralExpression>(call.Arguments[^1].Value).Value))
+			.ToHashSet(StringComparer.Ordinal);
+		Assert.Contains("concrete", values);
+		Assert.Contains("Tools::run", values);
+	}
+
+	[Fact]
+	public void Source_capture_defaults_from_api_header_capture_consumer_callsite()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered(
+			("api.camp", """
+				namespace Lib;
+
+				export extern void capture(int value, string expression = sourceof(value), string file = caller(sourcefile), string where = caller(qualifiedname));
+				"""),
+			("consumer.camp", """
+				namespace App;
+				using Lib;
+
+				void run()
+				{
+					capture(10 + 5);
+				}
+				"""));
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		FunctionDefinition run = SemanticCompiler.Function(compilation, "run");
+		CallExpression call = SemanticCompiler.Descendants<CallExpression>(run).Single(static call => call.Arguments.Count == 4);
+		Assert.Equal("10 + 5", Assert.IsType<LiteralExpression>(call.Arguments[1].Value).Value);
+		Assert.Equal("consumer.camp", Assert.IsType<LiteralExpression>(call.Arguments[2].Value).Value);
+		Assert.Equal("App::run", Assert.IsType<LiteralExpression>(call.Arguments[3].Value).Value);
+	}
+
+	[Fact]
 	public void Lowered_generated_locals_record_provenance()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""

@@ -221,6 +221,14 @@ The language service should:
 When changing ranges, inspect both CLI diagnostics and LSP tests. A range that
 looks fine in text output may highlight the wrong token in an editor.
 
+Source-capture default diagnostics should follow the same rule. Invalid
+`caller(...)` or `sourceof(...)` syntax in a declaration should highlight the
+intrinsic call, selector, or argument that is wrong. A call that omits a
+`caller(propertyname)` default outside a property accessor body should highlight
+the call expression and name the parameter whose default was not supplied.
+Generated helper functions, interface thunks, and callable adapters must not
+replace the source range used for source-capture diagnostics or values.
+
 ## Outstanding Bugs And Documentation Issues
 
 When documentation work uncovers a certain compiler bug, log it in
