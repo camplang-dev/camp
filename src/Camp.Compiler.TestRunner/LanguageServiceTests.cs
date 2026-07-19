@@ -76,6 +76,29 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Analysis_reports_source_capture_default_diagnostics()
+	{
+		string root = CreateTempDirectory("language-service-source-capture");
+		string source = Path.Combine(root, "main.camp");
+		File.WriteAllText(source, """
+			extern void captureProperty(string key = caller(propertyname));
+
+			export void main()
+			{
+				captureProperty();
+			}
+			""");
+		CompilerRequest request = Request(root, source);
+
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request);
+
+		CampSourceDiagnostic diagnostic = Assert.Single(snapshot.Diagnostics, static diagnostic => diagnostic.Message.Contains("default caller(propertyname) is not supplied outside a property accessor body.", StringComparison.Ordinal));
+		Assert.Equal(Path.GetFullPath(source), diagnostic.Path);
+		Assert.NotNull(diagnostic.Range);
+		Assert.Equal(4, diagnostic.Range!.Start.Line);
+	}
+
+	[Fact]
 	public void Symbol_query_finds_local_parameter_and_function_definitions()
 	{
 		string root = CreateTempDirectory("language-service-symbols");

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Globalization;
 using System.Reflection;
 using System.Xml.Linq;
+using System.Xml.Serialization;
 
 namespace Camp.Compiler;
 
@@ -49,7 +50,7 @@ public static class CompilerXmlSerializer
 
 		foreach (PropertyInfo property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public))
 		{
-			if (property.Name == nameof(BindableNode.SourceSyntax))
+			if (property.Name == nameof(BindableNode.SourceSyntax) || property.GetCustomAttribute<XmlIgnoreAttribute>() is not null)
 				continue;
 
 			object? value = property.GetValue(node);

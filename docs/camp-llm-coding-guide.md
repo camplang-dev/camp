@@ -356,6 +356,13 @@ Use named arguments when they improve clarity or when an API requires them. Do
 not silently drop `thrown`, allocator, or lifetime parameters just to make a call
 shorter; either pass them through or handle them locally.
 
+For library APIs that intentionally capture caller context, use source-capture
+defaults only in parameter default expressions. `sourceof(parameterName)`
+captures the caller-written argument text. `caller(sourceline)`,
+`caller(sourcefile)`, `caller(propertyname)`, `caller(functionname)`, and
+`caller(qualifiedname)` capture caller facts for logging, assertions, and
+property bags. Do not use these forms in ordinary expressions.
+
 Call sites use `out` for output slots and `catch` for thrown slots:
 
 ```camp

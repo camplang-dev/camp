@@ -51,6 +51,9 @@ public sealed class CompilerRequest
 	public string? SubsystemName { get; set; }
 	public bool NoStdLib { get; set; }
 	public WithinAllocationPolicy? WithinAllocationPolicy { get; set; }
+	public SourcefilePathMode SourcefilePathMode { get; set; } = SourcefilePathMode.Relative;
+	public List<string> SourcefileRoots { get; } = [];
+	public string? SourcefileDefaultRoot { get; set; }
 	public List<string> References { get; } = [];
 	public List<string> SharedLibraryApiHeaders { get; } = [];
 	public List<string> Frameworks { get; } = [];
@@ -328,24 +331,27 @@ public static class CompilerDriver
 			{
 				Target = context.Target,
 				ProfileName = context.ProfileName,
-				DefaultWithinAllocationPolicy = GetEffectiveWithinAllocationPolicy()
+				DefaultWithinAllocationPolicy = GetEffectiveWithinAllocationPolicy(),
+				SourcefilePathMode = request.SourcefilePathMode,
+				SourcefileDefaultRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(request.SourcefileDefaultRoot) ? request.WorkingDirectory : request.SourcefileDefaultRoot)
 			};
+			compilation.SourcefileRoots.AddRange(request.SourcefileRoots.Select(root => Path.GetFullPath(root, request.WorkingDirectory)));
 			AddPreprocessorSymbols(compilation, context);
 			foreach (string filename in filenames)
 			{
-				if (!TryReadInput(filename, out string text, out string displayPath))
+				if (!TryReadInput(filename, out string text, out string displayPath, out string? fullPath))
 					return false;
 				if (!TryReadWithinAllocationPolicy(displayPath, text, out WithinAllocationPolicy? policy))
 					return false;
-				compilation.Files.Add(new SourceFile { Path = displayPath, Text = text, WithinAllocationPolicyOverride = policy });
+				compilation.Files.Add(new SourceFile { Path = displayPath, FullPath = fullPath, Text = text, WithinAllocationPolicyOverride = policy });
 			}
 			foreach (string filename in includeFilenames)
 			{
-				if (!TryReadInput(filename, out string text, out string displayPath))
+				if (!TryReadInput(filename, out string text, out string displayPath, out string? fullPath))
 					return false;
 				if (!TryReadWithinAllocationPolicy(displayPath, text, out WithinAllocationPolicy? policy))
 					return false;
-				compilation.Files.Add(new SourceFile { Path = displayPath, Text = text, IsApiHeader = true, SharedLibraryImport = IsSharedLibraryApiHeader(filename), WithinAllocationPolicyOverride = policy });
+				compilation.Files.Add(new SourceFile { Path = displayPath, FullPath = fullPath, Text = text, IsApiHeader = true, SharedLibraryImport = IsSharedLibraryApiHeader(filename), WithinAllocationPolicyOverride = policy });
 			}
 			return true;
 		}
@@ -403,7 +409,7 @@ public static class CompilerDriver
 					compilation.PreprocessorSymbols.Add(symbol);
 		}
 
-		bool TryReadInput(string filename, out string text, out string displayPath)
+		bool TryReadInput(string filename, out string text, out string displayPath, out string? fullPath)
 		{
 			try
 			{
@@ -411,10 +417,11 @@ public static class CompilerDriver
 				{
 					text = Console.In.ReadToEnd();
 					displayPath = "-";
+					fullPath = null;
 					return true;
 				}
 
-				string fullPath = Path.GetFullPath(filename, request.WorkingDirectory);
+				fullPath = Path.GetFullPath(filename, request.WorkingDirectory);
 				text = File.ReadAllText(fullPath);
 				displayPath = GetDisplayPath(fullPath);
 				return true;
@@ -423,6 +430,7 @@ public static class CompilerDriver
 			{
 				text = "";
 				displayPath = filename;
+				fullPath = null;
 				ErrorLine($"{filename}: {ex.Message}");
 				return false;
 			}

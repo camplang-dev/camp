@@ -96,6 +96,19 @@ and stable. A default that depends on private implementation details can make an
 API harder to call correctly from generated metadata, wrappers, or other
 languages.
 
+Library APIs that need logging, assertion, or property-bag convenience can use
+source-capture defaults. These intrinsics are valid only as parameter default
+values:
+
+```camp
+void assert(bool condition, string expression = sourceof(condition), string file = caller(sourcefile), uint line = caller(sourceline));
+string getPropertyValue(string key = caller(propertyname));
+```
+
+`sourceof(parameterName)` captures the source text that the caller wrote for
+that argument. `caller(...)` captures facts about the caller, such as source
+file, source line, function name, qualified name, or property name.
+
 When a function with defaults is converted to a callable value, the compiler
 may need a wrapper that supplies omitted arguments. That is still the same
 source contract: callers can omit the defaulted slots where the callable shape

@@ -148,6 +148,70 @@ these same rules. Lowering must eventually produce the component-level pointer,
 length, and stride operations described in
 [Expanded Forms And ABI Shapes](02-expanded-forms-and-abi-shapes.md).
 
+## Source Capture Default Arguments
+
+Source capture is a default-argument feature for APIs that need caller
+information without forcing ordinary callers to write it by hand. The compiler
+recognizes these intrinsic forms only in parameter default value expressions:
+
+```camp
+caller(sourceline)
+caller(sourcefile)
+caller(propertyname)
+caller(functionname)
+caller(qualifiedname)
+sourceof(argumentName)
+```
+
+`caller` is contextual. It is treated as an intrinsic only when used in this
+call shape inside a default parameter expression. Other uses of the name
+`caller` are ordinary source lookup.
+
+The `caller(...)` selector is not an expression. It must be exactly one of the
+listed selector names. `sourceof(...)` accepts exactly one unqualified parameter
+name from the same signature; arbitrary expressions are invalid.
+
+During direct-call default insertion, after overload resolution has selected a
+concrete callable and bound supplied arguments to parameters, lowering replaces
+source-capture defaults with ordinary literal expressions:
+
+- `caller(sourceline)` becomes a `uint` literal for the 1-based line of the
+  source statement containing the call.
+- `caller(sourcefile)` becomes a string literal for the caller source file.
+- `caller(functionname)` becomes the visible source function or member name of
+  the caller. Instance members, static members, and out-of-scope members all use
+  the visible function name. Overload suffixes are included. Constructors use
+  `create`; destructors use `destroy`.
+- `caller(qualifiedname)` becomes `[Namespace::][Type.]functionName`. The
+  namespace uses `::`, the type/member separator uses `.`, overload suffixes are
+  included, and constructors/destructors use `create`/`destroy`.
+- `caller(propertyname)` is supplied only when the call appears inside a getter
+  or setter body that Camp recognizes as property-accessible. The value is the
+  property accessor name, without the `get` or `set` prefix. Outside such a
+  body, this default is not supplied, so the caller must pass the argument
+  explicitly.
+- `sourceof(argumentName)` becomes a string literal containing the normalized
+  source text that the caller explicitly wrote for that argument. If the
+  referenced argument was also omitted and supplied by a default, the value is
+  the empty string.
+
+Source text capture uses the caller-written argument syntax before property,
+index, range, `out`, and expanded-form lowering. It removes comments, collapses
+whitespace outside literals, trims leading/trailing whitespace, preserves
+literal spelling, and keeps whitespace where required to avoid merging adjacent
+identifier or number tokens.
+
+`caller(sourcefile)` uses the compiler request's sourcefile path policy. The
+default policy is relative. In relative mode, files are relative to the active
+`.campbuild` directory when a build file is the request entry point, or to the
+request working directory for loose source-file builds. One or more
+`--sourcefile-root` values replace that default root; the longest matching root
+is selected. If a source file is outside every selected root, the compiler
+diagnoses the omitted argument instead of inventing a path. If two distinct
+source files would produce the same relative sourcefile string, the compiler
+diagnoses the collision. `--sourcefile-paths absolute` emits absolute paths and
+ignores `--sourcefile-root`.
+
 ## Omitted Trailing `out` Result Binding
 
 Camp allows certain calls with trailing `out` parameters to bind as values at

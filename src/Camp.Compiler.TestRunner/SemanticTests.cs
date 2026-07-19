@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -329,6 +330,145 @@ public sealed class SemanticTests
 			extern void unknownSourceOf(string value = sourceof(missing));
 			""");
 		Assert.Contains(unknownParameterCompilation.Diagnostics, static diagnostic => diagnostic.Contains("sourceof(...) argument 'missing' does not name a parameter in this signature.", System.StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void Source_capture_defaults_substitute_direct_call_values()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			namespace Tools;
+
+			extern void capture(bool condition, bool optional = true, string expression = sourceof(condition), string omitted = sourceof(optional), uint line = caller(sourceline), string file = caller(sourcefile), string function = caller(functionname), string qualified = caller(qualifiedname));
+			extern void captureProperty(string key = caller(propertyname));
+
+			void run()
+			{
+				capture(1 + 2 == 3);
+			}
+
+			class Box
+			{
+				bool getReady()
+				{
+					captureProperty();
+					return true;
+				}
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		FunctionDefinition run = SemanticCompiler.Function(compilation, "run");
+		CallExpression capture = SemanticCompiler.Descendants<CallExpression>(run).Single(static call => call.Arguments.Count == 8);
+		Assert.Equal("1 + 2 == 3", Assert.IsType<LiteralExpression>(capture.Arguments[2].Value).Value);
+		Assert.Equal("", Assert.IsType<LiteralExpression>(capture.Arguments[3].Value).Value);
+		Assert.Equal((GetCallLine(capture) ?? 1).ToString(System.Globalization.CultureInfo.InvariantCulture), Assert.IsType<LiteralExpression>(capture.Arguments[4].Value).Text);
+		Assert.Equal("semantic_test.camp", Assert.IsType<LiteralExpression>(capture.Arguments[5].Value).Value);
+		Assert.Equal("run", Assert.IsType<LiteralExpression>(capture.Arguments[6].Value).Value);
+		Assert.Equal("Tools::run", Assert.IsType<LiteralExpression>(capture.Arguments[7].Value).Value);
+
+		TypeDefinition box = SemanticCompiler.Type(compilation, "Box");
+		FunctionDefinition getter = SemanticCompiler.Method(box, "getReady");
+		CallExpression propertyCapture = SemanticCompiler.Descendants<CallExpression>(getter).Single(static call => call.Arguments.Count == 1);
+		Assert.Equal("Ready", Assert.IsType<LiteralExpression>(propertyCapture.Arguments[0].Value).Value);
+
+		static int? GetCallLine(CallExpression call)
+		{
+			if (call.SourceSyntax is null)
+				return null;
+			return call.SourceSyntax.GetType()
+				.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+				.Select(property => property.GetValue(call.SourceSyntax))
+				.OfType<Token>()
+				.Select(static token => token.LineNumber)
+				.FirstOrDefault();
+		}
+	}
+
+	[Fact]
+	public void Source_capture_defaults_use_visible_caller_names()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			namespace Tools;
+
+			extern void* malloc(nuint size);
+			extern void free(void* pointer);
+			extern void capture(string function = caller(functionname), string qualified = caller(qualifiedname));
+
+			void top()
+			{
+				capture();
+			}
+
+			int add(overload int left, int right)
+			{
+				capture();
+				return left + right;
+			}
+
+			class Box
+			{
+				Box()
+				{
+					capture();
+				}
+
+				~Box()
+				{
+					capture();
+				}
+
+				void method()
+				{
+					capture();
+				}
+
+				static void staticMethod()
+				{
+					capture();
+				}
+			}
+
+			static void Box.outOfScope()
+			{
+				capture();
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		HashSet<string> observed = SemanticCompiler.Descendants<CallExpression>(compilation.Module)
+			.Where(static call => call.Arguments.Count >= 2
+				&& call.Arguments[0].Value is LiteralExpression { Value: string }
+				&& call.Arguments[1].Value is LiteralExpression { Value: string })
+			.Select(static call => StringArgument(call.Arguments[0]) + "|" + StringArgument(call.Arguments[1]))
+			.ToHashSet(StringComparer.Ordinal);
+
+		Assert.Contains("top|Tools::top", observed);
+		Assert.Contains("addInt|Tools::addInt", observed);
+		Assert.Contains("create|Tools::Box.create", observed);
+		Assert.Contains("destroy|Tools::Box.destroy", observed);
+		Assert.Contains("method|Tools::Box.method", observed);
+		Assert.Contains("staticMethod|Tools::Box.staticMethod", observed);
+		Assert.Contains("outOfScope|Tools::Box.outOfScope", observed);
+
+		static string StringArgument(ArgumentExpression argument)
+		{
+			return Assert.IsType<string>(Assert.IsType<LiteralExpression>(argument.Value).Value);
+		}
+	}
+
+	[Fact]
+	public void Source_capture_propertyname_not_supplied_outside_property_body()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			extern void captureProperty(string key = caller(propertyname));
+
+			void run()
+			{
+				captureProperty();
+			}
+			""");
+
+		Assert.Contains(compilation.Diagnostics, static diagnostic => diagnostic.Contains("default caller(propertyname) is not supplied outside a property accessor body.", System.StringComparison.Ordinal));
 	}
 
 	[Fact]

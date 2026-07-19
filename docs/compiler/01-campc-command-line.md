@@ -169,9 +169,18 @@ These options are valid for `build`, `run`, and `dump` unless noted:
 | `--use-source` | Add a named package source root for live package lookup. |
 | `--project-reference` | Build and reference another Camp project. |
 | `--metadata` | Select metadata emission: `none`, `export`, `public`, or `all`. |
+| `--sourcefile-paths` | Select `caller(sourcefile)` path style: `relative` or `absolute`; default is `relative`. |
+| `--sourcefile-root` | Add a root for relative `caller(sourcefile)` values. May be repeated. |
 | `--explicit-within` | Require source `new` and pointer-form `delete` to use an explicit `within` context unless overridden by `#within`. |
 | `--implicit-within` | Allow source `new` and pointer-form `delete` to fall back to the default allocator unless overridden by `#within`. |
 | `--xml` | Use XML for `dump declarations` or `dump lowering`. |
+
+`--sourcefile-paths` and `--sourcefile-root` affect only source-capture default
+arguments such as `caller(sourcefile)`. Relative sourcefile paths are rooted at
+the active `.campbuild` directory for build-file requests, or at the command
+working directory for loose source-file requests. If one or more
+`--sourcefile-root` values are supplied, those roots replace the default root
+and the longest matching root is used.
 
 Build/run-only options:
 

@@ -18,6 +18,9 @@ public sealed class Compilation
 	public Dictionary<Definition, SourceFile> DefinitionOwners { get; } = [];
 	public TargetDefinition? Target { get; set; }
 	public string ProfileName { get; set; } = "DEBUG";
+	public SourcefilePathMode SourcefilePathMode { get; set; } = SourcefilePathMode.Relative;
+	public string SourcefileDefaultRoot { get; set; } = "";
+	public List<string> SourcefileRoots { get; } = [];
 	public HashSet<string> PreprocessorSymbols { get; } = new(System.StringComparer.Ordinal);
 	public HashSet<string> TargetOwnedPreprocessorSymbols { get; } = new(System.StringComparer.Ordinal);
 	public WithinAllocationPolicy DefaultWithinAllocationPolicy { get; set; } = WithinAllocationPolicy.Implicit;
@@ -26,6 +29,7 @@ public sealed class Compilation
 public sealed class SourceFile
 {
 	public required string Path { get; init; }
+	public string? FullPath { get; init; }
 	public required string Text { get; init; }
 	public bool IsApiHeader { get; init; }
 	public bool SharedLibraryImport { get; init; }
@@ -121,12 +125,16 @@ public static class CompilationPipeline
 	static Module BuildSharedModule(Compilation compilation)
 	{
 		Module module = new();
+		module.SourcefilePathMode = compilation.SourcefilePathMode;
+		module.SourcefileDefaultRoot = compilation.SourcefileDefaultRoot;
+		module.SourcefileRoots.AddRange(compilation.SourcefileRoots);
 		foreach (SourceFile file in compilation.Files)
 		{
 			if (file.BindableTree is not Module fileModule)
 				continue;
 			if (file.Tokens is not null)
 			{
+				module.SourceFiles[file.Tokens] = file;
 				module.SourceWithinAllocationPolicies[file.Tokens] = file.WithinAllocationPolicyOverride ?? compilation.DefaultWithinAllocationPolicy;
 				module.SourceNamespaces[file.Tokens] = fileModule.Namespace;
 			}

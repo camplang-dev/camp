@@ -49,6 +49,37 @@ public sealed class ProjectLoaderTests
 	}
 
 	[Fact]
+	public void Project_loader_reads_sourcefile_path_options()
+	{
+		string workspace = CreateTempDirectory("project-loader-sourcefile-paths");
+		string app = Path.Combine(workspace, "app");
+		string sourceDirectory = Path.Combine(app, "src");
+		string generatedDirectory = Path.Combine(app, "generated");
+		Directory.CreateDirectory(sourceDirectory);
+		Directory.CreateDirectory(generatedDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), "export void main() {}");
+		string buildFile = Path.Combine(app, "app.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			--sourcefile-paths absolute
+			--sourcefile-root src
+			--sourcefile-root generated
+			src/*.camp
+			""");
+
+		CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(workspace));
+
+		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+		Assert.Equal(SourcefilePathMode.Absolute, result.Request.SourcefilePathMode);
+		Assert.Equal(Path.GetFullPath(app), Path.GetFullPath(result.Request.SourcefileDefaultRoot!));
+		Assert.Equal([
+			Path.GetFullPath(sourceDirectory),
+			Path.GetFullPath(generatedDirectory)
+		], result.Request.SourcefileRoots.Select(path => Path.GetFullPath(path)).ToArray());
+	}
+
+	[Fact]
 	public void Project_loader_expands_includes_and_excludes()
 	{
 		string root = CreateTempDirectory("project-loader-globs");

@@ -449,6 +449,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
+		Dictionary<string, string> suppliedSourceText = BuildSuppliedArgumentSourceText(callableParameters, argumentsByParameter);
 		List<ArgumentExpression> orderedArguments = [];
 		for (int parameterIndex = 0; parameterIndex < callableParameters.Count; parameterIndex++)
 		{
@@ -512,7 +513,8 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
-			Expression? defaultValue = CloneDefaultArgumentExpression(parameter.DefaultValue);
+			if (!TryCreateDefaultArgumentExpression(parameter.DefaultValue, parameter, call, suppliedSourceText, out Expression? defaultValue))
+				continue;
 			string? defaultType = defaultValue?.ResolvedType;
 			orderedArguments.Add(new ArgumentExpression
 			{
@@ -527,6 +529,231 @@ public sealed partial class BindableNodeAnalyzer
 				orderedArguments.Add(argument);
 		call.Arguments.Clear();
 		call.Arguments.AddRange(orderedArguments);
+	}
+
+	Dictionary<string, string> BuildSuppliedArgumentSourceText(List<ParameterDefinition> callableParameters, ArgumentExpression?[] argumentsByParameter)
+	{
+		Dictionary<string, string> result = new(StringComparer.Ordinal);
+		for (int i = 0; i < callableParameters.Count && i < argumentsByParameter.Length; i++)
+		{
+			if (string.IsNullOrWhiteSpace(callableParameters[i].Name) || argumentsByParameter[i] is not ArgumentExpression argument)
+				continue;
+			result[callableParameters[i].Name!] = FormatSourceOfArgument(argument);
+		}
+		return result;
+	}
+
+	bool TryCreateDefaultArgumentExpression(Expression expression, ParameterDefinition parameter, CallExpression call, Dictionary<string, string> suppliedSourceText, out Expression? result)
+	{
+		result = expression switch
+		{
+			CallerSourceCaptureExpression caller => CreateCallerSourceCaptureArgument(caller, parameter, call),
+			SourceOfExpression sourceOf => NameOfStringLiteral(suppliedSourceText.TryGetValue(sourceOf.ArgumentName, out string? text) ? text : "", call.SourceSyntax ?? parameter.SourceSyntax),
+			ParenthesizedExpression parenthesized => TryCreateDefaultArgumentExpression(parenthesized.Expression ?? NullLiteral(), parameter, call, suppliedSourceText, out Expression? innerParenthesized)
+				? new ParenthesizedExpression { SourceSyntax = parenthesized.SourceSyntax, Expression = innerParenthesized, ResolvedType = parenthesized.ResolvedType }
+				: null,
+			CastExpression cast => TryCreateDefaultArgumentExpression(cast.Expression ?? NullLiteral(), parameter, call, suppliedSourceText, out Expression? innerCast)
+				? new CastExpression { SourceSyntax = cast.SourceSyntax, Kind = cast.Kind, Type = CloneType(cast.Type), Expression = innerCast, ResolvedType = cast.ResolvedType }
+				: null,
+			UnaryExpression unary => TryCreateDefaultArgumentExpression(unary.Operand ?? NullLiteral(), parameter, call, suppliedSourceText, out Expression? innerUnary)
+				? new UnaryExpression { SourceSyntax = unary.SourceSyntax, Operator = unary.Operator, Context = CloneDefaultArgumentExpression(unary.Context), Operand = innerUnary, ResolvedType = unary.ResolvedType }
+				: null,
+			BinaryExpression binary => TryCreateDefaultArgumentExpression(binary.Left ?? NullLiteral(), parameter, call, suppliedSourceText, out Expression? left)
+				&& TryCreateDefaultArgumentExpression(binary.Right ?? NullLiteral(), parameter, call, suppliedSourceText, out Expression? right)
+				? new BinaryExpression { SourceSyntax = binary.SourceSyntax, Operator = binary.Operator, Left = left, Right = right, ResolvedType = binary.ResolvedType }
+				: null,
+			ConditionalExpression conditional => TryCreateDefaultArgumentExpression(conditional.Condition ?? NullLiteral(), parameter, call, suppliedSourceText, out Expression? condition)
+				&& TryCreateDefaultArgumentExpression(conditional.WhenTrue ?? NullLiteral(), parameter, call, suppliedSourceText, out Expression? whenTrue)
+				&& TryCreateDefaultArgumentExpression(conditional.WhenFalse ?? NullLiteral(), parameter, call, suppliedSourceText, out Expression? whenFalse)
+				? new ConditionalExpression { SourceSyntax = conditional.SourceSyntax, Condition = condition, WhenTrue = whenTrue, WhenFalse = whenFalse, ResolvedType = conditional.ResolvedType }
+				: null,
+			_ => CloneDefaultArgumentExpression(expression)
+		};
+		return result is not null;
+	}
+
+	Expression? CreateCallerSourceCaptureArgument(CallerSourceCaptureExpression caller, ParameterDefinition parameter, CallExpression call)
+	{
+		SyntaxNode? syntax = call.SourceSyntax ?? parameter.SourceSyntax;
+		return caller.Selector switch
+		{
+			CallerSourceCaptureSelector.SourceLine => NumberLiteral(GetCallSourceLine(call).ToString(System.Globalization.CultureInfo.InvariantCulture), "uint"),
+			CallerSourceCaptureSelector.SourceFile => TryGetCallSourceFile(call, out string? sourceFile)
+				? NameOfStringLiteral(sourceFile!, syntax)
+				: null,
+			CallerSourceCaptureSelector.FunctionName => NameOfStringLiteral(GetCurrentVisibleCallableName(), syntax),
+			CallerSourceCaptureSelector.QualifiedName => NameOfStringLiteral(GetCurrentQualifiedCallableName(call), syntax),
+			CallerSourceCaptureSelector.PropertyName => TryGetCurrentPropertyName(out string? propertyName)
+				? NameOfStringLiteral(propertyName!, syntax)
+				: ReportNotSuppliedCallerPropertyName(parameter, call),
+			_ => null
+		};
+	}
+
+	Expression? ReportNotSuppliedCallerPropertyName(ParameterDefinition parameter, CallExpression call)
+	{
+		Report(GetRange(call.SourceSyntax ?? call.Target?.SourceSyntax ?? parameter.SourceSyntax), $"Parameter '{parameter.Name}' default caller(propertyname) is not supplied outside a property accessor body.");
+		return null;
+	}
+
+	int GetCallSourceLine(CallExpression call)
+	{
+		return (GetRange(call.SourceSyntax ?? call.Target?.SourceSyntax) ?? GetRange(call.Target?.SourceSyntax))?.StartLineNumber ?? 1;
+	}
+
+	bool TryGetCallSourceFile(CallExpression call, out string? sourceFile)
+	{
+		sourceFile = null;
+		TokenRange? range = GetRange(call.SourceSyntax ?? call.Target?.SourceSyntax);
+		if (range is not TokenRange tokenRange || currentModule is null || !currentModule.SourceFiles.TryGetValue(tokenRange.Sequence, out SourceFile? file))
+			return false;
+		string physicalPath = string.IsNullOrWhiteSpace(file.FullPath) ? file.Path : file.FullPath!;
+		sourcefilePathMapper ??= new SourcefilePathMapper(currentModule.SourcefilePathMode, currentModule.SourcefileDefaultRoot, currentModule.SourcefileRoots);
+		SourcefilePathMapResult result = sourcefilePathMapper.Map(physicalPath);
+		if (result.Success)
+		{
+			sourceFile = result.Value;
+			return true;
+		}
+		Report(GetRange(call.SourceSyntax ?? call.Target?.SourceSyntax), result.Diagnostic ?? "Could not map caller(sourcefile).");
+		return false;
+	}
+
+	string GetCurrentVisibleCallableName()
+	{
+		FunctionDefinition? function = GetCurrentSourceCaptureFunction();
+		if (function is null)
+			return "";
+		if (function.Modifier == FunctionModifier.Constructor)
+			return CreateMethodName;
+		if (IsDestructorFunction(function))
+			return DestroyMethodName;
+		return GetCallableName(function).TrimStart('~');
+	}
+
+	string GetCurrentQualifiedCallableName(CallExpression call)
+	{
+		FunctionDefinition? function = GetCurrentSourceCaptureFunction();
+		if (function is null)
+			return "";
+		string name = GetCurrentVisibleCallableName();
+		string prefix = "";
+		TypeDefinition? containingType = FindContainingType(function) ?? (currentRewriteFunction is null ? null : FindContainingType(currentRewriteFunction));
+		if (function.OutOfScopeOwnerName is not null)
+			prefix = function.OutOfScopeOwnerName + ".";
+		else if (containingType is not null)
+			prefix = containingType.Name + ".";
+		string? ns = function.Namespace ?? containingType?.Namespace;
+		if (currentModule is not null
+			&& currentModule.DefinitionSources.TryGetValue(function, out TokenSequence? source)
+			&& source is not null
+			&& currentModule.SourceNamespaces.TryGetValue(source, out string? foundNamespace))
+			ns = foundNamespace;
+		return (string.IsNullOrWhiteSpace(ns) ? "" : ns + "::") + prefix + name;
+	}
+
+	FunctionDefinition? GetCurrentSourceCaptureFunction()
+	{
+		if (currentRewriteFunction?.GeneratedInfo is { Category: GeneratedDeclarationCategory.Lifecycle, Source: FunctionDefinition source }
+			&& (source.Modifier == FunctionModifier.Constructor || IsDestructorFunction(source)))
+			return source;
+		return currentRewriteFunction;
+	}
+
+	bool TryGetCurrentPropertyName(out string? propertyName)
+	{
+		propertyName = null;
+		if (currentRewriteFunction is null)
+			return false;
+		string name = currentRewriteFunction.Name;
+		if (name.StartsWith("get", StringComparison.Ordinal) && IsPropertyGetterFunction(currentRewriteFunction))
+			propertyName = name["get".Length..];
+		else if (name.StartsWith("set", StringComparison.Ordinal) && name.Length > "set".Length)
+			propertyName = name["set".Length..];
+		return !string.IsNullOrWhiteSpace(propertyName);
+	}
+
+	static string FormatSourceOfArgument(ArgumentExpression argument)
+	{
+		TokenRange? range = argument.SourceSyntax is ArgumentSyntax syntax && syntax.Expression is not null
+			? GetFullSourceRange(syntax.Expression)
+			: GetRange(argument.Value?.SourceSyntax ?? argument.SourceSyntax);
+		return range is TokenRange tokenRange ? NormalizeSourceCaptureText(tokenRange) : "";
+	}
+
+	static TokenRange? GetFullSourceRange(SyntaxNode? syntax)
+	{
+		if (syntax is null)
+			return null;
+		TokenSequence? sequence = null;
+		int start = int.MaxValue;
+		int end = -1;
+		CollectTokens(syntax);
+		return sequence is null || end < start ? null : new TokenRange(sequence, start, end - start + 1);
+
+		void Include(TokenRange range)
+		{
+			if (sequence is not null && !ReferenceEquals(sequence, range.Sequence))
+				return;
+			sequence ??= range.Sequence;
+			start = Math.Min(start, range.Index);
+			end = Math.Max(end, range.Index + range.Count - 1);
+		}
+
+		void CollectTokens(object? value)
+		{
+			switch (value)
+			{
+				case null:
+					return;
+				case Token token:
+					Include(token.Range);
+					return;
+				case TokenRange range:
+					Include(range);
+					return;
+				case string:
+					return;
+				case System.Collections.IEnumerable items:
+					foreach (object? item in items)
+						CollectTokens(item);
+					return;
+			}
+			if (value is not SyntaxNode)
+				return;
+			foreach (System.Reflection.PropertyInfo property in value.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+				CollectTokens(property.GetValue(value));
+		}
+	}
+
+	static string NormalizeSourceCaptureText(TokenRange range)
+	{
+		System.Text.StringBuilder builder = new();
+		TokenValue? previous = null;
+		for (int i = 0; i < range.Count; i++)
+		{
+			TokenValue token = range.Sequence.Values[range.Index + i];
+			if (token.Class is TokenClass.LineComment or TokenClass.BlockComment)
+				continue;
+			if (token.Class is TokenClass.Whitespace or TokenClass.NewLine)
+			{
+				if (builder.Length > 0 && !char.IsWhiteSpace(builder[^1]))
+					builder.Append(' ');
+				continue;
+			}
+			if (previous is TokenValue prior && NeedsSourceCaptureSpace(prior, token) && builder.Length > 0 && !char.IsWhiteSpace(builder[^1]))
+				builder.Append(' ');
+			builder.Append(token.Value);
+			previous = token;
+		}
+		return builder.ToString().Trim();
+	}
+
+	static bool NeedsSourceCaptureSpace(TokenValue previous, TokenValue current)
+	{
+		bool previousWord = previous.Class is TokenClass.Identifier or TokenClass.Number;
+		bool currentWord = current.Class is TokenClass.Identifier or TokenClass.Number;
+		return previousWord && currentWord;
 	}
 
 	bool HasProvidedExpandedComponentArgument(List<ArgumentExpression> arguments, List<ParameterDefinition> callableParameters)

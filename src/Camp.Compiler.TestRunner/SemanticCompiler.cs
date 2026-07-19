@@ -78,10 +78,12 @@ public static class SemanticCompiler
 		Compilation compilation = new()
 		{
 			Target = LoadTarget(repositoryRoot),
+			SourcefileDefaultRoot = repositoryRoot
 		};
 		compilation.Files.Add(new SourceFile
 		{
 			Path = "semantic_test.camp",
+			FullPath = Path.Combine(repositoryRoot, "semantic_test.camp"),
 			Text = source
 		});
 

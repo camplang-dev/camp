@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Xml.Serialization;
 
 namespace Camp.Compiler;
 
@@ -18,9 +19,26 @@ public class Module : BindableNode
 	public string? Namespace { get; set; }
 	public List<Definition> Definitions { get; } = [];
 	public List<ExportProjectionDefinition> ExportProjections { get; } = [];
+	[XmlIgnore]
 	public Dictionary<Definition, TokenSequence?> DefinitionSources { get; } = [];
+	[XmlIgnore]
+	public Dictionary<TokenSequence, SourceFile> SourceFiles { get; } = [];
+	[XmlIgnore]
 	public Dictionary<TokenSequence, string?> SourceNamespaces { get; } = [];
+	[XmlIgnore]
 	public Dictionary<TokenSequence, WithinAllocationPolicy> SourceWithinAllocationPolicies { get; } = [];
+	[XmlIgnore]
+	public SourcefilePathMode SourcefilePathMode { get; set; } = SourcefilePathMode.Relative;
+	[XmlIgnore]
+	public string SourcefileDefaultRoot { get; set; } = "";
+	[XmlIgnore]
+	public List<string> SourcefileRoots { get; } = [];
+}
+
+public enum SourcefilePathMode
+{
+	Relative,
+	Absolute
 }
 
 public class UsingDeclaration : BindableNode

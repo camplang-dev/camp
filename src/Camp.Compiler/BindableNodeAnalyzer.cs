@@ -77,6 +77,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<TypeReference, TypeReference> typeRewrites = [];
 	readonly Dictionary<FunctionDefinition, ParameterDefinition> materializedGenericReturnParameters = [];
 	readonly HashSet<NewtypeDefinition> analyzedNewtypeSignatures = [];
+	SourcefilePathMapper? sourcefilePathMapper;
 	readonly TargetDefinition? selectedTarget;
 	Module? currentModule;
 

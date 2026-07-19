@@ -51,8 +51,11 @@ public static class CampLanguageService
 			Target = LoadTarget(request),
 			ProfileName = request.ProfileName,
 			DefaultWithinAllocationPolicy = request.WithinAllocationPolicy
-				?? (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared ? WithinAllocationPolicy.Explicit : WithinAllocationPolicy.Implicit)
+				?? (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared ? WithinAllocationPolicy.Explicit : WithinAllocationPolicy.Implicit),
+			SourcefilePathMode = request.SourcefilePathMode,
+			SourcefileDefaultRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(request.SourcefileDefaultRoot) ? request.WorkingDirectory : request.SourcefileDefaultRoot)
 		};
+		compilation.SourcefileRoots.AddRange(request.SourcefileRoots.Select(root => Path.GetFullPath(root, request.WorkingDirectory)));
 		foreach (string define in request.Defines)
 			compilation.PreprocessorSymbols.Add(define);
 		if (compilation.Target is not null)
@@ -379,6 +382,7 @@ public static class CampLanguageService
 			return new SourceFile
 			{
 				Path = fullPath,
+				FullPath = fullPath,
 				Text = overlay.Text,
 				IsApiHeader = isApiHeader,
 				WithinAllocationPolicyOverride = ReadWithinAllocationPolicy(overlay.Text)
@@ -392,6 +396,7 @@ public static class CampLanguageService
 			return new SourceFile
 			{
 				Path = fullPath,
+				FullPath = fullPath,
 				Text = text,
 				IsApiHeader = isApiHeader,
 				WithinAllocationPolicyOverride = policy,
@@ -411,6 +416,7 @@ public static class CampLanguageService
 		return new SourceFile
 		{
 			Path = fullPath,
+			FullPath = fullPath,
 			Text = text,
 			IsApiHeader = isApiHeader,
 			WithinAllocationPolicyOverride = policy,

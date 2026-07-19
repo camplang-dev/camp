@@ -36,6 +36,10 @@ campc run app.campbuild -- --trace
 When a build/run command uses a build file and `--out-dir` is not supplied, the
 default final artifact root is `bin` next to that build file.
 
+The same build-file directory is the default root for relative
+`caller(sourcefile)` values unless the build supplies one or more explicit
+`--sourcefile-root` values.
+
 ## Response File Tokenization
 
 Response files use the same option language as command-line arguments:
@@ -49,9 +53,9 @@ Response files use the same option language as command-line arguments:
 
 Relative source patterns and path-valued options inside a response file are
 rebased to the directory containing that response file. This includes source
-patterns, `--include`, `--exclude`, `--out-dir`, `--use-source` paths, and
-project-reference paths. Native references are rebased only when they look like
-paths; bare linker names remain bare names.
+patterns, `--include`, `--exclude`, `--out-dir`, `--sourcefile-root`,
+`--use-source` paths, and project-reference paths. Native references are
+rebased only when they look like paths; bare linker names remain bare names.
 
 Project-reference link-kind suffixes are preserved while the path part is
 rebased:

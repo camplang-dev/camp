@@ -151,6 +151,13 @@ static void AddBuildOptions(Command command, bool buildOnly)
 	command.Options.Add(new Option<string?>("--metadata") { Description = "Emit metadata: none, export, public, or all." });
 	command.Options.Add(new Option<bool>("--explicit-within") { Description = "Require source-level new/delete to use an explicit within context." });
 	command.Options.Add(new Option<bool>("--implicit-within") { Description = "Allow source-level new/delete to use the default allocator without an explicit within context." });
+	command.Options.Add(new Option<string?>("--sourcefile-paths") { Description = "Source capture file paths: relative or absolute." });
+	command.Options.Add(new Option<List<string>>("--sourcefile-root")
+	{
+		Description = "Root for relative caller(sourcefile) paths.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
 	command.Options.Add(new Option<bool>("--xml") { Description = "Use XML output for declarations or lowering dumps." });
 
 	if (!buildOnly)
@@ -353,6 +360,7 @@ sealed class CampCli
 		request = null;
 		errors = [];
 		string? defaultOutDir = command is CommandKind.Build or CommandKind.Run ? TryGetDefaultOutDirFromBuildFile(args, environment.WorkingDirectory) : null;
+		string sourcefileDefaultRoot = TryGetDefaultSourcefileRootFromBuildFile(args, environment.WorkingDirectory) ?? environment.WorkingDirectory;
 
 		if (command is CommandKind.Build or CommandKind.Run)
 			args = ResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray();
@@ -417,8 +425,11 @@ sealed class CampCli
 			ProjectName = bag.ProjectName,
 			SubsystemName = bag.SubsystemName,
 			NoStdLib = bag.NoStdLib,
-			WithinAllocationPolicy = bag.WithinAllocationPolicy
+			WithinAllocationPolicy = bag.WithinAllocationPolicy,
+			SourcefilePathMode = bag.SourcefilePathMode,
+			SourcefileDefaultRoot = sourcefileDefaultRoot
 		};
+		request.SourcefileRoots.AddRange(bag.SourcefileRoots);
 		request.Defines.AddRange(bag.Defines);
 		request.Variants.AddRange(bag.Variants);
 		request.References.AddRange(bag.References);
@@ -826,6 +837,32 @@ sealed class CampCli
 		return null;
 	}
 
+	static string? TryGetDefaultSourcefileRootFromBuildFile(IReadOnlyList<string> args, string workingDirectory)
+	{
+		string? buildFile = TryGetBuildFileArgument(args, workingDirectory);
+		return buildFile is null ? null : Path.GetDirectoryName(buildFile);
+	}
+
+	static string? TryGetBuildFileArgument(IReadOnlyList<string> args, string workingDirectory)
+	{
+		for (int i = 0; i < args.Count; i++)
+		{
+			string token = args[i];
+			if (token.StartsWith("-", StringComparison.Ordinal))
+			{
+				i += ResponseFileExpander.OptionValueCountForBuildRequest(token);
+				continue;
+			}
+			string candidate = token.StartsWith("@", StringComparison.Ordinal) ? token[1..] : token;
+			string fullPath = Path.GetFullPath(candidate, workingDirectory);
+			if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
+				fullPath += ".campbuild";
+			if (File.Exists(fullPath) && Path.GetExtension(fullPath).Equals(".campbuild", StringComparison.OrdinalIgnoreCase))
+				return fullPath;
+		}
+		return null;
+	}
+
 	static bool IsNativeLibrary(string path, string targetName, string runtimeRoot, NativeBuildKind kind)
 	{
 		string targetRoot = Path.GetFullPath(Path.Combine(runtimeRoot, "..", "targets"));
@@ -1158,6 +1195,7 @@ sealed class BuildOptionBag
 	public List<PackageSourceSpec> UseSources { get; } = [];
 	public List<PackageSpec> UsePackages { get; } = [];
 	public List<string> ProjectReferences { get; } = [];
+	public List<string> SourcefileRoots { get; } = [];
 	public bool NoStdLib { get; private set; }
 	public bool ArtifactSpecified { get; private set; }
 	public NativeBuildKind? ArtifactKind { get; private set; }
@@ -1173,6 +1211,11 @@ sealed class BuildOptionBag
 	public string? ProjectName => Get("name");
 	public string? SubsystemName => Get("subsystem");
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
+	public SourcefilePathMode SourcefilePathMode => Get("sourcefile-paths") switch
+	{
+		"absolute" => SourcefilePathMode.Absolute,
+		_ => SourcefilePathMode.Relative
+	};
 	public WithinAllocationPolicy? WithinAllocationPolicy => Get("within") switch
 	{
 		"explicit" => Camp.Compiler.WithinAllocationPolicy.Explicit,
@@ -1194,6 +1237,7 @@ sealed class BuildOptionBag
 		Defines.AddRange(options.Defines);
 		References.AddRange(options.References);
 		Frameworks.AddRange(options.Frameworks);
+		SourcefileRoots.AddRange(options.SourcefileRoots);
 		AddVariants(options.Variants, precedence);
 		UseSources.AddRange(options.UseSources);
 		UsePackages.AddRange(options.UsePackages);
@@ -1280,6 +1324,7 @@ sealed class ParsedOptions
 	public List<PackageSourceSpec> UseSources { get; } = [];
 	public List<PackageSpec> UsePackages { get; } = [];
 	public List<string> ProjectReferences { get; } = [];
+	public List<string> SourcefileRoots { get; } = [];
 	public bool NoStdLib { get; set; }
 	public bool ArtifactSpecified { get; set; }
 	public NativeBuildKind? ArtifactKind { get; set; }
@@ -1372,6 +1417,15 @@ static class CommandLineOptionParser
 					break;
 				case "--out-dir":
 					AddSingle(result, "out-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+					break;
+				case "--sourcefile-paths":
+					string sourcefilePaths = RequiredValue(tokens, ref i, token, errors);
+					if (sourcefilePaths is not ("relative" or "absolute"))
+						errors.Add("--sourcefile-paths expects relative or absolute.");
+					AddSingle(result, "sourcefile-paths", sourcefilePaths);
+					break;
+				case "--sourcefile-root":
+					result.SourcefileRoots.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--build-dir":
 					errors.Add("--build-dir has been removed. Build intermediates are written to the output artifact directory's build subdirectory.");
@@ -1571,6 +1625,7 @@ static class ResponseFileExpander
 		"--exclude",
 		"--out-dir",
 		"--build-dir",
+		"--sourcefile-root",
 		"--local"
 	};
 
@@ -1621,7 +1676,7 @@ static class ResponseFileExpander
 	{
 		return option switch
 		{
-			"--target" or "-t" or "--profile" or "-p" or "--variant" or "-v" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
+			"--target" or "-t" or "--profile" or "-p" or "--variant" or "-v" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
 			"--use-source" => 2,
 			_ => 0
 		};

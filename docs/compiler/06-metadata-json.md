@@ -326,8 +326,42 @@ Parameter records may contain:
 | `targetType` | Type that a capability parameter describes. |
 | `interfaceType` | Interface type for `vtableof`. |
 | `defaultValue` | Source text for a default value. |
+| `defaultExpression` | Structured default expression metadata for source-capture defaults. |
 | `overload` | `true` for overload selector parameters. |
 | `metadata` | Parameter doc or metadata attributes. |
+
+For source-capture defaults, `defaultValue` keeps the Camp source spelling and
+`defaultExpression` records the compiler-recognized shape. For `caller(...)`:
+
+```json
+{
+  "name": "line",
+  "type": "uint",
+  "defaultValue": "caller(sourceline)",
+  "defaultExpression": {
+    "kind": "caller",
+    "selector": "sourceline"
+  }
+}
+```
+
+For `sourceof(argumentName)`:
+
+```json
+{
+  "name": "expression",
+  "type": "string",
+  "defaultValue": "sourceof(condition)",
+  "defaultExpression": {
+    "kind": "sourceof",
+    "argument": "condition"
+  }
+}
+```
+
+Generated Camp API headers preserve the same source-level default expression,
+such as `caller(sourcefile)` or `sourceof(condition)`. They do not substitute
+the library build's caller values into the exported signature.
 
 Special capability parameters keep both the ABI-carried type and the source
 target type. For example:
