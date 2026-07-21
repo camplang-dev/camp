@@ -719,6 +719,35 @@ Use `try`, `catch`, and `finally` according to the language docs and existing
 style. Do not replace `thrown` errors with ad hoc boolean return values unless
 the API intentionally uses a `tryX` shape with `out` parameters.
 
+## Tests
+
+Built-in Camp tests are top-level functions marked `@test`. Do not write tests
+as static methods, instance methods, local functions, lambdas, or declarations
+inside a `@testonly` type. The built-in runner invokes only this shape:
+
+```camp
+@test
+void addReturnsSum(thrown Assertion* assertion)
+{
+	assert(add(2, 3) == 5);
+}
+```
+
+Use `assert(condition)` for ordinary checks and `fail(message)` for an explicit
+failure. These functions capture expression text, source file, and source line
+with default source-capture intrinsics, so wrappers should forward `message`,
+`sourcefile`, and `sourceline` explicitly when they want the reported location
+to point at the wrapper's caller.
+
+Use `@testonly` only for separate top-level helpers and helper types that should
+exist in test/coverage builds but not production builds. `@testonly` may be
+private or `internal`; do not make it `public` or `export`.
+
+In-module tests run with `campc test` or `campc cover` on the module itself and
+can exercise internals. External test modules are separate projects that
+reference the production module as a shared library and test only its exported
+API.
+
 ## Interop
 
 Interop declarations should be narrow and explicit. Keep native spellings,

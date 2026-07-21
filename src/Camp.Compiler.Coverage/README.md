@@ -1,6 +1,7 @@
 # Camp.Compiler.Coverage
 
-`Camp.Compiler.Coverage` drives compiler coverage reporting.
+`Camp.Compiler.Coverage` drives coverage reporting for the C# compiler test
+suite. This is separate from Camp source coverage produced by `campc cover`.
 
 ## Setup
 

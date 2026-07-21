@@ -25,16 +25,18 @@ Use a build file with `@file`:
 campc build @app.campbuild
 ```
 
-For `build` and `run`, a bare positional `.campbuild` file is expanded the same
-way:
+For `build`, `run`, `test`, and `cover`, a bare positional `.campbuild` file is
+expanded the same way:
 
 ```sh
 campc build app.campbuild
 campc run app.campbuild -- --trace
+campc test app.campbuild
+campc cover app.campbuild
 ```
 
-When a build/run command uses a build file and `--out-dir` is not supplied, the
-default final artifact root is `bin` next to that build file.
+When a build, run, test, or cover command uses a build file and `--out-dir` is
+not supplied, the default final artifact root is `bin` next to that build file.
 
 The same build-file directory is the default root for relative
 `caller(sourcefile)` values unless the build supplies one or more explicit

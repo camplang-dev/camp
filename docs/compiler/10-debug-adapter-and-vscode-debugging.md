@@ -60,13 +60,16 @@ configurations with this shape:
   "cwd": "/path/to/project",
   "args": [],
   "stopOnEntry": false,
-  "backend": "lldb"
+  "backend": "lldb",
+  "testFilter": null
 }
 ```
 
 `project` may be either a `.campbuild` file or a loose `.camp` source file.
 `cwd` is the working directory used for the build and debug launch. `args` are
-program arguments. `stopOnEntry` requests a stop at the native entry point.
+program arguments for ordinary executable debugging. `stopOnEntry` requests a
+stop at the native entry point. `testFilter` is optional; when present, it must
+be an exact Camp test manifest ID.
 
 The `backend` value selects the native debugger backend:
 
@@ -137,6 +140,25 @@ The real native backends are intentionally narrow. They favor honest omission
 over wrong values. Unsupported expression evaluation returns an unsupported
 result instead of trying to compile arbitrary Camp expressions.
 
+## Test Debugging
+
+When `testFilter` is supplied, the debug adapter builds and launches the
+generated test harness rather than the production executable:
+
+```sh
+campc test <project> --debug-info --filter <manifest-id>
+```
+
+The harness receives its runtime event-file argument from the adapter. The
+selected test is matched by exact manifest ID; editor integrations should pass
+the ID obtained from language-service test discovery rather than a hand-written
+wildcard pattern.
+
+Breakpoints bind through the same Camp debug metadata and generated C `#line`
+mappings used by ordinary executable debugging. After the harness process exits,
+the adapter can surface the generated test results so editors can show assertion
+failures at their captured source file and source line.
+
 ## VS Code Integration
 
 The VS Code extension in `extras/vscode-camp` contributes:
@@ -144,6 +166,7 @@ The VS Code extension in `extras/vscode-camp` contributes:
 - Camp breakpoints;
 - debugger type `camp`;
 - command `Camp: Debug Current Project`;
+- CodeLens `Debug Test` commands beside top-level `@test` functions;
 - status-bar button `Camp Debug`;
 - settings:
   - `camp.server.path`;
@@ -163,6 +186,8 @@ for the nearest `.campbuild`, and starts a VS Code debug session. If no
 
 - macOS/LLDB, Linux/GDB, and Windows/CDB are supported real backends.
 - Expression evaluation is limited to simple mapped locals and parameters.
+- Test debugging launches the generated harness executable and selects one test
+  by exact manifest ID.
 - Async and iterator call stacks are not polished yet.
 - Some lowered/generated regions may still appear while stepping.
 - Expanded forms are displayed only when debug metadata makes their components

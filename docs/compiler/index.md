@@ -15,11 +15,15 @@ guidance lives in the compiler development guide and project README files.
 - Command Model
 - `build`
 - `run`
+- `test`
+- `cover`
 - `dump`
 - `restore`
 - `pkg`
 - `help`
 - Build Options
+- Test Options
+- Coverage Options
 - Output And Status Lines
 - Diagnostics
 - Standard Input
@@ -83,6 +87,7 @@ guidance lives in the compiler development guide and project README files.
 - Static Libraries
 - Shared Libraries
 - Metadata Artifacts
+- Test And Coverage Artifacts
 - Package Artifact Cache
 - Project Reference Output
 - Project Reference Freshness Inputs
@@ -138,6 +143,7 @@ guidance lives in the compiler development guide and project README files.
 - Completion
 - Signature Help
 - Document And Workspace Symbols
+- Test Discovery And Coverage Tooling
 - Standard Library And Packages
 - LSP Range Mapping
 - Backlog Ownership
@@ -163,6 +169,7 @@ guidance lives in the compiler development guide and project README files.
 - Debug Artifacts
 - Debug Adapter
 - macOS LLDB MVP
+- Test Debugging
 - VS Code Integration
 - Known V1 Limits
 - Testing Guidance

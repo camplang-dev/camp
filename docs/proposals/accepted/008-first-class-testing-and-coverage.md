@@ -2,7 +2,12 @@
 
 ## Status
 
-Draft.
+Accepted and implementation-complete.
+
+Active language guidance now lives in the language guide, compiler-writer
+semantics live in the semantic supplements, and command-line/tooling behavior
+lives in the compiler docs. This proposal is retained as the accepted design
+record.
 
 ## Proposal Date
 
@@ -10,7 +15,7 @@ Draft.
 
 ## Last Updated Date
 
-2026-07-20
+2026-07-21
 
 ## Summary
 
@@ -149,7 +154,7 @@ The initial feature does not include:
   build.
 - **Test-only declaration:** a declaration present only in test and coverage
   builds because it is marked `@testonly`, marked `@test`, owned by a test-only
-  type, or owned by a source file included only for tests.
+  type, or owned by a test-only declaration.
 - **Test manifest:** compiler-emitted JSON describing discovered tests before
   execution.
 - **Test results:** runtime JSON describing pass/fail/skip/invalid/error
@@ -171,7 +176,7 @@ campc cover app.campbuild
 The compiler builds a test variant of the module:
 
 - production source files are included;
-- configured test source files are included;
+- any additional source files selected by the test request are included;
 - `@test` functions are included and discovered;
 - `@testonly` declarations are included;
 - `TEST_MODULE` is defined;
@@ -404,8 +409,8 @@ The minimal API is:
 ```camp
 public struct Assertion
 {
-	string message;
-	string sourcefile;
+	escaped string message;
+	escaped string sourcefile;
 	uint sourceline;
 }
 
@@ -426,11 +431,11 @@ public void fail(
 	uint sourceline = caller(sourceline),
 	thrown Assertion* assertion)
 {
-	throw within (default) new Assertion {
-		.message = message,
-		.sourcefile = sourcefile,
-		.sourceline = sourceline
-	};
+	Assertion* created = within (default) new Assertion();
+	created.message = message;
+	created.sourcefile = sourcefile;
+	created.sourceline = sourceline;
+	throw created;
 }
 ```
 
@@ -464,16 +469,17 @@ source-capture proposal requires.
 
 ## Source Selection
 
-The compiler must distinguish production sources from test-only sources.
+The compiler must distinguish the ordinary production source selection from the
+source selection used to compile a test module.
 
 For in-module tests:
 
 - production source selection is the ordinary build source selection;
-- test-specific source selection adds source files only for test and coverage
-  builds;
-- declarations in test-specific source files are test-only by ownership;
-- same-file `@test` and `@testonly` declarations are test-only even when their
-  file is also a production source file.
+- the test request may select additional source files explicitly;
+- files selected only by the test request are absent from ordinary production
+  requests;
+- `@test` functions and `@testonly` helpers mark declarations that are test-only
+  within the test module, regardless of which source file contains them.
 
 For external test modules:
 
@@ -492,8 +498,8 @@ Source selection uses the existing build-file source model and the existing
 CLI `--include` / `--exclude` options. In `campc test` and `campc cover`, those
 options apply to the test-mode source selection for the test module. In
 `campc build` and `campc run`, they retain their ordinary production meaning.
-Durable test-source configuration should live in the build file when the build
-format supports mode-specific source groups.
+Durable test-source configuration should live in the test module's `.campbuild`
+file or in the command used for the test/coverage run.
 
 ## Dependency And Visibility Rules
 
@@ -511,8 +517,6 @@ Rejected dependencies:
 - a production declaration may not depend on an `@test` declaration;
 - a production declaration may not depend on an explicit `@testonly`
   declaration;
-- a production declaration may not depend on a declaration owned by a
-  test-specific source file;
 - exported or public API surfaces may not expose test-only types, values,
   callable shapes, default values, thrown types, or metadata;
 - an external test module may not bypass the production shared library's
@@ -798,7 +802,6 @@ in instrumented production mode:
 
 - no `@test` functions;
 - no `@testonly` declarations;
-- no test-specific source files;
 - no `TEST_MODULE`;
 - no widened visibility;
 - same API/import/export surface as an ordinary production build;
@@ -825,7 +828,6 @@ Default coverage excludes:
 
 - `@test` functions;
 - `@testonly` declarations;
-- declarations owned by test-specific source files;
 - generated harness code;
 - compiler-generated adapters, vtables, lifecycle helpers, lambda helpers,
   iterator state helpers, async continuations, cleanup paths, and other helper
@@ -924,23 +926,11 @@ LCOV is a projection of the coverage results.
 
 ## Build Outputs And Caching
 
-Test and coverage builds must have cache identities distinct from ordinary
-builds.
-
-Cache keys include:
-
-- mode: production, test, or coverage;
-- scenario: in-module or external;
-- target and profile;
-- production source selection;
-- test source selection;
-- dependency build mode;
-- coverage subject selection;
-- `TEST_MODULE` state;
-- sourcefile path mode and roots;
-- selected tests when they affect generated harness contents;
-- coverage instrumentation version;
-- coverage result formats.
+Test and coverage builds emit distinct manifest, harness, result, coverage map,
+coverage runtime, and coverage result artifacts. The current implementation uses
+the normal artifact directory naming for the selected target/profile/output
+settings. Build scripts that need to isolate production, test, and coverage
+generated C/native outputs should use separate `--out-dir` values.
 
 Representative outputs:
 
@@ -965,7 +955,6 @@ Ordinary generated Camp API headers and ordinary metadata never contain:
 - user `@skip`;
 - user test functions;
 - user test-only helper declarations;
-- declarations owned by test-specific source files;
 - test thunks;
 - generated harness symbols;
 - coverage runtime symbols.

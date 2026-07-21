@@ -160,6 +160,49 @@ beside the other final artifacts and is not part of the native build command.
 
 See [Metadata JSON](06-metadata-json.md).
 
+## Test And Coverage Artifacts
+
+`campc test` and `campc cover` build generated harness executables in the
+normal output root and artifact directory for the selected target/profile/output
+settings. The harness source, generated C, native objects, and manifest live
+under that directory's `build` subdirectory.
+
+The test manifest is emitted before the harness runs:
+
+```text
+<artifact-directory>/build/<project>.camp-test-manifest.json
+```
+
+When JSON test results are enabled, results are written to the test result
+directory:
+
+```text
+<artifact-directory>/test-results/<project>.camp-test-results.json
+```
+
+`--test-result-dir` replaces the default test result directory. The manifest
+remains a build artifact because it describes the generated harness input.
+
+`campc cover` also writes one coverage map per instrumented coverage subject:
+
+```text
+<artifact-directory>/build/<project>.camp-coverage-map.csv
+```
+
+Coverage maps are canonical CSV. Runtime counter files are generated scratch
+intermediates under the build directory and are merged with the maps after the
+harness exits.
+
+Coverage results are written under the coverage result directory:
+
+```text
+<artifact-directory>/coverage/<project>.camp-coverage-results.json
+<artifact-directory>/coverage/lcov.info
+```
+
+`--coverage-result-dir` replaces the default coverage result directory.
+`--coverage-format` controls whether JSON, LCOV, or both files are written.
+
 ## Package Artifact Cache
 
 Bundled package artifacts use:

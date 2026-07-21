@@ -28,6 +28,10 @@ The current server provides:
 - workspace symbols
 - signature help
 - completion
+- CodeLens run/debug/cover commands beside top-level `@test` functions
+- non-blocking runner diagnostics for invalid built-in test signatures
+- imported test-result diagnostics and coverage decorations through compiler
+  services
 
 The current server does not provide rename, formatting, semantic tokens, package
 restore, native builds, or incremental compilation.

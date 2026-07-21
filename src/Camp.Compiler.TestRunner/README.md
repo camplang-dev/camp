@@ -27,12 +27,14 @@ dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRu
 ## Testing
 
 Golden tests use files under `tests`. Semantic tests live in
-`SemanticTests.cs`. LSP tests launch `camp-lsp` over stdio. Targeted golden
-runs use `CAMP_TEST_KIND` and `CAMP_TEST_CASE`.
+`SemanticTests.cs`. CLI, test runner, coverage runner, LSP, and DAP integration
+tests live in focused xUnit classes under this project. Targeted golden runs
+use `CAMP_TEST_KIND` and `CAMP_TEST_CASE`.
 
 ## Coding Instructions
 
-Prefer semantic unit tests for small compiler facts and golden tests for exact
-emitted text or phase output. There is no automatic bless mode; inspect actual
-files before updating expected files. See `docs/compiler-development-guide.md`
-for the shared workflow.
+Prefer semantic unit tests for small compiler facts, golden tests for exact
+emitted text or phase output, and command-line integration tests for harness,
+result, coverage, LSP, and DAP behavior. There is no automatic bless mode;
+inspect actual files before updating expected files. See
+`docs/compiler-development-guide.md` for the shared workflow.

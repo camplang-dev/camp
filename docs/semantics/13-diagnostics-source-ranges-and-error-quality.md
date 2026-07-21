@@ -229,6 +229,36 @@ the call expression and name the parameter whose default was not supplied.
 Generated helper functions, interface thunks, and callable adapters must not
 replace the source range used for source-capture diagnostics or values.
 
+## Test And Coverage Diagnostics
+
+Invalid source placement of `@test`, `@testonly`, and `@skip` is a normal
+compiler diagnostic. The diagnostic should point at the attribute name when the
+attribute itself is invalid, or at the declaration name when the declaration
+shape is the clearest source of the problem.
+
+The built-in runner signature is not a compiler-stopping rule. A top-level
+`@test` function with the wrong return type, parameters, thrown slot, generic
+parameters, extern body, async modifier, or iterator shape is discovered and
+reported as an invalid test result or non-blocking tooling diagnostic. This lets
+valid tests in the same module continue to run.
+
+Production-to-test-only dependencies are compiler errors in every command mode.
+The diagnostic should point at the production declaration that depends on the
+test-only declaration and name the test-only dependency.
+
+Assertion failures are runtime test results, not compiler diagnostics. When a
+tool imports `camp.test-results` JSON, it may surface assertion and invalid-test
+failures as editor diagnostics using the captured `sourcefile` and `sourceline`
+from the result. Import failures for test results, coverage results, or coverage
+map CSV should be reported as tooling diagnostics that name the unreadable or
+malformed artifact.
+
+Coverage decorations are derived from coverage artifacts, not compiler
+diagnostics. A line with an executable-line counter and a positive count is
+covered; a line with an executable-line counter and zero count is uncovered; a
+line without an executable-line counter receives no coverage diagnostic or
+decoration.
+
 ## Outstanding Bugs And Documentation Issues
 
 When documentation work uncovers a certain compiler bug, log it in

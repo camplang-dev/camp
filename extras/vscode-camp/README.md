@@ -1,7 +1,8 @@
 # Camp Language Support For VS Code
 
 This extension provides Camp syntax highlighting, language-server integration,
-simple build/run commands, and debug launch integration.
+simple build/run commands, test CodeLens commands, and debug launch
+integration.
 
 ## Features
 
@@ -11,6 +12,8 @@ simple build/run commands, and debug launch integration.
   workspace symbols, signature help, and completion through `camp-lsp`.
 - `Camp: Build Current Project`, `Camp: Run Current Project`, and `Camp: Debug
   Current Project` commands.
+- CodeLens `Run Test`, `Debug Test`, and `Cover Test` actions beside top-level
+  `@test` functions.
 - Editor title buttons and status-bar buttons for build/run/debug while a Camp
   file is active.
 - Camp breakpoints and generated launch configurations for the `camp-dap`
@@ -220,6 +223,25 @@ campc run /path/to/file.camp
 
 Output is sent to a VS Code terminal named `Camp`.
 
+## Test CodeLens
+
+When `camp-lsp` discovers top-level `@test` functions, the extension shows
+CodeLens actions above each test:
+
+- `Run Test` runs `campc test <project> --filter <manifest-id>`.
+- `Debug Test` launches `camp-dap` with `testFilter` set to the exact manifest
+  ID.
+- `Cover Test` runs coverage for the exact manifest ID with JSON output.
+
+The coverage command is:
+
+```sh
+campc cover <project> --filter <manifest-id> --coverage-format json
+```
+
+The extension derives `campc` and `camp-dap` from `camp.server.path` the same
+way the build/run/debug commands do.
+
 ## Debugging
 
 Set breakpoints in `.camp` files as usual. Then run `Camp: Debug Current
@@ -250,3 +272,6 @@ Linux, or CDB on Windows. Breakpoints, basic stepping, stack frames, and simple
 scalar locals/parameters are supported. Expression evaluation is intentionally
 narrow: simple mapped local and parameter names work, while arbitrary Camp
 expressions return a clear unsupported result.
+
+`Debug Test` builds and launches the generated Camp test harness rather than the
+production executable, then selects one test by exact manifest ID.

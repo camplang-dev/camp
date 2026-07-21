@@ -7,6 +7,8 @@ packages, and editing simple package pragmas. It is a subcommand-oriented tool:
 ```sh
 campc build [pattern.camp...] [options]
 campc run [pattern.camp...] [options] -- [program-args...]
+campc test [pattern.camp...] [options]
+campc cover [pattern.camp...] [options]
 campc dump <kind> [pattern.camp...] [options]
 campc restore [pattern.camp...]
 campc pkg <command> [...]
@@ -66,6 +68,66 @@ campc run @textapp.campbuild -- --verbose input.txt
 Program arguments are separated from build arguments with `--`. `run` defaults
 to `--artifact exec` when no artifact is specified, and it rejects non-executable
 artifact kinds before doing build work.
+
+## `test`
+
+`test` builds a native test harness executable, runs the selected tests, and
+writes test result artifacts:
+
+```sh
+campc test @app.campbuild
+campc test @app.campbuild --filter MathTests::addReturnsSum
+campc test @app.campbuild --test-result-format json
+campc test @app.campbuild --list
+```
+
+The test module is compiled with declaration participation mode `test` and the
+preprocessor symbol `TEST_MODULE`. Top-level `@test` functions and `@testonly`
+helpers participate in this build. Production declarations are still checked so
+they cannot depend on test-only declarations.
+
+An in-module test run applies `test` directly to the project under test. Tests
+may live beside production source, selected by the same source pattern and
+`--include`/`--exclude` model as other builds. If the production project is an
+executable, the generated harness entry point replaces the production process
+entry in the test artifact.
+
+An external test run applies `test` to a separate test project that references a
+production project as a shared library. The production dependency is built or
+imported in ordinary production mode, and the external tests can use only the
+API exported by that shared library.
+
+`--list` prints selected manifest IDs and stops after discovery. No harness is
+built or run in list mode. Without `--list`, the command exits with `0` only
+when every selected test passed or was skipped. Failed, invalid, error, compile,
+native-build, and infrastructure results are command failures after any
+available result artifacts are written.
+
+## `cover`
+
+`cover` runs the same test pipeline with Camp source coverage enabled:
+
+```sh
+campc cover @app.campbuild
+campc cover @app.campbuild --coverage-format json,lcov
+campc cover @tests.campbuild --coverage-subject mathlib
+```
+
+Coverage is measured against Camp source sequence points, not generated C. The
+initial metrics are function-entry coverage and executable-line coverage.
+
+For in-module coverage, the default coverage subject is `self`: the production
+declarations in the current project are compiled with production semantics plus
+coverage counters. `@test` declarations, `@testonly` declarations, generated
+helpers, and the harness are excluded from the coverage denominator.
+
+For external coverage, the test project runs in test mode and a selected shared
+project-reference dependency is rebuilt as an instrumented production shared
+library. If there is exactly one shared project reference and no explicit
+coverage subject, that dependency is selected. If there are multiple shared
+project references, use `--coverage-subject <name>`. Use
+`--coverage-subject self` only when the test module's own production
+declarations are the intended subject.
 
 ## `dump`
 
@@ -152,7 +214,8 @@ workflow.
 
 ## Build Options
 
-These options are valid for `build`, `run`, and `dump` unless noted:
+These options are valid for `build`, `run`, `test`, `cover`, and `dump` unless
+noted:
 
 | Option | Meaning |
 |---|---|
@@ -182,7 +245,7 @@ working directory for loose source-file requests. If one or more
 `--sourcefile-root` values are supplied, those roots replace the default root
 and the longest matching root is used.
 
-Build/run-only options:
+Native build and output-layout options:
 
 | Option | Meaning |
 |---|---|
@@ -197,6 +260,68 @@ kind and also declare that dependency consumers may only request that link kind.
 They are useful in project-reference and package graphs where an implementation
 is deliberately not available as both static and shared.
 
+`--name`, `--out-dir`, `--target`, `--profile`, `--variant`, `--reference`, and
+`--framework` also affect `test` and `cover` harness builds. `test` and `cover`
+always build a generated harness executable; do not use `--artifact` to select
+the harness kind.
+
+## Test Options
+
+These options are accepted by `test` and `cover` only:
+
+| Option | Meaning |
+|---|---|
+| `--list` | List selected test manifest IDs and stop after discovery. |
+| `--filter` | Select tests by exact name or wildcard pattern. May be repeated. |
+
+These options are accepted by `build`, `run`, `test`, and `cover`:
+
+| Option | Meaning |
+|---|---|
+| `--test-result-dir` | Directory for `*.camp-test-results.json`; default is `<artifact-directory>/test-results`. Ignored by `build` and `run`. |
+| `--test-result-format` | `text`, `json`, or `text,json`; default is `text,json`. Ignored by `build` and `run`. |
+
+`--filter` matches a test's manifest ID, qualified name, or simple name.
+Multiple filters are ORed together. Matching is ordinal, case-sensitive, and
+culture-invariant. A pattern with no wildcard characters must match the whole
+ID, qualified name, or simple name exactly.
+
+Wildcard characters:
+
+| Character | Meaning |
+|---|---|
+| `*` | Zero or more characters. |
+| `?` | Exactly one character. |
+| `^` | Exactly one ASCII uppercase character, `A` through `Z`. |
+
+Examples:
+
+```sh
+campc test @app.campbuild --filter MathTests::addReturnsSum
+campc test @app.campbuild --filter '*Writer*'
+campc test @app.campbuild --filter 'parse^alue'
+```
+
+`MathTests::addReturnsSum` is exact. `*Writer*` performs a contains-style match
+because the wildcard is explicit. `parse^alue` matches `parseValue` but not
+`parse_value` or `parsevalue`.
+
+## Coverage Options
+
+These options are accepted by `cover` only:
+
+| Option | Meaning |
+|---|---|
+| `--coverage-format` | `json`, `lcov`, or `json,lcov`; default is `json`. |
+| `--coverage-result-dir` | Directory for coverage result artifacts; default is `<artifact-directory>/coverage`. |
+| `--coverage-subject` | Coverage subject: `self` or a shared project-reference name. May be repeated. |
+
+Coverage map CSV files are emitted beside generated C in the build directory as
+`<project>.camp-coverage-map.csv`. Runtime counter files are scratch build
+intermediates. Coverage results are written as
+`<project>.camp-coverage-results.json` when JSON is requested and `lcov.info`
+when LCOV is requested.
+
 ## Output And Status Lines
 
 Successful emission writes status lines such as:
@@ -207,6 +332,21 @@ generated: textapp.h
 generated: textapp_private.h
 generated: textapp
 ```
+
+`campc test` also writes a test manifest under the build directory:
+
+```text
+build/<project>.camp-test-manifest.json
+```
+
+When JSON test results are enabled, it writes:
+
+```text
+test-results/<project>.camp-test-results.json
+```
+
+`campc cover` additionally writes coverage maps under the build directory and
+coverage results under the coverage result directory.
 
 The `GeneratedFiles` list returned by the compiler driver contains absolute
 paths, but the command-line status text prints only file names. Tools that need

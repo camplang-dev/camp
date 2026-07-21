@@ -150,6 +150,12 @@ Generated output includes:
 - emitted includes/preamble from the target;
 - generated helper declarations needed by lowered ABI.
 
+When a test or coverage command builds a harness, the requested native artifact
+is an executable harness regardless of the production artifact shape. The
+compiler may expose private emitted function names to the harness in that
+compile, but it must not alter source visibility, Camp API headers, metadata
+views, or production shared-library exports.
+
 ## Expanded Forms In C
 
 C emission receives lowered expanded forms. It must emit the component layout
@@ -257,6 +263,44 @@ When a project builds a shared library, the same source declaration may be:
 The compiler and native build driver should keep these roles distinct. Do not
 emit export decorations into a consumer import surface.
 
+For external test modules, project references are consumed through their normal
+shared-library API and native library. The production dependency is not compiled
+in test-module participation mode. For external coverage, selected shared
+project references are rebuilt with production participation and coverage
+instrumentation, then linked as instrumented shared-library subjects.
+
+## Coverage Counter Emission
+
+Coverage instrumentation emits C counters for Camp source sequence points. The
+runtime counter array and touch function are implementation symbols and are not
+source API. They must be unique to the project name and safe for the selected C
+target.
+
+The coverage map CSV is the canonical mapping from runtime counter IDs back to
+Camp source. Its compact row format is:
+
+```text
+v,<version>
+p,<file-id>,<mapped-sourcefile>
+n,<name-id>,<qualified-function-name>
+c,<counter-id>,<kind>,<file-id>,<line>,<name-id>
+```
+
+`kind` is `f` for a function-entry counter or `l` for an executable-line
+counter. Rows use UTF-8 text, LF line endings, and normal CSV quoting for fields
+that require it.
+
+The generated coverage runtime writes a separate count file named from the
+coverage map subject. The runner sets the corresponding environment variable
+before launching the harness. After the harness exits, the driver parses the map
+and count files, writes `camp.coverage-results` JSON when requested, and writes
+LCOV as a projection when requested.
+
+Coverage emission must exclude generated helpers, tests, test-only
+declarations, harness code, and unselected dependencies from the production
+coverage denominator. If a source statement lowers through helper calls, the
+counter belongs to the user source statement, not to the helper declaration.
+
 ## Object, Static, Shared, And Executable Artifacts
 
 Native build templates compile source files to objects, then link or archive
@@ -315,6 +359,9 @@ Target/C emission changes should cover:
 - shared/static/executable artifact metadata;
 - export/import decoration behavior;
 - unresolved lowered-tree emission failures.
+- test harness entry-point replacement for executable projects;
+- coverage counter emission, map CSV rows, runtime count files, JSON results,
+  and LCOV projection.
 
 ## Implementation Anchors
 

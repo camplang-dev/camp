@@ -12,6 +12,19 @@ symbols, default `within` allocation policy, parsed trees, bindable trees,
 declaration expansion results, lowering results, and owner maps from definitions
 back to source files.
 
+It also carries three independent mode facts:
+
+- **command mode:** `build`, `run`, `dump`, `test`, or `cover`;
+- **declaration participation mode:** production or test module;
+- **coverage instrumentation mode:** disabled or production subject.
+
+Do not infer one of these from another. `test` and `cover` compile the root
+test module with test-module declaration participation. A coverage subject is
+compiled with production declaration participation plus coverage
+instrumentation. Ordinary `build`, `run`, and `dump` requests use production
+participation unless a test-specific compiler test intentionally constructs a
+different request.
+
 Root source files are user build inputs. API headers and package/project
 reference surfaces are also source files in the compilation, but they are marked
 as API headers so emission, metadata, and API output can filter them correctly.
@@ -23,6 +36,13 @@ Compiler writers should keep the distinction intact:
 - generated declarations may participate in analysis and emission, but should
   keep provenance back to the source declaration or expression that required
   them.
+
+`campc test` and `campc cover` use the same source pattern, `--include`, and
+`--exclude` machinery as ordinary builds. The compiler does not implicitly scan
+test directories. If a file should participate only in test/coverage builds, the
+request or build-file workflow must select it only for those modes. Within a
+file that also participates in production builds, `@test` and `@testonly` are
+the source-level mechanisms that remove declarations from the production view.
 
 ## Preprocessing
 
@@ -36,6 +56,12 @@ preprocessor symbols from:
 
 Target-owned defines are recorded separately from user defines so diagnostics can
 reject user attempts to supply target-owned symbols manually.
+
+When declaration participation mode is test module, preprocessing also defines
+`TEST_MODULE`. This symbol belongs to the compiler-owned test mode. It should
+not be defined manually to simulate a test build because it would not enable the
+test declaration view, harness generation, manifest output, or coverage runner
+behavior.
 
 The preprocessor also recognizes file-prelude `#within` policy directives in the
 compiler driver/language service path. `#build` is a project-loading concern and
@@ -93,6 +119,44 @@ Lookup must respect source visibility, namespace imports, type member scopes,
 generic parameter scopes, receiver scopes, and body-local declarations. A symbol
 found through one scope layer should not silently bypass a more local
 declaration with the same name unless the language rule explicitly permits it.
+
+## Declaration Participation And Test-Only Ownership
+
+Declaration participation is separate from source visibility. `private`,
+`internal`, `public`, `export`, and export projections still mean source/API
+visibility. Test-only participation answers whether a declaration exists in a
+production view or only in a test-module view.
+
+The active declaration view is computed from the complete module graph:
+
+- production participation excludes declarations marked `@test`, declarations
+  marked `@testonly`, members owned by a top-level test-only type, and generated
+  declarations whose source owner is test-only;
+- test-module participation includes production declarations and test-only
+  declarations;
+- API headers still contribute imported source contracts, but they are not
+  widened by the consuming module's test mode.
+
+Do not remove test-only declarations from `Module.Definitions` as a mutation
+strategy. Binding, ownership, diagnostics, metadata, API output, and C emission
+must ask the shared declaration participation service for the active view.
+
+`@test` is valid only on top-level functions with no visibility modifier. It
+marks the function as test-only and as a test-discovery candidate. The built-in
+runner signature is intentionally not a compiler-stopping validation rule.
+Discovery classifies the signature later.
+
+`@testonly` is valid only on top-level declarations that are private or
+`internal`. On a top-level class, struct, interface, enum, newtype, or callable
+declaration it owns the complete declaration subtree. Generated declarations
+must inherit test-only ownership through explicit generated-declaration
+provenance rather than through symbol-name heuristics.
+
+Production declarations may not depend on test-only declarations in any command
+mode. This validation runs after binding has resolved enough references and call
+targets to identify dependencies accurately. Test declarations and test-only
+helpers may depend on production declarations and on other test-only
+declarations.
 
 ## Analyzer Passes
 
@@ -223,6 +287,13 @@ Body analysis resolves expression and statement semantics:
 Body analysis should record facts needed by lowering. Lowering should not repeat
 source overload resolution or decide whether a conversion is legal.
 
+Default argument insertion remains the mechanism for standard assertion source
+capture. Calls to test support functions such as `assert(...)` and `fail(...)`
+use `sourceof(argumentName)`, `caller(sourcefile)`, and `caller(sourceline)` the
+same way any other callable default does. Generated harness calls must not
+manufacture assertion locations; assertion failures report the source captured
+at the user's call site.
+
 ## Flow Analysis
 
 Flow analysis tracks control-sensitive rules such as:
@@ -264,6 +335,18 @@ rewrite expressions, and materialize temporaries, but it should not accept a
 program that analysis rejected or reject a program merely because a source rule
 was not rechecked.
 
+Coverage instrumentation has an explicit pass boundary before destructive
+lowering erases reliable Camp source sequence points. It inserts function-entry
+and executable-line counters only for production-subject declarations in the
+active coverage subject. The pass must not change evaluation order, duplicate
+expression evaluation, change short-circuiting, add user-visible allocation or
+thrown flow, or change lifetimes, cleanup, constness, `within`, or `thrown`
+behavior.
+
+Generated helpers, test functions, test-only declarations, and harness code are
+not coverage denominator subjects unless a future feature documents a different
+coverage view.
+
 ## Emission
 
 Emission serializes the analyzed or lowered model into:
@@ -271,6 +354,8 @@ Emission serializes the analyzed or lowered model into:
 - C source and private/public C headers;
 - Camp API headers;
 - metadata JSON;
+- test manifests, test results, coverage maps, coverage results, and LCOV where
+  requested by test/coverage modes;
 - XML dumps;
 - Camp-like declaration and lowering dumps.
 
@@ -281,6 +366,33 @@ tooling-oriented. Dumps are compiler-maintainer views.
 Generated helpers should be exposed only when that surface needs them. For
 example, C emission needs helper functions, but metadata should usually omit
 implementation-only helpers.
+
+## Test Harness And Coverage Runner
+
+`campc test` lowers the test module, discovers tests from top-level `@test`
+functions, emits a `camp.test-manifest` JSON artifact, generates a native
+harness executable, runs selected tests unless `--list` was supplied, and writes
+test results. The harness table is derived from the manifest. Skipped tests and
+tests with invalid built-in runner signatures are recorded without invocation.
+Valid tests are invoked with a `thrown Assertion*` slot and assertion failures
+are classified from caught `Assertion*` values.
+
+Private in-module tests remain private source declarations. C emission may
+expose private generated names to the compiler-owned harness, but this does not
+change Camp visibility, metadata visibility, API headers, or production native
+exports.
+
+For executable projects under in-module testing, the generated harness entry
+point is the native entry point of the test artifact. The production `main`
+remains ordinary source code that tests may call only when its signature and
+visibility permit it.
+
+`campc cover` uses the same harness and result pipeline, then merges runtime
+counter data with one or more coverage map CSV files. In-module coverage
+defaults to `self`. External coverage instruments selected shared-library
+project-reference subjects in production participation mode and links the
+harness against the instrumented shared library. If more than one shared
+project reference could be the subject, the command line must name the subject.
 
 ## Provenance And Diagnostics
 

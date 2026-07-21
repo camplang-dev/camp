@@ -245,6 +245,81 @@ why a declaration cannot be used on a particular target.
 `@notsupported` applies only to functions and methods. It is not valid on
 fields, parameters, constructors, or destructors.
 
+## Testing Attributes
+
+Camp's first-class test runner uses attributes rather than keywords. A built-in
+test is a top-level function marked `@test` with exactly one trailing
+`thrown Assertion*` parameter:
+
+```camp
+int add(int left, int right)
+{
+	return left + right;
+}
+
+@test
+void addReturnsSum(thrown Assertion* assertion)
+{
+	assert(add(2, 3) == 5);
+}
+```
+
+Run tests with:
+
+```sh
+campc test app.campbuild
+```
+
+Tests have no visibility modifier. They are not methods, static members, local
+functions, or declarations inside a `@testonly` type. A top-level `@test`
+function with another shape is still discovered, but the built-in runner reports
+it as an invalid test instead of invoking it.
+
+`assert(...)` and `fail(...)` are available in test and coverage builds. They
+capture the failed expression, source file, and source line through the standard
+source-capture default argument intrinsics, so ordinary tests usually pass only
+the condition or message they care about.
+
+Use `@testonly` for top-level helper declarations that should exist only in
+test and coverage builds:
+
+```camp
+@testonly
+internal int expectedSum()
+{
+	return 5;
+}
+
+@test
+void addUsesExpectedValue(thrown Assertion* assertion)
+{
+	assert(add(2, 3) == expectedSum());
+}
+```
+
+`@testonly` may be private or `internal`, and it may appear on top-level
+functions, variables, constants, aliases, classes, structs, interfaces, enums,
+and newtypes. It is not a member attribute. A `@testonly` type makes its whole
+declaration body test-only, including its members and compiler-generated helper
+declarations.
+
+Use `@skip("reason")` on a `@test` to keep the test in discovery and result
+output without invoking it:
+
+```camp
+@skip("waiting on parser fix")
+@test
+void futureParserCase(thrown Assertion* assertion)
+{
+	fail("not ready");
+}
+```
+
+In-module tests are built by running `campc test` or `campc cover` on the
+project itself. They can exercise private and internal implementation details.
+External test modules are separate Camp projects that reference the production
+module as a shared library and test only the API exposed by that library.
+
 ## Metadata Attributes And Generated Output
 
 Documentation comments lower to metadata attributes before API or metadata
@@ -290,6 +365,9 @@ symbol links, or deprecation messages.
 | `@example("text")` | Declarations and declaration children | Documentation example text, commonly a fenced code block in doc comments |
 | `@see("text")` | Declarations and declaration children | Related-symbol or related-topic documentation metadata |
 | `@deprecated("message")` | Declarations and declaration children | Marks a source API as deprecated for tooling; does not remove it from lookup or ABI output |
+| `@test` | Top-level functions with no visibility modifier | Marks a function as a discovered test; the built-in runner invokes only `void name(thrown Assertion*)` tests |
+| `@testonly` | Private or `internal` top-level declarations | Includes a helper only in test and coverage builds; top-level types make their whole body test-only |
+| `@skip("reason")` | Declarations also marked `@test` | Discovers the test but reports it as skipped without invoking it |
 
 One additional attribute name, `@createWithAllocator`, is recognized by current
 compiler support code for specialized generated or expanded forms. It is not an
@@ -305,6 +383,7 @@ For the feature-specific attributes already introduced:
 - `@awaitwith` and `@noawait` belong with async bodies and resumers.
 - `@notsupported` belongs with target-conditioned APIs and standard-library
   portability.
+- `@test`, `@testonly`, and `@skip` belong with first-class test runs.
 - `@getshadow` and `@setshadow` belong with shadow classes and native extension
   surfaces.
 

@@ -11,6 +11,7 @@ code. Ordinary Camp users should start with the language guide.
 - Tokenization And Parsing
 - Bindable Node Construction
 - Analysis Scopes
+- Declaration Participation And Test-Only Ownership
 - Analyzer Passes
 - Declaration Collection
 - Type Binding
@@ -20,6 +21,7 @@ code. Ordinary Camp users should start with the language guide.
 - Flow Analysis
 - Lowering
 - Emission
+- Test Harness And Coverage Runner
 - Provenance And Diagnostics
 - Compiler Writer Checklist
 
@@ -227,6 +229,7 @@ code. Ordinary Camp users should start with the language guide.
 - Metadata IDs
 - Doc Comment Translation
 - Attributes
+- Test Attributes
 - Property Metadata
 - Stubs
 - Type Object Details
@@ -255,6 +258,7 @@ code. Ordinary Camp users should start with the language guide.
 - Symbol Emission
 - Headers
 - Shared Library Export/Import
+- Coverage Counter Emission
 - Object, Static, Shared, And Executable Artifacts
 - Objective-C Capability Boundary
 - Diagnostics
@@ -275,6 +279,7 @@ code. Ordinary Camp users should start with the language guide.
 - Driver And Emitter Diagnostics
 - Golden Diagnostic Tests
 - LSP Diagnostic Mapping
+- Test And Coverage Diagnostics
 - Outstanding Bugs And Documentation Issues
 - Test Surface
 - Implementation Anchors

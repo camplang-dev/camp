@@ -11,8 +11,9 @@ scratch output:
 - `src/campc`: command-line compiler.
 - `src/camp-lsp`: language server.
 - `src/Camp.Compiler.TestRunner`: golden, semantic, CLI, project loader, target,
-  and LSP tests.
-- `src/Camp.Compiler.Coverage`: coverage report driver.
+  test runner, coverage runner, LSP, and DAP tests.
+- `src/Camp.Compiler.Coverage`: coverage report driver for the C# compiler test
+  suite, separate from Camp source coverage produced by `campc cover`.
 - `lib`: bundled Camp declarations and standard library sources.
 - `targets`: target metadata.
 - `tests`: golden input and expected-output cases.
@@ -121,8 +122,8 @@ target capability.
 ## LSP Tests
 
 LSP tests launch `camp-lsp` over stdio and cover initialization, diagnostics,
-hover, completion, and definition behavior. LSP changes should usually run the
-LSP-focused tests before full validation.
+hover, completion, definition behavior, and test CodeLens behavior. LSP changes
+should usually run the LSP-focused tests before full validation.
 
 ## Coverage
 

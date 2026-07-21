@@ -327,6 +327,7 @@ interop, expressions/statements/operators, and metadata attributes.
 5. Links And `symbolof`
 6. Examples In Documentation
 7. Target Availability With `@notsupported`
-8. Metadata Attributes And Generated Output
-9. Attribute Summary
-10. Where To Look Back
+8. Testing Attributes
+9. Metadata Attributes And Generated Output
+10. Attribute Summary
+11. Where To Look Back

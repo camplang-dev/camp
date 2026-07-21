@@ -140,10 +140,18 @@ Most declaration objects may contain:
 | `visibility` | `export`, `public`, or `internal` for visible declarations. |
 | `extern` | `true` for extern declarations or synthesized API externs. |
 | `metadata` | Metadata attributes from doc comments or source attributes. |
+| `testOnly` | `true` when the declaration participates only in test/coverage builds. |
+| `test` | Structured discovery data for a function marked `@test`. |
 
 Child arrays omit redundant `kind` values where the container already implies
 the child kind. For example, a function parameter in a `parameters` array does
 not need `"kind": "parameter"`.
+
+Ordinary production metadata and ordinary generated Camp API headers omit
+`@test`, `@testonly`, `@skip`, test functions, test-only helper declarations,
+test thunks, harness symbols, and coverage runtime symbols. The fields above
+appear only in source-level views for a test-module compilation, such as
+compiler tests or tools that intentionally inspect test participation.
 
 ## Declaration Kinds
 
@@ -278,6 +286,34 @@ Function objects may include:
 - `typeParameters`;
 - `parameters`;
 - `metadata`.
+
+For a function marked `@test`, a test-module metadata view may include:
+
+```json
+{
+  "name": "addReturnsSum",
+  "testOnly": true,
+  "test": {
+    "id": "MathTests::addReturnsSum",
+    "name": "addReturnsSum",
+    "qualifiedName": "MathTests::addReturnsSum",
+    "sourcefile": "tests/math.camp",
+    "sourceline": 8,
+    "summary": "Adds two values.",
+    "skipped": false,
+    "skipReason": null,
+    "runnerSignature": "valid",
+    "hasBody": true
+  }
+}
+```
+
+`runnerSignature` is `valid` only for the built-in runner shape
+`void name(thrown Assertion*)`; other discovered test functions are reported as
+`invalid` so tools can show them without treating the declaration as a compiler
+error. The dedicated `camp.test-manifest` JSON is the canonical discovery
+artifact for `campc test`, `campc cover`, LSP CodeLens, and debugger test
+selection.
 
 Async metadata is source-level. It reports `async` and source attributes such as
 `@awaitwith` and `@noawait`; it does not expose generated async frames,

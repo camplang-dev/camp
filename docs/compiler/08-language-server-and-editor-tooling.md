@@ -137,6 +137,47 @@ its loaded source surfaces.
 Generated helpers should not crowd the main symbol list. Source declarations
 remain the primary editor-facing surface.
 
+## Test Discovery And Coverage Tooling
+
+The language service exposes the same manifest-equivalent test discovery records
+that `campc test` and `campc cover` use:
+
+- ID;
+- name;
+- qualified name;
+- source file;
+- source line;
+- summary;
+- skipped state and reason;
+- built-in runner signature state.
+
+The LSP server adds CodeLens commands beside top-level `@test` functions when
+the current document belongs to an analyzable project:
+
+| Command | Action |
+|---|---|
+| `camp.test.run` | Run `campc test <project> --filter <manifest-id>`. |
+| `camp.test.debug` | Launch `camp-dap` for the generated test harness with the same exact manifest filter. |
+| `camp.test.cover` | Run `campc cover <project> --filter <manifest-id> --coverage-format json`. |
+
+Manifest IDs do not contain the wildcard characters `*`, `?`, or `^`, so the
+filter sent by editor tooling is an exact no-wildcard test selection.
+
+Compiler diagnostics for invalid source placement of `@test`, `@testonly`, and
+`@skip` remain normal analysis diagnostics. Invalid built-in runner signatures
+are surfaced as non-blocking test-runner diagnostics so valid tests in the same
+project can still run.
+
+Tools can import `camp.test-results` JSON and convert assertion failures or
+invalid-test results into editor diagnostics at the captured source file and
+source line. Tools can import coverage results JSON plus the matching coverage
+map CSV to decorate executable source lines as covered or uncovered. Lines that
+do not appear in the coverage map receive no coverage decoration.
+
+All paths used for test discovery, result diagnostics, navigation, and coverage
+decorations use the same `caller(sourcefile)` sourcefile path policy configured
+by `--sourcefile-paths` and `--sourcefile-root`.
+
 ## Standard Library And Packages
 
 Loose files and ordinary project files include the standard library by default.
