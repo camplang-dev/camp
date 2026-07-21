@@ -27,6 +27,8 @@ public static class DocCommentTranslator
 		"example",
 		"see",
 		"deprecated",
+		"test",
+		"skip",
 		"range",
 		"index",
 		"symbol",

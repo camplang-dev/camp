@@ -32,6 +32,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Definition definition in module.Definitions)
 			AnalyzeDefinition(definition, new AnalysisScope());
 
+		ValidateTestAttributePlacements(module);
 		ValidateTopLevelOverloadFamilies(module);
 		AnalyzeGlobalInitializers(module);
 		AnalyzeInlineConstantsAndEnumValues(module);

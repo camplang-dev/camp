@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Numerics;
 using System.Text;
 using System.Text.Json;
@@ -36,6 +37,7 @@ public static class MetadataJsonSerializer
 		readonly HashSet<BindableNode> stubbed = new(ReferenceEqualityComparer.Instance);
 		readonly Dictionary<string, TypeDefinition> typeDefinitions = new(StringComparer.Ordinal);
 		readonly Dictionary<string, Definition> symbols = new(StringComparer.Ordinal);
+		SourcefilePathMapper? sourcefilePathMapper;
 
 		bool IsExportApiView => visibility == MetadataVisibility.Export;
 
@@ -203,6 +205,7 @@ public static class MetadataJsonSerializer
 		{
 			json.WriteStartObject();
 			WriteIdentity(json, definition, includeKind, includeVisibility);
+			WriteTestFacts(json, definition);
 			switch (definition)
 			{
 				case AliasDefinition alias:
@@ -260,6 +263,41 @@ public static class MetadataJsonSerializer
 				json.WriteString("visibility", visibility);
 			if (ShouldWriteExtern(definition))
 				json.WriteBoolean("extern", true);
+		}
+
+		void WriteTestFacts(Utf8JsonWriter json, Definition definition)
+		{
+			bool isTest = definition is FunctionDefinition && HasAttribute(definition.Attributes, "@test");
+			bool isTestOnly = isTest || HasAttribute(definition.Attributes, "@testonly");
+			if (isTestOnly)
+				json.WriteBoolean("testOnly", true);
+			if (isTest && definition is FunctionDefinition function)
+				WriteTestInfo(json, function);
+		}
+
+		void WriteTestInfo(Utf8JsonWriter json, FunctionDefinition function)
+		{
+			string name = GetVisibleFunctionName(function);
+			string qualifiedName = GetQualifiedFunctionName(function, name);
+			json.WriteStartObject("test");
+			json.WriteString("id", qualifiedName);
+			json.WriteString("name", name);
+			json.WriteString("qualifiedName", qualifiedName);
+			if (TryGetSourceLocation(function, out string? sourcefile, out int sourceline))
+			{
+				json.WriteString("sourcefile", sourcefile);
+				json.WriteNumber("sourceline", sourceline);
+			}
+			json.WriteString("summary", GetAttributeStringContent(function.Attributes, "@summary") ?? "");
+			bool skipped = TryGetAttributeStringContent(function.Attributes, "@skip", out string? skipReason);
+			json.WriteBoolean("skipped", skipped);
+			if (skipped && skipReason is not null)
+				json.WriteString("skipReason", skipReason);
+			else
+				json.WriteNull("skipReason");
+			json.WriteString("runnerSignature", HasBuiltInRunnerSignature(function) ? "valid" : "invalid");
+			json.WriteBoolean("hasBody", function.Body is not null);
+			json.WriteEndObject();
 		}
 
 		void WriteTypeDefinition(Utf8JsonWriter json, TypeDefinition type)
@@ -1603,6 +1641,172 @@ public static class MetadataJsonSerializer
 		{
 			string name = string.IsNullOrWhiteSpace(definition.Name) ? definition.Symbol : definition.Name;
 			return string.IsNullOrWhiteSpace(definition.OutOfScopeOwnerName) ? name : definition.OutOfScopeOwnerName + "." + name;
+		}
+
+		static string GetVisibleFunctionName(FunctionDefinition function)
+		{
+			if (function.Modifier == FunctionModifier.Constructor)
+				return "create";
+			if (function.Modifier == FunctionModifier.Destructor || function.Name.StartsWith("~", StringComparison.Ordinal))
+				return "destroy";
+			return SymbolNameService.CallableName(function).Value.TrimStart('~');
+		}
+
+		string GetQualifiedFunctionName(FunctionDefinition function, string name)
+		{
+			string prefix = "";
+			if (function.OutOfScopeOwnerName is not null)
+				prefix = function.OutOfScopeOwnerName + ".";
+			else if (FindContainingType(function) is TypeDefinition containingType)
+				prefix = containingType.Name + ".";
+
+			string? namespaceName = function.Namespace;
+			if (module.DefinitionSources.TryGetValue(function, out TokenSequence? source)
+				&& source is not null
+				&& module.SourceNamespaces.TryGetValue(source, out string? sourceNamespace))
+				namespaceName = sourceNamespace;
+
+			return (string.IsNullOrWhiteSpace(namespaceName) ? "" : namespaceName + "::") + prefix + name;
+		}
+
+		TypeDefinition? FindContainingType(FunctionDefinition function)
+		{
+			foreach (Definition definition in module.Definitions)
+			{
+				if (definition is TypeDefinition typeDefinition && TypeContainsFunction(typeDefinition, function))
+					return typeDefinition;
+			}
+			return null;
+		}
+
+		static bool TypeContainsFunction(TypeDefinition type, FunctionDefinition function)
+		{
+			return type switch
+			{
+				ClassDefinition classDefinition => classDefinition.Functions.Contains(function),
+				StructDefinition structDefinition => structDefinition.Functions.Contains(function),
+				InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions.Contains(function),
+				EnumDefinition enumDefinition => enumDefinition.Functions.Contains(function),
+				NewtypeDefinition newtypeDefinition => newtypeDefinition.Functions.Contains(function),
+				ParamsDefinition paramsDefinition => paramsDefinition.Functions.Contains(function),
+				_ => false
+			};
+		}
+
+		bool TryGetSourceLocation(Definition definition, out string? sourcefile, out int sourceline)
+		{
+			sourcefile = null;
+			sourceline = 0;
+			if (!TryGetDefinitionSourceRange(definition, out TokenRange range))
+				return false;
+			if (!module.SourceFiles.TryGetValue(range.Sequence, out SourceFile? file))
+				return false;
+
+			string physicalPath = string.IsNullOrWhiteSpace(file.FullPath) ? file.Path : file.FullPath!;
+			sourcefilePathMapper ??= new SourcefilePathMapper(module.SourcefilePathMode, module.SourcefileDefaultRoot, module.SourcefileRoots);
+			SourcefilePathMapResult mapResult = sourcefilePathMapper.Map(physicalPath);
+			sourcefile = mapResult.Success ? mapResult.Value : file.Path;
+			sourceline = range.StartLineNumber;
+			return true;
+		}
+
+		static bool TryGetDefinitionSourceRange(Definition definition, out TokenRange range)
+		{
+			range = default;
+			switch (definition.SourceSyntax)
+			{
+				case AliasDeclarationSyntax syntax:
+					return Assign(syntax.Identifier?.Range, out range) || TryGetSyntaxRange(syntax, out range);
+				case TypeDeclarationSyntax syntax:
+					return Assign(syntax.Identifier?.Range, out range) || TryGetSyntaxRange(syntax, out range);
+				case MemberDeclarationSyntax syntax:
+					return Assign(syntax.Identifier?.Range, out range) || TryGetSyntaxRange(syntax, out range);
+				case EnumValueSyntax syntax:
+					return Assign(syntax.Identifier?.Range, out range) || TryGetSyntaxRange(syntax, out range);
+				default:
+					return TryGetSyntaxRange(definition.SourceSyntax, out range);
+			}
+		}
+
+		static bool TryGetSyntaxRange(SyntaxNode? syntax, out TokenRange range)
+		{
+			range = default;
+			if (syntax is null)
+				return false;
+			foreach (PropertyInfo property in syntax.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
+			{
+				object? value = property.GetValue(syntax);
+				if (value is TokenRange tokenRange)
+				{
+					range = tokenRange;
+					return true;
+				}
+				if (value is Token token)
+				{
+					range = token.Range;
+					return true;
+				}
+				if (value is SyntaxNode child && TryGetSyntaxRange(child, out range))
+					return true;
+			}
+			return false;
+		}
+
+		static bool Assign(TokenRange? value, out TokenRange range)
+		{
+			if (value is TokenRange tokenRange)
+			{
+				range = tokenRange;
+				return true;
+			}
+			range = default;
+			return false;
+		}
+
+		static bool TryGetAttributeStringContent(IReadOnlyList<AttributeConstructor> attributes, string name, out string? content)
+		{
+			content = GetAttributeStringContent(attributes, name);
+			return attributes.Any(attribute => AttributeNameEquals(attribute.Name, name));
+		}
+
+		static string? GetAttributeStringContent(IReadOnlyList<AttributeConstructor> attributes, string name)
+		{
+			foreach (AttributeConstructor attribute in attributes)
+			{
+				if (!AttributeNameEquals(attribute.Name, name))
+					continue;
+				ArgumentExpression? argument = attribute.Arguments.FirstOrDefault(static argument => string.IsNullOrWhiteSpace(argument.Name));
+				return argument?.Value is LiteralExpression { Kind: LiteralKind.String } literal ? GetLiteralString(literal) : null;
+			}
+			return null;
+		}
+
+		static string GetLiteralString(LiteralExpression literal)
+		{
+			if (literal.Value is string text)
+				return text;
+			string source = literal.Text;
+			if (source.Length >= 2 && source[0] == '"' && source[^1] == '"')
+				return source[1..^1];
+			return source;
+		}
+
+		static bool HasBuiltInRunnerSignature(FunctionDefinition function)
+		{
+			return function.Body is not null
+				&& function.Extern is null
+				&& !function.IsAsync
+				&& function.IteratorKind == IteratorKind.None
+				&& function.GenericParameters.Count == 0
+				&& IsVoidReturn(function)
+				&& function.Parameters.Count == 1
+				&& function.Parameters[0].Modifier == ParameterModifier.Thrown
+				&& FormatType(function.Parameters[0].Type, function.Parameters[0].ResolvedType) == "Assertion*";
+		}
+
+		static bool IsVoidReturn(FunctionDefinition function)
+		{
+			return FormatType(function.ReturnType, function.ResolvedType) == "void";
 		}
 
 		static string FormatAliasTarget(AliasDefinition alias)

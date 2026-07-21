@@ -1,0 +1,39 @@
+// @emit-metadata all
+
+namespace TestMetadata;
+
+struct Assertion
+{
+}
+
+/// Adds two numbers.
+/// @test
+void addWorks(thrown Assertion* assertion)
+{
+}
+
+@skip("not ready")
+@test
+void skippedDirect(thrown Assertion* assertion)
+{
+}
+
+/// Broken shape.
+/// @test
+/// @skip needs implementation
+int invalidShape()
+{
+	return 0;
+}
+
+@testonly
+internal struct Fixture
+{
+	int value;
+}
+
+@testonly
+int helperValue()
+{
+	return 1;
+}

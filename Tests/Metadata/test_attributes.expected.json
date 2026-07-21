@@ -1,0 +1,155 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "TestMetadata",
+    "namespace": "TestMetadata"
+  },
+  "view": {
+    "visibility": "all",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "struct:TestMetadata::Assertion",
+      "kind": "struct",
+      "name": "Assertion"
+    },
+    {
+      "id": "function:TestMetadata::addWorks",
+      "kind": "function",
+      "name": "addWorks",
+      "testOnly": true,
+      "test": {
+        "id": "TestMetadata::addWorks",
+        "name": "addWorks",
+        "qualifiedName": "TestMetadata::addWorks",
+        "sourcefile": "tests/Metadata/test_attributes.camp",
+        "sourceline": 11,
+        "summary": "Adds two numbers.",
+        "skipped": false,
+        "skipReason": null,
+        "runnerSignature": "valid",
+        "hasBody": true
+      },
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:TestMetadata::addWorks/parameter:assertion",
+          "name": "assertion",
+          "modifier": "thrown",
+          "type": "Assertion*"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Adds two numbers."
+        },
+        {
+          "name": "test"
+        }
+      ]
+    },
+    {
+      "id": "function:TestMetadata::skippedDirect",
+      "kind": "function",
+      "name": "skippedDirect",
+      "testOnly": true,
+      "test": {
+        "id": "TestMetadata::skippedDirect",
+        "name": "skippedDirect",
+        "qualifiedName": "TestMetadata::skippedDirect",
+        "sourcefile": "tests/Metadata/test_attributes.camp",
+        "sourceline": 17,
+        "summary": "",
+        "skipped": true,
+        "skipReason": "not ready",
+        "runnerSignature": "valid",
+        "hasBody": true
+      },
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:TestMetadata::skippedDirect/parameter:assertion",
+          "name": "assertion",
+          "modifier": "thrown",
+          "type": "Assertion*"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "skip",
+          "content": "not ready"
+        },
+        {
+          "name": "test"
+        }
+      ]
+    },
+    {
+      "id": "function:TestMetadata::invalidShape",
+      "kind": "function",
+      "name": "invalidShape",
+      "testOnly": true,
+      "test": {
+        "id": "TestMetadata::invalidShape",
+        "name": "invalidShape",
+        "qualifiedName": "TestMetadata::invalidShape",
+        "sourcefile": "tests/Metadata/test_attributes.camp",
+        "sourceline": 24,
+        "summary": "Broken shape.",
+        "skipped": true,
+        "skipReason": "needs implementation",
+        "runnerSignature": "invalid",
+        "hasBody": true
+      },
+      "returnType": "int",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Broken shape."
+        },
+        {
+          "name": "test"
+        },
+        {
+          "name": "skip",
+          "content": "needs implementation"
+        }
+      ]
+    },
+    {
+      "id": "struct:TestMetadata::Fixture",
+      "kind": "struct",
+      "name": "Fixture",
+      "visibility": "internal",
+      "testOnly": true,
+      "fields": [
+        {
+          "id": "struct:TestMetadata::Fixture/field:value",
+          "name": "value",
+          "type": "int"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "testonly"
+        }
+      ]
+    },
+    {
+      "id": "function:TestMetadata::helperValue",
+      "kind": "function",
+      "name": "helperValue",
+      "testOnly": true,
+      "returnType": "int",
+      "metadata": [
+        {
+          "name": "testonly"
+        }
+      ]
+    }
+  ]
+}

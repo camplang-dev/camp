@@ -1,0 +1,99 @@
+struct Assertion
+{
+}
+
+@test(1)
+void testWithArgument(thrown Assertion* assertion)
+{
+}
+
+@test
+internal void visibleTest(thrown Assertion* assertion)
+{
+}
+
+struct Owner
+{
+	@test
+	void methodTest(thrown Assertion* assertion)
+	{
+	}
+
+	@testonly
+	int helper;
+}
+
+@test
+static void Owner.outOfScopeTest(thrown Assertion* assertion)
+{
+}
+
+class Resource
+{
+	@test
+	Resource()
+	{
+	}
+
+	@test
+	~Resource()
+	{
+	}
+}
+
+@testonly("bad")
+int testOnlyWithArgument()
+{
+	return 0;
+}
+
+@testonly
+public int publicTestOnly()
+{
+	return 0;
+}
+
+@testonly
+export int exportTestOnly()
+{
+	return 0;
+}
+
+enum Mode
+{
+	@testonly
+	Bad
+}
+
+void parameterHost(@testonly int value)
+{
+}
+
+@skip
+void skippedWithoutTest(thrown Assertion* assertion)
+{
+}
+
+@skip(1)
+@test
+void skipBadReason(thrown Assertion* assertion)
+{
+}
+
+@skip("first", "second")
+@test
+void skipTooManyReasons(thrown Assertion* assertion)
+{
+}
+
+@skip(reason: "named")
+@test
+void skipNamedReason(thrown Assertion* assertion)
+{
+}
+
+@testonly
+@test
+void testAndTestOnly(thrown Assertion* assertion)
+{
+}
