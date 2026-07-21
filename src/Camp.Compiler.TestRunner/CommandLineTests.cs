@@ -536,6 +536,94 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Cover_command_maps_lowered_generator_and_lambda_body_lines()
+	{
+		string source = CreateTempCase("coverage_lowered_bodies/main.camp", """
+			namespace CoverageLowered;
+
+			struct iter int countTo(int last)
+			{
+				int current = 0;
+				while (current < last)
+				{
+					current++;
+					yield current;
+				}
+				yield break;
+			}
+
+			int sumGenerated()
+			{
+				int sum = 0;
+				foreach (int value in countTo(3))
+					sum = sum + value;
+				return sum;
+			}
+
+			int apply(delegate int(int) mapper, int value)
+			{
+				return mapper(value);
+			}
+
+			int lambdaValue()
+			{
+				int offset = 2;
+				return apply((int value) =>
+				{
+					int doubled = value * 2;
+					return doubled + offset;
+				}, 4);
+			}
+
+			@test
+			void loweredCoverageWorks(thrown Assertion* assertion)
+			{
+				assert(sumGenerated() == 6);
+				assert(lambdaValue() == 10);
+			}
+			""");
+		string outDir = TempPath("coverage-lowered-bodies-out");
+		string coverageDir = TempPath("coverage-lowered-bodies-results");
+
+		ProcessResult result = RunCampc(
+			"cover",
+			source,
+			"--target",
+			NativeTargetForHost(),
+			"--coverage-format",
+			"json",
+			"--coverage-output-dir",
+			coverageDir,
+			"--out-dir",
+			outDir,
+			"--name",
+			"coverage_lowered");
+
+		AssertCommandSucceeded(result);
+
+		string map = File.ReadAllText(Path.Combine(coverageDir, "coverage_lowered.camp-coverage-map.csv"));
+		int incrementLine = FindLine(source, "current++;");
+		int yieldLine = FindLine(source, "yield current;");
+		int yieldBreakLine = FindLine(source, "yield break;");
+		int lambdaLocalLine = FindLine(source, "int doubled = value * 2;");
+		int lambdaReturnLine = FindLine(source, "return doubled + offset;");
+		AssertCoverageMapContainsLine(map, incrementLine);
+		AssertCoverageMapContainsLine(map, yieldLine);
+		AssertCoverageMapContainsLine(map, yieldBreakLine);
+		AssertCoverageMapContainsLine(map, lambdaLocalLine);
+		AssertCoverageMapContainsLine(map, lambdaReturnLine);
+
+		using JsonDocument coverage = JsonDocument.Parse(File.ReadAllText(Path.Combine(coverageDir, "coverage_lowered.camp-coverage-results.json")));
+		JsonElement file = Assert.Single(coverage.RootElement.GetProperty("files").EnumerateArray());
+		HashSet<int> uncoveredLines = file.GetProperty("uncoveredLines").EnumerateArray().Select(static line => line.GetInt32()).ToHashSet();
+		Assert.DoesNotContain(incrementLine, uncoveredLines);
+		Assert.DoesNotContain(yieldLine, uncoveredLines);
+		Assert.DoesNotContain(yieldBreakLine, uncoveredLines);
+		Assert.DoesNotContain(lambdaLocalLine, uncoveredLines);
+		Assert.DoesNotContain(lambdaReturnLine, uncoveredLines);
+	}
+
+	[Fact]
 	public void External_cover_instruments_selected_shared_library_subject()
 	{
 		string root = TempPath("coverage-external-module");
@@ -4140,6 +4228,11 @@ public sealed class CommandLineTests
 			if (lines[i].Contains(text, StringComparison.Ordinal))
 				return i + 1;
 		throw new InvalidOperationException($"Line containing '{text}' was not found in '{path}'.");
+	}
+
+	static void AssertCoverageMapContainsLine(string map, int line)
+	{
+		Assert.Contains(map.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'), row => row.StartsWith("c,", StringComparison.Ordinal) && row.Contains($",{line},", StringComparison.Ordinal));
 	}
 
 	static string TempPath(string name) => Path.Combine(FindRepositoryRoot(), "tmp", "cli-tests", name);

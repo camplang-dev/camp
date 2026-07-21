@@ -95,7 +95,7 @@ public sealed class CampCoverageMapBuilder
 			diagnostic = null;
 			return false;
 		}
-		if (!IsInstrumentableFunction(function, out SourceFile? _, out _, out diagnostic))
+		if (!IsInstrumentableLineFunction(function, out FunctionDefinition coverageFunction, out diagnostic))
 			return false;
 		if (!CCodeEmitter.TryGetNodeSourceRange(statement, out TokenRange range))
 		{
@@ -111,8 +111,8 @@ public sealed class CampCoverageMapBuilder
 		int fileId = GetFileId(file!, range, out diagnostic);
 		if (fileId == 0)
 			return false;
-		int nameId = GetNameId(GetQualifiedFunctionName(function));
-		LineCounterKey key = new(function, fileId, range.StartLineNumber, nameId);
+		int nameId = GetNameId(GetQualifiedFunctionName(coverageFunction));
+		LineCounterKey key = new(coverageFunction, fileId, range.StartLineNumber, nameId);
 		if (lineCounters.TryGetValue(key, out counterId))
 			return true;
 
@@ -121,6 +121,25 @@ public sealed class CampCoverageMapBuilder
 		lineCounters[key] = counterId;
 		diagnostic = null;
 		return true;
+	}
+
+	bool IsInstrumentableLineFunction(FunctionDefinition function, out FunctionDefinition coverageFunction, out string? diagnostic)
+	{
+		coverageFunction = GetCoverageSourceFunction(function);
+		if (ReferenceEquals(coverageFunction, function))
+			return IsInstrumentableFunction(function, out _, out _, out diagnostic);
+
+		diagnostic = null;
+		if (compilation.CoverageInstrumentationMode == CoverageInstrumentationMode.Disabled
+			|| function.Body is null
+			|| function.Extern is not null
+			|| function.IsAsync
+			|| participation.IsTestOnly(coverageFunction)
+			|| UnsupportedAvailability.IsUnsupported(coverageFunction))
+		{
+			return false;
+		}
+		return IsInstrumentableFunction(coverageFunction, out _, out _, out diagnostic);
 	}
 
 	public CampCoverageMap ToMap()
@@ -224,6 +243,7 @@ public sealed class CampCoverageMapBuilder
 
 	string GetQualifiedFunctionName(FunctionDefinition function)
 	{
+		function = GetCoverageSourceFunction(function);
 		string name = GetVisibleFunctionName(function);
 		string? namespaceName = function.Namespace;
 		if (CCodeEmitter.TryGetNodeSourceRange(function, out TokenRange range)
@@ -233,6 +253,18 @@ public sealed class CampCoverageMapBuilder
 			? (string.IsNullOrWhiteSpace(type.Name) ? name : type.Name + "." + name)
 			: name;
 		return string.IsNullOrWhiteSpace(namespaceName) ? qualified : namespaceName + "::" + qualified;
+	}
+
+	FunctionDefinition GetCoverageSourceFunction(FunctionDefinition function)
+	{
+		if (function.GeneratedInfo?.Category == GeneratedDeclarationCategory.Iterator
+			&& containingTypes.TryGetValue(function, out TypeDefinition? stateType)
+			&& stateType.GeneratedInfo?.Category == GeneratedDeclarationCategory.Iterator
+			&& stateType.GeneratedInfo.Source is FunctionDefinition sourceFunction)
+		{
+			return sourceFunction;
+		}
+		return function;
 	}
 
 	static string GetVisibleFunctionName(FunctionDefinition function)

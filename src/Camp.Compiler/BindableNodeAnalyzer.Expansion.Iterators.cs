@@ -1305,9 +1305,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			case YieldStatement yield:
 				if (yield.IsBreak)
-					return lowering.CreateCompletion();
+					return lowering.CreateCompletion(yield.SourceSyntax);
 				ValidateIteratorYieldLifetime(lowering.Function, yield.Expression, yield.Expression?.SourceSyntax ?? yield.SourceSyntax);
-				return lowering.CreateYield(yield.Expression);
+				return lowering.CreateYield(yield.Expression, yield.SourceSyntax);
 
 			case ExpressionStatement { Expression: UnaryExpression { Operator: UnaryOperator.Throw } throwStatement }:
 				return lowering.CreateThrow(throwStatement.Operand, throwStatement.SourceSyntax);
@@ -2202,16 +2202,18 @@ public sealed partial class BindableNodeAnalyzer
 			return statements;
 		}
 
-		public List<Statement> CreateYield(Expression? value)
+		public List<Statement> CreateYield(Expression? value, SyntaxNode? syntax)
 		{
 			int resumeState = nextState++;
 			List<Statement> statements = [];
 			statements.AddRange(ClearThrownSlot());
 			statements.Add(new ExpressionStatement
 			{
+				SourceSyntax = syntax,
 				ResolvedType = "void",
 				Expression = new AssignmentExpression
 				{
+					SourceSyntax = syntax,
 					Target = new UnaryExpression
 					{
 						Operator = UnaryOperator.PointerDereference,
@@ -2223,9 +2225,10 @@ public sealed partial class BindableNodeAnalyzer
 					ResolvedType = yieldedType
 				},
 			});
-			statements.Add(SetState(resumeState));
+			statements.Add(SetState(resumeState, syntax));
 			statements.Add(new ReturnStatement
 			{
+				SourceSyntax = syntax,
 				Expression = BoolLiteral(true),
 				SkipPendingCleanups = true,
 				ResolvedType = "void"
@@ -2264,12 +2267,12 @@ public sealed partial class BindableNodeAnalyzer
 			return statements;
 		}
 
-		public List<Statement> CreateCompletion()
+		public List<Statement> CreateCompletion(SyntaxNode? syntax = null)
 		{
 			List<Statement> statements = [];
 			foreach (Statement cleanup in cleanupStatements)
 				statements.Add(analyzer.CloneStatementForCleanup(cleanup));
-			statements.Add(SetState(-1));
+			statements.Add(SetState(-1, syntax));
 			statements.AddRange(ClearThrownSlot());
 			statements.Add(ReturnFalse());
 			return statements;
@@ -2313,13 +2316,15 @@ public sealed partial class BindableNodeAnalyzer
 			};
 		}
 
-		Statement SetState(int state)
+		Statement SetState(int state, SyntaxNode? syntax = null)
 		{
 			return new ExpressionStatement
 			{
+				SourceSyntax = syntax,
 				ResolvedType = "void",
 				Expression = new AssignmentExpression
 				{
+					SourceSyntax = syntax,
 					Target = analyzer.ThisMemberReference(IteratorStateFieldName, "int"),
 					Operator = AssignmentOperator.Assign,
 					Value = NumberLiteral(state.ToString(System.Globalization.CultureInfo.InvariantCulture), "int"),
