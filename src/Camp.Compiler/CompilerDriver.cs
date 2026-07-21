@@ -248,6 +248,9 @@ public static class CompilerDriver
 				OutGenerated(generated);
 			}
 
+			if (request.EmitDebugInfo && !TryEmitDebugArtifact(compilation, outputDirectory, projectName, result.DebugInfo))
+				return 1;
+
 			List<string> coverageMapPaths = [.. request.CoverageMapInputs];
 			List<string> coverageRuntimeSources = [];
 			if (coverageMapBuilder is not null)

@@ -556,6 +556,66 @@ public sealed class DapServerTests
 	}
 
 	[Fact]
+	public void Dap_cdb_backend_debug_test_stops_on_later_assert_breakpoint()
+	{
+		if (!OperatingSystem.IsWindows() || !CdbAvailable())
+			return;
+
+		string root = FindRepositoryRoot();
+		string temp = Path.Combine(root, "tmp", "dap-cdb-debug-test-breakpoint-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(temp);
+		string source = Path.Combine(temp, "main.camp");
+		string[] lines =
+		[
+			"namespace DapDebugTest;",
+			"",
+			"@test",
+			"void breaksOnLaterAssert(thrown Assertion* assertion)",
+			"{",
+			"\tint value = 1;",
+			"\tassert(value == 1);",
+			"\tassert(value + 1 == 2);",
+			"\tassert(value + 2 == 3);",
+			"}",
+			""
+		];
+		File.WriteAllText(source, string.Join(Environment.NewLine, lines));
+		int breakpointLine = Array.FindIndex(lines, line => line.Contains("value + 1", StringComparison.Ordinal)) + 1;
+
+		using DapProcess dap = DapProcess.Start();
+		Assert.True(dap.Request("initialize", new { adapterID = "camp" })["success"]?.GetValue<bool>());
+		JsonNode launch = dap.Request("launch", new
+		{
+			project = source,
+			cwd = root,
+			args = Array.Empty<string>(),
+			stopOnEntry = false,
+			backend = "auto",
+			testFilter = "DapDebugTest::breaksOnLaterAssert"
+		});
+		Assert.True(launch["success"]?.GetValue<bool>(), launch["message"]?.GetValue<string>());
+		dap.ReadEvent("initialized");
+
+		JsonNode breakpoints = dap.Request("setBreakpoints", new
+		{
+			source = new { path = source },
+			breakpoints = new[] { new { line = breakpointLine } }
+		});
+		Assert.True(
+			breakpoints["body"]?["breakpoints"]?[0]?["verified"]?.GetValue<bool>(),
+			breakpoints["body"]?["breakpoints"]?[0]?["message"]?.GetValue<string>());
+
+		Assert.True(dap.Request("configurationDone", new { })["success"]?.GetValue<bool>());
+		Assert.Equal("breakpoint", dap.ReadEvent("stopped")["body"]?["reason"]?.GetValue<string>());
+		JsonNode stack = dap.Request("stackTrace", new { threadId = 1 });
+		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
+		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
+		Assert.Equal(breakpointLine, frame?["line"]?.GetValue<int>());
+
+		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
+	}
+
+	[Fact]
 	public void Dap_gdb_backend_launches_and_stops_on_camp_breakpoint_when_available()
 	{
 		if (!OperatingSystem.IsLinux() || !CommandAvailable("gdb"))

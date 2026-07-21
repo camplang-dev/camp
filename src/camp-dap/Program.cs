@@ -477,7 +477,7 @@ sealed class FakeDebugBackend : IDebugBackend
 
 sealed class LldbDebugBackend : IDebugBackend
 {
-	readonly List<(string Source, int Line)> pendingBreakpoints = [];
+	readonly List<DebugBreakpointTarget> pendingBreakpoints = [];
 	readonly List<DebugStackFrame> lastFrames = [];
 	readonly Dictionary<int, IReadOnlyList<DebugVariable>> variableReferences = new();
 	readonly Dictionary<string, DebugVariable> evaluateVariables = new(StringComparer.Ordinal);
@@ -517,7 +517,7 @@ sealed class LldbDebugBackend : IDebugBackend
 		testEventPath = build.TestEventPath;
 		debugMap = build.DebugMapPath is null ? null : DebugMapDocument.Load(build.DebugMapPath);
 		if (StopOnEntry)
-			pendingBreakpoints.Add(("", 0));
+			pendingBreakpoints.Add(DebugBreakpointTarget.Entry);
 	}
 
 	public async Task<IReadOnlyList<DebugBreakpoint>> SetBreakpoints(string source, IReadOnlyList<int> lines)
@@ -525,8 +525,9 @@ sealed class LldbDebugBackend : IDebugBackend
 		List<DebugBreakpoint> results = [];
 		foreach (int line in lines)
 		{
-			pendingBreakpoints.Add((source, line));
-			bool verified = File.Exists(source) && line > 0;
+			DebugBreakpointTarget target = new(source, line, source, line);
+			pendingBreakpoints.Add(target);
+			bool verified = target.Verified;
 			results.Add(new DebugBreakpoint(line, verified, verified ? null : "Breakpoint source could not be verified before launch."));
 		}
 		await Task.CompletedTask;
@@ -536,11 +537,11 @@ sealed class LldbDebugBackend : IDebugBackend
 	public async Task ConfigurationDone()
 	{
 		await StartLldbSession();
-		foreach ((string source, int line) in pendingBreakpoints)
+		foreach (DebugBreakpointTarget breakpoint in pendingBreakpoints)
 		{
-			await RunLldbCommand(line == 0
+			await RunLldbCommand(breakpoint.NativeLine == 0
 				? "breakpoint set --name main"
-				: $"breakpoint set --file {QuoteLldbArgument(source)} --line {line} --move-to-nearest-code false");
+				: $"breakpoint set --file {QuoteLldbArgument(breakpoint.NativeSource)} --line {breakpoint.NativeLine} --move-to-nearest-code false");
 		}
 		string output = await RunLldbExecutionCommand("run");
 		await RefreshStoppedState(output);
@@ -638,12 +639,18 @@ sealed class LldbDebugBackend : IDebugBackend
 				continue;
 			if (!Path.IsPathRooted(path))
 				path = pendingBreakpoints
-					.Select(item => item.Source)
+					.Select(item => item.RequestedSource)
 					.FirstOrDefault(source => Path.GetFileName(source).Equals(path, StringComparison.OrdinalIgnoreCase)) ?? path;
-				string name = ParseFrameName(line);
-				frames.Add(new DebugStackFrame(frames.Count + 1, debugMap?.GetDisplayName(name) ?? name, path, sourceLine, column));
-				if (frames.Count == 1)
-					stoppedNativeSymbol = name;
+			if (debugMap is not null && debugMap.TryMapGeneratedLocation(path, sourceLine, out DebugSourceLocation? mapped))
+			{
+				path = mapped!.Path;
+				sourceLine = mapped.Line;
+				column = mapped.Column;
+			}
+			string name = ParseFrameName(line);
+			frames.Add(new DebugStackFrame(frames.Count + 1, debugMap?.GetDisplayName(name) ?? name, path, sourceLine, column));
+			if (frames.Count == 1)
+				stoppedNativeSymbol = name;
 		}
 		if (frames.Count > 0)
 		{
@@ -1050,7 +1057,7 @@ sealed class LldbDebugBackend : IDebugBackend
 
 sealed class GdbDebugBackend : IDebugBackend
 {
-	readonly List<(string Source, int Line)> pendingBreakpoints = [];
+	readonly List<DebugBreakpointTarget> pendingBreakpoints = [];
 	readonly List<DebugStackFrame> lastFrames = [];
 	readonly Dictionary<int, IReadOnlyList<DebugVariable>> variableReferences = new();
 	readonly Dictionary<string, DebugVariable> evaluateVariables = new(StringComparer.Ordinal);
@@ -1082,7 +1089,7 @@ sealed class GdbDebugBackend : IDebugBackend
 		testEventPath = build.TestEventPath;
 		debugMap = build.DebugMapPath is null ? null : DebugMapDocument.Load(build.DebugMapPath);
 		if (StopOnEntry)
-			pendingBreakpoints.Add(("", 0));
+			pendingBreakpoints.Add(DebugBreakpointTarget.Entry);
 	}
 
 	public async Task<IReadOnlyList<DebugBreakpoint>> SetBreakpoints(string source, IReadOnlyList<int> lines)
@@ -1090,8 +1097,9 @@ sealed class GdbDebugBackend : IDebugBackend
 		List<DebugBreakpoint> results = [];
 		foreach (int line in lines)
 		{
-			pendingBreakpoints.Add((source, line));
-			bool verified = File.Exists(source) && line > 0;
+			DebugBreakpointTarget target = new(source, line, source, line);
+			pendingBreakpoints.Add(target);
+			bool verified = target.Verified;
 			results.Add(new DebugBreakpoint(line, verified, verified ? null : "Breakpoint source could not be verified before launch."));
 		}
 		await Task.CompletedTask;
@@ -1187,12 +1195,19 @@ sealed class GdbDebugBackend : IDebugBackend
 				continue;
 			if (!Path.IsPathRooted(path))
 				path = pendingBreakpoints
-					.Select(item => item.Source)
+					.Select(item => item.RequestedSource)
 					.FirstOrDefault(source => Path.GetFileName(source).Equals(path, StringComparison.OrdinalIgnoreCase)) ?? path;
-				string name = ParseGdbFrameName(line);
-				frames.Add(new DebugStackFrame(frames.Count + 1, debugMap?.GetDisplayName(name) ?? name, path, sourceLine, 1));
-				if (frames.Count == 1)
-					stoppedNativeSymbol = name;
+			int column = 1;
+			if (debugMap is not null && debugMap.TryMapGeneratedLocation(path, sourceLine, out DebugSourceLocation? mapped))
+			{
+				path = mapped!.Path;
+				sourceLine = mapped.Line;
+				column = mapped.Column;
+			}
+			string name = ParseGdbFrameName(line);
+			frames.Add(new DebugStackFrame(frames.Count + 1, debugMap?.GetDisplayName(name) ?? name, path, sourceLine, column));
+			if (frames.Count == 1)
+				stoppedNativeSymbol = name;
 		}
 		if (frames.Count > 0)
 		{
@@ -1275,10 +1290,10 @@ sealed class GdbDebugBackend : IDebugBackend
 		};
 		info.ArgumentList.Add("--batch");
 		info.ArgumentList.Add("--quiet");
-		foreach ((string source, int line) in pendingBreakpoints)
+		foreach (DebugBreakpointTarget breakpoint in pendingBreakpoints)
 		{
 			info.ArgumentList.Add("-ex");
-			info.ArgumentList.Add(line == 0 ? "break main" : $"break {source}:{line}");
+			info.ArgumentList.Add(breakpoint.NativeLine == 0 ? "break main" : $"break {breakpoint.NativeSource}:{breakpoint.NativeLine}");
 		}
 		foreach (string command in commands)
 		{
@@ -1299,7 +1314,7 @@ sealed class GdbDebugBackend : IDebugBackend
 
 sealed class CdbDebugBackend : IDebugBackend
 {
-	readonly List<(string Source, int Line)> pendingBreakpoints = [];
+	readonly List<DebugBreakpointTarget> pendingBreakpoints = [];
 	readonly List<DebugStackFrame> lastFrames = [];
 	readonly Dictionary<int, IReadOnlyList<DebugVariable>> variableReferences = new();
 	readonly Dictionary<string, DebugVariable> evaluateVariables = new(StringComparer.Ordinal);
@@ -1335,7 +1350,7 @@ sealed class CdbDebugBackend : IDebugBackend
 			?? throw new InvalidOperationException("Debug backend 'cdb' is not available because cdb.exe was not found. Install Windows Debugging Tools and ensure cdb.exe is on PATH or in the Windows Kits Debuggers folder.");
 		debugMap = build.DebugMapPath is null ? null : DebugMapDocument.Load(build.DebugMapPath);
 		if (StopOnEntry)
-			pendingBreakpoints.Add(("", 0));
+			pendingBreakpoints.Add(DebugBreakpointTarget.Entry);
 	}
 
 	public async Task<IReadOnlyList<DebugBreakpoint>> SetBreakpoints(string source, IReadOnlyList<int> lines)
@@ -1343,8 +1358,9 @@ sealed class CdbDebugBackend : IDebugBackend
 		List<DebugBreakpoint> results = [];
 		foreach (int line in lines)
 		{
-			pendingBreakpoints.Add((source, line));
-			bool verified = File.Exists(source) && line > 0;
+			DebugBreakpointTarget target = new(source, line, source, line);
+			pendingBreakpoints.Add(target);
+			bool verified = target.Verified;
 			results.Add(new DebugBreakpoint(line, verified, verified ? null : "Breakpoint source could not be verified before launch."));
 		}
 		await Task.CompletedTask;
@@ -1354,8 +1370,8 @@ sealed class CdbDebugBackend : IDebugBackend
 	public async Task ConfigurationDone()
 	{
 		await StartCdbSession();
-		foreach ((string source, int line) in pendingBreakpoints)
-			await RunCdbCommand(BuildCdbBreakpointCommand(source, line));
+		foreach (DebugBreakpointTarget breakpoint in pendingBreakpoints)
+			await SetCdbBreakpoint(breakpoint);
 		string output = await RunCdbExecutionCommand("g");
 		await RefreshStoppedState(output);
 	}
@@ -1456,11 +1472,18 @@ sealed class CdbDebugBackend : IDebugBackend
 				continue;
 			if (!Path.IsPathRooted(path))
 				path = pendingBreakpoints
-					.Select(item => item.Source)
+					.Select(item => item.RequestedSource)
 					.FirstOrDefault(source => Path.GetFileName(source).Equals(path, StringComparison.OrdinalIgnoreCase)) ?? path;
+			int column = 1;
+			if (debugMap is not null && debugMap.TryMapGeneratedLocation(path, sourceLine, out DebugSourceLocation? mapped))
+			{
+				path = mapped!.Path;
+				sourceLine = mapped.Line;
+				column = mapped.Column;
+			}
 			if (debugMap is not null && debugMap.FindFunctionForSourceLine(path, sourceLine) is null)
 				continue;
-			frames.Add(new DebugStackFrame(frames.Count + 1, debugMap?.GetDisplayName(name) ?? name, path, sourceLine, 1));
+			frames.Add(new DebugStackFrame(frames.Count + 1, debugMap?.GetDisplayName(name) ?? name, path, sourceLine, column));
 			if (frames.Count == 1)
 				stoppedNativeSymbol = name;
 		}
@@ -1713,12 +1736,36 @@ sealed class CdbDebugBackend : IDebugBackend
 		}
 	}
 
-	string BuildCdbBreakpointCommand(string source, int line)
+	string BuildCdbBreakpointCommand(DebugBreakpointTarget breakpoint)
 	{
 		string module = Path.GetFileNameWithoutExtension(executable);
-		if (line == 0)
+		if (breakpoint.NativeLine == 0)
 			return "bu " + module + "!" + (debugMap?.FindFunction("main")?.NativeSymbol ?? "main");
-		return "bu `" + source + ":" + line.ToString(System.Globalization.CultureInfo.InvariantCulture) + "`";
+		return "bu `" + breakpoint.NativeSource + ":" + breakpoint.NativeLine.ToString(System.Globalization.CultureInfo.InvariantCulture) + "`";
+	}
+
+	async Task SetCdbBreakpoint(DebugBreakpointTarget breakpoint)
+	{
+		string output = await RunCdbCommand(BuildCdbBreakpointCommand(breakpoint));
+		if (!output.Contains("Ambiguous symbol error", StringComparison.OrdinalIgnoreCase))
+			return;
+		foreach (string address in ParseCdbMatchedAddresses(output))
+			await RunCdbCommand("bp " + address);
+	}
+
+	static IEnumerable<string> ParseCdbMatchedAddresses(string output)
+	{
+		foreach (string rawLine in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+		{
+			string line = StripCdbPrompt(rawLine.Trim());
+			int open = line.LastIndexOf('(');
+			int close = line.LastIndexOf(')');
+			if (!line.StartsWith("Matched:", StringComparison.OrdinalIgnoreCase) || open < 0 || close <= open)
+				continue;
+			string address = line[(open + 1)..close].Trim();
+			if (address.Length > 0)
+				yield return address;
+		}
 	}
 
 	static bool IsCdbStoppedOutput(string output)
@@ -1922,6 +1969,13 @@ sealed record DebugScope(string Name, int Reference);
 sealed record DebugVariable(string Name, string Value, string? Type, int Reference);
 sealed record DebugOutputEvent(string Category, string Output);
 sealed record DebugBuildResult(string Executable, string? DebugMapPath, string? TestEventPath);
+sealed record DebugBreakpointTarget(string RequestedSource, int RequestedLine, string NativeSource, int NativeLine)
+{
+	public static DebugBreakpointTarget Entry { get; } = new("", 0, "", 0);
+	public bool Verified => NativeLine == 0 || File.Exists(NativeSource) && NativeLine > 0;
+}
+sealed record DebugSourceLocation(string Path, int Line, int Column);
+sealed record DebugGeneratedLocation(string Path, int Line);
 sealed record LldbNativeVariable(string Type, string Value);
 
 static class DebugVariableMapper
@@ -2089,7 +2143,7 @@ static class DebugVariableMapper
 	}
 }
 
-sealed class DebugMapDocument(IReadOnlyList<DebugMapFunction> functions)
+sealed class DebugMapDocument(IReadOnlyList<DebugMapFunction> functions, IReadOnlyList<DebugMapStatement> statements)
 {
 	public DebugMapFunction? FindFunction(string nativeSymbol)
 	{
@@ -2113,25 +2167,53 @@ sealed class DebugMapDocument(IReadOnlyList<DebugMapFunction> functions)
 			.FirstOrDefault();
 	}
 
+	public bool TryMapGeneratedLocation(string generatedPath, int generatedLine, out DebugSourceLocation? source)
+	{
+		string fullPath = Path.GetFullPath(generatedPath);
+		DebugMapStatement? statement = statements
+			.Where(candidate => Path.GetFullPath(candidate.Generated.Path).Equals(fullPath, StringComparison.OrdinalIgnoreCase)
+				&& candidate.Generated.Line <= generatedLine)
+			.OrderByDescending(candidate => candidate.Generated.Line)
+			.FirstOrDefault();
+		source = statement?.Source;
+		return source is not null;
+	}
+
 	public static DebugMapDocument Load(string path)
 	{
 		using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
 		List<DebugMapFunction> functions = [];
+		List<DebugMapStatement> statements = [];
 		if (!document.RootElement.TryGetProperty("entries", out JsonElement entries) || entries.ValueKind is not JsonValueKind.Array)
-			return new DebugMapDocument(functions);
+			return new DebugMapDocument(functions, statements);
 		foreach (JsonElement entry in entries.EnumerateArray())
 		{
 			string? kind = entry.TryGetProperty("kind", out JsonElement kindElement) ? kindElement.GetString() : null;
-			if (kind != "function")
+			if (kind is not ("function" or "statement"))
 				continue;
 			string? campFunction = entry.TryGetProperty("campFunction", out JsonElement campElement) ? campElement.GetString() : null;
 			string? nativeSymbol = entry.TryGetProperty("nativeSymbol", out JsonElement nativeElement) ? nativeElement.GetString() : null;
 			string? sourcePath = null;
 			int sourceStartLine = 0;
+			int sourceStartColumn = 1;
 			if (entry.TryGetProperty("source", out JsonElement sourceElement) && sourceElement.ValueKind is JsonValueKind.Object)
 			{
 				sourcePath = sourceElement.TryGetProperty("file", out JsonElement fileElement) ? fileElement.GetString() : null;
 				sourceStartLine = sourceElement.TryGetProperty("startLine", out JsonElement startLineElement) ? startLineElement.GetInt32() : 0;
+				sourceStartColumn = sourceElement.TryGetProperty("startColumn", out JsonElement startColumnElement) ? startColumnElement.GetInt32() : 1;
+			}
+			string? generatedPath = null;
+			int generatedLine = 0;
+			if (entry.TryGetProperty("generated", out JsonElement generatedElement) && generatedElement.ValueKind is JsonValueKind.Object)
+			{
+				generatedPath = generatedElement.TryGetProperty("file", out JsonElement fileElement) ? fileElement.GetString() : null;
+				generatedLine = generatedElement.TryGetProperty("line", out JsonElement lineElement) ? lineElement.GetInt32() : 0;
+			}
+			if (kind == "statement")
+			{
+				if (!string.IsNullOrWhiteSpace(sourcePath) && sourceStartLine > 0 && !string.IsNullOrWhiteSpace(generatedPath) && generatedLine > 0)
+					statements.Add(new DebugMapStatement(new DebugSourceLocation(sourcePath!, sourceStartLine, sourceStartColumn), new DebugGeneratedLocation(generatedPath!, generatedLine)));
+				continue;
 			}
 			List<DebugMapVariable> variables = [];
 			if (entry.TryGetProperty("variables", out JsonElement variablesElement) && variablesElement.ValueKind is JsonValueKind.Array)
@@ -2149,7 +2231,7 @@ sealed class DebugMapDocument(IReadOnlyList<DebugMapFunction> functions)
 			if (nativeSymbol is not null)
 				functions.Add(new DebugMapFunction(campFunction, nativeSymbol, sourcePath, sourceStartLine, variables));
 		}
-		return new DebugMapDocument(functions);
+		return new DebugMapDocument(functions, statements);
 	}
 
 }
@@ -2179,3 +2261,4 @@ sealed record DebugMapFunction(string? CampFunction, string NativeSymbol, string
 }
 
 sealed record DebugMapVariable(string CampName, string NativeName, string? Type, string Kind);
+sealed record DebugMapStatement(DebugSourceLocation Source, DebugGeneratedLocation Generated);
