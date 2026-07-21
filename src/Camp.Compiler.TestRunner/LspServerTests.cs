@@ -880,6 +880,58 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_server_returns_test_code_lenses_with_exact_manifest_filters()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-test-code-lens");
+		string sourceRoot = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceRoot);
+		string build = Path.Combine(root, "test_app.campbuild");
+		File.WriteAllText(build, """
+			--artifact exec
+			--name test_app
+			src/*.camp
+			""");
+		string file = Path.Combine(sourceRoot, "main.camp");
+		string text = """
+			namespace LspTests;
+
+			/// Valid test.
+			/// @test
+			void validCase(thrown Assertion* assertion)
+			{
+			}
+
+			@test
+			int invalidCase()
+			{
+				return 0;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+		Assert.Contains(diagnostics["params"]?["diagnostics"]?.AsArray()!, static diagnostic => diagnostic?["code"]?.GetValue<string>() == "CAMPTEST001");
+
+		JsonNode response = lsp.Request("textDocument/codeLens", new
+		{
+			textDocument = new { uri }
+		});
+		JsonArray lenses = response["result"]!.AsArray();
+		Assert.Equal(6, lenses.Count);
+		Assert.Contains(lenses, lens => IsTestLens(lens, "camp.test.run", "LspTests::validCase"));
+		Assert.Contains(lenses, lens => IsTestLens(lens, "camp.test.debug", "LspTests::validCase"));
+		Assert.Contains(lenses, lens => IsTestLens(lens, "camp.test.cover", "LspTests::validCase"));
+		Assert.Contains(lenses, lens => IsTestLens(lens, "camp.test.run", "LspTests::invalidCase"));
+	}
+
+	[Fact]
 	public void Lsp_build_file_includes_existing_project_reference_api_headers_for_src_files()
 	{
 		using LspProcess lsp = LspProcess.Start();
@@ -1130,6 +1182,19 @@ public sealed class LspServerTests
 		return result?["items"]?.AsArray() ?? throw new InvalidOperationException("Completion response did not contain items.");
 	}
 
+	static bool IsTestLens(JsonNode? lens, string command, string filter)
+	{
+		if (lens?["command"] is null)
+			return false;
+		string? commandName = lens["command"]?["command"]?.GetValue<string>()
+			?? lens["command"]?["name"]?.GetValue<string>();
+		if (commandName != command)
+			return false;
+		JsonNode? argument = lens["command"]?["arguments"]?[0];
+		return argument?["Filter"]?.GetValue<string>() == filter
+			|| argument?["filter"]?.GetValue<string>() == filter;
+	}
+
 	static CampTextPosition PositionAfter(string text, string marker)
 	{
 		int index = text.IndexOf(marker, StringComparison.Ordinal);
@@ -1239,6 +1304,7 @@ public sealed class LspServerTests
 						definition = new { },
 						references = new { },
 						documentSymbol = new { },
+						codeLens = new { },
 						synchronization = new { }
 					},
 					workspace = new
@@ -1254,6 +1320,7 @@ public sealed class LspServerTests
 			Assert.NotNull(response["result"]?["capabilities"]?["referencesProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["documentSymbolProvider"]);
 			Assert.NotNull(response["result"]?["capabilities"]?["workspaceSymbolProvider"]);
+			Assert.NotNull(response["result"]?["capabilities"]?["codeLensProvider"]);
 			Notify("initialized", new { });
 		}
 

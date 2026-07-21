@@ -49,11 +49,12 @@ rules:
   - type.keyword: "\\b(implements|copyable)\\b"
 
   - special: "\\b(sizeof|typenameof|vtableof|caller|sourceof)\\b(?=\\s*\\()"
+  - special: "\\b(assert|fail)\\b(?=\\s*\\()"
   - constant.bool: "\\b(true|false)\\b"
   - constant: "\\b(null|default|this|base)\\b"
 
   - identifier.class: "\\b(?:shadow\\s+)?(struct|class|interface|enum|newtype|params)\\s+([A-Za-z_][A-Za-z0-9_]*)"
-  - special: "@(getshadow|setshadow)\\b"
+  - special: "@(test|testonly|skip|getshadow|setshadow)\\b"
   - identifier: "@[A-Za-z_][A-Za-z0-9_]*\\b"
   - symbol.operator: "(=>|\\+\\+|--|\\?\\?|\\.\\.|==|!=|<=|>=|<<|>>|&&|\\|\\||[+\\-*/%&|^~!=<>?:]=?|=)"
   - symbol.brackets: "[{}()\\[\\]]"

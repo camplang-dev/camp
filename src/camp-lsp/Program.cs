@@ -32,6 +32,7 @@ LanguageServer server = await LanguageServer.From(options => options
 	.AddHandler(new CampReferencesHandler(workspace))
 	.AddHandler(new CampDocumentSymbolHandler(workspace))
 	.AddHandler(new CampWorkspaceSymbolHandler(workspace))
+	.AddHandler(new CampCodeLensHandler(workspace))
 	.OnStarted((languageServer, _) =>
 	{
 		workspace.SetLanguageServer(languageServer);
@@ -110,6 +111,19 @@ public sealed class CampCompletionIdentity : IHandlerIdentity
 {
 	public string __identity { get; init; } = "camp";
 }
+
+public sealed record CampTestCommandArgument(
+	string Project,
+	string Cwd,
+	string Filter,
+	string Sourcefile,
+	int Sourceline);
+
+public sealed record CampTestCodeLens(
+	CampTextRange Range,
+	string Title,
+	string Command,
+	CampTestCommandArgument Argument);
 
 sealed class CampHoverHandler(CampLspWorkspace workspace) : HoverHandlerBase
 {
@@ -221,6 +235,40 @@ sealed class CampWorkspaceSymbolHandler(CampLspWorkspace workspace) : WorkspaceS
 	protected override WorkspaceSymbolRegistrationOptions CreateRegistrationOptions(WorkspaceSymbolCapability capability, ClientCapabilities clientCapabilities)
 	{
 		return new WorkspaceSymbolRegistrationOptions();
+	}
+}
+#pragma warning restore CS8609
+
+#pragma warning disable CS8609
+sealed class CampCodeLensHandler(CampLspWorkspace workspace) : CodeLensHandlerBase
+{
+	public override Task<CodeLensContainer> Handle(CodeLensParams request, CancellationToken cancellationToken)
+	{
+		IReadOnlyList<CampTestCodeLens> lenses = workspace.GetTestCodeLenses(request.TextDocument.Uri);
+		return Task.FromResult(new CodeLensContainer(lenses.Select(ToCodeLens)));
+	}
+
+	public override Task<CodeLens> Handle(CodeLens request, CancellationToken cancellationToken)
+	{
+		return Task.FromResult(request);
+	}
+
+	protected override CodeLensRegistrationOptions CreateRegistrationOptions(CodeLensCapability capability, ClientCapabilities clientCapabilities)
+	{
+		return new CodeLensRegistrationOptions { DocumentSelector = CampLsp.Protocol.DocumentSelector };
+	}
+
+	static CodeLens ToCodeLens(CampTestCodeLens lens)
+	{
+		return new CodeLens
+		{
+			Range = CampLsp.ToLspRange(lens.Range),
+			Command = new Command
+			{
+				Title = lens.Title,
+				Name = lens.Command
+			}.WithArguments(lens.Argument)
+		};
 	}
 }
 #pragma warning restore CS8609
@@ -594,6 +642,37 @@ public sealed class CampLspWorkspace
 		return result;
 	}
 
+	public IReadOnlyList<CampTestCodeLens> GetTestCodeLenses(DocumentUri uri)
+	{
+		long start = Stopwatch.GetTimestamp();
+		string path = uri.GetFileSystemPath();
+		OpenDocument? document;
+		lock (gate)
+			openDocuments.TryGetValue(path, out document);
+		if (document is null)
+		{
+			trace.Write("query.testCodeLens", ("file", path), ("snapshot", "document-missing"), ("resultCount", 0), ("durationMs", ElapsedMilliseconds(start)));
+			return [];
+		}
+
+		CompilerRequest request = CreateRequest(path);
+		CampTestDiscoverySnapshot snapshot = CampLanguageService.DiscoverTests(request, [new CampSourceOverlay(document.Path, document.Text, document.Version ?? 0)]);
+		string project = GetProjectTargetPath(path);
+		string cwd = Path.GetDirectoryName(project) ?? Path.GetDirectoryName(path) ?? Directory.GetCurrentDirectory();
+		List<CampTestCodeLens> result = [];
+		foreach (CampDiscoveredTest test in snapshot.Tests)
+		{
+			if (!string.Equals(Path.GetFullPath(test.Path), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
+				continue;
+			CampTestCommandArgument argument = new(project, cwd, test.Id, test.Sourcefile, test.Sourceline);
+			result.Add(new CampTestCodeLens(test.Range, "Run Test", "camp.test.run", argument));
+			result.Add(new CampTestCodeLens(test.Range, "Debug Test", "camp.test.debug", argument));
+			result.Add(new CampTestCodeLens(test.Range, "Cover Test", "camp.test.cover", argument));
+		}
+		trace.Write("query.testCodeLens", ("file", path), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
+		return result;
+	}
+
 	void WarmQueryService(string path, CampAnalysisSnapshot snapshot)
 	{
 		lock (gate)
@@ -807,7 +886,17 @@ public sealed class CampLspWorkspace
 	{
 		long start = Stopwatch.GetTimestamp();
 		CompilerRequest request = CreateRequest(document.Path);
-		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request, [new CampSourceOverlay(document.Path, document.Text, document.Version ?? 0)]);
+		CampSourceOverlay[] overlays = [new CampSourceOverlay(document.Path, document.Text, document.Version ?? 0)];
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request, overlays);
+		if (ContainsTestAttributes(document.Text))
+		{
+			CampTestDiscoverySnapshot testSnapshot = CampLanguageService.DiscoverTests(request, overlays);
+			snapshot = new CampAnalysisSnapshot
+			{
+				Compilation = snapshot.Compilation,
+				Diagnostics = MergeDiagnostics(snapshot.Diagnostics, testSnapshot.Diagnostics)
+			};
+		}
 		trace.Write("analysis.pipeline",
 			("file", document.Path),
 			("version", document.Version),
@@ -816,6 +905,29 @@ public sealed class CampLspWorkspace
 			("success", snapshot.Success),
 			("durationMs", ElapsedMilliseconds(start)));
 		return snapshot;
+	}
+
+	static bool ContainsTestAttributes(string text)
+	{
+		return text.Contains("@test", StringComparison.Ordinal)
+			|| text.Contains("@testonly", StringComparison.Ordinal)
+			|| text.Contains("@skip", StringComparison.Ordinal);
+	}
+
+	static IReadOnlyList<CampSourceDiagnostic> MergeDiagnostics(IReadOnlyList<CampSourceDiagnostic> left, IReadOnlyList<CampSourceDiagnostic> right)
+	{
+		return left.Concat(right)
+			.GroupBy(static diagnostic => (
+				diagnostic.Path,
+				StartLine: diagnostic.Range?.Start.Line ?? -1,
+				StartCharacter: diagnostic.Range?.Start.Character ?? -1,
+				EndLine: diagnostic.Range?.End.Line ?? -1,
+				EndCharacter: diagnostic.Range?.End.Character ?? -1,
+				diagnostic.Message,
+				diagnostic.Code,
+				diagnostic.Severity))
+			.Select(static group => group.First())
+			.ToList();
 	}
 
 	CampAnalysisSnapshot? AnalyzeSingleFlight(OpenDocument document, CancellationToken cancellationToken)
@@ -906,6 +1018,12 @@ public sealed class CampLspWorkspace
 		return request;
 	}
 
+	static string GetProjectTargetPath(string documentPath)
+	{
+		string? buildFile = CampProjectLoader.FindNearestBuildFile(documentPath);
+		return Path.GetFullPath(buildFile ?? documentPath);
+	}
+
 	static CompilerRequest CloneRequest(CompilerRequest source)
 	{
 		CompilerRequest clone = new()
@@ -920,12 +1038,23 @@ public sealed class CampLspWorkspace
 			InspectApi = source.InspectApi,
 			BuildKind = source.BuildKind,
 			InferBuildKind = source.InferBuildKind,
+			CommandMode = source.CommandMode,
+			DeclarationParticipationMode = source.DeclarationParticipationMode,
+			CoverageInstrumentationMode = source.CoverageInstrumentationMode,
+			EmitDebugInfo = source.EmitDebugInfo,
 			EmitMetadata = source.EmitMetadata,
 			OutDir = source.OutDir,
 			ProjectName = source.ProjectName,
 			SubsystemName = source.SubsystemName,
 			NoStdLib = source.NoStdLib,
 			WithinAllocationPolicy = source.WithinAllocationPolicy,
+			SourcefilePathMode = source.SourcefilePathMode,
+			SourcefileDefaultRoot = source.SourcefileDefaultRoot,
+			ListTests = source.ListTests,
+			TestResultDir = source.TestResultDir,
+			TestResultFormat = source.TestResultFormat,
+			CoverageResultDir = source.CoverageResultDir,
+			CoverageFormat = source.CoverageFormat,
 			TargetRoot = source.TargetRoot,
 			PackageSourceRoot = source.PackageSourceRoot,
 			PackageArtifactRoot = source.PackageArtifactRoot
@@ -935,6 +1064,10 @@ public sealed class CampLspWorkspace
 		clone.AnalysisSourceFiles.AddRange(source.AnalysisSourceFiles);
 		clone.Defines.AddRange(source.Defines);
 		clone.Variants.AddRange(source.Variants);
+		clone.SourcefileRoots.AddRange(source.SourcefileRoots);
+		clone.TestFilters.AddRange(source.TestFilters);
+		clone.CoverageSubjects.AddRange(source.CoverageSubjects);
+		clone.CoverageMapInputs.AddRange(source.CoverageMapInputs);
 		clone.References.AddRange(source.References);
 		clone.SharedLibraryApiHeaders.AddRange(source.SharedLibraryApiHeaders);
 		clone.Frameworks.AddRange(source.Frameworks);

@@ -160,6 +160,123 @@ public static class CampTestResultsJsonSerializer
 		string text = Encoding.UTF8.GetString(stream.ToArray()).Replace("\r\n", "\n", StringComparison.Ordinal);
 		return text.EndsWith('\n') ? text : text + "\n";
 	}
+
+	public static bool TryParse(string text, out CampTestResults results, out List<string> diagnostics)
+	{
+		diagnostics = [];
+		results = new CampTestResults(new CampTestResultSummary(0, 0, 0, 0, 0, 0), []);
+		try
+		{
+			using JsonDocument document = JsonDocument.Parse(text);
+			JsonElement root = document.RootElement;
+			if (!root.TryGetProperty("format", out JsonElement format) || format.GetString() != "camp.test-results")
+				diagnostics.Add("test results format must be camp.test-results.");
+			if (!root.TryGetProperty("version", out JsonElement version) || version.GetInt32() != 1)
+				diagnostics.Add("test results version must be 1.");
+			List<CampTestResultEntry> tests = [];
+			if (root.TryGetProperty("tests", out JsonElement testsElement) && testsElement.ValueKind == JsonValueKind.Array)
+			{
+				foreach (JsonElement test in testsElement.EnumerateArray())
+				{
+					CampTestFailure? failure = null;
+					if (test.TryGetProperty("failure", out JsonElement failureElement) && failureElement.ValueKind == JsonValueKind.Object)
+					{
+						failure = new CampTestFailure(
+							GetString(failureElement, "kind"),
+							GetString(failureElement, "message"),
+							GetString(failureElement, "sourcefile"),
+							GetInt(failureElement, "sourceline"));
+					}
+					tests.Add(new CampTestResultEntry(
+						GetString(test, "id"),
+						GetString(test, "name"),
+						GetString(test, "qualifiedName"),
+						GetString(test, "sourcefile"),
+						GetInt(test, "sourceline"),
+						GetString(test, "summary"),
+						GetString(test, "outcome"),
+						GetDouble(test, "durationMs"),
+						failure));
+				}
+			}
+			else
+				diagnostics.Add("test results must contain a tests array.");
+			results = new CampTestResults(CreateSummary(tests), tests);
+		}
+		catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+		{
+			diagnostics.Add("test results could not be parsed: " + ex.Message);
+		}
+		return diagnostics.Count == 0;
+	}
+
+	static CampTestResultSummary CreateSummary(IReadOnlyList<CampTestResultEntry> tests)
+	{
+		return new CampTestResultSummary(
+			tests.Count(static test => test.Outcome == "passed"),
+			tests.Count(static test => test.Outcome == "failed"),
+			tests.Count(static test => test.Outcome == "skipped"),
+			tests.Count(static test => test.Outcome == "invalid"),
+			tests.Count(static test => test.Outcome == "error"),
+			tests.Count);
+	}
+
+	static string GetString(JsonElement element, string name)
+	{
+		return element.TryGetProperty(name, out JsonElement property) && property.ValueKind == JsonValueKind.String
+			? property.GetString() ?? ""
+			: "";
+	}
+
+	static int GetInt(JsonElement element, string name)
+	{
+		return element.TryGetProperty(name, out JsonElement property) && property.TryGetInt32(out int value) ? value : 0;
+	}
+
+	static double GetDouble(JsonElement element, string name)
+	{
+		return element.TryGetProperty(name, out JsonElement property) && property.TryGetDouble(out double value) ? value : 0;
+	}
+}
+
+public static class CampTestResultDiagnosticService
+{
+	public static bool TryCreateFromFile(string path, out IReadOnlyList<CampSourceDiagnostic> diagnostics, out List<string> importDiagnostics)
+	{
+		diagnostics = [];
+		importDiagnostics = [];
+		try
+		{
+			if (!CampTestResultsJsonSerializer.TryParse(File.ReadAllText(path), out CampTestResults results, out importDiagnostics))
+				return false;
+			diagnostics = Create(results);
+			return true;
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+		{
+			importDiagnostics.Add($"{path}: {ex.Message}");
+			return false;
+		}
+	}
+
+	public static IReadOnlyList<CampSourceDiagnostic> Create(CampTestResults results)
+	{
+		List<CampSourceDiagnostic> diagnostics = [];
+		foreach (CampTestResultEntry test in results.Tests)
+		{
+			if (test.Failure is not CampTestFailure failure)
+				continue;
+			string path = string.IsNullOrWhiteSpace(failure.Sourcefile) ? test.Sourcefile : failure.Sourcefile;
+			int line = Math.Max(0, (failure.Sourceline == 0 ? test.Sourceline : failure.Sourceline) - 1);
+			diagnostics.Add(new CampSourceDiagnostic(
+				path,
+				new CampTextRange(new CampTextPosition(line, 0), new CampTextPosition(line, 1)),
+				string.IsNullOrWhiteSpace(failure.Message) ? test.Outcome : failure.Message,
+				failure.Kind,
+				DiagnosticSeverity.Error));
+		}
+		return diagnostics;
+	}
 }
 
 public static class CampTestResultsTextFormatter

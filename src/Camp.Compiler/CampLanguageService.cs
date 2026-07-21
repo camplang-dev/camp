@@ -27,6 +27,27 @@ public sealed class CampAnalysisSnapshot
 	public bool Success => Diagnostics.All(static diagnostic => diagnostic.Severity != DiagnosticSeverity.Error);
 }
 
+public sealed record CampDiscoveredTest(
+	string Id,
+	string Name,
+	string QualifiedName,
+	string Sourcefile,
+	int Sourceline,
+	string Path,
+	CampTextRange Range,
+	string Summary,
+	bool Skipped,
+	string? SkipReason,
+	string RunnerSignature);
+
+public sealed class CampTestDiscoverySnapshot
+{
+	public required Compilation Compilation { get; init; }
+	public required IReadOnlyList<CampSourceDiagnostic> Diagnostics { get; init; }
+	public required IReadOnlyList<CampDiscoveredTest> Tests { get; init; }
+	public bool Success => Diagnostics.All(static diagnostic => diagnostic.Severity != DiagnosticSeverity.Error);
+}
+
 public static class CampLanguageService
 {
 	static readonly ParsedSourceCache parseCache = new();
@@ -41,6 +62,54 @@ public static class CampLanguageService
 		{
 			Compilation = compilation,
 			Diagnostics = CollectDiagnostics(compilation)
+		};
+	}
+
+	public static CampTestDiscoverySnapshot DiscoverTests(CompilerRequest request, IReadOnlyList<CampSourceOverlay>? overlays = null)
+	{
+		ArgumentNullException.ThrowIfNull(request);
+
+		CompilerRequest testRequest = CloneForTestDiscovery(request);
+		Compilation compilation = CreateCompilation(testRequest, overlays ?? []);
+		CompilationPipeline.Lower(compilation);
+		CampTestManifestMode mode = testRequest.SharedLibraryApiHeaders.Count > 0
+			? CampTestManifestMode.External
+			: CampTestManifestMode.InModule;
+		CampTestDiscoveryResult discovery = CampTestDiscovery.Discover(compilation, mode);
+		List<CampSourceDiagnostic> diagnostics = [.. CollectDiagnostics(compilation)];
+		diagnostics.AddRange(discovery.Diagnostics.Select(diagnostic => ConvertDiagnostic(compilation, null, diagnostic.Range, diagnostic.Message, diagnostic.Code, diagnostic.Severity)));
+		List<CampDiscoveredTest> tests = [];
+		foreach (CampTestManifestEntry test in discovery.Manifest.Tests)
+		{
+			if (test.Function is null || !TryGetDefinitionPathAndRange(compilation, test.Function, out string path, out CampTextRange range))
+				continue;
+			tests.Add(new CampDiscoveredTest(
+				test.Id,
+				test.Name,
+				test.QualifiedName,
+				test.Sourcefile,
+				test.Sourceline,
+				path,
+				range,
+				test.Summary,
+				test.Skipped,
+				test.SkipReason,
+				test.RunnerSignature));
+			if (test.RunnerSignature != "valid")
+			{
+				diagnostics.Add(new CampSourceDiagnostic(
+					path,
+					range,
+					$"Test '{test.Id}' has invalid built-in runner signature; expected void name(thrown Assertion*).",
+					"CAMPTEST001",
+					DiagnosticSeverity.Warning));
+			}
+		}
+		return new CampTestDiscoverySnapshot
+		{
+			Compilation = compilation,
+			Diagnostics = diagnostics,
+			Tests = tests
 		};
 	}
 
@@ -82,7 +151,60 @@ public static class CampLanguageService
 			AddSourceFileIfMissing(compilation, file, request.WorkingDirectory, overlayByPath, isApiHeader: false, loadedPaths);
 		foreach (string file in request.Files)
 			AddSourceFileIfMissing(compilation, file, request.WorkingDirectory, overlayByPath, isApiHeader: false, loadedPaths);
+		if (request.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover)
+			CampStandardTestSupport.AddTo(compilation);
 		return compilation;
+	}
+
+	static CompilerRequest CloneForTestDiscovery(CompilerRequest source)
+	{
+		CompilerRequest clone = new()
+		{
+			RuntimeRoot = source.RuntimeRoot,
+			WorkingDirectory = source.WorkingDirectory,
+			TargetName = source.TargetName,
+			ProfileName = source.ProfileName,
+			EmitKind = source.EmitKind,
+			Inspect = source.Inspect,
+			Xml = source.Xml,
+			InspectApi = source.InspectApi,
+			BuildKind = source.BuildKind,
+			InferBuildKind = source.InferBuildKind,
+			CommandMode = CompilerCommandMode.Test,
+			DeclarationParticipationMode = DeclarationParticipationMode.TestModule,
+			CoverageInstrumentationMode = CoverageInstrumentationMode.Disabled,
+			EmitDebugInfo = source.EmitDebugInfo,
+			EmitMetadata = source.EmitMetadata,
+			OutDir = source.OutDir,
+			ProjectName = source.ProjectName,
+			SubsystemName = source.SubsystemName,
+			NoStdLib = source.NoStdLib,
+			WithinAllocationPolicy = source.WithinAllocationPolicy,
+			SourcefilePathMode = source.SourcefilePathMode,
+			SourcefileDefaultRoot = source.SourcefileDefaultRoot,
+			TestResultDir = source.TestResultDir,
+			TestResultFormat = source.TestResultFormat,
+			CoverageResultDir = source.CoverageResultDir,
+			CoverageFormat = source.CoverageFormat,
+			TargetRoot = source.TargetRoot,
+			PackageSourceRoot = source.PackageSourceRoot,
+			PackageArtifactRoot = source.PackageArtifactRoot
+		};
+		clone.Files.AddRange(source.Files);
+		clone.IncludeFiles.AddRange(source.IncludeFiles);
+		clone.AnalysisSourceFiles.AddRange(source.AnalysisSourceFiles);
+		clone.Defines.AddRange(source.Defines);
+		clone.Variants.AddRange(source.Variants);
+		clone.SourcefileRoots.AddRange(source.SourcefileRoots);
+		clone.TestFilters.AddRange(source.TestFilters);
+		clone.CoverageSubjects.AddRange(source.CoverageSubjects);
+		clone.CoverageMapInputs.AddRange(source.CoverageMapInputs);
+		clone.References.AddRange(source.References);
+		clone.SharedLibraryApiHeaders.AddRange(source.SharedLibraryApiHeaders);
+		clone.Frameworks.AddRange(source.Frameworks);
+		clone.UsePackages.AddRange(source.UsePackages);
+		clone.UseSourceRoots.AddRange(source.UseSourceRoots);
+		return clone;
 	}
 
 	static IReadOnlyList<(string Path, bool IsApiHeader)> GetAnalysisIncludeFiles(CompilerRequest request)
@@ -538,6 +660,20 @@ public static class CampLanguageService
 		if (range is not TokenRange tokenRange)
 			return null;
 		return compilation.Files.FirstOrDefault(file => ReferenceEquals(file.Tokens, tokenRange.Sequence));
+	}
+
+	static bool TryGetDefinitionPathAndRange(Compilation compilation, Definition definition, out string path, out CampTextRange range)
+	{
+		path = "";
+		range = new CampTextRange(new CampTextPosition(0, 0), new CampTextPosition(0, 1));
+		if (!CampTestDiscovery.TryGetDefinitionSourceRange(definition, out TokenRange tokenRange))
+			return false;
+		SourceFile? file = FindSourceFile(compilation, tokenRange);
+		if (file is null)
+			return false;
+		path = file.Path;
+		range = ToTextRange(tokenRange);
+		return true;
 	}
 
 	public static CampTextRange ToTextRange(TokenRange range)

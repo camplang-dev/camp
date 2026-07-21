@@ -19,6 +19,9 @@
     "onCommand:camp.build",
     "onCommand:camp.run",
     "onCommand:camp.debug",
+    "onCommand:camp.test.run",
+    "onCommand:camp.test.cover",
+    "onCommand:camp.test.debug",
     "onCommand:camp.restartServer"
   ],
   "contributes": {
@@ -111,6 +114,21 @@
         "category": "Camp"
       },
       {
+        "command": "camp.test.run",
+        "title": "Camp: Run Test",
+        "category": "Camp"
+      },
+      {
+        "command": "camp.test.cover",
+        "title": "Camp: Cover Test",
+        "category": "Camp"
+      },
+      {
+        "command": "camp.test.debug",
+        "title": "Camp: Debug Test",
+        "category": "Camp"
+      },
+      {
         "command": "camp.restartServer",
         "title": "Camp: Restart Language Server",
         "category": "Camp"
@@ -184,6 +202,10 @@
                 ],
                 "default": "auto",
                 "description": "Native debugger backend."
+              },
+              "testFilter": {
+                "type": "string",
+                "description": "Exact Camp test manifest ID to debug through the generated test harness."
               }
             }
           }

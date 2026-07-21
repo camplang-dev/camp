@@ -642,6 +642,73 @@ public static class CampCoverageResultsJsonSerializer
 		return text.EndsWith('\n') ? text : text + "\n";
 	}
 
+	public static bool TryParse(string text, out CampCoverageResults results, out List<string> diagnostics)
+	{
+		diagnostics = [];
+		results = new CampCoverageResults(new CampCoverageMetric(0, 0), new CampCoverageMetric(0, 0), []);
+		try
+		{
+			using JsonDocument document = JsonDocument.Parse(text);
+			JsonElement root = document.RootElement;
+			if (!root.TryGetProperty("format", out JsonElement format) || format.GetString() != "camp.coverage-results")
+				diagnostics.Add("coverage results format must be camp.coverage-results.");
+			if (!root.TryGetProperty("version", out JsonElement version) || version.GetInt32() != 1)
+				diagnostics.Add("coverage results version must be 1.");
+			CampCoverageMetric line = ReadMetric(root, "summary", "line");
+			CampCoverageMetric function = ReadMetric(root, "summary", "function");
+			List<CampCoverageFileResult> files = [];
+			if (root.TryGetProperty("files", out JsonElement filesElement) && filesElement.ValueKind == JsonValueKind.Array)
+			{
+				foreach (JsonElement file in filesElement.EnumerateArray())
+				{
+					List<int> uncoveredLines = [];
+					if (file.TryGetProperty("uncoveredLines", out JsonElement uncoveredElement) && uncoveredElement.ValueKind == JsonValueKind.Array)
+						foreach (JsonElement uncoveredLine in uncoveredElement.EnumerateArray())
+							if (uncoveredLine.TryGetInt32(out int sourceLine))
+								uncoveredLines.Add(sourceLine);
+					files.Add(new CampCoverageFileResult(
+						GetString(file, "path"),
+						ReadMetric(file, null, "line"),
+						ReadMetric(file, null, "function"),
+						uncoveredLines));
+				}
+			}
+			else
+				diagnostics.Add("coverage results must contain a files array.");
+			results = new CampCoverageResults(line, function, files);
+		}
+		catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+		{
+			diagnostics.Add("coverage results could not be parsed: " + ex.Message);
+		}
+		return diagnostics.Count == 0;
+	}
+
+	static CampCoverageMetric ReadMetric(JsonElement element, string? containerName, string metricName)
+	{
+		JsonElement metricRoot = element;
+		if (containerName is not null)
+		{
+			if (!element.TryGetProperty(containerName, out metricRoot))
+				return new CampCoverageMetric(0, 0);
+		}
+		if (!metricRoot.TryGetProperty(metricName, out JsonElement metric))
+			return new CampCoverageMetric(0, 0);
+		return new CampCoverageMetric(GetInt(metric, "covered"), GetInt(metric, "total"));
+	}
+
+	static string GetString(JsonElement element, string name)
+	{
+		return element.TryGetProperty(name, out JsonElement property) && property.ValueKind == JsonValueKind.String
+			? property.GetString() ?? ""
+			: "";
+	}
+
+	static int GetInt(JsonElement element, string name)
+	{
+		return element.TryGetProperty(name, out JsonElement property) && property.TryGetInt32(out int value) ? value : 0;
+	}
+
 	static void WriteMetric(Utf8JsonWriter json, string name, CampCoverageMetric metric)
 	{
 		json.WriteStartObject(name);
@@ -649,6 +716,67 @@ public static class CampCoverageResultsJsonSerializer
 		json.WriteNumber("total", metric.Total);
 		json.WriteNumber("percent", metric.Percent);
 		json.WriteEndObject();
+	}
+}
+
+public enum CampCoverageLineDecorationKind
+{
+	CoveredExecutableLine,
+	UncoveredExecutableLine
+}
+
+public sealed record CampCoverageLineDecoration(string Path, int Line, CampCoverageLineDecorationKind Kind);
+
+public static class CampCoverageDecorationService
+{
+	public static bool TryCreateFromFiles(string coverageMapPath, string coverageResultsPath, out IReadOnlyList<CampCoverageLineDecoration> decorations, out List<string> diagnostics)
+	{
+		decorations = [];
+		diagnostics = [];
+		try
+		{
+			if (!CampCoverageMapCsvSerializer.TryParse(File.ReadAllText(coverageMapPath), out CampCoverageMap map, out List<string> mapDiagnostics))
+			{
+				diagnostics.AddRange(mapDiagnostics.Select(diagnostic => $"{coverageMapPath}: {diagnostic}"));
+				return false;
+			}
+			if (!CampCoverageResultsJsonSerializer.TryParse(File.ReadAllText(coverageResultsPath), out CampCoverageResults results, out List<string> resultDiagnostics))
+			{
+				diagnostics.AddRange(resultDiagnostics.Select(diagnostic => $"{coverageResultsPath}: {diagnostic}"));
+				return false;
+			}
+			decorations = Create(map, results);
+			return true;
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+		{
+			diagnostics.Add(ex.Message);
+			return false;
+		}
+	}
+
+	public static IReadOnlyList<CampCoverageLineDecoration> Create(CampCoverageMap map, CampCoverageResults results)
+	{
+		Dictionary<string, HashSet<int>> uncoveredByPath = results.Files.ToDictionary(
+			static file => file.Path,
+			static file => file.UncoveredLines.ToHashSet(),
+			StringComparer.Ordinal);
+		List<CampCoverageLineDecoration> decorations = [];
+		foreach (IGrouping<(int FileId, int Line), CampCoverageCounter> group in map.Counters
+			.Where(static counter => counter.Kind == CampCoverageCounterKind.Line)
+			.GroupBy(static counter => (counter.FileId, counter.Line))
+			.OrderBy(static group => group.Key.FileId)
+			.ThenBy(static group => group.Key.Line))
+		{
+			if (!map.Files.TryGetValue(group.Key.FileId, out string? path))
+				continue;
+			bool uncovered = uncoveredByPath.TryGetValue(path, out HashSet<int>? lines) && lines.Contains(group.Key.Line);
+			decorations.Add(new CampCoverageLineDecoration(
+				path,
+				group.Key.Line,
+				uncovered ? CampCoverageLineDecorationKind.UncoveredExecutableLine : CampCoverageLineDecorationKind.CoveredExecutableLine));
+		}
+		return decorations;
 	}
 }
 

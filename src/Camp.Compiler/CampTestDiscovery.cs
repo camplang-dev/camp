@@ -105,7 +105,7 @@ public static class CampTestDiscovery
 		return (mapResult.Value ?? file.Path, range.StartLineNumber);
 	}
 
-	static bool TryGetDefinitionSourceRange(Definition definition, out TokenRange range)
+	internal static bool TryGetDefinitionSourceRange(Definition definition, out TokenRange range)
 	{
 		range = default;
 		switch (definition.SourceSyntax)

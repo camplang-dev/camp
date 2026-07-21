@@ -72,11 +72,38 @@ function createDebugConfiguration(documentPath, languageId, nativeBackend, fsImp
   };
 }
 
+function normalizeTestCommandArgument(argument = {}) {
+  return {
+    project: argument.project || argument.Project || "",
+    cwd: argument.cwd || argument.Cwd || "",
+    filter: argument.filter || argument.Filter || "",
+    sourcefile: argument.sourcefile || argument.Sourcefile || "",
+    sourceline: argument.sourceline || argument.Sourceline || 0
+  };
+}
+
+function createTestDebugConfiguration(argument, nativeBackend) {
+  const normalized = normalizeTestCommandArgument(argument);
+  return {
+    name: normalized.filter ? `Debug Camp Test ${normalized.filter}` : "Debug Camp Test",
+    type: "camp",
+    request: "launch",
+    project: normalized.project,
+    cwd: normalized.cwd || path.dirname(normalized.project),
+    args: [],
+    stopOnEntry: false,
+    backend: nativeBackend || "auto",
+    testFilter: normalized.filter
+  };
+}
+
 module.exports = {
   createDebugConfiguration,
+  createTestDebugConfiguration,
   deriveSiblingTool,
   executableName,
   findNearestCampBuild,
   getCompilerPath,
-  getDebugAdapterPath
+  getDebugAdapterPath,
+  normalizeTestCommandArgument
 };

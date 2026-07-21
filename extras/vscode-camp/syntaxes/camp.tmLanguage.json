@@ -122,6 +122,10 @@
           "match": "\\b(?:caller|sourceof)\\b(?=\\s*\\()"
         },
         {
+          "name": "support.function.test.camp",
+          "match": "\\b(?:assert|fail)\\b(?=\\s*\\()"
+        },
+        {
           "name": "constant.language.camp",
           "match": "\\b(?:true|false|null|base)\\b"
         }
@@ -140,6 +144,10 @@
         {
           "name": "storage.type.annotation.shadow.camp",
           "match": "@(?:getshadow|setshadow)\\b"
+        },
+        {
+          "name": "storage.type.annotation.test.camp",
+          "match": "@(?:test|testonly|skip)\\b"
         },
         {
           "name": "entity.name.function.attribute.camp",

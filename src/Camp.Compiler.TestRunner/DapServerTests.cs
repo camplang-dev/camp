@@ -153,6 +153,33 @@ public sealed class DapServerTests
 	}
 
 	[Fact]
+	public void Dap_launch_accepts_exact_test_filter_for_test_harness_debugging()
+	{
+		string root = FindRepositoryRoot();
+		string source = Path.Combine(Path.GetTempPath(), "camp-dap-test-filter-" + Guid.NewGuid().ToString("N") + ".camp");
+		File.WriteAllText(source, "export int main() { return 0; }");
+
+		using DapProcess dap = DapProcess.Start();
+		Assert.True(dap.Request("initialize", new { adapterID = "camp" })["success"]?.GetValue<bool>());
+		JsonNode launch = dap.Request("launch", new
+		{
+			project = source,
+			cwd = root,
+			args = Array.Empty<string>(),
+			stopOnEntry = false,
+			backend = "fake",
+			testFilter = "Tests::validCase"
+		});
+		Assert.True(launch["success"]?.GetValue<bool>(), launch["message"]?.GetValue<string>());
+		dap.ReadEvent("initialized");
+
+		Assert.True(dap.Request("configurationDone", new { })["success"]?.GetValue<bool>());
+		JsonNode output = dap.ReadEvent("output");
+		Assert.Contains("Tests::validCase", output["body"]?["output"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
+	}
+
+	[Fact]
 	public void Dap_lldb_backend_launches_and_stops_on_camp_breakpoint_when_available()
 	{
 		if (!OperatingSystem.IsMacOS() || !CommandAvailable("lldb"))

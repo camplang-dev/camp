@@ -4,9 +4,11 @@ const vscode = require("vscode");
 const { LanguageClient, TransportKind } = require("vscode-languageclient/node");
 const {
   createDebugConfiguration,
+  createTestDebugConfiguration,
   findNearestCampBuild,
   getCompilerPath: deriveCompilerPath,
-  getDebugAdapterPath: deriveDebugAdapterPath
+  getDebugAdapterPath: deriveDebugAdapterPath,
+  normalizeTestCommandArgument
 } = require("./campPaths");
 
 let client;
@@ -43,6 +45,9 @@ function activate(context) {
     vscode.commands.registerCommand("camp.build", () => runCampCommand("build")),
     vscode.commands.registerCommand("camp.run", () => runCampCommand("run")),
     vscode.commands.registerCommand("camp.debug", debugCurrentProject),
+    vscode.commands.registerCommand("camp.test.run", (argument) => runCampTestCommand("test", argument)),
+    vscode.commands.registerCommand("camp.test.cover", (argument) => runCampTestCommand("cover", argument)),
+    vscode.commands.registerCommand("camp.test.debug", debugCampTest),
     vscode.commands.registerCommand("camp.restartServer", restartLanguageServer),
     vscode.debug.registerDebugAdapterDescriptorFactory("camp", debugAdapterFactory),
     vscode.debug.registerDebugConfigurationProvider("camp", debugConfigurationProvider),
@@ -174,6 +179,29 @@ async function runCampCommand(command) {
   terminal.sendText(`${quotedCompiler} ${command} ${quotedTarget}`);
 }
 
+async function runCampTestCommand(command, argument) {
+  const normalized = normalizeTestCommandArgument(argument);
+  if (!normalized.project || !normalized.filter) {
+    vscode.window.showWarningMessage("Camp test command is missing its project or test ID.");
+    return;
+  }
+
+  const editor = vscode.window.activeTextEditor;
+  if (editor && editor.document.isDirty) {
+    await editor.document.save();
+  }
+
+  const compilerPath = getCompilerPath();
+  const terminal = getCampTerminal();
+  const args = [quoteShell(compilerPath), command, quoteShell(normalized.project), "--filter", quoteShell(normalized.filter)];
+  if (command === "cover") {
+    args.push("--coverage-format", "json");
+  }
+  terminal.show(true);
+  terminal.sendText(`cd ${quoteShell(normalized.cwd || path.dirname(normalized.project))}`);
+  terminal.sendText(args.join(" "));
+}
+
 async function debugCurrentProject() {
   const editor = vscode.window.activeTextEditor;
   if (!editor || (editor.document.languageId !== "camp" && editor.document.languageId !== "campbuild")) {
@@ -188,6 +216,21 @@ async function debugCurrentProject() {
   const documentPath = editor.document.uri.fsPath;
   const configuration = createDebugConfiguration(documentPath, editor.document.languageId, getNativeDebugBackend());
   const workspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
+  await vscode.debug.startDebugging(workspaceFolder, configuration);
+}
+
+async function debugCampTest(argument) {
+  const normalized = normalizeTestCommandArgument(argument);
+  if (!normalized.project || !normalized.filter) {
+    vscode.window.showWarningMessage("Camp test debug command is missing its project or test ID.");
+    return;
+  }
+  const editor = vscode.window.activeTextEditor;
+  if (editor && editor.document.isDirty) {
+    await editor.document.save();
+  }
+  const configuration = createTestDebugConfiguration(normalized, getNativeDebugBackend());
+  const workspaceFolder = editor ? vscode.workspace.getWorkspaceFolder(editor.document.uri) : undefined;
   await vscode.debug.startDebugging(workspaceFolder, configuration);
 }
 
@@ -250,7 +293,9 @@ module.exports = {
   activate,
   deactivate,
   createDebugConfiguration,
+  createTestDebugConfiguration,
   findNearestCampBuild,
   getCompilerPath,
-  getDebugAdapterPath
+  getDebugAdapterPath,
+  normalizeTestCommandArgument
 };

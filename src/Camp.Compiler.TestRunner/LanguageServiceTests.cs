@@ -99,6 +99,50 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Test_discovery_snapshot_exposes_manifest_records_and_runner_diagnostics()
+	{
+		string root = CreateTempDirectory("language-service-test-discovery");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			namespace EditorTests;
+
+			/// Valid case.
+			/// @test
+			void validCase(thrown Assertion* assertion)
+			{
+			}
+
+			/// Invalid case.
+			@test
+			int invalidCase()
+			{
+				return 0;
+			}
+			""";
+		File.WriteAllText(source, text);
+		CompilerRequest request = Request(root, source);
+		request.SourcefileDefaultRoot = root;
+
+		CampTestDiscoverySnapshot snapshot = CampLanguageService.DiscoverTests(request);
+
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		Assert.Equal(2, snapshot.Tests.Count);
+		CampDiscoveredTest valid = snapshot.Tests.Single(static test => test.Name == "validCase");
+		Assert.Equal("EditorTests::validCase", valid.Id);
+		Assert.Equal("Valid case.", valid.Summary);
+		Assert.Equal("valid", valid.RunnerSignature);
+		Assert.Equal(Path.GetFullPath(source), valid.Path);
+		Assert.True(valid.Range.Start.Line >= 4);
+
+		CampDiscoveredTest invalid = snapshot.Tests.Single(static test => test.Name == "invalidCase");
+		Assert.Equal("invalid", invalid.RunnerSignature);
+		CampSourceDiagnostic diagnostic = Assert.Single(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "CAMPTEST001");
+		Assert.Equal(Path.GetFullPath(source), diagnostic.Path);
+		Assert.Equal(invalid.Range.Start.Line, diagnostic.Range?.Start.Line);
+		Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
+	}
+
+	[Fact]
 	public void Symbol_query_finds_local_parameter_and_function_definitions()
 	{
 		string root = CreateTempDirectory("language-service-symbols");

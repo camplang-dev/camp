@@ -3,9 +3,11 @@ const test = require("node:test");
 const path = require("path");
 const {
   createDebugConfiguration,
+  createTestDebugConfiguration,
   findNearestCampBuild,
   getCompilerPath,
-  getDebugAdapterPath
+  getDebugAdapterPath,
+  normalizeTestCommandArgument
 } = require("./campPaths");
 
 function fakeFs(files, directories = []) {
@@ -79,5 +81,34 @@ test("falls back to active camp file when no campbuild exists", () => {
     args: [],
     stopOnEntry: false,
     backend: "auto"
+  });
+});
+
+test("normalizes LSP test command arguments and builds test debug config", () => {
+  const argument = normalizeTestCommandArgument({
+    Project: "/work/app/app.campbuild",
+    Cwd: "/work/app",
+    Filter: "Tests::validCase",
+    Sourcefile: "src/main.camp",
+    Sourceline: 12
+  });
+  assert.deepStrictEqual(argument, {
+    project: "/work/app/app.campbuild",
+    cwd: "/work/app",
+    filter: "Tests::validCase",
+    sourcefile: "src/main.camp",
+    sourceline: 12
+  });
+
+  assert.deepStrictEqual(createTestDebugConfiguration(argument, "gdb"), {
+    name: "Debug Camp Test Tests::validCase",
+    type: "camp",
+    request: "launch",
+    project: "/work/app/app.campbuild",
+    cwd: "/work/app",
+    args: [],
+    stopOnEntry: false,
+    backend: "gdb",
+    testFilter: "Tests::validCase"
   });
 });

@@ -82,8 +82,9 @@ sealed class DapSession(Stream input, Stream output)
 		IReadOnlyList<string> args = arguments["args"] is JsonArray array
 			? array.Select(item => item?.GetValue<string>() ?? "").ToList()
 			: [];
+		string? testFilter = arguments["testFilter"]?.GetValue<string>();
 		backend = CreateBackend(backendName);
-		await backend.Launch(new DebugLaunchOptions(project, cwd, args, arguments["stopOnEntry"]?.GetValue<bool>() == true));
+		await backend.Launch(new DebugLaunchOptions(project, cwd, args, arguments["stopOnEntry"]?.GetValue<bool>() == true, string.IsNullOrWhiteSpace(testFilter) ? null : testFilter));
 		await Event("initialized", null);
 		return null;
 	}
@@ -373,6 +374,8 @@ interface IDebugBackend
 sealed class FakeDebugBackend : IDebugBackend
 {
 	string source = "fake.camp";
+	string? testFilter;
+	bool emittedTestLaunchOutput;
 	bool terminateOnConfigurationDone;
 	public bool StopOnEntry { get; private set; }
 	public bool IsStopped { get; private set; }
@@ -383,6 +386,8 @@ sealed class FakeDebugBackend : IDebugBackend
 		if (options.Project.Contains("fail", StringComparison.OrdinalIgnoreCase))
 			throw new InvalidOperationException("Fake backend launch failure.");
 		StopOnEntry = options.StopOnEntry;
+		testFilter = options.TestFilter;
+		emittedTestLaunchOutput = false;
 		terminateOnConfigurationDone = options.Project.Contains("terminate", StringComparison.OrdinalIgnoreCase);
 		if (!string.IsNullOrWhiteSpace(options.Project))
 			source = Path.GetFullPath(options.Project);
@@ -461,7 +466,13 @@ sealed class FakeDebugBackend : IDebugBackend
 			};
 	}
 
-	public IReadOnlyList<DebugOutputEvent> DrainOutputEvents() => [];
+	public IReadOnlyList<DebugOutputEvent> DrainOutputEvents()
+	{
+		if (string.IsNullOrWhiteSpace(testFilter) || emittedTestLaunchOutput)
+			return [];
+		emittedTestLaunchOutput = true;
+		return [new DebugOutputEvent("console", "debugging Camp test " + testFilter + Environment.NewLine)];
+	}
 }
 
 sealed class LldbDebugBackend : IDebugBackend
@@ -474,6 +485,7 @@ sealed class LldbDebugBackend : IDebugBackend
 	string buildDirectory = "";
 	string stdoutPath = "";
 	string stderrPath = "";
+	string? testEventPath;
 	long stdoutOffset;
 	long stderrOffset;
 	Process? lldbProcess;
@@ -500,8 +512,9 @@ sealed class LldbDebugBackend : IDebugBackend
 		Directory.CreateDirectory(buildDirectory);
 		stdoutPath = Path.Combine(buildDirectory, "stdout.txt");
 		stderrPath = Path.Combine(buildDirectory, "stderr.txt");
-		DebugBuildResult build = await BuildExecutable(options.Project, options.Cwd, buildDirectory);
+		DebugBuildResult build = await BuildExecutable(options.Project, options.Cwd, buildDirectory, options.TestFilter);
 		executable = build.Executable;
+		testEventPath = build.TestEventPath;
 		debugMap = build.DebugMapPath is null ? null : DebugMapDocument.Load(build.DebugMapPath);
 		if (StopOnEntry)
 			pendingBreakpoints.Add(("", 0));
@@ -745,6 +758,8 @@ sealed class LldbDebugBackend : IDebugBackend
 			await RunLldbCommand($"settings set target.output-path {QuoteLldbArgument(stdoutPath)}");
 		if (!string.IsNullOrEmpty(stderrPath))
 			await RunLldbCommand($"settings set target.error-path {QuoteLldbArgument(stderrPath)}");
+		if (!string.IsNullOrEmpty(testEventPath))
+			await RunLldbCommand($"settings set target.run-args {QuoteLldbArgument(testEventPath!)}");
 	}
 
 	async Task RefreshStoppedState(string executionOutput)
@@ -856,13 +871,15 @@ sealed class LldbDebugBackend : IDebugBackend
 		return builder.ToString();
 	}
 
-	internal static async Task<DebugBuildResult> BuildExecutable(string project, string cwd, string outDirectory)
+	internal static async Task<DebugBuildResult> BuildExecutable(string project, string cwd, string outDirectory, string? testFilter = null)
 	{
 		string campc = Path.Combine(FindRepositoryRoot(), "bin", "campc");
 		if (!File.Exists(campc))
 			campc = Path.Combine(FindRepositoryRoot(), "bin", "campc.dll");
 		DateTime buildStart = DateTime.UtcNow;
-		List<string> args = ["build", project, "--profile", "DEBUG", "--artifact", "exec", "--debug-info"];
+		List<string> args = string.IsNullOrWhiteSpace(testFilter)
+			? ["build", project, "--profile", "DEBUG", "--artifact", "exec", "--debug-info"]
+			: ["test", project, "--profile", "DEBUG", "--debug-info", "--filter", testFilter!];
 		if (!ProjectDeclaresOutDir(project, cwd))
 			args.AddRange(["--out-dir", outDirectory]);
 		ProcessStartInfo info = new()
@@ -887,7 +904,8 @@ sealed class LldbDebugBackend : IDebugBackend
 		if (executable is null)
 			throw new InvalidOperationException("Camp build completed but no executable artifact was found." + Environment.NewLine + stdout);
 		string? debugMap = FindGeneratedDebugMap(outDirectory, project, cwd, buildStart);
-		return new DebugBuildResult(executable, debugMap);
+		string? testEventPath = string.IsNullOrWhiteSpace(testFilter) ? null : Path.Combine(outDirectory, "camp-dap-test-events.tsv");
+		return new DebugBuildResult(executable, debugMap, testEventPath);
 	}
 
 	static bool ProjectDeclaresOutDir(string project, string cwd)
@@ -1038,6 +1056,7 @@ sealed class GdbDebugBackend : IDebugBackend
 	readonly Dictionary<string, DebugVariable> evaluateVariables = new(StringComparer.Ordinal);
 	string executable = "";
 	string buildDirectory = "";
+	string? testEventPath;
 	DebugMapDocument? debugMap;
 	string? stoppedNativeSymbol;
 	int nextVariableReference = 2000;
@@ -1058,8 +1077,9 @@ sealed class GdbDebugBackend : IDebugBackend
 		StopOnEntry = options.StopOnEntry;
 		buildDirectory = Path.Combine(Path.GetTempPath(), "camp-dap-gdb-" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(buildDirectory);
-		DebugBuildResult build = await LldbDebugBackend.BuildExecutable(options.Project, options.Cwd, buildDirectory);
+		DebugBuildResult build = await LldbDebugBackend.BuildExecutable(options.Project, options.Cwd, buildDirectory, options.TestFilter);
 		executable = build.Executable;
+		testEventPath = build.TestEventPath;
 		debugMap = build.DebugMapPath is null ? null : DebugMapDocument.Load(build.DebugMapPath);
 		if (StopOnEntry)
 			pendingBreakpoints.Add(("", 0));
@@ -1080,7 +1100,11 @@ sealed class GdbDebugBackend : IDebugBackend
 
 	public async Task ConfigurationDone()
 	{
-		string output = await RunGdbBatch("run", "bt", "info args", "info locals");
+		List<string> commands = [];
+		if (!string.IsNullOrEmpty(testEventPath))
+			commands.Add("set args " + testEventPath);
+		commands.AddRange(["run", "bt", "info args", "info locals"]);
+		string output = await RunGdbBatch([.. commands]);
 		IsStopped = output.Contains("Breakpoint ", StringComparison.OrdinalIgnoreCase)
 			|| output.Contains("Program received signal", StringComparison.OrdinalIgnoreCase);
 		HasTerminated = !IsStopped;
@@ -1284,6 +1308,7 @@ sealed class CdbDebugBackend : IDebugBackend
 	string executable = "";
 	string cdbPath = "";
 	string buildDirectory = "";
+	string? testEventPath;
 	Process? cdbProcess;
 	DebugMapDocument? debugMap;
 	string? stoppedNativeSymbol;
@@ -1303,8 +1328,9 @@ sealed class CdbDebugBackend : IDebugBackend
 		StopOnEntry = options.StopOnEntry;
 		buildDirectory = Path.Combine(Path.GetTempPath(), "camp-dap-cdb-" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(buildDirectory);
-		DebugBuildResult build = await LldbDebugBackend.BuildExecutable(options.Project, options.Cwd, buildDirectory);
+		DebugBuildResult build = await LldbDebugBackend.BuildExecutable(options.Project, options.Cwd, buildDirectory, options.TestFilter);
 		executable = build.Executable;
+		testEventPath = build.TestEventPath;
 		cdbPath = FindCdbPath(GetPeDebuggerArchitecture(executable))
 			?? throw new InvalidOperationException("Debug backend 'cdb' is not available because cdb.exe was not found. Install Windows Debugging Tools and ensure cdb.exe is on PATH or in the Windows Kits Debuggers folder.");
 		debugMap = build.DebugMapPath is null ? null : DebugMapDocument.Load(build.DebugMapPath);
@@ -1539,6 +1565,8 @@ sealed class CdbDebugBackend : IDebugBackend
 		info.ArgumentList.Add(Path.GetDirectoryName(executable) ?? ".");
 		info.ArgumentList.Add("-o");
 		info.ArgumentList.Add(executable);
+		if (!string.IsNullOrEmpty(testEventPath))
+			info.ArgumentList.Add(testEventPath!);
 		cdbProcess = Process.Start(info) ?? throw new InvalidOperationException("Could not start cdb.exe.");
 		_ = Task.Run(() => ReadCdbStream(cdbProcess.StandardOutput.BaseStream));
 		_ = Task.Run(() => ReadCdbStream(cdbProcess.StandardError.BaseStream));
@@ -1887,13 +1915,13 @@ sealed class CdbDebugBackend : IDebugBackend
 	}
 }
 
-sealed record DebugLaunchOptions(string Project, string Cwd, IReadOnlyList<string> Args, bool StopOnEntry);
+sealed record DebugLaunchOptions(string Project, string Cwd, IReadOnlyList<string> Args, bool StopOnEntry, string? TestFilter);
 sealed record DebugBreakpoint(int Line, bool Verified, string? Message = null);
 sealed record DebugStackFrame(int Id, string Name, string SourcePath, int Line, int Column);
 sealed record DebugScope(string Name, int Reference);
 sealed record DebugVariable(string Name, string Value, string? Type, int Reference);
 sealed record DebugOutputEvent(string Category, string Output);
-sealed record DebugBuildResult(string Executable, string? DebugMapPath);
+sealed record DebugBuildResult(string Executable, string? DebugMapPath, string? TestEventPath);
 sealed record LldbNativeVariable(string Type, string Value);
 
 static class DebugVariableMapper

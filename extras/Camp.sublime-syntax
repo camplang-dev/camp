@@ -13,6 +13,7 @@ variables:
   type_forms: '\b(?:fn|delegate|async|once|iter|thrown|struct|class)\b'
   storage_keywords: '\b(?:const|constof|volatile|escaped|scoped|unscoped|in|out|thrown|overload|within|unsafe)\b'
   intrinsic_keywords: '\b(?:sizeof|typenameof|vtableof|caller|sourceof)\b(?=\s*\()'
+  test_support_functions: '\b(?:assert|fail)\b(?=\s*\()'
   constraint_keywords: '\b(?:implements|copyable)\b'
   statement_keywords: 'if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|init|new'
   declaration_keywords: 'export|internal|public|extern|static|virtual|override|sealed|abstract|fixed|escaped|inline|alias|shadow'
@@ -163,6 +164,8 @@ contexts:
           pop: true
 
   attributes:
+    - match: '@(?:test|testonly|skip)\b'
+      scope: storage.type.annotation.test.camp
     - match: '@(?:getshadow|setshadow)\b'
       scope: storage.type.annotation.shadow.camp
     - match: '@{{identifier}}\b'
@@ -249,12 +252,16 @@ contexts:
         2: storage.modifier.target.camp
     - match: '\b(?!(?:{{statement_keywords}}|{{declaration_keywords}}|{{intrinsic_keywords}}|{{type_keywords}}|{{type_forms}}|{{constraint_keywords}})\b)({{identifier}})\s*(?=\()'
       scope: entity.name.function.camp
+    - match: '{{test_support_functions}}'
+      scope: support.function.test.camp
 
   statements:
     - match: '\b(?:{{statement_keywords}})\b'
       scope: keyword.control.camp
     - match: '{{intrinsic_keywords}}'
       scope: keyword.other.camp
+    - match: '{{test_support_functions}}'
+      scope: support.function.test.camp
 
   types:
     - match: '\b(fn|delegate|async|once)\b(\s+\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)?'
