@@ -281,7 +281,11 @@ public static class CampTestResultDiagnosticService
 
 public static class CampTestResultsTextFormatter
 {
-	public static string Format(CampTestResults results)
+	const string Green = "\u001b[32m";
+	const string Red = "\u001b[31m";
+	const string Reset = "\u001b[0m";
+
+	public static string Format(CampTestResults results, bool color = false)
 	{
 		ArgumentNullException.ThrowIfNull(results);
 		StringBuilder builder = new();
@@ -293,7 +297,7 @@ public static class CampTestResultsTextFormatter
 		{
 			foreach (CampTestResultEntry test in results.Tests)
 			{
-				builder.Append(test.Outcome);
+				builder.Append(ColorOutcome(test.Outcome, color));
 				builder.Append(": ");
 				builder.AppendLine(test.Id);
 				if (test.Failure is not null)
@@ -311,11 +315,12 @@ public static class CampTestResultsTextFormatter
 				}
 			}
 		}
-		builder.Append("summary: ");
+		builder.Append("test summary: ");
 		builder.Append(results.Summary.Passed.ToString(CultureInfo.InvariantCulture));
 		builder.Append(" passed, ");
-		builder.Append(results.Summary.Failed.ToString(CultureInfo.InvariantCulture));
-		builder.Append(" failed, ");
+		string failed = results.Summary.Failed.ToString(CultureInfo.InvariantCulture) + " failed";
+		builder.Append(color && results.Summary.Failed > 0 ? Red + failed + Reset : failed);
+		builder.Append(", ");
 		builder.Append(results.Summary.Skipped.ToString(CultureInfo.InvariantCulture));
 		builder.Append(" skipped, ");
 		builder.Append(results.Summary.Invalid.ToString(CultureInfo.InvariantCulture));
@@ -325,6 +330,45 @@ public static class CampTestResultsTextFormatter
 		builder.Append(results.Summary.Total.ToString(CultureInfo.InvariantCulture));
 		builder.AppendLine(" total");
 		return builder.ToString().Replace("\r\n", "\n", StringComparison.Ordinal);
+	}
+
+	static string ColorOutcome(string outcome, bool color)
+	{
+		if (!color)
+			return outcome;
+		return outcome switch
+		{
+			"passed" => Green + outcome + Reset,
+			"failed" => Red + outcome + Reset,
+			_ => outcome
+		};
+	}
+}
+
+public static class CampCoverageResultsTextFormatter
+{
+	public static string Format(CampCoverageResults results)
+	{
+		ArgumentNullException.ThrowIfNull(results);
+		StringBuilder builder = new();
+		builder.Append("coverage summary: ");
+		AppendMetric(builder, "lines", results.Line);
+		builder.Append(", ");
+		AppendMetric(builder, "functions", results.Function);
+		builder.AppendLine();
+		return builder.ToString().Replace("\r\n", "\n", StringComparison.Ordinal);
+	}
+
+	static void AppendMetric(StringBuilder builder, string label, CampCoverageMetric metric)
+	{
+		builder.Append(metric.Covered.ToString(CultureInfo.InvariantCulture));
+		builder.Append('/');
+		builder.Append(metric.Total.ToString(CultureInfo.InvariantCulture));
+		builder.Append(' ');
+		builder.Append(label);
+		builder.Append(" covered (");
+		builder.Append(metric.Percent.ToString("0.0", CultureInfo.InvariantCulture));
+		builder.Append("%)");
 	}
 }
 

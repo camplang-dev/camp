@@ -168,9 +168,9 @@ public static class CampProjectLoader
 		if (command == CampProjectCommandKind.Dump && bag.HasBuildOnlyOptions)
 			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, or --out-dir.");
 		if (command == CampProjectCommandKind.Dump && bag.HasTestResultOptions)
-			errors.Add("dump does not accept --test-result-dir or --test-result-format.");
+			errors.Add("dump does not accept --test-output-dir or --test-result-format.");
 		if (command != CampProjectCommandKind.Cover && bag.HasCoverageOptions)
-			errors.Add("--coverage-format, --coverage-result-dir, and --coverage-subject can only be used with cover.");
+			errors.Add("--coverage-format, --coverage-output-dir, and --coverage-subject can only be used with cover.");
 		if (command is not (CampProjectCommandKind.Test or CampProjectCommandKind.Cover) && bag.ListTests)
 			errors.Add("--list can only be used with test or cover.");
 		if (command is not (CampProjectCommandKind.Test or CampProjectCommandKind.Cover) && bag.TestFilters.Count > 0)
@@ -202,10 +202,11 @@ public static class CampProjectLoader
 			WithinAllocationPolicy = bag.WithinAllocationPolicy,
 			SourcefilePathMode = bag.SourcefilePathMode,
 			SourcefileDefaultRoot = sourcefileDefaultRoot,
+			Verbose = bag.Verbose,
 			ListTests = bag.ListTests,
-			TestResultDir = bag.TestResultDir,
+			TestOutputDir = bag.TestOutputDir,
 			TestResultFormat = bag.TestResultFormat,
-			CoverageResultDir = bag.CoverageResultDir,
+			CoverageOutputDir = bag.CoverageOutputDir,
 			CoverageFormat = bag.CoverageFormat
 		};
 		request.SourcefileRoots.AddRange(bag.SourcefileRoots);
@@ -557,11 +558,12 @@ sealed class CampBuildOptionBag
 	public string? ProjectName => Get("name");
 	public string? SubsystemName => Get("subsystem");
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
-	public string? TestResultDir => Get("test-result-dir");
+	public string? TestOutputDir => Get("test-output-dir");
 	public string? TestResultFormat => Get("test-result-format");
-	public string? CoverageResultDir => Get("coverage-result-dir");
+	public string? CoverageOutputDir => Get("coverage-output-dir");
 	public string? CoverageFormat => Get("coverage-format");
 	public bool ListTests => Get("list") == "true";
+	public bool Verbose => Get("verbose") == "true";
 	public SourcefilePathMode SourcefilePathMode => Get("sourcefile-paths") switch
 	{
 		"absolute" => SourcefilePathMode.Absolute,
@@ -576,8 +578,8 @@ sealed class CampBuildOptionBag
 	public bool Xml => Get("xml") == "true";
 	public bool DebugInfo => Get("debug-info") == "true";
 	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo;
-	public bool HasTestResultOptions => Get("test-result-dir") is not null || Get("test-result-format") is not null;
-	public bool HasCoverageOptions => Get("coverage-result-dir") is not null || Get("coverage-format") is not null || CoverageSubjects.Count > 0;
+	public bool HasTestResultOptions => Get("test-output-dir") is not null || Get("test-result-format") is not null;
+	public bool HasCoverageOptions => Get("coverage-output-dir") is not null || Get("coverage-format") is not null || CoverageSubjects.Count > 0;
 
 	public void Apply(ParsedCampBuildOptions options, CampBuildOptionPrecedence precedence, string source, List<string> errors)
 	{
@@ -702,8 +704,11 @@ static class CampBuildOptionParser
 					i += HasValue(tokens, i) ? 1 : 0;
 					break;
 				case "--variant":
-				case "-v":
 					result.Variants.AddRange(RequiredValues(tokens, ref i, token, errors));
+					break;
+				case "--verbose":
+				case "-v":
+					AddSingle(result, "verbose", "true");
 					break;
 				case "--emit":
 					AddSingle(result, "emit", RequiredValue(tokens, ref i, token, errors));
@@ -755,8 +760,8 @@ static class CampBuildOptionParser
 				case "--sourcefile-root":
 					result.SourcefileRoots.Add(CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
-				case "--test-result-dir":
-					AddSingle(result, "test-result-dir", CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+				case "--test-output-dir":
+					AddSingle(result, "test-output-dir", CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--test-result-format":
 					string testResultFormat = RequiredValue(tokens, ref i, token, errors);
@@ -764,8 +769,8 @@ static class CampBuildOptionParser
 						errors.Add("--test-result-format expects text, json, or text,json.");
 					AddSingle(result, "test-result-format", testResultFormat);
 					break;
-				case "--coverage-result-dir":
-					AddSingle(result, "coverage-result-dir", CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+				case "--coverage-output-dir":
+					AddSingle(result, "coverage-output-dir", CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--coverage-format":
 					string coverageFormat = RequiredValue(tokens, ref i, token, errors);
@@ -1004,8 +1009,8 @@ public static class CampResponseFileExpander
 		"--out-dir",
 		"--build-dir",
 		"--sourcefile-root",
-		"--test-result-dir",
-		"--coverage-result-dir",
+		"--test-output-dir",
+		"--coverage-output-dir",
 		"--local"
 	};
 
@@ -1052,7 +1057,7 @@ public static class CampResponseFileExpander
 
 	static int OptionValueCount(string option)
 	{
-		return option is "--target" or "-t" or "--profile" or "-p" or "--variant" or "-v" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-result-dir" or "--test-result-format" or "--coverage-result-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--reference" or "-r" or "--framework" or "-f" or "--use" or "-u" or "--project-reference" or "--local"
+		return option is "--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--reference" or "-r" or "--framework" or "-f" or "--use" or "-u" or "--project-reference" or "--local"
 			? 1
 			: option == "--use-source" ? 2 : 0;
 	}

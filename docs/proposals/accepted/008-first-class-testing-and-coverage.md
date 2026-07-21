@@ -645,7 +645,7 @@ Required options:
 
 - `--list`;
 - `--filter <pattern>`;
-- `--test-result-dir <path>`;
+- `--test-output-dir <path>`;
 - `--test-result-format text|json|text,json`;
 - `--sourcefile-paths relative|absolute`;
 - repeatable `--sourcefile-root <path>`.
@@ -653,10 +653,11 @@ Required options:
 `--list` and `--filter` are test-runner options. They are valid only for
 `campc test` and `campc cover`.
 
-`--test-result-dir` and `--test-result-format` are accepted by `campc build`,
+`--test-output-dir` and `--test-result-format` are accepted by `campc build`,
 `campc run`, `campc test`, and `campc cover`. `campc build` and `campc run`
 ignore them. `campc test` and `campc cover` use them when writing test result
-artifacts.
+artifacts. `--test-output-dir` selects the directory where the test manifest
+and test results are written.
 
 `--sourcefile-paths` and `--sourcefile-root` are accepted and applied by
 `campc build`, `campc run`, `campc test`, and `campc cover`.
@@ -781,12 +782,12 @@ Required options:
 
 - every applicable `campc test` option;
 - `--coverage-format json|lcov|json,lcov`;
-- `--coverage-result-dir <path>`;
+- `--coverage-output-dir <path>`;
 - repeatable `--coverage-subject <name|self>`.
 
 `--coverage-format` accepts only `json`, `lcov`, or both as `json,lcov`.
-`--coverage-result-dir` selects the directory where coverage result artifacts
-are written.
+`--coverage-output-dir` selects the directory where coverage maps and coverage
+result artifacts are written.
 
 ### Coverage Subject Set
 
@@ -937,11 +938,11 @@ Representative outputs:
 ```text
 bin/<target>_test_<profile>/
 bin/<target>_coverage_<profile>/
-build/<project>.camp-test-manifest.json
-build/<project>.camp-coverage-map.csv
-test-results/<project>.camp-test-results.json
-coverage/<project>.camp-coverage-results.json
-coverage/lcov.info
+<project>.camp-test-manifest.json
+<project>.camp-coverage-map.csv
+<project>.camp-test-results.json
+<project>.camp-coverage-results.json
+lcov.info
 ```
 
 The exact directory layout should follow existing compiler conventions.

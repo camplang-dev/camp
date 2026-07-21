@@ -223,7 +223,8 @@ noted:
 | `--exclude` | Exclude source files matched by source patterns. |
 | `--target`, `-t` | Select a target from `targets/**/*.ini`; default is `clang-macos-x64`. |
 | `--profile`, `-p` | Select `DEBUG` or `RELEASE`; default is `DEBUG`. |
-| `--variant`, `-v` | Select one or more target variants. |
+| `--variant` | Select one or more target variants. |
+| `--verbose`, `-v` | Print generated artifact status lines. |
 | `--define`, `-d` | Add Camp preprocessor symbols. |
 | `--emit` | Select the emitter; the documented emitter is `c99`. |
 | `--nostdlib` | Omit automatic standard library package preparation. |
@@ -278,7 +279,7 @@ These options are accepted by `build`, `run`, `test`, and `cover`:
 
 | Option | Meaning |
 |---|---|
-| `--test-result-dir` | Directory for `*.camp-test-results.json`; default is `<artifact-directory>/test-results`. Ignored by `build` and `run`. |
+| `--test-output-dir` | Directory for the test manifest and `*.camp-test-results.json`; default is `<artifact-directory>`. Ignored by `build` and `run`. |
 | `--test-result-format` | `text`, `json`, or `text,json`; default is `text,json`. Ignored by `build` and `run`. |
 
 `--filter` matches a test's manifest ID, qualified name, or simple name.
@@ -313,18 +314,18 @@ These options are accepted by `cover` only:
 | Option | Meaning |
 |---|---|
 | `--coverage-format` | `json`, `lcov`, or `json,lcov`; default is `json`. |
-| `--coverage-result-dir` | Directory for coverage result artifacts; default is `<artifact-directory>/coverage`. |
+| `--coverage-output-dir` | Directory for coverage map and result artifacts; default is `<artifact-directory>`. |
 | `--coverage-subject` | Coverage subject: `self` or a shared project-reference name. May be repeated. |
 
-Coverage map CSV files are emitted beside generated C in the build directory as
+Coverage map CSV files are emitted in the coverage output directory as
 `<project>.camp-coverage-map.csv`. Runtime counter files are scratch build
-intermediates. Coverage results are written as
+intermediates under `build/`. Coverage results are written as
 `<project>.camp-coverage-results.json` when JSON is requested and `lcov.info`
 when LCOV is requested.
 
 ## Output And Status Lines
 
-Successful emission writes status lines such as:
+`--verbose` writes generated-file status lines such as:
 
 ```text
 generated: textapp.c
@@ -333,20 +334,25 @@ generated: textapp_private.h
 generated: textapp
 ```
 
-`campc test` also writes a test manifest under the build directory:
+Without `--verbose`, these generated-file status lines are omitted.
+
+`campc test` also writes a test manifest under the artifact directory:
 
 ```text
-build/<project>.camp-test-manifest.json
+<project>.camp-test-manifest.json
 ```
 
 When JSON test results are enabled, it writes:
 
 ```text
-test-results/<project>.camp-test-results.json
+<project>.camp-test-results.json
 ```
 
-`campc cover` additionally writes coverage maps under the build directory and
-coverage results under the coverage result directory.
+`campc cover` additionally writes coverage maps and coverage results under the
+coverage output directory.
+
+Text test output ends with a line labelled `test summary:`. `campc cover`
+also prints a readable `coverage summary:` line after the test summary.
 
 The `GeneratedFiles` list returned by the compiler driver contains absolute
 paths, but the command-line status text prints only file names. Tools that need

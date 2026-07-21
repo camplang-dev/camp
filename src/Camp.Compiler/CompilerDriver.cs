@@ -58,11 +58,13 @@ public sealed class CompilerRequest
 	public SourcefilePathMode SourcefilePathMode { get; set; } = SourcefilePathMode.Relative;
 	public List<string> SourcefileRoots { get; } = [];
 	public string? SourcefileDefaultRoot { get; set; }
+	public bool Verbose { get; set; }
+	public bool ColorOutput { get; set; }
 	public bool ListTests { get; set; }
 	public List<string> TestFilters { get; } = [];
-	public string? TestResultDir { get; set; }
+	public string? TestOutputDir { get; set; }
 	public string? TestResultFormat { get; set; }
-	public string? CoverageResultDir { get; set; }
+	public string? CoverageOutputDir { get; set; }
 	public string? CoverageFormat { get; set; }
 	public List<string> CoverageSubjects { get; } = [];
 	public List<string> CoverageMapInputs { get; } = [];
@@ -206,7 +208,9 @@ public static class CompilerDriver
 			string outputDirectory = ResolveArtifactOutputDirectory(compilation);
 			string buildDirectory = Path.Combine(outputDirectory, "build");
 			string projectName = string.IsNullOrWhiteSpace(request.ProjectName) ? CCodeEmitter.GetProjectName(compilation.Files) : request.ProjectName!;
-			if (!TryEmitTestManifestArtifact(discovery.Manifest, buildDirectory, projectName))
+			string testOutputDirectory = ResolveTestOutputDirectory(outputDirectory);
+			string coverageOutputDirectory = ResolveCoverageOutputDirectory(outputDirectory);
+			if (!TryEmitTestManifestArtifact(discovery.Manifest, testOutputDirectory, projectName))
 				return 1;
 
 			IReadOnlyList<CampTestManifestEntry> selectedTests = CampTestFilter.Apply(discovery.Manifest.Tests, request.TestFilters);
@@ -241,14 +245,14 @@ public static class CompilerDriver
 			foreach (string generated in result.GeneratedFiles)
 			{
 				generatedFiles.Add(generated);
-				OutLine("generated: " + Path.GetFileName(generated));
+				OutGenerated(generated);
 			}
 
 			List<string> coverageMapPaths = [.. request.CoverageMapInputs];
 			List<string> coverageRuntimeSources = [];
 			if (coverageMapBuilder is not null)
 			{
-				if (!TryEmitCoverageBuildArtifacts(coverageMapBuilder, buildDirectory, projectName, out string? coverageMapPath, out string? coverageRuntimeSource))
+				if (!TryEmitCoverageBuildArtifacts(coverageMapBuilder, coverageOutputDirectory, buildDirectory, projectName, out string? coverageMapPath, out string? coverageRuntimeSource))
 					return 1;
 				coverageMapPaths.Add(coverageMapPath!);
 				coverageRuntimeSources.Add(coverageRuntimeSource!);
@@ -277,7 +281,7 @@ public static class CompilerDriver
 			foreach (string generated in build.GeneratedFiles)
 			{
 				generatedFiles.Add(generated);
-				OutLine("generated: " + Path.GetFileName(generated));
+				OutGenerated(generated);
 			}
 			if (!TryCopySharedRuntimeReferences(compilation.Target!, outputDirectory, packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))))
 				return 1;
@@ -287,17 +291,20 @@ public static class CompilerDriver
 				? CreateCoverageCountPaths(coverageMapPaths, buildDirectory)
 				: [];
 			CampTestResults testResults = RunTestHarness(NativeBuildDriver.GetArtifactPath(buildOptions), buildDirectory, selectedTests, coverageCountPaths);
-			if (writeJson && !TryEmitTestResultsArtifact(testResults, ResolveTestResultDirectory(outputDirectory), projectName))
+			if (writeJson && !TryEmitTestResultsArtifact(testResults, testOutputDirectory, projectName))
 				return 1;
 			bool coverageSucceeded = true;
+			CampCoverageResults? coverageResults = null;
 			if (request.CommandMode == CompilerCommandMode.Cover)
 			{
 				if (!TryGetCoverageOutputFormat(out bool writeCoverageJson, out bool writeCoverageLcov))
 					return 1;
-				coverageSucceeded = TryEmitCoverageResultsArtifacts(coverageMapPaths, coverageCountPaths, ResolveCoverageResultDirectory(outputDirectory), projectName, writeCoverageJson, writeCoverageLcov);
+				coverageSucceeded = TryEmitCoverageResultsArtifacts(coverageMapPaths, coverageCountPaths, coverageOutputDirectory, projectName, writeCoverageJson, writeCoverageLcov, out coverageResults);
 			}
 			if (writeText)
-				stdout.Append(CampTestResultsTextFormatter.Format(testResults));
+				stdout.Append(CampTestResultsTextFormatter.Format(testResults, request.ColorOutput));
+			if (request.CommandMode == CompilerCommandMode.Cover && coverageResults is not null)
+				stdout.Append(CampCoverageResultsTextFormatter.Format(coverageResults));
 			return TestResultsSucceeded(testResults) && coverageSucceeded ? 0 : 1;
 		}
 
@@ -1043,13 +1050,13 @@ public static class CompilerDriver
 			foreach (string generated in result.GeneratedFiles)
 			{
 				generatedFiles.Add(generated);
-				OutLine("generated: " + Path.GetFileName(generated));
+				OutGenerated(generated);
 			}
 
 			List<string> coverageRuntimeSources = [];
 			if (coverageMapBuilder is not null)
 			{
-				if (!TryEmitCoverageBuildArtifacts(coverageMapBuilder, buildDirectory, projectName, out _, out string? coverageRuntimeSource))
+				if (!TryEmitCoverageBuildArtifacts(coverageMapBuilder, ResolveCoverageOutputDirectory(outputDirectory), buildDirectory, projectName, out _, out string? coverageRuntimeSource))
 					return 1;
 				coverageRuntimeSources.Add(coverageRuntimeSource!);
 			}
@@ -1086,7 +1093,7 @@ public static class CompilerDriver
 			foreach (string generated in build.GeneratedFiles)
 			{
 				generatedFiles.Add(generated);
-				OutLine("generated: " + Path.GetFileName(generated));
+				OutGenerated(generated);
 			}
 			if (!TryCopySharedRuntimeReferences(compilation.Target!, outputDirectory, packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))))
 				return 1;
@@ -1163,7 +1170,7 @@ public static class CompilerDriver
 					return false;
 				}
 				generatedFiles.Add(destination);
-				OutLine("generated: " + Path.GetFileName(destination));
+				OutGenerated(destination);
 			}
 			return true;
 		}
@@ -1288,7 +1295,7 @@ public static class CompilerDriver
 			}
 
 			generatedFiles.Add(metadataPath);
-			OutLine("generated: " + Path.GetFileName(metadataPath));
+			OutGenerated(metadataPath);
 			return true;
 		}
 
@@ -1307,7 +1314,7 @@ public static class CompilerDriver
 			}
 
 			generatedFiles.Add(manifestPath);
-			OutLine("generated: " + Path.GetFileName(manifestPath));
+			OutGenerated(manifestPath);
 			return true;
 		}
 
@@ -1327,7 +1334,7 @@ public static class CompilerDriver
 			}
 
 			generatedFiles.Add(harnessSource);
-			OutLine("generated: " + Path.GetFileName(harnessSource));
+			OutGenerated(harnessSource);
 			return true;
 		}
 
@@ -1346,16 +1353,17 @@ public static class CompilerDriver
 			}
 
 			generatedFiles.Add(resultsPath);
-			OutLine("generated: " + Path.GetFileName(resultsPath));
+			OutGenerated(resultsPath);
 			return true;
 		}
 
-		bool TryEmitCoverageBuildArtifacts(CampCoverageMapBuilder builder, string buildDirectory, string projectName, out string? coverageMapPath, out string? coverageRuntimeSource)
+		bool TryEmitCoverageBuildArtifacts(CampCoverageMapBuilder builder, string coverageOutputDirectory, string buildDirectory, string projectName, out string? coverageMapPath, out string? coverageRuntimeSource)
 		{
-			coverageMapPath = Path.Combine(buildDirectory, projectName + ".camp-coverage-map.csv");
+			coverageMapPath = Path.Combine(coverageOutputDirectory, projectName + ".camp-coverage-map.csv");
 			coverageRuntimeSource = Path.Combine(buildDirectory, projectName + "_coverage_runtime.c");
 			try
 			{
+				Directory.CreateDirectory(coverageOutputDirectory);
 				Directory.CreateDirectory(buildDirectory);
 				File.WriteAllText(coverageMapPath, CampCoverageMapCsvSerializer.Serialize(builder.ToMap()), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 				File.WriteAllText(coverageRuntimeSource, CampCoverageRuntimeSourceGenerator.Generate(projectName, builder.CounterCount), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
@@ -1370,13 +1378,14 @@ public static class CompilerDriver
 
 			generatedFiles.Add(coverageMapPath);
 			generatedFiles.Add(coverageRuntimeSource);
-			OutLine("generated: " + Path.GetFileName(coverageMapPath));
-			OutLine("generated: " + Path.GetFileName(coverageRuntimeSource));
+			OutGenerated(coverageMapPath);
+			OutGenerated(coverageRuntimeSource);
 			return true;
 		}
 
-		bool TryEmitCoverageResultsArtifacts(IReadOnlyList<string> coverageMapPaths, IReadOnlyDictionary<string, string> coverageCountPaths, string outputDirectory, string projectName, bool writeJson, bool writeLcov)
+		bool TryEmitCoverageResultsArtifacts(IReadOnlyList<string> coverageMapPaths, IReadOnlyDictionary<string, string> coverageCountPaths, string outputDirectory, string projectName, bool writeJson, bool writeLcov, out CampCoverageResults? results)
 		{
+			results = null;
 			if (coverageMapPaths.Count == 0)
 			{
 				ErrorLine("cover did not produce a coverage map.");
@@ -1410,7 +1419,7 @@ public static class CompilerDriver
 				countSets.Add(counts);
 			}
 
-			CampCoverageResults results = CampCoverageResultsFactory.Create(maps, countSets);
+			results = CampCoverageResultsFactory.Create(maps, countSets);
 			try
 			{
 				Directory.CreateDirectory(outputDirectory);
@@ -1419,14 +1428,14 @@ public static class CompilerDriver
 					string jsonPath = Path.Combine(outputDirectory, projectName + ".camp-coverage-results.json");
 					File.WriteAllText(jsonPath, CampCoverageResultsJsonSerializer.Serialize(results), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 					generatedFiles.Add(jsonPath);
-					OutLine("generated: " + Path.GetFileName(jsonPath));
+					OutGenerated(jsonPath);
 				}
 				if (writeLcov)
 				{
 					string lcovPath = Path.Combine(outputDirectory, "lcov.info");
 					File.WriteAllText(lcovPath, CampCoverageLcovSerializer.Serialize(maps, countSets), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 					generatedFiles.Add(lcovPath);
-					OutLine("generated: " + Path.GetFileName(lcovPath));
+					OutGenerated(lcovPath);
 				}
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -1459,18 +1468,18 @@ public static class CompilerDriver
 			}
 		}
 
-		string ResolveTestResultDirectory(string outputDirectory)
+		string ResolveTestOutputDirectory(string outputDirectory)
 		{
-			if (string.IsNullOrWhiteSpace(request.TestResultDir))
-				return Path.Combine(outputDirectory, "test-results");
-			return Path.GetFullPath(request.TestResultDir!, request.WorkingDirectory);
+			if (string.IsNullOrWhiteSpace(request.TestOutputDir))
+				return outputDirectory;
+			return Path.GetFullPath(request.TestOutputDir!, request.WorkingDirectory);
 		}
 
-		string ResolveCoverageResultDirectory(string outputDirectory)
+		string ResolveCoverageOutputDirectory(string outputDirectory)
 		{
-			if (string.IsNullOrWhiteSpace(request.CoverageResultDir))
-				return Path.Combine(outputDirectory, "coverage");
-			return Path.GetFullPath(request.CoverageResultDir!, request.WorkingDirectory);
+			if (string.IsNullOrWhiteSpace(request.CoverageOutputDir))
+				return outputDirectory;
+			return Path.GetFullPath(request.CoverageOutputDir!, request.WorkingDirectory);
 		}
 
 		bool TryGetTestResultOutputFormat(out bool writeText, out bool writeJson)
@@ -1626,7 +1635,7 @@ public static class CompilerDriver
 			}
 
 			generatedFiles.Add(debugPath);
-			OutLine("generated: " + Path.GetFileName(debugPath));
+			OutGenerated(debugPath);
 			return true;
 		}
 
@@ -1641,7 +1650,7 @@ public static class CompilerDriver
 				CampApiSurfaceKind apiSurface = request.BuildKind == NativeBuildKind.Static ? CampApiSurfaceKind.Public : CampApiSurfaceKind.Export;
 				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true });
 				generatedFiles.Add(campApiPath);
-				OutLine("generated: " + Path.GetFileName(campApiPath));
+				OutGenerated(campApiPath);
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 			{
@@ -1664,7 +1673,7 @@ public static class CompilerDriver
 			foreach (string generated in apiHeader.GeneratedFiles)
 			{
 				generatedFiles.Add(generated);
-				OutLine("generated: " + Path.GetFileName(generated));
+				OutGenerated(generated);
 			}
 			return true;
 		}
@@ -2144,6 +2153,12 @@ public static class CompilerDriver
 		void OutLine(string line)
 		{
 			stdout.Append(line).Append('\n');
+		}
+
+		void OutGenerated(string path)
+		{
+			if (request.Verbose)
+				OutLine("generated: " + Path.GetFileName(path));
 		}
 
 		void ErrorLine(string line)

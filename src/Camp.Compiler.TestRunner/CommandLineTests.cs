@@ -66,7 +66,7 @@ public sealed class CommandLineTests
 		Assert.Equal(0, test.ExitCode);
 		Assert.Contains("--list", test.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--filter", test.StdOut, StringComparison.Ordinal);
-		Assert.Contains("--test-result-dir", test.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--test-output-dir", test.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -109,11 +109,11 @@ public sealed class CommandLineTests
 			"test_manifest_cli");
 
 		AssertCommandSucceeded(result);
-		Assert.Contains("generated: test_manifest_cli.camp-test-manifest.json", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("generated:", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("CliTests::parseValue", result.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("CliTests::addReturnsSum", result.StdOut, StringComparison.Ordinal);
 
-		string manifestPath = Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", "test_manifest_cli.camp-test-manifest.json");
+		string manifestPath = Path.Combine(outDir, ArtifactDirectoryForHost(null), "test_manifest_cli.camp-test-manifest.json");
 		Assert.True(File.Exists(manifestPath), manifestPath);
 		using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
 		Assert.Equal("camp.test-manifest", manifest.RootElement.GetProperty("format").GetString());
@@ -222,14 +222,13 @@ public sealed class CommandLineTests
 			"harness_outcomes");
 
 		Assert.Equal(1, result.ExitCode);
-		Assert.Contains("generated: harness_outcomes.camp-test-results.json", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("failed: HarnessCli::directFailure", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains($"{RelativeSourcePath(source)}:{FindLine(source, "assert(1 == 2);")} 1 == 2", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("failed: HarnessCli::wrapperFailure", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains($"{RelativeSourcePath(source)}:{FindLine(source, "assertPositive(0);")} 0", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("skipped: HarnessCli::skippedCase", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("invalid: HarnessCli::invalidShape", result.StdOut, StringComparison.Ordinal);
-		Assert.Contains("summary: 0 passed, 2 failed, 1 skipped, 1 invalid, 0 error, 4 total", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("test summary: 0 passed, 2 failed, 1 skipped, 1 invalid, 0 error, 4 total", result.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("should not run", result.StdOut, StringComparison.Ordinal);
 
 		string resultsPath = TestResultsPath(outDir, "harness_outcomes");
@@ -285,7 +284,7 @@ public sealed class CommandLineTests
 			NativeTargetForHost(),
 			"--filter",
 			"FilterCli::alphaPass",
-			"--test-result-dir",
+			"--test-output-dir",
 			jsonResultDir,
 			"--test-result-format",
 			"json",
@@ -295,7 +294,7 @@ public sealed class CommandLineTests
 			"filter_json");
 
 		AssertCommandSucceeded(jsonOnly);
-		Assert.Contains("generated: filter_json.camp-test-results.json", jsonOnly.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("generated:", jsonOnly.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("passed: FilterCli::alphaPass", jsonOnly.StdOut, StringComparison.Ordinal);
 		string jsonResultsPath = Path.Combine(jsonResultDir, "filter_json.camp-test-results.json");
 		Assert.True(File.Exists(jsonResultsPath), jsonResultsPath);
@@ -324,7 +323,7 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(skippedOnly);
 		Assert.Contains("skipped: FilterCli::skippedCase", skippedOnly.StdOut, StringComparison.Ordinal);
-		Assert.Contains("summary: 0 passed, 0 failed, 1 skipped, 0 invalid, 0 error, 1 total", skippedOnly.StdOut, StringComparison.Ordinal);
+		Assert.Contains("test summary: 0 passed, 0 failed, 1 skipped, 0 invalid, 0 error, 1 total", skippedOnly.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("should not run", skippedOnly.StdOut, StringComparison.Ordinal);
 
 		string textOnlyOut = TempPath("test-runner-filter-text-out");
@@ -489,7 +488,7 @@ public sealed class CommandLineTests
 			NativeTargetForHost(),
 			"--coverage-format",
 			"json,lcov",
-			"--coverage-result-dir",
+			"--coverage-output-dir",
 			coverageDir,
 			"--out-dir",
 			outDir,
@@ -498,11 +497,10 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("passed: CoverageCli::addWorks", result.StdOut, StringComparison.Ordinal);
-		Assert.Contains("generated: coverage_basic.camp-coverage-map.csv", result.StdOut, StringComparison.Ordinal);
-		Assert.Contains("generated: coverage_basic.camp-coverage-results.json", result.StdOut, StringComparison.Ordinal);
-		Assert.Contains("generated: lcov.info", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("coverage summary: 2/3 lines covered (66.7%), 1/2 functions covered (50.0%)", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("generated:", result.StdOut, StringComparison.Ordinal);
 
-		string mapPath = CoverageMapPath(outDir, "coverage_basic");
+		string mapPath = Path.Combine(coverageDir, "coverage_basic.camp-coverage-map.csv");
 		string map = File.ReadAllText(mapPath);
 		Assert.StartsWith("v,1\n", map, StringComparison.Ordinal);
 		Assert.Contains("CoverageCli::add", map, StringComparison.Ordinal);
@@ -627,7 +625,7 @@ public sealed class CommandLineTests
 		Assert.Contains("passed: CoverTests::exportedApiWorks", result.StdOut, StringComparison.Ordinal);
 		string rootGenerated = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", "tests.c"));
 		Assert.DoesNotContain("__camp_coverage", rootGenerated, StringComparison.Ordinal);
-		string dependencyMap = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Shared) + "_coverage", "build", "cover-lib.camp-coverage-map.csv");
+		string dependencyMap = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Shared) + "_coverage", "cover-lib.camp-coverage-map.csv");
 		Assert.True(File.Exists(dependencyMap), dependencyMap);
 		string map = File.ReadAllText(dependencyMap);
 		Assert.Contains("CoverLib::add", map, StringComparison.Ordinal);
@@ -676,7 +674,7 @@ public sealed class CommandLineTests
 			"--nostdlib",
 			"--artifact",
 			"none",
-			"--test-result-dir",
+			"--test-output-dir",
 			resultDir,
 			"--test-result-format",
 			"text,json",
@@ -686,7 +684,7 @@ public sealed class CommandLineTests
 			"run",
 			source,
 			"--nostdlib",
-			"--test-result-dir",
+			"--test-output-dir",
 			resultDir,
 			"--test-result-format",
 			"json",
@@ -1078,7 +1076,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", temp, "--out-dir", TempPath("pragma-build"));
+		ProcessResult result = RunCampc("build", temp, "--verbose", "--out-dir", TempPath("pragma-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: pragma_none.c", result.StdOut, StringComparison.Ordinal);
@@ -1178,7 +1176,7 @@ public sealed class CommandLineTests
 			src/*.camp
 			""");
 
-		ProcessResult result = RunCampc("build", "@" + buildFile, "--out-dir", TempPath("response-file-build"));
+		ProcessResult result = RunCampc("build", "@" + buildFile, "--verbose", "--out-dir", TempPath("response-file-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
@@ -1205,7 +1203,7 @@ public sealed class CommandLineTests
 			"{source}"
 			""");
 
-		ProcessResult result = RunCampc("build", "@" + Path.Combine(root, "sample"), "--out-dir", TempPath("response-file-extension-build"));
+		ProcessResult result = RunCampc("build", "@" + Path.Combine(root, "sample"), "--verbose", "--out-dir", TempPath("response-file-extension-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
@@ -1231,7 +1229,7 @@ public sealed class CommandLineTests
 			src/*.camp
 			""");
 
-		ProcessResult result = RunCampc("build", buildFile, "--out-dir", TempPath("bare-campbuild-file-build"));
+		ProcessResult result = RunCampc("build", buildFile, "--verbose", "--out-dir", TempPath("bare-campbuild-file-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
@@ -1257,7 +1255,7 @@ public sealed class CommandLineTests
 			src/*.camp
 			""");
 
-		ProcessResult result = RunCampc("build", Path.Combine(root, "sample"), "--out-dir", TempPath("bare-campbuild-extensionless-build"));
+		ProcessResult result = RunCampc("build", Path.Combine(root, "sample"), "--verbose", "--out-dir", TempPath("bare-campbuild-extensionless-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
@@ -1443,6 +1441,7 @@ public sealed class CommandLineTests
 			app,
 			"--target",
 			"clang-macos-x64",
+			"--verbose",
 			"--project-reference",
 			libraryRoot + ":static",
 			"--out-dir",
@@ -1989,6 +1988,7 @@ public sealed class CommandLineTests
 			app,
 			"--target",
 			target,
+			"--verbose",
 			"--project-reference",
 			libraryRoot + ":static",
 			"--out-dir",
@@ -2060,6 +2060,7 @@ public sealed class CommandLineTests
 				app,
 				"--target",
 				target,
+				"--verbose",
 				"--project-reference",
 				libraryRoot + ":static",
 				"--out-dir",
@@ -2075,6 +2076,7 @@ public sealed class CommandLineTests
 				app,
 				"--target",
 				target,
+				"--verbose",
 				"--project-reference",
 				libraryRoot + ":static",
 				"--out-dir",
@@ -2390,6 +2392,7 @@ public sealed class CommandLineTests
 			app,
 			"--target",
 			target,
+			"--verbose",
 			"--project-reference",
 			bRoot + ":static",
 			"--out-dir",
@@ -2612,6 +2615,7 @@ public sealed class CommandLineTests
 			app,
 			"--target",
 			target,
+			"--verbose",
 			"--project-reference",
 			libraryRoot + ":static",
 			"--out-dir",
@@ -2777,6 +2781,7 @@ public sealed class CommandLineTests
 			app,
 			"--target",
 			target,
+			"--verbose",
 			"--project-reference",
 			libraryRoot + ":static",
 			"--out-dir",
@@ -3095,6 +3100,7 @@ public sealed class CommandLineTests
 			app,
 			"--target",
 			"clang-macos-x64",
+			"--verbose",
 			"--project-reference",
 			libraryRoot + ":static",
 			"--out-dir",
@@ -3143,7 +3149,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult first = RunCampc("build", app, "--out-dir", TempPath("live-use-source-build-1"));
+		ProcessResult first = RunCampc("build", app, "--verbose", "--out-dir", TempPath("live-use-source-build-1"));
 
 		Assert.Equal(0, first.ExitCode);
 		Assert.Contains("generated: live_use_source_app.c", first.StdOut, StringComparison.Ordinal);
@@ -3170,7 +3176,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult second = RunCampc("build", app, "--out-dir", TempPath("live-use-source-build-2"));
+		ProcessResult second = RunCampc("build", app, "--verbose", "--out-dir", TempPath("live-use-source-build-2"));
 
 		Assert.Equal(0, second.ExitCode);
 		Assert.Contains("generated: live_use_source_app.c", second.StdOut, StringComparison.Ordinal);
@@ -3404,7 +3410,7 @@ public sealed class CommandLineTests
 			src/*.camp
 			""");
 
-		ProcessResult result = RunCampc("build", "@" + buildFile);
+		ProcessResult result = RunCampc("build", "@" + buildFile, "--verbose");
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
@@ -3437,7 +3443,7 @@ public sealed class CommandLineTests
 			src/**/*.camp
 			""");
 
-		ProcessResult result = RunCampc("build", "@" + buildFile, "--out-dir", TempPath("recursive-glob-root-build"));
+		ProcessResult result = RunCampc("build", "@" + buildFile, "--verbose", "--out-dir", TempPath("recursive-glob-root-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
@@ -3459,7 +3465,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "-i", api, "--out-dir", TempPath("include-pragma-build"));
+		ProcessResult result = RunCampc("build", source, "-i", api, "--verbose", "--out-dir", TempPath("include-pragma-build"));
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("generated: include_pragmas_main.c", result.StdOut, StringComparison.Ordinal);
@@ -3781,7 +3787,7 @@ public sealed class CommandLineTests
 			""");
 		string outDir = TempPath("gcc-linux-x64-out");
 
-		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x64", "--out-dir", outDir);
+		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x64", "--verbose", "--out-dir", outDir);
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("generated: gcc-linux-x64-smoke", result.StdOut, StringComparison.Ordinal);
@@ -3809,7 +3815,7 @@ public sealed class CommandLineTests
 			""");
 		string outDir = TempPath("gcc-linux-x86-out");
 
-		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x86", "--out-dir", outDir);
+		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x86", "--verbose", "--out-dir", outDir);
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("generated: gcc-linux-x86-smoke", result.StdOut, StringComparison.Ordinal);
@@ -4101,22 +4107,22 @@ public sealed class CommandLineTests
 
 	static string TestManifestPath(string outDir, string projectName)
 	{
-		return Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", projectName + ".camp-test-manifest.json");
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null), projectName + ".camp-test-manifest.json");
 	}
 
 	static string TestResultsPath(string outDir, string projectName)
 	{
-		return Path.Combine(outDir, ArtifactDirectoryForHost(null), "test-results", projectName + ".camp-test-results.json");
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null), projectName + ".camp-test-results.json");
 	}
 
 	static string CoverageMapPath(string outDir, string projectName)
 	{
-		return Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", projectName + ".camp-coverage-map.csv");
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null), projectName + ".camp-coverage-map.csv");
 	}
 
 	static string CoverageResultsPath(string outDir, string projectName)
 	{
-		return Path.Combine(outDir, ArtifactDirectoryForHost(null), "coverage", projectName + ".camp-coverage-results.json");
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null), projectName + ".camp-coverage-results.json");
 	}
 
 	static int FindLine(string path, string text)

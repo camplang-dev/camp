@@ -164,43 +164,45 @@ See [Metadata JSON](06-metadata-json.md).
 
 `campc test` and `campc cover` build generated harness executables in the
 normal output root and artifact directory for the selected target/profile/output
-settings. The harness source, generated C, native objects, and manifest live
-under that directory's `build` subdirectory.
+settings. The harness source, generated C, native objects, runtime coverage
+sources, event files, and counter files live under that directory's `build`
+subdirectory.
 
 The test manifest is emitted before the harness runs:
 
 ```text
-<artifact-directory>/build/<project>.camp-test-manifest.json
+<artifact-directory>/<project>.camp-test-manifest.json
 ```
 
-When JSON test results are enabled, results are written to the test result
-directory:
+When JSON test results are enabled, results are written beside the manifest by
+default:
 
 ```text
-<artifact-directory>/test-results/<project>.camp-test-results.json
+<artifact-directory>/<project>.camp-test-results.json
 ```
 
-`--test-result-dir` replaces the default test result directory. The manifest
-remains a build artifact because it describes the generated harness input.
+`--test-output-dir` replaces the default directory for both the manifest and
+test results.
 
 `campc cover` also writes one coverage map per instrumented coverage subject:
 
 ```text
-<artifact-directory>/build/<project>.camp-coverage-map.csv
+<artifact-directory>/<project>.camp-coverage-map.csv
 ```
 
 Coverage maps are canonical CSV. Runtime counter files are generated scratch
 intermediates under the build directory and are merged with the maps after the
 harness exits.
 
-Coverage results are written under the coverage result directory:
+Coverage results are written beside the coverage maps by default:
 
 ```text
-<artifact-directory>/coverage/<project>.camp-coverage-results.json
-<artifact-directory>/coverage/lcov.info
+<artifact-directory>/<project>.camp-coverage-results.json
+<artifact-directory>/lcov.info
 ```
 
-`--coverage-result-dir` replaces the default coverage result directory.
+`--coverage-output-dir` replaces the default directory for both coverage maps
+and coverage results.
 `--coverage-format` controls whether JSON, LCOV, or both files are written.
 
 ## Package Artifact Cache

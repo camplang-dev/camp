@@ -130,7 +130,7 @@ public sealed class ProjectLoaderTests
 			--list
 			--filter MathTests::*
 			--filter parse^alue
-			--test-result-dir results
+			--test-output-dir results
 			--test-result-format text,json
 			src/*.camp
 			""");
@@ -141,7 +141,7 @@ public sealed class ProjectLoaderTests
 		Assert.True(test.Success, string.Join(Environment.NewLine, test.Diagnostics));
 		Assert.True(test.Request.ListTests);
 		Assert.Equal(["MathTests::*", "parse^alue"], test.Request.TestFilters);
-		Assert.Equal(Path.GetFullPath(Path.Combine(root, "results")), Path.GetFullPath(test.Request.TestResultDir!));
+		Assert.Equal(Path.GetFullPath(Path.Combine(root, "results")), Path.GetFullPath(test.Request.TestOutputDir!));
 		Assert.Equal("text,json", test.Request.TestResultFormat);
 
 		Assert.False(build.Success);
@@ -160,7 +160,7 @@ public sealed class ProjectLoaderTests
 		File.WriteAllText(buildFile, """
 			--nostdlib
 			--coverage-format json,lcov
-			--coverage-result-dir coverage-output
+			--coverage-output-dir coverage-output
 			--coverage-subject self
 			src/*.camp
 			""");
@@ -170,7 +170,7 @@ public sealed class ProjectLoaderTests
 
 		Assert.True(cover.Success, string.Join(Environment.NewLine, cover.Diagnostics));
 		Assert.Equal("json,lcov", cover.Request.CoverageFormat);
-		Assert.Equal(Path.GetFullPath(Path.Combine(root, "coverage-output")), Path.GetFullPath(cover.Request.CoverageResultDir!));
+		Assert.Equal(Path.GetFullPath(Path.Combine(root, "coverage-output")), Path.GetFullPath(cover.Request.CoverageOutputDir!));
 		Assert.Equal(["self"], cover.Request.CoverageSubjects);
 
 		Assert.False(build.Success);
