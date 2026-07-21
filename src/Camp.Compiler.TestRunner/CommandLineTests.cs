@@ -450,6 +450,216 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Cover_command_writes_json_lcov_and_excludes_tests_from_denominator()
+	{
+		string source = CreateTempCase("coverage_in_module/main.camp", """
+			namespace CoverageCli;
+
+			int add(int left, int right)
+			{
+				int sum = left + right;
+				return sum;
+			}
+
+			int unused()
+			{
+				return 0;
+			}
+
+			@testonly
+			int testHelper()
+			{
+				return 99;
+			}
+
+			@test
+			void addWorks(thrown Assertion* assertion)
+			{
+				assert(add(2, 3) == 5);
+			}
+			""");
+		string outDir = TempPath("coverage-in-module-out");
+		string coverageDir = TempPath("coverage-in-module-results");
+
+		ProcessResult result = RunCampc(
+			"cover",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--coverage-format",
+			"json,lcov",
+			"--coverage-result-dir",
+			coverageDir,
+			"--out-dir",
+			outDir,
+			"--name",
+			"coverage_basic");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: CoverageCli::addWorks", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("generated: coverage_basic.camp-coverage-map.csv", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("generated: coverage_basic.camp-coverage-results.json", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("generated: lcov.info", result.StdOut, StringComparison.Ordinal);
+
+		string mapPath = CoverageMapPath(outDir, "coverage_basic");
+		string map = File.ReadAllText(mapPath);
+		Assert.StartsWith("v,1\n", map, StringComparison.Ordinal);
+		Assert.Contains("CoverageCli::add", map, StringComparison.Ordinal);
+		Assert.Contains("CoverageCli::unused", map, StringComparison.Ordinal);
+		Assert.DoesNotContain("CoverageCli::addWorks", map, StringComparison.Ordinal);
+		Assert.DoesNotContain("testHelper", map, StringComparison.Ordinal);
+		Assert.DoesNotContain("$camp_test_support", map, StringComparison.Ordinal);
+
+		string resultsPath = Path.Combine(coverageDir, "coverage_basic.camp-coverage-results.json");
+		using JsonDocument coverage = JsonDocument.Parse(File.ReadAllText(resultsPath));
+		Assert.Equal("camp.coverage-results", coverage.RootElement.GetProperty("format").GetString());
+		Assert.Equal(2, coverage.RootElement.GetProperty("summary").GetProperty("function").GetProperty("total").GetInt32());
+		Assert.Equal(1, coverage.RootElement.GetProperty("summary").GetProperty("function").GetProperty("covered").GetInt32());
+		Assert.Equal(3, coverage.RootElement.GetProperty("summary").GetProperty("line").GetProperty("total").GetInt32());
+		Assert.Equal(2, coverage.RootElement.GetProperty("summary").GetProperty("line").GetProperty("covered").GetInt32());
+		JsonElement file = Assert.Single(coverage.RootElement.GetProperty("files").EnumerateArray());
+		Assert.Contains(FindLine(source, "return 0;"), file.GetProperty("uncoveredLines").EnumerateArray().Select(static line => line.GetInt32()));
+
+		string lcov = File.ReadAllText(Path.Combine(coverageDir, "lcov.info"));
+		Assert.Contains("SF:" + RelativeSourcePath(source), lcov, StringComparison.Ordinal);
+		Assert.Contains("FNDA:1,CoverageCli::add", lcov, StringComparison.Ordinal);
+		Assert.Contains("FNDA:0,CoverageCli::unused", lcov, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void External_cover_instruments_selected_shared_library_subject()
+	{
+		string root = TempPath("coverage-external-module");
+		string libraryRoot = Path.Combine(root, "library");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string otherRoot = Path.Combine(root, "other");
+		string otherSource = Path.Combine(otherRoot, "src");
+		string testRoot = Path.Combine(root, "tests");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(otherSource);
+		Directory.CreateDirectory(testRoot);
+		string libraryCamp = Path.Combine(librarySource, "library.camp");
+		File.WriteAllText(libraryCamp, """
+			namespace CoverLib;
+
+			export int add(int left, int right)
+			{
+				int sum = left + right;
+				return sum;
+			}
+
+			export int unused()
+			{
+				return 0;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--nostdlib
+			--name cover-lib
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(otherSource, "other.camp"), """
+			namespace OtherLib;
+
+			export int value()
+			{
+				return 1;
+			}
+			""");
+		File.WriteAllText(Path.Combine(otherRoot, "other.campbuild"), """
+			--nostdlib
+			--name other-lib
+			src/*.camp
+			""");
+		string tests = Path.Combine(testRoot, "tests.camp");
+		File.WriteAllText(tests, """
+			#build --nostdlib
+
+			namespace CoverTests;
+			using CoverLib;
+
+			@test
+			void exportedApiWorks(thrown Assertion* assertion)
+			{
+				assert(add(2, 3) == 5);
+			}
+			""");
+		string target = NativeTargetForHost();
+
+		ProcessResult ambiguous = RunCampc(
+			"cover",
+			tests,
+			"--target",
+			target,
+			"--project-reference",
+			libraryRoot + ":shared",
+			"--project-reference",
+			otherRoot + ":shared",
+			"--out-dir",
+			Path.Combine(testRoot, "ambiguous-bin"),
+			"--name",
+			"external_ambiguous");
+
+		Assert.NotEqual(0, ambiguous.ExitCode);
+		Assert.Contains("requires --coverage-subject", ambiguous.StdErr, StringComparison.Ordinal);
+
+		string outDir = Path.Combine(testRoot, "bin");
+		ProcessResult result = RunCampc(
+			"cover",
+			tests,
+			"--target",
+			target,
+			"--project-reference",
+			libraryRoot + ":shared",
+			"--project-reference",
+			otherRoot + ":shared",
+			"--coverage-subject",
+			"cover-lib",
+			"--coverage-format",
+			"json",
+			"--out-dir",
+			outDir,
+			"--name",
+			"external_cover");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: CoverTests::exportedApiWorks", result.StdOut, StringComparison.Ordinal);
+		string rootGenerated = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", "tests.c"));
+		Assert.DoesNotContain("__camp_coverage", rootGenerated, StringComparison.Ordinal);
+		string dependencyMap = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Shared) + "_coverage", "build", "cover-lib.camp-coverage-map.csv");
+		Assert.True(File.Exists(dependencyMap), dependencyMap);
+		string map = File.ReadAllText(dependencyMap);
+		Assert.Contains("CoverLib::add", map, StringComparison.Ordinal);
+		Assert.Contains("CoverLib::unused", map, StringComparison.Ordinal);
+
+		using JsonDocument coverage = JsonDocument.Parse(File.ReadAllText(CoverageResultsPath(outDir, "external_cover")));
+		Assert.Equal(2, coverage.RootElement.GetProperty("summary").GetProperty("function").GetProperty("total").GetInt32());
+		Assert.Equal(1, coverage.RootElement.GetProperty("summary").GetProperty("function").GetProperty("covered").GetInt32());
+		JsonElement file = Assert.Single(coverage.RootElement.GetProperty("files").EnumerateArray());
+		Assert.Contains(RelativeSourcePath(libraryCamp), file.GetProperty("path").GetString(), StringComparison.Ordinal);
+		Assert.Contains(FindLine(libraryCamp, "return 0;"), file.GetProperty("uncoveredLines").EnumerateArray().Select(static line => line.GetInt32()));
+	}
+
+	[Fact]
+	public void Coverage_options_are_cover_only_and_validate_format()
+	{
+		string source = CreateTempCase("coverage_cli_validation/main.camp", """
+			export void main()
+			{
+			}
+			""");
+
+		ProcessResult build = RunCampc("build", source, "--coverage-format", "json");
+		ProcessResult invalid = RunCampc("cover", source, "--nostdlib", "--coverage-format", "lcov,json");
+
+		Assert.NotEqual(0, build.ExitCode);
+		Assert.Contains("can only be used with cover", build.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, invalid.ExitCode);
+		Assert.Contains("--coverage-format expects json, lcov, or json,lcov", invalid.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Build_and_run_accept_test_result_options()
 	{
 		string source = CreateTempCase("test_result_options/main.camp", """
@@ -3897,6 +4107,16 @@ public sealed class CommandLineTests
 	static string TestResultsPath(string outDir, string projectName)
 	{
 		return Path.Combine(outDir, ArtifactDirectoryForHost(null), "test-results", projectName + ".camp-test-results.json");
+	}
+
+	static string CoverageMapPath(string outDir, string projectName)
+	{
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", projectName + ".camp-coverage-map.csv");
+	}
+
+	static string CoverageResultsPath(string outDir, string projectName)
+	{
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null), "coverage", projectName + ".camp-coverage-results.json");
 	}
 
 	static int FindLine(string path, string text)

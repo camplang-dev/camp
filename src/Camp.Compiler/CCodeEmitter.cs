@@ -21,6 +21,7 @@ public sealed class CEmissionOptions
 	public bool EmitExecMainWrapper { get; init; }
 	public FunctionDefinition? ExecEntryPoint { get; init; }
 	public bool ExposePrivateFunctionsForTestHarness { get; init; }
+	public CampCoverageMapBuilder? CoverageMapBuilder { get; init; }
 }
 
 public sealed class CEmissionResult
@@ -276,7 +277,7 @@ public static class CCodeEmitter
 		return description;
 	}
 
-	static bool TryGetNodeSourceRange(BindableNode node, out TokenRange range)
+	internal static bool TryGetNodeSourceRange(BindableNode node, out TokenRange range)
 	{
 		if (node.SourceSyntax is not null && TryGetSourceRange(node.SourceSyntax, out range))
 			return true;
@@ -391,7 +392,18 @@ public static class CCodeEmitter
 		}
 
 		writer.WriteLine();
+		if (options.CoverageMapBuilder is not null)
+		{
+			writer.WriteLine("#include <stdint.h>");
+			writer.WriteLine();
+		}
 		declarations.WritePrivateHeaderDeclarations(writer);
+		if (options.CoverageMapBuilder is not null)
+		{
+			writer.WriteLine();
+			writer.WriteLine("extern uint64_t " + CampCoverageRuntimeSourceGenerator.CounterSymbol(options.ProjectName) + "[];");
+			writer.WriteLine("void " + CampCoverageRuntimeSourceGenerator.TouchSymbol(options.ProjectName) + "(void);");
+		}
 		writer.WriteLine();
 		writer.WriteLine("#endif");
 		result.GeneratedFiles.Add(filename);
@@ -3578,6 +3590,7 @@ public static class CCodeEmitter
 				WriteIndent(writer, 1);
 				writer.WriteLine(FormatTypeOrResolved(asyncThrown.Type, asyncThrown.ResolvedType, CName(asyncThrown)).Declaration + " = 0;");
 			}
+			WriteCoverageFunctionEntry(writer, function, 1);
 			foreach (Statement statement in function.Body!.Statements)
 				WriteStatement(writer, statement, 1);
 			if (function.IsAsync && (function.ResolvedType ?? "void") == "void" && !EndsWithExplicitReturn(function.Body))
@@ -3641,6 +3654,7 @@ public static class CCodeEmitter
 		{
 			int generatedLine = WriteDebugLineDirective(writer, statement);
 			AddDebugStatementEntry(writer, statement, generatedLine);
+			WriteCoverageLineCounter(writer, statement, indent);
 			switch (statement)
 			{
 				case EmptyStatement:
@@ -3726,6 +3740,46 @@ public static class CCodeEmitter
 					writer.WriteLine("/* unsupported " + statement.GetType().Name + " */");
 					break;
 			}
+		}
+
+		void WriteCoverageFunctionEntry(TextWriter writer, FunctionDefinition function, int indent)
+		{
+			if (options.CoverageMapBuilder is null)
+				return;
+			if (!options.CoverageMapBuilder.TryAddFunctionCounter(function, out int counterId, out string? diagnostic))
+			{
+				if (!string.IsNullOrWhiteSpace(diagnostic))
+					result.Diagnostics.Add(diagnostic!);
+				return;
+			}
+			WriteCoverageCounterIncrement(writer, counterId, indent);
+		}
+
+		void WriteCoverageLineCounter(TextWriter writer, Statement statement, int indent)
+		{
+			if (options.CoverageMapBuilder is null || currentFunction is null)
+				return;
+			if (!options.CoverageMapBuilder.TryAddLineCounter(currentFunction, statement, out int counterId, out string? diagnostic))
+			{
+				if (!string.IsNullOrWhiteSpace(diagnostic))
+					result.Diagnostics.Add(diagnostic!);
+				return;
+			}
+			WriteCoverageCounterIncrement(writer, counterId, indent);
+		}
+
+		void WriteCoverageCounterIncrement(TextWriter writer, int counterId, int indent)
+		{
+			// Coverage is inserted only at the C statement boundary so Camp expression
+			// evaluation, cleanup, lifetimes, and allocation behavior stay unchanged.
+			WriteIndent(writer, indent);
+			writer.Write(CampCoverageRuntimeSourceGenerator.TouchSymbol(options.ProjectName));
+			writer.WriteLine("();");
+			WriteIndent(writer, indent);
+			writer.Write(CampCoverageRuntimeSourceGenerator.CounterSymbol(options.ProjectName));
+			writer.Write("[");
+			writer.Write(counterId.ToString(CultureInfo.InvariantCulture));
+			writer.WriteLine("]++;");
 		}
 
 		int WriteDebugLineDirective(TextWriter writer, BindableNode node)

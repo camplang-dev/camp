@@ -67,6 +67,7 @@ static RootCommand BuildCommandTree(CliEnvironment environment, string[] origina
 	Command cover = new("cover", "Build and run Camp tests with source coverage.");
 	cover.Arguments.Add(SourcePatternsArgument());
 	AddBuildOptions(cover, buildOnly: true, testRunnerOptions: true);
+	AddCoverageOptions(cover);
 	cover.SetAction(_ => CampCli.Run(originalArgs, environment));
 	root.Subcommands.Add(cover);
 
@@ -154,11 +155,11 @@ static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOpti
 		Arity = new ArgumentArity(2, 2),
 		AllowMultipleArgumentsPerToken = true
 	});
-	command.Options.Add(new Option<string>("--project-reference")
+	command.Options.Add(new Option<List<string>>("--project-reference")
 	{
 		Description = "Build and reference another Camp project response file.",
-		Arity = ArgumentArity.ExactlyOne,
-		AllowMultipleArgumentsPerToken = false
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
 	});
 	command.Options.Add(new Option<string?>("--metadata") { Description = "Emit metadata: none, export, public, or all." });
 	command.Options.Add(new Option<bool>("--explicit-within") { Description = "Require source-level new/delete to use an explicit within context." });
@@ -198,6 +199,18 @@ static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOpti
 	command.Options.Add(new Option<string?>("--name") { Description = "Artifact/project name without extension." });
 	command.Options.Add(new Option<string?>("--subsystem") { Description = "Native subsystem, currently windows." });
 	command.Options.Add(new Option<string?>("--out-dir") { Description = "Directory for final artifacts." });
+}
+
+static void AddCoverageOptions(Command command)
+{
+	command.Options.Add(new Option<string?>("--coverage-format") { Description = "Coverage output format: json, lcov, or json,lcov." });
+	command.Options.Add(new Option<string?>("--coverage-result-dir") { Description = "Directory for coverage result artifacts." });
+	command.Options.Add(new Option<List<string>>("--coverage-subject")
+	{
+		Description = "Coverage subject: self or a shared project-reference name.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
 }
 
 static void AddPackageCommands(Command pkg, string[] originalArgs, CliEnvironment environment)
@@ -435,6 +448,8 @@ sealed class CampCli
 			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, or --out-dir.");
 		if (command == CommandKind.Dump && bag.HasTestResultOptions)
 			errors.Add("dump does not accept --test-result-dir or --test-result-format.");
+		if (command != CommandKind.Cover && bag.HasCoverageOptions)
+			errors.Add("--coverage-format, --coverage-result-dir, and --coverage-subject can only be used with cover.");
 		if (command is not (CommandKind.Test or CommandKind.Cover) && bag.ListTests)
 			errors.Add("--list can only be used with test or cover.");
 		if (command is not (CommandKind.Test or CommandKind.Cover) && bag.TestFilters.Count > 0)
@@ -465,7 +480,7 @@ sealed class CampCli
 			InferBuildKind = command == CommandKind.Build && !bag.ArtifactSpecified,
 			CommandMode = GetCompilerCommandMode(command),
 			DeclarationParticipationMode = command is CommandKind.Test or CommandKind.Cover ? DeclarationParticipationMode.TestModule : DeclarationParticipationMode.Production,
-			CoverageInstrumentationMode = command == CommandKind.Cover ? CoverageInstrumentationMode.ProductionSubject : CoverageInstrumentationMode.Disabled,
+			CoverageInstrumentationMode = CoverageInstrumentationMode.Disabled,
 			EmitDebugInfo = bag.DebugInfo,
 			EmitMetadata = bag.MetadataVisibility,
 			OutDir = bag.OutDir ?? defaultOutDir,
@@ -477,10 +492,13 @@ sealed class CampCli
 			SourcefileDefaultRoot = sourcefileDefaultRoot,
 			ListTests = bag.ListTests,
 			TestResultDir = bag.TestResultDir,
-			TestResultFormat = bag.TestResultFormat
+			TestResultFormat = bag.TestResultFormat,
+			CoverageResultDir = bag.CoverageResultDir,
+			CoverageFormat = bag.CoverageFormat
 		};
 		request.SourcefileRoots.AddRange(bag.SourcefileRoots);
 		request.TestFilters.AddRange(bag.TestFilters);
+		request.CoverageSubjects.AddRange(bag.CoverageSubjects);
 		request.Defines.AddRange(bag.Defines);
 		request.Variants.AddRange(bag.Variants);
 		request.References.AddRange(bag.References);
@@ -493,6 +511,8 @@ sealed class CampCli
 			includeFiles.Add(projectApiHeader);
 		request.SharedLibraryApiHeaders.AddRange(sharedProjectApiHeaders);
 		request.References.AddRange(projectLibraries);
+		if (command == CommandKind.Cover && !TryApplyRootCoverageSubject(request, bag.ProjectReferences.Count, errors))
+			return false;
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		request.IncludeFiles.AddRange(includeFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		return true;
@@ -518,6 +538,18 @@ sealed class CampCli
 		bool requireLibrary = consumerRequest.BuildKind is not null
 			|| consumerRequest.InferBuildKind
 			|| consumerRequest.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover;
+		bool coverageMode = consumerRequest.CommandMode == CompilerCommandMode.Cover;
+		int sharedCoverageCandidateCount = coverageMode
+			? projectReferences.Select(static reference => ProjectReferenceSpec.Parse(reference)).Count(static spec => spec.LinkKind.GetValueOrDefault(DependencyLinkKind.Shared) == DependencyLinkKind.Shared)
+			: 0;
+		HashSet<string> matchedCoverageSubjects = new(StringComparer.Ordinal);
+		if (coverageMode
+			&& consumerRequest.CoverageSubjects.Count == 0
+			&& sharedCoverageCandidateCount > 1)
+		{
+			errors.Add("External coverage with multiple shared project references requires --coverage-subject.");
+			return false;
+		}
 		foreach (string projectReference in projectReferences)
 		{
 			ProjectReferenceSpec referenceSpec = ProjectReferenceSpec.Parse(projectReference);
@@ -558,10 +590,21 @@ sealed class CampCli
 			}
 
 			string projectDirectory = Path.GetDirectoryName(canonicalBuildFile)!;
+			string coverageSubjectName = ProjectReferenceOutputName(referenceOptions, canonicalBuildFile);
+			bool instrumentForCoverage = ShouldInstrumentProjectReferenceForCoverage(consumerRequest, coverageSubjectName, effectiveLinkKind, sharedCoverageCandidateCount);
+			if (consumerRequest.CoverageSubjects.Contains(coverageSubjectName, StringComparer.Ordinal))
+				matchedCoverageSubjects.Add(coverageSubjectName);
+			if (coverageMode && consumerRequest.CoverageSubjects.Contains(coverageSubjectName, StringComparer.Ordinal) && effectiveLinkKind != DependencyLinkKind.Shared)
+			{
+				errors.Add($"Coverage subject '{coverageSubjectName}' must be referenced as a shared library.");
+				continue;
+			}
 			TargetDefinition? target = TryGetTargetDefinition(consumerRequest, environment, errors);
 			string artifactDirectory = target is null
 				? consumerRequest.TargetName
 				: BuildArtifactLayout.GetArtifactDirectoryName(target, referenceBuildKind, consumerRequest.ProfileName);
+			if (instrumentForCoverage)
+				artifactDirectory += "_coverage";
 			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", artifactDirectory);
 			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
 			projectArgs.AddRange(["--target", consumerRequest.TargetName]);
@@ -579,7 +622,10 @@ sealed class CampCli
 				continue;
 			}
 
-			if (target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest!, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.GlobalCampPath, requireLibrary, out string? currentApiHeader, out string? currentLibrary))
+			if (instrumentForCoverage)
+				projectRequest!.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
+
+			if (!instrumentForCoverage && target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest!, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.GlobalCampPath, requireLibrary, out string? currentApiHeader, out string? currentLibrary))
 			{
 				apiHeaders.Add(currentApiHeader);
 				if (effectiveLinkKind == DependencyLinkKind.Shared)
@@ -598,6 +644,7 @@ sealed class CampCli
 			WriteProjectReferenceOutput(projectReference, result.StdOut);
 			string? apiHeader = result.GeneratedFiles.FirstOrDefault(static path => path.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
 			string? library = result.GeneratedFiles.FirstOrDefault(path => IsNativeLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot, referenceBuildKind));
+			string? coverageMap = result.GeneratedFiles.FirstOrDefault(static path => path.EndsWith(".camp-coverage-map.csv", StringComparison.OrdinalIgnoreCase));
 			if (result.ExitCode != 0)
 			{
 				if (!requireLibrary && apiHeader is not null)
@@ -620,6 +667,15 @@ sealed class CampCli
 					: $"{referenceSpec.Path}: project reference did not produce a Camp API header.");
 				continue;
 			}
+			if (instrumentForCoverage)
+			{
+				if (coverageMap is null)
+				{
+					errors.Add($"{referenceSpec.Path}: instrumented coverage subject did not produce a coverage map.");
+					continue;
+				}
+				AddUniquePath(consumerRequest.CoverageMapInputs, coverageMap);
+			}
 			apiHeaders.Add(apiHeader);
 			if (effectiveLinkKind == DependencyLinkKind.Shared)
 				sharedApiHeaders.Add(apiHeader);
@@ -629,6 +685,14 @@ sealed class CampCli
 			{
 				if (referenceBuildKind == NativeBuildKind.Static || target is not null && IsSharedDependencyReference(reference, target))
 					AddUniquePath(libraries, reference);
+			}
+		}
+		if (coverageMode)
+		{
+			foreach (string subject in consumerRequest.CoverageSubjects.Where(static subject => subject != "self"))
+			{
+				if (!matchedCoverageSubjects.Contains(subject))
+					errors.Add($"Coverage subject '{subject}' could not be matched to a shared project reference.");
 			}
 		}
 		return errors.Count == 0;
@@ -675,6 +739,56 @@ sealed class CampCli
 		if (!string.IsNullOrWhiteSpace(firstSource))
 			return Path.GetFileNameWithoutExtension(firstSource);
 		return Path.GetFileNameWithoutExtension(buildFile);
+	}
+
+	static string ProjectReferenceOutputName(ParsedOptions projectOptions, string buildFile)
+	{
+		string? projectName = projectOptions.SingleValues.LastOrDefault(static value => value.Key == "name").Value;
+		if (!string.IsNullOrWhiteSpace(projectName))
+			return projectName!;
+		string? firstSource = projectOptions.Positionals.FirstOrDefault(static file => !file.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
+		if (!string.IsNullOrWhiteSpace(firstSource) && !Glob.HasWildcards(firstSource!))
+			return Path.GetFileNameWithoutExtension(firstSource);
+		return Path.GetFileNameWithoutExtension(buildFile);
+	}
+
+	static bool ShouldInstrumentProjectReferenceForCoverage(CompilerRequest consumerRequest, string coverageSubjectName, DependencyLinkKind linkKind, int sharedCoverageCandidateCount)
+	{
+		if (consumerRequest.CommandMode != CompilerCommandMode.Cover || linkKind != DependencyLinkKind.Shared)
+			return false;
+		if (consumerRequest.CoverageSubjects.Count == 0)
+			return sharedCoverageCandidateCount == 1;
+		return consumerRequest.CoverageSubjects.Contains(coverageSubjectName, StringComparer.Ordinal);
+	}
+
+	static bool TryApplyRootCoverageSubject(CompilerRequest request, int projectReferenceCount, List<string> errors)
+	{
+		if (request.CommandMode != CompilerCommandMode.Cover)
+			return true;
+		bool explicitSelf = request.CoverageSubjects.Contains("self", StringComparer.Ordinal);
+		bool explicitDependency = request.CoverageSubjects.Any(static subject => subject != "self");
+		if (!explicitSelf && !explicitDependency && request.CoverageMapInputs.Count == 0)
+		{
+			request.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
+			return true;
+		}
+		if (explicitSelf)
+		{
+			request.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
+			return true;
+		}
+		if (request.CoverageMapInputs.Count > 0)
+		{
+			request.CoverageInstrumentationMode = CoverageInstrumentationMode.Disabled;
+			return true;
+		}
+		if (projectReferenceCount > 0)
+		{
+			errors.Add("External coverage requires a shared project reference coverage subject or --coverage-subject self.");
+			return false;
+		}
+		errors.Add("Coverage subject '" + string.Join(", ", request.CoverageSubjects) + "' could not be matched.");
+		return false;
 	}
 
 	static IEnumerable<string> GetProjectReferenceCacheInputs(CompilerRequest projectRequest, string buildFile, TargetDefinition target, string globalCampPath)
@@ -1262,6 +1376,7 @@ sealed class BuildOptionBag
 	public List<string> ProjectReferences { get; } = [];
 	public List<string> SourcefileRoots { get; } = [];
 	public List<string> TestFilters { get; } = [];
+	public List<string> CoverageSubjects { get; } = [];
 	public bool NoStdLib { get; private set; }
 	public bool ArtifactSpecified { get; private set; }
 	public NativeBuildKind? ArtifactKind { get; private set; }
@@ -1279,6 +1394,8 @@ sealed class BuildOptionBag
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
 	public string? TestResultDir => Get("test-result-dir");
 	public string? TestResultFormat => Get("test-result-format");
+	public string? CoverageResultDir => Get("coverage-result-dir");
+	public string? CoverageFormat => Get("coverage-format");
 	public bool ListTests => Get("list") == "true";
 	public SourcefilePathMode SourcefilePathMode => Get("sourcefile-paths") switch
 	{
@@ -1295,6 +1412,7 @@ sealed class BuildOptionBag
 	public bool DebugInfo => Get("debug-info") == "true";
 	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo;
 	public bool HasTestResultOptions => Get("test-result-dir") is not null || Get("test-result-format") is not null;
+	public bool HasCoverageOptions => Get("coverage-result-dir") is not null || Get("coverage-format") is not null || CoverageSubjects.Count > 0;
 
 	public void Apply(ParsedOptions options, Precedence precedence, string source, List<string> errors)
 	{
@@ -1309,6 +1427,7 @@ sealed class BuildOptionBag
 		Frameworks.AddRange(options.Frameworks);
 		SourcefileRoots.AddRange(options.SourcefileRoots);
 		TestFilters.AddRange(options.TestFilters);
+		CoverageSubjects.AddRange(options.CoverageSubjects);
 		AddVariants(options.Variants, precedence);
 		UseSources.AddRange(options.UseSources);
 		UsePackages.AddRange(options.UsePackages);
@@ -1397,6 +1516,7 @@ sealed class ParsedOptions
 	public List<string> ProjectReferences { get; } = [];
 	public List<string> SourcefileRoots { get; } = [];
 	public List<string> TestFilters { get; } = [];
+	public List<string> CoverageSubjects { get; } = [];
 	public bool NoStdLib { get; set; }
 	public bool ArtifactSpecified { get; set; }
 	public NativeBuildKind? ArtifactKind { get; set; }
@@ -1507,6 +1627,18 @@ static class CommandLineOptionParser
 					if (testResultFormat is not ("text" or "json" or "text,json"))
 						errors.Add("--test-result-format expects text, json, or text,json.");
 					AddSingle(result, "test-result-format", testResultFormat);
+					break;
+				case "--coverage-result-dir":
+					AddSingle(result, "coverage-result-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+					break;
+				case "--coverage-format":
+					string coverageFormat = RequiredValue(tokens, ref i, token, errors);
+					if (coverageFormat is not ("json" or "lcov" or "json,lcov"))
+						errors.Add("--coverage-format expects json, lcov, or json,lcov.");
+					AddSingle(result, "coverage-format", coverageFormat);
+					break;
+				case "--coverage-subject":
+					result.CoverageSubjects.Add(RequiredValue(tokens, ref i, token, errors));
 					break;
 				case "--list":
 					AddSingle(result, "list", "true");
@@ -1714,6 +1846,7 @@ static class ResponseFileExpander
 		"--build-dir",
 		"--sourcefile-root",
 		"--test-result-dir",
+		"--coverage-result-dir",
 		"--local"
 	};
 
@@ -1764,7 +1897,7 @@ static class ResponseFileExpander
 	{
 		return option switch
 		{
-			"--target" or "-t" or "--profile" or "-p" or "--variant" or "-v" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-result-dir" or "--test-result-format" or "--filter" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
+			"--target" or "-t" or "--profile" or "-p" or "--variant" or "-v" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-result-dir" or "--test-result-format" or "--coverage-result-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
 			"--use-source" => 2,
 			_ => 0
 		};
@@ -1989,7 +2122,7 @@ static class Glob
 		return Regex.IsMatch(Normalize(path), "^" + GlobRegex(Normalize(pattern)) + "$", RegexOptions.CultureInvariant);
 	}
 
-	static bool HasWildcards(string pattern) => pattern.IndexOfAny(['*', '?', '[']) >= 0;
+	public static bool HasWildcards(string pattern) => pattern.IndexOfAny(['*', '?', '[']) >= 0;
 	static string GetSearchRoot(string fullPattern)
 	{
 		int wildcard = fullPattern.IndexOfAny(['*', '?', '[']);

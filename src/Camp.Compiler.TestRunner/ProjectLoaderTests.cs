@@ -150,6 +150,34 @@ public sealed class ProjectLoaderTests
 	}
 
 	[Fact]
+	public void Project_loader_reads_coverage_options()
+	{
+		string root = CreateTempDirectory("project-loader-coverage-options");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), "export void main() {}");
+		string buildFile = Path.Combine(root, "app.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--coverage-format json,lcov
+			--coverage-result-dir coverage-output
+			--coverage-subject self
+			src/*.camp
+			""");
+
+		CampProjectLoadResult cover = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(root), CampProjectCommandKind.Cover);
+		CampProjectLoadResult build = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(root), CampProjectCommandKind.Build);
+
+		Assert.True(cover.Success, string.Join(Environment.NewLine, cover.Diagnostics));
+		Assert.Equal("json,lcov", cover.Request.CoverageFormat);
+		Assert.Equal(Path.GetFullPath(Path.Combine(root, "coverage-output")), Path.GetFullPath(cover.Request.CoverageResultDir!));
+		Assert.Equal(["self"], cover.Request.CoverageSubjects);
+
+		Assert.False(build.Success);
+		Assert.Contains(build.Diagnostics, static diagnostic => diagnostic.Contains("can only be used with cover", StringComparison.Ordinal));
+	}
+
+	[Fact]
 	public void Project_loader_expands_includes_and_excludes()
 	{
 		string root = CreateTempDirectory("project-loader-globs");

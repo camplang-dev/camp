@@ -62,6 +62,10 @@ public sealed class CompilerRequest
 	public List<string> TestFilters { get; } = [];
 	public string? TestResultDir { get; set; }
 	public string? TestResultFormat { get; set; }
+	public string? CoverageResultDir { get; set; }
+	public string? CoverageFormat { get; set; }
+	public List<string> CoverageSubjects { get; } = [];
+	public List<string> CoverageMapInputs { get; } = [];
 	public List<string> References { get; } = [];
 	public List<string> SharedLibraryApiHeaders { get; } = [];
 	public List<string> Frameworks { get; } = [];
@@ -216,6 +220,9 @@ public static class CompilerDriver
 			if (!PrepareTestHarnessEntryPoint(compilation))
 				return 1;
 
+			CampCoverageMapBuilder? coverageMapBuilder = request.CoverageInstrumentationMode == CoverageInstrumentationMode.ProductionSubject
+				? new CampCoverageMapBuilder(compilation)
+				: null;
 			CEmissionResult result = CCodeEmitter.Emit(compilation, new CEmissionOptions
 			{
 				OutputDirectory = buildDirectory,
@@ -223,7 +230,8 @@ public static class CompilerDriver
 				EmitKind = request.EmitKind,
 				BuildKind = NativeBuildKind.Exec,
 				EmitDebugInfo = request.EmitDebugInfo,
-				ExposePrivateFunctionsForTestHarness = true
+				ExposePrivateFunctionsForTestHarness = true,
+				CoverageMapBuilder = coverageMapBuilder
 			});
 			foreach (string diagnostic in result.Diagnostics)
 				ErrorLine(diagnostic);
@@ -234,6 +242,16 @@ public static class CompilerDriver
 			{
 				generatedFiles.Add(generated);
 				OutLine("generated: " + Path.GetFileName(generated));
+			}
+
+			List<string> coverageMapPaths = [.. request.CoverageMapInputs];
+			List<string> coverageRuntimeSources = [];
+			if (coverageMapBuilder is not null)
+			{
+				if (!TryEmitCoverageBuildArtifacts(coverageMapBuilder, buildDirectory, projectName, out string? coverageMapPath, out string? coverageRuntimeSource))
+					return 1;
+				coverageMapPaths.Add(coverageMapPath!);
+				coverageRuntimeSources.Add(coverageRuntimeSource!);
 			}
 
 			if (!TryEmitTestHarnessSource(buildDirectory, projectName, selectedTests, out string? harnessSource))
@@ -247,7 +265,7 @@ public static class CompilerDriver
 				OutputDirectory = outputDirectory,
 				ProjectName = projectName,
 				Kind = NativeBuildKind.Exec,
-				SourceFiles = [.. result.GeneratedSourceFiles, harnessSource!],
+				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources, harnessSource!],
 				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
 				Frameworks = request.Frameworks
 			};
@@ -265,12 +283,22 @@ public static class CompilerDriver
 				return 1;
 			if (!TryGetTestResultOutputFormat(out bool writeText, out bool writeJson))
 				return 1;
-			CampTestResults testResults = RunTestHarness(NativeBuildDriver.GetArtifactPath(buildOptions), buildDirectory, selectedTests);
+			Dictionary<string, string> coverageCountPaths = request.CommandMode == CompilerCommandMode.Cover
+				? CreateCoverageCountPaths(coverageMapPaths, buildDirectory)
+				: [];
+			CampTestResults testResults = RunTestHarness(NativeBuildDriver.GetArtifactPath(buildOptions), buildDirectory, selectedTests, coverageCountPaths);
 			if (writeJson && !TryEmitTestResultsArtifact(testResults, ResolveTestResultDirectory(outputDirectory), projectName))
 				return 1;
+			bool coverageSucceeded = true;
+			if (request.CommandMode == CompilerCommandMode.Cover)
+			{
+				if (!TryGetCoverageOutputFormat(out bool writeCoverageJson, out bool writeCoverageLcov))
+					return 1;
+				coverageSucceeded = TryEmitCoverageResultsArtifacts(coverageMapPaths, coverageCountPaths, ResolveCoverageResultDirectory(outputDirectory), projectName, writeCoverageJson, writeCoverageLcov);
+			}
 			if (writeText)
 				stdout.Append(CampTestResultsTextFormatter.Format(testResults));
-			return TestResultsSucceeded(testResults) ? 0 : 1;
+			return TestResultsSucceeded(testResults) && coverageSucceeded ? 0 : 1;
 		}
 
 		void ApplySubsystem()
@@ -1076,6 +1104,9 @@ public void fail(escaped string message, escaped string sourcefile = caller(sour
 			string outputDirectory = ResolveArtifactOutputDirectory(compilation);
 			string buildDirectory = Path.Combine(outputDirectory, "build");
 			string projectName = string.IsNullOrWhiteSpace(request.ProjectName) ? CCodeEmitter.GetProjectName(compilation.Files) : request.ProjectName!;
+			CampCoverageMapBuilder? coverageMapBuilder = request.CoverageInstrumentationMode == CoverageInstrumentationMode.ProductionSubject
+				? new CampCoverageMapBuilder(compilation)
+				: null;
 			CEmissionResult result = CCodeEmitter.Emit(compilation, new CEmissionOptions
 			{
 				OutputDirectory = buildDirectory,
@@ -1084,7 +1115,8 @@ public void fail(escaped string message, escaped string sourcefile = caller(sour
 				BuildKind = request.BuildKind,
 				EmitDebugInfo = request.EmitDebugInfo,
 				EmitExecMainWrapper = request.BuildKind is NativeBuildKind.Exec or NativeBuildKind.WinExe,
-				ExecEntryPoint = execEntryPoint
+				ExecEntryPoint = execEntryPoint,
+				CoverageMapBuilder = coverageMapBuilder
 			});
 			foreach (string diagnostic in result.Diagnostics)
 				ErrorLine(diagnostic);
@@ -1095,6 +1127,14 @@ public void fail(escaped string message, escaped string sourcefile = caller(sour
 			{
 				generatedFiles.Add(generated);
 				OutLine("generated: " + Path.GetFileName(generated));
+			}
+
+			List<string> coverageRuntimeSources = [];
+			if (coverageMapBuilder is not null)
+			{
+				if (!TryEmitCoverageBuildArtifacts(coverageMapBuilder, buildDirectory, projectName, out _, out string? coverageRuntimeSource))
+					return 1;
+				coverageRuntimeSources.Add(coverageRuntimeSource!);
 			}
 
 			if (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared && !TryEmitLibraryApiArtifacts(compilation, outputDirectory))
@@ -1118,7 +1158,7 @@ public void fail(escaped string message, escaped string sourcefile = caller(sour
 				OutputDirectory = outputDirectory,
 				ProjectName = projectName,
 				Kind = request.BuildKind.Value,
-				SourceFiles = result.GeneratedSourceFiles,
+				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources],
 				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
 				Frameworks = request.Frameworks
 			});
@@ -1393,11 +1433,127 @@ public void fail(escaped string message, escaped string sourcefile = caller(sour
 			return true;
 		}
 
+		bool TryEmitCoverageBuildArtifacts(CampCoverageMapBuilder builder, string buildDirectory, string projectName, out string? coverageMapPath, out string? coverageRuntimeSource)
+		{
+			coverageMapPath = Path.Combine(buildDirectory, projectName + ".camp-coverage-map.csv");
+			coverageRuntimeSource = Path.Combine(buildDirectory, projectName + "_coverage_runtime.c");
+			try
+			{
+				Directory.CreateDirectory(buildDirectory);
+				File.WriteAllText(coverageMapPath, CampCoverageMapCsvSerializer.Serialize(builder.ToMap()), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				File.WriteAllText(coverageRuntimeSource, CampCoverageRuntimeSourceGenerator.Generate(projectName, builder.CounterCount), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+			{
+				ErrorLine($"{coverageMapPath}: {ex.Message}");
+				coverageMapPath = null;
+				coverageRuntimeSource = null;
+				return false;
+			}
+
+			generatedFiles.Add(coverageMapPath);
+			generatedFiles.Add(coverageRuntimeSource);
+			OutLine("generated: " + Path.GetFileName(coverageMapPath));
+			OutLine("generated: " + Path.GetFileName(coverageRuntimeSource));
+			return true;
+		}
+
+		bool TryEmitCoverageResultsArtifacts(IReadOnlyList<string> coverageMapPaths, IReadOnlyDictionary<string, string> coverageCountPaths, string outputDirectory, string projectName, bool writeJson, bool writeLcov)
+		{
+			if (coverageMapPaths.Count == 0)
+			{
+				ErrorLine("cover did not produce a coverage map.");
+				return false;
+			}
+
+			List<CampCoverageMap> maps = [];
+			List<IReadOnlyDictionary<int, ulong>> countSets = [];
+			foreach (string mapPath in coverageMapPaths)
+			{
+				if (!TryReadCoverageMap(mapPath, out CampCoverageMap? map))
+					return false;
+				maps.Add(map!);
+				string envName = CampCoverageRuntimeSourceGenerator.EnvironmentVariableName(ProjectNameFromCoverageMapPath(mapPath));
+				if (map!.Counters.Count == 0)
+				{
+					countSets.Add(new Dictionary<int, ulong>());
+					continue;
+				}
+				if (!coverageCountPaths.TryGetValue(envName, out string? countPath))
+				{
+					ErrorLine($"coverage count path for '{envName}' was not configured.");
+					return false;
+				}
+				if (!CampCoverageCounterFile.TryRead(countPath, out Dictionary<int, ulong> counts, out List<string> diagnostics))
+				{
+					foreach (string diagnostic in diagnostics)
+						ErrorLine(diagnostic);
+					return false;
+				}
+				countSets.Add(counts);
+			}
+
+			CampCoverageResults results = CampCoverageResultsFactory.Create(maps, countSets);
+			try
+			{
+				Directory.CreateDirectory(outputDirectory);
+				if (writeJson)
+				{
+					string jsonPath = Path.Combine(outputDirectory, projectName + ".camp-coverage-results.json");
+					File.WriteAllText(jsonPath, CampCoverageResultsJsonSerializer.Serialize(results), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+					generatedFiles.Add(jsonPath);
+					OutLine("generated: " + Path.GetFileName(jsonPath));
+				}
+				if (writeLcov)
+				{
+					string lcovPath = Path.Combine(outputDirectory, "lcov.info");
+					File.WriteAllText(lcovPath, CampCoverageLcovSerializer.Serialize(maps, countSets), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+					generatedFiles.Add(lcovPath);
+					OutLine("generated: " + Path.GetFileName(lcovPath));
+				}
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+			{
+				ErrorLine($"{outputDirectory}: {ex.Message}");
+				return false;
+			}
+
+			return true;
+		}
+
+		bool TryReadCoverageMap(string mapPath, out CampCoverageMap? map)
+		{
+			map = null;
+			try
+			{
+				if (!CampCoverageMapCsvSerializer.TryParse(File.ReadAllText(mapPath), out CampCoverageMap parsed, out List<string> diagnostics))
+				{
+					foreach (string diagnostic in diagnostics)
+						ErrorLine($"{mapPath}: {diagnostic}");
+					return false;
+				}
+				map = parsed;
+				return true;
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+			{
+				ErrorLine($"{mapPath}: {ex.Message}");
+				return false;
+			}
+		}
+
 		string ResolveTestResultDirectory(string outputDirectory)
 		{
 			if (string.IsNullOrWhiteSpace(request.TestResultDir))
 				return Path.Combine(outputDirectory, "test-results");
 			return Path.GetFullPath(request.TestResultDir!, request.WorkingDirectory);
+		}
+
+		string ResolveCoverageResultDirectory(string outputDirectory)
+		{
+			if (string.IsNullOrWhiteSpace(request.CoverageResultDir))
+				return Path.Combine(outputDirectory, "coverage");
+			return Path.GetFullPath(request.CoverageResultDir!, request.WorkingDirectory);
 		}
 
 		bool TryGetTestResultOutputFormat(out bool writeText, out bool writeJson)
@@ -1425,13 +1581,67 @@ public void fail(escaped string message, escaped string sourcefile = caller(sour
 			return true;
 		}
 
-		CampTestResults RunTestHarness(string executablePath, string buildDirectory, IReadOnlyList<CampTestManifestEntry> selectedTests)
+		bool TryGetCoverageOutputFormat(out bool writeJson, out bool writeLcov)
+		{
+			writeJson = false;
+			writeLcov = false;
+			string format = string.IsNullOrWhiteSpace(request.CoverageFormat) ? "json" : request.CoverageFormat!;
+			foreach (string part in format.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+			{
+				if (part.Equals("json", StringComparison.OrdinalIgnoreCase))
+					writeJson = true;
+				else if (part.Equals("lcov", StringComparison.OrdinalIgnoreCase))
+					writeLcov = true;
+				else
+				{
+					ErrorLine("--coverage-format expects json, lcov, or json,lcov.");
+					return false;
+				}
+			}
+			if (!writeJson && !writeLcov)
+			{
+				ErrorLine("--coverage-format expects json, lcov, or json,lcov.");
+				return false;
+			}
+			if (writeJson && writeLcov && !string.Equals(format, "json,lcov", StringComparison.OrdinalIgnoreCase))
+			{
+				ErrorLine("--coverage-format expects json, lcov, or json,lcov.");
+				return false;
+			}
+			return true;
+		}
+
+		static Dictionary<string, string> CreateCoverageCountPaths(IReadOnlyList<string> coverageMapPaths, string buildDirectory)
+		{
+			Dictionary<string, string> result = new(StringComparer.Ordinal);
+			foreach (string mapPath in coverageMapPaths)
+			{
+				string projectName = ProjectNameFromCoverageMapPath(mapPath);
+				string envName = CampCoverageRuntimeSourceGenerator.EnvironmentVariableName(projectName);
+				result[envName] = Path.Combine(buildDirectory, projectName + ".camp-coverage-counts.csv");
+			}
+			return result;
+		}
+
+		static string ProjectNameFromCoverageMapPath(string mapPath)
+		{
+			string fileName = Path.GetFileName(mapPath);
+			const string suffix = ".camp-coverage-map.csv";
+			return fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+				? fileName[..^suffix.Length]
+				: Path.GetFileNameWithoutExtension(fileName);
+		}
+
+		CampTestResults RunTestHarness(string executablePath, string buildDirectory, IReadOnlyList<CampTestManifestEntry> selectedTests, IReadOnlyDictionary<string, string> coverageCountPaths)
 		{
 			string eventPath = Path.Combine(buildDirectory, Path.GetFileNameWithoutExtension(executablePath) + ".camp-test-events.tsv");
 			try
 			{
 				if (File.Exists(eventPath))
 					File.Delete(eventPath);
+				foreach (string countPath in coverageCountPaths.Values)
+					if (File.Exists(countPath))
+						File.Delete(countPath);
 				ProcessStartInfo info = new()
 				{
 					FileName = executablePath,
@@ -1441,6 +1651,8 @@ public void fail(escaped string message, escaped string sourcefile = caller(sour
 					UseShellExecute = false
 				};
 				info.ArgumentList.Add(eventPath);
+				foreach ((string name, string path) in coverageCountPaths)
+					info.Environment[name] = path;
 				using Process process = new() { StartInfo = info };
 				process.Start();
 				System.Threading.Tasks.Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
