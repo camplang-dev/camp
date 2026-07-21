@@ -139,7 +139,7 @@ public sealed class CampCoverageMapBuilder
 		{
 			return false;
 		}
-		return IsInstrumentableFunction(coverageFunction, out _, out _, out diagnostic);
+		return true;
 	}
 
 	public CampCoverageMap ToMap()
@@ -264,6 +264,12 @@ public sealed class CampCoverageMapBuilder
 		{
 			return sourceFunction;
 		}
+		if (function.GeneratedInfo is { Category: GeneratedDeclarationCategory.Lifecycle, Source: FunctionDefinition constructor }
+			&& function.Name == "op_initnew"
+			&& constructor.Modifier == FunctionModifier.Constructor)
+		{
+			return constructor;
+		}
 		return function;
 	}
 
@@ -293,7 +299,7 @@ public sealed class CampCoverageMapBuilder
 	static Dictionary<FunctionDefinition, TypeDefinition> BuildContainingTypeMap(Module module)
 	{
 		Dictionary<FunctionDefinition, TypeDefinition> result = new(ReferenceEqualityComparer.Instance);
-		foreach (Definition definition in DeclarationParticipation.ActiveTopLevelDefinitions(module))
+		foreach (Definition definition in module.Definitions)
 		{
 			if (definition is not TypeDefinition type)
 				continue;

@@ -541,6 +541,22 @@ public sealed class CommandLineTests
 		string source = CreateTempCase("coverage_lowered_bodies/main.camp", """
 			namespace CoverageLowered;
 
+			class Counter
+			{
+				int value;
+
+				Counter(int seed)
+				{
+					this.value = seed;
+					this.value = this.value + 1;
+				}
+
+				int getValue()
+				{
+					return this.value;
+				}
+			}
+
 			struct iter int countTo(int last)
 			{
 				int current = 0;
@@ -575,11 +591,18 @@ public sealed class CommandLineTests
 				}, 4);
 			}
 
+			int constructedValue()
+			{
+				auto counter = new Counter(4) finally delete;
+				return counter.getValue();
+			}
+
 			@test
 			void loweredCoverageWorks(thrown Assertion* assertion)
 			{
 				assert(sumGenerated() == 6);
 				assert(lambdaValue() == 10);
+				assert(constructedValue() == 5);
 			}
 			""");
 		string outDir = TempPath("coverage-lowered-bodies-out");
@@ -607,11 +630,15 @@ public sealed class CommandLineTests
 		int yieldBreakLine = FindLine(source, "yield break;");
 		int lambdaLocalLine = FindLine(source, "int doubled = value * 2;");
 		int lambdaReturnLine = FindLine(source, "return doubled + offset;");
+		int constructorAssignLine = FindLine(source, "this.value = seed;");
+		int constructorIncrementLine = FindLine(source, "this.value = this.value + 1;");
 		AssertCoverageMapContainsLine(map, incrementLine);
 		AssertCoverageMapContainsLine(map, yieldLine);
 		AssertCoverageMapContainsLine(map, yieldBreakLine);
 		AssertCoverageMapContainsLine(map, lambdaLocalLine);
 		AssertCoverageMapContainsLine(map, lambdaReturnLine);
+		AssertCoverageMapContainsLine(map, constructorAssignLine);
+		AssertCoverageMapContainsLine(map, constructorIncrementLine);
 
 		using JsonDocument coverage = JsonDocument.Parse(File.ReadAllText(Path.Combine(coverageDir, "coverage_lowered.camp-coverage-results.json")));
 		JsonElement file = Assert.Single(coverage.RootElement.GetProperty("files").EnumerateArray());
@@ -621,6 +648,8 @@ public sealed class CommandLineTests
 		Assert.DoesNotContain(yieldBreakLine, uncoveredLines);
 		Assert.DoesNotContain(lambdaLocalLine, uncoveredLines);
 		Assert.DoesNotContain(lambdaReturnLine, uncoveredLines);
+		Assert.DoesNotContain(constructorAssignLine, uncoveredLines);
+		Assert.DoesNotContain(constructorIncrementLine, uncoveredLines);
 	}
 
 	[Fact]
@@ -4232,7 +4261,15 @@ public sealed class CommandLineTests
 
 	static void AssertCoverageMapContainsLine(string map, int line)
 	{
-		Assert.Contains(map.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'), row => row.StartsWith("c,", StringComparison.Ordinal) && row.Contains($",{line},", StringComparison.Ordinal));
+		Assert.Contains(map.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'), row =>
+		{
+			string[] parts = row.Split(',');
+			return parts.Length == 6
+				&& parts[0] == "c"
+				&& parts[2] == "l"
+				&& int.TryParse(parts[4], out int rowLine)
+				&& rowLine == line;
+		});
 	}
 
 	static string TempPath(string name) => Path.Combine(FindRepositoryRoot(), "tmp", "cli-tests", name);
