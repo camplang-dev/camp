@@ -167,6 +167,12 @@ public static class CampProjectLoader
 			errors.Add("At least one source file pattern is required.");
 		if (command == CampProjectCommandKind.Dump && bag.HasBuildOnlyOptions)
 			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, or --out-dir.");
+		if (command == CampProjectCommandKind.Dump && bag.HasTestResultOptions)
+			errors.Add("dump does not accept --test-result-dir or --test-result-format.");
+		if (command is not (CampProjectCommandKind.Test or CampProjectCommandKind.Cover) && bag.ListTests)
+			errors.Add("--list can only be used with test or cover.");
+		if (command is not (CampProjectCommandKind.Test or CampProjectCommandKind.Cover) && bag.TestFilters.Count > 0)
+			errors.Add("--filter can only be used with test or cover.");
 		if (bag.SubsystemName is not null && bag.SubsystemName != "windows")
 			errors.Add($"Subsystem '{bag.SubsystemName}' is not valid. Expected windows.");
 		if (bag.SubsystemName is not null && bag.ArtifactSpecified && bag.ArtifactKind is not NativeBuildKind.Exec)
@@ -193,9 +199,13 @@ public static class CampProjectLoader
 			NoStdLib = bag.NoStdLib,
 			WithinAllocationPolicy = bag.WithinAllocationPolicy,
 			SourcefilePathMode = bag.SourcefilePathMode,
-			SourcefileDefaultRoot = sourcefileDefaultRoot
+			SourcefileDefaultRoot = sourcefileDefaultRoot,
+			ListTests = bag.ListTests,
+			TestResultDir = bag.TestResultDir,
+			TestResultFormat = bag.TestResultFormat
 		};
 		request.SourcefileRoots.AddRange(bag.SourcefileRoots);
+		request.TestFilters.AddRange(bag.TestFilters);
 		request.Defines.AddRange(bag.Defines);
 		request.Variants.AddRange(bag.Variants);
 		request.References.AddRange(bag.References);
@@ -526,6 +536,7 @@ sealed class CampBuildOptionBag
 	public List<CampPackageSpec> UsePackages { get; } = [];
 	public List<string> ProjectReferences { get; } = [];
 	public List<string> SourcefileRoots { get; } = [];
+	public List<string> TestFilters { get; } = [];
 	public bool NoStdLib { get; private set; }
 	public bool ArtifactSpecified { get; private set; }
 	public NativeBuildKind? ArtifactKind { get; private set; }
@@ -540,6 +551,9 @@ sealed class CampBuildOptionBag
 	public string? ProjectName => Get("name");
 	public string? SubsystemName => Get("subsystem");
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
+	public string? TestResultDir => Get("test-result-dir");
+	public string? TestResultFormat => Get("test-result-format");
+	public bool ListTests => Get("list") == "true";
 	public SourcefilePathMode SourcefilePathMode => Get("sourcefile-paths") switch
 	{
 		"absolute" => SourcefilePathMode.Absolute,
@@ -554,6 +568,7 @@ sealed class CampBuildOptionBag
 	public bool Xml => Get("xml") == "true";
 	public bool DebugInfo => Get("debug-info") == "true";
 	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo;
+	public bool HasTestResultOptions => Get("test-result-dir") is not null || Get("test-result-format") is not null;
 
 	public void Apply(ParsedCampBuildOptions options, CampBuildOptionPrecedence precedence, string source, List<string> errors)
 	{
@@ -565,6 +580,7 @@ sealed class CampBuildOptionBag
 		References.AddRange(options.References);
 		Frameworks.AddRange(options.Frameworks);
 		SourcefileRoots.AddRange(options.SourcefileRoots);
+		TestFilters.AddRange(options.TestFilters);
 		AddVariants(options.Variants, precedence);
 		UseSources.AddRange(options.UseSources);
 		UsePackages.AddRange(options.UsePackages);
@@ -646,6 +662,7 @@ sealed class ParsedCampBuildOptions
 	public List<CampPackageSpec> UsePackages { get; } = [];
 	public List<string> ProjectReferences { get; } = [];
 	public List<string> SourcefileRoots { get; } = [];
+	public List<string> TestFilters { get; } = [];
 	public bool NoStdLib { get; set; }
 	public bool ArtifactSpecified { get; set; }
 	public NativeBuildKind? ArtifactKind { get; set; }
@@ -726,6 +743,21 @@ static class CampBuildOptionParser
 					break;
 				case "--sourcefile-root":
 					result.SourcefileRoots.Add(CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+					break;
+				case "--test-result-dir":
+					AddSingle(result, "test-result-dir", CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+					break;
+				case "--test-result-format":
+					string testResultFormat = RequiredValue(tokens, ref i, token, errors);
+					if (testResultFormat is not ("text" or "json" or "text,json"))
+						errors.Add("--test-result-format expects text, json, or text,json.");
+					AddSingle(result, "test-result-format", testResultFormat);
+					break;
+				case "--list":
+					AddSingle(result, "list", "true");
+					break;
+				case "--filter":
+					result.TestFilters.AddRange(RequiredValues(tokens, ref i, token, errors));
 					break;
 				case "--build-dir":
 					errors.Add("--build-dir has been removed. Build intermediates are written to the output artifact directory's build subdirectory.");
@@ -949,6 +981,7 @@ public static class CampResponseFileExpander
 		"--out-dir",
 		"--build-dir",
 		"--sourcefile-root",
+		"--test-result-dir",
 		"--local"
 	};
 
@@ -995,7 +1028,7 @@ public static class CampResponseFileExpander
 
 	static int OptionValueCount(string option)
 	{
-		return option is "--target" or "-t" or "--profile" or "-p" or "--variant" or "-v" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--reference" or "-r" or "--framework" or "-f" or "--use" or "-u" or "--project-reference" or "--local"
+		return option is "--target" or "-t" or "--profile" or "-p" or "--variant" or "-v" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-result-dir" or "--test-result-format" or "--filter" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--reference" or "-r" or "--framework" or "-f" or "--use" or "-u" or "--project-reference" or "--local"
 			? 1
 			: option == "--use-source" ? 2 : 0;
 	}

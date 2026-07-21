@@ -38,13 +38,13 @@ static RootCommand BuildCommandTree(CliEnvironment environment, string[] origina
 
 	Command build = new("build", "Compile, emit C, and optionally build a native artifact.");
 	build.Arguments.Add(SourcePatternsArgument());
-	AddBuildOptions(build, buildOnly: true);
+	AddBuildOptions(build, buildOnly: true, testRunnerOptions: false);
 	build.SetAction(_ => CampCli.Run(originalArgs, environment));
 	root.Subcommands.Add(build);
 
 	Command run = new("run", "Build an executable and run it.");
 	run.Arguments.Add(SourcePatternsArgument());
-	AddBuildOptions(run, buildOnly: true);
+	AddBuildOptions(run, buildOnly: true, testRunnerOptions: false);
 	run.SetAction(_ => CampCli.Run(originalArgs, environment));
 	root.Subcommands.Add(run);
 
@@ -54,19 +54,19 @@ static RootCommand BuildCommandTree(CliEnvironment environment, string[] origina
 		Description = "Dump kind: tokens, cst, ast, declarations, lowering, or metadata."
 	});
 	dump.Arguments.Add(SourcePatternsArgument());
-	AddBuildOptions(dump, buildOnly: false);
+	AddBuildOptions(dump, buildOnly: false, testRunnerOptions: false);
 	dump.SetAction(_ => CampCli.Run(originalArgs, environment));
 	root.Subcommands.Add(dump);
 
 	Command test = new("test", "Build and run Camp tests.");
 	test.Arguments.Add(SourcePatternsArgument());
-	AddBuildOptions(test, buildOnly: true);
+	AddBuildOptions(test, buildOnly: true, testRunnerOptions: true);
 	test.SetAction(_ => CampCli.Run(originalArgs, environment));
 	root.Subcommands.Add(test);
 
 	Command cover = new("cover", "Build and run Camp tests with source coverage.");
 	cover.Arguments.Add(SourcePatternsArgument());
-	AddBuildOptions(cover, buildOnly: true);
+	AddBuildOptions(cover, buildOnly: true, testRunnerOptions: true);
 	cover.SetAction(_ => CampCli.Run(originalArgs, environment));
 	root.Subcommands.Add(cover);
 
@@ -105,7 +105,7 @@ static Argument<List<string>> SourcePatternsArgument()
 	};
 }
 
-static void AddBuildOptions(Command command, bool buildOnly)
+static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOptions)
 {
 	command.Options.Add(new Option<List<string>>("--include", "-i")
 	{
@@ -174,6 +174,19 @@ static void AddBuildOptions(Command command, bool buildOnly)
 
 	if (!buildOnly)
 		return;
+
+	command.Options.Add(new Option<string?>("--test-result-dir") { Description = "Directory for test result artifacts." });
+	command.Options.Add(new Option<string?>("--test-result-format") { Description = "Test result output format: text, json, or text,json." });
+	if (testRunnerOptions)
+	{
+		command.Options.Add(new Option<bool>("--list") { Description = "List discovered tests and stop." });
+		command.Options.Add(new Option<List<string>>("--filter")
+		{
+			Description = "Select tests by exact name or wildcard pattern.",
+			Arity = ArgumentArity.ZeroOrMore,
+			AllowMultipleArgumentsPerToken = true
+		});
+	}
 
 	command.Options.Add(new Option<List<string>>("--framework", "-f")
 	{
@@ -420,6 +433,12 @@ sealed class CampCli
 
 		if (command == CommandKind.Dump && bag.HasBuildOnlyOptions)
 			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, or --out-dir.");
+		if (command == CommandKind.Dump && bag.HasTestResultOptions)
+			errors.Add("dump does not accept --test-result-dir or --test-result-format.");
+		if (command is not (CommandKind.Test or CommandKind.Cover) && bag.ListTests)
+			errors.Add("--list can only be used with test or cover.");
+		if (command is not (CommandKind.Test or CommandKind.Cover) && bag.TestFilters.Count > 0)
+			errors.Add("--filter can only be used with test or cover.");
 		if (bag.SubsystemName is not null && bag.SubsystemName != "windows")
 			errors.Add($"Subsystem '{bag.SubsystemName}' is not valid. Expected windows.");
 		if (bag.SubsystemName is not null && bag.ArtifactSpecified && bag.ArtifactKind is not NativeBuildKind.Exec)
@@ -455,9 +474,13 @@ sealed class CampCli
 			NoStdLib = bag.NoStdLib,
 			WithinAllocationPolicy = bag.WithinAllocationPolicy,
 			SourcefilePathMode = bag.SourcefilePathMode,
-			SourcefileDefaultRoot = sourcefileDefaultRoot
+			SourcefileDefaultRoot = sourcefileDefaultRoot,
+			ListTests = bag.ListTests,
+			TestResultDir = bag.TestResultDir,
+			TestResultFormat = bag.TestResultFormat
 		};
 		request.SourcefileRoots.AddRange(bag.SourcefileRoots);
+		request.TestFilters.AddRange(bag.TestFilters);
 		request.Defines.AddRange(bag.Defines);
 		request.Variants.AddRange(bag.Variants);
 		request.References.AddRange(bag.References);
@@ -1236,6 +1259,7 @@ sealed class BuildOptionBag
 	public List<PackageSpec> UsePackages { get; } = [];
 	public List<string> ProjectReferences { get; } = [];
 	public List<string> SourcefileRoots { get; } = [];
+	public List<string> TestFilters { get; } = [];
 	public bool NoStdLib { get; private set; }
 	public bool ArtifactSpecified { get; private set; }
 	public NativeBuildKind? ArtifactKind { get; private set; }
@@ -1251,6 +1275,9 @@ sealed class BuildOptionBag
 	public string? ProjectName => Get("name");
 	public string? SubsystemName => Get("subsystem");
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
+	public string? TestResultDir => Get("test-result-dir");
+	public string? TestResultFormat => Get("test-result-format");
+	public bool ListTests => Get("list") == "true";
 	public SourcefilePathMode SourcefilePathMode => Get("sourcefile-paths") switch
 	{
 		"absolute" => SourcefilePathMode.Absolute,
@@ -1265,6 +1292,7 @@ sealed class BuildOptionBag
 	public bool Xml => Get("xml") == "true";
 	public bool DebugInfo => Get("debug-info") == "true";
 	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo;
+	public bool HasTestResultOptions => Get("test-result-dir") is not null || Get("test-result-format") is not null;
 
 	public void Apply(ParsedOptions options, Precedence precedence, string source, List<string> errors)
 	{
@@ -1278,6 +1306,7 @@ sealed class BuildOptionBag
 		References.AddRange(options.References);
 		Frameworks.AddRange(options.Frameworks);
 		SourcefileRoots.AddRange(options.SourcefileRoots);
+		TestFilters.AddRange(options.TestFilters);
 		AddVariants(options.Variants, precedence);
 		UseSources.AddRange(options.UseSources);
 		UsePackages.AddRange(options.UsePackages);
@@ -1365,6 +1394,7 @@ sealed class ParsedOptions
 	public List<PackageSpec> UsePackages { get; } = [];
 	public List<string> ProjectReferences { get; } = [];
 	public List<string> SourcefileRoots { get; } = [];
+	public List<string> TestFilters { get; } = [];
 	public bool NoStdLib { get; set; }
 	public bool ArtifactSpecified { get; set; }
 	public NativeBuildKind? ArtifactKind { get; set; }
@@ -1466,6 +1496,21 @@ static class CommandLineOptionParser
 					break;
 				case "--sourcefile-root":
 					result.SourcefileRoots.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+					break;
+				case "--test-result-dir":
+					AddSingle(result, "test-result-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+					break;
+				case "--test-result-format":
+					string testResultFormat = RequiredValue(tokens, ref i, token, errors);
+					if (testResultFormat is not ("text" or "json" or "text,json"))
+						errors.Add("--test-result-format expects text, json, or text,json.");
+					AddSingle(result, "test-result-format", testResultFormat);
+					break;
+				case "--list":
+					AddSingle(result, "list", "true");
+					break;
+				case "--filter":
+					result.TestFilters.AddRange(RequiredValues(tokens, ref i, token, errors));
 					break;
 				case "--build-dir":
 					errors.Add("--build-dir has been removed. Build intermediates are written to the output artifact directory's build subdirectory.");
@@ -1666,6 +1711,7 @@ static class ResponseFileExpander
 		"--out-dir",
 		"--build-dir",
 		"--sourcefile-root",
+		"--test-result-dir",
 		"--local"
 	};
 
@@ -1716,7 +1762,7 @@ static class ResponseFileExpander
 	{
 		return option switch
 		{
-			"--target" or "-t" or "--profile" or "-p" or "--variant" or "-v" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
+			"--target" or "-t" or "--profile" or "-p" or "--variant" or "-v" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-result-dir" or "--test-result-format" or "--filter" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
 			"--use-source" => 2,
 			_ => 0
 		};

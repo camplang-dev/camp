@@ -68,15 +68,18 @@ public sealed class ProjectLoaderTests
 			src/*.camp
 			""");
 
-		CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(workspace));
+		foreach (CampProjectCommandKind command in new[] { CampProjectCommandKind.Build, CampProjectCommandKind.Run, CampProjectCommandKind.Test, CampProjectCommandKind.Cover })
+		{
+			CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(workspace), command);
 
-		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
-		Assert.Equal(SourcefilePathMode.Absolute, result.Request.SourcefilePathMode);
-		Assert.Equal(Path.GetFullPath(app), Path.GetFullPath(result.Request.SourcefileDefaultRoot!));
-		Assert.Equal([
-			Path.GetFullPath(sourceDirectory),
-			Path.GetFullPath(generatedDirectory)
-		], result.Request.SourcefileRoots.Select(path => Path.GetFullPath(path)).ToArray());
+			Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+			Assert.Equal(SourcefilePathMode.Absolute, result.Request.SourcefilePathMode);
+			Assert.Equal(Path.GetFullPath(app), Path.GetFullPath(result.Request.SourcefileDefaultRoot!));
+			Assert.Equal([
+				Path.GetFullPath(sourceDirectory),
+				Path.GetFullPath(generatedDirectory)
+			], result.Request.SourcefileRoots.Select(path => Path.GetFullPath(path)).ToArray());
+		}
 	}
 
 	[Fact]
@@ -111,6 +114,39 @@ public sealed class ProjectLoaderTests
 		Assert.Equal(CompilerCommandMode.Build, build.Request.CommandMode);
 		Assert.Equal(DeclarationParticipationMode.Production, build.Request.DeclarationParticipationMode);
 		Assert.Equal(CoverageInstrumentationMode.Disabled, build.Request.CoverageInstrumentationMode);
+	}
+
+	[Fact]
+	public void Project_loader_reads_test_discovery_options()
+	{
+		string root = CreateTempDirectory("project-loader-test-options");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), "export void main() {}");
+		string buildFile = Path.Combine(root, "app.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			--list
+			--filter MathTests::*
+			--filter parse^alue
+			--test-result-dir results
+			--test-result-format text,json
+			src/*.camp
+			""");
+
+		CampProjectLoadResult test = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(root), CampProjectCommandKind.Test);
+		CampProjectLoadResult build = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(root), CampProjectCommandKind.Build);
+
+		Assert.True(test.Success, string.Join(Environment.NewLine, test.Diagnostics));
+		Assert.True(test.Request.ListTests);
+		Assert.Equal(["MathTests::*", "parse^alue"], test.Request.TestFilters);
+		Assert.Equal(Path.GetFullPath(Path.Combine(root, "results")), Path.GetFullPath(test.Request.TestResultDir!));
+		Assert.Equal("text,json", test.Request.TestResultFormat);
+
+		Assert.False(build.Success);
+		Assert.Contains(build.Diagnostics, static diagnostic => diagnostic.Contains("--list can only be used with test or cover", StringComparison.Ordinal));
+		Assert.Contains(build.Diagnostics, static diagnostic => diagnostic.Contains("--filter can only be used with test or cover", StringComparison.Ordinal));
 	}
 
 	[Fact]

@@ -57,6 +57,10 @@ public sealed class CompilerRequest
 	public SourcefilePathMode SourcefilePathMode { get; set; } = SourcefilePathMode.Relative;
 	public List<string> SourcefileRoots { get; } = [];
 	public string? SourcefileDefaultRoot { get; set; }
+	public bool ListTests { get; set; }
+	public List<string> TestFilters { get; } = [];
+	public string? TestResultDir { get; set; }
+	public string? TestResultFormat { get; set; }
 	public List<string> References { get; } = [];
 	public List<string> SharedLibraryApiHeaders { get; } = [];
 	public List<string> Frameworks { get; } = [];
@@ -168,7 +172,9 @@ public static class CompilerDriver
 			CompilerInspectMode inspect = request.Inspect ?? CompilerInspectMode.None;
 			return inspect switch
 			{
-				CompilerInspectMode.None => EmitDefaultOutput(compilation, packageLibraries),
+				CompilerInspectMode.None => request.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover
+					? EmitTestDiscoveryOutput(compilation)
+					: EmitDefaultOutput(compilation, packageLibraries),
 				CompilerInspectMode.Tokens => PrintTokens(compilation),
 				CompilerInspectMode.Cst => PrintSyntaxXml(compilation),
 				CompilerInspectMode.Ast => PrintBindXml(compilation),
@@ -177,6 +183,32 @@ public static class CompilerDriver
 				CompilerInspectMode.Metadata => PrintMetadata(compilation),
 				_ => 1
 			};
+		}
+
+		int EmitTestDiscoveryOutput(Compilation compilation)
+		{
+			if (!LowerAndReport(compilation))
+				return 1;
+
+			CampTestManifestMode mode = request.SharedLibraryApiHeaders.Count > 0
+				? CampTestManifestMode.External
+				: CampTestManifestMode.InModule;
+			CampTestDiscoveryResult discovery = CampTestDiscovery.Discover(compilation, mode);
+			if (!PrintAnalysisDiagnostics(compilation, discovery.Diagnostics))
+				return 1;
+
+			string outputDirectory = ResolveArtifactOutputDirectory(compilation);
+			string projectName = string.IsNullOrWhiteSpace(request.ProjectName) ? CCodeEmitter.GetProjectName(compilation.Files) : request.ProjectName!;
+			if (!TryEmitTestManifestArtifact(discovery.Manifest, Path.Combine(outputDirectory, "build"), projectName))
+				return 1;
+
+			IReadOnlyList<CampTestManifestEntry> selectedTests = CampTestFilter.Apply(discovery.Manifest.Tests, request.TestFilters);
+			if (request.ListTests)
+			{
+				foreach (CampTestManifestEntry test in selectedTests)
+					OutLine(test.Id);
+			}
+			return 0;
 		}
 
 		void ApplySubsystem()
@@ -1128,6 +1160,25 @@ public static class CompilerDriver
 
 			generatedFiles.Add(metadataPath);
 			OutLine("generated: " + Path.GetFileName(metadataPath));
+			return true;
+		}
+
+		bool TryEmitTestManifestArtifact(CampTestManifest manifest, string outputDirectory, string projectName)
+		{
+			string manifestPath = Path.Combine(outputDirectory, projectName + ".camp-test-manifest.json");
+			try
+			{
+				Directory.CreateDirectory(outputDirectory);
+				File.WriteAllText(manifestPath, CampTestManifestJsonSerializer.Serialize(manifest), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+			{
+				ErrorLine($"{manifestPath}: {ex.Message}");
+				return false;
+			}
+
+			generatedFiles.Add(manifestPath);
+			OutLine("generated: " + Path.GetFileName(manifestPath));
 			return true;
 		}
 

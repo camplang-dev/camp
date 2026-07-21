@@ -52,6 +52,7 @@ public sealed class CommandLineTests
 	{
 		ProcessResult root = RunCampc("--help");
 		ProcessResult build = RunCampc("help", "build");
+		ProcessResult test = RunCampc("help", "test");
 
 		Assert.Equal(0, root.ExitCode);
 		Assert.Contains("Commands:", root.StdOut, StringComparison.Ordinal);
@@ -62,6 +63,125 @@ public sealed class CommandLineTests
 		Assert.Contains("-r, --reference", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("-u, --use", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--debug-info", build.StdOut, StringComparison.Ordinal);
+		Assert.Equal(0, test.ExitCode);
+		Assert.Contains("--list", test.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--filter", test.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--test-result-dir", test.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Test_list_emits_manifest_and_filters_list_output()
+	{
+		string source = CreateTempCase("test_manifest_cli/main.camp", """
+			namespace CliTests;
+
+			struct Assertion {}
+
+			/// Adds two values.
+			/// @test
+			void addReturnsSum(thrown Assertion* assertion)
+			{
+			}
+
+			@test
+			void parseValue(thrown Assertion* assertion)
+			{
+			}
+
+			@test
+			int invalidShape()
+			{
+				return 0;
+			}
+			""");
+		string outDir = TempPath("test-manifest-cli-out");
+
+		ProcessResult result = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--list",
+			"--filter",
+			"parse^alue",
+			"--sourcefile-paths",
+			"absolute",
+			"--out-dir",
+			outDir,
+			"--name",
+			"test_manifest_cli");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("generated: test_manifest_cli.camp-test-manifest.json", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("CliTests::parseValue", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("CliTests::addReturnsSum", result.StdOut, StringComparison.Ordinal);
+
+		string manifestPath = Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", "test_manifest_cli.camp-test-manifest.json");
+		Assert.True(File.Exists(manifestPath), manifestPath);
+		using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
+		Assert.Equal("camp.test-manifest", manifest.RootElement.GetProperty("format").GetString());
+		Assert.Equal("in-module", manifest.RootElement.GetProperty("mode").GetString());
+		JsonElement tests = manifest.RootElement.GetProperty("tests");
+		Assert.Equal(3, tests.GetArrayLength());
+		JsonElement add = tests.EnumerateArray().Single(test => test.GetProperty("name").GetString() == "addReturnsSum");
+		Assert.Equal("CliTests::addReturnsSum", add.GetProperty("id").GetString());
+		Assert.Equal("Adds two values.", add.GetProperty("summary").GetString());
+		Assert.Equal("valid", add.GetProperty("runnerSignature").GetString());
+		Assert.Equal(Path.GetFullPath(source).Replace('\\', '/'), add.GetProperty("sourcefile").GetString());
+		JsonElement invalid = tests.EnumerateArray().Single(test => test.GetProperty("name").GetString() == "invalidShape");
+		Assert.Equal("invalid", invalid.GetProperty("runnerSignature").GetString());
+	}
+
+	[Fact]
+	public void Build_and_run_accept_test_result_options()
+	{
+		string source = CreateTempCase("test_result_options/main.camp", """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string resultDir = TempPath("ignored-test-results");
+
+		ProcessResult build = RunCampc(
+			"build",
+			source,
+			"--nostdlib",
+			"--artifact",
+			"none",
+			"--test-result-dir",
+			resultDir,
+			"--test-result-format",
+			"text,json",
+			"--out-dir",
+			TempPath("test-result-options-build"));
+		ProcessResult run = RunCampc(
+			"run",
+			source,
+			"--nostdlib",
+			"--test-result-dir",
+			resultDir,
+			"--test-result-format",
+			"json",
+			"--out-dir",
+			TempPath("test-result-options-run"));
+
+		AssertCommandSucceeded(build);
+		AssertCommandSucceeded(run);
+	}
+
+	[Fact]
+	public void Filter_option_is_rejected_outside_test_commands()
+	{
+		string source = CreateTempCase("test_filter_rejected/main.camp", """
+			export void main()
+			{
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--filter", "*");
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("--filter", result.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]

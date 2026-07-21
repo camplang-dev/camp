@@ -35,6 +35,16 @@ public static class SemanticCompiler
 		return Compile(sources, CompilationPipeline.Lower);
 	}
 
+	public static SemanticCompilation CompileLoweredTestModule(params (string Path, string Text)[] sources)
+	{
+		return Compile(sources, CompilationPipeline.Lower, compilation =>
+		{
+			compilation.CommandMode = CompilerCommandMode.Test;
+			compilation.DeclarationParticipationMode = DeclarationParticipationMode.TestModule;
+			compilation.PreprocessorSymbols.Add("TEST_MODULE");
+		});
+	}
+
 	public static FunctionDefinition Function(SemanticCompilation compilation, string name)
 	{
 		return compilation.Module.Definitions
@@ -84,12 +94,18 @@ public static class SemanticCompiler
 
 	static SemanticCompilation Compile(IReadOnlyList<(string Path, string Text)> sources, Func<Compilation, bool> phase)
 	{
+		return Compile(sources, phase, null);
+	}
+
+	static SemanticCompilation Compile(IReadOnlyList<(string Path, string Text)> sources, Func<Compilation, bool> phase, Action<Compilation>? configure)
+	{
 		string repositoryRoot = FindRepositoryRoot();
 		Compilation compilation = new()
 		{
 			Target = LoadTarget(repositoryRoot),
 			SourcefileDefaultRoot = repositoryRoot
 		};
+		configure?.Invoke(compilation);
 		foreach ((string path, string text) in sources)
 		{
 			compilation.Files.Add(new SourceFile
