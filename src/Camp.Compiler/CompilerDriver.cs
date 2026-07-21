@@ -493,8 +493,6 @@ public static class CompilerDriver
 					return false;
 				compilation.Files.Add(new SourceFile { Path = displayPath, FullPath = fullPath, Text = text, IsApiHeader = true, SharedLibraryImport = IsSharedLibraryApiHeader(loadRequest, filename), WithinAllocationPolicyOverride = policy });
 			}
-			if (loadRequest.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover)
-				CampStandardTestSupport.AddTo(compilation);
 			return true;
 		}
 

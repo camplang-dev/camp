@@ -97,7 +97,6 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc(
 			"test",
 			source,
-			"--nostdlib",
 			"--list",
 			"--filter",
 			"parse^alue",
@@ -140,10 +139,30 @@ public sealed class CommandLineTests
 				return 17;
 			}
 
-			@test
-			void passing(thrown Assertion* assertion)
+			struct TestFailure
 			{
-				assert(1 == 1);
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			TestFailure testFailure;
+
+			void check(bool condition, escaped string message = sourceof(condition), escaped string sourcefile = caller(sourcefile), uint sourceline = caller(sourceline), thrown TestFailure* failure)
+			{
+				if (!condition)
+				{
+					testFailure.message = message;
+					testFailure.sourcefile = sourcefile;
+					testFailure.sourceline = sourceline;
+					throw &testFailure;
+				}
+			}
+
+			@test
+			void passing(thrown TestFailure* failure)
+			{
+				check(1 == 1);
 			}
 			""");
 		string outDir = TempPath("test-harness-entry-out");
@@ -213,7 +232,6 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc(
 			"test",
 			source,
-			"--nostdlib",
 			"--target",
 			NativeTargetForHost(),
 			"--out-dir",
@@ -279,7 +297,6 @@ public sealed class CommandLineTests
 		ProcessResult jsonOnly = RunCampc(
 			"test",
 			source,
-			"--nostdlib",
 			"--target",
 			NativeTargetForHost(),
 			"--filter",
@@ -309,7 +326,6 @@ public sealed class CommandLineTests
 		ProcessResult skippedOnly = RunCampc(
 			"test",
 			source,
-			"--nostdlib",
 			"--target",
 			NativeTargetForHost(),
 			"--filter",
@@ -330,7 +346,6 @@ public sealed class CommandLineTests
 		ProcessResult textOnly = RunCampc(
 			"test",
 			source,
-			"--nostdlib",
 			"--target",
 			NativeTargetForHost(),
 			"--filter",
@@ -382,8 +397,6 @@ public sealed class CommandLineTests
 			""");
 		string good = Path.Combine(testRoot, "good.camp");
 		File.WriteAllText(good, """
-			#build --nostdlib
-
 			namespace ExternalTests;
 			using ExternalLib;
 
@@ -395,8 +408,6 @@ public sealed class CommandLineTests
 			""");
 		string bad = Path.Combine(testRoot, "bad.camp");
 		File.WriteAllText(bad, """
-			#build --nostdlib
-
 			namespace ExternalTests;
 			using ExternalLib;
 
@@ -483,7 +494,6 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc(
 			"cover",
 			source,
-			"--nostdlib",
 			"--target",
 			NativeTargetForHost(),
 			"--coverage-format",
@@ -572,8 +582,6 @@ public sealed class CommandLineTests
 			""");
 		string tests = Path.Combine(testRoot, "tests.camp");
 		File.WriteAllText(tests, """
-			#build --nostdlib
-
 			namespace CoverTests;
 			using CoverLib;
 

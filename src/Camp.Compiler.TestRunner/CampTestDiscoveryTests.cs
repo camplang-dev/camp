@@ -14,7 +14,17 @@ public sealed class CampTestDiscoveryTests
 		SemanticCompilation compilation = SemanticCompiler.CompileLoweredTestModule(("Tests/test_manifest.camp", """
 			namespace MathTests;
 
-			struct Assertion {}
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			struct NotAssertion
+			{
+				string text;
+			}
 
 			/// Adds two values.
 			/// @test
@@ -34,6 +44,11 @@ public sealed class CampTestDiscoveryTests
 			{
 				return 0;
 			}
+
+			@test
+			void invalidThrownShape(thrown NotAssertion* assertion)
+			{
+			}
 			"""));
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 
@@ -41,7 +56,7 @@ public sealed class CampTestDiscoveryTests
 
 		Assert.Empty(result.Diagnostics);
 		Assert.Equal(CampTestManifestMode.InModule, result.Manifest.Mode);
-		Assert.Equal(3, result.Manifest.Tests.Count);
+		Assert.Equal(4, result.Manifest.Tests.Count);
 
 		CampTestManifestEntry add = result.Manifest.Tests.Single(static test => test.Name == "addReturnsSum");
 		Assert.Equal("MathTests::addReturnsSum", add.Id);
@@ -62,10 +77,13 @@ public sealed class CampTestDiscoveryTests
 		Assert.False(invalid.Skipped);
 		Assert.Equal("invalid", invalid.RunnerSignature);
 
+		CampTestManifestEntry invalidThrown = result.Manifest.Tests.Single(static test => test.Name == "invalidThrownShape");
+		Assert.Equal("invalid", invalidThrown.RunnerSignature);
+
 		using JsonDocument json = JsonDocument.Parse(CampTestManifestJsonSerializer.Serialize(result.Manifest));
 		Assert.Equal("camp.test-manifest", json.RootElement.GetProperty("format").GetString());
 		Assert.Equal("in-module", json.RootElement.GetProperty("mode").GetString());
-		Assert.Equal(3, json.RootElement.GetProperty("tests").GetArrayLength());
+		Assert.Equal(4, json.RootElement.GetProperty("tests").GetArrayLength());
 	}
 
 	[Fact]

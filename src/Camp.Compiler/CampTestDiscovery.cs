@@ -28,9 +28,12 @@ public sealed record CampTestManifestEntry(
 	string RunnerSignature)
 {
 	internal FunctionDefinition? Function { get; init; }
+	internal TestFailureShape? FailureShape { get; init; }
 }
 
 public sealed record CampTestDiscoveryResult(CampTestManifest Manifest, IReadOnlyList<AnalysisDiagnostic> Diagnostics);
+
+internal sealed record TestFailureShape(TypeDefinition Type, string MessageField, string SourcefileField, string SourcelineField);
 
 public static class CampTestDiscovery
 {
@@ -59,9 +62,10 @@ public static class CampTestDiscovery
 				GetAttributeStringContent(function.Attributes, "summary") ?? "",
 				skipped,
 				skipped ? skipReason : null,
-				HasBuiltInRunnerSignature(function) ? "valid" : "invalid")
+				TryGetBuiltInRunnerSignature(module, function, out TestFailureShape? failureShape) ? "valid" : "invalid")
 			{
-				Function = function
+				Function = function,
+				FailureShape = failureShape
 			});
 		}
 
@@ -158,17 +162,82 @@ public static class CampTestDiscovery
 		return false;
 	}
 
-	static bool HasBuiltInRunnerSignature(FunctionDefinition function)
+	internal static bool TryGetBuiltInRunnerSignature(Module module, FunctionDefinition function, out TestFailureShape? failureShape)
 	{
-		return function.Body is not null
+		failureShape = null;
+		if (!(function.Body is not null
 			&& function.Extern is null
 			&& !function.IsAsync
 			&& function.IteratorKind == IteratorKind.None
 			&& function.GenericParameters.Count == 0
 			&& FormatType(function.ReturnType, function.ResolvedType) == "void"
 			&& function.Parameters.Count == 1
-			&& function.Parameters[0].Modifier == ParameterModifier.Thrown
-			&& FormatType(function.Parameters[0].Type, function.Parameters[0].ResolvedType) == "Assertion*";
+			&& function.Parameters[0].Modifier == ParameterModifier.Thrown))
+			return false;
+
+		if (function.Parameters[0].Type is not PointerTypeReference pointer)
+			return false;
+		TypeDefinition? failureType = GetFailureTypeDefinition(module, pointer.ElementType);
+		if (failureType is null)
+			return false;
+		if (!TryFindField(failureType, "message", out FieldDefinition? message))
+			return false;
+		if (!TryFindField(failureType, "sourcefile", out FieldDefinition? sourcefile))
+			return false;
+		if (!TryFindField(failureType, "sourceline", out FieldDefinition? sourceline))
+			return false;
+		FieldDefinition messageField = message!;
+		FieldDefinition sourcefileField = sourcefile!;
+		FieldDefinition sourcelineField = sourceline!;
+		if (!IsStringField(messageField)
+			|| !IsStringField(sourcefileField)
+			|| FormatType(sourcelineField.Type, sourcelineField.ResolvedType) != "uint")
+			return false;
+		failureShape = new TestFailureShape(failureType, EffectiveFieldSymbol(messageField), EffectiveFieldSymbol(sourcefileField), EffectiveFieldSymbol(sourcelineField));
+		return true;
+	}
+
+	static string EffectiveFieldSymbol(FieldDefinition field)
+	{
+		return string.IsNullOrWhiteSpace(field.Symbol) ? field.Name : field.Symbol;
+	}
+
+	static bool IsStringField(FieldDefinition field)
+	{
+		string type = FormatType(field.Type, field.ResolvedType);
+		return type is "string" or "escaped string";
+	}
+
+	static TypeDefinition? GetFailureTypeDefinition(Module module, TypeReference? type)
+	{
+		return type switch
+		{
+			TypeDefinitionReference reference => reference.Definition,
+			NamedTypeReference { ResolvedType: string resolved } => FindTypeByResolvedName(module, resolved),
+			ClassTypeReference classType => classType.Definition,
+			AttributedTypeReference attributed => GetFailureTypeDefinition(module, attributed.Type),
+			_ => null
+		};
+	}
+
+	static TypeDefinition? FindTypeByResolvedName(Module module, string resolved)
+	{
+		return module.Definitions.OfType<TypeDefinition>().FirstOrDefault(type =>
+			string.Equals(type.Name, resolved, StringComparison.Ordinal)
+			|| string.Equals(type.Symbol, resolved, StringComparison.Ordinal));
+	}
+
+	static bool TryFindField(TypeDefinition type, string name, out FieldDefinition? field)
+	{
+		IEnumerable<FieldDefinition> fields = type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Fields,
+			StructDefinition structDefinition => structDefinition.Fields,
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields,
+			_ => []
+		};
+		field = fields.FirstOrDefault(field => field.Modifier != FieldModifier.Static && string.Equals(field.Name, name, StringComparison.Ordinal));
+		return field is not null;
 	}
 
 	static string FormatType(TypeReference? type, string? resolvedType)

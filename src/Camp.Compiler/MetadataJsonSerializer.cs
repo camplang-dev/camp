@@ -295,7 +295,7 @@ public static class MetadataJsonSerializer
 				json.WriteString("skipReason", skipReason);
 			else
 				json.WriteNull("skipReason");
-			json.WriteString("runnerSignature", HasBuiltInRunnerSignature(function) ? "valid" : "invalid");
+			json.WriteString("runnerSignature", CampTestDiscovery.TryGetBuiltInRunnerSignature(module, function, out _) ? "valid" : "invalid");
 			json.WriteBoolean("hasBody", function.Body is not null);
 			json.WriteEndObject();
 		}
@@ -1796,19 +1796,6 @@ public static class MetadataJsonSerializer
 			if (source.Length >= 2 && source[0] == '"' && source[^1] == '"')
 				return source[1..^1];
 			return source;
-		}
-
-		static bool HasBuiltInRunnerSignature(FunctionDefinition function)
-		{
-			return function.Body is not null
-				&& function.Extern is null
-				&& !function.IsAsync
-				&& function.IteratorKind == IteratorKind.None
-				&& function.GenericParameters.Count == 0
-				&& IsVoidReturn(function)
-				&& function.Parameters.Count == 1
-				&& function.Parameters[0].Modifier == ParameterModifier.Thrown
-				&& FormatType(function.Parameters[0].Type, function.Parameters[0].ResolvedType) == "Assertion*";
 		}
 
 		static bool IsVoidReturn(FunctionDefinition function)

@@ -54,7 +54,7 @@ public static class CampTestResultsFactory
 				"skipped" => CreateResult(test, "skipped", harnessEvent.DurationMs, failure: null),
 				"invalid" => CreateResult(test, "invalid", harnessEvent.DurationMs, new CampTestFailure(
 					"invalid-test-signature",
-					"built-in tests must have the signature void name(thrown Assertion*)",
+					"built-in tests must have the signature void name(thrown TYPE*) where TYPE contains message, sourcefile, and sourceline fields",
 					test.Sourcefile,
 					test.Sourceline)),
 				"failed" => CreateResult(test, "failed", harnessEvent.DurationMs, harnessEvent.Failure ?? new CampTestFailure(

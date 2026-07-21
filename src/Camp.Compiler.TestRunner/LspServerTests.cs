@@ -896,6 +896,13 @@ public sealed class LspServerTests
 		string text = """
 			namespace LspTests;
 
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
 			/// Valid test.
 			/// @test
 			void validCase(thrown Assertion* assertion)
@@ -917,7 +924,7 @@ public sealed class LspServerTests
 			textDocument = new { uri, languageId = "camp", version = 1, text }
 		});
 		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
-		Assert.Contains(diagnostics["params"]?["diagnostics"]?.AsArray()!, static diagnostic => diagnostic?["code"]?.GetValue<string>() == "CAMPTEST001");
+		Assert.Contains(diagnostics["params"]?["diagnostics"]?.AsArray()!, static diagnostic => diagnostic?["code"]?.ToString() == "CAMPTEST001");
 
 		JsonNode response = lsp.Request("textDocument/codeLens", new
 		{

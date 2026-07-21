@@ -21,7 +21,24 @@
     {
       "id": "struct:TestMetadata::Assertion",
       "kind": "struct",
-      "name": "Assertion"
+      "name": "Assertion",
+      "fields": [
+        {
+          "id": "struct:TestMetadata::Assertion/field:message",
+          "name": "message",
+          "type": "escaped string"
+        },
+        {
+          "id": "struct:TestMetadata::Assertion/field:sourcefile",
+          "name": "sourcefile",
+          "type": "escaped string"
+        },
+        {
+          "id": "struct:TestMetadata::Assertion/field:sourceline",
+          "name": "sourceline",
+          "type": "uint"
+        }
+      ]
     }
   ]
 }

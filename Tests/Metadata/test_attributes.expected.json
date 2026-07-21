@@ -14,7 +14,24 @@
     {
       "id": "struct:TestMetadata::Assertion",
       "kind": "struct",
-      "name": "Assertion"
+      "name": "Assertion",
+      "fields": [
+        {
+          "id": "struct:TestMetadata::Assertion/field:message",
+          "name": "message",
+          "type": "escaped string"
+        },
+        {
+          "id": "struct:TestMetadata::Assertion/field:sourcefile",
+          "name": "sourcefile",
+          "type": "escaped string"
+        },
+        {
+          "id": "struct:TestMetadata::Assertion/field:sourceline",
+          "name": "sourceline",
+          "type": "uint"
+        }
+      ]
     },
     {
       "id": "function:TestMetadata::addWorks",
@@ -26,7 +43,7 @@
         "name": "addWorks",
         "qualifiedName": "TestMetadata::addWorks",
         "sourcefile": "tests/Metadata/test_attributes.camp",
-        "sourceline": 12,
+        "sourceline": 15,
         "summary": "Adds two numbers.",
         "skipped": false,
         "skipReason": null,
@@ -62,7 +79,7 @@
         "name": "skippedDirect",
         "qualifiedName": "TestMetadata::skippedDirect",
         "sourcefile": "tests/Metadata/test_attributes.camp",
-        "sourceline": 18,
+        "sourceline": 21,
         "summary": "",
         "skipped": true,
         "skipReason": "not ready",
@@ -98,7 +115,7 @@
         "name": "invalidShape",
         "qualifiedName": "TestMetadata::invalidShape",
         "sourcefile": "tests/Metadata/test_attributes.camp",
-        "sourceline": 25,
+        "sourceline": 28,
         "summary": "Broken shape.",
         "skipped": true,
         "skipReason": "needs implementation",

@@ -15,6 +15,9 @@ int helperValue()
 
 struct Assertion
 {
+	escaped string message;
+	escaped string sourcefile;
+	uint sourceline;
 }
 
 @test

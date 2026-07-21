@@ -21,7 +21,9 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\treturn malloc(size);");
 		builder.AppendLine("}");
 		builder.AppendLine();
-		builder.AppendLine("typedef void (*CampTestFunction)(Assertion **assertion);");
+		builder.AppendLine("typedef void (*CampTestFunction)(void **failure);");
+		builder.AppendLine("typedef const char *(*CampTestStringField)(void *failure);");
+		builder.AppendLine("typedef unsigned int (*CampTestLineField)(void *failure);");
 		builder.AppendLine("typedef struct CampTestCase CampTestCase;");
 		builder.AppendLine("struct CampTestCase");
 		builder.AppendLine("{");
@@ -30,20 +32,29 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\tint skipped;");
 		builder.AppendLine("\tint valid;");
 		builder.AppendLine("\tCampTestFunction function;");
+		builder.AppendLine("\tCampTestStringField message;");
+		builder.AppendLine("\tCampTestStringField sourcefile;");
+		builder.AppendLine("\tCampTestLineField sourceline;");
 		builder.AppendLine("};");
 		builder.AppendLine();
-		foreach (CampTestManifestEntry test in tests)
-			if (!test.Skipped && test.RunnerSignature == "valid" && test.Function is not null)
-				builder.AppendLine("void " + CName(test.Function) + "(Assertion **assertion);");
-		if (tests.Any(static test => !test.Skipped && test.RunnerSignature == "valid" && test.Function is not null))
+		Dictionary<CampTestManifestEntry, int> wrapperIndexes = [];
+		for (int i = 0; i < tests.Count; i++)
+		{
+			if (IsRunnable(tests[i]))
+			{
+				wrapperIndexes[tests[i]] = i;
+				WriteTestWrapper(builder, tests[i], i);
+			}
+		}
+		if (tests.Any(IsRunnable))
 			builder.AppendLine();
 		builder.AppendLine("static const CampTestCase camp_tests[] =");
 		builder.AppendLine("{");
 		if (tests.Count == 0)
-			builder.AppendLine("\t{ 0, 0, 0, 0, 0 },");
+			builder.AppendLine("\t{ 0, 0, 0, 0, 0, 0, 0, 0 },");
 		else
 			foreach (CampTestManifestEntry test in tests)
-				WriteTestTableEntry(builder, test);
+				WriteTestTableEntry(builder, test, wrapperIndexes);
 		builder.AppendLine("};");
 		builder.AppendLine("static const int camp_test_count = " + tests.Count.ToString(CultureInfo.InvariantCulture) + ";");
 		builder.AppendLine();
@@ -72,19 +83,22 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\tprintf(\"%s: %s\\n\", outcome, test->id);");
 		builder.AppendLine("}");
 		builder.AppendLine();
-		builder.AppendLine("static void camp_record_failure(FILE *file, const CampTestCase *test, int index, double duration_ms, Assertion *failure)");
+		builder.AppendLine("static void camp_record_failure(FILE *file, const CampTestCase *test, int index, double duration_ms, void *failure)");
 		builder.AppendLine("{");
+		builder.AppendLine("\tconst char *message = test->message == 0 ? \"\" : test->message(failure);");
+		builder.AppendLine("\tconst char *sourcefile = test->sourcefile == 0 ? \"\" : test->sourcefile(failure);");
+		builder.AppendLine("\tunsigned int sourceline = test->sourceline == 0 ? 0 : test->sourceline(failure);");
 		builder.AppendLine("\tif (file != 0)");
 		builder.AppendLine("\t{");
 		builder.AppendLine("\t\tfprintf(file, \"failed\\t%d\\t%.3f\\t\", index, duration_ms);");
-		builder.AppendLine("\t\tcamp_write_event_string(file, failure->message);");
+		builder.AppendLine("\t\tcamp_write_event_string(file, message);");
 		builder.AppendLine("\t\tfputc('\\t', file);");
-		builder.AppendLine("\t\tcamp_write_event_string(file, failure->sourcefile);");
-		builder.AppendLine("\t\tfprintf(file, \"\\t%u\\n\", failure->sourceline);");
+		builder.AppendLine("\t\tcamp_write_event_string(file, sourcefile);");
+		builder.AppendLine("\t\tfprintf(file, \"\\t%u\\n\", sourceline);");
 		builder.AppendLine("\t\treturn;");
 		builder.AppendLine("\t}");
 		builder.AppendLine("\tprintf(\"failed: %s\\n\", test->id);");
-		builder.AppendLine("\tprintf(\"  at %s:%u %s\\n\", failure->sourcefile == 0 ? \"\" : failure->sourcefile, failure->sourceline, failure->message == 0 ? \"\" : failure->message);");
+		builder.AppendLine("\tprintf(\"  at %s:%u %s\\n\", sourcefile == 0 ? \"\" : sourcefile, sourceline, message == 0 ? \"\" : message);");
 		builder.AppendLine("}");
 		builder.AppendLine();
 		builder.AppendLine("static double camp_elapsed_ms(clock_t start)");
@@ -122,7 +136,7 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\t\tfailed++;");
 		builder.AppendLine("\t\t\tcontinue;");
 		builder.AppendLine("\t\t}");
-		builder.AppendLine("\t\tAssertion *failure = 0;");
+		builder.AppendLine("\t\tvoid *failure = 0;");
 		builder.AppendLine("\t\ttest->function(&failure);");
 		builder.AppendLine("\t\tdouble duration_ms = camp_elapsed_ms(start);");
 		builder.AppendLine("\t\tif (failure != 0)");
@@ -140,9 +154,9 @@ public static class CampTestHarnessGenerator
 		return builder.ToString().Replace("\r\n", "\n", StringComparison.Ordinal);
 	}
 
-	static void WriteTestTableEntry(StringBuilder builder, CampTestManifestEntry test)
+	static void WriteTestTableEntry(StringBuilder builder, CampTestManifestEntry test, IReadOnlyDictionary<CampTestManifestEntry, int> wrapperIndexes)
 	{
-		bool valid = !test.Skipped && test.RunnerSignature == "valid" && test.Function is not null;
+		bool valid = IsRunnable(test);
 		builder.Append("\t{ \"");
 		builder.Append(EscapeCString(test.Id));
 		builder.Append("\", ");
@@ -159,8 +173,53 @@ public static class CampTestHarnessGenerator
 		builder.Append(", ");
 		builder.Append(valid ? "1" : "0");
 		builder.Append(", ");
-		builder.Append(valid ? CName(test.Function!) : "0");
+		if (valid)
+		{
+			int index = wrapperIndexes[test];
+			builder.Append("camp_test_run_");
+			builder.Append(index.ToString(CultureInfo.InvariantCulture));
+			builder.Append(", camp_test_message_");
+			builder.Append(index.ToString(CultureInfo.InvariantCulture));
+			builder.Append(", camp_test_sourcefile_");
+			builder.Append(index.ToString(CultureInfo.InvariantCulture));
+			builder.Append(", camp_test_sourceline_");
+			builder.Append(index.ToString(CultureInfo.InvariantCulture));
+		}
+		else
+			builder.Append("0, 0, 0, 0");
 		builder.AppendLine(" },");
+	}
+
+	static bool IsRunnable(CampTestManifestEntry test)
+	{
+		return !test.Skipped && test.RunnerSignature == "valid" && test.Function is not null && test.FailureShape is not null;
+	}
+
+	static void WriteTestWrapper(StringBuilder builder, CampTestManifestEntry test, int tableIndex)
+	{
+		TestFailureShape shape = test.FailureShape!;
+		string index = tableIndex.ToString(CultureInfo.InvariantCulture);
+		string typeName = CTypeName(shape.Type);
+		string functionName = CName(test.Function!);
+		builder.AppendLine("void " + functionName + "(" + typeName + " **failure);");
+		builder.AppendLine("static void camp_test_run_" + index + "(void **failure)");
+		builder.AppendLine("{");
+		builder.AppendLine("\t" + typeName + " *typed_failure = 0;");
+		builder.AppendLine("\t" + functionName + "(&typed_failure);");
+		builder.AppendLine("\t*failure = typed_failure;");
+		builder.AppendLine("}");
+		builder.AppendLine("static const char *camp_test_message_" + index + "(void *failure)");
+		builder.AppendLine("{");
+		builder.AppendLine("\treturn ((" + typeName + " *)failure)->" + CFieldName(shape.MessageField) + ";");
+		builder.AppendLine("}");
+		builder.AppendLine("static const char *camp_test_sourcefile_" + index + "(void *failure)");
+		builder.AppendLine("{");
+		builder.AppendLine("\treturn ((" + typeName + " *)failure)->" + CFieldName(shape.SourcefileField) + ";");
+		builder.AppendLine("}");
+		builder.AppendLine("static unsigned int camp_test_sourceline_" + index + "(void *failure)");
+		builder.AppendLine("{");
+		builder.AppendLine("\treturn ((" + typeName + " *)failure)->" + CFieldName(shape.SourcelineField) + ";");
+		builder.AppendLine("}");
 	}
 
 	static string CName(FunctionDefinition function)
@@ -170,6 +229,16 @@ public static class CampTestHarnessGenerator
 		if (!string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol != function.Name)
 			return SanitizeIdentifier(function.Symbol);
 		return SanitizeIdentifier(string.IsNullOrWhiteSpace(function.Symbol) ? function.Name : function.Symbol);
+	}
+
+	static string CTypeName(TypeDefinition type)
+	{
+		return SanitizeIdentifier(BindableNodeAnalyzer.EffectiveTypeSymbol(type));
+	}
+
+	static string CFieldName(string name)
+	{
+		return SanitizeIdentifier(name);
 	}
 
 	static string SanitizeIdentifier(string value)

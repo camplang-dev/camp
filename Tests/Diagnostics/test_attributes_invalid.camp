@@ -1,5 +1,8 @@
 struct Assertion
 {
+	escaped string message;
+	escaped string sourcefile;
+	uint sourceline;
 }
 
 @test(1)

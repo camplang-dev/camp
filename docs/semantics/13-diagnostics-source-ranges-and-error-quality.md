@@ -238,9 +238,10 @@ shape is the clearest source of the problem.
 
 The built-in runner signature is not a compiler-stopping rule. A top-level
 `@test` function with the wrong return type, parameters, thrown slot, generic
-parameters, extern body, async modifier, or iterator shape is discovered and
-reported as an invalid test result or non-blocking tooling diagnostic. This lets
-valid tests in the same module continue to run.
+parameters, extern body, async modifier, iterator shape, non-pointer thrown
+type, or thrown pointer type without `message`, `sourcefile`, and `sourceline`
+fields is discovered and reported as an invalid test result or non-blocking
+tooling diagnostic. This lets valid tests in the same module continue to run.
 
 Production-to-test-only dependencies are compiler errors in every command mode.
 The diagnostic should point at the production declaration that depends on the

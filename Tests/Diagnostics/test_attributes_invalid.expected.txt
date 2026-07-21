@@ -1,17 +1,17 @@
-tests/Diagnostics/test_attributes_invalid.camp(5,1): error: @test accepts no arguments.
-tests/Diagnostics/test_attributes_invalid.camp(10,1): error: @test functions may not declare a visibility modifier.
-tests/Diagnostics/test_attributes_invalid.camp(22,2): error: @testonly is valid only on top-level declarations.
-tests/Diagnostics/test_attributes_invalid.camp(17,2): error: @test is valid only on top-level functions, not methods or out-of-scope static members.
-tests/Diagnostics/test_attributes_invalid.camp(26,1): error: @test is valid only on top-level functions, not methods or out-of-scope static members.
-tests/Diagnostics/test_attributes_invalid.camp(33,2): error: @test is valid only on top-level functions, not methods or out-of-scope static members.
-tests/Diagnostics/test_attributes_invalid.camp(38,2): error: @test is valid only on top-level functions, not methods or out-of-scope static members.
-tests/Diagnostics/test_attributes_invalid.camp(44,1): error: @testonly accepts no arguments.
-tests/Diagnostics/test_attributes_invalid.camp(50,1): error: @testonly declarations may be private or internal, not public or export.
-tests/Diagnostics/test_attributes_invalid.camp(56,1): error: @testonly declarations may be private or internal, not public or export.
-tests/Diagnostics/test_attributes_invalid.camp(64,2): error: @testonly is valid only on top-level declarations.
-tests/Diagnostics/test_attributes_invalid.camp(68,20): error: @testonly is valid only on top-level declarations.
-tests/Diagnostics/test_attributes_invalid.camp(72,1): error: @skip is valid only on @test declarations.
-tests/Diagnostics/test_attributes_invalid.camp(77,7): error: @skip reason must be a string literal.
-tests/Diagnostics/test_attributes_invalid.camp(83,1): error: @skip accepts at most one string reason.
-tests/Diagnostics/test_attributes_invalid.camp(89,7): error: @skip does not accept named arguments.
-tests/Diagnostics/test_attributes_invalid.camp(96,1): error: @test may not be combined with @testonly.
+tests/Diagnostics/test_attributes_invalid.camp(8,1): error: @test accepts no arguments.
+tests/Diagnostics/test_attributes_invalid.camp(13,1): error: @test functions may not declare a visibility modifier.
+tests/Diagnostics/test_attributes_invalid.camp(25,2): error: @testonly is valid only on top-level declarations.
+tests/Diagnostics/test_attributes_invalid.camp(20,2): error: @test is valid only on top-level functions, not methods or out-of-scope static members.
+tests/Diagnostics/test_attributes_invalid.camp(29,1): error: @test is valid only on top-level functions, not methods or out-of-scope static members.
+tests/Diagnostics/test_attributes_invalid.camp(36,2): error: @test is valid only on top-level functions, not methods or out-of-scope static members.
+tests/Diagnostics/test_attributes_invalid.camp(41,2): error: @test is valid only on top-level functions, not methods or out-of-scope static members.
+tests/Diagnostics/test_attributes_invalid.camp(47,1): error: @testonly accepts no arguments.
+tests/Diagnostics/test_attributes_invalid.camp(53,1): error: @testonly declarations may be private or internal, not public or export.
+tests/Diagnostics/test_attributes_invalid.camp(59,1): error: @testonly declarations may be private or internal, not public or export.
+tests/Diagnostics/test_attributes_invalid.camp(67,2): error: @testonly is valid only on top-level declarations.
+tests/Diagnostics/test_attributes_invalid.camp(71,20): error: @testonly is valid only on top-level declarations.
+tests/Diagnostics/test_attributes_invalid.camp(75,1): error: @skip is valid only on @test declarations.
+tests/Diagnostics/test_attributes_invalid.camp(80,7): error: @skip reason must be a string literal.
+tests/Diagnostics/test_attributes_invalid.camp(86,1): error: @skip accepts at most one string reason.
+tests/Diagnostics/test_attributes_invalid.camp(92,7): error: @skip does not accept named arguments.
+tests/Diagnostics/test_attributes_invalid.camp(99,1): error: @test may not be combined with @testonly.

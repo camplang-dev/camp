@@ -1,6 +1,6 @@
 using Std;
 
-struct Assertion
+struct LocalAssertion
 {
 	escaped string message;
 	escaped string sourcefile;
@@ -11,9 +11,9 @@ export int main()
 {
 	try
 	{
-		assert(1 == 2);
+		check(1 == 2);
 	}
-	catch (Assertion* assertion)
+	catch (LocalAssertion* assertion)
 	{
 		Console.writeLine(assertion.message);
 		Console.writeLine(assertion.sourceline);
@@ -23,10 +23,10 @@ export int main()
 	return 1;
 }
 
-void assert(bool condition, escaped string message = sourceof(condition), escaped string sourcefile = caller(sourcefile), uint sourceline = caller(sourceline), thrown Assertion*)
+void check(bool condition, escaped string message = sourceof(condition), escaped string sourcefile = caller(sourcefile), uint sourceline = caller(sourceline), thrown LocalAssertion*)
 {
 	if (!condition)
 	{
-		throw within(default) new Assertion() { .message = message, .sourcefile = sourcefile, .sourceline = sourceline };
+		throw within(default) new LocalAssertion() { .message = message, .sourcefile = sourcefile, .sourceline = sourceline };
 	}
 }

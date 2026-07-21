@@ -6,7 +6,7 @@ enum Err
 	ERR_BAD
 }
 
-void fail(thrown Err error)
+void failErr(thrown Err error)
 {
 	throw Err.ERR_BAD;
 }
@@ -16,7 +16,7 @@ export int main()
 	int result = 0;
 	try
 	{
-		fail();
+		failErr();
 	}
 	catch (Err e)
 	{

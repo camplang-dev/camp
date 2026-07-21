@@ -106,6 +106,13 @@ public sealed class LanguageServiceTests
 		string text = """
 			namespace EditorTests;
 
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
 			/// Valid case.
 			/// @test
 			void validCase(thrown Assertion* assertion)

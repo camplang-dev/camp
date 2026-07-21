@@ -1,0 +1,21 @@
+namespace Std;
+
+public struct Assertion
+{
+	escaped string message;
+	escaped string sourcefile;
+	uint sourceline;
+}
+
+@symbol("camp_assert")
+public void assert(bool condition, escaped string message = sourceof(condition), escaped string sourcefile = caller(sourcefile), uint sourceline = caller(sourceline), thrown Assertion* assertion)
+{
+	if (!condition)
+		fail(message, sourcefile, sourceline);
+}
+
+@symbol("camp_fail")
+public void fail(escaped string message, escaped string sourcefile = caller(sourcefile), uint sourceline = caller(sourceline), thrown Assertion* assertion)
+{
+	throw within(default) new Assertion() { .message = message, .sourcefile = sourcefile, .sourceline = sourceline };
+}

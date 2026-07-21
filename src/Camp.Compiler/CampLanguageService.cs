@@ -100,7 +100,7 @@ public static class CampLanguageService
 				diagnostics.Add(new CampSourceDiagnostic(
 					path,
 					range,
-					$"Test '{test.Id}' has invalid built-in runner signature; expected void name(thrown Assertion*).",
+					$"Test '{test.Id}' has invalid built-in runner signature; expected void name(thrown TYPE*) where TYPE contains message, sourcefile, and sourceline fields.",
 					"CAMPTEST001",
 					DiagnosticSeverity.Warning));
 			}
@@ -151,8 +151,6 @@ public static class CampLanguageService
 			AddSourceFileIfMissing(compilation, file, request.WorkingDirectory, overlayByPath, isApiHeader: false, loadedPaths);
 		foreach (string file in request.Files)
 			AddSourceFileIfMissing(compilation, file, request.WorkingDirectory, overlayByPath, isApiHeader: false, loadedPaths);
-		if (request.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover)
-			CampStandardTestSupport.AddTo(compilation);
 		return compilation;
 	}
 

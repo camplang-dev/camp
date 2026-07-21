@@ -144,7 +144,10 @@ must ask the shared declaration participation service for the active view.
 `@test` is valid only on top-level functions with no visibility modifier. It
 marks the function as test-only and as a test-discovery candidate. The built-in
 runner signature is intentionally not a compiler-stopping validation rule.
-Discovery classifies the signature later.
+Discovery classifies the signature later. A test is runnable by the built-in
+runner when it has the shape `void name(thrown TYPE*)`, and `TYPE` has
+instance fields named `message`, `sourcefile`, and `sourceline`. The string
+fields may be `string` or `escaped string`; `sourceline` is `uint`.
 
 `@testonly` is valid only on top-level declarations that are private or
 `internal`. On a top-level class, struct, interface, enum, newtype, or callable
@@ -287,12 +290,14 @@ Body analysis resolves expression and statement semantics:
 Body analysis should record facts needed by lowering. Lowering should not repeat
 source overload resolution or decide whether a conversion is legal.
 
-Default argument insertion remains the mechanism for standard assertion source
-capture. Calls to test support functions such as `assert(...)` and `fail(...)`
-use `sourceof(argumentName)`, `caller(sourcefile)`, and `caller(sourceline)` the
-same way any other callable default does. Generated harness calls must not
-manufacture assertion locations; assertion failures report the source captured
-at the user's call site.
+Default argument insertion remains the mechanism for assertion source capture.
+Standard library helpers such as `assert(...)` and `fail(...)` are ordinary
+public declarations that use `sourceof(argumentName)`, `caller(sourcefile)`,
+and `caller(sourceline)` the same way any other callable default does. The
+compiler does not generate source declarations for assertion helpers or for
+their thrown type. Generated harness calls must not manufacture assertion
+locations; assertion failures report the source captured at the user's call
+site.
 
 ## Flow Analysis
 
@@ -374,8 +379,9 @@ functions, emits a `camp.test-manifest` JSON artifact, generates a native
 harness executable, runs selected tests unless `--list` was supplied, and writes
 test results. The harness table is derived from the manifest. Skipped tests and
 tests with invalid built-in runner signatures are recorded without invocation.
-Valid tests are invoked with a `thrown Assertion*` slot and assertion failures
-are classified from caught `Assertion*` values.
+Valid tests are invoked with their declared thrown pointer type. When a
+non-null thrown value is produced, the harness reads its `message`,
+`sourcefile`, and `sourceline` fields and records the result as a failed test.
 
 Private in-module tests remain private source declarations. C emission may
 expose private generated names to the compiler-owned harness, but this does not
