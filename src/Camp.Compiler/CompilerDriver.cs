@@ -44,6 +44,9 @@ public sealed class CompilerRequest
 	public string EmitKind { get; set; } = "c99";
 	public NativeBuildKind? BuildKind { get; set; }
 	public bool InferBuildKind { get; set; }
+	public CompilerCommandMode CommandMode { get; set; } = CompilerCommandMode.Build;
+	public DeclarationParticipationMode DeclarationParticipationMode { get; set; } = DeclarationParticipationMode.Production;
+	public CoverageInstrumentationMode CoverageInstrumentationMode { get; set; } = CoverageInstrumentationMode.Disabled;
 	public bool EmitDebugInfo { get; set; }
 	public MetadataVisibility? EmitMetadata { get; set; }
 	public string? OutDir { get; set; }
@@ -331,6 +334,9 @@ public static class CompilerDriver
 			{
 				Target = context.Target,
 				ProfileName = context.ProfileName,
+				CommandMode = request.CommandMode,
+				DeclarationParticipationMode = request.DeclarationParticipationMode,
+				CoverageInstrumentationMode = request.CoverageInstrumentationMode,
 				DefaultWithinAllocationPolicy = GetEffectiveWithinAllocationPolicy(),
 				SourcefilePathMode = request.SourcefilePathMode,
 				SourcefileDefaultRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(request.SourcefileDefaultRoot) ? request.WorkingDirectory : request.SourcefileDefaultRoot)
@@ -407,6 +413,8 @@ public static class CompilerDriver
 			foreach (string symbol in context.CommandLineDefines)
 				if (!string.IsNullOrWhiteSpace(symbol))
 					compilation.PreprocessorSymbols.Add(symbol);
+			if (request.DeclarationParticipationMode == DeclarationParticipationMode.TestModule)
+				compilation.PreprocessorSymbols.Add("TEST_MODULE");
 		}
 
 		bool TryReadInput(string filename, out string text, out string displayPath, out string? fullPath)
@@ -1065,7 +1073,7 @@ public static class CompilerDriver
 		{
 			entryPoint = null;
 			List<FunctionDefinition> candidates = [];
-			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+			foreach (Definition definition in compilation.SharedModule is Module module ? DeclarationParticipation.ActiveTopLevelDefinitions(module) : [])
 				if (definition is FunctionDefinition { Name: "main", Export: not null } function)
 					candidates.Add(function);
 
@@ -1332,13 +1340,17 @@ public static class CompilerDriver
 				}
 				foreach (Definition definition in module.Definitions)
 				{
-					if (IsVisibleInApiSurface(definition, apiSurface) && definitions.Add(definition))
+					if (DeclarationParticipation.Includes(definition, compilation.SharedModule!)
+						&& IsVisibleInApiSurface(definition, apiSurface)
+						&& definitions.Add(definition))
 						output.Definitions.Add(definition);
 				}
 			}
 			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
 			{
-				if (!IsApiGeneratedDefinition(definition) || !IsVisibleInApiSurface(definition, apiSurface))
+				if (!DeclarationParticipation.Includes(definition, compilation.SharedModule!)
+					|| !IsApiGeneratedDefinition(definition)
+					|| !IsVisibleInApiSurface(definition, apiSurface))
 					continue;
 				if (compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) && owner.IsApiHeader)
 					continue;
@@ -1365,6 +1377,8 @@ public static class CompilerDriver
 			while (pending.Count > 0)
 			{
 				TypeDefinition dependency = pending.Dequeue();
+				if (compilation.SharedModule is not null && !DeclarationParticipation.Includes(dependency, compilation.SharedModule))
+					continue;
 				if (!definitions.Add(dependency))
 					continue;
 				if (compilation.DefinitionOwners.TryGetValue(dependency, out SourceFile? owner) && owner.IsApiHeader)
@@ -1567,7 +1581,9 @@ public static class CompilerDriver
 			foreach (UsingDeclaration usingDeclaration in file.BindableTree?.Usings ?? [])
 				output.Usings.Add(usingDeclaration);
 			foreach (Definition definition in compilation.SharedModule.Definitions)
-				if (compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) && ReferenceEquals(owner, file))
+				if (DeclarationParticipation.Includes(definition, compilation.SharedModule)
+					&& compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner)
+					&& ReferenceEquals(owner, file))
 					output.Definitions.Add(definition);
 			return output;
 		}

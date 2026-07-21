@@ -1,0 +1,27 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "TestMetadata",
+    "namespace": "TestMetadata"
+  },
+  "view": {
+    "visibility": "all",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "function:TestMetadata::productionValue",
+      "kind": "function",
+      "name": "productionValue",
+      "visibility": "export",
+      "returnType": "int"
+    },
+    {
+      "id": "struct:TestMetadata::Assertion",
+      "kind": "struct",
+      "name": "Assertion"
+    }
+  ]
+}

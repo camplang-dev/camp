@@ -743,7 +743,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<FunctionDefinition> LookupGlobalFunctions(string name, SyntaxNode? syntax)
 	{
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is not FunctionDefinition function || !IsDefinitionVisible(function, syntax))
 				continue;
@@ -783,7 +783,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryFindModuleTypeDefinition(string name, out TypeDefinition type)
 	{
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is TypeDefinition candidate && candidate.Name == name)
 			{

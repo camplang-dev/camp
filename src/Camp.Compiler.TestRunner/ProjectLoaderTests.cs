@@ -80,6 +80,40 @@ public sealed class ProjectLoaderTests
 	}
 
 	[Fact]
+	public void Project_loader_sets_test_and_cover_modes()
+	{
+		string root = CreateTempDirectory("project-loader-test-modes");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), "export void main() {}");
+		string buildFile = Path.Combine(root, "app.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			src/*.camp
+			""");
+
+		CampProjectLoadResult test = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(root), CampProjectCommandKind.Test);
+		CampProjectLoadResult cover = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(root), CampProjectCommandKind.Cover);
+		CampProjectLoadResult build = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(root), CampProjectCommandKind.Build);
+
+		Assert.True(test.Success, string.Join(Environment.NewLine, test.Diagnostics));
+		Assert.Equal(CompilerCommandMode.Test, test.Request.CommandMode);
+		Assert.Equal(DeclarationParticipationMode.TestModule, test.Request.DeclarationParticipationMode);
+		Assert.Equal(CoverageInstrumentationMode.Disabled, test.Request.CoverageInstrumentationMode);
+
+		Assert.True(cover.Success, string.Join(Environment.NewLine, cover.Diagnostics));
+		Assert.Equal(CompilerCommandMode.Cover, cover.Request.CommandMode);
+		Assert.Equal(DeclarationParticipationMode.TestModule, cover.Request.DeclarationParticipationMode);
+		Assert.Equal(CoverageInstrumentationMode.ProductionSubject, cover.Request.CoverageInstrumentationMode);
+
+		Assert.True(build.Success, string.Join(Environment.NewLine, build.Diagnostics));
+		Assert.Equal(CompilerCommandMode.Build, build.Request.CommandMode);
+		Assert.Equal(DeclarationParticipationMode.Production, build.Request.DeclarationParticipationMode);
+		Assert.Equal(CoverageInstrumentationMode.Disabled, build.Request.CoverageInstrumentationMode);
+	}
+
+	[Fact]
 	public void Project_loader_expands_includes_and_excludes()
 	{
 		string root = CreateTempDirectory("project-loader-globs");

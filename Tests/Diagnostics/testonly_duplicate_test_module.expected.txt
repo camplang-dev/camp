@@ -1,0 +1,1 @@
+tests/Diagnostics/testonly_duplicate_test_module.camp(8,8): error: Duplicate type name 'Duplicate'.

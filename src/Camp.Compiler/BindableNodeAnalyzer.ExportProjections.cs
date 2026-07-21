@@ -409,7 +409,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		List<FunctionDefinition> functions = [];
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 			if (definition is FunctionDefinition function
 				&& GetExplicitThisParameter(function) is null
 				&& IsFunctionNamed(function, name)
@@ -429,7 +429,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		List<VariableDefinition> variables = [];
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 			if (definition is VariableDefinition variable
 				&& variable.Name == name
 				&& variable.IsInline

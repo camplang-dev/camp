@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace Camp.Compiler;
@@ -9,7 +10,7 @@ public sealed partial class BindableNodeAnalyzer
 {
 	void GenerateVirtualDeclarations(Module module)
 	{
-		foreach (Definition definition in module.Definitions.ToArray())
+		foreach (Definition definition in ActiveDefinitions(module).ToArray())
 		{
 			if (definition is ClassDefinition classDefinition && IsVirtualClassParticipant(classDefinition))
 				GenerateVirtualClassDeclarations(module, classDefinition);
@@ -341,13 +342,13 @@ public sealed partial class BindableNodeAnalyzer
 	void GenerateInterfaceDeclarations(Module module)
 	{
 		Dictionary<string, InterfaceDefinition> interfaces = [];
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 		{
 			if (definition is InterfaceDefinition interfaceDefinition && !string.IsNullOrWhiteSpace(interfaceDefinition.Name))
 				interfaces[interfaceDefinition.Name] = interfaceDefinition;
 		}
 
-		foreach (Definition definition in module.Definitions.ToArray())
+		foreach (Definition definition in ActiveDefinitions(module).ToArray())
 		{
 			if (definition is ClassDefinition classDefinition)
 				GenerateClassInterfaceDeclarations(module, classDefinition, interfaces);
@@ -734,6 +735,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		for (int i = 0; i < module.Definitions.Count; i++)
 		{
+			if (!DeclarationParticipation.Includes(module.Definitions[i], module))
+				continue;
 			if (module.Definitions[i] is InterfaceDefinition interfaceDefinition)
 				module.Definitions[i] = LowerInterfaceDefinition(interfaceDefinition);
 			else if (module.Definitions[i] is ClassDefinition classDefinition)
@@ -1795,7 +1798,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void GenerateLifecycleMethods(Module module)
 	{
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 			GenerateLifecycleMethods(definition);
 	}
 

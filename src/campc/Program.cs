@@ -58,6 +58,18 @@ static RootCommand BuildCommandTree(CliEnvironment environment, string[] origina
 	dump.SetAction(_ => CampCli.Run(originalArgs, environment));
 	root.Subcommands.Add(dump);
 
+	Command test = new("test", "Build and run Camp tests.");
+	test.Arguments.Add(SourcePatternsArgument());
+	AddBuildOptions(test, buildOnly: true);
+	test.SetAction(_ => CampCli.Run(originalArgs, environment));
+	root.Subcommands.Add(test);
+
+	Command cover = new("cover", "Build and run Camp tests with source coverage.");
+	cover.Arguments.Add(SourcePatternsArgument());
+	AddBuildOptions(cover, buildOnly: true);
+	cover.SetAction(_ => CampCli.Run(originalArgs, environment));
+	root.Subcommands.Add(cover);
+
 	Command restore = new("restore", "Install missing packages used by source files.");
 	restore.Arguments.Add(SourcePatternsArgument());
 	restore.SetAction(_ => CampCli.Run(originalArgs, environment));
@@ -229,25 +241,38 @@ sealed class CampCli
 	public static int Run(string[] args, CliEnvironment environment)
 	{
 		if (args.Length == 0)
-			return Error("A command is required. Expected init, pkg, restore, build, dump, or run.");
+			return Error("A command is required. Expected init, pkg, restore, build, dump, run, test, or cover.");
 
 		return args[0] switch
 		{
 			"init" => Error("init is not implemented yet."),
 			"build" => RunBuild(args[1..], environment),
 			"run" => RunRun(args[1..], environment),
+			"test" => RunBuildLike(args[1..], environment, CommandKind.Test),
+			"cover" => RunBuildLike(args[1..], environment, CommandKind.Cover),
 			"dump" => RunDump(args[1..], environment),
 			"restore" => RunRestore(args[1..], environment),
 			"pkg" => PackageCommands.Run(args[1..], environment),
 			"--inspect" or "--build" or "-b" => Error("The root compiler command has been replaced by subcommands. Use 'campc dump ...' or 'campc build ...'."),
-			_ when args[0].StartsWith("-", StringComparison.Ordinal) => Error($"Unknown command '{args[0]}'. Use init, pkg, restore, build, dump, or run."),
-			_ => Error($"Unknown command '{args[0]}'. Use init, pkg, restore, build, dump, or run.")
+			_ when args[0].StartsWith("-", StringComparison.Ordinal) => Error($"Unknown command '{args[0]}'. Use init, pkg, restore, build, dump, run, test, or cover."),
+			_ => Error($"Unknown command '{args[0]}'. Use init, pkg, restore, build, dump, run, test, or cover.")
 		};
 	}
 
 	static int RunBuild(string[] args, CliEnvironment environment)
 	{
 		if (!TryBuildRequest(args, environment, CommandKind.Build, out CompilerRequest? request, out List<string> errors))
+			return PrintErrors(errors);
+
+		CompilerResult result = CompilerDriver.Execute(request!);
+		Console.Out.Write(result.StdOut);
+		Console.Error.Write(result.StdErr);
+		return result.ExitCode;
+	}
+
+	static int RunBuildLike(string[] args, CliEnvironment environment, CommandKind command)
+	{
+		if (!TryBuildRequest(args, environment, command, out CompilerRequest? request, out List<string> errors))
 			return PrintErrors(errors);
 
 		CompilerResult result = CompilerDriver.Execute(request!);
@@ -359,10 +384,10 @@ sealed class CampCli
 	{
 		request = null;
 		errors = [];
-		string? defaultOutDir = command is CommandKind.Build or CommandKind.Run ? TryGetDefaultOutDirFromBuildFile(args, environment.WorkingDirectory) : null;
+		string? defaultOutDir = command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover ? TryGetDefaultOutDirFromBuildFile(args, environment.WorkingDirectory) : null;
 		string sourcefileDefaultRoot = TryGetDefaultSourcefileRootFromBuildFile(args, environment.WorkingDirectory) ?? environment.WorkingDirectory;
 
-		if (command is CommandKind.Build or CommandKind.Run)
+		if (command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover)
 			args = ResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray();
 		if (errors.Count > 0)
 			return false;
@@ -419,6 +444,9 @@ sealed class CampCli
 			Xml = bag.Xml,
 			BuildKind = bag.ArtifactKind,
 			InferBuildKind = command == CommandKind.Build && !bag.ArtifactSpecified,
+			CommandMode = GetCompilerCommandMode(command),
+			DeclarationParticipationMode = command is CommandKind.Test or CommandKind.Cover ? DeclarationParticipationMode.TestModule : DeclarationParticipationMode.Production,
+			CoverageInstrumentationMode = command == CommandKind.Cover ? CoverageInstrumentationMode.ProductionSubject : CoverageInstrumentationMode.Disabled,
 			EmitDebugInfo = bag.DebugInfo,
 			EmitMetadata = bag.MetadataVisibility,
 			OutDir = bag.OutDir ?? defaultOutDir,
@@ -445,6 +473,18 @@ sealed class CampCli
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		request.IncludeFiles.AddRange(includeFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		return true;
+	}
+
+	static CompilerCommandMode GetCompilerCommandMode(CommandKind command)
+	{
+		return command switch
+		{
+			CommandKind.Run => CompilerCommandMode.Run,
+			CommandKind.Dump => CompilerCommandMode.Dump,
+			CommandKind.Test => CompilerCommandMode.Test,
+			CommandKind.Cover => CompilerCommandMode.Cover,
+			_ => CompilerCommandMode.Build
+		};
 	}
 
 	static bool TryBuildProjectReferences(IReadOnlyList<string> projectReferences, CompilerRequest consumerRequest, CliEnvironment environment, List<string> projectReferenceStack, out List<string> apiHeaders, out List<string> sharedApiHeaders, out List<string> libraries, List<string> errors)
@@ -2055,7 +2095,9 @@ enum CommandKind
 {
 	Build,
 	Run,
-	Dump
+	Dump,
+	Test,
+	Cover
 }
 
 enum Precedence

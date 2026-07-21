@@ -81,7 +81,11 @@ public sealed partial class BindableNodeAnalyzer
 		BindableNodeAnalyzer analyzer = expansion.Analyzer;
 		analyzer.RunAnalyzerPass(AnalyzerPass.DeclarationAnalysis, expansion.Module);
 		if (!analyzer.diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+		{
 			analyzer.RunAnalyzerPass(AnalyzerPass.MethodBodyAnalysis, expansion.Module);
+			if (!analyzer.diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+				analyzer.ValidateProductionDeclarationDependencies(expansion.Module);
+		}
 		analyzer.RunAnalyzerPass(AnalyzerPass.NodeRewriteApplication, expansion.Module);
 		analyzer.FillMissingResolvedTypes(expansion.Module);
 		AnalysisResult analysis = new(expansion.Module, analyzer.diagnostics);
@@ -102,7 +106,7 @@ public sealed partial class BindableNodeAnalyzer
 		LowerSourceInterfaceTypes(module);
 		ExpandParamsDeclarations(module);
 		CompleteImplicitDestroyBodies(module);
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 			RewriteDefinition(definition);
 		foreach (StructDefinition context in generatedLambdaContextDefinitions)
 			module.Definitions.Add(context);
@@ -114,7 +118,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void CompleteImplicitDestroyBodies(Module module)
 	{
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 		{
 			if (definition is not ClassDefinition classDefinition)
 				continue;

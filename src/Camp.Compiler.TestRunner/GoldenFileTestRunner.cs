@@ -138,6 +138,17 @@ public static class GoldenFileTestRunner
 				request.TargetName = option["target ".Length..].Trim();
 			else if (option.StartsWith("variant ", StringComparison.OrdinalIgnoreCase))
 				request.Variants.AddRange(option["variant ".Length..].Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries));
+			else if (option.Equals("test-module", StringComparison.OrdinalIgnoreCase))
+			{
+				request.CommandMode = CompilerCommandMode.Test;
+				request.DeclarationParticipationMode = DeclarationParticipationMode.TestModule;
+			}
+			else if (option.Equals("cover-module", StringComparison.OrdinalIgnoreCase))
+			{
+				request.CommandMode = CompilerCommandMode.Cover;
+				request.DeclarationParticipationMode = DeclarationParticipationMode.TestModule;
+				request.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
+			}
 		}
 	}
 

@@ -8,7 +8,7 @@ public sealed partial class BindableNodeAnalyzer
 {
 	void AnalyzeInlineConstantsAndEnumValues(Module module)
 	{
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 			AnalyzeInlineConstantsAndEnumValues(definition);
 		ValidateInlineAndEnumSymbols(module);
 	}
@@ -370,8 +370,8 @@ public sealed partial class BindableNodeAnalyzer
 				}
 			}
 
-			foreach (Definition definition in currentModule?.Definitions ?? [])
-				if (definition is VariableDefinition variable && (variable.Name == named.Name || variable.Symbol == named.Name))
+				foreach (Definition definition in ActiveCurrentDefinitions())
+					if (definition is VariableDefinition variable && (variable.Name == named.Name || variable.Symbol == named.Name))
 				{
 					node = variable;
 					return true;
@@ -392,7 +392,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryFindContainingType(BindableNode owner, out TypeDefinition? type)
 	{
 		type = null;
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			switch (definition)
 			{
@@ -600,7 +600,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateInlineAndEnumSymbols(Module module)
 	{
 		SymbolCollisionSet generatedSymbols = new();
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 			ValidateInlineAndEnumSymbols(definition, generatedSymbols);
 	}
 

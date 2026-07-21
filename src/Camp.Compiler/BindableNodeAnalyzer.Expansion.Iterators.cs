@@ -16,7 +16,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void GenerateIteratorDeclarations(Module module)
 	{
-		foreach (Definition definition in module.Definitions.ToArray())
+		foreach (Definition definition in ActiveDefinitions(module).ToArray())
 		{
 			switch (definition)
 			{
@@ -697,7 +697,7 @@ public sealed partial class BindableNodeAnalyzer
 		sourceType = ErrorType;
 		if (source is CallExpression { Target: NamedExpression { Qualifiers.Count: 0 } named })
 		{
-			foreach (Definition definition in currentModule?.Definitions ?? [])
+			foreach (Definition definition in ActiveCurrentDefinitions())
 			{
 				if (definition is FunctionDefinition function && function.Name == named.Name)
 				{

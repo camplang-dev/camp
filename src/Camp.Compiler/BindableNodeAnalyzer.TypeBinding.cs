@@ -554,7 +554,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (scope.TryGetGenericParameter(named.Name, out _))
 			return false;
 
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is VariableDefinition variable && IsDefinitionNamed(variable, named.Name) && IsConstantVariable(variable))
 				return TryEvaluateConstantStorageLength(variable, variable.InitialValue, visitedSymbols, out length);

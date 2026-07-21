@@ -23,7 +23,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void PrecomputeOverloadCallableNames(Module module)
 	{
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 			PrecomputeOverloadCallableNames(definition);
 	}
 
@@ -191,7 +191,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateTopLevelOverloadFamilies(Module module)
 	{
 		Dictionary<string, List<FunctionDefinition>> families = new(StringComparer.Ordinal);
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 		{
 			if (definition is not FunctionDefinition function || GetExplicitThisParameter(function) is not null)
 				continue;

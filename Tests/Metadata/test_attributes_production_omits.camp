@@ -1,0 +1,23 @@
+// @emit-metadata all
+
+namespace TestMetadata;
+
+export int productionValue()
+{
+	return 1;
+}
+
+@testonly
+int helperValue()
+{
+	return 2;
+}
+
+struct Assertion
+{
+}
+
+@test
+void hiddenTest(thrown Assertion* assertion)
+{
+}

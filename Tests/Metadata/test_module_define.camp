@@ -1,0 +1,10 @@
+// @emit-metadata all
+// @test-module
+
+namespace TestMetadata;
+
+#if TEST_MODULE
+export inline const int MODE = 1;
+#else
+export inline const int MODE = 0;
+#endif

@@ -535,7 +535,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (name.Length == 0)
 			return false;
 
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 			if (TryResolveMetadataSymbolInDefinition(definition, name, out reference))
 				return true;
 

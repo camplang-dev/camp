@@ -1,0 +1,24 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "TestMetadata",
+    "namespace": "TestMetadata"
+  },
+  "view": {
+    "visibility": "all",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "variable:TestMetadata::MODE",
+      "kind": "variable",
+      "name": "MODE",
+      "visibility": "export",
+      "type": "const int",
+      "inline": true,
+      "value": 1
+    }
+  ]
+}

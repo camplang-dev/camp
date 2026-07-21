@@ -1,0 +1,30 @@
+// @test-module
+
+struct Assertion
+{
+}
+
+@testonly
+int helper()
+{
+	return 1;
+}
+
+@testonly
+struct Hidden
+{
+	int value;
+}
+
+Hidden productionStorage;
+
+int productionUsesHelper()
+{
+	return helper();
+}
+
+@test
+void testUsesHelper(thrown Assertion* assertion)
+{
+	helper();
+}

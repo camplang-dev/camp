@@ -8,6 +8,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		for (int i = 0; i < module.Definitions.Count; i++)
 		{
+			if (!DeclarationParticipation.Includes(module.Definitions[i], module))
+				continue;
 			switch (module.Definitions[i])
 			{
 				case VariableDefinition variable:

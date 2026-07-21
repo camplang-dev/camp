@@ -415,7 +415,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (HasAttribute(function.Attributes, attributeName))
 					hooks.Add(function);
 		ClassDefinition? receiverClass = GetDirectBaseClass(definition);
-		foreach (FunctionDefinition function in currentModule?.Definitions.OfType<FunctionDefinition>() ?? [])
+		foreach (FunctionDefinition function in ActiveCurrentDefinitions().OfType<FunctionDefinition>())
 			if (HasAttribute(function.Attributes, attributeName) && HookReceiverMatches(function, receiverClass))
 				hooks.Add(function);
 		return hooks;
@@ -656,7 +656,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeInterfaceSlotInitializers(Module module)
 	{
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 		{
 			if (definition is not InterfaceDefinition interfaceDefinition)
 				continue;
@@ -739,7 +739,7 @@ public sealed partial class BindableNodeAnalyzer
 	List<FunctionDefinition> ResolveInterfaceSlotFunctionCandidates(Module module, string name)
 	{
 		List<FunctionDefinition> candidates = [];
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 		{
 			if (definition is FunctionDefinition function && InterfaceSlotFunctionNameMatches(function, name))
 				candidates.Add(function);

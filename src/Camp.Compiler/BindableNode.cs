@@ -33,6 +33,8 @@ public class Module : BindableNode
 	public string SourcefileDefaultRoot { get; set; } = "";
 	[XmlIgnore]
 	public List<string> SourcefileRoots { get; } = [];
+	[XmlIgnore]
+	public DeclarationParticipationMode DeclarationParticipationMode { get; set; } = DeclarationParticipationMode.Production;
 }
 
 public enum SourcefilePathMode

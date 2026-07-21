@@ -13,6 +13,8 @@ public enum CampProjectCommandKind
 	Build,
 	Run,
 	Dump,
+	Test,
+	Cover,
 	LanguageService
 }
 
@@ -73,9 +75,9 @@ public static class CampProjectLoader
 	static CampProjectLoadResult Load(IReadOnlyList<string> args, CampProjectEnvironment environment, CampProjectCommandKind command, HashSet<string> projectReferenceStack)
 	{
 		List<string> errors = [];
-		string? defaultOutDir = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run ? TryGetDefaultOutDirFromBuildFile(args, environment.WorkingDirectory) : null;
+		string? defaultOutDir = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run or CampProjectCommandKind.Test or CampProjectCommandKind.Cover ? TryGetDefaultOutDirFromBuildFile(args, environment.WorkingDirectory) : null;
 		string sourcefileDefaultRoot = TryGetDefaultSourcefileRootFromBuildFile(args, environment.WorkingDirectory) ?? environment.WorkingDirectory;
-		string[] expandedArgs = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run
+		string[] expandedArgs = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run or CampProjectCommandKind.Test or CampProjectCommandKind.Cover
 			? CampResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray()
 			: args.ToArray();
 		if (errors.Count == 0)
@@ -114,7 +116,7 @@ public static class CampProjectLoader
 			if (loadErrors.Count != 0)
 				return Failed(environment, loadErrors);
 			string buildDirectory = Path.GetDirectoryName(canonical) ?? environment.WorkingDirectory;
-			string? defaultOutDir = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run ? Path.Combine(buildDirectory, "bin") : null;
+			string? defaultOutDir = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run or CampProjectCommandKind.Test or CampProjectCommandKind.Cover ? Path.Combine(buildDirectory, "bin") : null;
 			return Load(cli, environment, command, loadErrors, projectReferenceStack, defaultOutDir, buildDirectory);
 		}
 		finally
@@ -180,6 +182,9 @@ public static class CampProjectLoader
 			Xml = bag.Xml,
 			BuildKind = bag.ArtifactKind,
 			InferBuildKind = command == CampProjectCommandKind.Build && !bag.ArtifactSpecified,
+			CommandMode = GetCompilerCommandMode(command),
+			DeclarationParticipationMode = command is CampProjectCommandKind.Test or CampProjectCommandKind.Cover ? DeclarationParticipationMode.TestModule : DeclarationParticipationMode.Production,
+			CoverageInstrumentationMode = command == CampProjectCommandKind.Cover ? CoverageInstrumentationMode.ProductionSubject : CoverageInstrumentationMode.Disabled,
 			EmitDebugInfo = bag.DebugInfo,
 			EmitMetadata = bag.MetadataVisibility,
 			OutDir = bag.OutDir ?? defaultOutDir,
@@ -223,6 +228,18 @@ public static class CampProjectLoader
 				result.Diagnostics.Add(error!);
 		}
 		return result;
+	}
+
+	static CompilerCommandMode GetCompilerCommandMode(CampProjectCommandKind command)
+	{
+		return command switch
+		{
+			CampProjectCommandKind.Run => CompilerCommandMode.Run,
+			CampProjectCommandKind.Dump or CampProjectCommandKind.LanguageService => CompilerCommandMode.Dump,
+			CampProjectCommandKind.Test => CompilerCommandMode.Test,
+			CampProjectCommandKind.Cover => CompilerCommandMode.Cover,
+			_ => CompilerCommandMode.Build
+		};
 	}
 
 	static string? TryGetDefaultOutDirFromBuildFile(IReadOnlyList<string> args, string workingDirectory)

@@ -233,10 +233,11 @@ public static class CCodeEmitter
 		}
 
 		HashSet<BindableNode> visited = [];
-		foreach (BindableNode node in EnumerateNodes(compilation.SharedModule, visited))
+		foreach (Definition definition in DeclarationParticipation.ActiveTopLevelDefinitions(compilation.SharedModule))
+		foreach (BindableNode node in EnumerateNodes(definition, visited))
 		{
-            if (node is LiteralExpression or AttributeConstructor or InitializerItem)
-                continue;
+			if (node is LiteralExpression or AttributeConstructor or InitializerItem)
+				continue;
 			if (node.ResolvedType is string resolvedType && InvalidResolvedTypes.Contains(resolvedType))
 			{
 				result.Diagnostics.Add($"C emission aborted because {DescribeUnresolvedNode(node)} has unresolved type '{resolvedType}'.");
@@ -450,7 +451,7 @@ public static class CCodeEmitter
 	static bool HasExportedDeclarations(Compilation compilation, SourceFile file)
 	{
 		bool includePublic = file.IsApiHeader && !file.SharedLibraryImport;
-		foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+		foreach (Definition definition in GetActiveDefinitions(compilation))
 		{
 			if (!compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner) || !ReferenceEquals(owner, file))
 				continue;
@@ -491,6 +492,11 @@ public static class CCodeEmitter
 			NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields.Any(field => field.Modifier == FieldModifier.Static && IsVisibleInHeaderFile(field, includePublic)),
 			_ => false
 		};
+	}
+
+	static IEnumerable<Definition> GetActiveDefinitions(Compilation compilation)
+	{
+		return compilation.SharedModule is Module module ? DeclarationParticipation.ActiveTopLevelDefinitions(module) : [];
 	}
 
 	static IEnumerable<BindableNode> EnumerateNodes(BindableNode root, HashSet<BindableNode> visited)
@@ -1486,7 +1492,7 @@ public static class CCodeEmitter
 
 		IEnumerable<Definition> GetDefinitions()
 		{
-			return compilation.SharedModule?.Definitions ?? [];
+			return GetActiveDefinitions(compilation);
 		}
 
 		IEnumerable<Definition> GetOwnedDefinitions(SourceFile file)
@@ -1677,7 +1683,7 @@ public static class CCodeEmitter
 		static Dictionary<FunctionDefinition, TypeDefinition> BuildContainingTypeMap(Compilation compilation)
 		{
 			Dictionary<FunctionDefinition, TypeDefinition> map = [];
-			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+			foreach (Definition definition in GetActiveDefinitions(compilation))
 			{
 				switch (definition)
 				{
@@ -1713,7 +1719,7 @@ public static class CCodeEmitter
 		static HashSet<string> BuildGenericParameterNameSet(Compilation compilation)
 		{
 			HashSet<string> names = new(StringComparer.Ordinal);
-			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+			foreach (Definition definition in GetActiveDefinitions(compilation))
 				AddDefinition(definition);
 			return names;
 
@@ -1751,7 +1757,7 @@ public static class CCodeEmitter
 		static HashSet<string> BuildInterfaceNameSet(Compilation compilation)
 		{
 			HashSet<string> names = new(StringComparer.Ordinal);
-			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+			foreach (Definition definition in GetActiveDefinitions(compilation))
 			{
 				if (definition is InterfaceDefinition interfaceDefinition)
 					names.Add(interfaceDefinition.Name);
@@ -1764,7 +1770,7 @@ public static class CCodeEmitter
 		static HashSet<string> BuildCallableInterfaceNameSet(Compilation compilation)
 		{
 			HashSet<string> names = BuildInterfaceNameSet(compilation);
-			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+			foreach (Definition definition in GetActiveDefinitions(compilation))
 			{
 				if (definition is StructDefinition { SourceInterface: InterfaceDefinition sourceInterface })
 					names.Add(sourceInterface.Name);
@@ -1775,7 +1781,7 @@ public static class CCodeEmitter
 		static Dictionary<string, string> BuildTypeSymbolMap(Compilation compilation)
 		{
 			Dictionary<string, string> symbols = new(StringComparer.Ordinal);
-			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+			foreach (Definition definition in GetActiveDefinitions(compilation))
 			{
 				if (definition is TypeDefinition type && !string.IsNullOrWhiteSpace(type.Name))
 					symbols[type.Name] = string.IsNullOrWhiteSpace(type.Symbol) ? type.Name : type.Symbol;
@@ -1786,7 +1792,7 @@ public static class CCodeEmitter
 		static HashSet<string> BuildAnyGenericParameterNameSet(Compilation compilation)
 		{
 			HashSet<string> names = new(StringComparer.Ordinal);
-			foreach (Definition definition in compilation.SharedModule?.Definitions ?? [])
+			foreach (Definition definition in GetActiveDefinitions(compilation))
 				AddDefinition(definition);
 			return names;
 
@@ -6099,11 +6105,15 @@ public static class CCodeEmitter
 
 		bool IsEnumType(string type)
 		{
-			foreach (SourceFile file in compilation.Files)
-				foreach (Definition definition in file.BindableTree?.Definitions ?? [])
-					if (definition is EnumDefinition enumDefinition && enumDefinition.Name == type)
-						return true;
+			foreach (Definition definition in GetDefinitions())
+				if (definition is EnumDefinition enumDefinition && enumDefinition.Name == type)
+					return true;
 			return false;
+		}
+
+		static IEnumerable<Definition> GetActiveDefinitions(Compilation compilation)
+		{
+			return compilation.SharedModule is Module module ? DeclarationParticipation.ActiveTopLevelDefinitions(module) : [];
 		}
 
 		string CastToErasedGeneric(string value, string concreteType)

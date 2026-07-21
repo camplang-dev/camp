@@ -10,8 +10,18 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		RunAnalyzerPass(AnalyzerPass.DeclarationAnalysis, module);
 		if (diagnostics.Count == 0)
+		{
 			RunAnalyzerPass(AnalyzerPass.MethodBodyAnalysis, module);
+			if (diagnostics.Count == 0)
+				ValidateProductionDeclarationDependencies(module);
+		}
 		RunAnalyzerPass(AnalyzerPass.NodeRewriteApplication, module);
+	}
+
+	void ValidateProductionDeclarationDependencies(Module module)
+	{
+		DeclarationParticipation participation = new(module);
+		diagnostics.AddRange(participation.ValidateProductionDependencies(callTargets));
 	}
 
 	void AnalyzeDeclarations(Module module)
@@ -29,7 +39,7 @@ public sealed partial class BindableNodeAnalyzer
 			CheckName(usingDeclaration.Alias, GetAliasRange(usingDeclaration.SourceSyntax), "using alias");
 		}
 
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 			AnalyzeDefinition(definition, new AnalysisScope());
 
 		ValidateTestAttributePlacements(module);
@@ -47,7 +57,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void CollectTypeNames(Module module)
 	{
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 		{
 			if (definition is not TypeDefinition typeDefinition)
 				continue;
@@ -72,7 +82,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeNewtypeSignatures(Module module)
 	{
 		AnalysisScope scope = new();
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 			if (definition is NewtypeDefinition newtypeDefinition)
 				AnalyzeNewtypeSignature(newtypeDefinition, scope);
 	}
@@ -125,7 +135,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void CollectAliasNames(Module module)
 	{
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 		{
 			if (definition is not AliasDefinition alias)
 				continue;
@@ -237,7 +247,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		resolvedName = "";
 		List<FunctionDefinition> matches = [];
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is FunctionDefinition function && IsCallableTopLevelFunctionAliasTarget(function, alias, target) && IsDefinitionVisible(function, alias.SourceSyntax))
 				matches.Add(function);
@@ -517,7 +527,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateDuplicateTopLevelSymbols(Module module)
 	{
 		SymbolCollisionSet collisions = new();
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 		{
 			foreach (DeclarationName name in GetDefinitionSymbolNames(definition))
 			{
@@ -792,7 +802,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeGlobalInitializers(Module module)
 	{
 		AnalysisScope typeScope = new();
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 		{
 			if (definition is not VariableDefinition variable || variable.InitialValue is null)
 				continue;
@@ -1713,7 +1723,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeMethodBodies(Module module)
 	{
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 			AnalyzeDefinitionMethodBodies(definition, new AnalysisScope(), containingType: null);
 	}
 

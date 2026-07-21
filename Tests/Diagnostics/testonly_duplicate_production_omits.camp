@@ -1,0 +1,8 @@
+@testonly
+struct Duplicate
+{
+}
+
+struct Duplicate
+{
+}

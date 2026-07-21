@@ -106,7 +106,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
-		if (!topLevel || definition.OutOfScopeOwnerName is not null)
+		if (!topLevel || IsOutOfScopeMember(definition))
 			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@test is valid only on top-level functions, not methods or out-of-scope static members.");
 
 		if (HasVisibilityModifier(definition))
@@ -123,7 +123,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		ValidateNoArguments(attribute, definition, TestOnlyAttributeName);
 
-		if (!topLevel || definition.OutOfScopeOwnerName is not null)
+		if (!topLevel || IsOutOfScopeMember(definition))
 			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@testonly is valid only on top-level declarations.");
 
 		if (definition.Public is not null || definition.Export is not null)
@@ -165,6 +165,11 @@ public sealed partial class BindableNodeAnalyzer
 	static bool HasVisibilityModifier(Definition definition)
 	{
 		return definition.Export is not null || definition.Public is not null || definition.Internal is not null;
+	}
+
+	static bool IsOutOfScopeMember(Definition definition)
+	{
+		return definition.OutOfScopeOwnerName is not null || definition.OutOfScopeOwnerType is not null;
 	}
 
 	static bool TryGetAttribute(IReadOnlyList<AttributeConstructor> attributes, string name, out AttributeConstructor? result)

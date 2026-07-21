@@ -71,7 +71,7 @@ public sealed class AbiSurface
 	{
 		ArgumentNullException.ThrowIfNull(compilation);
 		Module module = compilation.SharedModule ?? new Module();
-		List<Definition> definitions = module.Definitions.ToList();
+		List<Definition> definitions = DeclarationParticipation.ActiveTopLevelDefinitions(module).ToList();
 		Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(definitions);
 		List<AbiType> types = [];
 		List<AbiFunction> functions = [];

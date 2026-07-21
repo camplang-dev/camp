@@ -1778,7 +1778,7 @@ public sealed partial class BindableNodeAnalyzer
 			lookupName = alias!.ResolvedTargetName;
 
 		List<FunctionDefinition> functions = [];
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is FunctionDefinition function
 				&& IsCallableTopLevelFunctionNamed(function, lookupName)
@@ -1856,7 +1856,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	BodySymbol? LookupGlobalStorageSymbol(NamedExpression name, SyntaxNode? referenceSyntax)
 	{
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is VariableDefinition variable && IsDefinitionNamed(variable, name.Name) && IsStorageNameVisible(variable, name, referenceSyntax))
 				return new BodySymbol(name.Name, variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType, variable, IsConstantVariable(variable));
@@ -1875,7 +1875,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	BodySymbol? LookupGlobalStorageSymbol(string name, SyntaxNode? referenceSyntax)
 	{
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is VariableDefinition variable && IsDefinitionNamed(variable, name) && IsDefinitionVisible(variable, referenceSyntax))
 				return new BodySymbol(name, variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType, variable, IsConstantVariable(variable));
@@ -1901,7 +1901,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	Definition? LookupHiddenGlobalSymbol(string name, SyntaxNode? referenceSyntax)
 	{
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (IsDefinitionNamed(definition, name) && !IsDefinitionVisible(definition, referenceSyntax))
 				return definition;
@@ -2071,7 +2071,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<FunctionDefinition> LookupOutOfScopeStaticFunctions(string ownerName, string name, SyntaxNode? referenceSyntax)
 	{
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is FunctionDefinition function
 				&& function.OutOfScopeOwnerName == ownerName
@@ -2344,7 +2344,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<VariableDefinition> LookupOutOfScopeStaticVariables(string ownerName, string name, SyntaxNode? referenceSyntax)
 	{
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is VariableDefinition variable
 				&& variable.OutOfScopeOwnerName == ownerName
@@ -2497,7 +2497,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<FunctionDefinition> incompatibleExactReceiverFunctions = [];
 		List<FunctionDefinition> exactPrimitiveStringFunctions = [];
 		List<FunctionDefinition> functions = [];
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is not FunctionDefinition function || (function.Name != name && GetCallableName(function) != name) || !IsDefinitionVisible(function, referenceSyntax))
 				continue;

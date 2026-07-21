@@ -4576,7 +4576,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (!TryGetFixedArrayShape(StripTopLevelConstForReceiver(targetType), out _, out _))
 				return false;
 
-			foreach (Definition definition in currentModule?.Definitions ?? [])
+			foreach (Definition definition in ActiveCurrentDefinitions())
 			{
 				if (definition is not FunctionDefinition function
 					|| (function.Name != member.Name && GetCallableName(function) != member.Name)

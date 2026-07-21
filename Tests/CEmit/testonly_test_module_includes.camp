@@ -1,0 +1,18 @@
+// @test-module
+
+int productionValue()
+{
+	return 1;
+}
+
+@testonly
+int hiddenHelper()
+{
+	return 2;
+}
+
+@testonly
+class Hidden
+{
+	int value;
+}

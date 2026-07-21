@@ -50,6 +50,9 @@ public static class CampLanguageService
 		{
 			Target = LoadTarget(request),
 			ProfileName = request.ProfileName,
+			CommandMode = request.CommandMode,
+			DeclarationParticipationMode = request.DeclarationParticipationMode,
+			CoverageInstrumentationMode = request.CoverageInstrumentationMode,
 			DefaultWithinAllocationPolicy = request.WithinAllocationPolicy
 				?? (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared ? WithinAllocationPolicy.Explicit : WithinAllocationPolicy.Implicit),
 			SourcefilePathMode = request.SourcefilePathMode,
@@ -58,6 +61,8 @@ public static class CampLanguageService
 		compilation.SourcefileRoots.AddRange(request.SourcefileRoots.Select(root => Path.GetFullPath(root, request.WorkingDirectory)));
 		foreach (string define in request.Defines)
 			compilation.PreprocessorSymbols.Add(define);
+		if (request.DeclarationParticipationMode == DeclarationParticipationMode.TestModule)
+			compilation.PreprocessorSymbols.Add("TEST_MODULE");
 		if (compilation.Target is not null)
 		{
 			foreach (string define in compilation.Target.Defines.Keys)

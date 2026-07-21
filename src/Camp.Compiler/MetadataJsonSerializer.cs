@@ -69,7 +69,7 @@ public static class MetadataJsonSerializer
 
 		void IndexModule()
 		{
-			foreach (Definition definition in module.Definitions)
+			foreach (Definition definition in ActiveDefinitions())
 			{
 				if (definition is TypeDefinition typeDefinition)
 					typeDefinitions[definition.Name] = typeDefinition;
@@ -163,7 +163,7 @@ public static class MetadataJsonSerializer
 		void WriteDeclarations(Utf8JsonWriter json)
 		{
 			json.WriteStartArray("declarations");
-			foreach (Definition definition in module.Definitions)
+			foreach (Definition definition in ActiveDefinitions())
 			{
 				if (!ShouldEmit(definition))
 					continue;
@@ -963,6 +963,8 @@ public static class MetadataJsonSerializer
 		{
 			if (IsGeneratedDefinition(definition))
 				return false;
+			if (!DeclarationParticipation.Includes(definition, module))
+				return false;
 			if (IsApiHeaderDefinition(definition))
 				return false;
 
@@ -1011,7 +1013,7 @@ public static class MetadataJsonSerializer
 					if (function.Export is not null && HasAttribute(function.Attributes, attributeName))
 						return true;
 			ClassDefinition? receiverClass = GetDirectBaseClass(definition);
-			foreach (FunctionDefinition function in module.Definitions.OfType<FunctionDefinition>())
+			foreach (FunctionDefinition function in ActiveDefinitions().OfType<FunctionDefinition>())
 				if (function.Export is not null && HasAttribute(function.Attributes, attributeName) && HookReceiverMatches(function, receiverClass))
 					return true;
 			return false;
@@ -1370,18 +1372,18 @@ public static class MetadataJsonSerializer
 				? SymbolName(interfaceDefinition)
 				: interfaceName;
 			string symbol = ownerSymbol + "_" + interfaceSymbol;
-			return module.Definitions.OfType<VariableDefinition>().FirstOrDefault(variable => variable.Symbol == symbol || variable.Name == symbol);
+			return ActiveDefinitions().OfType<VariableDefinition>().FirstOrDefault(variable => variable.Symbol == symbol || variable.Name == symbol);
 		}
 
 		IEnumerable<VariableDefinition> FindInterfaceVTables(TypeDefinition owner)
 		{
 			string prefix = SymbolName(owner) + "_";
-			HashSet<string> storageSymbols = module.Definitions
+			HashSet<string> storageSymbols = ActiveDefinitions()
 				.OfType<VariableDefinition>()
 				.Where(static variable => variable.Symbol.EndsWith("__storage", StringComparison.Ordinal))
 				.Select(static variable => variable.Symbol)
 				.ToHashSet(StringComparer.Ordinal);
-			foreach (VariableDefinition variable in module.Definitions.OfType<VariableDefinition>())
+			foreach (VariableDefinition variable in ActiveDefinitions().OfType<VariableDefinition>())
 			{
 				if (!variable.Symbol.StartsWith(prefix, StringComparison.Ordinal)
 					|| variable.Symbol.EndsWith("__storage", StringComparison.Ordinal)
@@ -1671,7 +1673,7 @@ public static class MetadataJsonSerializer
 
 		TypeDefinition? FindContainingType(FunctionDefinition function)
 		{
-			foreach (Definition definition in module.Definitions)
+			foreach (Definition definition in ActiveDefinitions())
 			{
 				if (definition is TypeDefinition typeDefinition && TypeContainsFunction(typeDefinition, function))
 					return typeDefinition;
@@ -1691,6 +1693,11 @@ public static class MetadataJsonSerializer
 				ParamsDefinition paramsDefinition => paramsDefinition.Functions.Contains(function),
 				_ => false
 			};
+		}
+
+		IEnumerable<Definition> ActiveDefinitions()
+		{
+			return DeclarationParticipation.ActiveTopLevelDefinitions(module);
 		}
 
 		bool TryGetSourceLocation(Definition definition, out string? sourcefile, out int sourceline)

@@ -1,0 +1,10 @@
+// @test-module
+
+@testonly
+struct Duplicate
+{
+}
+
+struct Duplicate
+{
+}

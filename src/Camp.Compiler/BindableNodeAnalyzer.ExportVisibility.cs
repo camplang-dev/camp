@@ -6,7 +6,7 @@ public sealed partial class BindableNodeAnalyzer
 {
 	void AnalyzeExportVisibility(Module module)
 	{
-		foreach (Definition definition in module.Definitions)
+		foreach (Definition definition in ActiveDefinitions(module))
 			AnalyzeExportVisibility(definition, containingTypeExported: false);
 	}
 
@@ -56,7 +56,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition? FindFunctionBySymbol(string symbol)
 	{
-		foreach (Definition definition in currentModule?.Definitions ?? [])
+		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is FunctionDefinition function && IsFunctionNamed(function, symbol))
 				return function;

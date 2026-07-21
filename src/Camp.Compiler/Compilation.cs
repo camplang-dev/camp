@@ -18,6 +18,9 @@ public sealed class Compilation
 	public Dictionary<Definition, SourceFile> DefinitionOwners { get; } = [];
 	public TargetDefinition? Target { get; set; }
 	public string ProfileName { get; set; } = "DEBUG";
+	public CompilerCommandMode CommandMode { get; set; } = CompilerCommandMode.Build;
+	public DeclarationParticipationMode DeclarationParticipationMode { get; set; } = DeclarationParticipationMode.Production;
+	public CoverageInstrumentationMode CoverageInstrumentationMode { get; set; } = CoverageInstrumentationMode.Disabled;
 	public SourcefilePathMode SourcefilePathMode { get; set; } = SourcefilePathMode.Relative;
 	public string SourcefileDefaultRoot { get; set; } = "";
 	public List<string> SourcefileRoots { get; } = [];
@@ -127,6 +130,7 @@ public static class CompilationPipeline
 		Module module = new();
 		module.SourcefilePathMode = compilation.SourcefilePathMode;
 		module.SourcefileDefaultRoot = compilation.SourcefileDefaultRoot;
+		module.DeclarationParticipationMode = compilation.DeclarationParticipationMode;
 		module.SourcefileRoots.AddRange(compilation.SourcefileRoots);
 		foreach (SourceFile file in compilation.Files)
 		{
