@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -238,7 +239,7 @@ public static class CompilerDriver
 			if (!TryEmitTestHarnessSource(buildDirectory, projectName, selectedTests, out string? harnessSource))
 				return 1;
 
-			NativeBuildResult build = NativeBuildDriver.Build(new NativeBuildOptions
+			NativeBuildOptions buildOptions = new()
 			{
 				Target = compilation.Target!,
 				ProfileName = compilation.ProfileName,
@@ -249,7 +250,8 @@ public static class CompilerDriver
 				SourceFiles = [.. result.GeneratedSourceFiles, harnessSource!],
 				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
 				Frameworks = request.Frameworks
-			});
+			};
+			NativeBuildResult build = NativeBuildDriver.Build(buildOptions);
 			foreach (string diagnostic in build.Diagnostics)
 				ErrorLine(diagnostic);
 			if (!build.Success)
@@ -261,7 +263,14 @@ public static class CompilerDriver
 			}
 			if (!TryCopySharedRuntimeReferences(compilation.Target!, outputDirectory, packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))))
 				return 1;
-			return 0;
+			if (!TryGetTestResultOutputFormat(out bool writeText, out bool writeJson))
+				return 1;
+			CampTestResults testResults = RunTestHarness(NativeBuildDriver.GetArtifactPath(buildOptions), buildDirectory, selectedTests);
+			if (writeJson && !TryEmitTestResultsArtifact(testResults, ResolveTestResultDirectory(outputDirectory), projectName))
+				return 1;
+			if (writeText)
+				stdout.Append(CampTestResultsTextFormatter.Format(testResults));
+			return TestResultsSucceeded(testResults) ? 0 : 1;
 		}
 
 		void ApplySubsystem()
@@ -1363,6 +1372,114 @@ public void fail(escaped string message, escaped string sourcefile = caller(sour
 			generatedFiles.Add(harnessSource);
 			OutLine("generated: " + Path.GetFileName(harnessSource));
 			return true;
+		}
+
+		bool TryEmitTestResultsArtifact(CampTestResults results, string outputDirectory, string projectName)
+		{
+			string resultsPath = Path.Combine(outputDirectory, projectName + ".camp-test-results.json");
+			try
+			{
+				Directory.CreateDirectory(outputDirectory);
+				File.WriteAllText(resultsPath, CampTestResultsJsonSerializer.Serialize(results), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+			{
+				ErrorLine($"{resultsPath}: {ex.Message}");
+				return false;
+			}
+
+			generatedFiles.Add(resultsPath);
+			OutLine("generated: " + Path.GetFileName(resultsPath));
+			return true;
+		}
+
+		string ResolveTestResultDirectory(string outputDirectory)
+		{
+			if (string.IsNullOrWhiteSpace(request.TestResultDir))
+				return Path.Combine(outputDirectory, "test-results");
+			return Path.GetFullPath(request.TestResultDir!, request.WorkingDirectory);
+		}
+
+		bool TryGetTestResultOutputFormat(out bool writeText, out bool writeJson)
+		{
+			writeText = false;
+			writeJson = false;
+			string format = string.IsNullOrWhiteSpace(request.TestResultFormat) ? "text,json" : request.TestResultFormat!;
+			foreach (string part in format.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+			{
+				if (part.Equals("text", StringComparison.OrdinalIgnoreCase))
+					writeText = true;
+				else if (part.Equals("json", StringComparison.OrdinalIgnoreCase))
+					writeJson = true;
+				else
+				{
+					ErrorLine("--test-result-format expects text, json, or text,json.");
+					return false;
+				}
+			}
+			if (!writeText && !writeJson)
+			{
+				ErrorLine("--test-result-format expects text, json, or text,json.");
+				return false;
+			}
+			return true;
+		}
+
+		CampTestResults RunTestHarness(string executablePath, string buildDirectory, IReadOnlyList<CampTestManifestEntry> selectedTests)
+		{
+			string eventPath = Path.Combine(buildDirectory, Path.GetFileNameWithoutExtension(executablePath) + ".camp-test-events.tsv");
+			try
+			{
+				if (File.Exists(eventPath))
+					File.Delete(eventPath);
+				ProcessStartInfo info = new()
+				{
+					FileName = executablePath,
+					WorkingDirectory = Path.GetDirectoryName(executablePath) ?? request.WorkingDirectory,
+					RedirectStandardOutput = true,
+					RedirectStandardError = true,
+					UseShellExecute = false
+				};
+				info.ArgumentList.Add(eventPath);
+				using Process process = new() { StartInfo = info };
+				process.Start();
+				System.Threading.Tasks.Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+				System.Threading.Tasks.Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+				if (!process.WaitForExit(300000))
+				{
+					try
+					{
+						process.Kill(entireProcessTree: true);
+					}
+					catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+					{
+					}
+					return CampTestResultsFactory.InfrastructureError(selectedTests, "test harness timed out");
+				}
+				string harnessStdOut = Normalize(stdoutTask.GetAwaiter().GetResult());
+				string harnessStdErr = Normalize(stderrTask.GetAwaiter().GetResult());
+				if (!CampTestHarnessEventParser.TryRead(eventPath, out List<CampTestHarnessEvent> events, out List<string> diagnostics))
+				{
+					string message = string.Join(" ", diagnostics);
+					if (!string.IsNullOrWhiteSpace(harnessStdErr))
+						message = string.IsNullOrWhiteSpace(message) ? harnessStdErr.TrimEnd() : message + " " + harnessStdErr.TrimEnd();
+					return CampTestResultsFactory.InfrastructureError(selectedTests, message);
+				}
+				CampTestResults results = CampTestResultsFactory.FromHarnessEvents(selectedTests, events, process.ExitCode, string.IsNullOrWhiteSpace(harnessStdErr) ? null : harnessStdErr.TrimEnd());
+				if (process.ExitCode != 0 && TestResultsSucceeded(results))
+					return CampTestResultsFactory.InfrastructureError(selectedTests, string.IsNullOrWhiteSpace(harnessStdErr) ? $"test harness exited with code {process.ExitCode}" : harnessStdErr.TrimEnd());
+				_ = harnessStdOut;
+				return results;
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
+			{
+				return CampTestResultsFactory.InfrastructureError(selectedTests, ex.Message);
+			}
+		}
+
+		static bool TestResultsSucceeded(CampTestResults results)
+		{
+			return results.Summary.Failed == 0 && results.Summary.Invalid == 0 && results.Summary.Error == 0;
 		}
 
 		bool TryEmitDebugArtifact(Compilation compilation, string outputDirectory, string projectName, IReadOnlyList<CDebugMapEntry> entries)

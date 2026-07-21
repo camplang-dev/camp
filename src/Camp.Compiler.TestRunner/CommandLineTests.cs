@@ -221,18 +221,232 @@ public sealed class CommandLineTests
 			"--name",
 			"harness_outcomes");
 
-		AssertCommandSucceeded(result);
-		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(null));
-		ProcessResult run = RunExecutable(Path.Combine(artifactDirectory, "harness_outcomes" + ExecutableExtensionForHost()));
+		Assert.Equal(1, result.ExitCode);
+		Assert.Contains("generated: harness_outcomes.camp-test-results.json", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("failed: HarnessCli::directFailure", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains($"{RelativeSourcePath(source)}:{FindLine(source, "assert(1 == 2);")} 1 == 2", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("failed: HarnessCli::wrapperFailure", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains($"{RelativeSourcePath(source)}:{FindLine(source, "assertPositive(0);")} 0", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("skipped: HarnessCli::skippedCase", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("invalid: HarnessCli::invalidShape", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("summary: 0 passed, 2 failed, 1 skipped, 1 invalid, 0 error, 4 total", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("should not run", result.StdOut, StringComparison.Ordinal);
 
-		Assert.Equal(1, run.ExitCode);
-		Assert.Contains("failed: HarnessCli::directFailure", run.StdOut, StringComparison.Ordinal);
-		Assert.Contains($"{RelativeSourcePath(source)}:{FindLine(source, "assert(1 == 2);")} 1 == 2", run.StdOut, StringComparison.Ordinal);
-		Assert.Contains("failed: HarnessCli::wrapperFailure", run.StdOut, StringComparison.Ordinal);
-		Assert.Contains($"{RelativeSourcePath(source)}:{FindLine(source, "assertPositive(0);")} 0", run.StdOut, StringComparison.Ordinal);
-		Assert.Contains("skipped: HarnessCli::skippedCase", run.StdOut, StringComparison.Ordinal);
-		Assert.Contains("invalid: HarnessCli::invalidShape", run.StdOut, StringComparison.Ordinal);
-		Assert.DoesNotContain("should not run", run.StdOut, StringComparison.Ordinal);
+		string resultsPath = TestResultsPath(outDir, "harness_outcomes");
+		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(resultsPath));
+		Assert.Equal("camp.test-results", results.RootElement.GetProperty("format").GetString());
+		JsonElement summary = results.RootElement.GetProperty("summary");
+		Assert.Equal(2, summary.GetProperty("failed").GetInt32());
+		Assert.Equal(1, summary.GetProperty("skipped").GetInt32());
+		Assert.Equal(1, summary.GetProperty("invalid").GetInt32());
+		JsonElement tests = results.RootElement.GetProperty("tests");
+		JsonElement directFailure = tests.EnumerateArray().Single(test => test.GetProperty("id").GetString() == "HarnessCli::directFailure");
+		Assert.Equal("failed", directFailure.GetProperty("outcome").GetString());
+		Assert.Equal("assertion", directFailure.GetProperty("failure").GetProperty("kind").GetString());
+		Assert.Equal("1 == 2", directFailure.GetProperty("failure").GetProperty("message").GetString());
+		JsonElement invalid = tests.EnumerateArray().Single(test => test.GetProperty("id").GetString() == "HarnessCli::invalidShape");
+		Assert.Equal("invalid", invalid.GetProperty("outcome").GetString());
+		Assert.Equal("invalid-test-signature", invalid.GetProperty("failure").GetProperty("kind").GetString());
+	}
+
+	[Fact]
+	public void Test_command_applies_filters_and_result_format_options()
+	{
+		string source = CreateTempCase("test_runner_filters/main.camp", """
+			namespace FilterCli;
+
+			@test
+			void alphaPass(thrown Assertion* assertion)
+			{
+				assert(1 == 1);
+			}
+
+			@test
+			void betaPass(thrown Assertion* assertion)
+			{
+				assert(2 == 2);
+			}
+
+			@skip("later")
+			@test
+			void skippedCase(thrown Assertion* assertion)
+			{
+				fail("should not run");
+			}
+			""");
+		string jsonOutDir = TempPath("test-runner-filter-json-out");
+		string jsonResultDir = TempPath("test-runner-filter-json-results");
+
+		ProcessResult jsonOnly = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--filter",
+			"FilterCli::alphaPass",
+			"--test-result-dir",
+			jsonResultDir,
+			"--test-result-format",
+			"json",
+			"--out-dir",
+			jsonOutDir,
+			"--name",
+			"filter_json");
+
+		AssertCommandSucceeded(jsonOnly);
+		Assert.Contains("generated: filter_json.camp-test-results.json", jsonOnly.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("passed: FilterCli::alphaPass", jsonOnly.StdOut, StringComparison.Ordinal);
+		string jsonResultsPath = Path.Combine(jsonResultDir, "filter_json.camp-test-results.json");
+		Assert.True(File.Exists(jsonResultsPath), jsonResultsPath);
+		using (JsonDocument jsonResults = JsonDocument.Parse(File.ReadAllText(jsonResultsPath)))
+		{
+			JsonElement tests = jsonResults.RootElement.GetProperty("tests");
+			JsonElement selected = Assert.Single(tests.EnumerateArray());
+			Assert.Equal("FilterCli::alphaPass", selected.GetProperty("id").GetString());
+			Assert.Equal("passed", selected.GetProperty("outcome").GetString());
+		}
+
+		ProcessResult skippedOnly = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--filter",
+			"FilterCli::skipped*",
+			"--test-result-format",
+			"text,json",
+			"--out-dir",
+			TempPath("test-runner-filter-skipped-out"),
+			"--name",
+			"filter_skipped");
+
+		AssertCommandSucceeded(skippedOnly);
+		Assert.Contains("skipped: FilterCli::skippedCase", skippedOnly.StdOut, StringComparison.Ordinal);
+		Assert.Contains("summary: 0 passed, 0 failed, 1 skipped, 0 invalid, 0 error, 1 total", skippedOnly.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("should not run", skippedOnly.StdOut, StringComparison.Ordinal);
+
+		string textOnlyOut = TempPath("test-runner-filter-text-out");
+		ProcessResult textOnly = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--filter",
+			"FilterCli::betaPass",
+			"--test-result-format",
+			"text",
+			"--out-dir",
+			textOnlyOut,
+			"--name",
+			"filter_text");
+
+		AssertCommandSucceeded(textOnly);
+		Assert.Contains("passed: FilterCli::betaPass", textOnly.StdOut, StringComparison.Ordinal);
+		Assert.False(File.Exists(TestResultsPath(textOnlyOut, "filter_text")));
+	}
+
+	[Fact]
+	public void External_test_module_runs_against_shared_library_api_only()
+	{
+		string root = TempPath("external-test-module");
+		string libraryRoot = Path.Combine(root, "library");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string testRoot = Path.Combine(root, "tests");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(testRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			namespace ExternalLib;
+
+			export int add(int left, int right)
+			{
+				return left + right;
+			}
+
+			internal int hiddenValue()
+			{
+				return 99;
+			}
+
+			@testonly
+			int testOnlyValue()
+			{
+				return 100;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--nostdlib
+			--name external-lib
+			src/*.camp
+			""");
+		string good = Path.Combine(testRoot, "good.camp");
+		File.WriteAllText(good, """
+			#build --nostdlib
+
+			namespace ExternalTests;
+			using ExternalLib;
+
+			@test
+			void exportedApiWorks(thrown Assertion* assertion)
+			{
+				assert(add(2, 3) == 5);
+			}
+			""");
+		string bad = Path.Combine(testRoot, "bad.camp");
+		File.WriteAllText(bad, """
+			#build --nostdlib
+
+			namespace ExternalTests;
+			using ExternalLib;
+
+			@test
+			void hiddenApiIsUnavailable(thrown Assertion* assertion)
+			{
+				assert(hiddenValue() == 99);
+			}
+			""");
+		string target = NativeTargetForHost();
+		string goodOut = Path.Combine(testRoot, "good-bin");
+
+		ProcessResult goodResult = RunCampc(
+			"test",
+			good,
+			"--target",
+			target,
+			"--project-reference",
+			libraryRoot + ":shared",
+			"--out-dir",
+			goodOut,
+			"--name",
+			"external_tests");
+
+		AssertCommandSucceeded(goodResult);
+		Assert.Contains("passed: ExternalTests::exportedApiWorks", goodResult.StdOut, StringComparison.Ordinal);
+		using (JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(TestManifestPath(goodOut, "external_tests"))))
+			Assert.Equal("external", manifest.RootElement.GetProperty("mode").GetString());
+		using (JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(goodOut, "external_tests"))))
+		{
+			JsonElement selected = Assert.Single(results.RootElement.GetProperty("tests").EnumerateArray());
+			Assert.Equal("ExternalTests::exportedApiWorks", selected.GetProperty("id").GetString());
+			Assert.Equal("passed", selected.GetProperty("outcome").GetString());
+		}
+
+		ProcessResult badResult = RunCampc(
+			"test",
+			bad,
+			"--target",
+			target,
+			"--project-reference",
+			libraryRoot + ":shared",
+			"--out-dir",
+			Path.Combine(testRoot, "bad-bin"),
+			"--name",
+			"external_bad");
+
+		Assert.NotEqual(0, badResult.ExitCode);
+		Assert.Contains("Symbol 'hiddenValue' could not be found.", badResult.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3673,6 +3887,16 @@ public sealed class CommandLineTests
 	static string RelativeSourcePath(string path)
 	{
 		return Path.GetRelativePath(FindRepositoryRoot(), Path.GetFullPath(path)).Replace('\\', '/');
+	}
+
+	static string TestManifestPath(string outDir, string projectName)
+	{
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", projectName + ".camp-test-manifest.json");
+	}
+
+	static string TestResultsPath(string outDir, string projectName)
+	{
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null), "test-results", projectName + ".camp-test-results.json");
 	}
 
 	static int FindLine(string path, string text)
