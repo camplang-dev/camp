@@ -287,23 +287,29 @@ public sealed partial class BindableNodeAnalyzer
 		constructionTargets.TryGetValue(construction, out FunctionDefinition? constructorTarget);
 		return construction.Kind switch
 		{
-			ConstructionKind.New => CreateNewExpression(definition, construction.Type, construction.Arguments, construction.SourceSyntax, construction.ResolvedType, constructorTarget),
+			ConstructionKind.New => CreateNewExpression(definition, construction.Type, construction.Arguments, construction.SourceSyntax, construction.ResolvedType, constructorTarget, construction.Initializer),
 			ConstructionKind.Init => (Expression?)CreateInitCallForConstruction(construction, target: null, constructorTarget) ?? construction,
 			_ => construction
 		};
 	}
 
-	Expression CreateNewExpression(TypeDefinition type, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType, FunctionDefinition? constructorTarget = null)
+	Expression CreateNewExpression(TypeDefinition type, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType, FunctionDefinition? constructorTarget = null, InitializerExpression? initializer = null)
 	{
 		if (type is ClassDefinition { IsShadow: true } shadowClass)
-			return CreateShadowNewExpression(shadowClass, constructedType, arguments, syntax, resolvedType, constructorTarget);
+			return CreateShadowNewExpression(shadowClass, constructedType, arguments, syntax, resolvedType, constructorTarget, initializer);
 
 		TypeReference typeReference = constructedType ?? TypeReferenceFor(type);
 		if (FindExternalCreateMethod(type, arguments.Count) is FunctionDefinition create)
-			return CreateCreateCall(create, constructedType, arguments, syntax, resolvedType);
+		{
+			Expression createCall = CreateCreateCall(create, constructedType, arguments, syntax, resolvedType);
+			return initializer is null ? createCall : CreateInitializedPointerExpression(type, constructedType, createCall, initializer, syntax, resolvedType);
+		}
 
 		if (type is ClassDefinition { Extern: not null } && FindExternConstructorMethod(type, arguments.Count) is FunctionDefinition externConstructor)
-			return CreateCreateCall(CreateExternalCreateMethod(type, externConstructor), constructedType, arguments, syntax, resolvedType);
+		{
+			Expression createCall = CreateCreateCall(CreateExternalCreateMethod(type, externConstructor), constructedType, arguments, syntax, resolvedType);
+			return initializer is null ? createCall : CreateInitializedPointerExpression(type, constructedType, createCall, initializer, syntax, resolvedType);
+		}
 
 		if (type is ClassDefinition { Extern: not null })
 		{
@@ -312,7 +318,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		FunctionDefinition? initNew = FindInitNewMethod(type, arguments.Count, constructorTarget);
-		if (initNew is null && !NeedsVirtualTableAssignment(type) && type is not ClassDefinition)
+		if (initNew is null && initializer is null && !NeedsVirtualTableAssignment(type) && type is not ClassDefinition)
 			return CreateAllocCall(typeReference, syntax);
 
 		string localName = NewGeneratedLocalName("created");
@@ -349,6 +355,7 @@ public sealed partial class BindableNodeAnalyzer
 					ResolvedType = "void",
 					Expression = CreateInitNewCall(localReference, initNew, arguments, syntax, constructedType: constructedType)
 				});
+			AddTrailingInitializerAssignments(guardBody, localReference, initializer, type, syntax);
 			if (guardBody.Statements.Count > 0)
 				currentStatementPrefix.Add(CreateNotNullGuard(localReference, guardBody, syntax));
 
@@ -389,6 +396,15 @@ public sealed partial class BindableNodeAnalyzer
 				Expression = CreateInitNewCall(localReference, initNew, arguments, syntax, constructedType: constructedType),
 				ResolvedType = "void"
 			});
+		foreach (Expression assignment in CreateTrailingInitializerAssignments(localReference, initializer, type, syntax))
+		{
+			grouped.Items.Add(new GroupedExpressionItem
+			{
+				SourceSyntax = assignment.SourceSyntax,
+				Expression = assignment,
+				ResolvedType = assignment.ResolvedType
+			});
+		}
 		grouped.Items.Add(new GroupedExpressionItem
 		{
 			Expression = localReference,
@@ -397,7 +413,126 @@ public sealed partial class BindableNodeAnalyzer
 		return grouped;
 	}
 
-	Expression CreateShadowNewExpression(ClassDefinition shadowClass, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType, FunctionDefinition? constructorTarget = null)
+	Expression CreateInitializedPointerExpression(TypeDefinition type, TypeReference? constructedType, Expression value, InitializerExpression initializer, SyntaxNode? syntax, string? resolvedType)
+	{
+		string localName = NewGeneratedLocalName("created");
+		string localType = resolvedType ?? $"{constructedType?.ResolvedType ?? type.Name}*";
+		TypeReference typeReference = constructedType ?? TypeReferenceFor(type);
+		if (currentStatementPrefix is not null)
+		{
+			DeclarationStatement localDeclaration = CreateGeneratedLocal(localName, localType, PointerTo(CloneType(typeReference) ?? TypeReferenceFor(type)), initialValue: null);
+			currentStatementPrefix.Add(localDeclaration);
+			Expression localReference = CreateVariableReference(localDeclaration.Target, localType);
+			currentStatementPrefix.Add(CreateAssignmentStatement(localReference, value, localType, syntax));
+			BlockStatement guardBody = new() { ResolvedType = "void" };
+			AddTrailingInitializerAssignments(guardBody, localReference, initializer, type, syntax);
+			if (guardBody.Statements.Count > 0)
+				currentStatementPrefix.Add(CreateNotNullGuard(localReference, guardBody, syntax));
+			return localReference;
+		}
+
+		Expression groupedReference = new NamedExpression { Name = localName, ResolvedType = localType };
+		GroupedExpression grouped = new() { SourceSyntax = syntax, ResolvedType = localType };
+		grouped.Items.Add(new GroupedExpressionItem
+		{
+			Expression = new AssignmentExpression
+			{
+				SourceSyntax = syntax,
+				Target = groupedReference,
+				Operator = AssignmentOperator.Assign,
+				Value = value,
+				ResolvedType = localType
+			},
+			ResolvedType = localType
+		});
+		foreach (Expression assignment in CreateTrailingInitializerAssignments(groupedReference, initializer, type, syntax))
+		{
+			grouped.Items.Add(new GroupedExpressionItem
+			{
+				SourceSyntax = assignment.SourceSyntax,
+				Expression = assignment,
+				ResolvedType = assignment.ResolvedType
+			});
+		}
+		grouped.Items.Add(new GroupedExpressionItem
+		{
+			Expression = groupedReference,
+			ResolvedType = localType
+		});
+		return grouped;
+	}
+
+	void AddTrailingInitializerAssignments(BlockStatement guardBody, Expression instance, InitializerExpression? initializer, TypeDefinition type, SyntaxNode? syntax)
+	{
+		foreach (Expression assignment in CreateTrailingInitializerAssignments(instance, initializer, type, syntax))
+		{
+			guardBody.Statements.Add(new ExpressionStatement
+			{
+				SourceSyntax = assignment.SourceSyntax,
+				ResolvedType = "void",
+				Expression = assignment
+			});
+		}
+	}
+
+	IEnumerable<Expression> CreateTrailingInitializerAssignments(Expression instance, InitializerExpression? initializer, TypeDefinition type, SyntaxNode? syntax)
+	{
+		if (initializer is null)
+			yield break;
+
+		foreach (InitializerItem item in initializer.Items)
+		{
+			Expression target = CreateTrailingInitializerTarget(instance, item, type, syntax);
+			Expression value = item.Expression ?? new DefaultExpression
+			{
+				SourceSyntax = item.SourceSyntax ?? initializer.SourceSyntax,
+				ResolvedType = item.TargetStorageResolvedType ?? item.TargetResolvedType ?? target.ResolvedType ?? ErrorType
+			};
+			yield return new AssignmentExpression
+			{
+				SourceSyntax = item.SourceSyntax ?? initializer.SourceSyntax ?? syntax,
+				Target = target,
+				Operator = AssignmentOperator.Assign,
+				Value = value,
+				ResolvedType = target.ResolvedType ?? item.TargetStorageResolvedType ?? item.TargetResolvedType ?? value.ResolvedType
+			};
+		}
+	}
+
+	Expression CreateTrailingInitializerTarget(Expression instance, InitializerItem item, TypeDefinition type, SyntaxNode? syntax)
+	{
+		string? targetName = item.TargetFieldName ?? GetSingleInitializerTargetName(item.Target);
+		if (string.IsNullOrWhiteSpace(targetName))
+		{
+			return new UnaryExpression
+			{
+				SourceSyntax = item.SourceSyntax ?? syntax,
+				Operator = UnaryOperator.PointerDereference,
+				Operand = instance,
+				ResolvedType = type.Name
+			};
+		}
+
+		FieldDefinition? field = FindTrailingInitializerField(type, targetName);
+		return new MemberReferenceExpression
+		{
+			SourceSyntax = item.SourceSyntax ?? syntax,
+			Target = instance,
+			Name = targetName,
+			Member = field,
+			ResolvedType = item.TargetStorageResolvedType ?? item.TargetResolvedType ?? field?.ResolvedType ?? item.ResolvedType
+		};
+	}
+
+	static FieldDefinition? FindTrailingInitializerField(TypeDefinition type, string name)
+	{
+		foreach (FieldDefinition field in GetTypeFields(type))
+			if (field.Name == name || field.Symbol == name)
+				return field;
+		return null;
+	}
+
+	Expression CreateShadowNewExpression(ClassDefinition shadowClass, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType, FunctionDefinition? constructorTarget = null, InitializerExpression? initializer = null)
 	{
 		TypeReference typeReference = constructedType ?? TypeReferenceFor(shadowClass);
 		FunctionDefinition? initNew = FindInitNewMethod(shadowClass, arguments.Count, constructorTarget);
@@ -413,6 +548,7 @@ public sealed partial class BindableNodeAnalyzer
 			localReference = CreateVariableReference(localDeclaration.Target, localType);
 			currentStatementPrefix.Add(CreateAssignmentStatement(localReference, baseCreate, localType, syntax));
 			BlockStatement guardBody = CreateShadowInstallBody(shadowClass, localReference, initNew, arguments, syntax, constructedType, allocationAllocator: null);
+			AddTrailingInitializerAssignments(guardBody, localReference, initializer, shadowClass, syntax);
 			if (guardBody.Statements.Count > 0)
 				currentStatementPrefix.Add(CreateNotNullGuard(localReference, guardBody, syntax));
 			return localReference;
@@ -432,6 +568,15 @@ public sealed partial class BindableNodeAnalyzer
 			},
 			ResolvedType = localType
 		});
+		foreach (Expression assignment in CreateTrailingInitializerAssignments(localReference, initializer, shadowClass, syntax))
+		{
+			grouped.Items.Add(new GroupedExpressionItem
+			{
+				SourceSyntax = assignment.SourceSyntax,
+				Expression = assignment,
+				ResolvedType = assignment.ResolvedType
+			});
+		}
 		grouped.Items.Add(new GroupedExpressionItem
 		{
 			Expression = localReference,

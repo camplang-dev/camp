@@ -1263,6 +1263,7 @@ public sealed partial class BindableNodeAnalyzer
 			statements.Add(declaration);
 			Expression shadowTarget = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? $"{typeName}*");
 			BlockStatement shadowGuardBody = CreateShadowInstallBody(shadowClass, shadowTarget, shadowInitNew, construction.Arguments, construction.SourceSyntax, construction.Type, allocationAllocator: null);
+			AddTrailingInitializerAssignments(shadowGuardBody, shadowTarget, construction.Initializer, definition, construction.SourceSyntax ?? declaration.SourceSyntax);
 			if (shadowGuardBody.Statements.Count > 0)
 				statements.Add(CreateNotNullGuard(shadowTarget, shadowGuardBody, construction.SourceSyntax));
 			return true;
@@ -1272,12 +1273,28 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			declaration.InitialValue = CreateCreateCall(create, construction.Type, construction.Arguments, construction.SourceSyntax ?? declaration.SourceSyntax, declaration.Target.ResolvedType ?? construction.ResolvedType);
 			statements.Add(declaration);
+			if (construction.Initializer is not null)
+			{
+				Expression initializerTarget = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? $"{typeName}*");
+				BlockStatement initializerGuardBody = new() { ResolvedType = "void" };
+				AddTrailingInitializerAssignments(initializerGuardBody, initializerTarget, construction.Initializer, definition, construction.SourceSyntax ?? declaration.SourceSyntax);
+				if (initializerGuardBody.Statements.Count > 0)
+					statements.Add(CreateNotNullGuard(initializerTarget, initializerGuardBody, construction.SourceSyntax ?? declaration.SourceSyntax));
+			}
 			return true;
 		}
 		if (definition is ClassDefinition { Extern: not null } && FindExternConstructorMethod(definition, construction.Arguments.Count) is FunctionDefinition externConstructor)
 		{
 			declaration.InitialValue = CreateCreateCall(CreateExternalCreateMethod(definition, externConstructor), construction.Type, construction.Arguments, construction.SourceSyntax ?? declaration.SourceSyntax, declaration.Target.ResolvedType ?? construction.ResolvedType);
 			statements.Add(declaration);
+			if (construction.Initializer is not null)
+			{
+				Expression initializerTarget = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? construction.ResolvedType ?? $"{typeName}*");
+				BlockStatement initializerGuardBody = new() { ResolvedType = "void" };
+				AddTrailingInitializerAssignments(initializerGuardBody, initializerTarget, construction.Initializer, definition, construction.SourceSyntax ?? declaration.SourceSyntax);
+				if (initializerGuardBody.Statements.Count > 0)
+					statements.Add(CreateNotNullGuard(initializerTarget, initializerGuardBody, construction.SourceSyntax ?? declaration.SourceSyntax));
+			}
 			return true;
 		}
 
@@ -1318,6 +1335,7 @@ public sealed partial class BindableNodeAnalyzer
 				Expression = initExpression
 			});
 		}
+		AddTrailingInitializerAssignments(guardBody, target, construction.Initializer, definition, construction.SourceSyntax ?? declaration.SourceSyntax);
 		if (guardBody.Statements.Count == 0)
 			return true;
 
