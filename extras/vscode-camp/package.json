@@ -19,6 +19,10 @@
     "onCommand:camp.build",
     "onCommand:camp.run",
     "onCommand:camp.debug",
+    "onCommand:camp.testProject",
+    "onCommand:camp.coverProject",
+    "onCommand:camp.coverage.toggle",
+    "onCommand:camp.coverage.clear",
     "onCommand:camp.test.run",
     "onCommand:camp.test.cover",
     "onCommand:camp.test.debug",
@@ -111,6 +115,26 @@
       {
         "command": "camp.debug",
         "title": "Camp: Debug Current Project",
+        "category": "Camp"
+      },
+      {
+        "command": "camp.testProject",
+        "title": "Camp: Test Current Project",
+        "category": "Camp"
+      },
+      {
+        "command": "camp.coverProject",
+        "title": "Camp: Cover Current Project",
+        "category": "Camp"
+      },
+      {
+        "command": "camp.coverage.toggle",
+        "title": "Camp: Toggle Coverage",
+        "category": "Camp"
+      },
+      {
+        "command": "camp.coverage.clear",
+        "title": "Camp: Clear Coverage",
         "category": "Camp"
       },
       {

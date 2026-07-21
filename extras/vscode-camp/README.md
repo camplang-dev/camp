@@ -10,12 +10,15 @@ integration.
   files are sent to the language server.
 - LSP diagnostics, hover, go to definition, references, document symbols,
   workspace symbols, signature help, and completion through `camp-lsp`.
-- `Camp: Build Current Project`, `Camp: Run Current Project`, and `Camp: Debug
-  Current Project` commands.
+- `Camp: Build Current Project`, `Camp: Run Current Project`, `Camp: Debug
+  Current Project`, `Camp: Test Current Project`, and `Camp: Cover Current
+  Project` commands.
 - CodeLens `Run Current Test`, `Debug Current Test`, and `Cover Current Test`
   actions beside top-level `@test` functions.
-- Editor title buttons and status-bar buttons for build/run/debug while a Camp
-  file is active.
+- Editor title buttons for build/run/debug and status-bar buttons for
+  build/run/debug/test/cover while a Camp file is active.
+- Coverage display commands that decorate covered and uncovered Camp source
+  lines from existing coverage artifacts.
 - Camp breakpoints and generated launch configurations for the `camp-dap`
   debug adapter.
 - `Camp: Restart Language Server`.
@@ -201,16 +204,19 @@ When only `camp-dap` changes, rebuild Camp. New debug sessions will start the
 new adapter executable. Existing debug sessions keep using the adapter process
 that was already started for that session.
 
-## Build And Run Commands
+## Project Commands
 
-`Camp: Build Current Project` and `Camp: Run Current Project` look at the active
-Camp file and walk upward to find the nearest `.campbuild` file. If the active
-file is itself a `.campbuild`, that file is used directly. If a build file is
-found, the extension runs:
+`Camp: Build Current Project`, `Camp: Run Current Project`, `Camp: Test Current
+Project`, and `Camp: Cover Current Project` look at the active Camp file and
+walk upward to find the nearest `.campbuild` file. If the active file is itself
+a `.campbuild`, that file is used directly. If a build file is found, the
+extension runs:
 
 ```sh
 campc build /path/to/project.campbuild
 campc run /path/to/project.campbuild
+campc test /path/to/project.campbuild
+campc cover /path/to/project.campbuild --coverage-format json
 ```
 
 If no `.campbuild` file is found, the extension falls back to the active `.camp`
@@ -219,9 +225,18 @@ file:
 ```sh
 campc build /path/to/file.camp
 campc run /path/to/file.camp
+campc test /path/to/file.camp
+campc cover /path/to/file.camp --coverage-format json
 ```
 
 Output is sent to a VS Code terminal named `Camp`.
+
+`Camp: Toggle Coverage` loads the newest matching
+`.camp-coverage-map.csv`/`.camp-coverage-results.json` pair under the current
+project directory and decorates covered executable lines with a light green
+background and uncovered executable lines with a light grey background. If no
+coverage artifacts are found, the extension offers to run `Camp: Cover Current
+Project`. `Camp: Clear Coverage` removes the decorations.
 
 ## Test CodeLens
 
@@ -245,8 +260,8 @@ way the build/run/debug commands do.
 ## Debugging
 
 Set breakpoints in `.camp` files as usual. Then run `Camp: Debug Current
-Project`, click the `Camp Debug` status-bar button, or create/use a VS Code
-launch configuration of type `camp`.
+Project`, click the `Debug` status-bar button, or create/use a VS Code launch
+configuration of type `camp`.
 
 The command uses the active Camp file and walks upward to find the nearest
 `.campbuild`, matching the build/run commands. If no `.campbuild` is found, it
