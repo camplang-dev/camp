@@ -247,9 +247,9 @@ fields, parameters, constructors, or destructors.
 
 ## Testing Attributes
 
-Camp's first-class test runner uses attributes rather than keywords. A built-in
-test is a top-level function marked `@test` with exactly one trailing
-`thrown Assertion*` parameter:
+Camp tests are ordinary top-level functions marked with `@test`. A small test
+usually reads like the code it is checking: set up a value, call the operation,
+and use `assert(...)` for the condition that should hold.
 
 ```camp
 int add(int left, int right)
@@ -264,24 +264,30 @@ void addReturnsSum(thrown Assertion* assertion)
 }
 ```
 
-Run tests with:
+The `thrown Assertion*` parameter is the runner's failure channel. You do not
+write to it directly in ordinary tests; `assert(...)` and `fail(...)` use it
+when a check fails. `assert(...)` also captures the source expression, file, and
+line for the failure report, so the test can stay focused on the behavior:
+
+```camp
+@test
+void divideRejectsZero(thrown Assertion* assertion)
+{
+	if (canDivide(10, 0))
+		fail("division by zero should be rejected");
+}
+```
+
+Run the tests in a project with:
 
 ```sh
 campc test app.campbuild
 ```
 
-Tests have no visibility modifier. They are not methods, static members, local
-functions, or declarations inside a `@testonly` type. A top-level `@test`
-function with another shape is still discovered, but the built-in runner reports
-it as an invalid test instead of invoking it.
-
-`assert(...)` and `fail(...)` are available in test and coverage builds. They
-capture the failed expression, source file, and source line through the standard
-source-capture default argument intrinsics, so ordinary tests usually pass only
-the condition or message they care about.
-
-Use `@testonly` for top-level helper declarations that should exist only in
-test and coverage builds:
+When a test needs a helper that is not part of the real program, mark the helper
+with `@testonly`. Test-only helpers are useful for fixtures, sample values,
+small adapters, and helper types that make tests clearer without becoming part
+of the production module.
 
 ```camp
 @testonly
@@ -297,14 +303,13 @@ void addUsesExpectedValue(thrown Assertion* assertion)
 }
 ```
 
-`@testonly` may be private or `internal`, and it may appear on top-level
-functions, variables, constants, aliases, classes, structs, interfaces, enums,
-and newtypes. It is not a member attribute. A `@testonly` type makes its whole
-declaration body test-only, including its members and compiler-generated helper
-declarations.
+Use `internal` when a test-only helper should be shared across test files in the
+same project. If a whole helper type is marked `@testonly`, its body travels
+with it, so its fields and methods are available to tests and absent from
+ordinary builds.
 
-Use `@skip("reason")` on a `@test` to keep the test in discovery and result
-output without invoking it:
+Sometimes a test should remain visible even though it is not ready to run. Add
+`@skip("reason")` above the test, and the runner will report it as skipped:
 
 ```camp
 @skip("waiting on parser fix")
@@ -315,10 +320,11 @@ void futureParserCase(thrown Assertion* assertion)
 }
 ```
 
-In-module tests are built by running `campc test` or `campc cover` on the
-project itself. They can exercise private and internal implementation details.
-External test modules are separate Camp projects that reference the production
-module as a shared library and test only the API exposed by that library.
+Many projects keep tests beside the code they check. Running `campc test` on
+that module builds a test version of the module, so those tests can exercise the
+implementation directly. Larger projects can also use a separate test module
+that references the production module as a shared library; that style tests the
+same exported API a real consumer would use.
 
 ## Metadata Attributes And Generated Output
 
