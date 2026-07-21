@@ -142,15 +142,25 @@
     "attributes": {
       "patterns": [
         {
-          "name": "storage.type.annotation.shadow.camp",
-          "match": "@(?:getshadow|setshadow)\\b"
+          "name": "storage.type.annotation.camp",
+          "match": "(@(?:getshadow|setshadow)\\b)",
+          "captures": {
+            "1": {
+              "name": "storage.type.annotation.shadow.camp"
+            }
+          }
         },
         {
-          "name": "storage.type.annotation.test.camp",
-          "match": "@(?:test|testonly|skip)\\b"
+          "name": "storage.type.annotation.camp",
+          "match": "(@(?:test|testonly|skip)\\b)",
+          "captures": {
+            "1": {
+              "name": "storage.type.annotation.test.camp"
+            }
+          }
         },
         {
-          "name": "entity.name.function.attribute.camp",
+          "name": "storage.type.annotation.camp",
           "match": "@[A-Za-z_][A-Za-z0-9_]*"
         }
       ]

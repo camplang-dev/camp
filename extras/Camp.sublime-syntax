@@ -164,10 +164,14 @@ contexts:
           pop: true
 
   attributes:
-    - match: '@(?:test|testonly|skip)\b'
-      scope: storage.type.annotation.test.camp
-    - match: '@(?:getshadow|setshadow)\b'
-      scope: storage.type.annotation.shadow.camp
+    - match: '(@(?:test|testonly|skip)\b)'
+      scope: storage.type.annotation.camp
+      captures:
+        1: storage.type.annotation.test.camp
+    - match: '(@(?:getshadow|setshadow)\b)'
+      scope: storage.type.annotation.camp
+      captures:
+        1: storage.type.annotation.shadow.camp
     - match: '@{{identifier}}\b'
       scope: storage.type.annotation.camp
 

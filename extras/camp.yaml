@@ -54,8 +54,9 @@ rules:
   - constant: "\\b(null|default|this|base)\\b"
 
   - identifier.class: "\\b(?:shadow\\s+)?(struct|class|interface|enum|newtype|params)\\s+([A-Za-z_][A-Za-z0-9_]*)"
-  - special: "@(test|testonly|skip|getshadow|setshadow)\\b"
-  - identifier: "@[A-Za-z_][A-Za-z0-9_]*\\b"
+  - special.metadata.attribute.test: "@(test|testonly|skip)\\b"
+  - special.metadata.attribute.shadow: "@(getshadow|setshadow)\\b"
+  - identifier.metadata.attribute: "@[A-Za-z_][A-Za-z0-9_]*\\b"
   - symbol.operator: "(=>|\\+\\+|--|\\?\\?|\\.\\.|==|!=|<=|>=|<<|>>|&&|\\|\\||[+\\-*/%&|^~!=<>?:]=?|=)"
   - symbol.brackets: "[{}()\\[\\]]"
   - symbol: "[,.;:]"
