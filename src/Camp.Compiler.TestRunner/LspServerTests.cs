@@ -936,6 +936,18 @@ public sealed class LspServerTests
 		Assert.Contains(lenses, lens => IsTestLens(lens, "Debug Current Test", "camp.test.debug", "LspTests::validCase"));
 		Assert.Contains(lenses, lens => IsTestLens(lens, "Cover Current Test", "camp.test.cover", "LspTests::validCase"));
 		Assert.Contains(lenses, lens => IsTestLens(lens, "Run Current Test", "camp.test.run", "LspTests::invalidCase"));
+
+		JsonNode testExplorer = lsp.Request("camp/tests", new
+		{
+			textDocument = new { uri }
+		});
+		JsonArray tests = testExplorer["result"]?["tests"]?.AsArray()!;
+		Assert.Equal(2, tests.Count);
+		Assert.Contains(tests, test => GetJsonString(test, "id", "Id") == "LspTests::validCase"
+			&& !string.IsNullOrWhiteSpace(GetJsonString(test, "project", "Project"))
+			&& !string.IsNullOrWhiteSpace(GetJsonString(test, "path", "Path")));
+		Assert.Contains(tests, test => GetJsonString(test, "id", "Id") == "LspTests::invalidCase"
+			&& GetJsonString(test, "runnerSignature", "RunnerSignature") == "invalid");
 	}
 
 	[Fact]
@@ -1203,6 +1215,11 @@ public sealed class LspServerTests
 		JsonNode? argument = lens["command"]?["arguments"]?[0];
 		return argument?["Filter"]?.GetValue<string>() == filter
 			|| argument?["filter"]?.GetValue<string>() == filter;
+	}
+
+	static string? GetJsonString(JsonNode? node, string camelName, string pascalName)
+	{
+		return node?[camelName]?.GetValue<string>() ?? node?[pascalName]?.GetValue<string>();
 	}
 
 	static CampTextPosition PositionAfter(string text, string marker)

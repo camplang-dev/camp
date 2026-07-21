@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const childProcess = require("child_process");
 const vscode = require("vscode");
 const { LanguageClient, TransportKind } = require("vscode-languageclient/node");
 const {
@@ -12,6 +13,7 @@ const {
 } = require("./campPaths");
 
 let client;
+let clientReady;
 let buildStatusItem;
 let runStatusItem;
 let debugStatusItem;
@@ -23,6 +25,11 @@ let coverageEnabled = false;
 let coverageByPath = new Map();
 let coveredLineDecoration;
 let uncoveredLineDecoration;
+let testController;
+let testRunProfile;
+let testCoverProfile;
+let testDebugProfile;
+let testDataById = new Map();
 
 function activate(context) {
   extensionContext = context;
@@ -87,6 +94,7 @@ function activate(context) {
     vscode.window.onDidChangeActiveTextEditor(updateStatusItems)
   );
 
+  setupTestExplorer(context);
   updateStatusItems(vscode.window.activeTextEditor);
   startLanguageServer(context);
 }
@@ -131,7 +139,7 @@ function startLanguageServer(context) {
   if (context.subscriptions) {
     context.subscriptions.push(client);
   }
-  client.start();
+  clientReady = client.start();
 }
 
 async function restartLanguageServer() {
@@ -229,6 +237,347 @@ async function runCampTestCommand(command, argument) {
   terminal.show(true);
   terminal.sendText(`cd ${quoteShell(normalized.cwd || path.dirname(normalized.project))}`);
   terminal.sendText(args.join(" "));
+}
+
+function setupTestExplorer(context) {
+  testController = vscode.tests.createTestController("campTests", "Camp");
+  testController.resolveHandler = async () => refreshTestExplorer();
+  testRunProfile = testController.createRunProfile("Run", vscode.TestRunProfileKind.Run, runTestExplorerRequest, true);
+  testCoverProfile = testController.createRunProfile("Cover", vscode.TestRunProfileKind.Coverage || vscode.TestRunProfileKind.Run, coverTestExplorerRequest, false);
+  testDebugProfile = testController.createRunProfile("Debug", vscode.TestRunProfileKind.Debug, debugTestExplorerRequest, false);
+  context.subscriptions.push(testController, testRunProfile, testCoverProfile, testDebugProfile);
+}
+
+async function refreshTestExplorer() {
+  if (!testController || !client) {
+    return;
+  }
+  const context = await getActiveProjectContext();
+  if (!context) {
+    return;
+  }
+  try {
+    await clientReady;
+    const response = await client.sendRequest("camp/tests", {
+      textDocument: { uri: context.editor.document.uri.toString() }
+    });
+    const tests = Array.isArray(response?.tests) ? response.tests : [];
+    replaceTestExplorerItems(tests);
+  } catch (error) {
+    vscode.window.showWarningMessage(`Camp test discovery failed: ${error.message}`);
+  }
+}
+
+function replaceTestExplorerItems(tests) {
+  testDataById = new Map();
+  testController.items.replace([]);
+  const fileItems = new Map();
+  for (const raw of tests) {
+    const test = normalizeExplorerTest(raw);
+    if (!test.id || !test.path) {
+      continue;
+    }
+    testDataById.set(test.id, test);
+    const fileKey = normalizePath(test.path);
+    let fileItem = fileItems.get(fileKey);
+    if (!fileItem) {
+      const uri = vscode.Uri.file(test.path);
+      fileItem = testController.createTestItem("file:" + fileKey, workspaceRelativePath(test.path), uri);
+      fileItems.set(fileKey, fileItem);
+      testController.items.add(fileItem);
+    }
+    const item = testController.createTestItem(test.id, test.name || test.id, vscode.Uri.file(test.path));
+    item.range = toVsCodeRange(test.range);
+    fileItem.children.add(item);
+  }
+}
+
+function normalizeExplorerTest(test) {
+  return {
+    id: test.id || test.Id || "",
+    name: test.name || test.Name || "",
+    qualifiedName: test.qualifiedName || test.QualifiedName || "",
+    path: test.path || test.Path || "",
+    range: test.range || test.Range,
+    project: test.project || test.Project || "",
+    cwd: test.cwd || test.Cwd || "",
+    skipped: test.skipped ?? test.Skipped ?? false,
+    skipReason: test.skipReason || test.SkipReason || "",
+    runnerSignature: test.runnerSignature || test.RunnerSignature || ""
+  };
+}
+
+function toVsCodeRange(range) {
+  const start = range?.start || range?.Start || {};
+  const end = range?.end || range?.End || start;
+  return new vscode.Range(
+    start.line ?? start.Line ?? 0,
+    start.character ?? start.Character ?? 0,
+    end.line ?? end.Line ?? start.line ?? start.Line ?? 0,
+    end.character ?? end.Character ?? start.character ?? start.Character ?? 0
+  );
+}
+
+function workspaceRelativePath(filePath) {
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
+  if (workspaceFolder) {
+    return path.relative(workspaceFolder.uri.fsPath, filePath) || path.basename(filePath);
+  }
+  return path.basename(filePath);
+}
+
+async function runTestExplorerRequest(request, token) {
+  await runTestExplorerCommand("test", request, token);
+}
+
+async function coverTestExplorerRequest(request, token) {
+  await runTestExplorerCommand("cover", request, token);
+}
+
+async function debugTestExplorerRequest(request) {
+  await refreshTestExplorer();
+  const tests = collectRequestedTestData(request);
+  if (tests.length === 0) {
+    return;
+  }
+  const test = tests[0];
+  await debugCampTest({
+    project: test.project,
+    cwd: test.cwd,
+    filter: test.id,
+    sourcefile: test.path,
+    sourceline: test.range?.start?.line ?? 0
+  });
+}
+
+async function runTestExplorerCommand(command, request, token) {
+  await refreshTestExplorer();
+  const tests = collectRequestedTestData(request);
+  const run = testController.createTestRun(request);
+  if (tests.length === 0) {
+    run.end();
+    return;
+  }
+  for (const test of tests) {
+    const item = findTestItem(test.id);
+    if (item) {
+      run.enqueued(item);
+    }
+  }
+  const groups = groupTestsByProject(tests);
+  for (const group of groups) {
+    if (token?.isCancellationRequested) {
+      break;
+    }
+    for (const test of group.tests) {
+      const item = findTestItem(test.id);
+      if (item) {
+        run.started(item);
+      }
+    }
+    try {
+      const results = await executeCampTestGroup(command, group, token);
+      reportTestResults(run, group.tests, results);
+    } catch (error) {
+      for (const test of group.tests) {
+        const item = findTestItem(test.id);
+        if (item) {
+          run.errored(item, new vscode.TestMessage(error.message));
+        }
+      }
+    }
+  }
+  run.end();
+}
+
+function collectRequestedTestData(request) {
+  const included = request.include && request.include.length > 0
+    ? request.include.flatMap(collectLeafTestItems)
+    : collectAllTestItems();
+  const excluded = new Set((request.exclude || []).flatMap(collectLeafTestItems).map(item => item.id));
+  return included
+    .filter(item => !excluded.has(item.id))
+    .map(item => testDataById.get(item.id))
+    .filter(Boolean);
+}
+
+function collectAllTestItems() {
+  const result = [];
+  testController.items.forEach(item => {
+    result.push(...collectLeafTestItems(item));
+  });
+  return result;
+}
+
+function collectLeafTestItems(item) {
+  const result = [];
+  if (testDataById.has(item.id)) {
+    result.push(item);
+    return result;
+  }
+  item.children.forEach(child => {
+    result.push(...collectLeafTestItems(child));
+  });
+  return result;
+}
+
+function groupTestsByProject(tests) {
+  const groups = new Map();
+  for (const test of tests) {
+    const key = normalizePath(test.project) + "\n" + normalizePath(test.cwd || path.dirname(test.project));
+    let group = groups.get(key);
+    if (!group) {
+      group = { project: test.project, cwd: test.cwd || path.dirname(test.project), tests: [] };
+      groups.set(key, group);
+    }
+    group.tests.push(test);
+  }
+  return Array.from(groups.values());
+}
+
+async function executeCampTestGroup(command, group, token) {
+  const outputDir = path.join(extensionContext.globalStorageUri.fsPath, "test-runs", Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
+  fs.mkdirSync(outputDir, { recursive: true });
+  const args = [
+    command,
+    group.project,
+    "--test-result-format",
+    "json",
+    "--test-output-dir",
+    outputDir
+  ];
+  if (command === "cover") {
+    args.push("--coverage-format", "json", "--coverage-output-dir", outputDir);
+  }
+  for (const test of group.tests) {
+    args.push("--filter", test.id);
+  }
+  const result = await execFile(getCompilerPath(), args, { cwd: group.cwd }, token);
+  try {
+    return readLatestTestResults(outputDir);
+  } catch (error) {
+    if (result.code !== 0) {
+      throw new Error((result.stderr || result.stdout || error.message).trim());
+    }
+    throw error;
+  }
+}
+
+function execFile(file, args, options, token) {
+  return new Promise((resolve, reject) => {
+    const child = childProcess.spawn(file, args, {
+      cwd: options.cwd,
+      windowsHide: true
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", chunk => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", chunk => {
+      stderr += chunk.toString();
+    });
+    const cancellation = token?.onCancellationRequested(() => child.kill());
+    child.on("error", error => {
+      cancellation?.dispose();
+      reject(error);
+    });
+    child.on("close", code => {
+      cancellation?.dispose();
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+function readLatestTestResults(directory) {
+  const files = [];
+  collectFiles(directory, file => file.endsWith(".camp-test-results.json"), files);
+  if (files.length === 0) {
+    throw new Error("campc did not write a Camp test results JSON file.");
+  }
+  files.sort((a, b) => getModifiedTime(b) - getModifiedTime(a));
+  const parsed = JSON.parse(fs.readFileSync(files[0], "utf8"));
+  if (parsed.format !== "camp.test-results" || !Array.isArray(parsed.tests)) {
+    throw new Error("Camp test results JSON has an unsupported format.");
+  }
+  return parsed.tests;
+}
+
+function collectFiles(directory, predicate, result, depth = 0) {
+  if (depth > 8) {
+    return;
+  }
+  let entries;
+  try {
+    entries = fs.readdirSync(directory, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      collectFiles(fullPath, predicate, result, depth + 1);
+    } else if (entry.isFile() && predicate(fullPath)) {
+      result.push(fullPath);
+    }
+  }
+}
+
+function reportTestResults(run, requestedTests, results) {
+  const resultsById = new Map(results.map(result => [result.id, result]));
+  for (const test of requestedTests) {
+    const item = findTestItem(test.id);
+    if (!item) {
+      continue;
+    }
+    const result = resultsById.get(test.id);
+    if (!result) {
+      run.errored(item, new vscode.TestMessage("Camp did not report a result for this test."));
+      continue;
+    }
+    const duration = typeof result.durationMs === "number" ? result.durationMs : undefined;
+    if (result.outcome === "passed") {
+      run.passed(item, duration);
+    } else if (result.outcome === "skipped") {
+      run.skipped(item);
+    } else {
+      run.failed(item, createTestMessage(result), duration);
+    }
+  }
+}
+
+function createTestMessage(result) {
+  const failure = result.failure;
+  const message = failure?.message || result.summary || result.outcome || "Camp test failed.";
+  const testMessage = new vscode.TestMessage(message);
+  if (failure?.sourcefile && failure.sourceline > 0) {
+    testMessage.location = new vscode.Location(vscode.Uri.file(resolveFailureSource(failure.sourcefile)), lineRange(failure.sourceline));
+  }
+  return testMessage;
+}
+
+function resolveFailureSource(sourcefile) {
+  if (path.isAbsolute(sourcefile)) {
+    return sourcefile;
+  }
+  const active = vscode.window.activeTextEditor?.document.uri.fsPath;
+  if (active) {
+    const project = findNearestCampBuild(active);
+    const root = project ? path.dirname(project) : path.dirname(active);
+    return path.resolve(root, sourcefile);
+  }
+  return sourcefile;
+}
+
+function findTestItem(id) {
+  let found;
+  testController.items.forEach(fileItem => {
+    const child = fileItem.children.get(id);
+    if (child) {
+      found = child;
+    }
+  });
+  return found;
 }
 
 async function debugCurrentProject() {

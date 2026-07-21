@@ -15,6 +15,8 @@ integration.
   Project` commands.
 - CodeLens `Run Current Test`, `Debug Current Test`, and `Cover Current Test`
   actions beside top-level `@test` functions.
+- Native VS Code Test Explorer integration for discovered Camp tests, grouped
+  by source file.
 - Editor title buttons for build/run/debug and status-bar buttons for
   build/run/debug/test/cover while a Camp file is active.
 - Coverage display commands that decorate covered and uncovered Camp source
@@ -256,6 +258,25 @@ campc cover <project> --filter <manifest-id> --coverage-format json
 
 The extension derives `campc` and `camp-dap` from `camp.server.path` the same
 way the build/run/debug commands do.
+
+## Test Explorer
+
+The extension also contributes a `Camp` controller to VS Code's Test Explorer.
+Discovery is served by `camp-lsp`, using the same compiler test discovery model
+as CodeLens. Tests are grouped by source file and use their canonical manifest
+IDs internally.
+
+The Test Explorer profiles are:
+
+- `Run`, which invokes `campc test <project> --filter <manifest-id>` for the
+  selected tests and imports JSON test results.
+- `Debug`, which launches `camp-dap` through the generated test harness for one
+  selected test.
+- `Cover`, which invokes `campc cover <project> --filter <manifest-id>
+  --coverage-format json` for the selected tests and imports JSON test results.
+
+When all tests in a project are selected, the extension sends the selected
+manifest IDs together in one compiler invocation for that project.
 
 ## Debugging
 

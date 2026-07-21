@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Camp.Compiler;
 using MediatR;
+using OmniSharp.Extensions.JsonRpc;
 using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
@@ -33,6 +34,7 @@ LanguageServer server = await LanguageServer.From(options => options
 	.AddHandler(new CampDocumentSymbolHandler(workspace))
 	.AddHandler(new CampWorkspaceSymbolHandler(workspace))
 	.AddHandler(new CampCodeLensHandler(workspace))
+	.AddHandler(new CampTestsHandler(workspace))
 	.OnStarted((languageServer, _) =>
 	{
 		workspace.SetLanguageServer(languageServer);
@@ -124,6 +126,23 @@ public sealed record CampTestCodeLens(
 	string Title,
 	string Command,
 	CampTestCommandArgument Argument);
+
+[Method("camp/tests")]
+public sealed record CampTestsParams(TextDocumentIdentifier TextDocument) : IRequest<CampTestsResult>, IJsonRpcRequest;
+
+public sealed record CampTestsResult(IReadOnlyList<CampTestExplorerItem> Tests);
+
+public sealed record CampTestExplorerItem(
+	string Id,
+	string Name,
+	string QualifiedName,
+	string Path,
+	CampTextRange Range,
+	string Project,
+	string Cwd,
+	bool Skipped,
+	string? SkipReason,
+	string RunnerSignature);
 
 sealed class CampHoverHandler(CampLspWorkspace workspace) : HoverHandlerBase
 {
@@ -272,6 +291,14 @@ sealed class CampCodeLensHandler(CampLspWorkspace workspace) : CodeLensHandlerBa
 	}
 }
 #pragma warning restore CS8609
+
+sealed class CampTestsHandler(CampLspWorkspace workspace) : IJsonRpcRequestHandler<CampTestsParams, CampTestsResult>
+{
+	public Task<CampTestsResult> Handle(CampTestsParams request, CancellationToken cancellationToken)
+	{
+		return Task.FromResult(workspace.GetTestExplorerItems(request.TextDocument.Uri));
+	}
+}
 
 public sealed class CampLspWorkspace
 {
@@ -671,6 +698,40 @@ public sealed class CampLspWorkspace
 		}
 		trace.Write("query.testCodeLens", ("file", path), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
 		return result;
+	}
+
+	public CampTestsResult GetTestExplorerItems(DocumentUri uri)
+	{
+		long start = Stopwatch.GetTimestamp();
+		string path = uri.GetFileSystemPath();
+		CompilerRequest request = CreateRequest(path);
+		CampTestDiscoverySnapshot snapshot = CampLanguageService.DiscoverTests(request, GetOpenDocumentOverlays());
+		string project = GetProjectTargetPath(path);
+		string cwd = Path.GetDirectoryName(project) ?? Path.GetDirectoryName(path) ?? Directory.GetCurrentDirectory();
+		List<CampTestExplorerItem> tests = snapshot.Tests
+			.OrderBy(static test => test.Path, StringComparer.OrdinalIgnoreCase)
+			.ThenBy(static test => test.Range.Start.Line)
+			.ThenBy(static test => test.Range.Start.Character)
+			.Select(test => new CampTestExplorerItem(
+				test.Id,
+				test.Name,
+				test.QualifiedName,
+				test.Path,
+				test.Range,
+				project,
+				cwd,
+				test.Skipped,
+				test.SkipReason,
+				test.RunnerSignature))
+			.ToList();
+		trace.Write("query.testExplorer", ("file", path), ("resultCount", tests.Count), ("durationMs", ElapsedMilliseconds(start)));
+		return new CampTestsResult(tests);
+	}
+
+	IReadOnlyList<CampSourceOverlay> GetOpenDocumentOverlays()
+	{
+		lock (gate)
+			return openDocuments.Values.Select(static document => new CampSourceOverlay(document.Path, document.Text, document.Version ?? 0)).ToList();
 	}
 
 	void WarmQueryService(string path, CampAnalysisSnapshot snapshot)
