@@ -12,8 +12,8 @@ integration.
   workspace symbols, signature help, and completion through `camp-lsp`.
 - `Camp: Build Current Project`, `Camp: Run Current Project`, and `Camp: Debug
   Current Project` commands.
-- CodeLens `Run Test`, `Debug Test`, and `Cover Test` actions beside top-level
-  `@test` functions.
+- CodeLens `Run Current Test`, `Debug Current Test`, and `Cover Current Test`
+  actions beside top-level `@test` functions.
 - Editor title buttons and status-bar buttons for build/run/debug while a Camp
   file is active.
 - Camp breakpoints and generated launch configurations for the `camp-dap`
@@ -228,10 +228,10 @@ Output is sent to a VS Code terminal named `Camp`.
 When `camp-lsp` discovers top-level `@test` functions, the extension shows
 CodeLens actions above each test:
 
-- `Run Test` runs `campc test <project> --filter <manifest-id>`.
-- `Debug Test` launches `camp-dap` with `testFilter` set to the exact manifest
-  ID.
-- `Cover Test` runs coverage for the exact manifest ID with JSON output.
+- `Run Current Test` runs `campc test <project> --filter <manifest-id>`.
+- `Debug Current Test` launches `camp-dap` with `testFilter` set to the exact
+  manifest ID.
+- `Cover Current Test` runs coverage for the exact manifest ID with JSON output.
 
 The coverage command is:
 
@@ -273,5 +273,5 @@ scalar locals/parameters are supported. Expression evaluation is intentionally
 narrow: simple mapped local and parameter names work, while arbitrary Camp
 expressions return a clear unsupported result.
 
-`Debug Test` builds and launches the generated Camp test harness rather than the
-production executable, then selects one test by exact manifest ID.
+`Debug Current Test` builds and launches the generated Camp test harness rather
+than the production executable, then selects one test by exact manifest ID.

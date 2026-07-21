@@ -115,17 +115,17 @@
       },
       {
         "command": "camp.test.run",
-        "title": "Camp: Run Test",
+        "title": "Camp: Run Current Test",
         "category": "Camp"
       },
       {
         "command": "camp.test.cover",
-        "title": "Camp: Cover Test",
+        "title": "Camp: Cover Current Test",
         "category": "Camp"
       },
       {
         "command": "camp.test.debug",
-        "title": "Camp: Debug Test",
+        "title": "Camp: Debug Current Test",
         "category": "Camp"
       },
       {

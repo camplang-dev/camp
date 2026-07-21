@@ -665,9 +665,9 @@ public sealed class CampLspWorkspace
 			if (!string.Equals(Path.GetFullPath(test.Path), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
 				continue;
 			CampTestCommandArgument argument = new(project, cwd, test.Id, test.Sourcefile, test.Sourceline);
-			result.Add(new CampTestCodeLens(test.Range, "Run Test", "camp.test.run", argument));
-			result.Add(new CampTestCodeLens(test.Range, "Debug Test", "camp.test.debug", argument));
-			result.Add(new CampTestCodeLens(test.Range, "Cover Test", "camp.test.cover", argument));
+			result.Add(new CampTestCodeLens(test.Range, "Run Current Test", "camp.test.run", argument));
+			result.Add(new CampTestCodeLens(test.Range, "Debug Current Test", "camp.test.debug", argument));
+			result.Add(new CampTestCodeLens(test.Range, "Cover Current Test", "camp.test.cover", argument));
 		}
 		trace.Write("query.testCodeLens", ("file", path), ("resultCount", result.Count), ("durationMs", ElapsedMilliseconds(start)));
 		return result;

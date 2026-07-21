@@ -932,10 +932,10 @@ public sealed class LspServerTests
 		});
 		JsonArray lenses = response["result"]!.AsArray();
 		Assert.Equal(6, lenses.Count);
-		Assert.Contains(lenses, lens => IsTestLens(lens, "camp.test.run", "LspTests::validCase"));
-		Assert.Contains(lenses, lens => IsTestLens(lens, "camp.test.debug", "LspTests::validCase"));
-		Assert.Contains(lenses, lens => IsTestLens(lens, "camp.test.cover", "LspTests::validCase"));
-		Assert.Contains(lenses, lens => IsTestLens(lens, "camp.test.run", "LspTests::invalidCase"));
+		Assert.Contains(lenses, lens => IsTestLens(lens, "Run Current Test", "camp.test.run", "LspTests::validCase"));
+		Assert.Contains(lenses, lens => IsTestLens(lens, "Debug Current Test", "camp.test.debug", "LspTests::validCase"));
+		Assert.Contains(lenses, lens => IsTestLens(lens, "Cover Current Test", "camp.test.cover", "LspTests::validCase"));
+		Assert.Contains(lenses, lens => IsTestLens(lens, "Run Current Test", "camp.test.run", "LspTests::invalidCase"));
 	}
 
 	[Fact]
@@ -1189,9 +1189,12 @@ public sealed class LspServerTests
 		return result?["items"]?.AsArray() ?? throw new InvalidOperationException("Completion response did not contain items.");
 	}
 
-	static bool IsTestLens(JsonNode? lens, string command, string filter)
+	static bool IsTestLens(JsonNode? lens, string title, string command, string filter)
 	{
 		if (lens?["command"] is null)
+			return false;
+		string? commandTitle = lens["command"]?["title"]?.GetValue<string>();
+		if (commandTitle != title)
 			return false;
 		string? commandName = lens["command"]?["command"]?.GetValue<string>()
 			?? lens["command"]?["name"]?.GetValue<string>();
