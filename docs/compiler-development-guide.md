@@ -52,11 +52,18 @@ change.
 
 ## Proposal Lifecycle
 
-Pending proposals live in `docs/proposals/pending`. Rejected proposals live in
-`docs/proposals/rejected` and should not be updated after rejection except for
-mechanical archive changes. New accepted proposals live in
-`docs/proposals/accepted` as historical files after their details are integrated
-into canonical docs.
+New proposal drafts live directly in `docs/proposals/` with a descriptive,
+unnumbered filename. Do not assign a proposal number, put a new draft in
+`docs/proposals/pending`, stage it, or commit it. Keep the draft uncommitted
+until the maintainer explicitly says it is ready to become pending and be
+committed.
+
+When the maintainer approves that transition, assign the proposal number, move
+the file to `docs/proposals/pending`, and commit it as directed. Rejected
+proposals live in `docs/proposals/rejected` and should not be updated after
+rejection except for mechanical archive changes. New accepted proposals live
+in `docs/proposals/accepted` as historical files after their details are
+integrated into canonical docs.
 
 ## Working In A Dirty Tree
 

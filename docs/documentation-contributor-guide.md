@@ -20,7 +20,7 @@ The active documentation lives under `docs/`.
 | `docs/compiler/` | Toolchain users | Command-line compiler, builds, packages, targets, metadata files, dumps, and editor tooling. |
 | `docs/compiler-development-guide.md` | Compiler contributors | Process for working in the compiler repo and C# solution. |
 | `docs/camp-llm-coding-guide.md` | LLM agents writing Camp | Dense, token-conscious Camp coding guidance. |
-| `docs/proposals/` | Design reviewers and maintainers | Historical accepted proposals, pending proposals, and rejected proposals. |
+| `docs/proposals/` | Design reviewers and maintainers | Uncommitted proposal drafts and historical pending, accepted, or rejected proposals. |
 
 Do not save private setup notes, machine-specific context, personal environment
 details, copied historical source material, or other noncanonical working notes
@@ -97,9 +97,9 @@ semantics, but it should aggressively remove duplicated prose.
 
 ### Proposal Readers
 
-Proposal readers are maintainers trying to understand design history. Proposals
-are not the language reference. They explain why a change was accepted,
-rejected, or still pending.
+Proposal readers are maintainers reviewing a draft or trying to understand
+design history. Proposals are not the language reference. They explain a draft
+design or why a change was accepted, rejected, or is still pending.
 
 ## Language Guide Standards
 
@@ -223,7 +223,17 @@ produce realistic code, but avoid making it a second standard library reference.
 
 ## Proposal Standards
 
-Proposals live under:
+New proposal drafts live directly under `docs/proposals/`. A new draft must:
+
+- use a descriptive, unnumbered filename such as `source-capture.md`;
+- remain outside `docs/proposals/pending`;
+- remain unstaged and uncommitted.
+
+Only move and number a draft after the maintainer explicitly says it is ready
+to become pending and be committed. At that point, move it under
+`docs/proposals/pending/` using the assigned numbered filename.
+
+Reviewed proposals live under:
 
 - `docs/proposals/accepted/`;
 - `docs/proposals/pending/`;
@@ -231,7 +241,8 @@ Proposals live under:
 
 Do not add an index file to the proposals folder.
 
-Proposal filenames should be numbered from oldest to newest within each folder:
+Pending, accepted, and rejected proposal filenames should be numbered from
+oldest to newest within each folder:
 
 ```text
 001-short-topic-name.md
