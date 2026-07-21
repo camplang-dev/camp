@@ -25,7 +25,10 @@ public sealed record CampTestManifestEntry(
 	string Summary,
 	bool Skipped,
 	string? SkipReason,
-	string RunnerSignature);
+	string RunnerSignature)
+{
+	internal FunctionDefinition? Function { get; init; }
+}
 
 public sealed record CampTestDiscoveryResult(CampTestManifest Manifest, IReadOnlyList<AnalysisDiagnostic> Diagnostics);
 
@@ -56,7 +59,10 @@ public static class CampTestDiscovery
 				GetAttributeStringContent(function.Attributes, "summary") ?? "",
 				skipped,
 				skipped ? skipReason : null,
-				HasBuiltInRunnerSignature(function) ? "valid" : "invalid"));
+				HasBuiltInRunnerSignature(function) ? "valid" : "invalid")
+			{
+				Function = function
+			});
 		}
 
 		return new CampTestDiscoveryResult(new CampTestManifest(mode, tests), diagnostics);

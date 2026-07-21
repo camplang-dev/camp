@@ -20,6 +20,7 @@ public sealed class CEmissionOptions
 	public bool EmitDebugInfo { get; init; }
 	public bool EmitExecMainWrapper { get; init; }
 	public FunctionDefinition? ExecEntryPoint { get; init; }
+	public bool ExposePrivateFunctionsForTestHarness { get; init; }
 }
 
 public sealed class CEmissionResult
@@ -1558,9 +1559,9 @@ public static class CCodeEmitter
 				&& !UnsupportedAvailability.IsUnsupported(function);
 		}
 
-		static string? PrivateFunctionStorage(FunctionDefinition function)
+		string? PrivateFunctionStorage(FunctionDefinition function)
 		{
-			return function.Extern is not null || IsExternallyVisible(function) || IsGeneratedVirtualDispatchFunction(function)
+			return options.ExposePrivateFunctionsForTestHarness || function.Extern is not null || IsExternallyVisible(function) || IsGeneratedVirtualDispatchFunction(function)
 				? null
 				: "static";
 		}

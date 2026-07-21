@@ -75,8 +75,6 @@ public sealed class CommandLineTests
 		string source = CreateTempCase("test_manifest_cli/main.camp", """
 			namespace CliTests;
 
-			struct Assertion {}
-
 			/// Adds two values.
 			/// @test
 			void addReturnsSum(thrown Assertion* assertion)
@@ -129,6 +127,112 @@ public sealed class CommandLineTests
 		Assert.Equal(Path.GetFullPath(source).Replace('\\', '/'), add.GetProperty("sourcefile").GetString());
 		JsonElement invalid = tests.EnumerateArray().Single(test => test.GetProperty("name").GetString() == "invalidShape");
 		Assert.Equal("invalid", invalid.GetProperty("runnerSignature").GetString());
+	}
+
+	[Fact]
+	public void Test_command_builds_harness_executable_and_replaces_entry_point()
+	{
+		string source = CreateTempCase("test_harness_entry/main.camp", """
+			namespace HarnessCli;
+
+			export int main()
+			{
+				return 17;
+			}
+
+			@test
+			void passing(thrown Assertion* assertion)
+			{
+				assert(1 == 1);
+			}
+			""");
+		string outDir = TempPath("test-harness-entry-out");
+
+		ProcessResult result = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--name",
+			"harness_entry");
+
+		AssertCommandSucceeded(result);
+		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(null));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "harness_entry_test_harness.c")));
+		string generatedSource = File.ReadAllText(Path.Combine(artifactDirectory, "build", "main.c"));
+		Assert.Contains("campmain(void)", generatedSource, StringComparison.Ordinal);
+
+		ProcessResult run = RunExecutable(Path.Combine(artifactDirectory, "harness_entry" + ExecutableExtensionForHost()));
+		Assert.Equal(0, run.ExitCode);
+		Assert.Contains("passed: HarnessCli::passing", run.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("failed:", run.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Generated_harness_reports_failures_skips_invalid_tests_and_source_capture()
+	{
+		string source = CreateTempCase("test_harness_outcomes/main.camp", """
+			namespace HarnessCli;
+
+			@test
+			void directFailure(thrown Assertion* assertion)
+			{
+				assert(1 == 2);
+			}
+
+			@testonly
+			void assertPositive(int value, escaped string message = sourceof(value), escaped string sourcefile = caller(sourcefile), uint sourceline = caller(sourceline), thrown Assertion* assertion)
+			{
+				assert(value > 0, message, sourcefile, sourceline);
+			}
+
+			@test
+			void wrapperFailure(thrown Assertion* assertion)
+			{
+				assertPositive(0);
+			}
+
+			@skip("not yet")
+			@test
+			void skippedCase(thrown Assertion* assertion)
+			{
+				fail("should not run");
+			}
+
+			@test
+			int invalidShape()
+			{
+				return 0;
+			}
+			""");
+		string outDir = TempPath("test-harness-outcomes-out");
+
+		ProcessResult result = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--name",
+			"harness_outcomes");
+
+		AssertCommandSucceeded(result);
+		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(null));
+		ProcessResult run = RunExecutable(Path.Combine(artifactDirectory, "harness_outcomes" + ExecutableExtensionForHost()));
+
+		Assert.Equal(1, run.ExitCode);
+		Assert.Contains("failed: HarnessCli::directFailure", run.StdOut, StringComparison.Ordinal);
+		Assert.Contains($"{RelativeSourcePath(source)}:{FindLine(source, "assert(1 == 2);")} 1 == 2", run.StdOut, StringComparison.Ordinal);
+		Assert.Contains("failed: HarnessCli::wrapperFailure", run.StdOut, StringComparison.Ordinal);
+		Assert.Contains($"{RelativeSourcePath(source)}:{FindLine(source, "assertPositive(0);")} 0", run.StdOut, StringComparison.Ordinal);
+		Assert.Contains("skipped: HarnessCli::skippedCase", run.StdOut, StringComparison.Ordinal);
+		Assert.Contains("invalid: HarnessCli::invalidShape", run.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("should not run", run.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3564,6 +3668,20 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 		File.WriteAllText(path, text.Replace("\r\n", "\n", StringComparison.Ordinal));
 		return path;
+	}
+
+	static string RelativeSourcePath(string path)
+	{
+		return Path.GetRelativePath(FindRepositoryRoot(), Path.GetFullPath(path)).Replace('\\', '/');
+	}
+
+	static int FindLine(string path, string text)
+	{
+		string[] lines = File.ReadAllLines(path);
+		for (int i = 0; i < lines.Length; i++)
+			if (lines[i].Contains(text, StringComparison.Ordinal))
+				return i + 1;
+		throw new InvalidOperationException($"Line containing '{text}' was not found in '{path}'.");
 	}
 
 	static string TempPath(string name) => Path.Combine(FindRepositoryRoot(), "tmp", "cli-tests", name);

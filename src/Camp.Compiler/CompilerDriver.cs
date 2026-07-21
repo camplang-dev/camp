@@ -137,11 +137,12 @@ public static class CompilerDriver
 			if (!ValidateFrameworks(context!.Target))
 				return 1;
 
+			bool requireNativeLibraries = request.BuildKind is not null || request.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover;
 			List<string> packageApiHeaders = [];
 			List<string> packageLibraries = [];
 			if (!request.NoStdLib)
 			{
-				if (!TryPreparePackage(context!, "std", request.BuildKind is not null, out string? stdApiHeader, out string? stdLibrary))
+				if (!TryPreparePackage(context!, "std", requireNativeLibraries, out string? stdApiHeader, out string? stdLibrary))
 					return 1;
 				if (stdApiHeader is not null)
 					packageApiHeaders.Add(stdApiHeader);
@@ -150,7 +151,7 @@ public static class CompilerDriver
 			}
 			foreach (string package in request.UsePackages)
 			{
-				if (!TryPrepareInstalledPackage(context!, package, request.BuildKind is not null, out string? packageApiHeader, out string? packageLibrary, out bool sharedDependency))
+				if (!TryPrepareInstalledPackage(context!, package, requireNativeLibraries, out string? packageApiHeader, out string? packageLibrary, out bool sharedDependency))
 					return 1;
 				if (packageApiHeader is not null)
 				{
@@ -173,7 +174,7 @@ public static class CompilerDriver
 			return inspect switch
 			{
 				CompilerInspectMode.None => request.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover
-					? EmitTestDiscoveryOutput(compilation)
+					? EmitTestDiscoveryOutput(compilation, packageLibraries)
 					: EmitDefaultOutput(compilation, packageLibraries),
 				CompilerInspectMode.Tokens => PrintTokens(compilation),
 				CompilerInspectMode.Cst => PrintSyntaxXml(compilation),
@@ -185,7 +186,7 @@ public static class CompilerDriver
 			};
 		}
 
-		int EmitTestDiscoveryOutput(Compilation compilation)
+		int EmitTestDiscoveryOutput(Compilation compilation, IReadOnlyList<string> packageLibraries)
 		{
 			if (!LowerAndReport(compilation))
 				return 1;
@@ -198,8 +199,9 @@ public static class CompilerDriver
 				return 1;
 
 			string outputDirectory = ResolveArtifactOutputDirectory(compilation);
+			string buildDirectory = Path.Combine(outputDirectory, "build");
 			string projectName = string.IsNullOrWhiteSpace(request.ProjectName) ? CCodeEmitter.GetProjectName(compilation.Files) : request.ProjectName!;
-			if (!TryEmitTestManifestArtifact(discovery.Manifest, Path.Combine(outputDirectory, "build"), projectName))
+			if (!TryEmitTestManifestArtifact(discovery.Manifest, buildDirectory, projectName))
 				return 1;
 
 			IReadOnlyList<CampTestManifestEntry> selectedTests = CampTestFilter.Apply(discovery.Manifest.Tests, request.TestFilters);
@@ -207,7 +209,58 @@ public static class CompilerDriver
 			{
 				foreach (CampTestManifestEntry test in selectedTests)
 					OutLine(test.Id);
+				return 0;
 			}
+
+			if (!PrepareTestHarnessEntryPoint(compilation))
+				return 1;
+
+			CEmissionResult result = CCodeEmitter.Emit(compilation, new CEmissionOptions
+			{
+				OutputDirectory = buildDirectory,
+				ProjectName = projectName,
+				EmitKind = request.EmitKind,
+				BuildKind = NativeBuildKind.Exec,
+				EmitDebugInfo = request.EmitDebugInfo,
+				ExposePrivateFunctionsForTestHarness = true
+			});
+			foreach (string diagnostic in result.Diagnostics)
+				ErrorLine(diagnostic);
+			if (!result.Success)
+				return 1;
+
+			foreach (string generated in result.GeneratedFiles)
+			{
+				generatedFiles.Add(generated);
+				OutLine("generated: " + Path.GetFileName(generated));
+			}
+
+			if (!TryEmitTestHarnessSource(buildDirectory, projectName, selectedTests, out string? harnessSource))
+				return 1;
+
+			NativeBuildResult build = NativeBuildDriver.Build(new NativeBuildOptions
+			{
+				Target = compilation.Target!,
+				ProfileName = compilation.ProfileName,
+				BuildDirectory = buildDirectory,
+				OutputDirectory = outputDirectory,
+				ProjectName = projectName,
+				Kind = NativeBuildKind.Exec,
+				SourceFiles = [.. result.GeneratedSourceFiles, harnessSource!],
+				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
+				Frameworks = request.Frameworks
+			});
+			foreach (string diagnostic in build.Diagnostics)
+				ErrorLine(diagnostic);
+			if (!build.Success)
+				return 1;
+			foreach (string generated in build.GeneratedFiles)
+			{
+				generatedFiles.Add(generated);
+				OutLine("generated: " + Path.GetFileName(generated));
+			}
+			if (!TryCopySharedRuntimeReferences(compilation.Target!, outputDirectory, packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))))
+				return 1;
 			return 0;
 		}
 
@@ -248,11 +301,11 @@ public static class CompilerDriver
 			return true;
 		}
 
-		WithinAllocationPolicy GetEffectiveWithinAllocationPolicy()
+		static WithinAllocationPolicy GetEffectiveWithinAllocationPolicy(CompilerRequest loadRequest)
 		{
-			if (request.WithinAllocationPolicy is WithinAllocationPolicy policy)
+			if (loadRequest.WithinAllocationPolicy is WithinAllocationPolicy policy)
 				return policy;
-			return request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared
+			return loadRequest.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared
 				? WithinAllocationPolicy.Explicit
 				: WithinAllocationPolicy.Implicit;
 		}
@@ -362,22 +415,27 @@ public static class CompilerDriver
 
 		bool TryLoadCompilation(List<string> filenames, List<string> includeFilenames, RuntimeContext context, out Compilation compilation)
 		{
+			return TryLoadCompilation(request, filenames, includeFilenames, context, out compilation);
+		}
+
+		bool TryLoadCompilation(CompilerRequest loadRequest, IReadOnlyList<string> filenames, IReadOnlyList<string> includeFilenames, RuntimeContext context, out Compilation compilation)
+		{
 			compilation = new Compilation
 			{
 				Target = context.Target,
 				ProfileName = context.ProfileName,
-				CommandMode = request.CommandMode,
-				DeclarationParticipationMode = request.DeclarationParticipationMode,
-				CoverageInstrumentationMode = request.CoverageInstrumentationMode,
-				DefaultWithinAllocationPolicy = GetEffectiveWithinAllocationPolicy(),
-				SourcefilePathMode = request.SourcefilePathMode,
-				SourcefileDefaultRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(request.SourcefileDefaultRoot) ? request.WorkingDirectory : request.SourcefileDefaultRoot)
+				CommandMode = loadRequest.CommandMode,
+				DeclarationParticipationMode = loadRequest.DeclarationParticipationMode,
+				CoverageInstrumentationMode = loadRequest.CoverageInstrumentationMode,
+				DefaultWithinAllocationPolicy = GetEffectiveWithinAllocationPolicy(loadRequest),
+				SourcefilePathMode = loadRequest.SourcefilePathMode,
+				SourcefileDefaultRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(loadRequest.SourcefileDefaultRoot) ? loadRequest.WorkingDirectory : loadRequest.SourcefileDefaultRoot)
 			};
-			compilation.SourcefileRoots.AddRange(request.SourcefileRoots.Select(root => Path.GetFullPath(root, request.WorkingDirectory)));
-			AddPreprocessorSymbols(compilation, context);
+			compilation.SourcefileRoots.AddRange(loadRequest.SourcefileRoots.Select(root => Path.GetFullPath(root, loadRequest.WorkingDirectory)));
+			AddPreprocessorSymbols(compilation, loadRequest, context);
 			foreach (string filename in filenames)
 			{
-				if (!TryReadInput(filename, out string text, out string displayPath, out string? fullPath))
+				if (!TryReadInput(loadRequest, filename, out string text, out string displayPath, out string? fullPath))
 					return false;
 				if (!TryReadWithinAllocationPolicy(displayPath, text, out WithinAllocationPolicy? policy))
 					return false;
@@ -385,19 +443,104 @@ public static class CompilerDriver
 			}
 			foreach (string filename in includeFilenames)
 			{
-				if (!TryReadInput(filename, out string text, out string displayPath, out string? fullPath))
+				if (!TryReadInput(loadRequest, filename, out string text, out string displayPath, out string? fullPath))
 					return false;
 				if (!TryReadWithinAllocationPolicy(displayPath, text, out WithinAllocationPolicy? policy))
 					return false;
-				compilation.Files.Add(new SourceFile { Path = displayPath, FullPath = fullPath, Text = text, IsApiHeader = true, SharedLibraryImport = IsSharedLibraryApiHeader(filename), WithinAllocationPolicyOverride = policy });
+				compilation.Files.Add(new SourceFile { Path = displayPath, FullPath = fullPath, Text = text, IsApiHeader = true, SharedLibraryImport = IsSharedLibraryApiHeader(loadRequest, filename), WithinAllocationPolicyOverride = policy });
 			}
+			if (loadRequest.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover)
+				AddStandardTestSupportSource(compilation);
 			return true;
 		}
 
-		bool IsSharedLibraryApiHeader(string filename)
+		void AddStandardTestSupportSource(Compilation compilation)
 		{
-			string fullPath = Path.GetFullPath(filename, request.WorkingDirectory);
-			return request.SharedLibraryApiHeaders.Any(header => string.Equals(Path.GetFullPath(header, request.WorkingDirectory), fullPath, StringComparison.OrdinalIgnoreCase));
+			string? namespaceName = GetPrimarySourceNamespace(compilation.Files.Where(static file => !file.IsApiHeader));
+			compilation.Files.Add(new SourceFile
+			{
+				Path = "$camp_test_support.camp",
+				Text = BuildStandardTestSupportSource(namespaceName),
+				WithinAllocationPolicyOverride = WithinAllocationPolicy.Implicit
+			});
+		}
+
+		static string? GetPrimarySourceNamespace(IEnumerable<SourceFile> files)
+		{
+			foreach (SourceFile file in files)
+				if (TryReadFileNamespace(file.Text, out string? namespaceName))
+					return namespaceName;
+			return null;
+		}
+
+		static bool TryReadFileNamespace(string text, out string? namespaceName)
+		{
+			namespaceName = null;
+			using StringReader reader = new(text);
+			while (reader.ReadLine() is string line)
+			{
+				string trimmed = line.Trim();
+				if (trimmed.Length == 0
+					|| trimmed.StartsWith("//", StringComparison.Ordinal)
+					|| trimmed.StartsWith("/*", StringComparison.Ordinal)
+					|| trimmed.StartsWith("*", StringComparison.Ordinal)
+					|| trimmed.StartsWith("*/", StringComparison.Ordinal)
+					|| trimmed.StartsWith("#build", StringComparison.Ordinal)
+					|| trimmed.StartsWith("#within", StringComparison.Ordinal))
+					continue;
+				if (!trimmed.StartsWith("namespace ", StringComparison.Ordinal) || !trimmed.EndsWith(";", StringComparison.Ordinal))
+					return false;
+				namespaceName = trimmed["namespace ".Length..^1].Trim();
+				return namespaceName.Length > 0;
+			}
+			return false;
+		}
+
+		static string BuildStandardTestSupportSource(string? namespaceName)
+		{
+			StringBuilder builder = new();
+			if (!string.IsNullOrWhiteSpace(namespaceName))
+			{
+				builder.Append("namespace ");
+				builder.Append(namespaceName);
+				builder.AppendLine(";");
+				builder.AppendLine();
+			}
+			builder.AppendLine("""
+public struct Assertion
+{
+	escaped string message;
+	escaped string sourcefile;
+	uint sourceline;
+}
+
+extern void* __camp_test_malloc(nuint size);
+
+public void assert(bool condition, escaped string message = sourceof(condition), escaped string sourcefile = caller(sourcefile), uint sourceline = caller(sourceline), thrown Assertion* assertion)
+{
+	if (!condition)
+		fail(message, sourcefile, sourceline);
+}
+
+public void fail(escaped string message, escaped string sourcefile = caller(sourcefile), uint sourceline = caller(sourceline), thrown Assertion* assertion)
+{
+	Assertion* created = (Assertion*)__camp_test_malloc(sizeof(Assertion));
+	if (created != null)
+	{
+		created.message = message;
+		created.sourcefile = sourcefile;
+		created.sourceline = sourceline;
+	}
+	throw created;
+}
+""");
+			return builder.ToString();
+		}
+
+		bool IsSharedLibraryApiHeader(CompilerRequest loadRequest, string filename)
+		{
+			string fullPath = Path.GetFullPath(filename, loadRequest.WorkingDirectory);
+			return loadRequest.SharedLibraryApiHeaders.Any(header => string.Equals(Path.GetFullPath(header, loadRequest.WorkingDirectory), fullPath, StringComparison.OrdinalIgnoreCase));
 		}
 
 		bool TryReadWithinAllocationPolicy(string displayPath, string text, out WithinAllocationPolicy? policy)
@@ -434,7 +577,7 @@ public static class CompilerDriver
 			return success;
 		}
 
-		void AddPreprocessorSymbols(Compilation compilation, RuntimeContext context)
+		void AddPreprocessorSymbols(Compilation compilation, CompilerRequest loadRequest, RuntimeContext context)
 		{
 			compilation.PreprocessorSymbols.Add("TRUE");
 			compilation.PreprocessorSymbols.Add(context.ProfileName);
@@ -445,11 +588,11 @@ public static class CompilerDriver
 			foreach (string symbol in context.CommandLineDefines)
 				if (!string.IsNullOrWhiteSpace(symbol))
 					compilation.PreprocessorSymbols.Add(symbol);
-			if (request.DeclarationParticipationMode == DeclarationParticipationMode.TestModule)
+			if (loadRequest.DeclarationParticipationMode == DeclarationParticipationMode.TestModule)
 				compilation.PreprocessorSymbols.Add("TEST_MODULE");
 		}
 
-		bool TryReadInput(string filename, out string text, out string displayPath, out string? fullPath)
+		bool TryReadInput(CompilerRequest loadRequest, string filename, out string text, out string displayPath, out string? fullPath)
 		{
 			try
 			{
@@ -461,9 +604,9 @@ public static class CompilerDriver
 					return true;
 				}
 
-				fullPath = Path.GetFullPath(filename, request.WorkingDirectory);
+				fullPath = Path.GetFullPath(filename, loadRequest.WorkingDirectory);
 				text = File.ReadAllText(fullPath);
-				displayPath = GetDisplayPath(fullPath);
+				displayPath = GetDisplayPath(loadRequest, fullPath);
 				return true;
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -476,9 +619,9 @@ public static class CompilerDriver
 			}
 		}
 
-		string GetDisplayPath(string fullPath)
+		static string GetDisplayPath(CompilerRequest loadRequest, string fullPath)
 		{
-			string root = Path.GetFullPath(request.WorkingDirectory);
+			string root = Path.GetFullPath(loadRequest.WorkingDirectory);
 			string relative = Path.GetRelativePath(root, fullPath);
 			string display = relative.StartsWith("..", StringComparison.Ordinal) ? fullPath : relative;
 			return display.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
@@ -830,7 +973,7 @@ public static class CompilerDriver
 			};
 			packageRequest.Files.AddRange(sourceFiles);
 			packageRequest.UseSourceRoots.AddRange(request.UseSourceRoots);
-			if (!TryLoadCompilation(packageRequest.Files, packageIncludes, context, out Compilation packageCompilation))
+			if (!TryLoadCompilation(packageRequest, packageRequest.Files, packageIncludes, context, out Compilation packageCompilation))
 				return false;
 
 			if (!ExpandDeclarationsAndReport(packageCompilation))
@@ -859,7 +1002,7 @@ public static class CompilerDriver
 			Compilation? packageNativeCompilation = null;
 			if (cApiPath is not null || nativeLibraryPath is not null)
 			{
-				if (!TryLoadCompilation(packageRequest.Files, packageIncludes, context, out packageNativeCompilation))
+				if (!TryLoadCompilation(packageRequest, packageRequest.Files, packageIncludes, context, out packageNativeCompilation))
 					return false;
 				if (!LowerAndReport(packageNativeCompilation))
 					return false;
@@ -1078,9 +1221,12 @@ public static class CompilerDriver
 
 		bool ValidateFrameworks(TargetDefinition target)
 		{
-			if (request.Frameworks.Count == 0 || request.BuildKind is null)
+			NativeBuildKind? nativeBuildKind = request.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover
+				? NativeBuildKind.Exec
+				: request.BuildKind;
+			if (request.Frameworks.Count == 0 || nativeBuildKind is null)
 				return true;
-			if (request.BuildKind == NativeBuildKind.Static)
+			if (nativeBuildKind == NativeBuildKind.Static)
 			{
 				ErrorLine("--framework cannot be used with --artifact static.");
 				return false;
@@ -1135,6 +1281,23 @@ public static class CompilerDriver
 			return true;
 		}
 
+		bool PrepareTestHarnessEntryPoint(Compilation compilation)
+		{
+			List<FunctionDefinition> candidates = [];
+			foreach (Definition definition in compilation.SharedModule is Module module ? DeclarationParticipation.ActiveTopLevelDefinitions(module) : [])
+				if (definition is FunctionDefinition { Name: "main", Export: not null } function)
+					candidates.Add(function);
+
+			if (candidates.Count > 1)
+			{
+				ErrorLine("Test harness entry point replacement found multiple exported functions named 'main'.");
+				return false;
+			}
+			if (candidates.Count == 1)
+				candidates[0].Symbol = "campmain";
+			return true;
+		}
+
 		MetadataVisibility GetEffectiveMetadataVisibility()
 		{
 			if (request.EmitMetadata is MetadataVisibility requested)
@@ -1179,6 +1342,26 @@ public static class CompilerDriver
 
 			generatedFiles.Add(manifestPath);
 			OutLine("generated: " + Path.GetFileName(manifestPath));
+			return true;
+		}
+
+		bool TryEmitTestHarnessSource(string outputDirectory, string projectName, IReadOnlyList<CampTestManifestEntry> tests, out string? harnessSource)
+		{
+			harnessSource = Path.Combine(outputDirectory, projectName + "_test_harness.c");
+			try
+			{
+				Directory.CreateDirectory(outputDirectory);
+				File.WriteAllText(harnessSource, CampTestHarnessGenerator.Generate(projectName, tests), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+			{
+				ErrorLine($"{harnessSource}: {ex.Message}");
+				harnessSource = null;
+				return false;
+			}
+
+			generatedFiles.Add(harnessSource);
+			OutLine("generated: " + Path.GetFileName(harnessSource));
 			return true;
 		}
 

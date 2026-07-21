@@ -515,7 +515,9 @@ sealed class CampCli
 		apiHeaders = [];
 		sharedApiHeaders = [];
 		libraries = [];
-		bool requireLibrary = consumerRequest.BuildKind is not null || consumerRequest.InferBuildKind;
+		bool requireLibrary = consumerRequest.BuildKind is not null
+			|| consumerRequest.InferBuildKind
+			|| consumerRequest.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover;
 		foreach (string projectReference in projectReferences)
 		{
 			ProjectReferenceSpec referenceSpec = ProjectReferenceSpec.Parse(projectReference);
