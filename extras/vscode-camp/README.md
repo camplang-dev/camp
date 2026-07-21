@@ -17,10 +17,9 @@ integration.
   actions beside top-level `@test` functions.
 - Native VS Code Test Explorer integration for discovered Camp tests, grouped
   by source file.
+- Native VS Code Test Coverage integration for Camp coverage runs.
 - Editor title buttons for build/run/debug and status-bar buttons for
   build/run/debug/test/cover while a Camp file is active.
-- Coverage display commands that decorate covered and uncovered Camp source
-  lines from existing coverage artifacts.
 - Camp breakpoints and generated launch configurations for the `camp-dap`
   debug adapter.
 - `Camp: Restart Language Server`.
@@ -211,14 +210,14 @@ that was already started for that session.
 `Camp: Build Current Project`, `Camp: Run Current Project`, `Camp: Test Current
 Project`, and `Camp: Cover Current Project` look at the active Camp file and
 walk upward to find the nearest `.campbuild` file. If the active file is itself
-a `.campbuild`, that file is used directly. If a build file is found, the
-extension runs:
+a `.campbuild`, that file is used directly. Build, run, and test commands send
+output to a VS Code terminal named `Camp`. If a build file is found, those
+commands run:
 
 ```sh
 campc build /path/to/project.campbuild
 campc run /path/to/project.campbuild
 campc test /path/to/project.campbuild
-campc cover /path/to/project.campbuild --coverage-format json
 ```
 
 If no `.campbuild` file is found, the extension falls back to the active `.camp`
@@ -228,17 +227,10 @@ file:
 campc build /path/to/file.camp
 campc run /path/to/file.camp
 campc test /path/to/file.camp
-campc cover /path/to/file.camp --coverage-format json
 ```
 
-Output is sent to a VS Code terminal named `Camp`.
-
-`Camp: Toggle Coverage` loads the newest matching
-`.camp-coverage-map.csv`/`.camp-coverage-results.json` pair under the current
-project directory and decorates covered executable lines with a light green
-background and uncovered executable lines with a light grey background. If no
-coverage artifacts are found, the extension offers to run `Camp: Cover Current
-Project`. `Camp: Clear Coverage` removes the decorations.
+`Camp: Cover Current Project` runs coverage through VS Code's Test Explorer and
+publishes the resulting line coverage to VS Code's Test Coverage UI.
 
 ## Test CodeLens
 
@@ -248,7 +240,8 @@ CodeLens actions above each test:
 - `Run Current Test` runs `campc test <project> --filter <manifest-id>`.
 - `Debug Current Test` launches `camp-dap` with `testFilter` set to the exact
   manifest ID.
-- `Cover Current Test` runs coverage for the exact manifest ID with JSON output.
+- `Cover Current Test` runs coverage for the exact manifest ID and publishes it
+  to VS Code's Test Coverage UI.
 
 The coverage command is:
 
@@ -273,7 +266,8 @@ The Test Explorer profiles are:
 - `Debug`, which launches `camp-dap` through the generated test harness for one
   selected test.
 - `Cover`, which invokes `campc cover <project> --filter <manifest-id>
-  --coverage-format json` for the selected tests and imports JSON test results.
+  --coverage-format json` for the selected tests, imports JSON test results,
+  and publishes line coverage to VS Code's Test Coverage UI.
 
 When all tests in a project are selected, the extension sends the selected
 manifest IDs together in one compiler invocation for that project.

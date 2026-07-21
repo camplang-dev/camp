@@ -21,15 +21,12 @@ let testStatusItem;
 let coverStatusItem;
 let campTerminal;
 let extensionContext;
-let coverageEnabled = false;
-let coverageByPath = new Map();
-let coveredLineDecoration;
-let uncoveredLineDecoration;
 let testController;
 let testRunProfile;
 let testCoverProfile;
 let testDebugProfile;
 let testDataById = new Map();
+let coverageDetailsByFileCoverage = new WeakMap();
 
 function activate(context) {
   extensionContext = context;
@@ -58,15 +55,6 @@ function activate(context) {
   coverStatusItem.tooltip = "Run coverage for the current Camp project";
   coverStatusItem.command = "camp.coverProject";
 
-  coveredLineDecoration = vscode.window.createTextEditorDecorationType({
-    isWholeLine: true,
-    backgroundColor: "rgba(88, 166, 92, 0.18)"
-  });
-  uncoveredLineDecoration = vscode.window.createTextEditorDecorationType({
-    isWholeLine: true,
-    backgroundColor: "rgba(128, 128, 128, 0.18)"
-  });
-
   const debugAdapterFactory = new CampDebugAdapterFactory();
   const debugConfigurationProvider = new CampDebugConfigurationProvider();
 
@@ -76,17 +64,13 @@ function activate(context) {
     debugStatusItem,
     testStatusItem,
     coverStatusItem,
-    coveredLineDecoration,
-    uncoveredLineDecoration,
     vscode.commands.registerCommand("camp.build", () => runCampCommand("build")),
     vscode.commands.registerCommand("camp.run", () => runCampCommand("run")),
     vscode.commands.registerCommand("camp.debug", debugCurrentProject),
     vscode.commands.registerCommand("camp.testProject", () => runCampCommand("test")),
-    vscode.commands.registerCommand("camp.coverProject", () => runCampCommand("cover")),
-    vscode.commands.registerCommand("camp.coverage.toggle", toggleCoverage),
-    vscode.commands.registerCommand("camp.coverage.clear", clearCoverage),
+    vscode.commands.registerCommand("camp.coverProject", coverCurrentProject),
     vscode.commands.registerCommand("camp.test.run", (argument) => runCampTestCommand("test", argument)),
-    vscode.commands.registerCommand("camp.test.cover", (argument) => runCampTestCommand("cover", argument)),
+    vscode.commands.registerCommand("camp.test.cover", coverCurrentTest),
     vscode.commands.registerCommand("camp.test.debug", debugCampTest),
     vscode.commands.registerCommand("camp.restartServer", restartLanguageServer),
     vscode.debug.registerDebugAdapterDescriptorFactory("camp", debugAdapterFactory),
@@ -193,7 +177,6 @@ function updateStatusItems(editor) {
     testStatusItem.hide();
     coverStatusItem.hide();
   }
-  applyCoverageDecorations(editor);
 }
 
 async function runCampCommand(command) {
@@ -243,9 +226,56 @@ function setupTestExplorer(context) {
   testController = vscode.tests.createTestController("campTests", "Camp");
   testController.resolveHandler = async () => refreshTestExplorer();
   testRunProfile = testController.createRunProfile("Run", vscode.TestRunProfileKind.Run, runTestExplorerRequest, true);
-  testCoverProfile = testController.createRunProfile("Cover", vscode.TestRunProfileKind.Coverage || vscode.TestRunProfileKind.Run, coverTestExplorerRequest, false);
+  testCoverProfile = testController.createRunProfile("Cover", vscode.TestRunProfileKind.Coverage, coverTestExplorerRequest, false);
+  testCoverProfile.loadDetailedCoverage = async (_testRun, fileCoverage) => coverageDetailsByFileCoverage.get(fileCoverage) || [];
   testDebugProfile = testController.createRunProfile("Debug", vscode.TestRunProfileKind.Debug, debugTestExplorerRequest, false);
   context.subscriptions.push(testController, testRunProfile, testCoverProfile, testDebugProfile);
+}
+
+async function coverCurrentProject() {
+  const context = await getActiveProjectContext();
+  if (!context) {
+    vscode.window.showWarningMessage("Open a Camp file before running coverage.");
+    return;
+  }
+  await refreshTestExplorer();
+  const tests = collectAllTestItems();
+  if (tests.length === 0) {
+    await coverProjectWithoutDiscoveredTests(context);
+    return;
+  }
+  await runTestExplorerCommand("cover", new vscode.TestRunRequest(undefined, undefined, testCoverProfile), undefined);
+}
+
+async function coverCurrentTest(argument) {
+  const normalized = normalizeTestCommandArgument(argument);
+  if (!normalized.project || !normalized.filter) {
+    vscode.window.showWarningMessage("Camp test coverage command is missing its project or test ID.");
+    return;
+  }
+  await refreshTestExplorer();
+  const item = findTestItem(normalized.filter);
+  if (!item) {
+    vscode.window.showWarningMessage("Camp could not find the selected test in Test Explorer.");
+    return;
+  }
+  await runTestExplorerCommand("cover", new vscode.TestRunRequest([item], undefined, testCoverProfile), undefined);
+}
+
+async function coverProjectWithoutDiscoveredTests(context) {
+  const request = new vscode.TestRunRequest(undefined, undefined, testCoverProfile);
+  const run = testController.createTestRun(request, "Camp Coverage");
+  try {
+    const output = await executeCampTestGroup("cover", { project: context.project, cwd: context.cwd, tests: [] }, run.token);
+    reportCoverage(run, output.coverageArtifacts, context);
+    if (output.tests.length > 0) {
+      vscode.window.showInformationMessage("Camp coverage was generated, but no Test Explorer items were available for test results.");
+    }
+  } catch (error) {
+    vscode.window.showErrorMessage(`Camp coverage failed: ${error.message}`);
+  } finally {
+    run.end();
+  }
 }
 
 async function refreshTestExplorer() {
@@ -376,8 +406,11 @@ async function runTestExplorerCommand(command, request, token) {
       }
     }
     try {
-      const results = await executeCampTestGroup(command, group, token);
-      reportTestResults(run, group.tests, results);
+      const output = await executeCampTestGroup(command, group, token);
+      reportTestResults(run, group.tests, output.tests);
+      if (command === "cover") {
+        reportCoverage(run, output.coverageArtifacts, group);
+      }
     } catch (error) {
       for (const test of group.tests) {
         const item = findTestItem(test.id);
@@ -454,7 +487,12 @@ async function executeCampTestGroup(command, group, token) {
   }
   const result = await execFile(getCompilerPath(), args, { cwd: group.cwd }, token);
   try {
-    return readLatestTestResults(outputDir);
+    const tests = readLatestTestResults(outputDir);
+    const coverageArtifacts = command === "cover" ? findCoverageArtifacts(outputDir) : undefined;
+    if (command === "cover" && !coverageArtifacts) {
+      throw new Error("campc did not write Camp coverage artifacts.");
+    }
+    return { tests, coverageArtifacts };
   } catch (error) {
     if (result.code !== 0) {
       throw new Error((result.stderr || result.stdout || error.message).trim());
@@ -618,87 +656,25 @@ async function getActiveProjectContext() {
   return { editor, documentPath, project, cwd };
 }
 
-async function toggleCoverage() {
-  if (coverageEnabled) {
-    clearCoverage();
-    return;
-  }
-
-  const context = await getActiveProjectContext();
-  if (!context) {
-    vscode.window.showWarningMessage("Open a Camp file before toggling coverage.");
-    return;
-  }
-
-  const artifacts = findCoverageArtifacts(context);
-  if (!artifacts) {
-    const choice = await vscode.window.showWarningMessage(
-      "No Camp coverage results were found for the current project.",
-      "Generate Coverage"
-    );
-    if (choice === "Generate Coverage") {
-      await runCampCommand("cover");
-    }
-    return;
-  }
-
-  try {
-    coverageByPath = loadCoverageDecorations(artifacts, context);
-    coverageEnabled = true;
-    for (const editor of vscode.window.visibleTextEditors) {
-      applyCoverageDecorations(editor);
-    }
-    vscode.window.showInformationMessage(`Loaded Camp coverage from ${path.basename(artifacts.resultsPath)}.`);
-  } catch (error) {
-    coverageByPath = new Map();
-    coverageEnabled = false;
-    vscode.window.showErrorMessage(`Could not load Camp coverage: ${error.message}`);
-  }
-}
-
-function clearCoverage() {
-  coverageEnabled = false;
-  coverageByPath = new Map();
-  for (const editor of vscode.window.visibleTextEditors) {
-    editor.setDecorations(coveredLineDecoration, []);
-    editor.setDecorations(uncoveredLineDecoration, []);
-  }
-}
-
-function applyCoverageDecorations(editor) {
-  if (!editor || editor.document.languageId !== "camp") {
-    return;
-  }
-  if (!coverageEnabled) {
-    editor.setDecorations(coveredLineDecoration, []);
-    editor.setDecorations(uncoveredLineDecoration, []);
-    return;
-  }
-  const key = normalizePath(editor.document.uri.fsPath);
-  const lines = coverageByPath.get(key) || { covered: [], uncovered: [] };
-  editor.setDecorations(coveredLineDecoration, lines.covered.map(lineRange));
-  editor.setDecorations(uncoveredLineDecoration, lines.uncovered.map(lineRange));
-}
-
 function lineRange(line) {
   return new vscode.Range(Math.max(0, line - 1), 0, Math.max(0, line - 1), 0);
 }
 
-function findCoverageArtifacts(context) {
-  const root = context.cwd;
+function findCoverageArtifacts(directory) {
   const maps = [];
   const results = [];
-  collectCoverageArtifacts(root, maps, results);
+  collectFiles(directory, file => file.endsWith(".camp-coverage-map.csv"), maps);
+  collectFiles(directory, file => file.endsWith(".camp-coverage-results.json"), results);
   if (maps.length === 0 || results.length === 0) {
     return undefined;
   }
 
-  const resultsByPrefix = new Map(results.map(file => [stripCoverageSuffix(file.path, ".camp-coverage-results.json"), file]));
+  const resultsByPrefix = new Map(results.map(file => [stripCoverageSuffix(file, ".camp-coverage-results.json"), file]));
   const pairs = [];
   for (const mapFile of maps) {
-    const resultFile = resultsByPrefix.get(stripCoverageSuffix(mapFile.path, ".camp-coverage-map.csv"));
+    const resultFile = resultsByPrefix.get(stripCoverageSuffix(mapFile, ".camp-coverage-map.csv"));
     if (resultFile) {
-      pairs.push({ mapPath: mapFile.path, resultsPath: resultFile.path, mtimeMs: Math.max(mapFile.mtimeMs, resultFile.mtimeMs) });
+      pairs.push({ mapPath: mapFile, resultsPath: resultFile, mtimeMs: Math.max(getModifiedTime(mapFile), getModifiedTime(resultFile)) });
     }
   }
   if (pairs.length > 0) {
@@ -706,39 +682,9 @@ function findCoverageArtifacts(context) {
     return pairs[0];
   }
 
-  maps.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  results.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  return { mapPath: maps[0].path, resultsPath: results[0].path };
-}
-
-function collectCoverageArtifacts(directory, maps, results, depth = 0) {
-  if (depth > 8) {
-    return;
-  }
-  let entries;
-  try {
-    entries = fs.readdirSync(directory, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (entry.name === ".git" || entry.name === "node_modules" || entry.name === "obj") {
-      continue;
-    }
-    const fullPath = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      collectCoverageArtifacts(fullPath, maps, results, depth + 1);
-      continue;
-    }
-    if (!entry.isFile()) {
-      continue;
-    }
-    if (entry.name.endsWith(".camp-coverage-map.csv")) {
-      maps.push({ path: fullPath, mtimeMs: getModifiedTime(fullPath) });
-    } else if (entry.name.endsWith(".camp-coverage-results.json")) {
-      results.push({ path: fullPath, mtimeMs: getModifiedTime(fullPath) });
-    }
-  }
+  maps.sort((a, b) => getModifiedTime(b) - getModifiedTime(a));
+  results.sort((a, b) => getModifiedTime(b) - getModifiedTime(a));
+  return { mapPath: maps[0], resultsPath: results[0] };
 }
 
 function getModifiedTime(filePath) {
@@ -753,7 +699,14 @@ function stripCoverageSuffix(filePath, suffix) {
   return filePath.slice(0, -suffix.length);
 }
 
-function loadCoverageDecorations(artifacts, context) {
+function reportCoverage(run, artifacts, context) {
+  for (const entry of loadVsCodeCoverage(artifacts, context)) {
+    coverageDetailsByFileCoverage.set(entry.fileCoverage, entry.details);
+    run.addCoverage(entry.fileCoverage);
+  }
+}
+
+function loadVsCodeCoverage(artifacts, context) {
   const map = parseCoverageMap(fs.readFileSync(artifacts.mapPath, "utf8"));
   const results = JSON.parse(fs.readFileSync(artifacts.resultsPath, "utf8"));
   if (results.format !== "camp.coverage-results" || results.version !== 1 || !Array.isArray(results.files)) {
@@ -761,13 +714,18 @@ function loadCoverageDecorations(artifacts, context) {
   }
 
   const uncoveredByPath = new Map();
+  const metricsByPath = new Map();
   for (const file of results.files) {
-    if (typeof file.path === "string" && Array.isArray(file.uncoveredLines)) {
+    if (typeof file.path !== "string") {
+      continue;
+    }
+    if (Array.isArray(file.uncoveredLines)) {
       uncoveredByPath.set(file.path, new Set(file.uncoveredLines.filter(Number.isInteger)));
     }
+    metricsByPath.set(file.path, file);
   }
 
-  const byPath = new Map();
+  const files = new Map();
   for (const counter of map.counters) {
     if (counter.kind !== "l") {
       continue;
@@ -777,25 +735,47 @@ function loadCoverageDecorations(artifacts, context) {
       continue;
     }
     const resolvedPath = normalizePath(resolveSourcePath(sourcePath, context));
-    const lines = byPath.get(resolvedPath) || { covered: [], uncovered: [] };
+    const file = files.get(resolvedPath) || { uriPath: resolveSourcePath(sourcePath, context), sourcePaths: new Set(), lines: new Map() };
+    file.sourcePaths.add(sourcePath);
     const uncovered = uncoveredByPath.get(sourcePath)?.has(counter.line) === true;
-    if (uncovered) {
-      lines.uncovered.push(counter.line);
-    } else {
-      lines.covered.push(counter.line);
-    }
-    byPath.set(resolvedPath, lines);
+    file.lines.set(counter.line, file.lines.get(counter.line) === true || !uncovered);
+    files.set(resolvedPath, file);
   }
 
-  for (const lines of byPath.values()) {
-    lines.covered = Array.from(new Set(lines.covered)).sort((a, b) => a - b);
-    lines.uncovered = Array.from(new Set(lines.uncovered)).sort((a, b) => a - b);
+  const coverage = [];
+  for (const file of files.values()) {
+    const lines = Array.from(file.lines.entries()).sort((a, b) => a[0] - b[0]);
+    const covered = lines.filter(([, wasCovered]) => wasCovered).length;
+    const details = lines.map(([line, wasCovered]) => new vscode.StatementCoverage(wasCovered, new vscode.Position(Math.max(0, line - 1), 0)));
+    const metric = combinedMetricForSourcePaths(metricsByPath, file.sourcePaths, "function");
+    const functionCoverage = metric ? new vscode.TestCoverageCount(metric.covered, metric.total) : undefined;
+    const fileCoverage = new vscode.FileCoverage(
+      vscode.Uri.file(file.uriPath),
+      new vscode.TestCoverageCount(covered, lines.length),
+      undefined,
+      functionCoverage
+    );
+    coverage.push({ fileCoverage, details });
   }
-  return byPath;
+  return coverage;
+}
+
+function combinedMetricForSourcePaths(metricsByPath, sourcePaths, metricName) {
+  let covered = 0;
+  let total = 0;
+  for (const sourcePath of sourcePaths) {
+    const metric = metricsByPath.get(sourcePath)?.[metricName];
+    if (metric && Number.isInteger(metric.covered) && Number.isInteger(metric.total)) {
+      covered += metric.covered;
+      total += metric.total;
+    }
+  }
+  return total > 0 ? { covered, total } : undefined;
 }
 
 function parseCoverageMap(text) {
   const files = new Map();
+  const names = new Map();
   const counters = [];
   let version = 0;
   for (const line of text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n")) {
@@ -807,19 +787,22 @@ function parseCoverageMap(text) {
       version = Number(row[1]);
     } else if (row[0] === "p" && row.length === 3) {
       files.set(Number(row[1]), row[2]);
+    } else if (row[0] === "n" && row.length === 3) {
+      names.set(Number(row[1]), row[2]);
     } else if (row[0] === "c" && row.length === 6) {
       counters.push({
         id: Number(row[1]),
         kind: row[2],
         fileId: Number(row[3]),
-        line: Number(row[4])
+        line: Number(row[4]),
+        nameId: Number(row[5])
       });
     }
   }
   if (version !== 1) {
     throw new Error("coverage map CSV is not a supported Camp coverage map.");
   }
-  return { files, counters };
+  return { files, names, counters };
 }
 
 function parseCsvRow(line) {
