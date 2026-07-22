@@ -18,7 +18,7 @@ public sealed class GoldenFileTests
 	public static IEnumerable<object[]> GetCases()
 	{
 		string repositoryRoot = FindRepositoryRoot();
-		string casesRoot = Path.Combine(repositoryRoot, "Tests");
+		string casesRoot = Path.Combine(repositoryRoot, "tests");
 		string? kindFilter = Environment.GetEnvironmentVariable("CAMP_TEST_KIND");
 		string? caseFilter = Environment.GetEnvironmentVariable("CAMP_TEST_CASE");
 		foreach (string casePath in Directory.GetFiles(casesRoot, "*.camp", SearchOption.AllDirectories)

@@ -364,7 +364,6 @@ public static class GoldenFileTestRunner
 	static string Normalize(string text)
 	{
 		text = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
-		text = text.Replace("Tests/", "tests/", StringComparison.Ordinal);
 		if (text.Length > 0 && !text.EndsWith('\n'))
 			text += "\n";
 		return text;

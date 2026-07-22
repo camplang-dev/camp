@@ -31,7 +31,7 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Old_inspect_option_reports_migration_error()
 	{
-		ProcessResult result = RunCampc("--inspect", "lowering", "Tests/Lowering/default_arguments.camp");
+		ProcessResult result = RunCampc("--inspect", "lowering", "tests/Lowering/default_arguments.camp");
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("replaced by subcommands", result.StdErr, StringComparison.Ordinal);
@@ -40,7 +40,7 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Build_dir_option_reports_migration_error()
 	{
-		ProcessResult result = RunCampc("build", "Tests/Lowering/default_arguments.camp", "--artifact", "none", "--build-dir", TempPath("removed-build-dir"));
+		ProcessResult result = RunCampc("build", "tests/Lowering/default_arguments.camp", "--artifact", "none", "--build-dir", TempPath("removed-build-dir"));
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("--build-dir has been removed", result.StdErr, StringComparison.Ordinal);
@@ -881,7 +881,7 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Dump_lowering_prints_to_stdout()
 	{
-		ProcessResult result = RunCampc("dump", "lowering", "Tests/Lowering/default_arguments.camp", "--nostdlib");
+		ProcessResult result = RunCampc("dump", "lowering", "tests/Lowering/default_arguments.camp", "--nostdlib");
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains("addDefault", result.StdOut, StringComparison.Ordinal);

@@ -86,7 +86,7 @@ Completion criteria:
   - extern class explicit accessor conflict;
   - extern `vtableof` without declared interface implementation;
   - derived class interface re-implementation, if not already covered.
-- Add `BUG-031` to `Tests/OutstandingBugs.md` and advance next bug number to `BUG-032`:
+- Add `BUG-031` to `tests/OutstandingBugs.md` and advance next bug number to `BUG-032`:
   - derived classes should be forbidden from declaring methods that would newly satisfy optional interface methods from an interface implemented by a base class.
   - This is deferred intentionally.
 - Run:

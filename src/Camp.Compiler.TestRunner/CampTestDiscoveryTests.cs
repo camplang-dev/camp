@@ -11,7 +11,7 @@ public sealed class CampTestDiscoveryTests
 	[Fact]
 	public void Discovery_returns_manifest_records_for_valid_skipped_and_invalid_tests()
 	{
-		SemanticCompilation compilation = SemanticCompiler.CompileLoweredTestModule(("Tests/test_manifest.camp", """
+		SemanticCompilation compilation = SemanticCompiler.CompileLoweredTestModule(("tests/test_manifest.camp", """
 			namespace MathTests;
 
 			struct Assertion
@@ -61,7 +61,7 @@ public sealed class CampTestDiscoveryTests
 		CampTestManifestEntry add = result.Manifest.Tests.Single(static test => test.Name == "addReturnsSum");
 		Assert.Equal("MathTests::addReturnsSum", add.Id);
 		Assert.Equal("MathTests::addReturnsSum", add.QualifiedName);
-		Assert.Equal("Tests/test_manifest.camp", add.Sourcefile);
+		Assert.Equal("tests/test_manifest.camp", add.Sourcefile);
 		Assert.Equal("Adds two values.", add.Summary);
 		Assert.False(add.Skipped);
 		Assert.Null(add.SkipReason);
@@ -93,7 +93,7 @@ public sealed class CampTestDiscoveryTests
 			"MathTests::parseValue",
 			"parseValue",
 			"MathTests::parseValue",
-			"Tests/math.camp",
+			"tests/math.camp",
 			12,
 			"",
 			false,

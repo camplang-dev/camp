@@ -565,7 +565,7 @@ Required JSON shape:
       "id": "MathTests::addReturnsSum",
       "name": "addReturnsSum",
       "qualifiedName": "MathTests::addReturnsSum",
-      "sourcefile": "Tests/math.camp",
+      "sourcefile": "tests/math.camp",
       "sourceline": 8,
       "summary": "Adds two values.",
       "skipped": false,
@@ -716,7 +716,7 @@ Required JSON shape:
       "id": "MathTests::addReturnsSum",
       "name": "addReturnsSum",
       "qualifiedName": "MathTests::addReturnsSum",
-      "sourcefile": "Tests/math.camp",
+      "sourcefile": "tests/math.camp",
       "sourceline": 8,
       "summary": "Adds two values.",
       "outcome": "passed",
@@ -736,7 +736,7 @@ Assertion failure:
   "failure": {
     "kind": "assertion",
     "message": "sum should match",
-    "sourcefile": "Tests/math.camp",
+    "sourcefile": "tests/math.camp",
     "sourceline": 10
   }
 }
@@ -751,7 +751,7 @@ Invalid built-in signature:
   "failure": {
     "kind": "invalid-test-signature",
     "message": "built-in tests must have the signature void name(thrown Assertion*)",
-    "sourcefile": "Tests/math.camp",
+    "sourcefile": "tests/math.camp",
     "sourceline": 18
   }
 }

@@ -879,7 +879,7 @@ against real stdlib/API output.
 
 Each stage should end with a full test suite pass and a commit. During the
 stage, targeted tests should be used aggressively. Existing unrelated compiler
-bugs found during the work should be logged in `Tests/OutstandingBugs.md` unless
+bugs found during the work should be logged in `tests/OutstandingBugs.md` unless
 they block the stage.
 
 The stages are intentionally ordered so that test updates are concentrated
