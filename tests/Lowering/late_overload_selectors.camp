@@ -1,0 +1,69 @@
+class JsonArray
+{
+	void setElement(@index nuint index, overload int value)
+	{
+	}
+
+	void setElement(@index nuint index, overload bool value)
+	{
+	}
+
+	void setElement(@index nuint index, overload string value)
+	{
+	}
+
+	static void write(int channel, overload int value)
+	{
+	}
+
+	static void write(int channel, overload bool value)
+	{
+	}
+
+	bool tryGet(@index nuint index, overload out int value)
+	{
+		value = 1;
+		return true;
+	}
+
+	bool tryGet(@index nuint index, overload out bool value)
+	{
+		value = true;
+		return true;
+	}
+}
+
+struct Handle
+{
+}
+
+void tag(Handle this, int channel, overload int value)
+{
+}
+
+void tag(Handle this, int channel, overload bool value)
+{
+}
+
+void write(int channel, overload int value)
+{
+}
+
+void write(int channel, overload bool value)
+{
+}
+
+void main(JsonArray* json)
+{
+	Handle handle = default;
+	write(0, true);
+	write(value: 3, channel: 1);
+	JsonArray.write(2, false);
+	JsonArray.write(value: 4, channel: 3);
+	handle.tag(4, true);
+	json.setElement(4, true);
+	json.setElement(value: 5, index: 6);
+	json.tryGet(7, out bool flag);
+	json.tryGet(8, out int count);
+	json.tryGet(9, out bool _);
+}

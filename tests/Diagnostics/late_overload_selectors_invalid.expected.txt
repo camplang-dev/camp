@@ -1,0 +1,10 @@
+tests/Diagnostics/late_overload_selectors_invalid.camp(1,58): error: A declaration may contain only one overload selector.
+tests/Diagnostics/late_overload_selectors_invalid.camp(45,29): error: An overload selector may not declare a default value.
+tests/Diagnostics/late_overload_selectors_invalid.camp(49,36): error: Generic values constrained to any must be passed by reference.
+tests/Diagnostics/late_overload_selectors_invalid.camp(49,36): error: `overload value` is invalid because 'T' does not contribute a method-symbol type fragment.
+tests/Diagnostics/late_overload_selectors_invalid.camp(55,27): error: `overload` may not be used on constructors or destructors.
+tests/Diagnostics/late_overload_selectors_invalid.camp(9,53): error: Overload family `selectorName` must use the same selector parameter name.
+tests/Diagnostics/late_overload_selectors_invalid.camp(17,37): error: Overload family `selectorPosition` must use the same selector parameter position.
+tests/Diagnostics/late_overload_selectors_invalid.camp(25,6): error: Overload family `preSelectorType` must use identical parameter 'index' before the overload selector.
+tests/Diagnostics/late_overload_selectors_invalid.camp(33,6): error: Overload family `preSelectorIndex` must use identical parameter 'index' before the overload selector.
+tests/Diagnostics/late_overload_selectors_invalid.camp(41,6): error: Overload family `preSelectorRange` must use identical parameter 'index' before the overload selector.

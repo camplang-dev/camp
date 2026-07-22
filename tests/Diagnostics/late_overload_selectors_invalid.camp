@@ -1,0 +1,58 @@
+void duplicateSelector(overload int value, overload bool fallback)
+{
+}
+
+void selectorName(@index nuint index, overload int value)
+{
+}
+
+void selectorName(@index nuint index, overload bool item)
+{
+}
+
+void selectorPosition(@index nuint index, overload int value)
+{
+}
+
+void selectorPosition(overload bool value, @index nuint index)
+{
+}
+
+void preSelectorType(@index nuint index, overload int value)
+{
+}
+
+void preSelectorType(@index int index, overload bool value)
+{
+}
+
+void preSelectorIndex(@index nuint index, overload int value)
+{
+}
+
+void preSelectorIndex(nuint index, overload bool value)
+{
+}
+
+void preSelectorRange(@range nuint index, nuint count, overload int value)
+{
+}
+
+void preSelectorRange(nuint index, nuint count, overload bool value)
+{
+}
+
+void defaulted(overload int value = 0)
+{
+}
+
+void genericAny<T: any>(overload T value)
+{
+}
+
+class Constructed
+{
+	Constructed(overload int value)
+	{
+	}
+}

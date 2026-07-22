@@ -1,0 +1,34 @@
+void setElement(@index nuint index, overload int value)
+{
+}
+
+void setElement(@index nuint index, overload bool value)
+{
+}
+
+bool tryGet(@index nuint index, overload out int value)
+{
+	value = 1;
+	return true;
+}
+
+bool tryGet(@index nuint index, overload out bool value)
+{
+	value = false;
+	return true;
+}
+
+void acceptsCallable(fn void(nuint, int) callback)
+{
+}
+
+void main()
+{
+	setElement(1);
+	tryGet(0, out auto inferred);
+	tryGet(1, out _);
+	tryGet(2, false);
+	auto family = setElement;
+	auto concrete = setElementInt;
+	acceptsCallable(setElement);
+}

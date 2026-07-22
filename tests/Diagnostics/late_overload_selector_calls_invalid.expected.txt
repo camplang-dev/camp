@@ -1,0 +1,10 @@
+tests/Diagnostics/late_overload_selector_calls_invalid.camp(27,2): error: `setElement` is an overload family. The selector argument is missing.
+tests/Diagnostics/late_overload_selector_calls_invalid.camp(27,2): error: Multiple candidates found for call target 'setElement'.
+tests/Diagnostics/late_overload_selector_calls_invalid.camp(28,12): error: Cannot select overload `tryGet` because the selector expression has no independent static type. Add an explicit cast.
+tests/Diagnostics/late_overload_selector_calls_invalid.camp(28,2): error: Multiple candidates found for call target 'tryGet'.
+tests/Diagnostics/late_overload_selector_calls_invalid.camp(29,16): error: Cannot select overload `tryGet` because the selector expression has no independent static type. Add an explicit cast.
+tests/Diagnostics/late_overload_selector_calls_invalid.camp(29,2): error: Multiple candidates found for call target 'tryGet'.
+tests/Diagnostics/late_overload_selector_calls_invalid.camp(30,12): error: Out overload selectors require an explicit 'out' argument.
+tests/Diagnostics/late_overload_selector_calls_invalid.camp(30,2): error: Multiple candidates found for call target 'tryGet'.
+tests/Diagnostics/late_overload_selector_calls_invalid.camp(31,16): error: `setElement` names an overload family, not a callable value. Select a concrete full callable name or write an explicit wrapper.
+tests/Diagnostics/late_overload_selector_calls_invalid.camp(33,18): error: `setElement` names an overload family, not a callable value. Select a concrete full callable name or write an explicit wrapper.

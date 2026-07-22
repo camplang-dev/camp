@@ -3328,7 +3328,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", app);
 
 		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains($"Package source 'local' path '{sourceRootArgument}' could not be found.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains($"Package source 'local' path '{Path.GetFullPath(missingSourceRoot)}' could not be found.", result.StdErr, StringComparison.Ordinal);
 		Assert.Contains($"resolved path: {Path.GetFullPath(missingSourceRoot)}", result.StdErr, StringComparison.Ordinal);
 	}
 

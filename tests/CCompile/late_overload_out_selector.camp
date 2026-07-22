@@ -1,0 +1,18 @@
+bool tryGet(@index nuint index, overload out int value)
+{
+	value = 7;
+	return index == 0;
+}
+
+bool tryGet(@index nuint index, overload out bool value)
+{
+	value = true;
+	return index == 1;
+}
+
+int main()
+{
+	tryGet(0, out int number);
+	tryGet(1, out bool enabled);
+	return enabled ? number - 7 : 1;
+}

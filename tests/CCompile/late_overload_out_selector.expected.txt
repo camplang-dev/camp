@@ -1,0 +1,53 @@
+// file: late_overload_out_selector.c
+#include "late_overload_out_selector_private.h"
+
+/* Private file declarations. */
+static bool tryGetInt(uintptr_t index, int *value);
+static bool tryGetBool(uintptr_t index, bool *value);
+static int main(void);
+
+static bool tryGetInt(uintptr_t index, int *value)
+{
+	(*value) = 7;
+	return (index == 0);
+}
+
+static bool tryGetBool(uintptr_t index, bool *value)
+{
+	(*value) = true;
+	return (index == 1);
+}
+
+static int main(void)
+{
+	int number;
+	tryGetInt(0, &number);
+	bool enabled;
+	tryGetBool(1, &enabled);
+	return (enabled ? (number - 7) : 1);
+}
+
+// file: late_overload_out_selector_private.h
+#ifndef LATE_OVERLOAD_OUT_SELECTOR_PRIVATE_H_
+#define LATE_OVERLOAD_OUT_SELECTOR_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: late_overload_out_selector.c

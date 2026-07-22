@@ -5,6 +5,18 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	sealed record OverloadSelectorFacts(
+		FunctionDefinition Function,
+		ParameterDefinition Selector,
+		int SelectorCallableIndex,
+		string SelectorFragment);
+
+	sealed record OverloadParameterShape(
+		string Name,
+		ParameterModifier Modifier,
+		string Type,
+		string Attributes);
+
 	static bool HasOverloadSelector(FunctionDefinition function)
 	{
 		foreach (ParameterDefinition parameter in function.Parameters)
@@ -19,6 +31,17 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter.IsOverloadSelector)
 				return parameter;
 		return null;
+	}
+
+	OverloadSelectorFacts? GetOverloadSelectorFacts(FunctionDefinition function)
+	{
+		ParameterDefinition? selector = GetOverloadSelector(function);
+		if (selector is null)
+			return null;
+
+		int callableIndex = GetCallableOverloadSelectorIndex(function);
+		string fragment = BuildFlattenedTypeFragment(selector.ResolvedType ?? ErrorType, function);
+		return new OverloadSelectorFacts(function, selector, callableIndex, fragment);
 	}
 
 	void PrecomputeOverloadCallableNames(Module module)
@@ -84,7 +107,6 @@ public sealed partial class BindableNodeAnalyzer
 
 		ParameterDefinition? selector = null;
 		int selectorCount = 0;
-		int firstOrdinaryIndex = -1;
 		for (int i = 0; i < function.Parameters.Count; i++)
 		{
 			ParameterDefinition parameter = function.Parameters[i];
@@ -94,14 +116,6 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetNameRange(parameter), "`this` cannot be an overload selector.");
 				continue;
 			}
-
-			if (firstOrdinaryIndex < 0
-				&& parameter is not SizeOfParameterDefinition
-				&& parameter is not NameOfParameterDefinition
-				&& parameter is not VTableOfParameterDefinition
-				&& parameter is not WithinParameterDefinition
-				&& parameter.Modifier is not ParameterModifier.Within and not ParameterModifier.Thrown)
-				firstOrdinaryIndex = i;
 
 			if (!parameter.IsOverloadSelector)
 				continue;
@@ -123,9 +137,6 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (selector.DefaultValue is not null)
 			Report(GetNameRange(selector), "An overload selector may not declare a default value.");
-
-		if (firstOrdinaryIndex >= 0 && !ReferenceEquals(function.Parameters[firstOrdinaryIndex], selector))
-			Report(GetNameRange(selector), "`overload` may appear only on the first non-this formal parameter.");
 
 		string fragment = BuildFlattenedTypeFragment(selector.ResolvedType ?? ErrorType, function);
 		if (string.IsNullOrWhiteSpace(fragment))
@@ -157,6 +168,8 @@ public sealed partial class BindableNodeAnalyzer
 		bool anyOverload = false;
 		bool anyOrdinary = false;
 		string? selectorName = null;
+		int? selectorIndex = null;
+		List<OverloadParameterShape>? preSelectorShape = null;
 		HashSet<string> callableNames = new(StringComparer.Ordinal);
 
 		foreach (FunctionDefinition function in family)
@@ -167,13 +180,30 @@ public sealed partial class BindableNodeAnalyzer
 			if (!hasSelector)
 				continue;
 
-			ParameterDefinition? selector = GetOverloadSelector(function);
-			if (selector is not null)
+			OverloadSelectorFacts? facts = GetOverloadSelectorFacts(function);
+			if (facts is not null)
 			{
 				if (selectorName is null)
-					selectorName = selector.Name;
-				else if (selectorName != selector.Name)
-					Report(GetNameRange(selector), $"Overload family `{invoker}` must use the same selector parameter name.");
+					selectorName = facts.Selector.Name;
+				else if (selectorName != facts.Selector.Name)
+					Report(GetNameRange(facts.Selector), $"Overload family `{invoker}` must use the same selector parameter name.");
+
+				bool selectorPositionMatches = true;
+				if (selectorIndex is null)
+					selectorIndex = facts.SelectorCallableIndex;
+				else if (selectorIndex != facts.SelectorCallableIndex)
+				{
+					Report(GetNameRange(facts.Selector), $"Overload family `{invoker}` must use the same selector parameter position.");
+					selectorPositionMatches = false;
+				}
+
+				if (!selectorPositionMatches)
+					continue;
+				List<OverloadParameterShape> currentShape = BuildPreSelectorShape(function, facts.SelectorCallableIndex);
+				if (preSelectorShape is null)
+					preSelectorShape = currentShape;
+				else
+					ValidatePreSelectorShape(invoker, function, preSelectorShape, currentShape);
 			}
 
 			string callable = GetCallableName(function);
@@ -185,6 +215,52 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (FunctionDefinition function in family)
 				Report(GetNameRange(function), $"`{invoker}` cannot contain both ordinary declarations and overload declarations.");
+		}
+	}
+
+	List<OverloadParameterShape> BuildPreSelectorShape(FunctionDefinition function, int selectorCallableIndex)
+	{
+		List<OverloadParameterShape> shape = [];
+		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters);
+		for (int i = 0; i < selectorCallableIndex && i < callableParameters.Count; i++)
+			shape.Add(BuildOverloadParameterShape(callableParameters[i]));
+		return shape;
+	}
+
+	OverloadParameterShape BuildOverloadParameterShape(ParameterDefinition parameter)
+	{
+		return new OverloadParameterShape(
+			parameter.Name,
+			parameter.Modifier,
+			parameter.ResolvedType ?? ErrorType,
+			BuildOverloadParameterAttributeShape(parameter));
+	}
+
+	static string BuildOverloadParameterAttributeShape(ParameterDefinition parameter)
+	{
+		List<string> names = [];
+		foreach (AttributeConstructor attribute in parameter.Attributes)
+			names.Add(attribute.Name);
+		names.Sort(StringComparer.Ordinal);
+		return string.Join(",", names);
+	}
+
+	void ValidatePreSelectorShape(string invoker, FunctionDefinition function, List<OverloadParameterShape> expected, List<OverloadParameterShape> actual)
+	{
+		if (expected.Count != actual.Count)
+		{
+			Report(GetNameRange(function), $"Overload family `{invoker}` must use identical parameters before the overload selector.");
+			return;
+		}
+
+		for (int i = 0; i < expected.Count; i++)
+		{
+			if (expected[i] == actual[i])
+				continue;
+
+			string parameterName = string.IsNullOrWhiteSpace(actual[i].Name) ? $"#{i + 1}" : actual[i].Name;
+			Report(GetNameRange(function), $"Overload family `{invoker}` must use identical parameter '{parameterName}' before the overload selector.");
+			return;
 		}
 	}
 
@@ -240,7 +316,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		ParameterDefinition? selector = GetOverloadSelector(candidates[0]);
 		if (selector?.Modifier == ParameterModifier.Out && selectorArgument.Modifier != ArgumentModifier.Out)
+		{
 			Report(GetRange(selectorSyntax), "Out overload selectors require an explicit 'out' argument.");
+			selectorArgument.ResolvedType = ErrorType;
+			if (selectorArgument.Value is not null)
+				selectorArgument.Value.ResolvedType = ErrorType;
+			return null;
+		}
 
 		string selectorType = BodyAnalyzeOverloadSelectorArgument(selectorArgument, scope, typeScope);
 		if (selectorType is TargetType or ErrorType or UnresolvedType)
