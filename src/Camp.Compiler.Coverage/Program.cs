@@ -12,17 +12,17 @@ CoverageOptions options = CoverageOptions.Parse(args);
 string sourceRoot = FindSourceRoot(Directory.GetCurrentDirectory());
 string repositoryRoot = Directory.GetParent(sourceRoot)?.FullName ?? sourceRoot;
 string solutionPath = Path.Combine(sourceRoot, "camplang.sln");
-string testProjectRoot = Path.Combine(sourceRoot, "Camp.Compiler.TestRunner");
 string reportRoot = Path.Combine(Path.Combine(repositoryRoot, "tmp"), "coverage-report");
+string dotnetTestResultsRoot = Path.Combine(Path.Combine(repositoryRoot, "tmp"), "dotnet-test-results");
 
 if (!options.NoTest)
 {
-	int testExitCode = Run("dotnet", ["test", solutionPath, "--collect:XPlat Code Coverage"], sourceRoot);
+	int testExitCode = Run("dotnet", ["test", solutionPath, "--collect:XPlat Code Coverage", "--results-directory", dotnetTestResultsRoot], sourceRoot);
 	if (testExitCode != 0)
 		return testExitCode;
 }
 
-string coveragePath = FindLatestCoverageFile(testProjectRoot);
+string coveragePath = FindLatestCoverageFile(dotnetTestResultsRoot);
 CoverageReport report = CoverageReport.Load(coveragePath);
 Directory.CreateDirectory(reportRoot);
 
@@ -72,9 +72,8 @@ static string FindSourceRoot(string start)
 	throw new InvalidOperationException("Could not find src/camplang.sln.");
 }
 
-static string FindLatestCoverageFile(string testProjectRoot)
+static string FindLatestCoverageFile(string testResults)
 {
-	string testResults = Path.Combine(testProjectRoot, "TestResults");
 	if (!Directory.Exists(testResults))
 		throw new InvalidOperationException($"Coverage output directory '{testResults}' does not exist.");
 

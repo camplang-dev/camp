@@ -3,12 +3,13 @@
     <Open Condition="'$(Open)' == ''">false</Open>
     <CoverageOpenArgument Condition="'$(Open)' == 'true'">--open</CoverageOpenArgument>
     <CoverageOpenArgument Condition="'$(Open)' == 'True'">--open</CoverageOpenArgument>
+    <DotNetTestResultsDirectory>$(MSBuildThisFileDirectory)../tmp/dotnet-test-results</DotNetTestResultsDirectory>
   </PropertyGroup>
 
   <Target Name="Coverage">
     <Exec
       WorkingDirectory="$(MSBuildThisFileDirectory)"
-      Command="dotnet test &quot;$(MSBuildThisFileDirectory)camplang.sln&quot; --collect:&quot;XPlat Code Coverage&quot;" />
+      Command="dotnet test &quot;$(MSBuildThisFileDirectory)camplang.sln&quot; --collect:&quot;XPlat Code Coverage&quot; --results-directory &quot;$(DotNetTestResultsDirectory)&quot;" />
     <Exec
       WorkingDirectory="$(MSBuildThisFileDirectory)"
       Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)Camp.Compiler.Coverage&quot; -- --no-test $(CoverageOpenArgument)" />

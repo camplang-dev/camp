@@ -128,7 +128,8 @@ should usually run the LSP-focused tests before full validation.
 ## Coverage
 
 Coverage output is generated under `tmp/coverage-report` by
-`dotnet msbuild src/coverage.proj`.
+`dotnet msbuild src/coverage.proj`. The underlying VSTest collector output is
+written under `tmp/dotnet-test-results`.
 
 ## Updating Expected Files
 
