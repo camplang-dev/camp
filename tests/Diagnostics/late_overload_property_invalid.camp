@@ -1,0 +1,41 @@
+struct Point
+{
+	int x;
+}
+
+class JsonArray
+{
+	nuint length;
+
+	void setElement(@index nuint index, overload int value)
+	{
+	}
+
+	void setElement(@index nuint index, overload bool value)
+	{
+	}
+
+	void setElement(@index nuint index, overload string value)
+	{
+	}
+
+	void setElement(@index nuint index, overload Point value)
+	{
+	}
+
+	void setCallback(@index nuint index, overload fn bool(int) callback)
+	{
+	}
+
+	void setCallback(@index nuint index, overload int callback)
+	{
+	}
+}
+
+void main(JsonArray* json)
+{
+	json.Element[0] = null;
+	json.Element[1] = default;
+	json.Element[2] = { .x = 1 };
+	json.Callback[3] = value => value > 0;
+}

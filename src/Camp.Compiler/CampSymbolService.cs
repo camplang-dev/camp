@@ -685,9 +685,10 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 	static bool TryCreatePropertyCompletion(FunctionDefinition function, out CampCompletionItem? item)
 	{
 		item = null;
-		if (!TryGetPropertyAccessorName(function.Name, out string? propertyName))
+		string functionName = BindableNodeAnalyzer.GetCallableName(function);
+		if (!TryGetPropertyAccessorName(functionName, out string? propertyName))
 			return false;
-		string? type = function.Name.StartsWith("get", StringComparison.Ordinal)
+		string? type = functionName.StartsWith("get", StringComparison.Ordinal)
 			? BindableNodeCodeSerializer.SerializeType(function.ReturnType)
 			: GetVisibleCallParameters(function).LastOrDefault() is ParameterDefinition parameter
 				? BindableNodeCodeSerializer.SerializeType(parameter.Type)

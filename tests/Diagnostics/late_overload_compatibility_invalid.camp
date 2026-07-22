@@ -1,0 +1,25 @@
+virtual class Base
+{
+	virtual void write(int level, overload int value)
+	{
+	}
+}
+
+sealed class BadOverride: Base
+{
+	override void write(overload int value, int level)
+	{
+	}
+}
+
+interface IWriter
+{
+	void write(int level, overload int value);
+}
+
+class BadInterface: IWriter
+{
+	void write(overload int value, int level): IWriter
+	{
+	}
+}

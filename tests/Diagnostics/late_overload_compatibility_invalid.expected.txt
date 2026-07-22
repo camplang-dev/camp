@@ -1,0 +1,2 @@
+tests/Diagnostics/late_overload_compatibility_invalid.camp(10,16): error: Override 'writeInt' must preserve the base declaration's overload selector position.
+tests/Diagnostics/late_overload_compatibility_invalid.camp(22,7): error: Method 'writeInt(None:int, None:int)' is not compatible with interface member 'IWriter.writeInt(None:int, None:int)' because it does not preserve the interface member's overload selector position.

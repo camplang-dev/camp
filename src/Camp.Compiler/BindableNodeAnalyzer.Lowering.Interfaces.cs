@@ -7,12 +7,14 @@ public sealed partial class BindableNodeAnalyzer
 {
 	bool IsPropertyGetterReference(MemberReferenceExpression member)
 	{
-		return member.Member is FunctionDefinition function && function.Name == "get" + member.Name;
+		return member.Member is FunctionDefinition function
+			&& (function.Name == "get" + member.Name || GetCallableName(function) == "get" + member.Name);
 	}
 
 	bool IsPropertySetterReference(MemberReferenceExpression member)
 	{
-		return member.Member is FunctionDefinition function && function.Name == "set" + member.Name;
+		return member.Member is FunctionDefinition function
+			&& (function.Name == "set" + member.Name || GetCallableName(function) == "set" + member.Name);
 	}
 
 	CallExpression RewritePropertyGetterCall(MemberReferenceExpression getter, List<ArgumentExpression> arguments)

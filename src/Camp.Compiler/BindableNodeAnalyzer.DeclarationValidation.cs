@@ -571,6 +571,11 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetNameRange(function), $"Method '{declared.DisplayName}' is not compatible with interface member '{interfaceDefinition.Name}.{required.DisplayName}'.");
 				continue;
 			}
+			if (!OverloadSelectorShapeCompatible(function, member, out string overloadShapeMismatch))
+			{
+				Report(GetNameRange(function), $"Method '{declared.DisplayName}' is not compatible with interface member '{interfaceDefinition.Name}.{required.DisplayName}' because it does not preserve the interface member's {overloadShapeMismatch}.");
+				continue;
+			}
 
 			string? expectedCallSpec = GetInterfaceMemberEffectiveCallSpec(member);
 			if (!string.IsNullOrWhiteSpace(function.CallSpec) && function.CallSpec != expectedCallSpec)
@@ -936,8 +941,8 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (BuildMethodSignature(inherited).Equals(signature))
 			{
-				if (HasOverloadSelector(inherited) != HasOverloadSelector(function))
-					Report(GetNameRange(function), $"Override '{GetCallableName(function)}' must preserve the base declaration's overload spelling.");
+				if (!OverloadSelectorShapeCompatible(function, inherited, out string overloadShapeMismatch))
+					Report(GetNameRange(function), $"Override '{GetCallableName(function)}' must preserve the base declaration's {overloadShapeMismatch}.");
 				return;
 			}
 		}

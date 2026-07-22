@@ -264,6 +264,52 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	bool OverloadSelectorShapeCompatible(FunctionDefinition declared, FunctionDefinition required, out string message)
+	{
+		message = "";
+		bool declaredOverload = HasOverloadSelector(declared);
+		bool requiredOverload = HasOverloadSelector(required);
+		if (declaredOverload != requiredOverload)
+		{
+			message = "overload spelling";
+			return false;
+		}
+		if (!declaredOverload)
+			return true;
+
+		OverloadSelectorFacts? declaredFacts = GetOverloadSelectorFacts(declared);
+		OverloadSelectorFacts? requiredFacts = GetOverloadSelectorFacts(required);
+		if (declaredFacts is null || requiredFacts is null)
+			return true;
+
+		if (declaredFacts.Selector.Name != requiredFacts.Selector.Name)
+		{
+			message = "overload selector name";
+			return false;
+		}
+		if (declaredFacts.SelectorCallableIndex != requiredFacts.SelectorCallableIndex)
+		{
+			message = "overload selector position";
+			return false;
+		}
+
+		List<OverloadParameterShape> declaredPreSelector = BuildPreSelectorShape(declared, declaredFacts.SelectorCallableIndex);
+		List<OverloadParameterShape> requiredPreSelector = BuildPreSelectorShape(required, requiredFacts.SelectorCallableIndex);
+		if (declaredPreSelector.Count != requiredPreSelector.Count)
+		{
+			message = "pre-selector parameter shape";
+			return false;
+		}
+		for (int i = 0; i < declaredPreSelector.Count; i++)
+		{
+			if (declaredPreSelector[i] == requiredPreSelector[i])
+				continue;
+			message = "pre-selector parameter shape";
+			return false;
+		}
+		return true;
+	}
+
 	void ValidateTopLevelOverloadFamilies(Module module)
 	{
 		Dictionary<string, List<FunctionDefinition>> families = new(StringComparer.Ordinal);
@@ -307,11 +353,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		ArgumentExpression selectorArgument = arguments[selectorIndex];
 		SyntaxNode? selectorSyntax = OverloadSelectorSyntax(selectorArgument, syntax);
-		if (selectorArgument.Value is LambdaExpression)
+		if (IsWeakOverloadSelectorArgument(selectorArgument))
 		{
-			Report(GetRange(selectorSyntax), $"Cannot select overload `{invokerName}` from a lambda argument. Call the typed overload entry explicitly.");
+			Report(GetRange(selectorSyntax), $"Cannot select overload `{invokerName}` because the selector expression has no independent static type. Add an explicit cast.");
 			selectorArgument.ResolvedType = ErrorType;
-			selectorArgument.Value.ResolvedType = ErrorType;
+			if (selectorArgument.Value is not null)
+				selectorArgument.Value.ResolvedType = ErrorType;
 			return null;
 		}
 		ParameterDefinition? selector = GetOverloadSelector(candidates[0]);
@@ -352,6 +399,21 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return selected;
+	}
+
+	static bool IsWeakOverloadSelectorArgument(ArgumentExpression argument)
+	{
+		if (argument.Target is not null)
+			return argument.Target.Type is null or AutoTypeReference;
+		Expression? expression = UnwrapParenthesizedExpression(argument.Value);
+		return expression switch
+		{
+			LiteralExpression { Kind: LiteralKind.Null } => true,
+			DefaultExpression { Type: null } => true,
+			InitializerExpression => true,
+			LambdaExpression => true,
+			_ => false
+		};
 	}
 
 	string BodyAnalyzeOverloadSelectorArgument(ArgumentExpression argument, BodyScope scope, AnalysisScope typeScope)

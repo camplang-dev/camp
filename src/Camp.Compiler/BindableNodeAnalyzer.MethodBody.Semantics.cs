@@ -2613,8 +2613,13 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<FunctionDefinition> getters = type is null ? [] : LookupPropertyGetters(type, member.Name, member.SourceSyntax);
 		getters.AddRange(LookupExtensionFunctions(targetType, "get" + member.Name, member.SourceSyntax));
-		if (getters.Count > 1 && TrySelectOverload("get" + member.Name, getters, arguments, scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedGetter)
-			getters = [selectedGetter];
+		if (getters.Count > 1 && IsOverloadFamily(getters))
+		{
+			if (TrySelectOverload("get" + member.Name, getters, arguments, scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedGetter)
+				getters = [selectedGetter];
+			else
+				return true;
+		}
 		bool getterReceiverMismatch = false;
 		foreach (FunctionDefinition getter in getters)
 		{
@@ -2667,11 +2672,18 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<FunctionDefinition> setters = type is null ? [] : LookupPropertySetters(type, member.Name, member.SourceSyntax);
 		setters.AddRange(LookupExtensionFunctions(targetType, "set" + member.Name, member.SourceSyntax));
+		if (setters.Count > 0)
+			AnalyzeRangeAwareArguments(arguments, GetCallableParameters(setters[0].Parameters), member.Target, scope, typeScope, member.SourceSyntax);
 		List<ArgumentExpression> logicalArguments = [.. arguments];
 		if (value is not null)
 			logicalArguments.Add(new ArgumentExpression { SourceSyntax = value.SourceSyntax, Value = value });
-		if (setters.Count > 1 && TrySelectOverload("set" + member.Name, setters, logicalArguments, scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedSetter)
-			setters = [selectedSetter];
+		if (setters.Count > 1 && IsOverloadFamily(setters))
+		{
+			if (TrySelectOverload("set" + member.Name, setters, logicalArguments, scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedSetter)
+				setters = [selectedSetter];
+			else
+				return true;
+		}
 		bool setterReceiverMismatch = false;
 		foreach (FunctionDefinition setter in setters)
 		{

@@ -1,0 +1,4 @@
+tests/Diagnostics/late_overload_property_invalid.camp(37,20): error: Cannot select overload `setElement` because the selector expression has no independent static type. Add an explicit cast.
+tests/Diagnostics/late_overload_property_invalid.camp(38,20): error: Cannot select overload `setElement` because the selector expression has no independent static type. Add an explicit cast.
+tests/Diagnostics/late_overload_property_invalid.camp(39,20): error: Cannot select overload `setElement` because the selector expression has no independent static type. Add an explicit cast.
+tests/Diagnostics/late_overload_property_invalid.camp(40,27): error: Cannot select overload `setCallback` because the selector expression has no independent static type. Add an explicit cast.

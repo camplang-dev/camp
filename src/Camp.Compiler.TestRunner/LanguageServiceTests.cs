@@ -936,6 +936,68 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_query_handles_late_overload_selectors()
+	{
+		string root = CreateTempDirectory("language-service-late-overload-selectors");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			class JsonArray
+			{
+				void setElement(@index nuint index, overload int value)
+				{
+				}
+				void setElement(@index nuint index, overload bool value)
+				{
+				}
+				void setElement(@index nuint index, overload string value)
+				{
+				}
+			}
+
+			virtual class Base
+			{
+				export virtual int compute(int level, overload int value)
+				{
+					return value;
+				}
+			}
+
+			sealed class Derived: Base
+			{
+			}
+
+			void main(JsonArray* json)
+			{
+				json.setElement(0, true);
+				json.ElementString[1] = null;
+			}
+			""";
+		string completionText = text.Replace("json.setElement(0, true);", "json.", StringComparison.Ordinal);
+		string overrideText = text.Replace("sealed class Derived: Base\n{\n}", "sealed class Derived: Base\n{\n\toverride \n}", StringComparison.Ordinal);
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		IReadOnlyList<CampCompletionItem> completions = symbols.GetCompletions(source, PositionAfter(completionText, "json."), completionText);
+		CampSignatureHelp? signatureHelp = symbols.GetSignatureHelp(source, PositionOf(text, "true"));
+		CampHover? hover = symbols.GetHover(source, PositionOf(text, "setElement(0"));
+		IReadOnlyList<CampCompletionItem> overrideCompletions = symbols.GetCompletions(source, PositionAfter(overrideText, "override "), overrideText, requireFinallyForWhitespaceTrigger: true);
+
+		Assert.Contains(completions, static item => item.Label == "ElementString" && item.Kind == CampSymbolKind.Property);
+		CampCompletionItem setElement = Assert.Single(completions, static item => item.Label == "setElement" && item.Kind == CampSymbolKind.Method);
+		Assert.Contains("3 overloads", setElement.Detail, StringComparison.Ordinal);
+		Assert.NotNull(signatureHelp);
+		CampSignatureInformation signature = Assert.Single(signatureHelp!.Signatures);
+		Assert.Equal(1, signatureHelp.ActiveParameter);
+		Assert.Contains("void setElement(@index nuint index, overload bool value)", signature.Label, StringComparison.Ordinal);
+		Assert.NotNull(hover);
+		Assert.Contains("void setElement(@index nuint index, overload bool value)", hover!.Markdown, StringComparison.Ordinal);
+		CampCompletionItem compute = Assert.Single(overrideCompletions, static item => item.Label == "compute");
+		Assert.Contains("int compute(int level, overload int value)", compute.InsertText, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Symbol_query_returns_signature_help_for_member_chain_extension_call()
 	{
 		string root = CreateTempDirectory("language-service-member-chain-signature-help");

@@ -10,7 +10,7 @@ class ConsoleWriter: IWriter
 	{
 	}
 
-	void writeString(string value): IWriter.writeString
+	void write(overload string value): IWriter
 	{
 	}
 }

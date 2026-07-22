@@ -1,0 +1,120 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "LateOverloadMetadata",
+    "namespace": "LateOverloadMetadata"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "class:LateOverloadMetadata::JsonArray",
+      "kind": "class",
+      "name": "JsonArray",
+      "visibility": "export",
+      "extern": true,
+      "functions": [
+        {
+          "id": "class:LateOverloadMetadata::JsonArray/function:setElementInt",
+          "name": "setElement",
+          "visibility": "export",
+          "extern": true,
+          "invokerName": "setElement",
+          "callableName": "setElementInt",
+          "returnType": "void",
+          "propertyName": "ElementInt",
+          "propertyIndexParams": [
+            "index"
+          ],
+          "propertyValueParam": "value",
+          "parameters": [
+            {
+              "id": "class:LateOverloadMetadata::JsonArray/function:setElementInt/parameter:index",
+              "name": "index",
+              "type": "nuint",
+              "metadata": [
+                {
+                  "name": "index"
+                }
+              ]
+            },
+            {
+              "id": "class:LateOverloadMetadata::JsonArray/function:setElementInt/parameter:value",
+              "name": "value",
+              "overload": true,
+              "type": "int"
+            }
+          ]
+        },
+        {
+          "id": "class:LateOverloadMetadata::JsonArray/function:setElementBool",
+          "name": "setElement",
+          "visibility": "export",
+          "extern": true,
+          "invokerName": "setElement",
+          "callableName": "setElementBool",
+          "returnType": "void",
+          "propertyName": "ElementBool",
+          "propertyIndexParams": [
+            "index"
+          ],
+          "propertyValueParam": "value",
+          "parameters": [
+            {
+              "id": "class:LateOverloadMetadata::JsonArray/function:setElementBool/parameter:index",
+              "name": "index",
+              "type": "nuint",
+              "metadata": [
+                {
+                  "name": "index"
+                }
+              ]
+            },
+            {
+              "id": "class:LateOverloadMetadata::JsonArray/function:setElementBool/parameter:value",
+              "name": "value",
+              "overload": true,
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "id": "class:LateOverloadMetadata::JsonArray/function:setElementString",
+          "name": "setElement",
+          "visibility": "export",
+          "extern": true,
+          "invokerName": "setElement",
+          "callableName": "setElementString",
+          "returnType": "void",
+          "propertyName": "ElementString",
+          "propertyIndexParams": [
+            "index"
+          ],
+          "propertyValueParam": "value",
+          "parameters": [
+            {
+              "id": "class:LateOverloadMetadata::JsonArray/function:setElementString/parameter:index",
+              "name": "index",
+              "type": "nuint",
+              "metadata": [
+                {
+                  "name": "index"
+                }
+              ]
+            },
+            {
+              "id": "class:LateOverloadMetadata::JsonArray/function:setElementString/parameter:value",
+              "name": "value",
+              "overload": true,
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

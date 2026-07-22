@@ -131,7 +131,7 @@ public static class MetadataJsonSerializer
 			where T : Definition
 		{
 			foreach (T child in children)
-				IndexDefinition(child, parentId + "/" + kind + ":" + GetMetadataName(child));
+				IndexDefinition(child, parentId + "/" + kind + ":" + GetMetadataIdName(child));
 		}
 
 		void IndexFunctionChildren(string id, FunctionDefinition function)
@@ -398,6 +398,11 @@ public static class MetadataJsonSerializer
 
 		void WriteFunction(Utf8JsonWriter json, FunctionDefinition function)
 		{
+			if (FunctionHasOverloadSelector(function))
+			{
+				json.WriteString("invokerName", SymbolNameService.InvokerName(function).Value);
+				json.WriteString("callableName", SymbolNameService.CallableName(function).Value);
+			}
 			WriteAvailability(json, function);
 			if (function.IteratorKind != IteratorKind.None)
 				json.WriteString("iterator", function.IteratorKind.ToString().ToLowerInvariant());
@@ -1238,7 +1243,7 @@ public static class MetadataJsonSerializer
 		string GetTopLevelId(Definition definition)
 		{
 			string prefix = string.IsNullOrWhiteSpace(module.Namespace) ? "" : module.Namespace + "::";
-			return GetKind(definition) + ":" + prefix + GetMetadataName(definition);
+			return GetKind(definition) + ":" + prefix + GetMetadataIdName(definition);
 		}
 
 		string GetId(BindableNode node)
@@ -1470,27 +1475,28 @@ public static class MetadataJsonSerializer
 			if (!isTypeScoped && !function.Parameters.OfType<ThisParameterDefinition>().Any())
 				return false;
 
-			if (function.Name.StartsWith("get", StringComparison.Ordinal) && function.ResolvedType != "void" && function.IteratorKind == IteratorKind.None)
+			string callableName = SymbolNameService.CallableName(function).Value;
+			if (callableName.StartsWith("get", StringComparison.Ordinal) && function.ResolvedType != "void" && function.IteratorKind == IteratorKind.None)
 			{
 				accessor = "get";
-				propertyName = GetPropertyName(function.Name, "get", function.IsAsync);
+				propertyName = GetPropertyName(callableName, "get", function.IsAsync);
 				indexer = propertyName.Length == 0;
 				indexParams.AddRange(GetPropertyParameterNames(function.Parameters));
-				return function.Name.Length >= "get".Length;
+				return callableName.Length >= "get".Length;
 			}
 
-			if (function.Name.StartsWith("set", StringComparison.Ordinal) && function.IteratorKind == IteratorKind.None)
+			if (callableName.StartsWith("set", StringComparison.Ordinal) && function.IteratorKind == IteratorKind.None)
 			{
 				List<string> ordinaryParameters = GetPropertyParameterNames(function.Parameters);
 				if (ordinaryParameters.Count == 0)
 					return false;
 
 				accessor = "set";
-				propertyName = GetPropertyName(function.Name, "set", function.IsAsync);
+				propertyName = GetPropertyName(callableName, "set", function.IsAsync);
 				indexer = propertyName.Length == 0;
 				valueParam = ordinaryParameters[^1];
 				indexParams.AddRange(ordinaryParameters.Take(ordinaryParameters.Count - 1));
-				return function.Name.Length >= "set".Length;
+				return callableName.Length >= "set".Length;
 			}
 
 			return false;
@@ -1639,10 +1645,28 @@ public static class MetadataJsonSerializer
 			return SymbolNameService.IsSameSymbol(definition);
 		}
 
+		static bool FunctionHasOverloadSelector(FunctionDefinition function)
+		{
+			foreach (ParameterDefinition parameter in function.Parameters)
+				if (parameter.IsOverloadSelector)
+					return true;
+			return false;
+		}
+
 		static string GetMetadataName(Definition definition)
 		{
 			string name = string.IsNullOrWhiteSpace(definition.Name) ? definition.Symbol : definition.Name;
 			return string.IsNullOrWhiteSpace(definition.OutOfScopeOwnerName) ? name : definition.OutOfScopeOwnerName + "." + name;
+		}
+
+		static string GetMetadataIdName(Definition definition)
+		{
+			if (definition is FunctionDefinition function && FunctionHasOverloadSelector(function))
+			{
+				string name = SymbolNameService.CallableName(function).Value;
+				return string.IsNullOrWhiteSpace(function.OutOfScopeOwnerName) ? name : function.OutOfScopeOwnerName + "." + name;
+			}
+			return GetMetadataName(definition);
 		}
 
 		static string GetVisibleFunctionName(FunctionDefinition function)

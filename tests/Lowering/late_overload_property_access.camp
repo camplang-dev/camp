@@ -1,0 +1,47 @@
+class JsonArray
+{
+	nuint length;
+
+	void setElement(@index nuint index, overload int value)
+	{
+	}
+
+	void setElement(@index nuint index, overload bool value)
+	{
+	}
+
+	void setElement(@index nuint index, overload string value)
+	{
+	}
+
+	int getElement(@index nuint index, overload int fallback)
+	{
+		return fallback;
+	}
+
+	string getElement(@index nuint index, overload string fallback)
+	{
+		return fallback;
+	}
+
+	void setSlice(@range nuint index, nuint count, overload string value)
+	{
+	}
+
+	void setSlice(@range nuint index, nuint count, overload int value)
+	{
+	}
+}
+
+void main(JsonArray* json)
+{
+	json.setElement(0, true);
+	json.Element[1] = 3;
+	json.Element[^1] = false;
+	json.setElementString(2, null);
+	json.ElementString[3] = null;
+	json.Element[4] = (string)null;
+	json.Slice[0..^1] = "text";
+	auto number = json.Element[5, 7];
+	auto text = json.Element[6, "x"];
+}

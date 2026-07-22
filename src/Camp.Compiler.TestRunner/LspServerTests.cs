@@ -288,6 +288,69 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_server_handles_late_overload_selectors()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-late-overload-selectors");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			class JsonArray
+			{
+				void setElement(@index nuint index, overload int value)
+				{
+				}
+				void setElement(@index nuint index, overload bool value)
+				{
+				}
+				void setElement(@index nuint index, overload string value)
+				{
+				}
+			}
+
+			void main(JsonArray* json)
+			{
+				json.setElement(0, true);
+				json.ElementString[1] = null;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		lsp.ReadNotification("textDocument/publishDiagnostics");
+
+		JsonNode completion = lsp.Request("textDocument/completion", new
+		{
+			textDocument = new { uri },
+			position = new { line = PositionAfter(text, "json.").Line, character = PositionAfter(text, "json.").Character }
+		});
+		JsonNode signatureHelp = lsp.Request("textDocument/signatureHelp", new
+		{
+			textDocument = new { uri },
+			position = new { line = PositionOf(text, "true").Line, character = PositionOf(text, "true").Character }
+		});
+		JsonNode hover = lsp.Request("textDocument/hover", new
+		{
+			textDocument = new { uri },
+			position = new { line = PositionOf(text, "setElement(0").Line, character = PositionOf(text, "setElement(0").Character }
+		});
+
+		JsonArray items = CompletionItems(completion);
+		Assert.Contains(items, item => item?["label"]?.GetValue<string>() == "ElementString" && item?["kind"]?.GetValue<int>() == 10);
+		JsonNode setElement = Assert.Single(items, item => item?["label"]?.GetValue<string>() == "setElement" && item?["kind"]?.GetValue<int>() == 2)!;
+		Assert.Contains("3 overloads", setElement["detail"]?.GetValue<string>(), StringComparison.Ordinal);
+		JsonNode signature = Assert.Single(signatureHelp["result"]?["signatures"]?.AsArray()!)!;
+		int? activeParameter = signatureHelp["result"]?["activeParameter"]?.GetValue<int>() ?? signature["activeParameter"]?.GetValue<int>();
+		Assert.Equal(1, activeParameter);
+		Assert.Contains("void setElement(@index nuint index, overload bool value)", signature["label"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.Contains("void setElement(@index nuint index, overload bool value)", hover["result"]?["contents"]?["value"]?.GetValue<string>(), StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Lsp_server_returns_basic_completion_items()
 	{
 		using LspProcess lsp = LspProcess.Start();
@@ -420,9 +483,9 @@ public sealed class LspServerTests
 		string valid = """
 			virtual class Base
 			{
-				export virtual int compute(overload int value)
+				export virtual int compute(int level, overload int value)
 				{
-					return 0;
+					return level + value;
 				}
 			}
 
@@ -433,9 +496,9 @@ public sealed class LspServerTests
 		string broken = """
 			virtual class Base
 			{
-				export virtual int compute(overload int value)
+				export virtual int compute(int level, overload int value)
 				{
-					return 0;
+					return level + value;
 				}
 			}
 
@@ -470,7 +533,7 @@ public sealed class LspServerTests
 		JsonNode item = Assert.Single(CompletionItems(completion), item => item?["label"]?.GetValue<string>() == "compute")!;
 		Assert.Equal(2, item["kind"]?.GetValue<int>());
 		Assert.Equal(2, item["insertTextFormat"]?.GetValue<int>());
-		Assert.Contains("int compute(overload int value)", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.Contains("int compute(int level, overload int value)", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.DoesNotContain("override", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.DoesNotContain("export", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.DoesNotContain("virtual", item["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
@@ -492,7 +555,7 @@ public sealed class LspServerTests
 
 		JsonNode sealedItem = Assert.Single(CompletionItems(sealedCompletion), item => item?["label"]?.GetValue<string>() == "compute")!;
 		Assert.Equal(2, sealedItem["insertTextFormat"]?.GetValue<int>());
-		Assert.Contains("int compute(overload int value)", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.Contains("int compute(int level, overload int value)", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.DoesNotContain("sealed", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.DoesNotContain("export", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);
 		Assert.DoesNotContain("virtual", sealedItem["insertText"]?.GetValue<string>(), StringComparison.Ordinal);

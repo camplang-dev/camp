@@ -1,0 +1,8 @@
+namespace LateOverloadMetadata;
+
+export extern class JsonArray
+{
+	export extern void setElement(@index nuint index, overload int value);
+	export extern void setElement(@index nuint index, overload bool value);
+	export extern void setElement(@index nuint index, overload string value);
+}

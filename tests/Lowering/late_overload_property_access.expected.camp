@@ -1,0 +1,46 @@
+class JsonArray
+{
+	nuint length;
+
+	void setElement(@index nuint index, overload int value)
+	{
+	}
+
+	void setElement(@index nuint index, overload bool value)
+	{
+	}
+
+	void setElement(@index nuint index, overload string value)
+	{
+	}
+
+	int getElement(@index nuint index, overload int fallback)
+	{
+		return fallback;
+	}
+
+	string getElement(@index nuint index, overload string fallback)
+	{
+		return fallback;
+	}
+
+	void setSlice(@range nuint index, nuint count, overload string value)
+	{
+	}
+
+	void setSlice(@range nuint index, nuint count, overload int value)
+	{
+	}
+}
+void main(JsonArray* json)
+{
+	JsonArray_setElementBool(json, 0, true);
+	JsonArray_setElementInt(json, 1, 3);
+	JsonArray_setElementBool(json, json.length - 1, false);
+	JsonArray_setElementString(json, 2, null);
+	JsonArray_setElementString(json, 3, null);
+	JsonArray_setElementString(json, 4, (string)null);
+	JsonArray_setSliceString(json, 0 > json.length ? json.length : 0 < 0 ? 0 : 0, (json.length - 1 > json.length ? json.length : json.length - 1 < 0 ? 0 : json.length - 1) >= (0 > json.length ? json.length : 0 < 0 ? 0 : 0) ? (json.length - 1 > json.length ? json.length : json.length - 1 < 0 ? 0 : json.length - 1) - (0 > json.length ? json.length : 0 < 0 ? 0 : 0) : 0, "text");
+	auto number = JsonArray_getElementInt((const JsonArray*)json, 5, 7);
+	auto text = JsonArray_getElementString((const JsonArray*)json, 6, "x");
+}
