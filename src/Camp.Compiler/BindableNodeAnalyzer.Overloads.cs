@@ -6,10 +6,8 @@ namespace Camp.Compiler;
 public sealed partial class BindableNodeAnalyzer
 {
 	sealed record OverloadSelectorFacts(
-		FunctionDefinition Function,
 		ParameterDefinition Selector,
-		int SelectorCallableIndex,
-		string SelectorFragment);
+		int SelectorCallableIndex);
 
 	sealed record OverloadParameterShape(
 		string Name,
@@ -39,9 +37,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (selector is null)
 			return null;
 
-		int callableIndex = GetCallableOverloadSelectorIndex(function);
-		string fragment = BuildFlattenedTypeFragment(selector.ResolvedType ?? ErrorType, function);
-		return new OverloadSelectorFacts(function, selector, callableIndex, fragment);
+		return new OverloadSelectorFacts(selector, GetCallableOverloadSelectorIndex(function));
 	}
 
 	void PrecomputeOverloadCallableNames(Module module)

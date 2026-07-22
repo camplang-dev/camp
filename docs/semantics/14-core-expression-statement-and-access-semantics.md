@@ -51,6 +51,12 @@ exclude `this`, `within`, `sizeof`, `typenameof`, `vtableof`, `out`, and
 indexer parameters. If the value parameter is an expanded form, its trailing ABI
 components still represent one source value parameter.
 
+Accessor lookup accepts both the overload-family invoker name and a concrete
+overload callable name. For an overload family `setElement(@index nuint index,
+overload string value)`, the named property surface `Element` binds through the
+family invoker `setElement`, while the concrete property surface
+`ElementString` binds through the concrete callable name `setElementString`.
+
 The nameless `get` and `set` forms are indexer accessors. In metadata these are
 recorded as property indexers rather than as a property with an empty source
 name.
@@ -68,6 +74,25 @@ struct Buffer
 
 The expression `buffer[index]` binds to `get(index)`. The assignment
 `buffer[index] = value` binds to `set(index, value)`.
+
+When a setter overload selector is the value parameter, the assigned expression
+is the logical selector argument. Selection is still based on the expression's
+independent static type. The compiler must reject target-typed-only selector
+expressions such as `null`, `default`, aggregate initializers, and untyped
+lambdas unless the caller selects a concrete accessor surface or supplies an
+explicit cast.
+
+```camp
+json.Element[0] = true;          // selects setElementBool
+json.Element[1] = null;          // invalid: no independent selector type
+json.Element[1] = (string)null;  // selects setElementString
+json.ElementString[1] = null;    // selects the concrete accessor
+```
+
+If the setter has `@index` or `@range` parameters before a late selector,
+analysis expands those arguments before overload selection so the selector's
+callable position is compared against the same source parameter shape used by
+ordinary calls.
 
 ## Property Assignment Lowering
 
@@ -313,12 +338,19 @@ on the source callable surface. Omitted `out` locals, range temporaries,
 discard locals, and cleanup labels are lowering artifacts and should not appear
 as ordinary source metadata declarations.
 
+For overloaded accessors, metadata records the concrete accessor property name.
+For example, the concrete callable `setElementString` records property name
+`ElementString`, while the source function name remains `setElement` and the
+selector parameter remains marked as `overload`.
+
 ## Diagnostics
 
 Important diagnostic categories include:
 
 - property exists but the receiver cannot call the accessor;
 - property setter assignment has no compatible setter;
+- property setter overload selection fails because the assigned value has no
+  independent selector type;
 - `@index` or `@range` on a non-integral parameter;
 - `@range` not followed by an integral count parameter;
 - range syntax used against a parameter that is not `@range`;

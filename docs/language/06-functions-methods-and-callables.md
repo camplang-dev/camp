@@ -366,6 +366,35 @@ int first = readings.[0];
 readings.[1] = 20;
 ```
 
+Overloaded setters are useful when the index or key is stable and the assigned
+value chooses the stored type:
+
+```camp
+class JsonArray
+{
+	void setElement(@index nuint index, overload int value)
+	{
+	}
+
+	void setElement(@index nuint index, overload bool value)
+	{
+	}
+
+	void setElement(@index nuint index, overload string value)
+	{
+	}
+}
+
+json.Element[0] = 10;
+json.Element[1] = true;
+json.ElementString[2] = null;
+```
+
+The concrete property name, such as `ElementString`, is available because the
+concrete accessor method is named `setElementString` after overload naming is
+applied. Use the concrete form when the assigned value has no type of its own,
+such as `null`, or cast the value in the ordinary property form.
+
 After rewriting, the call follows the method's normal rules. `thrown` slots,
 `await`, generic arguments, overloads, visibility, constness, and lifetimes all
 belong to the accessor method. If the method call would need `catch`, the
@@ -660,17 +689,50 @@ class Writer
 }
 ```
 
+The selector can also appear after stable parameters, which is common for
+indexed containers and property bags:
+
+```camp
+class PropertyBag
+{
+	bool tryGet(const char[] key, overload out int value)
+	{
+		return false;
+	}
+
+	bool tryGet(const char[] key, overload out bool value)
+	{
+		return false;
+	}
+
+	void set(const char[] key, overload int value)
+	{
+	}
+
+	void set(const char[] key, overload bool value)
+	{
+	}
+}
+```
+
 Callers write the ordinary call:
 
 ```camp
 Writer.write(123);
 Writer.write("ready");
+bag.set("retryCount", 3);
+
+if (bag.tryGet("enabled", out bool enabled))
+{
+}
 ```
 
-The compiler chooses the candidate based on receiver, argument types, overload
-selectors, defaults, and callable context. When the compiler cannot infer the
-intended callable, bind the target to an explicitly typed local or wrap it with
-a small adapter.
+The compiler chooses the candidate from the selector argument. Values such as
+`null`, `default`, aggregate initializers, and untyped lambdas need a concrete
+target type before they can select an overload, so use a cast or call the
+concrete overload name when the selector value would otherwise be typeless.
+When the compiler cannot infer the intended callable, bind the target to an
+explicitly typed local or wrap it with a small adapter.
 
 ```camp
 fn int(int) selected = clampPositive;

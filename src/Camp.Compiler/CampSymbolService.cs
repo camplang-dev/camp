@@ -1436,9 +1436,12 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		List<string> targetNames = [];
 		if (!string.IsNullOrWhiteSpace(targetName))
 			targetNames.Add(targetName!);
-		foreach (string inferred in signatures.Select(static signature => TryGetSignatureReceiverType(signature.Label)).Where(static type => !string.IsNullOrWhiteSpace(type))!)
-			if (!targetNames.Contains(inferred, StringComparer.Ordinal))
-				targetNames.Add(inferred);
+			foreach (CampSignatureInformation signature in signatures)
+			{
+				string? inferred = TryGetSignatureReceiverType(signature.Label);
+				if (!string.IsNullOrWhiteSpace(inferred) && !targetNames.Contains(inferred, StringComparer.Ordinal))
+					targetNames.Add(inferred);
+			}
 		if (targetNames.Count == 0)
 			return;
 		foreach (FunctionDefinition function in functions)

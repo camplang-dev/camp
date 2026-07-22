@@ -128,6 +128,14 @@ Do not use `@symbol` to affect source lookup, metadata IDs, overload
 resolution, interface conformance, or callable ascription. It affects emitted
 native symbol identity.
 
+For overload-family entries, the source name and invoker name are the family
+name, while the callable name is the concrete source-callable identity after the
+selector type fragment is applied. For example, a source declaration
+`setElement(@index nuint index, overload string value)` has source/invoker name
+`setElement` and callable name `setElementString`. Metadata should expose both
+names when they differ so tools do not have to infer overload identity from ABI
+symbols or opaque IDs.
+
 ## Symbol Collisions
 
 The analyzer validates symbol collisions separately from source-name
@@ -172,6 +180,12 @@ Common ID paths include top-level declaration IDs and child IDs such as:
 When a generated struct represents a source interface for metadata purposes,
 the serializer should use the source interface identity rather than leaking the
 generated carrier identity.
+
+Overload-family function IDs must distinguish concrete entries. The structured
+function metadata still preserves the source name and parameter list, including
+the selector parameter's declared position, but the ID/name component used for
+identity should use the concrete callable name when the source name alone would
+collide with another family entry.
 
 ## Doc Comment Translation
 
@@ -319,6 +333,13 @@ suffix where the compiler recognizes that suffix. For setters whose value
 parameter expands into multiple ABI components, metadata records the source
 value parameter name, not the name of an expanded trailing component.
 
+For overloaded accessors, the property name is derived from the concrete
+callable name, not only the source family name. A `setElementString` concrete
+callable records property name `ElementString`; the function object can still
+record source name `setElement`, invoker name `setElement`, callable name
+`setElementString`, parameter order, and the selector parameter's `overload`
+marker.
+
 This information belongs to the accessor function metadata. Do not synthesize
 source field declarations for properties, and do not omit the underlying
 function declaration data needed to type-check or document the API.
@@ -366,6 +387,8 @@ modifiers, and attributes.
 
 The serializer should preserve:
 
+- source name, and separate invoker/callable names when overload selection makes
+  them differ;
 - source result type, including `async` result shape;
 - parameter list and parameter modifiers;
 - generic parameter list;
@@ -376,6 +399,10 @@ The serializer should preserve:
 - interface implementation metadata;
 - callable ascription metadata;
 - default values where they are source API.
+
+Parameter order is source API. Overload selectors are parameter facts, not a
+separate overload table, and metadata consumers must not assume the selector is
+the first callable parameter.
 
 For async functions, metadata keeps the source async shape and omits generated
 completion helpers. For functions with expanded forms, metadata keeps the

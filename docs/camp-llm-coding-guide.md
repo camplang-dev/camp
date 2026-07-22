@@ -177,6 +177,11 @@ export void write(overload const char[] text)
 {
     // ...
 }
+
+export void setElement(@index nuint index, overload bool value)
+{
+    // ...
+}
 ```
 
 When writing new code, first ask whether distinct names are clearer. Use overload
@@ -185,11 +190,15 @@ the package's public style. Do not create multiple top-level functions with the
 same name and different parameter lists unless every entry is a valid overload
 entry.
 
-The selector must be the first non-`this` formal parameter, a declaration may
-have only one selector, and the selector may not have a default value. Do not mix
-ordinary declarations and overload declarations in one family. A generic
-selector type must contribute a concrete method-symbol fragment; unconstrained
-`T: any` is too weak for selector naming.
+A declaration may have only one selector, and the selector may not have a
+default value. The selector can appear after stable key/index parameters; every
+entry in that family must preserve the selector name, selector position, and
+pre-selector parameter shape. Do not mix ordinary declarations and overload
+declarations in one family. A generic selector type must contribute a concrete
+method-symbol fragment; unconstrained `T: any` is too weak for selector naming.
+Values such as `null`, `default`, aggregate initializers, and untyped lambdas
+do not select overloads unless you give them an explicit type or call the
+concrete overload name.
 
 ## Types At A Glance
 

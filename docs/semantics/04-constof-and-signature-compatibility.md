@@ -209,6 +209,27 @@ Apply these rules to:
 Do not apply them blindly to every type comparison. Ordinary storage conversion
 and call-site dependent-const equality have separate rules.
 
+## Overload Selector Shape
+
+When a callable surface participates in overload-family compatibility, the
+overload selector shape is part of the source callable contract. A compatible
+candidate must preserve:
+
+- whether the declaration is an overload-family entry;
+- the single selector parameter name;
+- the selector callable-parameter position;
+- the source parameter shape before the selector.
+
+The pre-selector shape includes names, modifiers, resolved source types, and
+calling-semantics attributes such as `@index` and `@range`. This lets a family
+share stable keys or indexes before the selector while keeping the selector's
+meaning identical for interface implementation, virtual override matching,
+callable newtype ascription, metadata, and language-service display.
+
+Callable compatibility may still apply its ordinary variance and `constof`
+rules to compatible parameter slots, but it must not move the overload selector
+or silently match an ordinary declaration against an overload-family entry.
+
 ## Virtual Overrides Remain Exact
 
 Virtual and abstract override matching is exact with respect to ordinary const
@@ -220,6 +241,8 @@ Exactness means:
 - `constof(anchor)` matches `constof(anchor)`;
 - anchor correspondence is positional, so parameter renaming can be accepted
   only when the same positional relationship is preserved;
+- overload selector presence, position, selector name, and pre-selector shape
+  are preserved;
 - source and ABI vtable slot shape remain stable.
 
 This is necessary because override slots are ABI slots. A derived override must
