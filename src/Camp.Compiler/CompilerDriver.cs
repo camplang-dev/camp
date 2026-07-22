@@ -660,7 +660,7 @@ public static class CompilerDriver
 			(string packageName, string? requestedVersion, DependencyLinkKind? requestedLinkKind) = ParsePackageSpec(packageSpec);
 			if (!TryFindInstalledPackage(packageName, requestedVersion, out string? sourceDirectory, out string? artifactRoot, out string? resolvedVersion))
 			{
-				ErrorLine($"Package '{packageSpec}' is not installed. Run 'campc restore' or 'campc pkg install {packageSpec}'.");
+				ErrorLine(FormatPackageNotFoundDiagnostic(packageSpec, packageName, requestedVersion));
 				return false;
 			}
 
@@ -798,6 +798,33 @@ public static class CompilerDriver
 				return true;
 			}
 			return false;
+		}
+
+		string FormatPackageNotFoundDiagnostic(string packageSpec, string packageName, string? requestedVersion)
+		{
+			StringBuilder builder = new();
+			builder.Append("Package '").Append(packageSpec).Append("' could not be found.");
+			if (request.UseSourceRoots.Count > 0)
+			{
+				builder.AppendLine();
+				builder.AppendLine("Searched package source roots:");
+				foreach (string root in request.UseSourceRoots)
+				{
+					string sourceRoot = Path.GetFullPath(root, request.WorkingDirectory);
+					builder.Append("  ").Append(sourceRoot);
+					if (requestedVersion is null)
+						builder.Append(" (looked for ").Append(Path.Combine(sourceRoot, packageName, "src")).Append(')');
+					else
+						builder.Append(" (looked for ").Append(Path.Combine(sourceRoot, packageName, requestedVersion, "src")).Append(')');
+					builder.AppendLine();
+				}
+			}
+			builder.AppendLine();
+			builder.AppendLine("Searched installed package roots:");
+			foreach ((string installRoot, _) in GetInstalledPackageRoots())
+				builder.Append("  ").Append(Path.Combine(installRoot, packageName)).AppendLine();
+			builder.Append("Run 'campc restore' or 'campc pkg install ").Append(packageSpec).Append("' if this is an installed package.");
+			return builder.ToString();
 		}
 
 		IEnumerable<(string InstallRoot, string ArtifactRoot)> GetInstalledPackageRoots()

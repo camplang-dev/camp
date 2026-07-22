@@ -507,7 +507,8 @@ sealed class CampCli
 		request.References.AddRange(bag.References);
 		request.Frameworks.AddRange(bag.Frameworks);
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
-		request.UseSourceRoots.AddRange(bag.UseSources.Where(static source => !string.IsNullOrWhiteSpace(source.Path)).Select(source => Path.GetFullPath(source.Path!, environment.WorkingDirectory)));
+		if (!TryAddUseSourceRoots(bag.UseSources, environment.WorkingDirectory, request.UseSourceRoots, errors))
+			return false;
 		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], out List<string> projectApiHeaders, out List<string> sharedProjectApiHeaders, out List<string> projectLibraries, errors))
 			return false;
 		foreach (string projectApiHeader in projectApiHeaders)
@@ -519,6 +520,26 @@ sealed class CampCli
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		request.IncludeFiles.AddRange(includeFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		return true;
+	}
+
+	static bool TryAddUseSourceRoots(IEnumerable<PackageSourceSpec> sources, string workingDirectory, List<string> destination, List<string> errors)
+	{
+		bool success = true;
+		foreach (PackageSourceSpec source in sources)
+		{
+			if (string.IsNullOrWhiteSpace(source.Path))
+				continue;
+			string fullPath = Path.GetFullPath(source.Path, workingDirectory);
+			if (!Directory.Exists(fullPath))
+			{
+				errors.Add($"Package source '{source.Name}' path '{source.Path}' could not be found.");
+				errors.Add($"resolved path: {fullPath}");
+				success = false;
+				continue;
+			}
+			destination.Add(fullPath);
+		}
+		return success;
 	}
 
 	static CompilerCommandMode GetCompilerCommandMode(CommandKind command)
@@ -954,7 +975,7 @@ sealed class CampCli
 				: $"Project reference '{value}' contains multiple .campbuild files. Specify one explicitly.";
 			return false;
 		}
-		error = $"Project reference '{value}' could not be found.";
+		error = $"Project reference '{value}' could not be found. Resolved path: {fullPath}";
 		return false;
 	}
 

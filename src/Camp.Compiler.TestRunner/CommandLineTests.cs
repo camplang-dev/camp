@@ -3309,6 +3309,58 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Build_reports_missing_use_source_path_with_resolved_path()
+	{
+		string root = TempPath("missing-use-source-root");
+		string missingSourceRoot = Path.Combine(root, "package-source");
+		string sourceRootArgument = missingSourceRoot.Replace('\\', '/');
+		string app = CreateTempCase("missing_use_source_app.camp", $$"""
+			#build --nostdlib
+			#build --artifact none
+			#build --use-source local "{{sourceRootArgument}}"
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", app);
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains($"Package source 'local' path '{sourceRootArgument}' could not be found.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains($"resolved path: {Path.GetFullPath(missingSourceRoot)}", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Build_reports_missing_live_package_with_searched_roots()
+	{
+		string root = TempPath("missing-live-package");
+		string sourceRoot = Path.Combine(root, "package-source");
+		Directory.CreateDirectory(sourceRoot);
+		string sourceRootArgument = sourceRoot.Replace('\\', '/');
+		string app = CreateTempCase("missing_live_package_app.camp", $$"""
+			#build --nostdlib
+			#build --artifact none
+			#build --use-source local "{{sourceRootArgument}}"
+			#build --use missing-live:api
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", app);
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Package 'missing-live:api' could not be found.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Searched package source roots:", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains(Path.Combine(Path.GetFullPath(sourceRoot), "missing-live", "src"), result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Searched installed package roots:", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Live_package_dependency_builds_shared_by_default_and_static_separately_on_macos()
 	{
 		if (!OperatingSystem.IsMacOS())
@@ -3849,7 +3901,31 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", temp, "-u", "missing-one@1.0.0", "missing-two@1.0.0");
 
 		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains("Package 'missing-one@1.0.0' is not installed.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Package 'missing-one@1.0.0' could not be found.", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Build_reports_missing_project_reference_with_resolved_path()
+	{
+		string root = TempPath("missing-project-reference");
+		Directory.CreateDirectory(root);
+		string app = Path.Combine(root, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --artifact none
+			#build --project-reference missing
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", app);
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Project reference 'missing' could not be found.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Resolved path:", result.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
