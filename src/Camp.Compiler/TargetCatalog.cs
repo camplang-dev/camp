@@ -3,10 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using IniParser;
-using IniParser.Model;
-using IniParser.Model.Configuration;
-using IniParser.Parser;
 
 namespace Camp.Compiler;
 
@@ -55,24 +51,16 @@ public sealed class TargetCatalog
 		targets = new Dictionary<string, RawTargetDefinition>(StringComparer.Ordinal);
 		error = null;
 
-		FileIniDataParser parser = new(new IniDataParser(new IniParserConfiguration
-		{
-			AllowDuplicateKeys = false,
-			AllowDuplicateSections = false,
-			AllowKeysWithoutSection = false,
-			ThrowExceptionsOnError = true
-		}));
-
 		foreach (string filename in Directory.GetFiles(targetsDirectory, "*.ini", SearchOption.AllDirectories).OrderBy(static x => x, StringComparer.Ordinal))
 		{
-			IniData data;
-			try
+			if (!TargetIniParser.TryReadFile(filename, out IniData? data, out string? parseError))
 			{
-				data = parser.ReadFile(filename, Encoding.UTF8);
+				error = $"{filename}: {parseError}";
+				return false;
 			}
-			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or IniParser.Exceptions.ParsingException)
+			if (data is null)
 			{
-				error = $"{filename}: {ex.Message}";
+				error = $"{filename}: Target file could not be parsed.";
 				return false;
 			}
 
@@ -161,6 +149,167 @@ public sealed class TargetCatalog
 	}
 
 	sealed record RawTargetDefinition(string Name, string? BaseName, string Path, IniData Data);
+}
+
+sealed class IniData
+{
+	public SectionDataCollection Sections { get; } = new();
+}
+
+sealed class SectionData
+{
+	public SectionData(string sectionName)
+	{
+		SectionName = sectionName;
+	}
+
+	public string SectionName { get; }
+	public KeyDataCollection Keys { get; } = new();
+}
+
+sealed class SectionDataCollection : IEnumerable<SectionData>
+{
+	readonly List<SectionData> sections = [];
+	readonly Dictionary<string, SectionData> byName = new(StringComparer.Ordinal);
+
+	public bool ContainsSection(string name)
+	{
+		return byName.ContainsKey(name);
+	}
+
+	public SectionData GetSectionData(string name)
+	{
+		return byName[name];
+	}
+
+	public bool TryAdd(SectionData section)
+	{
+		if (byName.ContainsKey(section.SectionName))
+			return false;
+		sections.Add(section);
+		byName.Add(section.SectionName, section);
+		return true;
+	}
+
+	public IEnumerator<SectionData> GetEnumerator()
+	{
+		return sections.GetEnumerator();
+	}
+
+	System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+	{
+		return GetEnumerator();
+	}
+}
+
+sealed class KeyData
+{
+	public KeyData(string keyName, string value)
+	{
+		KeyName = keyName;
+		Value = value;
+	}
+
+	public string KeyName { get; }
+	public string Value { get; }
+}
+
+sealed class KeyDataCollection : IEnumerable<KeyData>
+{
+	readonly List<KeyData> keys = [];
+	readonly Dictionary<string, KeyData> byName = new(StringComparer.Ordinal);
+
+	public KeyData? GetKeyData(string name)
+	{
+		return byName.TryGetValue(name, out KeyData? key) ? key : null;
+	}
+
+	public bool TryAdd(KeyData key)
+	{
+		if (byName.ContainsKey(key.KeyName))
+			return false;
+		keys.Add(key);
+		byName.Add(key.KeyName, key);
+		return true;
+	}
+
+	public IEnumerator<KeyData> GetEnumerator()
+	{
+		return keys.GetEnumerator();
+	}
+
+	System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+	{
+		return GetEnumerator();
+	}
+}
+
+static class TargetIniParser
+{
+	public static bool TryReadFile(string filename, out IniData? data, out string? error)
+	{
+		data = new IniData();
+		error = null;
+		string[] lines;
+		try
+		{
+			lines = File.ReadAllLines(filename, Encoding.UTF8);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+		{
+			data = null;
+			error = ex.Message;
+			return false;
+		}
+
+		SectionData? currentSection = null;
+		for (int i = 0; i < lines.Length; i++)
+		{
+			string line = lines[i];
+			string trimmed = line.Trim();
+			if (trimmed.Length == 0 || trimmed.StartsWith("#", StringComparison.Ordinal) || trimmed.StartsWith(";", StringComparison.Ordinal))
+				continue;
+
+			if (trimmed.StartsWith("[", StringComparison.Ordinal))
+			{
+				if (!trimmed.EndsWith("]", StringComparison.Ordinal) || trimmed.Length <= 2)
+					return Fail(out data, out error, i, "Invalid section header.");
+
+				string sectionName = trimmed[1..^1].Trim();
+				if (sectionName.Length == 0)
+					return Fail(out data, out error, i, "Section name cannot be empty.");
+
+				currentSection = new SectionData(sectionName);
+				if (!data.Sections.TryAdd(currentSection))
+					return Fail(out data, out error, i, $"Duplicate section [{sectionName}].");
+				continue;
+			}
+
+			if (currentSection is null)
+				return Fail(out data, out error, i, "Keys must appear inside a section.");
+
+			int equals = line.IndexOf('=');
+			if (equals < 0)
+				return Fail(out data, out error, i, "Expected key=value.");
+
+			string keyName = line[..equals].Trim();
+			if (keyName.Length == 0)
+				return Fail(out data, out error, i, "Key name cannot be empty.");
+
+			string value = line[(equals + 1)..].Trim();
+			if (!currentSection.Keys.TryAdd(new KeyData(keyName, value)))
+				return Fail(out data, out error, i, $"Duplicate key '{keyName}' in section [{currentSection.SectionName}].");
+		}
+
+		return true;
+	}
+
+	static bool Fail(out IniData? data, out string? error, int lineIndex, string message)
+	{
+		data = null;
+		error = $"line {(lineIndex + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)}: {message}";
+		return false;
+	}
 }
 
 public sealed class TargetDefinition

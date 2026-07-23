@@ -172,6 +172,51 @@ _stdcall->_near=implicit
 	}
 
 	[Fact]
+	public void Target_ini_parser_rejects_duplicate_sections_duplicate_keys_and_keys_outside_sections()
+	{
+		string root = Path.Combine(Path.GetTempPath(), "camp-target-ini-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(root);
+		try
+		{
+			WriteTarget(root, "duplicate-section.ini", """
+[target]
+name=duplicate-section
+
+[target]
+base=c99
+""");
+			Assert.False(TargetCatalog.TryLoad(root, out _, out string? error));
+			Assert.Contains("Duplicate section [target].", error);
+
+			Directory.Delete(root, recursive: true);
+			Directory.CreateDirectory(root);
+			WriteTarget(root, "duplicate-key.ini", """
+[target]
+name=duplicate-key
+name=other
+""");
+			Assert.False(TargetCatalog.TryLoad(root, out _, out error));
+			Assert.Contains("Duplicate key 'name' in section [target].", error);
+
+			Directory.Delete(root, recursive: true);
+			Directory.CreateDirectory(root);
+			WriteTarget(root, "outside-section.ini", """
+name=outside-section
+
+[target]
+name=outside-section
+""");
+			Assert.False(TargetCatalog.TryLoad(root, out _, out error));
+			Assert.Contains("Keys must appear inside a section.", error);
+		}
+		finally
+		{
+			if (Directory.Exists(root))
+				Directory.Delete(root, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void Target_conversion_policy_allows_explicit_abi_slot_compatibility()
 	{
 		string root = Path.Combine(Path.GetTempPath(), "camp-target-policy-" + Guid.NewGuid().ToString("N"));
