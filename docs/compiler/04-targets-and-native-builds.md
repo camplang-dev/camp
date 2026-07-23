@@ -224,8 +224,11 @@ ar=ar
 ```
 
 If a tool is missing, the compiler uses the tool key as the command name. MSVC
-targets may declare `msvc_arch`. On Windows, a mismatched or missing Visual
-Studio C++ environment is reported before native build commands are run.
+targets may declare `msvc_arch`. On Windows, Camp uses a matching loaded Visual
+Studio C++ environment when one is present. Otherwise, it tries to find Visual
+Studio Build Tools, load `vcvarsall.bat` for the requested architecture, and run
+native build commands with that environment. Set `CAMP_VCVARSALL` to the full
+path of `vcvarsall.bat` for a custom installation.
 
 ## Profiles
 

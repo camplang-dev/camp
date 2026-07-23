@@ -2859,10 +2859,12 @@ public sealed class CommandLineTests
 
 	[Fact]
 	[Trait("Category", "MsvcCompile")]
-	public void Msvc_target_requires_loaded_visual_studio_environment()
+	public void Msvc_target_loads_visual_studio_environment_when_needed()
 	{
 		if (!OperatingSystem.IsWindows())
 			Assert.Skip("MSVC environment validation only applies on Windows.");
+		if (!MsvcBuildToolsInstalled())
+			Assert.Skip("MSVC Build Tools are not installed.");
 		string temp = CreateTempCase("msvc-environment-missing/main.camp", """
 			export int value()
 			{
@@ -2882,17 +2884,17 @@ public sealed class CommandLineTests
 			"--out-dir",
 			TempPath("msvc-environment-missing-out"));
 
-		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains("Target 'msvc-windows-x64' requires a Visual Studio C++ environment", result.StdErr, StringComparison.Ordinal);
-		Assert.DoesNotContain("Native build command failed", result.StdErr, StringComparison.Ordinal);
+		AssertCommandSucceeded(result);
 	}
 
 	[Fact]
 	[Trait("Category", "MsvcCompile")]
-	public void Msvc_target_architecture_must_match_visual_studio_environment()
+	public void Msvc_target_uses_requested_architecture_over_loaded_visual_studio_environment()
 	{
 		if (!OperatingSystem.IsWindows())
 			Assert.Skip("MSVC environment validation only applies on Windows.");
+		if (!MsvcBuildToolsInstalled())
+			Assert.Skip("MSVC Build Tools are not installed.");
 		string temp = CreateTempCase("msvc-architecture-mismatch/main.camp", """
 			export int value()
 			{
@@ -2912,9 +2914,44 @@ public sealed class CommandLineTests
 			"--out-dir",
 			TempPath("msvc-architecture-mismatch-out"));
 
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
+	[Trait("Category", "MsvcCompile")]
+	public void Msvc_target_reports_invalid_vcvarsall_override()
+	{
+		if (!OperatingSystem.IsWindows())
+			Assert.Skip("MSVC environment validation only applies on Windows.");
+		string temp = CreateTempCase("msvc-invalid-vcvarsall/main.camp", """
+			export int value()
+			{
+				return 1;
+			}
+			""");
+		string missingVcVarsAll = Path.Combine(TempPath("missing-vs"), "vcvarsall.bat");
+
+		ProcessResult result = RunCampc(
+			new Dictionary<string, string?>
+			{
+				["VSCMD_ARG_TGT_ARCH"] = null,
+				["Platform"] = null,
+				["CAMP_VCVARSALL"] = missingVcVarsAll
+			},
+			"build",
+			temp,
+			"--nostdlib",
+			"--artifact",
+			"static",
+			"--target",
+			"msvc-windows-x64",
+			"--out-dir",
+			TempPath("msvc-invalid-vcvarsall-out"));
+
 		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains("Target 'msvc-windows-x64' requires MSVC target architecture 'x64'", result.StdErr, StringComparison.Ordinal);
-		Assert.Contains("current Visual Studio environment targets 'x86'", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("CAMP_VCVARSALL points to", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("vcvarsall.bat", result.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("Native build command failed", result.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -4387,6 +4424,22 @@ public sealed class CommandLineTests
 	static bool MsvcAvailable()
 	{
 		return OperatingSystem.IsWindows() && MsvcEnvironment.TargetArchitecture is "x64" or "x86" && ToolAvailable("cl") && ToolAvailable("lib");
+	}
+
+	static bool MsvcBuildToolsInstalled()
+	{
+		if (!OperatingSystem.IsWindows())
+			return false;
+		if (MsvcAvailable())
+			return true;
+		string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+		if (string.IsNullOrWhiteSpace(programFilesX86))
+			return false;
+		string vsWhere = Path.Combine(programFilesX86, "Microsoft Visual Studio", "Installer", "vswhere.exe");
+		if (!File.Exists(vsWhere))
+			return false;
+		ProcessResult result = RunProcess(vsWhere, ["-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath"], FindRepositoryRoot());
+		return result.ExitCode == 0 && !string.IsNullOrWhiteSpace(result.StdOut);
 	}
 
 	static bool GccCanLink(string architectureFlag)

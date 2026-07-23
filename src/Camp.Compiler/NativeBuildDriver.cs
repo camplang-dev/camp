@@ -45,7 +45,7 @@ public static class NativeBuildDriver
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		NativeBuildResult result = new();
-		if (!ValidateToolchain(options, result))
+		if (!TryResolveToolchainEnvironment(options, result, out IReadOnlyDictionary<string, string>? toolchainEnvironment))
 			return result;
 
 		Directory.CreateDirectory(options.BuildDirectory);
@@ -58,7 +58,7 @@ public static class NativeBuildDriver
 		foreach (string source in options.SourceFiles)
 		{
 			string objectPath = Path.Combine(options.BuildDirectory, Path.GetFileNameWithoutExtension(source) + options.Target.Capabilities.GetArtifactValue("object_ext", ".o"));
-			if (!RunTemplate(options, "compile", result, new Dictionary<string, string>(StringComparer.Ordinal)
+			if (!RunTemplate(options, "compile", result, toolchainEnvironment, new Dictionary<string, string>(StringComparer.Ordinal)
 			{
 				["source"] = Quote(source),
 				["object"] = Quote(objectPath)
@@ -75,7 +75,7 @@ public static class NativeBuildDriver
 		if (!result.Success)
 			return result;
 
-		if (!RunTemplate(options, BuildTemplateName(options.Kind), result, new Dictionary<string, string>(StringComparer.Ordinal)
+		if (!RunTemplate(options, BuildTemplateName(options.Kind), result, toolchainEnvironment, new Dictionary<string, string>(StringComparer.Ordinal)
 		{
 			["objects"] = string.Join(" ", objects.Select(Quote)),
 			["libs"] = BuildLinkLibraries(options),
@@ -183,8 +183,9 @@ public static class NativeBuildDriver
 		return result.Success;
 	}
 
-	static bool ValidateToolchain(NativeBuildOptions options, NativeBuildResult result)
+	static bool TryResolveToolchainEnvironment(NativeBuildOptions options, NativeBuildResult result, out IReadOnlyDictionary<string, string>? environment)
 	{
+		environment = null;
 		if (!OperatingSystem.IsWindows())
 			return true;
 		if (!options.Target.Toolchain.TryGetValue("msvc_arch", out string? expected) || string.IsNullOrWhiteSpace(expected))
@@ -192,15 +193,14 @@ public static class NativeBuildDriver
 
 		expected = MsvcEnvironment.NormalizeArchitecture(expected) ?? expected.Trim();
 		string? actual = MsvcEnvironment.TargetArchitecture;
-		if (actual is null)
-		{
-			result.Diagnostics.Add($"Target '{options.Target.Name}' requires a Visual Studio C++ environment, but none appears to be loaded. Run vcvarsall.bat {expected}, open a matching Developer Command Prompt, or pass --target for the MSVC architecture you loaded.");
-			return false;
-		}
-		if (string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+		if (string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase) && MsvcToolchainEnvironment.ToolsAreOnPath())
 			return true;
 
-		result.Diagnostics.Add($"Target '{options.Target.Name}' requires MSVC target architecture '{expected}', but the current Visual Studio environment targets '{actual}'. Run vcvarsall.bat {expected} or use --target msvc-windows-{actual}.");
+		if (MsvcToolchainEnvironment.TryResolve(expected, result, out environment))
+			return true;
+
+		if (actual is not null)
+			result.Diagnostics.Add($"Target '{options.Target.Name}' requires MSVC target architecture '{expected}', but the current Visual Studio environment targets '{actual}'. Run vcvarsall.bat {expected}, set CAMP_VCVARSALL, or use --target msvc-windows-{actual}.");
 		return false;
 	}
 
@@ -216,7 +216,7 @@ public static class NativeBuildDriver
 		};
 	}
 
-	static bool RunTemplate(NativeBuildOptions options, string templateName, NativeBuildResult result, Dictionary<string, string> values)
+	static bool RunTemplate(NativeBuildOptions options, string templateName, NativeBuildResult result, IReadOnlyDictionary<string, string>? toolchainEnvironment, Dictionary<string, string> values)
 	{
 		string template = options.Target.Capabilities.GetBuildTemplate(templateName)!;
 		TargetProfileBuild profile = options.Target.GetProfileBuild(options.ProfileName);
@@ -228,7 +228,7 @@ public static class NativeBuildDriver
 		values["build_cflags"] = GetBuildCFlags(options);
 
 		string command = ExpandTemplate(template, values);
-		return RunCommand(command, options.BuildDirectory, result);
+		return RunCommand(command, options.BuildDirectory, result, toolchainEnvironment);
 	}
 
 	static string GetBuildCFlags(NativeBuildOptions options)
@@ -251,7 +251,7 @@ public static class NativeBuildDriver
 		return builder.ToString();
 	}
 
-	static bool RunCommand(string command, string workingDirectory, NativeBuildResult result)
+	static bool RunCommand(string command, string workingDirectory, NativeBuildResult result, IReadOnlyDictionary<string, string>? toolchainEnvironment)
 	{
 		const int timeoutMilliseconds = 30000;
 		ProcessStartInfo info = new()
@@ -262,6 +262,11 @@ public static class NativeBuildDriver
 			RedirectStandardOutput = true,
 			UseShellExecute = false
 		};
+		if (toolchainEnvironment is not null)
+		{
+			foreach ((string key, string value) in toolchainEnvironment)
+				info.Environment[key] = value;
+		}
 		if (OperatingSystem.IsWindows())
 		{
 			info.Arguments = "/S /C \"" + command + "\"";
@@ -318,5 +323,210 @@ public static class NativeBuildDriver
 		if (value.All(static ch => char.IsLetterOrDigit(ch) || ch is '/' or '.' or '_' or '-' or ':' or '\\'))
 			return value;
 		return "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
+	}
+}
+
+static class MsvcToolchainEnvironment
+{
+	const string VcToolsComponent = "Microsoft.VisualStudio.Component.VC.Tools.x86.x64";
+	const int TimeoutMilliseconds = 30000;
+
+	public static bool TryResolve(string architecture, NativeBuildResult result, out IReadOnlyDictionary<string, string>? environment)
+	{
+		environment = null;
+		if (!TryFindVcVarsAll(result, out string? vcVarsAll))
+			return false;
+
+		ProcessStartInfo info = new()
+		{
+			FileName = "cmd.exe",
+			Arguments = "/S /C \"\"" + vcVarsAll + "\" " + architecture + " >nul && set\"",
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+
+		using Process process = new() { StartInfo = info };
+		try
+		{
+			process.Start();
+		}
+		catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+		{
+			result.Diagnostics.Add($"Could not run Visual Studio C++ environment setup '{vcVarsAll}': {ex.Message}");
+			return false;
+		}
+
+		string stdout = process.StandardOutput.ReadToEnd();
+		string stderr = process.StandardError.ReadToEnd();
+		if (!process.WaitForExit(TimeoutMilliseconds))
+		{
+			try
+			{
+				process.Kill(entireProcessTree: true);
+			}
+			catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+			{
+			}
+			result.Diagnostics.Add($"Visual Studio C++ environment setup timed out after {TimeoutMilliseconds} ms: {vcVarsAll} {architecture}");
+			return false;
+		}
+		if (process.ExitCode != 0)
+		{
+			result.Diagnostics.Add($"Visual Studio C++ environment setup failed with exit code {process.ExitCode}: {vcVarsAll} {architecture}");
+			if (!string.IsNullOrWhiteSpace(stderr))
+				result.Diagnostics.Add(stderr.TrimEnd());
+			return false;
+		}
+
+		Dictionary<string, string> captured = ParseEnvironment(stdout);
+		if (!captured.TryGetValue("VSCMD_ARG_TGT_ARCH", out string? targetArchitecture)
+			|| !string.Equals(MsvcEnvironment.NormalizeArchitecture(targetArchitecture), architecture, StringComparison.OrdinalIgnoreCase))
+		{
+			result.Diagnostics.Add($"Visual Studio C++ environment setup did not produce an '{architecture}' tool environment.");
+			return false;
+		}
+
+		environment = captured;
+		return true;
+	}
+
+	public static bool ToolsAreOnPath()
+	{
+		return ToolIsOnPath("cl") && ToolIsOnPath("lib");
+	}
+
+	static bool TryFindVcVarsAll(NativeBuildResult result, out string? path)
+	{
+		path = null;
+		string? explicitPath = Environment.GetEnvironmentVariable("CAMP_VCVARSALL");
+		if (!string.IsNullOrWhiteSpace(explicitPath))
+		{
+			path = explicitPath.Trim();
+			if (File.Exists(path))
+				return true;
+			result.Diagnostics.Add($"CAMP_VCVARSALL points to '{path}', but that file does not exist.");
+			return false;
+		}
+
+		string? explicitInstall = Environment.GetEnvironmentVariable("CAMP_VSINSTALLDIR");
+		if (!string.IsNullOrWhiteSpace(explicitInstall))
+		{
+			path = GetVcVarsAllPath(explicitInstall.Trim());
+			if (File.Exists(path))
+				return true;
+			result.Diagnostics.Add($"CAMP_VSINSTALLDIR points to '{explicitInstall}', but '{path}' does not exist.");
+			return false;
+		}
+
+		string? vsWhereInstall = FindWithVsWhere();
+		if (!string.IsNullOrWhiteSpace(vsWhereInstall))
+		{
+			path = GetVcVarsAllPath(vsWhereInstall);
+			if (File.Exists(path))
+				return true;
+		}
+
+		foreach (string candidate in ProbeKnownInstallRoots())
+		{
+			path = GetVcVarsAllPath(candidate);
+			if (File.Exists(path))
+				return true;
+		}
+
+		path = null;
+		result.Diagnostics.Add("MSVC targets require Microsoft C++ Build Tools. Install Visual Studio Build Tools with the Desktop development with C++ workload, open a matching Developer Command Prompt, or set CAMP_VCVARSALL to vcvarsall.bat.");
+		return false;
+	}
+
+	static bool ToolIsOnPath(string tool)
+	{
+		string extension = Path.GetExtension(tool);
+		IEnumerable<string> candidates = string.IsNullOrWhiteSpace(extension) ? [tool + ".exe", tool + ".bat", tool + ".cmd", tool] : [tool];
+		foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+		{
+			foreach (string candidate in candidates)
+			{
+				try
+				{
+					if (File.Exists(Path.Combine(directory, candidate)))
+						return true;
+				}
+				catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException or UnauthorizedAccessException)
+				{
+				}
+			}
+		}
+		return false;
+	}
+
+	static string GetVcVarsAllPath(string installRoot)
+	{
+		return Path.Combine(installRoot, "VC", "Auxiliary", "Build", "vcvarsall.bat");
+	}
+
+	static string? FindWithVsWhere()
+	{
+		string? explicitVsWhere = Environment.GetEnvironmentVariable("CAMP_VSWHERE");
+		string? vsWhere = !string.IsNullOrWhiteSpace(explicitVsWhere)
+			? explicitVsWhere.Trim()
+			: Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft Visual Studio", "Installer", "vswhere.exe");
+		if (string.IsNullOrWhiteSpace(vsWhere) || !File.Exists(vsWhere))
+			return null;
+
+		ProcessStartInfo info = new(vsWhere)
+		{
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false
+		};
+		info.ArgumentList.Add("-latest");
+		info.ArgumentList.Add("-products");
+		info.ArgumentList.Add("*");
+		info.ArgumentList.Add("-requires");
+		info.ArgumentList.Add(VcToolsComponent);
+		info.ArgumentList.Add("-property");
+		info.ArgumentList.Add("installationPath");
+
+		using Process process = new() { StartInfo = info };
+		try
+		{
+			process.Start();
+			string stdout = process.StandardOutput.ReadToEnd();
+			process.StandardError.ReadToEnd();
+			if (!process.WaitForExit(TimeoutMilliseconds) || process.ExitCode != 0)
+				return null;
+			return stdout.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+		}
+		catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+		{
+			return null;
+		}
+	}
+
+	static IEnumerable<string> ProbeKnownInstallRoots()
+	{
+		string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+		if (string.IsNullOrWhiteSpace(programFilesX86))
+			yield break;
+
+		foreach (string version in new[] { "2022", "2019" })
+		{
+			foreach (string edition in new[] { "BuildTools", "Community", "Professional", "Enterprise" })
+				yield return Path.Combine(programFilesX86, "Microsoft Visual Studio", version, edition);
+		}
+	}
+
+	static Dictionary<string, string> ParseEnvironment(string text)
+	{
+		Dictionary<string, string> environment = new(StringComparer.OrdinalIgnoreCase);
+		foreach (string line in text.Split(["\r\n", "\n"], StringSplitOptions.None))
+		{
+			int separator = line.IndexOf('=');
+			if (separator <= 0)
+				continue;
+			environment[line[..separator]] = line[(separator + 1)..];
+		}
+		return environment;
 	}
 }

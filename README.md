@@ -8,9 +8,30 @@ The compiler, language server, debug adapter, standard library, target files, ed
 
 Camp is early software. The first preview release is planned as `v0.1.0-preview.1`.
 
+## Prerequisites
+
+To build Camp itself, install the .NET 10 SDK.
+
+To build or run Camp programs, install a native C toolchain for the target you use:
+
+- Windows MSVC targets require Microsoft Visual Studio Build Tools with the Desktop development with C++ workload. Camp uses a loaded Developer Command Prompt when one is present, and otherwise tries to find Visual Studio Build Tools automatically. Set `CAMP_VCVARSALL` to the full path of `vcvarsall.bat` for a custom installation.
+- macOS targets require Apple's command line developer tools, which provide Clang and the system SDK:
+
+  ```bash
+  xcode-select --install
+  ```
+
+- Linux targets require GCC and the usual C development files. On Debian/Ubuntu:
+
+  ```bash
+  sudo apt install build-essential
+  ```
+
+  The `gcc-linux-x86` target also needs 32-bit multilib support.
+
 ## Build From Source
 
-Install the .NET 10 SDK, then build the solution:
+After installing the prerequisites, build the solution:
 
 ```bash
 dotnet build src/camplang.sln
@@ -26,7 +47,7 @@ bin/campc test path/to/program.camp
 bin/campc cover path/to/program.camp
 ```
 
-Native compilation also requires a C compiler for the selected Camp target. On macOS and Linux, Clang is the usual default. On Windows, use a Visual Studio C++ developer environment for MSVC targets.
+Native compilation uses the C toolchain for the selected Camp target.
 
 ## Publish Tools
 
