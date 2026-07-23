@@ -93,7 +93,7 @@ The builder translates syntax nodes into `BindableNode` objects:
 Bindable nodes retain `SourceSyntax` where possible. This is essential for:
 
 - diagnostics;
-- dumps and XML serialization;
+- compiler dumps;
 - language-service hover/definition/reference mapping;
 - metadata doc-comment attachment;
 - owner maps from source files to declarations.
@@ -361,7 +361,6 @@ Emission serializes the analyzed or lowered model into:
 - metadata JSON;
 - test manifests, test results, coverage maps, coverage results, and LCOV where
   requested by test/coverage modes;
-- XML dumps;
 - Camp-like declaration and lowering dumps.
 
 Each emission surface has a different audience. C emission is ABI-oriented.

@@ -12,11 +12,11 @@ The command form is:
 campc dump <kind> [pattern.camp...] [options]
 ```
 
-Valid kinds are `tokens`, `cst`, `ast`, `declarations`, `lowering`, and
-`metadata`. Dump commands accept analysis options such as `--include`,
-`--target`, `--profile`, `--variant`, `--define`, `--use`, `--use-source`,
-`--project-reference`, `--metadata`, `--nostdlib`, and `--xml` where applicable.
-They do not accept build-only output options.
+Valid kinds are `tokens`, `declarations`, `lowering`, and `metadata`. Dump
+commands accept analysis options such as `--include`, `--target`, `--profile`,
+`--variant`, `--define`, `--use`, `--use-source`, `--project-reference`,
+`--metadata`, and `--nostdlib` where applicable. They do not accept build-only
+output options.
 
 ## Token Dumps
 
@@ -37,36 +37,6 @@ when investigating:
 
 Token dumps do not run the parser or semantic analysis.
 
-## CST Dumps
-
-`cst` dumps parse the first root source file and serialize the concrete syntax
-tree as XML:
-
-```sh
-campc dump cst src/declarations.camp --nostdlib
-```
-
-Use CST dumps when a grammar rule, parse recovery path, or source range is in
-question. CST XML preserves syntax-node structure rather than semantic meaning.
-
-## AST Dumps
-
-`ast` dumps serialize the bindable syntax-level tree as XML after parsing and
-early binding:
-
-```sh
-campc dump ast src/declarations.camp --nostdlib
-```
-
-This stage is useful for checking the parser-to-bindable-node builder:
-
-- source declarations are represented as the expected bindable node type;
-- doc comments and attributes are attached to the intended declaration;
-- type syntax is preserved before semantic resolution;
-- preprocessor-active source has the expected shape.
-
-AST dumps do not imply that semantic analysis accepted the program.
-
 ## Declaration Dumps
 
 `declarations` runs declaration expansion and semantic declaration analysis,
@@ -75,11 +45,9 @@ file:
 
 ```sh
 campc dump declarations src/library.camp --nostdlib
-campc dump declarations src/library.camp --nostdlib --xml
 ```
 
-The non-XML dump uses Camp-like syntax. XML is intended for golden tests and
-structural inspection. Declaration dumps are useful for:
+The dump uses Camp-like syntax. Declaration dumps are useful for:
 
 - generated declarations and synthetic members;
 - resolved signatures;
@@ -98,7 +66,6 @@ output for declarations owned by the first root source file:
 
 ```sh
 campc dump lowering src/library.camp --nostdlib
-campc dump lowering src/library.camp --nostdlib --xml
 ```
 
 Use lowering dumps for questions about:
@@ -127,18 +94,6 @@ campc dump metadata src/library.camp --metadata all
 If no `--metadata` view is provided, the export view is used. Metadata dumps run
 the same serializer used for build artifacts, but do not write an artifact file.
 See [Metadata JSON](06-metadata-json.md).
-
-## XML Output
-
-`--xml` is valid only with `declarations` and `lowering`:
-
-```sh
-campc dump declarations src/library.camp --xml
-campc dump lowering src/library.camp --xml
-```
-
-The driver reports a diagnostic if XML is requested with token, CST, AST, or
-metadata output.
 
 ## API Inspection
 
@@ -195,7 +150,7 @@ declaration or expression that caused generation.
 
 ## Golden Tests
 
-Golden tests compare exact output text. Dump modes are used for token, syntax,
+Golden tests compare exact output text. Dump modes are used for token,
 declaration, lowering, metadata, diagnostic, C emission, API-surface, and
 runtime-output coverage.
 

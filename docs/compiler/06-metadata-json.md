@@ -24,9 +24,9 @@ Static and shared library builds default to `export` metadata. Executable,
 C-only, and dump builds default to `none`, except that `campc dump metadata`
 uses the `export` view when no explicit metadata view is selected.
 
-Metadata output cannot be combined with non-metadata dump modes or XML output.
-The compiler driver also has an API-inspection mode used by tests and tooling;
-that mode is distinct from metadata JSON.
+Metadata output cannot be combined with non-metadata dump modes. The compiler
+driver also has an API-inspection mode used by tests and tooling; that mode is
+distinct from metadata JSON.
 
 ## Visibility Modes
 

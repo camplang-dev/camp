@@ -136,23 +136,20 @@ declarations are the intended subject.
 | Kind | Output |
 |---|---|
 | `tokens` | Lexical tokens for the first root source file. |
-| `cst` | Concrete syntax XML for the first root source file. |
-| `ast` | Bindable syntax XML for the first root source file. |
 | `declarations` | Analyzed declaration surface for the first root source file. |
 | `lowering` | Lowered Camp-like output after semantic rewrites. |
 | `metadata` | Metadata JSON for the selected metadata view. |
 
 ```sh
 campc dump tokens src/lexer_case.camp --nostdlib
-campc dump declarations src/library.camp --xml
-campc dump lowering src/library.camp --xml
+campc dump declarations src/library.camp --nostdlib
+campc dump lowering src/library.camp --nostdlib
 campc dump metadata src/library.camp --metadata public
 ```
 
-`--xml` applies only to `declarations` and `lowering`. Build-only options such
-as `--artifact`, `--framework`, `--name`, `--subsystem`, and `--out-dir` are not
-valid on `dump`. `dump metadata` defaults to the `export` metadata view if
-`--metadata` is not supplied.
+Build-only options such as `--artifact`, `--framework`, `--name`,
+`--subsystem`, and `--out-dir` are not valid on `dump`. `dump metadata` defaults
+to the `export` metadata view if `--metadata` is not supplied.
 
 ## `restore`
 
@@ -237,7 +234,6 @@ noted:
 | `--sourcefile-root` | Add a root for relative `caller(sourcefile)` values. May be repeated. |
 | `--explicit-within` | Require source `new` and pointer-form `delete` to use an explicit `within` context unless overridden by `#within`. |
 | `--implicit-within` | Allow source `new` and pointer-form `delete` to fall back to the default allocator unless overridden by `#within`. |
-| `--xml` | Use XML for `dump declarations` or `dump lowering`. |
 
 `--sourcefile-paths` and `--sourcefile-root` affect only source-capture default
 arguments such as `caller(sourcefile)`. Relative sourcefile paths are rooted at
