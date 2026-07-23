@@ -1,3 +1,7 @@
++++
+nav_title = "4. Everyday Types"
++++
+
 # Everyday Types: Values, Text, Arrays, And Optionals
 
 Most Camp code is not written in abstract type theory. It moves integers,

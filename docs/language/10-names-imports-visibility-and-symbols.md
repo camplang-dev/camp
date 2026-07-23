@@ -1,3 +1,7 @@
++++
+nav_title = "10. Names And Symbols"
++++
+
 # Names, Imports, Visibility, And Symbols
 
 Names matter most when code becomes a library. Inside one file, a name is

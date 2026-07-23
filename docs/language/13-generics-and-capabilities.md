@@ -1,3 +1,7 @@
++++
+nav_title = "13. Generics"
++++
+
 # Generics And Capabilities
 
 Camp generics are built around type erasure and explicit capabilities. If

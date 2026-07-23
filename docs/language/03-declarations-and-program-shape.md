@@ -1,3 +1,7 @@
++++
+nav_title = "3. Declarations"
++++
+
 # Declarations And Program Shape
 
 Once a Camp file grows past `Hello, Camp.`, it becomes a set of declarations.

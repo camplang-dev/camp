@@ -1,3 +1,7 @@
++++
+nav_title = "19. Attributes And Metadata"
++++
+
 # Attributes, Documentation Comments, And Metadata Hints
 
 Attributes are Camp's way of attaching small pieces of source metadata to a

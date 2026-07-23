@@ -1,3 +1,7 @@
++++
+nav_title = "16. Standard Library"
++++
+
 # The Standard Library In Practice
 
 Camp's standard library is deliberately ordinary Camp code. It gives you the

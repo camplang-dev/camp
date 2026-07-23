@@ -1,3 +1,7 @@
++++
+nav_title = "1. Getting Started"
++++
+
 # Camp In One Page
 
 Camp is a native language for code that wants to be honest about the machine
@@ -135,18 +139,35 @@ their contract in the type or signature.
 Allocation is one example:
 
 ```camp
-export Buffer* createBuffer(nuint capacity, within allocator);
-
-Buffer* makeTemporaryBuffer(Allocator arena)
+Buffer* makeTemporaryBuffer(within allocator)
 {
-	return within (arena) new Buffer(4096);
+	return new Buffer[4096];
 }
 ```
 
-`within` is not decorative. It selects the allocation context used by the call
-or expression. The surrounding names are ordinary library or application
-types; the important part is that allocation policy travels through the source
-instead of disappearing into a global heap.
+`within` is not decorative -- it selects the allocation context used by the functions.
+Allocation policy travels through the source instead of disappearing into a global heap.
+
+`within` can also be used inside of a function to select the allocation context used
+in a scope.  The allocation context is passed automatically to other functions that
+receive an allocation context via their own `within allocator` parameter:
+
+```camp
+void processBuffer()
+{
+	auto arena = init ArenaAllocator(8192) finally delete;
+	within (arena)
+	{
+		auto node =  createNode();
+		processNode(node);
+	}
+}
+
+Node* createNode(within allocator)
+{
+	// ...
+}
+```
 
 Constness can be dependent too:
 

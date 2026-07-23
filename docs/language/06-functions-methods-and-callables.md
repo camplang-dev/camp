@@ -1,3 +1,7 @@
++++
+nav_title = "6. Functions And Callables"
++++
+
 # Functions, Methods, And Callables
 
 Camp function signatures look familiar, but they carry more of the API contract

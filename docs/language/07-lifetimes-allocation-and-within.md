@@ -1,3 +1,7 @@
++++
+nav_title = "7. Lifetimes And Allocation"
++++
+
 # Lifetimes, Allocation, And `within`
 
 You have already seen `new`, `delete`, delegates, arrays, methods, and

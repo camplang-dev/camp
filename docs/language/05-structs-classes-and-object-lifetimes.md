@@ -1,3 +1,7 @@
++++
+nav_title = "5. Structs And Classes"
++++
+
 # Structs, Classes, And Object Lifetimes
 
 Camp gives you both plain values and identity-bearing objects. That split is

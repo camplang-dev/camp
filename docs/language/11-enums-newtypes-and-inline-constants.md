@@ -1,3 +1,7 @@
++++
+nav_title = "11. Enums And Newtypes"
++++
+
 # Enums, Newtypes, And Inline Constants
 
 Some names should make a program clearer without making the value heavier.

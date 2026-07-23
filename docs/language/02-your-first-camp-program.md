@@ -1,3 +1,7 @@
++++
+nav_title = "2. Your First Program"
++++
+
 # Your First Camp Program
 
 The first page gave you the map. This chapter gives you a place to stand.

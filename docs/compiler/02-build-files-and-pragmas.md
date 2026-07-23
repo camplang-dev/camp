@@ -169,8 +169,8 @@ back into Camp preprocessing.
 
 export void allocate(within allocator)
 {
-	auto bytes = new byte[16] within allocator;
-	delete bytes within allocator;
+	auto bytes = new byte[16];
+	delete bytes;
 }
 ```
 

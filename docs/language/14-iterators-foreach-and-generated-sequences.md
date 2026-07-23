@@ -1,3 +1,7 @@
++++
+nav_title = "14. Iterators"
++++
+
 # Iterators, `foreach`, And Generated Sequences
 
 An iterator is what you use when a value can produce a sequence without already

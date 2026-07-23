@@ -1,3 +1,7 @@
++++
+nav_title = "12. Interfaces"
++++
+
 # Interfaces And Dynamic Dispatch
 
 Interfaces are Camp's named dynamic contracts. They are useful when a caller
