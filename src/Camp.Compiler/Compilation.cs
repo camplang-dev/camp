@@ -260,24 +260,7 @@ public static class CompilationPipeline
 
 	static bool TryGetRange(SyntaxNode syntax, out TokenRange range)
 	{
-		foreach (System.Reflection.PropertyInfo property in syntax.GetType().GetProperties())
-		{
-			object? value = property.GetValue(syntax);
-			if (value is TokenRange direct)
-			{
-				range = direct;
-				return true;
-			}
-			if (value is Token token)
-			{
-				range = token.Range;
-				return true;
-			}
-			if (value is SyntaxNode child && TryGetRange(child, out range))
-				return true;
-		}
-		range = default;
-		return false;
+		return SyntaxNodeTraversal.TryGetRange(syntax, out range);
 	}
 
 	static bool GeneratedNameBelongsToFile(string name, HashSet<string> ownedNames)

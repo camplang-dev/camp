@@ -3,9 +3,9 @@ using System.Collections;
 using System.Globalization;
 using System.Reflection;
 using System.Xml.Linq;
-using System.Xml.Serialization;
+using Camp.Compiler;
 
-namespace Camp.Compiler;
+namespace Camp.Compiler.Tests;
 
 public static class CompilerXmlSerializer
 {
@@ -50,7 +50,7 @@ public static class CompilerXmlSerializer
 
 		foreach (PropertyInfo property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public))
 		{
-			if (property.Name == nameof(BindableNode.SourceSyntax) || property.GetCustomAttribute<XmlIgnoreAttribute>() is not null)
+			if (property.Name == nameof(BindableNode.SourceSyntax) || IsIgnoredBindableProperty(property))
 				continue;
 
 			object? value = property.GetValue(node);
@@ -120,6 +120,19 @@ public static class CompilerXmlSerializer
 			|| property.DeclaringType == typeof(MethodReferenceExpression) && property.Name == nameof(MethodReferenceExpression.Candidates)
 			|| property.DeclaringType == typeof(MemberReferenceExpression) && property.Name == nameof(MemberReferenceExpression.Member)
 			|| property.DeclaringType == typeof(MemberReferenceExpression) && property.Name == nameof(MemberReferenceExpression.Candidates);
+	}
+
+	static bool IsIgnoredBindableProperty(PropertyInfo property)
+	{
+		return property.DeclaringType == typeof(Module)
+			&& property.Name is nameof(Module.DefinitionSources)
+				or nameof(Module.SourceFiles)
+				or nameof(Module.SourceNamespaces)
+				or nameof(Module.SourceWithinAllocationPolicies)
+				or nameof(Module.SourcefilePathMode)
+				or nameof(Module.SourcefileDefaultRoot)
+				or nameof(Module.SourcefileRoots)
+				or nameof(Module.DeclarationParticipationMode);
 	}
 
 	static void SerializeSemanticReference(XElement element, string name, object value)

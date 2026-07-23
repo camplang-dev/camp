@@ -187,7 +187,6 @@ public static class CampProjectLoader
 			TargetName = bag.TargetName ?? CompilerDefaults.TargetName,
 			ProfileName = bag.ProfileName ?? "DEBUG",
 			EmitKind = bag.EmitKind ?? "c99",
-			Xml = bag.Xml,
 			BuildKind = bag.ArtifactKind,
 			InferBuildKind = command == CampProjectCommandKind.Build && !bag.ArtifactSpecified,
 			CommandMode = GetCompilerCommandMode(command),
@@ -592,7 +591,6 @@ sealed class CampBuildOptionBag
 		"implicit" => Camp.Compiler.WithinAllocationPolicy.Implicit,
 		_ => null
 	};
-	public bool Xml => Get("xml") == "true";
 	public bool DebugInfo => Get("debug-info") == "true";
 	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo;
 	public bool HasTestResultOptions => Get("test-output-dir") is not null || Get("test-result-format") is not null;
@@ -845,9 +843,6 @@ static class CampBuildOptionParser
 					break;
 				case "--nostdlib":
 					result.NoStdLib = true;
-					break;
-				case "--xml":
-					AddSingle(result, "xml", "true");
 					break;
 				default:
 					if (token.StartsWith("-", StringComparison.Ordinal))

@@ -1,11 +1,9 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Reflection;
 using System.Text;
 
 namespace Camp.Compiler;
@@ -341,37 +339,7 @@ public static class CCodeEmitter
 
 	static bool TryGetSourceRange(SyntaxNode syntax, out TokenRange range)
 	{
-		foreach (PropertyInfo property in syntax.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
-		{
-			if (property.PropertyType == typeof(TokenRange?) && property.GetValue(syntax) is TokenRange tokenRange)
-			{
-				range = tokenRange;
-				return true;
-			}
-			if (property.PropertyType == typeof(Token?) && property.GetValue(syntax) is Token token)
-			{
-				range = token.Range;
-				return true;
-			}
-		}
-
-		foreach (PropertyInfo property in syntax.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
-		{
-			object? value = property.GetValue(syntax);
-			if (value is SyntaxNode child && TryGetSourceRange(child, out range))
-				return true;
-			if (value is IEnumerable enumerable and not string)
-			{
-				foreach (object? item in enumerable)
-				{
-					if (item is SyntaxNode childItem && TryGetSourceRange(childItem, out range))
-						return true;
-				}
-			}
-		}
-
-		range = default;
-		return false;
+		return SyntaxNodeTraversal.TryGetRange(syntax, out range);
 	}
 
 	static void EmitPrivateHeader(Compilation compilation, CEmissionOptions options, CEmissionResult result, CDeclarationWriter declarations)

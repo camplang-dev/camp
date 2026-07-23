@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -524,25 +523,7 @@ public static class DocCommentTranslator
 
 	static bool TryGetRange(SyntaxNode? syntax, out TokenRange range)
 	{
-		range = default;
-		if (syntax is null)
-			return false;
-		foreach (PropertyInfo property in syntax.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
-		{
-			object? value = property.GetValue(syntax);
-			switch (value)
-			{
-				case Token token:
-					range = token.Range;
-					return true;
-				case TokenRange tokenRange:
-					range = tokenRange;
-					return true;
-				case SyntaxNode child when TryGetRange(child, out range):
-					return true;
-			}
-		}
-		return false;
+		return SyntaxNodeTraversal.TryGetRange(syntax, out range);
 	}
 
 	static void AddAttribute(BindableNode node, AttributeConstructor attribute)

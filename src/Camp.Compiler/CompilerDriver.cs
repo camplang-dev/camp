@@ -5,10 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
-using System.Xml;
-using System.Xml.Linq;
 
 namespace Camp.Compiler;
 
@@ -16,8 +13,6 @@ public enum CompilerInspectMode
 {
 	None,
 	Tokens,
-	Cst,
-	Ast,
 	Declarations,
 	Lowering,
 	Metadata
@@ -37,7 +32,6 @@ public sealed class CompilerRequest
 	public List<string> AnalysisSourceFiles { get; } = [];
 	public List<string> Defines { get; } = [];
 	public CompilerInspectMode? Inspect { get; set; }
-	public bool Xml { get; set; }
 	public bool InspectApi { get; set; }
 	public string TargetName { get; set; } = CompilerDefaults.TargetName;
 	public string ProfileName { get; set; } = "DEBUG";
@@ -128,16 +122,14 @@ public static class CompilerDriver
 			if (request.InferBuildKind && !TryInferBuildKind())
 				return 1;
 			ApplySubsystem();
-			if (request.Xml && request.Inspect is not (CompilerInspectMode.Declarations or CompilerInspectMode.Lowering))
-				return Error("--xml can only be used with --inspect declarations or --inspect lowering.");
-			if (request.InspectApi && (request.Inspect is not null || request.Xml))
-				return Error("--inspect-api cannot be combined with --inspect or --xml.");
+			if (request.InspectApi && request.Inspect is not null)
+				return Error("--inspect-api cannot be combined with --inspect.");
 			if (request.BuildKind is not null && request.Inspect is not null)
 				return Error("--artifact cannot be combined with dump commands.");
 			if (request.BuildKind is not null && request.InspectApi)
 				return Error("--artifact cannot be combined with --inspect-api.");
-			if (GetEffectiveMetadataVisibility() != MetadataVisibility.None && (request.Inspect is not null and not CompilerInspectMode.Metadata || request.InspectApi || request.Xml))
-				return Error("--metadata cannot be combined with non-metadata dump commands, --inspect-api, or --xml.");
+			if (GetEffectiveMetadataVisibility() != MetadataVisibility.None && (request.Inspect is not null and not CompilerInspectMode.Metadata || request.InspectApi))
+				return Error("--metadata cannot be combined with non-metadata dump commands or --inspect-api.");
 
 			if (!TryCreateRuntimeContext(out RuntimeContext? context))
 				return 1;
@@ -184,8 +176,6 @@ public static class CompilerDriver
 					? EmitTestDiscoveryOutput(compilation, packageLibraries)
 					: EmitDefaultOutput(compilation, packageLibraries),
 				CompilerInspectMode.Tokens => PrintTokens(compilation),
-				CompilerInspectMode.Cst => PrintSyntaxXml(compilation),
-				CompilerInspectMode.Ast => PrintBindXml(compilation),
 				CompilerInspectMode.Declarations => PrintDeclarations(compilation),
 				CompilerInspectMode.Lowering => PrintLowering(compilation),
 				CompilerInspectMode.Metadata => PrintMetadata(compilation),
@@ -922,9 +912,8 @@ public static class CompilerDriver
 
 		static IEnumerable<string> GetCompilerCacheInputs(RuntimeContext context)
 		{
-			string assemblyPath = typeof(CompilerDriver).Assembly.Location;
-			if (!string.IsNullOrWhiteSpace(assemblyPath) && File.Exists(assemblyPath))
-				yield return assemblyPath;
+			if (!string.IsNullOrWhiteSpace(Environment.ProcessPath) && File.Exists(Environment.ProcessPath))
+				yield return Environment.ProcessPath;
 			string? targetDirectory = Path.GetDirectoryName(context.Target.Path);
 			if (!string.IsNullOrWhiteSpace(targetDirectory) && Directory.Exists(targetDirectory))
 			{
@@ -1714,22 +1703,6 @@ public static class CompilerDriver
 			return 0;
 		}
 
-		int PrintSyntaxXml(Compilation compilation)
-		{
-			if (!ParseAllAndReport(compilation))
-				return 1;
-			PrintXmlDocument(CompilerXmlSerializer.SerializeSyntax(compilation.Files[0].SyntaxTree!));
-			return 0;
-		}
-
-		int PrintBindXml(Compilation compilation)
-		{
-			if (!BuildAllAndReport(compilation))
-				return 1;
-			PrintXmlDocument(CompilerXmlSerializer.SerializeBindableNode(compilation.Files[0].BindableTree!));
-			return 0;
-		}
-
 		int PrintDeclarations(Compilation compilation)
 		{
 			if (!ExpandDeclarationsAndReport(compilation))
@@ -2124,22 +2097,8 @@ public static class CompilerDriver
 
 		void PrintBindable(Module module)
 		{
-			if (request.Xml)
-				PrintXmlDocument(CompilerXmlSerializer.SerializeBindableNode(module));
-			else
-			{
-				using StringWriter writer = new(stdout, CultureInfo.InvariantCulture);
-				BindableNodeCodeSerializer.Serialize(module, writer);
-			}
-		}
-
-		void PrintXmlDocument(XElement root)
-		{
-			XDocument document = new(new XDeclaration("1.0", "utf-8", null), root);
-			XmlWriterSettings settings = new() { Indent = true, OmitXmlDeclaration = false };
 			using StringWriter textWriter = new(stdout, CultureInfo.InvariantCulture);
-			using XmlWriter writer = XmlWriter.Create(textWriter, settings);
-			document.Save(writer);
+			BindableNodeCodeSerializer.Serialize(module, textWriter);
 		}
 
 		void PrintDiagnostic(string filename, TokenRange? range, string message, DiagnosticSeverity severity = DiagnosticSeverity.Error)

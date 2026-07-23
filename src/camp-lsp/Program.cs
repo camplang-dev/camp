@@ -1095,7 +1095,6 @@ public sealed class CampLspWorkspace
 			ProfileName = source.ProfileName,
 			EmitKind = source.EmitKind,
 			Inspect = source.Inspect,
-			Xml = source.Xml,
 			InspectApi = source.InspectApi,
 			BuildKind = source.BuildKind,
 			InferBuildKind = source.InferBuildKind,

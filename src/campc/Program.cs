@@ -51,7 +51,7 @@ static RootCommand BuildCommandTree(CliEnvironment environment, string[] origina
 	Command dump = new("dump", "Print compiler intermediate output.");
 	dump.Arguments.Add(new Argument<string>("kind")
 	{
-		Description = "Dump kind: tokens, cst, ast, declarations, lowering, or metadata."
+		Description = "Dump kind: tokens, declarations, lowering, or metadata."
 	});
 	dump.Arguments.Add(SourcePatternsArgument());
 	AddBuildOptions(dump, buildOnly: false, testRunnerOptions: false);
@@ -172,7 +172,6 @@ static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOpti
 		Arity = ArgumentArity.ZeroOrMore,
 		AllowMultipleArgumentsPerToken = true
 	});
-	command.Options.Add(new Option<bool>("--xml") { Description = "Use XML output for declarations or lowering dumps." });
 
 	if (!buildOnly)
 		return;
@@ -364,11 +363,11 @@ sealed class CampCli
 	static int RunDump(string[] args, CliEnvironment environment)
 	{
 		if (args.Length == 0)
-			return Error("dump requires a dump kind: tokens, cst, ast, declarations, lowering, or metadata.");
+			return Error("dump requires a dump kind: tokens, declarations, lowering, or metadata.");
 
 		CompilerInspectMode? inspect = ParseDumpKind(args[0]);
 		if (inspect is null)
-			return Error($"Dump kind '{args[0]}' is not valid. Expected tokens, cst, ast, declarations, lowering, or metadata.");
+			return Error($"Dump kind '{args[0]}' is not valid. Expected tokens, declarations, lowering, or metadata.");
 
 		if (!TryBuildRequest(args[1..], environment, CommandKind.Dump, out CompilerRequest? request, out List<string> errors))
 			return PrintErrors(errors);
@@ -476,7 +475,6 @@ sealed class CampCli
 			TargetName = bag.TargetName ?? CompilerDefaults.TargetName,
 			ProfileName = bag.ProfileName ?? "DEBUG",
 			EmitKind = bag.EmitKind ?? "c99",
-			Xml = bag.Xml,
 			BuildKind = bag.ArtifactKind,
 			InferBuildKind = command == CommandKind.Build && !bag.ArtifactSpecified,
 			CommandMode = GetCompilerCommandMode(command),
@@ -835,9 +833,6 @@ sealed class CampCli
 		}
 		if (File.Exists(target.Path))
 			yield return target.Path;
-		string? compilerAssembly = typeof(CompilerDriver).Assembly.Location;
-		if (!string.IsNullOrWhiteSpace(compilerAssembly) && File.Exists(compilerAssembly))
-			yield return compilerAssembly;
 		if (!string.IsNullOrWhiteSpace(Environment.ProcessPath) && File.Exists(Environment.ProcessPath))
 			yield return Environment.ProcessPath;
 	}
@@ -1131,8 +1126,6 @@ sealed class CampCli
 		return value.Trim().ToLowerInvariant() switch
 		{
 			"tokens" => CompilerInspectMode.Tokens,
-			"cst" => CompilerInspectMode.Cst,
-			"ast" => CompilerInspectMode.Ast,
 			"declarations" => CompilerInspectMode.Declarations,
 			"lowering" => CompilerInspectMode.Lowering,
 			"metadata" => CompilerInspectMode.Metadata,
@@ -1434,7 +1427,6 @@ sealed class BuildOptionBag
 		"implicit" => Camp.Compiler.WithinAllocationPolicy.Implicit,
 		_ => null
 	};
-	public bool Xml => Get("xml") == "true";
 	public bool DebugInfo => Get("debug-info") == "true";
 	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo;
 	public bool HasTestResultOptions => Get("test-output-dir") is not null || Get("test-result-format") is not null;
@@ -1716,9 +1708,6 @@ static class CommandLineOptionParser
 					break;
 				case "--nostdlib":
 					result.NoStdLib = true;
-					break;
-				case "--xml":
-					AddSingle(result, "xml", "true");
 					break;
 				default:
 					if (token.StartsWith("-", StringComparison.Ordinal))

@@ -5,6 +5,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml;
+using System.Xml.Linq;
 using Camp.Compiler;
 using Xunit;
 
@@ -80,7 +82,7 @@ public static class GoldenFileTestRunner
 			BuildKind = testCase.Kind == GoldenFileTestKind.StdRun ? NativeBuildKind.Exec : null,
 			Inspect = testCase.Kind switch
 			{
-				GoldenFileTestKind.Ast => CompilerInspectMode.Ast,
+				GoldenFileTestKind.Ast => null,
 				GoldenFileTestKind.Declarations => CompilerInspectMode.Declarations,
 				GoldenFileTestKind.LoweringXml => CompilerInspectMode.Lowering,
 				GoldenFileTestKind.Lowering => CompilerInspectMode.Lowering,
@@ -93,7 +95,6 @@ public static class GoldenFileTestRunner
 				GoldenFileTestKind.CCompile => null,
 				_ => throw new ArgumentOutOfRangeException()
 			},
-			Xml = testCase.Kind is GoldenFileTestKind.Declarations or GoldenFileTestKind.LoweringXml,
 			InspectApi = testCase.Kind == GoldenFileTestKind.Api,
 			EmitMetadata = testCase.Kind == GoldenFileTestKind.Metadata ? MetadataVisibility.Export : null
 		};
@@ -104,11 +105,161 @@ public static class GoldenFileTestRunner
 
 	static CompilerResult ExecuteCompiler(GoldenFileTestCase testCase, CompilerRequest request)
 	{
+		if (testCase.Kind is GoldenFileTestKind.Ast or GoldenFileTestKind.Declarations or GoldenFileTestKind.LoweringXml)
+			return ExecuteXmlSnapshot(testCase, request);
+
 		if (testCase.Kind != GoldenFileTestKind.StdRun)
 			return CompilerDriver.Execute(request);
 
 		lock (StdRunCompilerLock)
 			return CompilerDriver.Execute(request);
+	}
+
+	static CompilerResult ExecuteXmlSnapshot(GoldenFileTestCase testCase, CompilerRequest request)
+	{
+		CompilerResult result = new();
+		try
+		{
+			if (!TryCreateCompilation(testCase, request, out Compilation? compilation, out string? error))
+				return Fail(result, error ?? "Could not create compilation.");
+			if (compilation is null)
+				return Fail(result, "Could not create compilation.");
+			Compilation current = compilation;
+			SourceFile sourceFile = current.Files[0];
+
+			switch (testCase.Kind)
+			{
+				case GoldenFileTestKind.Ast:
+					if (!CompilationPipeline.BuildAst(current))
+						return Fail(result, "AST build failed.");
+					if (sourceFile.BindableTree is null)
+						return Fail(result, "AST build produced no bindable tree.");
+					result.StdOut = FormatXml(CompilerXmlSerializer.SerializeBindableNode(sourceFile.BindableTree));
+					break;
+				case GoldenFileTestKind.Declarations:
+					if (!CompilationPipeline.ExpandDeclarations(current))
+						return Fail(result, "Declaration expansion failed.");
+					if (current.DeclarationExpansion is null)
+						return Fail(result, "Declaration expansion produced no module.");
+					AnalysisResult declarationAnalysis = BindableNodeAnalyzer.AnalyzeExpanded(current.DeclarationExpansion, current.Target);
+					if (declarationAnalysis.Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+						return Fail(result, "Declaration analysis failed.");
+					current.SharedModule = declarationAnalysis.Module;
+					result.StdOut = FormatXml(CompilerXmlSerializer.SerializeBindableNode(BuildOutputModule(current, sourceFile)));
+					break;
+				case GoldenFileTestKind.LoweringXml:
+					if (!CompilationPipeline.Lower(current))
+						return Fail(result, "Lowering failed.");
+					result.StdOut = FormatXml(CompilerXmlSerializer.SerializeBindableNode(BuildOutputModule(current, sourceFile)));
+					break;
+			}
+		}
+		catch (Exception ex)
+		{
+			return Fail(result, ex.ToString());
+		}
+		return result;
+	}
+
+	static bool TryCreateCompilation(GoldenFileTestCase testCase, CompilerRequest request, out Compilation? compilation, out string? error)
+	{
+		compilation = null;
+		error = null;
+		if (!TargetCatalog.TryLoad(request.TargetRoot ?? Path.Combine(testCase.RepositoryRoot, "targets"), out TargetCatalog? catalog, out error))
+			return false;
+		if (!catalog!.TryGetTarget(request.TargetName, out TargetDefinition? target) || target is null)
+		{
+			error = $"Target '{request.TargetName}' could not be found.";
+			return false;
+		}
+		try
+		{
+			target = target.WithVariantSelection(target.ResolveVariantSelection(request.Variants));
+		}
+		catch (InvalidDataException ex)
+		{
+			error = ex.Message;
+			return false;
+		}
+		foreach (string define in request.Defines)
+		{
+			if (target.TargetOwnedDefines.Contains(define))
+			{
+				error = $"Define '{define}' is owned by target '{target.Name}'; select a target variant instead.";
+				return false;
+			}
+		}
+
+		compilation = new Compilation
+		{
+			Target = target,
+			ProfileName = request.ProfileName,
+			CommandMode = request.CommandMode,
+			DeclarationParticipationMode = request.DeclarationParticipationMode,
+			CoverageInstrumentationMode = request.CoverageInstrumentationMode
+		};
+		compilation.PreprocessorSymbols.Add("TRUE");
+		compilation.PreprocessorSymbols.Add(request.ProfileName);
+		foreach (string define in target.TargetOwnedDefines)
+			compilation.TargetOwnedPreprocessorSymbols.Add(define);
+		foreach (string define in target.Defines.Keys)
+			compilation.PreprocessorSymbols.Add(define);
+		foreach (string define in request.Defines)
+			if (!string.IsNullOrWhiteSpace(define))
+				compilation.PreprocessorSymbols.Add(define);
+		if (request.DeclarationParticipationMode == DeclarationParticipationMode.TestModule)
+			compilation.PreprocessorSymbols.Add("TEST_MODULE");
+
+		foreach (string file in request.Files)
+		{
+			string fullPath = Path.GetFullPath(file, request.WorkingDirectory);
+			compilation.Files.Add(new SourceFile
+			{
+				Path = file,
+				FullPath = fullPath,
+				Text = File.ReadAllText(fullPath),
+				IsApiHeader = false,
+				SharedLibraryImport = false
+			});
+		}
+		return true;
+	}
+
+	static CompilerResult Fail(CompilerResult result, string message)
+	{
+		result.ExitCode = 1;
+		result.StdErr = message + Environment.NewLine;
+		return result;
+	}
+
+	static string FormatXml(XElement root)
+	{
+		XDocument document = new(new XDeclaration("1.0", "utf-8", null), root);
+		XmlWriterSettings settings = new() { Indent = true, OmitXmlDeclaration = false };
+		using StringWriter textWriter = new();
+		using (XmlWriter writer = XmlWriter.Create(textWriter, settings))
+			document.Save(writer);
+		return textWriter.ToString();
+	}
+
+	static Module BuildOutputModule(Compilation compilation, SourceFile file)
+	{
+		if (compilation.SharedModule is null)
+			return file.BindableTree!;
+		Module output = new()
+		{
+			SourceSyntax = file.BindableTree?.SourceSyntax,
+			ResolvedType = compilation.SharedModule.ResolvedType,
+			Namespace = file.BindableTree?.Namespace
+		};
+		foreach (UsingDeclaration usingDeclaration in file.BindableTree?.Usings ?? [])
+			output.Usings.Add(usingDeclaration);
+		foreach (Definition definition in compilation.SharedModule.Definitions)
+			if (DeclarationParticipation.Includes(definition, compilation.SharedModule)
+				&& compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner)
+				&& ReferenceEquals(owner, file))
+				output.Definitions.Add(definition);
+		return output;
 	}
 
 	static string SelectTargetName(GoldenFileTestKind kind)
@@ -152,6 +303,8 @@ public static class GoldenFileTestRunner
 
 	static string SelectOutput(GoldenFileTestCase testCase, CompilerResult result)
 	{
+		if (result.ExitCode != 0 && testCase.Kind is GoldenFileTestKind.Ast or GoldenFileTestKind.Declarations or GoldenFileTestKind.LoweringXml)
+			return result.StdErr + result.StdOut;
 		return testCase.Kind switch
 		{
 			GoldenFileTestKind.Diagnostics => result.StdErr,

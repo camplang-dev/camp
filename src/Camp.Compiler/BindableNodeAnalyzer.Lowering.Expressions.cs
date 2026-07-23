@@ -683,47 +683,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static TokenRange? GetFullSourceRange(SyntaxNode? syntax)
 	{
-		if (syntax is null)
-			return null;
-		TokenSequence? sequence = null;
-		int start = int.MaxValue;
-		int end = -1;
-		CollectTokens(syntax);
-		return sequence is null || end < start ? null : new TokenRange(sequence, start, end - start + 1);
-
-		void Include(TokenRange range)
-		{
-			if (sequence is not null && !ReferenceEquals(sequence, range.Sequence))
-				return;
-			sequence ??= range.Sequence;
-			start = Math.Min(start, range.Index);
-			end = Math.Max(end, range.Index + range.Count - 1);
-		}
-
-		void CollectTokens(object? value)
-		{
-			switch (value)
-			{
-				case null:
-					return;
-				case Token token:
-					Include(token.Range);
-					return;
-				case TokenRange range:
-					Include(range);
-					return;
-				case string:
-					return;
-				case System.Collections.IEnumerable items:
-					foreach (object? item in items)
-						CollectTokens(item);
-					return;
-			}
-			if (value is not SyntaxNode)
-				return;
-			foreach (System.Reflection.PropertyInfo property in value.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
-				CollectTokens(property.GetValue(value));
-		}
+		return SyntaxNodeTraversal.TryGetRange(syntax, out TokenRange range) ? range : null;
 	}
 
 	static string NormalizeSourceCaptureText(TokenRange range)

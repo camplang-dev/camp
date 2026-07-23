@@ -1,12 +1,8 @@
 using System;
-using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
-using LinqExpression = System.Linq.Expressions.Expression;
 
 namespace Camp.Compiler;
 
@@ -78,8 +74,6 @@ public sealed record CampCompletionItem(
 
 public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 {
-	static readonly ConcurrentDictionary<Type, ChildAccessor[]> ChildAccessors = new();
-
 	readonly List<SymbolEntry> entries = BuildEntries(snapshot.Compilation);
 	readonly List<FunctionDefinition> functions = BuildFunctions(snapshot.Compilation);
 
@@ -2335,29 +2329,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	static bool TryGetSyntaxRange(SyntaxNode? syntax, out TokenRange range)
 	{
-		range = default;
-		if (syntax is null)
-			return false;
-		foreach (PropertyInfo property in syntax.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
-		{
-			if (property.PropertyType == typeof(TokenRange?) && property.GetValue(syntax) is TokenRange tokenRange)
-				return Assign(tokenRange, out range);
-			if (property.PropertyType == typeof(Token?) && property.GetValue(syntax) is Token token)
-				return Assign(token.Range, out range);
-		}
-		foreach (PropertyInfo property in syntax.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
-		{
-			object? value = property.GetValue(syntax);
-			if (value is SyntaxNode child && TryGetSyntaxRange(child, out range))
-				return true;
-			if (value is IEnumerable enumerable and not string)
-			{
-				foreach (object? item in enumerable)
-					if (item is SyntaxNode childItem && TryGetSyntaxRange(childItem, out range))
-						return true;
-			}
-		}
-		return false;
+		return SyntaxNodeTraversal.TryGetRange(syntax, out range);
 	}
 
 	static string? ExtractLeadingDoc(string text, int oneBasedLine)
@@ -2687,49 +2659,8 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 
 	static IEnumerable<BindableNode> Children(BindableNode node)
 	{
-		foreach (ChildAccessor accessor in ChildAccessors.GetOrAdd(node.GetType(), CreateChildAccessors))
-		{
-			object? value = accessor.GetValue(node);
-			if (accessor.IsSingleNode)
-			{
-				if (value is BindableNode child)
-					yield return child;
-				continue;
-			}
-			if (value is IEnumerable enumerable)
-			{
-				foreach (object? item in enumerable)
-					if (item is BindableNode enumerableChild)
-						yield return enumerableChild;
-			}
-		}
+		return BindableNodeTraversal.Children(node);
 	}
-
-	static ChildAccessor[] CreateChildAccessors(Type nodeType)
-	{
-		List<ChildAccessor> accessors = [];
-		foreach (PropertyInfo property in nodeType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
-		{
-			if (property.GetIndexParameters().Length != 0 || property.Name is nameof(BindableNode.SourceSyntax))
-				continue;
-			bool isSingleNode = typeof(BindableNode).IsAssignableFrom(property.PropertyType);
-			if (!isSingleNode && (property.PropertyType == typeof(string) || !typeof(IEnumerable).IsAssignableFrom(property.PropertyType)))
-				continue;
-			accessors.Add(new ChildAccessor(CreatePropertyGetter(nodeType, property), isSingleNode));
-		}
-		return accessors.ToArray();
-	}
-
-	static Func<BindableNode, object?> CreatePropertyGetter(Type nodeType, PropertyInfo property)
-	{
-		var node = LinqExpression.Parameter(typeof(BindableNode), "node");
-		var typedNode = LinqExpression.Convert(node, nodeType);
-		var access = LinqExpression.Property(typedNode, property);
-		var boxed = LinqExpression.Convert(access, typeof(object));
-		return LinqExpression.Lambda<Func<BindableNode, object?>>(boxed, node).Compile();
-	}
-
-	sealed record ChildAccessor(Func<BindableNode, object?> GetValue, bool IsSingleNode);
 
 	string? ResolveCompletionTargetName(string name)
 	{

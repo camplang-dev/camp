@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Numerics;
 using System.Text;
 using System.Text.Json;
@@ -1761,26 +1760,7 @@ public static class MetadataJsonSerializer
 
 		static bool TryGetSyntaxRange(SyntaxNode? syntax, out TokenRange range)
 		{
-			range = default;
-			if (syntax is null)
-				return false;
-			foreach (PropertyInfo property in syntax.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
-			{
-				object? value = property.GetValue(syntax);
-				if (value is TokenRange tokenRange)
-				{
-					range = tokenRange;
-					return true;
-				}
-				if (value is Token token)
-				{
-					range = token.Range;
-					return true;
-				}
-				if (value is SyntaxNode child && TryGetSyntaxRange(child, out range))
-					return true;
-			}
-			return false;
+			return SyntaxNodeTraversal.TryGetRange(syntax, out range);
 		}
 
 		static bool Assign(TokenRange? value, out TokenRange range)
