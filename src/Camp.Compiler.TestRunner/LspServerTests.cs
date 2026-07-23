@@ -1359,7 +1359,7 @@ public sealed class LspServerTests
 		public static LspProcess Start(string? traceDirectory = null)
 		{
 			string repo = FindRepositoryRoot();
-			string server = Path.Combine(repo, "src", "camp-lsp", "bin", "Debug", "net8.0", "camp-lsp.dll");
+			string server = Path.Combine(repo, "src", "camp-lsp", "bin", "Debug", "net10.0", "camp-lsp.dll");
 			Process process = new()
 			{
 				StartInfo = new ProcessStartInfo("dotnet", server)

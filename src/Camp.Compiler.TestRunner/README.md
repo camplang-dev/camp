@@ -21,7 +21,7 @@ dotnet test src/camplang.sln
 Run the built test assembly directly:
 
 ```sh
-dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll
+dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll
 ```
 
 ## Testing

@@ -711,7 +711,7 @@ public sealed class DapServerTests
 		public static DapProcess Start()
 		{
 			string repo = FindRepositoryRoot();
-			string server = Path.Combine(repo, "src", "camp-dap", "bin", "Debug", "net8.0", "camp-dap.dll");
+			string server = Path.Combine(repo, "src", "camp-dap", "bin", "Debug", "net10.0", "camp-dap.dll");
 			Process process = new()
 			{
 				StartInfo = new ProcessStartInfo("dotnet", server)

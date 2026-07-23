@@ -215,7 +215,7 @@ Build first, then run the LSP server tests from the repository root:
 
 ```sh
 dotnet build src/camplang.sln
-dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --Tests:Camp.Compiler.Tests.LspServerTests
+dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll --Tests:Camp.Compiler.Tests.LspServerTests
 ```
 
 Documentation-only changes do not require these tests unless requested.

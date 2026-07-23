@@ -21,7 +21,7 @@ When the test project is already built, prefer `dotnet vstest` over
 `dotnet test` for targeted and repeated runs:
 
 ```sh
-dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll
+dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll
 ```
 
 `dotnet vstest` runs the already-built test assembly directly and avoids most
@@ -38,7 +38,7 @@ LSP changes should usually be checked first with:
 
 ```sh
 dotnet build src/camplang.sln
-dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --Tests:Camp.Compiler.Tests.LspServerTests
+dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll --Tests:Camp.Compiler.Tests.LspServerTests
 ```
 
 Those tests launch `camp-lsp` over stdio and cover initialize, diagnostic
@@ -62,16 +62,16 @@ Sandboxed agents should prefer the equivalent direct `vstest` form after a
 build:
 
 ```sh
-CAMP_TEST_KIND=Ast,Declarations,LoweringXml,Lowering,Diagnostics,CEmit,CCompile,Api,Metadata,Std dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+CAMP_TEST_KIND=Ast,Declarations,LoweringXml,Lowering,Diagnostics,CEmit,CCompile,Api,Metadata,Std dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
 ```
 
 During compiler work, prefer targeted runs. Golden discovery supports these
 environment variables:
 
 ```sh
-CAMP_TEST_KIND=Metadata dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
-CAMP_TEST_KIND=CCompile CAMP_TEST_CASE=generic_array dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
-CAMP_TEST_CASE=generic_self_link dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+CAMP_TEST_KIND=Metadata dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+CAMP_TEST_KIND=CCompile CAMP_TEST_CASE=generic_array dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+CAMP_TEST_CASE=generic_self_link dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll --TestCaseFilter:FullyQualifiedName~GoldenFileTests
 ```
 
 `CAMP_TEST_KIND` matches top-level test folders such as `Metadata`, `CCompile`,

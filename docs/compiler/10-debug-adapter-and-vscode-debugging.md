@@ -198,7 +198,7 @@ for the nearest `.campbuild`, and starts a VS Code debug session. If no
 Use targeted DAP tests while changing adapter behavior:
 
 ```sh
-dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll --Tests:Dap_fake_backend_serves_basic_debug_requests,Dap_lldb_backend_launches_and_stops_on_camp_breakpoint_when_available
+dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll --Tests:Dap_fake_backend_serves_basic_debug_requests,Dap_lldb_backend_launches_and_stops_on_camp_breakpoint_when_available
 ```
 
 Use extension checks while changing VS Code integration:
@@ -212,5 +212,5 @@ npm test
 Before committing a phase, run the full local compiler test suite:
 
 ```sh
-dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll
+dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll
 ```

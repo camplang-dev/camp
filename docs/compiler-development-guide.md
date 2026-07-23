@@ -95,7 +95,7 @@ dotnet msbuild src/coverage.proj
 When the test assembly is already built, prefer targeted `dotnet vstest` runs:
 
 ```sh
-dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net8.0/Camp.Compiler.TestRunner.dll
+dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll
 ```
 
 Golden discovery supports `CAMP_TEST_KIND` and `CAMP_TEST_CASE` for focused
