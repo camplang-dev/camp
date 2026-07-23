@@ -464,13 +464,19 @@ public sealed class BindableNodeCodeSerializer
 			writer.Write("public ");
 	}
 
-	static List<InterfaceDefinition> GetApiInterfaceAccessors(ClassDefinition definition)
+	List<InterfaceDefinition> GetApiInterfaceAccessors(ClassDefinition definition)
 	{
 		List<InterfaceDefinition> interfaces = [];
 		foreach (TypeReference baseType in definition.BaseTypes)
 		{
-			if (baseType is TypeDefinitionReference { Definition: InterfaceDefinition interfaceDefinition }
-				&& interfaceDefinition.Export is not null)
+			InterfaceDefinition? interfaceDefinition = baseType switch
+			{
+				TypeDefinitionReference { Definition: InterfaceDefinition typeDefinition } => typeDefinition,
+				TypeDefinitionReference typeDefinition => FindInterfaceDefinition(typeDefinition.ResolvedType ?? typeDefinition.Name),
+				NamedTypeReference named => FindInterfaceDefinition(named.ResolvedType ?? named.Name),
+				_ => null
+			};
+			if (interfaceDefinition?.Export is not null)
 			{
 				interfaces.Add(interfaceDefinition);
 			}
@@ -1327,17 +1333,49 @@ public sealed class BindableNodeCodeSerializer
 		return name;
 	}
 
-	static IEnumerable<ClassDefinition> EnumerateClassAndBases(ClassDefinition definition)
+	IEnumerable<ClassDefinition> EnumerateClassAndBases(ClassDefinition definition)
 	{
 		for (ClassDefinition? current = definition; current is not null; current = GetDirectBaseClass(current))
 			yield return current;
 	}
 
-	static ClassDefinition? GetDirectBaseClass(ClassDefinition definition)
+	ClassDefinition? GetDirectBaseClass(ClassDefinition definition)
 	{
 		foreach (TypeReference baseType in definition.BaseTypes)
-			if (baseType is TypeDefinitionReference { Definition: ClassDefinition baseClass })
+		{
+			ClassDefinition? baseClass = baseType switch
+			{
+				TypeDefinitionReference { Definition: ClassDefinition typeDefinition } => typeDefinition,
+				ClassTypeReference { Definition: ClassDefinition classType } => classType,
+				TypeDefinitionReference typeDefinition => FindClassDefinition(typeDefinition.ResolvedType ?? typeDefinition.Name),
+				NamedTypeReference named => FindClassDefinition(named.ResolvedType ?? named.Name),
+				_ => null
+			};
+			if (baseClass is not null)
 				return baseClass;
+		}
+		return null;
+	}
+
+	ClassDefinition? FindClassDefinition(string? name)
+	{
+		if (string.IsNullOrWhiteSpace(name))
+			return null;
+		string unqualifiedName = BaseTypeName(name);
+		foreach (ClassDefinition definition in currentModule?.Definitions.OfType<ClassDefinition>() ?? [])
+			if (definition.Name == unqualifiedName || definition.Symbol == unqualifiedName)
+				return definition;
+		return null;
+	}
+
+	InterfaceDefinition? FindInterfaceDefinition(string? name)
+	{
+		if (string.IsNullOrWhiteSpace(name))
+			return null;
+		string unqualifiedName = BaseTypeName(name);
+		foreach (InterfaceDefinition definition in currentModule?.Definitions.OfType<InterfaceDefinition>() ?? [])
+			if (definition.Name == unqualifiedName || definition.Symbol == unqualifiedName)
+				return definition;
 		return null;
 	}
 

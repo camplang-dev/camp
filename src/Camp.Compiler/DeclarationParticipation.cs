@@ -1,8 +1,6 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 
 namespace Camp.Compiler;
 
@@ -190,65 +188,7 @@ public sealed class DeclarationParticipation
 
 	static IEnumerable<BindableNode> EnumerateNodes(BindableNode root)
 	{
-		HashSet<BindableNode> visited = new(ReferenceEqualityComparer.Instance);
-		Stack<BindableNode> pending = new();
-		pending.Push(root);
-		while (pending.Count > 0)
-		{
-			BindableNode node = pending.Pop();
-			if (!visited.Add(node))
-				continue;
-			yield return node;
-			foreach (BindableNode child in GetBindableChildren(node))
-				pending.Push(child);
-		}
-	}
-
-	static IEnumerable<BindableNode> GetBindableChildren(BindableNode node)
-	{
-		foreach (PropertyInfo property in node.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
-		{
-			if (property.GetIndexParameters().Length != 0)
-				continue;
-			if (property.Name is nameof(BindableNode.SourceSyntax) or nameof(BindableNode.Provenance))
-				continue;
-			object? value = property.GetValue(node);
-			switch (value)
-			{
-				case BindableNode child:
-					if (child is not Definition || IsOwnedDefinitionChild(node, child, property.Name))
-						yield return child;
-					break;
-				case IEnumerable enumerable and not string:
-					foreach (object? item in enumerable)
-						if (item is BindableNode enumerableChild
-							&& (enumerableChild is not Definition || IsOwnedDefinitionChild(node, enumerableChild, property.Name)))
-							yield return enumerableChild;
-					break;
-			}
-		}
-	}
-
-	static bool IsOwnedDefinitionChild(BindableNode node, BindableNode child, string propertyName)
-	{
-		return node switch
-		{
-			ClassDefinition { Fields: var fields } when propertyName == nameof(ClassDefinition.Fields) && child is FieldDefinition field => fields.Contains(field),
-			ClassDefinition { Functions: var functions } when propertyName == nameof(ClassDefinition.Functions) && child is FunctionDefinition function => functions.Contains(function),
-			StructDefinition { Fields: var fields } when propertyName == nameof(StructDefinition.Fields) && child is FieldDefinition field => fields.Contains(field),
-			StructDefinition { Functions: var functions } when propertyName == nameof(StructDefinition.Functions) && child is FunctionDefinition function => functions.Contains(function),
-			InterfaceDefinition { Functions: var functions } when propertyName == nameof(InterfaceDefinition.Functions) && child is FunctionDefinition function => functions.Contains(function),
-			EnumDefinition { Values: var values } when propertyName == nameof(EnumDefinition.Values) && child is VariableDefinition value => values.Contains(value),
-			EnumDefinition { Functions: var functions } when propertyName == nameof(EnumDefinition.Functions) && child is FunctionDefinition function => functions.Contains(function),
-			NewtypeDefinition { Parameters: var parameters } when propertyName == nameof(NewtypeDefinition.Parameters) && child is ParameterDefinition parameter => parameters.Contains(parameter),
-			NewtypeDefinition { Fields: var fields } when propertyName == nameof(NewtypeDefinition.Fields) && child is FieldDefinition field => fields.Contains(field),
-			NewtypeDefinition { Functions: var functions } when propertyName == nameof(NewtypeDefinition.Functions) && child is FunctionDefinition function => functions.Contains(function),
-			ParamsDefinition { Components: var components } when propertyName == nameof(ParamsDefinition.Components) && child is ParameterDefinition component => components.Contains(component),
-			ParamsDefinition { Functions: var functions } when propertyName == nameof(ParamsDefinition.Functions) && child is FunctionDefinition function => functions.Contains(function),
-			FunctionDefinition { Parameters: var parameters } when propertyName == nameof(FunctionDefinition.Parameters) && child is ParameterDefinition parameter => parameters.Contains(parameter),
-			CallableTypeReference { Parameters: var parameters } when propertyName == nameof(CallableTypeReference.Parameters) && child is ParameterDefinition parameter => parameters.Contains(parameter),
-			_ => false
-		};
+		return BindableNodeTraversal.Enumerate(root, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance));
 	}
 
 	static TokenRange? GetDiagnosticRange(Definition definition)

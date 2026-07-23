@@ -1,8 +1,6 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 
 namespace Camp.Compiler;
 
@@ -753,55 +751,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void LowerSourceInterfaceTypes(BindableNode node, HashSet<BindableNode> visited)
 	{
-		if (!visited.Add(node))
-			return;
-
-		foreach (PropertyInfo property in node.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
-		{
-			if (property.Name == nameof(BindableNode.SourceSyntax) || property.Name == nameof(BindableNode.ResolvedType) || IsSemanticReferenceProperty(property))
-				continue;
-
-			object? value = property.GetValue(node);
-			if (value is null)
-				continue;
-
-			if (value is TypeReference type)
-			{
-				TypeReference lowered = LowerSourceInterfaceType(type);
-				if (!ReferenceEquals(lowered, type) && property.CanWrite)
-					property.SetValue(node, lowered);
-				LowerSourceInterfaceTypes(lowered, visited);
-			}
-			else if (value is IList list)
-			{
-				LowerSourceInterfaceTypes(list, visited);
-			}
-			else if (value is BindableNode child)
-			{
-				LowerSourceInterfaceTypes(child, visited);
-			}
-		}
-
-		SyncResolvedTypeFromLoweredType(node);
-	}
-
-	void LowerSourceInterfaceTypes(IList list, HashSet<BindableNode> visited)
-	{
-		for (int i = 0; i < list.Count; i++)
-		{
-			object? item = list[i];
-			if (item is TypeReference type)
-			{
-				TypeReference lowered = LowerSourceInterfaceType(type);
-				if (!ReferenceEquals(lowered, type))
-					list[i] = lowered;
-				LowerSourceInterfaceTypes(lowered, visited);
-			}
-			else if (item is BindableNode child)
-			{
-				LowerSourceInterfaceTypes(child, visited);
-			}
-		}
+		BindableNodeTraversal.RewriteChildren(node, static expression => expression, LowerSourceInterfaceType, visited);
+		foreach (BindableNode child in BindableNodeTraversal.Enumerate(node, [], BindableTraversalOptions.None))
+			SyncResolvedTypeFromLoweredType(child);
 	}
 
 	TypeReference LowerSourceInterfaceType(TypeReference type)
@@ -864,23 +816,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (!visited.Add(node))
 			return;
 
-		foreach (PropertyInfo property in node.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
-		{
-			if (property.Name == nameof(BindableNode.SourceSyntax) || property.Name == nameof(BindableNode.ResolvedType) || IsSemanticReferenceProperty(property))
-				continue;
-
-			object? value = property.GetValue(node);
-			if (value is BindableNode child)
-				RefreshLoweredResolvedTypes(child, visited);
-			else if (value is IList list)
-			{
-				foreach (object? item in list)
-				{
-					if (item is BindableNode childItem)
-						RefreshLoweredResolvedTypes(childItem, visited);
-				}
-			}
-		}
+		foreach (BindableNode child in BindableNodeTraversal.Children(node))
+			RefreshLoweredResolvedTypes(child, visited);
 
 		SyncResolvedTypeFromLoweredType(node);
 		switch (node)

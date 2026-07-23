@@ -514,37 +514,10 @@ public static class CCodeEmitter
 
 	static IEnumerable<BindableNode> EnumerateNodes(BindableNode root, HashSet<BindableNode> visited)
 	{
-		if (!visited.Add(root))
-			yield break;
-
-		yield return root;
-		if (root is AttributeConstructor)
-			yield break;
-
-		foreach (PropertyInfo property in root.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
-		{
-			if (property.Name is nameof(BindableNode.SourceSyntax) or nameof(Module.DefinitionSources) or nameof(Module.SourceWithinAllocationPolicies))
-				continue;
-			if (root is FunctionDefinition function && UnsupportedAvailability.IsUnsupported(function) && property.Name == nameof(FunctionDefinition.Body))
-				continue;
-
-			object? value = property.GetValue(root);
-			if (value is BindableNode child)
-			{
-				foreach (BindableNode node in EnumerateNodes(child, visited))
-					yield return node;
-			}
-			else if (value is IEnumerable enumerable && value is not string)
-			{
-				foreach (object? item in enumerable)
-				{
-					if (item is not BindableNode listChild)
-						continue;
-					foreach (BindableNode node in EnumerateNodes(listChild, visited))
-						yield return node;
-				}
-			}
-		}
+		return BindableNodeTraversal.Enumerate(
+			root,
+			visited,
+			BindableTraversalOptions.SkipAttributeConstructorChildren | BindableTraversalOptions.SkipUnsupportedFunctionBodies);
 	}
 
 	public static string GetProjectName(IReadOnlyList<SourceFile> files)
