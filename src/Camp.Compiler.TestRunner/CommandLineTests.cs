@@ -48,6 +48,24 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Include_option_is_rejected()
+	{
+		ProcessResult result = RunCampc("build", "tests/Lowering/default_arguments.camp", "--include", "api.camp");
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Unknown option '--include'", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Include_short_option_is_rejected()
+	{
+		ProcessResult result = RunCampc("build", "tests/Lowering/default_arguments.camp", "-i", "api.camp");
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Unknown option '-i'", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Help_command_prints_command_help()
 	{
 		ProcessResult root = RunCampc("--help");
@@ -62,6 +80,7 @@ public sealed class CommandLineTests
 		Assert.Contains("-f, --framework", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("-r, --reference", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("-u, --use", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--api", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--debug-info", build.StdOut, StringComparison.Ordinal);
 		Assert.Equal(0, test.ExitCode);
 		Assert.Contains("--list", test.StdOut, StringComparison.Ordinal);
@@ -3660,26 +3679,127 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Include_files_contribute_build_pragmas_without_becoming_project_sources()
+	public void Api_files_contribute_build_pragmas_without_becoming_project_sources()
 	{
-		string api = CreateTempCase("include_pragmas_api.camp", """
+		string api = CreateTempCase("api_pragmas_api.camp", """
 			#build --nostdlib
 			#build --artifact none
 
 			export extern void includedOnly();
 			""");
-		string source = CreateTempCase("include_pragmas_main.camp", """
+		string source = CreateTempCase("api_pragmas_main.camp", """
 			export void main()
 			{
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "-i", api, "--verbose", "--out-dir", TempPath("include-pragma-build"));
+		ProcessResult result = RunCampc("build", source, "--api", api, "--verbose", "--out-dir", TempPath("api-pragma-build"));
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("generated: include_pragmas_main.c", result.StdOut, StringComparison.Ordinal);
-		Assert.DoesNotContain("include_pragmas_api.c", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("generated: api_pragmas_main.c", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("api_pragmas_api.c", result.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("_api.camp", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Api_files_accept_api_only_declarations()
+	{
+		string api = CreateTempCase("api_only_declarations_api.camp", """
+			export extern void helper();
+
+			export interface IValue
+			{
+				int getValue(const this);
+			}
+
+			export alias Value = int;
+
+			export enum Color
+			{
+				RED,
+				BLUE
+			}
+
+			export struct Point
+			{
+				int x;
+				int y;
+			}
+
+			export inline int LIMIT = 7;
+			""");
+		string source = CreateTempCase("api_only_declarations_main.camp", """
+			export void main()
+			{
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--api", api, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("api-only-declarations-out"));
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
+	public void Api_file_rejects_function_body()
+	{
+		string api = CreateTempCase("api_function_body_api.camp", """
+			export int helper()
+			{
+				return 1;
+			}
+			""");
+		string source = CreateTempCase("api_function_body_main.camp", """
+			export void main()
+			{
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--api", api, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("api-function-body-out"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Function 'helper' in API file", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("has a body", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Api_file_rejects_storage_global_variable()
+	{
+		string api = CreateTempCase("api_global_storage_api.camp", """
+			export int state = 1;
+			""");
+		string source = CreateTempCase("api_global_storage_main.camp", """
+			export void main()
+			{
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--api", api, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("api-global-storage-out"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Variable 'state' in API file", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("requires storage", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Api_file_rejects_storage_static_field()
+	{
+		string api = CreateTempCase("api_static_storage_api.camp", """
+			export struct Counter
+			{
+				export static int current = 1;
+			}
+			""");
+		string source = CreateTempCase("api_static_storage_main.camp", """
+			export void main()
+			{
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--api", api, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("api-static-storage-out"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Static field 'Counter.current' in API file", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("requires storage", result.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3743,17 +3863,17 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Include_pragmas_discovered_from_source_pragmas_contribute_build_pragmas()
+	public void Api_pragmas_discovered_from_source_pragmas_contribute_build_pragmas()
 	{
-		string api = CreateTempCase("discovered_include_pragmas_api.camp", """
+		string api = CreateTempCase("discovered_api_pragmas_api.camp", """
 			#build --reference missing-one.a missing-two.a
 
 			export extern void includedOnly();
 			""");
-		string source = CreateTempCase("discovered_include_pragmas_main.camp", $$"""
+		string source = CreateTempCase("discovered_api_pragmas_main.camp", $$"""
 			#build --nostdlib
 			#build --artifact exec
-			#build --include {{api}}
+			#build --api {{api}}
 
 			export int main()
 			{
@@ -3761,13 +3881,13 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--target", NativeTargetForHost(), "--out-dir", TempPath("discovered-include-pragma-out"));
+		ProcessResult result = RunCampc("build", source, "--target", NativeTargetForHost(), "--out-dir", TempPath("discovered-api-pragma-out"));
 		string output = result.StdOut + result.StdErr;
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("missing-one.a", output, StringComparison.Ordinal);
 		Assert.Contains("missing-two.a", output, StringComparison.Ordinal);
-		Assert.DoesNotContain("discovered_include_pragmas_api.c", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("discovered_api_pragmas_api.c", result.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]

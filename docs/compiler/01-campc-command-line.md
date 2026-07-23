@@ -93,7 +93,7 @@ they cannot depend on test-only declarations.
 
 An in-module test run applies `test` directly to the project under test. Tests
 may live beside production source, selected by the same source pattern and
-`--include`/`--exclude` model as other builds. If the production project is an
+`--api`/`--exclude` model as other builds. If the production project is an
 executable, the generated harness entry point replaces the production process
 entry in the test artifact.
 
@@ -221,7 +221,7 @@ noted:
 
 | Option | Meaning |
 |---|---|
-| `--include`, `-i` | Include Camp API headers or additional source patterns for analysis. |
+| `--api` | Load Camp API/header files for analysis without making them root implementation sources. |
 | `--exclude` | Exclude source files matched by source patterns. |
 | `--target`, `-t` | Select a target from `targets/**/*.ini`; default is `clang-macos-x64`. |
 | `--profile`, `-p` | Select `DEBUG` or `RELEASE`; default is `DEBUG`. |

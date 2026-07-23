@@ -85,7 +85,7 @@ export int main()
 
 Use `.campbuild` files for project selection, targets, artifact names, output
 locations, and local build choices. Use source `#build` pragmas for facts that
-belong to the source surface, such as required package uses or include files.
+belong to the source surface, such as required package uses or API files.
 `#within explicit` and `#within implicit` select whether allocation and deletion
 must spell their allocation context in that file. Do not add absolute local paths
 or private machine information to committed source; put local setup notes in

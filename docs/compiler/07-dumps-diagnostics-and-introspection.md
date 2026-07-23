@@ -13,7 +13,7 @@ campc dump <kind> [pattern.camp...] [options]
 ```
 
 Valid kinds are `tokens`, `declarations`, `lowering`, and `metadata`. Dump
-commands accept analysis options such as `--include`, `--target`, `--profile`,
+commands accept analysis options such as `--api`, `--target`, `--profile`,
 `--variant`, `--define`, `--use`, `--use-source`, `--project-reference`,
 `--metadata`, and `--nostdlib` where applicable. They do not accept build-only
 output options.

@@ -495,7 +495,7 @@ There is no implicit test directory scan in the initial feature. Build files or
 CLI options must select additional test source files explicitly.
 
 Source selection uses the existing build-file source model and the existing
-CLI `--include` / `--exclude` options. In `campc test` and `campc cover`, those
+CLI `--api` / `--exclude` options. In `campc test` and `campc cover`, those
 options apply to the test-mode source selection for the test module. In
 `campc build` and `campc run`, they retain their ordinary production meaning.
 Durable test-source configuration should live in the test module's `.campbuild`

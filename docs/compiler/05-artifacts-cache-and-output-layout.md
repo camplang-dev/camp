@@ -255,7 +255,7 @@ Project-reference cache checks consider:
 - the referenced `.campbuild` file;
 - `lib/global.camp`, when present;
 - referenced root sources;
-- include files;
+- API files;
 - shared-library API headers used by the reference;
 - rooted native references that exist as files or directories;
 - the selected target INI file;

@@ -108,9 +108,9 @@ static Argument<List<string>> SourcePatternsArgument()
 
 static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOptions)
 {
-	command.Options.Add(new Option<List<string>>("--include", "-i")
+	command.Options.Add(new Option<List<string>>("--api")
 	{
-		Description = "Include Camp API header files or source patterns.",
+		Description = "Load Camp API/header files for analysis.",
 		Arity = ArgumentArity.ZeroOrMore,
 		AllowMultipleArgumentsPerToken = true
 	});
@@ -426,21 +426,21 @@ sealed class CampCli
 		ApplyGlobalPragmas(environment, bag, errors);
 
 		List<string> sourceFiles = ExpandSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory, errors);
-		List<string> includeFiles = ExpandSourcePatterns(cli.IncludePatterns.Concat(bag.IncludePatterns).ToList(), [], environment.WorkingDirectory, errors);
+		List<string> apiFiles = ExpandSourcePatterns(cli.ApiPatterns.Concat(bag.ApiPatterns).ToList(), [], environment.WorkingDirectory, errors);
 		HashSet<string> pragmaFilesRead = new(StringComparer.OrdinalIgnoreCase);
 		while (true)
 		{
-			List<string> filesToRead = sourceFiles.Concat(includeFiles).Where(pragmaFilesRead.Add).ToList();
+			List<string> filesToRead = sourceFiles.Concat(apiFiles).Where(pragmaFilesRead.Add).ToList();
 			if (filesToRead.Count == 0)
 				break;
 			foreach (string file in filesToRead)
 				ApplyFilePragmas(file, environment, bag, Precedence.Local, errors);
-			includeFiles = ExpandSourcePatterns(cli.IncludePatterns.Concat(bag.IncludePatterns).ToList(), [], environment.WorkingDirectory, errors);
+			apiFiles = ExpandSourcePatterns(cli.ApiPatterns.Concat(bag.ApiPatterns).ToList(), [], environment.WorkingDirectory, errors);
 		}
 
 		bag.Apply(cli, Precedence.CommandLine, "command line", errors);
 		sourceFiles = ExpandSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory, errors);
-		includeFiles = ExpandSourcePatterns(bag.IncludePatterns, [], environment.WorkingDirectory, errors);
+		apiFiles = ExpandSourcePatterns(bag.ApiPatterns, [], environment.WorkingDirectory, errors);
 		if (sourceFiles.Count == 0)
 			errors.Add("At least one source file pattern is required.");
 
@@ -510,13 +510,13 @@ sealed class CampCli
 		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], out List<string> projectApiHeaders, out List<string> sharedProjectApiHeaders, out List<string> projectLibraries, errors))
 			return false;
 		foreach (string projectApiHeader in projectApiHeaders)
-			includeFiles.Add(projectApiHeader);
+			apiFiles.Add(projectApiHeader);
 		request.SharedLibraryApiHeaders.AddRange(sharedProjectApiHeaders);
 		request.References.AddRange(projectLibraries);
 		if (command == CommandKind.Cover && !TryApplyRootCoverageSubject(request, bag.ProjectReferences.Count, errors))
 			return false;
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
-		request.IncludeFiles.AddRange(includeFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
+		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		return true;
 	}
 
@@ -822,7 +822,7 @@ sealed class CampCli
 			yield return globalCampPath;
 		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.Files, includeDirectories: true))
 			yield return input;
-		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.IncludeFiles, includeDirectories: false))
+		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.ApiFiles, includeDirectories: false))
 			yield return input;
 		foreach (string input in projectRequest.SharedLibraryApiHeaders)
 			yield return input;
@@ -1383,7 +1383,7 @@ sealed class PackageCommands
 sealed class BuildOptionBag
 {
 	readonly Dictionary<string, SingleValue> singleValues = new(StringComparer.Ordinal);
-	public List<string> IncludePatterns { get; } = [];
+	public List<string> ApiPatterns { get; } = [];
 	public List<string> ExcludePatterns { get; } = [];
 	public List<string> Defines { get; } = [];
 	public List<string> References { get; } = [];
@@ -1436,8 +1436,8 @@ sealed class BuildOptionBag
 	{
 		foreach ((string key, string value) in options.SingleValues)
 			SetSingle(key, value, precedence, source, errors);
-		foreach (string pattern in options.IncludePatterns)
-			IncludePatterns.Add(pattern);
+		foreach (string pattern in options.ApiPatterns)
+			ApiPatterns.Add(pattern);
 		foreach (string pattern in options.ExcludePatterns)
 			ExcludePatterns.Add(pattern);
 		Defines.AddRange(options.Defines);
@@ -1523,7 +1523,7 @@ sealed class ParsedOptions
 {
 	public List<string> Positionals { get; } = [];
 	public List<(string Key, string Value)> SingleValues { get; } = [];
-	public List<string> IncludePatterns { get; } = [];
+	public List<string> ApiPatterns { get; } = [];
 	public List<string> ExcludePatterns { get; } = [];
 	public List<string> Defines { get; } = [];
 	public List<string> References { get; } = [];
@@ -1671,9 +1671,8 @@ static class CommandLineOptionParser
 					errors.Add("--build-dir has been removed. Build intermediates are written to the output artifact directory's build subdirectory.");
 					i += HasValue(tokens, i) ? 1 : 0;
 					break;
-				case "--include":
-				case "-i":
-					result.IncludePatterns.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+				case "--api":
+					result.ApiPatterns.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--exclude":
 					result.ExcludePatterns.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
@@ -1857,8 +1856,7 @@ static class ResponseFileExpander
 {
 	static readonly HashSet<string> PathValueOptions = new(StringComparer.Ordinal)
 	{
-		"--include",
-		"-i",
+		"--api",
 		"--exclude",
 		"--out-dir",
 		"--build-dir",
@@ -1915,7 +1913,7 @@ static class ResponseFileExpander
 	{
 		return option switch
 		{
-			"--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
+			"--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
 			"--use-source" => 2,
 			_ => 0
 		};

@@ -37,7 +37,7 @@ Compiler writers should keep the distinction intact:
   keep provenance back to the source declaration or expression that required
   them.
 
-`campc test` and `campc cover` use the same source pattern, `--include`, and
+`campc test` and `campc cover` use the same source pattern, `--api`, and
 `--exclude` machinery as ordinary builds. The compiler does not implicitly scan
 test directories. If a file should participate only in test/coverage builds, the
 request or build-file workflow must select it only for those modes. Within a

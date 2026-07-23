@@ -63,7 +63,7 @@ Use it for:
 - target or lowering tests that should not depend on bundled library sources.
 
 Source that uses `Std` declarations will fail analysis under `--nostdlib` unless
-it provides equivalent declarations through other include files.
+it provides equivalent declarations through API files or root source files.
 
 ## `lib/global.camp`
 

@@ -16,7 +16,7 @@ A `.campbuild` file contains command-line fragments:
 --artifact exec
 --name textapp
 src/*.camp
---include api/*.camp
+--api api/*.camp
 ```
 
 Use a build file with `@file`:
@@ -55,7 +55,7 @@ Response files use the same option language as command-line arguments:
 
 Relative source patterns and path-valued options inside a response file are
 rebased to the directory containing that response file. This includes source
-patterns, `--include`, `--exclude`, `--out-dir`, `--sourcefile-root`,
+patterns, `--api`, `--exclude`, `--out-dir`, `--sourcefile-root`,
 `--use-source` paths, and project-reference paths. Native references are
 rebased only when they look like paths; bare linker names remain bare names.
 
@@ -74,22 +74,21 @@ are sorted, de-duplicated case-insensitively, and stored relative to the command
 working directory in the final compiler request.
 
 `--exclude` filters root source patterns. It does not remove API headers already
-added by `--include`, package preparation, or project-reference API discovery.
+added by `--api`, package preparation, or project-reference API discovery.
 
 ```text
 src/**/*.camp
 --exclude src/generated/*.camp
 ```
 
-## Include Patterns
+## API Files
 
-`--include` adds files to analysis without making them root source files for
-emission. This is how Camp API headers and analysis-only helper declarations are
-made visible.
+`--api` adds files to analysis without making them root implementation sources
+for emission. This is how Camp API headers are made visible to a build.
 
-Included files may contain their own prelude `#build` directives. The loader
-iteratively reads pragmas from source files and include files until no newly
-included file adds more build pragmas. This matters for API headers that need to
+API files may contain their own prelude `#build` directives. The loader
+iteratively reads pragmas from source files and API files until no newly loaded
+API file adds more build pragmas. This matters for API headers that need to
 contribute native references or package uses:
 
 ```camp
@@ -98,8 +97,11 @@ contribute native references or package uses:
 export extern void platformOpen();
 ```
 
-The included file is analyzed, but it is not emitted as a root `.c` source for
-the current project.
+An API file is analyzed, but it is not emitted as a root `.c` source for the
+current project. API files may declare API surfaces, but they may not contain
+implementation-bearing declarations such as function bodies, concrete class
+implementation shapes, global storage variables, or static fields that require
+storage.
 
 ## `#build` Pragmas
 
@@ -108,7 +110,7 @@ A source file may contain `#build` directives in its file prelude:
 ```camp
 #build --nostdlib
 #build --artifact none
-#build --include api/*.camp
+#build --api api/*.camp
 #build --use textlib@1.2.0
 
 export int meaning()
@@ -133,7 +135,7 @@ Effective build options are applied in this order:
 2. Local pragmas from root source and included files.
 3. Command-line arguments or `.campbuild` response-file arguments.
 
-Repeated list-valued options accumulate. Examples include `--include`,
+Repeated list-valued options accumulate. Examples include `--api`,
 `--exclude`, `--define`, `--reference`, `--framework`, `--use`,
 `--use-source`, and `--project-reference`.
 
@@ -215,6 +217,6 @@ src/*.camp
 ```
 
 Prefer source `#build` pragmas for facts that truly belong to a source surface,
-such as required package uses or API include files. Prefer `.campbuild` files
+such as required package uses or API files. Prefer `.campbuild` files
 for project selection, artifact kind, output name, target, and local developer
 build choices.

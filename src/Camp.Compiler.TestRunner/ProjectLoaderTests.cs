@@ -17,7 +17,7 @@ public sealed class ProjectLoaderTests
 		string main = Path.Combine(sourceDirectory, "main.camp");
 		File.WriteAllText(main, """
 			#build --define LOCAL_FLAG
-			#build --include api/*.camp
+			#build --api api/*.camp
 			#build --debug-info
 
 			export int main()
@@ -43,9 +43,9 @@ public sealed class ProjectLoaderTests
 		Assert.True(result.Request.NoStdLib);
 		Assert.Null(result.Request.BuildKind);
 		Assert.Single(result.Request.Files);
-		Assert.Single(result.Request.IncludeFiles);
+		Assert.Single(result.Request.ApiFiles);
 		Assert.EndsWith(Path.Combine("src", "main.camp"), result.Request.Files[0], StringComparison.Ordinal);
-		Assert.EndsWith(Path.Combine("api", "lib.camp"), result.Request.IncludeFiles[0], StringComparison.Ordinal);
+		Assert.EndsWith(Path.Combine("api", "lib.camp"), result.Request.ApiFiles[0], StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -178,7 +178,7 @@ public sealed class ProjectLoaderTests
 	}
 
 	[Fact]
-	public void Project_loader_expands_includes_and_excludes()
+	public void Project_loader_expands_sources_and_excludes()
 	{
 		string root = CreateTempDirectory("project-loader-globs");
 		Directory.CreateDirectory(Path.Combine(root, "src"));

@@ -1061,7 +1061,7 @@ public sealed class CampLspWorkspace
 					("file", documentPath),
 					("buildFile", canonicalBuildFile),
 					("cache", "miss"),
-					("sourceCount", result.Request.Files.Count + result.Request.AnalysisSourceFiles.Count + result.Request.IncludeFiles.Count),
+					("sourceCount", result.Request.Files.Count + result.Request.AnalysisSourceFiles.Count + result.Request.ApiFiles.Count),
 					("durationMs", ElapsedMilliseconds(start)));
 				return result.Request;
 			}
@@ -1121,7 +1121,7 @@ public sealed class CampLspWorkspace
 			PackageArtifactRoot = source.PackageArtifactRoot
 		};
 		clone.Files.AddRange(source.Files);
-		clone.IncludeFiles.AddRange(source.IncludeFiles);
+		clone.ApiFiles.AddRange(source.ApiFiles);
 		clone.AnalysisSourceFiles.AddRange(source.AnalysisSourceFiles);
 		clone.Defines.AddRange(source.Defines);
 		clone.Variants.AddRange(source.Variants);
@@ -1155,7 +1155,7 @@ public sealed class CampLspWorkspace
 			AddWatchedFile(writeTimes, buildFile);
 			foreach (string file in request.Files)
 				AddWatchedFile(writeTimes, Path.GetFullPath(file, request.WorkingDirectory));
-			foreach (string file in request.IncludeFiles)
+			foreach (string file in request.ApiFiles)
 				AddWatchedFile(writeTimes, Path.GetFullPath(file, request.WorkingDirectory));
 			foreach (string file in request.AnalysisSourceFiles)
 				AddWatchedFile(writeTimes, Path.GetFullPath(file, request.WorkingDirectory));

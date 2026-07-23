@@ -145,8 +145,8 @@ public static class CampLanguageService
 			StringComparer.OrdinalIgnoreCase);
 
 		HashSet<string> loadedPaths = new(StringComparer.OrdinalIgnoreCase);
-		foreach ((string Path, bool IsApiHeader) include in GetAnalysisIncludeFiles(request))
-			AddSourceFileIfMissing(compilation, include.Path, request.WorkingDirectory, overlayByPath, include.IsApiHeader, loadedPaths);
+		foreach ((string Path, bool IsApiHeader) apiFile in GetAnalysisApiFiles(request))
+			AddSourceFileIfMissing(compilation, apiFile.Path, request.WorkingDirectory, overlayByPath, apiFile.IsApiHeader, loadedPaths);
 		foreach (string file in request.AnalysisSourceFiles)
 			AddSourceFileIfMissing(compilation, file, request.WorkingDirectory, overlayByPath, isApiHeader: false, loadedPaths);
 		foreach (string file in request.Files)
@@ -188,7 +188,7 @@ public static class CampLanguageService
 			PackageArtifactRoot = source.PackageArtifactRoot
 		};
 		clone.Files.AddRange(source.Files);
-		clone.IncludeFiles.AddRange(source.IncludeFiles);
+		clone.ApiFiles.AddRange(source.ApiFiles);
 		clone.AnalysisSourceFiles.AddRange(source.AnalysisSourceFiles);
 		clone.Defines.AddRange(source.Defines);
 		clone.Variants.AddRange(source.Variants);
@@ -204,33 +204,33 @@ public static class CampLanguageService
 		return clone;
 	}
 
-	static IReadOnlyList<(string Path, bool IsApiHeader)> GetAnalysisIncludeFiles(CompilerRequest request)
+	static IReadOnlyList<(string Path, bool IsApiHeader)> GetAnalysisApiFiles(CompilerRequest request)
 	{
-		List<(string Path, bool IsApiHeader)> includes = request.IncludeFiles.Select(static path => (path, true)).ToList();
+		List<(string Path, bool IsApiHeader)> apiFiles = request.ApiFiles.Select(static path => (path, true)).ToList();
 		foreach (string packageSpec in request.UsePackages)
-			AddAnalysisPackageIncludes(request, includes, packageSpec);
+			AddAnalysisPackageApiFiles(request, apiFiles, packageSpec);
 		if (!request.NoStdLib && RequestContainsPackageSourceFile(request, "std"))
 		{
 			foreach (string stdSource in GetAnalysisPackageSources(request, "std"))
-				AddIfMissing(includes, stdSource, isApiHeader: false);
+				AddIfMissing(apiFiles, stdSource, isApiHeader: false);
 		}
 		else if (!request.NoStdLib)
 		{
 			if (TryGetCachedPackageApiHeader(request, "std", out string? stdApiHeader))
 			{
 				if (!RequestContainsFile(request, stdApiHeader!))
-					AddIfMissing(includes, stdApiHeader!, isApiHeader: true);
+					AddIfMissing(apiFiles, stdApiHeader!, isApiHeader: true);
 			}
 			else
 			{
 				foreach (string stdSource in GetAnalysisPackageSources(request, "std"))
-					AddIfMissing(includes, stdSource, isApiHeader: false);
+					AddIfMissing(apiFiles, stdSource, isApiHeader: false);
 			}
 		}
-		return includes;
+		return apiFiles;
 	}
 
-	static void AddAnalysisPackageIncludes(CompilerRequest request, List<(string Path, bool IsApiHeader)> includes, string packageSpec)
+	static void AddAnalysisPackageApiFiles(CompilerRequest request, List<(string Path, bool IsApiHeader)> apiFiles, string packageSpec)
 	{
 		(string packageName, string? requestedVersion, DependencyLinkKind? linkKind) = ParsePackageSpec(packageSpec);
 		if (string.IsNullOrWhiteSpace(packageName) || string.Equals(packageName, "std", StringComparison.OrdinalIgnoreCase))
@@ -239,12 +239,12 @@ public static class CampLanguageService
 		if (sources.Count > 0)
 		{
 			foreach (string source in sources)
-				AddIfMissing(includes, source, isApiHeader: false);
+				AddIfMissing(apiFiles, source, isApiHeader: false);
 			return;
 		}
 		if (TryGetCachedExternalPackageApiHeader(request, packageName, requestedVersion, linkKind, out string? apiHeader))
 		{
-			AddIfMissing(includes, apiHeader!, isApiHeader: true);
+			AddIfMissing(apiFiles, apiHeader!, isApiHeader: true);
 			return;
 		}
 	}
@@ -520,6 +520,7 @@ public static class CampLanguageService
 				FullPath = fullPath,
 				Text = overlay.Text,
 				IsApiHeader = isApiHeader,
+				IsGeneratedApiHeader = isApiHeader && IsGeneratedApiHeaderPath(fullPath),
 				WithinAllocationPolicyOverride = ReadWithinAllocationPolicy(overlay.Text)
 			};
 		}
@@ -534,6 +535,7 @@ public static class CampLanguageService
 				FullPath = fullPath,
 				Text = text,
 				IsApiHeader = isApiHeader,
+				IsGeneratedApiHeader = isApiHeader && IsGeneratedApiHeaderPath(fullPath),
 				WithinAllocationPolicyOverride = policy,
 				Tokens = cached.Tokens,
 				PreprocessDiagnostics = cached.PreprocessDiagnostics,
@@ -554,12 +556,21 @@ public static class CampLanguageService
 			FullPath = fullPath,
 			Text = text,
 			IsApiHeader = isApiHeader,
+			IsGeneratedApiHeader = isApiHeader && IsGeneratedApiHeaderPath(fullPath),
 			WithinAllocationPolicyOverride = policy,
 			Tokens = tokens,
 			PreprocessDiagnostics = preprocess.Diagnostics,
 			SyntaxTree = syntax,
 			ParseDiagnostics = diagnostics
 		};
+	}
+
+	static bool IsGeneratedApiHeaderPath(string path)
+	{
+		string normalized = path.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+		return normalized.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase)
+			&& (normalized.Contains("/bin/", StringComparison.OrdinalIgnoreCase)
+				|| normalized.Contains("/cache/", StringComparison.OrdinalIgnoreCase));
 	}
 
 	static WithinAllocationPolicy? ReadWithinAllocationPolicy(string text)

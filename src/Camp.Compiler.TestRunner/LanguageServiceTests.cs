@@ -741,7 +741,7 @@ public sealed class LanguageServiceTests
 
 		CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(appBuild, CampProjectEnvironment.Create(appRoot), CampProjectCommandKind.LanguageService);
 		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
-		result.Request.IncludeFiles.AddRange(result.ProjectReferenceApiHeaders);
+		result.Request.ApiFiles.AddRange(result.ProjectReferenceApiHeaders);
 		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(result.Request);
 		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
 		CampSymbolQueryService symbols = new(snapshot);

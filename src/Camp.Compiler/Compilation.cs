@@ -35,6 +35,7 @@ public sealed class SourceFile
 	public string? FullPath { get; init; }
 	public required string Text { get; init; }
 	public bool IsApiHeader { get; init; }
+	public bool IsGeneratedApiHeader { get; init; }
 	public bool SharedLibraryImport { get; init; }
 	public WithinAllocationPolicy? WithinAllocationPolicyOverride { get; set; }
 	public TokenSequence? Tokens { get; set; }
@@ -90,10 +91,14 @@ public static class CompilationPipeline
 		foreach (SourceFile file in compilation.Files)
 		{
 			file.BindableTree = BindableNodeBuilder.Build(file.SyntaxTree!, out IReadOnlyList<BindDiagnostic> diagnostics);
-			file.BindDiagnostics = [.. diagnostics, .. DocCommentTranslator.Apply(file)];
+			IReadOnlyList<BindDiagnostic> docDiagnostics = DocCommentTranslator.Apply(file);
+			IReadOnlyList<BindDiagnostic> apiDiagnostics = ApiHeaderValidator.Validate(file);
+			file.BindDiagnostics = [.. diagnostics, .. docDiagnostics, .. apiDiagnostics];
 			if (diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 				success = false;
-			if (file.BindDiagnostics.Skip(diagnostics.Count).Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+			if (docDiagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+				success = false;
+			if (apiDiagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 				success = false;
 		}
 		if (success)

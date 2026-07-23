@@ -133,21 +133,21 @@ public static class CampProjectLoader
 		ApplyGlobalPragmas(environment, bag, errors);
 
 		List<string> sourceFiles = ExpandSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory, errors);
-		List<string> includeFiles = ExpandSourcePatterns(cli.IncludePatterns.Concat(bag.IncludePatterns).ToList(), [], environment.WorkingDirectory, errors);
+		List<string> apiFiles = ExpandSourcePatterns(cli.ApiPatterns.Concat(bag.ApiPatterns).ToList(), [], environment.WorkingDirectory, errors);
 		HashSet<string> pragmaFilesRead = new(StringComparer.OrdinalIgnoreCase);
 		while (true)
 		{
-			List<string> filesToRead = sourceFiles.Concat(includeFiles).Where(pragmaFilesRead.Add).ToList();
+			List<string> filesToRead = sourceFiles.Concat(apiFiles).Where(pragmaFilesRead.Add).ToList();
 			if (filesToRead.Count == 0)
 				break;
 			foreach (string file in filesToRead)
 				ApplyFilePragmas(file, environment, bag, CampBuildOptionPrecedence.Local, errors);
-			includeFiles = ExpandSourcePatterns(cli.IncludePatterns.Concat(bag.IncludePatterns).ToList(), [], environment.WorkingDirectory, errors);
+			apiFiles = ExpandSourcePatterns(cli.ApiPatterns.Concat(bag.ApiPatterns).ToList(), [], environment.WorkingDirectory, errors);
 		}
 
 		bag.Apply(cli, CampBuildOptionPrecedence.CommandLine, "command line", errors);
 		sourceFiles = ExpandSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory, errors);
-		includeFiles = ExpandSourcePatterns(bag.IncludePatterns, [], environment.WorkingDirectory, errors);
+		apiFiles = ExpandSourcePatterns(bag.ApiPatterns, [], environment.WorkingDirectory, errors);
 		if (sourceFiles.Count == 0)
 			errors.Add("At least one source file pattern is required.");
 		if (command == CampProjectCommandKind.Dump && bag.HasBuildOnlyOptions)
@@ -203,7 +203,7 @@ public static class CampProjectLoader
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
 		AddUseSourceRoots(bag.UseSources, environment.WorkingDirectory, request.UseSourceRoots, errors);
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
-		request.IncludeFiles.AddRange(includeFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
+		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 
 		CampProjectLoadResult result = new() { Request = request };
 		result.Diagnostics.AddRange(errors);
@@ -219,7 +219,7 @@ public static class CampProjectLoader
 					if (linkKind.GetValueOrDefault(DependencyLinkKind.Shared) == DependencyLinkKind.Shared)
 						request.SharedLibraryApiHeaders.Add(apiHeader!);
 					if (command == CampProjectCommandKind.LanguageService)
-						AddUnique(request.IncludeFiles, apiHeader!);
+						AddUnique(request.ApiFiles, apiHeader!);
 				}
 				else if (command == CampProjectCommandKind.LanguageService)
 					AddLanguageServiceProjectReferenceSources(result, request, resolved!, projectReferenceStack);
@@ -320,8 +320,8 @@ public static class CampProjectLoader
 		MergeUniqueStrings(request.Defines, referenced.Request.Defines);
 		MergeUniqueStrings(request.UsePackages, referenced.Request.UsePackages);
 		MergeUnique(request.UseSourceRoots, referenced.Request.UseSourceRoots);
-		foreach (string include in referenced.Request.IncludeFiles)
-			AddUnique(request.IncludeFiles, Path.GetFullPath(include, referenced.Request.WorkingDirectory));
+		foreach (string api in referenced.Request.ApiFiles)
+			AddUnique(request.ApiFiles, Path.GetFullPath(api, referenced.Request.WorkingDirectory));
 		foreach (string source in referenced.Request.AnalysisSourceFiles)
 			AddLanguageServiceSource(result, request, Path.GetFullPath(source, referenced.Request.WorkingDirectory));
 		foreach (string source in referenced.Request.Files)
@@ -533,7 +533,7 @@ public static class CampProjectLoader
 sealed class CampBuildOptionBag
 {
 	readonly Dictionary<string, SingleValue> singleValues = new(StringComparer.Ordinal);
-	public List<string> IncludePatterns { get; } = [];
+	public List<string> ApiPatterns { get; } = [];
 	public List<string> ExcludePatterns { get; } = [];
 	public List<string> Defines { get; } = [];
 	public List<string> References { get; } = [];
@@ -585,7 +585,7 @@ sealed class CampBuildOptionBag
 	{
 		foreach ((string key, string value) in options.SingleValues)
 			SetSingle(key, value, precedence, source, errors);
-		IncludePatterns.AddRange(options.IncludePatterns);
+		ApiPatterns.AddRange(options.ApiPatterns);
 		ExcludePatterns.AddRange(options.ExcludePatterns);
 		Defines.AddRange(options.Defines);
 		References.AddRange(options.References);
@@ -664,7 +664,7 @@ sealed class ParsedCampBuildOptions
 {
 	public List<string> Positionals { get; } = [];
 	public List<(string Key, string Value)> SingleValues { get; } = [];
-	public List<string> IncludePatterns { get; } = [];
+	public List<string> ApiPatterns { get; } = [];
 	public List<string> ExcludePatterns { get; } = [];
 	public List<string> Defines { get; } = [];
 	public List<string> References { get; } = [];
@@ -791,9 +791,8 @@ static class CampBuildOptionParser
 					errors.Add("--build-dir has been removed. Build intermediates are written to the output artifact directory's build subdirectory.");
 					i += HasValue(tokens, i) ? 1 : 0;
 					break;
-				case "--include":
-				case "-i":
-					result.IncludePatterns.Add(CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+				case "--api":
+					result.ApiPatterns.Add(CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--exclude":
 					result.ExcludePatterns.Add(CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
@@ -1000,8 +999,7 @@ public static class CampResponseFileExpander
 {
 	static readonly HashSet<string> PathValueOptions = new(StringComparer.Ordinal)
 	{
-		"--include",
-		"-i",
+		"--api",
 		"--exclude",
 		"--out-dir",
 		"--build-dir",
@@ -1054,7 +1052,7 @@ public static class CampResponseFileExpander
 
 	static int OptionValueCount(string option)
 	{
-		return option is "--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--include" or "-i" or "--exclude" or "--define" or "-d" or "--reference" or "-r" or "--framework" or "-f" or "--use" or "-u" or "--project-reference" or "--local"
+		return option is "--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "-d" or "--reference" or "-r" or "--framework" or "-f" or "--use" or "-u" or "--project-reference" or "--local"
 			? 1
 			: option == "--use-source" ? 2 : 0;
 	}

@@ -28,7 +28,7 @@ public enum DependencyLinkKind
 public sealed class CompilerRequest
 {
 	public List<string> Files { get; } = [];
-	public List<string> IncludeFiles { get; } = [];
+	public List<string> ApiFiles { get; } = [];
 	public List<string> AnalysisSourceFiles { get; } = [];
 	public List<string> Defines { get; } = [];
 	public CompilerInspectMode? Inspect { get; set; }
@@ -115,9 +115,9 @@ public static class CompilerDriver
 			if (request.Files.Count == 0)
 				return Error("At least one filename is required.");
 
-			if (request.Files.Count > 1 && request.Files.Contains("-") || request.IncludeFiles.Count > 0 && request.Files.Contains("-"))
+			if (request.Files.Count > 1 && request.Files.Contains("-") || request.ApiFiles.Count > 0 && request.Files.Contains("-"))
 				return Error("Standard input may only be used by itself and cannot be combined with API headers.");
-			if (request.IncludeFiles.Contains("-"))
+			if (request.ApiFiles.Contains("-"))
 				return Error("API headers must be read from files, not standard input.");
 			if (request.InferBuildKind && !TryInferBuildKind())
 				return 1;
@@ -162,8 +162,8 @@ public static class CompilerDriver
 					packageLibraries.Add(packageLibrary);
 			}
 
-			List<string> allIncludes = [.. packageApiHeaders, .. request.IncludeFiles];
-			if (!TryLoadCompilation(request.Files, allIncludes, context!, out Compilation compilation))
+			List<string> allApiFiles = [.. packageApiHeaders, .. request.ApiFiles];
+			if (!TryLoadCompilation(request.Files, allApiFiles, context!, out Compilation compilation))
 				return 1;
 
 			if (request.InspectApi)
@@ -452,12 +452,12 @@ public static class CompilerDriver
 			return CampRuntimeLayout.Resolve(request.WorkingDirectory, request.RuntimeRoot).CompilerLibraryCacheDirectory;
 		}
 
-		bool TryLoadCompilation(List<string> filenames, List<string> includeFilenames, RuntimeContext context, out Compilation compilation)
+		bool TryLoadCompilation(List<string> filenames, List<string> apiFilenames, RuntimeContext context, out Compilation compilation)
 		{
-			return TryLoadCompilation(request, filenames, includeFilenames, context, out compilation);
+			return TryLoadCompilation(request, filenames, apiFilenames, context, out compilation);
 		}
 
-		bool TryLoadCompilation(CompilerRequest loadRequest, IReadOnlyList<string> filenames, IReadOnlyList<string> includeFilenames, RuntimeContext context, out Compilation compilation)
+		bool TryLoadCompilation(CompilerRequest loadRequest, IReadOnlyList<string> filenames, IReadOnlyList<string> apiFilenames, RuntimeContext context, out Compilation compilation)
 		{
 			compilation = new Compilation
 			{
@@ -480,15 +480,23 @@ public static class CompilerDriver
 					return false;
 				compilation.Files.Add(new SourceFile { Path = displayPath, FullPath = fullPath, Text = text, WithinAllocationPolicyOverride = policy });
 			}
-			foreach (string filename in includeFilenames)
+			foreach (string filename in apiFilenames)
 			{
 				if (!TryReadInput(loadRequest, filename, out string text, out string displayPath, out string? fullPath))
 					return false;
 				if (!TryReadWithinAllocationPolicy(displayPath, text, out WithinAllocationPolicy? policy))
 					return false;
-				compilation.Files.Add(new SourceFile { Path = displayPath, FullPath = fullPath, Text = text, IsApiHeader = true, SharedLibraryImport = IsSharedLibraryApiHeader(loadRequest, filename), WithinAllocationPolicyOverride = policy });
+				compilation.Files.Add(new SourceFile { Path = displayPath, FullPath = fullPath, Text = text, IsApiHeader = true, IsGeneratedApiHeader = IsGeneratedApiHeaderPath(fullPath ?? filename), SharedLibraryImport = IsSharedLibraryApiHeader(loadRequest, filename), WithinAllocationPolicyOverride = policy });
 			}
 			return true;
+		}
+
+		static bool IsGeneratedApiHeaderPath(string path)
+		{
+			string normalized = path.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+			return normalized.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase)
+				&& (normalized.Contains("/bin/", StringComparison.OrdinalIgnoreCase)
+					|| normalized.Contains("/cache/", StringComparison.OrdinalIgnoreCase));
 		}
 
 		bool IsSharedLibraryApiHeader(CompilerRequest loadRequest, string filename)
