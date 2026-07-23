@@ -1069,9 +1069,10 @@ public sealed class CampLspWorkspace
 		}
 
 		string workingDirectory = Path.GetDirectoryName(documentPath) ?? Directory.GetCurrentDirectory();
+		CampRuntimeLayout layout = CampRuntimeLayout.Resolve(workingDirectory);
 		CompilerRequest request = new()
 		{
-			RuntimeRoot = AppContext.BaseDirectory,
+			RuntimeRoot = layout.BinDirectory,
 			WorkingDirectory = workingDirectory
 		};
 		request.Files.Add(Path.GetFileName(documentPath));

@@ -15,7 +15,7 @@
     <ProjectReference Include="../Camp.Compiler/Camp.Compiler.csproj" />
   </ItemGroup>
 
-  <Target Name="CopyCampcToRepoBin" AfterTargets="Build">
+  <Target Name="CopyCampcToRepoBin" AfterTargets="Build" Condition="'$(IsPublishingTools)' != 'true'">
     <PropertyGroup>
       <CampcRepoBin>$(MSBuildProjectDirectory)/../../bin/</CampcRepoBin>
     </PropertyGroup>

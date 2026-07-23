@@ -2259,34 +2259,21 @@ sealed class CliEnvironment
 {
 	public required string WorkingDirectory { get; init; }
 	public required string RuntimeRoot { get; init; }
-	public required string RepositoryRoot { get; init; }
-	public string GlobalCampPath => Path.Combine(RepositoryRoot, "lib", "global.camp");
-	public string GlobalPackageRoot => Path.Combine(RepositoryRoot, "cache", "pkg");
+	public required string HomeDirectory { get; init; }
+	public string GlobalCampPath => Path.Combine(HomeDirectory, "lib", "global.camp");
+	public string GlobalPackageRoot => Path.Combine(HomeDirectory, "cache", "pkg");
 	public string LocalPackageRoot => Path.Combine(WorkingDirectory, "cache", "pkg");
 
 	public static CliEnvironment Create()
 	{
 		string workingDirectory = Directory.GetCurrentDirectory();
-		string runtimeRoot = AppContext.BaseDirectory;
-		string repositoryRoot = FindRepositoryRoot(workingDirectory) ?? FindRepositoryRoot(runtimeRoot) ?? Path.GetFullPath(Path.Combine(runtimeRoot, ".."));
+		CampRuntimeLayout layout = CampRuntimeLayout.Resolve(workingDirectory);
 		return new CliEnvironment
 		{
 			WorkingDirectory = workingDirectory,
-			RuntimeRoot = Path.Combine(repositoryRoot, "bin"),
-			RepositoryRoot = repositoryRoot
+			RuntimeRoot = layout.BinDirectory,
+			HomeDirectory = layout.HomeDirectory
 		};
-	}
-
-	static string? FindRepositoryRoot(string start)
-	{
-		DirectoryInfo? directory = new DirectoryInfo(Path.GetFullPath(start));
-		while (directory is not null)
-		{
-			if (File.Exists(Path.Combine(directory.FullName, "src", "camplang.sln")) && Directory.Exists(Path.Combine(directory.FullName, "lib", "std", "src")))
-				return directory.FullName;
-			directory = directory.Parent;
-		}
-		return null;
 	}
 }
 

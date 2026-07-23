@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Camp.Compiler;
 using OmniSharp.Extensions.DebugAdapter.Protocol.Models;
 
 namespace Camp.DebugAdapter;
@@ -297,8 +298,6 @@ sealed class DapSession(Stream input, Stream output)
 
 sealed class DapProtocol(Stream input, Stream output)
 {
-	static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
-
 	public async Task<JsonObject?> ReadMessage()
 	{
 		Dictionary<string, string> headers = new(StringComparer.OrdinalIgnoreCase);
@@ -329,7 +328,10 @@ sealed class DapProtocol(Stream input, Stream output)
 
 	public async Task WriteMessage(JsonObject message)
 	{
-		byte[] payload = JsonSerializer.SerializeToUtf8Bytes(message, JsonOptions);
+		using MemoryStream payloadStream = new();
+		using (Utf8JsonWriter writer = new(payloadStream))
+			message.WriteTo(writer);
+		byte[] payload = payloadStream.ToArray();
 		byte[] header = Encoding.ASCII.GetBytes("Content-Length: " + payload.Length + "\r\n\r\n");
 		await output.WriteAsync(header);
 		await output.WriteAsync(payload);
@@ -880,9 +882,7 @@ sealed class LldbDebugBackend : IDebugBackend
 
 	internal static async Task<DebugBuildResult> BuildExecutable(string project, string cwd, string outDirectory, string? testFilter = null)
 	{
-		string campc = Path.Combine(FindRepositoryRoot(), "bin", "campc");
-		if (!File.Exists(campc))
-			campc = Path.Combine(FindRepositoryRoot(), "bin", "campc.dll");
+		string campc = ResolveCampc();
 		DateTime buildStart = DateTime.UtcNow;
 		List<string> args = string.IsNullOrWhiteSpace(testFilter)
 			? ["build", project, "--profile", "DEBUG", "--artifact", "exec", "--debug-info"]
@@ -1044,14 +1044,35 @@ sealed class LldbDebugBackend : IDebugBackend
 
 	internal static string FindRepositoryRoot()
 	{
-		DirectoryInfo? directory = new(AppContext.BaseDirectory);
-		while (directory is not null)
+		return CampRuntimeLayout.FindRepositoryRoot(AppContext.BaseDirectory)
+			?? throw new InvalidOperationException("Could not find repository root.");
+	}
+
+	internal static string ResolveCampc()
+	{
+		string? overridePath = Environment.GetEnvironmentVariable("CAMP_DAP_CAMPC");
+		if (!string.IsNullOrWhiteSpace(overridePath))
 		{
-			if (File.Exists(Path.Combine(directory.FullName, "src", "camplang.sln")))
-				return directory.FullName;
-			directory = directory.Parent;
+			string fullPath = Path.GetFullPath(overridePath);
+			if (!File.Exists(fullPath))
+				throw new InvalidOperationException($"CAMP_DAP_CAMPC points to '{fullPath}', but that file does not exist.");
+			return fullPath;
 		}
-		throw new InvalidOperationException("Could not find repository root.");
+
+		string sibling = Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "campc.exe" : "campc");
+		if (File.Exists(sibling))
+			return sibling;
+
+		string repositoryRoot = FindRepositoryRoot();
+		string devCampc = Path.Combine(repositoryRoot, "bin", OperatingSystem.IsWindows() ? "campc.exe" : "campc");
+		if (File.Exists(devCampc))
+			return devCampc;
+
+		string devCampcDll = Path.Combine(repositoryRoot, "bin", "campc.dll");
+		if (File.Exists(devCampcDll))
+			return devCampcDll;
+
+		throw new InvalidOperationException("Could not find campc. Set CAMP_DAP_CAMPC to the campc executable or install camp-dap beside campc in the Camp bin directory.");
 	}
 }
 

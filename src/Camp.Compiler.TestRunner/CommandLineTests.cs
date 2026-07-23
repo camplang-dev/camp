@@ -70,6 +70,38 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Campc_runs_from_installed_layout_outside_repository()
+	{
+		string repositoryRoot = FindRepositoryRoot();
+		string installRoot = TempPath("installed-layout");
+		if (Directory.Exists(installRoot))
+			Directory.Delete(installRoot, recursive: true);
+		string installBin = Path.Combine(installRoot, "bin");
+		Directory.CreateDirectory(installBin);
+		string sourceCampc = TestToolPaths.GetCampcPath(repositoryRoot);
+		CopyDirectory(Path.GetDirectoryName(sourceCampc)!, installBin);
+		CopyDirectory(Path.Combine(repositoryRoot, "lib"), Path.Combine(installRoot, "lib"));
+		CopyDirectory(Path.Combine(repositoryRoot, "targets"), Path.Combine(installRoot, "targets"));
+		Directory.CreateDirectory(Path.Combine(installRoot, "cache", "lib"));
+		Directory.CreateDirectory(Path.Combine(installRoot, "cache", "pkg"));
+
+		string projectRoot = Path.Combine(Path.GetTempPath(), "camp-installed-layout-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(projectRoot);
+		string source = Path.Combine(projectRoot, "main.camp");
+		File.WriteAllText(source, """
+			export int main()
+			{
+				Console.writeLine("installed");
+				return 0;
+			}
+			""");
+		string installedCampc = Path.Combine(installBin, Path.GetFileName(sourceCampc));
+		ProcessResult result = RunCampcFrom(installedCampc, projectRoot, "build", source, "--artifact", "none", "--out-dir", Path.Combine(projectRoot, "out"));
+
+		Assert.Equal(0, result.ExitCode);
+	}
+
+	[Fact]
 	public void Test_list_emits_manifest_and_filters_list_output()
 	{
 		string source = CreateTempCase("test_manifest_cli/main.camp", """
@@ -4080,15 +4112,10 @@ public sealed class CommandLineTests
 	{
 		using IDisposable timing = TestTiming.Measure("CommandLine campc " + string.Join(" ", arguments.Take(6)) + (arguments.Length > 6 ? " ..." : ""));
 		string repositoryRoot = FindRepositoryRoot();
-		string executable = Path.Combine(repositoryRoot, "bin", OperatingSystem.IsWindows() ? "campc.exe" : "campc");
-		ProcessStartInfo info = new()
-		{
-			FileName = executable,
-			WorkingDirectory = repositoryRoot,
-			RedirectStandardOutput = true,
-			RedirectStandardError = true,
-			UseShellExecute = false
-		};
+		ProcessStartInfo info = TestToolPaths.CreateCampcStartInfo(repositoryRoot);
+		info.WorkingDirectory = repositoryRoot;
+		info.RedirectStandardOutput = true;
+		info.RedirectStandardError = true;
 		foreach (string argument in arguments)
 			info.ArgumentList.Add(argument);
 		if (environmentVariables is not null)
@@ -4108,6 +4135,36 @@ public sealed class CommandLineTests
 		string stderr = process.StandardError.ReadToEnd();
 		process.WaitForExit();
 		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
+	}
+
+	static ProcessResult RunCampcFrom(string campcPath, string workingDirectory, params string[] arguments)
+	{
+		using IDisposable timing = TestTiming.Measure("CommandLine installed campc " + string.Join(" ", arguments.Take(6)) + (arguments.Length > 6 ? " ..." : ""));
+		ProcessStartInfo info = TestToolPaths.CreateStartInfoForPath(campcPath);
+		info.WorkingDirectory = workingDirectory;
+		info.RedirectStandardOutput = true;
+		info.RedirectStandardError = true;
+		foreach (string argument in arguments)
+			info.ArgumentList.Add(argument);
+
+		using Process process = new() { StartInfo = info };
+		process.Start();
+		string stdout = process.StandardOutput.ReadToEnd();
+		string stderr = process.StandardError.ReadToEnd();
+		process.WaitForExit();
+		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
+	}
+
+	static void CopyDirectory(string sourceDirectory, string destinationDirectory)
+	{
+		Directory.CreateDirectory(destinationDirectory);
+		foreach (string sourceFile in Directory.GetFiles(sourceDirectory))
+		{
+			string destinationFile = Path.Combine(destinationDirectory, Path.GetFileName(sourceFile));
+			File.Copy(sourceFile, destinationFile, overwrite: true);
+		}
+		foreach (string sourceSubdirectory in Directory.GetDirectories(sourceDirectory))
+			CopyDirectory(sourceSubdirectory, Path.Combine(destinationDirectory, Path.GetFileName(sourceSubdirectory)));
 	}
 
 	static ProcessResult RunExecutable(string executable)

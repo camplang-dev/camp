@@ -395,6 +395,8 @@ public static class CompilerDriver
 			if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out string? error))
 			{
 				ErrorLine(error ?? $"Target directory '{targetsDirectory}' could not be loaded.");
+				if (string.IsNullOrWhiteSpace(request.TargetRoot))
+					ErrorLine($"Set {CampRuntimeLayout.HomeEnvironmentVariable} to the Camp installation root if the compiler is installed outside the source repository.");
 				return false;
 			}
 
@@ -431,23 +433,23 @@ public static class CompilerDriver
 
 		string GetTargetRoot()
 		{
-			return Path.GetFullPath(string.IsNullOrWhiteSpace(request.TargetRoot)
-				? Path.Combine(request.RuntimeRoot, "..", "targets")
-				: request.TargetRoot);
+			if (!string.IsNullOrWhiteSpace(request.TargetRoot))
+				return Path.GetFullPath(request.TargetRoot);
+			return CampRuntimeLayout.Resolve(request.WorkingDirectory, request.RuntimeRoot).TargetDirectory;
 		}
 
 		string GetPackageSourceRoot()
 		{
-			return Path.GetFullPath(string.IsNullOrWhiteSpace(request.PackageSourceRoot)
-				? Path.Combine(request.RuntimeRoot, "..", "lib")
-				: request.PackageSourceRoot);
+			if (!string.IsNullOrWhiteSpace(request.PackageSourceRoot))
+				return Path.GetFullPath(request.PackageSourceRoot);
+			return CampRuntimeLayout.Resolve(request.WorkingDirectory, request.RuntimeRoot).LibraryDirectory;
 		}
 
 		string GetPackageArtifactRoot()
 		{
-			return Path.GetFullPath(string.IsNullOrWhiteSpace(request.PackageArtifactRoot)
-				? Path.Combine(request.RuntimeRoot, "..", "cache", "lib")
-				: request.PackageArtifactRoot);
+			if (!string.IsNullOrWhiteSpace(request.PackageArtifactRoot))
+				return Path.GetFullPath(request.PackageArtifactRoot);
+			return CampRuntimeLayout.Resolve(request.WorkingDirectory, request.RuntimeRoot).CompilerLibraryCacheDirectory;
 		}
 
 		bool TryLoadCompilation(List<string> filenames, List<string> includeFilenames, RuntimeContext context, out Compilation compilation)
@@ -586,7 +588,10 @@ public static class CompilerDriver
 			string sourceDirectory = Path.Combine(context.PackageSourceRoot, packageName, "src");
 			if (!Directory.Exists(sourceDirectory))
 			{
-				ErrorLine($"Package '{packageName}' source directory '{sourceDirectory}' could not be found.");
+				if (string.Equals(packageName, "std", StringComparison.OrdinalIgnoreCase))
+					ErrorLine($"Camp runtime could not find the standard library at '{sourceDirectory}'. Set {CampRuntimeLayout.HomeEnvironmentVariable} to the Camp installation root.");
+				else
+					ErrorLine($"Package '{packageName}' source directory '{sourceDirectory}' could not be found.");
 				return false;
 			}
 
@@ -819,7 +824,7 @@ public static class CompilerDriver
 
 		IEnumerable<(string InstallRoot, string ArtifactRoot)> GetInstalledPackageRoots()
 		{
-			string globalRoot = Path.GetFullPath(Path.Combine(request.RuntimeRoot, "..", "cache", "pkg"));
+			string globalRoot = CampRuntimeLayout.Resolve(request.WorkingDirectory, request.RuntimeRoot).PackageCacheDirectory;
 			string localRoot = Path.GetFullPath(Path.Combine(request.WorkingDirectory, "cache", "pkg"));
 			yield return (globalRoot, globalRoot);
 			yield return (localRoot, localRoot);

@@ -1,0 +1,30 @@
+<Project DefaultTargets="PublishTools">
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <ToolExtension Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">.exe</ToolExtension>
+    <PublishRoot Condition="'$(PublishRoot)' == ''">$(MSBuildThisFileDirectory)..\bin\publish\$(RuntimeIdentifier)\</PublishRoot>
+    <IntermediatePublishRoot Condition="'$(IntermediatePublishRoot)' == ''">$(MSBuildThisFileDirectory)..\tmp\publish\$(RuntimeIdentifier)\</IntermediatePublishRoot>
+  </PropertyGroup>
+
+  <Target Name="PublishTools">
+    <Error Condition="'$(RuntimeIdentifier)' == ''" Text="RuntimeIdentifier is required. Example: dotnet msbuild src/publish-tools.proj -p:RuntimeIdentifier=osx-arm64" />
+
+    <RemoveDir Directories="$(PublishRoot)" />
+    <RemoveDir Directories="$(IntermediatePublishRoot)" />
+    <MakeDir Directories="$(PublishRoot)" />
+
+    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)campc/campc.csproj&quot; -c &quot;$(Configuration)&quot; -r &quot;$(RuntimeIdentifier)&quot; --self-contained true -p:PublishAot=true -p:PublishTrimmed=true -p:TrimMode=full -p:JsonSerializerIsReflectionEnabledByDefault=false -p:IsPublishingTools=true -o &quot;$(IntermediatePublishRoot)campc&quot;" />
+
+    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)camp-lsp/camp-lsp.csproj&quot; -c &quot;$(Configuration)&quot; -r &quot;$(RuntimeIdentifier)&quot; --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:TrimMode=partial -p:EnableCompressionInSingleFile=true -p:IsPublishingTools=true -o &quot;$(IntermediatePublishRoot)camp-lsp&quot;" />
+
+    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)camp-dap/camp-dap.csproj&quot; -c &quot;$(Configuration)&quot; -r &quot;$(RuntimeIdentifier)&quot; --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:TrimMode=partial -p:EnableCompressionInSingleFile=true -p:IsPublishingTools=true -o &quot;$(IntermediatePublishRoot)camp-dap&quot;" />
+
+    <ItemGroup>
+      <PublishedTool Include="$(IntermediatePublishRoot)campc\campc$(ToolExtension)" />
+      <PublishedTool Include="$(IntermediatePublishRoot)camp-lsp\camp-lsp$(ToolExtension)" />
+      <PublishedTool Include="$(IntermediatePublishRoot)camp-dap\camp-dap$(ToolExtension)" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(PublishedTool)" DestinationFolder="$(PublishRoot)" />
+  </Target>
+</Project>

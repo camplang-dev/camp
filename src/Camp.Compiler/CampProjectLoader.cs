@@ -22,36 +22,21 @@ public sealed class CampProjectEnvironment
 {
 	public required string WorkingDirectory { get; init; }
 	public required string RuntimeRoot { get; init; }
-	public required string RepositoryRoot { get; init; }
-	public string GlobalCampPath => Path.Combine(RepositoryRoot, "lib", "global.camp");
-	public string GlobalPackageRoot => Path.Combine(RepositoryRoot, "cache", "pkg");
+	public required string HomeDirectory { get; init; }
+	public string GlobalCampPath => Path.Combine(HomeDirectory, "lib", "global.camp");
+	public string GlobalPackageRoot => Path.Combine(HomeDirectory, "cache", "pkg");
 	public string LocalPackageRoot => Path.Combine(WorkingDirectory, "cache", "pkg");
 
 	public static CampProjectEnvironment Create(string? workingDirectory = null, string? runtimeRoot = null)
 	{
 		string cwd = Path.GetFullPath(workingDirectory ?? Directory.GetCurrentDirectory());
-		string runtime = runtimeRoot ?? AppContext.BaseDirectory;
+		CampRuntimeLayout layout = CampRuntimeLayout.Resolve(cwd, runtimeRoot);
 		return new CampProjectEnvironment
 		{
 			WorkingDirectory = cwd,
-			RuntimeRoot = runtime,
-			RepositoryRoot = FindRepositoryRoot(cwd, runtime)
+			RuntimeRoot = layout.BinDirectory,
+			HomeDirectory = layout.HomeDirectory
 		};
-	}
-
-	static string FindRepositoryRoot(string workingDirectory, string runtimeRoot)
-	{
-		foreach (string start in new[] { workingDirectory, runtimeRoot })
-		{
-			DirectoryInfo? directory = new(Path.GetFullPath(start));
-			while (directory is not null)
-			{
-				if (File.Exists(Path.Combine(directory.FullName, "src", "camplang.sln")))
-					return directory.FullName;
-				directory = directory.Parent;
-			}
-		}
-		return Path.GetFullPath(Path.Combine(runtimeRoot, ".."));
 	}
 }
 
@@ -425,7 +410,7 @@ public static class CampProjectLoader
 	static string GetArtifactDirectoryName(CompilerRequest request, NativeBuildKind? buildKind, string profileName)
 	{
 		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
-		string targetsDirectory = Path.GetFullPath(Path.Combine(request.RuntimeRoot, "..", "targets"));
+		string targetsDirectory = CampRuntimeLayout.Resolve(request.WorkingDirectory, request.RuntimeRoot).TargetDirectory;
 		if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out _) || !catalog!.TryGetTarget(targetName, out TargetDefinition? target))
 			return FallbackArtifactDirectoryName(targetName, buildKind, profileName);
 		try

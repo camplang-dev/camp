@@ -85,10 +85,29 @@ Common commands:
 
 ```sh
 dotnet build src/camplang.sln
+dotnet msbuild src/publish-tools.proj -p:RuntimeIdentifier=osx-x64
 dotnet msbuild src/test-fast.proj
 dotnet msbuild src/test-fast.proj -p:NoBuild=true
 dotnet msbuild src/coverage.proj
 ```
+
+`src/publish-tools.proj` produces the user-facing tools in
+`bin/publish/<rid>/`: `campc`, `camp-lsp`, and `camp-dap` with `.exe` on
+Windows. It does not replace the normal repository `bin/` development tools.
+
+To test published tools with the existing integration tests, point the test
+runner at those artifacts:
+
+```sh
+CAMP_TEST_CAMPC=bin/publish/osx-x64/campc \
+CAMP_TEST_LSP=bin/publish/osx-x64/camp-lsp \
+CAMP_TEST_DAP=bin/publish/osx-x64/camp-dap \
+dotnet test src/Camp.Compiler.TestRunner/Camp.Compiler.TestRunner.csproj
+```
+
+For installed-layout testing, the tools expect an installation root containing
+`bin`, `lib`, `targets`, and `cache`. Set `CAMP_HOME` to that root when the
+layout cannot be inferred from the tool's own path.
 
 ## Targeted Test Workflow
 

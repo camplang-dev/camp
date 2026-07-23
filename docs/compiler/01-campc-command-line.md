@@ -32,6 +32,11 @@ semantic, metadata, emission, project-reference, or native-build failure. Normal
 generated-file status lines go to standard output. Diagnostics and native build
 errors go to standard error.
 
+`campc` finds its bundled files from the Camp installation root. In a normal
+installation, the executable lives in `<camp-root>/bin` and the compiler reads
+`<camp-root>/lib`, `<camp-root>/targets`, and `<camp-root>/cache`. If the tool
+cannot infer that layout, set `CAMP_HOME` to the Camp installation root.
+
 ## `build`
 
 `build` compiles Camp source, emits C, and optionally invokes the selected

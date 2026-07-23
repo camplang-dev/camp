@@ -711,17 +711,14 @@ public sealed class DapServerTests
 		public static DapProcess Start()
 		{
 			string repo = FindRepositoryRoot();
-			string server = Path.Combine(repo, "src", "camp-dap", "bin", "Debug", "net10.0", "camp-dap.dll");
+			ProcessStartInfo startInfo = TestToolPaths.CreateDapStartInfo(repo);
+			startInfo.WorkingDirectory = repo;
+			startInfo.RedirectStandardInput = true;
+			startInfo.RedirectStandardOutput = true;
+			startInfo.RedirectStandardError = true;
 			Process process = new()
 			{
-				StartInfo = new ProcessStartInfo("dotnet", server)
-				{
-					WorkingDirectory = repo,
-					RedirectStandardInput = true,
-					RedirectStandardOutput = true,
-					RedirectStandardError = true,
-					UseShellExecute = false
-				}
+				StartInfo = startInfo
 			};
 			process.Start();
 			return new DapProcess(process);

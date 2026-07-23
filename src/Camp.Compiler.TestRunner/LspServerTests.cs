@@ -1359,17 +1359,14 @@ public sealed class LspServerTests
 		public static LspProcess Start(string? traceDirectory = null)
 		{
 			string repo = FindRepositoryRoot();
-			string server = Path.Combine(repo, "src", "camp-lsp", "bin", "Debug", "net10.0", "camp-lsp.dll");
+			ProcessStartInfo startInfo = TestToolPaths.CreateLspStartInfo(repo);
+			startInfo.WorkingDirectory = repo;
+			startInfo.RedirectStandardInput = true;
+			startInfo.RedirectStandardOutput = true;
+			startInfo.RedirectStandardError = true;
 			Process process = new()
 			{
-				StartInfo = new ProcessStartInfo("dotnet", server)
-				{
-					WorkingDirectory = repo,
-					RedirectStandardInput = true,
-					RedirectStandardOutput = true,
-					RedirectStandardError = true,
-					UseShellExecute = false
-				}
+				StartInfo = startInfo
 			};
 			if (traceDirectory is not null)
 				process.StartInfo.Environment["CAMP_LSP_TRACE_DIR"] = traceDirectory;

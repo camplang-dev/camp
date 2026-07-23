@@ -311,9 +311,15 @@ public static class CampLanguageService
 	{
 		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
 		{
-			string sourceRoot = Path.Combine(runtimeRoot, "lib", packageName, "src");
-			if (Directory.Exists(sourceRoot))
-				return Directory.GetFiles(sourceRoot, "*.camp").Order(StringComparer.OrdinalIgnoreCase).ToList();
+			foreach (string sourceRoot in new[]
+			{
+				Path.Combine(runtimeRoot, "lib", packageName, "src"),
+				Path.GetFullPath(Path.Combine(runtimeRoot, "..", "lib", packageName, "src"))
+			})
+			{
+				if (Directory.Exists(sourceRoot))
+					return Directory.GetFiles(sourceRoot, "*.camp").Order(StringComparer.OrdinalIgnoreCase).ToList();
+			}
 		}
 		return [];
 	}
@@ -434,7 +440,12 @@ public static class CampLanguageService
 
 	static IEnumerable<string> CandidateRuntimeRoots(string runtimeRoot)
 	{
+		CampRuntimeLayout layout = CampRuntimeLayout.Resolve(runtimeBaseDirectory: runtimeRoot);
 		yield return runtimeRoot;
+		if (!string.Equals(layout.BinDirectory, runtimeRoot, StringComparison.OrdinalIgnoreCase))
+			yield return layout.BinDirectory;
+		if (!string.Equals(layout.HomeDirectory, runtimeRoot, StringComparison.OrdinalIgnoreCase))
+			yield return layout.HomeDirectory;
 
 		DirectoryInfo? directory = new(Path.GetFullPath(runtimeRoot));
 		while (directory is not null)

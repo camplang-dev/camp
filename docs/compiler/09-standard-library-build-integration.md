@@ -1,9 +1,14 @@
 # Standard Library Build Integration
 
-The standard library is bundled with the compiler checkout and prepared through
-the same package machinery used for ordinary packages. The user-facing language
-docs mention only the small standard-library surface needed for examples; exact
-API details should come from source, generated API headers, or metadata.
+The standard library is bundled with the compiler installation and prepared
+through the same package machinery used for ordinary packages. The user-facing
+language docs mention only the small standard-library surface needed for
+examples; exact API details should come from source, generated API headers, or
+metadata.
+
+The compiler treats the Camp installation root as the parent of `bin` in a
+normal install. Set `CAMP_HOME` when the tools are launched from a layout where
+that root cannot be inferred.
 
 ## Source Layout
 
