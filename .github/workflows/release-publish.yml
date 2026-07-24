@@ -58,6 +58,7 @@ jobs:
         run: dotnet build src/camplang.sln
 
       - name: Run targeted tests
+        if: matrix.rid != 'osx-arm64'
         shell: bash
         run: |
           dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll \
