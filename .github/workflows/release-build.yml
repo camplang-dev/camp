@@ -1,0 +1,75 @@
+name: release-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version
+        required: true
+        default: v0.1.0-preview.1
+
+jobs:
+  build:
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            runner: windows-latest
+          - rid: win-x86
+            runner: windows-latest
+          - rid: linux-x64
+            runner: ubuntu-latest
+          - rid: osx-x64
+            runner: macos-15-intel
+          - rid: osx-arm64
+            runner: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install Linux native prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev build-essential
+
+      - name: Build
+        run: dotnet build src/camplang.sln
+
+      - name: Run targeted tests
+        shell: bash
+        run: |
+          dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll \
+            --TestCaseFilter:"FullyQualifiedName~CommandLineTests|FullyQualifiedName~ProjectLoaderTests|FullyQualifiedName~LspServerTests|FullyQualifiedName~DapServerTests"
+
+      - name: Package release archive
+        if: runner.os != 'Windows'
+        shell: bash
+        run: local/package-release.sh --version "${{ inputs.version }}" --rid "${{ matrix.rid }}" --output-dir artifacts
+
+      - name: Package release archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./local/package-release.ps1 -Version "${{ inputs.version }}" -Rid "${{ matrix.rid }}" -OutputDir artifacts
+
+      - name: Smoke test archive
+        if: runner.os != 'Windows'
+        shell: bash
+        run: local/test-release-archive.sh artifacts/camp-${{ inputs.version }}-${{ matrix.rid }}.tar.gz
+
+      - name: Smoke test archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./local/test-release-archive.ps1 artifacts/camp-${{ inputs.version }}-${{ matrix.rid }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: camp-${{ inputs.version }}-${{ matrix.rid }}
+          path: |
+            artifacts/camp-${{ inputs.version }}-${{ matrix.rid }}.*
+          if-no-files-found: error

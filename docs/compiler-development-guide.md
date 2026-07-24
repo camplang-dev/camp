@@ -86,6 +86,7 @@ Common commands:
 ```sh
 dotnet build src/camplang.sln
 dotnet msbuild src/publish-tools.proj -p:RuntimeIdentifier=osx-x64
+local/package-release.sh --version v0.1.0-preview.1 --rid osx-x64
 dotnet msbuild src/test-fast.proj
 dotnet msbuild src/test-fast.proj -p:NoBuild=true
 dotnet msbuild src/coverage.proj
@@ -94,6 +95,8 @@ dotnet msbuild src/coverage.proj
 `src/publish-tools.proj` produces the user-facing tools in
 `bin/publish/<rid>/`: `campc`, `camp-lsp`, and `camp-dap` with `.exe` on
 Windows. It does not replace the normal repository `bin/` development tools.
+`local/package-release.sh` and `local/package-release.ps1` turn that publish
+output into the installable archive layout used by GitHub Releases.
 
 To test published tools with the existing integration tests, point the test
 runner at those artifacts:
@@ -107,7 +110,9 @@ dotnet test src/Camp.Compiler.TestRunner/Camp.Compiler.TestRunner.csproj
 
 For installed-layout testing, the tools expect an installation root containing
 `bin`, `lib`, `targets`, and `cache`. Set `CAMP_HOME` to that root when the
-layout cannot be inferred from the tool's own path.
+layout cannot be inferred from the tool's own path. Use
+`local/test-release-archive.sh` or `local/test-release-archive.ps1` to smoke-test
+an archive before publishing it.
 
 ## Targeted Test Workflow
 

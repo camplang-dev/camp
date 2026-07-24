@@ -6,11 +6,12 @@ The compiler, language server, debug adapter, standard library, target files, ed
 
 ## Status
 
-Camp is early software. The first preview release is planned as `v0.1.0-preview.1`.
+Camp is early software. The first preview release is `v0.1.0-preview.1`.
 
 ## Prerequisites
 
-To build Camp itself, install the .NET 10 SDK.
+Release builds of `campc`, `camp-lsp`, and `camp-dap` do not require .NET to be
+installed.
 
 To build or run Camp programs, install a native C toolchain for the target you use:
 
@@ -29,7 +30,40 @@ To build or run Camp programs, install a native C toolchain for the target you u
 
   The `gcc-linux-x86` target also needs 32-bit multilib support.
 
+## Install
+
+Unix:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/camplang-dev/camp/master/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/camplang-dev/camp/master/install.ps1 | iex
+```
+
+The installers download the matching GitHub Release archive, verify its SHA-256
+checksum, unpack it into a stable user install directory, and print PATH
+instructions. Use `--add-to-path` on Unix or `-AddToPath` on Windows to update
+PATH automatically.
+
+Manual archives are available from GitHub Releases. Preview 1 host tool
+distributions are:
+
+- `win-x64`
+- `win-x86`
+- `linux-x64`
+- `osx-x64`
+- `osx-arm64`
+
+Linux x86 is supported as a generated-code target, not as a preview 1 host tool
+distribution.
+
 ## Build From Source
+
+To build Camp itself, install the .NET 10 SDK.
 
 After installing the prerequisites, build the solution:
 
@@ -49,7 +83,7 @@ bin/campc cover path/to/program.camp
 
 Native compilation uses the C toolchain for the selected Camp target.
 
-## Publish Tools
+## Publish Release Tools
 
 Release-style tool binaries are produced with `src/publish-tools.proj`:
 
@@ -57,17 +91,16 @@ Release-style tool binaries are produced with `src/publish-tools.proj`:
 dotnet msbuild src/publish-tools.proj -p:RuntimeIdentifier=osx-x64
 ```
 
-The published tools are written to `bin/publish/<rid>/`.
+The published tools are written to `bin/publish/<rid>/`. Release archives are
+created with:
 
-Supported preview distribution targets are planned to be:
+```bash
+local/package-release.sh --version v0.1.0-preview.1 --rid osx-x64
+```
 
-- `win-x64`
-- `win-x86`
-- `linux-x64`
-- `osx-x64`
-- `osx-arm64`
-
-When installed outside the source tree, Camp expects its installation root to contain `bin`, `lib`, `targets`, and `cache`. Set `CAMP_HOME` to override automatic installation-root discovery.
+When installed outside the source tree, Camp expects its installation root to
+contain `bin`, `lib`, `targets`, and `cache`. Set `CAMP_HOME` to override
+automatic installation-root discovery.
 
 ## Documentation
 
