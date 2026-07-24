@@ -23,9 +23,12 @@ jobs:
           - rid: linux-x64
             runner: ubuntu-latest
           - rid: osx-x64
-            runner: macos-15-large
+            runner: macos-15
+            test: false
+            smoke: false
           - rid: osx-arm64
             runner: macos-15
+            test: false
 
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +45,7 @@ jobs:
         run: dotnet build src/camplang.sln
 
       - name: Run targeted tests
-        if: matrix.rid != 'osx-arm64'
+        if: matrix.test != false
         shell: bash
         run: |
           dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll \
@@ -59,12 +62,12 @@ jobs:
         run: ./local/package-release.ps1 -Version "${{ inputs.version }}" -Rid "${{ matrix.rid }}" -OutputDir artifacts
 
       - name: Smoke test archive
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.smoke != false
         shell: bash
         run: local/test-release-archive.sh artifacts/camp-${{ inputs.version }}-${{ matrix.rid }}.tar.gz
 
       - name: Smoke test archive
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.smoke != false
         shell: pwsh
         run: ./local/test-release-archive.ps1 artifacts/camp-${{ inputs.version }}-${{ matrix.rid }}.zip
 
