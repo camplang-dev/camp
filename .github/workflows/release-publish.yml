@@ -29,7 +29,7 @@ jobs:
           - rid: linux-x64
             runner: ubuntu-latest
           - rid: osx-x64
-            runner: macos-13
+            runner: macos-15-large
           - rid: osx-arm64
             runner: macos-15
 
