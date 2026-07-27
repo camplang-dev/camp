@@ -1,4 +1,4 @@
-# Experimental Package Infrastructure
+# Package Management (Experimental)
 
 Camp's package infrastructure is a development-preview compiler feature. It
 exists so compiler authors can exercise package API generation, native artifact
