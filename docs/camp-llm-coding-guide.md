@@ -8,8 +8,8 @@ standard library and any project libraries in scope.
 The canonical references are:
 
 - [docs/language/01-camp-in-one-page.md](language/01-camp-in-one-page.md) for the start of the source-language guide.
-- [docs/compiler/index.md](compiler/index.md) for command-line, package, build,
-  and metadata behavior.
+- [docs/compiler/index.md](compiler/index.md) for command-line, build,
+  experimental package-infrastructure, and metadata behavior.
 - [docs/semantics/index.md](semantics/index.md) for compiler-facing lowering and
   compatibility rules.
 
@@ -20,8 +20,9 @@ it.
 ## Agent Workflow
 
 1. Read the local Camp source around the edit before generating code.
-2. Read available `.campbuild`, package metadata, and exported API metadata before
-   calling library functions.
+2. Read available `.campbuild` files and exported API metadata before calling
+   library functions. Read package metadata only when working on compiler
+   package-infrastructure tests or implementation.
 3. Generate source-level Camp. Do not emit lowered C-like structs, manual
    vtables, callback frames, or ABI helper fields unless the file is explicitly
    compiler test input for that representation.
@@ -85,7 +86,9 @@ export int main()
 
 Use `.campbuild` files for project selection, targets, artifact names, output
 locations, and local build choices. Use source `#build` pragmas for facts that
-belong to the source surface, such as required package uses or API files.
+belong to the source surface, such as required API files. Do not add package
+pragmas to normal examples or application code; package commands and layouts are
+experimental compiler-development infrastructure.
 `#within explicit` and `#within implicit` select whether allocation and deletion
 must spell their allocation context in that file. Do not add absolute local paths
 or private machine information to committed source; put local setup notes in

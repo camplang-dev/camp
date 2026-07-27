@@ -1,14 +1,25 @@
-# Package System
+# Experimental Package Infrastructure
 
-Camp packages are source packages plus compiler-produced API and native
-artifacts. The package system is intentionally file-system based: package
-sources live under configured source roots, installed packages live under
+Camp's package infrastructure is a development-preview compiler feature. It
+exists so compiler authors can exercise package API generation, native artifact
+caching, package references, and language-service behavior while the real
+package model is still being designed.
+
+The current implementation is not recommended for ordinary Camp projects. It
+does not include a public package repository, package publishing command, remote
+restore protocol, package manifest format, lock file, checksum model, or
+dependency solver. The CLI commands and source layout are expected to change.
+
+Today, packages are source folders plus compiler-produced API and native
+artifacts. The implementation is intentionally local and file-system based:
+package sources live under configured source roots, copied packages live under
 package roots, and build outputs live in cache directories keyed by target,
 profile, and dependency link kind.
 
 ## Package Specs
 
-A package dependency has a name, an optional version, and an optional link kind:
+The experimental compiler path models a package dependency as a name, an
+optional version, and an optional link kind:
 
 ```text
 textlib
@@ -18,12 +29,12 @@ textlib:static
 textlib:api
 ```
 
-Package specs may appear in:
+Package specs may appear in the current prototype surface:
 
 - `--use` command-line arguments;
 - `#build --use` pragmas;
 - `campc pkg add`;
-- restore and package install workflows.
+- experimental restore and package install workflows.
 
 The link kind describes how the package is consumed when the root build needs
 native artifacts. The default dependency link kind is `shared`.
@@ -40,8 +51,9 @@ an unversioned live package is used, its resolved cache version is `live`.
 
 ## Source Root Layout
 
-A package source root contains package directories. A versioned source package
-uses this shape:
+The current source-root layout is a usage demonstration for compiler
+development. A package source root contains package directories. A versioned
+source package uses this shape:
 
 ```text
 packages/
@@ -75,14 +87,14 @@ place them beside the Camp sources they support.
 #build --use textlib@1.2.0
 ```
 
-The source name is used by package search and source management commands. The
-compiler build path uses the paths. A package source with no path may appear
-while editing source lists, but it cannot satisfy installation or live-source
-resolution until a path is provided.
+The source name is used by the experimental package search and source-management
+commands. The compiler build path uses the paths. A package source with no path
+may appear while editing source lists, but it cannot satisfy installation or
+live-source resolution until a path is provided.
 
-## Installed Package Roots
+## Copied Package Roots
 
-Installed packages are searched in two roots:
+Copied packages are searched in two roots:
 
 ```text
 <repo>/cache/pkg
@@ -91,10 +103,10 @@ Installed packages are searched in two roots:
 
 The repository root is the global package root for the active compiler checkout.
 The working-directory root is local to the project being built. `campc restore`
-installs missing packages into the local root. `campc pkg install --global`
-installs into the global root.
+copies missing packages into the local root. `campc pkg install --global` copies
+into the global root.
 
-Installed packages use:
+Copied packages use:
 
 ```text
 cache/pkg/
@@ -104,7 +116,7 @@ cache/pkg/
         text.camp
 ```
 
-Build artifacts for installed packages are written under the matching package's
+Build artifacts for copied packages are written under the matching package's
 cache tree, not into the package source directory.
 
 ## Live Source Packages
@@ -159,7 +171,7 @@ needed.
 Because `std` is bundled with the compiler checkout, its package source root is
 the repository `lib` directory rather than an installed package source.
 
-## Restore
+## Experimental Restore
 
 `campc restore` reads effective global and local package pragmas from the
 provided sources or build file. For each `--use` package that is not installed
@@ -171,9 +183,15 @@ campc restore @textapp.campbuild
 ```
 
 Restore does not build API headers or native libraries. Those are built lazily
-by a later compile when the selected target/profile/link kind is known.
+by a later compile when the selected target/profile/link kind is known. This
+command is intended for compiler development and package-infrastructure testing,
+not normal project setup.
 
-## Package Commands
+## Experimental Package Commands
+
+The `campc pkg` commands are development-preview commands. They operate only on
+local files and copied package folders. They do not contact a package
+repository.
 
 `campc pkg search textlib` prints versions found in configured source roots.
 With `--local <file>`, search reads source roots from that file in addition to
@@ -190,12 +208,13 @@ the named source file. `campc pkg add-source` and `campc pkg remove-source` edit
 `#build --use-source` pragmas in either `lib/global.camp` or a selected local
 source file.
 
-## Project References Versus Packages
+## Project References Versus Experimental Packages
 
-Use a package when the dependency has a package identity and may be restored or
-shared across projects. Use a project reference when the dependency is another
-project in the same source tree and should be built with the consumer's target,
-profile, variants, and requested link kind.
+For normal multi-project development today, use a project reference when the
+dependency is another project in the same source tree and should be built with
+the consumer's target, profile, variants, and requested link kind. The package
+path exists to test compiler behavior around package identity, API headers, and
+cached native artifacts.
 
 Project references accept only `:static` and `:shared` suffixes. Package
 references also accept `:api`.

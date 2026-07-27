@@ -71,12 +71,12 @@ static RootCommand BuildCommandTree(CliEnvironment environment, string[] origina
 	cover.SetAction(_ => CampCli.Run(originalArgs, environment));
 	root.Subcommands.Add(cover);
 
-	Command restore = new("restore", "Install missing packages used by source files.");
+	Command restore = new("restore", "Experimental: restore local package infrastructure fixtures.");
 	restore.Arguments.Add(SourcePatternsArgument());
 	restore.SetAction(_ => CampCli.Run(originalArgs, environment));
 	root.Subcommands.Add(restore);
 
-	Command pkg = new("pkg", "Manage package sources and package dependencies.");
+	Command pkg = new("pkg", "Experimental: manage package infrastructure prototypes.");
 	AddPackageCommands(pkg, originalArgs, environment);
 	root.Subcommands.Add(pkg);
 
@@ -215,7 +215,7 @@ static void AddCoverageOptions(Command command)
 
 static void AddPackageCommands(Command pkg, string[] originalArgs, CliEnvironment environment)
 {
-	Command addSource = new("add-source", "Add a package source to global.camp or a source file.");
+	Command addSource = new("add-source", "Experimental: add a local package source to global.camp or a source file.");
 	addSource.Arguments.Add(new Argument<string>("name"));
 	addSource.Arguments.Add(new Argument<string>("local-folder"));
 	addSource.Options.Add(new Option<string?>("--local") { Description = "Source file to edit." });
@@ -223,39 +223,39 @@ static void AddPackageCommands(Command pkg, string[] originalArgs, CliEnvironmen
 	addSource.SetAction(_ => CampCli.Run(originalArgs, environment));
 	pkg.Subcommands.Add(addSource);
 
-	Command removeSource = new("remove-source", "Remove a package source.");
+	Command removeSource = new("remove-source", "Experimental: remove a local package source.");
 	removeSource.Arguments.Add(new Argument<string>("name"));
 	removeSource.Options.Add(new Option<string?>("--local") { Description = "Source file to edit." });
 	removeSource.Options.Add(new Option<bool>("--global") { Description = "Edit lib/global.camp." });
 	removeSource.SetAction(_ => CampCli.Run(originalArgs, environment));
 	pkg.Subcommands.Add(removeSource);
 
-	Command search = new("search", "Search configured package sources.");
+	Command search = new("search", "Experimental: search configured local package sources.");
 	search.Arguments.Add(new Argument<string>("pkg"));
 	search.Options.Add(new Option<string?>("--source") { Description = "Restrict search to a named source." });
 	search.Options.Add(new Option<string?>("--local") { Description = "Also read sources from a local file." });
 	search.SetAction(_ => CampCli.Run(originalArgs, environment));
 	pkg.Subcommands.Add(search);
 
-	Command install = new("install", "Install a package from configured sources.");
+	Command install = new("install", "Experimental: copy a package from configured local sources.");
 	install.Arguments.Add(new Argument<string>("pkg@ver"));
 	install.Options.Add(new Option<bool>("--global") { Description = "Install into the compiler package root." });
 	install.SetAction(_ => CampCli.Run(originalArgs, environment));
 	pkg.Subcommands.Add(install);
 
-	Command uninstall = new("uninstall", "Uninstall a package.");
+	Command uninstall = new("uninstall", "Experimental: remove a copied package.");
 	uninstall.Arguments.Add(new Argument<string>("pkg@ver"));
 	uninstall.Options.Add(new Option<bool>("--global") { Description = "Remove from the compiler package root." });
 	uninstall.SetAction(_ => CampCli.Run(originalArgs, environment));
 	pkg.Subcommands.Add(uninstall);
 
-	Command add = new("add", "Add a package use pragma to a source file.");
+	Command add = new("add", "Experimental: add a package use pragma to a source file.");
 	add.Arguments.Add(new Argument<string>("pkg@ver"));
 	add.Arguments.Add(new Argument<string>("file.camp"));
 	add.SetAction(_ => CampCli.Run(originalArgs, environment));
 	pkg.Subcommands.Add(add);
 
-	Command remove = new("remove", "Remove a package use pragma from a source file.");
+	Command remove = new("remove", "Experimental: remove a package use pragma from a source file.");
 	remove.Arguments.Add(new Argument<string>("pkg"));
 	remove.Arguments.Add(new Argument<string>("file.camp"));
 	remove.SetAction(_ => CampCli.Run(originalArgs, environment));
@@ -387,6 +387,7 @@ sealed class CampCli
 		if (args.Length == 0)
 			return Error("restore requires at least one .camp file.");
 
+		PrintPackagePreviewWarning();
 		List<string> errors = [];
 		BuildOptionBag bag = new();
 		ApplyGlobalPragmas(environment, bag, errors);
@@ -1145,6 +1146,11 @@ sealed class CampCli
 		Console.Error.WriteLine(message);
 		return 1;
 	}
+
+	public static void PrintPackagePreviewWarning()
+	{
+		Console.Error.WriteLine("warning: package commands are experimental package infrastructure for Camp compiler development; command names and layouts may change.");
+	}
 }
 
 sealed class PackageCommands
@@ -1153,6 +1159,7 @@ sealed class PackageCommands
 	{
 		if (args.Length == 0)
 			return Error("pkg requires a package command.");
+		CampCli.PrintPackagePreviewWarning();
 		return args[0] switch
 		{
 			"add-source" => AddSource(args[1..], environment),
