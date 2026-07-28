@@ -6460,9 +6460,15 @@ public static class CCodeEmitter
 			return false;
 		}
 
-		static bool IsPointerMemberTarget(Expression? target)
+		bool IsPointerMemberTarget(Expression? target)
 		{
-			return target is ThisExpression || IsPointerLike(target?.ResolvedType);
+			if (target is ThisExpression)
+			{
+				if (currentAsyncFrameNameReplacements.ContainsKey("this"))
+					return true;
+				return !TryGetCurrentInThisParameter(out _);
+			}
+			return IsPointerLike(target?.ResolvedType);
 		}
 
 		static bool IsPointerLike(string? type)

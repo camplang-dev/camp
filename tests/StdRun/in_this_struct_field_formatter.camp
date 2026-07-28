@@ -1,0 +1,18 @@
+using Std;
+
+struct MyValue
+{
+	int amount;
+}
+
+public nuint format(in MyValue this, overload char[] buffer) : StringFormatter
+{
+	return this.amount.format(buffer);
+}
+
+export int main()
+{
+	MyValue value = { .amount = 1 };
+	Console.writeLine($"item: {value}");
+	return 0;
+}
