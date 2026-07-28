@@ -179,6 +179,28 @@ string name = "Ada";
 Console.writeLine(name);
 ```
 
+Interpolated text uses `$"..."`:
+
+```camp
+int count = 3;
+Console.writeLine($"Found {count} files");
+```
+
+When the inserted values are known at compile time, the result is ordinary
+constant text. When runtime formatting is needed, Camp produces a formatter
+value instead of allocating a new `string`. That formatter can be passed to APIs
+such as `Console.writeLine` directly:
+
+```camp
+Console.writeLine("Found " + count + " files");
+```
+
+Ask for an owned string only when you really need one:
+
+```camp
+string message = ($"Found {count} files").copyString() finally delete;
+```
+
 The standard library supplies helpers for trimming, searching, comparing,
 copying, and transcoding text. The language guide uses only a small amount of
 that surface so it does not turn into an API catalog.

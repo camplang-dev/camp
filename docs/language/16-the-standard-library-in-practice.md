@@ -250,18 +250,24 @@ You often do not need to see that two-step protocol directly:
 ```camp
 void printTotal(int total)
 {
-	Console.write("total: ");
-	Console.writeLine(total);
+	Console.writeLine($"total: {total}");
 }
 ```
 
-Numeric `writeLine` overloads call formatting helpers for you. When you need
-an allocated string, ask the formatter to copy:
+`Console.write`, `Console.writeLine`, streams, and other text APIs can accept
+the formatter directly. Concatenation uses the same formatter path when either
+side is text:
 
 ```camp
-string formatTotal(int total)
+Console.writeLine("total: " + total);
+```
+
+When you need an allocated string, ask the formatter to copy:
+
+```camp
+escaped string formatTotal(int total)
 {
-	return total.format.copyString();
+	return ($"total: {total}").copyString();
 }
 ```
 
@@ -270,7 +276,7 @@ That returns an owned `string`, so ordinary cleanup applies:
 ```camp
 void showTotal(int total)
 {
-	string text = total.format.copyString() finally delete;
+	string text = ($"total: {total}").copyString() finally delete;
 	Console.writeLine(text);
 }
 ```

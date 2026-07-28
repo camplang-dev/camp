@@ -173,6 +173,88 @@ these same rules. Lowering must eventually produce the component-level pointer,
 length, and stride operations described in
 [Expanded Forms And ABI Shapes](02-expanded-forms-and-abi-shapes.md).
 
+## Interpolated Strings And Textual Composition
+
+An interpolated string expression begins with adjacent `$"` characters. Its
+semantic model is an ordered list of literal text segments and expression
+segments. Literal text uses ordinary double-quoted string escapes. `{{` and
+`}}` produce literal braces. A single unmatched `}`, an empty hole, an
+unterminated hole, or a physical newline before the closing quote is a source
+error.
+
+The compiler binds each interpolation hole as an ordinary expression in the
+surrounding body scope. If every hole is compile-time text or character data,
+the interpolation is constant text and follows the same target rules as a
+string literal.
+
+Runtime interpolation does not implicitly allocate `string`, `wstring`, or
+`astring`. It produces a scoped formatter delegate value. Assigning runtime
+interpolation or runtime textual composition directly to a primitive string
+target is invalid; the source must explicitly materialize text, such as by
+calling `copyString()`.
+
+A formatter target is eligible when it is a delegate or callable newtype whose
+underlying callable:
+
+- has exactly one non-`this` parameter;
+- takes a mutable `char[]`, `wchar[]`, or `achar[]` buffer parameter;
+- returns exactly the buffer array length component type;
+- is not `fn`, `once`, `async`, or `iter`;
+- has no `thrown` parameter.
+
+`auto` inference for runtime interpolation considers UTF-8 `char[]` formatter
+targets only. The first runtime hole establishes the formatter type. If the
+first runtime hole already has an eligible formatter type, that type is used.
+Otherwise the compiler looks for an ordinary instance `format` method on the
+hole value. Later runtime holes must either already be compatible formatter
+values or have an instance `format` method compatible with the established
+formatter target. A named callable-newtype formatter target requires formatter
+methods ascribed to that exact newtype.
+
+An explicit formatter target may be supplied by a declaration, assignment,
+return, cast, selected argument parameter, or selected overload parameter. A
+literal-only interpolation assigned to an explicit formatter target still
+produces a formatter.
+
+When an interpolated string or textual composition is used as an overload
+selector, overload resolution does not inspect the holes to choose between
+formatter families. Exactly one formatter-shaped selector candidate supplies
+the target. More than one formatter-shaped selector candidate is ambiguous.
+With no formatter-shaped selector candidate, ordinary overload selection rules
+apply.
+
+Binary `+` becomes textual composition when either operand is a textual anchor:
+a primitive string, compatible counted character view, interpolated string, or
+compatible formatter delegate. Textual composition lowers through the same
+formatter path as interpolation. Ordinary numeric `+` is unchanged when neither
+operand is textual. The operator remains left-associative:
+
+```camp
+"Total: " + 1 + 2;     // formats Total: 12
+1 + 2 + " total";      // formats 3 total
+"Total: " + (1 + 2);   // formats Total: 3
+```
+
+Constant string concatenation remains compile-time text. Textual `+=` has no
+formatter-composition meaning and must receive a dedicated diagnostic rather
+than falling through to a generic arithmetic error.
+
+Runtime lowering must evaluate every dynamic component exactly once in source
+order when the interpolation or textual composition expression is evaluated.
+The lowered value is an ordinary callable/context pair. Its size pass starts
+with one code unit for the final null terminator, adds literal segment lengths,
+and adds each dynamic formatter's reported required size minus its terminator
+when that reported size is nonzero. Its write pass writes literal text and
+dynamic formatter output in source order, overwrites intermediate terminators,
+and writes one final terminator when the buffer is large enough. The generated
+formatter must never write outside the caller-provided buffer.
+
+Interpolation syntax and textual composition are source expressions, not API
+surface declarations. Metadata and API headers record the ordinary resolved
+types, callable newtypes, default values, and selected functions. They must not
+invent a dependency on the standard library `StringFormatter`; such a dependency
+appears only when source code actually uses that type.
+
 ## Source Capture Default Arguments
 
 Source capture is a default-argument feature for APIs that need caller

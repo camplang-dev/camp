@@ -2,7 +2,7 @@
 
 Status: Pending  
 Proposal date: 2026-07-27  
-Last updated date: 2026-07-27
+Last updated date: 2026-07-28
 
 ## Summary
 
@@ -715,7 +715,7 @@ void write(overload LibraryFormatter value)
 }
 
 write($"Record: {recordId}");
-// ERROR: interpolated string cannot select between formatter overloads
+// ERROR: textual formatter expression cannot select between formatter overloads
 ```
 
 Resolve it with a cast:
@@ -749,8 +749,8 @@ public newtype delegate nuint StringFormatter(
 
 Implementation requires:
 
-- renaming `StringFormatter` to `StringFormatter` throughout the standard
-  library, tests, and documentation;
+- using `StringFormatter` throughout the standard library, tests, and
+  documentation;
 - changing standard `format` methods to use their character buffer as an
   `overload` selector;
 - keeping the default buffer value on `StringFormatter`, not on the overload
@@ -1178,8 +1178,7 @@ Update:
   bindable nodes;
 - language-server and editor documentation for semantic tokens and navigation
   within holes;
-- standard-library build documentation for the `StringFormatter` to
-  `StringFormatter` API rename;
+- standard-library build documentation for the `StringFormatter` API;
 - the compiler development guide with the formatter-shape helper and lowering
   ownership;
 - the documentation contributor guide with interpolation example and escaping

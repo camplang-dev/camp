@@ -60,6 +60,51 @@
     "strings": {
       "patterns": [
         {
+          "name": "string.quoted.double.interpolated.camp",
+          "begin": "\\$\"",
+          "end": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.camp"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.camp"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.camp",
+              "match": "\\\\."
+            },
+            {
+              "name": "constant.character.escape.brace.camp",
+              "match": "\\{\\{|\\}\\}"
+            },
+            {
+              "name": "meta.interpolation.camp",
+              "begin": "\\{",
+              "end": "\\}",
+              "beginCaptures": {
+                "0": {
+                  "name": "punctuation.section.interpolation.begin.camp"
+                }
+              },
+              "endCaptures": {
+                "0": {
+                  "name": "punctuation.section.interpolation.end.camp"
+                }
+              },
+              "patterns": [
+                {
+                  "include": "$self"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "string.quoted.double.camp",
           "begin": "\"",
           "end": "\"",

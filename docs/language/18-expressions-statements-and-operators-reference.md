@@ -23,6 +23,7 @@ Every expression has a static type after binding.
 | `default` | Requires a target type |
 | `null` | Requires a pointer-like or callable-compatible target |
 | String literal | Targeted as `string`, `wstring`, `astring`, character pointer, counted text, or fixed character storage |
+| Interpolated string | Constant text when all holes are constant text; otherwise a formatter value |
 | Array literal `[a, b]` | Requires or infers an array element type |
 | Initializer list `{ ... }` | Requires a target aggregate, fixed array, optional, or other initializer-compatible type |
 | Lambda | Requires or infers a callable target |
@@ -107,6 +108,19 @@ bitwise XOR operator.
 | Conditional | `condition ? whenTrue : whenFalse` | Common/target-compatible result |
 | Null coalescing | `left ?? right` | Compatible non-null/optional result |
 
+`+` also composes text when either side is a string, counted character view,
+interpolated string, or formatter:
+
+```camp
+Console.writeLine("total: " + total);
+Console.writeLine($"left={left}, right={right}");
+
+string message = ("total: " + total).copyString() finally delete;
+```
+
+Runtime text composition is a formatter. It does not allocate a primitive
+`string` implicitly.
+
 Conditions must be `bool`. Integers, pointers, enums, and newtypes do not
 implicitly become truth values.
 
@@ -130,7 +144,7 @@ The left side of an assignment must be writable.
 | Form | Meaning |
 |---|---|
 | `target = value` | Assign converted value |
-| `target += value` | Add then assign |
+| `target += value` | Add then assign for numeric values |
 | `target -= value` | Subtract then assign |
 | `target *= value` | Multiply then assign |
 | `target /= value` | Divide then assign |

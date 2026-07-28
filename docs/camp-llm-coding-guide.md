@@ -56,6 +56,12 @@ High-impact distinctions:
   `->`.
 - Capturing callables require `delegate`, `once`, or an async-appropriate target,
   not plain `fn`.
+- Runtime `$"..."` and textual `+` produce formatter values, not owned
+  primitive strings. Pass them directly to formatter-aware APIs such as
+  `Console.writeLine`, or call `.copyString()` with normal cleanup when an owned
+  `string` is required.
+- Constant interpolated text and constant string concatenation remain ordinary
+  string-like constants.
 - Generic code must state the capabilities it uses. `T: any` is intentionally
   restrictive.
 - Unsafe casts do not tunnel into arrays, delegates, optionals, interfaces, or

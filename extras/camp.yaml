@@ -21,6 +21,13 @@ rules:
   - preproc: "^\\s*#\\s*(if|elif|else|endif|define|undef|build|within)\\b.*$"
 
   - constant.string:
+      start: "\\$\""
+      end: "\""
+      skip: "\\\\.|\\{\\{|\\}\\}"
+      rules:
+        - constant.specialChar: "\\\\([\\\\'\"0abfnrtv]|x[0-9A-Fa-f]+|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})"
+        - symbol.brackets: "\\{|\\}"
+  - constant.string:
       start: "\""
       end: "\""
       skip: "\\\\."

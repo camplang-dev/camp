@@ -176,6 +176,9 @@ contexts:
       scope: storage.type.annotation.camp
 
   strings:
+    - match: '\$"'
+      scope: punctuation.definition.string.begin.camp
+      push: interpolated-string
     - match: '"'
       scope: punctuation.definition.string.begin.camp
       push:
@@ -198,6 +201,26 @@ contexts:
         - match: "'"
           scope: punctuation.definition.string.end.camp
           pop: true
+
+  interpolated-string:
+    - meta_scope: string.quoted.double.interpolated.camp
+    - match: '\\(?:[\\''"0abfnrtv]|x[0-9A-Fa-f]+|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})'
+      scope: constant.character.escape.camp
+    - match: '\\.'
+      scope: invalid.illegal.escape.camp
+    - match: '\{\{|\}\}'
+      scope: constant.character.escape.brace.camp
+    - match: '\{'
+      scope: punctuation.section.interpolation.begin.camp
+      push:
+        - meta_scope: meta.interpolation.camp
+        - match: '\}'
+          scope: punctuation.section.interpolation.end.camp
+          pop: true
+        - include: main
+    - match: '"'
+      scope: punctuation.definition.string.end.camp
+      pop: true
 
   numbers:
     - match: '\b0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*(?:[uUlLnN]|n?u?int|u?long|u?short|u?byte)?\b'
