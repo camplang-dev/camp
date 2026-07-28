@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace Camp.Compiler;
 
@@ -1633,6 +1634,9 @@ public sealed class CampParser
 
 	PrimaryExpressionSyntax? ParsePrimaryExpression()
 	{
+		if (IsClass(TokenClass.InterpolatedString))
+			return ParseInterpolatedStringExpression();
+
 		if (IsLiteral())
 			return new LiteralExpressionSyntax { Literal = Take() };
 
@@ -1675,6 +1679,223 @@ public sealed class CampParser
 			return ParseInitializerList();
 
 		return ParseQualifiedNameExpression();
+	}
+
+	InterpolatedStringExpressionSyntax ParseInterpolatedStringExpression()
+	{
+		Token? token = Take();
+		InterpolatedStringExpressionSyntax syntax = new() { Literal = token };
+		if (token is not Token literal)
+		{
+			Report(token, "Interpolated string is missing a token.");
+			return syntax;
+		}
+
+		ParseInterpolatedStringSegments(literal, syntax.Segments);
+		return syntax;
+	}
+
+	void ParseInterpolatedStringSegments(Token token, List<InterpolatedStringSegmentSyntax> segments)
+	{
+		string text = token.Value;
+		if (!text.StartsWith("$\"", StringComparison.Ordinal))
+		{
+			Report(token, "Interpolated string must start with '$\"'.");
+			return;
+		}
+
+		bool terminated = text.Length >= 3 && text[^1] == '"';
+		int end = terminated ? text.Length - 1 : text.Length;
+		if (!terminated)
+			Report(token, "Unterminated interpolated string.");
+
+		StringBuilder literal = new();
+		for (int i = 2; i < end;)
+		{
+			char c = text[i];
+			if (c == '\\')
+			{
+				if (i + 1 < end)
+				{
+					literal.Append(text, i, 2);
+					i += 2;
+				}
+				else
+				{
+					literal.Append(c);
+					i++;
+				}
+				continue;
+			}
+
+			if (c == '{')
+			{
+				if (i + 1 < end && text[i + 1] == '{')
+				{
+					literal.Append('{');
+					i += 2;
+					continue;
+				}
+
+				AddInterpolatedStringTextSegment(segments, literal);
+				int expressionStart = i + 1;
+				int expressionEnd = FindInterpolationHoleEnd(text, expressionStart, end, token);
+				if (expressionEnd < 0)
+				{
+					Report(token, "Unterminated interpolation hole.");
+					return;
+				}
+
+				string expressionText = text[expressionStart..expressionEnd];
+				if (string.IsNullOrWhiteSpace(expressionText))
+				{
+					Report(token, "Interpolation hole must contain an expression.");
+				}
+				else
+				{
+					ExpressionSyntax? expression = ParseInterpolatedHoleExpression(expressionText, token, expressionStart);
+					segments.Add(new InterpolatedStringExpressionSegmentSyntax { Expression = expression });
+				}
+
+				i = expressionEnd + 1;
+				continue;
+			}
+
+			if (c == '}')
+			{
+				if (i + 1 < end && text[i + 1] == '}')
+				{
+					literal.Append('}');
+					i += 2;
+					continue;
+				}
+
+				Report(token, "Unmatched '}' in interpolated string.");
+				i++;
+				continue;
+			}
+
+			literal.Append(c);
+			i++;
+		}
+
+		AddInterpolatedStringTextSegment(segments, literal);
+	}
+
+	void AddInterpolatedStringTextSegment(List<InterpolatedStringSegmentSyntax> segments, StringBuilder literal)
+	{
+		if (literal.Length == 0)
+			return;
+
+		segments.Add(new InterpolatedStringTextSegmentSyntax { Text = literal.ToString() });
+		literal.Clear();
+	}
+
+	ExpressionSyntax? ParseInterpolatedHoleExpression(string expressionText, Token token, int expressionStartOffset)
+	{
+		TokenSequence holeTokens = new(CampTokenizer.Tokenize(expressionText), token.LineNumber, token.Column + expressionStartOffset);
+		CampParser parser = new(holeTokens);
+		ExpressionSyntax? expression = parser.ParseExpressionItem();
+
+		if (!parser.AtEnd)
+			parser.ReportAndAdvance("Unexpected token in interpolation hole.");
+
+		diagnostics.AddRange(parser.Diagnostics);
+		return expression;
+	}
+
+	int FindInterpolationHoleEnd(string text, int start, int end, Token token)
+	{
+		int parenDepth = 0;
+		int bracketDepth = 0;
+		int braceDepth = 0;
+
+		for (int i = start; i < end;)
+		{
+			char c = text[i];
+			if (c is '"' or '\'' or '`')
+			{
+				i = SkipQuotedText(text, i, end);
+				continue;
+			}
+
+			if (c == '/' && i + 1 < end && text[i + 1] == '*')
+			{
+				i = SkipBlockCommentText(text, i + 2, end);
+				continue;
+			}
+
+			if (c == '/' && i + 1 < end && text[i + 1] == '/')
+			{
+				Report(token, "Line comments cannot terminate inside an interpolated string.");
+				return -1;
+			}
+
+			switch (c)
+			{
+				case '(':
+					parenDepth++;
+					i++;
+					break;
+				case ')':
+					if (parenDepth > 0)
+						parenDepth--;
+					i++;
+					break;
+				case '[':
+					bracketDepth++;
+					i++;
+					break;
+				case ']':
+					if (bracketDepth > 0)
+						bracketDepth--;
+					i++;
+					break;
+				case '{':
+					braceDepth++;
+					i++;
+					break;
+				case '}':
+					if (parenDepth == 0 && bracketDepth == 0 && braceDepth == 0)
+						return i;
+					if (braceDepth > 0)
+						braceDepth--;
+					i++;
+					break;
+				default:
+					i++;
+					break;
+			}
+		}
+
+		return -1;
+	}
+
+	static int SkipQuotedText(string text, int start, int end)
+	{
+		char quote = text[start];
+		int i = start + 1;
+		while (i < end)
+		{
+			char c = text[i++];
+			if (c == quote)
+				break;
+			if (c == '\\' && i < end)
+				i++;
+		}
+		return i;
+	}
+
+	static int SkipBlockCommentText(string text, int start, int end)
+	{
+		int i = start;
+		while (i + 1 < end)
+		{
+			if (text[i] == '*' && text[i + 1] == '/')
+				return i + 2;
+			i++;
+		}
+		return end;
 	}
 
 	NameOfExpressionSyntax ParseNameOfExpression()

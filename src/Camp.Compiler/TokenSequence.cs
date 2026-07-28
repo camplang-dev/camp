@@ -13,11 +13,16 @@ public class TokenSequence : IReadOnlyList<Token>
 	readonly List<LinePosition> linePositions = [];
 
 	public TokenSequence(IEnumerable<TokenValue> values)
+		: this(values, 1, 1)
+	{
+	}
+
+	public TokenSequence(IEnumerable<TokenValue> values, int startLineNumber, int startColumn)
 	{
 		ArgumentNullException.ThrowIfNull(values);
 
-		int lineNumber = 1;
-		int column = 1;
+		int lineNumber = startLineNumber;
+		int column = startColumn;
 
 		foreach (TokenValue value in values)
 		{

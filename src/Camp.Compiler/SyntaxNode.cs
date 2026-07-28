@@ -650,6 +650,26 @@ public class LiteralExpressionSyntax : PrimaryExpressionSyntax
 	public Token? Literal { get; set; }
 }
 
+public class InterpolatedStringExpressionSyntax : PrimaryExpressionSyntax
+{
+	public Token? Literal { get; set; }
+	public List<InterpolatedStringSegmentSyntax> Segments { get; } = [];
+}
+
+public abstract class InterpolatedStringSegmentSyntax : SyntaxNode
+{
+}
+
+public class InterpolatedStringTextSegmentSyntax : InterpolatedStringSegmentSyntax
+{
+	public string Text { get; set; } = "";
+}
+
+public class InterpolatedStringExpressionSegmentSyntax : InterpolatedStringSegmentSyntax
+{
+	public ExpressionSyntax? Expression { get; set; }
+}
+
 public class QualifiedNameExpressionSyntax : PrimaryExpressionSyntax
 {
 	public List<QualifierSyntax>? Qualifiers { get; set; }

@@ -11,6 +11,7 @@ public enum TokenClass
 	AttributeIdentifier,
 	Number,
 	String,
+	InterpolatedString,
 	Symbol,
 	LineComment,
 	BlockComment,
@@ -69,6 +70,11 @@ public static class CampTokenizer
 					yield return new TokenValue(text[start..i], TokenClass.BlockComment);
 					break;
 
+				case '$' when Peek(text, i + 1) == '"':
+					i = ReadInterpolatedString(text, i);
+					yield return new TokenValue(text[start..i], TokenClass.InterpolatedString);
+					break;
+
 				case '"' or '\'' or '`':
 					i = ReadString(text, i, c);
 					yield return new TokenValue(text[start..i], TokenClass.String);
@@ -124,6 +130,102 @@ public static class CampTokenizer
 
 			if (c == '\\' && i < text.Length && !IsNewLineStart(text, i))
 				i++;
+		}
+
+		return i;
+	}
+
+	static int ReadInterpolatedString(string text, int i)
+	{
+		i += 2;
+
+		while (i < text.Length && !IsNewLineStart(text, i))
+		{
+			char c = text[i++];
+
+			if (c == '"')
+				break;
+
+			if (c == '\\' && i < text.Length && !IsNewLineStart(text, i))
+			{
+				i++;
+				continue;
+			}
+
+			if (c == '{' && Peek(text, i) != '{')
+				i = ReadInterpolationHole(text, i);
+			else if ((c == '{' || c == '}') && Peek(text, i) == c)
+				i++;
+		}
+
+		return i;
+	}
+
+	static int ReadInterpolationHole(string text, int i)
+	{
+		int parenDepth = 0;
+		int bracketDepth = 0;
+		int braceDepth = 0;
+
+		while (i < text.Length && !IsNewLineStart(text, i))
+		{
+			char c = text[i];
+
+			if (c is '"' or '\'' or '`')
+			{
+				i = ReadString(text, i, c);
+				continue;
+			}
+
+			if (c == '/' && Peek(text, i + 1) == '*')
+			{
+				bool inBlockComment = true;
+				i = ReadBlockCommentLine(text, i, ref inBlockComment);
+				continue;
+			}
+
+			if (c == '/' && Peek(text, i + 1) == '/')
+			{
+				while (i < text.Length && !IsNewLineStart(text, i))
+					i++;
+				continue;
+			}
+
+			switch (c)
+			{
+				case '(':
+					parenDepth++;
+					i++;
+					break;
+				case ')':
+					if (parenDepth > 0)
+						parenDepth--;
+					i++;
+					break;
+				case '[':
+					bracketDepth++;
+					i++;
+					break;
+				case ']':
+					if (bracketDepth > 0)
+						bracketDepth--;
+					i++;
+					break;
+				case '{':
+					braceDepth++;
+					i++;
+					break;
+				case '}':
+					if (parenDepth == 0 && bracketDepth == 0 && braceDepth == 0)
+						return i + 1;
+					if (braceDepth > 0)
+						braceDepth--;
+					i++;
+					break;
+				default:
+					i++;
+					break;
+			}
 		}
 
 		return i;
