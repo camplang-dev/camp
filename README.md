@@ -4,11 +4,6 @@ Camp is a C-like systems programming language that lowers modern source forms to
 
 The compiler, language server, debug adapter, standard library, target files, editor support, documentation, and tests live in this repository.
 
-## Links
-
-- Website: https://camplang.org
-- Latest preview release: https://github.com/camplang-dev/camp/releases
-
 ## Status
 
 Camp is early preview software. Release archives are published on GitHub

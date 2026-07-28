@@ -7,11 +7,6 @@ on:
       version:
         description: Release version
         required: true
-      prerelease:
-        description: Mark the GitHub release as a prerelease
-        required: true
-        type: boolean
-        default: true
       publish:
         description: I understand this will create the tag and publish release assets
         required: true
@@ -27,7 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.validate.outputs.version }}
-      prerelease: ${{ steps.validate.outputs.prerelease }}
       commit: ${{ steps.validate.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +35,6 @@ jobs:
           set -euo pipefail
 
           version="${{ inputs.version }}"
-          prerelease="${{ inputs.prerelease }}"
 
           if [ "${{ inputs.publish }}" != "true" ]; then
             echo "The publish checkbox must be enabled to publish a release." >&2
@@ -50,11 +43,6 @@ jobs:
 
           if ! [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9][A-Za-z0-9.-]*)?$ ]]; then
             echo "Release version must look like v0.2.0-preview.1 or v1.0.0." >&2
-            exit 1
-          fi
-
-          if [[ "$version" == *-preview* && "$prerelease" != "true" ]]; then
-            echo "Preview versions must be marked as prereleases." >&2
             exit 1
           fi
 
@@ -82,7 +70,6 @@ jobs:
           fi
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
@@ -203,7 +190,6 @@ jobs:
           set -euo pipefail
 
           version="${{ needs.validate.outputs.version }}"
-          prerelease="${{ needs.validate.outputs.prerelease }}"
           commit="${{ needs.validate.outputs.commit }}"
           notes="docs/releases/${version}.md"
 
@@ -213,18 +199,11 @@ jobs:
             git push origin "$version"
           fi
 
-          release_flags=()
-          if [ "$prerelease" = "true" ]; then
-            release_flags+=(--prerelease)
-          else
-            release_flags+=(--latest)
-          fi
-
           if gh release view "$version" >/dev/null 2>&1; then
-            gh release edit "$version" --title "Camp ${version}" --notes-file "$notes" "${release_flags[@]}"
+            gh release edit "$version" --title "Camp ${version}" --notes-file "$notes" --latest
             gh release upload "$version" release-assets/* --clobber
           else
-            gh release create "$version" release-assets/* "${release_flags[@]}" --title "Camp ${version}" --notes-file "$notes"
+            gh release create "$version" release-assets/* --latest --title "Camp ${version}" --notes-file "$notes"
           fi
 
   verify-install:

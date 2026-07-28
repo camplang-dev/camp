@@ -174,7 +174,6 @@ After the rehearsal passes, run the GitHub Actions workflow named
 `release-publish` from `master`:
 
 - enter the approved version;
-- leave `prerelease` enabled for preview versions;
 - enable the `publish` confirmation checkbox.
 
 Do not create or push the release tag locally. The publish workflow validates the
@@ -184,10 +183,12 @@ only after the matrix passes, uploads the GitHub Release assets, verifies
 checksums, and runs installer checks on Linux, macOS, and Windows against the
 published release assets.
 
-All preview releases must be marked as GitHub prereleases, including older
-previews. Do not rely on GitHub's stable `latest` release endpoint or badge for
-preview release selection. Camp installer scripts define "latest" as the first
-release returned by the releases list, which includes prereleases.
+Camp preview releases should be normal GitHub Releases, not GitHub prereleases.
+The Camp version string carries the preview label. This keeps GitHub's
+repository sidebar and `/releases/latest` endpoint pointed at the latest Camp
+preview release, which is the behavior users expect on the repository homepage.
+Use the GitHub prerelease flag only if the maintainer explicitly asks for a
+release that should not be treated as the latest public Camp release.
 
 Watch the publish workflow through completion. Confirm that the release page has
 the expected archives, per-archive `.sha256` files, and `checksums.txt`. If the
