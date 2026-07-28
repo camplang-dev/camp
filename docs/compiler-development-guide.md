@@ -66,6 +66,12 @@ rejection except for mechanical archive changes. New accepted proposals live
 in `docs/proposals/accepted` as historical files after their details are
 integrated into canonical docs.
 
+Implementation plans are not proposals. Keep implementation plans outside
+`docs/proposals/accepted`, even when the work is complete. If a plan was written
+for a proposal, the proposal may move through the proposal lifecycle, but the
+plan itself should remain uncommitted unless the maintainer explicitly asks for
+it to be committed somewhere else.
+
 ## Working In A Dirty Tree
 
 Assume unrelated changes belong to someone else. Do not revert them. If a file

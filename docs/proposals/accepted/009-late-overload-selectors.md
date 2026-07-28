@@ -1,6 +1,13 @@
 # Late Overload Selectors
 
-Status: Pending
+## Status
+
+Accepted and implementation-complete.
+
+Active language guidance now lives in the language guide, compiler-writer
+semantics live in the semantic supplements, and command-line/tooling behavior
+lives in the compiler docs. This proposal is retained as the accepted design
+record.
 
 ## Summary
 

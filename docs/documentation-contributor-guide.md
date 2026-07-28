@@ -233,6 +233,10 @@ Only move and number a draft after the maintainer explicitly says it is ready
 to become pending and be committed. At that point, move it under
 `docs/proposals/pending/` using the assigned numbered filename.
 
+Implementation plans are not proposals. Do not put plan files in
+`docs/proposals/accepted`, and do not move a completed plan into accepted as if
+it were the accepted design record.
+
 Reviewed proposals live under:
 
 - `docs/proposals/accepted/`;
