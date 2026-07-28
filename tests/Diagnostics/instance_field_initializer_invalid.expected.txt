@@ -1,0 +1,2 @@
+tests/Diagnostics/instance_field_initializer_invalid.camp(3,14): error: Instance fields cannot have initializers; initialize the field in a constructor or initializer expression.
+tests/Diagnostics/instance_field_initializer_invalid.camp(8,10): error: Instance fields cannot have initializers; initialize the field in a constructor or initializer expression.

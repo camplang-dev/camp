@@ -851,6 +851,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(definition), "Inline constants cannot be extern.");
 		if (definition.IsInline && definition.InitialValue is null)
 			Report(GetNameRange(definition), "Inline constants require an initializer.");
+		if (definition.Modifier != FieldModifier.Static && definition.InitialValue is not null && definition.SourceSyntax is not null)
+			Report(GetRange(definition.InitialValue.SourceSyntax ?? definition.SourceSyntax), "Instance fields cannot have initializers; initialize the field in a constructor or initializer expression.");
 		CheckName(definition.Name, GetNameRange(definition), "field");
 		AnalyzeOptionalType(definition.Type, scope);
 		if (ContainsClassTypeReference(definition.Type))

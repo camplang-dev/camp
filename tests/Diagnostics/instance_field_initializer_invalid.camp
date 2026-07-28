@@ -1,0 +1,9 @@
+class Counter
+{
+	int value = 42;
+}
+
+struct Point
+{
+	int x = 1;
+}
