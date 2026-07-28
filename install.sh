@@ -92,10 +92,16 @@ detect_rid() {
 }
 
 resolve_latest() {
-    api_url="https://api.github.com/repos/${repo}/releases/latest"
-    tag="$(curl -fsSL "$api_url" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+    latest_url="https://api.github.com/repos/${repo}/releases/latest"
+    releases_url="https://api.github.com/repos/${repo}/releases?per_page=1"
+    response="$(curl -fsSL "$latest_url" 2>/dev/null || true)"
+    tag="$(printf '%s\n' "$response" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
     if [ -z "$tag" ]; then
-        echo "Could not resolve latest release for ${repo}." >&2
+        response="$(curl -fsSL "$releases_url" 2>/dev/null || true)"
+        tag="$(printf '%s\n' "$response" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+    fi
+    if [ -z "$tag" ]; then
+        echo "Could not resolve a published release for ${repo}." >&2
         exit 1
     fi
     echo "$tag"

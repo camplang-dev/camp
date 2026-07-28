@@ -23,9 +23,17 @@ function Resolve-Rid {
 
 function Resolve-LatestVersion {
     param([string]$Repository)
-    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases/latest"
+    try {
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases/latest"
+    }
+    catch {
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases?per_page=1"
+        if ($release -is [array]) {
+            $release = $release | Select-Object -First 1
+        }
+    }
     if (-not $release.tag_name) {
-        throw "Could not resolve latest release for $Repository."
+        throw "Could not resolve a published release for $Repository."
     }
     return $release.tag_name
 }
