@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 
 namespace Camp.Compiler;
 
@@ -1090,6 +1091,7 @@ public sealed partial class BindableNodeAnalyzer
 			SymbolOfExpression symbolOf => BodyAnalyzeSymbolOfExpression(symbolOf),
 			CallerSourceCaptureExpression caller => BodyAnalyzeCallerSourceCaptureExpression(caller),
 			SourceOfExpression sourceOf => BodyAnalyzeSourceOfExpression(sourceOf),
+			InterpolatedStringExpression interpolation => BodyAnalyzeInterpolatedStringExpression(interpolation, scope, typeScope, targetType),
 			LambdaExpression lambda => BodyAnalyzeLambdaExpression(lambda, scope, typeScope, targetType),
 			ArgumentExpression argument => BodyAnalyzeArgumentExpression(argument, scope, typeScope, targetType),
 			CallExpression call => BodyAnalyzeCallExpression(call, scope, typeScope, targetType),
@@ -1150,6 +1152,108 @@ public sealed partial class BindableNodeAnalyzer
 			LiteralKind.Number => GetNumberLiteralType(literal.Text, targetType),
 			_ => ErrorType
 		};
+	}
+
+	string BodyAnalyzeInterpolatedStringExpression(InterpolatedStringExpression interpolation, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	{
+		bool constant = true;
+		StringBuilder value = new();
+
+		foreach (InterpolatedStringSegment segment in interpolation.Segments)
+		{
+			switch (segment)
+			{
+				case InterpolatedStringTextSegment text:
+					value.Append(text.Text);
+					break;
+
+				case InterpolatedStringExpressionSegment hole:
+					string holeType = BodyAnalyzeExpression(hole.Expression, scope, typeScope);
+					if (!TryAppendConstantInterpolationHole(hole.Expression, holeType, value))
+						constant = false;
+					break;
+			}
+		}
+
+		if (constant)
+		{
+			LiteralExpression literal = new()
+			{
+				SourceSyntax = interpolation.SourceSyntax,
+				Kind = LiteralKind.String,
+				Text = FormatStringLiteral(value.ToString()),
+				Value = value.ToString()
+			};
+			string type = GetStringLiteralType(literal, targetType);
+			literal.ResolvedType = type;
+			expressionConstants[interpolation] = true;
+			expressionRewrites[interpolation] = literal;
+			return type;
+		}
+
+		expressionConstants[interpolation] = false;
+		if (targetType is not null && IsStringLiteralTargetType(targetType))
+			Report(GetRange(interpolation.SourceSyntax), $"Runtime interpolated string cannot implicitly convert to primitive string target '{targetType}'.");
+		else
+			Report(GetRange(interpolation.SourceSyntax), "Runtime interpolated strings require formatter binding, which has not been implemented yet.");
+		return ErrorType;
+	}
+
+	bool TryAppendConstantInterpolationHole(Expression? expression, string holeType, StringBuilder value)
+	{
+		if (!IsConstant(expression))
+			return false;
+
+		if (expressionRewrites.TryGetValue(expression!, out Expression? rewritten))
+			expression = rewritten;
+
+		switch (expression)
+		{
+			case LiteralExpression { Kind: LiteralKind.String, Value: string text }:
+				value.Append(text);
+				return true;
+
+			case LiteralExpression { Kind: LiteralKind.Character, Value: string text }:
+				value.Append(text);
+				return true;
+		}
+
+		return false;
+	}
+
+	static string FormatStringLiteral(string value)
+	{
+		StringBuilder builder = new();
+		builder.Append('"');
+		foreach (char c in value)
+		{
+			switch (c)
+			{
+				case '\\':
+					builder.Append("\\\\");
+					break;
+				case '"':
+					builder.Append("\\\"");
+					break;
+				case '\0':
+					builder.Append("\\0");
+					break;
+				case '\n':
+					builder.Append("\\n");
+					break;
+				case '\r':
+					builder.Append("\\r");
+					break;
+				case '\t':
+					builder.Append("\\t");
+					break;
+				default:
+					builder.Append(c);
+					break;
+			}
+		}
+		builder.Append('"');
+		return builder.ToString();
 	}
 
 	bool TryGetNamedExpressionTypeDefinition(NamedExpression named, out TypeDefinition? typeDefinition)

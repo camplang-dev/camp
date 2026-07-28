@@ -58,6 +58,9 @@ public sealed partial class BindableNodeBuilder
 			case LiteralExpressionSyntax literal:
 				return BuildLiteralExpression(literal);
 
+			case InterpolatedStringExpressionSyntax interpolated:
+				return BuildInterpolatedStringExpression(interpolated, context);
+
 			case QualifiedNameExpressionSyntax name:
 				return BuildNamedExpression(name, context);
 
@@ -198,6 +201,33 @@ public sealed partial class BindableNodeBuilder
 			Text = literal.Value,
 			Value = value
 		};
+	}
+
+	InterpolatedStringExpression BuildInterpolatedStringExpression(InterpolatedStringExpressionSyntax syntax, string context)
+	{
+		InterpolatedStringExpression expression = new() { SourceSyntax = syntax };
+		foreach (InterpolatedStringSegmentSyntax segment in syntax.Segments)
+		{
+			switch (segment)
+			{
+				case InterpolatedStringTextSegmentSyntax text:
+					expression.Segments.Add(new InterpolatedStringTextSegment
+					{
+						SourceSyntax = text,
+						Text = DecodeStringContent(text.Text, 0, text.Text.Length)
+					});
+					break;
+
+				case InterpolatedStringExpressionSegmentSyntax hole:
+					expression.Segments.Add(new InterpolatedStringExpressionSegment
+					{
+						SourceSyntax = hole,
+						Expression = BuildExpression(hole.Expression, $"{context} interpolation hole")
+					});
+					break;
+			}
+		}
+		return expression;
 	}
 
 	NamedExpression BuildNamedExpression(QualifiedNameExpressionSyntax syntax, string context)
@@ -804,12 +834,17 @@ public sealed partial class BindableNodeBuilder
 		if (text[^1] != quote || quote is not ('"' or '\'' or '`'))
 			return text;
 
+		return DecodeStringContent(text, 1, text.Length - 1);
+	}
+
+	static string DecodeStringContent(string text, int start, int end)
+	{
 		StringBuilder builder = new();
 
-		for (int i = 1; i < text.Length - 1; i++)
+		for (int i = start; i < end; i++)
 		{
 			char c = text[i];
-			if (c != '\\' || i + 1 >= text.Length - 1)
+			if (c != '\\' || i + 1 >= end)
 			{
 				builder.Append(c);
 				continue;

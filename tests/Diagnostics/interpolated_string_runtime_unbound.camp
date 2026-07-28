@@ -1,0 +1,6 @@
+int getValue() => 7;
+
+void main()
+{
+	auto value = $"value {getValue()}";
+}

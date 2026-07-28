@@ -13,6 +13,25 @@ public class LiteralExpression : Expression
 	public object? Value { get; set; }
 }
 
+public class InterpolatedStringExpression : Expression
+{
+	public List<InterpolatedStringSegment> Segments { get; } = [];
+}
+
+public abstract class InterpolatedStringSegment : BindableNode
+{
+}
+
+public class InterpolatedStringTextSegment : InterpolatedStringSegment
+{
+	public string Text { get; set; } = "";
+}
+
+public class InterpolatedStringExpressionSegment : InterpolatedStringSegment
+{
+	public Expression? Expression { get; set; }
+}
+
 public class SymbolOfExpression : Expression
 {
 	public string Text { get; set; } = "";

@@ -1,0 +1,14 @@
+using Std;
+
+export int main()
+{
+	string message = $"Hello, {"Camp"}{'!'}";
+	if (message.compareTo("Hello, Camp!") != 0)
+		return 1;
+
+	string braces = $"{{{"Camp"}}}";
+	if (braces.compareTo("{Camp}") != 0)
+		return 2;
+
+	return 0;
+}

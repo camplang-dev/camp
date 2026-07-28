@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Text;
 
 namespace Camp.Compiler;
 
@@ -151,6 +152,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			LiteralExpression literal => TryEvaluateLiteralConstant(literal, targetType, out value),
 
+			InterpolatedStringExpression interpolation => TryEvaluateInterpolatedStringConstant(owner, interpolation, targetType, visiting, out value),
+
 			DefaultExpression => TryEvaluateDefaultConstant(targetType, out value),
 
 			ParenthesizedExpression parenthesized =>
@@ -246,8 +249,49 @@ public sealed partial class BindableNodeAnalyzer
 		if (literal.Kind == LiteralKind.String)
 			Report(GetRange(literal.SourceSyntax), "String literals may initialize only string, wstring, astring, or const character pointer inline constants.");
 		else
-			Report(GetRange(literal.SourceSyntax), "Literal is not valid for this inline constant type.");
+		Report(GetRange(literal.SourceSyntax), "Literal is not valid for this inline constant type.");
 		return false;
+	}
+
+	bool TryEvaluateInterpolatedStringConstant(BindableNode owner, InterpolatedStringExpression interpolation, string? targetType, HashSet<BindableNode> visiting, out ConstantValue? value)
+	{
+		value = null;
+		if (!IsStringLikeInlineType(targetType))
+		{
+			Report(GetRange(interpolation.SourceSyntax), "Interpolated string constants may initialize only string, wstring, astring, or const character pointer inline constants.");
+			return false;
+		}
+
+		StringBuilder builder = new();
+		foreach (InterpolatedStringSegment segment in interpolation.Segments)
+		{
+			switch (segment)
+			{
+				case InterpolatedStringTextSegment text:
+					builder.Append(text.Text);
+					break;
+
+				case InterpolatedStringExpressionSegment hole:
+					if (hole.Expression is null || !TryEvaluateInlineConstantCore(owner, hole.Expression, "string", visiting, out ConstantValue? holeValue))
+						return false;
+					switch (holeValue)
+					{
+						case ConstantValue.String text:
+							builder.Append(text.Value);
+							break;
+						case ConstantValue.Character character:
+							builder.Append(character.Value);
+							break;
+						default:
+							Report(GetRange(hole.Expression.SourceSyntax), "Interpolated string constant holes must be string-like or character constants.");
+							return false;
+					}
+					break;
+			}
+		}
+
+		value = new ConstantValue.String(builder.ToString());
+		return true;
 	}
 
 	bool TryEvaluateSizeOfConstant(SizeOfExpression sizeOf, out ConstantValue? value)

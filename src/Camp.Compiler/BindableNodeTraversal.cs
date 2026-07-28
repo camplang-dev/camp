@@ -109,6 +109,11 @@ internal static class BindableNodeTraversal
 					yield return item.Expression;
 				break;
 
+			case InterpolatedStringExpressionSegment segment:
+				if (segment.Expression is not null)
+					yield return segment.Expression;
+				break;
+
 			case InitializerItem item:
 				if (item.Target is not null)
 					yield return item.Target;
@@ -490,6 +495,10 @@ internal static class BindableNodeTraversal
 				if (type.Type is not null)
 					yield return type.Type;
 				break;
+			case InterpolatedStringExpression interpolation:
+				foreach (InterpolatedStringSegment child in interpolation.Segments)
+					yield return child;
+				break;
 			case DefaultExpression defaultExpression:
 				if (defaultExpression.Type is not null)
 					yield return defaultExpression.Type;
@@ -800,6 +809,9 @@ internal static class BindableNodeTraversal
 				break;
 			case TypeReferenceExpression type:
 				type.Type = Type(type.Type);
+				break;
+			case InterpolatedStringExpressionSegment segment:
+				segment.Expression = Expression(segment.Expression);
 				break;
 			case DefaultExpression defaultExpression:
 				defaultExpression.Type = Type(defaultExpression.Type);

@@ -933,6 +933,10 @@ public sealed class BindableNodeCodeSerializer
 				WriteLiteral(literal);
 				break;
 
+			case InterpolatedStringExpression interpolation:
+				WriteInterpolatedString(interpolation);
+				break;
+
 			case SymbolOfExpression symbolOf:
 				writer.Write("symbolof(");
 				writer.Write(symbolOf.Text);
@@ -1955,6 +1959,64 @@ public sealed class BindableNodeCodeSerializer
 			default:
 				writer.Write(literal.Text);
 				break;
+		}
+	}
+
+	void WriteInterpolatedString(InterpolatedStringExpression interpolation)
+	{
+		writer.Write("$\"");
+		foreach (InterpolatedStringSegment segment in interpolation.Segments)
+		{
+			switch (segment)
+			{
+				case InterpolatedStringTextSegment text:
+					WriteInterpolatedStringText(text.Text);
+					break;
+
+				case InterpolatedStringExpressionSegment expression:
+					writer.Write("{");
+					WriteExpression(expression.Expression);
+					writer.Write("}");
+					break;
+			}
+		}
+		writer.Write("\"");
+	}
+
+	void WriteInterpolatedStringText(string text)
+	{
+		foreach (char c in text)
+		{
+			switch (c)
+			{
+				case '\\':
+					writer.Write("\\\\");
+					break;
+				case '"':
+					writer.Write("\\\"");
+					break;
+				case '\0':
+					writer.Write("\\0");
+					break;
+				case '\n':
+					writer.Write("\\n");
+					break;
+				case '\r':
+					writer.Write("\\r");
+					break;
+				case '\t':
+					writer.Write("\\t");
+					break;
+				case '{':
+					writer.Write("{{");
+					break;
+				case '}':
+					writer.Write("}}");
+					break;
+				default:
+					writer.Write(c);
+					break;
+			}
 		}
 	}
 

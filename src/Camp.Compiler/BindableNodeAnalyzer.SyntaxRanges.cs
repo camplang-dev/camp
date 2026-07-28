@@ -152,6 +152,7 @@ public sealed partial class BindableNodeAnalyzer
 		return expression switch
 		{
 			LiteralExpressionSyntax literal => literal.Literal?.Range,
+			InterpolatedStringExpressionSyntax interpolated => interpolated.Literal?.Range,
 			QualifiedNameExpressionSyntax name => name.Identifier?.Range,
 			ThisExpressionSyntax thisExpression => thisExpression.ThisKeyword?.Range,
 			DefaultExpressionSyntax defaultExpression => defaultExpression.DefaultKeyword?.Range,
