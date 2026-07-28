@@ -243,9 +243,18 @@ jobs:
           echo "$install_output" | grep -F "extras/editors/micro/install.sh"
           echo "$install_output" | grep -F "extras/editors/vim/install.sh"
           "$install_dir/bin/campc" --version
-          latest_output="$(sh install.sh --dry-run --no-path)"
-          echo "$latest_output"
-          echo "$latest_output" | grep -F "Camp $version"
+          for attempt in 1 2 3 4 5 6; do
+            if latest_output="$(sh install.sh --dry-run --no-path 2>&1)" && echo "$latest_output" | grep -F "Camp $version"; then
+              echo "$latest_output"
+              break
+            fi
+            if [ "$attempt" -eq 6 ]; then
+              echo "$latest_output"
+              echo "Latest release resolution did not select $version." >&2
+              exit 1
+            fi
+            sleep 10
+          done
 
       - name: Verify Windows installer
         if: matrix.shell == 'pwsh'
@@ -253,22 +262,34 @@ jobs:
         run: |
           $version = "${{ needs.validate.outputs.version }}"
           $installDir = Join-Path $env:RUNNER_TEMP "camp-install"
-          $installOutput = ./install.ps1 -Version $version -InstallDir $installDir -NoPath
-          $installOutput
-          $installText = $installOutput -join "`n"
+          $installText = (& ./install.ps1 -Version $version -InstallDir $installDir -NoPath 6>&1 | Out-String)
+          $installText
           foreach ($expected in @(
             "extras\editors\vscode\install.ps1",
             "extras\editors\sublime\install.ps1",
             "extras\editors\micro\install.ps1",
             "extras\editors\vim\install.ps1"
           )) {
-            if ($installText -notlike "*$expected*") {
+            if (-not $installText.Contains($expected)) {
               throw "Installer output did not mention $expected."
             }
           }
           & (Join-Path $installDir "bin\campc.exe") --version
-          $latestOutput = ./install.ps1 -DryRun -NoPath
-          $latestOutput
-          if (($latestOutput -join "`n") -notlike "*Camp $version*") {
-            throw "Latest release resolution did not select $version."
+          $latestText = ""
+          for ($attempt = 1; $attempt -le 6; $attempt++) {
+            try {
+              $latestText = (& ./install.ps1 -DryRun -NoPath 6>&1 | Out-String)
+              if ($latestText.Contains("Camp $version")) {
+                $latestText
+                break
+              }
+            }
+            catch {
+              $latestText = $_ | Out-String
+            }
+            if ($attempt -eq 6) {
+              $latestText
+              throw "Latest release resolution did not select $version."
+            }
+            Start-Sleep -Seconds 10
           }
