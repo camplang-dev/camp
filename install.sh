@@ -81,7 +81,7 @@ detect_rid() {
         Darwin:arm64) echo "osx-arm64" ;;
         Linux:x86_64|Linux:amd64) echo "linux-x64" ;;
         Linux:i386|Linux:i686)
-            echo "Camp preview 1 does not provide a Linux x86 host tool distribution." >&2
+            echo "Camp does not provide a Linux x86 host tool distribution." >&2
             exit 1
             ;;
         *)

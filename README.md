@@ -6,7 +6,8 @@ The compiler, language server, debug adapter, standard library, target files, ed
 
 ## Status
 
-Camp is early software. The current preview release is `v0.2.0-preview.1`.
+Camp is early preview software. Release archives are published on GitHub
+Releases.
 
 ## Prerequisites
 
@@ -50,7 +51,7 @@ instructions. Use `--add-to-path` on Unix or `-AddToPath` on Windows to update
 PATH automatically.
 
 Manual archives are available from GitHub Releases. Preview host tool
-distributions are:
+distributions are currently available for:
 
 - `win-x64`
 - `win-x86`
@@ -58,7 +59,7 @@ distributions are:
 - `osx-x64`
 - `osx-arm64`
 
-Linux x86 is supported as a generated-code target, not as a preview host tool
+Linux x86 is supported as a generated-code target, not as a host tool
 distribution.
 
 ## Build From Source
@@ -95,7 +96,7 @@ The published tools are written to `bin/publish/<rid>/`. Release archives are
 created with:
 
 ```bash
-local/package-release.sh --version v0.2.0-preview.1 --rid osx-x64
+local/package-release.sh --version vX.Y.Z-preview.N --rid osx-x64
 ```
 
 When installed outside the source tree, Camp expects its installation root to
