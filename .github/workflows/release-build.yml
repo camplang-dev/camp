@@ -6,7 +6,7 @@ on:
       version:
         description: Release version
         required: true
-        default: v0.1.0-preview.1
+        default: v0.2.0-preview.1
 
 jobs:
   build:

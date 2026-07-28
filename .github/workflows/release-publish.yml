@@ -6,7 +6,7 @@ on:
       version:
         description: Release version
         required: true
-        default: v0.1.0-preview.1
+        default: v0.2.0-preview.1
   push:
     tags:
       - 'v*'
@@ -110,6 +110,15 @@ jobs:
             echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Verify release notes
+        shell: bash
+        run: |
+          notes="docs/releases/${{ steps.version.outputs.value }}.md"
+          if [ ! -f "$notes" ]; then
+            echo "Release notes file is missing: $notes" >&2
+            exit 1
+          fi
+
       - uses: actions/download-artifact@v4
         with:
           path: release-assets
@@ -130,9 +139,10 @@ jobs:
         shell: bash
         run: |
           version="${{ steps.version.outputs.value }}"
-          notes="Camp ${version} preview release."
+          notes="docs/releases/${version}.md"
           if gh release view "$version" >/dev/null 2>&1; then
+            gh release edit "$version" --title "Camp ${version}" --notes-file "$notes" --prerelease
             gh release upload "$version" release-assets/* --clobber
           else
-            gh release create "$version" release-assets/* --prerelease --title "Camp ${version}" --notes "$notes"
+            gh release create "$version" release-assets/* --prerelease --title "Camp ${version}" --notes-file "$notes"
           fi
