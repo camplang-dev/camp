@@ -112,6 +112,8 @@ internal static class BindableNodeTraversal
 			case InterpolatedStringExpressionSegment segment:
 				if (segment.Expression is not null)
 					yield return segment.Expression;
+				if (segment.Formatter is not null)
+					yield return segment.Formatter;
 				break;
 
 			case InitializerItem item:
@@ -812,6 +814,7 @@ internal static class BindableNodeTraversal
 				break;
 			case InterpolatedStringExpressionSegment segment:
 				segment.Expression = Expression(segment.Expression);
+				segment.Formatter = Expression(segment.Formatter);
 				break;
 			case DefaultExpression defaultExpression:
 				defaultExpression.Type = Type(defaultExpression.Type);

@@ -1,1 +1,1 @@
-tests/Diagnostics/interpolated_string_runtime_unbound.camp(5,15): error: Runtime interpolated strings require formatter binding, which has not been implemented yet.
+tests/Diagnostics/interpolated_string_runtime_unbound.camp(5,32): error: Interpolation expression of type 'int' does not establish a UTF-8 formatter type.

@@ -11,6 +11,89 @@ namespace Camp.Compiler.Tests;
 public sealed class SemanticTests
 {
 	[Fact]
+	public void Interpolated_strings_bind_to_formatter_protocol_targets()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			newtype delegate nuint TextFormatter(const this, char[] buffer = default);
+
+			class Value
+			{
+				int number;
+
+				nuint format(overload char[] buffer) : TextFormatter
+				{
+					return 1;
+				}
+			}
+
+			void write(overload TextFormatter value)
+			{
+			}
+
+			void main()
+			{
+				Value* value = null;
+				auto inferred = $"value {value}";
+				TextFormatter explicitTarget = $"value {value}";
+				write($"value {value}");
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		IReadOnlyList<InterpolatedStringExpression> interpolations = SemanticCompiler.Descendants<InterpolatedStringExpression>(compilation.Module);
+		Assert.All(interpolations, static interpolation => Assert.Equal("TextFormatter", interpolation.ResolvedType));
+		Assert.All(interpolations, static interpolation => Assert.Equal("TextFormatter", interpolation.FormatterType));
+	}
+
+	[Fact]
+	public void Interpolated_string_overload_selector_does_not_inspect_holes()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			newtype delegate nuint TextFormatter(const this, char[] buffer = default);
+			newtype delegate nuint OtherFormatter(const this, char[] buffer = default);
+
+			nuint format(in int this, overload char[] buffer) : TextFormatter
+			{
+				return 1;
+			}
+
+			void write(overload TextFormatter value)
+			{
+			}
+
+			void write(overload OtherFormatter value)
+			{
+			}
+
+			void main()
+			{
+				write($"value {42}");
+			}
+			""");
+
+		Assert.Contains(compilation.Diagnostics, static diagnostic => diagnostic.Contains("multiple formatter-shaped overloads", StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void Interpolated_string_reports_missing_formatter_for_first_runtime_hole()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			struct Value
+			{
+				int number;
+			}
+
+			void main()
+			{
+				Value value = { .number = 1 };
+				auto text = $"value {value}";
+			}
+			""");
+
+		Assert.Contains(compilation.Diagnostics, static diagnostic => diagnostic.Contains("does not establish a UTF-8 formatter type", StringComparison.Ordinal));
+	}
+
+	[Fact]
 	public void Abi_surface_exposes_exported_symbols_and_expanded_parameters()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""

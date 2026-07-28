@@ -181,10 +181,10 @@ public void writeLine(CharWriter this, overload StringFormatter formatter)
 public bool tryWriteLine(CharWriter this, overload StringFormatter formatter, thrown IoError error)
 {
 	auto size = formatter();
-	auto buf = init char[size+1];
+	auto buf = init char[size + 1];
 	formatter(buf);
-	buf[buf.length - 2] = '\n';
-	buf[buf.length - 1] = '\0';
+	buf[size - 1] = '\n';
+	buf[size] = '\0';
 	return this.tryWrite(buf, catch error);
 }
 

@@ -1158,6 +1158,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		bool constant = true;
 		StringBuilder value = new();
+		List<InterpolatedStringExpressionSegment> runtimeHoles = [];
 
 		foreach (InterpolatedStringSegment segment in interpolation.Segments)
 		{
@@ -1170,12 +1171,16 @@ public sealed partial class BindableNodeAnalyzer
 				case InterpolatedStringExpressionSegment hole:
 					string holeType = BodyAnalyzeExpression(hole.Expression, scope, typeScope);
 					if (!TryAppendConstantInterpolationHole(hole.Expression, holeType, value))
+					{
 						constant = false;
+						runtimeHoles.Add(hole);
+					}
 					break;
 			}
 		}
 
-		if (constant)
+		bool hasExplicitFormatter = TryGetFormatterShape(targetType, out FormatterShape explicitConstantFormatter);
+		if (constant && !hasExplicitFormatter)
 		{
 			LiteralExpression literal = new()
 			{
@@ -1193,10 +1198,165 @@ public sealed partial class BindableNodeAnalyzer
 
 		expressionConstants[interpolation] = false;
 		if (targetType is not null && IsStringLiteralTargetType(targetType))
+		{
 			Report(GetRange(interpolation.SourceSyntax), $"Runtime interpolated string cannot implicitly convert to primitive string target '{targetType}'.");
+			return ErrorType;
+		}
+
+		FormatterShape formatter;
+		if (hasExplicitFormatter)
+			formatter = explicitConstantFormatter;
+		else if (!TryInferInterpolatedStringFormatter(interpolation, runtimeHoles, scope, typeScope, out formatter))
+			return ErrorType;
+
+		bool success = true;
+		foreach (InterpolatedStringExpressionSegment hole in runtimeHoles)
+		{
+			if (!TryBindInterpolationHoleFormatter(hole, formatter, scope, typeScope, interpolation.SourceSyntax, out Expression? formatterExpression))
+			{
+				success = false;
+				continue;
+			}
+			hole.Formatter = formatterExpression;
+		}
+
+		interpolation.FormatterType = formatter.Type;
+		interpolation.ResolvedType = success ? formatter.Type : ErrorType;
+		return interpolation.ResolvedType;
+	}
+
+	bool TryInferInterpolatedStringFormatter(InterpolatedStringExpression interpolation, List<InterpolatedStringExpressionSegment> runtimeHoles, BodyScope scope, AnalysisScope typeScope, out FormatterShape formatter)
+	{
+		formatter = null!;
+		if (runtimeHoles.Count == 0)
+		{
+			Report(GetRange(interpolation.SourceSyntax), "Literal-only interpolated string requires an explicit formatter target when runtime formatting is requested.");
+			return false;
+		}
+
+		InterpolatedStringExpressionSegment first = runtimeHoles[0];
+		string firstType = first.Expression?.ResolvedType ?? ErrorType;
+		if (TryGetFormatterShape(firstType, out FormatterShape direct) && direct.ElementType == "char")
+		{
+			formatter = direct;
+			return true;
+		}
+
+		List<FormatterCandidate> candidates = FindFormatterCandidates(first.Expression, firstType, requiredFormatter: null, autoInference: true, scope, typeScope, interpolation.SourceSyntax);
+		candidates = [.. candidates.Where(candidate => candidate.Shape.ElementType == "char")];
+		if (candidates.Count == 1)
+		{
+			formatter = candidates[0].Shape;
+			first.Formatter = candidates[0].Expression;
+			return true;
+		}
+
+		if (candidates.Count > 1)
+			Report(GetRange(first.Expression?.SourceSyntax ?? interpolation.SourceSyntax ?? first.SourceSyntax), $"Interpolation expression has multiple eligible UTF-8 formatters; add an explicit formatter target.");
 		else
-			Report(GetRange(interpolation.SourceSyntax), "Runtime interpolated strings require formatter binding, which has not been implemented yet.");
-		return ErrorType;
+			Report(GetRange(first.Expression?.SourceSyntax ?? interpolation.SourceSyntax ?? first.SourceSyntax), $"Interpolation expression of type '{firstType}' does not establish a UTF-8 formatter type.");
+		return false;
+	}
+
+	bool TryBindInterpolationHoleFormatter(InterpolatedStringExpressionSegment hole, FormatterShape formatter, BodyScope scope, AnalysisScope typeScope, SyntaxNode? referenceSyntax, out Expression? formatterExpression)
+	{
+		formatterExpression = null;
+		Expression? value = hole.Expression;
+		string valueType = value?.ResolvedType ?? ErrorType;
+		if (valueType == ErrorType)
+			return false;
+
+		if (CanAssignToType(formatter.Type, valueType) && TryGetFormatterShape(valueType, out _))
+		{
+			formatterExpression = value;
+			return true;
+		}
+
+		List<FormatterCandidate> candidates = FindFormatterCandidates(value, valueType, formatter, autoInference: false, scope, typeScope, referenceSyntax);
+		if (candidates.Count == 1)
+		{
+			formatterExpression = candidates[0].Expression;
+			return true;
+		}
+
+		if (candidates.Count > 1)
+			Report(GetRange(value?.SourceSyntax ?? hole.SourceSyntax), $"Interpolation expression of type '{valueType}' has multiple formatters for target '{formatter.Type}'.");
+		else
+			Report(GetRange(value?.SourceSyntax ?? hole.SourceSyntax), $"Interpolation expression of type '{valueType}' cannot format as '{formatter.Type}'.");
+		return false;
+	}
+
+	sealed record FormatterCandidate(Expression Expression, FormatterShape Shape, FunctionDefinition Function);
+
+	List<FormatterCandidate> FindFormatterCandidates(Expression? value, string valueType, FormatterShape? requiredFormatter, bool autoInference, BodyScope scope, AnalysisScope typeScope, SyntaxNode? referenceSyntax)
+	{
+		List<FormatterCandidate> candidates = [];
+		if (value is null || valueType == ErrorType)
+			return candidates;
+
+		string lookupTargetType = TryGetImplicitIteratorProtocolType(value, valueType, out string iteratorProtocolType)
+			? iteratorProtocolType
+			: valueType;
+		List<FunctionDefinition> functions = LookupMemberFunctions(lookupTargetType, "format", referenceSyntax ?? value.SourceSyntax);
+		if (functions.Count == 0)
+			functions = LookupGenericConstraintMemberFunctions(lookupTargetType, "format", scope, referenceSyntax ?? value.SourceSyntax);
+
+		foreach (FunctionDefinition function in functions)
+		{
+			EnsureFunctionSignatureAnalyzed(function, typeScope);
+			if (!TryGetFunctionFormatterCandidateShape(function, out string candidateType, out FormatterShape candidateShape))
+				continue;
+			if (autoInference)
+			{
+				candidates.Add(CreateFormatterCandidate(value, function, candidateType, candidateShape));
+				continue;
+			}
+			if (requiredFormatter is null)
+				continue;
+			if (!FormatterShapesMatch(candidateShape, requiredFormatter))
+				continue;
+			if (typeDefinitions.ContainsKey(BaseTypeName(requiredFormatter.Type))
+				&& function.CallableAscriptionNewtype?.Name != BaseTypeName(requiredFormatter.Type))
+				continue;
+			candidates.Add(CreateFormatterCandidate(value, function, requiredFormatter.Type, requiredFormatter));
+		}
+
+		return candidates;
+	}
+
+	bool TryGetFunctionFormatterCandidateShape(FunctionDefinition function, out string candidateType, out FormatterShape shape)
+	{
+		candidateType = "";
+		if (function.CallableAscriptionNewtype is NewtypeDefinition newtypeDefinition)
+		{
+			candidateType = newtypeDefinition.Name;
+			return TryGetFormatterShape(candidateType, out shape);
+		}
+
+		candidateType = BuildFunctionValueType(function, isInstance: true, allowCallableAscription: false);
+		return TryGetFormatterShape(candidateType, out shape);
+	}
+
+	FormatterCandidate CreateFormatterCandidate(Expression value, FunctionDefinition function, string resolvedType, FormatterShape shape)
+	{
+		MemberExpression member = new()
+		{
+			SourceSyntax = value.SourceSyntax,
+			Target = value,
+			Name = "format",
+			ResolvedType = resolvedType
+		};
+		MemberReferenceExpression reference = CreateMemberReference(member, value, resolvedType, function);
+		expressionRewrites[member] = reference;
+		return new FormatterCandidate(member, shape, function);
+	}
+
+	static bool FormatterShapesMatch(FormatterShape actual, FormatterShape expected)
+	{
+		return actual.BufferType == expected.BufferType
+			&& actual.ElementType == expected.ElementType
+			&& actual.LengthType == expected.LengthType
+			&& actual.Type == expected.Type;
 	}
 
 	bool TryAppendConstantInterpolationHole(Expression? expression, string holeType, StringBuilder value)

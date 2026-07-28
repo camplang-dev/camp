@@ -16,6 +16,7 @@ public class LiteralExpression : Expression
 public class InterpolatedStringExpression : Expression
 {
 	public List<InterpolatedStringSegment> Segments { get; } = [];
+	public string? FormatterType { get; set; }
 }
 
 public abstract class InterpolatedStringSegment : BindableNode
@@ -30,6 +31,7 @@ public class InterpolatedStringTextSegment : InterpolatedStringSegment
 public class InterpolatedStringExpressionSegment : InterpolatedStringSegment
 {
 	public Expression? Expression { get; set; }
+	public Expression? Formatter { get; set; }
 }
 
 public class SymbolOfExpression : Expression

@@ -349,6 +349,11 @@ public sealed partial class BindableNodeAnalyzer
 
 		ArgumentExpression selectorArgument = arguments[selectorIndex];
 		SyntaxNode? selectorSyntax = OverloadSelectorSyntax(selectorArgument, syntax);
+		if (UnwrapParenthesizedExpression(selectorArgument.Value) is InterpolatedStringExpression interpolation
+			&& TrySelectFormatterOverloadCandidate(invokerName, candidates, selectorArgument, interpolation, scope, typeScope, selectorSyntax, out FunctionDefinition? formatterSelected))
+		{
+			return formatterSelected;
+		}
 		if (IsWeakOverloadSelectorArgument(selectorArgument))
 		{
 			Report(GetRange(selectorSyntax), $"Cannot select overload `{invokerName}` because the selector expression has no independent static type. Add an explicit cast.");
@@ -395,6 +400,47 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return selected;
+	}
+
+	bool TrySelectFormatterOverloadCandidate(
+		string invokerName,
+		List<FunctionDefinition> candidates,
+		ArgumentExpression selectorArgument,
+		InterpolatedStringExpression interpolation,
+		BodyScope scope,
+		AnalysisScope typeScope,
+		SyntaxNode? selectorSyntax,
+		out FunctionDefinition? selected)
+	{
+		selected = null;
+		List<FunctionDefinition> formatterCandidates = [];
+		foreach (FunctionDefinition candidate in candidates)
+		{
+			EnsureFunctionSignatureAnalyzed(candidate, typeScope);
+			ParameterDefinition? selector = GetOverloadSelector(candidate);
+			if (selector?.ResolvedType is string selectorType && TryGetFormatterShape(selectorType, out _))
+				formatterCandidates.Add(candidate);
+		}
+
+		if (formatterCandidates.Count == 0)
+			return false;
+
+		if (formatterCandidates.Count > 1)
+		{
+			Report(GetRange(selectorSyntax), $"Interpolated string cannot select overload `{invokerName}` because multiple formatter-shaped overloads are visible.");
+			selectorArgument.ResolvedType = ErrorType;
+			interpolation.ResolvedType = ErrorType;
+			return true;
+		}
+
+		selected = formatterCandidates[0];
+		ParameterDefinition? selectedSelector = GetOverloadSelector(selected);
+		string targetType = selectedSelector?.ResolvedType ?? ErrorType;
+		string actual = BodyAnalyzeArgumentExpression(selectorArgument, scope, typeScope, targetType);
+		selectorArgument.ResolvedType = actual;
+		if (actual != ErrorType)
+			CheckAssignable(targetType, actual, selectorSyntax, "Argument");
+		return true;
 	}
 
 	static bool IsWeakOverloadSelectorArgument(ArgumentExpression argument)
