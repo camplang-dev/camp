@@ -62,6 +62,14 @@ distributions are currently available for:
 Linux x86 is supported as a generated-code target, not as a host tool
 distribution.
 
+## Create A Project
+
+```bash
+campc init hello
+cd hello
+campc run hello.campbuild
+```
+
 ## Build From Source
 
 To build Camp itself, install the .NET 10 SDK.

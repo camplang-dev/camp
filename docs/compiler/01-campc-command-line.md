@@ -10,6 +10,7 @@ campc run [pattern.camp...] [options] -- [program-args...]
 campc test [pattern.camp...] [options]
 campc cover [pattern.camp...] [options]
 campc dump <kind> [pattern.camp...] [options]
+campc init <name> [--template app|static|shared|posix-api|windows-api|wrapper]
 campc restore [pattern.camp...]
 campc pkg <command> [...]
 campc help [command]
@@ -134,6 +135,40 @@ project references, use `--coverage-subject <name>`. Use
 `--coverage-subject self` only when the test module's own production
 declarations are the intended subject.
 
+## `init`
+
+`init` creates a named starter project in the current directory:
+
+```sh
+campc init hello
+cd hello
+campc run hello.campbuild
+```
+
+The default template is `app`, which creates an executable with
+`src/main.camp`, a matching `.campbuild` file, a small README, and a
+project-local `.gitignore`.
+
+Library and wrapper starters are available with `--template`:
+
+```sh
+campc init math-lib --template static
+campc init plugin-api --template shared
+campc init posix-api --template posix-api
+campc init windows-api --template windows-api
+campc init native-pid --template wrapper
+```
+
+The `static`, `shared`, and `wrapper` templates include a starter `@test`
+function and can be checked with `campc test <name>.campbuild`. The API-wrapper
+templates use `--artifact none` and contain only `public extern` declarations,
+so they can be checked with `campc build <name>.campbuild` and consumed by other
+projects with `--api`.
+
+Use `campc init --list` to print the built-in templates. `init` is
+conservative: it creates a new child directory and refuses to overwrite an
+existing file or directory.
+
 ## `dump`
 
 `dump` prints compiler intermediate output. The dump kind is required:
@@ -210,9 +245,6 @@ campc help
 campc help build
 campc --help
 ```
-
-`init` is reserved for project scaffolding and is not part of the documented v1
-workflow.
 
 ## Build Options
 

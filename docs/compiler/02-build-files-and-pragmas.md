@@ -35,6 +35,10 @@ campc test app.campbuild
 campc cover app.campbuild
 ```
 
+`campc init` creates ordinary `.campbuild` response files. There is no separate
+project-file format hidden behind the starter templates; the generated build
+file can be edited the same way as any hand-written response file.
+
 When a build, run, test, or cover command uses a build file and `--out-dir` is
 not supplied, the default final artifact root is `bin` next to that build file.
 

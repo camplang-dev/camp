@@ -33,6 +33,13 @@ static RootCommand BuildCommandTree(CliEnvironment environment, string[] origina
 	root.SetAction(_ => CampCli.Run(originalArgs, environment));
 
 	Command init = new("init", "Initialize a Camp project.");
+	init.Arguments.Add(new Argument<string?>("name")
+	{
+		Description = "Project directory/name.",
+		Arity = ArgumentArity.ZeroOrOne
+	});
+	init.Options.Add(new Option<string?>("--template") { Description = "Template: app, static, shared, posix-api, windows-api, or wrapper." });
+	init.Options.Add(new Option<bool>("--list") { Description = "List built-in templates." });
 	init.SetAction(_ => CampCli.Run(originalArgs, environment));
 	root.Subcommands.Add(init);
 
@@ -271,7 +278,7 @@ sealed class CampCli
 
 		return args[0] switch
 		{
-			"init" => Error("init is not implemented yet."),
+			"init" => CampInit.Run(args[1..], environment),
 			"build" => RunBuild(args[1..], environment),
 			"run" => RunRun(args[1..], environment),
 			"test" => RunBuildLike(args[1..], environment, CommandKind.Test),

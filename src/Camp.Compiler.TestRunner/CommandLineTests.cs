@@ -69,11 +69,15 @@ public sealed class CommandLineTests
 	public void Help_command_prints_command_help()
 	{
 		ProcessResult root = RunCampc("--help");
+		ProcessResult init = RunCampc("help", "init");
 		ProcessResult build = RunCampc("help", "build");
 		ProcessResult test = RunCampc("help", "test");
 
 		Assert.Equal(0, root.ExitCode);
 		Assert.Contains("Commands:", root.StdOut, StringComparison.Ordinal);
+		Assert.Equal(0, init.ExitCode);
+		Assert.Contains("--template", init.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--list", init.StdOut, StringComparison.Ordinal);
 		Assert.Equal(0, build.ExitCode);
 		Assert.Contains("--artifact", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--subsystem", build.StdOut, StringComparison.Ordinal);
@@ -86,6 +90,89 @@ public sealed class CommandLineTests
 		Assert.Contains("--list", test.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--filter", test.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--test-output-dir", test.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Init_validates_arguments_and_lists_templates()
+	{
+		string root = TempPath("init-validation");
+		ResetDirectory(root);
+
+		ProcessResult missingName = RunCampcIn(root, "init");
+		ProcessResult list = RunCampcIn(root, "init", "--list");
+		ProcessResult unknown = RunCampcIn(root, "init", "sample", "--template", "unknown");
+		Directory.CreateDirectory(Path.Combine(root, "existing"));
+		ProcessResult existing = RunCampcIn(root, "init", "existing");
+
+		Assert.NotEqual(0, missingName.ExitCode);
+		Assert.Contains("init requires a project name.", missingName.StdErr, StringComparison.Ordinal);
+		AssertCommandSucceeded(list);
+		foreach (string template in new[] { "app", "static", "shared", "posix-api", "windows-api", "wrapper" })
+			Assert.Contains(template, list.StdOut, StringComparison.Ordinal);
+		Assert.NotEqual(0, unknown.ExitCode);
+		Assert.Contains("Unknown init template 'unknown'", unknown.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, existing.ExitCode);
+		Assert.Contains("Directory 'existing' already exists.", existing.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Init_creates_expected_templates_and_generated_samples_build_or_run()
+	{
+		string root = TempPath("init-templates");
+		ResetDirectory(root);
+		string target = NativeTargetForHost();
+
+		ProcessResult appInit = RunCampcIn(root, "init", "hello");
+		AssertCommandSucceeded(appInit);
+		Assert.True(File.Exists(Path.Combine(root, "hello", "hello.campbuild")));
+		Assert.Equal("src/*.camp\n", File.ReadAllText(Path.Combine(root, "hello", "hello.campbuild")).Replace("\r\n", "\n", StringComparison.Ordinal));
+		Assert.Contains("export int main(string[] args)", File.ReadAllText(Path.Combine(root, "hello", "src", "main.camp")), StringComparison.Ordinal);
+		ProcessResult appRun = RunCampcIn(root, "run", Path.Combine("hello", "hello.campbuild"), "--target", target, "--out-dir", Path.Combine(root, "hello", "out"));
+		AssertCommandSucceeded(appRun);
+		Assert.Contains("Hello, world!", appRun.StdOut, StringComparison.Ordinal);
+
+		ProcessResult staticInit = RunCampcIn(root, "init", "math-lib", "--template", "static");
+		AssertCommandSucceeded(staticInit);
+		string staticSource = File.ReadAllText(Path.Combine(root, "math-lib", "src", "main.camp"));
+		Assert.Contains("namespace MathLib;", staticSource, StringComparison.Ordinal);
+		Assert.Contains("void testAdd(thrown Assertion*)", staticSource, StringComparison.Ordinal);
+		ProcessResult staticTest = RunCampcIn(root, "test", Path.Combine("math-lib", "math-lib.campbuild"), "--target", target, "--out-dir", Path.Combine(root, "math-lib", "out"));
+		AssertCommandSucceeded(staticTest);
+		Assert.Contains("passed: MathLib::testAdd", staticTest.StdOut, StringComparison.Ordinal);
+
+		ProcessResult sharedInit = RunCampcIn(root, "init", "my-sharedlib", "--template", "shared");
+		AssertCommandSucceeded(sharedInit);
+		Assert.Contains("--artifact shared", File.ReadAllText(Path.Combine(root, "my-sharedlib", "my-sharedlib.campbuild")), StringComparison.Ordinal);
+		Assert.Contains("export int mysharedlib_add", File.ReadAllText(Path.Combine(root, "my-sharedlib", "src", "main.camp")), StringComparison.Ordinal);
+		ProcessResult sharedTest = RunCampcIn(root, "test", Path.Combine("my-sharedlib", "my-sharedlib.campbuild"), "--target", target, "--out-dir", Path.Combine(root, "my-sharedlib", "out"));
+		AssertCommandSucceeded(sharedTest);
+		Assert.Contains("passed: testAdd", sharedTest.StdOut, StringComparison.Ordinal);
+
+		ProcessResult posixInit = RunCampcIn(root, "init", "posix-api", "--template", "posix-api");
+		AssertCommandSucceeded(posixInit);
+		Assert.False(File.Exists(Path.Combine(root, "posix-api", "src", "main.camp")));
+		Assert.Contains("public extern int getpid();", File.ReadAllText(Path.Combine(root, "posix-api", "src", "posix.camp")), StringComparison.Ordinal);
+		Assert.Contains("--api ../posix-api/src/*.camp", File.ReadAllText(Path.Combine(root, "posix-api", "README.md")), StringComparison.Ordinal);
+		AssertCommandSucceeded(RunCampcIn(root, "build", Path.Combine("posix-api", "posix-api.campbuild"), "--out-dir", Path.Combine(root, "posix-api", "out")));
+
+		ProcessResult windowsInit = RunCampcIn(root, "init", "windows-api", "--template", "windows-api");
+		AssertCommandSucceeded(windowsInit);
+		Assert.False(File.Exists(Path.Combine(root, "windows-api", "src", "main.camp")));
+		Assert.Contains("public extern uint GetCurrentProcessId();", File.ReadAllText(Path.Combine(root, "windows-api", "src", "windows.camp")), StringComparison.Ordinal);
+		Assert.Contains("--api ../windows-api/src/*.camp", File.ReadAllText(Path.Combine(root, "windows-api", "README.md")), StringComparison.Ordinal);
+		AssertCommandSucceeded(RunCampcIn(root, "build", Path.Combine("windows-api", "windows-api.campbuild"), "--out-dir", Path.Combine(root, "windows-api", "out")));
+
+		ProcessResult wrapperInit = RunCampcIn(root, "init", "native-pid", "--template", "wrapper");
+		AssertCommandSucceeded(wrapperInit);
+		string wrapperBuild = File.ReadAllText(Path.Combine(root, "native-pid", "native-pid.campbuild"));
+		string wrapperSource = File.ReadAllText(Path.Combine(root, "native-pid", "src", "main.camp"));
+		Assert.Contains("--artifact static", wrapperBuild, StringComparison.Ordinal);
+		Assert.Contains("#if POSIX", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("#elif WINDOWS", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("getCurrentProcessId", wrapperSource, StringComparison.Ordinal);
+		ProcessResult wrapperTest = RunCampcIn(root, "test", Path.Combine("native-pid", "native-pid.campbuild"), "--target", target, "--out-dir", Path.Combine(root, "native-pid", "out"));
+		AssertCommandSucceeded(wrapperTest);
+		Assert.Contains("passed: NativePid::testGetCurrentProcessId", wrapperTest.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -4294,6 +4381,25 @@ public sealed class CommandLineTests
 		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
 	}
 
+	static ProcessResult RunCampcIn(string workingDirectory, params string[] arguments)
+	{
+		using IDisposable timing = TestTiming.Measure("CommandLine campc in " + Path.GetFileName(workingDirectory) + " " + string.Join(" ", arguments.Take(6)) + (arguments.Length > 6 ? " ..." : ""));
+		string repositoryRoot = FindRepositoryRoot();
+		ProcessStartInfo info = TestToolPaths.CreateCampcStartInfo(repositoryRoot);
+		info.WorkingDirectory = workingDirectory;
+		info.RedirectStandardOutput = true;
+		info.RedirectStandardError = true;
+		foreach (string argument in arguments)
+			info.ArgumentList.Add(argument);
+
+		using Process process = new() { StartInfo = info };
+		process.Start();
+		string stdout = process.StandardOutput.ReadToEnd();
+		string stderr = process.StandardError.ReadToEnd();
+		process.WaitForExit();
+		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
+	}
+
 	static ProcessResult RunCampcFrom(string campcPath, string workingDirectory, params string[] arguments)
 	{
 		using IDisposable timing = TestTiming.Measure("CommandLine installed campc " + string.Join(" ", arguments.Take(6)) + (arguments.Length > 6 ? " ..." : ""));
@@ -4579,6 +4685,13 @@ public sealed class CommandLineTests
 	}
 
 	static string TempPath(string name) => Path.Combine(FindRepositoryRoot(), "tmp", "cli-tests", name);
+
+	static void ResetDirectory(string path)
+	{
+		if (Directory.Exists(path))
+			Directory.Delete(path, recursive: true);
+		Directory.CreateDirectory(path);
+	}
 
 	static string FindRepositoryRoot()
 	{
