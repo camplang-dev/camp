@@ -120,6 +120,61 @@ layout cannot be inferred from the tool's own path. Use
 `local/test-release-archive.sh` or `local/test-release-archive.ps1` to smoke-test
 an archive before publishing it.
 
+## Release Request Protocol
+
+When the maintainer asks for a release, do not immediately tag or publish.
+Prepare the release in two explicit steps.
+
+First, inspect the repository state and recent history since the previous
+release tag. Recommend a version number using the user-facing change set:
+
+- use a new minor version, such as `v0.2.0-preview.1`, for substantial language,
+  standard-library, compiler, tooling, or installer features;
+- use another preview on the same version, such as `v0.1.0-preview.2`, only when
+  stabilizing the same release line with packaging fixes, bug fixes, or small
+  polish;
+- use a patch version for bug-fix-only releases after the corresponding feature
+  line already exists.
+
+Then present the maintainer with:
+
+- the recommended version tag;
+- the current branch and commit that would be released;
+- a user-facing change summary grouped into features, fixes, tooling/editor
+  changes, documentation, and breaking or compatibility notes where relevant;
+- a short list of changes intentionally omitted from release notes, such as
+  proposal bookkeeping, implementation-plan movement, contributor-instruction
+  edits, internal refactors, and test-only maintenance;
+- the expected release artifacts and platforms;
+- the validation plan before publishing.
+
+Stop there and wait for explicit maintainer approval.
+
+After approval, create or update `docs/releases/<version>.md` with curated
+release notes. Release notes are product-facing documentation: describe what a
+Camp user can do now, what changed in behavior, what was fixed, and any known
+limitations that affect use. Do not include management details that are useful
+only to compiler maintainers.
+
+Before tagging, ensure release workflow support is in place for committed
+release notes. The publish workflow should read
+`docs/releases/<version>.md` and fail clearly if the file is missing rather than
+publishing placeholder notes.
+
+The final release sequence is:
+
+```sh
+git push github master
+git tag <version>
+git push github <version>
+```
+
+Watch the GitHub release workflow, confirm that all archives and checksum files
+were uploaded, and then verify the install scripts can resolve and install the
+new release. If the workflow has to be rerun, preserve the same tag and update
+the GitHub release from the same committed release notes unless the maintainer
+approves a new tag.
+
 ## Targeted Test Workflow
 
 When the test assembly is already built, prefer targeted `dotnet vstest` runs:
