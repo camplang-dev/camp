@@ -13,10 +13,10 @@ int main(void)
 {
 	Box mutableBox = (Box){ 12 };
 	const Box readonlyBox = (const Box){ 30 };
-	const int *(* mutableGetter)(void *arg0) = (const int *(*)(void *arg0))Box_getValue;
-	void *mutableGetter_context = (void *)(&mutableBox);
-	const int *(* readonlyGetter)(void *arg0) = (const int *(*)(void *arg0))Box_getValue;
-	void *readonlyGetter_context = (void *)(&readonlyBox);
+	const int *(* mutableGetter)(const void *arg0) = (const int *(*)(const void *arg0))Box_getValue;
+	const void *mutableGetter_context = (void *)(&mutableBox);
+	const int *(* readonlyGetter)(const void *arg0) = (const int *(*)(const void *arg0))Box_getValue;
+	const void *readonlyGetter_context = (void *)(&readonlyBox);
 	const int *mutableValue = mutableGetter(mutableGetter_context);
 	const int *readonlyValue = readonlyGetter(readonlyGetter_context);
 	return (((*mutableValue + *readonlyValue) == 42) ? 0 : 1);

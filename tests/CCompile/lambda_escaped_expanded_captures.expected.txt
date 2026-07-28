@@ -20,7 +20,7 @@ static Count makeSpanCount(void **result_context)
 	_lambdaContext0->capture0_span = span;
 	_lambdaContext0->capture1_span_length = span_length;
 	{
-		(*result_context) = _lambdaContext0;
+		(*result_context) = (void *)(_lambdaContext0);
 		return makeSpanCount_lambda1;
 	}
 }
@@ -33,7 +33,7 @@ static int (* makeOptionalReader(void **result_context))(void *arg0)
 	_lambdaContext1->capture0_value = value;
 	_lambdaContext1->capture1_value_specified = value_specified;
 	{
-		(*result_context) = _lambdaContext1;
+		(*result_context) = (void *)(_lambdaContext1);
 		return makeOptionalReader_lambda2;
 	}
 }
@@ -46,7 +46,7 @@ static int (* makeDelegateReader(void **result_context))(void *arg0)
 	_lambdaContext2->capture0_mapper = mapper;
 	_lambdaContext2->capture1_mapper_context = mapper_context;
 	{
-		(*result_context) = _lambdaContext2;
+		(*result_context) = (void *)(_lambdaContext2);
 		return makeDelegateReader_lambda3;
 	}
 }

@@ -34,7 +34,7 @@ static int (* makeBlockAdder(int offset, void **result_context))(void *arg0, int
 	makeBlockAdder_lambdaContext0 *_lambdaContext0 = (makeBlockAdder_lambdaContext0 *)(malloc(sizeof(makeBlockAdder_lambdaContext0)));
 	_lambdaContext0->capture0_offset = offset;
 	{
-		(*result_context) = _lambdaContext0;
+		(*result_context) = (void *)(_lambdaContext0);
 		return makeBlockAdder_lambda0;
 	}
 }
@@ -45,7 +45,7 @@ static uintptr_t (* makeSpanLength(const char *span, uintptr_t span_length, void
 	_lambdaContext5->capture0_span = span;
 	_lambdaContext5->capture1_span_length = span_length;
 	{
-		(*result_context) = _lambdaContext5;
+		(*result_context) = (void *)(_lambdaContext5);
 		return makeSpanLength_lambda1;
 	}
 }

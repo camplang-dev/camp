@@ -14,7 +14,7 @@ static const int *IntArray_slice(const int *this, uintptr_t this_length, uintptr
 	sliceResult_length = count;
 	{
 		(*result_length) = sliceResult_length;
-		return sliceResult;
+		return (const int *)(sliceResult);
 	}
 }
 

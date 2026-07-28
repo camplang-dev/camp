@@ -1,0 +1,1 @@
+tests/Diagnostics/interpolated_string_escaped_target_invalid.camp(11,9): error: Runtime interpolated strings cannot target escaped delegate types.

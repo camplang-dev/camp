@@ -12,7 +12,7 @@ static int (* makeCounter(int start, void **result_context))(void *arg0)
 	makeCounter_lambdaContext0 *_lambdaContext0 = (makeCounter_lambdaContext0 *)(malloc(sizeof(makeCounter_lambdaContext0)));
 	_lambdaContext0->capture0_start = start;
 	{
-		(*result_context) = _lambdaContext0;
+		(*result_context) = (void *)(_lambdaContext0);
 		return makeCounter_lambda0;
 	}
 }

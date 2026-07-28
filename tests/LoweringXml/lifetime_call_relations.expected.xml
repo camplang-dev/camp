@@ -29,7 +29,12 @@
                 </Expression>
               </ExpressionStatement>
               <ReturnStatement ResolvedType="void">
-                <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                <Expression Type="CastExpression" Kind="Type" ResolvedType="scoped char*">
+                  <Type Type="PointerTypeReference" ResolvedType="char*">
+                    <ElementType Type="Char" ResolvedType="char" />
+                  </Type>
+                  <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                </Expression>
               </ReturnStatement>
             </Statements>
           </BlockStatement>
@@ -58,7 +63,12 @@
                 </Expression>
               </ExpressionStatement>
               <ReturnStatement ResolvedType="void">
-                <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped(owner):explicit cast" />
+                <Expression Type="CastExpression" Kind="Type" ResolvedType="scoped(owner) char*">
+                  <Type Type="PointerTypeReference" ResolvedType="char*">
+                    <ElementType Type="Char" ResolvedType="char" />
+                  </Type>
+                  <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped(owner):explicit cast" />
+                </Expression>
               </ReturnStatement>
             </Statements>
           </BlockStatement>
@@ -87,7 +97,12 @@
                 </Expression>
               </ExpressionStatement>
               <ReturnStatement ResolvedType="void">
-                <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="unscoped(owner):explicit cast" />
+                <Expression Type="CastExpression" Kind="Type" ResolvedType="unscoped(owner) char*">
+                  <Type Type="PointerTypeReference" ResolvedType="unscoped char*">
+                    <ElementType Type="Char" ResolvedType="unscoped char" />
+                  </Type>
+                  <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="unscoped(owner):explicit cast" />
+                </Expression>
               </ReturnStatement>
             </Statements>
           </BlockStatement>

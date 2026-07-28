@@ -14,7 +14,7 @@ static char *identity(char *value, uintptr_t value_length, uintptr_t *result_len
 {
 	{
 		(*result_length) = value_length;
-		return value;
+		return (char *)(value);
 	}
 }
 

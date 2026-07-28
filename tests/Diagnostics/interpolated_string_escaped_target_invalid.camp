@@ -1,0 +1,12 @@
+newtype delegate nuint StringFormatter(const this, char[] buffer = default);
+
+nuint format(in int this, overload char[] buffer) : StringFormatter
+{
+	return 0;
+}
+
+escaped StringFormatter makeBad()
+{
+	int value = 1;
+	return $"value {value}";
+}

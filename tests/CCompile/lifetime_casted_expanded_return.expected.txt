@@ -18,7 +18,7 @@ static void *trustLocal(void *value, uintptr_t value_length, uintptr_t sizeof_T,
 {
 	{
 		(*result_length) = value_length;
-		return value;
+		return (void*)(value);
 	}
 }
 
@@ -29,7 +29,7 @@ static void *trustCall(void *value, uintptr_t value_length, uintptr_t sizeof_T, 
 	_elements0 = inner(value, value_length, sizeof_T, &_length1);
 	{
 		(*result_length) = _length1;
-		return _elements0;
+		return (void*)(_elements0);
 	}
 }
 

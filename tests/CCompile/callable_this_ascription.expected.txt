@@ -51,8 +51,8 @@ static void Counter_op_initnew(Counter *this)
 int main(void)
 {
 	const Date d;
-	uintptr_t (* f)(void *arg0, char *arg1, uintptr_t arg2) = (uintptr_t (*)(void *arg0, char *arg1, uintptr_t arg2))Date_format;
-	void *f_context = (void *)(&d);
+	uintptr_t (* f)(const void *arg0, char *arg1, uintptr_t arg2) = (uintptr_t (*)(const void *arg0, char *arg1, uintptr_t arg2))Date_format;
+	const void *f_context = (void *)(&d);
 	Test *test = (Test *)(malloc(sizeof(Test)));
 	if ((test != NULL))
 	{

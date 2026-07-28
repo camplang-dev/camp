@@ -8,7 +8,7 @@ static const char *identityConst(const char *value, uintptr_t value_length, uint
 {
 	{
 		(*result_length) = value_length;
-		return value;
+		return (const char *)(value);
 	}
 }
 

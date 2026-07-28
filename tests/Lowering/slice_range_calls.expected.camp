@@ -6,7 +6,7 @@ scoped const int[] slice(const int[] this, @range nuint index = 0, nuint count =
 	sliceResult_length = count;
 	{
 		result_length = sliceResult_length;
-		return sliceResult;
+		return (const int*)sliceResult;
 	}
 }
 int getAt(const int[] this, @index nuint index)

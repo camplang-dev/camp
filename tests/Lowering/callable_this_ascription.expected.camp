@@ -39,6 +39,6 @@ escaped class Service
 void main()
 {
 	const Date d;
-	fn nuint(void*, char*, nuint) f = Date_format;
-	void* f_context = (void*)&d;
+	fn nuint(const void*, char*, nuint) f = Date_format;
+	const void* f_context = (void*)&d;
 }

@@ -357,6 +357,19 @@ public sealed partial class BindableNodeAnalyzer
 			CaptureParamsArrayConstructionLength(initialValue, shape, declarations);
 		if (initialValue is LambdaExpression lambda)
 			PrepareLambdaContextLocal(lambda, declarations);
+		if (initialValue is InterpolatedStringExpression)
+		{
+			List<Statement>? previousStatementPrefix = currentStatementPrefix;
+			try
+			{
+				currentStatementPrefix = declarations;
+				initialValue = LowerExpression(initialValue);
+			}
+			finally
+			{
+				currentStatementPrefix = previousStatementPrefix;
+			}
+		}
 		List<Expression?> initialValues = TryCreateIteratorFactoryProtocolInitialValues(initialValue, shape, declarations, declaration.SourceSyntax, out List<Expression?>? iteratorProtocolInitialValues)
 			? iteratorProtocolInitialValues!
 			: materializedGenericReturnInitializer

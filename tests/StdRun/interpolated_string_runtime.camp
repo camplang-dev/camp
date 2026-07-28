@@ -1,0 +1,38 @@
+using Std;
+
+export int main()
+{
+	int count = 42;
+	bool ok = true;
+	string name = "Camp";
+
+	Console.writeLine($"hello {name}");
+	Console.writeLine($"count={count}; ok={ok}; bang={'!'}");
+	StringFormatter literalOnly = $"literal only";
+	Console.writeLine(literalOnly);
+	Console.writeLine($"");
+
+	StringFormatter direct = count.format;
+	Console.writeLine($"direct {direct}");
+
+	int counter = 0;
+	Console.writeLine($"next={next(&counter)}, then={next(&counter)}, total={counter}");
+
+	StringFormatter sized = $"abc{count}";
+	auto buffer = init char[4];
+	Console.writeLine(sized(buffer));
+	Console.writeLine(makeLiteral());
+
+	return 0;
+}
+
+StringFormatter makeLiteral()
+{
+	return $"returned";
+}
+
+int next(int* counter)
+{
+	(*counter)++;
+	return *counter;
+}

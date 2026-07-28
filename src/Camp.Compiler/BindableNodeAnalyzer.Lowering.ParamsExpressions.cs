@@ -1703,7 +1703,7 @@ public sealed partial class BindableNodeAnalyzer
 			|| !TryGetCallableShape(delegateShape.Components[0].Type, out CallableShape callShape)
 			|| callShape.Kind != "fn"
 			|| callShape.Parameters.Count == 0
-			|| callShape.Parameters[0] != "void*")
+			|| callShape.Parameters[0] is not ("void*" or "const void*"))
 		{
 			return false;
 		}
@@ -1743,7 +1743,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = member.SourceSyntax,
 			Kind = CastKind.Type,
-			Type = TypeReferenceForResolvedName("void*"),
+			Type = TypeReferenceForResolvedName(delegateShape.Components[1].Type),
 			Expression = new UnaryExpression
 			{
 				SourceSyntax = member.SourceSyntax,
@@ -1751,7 +1751,7 @@ public sealed partial class BindableNodeAnalyzer
 				Operand = CreateVariableReference(contextStorage.Target, contextStorage.Target.ResolvedType ?? $"struct({receiverType})"),
 				ResolvedType = AddPointer(contextStorage.Target.ResolvedType ?? $"struct({receiverType})")
 			},
-			ResolvedType = "void*"
+			ResolvedType = delegateShape.Components[1].Type
 		});
 		return true;
 	}
@@ -1910,8 +1910,8 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = member.SourceSyntax,
 			Name = "_context",
 			Symbol = "_context",
-			Type = TypeReferenceForResolvedName("void*"),
-			ResolvedType = "void*"
+			Type = TypeReferenceForResolvedName(callShape.Parameters[0]),
+			ResolvedType = callShape.Parameters[0]
 		});
 		for (int i = 1; i < callShape.Parameters.Count; i++)
 			adapter.Parameters.Add(CreateAdapterParameter(callShape.Parameters[i], i - 1, member.SourceSyntax));
@@ -2228,12 +2228,28 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (TryRewriteExpandedReturnCall(statement, shape, out rewritten))
 			return true;
-		if (!TryCreateParamsComponentExpressions(statement.Expression, out List<Expression> components) || components.Count != shape.Components.Count)
-			return false;
 
 		List<Statement> statements = [];
+		Expression? expression = statement.Expression;
+		if (expression is InterpolatedStringExpression)
+		{
+			List<Statement>? previousStatementPrefix = currentStatementPrefix;
+			try
+			{
+				currentStatementPrefix = statements;
+				expression = LowerExpression(expression);
+			}
+			finally
+			{
+				currentStatementPrefix = previousStatementPrefix;
+			}
+		}
+		if (!TryCreateParamsComponentExpressions(expression, out List<Expression> components) || components.Count != shape.Components.Count)
+			return false;
+
 		for (int i = 1; i < components.Count; i++)
 		{
+			Expression value = CastExpandedReturnComponent(components[i], shape.Components[i].Type, statement.SourceSyntax);
 			ParameterDefinition parameter = currentRewriteFunction.Parameters[^ (components.Count - i)];
 			statements.Add(new ExpressionStatement
 			{
@@ -2244,19 +2260,34 @@ public sealed partial class BindableNodeAnalyzer
 					SourceSyntax = statement.SourceSyntax,
 					Target = CreateVariableReference(parameter, parameter.ResolvedType ?? shape.Components[i].Type),
 					Operator = AssignmentOperator.Assign,
-					Value = components[i],
+					Value = value,
 					ResolvedType = shape.Components[i].Type
 				}
 			});
 		}
+		Expression result = CastExpandedReturnComponent(components[0], shape.Components[0].Type, statement.SourceSyntax);
 		statements.Add(new ReturnStatement
 		{
 			SourceSyntax = statement.SourceSyntax,
 			ResolvedType = "void",
-			Expression = components[0]
+			Expression = result
 		});
 		rewritten = CreateBlock(statements);
 		return true;
+	}
+
+	Expression CastExpandedReturnComponent(Expression component, string targetType, SyntaxNode? syntax)
+	{
+		if (component.ResolvedType == targetType)
+			return component;
+		return new CastExpression
+		{
+			SourceSyntax = component.SourceSyntax ?? syntax,
+			Kind = CastKind.Type,
+			Type = TypeReferenceForResolvedName(targetType),
+			Expression = component,
+			ResolvedType = targetType
+		};
 	}
 
 	bool TryRewriteExpandedReturnCall(ReturnStatement statement, ParamsComponentShape shape, out Statement rewritten)

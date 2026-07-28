@@ -801,8 +801,27 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsDirectCapturingLambda(Expression? expression, BodyScope scope)
 	{
-		return expression is LambdaExpression lambda
-			&& LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType);
+		if (expression is null)
+			return false;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return IsDirectCapturingLambda(rewritten, scope);
+
+		return expression switch
+		{
+			ParenthesizedExpression parenthesized => IsDirectCapturingLambda(parenthesized.Expression, scope),
+			CastExpression cast => IsDirectCapturingLambda(cast.Expression, scope),
+			LambdaExpression lambda => LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType),
+			InterpolatedStringExpression interpolation => InterpolationHasRuntimeFormatters(interpolation),
+			_ => false
+		};
+	}
+
+	static bool InterpolationHasRuntimeFormatters(InterpolatedStringExpression interpolation)
+	{
+		foreach (InterpolatedStringSegment segment in interpolation.Segments)
+			if (segment is InterpolatedStringExpressionSegment { Formatter: not null })
+				return true;
+		return false;
 	}
 
 	bool EscapesLocalFixedArraySpan(string targetType, Expression? expression)
@@ -1222,6 +1241,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		interpolation.FormatterType = formatter.Type;
 		interpolation.ResolvedType = success ? formatter.Type : ErrorType;
+		if (runtimeHoles.Count > 0 && IsEscapedCallableTarget(targetType))
+			Report(GetRange(interpolation.SourceSyntax), "Runtime interpolated strings cannot target escaped delegate types.");
 		return interpolation.ResolvedType;
 	}
 

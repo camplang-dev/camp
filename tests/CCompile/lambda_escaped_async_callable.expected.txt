@@ -13,7 +13,7 @@ static void (* makeAdder(int amount, void **result_context))(void *arg0, int arg
 	makeAdder_lambdaContext0 *_lambdaContext0 = (makeAdder_lambdaContext0 *)(malloc(sizeof(makeAdder_lambdaContext0)));
 	_lambdaContext0->capture0_amount = amount;
 	{
-		(*result_context) = _lambdaContext0;
+		(*result_context) = (void *)(_lambdaContext0);
 		return makeAdder_lambda0;
 	}
 }

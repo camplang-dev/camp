@@ -70,6 +70,9 @@ public sealed partial class BindableNodeAnalyzer
 			case CurrentAllocatorExpression currentAllocator:
 				return CurrentAllocator() ?? NullLiteral(currentAllocator.SourceSyntax);
 
+			case InterpolatedStringExpression interpolation:
+				return LowerInterpolatedStringExpression(interpolation);
+
 			case LambdaExpression lambda:
 				return LowerLambdaExpression(lambda);
 

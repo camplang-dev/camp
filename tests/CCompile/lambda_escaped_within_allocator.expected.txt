@@ -29,7 +29,7 @@ static int (* make(Arena *arena, int value, void **result_context))(void *arg0)
 	_lambdaContext1->_allocator = _allocator0;
 	_lambdaContext1->capture0_value = value;
 	{
-		(*result_context) = _lambdaContext1;
+		(*result_context) = (void *)(_lambdaContext1);
 		return make_lambda0;
 	}
 }
@@ -41,7 +41,7 @@ static int (* makeWithBodyAllocation(Arena *arena, int value, void **result_cont
 	_lambdaContext4->_allocator = _allocator3;
 	_lambdaContext4->capture0_value = value;
 	{
-		(*result_context) = _lambdaContext4;
+		(*result_context) = (void *)(_lambdaContext4);
 		return makeWithBodyAllocation_lambda1;
 	}
 }

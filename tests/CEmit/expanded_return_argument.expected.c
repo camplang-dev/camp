@@ -18,7 +18,7 @@ static int main(void)
 static const char *getName(uintptr_t *result_length)
 {
 	{
-		(*result_length) = 4;
+		(*result_length) = (uintptr_t)(4);
 		return "john";
 	}
 }

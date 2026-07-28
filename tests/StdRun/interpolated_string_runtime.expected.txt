@@ -1,0 +1,9 @@
+exit: 0
+hello Camp
+count=42; ok=true; bang=!
+literal only
+
+direct 42
+next=1, then=2, total=2
+6
+returned

@@ -5,7 +5,7 @@
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static uintptr_t Byte_formatHex(uint8_t *this, char *buffer, uintptr_t buffer_length);
-static const char *ByteFormatter_copyString(ByteFormatter this, void *this_context);
+static const char *ByteFormatter_copyString(ByteFormatter this, const void *this_context);
 
 int main(void)
 {
@@ -16,8 +16,8 @@ int main(void)
 	char *buffer = (char *)(__builtin_alloca((sizeof(char) * size)));
 	uintptr_t buffer_length = size;
 	Byte_formatHex(&test, buffer, buffer_length);
-	uintptr_t (* formatter)(void *arg0, char *arg1, uintptr_t arg2) = (uintptr_t (*)(void *arg0, char *arg1, uintptr_t arg2))Byte_formatHex;
-	void *formatter_context = (void *)(&test);
+	uintptr_t (* formatter)(const void *arg0, char *arg1, uintptr_t arg2) = (uintptr_t (*)(const void *arg0, char *arg1, uintptr_t arg2))Byte_formatHex;
+	const void *formatter_context = (void *)(&test);
 	formatter(formatter_context, buffer, buffer_length);
 	_finally1 = ByteFormatter_copyString((ByteFormatter)Byte_formatHex, &test);
 	_cleanupActive2 = true;
@@ -50,7 +50,7 @@ static uintptr_t Byte_formatHex(uint8_t *this, char *buffer, uintptr_t buffer_le
 	return 3;
 }
 
-static const char *ByteFormatter_copyString(ByteFormatter this, void *this_context)
+static const char *ByteFormatter_copyString(ByteFormatter this, const void *this_context)
 {
 	uintptr_t _arrayLength0 = (this(this_context, 0, 0) + 1);
 	char *buffer = (char *)(malloc((sizeof(char) * _arrayLength0)));
