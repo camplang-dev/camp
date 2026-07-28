@@ -17,6 +17,7 @@ public sealed class SyntaxHighlightingFilesTests
 		string vimDetect = File.ReadAllText(Path.Combine(root, "extras", "editors", "vim", "pack", "camp", "start", "camp", "ftdetect", "camp.vim"));
 
 		Assert.Contains("special.metadata.attribute.test", micro, StringComparison.Ordinal);
+		Assert.DoesNotContain("(?", micro, StringComparison.Ordinal);
 		Assert.Contains("@(test|testonly|skip", micro, StringComparison.Ordinal);
 		Assert.Contains("assert|fail", micro, StringComparison.Ordinal);
 		Assert.Contains("@(?:test|testonly|skip)", sublime, StringComparison.Ordinal);
