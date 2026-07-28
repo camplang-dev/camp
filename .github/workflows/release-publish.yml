@@ -1,4 +1,5 @@
 name: release-publish
+run-name: ${{ inputs.version }} release publish
 
 on:
   workflow_dispatch:
@@ -6,16 +7,86 @@ on:
       version:
         description: Release version
         required: true
-        default: v0.2.0-preview.1
-  push:
-    tags:
-      - 'v*'
+      prerelease:
+        description: Mark the GitHub release as a prerelease
+        required: true
+        type: boolean
+        default: true
+      publish:
+        description: I understand this will create the tag and publish release assets
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
+  validate:
+    name: validate release request
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+      prerelease: ${{ steps.validate.outputs.prerelease }}
+      commit: ${{ steps.validate.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate inputs and release notes
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${{ inputs.version }}"
+          prerelease="${{ inputs.prerelease }}"
+
+          if [ "${{ inputs.publish }}" != "true" ]; then
+            echo "The publish checkbox must be enabled to publish a release." >&2
+            exit 1
+          fi
+
+          if ! [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9][A-Za-z0-9.-]*)?$ ]]; then
+            echo "Release version must look like v0.2.0-preview.1 or v1.0.0." >&2
+            exit 1
+          fi
+
+          if [[ "$version" == *-preview* && "$prerelease" != "true" ]]; then
+            echo "Preview versions must be marked as prereleases." >&2
+            exit 1
+          fi
+
+          notes="docs/releases/${version}.md"
+          if [ ! -f "$notes" ]; then
+            echo "Release notes file is missing: $notes" >&2
+            exit 1
+          fi
+
+          first_line="$(sed -n '1p' "$notes")"
+          if [[ "$first_line" == \#* ]]; then
+            echo "Release notes must not start with a Markdown heading; GitHub renders the release title separately." >&2
+            exit 1
+          fi
+
+          git fetch --tags origin
+          if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            tag_commit="$(git rev-list -n 1 "$version")"
+            head_commit="$(git rev-parse HEAD)"
+            if [ "$tag_commit" != "$head_commit" ]; then
+              echo "Tag $version already exists at $tag_commit, but this workflow is running at $head_commit." >&2
+              echo "Choose a new version or delete the existing tag intentionally before publishing." >&2
+              exit 1
+            fi
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: validate
     name: ${{ matrix.rid }}
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -50,16 +121,6 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Resolve version
-        id: version
-        shell: bash
-        run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Install Linux native prerequisites
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev build-essential
@@ -77,50 +138,44 @@ jobs:
       - name: Package release archive
         if: runner.os != 'Windows'
         shell: bash
-        run: local/package-release.sh --version "${{ steps.version.outputs.value }}" --rid "${{ matrix.rid }}" --output-dir artifacts
+        run: local/package-release.sh --version "${{ needs.validate.outputs.version }}" --rid "${{ matrix.rid }}" --output-dir artifacts
 
       - name: Package release archive
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./local/package-release.ps1 -Version "${{ steps.version.outputs.value }}" -Rid "${{ matrix.rid }}" -OutputDir artifacts
+        run: ./local/package-release.ps1 -Version "${{ needs.validate.outputs.version }}" -Rid "${{ matrix.rid }}" -OutputDir artifacts
 
       - name: Smoke test archive
         if: runner.os != 'Windows' && matrix.smoke
         shell: bash
-        run: local/test-release-archive.sh artifacts/camp-${{ steps.version.outputs.value }}-${{ matrix.rid }}.tar.gz
+        run: local/test-release-archive.sh artifacts/camp-${{ needs.validate.outputs.version }}-${{ matrix.rid }}.tar.gz
 
       - name: Smoke test archive
         if: runner.os == 'Windows' && matrix.smoke
         shell: pwsh
-        run: ./local/test-release-archive.ps1 artifacts/camp-${{ steps.version.outputs.value }}-${{ matrix.rid }}.zip
+        run: ./local/test-release-archive.ps1 artifacts/camp-${{ needs.validate.outputs.version }}-${{ matrix.rid }}.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: camp-${{ steps.version.outputs.value }}-${{ matrix.rid }}
+          name: camp-${{ needs.validate.outputs.version }}-${{ matrix.rid }}
           path: |
-            artifacts/camp-${{ steps.version.outputs.value }}-${{ matrix.rid }}.*
+            artifacts/camp-${{ needs.validate.outputs.version }}-${{ matrix.rid }}.*
           if-no-files-found: error
 
   publish:
-    needs: build
+    needs:
+      - validate
+      - build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Resolve version
-        id: version
-        shell: bash
-        run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-          fi
+        with:
+          fetch-depth: 0
 
       - name: Verify release notes
         shell: bash
         run: |
-          notes="docs/releases/${{ steps.version.outputs.value }}.md"
+          notes="docs/releases/${{ needs.validate.outputs.version }}.md"
           if [ ! -f "$notes" ]; then
             echo "Release notes file is missing: $notes" >&2
             exit 1
@@ -140,16 +195,84 @@ jobs:
           done
           cat *.sha256 | sort > checksums.txt
 
-      - name: Create or update prerelease
+      - name: Create tag and GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          version="${{ steps.version.outputs.value }}"
+          set -euo pipefail
+
+          version="${{ needs.validate.outputs.version }}"
+          prerelease="${{ needs.validate.outputs.prerelease }}"
+          commit="${{ needs.validate.outputs.commit }}"
           notes="docs/releases/${version}.md"
+
+          git fetch --tags origin
+          if ! git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            git tag "$version" "$commit"
+            git push origin "$version"
+          fi
+
+          release_flags=()
+          if [ "$prerelease" = "true" ]; then
+            release_flags+=(--prerelease)
+          else
+            release_flags+=(--latest)
+          fi
+
           if gh release view "$version" >/dev/null 2>&1; then
-            gh release edit "$version" --title "Camp ${version}" --notes-file "$notes" --prerelease
+            gh release edit "$version" --title "Camp ${version}" --notes-file "$notes" "${release_flags[@]}"
             gh release upload "$version" release-assets/* --clobber
           else
-            gh release create "$version" release-assets/* --prerelease --title "Camp ${version}" --notes-file "$notes"
+            gh release create "$version" release-assets/* "${release_flags[@]}" --title "Camp ${version}" --notes-file "$notes"
           fi
+
+  verify-install:
+    needs:
+      - validate
+      - publish
+    name: verify install (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            runner: ubuntu-latest
+            shell: bash
+          - name: osx-x64
+            runner: macos-15
+            shell: bash
+          - name: win-x64
+            runner: windows-latest
+            shell: pwsh
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Unix installer
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: |
+          set -euo pipefail
+          install_dir="$(mktemp -d)/camp"
+          version="${{ needs.validate.outputs.version }}"
+          sh install.sh --version "$version" --install-dir "$install_dir" --no-path
+          "$install_dir/bin/campc" --version
+          latest_output="$(sh install.sh --dry-run --no-path)"
+          echo "$latest_output"
+          echo "$latest_output" | grep -F "Camp $version"
+
+      - name: Verify Windows installer
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: |
+          $version = "${{ needs.validate.outputs.version }}"
+          $installDir = Join-Path $env:RUNNER_TEMP "camp-install"
+          ./install.ps1 -Version $version -InstallDir $installDir -NoPath
+          & (Join-Path $installDir "bin\campc.exe") --version
+          $latestOutput = ./install.ps1 -DryRun -NoPath
+          $latestOutput
+          if (($latestOutput -join "`n") -notlike "*Camp $version*") {
+            throw "Latest release resolution did not select $version."
+          }

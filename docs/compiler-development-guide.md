@@ -92,7 +92,7 @@ Common commands:
 ```sh
 dotnet build src/camplang.sln
 dotnet msbuild src/publish-tools.proj -p:RuntimeIdentifier=osx-x64
-local/package-release.sh --version v0.1.0-preview.1 --rid osx-x64
+local/package-release.sh --version vX.Y.Z-preview.N --rid osx-x64
 dotnet msbuild src/test-fast.proj
 dotnet msbuild src/test-fast.proj -p:NoBuild=true
 dotnet msbuild src/coverage.proj
@@ -154,26 +154,46 @@ After approval, create or update `docs/releases/<version>.md` with curated
 release notes. Release notes are product-facing documentation: describe what a
 Camp user can do now, what changed in behavior, what was fixed, and any known
 limitations that affect use. Do not include management details that are useful
-only to compiler maintainers.
+only to compiler maintainers. The file should start with the body text, not a
+Markdown heading, because GitHub renders the release title separately.
 
-Before tagging, ensure release workflow support is in place for committed
-release notes. The publish workflow should read
-`docs/releases/<version>.md` and fail clearly if the file is missing rather than
-publishing placeholder notes.
+Commit the release notes before publishing. Push `master` to GitHub, then run
+the GitHub Actions workflow named `release-build` with the intended version.
+This is the rehearsal workflow. It builds the release matrix, runs targeted
+release-gate tests where enabled, packages the archives, smoke-tests the
+archives, and uploads workflow artifacts. It does not create a tag or GitHub
+Release.
 
-The final release sequence is:
+If the rehearsal fails because of a transient infrastructure or known flaky test
+failure, rerun only the failed job first. If it fails from a real release issue,
+fix the issue, commit it, push it, and run the rehearsal again. Do not proceed to
+publishing until the rehearsal has passed or the maintainer explicitly accepts a
+documented exception.
 
-```sh
-git push github master
-git tag <version>
-git push github <version>
-```
+After the rehearsal passes, run the GitHub Actions workflow named
+`release-publish` from `master`:
 
-Watch the GitHub release workflow, confirm that all archives and checksum files
-were uploaded, and then verify the install scripts can resolve and install the
-new release. If the workflow has to be rerun, preserve the same tag and update
-the GitHub release from the same committed release notes unless the maintainer
-approves a new tag.
+- enter the approved version;
+- leave `prerelease` enabled for preview versions;
+- enable the `publish` confirmation checkbox.
+
+Do not create or push the release tag locally. The publish workflow validates the
+version and release notes, verifies that an existing tag does not point at a
+different commit, builds and smoke-tests the full release matrix, creates the tag
+only after the matrix passes, uploads the GitHub Release assets, verifies
+checksums, and runs installer checks on Linux, macOS, and Windows against the
+published release assets.
+
+All preview releases must be marked as GitHub prereleases, including older
+previews. Do not rely on GitHub's stable `latest` release endpoint or badge for
+preview release selection. Camp installer scripts define "latest" as the first
+release returned by the releases list, which includes prereleases.
+
+Watch the publish workflow through completion. Confirm that the release page has
+the expected archives, per-archive `.sha256` files, and `checksums.txt`. If the
+workflow has to be rerun after the tag has been created, rerun failed jobs
+against the same commit and tag. Do not move a published tag unless the
+maintainer explicitly approves that repair.
 
 ## Targeted Test Workflow
 
