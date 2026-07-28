@@ -21,12 +21,52 @@ if (-not $OutputDir) {
 }
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
-foreach ($required in @("src\publish-tools.proj", "lib", "targets", "LICENSE", "README.md")) {
+function Resolve-VscodeVsix {
+    $releaseAsset = Join-Path $RepoRoot "extras\editors\vscode\vscode-camp.vsix"
+    if (Test-Path $releaseAsset) {
+        return $releaseAsset
+    }
+
+    $extensionDir = Join-Path $RepoRoot "extras\vscode-camp"
+    $existing = Get-ChildItem $extensionDir -Filter "vscode-camp-*.vsix" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($existing) {
+        return $existing.FullName
+    }
+
+    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+        throw "No bundled VS Code extension was found, and npm is not available to build it."
+    }
+
+    Push-Location $extensionDir
+    try {
+        npm ci
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        npm run package
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    $built = Get-ChildItem $extensionDir -Filter "vscode-camp-*.vsix" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $built) {
+        throw "VS Code extension package build did not produce a vscode-camp-*.vsix file."
+    }
+    return $built.FullName
+}
+
+foreach ($required in @("src\publish-tools.proj", "lib", "targets", "extras\editors", "extras\vscode-camp\package.json", "LICENSE", "README.md")) {
     $path = Join-Path $RepoRoot $required
     if (-not (Test-Path $path)) {
         throw "Required path is missing: $path"
     }
 }
+
+$vscodeVsix = Resolve-VscodeVsix
 
 if (-not $SkipPublish) {
     dotnet msbuild (Join-Path $RepoRoot "src\publish-tools.proj") "-p:RuntimeIdentifier=$Rid"
@@ -64,6 +104,11 @@ try {
     Copy-Item (Join-Path $publishDir "camp-dap$toolExt") (Join-Path $layout "bin")
     Copy-Item (Join-Path $RepoRoot "lib") (Join-Path $layout "lib") -Recurse
     Copy-Item (Join-Path $RepoRoot "targets") (Join-Path $layout "targets") -Recurse
+    New-Item -ItemType Directory -Force -Path (Join-Path $layout "extras") | Out-Null
+    Copy-Item (Join-Path $RepoRoot "extras\editors") (Join-Path $layout "extras\editors") -Recurse
+    if ($vscodeVsix -ne (Join-Path $RepoRoot "extras\editors\vscode\vscode-camp.vsix")) {
+        Copy-Item $vscodeVsix (Join-Path $layout "extras\editors\vscode\vscode-camp.vsix")
+    }
     Get-ChildItem $layout -Filter ".DS_Store" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force
     Copy-Item (Join-Path $RepoRoot "LICENSE") (Join-Path $layout "LICENSE")
     Copy-Item (Join-Path $RepoRoot "README.md") (Join-Path $layout "README.md")

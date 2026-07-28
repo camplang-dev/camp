@@ -115,6 +115,21 @@ sha256_verify() {
     fi
 }
 
+print_editor_setup() {
+    echo ""
+    echo "Camp ${version} installed."
+    echo ""
+    echo "Optional editor setup:"
+    echo "  VS Code:  ${install_dir}/extras/editors/vscode/install.sh"
+    echo "  Sublime:  ${install_dir}/extras/editors/sublime/install.sh"
+    echo "  micro:    ${install_dir}/extras/editors/micro/install.sh"
+    echo "  Vim:      ${install_dir}/extras/editors/vim/install.sh"
+    echo ""
+    echo "Run the command for your editor. VS Code includes syntax, language server, and debugging."
+    echo "Other editors install syntax highlighting and language-server support when supported."
+    echo "Use --help on an editor command for advanced options."
+}
+
 best_profile() {
     shell_name="$(basename "${SHELL:-}")"
     if [ "$shell_name" = "zsh" ]; then
@@ -208,3 +223,4 @@ fi
 
 echo "installed: $install_dir"
 echo "verify:    $install_dir/bin/campc --help"
+print_editor_setup

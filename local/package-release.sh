@@ -81,12 +81,41 @@ fi
 mkdir -p "$output_dir"
 output_dir="$(cd "$output_dir" && pwd)"
 
-for required in "$repo_root/src/publish-tools.proj" "$repo_root/lib" "$repo_root/targets" "$repo_root/LICENSE" "$repo_root/README.md"; do
+resolve_vscode_vsix() {
+    release_asset="$repo_root/extras/editors/vscode/vscode-camp.vsix"
+    if [ -f "$release_asset" ]; then
+        echo "$release_asset"
+        return
+    fi
+
+    existing="$(find "$repo_root/extras/vscode-camp" -maxdepth 1 -name 'vscode-camp-*.vsix' -type f | head -n 1)"
+    if [ -n "$existing" ]; then
+        echo "$existing"
+        return
+    fi
+
+    if ! command -v npm >/dev/null 2>&1; then
+        echo "No bundled VS Code extension was found, and npm is not available to build it." >&2
+        exit 1
+    fi
+
+    (cd "$repo_root/extras/vscode-camp" && npm ci && npm run package)
+    built="$(find "$repo_root/extras/vscode-camp" -maxdepth 1 -name 'vscode-camp-*.vsix' -type f | head -n 1)"
+    if [ -z "$built" ]; then
+        echo "VS Code extension package build did not produce a vscode-camp-*.vsix file." >&2
+        exit 1
+    fi
+    echo "$built"
+}
+
+for required in "$repo_root/src/publish-tools.proj" "$repo_root/lib" "$repo_root/targets" "$repo_root/extras/editors" "$repo_root/extras/vscode-camp/package.json" "$repo_root/LICENSE" "$repo_root/README.md"; do
     if [ ! -e "$required" ]; then
         echo "Required path is missing: $required" >&2
         exit 1
     fi
 done
+
+vscode_vsix="$(resolve_vscode_vsix)"
 
 if [ "$skip_publish" -eq 0 ]; then
     dotnet msbuild "$repo_root/src/publish-tools.proj" -p:RuntimeIdentifier="$rid"
@@ -119,7 +148,12 @@ cp "$publish_dir/camp-lsp$tool_ext" "$layout/bin/"
 cp "$publish_dir/camp-dap$tool_ext" "$layout/bin/"
 cp -R "$repo_root/lib" "$layout/lib"
 cp -R "$repo_root/targets" "$layout/targets"
-find "$layout/lib" "$layout/targets" -name .DS_Store -delete
+mkdir -p "$layout/extras"
+cp -R "$repo_root/extras/editors" "$layout/extras/editors"
+if [ "$vscode_vsix" != "$repo_root/extras/editors/vscode/vscode-camp.vsix" ]; then
+    cp "$vscode_vsix" "$layout/extras/editors/vscode/vscode-camp.vsix"
+fi
+find "$layout/lib" "$layout/targets" "$layout/extras" -name .DS_Store -delete
 cp "$repo_root/LICENSE" "$layout/LICENSE"
 cp "$repo_root/README.md" "$layout/README.md"
 if [ -f "$repo_root/TRADEMARKS.md" ]; then
@@ -132,6 +166,7 @@ $rid
 EOF_VERSION
 
 chmod +x "$layout/bin/campc$tool_ext" "$layout/bin/camp-lsp$tool_ext" "$layout/bin/camp-dap$tool_ext" 2>/dev/null || true
+find "$layout/extras/editors" -name install.sh -exec chmod +x {} \; 2>/dev/null || true
 
 archive="$output_dir/$package_name.$archive_ext"
 rm -f "$archive" "$archive.sha256"

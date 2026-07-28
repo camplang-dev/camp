@@ -70,6 +70,20 @@ cd hello
 campc run hello.campbuild
 ```
 
+## Editor Support
+
+Release distributions include optional editor setup scripts:
+
+```text
+VS Code:  <install-dir>/extras/editors/vscode/install.sh
+Sublime:  <install-dir>/extras/editors/sublime/install.sh
+micro:    <install-dir>/extras/editors/micro/install.sh
+Vim:      <install-dir>/extras/editors/vim/install.sh
+```
+
+On Windows, run the matching `install.ps1` script from PowerShell. Use `--help`
+or `-Help` on an editor command for advanced options.
+
 ## Build From Source
 
 To build Camp itself, install the .NET 10 SDK.

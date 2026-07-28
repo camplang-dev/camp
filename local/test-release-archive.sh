@@ -60,6 +60,16 @@ required_paths=(
     "VERSION"
     "LICENSE"
     "README.md"
+    "extras/editors/README.md"
+    "extras/editors/vscode/install.sh"
+    "extras/editors/vscode/vscode-camp.vsix"
+    "extras/editors/sublime/install.sh"
+    "extras/editors/sublime/Camp.sublime-syntax"
+    "extras/editors/micro/install.sh"
+    "extras/editors/micro/camp.yaml"
+    "extras/editors/vim/install.sh"
+    "extras/editors/vim/pack/camp/start/camp/ftdetect/camp.vim"
+    "extras/editors/vim/pack/camp/start/camp/syntax/camp.vim"
 )
 for path in "${required_paths[@]}"; do
     if [ ! -e "$install_root/$path" ]; then
@@ -70,7 +80,13 @@ done
 
 campc="$install_root/bin/campc$tool_ext"
 chmod +x "$install_root/bin/campc"* 2>/dev/null || true
+find "$install_root/extras/editors" -name install.sh -exec chmod +x {} \; 2>/dev/null || true
 CAMP_HOME="$install_root" "$campc" --help >/dev/null
+
+for editor in vscode sublime micro vim; do
+    "$install_root/extras/editors/$editor/install.sh" --help >/dev/null
+    "$install_root/extras/editors/$editor/install.sh" --dry-run >/dev/null
+done
 
 tiny="$temp_root/tiny.camp"
 cat > "$tiny" <<'EOF_TINY'

@@ -56,7 +56,7 @@ jobs:
         shell: bash
         run: |
           dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll \
-            --TestCaseFilter:"FullyQualifiedName~CommandLineTests|FullyQualifiedName~ProjectLoaderTests|FullyQualifiedName~LspServerTests|FullyQualifiedName~DapServerTests"
+            --TestCaseFilter:"FullyQualifiedName~CommandLineTests|FullyQualifiedName~ProjectLoaderTests|FullyQualifiedName~SyntaxHighlightingFilesTests|FullyQualifiedName~LspServerTests|FullyQualifiedName~DapServerTests"
 
       - name: Package release archive
         if: runner.os != 'Windows'

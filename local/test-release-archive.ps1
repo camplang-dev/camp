@@ -38,7 +38,17 @@ try {
         "cache\pkg",
         "VERSION",
         "LICENSE",
-        "README.md"
+        "README.md",
+        "extras\editors\README.md",
+        "extras\editors\vscode\install.ps1",
+        "extras\editors\vscode\vscode-camp.vsix",
+        "extras\editors\sublime\install.ps1",
+        "extras\editors\sublime\Camp.sublime-syntax",
+        "extras\editors\micro\install.ps1",
+        "extras\editors\micro\camp.yaml",
+        "extras\editors\vim\install.ps1",
+        "extras\editors\vim\pack\camp\start\camp\ftdetect\camp.vim",
+        "extras\editors\vim\pack\camp\start\camp\syntax\camp.vim"
     )) {
         if (-not (Test-Path (Join-Path $root $path))) {
             throw "Installed layout is missing: $path"
@@ -50,6 +60,18 @@ try {
     & $campc --help | Out-Null
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
+    }
+
+    foreach ($editor in @("vscode", "sublime", "micro", "vim")) {
+        $installer = Join-Path $root "extras\editors\$editor\install.ps1"
+        & $installer -Help | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        & $installer -DryRun | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
     }
 
     $tiny = Join-Path $tempRoot "tiny.camp"

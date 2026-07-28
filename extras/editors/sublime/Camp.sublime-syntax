@@ -1,0 +1,339 @@
+%YAML 1.2
+---
+name: Camp
+file_extensions:
+  - camp
+scope: source.camp
+
+variables:
+  identifier: '[A-Za-z_][A-Za-z0-9_]*'
+  qualified_identifier: '{{identifier}}(?:(::){{identifier}})*'
+  target_spec: '_[a-z][A-Za-z0-9_]*'
+  type_keywords: '\b(?:any|auto|bool|byte|sbyte|ushort|short|uint|int|ulong|long|nuint|nint|float|double|char|wchar|achar|uchar|void|string|wstring|astring|classtype)\b'
+  type_forms: '\b(?:fn|delegate|async|once|iter|thrown|struct|class)\b'
+  storage_keywords: '\b(?:const|constof|volatile|escaped|scoped|unscoped|in|out|thrown|overload|within|unsafe)\b'
+  intrinsic_keywords: '\b(?:sizeof|typenameof|vtableof|caller|sourceof)\b(?=\s*\()'
+  test_support_functions: '\b(?:assert|fail)\b(?=\s*\()'
+  constraint_keywords: '\b(?:implements|copyable)\b'
+  statement_keywords: 'if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|init|new'
+  declaration_keywords: 'export|internal|public|extern|static|virtual|override|sealed|abstract|fixed|escaped|inline|alias|shadow'
+
+contexts:
+  main:
+    - include: comments
+    - include: preprocessor
+    - include: attributes
+    - include: strings
+    - include: numbers
+    - include: statements
+    - include: declarations
+    - include: types
+    - include: constants
+    - include: operators
+    - include: punctuation
+    - include: names
+
+  comments:
+    - match: '^(\s*)(///)'
+      captures:
+        2: punctuation.definition.comment.documentation.camp
+      push: line-doc-comment
+    - match: '/\*\*'
+      scope: punctuation.definition.comment.documentation.begin.camp
+      push: block-doc-comment
+    - match: '//'
+      scope: punctuation.definition.comment.camp
+      push:
+        - meta_scope: comment.line.double-slash.camp
+        - match: $\n?
+          pop: true
+    - match: '/\*'
+      scope: punctuation.definition.comment.begin.camp
+      push:
+        - meta_scope: comment.block.camp
+        - match: '\*/'
+          scope: punctuation.definition.comment.end.camp
+          pop: true
+
+  line-doc-comment:
+    - meta_scope: comment.line.documentation.camp
+    - include: doc-comment-content
+    - match: $\n?
+      pop: true
+
+  block-doc-comment:
+    - meta_scope: comment.block.documentation.camp
+    - match: '\*/'
+      scope: punctuation.definition.comment.documentation.end.camp
+      pop: true
+    - include: doc-comment-content
+
+  doc-comment-content:
+    - match: '(```)([A-Za-z0-9_+-]+)?'
+      captures:
+        1: punctuation.definition.raw.code-fence.documentation.camp
+        2: constant.other.language-name.documentation.camp
+      push: fenced-doc-comment-code
+    - match: '`'
+      scope: punctuation.definition.raw.inline.documentation.begin.camp
+      push:
+        - meta_scope: markup.raw.inline.documentation.camp
+        - match: '`'
+          scope: punctuation.definition.raw.inline.documentation.end.camp
+          pop: true
+        - match: $\n?
+          pop: true
+    - match: '(^|\s)(-)\s*({{identifier}})\s*(:)'
+      captures:
+        2: punctuation.definition.list.child-target.documentation.camp
+        3: variable.parameter.documentation.camp
+        4: punctuation.separator.key-value.documentation.camp
+    - match: '@(?:summary|remarks|returns|example|see|deprecated)\b'
+      scope: storage.type.annotation.documentation.known.camp
+    - match: '@{{identifier}}\b'
+      scope: storage.type.annotation.documentation.camp
+    - match: '(\[)([^\]\n`]+)(\])'
+      captures:
+        1: punctuation.definition.reference.documentation.begin.camp
+        2: entity.name.reference.documentation.camp
+        3: punctuation.definition.reference.documentation.end.camp
+
+  fenced-doc-comment-code:
+    - meta_scope: markup.raw.block.documentation.camp
+    - match: '```'
+      scope: punctuation.definition.raw.code-fence.documentation.camp
+      pop: true
+
+  preprocessor:
+    - match: '^\s*(#)\s*(if|elif)\b'
+      captures:
+        1: punctuation.definition.directive.camp
+        2: keyword.control.preprocessor.conditional.camp
+      push:
+        - meta_scope: meta.preprocessor.conditional.camp
+        - match: '\bTRUE\b'
+          scope: constant.language.boolean.preprocessor.camp
+        - match: '{{identifier}}'
+          scope: variable.other.preprocessor.symbol.camp
+        - match: '&&|\|\||!'
+          scope: keyword.operator.logical.preprocessor.camp
+        - match: '[()]'
+          scope: punctuation.section.group.preprocessor.camp
+        - match: $\n?
+          pop: true
+    - match: '^\s*(#)\s*(else|endif)\b'
+      captures:
+        1: punctuation.definition.directive.camp
+        2: keyword.control.preprocessor.conditional.camp
+      push:
+        - meta_scope: meta.preprocessor.conditional.camp
+        - match: $\n?
+          pop: true
+    - match: '^\s*(#)\s*(define|undef)\b'
+      captures:
+        1: punctuation.definition.directive.camp
+        2: keyword.control.preprocessor.define.camp
+      push:
+        - meta_scope: meta.preprocessor.define.camp
+        - match: '{{identifier}}'
+          scope: entity.name.constant.preprocessor.camp
+        - match: $\n?
+          pop: true
+    - match: '^\s*(#)\s*(build)\b'
+      captures:
+        1: punctuation.definition.directive.camp
+        2: keyword.control.preprocessor.build.camp
+      push:
+        - meta_scope: meta.preprocessor.build.camp
+        - include: strings
+        - match: '--[A-Za-z][A-Za-z0-9-]*|-[A-Za-z]'
+          scope: variable.parameter.build-flag.camp
+        - match: '{{identifier}}'
+          scope: variable.other.build-value.camp
+        - match: $\n?
+          pop: true
+    - match: '^\s*(#)\s*(within)\b'
+      captures:
+        1: punctuation.definition.directive.camp
+        2: keyword.control.preprocessor.build.camp
+      push:
+        - meta_scope: meta.preprocessor.build.camp
+        - match: '\b(?:explicit|implicit)\b'
+          scope: constant.language.policy.camp
+        - match: $\n?
+          pop: true
+
+  attributes:
+    - match: '(@(?:test|testonly|skip)\b)'
+      scope: storage.type.annotation.camp
+      captures:
+        1: storage.type.annotation.test.camp
+    - match: '(@(?:getshadow|setshadow)\b)'
+      scope: storage.type.annotation.camp
+      captures:
+        1: storage.type.annotation.shadow.camp
+    - match: '@{{identifier}}\b'
+      scope: storage.type.annotation.camp
+
+  strings:
+    - match: '\$"'
+      scope: punctuation.definition.string.begin.camp
+      push: interpolated-string
+    - match: '"'
+      scope: punctuation.definition.string.begin.camp
+      push:
+        - meta_scope: string.quoted.double.camp
+        - match: '\\(?:[\\''"0abfnrtv]|x[0-9A-Fa-f]+|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})'
+          scope: constant.character.escape.camp
+        - match: '\\.'
+          scope: invalid.illegal.escape.camp
+        - match: '"'
+          scope: punctuation.definition.string.end.camp
+          pop: true
+    - match: "'"
+      scope: punctuation.definition.string.begin.camp
+      push:
+        - meta_scope: string.quoted.single.camp
+        - match: '\\(?:[\\''"0abfnrtv]|x[0-9A-Fa-f]+|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})'
+          scope: constant.character.escape.camp
+        - match: '\\.'
+          scope: invalid.illegal.escape.camp
+        - match: "'"
+          scope: punctuation.definition.string.end.camp
+          pop: true
+
+  interpolated-string:
+    - meta_scope: string.quoted.double.interpolated.camp
+    - match: '\\(?:[\\''"0abfnrtv]|x[0-9A-Fa-f]+|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})'
+      scope: constant.character.escape.camp
+    - match: '\\.'
+      scope: invalid.illegal.escape.camp
+    - match: '\{\{|\}\}'
+      scope: constant.character.escape.brace.camp
+    - match: '\{'
+      scope: punctuation.section.interpolation.begin.camp
+      push:
+        - meta_scope: meta.interpolation.camp
+        - match: '\}'
+          scope: punctuation.section.interpolation.end.camp
+          pop: true
+        - include: main
+    - match: '"'
+      scope: punctuation.definition.string.end.camp
+      pop: true
+
+  numbers:
+    - match: '\b0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*(?:[uUlLnN]|n?u?int|u?long|u?short|u?byte)?\b'
+      scope: constant.numeric.integer.hexadecimal.camp
+    - match: '\b0[bB][01](?:_?[01])*(?:[uUlLnN]|n?u?int|u?long|u?short|u?byte)?\b'
+      scope: constant.numeric.integer.binary.camp
+    - match: '\b(?:[0-9](?:_?[0-9])*)?\.[0-9](?:_?[0-9])*(?:[eE][+-]?[0-9](?:_?[0-9])*)?(?:[fFdD])?\b'
+      scope: constant.numeric.float.camp
+    - match: '\b[0-9](?:_?[0-9])*(?:[eE][+-]?[0-9](?:_?[0-9])*)?(?:[fFdD])\b'
+      scope: constant.numeric.float.camp
+    - match: '\b[0-9](?:_?[0-9])*(?:[uUlLnN]|n?u?int|u?long|u?short|u?byte)?\b'
+      scope: constant.numeric.integer.decimal.camp
+
+  declarations:
+    - match: '^(\s*(?:(?:{{declaration_keywords}})\s+)*)(\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)\s+(?=[^\n;{}]*\()'
+      captures:
+        2: storage.modifier.target.camp
+    - match: '\b({{declaration_keywords}})\b'
+      scope: storage.modifier.camp
+    - match: '{{constraint_keywords}}'
+      scope: storage.modifier.constraint.camp
+    - match: '\b(using|namespace|as)\b'
+      scope: keyword.control.import.camp
+    - match: '\b(struct|class|interface|enum|newtype|params)\b\s+({{identifier}})'
+      captures:
+        1: storage.type.camp
+        2: entity.name.type.camp
+    - match: '(~)\s*({{identifier}})\b'
+      captures:
+        1: punctuation.definition.destructor.camp
+        2: entity.name.function.destructor.camp
+    - match: '\b({{type_keywords}}|{{qualified_identifier}})(\s*)(\.)(\s*)({{identifier}})\b'
+      captures:
+        1: entity.name.type.owner.camp
+        3: punctuation.accessor.member.camp
+        5: entity.name.member.static.camp
+    - match: '(:)(\s*)({{qualified_identifier}})(\s*)(\.)(\s*)({{identifier}})\b'
+      captures:
+        1: punctuation.separator.ascription.camp
+        3: entity.name.type.interface.camp
+        5: punctuation.accessor.member.camp
+        7: entity.name.member.interface-slot.camp
+    - match: '\b({{identifier}})\s*(?=<)'
+      scope: entity.name.type.generic.camp
+    - match: '\b(fn|delegate|async|once)\b(\s+\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)?'
+      captures:
+        1: storage.type.camp
+        2: storage.modifier.target.camp
+    - match: '({{type_keywords}}|{{qualified_identifier}})(\s+\b{{target_spec}}\b)(?=\s*(?:[*?\[\]]|\b{{identifier}}\b))'
+      captures:
+        1: storage.type.camp
+        2: storage.modifier.target.camp
+    - match: '(\*)(\s+\b{{target_spec}}\b)'
+      captures:
+        1: keyword.operator.pointer.camp
+        2: storage.modifier.target.camp
+    - match: '\b(?!(?:{{statement_keywords}}|{{declaration_keywords}}|{{intrinsic_keywords}}|{{type_keywords}}|{{type_forms}}|{{constraint_keywords}})\b)({{identifier}})\s*(?=\()'
+      scope: entity.name.function.camp
+    - match: '{{test_support_functions}}'
+      scope: support.function.test.camp
+
+  statements:
+    - match: '\b(?:{{statement_keywords}})\b'
+      scope: keyword.control.camp
+    - match: '{{intrinsic_keywords}}'
+      scope: keyword.other.camp
+    - match: '{{test_support_functions}}'
+      scope: support.function.test.camp
+
+  types:
+    - match: '\b(fn|delegate|async|once)\b(\s+\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)?'
+      captures:
+        1: storage.type.camp
+        2: storage.modifier.target.camp
+    - match: '({{type_keywords}}|{{qualified_identifier}})(\s+\b{{target_spec}}\b)(?=\s*(?:[*?\[\]]|\b{{identifier}}\b))'
+      captures:
+        1: storage.type.camp
+        2: storage.modifier.target.camp
+    - match: '(\*)(\s+\b{{target_spec}}\b)'
+      captures:
+        1: keyword.operator.pointer.camp
+        2: storage.modifier.target.camp
+    - match: '{{type_keywords}}'
+      scope: storage.type.primitive.camp
+    - match: '{{type_forms}}'
+      scope: storage.type.camp
+    - match: '{{constraint_keywords}}'
+      scope: storage.modifier.constraint.camp
+    - match: '{{storage_keywords}}'
+      scope: storage.modifier.type.camp
+
+  constants:
+    - match: '\b(?:true|false|null|default|this|base)\b'
+      scope: constant.language.camp
+
+  operators:
+    - match: '(::)'
+      scope: punctuation.accessor.namespace.camp
+    - match: '(=>|\+\+|--|\?\?|\.\.|==|!=|<=|>=|<<|>>|&&|\|\||[+\-*/%&|^~!=<>?:]=?|=)'
+      scope: keyword.operator.camp
+
+  punctuation:
+    - match: '[{}]'
+      scope: punctuation.section.block.camp
+    - match: '[()]'
+      scope: punctuation.section.group.camp
+    - match: '[\[\]]'
+      scope: punctuation.section.brackets.camp
+    - match: '[,.;:]'
+      scope: punctuation.separator.camp
+
+  names:
+    - match: '{{qualified_identifier}}'
+      scope: variable.other.camp
+      captures:
+        1: punctuation.accessor.namespace.camp

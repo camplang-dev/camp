@@ -10,9 +10,11 @@ public sealed class SyntaxHighlightingFilesTests
 	public void Syntax_files_highlight_test_attributes_and_support_calls_without_reserved_keywords()
 	{
 		string root = FindRepositoryRoot();
-		string micro = File.ReadAllText(Path.Combine(root, "extras", "camp.yaml"));
-		string sublime = File.ReadAllText(Path.Combine(root, "extras", "Camp.sublime-syntax"));
+		string micro = File.ReadAllText(Path.Combine(root, "extras", "editors", "micro", "camp.yaml"));
+		string sublime = File.ReadAllText(Path.Combine(root, "extras", "editors", "sublime", "Camp.sublime-syntax"));
 		string vscode = File.ReadAllText(Path.Combine(root, "extras", "vscode-camp", "syntaxes", "camp.tmLanguage.json"));
+		string vimSyntax = File.ReadAllText(Path.Combine(root, "extras", "editors", "vim", "pack", "camp", "start", "camp", "syntax", "camp.vim"));
+		string vimDetect = File.ReadAllText(Path.Combine(root, "extras", "editors", "vim", "pack", "camp", "start", "camp", "ftdetect", "camp.vim"));
 
 		Assert.Contains("special.metadata.attribute.test", micro, StringComparison.Ordinal);
 		Assert.Contains("@(test|testonly|skip", micro, StringComparison.Ordinal);
@@ -26,6 +28,9 @@ public sealed class SyntaxHighlightingFilesTests
 		Assert.Contains("storage.type.annotation.test.camp", vscode, StringComparison.Ordinal);
 		Assert.Contains("support.function.test.camp", vscode, StringComparison.Ordinal);
 		Assert.DoesNotContain("keyword.declaration.camp\",\n          \"match\": \"\\\\b(?:caller|sourceof)", vscode, StringComparison.Ordinal);
+		Assert.Contains("syntax keyword campTestAttribute test testonly skip", vimSyntax, StringComparison.Ordinal);
+		Assert.Contains("*.camp", vimDetect, StringComparison.Ordinal);
+		Assert.Contains("*.campbuild", vimDetect, StringComparison.Ordinal);
 	}
 
 	static string FindRepositoryRoot()

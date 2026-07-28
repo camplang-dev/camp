@@ -49,6 +49,22 @@ function Add-CampToPath {
     Write-Host "Added Camp to the user PATH. Open a new terminal to use campc directly."
 }
 
+function Write-EditorSetup {
+    param([string]$Version, [string]$InstallDir)
+    Write-Host ""
+    Write-Host "Camp $Version installed."
+    Write-Host ""
+    Write-Host "Optional editor setup:"
+    Write-Host "  VS Code:  & `"$InstallDir\extras\editors\vscode\install.ps1`""
+    Write-Host "  Sublime:  & `"$InstallDir\extras\editors\sublime\install.ps1`""
+    Write-Host "  micro:    & `"$InstallDir\extras\editors\micro\install.ps1`""
+    Write-Host "  Vim:      & `"$InstallDir\extras\editors\vim\install.ps1`""
+    Write-Host ""
+    Write-Host "Run the command for your editor. VS Code includes syntax, language server, and debugging."
+    Write-Host "Other editors install syntax highlighting and language-server support when supported."
+    Write-Host "Use -Help on an editor command for advanced options."
+}
+
 if (-not $Arch) {
     $Arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
 }
@@ -127,6 +143,7 @@ try {
 
     Write-Host "installed: $InstallDir"
     Write-Host "verify:    $binDir\campc.exe --help"
+    Write-EditorSetup $Version $InstallDir
 }
 finally {
     Remove-Item -Recurse -Force $tempRoot -ErrorAction SilentlyContinue

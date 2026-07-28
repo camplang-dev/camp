@@ -13,6 +13,25 @@ The language server is a tooling layer over the compiler. It does not define
 language semantics, and it should not invent project behavior that `campc` would
 not understand.
 
+## Installing Editor Support
+
+Camp release distributions include optional editor setup scripts under
+`extras/editors`. Run the script for the editor you use, and rerun it after
+updating Camp:
+
+```sh
+extras/editors/vscode/install.sh
+extras/editors/sublime/install.sh
+extras/editors/micro/install.sh
+extras/editors/vim/install.sh
+```
+
+On Windows, use the matching `install.ps1` script from PowerShell. The VS Code
+installer installs the bundled extension, which includes syntax highlighting,
+language-server support, and debugging. Sublime Text, micro, and Vim install
+syntax highlighting and configure language-server support when the editor has a
+supported setup. Each installer has `--help` or `-Help` for its own options.
+
 ## Server Process
 
 The server entry point is `src/camp-lsp`. Editors start it as a stdio LSP
