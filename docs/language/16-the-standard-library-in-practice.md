@@ -243,7 +243,9 @@ working with.
 
 Formatting in `Std` is built around `StringFormatter`, a callable value that can
 first report the required buffer size and then write into a caller-provided
-buffer.
+buffer. That makes formatted text cheap to pass around: the value carries the
+work needed to write the text, but it does not allocate a `string` unless you
+ask it to.
 
 You often do not need to see that two-step protocol directly:
 
@@ -260,6 +262,21 @@ side is text:
 
 ```camp
 Console.writeLine("total: " + total);
+```
+
+An interpolated string with only constant text is still just constant text:
+
+```camp
+auto title = $"Camp"; // string
+```
+
+Once a runtime value needs formatting, the result is a `StringFormatter` when
+the first runtime value has a standard UTF-8 formatter:
+
+```camp
+int total = 42;
+StringFormatter formatter = $"total: {total}";
+Console.writeLine(formatter);
 ```
 
 When you need an allocated string, ask the formatter to copy:
@@ -283,6 +300,37 @@ void showTotal(int total)
 
 Date/time values use the same style, which makes library formatting feel
 consistent across domains.
+
+You can make your own formatting surface by adding a formatter method. A
+formatter returns the required buffer size including the null terminator, and
+when the supplied buffer is large enough, writes the text plus that terminator.
+
+```camp
+public nuint formatHex(in byte this, overload char[] buffer) : StringFormatter
+{
+	const char[] digits = "0123456789ABCDEF";
+	uint value = (uint)this;
+	nuint required = 3;
+
+	if (buffer.length >= required)
+	{
+		buffer[0] = digits[(nuint)(value >> 4)];
+		buffer[1] = digits[(nuint)(value & 15)];
+		buffer[2] = '\0';
+	}
+
+	return required;
+}
+
+void printByte(byte value)
+{
+	Console.writeLine($"0x{value.formatHex}");
+}
+```
+
+The interpolation uses `value.formatHex` directly as a formatter component. That
+keeps the formatting choice local to the expression without changing how plain
+`byte` values format elsewhere.
 
 ## Files
 

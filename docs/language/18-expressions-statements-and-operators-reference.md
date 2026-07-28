@@ -119,7 +119,30 @@ string message = ("total: " + total).copyString() finally delete;
 ```
 
 Runtime text composition is a formatter. It does not allocate a primitive
-`string` implicitly.
+`string` implicitly, so assigning it to `string` requires explicit
+materialization:
+
+```camp
+string text = $"total: {total}";                                 // ERROR
+string copy = ($"total: {total}").copyString() finally delete;   // OK
+```
+
+Constant interpolation and constant string concatenation remain ordinary text:
+
+```camp
+auto literal = $"ready";            // string
+auto combined = "read" + "y";       // string
+```
+
+Textual `+` is left-associative:
+
+```camp
+Console.writeLine("Total: " + 1 + 2);    // Total: 12
+Console.writeLine("Total: " + (1 + 2));  // Total: 3
+```
+
+`+=` is still numeric addition assignment. It does not append text or mutate a
+formatter.
 
 Conditions must be `bool`. Integers, pointers, enums, and newtypes do not
 implicitly become truth values.
