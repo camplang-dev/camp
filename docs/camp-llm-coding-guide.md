@@ -833,11 +833,14 @@ inside a `@testonly` type. The built-in runner invokes only this shape:
 
 ```camp
 @test
-void addReturnsSum(thrown Assertion* assertion)
+void addReturnsSum(thrown Assertion*)
 {
 	assert(add(2, 3) == 5);
 }
 ```
+
+Omit the thrown parameter name unless the function body needs to reference the
+slot directly.
 
 Use `assert(condition)` for ordinary checks and `fail(message)` for an explicit
 failure. These functions capture expression text, source file, and source line

@@ -262,7 +262,7 @@ int add(int left, int right)
 }
 
 @test
-void addReturnsSum(thrown Assertion* assertion)
+void addReturnsSum(thrown Assertion*)
 {
 	assert(add(2, 3) == 5);
 }
@@ -275,12 +275,15 @@ line for the failure report, so the test can stay focused on the behavior:
 
 ```camp
 @test
-void divideRejectsZero(thrown Assertion* assertion)
+void divideRejectsZero(thrown Assertion*)
 {
 	if (canDivide(10, 0))
 		fail("division by zero should be rejected");
 }
 ```
+
+The thrown slot may have an explicit parameter name when a function needs to
+refer to it directly. Most tests do not need one.
 
 Run the tests in a project with:
 
@@ -301,7 +304,7 @@ internal int expectedSum()
 }
 
 @test
-void addUsesExpectedValue(thrown Assertion* assertion)
+void addUsesExpectedValue(thrown Assertion*)
 {
 	assert(add(2, 3) == expectedSum());
 }
@@ -318,7 +321,7 @@ Sometimes a test should remain visible even though it is not ready to run. Add
 ```camp
 @skip("waiting on parser fix")
 @test
-void futureParserCase(thrown Assertion* assertion)
+void futureParserCase(thrown Assertion*)
 {
 	fail("not ready");
 }
