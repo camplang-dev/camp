@@ -71,7 +71,13 @@ if ((Get-Command micro -ErrorAction SilentlyContinue) -and (Test-Path $pluginDir
         New-Item -ItemType Directory -Force -Path $microDir | Out-Null
         $data = @{}
         if (Test-Path $settings) {
-            $data = Get-Content $settings -Raw | ConvertFrom-Json -AsHashtable
+            $raw = Get-Content $settings -Raw
+            if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                $parsed = $raw | ConvertFrom-Json -AsHashtable
+                if ($parsed) {
+                    $data = $parsed
+                }
+            }
         }
         $current = if ($data.ContainsKey("lsp.server")) { [string]$data["lsp.server"] } else { "" }
         if ($current -notmatch '(^|,)camp=') {
