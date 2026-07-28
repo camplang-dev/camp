@@ -114,13 +114,6 @@ Release-style tool binaries are produced with `src/publish-tools.proj`:
 dotnet msbuild src/publish-tools.proj -p:RuntimeIdentifier=osx-x64
 ```
 
-The published tools are written to `bin/publish/<rid>/`. Release archives are
-created with:
-
-```bash
-local/package-release.sh --version vX.Y.Z-preview.N --rid osx-x64
-```
-
 When installed outside the source tree, Camp expects its installation root to
 contain `bin`, `lib`, `targets`, and `cache`. Set `CAMP_HOME` to override
 automatic installation-root discovery.

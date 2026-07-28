@@ -125,22 +125,22 @@ jobs:
       - name: Package release archive
         if: runner.os != 'Windows'
         shell: bash
-        run: local/package-release.sh --version "${{ needs.validate.outputs.version }}" --rid "${{ matrix.rid }}" --output-dir artifacts
+        run: .github/scripts/release/package-release.sh --version "${{ needs.validate.outputs.version }}" --rid "${{ matrix.rid }}" --output-dir artifacts
 
       - name: Package release archive
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./local/package-release.ps1 -Version "${{ needs.validate.outputs.version }}" -Rid "${{ matrix.rid }}" -OutputDir artifacts
+        run: ./.github/scripts/release/package-release.ps1 -Version "${{ needs.validate.outputs.version }}" -Rid "${{ matrix.rid }}" -OutputDir artifacts
 
       - name: Smoke test archive
         if: runner.os != 'Windows' && matrix.smoke
         shell: bash
-        run: local/test-release-archive.sh artifacts/camp-${{ needs.validate.outputs.version }}-${{ matrix.rid }}.tar.gz
+        run: .github/scripts/release/test-release-archive.sh artifacts/camp-${{ needs.validate.outputs.version }}-${{ matrix.rid }}.tar.gz
 
       - name: Smoke test archive
         if: runner.os == 'Windows' && matrix.smoke
         shell: pwsh
-        run: ./local/test-release-archive.ps1 artifacts/camp-${{ needs.validate.outputs.version }}-${{ matrix.rid }}.zip
+        run: ./.github/scripts/release/test-release-archive.ps1 artifacts/camp-${{ needs.validate.outputs.version }}-${{ matrix.rid }}.zip
 
       - uses: actions/upload-artifact@v4
         with:

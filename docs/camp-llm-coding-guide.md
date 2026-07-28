@@ -185,8 +185,7 @@ pragmas to normal examples or application code; package commands and layouts are
 experimental compiler-development infrastructure.
 `#within explicit` and `#within implicit` select whether allocation and deletion
 must spell their allocation context in that file. Do not add absolute local paths
-or private machine information to committed source; put local setup notes in
-`local/`, which is intentionally not part of the repository.
+or private machine information to committed source.
 
 Namespaces are part of symbol identity. Use `using` for readability when the
 project already does so. When stdlib is enabled, the compiler provides an
@@ -920,7 +919,7 @@ Stable agent habits:
 | Hand-building interface tables in source code | Use interface implementation syntax and compiler lowering |
 | Modeling async as a manually written callback frame | Write source-level `async` and valid resume annotations |
 | Hiding failure in sentinel values | Use `thrown`, or an intentional `tryX` API shape |
-| Adding absolute paths or local setup to committed docs | Put local-only details under `local/` |
+| Adding absolute paths or local setup to committed docs | Keep local-only details out of committed docs |
 
 ## Final Self-Check Before Emitting Code
 
