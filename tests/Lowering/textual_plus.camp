@@ -1,0 +1,12 @@
+newtype delegate nuint StringFormatter(const this, char[] buffer = default);
+
+nuint format(in int this, overload char[] buffer) : StringFormatter
+{
+	return 2;
+}
+
+void main()
+{
+	StringFormatter formatter = "x" + 1;
+	formatter(default);
+}

@@ -1121,7 +1121,7 @@ public sealed partial class BindableNodeAnalyzer
 			UnaryExpression unary => BodyAnalyzeUnaryExpression(unary, scope, typeScope, targetType),
 			PostfixUpdateExpression postfix => BodyAnalyzePostfixUpdateExpression(postfix, scope, typeScope),
 			FinallyCleanupExpression finallyCleanup => BodyAnalyzeFinallyCleanupExpression(finallyCleanup, scope, typeScope, targetType),
-			BinaryExpression binary => BodyAnalyzeBinaryExpression(binary, scope, typeScope),
+			BinaryExpression binary => BodyAnalyzeBinaryExpression(binary, scope, typeScope, targetType),
 			AssignmentExpression assignment => BodyAnalyzeAssignmentExpression(assignment, scope, typeScope),
 			ConditionalExpression conditional => BodyAnalyzeConditionalExpression(conditional, scope, typeScope, targetType),
 			RangeExpression range => BodyAnalyzeRangeExpression(range, scope, typeScope),
@@ -5397,7 +5397,7 @@ public sealed partial class BindableNodeAnalyzer
 		return operandType;
 	}
 
-	string BodyAnalyzeBinaryExpression(BinaryExpression binary, BodyScope scope, AnalysisScope typeScope)
+	string BodyAnalyzeBinaryExpression(BinaryExpression binary, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
 		string left;
 		string right;
@@ -5413,6 +5413,9 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		expressionConstants[binary] = IsConstant(binary.Left) && IsConstant(binary.Right);
 
+		if (binary.Operator == BinaryOperator.Add && IsTextualComposition(binary, left, right))
+			return BodyAnalyzeTextualCompositionExpression(binary, left, right, scope, typeScope, targetType);
+
 		return binary.Operator switch
 		{
 			BinaryOperator.LogicalOr or BinaryOperator.LogicalAnd => AnalyzeBooleanBinary(binary, left, right),
@@ -5422,6 +5425,92 @@ public sealed partial class BindableNodeAnalyzer
 			BinaryOperator.NullCoalescing => left,
 			_ => ErrorType
 		};
+	}
+
+	bool IsTextualComposition(BinaryExpression binary, string leftType, string rightType)
+	{
+		return IsTextualCompositionAnchor(binary.Left, leftType)
+			|| IsTextualCompositionAnchor(binary.Right, rightType);
+	}
+
+	bool IsTextualCompositionAnchor(Expression? expression, string type)
+	{
+		if (expression is null || type == ErrorType)
+			return false;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return IsTextualCompositionAnchor(rewritten, rewritten.ResolvedType ?? type);
+		return expression switch
+		{
+			ParenthesizedExpression parenthesized => IsTextualCompositionAnchor(parenthesized.Expression, type),
+			InterpolatedStringExpression => true,
+			LiteralExpression { Kind: LiteralKind.String } => true,
+			_ => IsPrimitiveStringType(type)
+				|| IsCompatibleCharacterArrayType(type)
+				|| TryGetFormatterShape(type, out _)
+		};
+	}
+
+	static bool IsCompatibleCharacterArrayType(string? type)
+	{
+		return TryGetArrayElementType(type) is string elementType
+			&& StripTopLevelValueQualifiers(elementType) is "char" or "achar" or "wchar";
+	}
+
+	string BodyAnalyzeTextualCompositionExpression(BinaryExpression binary, string leftType, string rightType, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	{
+		InterpolatedStringExpression interpolation = new() { SourceSyntax = binary.SourceSyntax };
+		AppendTextualCompositionOperand(interpolation, binary.Left, leftType);
+		AppendTextualCompositionOperand(interpolation, binary.Right, rightType);
+
+		string type = BodyAnalyzeInterpolatedStringExpression(interpolation, scope, typeScope, targetType);
+		interpolation.ResolvedType = type;
+		binary.ResolvedType = type;
+		expressionConstants[binary] = IsConstant(interpolation);
+		expressionRewrites[binary] = expressionRewrites.TryGetValue(interpolation, out Expression? rewrite)
+			? rewrite
+			: interpolation;
+		return type;
+	}
+
+	void AppendTextualCompositionOperand(InterpolatedStringExpression interpolation, Expression? expression, string type)
+	{
+		if (expression is null)
+			return;
+		if (expression is ParenthesizedExpression parenthesized && parenthesized.Expression is not null)
+		{
+			AppendTextualCompositionOperand(interpolation, parenthesized.Expression, parenthesized.Expression.ResolvedType ?? type);
+			return;
+		}
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+		{
+			if (rewritten is InterpolatedStringExpression rewrittenInterpolation)
+			{
+				foreach (InterpolatedStringSegment segment in rewrittenInterpolation.Segments)
+					interpolation.Segments.Add(segment);
+				return;
+			}
+			expression = rewritten;
+			type = rewritten.ResolvedType ?? type;
+		}
+
+		StringBuilder text = new();
+		if (TryAppendConstantInterpolationHole(expression, type, text))
+		{
+			interpolation.Segments.Add(new InterpolatedStringTextSegment
+			{
+				SourceSyntax = expression.SourceSyntax,
+				Text = text.ToString(),
+				ResolvedType = "string"
+			});
+			return;
+		}
+
+		interpolation.Segments.Add(new InterpolatedStringExpressionSegment
+		{
+			SourceSyntax = expression.SourceSyntax,
+			Expression = expression,
+			ResolvedType = type
+		});
 	}
 
 	static bool CanResolveLocalNamedExpression(NamedExpression named, BodyScope scope)
@@ -5459,6 +5548,12 @@ public sealed partial class BindableNodeAnalyzer
 			return valueType;
 		}
 		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target", scope);
+		if (assignment.Operator == AssignmentOperator.Add
+			&& (IsTextualCompositionAnchor(assignment.Target, targetType) || IsTextualCompositionAnchor(assignment.Value, valueType)))
+		{
+			Report(GetRange(assignment.SourceSyntax), "Textual '+=' composition is not supported; assign an explicit composed formatter or materialized string value.");
+			return targetType;
+		}
 		if (IsDirectCapturingLambda(assignment.Value, scope) && IsEscapingLambdaAssignmentTarget(assignment.Target) && !IsEscapedDelegateLambdaTarget(targetType))
 			Report(GetRange(assignment.Value?.SourceSyntax ?? assignment.SourceSyntax), "Capturing scoped lambdas cannot be assigned to global variables or fields.");
 		if (TryGetFixedArrayShape(targetType, out _, out _))

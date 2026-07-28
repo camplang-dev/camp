@@ -349,8 +349,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		ArgumentExpression selectorArgument = arguments[selectorIndex];
 		SyntaxNode? selectorSyntax = OverloadSelectorSyntax(selectorArgument, syntax);
-		if (UnwrapParenthesizedExpression(selectorArgument.Value) is InterpolatedStringExpression interpolation
-			&& TrySelectFormatterOverloadCandidate(invokerName, candidates, selectorArgument, interpolation, scope, typeScope, selectorSyntax, out FunctionDefinition? formatterSelected))
+		Expression? selectorExpression = UnwrapParenthesizedExpression(selectorArgument.Value);
+		if (IsFormatterSelectorSyntax(selectorExpression)
+			&& TrySelectFormatterOverloadCandidate(invokerName, candidates, selectorArgument, selectorExpression, scope, typeScope, selectorSyntax, out FunctionDefinition? formatterSelected))
 		{
 			return formatterSelected;
 		}
@@ -406,7 +407,7 @@ public sealed partial class BindableNodeAnalyzer
 		string invokerName,
 		List<FunctionDefinition> candidates,
 		ArgumentExpression selectorArgument,
-		InterpolatedStringExpression interpolation,
+		Expression? selectorExpression,
 		BodyScope scope,
 		AnalysisScope typeScope,
 		SyntaxNode? selectorSyntax,
@@ -427,9 +428,10 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (formatterCandidates.Count > 1)
 		{
-			Report(GetRange(selectorSyntax), $"Interpolated string cannot select overload `{invokerName}` because multiple formatter-shaped overloads are visible.");
+			Report(GetRange(selectorSyntax), $"Textual formatter expression cannot select overload `{invokerName}` because multiple formatter-shaped overloads are visible.");
 			selectorArgument.ResolvedType = ErrorType;
-			interpolation.ResolvedType = ErrorType;
+			if (selectorExpression is not null)
+				selectorExpression.ResolvedType = ErrorType;
 			return true;
 		}
 
@@ -441,6 +443,29 @@ public sealed partial class BindableNodeAnalyzer
 		if (actual != ErrorType)
 			CheckAssignable(targetType, actual, selectorSyntax, "Argument");
 		return true;
+	}
+
+	static bool IsFormatterSelectorSyntax(Expression? expression)
+	{
+		expression = UnwrapParenthesizedExpression(expression);
+		return expression switch
+		{
+			InterpolatedStringExpression => true,
+			BinaryExpression { Operator: BinaryOperator.Add } binary => ContainsTextualCompositionSyntax(binary),
+			_ => false
+		};
+	}
+
+	static bool ContainsTextualCompositionSyntax(Expression? expression)
+	{
+		expression = UnwrapParenthesizedExpression(expression);
+		return expression switch
+		{
+			InterpolatedStringExpression => true,
+			LiteralExpression { Kind: LiteralKind.String } => true,
+			BinaryExpression { Operator: BinaryOperator.Add } binary => ContainsTextualCompositionSyntax(binary.Left) || ContainsTextualCompositionSyntax(binary.Right),
+			_ => false
+		};
 	}
 
 	static bool IsWeakOverloadSelectorArgument(ArgumentExpression argument)

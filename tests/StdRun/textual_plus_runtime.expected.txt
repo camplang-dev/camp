@@ -1,0 +1,8 @@
+exit: 0
+hello constant
+Total: 12
+3 total
+Total: 3
+direct 2
+copied Camp 2
+overload 2

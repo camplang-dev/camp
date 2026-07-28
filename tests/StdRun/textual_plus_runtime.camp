@@ -1,0 +1,33 @@
+using Std;
+
+export int main()
+{
+	int count = 2;
+	string name = "Camp";
+
+	string constant = "hello " + "constant";
+	Console.writeLine(constant);
+	Console.writeLine("Total: " + 1 + count);
+	Console.writeLine(1 + 2 + " total");
+	Console.writeLine("Total: " + (1 + 2));
+
+	StringFormatter direct = count.format;
+	Console.writeLine("direct " + direct);
+
+	string copied = ("copied " + name + " " + count).copyString() finally delete;
+	Console.writeLine(copied);
+
+	write("overload " + count);
+
+	return 0;
+}
+
+void write(overload int value)
+{
+	Console.writeLine(value);
+}
+
+void write(overload StringFormatter value)
+{
+	Console.writeLine(value);
+}

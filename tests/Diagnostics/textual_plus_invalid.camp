@@ -1,0 +1,25 @@
+newtype delegate nuint StringFormatter(const this, char[] buffer = default);
+
+nuint format(in int this, overload char[] buffer) : StringFormatter
+{
+	return 0;
+}
+
+struct Value
+{
+	int number;
+}
+
+void write(overload StringFormatter value)
+{
+}
+
+export void main()
+{
+	int count = 1;
+	string text = "count " + count;
+	text += count;
+
+	Value value = { .number = 1 };
+	write("value " + value);
+}

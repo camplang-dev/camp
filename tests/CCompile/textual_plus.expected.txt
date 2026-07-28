@@ -1,0 +1,82 @@
+// file: textual_plus.c
+#include "textual_plus_private.h"
+
+/* Private file declarations. */
+static uintptr_t Int_formatCharArray(int *this, char *buffer, uintptr_t buffer_length);
+static int main(void);
+static uintptr_t main_lambda0(void *_context, char *buffer, uintptr_t buffer_length);
+
+static uintptr_t Int_formatCharArray(int *this, char *buffer, uintptr_t buffer_length)
+{
+	return 2;
+}
+
+static int main(void)
+{
+	int _receiver0 = 1;
+	uintptr_t (* _interpolatedCall1)(const void *arg0, char *arg1, uintptr_t arg2) = (uintptr_t (*)(const void *arg0, char *arg1, uintptr_t arg2))(Int_formatCharArray);
+	const void *_interpolatedContext2 = (const void *)(&_receiver0);
+	main_lambdaContext0 _lambdaContext6;
+	_lambdaContext6.capture0__interpolatedCall1 = &_interpolatedCall1;
+	_lambdaContext6.capture1__interpolatedContext2 = &_interpolatedContext2;
+	uintptr_t (* formatter)(const void *arg0, char *arg1, uintptr_t arg2) = (uintptr_t (*)(const void *arg0, char *arg1, uintptr_t arg2))main_lambda0;
+	const void *formatter_context = &_lambdaContext6;
+	return (int)(formatter(formatter_context, 0, 0));
+}
+
+static uintptr_t main_lambda0(void *_context, char *buffer, uintptr_t buffer_length)
+{
+	main_lambdaContext0 *lambdaContext = (main_lambdaContext0 *)(_context);
+	uintptr_t _interpolatedRequired3 = 1;
+	_interpolatedRequired3 = (_interpolatedRequired3 + 1);
+	uintptr_t _interpolatedPartSize4 = (*lambdaContext->capture0__interpolatedCall1)((*lambdaContext->capture1__interpolatedContext2), NULL, 0);
+	if ((_interpolatedPartSize4 > 0))
+	{
+		_interpolatedRequired3 = (_interpolatedRequired3 + (_interpolatedPartSize4 - 1));
+	}
+	if ((buffer_length >= _interpolatedRequired3))
+	{
+		uintptr_t _interpolatedOffset5 = 0;
+		buffer[_interpolatedOffset5] = 'x';
+		_interpolatedOffset5 = (_interpolatedOffset5 + 1);
+		(*lambdaContext->capture0__interpolatedCall1)((*lambdaContext->capture1__interpolatedContext2), &buffer[_interpolatedOffset5], (buffer_length - _interpolatedOffset5));
+		if ((_interpolatedPartSize4 > 0))
+		{
+			_interpolatedOffset5 = (_interpolatedOffset5 + (_interpolatedPartSize4 - 1));
+		}
+		buffer[_interpolatedOffset5] = '\0';
+	}
+	return _interpolatedRequired3;
+}
+
+// file: textual_plus_private.h
+#ifndef TEXTUAL_PLUS_PRIVATE_H_
+#define TEXTUAL_PLUS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct main_lambdaContext0 main_lambdaContext0;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef uintptr_t (* StringFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
+
+/* Layouts. */
+struct main_lambdaContext0
+{
+	uintptr_t (* *capture0__interpolatedCall1)(const void *arg0, char *arg1, uintptr_t arg2);
+	const void **capture1__interpolatedContext2;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: textual_plus.c
