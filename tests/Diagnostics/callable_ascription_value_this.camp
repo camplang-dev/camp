@@ -1,11 +1,11 @@
-newtype delegate nuint CharFormatter(char[] buffer = default);
+newtype delegate nuint StringFormatter(char[] buffer = default);
 
-nuint formatBad(int this, char[] buffer = default) : CharFormatter
+nuint formatBad(int this, overload char[] buffer) : StringFormatter
 {
 	return 0;
 }
 
-nuint formatGood(in int this, char[] buffer = default) : CharFormatter
+nuint formatGood(in int this, overload char[] buffer) : StringFormatter
 {
 	return 0;
 }

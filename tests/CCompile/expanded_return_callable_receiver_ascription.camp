@@ -1,4 +1,4 @@
-newtype delegate nuint CharFormatter(const this, char[] buffer = default);
+newtype delegate nuint StringFormatter(const this, char[] buffer = default);
 
 struct View
 {
@@ -7,7 +7,7 @@ struct View
 
 extern const char[] asStringEscaped(in View this);
 
-nuint unescapedFormat(const char[] this, char[] buffer = default) : CharFormatter
+nuint unescapedFormat(const char[] this, overload char[] buffer) : StringFormatter
 {
 	nuint required = this.length + 1;
 	if (buffer.length >= required)
@@ -19,7 +19,7 @@ nuint unescapedFormat(const char[] this, char[] buffer = default) : CharFormatte
 	return required;
 }
 
-int consume(CharFormatter formatter)
+int consume(StringFormatter formatter)
 {
 	fixed char[4] storage = default;
 	char[] buffer = storage;

@@ -1,4 +1,4 @@
-newtype delegate nuint CharFormatter(const this, char[] buffer);
+newtype delegate nuint StringFormatter(const this, char[] buffer);
 
 newtype delegate void EscapedCallback(escaped this);
 
@@ -10,13 +10,13 @@ class Date
 {
 	int year;
 
-	nuint format(char* buffer, nuint buffer_length) : CharFormatter
+	nuint format(char* buffer, nuint buffer_length) : StringFormatter
 	{
 		int y = this.year;
 		return 0;
 	}
 
-	nuint formatExplicit(const this, char* buffer, nuint buffer_length) : CharFormatter
+	nuint formatExplicit(const this, char* buffer, nuint buffer_length) : StringFormatter
 	{
 		return 0;
 	}

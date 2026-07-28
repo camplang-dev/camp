@@ -23,13 +23,13 @@ struct Date
 
 class Point
 {
-	nuint format(char* buffer = default, nuint buffer_length) : CharFormatter
+	nuint format(char* buffer, nuint buffer_length) : StringFormatter
 	{
 		return buffer_length;
 	}
 }
 
-newtype delegate nuint CharFormatter(char[] buffer = default);
+newtype delegate nuint StringFormatter(char[] buffer = default);
 void main(Date date)
 {
 	auto parser = tryParseInt;
@@ -39,6 +39,6 @@ void main(Date date)
 	void* unbound_context;
 	auto value = DateFormatter_plusOne(bound, bound_context);
 	Point* point = null;
-	fn nuint(void*, char*, nuint) formatter = Point_format;
+	fn nuint(void*, char*, nuint) formatter = Point_formatCharArray;
 	void* formatter_context = (void*)point;
 }

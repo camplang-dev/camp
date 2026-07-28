@@ -1,1 +1,1 @@
-tests/Diagnostics/callable_ascription_value_this.camp(3,21): error: Callable ascription on extension method 'formatBad' requires the this parameter to be passed by pointer; use 'in int this' or a pointer receiver.
+tests/Diagnostics/callable_ascription_value_this.camp(3,21): error: Callable ascription on extension method 'formatBadCharArray' requires the this parameter to be passed by pointer; use 'in int this' or a pointer receiver.

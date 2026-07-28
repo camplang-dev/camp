@@ -41,7 +41,7 @@ public class Console
 	// public static AsyncCharWriter getAsyncWriter();
 	// public static AsyncCharWriter getAsyncError();
 	
-	public static void write(overload CharFormatter value)
+	public static void write(overload StringFormatter value)
 	{
 		auto size = value();
 		auto buf = init char[size];
@@ -84,7 +84,7 @@ public class Console
 	public static void write(overload nuint  value) => Console.write(value.format);
 	public static void write(overload nint   value) => Console.write(value.format);
 	
-	public static void writeLine(overload CharFormatter value)
+	public static void writeLine(overload StringFormatter value)
 	{
 		auto size = value();
 		auto buf = init char[size + 1];

@@ -241,7 +241,7 @@ working with.
 
 ## Formatting
 
-Formatting in `Std` is built around `CharFormatter`, a callable value that can
+Formatting in `Std` is built around `StringFormatter`, a callable value that can
 first report the required buffer size and then write into a caller-provided
 buffer.
 
@@ -537,7 +537,7 @@ read directly:
 - `std_console.camp` for `Console`;
 - `std_array.camp` for array helpers;
 - `std_string.camp`, `std_wstring.camp`, and `std_astring.camp` for text;
-- `std_format.camp` for `CharFormatter`;
+- `std_format.camp` for `StringFormatter`;
 - `std_stream.camp` for readers and writers;
 - `std_file.camp` for files;
 - `std_list.camp`, `std_hashmap.camp`, and `std_hashset.camp` for collections;

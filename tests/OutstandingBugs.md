@@ -7,16 +7,16 @@ Next bug number: BUG-055.
 An extension method such as:
 
 ```camp
-public nuint escapedLength(const char[] this, char[] buffer = default) : CharFormatter
+public nuint escapedLength(const char[] this, overload char[] buffer) : StringFormatter
 {
 	return this.length + 1;
 }
 ```
 
-can be accepted as a `CharFormatter`, but using it as a formatter still has lowering holes. Direct calls with expanded array parameters now pass the pointer/length arguments, but compiling fuller formatter bodies can stack overflow in `TryCreateIndexedParamsComponentExpressions` when an expanded array parameter is indexed. The intended shape is still:
+can be accepted as a `StringFormatter`, but using it as a formatter still has lowering holes. Direct calls with expanded array parameters now pass the pointer/length arguments, but compiling fuller formatter bodies can stack overflow in `TryCreateIndexedParamsComponentExpressions` when an expanded array parameter is indexed. The intended shape is still:
 
 ```camp
-CharFormatter formatter = "abc".escapedLength;
+StringFormatter formatter = "abc".escapedLength;
 formatter();
 ```
 

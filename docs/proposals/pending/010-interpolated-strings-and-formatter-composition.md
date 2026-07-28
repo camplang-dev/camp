@@ -749,7 +749,7 @@ public newtype delegate nuint StringFormatter(
 
 Implementation requires:
 
-- renaming `CharFormatter` to `StringFormatter` throughout the standard
+- renaming `StringFormatter` to `StringFormatter` throughout the standard
   library, tests, and documentation;
 - changing standard `format` methods to use their character buffer as an
   `overload` selector;
@@ -1178,7 +1178,7 @@ Update:
   bindable nodes;
 - language-server and editor documentation for semantic tokens and navigation
   within holes;
-- standard-library build documentation for the `CharFormatter` to
+- standard-library build documentation for the `StringFormatter` to
   `StringFormatter` API rename;
 - the compiler development guide with the formatter-shape helper and lowering
   ownership;
