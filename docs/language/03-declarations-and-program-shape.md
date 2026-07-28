@@ -18,18 +18,22 @@ This chapter is the map. Later chapters go deep on each feature; this one helps
 you look at a source file and understand what kind of thing each declaration is
 and why it belongs there.
 
-## A File Is Not A Script
+## Source Files Contain Declarations
 
-Camp source files contain declarations. They can also contain file-level setup
-such as imports, build prelude directives, and `namespace`, but ordinary program
-logic lives inside function and method bodies.
+A Camp source file is mostly a set of declarations. It may begin with file-level
+setup such as imports, build prelude directives, or a `namespace`, but ordinary
+program logic lives inside function and method bodies.
+
+That means the top level of a file is not read as a sequence of statements to
+execute. It is read as the program surface: the functions, types, constants,
+aliases, and other named pieces that make up the module.
 
 Here is a small complete file:
 
 ```camp
 export int main()
 {
-	Size size = { .width = DefaultWidth, .height = 3 };
+	Size size = { .width = DEFAULT_WIDTH, .height = 3 };
 	Console.writeLine(area(size));
 	return 0;
 }
@@ -45,18 +49,19 @@ struct Size
 	int height;
 }
 
-inline int DefaultWidth = 4;
+inline int DEFAULT_WIDTH = 4;
 ```
 
-Top-level declaration order generally does not matter for visibility within the
-same source scope. Camp does not need the C habit of putting callees or types
-first just to satisfy forward declarations, so examples in this guide prefer
-call order: show the entry point, then show what it calls or uses.
+Within the same source scope, top-level declaration order generally does not
+control visibility. Camp does not need the C habit of putting callees or types
+first just to satisfy forward declarations, so examples in this guide often use
+call order: show the entry point first, then show the declarations it calls or
+uses.
 
-Member order often matters more. Field order affects layout. Enum value order
-affects default numbering. Interface member order affects the contract's shape.
-Overload and metadata order should be stable for readers and tools. When order
-is part of a declaration's meaning, keep it deliberate.
+Order is still meaningful when the declaration kind gives it meaning. Field
+order affects layout. Enum value order affects default numbering. Interface
+member order affects the contract shape. Metadata and overload order should stay
+stable for readers and tools. When order matters, it should be deliberate.
 
 ## Top-Level Declarations
 
@@ -91,11 +96,11 @@ enum FileKind
 	DEVICE
 }
 
-inline ByteCount DefaultBufferSize = 4096;
+inline ByteCount DEFAULT_BUFFER_SIZE = 4096;
 ```
 
 `ByteCount` is only another name for `nuint`. `FileKind` is a nominal enum.
-`DefaultBufferSize` is a compile-time value that exported callers can see.
+`DEFAULT_BUFFER_SIZE` is a compile-time value that exported callers can see.
 
 ## Functions
 
@@ -328,7 +333,7 @@ class ExitCodes
 Inline constants are useful when a value belongs to an API contract:
 
 ```camp
-export inline uint ProtocolVersion = 3;
+export inline uint PROTOCOL_VERSION = 3;
 ```
 
 Do not use `const` when you mean `inline`. `const` describes what can be

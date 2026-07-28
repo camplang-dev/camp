@@ -220,37 +220,65 @@ the local proof that the constructed view satisfies it. That proof should be
 rare and local. If many callers need to write the same cast, the API probably
 needs a clearer lifetime shape.
 
-## Allocation Contexts With `within`
+## `init`, `new`, And `delete`
 
-You already know that `new` usually allocates heap storage and `delete` runs
-cleanup and frees it. `within` says which allocation context is active for
-that work.
+Camp has two everyday ways to construct an object. `init` constructs a value in
+storage that already exists. `new` allocates storage first, then constructs the
+value there.
+
+Use `init` when the value belongs to the current block:
 
 ```camp
-extern void* malloc(nuint size);
-extern void free(void* ptr);
+Buffer scratch = init Buffer(4096) finally delete;
+useBuffer(&scratch);
+```
 
-class Allocator
+The local variable `scratch` has scoped storage. `init Buffer(4096)` constructs
+the `Buffer` in that storage, and `finally delete` makes cleanup run on every
+exit from the scope-like use. The `delete` here is about destruction and owned
+resources inside the value; it does not free the local variable's stack-like
+storage.
+
+Use `new` when the object itself needs allocated storage and the caller will
+hold an owning pointer:
+
+```camp
+Buffer* buffer = new Buffer(4096);
+takeBuffer(buffer);
+```
+
+Here `new Buffer(4096)` allocates storage through the active allocation
+context, constructs a `Buffer`, and returns a pointer. In this example,
+`takeBuffer` takes ownership of `buffer`, so the caller does not write
+`finally delete` at the declaration site. The cleanup responsibility has moved
+to the receiving function. Whoever owns the pointer eventually calls `delete`,
+which runs the destructor and frees the storage through the matching allocation
+context.
+
+The distinction is lifetime-shaped as well as storage-shaped. A local `init`
+value is normally scoped to the current block. A `new` object is allocated
+storage that can be retained when the API's lifetime contract allows it. The
+language still expects explicit ownership design: copying a pointer does not
+copy the object, and `delete` must be applied exactly where the ownership path
+says cleanup belongs.
+
+## Allocation Contexts With `within`
+
+Some APIs allocate as part of their work. When that allocation choice belongs
+to the caller, put `within allocator` in the signature:
+
+```camp
+escaped string copyDisplayName(const char[] name, within allocator)
 {
-	void* alloc(nuint size)
-	{
-		return malloc(size);
-	}
-
-	void free(void* ptr)
-	{
-		free(ptr);
-	}
-}
-
-Buffer* makeBuffer(nuint capacity, within Allocator* allocator)
-{
-	return new Buffer(capacity);
+	return name.copyString(within allocator);
 }
 ```
 
-Inside `makeBuffer`, `new Buffer(capacity)` uses the `allocator` parameter.
-The allocation context is part of the function's contract, not a side comment.
+The `within allocator` parameter is part of the callable contract. A caller can
+choose the allocation context for the returned string, and the nested
+`copyString` call uses the same context. The function does not need to name an
+allocator type in its public shape just to say "caller chooses where this
+allocation comes from."
 
 A caller can also choose an allocation context for a block:
 
@@ -262,7 +290,13 @@ within (arena)
 }
 ```
 
-Or for a single expression:
+Inside the block, `new` uses `arena`, and `delete` uses the same active context
+unless a more specific expression says otherwise. That matching is the point:
+storage allocated through one allocator-shaped context should be cleaned up
+through the same context unless the allocator's own contract says another path
+is valid.
+
+For a single operation, use a `within` expression:
 
 ```camp
 Buffer* buffer = within (arena) new Buffer(4096);
@@ -270,26 +304,23 @@ within (arena) delete buffer;
 ```
 
 Use the parameter form when allocation belongs to the function's public shape.
-Use the block or expression form when a caller is choosing where a particular
-piece of work should allocate.
+Use the statement or expression form when a caller is choosing where a
+particular piece of work should allocate or clean up.
 
-## `new`, `delete`, And Matching Contexts
-
-`within` matters because allocation and deallocation have to match. An object
-allocated through an allocator should be cleaned up through the same
-allocator-shaped contract unless the allocator explicitly says otherwise.
+Constructors and destructors can also take `within allocator` when an instance
+owns storage allocated through the active context:
 
 ```camp
 class Buffer
 {
 	byte[] data;
 
-	Buffer(nuint capacity, within Allocator* allocator)
+	Buffer(nuint capacity, within allocator)
 	{
 		this.data = new byte[capacity];
 	}
 
-	~Buffer(within Allocator* allocator)
+	~Buffer(within allocator)
 	{
 		delete this.data;
 	}
@@ -298,12 +329,25 @@ class Buffer
 
 The constructor and destructor both accept the allocation context. A caller
 does not need to pass it to every nested `new`; the active context flows through
-source allocation inside the block or function.
+source allocation inside the construction or cleanup path.
+
+The implicit type of `within allocator` is the standard library's `Allocator*`
+interface. You can write an explicit allocator type when an API really needs
+one, but most APIs should not. Custom allocators normally participate by
+implementing `Allocator`, so callers can supply them through the ordinary
+`within allocator` contract.
 
 This flow also affects generated storage for some source constructs. A
 capturing `new delegate` may allocate hidden context. If an API accepts a
 `within` allocator and creates one, the allocator choice can matter even when
-the source code does not spell a raw `malloc`-style call.
+the source code does not spell a raw allocation call.
+
+Declaring `within allocator` parameters is typical for libraries, and it is
+required for shared and static libraries whose callers must control allocation
+across the boundary. Executable programs have more freedom. If an executable
+does not care which allocator is used, or it simply wants the default heap
+allocator everywhere, it does not need to thread `within allocator` through its
+own functions.
 
 ## Captures And Callback Lifetimes
 

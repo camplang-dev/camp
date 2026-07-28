@@ -1,28 +1,24 @@
 +++
-nav_title = "1. Getting Started"
+nav_title = "1. Welcome"
 +++
 
-# Camp In One Page
+# Welcome to Camp
 
-Camp is a native language for code that wants to be honest about the machine
-without making every useful abstraction feel like contraband. It is meant for
-systems, libraries, runtimes, bindings, embedded targets, classic and retro
-platforms, and other places where C toolchains and ABI boundaries are part of
-the job.
+Camp is the language for people who value C for its power, portability, and
+pervasive syntax, but tire of its interminable ceremony and flimsy contracts.
 
-If you already know your way around C-shaped code, Camp should feel familiar
-quickly. The interesting parts appear where native code usually gets vague:
+It begins with the premise that C's reading model still works: types stand
+before names, braces mark scope, control flow is plain to the eye, and pointers
+do not hide what they are. The problem is not that C is too small to understand.
+It is that modern C programs express too much meaning through discipline,
+naming patterns, comments, and convention. Camp keeps the familiar shape,
+improves the ergonomics, and gives the missing contracts a place to live in the
+language itself.
 
-- Who owns this allocation?
-- How long does this pointer or view remain valid?
-- What does this callback carry with it?
-- Where does an error go?
-- What shape does this API have when C, another language, or another toolchain
-  sees it?
-
-This page is the short map. It will not teach the whole language, but it should
-tell you whether Camp is the sort of language you came looking for, and it
-should give you enough landmarks to read the chapters that follow.
+This page is the short tour: a small program, the shape of a Camp file, and the
+ideas that matter most when you start reading real code. It will not teach the
+whole language, but it should give you the landmarks you need for the chapters
+that follow.
 
 ## A Tiny Program
 
@@ -51,51 +47,6 @@ The rest of the guide grows out from this small program. You will add
 declarations, introduce types, decide where values live, pass pointers and
 arrays across boundaries, handle errors, and eventually design APIs whose
 source contracts are clear to the compiler, to callers, and to native tools.
-
-## What Camp Is Trying To Be
-
-Camp is designed around a plain idea: source code should say the important
-parts of the native contract out loud.
-
-That gives the language a few strong goals:
-
-1. Make native API design readable in the source.
-2. Map cleanly to the patterns C developers already use to build libraries.
-3. Keep allocation, lifetime, error, and callback contracts visible.
-4. Expose high-level features across ABI boundaries without hand-written glue.
-5. Stay useful on targets that do not look like a modern desktop runtime.
-
-Camp has classes, interfaces, generics, properties, iterators, lambdas, async
-calls, overloads, named arguments, and documentation comments. Those features
-exist because library code should be pleasant to read and hard to misuse.
-
-But Camp is careful about which high-level features it chooses. If a feature
-cannot be expressed across a native boundary, Camp is suspicious of it. The
-language does not assume runtime exception handling, required runtime type
-information, compile-time-only generics with no stable callable ABI, or a large
-standard library full of complex runtime-owned types.
-
-Instead, Camp tries to make common native patterns feel automatic. A small
-image library might expose this:
-
-```camp
-export enum ImageError
-{
-	OK = 0,
-	E_NOT_FOUND,
-	E_UNSUPPORTED_FORMAT
-}
-
-export class Image;
-
-export Image* openImage(const char[] path, within allocator, thrown ImageError error);
-export void closeImage(Image* image);
-```
-
-This is the kind of API C libraries already tend to design by convention: an
-opaque handle, an explicit open/close pair, an error channel, and a decision
-about where allocation comes from. Camp gives that shape source-level meaning
-instead of leaving it as folklore.
 
 ## Familiar Ground
 
@@ -147,27 +98,6 @@ Buffer* makeTemporaryBuffer(within allocator)
 
 `within` is not decorative -- it selects the allocation context used by the functions.
 Allocation policy travels through the source instead of disappearing into a global heap.
-
-`within` can also be used inside of a function to select the allocation context used
-in a scope.  The allocation context is passed automatically to other functions that
-receive an allocation context via their own `within allocator` parameter:
-
-```camp
-void processBuffer()
-{
-	auto arena = init ArenaAllocator(8192) finally delete;
-	within (arena)
-	{
-		auto node =  createNode();
-		processNode(node);
-	}
-}
-
-Node* createNode(within allocator)
-{
-	// ...
-}
-```
 
 Constness can be dependent too:
 
@@ -274,6 +204,56 @@ ABI features. A C library can already express these patterns with structs,
 function pointers, context pointers, opaque handles, and callbacks. Camp's job
 is to let you write them as language features and still expose a clean native
 surface.
+
+## Contracts Belong In The Code
+
+A good C API is rarely simple because its problem is simple. It is simple
+because someone worked hard to make ownership, errors, memory, callbacks, and
+object boundaries understandable from the outside.
+
+Camp treats that work as language design, not paperwork. It gives those API
+contracts a source-level form, so the compiler, the caller, and the generated
+C-facing surface can agree on what the code means.
+
+That gives the language a few strong goals:
+
+1. Make native API design readable in the source.
+2. Map cleanly to the patterns C developers already use to build libraries.
+3. Keep allocation, lifetime, error, and callback contracts visible.
+4. Expose high-level features across ABI boundaries without hand-written glue.
+5. Stay useful on targets that do not look like a modern desktop runtime.
+
+Camp has classes, interfaces, generics, properties, iterators, lambdas, async
+calls, overloads, named arguments, and documentation comments. Those features
+exist because library code should be pleasant to read and hard to misuse.
+
+But Camp is careful about which high-level features it chooses. If a feature
+cannot be expressed across a native boundary, Camp is suspicious of it. The
+language does not assume runtime exception handling, required runtime type
+information, compile-time-only generics with no stable callable ABI, or a large
+standard library full of complex runtime-owned types.
+
+Instead, Camp tries to make common native patterns feel automatic. A small
+image library might expose this:
+
+```camp
+export enum ImageError
+{
+	OK = 0,
+	E_NOT_FOUND,
+	E_UNSUPPORTED_FORMAT
+}
+
+export class Image;
+
+export Image* openImage(const char[] path, within allocator, thrown ImageError error);
+export void closeImage(Image* image);
+```
+
+This is the kind of API C libraries already tend to design by convention: an
+opaque handle, an explicit open/close pair, an error channel, and a decision
+about where allocation comes from. Camp gives that shape source-level meaning
+instead of leaving it as folklore.
 
 ## What Camp Leaves Out
 
