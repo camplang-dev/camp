@@ -70,6 +70,94 @@ High-impact distinctions:
 - Interface dispatch is a language feature. Source code should not hand-build
   Camp interface table storage.
 
+## Text Formatting And Interpolation
+
+Use `$"..."` for mixed literal text and values:
+
+```camp
+Console.writeLine($"total: {total}");
+Console.writeLine($"loaded {count} records from {path}");
+Console.writeLine($"literal braces: {{name}}");
+```
+
+Runtime interpolation produces a formatter value. It does not allocate a
+primitive `string`, `wstring`, or `astring`. Prefer passing that formatter
+directly to APIs that accept `StringFormatter`, such as `Console.write`,
+`Console.writeLine`, `CharWriter.write`, and `CharWriter.writeLine`.
+
+Do not invent C#-style formatting suffixes. Camp interpolation holes contain
+ordinary Camp expressions, so `{value:format}` and `{value,10}` are not special
+formatting syntax.
+
+Use `.copyString()` only when the code really needs an owned primitive `string`.
+Clean up that owned string according to ordinary ownership rules:
+
+```camp
+string message = ($"total: {total}").copyString() finally delete;
+```
+
+Do not write this for runtime values:
+
+```camp
+string message = $"total: {total}"; // ERROR: hidden allocation would be needed
+string other = "total: " + total;   // ERROR for the same reason
+```
+
+Textual `+` composes through the same formatter path when either side is text:
+
+```camp
+Console.writeLine("total: " + total);
+Console.writeLine("left=" + left + ", right=" + right);
+```
+
+Constant text remains ordinary string-like text:
+
+```camp
+auto title = $"Camp";              // string
+auto label = "Camp " + "compiler"; // string
+```
+
+`+` remains left-associative. Use parentheses when numeric arithmetic should
+happen before text composition:
+
+```camp
+Console.writeLine("Total: " + 1 + 2);    // Total: 12
+Console.writeLine("Total: " + (1 + 2));  // Total: 3
+```
+
+Do not use textual `+=`; it has no formatter meaning. Compose a new formatter
+or explicitly materialize an owned string.
+
+When defining a type that should appear inside interpolation, add a `format`
+method ascribed to the relevant formatter newtype. For ordinary UTF-8 standard
+library formatting, use this shape:
+
+```camp
+newtype MyValue: int;
+
+public nuint format(in MyValue this, overload char[] buffer) : StringFormatter
+{
+	int value = (int)this;
+	return value.format(buffer);
+}
+```
+
+The formatter returns the required buffer size including the final null
+terminator. If the provided buffer is large enough, it writes the text and the
+terminator. If it is too small, it must not write outside the buffer.
+
+Automatic formatter inference uses the first runtime interpolation component and
+only infers UTF-8 `char[]` formatters. Use an explicit target when a particular
+formatter ecosystem matters:
+
+```camp
+StringFormatter message = $"status: {status}";
+```
+
+If an overload family has more than one formatter-shaped selector, interpolation
+and textual `+` are ambiguous. Supply a cast or call the concrete overload
+surface.
+
 ## Files, Namespaces, And Build Prelude
 
 Camp files may begin with prelude directives before ordinary source tokens.

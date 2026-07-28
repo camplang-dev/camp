@@ -1,6 +1,51 @@
 # Outstanding Bugs
 
-Next bug number: BUG-055.
+Next bug number: BUG-056.
+
+## BUG-055: `in` struct receiver field formatter call lowers field access as pointer access
+
+Repro:
+
+```camp
+using Std;
+
+struct MyValue
+{
+	int amount;
+}
+
+public nuint format(in MyValue this, overload char[] buffer) : StringFormatter
+{
+	return this.amount.format(buffer);
+}
+
+export int main()
+{
+	MyValue value = { .amount = 1 };
+	Console.writeLine($"item: {value}");
+	return 0;
+}
+```
+
+Expected behavior: the formatter compiles and prints the field value.
+
+Actual behavior: generated C treats the `in` struct receiver as though it were
+a pointer when formatting the field and attempts to take the address of an
+rvalue, producing C compile errors similar to `member reference type 'MyValue'
+is not a pointer` and `cannot take the address of an rvalue`.
+
+Workaround: avoid formatting fields directly from an `in` receiver. For
+newtypes, cast to the underlying value first and format the local:
+
+```camp
+newtype MyValue: int;
+
+public nuint format(in MyValue this, overload char[] buffer) : StringFormatter
+{
+	int value = (int)this;
+	return value.format(buffer);
+}
+```
 
 ## BUG-054: `const char[] this` callable ascription lowering still mishandles expanded array operations
 
