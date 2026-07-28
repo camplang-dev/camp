@@ -1,8 +1,21 @@
 # Interpolated Strings And Formatter Composition
 
-Status: Pending  
-Proposal date: 2026-07-27  
-Last updated date: 2026-07-28
+## Status
+
+Accepted and implementation-complete.
+
+Active language guidance now lives in the language guide, compiler-writer
+semantics live in the semantic supplements, and command-line/tooling behavior
+lives in the compiler docs. This proposal is retained as the accepted design
+record.
+
+## Proposal Date
+
+2026-07-27
+
+## Last Updated Date
+
+2026-07-28
 
 ## Summary
 
