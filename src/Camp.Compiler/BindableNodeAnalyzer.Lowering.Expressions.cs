@@ -87,7 +87,7 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				if (call.Target is MemberReferenceExpression callMemberTarget)
 				{
-					callMemberTarget.Target = LowerExpression(callMemberTarget.Target);
+					callMemberTarget.Target = LowerReceiverExpression(callMemberTarget.Target);
 					if (TryCreateParamsComponentExpressions(callMemberTarget, out List<Expression> callTargetComponents) && callTargetComponents.Count == 1)
 						call.Target = callTargetComponents[0];
 					else if (!TryCreateParamsComponentExpressions(callMemberTarget, out _) && TryCreateParamsMemberComponentExpression(callMemberTarget, out Expression componentTarget))
@@ -116,7 +116,7 @@ public sealed partial class BindableNodeAnalyzer
 				LowerCallArgumentConversions(call);
 				if (TryRewriteScalarMaterializedGenericReturnCall(call, out Expression? materialized))
 					return materialized;
-				return LowerUncaughtThrowingCall(call);
+				return MaterializeReceiverCall(LowerUncaughtThrowingCall(call));
 
 			case IndexExpression index:
 				if (index.Target is MemberReferenceExpression getter && IsPropertyGetterReference(getter))
@@ -207,6 +207,50 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return expression;
+	}
+
+	Expression? LowerReceiverExpression(Expression? expression)
+	{
+		bool previous = loweringReceiverExpression;
+		try
+		{
+			loweringReceiverExpression = true;
+			return LowerExpression(expression);
+		}
+		finally
+		{
+			loweringReceiverExpression = previous;
+		}
+	}
+
+	Expression MaterializeReceiverCall(Expression expression)
+	{
+		if (!loweringReceiverExpression
+			|| currentStatementPrefix is null
+			|| expression is not CallExpression
+			|| expression.ResolvedType is not string type
+			|| type == "void"
+			|| IsExpandedReturnReceiverCall((CallExpression)expression)
+			|| (TryGetParamsComponentShape(null, type, "receiver", out ParamsComponentShape shape) && shape.Components.Count > 1)
+			|| CanTakeReceiverAddress(expression))
+		{
+			return expression;
+		}
+
+		DeclarationStatement local = CreateGeneratedLocal(
+			NewGeneratedLocalName("receiver"),
+			type,
+			TypeReferenceForResolvedName(type),
+			expression);
+		currentStatementPrefix.Add(local);
+		return CreateVariableReference(local.Target, type, expression.SourceSyntax);
+	}
+
+	bool IsExpandedReturnReceiverCall(CallExpression call)
+	{
+		return callTargets.TryGetValue(call, out FunctionDefinition? function)
+			&& TryGetExpandedReturnShape(call, function, out ParamsComponentShape? shape)
+			&& shape.Components.Count > 1;
 	}
 
 	Expression? LowerScalarExpression(Expression? expression)

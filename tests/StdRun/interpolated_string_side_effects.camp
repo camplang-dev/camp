@@ -1,0 +1,33 @@
+using Std;
+
+export void main()
+{
+	Console.writeLine($"Result: {Greeter.instance().action1().action2().complete()}");
+}
+
+public struct Greeter
+{
+	public static Greeter instance()
+	{
+		Console.writeLine("instance");
+		return default;
+	}
+
+	public Greeter action1()
+	{
+		Console.writeLine("action1");
+		return *this;
+	}
+
+	public Greeter action2()
+	{
+		Console.writeLine("action2");
+		return *this;
+	}
+
+	public string complete()
+	{
+		Console.writeLine("complete");
+		return "complete";
+	}
+}

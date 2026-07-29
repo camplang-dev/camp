@@ -50,7 +50,9 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		}
 
-		Expression lowered = LowerExpression(CloneParamsExpansionExpression(formatterExpression) ?? formatterExpression) ?? formatterExpression;
+		Expression formatterSource = CloneParamsExpansionExpression(formatterExpression) ?? formatterExpression;
+		formatterSource = CaptureInterpolatedFormatterTarget(formatterSource);
+		Expression lowered = LowerExpression(formatterSource) ?? formatterSource;
 		CastExpression protocolExpression = new()
 		{
 			SourceSyntax = formatterExpression.SourceSyntax,
@@ -98,6 +100,40 @@ public sealed partial class BindableNodeAnalyzer
 		});
 		reference = grouped;
 		return true;
+	}
+
+	Expression CaptureInterpolatedFormatterTarget(Expression formatterExpression)
+	{
+		if (currentStatementPrefix is null
+			|| formatterExpression is not MemberReferenceExpression { Target: Expression target, Member: FunctionDefinition function } member
+			|| !IsInstanceInvocationFunction(function)
+			|| target is LiteralExpression
+			|| IsConstant(target)
+			|| CanTakeReceiverAddress(target))
+		{
+			return formatterExpression;
+		}
+
+		string targetType = target.ResolvedType ?? ErrorType;
+		Expression loweredTarget = LowerExpression(CloneParamsExpansionExpression(target) ?? target) ?? target;
+		DeclarationStatement local = CreateGeneratedLocal(
+			NewGeneratedLocalName("interpolatedValue"),
+			targetType,
+			TypeReferenceForResolvedName(targetType),
+			loweredTarget);
+		currentStatementPrefix.Add(local);
+
+		MemberReferenceExpression captured = new()
+		{
+			SourceSyntax = member.SourceSyntax,
+			Target = CreateVariableReference(local.Target, targetType, target.SourceSyntax),
+			Name = member.Name,
+			NameRange = member.NameRange,
+			Member = member.Member,
+			ResolvedType = member.ResolvedType
+		};
+		captured.Candidates.AddRange(member.Candidates);
+		return captured;
 	}
 
 	BlockStatement BuildInterpolatedFormatterBody(InterpolatedStringExpression interpolation, FormatterShape formatter, List<Expression> formatterReferences, LambdaParameter bufferParameter)

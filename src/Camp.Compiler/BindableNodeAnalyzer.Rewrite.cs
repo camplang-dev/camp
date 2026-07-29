@@ -26,6 +26,7 @@ public sealed partial class BindableNodeAnalyzer
 		int currentDefaultWithinContextDepth;
 		List<Statement>? currentStatementPrefix;
 	List<Statement>? currentStatementSuffix;
+	bool loweringReceiverExpression;
 	DeclarationTarget? currentImplicitCatchTarget;
 	readonly List<CleanupScope> currentCleanupScopes = [];
 	readonly List<ThrowHandler> currentThrowHandlers = [];

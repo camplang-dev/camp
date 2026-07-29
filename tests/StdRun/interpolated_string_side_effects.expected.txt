@@ -1,0 +1,6 @@
+exit: 0
+instance
+action1
+action2
+complete
+Result: complete
