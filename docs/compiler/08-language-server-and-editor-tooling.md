@@ -24,11 +24,12 @@ extras/editors/vscode/install.sh
 extras/editors/sublime/install.sh
 extras/editors/micro/install.sh
 extras/editors/vim/install.sh
+extras/editors/fresh/install.sh
 ```
 
 On Windows, use the matching `install.ps1` script from PowerShell. The VS Code
 installer installs the bundled extension, which includes syntax highlighting,
-language-server support, and debugging. Sublime Text, micro, and Vim install
+language-server support, and debugging. Sublime Text, micro, Vim, and Fresh install
 syntax highlighting and configure language-server support when the editor has a
 supported setup. Each installer has `--help` or `-Help` for its own options.
 

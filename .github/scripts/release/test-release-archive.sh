@@ -70,6 +70,9 @@ required_paths=(
     "extras/editors/vim/install.sh"
     "extras/editors/vim/pack/camp/start/camp/ftdetect/camp.vim"
     "extras/editors/vim/pack/camp/start/camp/syntax/camp.vim"
+    "extras/editors/fresh/install.sh"
+    "extras/editors/fresh/package.json"
+    "extras/editors/fresh/grammars/Camp.sublime-syntax"
 )
 for path in "${required_paths[@]}"; do
     if [ ! -e "$install_root/$path" ]; then
@@ -89,7 +92,7 @@ if [ "$actual_version" != "${expected_version#v}" ]; then
     exit 1
 fi
 
-for editor in vscode sublime micro vim; do
+for editor in vscode sublime micro vim fresh; do
     "$install_root/extras/editors/$editor/install.sh" --help >/dev/null
     "$install_root/extras/editors/$editor/install.sh" --dry-run >/dev/null
 done

@@ -12,19 +12,18 @@ It defines two Fresh languages:
 binary directory to `PATH`; for source-tree development, build Camp and add
 `dev/bin` to `PATH` before starting Fresh.
 
-## Local Development
+## Install
 
-Validate the package:
+From a Unix-like shell:
 
 ```sh
-./validate.sh
+extras/editors/fresh/install.sh
 ```
 
-Install it in Fresh from a local checkout:
+From PowerShell:
 
-1. Open Fresh.
-2. Open the command palette with `Ctrl+P`, then type `>`.
-3. Run `Package: Install from URL`.
-4. Enter the full path to this directory.
+```powershell
+& "extras\editors\fresh\install.ps1"
+```
 
 Fresh also supports installing packages directly from a Git URL.

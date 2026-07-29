@@ -242,6 +242,7 @@ jobs:
           echo "$install_output" | grep -F "extras/editors/sublime/install.sh"
           echo "$install_output" | grep -F "extras/editors/micro/install.sh"
           echo "$install_output" | grep -F "extras/editors/vim/install.sh"
+          echo "$install_output" | grep -F "extras/editors/fresh/install.sh"
           "$install_dir/bin/campc" --version
           for attempt in 1 2 3 4 5 6; do
             if latest_output="$(sh install.sh --dry-run --no-path 2>&1)" && echo "$latest_output" | grep -F "Camp $version"; then
@@ -268,7 +269,8 @@ jobs:
             "extras\editors\vscode\install.ps1",
             "extras\editors\sublime\install.ps1",
             "extras\editors\micro\install.ps1",
-            "extras\editors\vim\install.ps1"
+            "extras\editors\vim\install.ps1",
+            "extras\editors\fresh\install.ps1"
           )) {
             if (-not $installText.Contains($expected)) {
               throw "Installer output did not mention $expected."

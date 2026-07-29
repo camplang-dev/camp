@@ -124,6 +124,7 @@ print_editor_setup() {
     echo "  Sublime:  ${install_dir}/extras/editors/sublime/install.sh"
     echo "  micro:    ${install_dir}/extras/editors/micro/install.sh"
     echo "  Vim:      ${install_dir}/extras/editors/vim/install.sh"
+    echo "  Fresh:    ${install_dir}/extras/editors/fresh/install.sh"
     echo ""
     echo "Run the command for your editor. VS Code includes syntax, language server, and debugging."
     echo "Other editors install syntax highlighting and language-server support when supported."

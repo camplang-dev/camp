@@ -79,6 +79,7 @@ VS Code:  <install-dir>/extras/editors/vscode/install.sh
 Sublime:  <install-dir>/extras/editors/sublime/install.sh
 micro:    <install-dir>/extras/editors/micro/install.sh
 Vim:      <install-dir>/extras/editors/vim/install.sh
+Fresh:    <install-dir>/extras/editors/fresh/install.sh
 ```
 
 On Windows, run the matching `install.ps1` script from PowerShell. Use `--help`

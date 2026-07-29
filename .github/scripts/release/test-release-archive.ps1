@@ -48,7 +48,10 @@ try {
         "extras\editors\micro\camp.yaml",
         "extras\editors\vim\install.ps1",
         "extras\editors\vim\pack\camp\start\camp\ftdetect\camp.vim",
-        "extras\editors\vim\pack\camp\start\camp\syntax\camp.vim"
+        "extras\editors\vim\pack\camp\start\camp\syntax\camp.vim",
+        "extras\editors\fresh\install.ps1",
+        "extras\editors\fresh\package.json",
+        "extras\editors\fresh\grammars\Camp.sublime-syntax"
     )) {
         if (-not (Test-Path (Join-Path $root $path))) {
             throw "Installed layout is missing: $path"
@@ -70,7 +73,7 @@ try {
         throw "campc --version returned '$actualVersion', expected '$expectedVersion'."
     }
 
-    foreach ($editor in @("vscode", "sublime", "micro", "vim")) {
+    foreach ($editor in @("vscode", "sublime", "micro", "vim", "fresh")) {
         $installer = Join-Path $root "extras\editors\$editor\install.ps1"
         & $installer -Help | Out-Null
         if ($LASTEXITCODE -ne 0) {

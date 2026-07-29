@@ -59,6 +59,7 @@ function Write-EditorSetup {
     Write-Host "  Sublime:  & `"$InstallDir\extras\editors\sublime\install.ps1`""
     Write-Host "  micro:    & `"$InstallDir\extras\editors\micro\install.ps1`""
     Write-Host "  Vim:      & `"$InstallDir\extras\editors\vim\install.ps1`""
+    Write-Host "  Fresh:    & `"$InstallDir\extras\editors\fresh\install.ps1`""
     Write-Host ""
     Write-Host "Run the command for your editor. VS Code includes syntax, language server, and debugging."
     Write-Host "Other editors install syntax highlighting and language-server support when supported."

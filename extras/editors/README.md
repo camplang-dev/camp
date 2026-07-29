@@ -10,7 +10,7 @@ extras/editors/vscode/install.sh
 extras/editors/sublime/install.sh
 extras/editors/micro/install.sh
 extras/editors/vim/install.sh
-extras/editors/fresh/validate.sh
+extras/editors/fresh/install.sh
 ```
 
 From PowerShell:
@@ -20,14 +20,14 @@ From PowerShell:
 & "extras\editors\sublime\install.ps1"
 & "extras\editors\micro\install.ps1"
 & "extras\editors\vim\install.ps1"
+& "extras\editors\fresh\install.ps1"
 ```
 
 VS Code installs the bundled extension, which includes syntax highlighting,
 language-server support, and debugging. Sublime Text, micro, and Vim install
 syntax highlighting and configure language-server support when the editor setup
 has a supported path. Debug adapter setup is packaged only for VS Code for now.
-Fresh installs Camp support through its package manager; see
-`extras/editors/fresh/README.md`.
+Fresh installs Camp support as a Fresh package.
 
 Each installer supports `--help` or `-Help` for editor-specific options such as
 dry-run mode, syntax-only mode, and LSP opt-out.
