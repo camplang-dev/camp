@@ -42,9 +42,14 @@ if (-not (Test-Path $vsix)) {
     Write-Error "No bundled Camp VS Code extension was found.`nUse a Camp release distribution, or build the VS Code extension first."
 }
 
-$codeCommand = @("code", "code-insiders", "codium") |
-    Where-Object { Get-Command $_ -ErrorAction SilentlyContinue } |
-    Select-Object -First 1
+$codeCommand = $null
+foreach ($candidate in @("code", "code-insiders", "codium")) {
+    $command = Get-Command $candidate -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($command) {
+        $codeCommand = $command
+        break
+    }
+}
 
 Write-Host "Camp VS Code extension: $vsix"
 if ($SyntaxOnly -or $NoLsp -or $NoDap) {
@@ -64,13 +69,15 @@ if (-not $codeCommand) {
     exit 1
 }
 
-Write-Host "VS Code CLI: $($codeCommand.Name)"
+$codeExecutable = if ($codeCommand.Source) { $codeCommand.Source } elseif ($codeCommand.Path) { $codeCommand.Path } else { $codeCommand.Name }
+
+Write-Host "VS Code CLI: $codeExecutable"
 if ($DryRun) {
-    Write-Host "dry run: would run '$($codeCommand.Name) --install-extension $vsix --force'"
+    Write-Host "dry run: would run '$codeExecutable --install-extension $vsix --force'"
     exit 0
 }
 
-& $codeCommand.Name --install-extension $vsix --force
+& $codeExecutable --install-extension $vsix --force
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
