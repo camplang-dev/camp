@@ -20,6 +20,15 @@ public class ExpressionStatement : Statement
 	public Expression? Expression { get; set; }
 }
 
+public class LiteralCopyStatement : Statement
+{
+	public Expression? Buffer { get; set; }
+	public Expression? Offset { get; set; }
+	public string ElementType { get; set; } = "";
+	public string LengthType { get; set; } = "";
+	public string Text { get; set; } = "";
+}
+
 public class DeclarationStatement : Statement
 {
 	public bool IsFixedStorage { get; set; }

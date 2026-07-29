@@ -754,6 +754,17 @@ public sealed class BindableNodeCodeSerializer
 				writer.WriteLine(";");
 				break;
 
+			case LiteralCopyStatement copy:
+				WriteIndent();
+				writer.Write("/* copy literal ");
+				writer.Write(copy.Text.Replace("*/", "* /", StringComparison.Ordinal));
+				writer.Write(" into ");
+				WriteExpression(copy.Buffer);
+				writer.Write("[");
+				WriteExpression(copy.Offset);
+				writer.WriteLine("] */");
+				break;
+
 			case DeclarationStatement declaration:
 				WriteDeclarationStatement(declaration);
 				break;

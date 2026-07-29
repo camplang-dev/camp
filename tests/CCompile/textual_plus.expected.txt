@@ -28,7 +28,7 @@ static uintptr_t main_lambda0(void *_context, char *buffer, uintptr_t buffer_len
 {
 	main_lambdaContext0 *lambdaContext = (main_lambdaContext0 *)(_context);
 	uintptr_t _interpolatedRequired3 = 1;
-	_interpolatedRequired3 = (_interpolatedRequired3 + 1);
+	_interpolatedRequired3 = (_interpolatedRequired3 + 8);
 	uintptr_t _interpolatedPartSize4 = (*lambdaContext->capture0__interpolatedCall1)((*lambdaContext->capture1__interpolatedContext2), NULL, 0);
 	if ((_interpolatedPartSize4 > 0))
 	{
@@ -37,8 +37,8 @@ static uintptr_t main_lambda0(void *_context, char *buffer, uintptr_t buffer_len
 	if ((buffer_length >= _interpolatedRequired3))
 	{
 		uintptr_t _interpolatedOffset5 = 0;
-		buffer[_interpolatedOffset5] = 'x';
-		_interpolatedOffset5 = (_interpolatedOffset5 + 1);
+		__builtin_memcpy((void*)(&buffer[_interpolatedOffset5]), (const void*)((char[8]){'R', 'e', 's', 'u', 'l', 't', ':', ' '}), 8 * sizeof(char));
+		_interpolatedOffset5 = (_interpolatedOffset5 + 8);
 		(*lambdaContext->capture0__interpolatedCall1)((*lambdaContext->capture1__interpolatedContext2), &buffer[_interpolatedOffset5], (buffer_length - _interpolatedOffset5));
 		if ((_interpolatedPartSize4 > 0))
 		{

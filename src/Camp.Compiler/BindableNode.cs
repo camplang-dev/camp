@@ -235,6 +235,7 @@ public class FunctionDefinition : Definition
 	public InterfaceSlotInitializerKind InterfaceSlotInitializerKind { get; set; }
 	public Expression? InterfaceSlotInitializer { get; set; }
 	public FunctionDefinition? InterfaceSlotInitializerTarget { get; set; }
+	internal FunctionDefinition? VisibilitySourceFunction { get; set; }
 	public List<GenericParameter> GenericParameters { get; } = [];
 	public List<ParameterDefinition> Parameters { get; } = [];
 	public List<UnaryExpression> AwaitSites { get; } = [];

@@ -143,7 +143,8 @@ public sealed partial class BindableNodeAnalyzer
 			Symbol = name,
 			ResolvedType = shape.ReturnType,
 			ReturnType = TypeReferenceForResolvedName(shape.ReturnType),
-			Body = lambda.Body
+			Body = lambda.Body,
+			VisibilitySourceFunction = currentRewriteFunction
 		};
 		if (currentRewriteFunction is not null)
 		{
@@ -1154,6 +1155,10 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 			case ExpressionStatement expression:
 				yield return (null, expression.Expression);
+				break;
+			case LiteralCopyStatement copy:
+				yield return (null, copy.Buffer);
+				yield return (null, copy.Offset);
 				break;
 			case DeclarationStatement declaration:
 				yield return (null, declaration.InitialValue);

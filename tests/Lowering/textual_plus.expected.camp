@@ -34,8 +34,7 @@ nuint main_lambda0(void* _context, char* buffer, nuint buffer_length)
 	if (buffer_length >= __local4)
 	{
 		nuint __local6 = 0;
-		buffer[__local6] = 'x';
-		__local6 = __local6 + 1;
+		/* copy literal x into buffer[__local6] */
 		(*lambdaContext.capture0__interpolatedCall1)((*lambdaContext.capture1__interpolatedContext2), &buffer[__local6], buffer_length - __local6);
 		if (__local5 > 0)
 		{

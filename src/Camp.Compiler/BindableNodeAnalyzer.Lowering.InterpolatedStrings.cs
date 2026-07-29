@@ -272,11 +272,19 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddLiteralWrites(List<Statement> statements, Func<Expression> buffer, Func<Expression> offset, FormatterShape formatter, string text, SyntaxNode? syntax)
 	{
-		foreach (char ch in text)
+		if (text.Length == 0)
+			return;
+
+		statements.Add(new LiteralCopyStatement
 		{
-			statements.Add(Assign(BufferIndex(buffer(), offset(), formatter.ElementType, syntax), CharacterLiteral(ch, formatter.ElementType, syntax), formatter.ElementType, syntax));
-			statements.Add(Assign(offset(), Add(offset(), NumberLiteral("1", formatter.LengthType), formatter.LengthType), formatter.LengthType, syntax));
-		}
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Buffer = buffer(),
+			Offset = offset(),
+			ElementType = formatter.ElementType,
+			LengthType = formatter.LengthType,
+			Text = text
+		});
 	}
 
 	CallExpression CallFormatter(Expression formatterReference, Expression buffer, string lengthType)

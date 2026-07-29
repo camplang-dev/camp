@@ -3609,6 +3609,9 @@ public static class CCodeEmitter
 					WriteIndent(writer, indent);
 					writer.WriteLine(FormatExpression(expression.Expression) + ";");
 					break;
+				case LiteralCopyStatement copy:
+					WriteLiteralCopyStatement(writer, copy, indent);
+					break;
 				case DeclarationStatement declaration:
 					WriteDeclarationStatement(writer, declaration, indent);
 					break;
@@ -4001,6 +4004,52 @@ public static class CCodeEmitter
 		{
 			string functionName = compilation.Target?.Capabilities.GetCEmitterValue(operation, "__builtin_" + operation) ?? "__builtin_" + operation;
 			return functionName + "(" + string.Join(", ", arguments) + ")";
+		}
+
+		void WriteLiteralCopyStatement(TextWriter writer, LiteralCopyStatement copy, int indent)
+		{
+			if (copy.Text.Length == 0)
+				return;
+
+			string elementType = FormatResolvedType(copy.ElementType, "").Declaration.Trim();
+			string source = "(" + elementType + "[" + copy.Text.Length.ToString(CultureInfo.InvariantCulture) + "]){" + string.Join(", ", copy.Text.Select(FormatCCharacterLiteral)) + "}";
+			string destination = "&" + FormatExpression(new IndexExpression
+			{
+				SourceSyntax = copy.SourceSyntax,
+				Target = copy.Buffer,
+				ResolvedType = copy.ElementType,
+				Arguments =
+				{
+					new ArgumentExpression
+					{
+						SourceSyntax = copy.SourceSyntax,
+						Value = copy.Offset,
+						ResolvedType = copy.LengthType
+					}
+				}
+			});
+			string length = copy.Text.Length.ToString(CultureInfo.InvariantCulture);
+			string offset = FormatExpression(copy.Offset);
+
+			WriteIndent(writer, indent);
+			writer.WriteLine(FormatMemoryCall("memcpy", "(void*)(" + destination + ")", "(const void*)(" + source + ")", length + " * sizeof(" + elementType + ")") + ";");
+			WriteIndent(writer, indent);
+			writer.WriteLine(offset + " = (" + offset + " + " + length + ");");
+		}
+
+		static string FormatCCharacterLiteral(char value)
+		{
+			return value switch
+			{
+				'\0' => "'\\0'",
+				'\n' => "'\\n'",
+				'\r' => "'\\r'",
+				'\t' => "'\\t'",
+				'\\' => "'\\\\'",
+				'\'' => "'\\''",
+				_ when char.IsControl(value) || value > 0x7e => "0x" + ((int)value).ToString("X", CultureInfo.InvariantCulture),
+				_ => "'" + value + "'"
+			};
 		}
 
 		void WriteIfStatement(TextWriter writer, IfStatement ifStatement, int indent)

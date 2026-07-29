@@ -7,6 +7,6 @@ nuint format(in int this, overload char[] buffer) : StringFormatter
 
 int main()
 {
-	StringFormatter formatter = "x" + 1;
+	StringFormatter formatter = "Result: " + 1;
 	return (int)formatter(default);
 }

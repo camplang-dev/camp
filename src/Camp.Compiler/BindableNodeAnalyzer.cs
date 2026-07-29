@@ -168,10 +168,25 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (currentModule is null || currentAnalysisFunction is null)
 			return false;
-		if (currentModule.DefinitionSources.TryGetValue(currentAnalysisFunction, out TokenSequence? functionSource))
-			return ReferenceEquals(functionSource, definitionSource);
-		return GetRange(currentAnalysisFunction.SourceSyntax) is TokenRange currentRange
-			&& ReferenceEquals(currentRange.Sequence, definitionSource);
+
+		FunctionDefinition? function = currentAnalysisFunction;
+		HashSet<FunctionDefinition> visited = [];
+		while (function is not null && visited.Add(function))
+		{
+			if (currentModule.DefinitionSources.TryGetValue(function, out TokenSequence? functionSource))
+			{
+				if (ReferenceEquals(functionSource, definitionSource))
+					return true;
+			}
+			else if (GetRange(function.SourceSyntax) is TokenRange currentRange
+				&& ReferenceEquals(currentRange.Sequence, definitionSource))
+			{
+				return true;
+			}
+
+			function = function.VisibilitySourceFunction ?? function.GeneratedInfo?.Source as FunctionDefinition;
+		}
+		return false;
 	}
 
 	bool IsDefinitionImported(Definition definition, TokenSequence referenceSource)
@@ -298,7 +313,10 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 
 		TokenRange? referenceRange = GetRange(referenceSyntax);
-		return referenceRange is not TokenRange range || ReferenceEquals(range.Sequence, definitionSource);
+		if (referenceRange is not TokenRange range || ReferenceEquals(range.Sequence, definitionSource))
+			return true;
+
+		return CurrentFunctionCanSeeSourceDefinition(definitionSource);
 	}
 
 	bool IsMemberVisible(Definition member, TypeDefinition owner, SyntaxNode? referenceSyntax)
