@@ -2342,6 +2342,9 @@ public sealed class CommandLineTests
 			AssertCommandSucceeded(first);
 			Assert.Contains(libraryRoot + ":static: generated:", first.StdOut, StringComparison.Ordinal);
 			Assert.True(File.Exists(libraryPath));
+			DateTime currentOutputTime = DateTime.UtcNow.AddSeconds(5);
+			foreach (string output in Directory.GetFiles(referenceOutputDirectory))
+				File.SetLastWriteTimeUtc(output, currentOutputTime);
 			DateTime firstLibraryWrite = File.GetLastWriteTimeUtc(libraryPath);
 
 			ProcessResult second = RunCampc(
