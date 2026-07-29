@@ -3242,6 +3242,7 @@ public sealed class CommandLineTests
 				return 2;
 			}
 			""");
+		File.SetLastWriteTimeUtc(libraryFile, DateTime.UtcNow.AddSeconds(5));
 
 		ProcessResult secondBuild = RunCampc(
 			"build",
