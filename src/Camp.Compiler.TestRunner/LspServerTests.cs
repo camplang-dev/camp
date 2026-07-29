@@ -57,6 +57,31 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_server_accepts_interpolated_string_diagnostics()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-diagnostics-interpolated-string");
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			export void main()
+			{
+				Console.writeLine($"value {1}");
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+
+		Assert.Equal(0, diagnostics["params"]?["diagnostics"]?.AsArray().Count);
+	}
+
+	[Fact]
 	public void Lsp_server_publishes_only_latest_diagnostics_after_rapid_changes()
 	{
 		using LspProcess lsp = LspProcess.Start();
