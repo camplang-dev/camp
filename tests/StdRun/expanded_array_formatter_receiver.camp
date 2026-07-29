@@ -1,0 +1,28 @@
+using Std;
+
+nuint escapedLength(const char[] this, overload char[] buffer) : StringFormatter
+{
+	nuint required = this.length + 1;
+	if (buffer.length >= required)
+	{
+		for (nuint i = 0; i < this.length; i++)
+			buffer[i] = this[i];
+		buffer[this.length] = '\0';
+	}
+	return required;
+}
+
+export int main()
+{
+	StringFormatter formatter = "abc".escapedLength;
+	if (formatter() != 4)
+		return 1;
+
+	string copied = "abc".escapedLength.copyString() finally delete;
+	if (copied.Length != 3)
+		return 2;
+	if (copied[0] != 'a' || copied[1] != 'b' || copied[2] != 'c')
+		return 3;
+
+	return 0;
+}
