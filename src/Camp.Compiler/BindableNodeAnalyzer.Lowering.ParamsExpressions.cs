@@ -792,11 +792,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (!CanConvertPrimitiveStringToConstArray(stringType, resultType))
 			return false;
 
-		Expression? length = CreateLengthExpression(argument.Value, argument.SourceSyntax);
+		Expression value = CaptureRepeatedParamsSourceExpression(argument.Value, "stringValue");
+		Expression? length = CreateLengthExpression(value, argument.SourceSyntax);
 		if (length is null)
 			return false;
 		length = LowerExpression(length) ?? length;
-		components.Add(argument.Value);
+		components.Add(value);
 		components.Add(length);
 		return true;
 	}
@@ -831,6 +832,10 @@ public sealed partial class BindableNodeAnalyzer
 				return false;
 		}
 		else if (shape.Components.Count <= 1)
+			return false;
+		if (callableParameters is not null
+			&& GetPrimitiveStringElementType(call.ResolvedType ?? argument.ResolvedType) is string stringElement
+			&& PrimitiveStringArrayArgumentTargetMatches(callableParameters, index, stringElement))
 			return false;
 		return TryCreateExpandedReturnCallComponents(call, shape, out components);
 	}
@@ -914,12 +919,13 @@ public sealed partial class BindableNodeAnalyzer
 		if (!PrimitiveStringArrayArgumentTargetMatches(callableParameters, index, stringElement))
 			return false;
 
-		Expression? length = CreateLengthExpression(argument.Value, argument.SourceSyntax);
+		Expression value = CaptureRepeatedParamsSourceExpression(argument.Value, "stringValue");
+		Expression? length = CreateLengthExpression(value, argument.SourceSyntax);
 		if (length is null)
 			return false;
 		length = LowerExpression(length) ?? length;
 
-		components.Add(argument.Value);
+		components.Add(value);
 		components.Add(length);
 		return true;
 	}
@@ -1116,7 +1122,7 @@ public sealed partial class BindableNodeAnalyzer
 				return false;
 
 			CaptureParamsArrayConstructionLength(assignment.Value, targetShape, statements);
-			values = GetParamsComponentInitialValues(assignment.Value, targetShape, deferCurrentAllocator: true)
+			values = GetParamsComponentInitialValues(assignment.Value, targetShape, deferCurrentAllocator: true, statements)
 				.Where(static value => value is not null)
 				.Cast<Expression>()
 				.ToList();
@@ -1780,6 +1786,7 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		}
 
+		receiver = CaptureRepeatedParamsSourceExpression(receiver, "stringReceiver");
 		Expression? length = CreateLengthExpression(receiver, receiver.SourceSyntax);
 		if (length is null)
 			return false;

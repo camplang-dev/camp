@@ -1,0 +1,62 @@
+// file: primitive_string_span_call_materialization.c
+#include "primitive_string_span_call_materialization_private.h"
+
+/* Private file declarations. */
+static uintptr_t String_getLength(const char *this);
+static const char *getstring(void);
+static void accept(const char *value, uintptr_t value_length);
+static int main(void);
+
+static uintptr_t String_getLength(const char *this)
+{
+	return 3;
+}
+
+static const char *getstring(void)
+{
+	return "abc";
+}
+
+static void accept(const char *value, uintptr_t value_length)
+{
+}
+
+static int main(void)
+{
+	const char *_stringValue0 = getstring();
+	const char *name = _stringValue0;
+	uintptr_t name_length = String_getLength(_stringValue0);
+	{
+		const char *_stringValue1 = getstring();
+		name = _stringValue1;
+		name_length = String_getLength(_stringValue1);
+	}
+	const char *_stringValue2 = getstring();
+	accept(_stringValue2, String_getLength(_stringValue2));
+	return (int)(name_length);
+}
+
+// file: primitive_string_span_call_materialization_private.h
+#ifndef PRIMITIVE_STRING_SPAN_CALL_MATERIALIZATION_PRIVATE_H_
+#define PRIMITIVE_STRING_SPAN_CALL_MATERIALIZATION_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: primitive_string_span_call_materialization.c

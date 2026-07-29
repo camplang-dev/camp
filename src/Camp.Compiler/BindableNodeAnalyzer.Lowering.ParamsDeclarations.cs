@@ -376,7 +376,7 @@ public sealed partial class BindableNodeAnalyzer
 			? CreateNullInitialValues(shape)
 			: TryCreateTargetTypedExpandedReceiverInitialValues(initialValue, shape, declarations, out List<Expression?>? expandedReceiverInitialValues)
 			? expandedReceiverInitialValues!
-			: GetParamsComponentInitialValues(initialValue, shape, deferCurrentAllocator: true);
+			: GetParamsComponentInitialValues(initialValue, shape, deferCurrentAllocator: true, declarations);
 		List<DeclarationTarget> targets = [];
 		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
 		{
@@ -858,7 +858,7 @@ public sealed partial class BindableNodeAnalyzer
 		return declaration;
 	}
 
-	List<Expression?> GetParamsComponentInitialValues(Expression? initialValue, ParamsComponentShape shape, bool deferCurrentAllocator)
+	List<Expression?> GetParamsComponentInitialValues(Expression? initialValue, ParamsComponentShape shape, bool deferCurrentAllocator, List<Statement>? declarations = null)
 	{
 		List<Expression?> values = [];
 		Expression? allocator = null;
@@ -903,7 +903,7 @@ public sealed partial class BindableNodeAnalyzer
 			return values;
 		}
 
-		if (initialValue is not null && TryCreatePrimitiveStringArrayInitialValues(initialValue, shape, out values))
+		if (initialValue is not null && TryCreatePrimitiveStringArrayInitialValues(initialValue, shape, declarations, out values))
 			return values;
 
 		if (initialValue is MemberExpression { Target: not null } member
@@ -940,7 +940,7 @@ public sealed partial class BindableNodeAnalyzer
 		return values;
 	}
 
-	bool TryCreatePrimitiveStringArrayInitialValues(Expression initialValue, ParamsComponentShape shape, out List<Expression?> values)
+	bool TryCreatePrimitiveStringArrayInitialValues(Expression initialValue, ParamsComponentShape shape, List<Statement>? declarations, out List<Expression?> values)
 	{
 		values = [];
 		if (shape.Kind != ParamsComponentShapeKind.Array
@@ -952,6 +952,7 @@ public sealed partial class BindableNodeAnalyzer
 			|| !IsIntegralTypeName(shape.Components[1].Type))
 			return false;
 
+		initialValue = CaptureRepeatedParamsSourceExpression(initialValue, "stringValue", declarations);
 		Expression? length = CreateLengthExpression(initialValue, initialValue.SourceSyntax);
 		if (length is null)
 			return false;

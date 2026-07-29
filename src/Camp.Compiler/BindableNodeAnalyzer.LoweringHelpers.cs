@@ -52,6 +52,19 @@ public sealed partial class BindableNodeAnalyzer
 		return name;
 	}
 
+	Expression CaptureRepeatedParamsSourceExpression(Expression expression, string prefix, List<Statement>? declarations = null)
+	{
+		List<Statement>? prefixStatements = declarations ?? currentStatementPrefix;
+		if (prefixStatements is null || IsRepeatableArrayLengthExpression(expression))
+			return expression;
+
+		string type = expression.ResolvedType ?? ErrorType;
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName(prefix), type, TypeReferenceForResolvedName(type), expression);
+		local.SourceSyntax = expression.SourceSyntax;
+		prefixStatements.Add(local);
+		return CreateVariableReference(local.Target, type, expression.SourceSyntax);
+	}
+
 	string NewGeneratedLabelName(string prefix)
 	{
 		string name = $"__{prefix}{generatedLocalIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)}";

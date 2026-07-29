@@ -1,0 +1,21 @@
+nuint getLength(string this)
+{
+	return 3;
+}
+
+string getstring()
+{
+	return "abc";
+}
+
+void accept(const char[] value)
+{
+}
+
+int main()
+{
+	const char[] name = getstring();
+	name = getstring();
+	accept(getstring());
+	return (int)name.length;
+}
