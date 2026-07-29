@@ -93,6 +93,16 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Version_command_prints_camp_version()
+	{
+		ProcessResult result = RunCampc("--version");
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Empty(result.StdErr);
+		Assert.Matches(@"^0\.0\.0-dev\+[0-9a-f]{40}\n$", result.StdOut);
+	}
+
+	[Fact]
 	public void Init_validates_arguments_and_lists_templates()
 	{
 		string root = TempPath("init-validation");

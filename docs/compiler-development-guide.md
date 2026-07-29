@@ -178,7 +178,9 @@ version and release notes, verifies that an existing tag does not point at a
 different commit, builds and smoke-tests the full release matrix, creates the tag
 only after the matrix passes, uploads the GitHub Release assets, verifies
 checksums, and runs installer checks on Linux, macOS, and Windows against the
-published release assets.
+published release assets. The release tag is also the canonical history marker
+for the released commit; use the same `vX.Y.Z-preview.N` spelling as the GitHub
+Release.
 
 Camp preview releases should be normal GitHub Releases, not GitHub prereleases.
 The Camp version string carries the preview label. This keeps GitHub's

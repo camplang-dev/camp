@@ -61,6 +61,14 @@ try {
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
+    $expectedVersion = Get-Content (Join-Path $root "VERSION") -TotalCount 1
+    if ($expectedVersion.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $expectedVersion = $expectedVersion.Substring(1)
+    }
+    $actualVersion = (& $campc --version | Out-String).Trim()
+    if ($actualVersion -ne $expectedVersion) {
+        throw "campc --version returned '$actualVersion', expected '$expectedVersion'."
+    }
 
     foreach ($editor in @("vscode", "sublime", "micro", "vim")) {
         $installer = Join-Path $root "extras\editors\$editor\install.ps1"

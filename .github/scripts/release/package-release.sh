@@ -116,9 +116,11 @@ for required in "$repo_root/src/publish-tools.proj" "$repo_root/lib" "$repo_root
 done
 
 vscode_vsix="$(resolve_vscode_vsix)"
+commit_sha="$(git -C "$repo_root" rev-parse HEAD)"
+camp_version="${version#v}"
 
 if [ "$skip_publish" -eq 0 ]; then
-    dotnet msbuild "$repo_root/src/publish-tools.proj" -p:RuntimeIdentifier="$rid"
+    dotnet msbuild "$repo_root/src/publish-tools.proj" -p:RuntimeIdentifier="$rid" -p:CampVersion="$camp_version" -p:CampReleaseBuild=true -p:CampBuildCommit="$commit_sha"
 fi
 
 tool_ext=""
@@ -136,7 +138,6 @@ for tool in campc camp-lsp camp-dap; do
     fi
 done
 
-commit_sha="$(git -C "$repo_root" rev-parse HEAD)"
 package_name="camp-$version-$rid"
 stage_root="$(mktemp -d "${TMPDIR:-/tmp}/camp-release.XXXXXX")"
 trap 'rm -rf "$stage_root"' EXIT

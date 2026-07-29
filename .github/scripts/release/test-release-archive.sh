@@ -82,6 +82,12 @@ campc="$install_root/bin/campc$tool_ext"
 chmod +x "$install_root/bin/campc"* 2>/dev/null || true
 find "$install_root/extras/editors" -name install.sh -exec chmod +x {} \; 2>/dev/null || true
 CAMP_HOME="$install_root" "$campc" --help >/dev/null
+expected_version="$(sed -n '1p' "$install_root/VERSION")"
+actual_version="$(CAMP_HOME="$install_root" "$campc" --version)"
+if [ "$actual_version" != "${expected_version#v}" ]; then
+    echo "campc --version returned '$actual_version', expected '${expected_version#v}'." >&2
+    exit 1
+fi
 
 for editor in vscode sublime micro vim; do
     "$install_root/extras/editors/$editor/install.sh" --help >/dev/null

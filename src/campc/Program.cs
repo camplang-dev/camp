@@ -18,9 +18,36 @@ if (startupErrors.Count > 0)
 		Console.Error.WriteLine(error);
 	return 1;
 }
+if (IsVersionRequest(expandedArgs))
+{
+	Console.Out.WriteLine(GetVersionText());
+	return 0;
+}
 RootCommand rootCommand = BuildCommandTree(environment, expandedArgs);
 int exitCode = ContainsRemovedOption(expandedArgs) ? CampCli.Run(expandedArgs, environment) : rootCommand.Parse(expandedArgs).Invoke();
 return exitCode;
+
+static bool IsVersionRequest(string[] args)
+{
+	return args is ["--version"];
+}
+
+static string GetVersionText()
+{
+	string version = StripLeadingVersionPrefix(CampBuildInfo.Version);
+	if (CampBuildInfo.IsReleaseBuild)
+		return version;
+	return string.IsNullOrWhiteSpace(CampBuildInfo.Commit) || CampBuildInfo.Commit == "unknown"
+		? version
+		: version + "+" + CampBuildInfo.Commit;
+}
+
+static string StripLeadingVersionPrefix(string version)
+{
+	return version.StartsWith("v", StringComparison.OrdinalIgnoreCase) && version.Length > 1 && char.IsDigit(version[1])
+		? version[1..]
+		: version;
+}
 
 static bool ContainsRemovedOption(string[] args)
 {

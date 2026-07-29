@@ -5,6 +5,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <CampVersion Condition="'$(CampVersion)' == ''">0.0.0-dev</CampVersion>
+    <CampReleaseBuild Condition="'$(CampReleaseBuild)' == ''">false</CampReleaseBuild>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +16,34 @@
   <ItemGroup>
     <ProjectReference Include="../Camp.Compiler/Camp.Compiler.csproj" />
   </ItemGroup>
+
+  <Target Name="ResolveCampBuildCommit" BeforeTargets="GenerateCampBuildInfo" Condition="'$(CampBuildCommit)' == ''">
+    <Exec Command="git -C &quot;$(MSBuildProjectDirectory)&quot; rev-parse HEAD" ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="Low" StandardErrorImportance="Low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="CampBuildCommit" />
+    </Exec>
+    <PropertyGroup>
+      <CampBuildCommit Condition="'$(CampBuildCommit)' == ''">unknown</CampBuildCommit>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="GenerateCampBuildInfo" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <CampBuildInfoFile>$(IntermediateOutputPath)CampBuildInfo.g.cs</CampBuildInfoFile>
+    </PropertyGroup>
+    <ItemGroup>
+      <CampBuildInfoLine Include="// &lt;auto-generated /&gt;" />
+      <CampBuildInfoLine Include="internal static class CampBuildInfo" />
+      <CampBuildInfoLine Include="{" />
+      <CampBuildInfoLine Include="&#x9;public const string Version = &quot;$(CampVersion)&quot;%3B" />
+      <CampBuildInfoLine Include="&#x9;public const string Commit = &quot;$(CampBuildCommit)&quot;%3B" />
+      <CampBuildInfoLine Include="&#x9;public static readonly bool IsReleaseBuild = $(CampReleaseBuild)%3B" />
+      <CampBuildInfoLine Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(CampBuildInfoFile)" Lines="@(CampBuildInfoLine)" Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(CampBuildInfoFile)" />
+    </ItemGroup>
+  </Target>
 
   <Target Name="CopyCampcToRepoBin" AfterTargets="Build" Condition="'$(IsPublishingTools)' != 'true'">
     <PropertyGroup>

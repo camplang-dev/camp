@@ -67,9 +67,14 @@ foreach ($required in @("src\publish-tools.proj", "lib", "targets", "extras\edit
 }
 
 $vscodeVsix = Resolve-VscodeVsix
+$commitSha = (git -C $RepoRoot rev-parse HEAD).Trim()
+$campVersion = $Version
+if ($campVersion.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+    $campVersion = $campVersion.Substring(1)
+}
 
 if (-not $SkipPublish) {
-    dotnet msbuild (Join-Path $RepoRoot "src\publish-tools.proj") "-p:RuntimeIdentifier=$Rid"
+    dotnet msbuild (Join-Path $RepoRoot "src\publish-tools.proj") "-p:RuntimeIdentifier=$Rid" "-p:CampVersion=$campVersion" "-p:CampReleaseBuild=true" "-p:CampBuildCommit=$commitSha"
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
@@ -90,7 +95,6 @@ foreach ($tool in @("campc", "camp-lsp", "camp-dap")) {
     }
 }
 
-$commitSha = (git -C $RepoRoot rev-parse HEAD).Trim()
 $packageName = "camp-$Version-$Rid"
 $stageRoot = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
 $layout = Join-Path $stageRoot $packageName
