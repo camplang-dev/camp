@@ -1,0 +1,58 @@
+{
+  "$schema": "https://raw.githubusercontent.com/sinelaw/fresh/main/crates/fresh-editor/plugins/schemas/package.schema.json",
+  "name": "camp",
+  "version": "0.1.0",
+  "description": "Camp language support for Fresh",
+  "type": "bundle",
+  "author": "Camp contributors",
+  "license": "MIT",
+  "keywords": [
+    "camp",
+    "systems",
+    "language"
+  ],
+  "fresh": {
+    "languages": [
+      {
+        "id": "camp",
+        "grammar": {
+          "file": "grammars/Camp.sublime-syntax",
+          "extensions": [
+            "camp"
+          ]
+        },
+        "language": {
+          "commentPrefix": "//",
+          "blockCommentStart": "/*",
+          "blockCommentEnd": "*/",
+          "tabSize": 4,
+          "useTabs": true,
+          "autoIndent": true
+        },
+        "lsp": {
+          "command": "camp-lsp",
+          "args": [],
+          "autoStart": true
+        }
+      },
+      {
+        "id": "campbuild",
+        "grammar": {
+          "file": "grammars/Camp.sublime-syntax",
+          "extensions": [
+            "campbuild"
+          ]
+        },
+        "language": {
+          "commentPrefix": "//",
+          "blockCommentStart": "/*",
+          "blockCommentEnd": "*/",
+          "tabSize": 4,
+          "useTabs": true,
+          "autoIndent": true
+        },
+        "lsp": null
+      }
+    ]
+  }
+}

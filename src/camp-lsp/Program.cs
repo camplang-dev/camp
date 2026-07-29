@@ -58,8 +58,7 @@ sealed class CampTextDocumentSyncHandler(CampLspWorkspace workspace) : TextDocum
 
 	public override Task<Unit> Handle(DidChangeTextDocumentParams request, CancellationToken cancellationToken)
 	{
-		string text = request.ContentChanges.LastOrDefault()?.Text ?? "";
-		workspace.Change(request.TextDocument.Uri, text, request.TextDocument.Version);
+		workspace.Change(request.TextDocument.Uri, request.ContentChanges, request.TextDocument.Version);
 		return Unit.Task;
 	}
 
@@ -80,7 +79,7 @@ sealed class CampTextDocumentSyncHandler(CampLspWorkspace workspace) : TextDocum
 		return new TextDocumentSyncRegistrationOptions
 		{
 			DocumentSelector = CampLsp.Protocol.DocumentSelector,
-			Change = TextDocumentSyncKind.Full,
+			Change = TextDocumentSyncKind.Incremental,
 			Save = new BooleanOr<SaveOptions>(true)
 		};
 	}
@@ -345,10 +344,16 @@ public sealed class CampLspWorkspace
 		Reanalyze(uri);
 	}
 
-	public void Change(DocumentUri uri, string text, int? version)
+	public void Change(DocumentUri uri, IEnumerable<TextDocumentContentChangeEvent> contentChanges, int? version)
 	{
 		string path = uri.GetFileSystemPath();
-		trace.Write("document.change", ("file", path), ("version", version), ("length", text.Length));
+		List<TextDocumentContentChangeEvent> changes = contentChanges.ToList();
+		OpenDocument? previous;
+		lock (gate)
+			openDocuments.TryGetValue(path, out previous);
+
+		string text = ApplyDocumentChanges(previous?.Text ?? "", changes);
+		trace.Write("document.change", ("file", path), ("version", version), ("changeCount", changes.Count), ("length", text.Length));
 		lock (gate)
 			openDocuments[path] = new OpenDocument(uri, path, text, version);
 		ScheduleDiagnostics(uri, path, version);
@@ -539,6 +544,58 @@ public sealed class CampLspWorkspace
 			source.Cancel();
 		}
 		trace.Write("diagnostics.debounce.cancel", ("file", path));
+	}
+
+	static string ApplyDocumentChanges(string text, IReadOnlyList<TextDocumentContentChangeEvent> changes)
+	{
+		foreach (TextDocumentContentChangeEvent change in changes)
+		{
+			if (change.Range is null)
+			{
+				text = change.Text ?? "";
+				continue;
+			}
+
+			int start = GetTextOffset(text, change.Range.Start);
+			int end = GetTextOffset(text, change.Range.End);
+			if (end < start)
+				(start, end) = (end, start);
+			text = text[..start] + (change.Text ?? "") + text[end..];
+		}
+		return text;
+	}
+
+	static int GetTextOffset(string text, Position position)
+	{
+		int targetLine = Math.Max(0, position.Line);
+		int targetCharacter = Math.Max(0, position.Character);
+		int line = 0;
+		int index = 0;
+
+		while (index < text.Length && line < targetLine)
+		{
+			if (text[index] == '\r')
+			{
+				index++;
+				if (index < text.Length && text[index] == '\n')
+					index++;
+				line++;
+			}
+			else if (text[index] == '\n')
+			{
+				index++;
+				line++;
+			}
+			else
+			{
+				index++;
+			}
+		}
+
+		int lineEnd = index;
+		while (lineEnd < text.Length && text[lineEnd] != '\r' && text[lineEnd] != '\n')
+			lineEnd++;
+		return Math.Min(index + targetCharacter, lineEnd);
 	}
 
 	public CampHover? GetHover(DocumentUri uri, CampTextPosition position)

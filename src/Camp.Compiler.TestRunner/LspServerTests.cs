@@ -57,6 +57,60 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_server_applies_incremental_changes_before_publishing_diagnostics()
+	{
+		string root = CreateTempDirectory("lsp-diagnostics-incremental-change");
+		using LspProcess lsp = LspProcess.Start();
+		string file = Path.Combine(root, "main.camp");
+		string text = """
+			export int main()
+			{
+				int value = 1;
+				return value;
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+		JsonNode firstDiagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+		Assert.Equal(0, firstDiagnostics["params"]?["diagnostics"]?.AsArray().Count);
+
+		string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+		int returnLine = Array.FindIndex(lines, static line => line.Contains("return value;", StringComparison.Ordinal));
+		Assert.True(returnLine >= 0);
+		int valueStart = lines[returnLine].IndexOf("value", StringComparison.Ordinal);
+		Assert.True(valueStart >= 0);
+		lsp.Notify("textDocument/didChange", new
+		{
+			textDocument = new { uri, version = 2 },
+			contentChanges = new[]
+			{
+				new
+				{
+					range = new
+					{
+						start = new { line = returnLine, character = valueStart },
+						end = new { line = returnLine, character = valueStart + "value".Length }
+					},
+					rangeLength = "value".Length,
+					text = ""
+				}
+			}
+		});
+		JsonNode secondDiagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+		JsonArray diagnostics = secondDiagnostics["params"]?["diagnostics"]?.AsArray() ?? throw new InvalidOperationException("Missing diagnostics.");
+		JsonNode diagnostic = Assert.Single(diagnostics) ?? throw new InvalidOperationException("Missing diagnostic.");
+		JsonNode line = diagnostic["range"]?["start"]?["line"] ?? throw new InvalidOperationException("Missing diagnostic line.");
+
+		Assert.Equal(returnLine, line.GetValue<int>());
+	}
+
+	[Fact]
 	public void Lsp_server_accepts_interpolated_string_diagnostics()
 	{
 		using LspProcess lsp = LspProcess.Start();

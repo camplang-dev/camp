@@ -13,6 +13,8 @@ public sealed class SyntaxHighlightingFilesTests
 		string root = FindRepositoryRoot();
 		string micro = File.ReadAllText(Path.Combine(root, "extras", "editors", "micro", "camp.yaml"));
 		string sublime = File.ReadAllText(Path.Combine(root, "extras", "editors", "sublime", "Camp.sublime-syntax"));
+		string fresh = File.ReadAllText(Path.Combine(root, "extras", "editors", "fresh", "grammars", "Camp.sublime-syntax"));
+		string freshPackage = File.ReadAllText(Path.Combine(root, "extras", "editors", "fresh", "package.json"));
 		string vscode = File.ReadAllText(Path.Combine(root, "extras", "vscode-camp", "syntaxes", "camp.tmLanguage.json"));
 		string vscodeVsix = Path.Combine(root, "extras", "editors", "vscode", "vscode-camp.vsix");
 		string vimSyntax = File.ReadAllText(Path.Combine(root, "extras", "editors", "vim", "pack", "camp", "start", "camp", "syntax", "camp.vim"));
@@ -26,6 +28,12 @@ public sealed class SyntaxHighlightingFilesTests
 		Assert.Contains("storage.type.annotation.camp", sublime, StringComparison.Ordinal);
 		Assert.Contains("storage.type.annotation.test.camp", sublime, StringComparison.Ordinal);
 		Assert.Contains("test_support_functions", sublime, StringComparison.Ordinal);
+		Assert.Equal(sublime, fresh);
+		Assert.Contains("\"type\": \"bundle\"", freshPackage, StringComparison.Ordinal);
+		Assert.Contains("\"id\": \"camp\"", freshPackage, StringComparison.Ordinal);
+		Assert.Contains("\"command\": \"camp-lsp\"", freshPackage, StringComparison.Ordinal);
+		Assert.Contains("\"id\": \"campbuild\"", freshPackage, StringComparison.Ordinal);
+		Assert.Contains("\"lsp\": null", freshPackage, StringComparison.Ordinal);
 		Assert.Contains("@(?:test|testonly|skip)", vscode, StringComparison.Ordinal);
 		Assert.Contains("string.quoted.double.interpolated.camp", vscode, StringComparison.Ordinal);
 		Assert.Contains("storage.type.annotation.camp", vscode, StringComparison.Ordinal);
