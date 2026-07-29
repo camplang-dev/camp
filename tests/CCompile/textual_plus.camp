@@ -1,12 +1,12 @@
-newtype delegate nuint StringFormatter(const this, char[] buffer = default);
+newtype delegate nuint CharFormatter(const this, char[] buffer = default);
 
-nuint format(in int this, overload char[] buffer) : StringFormatter
+nuint format(in int this, overload char[] buffer) : CharFormatter
 {
 	return 2;
 }
 
 int main()
 {
-	StringFormatter formatter = "Result: " + 1;
+	CharFormatter formatter = "Result: " + 1;
 	return (int)formatter(default);
 }

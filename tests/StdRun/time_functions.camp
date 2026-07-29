@@ -22,6 +22,12 @@ export int main()
 	string dateIso = leap.format.copyString() finally delete;
 	if (dateIso.compareTo("2024-02-29") != 0)
 		return 6;
+	fixed char[4] shortDateBuffer = default;
+	char[] shortDateSpan = shortDateBuffer;
+	if (leap.format(shortDateSpan) != 10)
+		return 45;
+	if (shortDateBuffer[0] != '2' || shortDateBuffer[1] != '0' || shortDateBuffer[2] != '2' || shortDateBuffer[3] != '4')
+		return 46;
 
 	TimeOfDay noon = { 14, 5, 30, 128 };
 	if (noon.hour != 14 || noon.minute != 5 || noon.second != 30)
@@ -41,6 +47,12 @@ export int main()
 	string offsetIso = offset.format.copyString() finally delete;
 	if (offsetIso.compareTo("-04:00") != 0)
 		return 11;
+	fixed char[3] shortOffsetBuffer = default;
+	char[] shortOffsetSpan = shortOffsetBuffer;
+	if (offset.format(shortOffsetSpan) != 6)
+		return 47;
+	if (shortOffsetBuffer[0] != '-' || shortOffsetBuffer[1] != '0' || shortOffsetBuffer[2] != '4')
+		return 48;
 	UtcOffset halfHour = UtcOffset.fromHours((short)9, (ushort)30);
 	string halfHourIso = halfHour.format.copyString() finally delete;
 	if (halfHourIso.compareTo("+09:30") != 0)

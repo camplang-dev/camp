@@ -139,7 +139,7 @@ public sealed partial class BindableNodeAnalyzer
 	BlockStatement BuildInterpolatedFormatterBody(InterpolatedStringExpression interpolation, FormatterShape formatter, List<Expression> formatterReferences, LambdaParameter bufferParameter)
 	{
 		List<Statement> statements = [];
-		DeclarationStatement required = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedRequired"), formatter.LengthType, TypeReferenceForResolvedName(formatter.LengthType), NumberLiteral("1", formatter.LengthType));
+		DeclarationStatement required = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedRequired"), formatter.LengthType, TypeReferenceForResolvedName(formatter.LengthType), NumberLiteral("0", formatter.LengthType));
 		statements.Add(required);
 		Expression Required() => CreateVariableReference(required.Target, formatter.LengthType);
 
@@ -168,19 +168,11 @@ public sealed partial class BindableNodeAnalyzer
 						CallFormatter(formatterReference, DefaultBuffer(formatter), formatter.LengthType));
 					statements.Add(size);
 					componentSizes.Add(size);
-					statements.Add(new IfStatement
-					{
-						SourceSyntax = segment.SourceSyntax,
-						ResolvedType = "void",
-						Condition = GreaterThan(CreateVariableReference(size.Target, formatter.LengthType), NumberLiteral("0", formatter.LengthType), segment.SourceSyntax),
-						Body = CreateBlock([
-							Assign(
-								Required(),
-								Add(Required(), Subtract(CreateVariableReference(size.Target, formatter.LengthType), NumberLiteral("1", formatter.LengthType), formatter.LengthType), formatter.LengthType),
-								formatter.LengthType,
-								segment.SourceSyntax)
-						])
-					});
+					statements.Add(Assign(
+						Required(),
+						Add(Required(), CreateVariableReference(size.Target, formatter.LengthType), formatter.LengthType),
+						formatter.LengthType,
+						segment.SourceSyntax));
 					break;
 			}
 		}
@@ -209,35 +201,26 @@ public sealed partial class BindableNodeAnalyzer
 				case InterpolatedStringExpressionSegment { Formatter: not null }:
 					Expression formatterReference = formatterReferences[formatterIndex++];
 					DeclarationStatement size = componentSizes[sizeIndex++];
+					DeclarationStatement start = AddClampedOffsetLocal(writeBody.Statements, Buffer, Offset, formatter, segment.SourceSyntax);
 					writeBody.Statements.Add(new ExpressionStatement
 					{
 						SourceSyntax = segment.SourceSyntax,
 						ResolvedType = "void",
-						Expression = CallFormatter(formatterReference, BufferSlice(Buffer(), Offset(), formatter), formatter.LengthType)
+						Expression = CallFormatter(formatterReference, BufferSlice(Buffer(), CreateVariableReference(start.Target, formatter.LengthType), formatter), formatter.LengthType)
 					});
-					writeBody.Statements.Add(new IfStatement
-					{
-						SourceSyntax = segment.SourceSyntax,
-						ResolvedType = "void",
-						Condition = GreaterThan(CreateVariableReference(size.Target, formatter.LengthType), NumberLiteral("0", formatter.LengthType), segment.SourceSyntax),
-						Body = CreateBlock([
-							Assign(
-								Offset(),
-								Add(Offset(), Subtract(CreateVariableReference(size.Target, formatter.LengthType), NumberLiteral("1", formatter.LengthType), formatter.LengthType), formatter.LengthType),
-								formatter.LengthType,
-								segment.SourceSyntax)
-						])
-					});
+					writeBody.Statements.Add(Assign(
+						Offset(),
+						Add(Offset(), CreateVariableReference(size.Target, formatter.LengthType), formatter.LengthType),
+						formatter.LengthType,
+						segment.SourceSyntax));
 					break;
 			}
 		}
-		writeBody.Statements.Add(Assign(BufferIndex(Buffer(), Offset(), formatter.ElementType, interpolation.SourceSyntax), CharacterLiteral('\0', formatter.ElementType, interpolation.SourceSyntax), formatter.ElementType, interpolation.SourceSyntax));
-
 		statements.Add(new IfStatement
 		{
 			SourceSyntax = interpolation.SourceSyntax,
 			ResolvedType = "void",
-			Condition = GreaterThanOrEqual(BufferLength(Buffer(), formatter.LengthType, interpolation.SourceSyntax), Required(), interpolation.SourceSyntax),
+			Condition = GreaterThan(BufferLength(Buffer(), formatter.LengthType, interpolation.SourceSyntax), NumberLiteral("0", formatter.LengthType), interpolation.SourceSyntax),
 			Body = writeBody
 		});
 		statements.Add(new ReturnStatement
@@ -275,16 +258,54 @@ public sealed partial class BindableNodeAnalyzer
 		if (text.Length == 0)
 			return;
 
-		statements.Add(new LiteralCopyStatement
+		Expression bufferLength = BufferLength(buffer(), formatter.LengthType, syntax);
+		DeclarationStatement start = CreateGeneratedLocal(
+			NewGeneratedLocalName("interpolatedCopyStart"),
+			formatter.LengthType,
+			TypeReferenceForResolvedName(formatter.LengthType),
+			MinLength(offset(), bufferLength, formatter.LengthType, syntax));
+		statements.Add(start);
+
+		Expression remaining = Subtract(BufferLength(buffer(), formatter.LengthType, syntax), CreateVariableReference(start.Target, formatter.LengthType), formatter.LengthType);
+		DeclarationStatement count = CreateGeneratedLocal(
+			NewGeneratedLocalName("interpolatedCopyCount"),
+			formatter.LengthType,
+			TypeReferenceForResolvedName(formatter.LengthType),
+			MinLength(LengthLiteral(text.Length, formatter.LengthType), remaining, formatter.LengthType, syntax));
+		statements.Add(count);
+
+		BlockStatement copyBody = CreateBlock([
+			new LiteralCopyStatement
+			{
+				SourceSyntax = syntax,
+				ResolvedType = "void",
+				Buffer = buffer(),
+				Offset = CreateVariableReference(start.Target, formatter.LengthType),
+				Count = CreateVariableReference(count.Target, formatter.LengthType),
+				ElementType = formatter.ElementType,
+				LengthType = formatter.LengthType,
+				Text = text
+			}
+		]);
+		statements.Add(new IfStatement
 		{
 			SourceSyntax = syntax,
 			ResolvedType = "void",
-			Buffer = buffer(),
-			Offset = offset(),
-			ElementType = formatter.ElementType,
-			LengthType = formatter.LengthType,
-			Text = text
+			Condition = GreaterThan(CreateVariableReference(count.Target, formatter.LengthType), NumberLiteral("0", formatter.LengthType), syntax),
+			Body = copyBody
 		});
+		statements.Add(Assign(offset(), Add(offset(), LengthLiteral(text.Length, formatter.LengthType), formatter.LengthType), formatter.LengthType, syntax));
+	}
+
+	DeclarationStatement AddClampedOffsetLocal(List<Statement> statements, Func<Expression> buffer, Func<Expression> offset, FormatterShape formatter, SyntaxNode? syntax)
+	{
+		DeclarationStatement start = CreateGeneratedLocal(
+			NewGeneratedLocalName("interpolatedStart"),
+			formatter.LengthType,
+			TypeReferenceForResolvedName(formatter.LengthType),
+			MinLength(offset(), BufferLength(buffer(), formatter.LengthType, syntax), formatter.LengthType, syntax));
+		statements.Add(start);
+		return start;
 	}
 
 	CallExpression CallFormatter(Expression formatterReference, Expression buffer, string lengthType)
@@ -378,6 +399,25 @@ public sealed partial class BindableNodeAnalyzer
 	Expression LengthLiteral(int value, string lengthType)
 	{
 		return NumberLiteral(value.ToString(CultureInfo.InvariantCulture), lengthType);
+	}
+
+	Expression MinLength(Expression left, Expression right, string type, SyntaxNode? syntax)
+	{
+		return new ConditionalExpression
+		{
+			SourceSyntax = syntax,
+			Condition = new BinaryExpression
+			{
+				SourceSyntax = syntax,
+				Left = left,
+				Operator = BinaryOperator.LessThan,
+				Right = right,
+				ResolvedType = "bool"
+			},
+			WhenTrue = CloneParamsExpansionExpression(left) ?? left,
+			WhenFalse = CloneParamsExpansionExpression(right) ?? right,
+			ResolvedType = type
+		};
 	}
 
 	Expression Add(Expression left, Expression right, string type)

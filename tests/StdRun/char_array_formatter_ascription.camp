@@ -1,15 +1,11 @@
 using Std;
 
-public nuint escapedLength(const char[] this, overload char[] buffer) : StringFormatter
+public nuint escapedLength(const char[] this, overload char[] buffer) : CharFormatter
 {
-	nuint required = this.length + 1;
-	if (buffer.length >= required)
-	{
-		for (nuint i = 0; i < this.length; i++)
-			buffer[i] = this[i];
-		buffer[this.length] = '\0';
-	}
-	return required;
+	nuint count = min(this.length, buffer.length);
+	for (nuint i = 0; i < count; i++)
+		buffer[i] = this[i];
+	return this.length;
 }
 
 export int main()
@@ -30,8 +26,14 @@ export int main()
 	fixed char[4] buffer = default;
 	char[] span = buffer;
 	nuint required = "xy".escapedLength(span);
-	if (required != 3 || buffer[0] != 'x' || buffer[1] != 'y' || buffer[2] != '\0')
+	if (required != 2 || buffer[0] != 'x' || buffer[1] != 'y')
 		return 4;
+
+	fixed char[1] shortBuffer = default;
+	char[] shortSpan = shortBuffer;
+	required = "xy".escapedLength(shortSpan);
+	if (required != 2 || shortBuffer[0] != 'x')
+		return 5;
 
 	return 0;
 }

@@ -85,16 +85,13 @@ public newtype TimeSpan: long
 
 // Formats directly into caller-provided buffer.
 // Examples: "14:05:30", "44:05:30.551".
-// Returns required bytes including the terminator.
-public nuint format(in TimeSpan this, overload char[] buffer) : StringFormatter
+// Returns required characters.
+public nuint format(in TimeSpan this, overload char[] buffer) : CharFormatter
 {
 	if (this == TimeSpan.INVALID)
 	{
-		nuint required = 8;
-		if (buffer.length < required)
-			return required;
-		Array_copyTo<char>("invalid\0", buffer);
-		return required;
+		timeCopyPrefix("invalid", 7, buffer);
+		return 7;
 	}
 
 	long ms = (long)this;
@@ -110,28 +107,28 @@ public nuint format(in TimeSpan this, overload char[] buffer) : StringFormatter
 	int fraction = (int)(ms % TIME_MS_PER_SECOND);
 
 	nuint hourDigits = timeCountUnsignedDigits((ulong)hours);
-	nuint length = hourDigits + 7;
+	nuint length = hourDigits + 6;
 	if (negative)
 		length++;
 	if (fraction != 0)
 		length += 4;
-	if (buffer.length < length)
-		return length;
 
+	fixed char[32] scratch = default;
+	char[] text = scratch;
 	nuint index = 0;
 	if (negative)
-		buffer[index++] = '-';
-	index = timeWriteUnsigned(buffer.elements, index, (ulong)hours);
-	buffer[index++] = ':';
-	index = timeWrite2(buffer.elements, index, minutes);
-	buffer[index++] = ':';
-	index = timeWrite2(buffer.elements, index, seconds);
+		text[index++] = '-';
+	index = timeWriteUnsigned(text.elements, index, (ulong)hours);
+	text[index++] = ':';
+	index = timeWrite2(text.elements, index, minutes);
+	text[index++] = ':';
+	index = timeWrite2(text.elements, index, seconds);
 	if (fraction != 0)
 	{
-		buffer[index++] = '.';
-		index = timeWrite3(buffer.elements, index, fraction);
+		text[index++] = '.';
+		index = timeWrite3(text.elements, index, fraction);
 	}
-	buffer[index] = '\0';
+	timeCopyPrefix(text, length, buffer);
 	return length;
 }
 
@@ -162,32 +159,29 @@ public newtype UtcOffset: short
 
 // Formats directly into caller-provided buffer. Examples: "Z", "-04:00", "+09:30".
 // Always computes, even when value is considered invalid.  Min "-99:99" Max "99:99"
-// Returns required bytes including the terminator.
-public nuint format(in UtcOffset this, overload char[] buffer) : StringFormatter
+// Returns required characters.
+public nuint format(in UtcOffset this, overload char[] buffer) : CharFormatter
 {
 	short total = (short)this;
 	if (total == 0)
 	{
-		nuint required = 2;
-		if (buffer.length < required)
-			return required;
-		buffer[0] = 'Z';
-		buffer[1] = '\0';
-		return required;
+		if (buffer.length > 0)
+			buffer[0] = 'Z';
+		return 1;
 	}
 
 	bool negative = total < 0;
 	if (negative)
 		total = (short)(0 - total);
 
-	if (buffer.length < 7)
-		return 7;
-	buffer[0] = negative ? '-' : '+';
-	timeWrite2(buffer.elements, 1, total / 60);
-	buffer[3] = ':';
-	timeWrite2(buffer.elements, 4, total % 60);
-	buffer[6] = '\0';
-	return 7;
+	fixed char[6] scratch = default;
+	char[] text = scratch;
+	text[0] = negative ? '-' : '+';
+	timeWrite2(text.elements, 1, total / 60);
+	text[3] = ':';
+	timeWrite2(text.elements, 4, total % 60);
+	timeCopyPrefix(text, 6, buffer);
+	return 6;
 }
 
 public newtype Instant: long
@@ -253,20 +247,20 @@ public newtype Instant: long
 
 // Formats directly into caller-provided buffer. Example: "2026-06-12T18:30:00.124Z".
 // Always computes, even when value is considered "invalid".
-// Returns required bytes including the terminator.
-public nuint format(in Instant this, overload char[] buffer) : StringFormatter
+// Returns required characters.
+public nuint format(in Instant this, overload char[] buffer) : CharFormatter
 {
 	DateTime utc = this.getUtcDateTime();
 	if (!utc.isValid())
 		return 0;
-	nuint length = utc.format(buffer);
+	fixed char[24] scratch = default;
+	char[] text = scratch;
+	nuint length = utc.format(text);
 	if (length == 0)
 		return 0;
 	nuint required = length + 1;
-	if (buffer.length < required)
-		return required;
-	buffer[length - 1] = 'Z';
-	buffer[required - 1] = '\0';
+	text[length] = 'Z';
+	timeCopyPrefix(text, required, buffer);
 	return required;
 }
 
@@ -331,18 +325,18 @@ public struct Date
 	// Formats directly into caller-provided buffer. Example: "2026-06-02".
 	// Year is always 4 digits, maxes out at 9999. Month/Day always two digits, maxes out at 99.
 	// Out-of-range month/day is not checked (put in month 14 and day 78 and that's what you get)
-	// Returns required bytes including the terminator.
-	public nuint format(const this, overload char[] buffer) : StringFormatter
+	// Returns required characters.
+	public nuint format(const this, overload char[] buffer) : CharFormatter
 	{
-		if (buffer.length < 11)
-			return 11;
-		timeWrite4(buffer.elements, 0, (int)this.year);
-		buffer[4] = '-';
-		timeWrite2(buffer.elements, 5, (int)this.month);
-		buffer[7] = '-';
-		timeWrite2(buffer.elements, 8, (int)this.day);
-		buffer[10] = '\0';
-		return 11;
+		fixed char[10] scratch = default;
+		char[] text = scratch;
+		timeWrite4(text.elements, 0, (int)this.year);
+		text[4] = '-';
+		timeWrite2(text.elements, 5, (int)this.month);
+		text[7] = '-';
+		timeWrite2(text.elements, 8, (int)this.day);
+		timeCopyPrefix(text, 10, buffer);
+		return 10;
 	}
 }
 
@@ -375,24 +369,24 @@ public struct TimeOfDay
 	// Values under 10 are padded with zeroes; fractions are only written when non-zero, fixed to 3 decimal places
 	// Out-of-range field values are not checked, written using max 99
 	// (Invalid) example: { .hour = 27, .minute = 160, .second = 5 } -> "27:99:05"
-	// Returns required bytes including the terminator.
-	public nuint format(const this, overload char[] buffer) : StringFormatter
+	// Returns required characters.
+	public nuint format(const this, overload char[] buffer) : CharFormatter
 	{
 		ushort ms = this.getMs();
-		nuint length = ms == 0 ? 9 : 13;
-		if (buffer.length < length)
-			return length;
-		timeWrite2(buffer.elements, 0, this.hour);
-		buffer[2] = ':';
-		timeWrite2(buffer.elements, 3, this.minute);
-		buffer[5] = ':';
-		timeWrite2(buffer.elements, 6, this.second);
+		nuint length = ms == 0 ? 8 : 12;
+		fixed char[12] scratch = default;
+		char[] text = scratch;
+		timeWrite2(text.elements, 0, this.hour);
+		text[2] = ':';
+		timeWrite2(text.elements, 3, this.minute);
+		text[5] = ':';
+		timeWrite2(text.elements, 6, this.second);
 		if (ms != 0)
 		{
-			buffer[8] = '.';
-			timeWrite3(buffer.elements, 9, ms);
+			text[8] = '.';
+			timeWrite3(text.elements, 9, ms);
 		}
-		buffer[length - 1] = '\0';
+		timeCopyPrefix(text, length, buffer);
 		return length;
 	}
 }
@@ -453,33 +447,32 @@ public struct DateTime
 
 	// Formats directly into caller-provided buffer. Examples: "2026-06-12T14:05:30", "2026-06-12T14:05:30.500".
 	// Returns 0 if invalid.
-	public nuint format(const this, overload char[] buffer) : StringFormatter
+	public nuint format(const this, overload char[] buffer) : CharFormatter
 	{
 		if (!this.isValid())
 			return 0;
 
 		ushort ms = this.time.getMs();
-		nuint required = ms == 0 ? 20 : 24;
-		if (buffer.length < required)
-			return required;
-
-		timeWrite4(buffer.elements, 0, (int)this.date.year);
-		buffer[4] = '-';
-		timeWrite2(buffer.elements, 5, (int)this.date.month);
-		buffer[7] = '-';
-		timeWrite2(buffer.elements, 8, (int)this.date.day);
-		buffer[10] = 'T';
-		timeWrite2(buffer.elements, 11, (int)this.time.hour);
-		buffer[13] = ':';
-		timeWrite2(buffer.elements, 14, (int)this.time.minute);
-		buffer[16] = ':';
-		timeWrite2(buffer.elements, 17, (int)this.time.second);
+		nuint required = ms == 0 ? 19 : 23;
+		fixed char[23] scratch = default;
+		char[] text = scratch;
+		timeWrite4(text.elements, 0, (int)this.date.year);
+		text[4] = '-';
+		timeWrite2(text.elements, 5, (int)this.date.month);
+		text[7] = '-';
+		timeWrite2(text.elements, 8, (int)this.date.day);
+		text[10] = 'T';
+		timeWrite2(text.elements, 11, (int)this.time.hour);
+		text[13] = ':';
+		timeWrite2(text.elements, 14, (int)this.time.minute);
+		text[16] = ':';
+		timeWrite2(text.elements, 17, (int)this.time.second);
 		if (ms != 0)
 		{
-			buffer[19] = '.';
-			timeWrite3(buffer.elements, 20, ms);
+			text[19] = '.';
+			timeWrite3(text.elements, 20, ms);
 		}
-		buffer[required - 1] = '\0';
+		timeCopyPrefix(text, required, buffer);
 		return required;
 	}
 }
@@ -535,36 +528,35 @@ public struct OffsetDateTime
 	public Instant toInstant(const this) => this.local.toInstant(this.offset);
 
 	// Formats directly into caller-provided buffer. Example: "2026-06-12T14:05:30.500-04:00".
-	// Returns required bytes including the terminator.
-	public nuint format(const this, overload char[] buffer) : StringFormatter
+	// Returns required characters.
+	public nuint format(const this, overload char[] buffer) : CharFormatter
 	{
-		nuint dateTimeLength = this.local.format(buffer);
+		fixed char[29] scratch = default;
+		char[] text = scratch;
+		nuint dateTimeLength = this.local.format(text);
 		if (!this.isValid() || dateTimeLength == 0)
 			return 0;
 		short total = (short)this.offset;
-		nuint offsetLength = total == 0 ? 2 : 7;
-		nuint required = dateTimeLength - 1 + offsetLength;
-		if (buffer.length < required)
-			return required;
+		nuint offsetLength = total == 0 ? 1 : 6;
+		nuint required = dateTimeLength + offsetLength;
 
-		nuint index = dateTimeLength - 1;
+		nuint index = dateTimeLength;
 		if (total == 0)
 		{
-			buffer[index++] = 'Z';
-			buffer[index] = '\0';
+			text[index] = 'Z';
+			timeCopyPrefix(text, required, buffer);
 			return required;
 		}
 
 		bool negative = total < 0;
 		if (negative)
 			total = (short)(0 - total);
-		buffer[index++] = negative ? '-' : '+';
-		timeWrite2(buffer.elements, index, total / 60);
+		text[index++] = negative ? '-' : '+';
+		timeWrite2(text.elements, index, total / 60);
 		index += 2;
-		buffer[index++] = ':';
-		timeWrite2(buffer.elements, index, total % 60);
-		index += 2;
-		buffer[index] = '\0';
+		text[index++] = ':';
+		timeWrite2(text.elements, index, total % 60);
+		timeCopyPrefix(text, required, buffer);
 		return required;
 	}
 }
@@ -875,6 +867,13 @@ nuint timeWrite4(char* buffer, nuint index, int value)
 	buffer[index + 2] = (char)((int)'0' + (value / 10) % 10);
 	buffer[index + 3] = (char)((int)'0' + value % 10);
 	return index + 4;
+}
+
+void timeCopyPrefix(const char[] text, nuint length, char[] buffer)
+{
+	nuint count = min(length, buffer.length);
+	for (nuint i = 0; i < count; i++)
+		buffer[i] = text[i];
 }
 
 bool timeParseFixed2(const char* text, nuint textLength, nuint index, out int value)

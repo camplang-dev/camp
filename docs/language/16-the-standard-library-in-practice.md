@@ -241,7 +241,7 @@ working with.
 
 ## Formatting
 
-Formatting in `Std` is built around `StringFormatter`, a callable value that can
+Formatting in `Std` is built around `CharFormatter`, a callable value that can
 first report the required buffer size and then write into a caller-provided
 buffer. That makes formatted text cheap to pass around: the value carries the
 work needed to write the text, but it does not allocate a `string` unless you
@@ -270,12 +270,12 @@ An interpolated string with only constant text is still just constant text:
 auto title = $"Camp"; // string
 ```
 
-Once a runtime value needs formatting, the result is a `StringFormatter` when
+Once a runtime value needs formatting, the result is a `CharFormatter` when
 the first runtime value has a standard UTF-8 formatter:
 
 ```camp
 int total = 42;
-StringFormatter formatter = $"total: {total}";
+CharFormatter formatter = $"total: {total}";
 Console.writeLine(formatter);
 ```
 
@@ -302,22 +302,24 @@ Date/time values use the same style, which makes library formatting feel
 consistent across domains.
 
 You can make your own formatting surface by adding a formatter method. A
-formatter returns the required buffer size including the null terminator, and
-when the supplied buffer is large enough, writes the text plus that terminator.
+formatter returns the required character count. When a buffer is supplied, it
+writes as much of the formatted text as fits. It does not write a null
+terminator; helpers such as `copyString()` add one only when materializing an
+owned string.
 
 ```camp
-public nuint formatHex(in byte this, overload char[] buffer) : StringFormatter
+public nuint formatHex(in byte this, overload char[] buffer) : CharFormatter
 {
 	const char[] digits = "0123456789ABCDEF";
 	uint value = (uint)this;
-	nuint required = 3;
+	nuint required = 2;
 
-	if (buffer.length >= required)
+	if (buffer.length > 0)
 	{
 		buffer[0] = digits[(nuint)(value >> 4)];
-		buffer[1] = digits[(nuint)(value & 15)];
-		buffer[2] = '\0';
 	}
+	if (buffer.length > 1)
+		buffer[1] = digits[(nuint)(value & 15)];
 
 	return required;
 }
@@ -591,7 +593,7 @@ read directly:
 - `std_console.camp` for `Console`;
 - `std_array.camp` for array helpers;
 - `std_string.camp`, `std_wstring.camp`, and `std_astring.camp` for text;
-- `std_format.camp` for `StringFormatter`;
+- `std_format.camp` for `CharFormatter`;
 - `std_stream.camp` for readers and writers;
 - `std_file.camp` for files;
 - `std_list.camp`, `std_hashmap.camp`, and `std_hashset.camp` for collections;

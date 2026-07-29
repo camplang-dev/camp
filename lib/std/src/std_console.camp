@@ -41,7 +41,7 @@ public class Console
 	// public static AsyncCharWriter getAsyncWriter();
 	// public static AsyncCharWriter getAsyncError();
 	
-	public static void write(overload StringFormatter value)
+	public static void write(overload CharFormatter value)
 	{
 		auto size = value();
 		auto buf = init char[size];
@@ -49,7 +49,7 @@ public class Console
 		if (size > 0)
 		{
 			IoError error = default;
-			camp_io_file_write(camp_io_stdout(), buf.elements, size - 1, out error);
+			camp_io_file_write(camp_io_stdout(), buf.elements, size, out error);
 		}
 	}
 	
@@ -84,15 +84,15 @@ public class Console
 	public static void write(overload nuint  value) => Console.write(value.format);
 	public static void write(overload nint   value) => Console.write(value.format);
 	
-	public static void writeLine(overload StringFormatter value)
+	public static void writeLine(overload CharFormatter value)
 	{
 		auto size = value();
 		auto buf = init char[size + 1];
-		value(buf);
-		buf[buf.length - 2] = '\n';
-		buf[buf.length - 1] = '\0';
+		char[] text = { buf.elements, size };
+		value(text);
+		buf[size] = '\n';
 		IoError error = default;
-		camp_io_file_write(camp_io_stdout(), buf.elements, size, out error);
+		camp_io_file_write(camp_io_stdout(), buf.elements, size + 1, out error);
 	}
 	
 	public static void writeLine(overload char   value)

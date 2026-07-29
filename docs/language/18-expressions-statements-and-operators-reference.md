@@ -353,17 +353,17 @@ string text = formatter.copyString() finally delete;
 Callable newtype ascription can give the reference a nominal callable type:
 
 ```camp
-newtype delegate nuint StringFormatter(const this, char[] buffer = default);
+newtype delegate nuint CharFormatter(const this, char[] buffer = default);
 
 struct Date
 {
-	nuint format(overload char[] buffer) : StringFormatter
+	nuint format(overload char[] buffer) : CharFormatter
 	{
 		// Format into buffer and return the required or written length.
 	}
 }
 
-auto formatter = date.format; // StringFormatter
+auto formatter = date.format; // CharFormatter
 ```
 
 Callable values invoke with the same `target(arguments)` surface as functions.

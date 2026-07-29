@@ -762,7 +762,9 @@ public sealed class BindableNodeCodeSerializer
 				WriteExpression(copy.Buffer);
 				writer.Write("[");
 				WriteExpression(copy.Offset);
-				writer.WriteLine("] */");
+				writer.Write("] count ");
+				WriteExpression(copy.Count);
+				writer.WriteLine(" */");
 				break;
 
 			case DeclarationStatement declaration:

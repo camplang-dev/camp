@@ -23,13 +23,13 @@ struct Date
 
 class Point
 {
-	nuint format(char* buffer, nuint buffer_length) : StringFormatter
+	nuint format(char* buffer, nuint buffer_length) : CharFormatter
 	{
 		return buffer_length;
 	}
 }
 
-newtype delegate nuint StringFormatter(char[] buffer = default);
+newtype delegate nuint CharFormatter(char[] buffer = default);
 void main(Date date)
 {
 	auto parser = tryParseInt;

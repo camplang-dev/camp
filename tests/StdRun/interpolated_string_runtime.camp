@@ -8,17 +8,17 @@ export int main()
 
 	Console.writeLine($"hello {name}");
 	Console.writeLine($"count={count}; ok={ok}; bang={'!'}");
-	StringFormatter literalOnly = $"literal only";
+	CharFormatter literalOnly = $"literal only";
 	Console.writeLine(literalOnly);
 	Console.writeLine($"");
 
-	StringFormatter direct = count.format;
+	CharFormatter direct = count.format;
 	Console.writeLine($"direct {direct}");
 
 	int counter = 0;
 	Console.writeLine($"next={next(&counter)}, then={next(&counter)}, total={counter}");
 
-	StringFormatter sized = $"abc{count}";
+	CharFormatter sized = $"abc{count}";
 	auto buffer = init char[4];
 	Console.writeLine(sized(buffer));
 	Console.writeLine(makeLiteral());
@@ -27,12 +27,12 @@ export int main()
 	return 0;
 }
 
-StringFormatter makeLiteral()
+CharFormatter makeLiteral()
 {
 	return $"returned";
 }
 
-this getSelf(StringFormatter this) => this;
+this getSelf(CharFormatter this) => this;
 
 int next(int* counter)
 {

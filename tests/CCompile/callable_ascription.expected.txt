@@ -63,7 +63,7 @@ typedef struct Point Point;
 /* Newtypes. */
 typedef bool (* ParseInt)(const char *text, uintptr_t text_length, int *value);
 typedef int (* DateFormatter)(void *context, int adjust);
-typedef uintptr_t (* StringFormatter)(void *context, char *buffer, uintptr_t buffer_length);
+typedef uintptr_t (* CharFormatter)(void *context, char *buffer, uintptr_t buffer_length);
 
 /* Layouts. */
 struct Date

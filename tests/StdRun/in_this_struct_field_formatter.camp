@@ -5,7 +5,7 @@ struct MyValue
 	int amount;
 }
 
-public nuint format(in MyValue this, overload char[] buffer) : StringFormatter
+public nuint format(in MyValue this, overload char[] buffer) : CharFormatter
 {
 	return this.amount.format(buffer);
 }

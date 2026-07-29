@@ -1,5 +1,5 @@
 newtype fn void BadFn(this);
-newtype delegate nuint StringFormatter(const this, char[] buffer);
+newtype delegate nuint CharFormatter(const this, char[] buffer);
 newtype delegate void ConstCallback(const this);
 newtype delegate void EscapedCallback(escaped this);
 newtype delegate void Callback();
@@ -9,7 +9,7 @@ class MutatingDate
 {
 	int year;
 
-	nuint format(char[] buffer) : StringFormatter
+	nuint format(char[] buffer) : CharFormatter
 	{
 		this.year = 2026;
 		return 0;
@@ -18,7 +18,7 @@ class MutatingDate
 
 class MismatchedDate
 {
-	nuint format(escaped this, char[] buffer) : StringFormatter
+	nuint format(escaped this, char[] buffer) : CharFormatter
 	{
 		return 0;
 	}

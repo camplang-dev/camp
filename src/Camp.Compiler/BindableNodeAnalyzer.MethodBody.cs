@@ -1235,7 +1235,7 @@ public sealed partial class BindableNodeAnalyzer
 		FormatterShape formatter;
 		if (hasExplicitFormatter)
 			formatter = explicitConstantFormatter;
-		else if (!TryInferInterpolatedStringFormatter(interpolation, runtimeHoles, scope, typeScope, out formatter))
+		else if (!TryInferInterpolatedCharFormatter(interpolation, runtimeHoles, scope, typeScope, out formatter))
 			return ErrorType;
 
 		bool success = true;
@@ -1256,7 +1256,7 @@ public sealed partial class BindableNodeAnalyzer
 		return interpolation.ResolvedType;
 	}
 
-	bool TryInferInterpolatedStringFormatter(InterpolatedStringExpression interpolation, List<InterpolatedStringExpressionSegment> runtimeHoles, BodyScope scope, AnalysisScope typeScope, out FormatterShape formatter)
+	bool TryInferInterpolatedCharFormatter(InterpolatedStringExpression interpolation, List<InterpolatedStringExpressionSegment> runtimeHoles, BodyScope scope, AnalysisScope typeScope, out FormatterShape formatter)
 	{
 		formatter = null!;
 		if (runtimeHoles.Count == 0)

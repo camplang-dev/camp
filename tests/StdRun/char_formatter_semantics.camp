@@ -1,0 +1,58 @@
+using Std;
+
+export int main()
+{
+	char[] empty = default;
+	if ('x'.format(empty) != 1)
+		return 1;
+	if (true.format(empty) != 4)
+		return 2;
+	if (false.format(empty) != 5)
+		return 3;
+	if (12345.format(empty) != 5)
+		return 4;
+	if ((-12).format(empty) != 3)
+		return 5;
+
+	fixed char[2] shortNumber = default;
+	char[] shortNumberSpan = shortNumber;
+	if (12345.format(shortNumberSpan) != 5)
+		return 6;
+	if (shortNumber[0] != '1' || shortNumber[1] != '2')
+		return 7;
+
+	fixed char[3] shortText = default;
+	char[] shortTextSpan = shortText;
+	if ("abcdef".format(shortTextSpan) != 6)
+		return 8;
+	if (shortText[0] != 'a' || shortText[1] != 'b' || shortText[2] != 'c')
+		return 9;
+
+	if (123.format(empty) != 3)
+		return 10;
+	if ("abc".format(empty) != 3)
+		return 11;
+
+	string copied = ($"a{1}b").copyString() finally delete;
+	if (copied.compareTo("a1b") != 0)
+		return 12;
+
+	fixed char[2] shortInterpolation = default;
+	char[] shortInterpolationSpan = shortInterpolation;
+	CharFormatter formatter = $"abcd{12}";
+	if (formatter(shortInterpolationSpan) != 6)
+		return 13;
+	if (shortInterpolation[0] != 'a' || shortInterpolation[1] != 'b')
+		return 14;
+
+	int seven = 7;
+	CharFormatter defaultCall = seven.format;
+	if (defaultCall() != 1)
+		return 15;
+
+	long min = -9223372036854775807 - 1;
+	if (min.format(empty) != 20)
+		return 16;
+
+	return 0;
+}

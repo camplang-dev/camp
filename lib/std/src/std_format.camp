@@ -1,77 +1,70 @@
-public newtype delegate nuint StringFormatter(const this, char[] buffer = default);
+public newtype delegate nuint CharFormatter(const this, char[] buffer = default);
 
-public escaped string copyString(StringFormatter this, within allocator)
+public escaped string copyString(CharFormatter this, within allocator)
 {
-	auto buf = new char[this()];
-	this(buf);
+	auto size = this();
+	auto buf = new char[size + 1];
+	char[] text = { buf.elements, size };
+	this(text);
+	buf[size] = '\0';
 	return (string)buf.elements;
 }
 
-public nuint format(in char this, overload char[] buffer) : StringFormatter
+public nuint format(in char this, overload char[] buffer) : CharFormatter
 {
-	if (buffer.length >= 2)
-	{
+	if (buffer.length > 0)
 		buffer[0] = this;
-		buffer[1] = '\0';
-	}
-	return 2;
+	return 1;
 }
 
-public nuint format(const char[] this, overload char[] buffer) : StringFormatter
+public nuint format(const char[] this, overload char[] buffer) : CharFormatter
 {
 	nuint length = 0;
 	while (length < this.length && this[length] != '\0')
 		length++;
 
-	nuint required = length + 1;
-	if (buffer.length >= required)
-	{
-		for (nuint i = 0; i < length; i++)
-			buffer[i] = this[i];
-		buffer[length] = '\0';
-	}
-	return required;
+	nuint count = min(length, buffer.length);
+	for (nuint i = 0; i < count; i++)
+		buffer[i] = this[i];
+	return length;
 }
 
-public nuint format(in string this, overload char[] buffer) : StringFormatter
+public nuint format(in string this, overload char[] buffer) : CharFormatter
 {
 	const char[] text = { (const char*)this, this.Length };
 	return text.format(buffer);
 }
 
-public nuint format(in bool this, overload char[] buffer) : StringFormatter
+public nuint format(in bool this, overload char[] buffer) : CharFormatter
 {
 	if (this)
 	{
-		if (buffer.length >= 5)
-			buffer.copyFrom<char>("true\0");
-		return 5;
+		copyFormatterText("true", buffer);
+		return 4;
 	}
 	else
 	{
-		if (buffer.length >= 6)
-			buffer.copyFrom<char>("false\0");
-		return 6;
+		copyFormatterText("false", buffer);
+		return 5;
 	}
 }
 
-public nuint format(in byte   this, overload char[] buffer) : StringFormatter => applyFormat((long)this, false, buffer);
-public nuint format(in sbyte  this, overload char[] buffer) : StringFormatter => applyFormat(abs((int)this), this < 0, buffer);
-public nuint format(in ushort this, overload char[] buffer) : StringFormatter => applyFormat((long)this, false, buffer);
-public nuint format(in short  this, overload char[] buffer) : StringFormatter => applyFormat(abs((int)this), this < 0, buffer);
-public nuint format(in uint   this, overload char[] buffer) : StringFormatter => applyFormat((long)this, false, buffer);
-public nuint format(in int    this, overload char[] buffer) : StringFormatter => applyFormat(abs((long)this), this < 0, buffer);
-public nuint format(in nuint  this, overload char[] buffer) : StringFormatter => applyFormat((long)this, false, buffer);
-public nuint format(in nint   this, overload char[] buffer) : StringFormatter => applyFormat(abs((long)this), this < 0, buffer);
-public nuint format(in ulong  this, overload char[] buffer) : StringFormatter => applyFormat(this, false, buffer);
+public nuint format(in byte   this, overload char[] buffer) : CharFormatter => applyFormat((long)this, false, buffer);
+public nuint format(in sbyte  this, overload char[] buffer) : CharFormatter => applyFormat(abs((int)this), this < 0, buffer);
+public nuint format(in ushort this, overload char[] buffer) : CharFormatter => applyFormat((long)this, false, buffer);
+public nuint format(in short  this, overload char[] buffer) : CharFormatter => applyFormat(abs((int)this), this < 0, buffer);
+public nuint format(in uint   this, overload char[] buffer) : CharFormatter => applyFormat((long)this, false, buffer);
+public nuint format(in int    this, overload char[] buffer) : CharFormatter => applyFormat(abs((long)this), this < 0, buffer);
+public nuint format(in nuint  this, overload char[] buffer) : CharFormatter => applyFormat((long)this, false, buffer);
+public nuint format(in nint   this, overload char[] buffer) : CharFormatter => applyFormat(abs((long)this), this < 0, buffer);
+public nuint format(in ulong  this, overload char[] buffer) : CharFormatter => applyFormat(this, false, buffer);
 
-public nuint format(in long   this, overload char[] buffer) : StringFormatter
+public nuint format(in long   this, overload char[] buffer) : CharFormatter
 {
 	if (this == (-9223372036854775807 - 1))
 	{
-		if (buffer.length >= 21)
-			Array_copyTo<char>("-9223372036854775808\0", buffer);
-		return 21;
+		copyFormatterText("-9223372036854775808", buffer);
+		return 20;
 	}
 	
 	ulong value = (this < 0) ? (ulong)-this : (ulong)this;
@@ -82,27 +75,34 @@ public nuint format(in long   this, overload char[] buffer) : StringFormatter
 nuint applyFormat(ulong value, bool sign, char[] buffer)
 {
 	nuint digits = decimalDigits(value);
-	nuint required = digits + (sign ? 2 : 1);
-
-	if (buffer.length < required)
-		return required;
-
+	nuint required = digits + (sign ? 1 : 0);
+	fixed char[21] scratch = default;
+	char[] text = scratch;
 	nuint index = 0;
 	if (sign)
 	{
-		buffer[0] = '-';
+		text[0] = '-';
 		index = 1;
 	}
 
 	nuint end = index + digits;
 	for (nuint i = 0; i < digits; i++)
 	{
-		buffer[end - 1 - i] = (char)((int)'0' + (int)(value % 10));
+		text[end - 1 - i] = (char)((int)'0' + (int)(value % 10));
 		value /= 10;
 	}
 
-	buffer[required - 1] = '\0';
+	nuint count = min(required, buffer.length);
+	for (nuint j = 0; j < count; j++)
+		buffer[j] = text[j];
 	return required;
+}
+
+void copyFormatterText(const char[] text, char[] buffer)
+{
+	nuint count = min(text.length, buffer.length);
+	for (nuint i = 0; i < count; i++)
+		buffer[i] = text[i];
 }
 
 nuint decimalDigits(ulong n)

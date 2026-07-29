@@ -4028,13 +4028,11 @@ public static class CCodeEmitter
 					}
 				}
 			});
-			string length = copy.Text.Length.ToString(CultureInfo.InvariantCulture);
+			string length = FormatExpression(copy.Count);
 			string offset = FormatExpression(copy.Offset);
 
 			WriteIndent(writer, indent);
 			writer.WriteLine(FormatMemoryCall("memcpy", "(void*)(" + destination + ")", "(const void*)(" + source + ")", length + " * sizeof(" + elementType + ")") + ";");
-			WriteIndent(writer, indent);
-			writer.WriteLine(offset + " = (" + offset + " + " + length + ");");
 		}
 
 		static string FormatCCharacterLiteral(char value)

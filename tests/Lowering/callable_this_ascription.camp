@@ -1,4 +1,4 @@
-newtype delegate nuint StringFormatter(const this, char[] buffer);
+newtype delegate nuint CharFormatter(const this, char[] buffer);
 newtype delegate void EscapedCallback(escaped this);
 newtype delegate void Callback();
 newtype delegate void NormalCallback();
@@ -7,13 +7,13 @@ class Date
 {
 	int year;
 
-	nuint format(char[] buffer) : StringFormatter
+	nuint format(char[] buffer) : CharFormatter
 	{
 		int y = this.year;
 		return 0;
 	}
 
-	nuint formatExplicit(const this, char[] buffer) : StringFormatter
+	nuint formatExplicit(const this, char[] buffer) : CharFormatter
 	{
 		return 0;
 	}
@@ -37,5 +37,5 @@ escaped class Service
 void main()
 {
 	const Date d = init Date();
-	StringFormatter f = d.format;
+	CharFormatter f = d.format;
 }

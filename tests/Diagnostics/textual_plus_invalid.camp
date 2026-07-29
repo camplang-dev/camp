@@ -1,6 +1,6 @@
-newtype delegate nuint StringFormatter(const this, char[] buffer = default);
+newtype delegate nuint CharFormatter(const this, char[] buffer = default);
 
-nuint format(in int this, overload char[] buffer) : StringFormatter
+nuint format(in int this, overload char[] buffer) : CharFormatter
 {
 	return 0;
 }
@@ -10,7 +10,7 @@ struct Value
 	int number;
 }
 
-void write(overload StringFormatter value)
+void write(overload CharFormatter value)
 {
 }
 

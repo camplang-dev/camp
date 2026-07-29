@@ -266,7 +266,7 @@ The standard UTF-8 formatter type is ordinary standard-library source, not a
 compiler-owned symbol:
 
 ```camp
-public newtype delegate nuint StringFormatter(
+public newtype delegate nuint CharFormatter(
 	const this,
 	char[] buffer = default);
 ```
@@ -283,15 +283,15 @@ remain semantically distinct.
 
 Every eligible formatter follows this contract:
 
-- The return value is the complete required buffer size in array elements,
-  including one null terminator.
-- If the provided buffer is large enough, the formatter writes the complete
-  formatted content followed by the null terminator.
-- If the provided buffer is too small, the formatter must not write outside the
-  buffer. Its returned contents are otherwise unspecified, except that if it
-  writes anything, the written result must be null-terminated within the buffer.
+- The return value is the complete required character count in array elements,
+  excluding any null terminator.
+- If a buffer is supplied, the formatter writes up to `buffer.length` formatted
+  characters into the buffer.
+- If the provided buffer is too small, the formatter writes the formatted
+  prefix that fits and must not write outside the buffer.
+- The formatter does not write a null terminator.
 - A return value of zero is permitted and means the formatter contributes no
-  content and no terminator.
+  content.
 - The formatter has no `thrown` channel.
 - Size-query and write calls over unchanged captured state must agree on the
   required size and formatted content.
@@ -329,18 +329,14 @@ public struct Status
 
 public nuint format(
 	in Status this,
-	overload char[] buffer) : StringFormatter
+	overload char[] buffer) : CharFormatter
 {
 	const char[] text = this.enabled ? "enabled" : "disabled";
-	nuint required = text.length + (nuint)1;
+	nuint required = text.length;
 
-	if (buffer.length >= required)
-	{
-		for (nuint index = 0; index < text.length; index++)
-			buffer[index] = text[index];
-
-		buffer[required - (nuint)1] = '\0';
-	}
+	nuint count = min(required, buffer.length);
+	for (nuint index = 0; index < count; index++)
+		buffer[index] = text[index];
 
 	return required;
 }
@@ -384,7 +380,7 @@ return context, cast, selected ordinary parameter, or selected overload
 parameter:
 
 ```camp
-StringFormatter message = $"Status: {status}";
+CharFormatter message = $"Status: {status}";
 LibraryFormatter record = (LibraryFormatter)$"Record: {recordId}";
 ```
 
@@ -407,8 +403,7 @@ auto text = $"ready"; // string
 ```
 
 With an explicit formatter target, literal-only and empty interpolations produce
-formatters. An empty formatter still requires a one-element buffer for its
-terminator.
+formatters. An empty formatter returns zero and writes no characters.
 
 ### Runtime Evaluation And Lowering
 
@@ -434,18 +429,17 @@ expression emission.
 
 The composite formatter's size pass:
 
-- starts with one code unit for the final null terminator;
+- starts at zero;
 - adds literal segment code-unit counts;
 - calls each dynamic component formatter for its required size;
-- adds `required - 1` for each dynamic component whose reported size is
-  nonzero.
+- adds the full required size for each dynamic component.
 
 Conceptually:
 
 ```text
-required = 1
+required = 0
 required += literal code units
-required += max(component required - 1, 0)
+required += component required
 ```
 
 The arithmetic uses the formatter target's exact array-length type and carrier
@@ -453,16 +447,17 @@ domain. Compile-time-known unrepresentable totals are errors. Runtime overflow
 must fail before allocation or buffer writing through the target's ordinary
 bounds-failure mechanism; interpolation does not add a `thrown` result.
 
-When the output buffer is large enough, the write pass writes literal and
-dynamic segments in source order. Each dynamic formatter receives a slice
-beginning at the current output offset. After a nonzero component, the offset
-advances by `required - 1`, so the next segment overwrites the intermediate
-terminator. The composite writes one final terminator.
+When the output buffer is non-empty, the write pass writes literal and dynamic
+segments in source order. Literal segments copy the prefix that fits in the
+remaining buffer. Each dynamic formatter receives a slice beginning at
+`min(current offset, buffer.length)` with the remaining writable length. After
+each segment, the logical offset advances by that segment's full required
+length even when the physical buffer was already exhausted.
 
-When the output buffer is too small, the composite follows the same
-insufficient-buffer contract as ordinary formatters: it must not write outside
-the provided buffer, and the returned contents are otherwise unspecified except
-for null termination if anything is written.
+When the output buffer is empty, the composite performs only the size pass and
+writes nothing. Interpolation follows the same insufficient-buffer contract as
+ordinary formatters: it returns the complete required count, writes the prefix
+that fits, and never writes outside the provided buffer.
 
 Runtime interpolation is scoped unless existing callable and capture rules prove
 a stronger valid lifetime. Returning, storing, or otherwise escaping a composed
@@ -533,8 +528,8 @@ or choose between distinct formatter families. A cast or a concrete flattened
 overload name can supply the target explicitly:
 
 ```camp
-write((StringFormatter)$"Record: {recordId}");
-writeStringFormatter($"Record: {recordId}");
+write((CharFormatter)$"Record: {recordId}");
+writeCharFormatter($"Record: {recordId}");
 ```
 
 ### Diagnostics, Metadata, And API Headers
@@ -558,7 +553,7 @@ Interpolation syntax and textual composition are source expressions, not API
 surface declarations. Metadata and API headers record ordinary resolved types,
 callable newtypes, default values, selected functions, and formatter method
 dependencies. They must not invent a dependency on the standard library
-`StringFormatter`; that dependency appears only when source code actually uses
+`CharFormatter`; that dependency appears only when source code actually uses
 the standard-library type.
 
 ## Source Capture Default Arguments

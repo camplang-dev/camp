@@ -5,6 +5,6 @@ literal only
 
 direct 42
 next=1, then=2, total=2
-6
+5
 returned
 Shape is: Camp

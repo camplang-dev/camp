@@ -82,7 +82,7 @@ Console.writeLine($"literal braces: {{name}}");
 
 Runtime interpolation produces a formatter value. It does not allocate a
 primitive `string`, `wstring`, or `astring`. Prefer passing that formatter
-directly to APIs that accept `StringFormatter`, such as `Console.write`,
+directly to APIs that accept `CharFormatter`, such as `Console.write`,
 `Console.writeLine`, `CharWriter.write`, and `CharWriter.writeLine`.
 
 Do not invent C#-style formatting suffixes. Camp interpolation holes contain
@@ -135,23 +135,23 @@ library formatting, use this shape:
 ```camp
 newtype MyValue: int;
 
-public nuint format(in MyValue this, overload char[] buffer) : StringFormatter
+public nuint format(in MyValue this, overload char[] buffer) : CharFormatter
 {
 	int value = (int)this;
 	return value.format(buffer);
 }
 ```
 
-The formatter returns the required buffer size including the final null
-terminator. If the provided buffer is large enough, it writes the text and the
-terminator. If it is too small, it must not write outside the buffer.
+The formatter returns the required character count, excluding any null
+terminator. If a buffer is supplied, it writes up to `buffer.length` characters
+and returns the full required count even when the buffer is too small.
 
 Automatic formatter inference uses the first runtime interpolation component and
 only infers UTF-8 `char[]` formatters. Use an explicit target when a particular
 formatter ecosystem matters:
 
 ```camp
-StringFormatter message = $"status: {status}";
+CharFormatter message = $"status: {status}";
 ```
 
 If an overload family has more than one formatter-shaped selector, interpolation

@@ -11,7 +11,7 @@ export int main()
 	Console.writeLine(1 + 2 + " total");
 	Console.writeLine("Total: " + (1 + 2));
 
-	StringFormatter direct = count.format;
+	CharFormatter direct = count.format;
 	Console.writeLine("direct " + direct);
 
 	string copied = ("copied " + name + " " + count).copyString() finally delete;
@@ -27,7 +27,7 @@ void write(overload int value)
 	Console.writeLine(value);
 }
 
-void write(overload StringFormatter value)
+void write(overload CharFormatter value)
 {
 	Console.writeLine(value);
 }

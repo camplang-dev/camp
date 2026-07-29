@@ -24,6 +24,7 @@ public class LiteralCopyStatement : Statement
 {
 	public Expression? Buffer { get; set; }
 	public Expression? Offset { get; set; }
+	public Expression? Count { get; set; }
 	public string ElementType { get; set; } = "";
 	public string LengthType { get; set; } = "";
 	public string Text { get; set; } = "";

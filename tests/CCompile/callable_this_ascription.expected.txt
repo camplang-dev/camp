@@ -110,7 +110,7 @@ typedef struct Counter Counter;
 /* Enums. */
 
 /* Newtypes. */
-typedef uintptr_t (* StringFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
+typedef uintptr_t (* CharFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
 typedef void (* EscapedDelegate)(void *context);
 typedef void (* NormalDelegate)(void *context);
 typedef int (* CounterReader)(void *context);

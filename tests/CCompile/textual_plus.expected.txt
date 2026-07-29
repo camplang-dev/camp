@@ -16,35 +16,34 @@ static int main(void)
 	int _receiver0 = 1;
 	uintptr_t (* _interpolatedCall1)(const void *arg0, char *arg1, uintptr_t arg2) = (uintptr_t (*)(const void *arg0, char *arg1, uintptr_t arg2))(Int_formatCharArray);
 	const void *_interpolatedContext2 = (const void *)(&_receiver0);
-	main_lambdaContext0 _lambdaContext6;
-	_lambdaContext6.capture0__interpolatedCall1 = &_interpolatedCall1;
-	_lambdaContext6.capture1__interpolatedContext2 = &_interpolatedContext2;
+	main_lambdaContext0 _lambdaContext9;
+	_lambdaContext9.capture0__interpolatedCall1 = &_interpolatedCall1;
+	_lambdaContext9.capture1__interpolatedContext2 = &_interpolatedContext2;
 	uintptr_t (* formatter)(const void *arg0, char *arg1, uintptr_t arg2) = (uintptr_t (*)(const void *arg0, char *arg1, uintptr_t arg2))main_lambda0;
-	const void *formatter_context = &_lambdaContext6;
+	const void *formatter_context = &_lambdaContext9;
 	return (int)(formatter(formatter_context, 0, 0));
 }
 
 static uintptr_t main_lambda0(void *_context, char *buffer, uintptr_t buffer_length)
 {
 	main_lambdaContext0 *lambdaContext = (main_lambdaContext0 *)(_context);
-	uintptr_t _interpolatedRequired3 = 1;
+	uintptr_t _interpolatedRequired3 = 0;
 	_interpolatedRequired3 = (_interpolatedRequired3 + 8);
 	uintptr_t _interpolatedPartSize4 = (*lambdaContext->capture0__interpolatedCall1)((*lambdaContext->capture1__interpolatedContext2), NULL, 0);
-	if ((_interpolatedPartSize4 > 0))
-	{
-		_interpolatedRequired3 = (_interpolatedRequired3 + (_interpolatedPartSize4 - 1));
-	}
-	if ((buffer_length >= _interpolatedRequired3))
+	_interpolatedRequired3 = (_interpolatedRequired3 + _interpolatedPartSize4);
+	if ((buffer_length > 0))
 	{
 		uintptr_t _interpolatedOffset5 = 0;
-		__builtin_memcpy((void*)(&buffer[_interpolatedOffset5]), (const void*)((char[8]){'R', 'e', 's', 'u', 'l', 't', ':', ' '}), 8 * sizeof(char));
-		_interpolatedOffset5 = (_interpolatedOffset5 + 8);
-		(*lambdaContext->capture0__interpolatedCall1)((*lambdaContext->capture1__interpolatedContext2), &buffer[_interpolatedOffset5], (buffer_length - _interpolatedOffset5));
-		if ((_interpolatedPartSize4 > 0))
+		uintptr_t _interpolatedCopyStart6 = ((_interpolatedOffset5 < buffer_length) ? _interpolatedOffset5 : buffer_length);
+		uintptr_t _interpolatedCopyCount7 = ((8 < (buffer_length - _interpolatedCopyStart6)) ? 8 : (buffer_length - _interpolatedCopyStart6));
+		if ((_interpolatedCopyCount7 > 0))
 		{
-			_interpolatedOffset5 = (_interpolatedOffset5 + (_interpolatedPartSize4 - 1));
+			__builtin_memcpy((void*)(&buffer[_interpolatedCopyStart6]), (const void*)((char[8]){'R', 'e', 's', 'u', 'l', 't', ':', ' '}), _interpolatedCopyCount7 * sizeof(char));
 		}
-		buffer[_interpolatedOffset5] = '\0';
+		_interpolatedOffset5 = (_interpolatedOffset5 + 8);
+		uintptr_t _interpolatedStart8 = ((_interpolatedOffset5 < buffer_length) ? _interpolatedOffset5 : buffer_length);
+		(*lambdaContext->capture0__interpolatedCall1)((*lambdaContext->capture1__interpolatedContext2), &buffer[_interpolatedStart8], (buffer_length - _interpolatedStart8));
+		_interpolatedOffset5 = (_interpolatedOffset5 + _interpolatedPartSize4);
 	}
 	return _interpolatedRequired3;
 }
@@ -63,7 +62,7 @@ typedef struct main_lambdaContext0 main_lambdaContext0;
 /* Enums. */
 
 /* Newtypes. */
-typedef uintptr_t (* StringFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
+typedef uintptr_t (* CharFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
 
 /* Layouts. */
 struct main_lambdaContext0

@@ -160,12 +160,12 @@ public bool tryNewLine(CharWriter this, thrown IoError error)
 	return this.tryWrite('\n', catch error);
 }
 
-public void write(CharWriter this, overload StringFormatter formatter)
+public void write(CharWriter this, overload CharFormatter formatter)
 {
 	this.tryWrite(formatter, catch _);
 }
 
-public bool tryWrite(CharWriter this, overload StringFormatter formatter, thrown IoError error)
+public bool tryWrite(CharWriter this, overload CharFormatter formatter, thrown IoError error)
 {
 	auto size = formatter();
 	auto buf = init char[size];
@@ -173,18 +173,18 @@ public bool tryWrite(CharWriter this, overload StringFormatter formatter, thrown
 	return this.tryWrite(buf, catch error);
 }
 
-public void writeLine(CharWriter this, overload StringFormatter formatter)
+public void writeLine(CharWriter this, overload CharFormatter formatter)
 {
 	this.tryWriteLine(formatter, catch _);
 }
 
-public bool tryWriteLine(CharWriter this, overload StringFormatter formatter, thrown IoError error)
+public bool tryWriteLine(CharWriter this, overload CharFormatter formatter, thrown IoError error)
 {
 	auto size = formatter();
 	auto buf = init char[size + 1];
-	formatter(buf);
-	buf[size - 1] = '\n';
-	buf[size] = '\0';
+	char[] text = { buf.elements, size };
+	formatter(text);
+	buf[size] = '\n';
 	return this.tryWrite(buf, catch error);
 }
 
