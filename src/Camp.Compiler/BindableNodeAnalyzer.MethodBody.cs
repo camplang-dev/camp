@@ -385,7 +385,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (fixedArraySpanEscape)
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Cannot return a span view to local fixed-size array storage.");
 				string returnTargetType = GetLifetimeStructuralTargetType(returnTargetSourceType, returnStatement.Expression);
-				CheckAssignable(returnTargetType, returnType, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
+				CheckAssignable(returnTargetType, returnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				CheckConstOfProducedResult(scope.CurrentFunction.ReturnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				if (scope.CurrentFunctionSourceReturnType is string sourceReturnType
 					&& sourceReturnType != FormatTypeReference(scope.CurrentFunction.ReturnType))
@@ -731,7 +731,7 @@ public sealed partial class BindableNodeAnalyzer
 			ReportCopyableGenericCopyNeedsSizeOf(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax);
 		else if (declaration.InitialValue is not null && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 		{
-			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue, declaration.InitialValue.SourceSyntax, "Declaration initializer");
 			if (ContainsConstOfTypeReference(declaration.Target.Type))
 				CheckConstOfProducedResult(declaration.Target.Type, declaration.InitialValue, declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax, "Declaration initializer");
 		}
@@ -2033,6 +2033,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		if ((cast.Type is null && cast.Kind != CastKind.Type) || cast.LifetimeCastKind is not null)
 			targetType = sourceType;
+		else if (TryCheckInterfacePointerConversion(structuralTargetType, sourceType, cast.Expression, cast.SourceSyntax, "Cast"))
+		{
+		}
 		else
 		{
 			ConversionClassification conversion = ClassifyConversion(sourceType, structuralTargetType);
@@ -2728,7 +2731,7 @@ public sealed partial class BindableNodeAnalyzer
 				callGenericSubstitutions[call] = new Dictionary<string, string>(StringComparer.Ordinal);
 			}
 			if (targetType is not null)
-				CheckAssignable(targetType, propertyCallType, call.SourceSyntax, "Call result");
+				CheckAssignable(targetType, propertyCallType, call, call.SourceSyntax, "Call result");
 			return propertyCallType;
 		}
 		else if (IsRawFunctionPointerType(call.Target?.ResolvedType))
@@ -2776,7 +2779,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (function is not null)
 			returnType = RefineCallReturnTypeFromLifetimeArguments(function, call.Target, call.Arguments, returnType);
 		if (targetType is not null)
-			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
+			CheckAssignable(targetType, returnType, call, call.SourceSyntax, "Call result");
 		return returnType;
 	}
 
@@ -2983,7 +2986,7 @@ public sealed partial class BindableNodeAnalyzer
 			callDisplayName: GetCallableInvocationDisplayName(call.Target));
 		returnType = SubstituteCallableConstOfReturnType(callableType, callable.ReturnType, constOfAnchors);
 		if (targetType is not null)
-			CheckAssignable(targetType, returnType, call.SourceSyntax, "Call result");
+			CheckAssignable(targetType, returnType, call, call.SourceSyntax, "Call result");
 		return true;
 	}
 
@@ -3480,7 +3483,7 @@ public sealed partial class BindableNodeAnalyzer
 						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Only thrown parameters may use a 'catch' argument.");
 					SyntaxNode? argumentSyntax = GetArgumentDiagnosticSyntax(arguments[i], fallbackSyntax);
 					if (analysisParameter.Modifier == ParameterModifier.Out)
-						CheckCallArgumentAssignable(actual, expected, argumentSyntax, "Out argument", function, genericSubstitutions, genericParameterNames);
+						CheckCallArgumentAssignable(actual, expected, arguments[i].Value, argumentSyntax, "Out argument", function, genericSubstitutions, genericParameterNames);
 					else
 					{
 						string structuralExpected = GetLifetimeStructuralTargetType(expected, arguments[i].Value);
@@ -3488,7 +3491,7 @@ public sealed partial class BindableNodeAnalyzer
 							&& ((TryGetLambdaCallableShape(expected, out _, out bool expectedEscapedLambda) && expectedEscapedLambda)
 								|| (TryGetLambdaCallableShape(actual, out _, out bool actualEscapedLambda) && actualEscapedLambda));
 						if (!deferredEscapedLambda)
-							CheckCallArgumentAssignable(structuralExpected, actual, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
+							CheckCallArgumentAssignable(structuralExpected, actual, arguments[i].Value, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
 						if (CanLiftToOptional(actual, expected))
 							arguments[i].ResolvedType = expected;
 						AnalyzeAggregateInitializerPointerArgument(arguments[i], analysisParameter, expected, fallbackSyntax);
@@ -3878,6 +3881,7 @@ public sealed partial class BindableNodeAnalyzer
 	void CheckCallArgumentAssignable(
 		string expected,
 		string actual,
+		Expression? value,
 		SyntaxNode? syntax,
 		string context,
 		FunctionDefinition? function,
@@ -3885,6 +3889,8 @@ public sealed partial class BindableNodeAnalyzer
 		HashSet<string>? genericParameterNames)
 	{
 		if (expected == ErrorType || actual == ErrorType || expected == TargetType || actual == TargetType)
+			return;
+		if (TryCheckInterfacePointerConversion(expected, actual, value, syntax, context))
 			return;
 		if (CanAssignToType(expected, actual))
 			return;
@@ -4806,6 +4812,15 @@ public sealed partial class BindableNodeAnalyzer
 					memberType = ErrorType;
 				}
 			}
+			if (!isTypeTarget
+				&& selected.Node is FunctionDefinition interfaceAccessor
+				&& interfaceAccessor.GeneratedInfo?.Category == GeneratedDeclarationCategory.Interface
+				&& TryGetInterfacePointerDefinition(memberType, out _)
+				&& IsConstReceiverType(targetType))
+			{
+				Report(GetRange(member.SourceSyntax), $"Member '{member.Name}' cannot convert const receiver '{targetType}' to interface pointer '{memberType}'.");
+				memberType = ErrorType;
+			}
 
 		expressionConstants[member] = selected.IsConstant;
 		if (!isTypeTarget
@@ -5585,7 +5600,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else
 		{
-			CheckAssignable(targetType, valueType, assignment.Value?.SourceSyntax, "Assignment");
+			CheckAssignable(targetType, valueType, assignment.Value, assignment.Value?.SourceSyntax, "Assignment");
 			if (TryGetAssignmentTargetConstOfType(assignment.Target, out TypeReference? constOfType))
 				CheckConstOfProducedResult(constOfType, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, "Assignment");
 			CheckLifetimeAssignment(assignment.Target, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, scope, "Assignment");

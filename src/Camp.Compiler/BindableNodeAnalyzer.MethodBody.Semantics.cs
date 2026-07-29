@@ -58,6 +58,18 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
 	}
 
+	void CheckAssignable(string expected, string actual, Expression? value, SyntaxNode? syntax, string context)
+	{
+		if (expected == ErrorType || actual == ErrorType || expected == TargetType || actual == TargetType)
+			return;
+
+		if (TryCheckInterfacePointerConversion(expected, actual, value, syntax, context))
+			return;
+
+		if (!CanAssignToType(expected, actual))
+			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
+	}
+
 	bool CanAssignToType(string expected, string actual)
 	{
 		return CanImplicitlyConvert(actual, expected)
@@ -278,7 +290,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (CanCopyTopLevelConstValue(source, target))
 			return true;
 
-		if (IsClassToInterfaceConversion(source, target) || IsStructToInterfaceConversion(source, target) || IsInterfaceUpcast(source, target))
+		if (IsClassToInterfaceConversion(source, target) || IsStructPointerToInterfaceConversion(source, target) || IsInterfaceUpcast(source, target))
 			return true;
 
 		if (IsLoweredInterfacePointerConversion(source, target))
@@ -454,17 +466,85 @@ public sealed partial class BindableNodeAnalyzer
 			&& ClassImplementsInterface(classDefinition, interfaceDefinition);
 	}
 
+	bool IsStructPointerToInterfaceConversion(string source, string target)
+	{
+		string? sourceElement = TryGetPointerElementType(source);
+		string? targetElement = TryGetPointerElementType(target);
+		if (sourceElement is null || targetElement is null || IsConstReceiverType(source))
+			return false;
+
+		return typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(sourceElement)), out TypeDefinition? sourceType)
+			&& sourceType is StructDefinition structDefinition
+			&& typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(targetElement)), out TypeDefinition? targetType)
+			&& targetType is InterfaceDefinition interfaceDefinition
+			&& TypeImplementsInterface(structDefinition, interfaceDefinition);
+	}
+
 	bool IsStructToInterfaceConversion(string source, string target)
 	{
 		string? targetElement = TryGetPointerElementType(target);
 		if (targetElement is null)
 			return false;
 
-		return typeDefinitions.TryGetValue(BaseTypeName(source), out TypeDefinition? sourceType)
+		return TryGetPointerElementType(source) is null
+			&& typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(source)), out TypeDefinition? sourceType)
 			&& sourceType is StructDefinition structDefinition
-			&& typeDefinitions.TryGetValue(BaseTypeName(targetElement), out TypeDefinition? targetType)
+			&& typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(targetElement)), out TypeDefinition? targetType)
 			&& targetType is InterfaceDefinition interfaceDefinition
 			&& TypeImplementsInterface(structDefinition, interfaceDefinition);
+	}
+
+	bool TryCheckInterfacePointerConversion(string expected, string actual, Expression? value, SyntaxNode? syntax, string context)
+	{
+		if (TryGetPointerElementType(expected) is not string targetElement
+			|| !typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(targetElement)), out TypeDefinition? targetType)
+			|| targetType is not InterfaceDefinition interfaceDefinition)
+		{
+			return false;
+		}
+
+		if (actual == expected || IsInterfaceUpcast(actual, expected) || IsLoweredInterfacePointerConversion(actual, expected))
+			return true;
+
+		if (TryGetPointerElementType(actual) is string sourceElement)
+		{
+			string sourceName = BaseTypeName(StripTopLevelValueQualifiers(sourceElement));
+			if (!typeDefinitions.TryGetValue(sourceName, out TypeDefinition? sourceType))
+				return false;
+
+			if (sourceType is ClassDefinition classDefinition && ClassImplementsInterface(classDefinition, interfaceDefinition)
+				|| sourceType is StructDefinition structDefinition && TypeImplementsInterface(structDefinition, interfaceDefinition))
+			{
+				if (IsConstReceiverType(actual))
+				{
+					Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
+					return true;
+				}
+				return true;
+			}
+
+			return false;
+		}
+
+		if (!IsStructToInterfaceConversion(actual, expected))
+			return false;
+
+		if (value is null || IsConstReceiverType(actual) || !CanUseStructValueAsInterfaceSource(value))
+		{
+			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
+			return true;
+		}
+
+		return true;
+	}
+
+	bool CanUseStructValueAsInterfaceSource(Expression value)
+	{
+		if (CanTakeReceiverAddress(value))
+			return true;
+		if (expressionRewrites.TryGetValue(value, out Expression? rewrite) && !ReferenceEquals(rewrite, value))
+			return CanUseStructValueAsInterfaceSource(rewrite);
+		return false;
 	}
 
 	bool IsInterfaceUpcast(string source, string target)
@@ -2713,14 +2793,14 @@ public sealed partial class BindableNodeAnalyzer
 				string actual = BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, expected);
 				InferGenericSubstitutions(callableParameters[i].ResolvedType ?? ErrorType, actual, genericSubstitutions, genericParameterNames);
 				expected = SubstituteGenericType(callableParameters[i].ResolvedType ?? ErrorType, genericSubstitutions);
-				CheckAssignable(expected, actual, arguments[i].SourceSyntax, "Argument");
+				CheckAssignable(expected, actual, arguments[i].Value, arguments[i].SourceSyntax, "Argument");
 			}
 
 			string expectedValueType = SubstituteGenericType(callableParameters[valueParameterIndex].ResolvedType ?? ErrorType, genericSubstitutions);
 			string actualValueType = BodyAnalyzeExpression(value, scope, typeScope, expectedValueType);
 			InferGenericSubstitutions(callableParameters[valueParameterIndex].ResolvedType ?? ErrorType, actualValueType, genericSubstitutions, genericParameterNames);
 			expectedValueType = SubstituteGenericType(callableParameters[valueParameterIndex].ResolvedType ?? ErrorType, genericSubstitutions);
-			CheckAssignable(expectedValueType, actualValueType, value?.SourceSyntax, "Assignment");
+			CheckAssignable(expectedValueType, actualValueType, value, value?.SourceSyntax, "Assignment");
 
 			member.ResolvedType = expectedValueType;
 			expressionRewrites[member] = CreateMemberReference(member, member.Target, expectedValueType, setter);

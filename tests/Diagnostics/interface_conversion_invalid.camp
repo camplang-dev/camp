@@ -1,0 +1,55 @@
+interface IValue
+{
+	int value();
+}
+
+struct Counter: IValue
+{
+	int count;
+
+	int value(): IValue
+	{
+		return this.count;
+	}
+}
+
+class RefCounter: IValue
+{
+	int value(): IValue
+	{
+		return 1;
+	}
+}
+
+int readValue(IValue* value)
+{
+	return value.value();
+}
+
+Counter getCounter()
+{
+	return { .count = 1 };
+}
+
+IValue* returnRvalue()
+{
+	return getCounter();
+}
+
+void main()
+{
+	const Counter constStruct = { .count = 1 };
+	const Counter* constStructPointer = &constStruct;
+	const RefCounter* constClassPointer = default;
+
+	IValue* fromConstStructLvalue = constStruct;
+	IValue* fromConstStructPointer = constStructPointer;
+	IValue* fromStructRvalue = getCounter();
+	IValue* fromConstClassPointer = constClassPointer;
+	IValue* fromCastRvalue = (IValue*)getCounter();
+
+	_ = constClassPointer.IValue;
+	readValue(getCounter());
+	readValue(constStructPointer);
+	readValue(constClassPointer);
+}

@@ -21,8 +21,6 @@ class Counter: IValue
 export int main()
 {
 	auto counter = new Counter(21);
-	const Counter* constCounter = counter;
-	_ = constCounter.IValue;
 	IValue* mutableValue = counter.IValue;
 
 	int total = mutableValue.getValue() + mutableValue.getValue();

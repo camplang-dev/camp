@@ -205,8 +205,8 @@ struct BufferSink: TextSink
 ```
 
 The lifetime story is different. Structs do not gain hidden interface fields.
-When a struct value or struct pointer is converted to an interface pointer,
-Camp creates a scoped adapter. That adapter contains:
+When a mutable struct local or mutable struct pointer is converted to an
+interface pointer, Camp creates a scoped adapter. That adapter contains:
 
 - a vtable pointer for the struct/interface pair;
 - a pointer back to the original struct storage.
@@ -222,10 +222,15 @@ void writeGreeting(TextSink* sink)
 
 BufferSink sink = default;
 writeGreeting(sink);
+writeGreeting(&sink);
 ```
 
 The adapter does not copy the struct value and does not box it on the heap.
 It is scoped storage. That is the key rule.
+
+Camp does not make interface views from const struct storage or from unnamed
+temporary struct results. Store the value in a mutable local first when you want
+to view it through an interface.
 
 A struct-backed interface pointer is safe only while the adapter and the
 original struct storage are both alive. It is fine for a call or a fresh local
@@ -540,6 +545,7 @@ For a struct implementation, conversion uses a scoped adapter:
 BufferSink buffer = default;
 
 writeOnce(buffer);
+writeOnce(&buffer);
 
 TextSink* localView = buffer;
 localView.write("again");

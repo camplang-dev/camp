@@ -141,10 +141,19 @@ compiler materializes a temporary structure containing:
   implementation;
 - `ctx`: pointer to the struct storage being viewed through the interface.
 
+For a non-const addressable struct lvalue, `ctx` is the address of that lvalue.
+For a non-const struct pointer, `ctx` is the pointer value itself. The compiler
+must not take the address of the pointer slot, and it must not manufacture
+temporary mutable storage for a struct rvalue.
+
 The expression returned by conversion is the address of the vtable field, cast
 to the interface instance pointer shape. This is why struct interface
 conversions are sensitive to statement-prefix availability and lifetime: the
 temporary carrier must remain alive for the interface use.
+
+Const struct sources and struct rvalues do not convert to interface pointers.
+Interface methods may require `const this` receivers, but that receiver contract
+does not make the interface pointer itself a const interface view.
 
 Struct methods implementing interface slots are usually adapted through
 generated thunks so the ABI first parameter matches the interface instance slot

@@ -277,9 +277,19 @@ interface casts must preserve the distinction between:
 - interface narrowing or side-casting;
 - raw pointer reinterpretation through a matching-depth fence.
 
-A class pointer implicitly converts to an implemented interface pointer. The
-compiler produces the correct interface-instance slot pointer; it is not merely
-an object pointer reinterpretation.
+A non-const class pointer implicitly converts to an implemented interface
+pointer. The compiler produces the correct interface-instance slot pointer; it
+is not merely an object pointer reinterpretation.
+
+A non-const struct pointer implicitly converts to an implemented interface
+pointer by creating an indirect interface carrier whose context points at the
+struct storage. A non-const addressable struct lvalue can also convert this way;
+the carrier context points at the lvalue's address.
+
+Const class pointers, const struct pointers, const struct lvalues, and struct
+rvalues do not implicitly convert to interface pointers in v1. Interface slots
+may still declare `const this` receivers as part of their callable contract, but
+Camp does not yet have a const interface pointer/view feature.
 
 Struct-to-interface conversion may require an indirect temporary carrying a
 vtable pointer and context pointer. That temporary must obey lifetime rules.

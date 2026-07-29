@@ -660,6 +660,9 @@ Agent-facing rules:
   dispatch storage differ. Classes store hidden per-interface vtable-pointer
   fields; structs convert through scoped adapter storage. Do not assume a class
   implementation can be copied into a struct implementation.
+- Convert only mutable class pointers, mutable struct pointers, or addressable
+  mutable struct locals to interface pointers. Do not convert const receivers or
+  temporary struct results to interface pointers.
 - Required interface methods must be implemented. Default methods can be used
   when the interface defines them. Optional methods must be checked before use.
 - Interface constructors and destructors are vtable entries for construction and

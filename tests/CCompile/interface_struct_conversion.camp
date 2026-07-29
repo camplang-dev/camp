@@ -22,5 +22,8 @@ int main()
 {
 	Counter c = { .count = 12 };
 	int v = readValue(c);
-	return v - 12;
+	IValue* assigned = &c;
+	v += readValue(assigned);
+	v += readValue(&c);
+	return v - 36;
 }

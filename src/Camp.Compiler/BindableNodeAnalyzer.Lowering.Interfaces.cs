@@ -514,12 +514,22 @@ public sealed partial class BindableNodeAnalyzer
 			return CreateClassInterfaceConversion(value, classDefinition, targetInterface, lowering);
 		}
 
+		if (TryGetPointerElementType(sourceType) is string structPointerElement
+			&& !IsConstReceiverType(sourceType)
+			&& typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(structPointerElement)), out TypeDefinition? pointedTypeDefinition)
+			&& pointedTypeDefinition is StructDefinition pointedStructDefinition
+			&& TryFindInterfaceLowering(pointedStructDefinition, targetInterface, out InterfaceImplementationLowering? pointedStructLowering)
+			&& pointedStructLowering is not null)
+		{
+			return CreateStructInterfaceConversion(value, pointedStructDefinition, targetInterface, pointedStructLowering, StructInterfaceConversionSource.Pointer);
+		}
+
 		if (typeDefinitions.TryGetValue(BaseTypeName(sourceType), out TypeDefinition? sourceTypeDefinition)
 			&& sourceTypeDefinition is StructDefinition structDefinition
 			&& TryFindInterfaceLowering(structDefinition, targetInterface, out InterfaceImplementationLowering? structLowering)
 			&& structLowering is not null)
 		{
-			return CreateStructInterfaceConversion(value, structDefinition, targetInterface, structLowering);
+			return CreateStructInterfaceConversion(value, structDefinition, targetInterface, structLowering, StructInterfaceConversionSource.LValue);
 		}
 
 		if (TryGetPointerElementType(sourceType) is string sourceInterfaceName
@@ -666,7 +676,13 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	Expression CreateStructInterfaceConversion(Expression value, StructDefinition structDefinition, InterfaceDefinition targetInterface, InterfaceImplementationLowering lowering)
+	enum StructInterfaceConversionSource
+	{
+		LValue,
+		Pointer
+	}
+
+	Expression CreateStructInterfaceConversion(Expression value, StructDefinition structDefinition, InterfaceDefinition targetInterface, InterfaceImplementationLowering lowering, StructInterfaceConversionSource source)
 	{
 		if (currentStatementPrefix is null)
 			return value;
@@ -699,7 +715,9 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				Target = CreateInterfaceIndirectMember(localReference, "ctx", $"{structDefinition.Name}*"),
 				Operator = AssignmentOperator.Assign,
-				Value = new UnaryExpression
+				Value = source == StructInterfaceConversionSource.Pointer
+					? value
+					: new UnaryExpression
 				{
 					Operator = UnaryOperator.AddressOf,
 					Operand = value,

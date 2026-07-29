@@ -28,7 +28,16 @@ static int main(void)
 	_iface0._vt = Counter_IValue;
 	_iface0.ctx = &c;
 	int v = readValue((IValue **)(&_iface0._vt));
-	return (v - 12);
+	IValue_Indirect _iface1;
+	_iface1._vt = Counter_IValue;
+	_iface1.ctx = &c;
+	IValue **assigned = (IValue **)(&_iface1._vt);
+	v += readValue(assigned);
+	IValue_Indirect _iface2;
+	_iface2._vt = Counter_IValue;
+	_iface2.ctx = &c;
+	v += readValue((IValue **)(&_iface2._vt));
+	return (v - 36);
 }
 
 static int Counter_IValue_value(IValue **ctx)

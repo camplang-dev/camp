@@ -1,0 +1,13 @@
+tests/Diagnostics/interface_conversion_invalid.camp(36,19): error: Call result cannot convert 'Counter' to 'IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(36,19): error: Return expression cannot convert 'Counter' to 'IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(45,34): error: Declaration initializer cannot convert 'const Counter' to 'IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(46,35): error: Declaration initializer cannot convert 'const Counter*' to 'IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(47,39): error: Call result cannot convert 'Counter' to 'IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(47,39): error: Declaration initializer cannot convert 'Counter' to 'IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(48,34): error: Declaration initializer cannot convert 'const RefCounter*' to 'IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(49,27): error: Cast cannot convert 'Counter' to 'IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(51,24): error: Member 'IValue' cannot convert const receiver 'const RefCounter*' to interface pointer 'const IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(52,22): error: Call result cannot convert 'Counter' to 'IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(52,22): error: Argument cannot convert 'Counter' to 'IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(53,12): error: Argument cannot convert 'const Counter*' to 'IValue*'.
+tests/Diagnostics/interface_conversion_invalid.camp(54,12): error: Argument cannot convert 'const RefCounter*' to 'IValue*'.
