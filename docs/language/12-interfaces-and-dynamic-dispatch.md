@@ -300,6 +300,45 @@ sink.writeLine("ready");
 There is no hidden C#-style body attached to the concrete type. The default is
 an ordinary function pointer in the interface vtable slot.
 
+## Lifecycle Contracts
+
+An interface can describe construction and cleanup too. This is useful when a
+generic API does not merely need "something that can be called", but a type it
+can create, initialize in an allocation context, and clean up again.
+
+```camp
+interface Managed
+{
+	Managed(within allocator);
+	~Managed(within allocator);
+}
+```
+
+The implementing type writes ordinary constructors and destructors with the
+matching lifecycle shape:
+
+```camp
+sealed class ManagedBuffer: Managed
+{
+	ManagedBuffer(within allocator)
+	{
+	}
+
+	~ManagedBuffer(within allocator)
+	{
+	}
+}
+```
+
+The `within allocator` parameter is part of the lifecycle contract. Code that
+constructs or deletes a `Managed` implementation can pass the allocation
+context through the same way it would for any other constructor or destructor.
+
+Structs can implement constructor and destructor contracts. Classes can do so
+when they are sealed. An unsealed class has derived construction and deletion
+paths, so it cannot safely promise a single interface constructor shape for
+every object that might later inherit from it.
+
 ## Interface Inheritance
 
 Interfaces may inherit from other interfaces:

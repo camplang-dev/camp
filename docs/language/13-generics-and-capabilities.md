@@ -568,7 +568,29 @@ because a particular call uses a scalar type argument.
 Camp does not invent constructors for erased `T`. If generic code needs to
 create or destroy values, make that path part of the API.
 
-One common pattern is an explicit policy:
+When the type itself should promise that lifecycle, express it as an interface
+contract:
+
+```camp
+interface Managed
+{
+	Managed(within allocator);
+	~Managed(within allocator);
+}
+```
+
+Generic APIs can then require `T: implements Managed` and ask for
+`vtableof(T: Managed)` when they need the erased interface capability. The
+`within allocator` parameter remains ordinary Camp allocation context; it is
+not a second allocation system just for generics.
+
+Sometimes construction is not really a property of the type. A parser might
+need a caller-supplied scratch object, a pool might rent and return objects
+through an owner, or a test helper might want a deliberately unusual setup
+step. In those cases, pass a factory or policy object explicitly. The useful
+rule is to put the contract where it naturally belongs: on the type when the
+type owns the lifecycle promise, or on a parameter when the caller is choosing
+the policy.
 
 ```camp
 struct ObjectPolicy<T: any>
@@ -588,10 +610,6 @@ void destroyWith<T: any>(T* value, ObjectPolicy<T> policy)
 }
 ```
 
-If allocation context matters, put `within allocator` on the factory or
-cleanup callable just as you would on an ordinary function. Generic allocation
-is still ordinary Camp allocation.
-
 Concrete generic types can use ordinary constructors when the constructed type
 is known:
 
@@ -607,7 +625,7 @@ Box<int>* box = new Box<int>();
 ```
 
 That constructs `Box<int>`. It does not mean erased code can freely write
-`new T()` without a construction contract.
+`new T()` without a construction path in its API.
 
 ## Static Members
 
