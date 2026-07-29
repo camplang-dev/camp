@@ -155,10 +155,23 @@ public sealed partial class BindableNodeAnalyzer
 		if (referenceRange is not TokenRange range || ReferenceEquals(range.Sequence, definitionSource))
 			return true;
 
+		if (CurrentFunctionCanSeeSourceDefinition(definitionSource))
+			return true;
+
 		if (!IsExternallyVisible(definition))
 			return false;
 
 		return IsDefinitionImported(definition, range.Sequence);
+	}
+
+	bool CurrentFunctionCanSeeSourceDefinition(TokenSequence definitionSource)
+	{
+		if (currentModule is null || currentAnalysisFunction is null)
+			return false;
+		if (currentModule.DefinitionSources.TryGetValue(currentAnalysisFunction, out TokenSequence? functionSource))
+			return ReferenceEquals(functionSource, definitionSource);
+		return GetRange(currentAnalysisFunction.SourceSyntax) is TokenRange currentRange
+			&& ReferenceEquals(currentRange.Sequence, definitionSource);
 	}
 
 	bool IsDefinitionImported(Definition definition, TokenSequence referenceSource)

@@ -3029,7 +3029,17 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		if (callTargets.TryGetValue(call, out FunctionDefinition? target))
+		{
 			callTargets[clone] = target;
+			if (call.Target is MemberExpression member && clone.Target is MemberExpression clonedMember)
+			{
+				clone.Target = CreateMemberReference(
+					clonedMember,
+					clonedMember.Target,
+					BuildFunctionValueType(target, isInstance: true, allowCallableAscription: !IsTypeReferenceExpression(member.Target)),
+					target);
+			}
+		}
 		if (callableInvocationParameters.TryGetValue(call, out List<ParameterDefinition>? parameters))
 			callableInvocationParameters[clone] = parameters;
 		if (callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? substitutions))

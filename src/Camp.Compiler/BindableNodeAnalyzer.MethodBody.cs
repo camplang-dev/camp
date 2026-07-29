@@ -14,37 +14,47 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<CallExpression, List<ParameterDefinition>> callableInvocationParameters = [];
 	readonly Dictionary<CallExpression, Dictionary<string, string>> callGenericSubstitutions = [];
 	readonly Dictionary<FunctionDefinition, Dictionary<string, LabelStatement>> functionLabels = [];
+	FunctionDefinition? currentAnalysisFunction;
 
 	void AnalyzeMethodBody(FunctionDefinition function, AnalysisScope typeAndMethodScope, TypeDefinition? containingType)
 	{
 		if (function.Body is null)
 			return;
 
-		BodyScope scope = new(null, function, containingType);
-		scope.ExplicitWithinContextDepth = HasWithinParameter(function) ? 1 : 0;
-		scope.CurrentFunctionReturnType = IsLifecycleFunction(function) ? "void" : function.ResolvedType ?? ErrorType;
-		scope.CurrentFunctionSourceReturnType = IsLifecycleFunction(function) ? "void" : FormatTypeReference(function.ReturnType);
-		scope.CurrentIteratorElementType = function.IteratorKind == IteratorKind.None ? null : GetIteratorElementType(function.ReturnType);
-		scope.CurrentIteratorThrownType = function.IteratorKind == IteratorKind.None ? null : GetIteratorThrownType(function.ReturnType);
-
-		foreach (ParameterDefinition parameter in function.Parameters)
+		FunctionDefinition? previousAnalysisFunction = currentAnalysisFunction;
+		currentAnalysisFunction = function;
+		try
 		{
-			InitializeParameterLifetimeFacts(parameter, typeAndMethodScope);
-			if (!string.IsNullOrWhiteSpace(parameter.Name))
-			{
-				string parameterType = ParameterBodySymbolType(parameter);
-				RegisterBodySymbol(scope, parameter.Name, parameterType, parameter, parameter.Type, parameterType);
-			}
-		}
-		scope.CurrentWithinContextLifetimeFact = GetWithinParameter(function)?.ValueLifetimeFact ?? GetWithinParameter(function)?.SlotLifetimeFact;
+			BodyScope scope = new(null, function, containingType);
+			scope.ExplicitWithinContextDepth = HasWithinParameter(function) ? 1 : 0;
+			scope.CurrentFunctionReturnType = IsLifecycleFunction(function) ? "void" : function.ResolvedType ?? ErrorType;
+			scope.CurrentFunctionSourceReturnType = IsLifecycleFunction(function) ? "void" : FormatTypeReference(function.ReturnType);
+			scope.CurrentIteratorElementType = function.IteratorKind == IteratorKind.None ? null : GetIteratorElementType(function.ReturnType);
+			scope.CurrentIteratorThrownType = function.IteratorKind == IteratorKind.None ? null : GetIteratorThrownType(function.ReturnType);
 
-		function.Body.ResolvedType = "void";
-		BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
-		CollectAsyncAwaitSites(function);
-		ValidateNoAwaitBody(function);
-		BindFunctionLabels(function);
-		ValidateBaseConstructorInvocation(function, containingType);
-		FlowAnalyzeFunctionBody(function, scope);
+			foreach (ParameterDefinition parameter in function.Parameters)
+			{
+				InitializeParameterLifetimeFacts(parameter, typeAndMethodScope);
+				if (!string.IsNullOrWhiteSpace(parameter.Name))
+				{
+					string parameterType = ParameterBodySymbolType(parameter);
+					RegisterBodySymbol(scope, parameter.Name, parameterType, parameter, parameter.Type, parameterType);
+				}
+			}
+			scope.CurrentWithinContextLifetimeFact = GetWithinParameter(function)?.ValueLifetimeFact ?? GetWithinParameter(function)?.SlotLifetimeFact;
+
+			function.Body.ResolvedType = "void";
+			BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
+			CollectAsyncAwaitSites(function);
+			ValidateNoAwaitBody(function);
+			BindFunctionLabels(function);
+			ValidateBaseConstructorInvocation(function, containingType);
+			FlowAnalyzeFunctionBody(function, scope);
+		}
+		finally
+		{
+			currentAnalysisFunction = previousAnalysisFunction;
+		}
 	}
 
 	static string ParameterBodySymbolType(ParameterDefinition parameter)

@@ -7,3 +7,4 @@ direct 42
 next=1, then=2, total=2
 6
 returned
+Shape is: Camp

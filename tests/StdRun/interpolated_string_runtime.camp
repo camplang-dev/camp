@@ -22,6 +22,7 @@ export int main()
 	auto buffer = init char[4];
 	Console.writeLine(sized(buffer));
 	Console.writeLine(makeLiteral());
+	Console.writeLine($"{$"Shape is: {name}".getSelf()}");
 
 	return 0;
 }
@@ -30,6 +31,8 @@ StringFormatter makeLiteral()
 {
 	return $"returned";
 }
+
+this getSelf(StringFormatter this) => this;
 
 int next(int* counter)
 {
