@@ -7,8 +7,9 @@ Next bug number: BUG-062.
 ### Summary
 
 Calling an inherited instance method on a virtual class value produced by
-`init Type()` can fail receiver compatibility, even though calling methods and
-properties on the same value otherwise binds.
+`init Type()` fails receiver compatibility. The inherited member is found on
+the derived type, but the receiver checker rejects the stack-initialized derived
+value.
 
 ### General Repro
 
@@ -19,10 +20,41 @@ properties on the same value otherwise binds.
 
 ### Current Behavior
 
-The compiler reports that the inherited member exists on the derived type, but
-that the member's `this` parameter is not compatible with the receiver. In the
-observed case, the diagnostic named a different inherited member than the one
-actually being called, which also suggests poor candidate/diagnostic selection.
+Reproduced on Windows/MSVC and macOS with this minimal shape:
+
+```camp
+export int main()
+{
+	auto value = init Derived();
+	value.touch();
+	return 0;
+}
+
+public virtual class Base
+{
+	uint count;
+
+	public void touch()
+	{
+		this.count++;
+	}
+}
+
+public virtual class Derived: Base
+{
+}
+```
+
+The compiler reports:
+
+```text
+error: Member 'touch' exists on type 'Derived', but its this parameter is not compatible with that receiver.
+```
+
+The relevant semantic path builds the inherited method's effective receiver from
+the base method owner. For a stack-value derived receiver, that produces an
+incompatible receiver shape instead of a deliberate rule for whether
+stack-initialized virtual class values can call inherited class methods.
 
 ### Expected Behavior
 
@@ -36,13 +68,13 @@ Either:
 The compiler should not allow the construction and then fail inherited member
 receiver binding later.
 
-## BUG-060: Derived virtual class allocation can emit a reference to an undeclared concrete vtable symbol
+## BUG-060: Derived virtual class delete can call an `op_delete` helper that is declared but not emitted
 
 ### Summary
 
-Allocating a derived virtual class can generate C that assigns the object's
-hidden virtual table field from a concrete derived vtable symbol that was not
-declared or emitted.
+Allocating and deleting a derived virtual class with a destructor can generate
+C that calls the derived concrete `op_delete` helper even though that helper is
+declared but not defined.
 
 ### General Repro
 
@@ -54,22 +86,85 @@ declared or emitted.
 
 ### Current Behavior
 
-The C emitter can produce an assignment shaped like:
+Reproduced on Windows/MSVC with this minimal shape:
 
-```c
-instance->_vt = &_Derived__vt.Base;
+```camp
+export int main()
+{
+	auto value = new Derived();
+	delete value;
+	return 0;
+}
+
+public virtual class Base
+{
+	public virtual ~Base()
+	{
+	}
+}
+
+public virtual class Derived: Base
+{
+	override ~Derived()
+	{
+	}
+}
 ```
 
-but `_Derived__vt` is not declared in the generated C/private header, causing
-the native compiler to fail with an undeclared identifier error.
+MSVC reports:
+
+```text
+error C2129: static function 'void Derived_op_delete(Derived *)' declared but not defined
+```
+
+The fuller `Component`/`Control` property sample reproduces the same issue as:
+
+```text
+error C2129: static function 'void Control_op_delete(Control *)' declared but not defined
+```
+
+The previously suspected `_Control__vt` undeclared-identifier symptom did not
+reproduce on the current compiler. The generated C does declare and define the
+concrete vtable storage:
+
+```c
+static _Control _Control__vt;
+static _Control _Control__vt = { .Component = { .op_delete = Control__op_delete } };
+ctl->_vt = &_Control__vt.Component;
+```
+
+The current confirmed failure is that the virtual thunk is emitted, but the
+direct concrete helper is not:
+
+```c
+static void Control_op_delete(Control *this);
+void Control__op_delete(Component *ctx);
+
+(Control_op_delete(ctl), free((void *)(ctl)));
+
+void Control__op_delete(Component *ctx)
+{
+	Control *this = (Control *)(ctx);
+	(void)this;
+	free((void *)(this->text));
+}
+```
+
+The lifecycle expansion creates the destructor delete helper with an
+override-flavored modifier so it participates in virtual dispatch expansion.
+Virtual dispatch lowering emits the erased-receiver thunk (`Control__op_delete`)
+and clears the override body, but ordinary delete lowering can still target the
+concrete helper symbol (`Control_op_delete`). That leaves a concrete helper
+prototype and call-site without a matching C definition.
 
 ### Expected Behavior
 
 When lowering allocation or construction of a derived virtual class, the
-compiler must ensure that the concrete derived virtual table storage is
-generated, declared, and initialized before any emitted C references it. If the
-class shape is invalid, the Camp compiler should report a source diagnostic
-instead of emitting invalid C.
+compiler must ensure that any concrete `op_delete` helper referenced by delete
+call-sites is emitted with a matching C definition, or delete lowering must
+target an emitted helper with the correct receiver adaptation. If that lifecycle
+shape is invalid, the Camp compiler should report a source diagnostic instead
+of emitting invalid C.
 
 ## BUG-061: `delete this` is allowed for non-escaped class receivers
 
@@ -90,7 +185,29 @@ value.
 
 ### Current Behavior
 
+Reproduced on Windows/MSVC and macOS with this minimal shape:
+
+```camp
+export int main()
+{
+	return 0;
+}
+
+public class RefCounted
+{
+	public void release()
+	{
+		delete this;
+	}
+}
+```
+
 The compiler accepts the method body.
+
+The delete analyzer/lowering currently treats `this` for class receivers as a
+special pointer-like delete target. It verifies that the target is deletable,
+but it does not reject `delete this` when the current method receiver is
+non-escaped.
 
 ### Expected Behavior
 
