@@ -1,0 +1,2 @@
+tests/Diagnostics/delete_this_receiver_lifetime.camp(5,10): error: delete this requires an escaped receiver because a non-escaped receiver may refer to non-owned storage.
+tests/Diagnostics/delete_this_receiver_lifetime.camp(13,10): error: delete this requires an escaped receiver because a non-escaped receiver may refer to non-owned storage.

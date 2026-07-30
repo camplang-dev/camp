@@ -3129,6 +3129,16 @@ public sealed partial class BindableNodeAnalyzer
 		Report(GetRange(expression?.SourceSyntax), $"delete requires an explicit destructor for extern class '{externClass.Name}'.");
 	}
 
+	void ValidateDeleteThisReceiver(Expression? expression, string targetType)
+	{
+		if (expression is not ThisExpression)
+			return;
+		if (ReceiverExpressionSatisfiesEscapedThis(expression, targetType))
+			return;
+
+		Report(GetRange(expression.SourceSyntax), "delete this requires an escaped receiver because a non-escaped receiver may refer to non-owned storage.");
+	}
+
 	static FunctionDefinition? FindGeneratedInitNewMethod(TypeDefinition? type)
 	{
 		if (type is null)

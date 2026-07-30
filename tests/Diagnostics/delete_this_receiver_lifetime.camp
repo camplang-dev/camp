@@ -1,0 +1,36 @@
+class Plain
+{
+	void release()
+	{
+		delete this;
+	}
+}
+
+class ExplicitPlain
+{
+	void release(this)
+	{
+		delete this;
+	}
+}
+
+class ExplicitEscaped
+{
+	void release(escaped this)
+	{
+		delete this;
+	}
+}
+
+escaped class EscapedOwner
+{
+	void release()
+	{
+		delete this;
+	}
+}
+
+export int main()
+{
+	return 0;
+}

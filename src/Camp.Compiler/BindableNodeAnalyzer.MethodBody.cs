@@ -441,6 +441,7 @@ public sealed partial class BindableNodeAnalyzer
 				else
 				{
 					string deleteType = BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
+					ValidateDeleteThisReceiver(deleteStatement.Expression, deleteType);
 					ValidateExternClassDelete(deleteStatement.Expression, deleteType);
 					RequireExplicitWithinForDelete(deleteStatement.Expression, deleteType, scope, "pointer-form delete requires an explicit within context; use within(allocator) delete or within(default) delete.");
 					CheckLifetimeDeleteAgainstFree(deleteStatement.Expression, deleteStatement.Expression?.SourceSyntax ?? deleteStatement.SourceSyntax, scope);
