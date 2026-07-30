@@ -84,7 +84,8 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			else if (function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed)
 			{
-				function.Body = null;
+				if (!IsGeneratedDestructorDeleteHelper(function))
+					function.Body = null;
 			}
 		}
 		classDefinition.Functions.AddRange(generated);
@@ -112,6 +113,12 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		return function.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract or FunctionModifier.Override or FunctionModifier.Sealed;
+	}
+
+	static bool IsGeneratedDestructorDeleteHelper(FunctionDefinition function)
+	{
+		return function.Name == DeleteMethodName
+			&& function.GeneratedInfo is { Category: GeneratedDeclarationCategory.Lifecycle, Reason: "destructor delete helper" };
 	}
 
 	FunctionDefinition? CreateVirtualImplementationMethod(ClassDefinition owner, FunctionDefinition source)

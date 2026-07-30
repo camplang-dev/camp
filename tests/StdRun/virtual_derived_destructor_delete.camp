@@ -1,0 +1,24 @@
+using Std;
+
+export int main()
+{
+	auto value = new Derived();
+	delete value;
+	return 0;
+}
+
+public virtual class Base
+{
+	public virtual ~Base()
+	{
+		Console.writeLine("base");
+	}
+}
+
+public virtual class Derived: Base
+{
+	override ~Derived()
+	{
+		Console.writeLine("derived");
+	}
+}
