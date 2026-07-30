@@ -329,12 +329,13 @@ public sealed partial class BindableNodeAnalyzer
 				currentStatementPrefix.Add(local);
 				receiver = CreateVariableReference(local.Target, local.Target.ResolvedType ?? receiverValueType);
 			}
+			string addressType = AddPointer(receiver.ResolvedType ?? receiverValueType);
 			value = new UnaryExpression
 			{
 				SourceSyntax = receiver.SourceSyntax,
 				Operator = UnaryOperator.AddressOf,
 				Operand = receiver,
-				ResolvedType = flattenedReceiverType
+				ResolvedType = IsClassPointerUpcast(addressType, flattenedReceiverType) ? addressType : flattenedReceiverType
 			};
 		}
 		if (value.ResolvedType is string valueType

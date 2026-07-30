@@ -290,7 +290,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (CanCopyTopLevelConstValue(source, target))
 			return true;
 
-		if (IsClassToInterfaceConversion(source, target) || IsStructPointerToInterfaceConversion(source, target) || IsInterfaceUpcast(source, target))
+		if (IsClassPointerUpcast(source, target) || IsClassToInterfaceConversion(source, target) || IsStructPointerToInterfaceConversion(source, target) || IsInterfaceUpcast(source, target))
 			return true;
 
 		if (IsLoweredInterfacePointerConversion(source, target))
@@ -464,6 +464,32 @@ public sealed partial class BindableNodeAnalyzer
 			&& typeDefinitions.TryGetValue(BaseTypeName(targetElement), out TypeDefinition? targetType)
 			&& targetType is InterfaceDefinition interfaceDefinition
 			&& ClassImplementsInterface(classDefinition, interfaceDefinition);
+	}
+
+	bool IsClassPointerUpcast(string source, string target)
+	{
+		string? sourceElement = TryGetPointerElementType(source);
+		string? targetElement = TryGetPointerElementType(target);
+		if (sourceElement is null || targetElement is null)
+			return false;
+		if (IsConstReceiverType(source) && !IsConstReceiverType(target))
+			return false;
+
+		return typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(sourceElement)), out TypeDefinition? sourceType)
+			&& sourceType is ClassDefinition sourceClass
+			&& typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(targetElement)), out TypeDefinition? targetType)
+			&& targetType is ClassDefinition targetClass
+			&& ClassInheritsFrom(sourceClass, targetClass);
+	}
+
+	bool ClassInheritsFrom(ClassDefinition source, ClassDefinition target)
+	{
+		for (ClassDefinition? current = GetDirectBaseClass(source); current is not null; current = GetDirectBaseClass(current))
+		{
+			if (ReferenceEquals(current, target))
+				return true;
+		}
+		return false;
 	}
 
 	bool IsStructPointerToInterfaceConversion(string source, string target)
@@ -2844,9 +2870,11 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		if (CanGenericReceiverMatch(actualType, receiverType))
 			return true;
-		return TryGetPointerElementType(receiverType) is string receiverElement
-			&& TryGetPointerElementType(actualType) is null
-			&& BaseTypeName(receiverElement) == BaseTypeName(actualType);
+		if (TryGetPointerElementType(receiverType) is not string receiverElement || TryGetPointerElementType(actualType) is not null)
+			return false;
+		if (BaseTypeName(receiverElement) == BaseTypeName(actualType))
+			return true;
+		return CanImplicitlyConvert(AddPointer(actualType), receiverType);
 	}
 
 	static bool WouldDecayFixedArrayStorageToPointerReceiver(string actualType, string receiverType)
@@ -2968,6 +2996,8 @@ public sealed partial class BindableNodeAnalyzer
 			return $"{StripTopLevelValueQualifiers(elementType)}*";
 		if (BaseTypeName(targetType) == owner.Name)
 			return $"{StripTopLevelValueQualifiers(targetType)}*";
+		if (owner is ClassDefinition && TryGetPointerElementType(targetType) is null)
+			return $"{owner.Name}*";
 		return TryGetPointerElementType(targetType) is not null ? $"{owner.Name}*" : owner.Name;
 	}
 

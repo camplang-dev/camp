@@ -1,0 +1,37 @@
+export int main()
+{
+	auto stackValue = init Derived();
+	stackValue.touch();
+	if (stackValue.getCount() != 1)
+		return 1;
+
+	auto heapValue = new Derived();
+	heapValue.touch();
+	int result = heapValue.getCount();
+	delete heapValue;
+	return result - 1;
+}
+
+public virtual class Base
+{
+	int count;
+
+	public Base()
+	{
+		this.count = 0;
+	}
+
+	public void touch()
+	{
+		this.count++;
+	}
+
+	public int getCount()
+	{
+		return this.count;
+	}
+}
+
+public virtual class Derived: Base
+{
+}
