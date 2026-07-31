@@ -1288,39 +1288,6 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	bool TryInferInterpolatedCharFormatter(InterpolatedStringExpression interpolation, List<InterpolatedStringExpressionSegment> runtimeHoles, BodyScope scope, AnalysisScope typeScope, out FormatterShape formatter)
-	{
-		formatter = null!;
-		if (runtimeHoles.Count == 0)
-		{
-			Report(GetRange(interpolation.SourceSyntax), "Literal-only interpolated string requires an explicit formatter target when runtime formatting is requested.");
-			return false;
-		}
-
-		InterpolatedStringExpressionSegment first = runtimeHoles[0];
-		string firstType = first.Expression?.ResolvedType ?? ErrorType;
-		if (TryGetFormatterShape(firstType, out FormatterShape direct) && direct.ElementType == "char")
-		{
-			formatter = direct;
-			return true;
-		}
-
-		List<FormatterCandidate> candidates = FindFormatterCandidates(first.Expression, firstType, requiredFormatter: null, autoInference: true, scope, typeScope, interpolation.SourceSyntax);
-		candidates = [.. candidates.Where(candidate => candidate.Shape.ElementType == "char")];
-		if (candidates.Count == 1)
-		{
-			formatter = candidates[0].Shape;
-			first.Formatter = candidates[0].Expression;
-			return true;
-		}
-
-		if (candidates.Count > 1)
-			Report(GetRange(first.Expression?.SourceSyntax ?? interpolation.SourceSyntax ?? first.SourceSyntax), $"Interpolation expression has multiple eligible UTF-8 formatters; add an explicit formatter target.");
-		else
-			Report(GetRange(first.Expression?.SourceSyntax ?? interpolation.SourceSyntax ?? first.SourceSyntax), $"Interpolation expression of type '{firstType}' does not establish a UTF-8 formatter type.");
-		return false;
-	}
-
 	bool TryBindInterpolationHoleFormatter(InterpolatedStringExpressionSegment hole, BodyScope scope, AnalysisScope typeScope, SyntaxNode? referenceSyntax, out Expression? formatterExpression)
 	{
 		formatterExpression = null;
