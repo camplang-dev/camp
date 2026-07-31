@@ -2,7 +2,7 @@
 
 ## Status
 
-Pending.
+Accepted and implementation-complete.
 
 ## Proposal Date
 
