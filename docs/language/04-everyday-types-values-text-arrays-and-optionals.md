@@ -187,18 +187,18 @@ Console.writeLine($"Found {count} files");
 ```
 
 When the inserted values are known at compile time, the result is ordinary
-constant text. When runtime formatting is needed, Camp produces a formatter
-value instead of allocating a new `string`. That formatter can be passed to APIs
-such as `Console.writeLine` directly:
+constant text. When runtime formatting is needed, Camp produces text at the
+expression site. With `auto`, the result is a `string`:
 
 ```camp
-Console.writeLine("Found " + count + " files");
+auto message = $"Found {count} files";
 ```
 
-Ask for an owned string only when you really need one:
+Without `new`, runtime interpolation uses scoped storage. Ask for heap storage
+only when the text needs to outlive that scope:
 
 ```camp
-string message = ($"Found {count} files").copyString() finally delete;
+string message = within(default) new $"Found {count} files" finally delete;
 ```
 
 The standard library supplies helpers for trimming, searching, comparing,

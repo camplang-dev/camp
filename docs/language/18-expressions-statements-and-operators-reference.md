@@ -108,41 +108,46 @@ bitwise XOR operator.
 | Conditional | `condition ? whenTrue : whenFalse` | Common/target-compatible result |
 | Null coalescing | `left ?? right` | Compatible non-null/optional result |
 
-`+` also composes text when either side is a string, counted character view,
-interpolated string, or formatter:
+Use interpolated strings when you want to build text from literal pieces and
+values:
 
 ```camp
-Console.writeLine("total: " + total);
 Console.writeLine($"left={left}, right={right}");
 
-string message = ("total: " + total).copyString() finally delete;
+string message = $"total: {total}";
 ```
 
-Runtime text composition is a formatter. It does not allocate a primitive
-`string` implicitly, so assigning it to `string` requires explicit
-materialization:
+Runtime interpolation produces text right away. With `auto`, the type is
+`string`. When the target is a fixed or counted character array, the same
+interpolation initializes that storage:
 
 ```camp
-string text = $"total: {total}";                                 // ERROR
-string copy = ($"total: {total}").copyString() finally delete;   // OK
+auto inferred = $"total: {total}";      // string
+char[] chars = $"total: {total}";
+fixed char[16] storage = $"total";
 ```
 
-Constant interpolation and constant string concatenation remain ordinary text:
+Without `new`, runtime interpolation uses scoped storage, much like `init`
+array storage. Use `new $"..."` when the produced text needs heap lifetime:
 
 ```camp
-auto literal = $"ready";            // string
-auto combined = "read" + "y";       // string
+string copy = within(default) new $"total: {total}" finally delete;
 ```
 
-Textual `+` is left-associative:
+Constant interpolation remains ordinary text:
 
 ```camp
-Console.writeLine("Total: " + 1 + 2);    // Total: 12
-Console.writeLine("Total: " + (1 + 2));  // Total: 3
+auto literal = $"ready"; // string
 ```
 
-`+=` is still numeric addition assignment. It does not append text or mutate a
-formatter.
+Textual `+` is not string concatenation in Camp. Write an interpolated string
+instead:
+
+```camp
+Console.writeLine($"total: {total}");
+```
+
+`+=` is still numeric addition assignment. It does not append text.
 
 Conditions must be `bool`. Integers, pointers, enums, and newtypes do not
 implicitly become truth values.
@@ -367,6 +372,11 @@ auto formatter = date.format; // CharFormatter
 ```
 
 Callable values invoke with the same `target(arguments)` surface as functions.
+An interpolated string can use a `CharFormatter` value in a hole:
+
+```camp
+Console.writeLine($"date: {date.format}");
+```
 
 ## Lambdas
 

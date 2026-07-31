@@ -243,9 +243,8 @@ working with.
 
 Formatting in `Std` is built around `CharFormatter`, a callable value that can
 first report the required buffer size and then write into a caller-provided
-buffer. That makes formatted text cheap to pass around: the value carries the
-work needed to write the text, but it does not allocate a `string` unless you
-ask it to.
+buffer. That protocol is what lets custom types appear inside interpolated
+strings.
 
 You often do not need to see that two-step protocol directly:
 
@@ -256,35 +255,28 @@ void printTotal(int total)
 }
 ```
 
-`Console.write`, `Console.writeLine`, streams, and other text APIs can accept
-the formatter directly. Concatenation uses the same formatter path when either
-side is text:
-
-```camp
-Console.writeLine("total: " + total);
-```
-
 An interpolated string with only constant text is still just constant text:
 
 ```camp
 auto title = $"Camp"; // string
 ```
 
-Once a runtime value needs formatting, the result is a `CharFormatter` when
-the first runtime value has a standard UTF-8 formatter:
+An interpolation that contains runtime values produces text at the expression
+site. With `auto`, the result is `string`:
 
 ```camp
 int total = 42;
-CharFormatter formatter = $"total: {total}";
-Console.writeLine(formatter);
+auto text = $"total: {total}";
+Console.writeLine(text);
 ```
 
-When you need an allocated string, ask the formatter to copy:
+Without `new`, that runtime text uses scoped storage. Use `new` when you need
+heap lifetime:
 
 ```camp
 escaped string formatTotal(int total)
 {
-	return ($"total: {total}").copyString();
+	return within(default) new $"total: {total}";
 }
 ```
 
@@ -293,7 +285,7 @@ That returns an owned `string`, so ordinary cleanup applies:
 ```camp
 void showTotal(int total)
 {
-	string text = ($"total: {total}").copyString() finally delete;
+	string text = within(default) new $"total: {total}" finally delete;
 	Console.writeLine(text);
 }
 ```

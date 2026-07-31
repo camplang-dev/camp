@@ -173,12 +173,12 @@ these same rules. Lowering must eventually produce the component-level pointer,
 length, and stride operations described in
 [Expanded Forms And ABI Shapes](02-expanded-forms-and-abi-shapes.md).
 
-## Interpolated Strings And Textual Composition
+## Interpolated Strings
 
-Interpolated strings and textual `+` composition are source forms for building
-formatted text without implicit allocation. Runtime text composition produces a
-formatter delegate value. Constant text remains ordinary string-like constant
-text.
+Interpolated strings are source expressions for eagerly producing UTF-8 text
+from literal segments and formatted values. A runtime interpolated string
+materializes a concrete result at the expression site. It does not produce a
+formatter delegate value.
 
 ### Interpolated String Syntax
 
@@ -217,10 +217,10 @@ responsible hole.
 
 ### Constant Text
 
-Before runtime formatter inference, the compiler evaluates whether the
-interpolated string is fully constant text. An interpolation is constant text
-when every literal segment is constant text and every hole is a compile-time
-string-like or character constant. Inline string constants participate:
+Before runtime formatting, the compiler evaluates whether the interpolated
+string is fully constant text. An interpolation is constant text when every
+literal segment is constant text and every hole is a compile-time string-like or
+character constant. Inline string constants participate:
 
 ```camp
 inline string PREFIX = "Camp";
@@ -232,37 +232,51 @@ enum, newtype, aggregate, and other non-text constants therefore prevent
 constant-text folding unless they are already represented as string-like or
 character constants.
 
-With `auto`, constant text infers as the equivalent plain string literal. An
-explicit `string`, `wstring`, `astring`, const character pointer, counted text,
-or fixed character storage target is valid only when the entire interpolation is
-constant text. An explicit formatter target remains a formatter target even when
-all segments are constant; the compiler may lower it as a constant-backed
-formatter.
+With `auto`, constant text infers as the equivalent plain string literal. A
+constant interpolated string may initialize any target that the equivalent
+string literal may initialize, including `string`, compatible counted character
+views, and fixed character storage.
 
-Constant textual `+` composition follows the same rule:
+### Result Targets
+
+When an interpolation contains runtime holes, the result target is determined by
+ordinary target typing:
+
+- no target, `auto`, or a generic target-type placeholder resolves to `string`;
+- `string` and `const string` targets are valid and produce null-terminated
+  primitive string storage;
+- `char[]` and `const char[]` targets are valid and produce counted character
+  views whose length is the required character count;
+- fixed `char[N]` targets are valid for declaration initialization and write
+  directly into the fixed storage;
+- other targets are invalid.
+
+Formatter delegate targets are not valid result targets for an interpolated
+string. The standard formatter type may still appear as an ordinary value inside
+an interpolation hole, but the interpolation expression itself resolves to
+concrete text.
+
+`new` may be applied directly to an interpolated string expression:
 
 ```camp
-auto title = "Camp " + "compiler"; // string
+string message = within(default) new $"total: {total}" finally delete;
+char[] chars = within(default) new $"total: {total}";
 ```
 
-### Formatter Targets
+A `new` interpolated string uses the current `within` allocation policy and
+requires the same explicit `within` context as other heap allocation. `new` is
+not valid for fixed-array targets because fixed-array interpolation writes into
+existing fixed storage.
 
-A runtime interpolated string or runtime textual composition has a formatter
-target. The target must be either an anonymous `delegate` type or a callable
-newtype whose underlying callable kind is `delegate`.
+Non-`new` runtime interpolation uses scoped storage equivalent to `init`
+character-array storage. The result cannot be returned, stored, or otherwise
+escape unless ordinary scoped lifetime rules allow the same escape for the
+equivalent initialized storage.
 
-The callable shape must have:
+### Formatter Protocol
 
-1. exactly one non-`this` parameter;
-2. a mutable array parameter whose element type, after ordinary qualification
-   handling, is `char`, `wchar`, or `achar`;
-3. a return type exactly equal to that array parameter's expanded length
-   component type, including any target specs;
-4. no `thrown` parameter;
-5. reusable delegate behavior rather than `fn`, `once`, `async`, or iterator
-   behavior.
-
-The standard UTF-8 formatter type is ordinary standard-library source, not a
+Runtime holes are formatted through the ordinary UTF-8 formatter protocol. The
+standard formatter type is ordinary standard-library source, not a
 compiler-owned symbol:
 
 ```camp
@@ -274,14 +288,7 @@ public newtype delegate nuint CharFormatter(
 The buffer default belongs on the delegate declaration. A `format` overload
 selector does not declare that default value.
 
-The return type must match the expanded array length component exactly.
-Physical width equality is not sufficient. For example, `uint` is not a match
-for `nuint` merely because both are 32-bit on one target. Target specs also
-remain semantically distinct.
-
-### Formatter Contract
-
-Every eligible formatter follows this contract:
+An eligible formatter follows this contract:
 
 - The return value is the complete required character count in array elements,
   excluding any null terminator.
@@ -302,8 +309,13 @@ implementation obeys the contract.
 
 ### Formattable Values
 
-A non-formatter interpolation component is formattable when ordinary instance
-member lookup finds an eligible method named exactly `format`.
+A runtime hole is formattable when either:
+
+- the hole expression already resolves to an eligible formatter value whose
+  buffer element type is `char`; or
+- ordinary instance member lookup finds exactly one eligible method named
+  `format` for the hole expression.
+
 Receiver-style extension functions, inherited methods, virtual methods, and
 interface members participate through ordinary Camp lookup and dispatch rules.
 
@@ -311,13 +323,13 @@ An eligible `format` method:
 
 1. has exactly one non-`this` parameter;
 2. uses that buffer parameter as its `overload` selector;
-3. accepts the mutable character-array type required by the selected formatter;
+3. accepts mutable `char[]` as the buffer type;
 4. returns the exact length-component type of that array;
 5. has no `thrown` slot;
-6. has receiver and lifetime requirements compatible with binding a method
-   reference into the composed formatter's scoped delegate;
-7. is ascribed to the required callable newtype when the formatter target is a
-   named callable newtype.
+6. has receiver and lifetime requirements compatible with evaluating the hole
+   expression once and invoking the formatter for size and write passes;
+7. is ascribed to `CharFormatter` when the formatter is intended to participate
+   in the standard UTF-8 formatting surface.
 
 Example:
 
@@ -342,59 +354,6 @@ public nuint format(
 }
 ```
 
-When the target is an anonymous delegate, callable ascription cannot name the
-target. In that case an un-ascribed `format` method is eligible when its bound
-method reference is implicitly compatible with the anonymous delegate shape.
-
-If an interpolation component already resolves to the required formatter type,
-it is incorporated directly. The compiler does not perform `format` lookup on
-that value. For an anonymous target, ordinary implicit callable compatibility
-determines whether the component can be incorporated directly.
-
-### Formatter Inference And Explicit Targets
-
-When runtime formatting is required and no explicit formatter target is known,
-the first runtime interpolation component establishes the formatter target:
-
-1. Analyze the first runtime component once to determine its independent static
-   type.
-2. If it already resolves to an eligible formatter delegate or callable newtype,
-   infer that type.
-3. Otherwise, perform ordinary instance lookup for `format`.
-4. For automatic inference, retain only candidates whose buffer parameter is
-   mutable `char[]` and whose return type is that array's exact length-component
-   type.
-5. If exactly one candidate remains, infer its ascribed callable newtype, or an
-   anonymous context-carrying delegate when it has no callable ascription.
-6. If no candidate remains, report that the first runtime component does not
-   establish a UTF-8 formatter type.
-7. If several candidates remain, report ambiguity and require an explicit
-   formatter target.
-8. Bind every remaining runtime component against the inferred target.
-
-Automatic inference considers UTF-8 `char[]` targets only. `wchar[]` and
-`achar[]` formatter families require an explicit target.
-
-An explicit formatter target may be supplied by a declaration, assignment,
-return context, cast, selected ordinary parameter, or selected overload
-parameter:
-
-```camp
-CharFormatter message = $"Status: {status}";
-LibraryFormatter record = (LibraryFormatter)$"Record: {recordId}";
-```
-
-For a named callable newtype target, each non-direct component must bind a
-`format` method ascribed to that exact newtype. Matching the raw callable
-signature is not enough to cross a nominal callable-newtype boundary. For an
-anonymous delegate target, each component must be structurally and implicitly
-compatible with the anonymous signature.
-
-The target's array element type determines the code-unit representation of
-literal segments and the required buffer overload for every formatted value.
-The compiler does not implicitly transcode between `char`, `wchar`, and
-`achar` formatter families.
-
 An interpolated literal with no holes behaves as an ordinary string literal
 under `auto`:
 
@@ -402,16 +361,13 @@ under `auto`:
 auto text = $"ready"; // string
 ```
 
-With an explicit formatter target, literal-only and empty interpolations produce
-formatters. An empty formatter returns zero and writes no characters.
-
 ### Runtime Evaluation And Lowering
 
-Runtime interpolation and runtime textual composition evaluate every dynamic
-component exactly once, from left to right, when the source expression is
-evaluated. The evaluated results are captured according to ordinary Camp
-callable, receiver, and lifetime rules. Character formatting is deferred until
-the produced formatter is invoked.
+Runtime interpolation evaluates every dynamic hole expression exactly once, from
+left to right, when the interpolation expression is evaluated. The evaluated
+hole result is captured as the value to be formatted. Formatting may call the
+selected formatter twice, once for the required size and once for writing, but
+the original hole expression is not re-evaluated.
 
 For:
 
@@ -420,21 +376,28 @@ auto message = $"{first()} / {second()}";
 ```
 
 `first()` runs before `second()`. If `first()` exits through a `thrown` path,
-`second()` is not evaluated and no formatter value is produced. Formatter
-invocation itself has no `thrown` channel.
+`second()` is not evaluated and no interpolation result is produced. Formatter
+invocation itself has no `thrown` channel; an implementation that must fail
+should fail before it participates in the formatter protocol.
 
-Lowering produces an ordinary callable/context pair compatible with the
-selected formatter target. Interpolation nodes must be gone before final C
-expression emission.
+Interpolation nodes must be gone before final C expression emission. Runtime
+lowering conceptually proceeds as follows:
 
-The composite formatter's size pass:
+1. Evaluate and capture each runtime hole in source order.
+2. Compute the required character count by adding literal segment lengths,
+   constant-hole lengths, and formatter size-query results.
+3. Create destination storage:
+   - `string` and `const string`: allocate `required + 1` characters and reserve
+     one null terminator;
+   - `char[]` and `const char[]`: allocate `required` characters and keep the
+     counted length;
+   - fixed `char[N]`: use the existing fixed storage and treat `N` as the
+     writable length.
+4. Write literal segments with compact block-copy operations and invoke dynamic
+   formatters with destination slices.
+5. For primitive string targets only, write a trailing `'\0'`.
 
-- starts at zero;
-- adds literal segment code-unit counts;
-- calls each dynamic component formatter for its required size;
-- adds the full required size for each dynamic component.
-
-Conceptually:
+The size pass is:
 
 ```text
 required = 0
@@ -442,119 +405,77 @@ required += literal code units
 required += component required
 ```
 
-The arithmetic uses the formatter target's exact array-length type and carrier
-domain. Compile-time-known unrepresentable totals are errors. Runtime overflow
-must fail before allocation or buffer writing through the target's ordinary
+For counted array targets, the counted length is the complete required length
+even when the physical write was clamped to fixed storage in a different target
+form. For fixed `char[N]` targets, the fixed storage is zero-filled before
+writing. The write pass copies the prefix that fits. If the required length is
+less than `N`, the next element remains zero and the fixed storage is
+zero-terminated. If the required length is at least `N`, the visible content is
+truncated to the first `N` characters and no extra terminator is written outside
+the fixed storage.
+
+The arithmetic uses `nuint`, matching the standard `char[]` length component.
+Compile-time-known unrepresentable totals are errors. Runtime overflow must
+fail before allocation or buffer writing through the target's ordinary
 bounds-failure mechanism; interpolation does not add a `thrown` result.
 
-When the output buffer is non-empty, the write pass writes literal and dynamic
-segments in source order. Literal segments copy the prefix that fits in the
-remaining buffer. Each dynamic formatter receives a slice beginning at
-`min(current offset, buffer.length)` with the remaining writable length. After
-each segment, the logical offset advances by that segment's full required
-length even when the physical buffer was already exhausted.
-
-When the output buffer is empty, the composite performs only the size pass and
-writes nothing. Interpolation follows the same insufficient-buffer contract as
-ordinary formatters: it returns the complete required count, writes the prefix
-that fits, and never writes outside the provided buffer.
-
-Runtime interpolation is scoped unless existing callable and capture rules prove
-a stronger valid lifetime. Returning, storing, or otherwise escaping a composed
-formatter is governed by ordinary delegate-context ownership and lifetime
-diagnostics. A scoped formatter may cross an async suspension only when existing
-async-frame lifetime rules allow the captured state to remain in the frame
-without escaping the async method.
-
-### Textual `+`
-
-Binary `+` becomes textual composition when either operand is a textual anchor:
-
-- a string literal or primitive string value;
-- a compatible counted character view;
-- an interpolated string;
-- a compatible formatter delegate.
-
-Textual composition has the same target inference, explicit-target binding,
-component formatting, evaluation, lifetime, and lowering semantics as an
-equivalent interpolated string. Ordinary numeric `+` is unchanged when neither
-operand is textual. `char + char` and other numeric operations remain arithmetic
-unless a textual anchor makes that part of the expression a formatter
-composition.
-
-`+` remains left-associative:
-
-```camp
-"Total: " + 1 + 2;     // formats Total: 12
-1 + 2 + " total";      // formats 3 total
-"Total: " + (1 + 2);   // formats Total: 3
-```
-
-Assigning runtime textual composition directly to a primitive string is invalid
-because it would require hidden allocation:
-
-```camp
-string name = getName();
-string message = "Hello, " + name; // ERROR
-```
-
-Materialization must be explicit:
-
-```camp
-string message = ("Hello, " + name).copyString() finally delete;
-```
-
-Textual `+=` has no formatter-composition semantics. The compiler must
-recognize attempted textual `+=` and report a direct diagnostic explaining that
-runtime text composition produces a formatter rather than mutating or allocating
-a string.
+Async functions and generator methods receive no special interpolation rules.
+A non-`new` interpolation that requires scoped result storage follows the same
+lifetime and frame-placement rules as equivalent non-const `init` character
+array storage in that source position.
 
 ### Overload Selection
 
-When an interpolated string or textual composition is supplied as the selector
-argument of an overload family, the compiler first counts selector candidates
-whose selector type is an eligible formatter target:
+An interpolated string participates in overload selection as the concrete result
+type selected by target typing. With no stronger target, it is a `string`. If a
+call has several valid overload candidates for the same interpolation argument,
+ordinary Camp overload ambiguity rules apply and the caller must disambiguate.
 
-- If exactly one formatter-shaped selector candidate exists, that candidate
-  supplies the explicit formatter target. Other non-formatter overloads do not
-  make the call ambiguous.
-- If more than one formatter-shaped selector candidate exists, the call is
-  ambiguous. The compiler reports the formatter-target ambiguity before using
-  any interpolation hole content.
-- If no formatter-shaped selector exists, ordinary overload failure rules apply.
-
-Interpolation holes and textual-composition components must not be used to rank
-or choose between distinct formatter families. A cast or a concrete flattened
-overload name can supply the target explicitly:
+Formatter delegate overloads are not selected by passing an interpolated string.
+Pass an explicit formatter value, such as a `.format` method reference, when the
+API expects a formatter:
 
 ```camp
-write((CharFormatter)$"Record: {recordId}");
-writeCharFormatter($"Record: {recordId}");
+writeFormatter(value.format);
 ```
+
+### Textual `+`
+
+Binary `+` does not compose text. If either side of `+` is a textual anchor, the
+compiler reports a diagnostic and the program should use an interpolated string
+instead. Textual anchors include primitive string values, string literals,
+compatible counted character views, interpolated strings, and formatter values.
+Ordinary numeric `+` is unchanged when neither operand is textual.
+
+Textual `+=` is also invalid. It does not append text, mutate a string, or
+materialize a new string.
 
 ### Diagnostics, Metadata, And API Headers
 
-Diagnostics should prefer the responsible hole, component expression, textual
-composition expression, or selected argument range rather than a lowered helper.
+Diagnostics should prefer the responsible hole, interpolation expression,
+textual `+` expression, or selected argument range rather than a lowered helper.
 Required diagnostic classes include:
 
 - malformed interpolation syntax;
-- runtime interpolation assigned to a primitive string target;
-- no formatter candidate for the first runtime component;
-- multiple formatter candidates for the first runtime component;
-- incompatible explicit formatter target shape;
+- unsupported runtime interpolation target;
+- runtime interpolation assigned or passed to a formatter delegate target;
+- no formatter candidate for a runtime hole;
+- multiple formatter candidates for a runtime hole;
 - component `format` methods with the wrong buffer type, return type, callable
   kind, thrown slot, receiver, lifetime, or callable ascription;
-- direct formatter components incompatible with the target;
-- multiple formatter-shaped overload selector candidates;
+- direct formatter holes incompatible with UTF-8 `char[]` formatting;
+- scoped interpolation results that escape their valid lifetime;
+- `new` interpolation without an explicit `within` context;
+- `new` interpolation targeting fixed storage;
+- attempted textual `+`;
 - attempted textual `+=`.
 
-Interpolation syntax and textual composition are source expressions, not API
-surface declarations. Metadata and API headers record ordinary resolved types,
-callable newtypes, default values, selected functions, and formatter method
-dependencies. They must not invent a dependency on the standard library
-`CharFormatter`; that dependency appears only when source code actually uses
-the standard-library type.
+Interpolation syntax and textual `+` diagnostics are source-expression behavior,
+not API surface declarations. Metadata and API headers record ordinary resolved
+types, default values, selected functions, and formatter method dependencies.
+They must not invent a dependency on the standard library `CharFormatter`; that
+dependency appears only when source code actually uses the standard-library
+type, either directly or through selected `format` methods.
 
 ## Source Capture Default Arguments
 

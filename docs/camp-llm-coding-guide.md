@@ -56,12 +56,10 @@ High-impact distinctions:
   `->`.
 - Capturing callables require `delegate`, `once`, or an async-appropriate target,
   not plain `fn`.
-- Runtime `$"..."` and textual `+` produce formatter values, not owned
-  primitive strings. Pass them directly to formatter-aware APIs such as
-  `Console.writeLine`, or call `.copyString()` with normal cleanup when an owned
-  `string` is required.
-- Constant interpolated text and constant string concatenation remain ordinary
-  string-like constants.
+- Runtime `$"..."` eagerly produces text. With `auto`, the type is `string`.
+  Non-`new` interpolation uses scoped storage; use `within(...) new $"..."`
+  when heap lifetime is required.
+- Textual `+` and textual `+=` are diagnostics. Use interpolation instead.
 - Generic code must state the capabilities it uses. `T: any` is intentionally
   restrictive.
 - Unsafe casts do not tunnel into arrays, delegates, optionals, interfaces, or
@@ -80,53 +78,58 @@ Console.writeLine($"loaded {count} records from {path}");
 Console.writeLine($"literal braces: {{name}}");
 ```
 
-Runtime interpolation produces a formatter value. It does not allocate a
-primitive `string`, `wstring`, or `astring`. Prefer passing that formatter
-directly to APIs that accept `CharFormatter`, such as `Console.write`,
-`Console.writeLine`, `CharWriter.write`, and `CharWriter.writeLine`.
+Runtime interpolation eagerly produces UTF-8 text at the expression site.
+Without a stronger target, the result is `string`:
+
+```camp
+auto inferred = $"total: {total}";       // string
+string text = $"total: {total}";
+char[] chars = $"total: {total}";
+fixed char[16] storage = $"ready";
+```
+
+Non-`new` interpolation uses scoped result storage, like initialized local array
+storage. Do not return or store that result where a scoped value cannot go. Use
+`new` plus an explicit `within` context for heap lifetime:
+
+```camp
+string message = within(default) new $"total: {total}" finally delete;
+```
 
 Do not invent C#-style formatting suffixes. Camp interpolation holes contain
 ordinary Camp expressions, so `{value:format}` and `{value,10}` are not special
 formatting syntax.
 
-Use `.copyString()` only when the code really needs an owned primitive `string`.
-Clean up that owned string according to ordinary ownership rules:
+Do not write textual `+` for string composition:
 
 ```camp
-string message = ($"total: {total}").copyString() finally delete;
+Console.writeLine($"total: {total}");
+Console.writeLine($"left={left}, right={right}");
 ```
 
-Do not write this for runtime values:
+Do not write:
 
 ```camp
-string message = $"total: {total}"; // ERROR: hidden allocation would be needed
-string other = "total: " + total;   // ERROR for the same reason
+Console.writeLine("total: " + total); // ERROR
+text += suffix;                       // ERROR when textual
 ```
 
-Textual `+` composes through the same formatter path when either side is text:
+Older Camp drafts and examples may assign interpolation to `CharFormatter` or
+compose text with `+`. Recognize that as stale style. Do not generate new code
+that treats `$"..."` as a formatter value or uses textual `+`.
+
+An interpolation hole may contain a `CharFormatter` value:
 
 ```camp
-Console.writeLine("total: " + total);
-Console.writeLine("left=" + left + ", right=" + right);
+CharFormatter dateText = date.format;
+Console.writeLine($"date: {dateText}");
 ```
 
-Constant text remains ordinary string-like text:
+Constant interpolation remains ordinary string-like text:
 
 ```camp
-auto title = $"Camp";              // string
-auto label = "Camp " + "compiler"; // string
+auto title = $"Camp"; // string
 ```
-
-`+` remains left-associative. Use parentheses when numeric arithmetic should
-happen before text composition:
-
-```camp
-Console.writeLine("Total: " + 1 + 2);    // Total: 12
-Console.writeLine("Total: " + (1 + 2));  // Total: 3
-```
-
-Do not use textual `+=`; it has no formatter meaning. Compose a new formatter
-or explicitly materialize an owned string.
 
 When defining a type that should appear inside interpolation, add a `format`
 method ascribed to the relevant formatter newtype. For ordinary UTF-8 standard
@@ -145,18 +148,6 @@ public nuint format(in MyValue this, overload char[] buffer) : CharFormatter
 The formatter returns the required character count, excluding any null
 terminator. If a buffer is supplied, it writes up to `buffer.length` characters
 and returns the full required count even when the buffer is too small.
-
-Automatic formatter inference uses the first runtime interpolation component and
-only infers UTF-8 `char[]` formatters. Use an explicit target when a particular
-formatter ecosystem matters:
-
-```camp
-CharFormatter message = $"status: {status}";
-```
-
-If an overload family has more than one formatter-shaped selector, interpolation
-and textual `+` are ambiguous. Supply a cast or call the concrete overload
-surface.
 
 ## Files, Namespaces, And Build Prelude
 
