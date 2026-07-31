@@ -45,6 +45,10 @@ export int main()
 	Console.writeLine(i);
 	Console.writeLine($"{$"Shape is: {name}".getSelf()}");
 
+	int spanCounter = 0;
+	Console.writeLine($"span={nextSpan(&spanCounter)}");
+	Console.writeLine(spanCounter);
+
 	return 0;
 }
 
@@ -54,4 +58,10 @@ int next(int* counter)
 {
 	(*counter)++;
 	return *counter;
+}
+
+const char[] nextSpan(int* counter)
+{
+	(*counter)++;
+	return "chars";
 }

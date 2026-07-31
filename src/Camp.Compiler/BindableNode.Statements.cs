@@ -28,6 +28,17 @@ public class LiteralCopyStatement : Statement
 	public string ElementType { get; set; } = "";
 	public string LengthType { get; set; } = "";
 	public string Text { get; set; } = "";
+	public bool ExactAppend { get; set; }
+}
+
+public class BufferCopyStatement : Statement
+{
+	public Expression? Buffer { get; set; }
+	public Expression? Offset { get; set; }
+	public Expression? Source { get; set; }
+	public Expression? Count { get; set; }
+	public string ElementType { get; set; } = "";
+	public string LengthType { get; set; } = "";
 }
 
 public class DeclarationStatement : Statement

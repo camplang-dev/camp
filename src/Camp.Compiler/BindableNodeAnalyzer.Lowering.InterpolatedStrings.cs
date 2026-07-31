@@ -19,10 +19,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (resultType == ErrorType)
 			return interpolation;
 
-		if (!TryCaptureInterpolatedComponentFormatters(interpolation, out List<Expression> formatterReferences, out List<FormatterShape> formatterShapes))
+		if (!TryBuildInterpolatedParts(interpolation, out List<InterpolationPart> parts))
 			return interpolation;
 
-		return LowerEagerInterpolatedStringExpression(interpolation, resultType, formatterReferences, formatterShapes);
+		return LowerEagerInterpolatedStringExpression(interpolation, resultType, parts);
 	}
 
 	bool TryRewriteFixedInterpolatedStringDeclaration(DeclarationStatement declaration, out List<Statement> statements)
@@ -48,14 +48,13 @@ public sealed partial class BindableNodeAnalyzer
 		try
 		{
 			currentStatementPrefix = statements;
-			if (!TryCaptureInterpolatedComponentFormatters(interpolation, out List<Expression> formatterReferences, out List<FormatterShape> formatterShapes))
+			if (!TryBuildInterpolatedParts(interpolation, out List<InterpolationPart> parts))
 				return true;
 			LowerInterpolatedStringIntoFixedArrayStorage(
 				interpolation,
 				CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? ErrorType, interpolation.SourceSyntax),
 				NumberLiteral(length.ToString(CultureInfo.InvariantCulture), "nuint"),
-				formatterReferences,
-				formatterShapes);
+				parts);
 		}
 		finally
 		{
@@ -88,70 +87,141 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	bool TryCaptureInterpolatedComponentFormatters(InterpolatedStringExpression interpolation, out List<Expression> formatterReferences, out List<FormatterShape> formatterShapes)
+	bool TryBuildInterpolatedParts(InterpolatedStringExpression interpolation, out List<InterpolationPart> parts)
 	{
-		formatterReferences = [];
-		formatterShapes = [];
-		foreach (InterpolatedStringSegment segment in interpolation.Segments)
-		{
-			if (segment is not InterpolatedStringExpressionSegment { Formatter: not null } hole)
-				continue;
-			if (!TryGetFormatterShape(hole.Formatter.ResolvedType, out FormatterShape formatter))
-			{
-				Report(GetRange(hole.Formatter.SourceSyntax ?? hole.SourceSyntax), "Interpolated string hole formatter has an invalid formatter shape.");
-				return false;
-			}
-			if (!TryCaptureInterpolatedComponentFormatter(hole.Formatter, formatter.Type, interpolation.SourceSyntax, out Expression? reference) || reference is null)
-				return false;
-			formatterReferences.Add(reference);
-			formatterShapes.Add(formatter);
-		}
-
-		return true;
-	}
-
-	Expression LowerEagerInterpolatedStringExpression(InterpolatedStringExpression interpolation, string resultType, List<Expression> formatterReferences, List<FormatterShape> formatterShapes)
-	{
-		const string elementType = "char";
-		const string lengthType = "nuint";
-		DeclarationStatement required = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedRequired"), lengthType, TypeReferenceForResolvedName(lengthType), NumberLiteral("0", lengthType));
-		currentStatementPrefix!.Add(required);
-		Expression Required() => CreateVariableReference(required.Target, lengthType);
-
-		List<DeclarationStatement> componentSizes = [];
-		int formatterIndex = 0;
+		parts = [];
 		foreach (InterpolatedStringSegment segment in interpolation.Segments)
 		{
 			switch (segment)
 			{
 				case InterpolatedStringTextSegment text:
 					if (text.Text.Length > 0)
-						currentStatementPrefix.Add(Assign(Required(), Add(Required(), LengthLiteral(text.Text.Length, lengthType), lengthType), lengthType, text.SourceSyntax));
+						AddTextPart(parts, text.Text, text.SourceSyntax);
 					break;
 
 				case InterpolatedStringExpressionSegment { Formatter: null } hole:
 					if (TryGetConstantInterpolationText(hole, out string constantText) && constantText.Length > 0)
-						currentStatementPrefix.Add(Assign(Required(), Add(Required(), LengthLiteral(constantText.Length, lengthType), lengthType), lengthType, hole.SourceSyntax));
+						AddTextPart(parts, constantText, hole.SourceSyntax);
 					break;
 
-				case InterpolatedStringExpressionSegment { Formatter: not null }:
-					Expression formatterReference = formatterReferences[formatterIndex];
-					FormatterShape formatter = formatterShapes[formatterIndex];
-					formatterIndex++;
-					Expression sizeCall = CallFormatter(formatterReference, DefaultBuffer(formatter), formatter.LengthType);
-					sizeCall = LowerExpression(sizeCall) ?? sizeCall;
+				case InterpolatedStringExpressionSegment { Formatter: not null } hole:
+					if (!interpolationParts.TryGetValue(hole, out InterpolationPart? part))
+					{
+						if (!TryGetFormatterShape(hole.Formatter.ResolvedType, out FormatterShape formatter))
+						{
+							Report(GetRange(hole.Formatter.SourceSyntax ?? hole.SourceSyntax), "Interpolated string hole formatter has an invalid formatter shape.");
+							return false;
+						}
+						part = new RuntimeFormatterValuePart(hole.Formatter, formatter, hole.SourceSyntax);
+					}
+					if (part is DirectFormatterPart directPart && TryCreateDirectTextPart(directPart, out DirectTextPart? directTextPart) && directTextPart is not null)
+					{
+						parts.Add(directTextPart);
+						break;
+					}
+					if (part is RuntimeFormatterValuePart runtime)
+					{
+						if (!TryCaptureRuntimeFormatterValue(runtime, interpolation.SourceSyntax, out RuntimeFormatterValuePart? captured) || captured is null)
+							return false;
+						parts.Add(captured);
+					}
+					else
+					{
+						parts.Add(part);
+					}
+					break;
+			}
+		}
+
+		return true;
+	}
+
+	static void AddTextPart(List<InterpolationPart> parts, string text, SyntaxNode? syntax)
+	{
+		if (parts.Count > 0 && parts[^1] is LiteralTextPart previous)
+		{
+			parts[^1] = previous with { Text = previous.Text + text };
+			return;
+		}
+		parts.Add(new LiteralTextPart(text, syntax));
+	}
+
+	Expression LowerEagerInterpolatedStringExpression(InterpolatedStringExpression interpolation, string resultType, List<InterpolationPart> parts)
+	{
+		const string elementType = "char";
+		const string lengthType = "nuint";
+		parts = MaterializeDirectFormatterValues(parts);
+		parts = MaterializeDirectTextValues(parts);
+		long constantLength = 0;
+		foreach (InterpolationPart part in parts)
+			if (part is LiteralTextPart text)
+				constantLength += text.Text.Length;
+
+		DeclarationStatement required = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedRequired"), lengthType, TypeReferenceForResolvedName(lengthType), NumberLiteral(constantLength.ToString(CultureInfo.InvariantCulture), lengthType));
+		currentStatementPrefix!.Add(required);
+		Expression Required() => CreateVariableReference(required.Target, lengthType);
+
+		List<DeclarationStatement> componentSizes = [];
+		foreach (InterpolationPart part in parts)
+		{
+			switch (part)
+			{
+				case LiteralTextPart:
+					break;
+
+				case DirectTextPart directText:
+					Expression directTextSizeExpression = directText.Kind switch
+					{
+						DirectTextKind.Char => NumberLiteral("1", lengthType),
+						DirectTextKind.CharArray => directText.LengthValue ?? NumberLiteral("0", lengthType),
+						_ => CreateLengthExpression(directText.Value, directText.SourceSyntax) ?? NumberLiteral("0", lengthType)
+					};
+					directTextSizeExpression = LowerExpression(directTextSizeExpression) ?? directTextSizeExpression;
+					DeclarationStatement directTextSize = CreateGeneratedLocal(
+						NewGeneratedLocalName("interpolatedPartSize"),
+						lengthType,
+						TypeReferenceForResolvedName(lengthType),
+						directTextSizeExpression);
+					currentStatementPrefix.Add(directTextSize);
+					componentSizes.Add(directTextSize);
+					currentStatementPrefix.Add(Assign(
+						Required(),
+						Add(Required(), CreateVariableReference(directTextSize.Target, lengthType), lengthType),
+						lengthType,
+						part.SourceSyntax));
+					break;
+
+				case DirectFormatterPart direct:
+					Expression sizeCall = LowerExpression(CreateDirectFormatterCall(direct, DefaultBuffer(direct.Shape), direct.Shape.LengthType)) ?? direct.Value;
 					DeclarationStatement size = CreateGeneratedLocal(
 						NewGeneratedLocalName("interpolatedPartSize"),
-						formatter.LengthType,
-						TypeReferenceForResolvedName(formatter.LengthType),
+						direct.Shape.LengthType,
+						TypeReferenceForResolvedName(direct.Shape.LengthType),
 						sizeCall);
 					currentStatementPrefix.Add(size);
 					componentSizes.Add(size);
 					currentStatementPrefix.Add(Assign(
 						Required(),
-						Add(Required(), CreateVariableReference(size.Target, formatter.LengthType), lengthType),
+						Add(Required(), CreateVariableReference(size.Target, direct.Shape.LengthType), lengthType),
 						lengthType,
-						segment.SourceSyntax));
+						part.SourceSyntax));
+					break;
+
+				case RuntimeFormatterValuePart runtime:
+					Expression runtimeSizeCall = CallFormatter(runtime.FormatterValue, DefaultBuffer(runtime.Shape), runtime.Shape.LengthType);
+					runtimeSizeCall = LowerExpression(runtimeSizeCall) ?? runtimeSizeCall;
+					DeclarationStatement runtimeSize = CreateGeneratedLocal(
+						NewGeneratedLocalName("interpolatedPartSize"),
+						runtime.Shape.LengthType,
+						TypeReferenceForResolvedName(runtime.Shape.LengthType),
+						runtimeSizeCall);
+					currentStatementPrefix.Add(runtimeSize);
+					componentSizes.Add(runtimeSize);
+					currentStatementPrefix.Add(Assign(
+						Required(),
+						Add(Required(), CreateVariableReference(runtimeSize.Target, runtime.Shape.LengthType), lengthType),
+						lengthType,
+						part.SourceSyntax));
 					break;
 			}
 		}
@@ -176,40 +246,70 @@ public sealed partial class BindableNodeAnalyzer
 		currentStatementPrefix.Add(offset);
 		Expression Offset() => CreateVariableReference(offset.Target, lengthType);
 
-		formatterIndex = 0;
 		int sizeIndex = 0;
-		foreach (InterpolatedStringSegment segment in interpolation.Segments)
+		foreach (InterpolationPart part in parts)
 		{
-			switch (segment)
+			switch (part)
 			{
-				case InterpolatedStringTextSegment text:
-					AddLiteralWritesToPointer(currentStatementPrefix, BufferElements, BufferLengthValue, Offset, elementType, lengthType, text.Text, text.SourceSyntax);
+				case LiteralTextPart text:
+					AddLiteralWritesToPointer(currentStatementPrefix, BufferElements, BufferLengthValue, Offset, elementType, lengthType, text.Text, text.SourceSyntax, exactAppend: true);
 					break;
 
-				case InterpolatedStringExpressionSegment { Formatter: null } hole:
-					if (TryGetConstantInterpolationText(hole, out string constantText))
-						AddLiteralWritesToPointer(currentStatementPrefix, BufferElements, BufferLengthValue, Offset, elementType, lengthType, constantText, hole.SourceSyntax);
+				case DirectTextPart directText:
+					DeclarationStatement directTextSize = componentSizes[sizeIndex++];
+					Expression source = DirectTextSourceExpression(directText);
+					currentStatementPrefix.Add(new BufferCopyStatement
+					{
+						SourceSyntax = part.SourceSyntax,
+						ResolvedType = "void",
+						Buffer = BufferElements(),
+						Offset = Offset(),
+						Source = source,
+						Count = CreateVariableReference(directTextSize.Target, lengthType),
+						ElementType = elementType,
+						LengthType = lengthType
+					});
+					currentStatementPrefix.Add(Assign(
+						Offset(),
+						Add(Offset(), CreateVariableReference(directTextSize.Target, lengthType), lengthType),
+						lengthType,
+						part.SourceSyntax));
 					break;
 
-				case InterpolatedStringExpressionSegment { Formatter: not null }:
-					Expression formatterReference = formatterReferences[formatterIndex];
-					FormatterShape formatter = formatterShapes[formatterIndex];
-					formatterIndex++;
+				case DirectFormatterPart direct:
 					DeclarationStatement size = componentSizes[sizeIndex++];
-					DeclarationStatement start = AddClampedOffsetLocal(currentStatementPrefix, BufferLengthValue, Offset, formatter.LengthType, segment.SourceSyntax);
-					Expression writeCall = CallFormatter(formatterReference, BufferSlice(BufferElements(), BufferLengthValue(), CreateVariableReference(start.Target, formatter.LengthType), formatter, segment.SourceSyntax), formatter.LengthType);
+					DeclarationStatement start = AddClampedOffsetLocal(currentStatementPrefix, BufferLengthValue, Offset, direct.Shape.LengthType, part.SourceSyntax);
+					Expression writeCall = CreateDirectFormatterCall(direct, BufferSlice(BufferElements(), BufferLengthValue(), CreateVariableReference(start.Target, direct.Shape.LengthType), direct.Shape, part.SourceSyntax), direct.Shape.LengthType);
 					writeCall = LowerExpression(writeCall) ?? writeCall;
 					currentStatementPrefix.Add(new ExpressionStatement
 					{
-						SourceSyntax = segment.SourceSyntax,
+						SourceSyntax = part.SourceSyntax,
 						ResolvedType = "void",
 						Expression = writeCall
 					});
 					currentStatementPrefix.Add(Assign(
 						Offset(),
-						Add(Offset(), CreateVariableReference(size.Target, formatter.LengthType), lengthType),
+						Add(Offset(), CreateVariableReference(size.Target, direct.Shape.LengthType), lengthType),
 						lengthType,
-						segment.SourceSyntax));
+						part.SourceSyntax));
+					break;
+
+				case RuntimeFormatterValuePart runtime:
+					DeclarationStatement runtimeSize = componentSizes[sizeIndex++];
+					DeclarationStatement runtimeStart = AddClampedOffsetLocal(currentStatementPrefix, BufferLengthValue, Offset, runtime.Shape.LengthType, part.SourceSyntax);
+					Expression runtimeWriteCall = CallFormatter(runtime.FormatterValue, BufferSlice(BufferElements(), BufferLengthValue(), CreateVariableReference(runtimeStart.Target, runtime.Shape.LengthType), runtime.Shape, part.SourceSyntax), runtime.Shape.LengthType);
+					runtimeWriteCall = LowerExpression(runtimeWriteCall) ?? runtimeWriteCall;
+					currentStatementPrefix.Add(new ExpressionStatement
+					{
+						SourceSyntax = part.SourceSyntax,
+						ResolvedType = "void",
+						Expression = runtimeWriteCall
+					});
+					currentStatementPrefix.Add(Assign(
+						Offset(),
+						Add(Offset(), CreateVariableReference(runtimeSize.Target, runtime.Shape.LengthType), lengthType),
+						lengthType,
+						part.SourceSyntax));
 					break;
 			}
 		}
@@ -258,21 +358,37 @@ public sealed partial class BindableNodeAnalyzer
 		return interpolation;
 	}
 
-	void LowerInterpolatedStringIntoFixedArrayStorage(InterpolatedStringExpression interpolation, Expression bufferElements, Expression bufferLength, List<Expression> formatterReferences, List<FormatterShape> formatterShapes)
+	void LowerInterpolatedStringIntoFixedArrayStorage(InterpolatedStringExpression interpolation, Expression bufferElements, Expression bufferLength, List<InterpolationPart> parts)
 	{
 		const string elementType = "char";
 		const string lengthType = "nuint";
+		parts = MaterializeDirectFormatterValues(parts);
+		parts = MaterializeDirectTextValues(parts);
 		List<DeclarationStatement> componentSizes = [];
-		int formatterIndex = 0;
-		foreach (InterpolatedStringSegment segment in interpolation.Segments)
+		foreach (InterpolationPart part in parts)
 		{
-			if (segment is not InterpolatedStringExpressionSegment { Formatter: not null })
+			if (part is LiteralTextPart)
 				continue;
 
-			Expression formatterReference = formatterReferences[formatterIndex];
-			FormatterShape formatter = formatterShapes[formatterIndex];
-			formatterIndex++;
-			Expression sizeCall = CallFormatter(formatterReference, DefaultBuffer(formatter), formatter.LengthType);
+			FormatterShape formatter = part switch
+			{
+				DirectFormatterPart direct => direct.Shape,
+				RuntimeFormatterValuePart runtime => runtime.Shape,
+				DirectTextPart => new FormatterShape("CharFormatter", "char[]", "char", lengthType),
+				_ => throw new InvalidOperationException("Unknown interpolation part.")
+			};
+			Expression sizeCall = part switch
+			{
+				DirectFormatterPart direct => CreateDirectFormatterCall(direct, DefaultBuffer(formatter), formatter.LengthType),
+				RuntimeFormatterValuePart runtime => CallFormatter(runtime.FormatterValue, DefaultBuffer(formatter), formatter.LengthType),
+				DirectTextPart directText => directText.Kind switch
+				{
+					DirectTextKind.Char => NumberLiteral("1", lengthType),
+					DirectTextKind.CharArray => directText.LengthValue ?? NumberLiteral("0", lengthType),
+					_ => CreateLengthExpression(directText.Value, directText.SourceSyntax) ?? NumberLiteral("0", lengthType)
+				},
+				_ => throw new InvalidOperationException("Unknown interpolation part.")
+			};
 			sizeCall = LowerExpression(sizeCall) ?? sizeCall;
 			DeclarationStatement size = CreateGeneratedLocal(
 				NewGeneratedLocalName("interpolatedPartSize"),
@@ -287,64 +403,135 @@ public sealed partial class BindableNodeAnalyzer
 		currentStatementPrefix!.Add(offset);
 		Expression Offset() => CreateVariableReference(offset.Target, lengthType);
 
-		formatterIndex = 0;
 		int sizeIndex = 0;
-		foreach (InterpolatedStringSegment segment in interpolation.Segments)
+		foreach (InterpolationPart part in parts)
 		{
-			switch (segment)
+			switch (part)
 			{
-				case InterpolatedStringTextSegment text:
+				case LiteralTextPart text:
 					AddLiteralWritesToPointer(currentStatementPrefix, () => CloneParamsExpansionExpression(bufferElements) ?? bufferElements, () => CloneParamsExpansionExpression(bufferLength) ?? bufferLength, Offset, elementType, lengthType, text.Text, text.SourceSyntax);
 					break;
 
-				case InterpolatedStringExpressionSegment { Formatter: null } hole:
-					if (TryGetConstantInterpolationText(hole, out string constantText))
-						AddLiteralWritesToPointer(currentStatementPrefix, () => CloneParamsExpansionExpression(bufferElements) ?? bufferElements, () => CloneParamsExpansionExpression(bufferLength) ?? bufferLength, Offset, elementType, lengthType, constantText, hole.SourceSyntax);
+				case DirectTextPart directText:
+					DeclarationStatement directTextSize = componentSizes[sizeIndex++];
+					DeclarationStatement directTextStart = AddClampedOffsetLocal(currentStatementPrefix, () => CloneParamsExpansionExpression(bufferLength) ?? bufferLength, Offset, lengthType, part.SourceSyntax);
+					Expression directTextSource = DirectTextSourceExpression(directText);
+					currentStatementPrefix.Add(new BufferCopyStatement
+					{
+						SourceSyntax = part.SourceSyntax,
+						ResolvedType = "void",
+						Buffer = CloneParamsExpansionExpression(bufferElements) ?? bufferElements,
+						Offset = CreateVariableReference(directTextStart.Target, lengthType),
+						Source = directTextSource,
+						Count = MinLength(CreateVariableReference(directTextSize.Target, lengthType), Subtract(CloneParamsExpansionExpression(bufferLength) ?? bufferLength, CreateVariableReference(directTextStart.Target, lengthType), lengthType), lengthType, part.SourceSyntax),
+						ElementType = elementType,
+						LengthType = lengthType
+					});
+					currentStatementPrefix.Add(Assign(
+						Offset(),
+						Add(Offset(), CreateVariableReference(directTextSize.Target, lengthType), lengthType),
+						lengthType,
+						part.SourceSyntax));
 					break;
 
-				case InterpolatedStringExpressionSegment { Formatter: not null }:
-					Expression formatterReference = formatterReferences[formatterIndex];
-					FormatterShape formatter = formatterShapes[formatterIndex];
-					formatterIndex++;
+				case DirectFormatterPart direct:
 					DeclarationStatement size = componentSizes[sizeIndex++];
-					DeclarationStatement start = AddClampedOffsetLocal(currentStatementPrefix, () => CloneParamsExpansionExpression(bufferLength) ?? bufferLength, Offset, formatter.LengthType, segment.SourceSyntax);
-					Expression writeCall = CallFormatter(formatterReference, BufferSlice(CloneParamsExpansionExpression(bufferElements) ?? bufferElements, CloneParamsExpansionExpression(bufferLength) ?? bufferLength, CreateVariableReference(start.Target, formatter.LengthType), formatter, segment.SourceSyntax), formatter.LengthType);
+					DeclarationStatement start = AddClampedOffsetLocal(currentStatementPrefix, () => CloneParamsExpansionExpression(bufferLength) ?? bufferLength, Offset, direct.Shape.LengthType, part.SourceSyntax);
+					Expression writeCall = CreateDirectFormatterCall(direct, BufferSlice(CloneParamsExpansionExpression(bufferElements) ?? bufferElements, CloneParamsExpansionExpression(bufferLength) ?? bufferLength, CreateVariableReference(start.Target, direct.Shape.LengthType), direct.Shape, part.SourceSyntax), direct.Shape.LengthType);
 					writeCall = LowerExpression(writeCall) ?? writeCall;
 					currentStatementPrefix.Add(new ExpressionStatement
 					{
-						SourceSyntax = segment.SourceSyntax,
+						SourceSyntax = part.SourceSyntax,
 						ResolvedType = "void",
 						Expression = writeCall
 					});
 					currentStatementPrefix.Add(Assign(
 						Offset(),
-						Add(Offset(), CreateVariableReference(size.Target, formatter.LengthType), lengthType),
+						Add(Offset(), CreateVariableReference(size.Target, direct.Shape.LengthType), lengthType),
 						lengthType,
-						segment.SourceSyntax));
+						part.SourceSyntax));
+					break;
+
+				case RuntimeFormatterValuePart runtime:
+					DeclarationStatement runtimeSize = componentSizes[sizeIndex++];
+					DeclarationStatement runtimeStart = AddClampedOffsetLocal(currentStatementPrefix, () => CloneParamsExpansionExpression(bufferLength) ?? bufferLength, Offset, runtime.Shape.LengthType, part.SourceSyntax);
+					Expression runtimeWriteCall = CallFormatter(runtime.FormatterValue, BufferSlice(CloneParamsExpansionExpression(bufferElements) ?? bufferElements, CloneParamsExpansionExpression(bufferLength) ?? bufferLength, CreateVariableReference(runtimeStart.Target, runtime.Shape.LengthType), runtime.Shape, part.SourceSyntax), runtime.Shape.LengthType);
+					runtimeWriteCall = LowerExpression(runtimeWriteCall) ?? runtimeWriteCall;
+					currentStatementPrefix.Add(new ExpressionStatement
+					{
+						SourceSyntax = part.SourceSyntax,
+						ResolvedType = "void",
+						Expression = runtimeWriteCall
+					});
+					currentStatementPrefix.Add(Assign(
+						Offset(),
+						Add(Offset(), CreateVariableReference(runtimeSize.Target, runtime.Shape.LengthType), lengthType),
+						lengthType,
+						part.SourceSyntax));
 					break;
 			}
 		}
 	}
 
-	bool TryCaptureInterpolatedComponentFormatter(Expression formatterExpression, string formatterType, SyntaxNode? syntax, out Expression? reference)
+	bool TryCreateDirectTextPart(DirectFormatterPart part, out DirectTextPart? textPart)
 	{
-		reference = null;
+		textPart = null;
+		EnsureFlattenedFunctionSymbol(part.Function);
+		string symbol = part.Function.Symbol;
+		if (symbol == "String_formatCharArray" && IsPrimitiveStringType(part.Value.ResolvedType))
+		{
+			textPart = new DirectTextPart(part.Value, part.Value.ResolvedType ?? "string", DirectTextKind.String, part, null, part.SourceSyntax);
+			return true;
+		}
+		if (symbol == "CharArray_formatCharArray")
+		{
+			textPart = new DirectTextPart(part.Value, part.Value.ResolvedType ?? "char[]", DirectTextKind.CharArray, part, null, part.SourceSyntax);
+			return true;
+		}
+		if (symbol == "Char_formatCharArray" && StripTopLevelValueQualifiers(part.Value.ResolvedType ?? "") == "char")
+		{
+			textPart = new DirectTextPart(part.Value, "char", DirectTextKind.Char, part, null, part.SourceSyntax);
+			return true;
+		}
+		return false;
+	}
+
+	Expression DirectTextSourceExpression(DirectTextPart directText)
+	{
+		if (directText.Kind == DirectTextKind.Char)
+		{
+			return new UnaryExpression
+			{
+				SourceSyntax = directText.SourceSyntax,
+				Operator = UnaryOperator.AddressOf,
+				Operand = directText.Value,
+				ResolvedType = "char*"
+			};
+		}
+		if (directText.Kind == DirectTextKind.CharArray)
+			return directText.Value;
+		return directText.Value;
+	}
+
+	bool TryCaptureRuntimeFormatterValue(RuntimeFormatterValuePart part, SyntaxNode? syntax, out RuntimeFormatterValuePart? captured)
+	{
+		captured = null;
 		if (currentStatementPrefix is null)
 		{
 			Report(GetRange(syntax), "Interpolated string formatter context cannot be created in this expression position yet.");
 			return false;
 		}
 
+		Expression formatterExpression = part.FormatterValue;
 		Expression formatterSource = CloneParamsExpansionExpression(formatterExpression) ?? formatterExpression;
-		formatterSource = CaptureInterpolatedFormatterTarget(formatterSource);
 		Expression lowered = LowerExpression(formatterSource) ?? formatterSource;
 		CastExpression protocolExpression = new()
 		{
 			SourceSyntax = formatterExpression.SourceSyntax,
 			Kind = CastKind.Type,
-			Type = TypeReferenceForResolvedName(formatterType),
+			Type = TypeReferenceForResolvedName(part.Shape.Type),
 			Expression = lowered,
-			ResolvedType = formatterType
+			ResolvedType = part.Shape.Type
 		};
 		if (!TryCreateParamsComponentExpressions(protocolExpression, out List<Expression> components) || components.Count != 2)
 		{
@@ -369,7 +556,7 @@ public sealed partial class BindableNodeAnalyzer
 		GroupedExpression grouped = new()
 		{
 			SourceSyntax = formatterExpression.SourceSyntax ?? syntax,
-			ResolvedType = formatterType
+			ResolvedType = part.Shape.Type
 		};
 		grouped.Items.Add(new GroupedExpressionItem
 		{
@@ -383,42 +570,153 @@ public sealed partial class BindableNodeAnalyzer
 			Expression = CreateVariableReference(context.Target, context.Target.ResolvedType ?? "void*"),
 			ResolvedType = context.Target.ResolvedType ?? "void*"
 		});
-		reference = grouped;
+		captured = part with { FormatterValue = grouped };
 		return true;
 	}
 
-	Expression CaptureInterpolatedFormatterTarget(Expression formatterExpression)
+	List<InterpolationPart> MaterializeDirectFormatterValues(List<InterpolationPart> parts)
 	{
-		if (currentStatementPrefix is null
-			|| formatterExpression is not MemberReferenceExpression { Target: Expression target, Member: FunctionDefinition function } member
-			|| !IsInstanceInvocationFunction(function)
-			|| target is LiteralExpression
-			|| IsConstant(target)
-			|| CanTakeReceiverAddress(target))
+		List<InterpolationPart> result = [];
+		foreach (InterpolationPart part in parts)
 		{
-			return formatterExpression;
+			if (part is DirectFormatterPart direct)
+				result.Add(direct with { Value = MaterializeDirectFormatterValue(direct) });
+			else
+				result.Add(part);
 		}
+		return result;
+	}
 
-		string targetType = target.ResolvedType ?? ErrorType;
-		Expression loweredTarget = LowerExpression(CloneParamsExpansionExpression(target) ?? target) ?? target;
+	List<InterpolationPart> MaterializeDirectTextValues(List<InterpolationPart> parts)
+	{
+		List<InterpolationPart> result = [];
+		foreach (InterpolationPart part in parts)
+		{
+			if (part is DirectTextPart directText)
+			{
+				if (directText.Kind == DirectTextKind.CharArray)
+				{
+					result.Add(MaterializeDirectCharArrayTextValue(directText));
+					continue;
+				}
+				Expression value = MaterializeDirectTextValue(directText);
+				InterpolationPart? sourcePart = directText.SourcePart is DirectFormatterPart formatter
+					? formatter with { Value = value }
+					: directText.SourcePart;
+				result.Add(directText with { Value = value, SourcePart = sourcePart });
+			}
+			else
+				result.Add(part);
+		}
+		return result;
+	}
+
+	DirectTextPart MaterializeDirectCharArrayTextValue(DirectTextPart part)
+	{
+		if (!TryCreateParamsComponentExpressions(part.Value, out List<Expression> components) || components.Count != 2)
+			return part;
+
+		Expression elements = MaterializeDirectTextComponent(components[0], components[0].ResolvedType ?? "char*");
+		Expression length = MaterializeDirectTextComponent(components[1], components[1].ResolvedType ?? "nuint");
+		InterpolationPart? sourcePart = part.SourcePart is DirectFormatterPart formatter
+			? formatter with { Value = elements }
+			: part.SourcePart;
+		return part with
+		{
+			Value = elements,
+			ValueType = elements.ResolvedType ?? part.ValueType,
+			SourcePart = sourcePart,
+			LengthValue = length
+		};
+	}
+
+	Expression MaterializeDirectTextComponent(Expression component, string targetType)
+	{
+		Expression value = CloneParamsExpansionExpression(component) ?? component;
+		if (value is LiteralExpression || IsConstant(value))
+			return value;
+
+		Expression lowered = LowerExpression(value) ?? value;
+		DeclarationStatement local = CreateGeneratedLocal(
+			NewGeneratedLocalName("interpolatedValue"),
+			targetType,
+			TypeReferenceForResolvedName(targetType),
+			lowered);
+		currentStatementPrefix!.Add(local);
+		return CreateVariableReference(local.Target, targetType, value.SourceSyntax);
+	}
+
+	Expression MaterializeDirectTextValue(DirectTextPart part)
+	{
+		Expression value = CloneParamsExpansionExpression(part.Value) ?? part.Value;
+		if (value is LiteralExpression || IsConstant(value))
+			return value;
+
+		string targetType = value.ResolvedType ?? ErrorType;
+		Expression lowered = LowerExpression(value) ?? value;
+		DeclarationStatement local = CreateGeneratedLocal(
+			NewGeneratedLocalName("interpolatedValue"),
+			targetType,
+			TypeReferenceForResolvedName(targetType),
+			lowered);
+		currentStatementPrefix!.Add(local);
+		return CreateVariableReference(local.Target, targetType, value.SourceSyntax);
+	}
+
+	Expression MaterializeDirectFormatterValue(DirectFormatterPart part)
+	{
+		string originalType = part.Value.ResolvedType ?? ErrorType;
+		if (TryGetParamsComponentShape(null, originalType, "value", out ParamsComponentShape originalShape) && originalShape.Components.Count > 1)
+			return part.Value;
+
+		Expression value = CloneParamsExpansionExpression(part.Value) ?? part.Value;
+		if (value is LiteralExpression || IsConstant(value))
+			return value;
+
+		string targetType = value.ResolvedType ?? ErrorType;
+		if (TryGetParamsComponentShape(null, targetType, "value", out ParamsComponentShape shape) && shape.Components.Count > 1)
+			return value;
+
+		Expression loweredTarget = LowerExpression(value) ?? value;
 		DeclarationStatement local = CreateGeneratedLocal(
 			NewGeneratedLocalName("interpolatedValue"),
 			targetType,
 			TypeReferenceForResolvedName(targetType),
 			loweredTarget);
-		currentStatementPrefix.Add(local);
+		currentStatementPrefix!.Add(local);
+		return CreateVariableReference(local.Target, targetType, value.SourceSyntax);
+	}
 
-		MemberReferenceExpression captured = new()
+	CallExpression CreateDirectFormatterCall(DirectFormatterPart part, Expression buffer, string lengthType)
+	{
+		Expression receiver = CloneParamsExpansionExpression(part.Value) ?? part.Value;
+		MemberReferenceExpression target = new()
 		{
-			SourceSyntax = member.SourceSyntax,
-			Target = CreateVariableReference(local.Target, targetType, target.SourceSyntax),
-			Name = member.Name,
-			NameRange = member.NameRange,
-			Member = member.Member,
-			ResolvedType = member.ResolvedType
+			SourceSyntax = part.FormatterExpression.SourceSyntax ?? part.SourceSyntax,
+			Target = receiver,
+			Name = "format",
+			Member = part.Function,
+			ResolvedType = part.FormatterType
 		};
-		captured.Candidates.AddRange(member.Candidates);
-		return captured;
+		target.Candidates.Add(part.Function);
+		CallExpression call = new()
+		{
+			SourceSyntax = part.SourceSyntax,
+			Target = target,
+			ResolvedType = lengthType
+		};
+		call.Arguments.Add(new ArgumentExpression
+		{
+			SourceSyntax = buffer.SourceSyntax,
+			Value = buffer,
+			ResolvedType = buffer.ResolvedType
+		});
+		callTargets[call] = part.Function;
+		Dictionary<string, string> substitutions = [];
+		AddReceiverTypeGenericSubstitutions(receiver.ResolvedType ?? ErrorType, part.Function, substitutions);
+		if (substitutions.Count > 0)
+			callGenericSubstitutions[call] = substitutions;
+		return call;
 	}
 
 	bool TryGetConstantInterpolationText(InterpolatedStringExpressionSegment hole, out string text)
@@ -435,10 +733,28 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	void AddLiteralWritesToPointer(List<Statement> statements, Func<Expression> bufferElements, Func<Expression> bufferLength, Func<Expression> offset, string elementType, string lengthType, string text, SyntaxNode? syntax)
+	void AddLiteralWritesToPointer(List<Statement> statements, Func<Expression> bufferElements, Func<Expression> bufferLength, Func<Expression> offset, string elementType, string lengthType, string text, SyntaxNode? syntax, bool exactAppend = false)
 	{
 		if (text.Length == 0)
 			return;
+
+		if (exactAppend)
+		{
+			statements.Add(new LiteralCopyStatement
+			{
+				SourceSyntax = syntax,
+				ResolvedType = "void",
+				Buffer = bufferElements(),
+				Offset = offset(),
+				Count = LengthLiteral(text.Length, lengthType),
+				ElementType = elementType,
+				LengthType = lengthType,
+				Text = text,
+				ExactAppend = true
+			});
+			statements.Add(Assign(offset(), Add(offset(), LengthLiteral(text.Length, lengthType), lengthType), lengthType, syntax));
+			return;
+		}
 
 		DeclarationStatement start = CreateGeneratedLocal(
 			NewGeneratedLocalName("interpolatedCopyStart"),

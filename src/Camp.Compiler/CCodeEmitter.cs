@@ -3612,6 +3612,10 @@ public static class CCodeEmitter
 				case LiteralCopyStatement copy:
 					WriteLiteralCopyStatement(writer, copy, indent);
 					break;
+
+				case BufferCopyStatement copy:
+					WriteBufferCopyStatement(writer, copy, indent);
+					break;
 				case DeclarationStatement declaration:
 					WriteDeclarationStatement(writer, declaration, indent);
 					break;
@@ -4012,7 +4016,19 @@ public static class CCodeEmitter
 				return;
 
 			string elementType = FormatResolvedType(copy.ElementType, "").Declaration.Trim();
-			string source = "(" + elementType + "[" + copy.Text.Length.ToString(CultureInfo.InvariantCulture) + "]){" + string.Join(", ", copy.Text.Select(FormatCCharacterLiteral)) + "}";
+			string source = copy.ExactAppend && copy.ElementType == "char"
+				? FormatCStringLiteral(copy.Text)
+				: "(" + elementType + "[" + copy.Text.Length.ToString(CultureInfo.InvariantCulture) + "]){" + string.Join(", ", copy.Text.Select(FormatCCharacterLiteral)) + "}";
+			if (copy.ExactAppend)
+			{
+				string exactBuffer = FormatExpression(copy.Buffer);
+				string exactOffset = FormatExpression(copy.Offset);
+				string exactDestination = "(" + exactBuffer + " + " + exactOffset + ")";
+				string exactLength = FormatExpression(copy.Count);
+				WriteIndent(writer, indent);
+				writer.WriteLine(FormatMemoryCall("memcpy", "(void*)(" + exactDestination + ")", "(const void*)(" + source + ")", exactLength + " * sizeof(" + elementType + ")") + ";");
+				return;
+			}
 			string destination = "&" + FormatExpression(new IndexExpression
 			{
 				SourceSyntax = copy.SourceSyntax,
@@ -4031,6 +4047,18 @@ public static class CCodeEmitter
 			string length = FormatExpression(copy.Count);
 			string offset = FormatExpression(copy.Offset);
 
+			WriteIndent(writer, indent);
+			writer.WriteLine(FormatMemoryCall("memcpy", "(void*)(" + destination + ")", "(const void*)(" + source + ")", length + " * sizeof(" + elementType + ")") + ";");
+		}
+
+		void WriteBufferCopyStatement(TextWriter writer, BufferCopyStatement copy, int indent)
+		{
+			string elementType = FormatResolvedType(copy.ElementType, "").Declaration.Trim();
+			string buffer = FormatExpression(copy.Buffer);
+			string offset = FormatExpression(copy.Offset);
+			string destination = "(" + buffer + " + " + offset + ")";
+			string source = FormatExpression(copy.Source);
+			string length = FormatExpression(copy.Count);
 			WriteIndent(writer, indent);
 			writer.WriteLine(FormatMemoryCall("memcpy", "(void*)(" + destination + ")", "(const void*)(" + source + ")", length + " * sizeof(" + elementType + ")") + ";");
 		}

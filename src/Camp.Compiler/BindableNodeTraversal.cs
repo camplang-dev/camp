@@ -412,6 +412,16 @@ internal static class BindableNodeTraversal
 				if (copy.Count is not null)
 					yield return copy.Count;
 				break;
+			case BufferCopyStatement copy:
+				if (copy.Buffer is not null)
+					yield return copy.Buffer;
+				if (copy.Offset is not null)
+					yield return copy.Offset;
+				if (copy.Source is not null)
+					yield return copy.Source;
+				if (copy.Count is not null)
+					yield return copy.Count;
+				break;
 			case DeclarationStatement declaration:
 				yield return declaration.Target;
 				if (declaration.InitialValue is not null)
@@ -779,6 +789,12 @@ internal static class BindableNodeTraversal
 			case LiteralCopyStatement copy:
 				copy.Buffer = Expression(copy.Buffer);
 				copy.Offset = Expression(copy.Offset);
+				copy.Count = Expression(copy.Count);
+				break;
+			case BufferCopyStatement copy:
+				copy.Buffer = Expression(copy.Buffer);
+				copy.Offset = Expression(copy.Offset);
+				copy.Source = Expression(copy.Source);
 				copy.Count = Expression(copy.Count);
 				break;
 			case DeclarationStatement declaration:

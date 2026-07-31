@@ -13,6 +13,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<ConstructionExpression, FunctionDefinition> constructionTargets = [];
 	readonly Dictionary<CallExpression, List<ParameterDefinition>> callableInvocationParameters = [];
 	readonly Dictionary<CallExpression, Dictionary<string, string>> callGenericSubstitutions = [];
+	readonly Dictionary<InterpolatedStringExpressionSegment, InterpolationPart> interpolationParts = [];
 	readonly Dictionary<FunctionDefinition, Dictionary<string, LabelStatement>> functionLabels = [];
 	FunctionDefinition? currentAnalysisFunction;
 
@@ -1246,12 +1247,24 @@ public sealed partial class BindableNodeAnalyzer
 		bool success = true;
 		foreach (InterpolatedStringExpressionSegment hole in runtimeHoles)
 		{
-			if (!TryBindInterpolationHoleFormatter(hole, scope, typeScope, interpolation.SourceSyntax, out Expression? formatterExpression))
+			if (!TryBindInterpolationHoleFormatter(hole, scope, typeScope, interpolation.SourceSyntax, out InterpolationPart? part))
 			{
 				success = false;
 				continue;
 			}
-			hole.Formatter = formatterExpression;
+			if (part is null)
+			{
+				success = false;
+				continue;
+			}
+			interpolationParts[hole] = part;
+			hole.Formatter = part switch
+			{
+				DirectFormatterPart direct => direct.FormatterExpression,
+				RuntimeFormatterValuePart runtime => runtime.FormatterValue,
+				DirectTextPart directText => directText.Value,
+				_ => null
+			};
 		}
 
 		interpolation.ResolvedType = success ? resultType : ErrorType;
@@ -1288,17 +1301,19 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	bool TryBindInterpolationHoleFormatter(InterpolatedStringExpressionSegment hole, BodyScope scope, AnalysisScope typeScope, SyntaxNode? referenceSyntax, out Expression? formatterExpression)
+	bool TryBindInterpolationHoleFormatter(InterpolatedStringExpressionSegment hole, BodyScope scope, AnalysisScope typeScope, SyntaxNode? referenceSyntax, out InterpolationPart? part)
 	{
-		formatterExpression = null;
+		part = null;
 		Expression? value = hole.Expression;
 		string valueType = value?.ResolvedType ?? ErrorType;
 		if (valueType == ErrorType)
 			return false;
+		if (value is null)
+			return false;
 
 		if (TryGetFormatterShape(valueType, out FormatterShape direct) && direct.ElementType == "char")
 		{
-			formatterExpression = value;
+			part = new RuntimeFormatterValuePart(value, direct, hole.SourceSyntax);
 			return true;
 		}
 
@@ -1306,7 +1321,7 @@ public sealed partial class BindableNodeAnalyzer
 		candidates = [.. candidates.Where(candidate => candidate.Shape.ElementType == "char")];
 		if (candidates.Count == 1)
 		{
-			formatterExpression = candidates[0].Expression;
+			part = new DirectFormatterPart(value, candidates[0].Expression, candidates[0].Function, candidates[0].Shape, candidates[0].ResolvedType, hole.SourceSyntax);
 			return true;
 		}
 
@@ -1317,7 +1332,19 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	sealed record FormatterCandidate(Expression Expression, FormatterShape Shape, FunctionDefinition Function);
+	abstract record InterpolationPart(SyntaxNode? SourceSyntax);
+	sealed record LiteralTextPart(string Text, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
+	sealed record RuntimeFormatterValuePart(Expression FormatterValue, FormatterShape Shape, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
+	sealed record DirectFormatterPart(Expression Value, Expression FormatterExpression, FunctionDefinition Function, FormatterShape Shape, string FormatterType, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
+	sealed record DirectTextPart(Expression Value, string ValueType, DirectTextKind Kind, InterpolationPart? SourcePart, Expression? LengthValue, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
+	enum DirectTextKind
+	{
+		String,
+		CharArray,
+		Char
+	}
+
+	sealed record FormatterCandidate(Expression Expression, FormatterShape Shape, FunctionDefinition Function, string ResolvedType);
 
 	List<FormatterCandidate> FindFormatterCandidates(Expression? value, string valueType, FormatterShape? requiredFormatter, bool autoInference, BodyScope scope, AnalysisScope typeScope, SyntaxNode? referenceSyntax)
 	{
@@ -1379,7 +1406,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		MemberReferenceExpression reference = CreateMemberReference(member, value, resolvedType, function);
 		expressionRewrites[member] = reference;
-		return new FormatterCandidate(member, shape, function);
+		return new FormatterCandidate(member, shape, function, resolvedType);
 	}
 
 	static bool FormatterShapesMatch(FormatterShape actual, FormatterShape expected)

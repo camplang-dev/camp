@@ -1161,6 +1161,12 @@ public sealed partial class BindableNodeAnalyzer
 				yield return (null, copy.Offset);
 				yield return (null, copy.Count);
 				break;
+			case BufferCopyStatement copy:
+				yield return (null, copy.Buffer);
+				yield return (null, copy.Offset);
+				yield return (null, copy.Source);
+				yield return (null, copy.Count);
+				break;
 			case DeclarationStatement declaration:
 				yield return (null, declaration.InitialValue);
 				break;

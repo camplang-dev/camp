@@ -767,6 +767,19 @@ public sealed class BindableNodeCodeSerializer
 				writer.WriteLine(" */");
 				break;
 
+			case BufferCopyStatement copy:
+				WriteIndent();
+				writer.Write("/* copy ");
+				WriteExpression(copy.Source);
+				writer.Write(" into ");
+				WriteExpression(copy.Buffer);
+				writer.Write("[");
+				WriteExpression(copy.Offset);
+				writer.Write("] count ");
+				WriteExpression(copy.Count);
+				writer.WriteLine(" */");
+				break;
+
 			case DeclarationStatement declaration:
 				WriteDeclarationStatement(declaration);
 				break;
