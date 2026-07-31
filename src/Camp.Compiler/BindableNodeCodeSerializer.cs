@@ -1044,6 +1044,13 @@ public sealed class BindableNodeCodeSerializer
 				WriteExpression(within.Expression, GetPrecedence(within));
 				break;
 
+			case PreparedBufferExpression prepared:
+				writer.Write("prep ");
+				if (prepared.HeapAllocated)
+					writer.Write("new ");
+				WriteExpression(prepared.Expression, GetPrecedence(prepared));
+				break;
+
 			case SizeOfExpression sizeOf:
 				writer.Write("sizeof(");
 				WriteType(sizeOf.Type);
@@ -1610,6 +1617,8 @@ public sealed class BindableNodeCodeSerializer
 			writer.Write("thrown ");
 		else if (parameter.Modifier == ParameterModifier.In)
 			writer.Write("in ");
+		else if (parameter.Modifier == ParameterModifier.Prep)
+			writer.Write("prep ");
 
 		if (parameter is ThisParameterDefinition)
 		{
@@ -2373,7 +2382,7 @@ public sealed class BindableNodeCodeSerializer
 			ConditionalExpression => 2,
 			RangeExpression => 3,
 			BinaryExpression binary => GetBinaryPrecedence(binary.Operator),
-			UnaryExpression or CastExpression or FinallyCleanupExpression or WithinExpression => 12,
+			UnaryExpression or CastExpression or FinallyCleanupExpression or WithinExpression or PreparedBufferExpression => 12,
 			CallExpression or IndexExpression or MemberExpression or MemberReferenceExpression or NamelessIndexerExpression or PostfixUpdateExpression => 13,
 			_ => 14
 		};

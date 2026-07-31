@@ -586,6 +586,7 @@ public class UnaryExpressionSyntax : ExpressionSyntax
 public class UnaryPrefixSyntax : SyntaxNode
 {
 	public TokenRange? OperatorOrKeyword { get; set; }
+	public Token? NewKeyword { get; set; }
 	public Token? OpenParenToken { get; set; }
 	public ExpressionSyntax? Expression { get; set; }
 	public Token? CloseParenToken { get; set; }

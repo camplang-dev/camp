@@ -159,6 +159,12 @@ public class WithinExpression : Expression
 	public Expression? Expression { get; set; }
 }
 
+public class PreparedBufferExpression : Expression
+{
+	public Expression? Expression { get; set; }
+	public bool HeapAllocated { get; set; }
+}
+
 public class SizeOfExpression : Expression
 {
 	public TypeReference? Type { get; set; }

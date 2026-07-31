@@ -565,6 +565,10 @@ internal static class BindableNodeTraversal
 				if (within.Expression is not null)
 					yield return within.Expression;
 				break;
+			case PreparedBufferExpression prepared:
+				if (prepared.Expression is not null)
+					yield return prepared.Expression;
+				break;
 			case SizeOfExpression sizeOf:
 				if (sizeOf.Type is not null)
 					yield return sizeOf.Type;
@@ -874,6 +878,9 @@ internal static class BindableNodeTraversal
 			case WithinExpression within:
 				within.Context = Expression(within.Context);
 				within.Expression = Expression(within.Expression);
+				break;
+			case PreparedBufferExpression prepared:
+				prepared.Expression = Expression(prepared.Expression);
 				break;
 			case SizeOfExpression sizeOf:
 				sizeOf.Type = Type(sizeOf.Type);

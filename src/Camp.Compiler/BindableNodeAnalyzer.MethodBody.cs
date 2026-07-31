@@ -1107,6 +1107,7 @@ public sealed partial class BindableNodeAnalyzer
 			CastExpression cast => BodyAnalyzeCastExpression(cast, scope, typeScope),
 			ConstructionExpression construction => BodyAnalyzeConstructionExpression(construction, scope, typeScope, targetType),
 			WithinExpression within => BodyAnalyzeWithinExpression(within, scope, typeScope, targetType),
+			PreparedBufferExpression prepared => BodyAnalyzePreparedBufferExpression(prepared, scope, typeScope, targetType),
 			SizeOfExpression sizeOf => BodyAnalyzeSizeOfExpression(sizeOf, typeScope),
 			VTableOfExpression vtableOf => BodyAnalyzeVTableOfExpression(vtableOf, typeScope),
 			NameOfExpression nameOf => BodyAnalyzeNameOfExpression(nameOf, scope, typeScope, targetType),
@@ -1140,6 +1141,13 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		expressionConstants[expression] = true;
 		return expression.Selector == CallerSourceCaptureSelector.SourceLine ? "uint" : "string";
+	}
+
+	string BodyAnalyzePreparedBufferExpression(PreparedBufferExpression expression, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	{
+		Report(GetRange(expression.SourceSyntax), "prep expressions are not implemented yet.");
+		BodyAnalyzeExpression(expression.Expression, scope, typeScope, targetType);
+		return ErrorType;
 	}
 
 	string BodyAnalyzeSourceOfExpression(SourceOfExpression expression)

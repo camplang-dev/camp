@@ -507,6 +507,15 @@ public sealed partial class BindableNodeBuilder
 					Expression = expression
 				};
 			}
+			else if (prefix.OperatorOrKeyword?.Value == "prep")
+			{
+				expression = new PreparedBufferExpression
+				{
+					SourceSyntax = prefix,
+					Expression = expression,
+					HeapAllocated = prefix.NewKeyword is not null
+				};
+			}
 			else
 			{
 				expression = new UnaryExpression
@@ -809,6 +818,7 @@ public sealed partial class BindableNodeBuilder
 			"postpone" => UnaryOperator.Postpone,
 			"throw" => UnaryOperator.Throw,
 			"within" => UnaryOperator.Within,
+			"prep" => UnaryOperator.Plus,
 			_ => UnaryOperator.Plus
 		};
 	}

@@ -1876,6 +1876,10 @@ public sealed partial class BindableNodeBuilder
 				parameter.Modifier = ParameterModifier.Upon;
 				break;
 
+			case "prep":
+				parameter.Modifier = ParameterModifier.Prep;
+				break;
+
 			case "overload":
 				parameter.IsOverloadSelector = true;
 				break;

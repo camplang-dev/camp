@@ -34,6 +34,10 @@ public sealed partial class BindableNodeAnalyzer
 					currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
 					return lowered ?? within.Expression;
 
+			case PreparedBufferExpression prepared:
+				prepared.Expression = LowerExpression(prepared.Expression);
+				break;
+
 			case GroupedExpression grouped:
 				foreach (GroupedExpressionItem item in grouped.Items)
 					item.Expression = LowerExpression(item.Expression);
